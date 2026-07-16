@@ -3,11 +3,11 @@
 
 import re
 
-import rules
-from rules import calc_contest_date
-from contest_definitions import CONTEST_DEFINITIONS, CONTEST_SCORING
-from utils import CURRENT_YEAR, locator_to_latlon, haversine
-from storage import shared_log
+import radiocontest_rules as rules
+from radiocontest_rules import calc_contest_date
+from radiocontest_definitions import CONTEST_DEFINITIONS, CONTEST_SCORING
+from radiocontest_utils import CURRENT_YEAR, locator_to_latlon, haversine
+from radiocontest_storage import shared_log
 
 # ─── GÉNÉRATION DU SYSTÈME PROMPT ────────────────────────────────────────────
 def build_system_prompt(cfg):
@@ -350,7 +350,7 @@ jamais répondre à ce type de question avec le format de contacts.
 
 3 onglets en haut de chaque page : CARTE IA · LOGBOOK · CONFIG
 
-── ONGLET CONFIG (configuration.html) — 5 étapes ──────────────
+── ONGLET CONFIG (radiocontest_configuration.html) — 5 étapes ──────────────
 1. MA STATION : Indicatif, Indicatif concours (si /P ou club),
    Locator Maidenhead (6 car., ex JN15XC), Ville/QTH, Altitude (m),
    Code postal, jusqu'à 5 opérateurs (OP1-OP5) pour le multi-op.
@@ -364,7 +364,7 @@ jamais répondre à ce type de question avec le format de contacts.
 En haut de la page : PROFIL permet de sauvegarder/charger plusieurs
 configs nommées (utile pour plusieurs sites d'opération).
 
-── ONGLET LOGBOOK (logbook.html) ───────────────────────────────
+── ONGLET LOGBOOK (radiocontest_logbook.html) ───────────────────────────────
 Au premier lancement (config incomplète), une fenêtre demande
 indicatif, locator (bouton "📍 GPS" pour le remplir automatiquement),
 opérateur et concours.
@@ -379,7 +379,7 @@ ON4KST (copie un message de CQ), NOUVEAU LOG (réinitialise tout —
 irréversible), STATS, CHECKLIST (vérifie config/base d'indicatifs/
 connexion/heure avant de démarrer).
 
-── ONGLET CARTE IA (radiocontest.html) — cette page ────────────
+── ONGLET CARTE IA (radiocontest_carte.html) — cette page ────────────
 Chat avec toi + carte du terrain. Boutons rapides : ANALYSER, SCORE,
 SPOTS, PROP, MULTS, RÉSUMÉ. Bouton "🗺️ EUROPE" en haut change la vue
 de la carte (Europe/Monde/USA/France).
@@ -582,7 +582,7 @@ def build_terrain_context(logs, spots_by_band, cfg):
         if not log_data.get('qsos'):
             lines.append("  (aucun QSO)")
 
-    # ── LOG PARTAGÉ MULTI-OP (logbook.html) ──────────────────────────────────
+    # ── LOG PARTAGÉ MULTI-OP (radiocontest_logbook.html) ──────────────────────────────────
     if shared_log:
         lines.append(f"\nLOG PARTAGÉ MULTI-OPÉRATEUR ({len(shared_log)} QSO) :")
         for q in shared_log[-30:]:  # 30 derniers

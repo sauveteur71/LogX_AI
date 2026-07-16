@@ -7,7 +7,7 @@ import re
 import time
 import socket
 
-from utils import MODES_NUMERIQUES, fetch_url, is_digital_mode, locator_to_latlon
+from radiocontest_utils import MODES_NUMERIQUES, fetch_url, is_digital_mode, locator_to_latlon
 
 # ─── CORRESPONDANCE BANDES → CLUSTERS ────────────────────────────────────────
 CLUSTER_MAP = {

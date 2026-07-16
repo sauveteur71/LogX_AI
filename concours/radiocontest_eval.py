@@ -137,7 +137,7 @@ def main():
     ap.add_argument('--only', help='ne joue que les cas dont le nom contient ce texte')
     args = ap.parse_args()
 
-    from rules_ai import analyze_rules
+    from radiocontest_rules_ai import analyze_rules
     analyze = _mock_analyze if args.mock else analyze_rules
 
     api_key = os.environ.get('ANTHROPIC_API_KEY', '')
@@ -155,7 +155,7 @@ def main():
                   'contest_name': case['name']}
         if 'file' in case:
             path = os.path.join(os.path.dirname(os.path.abspath(__file__)), case['file'])
-            from rules import extract_document_text
+            from radiocontest_rules import extract_document_text
             with open(path, 'rb') as f:
                 raw = f.read()
             if args.mock:

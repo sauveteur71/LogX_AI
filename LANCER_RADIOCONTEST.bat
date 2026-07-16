@@ -33,7 +33,7 @@ if %errorlevel% == 0 (
 
 :: Lancer le serveur depuis le bon dossier (chemin relatif)
 echo  [..] Lancement du serveur Python...
-start "RadioContest Serveur" /MIN cmd /k "cd /d ""%DOSSIER%"" && python serveur.py"
+start "RadioContest Serveur" /MIN cmd /k "cd /d ""%DOSSIER%"" && python radiocontest_serveur.py"
 
 :: Attendre que le serveur demarre
 echo  [..] Attente demarrage (3 secondes)...
@@ -42,14 +42,14 @@ timeout /t 3 /nobreak >nul
 :ouvre_browser
 echo  [OK] Ouverture du navigateur...
 echo.
-echo  -> http://localhost:8080/logbook.html
-echo  -> http://localhost:8080/configuration.html
+echo  -> http://localhost:8080/radiocontest_logbook.html
+echo  -> http://localhost:8080/radiocontest_configuration.html
 echo.
 
 :: Ouvrir dans le navigateur par defaut (Chrome ou autre)
-start "" "http://localhost:8080/configuration.html"
+start "" "http://localhost:8080/radiocontest_configuration.html"
 timeout /t 1 /nobreak >nul
-start "" "http://localhost:8080/logbook.html"
+start "" "http://localhost:8080/radiocontest_logbook.html"
 
 echo  ================================================
 echo    Logiciel ouvert ! Bonne chance pour le concours

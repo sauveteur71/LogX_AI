@@ -4,7 +4,7 @@
     {
       "name": "radiocontest-server",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["serveur.py"],
+      "runtimeArgs": ["radiocontest_serveur.py"],
       "cwd": "concours",
       "port": 8080
     }

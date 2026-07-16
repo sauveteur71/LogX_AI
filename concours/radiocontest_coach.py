@@ -13,7 +13,7 @@ l'utilisateur peut avoir surchargé.
 """
 import datetime
 
-from contest_definitions import CONTEST_DEFINITIONS
+from radiocontest_definitions import CONTEST_DEFINITIONS
 
 HF_BANDS = ('1.8', '3.5', '7', '14', '21', '28')
 

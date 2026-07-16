@@ -578,16 +578,16 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
 <!-- NAV -->
 <nav class="app-nav">
-  <a href="configuration.html" onclick="intentionalNavigation=true">⚙ CONFIG</a>
-  <a href="logbook.html" class="active" onclick="intentionalNavigation=true">📋 LOGBOOK</a>
-  <a href="radiocontest.html" onclick="intentionalNavigation=true">🗺️ CARTE IA</a>
-  <a href="calendrier.html" onclick="intentionalNavigation=true">📅 CALENDRIER</a>
+  <a href="radiocontest_configuration.html" onclick="intentionalNavigation=true">⚙ CONFIG</a>
+  <a href="radiocontest_logbook.html" class="active" onclick="intentionalNavigation=true">📋 LOGBOOK</a>
+  <a href="radiocontest_carte.html" onclick="intentionalNavigation=true">🗺️ CARTE IA</a>
+  <a href="radiocontest_calendrier.html" onclick="intentionalNavigation=true">📅 CALENDRIER</a>
   <div class="nav-spacer"></div>
   <div class="nav-info">
     OP : <span id="currentOp" style="color:var(--accent)">—</span>
   </div>
 </nav>
-<script src="statusbar.js"></script>
+<script src="radiocontest_statusbar.js"></script>
 
 <!-- RÉSEAU -->
 <div class="net-status">
@@ -596,7 +596,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <span style="margin-left:12px">Postes connectés : <span class="net-peers" id="netPeers">—</span></span>
   <span style="margin-left:12px;color:var(--muted)">Serveur : <span id="serverAddr" style="color:var(--accent2)">localhost:8080</span></span>
   <span id="backupTime" style="margin-left:12px;font-family:var(--font-mono);font-size:9px;color:var(--muted)">Backup: —</span>
-  <span style="margin-left:auto;font-family:var(--font-mono);font-size:9px;color:var(--muted)">Partage : connecte les autres PC au même WiFi → http://<span id="localIP">TON-IP</span>:8080/logbook.html</span>
+  <span style="margin-left:auto;font-family:var(--font-mono);font-size:9px;color:var(--muted)">Partage : connecte les autres PC au même WiFi → http://<span id="localIP">TON-IP</span>:8080/radiocontest_logbook.html</span>
 </div>
 
 <!-- SCORE BANNER -->
@@ -885,13 +885,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
           <div style="background:#13152A;border:2px solid #FF6B00;border-radius:10px;padding:20px;margin-bottom:24px">
             <div style="color:#B8A040;font-size:13px;margin-bottom:10px">ÉTAPE 1 — Lance le serveur dans un terminal :</div>
             <div style="color:#00FF88;font-size:17px;font-weight:700;letter-spacing:1px">cd "C:\\Users\\parri\\SynologyDrive\\RADIOAMATEUR\\Activites\\Rallye des point haut\\concours"</div>
-            <div style="color:#00FF88;font-size:17px;font-weight:700;margin-top:8px">python serveur.py</div>
+            <div style="color:#00FF88;font-size:17px;font-weight:700;margin-top:8px">python radiocontest_serveur.py</div>
           </div>
           <div style="background:#13152A;border:2px solid #00D4FF;border-radius:10px;padding:20px;margin-bottom:30px">
             <div style="color:#B8A040;font-size:13px;margin-bottom:10px">ÉTAPE 2 — Accède via cette adresse :</div>
-            <a href="http://localhost:8080/logbook.html" style="color:#00D4FF;font-size:20px;font-weight:700;text-decoration:none;letter-spacing:1px">http://localhost:8080/logbook.html</a>
+            <a href="http://localhost:8080/radiocontest_logbook.html" style="color:#00D4FF;font-size:20px;font-weight:700;text-decoration:none;letter-spacing:1px">http://localhost:8080/radiocontest_logbook.html</a>
           </div>
-          <a href="http://localhost:8080/logbook.html"
+          <a href="http://localhost:8080/radiocontest_logbook.html"
              style="display:inline-block;background:linear-gradient(135deg,#00FF88,#00D4FF);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
             ▶ OUVRIR VIA LE SERVEUR
           </a>
@@ -906,7 +906,7 @@ let myCall     = window._initCall    || '';
 let myLocator  = window._initLocator || '';
 let myOp = 'OP1';
 
-// Lire le concours depuis la config sauvegardée (configuration.html) ou défaut VHF
+// Lire le concours depuis la config sauvegardée (radiocontest_configuration.html) ou défaut VHF
 (function initFromConfig(){
   try{
     const cfg = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
@@ -1011,7 +1011,7 @@ const CONTEST_SCHEDULE = {
 };
 
 // ─── SÉLECTEUR CONCOURS (liste groupée pour csFilter/csSelect/csSetValue) ─────
-// Mêmes id que configuration.html, groupés pour le combobox cherchable du modal.
+// Mêmes id que radiocontest_configuration.html, groupés pour le combobox cherchable du modal.
 const CS_DATA = [
   { g:'REF', items:[
     {v:'REF_CHALLENGE_THF', l:'Challenge THF'},
@@ -1371,7 +1371,7 @@ function setupDone(){
   myOp = op;
   currentContest = cont;
 
-  // Synchroniser le concours dans la config partagée (configuration.html le lira aussi)
+  // Synchroniser le concours dans la config partagée (radiocontest_configuration.html le lira aussi)
   let stored = {};
   try{
     stored = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
@@ -3677,7 +3677,7 @@ window.addEventListener('storage', e => {
     renderBandButtons(currentContest);
     renderModeButtons(currentContest);
   }
-  // Suivre le thème jour/nuit choisi dans un autre onglet (ex: configuration.html)
+  // Suivre le thème jour/nuit choisi dans un autre onglet (ex: radiocontest_configuration.html)
   if(e.key === 'rc_theme'){
     const day = e.newValue === 'day';
     document.body.classList.toggle('day-mode', day);

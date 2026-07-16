@@ -2,7 +2,7 @@
    RadioContest AI — Barre de statut permanente (Phase 1 UX)
    Injectée sur toutes les pages : concours actif · temps restant ·
    dernière sauvegarde · dernier check règlements.
-   Inclusion : <script src="statusbar.js"></script> (après la nav).
+   Inclusion : <script src="radiocontest_statusbar.js"></script> (après la nav).
    S'appuie sur les variables CSS communes des pages (--bg2, --border, ...).
    ──────────────────────────────────────────────────────────────────────────── */
 (function(){
@@ -47,7 +47,7 @@
       💾 <span class="rcsb-val" id="rcsbSave">—</span>
     </div>
     <div class="rcsb-item" title="Dernière vérification automatique des règlements par le serveur">
-      📄 <a href="calendrier.html" id="rcsbRules">règlements : —</a>
+      📄 <a href="radiocontest_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>`;
 
   // ── Mode débutant/expert GLOBAL (choisi dans CONFIG via 🎚) ────────────────
