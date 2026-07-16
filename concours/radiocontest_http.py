@@ -1083,11 +1083,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 payload = json.loads(body)
                 if payload.get('confirm') == 'RESET':
+                    from radiocontest_storage import archive_current_log
+                    archived = archive_current_log()
                     with log_lock:
                         shared_log.clear()
                     save_log_to_disk()
                     print('[LOG] Log reinitialise !')
-                    self._json({'ok': True})
+                    self._json({'ok': True, 'archived': archived})
                 else:
                     self._json({'error': 'Confirmation requise'}, 400)
             except Exception as e:
