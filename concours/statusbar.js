@@ -50,6 +50,16 @@
       📄 <a href="calendrier.html" id="rcsbRules">règlements : —</a>
     </div>`;
 
+  // ── Mode débutant/expert GLOBAL (choisi dans CONFIG via 🎚) ────────────────
+  // Toutes les pages masquent leurs éléments .expert-only en mode simple ;
+  // la page config gère son propre défaut, ici on applique juste le choix.
+  if (localStorage.getItem('rc_ui_mode') === 'simple'){
+    document.body.classList.add('simple-mode');
+    const st = document.createElement('style');
+    st.textContent = 'body.simple-mode .expert-only{display:none!important}';
+    document.head.appendChild(st);
+  }
+
   // Insertion : après la nav si présente, sinon après le header, sinon en tête de body
   function insert(){
     const nav = document.querySelector('nav.app-nav') || document.querySelector('.nav-links');

@@ -1,55 +1,58 @@
 {
-  "WAEDC_CW": {
-    "definition": {
-      "name": "WAE DX Contest",
-      "organizer": "DARC",
-      "date_rule": "second_full_weekend_august",
-      "bands": [
-        "3.5",
-        "7",
-        "14",
-        "21",
-        "28"
-      ],
-      "modes": [
-        "CW"
-      ],
-      "exchange": "RST + numéro de série progressif à partir de 001 (000 si l'autre station n'envoie pas de numéro). QTC : série de 1 à 10 QSOs (heure, indicatif, numéro de série).",
-      "scoring": {
-        "bricks": {
-          "points": [
-            {
-              "when": "always",
-              "points": 1
-            }
-          ],
-          "multiplier": {
-            "kind": "zone_dxcc"
-          },
-          "validity": "different_continent",
-          "validity_fail_explanation": "Station {dx_base} en Europe — QSO non valable en WAE (EU↔DX uniquement)",
-          "mult_weight_by_band": {
-            "3.5": 4,
-            "7": 3,
-            "14": 2,
-            "21": 2,
-            "28": 2
-          }
-        },
-        "note": "Score final = (total QSOs + total QTCs toutes bandes) × somme des multiplicateurs pondérés. Multiplicateur pondéré : pays travaillés sur 3,5 MHz × 4, sur 7 MHz × 3, sur 14/21/28 MHz × 2. Pour les stations non-européennes : multiplicateur = nombre de pays WAE travaillés par bande. Pour les stations européennes : chaque entité DXCC non-européenne compte comme multiplicateur (avec subdivision par district numérique pour W, VE, VK, ZL, ZS, JA, BY, PY, RA8/9/0). QTC : chaque QTC correctement transféré vaut 1 point pour l'émetteur et 1 point pour le récepteur.",
-        "unit": "(QSOs + QTCs) × multiplicateurs pondérés par bande"
-      },
-      "log_format": "CABRILLO",
-      "duration_h": 48,
-      "start_utc": "00:00",
-      "log_deadline": "7_days_after",
-      "log_submit": "https://dxhf2.darc.de/~waecwlog/upload.cgi",
-      "notes": "Concours en trois éditions distinctes : CW (2e week-end complet août), SSB (2e week-end complet septembre), RTTY (2e week-end complet novembre). Les stations Single-OP ne peuvent opérer que 36 h sur 48 h (off-time minimum 60 min consécutives). QTC : rapport de QSOs de concours retransmis à une station européenne (sauf RTTY : entre continents différents). Maximum 10 QTCs échangés entre deux stations. Multi-OP : changement de bande toutes les 10 min minimum (sauf multiplicateur). Antennes/émetteurs dans un cercle de 2 km de diamètre. Utilisation du DX cluster autorisée dans toutes les catégories. RTTY : pas de limite continentale pour les QSOs, QTCs uniquement entre continents différents. Segments hors-concours définis par bande/mode à respecter. Club competition : somme des scores des trois WAE. Enregistrement audio requis sur demande pour le Top 5 de chaque catégorie.",
-      "rules_url": "https://www.darc.de/der-club/referate/conteste/wae-dx-contest/en/wae-rules/"
+ "WAEDC_CW": {
+  "definition": {
+   "name": "WAE DX Contest",
+   "organizer": "DARC",
+   "date_rule": "second_full_weekend_august",
+   "bands": [
+    "3.5",
+    "7",
+    "14",
+    "21",
+    "28"
+   ],
+   "modes": [
+    "CW"
+   ],
+   "exchange": "RST + numéro de série progressif à partir de 001 (000 si l'autre station n'envoie pas de numéro). QTC : série de 1 à 10 QSOs (heure, indicatif, numéro de série).",
+   "scoring": {
+    "bricks": {
+     "points": [
+      {
+       "when": "always",
+       "points": 1
+      }
+     ],
+     "multiplier": {
+      "kind": "zone_dxcc"
+     },
+     "validity": "different_continent",
+     "validity_fail_explanation": "Station {dx_base} en Europe — QSO non valable en WAE (EU↔DX uniquement)",
+     "mult_weight_by_band": {
+      "3.5": 4,
+      "7": 3,
+      "14": 2,
+      "21": 2,
+      "28": 2
+     }
     },
-    "validated_at": "2026-07-15T16:56:23.826771",
-    "source_url": "https://www.darc.de/der-club/referate/conteste/wae-dx-contest/en/wae-rules/",
-    "ai_confidence": "medium",
-    "imported_at": "2026-07-16T06:11:44.962592"
-  }
+    "note": "Score final = (total QSOs + total QTCs toutes bandes) × somme des multiplicateurs pondérés. Multiplicateur pondéré : pays travaillés sur 3,5 MHz × 4, sur 7 MHz × 3, sur 14/21/28 MHz × 2. Pour les stations non-européennes : multiplicateur = nombre de pays WAE travaillés par bande. Pour les stations européennes : chaque entité DXCC non-européenne compte comme multiplicateur (avec subdivision par district numérique pour W, VE, VK, ZL, ZS, JA, BY, PY, RA8/9/0). QTC : chaque QTC correctement transféré vaut 1 point pour l'émetteur et 1 point pour le récepteur.",
+    "unit": "(QSOs + QTCs) × multiplicateurs pondérés par bande"
+   },
+   "log_format": "CABRILLO",
+   "duration_h": 48,
+   "start_utc": "00:00",
+   "log_deadline": "7_days_after",
+   "log_submit": "https://dxhf2.darc.de/~waecwlog/upload.cgi",
+   "notes": "Concours en trois éditions distinctes : CW (2e week-end complet août), SSB (2e week-end complet septembre), RTTY (2e week-end complet novembre). Les stations Single-OP ne peuvent opérer que 36 h sur 48 h (off-time minimum 60 min consécutives). QTC : rapport de QSOs de concours retransmis à une station européenne (sauf RTTY : entre continents différents). Maximum 10 QTCs échangés entre deux stations. Multi-OP : changement de bande toutes les 10 min minimum (sauf multiplicateur). Antennes/émetteurs dans un cercle de 2 km de diamètre. Utilisation du DX cluster autorisée dans toutes les catégories. RTTY : pas de limite continentale pour les QSOs, QTCs uniquement entre continents différents. Segments hors-concours définis par bande/mode à respecter. Club competition : somme des scores des trois WAE. Enregistrement audio requis sur demande pour le Top 5 de chaque catégorie.",
+   "rules_url": "https://www.darc.de/der-club/referate/conteste/wae-dx-contest/en/wae-rules/",
+   "op_time_max_h": 36,
+   "off_time_min_min": 60,
+   "qtc": true
+  },
+  "validated_at": "2026-07-15T16:56:23.826771",
+  "source_url": "https://www.darc.de/der-club/referate/conteste/wae-dx-contest/en/wae-rules/",
+  "ai_confidence": "medium",
+  "imported_at": "2026-07-16T06:11:44.962592"
+ }
 }

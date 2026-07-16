@@ -4,7 +4,16 @@
   "title": "Définition d'un concours RadioContest AI",
   "description": "Schéma formel d'une entrée de CONTEST_DEFINITIONS (contest_definitions.py). C'est le contrat que devra respecter toute nouvelle définition de concours, qu'elle soit écrite à la main, importée du calendrier WA7BNM (Phase 4) ou extraite d'un règlement par l'IA (Phase 3). Le vocabulaire de date_rule est implémenté dans rules.py:calc_contest_date ; les types de scoring dans scoring.py:calc_qso_value.",
   "type": "object",
-  "required": ["name", "organizer", "date_rule", "bands", "modes", "exchange", "scoring", "log_format"],
+  "required": [
+    "name",
+    "organizer",
+    "date_rule",
+    "bands",
+    "modes",
+    "exchange",
+    "scoring",
+    "log_format"
+  ],
   "additionalProperties": false,
   "properties": {
     "name": {
@@ -14,7 +23,14 @@
     "organizer": {
       "type": "string",
       "description": "Organisateur : REF, IARU-R1, CQ Magazine, ARRL, SOTA, POTA, DARC, UBA...",
-      "examples": ["REF", "IARU-R1", "CQ Magazine", "ARRL", "SOTA", "POTA"]
+      "examples": [
+        "REF",
+        "IARU-R1",
+        "CQ Magazine",
+        "ARRL",
+        "SOTA",
+        "POTA"
+      ]
     },
     "check_url": {
       "type": "string",
@@ -45,16 +61,44 @@
     "bands": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Bandes autorisées, en MHz sous forme de chaîne : '1.8', '3.5', '7', '14', '21', '28', '50', '144', '432', '1296', '2320', '3400', '5760', '10368'...",
-      "examples": [["144", "432"], ["3.5", "7", "14", "21", "28"]]
+      "examples": [
+        [
+          "144",
+          "432"
+        ],
+        [
+          "3.5",
+          "7",
+          "14",
+          "21",
+          "28"
+        ]
+      ]
     },
     "modes": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Modes autorisés : SSB, CW, FM, RTTY, FT8, FT4... ou 'all'.",
-      "examples": [["SSB"], ["SSB", "CW", "FM"], ["all"]]
+      "examples": [
+        [
+          "SSB"
+        ],
+        [
+          "SSB",
+          "CW",
+          "FM"
+        ],
+        [
+          "all"
+        ]
+      ]
     },
     "exchange": {
       "type": "string",
@@ -63,23 +107,40 @@
     "scoring": {
       "type": "object",
       "anyOf": [
-        { "required": ["type"] },
-        { "required": ["bricks"] }
+        {
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "required": [
+            "bricks"
+          ]
+        }
       ],
       "description": "Règle de scoring. Deux formes : 'type' historique (raccourci converti en briques via scoring.py:LEGACY_SCORING_PRESETS) OU 'bricks' (composition explicite, format Phase 2 — c'est la forme que produira la lecture IA des règlements en Phase 3). Les autres champs paramètrent les points et multiplicateurs.",
       "properties": {
         "type": {
           "type": "string",
           "enum": [
-            "km", "km_x_locators", "km_x_large_locator_squares",
-            "zone_country_per_band", "prefix_multiplier", "power_state",
-            "fd_class", "dept_dxcc", "summit_points", "park_points"
+            "km",
+            "km_x_locators",
+            "km_x_large_locator_squares",
+            "zone_country_per_band",
+            "prefix_multiplier",
+            "power_state",
+            "fd_class",
+            "dept_dxcc",
+            "summit_points",
+            "park_points"
           ],
           "description": "Type de calcul : km (1 pt/km), km_x_locators (km × carrés locator), km_x_large_locator_squares (km × grands carrés), zone_country_per_band (zones+pays CQ par bande), prefix_multiplier (préfixes WPX), power_state (états/provinces ARRL), fd_class (classes Field Day), dept_dxcc (départements+DXCC REF), summit_points (SOTA), park_points (POTA)."
         },
         "bricks": {
           "type": "object",
-          "required": ["points"],
+          "required": [
+            "points"
+          ],
           "additionalProperties": false,
           "description": "Composition explicite de briques de scoring (moteur générique scoring.py). Un concours jamais vu se décrit en assemblant ces briques, sans coder de nouvelle branche.",
           "properties": {
@@ -89,36 +150,62 @@
               "description": "Règles ordonnées — la première dont le prédicat 'when' matche donne les points du QSO.",
               "items": {
                 "type": "object",
-                "required": ["points"],
+                "required": [
+                  "points"
+                ],
                 "additionalProperties": false,
                 "properties": {
                   "when": {
                     "type": "string",
-                    "enum": ["always", "same_country", "same_continent", "different_continent", "is_french", "is_na", "na_w_ve", "is_asia", "is_eu"],
+                    "enum": [
+                      "always",
+                      "same_country",
+                      "same_continent",
+                      "different_continent",
+                      "is_french",
+                      "is_na",
+                      "na_w_ve",
+                      "is_asia",
+                      "is_eu"
+                    ],
                     "default": "always",
                     "description": "Prédicat sur la relation ma station ↔ station DX (scoring.py:PREDICATES)."
                   },
                   "bands": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "Optionnel : la règle ne s'applique que sur ces bandes (MHz). Ex. CQ WPX : points doublés sur '1.8','3.5','7'."
                   },
                   "prefix_in": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "Optionnel : la règle ne s'applique qu'aux indicatifs commençant par un de ces préfixes. Ex. UBA : 10 pts pour ['ON','OO','OP']."
                   },
                   "points": {
                     "description": "Nombre fixe, 'per_km' (= distance en km), ou référence à un paramètre du bloc scoring : {'param': 'points_dx', 'default': 3}.",
                     "oneOf": [
-                      { "type": "number" },
-                      { "const": "per_km" },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "const": "per_km"
+                      },
                       {
                         "type": "object",
-                        "required": ["param"],
+                        "required": [
+                          "param"
+                        ],
                         "properties": {
-                          "param": { "type": "string" },
-                          "default": { "type": "number" }
+                          "param": {
+                            "type": "string"
+                          },
+                          "default": {
+                            "type": "number"
+                          }
                         },
                         "additionalProperties": false
                       }
@@ -130,15 +217,27 @@
             "multiplier": {
               "description": "Famille de multiplicateur à détecter (scoring.py:MULT_EVALUATORS), ou null si le concours n'a pas de multiplicateur.",
               "oneOf": [
-                { "type": "null" },
+                {
+                  "type": "null"
+                },
                 {
                   "type": "object",
-                  "required": ["kind"],
+                  "required": [
+                    "kind"
+                  ],
                   "additionalProperties": false,
                   "properties": {
                     "kind": {
                       "type": "string",
-                      "enum": ["locator", "large_square", "zone_dxcc", "prefix", "dept_dxcc", "na_section", "na_state"]
+                      "enum": [
+                        "locator",
+                        "large_square",
+                        "zone_dxcc",
+                        "prefix",
+                        "dept_dxcc",
+                        "na_section",
+                        "na_state"
+                      ]
                     }
                   }
                 }
@@ -148,14 +247,31 @@
               "oneOf": [
                 {
                   "type": "string",
-                  "enum": ["always", "same_country", "same_continent", "different_continent", "is_french", "is_na", "na_w_ve", "is_asia", "is_eu"]
+                  "enum": [
+                    "always",
+                    "same_country",
+                    "same_continent",
+                    "different_continent",
+                    "is_french",
+                    "is_na",
+                    "na_w_ve",
+                    "is_asia",
+                    "is_eu"
+                  ]
                 },
                 {
                   "type": "object",
-                  "required": ["prefix_in"],
+                  "required": [
+                    "prefix_in"
+                  ],
                   "additionalProperties": false,
                   "properties": {
-                    "prefix_in": { "type": "array", "items": { "type": "string" } }
+                    "prefix_in": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               ],
@@ -163,7 +279,9 @@
             },
             "mult_weight_by_band": {
               "type": "object",
-              "additionalProperties": { "type": "number" },
+              "additionalProperties": {
+                "type": "number"
+              },
               "description": "Multiplicateurs pondérés par bande : {'3.5': 4, '7': 3, '14': 2}. Ex. WAE : un pays vaut ×4 sur 80m, ×3 sur 40m, ×2 au-dessus."
             },
             "validity_fail_explanation": {
@@ -173,13 +291,21 @@
             "same_square_points": {
               "description": "Points fixes quand les deux stations sont dans le même grand carré locator (IARU R1). Nombre ou {'param', 'default'}.",
               "oneOf": [
-                { "type": "number" },
+                {
+                  "type": "number"
+                },
                 {
                   "type": "object",
-                  "required": ["param"],
+                  "required": [
+                    "param"
+                  ],
                   "properties": {
-                    "param": { "type": "string" },
-                    "default": { "type": "number" }
+                    "param": {
+                      "type": "string"
+                    },
+                    "default": {
+                      "type": "number"
+                    }
                   },
                   "additionalProperties": false
                 }
@@ -190,7 +316,14 @@
               "description": "Sans multiplicateur : paliers [distance_km, priorité] évalués dans l'ordre (ex. [[1000,1],[500,2],[200,3]]).",
               "items": {
                 "type": "array",
-                "prefixItems": [{ "type": "number" }, { "type": "integer" }],
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
                 "minItems": 2,
                 "maxItems": 2
               }
@@ -216,38 +349,85 @@
           }
         },
         "multiplier": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Nature du multiplicateur, ex. 'locator_squares', 'depts+DXCC', 'zones+pays'."
         },
         "unit": {
           "type": "string",
           "description": "Libellé lisible du calcul, affiché dans l'UI, ex. '1 pt/km', 'km × locators'."
         },
-        "points": { "type": ["number", "string"], "description": "Points de base par QSO." },
-        "points_phone": { "type": "number" },
-        "points_cw": { "type": "number" },
-        "points_digital": { "type": "number" },
-        "points_dx": { "type": ["number", "string"] },
-        "points_same_country": { "type": "number" },
-        "points_same_continent": { "type": "number" },
-        "mult": { "type": "string" },
-        "mult_qrp_non_commercial": { "type": "number" },
-        "mult_qrp_commercial": { "type": "number" },
-        "mult_100w": { "type": "number" },
-        "mult_hp": { "type": "number" },
-        "same_square_bonus": { "type": "number" },
-        "bonus": { "type": "string" },
-        "note": { "type": "string" }
+        "points": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Points de base par QSO."
+        },
+        "points_phone": {
+          "type": "number"
+        },
+        "points_cw": {
+          "type": "number"
+        },
+        "points_digital": {
+          "type": "number"
+        },
+        "points_dx": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "points_same_country": {
+          "type": "number"
+        },
+        "points_same_continent": {
+          "type": "number"
+        },
+        "mult": {
+          "type": "string"
+        },
+        "mult_qrp_non_commercial": {
+          "type": "number"
+        },
+        "mult_qrp_commercial": {
+          "type": "number"
+        },
+        "mult_100w": {
+          "type": "number"
+        },
+        "mult_hp": {
+          "type": "number"
+        },
+        "same_square_bonus": {
+          "type": "number"
+        },
+        "bonus": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
       },
       "additionalProperties": true
     },
     "log_format": {
       "type": "string",
-      "enum": ["EDI", "CABRILLO", "ADIF"],
+      "enum": [
+        "EDI",
+        "CABRILLO",
+        "ADIF"
+      ],
       "description": "Format de log attendu par l'organisateur."
     },
     "log_deadline": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Date limite d'envoi du log. Vocabulaire préféré : 'wednesday_after', '5_days_after', '7_days_after', '28_days_after', 'second_monday_after'. Texte libre toléré pour les cas particuliers."
     },
     "log_submit": {
@@ -265,6 +445,21 @@
     "self_spot_allowed": {
       "type": "boolean",
       "description": "true si l'auto-spot sur le cluster est autorisé par le règlement."
+    },
+    "op_time_max_h": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 48,
+      "description": "Durée d'opération maximale autorisée en heures si inférieure à la durée du concours (ex. WAE Single-Op : 36 h sur 48). Sert au coach pour le budget off-time."
+    },
+    "off_time_min_min": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Durée minimale d'une période de repos en minutes (ex. WAE : 60)."
+    },
+    "qtc": {
+      "type": "boolean",
+      "description": "true si le concours a un mécanisme de QTC (points additionnels par trafic retransmis, ex. WAE)."
     },
     "categories": {
       "type": "string",
