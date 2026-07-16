@@ -830,6 +830,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="export-btn" onclick="exportCSV()">📥 CSV</button>
       <button class="import-btn" onclick="triggerImport()" style="margin-left:8px">📂 IMPORTER</button>
       <button class="export-btn expert-only" onclick="exportON4KST()" style="color:var(--green);border-color:rgba(0,255,0,.4);margin-left:8px">📡 ON4KST</button>
+      <button class="export-btn" id="qtcBtn" onclick="addQTC()" style="display:none;color:var(--accent2);border-color:rgba(0,212,255,.4)" title="WAE : enregistrer un échange de QTC (1 pt chacun, max 10 par station)">✉ QTC : 0</button>
       <button class="export-btn" onclick="resetLog()" style="color:var(--red);border-color:rgba(255,45,85,.4);margin-left:8px">🗑️ NOUVEAU LOG</button>
       <button class="export-btn" onclick="showRatePanel()" style="color:var(--accent2);border-color:rgba(0,212,255,.4);margin-left:8px">📊 STATS</button>
       <button class="export-btn" onclick="showChecklist()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px">✅ CHECKLIST</button>

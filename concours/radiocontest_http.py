@@ -40,7 +40,24 @@ browser_spots_ts    = 0       # timestamp dernier push
 connected_peers = set()
 
 # ─── CONFIGURATION COURANTE (mise à jour par /config/save) ───────────────────
-current_config = {}    # reçu du client via POST /config/save
+# Persistée dans .server_config.json (gitignoré : contient les identifiants
+# ON4KST) : après un redémarrage du serveur, le coach, la statusbar et la
+# page mobile connaissent le concours actif sans attendre qu'un navigateur
+# recharge une page.
+SERVER_CONFIG_FILE = '.server_config.json'
+
+def _load_saved_config():
+    try:
+        with open(SERVER_CONFIG_FILE, encoding='utf-8') as f:
+            cfg = json.load(f)
+        if isinstance(cfg, dict) and cfg:
+            print(f"[CFG] Config restauree ({cfg.get('callsign','?')} / {cfg.get('contest','?')})")
+            return cfg
+    except Exception:
+        pass
+    return {}
+
+current_config = _load_saved_config()
 config_lock = threading.Lock()
 
 # ─── CACHE DXMAPS POUR LE COACH (TTL 10 min) ─────────────────────────────────
@@ -187,14 +204,19 @@ def do_refresh(cfg):
 
     print(f"[DATA] Refresh — {callsign} | {cfg.get('locator','?')} | {contest}")
 
-    HF_CONTESTS = {'ARRL_FD','CQ_WW_SSB','CQ_WW_CW','CQ_WPX_SSB','CQ_WPX_CW',
-                   'ARRL_DX_SSB','ARRL_DX_CW','REF_CDF_HF_SSB','REF_CDF_HF_CW',
-                   'REF_160M','F9NL','UFT_RENCONTRES'}
-    is_hf_contest = contest in HF_CONTESTS
-    # Pour les concours HF (ARRL_FD, CQ WW…), ne pas fetcher les spots VHF
-    # même si band_2m est coché dans la config (2m est secondaire en HF contest)
-    is_vhf_contest = (toggles.get('band_2m', False) or '144' in str(contest)) and not is_hf_contest
-    is_vhf = (toggles.get('band_2m', False) or toggles.get('band_70cm', False) or '144' in str(contest)) and not is_hf_contest
+    # ── Bandes du concours ACTIF depuis sa définition — plus jamais de liste
+    # codée en dur (l'ancienne HF_CONTESTS ignorait EU_HF_CHAMP, les WAEDC et
+    # tous les concours des Phases 3/4 : cluster vide le jour J).
+    HF_BAND_SET = {'1.8', '3.5', '7', '10', '14', '18', '21', '24', '28'}
+    cdef_bands = [str(b) for b in CONTEST_DEFINITIONS.get(contest, {}).get('bands', [])]
+    has_hf_bands = any(b in HF_BAND_SET for b in cdef_bands)
+    has_vhf_bands = any(b not in HF_BAND_SET for b in cdef_bands)
+    # Concours purement HF : ne pas fetcher les spots VHF même si un toggle
+    # 2m traîne dans la config (2m est secondaire en HF contest)
+    is_hf_contest = has_hf_bands and not has_vhf_bands
+    is_vhf = ('144' in cdef_bands or '432' in cdef_bands
+              or ((toggles.get('band_2m', False) or toggles.get('band_70cm', False)
+                   or '144' in str(contest)) and not is_hf_contest))
     hf_bands = ['band_20m','band_40m','band_80m','band_160m','band_10m','band_15m']
 
     # ── Lancement parallèle de toutes les sources réseau ─────────────────────
@@ -204,13 +226,15 @@ def do_refresh(cfg):
             'noaa': ex.submit(fetch_noaa_kindex),
             'rules': ex.submit(fetch_contest_rules, contest),
             '3830': ex.submit(fetch_3830_scores, contest, callsign)}
-    if is_vhf_contest:
+    if '144' in cdef_bands or (toggles.get('band_2m', False) and not is_hf_contest) \
+            or ('144' in str(contest) and not is_hf_contest):
         futs['spots_144'] = ex.submit(_fetch_spots_vhf_src, 144, no_digi)
-    if (toggles.get('band_70cm', False) or '432' in str(contest)) and not is_hf_contest:
+    if '432' in cdef_bands or (toggles.get('band_70cm', False) and not is_hf_contest) \
+            or ('432' in str(contest) and not is_hf_contest):
         futs['spots_432'] = ex.submit(_fetch_spots_vhf_src, 432, no_digi)
-    if toggles.get('band_6m', False) or contest == 'ARRL_FD':
+    if '50' in cdef_bands or toggles.get('band_6m', False):
         futs['spots_50'] = ex.submit(_fetch_spots_50_src, no_digi)
-    if is_hf_contest or any(toggles.get(b, False) for b in hf_bands):
+    if has_hf_bands or any(toggles.get(b, False) for b in hf_bands):
         futs['spots_hf'] = ex.submit(_fetch_spots_hf_src, callsign, no_digi)
     if is_vhf:
         futs['dxmaps'] = ex.submit(fetch_dxmaps_vhf)
@@ -837,6 +861,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 entry = {
                     'call': s.get('call', ''), 'band': s.get('band', ''),
                     'freq': s.get('freq', ''), 'locator': s.get('locator', ''),
+                    'lat': s.get('lat'), 'lon': s.get('lon'),
                     'dist_km': s.get('dist_km', 0), 'time': s.get('time', ''),
                     'source': s.get('source', ''),
                     'points': sc.get('direct_pts', 0),
@@ -854,6 +879,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     entry['cardinal'] = cardinal(deg)
                 out.append(entry)
             self._json({'spots': out, 'meta': meta})
+            return
+
+        # QTC (WAE) : total et détail par station
+        if path.startswith('/qtc/list'):
+            from radiocontest_storage import qtc_log, qtc_lock, qtc_total
+            cfg_snap = self._cfg_snapshot()
+            cid = cfg_snap.get('contest', '')
+            with qtc_lock:
+                entries = [q for q in qtc_log
+                           if not cid or q.get('contest', '') in ('', cid)]
+            self._json({'total': qtc_total(cid), 'entries': entries[-50:]})
             return
 
         # Exports du log partagé — Cabrillo v3 et ADIF 3
@@ -1050,8 +1086,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 cfg = json.loads(body)
                 with config_lock:
                     current_config = cfg
+                save_json_atomic(SERVER_CONFIG_FILE, cfg)
                 print(f"[CFG] Config reçue : {cfg.get('callsign','')} / {cfg.get('locator','')} / {cfg.get('contest','')}")
                 self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # QTC (WAE) : enregistrer un échange de QTC avec une station
+        if self.path == '/qtc/add':
+            try:
+                from radiocontest_storage import (qtc_log, qtc_lock,
+                                                  save_qtc_to_disk,
+                                                  qtc_count_for_call, qtc_total)
+                payload = json.loads(body)
+                call = str(payload.get('call', '')).upper().strip()
+                count = max(1, min(10, int(payload.get('count', 1))))
+                cfg_snap = self._cfg_snapshot()
+                cid = cfg_snap.get('contest', '')
+                already = qtc_count_for_call(call, cid)
+                if call and already + count > 10:
+                    self._json({'ok': False,
+                                'error': f"Max 10 QTC par station — déjà {already} "
+                                         f"avec {call}"}, 400)
+                    return
+                now_utc = datetime.datetime.utcnow()
+                with qtc_lock:
+                    qtc_log.append({'call': call, 'count': count, 'contest': cid,
+                                    'date': now_utc.strftime('%Y%m%d'),
+                                    'time': now_utc.strftime('%H:%M')})
+                save_qtc_to_disk()
+                print(f"[QTC] +{count} avec {call or '?'}")
+                self._json({'ok': True, 'total': qtc_total(cid),
+                            'with_call': already + count})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return

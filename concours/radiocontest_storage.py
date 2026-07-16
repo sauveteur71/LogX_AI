@@ -55,6 +55,47 @@ log_lock = threading.Lock()
 # (lookups HamQTH, imports, mises à jour navigateur).
 calldb_lock = threading.Lock()
 
+# ─── QTC (WAE) ───────────────────────────────────────────────────────────────
+# Trafic QTC échangé : chaque QTC transféré vaut 1 point au WAE
+# (score = (QSO + QTC) × mults). Max 10 par station correspondante.
+qtc_log = []           # [{call, count, contest, date, time}]
+qtc_lock = threading.Lock()
+QTC_FILE = 'qtc_log.json'
+
+
+def load_qtc_from_disk():
+    try:
+        if os.path.exists(QTC_FILE):
+            with open(QTC_FILE, encoding='utf-8') as f:
+                qtc_log[:] = json.load(f)
+            print(f"[QTC] {sum(q.get('count', 0) for q in qtc_log)} QTC charges")
+    except Exception as e:
+        print(f"[QTC] Chargement impossible : {e}")
+
+
+def save_qtc_to_disk():
+    try:
+        with qtc_lock:
+            data = list(qtc_log)
+        save_json_atomic(QTC_FILE, data)
+    except Exception as e:
+        print(f"[QTC] Erreur sauvegarde : {e}")
+
+
+def qtc_total(contest_id=''):
+    with qtc_lock:
+        return sum(q.get('count', 0) or 0 for q in qtc_log
+                   if not contest_id or q.get('contest', '') in ('', contest_id))
+
+
+def qtc_count_for_call(call, contest_id=''):
+    """Total déjà échangé avec cette station (plafond règlement : 10)."""
+    base = (call or '').upper().strip()
+    with qtc_lock:
+        return sum(q.get('count', 0) or 0 for q in qtc_log
+                   if str(q.get('call', '')).upper().strip() == base
+                   and (not contest_id or q.get('contest', '') in ('', contest_id)))
+
 
 def save_json_atomic(path, data, lock=None, compact=False):
     """Écriture JSON ATOMIQUE : fichier temporaire dans le même dossier puis

@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-07-15T14:18:53.565399",
+  "last_update": "2026-07-16T13:37:26.897629",
   "year": 2026,
   "dates": {
     "REF_RPH": {
@@ -106,13 +106,13 @@
     },
     "ARRL_DX_SSB": {
       "name": "ARRL DX — SSB",
-      "date": "third_full_weekend_march",
+      "date": "20/03/2027 → 21/03/2027",
       "year": 2027,
       "next_year": true
     },
     "ARRL_DX_CW": {
       "name": "ARRL DX — CW",
-      "date": "second_full_weekend_february",
+      "date": "13/02/2027 → 14/02/2027",
       "year": 2027,
       "next_year": true
     },
@@ -131,6 +131,90 @@
     "POTA": {
       "name": "Parks on the Air",
       "date": "Permanent",
+      "year": 2026,
+      "next_year": false
+    },
+    "WAEDC_SSB": {
+      "name": "WAE DX Contest — SSB",
+      "date": "12/09/2026 → 13/09/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "WAEDC_RTTY": {
+      "name": "WAE DX Contest — RTTY",
+      "date": "14/11/2026 → 15/11/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "UBA_DX_SSB": {
+      "name": "UBA DX Contest — SSB",
+      "date": "30/01/2027 → 31/01/2027 à 13h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "UBA_DX_CW": {
+      "name": "UBA DX Contest — CW",
+      "date": "27/02/2027 → 28/02/2027 à 13h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "EU_HF_CHAMP": {
+      "name": "European HF Championship",
+      "date": "01/08/2026 à 12h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "RUSSIAN_DX": {
+      "name": "Russian DX Contest",
+      "date": "20/03/2027 à 12h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "SP_DX": {
+      "name": "SP DX Contest",
+      "date": "03/04/2027 → 04/04/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "HA_DX": {
+      "name": "HA DX Contest",
+      "date": "16/01/2027 → 17/01/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ALL_ASIAN_CW": {
+      "name": "All Asian DX Contest — CW",
+      "date": "19/06/2027 à 00h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "ALL_ASIAN_SSB": {
+      "name": "All Asian DX Contest — SSB",
+      "date": "05/09/2026 → 06/09/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "STEW_PERRY": {
+      "name": "Stew Perry Topband Challenge",
+      "date": "19/12/2026 à 15h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_10M": {
+      "name": "ARRL 10-Meter Contest",
+      "date": "12/12/2026 → 13/12/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_160M": {
+      "name": "ARRL 160-Meter Contest",
+      "date": "05/12/2026 à 22h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "WAEDC_CW": {
+      "name": "WAE DX Contest",
+      "date": "08/08/2026 → 09/08/2026",
       "year": 2026,
       "next_year": false
     }
@@ -240,13 +324,13 @@
     },
     "ARRL_DX_SSB": {
       "name": "ARRL DX — SSB",
-      "date": "third_full_weekend_march",
+      "date": "20/03/2027 → 21/03/2027",
       "year": 2027,
       "next_year": true
     },
     "ARRL_DX_CW": {
       "name": "ARRL DX — CW",
-      "date": "second_full_weekend_february",
+      "date": "13/02/2027 → 14/02/2027",
       "year": 2027,
       "next_year": true
     },
@@ -267,6 +351,90 @@
       "date": "Permanent",
       "year": 2026,
       "next_year": false
+    },
+    "WAEDC_SSB": {
+      "name": "WAE DX Contest — SSB",
+      "date": "12/09/2026 → 13/09/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "WAEDC_RTTY": {
+      "name": "WAE DX Contest — RTTY",
+      "date": "14/11/2026 → 15/11/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "UBA_DX_SSB": {
+      "name": "UBA DX Contest — SSB",
+      "date": "30/01/2027 → 31/01/2027 à 13h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "UBA_DX_CW": {
+      "name": "UBA DX Contest — CW",
+      "date": "27/02/2027 → 28/02/2027 à 13h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "EU_HF_CHAMP": {
+      "name": "European HF Championship",
+      "date": "01/08/2026 à 12h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "RUSSIAN_DX": {
+      "name": "Russian DX Contest",
+      "date": "20/03/2027 à 12h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "SP_DX": {
+      "name": "SP DX Contest",
+      "date": "03/04/2027 → 04/04/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "HA_DX": {
+      "name": "HA DX Contest",
+      "date": "16/01/2027 → 17/01/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ALL_ASIAN_CW": {
+      "name": "All Asian DX Contest — CW",
+      "date": "19/06/2027 à 00h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "ALL_ASIAN_SSB": {
+      "name": "All Asian DX Contest — SSB",
+      "date": "05/09/2026 → 06/09/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "STEW_PERRY": {
+      "name": "Stew Perry Topband Challenge",
+      "date": "19/12/2026 à 15h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_10M": {
+      "name": "ARRL 10-Meter Contest",
+      "date": "12/12/2026 → 13/12/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "ARRL_160M": {
+      "name": "ARRL 160-Meter Contest",
+      "date": "05/12/2026 à 22h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "WAEDC_CW": {
+      "name": "WAE DX Contest",
+      "date": "08/08/2026 → 09/08/2026",
+      "year": 2026,
+      "next_year": false
     }
   },
   "rules_checks": {
@@ -283,7 +451,7 @@
       ],
       "contest_mentioned": true,
       "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_rph_fr_20250312.pdf",
-      "checked_at": "2026-07-15T14:18:53.732399"
+      "checked_at": "2026-07-16T13:37:27.214018"
     },
     "REF_NAT_THF": {
       "contest_id": "REF_NAT_THF",
@@ -298,7 +466,7 @@
       ],
       "contest_mentioned": true,
       "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_natthf_fr_20250312.pdf",
-      "checked_at": "2026-07-15T14:18:54.366650"
+      "checked_at": "2026-07-16T13:37:27.857896"
     },
     "REF_PRINTEMPS": {
       "contest_id": "REF_PRINTEMPS",
@@ -313,7 +481,7 @@
       ],
       "contest_mentioned": true,
       "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_printemps_fr_20250312.pdf",
-      "checked_at": "2026-07-15T14:18:54.988185"
+      "checked_at": "2026-07-16T13:37:28.514594"
     },
     "REF_ETE": {
       "contest_id": "REF_ETE",
@@ -328,7 +496,7 @@
       ],
       "contest_mentioned": true,
       "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_ete_fr_20250312.pdf",
-      "checked_at": "2026-07-15T14:18:55.616677"
+      "checked_at": "2026-07-16T13:37:29.177580"
     },
     "IARU_VHF": {
       "contest_id": "IARU_VHF",
@@ -337,7 +505,7 @@
       "dates_found": [],
       "contest_mentioned": false,
       "rules_url": "https://www.iaru-r1.org/wp-content/uploads/2024/02/Rules-IARU-R1-VHF-up-Contests.pdf",
-      "checked_at": "2026-07-15T14:18:57.104987"
+      "checked_at": "2026-07-16T13:37:31.655660"
     },
     "IARU_UHF": {
       "contest_id": "IARU_UHF",
@@ -346,7 +514,7 @@
       "dates_found": [],
       "contest_mentioned": false,
       "rules_url": "https://www.iaru-r1.org/wp-content/uploads/2024/02/Rules-IARU-R1-VHF-up-Contests.pdf",
-      "checked_at": "2026-07-15T14:18:59.193858"
+      "checked_at": "2026-07-16T13:37:32.890011"
     },
     "CQ_WW_SSB": {
       "contest_id": "CQ_WW_SSB",
@@ -355,7 +523,7 @@
       "dates_found": [],
       "contest_mentioned": true,
       "rules_url": "https://cqww.com/rules.htm",
-      "checked_at": "2026-07-15T14:19:00.476376"
+      "checked_at": "2026-07-16T13:37:34.226591"
     },
     "CQ_WW_CW": {
       "contest_id": "CQ_WW_CW",
@@ -364,7 +532,7 @@
       "dates_found": [],
       "contest_mentioned": true,
       "rules_url": "https://cqww.com/rules.htm",
-      "checked_at": "2026-07-15T14:19:01.761768"
+      "checked_at": "2026-07-16T13:37:35.524977"
     }
   },
   "alerts": []

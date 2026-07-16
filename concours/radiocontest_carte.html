@@ -402,7 +402,7 @@ function updateMapStations(stns){
   const myLL=locLL(cfg.locator);
   if(!myLL) return;
   stns.forEach(s=>{
-    const pos=locLL(s.locator);
+    const pos=(s.lat!=null&&s.lon!=null)?{lat:s.lat,lon:s.lon}:locLL(s.locator);
     if(!pos) return;
     const col=PCOLS[s.priority]||'#888';
     const line=L.polyline([[myLL.lat,myLL.lon],[pos.lat,pos.lon]],{
@@ -765,7 +765,9 @@ function addMsg(role,text,type=''){
   c.appendChild(div);
   c.scrollTop=c.scrollHeight;
   parseScores(text);
-  parseStations(text);
+  // La carte est désormais pilotée par le JSON structuré du moteur
+  // (/data/spots_ranked) — plus de re-parsing fragile de la prose de l'IA.
+  refreshRankedStations();
 }
 
 function showThinking(){
@@ -1008,12 +1010,14 @@ function renderCoach(){
   }
   document.getElementById('coachClock').innerHTML=clockTxt;
 
-  // Rythme
+  // Rythme (+ score exact avec mults par échange quand le barème le permet)
   let rate='';
   if(c.status==='en_cours'){
     rate=`<b>${s.qso_last_hour}</b> QSO dernière heure`;
     if(s.rate_avg!=null)rate+=` · moyenne <b>${s.rate_avg}</b>/h`;
     rate+=` · total <b>${s.qso_total}</b> QSO`;
+    if(s.exchange_mults!=null)
+      rate+=` · <b>${s.exchange_mults}</b> mults → score <b>${(s.score_with_mults||0).toLocaleString()}</b> pts`;
   }
   document.getElementById('coachRate').innerHTML=rate;
 
@@ -1035,6 +1039,26 @@ function renderCoach(){
     `<div class="coach-hint ch-${h.level}">${h.icon} ${h.text}</div>`).join('');
   document.getElementById('coachHints').innerHTML=hintsHtml;
 }
+
+// ─── CARTE PILOTÉE PAR LE MOTEUR (spots classés structurés) ──────────────────
+// Remplace le re-parsing de la prose du LLM : priorités et positions fiables,
+// stations « déjà fait » grisées, rafraîchi avec le cycle coach (60 s).
+async function refreshRankedStations(){
+  try{
+    const r=await fetch('/data/spots_ranked');
+    if(!r.ok)return;
+    const d=await r.json();
+    const stns=(d.spots||[])
+      .filter(s=>s.locator||(s.lat!=null&&s.lon!=null))  // position sûre requise
+      .slice(0,25)
+      .map(s=>({call:s.call, locator:s.locator, lat:s.lat, lon:s.lon,
+                priority:s.priority, done:s.already_done, freq:s.freq,
+                band:s.band, dist:s.dist_km, bearing:s.bearing, mult:s.new_mult}));
+    if(stns.length)updateMapStations(stns);
+  }catch(e){/* serveur injoignable : carte inchangée */}
+}
+setInterval(refreshRankedStations, 60*1000);
+setTimeout(refreshRankedStations, 2000);
 
 async function coachAdvice(){
   await fetchCoach();

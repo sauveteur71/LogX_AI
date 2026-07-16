@@ -6,3 +6,5 @@ concours/shared_log.json
 concours/tests/__pycache__/
 concours/.auth_token
 concours/radiocontest.db
+concours/.server_config.json
+concours/qtc_log.json

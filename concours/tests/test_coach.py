@@ -51,3 +51,27 @@ def test_change_bande_si_mort_et_rien_a_chasser():
 
 def test_pas_de_reco_hors_concours():
     assert run_sp_recommendation({'status': 'avant'}, {}, 0) is None
+
+
+# ─── Multiplicateur par échange (EUHFC) ──────────────────────────────────────
+
+def test_exchange_mults_euhfc():
+    """EUHFC : mult = années de licence distinctes PAR BANDE (§6).
+    92 sur 14 MHz deux fois = 1 mult ; 92 sur 7 MHz = 1 mult de plus."""
+    from radiocontest_coach import exchange_mult_stats
+    cdef = {'scoring': {'bricks': {'multiplier': {'kind': 'exchange_distinct'}}}}
+    log = [
+        {'contest': 'EU_HF_CHAMP', 'band': '14', 'points': 1, 'num_rcvd': '92'},
+        {'contest': 'EU_HF_CHAMP', 'band': '14', 'points': 1, 'num_rcvd': '92'},   # doublon d'année
+        {'contest': 'EU_HF_CHAMP', 'band': '14', 'points': 1, 'num_rcvd': '05'},
+        {'contest': 'EU_HF_CHAMP', 'band': '7',  'points': 1, 'num_rcvd': '92'},   # autre bande
+        {'contest': 'EU_HF_CHAMP', 'band': '7',  'points': 1, 'num_rcvd': 'x'},    # échange invalide
+    ]
+    r = exchange_mult_stats(cdef, log, 'EU_HF_CHAMP')
+    assert r['mults'] == 3                       # (14,92) (14,05) (7,92)
+    assert r['score_est'] == 5 * 3               # 5 pts × 3 mults
+
+
+def test_exchange_mults_non_applicable():
+    from radiocontest_coach import exchange_mult_stats
+    assert exchange_mult_stats({'scoring': {'bricks': {}}}, [], '') is None
