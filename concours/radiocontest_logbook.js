@@ -1818,10 +1818,73 @@ function notify(msg, ms){
 function copyMacro(idx){
   const m = getMacros()[idx]; if(!m) return;
   const txt = expandMacro(m.text);
+  // Radio en CW + pilotage actif → la macro part directement par le keyer
+  // de la radio ; sinon (SSB/RTTY, ou pas de CAT) on copie dans le presse-papier.
+  if(rigState.enabled && /CW/i.test(rigState.mode || currentMode)){
+    fetch('/rig/cw', {method:'POST', headers:{'Content-Type':'application/json'},
+                      body: JSON.stringify({text: txt})})
+      .then(r=>r.json()).then(d=>{
+        const toast = document.getElementById('macroToast');
+        if(toast){ toast.textContent = d.ok ? `📻 CW → ${txt}` : `❌ ${d.error}`;
+          toast.className = 'macro-toast' + (d.ok ? '' : ' toast-err');
+          toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2200); }
+      }).catch(()=>{});
+    return;
+  }
   navigator.clipboard.writeText(txt).catch(()=>{});
   const toast = document.getElementById('macroToast');
   if(toast){ toast.textContent = `📋 ${txt}`; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2000); }
 }
+
+// ─── RADIO CAT (rigctld) ─────────────────────────────────────────────────────
+// Widget état radio (fréq/mode) + envoi CW des macros. Actif uniquement si le
+// pilotage est activé dans CONFIG. Sondage doux (3 s) ; tolère l'absence de radio.
+let rigState = {enabled:false, mode:'', freq_khz:0};
+
+function refreshRig(){
+  fetch('/rig/state').then(r=>r.ok?r.json():null).then(d=>{
+    const panel = document.getElementById('rigPanel');
+    if(!d || !d.enabled){ rigState.enabled=false; if(panel) panel.style.display='none'; return; }
+    rigState.enabled = true;
+    if(panel) panel.style.display = 'block';
+    const dot = document.getElementById('rigDot');
+    if(d.ok){
+      rigState.mode = d.mode; rigState.freq_khz = d.freq_khz;
+      document.getElementById('rigFreq').textContent = d.freq_khz.toFixed(1) + ' kHz';
+      document.getElementById('rigMode').textContent = d.mode || '—';
+      if(dot) dot.classList.add('on');
+      // Suivi automatique : la bande/le mode de saisie suivent la radio
+      syncBandModeFromRig(d.freq_khz, d.mode);
+    } else {
+      document.getElementById('rigFreq').textContent = 'rigctld injoignable';
+      document.getElementById('rigMode').textContent = '';
+      if(dot) dot.classList.remove('on');
+    }
+  }).catch(()=>{});
+}
+
+function syncBandModeFromRig(freqKhz, mode){
+  // Fréquence radio → bande interne (bornes larges pour les segments contest)
+  const mhz = freqKhz / 1000;
+  const BANDS = [[1.8,2,'1.8'],[3.5,4,'3.5'],[7,7.3,'7'],[14,14.35,'14'],
+                 [21,21.45,'21'],[28,29.7,'28'],[50,54,'50'],[144,148,'144'],[430,440,'432']];
+  for(const [lo,hi,b] of BANDS){
+    if(mhz>=lo && mhz<=hi){
+      if(typeof currentBand!=='undefined' && currentBand!==b){
+        const btn = document.querySelector(`.bm-btn[data-val="${b}"]`);
+        if(btn) setBand(btn);
+      }
+      break;
+    }
+  }
+}
+
+function rigStopCW(){
+  fetch('/rig/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).catch(()=>{});
+}
+
+refreshRig();
+setInterval(refreshRig, 3000);
 function editMacro(idx){
   const macros = getMacros();
   const m = macros[idx];

@@ -881,6 +881,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'spots': out, 'meta': meta})
             return
 
+        # Radio CAT (rigctld) : état courant — pollé par le logbook
+        if path == '/rig/state':
+            import radiocontest_rig as rig
+            settings = rig.rig_settings(self._cfg_snapshot())
+            if not settings['enabled']:
+                self._json({'enabled': False})
+                return
+            state = rig.get_state(settings['host'], settings['port'])
+            state['enabled'] = True
+            self._json(state)
+            return
+
         # QTC (WAE) : total et détail par station
         if path.startswith('/qtc/list'):
             from radiocontest_storage import qtc_log, qtc_lock, qtc_total
@@ -1091,6 +1103,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
+            return
+
+        # Radio CAT (rigctld) : QSY, envoi CW, stop CW
+        if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop'):
+            import radiocontest_rig as rig
+            settings = rig.rig_settings(self._cfg_snapshot())
+            if not settings['enabled']:
+                self._json({'ok': False, 'error': 'Radio CAT désactivée — '
+                            'active-la dans CONFIG (mode expert, section RADIO)'}, 400)
+                return
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            host, port = settings['host'], settings['port']
+            if self.path == '/rig/qsy':
+                freq = payload.get('freq_hz') or 0
+                if not freq and payload.get('freq_khz'):
+                    freq = float(payload['freq_khz']) * 1000
+                if not freq:
+                    self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
+                    return
+                res = rig.set_freq(host, port, int(freq), payload.get('mode'))
+                if res.get('ok'):
+                    print(f"[RIG] QSY {int(freq)} Hz {payload.get('mode') or ''}")
+            elif self.path == '/rig/cw':
+                res = rig.send_morse(host, port, str(payload.get('text', ''))[:120])
+                if res.get('ok'):
+                    print(f"[RIG] CW: {str(payload.get('text',''))[:40]}")
+            else:
+                res = rig.stop_morse(host, port)
+            self._json(res, 200 if res.get('ok') else 502)
             return
 
         # QTC (WAE) : enregistrer un échange de QTC avec une station

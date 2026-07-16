@@ -71,6 +71,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .filters{display:flex;gap:8px;margin-bottom:10px}
 .filter-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
 .filter-btn.active{border-color:var(--accent2);color:var(--accent2)}
+.qsy-btn{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:5px;border:1px solid var(--accent);background:rgba(255,107,0,.1);color:var(--accent);cursor:pointer;letter-spacing:1px;font-weight:700;flex-shrink:0}
+.qsy-btn:hover{background:var(--accent);color:#0A0B18}
 </style>
 </head>
 <body>
@@ -138,6 +140,26 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 let spotsData = [];
 let filter = 'all';
+let rigEnabled = false;
+
+// Radio CAT : bouton QSY sur chaque spot si le pilotage est activé (CONFIG)
+fetch('/rig/state').then(r => r.ok ? r.json() : null)
+  .then(d => { rigEnabled = !!(d && d.enabled); if(rigEnabled) renderSpots(); })
+  .catch(() => {});
+
+async function qsyTo(freqKhz, call){
+  try{
+    const r = await fetch('/rig/qsy', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({freq_khz: parseFloat(freqKhz)})
+    });
+    const d = await r.json();
+    const el = document.getElementById('lastRefresh');
+    el.textContent = d.ok ? `📻 QSY ${freqKhz} kHz → ${call}` : `❌ ${d.error}`;
+    el.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+    setTimeout(() => { el.style.color = ''; }, 4000);
+  }catch(e){}
+}
 
 const PRIO_COLORS = {1:'#00FF88',2:'#FF2D55',3:'#FF9500',4:'#FFD60A',5:'#8E8E93',6:'#3A3A3C'};
 
@@ -233,6 +255,7 @@ function renderSpots(){
   document.getElementById('spotList').innerHTML = list.map(s => `
     <div class="spot-row ${s.new_mult && !s.already_done ? 'sr-mult' : ''} ${s.already_done ? 'sr-done' : ''}">
       <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="priorité ${s.priority}"></span>
+      ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo('${s.freq}','${s.call}')" title="Régler la radio sur ${s.freq} kHz">▶ QSY</button>` : ''}
       <span class="sr-call">${s.call}</span>
       <span class="sr-freq">${s.freq || ''}</span>
       <span class="sr-band">${s.band} MHz</span>

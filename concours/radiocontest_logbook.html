@@ -142,6 +142,15 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 /* MACRO PANEL */
 .macro-panel{background:var(--bg3);border-top:1px solid var(--border);padding:8px 14px 10px}
 .macro-panel-title{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:2px;margin-bottom:6px}
+.rig-panel{background:var(--bg2);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;margin-bottom:8px}
+.rig-row{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:14px}
+.rig-dot{width:9px;height:9px;border-radius:50%;background:var(--red);flex-shrink:0}
+.rig-dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+.rig-label{color:var(--accent);font-weight:700;letter-spacing:2px}
+.rig-freq{color:var(--accent2);font-weight:700;font-size:17px}
+.rig-mode{color:var(--text);letter-spacing:1px}
+.rig-stop{margin-left:auto;font-family:var(--font-mono);font-size:12px;padding:3px 10px;border-radius:5px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;letter-spacing:1px}
+.rig-stop:hover{background:rgba(255,45,85,.15)}
 .macro-btns{display:flex;gap:5px;flex-wrap:wrap}
 .macro-btn{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:5px 8px;cursor:pointer;text-align:left;min-width:76px;flex:1;max-width:110px;transition:border-color .15s}
 .macro-btn:hover{border-color:var(--accent2)}
@@ -807,9 +816,20 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         </div>
       </div>
 
+      <!-- RADIO CAT (visible si pilotage activé dans CONFIG) -->
+      <div class="rig-panel" id="rigPanel" style="display:none">
+        <div class="rig-row">
+          <span class="rig-dot" id="rigDot"></span>
+          <span class="rig-label">📻 RADIO</span>
+          <span class="rig-freq" id="rigFreq">— kHz</span>
+          <span class="rig-mode" id="rigMode">—</span>
+          <button class="rig-stop" onclick="rigStopCW()" title="Stopper l'envoi CW en cours">■ STOP CW</button>
+        </div>
+      </div>
+
       <!-- MACROS F1–F8 -->
       <div class="macro-panel expert-only" id="macroPanel">
-        <div class="macro-panel-title">MACROS — clic: copier · double-clic: modifier</div>
+        <div class="macro-panel-title" id="macroPanelTitle">MACROS — clic: copier · double-clic: modifier</div>
         <div class="macro-btns" id="macroBtns"></div>
       </div>
 
