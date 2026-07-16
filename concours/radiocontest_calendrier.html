@@ -7,16 +7,16 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
 :root {
-  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#1E2040;
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
   --accent:#FF6B00;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
-  --yellow:#FFD60A;--purple:#BF5AF2;--text:#FFE566;--muted:#B8A040;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
   --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
 }
 /* Mode jour — même palette que les autres pages (suivi via rc_theme) */
 body.day-mode {
   --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
   --accent:#D05000; --accent2:#0060A0; --green:#007030; --red:#CC0030;
-  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#606888;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#4A5170;
 }
 body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -26,11 +26,11 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .logo{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:3px}
 .logo span{color:var(--accent2)}
 .app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
-.app-nav a{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 .nav-links{display:flex;gap:8px;padding:8px 24px;background:var(--bg);border-bottom:1px solid var(--border)}
-.nav-link{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-decoration:none;padding:4px 10px;border-radius:4px;border:1px solid var(--border);transition:all .15s;letter-spacing:1px}
+.nav-link{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-decoration:none;padding:4px 10px;border-radius:4px;border:1px solid var(--border);transition:all .15s;letter-spacing:1px}
 .nav-link:hover,.nav-link.active{border-color:var(--accent2);color:var(--accent2)}
 
 .container{max-width:1200px;margin:0 auto;padding:24px}
@@ -39,29 +39,29 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .status-bar{display:flex;align-items:center;gap:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 20px;margin-bottom:20px}
 .status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.status-text{font-family:var(--font-mono);font-size:12px;color:var(--text)}
+.status-text{font-family:var(--font-mono);font-size:14px;color:var(--text)}
 .status-year{font-size:20px;font-weight:800;color:var(--accent);font-family:var(--font-mono)}
-.update-btn{margin-left:auto;font-family:var(--font-mono);font-size:10px;padding:6px 14px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
+.update-btn{margin-left:auto;font-family:var(--font-mono);font-size:12px;padding:6px 14px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
 .update-btn:hover{border-color:var(--accent);color:var(--accent)}
 
 /* ALERTS */
-.alert-box{background:rgba(255,45,85,.1);border:1px solid var(--red);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-family:var(--font-mono);font-size:12px;color:var(--red);display:none}
+.alert-box{background:rgba(255,45,85,.1);border:1px solid var(--red);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-family:var(--font-mono);font-size:14px;color:var(--red);display:none}
 .alert-box.show{display:block}
 
 /* YEAR TABS */
 .year-tabs{display:flex;gap:8px;margin-bottom:20px}
-.year-tab{font-family:var(--font-mono);font-size:12px;padding:8px 20px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
+.year-tab{font-family:var(--font-mono);font-size:14px;padding:8px 20px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
 .year-tab.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
 
 /* FILTER */
 .filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
-.filter-btn{font-family:var(--font-mono);font-size:10px;padding:6px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
+.filter-btn{font-family:var(--font-mono);font-size:12px;padding:6px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
 .filter-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
 
 /* MONTH GROUPS */
 .month-group{margin-bottom:24px}
-.month-header{font-family:var(--font-mono);font-size:11px;color:var(--accent2);letter-spacing:4px;padding:8px 16px;background:var(--bg3);border-radius:6px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
-.month-count{font-size:10px;color:var(--muted);margin-left:auto}
+.month-header{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:4px;padding:8px 16px;background:var(--bg3);border-radius:6px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.month-count{font-size:12px;color:var(--muted);margin-left:auto}
 
 /* CONTEST CARDS */
 .contest-row{display:flex;align-items:stretch;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden;transition:border-color .15s;cursor:pointer}
@@ -73,11 +73,11 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 .cr-date{width:120px;padding:12px 14px;background:var(--bg3);display:flex;flex-direction:column;justify-content:center;flex-shrink:0;border-right:1px solid var(--border)}
 .cr-date-main{font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--text)}
-.cr-date-year{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
-.cr-date-countdown{font-family:var(--font-mono);font-size:10px;margin-top:3px}
+.cr-date-year{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.cr-date-countdown{font-family:var(--font-mono);font-size:12px;margin-top:3px}
 
 .cr-org{width:70px;padding:12px 10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border-right:1px solid var(--border)}
-.org-badge{font-family:var(--font-mono);font-size:9px;font-weight:700;padding:3px 6px;border-radius:4px;letter-spacing:1px;text-align:center}
+.org-badge{font-family:var(--font-mono);font-size:12px;font-weight:700;padding:3px 6px;border-radius:4px;letter-spacing:1px;text-align:center}
 .org-ref{background:rgba(0,212,255,.15);color:var(--accent2);border:1px solid rgba(0,212,255,.3)}
 .org-iaru{background:rgba(191,90,242,.15);color:var(--purple);border:1px solid rgba(191,90,242,.3)}
 .org-cq{background:rgba(255,107,0,.15);color:var(--accent);border:1px solid rgba(255,107,0,.3)}
@@ -86,16 +86,16 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 .cr-info{flex:1;padding:12px 16px}
 .cr-name{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
-.cr-exchange{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:6px}
+.cr-exchange{font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:6px}
 .cr-tags{display:flex;flex-wrap:wrap;gap:4px}
-.tag{font-family:var(--font-mono);font-size:9px;padding:2px 6px;border-radius:3px;letter-spacing:1px}
+.tag{font-family:var(--font-mono);font-size:12px;padding:2px 6px;border-radius:3px;letter-spacing:1px}
 .tag-band{background:rgba(0,212,255,.1);color:var(--accent2);border:1px solid rgba(0,212,255,.2)}
 .tag-mode{background:rgba(255,107,0,.1);color:var(--accent);border:1px solid rgba(255,107,0,.2)}
 .tag-score{background:rgba(191,90,242,.1);color:var(--purple);border:1px solid rgba(191,90,242,.2)}
 .tag-log{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.2)}
 
 .cr-actions{width:120px;padding:12px;display:flex;flex-direction:column;gap:6px;justify-content:center;flex-shrink:0;border-left:1px solid var(--border)}
-.cr-btn{font-family:var(--font-mono);font-size:9px;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;text-align:center;text-decoration:none;display:block;letter-spacing:1px}
+.cr-btn{font-family:var(--font-mono);font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;text-align:center;text-decoration:none;display:block;letter-spacing:1px}
 .cr-btn:hover{border-color:var(--accent2);color:var(--accent2)}
 .cr-btn.start{background:linear-gradient(135deg,var(--accent),#FF9500);border:none;color:#0A0B18;font-weight:700}
 
@@ -104,8 +104,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .detail-panel.show{display:block}
 .detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
 .detail-item{background:var(--bg3);border-radius:8px;padding:12px}
-.di-label{font-size:9px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono);margin-bottom:4px}
-.di-value{font-size:13px;color:var(--text);font-family:var(--font-mono)}
+.di-label{font-size:12px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono);margin-bottom:4px}
+.di-value{font-size:14px;color:var(--text);font-family:var(--font-mono)}
 .di-value.accent{color:var(--accent)}
 .di-value.accent2{color:var(--accent2)}
 
@@ -117,7 +117,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 <header>
   <div class="logo">Radio<span>Contest</span> AI — <span style="color:var(--yellow)">Calendrier</span></div>
-  <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">Dates calculées automatiquement · Mise à jour annuelle</div>
+  <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted)">Dates calculées automatiquement · Mise à jour annuelle</div>
 </header>
 
 <nav class="app-nav">
@@ -137,7 +137,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       <div class="status-year" id="statusYear">—</div>
       <div class="status-text">Dernière vérification : <span id="lastUpdate">—</span></div>
     </div>
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:20px">
+    <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-left:20px">
       <span id="contestCount">—</span> concours • Dates recalculées au <span id="nextUpdate">—</span>
     </div>
     <button class="update-btn" onclick="forceUpdate()">🔄 VÉRIFIER LES RÈGLEMENTS</button>
@@ -173,7 +173,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
         <div style="text-align:center;max-width:600px;padding:40px">
           <div style="font-size:60px;margin-bottom:20px">🚫</div>
           <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px">OUVERT EN FILE:// — IMPOSSIBLE</div>
-          <div style="color:#FFE566;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord radiocontest_serveur.py, puis accède via :</div>
+          <div style="color:#E9ECF5;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord radiocontest_serveur.py, puis accède via :</div>
           <a href="http://localhost:8080/radiocontest_calendrier.html"
              style="display:inline-block;background:linear-gradient(135deg,#00FF88,#00D4FF);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
             ▶ http://localhost:8080/radiocontest_calendrier.html
@@ -321,7 +321,7 @@ function renderCalendar(){
       const dateShort = d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}` : '—';
 
       const yearBadge = c.next_year
-        ? `<span style="font-family:var(--font-mono);font-size:9px;color:var(--yellow);background:rgba(255,214,10,.1);border:1px solid rgba(255,214,10,.3);padding:1px 5px;border-radius:3px;margin-left:6px">${c.year}</span>`
+        ? `<span style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);background:rgba(255,214,10,.1);border:1px solid rgba(255,214,10,.3);padding:1px 5px;border-radius:3px;margin-left:6px">${c.year}</span>`
         : '';
 
       html += `<div class="contest-row ${rowClass}" onclick="showDetail('${c.id}')">
@@ -365,7 +365,7 @@ function showDetail(id){
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
         <div style="font-family:var(--font-mono);font-size:16px;color:var(--accent2);letter-spacing:2px">${c.name}</div>
-        <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px">${c.organizer}</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:4px">${c.organizer}</div>
       </div>
       <button onclick="document.getElementById('detailPanel').classList.remove('show')"
         style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px">✕</button>
@@ -405,8 +405,8 @@ function showDetail(id){
       </div>`:''}
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="cr-btn start" style="padding:8px 20px;font-size:11px" onclick="startContest('${c.id}')">▶ DÉMARRER CE CONCOURS</button>
-      ${c.rules_url?`<a href="${c.rules_url}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:11px">📄 Règlement officiel</a>`:''}
+      <button class="cr-btn start" style="padding:8px 20px;font-size:13px" onclick="startContest('${c.id}')">▶ DÉMARRER CE CONCOURS</button>
+      ${c.rules_url?`<a href="${c.rules_url}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:13px">📄 Règlement officiel</a>`:''}
     </div>`;
   panel.classList.add('show');
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -507,11 +507,11 @@ function renderExternal(){
       curKey = key;
     }
     html += `<div class="contest-row upcoming" onclick="window.open('${c.url}','_blank')">
-      <div class="cr-date"><div class="cr-date-main" style="font-size:12px">${c.date_str||'—'}</div><div class="cr-date-year">${c.time_str||''}</div></div>
-      <div class="cr-org"><div class="org-badge org-cq" style="font-size:8px">WW</div></div>
+      <div class="cr-date"><div class="cr-date-main" style="font-size:14px">${c.date_str||'—'}</div><div class="cr-date-year">${c.time_str||''}</div></div>
+      <div class="cr-org"><div class="org-badge org-cq" style="font-size:11px">WW</div></div>
       <div class="cr-info">
         <div class="cr-name">${c.name} <span class="tag" style="background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)" title="Paramètres non vérifiés — à confirmer manuellement dans la config (lecture IA du règlement : Phase 3)">⚠ à confirmer</span></div>
-        <div class="cr-exchange" style="color:var(--accent2);font-size:10px">contestcalendar.com ref=${c.ref}</div>
+        <div class="cr-exchange" style="color:var(--accent2);font-size:12px">contestcalendar.com ref=${c.ref}</div>
       </div>
       <div class="cr-actions">
         <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${c.ref}')">▶ PRÉPARER</button>

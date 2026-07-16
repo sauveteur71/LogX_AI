@@ -9,17 +9,17 @@
         <div style="text-align:center;max-width:600px;padding:40px">
           <div style="font-size:60px;margin-bottom:20px">🚫</div>
           <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px;letter-spacing:2px">OUVERT EN FILE:// — IMPOSSIBLE</div>
-          <div style="color:#FFE566;font-size:16px;line-height:2;margin-bottom:30px">
+          <div style="color:#E9ECF5;font-size:16px;line-height:2;margin-bottom:30px">
             Le logiciel nécessite le serveur Python.<br>
             Tu ne peux pas ouvrir les fichiers directement depuis l'explorateur.
           </div>
           <div style="background:#13152A;border:2px solid #FF6B00;border-radius:10px;padding:20px;margin-bottom:24px">
-            <div style="color:#B8A040;font-size:13px;margin-bottom:10px">ÉTAPE 1 — Lance le serveur dans un terminal :</div>
+            <div style="color:#A9B0C8;font-size:14px;margin-bottom:10px">ÉTAPE 1 — Lance le serveur dans un terminal :</div>
             <div style="color:#00FF88;font-size:17px;font-weight:700;letter-spacing:1px">cd "C:\\Users\\parri\\SynologyDrive\\RADIOAMATEUR\\Activites\\Rallye des point haut\\concours"</div>
             <div style="color:#00FF88;font-size:17px;font-weight:700;margin-top:8px">python radiocontest_serveur.py</div>
           </div>
           <div style="background:#13152A;border:2px solid #00D4FF;border-radius:10px;padding:20px;margin-bottom:30px">
-            <div style="color:#B8A040;font-size:13px;margin-bottom:10px">ÉTAPE 2 — Accède via cette adresse :</div>
+            <div style="color:#A9B0C8;font-size:14px;margin-bottom:10px">ÉTAPE 2 — Accède via cette adresse :</div>
             <a href="http://localhost:8080/radiocontest_logbook.html" style="color:#00D4FF;font-size:20px;font-weight:700;text-decoration:none;letter-spacing:1px">http://localhost:8080/radiocontest_logbook.html</a>
           </div>
           <a href="http://localhost:8080/radiocontest_logbook.html"
@@ -1643,7 +1643,7 @@ function updateBandRecap(){
       `<div class="brd-band">${lbl}</div>` +
       `<div class="brd-lbl">QSO · KM TOTAL · DX MAX</div>` +
       `<div class="brd-vals">${d.count} · ${Math.round(d.totalKm).toLocaleString()} km · <span class="brd-dx">${Math.round(d.maxKm)} km</span></div>` +
-      `<div class="brd-vals" style="color:var(--muted);font-size:10px">${d.bestCall} ${d.bestBear}</div>`;
+      `<div class="brd-vals" style="color:var(--muted);font-size:12px">${d.bestCall} ${d.bestBear}</div>`;
     inner.appendChild(div);
   });
   bar.style.display = 'block';
@@ -1696,11 +1696,11 @@ function drawHourChart(){
     markup += `<title>${hh}:00 UTC — ${count} QSO</title></rect>`;
     // Étiquette heure toutes les 3h ou si n≤12
     if(n <= 12 || parseInt(hh,10) % 3 === 0){
-      markup += `<text x="${x+bw/2}" y="${VH+7}" text-anchor="middle" font-size="7" font-family="monospace" fill="var(--muted)">${hh}</text>`;
+      markup += `<text x="${x+bw/2}" y="${VH+7}" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">${hh}</text>`;
     }
     // Valeur sur barre haute
     if(count === maxVal || count >= 10){
-      markup += `<text x="${x+bw/2}" y="${y-2}" text-anchor="middle" font-size="7" font-family="monospace" fill="${col}">${count}</text>`;
+      markup += `<text x="${x+bw/2}" y="${y-2}" text-anchor="middle" font-size="10" font-family="monospace" fill="${col}">${count}</text>`;
     }
     if(count > bestCount){ bestCount = count; bestHour = hh + ':00'; }
   });
@@ -2232,14 +2232,14 @@ function showAC(results, call){
     const flag  = dxcc ? dxcc.flag : '';
     const cname = dxcc ? dxcc.c    : '';
     const srcTag = src==='log'
-      ? `<span style="color:var(--green);font-size:11px;font-weight:700">📋 LOG</span>`
-      : `<span style="color:var(--muted);font-size:13px">🗂️</span>`;
+      ? `<span style="color:var(--green);font-size:13px;font-weight:700">📋 LOG</span>`
+      : `<span style="color:var(--muted);font-size:14px">🗂️</span>`;
     const dupTag = dup
-      ? `<span style="color:var(--red);font-size:12px;font-weight:800">DUPE</span>`
+      ? `<span style="color:var(--red);font-size:14px;font-weight:800">DUPE</span>`
       : '';
-    const locStr = loc ? `<span style="color:var(--accent2);font-size:13px;font-weight:700">${loc}</span>` : '';
-    const deptStr = dept ? `<span style="color:var(--yellow);font-size:12px;font-weight:700">dpt${dept}</span>` : '';
-    const cStr  = cname ? `<span style="color:var(--muted);font-size:12px">${cname}</span>` : '';
+    const locStr = loc ? `<span style="color:var(--accent2);font-size:14px;font-weight:700">${loc}</span>` : '';
+    const deptStr = dept ? `<span style="color:var(--yellow);font-size:14px;font-weight:700">dpt${dept}</span>` : '';
+    const cStr  = cname ? `<span style="color:var(--muted);font-size:14px">${cname}</span>` : '';
     return `<div class="ac-item${dup?' dupe-item':''}" data-call="${c}" onmousedown="selectAC('${c}')">`
       + `<span style="font-size:16px">${flag}</span>`
       + `<b class="ac-call${dup?' dupe-call':''}" style="${dup?'color:var(--red)':'color:var(--green)'}">${c}</b>`
@@ -2425,10 +2425,10 @@ function showLocAC(results){
     const dxcc    = lookupDXCC(item.call);
     const flag    = dxcc ? dxcc.flag : '';
     const srcTag  = item.src === 'log'
-      ? `<span style="color:var(--green);font-size:11px;font-weight:700">📋 LOG</span>`
-      : `<span style="color:var(--muted);font-size:13px">🗂️</span>`;
-    const dupTag  = dup ? `<span style="color:var(--red);font-size:12px;font-weight:800">DUPE</span>` : '';
-    const deptStr = item.dept ? `<span style="color:var(--yellow);font-size:12px;font-weight:700">dpt${item.dept}</span>` : '';
+      ? `<span style="color:var(--green);font-size:13px;font-weight:700">📋 LOG</span>`
+      : `<span style="color:var(--muted);font-size:14px">🗂️</span>`;
+    const dupTag  = dup ? `<span style="color:var(--red);font-size:14px;font-weight:800">DUPE</span>` : '';
+    const deptStr = item.dept ? `<span style="color:var(--yellow);font-size:14px;font-weight:700">dpt${item.dept}</span>` : '';
     const locStr  = `<span style="color:var(--accent2);font-size:14px;font-weight:800">${item.locator}</span>`;
     return `<div class="ac-item${dup?' dupe-item':''}" data-idx="${idx}" onmousedown="selectLocAC(${idx})">`
       + `<span style="font-size:16px">${flag}</span>`
@@ -3009,7 +3009,7 @@ function refreshMapLayers(){
     const m = L.circleMarker([dxLL.lat,dxLL.lon],{
       radius:8, fillColor:col, color:'#000', weight:1.5, fillOpacity:.9,
     }).bindPopup(
-      `<div style="font-family:monospace;font-size:13px;line-height:1.7">` +
+      `<div style="font-family:monospace;font-size:14px;line-height:1.7">` +
       `<b style="font-size:15px">${q.call}</b><br>` +
       `📍 ${q.locator}<br>` +
       `📡 ${bandLabel} — ${q.mode}<br>` +
@@ -3024,7 +3024,7 @@ function refreshMapLayers(){
     noLocInfo = document.createElement('div');
     noLocInfo.id = 'mapNoLocInfo';
     noLocInfo.style.cssText = 'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);' +
-      'background:rgba(0,0,0,.7);color:#aaa;font-size:12px;padding:4px 12px;border-radius:20px;z-index:999;pointer-events:none';
+      'background:rgba(0,0,0,.7);color:#aaa;font-size:14px;padding:4px 12px;border-radius:20px;z-index:999;pointer-events:none';
     document.getElementById('mapWrap').style.position = 'relative';
     document.getElementById('mapWrap').appendChild(noLocInfo);
   }
@@ -3208,10 +3208,10 @@ function renderRateChart(){
     options:{
       responsive:true, maintainAspectRatio:false,
       scales:{
-        y:{ beginAtZero:true, ticks:{color:'#B8A040'}, grid:{color:'rgba(255,255,255,.05)'} },
-        x:{ ticks:{color:'#B8A040'}, grid:{color:'rgba(255,255,255,.05)'} }
+        y:{ beginAtZero:true, ticks:{color:'#A9B0C8'}, grid:{color:'rgba(255,255,255,.05)'} },
+        x:{ ticks:{color:'#A9B0C8'}, grid:{color:'rgba(255,255,255,.05)'} }
       },
-      plugins:{ legend:{ labels:{ color:'#FFE566', font:{family:'Share Tech Mono'} } } }
+      plugins:{ legend:{ labels:{ color:'#E9ECF5', font:{family:'Share Tech Mono'} } } }
     }
   });
 }
