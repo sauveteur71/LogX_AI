@@ -93,6 +93,36 @@ def _load_auth_token():
 
 AUTH_TOKEN = _load_auth_token()
 
+# ─── INSERTION D'UN QSO (dédup + persistance) ────────────────────────────────
+def add_qso_to_log(qso, force=False):
+    """Ajoute un QSO au log partagé avec détection de doublon. Retourne
+    (ok, info). Chemin commun à /log/add et au pont WSJT-X."""
+    import time as _t
+    qso['server_time'] = _t.time()
+    now_utc = datetime.datetime.utcnow()
+    qso.setdefault('date', now_utc.strftime('%Y%m%d'))
+    qso.setdefault('time', now_utc.strftime('%H:%M'))
+    key = (str(qso.get('call', '')).upper().strip(),
+           str(qso.get('band', '')), str(qso.get('mode', '')).upper())
+    contest_id = qso.get('contest', '')
+    with log_lock:
+        dup = next((q for q in shared_log
+                    if (str(q.get('call', '')).upper().strip(),
+                        str(q.get('band', '')),
+                        str(q.get('mode', '')).upper()) == key
+                    and q.get('contest', '') == contest_id), None)
+    if dup and not force:
+        return False, {'duplicate': True, 'existing': {
+            'id': dup.get('id'), 'date': dup.get('date'),
+            'time': dup.get('time'), 'operator': dup.get('operator', '')}}
+    qso.pop('force', None)
+    qso.setdefault('id', int(_t.time() * 1000))
+    with log_lock:
+        shared_log.append(qso)
+    save_log_to_disk()
+    return True, {'total': len(shared_log)}
+
+
 # ─── SPOTS DEPUIS LES CACHES (sans re-fetch réseau) ──────────────────────────
 def _spots_from_caches():
     """{label: spots} depuis SPOTS_CACHE + spots poussés par le navigateur —
@@ -949,6 +979,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'spots': out, 'meta': meta})
             return
 
+        # Pont WSJT-X (FT8/FT4) : état de la liaison UDP — pollé par le logbook
+        if path == '/wsjtx/state':
+            import radiocontest_wsjtx as wsjtx
+            settings = wsjtx.wsjtx_settings(self._cfg_snapshot())
+            if not settings['enabled']:
+                self._json({'enabled': False})
+                return
+            # Démarrage à chaud (idempotent) : pas besoin de relancer le serveur
+            wsjtx.start_listener(
+                get_cfg=lambda: dict(current_config),
+                add_qso=lambda q: add_qso_to_log(q, force=False)[0],
+                port=settings['port'])
+            st = wsjtx.current_status()
+            st['enabled'] = True
+            st['port'] = settings['port']
+            self._json(st)
+            return
+
         # Radio CAT (rigctld) : état courant — pollé par le logbook
         if path == '/rig/state':
             import radiocontest_rig as rig
@@ -1348,50 +1396,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not qso.get('call'):
                     self._json({'error': 'Indicatif manquant'}, 400)
                     return
-                import time as _t
-                qso['server_time'] = _t.time()
-                # Filet de sécurité : date/heure UTC toujours renseignées, même si
-                # le client qui a posté ce QSO ne les a pas envoyées (ex: appel API
-                # direct hors du formulaire habituel).
-                now_utc = datetime.datetime.utcnow()
-                if not qso.get('date'):
-                    qso['date'] = now_utc.strftime('%Y%m%d')
-                if not qso.get('time'):
-                    qso['time'] = now_utc.strftime('%H:%M')
-
-                # ── Détection de doublon : même indicatif + bande + mode dans
-                # la fenêtre du contest actif. Signalé au client (statut
-                # explicite), refusé sauf si force=true (cas légitimes :
-                # nouvelle période, dupe assumé pour l'arbitre).
-                key = (str(qso.get('call', '')).upper().strip(),
-                       str(qso.get('band', '')), str(qso.get('mode', '')).upper())
-                contest_id = qso.get('contest', '')
-                with log_lock:
-                    dup = next((q for q in shared_log
-                                if (str(q.get('call', '')).upper().strip(),
-                                    str(q.get('band', '')),
-                                    str(q.get('mode', '')).upper()) == key
-                                and q.get('contest', '') == contest_id), None)
-                if dup and not qso.get('force'):
-                    print(f"[LOG] DUP refuse {key[0]} {key[1]}MHz {key[2]}")
-                    self._json({'ok': False, 'duplicate': True,
-                                'existing': {'id': dup.get('id'),
-                                             'date': dup.get('date'),
-                                             'time': dup.get('time'),
-                                             'operator': dup.get('operator', '')},
-                                'error': f"Doublon : {key[0]} déjà contacté sur "
-                                         f"{key[1]} MHz en {key[2]} à {dup.get('time','?')} "
+                ok, info = add_qso_to_log(qso, force=bool(qso.get('force')))
+                if not ok:
+                    ex = info['existing']
+                    key0 = str(qso.get('call', '')).upper().strip()
+                    print(f"[LOG] DUP refuse {key0} {qso.get('band')}MHz")
+                    self._json({'ok': False, 'duplicate': True, 'existing': ex,
+                                'error': f"Doublon : {key0} déjà contacté sur "
+                                         f"{qso.get('band')} MHz en "
+                                         f"{str(qso.get('mode','')).upper()} à "
+                                         f"{ex.get('time','?')} "
                                          f"(renvoyer avec force=true pour insister)"},
                                409)
                     return
-
-                qso.pop('force', None)
-                with log_lock:
-                    shared_log.append(qso)
-                save_log_to_disk()
                 print(f"[LOG] +QSO {qso.get('call')} {qso.get('band')}MHz")
-                self._json({'ok': True, 'total': len(shared_log),
-                            'duplicate': False})
+                self._json({'ok': True, 'total': info['total'], 'duplicate': False})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return

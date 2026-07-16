@@ -285,6 +285,31 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section expert-only">
+      <div class="section-title">💻 WSJT-X (FT8/FT4 — auto-log)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Chaque QSO validé dans WSJT-X arrive AUTOMATIQUEMENT dans le logbook
+        (call, grille, bande, mode, rapports) — plus de ressaisie en numérique.<br>
+        Côté WSJT-X : <b style="color:var(--accent2)">Réglages → Rapports → UDP Server</b>
+        = l'IP de ce PC, port 2237.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>AUTO-LOG WSJT-X</label>
+          <select id="wsjtx_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+          <div class="input-note">Désactivé par défaut — écoute UDP en fond si activé</div>
+        </div>
+        <div class="form-group">
+          <label>PORT UDP WSJT-X</label>
+          <input type="number" id="wsjtx_port" placeholder="2237">
+          <div class="input-note">Port « UDP Server » de WSJT-X (défaut 2237)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
       <div class="section-title">📻 RADIO (CAT via Hamlib rigctld)</div>
       <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
         Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
@@ -2019,6 +2044,8 @@ function saveConfig(silent = false) {
     rig_enabled: !!document.getElementById('rig_enabled').value,
     rig_host: document.getElementById('rig_host').value.trim(),
     rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
+    wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
+    wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
     rotor_host: document.getElementById('rotor_host').value.trim(),
     rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
@@ -2163,6 +2190,8 @@ function loadSavedConfig() {
     if(c.rig_enabled) document.getElementById('rig_enabled').value = '1';
     if(c.rig_host) document.getElementById('rig_host').value = c.rig_host;
     if(c.rig_port) document.getElementById('rig_port').value = c.rig_port;
+    if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
+    if(c.wsjtx_port) document.getElementById('wsjtx_port').value = c.wsjtx_port;
     if(c.rotor_enabled) document.getElementById('rotor_enabled').value = '1';
     if(c.rotor_host) document.getElementById('rotor_host').value = c.rotor_host;
     if(c.rotor_port) document.getElementById('rotor_port').value = c.rotor_port;

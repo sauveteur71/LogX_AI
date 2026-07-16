@@ -53,6 +53,20 @@ if __name__ == '__main__':
     from radiocontest_dxcc import update_cty_if_stale
     threading.Thread(target=update_cty_if_stale, daemon=True).start()
 
+    # Pont WSJT-X : écouteur UDP FT8/FT4 démarré si activé dans config.json
+    # (ou plus tard à chaud dès qu'un /wsjtx/state le voit activé côté client).
+    try:
+        import radiocontest_wsjtx as wsjtx
+        import radiocontest_http as http_mod
+        w = wsjtx.wsjtx_settings(None)
+        if w['enabled']:
+            wsjtx.start_listener(
+                get_cfg=lambda: dict(http_mod.current_config),
+                add_qso=lambda q: http_mod.add_qso_to_log(q, force=False)[0],
+                port=w['port'])
+    except Exception as _e:
+        print(f"[WSJTX] Demarrage differe: {_e}")
+
     import socket as _sock
     try:
         _s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
