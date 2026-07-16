@@ -1023,10 +1023,17 @@ function renderCoach(){
     `${b.band}${b.weight>1?' ×'+b.weight:''}</span>`).join('');
   document.getElementById('coachBands').innerHTML=bands;
 
-  // Conseils (3 max — le reste passe par le bouton COACH)
-  const hints=(coachState.hints||[]).slice(0,3).map(h=>
+  // Reco Run / Search & Pounce en tête, puis conseils (3 max)
+  let hintsHtml='';
+  const rs=coachState.run_sp;
+  if(rs){
+    const col=rs.mode==='RUN'?'var(--green)':rs.mode==='S&P'?'var(--accent2)':'var(--yellow)';
+    hintsHtml+=`<div class="coach-hint" style="color:${col};font-weight:700">`+
+      `🎙 ${rs.mode==='CHANGE'?'CHANGE DE BANDE':rs.mode} — ${rs.reason}</div>`;
+  }
+  hintsHtml+=(coachState.hints||[]).slice(0,3).map(h=>
     `<div class="coach-hint ch-${h.level}">${h.icon} ${h.text}</div>`).join('');
-  document.getElementById('coachHints').innerHTML=hints;
+  document.getElementById('coachHints').innerHTML=hintsHtml;
 }
 
 async function coachAdvice(){

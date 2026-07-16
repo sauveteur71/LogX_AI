@@ -46,9 +46,43 @@
     <div class="rcsb-item" title="Dernier backup automatique du log (toutes les 5 min sur la page Logbook)">
       💾 <span class="rcsb-val" id="rcsbSave">—</span>
     </div>
+    <div class="rcsb-item" title="Rate meter : QSO/h sur 10 min glissantes (extrapolé) et 60 min glissantes. Clic : fixer un objectif — vert au-dessus, rouge en dessous."
+         id="rcsbRateItem" style="cursor:pointer">
+      ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
+    </div>
     <div class="rcsb-item" title="Dernière vérification automatique des règlements par le serveur">
       📄 <a href="radiocontest_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>`;
+
+  // ── Rate meter (A3) : QSO/h 10 min extrapolé + 60 min, objectif cliquable ──
+  function refreshRate(){
+    fetch('/coach/state').then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(st){
+        const el = document.getElementById('rcsbRate');
+        if (!el || !st) return;
+        const s = st.stats || {};
+        const running = st.clock && st.clock.status === 'en_cours';
+        const goal = parseInt(localStorage.getItem('rc_rate_goal') || '0', 10);
+        if (!running){ el.textContent = '—'; el.style.color = ''; return; }
+        el.textContent = (s.rate_10min || 0) + '/h (10min) · '
+                       + (s.rate_60min || 0) + '/h (60min)'
+                       + (goal ? ' · obj ' + goal : '');
+        el.style.color = goal
+          ? ((s.rate_10min || 0) >= goal ? 'var(--green,#00FF88)' : 'var(--red,#FF2D55)')
+          : '';
+      }).catch(function(){});
+  }
+  bar.addEventListener('click', function(e){
+    if (!e.target.closest('#rcsbRateItem')) return;
+    const cur = localStorage.getItem('rc_rate_goal') || '0';
+    const v = prompt('Objectif de rate (QSO/h) — 0 pour désactiver :', cur);
+    if (v !== null){
+      localStorage.setItem('rc_rate_goal', String(parseInt(v, 10) || 0));
+      refreshRate();
+    }
+  });
+  refreshRate();
+  setInterval(refreshRate, 60 * 1000);
 
   // ── Thème jour/nuit GLOBAL (rc_theme, basculé sur config/carte/logbook) ───
   // Chaque page définit sa palette body.day-mode ; ici on applique le choix
