@@ -649,7 +649,11 @@ function setupDone(){
   if(stored.postal && stored.postal.length>=2) hdrParts.push(`Dépt.${stored.postal.slice(0,2)}`);
   document.getElementById('hdrStation').textContent = hdrParts.join(' · ');
   document.getElementById('hdrContest').textContent = cont;
-  document.getElementById('currentOp').textContent = op;
+  // Indicateur « OP : » — en single-op, montrer l'indicatif plutôt que « OP1 »
+  const opsCfg = stored.operators || [];
+  const opIdx = parseInt((op||'OP1').replace('OP',''), 10) - 1;
+  const opCall = (opsCfg[opIdx] && (opsCfg[opIdx].call || opsCfg[opIdx].callsign)) || call;
+  document.getElementById('currentOp').textContent = opCall || op;
   document.getElementById('setupModal').style.display = 'none';
   // Recharger les dates de début/fin pour le countdown
   contestEndUTC   = getContestEndUTC();
@@ -2893,6 +2897,10 @@ function prefillSetupFromConfig(){
 
   // Injecter les vrais noms opérateurs depuis config
   const ops = cfg.operators || [];
+  // SINGLE-OP : la section concours SO* (Single Operator) prime — un seul
+  // opérateur, sélecteur inutile. On considère aussi single-op si la config
+  // ne liste qu'un opérateur. Sinon (MO*) : le multi-op reste disponible.
+  const isSingleOp = /^SO/i.test(cfg.section || '') || ops.length <= 1;
   if(ops.length){
     opEl.innerHTML = '<option value="">-- Sélectionne ton identifiant opérateur --</option>';
     ops.forEach((op, i) => {
@@ -2901,18 +2909,30 @@ function prefillSetupFromConfig(){
       const lbl = call ? `${val} — ${call}${op.name?' ('+op.name+')':''}` : val;
       opEl.innerHTML += `<option value="${val}">${lbl}</option>`;
     });
-    // Mettre à jour aussi les boutons OP du formulaire
+    // Boutons OP du formulaire : vrai indicatif, et on masque les emplacements
+    // sans indicatif configuré (plus de OP4/OP5 fantômes).
     document.querySelectorAll('.op-btn').forEach((btn, i) => {
       const call = ops[i] && (ops[i].call || ops[i].callsign);
-      if(call) btn.textContent = call;
+      if(call){ btn.textContent = call; btn.style.display = ''; }
+      else { btn.style.display = 'none'; }
     });
-    // Mono-opérateur : masquer tout le bloc opérateur, forcer OP1
-    const opGroup = document.getElementById('opSelect').closest('.field-group');
-    if(ops.length === 1){
-      if(opGroup) opGroup.style.display = 'none';
-    } else {
-      if(opGroup) opGroup.style.display = '';
-    }
+  }
+  // Masquer tout ce qui est multi-op en single-op : sélecteur d'opérateur,
+  // classement par opérateur, chat inter-postes. L'opérateur reste OP1.
+  const opGroup = document.getElementById('opSelect').closest('.field-group');
+  if(opGroup) opGroup.style.display = isSingleOp ? 'none' : '';
+  const opStats = document.getElementById('opStatsBar');
+  if(opStats) opStats.style.display = isSingleOp ? 'none' : '';
+  const chatPanel = document.getElementById('chatPanel');
+  if(chatPanel) chatPanel.style.display = isSingleOp ? 'none' : '';
+  const peersInfo = document.getElementById('netPeers');
+  if(peersInfo && isSingleOp){
+    const wrap = peersInfo.closest('span'); if(wrap) wrap.style.display = 'none';
+  }
+  if(isSingleOp){
+    myOp = 'OP1';
+    const cur = document.getElementById('currentOp');
+    if(cur) cur.textContent = (ops[0] && (ops[0].call || ops[0].callsign)) || cfg.callsign || 'OP1';
   }
 
   const modal = document.getElementById('setupModal');
