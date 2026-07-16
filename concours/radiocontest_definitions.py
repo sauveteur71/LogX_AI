@@ -745,8 +745,8 @@ def save_custom_contest(cid, definition, meta=None):
     except Exception:
         data = {}
     data[cid] = {'definition': definition, **(meta or {})}
-    with open(CUSTOM_CONTESTS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    from radiocontest_storage import save_json_atomic
+    save_json_atomic(CUSTOM_CONTESTS_FILE, data)
     CONTEST_DEFINITIONS[cid] = definition
     CUSTOM_CONTEST_IDS.add(cid)
     print(f"[CUSTOM] Concours '{cid}' enregistré ({definition.get('name','')})")
@@ -762,8 +762,8 @@ def delete_custom_contest(cid):
             with open(CUSTOM_CONTESTS_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         data.pop(cid, None)
-        with open(CUSTOM_CONTESTS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        from radiocontest_storage import save_json_atomic
+        save_json_atomic(CUSTOM_CONTESTS_FILE, data)
     except Exception as e:
         return False, f"Erreur fichier : {e}"
     CONTEST_DEFINITIONS.pop(cid, None)
