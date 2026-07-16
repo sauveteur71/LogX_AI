@@ -143,14 +143,14 @@ def main():
     api_key = os.environ.get('ANTHROPIC_API_KEY', '')
     cfg = {'api_provider': 'anthropic', 'api_key': api_key}
     if not args.mock and not api_key:
-        print("⚠ ANTHROPIC_API_KEY non défini — exporte ta clé ou utilise --mock")
+        print("[!] ANTHROPIC_API_KEY non défini — exporte ta clé ou utilise --mock")
         sys.exit(2)
 
     total_ok = total = 0
     for case in CORPUS:
         if args.only and args.only.lower() not in case['name'].lower():
             continue
-        print(f"\n═══ {case['name']} ═══")
+        print(f"\n=== {case['name']} ===")
         kwargs = {'cfg': cfg, 'verify': not args.no_verify,
                   'contest_name': case['name']}
         if 'file' in case:
@@ -175,7 +175,7 @@ def main():
 
         res = analyze(**kwargs)
         if not res.get('ok'):
-            print(f"  ❌ ANALYSE EN ÉCHEC : {res.get('error')}")
+            print(f"  [X] ANALYSE EN ÉCHEC : {res.get('error')}")
             total += len(case['expect'])
             continue
         d = res['definition']
@@ -183,15 +183,15 @@ def main():
               f"validation={'OK' if not res.get('validation_errors') else res['validation_errors']}")
         v = res.get('verification') or {}
         if v.get('issues'):
-            print(f"  🔍 vérification : {len(v['issues'])} correction(s), appliquées={v.get('applied')}")
+            print(f"  [?] vérification : {len(v['issues'])} correction(s), appliquées={v.get('applied')}")
         for rule in case['expect']:
             ok, detail = _check(d, rule)
             total += 1
             total_ok += ok
-            print(f"  {'✅' if ok else '❌'} {detail}")
+            print(f"  {'[OK]' if ok else '[X]'} {detail}")
 
-    print(f"\n════ SCORE GLOBAL : {total_ok}/{total} champs corrects "
-          f"({100*total_ok//max(total,1)}%) ════")
+    print(f"\n==== SCORE GLOBAL : {total_ok}/{total} champs corrects "
+          f"({100*total_ok//max(total,1)}%) ====")
     sys.exit(0 if total_ok == total else 1)
 
 if __name__ == '__main__':

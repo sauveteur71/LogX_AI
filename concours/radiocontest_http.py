@@ -962,7 +962,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         if changed:
                             db['calls'][call] = entry
                             save_json_atomic(calldb_path, db, lock=calldb_lock, compact=True)
-                            print(f"[DB] Mis à jour : {call} → loc:{locator} dept:{dept}")
+                            print(f"[DB] Mis à jour : {call} -> loc:{locator} dept:{dept}")
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)

@@ -347,7 +347,7 @@ def run_annual_update():
             print(f"[UPDATE] Erreur sauvegarde: {e}")
 
     if results['alerts']:
-        print("\n[UPDATE] ⚠️ ALERTES:")
+        print("\n[UPDATE] [!] ALERTES:")
         for a in results['alerts']:
             print(f"  {a}")
 
@@ -365,7 +365,7 @@ def load_rules_cache():
             print(f"[RULES] Cache chargé (année {cache_year})")
             # Si le cache est d'une autre année → mettre à jour
             if cache_year != CURRENT_YEAR:
-                print(f"[RULES] Cache périmé ({cache_year} → {CURRENT_YEAR}) — mise à jour...")
+                print(f"[RULES] Cache périmé ({cache_year} -> {CURRENT_YEAR}) — mise à jour...")
                 threading.Thread(target=run_annual_update, daemon=True).start()
         else:
             print("[RULES] Pas de cache — première initialisation...")

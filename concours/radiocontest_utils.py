@@ -50,12 +50,12 @@ def fetch_url(url, timeout=10):
                     charset = resp.headers.get_content_charset() or 'utf-8'
                     return resp.read().decode(charset, errors='replace')
             except Exception as e2:
-                print(f"  [FETCH] {url[:60]}... → {e2} (même sans vérif SSL)")
+                print(f"  [FETCH] {url[:60]}... -> {e2} (même sans vérif SSL)")
                 return None
-        print(f"  [FETCH] {url[:60]}... → {e}")
+        print(f"  [FETCH] {url[:60]}... -> {e}")
         return None
     except Exception as e:
-        print(f"  [FETCH] {url[:60]}... → {e}")
+        print(f"  [FETCH] {url[:60]}... -> {e}")
         return None
 
 def locator_to_latlon(loc):
