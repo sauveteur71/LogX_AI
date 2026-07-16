@@ -46,6 +46,12 @@ if __name__ == '__main__':
 
     threading.Thread(target=schedule_annual_check, daemon=True).start()
 
+    # Base DXCC : rafraîchit cty.dat s'il a plus de 30 jours (AD1C publie
+    # des mises à jour avant chaque gros concours). En fond : le serveur
+    # démarre sans attendre le réseau, la base actuelle sert en attendant.
+    from radiocontest_dxcc import update_cty_if_stale
+    threading.Thread(target=update_cty_if_stale, daemon=True).start()
+
     import socket as _sock
     try:
         _s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
@@ -56,13 +62,14 @@ if __name__ == '__main__':
         local_ip = '127.0.0.1'
 
     print('=' * 60)
-    print('  RadioContest AI v3.1 -- F6KQJ/P JN15XC')
-    print('  Rallye des Points Hauts 2026')
+    print('  RadioContest AI -- logiciel de concours multi-tout')
+    print('  (config du concours actif : page CONFIG)')
     print('=' * 60)
-    print(f'  -> http://localhost:{PORT}/radiocontest_logbook.html')
-    print(f'  -> http://localhost:{PORT}/radiocontest_terrain.html')
     print(f'  -> http://localhost:{PORT}/radiocontest_configuration.html')
+    print(f'  -> http://localhost:{PORT}/radiocontest_logbook.html')
+    print(f'  -> http://localhost:{PORT}/radiocontest_propagation.html')
     print(f'  -> http://localhost:{PORT}/radiocontest_calendrier.html')
+    print(f'  -> http://localhost:{PORT}/radiocontest_mobile.html (telephone)')
     print('=' * 60)
     print(f'  Autres postes WiFi : http://{local_ip}:{PORT}/radiocontest_logbook.html')
     print()

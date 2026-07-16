@@ -117,6 +117,71 @@ def _as_dict(t):
             'itu_zone': t[3], 'prefix': t[4]}
 
 
+# ─── MISE À JOUR AUTOMATIQUE ─────────────────────────────────────────────────
+CTY_URL = 'https://www.country-files.com/cty/cty.dat'
+CTY_MAX_AGE_DAYS = 30
+
+
+def _cty_age_days(path=None):
+    """Âge du fichier en jours, None s'il n'existe pas."""
+    import time
+    path = path or CTY_FILE
+    if not os.path.exists(path):
+        return None
+    return (time.time() - os.path.getmtime(path)) / 86400
+
+
+def _looks_valid_cty(content):
+    """Garde-fou avant de remplacer la base : jamais un fichier corrompu
+    ou une page d'erreur à la place de cty.dat."""
+    if not content or len(content) < 50000:
+        return False
+    if 'France' not in content or 'United States' not in content:
+        return False
+    return content.count(';') > 300
+
+
+def update_cty_if_stale(max_age_days=CTY_MAX_AGE_DAYS, force=False):
+    """Rafraîchit cty.dat depuis country-files.com s'il a plus de N jours
+    (AD1C le met à jour plusieurs fois par mois avant les gros concours).
+    Validation stricte avant remplacement, écriture atomique, rechargement
+    à chaud. Sans réseau : conserve silencieusement le fichier actuel."""
+    age = _cty_age_days()
+    if not force and age is not None and age < max_age_days:
+        return False
+    from radiocontest_utils import fetch_url
+    data = fetch_url(CTY_URL, timeout=30)
+    if not _looks_valid_cty(data or ''):
+        if age is not None:
+            print("[DXCC] Mise a jour cty.dat impossible (reseau/contenu) - "
+                  f"fichier actuel conserve (age {age:.0f} j)")
+        return False
+    import tempfile
+    target_dir = os.path.dirname(os.path.abspath(CTY_FILE)) or '.'
+    fd, tmp = tempfile.mkstemp(prefix='cty.', suffix='.tmp', dir=target_dir)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
+            f.write(data)
+        os.replace(tmp, CTY_FILE)
+    except Exception as e:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        print(f"[DXCC] Ecriture cty.dat impossible: {e}")
+        return False
+    # Rechargement à chaud (les dicts sont mutés en place, les imports
+    # par référence restent valides)
+    _PREFIXES.clear()
+    _EXACT.clear()
+    global _loaded
+    _loaded = False
+    load_cty()
+    print(f"[DXCC] cty.dat mis a jour"
+          + (f" (l'ancien avait {age:.0f} j)" if age is not None else " (nouveau)"))
+    return True
+
+
 def country_key(callsign):
     """Clé pays stable pour les sets de multiplicateurs DXCC ('K', 'DL'...).
     Repli : 2 premiers caractères (ancien comportement) si inconnu."""
