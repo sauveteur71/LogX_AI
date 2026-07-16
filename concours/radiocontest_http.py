@@ -82,16 +82,12 @@ chat_lock = threading.Lock()
 chat_seq = 0           # identifiant auto-incrémenté
 
 # ─── REFRESH DONNÉES ─────────────────────────────────────────────────────────
-def do_refresh(cfg):
-    toggles = cfg.get('toggles', {})
-    no_digi = toggles.get('flag_no_digi', False)
-    contest = cfg.get('contest', 'CUSTOM')
-    log_sw  = cfg.get('log_software', 'net-test-thf')
-    callsign = cfg.get('callsign_contest', cfg.get('callsign', ''))
+# Chaque source réseau est isolée dans sa fonction et lancée EN PARALLÈLE via
+# un ThreadPoolExecutor : une source lente ou en panne est abandonnée au
+# timeout global au lieu de bloquer tout le refresh.
+REFRESH_TIMEOUT_S = 25
 
-    print(f"[DATA] Refresh — {callsign} | {cfg.get('locator','?')} | {contest}")
-
-    # ── 1. Logs ───────────────────────────────────────────────────────────────
+def _fetch_logs_src(cfg, log_sw, no_digi):
     logs = {}
     if log_sw == 'net-test-thf':
         url144 = cfg.get('log_url_144', '')
@@ -106,10 +102,68 @@ def do_refresh(cfg):
             logs['Principal'] = fetch_log_adif(log_url, filter_digital=no_digi)
     if not logs:
         logs['Log'] = {'qsos': [], 'score': 0, 'total_qso': 0, 'error': 'URL log non configurée'}
+    return logs
 
-    # ── 2. Clusters (multi-sources fusionnées) ────────────────────────────────
-    global SPOTS_CACHE
-    spots_by_band = {}
+def _fetch_spots_vhf_src(band, no_digi):
+    s = fetch_all_vhf_spots(band, filter_digital=no_digi)
+    SPOTS_CACHE[str(band)] = s
+    print(f"[DATA] {band} MHz: {len(s)} spots (multi-cluster)")
+    return s
+
+def _fetch_spots_50_src(no_digi):
+    s = fetch_cluster_f5len(50, filter_digital=no_digi)
+    SPOTS_CACHE['50'] = s
+    print(f"[DATA] 50 MHz: {len(s)} spots")
+    return s
+
+def _fetch_spots_hf_src(callsign, no_digi):
+    """4 sources HF fusionnées et dédupliquées (DXSummit, F5LEN, Telnet, navigateur)."""
+    s_summit = fetch_dxsummit_hf(filter_digital=no_digi)
+    s_f5len = fetch_f5len_hf(filter_digital=no_digi)
+    s_telnet = fetch_telnet_cluster(callsign=callsign or 'F4GLD', filter_digital=no_digi)
+    s_browser = []
+    with browser_spots_lock:
+        age = time.time() - browser_spots_ts
+        if browser_spots_cache and age < 600:  # valides 10 min
+            s_browser = list(browser_spots_cache)
+            print(f"[BROWSER-SPOTS] {len(s_browser)} spots (age {int(age)}s)")
+        elif browser_spots_cache:
+            print(f"[BROWSER-SPOTS] cache perime ({int(age)}s)")
+    all_hf = s_summit + s_f5len + s_telnet + s_browser
+    seen_hf = set()
+    s = []
+    for sp in all_hf:
+        dx = sp.get('dx','') if isinstance(sp, dict) else (sp[0] if sp else '')
+        freq = str(sp.get('freq','')) if isinstance(sp, dict) else (sp[1] if len(sp)>1 else '')
+        key = f"{dx}|{freq}"
+        if key not in seen_hf:
+            seen_hf.add(key)
+            s.append(sp)
+    print(f"[DATA] HF: {len(s)} spots total (DXWatch:{len(s_summit)} F5LEN:{len(s_f5len)} Telnet:{len(s_telnet)} Browser:{len(s_browser)})")
+    return s
+
+def _fetch_on4kst_src(cfg):
+    try:
+        data = fetch_on4kst_data(cfg['on4kst_callsign'], cfg['on4kst_password'])
+        if data.get('error'):
+            print(f"[ON4KST] Erreur : {data['error']}")
+            return None
+        return data
+    except Exception as e:
+        print(f"[ON4KST] Exception : {e}")
+        return None
+
+def do_refresh(cfg):
+    from concurrent.futures import ThreadPoolExecutor
+
+    toggles = cfg.get('toggles', {})
+    no_digi = toggles.get('flag_no_digi', False)
+    contest = cfg.get('contest', 'CUSTOM')
+    log_sw  = cfg.get('log_software', 'net-test-thf')
+    callsign = cfg.get('callsign_contest', cfg.get('callsign', ''))
+
+    print(f"[DATA] Refresh — {callsign} | {cfg.get('locator','?')} | {contest}")
+
     HF_CONTESTS = {'ARRL_FD','CQ_WW_SSB','CQ_WW_CW','CQ_WPX_SSB','CQ_WPX_CW',
                    'ARRL_DX_SSB','ARRL_DX_CW','REF_CDF_HF_SSB','REF_CDF_HF_CW',
                    'REF_160M','F9NL','UFT_RENCONTRES'}
@@ -117,54 +171,77 @@ def do_refresh(cfg):
     # Pour les concours HF (ARRL_FD, CQ WW…), ne pas fetcher les spots VHF
     # même si band_2m est coché dans la config (2m est secondaire en HF contest)
     is_vhf_contest = (toggles.get('band_2m', False) or '144' in str(contest)) and not is_hf_contest
-    if is_vhf_contest:
-        s = fetch_all_vhf_spots(144, filter_digital=no_digi)
-        spots_by_band['144 MHz'] = s
-        SPOTS_CACHE['144'] = s
-        print(f"[DATA] 144 MHz: {len(s)} spots (multi-cluster)")
-    if (toggles.get('band_70cm', False) or '432' in str(contest)) and not is_hf_contest:
-        s = fetch_all_vhf_spots(432, filter_digital=no_digi)
-        spots_by_band['432 MHz'] = s
-        SPOTS_CACHE['432'] = s
-        print(f"[DATA] 432 MHz: {len(s)} spots (multi-cluster)")
-    if toggles.get('band_6m', False) or contest == 'ARRL_FD':
-        s = fetch_cluster_f5len(50, filter_digital=no_digi)
-        spots_by_band['50 MHz'] = s
-        SPOTS_CACHE['50'] = s
-        print(f"[DATA] 50 MHz: {len(s)} spots")
+    is_vhf = (toggles.get('band_2m', False) or toggles.get('band_70cm', False) or '144' in str(contest)) and not is_hf_contest
     hf_bands = ['band_20m','band_40m','band_80m','band_160m','band_10m','band_15m']
+
+    # ── Lancement parallèle de toutes les sources réseau ─────────────────────
+    ex = ThreadPoolExecutor(max_workers=10, thread_name_prefix='refresh')
+    deadline = time.time() + REFRESH_TIMEOUT_S
+    futs = {'logs': ex.submit(_fetch_logs_src, cfg, log_sw, no_digi),
+            'noaa': ex.submit(fetch_noaa_kindex),
+            'rules': ex.submit(fetch_contest_rules, contest),
+            '3830': ex.submit(fetch_3830_scores, contest, callsign)}
+    if is_vhf_contest:
+        futs['spots_144'] = ex.submit(_fetch_spots_vhf_src, 144, no_digi)
+    if (toggles.get('band_70cm', False) or '432' in str(contest)) and not is_hf_contest:
+        futs['spots_432'] = ex.submit(_fetch_spots_vhf_src, 432, no_digi)
+    if toggles.get('band_6m', False) or contest == 'ARRL_FD':
+        futs['spots_50'] = ex.submit(_fetch_spots_50_src, no_digi)
     if is_hf_contest or any(toggles.get(b, False) for b in hf_bands):
-        # Source 1 : DXSummit HF via HTTP port 80 (HTTPS bloqué, HTTP fonctionne)
-        s_summit = fetch_dxsummit_hf(filter_digital=no_digi)
-        # Source 2 : F5LEN Webcluster HF (HTTP port 80)
-        s_f5len = fetch_f5len_hf(filter_digital=no_digi)
-        # Source 3 : Telnet DX Spider (désactivé si port 7300 bloqué — tente quand même)
-        s_telnet = fetch_telnet_cluster(
-            callsign=callsign or 'F4GLD',
-            filter_digital=no_digi
-        )
-        # Source 4 : Spots poussés par le navigateur (HTTPS fonctionne depuis browser)
-        s_browser = []
-        with browser_spots_lock:
-            age = time.time() - browser_spots_ts
-            if browser_spots_cache and age < 600:  # valides 10 min
-                s_browser = list(browser_spots_cache)
-                print(f"[BROWSER-SPOTS] {len(s_browser)} spots (âge {int(age)}s)")
-            elif browser_spots_cache:
-                print(f"[BROWSER-SPOTS] cache périmé ({int(age)}s)")
-        # Fusionner et dédupliquer
-        all_hf = s_summit + s_f5len + s_telnet + s_browser
-        seen_hf = set()
-        s = []
-        for sp in all_hf:
-            dx = sp.get('dx','') if isinstance(sp, dict) else (sp[0] if sp else '')
-            freq = str(sp.get('freq','')) if isinstance(sp, dict) else (sp[1] if len(sp)>1 else '')
-            key = f"{dx}|{freq}"
-            if key not in seen_hf:
-                seen_hf.add(key)
-                s.append(sp)
-        spots_by_band['HF'] = s
-        print(f"[DATA] HF: {len(s)} spots total (DXWatch:{len(s_summit)} F5LEN:{len(s_f5len)} Telnet:{len(s_telnet)} Browser:{len(s_browser)})")
+        futs['spots_hf'] = ex.submit(_fetch_spots_hf_src, callsign, no_digi)
+    if is_vhf:
+        futs['dxmaps'] = ex.submit(fetch_dxmaps_vhf)
+    if (is_vhf and toggles.get('src_on4kst', False)
+            and cfg.get('on4kst_callsign') and cfg.get('on4kst_password')):
+        futs['on4kst'] = ex.submit(_fetch_on4kst_src, cfg)
+
+    def take(key, default=None):
+        """Résultat d'une source, borné par le deadline global — jamais bloquant."""
+        fut = futs.get(key)
+        if fut is None:
+            return default
+        try:
+            return fut.result(timeout=max(0.5, deadline - time.time()))
+        except Exception as e:
+            print(f"[REFRESH] Source '{key}' abandonnee ({type(e).__name__}: {e})")
+            return default
+
+    # ── 1. Logs (HamQTH en dépend → lancé dès qu'ils arrivent) ───────────────
+    logs = take('logs') or {'Log': {'qsos': [], 'score': 0, 'total_qso': 0,
+                                    'error': 'URL log non configurée'}}
+    calldb_path = os.path.join(os.getcwd(), 'calldb.json')
+    all_log_calls = {}
+    for log_data in logs.values():
+        for q in log_data.get('qsos', []):
+            base = q.get('call','').split('/')[0]
+            if base:
+                all_log_calls[base] = {'locator': q.get('locator','')}
+    futs['hamqth'] = ex.submit(enrich_unknown_calls, all_log_calls, calldb_path)
+
+    # ── 2. Spots par bande ────────────────────────────────────────────────────
+    spots_by_band = {}
+    for key, label in (('spots_144','144 MHz'), ('spots_432','432 MHz'),
+                       ('spots_50','50 MHz'), ('spots_hf','HF')):
+        if key in futs:
+            spots_by_band[label] = take(key, []) or []
+
+    # ── 3-7. Autres sources ───────────────────────────────────────────────────
+    noaa = take('noaa')
+    if noaa:
+        print(f"[NOAA] {noaa['summary']}")
+    dxmaps = take('dxmaps')
+    if dxmaps:
+        print(f"[DXMAPS] {dxmaps['summary']}")
+    on4kst = take('on4kst')
+    rules_info = take('rules')
+    if rules_info and rules_info.get('ok'):
+        print(f"[RULES] Reglement {contest} disponible")
+    scores_3830 = take('3830')
+    if scores_3830:
+        print(f"[3830] {scores_3830['summary']}")
+    hamqth_enriched = take('hamqth', {}) or {}
+    # Les threads retardataires finiront en arrière-plan sans bloquer la réponse
+    ex.shutdown(wait=False, cancel_futures=True)
 
     # ── Filtre préfixe spots (si configuré) ──────────────────────────────────
     prefix_filter_raw = cfg.get('spot_prefix_filter', '')
@@ -182,53 +259,7 @@ def do_refresh(cfg):
             ]
             filtered_total += before - len(spots_by_band[band_key])
         if filtered_total:
-            print(f"[PREFIX-FILTER] {filtered_total} spots supprimés (filtre: {','.join(prefix_filter)})")
-
-    # ── 3. NOAA K-index ──────────────────────────────────────────────────────
-    noaa = fetch_noaa_kindex()
-    if noaa:
-        print(f"[NOAA] {noaa['summary']}")
-
-    # ── 4. DXMaps propagation VHF ─────────────────────────────────────────────
-    dxmaps = None
-    is_vhf = (toggles.get('band_2m', False) or toggles.get('band_70cm', False) or '144' in str(contest)) and not is_hf_contest
-    if is_vhf:
-        dxmaps = fetch_dxmaps_vhf()
-        if dxmaps:
-            print(f"[DXMAPS] {dxmaps['summary']}")
-
-    # ── 4bis. ON4KST chat 144/432 (stations actives + messages) ──────────────
-    on4kst = None
-    if (is_vhf and toggles.get('src_on4kst', False)
-            and cfg.get('on4kst_callsign') and cfg.get('on4kst_password')):
-        try:
-            on4kst = fetch_on4kst_data(cfg['on4kst_callsign'], cfg['on4kst_password'])
-            if on4kst.get('error'):
-                print(f"[ON4KST] Erreur : {on4kst['error']}")
-                on4kst = None
-        except Exception as e:
-            print(f"[ON4KST] Exception : {e}")
-            on4kst = None
-
-    # ── 5. Règlement officiel ─────────────────────────────────────────────────
-    rules = fetch_contest_rules(contest)
-    if rules and rules.get('ok'):
-        print(f"[RULES] Règlement {contest} disponible")
-
-    # ── 6. 3830 Scores ───────────────────────────────────────────────────────
-    scores_3830 = fetch_3830_scores(contest, callsign)
-    if scores_3830:
-        print(f"[3830] {scores_3830['summary']}")
-
-    # ── 7. Enrichissement HamQTH ─────────────────────────────────────────────
-    calldb_path = os.path.join(os.getcwd(), 'calldb.json')
-    all_log_calls = {}
-    for log_data in logs.values():
-        for q in log_data.get('qsos', []):
-            base = q.get('call','').split('/')[0]
-            if base:
-                all_log_calls[base] = {'locator': q.get('locator','')}
-    hamqth_enriched = enrich_unknown_calls(all_log_calls, calldb_path)
+            print(f"[PREFIX-FILTER] {filtered_total} spots supprimes (filtre: {','.join(prefix_filter)})")
 
     # ── Score total ───────────────────────────────────────────────────────────
     total_score = sum(l.get('score', 0) for l in logs.values())
@@ -255,10 +286,10 @@ def do_refresh(cfg):
         if dxmaps.get('tropo_active'):
             extra.append("  🌊 TROPO CONFIRMÉ SUR DXMAPS — favoriser les contacts côtiers !")
 
-    if rules and rules.get('ok'):
+    if rules_info and rules_info.get('ok'):
         extra.append(f"\n📋 RÈGLEMENT {contest} (extrait) :")
-        extra.append(f"  {rules['text_extract'][:500]}...")
-        extra.append(f"  → Règlement complet : {rules['url']}")
+        extra.append(f"  {rules_info['text_extract'][:500]}...")
+        extra.append(f"  → Règlement complet : {rules_info['url']}")
 
     if scores_3830:
         extra.append(f"\n🏆 CLASSEMENT 3830SCORES — {scores_3830['contest']} :")
@@ -320,7 +351,7 @@ def do_refresh(cfg):
         'noaa': noaa,
         'dxmaps': dxmaps,
         'scores_3830': scores_3830,
-        'rules_loaded': bool(rules and rules.get('ok')),
+        'rules_loaded': bool(rules_info and rules_info.get('ok')),
         'hamqth_enriched': len(hamqth_enriched),
         'on4kst_users': len(on4kst['users']) if on4kst else 0,
     }
