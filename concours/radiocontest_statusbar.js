@@ -22,13 +22,13 @@
   bar.innerHTML = `
     <style>
       #rcStatusBar{display:flex;align-items:center;gap:0;flex-wrap:wrap;
-        background:var(--bg2,#0D0E1A);border-bottom:1px solid var(--border,#1E2040);
-        font-family:var(--font-mono,'Share Tech Mono',monospace);font-size:10px;
-        color:var(--muted,#B8A040);padding:0 12px;min-height:26px}
+        background:var(--bg2,#0D0E1A);border-bottom:1px solid var(--border,#2B2F4A);
+        font-family:var(--font-mono,'Share Tech Mono',monospace);font-size:12px;
+        color:var(--muted,#A9B0C8);padding:0 12px;min-height:26px}
       #rcStatusBar .rcsb-item{display:flex;align-items:center;gap:5px;
-        padding:4px 12px;border-right:1px solid var(--border,#1E2040);white-space:nowrap}
+        padding:4px 12px;border-right:1px solid var(--border,#2B2F4A);white-space:nowrap}
       #rcStatusBar .rcsb-item:last-child{border-right:none}
-      #rcStatusBar .rcsb-val{color:var(--text,#FFE566)}
+      #rcStatusBar .rcsb-val{color:var(--text,#E9ECF5)}
       #rcStatusBar .rcsb-contest{color:var(--accent,#FF6B00);font-weight:700;letter-spacing:1px}
       #rcStatusBar .rcsb-running{color:var(--green,#00FF88)}
       #rcStatusBar .rcsb-soon{color:var(--yellow,#FFD60A)}

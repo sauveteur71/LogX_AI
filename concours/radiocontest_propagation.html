@@ -7,15 +7,15 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
 :root {
-  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#1E2040;
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
   --accent:#FF6B00;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
-  --yellow:#FFD60A;--purple:#BF5AF2;--text:#FFE566;--muted:#B8A040;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
   --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
 }
 body.day-mode {
   --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
   --accent:#D05000; --accent2:#0060A0; --green:#007030; --red:#CC0030;
-  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#606888;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#4A5170;
 }
 body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -24,7 +24,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .logo{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:3px}
 .logo span{color:var(--accent2)}
 .app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
-.app-nav a{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 
@@ -32,23 +32,23 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 @media (max-width:900px){.container{grid-template-columns:1fr}}
 
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px}
-.panel-title{font-family:var(--font-mono);font-size:11px;color:var(--accent2);letter-spacing:3px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
-.panel-title small{color:var(--muted);letter-spacing:0;font-size:9px}
+.panel-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:3px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.panel-title small{color:var(--muted);letter-spacing:0;font-size:12px}
 
 /* Tuiles solaires */
 .solar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .solar-item{background:var(--bg3);border-radius:8px;padding:10px;text-align:center}
-.si-lbl{font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1px}
+.si-lbl{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px}
 .si-val{font-family:var(--font-mono);font-size:20px;font-weight:700;margin-top:2px}
-.si-sub{font-size:9px;color:var(--muted)}
+.si-sub{font-size:12px;color:var(--muted)}
 .muf-band{background:var(--bg3);border-radius:8px;padding:12px;text-align:center;margin-top:8px;border:1px solid var(--accent2)}
 .muf-val{font-family:var(--font-mono);font-size:30px;font-weight:800;color:var(--accent2)}
 
 /* Conditions par bande */
 .band-cond{display:flex;flex-direction:column;gap:5px;margin-top:8px}
-.bc-row{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px}
+.bc-row{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:13px}
 .bc-name{width:70px;color:var(--text)}
-.bc-tag{padding:2px 10px;border-radius:4px;font-size:10px;letter-spacing:1px;min-width:56px;text-align:center}
+.bc-tag{padding:2px 10px;border-radius:4px;font-size:12px;letter-spacing:1px;min-width:56px;text-align:center}
 .bc-good{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.4)}
 .bc-fair{background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)}
 .bc-poor{background:rgba(255,45,85,.12);color:var(--red);border:1px solid rgba(255,45,85,.35)}
@@ -56,20 +56,20 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .bc-closed{color:var(--muted)}
 
 /* Need list / cluster */
-.spot-row{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 12px;margin-bottom:5px;font-family:var(--font-mono);font-size:12px}
+.spot-row{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 12px;margin-bottom:5px;font-family:var(--font-mono);font-size:14px}
 .spot-row.sr-mult{border-color:var(--green);background:rgba(0,255,136,.06)}
 .spot-row.sr-done{opacity:.4}
 .sr-prio{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.sr-call{width:110px;font-weight:700;color:var(--text);font-size:13px}
+.sr-call{width:110px;font-weight:700;color:var(--text);font-size:14px}
 .sr-freq{width:80px;color:var(--accent2)}
 .sr-band{width:56px;color:var(--muted)}
 .sr-val{width:110px;text-align:right}
-.sr-mult-badge{font-size:9px;letter-spacing:1px;color:var(--green);border:1px solid rgba(0,255,136,.4);border-radius:3px;padding:1px 6px}
+.sr-mult-badge{font-size:12px;letter-spacing:1px;color:var(--green);border:1px solid rgba(0,255,136,.4);border-radius:3px;padding:1px 6px}
 .sr-cap{width:80px;color:var(--accent)}
-.sr-info{flex:1;color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-info{flex:1;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .loading{text-align:center;padding:30px;font-family:var(--font-mono);color:var(--muted)}
 .filters{display:flex;gap:8px;margin-bottom:10px}
-.filter-btn{font-family:var(--font-mono);font-size:10px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
+.filter-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
 .filter-btn.active{border-color:var(--accent2);color:var(--accent2)}
 </style>
 </head>
@@ -77,7 +77,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 <header>
   <div class="logo">Radio<span>Contest</span> AI — <span style="color:var(--green)">Propagation & Écoute</span></div>
-  <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)" id="lastRefresh">—</div>
+  <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted)" id="lastRefresh">—</div>
 </header>
 
 <nav class="app-nav">

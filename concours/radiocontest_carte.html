@@ -7,16 +7,16 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
 :root {
-  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#1E2040;
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
   --accent:#FF6B00;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
-  --yellow:#FFD60A;--purple:#BF5AF2;--text:#FFE566;--muted:#B8A040;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
   --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
 }
 /* ─── MODE JOUR ─────────────────────────────────────────────────────────── */
 body.day-mode {
   --bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
   --accent:#D05000;--accent2:#0060A0;--green:#007030;--red:#CC0030;
-  --yellow:#7A5A00;--purple:#8040B0;--text:#0A0C20;--muted:#606888;
+  --yellow:#7A5A00;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;
 }
 body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 body.day-mode .bubble.msg-agent{color:var(--text)}
@@ -31,26 +31,26 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .live-dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 .call{font-family:var(--font-mono);font-size:20px;color:var(--accent);letter-spacing:3px}
-.sub{font-size:10px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
+.sub{font-size:12px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
 .hdr-right{display:flex;align-items:center;gap:16px}
 .score-hdr{text-align:right}
-.score-lbl{font-size:9px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
+.score-lbl{font-size:12px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
 .score-val{font-size:22px;font-weight:800;color:var(--accent);font-family:var(--font-mono)}
-.clock{font-family:var(--font-mono);font-size:13px;color:var(--muted)}
-.cfg-btn{font-family:var(--font-mono);font-size:10px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
+.clock{font-family:var(--font-mono);font-size:14px;color:var(--muted)}
+.cfg-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
 .cfg-btn:hover{border-color:var(--accent);color:var(--accent)}
 .app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
-.app-nav a{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 .app-nav .nav-spacer{flex:1}
-.app-nav .nav-info{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:0 16px;display:flex;align-items:center;gap:10px}
+.app-nav .nav-info{font-family:var(--font-mono);font-size:13px;color:var(--muted);padding:0 16px;display:flex;align-items:center;gap:10px}
 
 /* SCORE BAR */
 .score-bar{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
 .score-item{flex:1;padding:7px 14px;border-right:1px solid var(--border)}
 .score-item:last-child{border-right:none}
-.si-lbl{font-size:9px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono);margin-bottom:2px}
+.si-lbl{font-size:12px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono);margin-bottom:2px}
 .si-val{font-size:15px;font-weight:800;font-family:var(--font-mono)}
 
 /* MAIN */
@@ -65,8 +65,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .msg-user{align-items:flex-end}
 .msg-agent{align-items:flex-start}
-.msg-lbl{font-size:9px;letter-spacing:2px;font-family:var(--font-mono);color:var(--muted);padding:0 3px}
-.bubble{max-width:360px;padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.msg-lbl{font-size:12px;letter-spacing:2px;font-family:var(--font-mono);color:var(--muted);padding:0 3px}
+.bubble{max-width:360px;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .msg-user .bubble{background:linear-gradient(135deg,#1A2060,#0D1240);border:1px solid #2A3080;color:#C0C8FF;border-radius:12px 12px 2px 12px}
 .msg-agent .bubble{background:var(--bg3);border:1px solid var(--border);font-family:var(--font-mono);border-radius:12px 12px 12px 2px}
 .bubble.alert{border-color:var(--red);background:rgba(255,45,85,.08);box-shadow:0 0 20px rgba(255,45,85,.15)}
@@ -74,7 +74,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .bubble.auto-alert{border-color:var(--green);background:rgba(0,255,136,.07);box-shadow:0 0 20px rgba(0,255,136,.18);animation:autoAlertPulse 1.6s ease 2}
 @keyframes autoAlertPulse{0%,100%{box-shadow:0 0 20px rgba(0,255,136,.18)}50%{box-shadow:0 0 32px rgba(0,255,136,.4)}}
 .msg-lbl.auto{color:var(--green)}
-.thinking{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px 12px 12px 2px;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.thinking{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px 12px 12px 2px;font-family:var(--font-mono);font-size:13px;color:var(--muted)}
 .dot-a span{animation:blink 1.4s infinite both;font-size:16px}
 .dot-a span:nth-child(2){animation-delay:.2s}
 .dot-a span:nth-child(3){animation-delay:.4s}
@@ -83,15 +83,15 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 /* INPUT */
 .chat-input{padding:10px;border-top:1px solid var(--border);background:var(--bg);display:flex;flex-direction:column;gap:7px}
 .quick-btns{display:flex;gap:5px;flex-wrap:wrap}
-.qbtn{font-family:var(--font-mono);font-size:9px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
+.qbtn{font-family:var(--font-mono);font-size:12px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
 .qbtn:hover{border-color:var(--accent);color:var(--accent)}
 .qbtn-coach{border-color:var(--accent);color:var(--accent);font-weight:700}
 
 /* ── Panneau coach stratégique ── */
-.coach-panel{border-bottom:1px solid var(--border);background:var(--bg2);padding:8px 12px;font-family:var(--font-mono);font-size:10px}
+.coach-panel{border-bottom:1px solid var(--border);background:var(--bg2);padding:8px 12px;font-family:var(--font-mono);font-size:12px}
 .coach-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.coach-title{color:var(--accent);font-weight:700;letter-spacing:2px;font-size:10px}
-.coach-clock{color:var(--text);font-size:11px}
+.coach-title{color:var(--accent);font-weight:700;letter-spacing:2px;font-size:12px}
+.coach-clock{color:var(--text);font-size:13px}
 .coach-clock .cc-pct{color:var(--accent2)}
 .coach-rate{color:var(--muted);margin-bottom:4px}
 .coach-rate b{color:var(--green);font-weight:700}
@@ -105,7 +105,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .coach-hint.ch-action{color:var(--yellow)}
 .coach-hint.ch-info{color:var(--muted)}
 .input-row{display:flex;gap:7px;align-items:flex-end}
-textarea{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--font);font-size:13px;padding:9px 11px;resize:none;min-height:42px;max-height:110px;outline:none;transition:border-color .2s}
+textarea{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--font);font-size:14px;padding:9px 11px;resize:none;min-height:42px;max-height:110px;outline:none;transition:border-color .2s}
 textarea:focus{border-color:var(--accent2)}
 textarea::placeholder{color:var(--muted)}
 .send-btn{background:linear-gradient(135deg,var(--accent),#FF9500);border:none;border-radius:7px;width:42px;height:42px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;transition:transform .1s;flex-shrink:0}
@@ -119,7 +119,7 @@ textarea::placeholder{color:var(--muted)}
 @keyframes rcPulse{0%,100%{box-shadow:0 0 18px #00D4FF,0 0 6px #fff;opacity:1}50%{box-shadow:0 0 30px #00D4FF,0 0 10px #fff;opacity:.7}}
 @keyframes spotPulse{0%{transform:translate(-50%,-50%) scale(1);opacity:0.6}100%{transform:translate(-50%,-50%) scale(2.5);opacity:0}}
 .leaflet-container{font-family:var(--font-mono)}
-.leaflet-control-attribution{font-size:8px;opacity:.5}
+.leaflet-control-attribution{font-size:11px;opacity:.5}
 .leaflet-control-zoom a{background:var(--bg3)!important;color:var(--text)!important;border-color:var(--border)!important}
 .leaflet-control-zoom a:hover{background:var(--bg2)!important;color:var(--accent)!important}
 .rc-my-icon{pointer-events:none}
@@ -129,12 +129,12 @@ textarea::placeholder{color:var(--muted)}
 .map-tooltip{position:absolute;background:rgba(13,14,26,.97);border-radius:10px;padding:13px 15px;pointer-events:none;z-index:100;min-width:195px;font-family:var(--font-mono);box-shadow:0 8px 32px rgba(0,0,0,.6);transition:opacity .15s}
 .tt-call{font-size:19px;font-weight:700;letter-spacing:2px;margin-bottom:7px}
 .tt-row{display:flex;justify-content:space-between;gap:14px;margin-bottom:3px}
-.tt-lbl{font-size:9px;color:var(--muted);letter-spacing:2px}
-.tt-val{font-size:11px;font-weight:700}
-.tt-status{font-size:9px;letter-spacing:2px;text-align:center;margin-top:9px;padding:3px;border-radius:4px}
+.tt-lbl{font-size:12px;color:var(--muted);letter-spacing:2px}
+.tt-val{font-size:13px;font-weight:700}
+.tt-status{font-size:12px;letter-spacing:2px;text-align:center;margin-top:9px;padding:3px;border-radius:4px}
 
 /* CONTEST BADGE */
-.contest-badge{padding:4px 10px;border-radius:5px;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;border:1px solid var(--border);color:var(--accent2);background:rgba(0,212,255,.06)}
+.contest-badge{padding:4px 10px;border-radius:5px;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;border:1px solid var(--border);color:var(--accent2);background:rgba(0,212,255,.06)}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -177,7 +177,7 @@ textarea::placeholder{color:var(--muted)}
   <div class="score-item"><div class="si-lbl">BANDE 2</div><div class="si-val" id="score2" style="color:var(--purple)">— pts</div></div>
   <div class="score-item"><div class="si-lbl">QSO TOTAL</div><div class="si-val" id="scoreQSO" style="color:var(--green)">0</div></div>
   <div class="score-item"><div class="si-lbl">MEILLEUR DX</div><div class="si-val" id="scoreBestDX" style="color:var(--yellow)">— km</div></div>
-  <div class="score-item"><div class="si-lbl">LOCATOR</div><div class="si-val" id="myLocator" style="color:var(--accent);font-size:13px">—</div></div>
+  <div class="score-item"><div class="si-lbl">LOCATOR</div><div class="si-val" id="myLocator" style="color:var(--accent);font-size:14px">—</div></div>
 </div>
 
 <div class="main">
@@ -243,7 +243,7 @@ Si tu arrives ici directement, retourne d'abord sur la page de configuration pou
         <div style="text-align:center;max-width:600px;padding:40px">
           <div style="font-size:60px;margin-bottom:20px">🚫</div>
           <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px">OUVERT EN FILE:// — IMPOSSIBLE</div>
-          <div style="color:#FFE566;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord radiocontest_serveur.py, puis accède via :</div>
+          <div style="color:#E9ECF5;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord radiocontest_serveur.py, puis accède via :</div>
           <a href="http://localhost:8080/radiocontest_carte.html"
              style="display:inline-block;background:linear-gradient(135deg,#00FF88,#00D4FF);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
             ▶ http://localhost:8080/radiocontest_carte.html
@@ -387,7 +387,7 @@ function drawMyPos(){
   if(!ll) return;
   const html=`<div style="position:relative;width:0;height:0">
     <div style="position:absolute;width:22px;height:22px;border-radius:50%;background:#00D4FF;border:3px solid #fff;box-shadow:0 0 18px #00D4FF,0 0 6px #fff;transform:translate(-50%,-50%);animation:rcPulse 2.5s infinite"></div>
-    <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:11px;font-weight:bold;color:#00D4FF;text-shadow:0 0 8px #00D4FF,0 0 2px #000;transform:translate(-50%,-220%)">${cfg.locator||''}</div>
+    <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:13px;font-weight:bold;color:#00D4FF;text-shadow:0 0 8px #00D4FF,0 0 2px #000;transform:translate(-50%,-220%)">${cfg.locator||''}</div>
   </div>`;
   const icon=L.divIcon({html,className:'rc-my-icon',iconSize:[0,0],iconAnchor:[0,0]});
   leafletMyMarker=L.marker([ll.lat,ll.lon],{icon,zIndexOffset:2000,interactive:false}).addTo(leafletMap);
@@ -413,7 +413,7 @@ function updateMapStations(stns){
     const r=s.priority<=2?10:7;
     const glow=(!s.done&&s.priority<=2)?`box-shadow:0 0 12px ${col},0 0 4px ${col}`:'';
     const html=`<div style="position:relative;width:0;height:0">
-      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:${s.priority<=2?11:9}px;font-weight:bold;color:${s.done?'#555':col};text-shadow:0 0 5px ${s.done?'none':col};transform:translate(-50%,-${r*2+14}px)">${s.call}</div>
+      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:${s.priority<=2?13:11}px;font-weight:bold;color:${s.done?'#555':col};text-shadow:0 0 5px ${s.done?'none':col};transform:translate(-50%,-${r*2+14}px)">${s.call}</div>
       <div style="position:absolute;width:${r*2}px;height:${r*2}px;border-radius:50%;background:${col};opacity:${s.done?0.3:0.95};${glow};transform:translate(-50%,-50%);cursor:pointer"></div>
     </div>`;
     const icon=L.divIcon({html,className:'rc-station-icon',iconSize:[0,0],iconAnchor:[0,0]});
@@ -503,14 +503,14 @@ function drawLoggedQSOs(){
 
     // Marqueur "tick vert"
     const html = `<div style="position:relative;width:0;height:0">
-      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:9px;font-weight:bold;color:${col};text-shadow:0 0 4px ${col};transform:translate(-50%,-24px)">${q.call}</div>
+      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:12px;font-weight:bold;color:${col};text-shadow:0 0 4px ${col};transform:translate(-50%,-24px)">${q.call}</div>
       <div style="position:absolute;width:12px;height:12px;border-radius:50%;background:${col};opacity:0.9;border:2px solid #fff;box-shadow:0 0 6px ${col};transform:translate(-50%,-50%)"></div>
     </div>`;
     const icon = L.divIcon({html, className:'rc-qso-icon', iconSize:[0,0], iconAnchor:[0,0]});
     const mk = L.marker([pos.lat,pos.lon],{icon, zIndexOffset:300}).addTo(leafletMap);
     const capDeg = bearingLL(myLL.lat,myLL.lon,pos.lat,pos.lon);
     mk.bindPopup(
-      `<div style="font-family:monospace;font-size:13px;line-height:1.7">` +
+      `<div style="font-family:monospace;font-size:14px;line-height:1.7">` +
       `<b style="color:${col}">${q.call}</b> ✅<br>` +
       `📍 ${q.locator}<br>` +
       `📡 ${bandLabel} — ${q.mode}<br>` +

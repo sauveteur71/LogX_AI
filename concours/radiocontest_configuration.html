@@ -7,16 +7,16 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
 :root {
-  --bg:#07080F; --bg2:#0D0E1A; --bg3:#13152A; --border:#1E2040;
+  --bg:#07080F; --bg2:#0D0E1A; --bg3:#13152A; --border:#2B2F4A;
   --accent:#FF6B00; --accent2:#00D4FF; --green:#00FF88; --red:#FF2D55;
-  --yellow:#FFD60A; --purple:#BF5AF2; --text:#FFE566; --muted:#B8A040;
+  --yellow:#FFD60A; --purple:#BF5AF2; --text:#E9ECF5; --muted:#A9B0C8;
   --font-mono:'Share Tech Mono',monospace; --font:'Exo 2',sans-serif;
 }
 /* ─── MODE JOUR ─────────────────────────────────────────────────────────── */
 body.day-mode {
   --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
   --accent:#D05000; --accent2:#0060A0; --green:#007030; --red:#CC0030;
-  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#606888;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#4A5170;
 }
 body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 body.day-mode .card{background:var(--bg2);border-color:var(--border)}
@@ -26,23 +26,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:14px 30px;display:flex;align-items:center;justify-content:space-between}
 .logo{font-family:var(--font-mono);font-size:24px;color:var(--accent);letter-spacing:3px}
 .logo span{color:var(--accent2)}
-.header-sub{font-family:var(--font-mono);font-size:12px;color:#7A84B8;letter-spacing:2px;margin-top:4px}
-.version{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.header-sub{font-family:var(--font-mono);font-size:14px;color:#7A84B8;letter-spacing:2px;margin-top:4px}
+.version{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 .app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
-.app-nav a{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 .app-nav .nav-spacer{flex:1}
-.app-nav .nav-info{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:0 16px;display:flex;align-items:center;gap:10px}
+.app-nav .nav-info{font-family:var(--font-mono);font-size:13px;color:var(--muted);padding:0 16px;display:flex;align-items:center;gap:10px}
 
 .container{max-width:100%;margin:0 auto;padding:24px 32px}
 
 /* PROFILS */
 .profiles-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;flex-wrap:wrap}
-.profiles-lbl{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:2px;white-space:nowrap}
-.profiles-select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:5px 8px;flex:1;min-width:120px;max-width:220px;outline:none}
+.profiles-lbl{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:2px;white-space:nowrap}
+.profiles-select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:5px 8px;flex:1;min-width:120px;max-width:220px;outline:none}
 .profiles-select:focus{border-color:var(--accent2)}
-.profile-btn{font-family:var(--font-mono);font-size:10px;padding:5px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);cursor:pointer;white-space:nowrap;transition:all .15s}
+.profile-btn{font-family:var(--font-mono);font-size:12px;padding:5px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);cursor:pointer;white-space:nowrap;transition:all .15s}
 .profile-btn:hover{border-color:var(--accent2);color:var(--accent2)}
 .profile-btn.save{border-color:rgba(0,255,136,.4);color:var(--green)}
 .profile-btn.save:hover{background:rgba(0,255,136,.1)}
@@ -51,7 +51,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 /* STEPS */
 .steps{display:flex;gap:0;margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
-.step{flex:1;padding:16px 10px;text-align:center;cursor:pointer;transition:all .2s;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:13px;letter-spacing:1px;color:#6A74A8;position:relative}
+.step{flex:1;padding:16px 10px;text-align:center;cursor:pointer;transition:all .2s;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:14px;letter-spacing:1px;color:#6A74A8;position:relative}
 .step:last-child{border-right:none}
 .step.active{background:var(--bg3);color:var(--accent);border-bottom:3px solid var(--accent)}
 .step.done{color:var(--green)}
@@ -63,7 +63,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .panel.active{display:block}
 /* Mode débutant : les réglages avancés sont masqués (bouton 🎚 dans l'en-tête) */
 body.simple-mode .expert-only{display:none!important}
-.simple-note{display:none;font-family:var(--font-mono);font-size:11px;color:var(--muted);border:1px dashed var(--border);border-radius:6px;padding:8px 12px;margin-top:10px;line-height:1.6}
+.simple-note{display:none;font-family:var(--font-mono);font-size:13px;color:var(--muted);border:1px dashed var(--border);border-radius:6px;padding:8px 12px;margin-top:10px;line-height:1.6}
 body.simple-mode .simple-note{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
@@ -75,18 +75,18 @@ body.simple-mode .simple-note{display:block}
 /* FORM */
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
 .form-group{display:flex;flex-direction:column;gap:6px}
-.form-group label{font-size:13px;color:#BCC8F0;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
+.form-group label{font-size:14px;color:#BCC8F0;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
 .section input,.section select{background:var(--bg3);border:1px solid #2A3060;border-radius:8px;color:#E8ECFF;font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
 .section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
 .section select option{background:var(--bg3)}
-.input-note{font-size:11px;color:#9AA4D8;margin-top:3px;font-style:italic}
+.input-note{font-size:13px;color:#9AA4D8;margin-top:3px;font-style:italic}
 /* Autofill : empêche Chrome/Edge d'injecter fond clair + texte sombre sur les champs pré-remplis par JS */
 input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{-webkit-text-fill-color:#E8ECFF !important;-webkit-box-shadow:0 0 0 1000px #13152A inset !important;caret-color:#E8ECFF;transition:background-color 9999s ease-in-out 0s}
 body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,body.day-mode input:-webkit-autofill:focus{-webkit-text-fill-color:#0A0C20 !important;-webkit-box-shadow:0 0 0 1000px #FFFFFF inset !important}
 
 /* TOGGLE GRID */
 .toggle-grid{display:flex;flex-wrap:wrap;gap:8px}
-.toggle-btn{font-family:var(--font-mono);font-size:13px;padding:9px 16px;border-radius:8px;border:1px solid #2A3060;background:var(--bg3);color:#7A84B8;cursor:pointer;transition:all .15s;letter-spacing:1px;user-select:none}
+.toggle-btn{font-family:var(--font-mono);font-size:14px;padding:9px 16px;border-radius:8px;border:1px solid #2A3060;background:var(--bg3);color:#7A84B8;cursor:pointer;transition:all .15s;letter-spacing:1px;user-select:none}
 .toggle-btn:hover{border-color:var(--accent);color:var(--accent)}
 .toggle-btn.on{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
 .toggle-btn.on.mode-ssb{border-color:#FF6B00;color:#FF6B00;background:rgba(255,107,0,.08)}
@@ -96,24 +96,24 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .toggle-btn.on.prop{border-color:#FF2D55;color:#FF2D55;background:rgba(255,45,85,.08)}
 
 .band-group{margin-bottom:12px}
-.band-group-title{font-size:12px;color:#7A84B8;letter-spacing:2px;font-family:var(--font-mono);margin-bottom:8px;font-weight:600}
+.band-group-title{font-size:14px;color:#7A84B8;letter-spacing:2px;font-family:var(--font-mono);margin-bottom:8px;font-weight:600}
 
 /* CONTEST CARDS */
 .contest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .contest-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:all .2s;position:relative}
 .contest-card:hover{border-color:var(--accent);transform:translateY(-1px)}
 .contest-card.selected{border-color:var(--accent2);background:rgba(0,212,255,.06)}
-.contest-card.selected::after{content:'✓ SÉLECTIONNÉ';position:absolute;top:10px;right:10px;font-family:var(--font-mono);font-size:9px;color:var(--accent2);letter-spacing:1px}
+.contest-card.selected::after{content:'✓ SÉLECTIONNÉ';position:absolute;top:10px;right:10px;font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:1px}
 .contest-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
-.contest-org{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:10px;letter-spacing:1px}
+.contest-org{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;letter-spacing:1px}
 .contest-tags{display:flex;flex-wrap:wrap;gap:4px}
-.tag{font-family:var(--font-mono);font-size:9px;padding:3px 7px;border-radius:4px;letter-spacing:1px}
+.tag{font-family:var(--font-mono);font-size:12px;padding:3px 7px;border-radius:4px;letter-spacing:1px}
 .tag-band{background:rgba(0,212,255,.1);color:var(--accent2);border:1px solid rgba(0,212,255,.2)}
 .tag-mode{background:rgba(255,107,0,.1);color:var(--accent);border:1px solid rgba(255,107,0,.2)}
 .tag-score{background:rgba(191,90,242,.1);color:var(--purple);border:1px solid rgba(191,90,242,.2)}
 
 /* SUMMARY */
-.summary-box{background:var(--bg3);border:1px solid var(--accent2);border-radius:10px;padding:20px;font-family:var(--font-mono);font-size:12px;line-height:2}
+.summary-box{background:var(--bg3);border:1px solid var(--accent2);border-radius:10px;padding:20px;font-family:var(--font-mono);font-size:14px;line-height:2}
 .summary-row{display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:4px 0}
 .summary-row:last-child{border-bottom:none}
 .summary-key{color:var(--yellow)}
@@ -133,12 +133,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .btn-launch:hover{opacity:.9;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,255,136,.2)}
 
 /* LIVE INDICATOR */
-.live{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;color:var(--green)}
+.live{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--green)}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
 /* LOCATOR MAP HINT */
-.locator-hint{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px}
+.locator-hint{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:8px}
 .locator-hint span{color:var(--accent2)}
 </style>
 </head>
@@ -151,7 +151,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <button onclick="quickSave()" title="Sauvegarder la configuration"
-      style="font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1px;
+      style="font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:1px;
              background:linear-gradient(135deg,#00FF88,#00D4FF);border:none;border-radius:7px;
              color:#0A0B18;padding:7px 14px;cursor:pointer;transition:opacity .15s"
       onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
@@ -159,7 +159,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </button>
     <div class="version">v3.0 · <span class="live"><span class="live-dot"></span>PRÊT</span></div>
     <button id="uiModeToggle" onclick="toggleUiMode()" title="Mode débutant : masque les réglages avancés (IA, propagation, clusters, alertes)"
-      style="font-family:var(--font-mono);font-size:10px;letter-spacing:1px;background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;cursor:pointer;color:var(--muted)">🎚 EXPERT</button>
+      style="font-family:var(--font-mono);font-size:12px;letter-spacing:1px;background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;cursor:pointer;color:var(--muted)">🎚 EXPERT</button>
     <button id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit"
       style="font-size:16px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;cursor:pointer;color:var(--text)">☀️</button>
   </div>
@@ -218,7 +218,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <input type="text" id="callsign" placeholder="F6KQJ" oninput="updateLocatorHint();autoFillCallsign(this.value)" style="text-transform:uppercase;font-size:18px;font-weight:700;color:var(--accent)">
         </div>
         <div class="form-group">
-          <label>INDICATIF CONCOURS <span style="font-size:10px;color:var(--muted)">(si différent)</span></label>
+          <label>INDICATIF CONCOURS <span style="font-size:12px;color:var(--muted)">(si différent)</span></label>
           <input type="text" id="callsign_contest" placeholder="auto" style="text-transform:uppercase" oninput="_callContest_manual=true">
           <div class="input-note">Auto-rempli depuis INDICATIF — modifier si /P ou club</div>
         </div>
@@ -279,13 +279,13 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 
     <div class="section" id="opSection">
       <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
-      <div id="opSectionNote" style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
+      <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
         Leurs indicatifs apparaîtront sur les boutons OP dans le logbook
       </div>
       <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:10px;align-items:center">
-        <div style="font-size:12px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">POSTE</div>
-        <div style="font-size:12px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">INDICATIF</div>
-        <div style="font-size:12px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">PRÉNOM</div>
+        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">POSTE</div>
+        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">INDICATIF</div>
+        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">PRÉNOM</div>
         <!-- OP1 — toujours visible -->
         <div style="font-family:var(--font-mono);font-size:14px;color:var(--accent);font-weight:700">OP1</div>
         <input type="text" id="op1_call" placeholder="F4GLD" style="text-transform:uppercase;font-size:14px">
@@ -366,12 +366,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 
     <div class="section">
       <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
-      <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:13px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+      <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
         📅 Sélectionne un concours dans l'onglet CONCOURS pour calculer les dates automatiquement.
       </div>
       <div class="form-grid">
         <div class="form-group">
-          <label>DATE DÉBUT <span style="font-size:10px;color:var(--muted)">(auto ou manuel)</span></label>
+          <label>DATE DÉBUT <span style="font-size:12px;color:var(--muted)">(auto ou manuel)</span></label>
           <input type="date" id="contest_start_date" placeholder="2026-07-05">
           <div class="input-note">Champ TDate début dans le fichier EDI</div>
         </div>
@@ -417,20 +417,20 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div class="form-group" style="grid-column:1/-1">
           <label>FOURNISSEUR</label>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:12px;transition:border-color .2s">
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
               <input type="radio" name="api_provider" value="anthropic" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🤖 Claude (Anthropic)
             </label>
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:12px;transition:border-color .2s">
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
               <input type="radio" name="api_provider" value="openai" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 💚 ChatGPT (OpenAI)
             </label>
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:12px;transition:border-color .2s">
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
               <input type="radio" name="api_provider" value="gemini" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🔵 Gemini (Google)
             </label>
           </div>
         </div>
         <div class="form-group">
           <label>MODÈLE</label>
-          <select id="ai_model" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:10px 12px;outline:none;width:100%"></select>
+          <select id="ai_model" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none;width:100%"></select>
         </div>
         <div class="form-group">
           <label id="api_key_label">CLÉ API</label>
@@ -459,7 +459,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           placeholder="🔍  Rechercher : Field Day, VHF, RPH, CQ WW…"
           oninput="buildContestGrid(this.value)"
           autocomplete="off"
-          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
           onfocus="this.style.borderColor='var(--accent2)'"
           onblur="this.style.borderColor='var(--border)'">
         <span id="contestSearchClear" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
@@ -471,25 +471,25 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
     <div class="section">
       <div class="section-title">🤖 ANALYSER UN RÈGLEMENT (IA)</div>
-      <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">
         Concours absent de la liste ? Donne l'URL de son règlement (PDF ou page web) : l'IA en extrait
         une définition complète (dates, bandes, modes, échange, scoring) <strong style="color:var(--text)">que tu relis et corriges
         avant enregistrement</strong>. Une fois validé, le concours rejoint la base et resservira chaque année.
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="url" id="aiRulesUrl" placeholder="https://... (URL du règlement PDF ou HTML)"
-          style="flex:2;min-width:280px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:10px 12px;outline:none">
+          style="flex:2;min-width:280px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
         <input type="text" id="aiRulesName" placeholder="Nom du concours (optionnel)"
-          style="flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:10px 12px;outline:none">
+          style="flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
         <button class="btn btn-primary" id="aiAnalyzeBtn" onclick="analyzeRules()" style="padding:10px 18px">🤖 ANALYSER</button>
       </div>
-      <div id="aiAnalyzeStatus" style="display:none;margin-top:10px;font-family:var(--font-mono);font-size:11px;color:var(--accent2)"></div>
+      <div id="aiAnalyzeStatus" style="display:none;margin-top:10px;font-family:var(--font-mono);font-size:13px;color:var(--accent2)"></div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap">
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:1px">PARTAGE ENTRE STATIONS :</span>
-        <button class="btn btn-secondary" style="padding:7px 14px;font-size:11px" onclick="exportCustomContests()">📤 Exporter mes concours validés</button>
-        <button class="btn btn-secondary" style="padding:7px 14px;font-size:11px" onclick="document.getElementById('importFile').click()">📥 Importer un fichier partagé</button>
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px">PARTAGE ENTRE STATIONS :</span>
+        <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="exportCustomContests()">📤 Exporter mes concours validés</button>
+        <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('importFile').click()">📥 Importer un fichier partagé</button>
         <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importCustomContests(this.files[0])">
-        <span id="shareStatus" style="font-family:var(--font-mono);font-size:10px"></span>
+        <span id="shareStatus" style="font-family:var(--font-mono);font-size:12px"></span>
       </div>
     </div>
 
@@ -502,7 +502,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
   <!-- PANEL 3 : FILTRES -->
   <div class="panel" id="panel3">
 
-    <div id="filterAutoNote" style="display:none;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:11px;color:var(--accent2);letter-spacing:.5px"></div>
+    <div id="filterAutoNote" style="display:none;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
 
     <div class="section">
       <div class="section-title">MODES</div>
@@ -696,7 +696,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 
     <div class="section expert-only">
       <div class="section-title">PROMPT SYSTÈME GÉNÉRÉ</div>
-      <textarea id="generatedPrompt" readonly style="width:100%;height:180px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--font-mono);font-size:10px;padding:12px;resize:vertical;outline:none;line-height:1.6"></textarea>
+      <textarea id="generatedPrompt" readonly style="width:100%;height:180px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:12px;resize:vertical;outline:none;line-height:1.6"></textarea>
       <div class="btn-row" style="margin-top:8px;justify-content:flex-start">
         <button class="btn btn-secondary" onclick="copyPrompt()">📋 COPIER LE PROMPT</button>
         <button class="btn btn-secondary" onclick="saveConfig()">💾 SAUVEGARDER CONFIG</button>
@@ -1264,7 +1264,7 @@ function buildContestGrid(filter = '') {
   });
 
   if (!visible.length) {
-    grid.innerHTML = `<div style="grid-column:1/-1;padding:24px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:13px">Aucun concours pour « ${filter} »</div>`;
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:24px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:14px">Aucun concours pour « ${filter} »</div>`;
     return;
   }
 
@@ -1280,11 +1280,11 @@ function buildContestGrid(filter = '') {
   // Badge de confiance : base serveur = dates/règlement re-vérifiés chaque année ;
   // custom = extrait du règlement par l'IA puis validé par relecture humaine
   const badge = c => c.external
-    ? `<span style="font-family:var(--font-mono);font-size:8px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(255,214,10,.12);color:#FFD60A;border:1px solid rgba(255,214,10,.35)" title="Concours du calendrier mondial WA7BNM — utilise 🤖 ANALYSER UN RÈGLEMENT pour le faire lire par l'IA">⚠ À CONFIRMER</span>`
+    ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(255,214,10,.12);color:#FFD60A;border:1px solid rgba(255,214,10,.35)" title="Concours du calendrier mondial WA7BNM — utilise 🤖 ANALYSER UN RÈGLEMENT pour le faire lire par l'IA">⚠ À CONFIRMER</span>`
     : c._custom
-      ? `<span style="font-family:var(--font-mono);font-size:8px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,212,255,.1);color:#00D4FF;border:1px solid rgba(0,212,255,.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine">🤖 IA + RELECTURE</span>`
+      ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,212,255,.1);color:#00D4FF;border:1px solid rgba(0,212,255,.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine">🤖 IA + RELECTURE</span>`
       : VERIFIED_IDS.has(c.id)
-        ? `<span style="font-family:var(--font-mono);font-size:8px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:#00FF88;border:1px solid rgba(0,255,136,.3)" title="Concours de la base serveur — dates et règlement re-vérifiés automatiquement chaque année">✓ RÈGLEMENT SUIVI</span>`
+        ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:#00FF88;border:1px solid rgba(0,255,136,.3)" title="Concours de la base serveur — dates et règlement re-vérifiés automatiquement chaque année">✓ RÈGLEMENT SUIVI</span>`
         : '';
 
   grid.innerHTML = groupOrder.map(gname => {
@@ -1292,7 +1292,7 @@ function buildContestGrid(filter = '') {
     if (!cs || !cs.length) return '';
     return `
       <div style="grid-column:1/-1;margin-top:12px;margin-bottom:6px">
-        <div style="font-family:var(--font-mono);font-size:10px;color:${groupColors[gname]};letter-spacing:3px;border-bottom:1px solid ${groupColors[gname]}44;padding-bottom:5px">
+        <div style="font-family:var(--font-mono);font-size:12px;color:${groupColors[gname]};letter-spacing:3px;border-bottom:1px solid ${groupColors[gname]}44;padding-bottom:5px">
           ${gname === 'REF' ? '⭐ ' : ''}${gname.toUpperCase()} ${gname === 'REF' ? '— Calendrier 2026 officiel' : ''}
         </div>
       </div>
@@ -1301,9 +1301,9 @@ function buildContestGrid(filter = '') {
           <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${c.name} ${badge(c)}</div>
           <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
             <span>${c.org}</span>
-            ${c.rules ? `<a href="${c.rules}" target="_blank" onclick="event.stopPropagation()" style="font-size:9px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)">📄 RÈGLEMENT</a>` : ''}
+            ${c.rules ? `<a href="${c.rules}" target="_blank" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)">📄 RÈGLEMENT</a>` : ''}
           </div>
-          ${c.date ? `<div style="font-family:var(--font-mono);font-size:9px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px">📅 ${c.date}</div>` : ''}
+          ${c.date ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px">📅 ${c.date}</div>` : ''}
           <div class="contest-tags">
             ${c.bands.map(b=>`<span class="tag tag-band">${b}</span>`).join('')}
             ${c.modes.map(m=>`<span class="tag tag-mode">${m}</span>`).join('')}
@@ -2285,12 +2285,12 @@ async function analyzeRules(url, name){
 
 function _revField(id, label, value, citation, placeholder=''){
   const cite = citation
-    ? `<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px">📖 « ${String(citation).replace(/</g,'&lt;')} »</div>`
-    : `<div style="font-family:var(--font-mono);font-size:10px;color:var(--yellow);margin-top:3px">⚠ aucune citation source — vérifie dans le règlement</div>`;
+    ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px">📖 « ${String(citation).replace(/</g,'&lt;')} »</div>`
+    : `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);margin-top:3px">⚠ aucune citation source — vérifie dans le règlement</div>`;
   return `<div style="margin-bottom:12px">
-    <label style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted)">${label}</label>
+    <label style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--muted)">${label}</label>
     <input type="text" id="rev_${id}" value="${String(value ?? '').replace(/"/g,'&quot;')}" placeholder="${placeholder}"
-      style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:8px 10px;outline:none;margin-top:3px">
+      style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:8px 10px;outline:none;margin-top:3px">
     ${cite}
   </div>`;
 }
@@ -2299,17 +2299,17 @@ function _verificationBlock(v){
   if (!v) return '';
   const esc = s => String(s ?? '').replace(/</g, '&lt;');
   if (v.error){
-    return `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--yellow)">⚠ ${esc(v.error)} — la définition n'a eu qu'une seule passe, relis avec plus d'attention.</div>`;
+    return `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--yellow)">⚠ ${esc(v.error)} — la définition n'a eu qu'une seule passe, relis avec plus d'attention.</div>`;
   }
   const nOk = (v.answers || []).length - (v.issues || []).length;
   if (!(v.issues || []).length){
-    return `<div style="background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--green)">🔍 <strong>Passe de vérification : ${nOk}/${(v.answers||[]).length} points de contrôle conformes</strong> (restrictions participants, off-time, mults pondérés, QTC, échange, dates, deadline).</div>`;
+    return `<div style="background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--green)">🔍 <strong>Passe de vérification : ${nOk}/${(v.answers||[]).length} points de contrôle conformes</strong> (restrictions participants, off-time, mults pondérés, QTC, échange, dates, deadline).</div>`;
   }
   const items = v.issues.map(i =>
     `<li style="margin-bottom:6px"><strong>${esc(i.question)}</strong><br>
      <span style="color:var(--text)">${esc(i.reponse)}</span>
      ${i.probleme ? `<br><span style="color:var(--red)">→ ${esc(i.probleme)}</span>` : ''}</li>`).join('');
-  return `<div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--accent2)">
+  return `<div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--accent2)">
     🔍 <strong>Passe de vérification : ${v.issues.length} point(s) corrigé(s) ou à surveiller</strong>
     ${v.applied ? ' — <span style="color:var(--green)">corrections appliquées à la définition ci-dessous</span>' : ' — <span style="color:var(--yellow)">corrections NON appliquées, vérifie manuellement</span>'}
     <ul style="margin:8px 0 0 18px">${items}</ul>
@@ -2327,7 +2327,7 @@ function openReviewModal(p){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
       <div>
         <div style="font-family:var(--font-mono);font-size:15px;letter-spacing:2px;color:var(--accent2)">🤖 PROPOSITION IA — RELECTURE OBLIGATOIRE</div>
-        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:4px">
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:4px">
           Rien n'est enregistré tant que tu n'as pas validé. Confiance IA :
           <span style="color:${confColor};font-weight:700">${(p.confidence || '?').toUpperCase()}</span>
           · Extraction : ${p.extractor} (${p.text_chars} car.)
@@ -2337,9 +2337,9 @@ function openReviewModal(p){
         style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px">✕</button>
     </div>
 
-    ${verrs ? `<div style="background:rgba(255,45,85,.08);border:1px solid var(--red);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--red)"><strong>⛔ Erreurs de validation à corriger avant enregistrement :</strong><ul style="margin:6px 0 0 18px">${verrs}</ul></div>` : ''}
+    ${verrs ? `<div style="background:rgba(255,45,85,.08);border:1px solid var(--red);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--red)"><strong>⛔ Erreurs de validation à corriger avant enregistrement :</strong><ul style="margin:6px 0 0 18px">${verrs}</ul></div>` : ''}
     ${_verificationBlock(p.verification)}
-    ${warnings ? `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--yellow)"><strong>⚠ Signalé par l'IA :</strong><ul style="margin:6px 0 0 18px">${warnings}</ul></div>` : ''}
+    ${warnings ? `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--yellow)"><strong>⚠ Signalé par l'IA :</strong><ul style="margin:6px 0 0 18px">${warnings}</ul></div>` : ''}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">
       ${_revField('id', 'ID DU CONCOURS', p.suggested_id, null, 'WAEDC_CW')}
@@ -2355,13 +2355,13 @@ function openReviewModal(p){
       ${_revField('log_deadline', 'DEADLINE LOG', d.log_deadline, c.log_deadline)}
       ${_revField('log_submit', 'SOUMISSION LOG (URL/email)', d.log_submit, c.log_submit)}
     </div>
-    ${p.date_preview ? `<div style="font-family:var(--font-mono);font-size:11px;color:var(--green);margin-bottom:10px">📅 Prochaine occurrence calculée depuis la règle : <strong>${p.date_preview}</strong></div>` : ''}
+    ${p.date_preview ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--green);margin-bottom:10px">📅 Prochaine occurrence calculée depuis la règle : <strong>${p.date_preview}</strong></div>` : ''}
     ${_revField('notes', 'NOTES / PARTICULARITÉS', d.notes, c.notes)}
 
     <div style="margin-bottom:12px">
-      <label style="font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--muted)">SCORING (JSON — type historique ou briques)</label>
-      <textarea id="rev_scoring" style="width:100%;height:130px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:11px;padding:10px;outline:none;margin-top:3px;resize:vertical">${JSON.stringify(d.scoring || {}, null, 2).replace(/</g,'&lt;')}</textarea>
-      ${c.scoring ? `<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px">📖 « ${String(c.scoring).replace(/</g,'&lt;')} »</div>` : ''}
+      <label style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--muted)">SCORING (JSON — type historique ou briques)</label>
+      <textarea id="rev_scoring" style="width:100%;height:130px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:10px;outline:none;margin-top:3px;resize:vertical">${JSON.stringify(d.scoring || {}, null, 2).replace(/</g,'&lt;')}</textarea>
+      ${c.scoring ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px">📖 « ${String(c.scoring).replace(/</g,'&lt;')} »</div>` : ''}
     </div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
@@ -2369,7 +2369,7 @@ function openReviewModal(p){
       <button class="btn btn-secondary" style="padding:11px 18px" onclick="document.getElementById('reviewModal').style.display='none'">✕ Annuler</button>
       ${p.source_url ? `<a class="btn btn-secondary" style="padding:11px 18px;text-decoration:none" href="${p.source_url}" target="_blank">📄 Ouvrir le règlement</a>` : ''}
     </div>
-    <div id="reviewSaveStatus" style="margin-top:10px;font-family:var(--font-mono);font-size:11px"></div>`;
+    <div id="reviewSaveStatus" style="margin-top:10px;font-family:var(--font-mono);font-size:13px"></div>`;
   document.getElementById('reviewModal').style.display = 'block';
 }
 
@@ -2440,7 +2440,7 @@ function handleContestParam(){
     banner.style.display = 'block';
     banner.style.borderColor = 'rgba(255,214,10,.4)';
     banner.innerHTML = `⚠️ <strong>Concours « ${id} » introuvable dans la liste.</strong><br>
-      <span style="font-size:12px;color:var(--muted)">Si c'est un concours WA7BNM, le cache externe est peut-être vide — recharge le calendrier, ou choisis un concours ci-dessous.</span>`;
+      <span style="font-size:14px;color:var(--muted)">Si c'est un concours WA7BNM, le cache externe est peut-être vide — recharge le calendrier, ou choisis un concours ci-dessous.</span>`;
     return;
   }
 
@@ -2470,8 +2470,8 @@ function handleContestParam(){
 
   banner.style.display = 'block';
   banner.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--green);margin-bottom:10px">🧭 ASSISTANT NOUVEAU CONCOURS</div>
-    <div style="font-size:13px;line-height:2">${checks.join('<br>')}</div>
+    <div style="font-family:var(--font-mono);font-size:14px;letter-spacing:2px;color:var(--green);margin-bottom:10px">🧭 ASSISTANT NOUVEAU CONCOURS</div>
+    <div style="font-size:14px;line-height:2">${checks.join('<br>')}</div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       <button class="btn btn-launch" style="padding:10px 22px" onclick="launchApp()">🚀 TOUT EST BON — LOGGER</button>
       <button class="btn btn-secondary" style="padding:10px 18px" onclick="goStep(3)">Vérifier bandes/modes →</button>

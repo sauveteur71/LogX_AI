@@ -11,7 +11,7 @@
     --bg: #07080F;
     --bg2: #0D0E1A;
     --bg3: #13152A;
-    --border: #1E2040;
+    --border: #2B2F4A;
     --accent: #FF6B00;
     --accent2: #00D4FF;
     --green: #00FF88;
@@ -67,7 +67,7 @@
   }
 
   .subtitle {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--muted);
     letter-spacing: 2px;
     font-family: var(--font-mono);
@@ -85,7 +85,7 @@
     border-left: 1px solid var(--border);
   }
 
-  .score-label { font-size: 9px; color: var(--muted); letter-spacing: 2px; font-family: var(--font-mono); }
+  .score-label { font-size: 12px; color: var(--muted); letter-spacing: 2px; font-family: var(--font-mono); }
   .score-value { font-size: 24px; font-weight: 800; color: var(--accent); font-family: var(--font-mono); }
 
   .clock {
@@ -138,7 +138,7 @@
   .msg-agent { align-items: flex-start; }
 
   .msg-label {
-    font-size: 9px;
+    font-size: 12px;
     letter-spacing: 2px;
     font-family: var(--font-mono);
     color: var(--muted);
@@ -149,7 +149,7 @@
     max-width: 340px;
     padding: 10px 14px;
     border-radius: 12px;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
@@ -168,7 +168,7 @@
     color: var(--text);
     border-radius: 12px 12px 12px 2px;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 14px;
   }
 
   .msg-agent .msg-bubble.alert {
@@ -186,7 +186,7 @@
     border: 1px solid var(--border);
     border-radius: 12px 12px 12px 2px;
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 13px;
     color: var(--muted);
   }
 
@@ -217,7 +217,7 @@
 
   .quick-btn {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: 12px;
     padding: 4px 8px;
     border-radius: 4px;
     border: 1px solid var(--border);
@@ -246,7 +246,7 @@
     border-radius: 8px;
     color: var(--text);
     font-family: var(--font-main);
-    font-size: 13px;
+    font-size: 14px;
     padding: 10px 12px;
     resize: none;
     min-height: 44px;
@@ -316,7 +316,7 @@
   .score-item:last-child { border-right: none; }
 
   .score-item-label {
-    font-size: 9px;
+    font-size: 12px;
     color: var(--muted);
     letter-spacing: 2px;
     font-family: var(--font-mono);
@@ -359,7 +359,7 @@
 
   .modal p {
     color: var(--muted);
-    font-size: 13px;
+    font-size: 14px;
     margin-bottom: 20px;
     line-height: 1.6;
   }
@@ -371,7 +371,7 @@
     border-radius: 8px;
     color: var(--text);
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 14px;
     padding: 12px 14px;
     outline: none;
     margin-bottom: 12px;
@@ -387,7 +387,7 @@
     border-radius: 8px;
     color: #fff;
     font-family: var(--font-mono);
-    font-size: 13px;
+    font-size: 14px;
     letter-spacing: 2px;
     padding: 12px;
     cursor: pointer;
@@ -399,7 +399,7 @@
 
   .modal-note {
     margin-top: 12px;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--muted);
     text-align: center;
     font-family: var(--font-mono);
@@ -421,9 +421,9 @@
 
   .tt-call { font-size: 20px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px; }
   .tt-row { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
-  .tt-lbl { font-size: 9px; color: var(--muted); letter-spacing: 2px; }
-  .tt-val { font-size: 12px; font-weight: 700; }
-  .tt-status { font-size: 9px; letter-spacing: 2px; text-align: center; margin-top: 10px; padding: 4px; border-radius: 4px; }
+  .tt-lbl { font-size: 12px; color: var(--muted); letter-spacing: 2px; }
+  .tt-val { font-size: 14px; font-weight: 700; }
+  .tt-status { font-size: 12px; letter-spacing: 2px; text-align: center; margin-top: 10px; padding: 4px; border-radius: 4px; }
 
   /* ── PANNEAU COMPAS ANTENNE ── */
   .compass-panel {
@@ -478,7 +478,7 @@
     flex: 1;
   }
   .compass-stat-lbl {
-    font-size: 8px;
+    font-size: 11px;
     color: var(--muted);
     letter-spacing: 2px;
     margin-bottom: 2px;
@@ -488,7 +488,7 @@
     font-weight: 800;
   }
   .compass-hint {
-    font-size: 9px;
+    font-size: 12px;
     color: var(--muted);
     letter-spacing: 1px;
     text-align: center;
@@ -625,12 +625,12 @@ L'ID agent se trouve sur platform.claude.com → Agents → ton agent → copie 
   <div class="compass-rose-wrap">
     <svg id="compassSVG" viewBox="0 0 180 180" width="180" height="180" xmlns="http://www.w3.org/2000/svg">
       <!-- Fond -->
-      <circle cx="90" cy="90" r="84" fill="#0A0B1A" stroke="#1E2040" stroke-width="1.5"/>
+      <circle cx="90" cy="90" r="84" fill="#0A0B1A" stroke="#2B2F4A" stroke-width="1.5"/>
       <!-- Graduations -->
       <g id="compassTicks"></g>
       <!-- Cercles intérieurs -->
-      <circle cx="90" cy="90" r="60" fill="none" stroke="#1E2040" stroke-width="0.5" stroke-dasharray="2,4"/>
-      <circle cx="90" cy="90" r="36" fill="none" stroke="#1E2040" stroke-width="0.5" stroke-dasharray="2,4"/>
+      <circle cx="90" cy="90" r="60" fill="none" stroke="#2B2F4A" stroke-width="0.5" stroke-dasharray="2,4"/>
+      <circle cx="90" cy="90" r="36" fill="none" stroke="#2B2F4A" stroke-width="0.5" stroke-dasharray="2,4"/>
       <!-- Labels cardinaux -->
       <text x="90" y="14" text-anchor="middle" fill="#FF6B00" font-family="Share Tech Mono" font-size="12" font-weight="700">N</text>
       <text x="90" y="172" text-anchor="middle" fill="#8899CC" font-family="Share Tech Mono" font-size="10">S</text>
@@ -1296,7 +1296,7 @@ function showCompass(bearing, cardinal, call, distKm, color) {
     const line = document.createElementNS('http://www.w3.org/2000/svg','line');
     line.setAttribute('x1', x1); line.setAttribute('y1', y1);
     line.setAttribute('x2', x2); line.setAttribute('y2', y2);
-    line.setAttribute('stroke', major ? '#3A4080' : '#1E2040');
+    line.setAttribute('stroke', major ? '#3A4080' : '#2B2F4A');
     line.setAttribute('stroke-width', major ? '1.5' : '0.7');
     ticksG.appendChild(line);
   }
