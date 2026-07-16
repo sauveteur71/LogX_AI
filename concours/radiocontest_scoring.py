@@ -538,6 +538,46 @@ def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
     ranked.sort(key=lambda x: (-x['value_total'], x['priority']))
     return ranked
 
+def extract_dx_locator(dx_call, info, spotter_call=''):
+    """Locator du DX depuis le commentaire d'un spot — en se méfiant du piège
+    classique : les spotteurs écrivent souvent LEUR PROPRE grille dans le
+    commentaire (« JO70OB 539 QSB »). Chaque candidat est confronté aux
+    centroïdes pays (cty.dat) du DX et du spotteur : un locator qui colle au
+    pays du spotteur mais pas à celui du DX est rejeté.
+    Accepte les grilles 6 et 4 caractères ('JN23' → 'JN23MM')."""
+    text = (info or '').upper()
+    cands = re.findall(r'[A-R]{2}\d{2}[A-X]{2}', text)
+    # Grilles 4 caractères non déjà couvertes par une 6-caractères
+    for m in re.findall(r'[A-R]{2}\d{2}', text):
+        if not any(c.startswith(m) for c in cands):
+            cands.append(m + 'MM')
+    if not cands:
+        return ''
+    dx_info = dxcc.lookup(dx_call)
+    sp_info = dxcc.lookup(spotter_call) if spotter_call else None
+    if not dx_info or dx_info.get('lat') is None:
+        return cands[0]  # pays inconnu : au moins un locator plausible
+
+    best, best_d = '', None
+    for loc in cands:
+        ll = locator_to_latlon(loc)
+        if ll[0] is None:
+            continue
+        d_dx = haversine(ll[0], ll[1], dx_info['lat'], dx_info['lon'])
+        if sp_info and sp_info.get('lat') is not None \
+                and sp_info['prefix'] != dx_info['prefix']:
+            d_sp = haversine(ll[0], ll[1], sp_info['lat'], sp_info['lon'])
+            if d_sp * 2 < d_dx:
+                continue  # nettement plus proche du spotteur : sa grille à lui
+        if best_d is None or d_dx < best_d:
+            best, best_d = loc, d_dx
+    # Au-delà de ~3000 km du centroïde, ce n'est pas le locator du DX
+    # (3000 : les très grands pays — W, VK, UA9 — ont des côtes lointaines)
+    if best_d is not None and best_d > 3000:
+        return ''
+    return best
+
+
 def _band_from_freq(freq):
     """'14032' (kHz) ou '14.032' (MHz) → bande interne ('14'). '' si inconnue."""
     try:
@@ -619,10 +659,9 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         for s in spots:
             if isinstance(s, dict):
                 dx = s.get('dx','').split('/')[0]
-                loc = ''
-                info = s.get('info','')
-                loc_m = re.search(r'([A-R]{2}\d{2}[A-X]{2})', info.upper())
-                if loc_m: loc = loc_m.group(1)
+                # Locator validé contre les centroïdes pays : la grille que le
+                # spotteur met dans le commentaire est la SIENNE, pas celle du DX
+                loc = extract_dx_locator(dx, s.get('info',''), s.get('spotter',''))
                 dx_ll = locator_to_latlon(loc) if loc else (None, None)
                 my_ll = locator_to_latlon(my_locator)
                 dist = 0

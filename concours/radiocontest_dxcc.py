@@ -24,7 +24,7 @@ _loaded = False
 
 def _parse_alias(alias, base):
     """'UA9(17)[30]' → clé 'UA9' + zones dérogatoires appliquées à base."""
-    country, cont, cq, itu, primary = base
+    country, cont, cq, itu, primary, lat, lon = base
     m_cq = re.search(r'\((\d+)\)', alias)
     m_itu = re.search(r'\[(\d+)\]', alias)
     if m_cq:
@@ -32,7 +32,7 @@ def _parse_alias(alias, base):
     if m_itu:
         itu = int(m_itu.group(1))
     key = re.sub(r'[\(\[<{].*', '', alias).strip()
-    return key, (country, cont, cq, itu, primary)
+    return key, (country, cont, cq, itu, primary, lat, lon)
 
 
 def load_cty(path=None):
@@ -61,7 +61,13 @@ def load_cty(path=None):
                 continue
             cont = fields[3]
             primary = fields[7].lstrip('*')  # * = entité hors liste DXCC (WAE)
-            base = (country, cont, cq, itu, primary)
+            # Centroïde du pays — ATTENTION convention cty.dat : longitude
+            # POSITIVE = OUEST, on la remet en positif-Est.
+            try:
+                lat, lon = float(fields[4]), -float(fields[5])
+            except ValueError:
+                lat = lon = None
+            base = (country, cont, cq, itu, primary, lat, lon)
             for alias in aliases.replace('\n', '').split(','):
                 alias = alias.strip()
                 if not alias:
@@ -114,7 +120,7 @@ def _longest_prefix(call):
 
 def _as_dict(t):
     return {'country': t[0], 'continent': t[1], 'cq_zone': t[2],
-            'itu_zone': t[3], 'prefix': t[4]}
+            'itu_zone': t[3], 'prefix': t[4], 'lat': t[5], 'lon': t[6]}
 
 
 # ─── MISE À JOUR AUTOMATIQUE ─────────────────────────────────────────────────

@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from radiocontest_scoring import calc_qso_value
+from radiocontest_scoring import calc_qso_value, extract_dx_locator
 
 
 def score(contest, dx, band, dist_km=0, dx_loc='', done_calls=None,
@@ -130,3 +130,26 @@ def test_priorite_entre_1_et_6():
 def test_total_impact_jamais_negatif():
     r = score('EU_HF_CHAMP', 'W1AW', '14')   # QSO invalide
     assert r['total_impact'] >= 0
+
+
+# ─── Locator du DX vs grille du spotteur (bug carte : station OK → France) ───
+
+def test_locator_grille_spotteur_rejetee():
+    """OK1SC spotte F5ZSW en mettant SA grille JO70OB : ne jamais placer la
+    station française à Prague."""
+    assert extract_dx_locator('F5ZSW', 'JO70OB 539 QSB', 'OK1SC') == ''
+
+
+def test_locator_bon_candidat_choisi():
+    """Deux grilles dans le commentaire : celle du pays du DX gagne."""
+    assert extract_dx_locator('F5ZSW', 'JO70OB JN23 539', 'OK1SC') == 'JN23MM'
+
+
+def test_locator_du_dx_conserve():
+    assert extract_dx_locator('OK1ABC', 'JO70OB', 'F5XYZ') == 'JO70OB'
+    assert extract_dx_locator('F1ABC', 'JN25XC tropo', 'F5XYZ') == 'JN25XC'
+
+
+def test_locator_incoherent_avec_le_pays_rejete():
+    """Grille européenne pour un indicatif US : trop loin du centroïde."""
+    assert extract_dx_locator('W1AW', 'JO70OB', 'OK1SC') == ''
