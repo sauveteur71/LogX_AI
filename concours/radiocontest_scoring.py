@@ -188,18 +188,20 @@ def _mult_large_square(ctx, pts, result, scoring):
 
 def _mult_zone_dxcc(ctx, pts, result, scoring):
     nb_mults = len(ctx['done_cq_zones']) + len(ctx['done_dxcc'])
-    new_zone = (ctx['dx_base'] not in ctx['done_cq_zones'])  # simplifié
+    # Pas de table indicatif→zone CQ : seule la nouveauté DXCC est détectable
+    # au spot. (Bug historique : l'ancien test comparait l'INDICATIF au set des
+    # zones — toujours vrai, chaque station passait pour un nouveau mult.)
     new_dxcc = (ctx['dx_country'] not in ctx['done_dxcc'])
-    if new_zone or new_dxcc:
+    if new_dxcc:
         result['new_mult'] = True
-        result['mult_type'] = 'zone_cq' if new_zone else 'dxcc'
+        result['mult_type'] = 'dxcc'
         result['mult_value'] = 1
         # Impact = score_actuel / nb_mults (valeur d'un mult)
         mult_value_est = ctx['current_score_total'] // max(nb_mults, 1)
         result['total_impact'] = pts + mult_value_est
         result['explanation'] = (
             f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}) + "
-            f"{'NOUVELLE ZONE' if new_zone else 'NOUVEAU DXCC'} → +{mult_value_est}pts estimés"
+            f"NOUVEAU DXCC → +{mult_value_est}pts estimés"
         )
         result['priority'] = 1 if pts == 3 else 2
     else:
