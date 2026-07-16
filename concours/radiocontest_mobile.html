@@ -600,12 +600,8 @@ L'ID agent se trouve sur platform.claude.com → Agents → ton agent → copie 
 
     <div class="score-bar">
       <div class="score-item">
-        <div class="score-item-label">144 MHz</div>
-        <div class="score-item-value" id="score144" style="color:#00D4FF">— pts</div>
-      </div>
-      <div class="score-item">
-        <div class="score-item-label">432 MHz</div>
-        <div class="score-item-value" id="score432" style="color:#BF5AF2">— pts</div>
+        <div class="score-item-label">SCORE TOTAL</div>
+        <div class="score-item-value" id="scoreTotal" style="color:#00D4FF">— pts</div>
       </div>
       <div class="score-item">
         <div class="score-item-label">QSO</div>
@@ -698,71 +694,45 @@ let isWaiting = false;
 let mapStations = [];
 let conversationHistory = [];
 
-const SYSTEM_PROMPT = `Tu es un assistant radioamateur spécialisé VHF/UHF pour les activations de points hauts de F6KQJ/P. Bandes : 144 MHz et 432 MHz en SSB UNIQUEMENT. Ne jamais suggérer le mode FM.
+// Prompt de repli si le serveur est injoignable — le VRAI prompt (adapté au
+// concours actif : bandes, modes, barème) est chargé depuis /data/system_prompt.
+let SYSTEM_PROMPT = `Tu es le copilote IA de RadioContest AI en mode mobile terrain.
+Adapte-toi au concours actif décrit dans le contexte fourni (bandes, modes, barème).
+Réponses BRÈVES (écran mobile) et directives, en français : priorités de trafic,
+cap d'antenne, fréquence exacte, valeur réelle de chaque station (points + mults).
+Si spoté sur le cluster : alerter immédiatement avec cap et fréquence.`;
 
-RÈGLEMENT OFFICIEL REF - RALLYE DES POINTS HAUTS (12 mars 2025) :
-- Durée : 1er samedi de juillet 14h00 UTC → dimanche 14h00 UTC
-- Score : 1 point par km, SANS multiplicateur
-- Format compte rendu : reg1test/EDI, un fichier par bande
-- Alimentation 100% autonome obligatoire pour le classement
+async function loadServerPrompt() {
+  try {
+    const r = await fetch('/data/system_prompt');
+    if (r.ok) {
+      const d = await r.json();
+      if (d.system_prompt) SYSTEM_PROMPT = d.system_prompt;
+    }
+  } catch(e) { /* mode dégradé : prompt de repli */ }
+}
 
-IDENTITÉ DE LA STATION :
-- Indicatif contest : F6KQJ/P (portable)
-- Opérateur : F4GLD (Olivier Parriaux)
-- Locator Maidenhead : JN15XC
-- QTH : Chaspinhac, Haute-Loire
-- Station très performante, record 1600 km sur 144 MHz
-
-SOURCE LOG EN TEMPS RÉEL :
-- Log 144 MHz : https://f5aib.net/Net-TEST_THF/CR/F6KQJ_Rallye_des_points_hauts_144_MHz.edi
-- Log 432 MHz : https://f5aib.net/Net-TEST_THF/CR/F6KQJ_Rallye_des_points_hauts_432_MHz.edi
-- Relire ces URLs à chaque analyse. Format EDI : Date;Heure;Indicatif;Bande;RST_env;N°_env;RST_reçu;N°_reçu;;Locator;Points
-
-SOURCES CLUSTER :
-- F5LEN 144 MHz : http://cluster.f5len.org/index.php?what=144
-- F5LEN 432 MHz : http://cluster.f5len.org/index.php?what=432
-- DXSummit VHF : http://www.dxsummit.fi/#/?includes=VHF
-- ON4KST Chat VHF : https://www.on4kst.info/chat/start.php?band=1
-- Prévisions tropo : http://tropo.f5len.org/forecasts-for-europe/
-
-RÈGLE SPOTTER : Avant de recommander un contact, vérifie la distance du spotter depuis JN15XC.
-✅ PROBABLE : spotter < 600 km | ⚠️ INCERTAIN : 600-1200 km | 🌟 DX EXCEP : station > 1200 km → toujours prioritaire
-
-PLAN DE FRÉQUENCES SSB :
-- 144.300 MHz = SSB calling | 144.200 MHz = SSB activité | 432.200 MHz = SSB calling
-
-RECOMMANDATIONS - classement STRICT :
-1️⃣ DISTANCE = POINTS (critère absolu, jamais sacrifier un DX lointain)
-2️⃣ FIABILITÉ DU SPOT (spotter proche de JN15XC)
-3️⃣ DOUBLE BANDE (144 ET 432 = points doublés)
-4️⃣ DÉPARTEMENT MANQUANT (bonus uniquement)
-
-Format de chaque recommandation :
-📻 Station : [Indicatif] | Locator [XXXX]
-📡 Fréquence : [XXX.XXX MHz] | Mode : SSB
-📏 Distance depuis JN15XC : [XXX km] = 🏆 [XXX pts potentiels]
-🧭 Cap antenne : [XXX°] [Point cardinal]
-👁️ Spoté par : [Indicatif] ([locator]) à [XXX km] de JN15XC
-✅ Fiabilité : [PROBABLE / INCERTAIN / DX EXCEPTIONNEL]
-🎯 Priorité : [DX EXCEP / HAUTE / MOYENNE / BASSE]
-🕐 Spot : il y a [XX min]
-
-Classement final :
-🌟 DX EXCEP : distance > 1200 km → priorité absolue
-🔴 HAUTE : distance > 800 km + spotter < 600 km
-🟡 HAUTE : distance > 800 km + spotter lointain
-🟠 MOYENNE : distance 400-800 km
-🟢 BASSE : distance < 400 km
-
-SCORE (afficher après chaque analyse) :
-🏆 SCORE 144 MHz : [XXXXX pts] ([XX] QSO)
-🏆 SCORE 432 MHz : [XXXXX pts] ([XX] QSO)
-🏆 SCORE TOTAL : [XXXXX pts]
-
-ALERTES : Surveiller F6KQJ/P ET F6KQJ dans les spots (le /P peut être tronqué).
-⚡ Si spoté : alerter immédiatement avec cap et fréquence.
-
-Ne jamais écarter une station pour cause de distance. Record 1600 km = tout est possible en juillet (Es).`;
+// Identité et concours actifs depuis le serveur (config.json) — la page
+// fonctionne depuis n'importe quel appareil (mobile OU domicile), le
+// localStorage du téléphone étant vide.
+async function loadStationInfo() {
+  try {
+    const r = await fetch('/config.json');
+    if (!r.ok) return;
+    const c = await r.json();
+    const call = (c.station && (c.station.callsign_portable || c.station.callsign)) || '';
+    if (call) document.querySelector('.call-sign').textContent = call;
+    const parts = [(c.contest && c.contest.name) || '', (c.station && c.station.locator) || ''];
+    const sub = parts.filter(Boolean).join(' · ');
+    if (sub) document.querySelector('.subtitle').textContent = sub.toUpperCase();
+    // Position carte/distances alignée sur la station configurée
+    if (c.station && c.station.latitude && c.station.longitude) {
+      MY_POS.lat = c.station.latitude;
+      MY_POS.lon = c.station.longitude;
+      if (c.station.locator) MY_POS.locator = c.station.locator;
+    }
+  } catch(e) { /* en-tête générique conservé */ }
+}
 
 const MY_POS = { lat: 45.625, lon: 5.125, locator: 'JN15XC' };
 const MAP_W = 800, MAP_H = 560;
@@ -1352,30 +1322,20 @@ function hideCompass() {
 }
 
 // ─── APP START ───────────────────────────────────────────────────────────────
+// Plus de modal de clé API : l'IA passe par /proxy/ai, la clé est côté serveur
+// (configurée dans CONFIG). La page démarre directement, sur mobile comme à
+// domicile, et s'adapte au concours actif.
 function startApp() {
-  const key = document.getElementById('apiKeyInput').value.trim();
-  if (!key.startsWith('sk-ant-')) {
-    alert('Clé API invalide. Elle doit commencer par sk-ant-');
-    return;
-  }
-  API_KEY = key;
   document.getElementById('apiModal').style.display = 'none';
   document.getElementById('sendBtn').disabled = false;
   document.getElementById('liveDot').style.background = '#00FF88';
-  addMessage('agent', '✅ Agent F6KQJ/P connecté et prêt !\n\nClique sur 📡 ANALYSER pour démarrer une analyse complète des clusters et de ton log.');
+  addMessage('agent', '✅ Agent mobile connecté et prêt !\n\nClique sur 📡 ANALYSER pour une analyse complète des clusters et de ton log.');
   initMap();
+  loadServerPrompt();
+  loadStationInfo();
 }
 
-window.addEventListener('load', () => {
-  // Si clé déjà intégrée dans le fichier, démarrer auto
-  if (API_KEY && API_KEY !== 'REMPLACE_PAR_TA_CLE') {
-    document.getElementById('apiModal').style.display = 'none';
-    document.getElementById('sendBtn').disabled = false;
-    document.getElementById('liveDot').style.background = '#00FF88';
-    addMessage('agent', '✅ Agent F6KQJ/P connecté et prêt !\n\nClique sur 📡 ANALYSER pour démarrer.');
-    initMap();
-  }
-});
+window.addEventListener('load', startApp);
 
 // ─── CHAT ────────────────────────────────────────────────────────────────────
 function addMessage(role, text, isAlert = false) {
@@ -1433,11 +1393,8 @@ function parseScores(text) {
     const v = total[1].replace(/[\s,]/g,'');
     document.getElementById('scoreTotal').textContent = parseInt(v).toLocaleString() + ' pts';
   }
-  const s144 = text.match(/SCORE\s+144\s*MHz\s*[:：]\s*([\d\s,]+)\s*pts/i);
-  if (s144) document.getElementById('score144').textContent = parseInt(s144[1].replace(/[\s,]/g,'')).toLocaleString() + ' pts';
-
-  const s432 = text.match(/SCORE\s+432\s*MHz\s*[:：]\s*([\d\s,]+)\s*pts/i);
-  if (s432) document.getElementById('score432').textContent = parseInt(s432[1].replace(/[\s,]/g,'')).toLocaleString() + ' pts';
+  const sTot = text.match(/SCORE\s+TOTAL\s*[:：]\s*([\d\s,]+)\s*pts/i);
+  if (sTot) document.getElementById('scoreTotal').textContent = parseInt(sTot[1].replace(/[\s,]/g,'')).toLocaleString() + ' pts';
 
   const qso = text.match(/(\d+)\s*QSO/i);
   if (qso) document.getElementById('scoreQSO').textContent = qso[1];
@@ -1492,15 +1449,15 @@ function parseStations(text) {
 // ─── API CALL ────────────────────────────────────────────────────────────────
 async function fetchTerrainData() {
   try {
-    const res = await fetch('http://localhost:8080/data/refresh');
+    // URL relative : la page est servie depuis le PC (http://<ip>:8080) —
+    // un localhost codé en dur casserait tout depuis un téléphone.
+    const res = await fetch('/data/refresh');
     if (!res.ok) return null;
     const data = await res.json();
     // Update score display
     if (data.score_total !== undefined) {
       document.getElementById('scoreTotal').textContent = data.score_total.toLocaleString() + ' pts';
     }
-    if (data.log144) document.getElementById('score144').textContent = data.log144.score.toLocaleString() + ' pts';
-    if (data.log432) document.getElementById('score432').textContent = data.log432.score.toLocaleString() + ' pts';
     if (data.qso_total !== undefined) document.getElementById('scoreQSO').textContent = data.qso_total;
     return data;
   } catch(e) {
@@ -1539,7 +1496,7 @@ async function sendMessage() {
 
     conversationHistory.push({ role: 'user', content: enrichedText });
 
-    const res = await fetch('http://localhost:8080/proxy/anthropic', {
+    const res = await fetch('/proxy/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
