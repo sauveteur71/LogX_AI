@@ -42,6 +42,10 @@ connected_peers = set()
 current_config = {}    # reçu du client via POST /config/save
 config_lock = threading.Lock()
 
+# ─── CACHE DXMAPS POUR LE COACH (TTL 10 min) ─────────────────────────────────
+_coach_dxmaps_cache = None
+_coach_dxmaps_ts = 0
+
 # ─── CHAT MULTI-OPÉRATEUR ─────────────────────────────────────────────────────
 chat_messages = []     # liste {id, op, call, time, text}
 chat_lock = threading.Lock()
@@ -638,6 +642,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/update_rules':
             threading.Thread(target=run_annual_update, daemon=True).start()
             self._json({'ok': True, 'message': f'Mise à jour {CURRENT_YEAR} lancée'})
+            return
+
+        # Coach de stratégie — état structuré, sans appel IA (rapide, pollable).
+        # DXMaps (réseau) : uniquement pour les concours VHF+, avec cache 10 min.
+        if path == '/coach/state':
+            import coach
+            with config_lock:
+                cfg_snapshot = dict(current_config)
+            dxmaps = None
+            cdef = CONTEST_DEFINITIONS.get(cfg_snapshot.get('contest', ''), {})
+            bands = [str(b) for b in cdef.get('bands', [])]
+            if bands and not any(b in coach.HF_BANDS for b in bands):
+                global _coach_dxmaps_cache, _coach_dxmaps_ts
+                if time.time() - _coach_dxmaps_ts > 600:
+                    try:
+                        _coach_dxmaps_cache = fetch_dxmaps_vhf()
+                    except Exception:
+                        _coach_dxmaps_cache = None
+                    _coach_dxmaps_ts = time.time()
+                dxmaps = _coach_dxmaps_cache
+            self._json(coach.build_coach_state(cfg_snapshot, shared_log, dxmaps))
             return
 
         # Status du système de mise à jour

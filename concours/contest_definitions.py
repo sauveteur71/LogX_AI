@@ -427,6 +427,7 @@ CONTEST_DEFINITIONS = {
             'note': 'QTC non modélisés — 1 pt émetteur + 1 pt récepteur par QTC transféré.',
         },
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
+        'op_time_max_h': 36, 'off_time_min_min': 60, 'qtc': True,
         'notes': 'Europe contacte hors-Europe uniquement. Single-OP : 36 h sur 48. Max 10 QTC par station.',
     },
     'WAEDC_RTTY': {
@@ -448,6 +449,7 @@ CONTEST_DEFINITIONS = {
             'note': 'RTTY : pas de restriction continentale sur les QSO (contrairement à CW/SSB). QTC uniquement entre continents différents.',
         },
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
+        'op_time_max_h': 36, 'off_time_min_min': 60, 'qtc': True,
     },
     'UBA_DX_SSB': {
         'name': 'UBA DX Contest — SSB',

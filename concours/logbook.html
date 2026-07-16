@@ -147,7 +147,9 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 .macro-btn:hover{border-color:var(--accent2)}
 .macro-btn .mk{display:block;font-family:var(--font-mono);font-size:9px;color:var(--accent2);letter-spacing:1px;margin-bottom:2px}
 .macro-btn .mt{display:block;font-family:var(--font-mono);font-size:10px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.macro-toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;padding:10px 18px;font-family:var(--font-mono);font-size:12px;color:var(--accent2);z-index:9999;display:none;letter-spacing:1px;pointer-events:none}
+.macro-toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;padding:10px 18px;font-family:var(--font-mono);font-size:12px;color:var(--accent2);z-index:9999;display:none;letter-spacing:1px;pointer-events:none;white-space:pre-line;max-width:420px;line-height:1.6}
+.macro-toast.toast-warn{border-color:var(--yellow);color:var(--yellow)}
+.macro-toast.toast-err{border-color:var(--red);color:var(--red)}
 .macro-toast.show{display:block;animation:macroToastIn .25s ease}
 @keyframes macroToastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .on4kst-reminder{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--green);border-radius:10px;padding:14px 18px;font-family:var(--font-mono);z-index:9998;display:none;box-shadow:0 4px 20px rgba(0,0,0,.3);max-width:280px}
@@ -576,9 +578,10 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
 <!-- NAV -->
 <nav class="app-nav">
-  <a href="radiocontest.html" onclick="intentionalNavigation=true">🗺️ CARTE IA</a>
-  <a href="logbook.html" class="active" onclick="intentionalNavigation=true">📋 LOGBOOK</a>
   <a href="configuration.html" onclick="intentionalNavigation=true">⚙ CONFIG</a>
+  <a href="logbook.html" class="active" onclick="intentionalNavigation=true">📋 LOGBOOK</a>
+  <a href="radiocontest.html" onclick="intentionalNavigation=true">🗺️ CARTE IA</a>
+  <a href="calendrier.html" onclick="intentionalNavigation=true">📅 CALENDRIER</a>
   <div class="nav-spacer"></div>
   <div class="nav-info">
     OP : <span id="currentOp" style="color:var(--accent)">—</span>
@@ -794,7 +797,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       </div>
 
       <!-- MACROS F1–F8 -->
-      <div class="macro-panel" id="macroPanel">
+      <div class="macro-panel expert-only" id="macroPanel">
         <div class="macro-panel-title">MACROS — clic: copier · double-clic: modifier</div>
         <div class="macro-btns" id="macroBtns"></div>
       </div>
@@ -824,7 +827,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="export-btn" onclick="exportADIF()">📥 ADIF</button>
       <button class="export-btn" onclick="exportCSV()">📥 CSV</button>
       <button class="import-btn" onclick="triggerImport()" style="margin-left:8px">📂 IMPORTER</button>
-      <button class="export-btn" onclick="exportON4KST()" style="color:var(--green);border-color:rgba(0,255,0,.4);margin-left:8px">📡 ON4KST</button>
+      <button class="export-btn expert-only" onclick="exportON4KST()" style="color:var(--green);border-color:rgba(0,255,0,.4);margin-left:8px">📡 ON4KST</button>
       <button class="export-btn" onclick="resetLog()" style="color:var(--red);border-color:rgba(255,45,85,.4);margin-left:8px">🗑️ NOUVEAU LOG</button>
       <button class="export-btn" onclick="showRatePanel()" style="color:var(--accent2);border-color:rgba(0,212,255,.4);margin-left:8px">📊 STATS</button>
       <button class="export-btn" onclick="showChecklist()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px">✅ CHECKLIST</button>
@@ -1359,7 +1362,7 @@ function setupDone(){
   const cont = document.getElementById('setupContest').value;
 
   if(!call||!loc||!op){
-    alert('Remplis tous les champs !');
+    notify('Remplis tous les champs !');
     return;
   }
 
@@ -1487,7 +1490,7 @@ function updateClockAndCountdown(){
     cd.style.color = '#4A5080';
     if(!contestEndAlertShown && isSetupDone){
       contestEndAlertShown = true;
-      setTimeout(()=>alert('🏁 CONCOURS TERMINÉ !\n\nPense à exporter ton log maintenant :\n📥 EDI / ADIF dans la barre d\'outils du logbook.'), 300);
+      setTimeout(()=>notify('🏁 CONCOURS TERMINÉ !\n\nPense à exporter ton log maintenant :\n📥 EDI / ADIF dans la barre d\'outils du logbook.'), 300);
     }
     return;
   }
@@ -1827,15 +1830,15 @@ async function submitQSO(){
     : numRcvdRaw;
   const loc     = document.getElementById('inputLocator').value.trim().toUpperCase();
 
-  if(!call){ alert('Indicatif manquant !'); return; }
+  if(!call){ notify('Indicatif manquant !'); return; }
   if(loc && !validateLocator(loc)){
     document.getElementById('inputLocator').focus();
-    alert('Locator invalide !\nFormat attendu : AA00AA  (ex: JN03QQ)');
+    notify('Locator invalide !\nFormat attendu : AA00AA  (ex: JN03QQ)');
     return;
   }
   // Locator vide : simple avertissement, le QSO est quand même enregistré (0 pt)
   if(!loc){
-    alert('⚠️ Locator non renseigné !\nLe QSO va être enregistré sans locator (0 pt).');
+    notify('⚠️ Locator non renseigné !\nLe QSO va être enregistré sans locator (0 pt).');
   }
 
   // Vérification doublon
@@ -1885,7 +1888,7 @@ async function submitQSO(){
       playBeep(880, 80);
     } else {
       const err = await res.json();
-      alert('Erreur serveur : '+err.error);
+      notify('Erreur serveur : '+err.error);
     }
   }catch(e){
     // Mode hors ligne : sauvegarde locale + localStorage
@@ -2185,9 +2188,9 @@ async function saveEdit(){
   const newDate = document.getElementById('editDate').value.trim() || nowDateUTC();
   const newTime = document.getElementById('editTime').value.trim() || nowUTC();
 
-  if(!newCall){ alert('Indicatif manquant !'); return; }
-  if(!/^\d{8}$/.test(newDate)){ alert('Date invalide !\nFormat attendu : AAAAMMJJ (ex: 20260705)'); return; }
-  if(!/^\d{1,2}:\d{2}$/.test(newTime)){ alert('Heure invalide !\nFormat attendu : HH:MM (ex: 14:32)'); return; }
+  if(!newCall){ notify('Indicatif manquant !'); return; }
+  if(!/^\d{8}$/.test(newDate)){ notify('Date invalide !\nFormat attendu : AAAAMMJJ (ex: 20260705)'); return; }
+  if(!/^\d{1,2}:\d{2}$/.test(newTime)){ notify('Heure invalide !\nFormat attendu : HH:MM (ex: 14:32)'); return; }
 
   const dist = calcDist(newLoc);
   const newMode = document.getElementById('editMode')?.value || q.mode || 'SSB';
@@ -2237,7 +2240,7 @@ async function deleteQSO(id){
 }
 
 async function undoLastQSO(){
-  if(!qsoLog.length){ alert('Aucun QSO à annuler !'); return; }
+  if(!qsoLog.length){ notify('Aucun QSO à annuler !'); return; }
   const last = qsoLog[qsoLog.length-1];
   if(!confirm(`Annuler le dernier QSO ?\n${last.call} — ${last.band} MHz — ${last.time}`)) return;
   qsoLog = qsoLog.slice(0,-1);
@@ -2548,6 +2551,21 @@ function renderMacroPanel(){
     btns.appendChild(btn);
   });
 }
+// Notification non bloquante — remplace notify() pour ne jamais figer la saisie
+// en plein concours. Couleur selon le contenu, durée selon la longueur.
+function notify(msg, ms){
+  const t = document.getElementById('macroToast');
+  if(!t){ alert(msg); return; }   // repli improbable
+  msg = String(msg);
+  t.textContent = msg;
+  t.className = 'macro-toast';
+  if(/❌|[Ee]rreur|[Ii]nvalide|manquant|[Ii]mpossible|injoignable/.test(msg)) t.classList.add('toast-err');
+  else if(/⚠|[Aa]nnulé/.test(msg)) t.classList.add('toast-warn');
+  t.classList.add('show');
+  clearTimeout(notify._tm);
+  notify._tm = setTimeout(()=>t.classList.remove('show'), ms || Math.min(10000, 2500 + msg.length*35));
+}
+
 function copyMacro(idx){
   const m = getMacros()[idx]; if(!m) return;
   const txt = expandMacro(m.text);
@@ -2621,7 +2639,7 @@ function exportEDI(){
 
   const VHF_UHF_SHF_BANDS = ['144','432','1296','2320','3400','5760','10368','24048','47088'];
   const bands = [...new Set(qsoLog.map(q=>q.band))].filter(b=>VHF_UHF_SHF_BANDS.includes(b));
-  if(!bands.length){ alert('Aucun QSO VHF/UHF à exporter !\n\nPour les concours HF (ARRL FD, CQ WW, etc.),\nle format Cabrillo sera généré automatiquement.'); return; }
+  if(!bands.length){ notify('Aucun QSO VHF/UHF à exporter !\n\nPour les concours HF (ARRL FD, CQ WW, etc.),\nle format Cabrillo sera généré automatiquement.'); return; }
 
   // Téléchargements espacés dans le temps : déclenchés trop vite d'affilée
   // (boucle synchrone), Chrome bloque silencieusement le 2e fichier en
@@ -2694,7 +2712,7 @@ function exportEDI(){
     const submitUrl = ediCfg.submit_url || 'http://concours.r-e-f.org/tools/upload/thf.php';
     const submitDeadline = ediCfg.submit_deadline || '';
     const deadlineLine = submitDeadline ? `\nDélai : ${submitDeadline}` : '';
-    alert(`📤 SOUMISSION DU LOG\n\nURL : ${submitUrl}${deadlineLine}\n\n⚠️ 1 fichier EDI PAR BANDE (144 MHz et 432 MHz séparés)`);
+    notify(`📤 SOUMISSION DU LOG\n\nURL : ${submitUrl}${deadlineLine}\n\n⚠️ 1 fichier EDI PAR BANDE (144 MHz et 432 MHz séparés)`);
   }, bands.length * 500 + 300);
 }
 
@@ -2780,7 +2798,7 @@ function exportCabrillo(cfg, call){
     msg += `QSOs : ${qsoLog.length} — Score déclaré : ${totalScore} pts\n`;
     if(submitUrl) msg += `\nURL soumission : ${submitUrl}`;
     if(deadline)  msg += `\nDélai : ${deadline}`;
-    alert(msg);
+    notify(msg);
   }, 400);
 }
 
@@ -2821,7 +2839,7 @@ async function resetLog(){
   if(!confirm(`⚠️ NOUVEAU LOG\n\nSupprime définitivement ${n} QSO du serveur.\nCette action est irréversible.\n\nTape OK pour confirmer.`)) return;
   const confirmation = prompt('Tape RESET pour confirmer la suppression complète du log :');
   if(confirmation !== 'RESET'){
-    alert('Annulé — le log est inchangé.');
+    notify('Annulé — le log est inchangé.');
     return;
   }
   try{
@@ -2836,12 +2854,12 @@ async function resetLog(){
       renderLog();
       updateStats();
       updateSerialDisplay();
-      alert('✅ Log réinitialisé — prêt pour le concours !');
+      notify('✅ Log réinitialisé — prêt pour le concours !');
     } else {
-      alert('Erreur serveur lors de la réinitialisation.');
+      notify('Erreur serveur lors de la réinitialisation.');
     }
   } catch(e){
-    alert('Impossible de contacter le serveur : '+e.message);
+    notify('Impossible de contacter le serveur : '+e.message);
   }
 }
 
@@ -3306,7 +3324,7 @@ async function sendChat(){
     pollChat();
   }catch(e){
     inp.value = text;
-    alert('Chat : serveur injoignable, message non envoyé.');
+    notify('Chat : serveur injoignable, message non envoyé.');
   }
 }
 
@@ -3511,7 +3529,7 @@ function latLonToMaidenhead(lat, lon){
 }
 
 function getGPSLocator(){
-  if(!navigator.geolocation){ alert('Géolocalisation non disponible dans ce navigateur.'); return; }
+  if(!navigator.geolocation){ notify('Géolocalisation non disponible dans ce navigateur.'); return; }
   const btn = document.querySelector('.gps-btn');
   if(btn) btn.textContent = '⏳…';
   navigator.geolocation.getCurrentPosition(pos=>{
@@ -3519,10 +3537,10 @@ function getGPSLocator(){
     const el = document.getElementById('setupLocator');
     if(el) el.value = loc;
     if(btn) btn.textContent = '📍 GPS';
-    alert(`Locator GPS : ${loc}\n(${pos.coords.latitude.toFixed(4)}°N, ${pos.coords.longitude.toFixed(4)}°E)`);
+    notify(`Locator GPS : ${loc}\n(${pos.coords.latitude.toFixed(4)}°N, ${pos.coords.longitude.toFixed(4)}°E)`);
   }, err=>{
     if(btn) btn.textContent = '📍 GPS';
-    alert('Erreur GPS : ' + (err.message||err.code));
+    notify('Erreur GPS : ' + (err.message||err.code));
   }, {timeout:10000, enableHighAccuracy:true});
 }
 
@@ -3580,7 +3598,7 @@ function importADIF(text){
     imported++;
   });
   renderLog(); updateStats();
-  alert(`Import ADIF terminé :\n✅ ${imported} QSO importés\n⏩ ${skipped} ignorés (doublons ou invalides)`);
+  notify(`Import ADIF terminé :\n✅ ${imported} QSO importés\n⏩ ${skipped} ignorés (doublons ou invalides)`);
 }
 
 function triggerImport(){
@@ -3981,7 +3999,7 @@ function renderBandStats(){
     const sc = s.pts*s.mults.size;
     return `<tr><td>${b}m</td><td>${s.qso}</td><td>${s.pts}</td><td>${s.mults.size}</td><td>${sc}</td></tr>`;
   }).join('') + (rows.length?`<tr><td>TOTAL</td><td>${totQso}</td><td>${totPts}</td><td>—</td><td>${totScore}</td></tr>`:'')
-    || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:18px">Aucun QSO enregistré</td></tr>';
+    || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:18px">Aucun QSO — saisis un indicatif dans le panneau SAISIE et appuie sur Entrée 🎙</td></tr>';
 }
 function renderHourStats(){
   const head = document.getElementById('hourHead');

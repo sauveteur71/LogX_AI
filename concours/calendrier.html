@@ -18,6 +18,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
 .logo{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:3px}
 .logo span{color:var(--accent2)}
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
+.app-nav a{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 .nav-links{display:flex;gap:8px;padding:8px 24px;background:var(--bg);border-bottom:1px solid var(--border)}
 .nav-link{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-decoration:none;padding:4px 10px;border-radius:4px;border:1px solid var(--border);transition:all .15s;letter-spacing:1px}
 .nav-link:hover,.nav-link.active{border-color:var(--accent2);color:var(--accent2)}
@@ -109,12 +113,12 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">Dates calculées automatiquement · Mise à jour annuelle</div>
 </header>
 
-<div class="nav-links">
-  <a href="configuration.html" class="nav-link">⚙ CONFIG</a>
-  <a href="radiocontest.html" class="nav-link">🗺️ CARTE IA</a>
-  <a href="logbook.html" class="nav-link">📋 LOGBOOK</a>
-  <a href="calendrier.html" class="nav-link active">📅 CALENDRIER</a>
-</div>
+<nav class="app-nav">
+  <a href="configuration.html">⚙ CONFIG</a>
+  <a href="logbook.html">📋 LOGBOOK</a>
+  <a href="radiocontest.html">🗺️ CARTE IA</a>
+  <a href="calendrier.html" class="active">📅 CALENDRIER</a>
+</nav>
 <script src="statusbar.js"></script>
 
 <div class="container">
