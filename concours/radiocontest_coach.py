@@ -391,6 +391,9 @@ def build_coach_prompt(cdef, clock, stats, plan, hints):
         lines.append(f"Multiplicateurs (échanges distincts/bande) : "
                      f"{stats['exchange_mults']} → score estimé "
                      f"{stats.get('score_with_mults', 0)} pts")
+    if stats.get('departments') is not None:
+        lines.append(f"Départements français reçus : {stats['departments']} "
+                     f"(multiplicateur REF, + DXCC)")
     if stats.get('by_band'):
         rep = ', '.join(f"{b}: {n}" for b, n in sorted(stats['by_band'].items()))
         lines.append(f"Par bande : {rep}")
@@ -421,6 +424,14 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     if cdef.get('qtc'):
         from radiocontest_storage import qtc_total
         stats['qtc_total'] = qtc_total(clock['contest_id'])
+    # Multiplicateur département (concours REF « dept_dxcc ») : compté depuis
+    # les échanges reçus (le département n'est pas dans l'indicatif métropolitain).
+    scoring_type = (cdef.get('scoring', {}) or {}).get('type', '')
+    if scoring_type == 'dept_dxcc':
+        from radiocontest_departments import department_mult_count
+        depts = department_mult_count(shared_log, clock['contest_id'])
+        stats['departments'] = len(depts)
+        stats['departments_list'] = sorted(depts)
     ex_mults = exchange_mult_stats(cdef, shared_log, clock['contest_id'])
     if ex_mults:
         stats['exchange_mults'] = ex_mults['mults']
