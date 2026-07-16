@@ -151,6 +151,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 .rig-mode{color:var(--text);letter-spacing:1px}
 .rig-stop{margin-left:auto;font-family:var(--font-mono);font-size:12px;padding:3px 10px;border-radius:5px;border:1px solid var(--red);background:transparent;color:var(--red);cursor:pointer;letter-spacing:1px}
 .rig-stop:hover{background:rgba(255,45,85,.15)}
+.point-antenna-btn{font-family:var(--font-mono);font-size:12px;padding:4px 11px;border-radius:5px;border:1px solid var(--purple);background:rgba(191,90,242,.12);color:var(--purple);cursor:pointer;letter-spacing:1px;font-weight:700;margin-left:auto;align-self:center}
+.point-antenna-btn:hover{background:var(--purple);color:#0A0B18}
 .macro-btns{display:flex;gap:5px;flex-wrap:wrap}
 .macro-btn{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:5px 8px;cursor:pointer;text-align:left;min-width:76px;flex:1;max-width:110px;transition:border-color .15s}
 .macro-btn:hover{border-color:var(--accent2)}
@@ -793,6 +795,8 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
             <span class="compass-dist" id="compassDist">— km</span>
             <span class="compass-pts"  id="compassPts">— pts</span>
           </div>
+          <button class="point-antenna-btn" id="pointAntennaBtn" onclick="pointAntennaFromCompass()"
+                  style="display:none" title="Pointer l'antenne sur ce cap">🧭 POINTER</button>
         </div>
       </div>
 
