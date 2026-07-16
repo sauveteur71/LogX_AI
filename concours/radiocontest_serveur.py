@@ -32,6 +32,12 @@ for _stream in (sys.stdout, sys.stderr):
 import http.server
 import threading
 
+# Amorçage AVANT tout import applicatif : en mode figé (PyInstaller), bascule
+# le répertoire de travail vers le dossier de données utilisateur (inscriptible)
+# et y recopie les fichiers de référence embarqués. En dev : sans effet.
+from radiocontest_bootstrap import bootstrap, open_browser, is_frozen
+bootstrap()
+
 from radiocontest_utils import PORT
 from radiocontest_storage import load_log_from_disk, load_qtc_from_disk
 from radiocontest_rules import load_rules_cache, load_external_contests, schedule_annual_check
@@ -90,6 +96,10 @@ if __name__ == '__main__':
     print()
     print('  Ctrl+C pour arreter')
     print()
+
+    # Application figée : ouvre le navigateur automatiquement.
+    if is_frozen():
+        open_browser(PORT)
 
     server = http.server.ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     try:
