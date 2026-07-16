@@ -340,7 +340,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'local_ip': local_ip,
                 'port': PORT,
                 'url_logbook': f'http://{local_ip}:{PORT}/radiocontest_logbook.html',
-                'url_terrain': f'http://{local_ip}:{PORT}/radiocontest_terrain.html',
+                'url_terrain': f'http://{local_ip}:{PORT}/radiocontest_mobile.html',
                 'peers': len(connected_peers),
             })
             return
@@ -688,7 +688,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             '/logbook.html': '/radiocontest_logbook.html',
             '/calendrier.html': '/radiocontest_calendrier.html',
             '/radiocontest.html': '/radiocontest_carte.html',
-            '/rallye-vhf-terrain.html': '/radiocontest_terrain.html',
+            '/rallye-vhf-terrain.html': '/radiocontest_mobile.html',
+            '/radiocontest_terrain.html': '/radiocontest_mobile.html',
             '/statusbar.js': '/radiocontest_statusbar.js',
         }
         path = LEGACY_PAGES.get(path, path)

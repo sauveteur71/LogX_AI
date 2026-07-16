@@ -12,6 +12,13 @@
   --yellow:#FFD60A;--purple:#BF5AF2;--text:#FFE566;--muted:#B8A040;
   --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
 }
+/* Mode jour — même palette que les autres pages (suivi via rc_theme) */
+body.day-mode {
+  --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
+  --accent:#D05000; --accent2:#0060A0; --green:#007030; --red:#CC0030;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#606888;
+}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
 
@@ -149,7 +156,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     <button class="filter-btn" data-f="CQ" onclick="setFilter(this)">📡 CQ</button>
     <button class="filter-btn" data-f="VHF" onclick="setFilter(this)">📶 VHF</button>
     <button class="filter-btn" data-f="HF" onclick="setFilter(this)">🌐 HF</button>
-    <button class="filter-btn" data-f="upcoming" onclick="setFilter(this)">🔜 À VENIR</button>
+    <button class="filter-btn" data-f="upcoming" onclick="setFilter(this)">🔜 À VENIR (31 j)</button>
   </div>
 
   <div id="calendarContent" class="loading">Chargement des dates...</div>
@@ -246,8 +253,12 @@ function countdown(d){
 function matchFilter(c){
   if(currentFilter === 'all') return true;
   if(currentFilter === 'upcoming'){
+    // « À VENIR » = en cours ou dans les 31 prochains jours (la liste entière
+    // étant déjà future, filtrer sur d >= aujourd'hui ne changeait rien).
     const d = parseDate(c.date);
-    return d && d >= TODAY;
+    if(!d) return false;
+    const diff = (d - TODAY) / 86400000;
+    return diff >= -2 && diff <= 31;   // -2 : week-end en cours inclus
   }
   if(currentFilter === 'REF') return c.organizer.includes('REF');
   if(currentFilter === 'IARU') return c.organizer.includes('IARU');
@@ -265,31 +276,33 @@ function renderCalendar(){
     return;
   }
 
-  // Grouper par mois
-  const byMonth = {};
+  // La liste arrive du serveur DÉJÀ triée à partir d'aujourd'hui (avec report
+  // à l'année suivante pour les éditions passées) : on groupe SÉQUENTIELLEMENT
+  // par (année, mois) pour préserver cet ordre — le concours en cours ou du
+  // week-end prochain est toujours en tête de page.
   const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin',
-                  'Juillet','Août','Septembre','Octobre','Novembre','Décembre','Permanent'];
-
+                  'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const groups = [];
+  let cur = null;
   filtered.forEach(c => {
     const d = parseDate(c.date);
-    const monthKey = d ? d.getMonth() : 12;
-    if(!byMonth[monthKey]) byMonth[monthKey] = [];
-    byMonth[monthKey].push({...c, _date: d});
+    const key = d ? `${d.getFullYear()}-${d.getMonth()}` : 'permanent';
+    if(!cur || cur.key !== key){
+      cur = {key, d, list: []};
+      groups.push(cur);
+    }
+    cur.list.push({...c, _date: d});
   });
 
   let html = '';
-  const sortedMonths = Object.keys(byMonth).sort((a,b)=>parseInt(a)-parseInt(b));
-
-  sortedMonths.forEach(monthKey => {
-    const contests = byMonth[monthKey].sort((a,b)=>
-      (a._date||new Date('2099'))-(b._date||new Date('2099'))
-    );
-    const monthName = MONTHS[parseInt(monthKey)] || 'Autre';
+  groups.forEach(g => {
+    const contests = g.list;
+    const monthName = g.d ? `${MONTHS[g.d.getMonth()].toUpperCase()} ${g.d.getFullYear()}` : 'PERMANENT';
     const isPast = contests.every(c=>c._date && c._date < TODAY);
 
     html += `<div class="month-group">
       <div class="month-header" style="${isPast?'opacity:.5':''}">
-        📅 ${monthName.toUpperCase()} ${currentYear}
+        📅 ${monthName}
         <span class="month-count">${contests.length} concours</span>
       </div>`;
 

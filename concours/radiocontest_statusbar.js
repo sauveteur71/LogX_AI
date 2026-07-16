@@ -50,6 +50,17 @@
       📄 <a href="radiocontest_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>`;
 
+  // ── Thème jour/nuit GLOBAL (rc_theme, basculé sur config/carte/logbook) ───
+  // Chaque page définit sa palette body.day-mode ; ici on applique le choix
+  // partout (le calendrier ne le faisait pas) et on suit les autres onglets.
+  function applyTheme(){
+    document.body.classList.toggle('day-mode', localStorage.getItem('rc_theme') === 'day');
+  }
+  applyTheme();
+  window.addEventListener('storage', function(e){
+    if (e.key === 'rc_theme') applyTheme();
+  });
+
   // ── Mode débutant/expert GLOBAL (choisi dans CONFIG via 🎚) ────────────────
   // Toutes les pages masquent leurs éléments .expert-only en mode simple ;
   // la page config gère son propre défaut, ici on applique juste le choix.
