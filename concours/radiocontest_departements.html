@@ -21,8 +21,9 @@ body.day-mode {
 }
 body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
-header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .logo{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:3px}
 .logo span{color:var(--accent2)}
 .app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
@@ -30,34 +31,35 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 
-.container{max-width:1280px;margin:0 auto;padding:20px;display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
-@media (max-width:900px){.container{grid-template-columns:1fr}}
-
-/* Progression */
-.progress-panel{grid-column:1/-1;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px}
-.progress-head{display:flex;align-items:baseline;gap:14px;margin-bottom:10px;flex-wrap:wrap}
-.progress-count{font-family:var(--font-mono);font-size:30px;font-weight:800;color:var(--green)}
-.progress-total{font-family:var(--font-mono);font-size:16px;color:var(--muted)}
-.progress-label{font-size:14px;color:var(--text)}
-.progress-dom{font-family:var(--font-mono);font-size:13px;color:var(--accent2);margin-left:auto}
-.progress-bar{height:14px;background:var(--bg3);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+/* Barre de progression compacte */
+.progress-panel{display:flex;align-items:center;gap:16px;background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 20px;flex-shrink:0;flex-wrap:wrap}
+.progress-count{font-family:var(--font-mono);font-size:26px;font-weight:800;color:var(--green)}
+.progress-total{font-family:var(--font-mono);font-size:15px;color:var(--muted)}
+.progress-bar{flex:1;min-width:200px;height:14px;background:var(--bg3);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--green),#00D4FF);transition:width .6s ease;border-radius:8px}
-.progress-msg{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:8px}
+.progress-msg{font-family:var(--font-mono);font-size:13px;color:var(--muted);white-space:nowrap}
+.progress-dom{font-family:var(--font-mono);font-size:13px;color:var(--accent2)}
 
-/* Carte */
-.map-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-#map{height:560px;width:100%;background:var(--bg3)}
-.map-fallback{padding:30px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:13px}
+/* Corps plein écran : carte à gauche (toute la place), grille à droite */
+.main{flex:1;display:flex;min-height:0}
+.map-wrap{flex:1;position:relative;background:var(--bg)}
+#map{position:absolute;inset:0;background:transparent}
+.leaflet-container{background:transparent!important;font-family:var(--font-mono)}
+.map-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:14px;padding:30px}
 
-/* Grille des départements */
-.grid-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px}
-.grid-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:2px;margin-bottom:10px}
-.dept-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
-.dept-cell{font-family:var(--font-mono);font-size:12px;text-align:center;padding:6px 2px;border-radius:4px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);transition:all .3s}
-.dept-cell.worked{background:rgba(0,255,136,.18);color:var(--green);border-color:var(--green);font-weight:700}
-.dept-dom{margin-top:10px}
+.grid-panel{width:330px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg2);padding:12px;overflow-y:auto}
+.grid-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:2px;margin:8px 0}
+.dept-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}
+.dept-cell{font-family:var(--font-mono);font-size:12px;text-align:center;padding:5px 1px;border-radius:4px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);transition:all .3s;cursor:default}
+.dept-cell.worked{background:rgba(0,255,136,.20);color:var(--green);border-color:var(--green);font-weight:700}
 .legend{display:flex;gap:14px;font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:12px}
 .legend b{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:middle;margin-right:4px}
+@media (max-width:900px){
+  body{overflow:auto}
+  .main{flex-direction:column}
+  .map-wrap{min-height:52vh}
+  .grid-panel{width:100%;border-left:none;border-top:1px solid var(--border)}
+}
 </style>
 </head>
 <body>
@@ -77,38 +79,37 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 </nav>
 <script src="radiocontest_statusbar.js"></script>
 
-<div class="container">
+<div class="progress-panel">
+  <span><span class="progress-count" id="pCount">0</span>
+  <span class="progress-total" id="pTotal">/ 96</span></span>
+  <div class="progress-bar"><div class="progress-fill" id="pFill" style="width:0%"></div></div>
+  <span class="progress-msg" id="pMsg">objectif : verdir toute la France 🇫🇷</span>
+  <span class="progress-dom" id="pDom"></span>
+</div>
 
-  <div class="progress-panel">
-    <div class="progress-head">
-      <span class="progress-count" id="pCount">0</span>
-      <span class="progress-total" id="pTotal">/ 96</span>
-      <span class="progress-label">départements métropolitains contactés — objectif : verdir toute la France 🇫🇷</span>
-      <span class="progress-dom" id="pDom"></span>
-    </div>
-    <div class="progress-bar"><div class="progress-fill" id="pFill" style="width:0%"></div></div>
-    <div class="progress-msg" id="pMsg"></div>
-  </div>
-
-  <div class="map-panel">
+<div class="main">
+  <div class="map-wrap">
     <div id="map"></div>
     <div class="map-fallback" id="mapFallback" style="display:none">
       Carte géographique indisponible (pas encore téléchargée hors ligne).<br>
-      La grille des départements à droite reste à jour.
+      La grille de droite reste à jour.
     </div>
   </div>
 
   <div class="grid-panel">
     <div class="grid-title">TABLEAU DE CHASSE</div>
     <div class="dept-grid" id="deptGrid"></div>
-    <div class="grid-title dept-dom">OUTRE-MER</div>
+    <div class="grid-title">OUTRE-MER</div>
     <div class="dept-grid" id="domGrid" style="grid-template-columns:repeat(3,1fr)"></div>
     <div class="legend">
       <span><b style="background:var(--green)"></b>Contacté</span>
       <span><b style="background:var(--bg3);border:1px solid var(--border)"></b>À faire</span>
     </div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6">
+      Le département est détecté depuis l'échange reçu, la base d'indicatifs,
+      ou la position du locator (stations françaises).
+    </div>
   </div>
-
 </div>
 
 <script>
@@ -120,40 +121,49 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 let leafletMap = null, geoLayer = null, geoLoaded = false;
 let workedSet = new Set();
-let allDepts = {};
 
 function isDay(){ return document.body.classList.contains('day-mode'); }
 
 function deptStyle(feature){
-  const code = feature.properties.code;
-  const worked = workedSet.has(code);
+  const worked = workedSet.has(feature.properties.code);
   return {
-    fillColor: worked ? '#00C853' : (isDay()?'#D5DAEA':'#1E2338'),
-    fillOpacity: worked ? 0.75 : 0.35,
-    color: worked ? '#00FF88' : (isDay()?'#9AA3C0':'#3A4066'),
-    weight: worked ? 1.4 : 0.6,
+    fillColor: worked ? '#00C853' : (isDay()?'#C8CEE2':'#1E2338'),
+    fillOpacity: worked ? 0.85 : 0.5,
+    color: worked ? '#00FF88' : (isDay()?'#8A93B5':'#3A4066'),
+    weight: worked ? 1.4 : 0.7,
   };
 }
 
 async function initMap(){
   try{
     const r = await fetch('/data/france_geojson');
-    if(!r.ok){ document.getElementById('map').style.display='none'; document.getElementById('mapFallback').style.display='block'; return; }
+    if(!r.ok) throw new Error('geojson http ' + r.status);
     const gj = await r.json();
-    leafletMap = L.map('map', { center:[46.6, 2.5], zoom:5, zoomControl:true, attributionControl:false, preferCanvas:true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:10, subdomains:'abcd'}).addTo(leafletMap);
+    // Carte STATIQUE : la France seule, sans fond mondial, sans zoom —
+    // 100 % hors ligne, toute la place pour l'Hexagone.
+    leafletMap = L.map('map', {
+      zoomControl:false, dragging:false, scrollWheelZoom:false,
+      doubleClickZoom:false, boxZoom:false, keyboard:false,
+      touchZoom:false, attributionControl:false, preferCanvas:true,
+      zoomSnap:0.1,
+    });
     geoLayer = L.geoJSON(gj, {
       style: deptStyle,
       onEachFeature: (f, layer) => {
-        const c = f.properties.code, n = f.properties.nom;
-        layer.bindTooltip(`${c} — ${n}`, {sticky:true});
+        layer.bindTooltip(`${f.properties.code} — ${f.properties.nom}`, {sticky:true});
       }
     }).addTo(leafletMap);
+    leafletMap.fitBounds(geoLayer.getBounds(), {padding:[10,10]});
     geoLoaded = true;
     applyWorkedToMap();
+    // Réajuste le cadrage si la fenêtre change
+    window.addEventListener('resize', () => {
+      leafletMap.invalidateSize();
+      leafletMap.fitBounds(geoLayer.getBounds(), {padding:[10,10]});
+    });
   }catch(e){
     document.getElementById('map').style.display='none';
-    document.getElementById('mapFallback').style.display='block';
+    document.getElementById('mapFallback').style.display='flex';
   }
 }
 
@@ -167,8 +177,6 @@ async function loadProgress(){
     if(!r.ok) return;
     const d = await r.json();
     workedSet = new Set(d.worked||[]);
-    allDepts = d.all||{};
-    // Progression métropole
     document.getElementById('pCount').textContent = d.metro_done;
     document.getElementById('pTotal').textContent = `/ ${d.metro_total}`;
     const pct = d.metro_total ? Math.round(100*d.metro_done/d.metro_total) : 0;
@@ -177,31 +185,26 @@ async function loadProgress(){
     const restants = d.metro_total - d.metro_done;
     document.getElementById('pMsg').textContent = pct >= 100
       ? '🏆 FRANCE ENTIÈREMENT VERTE — bravo !'
-      : `${pct}% · encore ${restants} département${restants>1?'s':''} pour verdir la France`;
+      : `${pct}% · encore ${restants} département${restants>1?'s':''} pour verdir la France 🇫🇷`;
     renderGrid(d);
     applyWorkedToMap();
   }catch(e){}
 }
 
 function renderGrid(d){
-  // Métropole : 01-95 + 2A/2B, dans l'ordre
-  const grid = document.getElementById('deptGrid');
-  grid.innerHTML = (d.metro||[]).map(c =>
+  document.getElementById('deptGrid').innerHTML = (d.metro||[]).map(c =>
     `<div class="dept-cell ${workedSet.has(c)?'worked':''}" title="${d.all[c]||''}">${c}</div>`).join('');
-  const dom = document.getElementById('domGrid');
-  dom.innerHTML = (d.dom||[]).map(c =>
+  document.getElementById('domGrid').innerHTML = (d.dom||[]).map(c =>
     `<div class="dept-cell ${workedSet.has(c)?'worked':''}" title="${d.all[c]||''}">${c}</div>`).join('');
 }
 
-// Nom du concours actif
 (function(){
   const cfg = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
   if(cfg.contest) document.getElementById('contestName').textContent = cfg.contest;
 })();
 
-initMap();
-loadProgress();
-setInterval(loadProgress, 20*1000);   // les nouveaux QSO verdissent en direct
+initMap().then(loadProgress);
+setInterval(loadProgress, 15*1000);   // les nouveaux QSO verdissent en direct
 </script>
 </body>
 </html>

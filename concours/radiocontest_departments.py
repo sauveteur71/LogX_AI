@@ -101,10 +101,120 @@ GEOJSON_URL = ('https://raw.githubusercontent.com/gregoiredavid/france-geojson/'
                'master/departements-version-simplifiee.geojson')
 
 
+# ─── LOCATOR → DÉPARTEMENT (point dans polygone) ─────────────────────────────
+# Beaucoup de concours REF n'échangent PAS le département (Bol d'Or : n° de
+# série) : on retrouve alors le département par la GÉOGRAPHIE — le centre du
+# locator testé contre les polygones du GeoJSON. Réservé aux indicatifs
+# français (F/TM/TK... via cty.dat) pour ne pas verdir un voisin frontalier.
+_dept_polys = None   # [(code, [anneaux de (lon, lat)])], chargé une fois
+
+
+def _load_dept_polygons():
+    global _dept_polys
+    if _dept_polys is not None:
+        return _dept_polys
+    import json
+    _dept_polys = []
+    raw = load_france_geojson()
+    if raw:
+        try:
+            for ft in json.loads(raw).get('features', []):
+                code = ft['properties'].get('code', '')
+                geom = ft.get('geometry', {})
+                rings = []
+                if geom.get('type') == 'Polygon':
+                    rings = [geom['coordinates'][0]]
+                elif geom.get('type') == 'MultiPolygon':
+                    rings = [p[0] for p in geom['coordinates']]
+                if code and rings:
+                    _dept_polys.append((code, rings))
+        except Exception:
+            _dept_polys = []
+    return _dept_polys
+
+
+def _point_in_ring(lon, lat, ring):
+    """Ray casting classique."""
+    inside = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
+        if ((yi > lat) != (yj > lat)) and \
+                (lon < (xj - xi) * (lat - yi) / ((yj - yi) or 1e-12) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def dept_from_locator(locator):
+    """Locator Maidenhead → n° de département (centre du carré testé contre
+    les polygones). '' si hors de France ou GeoJSON indisponible."""
+    from radiocontest_utils import locator_to_latlon
+    lat, lon = locator_to_latlon(locator or '')
+    if lat is None:
+        return ''
+    # Cadre France métropolitaine rapide avant les polygones
+    if not (41.0 <= lat <= 51.5 and -5.5 <= lon <= 10.0):
+        return ''
+    for code, rings in _load_dept_polygons():
+        for ring in rings:
+            if _point_in_ring(lon, lat, ring):
+                return code
+    return ''
+
+
+def _is_french_call(call):
+    try:
+        import radiocontest_dxcc as dxcc
+        r = dxcc.lookup(call)
+        return bool(r) and r['country'] in ('France', 'Corsica')
+    except Exception:
+        return str(call or '').upper().startswith(('F', 'TM', 'TK'))
+
+
+def dept_for_qso(qso, calldb=None):
+    """Département d'un QSO, du plus fiable au moins fiable :
+    1. l'échange reçu (concours à département),
+    2. la base d'indicatifs locale (calldb.json, champ dept),
+    3. la géographie du locator (point dans polygone, indicatifs français)."""
+    d = dept_from_exchange(qso.get('num_rcvd', ''))
+    if d:
+        return d
+    call = str(qso.get('call', '')).split('/')[0].upper()
+    if not _is_french_call(call):
+        return ''
+    if calldb:
+        d = str((calldb.get(call, {}) or {}).get('dept', '')).strip()
+        if d in DEPARTMENTS:
+            return d
+    return dept_from_locator(qso.get('locator', ''))
+
+
+def _load_calldb():
+    import json, os
+    try:
+        if os.path.exists('calldb.json'):
+            with open('calldb.json', encoding='utf-8') as f:
+                return json.load(f).get('calls', {})
+    except Exception:
+        pass
+    return {}
+
+
 def departments_progress(shared_log, contest_id=''):
     """Tableau de chasse : départements contactés vs total, pour la carte et
-    la grille. { worked:[...], metro_total, metro_done, dom_done, all:{code:nom} }."""
-    worked = department_mult_count(shared_log, contest_id)
+    la grille. { worked:[...], metro_total, metro_done, dom_done, all:{code:nom} }.
+    Détection à 3 niveaux (échange > calldb > locator) : fonctionne aussi pour
+    les concours REF sans département dans l'échange (Bol d'Or...)."""
+    calldb = _load_calldb()
+    worked = set()
+    for q in shared_log or []:
+        if contest_id and q.get('contest', '') not in ('', contest_id):
+            continue
+        d = dept_for_qso(q, calldb)
+        if d:
+            worked.add(d)
     metro_done = sorted(w for w in worked if w in METRO)
     dom_done = sorted(w for w in worked if w in DOM)
     return {

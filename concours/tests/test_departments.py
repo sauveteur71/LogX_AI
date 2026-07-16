@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from radiocontest_departments import (dept_from_exchange, department_mult_count,
-                                      DEPARTMENTS)
+                                      dept_from_locator, dept_for_qso, DEPARTMENTS)
 
 
 def test_table_complete():
@@ -55,3 +55,29 @@ def test_comptage_distinct():
     ]
     depts = department_mult_count(log, 'REF_160M')
     assert depts == {'33', '59', '2A'}
+
+
+# ─── Détection géographique (concours sans département dans l'échange) ───────
+
+def test_locator_vers_departement():
+    """Point-dans-polygone : le centre du locator donne le département."""
+    assert dept_from_locator('JN15XC') == '43'   # Chaspinhac, Haute-Loire
+    assert dept_from_locator('JN25GO') == '69'   # Rhône (cas réel F1OMQ)
+    assert dept_from_locator('JO31AA') == ''     # Allemagne : hors de France
+    assert dept_from_locator('') == ''
+
+
+def test_qso_sans_dept_dans_echange():
+    """Bol d'Or : l'échange est un n° de série — le locator prend le relais,
+    mais UNIQUEMENT pour les indicatifs français."""
+    q = {'call': 'F1OMQ', 'num_rcvd': '001', 'locator': 'JN25GO'}
+    assert dept_for_qso(q) == '69'
+    # Même locator mais indicatif étranger : jamais de département
+    q2 = {'call': 'DL1ABC', 'num_rcvd': '001', 'locator': 'JN25GO'}
+    assert dept_for_qso(q2) == ''
+
+
+def test_echange_prioritaire_sur_locator():
+    """Si l'échange contient le département, il prime sur la géographie."""
+    q = {'call': 'F5ABC', 'num_rcvd': '33', 'locator': 'JN25GO'}
+    assert dept_for_qso(q) == '33'
