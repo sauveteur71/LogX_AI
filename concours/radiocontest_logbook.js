@@ -485,6 +485,46 @@ function isDup(call, band){
   );
 }
 
+// ─── QTC (WAE) ───────────────────────────────────────────────────────────────
+// Visible uniquement quand le concours actif a un mécanisme QTC (WAE) :
+// score final = (QSO + QTC) × mults, chaque QTC transféré vaut 1 point.
+async function refreshQTC(){
+  try{
+    const r = await fetch('/qtc/list');
+    if(!r.ok) return;
+    const d = await r.json();
+    const btn = document.getElementById('qtcBtn');
+    if(!btn) return;
+    btn.textContent = `✉ QTC : ${d.total || 0}`;
+    // Afficher le bouton pour les concours à QTC (WAE*) — sinon masqué
+    const contest = (JSON.parse(localStorage.getItem('radiocontest_config')||'{}').contest)||'';
+    btn.style.display = /^WAEDC/i.test(contest) ? '' : 'none';
+  }catch(e){}
+}
+
+async function addQTC(){
+  const call = (prompt('QTC — indicatif de la station (série reçue ou envoyée) :')||'').toUpperCase().trim();
+  if(!call) return;
+  const n = parseInt(prompt(`Nombre de QTC échangés avec ${call} (1-10) :`, '10')||'0', 10);
+  if(!n || n < 1) return;
+  try{
+    const r = await fetch('/qtc/add', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({call, count: n})
+    });
+    const d = await r.json();
+    if(r.ok){
+      notify(`✉ +${n} QTC avec ${call} — total ${d.total} (+${d.total} pts au score final)`);
+      refreshQTC();
+    } else {
+      notify('QTC refusé : ' + (d.error || '?'));
+    }
+  }catch(e){ notify('Serveur injoignable — QTC non enregistré.'); }
+}
+
+setInterval(refreshQTC, 60*1000);
+setTimeout(refreshQTC, 1500);
+
 // ─── STATUT À LA FRAPPE (serveur) ────────────────────────────────────────────
 // GET /log/check : nouveau / doublon / nouveau_mult, évalué par le MOTEUR DE
 // SCORING contre le log partagé multi-op (pas seulement le log local).

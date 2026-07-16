@@ -266,6 +266,17 @@ def _mult_na_state(ctx, pts, result, scoring):
         result['explanation'] = f"{pts}pts (état/province probablement déjà travaillé)"
         result['priority'] = 3
 
+def _mult_exchange_distinct(ctx, pts, result, scoring):
+    """Multiplicateur = valeurs d'ÉCHANGE distinctes reçues par bande (EUHFC :
+    année de 1re licence). Par nature INCONNAISSABLE avant le QSO : au spot,
+    aucun faux « nouveau mult » — le décompte exact se fait sur le log
+    (coach.exchange_mult_stats)."""
+    result['total_impact'] = pts
+    result['explanation'] = (f"{pts}pts — mult = échange reçu (inconnu avant le QSO), "
+                             f"décompte exact sur le log")
+    result['priority'] = 3 if pts else 5
+
+
 MULT_EVALUATORS = {
     'locator':      _mult_locator,
     'large_square': _mult_large_square,
@@ -274,6 +285,7 @@ MULT_EVALUATORS = {
     'dept_dxcc':    _mult_dept_dxcc,
     'na_section':   _mult_na_section,
     'na_state':     _mult_na_state,
+    'exchange_distinct': _mult_exchange_distinct,
 }
 
 # ── Conversion des types historiques en compositions de briques ─────────────
@@ -663,6 +675,15 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                 # spotteur met dans le commentaire est la SIENNE, pas celle du DX
                 loc = extract_dx_locator(dx, s.get('info',''), s.get('spotter',''))
                 dx_ll = locator_to_latlon(loc) if loc else (None, None)
+                # Sans locator fiable : coordonnées DX fournies par la source
+                # (l'API DXSummit donne la vraie position de la station)
+                if dx_ll[0] is None:
+                    try:
+                        la, lo = s.get('lat'), s.get('lon')
+                        if la is not None and lo is not None:
+                            dx_ll = (float(la), float(lo))
+                    except (ValueError, TypeError):
+                        pass
                 my_ll = locator_to_latlon(my_locator)
                 dist = 0
                 if dx_ll[0] and my_ll[0]:
@@ -674,6 +695,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                     band_eff = _band_from_freq(s.get('freq', '')) or band
                 all_stations.append({
                     'call': dx, 'locator': loc, 'dist_km': dist,
+                    'lat': dx_ll[0], 'lon': dx_ll[1],
                     'freq': s.get('freq',''), 'band': band_eff,
                     'spotter': s.get('spotter',''),
                     'time': s.get('time',''),

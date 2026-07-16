@@ -513,10 +513,11 @@ CONTEST_DEFINITIONS = {
                 'points': [{'when':'always','points':1}],
                 'validity': 'is_eu',
                 'validity_fail_explanation': 'Station {dx_base} hors Europe — seuls les QSO avec l\'Europe comptent en EUHFC',
+                'multiplier': {'kind': 'exchange_distinct'},
             },
             'unit': 'QSO × années de 1re licence distinctes par bande',
             'note': 'Multiplicateur = nombres à 2 chiffres distincts reçus en échange, une fois par bande '
-                    'tous modes confondus — inconnaissable avant le QSO, aucun mult affiché au spot.',
+                    'tous modes confondus — inconnaissable au spot, décompte exact sur le log (coach).',
         },
         'log_format': 'CABRILLO', 'log_deadline': '48_hours_after',
         'notes': 'Concours européen — 12 h intenses (12:00–24:00 UTC), une seule journée. Single-Op uniquement. '

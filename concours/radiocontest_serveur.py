@@ -33,7 +33,7 @@ import http.server
 import threading
 
 from radiocontest_utils import PORT
-from radiocontest_storage import load_log_from_disk
+from radiocontest_storage import load_log_from_disk, load_qtc_from_disk
 from radiocontest_rules import load_rules_cache, load_external_contests, schedule_annual_check
 from radiocontest_http import Handler
 
@@ -41,6 +41,7 @@ from radiocontest_http import Handler
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     load_log_from_disk()
+    load_qtc_from_disk()
     load_rules_cache()
     load_external_contests()
 

@@ -239,11 +239,13 @@ def build_hints(cdef, clock, stats, plan):
                                   f"{remaining - op_left:.0f} h de pause dans les creux "
                                   f"(pauses de 60 min minimum)."})
 
-    # QTC (WAE)
+    # QTC (WAE) — compteur réel depuis le logbook (bouton ✉ QTC)
     if cdef.get('qtc'):
+        qtc = stats.get('qtc_total', 0)
         hints.append({'level': 'action', 'icon': '📨',
-                      'text': "Pense aux QTC : chaque QTC transféré vaut 1 point "
-                              "(max 10 par station) — autant que des QSO gratuits."})
+                      'text': (f"QTC échangés : {qtc} (+{qtc} pts au score final). " if qtc else
+                               "Pense aux QTC : chaque QTC transféré vaut 1 point ") +
+                              "Max 10 par station — autant que des QSO gratuits."})
 
     # Bande la plus payante maintenant
     if plan:
@@ -267,6 +269,28 @@ def build_hints(cdef, clock, stats, plan):
                       'text': "Dernière heure — logge tout, on trie après."})
 
     return hints
+
+
+# ─── MULTIPLICATEUR PAR ÉCHANGE (EUHFC) ──────────────────────────────────────
+
+def exchange_mult_stats(cdef, shared_log, contest_id):
+    """Décompte EXACT du multiplicateur 'exchange_distinct' depuis le log :
+    valeurs à 2 chiffres distinctes reçues, une fois par bande (EUHFC §6).
+    Retourne {'mults': N, 'score_est': pts × N} ou None si non applicable."""
+    import re as _re
+    mult = ((cdef.get('scoring', {}) or {}).get('bricks', {}) or {}).get('multiplier')
+    if not (isinstance(mult, dict) and mult.get('kind') == 'exchange_distinct'):
+        return None
+    seen = set()
+    pts = 0
+    for q in shared_log or []:
+        if contest_id and q.get('contest', '') not in ('', contest_id):
+            continue
+        pts += q.get('points', 0) or 0
+        m = _re.search(r'(\d{2})\s*$', str(q.get('num_rcvd', '')).strip())
+        if m:
+            seen.add((str(q.get('band', '')), m.group(1)))
+    return {'mults': len(seen), 'score_est': pts * max(len(seen), 1)}
 
 
 # ─── RUN vs SEARCH & POUNCE ──────────────────────────────────────────────────
@@ -314,6 +338,10 @@ def build_coach_prompt(cdef, clock, stats, plan, hints):
     lines.append(f"Log : {stats['qso_total']} QSO, {stats['score']} pts"
                  + (f", moyenne {stats['rate_avg']}/h" if stats.get('rate_avg') else '')
                  + f", dernière heure {stats.get('qso_last_hour', 0)} QSO")
+    if stats.get('exchange_mults') is not None:
+        lines.append(f"Multiplicateurs (échanges distincts/bande) : "
+                     f"{stats['exchange_mults']} → score estimé "
+                     f"{stats.get('score_with_mults', 0)} pts")
     if stats.get('by_band'):
         rep = ', '.join(f"{b}: {n}" for b, n in sorted(stats['by_band'].items()))
         lines.append(f"Par bande : {rep}")
@@ -340,6 +368,13 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     cdef = CONTEST_DEFINITIONS.get(contest_id, {}) if isinstance(contest_id, str) else {}
     clock = contest_clock(cfg, cdef, now)
     stats = log_stats(shared_log, clock['contest_id'], clock, now)
+    if cdef.get('qtc'):
+        from radiocontest_storage import qtc_total
+        stats['qtc_total'] = qtc_total(clock['contest_id'])
+    ex_mults = exchange_mult_stats(cdef, shared_log, clock['contest_id'])
+    if ex_mults:
+        stats['exchange_mults'] = ex_mults['mults']
+        stats['score_with_mults'] = ex_mults['score_est']
     plan = band_plan(cdef, clock, dxmaps, now)
     hints = build_hints(cdef, clock, stats, plan)
     run_sp = run_sp_recommendation(clock, stats, mult_spots_count)
