@@ -213,10 +213,10 @@ def fetch_dxwatch_hf(filter_digital=True):
                     'time':    t + 'Z',
                 })
             if spots:
-                print(f"[DXWATCH-HF] {url} → {len(spots)} spots HF")
+                print(f"[DXWATCH-HF] {url} -> {len(spots)} spots HF")
                 break
         except Exception as e:
-            print(f"[DXWATCH-HF] {url} → erreur: {e}")
+            print(f"[DXWATCH-HF] {url} -> erreur: {e}")
             continue
 
     # Fallback : parser le format HTML si le format texte n'a rien retourné
@@ -343,12 +343,12 @@ def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, ti
                     'source':  host,
                 })
             if spots:
-                print(f"[TELNET] {host}:{port} → {len(spots)} spots")
+                print(f"[TELNET] {host}:{port} -> {len(spots)} spots")
                 break  # premier nœud qui répond suffit
             else:
-                print(f"[TELNET] {host}:{port} → 0 spots (essai suivant)")
+                print(f"[TELNET] {host}:{port} -> 0 spots (essai suivant)")
         except Exception as e:
-            print(f"[TELNET] {host}:{port} → erreur: {e}")
+            print(f"[TELNET] {host}:{port} -> erreur: {e}")
             continue
 
     return spots[:max_spots]
@@ -857,7 +857,7 @@ def lookup_hamqth(callsign, session_id=None):
                 'adif': adif.group(1) if adif else '',
                 'continent': continent.group(1) if continent else '',
             }
-            print(f"[HAMQTH] {callsign} → {result}")
+            print(f"[HAMQTH] {callsign} -> {result}")
             return result
         return None
     except Exception as e:
