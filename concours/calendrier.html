@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RadioContest AI — Calendrier</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root {
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#1E2040;
+  --accent:#FF6B00;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#FFE566;--muted:#B8A040;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:3px}
+.logo span{color:var(--accent2)}
+.nav-links{display:flex;gap:8px;padding:8px 24px;background:var(--bg);border-bottom:1px solid var(--border)}
+.nav-link{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-decoration:none;padding:4px 10px;border-radius:4px;border:1px solid var(--border);transition:all .15s;letter-spacing:1px}
+.nav-link:hover,.nav-link.active{border-color:var(--accent2);color:var(--accent2)}
+
+.container{max-width:1200px;margin:0 auto;padding:24px}
+
+/* STATUS BAR */
+.status-bar{display:flex;align-items:center;gap:16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 20px;margin-bottom:20px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.status-text{font-family:var(--font-mono);font-size:12px;color:var(--text)}
+.status-year{font-size:20px;font-weight:800;color:var(--accent);font-family:var(--font-mono)}
+.update-btn{margin-left:auto;font-family:var(--font-mono);font-size:10px;padding:6px 14px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
+.update-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ALERTS */
+.alert-box{background:rgba(255,45,85,.1);border:1px solid var(--red);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-family:var(--font-mono);font-size:12px;color:var(--red);display:none}
+.alert-box.show{display:block}
+
+/* YEAR TABS */
+.year-tabs{display:flex;gap:8px;margin-bottom:20px}
+.year-tab{font-family:var(--font-mono);font-size:12px;padding:8px 20px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
+.year-tab.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
+
+/* FILTER */
+.filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.filter-btn{font-family:var(--font-mono);font-size:10px;padding:6px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
+.filter-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
+
+/* MONTH GROUPS */
+.month-group{margin-bottom:24px}
+.month-header{font-family:var(--font-mono);font-size:11px;color:var(--accent2);letter-spacing:4px;padding:8px 16px;background:var(--bg3);border-radius:6px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.month-count{font-size:10px;color:var(--muted);margin-left:auto}
+
+/* CONTEST CARDS */
+.contest-row{display:flex;align-items:stretch;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden;transition:border-color .15s;cursor:pointer}
+.contest-row:hover{border-color:var(--accent2)}
+.contest-row.upcoming{border-left:3px solid var(--green)}
+.contest-row.today{border-left:3px solid var(--accent);background:rgba(255,107,0,.05);animation:glow 2s infinite}
+@keyframes glow{0%,100%{box-shadow:none}50%{box-shadow:0 0 20px rgba(255,107,0,.2)}}
+.contest-row.past{opacity:.5;border-left:3px solid var(--muted)}
+
+.cr-date{width:120px;padding:12px 14px;background:var(--bg3);display:flex;flex-direction:column;justify-content:center;flex-shrink:0;border-right:1px solid var(--border)}
+.cr-date-main{font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--text)}
+.cr-date-year{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.cr-date-countdown{font-family:var(--font-mono);font-size:10px;margin-top:3px}
+
+.cr-org{width:70px;padding:12px 10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border-right:1px solid var(--border)}
+.org-badge{font-family:var(--font-mono);font-size:9px;font-weight:700;padding:3px 6px;border-radius:4px;letter-spacing:1px;text-align:center}
+.org-ref{background:rgba(0,212,255,.15);color:var(--accent2);border:1px solid rgba(0,212,255,.3)}
+.org-iaru{background:rgba(191,90,242,.15);color:var(--purple);border:1px solid rgba(191,90,242,.3)}
+.org-cq{background:rgba(255,107,0,.15);color:var(--accent);border:1px solid rgba(255,107,0,.3)}
+.org-arrl{background:rgba(48,209,88,.15);color:var(--green);border:1px solid rgba(48,209,88,.3)}
+.org-sota{background:rgba(255,214,10,.15);color:var(--yellow);border:1px solid rgba(255,214,10,.3)}
+
+.cr-info{flex:1;padding:12px 16px}
+.cr-name{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+.cr-exchange{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:6px}
+.cr-tags{display:flex;flex-wrap:wrap;gap:4px}
+.tag{font-family:var(--font-mono);font-size:9px;padding:2px 6px;border-radius:3px;letter-spacing:1px}
+.tag-band{background:rgba(0,212,255,.1);color:var(--accent2);border:1px solid rgba(0,212,255,.2)}
+.tag-mode{background:rgba(255,107,0,.1);color:var(--accent);border:1px solid rgba(255,107,0,.2)}
+.tag-score{background:rgba(191,90,242,.1);color:var(--purple);border:1px solid rgba(191,90,242,.2)}
+.tag-log{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.2)}
+
+.cr-actions{width:120px;padding:12px;display:flex;flex-direction:column;gap:6px;justify-content:center;flex-shrink:0;border-left:1px solid var(--border)}
+.cr-btn{font-family:var(--font-mono);font-size:9px;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;text-align:center;text-decoration:none;display:block;letter-spacing:1px}
+.cr-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.cr-btn.start{background:linear-gradient(135deg,var(--accent),#FF9500);border:none;color:#0A0B18;font-weight:700}
+
+/* DETAIL PANEL */
+.detail-panel{background:var(--bg2);border:1px solid var(--accent2);border-radius:12px;padding:20px;margin-bottom:16px;display:none}
+.detail-panel.show{display:block}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
+.detail-item{background:var(--bg3);border-radius:8px;padding:12px}
+.di-label{font-size:9px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono);margin-bottom:4px}
+.di-value{font-size:13px;color:var(--text);font-family:var(--font-mono)}
+.di-value.accent{color:var(--accent)}
+.di-value.accent2{color:var(--accent2)}
+
+/* LOADING */
+.loading{text-align:center;padding:40px;font-family:var(--font-mono);color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Radio<span>Contest</span> AI — <span style="color:var(--yellow)">Calendrier</span></div>
+  <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">Dates calculées automatiquement · Mise à jour annuelle</div>
+</header>
+
+<div class="nav-links">
+  <a href="configuration.html" class="nav-link">⚙ CONFIG</a>
+  <a href="radiocontest.html" class="nav-link">🗺️ CARTE IA</a>
+  <a href="logbook.html" class="nav-link">📋 LOGBOOK</a>
+  <a href="calendrier.html" class="nav-link active">📅 CALENDRIER</a>
+</div>
+<script src="statusbar.js"></script>
+
+<div class="container">
+
+  <div class="status-bar">
+    <div class="status-dot"></div>
+    <div>
+      <div class="status-year" id="statusYear">—</div>
+      <div class="status-text">Dernière vérification : <span id="lastUpdate">—</span></div>
+    </div>
+    <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:20px">
+      <span id="contestCount">—</span> concours • Dates recalculées au <span id="nextUpdate">—</span>
+    </div>
+    <button class="update-btn" onclick="forceUpdate()">🔄 VÉRIFIER LES RÈGLEMENTS</button>
+  </div>
+
+  <div class="alert-box" id="alertBox"></div>
+
+  <div class="year-tabs">
+    <button class="year-tab active" id="tabNext" onclick="loadYear()">⭐ REF / IARU / Internationaux</button>
+    <button class="year-tab" id="tabExt" onclick="loadExternal()">🌍 MONDIAL WA7BNM</button>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
+    <button class="filter-btn" data-f="REF" onclick="setFilter(this)">⭐ REF</button>
+    <button class="filter-btn" data-f="IARU" onclick="setFilter(this)">🌍 IARU</button>
+    <button class="filter-btn" data-f="CQ" onclick="setFilter(this)">📡 CQ</button>
+    <button class="filter-btn" data-f="VHF" onclick="setFilter(this)">📶 VHF</button>
+    <button class="filter-btn" data-f="HF" onclick="setFilter(this)">🌐 HF</button>
+    <button class="filter-btn" data-f="upcoming" onclick="setFilter(this)">🔜 À VENIR</button>
+  </div>
+
+  <div id="calendarContent" class="loading">Chargement des dates...</div>
+  <div id="detailPanel" class="detail-panel"></div>
+
+</div>
+
+<script>
+(function(){
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = `
+      <div style="position:fixed;inset:0;background:#07080F;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:'Courier New',monospace">
+        <div style="text-align:center;max-width:600px;padding:40px">
+          <div style="font-size:60px;margin-bottom:20px">🚫</div>
+          <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px">OUVERT EN FILE:// — IMPOSSIBLE</div>
+          <div style="color:#FFE566;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord serveur.py, puis accède via :</div>
+          <a href="http://localhost:8080/calendrier.html"
+             style="display:inline-block;background:linear-gradient(135deg,#00FF88,#00D4FF);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
+            ▶ http://localhost:8080/calendrier.html
+          </a>
+        </div>
+      </div>`;
+    return;
+  }
+})();
+
+let allContests = [];
+let currentFilter = 'all';
+let currentYear = 2026;
+const TODAY = new Date();
+
+const ORG_CLASSES = {
+  'REF':'org-ref','IARU-R1':'org-iaru','IARU-R1 / REF':'org-iaru',
+  'CQ Magazine':'org-cq','CQ Magazine / WWROF':'org-cq',
+  'ARRL':'org-arrl','SOTA':'org-sota','POTA':'org-sota',
+};
+
+function orgClass(org){ return ORG_CLASSES[org] || 'org-ref'; }
+
+async function loadYear(){
+  document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tabNext')?.classList.add('active');
+  document.getElementById('calendarContent').innerHTML = '<div class="loading">Calcul des prochaines dates...</div>';
+
+  try{
+    const res = await fetch('/data/calendar');
+    const data = await res.json();
+    allContests = data.contests || [];
+
+    document.getElementById('statusYear').textContent = 'Prochains concours';
+    document.getElementById('lastUpdate').textContent = data.last_update
+      ? new Date(data.last_update).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+      : 'Jamais';
+    document.getElementById('contestCount').textContent = allContests.length;
+    document.getElementById('nextUpdate').textContent = `1er janvier ${new Date().getFullYear()+1}`;
+
+    if(data.alerts && data.alerts.length){
+      const box = document.getElementById('alertBox');
+      box.innerHTML = '⚠️ ALERTES RÈGLEMENTS :<br>' + data.alerts.join('<br>');
+      box.classList.add('show');
+    }
+
+    renderCalendar();
+  }catch(e){
+    document.getElementById('calendarContent').innerHTML =
+      `<div class="loading" style="color:var(--red)">❌ Erreur : serveur non disponible<br><small>Lance serveur.py d'abord</small></div>`;
+  }
+}
+
+function setFilter(el){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  currentFilter = el.dataset.f;
+  renderCalendar();
+}
+
+function parseDate(dateStr){
+  // Format: "DD/MM/YYYY à HHh00 UTC" ou "DD/MM/YYYY → DD/MM/YYYY"
+  const m = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if(!m) return null;
+  return new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1]));
+}
+
+function countdown(d){
+  if(!d) return '';
+  const diff = Math.ceil((d - TODAY) / 86400000);
+  if(diff < 0) return '<span style="color:var(--muted)">Passé</span>';
+  if(diff === 0) return '<span style="color:var(--accent)">⚡ AUJOURD\'HUI</span>';
+  if(diff <= 7) return `<span style="color:var(--yellow)">Dans ${diff}j</span>`;
+  if(diff <= 30) return `<span style="color:var(--green)">Dans ${diff}j</span>`;
+  return `<span style="color:var(--muted)">Dans ${diff}j</span>`;
+}
+
+function matchFilter(c){
+  if(currentFilter === 'all') return true;
+  if(currentFilter === 'upcoming'){
+    const d = parseDate(c.date);
+    return d && d >= TODAY;
+  }
+  if(currentFilter === 'REF') return c.organizer.includes('REF');
+  if(currentFilter === 'IARU') return c.organizer.includes('IARU');
+  if(currentFilter === 'CQ') return c.organizer.includes('CQ');
+  if(currentFilter === 'VHF') return c.bands.some(b=>['50','70','144','432','1296'].includes(b));
+  if(currentFilter === 'HF') return c.bands.some(b=>['1.8','3.5','7','14','21','28'].includes(b));
+  return true;
+}
+
+function renderCalendar(){
+  const filtered = allContests.filter(matchFilter);
+  if(!filtered.length){
+    document.getElementById('calendarContent').innerHTML =
+      '<div class="loading">Aucun concours pour ce filtre</div>';
+    return;
+  }
+
+  // Grouper par mois
+  const byMonth = {};
+  const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                  'Juillet','Août','Septembre','Octobre','Novembre','Décembre','Permanent'];
+
+  filtered.forEach(c => {
+    const d = parseDate(c.date);
+    const monthKey = d ? d.getMonth() : 12;
+    if(!byMonth[monthKey]) byMonth[monthKey] = [];
+    byMonth[monthKey].push({...c, _date: d});
+  });
+
+  let html = '';
+  const sortedMonths = Object.keys(byMonth).sort((a,b)=>parseInt(a)-parseInt(b));
+
+  sortedMonths.forEach(monthKey => {
+    const contests = byMonth[monthKey].sort((a,b)=>
+      (a._date||new Date('2099'))-(b._date||new Date('2099'))
+    );
+    const monthName = MONTHS[parseInt(monthKey)] || 'Autre';
+    const isPast = contests.every(c=>c._date && c._date < TODAY);
+
+    html += `<div class="month-group">
+      <div class="month-header" style="${isPast?'opacity:.5':''}">
+        📅 ${monthName.toUpperCase()} ${currentYear}
+        <span class="month-count">${contests.length} concours</span>
+      </div>`;
+
+    contests.forEach(c => {
+      const d = c._date;
+      const isToday = d && d.toDateString() === TODAY.toDateString();
+      const isPastC = d && d < TODAY && !isToday;
+      const isUpcoming = d && d > TODAY;
+      const rowClass = isToday ? 'today' : isPastC ? 'past' : 'upcoming';
+      const cd = countdown(d);
+      const dateShort = d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}` : '—';
+
+      const yearBadge = c.next_year
+        ? `<span style="font-family:var(--font-mono);font-size:9px;color:var(--yellow);background:rgba(255,214,10,.1);border:1px solid rgba(255,214,10,.3);padding:1px 5px;border-radius:3px;margin-left:6px">${c.year}</span>`
+        : '';
+
+      html += `<div class="contest-row ${rowClass}" onclick="showDetail('${c.id}')">
+        <div class="cr-date">
+          <div class="cr-date-main">${dateShort}${yearBadge}</div>
+          <div class="cr-date-year">${c.year}</div>
+          <div class="cr-date-countdown">${cd}</div>
+        </div>
+        <div class="cr-org">
+          <div class="org-badge ${orgClass(c.organizer)}">${c.organizer.split(' ')[0]}</div>
+        </div>
+        <div class="cr-info">
+          <div class="cr-name">${c.name} <span class="tag" style="background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.3)" title="Dates et règlement re-vérifiés automatiquement chaque année">✓ règlement suivi</span></div>
+          <div class="cr-exchange">${c.exchange || '—'}</div>
+          <div class="cr-tags">
+            ${c.bands.slice(0,4).map(b=>`<span class="tag tag-band">${b}MHz</span>`).join('')}
+            ${c.modes.slice(0,3).map(m=>`<span class="tag tag-mode">${m}</span>`).join('')}
+            ${c.log_format?`<span class="tag tag-log">${c.log_format}</span>`:''}
+            ${c.scoring&&c.scoring.unit?`<span class="tag tag-score">${c.scoring.unit.substring(0,20)}</span>`:''}
+          </div>
+        </div>
+        <div class="cr-actions">
+          ${!isPastC?`<button class="cr-btn start" onclick="event.stopPropagation();startContest('${c.id}')">▶ DÉMARRER</button>`:''}
+          ${c.rules_url?`<a class="cr-btn" href="${c.rules_url}" target="_blank" onclick="event.stopPropagation()">📄 Règlement</a>`:''}
+        </div>
+      </div>`;
+    });
+
+    html += '</div>';
+  });
+
+  document.getElementById('calendarContent').innerHTML = html;
+}
+
+function showDetail(id){
+  const c = allContests.find(x=>x.id===id);
+  if(!c) return;
+  const panel = document.getElementById('detailPanel');
+  const s = c.scoring || {};
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-family:var(--font-mono);font-size:16px;color:var(--accent2);letter-spacing:2px">${c.name}</div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px">${c.organizer}</div>
+      </div>
+      <button onclick="document.getElementById('detailPanel').classList.remove('show')"
+        style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px">✕</button>
+    </div>
+    <div class="detail-grid" style="margin-top:14px">
+      <div class="detail-item">
+        <div class="di-label">DATE ${currentYear}</div>
+        <div class="di-value accent">${c.date}</div>
+      </div>
+      <div class="detail-item">
+        <div class="di-label">ÉCHANGE</div>
+        <div class="di-value">${c.exchange||'—'}</div>
+      </div>
+      <div class="detail-item">
+        <div class="di-label">SCORING</div>
+        <div class="di-value accent2">${s.unit||'—'}</div>
+      </div>
+      <div class="detail-item">
+        <div class="di-label">MULTIPLICATEUR</div>
+        <div class="di-value">${s.multiplier||'aucun'}</div>
+      </div>
+      <div class="detail-item">
+        <div class="di-label">FORMAT LOG</div>
+        <div class="di-value">${c.log_format||'EDI'}</div>
+      </div>
+      <div class="detail-item">
+        <div class="di-label">DÉLAI ENVOI</div>
+        <div class="di-value">${c.log_deadline||'—'}</div>
+      </div>
+      ${c.log_submit?`<div class="detail-item" style="grid-column:1/-1">
+        <div class="di-label">SOUMISSION LOG</div>
+        <div class="di-value"><a href="${c.log_submit}" target="_blank" style="color:var(--accent2)">${c.log_submit}</a></div>
+      </div>`:''}
+      ${c.notes?`<div class="detail-item" style="grid-column:1/-1;background:rgba(255,214,10,.05);border:1px solid rgba(255,214,10,.2)">
+        <div class="di-label">NOTES</div>
+        <div class="di-value" style="color:var(--yellow)">${c.notes}</div>
+      </div>`:''}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="cr-btn start" style="padding:8px 20px;font-size:11px" onclick="startContest('${c.id}')">▶ DÉMARRER CE CONCOURS</button>
+      ${c.rules_url?`<a href="${c.rules_url}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:11px">📄 Règlement officiel</a>`:''}
+    </div>`;
+  panel.classList.add('show');
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function startContest(id){
+  // Ouvrir la config : l'assistant "nouveau concours" y lit ?contest=,
+  // sélectionne le concours, applique bandes/modes/dates et propose de lancer.
+  window.location.href = `configuration.html?contest=${encodeURIComponent(id)}`;
+}
+
+function prepareExternal(ref){
+  // Concours WA7BNM (non vérifié) : la config le retrouvera via son id EXT_<ref>
+  // dans la liste fusionnée, avec badge "à confirmer" et saisie manuelle des dates.
+  window.location.href = `configuration.html?contest=${encodeURIComponent('EXT_' + ref)}`;
+}
+
+async function forceUpdate(){
+  const btn = document.querySelector('.update-btn');
+  btn.textContent = '⏳ Vérification...';
+  btn.disabled = true;
+  try{
+    await fetch('/data/update_rules');
+    setTimeout(()=>{ loadYear(currentYear); btn.textContent='🔄 VÉRIFIER LES RÈGLEMENTS'; btn.disabled=false; }, 3000);
+  }catch(e){
+    btn.textContent='❌ Erreur';
+    btn.disabled=false;
+  }
+}
+
+async function loadExternal(){
+  document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tabExt')?.classList.add('active');
+  document.getElementById('calendarContent').innerHTML = '<div class="loading">⏳ Récupération WA7BNM...</div>';
+  try{
+    const res = await fetch(`/data/external_contests?year=${new Date().getFullYear()}`);
+    const data = await res.json();
+    const contests = data.contests || [];
+    document.getElementById('statusYear').textContent = `WA7BNM — ${contests.length} concours mondiaux`;
+    document.getElementById('lastUpdate').textContent = data.updated
+      ? new Date(data.updated).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'})
+      : 'Cache local';
+    document.getElementById('contestCount').textContent = `${contests.length} concours`;
+    if(!contests.length){
+      document.getElementById('calendarContent').innerHTML =
+        '<div class="loading">Chargement depuis contestcalendar.com... Réessaie dans 30 secondes.</div>';
+      return;
+    }
+    const byMonth = {};
+    contests.forEach(c=>{
+      const m = c.month || 'Autre';
+      if(!byMonth[m]) byMonth[m]=[];
+      byMonth[m].push(c);
+    });
+    let html = '';
+    for(const [month, mc] of Object.entries(byMonth)){
+      html += `<div class="month-group">
+        <div class="month-header">📅 ${month.toUpperCase()} <span class="month-count">${mc.length} concours</span></div>`;
+      mc.forEach(c=>{
+        html += `<div class="contest-row upcoming" onclick="window.open('${c.url}','_blank')">
+          <div class="cr-date"><div class="cr-date-main" style="font-size:12px">${c.date_str||'—'}</div><div class="cr-date-year">${c.time_str||''}</div></div>
+          <div class="cr-org"><div class="org-badge org-cq" style="font-size:8px">WW</div></div>
+          <div class="cr-info">
+            <div class="cr-name">${c.name} <span class="tag" style="background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)" title="Paramètres non vérifiés — à confirmer manuellement dans la config (lecture IA du règlement : Phase 3)">⚠ à confirmer</span></div>
+            <div class="cr-exchange" style="color:var(--accent2);font-size:10px">contestcalendar.com ref=${c.ref}</div>
+          </div>
+          <div class="cr-actions">
+            <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${c.ref}')">▶ PRÉPARER</button>
+            <a class="cr-btn" href="${c.url}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
+          </div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+    document.getElementById('calendarContent').innerHTML = html;
+  }catch(e){
+    document.getElementById('calendarContent').innerHTML =
+      `<div class="loading" style="color:var(--red)">❌ ${e.message}</div>`;
+  }
+}
+
+// Init
+loadYear();
+</script>
+</body>
+</html>

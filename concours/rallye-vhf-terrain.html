@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F6KQJ/P — Rallye Points Hauts VHF/UHF</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap');
+
+  :root {
+    --bg: #07080F;
+    --bg2: #0D0E1A;
+    --bg3: #13152A;
+    --border: #1E2040;
+    --accent: #FF6B00;
+    --accent2: #00D4FF;
+    --green: #00FF88;
+    --red: #FF2D55;
+    --yellow: #FFD60A;
+    --purple: #BF5AF2;
+    --text: #E0E4FF;
+    --muted: #4A5080;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-main: 'Exo 2', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-main);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(90deg, #0A0B18 0%, #131530 50%, #0A0B18 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 16px; }
+
+  .live-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 12px var(--green);
+    animation: pulse-dot 2s infinite;
+  }
+
+  @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+  .call-sign {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px rgba(255,107,0,0.5);
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    font-family: var(--font-mono);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .score-box {
+    text-align: right;
+    padding: 4px 16px;
+    border-left: 1px solid var(--border);
+  }
+
+  .score-label { font-size: 9px; color: var(--muted); letter-spacing: 2px; font-family: var(--font-mono); }
+  .score-value { font-size: 24px; font-weight: 800; color: var(--accent); font-family: var(--font-mono); }
+
+  .clock {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── CHAT PANEL ── */
+  .chat-panel {
+    width: 420px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--bg2);
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chat-messages::-webkit-scrollbar { width: 3px; }
+  .chat-messages::-webkit-scrollbar-track { background: transparent; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .msg {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  .msg-user { align-items: flex-end; }
+  .msg-agent { align-items: flex-start; }
+
+  .msg-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    padding: 0 4px;
+  }
+
+  .msg-bubble {
+    max-width: 340px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .msg-user .msg-bubble {
+    background: linear-gradient(135deg, #1A2060, #0D1240);
+    border: 1px solid #2A3080;
+    color: #C0C8FF;
+    border-radius: 12px 12px 2px 12px;
+  }
+
+  .msg-agent .msg-bubble {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 12px 12px 12px 2px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .msg-agent .msg-bubble.alert {
+    border-color: var(--red);
+    background: rgba(255,45,85,0.08);
+    box-shadow: 0 0 20px rgba(255,45,85,0.15);
+  }
+
+  .msg-thinking {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px 12px 12px 2px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .dot-anim span {
+    animation: blink 1.4s infinite both;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .dot-anim span:nth-child(2) { animation-delay: 0.2s; }
+  .dot-anim span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+
+  /* ── CHAT INPUT ── */
+  .chat-input-area {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .quick-btns {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .quick-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--muted);
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+
+  .quick-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+
+  textarea {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-main);
+    font-size: 13px;
+    padding: 10px 12px;
+    resize: none;
+    min-height: 44px;
+    max-height: 120px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  textarea:focus { border-color: var(--accent2); }
+
+  textarea::placeholder { color: var(--muted); }
+
+  .send-btn {
+    background: linear-gradient(135deg, var(--accent), #FF9500);
+    border: none;
+    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: transform 0.1s, box-shadow 0.2s;
+    flex-shrink: 0;
+  }
+
+  .send-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,107,0,0.4); }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── MAP PANEL ── */
+  .map-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .map-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  svg#map {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* ── SCORE BAR ── */
+  .score-bar {
+    display: flex;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .score-item {
+    flex: 1;
+    padding: 8px 16px;
+    border-right: 1px solid var(--border);
+  }
+
+  .score-item:last-child { border-right: none; }
+
+  .score-item-label {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    font-family: var(--font-mono);
+    margin-bottom: 2px;
+  }
+
+  .score-item-value {
+    font-size: 16px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+  }
+
+  /* ── API KEY MODAL ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(7,8,15,0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    width: 480px;
+    box-shadow: 0 0 60px rgba(0,212,255,0.1);
+  }
+
+  .modal h2 {
+    font-family: var(--font-mono);
+    color: var(--accent2);
+    letter-spacing: 3px;
+    margin-bottom: 8px;
+    font-size: 16px;
+  }
+
+  .modal p {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+
+  .modal input {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 12px 14px;
+    outline: none;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+  }
+
+  .modal input:focus { border-color: var(--accent2); }
+
+  .modal-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent2), #0080FF);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 2px;
+    padding: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity 0.2s;
+  }
+
+  .modal-btn:hover { opacity: 0.85; }
+
+  .modal-note {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    font-family: var(--font-mono);
+  }
+
+  /* ── TOOLTIP ON MAP ── */
+  .map-tooltip {
+    position: absolute;
+    background: rgba(13,14,26,0.97);
+    border-radius: 10px;
+    padding: 14px 16px;
+    pointer-events: none;
+    z-index: 100;
+    min-width: 200px;
+    font-family: var(--font-mono);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    transition: opacity 0.15s;
+  }
+
+  .tt-call { font-size: 20px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px; }
+  .tt-row { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+  .tt-lbl { font-size: 9px; color: var(--muted); letter-spacing: 2px; }
+  .tt-val { font-size: 12px; font-weight: 700; }
+  .tt-status { font-size: 9px; letter-spacing: 2px; text-align: center; margin-top: 10px; padding: 4px; border-radius: 4px; }
+
+  /* ── PANNEAU COMPAS ANTENNE ── */
+  .compass-panel {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 240px;
+    background: rgba(7,8,15,0.97);
+    border: 2px solid var(--accent);
+    border-radius: 14px;
+    padding: 16px;
+    z-index: 200;
+    font-family: var(--font-mono);
+    box-shadow: 0 0 40px rgba(255,107,0,0.25), 0 8px 32px rgba(0,0,0,0.7);
+    display: none;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+  .compass-panel.show { display: block; }
+  .compass-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .compass-call {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--accent);
+  }
+  .compass-close {
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .compass-close:hover { color: var(--red); }
+  .compass-rose-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
+  }
+  .compass-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+  .compass-stat {
+    text-align: center;
+    flex: 1;
+  }
+  .compass-stat-lbl {
+    font-size: 8px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-bottom: 2px;
+  }
+  .compass-stat-val {
+    font-size: 14px;
+    font-weight: 800;
+  }
+  .compass-hint {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-align: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<!-- API KEY MODAL -->
+<div class="modal-overlay" id="apiModal">
+  <div class="modal">
+    <h2>⚡ CONFIGURATION</h2>
+    <p>Entre ta clé API Anthropic pour démarrer.<br>Elle reste sur ton ordinateur uniquement.</p>
+    <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." />
+    <button class="modal-btn" onclick="startApp()">DÉMARRER ▶</button>
+    <div class="modal-note">🔒 Clé stockée localement, jamais partagée</div>
+  </div>
+</div>
+
+<!-- MAIN UI -->
+<header>
+  <div class="header-left">
+    <div class="live-dot" id="liveDot"></div>
+    <div>
+      <div class="call-sign">F6KQJ/P</div>
+      <div class="subtitle">RALLYE POINTS HAUTS · JN15XC · 144/432 MHz SSB</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="score-box">
+      <div class="score-label">SCORE TOTAL</div>
+      <div class="score-value" id="scoreTotal">— pts</div>
+    </div>
+    <div class="clock" id="clock">00:00:00 UTC</div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- CHAT -->
+  <div class="chat-panel">
+    <div class="chat-messages" id="chatMessages">
+      <div class="msg msg-agent">
+        <div class="msg-label">AGENT</div>
+        <div class="msg-bubble">Bonjour ! Agent Rallye Points Hauts prêt.
+
+Entre ta clé API et l'ID de ton agent dans le panneau de configuration pour démarrer.
+
+L'ID agent se trouve sur platform.claude.com → Agents → ton agent → copie l'ID qui commence par <strong>agent_01...</strong></div>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="quick-btns">
+        <button class="quick-btn" onclick="quickSend('Analyse les clusters et mon log maintenant.')">📡 ANALYSER</button>
+        <button class="quick-btn" onclick="quickSend('Quel est mon score actuel ?')">🏆 SCORE</button>
+        <button class="quick-btn" onclick="quickSend('Suis-je spoté sur les clusters ?')">⚡ SPOTS</button>
+        <button class="quick-btn" onclick="quickSend('Conditions de propagation actuelles ?')">📶 TROPO/ES</button>
+        <button class="quick-btn" onclick="quickSend('Résumé de session.')">📋 RÉSUMÉ</button>
+      </div>
+      <div class="input-row">
+        <textarea id="userInput" placeholder="Envoie un message à l'agent..." rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="map-panel">
+    <div class="map-container">
+      <svg id="map" viewBox="0 0 800 560" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="glow-red"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="glow-orange"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="glow-blue"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#0F1020"/>
+            <stop offset="100%" stop-color="#07080F"/>
+          </radialGradient>
+        </defs>
+
+        <!-- Background -->
+        <rect width="800" height="560" fill="url(#bgGrad)" id="mapBg"/>
+
+        <!-- Grid lines -->
+        <g id="grid" stroke="#12142A" stroke-width="0.5"/>
+
+        <!-- France + neighbors -->
+        <g id="countries"/>
+
+        <!-- Lines from base -->
+        <g id="lines"/>
+
+        <!-- Station dots -->
+        <g id="stations"/>
+
+        <!-- My position -->
+        <g id="myPos"/>
+
+        <!-- Tooltip -->
+        <g id="svgTooltip" style="display:none"/>
+      </svg>
+    </div>
+
+    <div class="score-bar">
+      <div class="score-item">
+        <div class="score-item-label">144 MHz</div>
+        <div class="score-item-value" id="score144" style="color:#00D4FF">— pts</div>
+      </div>
+      <div class="score-item">
+        <div class="score-item-label">432 MHz</div>
+        <div class="score-item-value" id="score432" style="color:#BF5AF2">— pts</div>
+      </div>
+      <div class="score-item">
+        <div class="score-item-label">QSO</div>
+        <div class="score-item-value" id="scoreQSO" style="color:#00FF88">0</div>
+      </div>
+      <div class="score-item">
+        <div class="score-item-label">MEILLEUR DX</div>
+        <div class="score-item-value" id="scoreBestDX" style="color:#FFD60A">— km</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- HTML Tooltip -->
+<div class="map-tooltip" id="htmlTooltip" style="display:none; opacity:0">
+  <div class="tt-call" id="ttCall"></div>
+  <div class="tt-row"><span class="tt-lbl">LOCATOR</span><span class="tt-val" id="ttLocator"></span></div>
+  <div class="tt-row"><span class="tt-lbl">DISTANCE</span><span class="tt-val" id="ttDist"></span></div>
+  <div class="tt-row"><span class="tt-lbl">FRÉQUENCE</span><span class="tt-val" id="ttFreq" style="color:#00D4FF"></span></div>
+  <div class="tt-row"><span class="tt-lbl">CAP ANTENNE</span><span class="tt-val" id="ttCap" style="color:#FF6B00"></span></div>
+  <div class="tt-row"><span class="tt-lbl">BANDE</span><span class="tt-val" id="ttBand"></span></div>
+  <div class="tt-status" id="ttStatus"></div>
+</div>
+
+<!-- PANNEAU COMPAS ANTENNE -->
+<div class="compass-panel" id="compassPanel">
+  <div class="compass-header">
+    <div class="compass-call" id="compassCall">—</div>
+    <div class="compass-close" onclick="hideCompass()">✕</div>
+  </div>
+  <div class="compass-rose-wrap">
+    <svg id="compassSVG" viewBox="0 0 180 180" width="180" height="180" xmlns="http://www.w3.org/2000/svg">
+      <!-- Fond -->
+      <circle cx="90" cy="90" r="84" fill="#0A0B1A" stroke="#1E2040" stroke-width="1.5"/>
+      <!-- Graduations -->
+      <g id="compassTicks"></g>
+      <!-- Cercles intérieurs -->
+      <circle cx="90" cy="90" r="60" fill="none" stroke="#1E2040" stroke-width="0.5" stroke-dasharray="2,4"/>
+      <circle cx="90" cy="90" r="36" fill="none" stroke="#1E2040" stroke-width="0.5" stroke-dasharray="2,4"/>
+      <!-- Labels cardinaux -->
+      <text x="90" y="14" text-anchor="middle" fill="#FF6B00" font-family="Share Tech Mono" font-size="12" font-weight="700">N</text>
+      <text x="90" y="172" text-anchor="middle" fill="#8899CC" font-family="Share Tech Mono" font-size="10">S</text>
+      <text x="170" y="94" text-anchor="middle" fill="#8899CC" font-family="Share Tech Mono" font-size="10">E</text>
+      <text x="10" y="94" text-anchor="middle" fill="#8899CC" font-family="Share Tech Mono" font-size="10">O</text>
+      <text x="141" y="44" text-anchor="middle" fill="#4A5080" font-family="Share Tech Mono" font-size="8">NE</text>
+      <text x="141" y="148" text-anchor="middle" fill="#4A5080" font-family="Share Tech Mono" font-size="8">SE</text>
+      <text x="38" y="148" text-anchor="middle" fill="#4A5080" font-family="Share Tech Mono" font-size="8">SO</text>
+      <text x="38" y="44" text-anchor="middle" fill="#4A5080" font-family="Share Tech Mono" font-size="8">NO</text>
+      <!-- Flèche (groupe rotatif) -->
+      <g id="compassArrow" transform="rotate(0,90,90)">
+        <!-- Flèche vers le nord (vers le haut = direction cible) -->
+        <line x1="90" y1="90" x2="90" y2="26" stroke="#FF6B00" stroke-width="2.5" stroke-linecap="round"/>
+        <polygon points="90,18 85,32 95,32" fill="#FF6B00"/>
+        <!-- Contre-flèche (verso) -->
+        <line x1="90" y1="90" x2="90" y2="154" stroke="#2A3060" stroke-width="1.5" stroke-linecap="round"/>
+        <polygon points="90,160 86,148 94,148" fill="#2A3060"/>
+      </g>
+      <!-- Cercle central -->
+      <circle cx="90" cy="90" r="5" fill="#FF6B00" stroke="#0A0B1A" stroke-width="1.5"/>
+      <!-- Halo animé sur la flèche -->
+      <g id="compassGlow" transform="rotate(0,90,90)">
+        <line x1="90" y1="90" x2="90" y2="22" stroke="#FF6B00" stroke-width="6" stroke-linecap="round" opacity="0.15">
+          <animate attributeName="opacity" values="0.15;0.3;0.15" dur="2s" repeatCount="indefinite"/>
+        </line>
+      </g>
+    </svg>
+  </div>
+  <div class="compass-stats">
+    <div class="compass-stat">
+      <div class="compass-stat-lbl">CAP</div>
+      <div class="compass-stat-val" id="compassDeg" style="color:var(--accent)">—°</div>
+    </div>
+    <div class="compass-stat">
+      <div class="compass-stat-lbl">DIRECTION</div>
+      <div class="compass-stat-val" id="compassCard" style="color:var(--yellow)">—</div>
+    </div>
+    <div class="compass-stat">
+      <div class="compass-stat-lbl">DISTANCE</div>
+      <div class="compass-stat-val" id="compassDist" style="color:var(--accent2)">—</div>
+    </div>
+  </div>
+  <div class="compass-hint">🔄 Orienter le rotor sur ce cap</div>
+</div>
+
+<script>
+// ─── CONFIG ─────────────────────────────────────────────────────────────────
+let API_KEY = 'REMPLACE_PAR_TA_CLE';
+let isWaiting = false;
+let mapStations = [];
+let conversationHistory = [];
+
+const SYSTEM_PROMPT = `Tu es un assistant radioamateur spécialisé VHF/UHF pour les activations de points hauts de F6KQJ/P. Bandes : 144 MHz et 432 MHz en SSB UNIQUEMENT. Ne jamais suggérer le mode FM.
+
+RÈGLEMENT OFFICIEL REF - RALLYE DES POINTS HAUTS (12 mars 2025) :
+- Durée : 1er samedi de juillet 14h00 UTC → dimanche 14h00 UTC
+- Score : 1 point par km, SANS multiplicateur
+- Format compte rendu : reg1test/EDI, un fichier par bande
+- Alimentation 100% autonome obligatoire pour le classement
+
+IDENTITÉ DE LA STATION :
+- Indicatif contest : F6KQJ/P (portable)
+- Opérateur : F4GLD (Olivier Parriaux)
+- Locator Maidenhead : JN15XC
+- QTH : Chaspinhac, Haute-Loire
+- Station très performante, record 1600 km sur 144 MHz
+
+SOURCE LOG EN TEMPS RÉEL :
+- Log 144 MHz : https://f5aib.net/Net-TEST_THF/CR/F6KQJ_Rallye_des_points_hauts_144_MHz.edi
+- Log 432 MHz : https://f5aib.net/Net-TEST_THF/CR/F6KQJ_Rallye_des_points_hauts_432_MHz.edi
+- Relire ces URLs à chaque analyse. Format EDI : Date;Heure;Indicatif;Bande;RST_env;N°_env;RST_reçu;N°_reçu;;Locator;Points
+
+SOURCES CLUSTER :
+- F5LEN 144 MHz : http://cluster.f5len.org/index.php?what=144
+- F5LEN 432 MHz : http://cluster.f5len.org/index.php?what=432
+- DXSummit VHF : http://www.dxsummit.fi/#/?includes=VHF
+- ON4KST Chat VHF : https://www.on4kst.info/chat/start.php?band=1
+- Prévisions tropo : http://tropo.f5len.org/forecasts-for-europe/
+
+RÈGLE SPOTTER : Avant de recommander un contact, vérifie la distance du spotter depuis JN15XC.
+✅ PROBABLE : spotter < 600 km | ⚠️ INCERTAIN : 600-1200 km | 🌟 DX EXCEP : station > 1200 km → toujours prioritaire
+
+PLAN DE FRÉQUENCES SSB :
+- 144.300 MHz = SSB calling | 144.200 MHz = SSB activité | 432.200 MHz = SSB calling
+
+RECOMMANDATIONS - classement STRICT :
+1️⃣ DISTANCE = POINTS (critère absolu, jamais sacrifier un DX lointain)
+2️⃣ FIABILITÉ DU SPOT (spotter proche de JN15XC)
+3️⃣ DOUBLE BANDE (144 ET 432 = points doublés)
+4️⃣ DÉPARTEMENT MANQUANT (bonus uniquement)
+
+Format de chaque recommandation :
+📻 Station : [Indicatif] | Locator [XXXX]
+📡 Fréquence : [XXX.XXX MHz] | Mode : SSB
+📏 Distance depuis JN15XC : [XXX km] = 🏆 [XXX pts potentiels]
+🧭 Cap antenne : [XXX°] [Point cardinal]
+👁️ Spoté par : [Indicatif] ([locator]) à [XXX km] de JN15XC
+✅ Fiabilité : [PROBABLE / INCERTAIN / DX EXCEPTIONNEL]
+🎯 Priorité : [DX EXCEP / HAUTE / MOYENNE / BASSE]
+🕐 Spot : il y a [XX min]
+
+Classement final :
+🌟 DX EXCEP : distance > 1200 km → priorité absolue
+🔴 HAUTE : distance > 800 km + spotter < 600 km
+🟡 HAUTE : distance > 800 km + spotter lointain
+🟠 MOYENNE : distance 400-800 km
+🟢 BASSE : distance < 400 km
+
+SCORE (afficher après chaque analyse) :
+🏆 SCORE 144 MHz : [XXXXX pts] ([XX] QSO)
+🏆 SCORE 432 MHz : [XXXXX pts] ([XX] QSO)
+🏆 SCORE TOTAL : [XXXXX pts]
+
+ALERTES : Surveiller F6KQJ/P ET F6KQJ dans les spots (le /P peut être tronqué).
+⚡ Si spoté : alerter immédiatement avec cap et fréquence.
+
+Ne jamais écarter une station pour cause de distance. Record 1600 km = tout est possible en juillet (Es).`;
+
+const MY_POS = { lat: 45.625, lon: 5.125, locator: 'JN15XC' };
+const MAP_W = 800, MAP_H = 560;
+const BOUNDS = { latMin: 30, latMax: 72, lonMin: -12, lonMax: 42 };
+
+// ─── UTILS ──────────────────────────────────────────────────────────────────
+function project(lat, lon) {
+  const x = ((lon - BOUNDS.lonMin) / (BOUNDS.lonMax - BOUNDS.lonMin)) * MAP_W;
+  const y = ((BOUNDS.latMax - lat) / (BOUNDS.latMax - BOUNDS.latMin)) * MAP_H;
+  return { x, y };
+}
+
+function locatorToLatLon(loc) {
+  if (!loc || loc.length < 6) return null;
+  const l = loc.toUpperCase();
+  try {
+    const lon = (l.charCodeAt(0)-65)*20 - 180 + parseInt(l[2])*2 + (l.charCodeAt(4)-65)*(2/24) + 1/24;
+    const lat = (l.charCodeAt(1)-65)*10 - 90 + parseInt(l[3]) + (l.charCodeAt(5)-65)*(1/24) + 0.5/24;
+    return { lat, lon };
+  } catch(e) { return null; }
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return Math.round(R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+}
+
+function bearingDeg(lat1, lon1, lat2, lon2) {
+  const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180;
+  const Δλ=(lon2-lon1)*Math.PI/180;
+  const y=Math.sin(Δλ)*Math.cos(φ2);
+  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return Math.round((Math.atan2(y,x)*180/Math.PI+360)%360);
+}
+
+function cardinalDir(deg) {
+  const dirs=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+  return dirs[Math.round(deg/22.5)%16];
+}
+
+// ─── CLOCK ──────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getUTCHours()).padStart(2,'0');
+  const m = String(now.getUTCMinutes()).padStart(2,'0');
+  const s = String(now.getUTCSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s} UTC`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── MAP INIT ───────────────────────────────────────────────────────────────
+const COUNTRY_DATA = [
+  { name:'France', fill:'#0E1535', stroke:'#1E3060', sw:1.5, coords:[
+    [51.1,2.5],[50.5,1.6],[50.0,1.4],[49.5,0.1],[49.7,-1.8],[48.6,-2.0],
+    [47.8,-4.8],[47.3,-2.8],[46.4,-1.8],[45.7,-1.1],[44.7,-1.2],[43.4,-1.8],
+    [43.3,-1.3],[43.0,0.3],[42.5,0.7],[42.4,1.7],[42.7,2.9],[43.0,3.0],
+    [43.2,3.5],[43.4,4.8],[43.7,5.0],[43.3,5.4],[43.1,6.0],[43.4,6.9],
+    [43.8,7.4],[44.4,7.7],[44.2,7.0],[45.1,6.6],[45.4,6.8],[46.4,6.5],
+    [46.5,6.1],[47.5,7.0],[47.8,7.6],[48.6,7.8],[49.1,6.1],[49.5,5.8],
+    [50.1,5.0],[50.5,4.9],[51.1,2.5]
+  ]},
+  { name:'Espagne', fill:'#0A1428', stroke:'#1A2848', sw:1, coords:[
+    [43.8,-1.8],[43.4,-1.8],[43.3,-1.3],[43.0,0.3],[42.5,0.7],[42.4,1.7],[42.7,2.9],
+    [42.4,3.1],[41.7,2.8],[41.2,1.4],[40.7,0.7],[40.0,0.2],[39.3,0.3],[38.6,-0.1],
+    [37.9,-0.7],[37.4,-1.5],[36.7,-2.1],[36.2,-2.9],[36.0,-5.4],[36.2,-6.0],
+    [36.9,-7.4],[37.4,-7.5],[38.0,-7.1],[38.4,-6.5],[39.0,-7.1],[39.5,-7.0],
+    [40.0,-6.8],[40.5,-6.9],[41.2,-6.2],[41.8,-6.8],[42.0,-6.7],[42.6,-7.1],
+    [43.3,-8.3],[43.7,-8.0],[43.8,-7.5],[44.0,-7.0],[43.8,-1.8]
+  ]},
+  { name:'Portugal', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [42.1,-6.2],[41.8,-6.8],[42.0,-6.7],[42.6,-7.1],[43.3,-8.3],[43.7,-8.0],
+    [43.8,-7.5],[44.0,-7.0],[43.8,-6.8],[42.0,-6.7],
+    [41.2,-6.2],[40.5,-6.9],[40.0,-6.8],[39.5,-7.0],[39.0,-7.1],[38.4,-6.5],
+    [38.0,-7.1],[37.4,-7.5],[37.0,-7.9],[36.9,-8.9],[37.4,-9.0],[38.4,-9.5],
+    [39.3,-9.4],[39.7,-8.8],[40.6,-8.7],[41.1,-8.6],[41.8,-8.9],[42.1,-8.2],[42.1,-6.2]
+  ]},
+  { name:'Belgique', fill:'#0A1228', stroke:'#1A2448', sw:1, coords:[
+    [51.5,2.5],[51.1,2.5],[50.5,4.9],[50.1,5.0],[49.5,5.8],[49.8,6.1],[50.1,6.4],
+    [50.3,6.2],[50.8,6.0],[51.2,5.8],[51.5,4.5],[51.5,3.5],[51.5,2.5]
+  ]},
+  { name:'Pays-Bas', fill:'#0A1228', stroke:'#1A2448', sw:1, coords:[
+    [53.5,6.8],[53.0,7.0],[52.6,6.8],[52.0,6.9],[51.8,5.9],[51.2,5.8],[50.8,6.0],
+    [51.5,4.5],[51.5,3.5],[52.0,4.0],[52.5,4.5],[52.9,4.7],[53.2,5.2],[53.5,6.8]
+  ]},
+  { name:'Allemagne', fill:'#0A1220', stroke:'#1A2440', sw:1, coords:[
+    [55.0,8.6],[54.5,9.5],[54.3,10.2],[54.0,12.0],[54.2,13.8],[53.5,14.5],
+    [52.5,14.6],[51.5,15.0],[50.8,14.5],[50.2,13.5],[50.0,12.5],[49.5,12.8],
+    [48.7,13.8],[47.7,13.0],[47.5,12.5],[47.6,10.5],[47.8,8.0],[47.5,7.6],
+    [48.0,7.5],[48.6,7.8],[49.1,6.1],[49.5,5.8],[50.1,5.0],[50.5,6.2],
+    [51.5,6.5],[52.0,6.9],[52.6,6.8],[53.0,7.0],[53.5,6.8],[54.0,8.0],[55.0,8.6]
+  ]},
+  { name:'Suisse', fill:'#0C1430', stroke:'#1C2850', sw:1, coords:[
+    [47.8,8.0],[47.5,7.6],[47.5,7.0],[46.4,6.5],[46.5,6.1],[46.0,6.8],
+    [45.8,7.0],[45.9,8.0],[46.5,9.5],[47.0,10.0],[47.5,10.5],[47.7,10.0],
+    [47.8,8.5],[47.8,8.0]
+  ]},
+  { name:'Autriche', fill:'#0A1228', stroke:'#1A2448', sw:1, coords:[
+    [47.5,10.5],[47.0,10.0],[46.5,9.5],[45.9,8.0],[46.5,12.5],[46.8,13.5],
+    [47.0,14.5],[47.5,15.5],[48.5,16.0],[48.7,15.0],[48.5,14.0],[48.7,13.8],
+    [49.5,12.8],[50.0,12.5],[49.5,12.0],[48.5,11.5],[47.7,10.5],[47.5,10.5]
+  ]},
+  { name:'Italie', fill:'#0A1225', stroke:'#1A2445', sw:1, coords:[
+    [44.4,7.7],[43.8,7.4],[43.4,6.9],[43.1,6.0],[43.3,5.4],[43.7,5.0],
+    [43.4,4.8],[43.2,3.5],[43.0,3.0],[43.2,3.0],[43.8,8.0],[44.2,9.0],
+    [44.0,10.0],[43.5,10.5],[42.5,11.5],[41.5,12.5],[41.0,13.5],[40.7,15.0],
+    [40.0,16.0],[39.5,16.5],[38.5,16.0],[38.0,15.5],[37.5,15.2],[37.0,14.5],
+    [37.5,13.5],[38.0,12.5],[38.5,11.0],[39.0,9.5],[39.5,8.5],[40.0,8.0],
+    [41.0,8.5],[41.3,9.2],[41.9,9.5],[43.0,10.5],[43.8,10.5],[44.5,10.2],
+    [44.7,10.5],[45.5,11.0],[45.8,12.5],[46.5,12.5],[46.5,9.5],[46.0,8.0],
+    [45.8,7.0],[46.0,6.8],[46.4,6.5],[45.1,6.6],[44.2,7.0],[44.4,7.7]
+  ]},
+  { name:'Royaume-Uni', fill:'#0A1225', stroke:'#1A2445', sw:1, coords:[
+    [51.1,1.5],[51.4,1.0],[51.5,0.5],[51.9,-0.5],[52.5,-0.5],[53.5,-0.2],
+    [54.0,-0.5],[54.5,-1.0],[55.0,-1.5],[55.5,-2.0],[56.0,-2.5],[57.0,-2.0],
+    [58.0,-3.0],[58.5,-3.5],[58.0,-4.5],[57.5,-5.5],[56.5,-6.0],[55.5,-5.5],
+    [54.5,-5.0],[53.5,-4.5],[52.5,-4.0],[51.8,-5.0],[51.5,-5.0],[51.0,-4.5],
+    [50.5,-3.5],[50.0,-2.0],[50.2,-1.0],[50.5,0.0],[51.1,1.5]
+  ]},
+  { name:'Irlande', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [55.0,-6.5],[54.5,-5.5],[53.5,-5.8],[52.5,-6.0],[52.0,-6.5],[51.5,-8.0],
+    [51.8,-9.5],[52.5,-10.0],[53.5,-10.0],[54.5,-8.5],[55.0,-7.5],[55.0,-6.5]
+  ]},
+  { name:'Danemark', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [57.5,8.0],[57.0,8.5],[56.5,8.5],[55.5,8.0],[55.0,8.6],[55.5,9.5],
+    [56.0,10.0],[56.5,10.5],[57.0,10.5],[57.5,10.0],[57.8,10.5],[57.5,11.5],
+    [56.5,12.0],[55.5,12.5],[55.7,13.0],[56.0,12.5],[57.0,12.0],[57.5,10.5],
+    [58.0,11.0],[58.5,10.5],[57.5,8.0]
+  ]},
+  { name:'Norvège', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [57.8,7.5],[58.5,6.0],[59.0,5.0],[59.5,5.5],[60.5,5.0],[61.5,4.8],
+    [62.5,5.5],[63.5,7.5],[64.0,9.0],[65.0,11.0],[66.0,12.0],[67.0,14.0],
+    [68.0,15.0],[69.0,18.0],[70.0,20.0],[70.5,25.0],[69.5,26.0],[68.5,27.0],
+    [67.5,24.0],[66.0,22.0],[65.0,22.0],[64.0,20.0],[63.0,18.0],[62.0,17.0],
+    [61.0,16.0],[60.0,15.0],[59.5,13.5],[59.0,12.0],[58.5,11.5],[57.5,11.5],
+    [57.0,12.0],[56.0,12.5],[55.7,13.0],[57.5,11.0],[58.0,10.5],[58.5,10.5],
+    [57.5,10.0],[57.0,10.5],[57.8,10.5],[57.8,7.5]
+  ]},
+  { name:'Suède', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [55.5,12.5],[55.7,13.0],[56.0,14.0],[56.5,15.0],[57.0,16.0],[57.5,18.0],
+    [58.5,17.0],[59.5,18.5],[60.5,18.0],[61.0,17.0],[62.0,17.0],[63.0,18.0],
+    [64.0,20.0],[65.0,22.0],[66.0,22.0],[67.5,24.0],[68.5,22.0],[68.5,20.0],
+    [67.5,18.0],[66.5,16.0],[65.5,14.5],[65.0,14.0],[64.0,14.5],[63.5,14.0],
+    [63.0,13.0],[62.5,13.0],[61.5,13.0],[61.0,12.5],[60.5,12.5],[59.5,12.0],
+    [59.0,12.0],[58.5,11.5],[57.5,11.5],[56.5,12.0],[55.5,12.5]
+  ]},
+  { name:'Pologne', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [54.5,14.5],[54.2,16.0],[54.0,17.5],[54.5,18.5],[54.2,19.0],[53.5,20.0],
+    [54.0,22.0],[54.3,23.5],[53.5,24.0],[52.5,23.0],[52.0,23.5],[51.5,24.0],
+    [50.5,23.5],[50.0,22.0],[49.5,22.5],[49.0,22.0],[49.5,19.0],[50.0,18.5],
+    [50.2,17.5],[50.5,16.5],[51.0,15.5],[51.5,15.0],[52.5,14.6],[53.5,14.5],[54.5,14.5]
+  ]},
+  { name:'Tchéquie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [50.8,14.5],[51.0,15.5],[50.5,16.5],[50.2,17.5],[50.0,18.5],[49.5,19.0],
+    [49.0,18.0],[48.5,17.5],[48.5,16.0],[48.7,15.0],[48.5,14.0],[48.7,13.8],
+    [49.5,12.8],[50.0,12.5],[50.5,13.5],[50.8,14.5]
+  ]},
+  { name:'Slovaquie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [49.0,18.0],[49.5,19.0],[49.0,22.0],[48.5,22.0],[48.0,21.5],[48.0,20.0],
+    [47.5,18.5],[47.8,17.0],[48.0,16.5],[48.5,16.0],[48.5,17.5],[49.0,18.0]
+  ]},
+  { name:'Hongrie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [48.5,16.0],[48.0,16.5],[47.8,17.0],[47.5,18.5],[48.0,20.0],[48.0,21.5],
+    [48.5,22.0],[48.0,22.5],[47.5,22.5],[47.0,22.0],[46.5,21.0],[46.0,20.0],
+    [45.5,18.5],[46.0,17.5],[46.5,16.5],[46.8,16.0],[47.5,15.5],[48.0,16.0],[48.5,16.0]
+  ]},
+  { name:'Croatie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [46.5,16.5],[46.0,17.5],[45.5,18.5],[45.0,17.0],[44.5,16.0],[44.0,15.5],
+    [43.5,16.5],[43.0,17.0],[42.5,18.5],[43.0,19.5],[44.0,20.0],[45.0,19.5],
+    [46.0,20.0],[46.5,21.0],[46.8,16.0],[46.5,16.5]
+  ]},
+  { name:'Serbie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [46.0,20.0],[45.0,19.5],[44.0,20.0],[43.5,21.0],[43.0,22.0],[43.5,23.0],
+    [44.0,23.5],[44.5,23.0],[44.8,22.5],[45.5,22.0],[46.0,21.0],[46.0,20.0]
+  ]},
+  { name:'Roumanie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [48.5,22.0],[48.0,22.5],[47.5,22.5],[47.0,22.0],[46.5,21.0],[46.0,21.0],
+    [45.5,22.0],[44.8,22.5],[44.5,23.0],[44.0,23.5],[43.8,25.0],[44.0,26.0],
+    [44.5,27.0],[45.0,28.5],[45.5,29.0],[46.0,29.5],[47.0,29.5],[47.5,29.0],
+    [47.8,27.5],[48.2,26.0],[48.5,24.5],[48.5,22.0]
+  ]},
+  { name:'Bulgarie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [43.8,25.0],[44.0,23.5],[43.5,23.0],[43.0,22.0],[42.5,22.5],[42.0,23.0],
+    [41.5,23.5],[41.2,25.0],[41.5,26.5],[42.0,27.5],[42.5,28.0],[43.8,28.5],
+    [44.0,26.0],[43.8,25.0]
+  ]},
+  { name:'Grèce', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [41.5,26.5],[41.2,25.0],[41.5,23.5],[41.0,22.5],[40.5,22.0],[40.0,22.5],
+    [39.5,22.0],[39.0,22.5],[38.5,21.5],[37.5,22.0],[37.0,22.5],[36.5,22.5],
+    [36.5,23.5],[37.0,24.0],[37.5,24.5],[37.5,25.0],[38.0,24.0],[38.5,24.0],
+    [39.0,25.0],[39.5,26.0],[40.0,26.5],[40.5,27.0],[41.0,27.0],[41.5,26.5]
+  ]},
+  { name:'Turquie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [42.0,28.0],[41.5,29.0],[41.0,29.5],[41.0,31.0],[41.5,33.0],[42.0,35.0],
+    [42.5,37.0],[42.0,40.0],[41.0,41.5],[40.0,40.0],[39.0,39.0],[38.0,38.0],
+    [37.0,37.0],[36.5,36.0],[36.2,35.5],[36.5,34.0],[37.0,33.0],[37.5,32.0],
+    [38.0,31.0],[38.5,29.5],[38.0,28.0],[37.5,27.0],[37.0,27.5],[36.5,28.0],
+    [36.2,29.5],[36.5,30.5],[36.2,32.0],[36.0,33.5],[35.7,35.5],[36.2,36.5],
+    [37.0,37.5],[38.5,38.5],[39.5,39.5],[40.5,41.0],[41.5,41.5],[42.0,41.0],
+    [41.5,40.0],[41.0,39.0],[41.5,38.0],[42.0,37.0],[42.5,36.0],[42.0,35.0],
+    [41.5,33.5],[41.5,31.0],[41.0,29.5],[41.5,29.0],[42.0,28.5],[42.5,27.5],
+    [42.0,27.5],[41.5,26.5],[42.0,27.0],[42.0,28.0]
+  ]},
+  { name:'Ukraine', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [52.5,23.0],[52.0,23.5],[51.5,24.0],[50.5,23.5],[50.0,24.0],[49.5,24.5],
+    [49.0,24.5],[48.5,24.0],[48.5,22.0],[48.2,26.0],[47.8,27.5],[47.5,29.0],
+    [47.0,29.5],[46.5,30.0],[46.0,30.5],[46.5,32.0],[46.0,33.5],[46.5,35.0],
+    [47.0,37.0],[47.5,38.0],[48.0,39.0],[47.5,40.0],[46.5,39.5],[46.0,38.0],
+    [45.5,37.5],[45.5,36.0],[46.0,34.5],[45.5,33.5],[45.2,35.5],[46.0,36.5],
+    [46.5,37.5],[47.0,38.5],[48.0,39.0],[49.0,38.5],[50.0,37.5],[51.0,36.5],
+    [51.5,35.0],[52.0,33.5],[52.5,32.0],[52.0,30.0],[52.5,28.0],[53.0,26.0],
+    [53.5,25.0],[53.5,24.0],[53.0,23.5],[52.5,23.0]
+  ]},
+  { name:'Biélorussie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [53.5,24.0],[54.0,22.0],[53.5,20.0],[54.2,19.0],[54.5,18.5],[54.0,17.5],
+    [54.2,16.0],[54.5,14.5],[55.0,14.0],[56.0,14.0],[57.0,15.0],[57.0,17.0],
+    [56.0,18.0],[55.5,20.0],[55.0,22.0],[53.5,24.0]
+  ]},
+  { name:'Slovénie', fill:'#091220', stroke:'#162440', sw:0.8, coords:[
+    [46.8,13.5],[46.5,12.5],[46.5,13.5],[46.0,14.0],[45.5,14.5],[45.5,15.5],
+    [46.0,15.5],[46.5,16.0],[46.8,15.5],[47.0,14.5],[46.8,13.5]
+  ]},
+  { name:'Maroc', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [35.9,-5.4],[35.5,-5.0],[34.5,-2.0],[33.5,-0.5],[33.0,0.5],[32.5,2.0],
+    [32.0,3.5],[31.5,5.0],[30.5,6.5],[29.5,7.5],[28.5,8.5],[28.0,9.5],[27.5,11.0],
+    [27.5,13.0],[28.0,13.5],[29.0,13.0],[30.0,11.0],[31.0,8.0],[32.0,6.0],
+    [33.0,4.0],[33.8,2.0],[34.5,0.0],[35.0,-1.5],[35.5,-3.0],[35.9,-5.4]
+  ]},
+  { name:'Algérie', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [36.9,-1.8],[37.1,0.0],[37.0,1.0],[36.8,2.5],[36.9,4.0],[37.0,5.0],
+    [37.1,6.5],[37.0,8.0],[37.2,9.5],[37.5,10.2],[38.0,10.5],[37.5,11.5],
+    [37.0,12.0],[36.5,11.0],[35.5,11.5],[34.5,12.0],[33.5,12.5],[32.5,12.5],
+    [31.5,11.5],[30.5,10.0],[29.5,9.0],[28.5,8.5],[29.5,7.5],[30.5,6.5],
+    [31.5,5.0],[32.0,3.5],[32.5,2.0],[33.0,0.5],[33.5,-0.5],[34.5,-2.0],
+    [35.5,-5.0],[35.9,-5.4],[36.2,-2.9],[36.7,-2.1],[36.9,-1.8]
+  ]},
+  { name:'Tunisie', fill:'#091220', stroke:'#162440', sw:0.8, coords:[
+    [37.5,10.2],[37.2,9.5],[37.0,8.0],[37.1,6.5],[37.0,5.0],[36.9,4.0],
+    [36.8,6.0],[37.0,8.5],[36.5,10.5],[37.0,11.5],[37.5,10.2]
+  ]},
+  { name:'Libye', fill:'#091220', stroke:'#162440', sw:0.8, coords:[
+    [33.5,12.5],[32.5,12.5],[31.5,11.5],[30.5,10.0],[29.5,9.0],[29.5,11.0],
+    [30.0,13.0],[30.5,15.0],[31.0,17.0],[31.5,19.0],[32.0,21.0],[31.5,22.5],
+    [30.5,23.0],[30.5,24.5],[32.5,25.0],[33.5,23.0],[33.5,21.0],[33.0,19.0],
+    [33.5,17.0],[33.5,15.0],[33.5,13.5],[33.5,12.5]
+  ]},
+  { name:'Égypte', fill:'#091220', stroke:'#162440', sw:0.8, coords:[
+    [31.5,25.0],[30.5,25.0],[30.5,27.0],[31.0,29.0],[31.5,30.0],[31.5,32.0],
+    [30.0,32.5],[29.0,34.5],[28.5,34.0],[29.5,32.0],[29.5,30.5],[30.5,29.0],
+    [30.0,27.5],[30.0,26.0],[30.5,24.5],[31.5,25.0]
+  ]},
+  { name:'Finlande', fill:'#091220', stroke:'#162440', sw:1, coords:[
+    [60.0,20.0],[60.5,22.0],[61.0,22.5],[62.0,22.0],[63.0,22.5],[64.0,23.0],
+    [65.0,24.5],[66.0,24.0],[67.0,23.0],[68.0,23.5],[69.5,25.0],[70.0,27.5],
+    [69.0,28.5],[68.5,29.5],[68.0,30.0],[67.5,29.0],[66.5,29.5],[65.5,28.5],
+    [65.0,27.0],[64.5,26.0],[63.5,25.5],[63.0,26.5],[62.5,27.0],[62.0,28.0],
+    [61.0,28.5],[60.5,27.5],[60.0,25.5],[59.5,24.5],[59.0,23.5],[59.5,22.5],
+    [60.0,20.0]
+  ]},
+  { name:'Estonie', fill:'#091220', stroke:'#162440', sw:0.8, coords:[
+    [59.5,22.5],[59.0,23.5],[58.5,23.0],[58.0,24.0],[57.5,25.5],[58.0,27.0],
+    [59.0,27.5],[59.5,26.5],[60.0,25.5],[59.5,24.5],[59.5,22.5]
+  ]},
+  { name:'Lettonie', fill:'#091220', stroke:'#162440', sw:0.8, coords:[
+    [57.5,21.0],[56.5,21.0],[56.0,21.5],[55.5,21.0],[56.0,24.0],[57.0,25.0],
+    [57.5,25.5],[58.0,24.0],[58.5,23.0],[57.5,22.0],[57.5,21.0]
+  ]},
+  { name:'Lituanie', fill:'#091220', stroke:'#162440', sw:0.8, coords:[
+    [56.0,21.5],[55.5,21.0],[54.5,21.5],[54.0,22.0],[53.5,24.0],[55.0,22.0],
+    [55.5,24.0],[56.0,24.0],[55.5,21.0],[56.0,21.5]
+  ]},
+];
+
+function drawCountry(coords, fill, stroke, sw, g) {
+  if (!coords || coords.length < 3) return;
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  const d = coords.map((p,i) => {
+    const {x,y} = project(p[0],p[1]);
+    return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ') + 'Z';
+  path.setAttribute('d', d);
+  path.setAttribute('fill', fill);
+  path.setAttribute('stroke', stroke);
+  path.setAttribute('stroke-width', String(sw));
+  path.setAttribute('opacity','0.9');
+  g.appendChild(path);
+}
+
+function drawRangeCircle(km, color, label, g) {
+  // Approximate degree offset for given km distance
+  const points = [];
+  const steps = 72;
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI;
+    const dLat = (km / 111) * Math.cos(angle);
+    const dLon = (km / (111 * Math.cos(MY_POS.lat * Math.PI/180))) * Math.sin(angle);
+    points.push([MY_POS.lat + dLat, MY_POS.lon + dLon]);
+  }
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  const d = points.map((p,i) => {
+    const {x,y} = project(p[0],p[1]);
+    return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ') + 'Z';
+  path.setAttribute('d', d);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', '0.8');
+  path.setAttribute('stroke-dasharray', '4,4');
+  path.setAttribute('opacity', '0.5');
+  g.appendChild(path);
+
+  // Label
+  const {x,y} = project(MY_POS.lat + km/111, MY_POS.lon);
+  const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+  txt.setAttribute('x', x+3); txt.setAttribute('y', y-3);
+  txt.setAttribute('font-size','9'); txt.setAttribute('fill',color);
+  txt.setAttribute('font-family','Share Tech Mono'); txt.setAttribute('opacity','0.7');
+  txt.textContent = label;
+  g.appendChild(txt);
+}
+
+function initMap() {
+  const grid = document.getElementById('grid');
+  for (let lon = -12; lon <= 42; lon += 4) {
+    const p1 = project(72, lon), p2 = project(30, lon);
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',p1.x); l.setAttribute('y1',p1.y);
+    l.setAttribute('x2',p2.x); l.setAttribute('y2',p2.y);
+    grid.appendChild(l);
+  }
+  for (let lat = 32; lat <= 70; lat += 4) {
+    const p1 = project(lat, -12), p2 = project(lat, 42);
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',p1.x); l.setAttribute('y1',p1.y);
+    l.setAttribute('x2',p2.x); l.setAttribute('y2',p2.y);
+    grid.appendChild(l);
+  }
+
+  const countries = document.getElementById('countries');
+
+  // Draw all countries
+  COUNTRY_DATA.forEach(c => {
+    drawCountry(c.coords, c.fill, c.stroke, c.sw, countries);
+  });
+
+  // Country labels
+  const labels = [
+    { name:'F', lat:46.5, lon:2.5 },{ name:'E', lat:40.0, lon:-3.5 },
+    { name:'G', lat:52.5, lon:-1.5 },{ name:'I', lat:42.5, lon:12.5 },
+    { name:'DL', lat:51.5, lon:10.0 },{ name:'PA', lat:52.5, lon:5.5 },
+    { name:'ON', lat:50.5, lon:4.5 },{ name:'HB9', lat:47.0, lon:8.5 },
+    { name:'OE', lat:47.5, lon:14.0 },{ name:'SP', lat:52.0, lon:19.0 },
+    { name:'OK', lat:50.0, lon:15.5 },{ name:'HA', lat:47.0, lon:19.0 },
+    { name:'YO', lat:45.5, lon:25.0 },{ name:'LZ', lat:43.0, lon:25.0 },
+    { name:'SV', lat:39.5, lon:22.0 },{ name:'CT', lat:39.5, lon:-8.0 },
+    { name:'EI', lat:53.0, lon:-8.0 },{ name:'OZ', lat:56.0, lon:10.0 },
+    { name:'LA', lat:62.0, lon:11.0 },{ name:'SM', lat:62.0, lon:18.0 },
+    { name:'OH', lat:63.0, lon:26.0 },{ name:'UR', lat:49.0, lon:31.0 },
+    { name:'TA', lat:39.0, lon:35.0 },{ name:'3A', lat:43.7, lon:7.4 },
+    { name:'CN', lat:32.0, lon:-6.0 },{ name:'7X', lat:28.0, lon:3.0 },
+  ];
+
+  labels.forEach(lb => {
+    const {x,y} = project(lb.lat, lb.lon);
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',x); txt.setAttribute('y',y);
+    txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','9');
+    txt.setAttribute('fill','#2A3860'); txt.setAttribute('font-family','Share Tech Mono');
+    txt.setAttribute('font-weight','700');
+    txt.textContent = lb.name;
+    countries.appendChild(txt);
+  });
+
+  // Range circles
+  drawRangeCircle(500,  '#1A4020', '500km',  countries);
+  drawRangeCircle(1000, '#1A3030', '1000km', countries);
+  drawRangeCircle(1600, '#3A2020', '1600km', countries);
+
+  // My position
+  drawMyPosition();
+
+  // Click on background closes tooltip
+  document.getElementById('mapBg').addEventListener('click', hideTooltip);
+}
+
+function drawMyPosition() {
+  const myPos = document.getElementById('myPos');
+  myPos.innerHTML = '';
+  const {x,y} = project(MY_POS.lat, MY_POS.lon);
+
+  const pulse = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  pulse.setAttribute('cx',x); pulse.setAttribute('cy',y); pulse.setAttribute('r','16');
+  pulse.setAttribute('fill','none'); pulse.setAttribute('stroke','#00D4FF'); pulse.setAttribute('stroke-width','1');
+  pulse.innerHTML = '<animate attributeName="r" values="10;24;10" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/>';
+
+  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.setAttribute('r','8');
+  dot.setAttribute('fill','#00D4FF'); dot.setAttribute('stroke','#fff'); dot.setAttribute('stroke-width','2');
+  dot.setAttribute('filter','url(#glow-blue)');
+
+  const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+  lbl.setAttribute('x',x); lbl.setAttribute('y',y-14);
+  lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('font-size','11');
+  lbl.setAttribute('fill','#00D4FF'); lbl.setAttribute('font-family','Share Tech Mono');
+  lbl.setAttribute('font-weight','700'); lbl.textContent = 'JN15XC';
+
+  myPos.appendChild(pulse);
+  myPos.appendChild(dot);
+  myPos.appendChild(lbl);
+}
+
+const PRIORITY_COLORS = {
+  1: '#FF2D55', // DX exceptionnel
+  2: '#FF6B00', // Haute
+  3: '#FFD60A', // Haute distance lointain
+  4: '#FF9500', // Moyenne
+  5: '#30D158', // Basse
+  6: '#3A3A4A', // Fait
+};
+
+function updateMapStations(stations) {
+  mapStations = stations;
+  const linesG = document.getElementById('lines');
+  const stationsG = document.getElementById('stations');
+  linesG.innerHTML = '';
+  stationsG.innerHTML = '';
+
+  const myP = project(MY_POS.lat, MY_POS.lon);
+
+  stations.forEach((s, i) => {
+    const pos = locatorToLatLon(s.locator);
+    if (!pos) return;
+    const {x,y} = project(pos.lat, pos.lon);
+    const color = PRIORITY_COLORS[s.priority] || '#888';
+
+    // Line
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',myP.x); line.setAttribute('y1',myP.y);
+    line.setAttribute('x2',x); line.setAttribute('y2',y);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', s.done ? '0.5' : s.priority<=2 ? '1.5' : '1');
+    line.setAttribute('stroke-dasharray', s.done ? '4,4' : 'none');
+    line.setAttribute('opacity', s.done ? '0.2' : '0.5');
+    linesG.appendChild(line);
+
+    // Dot group
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', (e) => { e.stopPropagation(); showTooltip(s, x, y, color); });
+
+    if (!s.done && s.priority <= 2) {
+      const anim = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      anim.setAttribute('cx',x); anim.setAttribute('cy',y); anim.setAttribute('r','12');
+      anim.setAttribute('fill','none'); anim.setAttribute('stroke',color); anim.setAttribute('stroke-width','1');
+      anim.innerHTML = `<animate attributeName="r" values="8;16;8" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0;0.5" dur="2s" repeatCount="indefinite"/>`;
+      g.appendChild(anim);
+    }
+
+    const r = s.priority <= 2 ? 8 : 6;
+    const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.setAttribute('r',r);
+    dot.setAttribute('fill', color);
+    dot.setAttribute('opacity', s.done ? '0.3' : '0.9');
+    if (!s.done && s.priority <= 2) dot.setAttribute('filter','url(#glow-red)');
+    g.appendChild(dot);
+
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x',x); lbl.setAttribute('y',y-r-4);
+    lbl.setAttribute('text-anchor','middle');
+    lbl.setAttribute('font-size', s.priority<=2 ? '11' : '9');
+    lbl.setAttribute('fill', s.done ? '#444' : color);
+    lbl.setAttribute('font-family','Share Tech Mono');
+    lbl.style.pointerEvents = 'none';
+    lbl.textContent = s.call;
+    g.appendChild(lbl);
+
+    stationsG.appendChild(g);
+  });
+}
+
+function showTooltip(s, svgX, svgY, color) {
+  const pos = locatorToLatLon(s.locator);
+  const dist = pos ? haversine(MY_POS.lat, MY_POS.lon, pos.lat, pos.lon) : s.dist || '?';
+  const cap = pos ? bearingDeg(MY_POS.lat, MY_POS.lon, pos.lat, pos.lon) : s.cap || '?';
+  const cardinal = typeof cap === 'number' ? cardinalDir(cap) : '';
+
+  // Convert SVG coords to screen coords
+  const svg = document.getElementById('map');
+  const rect = svg.getBoundingClientRect();
+  const scaleX = rect.width / MAP_W;
+  const scaleY = rect.height / MAP_H;
+  let screenX = svgX * scaleX + rect.left;
+  let screenY = svgY * scaleY + rect.top;
+
+  const tt = document.getElementById('htmlTooltip');
+  document.getElementById('ttCall').textContent = s.call;
+  document.getElementById('ttCall').style.color = color;
+  document.getElementById('ttLocator').textContent = s.locator || '—';
+  document.getElementById('ttDist').textContent = `${dist} km`;
+  document.getElementById('ttDist').style.color = '#fff';
+  document.getElementById('ttFreq').textContent = s.freq ? `${s.freq} MHz SSB` : '144.300 MHz SSB';
+  document.getElementById('ttCap').textContent = `${cap}° ${cardinal}`;
+  document.getElementById('ttBand').textContent = `${s.band || 144} MHz`;
+
+  const statusEl = document.getElementById('ttStatus');
+  if (s.done) {
+    statusEl.textContent = '✓ CONTACT DÉJÀ FAIT';
+    statusEl.style.background = 'rgba(58,58,74,0.4)';
+    statusEl.style.color = '#888';
+  } else {
+    const labels = {1:'🌟 DX EXCEPTIONNEL',2:'🔴 PRIORITÉ HAUTE',3:'🟡 HAUTE - VÉRIFIER',4:'🟠 MOYENNE',5:'🟢 BASSE'};
+    statusEl.textContent = labels[s.priority] || '⚪ INFO';
+    statusEl.style.background = color + '22';
+    statusEl.style.color = color;
+  }
+
+  tt.style.border = `1px solid ${color}`;
+  tt.style.boxShadow = `0 0 20px ${color}40`;
+
+  // Afficher le compas antenne
+  if(typeof cap === 'number'){
+    showCompass(cap, cardinal, s.call, dist, color);
+  }
+
+  // Smart positioning
+  const ttW = 210, ttH = 160;
+  let left = screenX + 16;
+  let top = screenY - ttH/2;
+  if (left + ttW > window.innerWidth) left = screenX - ttW - 16;
+  if (top < 60) top = 60;
+  if (top + ttH > window.innerHeight) top = window.innerHeight - ttH - 10;
+
+  tt.style.left = left + 'px';
+  tt.style.top = top + 'px';
+  tt.style.display = 'block';
+  setTimeout(() => tt.style.opacity = '1', 10);
+}
+
+function hideTooltip() {
+  const tt = document.getElementById('htmlTooltip');
+  tt.style.opacity = '0';
+  setTimeout(() => tt.style.display = 'none', 150);
+}
+
+// ─── COMPAS ANTENNE ─────────────────────────────────────────────────────────
+function showCompass(bearing, cardinal, call, distKm, color) {
+  // Rotation de la flèche SVG
+  document.getElementById('compassArrow').setAttribute('transform', `rotate(${bearing},90,90)`);
+  document.getElementById('compassGlow').setAttribute('transform', `rotate(${bearing},90,90)`);
+
+  // Textes
+  document.getElementById('compassCall').textContent = call;
+  document.getElementById('compassCall').style.color = color || 'var(--accent)';
+  document.getElementById('compassDeg').textContent = `${bearing}°`;
+  document.getElementById('compassCard').textContent = cardinal;
+  document.getElementById('compassDist').textContent = `${distKm} km`;
+
+  // Graduations (ticks toutes les 10°, marquées toutes les 30°)
+  const ticksG = document.getElementById('compassTicks');
+  ticksG.innerHTML = '';
+  for(let deg = 0; deg < 360; deg += 10){
+    const rad = (deg - 90) * Math.PI / 180;
+    const major = deg % 30 === 0;
+    const r1 = major ? 72 : 78;
+    const r2 = 84;
+    const x1 = 90 + r1 * Math.cos(rad);
+    const y1 = 90 + r1 * Math.sin(rad);
+    const x2 = 90 + r2 * Math.cos(rad);
+    const y2 = 90 + r2 * Math.sin(rad);
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', major ? '#3A4080' : '#1E2040');
+    line.setAttribute('stroke-width', major ? '1.5' : '0.7');
+    ticksG.appendChild(line);
+  }
+
+  // Afficher le panneau
+  document.getElementById('compassPanel').classList.add('show');
+}
+
+function hideCompass() {
+  document.getElementById('compassPanel').classList.remove('show');
+}
+
+// ─── APP START ───────────────────────────────────────────────────────────────
+function startApp() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    alert('Clé API invalide. Elle doit commencer par sk-ant-');
+    return;
+  }
+  API_KEY = key;
+  document.getElementById('apiModal').style.display = 'none';
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('liveDot').style.background = '#00FF88';
+  addMessage('agent', '✅ Agent F6KQJ/P connecté et prêt !\n\nClique sur 📡 ANALYSER pour démarrer une analyse complète des clusters et de ton log.');
+  initMap();
+}
+
+window.addEventListener('load', () => {
+  // Si clé déjà intégrée dans le fichier, démarrer auto
+  if (API_KEY && API_KEY !== 'REMPLACE_PAR_TA_CLE') {
+    document.getElementById('apiModal').style.display = 'none';
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('liveDot').style.background = '#00FF88';
+    addMessage('agent', '✅ Agent F6KQJ/P connecté et prêt !\n\nClique sur 📡 ANALYSER pour démarrer.');
+    initMap();
+  }
+});
+
+// ─── CHAT ────────────────────────────────────────────────────────────────────
+function addMessage(role, text, isAlert = false) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `msg msg-${role}`;
+
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = role === 'user' ? 'OPÉRATEUR' : 'AGENT';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble' + (isAlert ? ' alert' : '');
+  bubble.textContent = text;
+
+  div.appendChild(label);
+  div.appendChild(bubble);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+
+  // Parse scores from agent response
+  parseScores(text);
+  // Parse station data for map
+  parseStations(text);
+}
+
+function showThinking() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg msg-agent';
+  div.id = 'thinkingMsg';
+
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = 'AGENT';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-thinking';
+  bubble.innerHTML = `<span style="color:var(--accent2)">⚙</span> Analyse en cours <span class="dot-anim"><span>.</span><span>.</span><span>.</span></span>`;
+
+  div.appendChild(label);
+  div.appendChild(bubble);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeThinking() {
+  const el = document.getElementById('thinkingMsg');
+  if (el) el.remove();
+}
+
+function parseScores(text) {
+  const total = text.match(/SCORE\s+TOTAL\s*[:：]\s*([\d\s,]+)\s*pts/i);
+  if (total) {
+    const v = total[1].replace(/[\s,]/g,'');
+    document.getElementById('scoreTotal').textContent = parseInt(v).toLocaleString() + ' pts';
+  }
+  const s144 = text.match(/SCORE\s+144\s*MHz\s*[:：]\s*([\d\s,]+)\s*pts/i);
+  if (s144) document.getElementById('score144').textContent = parseInt(s144[1].replace(/[\s,]/g,'')).toLocaleString() + ' pts';
+
+  const s432 = text.match(/SCORE\s+432\s*MHz\s*[:：]\s*([\d\s,]+)\s*pts/i);
+  if (s432) document.getElementById('score432').textContent = parseInt(s432[1].replace(/[\s,]/g,'')).toLocaleString() + ' pts';
+
+  const qso = text.match(/(\d+)\s*QSO/i);
+  if (qso) document.getElementById('scoreQSO').textContent = qso[1];
+
+  const dx = text.match(/(\d+)\s*km/g);
+  if (dx && dx.length) {
+    const maxDx = Math.max(...dx.map(d => parseInt(d)));
+    if (maxDx > 50) document.getElementById('scoreBestDX').textContent = maxDx + ' km';
+  }
+}
+
+function parseStations(text) {
+  // Try to extract station blocks from agent response
+  const blocks = text.split(/📻/).slice(1);
+  if (blocks.length === 0) return;
+
+  const newStations = [];
+  blocks.forEach((block, i) => {
+    const callMatch = block.match(/Station\s*[:：]?\s*([A-Z0-9/]+)/i) || block.match(/^([A-Z0-9/]+)/);
+    const locMatch = block.match(/Locator\s+([A-Z]{2}\d{2}[A-Z]{2})/i) || block.match(/([A-Z]{2}\d{2}[A-Z]{2})/);
+    const freqMatch = block.match(/(14[34]\.\d+)/);
+    const distMatch = block.match(/Distance[^:]*[:：]\s*(\d+)\s*km/i) || block.match(/(\d{3,4})\s*km/);
+    const bandMatch = block.match(/(\d{3})\s*MHz/);
+    const doneMatch = block.includes('déjà fait') || block.includes('FAIT');
+    const priorityMatch = block.match(/Priorité\s*[:：]\s*(DX EXCEP|HAUTE|MOYENNE|BASSE)/i);
+
+    if (callMatch && locMatch) {
+      let priority = 4;
+      if (block.includes('DX EXCEP')) priority = 1;
+      else if (block.includes('HAUTE') && !block.includes('MOYENNE')) priority = 2;
+      else if (block.includes('MOYENNE')) priority = 4;
+      else if (block.includes('BASSE')) priority = 5;
+      if (doneMatch) priority = 6;
+
+      newStations.push({
+        call: callMatch[1],
+        locator: locMatch[1],
+        freq: freqMatch ? parseFloat(freqMatch[1]) : 144.300,
+        dist: distMatch ? parseInt(distMatch[1]) : null,
+        band: bandMatch ? parseInt(bandMatch[1]) : 144,
+        done: doneMatch,
+        priority,
+      });
+    }
+  });
+
+  if (newStations.length > 0) {
+    updateMapStations(newStations);
+  }
+}
+
+// ─── API CALL ────────────────────────────────────────────────────────────────
+async function fetchTerrainData() {
+  try {
+    const res = await fetch('http://localhost:8080/data/refresh');
+    if (!res.ok) return null;
+    const data = await res.json();
+    // Update score display
+    if (data.score_total !== undefined) {
+      document.getElementById('scoreTotal').textContent = data.score_total.toLocaleString() + ' pts';
+    }
+    if (data.log144) document.getElementById('score144').textContent = data.log144.score.toLocaleString() + ' pts';
+    if (data.log432) document.getElementById('score432').textContent = data.log432.score.toLocaleString() + ' pts';
+    if (data.qso_total !== undefined) document.getElementById('scoreQSO').textContent = data.qso_total;
+    return data;
+  } catch(e) {
+    console.warn('Données terrain non disponibles:', e);
+    return null;
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text || isWaiting) return;
+
+  addMessage('user', text);
+  input.value = '';
+  input.style.height = 'auto';
+  isWaiting = true;
+  document.getElementById('sendBtn').disabled = true;
+  showThinking();
+
+  try {
+    // Fetch real terrain data first
+    let enrichedText = text;
+    const isAnalysis = /analys|cluster|log|score|spot|recom/i.test(text);
+    if (isAnalysis) {
+      addMessage('agent', '⏳ Récupération des données terrain (log + clusters)...');
+      const terrainData = await fetchTerrainData();
+      if (terrainData && terrainData.context) {
+        enrichedText = terrainData.context + '\n\nDemande opérateur : ' + text;
+        // Remove the loading message
+        const msgs = document.getElementById('chatMessages');
+        msgs.removeChild(msgs.lastChild);
+        console.log('[DATA] Contexte terrain injecté (' + terrainData.context.length + ' chars)');
+      }
+    }
+
+    conversationHistory.push({ role: 'user', content: enrichedText });
+
+    const res = await fetch('http://localhost:8080/proxy/anthropic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: conversationHistory,
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `Erreur HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const replyText = data.content
+      ?.filter(b => b.type === 'text')
+      ?.map(b => b.text)
+      ?.join('\n') || 'Pas de réponse.';
+
+    conversationHistory.push({ role: 'assistant', content: replyText });
+    if (conversationHistory.length > 16) conversationHistory = conversationHistory.slice(-16);
+
+    removeThinking();
+    const isAlert = replyText.includes('⚡') || replyText.includes('SPOTÉ') || replyText.includes('DX EXCEPTIONNEL') || replyText.includes('🌟');
+    addMessage('agent', replyText, isAlert);
+
+  } catch(err) {
+    removeThinking();
+    addMessage('agent', `❌ Erreur : ${err.message}\n\nVérifie que serveur.py tourne bien (python serveur.py).`);
+    console.error(err);
+  }
+
+  isWaiting = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+function quickSend(text) {
+  document.getElementById('userInput').value = text;
+  sendMessage();
+}
+
+// Init map on load (shows empty map)
+initMap();
+</script>
+</body>
+</html>

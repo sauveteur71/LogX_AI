@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "radiocontest-server",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["serveur.py"],
+      "cwd": "concours",
+      "port": 8080
+    }
+  ]
+}
