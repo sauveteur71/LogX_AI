@@ -328,8 +328,12 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .dxcc-badge.dupe .dxcc-country{color:var(--red)}
 body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,160,.2)}
 /* CONNEXION RÉSEAU */
-.net-status{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:3px 16px;background:var(--bg);border-bottom:1px solid var(--border)}
-.net-dot{width:6px;height:6px;border-radius:50%}
+.net-status{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:14px;color:var(--muted);padding:6px 16px;background:var(--bg);border-bottom:1px solid var(--border)}
+.net-dot{width:8px;height:8px;border-radius:50%}
+.share-link{color:var(--accent2);font-weight:700;text-decoration:none;letter-spacing:.5px}
+.share-link:hover{text-decoration:underline}
+.share-copy{font-family:var(--font-mono);font-size:13px;padding:3px 10px;border-radius:5px;border:1px solid var(--accent2);background:transparent;color:var(--accent2);cursor:pointer;letter-spacing:1px}
+.share-copy:hover{background:rgba(0,212,255,.12)}
 .net-dot.online{background:var(--green)}
 .net-dot.offline{background:var(--red)}
 .net-peers{color:var(--accent2)}
@@ -596,8 +600,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <span id="netStatus">Connexion au serveur...</span>
   <span style="margin-left:12px">Postes connectés : <span class="net-peers" id="netPeers">—</span></span>
   <span style="margin-left:12px;color:var(--muted)">Serveur : <span id="serverAddr" style="color:var(--accent2)">localhost:8080</span></span>
-  <span id="backupTime" style="margin-left:12px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">Backup: —</span>
-  <span style="margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--muted)">Partage : connecte les autres PC au même WiFi → http://<span id="localIP">TON-IP</span>:8080/radiocontest_logbook.html</span>
+  <span id="backupTime" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;color:var(--muted)">Backup: —</span>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:10px">
+    <span>Autres postes (même WiFi) :</span>
+    <a class="share-link" id="shareLink" href="#" target="_blank"
+       title="Adresse à ouvrir sur les autres PC et téléphones du réseau">…</a>
+    <button class="share-copy" onclick="copyShareLink()" title="Copier l'adresse pour l'envoyer aux autres opérateurs">📋 COPIER</button>
+  </span>
 </div>
 
 <!-- SCORE BANNER -->
