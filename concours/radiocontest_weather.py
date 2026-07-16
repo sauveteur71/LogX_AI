@@ -15,9 +15,13 @@ WMO = {
     0: ('Ciel clair', '☀️'), 1: ('Peu nuageux', '🌤️'), 2: ('Partiellement nuageux', '⛅'),
     3: ('Couvert', '☁️'), 45: ('Brouillard', '🌫️'), 48: ('Brouillard givrant', '🌫️'),
     51: ('Bruine légère', '🌦️'), 53: ('Bruine', '🌦️'), 55: ('Bruine dense', '🌧️'),
+    56: ('Bruine verglaçante', '🌧️'), 57: ('Bruine verglaçante dense', '🌧️'),
     61: ('Pluie faible', '🌦️'), 63: ('Pluie', '🌧️'), 65: ('Forte pluie', '🌧️'),
+    66: ('Pluie verglaçante', '🌧️'), 67: ('Pluie verglaçante forte', '🌧️'),
     71: ('Neige faible', '🌨️'), 73: ('Neige', '🌨️'), 75: ('Forte neige', '❄️'),
+    77: ('Grésil', '🌨️'),
     80: ('Averses', '🌦️'), 81: ('Averses', '🌧️'), 82: ('Fortes averses', '⛈️'),
+    85: ('Averses de neige', '🌨️'), 86: ('Fortes averses de neige', '❄️'),
     95: ('Orage', '⛈️'), 96: ('Orage + grêle', '⛈️'), 99: ('Violent orage', '⛈️'),
 }
 
@@ -41,25 +45,31 @@ def get_weather(lat, lon):
         return _cache['data'] or {'ok': False, 'error': 'Météo injoignable'}
     try:
         cur = json.loads(raw).get('current', {})
-        code = int(cur.get('weather_code', 0))
+        # `.get(x, 0)` ne protège PAS d'une valeur présente mais null → `or 0`
+        def num(field):
+            v = cur.get(field)
+            return v if isinstance(v, (int, float)) else 0
+        code = int(num('weather_code'))
         desc, icon = WMO.get(code, ('—', '🌡️'))
-        gust = cur.get('wind_gusts_10m', 0)
-        wind = cur.get('wind_speed_10m', 0)
-        precip = cur.get('precipitation', 0)
-        temp = cur.get('temperature_2m', 0)
-        # Alerte matériel : rafales fortes, orage, gel
-        warn = ''
+        gust = num('wind_gusts_10m')
+        wind = num('wind_speed_10m')
+        precip = num('precipitation')
+        temp = num('temperature_2m')
+        # Alerte matériel — TOUTES les conditions à risque cumulées (l'orage,
+        # danger foudre, ne doit jamais être masqué par une simple rafale).
+        warns = []
+        if code in (95, 96, 99):
+            warns.append('⚠️ ORAGE — débranche les antennes' +
+                         (f' (rafales {gust:.0f} km/h)' if gust >= 40 else ''))
         if gust >= 60:
-            warn = f'⚠️ RAFALES {gust:.0f} km/h — sécurise les antennes !'
-        elif gust >= 40:
-            warn = f'⚠️ Rafales {gust:.0f} km/h — surveille le pylône.'
-        elif code in (95, 96, 99):
-            warn = '⚠️ ORAGE — protège le matériel, débranche les antennes.'
-        elif temp <= 0:
-            warn = '❄️ Gel — attention au givre sur les éléments.'
+            warns.append(f'⚠️ RAFALES {gust:.0f} km/h — sécurise les antennes')
+        elif gust >= 40 and code not in (95, 96, 99):
+            warns.append(f'⚠️ Rafales {gust:.0f} km/h — surveille le pylône')
+        if temp <= 0:
+            warns.append('❄️ Gel — attention au givre sur les éléments')
         data = {'ok': True, 'temp': round(temp), 'wind': round(wind),
                 'gust': round(gust), 'precip': precip, 'desc': desc,
-                'icon': icon, 'warn': warn}
+                'icon': icon, 'warn': ' · '.join(warns)}
         _cache.update(ts=time.time(), data=data, key=key)
         return data
     except Exception as e:

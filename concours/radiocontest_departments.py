@@ -51,19 +51,25 @@ def _is_rst(tok):
 
 
 def dept_from_exchange(num_rcvd):
-    """Extrait le n° de département d'un échange reçu. Ambiguïté RST/département
-    (le RST '599' contient '59') levée en RETIRANT le RST de tête, puis en
-    lisant le département dans le reste ('599 042' → 04, '59 075' → Ardèche,
-    '2A 015' → 2A). '' si aucun département fiable."""
+    """Extrait le n° de département d'un échange reçu.
+    En PRODUCTION le champ « DEPT RCU » contient le département SEUL (le RST
+    est un champ séparé) : un token unique EST le département ('33' → 33,
+    '43' → 43, '971' → DOM). Le format combiné « RST dept » (plusieurs tokens,
+    ex. '59 04') est aussi géré défensivement : on retire alors le RST de tête
+    pour lever l'ambiguïté (le RST '599' contient '59'). '' si rien de fiable."""
     s = str(num_rcvd or '').upper()
     m = re.search(r'\b(2[AB])\b', s)
     if m and m.group(1) in DEPARTMENTS:
         return m.group(1)
     toks = re.findall(r'\d{2,3}', s)
-    if toks and _is_rst(toks[0]):
-        toks = toks[1:]              # jette le RST de tête
+    if not toks:
+        return ''
+    # Plusieurs tokens = format combiné « RST dept » → jette le RST de tête.
+    # Un seul token = le département lui-même (cas de production) : ne rien jeter.
+    if len(toks) > 1 and _is_rst(toks[0]):
+        toks = toks[1:]
     for tok in toks:
-        if tok in DEPARTMENTS:       # DOM 971-976
+        if tok in DEPARTMENTS:       # DOM 971-976 (3 chiffres)
             return tok
         d2 = tok[:2]
         if d2 in DEPARTMENTS:

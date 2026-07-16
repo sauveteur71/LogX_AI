@@ -41,3 +41,29 @@ def test_orage_alerte(monkeypatch):
     weather._cache.update(ts=0, data=None, key='')
     r = weather.get_weather(45.1, 3.9)
     assert 'ORAGE' in r['warn']
+
+
+def test_orage_pas_masque_par_rafales(monkeypatch):
+    """Bug revue : un orage avec rafales 45 km/h doit garder l'alerte foudre."""
+    def fake_fetch(url, timeout=15):
+        import json
+        return json.dumps({'current': {'temperature_2m': 18, 'wind_speed_10m': 30,
+                           'wind_gusts_10m': 45, 'precipitation': 8, 'weather_code': 95}})
+    import radiocontest_utils
+    monkeypatch.setattr(radiocontest_utils, 'fetch_url', fake_fetch)
+    weather._cache.update(ts=0, data=None, key='')
+    r = weather.get_weather(45.1, 3.9)
+    assert 'ORAGE' in r['warn'] and '45' in r['warn']
+
+
+def test_valeur_null_ne_plante_pas(monkeypatch):
+    """Bug revue : un champ présent mais null ne doit pas planter (round(None))."""
+    def fake_fetch(url, timeout=15):
+        import json
+        return json.dumps({'current': {'temperature_2m': None, 'wind_speed_10m': None,
+                           'wind_gusts_10m': None, 'precipitation': None, 'weather_code': None}})
+    import radiocontest_utils
+    monkeypatch.setattr(radiocontest_utils, 'fetch_url', fake_fetch)
+    weather._cache.update(ts=0, data=None, key='')
+    r = weather.get_weather(45.1, 3.9)
+    assert r['ok'] and r['temp'] == 0 and r['gust'] == 0

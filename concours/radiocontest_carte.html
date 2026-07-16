@@ -386,10 +386,11 @@ function drawGreyLine(){
   const nightTop = [], nightBot = [];
   for(let lon=-180; lon<=180; lon+=3){
     const H = (lon - subLon)*rad;   // angle horaire
-    // latitude du terminateur : tan(lat) = -cos(H)/tan(dec)
-    let lat;
-    if(Math.abs(dec) < 0.5){ lat = 0; }
-    else { lat = Math.atan(-Math.cos(H)/Math.tan(decR))/rad; }
+    // latitude du terminateur : tan(lat) = -cos(H)/tan(dec).
+    // À l'équinoxe (dec→0), tan(dec)→0 et -cos(H)/0 = ±Infinity → atan = ±90° :
+    // c'est le comportement CORRECT (terminateur quasi-méridien). Pas de
+    // garde-fou : forcer lat=0 dessinerait un faux split horizontal à l'équateur.
+    const lat = Math.atan(-Math.cos(H)/Math.tan(decR))/rad;
     // Hémisphère de nuit : opposé au soleil
     if(dec >= 0){ nightTop.push([-90, lon]); nightBot.push([lat, lon]); }
     else        { nightTop.push([90, lon]);  nightBot.push([lat, lon]); }
@@ -1122,6 +1123,7 @@ function toggleTheme(){
 // indicatif dans le chat ON4KST. Réglages (son on/off, volume) dans CONFIG.
 const _alertedMults = {};        // call → timestamp (anti-répétition 20 min)
 let _mentionSeen = new Set();
+let _multAlertPrimed = false;     // 1er chargement : amorcer sans faire sonner
 
 function alertSettings(){
   const c = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
@@ -1154,8 +1156,15 @@ function flashAlert(text, kind){
 
 function checkNewMultAlerts(spots){
   const now = Date.now();
-  (spots||[]).forEach(s=>{
-    if(!s.new_mult || s.already_done) return;
+  const mults = (spots||[]).filter(s=>s.new_mult && !s.already_done);
+  // 1er chargement : les mults déjà présents ne sont pas « nouveaux » pour
+  // l'opérateur → on amorce le set silencieusement, sans salve d'alertes.
+  if(!_multAlertPrimed){
+    mults.forEach(s=>{ _alertedMults[s.call] = now; });
+    _multAlertPrimed = true;
+    return;
+  }
+  mults.forEach(s=>{
     const last = _alertedMults[s.call];
     if(last && now-last < 20*60*1000) return;   // déjà signalé récemment
     _alertedMults[s.call] = now;
