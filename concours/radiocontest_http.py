@@ -13,18 +13,18 @@ import threading
 import time
 import socket
 
-import rules
-from utils import PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX
-from contest_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
+import radiocontest_rules as rules
+from radiocontest_utils import PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX
+from radiocontest_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
                                  delete_custom_contest)
-from validate_definitions import validate_definition
-from rules_ai import analyze_rules
-from storage import shared_log, log_lock, save_log_to_disk
-from scoring import build_scoring_context
-from prompts import build_system_prompt, build_terrain_context
-from rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
-from clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len,
+from radiocontest_validate import validate_definition
+from radiocontest_rules_ai import analyze_rules
+from radiocontest_storage import shared_log, log_lock, save_log_to_disk
+from radiocontest_scoring import build_scoring_context
+from radiocontest_prompts import build_system_prompt, build_terrain_context
+from radiocontest_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
+from radiocontest_clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len,
                       fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster,
                       fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
                       fetch_noaa_kindex, fetch_dxmaps_vhf, fetch_3830_scores,
@@ -339,8 +339,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({
                 'local_ip': local_ip,
                 'port': PORT,
-                'url_logbook': f'http://{local_ip}:{PORT}/logbook.html',
-                'url_terrain': f'http://{local_ip}:{PORT}/rallye-vhf-terrain.html',
+                'url_logbook': f'http://{local_ip}:{PORT}/radiocontest_logbook.html',
+                'url_terrain': f'http://{local_ip}:{PORT}/radiocontest_terrain.html',
                 'peers': len(connected_peers),
             })
             return
@@ -647,7 +647,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Coach de stratégie — état structuré, sans appel IA (rapide, pollable).
         # DXMaps (réseau) : uniquement pour les concours VHF+, avec cache 10 min.
         if path == '/coach/state':
-            import coach
+            import radiocontest_coach as coach
             with config_lock:
                 cfg_snapshot = dict(current_config)
             dxmaps = None
@@ -679,7 +679,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
         if path in ('/', ''):
-            path = '/configuration.html'
+            path = '/radiocontest_configuration.html'
+
+        # Anciennes URL (avant le renommage radiocontest_*) : on continue de
+        # les servir pour ne casser ni favoris ni habitudes de l'équipe.
+        LEGACY_PAGES = {
+            '/configuration.html': '/radiocontest_configuration.html',
+            '/logbook.html': '/radiocontest_logbook.html',
+            '/calendrier.html': '/radiocontest_calendrier.html',
+            '/radiocontest.html': '/radiocontest_carte.html',
+            '/rallye-vhf-terrain.html': '/radiocontest_terrain.html',
+            '/statusbar.js': '/radiocontest_statusbar.js',
+        }
+        path = LEGACY_PAGES.get(path, path)
 
         filepath = self._resolve(path)
         if filepath and os.path.isfile(filepath):
@@ -809,7 +821,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'error': str(e)}, 500)
             return
 
-        # Sauvegarde configuration courante (appelé par radiocontest.html au démarrage)
+        # Sauvegarde configuration courante (appelé par radiocontest_carte.html au démarrage)
         if self.path == '/config/save':
             try:
                 cfg = json.loads(body)

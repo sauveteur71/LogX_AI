@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Valide CONTEST_DEFINITIONS contre contest_schema.json.
 
-Usage : python validate_definitions.py
+Usage : python radiocontest_validate.py
 Sort avec le code 0 si tout est conforme, 1 sinon.
 
 Utilise la lib 'jsonschema' si elle est installée (validation complète),
@@ -16,7 +16,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from contest_definitions import CONTEST_DEFINITIONS
+from radiocontest_definitions import CONTEST_DEFINITIONS
 
 with open(os.path.join(HERE, 'contest_schema.json'), encoding='utf-8') as f:
     SCHEMA = json.load(f)
@@ -35,7 +35,7 @@ def validate_with_jsonschema():
 
 def _check_scoring(sc, props):
     """Vérifie un bloc scoring : forme 'type' historique OU 'bricks' Phase 2.
-    Les briques sont validées contre le moteur lui-même (scoring.py) pour
+    Les briques sont validées contre le moteur lui-même (radiocontest_scoring.py) pour
     qu'un prédicat ou une famille de multiplicateur inconnus soient refusés."""
     errs = []
     bricks = sc.get('bricks')
@@ -48,7 +48,7 @@ def _check_scoring(sc, props):
         if st not in st_enum:
             errs.append(f"scoring.type '{st}' absent de l'enum du schema")
     if bricks is not None:
-        from scoring import PREDICATES, MULT_EVALUATORS
+        from radiocontest_scoring import PREDICATES, MULT_EVALUATORS
         if not isinstance(bricks, dict):
             return errs + ["scoring.bricks doit être un objet"]
         rules = bricks.get('points')
@@ -117,10 +117,10 @@ def validate_definition(cdef, cid='?'):
             errors.append(f"{cid}: champ inconnu '{k}' (ajouter au schema ?)")
     dr = cdef.get('date_rule')
     if dr is not None:
-        from rules import DATE_RULE_RE
+        from radiocontest_rules import DATE_RULE_RE
         if not isinstance(dr, str) or not DATE_RULE_RE.match(dr):
             errors.append(f"{cid}: date_rule '{dr}' hors grammaire "
-                          "(voir rules.py:DATE_RULE_PATTERN)")
+                          "(voir radiocontest_rules.py:DATE_RULE_PATTERN)")
     lf = cdef.get('log_format')
     if lf is not None and lf not in props['log_format']['enum']:
         errors.append(f"{cid}: log_format '{lf}' absent de l'enum du schema")

@@ -166,14 +166,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </header>
 
 <nav class="app-nav">
-  <a href="configuration.html" class="active">⚙ CONFIG</a>
-  <a href="logbook.html">📋 LOGBOOK</a>
-  <a href="radiocontest.html">🗺️ CARTE IA</a>
-  <a href="calendrier.html">📅 CALENDRIER</a>
+  <a href="radiocontest_configuration.html" class="active">⚙ CONFIG</a>
+  <a href="radiocontest_logbook.html">📋 LOGBOOK</a>
+  <a href="radiocontest_carte.html">🗺️ CARTE IA</a>
+  <a href="radiocontest_calendrier.html">📅 CALENDRIER</a>
   <div class="nav-spacer"></div>
   <div class="nav-info" id="navContest">—</div>
 </nav>
-<script src="statusbar.js"></script>
+<script src="radiocontest_statusbar.js"></script>
 
 <div class="container">
 
@@ -705,7 +705,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="goStep(4)">← RETOUR</button>
       <button class="btn btn-launch" onclick="launchApp()">🚀 COMMENCER À LOGGER</button>
-      <button class="btn btn-secondary" onclick="launchApp('radiocontest.html')">🗺️ Ouvrir la carte IA</button>
+      <button class="btn btn-secondary" onclick="launchApp('radiocontest_carte.html')">🗺️ Ouvrir la carte IA</button>
     </div>
   </div>
 
@@ -1068,7 +1068,7 @@ const CONTESTS = [
 // ─── SÉLECTEUR UNIFIÉ : FUSION SERVEUR + WA7BNM ──────────────────────────────
 // Enrichit la liste locale CONTESTS avec :
 //  1. la base serveur (/data/calendar) → badge "✓ règlement suivi" (dates et
-//     règlements re-vérifiés automatiquement chaque année par serveur.py) ;
+//     règlements re-vérifiés automatiquement chaque année par radiocontest_serveur.py) ;
 //  2. le calendrier mondial WA7BNM (/data/external_contests) → badge
 //     "à confirmer" (paramètres non vérifiés, à saisir manuellement — la
 //     lecture IA du règlement arrivera en Phase 3).
@@ -1488,7 +1488,7 @@ function selectContest(id) {
   applyContestFilters(id);
   _filtersAppliedFor = id;
   // Auto-calculer les dates : règle locale, sinon date serveur (recalculée
-  // chaque année par serveur.py — couvre toute la base "règlement suivi")
+  // chaque année par radiocontest_serveur.py — couvre toute la base "règlement suivi")
   const dates = calcContestDates(id) || serverContestDates(id);
   const banner = document.getElementById('contest_dates_auto');
   if(dates){
@@ -1953,7 +1953,7 @@ function saveConfig(silent = false) {
     saved_at: new Date().toISOString(), // affiché par la barre de statut
   };
   localStorage.setItem('radiocontest_config', JSON.stringify(config));
-  // Pousser aussi au serveur : sinon serveur.py travaille avec une config
+  // Pousser aussi au serveur : sinon radiocontest_serveur.py travaille avec une config
   // périmée tant que la page CARTE IA (seule à faire ce POST) n'est pas ouverte.
   fetch('/config/save', {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -2046,7 +2046,7 @@ function toggleTheme(){
     });
   }
 })();
-// Suivre le thème jour/nuit choisi dans un autre onglet (ex: logbook.html)
+// Suivre le thème jour/nuit choisi dans un autre onglet (ex: radiocontest_logbook.html)
 window.addEventListener('storage', e => {
   if(e.key === 'rc_theme'){
     const day = e.newValue === 'day';
@@ -2200,7 +2200,7 @@ function launchApp(dest) {
   const key = document.getElementById('api_key').value;
   if(key) localStorage.setItem('radiocontest_apikey', key);
   // Par défaut : le LOGBOOK (la saisie des QSO) — la carte IA reste à un clic.
-  window.location.href = dest || 'logbook.html';
+  window.location.href = dest || 'radiocontest_logbook.html';
 }
 
 // ─── PHASE 3 : ANALYSE IA D'UN RÈGLEMENT + RELECTURE HUMAINE ─────────────────
@@ -2423,7 +2423,7 @@ async function saveReviewedDefinition(){
 }
 
 // ─── ASSISTANT "NOUVEAU CONCOURS" (3 étapes) ─────────────────────────────────
-// Arrivée depuis calendrier.html avec ?contest=ID :
+// Arrivée depuis radiocontest_calendrier.html avec ?contest=ID :
 //   1. le concours est sélectionné et ses bandes/modes/dates appliqués ;
 //   2. la bannière récapitule ce qui a été pré-rempli et ce qui reste à vérifier ;
 //   3. un clic sur LANCER sauvegarde et ouvre la carte IA.

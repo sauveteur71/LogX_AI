@@ -10,8 +10,8 @@ import datetime
 import threading
 import time
 
-from utils import CURRENT_YEAR, fetch_url
-from contest_definitions import CONTEST_DEFINITIONS, CONTEST_RULES_URLS
+from radiocontest_utils import CURRENT_YEAR, fetch_url
+from radiocontest_definitions import CONTEST_DEFINITIONS, CONTEST_RULES_URLS
 
 # ─── FICHIER DE CACHE DES RÈGLEMENTS ─────────────────────────────────────────
 RULES_CACHE_FILE = 'rules_cache.json'
@@ -119,8 +119,8 @@ def refresh_external_contests():
 
 # ─── CALCUL AUTOMATIQUE DES DATES PAR RÈGLE ──────────────────────────────────
 # Grammaire des règles de dates — source de vérité unique, utilisée par
-# calc_contest_date (interprétation), validate_definitions.py (validation)
-# et le prompt d'extraction IA (rules_ai.py).
+# calc_contest_date (interprétation), radiocontest_validate.py (validation)
+# et le prompt d'extraction IA (radiocontest_rules_ai.py).
 _MONTHS_RE = ('january|february|march|april|may|june|july|august|september|'
               'october|november|december')
 DATE_RULE_PATTERN = (
@@ -449,7 +449,7 @@ def extract_document_text(data_bytes, url=''):
 def download_rules_document(url, timeout=20):
     """Télécharge un règlement et retourne (texte, extracteur). Lève en cas d'échec."""
     import urllib.request
-    from utils import SSL_CTX
+    from radiocontest_utils import SSL_CTX
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
         data = resp.read()

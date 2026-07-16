@@ -3,9 +3,9 @@
 
 import re
 
-from contest_definitions import CONTEST_DEFINITIONS
-from utils import locator_to_latlon, haversine, bearing, cardinal
-from storage import shared_log
+from radiocontest_definitions import CONTEST_DEFINITIONS
+from radiocontest_utils import locator_to_latlon, haversine, bearing, cardinal
+from radiocontest_storage import shared_log
 
 # ─── MOTEUR DE SCORING UNIVERSEL ─────────────────────────────────────────────
 # Calcule la valeur réelle en points d'un contact selon le règlement actif

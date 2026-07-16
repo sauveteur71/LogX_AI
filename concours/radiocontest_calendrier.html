@@ -114,12 +114,12 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 </header>
 
 <nav class="app-nav">
-  <a href="configuration.html">⚙ CONFIG</a>
-  <a href="logbook.html">📋 LOGBOOK</a>
-  <a href="radiocontest.html">🗺️ CARTE IA</a>
-  <a href="calendrier.html" class="active">📅 CALENDRIER</a>
+  <a href="radiocontest_configuration.html">⚙ CONFIG</a>
+  <a href="radiocontest_logbook.html">📋 LOGBOOK</a>
+  <a href="radiocontest_carte.html">🗺️ CARTE IA</a>
+  <a href="radiocontest_calendrier.html" class="active">📅 CALENDRIER</a>
 </nav>
-<script src="statusbar.js"></script>
+<script src="radiocontest_statusbar.js"></script>
 
 <div class="container">
 
@@ -165,10 +165,10 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
         <div style="text-align:center;max-width:600px;padding:40px">
           <div style="font-size:60px;margin-bottom:20px">🚫</div>
           <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px">OUVERT EN FILE:// — IMPOSSIBLE</div>
-          <div style="color:#FFE566;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord serveur.py, puis accède via :</div>
-          <a href="http://localhost:8080/calendrier.html"
+          <div style="color:#FFE566;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord radiocontest_serveur.py, puis accède via :</div>
+          <a href="http://localhost:8080/radiocontest_calendrier.html"
              style="display:inline-block;background:linear-gradient(135deg,#00FF88,#00D4FF);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
-            ▶ http://localhost:8080/calendrier.html
+            ▶ http://localhost:8080/radiocontest_calendrier.html
           </a>
         </div>
       </div>`;
@@ -215,7 +215,7 @@ async function loadYear(){
     renderCalendar();
   }catch(e){
     document.getElementById('calendarContent').innerHTML =
-      `<div class="loading" style="color:var(--red)">❌ Erreur : serveur non disponible<br><small>Lance serveur.py d'abord</small></div>`;
+      `<div class="loading" style="color:var(--red)">❌ Erreur : serveur non disponible<br><small>Lance radiocontest_serveur.py d'abord</small></div>`;
   }
 }
 
@@ -397,13 +397,13 @@ function showDetail(id){
 function startContest(id){
   // Ouvrir la config : l'assistant "nouveau concours" y lit ?contest=,
   // sélectionne le concours, applique bandes/modes/dates et propose de lancer.
-  window.location.href = `configuration.html?contest=${encodeURIComponent(id)}`;
+  window.location.href = `radiocontest_configuration.html?contest=${encodeURIComponent(id)}`;
 }
 
 function prepareExternal(ref){
   // Concours WA7BNM (non vérifié) : la config le retrouvera via son id EXT_<ref>
   // dans la liste fusionnée, avec badge "à confirmer" et saisie manuelle des dates.
-  window.location.href = `configuration.html?contest=${encodeURIComponent('EXT_' + ref)}`;
+  window.location.href = `radiocontest_configuration.html?contest=${encodeURIComponent('EXT_' + ref)}`;
 }
 
 async function forceUpdate(){

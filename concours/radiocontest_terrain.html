@@ -1570,7 +1570,7 @@ async function sendMessage() {
 
   } catch(err) {
     removeThinking();
-    addMessage('agent', `❌ Erreur : ${err.message}\n\nVérifie que serveur.py tourne bien (python serveur.py).`);
+    addMessage('agent', `❌ Erreur : ${err.message}\n\nVérifie que radiocontest_serveur.py tourne bien (python radiocontest_serveur.py).`);
     console.error(err);
   }
 

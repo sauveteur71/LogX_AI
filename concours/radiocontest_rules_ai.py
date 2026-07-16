@@ -4,7 +4,7 @@
 Pipeline Phase 3 (v2) :
   1. téléchargement du règlement — PDF envoyé NATIVEMENT au modèle quand le
      fournisseur le permet (Anthropic) : tableaux, scans et mise en page
-     compris ; sinon extraction texte (rules.py) — règlements HTML gérés aussi
+     compris ; sinon extraction texte (radiocontest_rules.py) — règlements HTML gérés aussi
   2. appel d'extraction à SORTIE JSON FORCÉE (tool use Anthropic / json_object
      OpenAI / responseMimeType Gemini) — plus d'échec de parsing possible
   3. PASSE DE VÉRIFICATION adversariale : une checklist fermée (restrictions de
@@ -25,8 +25,8 @@ import os
 import re
 import urllib.request
 
-from rules import extract_document_text, DATE_RULE_PATTERN, calc_contest_date
-from validate_definitions import validate_definition
+from radiocontest_rules import extract_document_text, DATE_RULE_PATTERN, calc_contest_date
+from radiocontest_validate import validate_definition
 
 MAX_RULES_CHARS = 40000        # garde-fou taille prompt en mode texte
 MAX_PDF_BYTES = 25 * 1024 * 1024
@@ -166,7 +166,7 @@ Le règlement peut être dans n'importe quelle langue. Sois exigeant : un point
 # ─── APPELS FOURNISSEURS À SORTIE FORCÉE ─────────────────────────────────────
 
 def _http_json(url, payload, headers, timeout):
-    from utils import SSL_CTX
+    from radiocontest_utils import SSL_CTX
     req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                  headers=headers, method='POST')
     with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
@@ -244,7 +244,7 @@ def parse_ai_json(text):
 # ─── TÉLÉCHARGEMENT DU DOCUMENT ──────────────────────────────────────────────
 
 def _download_bytes(url, timeout=20):
-    from utils import SSL_CTX
+    from radiocontest_utils import SSL_CTX
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
         return resp.read()

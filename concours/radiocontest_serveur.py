@@ -2,18 +2,18 @@
 """
 RadioContest AI - Serveur principal v3.1
 Point d'entrée : démarrage du serveur HTTP et des tâches de fond.
-Lance avec : python serveur.py
-Puis ouvre  : http://localhost:8080/configuration.html
+Lance avec : python radiocontest_serveur.py
+Puis ouvre  : http://localhost:8080/radiocontest_configuration.html
 
 Le code est organisé en modules :
-  utils.py                — réseau, géodésie locator, modes numériques
-  contest_definitions.py  — base des concours (définitions, scoring, URLs règlements)
-  storage.py              — log partagé multi-opérateur + persistance disque
-  rules.py                — dates, mise à jour annuelle des règlements, concours externes WA7BNM
-  scoring.py              — moteur de score (valeur QSO, classement stations)
-  clusters.py             — sources de spots (clusters DX, propagation, lookups)
-  prompts.py              — prompts système du copilote IA
-  http_handler.py         — endpoints HTTP + orchestration du refresh
+  radiocontest_utils.py                — réseau, géodésie locator, modes numériques
+  radiocontest_definitions.py  — base des concours (définitions, scoring, URLs règlements)
+  radiocontest_storage.py              — log partagé multi-opérateur + persistance disque
+  radiocontest_rules.py                — dates, mise à jour annuelle des règlements, concours externes WA7BNM
+  radiocontest_scoring.py              — moteur de score (valeur QSO, classement stations)
+  radiocontest_clusters.py             — sources de spots (clusters DX, propagation, lookups)
+  radiocontest_prompts.py              — prompts système du copilote IA
+  radiocontest_http.py         — endpoints HTTP + orchestration du refresh
 """
 
 import sys
@@ -32,10 +32,10 @@ for _stream in (sys.stdout, sys.stderr):
 import http.server
 import threading
 
-from utils import PORT
-from storage import load_log_from_disk
-from rules import load_rules_cache, load_external_contests, schedule_annual_check
-from http_handler import Handler
+from radiocontest_utils import PORT
+from radiocontest_storage import load_log_from_disk
+from radiocontest_rules import load_rules_cache, load_external_contests, schedule_annual_check
+from radiocontest_http import Handler
 
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
@@ -59,12 +59,12 @@ if __name__ == '__main__':
     print('  RadioContest AI v3.1 -- F6KQJ/P JN15XC')
     print('  Rallye des Points Hauts 2026')
     print('=' * 60)
-    print(f'  -> http://localhost:{PORT}/logbook.html')
-    print(f'  -> http://localhost:{PORT}/rallye-vhf-terrain.html')
-    print(f'  -> http://localhost:{PORT}/configuration.html')
-    print(f'  -> http://localhost:{PORT}/calendrier.html')
+    print(f'  -> http://localhost:{PORT}/radiocontest_logbook.html')
+    print(f'  -> http://localhost:{PORT}/radiocontest_terrain.html')
+    print(f'  -> http://localhost:{PORT}/radiocontest_configuration.html')
+    print(f'  -> http://localhost:{PORT}/radiocontest_calendrier.html')
     print('=' * 60)
-    print(f'  Autres postes WiFi : http://{local_ip}:{PORT}/logbook.html')
+    print(f'  Autres postes WiFi : http://{local_ip}:{PORT}/radiocontest_logbook.html')
     print()
     print('  Ctrl+C pour arreter')
     print()
