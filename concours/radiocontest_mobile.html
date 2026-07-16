@@ -500,17 +500,6 @@
 </head>
 <body>
 
-<!-- API KEY MODAL -->
-<div class="modal-overlay" id="apiModal">
-  <div class="modal">
-    <h2>⚡ CONFIGURATION</h2>
-    <p>Entre ta clé API Anthropic pour démarrer.<br>Elle reste sur ton ordinateur uniquement.</p>
-    <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." />
-    <button class="modal-btn" onclick="startApp()">DÉMARRER ▶</button>
-    <div class="modal-note">🔒 Clé stockée localement, jamais partagée</div>
-  </div>
-</div>
-
 <!-- MAIN UI -->
 <header>
   <div class="header-left">
@@ -689,7 +678,6 @@ L'ID agent se trouve sur platform.claude.com → Agents → ton agent → copie 
 
 <script>
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
-let API_KEY = 'REMPLACE_PAR_TA_CLE';
 let isWaiting = false;
 let mapStations = [];
 let conversationHistory = [];
@@ -1326,7 +1314,6 @@ function hideCompass() {
 // (configurée dans CONFIG). La page démarre directement, sur mobile comme à
 // domicile, et s'adapte au concours actif.
 function startApp() {
-  document.getElementById('apiModal').style.display = 'none';
   document.getElementById('sendBtn').disabled = false;
   document.getElementById('liveDot').style.background = '#00FF88';
   addMessage('agent', '✅ Agent mobile connecté et prêt !\n\nClique sur 📡 ANALYSER pour une analyse complète des clusters et de ton log.');
