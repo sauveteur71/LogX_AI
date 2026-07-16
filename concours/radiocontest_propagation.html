@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RadioContest AI — Propagation & Écoute</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root {
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#1E2040;
+  --accent:#FF6B00;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#FFE566;--muted:#B8A040;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+}
+body.day-mode {
+  --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
+  --accent:#D05000; --accent2:#0060A0; --green:#007030; --red:#CC0030;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#606888;
+}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:3px}
+.logo span{color:var(--accent2)}
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
+.app-nav a{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+
+.container{max-width:1280px;margin:0 auto;padding:20px;display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+@media (max-width:900px){.container{grid-template-columns:1fr}}
+
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px}
+.panel-title{font-family:var(--font-mono);font-size:11px;color:var(--accent2);letter-spacing:3px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.panel-title small{color:var(--muted);letter-spacing:0;font-size:9px}
+
+/* Tuiles solaires */
+.solar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.solar-item{background:var(--bg3);border-radius:8px;padding:10px;text-align:center}
+.si-lbl{font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1px}
+.si-val{font-family:var(--font-mono);font-size:20px;font-weight:700;margin-top:2px}
+.si-sub{font-size:9px;color:var(--muted)}
+.muf-band{background:var(--bg3);border-radius:8px;padding:12px;text-align:center;margin-top:8px;border:1px solid var(--accent2)}
+.muf-val{font-family:var(--font-mono);font-size:30px;font-weight:800;color:var(--accent2)}
+
+/* Conditions par bande */
+.band-cond{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.bc-row{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px}
+.bc-name{width:70px;color:var(--text)}
+.bc-tag{padding:2px 10px;border-radius:4px;font-size:10px;letter-spacing:1px;min-width:56px;text-align:center}
+.bc-good{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.4)}
+.bc-fair{background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)}
+.bc-poor{background:rgba(255,45,85,.12);color:var(--red);border:1px solid rgba(255,45,85,.35)}
+.bc-open{color:var(--green);font-weight:700}
+.bc-closed{color:var(--muted)}
+
+/* Need list / cluster */
+.spot-row{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 12px;margin-bottom:5px;font-family:var(--font-mono);font-size:12px}
+.spot-row.sr-mult{border-color:var(--green);background:rgba(0,255,136,.06)}
+.spot-row.sr-done{opacity:.4}
+.sr-prio{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sr-call{width:110px;font-weight:700;color:var(--text);font-size:13px}
+.sr-freq{width:80px;color:var(--accent2)}
+.sr-band{width:56px;color:var(--muted)}
+.sr-val{width:110px;text-align:right}
+.sr-mult-badge{font-size:9px;letter-spacing:1px;color:var(--green);border:1px solid rgba(0,255,136,.4);border-radius:3px;padding:1px 6px}
+.sr-cap{width:80px;color:var(--accent)}
+.sr-info{flex:1;color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loading{text-align:center;padding:30px;font-family:var(--font-mono);color:var(--muted)}
+.filters{display:flex;gap:8px;margin-bottom:10px}
+.filter-btn{font-family:var(--font-mono);font-size:10px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
+.filter-btn.active{border-color:var(--accent2);color:var(--accent2)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Radio<span>Contest</span> AI — <span style="color:var(--green)">Propagation & Écoute</span></div>
+  <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)" id="lastRefresh">—</div>
+</header>
+
+<nav class="app-nav">
+  <a href="radiocontest_configuration.html">⚙ CONFIG</a>
+  <a href="radiocontest_logbook.html">📋 LOGBOOK</a>
+  <a href="radiocontest_carte.html">🗺️ CARTE IA</a>
+  <a href="radiocontest_propagation.html" class="active">📶 PROPAG</a>
+  <a href="radiocontest_calendrier.html">📅 CALENDRIER</a>
+</nav>
+<script src="radiocontest_statusbar.js"></script>
+
+<div class="container">
+
+  <!-- Colonne gauche : soleil, MUF, conditions -->
+  <div>
+    <div class="panel">
+      <div class="panel-title">☀️ SOLEIL & IONOSPHÈRE <small id="solarUpdated"></small></div>
+      <div class="solar-grid" id="solarGrid"><div class="loading">Chargement…</div></div>
+      <div class="muf-band">
+        <div class="si-lbl">MUF — FRÉQUENCE MAX UTILISABLE (3000 km)</div>
+        <div class="muf-val" id="mufVal">—</div>
+        <div class="si-sub" id="mufStation">ionosonde la plus proche</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📶 CONDITIONS PAR BANDE <small>N0NBH</small></div>
+      <div class="band-cond" id="bandCond"><div class="loading">…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">🌍 VHF / SPORADIQUE-E</div>
+      <div class="band-cond" id="vhfCond"><div class="loading">…</div></div>
+    </div>
+  </div>
+
+  <!-- Colonne droite : cluster trié par intérêt -->
+  <div class="panel">
+    <div class="panel-title">🎯 CLUSTER TRIÉ PAR INTÉRÊT — NEED LIST
+      <small id="spotsMeta"></small></div>
+    <div class="filters">
+      <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
+      <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 NOUVEAUX MULTS</button>
+      <button class="filter-btn" data-f="new" onclick="setFilter(this)">SANS DOUBLONS</button>
+    </div>
+    <div id="spotList"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
+      <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:monospace;color:#FF2D55">Ouvre cette page via le serveur : http://localhost:8080/radiocontest_propagation.html</div>';
+  }
+})();
+
+let spotsData = [];
+let filter = 'all';
+
+const PRIO_COLORS = {1:'#00FF88',2:'#FF2D55',3:'#FF9500',4:'#FFD60A',5:'#8E8E93',6:'#3A3A3C'};
+
+// La MUF dit quelles bandes HF sont physiquement ouvertes en ce moment
+const HF_BANDS_MHZ = [['10m',28],['15m',21],['20m',14],['40m',7],['80m',3.5],['160m',1.8]];
+
+async function loadPropagation(){
+  try{
+    const r = await fetch('/data/propagation');
+    if(!r.ok) return;
+    const d = await r.json();
+    const s = d.solar || {};
+
+    document.getElementById('solarUpdated').textContent = s.updated || '';
+    document.getElementById('solarGrid').innerHTML = [
+      ['SFI', s.sfi, 'flux solaire', s.sfi >= 120 ? 'var(--green)' : s.sfi >= 90 ? 'var(--yellow)' : 'var(--red)'],
+      ['INDEX K', s.k_index, s.k_index <= 2 ? 'stable' : s.k_index <= 4 ? 'agité' : 'orage !', s.k_index <= 2 ? 'var(--green)' : s.k_index <= 4 ? 'var(--yellow)' : 'var(--red)'],
+      ['INDEX A', s.a_index, 'géomagnétisme', s.a_index <= 15 ? 'var(--green)' : 'var(--yellow)'],
+      ['TACHES', s.sunspots, 'sunspots', 'var(--text)'],
+      ['RAYONS X', s.xray, 'éruptions', 'var(--text)'],
+      ['AURORE', s.aurora, s.geomag || '', 'var(--text)'],
+    ].map(([l, v, sub, col]) =>
+      `<div class="solar-item"><div class="si-lbl">${l}</div>
+       <div class="si-val" style="color:${col}">${v ?? '—'}</div>
+       <div class="si-sub">${sub}</div></div>`).join('');
+
+    // MUF + verdict bande par bande
+    const muf = d.muf && d.muf.muf;
+    document.getElementById('mufVal').textContent = muf ? muf + ' MHz' : '—';
+    document.getElementById('mufStation').textContent = d.muf
+      ? `ionosonde ${d.muf.station} (foF2 ${d.muf.fof2} MHz)` : 'donnée indisponible';
+
+    let condHtml = '';
+    if(muf){
+      condHtml += HF_BANDS_MHZ.map(([name, mhz]) => {
+        const open = mhz <= muf;
+        return `<div class="bc-row"><span class="bc-name">${name}</span>
+          <span class="${open ? 'bc-open' : 'bc-closed'}">${open ? '● OUVERTE (MUF)' : '○ fermée (MUF)'}</span></div>`;
+      }).join('');
+      condHtml += '<div style="height:8px"></div>';
+    }
+    condHtml += Object.entries(s.bands || {}).map(([name, dn]) => {
+      const tag = v => `<span class="bc-tag bc-${(v||'').toLowerCase().replace('good','good').replace('fair','fair').replace('poor','poor')}">${v||'?'}</span>`;
+      return `<div class="bc-row"><span class="bc-name">${name}</span>
+        ☀️${tag(dn.day)} 🌙${tag(dn.night)}</div>`;
+    }).join('');
+    document.getElementById('bandCond').innerHTML = condHtml || '<div class="loading">—</div>';
+
+    document.getElementById('vhfCond').innerHTML = Object.entries(s.vhf || {})
+      .filter(([k]) => k.includes('europe') || k.includes('aurora'))
+      .map(([k, v]) => {
+        const open = !/closed/i.test(v);
+        const label = k.replace('E-Skip/', 'Es ').replace('vhf-aurora/', 'Aurore ').replace(/_/g,' ');
+        return `<div class="bc-row"><span class="bc-name" style="width:130px">${label}</span>
+          <span class="${open ? 'bc-open' : 'bc-closed'}">${open ? '⚡ ' + v : v}</span></div>`;
+      }).join('') || '<div class="loading">—</div>';
+
+    document.getElementById('lastRefresh').textContent =
+      'MàJ ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+  }catch(e){ console.warn('propagation', e); }
+}
+
+async function loadSpots(){
+  try{
+    const r = await fetch('/data/spots_ranked');
+    if(!r.ok) return;
+    const d = await r.json();
+    spotsData = d.spots || [];
+    const m = d.meta || {};
+    document.getElementById('spotsMeta').textContent =
+      `${m.contest || ''} · ${m.current_score || 0} pts · ${m.nb_dxcc || 0} pays · ${spotsData.length} spots`;
+    renderSpots();
+  }catch(e){ console.warn('spots', e); }
+}
+
+function setFilter(el){
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  filter = el.dataset.f;
+  renderSpots();
+}
+
+function renderSpots(){
+  let list = spotsData;
+  if(filter === 'mult') list = list.filter(s => s.new_mult && !s.already_done);
+  if(filter === 'new')  list = list.filter(s => !s.already_done);
+  if(!list.length){
+    document.getElementById('spotList').innerHTML =
+      '<div class="loading">Aucun spot' + (filter !== 'all' ? ' pour ce filtre' : '') +
+      ' — lance un refresh depuis la CARTE IA (📡 ANALYSER).</div>';
+    return;
+  }
+  document.getElementById('spotList').innerHTML = list.map(s => `
+    <div class="spot-row ${s.new_mult && !s.already_done ? 'sr-mult' : ''} ${s.already_done ? 'sr-done' : ''}">
+      <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="priorité ${s.priority}"></span>
+      <span class="sr-call">${s.call}</span>
+      <span class="sr-freq">${s.freq || ''}</span>
+      <span class="sr-band">${s.band} MHz</span>
+      <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : '+' + (s.value || s.points) + ' pts'}</span>
+      ${s.new_mult && !s.already_done ? '<span class="sr-mult-badge">📈 NOUVEAU MULT</span>' : ''}
+      <span class="sr-cap">${s.bearing != null ? s.bearing + '° ' + s.cardinal : ''}</span>
+      <span class="sr-info" title="${s.explanation}">${s.dist_km ? s.dist_km + ' km · ' : ''}${s.explanation}</span>
+    </div>`).join('');
+}
+
+loadPropagation();
+loadSpots();
+setInterval(loadPropagation, 5 * 60 * 1000);   // solaire : lent (caches 15 min)
+setInterval(loadSpots, 60 * 1000);             // need list : chaque minute
+</script>
+</body>
+</html>

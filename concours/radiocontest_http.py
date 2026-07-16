@@ -140,6 +140,7 @@ def _fetch_spots_hf_src(callsign, no_digi):
             seen_hf.add(key)
             s.append(sp)
     print(f"[DATA] HF: {len(s)} spots total (DXWatch:{len(s_summit)} F5LEN:{len(s_f5len)} Telnet:{len(s_telnet)} Browser:{len(s_browser)})")
+    SPOTS_CACHE['HF'] = s   # consommé par /data/spots_ranked sans re-fetch
     return s
 
 def _fetch_on4kst_src(cfg):
@@ -740,6 +741,66 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     _coach_dxmaps_ts = time.time()
                 dxmaps = _coach_dxmaps_cache
             self._json(coach.build_coach_state(cfg_snapshot, shared_log, dxmaps))
+            return
+
+        # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min)
+        if path == '/data/propagation':
+            from radiocontest_clusters import fetch_solar_data, fetch_muf
+            cfg_snap = self._cfg_snapshot()
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            solar = fetch_solar_data()
+            muf = fetch_muf(my_ll[0], my_ll[1]) if my_ll[0] else fetch_muf()
+            self._json({'solar': solar, 'muf': muf})
+            return
+
+        # Need list structurée : les spots du dernier refresh évalués au barème
+        # du concours actif et triés par valeur (nouveaux mults en tête) —
+        # AUCUN re-fetch réseau, aucune IA : lecture des caches, pollable.
+        if path == '/data/spots_ranked':
+            from radiocontest_scoring import build_ranked_spots
+            cfg_snap = self._cfg_snapshot()
+            spots_by_band = {}
+            for key, label in (('144', '144 MHz'), ('432', '432 MHz'),
+                               ('50', '50 MHz'), ('HF', 'HF')):
+                cached = SPOTS_CACHE.get(key) or []
+                if cached:
+                    spots_by_band[label] = list(cached)
+            with browser_spots_lock:
+                if browser_spots_cache and time.time() - browser_spots_ts < 600:
+                    merged = spots_by_band.setdefault('HF', [])
+                    seen = {(sp.get('dx', ''), str(sp.get('freq', '')))
+                            for sp in merged if isinstance(sp, dict)}
+                    for sp in browser_spots_cache:
+                        k = (sp.get('dx', ''), str(sp.get('freq', '')))
+                        if k not in seen:
+                            merged.append(sp)
+                            seen.add(k)
+            ranked, meta = build_ranked_spots({}, spots_by_band, cfg_snap)
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15AA')
+            out = []
+            for s in ranked[:40]:
+                sc = s.get('scoring', {})
+                dx_ll = locator_to_latlon(s.get('locator', ''))
+                entry = {
+                    'call': s.get('call', ''), 'band': s.get('band', ''),
+                    'freq': s.get('freq', ''), 'locator': s.get('locator', ''),
+                    'dist_km': s.get('dist_km', 0), 'time': s.get('time', ''),
+                    'source': s.get('source', ''),
+                    'points': sc.get('direct_pts', 0),
+                    'new_mult': bool(sc.get('new_mult')),
+                    'mult_type': sc.get('mult_type', ''),
+                    'priority': s.get('priority', 5),
+                    'value': s.get('value_total', 0),
+                    'already_done': bool(sc.get('already_done')),
+                    'explanation': sc.get('explanation', ''),
+                }
+                if my_ll[0] and dx_ll[0]:
+                    from radiocontest_utils import bearing, cardinal
+                    deg = bearing(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
+                    entry['bearing'] = deg
+                    entry['cardinal'] = cardinal(deg)
+                out.append(entry)
+            self._json({'spots': out, 'meta': meta})
             return
 
         # Exports du log partagé — Cabrillo v3 et ADIF 3
