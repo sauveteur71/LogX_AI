@@ -11,11 +11,12 @@ from radiocontest_scoring import calc_qso_value
 
 
 def score(contest, dx, band, dist_km=0, dx_loc='', done_calls=None,
-          done_dxcc=None, my_call='F6KQJ', my_loc='JN15XC'):
+          done_dxcc=None, done_zones=None, my_call='F6KQJ', my_loc='JN15XC'):
     """Appel simplifié : état de log vide par défaut.
-    done_calls : {indicatif: {bandes}} — structure du moteur."""
+    done_calls : {indicatif: {bandes}} — structure du moteur.
+    done_dxcc : clés pays cty.dat ('K', 'DL'...) ; done_zones : zones CQ (str)."""
     return calc_qso_value(contest, dx, dx_loc, my_call, my_loc,
-                          done_calls or {}, set(), set(), set(),
+                          done_calls or {}, set(), set(), done_zones or set(),
                           done_dxcc or set(), 0, band=band, dist_km=dist_km)
 
 
@@ -58,9 +59,16 @@ def test_euhfc_hors_europe_invalide():
 
 
 def test_euhfc_russie_asiatique_invalide():
-    """UA9 = Asie dans la liste CQWW — piège classique."""
-    r = score('EU_HF_CHAMP', 'UA9XYZ', '14')
+    """UA0 = Russie asiatique (cty.dat) — piège classique."""
+    r = score('EU_HF_CHAMP', 'UA0ABC', '14')
     assert r['direct_pts'] == 0
+
+
+def test_euhfc_komi_ua9x_valide():
+    """Subtilité cty.dat : UA9X (Komi) est en Russie EUROPÉENNE — l'ancienne
+    table à 2 caractères classait tout UA9 en Asie et jetait des QSO valides."""
+    r = score('EU_HF_CHAMP', 'UA9XYZ', '14')
+    assert r['direct_pts'] == 1
 
 
 # ─── WAE DX Contest : EU↔DX uniquement, mults pondérés par bande ─────────────
@@ -88,8 +96,8 @@ def test_wae_mult_pondere_par_bande():
 
 
 def test_wae_pays_deja_travaille_pas_de_mult():
-    # dx_country est approximé par les 2 premiers caractères de l'indicatif
-    r = score('WAEDC_SSB', 'W1AW', '14', done_dxcc={'W1'})
+    # Clé pays cty.dat : W1AW → 'K' (USA), zone CQ 5
+    r = score('WAEDC_SSB', 'W1AW', '14', done_dxcc={'K'}, done_zones={'5'})
     assert not r['new_mult']
 
 
@@ -97,9 +105,16 @@ def test_zone_dxcc_pas_de_faux_nouveau_mult():
     """Régression du bug historique : l'indicatif était comparé au set des
     ZONES (toujours absent) → toute station passait pour un nouveau mult."""
     r1 = score('WAEDC_SSB', 'W1AW', '14')
-    assert r1['new_mult']                       # 1er W1 : vrai nouveau DXCC
-    r2 = score('WAEDC_SSB', 'W1XYZ', '14', done_dxcc={'W1'})
-    assert not r2['new_mult']                   # W1 déjà travaillé
+    assert r1['new_mult']                       # 1er USA : vrai nouveau mult
+    r2 = score('WAEDC_SSB', 'W2XYZ', '14', done_dxcc={'K'}, done_zones={'5'})
+    assert not r2['new_mult']                   # USA + zone 5 déjà travaillés
+
+
+def test_zone_cq_reelle_detectee():
+    """Porto Rico (KP4, zone 8) après un QSO USA (K, zone 5) : nouveau pays
+    ET nouvelle zone — détectable uniquement avec la base cty.dat."""
+    r = score('WAEDC_SSB', 'KP4XX', '14', done_dxcc={'K'}, done_zones={'5'})
+    assert r['new_mult']
 
 
 # ─── Cohérence générale du moteur ────────────────────────────────────────────

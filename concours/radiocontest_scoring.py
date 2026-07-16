@@ -10,31 +10,15 @@ from radiocontest_storage import shared_log
 # ─── MOTEUR DE SCORING UNIVERSEL ─────────────────────────────────────────────
 # Calcule la valeur réelle en points d'un contact selon le règlement actif
 
-# Mapping continent par préfixe
-CONTINENT_MAP = {
-    'F':'EU','G':'EU','DL':'EU','ON':'EU','PA':'EU','HB':'EU','OE':'EU',
-    'I':'EU','EA':'EU','CT':'EU','SM':'EU','LA':'EU','OH':'EU','OZ':'EU',
-    'SP':'EU','OK':'EU','OM':'EU','HA':'EU','YO':'EU','LZ':'EU','SV':'EU',
-    'TA':'EU','UA':'EU','UA9':'AS','UA0':'AS','R':'EU',
-    'W':'NA','K':'NA','N':'NA','AA':'NA','AB':'NA','AC':'NA','AD':'NA',
-    'AE':'NA','AF':'NA','AG':'NA','AI':'NA','AJ':'NA','AK':'NA',
-    'VE':'NA','XE':'NA','XF':'NA',
-    'JA':'AS','BY':'AS','HL':'AS','DS':'AS','VU':'AS','HS':'AS',
-    '9V':'AS','BV':'AS','JT':'AS','VK':'OC','ZL':'OC',
-    'ZS':'AF','5B':'EU','IG9':'EU','IS':'EU',
-    'PY':'SA','LU':'SA','CE':'SA','OA':'SA','YV':'SA',
-    'VK9':'OC','YB':'OC','T8':'OC','KH6':'OC',
-}
+# Pays / continent / zones : base DXCC hors ligne cty.dat (AD1C) — la même
+# référence que N1MM/DXLog. Remplace l'ancienne table de ~50 préfixes qui
+# approximait le pays par 2 caractères et défaillait en 'EU' par défaut.
+import radiocontest_dxcc as dxcc
+
 
 def get_continent(callsign):
-    """Retourne le continent d'un indicatif"""
-    call = callsign.split('/')[0].upper()
-    # Essai du préfixe le plus long en premier
-    for length in [3, 2, 1]:
-        pfx = call[:length]
-        if pfx in CONTINENT_MAP:
-            return CONTINENT_MAP[pfx]
-    return 'EU'  # défaut Europe
+    """Retourne le continent d'un indicatif (base cty.dat, repli 'EU')."""
+    return dxcc.continent(callsign, default='EU')
 
 def get_large_locator(locator):
     """Retourne le grand carré (4 premiers caractères) d'un locator"""
@@ -188,20 +172,22 @@ def _mult_large_square(ctx, pts, result, scoring):
 
 def _mult_zone_dxcc(ctx, pts, result, scoring):
     nb_mults = len(ctx['done_cq_zones']) + len(ctx['done_dxcc'])
-    # Pas de table indicatif→zone CQ : seule la nouveauté DXCC est détectable
-    # au spot. (Bug historique : l'ancien test comparait l'INDICATIF au set des
-    # zones — toujours vrai, chaque station passait pour un nouveau mult.)
+    # Zone CQ réelle depuis la base cty.dat (le bug historique comparait
+    # l'INDICATIF au set des zones — toujours vrai). None si indicatif inconnu.
+    dx_zone = ctx.get('dx_cq_zone')
+    new_zone = dx_zone is not None and str(dx_zone) not in ctx['done_cq_zones']
     new_dxcc = (ctx['dx_country'] not in ctx['done_dxcc'])
-    if new_dxcc:
+    if new_zone or new_dxcc:
         result['new_mult'] = True
-        result['mult_type'] = 'dxcc'
+        result['mult_type'] = 'zone_cq' if new_zone else 'dxcc'
         result['mult_value'] = 1
         # Impact = score_actuel / nb_mults (valeur d'un mult)
         mult_value_est = ctx['current_score_total'] // max(nb_mults, 1)
         result['total_impact'] = pts + mult_value_est
+        label = 'NOUVELLE ZONE CQ' if new_zone else 'NOUVEAU DXCC'
         result['explanation'] = (
             f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}) + "
-            f"NOUVEAU DXCC → +{mult_value_est}pts estimés"
+            f"{label} → +{mult_value_est}pts estimés"
         )
         result['priority'] = 1 if pts == 3 else 2
     else:
@@ -428,9 +414,10 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
     ctx = {
         'dx_base': dx_base, 'my_base': my_base,
         'dx_locator': dx_locator, 'my_locator': my_locator,
-        'dx_country': dx_base[:2] if dx_base else '??',
-        'my_country': my_base[:2] if my_base else 'F',
+        'dx_country': dxcc.country_key(dx_base),
+        'my_country': dxcc.country_key(my_base) if my_base else 'F',
         'dx_cont': get_continent(dx_base), 'my_cont': get_continent(my_base),
+        'dx_cq_zone': dxcc.cq_zone(dx_base),
         'dist_km': dist_km, 'band_norm': band_norm, 'source': source,
         'mode': mode,
         'done_locators': done_locators, 'done_large_squares': done_large_squares,
@@ -592,6 +579,15 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
             done_calls_by_band.setdefault(base, set()).add(band_norm)
         return base
 
+    def _mark_country_zone(base):
+        """Pays et zone CQ travaillés — via la base cty.dat hors ligne."""
+        if not base:
+            return
+        done_dxcc.add(dxcc.country_key(base))
+        z = dxcc.cq_zone(base)
+        if z is not None:
+            done_cq_zones.add(str(z))
+
     # Depuis logs EDI/ADIF (un fichier EDI = une bande = la clé band_label)
     for band_label, log_data in logs.items():
         for q in log_data.get('qsos', []):
@@ -601,7 +597,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                 done_locators.add(loc)
                 large = get_large_locator(loc)
                 if large: done_large_squares.add(large)
-            done_dxcc.add(base[:2])
+            _mark_country_zone(base)
             current_score += q.get('points', 0)
 
     # Depuis log partagé multi-op (band déjà présent par QSO)
@@ -612,7 +608,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
             done_locators.add(loc)
             large = get_large_locator(loc)
             if large: done_large_squares.add(large)
-        done_dxcc.add(base[:2] if base else '')
+        _mark_country_zone(base)
         if q.get('cq_zone'): done_cq_zones.add(str(q['cq_zone']))
         current_score += q.get('points', 0)
 
