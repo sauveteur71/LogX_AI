@@ -75,3 +75,40 @@ def test_exchange_mults_euhfc():
 def test_exchange_mults_non_applicable():
     from radiocontest_coach import exchange_mult_stats
     assert exchange_mult_stats({'scoring': {'bricks': {}}}, [], '') is None
+
+
+# ─── Prévision Es / aurora (B5) ──────────────────────────────────────────────
+
+def test_es_probable_ete_pic():
+    from radiocontest_coach import es_aurora_forecast
+    f = es_aurora_forecast({'bands': ['144']}, None, None,
+                           datetime.datetime(2026, 7, 1, 9, 0))
+    assert any(x['kind'] == 'es' and x['level'] == 'probable' for x in f)
+
+
+def test_es_confirme_prioritaire():
+    from radiocontest_coach import es_aurora_forecast
+    f = es_aurora_forecast({'bands': ['50']}, {'es_active': True}, None,
+                           datetime.datetime(2026, 7, 1, 9, 0))
+    assert f[0]['level'] == 'confirme'
+
+
+def test_aurora_k_eleve():
+    from radiocontest_coach import es_aurora_forecast
+    f = es_aurora_forecast({'bands': ['144']}, None, 7,
+                           datetime.datetime(2026, 7, 1, 3, 0))
+    assert any(x['kind'] == 'aurora' and x['level'] == 'fort' for x in f)
+
+
+def test_pas_es_en_hiver():
+    from radiocontest_coach import es_aurora_forecast
+    f = es_aurora_forecast({'bands': ['144']}, None, 2,
+                           datetime.datetime(2026, 1, 1, 9, 0))
+    assert not any(x['kind'] == 'es' for x in f)
+
+
+def test_pas_es_sur_hf():
+    from radiocontest_coach import es_aurora_forecast
+    f = es_aurora_forecast({'bands': ['14', '7']}, None, None,
+                           datetime.datetime(2026, 7, 1, 9, 0))
+    assert not any(x['kind'] == 'es' for x in f)
