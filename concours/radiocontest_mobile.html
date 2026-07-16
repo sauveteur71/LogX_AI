@@ -1483,13 +1483,15 @@ async function sendMessage() {
 
     conversationHistory.push({ role: 'user', content: enrichedText });
 
+    // L'agent répond dans la langue choisie (directive ajoutée au prompt système).
+    const _dir = (window.rcLangDirective ? window.rcLangDirective() : '');
     const res = await fetch('/proxy/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
+        system: (SYSTEM_PROMPT || '') + (_dir ? '\n\n' + _dir : ''),
         messages: conversationHistory,
       })
     });
