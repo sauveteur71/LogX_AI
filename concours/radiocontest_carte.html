@@ -831,6 +831,7 @@ async function fetchTerrainData(){
     if(data.qso_total!==undefined)document.getElementById('scoreQSO').textContent=data.qso_total;
     if(data.system_prompt)systemPrompt=data.system_prompt;
     // Affichage carte : couche structurée du moteur (refreshRankedStations)
+    if(data.on4kst_mentions) checkMentionAlerts(data.on4kst_mentions);
     return data;
   }catch(e){return null;}
 }
@@ -974,6 +975,7 @@ async function refreshRankedStations(){
     const r=await fetch('/data/spots_ranked');
     if(!r.ok)return;
     const d=await r.json();
+    checkNewMultAlerts(d.spots);   // alerte sur nouveau mult spotté
     const stns=(d.spots||[])
       .filter(s=>s.locator||(s.lat!=null&&s.lon!=null))  // position sûre requise
       .slice(0,25)
@@ -1114,6 +1116,62 @@ function toggleTheme(){
     });
   }
 })();
+
+// ─── ALERTES ACTIVES (son configurable + visuel) ─────────────────────────────
+// Déclenchées par : nouveau multiplicateur spotté, DX rare, mention de notre
+// indicatif dans le chat ON4KST. Réglages (son on/off, volume) dans CONFIG.
+const _alertedMults = {};        // call → timestamp (anti-répétition 20 min)
+let _mentionSeen = new Set();
+
+function alertSettings(){
+  const c = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
+  return { on: c.alert_sound !== false, vol: (c.alert_volume != null ? c.alert_volume : 60)/100 };
+}
+
+function alertBeep(kind){
+  const s = alertSettings();
+  if(!s.on || s.vol <= 0) return;
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const notes = kind==='mult' ? [880,1320] : kind==='mention' ? [660,880,1100] : [700];
+    notes.forEach((f,i)=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.frequency.value=f; o.type='sine';
+      g.gain.value=s.vol*0.25;
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime+i*0.13); o.stop(ctx.currentTime+i*0.13+0.12);
+    });
+  }catch(e){}
+}
+
+function flashAlert(text, kind){
+  addMsg('agent', text, kind==='mention' ? 'auto-alert' : 'dx');
+  alertBeep(kind);
+  // clignotement du titre d'onglet
+  const orig = document.title;
+  let n=0; const iv=setInterval(()=>{ document.title = (n%2? '🔔 ' : '') + orig; if(++n>=8){clearInterval(iv); document.title=orig;} }, 500);
+}
+
+function checkNewMultAlerts(spots){
+  const now = Date.now();
+  (spots||[]).forEach(s=>{
+    if(!s.new_mult || s.already_done) return;
+    const last = _alertedMults[s.call];
+    if(last && now-last < 20*60*1000) return;   // déjà signalé récemment
+    _alertedMults[s.call] = now;
+    flashAlert(`📈 NOUVEAU MULT spotté : ${s.call} sur ${s.band} MHz`+
+               (s.freq?` (${s.freq})`:'')+(s.bearing!=null?` — cap ${s.bearing}° ${s.cardinal}`:''), 'mult');
+  });
+}
+
+function checkMentionAlerts(mentions){
+  (mentions||[]).forEach(m=>{
+    const key = m.time+'|'+m.call+'|'+m.text;
+    if(_mentionSeen.has(key)) return;
+    _mentionSeen.add(key);
+    flashAlert(`💬 ON4KST — ${m.call} te mentionne : « ${m.text} »`, 'mention');
+  });
+}
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 loadConfig();

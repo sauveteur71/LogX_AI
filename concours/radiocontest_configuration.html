@@ -718,6 +718,18 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="input-note">En deçà → contact ✅ PROBABLE</div>
         </div>
         <div class="form-group">
+          <label>SON DES ALERTES</label>
+          <select id="alert_sound">
+            <option value="1">Activé</option>
+            <option value="">Silencieux</option>
+          </select>
+          <div class="input-note">Bip sur nouveau mult, DX rare, mention ON4KST</div>
+        </div>
+        <div class="form-group">
+          <label>VOLUME ALERTES (%)</label>
+          <input type="number" id="alert_volume" placeholder="60" value="60" min="0" max="100">
+        </div>
+        <div class="form-group">
           <label>RAFRAÎCHISSEMENT AUTO (MIN)</label>
           <input type="number" id="refresh_min" placeholder="2" value="2" min="1" max="30">
         </div>
@@ -2005,6 +2017,8 @@ function saveConfig(silent = false) {
     rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
     alert_dx_km: document.getElementById('alert_dx_km').value,
     spotter_reliable_km: document.getElementById('spotter_reliable_km').value,
+    alert_sound: document.getElementById('alert_sound').value !== '',
+    alert_volume: parseInt(document.getElementById('alert_volume').value, 10) || 60,
     refresh_min: document.getElementById('refresh_min').value,
     priority_mode: document.getElementById('priority_mode').value,
     spot_prefix_filter: document.getElementById('spot_prefix_filter').value,
@@ -2170,6 +2184,8 @@ function loadSavedConfig() {
     }
     if(c.alert_dx_km) document.getElementById('alert_dx_km').value = c.alert_dx_km;
     if(c.spotter_reliable_km) document.getElementById('spotter_reliable_km').value = c.spotter_reliable_km;
+    if(c.alert_sound === false) document.getElementById('alert_sound').value = '';
+    if(c.alert_volume != null) document.getElementById('alert_volume').value = c.alert_volume;
     if(c.refresh_min) document.getElementById('refresh_min').value = c.refresh_min;
     if(c.priority_mode) document.getElementById('priority_mode').value = c.priority_mode;
     if(c.spot_prefix_filter !== undefined) document.getElementById('spot_prefix_filter').value = c.spot_prefix_filter;
