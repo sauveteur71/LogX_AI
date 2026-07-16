@@ -1,2 +1,6 @@
 concours/clef API.txt
 concours/__pycache__/
+concours/config.json
+concours/calldb.json
+concours/shared_log.json
+concours/tests/__pycache__/
