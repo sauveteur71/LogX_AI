@@ -1017,6 +1017,29 @@ async function submitQSO(){
       try{ updateStats(); }catch(e){ console.warn('updateStats',e); }
       try{ updateLastQso(qso); }catch(e){}
       playBeep(880, 80);
+    } else if(res.status === 409){
+      // Doublon détecté par le serveur : l'opérateur décide (2e période,
+      // dupe assumé pour l'arbitre...) — confirm() volontairement bloquant.
+      const err = await res.json();
+      const ex = err.existing || {};
+      if(confirm(`DOUBLON : ${qso.call} déjà contacté sur ${qso.band} MHz en ${qso.mode}`+
+                 `${ex.time ? ' à '+ex.time : ''}${ex.operator ? ' par '+ex.operator : ''}.\n\n`+
+                 `Enregistrer quand même ?`)){
+        const res2 = await fetch('/log/add', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({...qso, force:true})
+        });
+        if(res2.ok){
+          qsoLog.push(qso); bcBroadcast('add', qso); lastQsoTime = Date.now();
+          clearForm(); document.getElementById('inputCall').focus();
+          try{ renderLog(); }catch(e){} try{ updateStats(); }catch(e){}
+          playBeep(880, 80);
+        } else {
+          notify('Erreur serveur : '+(await res2.json()).error);
+        }
+      } else {
+        notify('Doublon ignoré — QSO non enregistré.');
+      }
     } else {
       const err = await res.json();
       notify('Erreur serveur : '+err.error);
@@ -1132,9 +1155,11 @@ async function syncOfflineQueue(){
   const synced = [];
   for(const qso of queue){
     try{
+      // force:true : ces QSO ont déjà été validés à la saisie (mode hors
+      // ligne) — le contrôle de doublon ne doit pas les faire disparaître.
       const res = await fetch('/log/add', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(qso)
+        body: JSON.stringify({...qso, force:true})
       });
       if(res.ok) synced.push(qso.id);
     }catch(e){ break; } // serveur encore inaccessible
