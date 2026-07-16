@@ -15,12 +15,20 @@ def test_table_complete():
     assert DEPARTMENTS['974'] == 'La Réunion'
 
 
-def test_dept_apres_rst():
-    """Le RST de tête est retiré ; le département suit."""
-    assert dept_from_exchange('59 042') == '04'     # RST 59 + dept 04
-    assert dept_from_exchange('599 042') == '04'    # RST CW 599 + dept 04
-    assert dept_from_exchange('59 75') == '75'      # RST 59 + Paris
-    assert dept_from_exchange('75') == '75'         # dept seul (Paris, non-RST)
+def test_dept_seul_production():
+    """Cas de PRODUCTION : le champ DEPT RCU contient le département SEUL, y
+    compris ceux dont le n° ressemble à un RST (13, 33, 44, 59...)."""
+    for d in ['33', '59', '13', '44', '31', '35', '43', '54', '57', '75', '06', '90']:
+        assert dept_from_exchange(d) == d, f"dept seul {d} perdu"
+    assert dept_from_exchange('971') == '971'       # DOM
+    assert dept_from_exchange('2A') == '2A'
+
+
+def test_dept_format_combine():
+    """Format combiné « RST dept » (plusieurs tokens) : le RST de tête est retiré."""
+    assert dept_from_exchange('59 04') == '04'      # RST 59 + dept 04
+    assert dept_from_exchange('599 04') == '04'     # RST CW 599 + dept 04
+    assert dept_from_exchange('59 33') == '33'      # RST 59 + Gironde
     assert dept_from_exchange('599 999') == ''      # 999 invalide, pas de dept
 
 
@@ -37,12 +45,13 @@ def test_echange_sans_dept():
 
 
 def test_comptage_distinct():
+    # Format de production : département seul dans num_rcvd
     log = [
-        {'contest': 'REF_160M', 'num_rcvd': '59 04'},    # 04
-        {'contest': 'REF_160M', 'num_rcvd': '599 04'},   # 04 (doublon)
-        {'contest': 'REF_160M', 'num_rcvd': '59 75'},    # Paris
-        {'contest': 'REF_160M', 'num_rcvd': '5NN 2A'},   # 2A
-        {'contest': 'AUTRE', 'num_rcvd': '59 13'},       # autre concours : ignoré
+        {'contest': 'REF_160M', 'num_rcvd': '33'},   # Gironde
+        {'contest': 'REF_160M', 'num_rcvd': '33'},   # doublon
+        {'contest': 'REF_160M', 'num_rcvd': '59'},   # Nord
+        {'contest': 'REF_160M', 'num_rcvd': '2A'},   # Corse-du-Sud
+        {'contest': 'AUTRE', 'num_rcvd': '13'},      # autre concours : ignoré
     ]
     depts = department_mult_count(log, 'REF_160M')
-    assert depts == {'04', '75', '2A'}
+    assert depts == {'33', '59', '2A'}

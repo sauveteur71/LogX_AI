@@ -329,16 +329,18 @@ def es_aurora_forecast(cdef, dxmaps=None, k_index=None, now=None):
         k = float(k_index) if k_index not in (None, '') else None
     except (ValueError, TypeError):
         k = None
-    if k is not None:
-        if k >= 7:
-            out.append({'kind': 'aurora', 'level': 'fort',
-                        'text': f"🔴 K={k:.0f} ORAGE GÉOMAGNÉTIQUE — aurora VHF probable "
-                                f"(antennes vers le NORD, signaux 'raspy'), mais HF bandes "
-                                f"hautes perturbées."})
-        elif k >= 5:
-            out.append({'kind': 'aurora', 'level': 'possible',
-                        'text': f"🟡 K={k:.0f} — aurora VHF possible, tente le nord sur 2 m "
-                                f"(polarisation aléatoire)."})
+    if k is not None and k >= 5:
+        if is_vhf:
+            lvl = 'fort' if k >= 7 else 'possible'
+            out.append({'kind': 'aurora', 'level': lvl,
+                        'text': (f"🔴 K={k:.0f} ORAGE GÉOMAGNÉTIQUE — " if k >= 7 else f"🟡 K={k:.0f} — ")
+                                + "aurora VHF possible : antennes vers le NORD sur 2 m "
+                                  "(signaux 'raspy', polarisation aléatoire)."})
+        elif k >= 6:
+            # Concours HF : l'aurora ne se travaille pas, mais elle DÉGRADE la HF
+            out.append({'kind': 'aurora', 'level': 'info',
+                        'text': f"🟡 K={k:.0f} — perturbation géomagnétique : HF bandes hautes "
+                                f"(14/21/28) dégradées, privilégie les bandes basses."})
     return out
 
 
