@@ -88,3 +88,53 @@ def department_mult_count(shared_log, contest_id=''):
         if d:
             depts.add(d)
     return depts
+
+
+# ─── TABLEAU DE CHASSE (carte de France à verdir) ────────────────────────────
+# 96 métropolitains (01-95 + 2A/2B) : la cible du « verdir toute la France ».
+# Les DOM sont un bonus, comptés à part (hors carte métropolitaine).
+METRO = [c for c in DEPARTMENTS if c not in ('971', '972', '973', '974', '975', '976')]
+DOM = ['971', '972', '973', '974', '975', '976']
+
+GEOJSON_FILE = 'france_departements.geojson'
+GEOJSON_URL = ('https://raw.githubusercontent.com/gregoiredavid/france-geojson/'
+               'master/departements-version-simplifiee.geojson')
+
+
+def departments_progress(shared_log, contest_id=''):
+    """Tableau de chasse : départements contactés vs total, pour la carte et
+    la grille. { worked:[...], metro_total, metro_done, dom_done, all:{code:nom} }."""
+    worked = department_mult_count(shared_log, contest_id)
+    metro_done = sorted(w for w in worked if w in METRO)
+    dom_done = sorted(w for w in worked if w in DOM)
+    return {
+        'worked': sorted(worked),
+        'metro': METRO,
+        'metro_total': len(METRO),
+        'metro_done': len(metro_done),
+        'dom': DOM,
+        'dom_done': len(dom_done),
+        'all': DEPARTMENTS,
+    }
+
+
+def load_france_geojson():
+    """Contenu du GeoJSON des départements (cache disque, re-téléchargé s'il
+    manque). Retourne le texte JSON ou '' si indisponible hors ligne."""
+    import os
+    if os.path.exists(GEOJSON_FILE):
+        try:
+            with open(GEOJSON_FILE, encoding='utf-8') as f:
+                return f.read()
+        except Exception:
+            pass
+    from radiocontest_utils import fetch_url
+    data = fetch_url(GEOJSON_URL, timeout=30)
+    if data and len(data) > 100000 and 'FeatureCollection' in data:
+        try:
+            with open(GEOJSON_FILE, 'w', encoding='utf-8', newline='') as f:
+                f.write(data)
+        except Exception:
+            pass
+        return data
+    return ''

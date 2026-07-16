@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RadioContest AI — Départements (REF)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root {
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
+  --accent:#FF6B00;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+}
+body.day-mode {
+  --bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
+  --accent:#D05000;--accent2:#0060A0;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;
+}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:3px}
+.logo span{color:var(--accent2)}
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+
+.container{max-width:1280px;margin:0 auto;padding:20px;display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
+@media (max-width:900px){.container{grid-template-columns:1fr}}
+
+/* Progression */
+.progress-panel{grid-column:1/-1;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px}
+.progress-head{display:flex;align-items:baseline;gap:14px;margin-bottom:10px;flex-wrap:wrap}
+.progress-count{font-family:var(--font-mono);font-size:30px;font-weight:800;color:var(--green)}
+.progress-total{font-family:var(--font-mono);font-size:16px;color:var(--muted)}
+.progress-label{font-size:14px;color:var(--text)}
+.progress-dom{font-family:var(--font-mono);font-size:13px;color:var(--accent2);margin-left:auto}
+.progress-bar{height:14px;background:var(--bg3);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--green),#00D4FF);transition:width .6s ease;border-radius:8px}
+.progress-msg{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:8px}
+
+/* Carte */
+.map-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+#map{height:560px;width:100%;background:var(--bg3)}
+.map-fallback{padding:30px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:13px}
+
+/* Grille des départements */
+.grid-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px}
+.grid-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:2px;margin-bottom:10px}
+.dept-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.dept-cell{font-family:var(--font-mono);font-size:12px;text-align:center;padding:6px 2px;border-radius:4px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);transition:all .3s}
+.dept-cell.worked{background:rgba(0,255,136,.18);color:var(--green);border-color:var(--green);font-weight:700}
+.dept-dom{margin-top:10px}
+.legend{display:flex;gap:14px;font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:12px}
+.legend b{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:middle;margin-right:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Radio<span>Contest</span> AI — <span style="color:var(--green)">Départements REF</span></div>
+  <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted)" id="contestName">—</div>
+</header>
+
+<nav class="app-nav">
+  <a href="radiocontest_configuration.html">⚙ CONFIG</a>
+  <a href="radiocontest_logbook.html">📋 LOGBOOK</a>
+  <a href="radiocontest_carte.html">🗺️ CARTE IA</a>
+  <a href="radiocontest_propagation.html">📶 PROPAG</a>
+  <a href="radiocontest_departements.html" class="active">🇫🇷 DÉPARTEMENTS</a>
+  <a href="radiocontest_calendrier.html">📅 CALENDRIER</a>
+</nav>
+<script src="radiocontest_statusbar.js"></script>
+
+<div class="container">
+
+  <div class="progress-panel">
+    <div class="progress-head">
+      <span class="progress-count" id="pCount">0</span>
+      <span class="progress-total" id="pTotal">/ 96</span>
+      <span class="progress-label">départements métropolitains contactés — objectif : verdir toute la France 🇫🇷</span>
+      <span class="progress-dom" id="pDom"></span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="pFill" style="width:0%"></div></div>
+    <div class="progress-msg" id="pMsg"></div>
+  </div>
+
+  <div class="map-panel">
+    <div id="map"></div>
+    <div class="map-fallback" id="mapFallback" style="display:none">
+      Carte géographique indisponible (pas encore téléchargée hors ligne).<br>
+      La grille des départements à droite reste à jour.
+    </div>
+  </div>
+
+  <div class="grid-panel">
+    <div class="grid-title">TABLEAU DE CHASSE</div>
+    <div class="dept-grid" id="deptGrid"></div>
+    <div class="grid-title dept-dom">OUTRE-MER</div>
+    <div class="dept-grid" id="domGrid" style="grid-template-columns:repeat(3,1fr)"></div>
+    <div class="legend">
+      <span><b style="background:var(--green)"></b>Contacté</span>
+      <span><b style="background:var(--bg3);border:1px solid var(--border)"></b>À faire</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:monospace;color:#FF2D55">Ouvre via le serveur : http://localhost:8080/radiocontest_departements.html</div>';
+  }
+})();
+
+let leafletMap = null, geoLayer = null, geoLoaded = false;
+let workedSet = new Set();
+let allDepts = {};
+
+function isDay(){ return document.body.classList.contains('day-mode'); }
+
+function deptStyle(feature){
+  const code = feature.properties.code;
+  const worked = workedSet.has(code);
+  return {
+    fillColor: worked ? '#00C853' : (isDay()?'#D5DAEA':'#1E2338'),
+    fillOpacity: worked ? 0.75 : 0.35,
+    color: worked ? '#00FF88' : (isDay()?'#9AA3C0':'#3A4066'),
+    weight: worked ? 1.4 : 0.6,
+  };
+}
+
+async function initMap(){
+  try{
+    const r = await fetch('/data/france_geojson');
+    if(!r.ok){ document.getElementById('map').style.display='none'; document.getElementById('mapFallback').style.display='block'; return; }
+    const gj = await r.json();
+    leafletMap = L.map('map', { center:[46.6, 2.5], zoom:5, zoomControl:true, attributionControl:false, preferCanvas:true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:10, subdomains:'abcd'}).addTo(leafletMap);
+    geoLayer = L.geoJSON(gj, {
+      style: deptStyle,
+      onEachFeature: (f, layer) => {
+        const c = f.properties.code, n = f.properties.nom;
+        layer.bindTooltip(`${c} — ${n}`, {sticky:true});
+      }
+    }).addTo(leafletMap);
+    geoLoaded = true;
+    applyWorkedToMap();
+  }catch(e){
+    document.getElementById('map').style.display='none';
+    document.getElementById('mapFallback').style.display='block';
+  }
+}
+
+function applyWorkedToMap(){
+  if(geoLoaded && geoLayer) geoLayer.setStyle(deptStyle);
+}
+
+async function loadProgress(){
+  try{
+    const r = await fetch('/data/departments_worked');
+    if(!r.ok) return;
+    const d = await r.json();
+    workedSet = new Set(d.worked||[]);
+    allDepts = d.all||{};
+    // Progression métropole
+    document.getElementById('pCount').textContent = d.metro_done;
+    document.getElementById('pTotal').textContent = `/ ${d.metro_total}`;
+    const pct = d.metro_total ? Math.round(100*d.metro_done/d.metro_total) : 0;
+    document.getElementById('pFill').style.width = pct + '%';
+    document.getElementById('pDom').textContent = d.dom_done ? `+ ${d.dom_done} DOM` : '';
+    const restants = d.metro_total - d.metro_done;
+    document.getElementById('pMsg').textContent = pct >= 100
+      ? '🏆 FRANCE ENTIÈREMENT VERTE — bravo !'
+      : `${pct}% · encore ${restants} département${restants>1?'s':''} pour verdir la France`;
+    renderGrid(d);
+    applyWorkedToMap();
+  }catch(e){}
+}
+
+function renderGrid(d){
+  // Métropole : 01-95 + 2A/2B, dans l'ordre
+  const grid = document.getElementById('deptGrid');
+  grid.innerHTML = (d.metro||[]).map(c =>
+    `<div class="dept-cell ${workedSet.has(c)?'worked':''}" title="${d.all[c]||''}">${c}</div>`).join('');
+  const dom = document.getElementById('domGrid');
+  dom.innerHTML = (d.dom||[]).map(c =>
+    `<div class="dept-cell ${workedSet.has(c)?'worked':''}" title="${d.all[c]||''}">${c}</div>`).join('');
+}
+
+// Nom du concours actif
+(function(){
+  const cfg = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
+  if(cfg.contest) document.getElementById('contestName').textContent = cfg.contest;
+})();
+
+initMap();
+loadProgress();
+setInterval(loadProgress, 20*1000);   // les nouveaux QSO verdissent en direct
+</script>
+</body>
+</html>

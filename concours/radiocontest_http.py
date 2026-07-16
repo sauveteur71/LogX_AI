@@ -848,6 +848,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             })
             return
 
+        # Tableau de chasse départements REF : contactés vs total (depuis le log)
+        if path == '/data/departments_worked':
+            import radiocontest_departments as dep
+            cfg_snap = self._cfg_snapshot()
+            self._json(dep.departments_progress(shared_log, cfg_snap.get('contest', '')))
+            return
+
+        # GeoJSON des départements français (cache disque, offline après 1er DL)
+        if path == '/data/france_geojson':
+            import radiocontest_departments as dep
+            body = dep.load_france_geojson()
+            if not body:
+                self._json({'error': 'GeoJSON indisponible (hors ligne au 1er accès)'}, 503)
+                return
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Cache-Control', 'max-age=86400')
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body.encode('utf-8'))
+            return
+
         # Balises NCDXF/IBP : quelle balise émet MAINTENANT sur chaque bande
         # (+ distance/azimut depuis le locator) — calcul pur, pas de réseau.
         if path == '/beacons/now':
