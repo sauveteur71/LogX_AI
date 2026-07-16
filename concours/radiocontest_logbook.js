@@ -1267,15 +1267,29 @@ function startRefresh(){
   // Backup automatique toutes les 5 minutes
   backupLog(); // backup immédiat au démarrage
   setInterval(backupLog, 5 * 60 * 1000);
-  // Afficher l'IP réseau pour les autres postes
+}
+
+// Adresse de partage réelle (IP du serveur) : lien cliquable + copie.
+// Lancée IMMÉDIATEMENT (pas après l'assistant de config) : un poste pas
+// encore configuré doit déjà pouvoir afficher l'adresse aux autres.
+function initShareLink(){
   fetch('/network/info').then(r=>r.json()).then(d=>{
     if(d.local_ip){
-      const el = document.getElementById('localIP');
-      if(el) el.textContent = d.local_ip;
+      const link = document.getElementById('shareLink');
+      if(link){ link.href = d.url_logbook; link.textContent = d.url_logbook; }
       const sa = document.getElementById('serverAddr');
       if(sa) sa.textContent = window.location.host;
     }
-  }).catch(()=>{});
+  }).catch(()=>{ setTimeout(initShareLink, 10000); }); // serveur pas encore prêt
+}
+initShareLink();
+
+function copyShareLink(){
+  const url = document.getElementById('shareLink')?.href || '';
+  if(!url || url.endsWith('#')){ notify('Adresse pas encore disponible — serveur injoignable ?'); return; }
+  navigator.clipboard.writeText(url)
+    .then(()=>notify(`📋 Adresse copiée : ${url}\nColle-la dans le navigateur des autres postes (même WiFi).`))
+    .catch(()=>prompt('Copie manuelle (Ctrl+C) :', url));
 }
 
 // ─── RENDER LOG ───────────────────────────────────────────────────────────────
