@@ -46,6 +46,35 @@ config_lock = threading.Lock()
 _coach_dxmaps_cache = None
 _coach_dxmaps_ts = 0
 
+# ─── TOKEN D'AUTHENTIFICATION PARTAGÉ ────────────────────────────────────────
+# Priorité : config.json server.auth_token > fichier .auth_token > généré et
+# persisté dans .auth_token (stable entre redémarrages, jamais suivi par git).
+def _load_auth_token():
+    try:
+        with open('config.json', encoding='utf-8') as f:
+            tok = (json.load(f).get('server', {}) or {}).get('auth_token', '')
+        if tok:
+            return str(tok)
+    except Exception:
+        pass
+    try:
+        with open('.auth_token', encoding='utf-8') as f:
+            tok = f.read().strip()
+        if tok:
+            return tok
+    except Exception:
+        pass
+    import secrets as _secrets
+    tok = _secrets.token_hex(16)
+    try:
+        with open('.auth_token', 'w', encoding='utf-8') as f:
+            f.write(tok)
+    except Exception:
+        pass
+    return tok
+
+AUTH_TOKEN = _load_auth_token()
+
 # ─── CHAT MULTI-OPÉRATEUR ─────────────────────────────────────────────────────
 chat_messages = []     # liste {id, op, call, time, text}
 chat_lock = threading.Lock()
@@ -640,6 +669,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Forcer une mise à jour des règlements
         if path == '/data/update_rules':
+            # Déclenche des écritures (rules_db) : token exigé comme les POST.
+            if not self._require_auth():
+                return
             threading.Thread(target=run_annual_update, daemon=True).start()
             self._json({'ok': True, 'message': f'Mise à jour {CURRENT_YEAR} lancée'})
             return
@@ -701,6 +733,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if filepath.endswith('.js'):   ct = 'application/javascript'
             if filepath.endswith('.css'):  ct = 'text/css'
             if filepath.endswith('.json'): ct = 'application/json'
+            if ct.startswith('text/html'):
+                # Distribue le token aux navigateurs du logiciel (SameSite=Strict :
+                # jamais envoyé depuis un site tiers → routes d'écriture protégées).
+                self.send_header('Set-Cookie',
+                                 f'rc_token={AUTH_TOKEN}; Path=/; SameSite=Strict; HttpOnly')
             self.send_header('Content-Type', ct)
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
             self._cors()
@@ -714,6 +751,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         global current_config, chat_seq, browser_spots_cache, browser_spots_ts
+        # Toutes les routes POST écrivent ou appellent l'IA : token exigé.
+        if not self._require_auth():
+            return
         length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(length)
 
@@ -1122,6 +1162,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _cors(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        # CORS restreint aux origines locales attendues (le logiciel est servi
+        # en LAN sur le port du serveur) — plus de wildcard '*'.
+        origin = self.headers.get('Origin', '')
+        if origin and re.match(
+                rf'^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:{PORT})?$',
+                origin):
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-RC-Token')
+
+    # ── Authentification par token partagé ────────────────────────────────────
+    # Le token est distribué en cookie SameSite=Strict à la première page HTML
+    # servie : les navigateurs du LAN (multi-opérateur) sont autorisés
+    # automatiquement, un site web tiers ne peut pas rejouer les routes
+    # d'écriture ni /proxy/ai (le cookie n'est pas envoyé cross-site et le
+    # header X-RC-Token reste possible pour les scripts).
+    def _client_authorized(self):
+        tok = self.headers.get('X-RC-Token', '')
+        if not tok:
+            m = re.search(r'(?:^|;\s*)rc_token=([0-9a-fA-F]+)', self.headers.get('Cookie', ''))
+            if m:
+                tok = m.group(1)
+        import secrets as _secrets
+        return bool(tok) and _secrets.compare_digest(tok, AUTH_TOKEN)
+
+    def _require_auth(self):
+        if self._client_authorized():
+            return True
+        self._json({'error': "Non autorisé — recharge une page du logiciel "
+                             "(cookie de session manquant ou invalide)"}, 403)
+        return False
