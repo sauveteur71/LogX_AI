@@ -742,6 +742,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(coach.build_coach_state(cfg_snapshot, shared_log, dxmaps))
             return
 
+        # Exports du log partagé — Cabrillo v3 et ADIF 3
+        if path in ('/log/export/cabrillo', '/log/export/adif'):
+            import radiocontest_export as export
+            cfg_snap = self._cfg_snapshot()
+            contest_id = cfg_snap.get('contest', '')
+            with log_lock:
+                qsos = [q for q in shared_log
+                        if not contest_id or q.get('contest', '') in ('', contest_id)]
+            call = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign')
+                    or 'LOG').upper().replace('/', '-')
+            if path.endswith('cabrillo'):
+                cdef = CONTEST_DEFINITIONS.get(contest_id, {})
+                body = export.build_cabrillo(qsos, cdef, cfg_snap).encode('utf-8')
+                fname = f"{call}_{contest_id or 'ALL'}.cbr"
+            else:
+                body = export.build_adif(qsos, cfg_snap).encode('utf-8')
+                fname = f"{call}_{contest_id or 'ALL'}.adi"
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         # Status du système de mise à jour
         if path == '/data/rules_status':
             self._json({
