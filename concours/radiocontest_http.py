@@ -1090,18 +1090,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _load_config_from_query(self):
         return current_config if current_config else {}
 
+    # Fichiers présents dans le dossier servi mais qui ne doivent JAMAIS
+    # sortir par HTTP (la clé API notamment).
+    _NEVER_SERVE = {'clef api.txt'}
+
     def _resolve(self, path):
-        local = os.path.join(os.getcwd(), path.lstrip('/'))
-        if os.path.exists(local) and os.path.isfile(local):
-            return local
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        script_local = os.path.join(script_dir, path.lstrip('/'))
-        if os.path.exists(script_local) and os.path.isfile(script_local):
-            return script_local
+        import urllib.parse
+        rel = urllib.parse.unquote(path).lstrip('/\\')
+        if os.path.basename(rel).lower() in self._NEVER_SERVE:
+            return None
+        bases = [os.getcwd(), os.path.dirname(os.path.abspath(__file__))]
         if hasattr(sys, '_MEIPASS'):
-            mei = os.path.join(sys._MEIPASS, path.lstrip('/'))
-            if os.path.exists(mei):
-                return mei
+            bases.append(sys._MEIPASS)
+        for base in bases:
+            base_real = os.path.realpath(base)
+            candidate = os.path.realpath(os.path.join(base_real, rel))
+            # Confinement anti-traversée : le fichier résolu doit rester
+            # STRICTEMENT à l'intérieur du répertoire de base (404 sinon).
+            if not candidate.startswith(base_real + os.sep):
+                continue
+            if os.path.isfile(candidate):
+                return candidate
         return None
 
     def _json(self, data, code=200):
