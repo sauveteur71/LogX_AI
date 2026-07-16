@@ -1913,6 +1913,31 @@ function refreshWeather(){
 }
 refreshWeather();
 setInterval(refreshWeather, 10 * 60 * 1000);   // cache serveur 10 min
+
+// ─── PONT WSJT-X (FT8/FT4) ───────────────────────────────────────────────────
+// Indicateur de liaison + rafraîchissement du log quand un QSO est auto-loggé.
+let _wsjtxLastTotal = -1;
+function refreshWsjtx(){
+  fetch('/wsjtx/state').then(r=>r.ok?r.json():null).then(d=>{
+    const el = document.getElementById('wsjtxWidget');
+    if(!el || !d || !d.enabled){ if(el) el.style.display='none'; return; }
+    el.style.display = '';
+    if(d.connected){
+      el.innerHTML = `💻 WSJT-X <b style="color:var(--green)">●</b> ${d.dial_mhz||''} MHz ${d.mode||''} · ${d.logged_total||0} auto-loggés`;
+      el.style.color = 'var(--muted)';
+    } else {
+      el.innerHTML = `💻 WSJT-X <b style="color:var(--red)">○</b> en attente (port ${d.port})`;
+      el.style.color = 'var(--muted)';
+    }
+    // Un nouveau QSO auto-loggé → recharger la table du log
+    if(_wsjtxLastTotal >= 0 && (d.logged_total||0) > _wsjtxLastTotal){
+      try{ fetchLog(); playBeep && playBeep(1046, 90); }catch(e){}
+    }
+    _wsjtxLastTotal = d.logged_total || 0;
+  }).catch(()=>{});
+}
+refreshWsjtx();
+setInterval(refreshWsjtx, 4000);
 function editMacro(idx){
   const macros = getMacros();
   const m = macros[idx];
