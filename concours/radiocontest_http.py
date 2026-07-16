@@ -430,8 +430,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/debug/test_on4kst':
             from urllib.parse import parse_qs, urlparse
             qs = parse_qs(urlparse(self.path).query)
-            callsign = (current_config or {}).get('on4kst_callsign', '')
-            password = (current_config or {}).get('on4kst_password', '')
+            cfg_snap = self._cfg_snapshot()
+            callsign = cfg_snap.get('on4kst_callsign', '')
+            password = cfg_snap.get('on4kst_password', '')
             result = fetch_on4kst_raw(
                 callsign, password,
                 chat=(qs.get('chat', [None])[0]),
@@ -708,7 +709,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'format': 'radiocontest-custom-contests',
                     'version': 1,
                     'exported_at': datetime.datetime.utcnow().isoformat(),
-                    'exported_by': (current_config or {}).get('callsign', ''),
+                    'exported_by': self._cfg_snapshot().get('callsign', ''),
                     'contests': data,
                 })
             except Exception as e:
@@ -835,7 +836,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     url=payload.get('url', ''),
                     rules_text=payload.get('text', ''),
                     contest_name=payload.get('name', ''),
-                    cfg=current_config or {},
+                    cfg=self._cfg_snapshot(),
                 )
                 self._json(result, 200 if result.get('ok') else 400)
             except Exception as e:
@@ -1047,16 +1048,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Proxy IA universel (Anthropic / OpenAI / Gemini)
         if self.path in ('/proxy/ai', '/proxy/anthropic'):
-            provider = (current_config or {}).get('api_provider', 'anthropic')
-            ai_model = (current_config or {}).get('ai_model', 'claude-sonnet-4-6')
-            api_key  = (current_config or {}).get('api_key', '')
+            cfg_snap = self._cfg_snapshot()
+            provider = cfg_snap.get('api_provider', 'anthropic')
+            ai_model = cfg_snap.get('ai_model', 'claude-sonnet-4-6')
+            api_key  = cfg_snap.get('api_key', '')
             if not api_key:
                 api_key = os.environ.get('ANTHROPIC_API_KEY', '')
             print(f"[API] Fournisseur={provider} Modele={ai_model}")
             try:
                 payload  = json.loads(body)
                 messages = payload.get('messages', [])
-                system_prompt = payload.get('system') or (build_system_prompt(current_config) if current_config else '')
+                system_prompt = payload.get('system') or (build_system_prompt(cfg_snap) if cfg_snap else '')
 
                 if not api_key:
                     self._json({'error': {'message': 'Cle API non configuree'}}, 400)
@@ -1174,8 +1176,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
+    def _cfg_snapshot(self):
+        """Copie de current_config prise sous config_lock — AUCUN handler ne
+        doit lire current_config directement (montage/écriture concurrents)."""
+        with config_lock:
+            return dict(current_config)
+
     def _load_config_from_query(self):
-        return current_config if current_config else {}
+        return self._cfg_snapshot()
 
     # Fichiers présents dans le dossier servi mais qui ne doivent JAMAIS
     # sortir par HTTP (la clé API notamment).
