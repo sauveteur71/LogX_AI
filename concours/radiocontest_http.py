@@ -371,11 +371,14 @@ def do_refresh(cfg):
             for msg in on4kst['messages'][:15]:
                 extra.append(f"  {msg['time']} {msg['call']}: {msg['text']}")
                 if my_base and my_base in msg['text'].upper():
-                    my_name_hits.append(msg)
+                    my_name_hits.append({'time': msg['time'], 'call': msg['call'],
+                                         'text': msg['text']})
+            on4kst_mentions = my_name_hits
             if my_name_hits:
                 extra.append(f"\n⚡ ATTENTION : {len(my_name_hits)} message(s) du chat mentionnent {my_base} — quelqu'un cherche peut-être un sked avec nous !")
 
     extra.append('\n=== FIN DONNÉES INTERNET ===')
+    on4kst_mentions = locals().get('on4kst_mentions', [])
     context += '\n'.join(extra)
 
     # ── 8. Classement stations par valeur réelle ──────────────────────────────
@@ -401,6 +404,7 @@ def do_refresh(cfg):
         'rules_loaded': bool(rules_info and rules_info.get('ok')),
         'hamqth_enriched': len(hamqth_enriched),
         'on4kst_users': len(on4kst['users']) if on4kst else 0,
+        'on4kst_mentions': on4kst_mentions,
     }
 
 # ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
