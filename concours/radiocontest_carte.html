@@ -352,7 +352,55 @@ function initMap(){
   drawRangeCircles();
   drawMyPos();
   drawLoggedQSOs();
+  drawGreyLine();
 }
+
+// ─── GREY-LINE (terminateur solaire) ─────────────────────────────────────────
+// La ligne jour/nuit : le DX bandes basses s'ouvre au lever/coucher du soleil
+// le long de cette ligne. Calcul astronomique pur (point subsolaire) — la
+// zone de nuit est un polygone semi-transparent, rafraîchi toutes les 5 min.
+let greyLineLayer = null;
+
+function solarDeclination(date){
+  // Déclinaison du soleil (°) — algorithme NOAA simplifié
+  const rad = Math.PI/180;
+  const n = date.getTime()/86400000 + 2440587.5 - 2451545.0;   // jours depuis J2000
+  const L = (280.460 + 0.9856474*n) % 360;
+  const g = ((357.528 + 0.9856003*n) % 360) * rad;
+  const lambda = (L + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * rad;
+  const eps = (23.439 - 0.0000004*n) * rad;
+  return Math.asin(Math.sin(eps)*Math.sin(lambda)) / rad;
+}
+
+function drawGreyLine(){
+  if(!leafletMap) return;
+  if(greyLineLayer){ greyLineLayer.remove(); greyLineLayer = null; }
+  const now = new Date();
+  const rad = Math.PI/180;
+  const dec = solarDeclination(now);
+  const decR = dec*rad;
+  // Longitude où il est midi solaire (anti-méridien du point de minuit)
+  const utcHours = now.getUTCHours()+now.getUTCMinutes()/60+now.getUTCSeconds()/3600;
+  const subLon = 180 - utcHours*15;   // longitude subsolaire (midi solaire)
+  // Contour de la zone de nuit : pour chaque longitude, latitude du terminateur
+  const nightTop = [], nightBot = [];
+  for(let lon=-180; lon<=180; lon+=3){
+    const H = (lon - subLon)*rad;   // angle horaire
+    // latitude du terminateur : tan(lat) = -cos(H)/tan(dec)
+    let lat;
+    if(Math.abs(dec) < 0.5){ lat = 0; }
+    else { lat = Math.atan(-Math.cos(H)/Math.tan(decR))/rad; }
+    // Hémisphère de nuit : opposé au soleil
+    if(dec >= 0){ nightTop.push([-90, lon]); nightBot.push([lat, lon]); }
+    else        { nightTop.push([90, lon]);  nightBot.push([lat, lon]); }
+  }
+  const poly = nightTop.concat(nightBot.reverse());
+  greyLineLayer = L.polygon(poly, {
+    stroke: true, color:'#FFB800', weight:1, opacity:0.5,
+    fill:true, fillColor:'#000018', fillOpacity:0.28, interactive:false
+  }).addTo(leafletMap);
+}
+setInterval(drawGreyLine, 5*60*1000);
 
 function refreshTiles(){
   if(!leafletTile) return;
