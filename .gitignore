@@ -12,3 +12,4 @@ concours/france_departements.geojson
 concours/build/
 concours/dist/
 concours/*.spec.bak
+concours/archives/

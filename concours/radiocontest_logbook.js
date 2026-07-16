@@ -2239,9 +2239,35 @@ function exportCSV(){
 }
 
 // ─── RESET LOG ───────────────────────────────────────────────────────────────
+// Archive le concours actif dans un dossier permanent (log + Cabrillo + ADIF
+// + résumé). Optionnellement, vide ensuite ce concours du log actif.
+async function archiveLog(){
+  try{
+    const clear = confirm('📦 ARCHIVER CE CONCOURS\n\n' +
+      'Le log du concours actif va être conservé dans un dossier permanent\n' +
+      '(log.json + Cabrillo + ADIF + résumé), qui restera même si tu changes\n' +
+      'de concours.\n\n' +
+      'OK  = archiver ET vider ce concours du log actif (repartir à neuf)\n' +
+      'Annuler = archiver SANS rien effacer');
+    const res = await fetch('/log/archive', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({clear: clear})
+    });
+    const d = await res.json();
+    if(d.ok){
+      notify(`📦 Archivé : ${d.qso_count} QSO dans « ${d.name} »` +
+             (d.cleared ? ' — log vidé, prêt pour la suite.' : ' — log conservé.'));
+      if(d.cleared){ qsoLog = qsoLog.filter(q => false); renderLog(); updateStats(); }
+      else { fetchLog(); }
+    } else {
+      notify('Archivage : ' + (d.error || 'échec'));
+    }
+  }catch(e){ notify('Serveur injoignable — archivage impossible.'); }
+}
+
 async function resetLog(){
   const n = qsoLog.length;
-  if(!confirm(`⚠️ NOUVEAU LOG\n\nSupprime définitivement ${n} QSO du serveur.\nCette action est irréversible.\n\nTape OK pour confirmer.`)) return;
+  if(!confirm(`⚠️ NOUVEAU LOG\n\nSupprime ${n} QSO du log ACTIF.\nⓘ Ils sont d'abord ARCHIVÉS dans un dossier permanent (par concours),\ndonc rien n'est perdu — tu les retrouveras dans archives/.\n\nTape OK pour continuer.`)) return;
   const confirmation = prompt('Tape RESET pour confirmer la suppression complète du log :');
   if(confirmation !== 'RESET'){
     notify('Annulé — le log est inchangé.');
@@ -2254,12 +2280,15 @@ async function resetLog(){
       body:JSON.stringify({confirm:'RESET'})
     });
     if(res.ok){
+      const d = await res.json().catch(()=>({}));
       qsoLog = [];
       serialByBand = {};
       renderLog();
       updateStats();
       updateSerialDisplay();
-      notify('✅ Log réinitialisé — prêt pour le concours !');
+      const nb = (d.folders || []).length;
+      notify('✅ Log archivé' + (nb ? ` (${nb} dossier${nb>1?'s':''})` : '') +
+             ' puis réinitialisé — prêt pour le concours !');
     } else {
       notify('Erreur serveur lors de la réinitialisation.');
     }
