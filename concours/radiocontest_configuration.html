@@ -737,6 +737,27 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section">
+      <div class="section-title">🌐 COMPTE QRZ.com (fiches des correspondants)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        À chaque indicatif saisi, affiche nom / QTH / locator / pays depuis QRZ.
+        (Champs détaillés réservés aux comptes abonnés XML QRZ ; le pays reste
+        accessible sans abonnement.)
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>IDENTIFIANT QRZ</label>
+          <input type="text" id="qrz_user" placeholder="ton indicatif QRZ" style="text-transform:uppercase" autocomplete="off">
+          <div class="input-note">Ton login QRZ.com (souvent ton indicatif)</div>
+        </div>
+        <div class="form-group">
+          <label>MOT DE PASSE QRZ</label>
+          <input type="password" id="qrz_password" placeholder="••••••••" autocomplete="new-password">
+          <div class="input-note">Stocké côté serveur uniquement — jamais renvoyé au navigateur ni à l'IA</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-title">PARAMÈTRES D'ALERTE</div>
       <div class="form-grid">
         <div class="form-group">
@@ -2041,6 +2062,8 @@ function saveConfig(silent = false) {
     toggles: state.toggles,
     on4kst_callsign: document.getElementById('on4kst_callsign').value.toUpperCase().trim(),
     on4kst_password: document.getElementById('on4kst_password').value,
+    qrz_user: document.getElementById('qrz_user').value.trim(),
+    qrz_password: document.getElementById('qrz_password').value,
     rig_enabled: !!document.getElementById('rig_enabled').value,
     rig_host: document.getElementById('rig_host').value.trim(),
     rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
@@ -2182,6 +2205,8 @@ function loadSavedConfig() {
     if(c.postal) document.getElementById('postal').value = c.postal;
     if(c.on4kst_callsign) document.getElementById('on4kst_callsign').value = c.on4kst_callsign;
     if(c.on4kst_password) document.getElementById('on4kst_password').value = c.on4kst_password;
+    if(c.qrz_user) document.getElementById('qrz_user').value = c.qrz_user;
+    if(c.qrz_password) document.getElementById('qrz_password').value = c.qrz_password;
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;
     if(c.op_call) document.getElementById('op_call').value = c.op_call;
     if(c.club) document.getElementById('club').value = c.club;

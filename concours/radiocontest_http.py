@@ -842,6 +842,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                                k_index=k_index))
             return
 
+        # Recherche QRZ.com d'un indicatif (identifiants lus dans la config,
+        # jamais dans la requête ni renvoyés au client).
+        if path.startswith('/qrz/lookup'):
+            from urllib.parse import parse_qs, urlparse
+            import radiocontest_qrz as qrz
+            call = (parse_qs(urlparse(self.path).query).get('call', [''])[0])
+            settings = qrz.qrz_settings(self._cfg_snapshot())
+            if not settings['enabled']:
+                self._json({'ok': False, 'enabled': False,
+                            'error': 'QRZ non configuré (CONFIG → identifiants QRZ)'})
+                return
+            res = qrz.lookup(call, settings['user'], settings['pw'])
+            res['enabled'] = True
+            self._json(res)
+            return
+
         # Statut d'un indicatif À LA FRAPPE : nouveau / doublon / nouveau_mult.
         # Réutilise le moteur de scoring (état reconstruit depuis shared_log).
         if path.startswith('/log/check'):

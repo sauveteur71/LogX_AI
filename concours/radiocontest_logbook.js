@@ -531,6 +531,41 @@ setTimeout(refreshQTC, 1500);
 let _checkTimer = null;
 let _checkSeq = 0;
 
+// ─── FICHE QRZ.com (à la frappe) ─────────────────────────────────────────────
+// Affiche nom / QTH / locator du correspondant depuis QRZ (identifiants côté
+// serveur). Debounce plus long (600 ms) : une requête réseau par indicatif fini.
+let _qrzTimer = null, _qrzSeq = 0;
+
+function lookupQRZ(call){
+  clearTimeout(_qrzTimer);
+  const el = document.getElementById('qrzInfo');
+  if(!el) return;
+  if(!call || call.length < 3){ el.style.display = 'none'; return; }
+  const seq = ++_qrzSeq;
+  _qrzTimer = setTimeout(async () => {
+    try{
+      const r = await fetch('/qrz/lookup?call=' + encodeURIComponent(call));
+      if(!r.ok || seq !== _qrzSeq) return;
+      const d = await r.json();
+      if(d.enabled === false){ el.style.display = 'none'; return; }  // QRZ non configuré
+      if(!d.ok){ el.style.display = 'none'; return; }
+      const bits = [];
+      if(d.name) bits.push('👤 ' + d.name);
+      if(d.qth)  bits.push('📍 ' + d.qth);
+      if(d.grid) bits.push('🗺 ' + d.grid);
+      if(d.country && !d.qth) bits.push(d.country);
+      el.innerHTML = bits.join(' · ');
+      el.style.display = bits.length ? 'block' : 'none';
+      // Pré-remplit le locator s'il est vide et que QRZ en connaît un
+      const locInput = document.getElementById('inputLocator');
+      if(locInput && !locInput.value && d.grid && d.grid.length >= 4){
+        locInput.value = d.grid;
+        onLocatorInput();
+      }
+    }catch(e){ /* réseau QRZ indispo : rien */ }
+  }, 600);
+}
+
 function checkCallStatus(call){
   clearTimeout(_checkTimer);
   const badge = document.getElementById('callStatusBadge');
@@ -880,6 +915,7 @@ function onCallInput(){
   // Statut serveur à la frappe : nouveau / doublon / NOUVEAU MULT (moteur
   // de scoring + log partagé multi-op, pas seulement le log local)
   checkCallStatus(call);
+  lookupQRZ(call);
 
   // Badge pays DXCC
   const dxccBadge = document.getElementById('dxccBadge');
