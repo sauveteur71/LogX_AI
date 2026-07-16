@@ -19,8 +19,10 @@ body.day-mode {
 }
 body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
-header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+html,body{height:100%}
+/* Page « app » : nav et statusbar fixes, le contenu défile en interne */
+body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .logo{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:3px}
 .logo span{color:var(--accent2)}
 .app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
@@ -28,7 +30,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 
-.container{max-width:1280px;margin:0 auto;padding:20px;display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+.container{max-width:1280px;margin:0 auto;padding:20px;display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;flex:1;overflow-y:auto;min-height:0;width:100%}
 @media (max-width:900px){.container{grid-template-columns:1fr}}
 
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px}
