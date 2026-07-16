@@ -277,6 +277,35 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         tu pourras les remplir avant d'envoyer ton log.</div>
     </div>
 
+    <div class="section expert-only">
+      <div class="section-title">📻 RADIO (CAT via Hamlib rigctld)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
+        suivis automatiquement, macros CW envoyées par le keyer de la radio.<br>
+        Lance <b style="color:var(--accent2)">rigctld -m &lt;n°modèle&gt; -r &lt;port COM&gt; -T 0.0.0.0</b>
+        sur le PC relié à la radio (fourni avec Hamlib — n° de modèle : <b>rigctl -l</b>).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PILOTAGE RADIO</label>
+          <select id="rig_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+          <div class="input-note">Désactivé par défaut — aucun effet sans rigctld</div>
+        </div>
+        <div class="form-group">
+          <label>ADRESSE RIGCTLD</label>
+          <input type="text" id="rig_host" placeholder="127.0.0.1 (ou IP du poste radio)">
+          <div class="input-note">IP du PC où tourne rigctld (peut être un autre poste du WiFi)</div>
+        </div>
+        <div class="form-group">
+          <label>PORT RIGCTLD</label>
+          <input type="number" id="rig_port" placeholder="4532">
+        </div>
+      </div>
+    </div>
+
     <div class="section" id="opSection">
       <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
       <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
@@ -1939,6 +1968,9 @@ function saveConfig(silent = false) {
     toggles: state.toggles,
     on4kst_callsign: document.getElementById('on4kst_callsign').value.toUpperCase().trim(),
     on4kst_password: document.getElementById('on4kst_password').value,
+    rig_enabled: !!document.getElementById('rig_enabled').value,
+    rig_host: document.getElementById('rig_host').value.trim(),
+    rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
     alert_dx_km: document.getElementById('alert_dx_km').value,
     spotter_reliable_km: document.getElementById('spotter_reliable_km').value,
     refresh_min: document.getElementById('refresh_min').value,
@@ -2075,6 +2107,9 @@ function loadSavedConfig() {
     if(c.club) document.getElementById('club').value = c.club;
     if(c.email) document.getElementById('email').value = c.email;
     if(c.section) document.getElementById('section_edi').value = c.section;
+    if(c.rig_enabled) document.getElementById('rig_enabled').value = '1';
+    if(c.rig_host) document.getElementById('rig_host').value = c.rig_host;
+    if(c.rig_port) document.getElementById('rig_port').value = c.rig_port;
     if(c.contest_start_date) document.getElementById('contest_start_date').value = c.contest_start_date;
     if(c.contest_end_date) document.getElementById('contest_end_date').value = c.contest_end_date;
     if(c.contest_end_utc) document.getElementById('contest_end_utc').value = c.contest_end_utc;
