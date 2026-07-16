@@ -894,3 +894,90 @@ def enrich_unknown_calls(done_calls, calldb_path):
     except Exception as e:
         print(f"[HAMQTH] Erreur enrichissement: {e}")
         return {}
+
+# ─── MODULE 5 : SOLEIL & IONOSPHÈRE (N0NBH hamqsl + MUF KC2G) ────────────────
+_solar_cache = {'data': None, 'ts': 0}
+_muf_cache = {'data': None, 'ts': 0}
+
+def fetch_solar_data():
+    """Indices solaires N0NBH (hamqsl.com) : SFI, index A/K, taches, rayons X,
+    vent solaire, conditions calculées par bande (jour/nuit) et phénomènes VHF
+    (E-Skip Europe). Cache 15 min — le flux est mis à jour toutes les ~3 h."""
+    if _solar_cache['data'] and time.time() - _solar_cache['ts'] < 900:
+        return _solar_cache['data']
+    xml = fetch_url('https://www.hamqsl.com/solarxml.php', timeout=15)
+    if not xml:
+        return _solar_cache['data']  # ancien cache plutôt que rien
+
+    def tag(name):
+        m = re.search(rf'<{name}>\s*([^<]*?)\s*</{name}>', xml)
+        return m.group(1) if m else ''
+
+    bands = {}
+    for m in re.finditer(r'<band name="([^"]+)" time="([^"]+)">([^<]*)</band>', xml):
+        bands.setdefault(m.group(1), {})[m.group(2)] = m.group(3)
+    vhf = {}
+    for m in re.finditer(r'<phenomenon name="([^"]+)" location="([^"]+)">([^<]*)</phenomenon>', xml):
+        vhf[f"{m.group(1)}/{m.group(2)}"] = m.group(3)
+
+    data = {
+        'sfi': tag('solarflux'), 'a_index': tag('aindex'), 'k_index': tag('kindex'),
+        'sunspots': tag('sunspots'), 'xray': tag('xray'), 'aurora': tag('aurora'),
+        'solar_wind': tag('solarwind'), 'geomag': tag('geomagfield'),
+        'noise': tag('signalnoise'), 'updated': tag('updated'),
+        'muf_n0nbh': tag('muf'),          # souvent 'NoRpt' — voir fetch_muf()
+        'bands': bands,                    # {'80m-40m': {'day': 'Fair', 'night': 'Good'}, ...}
+        'vhf': vhf,                        # {'E-Skip/europe': 'Band Closed', ...}
+        'source': 'N0NBH hamqsl.com',
+    }
+    _solar_cache['data'] = data
+    _solar_cache['ts'] = time.time()
+    print(f"[SOLAR] SFI={data['sfi']} A={data['a_index']} K={data['k_index']}")
+    return data
+
+def fetch_muf(my_lat=None, my_lon=None):
+    """MUF(3000 km) réelle depuis les ionosondes KC2G (prop.kc2g.com) :
+    foF2 x M(3000)F2 de la station FRAÎCHE (<3 h) la plus proche.
+    Cache 15 min."""
+    if _muf_cache['data'] and time.time() - _muf_cache['ts'] < 900:
+        return _muf_cache['data']
+    raw = fetch_url('https://prop.kc2g.com/api/stations.json', timeout=15)
+    if not raw:
+        return _muf_cache['data']
+    try:
+        import datetime as _dt
+        stations = json.loads(raw)
+        now = _dt.datetime.utcnow()
+        best = None
+        best_dist = 1e12
+        for st in stations:
+            try:
+                t = _dt.datetime.fromisoformat(st.get('time', ''))
+                if (now - t).total_seconds() > 3 * 3600:
+                    continue  # mesure périmée (sonde en panne)
+                fof2, md = float(st.get('fof2') or 0), float(st.get('md') or 0)
+                if not fof2 or not md:
+                    continue
+                lat = float(st['station']['latitude'])
+                lon = float(st['station']['longitude'])
+                if lon > 180:
+                    lon -= 360
+                if my_lat is not None:
+                    d = (lat - my_lat) ** 2 + (lon - my_lon) ** 2
+                else:
+                    d = 0 if best is None else best_dist + 1
+                if d < best_dist:
+                    best_dist = d
+                    best = {'muf': round(fof2 * md, 1), 'fof2': round(fof2, 2),
+                            'station': st['station'].get('name', ''),
+                            'time': st.get('time', ''), 'source': 'KC2G'}
+            except (KeyError, ValueError, TypeError):
+                continue
+        if best:
+            _muf_cache['data'] = best
+            _muf_cache['ts'] = time.time()
+            print(f"[MUF] {best['muf']} MHz ({best['station']})")
+        return best or _muf_cache['data']
+    except Exception as e:
+        print(f"[MUF] Erreur: {e}")
+        return _muf_cache['data']

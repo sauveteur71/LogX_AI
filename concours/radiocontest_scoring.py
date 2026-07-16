@@ -551,11 +551,26 @@ def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
     ranked.sort(key=lambda x: (-x['value_total'], x['priority']))
     return ranked
 
-def build_scoring_context(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_users=None):
-    """
-    Construit le contexte de scoring pour l'IA :
-    calcule la valeur de chaque spot et les classe.
-    """
+def _band_from_freq(freq):
+    """'14032' (kHz) ou '14.032' (MHz) → bande interne ('14'). '' si inconnue."""
+    try:
+        v = float(str(freq).replace(',', '.'))
+    except (ValueError, TypeError):
+        return ''
+    mhz = v / 1000.0 if v > 1000 else v
+    for lo, hi, b in ((1.8, 2.0, '1.8'), (3.5, 4.0, '3.5'), (7.0, 7.3, '7'),
+                      (14.0, 14.35, '14'), (21.0, 21.45, '21'), (28.0, 29.7, '28'),
+                      (50, 54, '50'), (144, 148, '144'), (430, 440, '432')):
+        if lo <= mhz <= hi:
+            return b
+    return ''
+
+
+def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_users=None):
+    """Extrait l'état du log, évalue chaque spot au barème du concours et
+    retourne (ranked, meta) STRUCTURÉS — consommé par le contexte IA
+    (build_scoring_context) ET par /data/spots_ranked pour l'affichage direct
+    de la « need list » (nouveaux multiplicateurs en évidence)."""
     contest = cfg.get('contest', 'CUSTOM')
     my_call = cfg.get('callsign_contest', cfg.get('callsign', ''))
     my_locator = cfg.get('locator', 'JN00AA')
@@ -617,9 +632,14 @@ def build_scoring_context(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4k
                 dist = 0
                 if dx_ll[0] and my_ll[0]:
                     dist = haversine(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
+                # Bande réelle depuis la fréquence quand le lot est générique
+                # 'HF' — indispensable aux barèmes par bande (WAE ×4 sur 3.5).
+                band_eff = band
+                if band.upper() == 'HF':
+                    band_eff = _band_from_freq(s.get('freq', '')) or band
                 all_stations.append({
                     'call': dx, 'locator': loc, 'dist_km': dist,
-                    'freq': s.get('freq',''), 'band': band,
+                    'freq': s.get('freq',''), 'band': band_eff,
                     'spotter': s.get('spotter',''),
                     'time': s.get('time',''),
                     'source': 'cluster',
@@ -675,14 +695,36 @@ def build_scoring_context(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4k
         done_cq_zones, done_dxcc, current_score,
         noaa, dxmaps
     )
+    meta = {
+        'contest': contest,
+        'my_call': my_call,
+        'my_locator': my_locator,
+        'current_score': current_score,
+        'nb_calls': len(done_calls_by_band),
+        'nb_qso_bands': sum(len(b) for b in done_calls_by_band.values()),
+        'nb_locators': len(done_locators),
+        'nb_large_squares': len(done_large_squares),
+        'nb_dxcc': len(done_dxcc),
+    }
+    return ranked, meta
+
+
+def build_scoring_context(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_users=None):
+    """
+    Construit le contexte de scoring pour l'IA :
+    calcule la valeur de chaque spot et les classe (via build_ranked_spots).
+    """
+    ranked, meta = build_ranked_spots(logs, spots_by_band, cfg, noaa, dxmaps, on4kst_users)
+    contest = meta['contest']
+    my_locator = meta['my_locator']
+    current_score = meta['current_score']
 
     # Construire le texte de contexte
-    total_qso_bands = sum(len(bands) for bands in done_calls_by_band.values())
     lines = ["\n=== CLASSEMENT STATIONS PAR VALEUR RÉELLE (moteur scoring) ==="]
     lines.append(f"Concours : {contest} | Score actuel : {current_score} pts")
-    lines.append(f"État : {len(done_calls_by_band)} indicatifs ({total_qso_bands} QSO toutes bandes) | "
-                f"{len(done_locators)} locators | "
-                f"{len(done_large_squares)} grands carrés | {len(done_dxcc)} pays/depts\n")
+    lines.append(f"État : {meta['nb_calls']} indicatifs ({meta['nb_qso_bands']} QSO toutes bandes) | "
+                f"{meta['nb_locators']} locators | "
+                f"{meta['nb_large_squares']} grands carrés | {meta['nb_dxcc']} pays/depts\n")
 
     priority_labels = {1:'🌟 PRIORITÉ MAX', 2:'🔴 HAUTE', 3:'🟠 MOYENNE', 4:'🟡 BASSE', 5:'🟢 INFO', 6:'⚪ DÉJÀ FAIT'}
 
