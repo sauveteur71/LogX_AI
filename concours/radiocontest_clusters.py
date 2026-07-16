@@ -2,6 +2,7 @@
 """Sources de spots : clusters DX (F5LEN, DXSummit, DXWatch, telnet, ON4KST...), propagation NOAA/DXMaps, lookups HamQTH/3830."""
 
 import json
+from radiocontest_storage import save_json_atomic, calldb_lock
 import os
 import re
 import time
@@ -887,8 +888,7 @@ def enrich_unknown_calls(done_calls, calldb_path):
                     count += 1
         if count > 0:
             db['calls'] = calls_db
-            with open(calldb_path, 'w', encoding='utf-8') as f:
-                json.dump(db, f, ensure_ascii=False, separators=(',',':'))
+            save_json_atomic(calldb_path, db, lock=calldb_lock, compact=True)
             print(f"[HAMQTH] {count} indicatifs enrichis dans calldb.json")
         return enriched
     except Exception as e:

@@ -110,8 +110,8 @@ def refresh_external_contests():
     }
     EXTERNAL_CONTESTS_CACHE = data
     try:
-        with open(EXTERNAL_CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        from radiocontest_storage import save_json_atomic
+        save_json_atomic(EXTERNAL_CACHE_FILE, data)
         print(f"[EXT] Cache sauvegardé: {len(contests_this)} concours {CURRENT_YEAR}")
     except Exception as e:
         print(f"[EXT] Erreur sauvegarde: {e}")
@@ -340,8 +340,8 @@ def run_annual_update():
         global rules_db
         rules_db = results
         try:
-            with open(RULES_CACHE_FILE, 'w', encoding='utf-8') as f:
-                json.dump(results, f, ensure_ascii=False, indent=2)
+            from radiocontest_storage import save_json_atomic
+            save_json_atomic(RULES_CACHE_FILE, results)
             print(f"[UPDATE] Cache sauvegardé dans {RULES_CACHE_FILE}")
         except Exception as e:
             print(f"[UPDATE] Erreur sauvegarde: {e}")

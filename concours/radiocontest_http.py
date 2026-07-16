@@ -20,7 +20,8 @@ from radiocontest_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  delete_custom_contest)
 from radiocontest_validate import validate_definition
 from radiocontest_rules_ai import analyze_rules
-from radiocontest_storage import shared_log, log_lock, save_log_to_disk
+from radiocontest_storage import (shared_log, log_lock, save_log_to_disk,
+                                  save_json_atomic, calldb_lock)
 from radiocontest_scoring import build_scoring_context
 from radiocontest_prompts import build_system_prompt, build_terrain_context
 from radiocontest_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
@@ -374,6 +375,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             })
             return
 
+        # ── Endpoints de diagnostic : désactivés par défaut ──────────────────
+        # Activer : "debug": true dans la section server de config.json,
+        # ou toggle debug dans la config envoyée par le client.
+        if path.startswith('/debug/'):
+            with config_lock:
+                dbg = bool((current_config or {}).get('debug', False))
+            if not dbg:
+                try:
+                    with open('config.json', encoding='utf-8') as f:
+                        dbg = bool((json.load(f).get('server', {}) or {}).get('debug', False))
+                except Exception:
+                    dbg = False
+            if not dbg:
+                self._json({'error': 'Endpoints /debug/* désactivés '
+                                     '(server.debug=true dans config.json pour activer)'}, 404)
+                return
+
         # Diagnostic ON4KST — teste la connexion avec les identifiants sauvegardés
         # (lus depuis current_config, jamais depuis la requête). Le mot de passe
         # n'apparaît jamais dans la réponse, seule la sortie du serveur ON4KST.
@@ -433,8 +451,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             'locator': result['locator'],
                             'country': result.get('country', ''),
                         }
-                        with open(calldb_path, 'w', encoding='utf-8') as f:
-                            json.dump(db2, f, ensure_ascii=False, separators=(',', ':'))
+                        save_json_atomic(calldb_path, db2, lock=calldb_lock, compact=True)
                     self._json({'call': base, 'locator': result['locator'], 'country': result.get('country',''), 'source': 'hamqth'})
                     return
                 self._json({'call': base, 'locator': '', 'source': 'none'})
@@ -918,8 +935,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             changed = True
                         if changed:
                             db['calls'][call] = entry
-                            with open(calldb_path, 'w', encoding='utf-8') as f:
-                                json.dump(db, f, ensure_ascii=False, separators=(',',':'))
+                            save_json_atomic(calldb_path, db, lock=calldb_lock, compact=True)
                             print(f"[DB] Mis à jour : {call} → loc:{locator} dept:{dept}")
                 self._json({'ok': True})
             except Exception as e:
