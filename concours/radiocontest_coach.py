@@ -293,6 +293,55 @@ def exchange_mult_stats(cdef, shared_log, contest_id):
     return {'mults': len(seen), 'score_est': pts * max(len(seen), 1)}
 
 
+# ─── PRÉVISION SPORADIQUE-E / AURORA (VHF) ───────────────────────────────────
+
+def es_aurora_forecast(cdef, dxmaps=None, k_index=None, now=None):
+    """Prévision VHF, distincte du CONFIRMÉ (DXMaps).
+    - Es : heuristique saisonnière (mai-août, pics matin ~08-11 et soir ~17-21 UTC)
+      sur 6 m et 2 m.
+    - Aurora : dérivée de l'indice K (>=5 = orage géomagnétique → aurora VHF).
+    Retourne une liste de dicts {kind, level, text} ou []."""
+    now = now or datetime.datetime.utcnow()
+    bands = [str(b) for b in (cdef or {}).get('bands', [])]
+    is_vhf = any(b in ('50', '70', '144') for b in bands)
+    out = []
+
+    # ── Sporadique-E : saison + créneaux horaires ──
+    if is_vhf and now.month in (5, 6, 7, 8):   # cœur de la saison Es en Europe
+        h = now.hour
+        peak = (8 <= h <= 11) or (17 <= h <= 21)   # doubles pics matin/soir
+        es_confirmed = bool((dxmaps or {}).get('es_active'))
+        if es_confirmed:
+            out.append({'kind': 'es', 'level': 'confirme',
+                        'text': "⚡ SPORADIQUE-E CONFIRMÉ (DXMaps) — surveille 6 m puis 2 m, "
+                                "les ouvertures montent en fréquence."})
+        elif peak:
+            out.append({'kind': 'es', 'level': 'probable',
+                        'text': f"🌤 Es PROBABLE (saison + créneau {h}h UTC) — garde un œil "
+                                f"sur 50.150-50.300, ça peut ouvrir d'un coup vers 800-2000 km."})
+        else:
+            out.append({'kind': 'es', 'level': 'possible',
+                        'text': "Saison Es : ouverture possible à tout moment sur 6 m, "
+                                "pics probables en matinée et fin d'après-midi (UTC)."})
+
+    # ── Aurora : indice K ──
+    try:
+        k = float(k_index) if k_index not in (None, '') else None
+    except (ValueError, TypeError):
+        k = None
+    if k is not None:
+        if k >= 7:
+            out.append({'kind': 'aurora', 'level': 'fort',
+                        'text': f"🔴 K={k:.0f} ORAGE GÉOMAGNÉTIQUE — aurora VHF probable "
+                                f"(antennes vers le NORD, signaux 'raspy'), mais HF bandes "
+                                f"hautes perturbées."})
+        elif k >= 5:
+            out.append({'kind': 'aurora', 'level': 'possible',
+                        'text': f"🟡 K={k:.0f} — aurora VHF possible, tente le nord sur 2 m "
+                                f"(polarisation aléatoire)."})
+    return out
+
+
 # ─── RUN vs SEARCH & POUNCE ──────────────────────────────────────────────────
 
 def run_sp_recommendation(clock, stats, mult_spots_count=None):
@@ -359,7 +408,8 @@ def build_coach_prompt(cdef, clock, stats, plan, hints):
 
 # ─── POINT D'ENTRÉE ──────────────────────────────────────────────────────────
 
-def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=None):
+def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=None,
+                      k_index=None):
     """État complet du coach — JSON structuré pour le front, sans appel IA.
     mult_spots_count : nombre de « nouveau mult » actuellement spottés
     (fourni par le serveur depuis les caches cluster, pour la reco Run/S&P)."""
@@ -378,12 +428,14 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     plan = band_plan(cdef, clock, dxmaps, now)
     hints = build_hints(cdef, clock, stats, plan)
     run_sp = run_sp_recommendation(clock, stats, mult_spots_count)
+    vhf_forecast = es_aurora_forecast(cdef, dxmaps, k_index, now)
     return {
         'clock': clock,
         'stats': stats,
         'band_plan': plan,
         'hints': hints,
         'run_sp': run_sp,
+        'vhf_forecast': vhf_forecast,
         'mult_spots_count': mult_spots_count,
         'coach_prompt': build_coach_prompt(cdef, clock, stats, plan, hints),
     }

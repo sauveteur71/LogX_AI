@@ -796,8 +796,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                  and not s.get('scoring', {}).get('already_done'))
             except Exception:
                 pass
+            # Indice K pour la prévision aurora (cache solaire, pas de réseau bloquant)
+            k_index = None
+            try:
+                from radiocontest_clusters import fetch_solar_data
+                k_index = (fetch_solar_data() or {}).get('k_index')
+            except Exception:
+                pass
             self._json(coach.build_coach_state(cfg_snapshot, shared_log, dxmaps,
-                                               mult_spots_count=mult_count))
+                                               mult_spots_count=mult_count,
+                                               k_index=k_index))
             return
 
         # Statut d'un indicatif À LA FRAPPE : nouveau / doublon / nouveau_mult.
