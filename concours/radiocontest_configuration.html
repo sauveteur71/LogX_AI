@@ -306,6 +306,35 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
     </div>
 
+    <div class="section expert-only">
+      <div class="section-title">🧭 ROTOR D'ANTENNE (via Hamlib rotctld)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
+        depuis ton locator est envoyé au rotor.<br>
+        Lance <b style="color:var(--accent2)">rotctld -m &lt;n°modèle&gt; -r &lt;port&gt; -T 0.0.0.0</b>
+        sur le PC relié au boîtier de commande (fourni avec Hamlib — modèles : <b>rotctl -l</b>).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PILOTAGE ROTOR</label>
+          <select id="rotor_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+          <div class="input-note">Désactivé par défaut — aucun effet sans rotctld</div>
+        </div>
+        <div class="form-group">
+          <label>ADRESSE ROTCTLD</label>
+          <input type="text" id="rotor_host" placeholder="127.0.0.1 (ou IP du poste rotor)">
+          <div class="input-note">IP du PC où tourne rotctld (peut être un autre poste du WiFi)</div>
+        </div>
+        <div class="form-group">
+          <label>PORT ROTCTLD</label>
+          <input type="number" id="rotor_port" placeholder="4533">
+        </div>
+      </div>
+    </div>
+
     <div class="section" id="opSection">
       <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
       <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
@@ -1971,6 +2000,9 @@ function saveConfig(silent = false) {
     rig_enabled: !!document.getElementById('rig_enabled').value,
     rig_host: document.getElementById('rig_host').value.trim(),
     rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
+    rotor_enabled: !!document.getElementById('rotor_enabled').value,
+    rotor_host: document.getElementById('rotor_host').value.trim(),
+    rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
     alert_dx_km: document.getElementById('alert_dx_km').value,
     spotter_reliable_km: document.getElementById('spotter_reliable_km').value,
     refresh_min: document.getElementById('refresh_min').value,
@@ -2110,6 +2142,9 @@ function loadSavedConfig() {
     if(c.rig_enabled) document.getElementById('rig_enabled').value = '1';
     if(c.rig_host) document.getElementById('rig_host').value = c.rig_host;
     if(c.rig_port) document.getElementById('rig_port').value = c.rig_port;
+    if(c.rotor_enabled) document.getElementById('rotor_enabled').value = '1';
+    if(c.rotor_host) document.getElementById('rotor_host').value = c.rotor_host;
+    if(c.rotor_port) document.getElementById('rotor_port').value = c.rotor_port;
     if(c.contest_start_date) document.getElementById('contest_start_date').value = c.contest_start_date;
     if(c.contest_end_date) document.getElementById('contest_end_date').value = c.contest_end_date;
     if(c.contest_end_utc) document.getElementById('contest_end_utc').value = c.contest_end_utc;

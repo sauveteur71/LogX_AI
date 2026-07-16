@@ -893,6 +893,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(state)
             return
 
+        # Rotor d'antenne (rotctld) : position courante — pollée par le logbook
+        if path == '/rotor/state':
+            import radiocontest_rotor as rotor
+            settings = rotor.rotor_settings(self._cfg_snapshot())
+            if not settings['enabled']:
+                self._json({'enabled': False})
+                return
+            state = rotor.get_position(settings['host'], settings['port'])
+            state['enabled'] = True
+            self._json(state)
+            return
+
         # QTC (WAE) : total et détail par station
         if path.startswith('/qtc/list'):
             from radiocontest_storage import qtc_log, qtc_lock, qtc_total
@@ -1134,6 +1146,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     print(f"[RIG] CW: {str(payload.get('text',''))[:40]}")
             else:
                 res = rig.stop_morse(host, port)
+            self._json(res, 200 if res.get('ok') else 502)
+            return
+
+        # Rotor d'antenne (rotctld) : pointer, stopper
+        if self.path in ('/rotor/point', '/rotor/stop'):
+            import radiocontest_rotor as rotor
+            settings = rotor.rotor_settings(self._cfg_snapshot())
+            if not settings['enabled']:
+                self._json({'ok': False, 'error': 'Rotor désactivé — '
+                            'active-le dans CONFIG (mode expert, section ROTOR)'}, 400)
+                return
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            host, port = settings['host'], settings['port']
+            if self.path == '/rotor/point':
+                az = payload.get('azimuth')
+                if az is None:
+                    self._json({'ok': False, 'error': 'Azimut manquant'}, 400)
+                    return
+                res = rotor.set_position(host, port, az, payload.get('elevation', 0))
+                if res.get('ok'):
+                    print(f"[ROTOR] Pointe {res['azimuth']} deg")
+            else:
+                res = rotor.stop(host, port)
             self._json(res, 200 if res.get('ok') else 502)
             return
 

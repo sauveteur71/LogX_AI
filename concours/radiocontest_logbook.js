@@ -1885,6 +1885,18 @@ function rigStopCW(){
 
 refreshRig();
 setInterval(refreshRig, 3000);
+
+// ─── ROTOR (rotctld) ─────────────────────────────────────────────────────────
+// Sonde l'état pour savoir si le pilotage est actif (affiche le bouton
+// « pointer » sous la boussole) ; le pointage réel se fait à la demande.
+let rotorState = {enabled:false};
+function refreshRotor(){
+  fetch('/rotor/state').then(r=>r.ok?r.json():null).then(d=>{
+    rotorState.enabled = !!(d && d.enabled);
+  }).catch(()=>{ rotorState.enabled = false; });
+}
+refreshRotor();
+setInterval(refreshRotor, 15000);
 function editMacro(idx){
   const macros = getMacros();
   const m = macros[idx];
@@ -2562,6 +2574,8 @@ function onLocatorKeydown(e){
 }
 
 // ─── COMPAS INLINE ────────────────────────────────────────────────────────────
+let _lastCompassDeg = null;   // cap courant, pour le bouton « pointer »
+
 function showCompassInline(deg, distKm, pts){
   const el      = document.getElementById('compassInline');
   const needle  = document.getElementById('compassNeedle');
@@ -2576,6 +2590,19 @@ function showCompassInline(deg, distKm, pts){
   if(distEl) distEl.textContent = `${Math.round(distKm)} km`;
   if(ptsEl)  ptsEl.textContent  = `${pts} pts`;
   el.classList.add('show');
+  // Bouton « pointer » : visible seulement si le rotor est piloté
+  _lastCompassDeg = deg;
+  const pb = document.getElementById('pointAntennaBtn');
+  if(pb) pb.style.display = (typeof rotorState !== 'undefined' && rotorState.enabled) ? '' : 'none';
+}
+
+function pointAntennaFromCompass(){
+  if(_lastCompassDeg == null) return;
+  fetch('/rotor/point', {method:'POST', headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify({azimuth: _lastCompassDeg})})
+    .then(r=>r.json()).then(d=>{
+      notify(d.ok ? `🧭 Antenne pointée sur ${_lastCompassDeg}°` : `❌ ${d.error}`);
+    }).catch(()=>notify('Rotor injoignable.'));
 }
 function hideCompassInline(){
   const el = document.getElementById('compassInline');
