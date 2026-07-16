@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RadioContest AI — Terrain</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root {
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#1E2040;
+  --accent:#FF6B00;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#FFE566;--muted:#B8A040;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+}
+/* ─── MODE JOUR ─────────────────────────────────────────────────────────── */
+body.day-mode {
+  --bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
+  --accent:#D05000;--accent2:#0060A0;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--purple:#8040B0;--text:#0A0C20;--muted:#606888;
+}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+body.day-mode .bubble.msg-agent{color:var(--text)}
+body.day-mode .leaflet-container{background:#D8E4F0}
+body.day-mode .map-tooltip{background:rgba(255,255,255,.97);color:var(--text)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* HEADER */
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.hdr-left{display:flex;align-items:center;gap:16px}
+.live-dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.call{font-family:var(--font-mono);font-size:20px;color:var(--accent);letter-spacing:3px}
+.sub{font-size:10px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
+.hdr-right{display:flex;align-items:center;gap:16px}
+.score-hdr{text-align:right}
+.score-lbl{font-size:9px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
+.score-val{font-size:22px;font-weight:800;color:var(--accent);font-family:var(--font-mono)}
+.clock{font-family:var(--font-mono);font-size:13px;color:var(--muted)}
+.cfg-btn{font-family:var(--font-mono);font-size:10px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
+.cfg-btn:hover{border-color:var(--accent);color:var(--accent)}
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
+.app-nav a{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+.app-nav .nav-spacer{flex:1}
+.app-nav .nav-info{font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:0 16px;display:flex;align-items:center;gap:10px}
+
+/* SCORE BAR */
+.score-bar{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.score-item{flex:1;padding:7px 14px;border-right:1px solid var(--border)}
+.score-item:last-child{border-right:none}
+.si-lbl{font-size:9px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono);margin-bottom:2px}
+.si-val{font-size:15px;font-weight:800;font-family:var(--font-mono)}
+
+/* MAIN */
+.main{display:flex;flex:1;overflow:hidden}
+
+/* CHAT */
+.chat-panel{width:420px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border);background:var(--bg2)}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.chat-msgs::-webkit-scrollbar{width:3px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.msg{display:flex;flex-direction:column;gap:3px;animation:fi .3s ease}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg-user{align-items:flex-end}
+.msg-agent{align-items:flex-start}
+.msg-lbl{font-size:9px;letter-spacing:2px;font-family:var(--font-mono);color:var(--muted);padding:0 3px}
+.bubble{max-width:360px;padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.msg-user .bubble{background:linear-gradient(135deg,#1A2060,#0D1240);border:1px solid #2A3080;color:#C0C8FF;border-radius:12px 12px 2px 12px}
+.msg-agent .bubble{background:var(--bg3);border:1px solid var(--border);font-family:var(--font-mono);border-radius:12px 12px 12px 2px}
+.bubble.alert{border-color:var(--red);background:rgba(255,45,85,.08);box-shadow:0 0 20px rgba(255,45,85,.15)}
+.bubble.dx{border-color:var(--yellow);background:rgba(255,214,10,.06);box-shadow:0 0 16px rgba(255,214,10,.1)}
+.bubble.auto-alert{border-color:var(--green);background:rgba(0,255,136,.07);box-shadow:0 0 20px rgba(0,255,136,.18);animation:autoAlertPulse 1.6s ease 2}
+@keyframes autoAlertPulse{0%,100%{box-shadow:0 0 20px rgba(0,255,136,.18)}50%{box-shadow:0 0 32px rgba(0,255,136,.4)}}
+.msg-lbl.auto{color:var(--green)}
+.thinking{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px 12px 12px 2px;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.dot-a span{animation:blink 1.4s infinite both;font-size:16px}
+.dot-a span:nth-child(2){animation-delay:.2s}
+.dot-a span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:0}40%{opacity:1}}
+
+/* INPUT */
+.chat-input{padding:10px;border-top:1px solid var(--border);background:var(--bg);display:flex;flex-direction:column;gap:7px}
+.quick-btns{display:flex;gap:5px;flex-wrap:wrap}
+.qbtn{font-family:var(--font-mono);font-size:9px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
+.qbtn:hover{border-color:var(--accent);color:var(--accent)}
+.input-row{display:flex;gap:7px;align-items:flex-end}
+textarea{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--font);font-size:13px;padding:9px 11px;resize:none;min-height:42px;max-height:110px;outline:none;transition:border-color .2s}
+textarea:focus{border-color:var(--accent2)}
+textarea::placeholder{color:var(--muted)}
+.send-btn{background:linear-gradient(135deg,var(--accent),#FF9500);border:none;border-radius:7px;width:42px;height:42px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;transition:transform .1s;flex-shrink:0}
+.send-btn:hover{transform:scale(1.05)}
+.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* MAP */
+.map-panel{flex:1;display:flex;flex-direction:column;background:var(--bg);overflow:hidden;min-height:0}
+.map-container{flex:1;position:relative;overflow:hidden;min-height:0}
+#map{position:absolute;top:0;left:0;width:100%;height:100%;z-index:0}
+@keyframes rcPulse{0%,100%{box-shadow:0 0 18px #00D4FF,0 0 6px #fff;opacity:1}50%{box-shadow:0 0 30px #00D4FF,0 0 10px #fff;opacity:.7}}
+@keyframes spotPulse{0%{transform:translate(-50%,-50%) scale(1);opacity:0.6}100%{transform:translate(-50%,-50%) scale(2.5);opacity:0}}
+.leaflet-container{font-family:var(--font-mono)}
+.leaflet-control-attribution{font-size:8px;opacity:.5}
+.leaflet-control-zoom a{background:var(--bg3)!important;color:var(--text)!important;border-color:var(--border)!important}
+.leaflet-control-zoom a:hover{background:var(--bg2)!important;color:var(--accent)!important}
+.rc-my-icon{pointer-events:none}
+.rc-station-icon{cursor:pointer}
+
+/* TOOLTIP */
+.map-tooltip{position:absolute;background:rgba(13,14,26,.97);border-radius:10px;padding:13px 15px;pointer-events:none;z-index:100;min-width:195px;font-family:var(--font-mono);box-shadow:0 8px 32px rgba(0,0,0,.6);transition:opacity .15s}
+.tt-call{font-size:19px;font-weight:700;letter-spacing:2px;margin-bottom:7px}
+.tt-row{display:flex;justify-content:space-between;gap:14px;margin-bottom:3px}
+.tt-lbl{font-size:9px;color:var(--muted);letter-spacing:2px}
+.tt-val{font-size:11px;font-weight:700}
+.tt-status{font-size:9px;letter-spacing:2px;text-align:center;margin-top:9px;padding:3px;border-radius:4px}
+
+/* CONTEST BADGE */
+.contest-badge{padding:4px 10px;border-radius:5px;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;border:1px solid var(--border);color:var(--accent2);background:rgba(0,212,255,.06)}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="hdr-left">
+    <div class="live-dot"></div>
+    <div>
+      <div class="call" id="hdrCall">RADIOCONTEST AI</div>
+      <div class="sub" id="hdrSub">Chargement de la configuration...</div>
+    </div>
+    <div class="contest-badge" id="contestBadge">—</div>
+  </div>
+  <div class="hdr-right">
+    <div class="score-hdr">
+      <div class="score-lbl">SCORE TOTAL</div>
+      <div class="score-val" id="scoreTotal">— pts</div>
+    </div>
+    <div class="clock" id="clock">00:00:00 UTC</div>
+    <button class="cfg-btn" id="mapModeBtn" onclick="cycleModeBtn()" title="Changer la vue de la carte">🗺️ EUROPE</button>
+    <button class="cfg-btn" id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit" style="font-size:16px">☀️</button>
+  </div>
+</header>
+
+<nav class="app-nav">
+  <a href="radiocontest.html" class="active">🗺️ CARTE IA</a>
+  <a href="logbook.html">📋 LOGBOOK</a>
+  <a href="configuration.html">⚙ CONFIG</a>
+  <div class="nav-spacer"></div>
+  <div class="nav-info" id="navContest">—</div>
+</nav>
+<script src="statusbar.js"></script>
+
+<div class="score-bar">
+  <div class="score-item"><div class="si-lbl">BANDE 1</div><div class="si-val" id="score1" style="color:var(--accent2)">— pts</div></div>
+  <div class="score-item"><div class="si-lbl">BANDE 2</div><div class="si-val" id="score2" style="color:var(--purple)">— pts</div></div>
+  <div class="score-item"><div class="si-lbl">QSO TOTAL</div><div class="si-val" id="scoreQSO" style="color:var(--green)">0</div></div>
+  <div class="score-item"><div class="si-lbl">MEILLEUR DX</div><div class="si-val" id="scoreBestDX" style="color:var(--yellow)">— km</div></div>
+  <div class="score-item"><div class="si-lbl">LOCATOR</div><div class="si-val" id="myLocator" style="color:var(--accent);font-size:13px">—</div></div>
+</div>
+
+<div class="main">
+  <div class="chat-panel">
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="msg msg-agent">
+        <div class="msg-lbl">AGENT</div>
+        <div class="bubble">Chargement de ta configuration...
+
+Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.</div>
+      </div>
+    </div>
+    <div class="chat-input">
+      <div class="quick-btns">
+        <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.')">📡 ANALYSER</button>
+        <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?')">🏆 SCORE</button>
+        <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?')">⚡ SPOTS</button>
+        <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?')">📶 PROP</button>
+        <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?')">🎯 MULTS</button>
+        <button class="qbtn" onclick="qs('Résumé complet de la session.')">📋 RÉSUMÉ</button>
+      </div>
+      <div class="input-row">
+        <textarea id="userInput" placeholder="Envoie un message à l'agent..." rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="send()">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="map-panel">
+    <div class="map-container">
+      <div id="map"></div>
+    </div>
+  </div>
+</div>
+
+<div class="map-tooltip" id="tooltip" style="display:none;opacity:0">
+  <div class="tt-call" id="ttCall"></div>
+  <div class="tt-row"><span class="tt-lbl">LOCATOR</span><span class="tt-val" id="ttLoc"></span></div>
+  <div class="tt-row"><span class="tt-lbl">DISTANCE</span><span class="tt-val" id="ttDist"></span></div>
+  <div class="tt-row"><span class="tt-lbl">FRÉQUENCE</span><span class="tt-val" id="ttFreq" style="color:var(--accent2)"></span></div>
+  <div class="tt-row"><span class="tt-lbl">CAP ANTENNE</span><span class="tt-val" id="ttCap" style="color:var(--accent)"></span></div>
+  <div class="tt-row"><span class="tt-lbl">BANDE</span><span class="tt-val" id="ttBand"></span></div>
+  <div class="tt-status" id="ttStatus"></div>
+</div>
+
+<script>
+(function(){
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = `
+      <div style="position:fixed;inset:0;background:#07080F;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:'Courier New',monospace">
+        <div style="text-align:center;max-width:600px;padding:40px">
+          <div style="font-size:60px;margin-bottom:20px">🚫</div>
+          <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px">OUVERT EN FILE:// — IMPOSSIBLE</div>
+          <div style="color:#FFE566;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord serveur.py, puis accède via :</div>
+          <a href="http://localhost:8080/radiocontest.html"
+             style="display:inline-block;background:linear-gradient(135deg,#00FF88,#00D4FF);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
+            ▶ http://localhost:8080/radiocontest.html
+          </a>
+        </div>
+      </div>`;
+    return;
+  }
+})();
+
+// ─── CONFIG & STATE ──────────────────────────────────────────────────────────
+let cfg = {};
+let conversationHistory = [];
+let isWaiting = false;
+let mapStations = [];
+let systemPrompt = '';
+
+// ─── CARTE LEAFLET ───────────────────────────────────────────────────────────
+let leafletMap = null;
+let leafletTile = null;
+let leafletMyMarker = null;
+let leafletRangeCircles = [];
+let leafletStations = [];
+let leafletLines = [];
+let currentMapMode = 'europe';
+
+// Vues prédéfinies par zone
+const MAP_VIEWS = {
+  europe:  { center:[48,10],   zoom:4,  label:'🗺️ EUROPE' },
+  world:   { center:[20,0],    zoom:2,  label:'🌍 MONDE' },
+  usa:     { center:[39,-98],  zoom:3,  label:'🇺🇸 USA' },
+  france:  { center:[46.5,2],  zoom:5,  label:'🇫🇷 FRANCE' },
+};
+
+const HF_CONTESTS = ['CQ_WW_SSB','CQ_WW_CW','CQ_WPX_SSB','CQ_WPX_CW',
+  'ARRL_DX_SSB','ARRL_DX_CW','REF_CDF_HF_CW','REF_CDF_HF_SSB',
+  'REF_160M','F9NL','UFT_RENCONTRES','CUSTOM'];
+const USA_CONTESTS = ['ARRL_FD'];
+const FRANCE_CONTESTS = ['REF_RPH','REF_QRP'];
+
+function detectMapMode(){
+  const c = cfg.contest || '';
+  if(USA_CONTESTS.includes(c)) return 'usa';
+  if(HF_CONTESTS.includes(c)) return 'world';
+  if(FRANCE_CONTESTS.includes(c)) return 'france';
+  return 'europe';
+}
+
+function getTileConfig(){
+  const day = document.body.classList.contains('day-mode');
+  if(day) return {
+    url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    sub:'abc',
+    attr:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  };
+  return {
+    url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    sub:'abcd',
+    attr:'© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/attributions">CARTO</a>'
+  };
+}
+
+function switchMapMode(mode){
+  currentMapMode = mode;
+  if(!leafletMap) return;
+  const v = MAP_VIEWS[mode] || MAP_VIEWS.europe;
+  leafletMap.setView(v.center, v.zoom, {animate:true});
+  const btn = document.getElementById('mapModeBtn');
+  if(btn) btn.textContent = v.label;
+}
+
+function cycleModeBtn(){
+  const modes = ['europe','world','usa','france'];
+  const next = modes[(modes.indexOf(currentMapMode)+1)%modes.length];
+  switchMapMode(next);
+}
+
+// ─── FONCTIONS CARTE LEAFLET ─────────────────────────────────────────────────
+function initMap(){
+  const mode = detectMapMode();
+  currentMapMode = mode;
+  const v = MAP_VIEWS[mode];
+  const tile = getTileConfig();
+
+  if(!leafletMap){
+    leafletMap = L.map('map',{
+      center: v.center, zoom: v.zoom,
+      zoomControl: true, attributionControl: true,
+      preferCanvas: true
+    });
+    leafletTile = L.tileLayer(tile.url,{
+      attribution: tile.attr,
+      subdomains: tile.sub,
+      maxZoom: 18
+    }).addTo(leafletMap);
+    leafletMap.on('click', hideTooltip);
+  } else {
+    leafletMap.setView(v.center, v.zoom);
+    const t = getTileConfig();
+    leafletTile.setUrl(t.url);
+    leafletTile.options.subdomains = t.sub;
+  }
+  const btn = document.getElementById('mapModeBtn');
+  if(btn) btn.textContent = v.label;
+
+  drawRangeCircles();
+  drawMyPos();
+  drawLoggedQSOs();
+}
+
+function refreshTiles(){
+  if(!leafletTile) return;
+  const t = getTileConfig();
+  leafletTile.setUrl(t.url);
+}
+
+function drawRangeCircles(){
+  leafletRangeCircles.forEach(l=>l.remove());
+  leafletRangeCircles=[];
+  if(!cfg.locator||!leafletMap) return;
+  const ll=locLL(cfg.locator);
+  if(!ll) return;
+  const rec=parseInt(cfg.record_dx||0);
+  const opt={fill:false,weight:1.2,dashArray:'5,5',opacity:0.55};
+  const c1=L.circle([ll.lat,ll.lon],{...opt,radius:500000,color:'#20803A'}).addTo(leafletMap);
+  c1.bindTooltip('500 km',{permanent:false,direction:'top',className:'rc-range-lbl'});
+  leafletRangeCircles.push(c1);
+  const c2=L.circle([ll.lat,ll.lon],{...opt,radius:1000000,color:'#1A6060'}).addTo(leafletMap);
+  c2.bindTooltip('1000 km',{permanent:false,direction:'top',className:'rc-range-lbl'});
+  leafletRangeCircles.push(c2);
+  const dist3=rec>1000?rec:1600;
+  const c3=L.circle([ll.lat,ll.lon],{...opt,radius:dist3*1000,color:'#703030'}).addTo(leafletMap);
+  c3.bindTooltip(dist3+'km'+(rec>1000?' ★ record':''),{permanent:false,direction:'top',className:'rc-range-lbl'});
+  leafletRangeCircles.push(c3);
+}
+
+function drawMyPos(){
+  if(leafletMyMarker){leafletMyMarker.remove();leafletMyMarker=null;}
+  if(!cfg.locator||!leafletMap) return;
+  const ll=locLL(cfg.locator);
+  if(!ll) return;
+  const html=`<div style="position:relative;width:0;height:0">
+    <div style="position:absolute;width:22px;height:22px;border-radius:50%;background:#00D4FF;border:3px solid #fff;box-shadow:0 0 18px #00D4FF,0 0 6px #fff;transform:translate(-50%,-50%);animation:rcPulse 2.5s infinite"></div>
+    <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:11px;font-weight:bold;color:#00D4FF;text-shadow:0 0 8px #00D4FF,0 0 2px #000;transform:translate(-50%,-220%)">${cfg.locator||''}</div>
+  </div>`;
+  const icon=L.divIcon({html,className:'rc-my-icon',iconSize:[0,0],iconAnchor:[0,0]});
+  leafletMyMarker=L.marker([ll.lat,ll.lon],{icon,zIndexOffset:2000,interactive:false}).addTo(leafletMap);
+}
+
+function updateMapStations(stns){
+  mapStations=stns;
+  leafletStations.forEach(l=>l.remove()); leafletStations=[];
+  leafletLines.forEach(l=>l.remove()); leafletLines=[];
+  drawLoggedQSOs(); // redessiner les QSOs loggés après refresh spots
+  if(!cfg.locator||!leafletMap) return;
+  const myLL=locLL(cfg.locator);
+  if(!myLL) return;
+  stns.forEach(s=>{
+    const pos=locLL(s.locator);
+    if(!pos) return;
+    const col=PCOLS[s.priority]||'#888';
+    const line=L.polyline([[myLL.lat,myLL.lon],[pos.lat,pos.lon]],{
+      color:col,weight:s.done?0.8:s.priority<=2?2:1.5,
+      dashArray:s.done?'4,4':null,opacity:s.done?0.2:0.5
+    }).addTo(leafletMap);
+    leafletLines.push(line);
+    const r=s.priority<=2?10:7;
+    const glow=(!s.done&&s.priority<=2)?`box-shadow:0 0 12px ${col},0 0 4px ${col}`:'';
+    const html=`<div style="position:relative;width:0;height:0">
+      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:${s.priority<=2?11:9}px;font-weight:bold;color:${s.done?'#555':col};text-shadow:0 0 5px ${s.done?'none':col};transform:translate(-50%,-${r*2+14}px)">${s.call}</div>
+      <div style="position:absolute;width:${r*2}px;height:${r*2}px;border-radius:50%;background:${col};opacity:${s.done?0.3:0.95};${glow};transform:translate(-50%,-50%);cursor:pointer"></div>
+    </div>`;
+    const icon=L.divIcon({html,className:'rc-station-icon',iconSize:[0,0],iconAnchor:[0,0]});
+    const mk=L.marker([pos.lat,pos.lon],{icon,zIndexOffset:s.priority<=2?1000:500}).addTo(leafletMap);
+    mk.on('click',e=>{e.originalEvent.stopPropagation();showTooltip(s,e.originalEvent,col);});
+    leafletStations.push(mk);
+  });
+}
+
+function showTooltip(s,ev,color){
+  const myLL=locLL(cfg.locator||'JN00AA');
+  const pos=locLL(s.locator);
+  const dist=pos&&myLL?hav(myLL.lat,myLL.lon,pos.lat,pos.lon):s.dist||'?';
+  const cap=pos&&myLL?brng(myLL.lat,myLL.lon,pos.lat,pos.lon):s.cap||'?';
+  const crd=typeof cap==='number'?card(cap):'';
+  const tt=document.getElementById('tooltip');
+  document.getElementById('ttCall').textContent=s.call;
+  document.getElementById('ttCall').style.color=color;
+  document.getElementById('ttLoc').textContent=s.locator||'—';
+  document.getElementById('ttDist').textContent=`${dist} km`;
+  document.getElementById('ttFreq').textContent=s.freq?`${s.freq} MHz`:'—';
+  document.getElementById('ttCap').textContent=`${cap}° ${crd}`;
+  document.getElementById('ttBand').textContent=`${s.band||144} MHz`;
+  const st=document.getElementById('ttStatus');
+  if(s.done){st.textContent='✓ CONTACT DÉJÀ FAIT';st.style.background='rgba(58,58,74,.4)';st.style.color='#888';}
+  else{st.textContent=PLBLS[s.priority]||'';st.style.background=color+'22';st.style.color=color;}
+  tt.style.border=`1px solid ${color}`;
+  tt.style.boxShadow=`0 0 20px ${color}40`;
+  let left=ev.clientX+16,top=ev.clientY-80;
+  if(left+220>window.innerWidth) left=ev.clientX-235;
+  if(top<60) top=60;
+  tt.style.left=left+'px';tt.style.top=top+'px';
+  tt.style.display='block';
+  setTimeout(()=>tt.style.opacity='1',10);
+}
+
+function hideTooltip(){
+  const tt=document.getElementById('tooltip');
+  tt.style.opacity='0';
+  setTimeout(()=>tt.style.display='none',150);
+}
+
+// ─── CONTACTS LOGGÉS SUR LA CARTE ────────────────────────────────────────────
+let leafletQSOMarkers = [];
+let leafletQSOLines   = [];
+
+const QSO_BAND_COLORS = {
+  '1.8':'#FF2D55','3.5':'#FF6B35','7':'#FF9F0A','14':'#FFD60A',
+  '21':'#34C759','28':'#00C7BE','50':'#00D4FF','144':'#BF5AF2',
+  '432':'#FF8C00','1296':'#FF2D55','default':'#39FF14'
+};
+
+const QSO_BAND_LABELS = {
+  '1.8':'160m','3.5':'80m','7':'40m','14':'20m','21':'15m','28':'10m',
+  '50':'6m','144':'2m','432':'70cm','1296':'23cm'
+};
+
+function drawLoggedQSOs(){
+  leafletQSOMarkers.forEach(l=>l.remove()); leafletQSOMarkers=[];
+  leafletQSOLines.forEach(l=>l.remove());   leafletQSOLines=[];
+  if(!leafletMap||!cfg.locator) return;
+  const myLL = locLL(cfg.locator);
+  if(!myLL) return;
+
+  let qsoLog = [];
+  try{ qsoLog = JSON.parse(localStorage.getItem('radiocontest_qsolog')||'[]'); }catch(e){}
+  if(!qsoLog.length) return;
+
+  // Dédupliquer par call+locator
+  const seen = new Set();
+  qsoLog.forEach(q => {
+    if(!q.locator || q.locator.length < 6) return;
+    const key = q.call+'|'+q.locator;
+    if(seen.has(key)) return;
+    seen.add(key);
+
+    const pos = locLL(q.locator);
+    if(!pos) return;
+    const col = QSO_BAND_COLORS[q.band] || QSO_BAND_COLORS['default'];
+    const bandLabel = QSO_BAND_LABELS[q.band] || (q.band+' MHz');
+
+    // Ligne
+    const line = L.polyline([[myLL.lat,myLL.lon],[pos.lat,pos.lon]],{
+      color:col, weight:1.5, opacity:0.5, dashArray:'4 4'
+    }).addTo(leafletMap);
+    leafletQSOLines.push(line);
+
+    // Marqueur "tick vert"
+    const html = `<div style="position:relative;width:0;height:0">
+      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:9px;font-weight:bold;color:${col};text-shadow:0 0 4px ${col};transform:translate(-50%,-24px)">${q.call}</div>
+      <div style="position:absolute;width:12px;height:12px;border-radius:50%;background:${col};opacity:0.9;border:2px solid #fff;box-shadow:0 0 6px ${col};transform:translate(-50%,-50%)"></div>
+    </div>`;
+    const icon = L.divIcon({html, className:'rc-qso-icon', iconSize:[0,0], iconAnchor:[0,0]});
+    const mk = L.marker([pos.lat,pos.lon],{icon, zIndexOffset:300}).addTo(leafletMap);
+    const capDeg = bearingLL(myLL.lat,myLL.lon,pos.lat,pos.lon);
+    mk.bindPopup(
+      `<div style="font-family:monospace;font-size:13px;line-height:1.7">` +
+      `<b style="color:${col}">${q.call}</b> ✅<br>` +
+      `📍 ${q.locator}<br>` +
+      `📡 ${bandLabel} — ${q.mode}<br>` +
+      `📏 ${q.dist||'?'} km — 🏆 ${q.points||0} pts<br>` +
+      `🧭 Cap antenne : ${capDeg}° ${cardinalLL(capDeg)}` +
+      `</div>`
+    );
+    leafletQSOMarkers.push(mk);
+  });
+  console.log(`[MAP] ${leafletQSOMarkers.length} QSOs loggés affichés`);
+}
+
+// ─── AFFICHAGE SPOTS CLUSTER SUR LA CARTE ────────────────────────────────────
+let leafletSpotMarkers = [];
+let leafletSpotLines   = [];
+let _lastClusterSpots  = {};  // cache pour re-dessiner sans re-fetcher
+
+function drawClusterSpots(spotsByBand){
+  // Nettoyer anciens marqueurs cluster
+  leafletSpotMarkers.forEach(m=>m.remove()); leafletSpotMarkers=[];
+  leafletSpotLines.forEach(l=>l.remove());   leafletSpotLines=[];
+  if(!leafletMap||!cfg||!cfg.locator) return;
+  const myLL = locLL(cfg.locator);
+  if(!myLL) return;
+
+  // Couleur par bande HF
+  const SPOT_BAND_COLOR = {
+    '14':'#FFD60A','7':'#FF9F0A','21':'#34C759','28':'#00C7BE',
+    '50':'#00D4FF','3.5':'#FF6B35','1.8':'#FF2D55',
+    '144':'#BF5AF2','432':'#FF8C00',
+  };
+
+  // Détecter préfixes USA/Canada pour filtrage visuel (concours HF nord-américains)
+  const contest = cfg.contest||'';
+  const NA_CONTESTS = new Set(['ARRL_FD','ARRL_DX_SSB','ARRL_DX_CW']);
+  const isNaContest = NA_CONTESTS.has(contest);
+  const NA_PFX = /^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|KQ|KR|KS|KT|KU|KV|KW|KX|KY|KZ|NA|NB|NC|ND|NE|NF|NG|NH|NI|NJ|NK|NL|NM|NN|NO|NP|NQ|NR|NS|NT|NU|NV|NW|NX|NY|NZ|VE|VA|VO|VY)/i;
+
+  const seen = new Set();
+  let count = 0;
+
+  Object.entries(spotsByBand||{}).forEach(([bandLabel, spots])=>{
+    if(!Array.isArray(spots)) return;
+    // Extraire la fréquence de base pour la couleur (ex: "14 MHz" → "14")
+    const freqKey = bandLabel.replace(' MHz','').trim().split('.')[0];
+    const col = SPOT_BAND_COLOR[freqKey] || '#AAAAAA';
+
+    spots.forEach(s=>{
+      if(!s||typeof s!=='object') return;
+      const dx   = s.dx||'';
+      const lat  = s.lat;
+      const lon  = s.lon;
+      const freq = s.freq||'';
+      const info = s.info||'';
+      const spotter = s.spotter||'';
+
+      if(!dx || lat==null || lon==null) return;
+      if(Math.abs(lat)<0.1 && Math.abs(lon)<0.1) return; // coordonnées nulles
+
+      // Filtrer : si concours NA, ne montrer que W/K/N/VE
+      if(isNaContest && !NA_PFX.test(dx)) return;
+
+      const key = dx+'|'+freq;
+      if(seen.has(key)) return;
+      seen.add(key);
+
+      // Ligne home → spot (fine, pointillée, colorée)
+      const line = L.polyline([[myLL.lat,myLL.lon],[lat,lon]],{
+        color:col, weight:1, opacity:0.35, dashArray:'3 6'
+      }).addTo(leafletMap);
+      leafletSpotLines.push(line);
+
+      // Marqueur pulsant
+      const pulse = isNaContest ? `
+        <div style="position:absolute;width:20px;height:20px;border-radius:50%;
+          border:2px solid ${col};animation:spotPulse 2s ease-out infinite;
+          transform:translate(-50%,-50%);opacity:0.6"></div>` : '';
+      const html = `<div style="position:relative;width:0;height:0">
+        ${pulse}
+        <div style="position:absolute;white-space:nowrap;font-family:monospace;
+          font-size:9px;font-weight:bold;color:${col};
+          text-shadow:0 0 3px #000,0 0 6px ${col};
+          transform:translate(-50%,-22px)">${dx}</div>
+        <div style="position:absolute;width:8px;height:8px;border-radius:50%;
+          background:${col};border:1.5px solid #fff;box-shadow:0 0 5px ${col};
+          transform:translate(-50%,-50%)"></div>
+      </div>`;
+      const icon = L.divIcon({html, className:'rc-spot-icon', iconSize:[0,0], iconAnchor:[0,0]});
+      const mk = L.marker([lat,lon],{icon, zIndexOffset:200}).addTo(leafletMap);
+
+      // Calculer distance + cap antenne
+      const dist = Math.round(haversineLL(myLL.lat,myLL.lon,lat,lon));
+      const capDeg = bearingLL(myLL.lat,myLL.lon,lat,lon);
+      mk.bindPopup(
+        `<div style="font-family:monospace;font-size:12px;line-height:1.8;min-width:160px">` +
+        `<b style="color:${col};font-size:14px">📡 ${dx}</b><br>` +
+        `🔊 ${freq} MHz — ${info||bandLabel}<br>` +
+        `👁️ Spot par ${spotter}<br>` +
+        `📏 ~${dist.toLocaleString()} km depuis toi<br>` +
+        `🧭 Cap antenne : ${capDeg}° ${cardinalLL(capDeg)}<br>` +
+        `<button onclick="document.getElementById('userInput').value='Appelle ${dx} sur ${freq} MHz';document.getElementById('userInput').focus()" ` +
+        `style="margin-top:6px;padding:4px 10px;background:${col}22;border:1px solid ${col};` +
+        `color:${col};border-radius:6px;cursor:pointer;font-family:monospace;font-size:11px">` +
+        `➤ Demander à l'IA</button>` +
+        `</div>`
+      );
+      leafletSpotMarkers.push(mk);
+      count++;
+    });
+  });
+  if(count) console.log(`[MAP-SPOTS] ${count} spots cluster affichés`);
+}
+
+function haversineLL(lat1,lon1,lat2,lon2){
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function bearingLL(lat1,lon1,lat2,lon2){
+  const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180;
+  const Δλ=(lon2-lon1)*Math.PI/180;
+  const y=Math.sin(Δλ)*Math.cos(φ2);
+  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return Math.round((Math.atan2(y,x)*180/Math.PI+360)%360);
+}
+function cardinalLL(deg){
+  const dirs=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+  return dirs[Math.round(deg/22.5)%16];
+}
+
+// Zones CQ pour HF
+const CQ_ZONES = [
+  {z:1,lat:68,lon:-130},{z:2,lat:55,lon:-100},{z:3,lat:42,lon:-90},
+  {z:4,lat:42,lon:-115},{z:5,lat:25,lon:-105},{z:6,lat:15,lon:-88},
+  {z:7,lat:5,lon:-75},{z:8,lat:-5,lon:-55},{z:9,lat:-20,lon:-50},
+  {z:10,lat:-35,lon:-63},{z:11,lat:-55,lon:-68},{z:12,lat:5,lon:-15},
+  {z:13,lat:-10,lon:20},{z:14,lat:38,lon:-8},{z:15,lat:52,lon:10},
+  {z:16,lat:62,lon:15},{z:17,lat:50,lon:30},{z:18,lat:65,lon:45},
+  {z:19,lat:62,lon:80},{z:20,lat:50,lon:80},{z:21,lat:38,lon:68},
+  {z:22,lat:20,lon:80},{z:23,lat:5,lon:80},{z:24,lat:20,lon:105},
+  {z:25,lat:38,lon:112},{z:26,lat:55,lon:108},{z:27,lat:65,lon:110},
+  {z:28,lat:10,lon:125},{z:29,lat:38,lon:138},{z:30,lat:55,lon:138},
+  {z:31,lat:-5,lon:155},{z:32,lat:-28,lon:152},{z:33,lat:-45,lon:170},
+  {z:34,lat:-20,lon:130},{z:35,lat:-28,lon:115},{z:36,lat:-15,lon:25},
+  {z:37,lat:-30,lon:28},{z:38,lat:15,lon:38},{z:39,lat:28,lon:45},
+  {z:40,lat:42,lon:45},
+];
+
+function locLL(loc){
+  if(!loc||loc.length<6)return null;
+  const l=loc.toUpperCase();
+  try{
+    const lon=(l.charCodeAt(0)-65)*20-180+parseInt(l[2])*2+(l.charCodeAt(4)-65)*(2/24)+1/24;
+    const lat=(l.charCodeAt(1)-65)*10-90+parseInt(l[3])+(l.charCodeAt(5)-65)*(1/24)+0.5/24;
+    return{lat,lon};
+  }catch{return null;}
+}
+
+function hav(lat1,lon1,lat2,lon2){
+  const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)));
+}
+
+function brng(lat1,lon1,lat2,lon2){
+  const φ1=lat1*Math.PI/180,φ2=lat2*Math.PI/180,Δλ=(lon2-lon1)*Math.PI/180;
+  return Math.round((Math.atan2(Math.sin(Δλ)*Math.cos(φ2),Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ))*180/Math.PI+360)%360);
+}
+
+function card(d){return['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'][Math.round(d/22.5)%16]}
+
+const PCOLS={1:'#FF2D55',2:'#FF6B00',3:'#FFD60A',4:'#FF9500',5:'#30D158',6:'#3A3A4A'};
+const PLBLS={1:'🌟 DX EXCEPTIONNEL',2:'🔴 HAUTE',3:'🟡 HAUTE',4:'🟠 MOYENNE',5:'🟢 BASSE',6:'✓ FAIT'};
+
+// ─── CLOCK ───────────────────────────────────────────────────────────────────
+setInterval(()=>{
+  const n=new Date();
+  document.getElementById('clock').textContent=
+    `${String(n.getUTCHours()).padStart(2,'0')}:${String(n.getUTCMinutes()).padStart(2,'0')}:${String(n.getUTCSeconds()).padStart(2,'0')} UTC`;
+},1000);
+
+// ─── LOAD CONFIG ─────────────────────────────────────────────────────────────
+function loadConfig(){
+  const saved=localStorage.getItem('radiocontest_config');
+  if(saved){
+    try{
+      cfg=JSON.parse(saved);
+      const provider = cfg.api_provider || localStorage.getItem('radiocontest_ai_provider') || 'anthropic';
+      cfg.api_provider = provider;
+      cfg.ai_model = cfg.ai_model || localStorage.getItem('radiocontest_ai_model') || '';
+      const apiKey = cfg.api_key || localStorage.getItem(`radiocontest_apikey_${provider}`) || localStorage.getItem('radiocontest_apikey') || '';
+      if(apiKey) cfg.api_key=apiKey;
+      applyConfig();
+      fetch('/config/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})
+        .catch(e=>console.warn('[CFG]',e));
+    }catch(e){console.warn('Config invalide',e);}
+  }
+  initMap();
+}
+
+function applyConfig(){
+  const call=cfg.callsign_contest||cfg.callsign||'STATION';
+  const loc=cfg.locator||'—';
+  const contest=cfg.contest||'—';
+  document.getElementById('hdrCall').textContent=call;
+  document.getElementById('hdrSub').textContent=`${loc} · ${cfg.city||''} · RadioContest AI`;
+  document.getElementById('contestBadge').textContent=contest;
+  const navC = document.getElementById('navContest');
+  if(navC) navC.textContent = contest.replace(/_/g,' ') || '—';
+  document.getElementById('myLocator').textContent=loc;
+
+  // Message de bienvenue
+  const toggles=cfg.toggles||{};
+
+  // Modes activés
+  const modes=[];
+  if(toggles.mode_ssb)  modes.push('SSB');
+  if(toggles.mode_cw)   modes.push('CW');
+  if(toggles.mode_fm)   modes.push('FM');
+  if(toggles.mode_ft8)  modes.push('FT8');
+  if(toggles.mode_ft4)  modes.push('FT4');
+  if(toggles.mode_rtty) modes.push('RTTY');
+  if(toggles.flag_no_digi) modes.push('(NO-DIGI)');
+
+  // Bandes activées — toutes les bandes HF + VHF/UHF
+  const BAND_TOGGLE_LABELS = {
+    'band_160m':'160m','band_80m':'80m','band_40m':'40m','band_20m':'20m',
+    'band_15m':'15m','band_10m':'10m','band_6m':'6m','band_4m':'4m',
+    'band_2m':'2m','band_70cm':'70cm','band_23cm':'23cm',
+    'band_13cm':'13cm','band_9cm':'9cm','band_6cm':'6cm','band_3cm':'3cm',
+  };
+  const bands = Object.entries(BAND_TOGGLE_LABELS)
+    .filter(([k]) => toggles[k])
+    .map(([,v]) => v);
+
+  addMsg('agent',`✅ Configuration chargée !\n\n📻 ${call} | ${loc}\n🏆 Concours : ${contest}\n📡 Bandes : ${bands.join(', ')||'—'}\n🎙️ Modes : ${modes.join(', ')||'—'}\n\nClique sur 📡 ANALYSER pour démarrer.`);
+}
+
+// ─── CHAT ────────────────────────────────────────────────────────────────────
+function addMsg(role,text,type=''){
+  const c=document.getElementById('chatMsgs');
+  const div=document.createElement('div');
+  div.className=`msg msg-${role}`;
+  const lbl=document.createElement('div');
+  lbl.className='msg-lbl'+(type==='auto-alert'?' auto':'');
+  lbl.textContent=role==='user'?'OPÉRATEUR':(type==='auto-alert'?'🤖 VEILLE AUTO':'AGENT');
+  const bub=document.createElement('div');
+  bub.className='bubble'+(type?' '+type:'');
+  bub.textContent=text;
+  div.appendChild(lbl);div.appendChild(bub);
+  c.appendChild(div);
+  c.scrollTop=c.scrollHeight;
+  parseScores(text);
+  parseStations(text);
+}
+
+function showThinking(){
+  const c=document.getElementById('chatMsgs');
+  const div=document.createElement('div');
+  div.className='msg msg-agent';div.id='thinking';
+  const lbl=document.createElement('div');lbl.className='msg-lbl';lbl.textContent='AGENT';
+  const bub=document.createElement('div');bub.className='thinking';
+  bub.innerHTML=`<span style="color:var(--accent2)">⚙</span> Analyse en cours <span class="dot-a"><span>.</span><span>.</span><span>.</span></span>`;
+  div.appendChild(lbl);div.appendChild(bub);
+  c.appendChild(div);c.scrollTop=c.scrollHeight;
+}
+
+function removeThinking(){const el=document.getElementById('thinking');if(el)el.remove();}
+
+function parseScores(text){
+  const tot=text.match(/SCORE\s+TOTAL\s*[:：]\s*([\d\s,]+)\s*pts/i);
+  if(tot)document.getElementById('scoreTotal').textContent=parseInt(tot[1].replace(/[\s,]/g,'')).toLocaleString()+' pts';
+  const dx=text.match(/(\d{3,4})\s*km/g);
+  if(dx){const m=Math.max(...dx.map(d=>parseInt(d)));if(m>100)document.getElementById('scoreBestDX').textContent=m+' km';}
+  const qso=text.match(/(\d+)\s*QSO/i);
+  if(qso)document.getElementById('scoreQSO').textContent=qso[1];
+}
+
+function parseStations(text){
+  const blocks=text.split(/📻/).slice(1);
+  if(!blocks.length)return;
+  const stns=[];
+  blocks.forEach(block=>{
+    const cm=block.match(/([A-Z0-9/]{3,})\s*\|?\s*Locator\s+([A-Z]{2}\d{2}[A-Z]{2})/i)||block.match(/^([A-Z0-9/]{3,})[^\n]*([A-Z]{2}\d{2}[A-Z]{2})/);
+    const lm=block.match(/([A-Z]{2}\d{2}[A-Z]{2})/);
+    const fm=block.match(/(14[34]\.\d+|43[23]\.\d+|50\.\d+)/);
+    const dm=block.match(/Distance[^:]*[:：]\s*(\d+)\s*km/i)||block.match(/(\d{3,4})\s*km/);
+    const bm=block.match(/(\d{3})\s*MHz/);
+    const done=block.includes('déjà fait')||block.includes('FAIT');
+    let priority=4;
+    if(block.includes('DX EXCEP'))priority=1;
+    else if(block.includes('HAUTE')&&!block.includes('MOYENNE'))priority=2;
+    else if(block.includes('MOYENNE'))priority=4;
+    else if(block.includes('BASSE'))priority=5;
+    if(done)priority=6;
+    if(cm&&lm){
+      stns.push({call:cm[1],locator:lm[1],freq:fm?parseFloat(fm[1]):144.300,dist:dm?parseInt(dm[1]):null,band:bm?parseInt(bm[1]):144,done,priority});
+    }
+  });
+  if(stns.length)updateMapStations(stns);
+}
+
+// ─── PUSH CLUSTER SPOTS (browser → serveur) ──────────────────────────────────
+// Le serveur Python ne peut pas accéder à HTTPS (bloqué sur ce réseau).
+// Le navigateur peut. On fetch DXSummit depuis le browser et on push au serveur.
+async function pushClusterSpots(){
+  const cfg=JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
+  const toggles=cfg.toggles||{};
+  const contest=cfg.contest||'';
+  const HF_CONTESTS=new Set(['ARRL_FD','CQWW_SSB','CQWW_CW','IARU_HF','WAE_SSB','WAE_CW',
+    'CQWPX_SSB','CQWPX_CW','REF_HF_SSB','REF_HF_CW','JARTS','CQ_160M']);
+  const isHF=HF_CONTESTS.has(contest)||
+    ['band_20m','band_40m','band_80m','band_160m','band_10m','band_15m']
+      .some(b=>toggles[b]);
+  const isVHF=!isHF&&(toggles.band_2m||toggles.band_70cm||contest.includes('144')||contest.includes('VHF'));
+
+  const spots=[];
+  const seen=new Set();
+  const DIGITAL_RE=/ft8|ft4|wspr|js8|rtty|psk|olivia|mfsk|jt|digi/i;
+
+  try{
+    // Bandes HF à fetcher selon config
+    const hfBands=[];
+    if(isHF){
+      if(toggles.band_20m||contest==='ARRL_FD') hfBands.push('14MHz');
+      if(toggles.band_40m||contest==='ARRL_FD') hfBands.push('7MHz');
+      if(toggles.band_15m||contest==='ARRL_FD') hfBands.push('21MHz');
+      if(toggles.band_10m||contest==='ARRL_FD') hfBands.push('28MHz');
+      if(toggles.band_80m) hfBands.push('3.5MHz');
+      if(toggles.band_160m) hfBands.push('1.8MHz');
+      if(!hfBands.length) hfBands.push('14MHz','7MHz','21MHz');
+    }
+    if(toggles.band_6m||contest==='ARRL_FD') hfBands.push('50MHz');
+    if(isVHF) hfBands.push('144MHz');
+    if(toggles.band_70cm) hfBands.push('432MHz');
+
+    for(const band of hfBands){
+      try{
+        const r=await fetch(`https://www.dxsummit.fi/api/v1/spots?include=${band}&limit=30`);
+        if(!r.ok) continue;
+        const items=await r.json();
+        const arr=Array.isArray(items)?items:(items.spots||[]);
+        for(const s of arr){
+          const info=String(s.mode||s.info||'');
+          if(DIGITAL_RE.test(info)) continue;
+          const dx=s.dx_callsign||s.dx||'';
+          const freq=parseFloat(s.frequency||s.freq||0);
+          const key=`${dx}|${freq}`;
+          if(seen.has(key)||!dx) continue;
+          seen.add(key);
+          spots.push({
+            spotter: s.spotter_callsign||s.spotter||'',
+            dx, freq,
+            info: String(s.info||s.comment||s.mode||'').slice(0,60),
+            time: String(s.time||s.utc||''),
+          });
+        }
+      }catch(e){ /* bande ignorée */ }
+    }
+  }catch(e){}
+
+  if(spots.length>0){
+    try{
+      await fetch('/data/spots',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(spots),
+      });
+      console.log(`[CLUSTER] ${spots.length} spots pushés au serveur`);
+    }catch(e){}
+  }else{
+    console.warn('[CLUSTER] Aucun spot fetché depuis DXSummit');
+  }
+}
+
+// ─── SEND ────────────────────────────────────────────────────────────────────
+async function fetchTerrainData(){
+  try{
+    // pushClusterSpots désactivé : HTTPS bloqué sur ce réseau, le serveur gère en HTTP
+    const res=await fetch('/data/refresh');
+    if(!res.ok)return null;
+    const data=await res.json();
+    if(data.score_total!==undefined){
+      document.getElementById('scoreTotal').textContent=data.score_total.toLocaleString()+' pts';
+    }
+    const logs=data.logs||{};
+    const keys=Object.keys(logs);
+    if(keys[0])document.getElementById('score1').textContent=(logs[keys[0]].score||0).toLocaleString()+' pts';
+    if(keys[1])document.getElementById('score2').textContent=(logs[keys[1]].score||0).toLocaleString()+' pts';
+    if(data.qso_total!==undefined)document.getElementById('scoreQSO').textContent=data.qso_total;
+    if(data.system_prompt)systemPrompt=data.system_prompt;
+    // Afficher les spots cluster sur la carte
+    if(data.spots){
+      _lastClusterSpots = data.spots;
+      drawClusterSpots(data.spots);
+    }
+    return data;
+  }catch(e){return null;}
+}
+
+async function send(){
+  const inp=document.getElementById('userInput');
+  const text=inp.value.trim();
+  if(!text||isWaiting)return;
+  addMsg('user',text);
+  inp.value='';inp.style.height='auto';
+  isWaiting=true;
+  document.getElementById('sendBtn').disabled=true;
+  showThinking();
+
+  try{
+    let enriched=text;
+    const isAnalysis=/analys|cluster|log|score|spot|recom|prop|mult|appel|contact|conseil|prochain|chasse|strat[ée]gi|qui (dois|contact|appel)|que(l| ) faire|manqu|dx\b/i.test(text);
+    if(isAnalysis){
+      const d=await fetchTerrainData();
+      if(d&&d.context){
+        enriched=d.context+'\n\nDemande opérateur : '+text;
+        if(d.system_prompt)systemPrompt=d.system_prompt;
+      }
+    }
+
+    conversationHistory.push({role:'user',content:enriched});
+
+    const body={
+      model:'claude-sonnet-4-6',
+      max_tokens:4096,
+      messages:conversationHistory,
+    };
+    if(systemPrompt)body.system=systemPrompt;
+
+    const res=await fetch('/proxy/ai',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+
+    if(!res.ok){
+      let errMsg=`HTTP ${res.status} — relance serveur.py puis réessaie`;
+      try{const err=await res.json();errMsg=err.error?.message||errMsg;}catch(e){}
+      throw new Error(errMsg);
+    }
+
+    const data=await res.json();
+    const reply=data.content?.filter(b=>b.type==='text')?.map(b=>b.text)?.join('\n')||'Pas de réponse.';
+    conversationHistory.push({role:'assistant',content:reply});
+    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+
+    removeThinking();
+    const isAlert=reply.includes('⚡')||reply.includes('SPOTÉ');
+    const isDX=reply.includes('🌟')||reply.includes('DX EXCEPTIONNEL');
+    const type=isDX?'dx':isAlert?'alert':'';
+    addMsg('agent',reply,type);
+
+  }catch(err){
+    removeThinking();
+    addMsg('agent',`❌ ${err.message}\n\nVérifie que serveur.py tourne et que ta clé API est configurée.`);
+  }
+
+  isWaiting=false;
+  document.getElementById('sendBtn').disabled=false;
+}
+
+function qs(text){document.getElementById('userInput').value=text;send();}
+
+// ─── AUTO REFRESH ─────────────────────────────────────────────────────────────
+function scheduleRefresh(){
+  const min=parseInt(cfg.refresh_min||2);
+  setInterval(async()=>{
+    const d=await fetchTerrainData();
+    if(d)console.log('[AUTO] Score:',d.score_total,'pts');
+  }, min*60*1000);
+}
+
+// ─── VEILLE AUTOMATIQUE IA (toutes les 5 min) ─────────────────────────────────
+// Vérifie en silence si quelque chose d'urgent apparaît (auto-spot, DX
+// exceptionnel). Ne dit RIEN si rien d'urgent — évite de noyer le chat avec
+// des vérifications automatiques répétées toutes les 5 min pendant 24h.
+let lastAlertedCalls = {};        // indicatif -> timestamp dernière alerte
+let autoCheckInProgress = false;
+let originalTabTitle = document.title;
+let titleFlashTimer = null;
+const ALERT_COOLDOWN_MS = 20 * 60 * 1000; // ne pas re-signaler le même call avant 20 min
+
+function playAlertSound(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    [880, 1046].forEach((freq, i) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      const t = ctx.currentTime + i*0.18;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.22, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      osc.start(t); osc.stop(t + 0.2);
+    });
+  }catch(e){ /* pas de son possible */ }
+}
+
+function startTitleFlash(){
+  if(titleFlashTimer || !document.hidden) return;
+  let on = false;
+  titleFlashTimer = setInterval(()=>{
+    document.title = on ? originalTabTitle : '🚨 ALERTE DX !';
+    on = !on;
+  }, 1000);
+}
+function stopTitleFlash(){
+  if(titleFlashTimer){ clearInterval(titleFlashTimer); titleFlashTimer = null; }
+  document.title = originalTabTitle;
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) stopTitleFlash(); });
+
+function extractCallsigns(text){
+  const matches = text.toUpperCase().match(/\b[A-Z]{1,2}\d[A-Z]{1,4}(?:\/[A-Z0-9]+)?\b/g) || [];
+  return [...new Set(matches.map(c => c.split('/')[0]))];
+}
+
+async function autoCheckSilently(){
+  if(isWaiting || autoCheckInProgress || !cfg.locator) return;
+  autoCheckInProgress = true;
+  try{
+    const d = await fetchTerrainData();
+    if(!d || !d.context) return;
+    if(d.system_prompt) systemPrompt = d.system_prompt;
+
+    const checkPrompt = d.context + `
+
+[VÉRIFICATION AUTOMATIQUE DE VEILLE — toutes les 5 minutes, PAS une demande de l'opérateur]
+Réponds UNIQUEMENT si mon indicatif est actuellement spoté sur un cluster, ou si une
+station DX EXCEPTIONNELLE (priorité maximale, pas encore travaillée) est disponible
+maintenant. Si aucun des deux cas ne s'applique, réponds EXACTEMENT et UNIQUEMENT : RAS`;
+
+    const res = await fetch('/proxy/ai', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6', max_tokens:1024,
+        system: systemPrompt,
+        messages: [{role:'user', content: checkPrompt}],
+      })
+    });
+    if(!res.ok) return;
+    const data = await res.json();
+    const reply = data.content?.filter(b=>b.type==='text')?.map(b=>b.text)?.join('\n') || '';
+    if(!reply.trim() || /^\s*RAS\b/i.test(reply.trim())) return; // rien d'urgent, silence total
+
+    // Anti-répétition : ne pas re-signaler le(s) même(s) indicatif(s) en boucle
+    const calls = extractCallsigns(reply);
+    const now = Date.now();
+    const newCalls = calls.filter(c => !lastAlertedCalls[c] || (now - lastAlertedCalls[c]) > ALERT_COOLDOWN_MS);
+    if(calls.length && !newCalls.length) return; // déjà signalé récemment
+
+    calls.forEach(c => lastAlertedCalls[c] = now);
+    addMsg('agent', reply, 'auto-alert');
+    playAlertSound();
+    if(document.hidden) startTitleFlash();
+  }catch(e){ console.warn('[AUTO-CHECK]', e); }
+  finally{ autoCheckInProgress = false; }
+}
+
+function scheduleAutoCheck(){
+  setInterval(autoCheckSilently, 10 * 60 * 1000);
+}
+
+// ─── TOGGLE JOUR/NUIT ────────────────────────────────────────────────────────
+function toggleTheme(){
+  const day=document.body.classList.toggle('day-mode');
+  localStorage.setItem('rc_theme', day?'day':'night');
+  document.getElementById('themeToggle').textContent=day?'🌙':'☀️';
+  refreshTiles();
+}
+(function applyTheme(){
+  if(localStorage.getItem('rc_theme')==='day'){
+    document.body.classList.add('day-mode');
+    document.addEventListener('DOMContentLoaded',()=>{
+      const t=document.getElementById('themeToggle');
+      if(t)t.textContent='🌙';
+    });
+  }
+})();
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+loadConfig();
+scheduleRefresh();
+scheduleAutoCheck();
+</script>
+</body>
+</html>

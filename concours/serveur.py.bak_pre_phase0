@@ -1,0 +1,4029 @@
+#!/usr/bin/env python3
+"""
+RadioContest AI - Serveur principal v3.0
+Mise à jour automatique annuelle des règlements et dates
+Lance avec : python serveur.py
+Puis ouvre  : http://localhost:8080/configuration.html
+"""
+
+import http.server
+import urllib.request
+import urllib.error
+import json
+import os
+import re
+import sys
+import math
+import datetime
+import threading
+import time
+import socket
+
+# Console Windows en cp1252 : un simple print() contenant une flèche → ou un
+# emoji lève UnicodeEncodeError et tue la requête en cours. Forcer l'UTF-8
+# (errors='replace' garantit qu'aucun log ne pourra jamais crasher le serveur).
+for _stream in (sys.stdout, sys.stderr):
+    if _stream and hasattr(_stream, 'reconfigure'):
+        try:
+            _stream.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+PORT = 8080
+CURRENT_YEAR = datetime.datetime.now().year
+
+# ─── FICHIER DE CACHE DES RÈGLEMENTS ─────────────────────────────────────────
+RULES_CACHE_FILE = 'rules_cache.json'
+rules_db = {}          # base de données règlements chargée en mémoire
+rules_lock = threading.Lock()
+
+# ─── CACHE SPOTS CLUSTER ENVOYÉS PAR LE NAVIGATEUR ───────────────────────────
+# Le navigateur accède à HTTPS/DXSummit, le serveur Python ne peut pas (bloqué).
+# Le front-end push les spots via POST /data/spots → stockés ici.
+browser_spots_cache = []      # liste de dicts {spotter, dx, freq, info, time}
+browser_spots_lock  = threading.Lock()
+browser_spots_ts    = 0       # timestamp dernier push
+
+# ─── BASE DE DONNÉES RÈGLEMENTS (structure de référence) ─────────────────────
+# Chaque concours a : règles de calcul de dates, URLs de vérification, scoring
+CONTEST_DEFINITIONS = {
+
+    # ════════════════════════════════════════════════════════════
+    # REF — CALENDRIER FRANCE
+    # ════════════════════════════════════════════════════════════
+    'REF_RPH': {
+        'name': 'Rallye des Points Hauts',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_rph_fr_20250312.pdf',
+        'date_rule': 'first_saturday_july',
+        'duration_h': 24,
+        'start_utc': '14:00',
+        'bands': ['144','432'],
+        'modes': ['SSB'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km','multiplier':None,'unit':'1 pt/km'},
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'https://concours.r-e-f.org',
+        'serial_per_band': True,
+        'portable_required': True,
+        'notes': 'Alimentation 100% autonome obligatoire. NO-DIGI. SSB uniquement.',
+    },
+    'REF_NAT_THF': {
+        'name': 'National THF — Trophée F3SK',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_natthf_fr_20250312.pdf',
+        'date_rule': 'first_saturday_march_14h',
+        'duration_h': 24,
+        'bands': ['144','432','1296','2320','3400','5760','10368'],
+        'modes': ['SSB','CW','FM'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km_x_locators','multiplier':'locator_squares','unit':'km × locators'},
+        'log_format': 'EDI',
+        'log_deadline': 'wednesday_after',
+        'log_submit': 'https://concours.r-e-f.org',
+    },
+    'REF_PRINTEMPS': {
+        'name': 'Concours du Printemps',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_printemps_fr_20250312.pdf',
+        'date_rule': 'first_saturday_may',
+        'duration_h': 24, 'start_utc': '14:00',
+        'bands': ['144','432','1296','2320','3400','5760','10368'],
+        'modes': ['SSB','CW','FM'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km_x_locators','multiplier':'locator_squares','unit':'km × locators'},
+        'log_format': 'EDI', 'log_deadline': 'wednesday_after',
+    },
+    'REF_ETE': {
+        'name': "Concours d'Été",
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_ete_fr_20250312.pdf',
+        'date_rule': 'first_saturday_august',
+        'duration_h': 24, 'start_utc': '14:00',
+        'bands': ['144','432','1296','2320','3400','5760','10368'],
+        'modes': ['SSB','CW','FM'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km_x_locators','multiplier':'locator_squares','unit':'km × locators'},
+        'log_format': 'EDI', 'log_deadline': 'wednesday_after',
+    },
+    'REF_CDF_THF': {
+        'name': 'Championnat de France THF',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_cdfthf_fr_20251222.pdf',
+        'date_rule': 'first_saturday_june',
+        'duration_h': 24, 'start_utc': '14:00',
+        'bands': ['144','432','1296','2320','3400','5760','10368'],
+        'modes': ['SSB','CW','FM'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km_x_locators','multiplier':'locator_squares','unit':'km × locators'},
+        'log_format': 'EDI', 'log_deadline': 'wednesday_after',
+    },
+    'REF_QRP': {
+        'name': "Bol d'Or des QRP — Trophée F8BO",
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_qrp_fr_20250312.pdf',
+        'date_rule': 'third_saturday_july',
+        'duration_h': 24, 'start_utc': '14:00',
+        'bands': ['144','432','1296','2320','3400','5760','10368'],
+        'modes': ['SSB','CW'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {'type':'km_x_locators','multiplier':'locator_squares','unit':'km × locators'},
+        'log_format': 'EDI', 'log_deadline': 'wednesday_after',
+        'notes': 'QRP uniquement : max 5W',
+    },
+    'REF_160M': {
+        'name': 'REF 160m — Trophée F8EX',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_ref160_fr_20250312.pdf',
+        'date_rule': 'third_saturday_november_17h',
+        'duration_h': 7, 'start_utc': '17:00',
+        'bands': ['1.8'],
+        'modes': ['SSB','CW'],
+        'exchange': 'RS + N°serie + dept',
+        'scoring': {'type':'dept_dxcc','multiplier':'depts+DXCC','unit':'pts × depts+DXCC'},
+        'log_format': 'CABRILLO', 'log_deadline': '5_days_after',
+    },
+    'REF_CDF_HF_SSB': {
+        'name': 'Championnat de France HF Téléphonie',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_cdfhf_fr_20251117.pdf',
+        'date_rule': 'third_saturday_february',
+        'duration_h': 36, 'start_utc': '06:00',
+        'bands': ['3.5','7','14','21','28'],
+        'modes': ['SSB'],
+        'exchange': 'RS + N°serie + dept',
+        'scoring': {'type':'dept_dxcc','multiplier':'depts+DXCC','unit':'pts × depts+DXCC'},
+        'log_format': 'CABRILLO',
+    },
+    'REF_CDF_HF_CW': {
+        'name': 'Championnat de France HF Télégraphie',
+        'organizer': 'REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_cdfhf_fr_20251117.pdf',
+        'date_rule': 'fourth_saturday_january',
+        'duration_h': 36, 'start_utc': '06:00',
+        'bands': ['3.5','7','14','21','28'],
+        'modes': ['CW'],
+        'exchange': 'RST + N°serie + dept',
+        'scoring': {'type':'dept_dxcc','multiplier':'depts+DXCC','unit':'pts × depts+DXCC'},
+        'log_format': 'CABRILLO',
+    },
+
+    # ════════════════════════════════════════════════════════════
+    # IARU REGION 1 — VHF/UHF
+    # ════════════════════════════════════════════════════════════
+    'IARU_VHF': {
+        'name': 'IARU R1 VHF 145 MHz',
+        'organizer': 'IARU-R1',
+        'check_url': 'https://www.iaru-r1.org/on-the-air/contests/',
+        'rules_url': 'https://www.iaru-r1.org/wp-content/uploads/2024/02/Rules-IARU-R1-VHF-up-Contests.pdf',
+        'date_rule': 'first_saturday_september',
+        'duration_h': 24, 'start_utc': '14:00',
+        'bands': ['144'],
+        'modes': ['SSB','CW','FM'],
+        'exchange': 'RS + N°serie + locator6 (6 car OBLIGATOIRES)',
+        'scoring': {
+            'type': 'km_x_large_locator_squares',
+            'multiplier': 'large_locator_squares_4char',
+            'unit': 'total_km × nb_grands_carrés_locator',
+            'same_square_bonus': 50,
+            'note': 'QSO même grand carré = 50 pts. Score = km_total × nb_grands_carrés_différents',
+        },
+        'log_format': 'EDI',
+        'log_deadline': 'second_monday_after',
+        'log_submit': 'https://iaru.oevsv.at/',
+        'self_spot_allowed': True,
+        'notes': 'Self-spot autorisé sauf sur DX Cluster. Correction post-contest interdite.',
+    },
+    'IARU_UHF': {
+        'name': 'IARU R1 UHF/SHF',
+        'organizer': 'IARU-R1',
+        'check_url': 'https://www.iaru-r1.org/on-the-air/contests/',
+        'rules_url': 'https://www.iaru-r1.org/wp-content/uploads/2024/02/Rules-IARU-R1-VHF-up-Contests.pdf',
+        'date_rule': 'first_saturday_october',
+        'duration_h': 24, 'start_utc': '14:00',
+        'bands': ['432','1296','2320','3400','5760','10368'],
+        'modes': ['SSB','CW','FM'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {
+            'type': 'km_x_large_locator_squares',
+            'multiplier': 'large_locator_squares_4char',
+            'unit': 'total_km × nb_grands_carrés_locator',
+            'same_square_bonus': 50,
+        },
+        'log_format': 'EDI',
+        'log_deadline': 'second_monday_after',
+        'log_submit': 'https://iaru.oevsv.at/',
+    },
+    'IARU_50MHZ': {
+        'name': 'IARU R1 50 MHz — Mémorial F8SH',
+        'organizer': 'IARU-R1 / REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_iaru50_fr_20250312.pdf',
+        'date_rule': 'third_saturday_june',
+        'duration_h': 24, 'start_utc': '14:00',
+        'bands': ['50'],
+        'modes': ['SSB','CW'],
+        'exchange': 'RS + N°serie + locator6',
+        'scoring': {
+            'type': 'km_x_large_locator_squares',
+            'multiplier': 'large_locator_squares_4char',
+            'unit': 'total_km × nb_grands_carrés_locator',
+        },
+        'log_format': 'EDI',
+        'log_deadline': 'second_monday_after',
+        'log_submit': 'https://iaru.oevsv.at/',
+    },
+    'IARU_MARCONI': {
+        'name': 'Marconi Memorial — IARU R1 VHF CW',
+        'organizer': 'IARU-R1 / REF',
+        'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_marconi_fr_20250312.pdf',
+        'date_rule': 'first_saturday_november',
+        'duration_h': 24, 'start_utc': '14:00',
+        'bands': ['144'],
+        'modes': ['CW'],
+        'exchange': 'RST + N°serie + locator6',
+        'scoring': {
+            'type': 'km_x_large_locator_squares',
+            'multiplier': 'large_locator_squares_4char',
+            'unit': 'total_km × nb_grands_carrés_locator',
+        },
+        'log_format': 'EDI',
+        'log_deadline': 'second_monday_after',
+        'log_submit': 'https://iaru.oevsv.at/',
+        'notes': 'CW UNIQUEMENT',
+    },
+
+    # ════════════════════════════════════════════════════════════
+    # CQ WORLD WIDE
+    # ════════════════════════════════════════════════════════════
+    'CQ_WW_SSB': {
+        'name': 'CQ World Wide DX — SSB',
+        'organizer': 'CQ Magazine / WWROF',
+        'check_url': 'https://cqww.com/rules.htm',
+        'rules_url': 'https://cqww.com/rules.htm',
+        'date_rule': 'last_full_weekend_october',
+        'duration_h': 48, 'start_utc': '00:00',
+        'bands': ['1.8','3.5','7','14','21','28'],
+        'modes': ['SSB'],
+        'exchange': 'RS + zone_CQ (ex: 59 14)',
+        'scoring': {
+            'type': 'zone_country_per_band',
+            'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 0,
+            'multiplier': 'zones_CQ + pays_DXCC par bande',
+            'unit': 'QSO_pts × (zones_CQ + DXCC)',
+            'note': '3pts=continents différents / 1pt=même continent diff pays / 0pt=même pays (mais mult!)',
+        },
+        'log_format': 'CABRILLO',
+        'log_deadline': '5_days_after',
+        'log_submit': 'https://cqww.com/logcheck/',
+        'itu_r1_notes': '40m SSB interdit >7200 kHz. 160m interdit <1810 kHz.',
+        'categories': 'SO-HP(1500W) SO-LP(100W) SO-QRP(5W) SO-Assisted MS M2 MM',
+        'notes': 'Auto-spotting interdit en SO. Audio recording obligatoire si top-5.',
+    },
+    'CQ_WW_CW': {
+        'name': 'CQ World Wide DX — CW',
+        'organizer': 'CQ Magazine / WWROF',
+        'check_url': 'https://cqww.com/rules.htm',
+        'rules_url': 'https://cqww.com/rules.htm',
+        'date_rule': 'last_full_weekend_november',
+        'duration_h': 48, 'start_utc': '00:00',
+        'bands': ['1.8','3.5','7','14','21','28'],
+        'modes': ['CW'],
+        'exchange': 'RST + zone_CQ (ex: 599 14)',
+        'scoring': {
+            'type': 'zone_country_per_band',
+            'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 0,
+            'multiplier': 'zones_CQ + pays_DXCC par bande',
+            'unit': 'QSO_pts × (zones_CQ + DXCC)',
+        },
+        'log_format': 'CABRILLO',
+        'log_deadline': '5_days_after',
+        'log_submit': 'https://cqww.com/logcheck/',
+        'itu_r1_notes': '160m interdit <1810 kHz.',
+    },
+    'CQ_WPX_SSB': {
+        'name': 'CQ WPX — SSB',
+        'organizer': 'CQ Magazine',
+        'check_url': 'https://cqwpx.com/',
+        'rules_url': 'https://cqwpx.com/rules.htm',
+        'date_rule': 'last_full_weekend_march',
+        'duration_h': 48, 'start_utc': '00:00',
+        'bands': ['1.8','3.5','7','14','21','28'],
+        'modes': ['SSB'],
+        'exchange': 'RS + N°serie (ex: 59 001)',
+        'scoring': {
+            'type': 'prefix_multiplier',
+            'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 1,
+            'multiplier': 'préfixes_uniques tous_bandes_confondus',
+            'unit': 'QSO_pts × préfixes_uniques',
+        },
+        'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
+        'log_submit': 'https://cqwpx.com/logcheck/',
+    },
+    'CQ_WPX_CW': {
+        'name': 'CQ WPX — CW',
+        'organizer': 'CQ Magazine',
+        'check_url': 'https://cqwpx.com/',
+        'rules_url': 'https://cqwpx.com/rules.htm',
+        'date_rule': 'last_full_weekend_may',
+        'duration_h': 48, 'start_utc': '00:00',
+        'bands': ['1.8','3.5','7','14','21','28'],
+        'modes': ['CW'],
+        'exchange': 'RST + N°serie (ex: 599 001)',
+        'scoring': {
+            'type': 'prefix_multiplier',
+            'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 1,
+            'multiplier': 'préfixes_uniques tous_bandes_confondus',
+            'unit': 'QSO_pts × préfixes_uniques',
+        },
+        'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
+        'log_submit': 'https://cqwpx.com/logcheck/',
+    },
+    'ARRL_DX_SSB': {
+        'name': 'ARRL DX — SSB',
+        'organizer': 'ARRL',
+        'check_url': 'https://www.arrl.org/arrl-dx',
+        'rules_url': 'https://www.arrl.org/arrl-dx',
+        'date_rule': 'third_full_weekend_march',
+        'duration_h': 48, 'start_utc': '00:00',
+        'bands': ['1.8','3.5','7','14','21','28'],
+        'modes': ['SSB'],
+        'exchange': 'RS + état/province (W/VE) ou RS + power (DX)',
+        'scoring': {
+            'type': 'power_state',
+            'points': 3,
+            'multiplier': 'états_US + provinces_Canada par bande',
+            'unit': '3pts × états/provinces par bande',
+        },
+        'log_format': 'CABRILLO', 'log_deadline': '5_days_after',
+        'log_submit': 'http://arrl.org/arrl-contest-log-submission',
+    },
+    'ARRL_DX_CW': {
+        'name': 'ARRL DX — CW',
+        'organizer': 'ARRL',
+        'check_url': 'https://www.arrl.org/arrl-dx',
+        'rules_url': 'https://www.arrl.org/arrl-dx',
+        'date_rule': 'second_full_weekend_february',
+        'duration_h': 48, 'start_utc': '00:00',
+        'bands': ['1.8','3.5','7','14','21','28'],
+        'modes': ['CW'],
+        'exchange': 'RST + état/province (W/VE) ou RST + power (DX)',
+        'scoring': {
+            'type': 'power_state',
+            'points': 3,
+            'multiplier': 'états_US + provinces_Canada par bande',
+            'unit': '3pts × états/provinces par bande',
+        },
+        'log_format': 'CABRILLO', 'log_deadline': '5_days_after',
+        'log_submit': 'http://arrl.org/arrl-contest-log-submission',
+    },
+    'ARRL_FD': {
+        'name': 'ARRL Field Day',
+        'organizer': 'ARRL',
+        'check_url': 'https://www.arrl.org/field-day',
+        'rules_url': 'https://www.arrl.org/field-day-rules',
+        'date_rule': 'last_full_weekend_june',
+        'duration_h': 27, 'start_utc': '18:00',
+        'bands': ['1.8','3.5','7','14','21','28','50'],
+        'modes': ['SSB','CW','FT8','FT4','RTTY'],
+        'exchange': '[N°TX][Classe] [Section] — ex: 2A CT | DX: 2A DX',
+        'scoring': {
+            'type': 'fd_class',
+            'points_phone': 1, 'points_cw': 2, 'points_digital': 2,
+            'mult_qrp_non_commercial': 5, 'mult_qrp_commercial': 2,
+            'mult_100w': 2, 'mult_hp': 1,
+            'unit': 'QSO_pts × mult_puissance + bonus',
+            'mult': 'puissance (×1/×2/×5)',
+            'bonus': '+100pts/TX alimentation autonome (max 2000) | +100 lieu public | +100 satellite',
+        },
+        'log_format': 'CABRILLO',
+        'log_deadline': 'Mardi 28 juillet (28 days after)',
+        'log_submit': 'https://field-day.arrl.org/fdentry.php',
+        'categories': 'A=club portable 3+ | B=1-2 pers portable | C=mobile | D=fixe | E=fixe QRP | F=EOC',
+        'notes': 'Classe A (3+ pers.) recommandée. 160/80/40/20/15/10m + 50MHz+. Pas 60/30/17/12m.',
+    },
+    'SOTA': {
+        'name': 'Summits on the Air',
+        'organizer': 'SOTA',
+        'check_url': 'https://www.sota.org.uk',
+        'rules_url': 'https://www.sota.org.uk/Joining-In/General-Rules',
+        'date_rule': 'permanent',
+        'bands': ['all'], 'modes': ['all'],
+        'exchange': 'indicatif + référence sommet',
+        'scoring': {'type':'summit_points','unit':'pts selon altitude du sommet'},
+        'log_format': 'ADIF', 'log_submit': 'https://sota.org.uk',
+    },
+    'POTA': {
+        'name': 'Parks on the Air',
+        'organizer': 'POTA',
+        'check_url': 'https://parksontheair.com',
+        'rules_url': 'https://parksontheair.com/rules/',
+        'date_rule': 'permanent',
+        'bands': ['all'], 'modes': ['all'],
+        'exchange': 'indicatif + référence parc',
+        'scoring': {'type':'park_points','unit':'1pt par parc activé'},
+        'log_format': 'ADIF', 'log_submit': 'https://pota.app',
+    },
+}
+
+# ─── BASE CONCOURS EXTERNES (WA7BNM + autres) ────────────────────────────────
+# Concours importants non couverts par CONTEST_DEFINITIONS
+# Chargés dynamiquement depuis contestcalendar.com
+EXTERNAL_CONTESTS_CACHE = {}
+EXTERNAL_CACHE_FILE = 'external_contests.json'
+
+def fetch_wa7bnm_calendar(year=None):
+    """Récupère le calendrier WA7BNM pour l'année donnée"""
+    if year is None:
+        year = CURRENT_YEAR
+    url = f'https://www.contestcalendar.com/perpetualcal.php?year={year}'
+    print(f"[WA7BNM] Récupération calendrier {year}...")
+    content = fetch_url(url, timeout=15)
+    if not content:
+        print("[WA7BNM] Impossible de récupérer le calendrier")
+        return []
+
+    contests = []
+    current_month = ''
+
+    for line in content.split('\n'):
+        # Détection du mois
+        month_match = re.search(r'\*\*(\w+ \d{4})\*\*', line)
+        if month_match:
+            current_month = month_match.group(1)
+            continue
+
+        # Détection d'un concours : [+](url) Nom du concours HEURES, date
+        contest_match = re.search(
+            r'\[[\+✓]\]\(https://www\.contestcalendar\.com/contestdetails\.php\?ref=(\d+)\)\s+(.+?)(?:\s+(\d{4}Z[-–]\d{4}Z|\d{4}Z,))',
+            line
+        )
+        if not contest_match:
+            # Format alternatif
+            contest_match = re.search(
+                r'\[[\+]\]\(.*?ref=(\d+)\)\s+(.+)',
+                line
+            )
+        if contest_match:
+            ref_id = contest_match.group(1)
+            name = contest_match.group(2).strip()
+            # Extraire les dates
+            dates = re.findall(r'\w{3}\s+\d{1,2}', line)
+            time_info = re.search(r'(\d{4}Z.*?\d{4}Z|\d{4}Z[-–]\d{4}Z)', line)
+            contests.append({
+                'ref': ref_id,
+                'name': name,
+                'month': current_month,
+                'date_str': ', '.join(dates[:2]) if dates else current_month,
+                'time_str': time_info.group(1) if time_info else '',
+                'url': f'https://www.contestcalendar.com/contestdetails.php?ref={ref_id}',
+                'year': year,
+            })
+
+    print(f"[WA7BNM] {len(contests)} concours trouvés pour {year}")
+    return contests
+
+def load_external_contests():
+    """Charge le cache des concours externes"""
+    global EXTERNAL_CONTESTS_CACHE
+    try:
+        if os.path.exists(EXTERNAL_CACHE_FILE):
+            with open(EXTERNAL_CACHE_FILE, 'r', encoding='utf-8') as f:
+                EXTERNAL_CONTESTS_CACHE = json.load(f)
+            print(f"[EXT] {len(EXTERNAL_CONTESTS_CACHE.get('contests',[]))} concours externes chargés")
+        else:
+            # Premier chargement en arrière-plan
+            threading.Thread(target=refresh_external_contests, daemon=True).start()
+    except Exception as e:
+        print(f"[EXT] Erreur chargement: {e}")
+
+def refresh_external_contests():
+    """Met à jour le cache des concours externes depuis WA7BNM"""
+    global EXTERNAL_CONTESTS_CACHE
+    contests_this = fetch_wa7bnm_calendar(CURRENT_YEAR)
+    contests_next = fetch_wa7bnm_calendar(CURRENT_YEAR + 1)
+    data = {
+        'year': CURRENT_YEAR,
+        'updated': datetime.datetime.now().isoformat(),
+        'contests': contests_this,
+        'contests_next': contests_next,
+    }
+    EXTERNAL_CONTESTS_CACHE = data
+    try:
+        with open(EXTERNAL_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f"[EXT] Cache sauvegardé: {len(contests_this)} concours {CURRENT_YEAR}")
+    except Exception as e:
+        print(f"[EXT] Erreur sauvegarde: {e}")
+    return data
+
+# ─── MOTEUR DE SCORING UNIVERSEL ─────────────────────────────────────────────
+# Calcule la valeur réelle en points d'un contact selon le règlement actif
+
+# Mapping continent par préfixe
+CONTINENT_MAP = {
+    'F':'EU','G':'EU','DL':'EU','ON':'EU','PA':'EU','HB':'EU','OE':'EU',
+    'I':'EU','EA':'EU','CT':'EU','SM':'EU','LA':'EU','OH':'EU','OZ':'EU',
+    'SP':'EU','OK':'EU','OM':'EU','HA':'EU','YO':'EU','LZ':'EU','SV':'EU',
+    'TA':'EU','UA':'EU','UA9':'AS','UA0':'AS','R':'EU',
+    'W':'NA','K':'NA','N':'NA','AA':'NA','AB':'NA','AC':'NA','AD':'NA',
+    'AE':'NA','AF':'NA','AG':'NA','AI':'NA','AJ':'NA','AK':'NA',
+    'VE':'NA','XE':'NA','XF':'NA',
+    'JA':'AS','BY':'AS','HL':'AS','DS':'AS','VU':'AS','HS':'AS',
+    '9V':'AS','BV':'AS','JT':'AS','VK':'OC','ZL':'OC',
+    'ZS':'AF','5B':'EU','IG9':'EU','IS':'EU',
+    'PY':'SA','LU':'SA','CE':'SA','OA':'SA','YV':'SA',
+    'VK9':'OC','YB':'OC','T8':'OC','KH6':'OC',
+}
+
+def get_continent(callsign):
+    """Retourne le continent d'un indicatif"""
+    call = callsign.split('/')[0].upper()
+    # Essai du préfixe le plus long en premier
+    for length in [3, 2, 1]:
+        pfx = call[:length]
+        if pfx in CONTINENT_MAP:
+            return CONTINENT_MAP[pfx]
+    return 'EU'  # défaut Europe
+
+def get_large_locator(locator):
+    """Retourne le grand carré (4 premiers caractères) d'un locator"""
+    if locator and len(locator) >= 4:
+        return locator[:4].upper()
+    return None
+
+def get_propagation_boost(dist_km, band_norm, noaa, dxmaps):
+    """
+    Renvoie (delta_priorite, note) si une propagation VHF confirmée
+    (Sporadique-E, Tropo renforcé, Aurore) rend ce contact plus atteignable
+    que la distance seule ne le suggère. delta négatif = priorité améliorée
+    (1 = meilleure priorité possible dans ce moteur).
+    """
+    if band_norm not in ('144', '432', '50'):
+        return 0, ''
+    if dxmaps and dxmaps.get('es_active') and 700 <= dist_km <= 2000:
+        return -1, "🌟 Sporadique-E signalé quelque part en Europe (DXMaps) — pas de garantie sur ce trajet précis, à tenter"
+    if dxmaps and dxmaps.get('tropo_active') and 300 <= dist_km <= 1200:
+        return -1, "🌊 Ouverture tropo signalée (DXMaps) — indicateur régional, pas spécifique à ce trajet"
+    if noaa and noaa.get('aurora_possible') and dist_km >= 500:
+        return -1, "⚡ Aurore possible (K-index NOAA élevé) — signal flutter probable si ouverture"
+    return 0, ''
+
+def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
+                   done_calls_by_band, done_locators, done_large_squares,
+                   done_cq_zones, done_dxcc, current_score_total,
+                   band=None, dist_km=0, noaa=None, dxmaps=None, source=''):
+    """
+    Calcule la VALEUR RÉELLE d'un QSO selon le règlement du concours.
+    Retourne un dict avec points directs, impact multiplicateur, valeur totale estimée.
+    """
+    cdef = CONTEST_DEFINITIONS.get(contest_id, {})
+    scoring = cdef.get('scoring', {})
+    stype = scoring.get('type', 'km')
+
+    result = {
+        'direct_pts': 0,
+        'new_mult': False,
+        'mult_type': '',
+        'mult_value': 0,
+        'total_impact': 0,
+        'priority': 5,
+        'explanation': '',
+    }
+
+    dx_base = dx_call.split('/')[0].upper() if dx_call else ''
+    my_base = my_call.split('/')[0].upper() if my_call else ''
+    # "Déjà fait" = déjà contacté SUR CETTE BANDE précisément. Tous les concours
+    # gérés ici sont multi-bandes (RPH, IARU VHF/UHF, CQ WW/WPX...) où le même
+    # indicatif sur une bande différente est un QSO neuf à part entière — ex.
+    # RPH : un contact déjà fait en 144 MHz reste PLEINEMENT valable en 432 MHz
+    # (points doublés, règle d'or du concours). Ne jamais le marquer "déjà fait"
+    # sous prétexte qu'il a été travaillé sur une autre bande.
+    band_norm = str(band).replace(' MHz', '').replace(' GHz', '').strip() if band else ''
+    is_already_done = band_norm in done_calls_by_band.get(dx_base, set())
+
+    # ── 1pt/km (REF RPH) ─────────────────────────────────────────────────────
+    if stype == 'km':
+        result['direct_pts'] = dist_km
+        result['total_impact'] = dist_km
+        result['priority'] = 1 if dist_km > 1000 else 2 if dist_km > 500 else 3 if dist_km > 200 else 4
+        result['explanation'] = f"{dist_km} km = {dist_km} pts directs"
+        # Un contact vu uniquement sur le chat ON4KST (personne connectée en ligne)
+        # n'est PAS un signal radio confirmé — juste une occasion de proposer un sked.
+        # Sur un contest 1pt/km, la distance seule pousse ces candidats en priorité 1
+        # ("DX EXCEPTIONNEL") alors qu'aucune propagation réelle n'a été vérifiée sur
+        # ce trajet précis. On plafonne leur priorité pour ne pas noyer le TOP 5 avec
+        # des paris spéculatifs au détriment de contacts réellement spotés.
+        if source == 'on4kst-chat' and result['priority'] < 3:
+            result['priority'] = 3
+            result['explanation'] += " — via chat ON4KST, propagation non confirmée sur ce trajet"
+
+    # ── km × locators (REF THF générique) ────────────────────────────────────
+    elif stype == 'km_x_locators':
+        result['direct_pts'] = dist_km
+        new_loc = dx_locator and dx_locator not in done_locators
+        if new_loc:
+            result['new_mult'] = True
+            result['mult_type'] = 'locator'
+            result['mult_value'] = 1
+            # Impact = score_actuel entier car multiplicateur +1
+            result['total_impact'] = dist_km + current_score_total
+            result['explanation'] = f"{dist_km} km + NOUVEAU locator {dx_locator} → score×(mult+1)"
+            result['priority'] = 1
+        else:
+            result['total_impact'] = dist_km
+            result['explanation'] = f"{dist_km} km (locator déjà connu)"
+            result['priority'] = 2 if dist_km > 500 else 3
+
+    # ── km × grands carrés (IARU VHF/UHF) ───────────────────────────────────
+    elif stype == 'km_x_large_locator_squares':
+        large_sq = get_large_locator(dx_locator)
+        same_square = (get_large_locator(my_locator) == large_sq)
+        if same_square:
+            result['direct_pts'] = 50
+            result['total_impact'] = 50
+            result['explanation'] = "Même grand carré → 50 pts fixes"
+            result['priority'] = 4
+        else:
+            result['direct_pts'] = dist_km
+            new_sq = large_sq and large_sq not in done_large_squares
+            if new_sq:
+                result['new_mult'] = True
+                result['mult_type'] = 'grand_carre'
+                result['mult_value'] = 1
+                nb_sq = len(done_large_squares)
+                # Score_actuel × (nb_sq+1)/(nb_sq) = gain estimé
+                gain = current_score_total // max(nb_sq, 1) if nb_sq > 0 else dist_km * 5
+                result['total_impact'] = dist_km + gain
+                result['explanation'] = f"{dist_km} km + NOUVEAU carré {large_sq} → mult {nb_sq}→{nb_sq+1}"
+                result['priority'] = 1
+            else:
+                result['total_impact'] = dist_km
+                result['explanation'] = f"{dist_km} km (carré {large_sq} déjà compté)"
+                result['priority'] = 2 if dist_km > 400 else 3
+
+    # ── pts × zones CQ × DXCC (CQ WW) ───────────────────────────────────────
+    elif stype == 'zone_country_per_band':
+        my_cont = get_continent(my_base)
+        dx_cont = get_continent(dx_base)
+        my_country = my_base[:2] if my_base else 'F'
+        dx_country = dx_base[:2] if dx_base else '??'
+
+        if my_country == dx_country:
+            qso_pts = 0
+        elif my_cont == dx_cont:
+            qso_pts = 1
+        else:
+            qso_pts = 3
+
+        result['direct_pts'] = qso_pts
+        nb_mults = len(done_cq_zones) + len(done_dxcc)
+        new_zone = (dx_base not in done_cq_zones)  # simplifié
+        new_dxcc = (dx_country not in done_dxcc)
+
+        if new_zone or new_dxcc:
+            result['new_mult'] = True
+            result['mult_type'] = 'zone_cq' if new_zone else 'dxcc'
+            result['mult_value'] = 1
+            # Impact = score_actuel / nb_mults (valeur d'un mult)
+            mult_value_est = current_score_total // max(nb_mults, 1)
+            result['total_impact'] = qso_pts + mult_value_est
+            result['explanation'] = (
+                f"{qso_pts}pts ({my_cont}→{dx_cont}) + "
+                f"{'NOUVELLE ZONE' if new_zone else 'NOUVEAU DXCC'} → +{mult_value_est}pts estimés"
+            )
+            result['priority'] = 1 if qso_pts == 3 else 2
+        else:
+            result['total_impact'] = qso_pts
+            result['explanation'] = f"{qso_pts}pts ({my_cont}→{dx_cont}), pas de nouveau mult"
+            result['priority'] = 2 if qso_pts == 3 else 3 if qso_pts == 1 else 5
+
+    # ── pts × préfixes (CQ WPX) ──────────────────────────────────────────────
+    elif stype == 'prefix':
+        my_cont = get_continent(my_base)
+        dx_cont = get_continent(dx_base)
+        if my_cont != dx_cont:
+            qso_pts = 6
+        elif dx_base.startswith(('W','K','N','VE','XE')):
+            qso_pts = 2
+        else:
+            qso_pts = 1
+
+        result['direct_pts'] = qso_pts
+        # Extraire préfixe du DX
+        pfx_match = re.match(r'^([A-Z]{1,3}\d)', dx_base)
+        dx_pfx = pfx_match.group(1) if pfx_match else dx_base[:3]
+        new_pfx = dx_pfx not in done_dxcc
+
+        if new_pfx:
+            result['new_mult'] = True
+            result['mult_type'] = 'prefix'
+            result['mult_value'] = 1
+            mult_val = current_score_total // max(len(done_dxcc), 1) if done_dxcc else qso_pts * 10
+            result['total_impact'] = qso_pts + mult_val
+            result['explanation'] = f"{qso_pts}pts + NOUVEAU PRÉFIXE {dx_pfx} → +{mult_val}pts estimés"
+            result['priority'] = 1
+        else:
+            result['total_impact'] = qso_pts
+            result['explanation'] = f"{qso_pts}pts (préfixe {dx_pfx} déjà compté)"
+            result['priority'] = 2 if qso_pts == 6 else 3
+
+    # ── ARRL Field Day (fd_class) ─────────────────────────────────────────────
+    elif stype == 'fd_class':
+        # Points par mode : SSB=1, CW=2, Digital=2
+        if band and band in ('160','80','40','20','15','10','6'):
+            mode_hint = scoring.get('mode', 'SSB')  # sera affiné si on reçoit le mode
+        # Par défaut SSB=1pt (le cas le plus courant en FD)
+        qso_pts = 1  # SSB phone
+        # On ne connaît pas le mode ici, donc on met 1 comme plancher
+        result['direct_pts'] = qso_pts
+        # Seules les sections nord-américaines comptent (W/VE/DX)
+        is_na = bool(re.match(r'^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|'
+                              r'WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|'
+                              r'WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|'
+                              r'KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|'
+                              r'KQ|KR|KS|KT|KU|KV|KW|KX|KY|KZ|'
+                              r'NA|NB|NC|ND|NE|NF|NG|NH|NI|NJ|NK|NL|NM|NN|NO|NP|'
+                              r'NQ|NR|NS|NT|NU|NV|NW|NX|NY|NZ|'
+                              r'VE|VA|VO|VY)', dx_base, re.I))
+        if not is_na:
+            # Station EU/DX → vaut 0 pour le score officiel FD
+            result['direct_pts'] = 0
+            result['total_impact'] = 0
+            result['priority'] = 6
+            result['explanation'] = f"Station {dx_base} hors NA — 0 pt ARRL FD"
+        else:
+            # Section = multiplicateur si nouvelle
+            # On utilise done_dxcc comme proxy pour les sections déjà travaillées
+            section_new = dx_base[:3] not in done_dxcc
+            if section_new:
+                result['new_mult'] = True
+                result['mult_type'] = 'section_na'
+                result['mult_value'] = 1
+                result['total_impact'] = qso_pts * 2  # 1pt × mult ×2 puissance = 2 pts/QSO max
+                result['explanation'] = f"{qso_pts}pt SSB × mult (NA valide W/VE)"
+                result['priority'] = 1
+            else:
+                result['total_impact'] = qso_pts
+                result['explanation'] = f"{qso_pts}pt SSB, section déjà travaillée"
+                result['priority'] = 2
+
+    # ── pts × depts + DXCC (REF HF) ──────────────────────────────────────────
+    elif stype == 'dept_dxcc':
+        my_cont = get_continent(my_base)
+        dx_cont = get_continent(dx_base)
+        dx_country = dx_base[:2] if dx_base else '??'
+        is_french = dx_base.startswith('F') or dx_base.startswith('TM')
+        qso_pts = 1 if is_french else 3
+        result['direct_pts'] = qso_pts
+        new_mult = dx_country not in done_dxcc
+        if new_mult:
+            result['new_mult'] = True
+            result['mult_type'] = 'dept_dxcc'
+            mult_val = current_score_total // max(len(done_dxcc), 1) if done_dxcc else qso_pts * 5
+            result['total_impact'] = qso_pts + mult_val
+            result['explanation'] = f"{qso_pts}pts + NOUVEAU {'DEPT' if is_french else 'DXCC'} → +{mult_val}pts estimés"
+            result['priority'] = 1
+        else:
+            result['total_impact'] = qso_pts
+            result['explanation'] = f"{qso_pts}pts ({'F' if is_french else 'DX'}, mult connu)"
+            result['priority'] = 3
+
+    # Propagation confirmée (Sporadique-E / Tropo / Aurore) : priorité renforcée
+    # sur les contacts VHF/UHF que ça rend exceptionnellement possibles — sans
+    # ça, ces opportunités ne se distinguaient pas d'un contact ordinaire à
+    # la même distance alors que la fenêtre de propagation est souvent courte.
+    if stype in ('km', 'km_x_locators', 'km_x_large_locator_squares') and not is_already_done:
+        boost, note = get_propagation_boost(dist_km, band_norm, noaa, dxmaps)
+        if boost:
+            result['priority'] = max(1, result['priority'] + boost)
+            result['explanation'] += f" — {note}"
+
+    result['already_done'] = is_already_done
+    if is_already_done:
+        result['priority'] = 6
+        result['total_impact'] = 0
+
+    return result
+
+def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
+                            done_calls_by_band, done_locators, done_large_squares,
+                            done_cq_zones, done_dxcc, current_score,
+                            noaa=None, dxmaps=None):
+    """
+    Prend une liste de stations et les classe par valeur décroissante.
+    stations_data = [{'call':str, 'locator':str, 'dist_km':int, 'band':str, ...}]
+    Retourne la liste triée avec valeurs calculées.
+    """
+    ranked = []
+    for s in stations_data:
+        val = calc_qso_value(
+            contest_id,
+            s.get('call',''), s.get('locator',''),
+            my_call, my_locator,
+            done_calls_by_band, done_locators, done_large_squares,
+            done_cq_zones, done_dxcc, current_score,
+            s.get('band',''), s.get('dist_km', 0),
+            noaa, dxmaps, s.get('source','')
+        )
+        s['scoring'] = val
+        s['value_total'] = val['total_impact']
+        s['priority'] = val['priority']
+        ranked.append(s)
+
+    # Trier par valeur totale décroissante, puis par priorité
+    ranked.sort(key=lambda x: (-x['value_total'], x['priority']))
+    return ranked
+
+def build_scoring_context(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_users=None):
+    """
+    Construit le contexte de scoring pour l'IA :
+    calcule la valeur de chaque spot et les classe.
+    """
+    contest = cfg.get('contest', 'CUSTOM')
+    my_call = cfg.get('callsign_contest', cfg.get('callsign', ''))
+    my_locator = cfg.get('locator', 'JN00AA')
+
+    # Extraire l'état actuel du log — indicatifs suivis PAR BANDE : un contact
+    # déjà fait sur 144 MHz reste une opportunité pleine sur 432 MHz (RPH,
+    # IARU VHF/UHF, CQ WW... comptent chaque bande séparément).
+    done_calls_by_band = {}  # indicatif -> set(bandes normalisées, ex: '144')
+    done_locators = set()
+    done_large_squares = set()
+    done_cq_zones = set()
+    done_dxcc = set()
+    current_score = 0
+
+    def _mark_done(call, band):
+        base = (call or '').split('/')[0].upper()
+        band_norm = str(band or '').replace(' MHz', '').replace(' GHz', '').strip()
+        if base:
+            done_calls_by_band.setdefault(base, set()).add(band_norm)
+        return base
+
+    # Depuis logs EDI/ADIF (un fichier EDI = une bande = la clé band_label)
+    for band_label, log_data in logs.items():
+        for q in log_data.get('qsos', []):
+            base = _mark_done(q.get('call',''), band_label)
+            loc = q.get('locator','')
+            if loc:
+                done_locators.add(loc)
+                large = get_large_locator(loc)
+                if large: done_large_squares.add(large)
+            done_dxcc.add(base[:2])
+            current_score += q.get('points', 0)
+
+    # Depuis log partagé multi-op (band déjà présent par QSO)
+    for q in shared_log:
+        base = _mark_done(q.get('call',''), q.get('band',''))
+        loc = q.get('locator','')
+        if loc:
+            done_locators.add(loc)
+            large = get_large_locator(loc)
+            if large: done_large_squares.add(large)
+        done_dxcc.add(base[:2] if base else '')
+        if q.get('cq_zone'): done_cq_zones.add(str(q['cq_zone']))
+        current_score += q.get('points', 0)
+
+    # Collecter tous les spots
+    all_stations = []
+    for band_label, spots in spots_by_band.items():
+        band = band_label.replace(' MHz','').replace(' GHz','')
+        for s in spots:
+            if isinstance(s, dict):
+                dx = s.get('dx','').split('/')[0]
+                loc = ''
+                info = s.get('info','')
+                loc_m = re.search(r'([A-R]{2}\d{2}[A-X]{2})', info.upper())
+                if loc_m: loc = loc_m.group(1)
+                dx_ll = locator_to_latlon(loc) if loc else (None, None)
+                my_ll = locator_to_latlon(my_locator)
+                dist = 0
+                if dx_ll[0] and my_ll[0]:
+                    dist = haversine(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
+                all_stations.append({
+                    'call': dx, 'locator': loc, 'dist_km': dist,
+                    'freq': s.get('freq',''), 'band': band,
+                    'spotter': s.get('spotter',''),
+                    'time': s.get('time',''),
+                    'source': 'cluster',
+                })
+            elif isinstance(s, list) and len(s) >= 2:
+                call_val = s[0] if s else ''
+                loc_val = ''
+                for cell in s:
+                    if re.match(r'^[A-R]{2}\d{2}[A-X]{2}$', str(cell).strip()):
+                        loc_val = str(cell).strip()
+                        break
+                dx_ll = locator_to_latlon(loc_val) if loc_val else (None, None)
+                my_ll = locator_to_latlon(my_locator)
+                dist = 0
+                if dx_ll[0] and my_ll[0]:
+                    dist = haversine(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
+                all_stations.append({
+                    'call': call_val, 'locator': loc_val, 'dist_km': dist,
+                    'band': band, 'source': 'cluster',
+                })
+
+    # Stations actives sur le chat ON4KST : candidates au même titre que les
+    # spots cluster — présentes au clavier, locator connu, joignables pour un
+    # sked. Injectées sur 144 ET 432 (opportunité double-bande RPH), sauf si
+    # déjà vues via un spot cluster.
+    if on4kst_users:
+        existing_calls = {s.get('call','').split('/')[0].upper() for s in all_stations}
+        my_ll = locator_to_latlon(my_locator)
+        for u in on4kst_users:
+            if not u.get('present'):
+                continue  # absent du clavier → sked improbable dans l'immédiat
+            base = u['call'].split('/')[0].upper()
+            if base in existing_calls or base == my_call.split('/')[0].upper():
+                continue
+            pos = locator_to_latlon(u.get('locator',''))
+            dist = haversine(my_ll[0], my_ll[1], pos[0], pos[1]) if (my_ll[0] and pos[0]) else 0
+            # Portée VHF plausible : ~2500 km = maximum Sporadique-E un bond.
+            # Au-delà (stations US/asiatiques du chat mondial), c'est EME —
+            # hors de portée d'un contest tropo, ne pas polluer le TOP 5.
+            if not dist or dist > 2500:
+                continue
+            for band in ('144', '432'):
+                all_stations.append({
+                    'call': u['call'], 'locator': u['locator'], 'dist_km': dist,
+                    'band': band, 'freq': '', 'spotter': 'ON4KST',
+                    'time': 'actif maintenant', 'source': 'on4kst-chat',
+                })
+
+    # Calculer et classer
+    ranked = rank_stations_by_value(
+        all_stations, contest, my_call, my_locator,
+        done_calls_by_band, done_locators, done_large_squares,
+        done_cq_zones, done_dxcc, current_score,
+        noaa, dxmaps
+    )
+
+    # Construire le texte de contexte
+    total_qso_bands = sum(len(bands) for bands in done_calls_by_band.values())
+    lines = ["\n=== CLASSEMENT STATIONS PAR VALEUR RÉELLE (moteur scoring) ==="]
+    lines.append(f"Concours : {contest} | Score actuel : {current_score} pts")
+    lines.append(f"État : {len(done_calls_by_band)} indicatifs ({total_qso_bands} QSO toutes bandes) | "
+                f"{len(done_locators)} locators | "
+                f"{len(done_large_squares)} grands carrés | {len(done_dxcc)} pays/depts\n")
+
+    priority_labels = {1:'🌟 PRIORITÉ MAX', 2:'🔴 HAUTE', 3:'🟠 MOYENNE', 4:'🟡 BASSE', 5:'🟢 INFO', 6:'⚪ DÉJÀ FAIT'}
+
+    for i, s in enumerate(ranked[:15]):
+        sc = s.get('scoring', {})
+        prio = priority_labels.get(s.get('priority', 5), '—')
+        lines.append(
+            f"{i+1:2}. {prio} | {s.get('call','?'):12} | {s.get('band','?'):6} MHz | "
+            f"{s.get('dist_km',0):4} km | "
+            f"💰 {sc.get('direct_pts',0):4}pts directs | "
+            f"{'📈 NOUVEAU MULT !' if sc.get('new_mult') else '          '} | "
+            f"🏆 Impact total: ~{sc.get('total_impact',0):5} pts | "
+            f"Loc:{s.get('locator','?'):6} | "
+            f"{sc.get('explanation','')[:50]}"
+        )
+
+    if not ranked:
+        lines.append("Aucune station disponible sur les clusters pour le moment.")
+
+    lines.append("\n=== TOP 5 RECOMMANDATIONS AGENT ===")
+    top5 = [s for s in ranked if not s.get('scoring',{}).get('already_done', False)][:5]
+    for i, s in enumerate(top5):
+        sc = s.get('scoring', {})
+        bearing_deg = 0
+        my_ll = locator_to_latlon(my_locator)
+        dx_ll = locator_to_latlon(s.get('locator',''))
+        if my_ll[0] and dx_ll and dx_ll[0]:
+            bearing_deg = bearing(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
+        card = cardinal(bearing_deg)
+        lines.append(f"""
+{'='*55}
+#{i+1} — {s.get('call','?')} | {s.get('band','?')} MHz | {s.get('locator','?')}
+📏 Distance : {s.get('dist_km',0)} km depuis {my_locator}
+🧭 Cap antenne : {bearing_deg}° {card}
+💰 Points directs : {sc.get('direct_pts',0)} pts
+{'📈 ' + sc.get('mult_type','').upper() + ' MANQUANT → impact x(mult+1) !' if sc.get('new_mult') else ''}
+🏆 Impact total estimé : ~{sc.get('total_impact',0)} pts
+📡 {sc.get('explanation','')}
+🕐 Spoté il y a {s.get('time','')} | Source: {s.get('source','')}""")
+
+    lines.append("\n=== FIN CLASSEMENT ===")
+    return '\n'.join(lines)
+
+# ─── CALCUL AUTOMATIQUE DES DATES PAR RÈGLE ──────────────────────────────────
+def calc_contest_date(date_rule, year=None):
+    """Calcule la date exacte d'un concours pour une année donnée"""
+    if year is None:
+        year = CURRENT_YEAR
+    if date_rule == 'permanent':
+        return f"Permanent ({year})"
+
+    import calendar
+
+    def nth_weekday(year, month, weekday, n):
+        """Retourne le n-ième jour de la semaine d'un mois (1-based)"""
+        c = calendar.monthcalendar(year, month)
+        days = [w[weekday] for w in c if w[weekday] != 0]
+        return days[n-1] if n <= len(days) else days[-1]
+
+    def last_weekday(year, month, weekday):
+        """Retourne le dernier jour de la semaine d'un mois"""
+        c = calendar.monthcalendar(year, month)
+        days = [w[weekday] for w in c if w[weekday] != 0]
+        return days[-1]
+
+    def last_full_weekend(year, month):
+        """Dernier weekend complet (sam+dim) du mois"""
+        c = calendar.monthcalendar(year, month)
+        sat_days = [w[calendar.SATURDAY] for w in c if w[calendar.SATURDAY] != 0]
+        last_sat = sat_days[-1]
+        # Vérifier que le dimanche est dans le même mois
+        last_sun = last_sat + 1
+        _, days_in_month = calendar.monthrange(year, month)
+        if last_sun > days_in_month:
+            last_sat = sat_days[-2] if len(sat_days) >= 2 else sat_days[-1]
+        return last_sat
+
+    MONTHS = {
+        'january':1,'february':2,'march':3,'april':4,'may':5,'june':6,
+        'july':7,'august':8,'september':9,'october':10,'november':11,'december':12
+    }
+
+    try:
+        r = date_rule.lower()
+
+        # Last full weekend
+        for mon_name, mon_num in MONTHS.items():
+            if f'last_full_weekend_{mon_name}' == r:
+                sat = last_full_weekend(year, mon_num)
+                d = datetime.date(year, mon_num, sat)
+                return f"{d.strftime('%d/%m/%Y')} → {(d + datetime.timedelta(days=1)).strftime('%d/%m/%Y')}"
+
+        # Nth saturday/sunday
+        ordinals = {'first':1,'second':2,'third':3,'fourth':4,'last':-1}
+        for ord_name, ord_num in ordinals.items():
+            for mon_name, mon_num in MONTHS.items():
+                for day_name, day_num in [('saturday', calendar.SATURDAY), ('sunday', calendar.SUNDAY)]:
+                    pattern = f'{ord_name}_{day_name}_{mon_name}'
+                    if r.startswith(pattern):
+                        if ord_num == -1:
+                            day = last_weekday(year, mon_num, day_num)
+                        else:
+                            day = nth_weekday(year, mon_num, day_num, ord_num)
+                        d = datetime.date(year, mon_num, day)
+                        # Extraire heure si présente
+                        hour_match = re.search(r'_(\d{2})h', r)
+                        hour_str = hour_match.group(1)+'h00 UTC' if hour_match else '14h00 UTC'
+                        return f"{d.strftime('%d/%m/%Y')} à {hour_str}"
+
+    except Exception as e:
+        return f"Calcul impossible: {e}"
+
+    return date_rule
+
+def get_next_contest_date(date_rule):
+    """Retourne la prochaine occurrence d'un concours (cette année ou l'année prochaine si passé)"""
+    if date_rule == 'permanent':
+        return f"Permanent", CURRENT_YEAR
+
+    today = datetime.date.today()
+
+    # Essayer cette année d'abord
+    date_this_year = calc_contest_date(date_rule, CURRENT_YEAR)
+    # Extraire la date du texte formaté
+    m = re.search(r'(\d{2})/(\d{2})/(\d{4})', date_this_year)
+    if m:
+        d = datetime.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        if d >= today:
+            return date_this_year, CURRENT_YEAR
+    # Concours passé → prendre l'année prochaine
+    date_next_year = calc_contest_date(date_rule, CURRENT_YEAR + 1)
+    return date_next_year, CURRENT_YEAR + 1
+
+def calc_all_dates(year=None):
+    """Calcule les prochaines dates pour tous les concours"""
+    dates = {}
+    for cid, cdef in CONTEST_DEFINITIONS.items():
+        date_str, actual_year = get_next_contest_date(cdef.get('date_rule', 'permanent'))
+        dates[cid] = {
+            'name': cdef['name'],
+            'date': date_str,
+            'year': actual_year,
+            'next_year': actual_year > CURRENT_YEAR,
+        }
+    return dates
+
+# ─── VÉRIFICATION AUTOMATIQUE DES RÈGLEMENTS EN LIGNE ────────────────────────
+def check_rules_update(contest_id):
+    """Vérifie si un règlement a été mis à jour en ligne"""
+    cdef = CONTEST_DEFINITIONS.get(contest_id)
+    if not cdef or not cdef.get('check_url'):
+        return None
+
+    try:
+        content = fetch_url(cdef['check_url'], timeout=8)
+        if not content:
+            return None
+
+        # Chercher des indices de mise à jour
+        current_year_str = str(CURRENT_YEAR)
+
+        # Détecter UNIQUEMENT les années plausibles pour des règlements
+        # L'année doit apparaître près d'un mot-clé de règlement
+        rule_keywords = ['rules', 'règlement', 'contest', 'concours', 'regulation', 'update']
+        plausible_years = []
+        for kw in rule_keywords:
+            # Chercher l'année dans un rayon de 100 caractères autour du mot-clé
+            for m in re.finditer(kw, content, re.IGNORECASE):
+                context_slice = content[max(0, m.start()-50):m.end()+50]
+                years_near = re.findall(r'\b(20[2-3]\d)\b', context_slice)
+                for y in years_near:
+                    yi = int(y)
+                    if CURRENT_YEAR <= yi <= CURRENT_YEAR + 2:
+                        plausible_years.append(yi)
+        latest_year = max(plausible_years) if plausible_years else CURRENT_YEAR
+
+        # Chercher les nouvelles dates sur la page
+        date_patterns = []
+        # Dates françaises DD/MM/YYYY
+        dates_fr = re.findall(r'\d{1,2}/\d{1,2}/20[2-3]\d', content)
+        date_patterns.extend(dates_fr)
+
+        # Chercher mention du concours
+        contest_name = cdef['name']
+        contest_found = contest_name.lower()[:10] in content.lower()
+
+        return {
+            'contest_id': contest_id,
+            'check_url': cdef['check_url'],
+            'latest_year_found': latest_year,
+            'dates_found': date_patterns[:5],
+            'contest_mentioned': contest_found,
+            'rules_url': cdef.get('rules_url', ''),
+            'checked_at': datetime.datetime.now().isoformat(),
+        }
+    except Exception as e:
+        return {'contest_id': contest_id, 'error': str(e)}
+
+def run_annual_update():
+    """Lance la vérification complète annuelle des règlements"""
+    print(f"\n[UPDATE] Vérification annuelle des règlements — Année {CURRENT_YEAR}")
+    print("[UPDATE] Calcul des dates pour toutes les compétitions...")
+
+    # Calculer les dates
+    dates_this_year = calc_all_dates(CURRENT_YEAR)
+    dates_next_year = calc_all_dates(CURRENT_YEAR + 1)
+
+    results = {
+        'last_update': datetime.datetime.now().isoformat(),
+        'year': CURRENT_YEAR,
+        'dates': dates_this_year,
+        'dates_next_year': dates_next_year,
+        'rules_checks': {},
+        'alerts': [],
+    }
+
+    # Vérifier les règlements prioritaires en ligne
+    priority_contests = ['REF_RPH', 'REF_NAT_THF', 'REF_PRINTEMPS', 'REF_ETE',
+                         'IARU_VHF', 'IARU_UHF', 'CQ_WW_SSB', 'CQ_WW_CW']
+
+    for cid in priority_contests:
+        print(f"[UPDATE] Vérification {cid}...")
+        check = check_rules_update(cid)
+        if check:
+            results['rules_checks'][cid] = check
+            # Alerte uniquement si année FUTURE et plausible détectée
+            if check.get('latest_year_found', 0) > CURRENT_YEAR + 1:
+                results['alerts'].append(
+                    f"⚠️ {cid}: règlement {check['latest_year_found']} détecté — vérifier mise à jour"
+                )
+        time.sleep(0.5)  # Ne pas surcharger les serveurs
+
+    # Sauvegarder
+    with rules_lock:
+        global rules_db
+        rules_db = results
+        try:
+            with open(RULES_CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(results, f, ensure_ascii=False, indent=2)
+            print(f"[UPDATE] Cache sauvegardé dans {RULES_CACHE_FILE}")
+        except Exception as e:
+            print(f"[UPDATE] Erreur sauvegarde: {e}")
+
+    if results['alerts']:
+        print("\n[UPDATE] ⚠️ ALERTES:")
+        for a in results['alerts']:
+            print(f"  {a}")
+
+    print(f"[UPDATE] Terminé — {len(dates_this_year)} concours calculés\n")
+    return results
+
+def load_rules_cache():
+    """Charge le cache des règlements au démarrage"""
+    global rules_db
+    try:
+        if os.path.exists(RULES_CACHE_FILE):
+            with open(RULES_CACHE_FILE, 'r', encoding='utf-8') as f:
+                rules_db = json.load(f)
+            cache_year = rules_db.get('year', 0)
+            print(f"[RULES] Cache chargé (année {cache_year})")
+            # Si le cache est d'une autre année → mettre à jour
+            if cache_year != CURRENT_YEAR:
+                print(f"[RULES] Cache périmé ({cache_year} → {CURRENT_YEAR}) — mise à jour...")
+                threading.Thread(target=run_annual_update, daemon=True).start()
+        else:
+            print("[RULES] Pas de cache — première initialisation...")
+            threading.Thread(target=run_annual_update, daemon=True).start()
+    except Exception as e:
+        print(f"[RULES] Erreur chargement cache: {e}")
+        rules_db = {'dates': calc_all_dates(), 'year': CURRENT_YEAR}
+
+def schedule_annual_check():
+    """Vérifie chaque jour si une mise à jour annuelle est nécessaire"""
+    while True:
+        time.sleep(86400)  # Toutes les 24h
+        if rules_db.get('year', 0) != datetime.datetime.now().year:
+            print("[RULES] Nouvelle année détectée — mise à jour automatique...")
+            run_annual_update()
+
+
+
+# ─── MODES NUMÉRIQUES À FILTRER ──────────────────────────────────────────────
+MODES_NUMERIQUES = ['FT8','FT4','JS8','WSPR','PSK','RTTY','DIGI','DATA','MFSK']
+
+# ─── CORRESPONDANCE BANDES → CLUSTERS ────────────────────────────────────────
+CLUSTER_MAP = {
+    '144': [
+        'http://cluster.f5len.org/index.php?what=144',
+        'http://www.dxsummit.fi/api/v1/spots?include=VHF&limit=50',
+    ],
+    '432': [
+        'http://cluster.f5len.org/index.php?what=432',
+        'http://www.dxsummit.fi/api/v1/spots?include=432MHz&limit=50',
+    ],
+    '50':  ['http://cluster.f5len.org/index.php?what=50'],
+    '1296':['http://cluster.f5len.org/index.php?what=1296'],
+    'HF':  [
+        'http://www.dxsummit.fi/api/v1/spots?limit=100',
+        'http://dxwatch.com:8010/dxsd1/dxsd1.php?f=0',
+    ],
+}
+
+PROPAGATION_SOURCES = {
+    'Troposphérique':  'http://tropo.f5len.org/forecasts-for-europe/',
+    'Sporadique-E':    'http://www.dxmaps.com/spots/map.php',
+    'F2 (ionosphérique)': 'https://www.bandconditions.com/',
+    'NOAA K-index':    'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json',
+}
+
+# ─── SCORING PAR CONCOURS ────────────────────────────────────────────────────
+CONTEST_SCORING = {
+    # ── REF 2026 ──────────────────────────────────────────────────────────────
+    'REF_CHALLENGE_THF': {'type':'km_x_loc','unit':'1pt/km x locators (cumulatif annuel)','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM DIGI'},
+    'REF_CCD_JAN1':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432 1296 2320MHz','modes':'SSB CW FM'},
+    'REF_CCD_JAN2':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
+    'REF_CDF_HF_CW': {'type':'dept_dxcc','unit':'pts x depts + DXCC','mult':'depts+DXCC','bands':'3.5 7 14 21 28MHz','modes':'CW'},
+    'REF_CCD_FEV1':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432 1296 2320MHz','modes':'SSB CW FM'},
+    'REF_CCD_FEV2':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
+    'REF_CDF_HF_SSB':{'type':'dept_dxcc','unit':'pts x depts + DXCC','mult':'depts+DXCC','bands':'3.5 7 14 21 28MHz','modes':'SSB'},
+    'REF_NAT_THF':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM'},
+    'REF_CCD_MAR':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
+    'REF_NAT_TVA':   {'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
+    'REF_CCD_AVR_CW':{'type':'km_x_loc','unit':'1pt/km x locators CW','mult':'locators','bands':'144MHz','modes':'CW'},
+    'REF_PRINTEMPS': {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM'},
+    'REF_CCD_MAI':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432 1296 2320MHz','modes':'SSB CW FM'},
+    'REF_CDF_THF':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM'},
+    'REF_IARU_TVA':  {'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
+    'REF_DDFM_50':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'50MHz','modes':'SSB CW FM'},
+    'REF_IARU_50':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'50MHz','modes':'SSB CW'},
+    'REF_RPH':       {'type':'km','unit':'1pt/km SANS multiplicateur - SSB uniquement','mult':'none','bands':'144MHz-47GHz','modes':'SSB'},
+    'REF_QRP':       {'type':'km_x_loc','unit':'1pt/km x locators - QRP 5W max','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW'},
+    'REF_ETE':       {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz-47GHz','modes':'SSB CW FM'},
+    'REF_F8TD':      {'type':'km_x_loc','unit':'1pt/km x locators SHF','mult':'locators','bands':'1296MHz-47GHz','modes':'SSB CW'},
+    'REF_IARU_VHF':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW'},
+    'REF_CDF_TVA':   {'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
+    'REF_IARU_UHF':  {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432MHz-47GHz','modes':'SSB CW'},
+    'REF_CCD_OCT':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'432 1296 2320MHz','modes':'SSB CW FM'},
+    'REF_MARCONI':   {'type':'km_x_loc','unit':'1pt/km x locators CW','mult':'locators','bands':'144MHz','modes':'CW'},
+    'REF_160M':      {'type':'dept_dxcc','unit':'pts x depts francais + DXCC','mult':'depts+DXCC','bands':'1.8MHz','modes':'SSB CW'},
+    'REF_CCD_NOV':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
+    'REF_CCD_DEC':   {'type':'km_x_loc','unit':'1pt/km x locators','mult':'locators','bands':'144MHz','modes':'SSB CW FM'},
+    'REF_CCD_DEC_CW':{'type':'km_x_loc','unit':'1pt/km x locators CW','mult':'locators','bands':'144MHz','modes':'CW'},
+    'REF_NAT_TVA_DEC':{'type':'tva','unit':'pts x relais TVA','mult':'relais TVA','bands':'438MHz+ TVA','modes':'FM ATV'},
+    # ── Autres francais ───────────────────────────────────────────────────────
+    'F9NL':           {'type':'dept_dxcc','unit':'pts x depts + DXCC CW','mult':'depts+DXCC','bands':'HF','modes':'CW'},
+    'UFT_RENCONTRES': {'type':'dept','unit':'pts x depts CW','mult':'depts','bands':'HF','modes':'CW'},
+    # ── Internationaux ────────────────────────────────────────────────────────
+    'CQ_WW_SSB':  {
+        'type':'zone_country',
+        'unit':'3pts (DX continent) / 1pt (même continent diff pays) / 0pt (même pays) × zones CQ × pays DXCC PAR BANDE',
+        'mult':'zones_CQ + pays_DXCC par bande',
+        'bands':'1.8 3.5 7 14 21 28MHz',
+        'modes':'SSB',
+        'exchange':'RS + zone CQ (ex: 59 14)',
+        'dates_2026':'SSB: 24-25 octobre 2026 00h00-23h59 UTC',
+        'log_format':'CABRILLO',
+        'deadline':'5 jours après le contest',
+        'categories':'SO-HP(1500W) SO-LP(100W) SO-QRP(5W) SO-Assisted MS M2 MM',
+        'notes':'ITU R1: pas de TX >7200kHz en 40m SSB. Pas de TX <1810kHz en 160m. Auto-spoting interdit en SO.',
+        'url':'https://cqww.com/rules.htm',
+    },
+    'CQ_WW_CW':   {
+        'type':'zone_country',
+        'unit':'3pts (DX continent) / 1pt (même continent diff pays) / 0pt (même pays) × zones CQ × pays DXCC PAR BANDE',
+        'mult':'zones_CQ + pays_DXCC par bande',
+        'bands':'1.8 3.5 7 14 21 28MHz',
+        'modes':'CW',
+        'exchange':'RST + zone CQ (ex: 599 14)',
+        'dates_2026':'CW: 28-29 novembre 2026 00h00-23h59 UTC',
+        'log_format':'CABRILLO',
+        'deadline':'5 jours après le contest',
+        'categories':'SO-HP(1500W) SO-LP(100W) SO-QRP(5W) SO-Assisted MS M2 MM',
+        'notes':'ITU R1: pas de TX <1810kHz en 160m. Auto-spotting interdit en SO.',
+        'url':'https://cqww.com/rules.htm',
+    },
+    'CQ_WPX_SSB': {'type':'prefix','unit':'pts x prefixes uniques','mult':'prefixes','bands':'HF','modes':'SSB'},
+    'CQ_WPX_CW':  {'type':'prefix','unit':'pts x prefixes uniques','mult':'prefixes','bands':'HF','modes':'CW'},
+    'ARRL_DX_SSB':{'type':'power','unit':'3pts x etats/provinces US-Canada','mult':'states','bands':'HF','modes':'SSB'},
+    'ARRL_DX_CW': {'type':'power','unit':'3pts x etats/provinces US-Canada','mult':'states','bands':'HF','modes':'CW'},
+    'ARRL_FD':    {'type':'fd_class','unit':'QSO_pts × mult_puissance + bonus','mult':'puissance ×1/×2/×5','bands':'HF+50MHz','modes':'SSB/CW/Digital'},
+    'SOTA':        {'type':'summit','unit':'pts sommets actives/chasses','mult':'none','bands':'Toutes','modes':'Tous'},
+    'POTA':        {'type':'park','unit':'pts parcs actives/chasses','mult':'none','bands':'Toutes','modes':'Tous'},
+    'CUSTOM':      {'type':'custom','unit':'a definir','mult':'custom','bands':'Au choix','modes':'Au choix'},
+}
+
+# ─── LOG PARTAGÉ MULTI-OPÉRATEUR ─────────────────────────────────────────────
+import threading
+shared_log = []        # log en mémoire partagé entre tous les postes
+log_lock = threading.Lock()
+connected_peers = set()
+
+# ─── CONFIGURATION COURANTE (mise à jour par /config/save) ───────────────────
+current_config = {}    # reçu du client via POST /config/save
+config_lock = threading.Lock()
+
+# ─── CHAT MULTI-OPÉRATEUR ─────────────────────────────────────────────────────
+chat_messages = []     # liste {id, op, call, time, text}
+chat_lock = threading.Lock()
+chat_seq = 0           # identifiant auto-incrémenté
+
+def save_log_to_disk():
+    """Sauvegarde le log sur disque — thread-safe via log_lock"""
+    try:
+        with log_lock:
+            data = list(shared_log)  # copie sous verrou
+        with open('shared_log.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[LOG] Erreur sauvegarde : {e}")
+
+def load_log_from_disk():
+    """Charge le log depuis le disque au démarrage"""
+    global shared_log
+    try:
+        if os.path.exists('shared_log.json'):
+            with open('shared_log.json', 'r', encoding='utf-8') as f:
+                shared_log = json.load(f)
+            print(f"[LOG] {len(shared_log)} QSO chargés depuis shared_log.json")
+    except Exception as e:
+        print(f"[LOG] Impossible de charger le log : {e}")
+
+
+
+# ─── UTILS ───────────────────────────────────────────────────────────────────
+# Python 3.13 durcit la validation des certificats et rejette plusieurs sites
+# radioamateur (F5LEN, HamQTH, DXMaps... : "Basic Constraints of CA cert not
+# marked critical"). Repli en non-vérifié UNIQUEMENT après échec SSL : ce sont
+# des données publiques en lecture seule, aucune donnée sensible n'y transite.
+import ssl as _ssl
+_ssl_noverify = _ssl.create_default_context()
+_ssl_noverify.check_hostname = False
+_ssl_noverify.verify_mode = _ssl.CERT_NONE
+
+def fetch_url(url, timeout=10):
+    req = urllib.request.Request(url, headers={
+        'User-Agent': 'Mozilla/5.0 (compatible; RadioContestAI/2.0)',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            charset = resp.headers.get_content_charset() or 'utf-8'
+            return resp.read().decode(charset, errors='replace')
+    except urllib.error.URLError as e:
+        if isinstance(getattr(e, 'reason', None), _ssl.SSLCertVerificationError):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout, context=_ssl_noverify) as resp:
+                    charset = resp.headers.get_content_charset() or 'utf-8'
+                    return resp.read().decode(charset, errors='replace')
+            except Exception as e2:
+                print(f"  [FETCH] {url[:60]}... → {e2} (même sans vérif SSL)")
+                return None
+        print(f"  [FETCH] {url[:60]}... → {e}")
+        return None
+    except Exception as e:
+        print(f"  [FETCH] {url[:60]}... → {e}")
+        return None
+
+def locator_to_latlon(loc):
+    if not loc or len(loc) < 6:
+        return None, None
+    l = loc.upper()
+    try:
+        lon = (ord(l[0])-65)*20 - 180 + int(l[2])*2 + (ord(l[4])-65)*(2/24) + 1/24
+        lat = (ord(l[1])-65)*10 - 90  + int(l[3])   + (ord(l[5])-65)*(1/24) + 0.5/24
+        return lat, lon
+    except:
+        return None, None
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371
+    dLat = math.radians(lat2-lat1)
+    dLon = math.radians(lon2-lon1)
+    a = math.sin(dLat/2)**2 + math.cos(math.radians(lat1))*math.cos(math.radians(lat2))*math.sin(dLon/2)**2
+    return int(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)))
+
+def bearing(lat1, lon1, lat2, lon2):
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dl = math.radians(lon2-lon1)
+    y = math.sin(dl)*math.cos(phi2)
+    x = math.cos(phi1)*math.sin(phi2) - math.sin(phi1)*math.cos(phi2)*math.cos(dl)
+    b = math.degrees(math.atan2(y, x))
+    return int((b+360) % 360)
+
+def cardinal(deg):
+    dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO']
+    return dirs[round(deg/22.5) % 16]
+
+def is_digital_mode(text):
+    return any(m in text.upper() for m in MODES_NUMERIQUES)
+
+# ─── FETCH CLUSTERS ──────────────────────────────────────────────────────────
+# ─── CACHE SPOTS GLOBAL (accessible par /log/status) ─────────────────────────
+SPOTS_CACHE = {}   # band → [{ call, locator, freq, spotter, time, source }]
+
+def _normalize_spot(call='', locator='', freq=0.0, spotter='', time_str='', info='', source=''):
+    """Retourne un dict de spot normalisé avec coordonnées si locator disponible."""
+    # Défense contre les None explicites (ex: champ JSON null) — le défaut de paramètre
+    # ne s'applique pas si None est passé explicitement, d'où le crash sur info[:60]
+    call = call or ''
+    locator = locator or ''
+    spotter = spotter or ''
+    info = info or ''
+    source = source or ''
+    loc = locator.upper()[:6] if locator else ''
+    # Calculer lat/lon depuis le locator pour l'affichage carte
+    lat, lon = None, None
+    if loc and len(loc) >= 4:
+        try:
+            lt, ln = locator_to_latlon(loc)
+            if lt is not None:
+                lat, lon = round(lt, 3), round(ln, 3)
+        except Exception:
+            pass
+    spot = {
+        'call':    call.upper().split('/')[0].strip(),
+        'dx':      call.upper().split('/')[0].strip(),  # alias pour compatibilité carte
+        'locator': loc,
+        'freq':    float(freq) if freq else 0.0,
+        'spotter': spotter.upper(),
+        'time':    str(time_str)[:5],
+        'info':    info[:60],
+        'source':  source,
+        'country': '',
+    }
+    if lat is not None:
+        spot['lat'] = lat
+        spot['lon'] = lon
+    return spot
+
+# ── CLUSTER F5LEN (principal cluster VHF français) ───────────────────────────
+def fetch_cluster_f5len(band, filter_digital=True):
+    url = f"http://cluster.f5len.org/index.php?what={band}"
+    content = fetch_url(url)
+    if not content:
+        return []
+    spots = []
+    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', content, re.DOTALL|re.IGNORECASE)
+    for row in rows:
+        cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL|re.IGNORECASE)
+        cells = [re.sub(r'<[^>]+>','',c).strip() for c in cells]
+        cells = [c for c in cells if c]
+        if len(cells) >= 3 and re.match(r'[A-Z0-9]{3,}', cells[0] if cells else ''):
+            if filter_digital and is_digital_mode(' '.join(cells)):
+                continue
+            spots.append(cells)
+    return spots[:30]
+
+def fetch_dxsummit(band_type='VHF', filter_digital=True):
+    # DXSummit API : VHF = OK, HF → on fetch les bandes HF individuellement
+    if band_type == 'HF':
+        return fetch_dxsummit_hf(filter_digital)
+    url = f"http://www.dxsummit.fi/api/v1/spots?include={band_type}&limit=50"
+    content = fetch_url(url)
+    if not content:
+        return []
+    try:
+        data = json.loads(content)
+        spots = []
+        items = data if isinstance(data, list) else data.get('spots', [])
+        for s in items:
+            freq = float(s.get('frequency', s.get('freq', 0)))
+            # L'API DXSummit renvoie la fréquence en kHz (ex: 144260.1) — nos
+            # bandes VHF/UHF sont toujours < 1000 en MHz, donc toute valeur
+            # au-dessus indique du kHz non converti.
+            if freq > 1000:
+                freq = freq / 1000
+            info = str(s.get('mode', s.get('info', ''))).upper()
+            if filter_digital and is_digital_mode(info):
+                continue
+            spots.append({
+                'spotter': s.get('de_call', s.get('spotter_callsign', s.get('spotter', ''))),
+                'dx':      s.get('dx_call', s.get('dx_callsign', s.get('dx', ''))),
+                'freq':    freq,
+                'info':    s.get('info', s.get('comment', '')),
+                'time':    s.get('time', s.get('utc', '')),
+            })
+        return spots[:25]
+    except:
+        return []
+
+def fetch_dxsummit_hf(filter_digital=True):
+    """Fetch spots HF depuis DXSummit via HTTP (HTTPS bloqué sur ce réseau)."""
+    hf_bands_mhz = ['14MHz','7MHz','21MHz','28MHz','3.5MHz','1.8MHz','50MHz']
+    all_spots = []
+    seen = set()
+    for band_mhz in hf_bands_mhz:
+        # HTTP (pas HTTPS) — le serveur DXSummit accepte les deux
+        url = f"http://www.dxsummit.fi/api/v1/spots?include={band_mhz}&limit=25"
+        content = fetch_url(url, timeout=8)
+        if not content:
+            continue
+        try:
+            data = json.loads(content)
+            items = data if isinstance(data, list) else data.get('spots', [])
+            for s in items:
+                freq = float(s.get('frequency', s.get('freq', 0)))
+                info = str(s.get('mode', s.get('info', ''))).upper()
+                if filter_digital and is_digital_mode(info):
+                    continue
+                # API DXSummit : dx_call = station DX, de_call = spotter
+                dx = s.get('dx_call', s.get('dx_callsign', s.get('dx', '')))
+                spotter = s.get('de_call', s.get('spotter_callsign', s.get('spotter', '')))
+                key = f"{dx}_{freq}"
+                if key in seen or not dx:
+                    continue
+                seen.add(key)
+                # DXSummit longitude : convention inversée (East = négatif) → inverser
+                raw_lat = s.get('dx_latitude')
+                raw_lon = s.get('dx_longitude')
+                spot_lat = float(raw_lat) if raw_lat is not None else None
+                spot_lon = -float(raw_lon) if raw_lon is not None else None
+                all_spots.append({
+                    'spotter': spotter,
+                    'dx':      dx,
+                    'freq':    freq,
+                    'info':    str(s.get('info', s.get('comment', s.get('mode', '')))),
+                    'time':    str(s.get('time', s.get('utc', ''))),
+                    'lat':     spot_lat,
+                    'lon':     spot_lon,
+                    'country': s.get('dx_country', ''),
+                })
+        except Exception as e:
+            print(f"[DXSUMMIT-HF] parse error {band_mhz}: {e}")
+            continue
+    print(f"[DXSUMMIT-HF] {len(all_spots)} spots HF (HTTP)")
+    return all_spots[:80]
+
+def fetch_dxwatch_hf(filter_digital=True):
+    """DXWatch API HF — HTTP port 8010, bandes 1.8–29.7 MHz."""
+    spots = []
+    seen = set()
+    # Essaie plusieurs endpoints DXWatch
+    urls = [
+        'http://dxwatch.com:8010/dxsd1/dxsd1.php?f=0&c=100',
+        'http://www.dxwatch.com:8010/dxsd1/dxsd1.php?f=0&c=100',
+    ]
+    for url in urls:
+        try:
+            content = fetch_url(url, timeout=10)
+            if not content:
+                continue
+            # Format DX Spider texte : "DX de SPOTTER:  FREQ   CALL   INFO  UTCZ"
+            rows = re.findall(
+                r'DX de\s+([\w/]+)\s*:\s*([\d.]+)\s+([\w/]+)\s*(.*?)\s+(\d{4})Z',
+                content, re.IGNORECASE
+            )
+            for spotter, freq_str, call, info, t in rows:
+                try:
+                    freq_f = float(freq_str)
+                except:
+                    continue
+                # HF uniquement : 1.8 à 29.7 MHz (inclut 10m/6m)
+                if not (1.8 <= freq_f <= 54.0):
+                    continue
+                if filter_digital and is_digital_mode(info):
+                    continue
+                key = f"{call}|{freq_f}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                spots.append({
+                    'spotter': spotter.upper(),
+                    'dx':      call.upper(),
+                    'freq':    freq_f,
+                    'info':    info.strip()[:60],
+                    'time':    t + 'Z',
+                })
+            if spots:
+                print(f"[DXWATCH-HF] {url} → {len(spots)} spots HF")
+                break
+        except Exception as e:
+            print(f"[DXWATCH-HF] {url} → erreur: {e}")
+            continue
+
+    # Fallback : parser le format HTML si le format texte n'a rien retourné
+    if not spots:
+        try:
+            content = fetch_url('http://dxwatch.com:8010/dxsd1/dxsd1.php?f=0&c=100', timeout=10)
+            if content:
+                # Essai format JSON
+                try:
+                    data = json.loads(content)
+                    items = data if isinstance(data, list) else data.get('s', data.get('spots', []))
+                    for s in (items if isinstance(items, list) else []):
+                        freq_f = float(s[1]) if isinstance(s, list) and len(s) > 1 else float(s.get('fr', s.get('freq', 0)))
+                        if not (1.8 <= freq_f <= 54.0):
+                            continue
+                        call = (s[2] if isinstance(s, list) else s.get('dx', '')).upper()
+                        info = (s[4] if isinstance(s, list) and len(s) > 4 else s.get('rm', '')).strip()
+                        if filter_digital and is_digital_mode(info):
+                            continue
+                        spotter = (s[0] if isinstance(s, list) else s.get('de', '')).upper()
+                        t = (s[5] if isinstance(s, list) and len(s) > 5 else s.get('ut', ''))
+                        key = f"{call}|{freq_f}"
+                        if key not in seen:
+                            seen.add(key)
+                            spots.append({'spotter': spotter, 'dx': call, 'freq': freq_f, 'info': info, 'time': str(t)})
+                    print(f"[DXWATCH-HF-JSON] {len(spots)} spots")
+                except:
+                    pass
+        except Exception as e:
+            print(f"[DXWATCH-HF-fallback] {e}")
+
+    return spots[:60]
+
+def fetch_f5len_hf(filter_digital=True):
+    """Fetch spots HF depuis F5LEN Webcluster — bandes 14/21/28/7/3.5 MHz."""
+    hf_bands = [14, 21, 28, 7]
+    all_spots = []
+    seen = set()
+    for band in hf_bands:
+        url = f"http://cluster.f5len.org/index.php?what={band}"
+        content = fetch_url(url)
+        if not content:
+            continue
+        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', content, re.DOTALL|re.IGNORECASE)
+        for row in rows:
+            cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL|re.IGNORECASE)
+            cells = [re.sub(r'<[^>]+>','',c).strip() for c in cells]
+            cells = [c for c in cells if c]
+            if len(cells) >= 3 and re.match(r'[A-Z0-9]{3,}', cells[0] if cells else ''):
+                if filter_digital and is_digital_mode(' '.join(cells)):
+                    continue
+                key = cells[0] + '|' + (cells[1] if len(cells)>1 else '')
+                if key not in seen:
+                    seen.add(key)
+                    all_spots.append(cells)
+    print(f"[F5LEN-HF] {len(all_spots)} spots HF")
+    return all_spots[:40]
+
+# ── DX SPIDER TELNET (cluster standard) ──────────────────────────────────────
+# Nœuds publics DX Spider — le premier qui répond est utilisé
+DX_SPIDER_NODES = [
+    ('dxc.ve7cc.net',      7300),
+    ('telnet.dxsummit.fi', 7300),
+    ('cluster.dx.fi',      7300),
+    ('dx.maritimecontestclub.ca', 7300),
+]
+
+def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, timeout=8):
+    """Connexion telnet à un nœud DX Spider — récupère les derniers spots."""
+    spots = []
+    for host, port in DX_SPIDER_NODES:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(timeout)
+            s.connect((host, port))
+            # Lire le prompt de bienvenue
+            buf = b''
+            deadline = time.time() + 4
+            while time.time() < deadline:
+                try:
+                    chunk = s.recv(1024)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    if b'login' in buf.lower() or b'call' in buf.lower() or b'>' in buf:
+                        break
+                except socket.timeout:
+                    break
+            # Envoyer l'indicatif
+            s.sendall((callsign + '\r\n').encode())
+            time.sleep(1.0)
+            # Demander les derniers spots HF
+            s.sendall(b'sh/dx/60\r\n')
+            # Lire la réponse
+            raw = b''
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                try:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    raw += chunk
+                except socket.timeout:
+                    break
+            s.sendall(b'bye\r\n')
+            s.close()
+
+            # Parser les spots DX Spider : "DX de SPOTTER:  FREQ   CALL   INFO  UTC"
+            text = raw.decode('utf-8', errors='replace')
+            rows = re.findall(
+                r'DX de\s+([\w/]+)\s*:\s*([\d.]+)\s+([\w/]+)\s*(.*?)\s+(\d{4})Z',
+                text, re.IGNORECASE
+            )
+            for spotter, freq_str, call, info, t in rows:
+                freq = float(freq_str)
+                if filter_digital and is_digital_mode(info):
+                    continue
+                spots.append({
+                    'spotter': spotter.upper(),
+                    'dx':      call.upper(),
+                    'freq':    freq,
+                    'info':    info.strip()[:60],
+                    'time':    t + 'Z',
+                    'source':  host,
+                })
+            if spots:
+                print(f"[TELNET] {host}:{port} → {len(spots)} spots")
+                break  # premier nœud qui répond suffit
+            else:
+                print(f"[TELNET] {host}:{port} → 0 spots (essai suivant)")
+        except Exception as e:
+            print(f"[TELNET] {host}:{port} → erreur: {e}")
+            continue
+
+    return spots[:max_spots]
+
+# ── ON4KST CHAT (telnet, compte requis) ───────────────────────────────────────
+# Accès réservé aux radioamateurs, identifiant + mot de passe personnels.
+# Protocole confirmé jusqu'au prompt "Password:" ; le comportement après
+# connexion (sélection de salon, format des messages) sera affiné une fois
+# testé avec de vrais identifiants — d'où le mode diagnostic ci-dessous, qui
+# capture la réponse brute du serveur sans jamais exposer le mot de passe.
+def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, timeout=10,
+                     chat=None, command=None, read_wait=6):
+    """
+    Connexion telnet à ON4KST : login + password, puis optionnellement
+    sélection d'un salon (chat='2' pour 144/432 MHz) et envoi d'une commande.
+    Ne renvoie QUE la sortie du serveur (jamais le mot de passe).
+    Retourne {'ok': bool, 'raw': str, 'error': str|None}.
+    """
+    # Espaces/retours parasites en début-fin (copier-coller) : quasi toujours
+    # accidentels dans un mot de passe — ON4KST rejette sinon sur la longueur.
+    password = (password or '').strip()
+    if not callsign or not password:
+        return {'ok': False, 'raw': '', 'error': 'Identifiant ou mot de passe ON4KST manquant'}
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect((host, port))
+
+        def read_until(patterns, max_wait=6):
+            buf = b''
+            deadline = time.time() + max_wait
+            while time.time() < deadline:
+                try:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    low = buf.lower()
+                    if patterns and any(p in low for p in patterns):
+                        break
+                except socket.timeout:
+                    break
+            return buf.decode('utf-8', errors='replace')
+
+        banner = read_until([b'login'])
+        s.sendall((callsign.strip() + '\r\n').encode())
+        pwd_prompt = read_until([b'password'])
+        s.sendall((password + '\r\n').encode())
+        # Menu de sélection du salon (ou message d'erreur de login)
+        after_login = read_until([b'choice', b'invalid', b'bad password'])
+
+        raw = banner + pwd_prompt + after_login
+        login_failed = any(kw in raw.lower() for kw in ('invalid', 'incorrect', 'bad password', 'denied', 'refused'))
+        if login_failed:
+            s.close()
+            return {'ok': False, 'raw': raw, 'error': 'Identifiants refusés par ON4KST'}
+
+        if chat:
+            s.sendall((str(chat).strip() + '\r\n').encode())
+            raw += read_until([], max_wait=read_wait)
+        if command:
+            cmds = command if isinstance(command, (list, tuple)) else [command]
+            for c in cmds:
+                s.sendall((c.strip() + '\r\n').encode())
+                raw += read_until([], max_wait=read_wait)
+
+        try:
+            s.sendall(b'/quit\r\n')
+            s.close()
+        except Exception:
+            pass
+        return {'ok': True, 'raw': raw, 'error': None}
+    except Exception as e:
+        return {'ok': False, 'raw': '', 'error': str(e)}
+
+# Cache ON4KST : une connexion telnet toutes les 4 min maximum — le chat est
+# un service communautaire gratuit, on ne le martèle pas à chaque refresh.
+_on4kst_cache = {'ts': 0, 'data': None}
+ON4KST_CACHE_TTL = 240
+
+def fetch_on4kst_data(callsign, password, chat='2'):
+    """
+    Récupère depuis le chat ON4KST (salon 2 = 144/432 MHz) :
+      - users    : stations connectées [{call, locator, name, present}]
+      - messages : derniers messages   [{time, call, text}]
+    'present' = False si l'indicatif est entre parenthèses (absent du clavier).
+    Résultat mis en cache ON4KST_CACHE_TTL secondes.
+    """
+    now = time.time()
+    if _on4kst_cache['data'] is not None and (now - _on4kst_cache['ts']) < ON4KST_CACHE_TTL:
+        return _on4kst_cache['data']
+
+    result = {'users': [], 'messages': [], 'error': None}
+    r = fetch_on4kst_raw(callsign, password, chat=chat,
+                         command=['/SHOW USER', '/SHOW MSG 25'], read_wait=7)
+    if not r['ok']:
+        result['error'] = r['error']
+        return result  # pas de mise en cache d'un échec : on retentera
+
+    seen_users = set()
+    for line in r['raw'].splitlines():
+        line = line.strip()
+        # Message : "0630Z F5JMI Pat 144/432/1296> bonjour ..."
+        m_msg = re.match(r'^(\d{4})Z\s+([A-Z0-9/\-]{3,})\s+([^>]*)>\s*(.*)$', line)
+        if m_msg:
+            text = m_msg.group(4).strip()
+            # Messages vides = artefacts de notre propre connexion telnet
+            if m_msg.group(2) != 'SERVER' and text:
+                result['messages'].append({
+                    'time': m_msg.group(1) + 'Z',
+                    'call': m_msg.group(2),
+                    'text': text[:120],
+                })
+            continue
+        # User : "CALLSIGN   JN15XC Nom..." — parenthèses = absent du clavier
+        m_usr = re.match(r'^(\()?([A-Z0-9/\-]{3,})\)?\s+([A-R]{2}\d{2}[A-X]{2})\s*(.*)$', line)
+        if m_usr:
+            absent, call, loc, name = m_usr.groups()
+            if call not in seen_users:
+                seen_users.add(call)
+                result['users'].append({
+                    'call': call, 'locator': loc,
+                    'name': name.strip()[:30],
+                    'present': not bool(absent),
+                })
+
+    _on4kst_cache['ts'] = now
+    _on4kst_cache['data'] = result
+    print(f"[ON4KST] {len(result['users'])} stations connectées, {len(result['messages'])} messages")
+    return result
+
+# ── DXWATCH (spots VHF/UHF avec locators) ────────────────────────────────────
+def fetch_dxwatch_vhf(filter_digital=True):
+    """DXWatch : API VHF — retourne spots avec locator quand disponible."""
+    spots = []
+    try:
+        content = fetch_url('http://dxwatch.com:8010/dxsd1/dxsd1.php?f=0&v=VHF&t=1', timeout=8)
+        if not content:
+            return spots
+        # Format : DX de SPOTTER: FREQ CALL INFO UTC
+        rows = re.findall(
+            r'DX de\s+([\w/]+)\s*:\s*([\d.]+)\s+([\w/]+)\s+(.*?)\s+(\d{4})Z',
+            content, re.IGNORECASE
+        )
+        for spotter, freq, call, info, t in rows:
+            if filter_digital and is_digital_mode(info):
+                continue
+            freq_f = float(freq)
+            # 144–146, 432–438, 1240–1300 MHz
+            if not (144 <= freq_f <= 146 or 432 <= freq_f <= 438 or 1240 <= freq_f <= 1300):
+                continue
+            # Extraire locator depuis info (ex: JN15XC). Si deux locators sont
+            # présents (spotter + DX), le DX est presque toujours le dernier.
+            loc_matches = re.findall(r'\b([A-R]{2}[0-9]{2}[A-X]{2})\b', info.upper())
+            loc = loc_matches[-1] if loc_matches else ''
+            spots.append(_normalize_spot(call, loc, freq_f, spotter, t+'Z', info, 'dxwatch'))
+        print(f"[DXWATCH] {len(spots)} spots VHF")
+    except Exception as e:
+        print(f"[DXWATCH] Erreur: {e}")
+    return spots[:20]
+
+# ── HAMQTH SPOTS (API XML avec locators) ──────────────────────────────────────
+def fetch_hamqth_spots(filter_digital=True):
+    """HamQTH DX lite : API XML — très bons locators, toutes bandes."""
+    spots = []
+    try:
+        content = fetch_url('https://www.hamqth.com/dxlite.php', timeout=8)
+        if not content:
+            return spots
+        rows = re.findall(r'<spot>(.*?)</spot>', content, re.DOTALL)
+        for row in rows:
+            def tag(t): m = re.search(fr'<{t}>(.*?)</{t}>', row); return m.group(1).strip() if m else ''
+            freq_s = tag('freq')
+            try: freq_f = float(freq_s)
+            except: continue
+            if not (144 <= freq_f <= 146 or 432 <= freq_f <= 438 or 1240 <= freq_f <= 1300):
+                continue
+            info = tag('remarks')
+            if filter_digital and is_digital_mode(info):
+                continue
+            call    = tag('dx')
+            spotter = tag('de')
+            t       = tag('time')
+            # Si deux locators apparaissent dans le commentaire (spotter + DX),
+            # le DX est presque toujours le dernier.
+            loc_ms  = re.findall(r'\b([A-R]{2}[0-9]{2}[A-X]{2})\b', info.upper())
+            loc     = loc_ms[-1] if loc_ms else ''
+            spots.append(_normalize_spot(call, loc, freq_f, spotter, t, info, 'hamqth'))
+        print(f"[HAMQTH] {len(spots)} spots VHF")
+    except Exception as e:
+        print(f"[HAMQTH] Erreur: {e}")
+    return spots[:20]
+
+# ── HAMSPIRIT.DE (cluster VHF allemand/suisse, excellent pour DX vers JN15) ──
+def fetch_hamspirit_vhf(band_mhz=144, filter_digital=True):
+    """Hamspirit.de : cluster VHF/UHF allemand — proximité géographique idéale."""
+    spots = []
+    try:
+        url = f'https://www.hamspirit.de/dxspot/dx.php?mode=spots&band={band_mhz}'
+        content = fetch_url(url, timeout=8)
+        if not content:
+            return spots
+        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', content, re.DOTALL|re.IGNORECASE)
+        for row in rows:
+            cells = [re.sub(r'<[^>]+>','',c).strip()
+                     for c in re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL|re.IGNORECASE)]
+            cells = [c for c in cells if c]
+            if len(cells) < 4:
+                continue
+            info = ' '.join(cells)
+            if filter_digital and is_digital_mode(info):
+                continue
+            call_m = re.search(r'\b([A-Z0-9]{3,}(?:/[A-Z0-9]+)?)\b', info)
+            if not call_m:
+                continue
+            call = call_m.group(1)
+            # Si deux locators apparaissent (spotter + DX), le DX est presque
+            # toujours le dernier.
+            loc_ms = re.findall(r'\b([A-R]{2}[0-9]{2}[A-X]{2})\b', info.upper())
+            loc = loc_ms[-1] if loc_ms else ''
+            freq_m = re.search(r'(\d{3,4}[\.,]\d{1,3})', info)
+            try: freq = float(freq_m.group(1).replace(',','.')) if freq_m else float(band_mhz)
+            except: freq = float(band_mhz)
+            spots.append(_normalize_spot(call, loc, freq, cells[0] if cells else '', '', info, 'hamspirit'))
+        print(f"[HAMSPIRIT] {band_mhz} MHz: {len(spots)} spots")
+    except Exception as e:
+        print(f"[HAMSPIRIT] Erreur: {e}")
+    return spots[:15]
+
+# ── DXMAPS VHF SPOTS (carte propagation — locators précis) ───────────────────
+def fetch_dxmaps_spots_vhf(filter_digital=True):
+    """DXMaps : spots VHF avec locators extraits de la carte de propagation."""
+    spots = []
+    try:
+        # API JSON non officielle DXMaps (spots bruts avec QRA locator)
+        content = fetch_url('https://www.dxmaps.com/spots/mapg.php?Lan=E&Frec=144&ML=M&Map=EU&noimage=1', timeout=10)
+        if not content:
+            return spots
+        # Extraire les lignes de spots DXMaps format: DX:CALL QRA:LOC via SPOTTER
+        matches = re.findall(
+            r'DX:([A-Z0-9/]+)\s+QRA:([A-R]{2}[0-9]{2}[A-X]{0,2})',
+            content, re.IGNORECASE
+        )
+        for call, loc in matches:
+            if filter_digital:
+                continue  # DXMaps ne donne pas le mode
+            spots.append(_normalize_spot(call, loc, 144.0, '', '', '', 'dxmaps'))
+        # Fallback : chercher paires CALL + LOC proches
+        if not spots:
+            calls = re.findall(r'\b([A-Z][A-Z0-9]{1,2}[0-9][A-Z]{1,3}(?:/P)?)\b', content)
+            locs  = re.findall(r'\b([A-R]{2}[0-9]{2}[A-X]{2})\b', content.upper())
+            for i, (c, l) in enumerate(zip(calls[:15], locs[:15])):
+                spots.append(_normalize_spot(c, l, 144.0, '', '', '', 'dxmaps'))
+        print(f"[DXMAPS SPOTS] {len(spots)} spots extraits")
+    except Exception as e:
+        print(f"[DXMAPS SPOTS] Erreur: {e}")
+    return spots[:15]
+
+# ── FUSION DE TOUS LES SPOTS VHF ─────────────────────────────────────────────
+def fetch_all_vhf_spots(band_mhz=144, filter_digital=True):
+    """Agrège tous les clusters disponibles pour la bande donnée."""
+    all_spots = []
+    seen_calls = set()
+
+    sources = [
+        ('f5len',      fetch_cluster_f5len(band_mhz, filter_digital)),
+        ('dxsummit',   fetch_dxsummit('VHF', filter_digital)),
+        ('dxwatch',    fetch_dxwatch_vhf(filter_digital)),
+        ('hamqth',     fetch_hamqth_spots(filter_digital)),
+        ('hamspirit',  fetch_hamspirit_vhf(band_mhz, filter_digital)),
+        ('dxmaps',     fetch_dxmaps_spots_vhf(filter_digital)),
+    ]
+
+    for src_name, raw_spots in sources:
+        for s in raw_spots:
+            # Normaliser selon la source
+            if isinstance(s, list):
+                info_str = ' '.join(s[4:]) if len(s)>4 else ''
+                try: freq_v = float(re.sub(r'[^\d.]', '', s[1])) if len(s)>1 else float(band_mhz)
+                except: freq_v = float(band_mhz)
+                # Certains commentaires VHF/Es contiennent DEUX locators (grille du
+                # spotter D'ABORD, puis celle de la station DX — convention courante
+                # pour juger le trajet). re.search() prenait le premier trouvé, donc
+                # souvent celui du spotter au lieu du DX → point placé au mauvais
+                # endroit sur la carte. On prend le DERNIER match trouvé.
+                loc_all = re.findall(r'\b([A-R]{2}[0-9]{2}[A-X]{2})\b', info_str.upper())
+                s = _normalize_spot(
+                    call=s[0] if len(s)>0 else '',
+                    locator=loc_all[-1] if loc_all else '',
+                    freq=freq_v,
+                    spotter=s[2] if len(s)>2 else '',
+                    time_str=s[3] if len(s)>3 else '',
+                    info=info_str,
+                    source=src_name
+                )
+            elif isinstance(s, dict) and 'dx' in s:
+                # format dxsummit — même souci que ci-dessus : si le commentaire
+                # contient le locator du spotter ET celui du DX, le DX est
+                # presque toujours le dernier trouvé.
+                loc_ms = re.findall(r'\b([A-R]{2}[0-9]{2}[A-X]{2})\b', str(s.get('info','')).upper())
+                s = _normalize_spot(
+                    call=s.get('dx',''),
+                    locator=loc_ms[-1] if loc_ms else '',
+                    freq=s.get('freq',float(band_mhz)),
+                    spotter=s.get('spotter',''),
+                    time_str=s.get('time',''),
+                    info=s.get('info',''),
+                    source=src_name
+                )
+
+            call = s.get('call','')
+            if not call or len(call) < 3:
+                continue
+            # Dédoublonner : garder le spot avec locator si possible
+            if call not in seen_calls:
+                seen_calls.add(call)
+                all_spots.append(s)
+            else:
+                # Mettre à jour si le nouveau spot a un locator et l'ancien non
+                for ex in all_spots:
+                    if ex['call'] == call and not ex['locator'] and s.get('locator'):
+                        ex.update(s)
+                        break
+
+    return all_spots
+
+# ─── FETCH LOG ───────────────────────────────────────────────────────────────
+def fetch_log_edi(url, filter_digital=True):
+    if not url:
+        return {'qsos': [], 'score': 0, 'total_qso': 0, 'error': 'URL non configurée'}
+    content = fetch_url(url)
+    if not content:
+        return {'qsos': [], 'score': 0, 'total_qso': 0, 'error': 'Inaccessible'}
+    qsos = []
+    score = 0
+    in_qso = False
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith('[QSOrecords'):
+            in_qso = True
+            continue
+        if in_qso and line and not line.startswith('['):
+            parts = line.split(';')
+            if len(parts) >= 10:
+                try:
+                    mode = parts[12].strip().upper() if len(parts) > 12 else 'SSB'
+                    if filter_digital and mode in MODES_NUMERIQUES:
+                        continue
+                    pts = int(parts[10]) if len(parts) > 10 and parts[10].strip().isdigit() else 0
+                    qsos.append({
+                        'date': parts[0], 'time': parts[1],
+                        'call': parts[2].strip(), 'locator': parts[9].strip(),
+                        'points': pts, 'mode': mode or 'SSB',
+                    })
+                    score += pts
+                except:
+                    pass
+    return {'qsos': qsos, 'score': score, 'total_qso': len(qsos)}
+
+def fetch_log_adif(url, filter_digital=True):
+    if not url:
+        return {'qsos': [], 'score': 0, 'total_qso': 0}
+    content = fetch_url(url)
+    if not content:
+        return {'qsos': [], 'score': 0, 'total_qso': 0}
+    qsos = []
+    records = re.split(r'<EOR>', content, flags=re.IGNORECASE)
+    for rec in records:
+        call_m = re.search(r'<CALL:\d+>([^\s<]+)', rec, re.IGNORECASE)
+        loc_m  = re.search(r'<GRIDSQUARE:\d+>([A-Z0-9]+)', rec, re.IGNORECASE)
+        mode_m = re.search(r'<MODE:\d+>([^\s<]+)', rec, re.IGNORECASE)
+        freq_m = re.search(r'<FREQ:\d+>([\d.]+)', rec, re.IGNORECASE)
+        if call_m:
+            mode = mode_m.group(1).upper() if mode_m else 'SSB'
+            if filter_digital and mode in MODES_NUMERIQUES:
+                continue
+            qsos.append({
+                'call': call_m.group(1),
+                'locator': loc_m.group(1) if loc_m else '',
+                'mode': mode,
+                'freq': freq_m.group(1) if freq_m else '',
+                'points': 0,
+            })
+    return {'qsos': qsos, 'score': 0, 'total_qso': len(qsos)}
+
+# ─── GÉNÉRATION DU SYSTÈME PROMPT ────────────────────────────────────────────
+def build_system_prompt(cfg):
+    call     = cfg.get('callsign', 'STATION')
+    call_c   = cfg.get('callsign_contest', call)
+    loc      = cfg.get('locator', 'JN00AA')
+    city     = cfg.get('city', '')
+    power    = cfg.get('power', '100')
+    record   = cfg.get('record_dx', '0')
+    contest  = cfg.get('contest', 'CUSTOM')
+    no_digi  = cfg.get('toggles', {}).get('flag_no_digi', False)
+    ssb_only = cfg.get('toggles', {}).get('mode_ssb', True) and not cfg.get('toggles', {}).get('mode_cw', False)
+    portable = cfg.get('toggles', {}).get('flag_portable', False)
+    qrp      = cfg.get('toggles', {}).get('flag_qrp', False)
+    alert_dx = cfg.get('alert_dx_km', 1200)
+    spotter_ok = cfg.get('spotter_reliable_km', 600)
+    priority = cfg.get('priority_mode', 'distance')
+    prefix_filter_raw = cfg.get('spot_prefix_filter', '')
+    prefix_filter = [p.strip().upper() for p in prefix_filter_raw.split(',') if p.strip()] if prefix_filter_raw else []
+
+    # Bandes actives
+    active_bands = []
+    toggles = cfg.get('toggles', {})
+    band_map = {
+        'band_2m':'144 MHz','band_70cm':'432 MHz','band_6m':'50 MHz',
+        'band_4m':'70 MHz','band_23cm':'1.2 GHz','band_13cm':'2.4 GHz',
+        'band_9cm':'3.4 GHz','band_6cm':'5.7 GHz','band_3cm':'10 GHz',
+        'band_20m':'14 MHz','band_40m':'7 MHz','band_80m':'3.5 MHz',
+        'band_160m':'1.8 MHz','band_10m':'28 MHz','band_15m':'21 MHz',
+        'band_17m':'18 MHz','band_12m':'24 MHz','band_30m':'10 MHz',
+        'band_60m':'5 MHz','band_8m':'40 MHz','band_qo100':'QO-100',
+    }
+    for key, label in band_map.items():
+        if toggles.get(key, False):
+            active_bands.append(label)
+
+    # Modes actifs
+    active_modes = []
+    mode_map = {
+        'mode_ssb':'SSB','mode_cw':'CW','mode_ft8':'FT8','mode_ft4':'FT4',
+        'mode_rtty':'RTTY','mode_am':'AM','mode_fm':'FM','mode_js8':'JS8',
+    }
+    for key, label in mode_map.items():
+        if toggles.get(key, False):
+            active_modes.append(label)
+
+    # Scoring
+    scoring_info = CONTEST_SCORING.get(contest, CONTEST_SCORING['CUSTOM'])
+
+    # Propagation
+    active_prop = []
+    prop_map = {
+        'prop_tropo':'Troposphérique','prop_es':'Sporadique-E',
+        'prop_aurora':'Aurore boréale','prop_ms':'Meteor Scatter',
+        'prop_eme':'EME','prop_f2':'F2 ionosphérique',
+    }
+    for key, label in prop_map.items():
+        if toggles.get(key, False):
+            active_prop.append(label)
+
+    lat, lon = locator_to_latlon(loc)
+
+    # ── Récupérer les données dynamiques du concours ─────────────────────────
+    cdef = CONTEST_DEFINITIONS.get(contest, {})
+    contest_date = calc_contest_date(cdef.get('date_rule', 'custom'), CURRENT_YEAR)
+    contest_date_next = calc_contest_date(cdef.get('date_rule', 'custom'), CURRENT_YEAR + 1)
+    scoring_def = cdef.get('scoring', {})
+    log_submit_url = cdef.get('log_submit', 'https://concours.r-e-f.org')
+    log_deadline = cdef.get('log_deadline', 'wednesday_after')
+    contest_exchange = cdef.get('exchange', 'RS + N°serie + locator6')
+    contest_notes = cdef.get('notes', '')
+
+    # Alerte mise à jour règlement si détectée
+    rules_alert = ''
+    if rules_db.get('alerts'):
+        for alert in rules_db.get('alerts', []):
+            if contest in alert:
+                rules_alert = f"\n⚠️ ALERTE RÈGLEMENT : {alert}"
+
+    # ── Bloc règles spécifiques par concours ─────────────────────────────────
+    specific_rules = ''
+
+    # CQ WORLD WIDE
+    if contest in ('CQ_WW_SSB', 'CQ_WW_CW'):
+        mode_str = 'SSB' if contest == 'CQ_WW_SSB' else 'CW'
+        specific_rules = f"""
+═══════════════════════════════════════════════════════
+📋 CQ WW {mode_str} — RÈGLES OFFICIELLES {CURRENT_YEAR}
+═══════════════════════════════════════════════════════
+DATE {CURRENT_YEAR} : {contest_date} (00h00 → 23h59 UTC, 48h)
+DATE {CURRENT_YEAR+1} : {contest_date_next}
+BANDES : 1.8 / 3.5 / 7 / 14 / 21 / 28 MHz (6 bandes)
+ÉCHANGE : {'RS + zone CQ (ex: 59 14)' if mode_str=='SSB' else 'RST + zone CQ (ex: 599 14)'}
+SCORING :
+  • 3 pts : continents différents
+  • 1 pt  : même continent, pays différents
+  • 0 pt  : même pays (compte comme multiplicateur !)
+  • Score = QSO_pts × (zones_CQ + pays_DXCC) par bande
+RÈGLES ITU R1 : 40m SSB interdit >7200 kHz | 160m interdit <1810 kHz
+LOG : CABRILLO — délai 5 jours — {log_submit_url}
+PRIORITÉS : 1)Zones CQ manquantes 2)Pays DXCC rares 3)DX intercontinental 3pts
+═══════════════════════════════════════════════════════"""
+
+    # IARU R1 VHF/UHF
+    elif contest in ('IARU_VHF', 'REF_IARU_VHF'):
+        specific_rules = f"""
+═══════════════════════════════════════════════════════
+📋 IARU R1 VHF 145 MHz — RÈGLES {CURRENT_YEAR}
+═══════════════════════════════════════════════════════
+DATE {CURRENT_YEAR} : {contest_date}
+DATE {CURRENT_YEAR+1} : {contest_date_next}
+BANDES : 144 MHz uniquement
+ÉCHANGE : RS + N°série + locator 6 caractères OBLIGATOIRES
+SCORING :
+  • 1 pt/km (distance tronquée + 1)
+  • QSO dans même grand carré = 50 pts fixes
+  • SCORE FINAL = km_total × nb_grands_carrés_différents_contactés
+  • Les "grands carrés" = 4 premiers caractères du locator (ex: JN15)
+IMPORTANT : le multiplicateur est le nombre de grands carrés distincts !
+  → Prioriser les contacts dans de NOUVEAUX grands carrés
+  → Un JN15 vaut autant qu'un JO30 comme multiplicateur
+LOG : EDI — délai 2e lundi après le contest — {log_submit_url}
+AUTORISÉ : Self-spot sur chat/réseaux sociaux (pas DX Cluster)
+═══════════════════════════════════════════════════════"""
+
+    # IARU UHF/SHF
+    elif contest in ('IARU_UHF', 'REF_IARU_UHF'):
+        specific_rules = f"""
+═══════════════════════════════════════════════════════
+📋 IARU R1 UHF/SHF — RÈGLES {CURRENT_YEAR}
+═══════════════════════════════════════════════════════
+DATE {CURRENT_YEAR} : {contest_date}
+BANDES : 432 / 1296 / 2320 / 3400 / 5760 / 10368 MHz
+ÉCHANGE : RS + N°série + locator 6 caractères
+SCORING : km × grands_carrés_locator (même règle qu'IARU VHF)
+LOG : EDI séparé par bande — délai 2e lundi — {log_submit_url}
+═══════════════════════════════════════════════════════"""
+
+    # REF Rallye Points Hauts
+    elif contest == 'REF_RPH':
+        specific_rules = f"""
+═══════════════════════════════════════════════════════
+📋 RALLYE DES POINTS HAUTS REF — {CURRENT_YEAR}
+═══════════════════════════════════════════════════════
+DATE {CURRENT_YEAR} : {contest_date}
+DATE {CURRENT_YEAR+1} : {contest_date_next}
+BANDES : 144 MHz et 432 MHz (et au-delà si équipé)
+MODES AUTORISÉS : SSB / CW / FM (tous les 3 sont valides)
+ÉCHANGE : RS + N°série (par bande) + locator 6 caractères
+SCORING : 1 pt/km — SANS multiplicateur — SCORE = somme des km de tous les QSO
+ALIMENTATION : 100% autonome obligatoire pour être classé (groupe électrogène ou batterie)
+LOG : EDI séparé par bande — délai mercredi {CURRENT_YEAR} minuit
+SOUMISSION : {log_submit_url}
+NUMÉROTATION : indépendante par bande (001 sur 144 MHz, 001 sur 432 MHz)
+
+╔══════════════════════════════════════════════════════════╗
+║         STRATÉGIE OPTIMALE POUR MAXIMISER LE SCORE       ║
+╠══════════════════════════════════════════════════════════╣
+║                                                          ║
+║  RÈGLE D'OR — LA DOUBLE BANDE (priorité absolue) :      ║
+║  Chaque station vue sur 144 MHz DOIT être rappelée       ║
+║  sur 432 MHz → les points sont DOUBLÉS gratuitement.    ║
+║  Ex : F5XX à 380 km → 380 pts sur 144 + 380 pts sur 432 ║
+║  = 760 pts pour 2 QSO rapides. NE JAMAIS oublier le QSY ║
+║                                                          ║
+║  PRIORITÉ DISTANCE (aucun multiplicateur, jeu de km) :  ║
+║  • >400 km → priorité MAXIMUM (800 pts le QSO double)   ║
+║  • 200-400 km → priorité HAUTE                          ║
+║  • 100-200 km → priorité NORMALE                        ║
+║  • <100 km → priorité BASSE (coût en temps élevé/pts)   ║
+║                                                          ║
+║  FRÉQUENCES D'APPEL STANDARD :                          ║
+║  144 MHz SSB : 144.300 → QSY travail 144.150-144.290    ║
+║  432 MHz SSB : 432.200 → QSY travail 432.050-432.190    ║
+║  144 MHz FM  : 145.500 (appel) puis QSY simplex         ║
+║  432 MHz FM  : 433.500 (appel) puis QSY simplex         ║
+║                                                          ║
+║  SÉQUENCE DE TRAVAIL IDÉALE PAR CONTACT :               ║
+║  1. Travailler F5XX sur 144.300 MHz SSB                 ║
+║  2. Proposer immédiatement "QSY 432.200 ?"              ║
+║  3. Travailler F5XX sur 432.200 MHz SSB → points doublés ║
+║  4. Si équipé : proposer 1296 MHz aussi                 ║
+║                                                          ║
+║  ORDRE DES PRIORITÉS DANS CHAQUE LISTE DE CONTACTS :    ║
+║  #1 Station la plus lointaine pas encore en log         ║
+║  #2 Station déjà en log sur 144 → à travailler sur 432  ║
+║  #3 Station lointaine visible sur cluster               ║
+║  #4 CQ actif sur 432 si aucune station lointaine vue   ║
+║  #5 Station 100-200 km pas encore travaillée            ║
+║                                                          ║
+║  SIGNAL FAIBLE = CW > SSB (+6 dB sur les longues dist.) ║
+║  Pour les DX >400 km, proposer de passer en CW si SSB   ║
+║  difficile. FM uniquement pour les contacts locaux <80km ║
+╚══════════════════════════════════════════════════════════╝
+═══════════════════════════════════════════════════════"""
+
+    # REF concours VHF génériques (km × locators)
+    elif contest in ('REF_NAT_THF','REF_PRINTEMPS','REF_ETE','REF_CDF_THF',
+                     'REF_QRP','REF_IARU_TVA','REF_CCD_JAN1','REF_CCD_JAN2',
+                     'REF_CCD_MAR','REF_CCD_MAI','REF_CCD_OCT','REF_CCD_NOV',
+                     'REF_CCD_DEC','REF_MARCONI','REF_DDFM_50','REF_IARU_50'):
+        specific_rules = f"""
+═══════════════════════════════════════════════════════
+📋 {cdef.get('name', contest).upper()} — {CURRENT_YEAR}
+═══════════════════════════════════════════════════════
+DATE {CURRENT_YEAR} : {contest_date}
+DATE {CURRENT_YEAR+1} : {contest_date_next}
+BANDES : {', '.join(cdef.get('bands', ['?']))} MHz
+MODES : {', '.join(cdef.get('modes', ['?']))}
+ÉCHANGE : {contest_exchange}
+SCORING : {scoring_def.get('unit', 'km × locators')}
+MULTIPLICATEUR : {scoring_def.get('multiplier', 'locator squares')}
+LOG : {cdef.get('log_format','EDI')} — délai {log_deadline} — {log_submit_url}
+{contest_notes}
+═══════════════════════════════════════════════════════"""
+
+    # ARRL FIELD DAY
+    elif contest == 'ARRL_FD':
+        specific_rules = f"""
+═══════════════════════════════════════════════════════
+📋 ARRL FIELD DAY — RÈGLES {CURRENT_YEAR}
+═══════════════════════════════════════════════════════
+DATE {CURRENT_YEAR} : {contest_date} (18h00 UTC sam → 20h59 UTC dim — 27h)
+DATE {CURRENT_YEAR+1} : {contest_date_next}
+BANDES : 160 / 80 / 40 / 20 / 15 / 10m + 50 MHz et au-dessus
+         INTERDITES : 60 / 30 / 17 / 12m
+MODES : Téléphonie (SSB/FM) | CW | Digital (FT8, FT4, RTTY…)
+ÉCHANGE : [N°TX][Classe] [Section ARRL/RAC]
+  Exemples : « 2A CT » | « 1B ON » | DX : « 2A DX »
+  [N°TX] = nombre de postes émetteurs simultanés
+  [Classe] = A/B/C/D/E/F (voir ci-dessous)
+CLASSES :
+  A : Club/groupe ≥3 pers., lieu temporaire, autonomie obligatoire
+  B : 1-2 opérateurs, lieu temporaire, autonomie recommandée
+  C : Mobile (véhicule capable de rouler pendant l'épreuve)
+  D : Station fixe, réseau public
+  E : Station fixe, alimentation de secours uniquement
+  F : Centre Opérations d'Urgence (EOC)
+POINTS PAR QSO :
+  Téléphonie (SSB/FM) : 1 pt/QSO
+  CW                  : 2 pts/QSO
+  Digital (FT8/FT4…)  : 2 pts/QSO
+MULTIPLICATEUR DE PUISSANCE :
+  ≤5W + alimentation non-commerciale : ×5
+  ≤5W + réseau/générateur            : ×2
+  ≤100W                              : ×2
+  >100W (Classes A/B/C max 500W)     : ×1
+SCORE = (total QSO pts × mult) + bonus
+BONUS PRINCIPAUX :
+  +100 pts/TX alimentation 100% autonome (max 2 000 pts)
+  +100 pts lieu public visible
+  +100 pts QSO satellite
+  +100 pts publicité médias
+  +5 pts/QSO station GOTA + bonus animateur
+  +20 pts/participant ≤18 ans (max 100 pts)
+LOG : CABRILLO — délai mardi 28 juillet 2026
+SOUMISSION : https://field-day.arrl.org/fdentry.php
+
+╔══════════════════════════════════════════════════════════╗
+║   RÈGLES ABSOLUES — SPOTS CLUSTER ARRL FIELD DAY        ║
+╠══════════════════════════════════════════════════════════╣
+║                                                          ║
+║  SEULES les stations USA/Canada comptent.               ║
+║  Préfixes USA : W, K, N, AA-AL, WA-WZ, KA-KZ, NA-NZ   ║
+║  Préfixes Canada : VE, VA, VO, VY                      ║
+║                                                          ║
+║  RÈGLE #1 — PAS DE COMMENTAIRE SUR LES STATIONS EU     ║
+║  Ne JAMAIS lister, mentionner ou commenter les stations ║
+║  européennes (EA, F, DL, I, OK, SP, LZ, OH, SM…)      ║
+║  dans la section "Contacts à faire". Elles n'existent   ║
+║  pas pour ce concours. Zéro mention, zéro ligne.       ║
+║                                                          ║
+║  RÈGLE #2 — TOUTE station W/K/N/VE est valide          ║
+║  Pas besoin de "ARRL FD" dans le commentaire.           ║
+║  Toute station américaine spotée pendant le FD          ║
+║  EST un participant potentiel → recommander.            ║
+║                                                          ║
+║  RÈGLE #3 — FORMAT DE RÉPONSE OBLIGATOIRE              ║
+║  Section "Contacts à faire" = UNIQUEMENT W/K/N/VE.     ║
+║  Si aucune station US/CA visible → dire "Aucune station ║
+║  américaine sur le cluster actuellement, surveiller     ║
+║  14.225-14.340 MHz" et donner les fréquences FD.       ║
+║                                                          ║
+║  RÈGLE #4 — STATUT f4gld EN ARRL FD                   ║
+║  f4gld participe en tant que station DX (hors USA/CA). ║
+║  Les stations US/CA qui contactent f4gld gagnent des   ║
+║  points. f4gld doit chercher et appeler des W/K/N/VE.  ║
+║  Ne pas remettre en question la participation de f4gld. ║
+╚══════════════════════════════════════════════════════════╝
+═══════════════════════════════════════════════════════"""
+
+    # CQ WPX
+    elif contest in ('CQ_WPX_SSB','CQ_WPX_CW'):
+        mode_str = 'SSB' if 'SSB' in contest else 'CW'
+        specific_rules = f"""
+═══════════════════════════════════════════════════════
+📋 CQ WPX {mode_str} — RÈGLES {CURRENT_YEAR}
+═══════════════════════════════════════════════════════
+DATE {CURRENT_YEAR} : {contest_date}
+BANDES : 1.8 / 3.5 / 7 / 14 / 21 / 28 MHz
+ÉCHANGE : RS(T) + N°série progressif
+SCORING : pts × préfixes uniques contactés (toutes bandes)
+  • 6pts DX (autre continent) / 2pts USA-Canada / 1pt Europe entre eux
+LOG : CABRILLO — délai 5 jours — https://cqwpx.com/logsubmit.htm
+═══════════════════════════════════════════════════════"""
+
+    prompt = f"""Tu es RadioContest AI, un assistant expert pour les concours radioamateur.
+Version {CURRENT_YEAR} — Dates et règlements automatiquement à jour.
+{rules_alert}
+{specific_rules}
+
+IDENTITÉ DE LA STATION :
+- Indicatif : {call}{'/P' if portable else ''} | Contest : {call_c}
+- Locator : {loc}{' (' + city + ')' if city else ''}
+- Coordonnées : {lat:.3f}°N / {lon:.3f}°E
+- Puissance : {power}W{'  QRP' if qrp else ''}
+- Record DX établi : {record} km
+
+CONCOURS EN COURS : {contest}
+- Scoring : {scoring_info['unit']}
+- Multiplicateurs : {scoring_info['mult']}
+
+BANDES ACTIVES : {', '.join(active_bands) if active_bands else 'Toutes'}
+MODES AUTORISÉS : {', '.join(active_modes) if active_modes else 'Tous'}
+{f'⚠️ MODE PHONIE/CW UNIQUEMENT — Ignorer tous les spots FT8, FT4, JS8, WSPR, numériques' if no_digi else ''}
+
+PROPAGATION À SURVEILLER : {', '.join(active_prop) if active_prop else 'Standard'}
+
+═══════════════════════════════════════════════════════
+🖥️ AIDE LOGICIEL — RADIOCONTEST AI
+═══════════════════════════════════════════════════════
+
+Si la question porte sur L'UTILISATION DE L'APPLI (configuration,
+navigation, "où est le bouton pour...", "comment je fais pour...")
+et PAS sur la stratégie de concours, réponds avec ce guide — chemin
+exact onglet → étape → bouton, avec les noms réels ci-dessous. Ne
+jamais répondre à ce type de question avec le format de contacts.
+
+3 onglets en haut de chaque page : CARTE IA · LOGBOOK · CONFIG
+
+── ONGLET CONFIG (configuration.html) — 5 étapes ──────────────
+1. MA STATION : Indicatif, Indicatif concours (si /P ou club),
+   Locator Maidenhead (6 car., ex JN15XC), Ville/QTH, Altitude (m),
+   Code postal, jusqu'à 5 opérateurs (OP1-OP5) pour le multi-op.
+2. CONCOURS : choisir dans la grille de cartes — dates auto-calculées.
+3. FILTRES : bandes/modes se cochent automatiquement selon le
+   règlement du concours choisi à l'étape 2 — modifiables à la main
+   ensuite (ex: décocher une bande non équipée).
+4. PROPAGATION : sources de spots, seuils d'alerte DX, clé API IA.
+5. RÉSUMÉ : vérifier puis cliquer le bouton "💾 SAUVEGARDER CONFIG"
+   — sans ce clic, rien n'est retenu.
+En haut de la page : PROFIL permet de sauvegarder/charger plusieurs
+configs nommées (utile pour plusieurs sites d'opération).
+
+── ONGLET LOGBOOK (logbook.html) ───────────────────────────────
+Au premier lancement (config incomplète), une fenêtre demande
+indicatif, locator (bouton "📍 GPS" pour le remplir automatiquement),
+opérateur et concours.
+Pour loguer un QSO : choisir bande/mode (boutons du panneau SAISIE
+QSO), taper l'indicatif (suggestions automatiques), RST/locator se
+complètent souvent seuls, puis appuyer sur ENTRÉE — depuis N'IMPORTE
+QUEL champ, ça valide directement (juste une alerte si le locator
+est vide, le QSO reste quand même enregistré).
+Bouton "?" en haut : liste tous les raccourcis clavier.
+Dans la barre du tableau : EDI/ADIF/CSV (export), IMPORTER (ADIF),
+ON4KST (copie un message de CQ), NOUVEAU LOG (réinitialise tout —
+irréversible), STATS, CHECKLIST (vérifie config/base d'indicatifs/
+connexion/heure avant de démarrer).
+
+── ONGLET CARTE IA (radiocontest.html) — cette page ────────────
+Chat avec toi + carte du terrain. Boutons rapides : ANALYSER, SCORE,
+SPOTS, PROP, MULTS, RÉSUMÉ. Bouton "🗺️ EUROPE" en haut change la vue
+de la carte (Europe/Monde/USA/France).
+
+── NOVICE QUI DÉMARRE — ordre conseillé ────────────────────────
+1) CONFIG étape 1 : indicatif + locator. 2) étape 2 : choisir le
+concours. 3) étape 5 : SAUVEGARDER CONFIG. 4) LOGBOOK : la fenêtre
+de démarrage doit être pré-remplie, sinon la compléter. 5) loguer
+les QSO. La CARTE IA sert pendant le concours pour les
+recommandations — pas besoin d'y toucher avant.
+
+Ne jamais modifier la configuration à la place de l'opérateur —
+indique où cliquer, il/elle le fait lui-même.
+
+═══════════════════════════════════════════════════════
+🎯 MOTEUR DE CALCUL DE POINTS — ADAPTÉ AU CONCOURS
+═══════════════════════════════════════════════════════
+
+Pour CHAQUE station repérée sur le cluster, tu dois calculer
+sa VALEUR EN POINTS RÉELS selon les règles exactes du concours,
+AVANT de la recommander. Voici les règles de calcul par type :
+
+{'── TYPE : 1pt/km SANS multiplicateur (REF_RPH) ──────────────────' if contest == 'REF_RPH' else ''}
+{'Valeur = distance en km depuis ' + loc if contest == 'REF_RPH' else ''}
+{'Prioriser : les stations les plus lointaines, toutes bandes confondues.' if contest == 'REF_RPH' else ''}
+{'Double bande = double points pour le même contact.' if contest == 'REF_RPH' else ''}
+
+{'── TYPE : km × grands carrés locator (IARU VHF/UHF) ─────────────' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+{'Valeur directe = distance km (+ 1pt).' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+{'MAIS : un NOUVEAU grand carré (4 premiers caractères du locator)' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+{'= multiplicateur supplémentaire sur le SCORE FINAL.' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+{'Score final = km_total × nb_grands_carrés_différents' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+{'Exemple : 500 km en JN03 (déjà eu) = +500 km au score' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+{'Exemple : 300 km en KO25 (nouveau carré) = +300 km ET +1 multiplicateur → tout le score multiplié' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+{'PRIORITÉ ABSOLUE : un nouveau grand carré même proche > un même carré même lointain.' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+{'QSO même grand carré = 50 pts fixes (toujours utile).' if contest in ('IARU_VHF','REF_IARU_VHF','IARU_UHF','REF_IARU_UHF','IARU_50MHZ','IARU_MARCONI') else ''}
+
+{'── TYPE : km × locators (REF THF/Printemps/Eté/CDF) ─────────────' if contest in ('REF_NAT_THF','REF_PRINTEMPS','REF_ETE','REF_CDF_THF','REF_QRP') else ''}
+{'Valeur = distance km × nb_locators_différents_contactés' if contest in ('REF_NAT_THF','REF_PRINTEMPS','REF_ETE','REF_CDF_THF','REF_QRP') else ''}
+{'Chaque nouveau locator 6 caractères = multiplicateur +1' if contest in ('REF_NAT_THF','REF_PRINTEMPS','REF_ETE','REF_CDF_THF','REF_QRP') else ''}
+{'Prioriser : nouveau locator > même locator même plus loin.' if contest in ('REF_NAT_THF','REF_PRINTEMPS','REF_ETE','REF_CDF_THF','REF_QRP') else ''}
+
+{'── TYPE : pts × zones CQ × pays DXCC (CQ WW) ────────────────────' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{'Valeur QSO = 3pts (autre continent) / 1pt (même continent) / 0pt (même pays)' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{'Valeur mult = +1 nouvelle zone CQ ou +1 nouveau pays DXCC PAR BANDE' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{"IMPACT REEL d'un multiplicateur = QSO_pts_actuels (ex: 500 pts x 1 mult = +500 au score final)" if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{'Ordre de priorité :' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{'  1. Nouvelle zone CQ sur bande non encore travaillée (double mult)' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{'  2. Nouveau pays DXCC intercontinental (3pts + mult)' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{'  3. Nouveau pays DXCC même continent (1pt + mult)' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{'  4. Station déjà contactée autre bande (points + éventuel mult)' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+{'  5. Station même pays (0pt mais peut être mult si première fois)' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
+
+{'── TYPE : pts × préfixes uniques (CQ WPX) ───────────────────────' if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
+{'Valeur QSO = 6pts(DX) / 2pts(USA-Canada) / 1pt(Europe)' if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
+{'Valeur mult = +1 nouveau préfixe (W1/DL1/F4/etc.) TOUTES BANDES' if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
+{'Prioriser : préfixes rares jamais vus + stations DX intercontinentales' if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
+
+{'── TYPE : pts × depts + DXCC (REF HF / REF 160m) ───────────────' if contest in ('REF_CDF_HF_SSB','REF_CDF_HF_CW','REF_160M') else ''}
+{'France : 1pt par QSO × dept différents contactés' if contest in ('REF_CDF_HF_SSB','REF_CDF_HF_CW','REF_160M') else ''}
+{'DX : 3pts par QSO × pays DXCC différents' if contest in ('REF_CDF_HF_SSB','REF_CDF_HF_CW','REF_160M') else ''}
+{'Prioriser : nouveaux depts/pays manquants en premier' if contest in ('REF_CDF_HF_SSB','REF_CDF_HF_CW','REF_160M') else ''}
+
+RÈGLE UNIVERSELLE — VALEUR MARGINALE (calcul interne, PAS à détailler) :
+Pour chaque station, calcule en interne : valeur directe (pts/km) + impact
+multiplicateur si nouveau mult = valeur totale. Sers-t'en pour CLASSER les
+stations, mais n'affiche que le total condensé sur une seule ligne — jamais
+le détail étape par étape du calcul.
+
+FORMAT COMPACT — 2 LIGNES MAX PAR STATION, JAMAIS PLUS :
+📻 F5XYZ JN03QQ — 144.310 MHz SSB — HAUTE
+   342 km = +342 pts (mult ×15, nouveau JN03) · Cap 245°SO · ✅ fiable
+
+IMPORTANT : l'indicatif ET le locator 6 caractères doivent TOUJOURS être
+sur la même ligne, juste après l'emoji 📻 (la carte s'en sert pour placer
+la station) — ne jamais omettre le locator même en format compact.
+
+CLASSEMENT : trie par valeur totale décroissante (impact réel, pas juste distance).
+
+═══════════════════════════════════════════════════════
+
+VALIDATION PAR LE SPOTTER :
+✅ PROBABLE    : spotter < {spotter_ok} km de {loc}
+⚠️ INCERTAIN  : spotter {spotter_ok}-{int(spotter_ok)*2} km
+🌟 DX EXCEP   : distance station > {alert_dx} km → priorité absolue
+
+SOURCE "on4kst-chat" : station connectée au chat ON4KST 144/432 (pas spotée
+sur une fréquence, aucun signal radio échangé). Cela veut dire qu'on peut lui
+PROPOSER un sked par chat (convenir fréquence + heure), rien de plus — la
+présence en ligne ne prouve AUCUNE propagation entre nos deux stations.
+NE JAMAIS écrire "fiable", "confirmé" ou "DX EXCEPTIONNEL" pour ces
+candidats sur la seule base de leur présence chat : utiliser un label distinct
+du type "🔵 SKED À TENTER" et préciser "propagation non confirmée sur ce
+trajet". Réserver "✅ fiable"/"confirmé" aux stations réellement spotées
+(signal reçu par quelqu'un) ou déjà travaillées. Si la distance dépasse la
+portée VHF/UHF plausible sans ouverture spéciale, le dire clairement plutôt
+que de laisser croire à un contact garanti.
+Si un message du chat mentionne notre indicatif, le signaler en priorité absolue
+(ça reste une opportunité de sked, pas un signal radio confirmé pour autant).
+
+═══════════════════════════════════════════════════════
+🔍 VÉRIFICATION QUALITÉ DU LOG — EN INTERNE, SILENCIEUSE PAR DÉFAUT
+═══════════════════════════════════════════════════════
+
+À chaque analyse, vérifie EN INTERNE (sans l'afficher) :
+1. Cohérence indicatif ↔ locator entre le log et le cluster
+2. Indicatifs douteux (faute de frappe probable, locators incompatibles
+   entre deux occurrences du même call à >300 km d'écart)
+3. Locators géographiquement impossibles pour le préfixe de l'indicatif
+4. Distances aberrantes pour la bande (ex: >2000 km en 144 SSB sans Es)
+
+N'AFFICHE une section anomalie QUE si tu détectes RÉELLEMENT un problème
+concret. Zéro anomalie détectée = zéro ligne à ce sujet dans la réponse,
+ne jamais écrire "aucune anomalie" ou un résumé qualité par défaut.
+Si (et seulement si) une anomalie est trouvée, une ligne suffit :
+  ⚠️ [Indicatif] : locator log [XXXXXX] ≠ cluster [YYYYYY] — à vérifier
+
+═══════════════════════════════════════════════════════
+⚡ STYLE DE RÉPONSE — PRIORITÉ ABSOLUE AUX CONTACTS À FAIRE
+═══════════════════════════════════════════════════════
+
+Réponse courte et scannable en quelques secondes. Pas de paragraphe
+explicatif, pas de rappel des règles déjà connues, pas de section qui
+n'apporte rien de concret. Chaque ligne doit aider l'opérateur à décider
+QUI appeler MAINTENANT et où le trouver.
+
+COMMENCE TOUJOURS par la liste des contacts, AVANT tout autre commentaire.
+
+━━━ 📡 CONTACTS À FAIRE ━━━
+
+#1 🌟 [Indicatif] [XXXXXX] — [XXX.XXX] MHz [MODE] — DX EXCEPTIONNEL
+   [X] km = +[X] pts | 🧭 [X]° [Cardinal] · [PROBABLE/INCERTAIN]
+
+#2 🔴 [Indicatif] [XXXXXX] — [XXX.XXX] MHz [MODE] — HAUTE
+   [X] km = +[X] pts | 🧭 [X]° [Cardinal] · [PROBABLE/INCERTAIN]
+
+[jusqu'à 5 contacts, 2 lignes chacun, pas plus]
+[Indicatif] [XXXXXX] = toujours indicatif + locator 6 caractères sur la
+même ligne juste après l'emoji 📻/🌟/🔴/🟡/🟠/🟢 (la carte en a besoin pour
+placer la station) — ne jamais omettre le locator même en format compact.
+Termine chaque ligne d'en-tête par le niveau de priorité en toutes lettres
+(DX EXCEPTIONNEL / HAUTE / MOYENNE / BASSE) — utile à l'opérateur et à
+l'affichage carte, ne pas l'omettre pour gagner de la place.
+Exception : pour un contact "SOURCE on4kst-chat" sans spot radio réel,
+remplacer ce label par SKED À TENTER (jamais DX EXCEPTIONNEL/fiable/confirmé,
+cf. section SOURCE "on4kst-chat" plus haut) — la distance/points restent
+affichés normalement, seule l'étiquette de confiance change.
+Le cap antenne 🧭 (ex: "312° NO") EST OBLIGATOIRE sur CHAQUE contact,
+sans exception — il est déjà calculé et fourni dans "🧭 Cap antenne : X° Y"
+du classement ci-dessus pour chaque station, il suffit de le recopier.
+L'opérateur doit pouvoir orienter son antenne (rotor) sans calcul mental ;
+un contact listé sans son cap est une réponse incomplète.
+
+━━━ 🏆 [X] pts | [X] QSO | DX [X] km ━━━
+
+La fréquence exacte (ex: 144.310 MHz SSB) doit toujours être sur la 1ère
+ligne de chaque contact, bien visible, pour QSY immédiat sans chercher.
+Si absente du spot, utiliser la fréquence d'appel standard :
+  144 MHz SSB : 144.300 MHz | 432 MHz SSB : 432.200 MHz
+  144 MHz FM  : 145.500 MHz | 432 MHz FM  : 433.500 MHz
+
+Tu alertes immédiatement si {call_c} est spoté sur un cluster.
+Tu proposes au minimum 5 contacts classés par valeur décroissante quand
+ils sont disponibles — jamais de remplissage avec des contacts sans valeur
+juste pour atteindre 5.
+
+Si l'opérateur pose une question précise (score, propagation, un
+indicatif en particulier), réponds UNIQUEMENT à cette question, sans
+replaquer la liste de contacts ni le format complet à chaque fois."""
+
+    return prompt
+
+# ─── CONTEXTE TERRAIN ────────────────────────────────────────────────────────
+def build_terrain_context(logs, spots_by_band, cfg):
+    loc = cfg.get('locator', 'JN00AA')
+    contest = cfg.get('contest', 'CUSTOM')
+    no_digi = cfg.get('toggles', {}).get('flag_no_digi', False)
+    call_c = cfg.get('callsign_contest', cfg.get('callsign', 'STATION'))
+    alert_dx = int(cfg.get('alert_dx_km', 1200))
+    spotter_ok = int(cfg.get('spotter_reliable_km', 600))
+
+    my_lat, my_lon = locator_to_latlon(loc)
+
+    lines = [f"=== DONNÉES TERRAIN EN TEMPS RÉEL — {contest} ===\n"]
+
+    # ── LOG EDI/ADIF distant ──────────────────────────────────────────────────
+    total_score = 0
+    total_qso = 0
+    done_calls = {}  # call → {locator, band, points}
+    for band_label, log_data in logs.items():
+        qso_count = log_data.get('total_qso', 0)
+        score = log_data.get('score', 0)
+        total_score += score
+        total_qso += qso_count
+        lines.append(f"LOG {band_label} : {qso_count} QSO | {score} pts")
+        for q in log_data.get('qsos', []):
+            lines.append(f"  {q['time']} {q['call']:12} {q['locator']:6} {q['points']:4}pts {q['mode']}")
+            base = q['call'].split('/')[0]
+            done_calls[base] = {'locator': q['locator'], 'band': band_label, 'points': q['points']}
+        if not log_data.get('qsos'):
+            lines.append("  (aucun QSO)")
+
+    # ── LOG PARTAGÉ MULTI-OP (logbook.html) ──────────────────────────────────
+    if shared_log:
+        lines.append(f"\nLOG PARTAGÉ MULTI-OPÉRATEUR ({len(shared_log)} QSO) :")
+        for q in shared_log[-30:]:  # 30 derniers
+            base = q.get('call','').split('/')[0]
+            lines.append(f"  {q.get('time','')} {q.get('call',''):12} {q.get('locator',''):6} "
+                        f"{q.get('points',0):4}pts {q.get('band','')}MHz {q.get('mode','')} "
+                        f"[{q.get('operator','')}]")
+            if base:
+                done_calls[base] = {
+                    'locator': q.get('locator',''),
+                    'band': q.get('band',''),
+                    'points': q.get('points',0)
+                }
+
+    lines.append(f"\n🏆 SCORE TOTAL : {total_score} pts | {total_qso} QSO\n")
+
+    # ── DONNÉES POUR VÉRIFICATION CROISÉE ────────────────────────────────────
+    lines.append("=== DONNÉES POUR VÉRIFICATION CROISÉE INDICATIFS/LOCATORS ===")
+    lines.append("Format : [INDICATIF_LOG] → [LOCATOR_LOG] vs [LOCATOR_CLUSTER] si différent")
+
+    # Construire index spots cluster : call → locator
+    cluster_locators = {}
+    for band_label, spots in spots_by_band.items():
+        for s in spots:
+            if isinstance(s, dict):
+                dx = s.get('dx','').split('/')[0]
+                # Extraire locator depuis info si disponible
+                info = s.get('info','')
+                loc_match = re.search(r'[A-Z]{2}\d{2}[A-Z]{2}', info.upper())
+                if dx and loc_match:
+                    cluster_locators[dx] = loc_match.group(0)
+            elif isinstance(s, list):
+                for cell in s:
+                    loc_match = re.search(r'^([A-Z]{2}\d{2}[A-Z]{2})$', str(cell).strip())
+                    call_match = re.search(r'^([A-Z0-9]{3,}(?:/[PM])?)$', str(s[0]).strip()) if s else None
+                    if loc_match and call_match:
+                        base_call = call_match.group(1).split('/')[0]
+                        cluster_locators[base_call] = loc_match.group(1)
+
+    # Croiser log vs cluster
+    anomalies = []
+    for call, log_data in done_calls.items():
+        log_loc = log_data.get('locator', '')
+        cl_loc = cluster_locators.get(call, '')
+        if log_loc and cl_loc and log_loc != cl_loc:
+            # Calculer distance entre les deux locators
+            ll1 = locator_to_latlon(log_loc)
+            ll2 = locator_to_latlon(cl_loc)
+            dist_anomaly = 0
+            if ll1[0] and ll2[0]:
+                dist_anomaly = haversine(ll1[0], ll1[1], ll2[0], ll2[1])
+            anomalies.append(
+                f"  ⚠️ {call}: LOG={log_loc} vs CLUSTER={cl_loc} "
+                f"(écart ~{dist_anomaly} km)"
+            )
+
+    if anomalies:
+        lines.append(f"ANOMALIES LOCATOR DÉTECTÉES ({len(anomalies)}) :")
+        lines.extend(anomalies)
+    else:
+        lines.append("Aucune anomalie locator détectée pour l'instant.")
+
+    # Vérification préfixe/pays
+    lines.append("\nVÉRIFICATION COHÉRENCE PRÉFIXE → LOCATOR :")
+    prefix_rules = {
+        'F': ['IN','JN'], 'G': ['IO','JO'], 'DL': ['JN','JO'],
+        'ON': ['JO','JN'], 'PA': ['JO'], 'HB': ['JN'],
+        'EA': ['IN','IM'], 'I': ['JN','JM'], 'SP': ['JO','KO'],
+        'OE': ['JN'], 'HA': ['JN','KN'], 'OK': ['JN','JO'],
+        'SM': ['JP','JO'], 'LA': ['JP','JO'], 'OH': ['KP','JP'],
+    }
+    for call, data in done_calls.items():
+        loc_val = data.get('locator','')
+        if not loc_val or len(loc_val) < 2: continue
+        loc_prefix = loc_val[:2].upper()
+        for pfx, expected in prefix_rules.items():
+            if call.startswith(pfx) and loc_prefix not in expected:
+                lines.append(f"  ⚠️ {call}: préfixe {pfx} mais locator {loc_val} ({loc_prefix}) inattendu")
+                break
+
+    lines.append("\n=== FIN VÉRIFICATION ===")
+
+    # ── SPOTS CLUSTER ─────────────────────────────────────────────────────────
+    for band_label, spots in spots_by_band.items():
+        lines.append(f"\nSPOTS {band_label} ({len(spots)} spots SSB/CW) :")
+        if not spots:
+            lines.append("  (aucun spot)")
+            continue
+        for s in spots[:20]:
+            if isinstance(s, dict):
+                dx = s.get('dx','')
+                spotter = s.get('spotter','')
+                freq = s.get('freq','')
+                info = s.get('info','')
+                time_s = s.get('time','')
+                already = '✓FAIT' if dx.split('/')[0] in done_calls else ''
+                lines.append(f"  {spotter:12} → {dx:12} @ {freq} MHz {info} {time_s} {already}")
+            else:
+                row = ' | '.join(str(c) for c in s[:6])
+                for c in s:
+                    if re.match(r'[A-Z0-9]{3,}', str(c)) and str(c).split('/')[0] in done_calls:
+                        row += ' ✓FAIT'
+                        break
+                lines.append(f"  {row}")
+
+    lines.append(f"\n=== FIN DONNÉES — {call_c} depuis {loc} ===")
+    if no_digi:
+        lines.append("⚠️ RAPPEL : MODE PHONIE/CW UNIQUEMENT — ignorer FT8/FT4/numérique")
+    lines.append(f"Alerte DX > {alert_dx} km. Spotter fiable < {spotter_ok} km.")
+    lines.append("RAPPEL FORMAT : commence par la liste #1 à #5 des contacts prioritaires avec FRÉQUENCE EXACTE, puis score, puis anomalies.")
+
+    return '\n'.join(lines)
+
+
+# ─── MODULE 1 : NOAA K-INDEX (Géomagnétisme / Aurore) ───────────────────────
+def fetch_noaa_kindex():
+    try:
+        content = fetch_url('http://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', timeout=8)
+        if not content: return None
+        data = json.loads(content)
+        # Dernière valeur : [datetime, K-index]
+        recent = [d for d in data if len(d) >= 2][-3:]
+        k_values = []
+        for entry in recent:
+            try:
+                k_values.append(float(entry[1]))
+            except: pass
+        if not k_values: return None
+        k_current = k_values[-1]
+        k_max = max(k_values)
+        status = 'CALME' if k_current < 3 else 'MODÉRÉ' if k_current < 5 else '⚡ PERTURBÉ' if k_current < 7 else '🔴 TEMPÊTE'
+        aurora = k_current >= 5
+        return {
+            'k_index': k_current,
+            'k_max_3h': k_max,
+            'status': status,
+            'aurora_possible': aurora,
+            'summary': f"K={k_current} ({status}){' — Aurore boréale possible sur 144 MHz !' if aurora else ''}"
+        }
+    except Exception as e:
+        print(f"[NOAA] Erreur: {e}")
+        return None
+
+# ─── MODULE 2 : DXMAPS (Propagation VHF visuelle) ───────────────────────────
+def fetch_dxmaps_vhf():
+    try:
+        # DXMaps API spots VHF
+        content = fetch_url('https://www.dxmaps.com/spots/mapg.php?Lan=E&Frec=144&ML=M&Map=EU', timeout=10)
+        if not content: return None
+        # Extraire les spots du HTML
+        spots = []
+        rows = re.findall(r'(\w{3,})\s+→\s+(\w{3,}).*?(\d{3,4})\s*km', content)
+        for r in rows[:10]:
+            spots.append({'spotter': r[0], 'dx': r[1], 'dist': r[2]})
+        # Chercher mentions Es / Tropo
+        content_up = content.upper()
+        es_active = 'SPORADIC' in content_up or 'ES ' in content_up or 'E-SKIP' in content_up
+        tropo_active = 'TROPO' in content_up or 'DUCTING' in content_up
+        return {
+            'spots': spots,
+            'es_active': es_active,
+            'tropo_active': tropo_active,
+            'summary': f"DXMaps VHF : {'⚡ SPORADIC-E ACTIF' if es_active else ''} {'🌊 TROPO ACTIF' if tropo_active else ''} {len(spots)} spots trouvés"
+        }
+    except Exception as e:
+        print(f"[DXMAPS] Erreur: {e}")
+        return None
+
+# ─── MODULE 3 : RÈGLEMENT PDF REF (Lecture automatique) ─────────────────────
+CONTEST_RULES_URLS = {
+    'REF_RPH':       'https://concours.r-e-f.org/reglements/actuels/reg_rph_fr_20250312.pdf',
+    'REF_NAT_THF':   'https://concours.r-e-f.org/reglements/actuels/reg_natthf_fr_20250312.pdf',
+    'REF_PRINTEMPS': 'https://concours.r-e-f.org/reglements/actuels/reg_printemps_fr_20250312.pdf',
+    'REF_ETE':       'https://concours.r-e-f.org/reglements/actuels/reg_ete_fr_20250312.pdf',
+    'REF_CDF_THF':   'https://concours.r-e-f.org/reglements/actuels/reg_cdfthf_fr_20251222.pdf',
+    'REF_IARU_VHF':  'https://concours.r-e-f.org/reglements/actuels/reg_iaruvhf_fr_20250312.pdf',
+    'REF_IARU_UHF':  'https://concours.r-e-f.org/reglements/actuels/reg_iaruuhf_fr_20250312.pdf',
+    'REF_QRP':       'https://concours.r-e-f.org/reglements/actuels/reg_qrp_fr_20250312.pdf',
+    'REF_160M':      'https://concours.r-e-f.org/reglements/actuels/reg_ref160_fr_20250312.pdf',
+    'REF_CCD_JAN1':  'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    'REF_MARCONI':   'https://concours.r-e-f.org/reglements/actuels/reg_marconi_fr_20250312.pdf',
+    'REF_DDFM_50':   'https://concours.r-e-f.org/reglements/actuels/reg_ddfm50_fr_20250312.pdf',
+}
+
+# Cache règlements en mémoire
+rules_cache = {}
+
+def fetch_contest_rules(contest_id):
+    if contest_id in rules_cache:
+        return rules_cache[contest_id]
+    url = CONTEST_RULES_URLS.get(contest_id)
+    if not url:
+        return None
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            pdf_bytes = resp.read()
+        # Extraction texte basique du PDF (sans dépendance)
+        text = ''
+        # Chercher les streams texte dans le PDF
+        raw = pdf_bytes.decode('latin-1', errors='ignore')
+        # Extraire texte entre BT et ET (blocs texte PDF)
+        bt_blocks = re.findall(r'BT(.*?)ET', raw, re.DOTALL)
+        for block in bt_blocks:
+            # Chercher les chaînes entre parenthèses
+            strings = re.findall(r'\(([^)]{2,})\)', block)
+            text += ' '.join(s for s in strings if s.isprintable()) + ' '
+        # Nettoyer
+        text = re.sub(r'\s+', ' ', text).strip()
+        # Garder les 3000 premiers caractères les plus pertinents
+        result = {
+            'contest': contest_id,
+            'url': url,
+            'text_extract': text[:3000] if text else 'Extraction impossible',
+            'ok': bool(text)
+        }
+        rules_cache[contest_id] = result
+        print(f"[RULES] Règlement {contest_id} chargé ({len(text)} chars)")
+        return result
+    except Exception as e:
+        print(f"[RULES] Erreur {contest_id}: {e}")
+        return {'contest': contest_id, 'url': url, 'text_extract': f'Erreur: {e}', 'ok': False}
+
+# ─── MODULE 4 : 3830SCORES (Classement concurrent) ──────────────────────────
+def fetch_3830_scores(contest_id, callsign):
+    try:
+        # 3830scores.com utilise des noms de contests spécifiques
+        contest_map = {
+            'REF_RPH': 'REF-Points-Hauts',
+            'REF_NAT_THF': 'REF-National-THF',
+            'REF_IARU_VHF': 'IARU-VHF',
+            'CQ_WW_SSB': 'CQ-WW-SSB',
+            'CQ_WW_CW': 'CQ-WW-CW',
+            'CQ_WPX_SSB': 'CQ-WPX-SSB',
+        }
+        contest_name = contest_map.get(contest_id, '')
+        if not contest_name:
+            return None
+        url = f'https://www.3830scores.com/{contest_name}/'
+        content = fetch_url(url, timeout=10)
+        if not content: return None
+        # Extraire scores du tableau HTML
+        scores = []
+        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', content, re.DOTALL|re.IGNORECASE)
+        for row in rows[:20]:
+            cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL|re.IGNORECASE)
+            cells = [re.sub(r'<[^>]+>','',c).strip() for c in cells]
+            cells = [c for c in cells if c]
+            if len(cells) >= 3:
+                scores.append(cells[:5])
+        # Chercher notre callsign
+        our_rank = None
+        our_score_data = None
+        call_base = callsign.split('/')[0].upper()
+        for i, row in enumerate(scores):
+            if any(call_base in str(c).upper() for c in row):
+                our_rank = i + 1
+                our_score_data = row
+                break
+        return {
+            'contest': contest_name,
+            'top_scores': scores[:10],
+            'our_rank': our_rank,
+            'our_data': our_score_data,
+            'summary': f"3830Scores : {len(scores)} stations listées" +
+                      (f" — Nous sommes #{our_rank}" if our_rank else "")
+        }
+    except Exception as e:
+        print(f"[3830] Erreur: {e}")
+        return None
+
+# ─── MODULE 5 : HAMQTH (Lookup indicatif inconnu) ───────────────────────────
+def lookup_hamqth(callsign, session_id=None):
+    try:
+        # HamQTH API libre (sans clé pour lookup basique)
+        url = f'https://www.hamqth.com/dxlite.php?q={callsign}'
+        content = fetch_url(url, timeout=8)
+        if not content: return None
+        # Parser XML simple
+        grid = re.search(r'<grid>([^<]+)</grid>', content)
+        country = re.search(r'<country>([^<]+)</country>', content)
+        adif = re.search(r'<adif>([^<]+)</adif>', content)
+        continent = re.search(r'<continent>([^<]+)</continent>', content)
+        if grid or country:
+            result = {
+                'call': callsign,
+                'locator': grid.group(1) if grid else '',
+                'country': country.group(1) if country else '',
+                'adif': adif.group(1) if adif else '',
+                'continent': continent.group(1) if continent else '',
+            }
+            print(f"[HAMQTH] {callsign} → {result}")
+            return result
+        return None
+    except Exception as e:
+        print(f"[HAMQTH] Erreur {callsign}: {e}")
+        return None
+
+def enrich_unknown_calls(done_calls, calldb_path):
+    """Cherche sur HamQTH les indicatifs absents de la base locale"""
+    if not os.path.exists(calldb_path):
+        return {}
+    try:
+        with open(calldb_path, 'r', encoding='utf-8') as f:
+            db = json.load(f)
+        calls_db = db.get('calls', {})
+        enriched = {}
+        count = 0
+        for call in list(done_calls.keys())[:5]:  # max 5 lookups par refresh
+            base = call.split('/')[0].upper()
+            if base not in calls_db or not calls_db[base].get('locator'):
+                result = lookup_hamqth(base)
+                if result and result.get('locator'):
+                    calls_db[base] = {
+                        'locator': result['locator'],
+                        'country': result.get('country',''),
+                        'continent': result.get('continent',''),
+                    }
+                    enriched[base] = result
+                    count += 1
+        if count > 0:
+            db['calls'] = calls_db
+            with open(calldb_path, 'w', encoding='utf-8') as f:
+                json.dump(db, f, ensure_ascii=False, separators=(',',':'))
+            print(f"[HAMQTH] {count} indicatifs enrichis dans calldb.json")
+        return enriched
+    except Exception as e:
+        print(f"[HAMQTH] Erreur enrichissement: {e}")
+        return {}
+
+# ─── REFRESH DONNÉES ─────────────────────────────────────────────────────────
+def do_refresh(cfg):
+    toggles = cfg.get('toggles', {})
+    no_digi = toggles.get('flag_no_digi', False)
+    contest = cfg.get('contest', 'CUSTOM')
+    log_sw  = cfg.get('log_software', 'net-test-thf')
+    callsign = cfg.get('callsign_contest', cfg.get('callsign', ''))
+
+    print(f"[DATA] Refresh — {callsign} | {cfg.get('locator','?')} | {contest}")
+
+    # ── 1. Logs ───────────────────────────────────────────────────────────────
+    logs = {}
+    if log_sw == 'net-test-thf':
+        url144 = cfg.get('log_url_144', '')
+        url432 = cfg.get('log_url_432', '')
+        if url144:
+            logs['144 MHz'] = fetch_log_edi(url144, filter_digital=no_digi)
+        if url432:
+            logs['432 MHz'] = fetch_log_edi(url432, filter_digital=no_digi)
+    elif log_sw in ('n1mm', 'log4om', 'hamrs'):
+        log_url = cfg.get('log_url_144', '')
+        if log_url:
+            logs['Principal'] = fetch_log_adif(log_url, filter_digital=no_digi)
+    if not logs:
+        logs['Log'] = {'qsos': [], 'score': 0, 'total_qso': 0, 'error': 'URL log non configurée'}
+
+    # ── 2. Clusters (multi-sources fusionnées) ────────────────────────────────
+    global SPOTS_CACHE
+    spots_by_band = {}
+    HF_CONTESTS = {'ARRL_FD','CQ_WW_SSB','CQ_WW_CW','CQ_WPX_SSB','CQ_WPX_CW',
+                   'ARRL_DX_SSB','ARRL_DX_CW','REF_CDF_HF_SSB','REF_CDF_HF_CW',
+                   'REF_160M','F9NL','UFT_RENCONTRES'}
+    is_hf_contest = contest in HF_CONTESTS
+    # Pour les concours HF (ARRL_FD, CQ WW…), ne pas fetcher les spots VHF
+    # même si band_2m est coché dans la config (2m est secondaire en HF contest)
+    is_vhf_contest = (toggles.get('band_2m', False) or '144' in str(contest)) and not is_hf_contest
+    if is_vhf_contest:
+        s = fetch_all_vhf_spots(144, filter_digital=no_digi)
+        spots_by_band['144 MHz'] = s
+        SPOTS_CACHE['144'] = s
+        print(f"[DATA] 144 MHz: {len(s)} spots (multi-cluster)")
+    if (toggles.get('band_70cm', False) or '432' in str(contest)) and not is_hf_contest:
+        s = fetch_all_vhf_spots(432, filter_digital=no_digi)
+        spots_by_band['432 MHz'] = s
+        SPOTS_CACHE['432'] = s
+        print(f"[DATA] 432 MHz: {len(s)} spots (multi-cluster)")
+    if toggles.get('band_6m', False) or contest == 'ARRL_FD':
+        s = fetch_cluster_f5len(50, filter_digital=no_digi)
+        spots_by_band['50 MHz'] = s
+        SPOTS_CACHE['50'] = s
+        print(f"[DATA] 50 MHz: {len(s)} spots")
+    hf_bands = ['band_20m','band_40m','band_80m','band_160m','band_10m','band_15m']
+    if is_hf_contest or any(toggles.get(b, False) for b in hf_bands):
+        # Source 1 : DXSummit HF via HTTP port 80 (HTTPS bloqué, HTTP fonctionne)
+        s_summit = fetch_dxsummit_hf(filter_digital=no_digi)
+        # Source 2 : F5LEN Webcluster HF (HTTP port 80)
+        s_f5len = fetch_f5len_hf(filter_digital=no_digi)
+        # Source 3 : Telnet DX Spider (désactivé si port 7300 bloqué — tente quand même)
+        s_telnet = fetch_telnet_cluster(
+            callsign=callsign or 'F4GLD',
+            filter_digital=no_digi
+        )
+        # Source 4 : Spots poussés par le navigateur (HTTPS fonctionne depuis browser)
+        s_browser = []
+        with browser_spots_lock:
+            age = time.time() - browser_spots_ts
+            if browser_spots_cache and age < 600:  # valides 10 min
+                s_browser = list(browser_spots_cache)
+                print(f"[BROWSER-SPOTS] {len(s_browser)} spots (âge {int(age)}s)")
+            elif browser_spots_cache:
+                print(f"[BROWSER-SPOTS] cache périmé ({int(age)}s)")
+        # Fusionner et dédupliquer
+        all_hf = s_summit + s_f5len + s_telnet + s_browser
+        seen_hf = set()
+        s = []
+        for sp in all_hf:
+            dx = sp.get('dx','') if isinstance(sp, dict) else (sp[0] if sp else '')
+            freq = str(sp.get('freq','')) if isinstance(sp, dict) else (sp[1] if len(sp)>1 else '')
+            key = f"{dx}|{freq}"
+            if key not in seen_hf:
+                seen_hf.add(key)
+                s.append(sp)
+        spots_by_band['HF'] = s
+        print(f"[DATA] HF: {len(s)} spots total (DXWatch:{len(s_summit)} F5LEN:{len(s_f5len)} Telnet:{len(s_telnet)} Browser:{len(s_browser)})")
+
+    # ── Filtre préfixe spots (si configuré) ──────────────────────────────────
+    prefix_filter_raw = cfg.get('spot_prefix_filter', '')
+    prefix_filter = [p.strip().upper() for p in prefix_filter_raw.split(',') if p.strip()] if prefix_filter_raw else []
+    if prefix_filter:
+        def _match_prefix(call):
+            call = call.upper()
+            return any(call.startswith(p) for p in prefix_filter)
+        filtered_total = 0
+        for band_key in list(spots_by_band.keys()):
+            before = len(spots_by_band[band_key])
+            spots_by_band[band_key] = [
+                sp for sp in spots_by_band[band_key]
+                if _match_prefix(sp.get('dx','') if isinstance(sp, dict) else (sp[0] if sp else ''))
+            ]
+            filtered_total += before - len(spots_by_band[band_key])
+        if filtered_total:
+            print(f"[PREFIX-FILTER] {filtered_total} spots supprimés (filtre: {','.join(prefix_filter)})")
+
+    # ── 3. NOAA K-index ──────────────────────────────────────────────────────
+    noaa = fetch_noaa_kindex()
+    if noaa:
+        print(f"[NOAA] {noaa['summary']}")
+
+    # ── 4. DXMaps propagation VHF ─────────────────────────────────────────────
+    dxmaps = None
+    is_vhf = (toggles.get('band_2m', False) or toggles.get('band_70cm', False) or '144' in str(contest)) and not is_hf_contest
+    if is_vhf:
+        dxmaps = fetch_dxmaps_vhf()
+        if dxmaps:
+            print(f"[DXMAPS] {dxmaps['summary']}")
+
+    # ── 4bis. ON4KST chat 144/432 (stations actives + messages) ──────────────
+    on4kst = None
+    if (is_vhf and toggles.get('src_on4kst', False)
+            and cfg.get('on4kst_callsign') and cfg.get('on4kst_password')):
+        try:
+            on4kst = fetch_on4kst_data(cfg['on4kst_callsign'], cfg['on4kst_password'])
+            if on4kst.get('error'):
+                print(f"[ON4KST] Erreur : {on4kst['error']}")
+                on4kst = None
+        except Exception as e:
+            print(f"[ON4KST] Exception : {e}")
+            on4kst = None
+
+    # ── 5. Règlement officiel ─────────────────────────────────────────────────
+    rules = fetch_contest_rules(contest)
+    if rules and rules.get('ok'):
+        print(f"[RULES] Règlement {contest} disponible")
+
+    # ── 6. 3830 Scores ───────────────────────────────────────────────────────
+    scores_3830 = fetch_3830_scores(contest, callsign)
+    if scores_3830:
+        print(f"[3830] {scores_3830['summary']}")
+
+    # ── 7. Enrichissement HamQTH ─────────────────────────────────────────────
+    calldb_path = os.path.join(os.getcwd(), 'calldb.json')
+    all_log_calls = {}
+    for log_data in logs.values():
+        for q in log_data.get('qsos', []):
+            base = q.get('call','').split('/')[0]
+            if base:
+                all_log_calls[base] = {'locator': q.get('locator','')}
+    hamqth_enriched = enrich_unknown_calls(all_log_calls, calldb_path)
+
+    # ── Score total ───────────────────────────────────────────────────────────
+    total_score = sum(l.get('score', 0) for l in logs.values())
+    total_qso   = sum(l.get('total_qso', 0) for l in logs.values())
+
+    # ── Contexte enrichi pour l'IA ───────────────────────────────────────────
+    context = build_terrain_context(logs, spots_by_band, cfg)
+
+    # Ajouter les données internet au contexte
+    extra = ['\n=== DONNÉES INTERNET EN TEMPS RÉEL ===']
+
+    if noaa:
+        k = noaa['k_index']
+        extra.append(f"\n📡 GÉOMAGNÉTISME NOAA : {noaa['summary']}")
+        if noaa['aurora_possible']:
+            extra.append("  ⚡ ATTENTION : Aurore possible → perturbations sur 144 MHz, propagation aurora envisageable !")
+        elif k < 2:
+            extra.append("  ✅ Conditions calmes — propagation normale attendue")
+
+    if dxmaps:
+        extra.append(f"\n🗺️ DXMAPS VHF : {dxmaps['summary']}")
+        if dxmaps.get('es_active'):
+            extra.append("  🌟 SPORADIC-E CONFIRMÉ SUR DXMAPS — contacts longue distance possibles !")
+        if dxmaps.get('tropo_active'):
+            extra.append("  🌊 TROPO CONFIRMÉ SUR DXMAPS — favoriser les contacts côtiers !")
+
+    if rules and rules.get('ok'):
+        extra.append(f"\n📋 RÈGLEMENT {contest} (extrait) :")
+        extra.append(f"  {rules['text_extract'][:500]}...")
+        extra.append(f"  → Règlement complet : {rules['url']}")
+
+    if scores_3830:
+        extra.append(f"\n🏆 CLASSEMENT 3830SCORES — {scores_3830['contest']} :")
+        for row in scores_3830['top_scores'][:5]:
+            extra.append(f"  {' | '.join(str(c) for c in row)}")
+        if scores_3830['our_rank']:
+            extra.append(f"  → Notre position : #{scores_3830['our_rank']}")
+
+    if hamqth_enriched:
+        extra.append(f"\n📖 HAMQTH — {len(hamqth_enriched)} indicatifs enrichis :")
+        for call, data in hamqth_enriched.items():
+            extra.append(f"  {call}: {data.get('locator','')} / {data.get('country','')} ({data.get('continent','')})")
+
+    if on4kst and on4kst.get('users'):
+        my_ll = locator_to_latlon(cfg.get('locator', 'JN00AA'))
+        users_sorted = []
+        for u in on4kst['users']:
+            pos = locator_to_latlon(u['locator'])
+            dist = haversine(my_ll[0], my_ll[1], pos[0], pos[1]) if (my_ll[0] and pos[0]) else 0
+            users_sorted.append((dist, u))
+        users_sorted.sort(key=lambda x: -x[0])
+        nb_present = sum(1 for _, u in users_sorted if u['present'])
+        extra.append(f"\n💬 ON4KST CHAT 144/432 — {len(users_sorted)} stations connectées ({nb_present} au clavier) :")
+        extra.append("Ces stations sont ACTIVES MAINTENANT et joignables pour un sked via le chat.")
+        for dist, u in users_sorted[:25]:
+            flag = '' if u['present'] else ' (absent clavier)'
+            extra.append(f"  {u['call']:12} {u['locator']} ~{dist:4} km{flag}  {u['name']}")
+        if on4kst.get('messages'):
+            extra.append(f"\n💬 DERNIERS MESSAGES DU CHAT ({len(on4kst['messages'])}) :")
+            my_base = callsign.split('/')[0].upper()
+            my_name_hits = []
+            for msg in on4kst['messages'][:15]:
+                extra.append(f"  {msg['time']} {msg['call']}: {msg['text']}")
+                if my_base and my_base in msg['text'].upper():
+                    my_name_hits.append(msg)
+            if my_name_hits:
+                extra.append(f"\n⚡ ATTENTION : {len(my_name_hits)} message(s) du chat mentionnent {my_base} — quelqu'un cherche peut-être un sked avec nous !")
+
+    extra.append('\n=== FIN DONNÉES INTERNET ===')
+    context += '\n'.join(extra)
+
+    # ── 8. Classement stations par valeur réelle ──────────────────────────────
+    scoring_context = build_scoring_context(logs, spots_by_band, cfg, noaa, dxmaps,
+                                            on4kst['users'] if on4kst else None)
+    context += scoring_context
+
+    system_prompt = build_system_prompt(cfg)
+
+    return {
+        'logs': logs,
+        'spots': {k: v[:15] for k, v in spots_by_band.items()},
+        'context': context,
+        'system_prompt': system_prompt,
+        'score_total': total_score,
+        'qso_total': total_qso,
+        'contest': contest,
+        'callsign': callsign,
+        'locator': cfg.get('locator', ''),
+        'noaa': noaa,
+        'dxmaps': dxmaps,
+        'scores_3830': scores_3830,
+        'rules_loaded': bool(rules and rules.get('ok')),
+        'hamqth_enriched': len(hamqth_enriched),
+        'on4kst_users': len(on4kst['users']) if on4kst else 0,
+    }
+
+# ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
+class Handler(http.server.BaseHTTPRequestHandler):
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self._cors()
+        self.end_headers()
+
+    def do_DELETE(self):
+        """Gérer les requêtes DELETE (ex: /log/delete/42)."""
+        if self.path.startswith('/log/delete/'):
+            try:
+                qso_id = int(self.path.split('/')[-1])
+                with log_lock:
+                    before = len(shared_log)
+                    shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
+                save_log_to_disk()
+                self._json({'ok': True, 'deleted': before - len(shared_log)})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+        else:
+            self.send_response(404)
+            self._cors()
+            self.end_headers()
+
+    def do_GET(self):
+        path = self.path.split('?')[0]
+
+        # Info réseau (IP locale pour les clients WiFi)
+        if path == '/network/info':
+            import socket as _sock
+            try:
+                _s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+                _s.connect(('8.8.8.8', 80))
+                local_ip = _s.getsockname()[0]
+                _s.close()
+            except:
+                local_ip = '127.0.0.1'
+            self._json({
+                'local_ip': local_ip,
+                'port': PORT,
+                'url_logbook': f'http://{local_ip}:{PORT}/logbook.html',
+                'url_terrain': f'http://{local_ip}:{PORT}/rallye-vhf-terrain.html',
+                'peers': len(connected_peers),
+            })
+            return
+
+        # Diagnostic ON4KST — teste la connexion avec les identifiants sauvegardés
+        # (lus depuis current_config, jamais depuis la requête). Le mot de passe
+        # n'apparaît jamais dans la réponse, seule la sortie du serveur ON4KST.
+        # Paramètres optionnels : ?chat=2 (salon 144/432) &cmd=/show users (commande)
+        if path == '/debug/test_on4kst':
+            from urllib.parse import parse_qs, urlparse
+            qs = parse_qs(urlparse(self.path).query)
+            callsign = (current_config or {}).get('on4kst_callsign', '')
+            password = (current_config or {}).get('on4kst_password', '')
+            result = fetch_on4kst_raw(
+                callsign, password,
+                chat=(qs.get('chat', [None])[0]),
+                command=(qs.get('cmd', [None])[0]),
+            )
+            self._json({'ok': result['ok'], 'error': result['error'], 'raw': result['raw']})
+            return
+
+        # Log partagé — liste tous les QSO
+        if path == '/log/list':
+            client_ip = self.client_address[0]
+            connected_peers.add(client_ip)
+            with log_lock:
+                self._json({
+                    'qsos': shared_log,
+                    'total': len(shared_log),
+                    'peers': len(connected_peers),
+                    'score': sum(q.get('points',0) for q in shared_log),
+                })
+            return
+
+        # Lookup indicatif en temps réel (local → HamQTH si inconnu)
+        if path.startswith('/calldb/lookup/'):
+            try:
+                call = path.split('/calldb/lookup/')[-1].upper().strip()
+                if not call:
+                    self._json({'error': 'indicatif manquant'}, 400)
+                    return
+                base = call.split('/')[0]
+                calldb_path = os.path.join(os.getcwd(), 'calldb.json')
+                local = {}
+                if os.path.exists(calldb_path):
+                    with open(calldb_path, 'r', encoding='utf-8') as f:
+                        db = json.load(f)
+                    local = db.get('calls', {}).get(base, {})
+                # Locator déjà connu localement
+                if local.get('locator'):
+                    self._json({'call': base, 'locator': local['locator'], 'dept': local.get('dept',''), 'source': 'local'})
+                    return
+                # Sinon interroger HamQTH
+                result = lookup_hamqth(base)
+                if result and result.get('locator'):
+                    # Persister dans calldb.json
+                    if os.path.exists(calldb_path):
+                        with open(calldb_path, 'r', encoding='utf-8') as f:
+                            db2 = json.load(f)
+                        db2.setdefault('calls', {})[base] = {
+                            'locator': result['locator'],
+                            'country': result.get('country', ''),
+                        }
+                        with open(calldb_path, 'w', encoding='utf-8') as f:
+                            json.dump(db2, f, ensure_ascii=False, separators=(',', ':'))
+                    self._json({'call': base, 'locator': result['locator'], 'country': result.get('country',''), 'source': 'hamqth'})
+                    return
+                self._json({'call': base, 'locator': '', 'source': 'none'})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Status réseau + spots clusters
+        if path == '/log/status':
+            self._json({
+                'peers':     len(connected_peers),
+                'qso_count': len(shared_log),
+                'spots':     SPOTS_CACHE,
+            })
+            return
+
+        # Réception spots cluster depuis le navigateur (HTTPS bloqué côté serveur)
+        if path == '/data/spots' and method == 'POST':
+            global browser_spots_cache, browser_spots_ts
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(length).decode('utf-8')
+                spots = json.loads(body)
+                if isinstance(spots, list):
+                    with browser_spots_lock:
+                        browser_spots_cache = spots[:200]
+                        browser_spots_ts = time.time()
+                    print(f"[BROWSER-SPOTS] {len(spots)} spots reçus du navigateur")
+                    self._json({'ok': True, 'count': len(spots)})
+                else:
+                    self._json({'ok': False, 'error': 'expected array'}, 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Test direct fetch DXSummit HF
+        if path == '/debug/spots':
+            import urllib.request as _ur
+            results = {}
+            for band in ['14MHz','7MHz','21MHz']:
+                url = f'http://www.dxsummit.fi/api/v1/spots?include={band}&limit=5'
+                try:
+                    req = _ur.Request(url, headers={'User-Agent':'Mozilla/5.0'})
+                    with _ur.urlopen(req, timeout=8) as r:
+                        raw = r.read().decode('utf-8','replace')
+                    data = json.loads(raw)
+                    items = data if isinstance(data,list) else data.get('spots',[])
+                    results[band] = {
+                        'count': len(items),
+                        'fields': list(items[0].keys()) if items else [],
+                        'sample': items[0] if items else None,
+                    }
+                except Exception as e:
+                    results[band] = f'ERREUR: {e}'
+            # Appel direct fetch_dxsummit_hf
+            try:
+                spots = fetch_dxsummit_hf(filter_digital=False)
+                results['fetch_dxsummit_hf_nofilter'] = {
+                    'count': len(spots),
+                    'sample': spots[:2] if spots else [],
+                }
+            except Exception as e:
+                results['fetch_dxsummit_hf_nofilter'] = f'ERREUR: {e}'
+            self._json(results)
+            return
+
+        # Diagnostic cluster final
+        if path == '/debug/cluster':
+            results = {}
+            hdrs = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64)','Accept':'application/json,*/*'}
+
+            # ── 1. APIs cluster en HTTP (pas HTTPS) ───────────────────────────
+            http_apis = [
+                ('spothole_http',  'http://spothole.app/api/spots?limit=20'),
+                ('spothole_api',   'http://api.spothole.app/spots?limit=20'),
+                ('dxheat_http',    'http://dxheat.com/dxc/'),
+                ('dxheat_api',     'http://dxheat.com/api/spots?limit=20&band=20m'),
+                ('dxsummit_http',  'http://www.dxsummit.fi/api/v1/spots?include=14MHz&limit=10'),
+                ('lecluster_f5len','http://lecluster.f5len.org/search/index.php?band=14&limit=30'),
+                ('f4hxn_http',     'http://dx.f4hxn.fr/'),
+                ('f4hxn_api',      'http://dx.f4hxn.fr/api/spots'),
+                ('dxfun_http',     'http://dxfuncluster.com/'),
+            ]
+            for label, url in http_apis:
+                try:
+                    req = urllib.request.Request(url, headers=hdrs)
+                    with urllib.request.urlopen(req, timeout=6) as r:
+                        raw = r.read(2000).decode('utf-8','replace')
+                    calls = re.findall(r'\b([A-Z]{1,3}[0-9][A-Z0-9]{0,3}[A-Z]{2})\b', raw)
+                    results[label] = f"HTTP OK — {len(raw)}B — {len(calls)} callsigns — {raw[:150]!r}"
+                except Exception as e:
+                    results[label] = f"ERREUR: {e}"
+
+            # ── 2. Telnet cluster sur port 80 (certains clusters l'acceptent) ─
+            telnet_p80 = [
+                ('f4hxn_t80',  'dx.f4hxn.fr',    80),
+                ('dxfun_t80',  'dxfuncluster.com',80),
+                ('f5len_t80',  'cluster.f5len.org',80),
+                ('f5len_t23',  'cluster.f5len.org',23),
+                ('f4hxn_t7300','dx.f4hxn.fr',   7300),
+                ('dxfun_t7300','dxfuncluster.com',7300),
+                ('ve7cc_p80',  'dxc.ve7cc.net',   80),
+            ]
+            for label, host, port in telnet_p80:
+                try:
+                    s = socket.socket()
+                    s.settimeout(5)
+                    s.connect((host, port))
+                    time.sleep(0.3)
+                    banner = s.recv(512).decode('utf-8','replace')
+                    s.close()
+                    results[label] = f"CONNECT OK port {port} — banner: {banner[:80].strip()!r}"
+                except Exception as e:
+                    results[label] = f"ERREUR port {port}: {e}"
+
+            # ── 3. Variables d'env proxy ──────────────────────────────────────
+            results['env_proxy'] = {
+                'HTTP_PROXY':  os.environ.get('HTTP_PROXY','—'),
+                'HTTPS_PROXY': os.environ.get('HTTPS_PROXY','—'),
+                'http_proxy':  os.environ.get('http_proxy','—'),
+                'https_proxy': os.environ.get('https_proxy','—'),
+            }
+            self._json(results)
+            return
+
+        # Refresh données IA (clusters + logs + scoring)
+        if path == '/data/refresh':
+            try:
+                cfg = self._load_config_from_query()
+                result = do_refresh(cfg)
+                self._json(result)
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                print(f"[DATA] ERREUR refresh : {e}\n{tb}")
+                self._json({'error': str(e), 'traceback': tb}, 500)
+            return
+
+        # Chat multi-opérateur — récupérer les messages depuis un id donné
+        if path.startswith('/chat/list'):
+            try:
+                since = 0
+                if 'since=' in self.path:
+                    since = int(self.path.split('since=')[-1].split('&')[0])
+            except Exception:
+                since = 0
+            with chat_lock:
+                new_msgs = [m for m in chat_messages if m['id'] > since]
+                last_id = chat_messages[-1]['id'] if chat_messages else 0
+            self._json({'messages': new_msgs, 'last_id': last_id})
+            return
+
+        # Prompt système actuel
+        if path == '/data/system_prompt':
+            cfg = self._load_config_from_query()
+            self._json({'system_prompt': build_system_prompt(cfg)})
+            return
+
+        # Liste des concours
+        if path == '/data/contests':
+            self._json(list(CONTEST_SCORING.keys()))
+            return
+
+        # Calendrier externe WA7BNM
+        if path == '/data/external_contests':
+            year = CURRENT_YEAR
+            try: year = int(self.path.split('year=')[-1].split('&')[0]) if 'year=' in self.path else year
+            except: pass
+            if not EXTERNAL_CONTESTS_CACHE or EXTERNAL_CONTESTS_CACHE.get('year') != year:
+                data = refresh_external_contests()
+            else:
+                data = EXTERNAL_CONTESTS_CACHE
+            self._json({
+                'year': year,
+                'contests': data.get('contests', []) if year == CURRENT_YEAR else data.get('contests_next', []),
+                'total': len(data.get('contests', [])),
+                'updated': data.get('updated', ''),
+                'source': 'WA7BNM Contest Calendar (contestcalendar.com)',
+            })
+            return
+
+        # Forcer refresh WA7BNM
+        if path == '/data/refresh_external':
+            threading.Thread(target=refresh_external_contests, daemon=True).start()
+            self._json({'ok': True, 'message': 'Rafraîchissement WA7BNM lancé'})
+            return
+
+        # Calendrier avec prochaines dates calculées automatiquement
+        if path.startswith('/data/calendar'):
+            calendar_data = calc_all_dates()
+            today = datetime.date.today()
+            result = []
+            for cid, cdef in CONTEST_DEFINITIONS.items():
+                info = calendar_data.get(cid, {})
+                result.append({
+                    'id': cid,
+                    'name': cdef['name'],
+                    'organizer': cdef['organizer'],
+                    'date': info.get('date', '—'),
+                    'year': info.get('year', CURRENT_YEAR),
+                    'next_year': info.get('next_year', False),
+                    'bands': cdef.get('bands', []),
+                    'modes': cdef.get('modes', []),
+                    'exchange': cdef.get('exchange', ''),
+                    'scoring': cdef.get('scoring', {}),
+                    'log_format': cdef.get('log_format', ''),
+                    'log_submit': cdef.get('log_submit', ''),
+                    'log_deadline': cdef.get('log_deadline', ''),
+                    'notes': cdef.get('notes', ''),
+                    'rules_url': cdef.get('rules_url', ''),
+                })
+            # Trier par date croissante
+            def sort_key(c):
+                m = re.search(r'(\d{2})/(\d{2})/(\d{4})', c.get('date',''))
+                if m: return datetime.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+                return datetime.date(2099, 1, 1)
+            result.sort(key=sort_key)
+            self._json({
+                'year': CURRENT_YEAR,
+                'contests': result,
+                'last_update': rules_db.get('last_update', ''),
+                'alerts': rules_db.get('alerts', []),
+            })
+            return
+
+        # Forcer une mise à jour des règlements
+        if path == '/data/update_rules':
+            threading.Thread(target=run_annual_update, daemon=True).start()
+            self._json({'ok': True, 'message': f'Mise à jour {CURRENT_YEAR} lancée'})
+            return
+
+        # Status du système de mise à jour
+        if path == '/data/rules_status':
+            self._json({
+                'year': rules_db.get('year', CURRENT_YEAR),
+                'last_update': rules_db.get('last_update', ''),
+                'alerts': rules_db.get('alerts', []),
+                'contests_count': len(CONTEST_DEFINITIONS),
+                'current_year': CURRENT_YEAR,
+                'next_update': f"Automatique au 1er janvier {CURRENT_YEAR+1}",
+            })
+            return
+
+
+        if path in ('/', ''):
+            path = '/configuration.html'
+
+        filepath = self._resolve(path)
+        if filepath and os.path.isfile(filepath):
+            self.send_response(200)
+            ct = 'text/html; charset=utf-8'
+            if filepath.endswith('.js'):   ct = 'application/javascript'
+            if filepath.endswith('.css'):  ct = 'text/css'
+            if filepath.endswith('.json'): ct = 'application/json'
+            self.send_header('Content-Type', ct)
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self._cors()
+            self.end_headers()
+            with open(filepath, 'rb') as f:
+                self.wfile.write(f.read())
+        else:
+            self.send_response(404)
+            self._cors()
+            self.end_headers()
+
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(length)
+
+        # Sauvegarde configuration courante (appelé par radiocontest.html au démarrage)
+        if self.path == '/config/save':
+            try:
+                global current_config
+                cfg = json.loads(body)
+                with config_lock:
+                    current_config = cfg
+                print(f"[CFG] Config reçue : {cfg.get('callsign','')} / {cfg.get('locator','')} / {cfg.get('contest','')}")
+                self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Chat multi-opérateur — envoi d'un message
+        if self.path == '/chat/send':
+            try:
+                global chat_seq
+                msg = json.loads(body)
+                now = datetime.datetime.utcnow().strftime('%H:%M')
+                with chat_lock:
+                    chat_seq += 1
+                    entry = {
+                        'id':   chat_seq,
+                        'op':   msg.get('op', 'OP?'),
+                        'call': msg.get('call', ''),
+                        'time': now,
+                        'text': str(msg.get('text', ''))[:500],
+                    }
+                    chat_messages.append(entry)
+                    if len(chat_messages) > 200:
+                        chat_messages.pop(0)
+                self._json({'ok': True, 'id': chat_seq})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Mise à jour base indicatifs
+        if self.path == '/calldb/update':
+            try:
+                update = json.loads(body)
+                call = update.get('call','').upper()
+                locator = update.get('locator','').upper()
+                dept = update.get('dept','').upper()
+                if call:
+                    calldb_path = os.path.join(os.getcwd(), 'calldb.json')
+                    if os.path.exists(calldb_path):
+                        with open(calldb_path, 'r', encoding='utf-8') as f:
+                            db = json.load(f)
+                        entry = db.get('calls', {}).get(call, {})
+                        changed = False
+                        if locator and entry.get('locator') != locator:
+                            entry['locator'] = locator
+                            changed = True
+                        if dept and entry.get('dept') != dept:
+                            entry['dept'] = dept
+                            changed = True
+                        if changed:
+                            db['calls'][call] = entry
+                            with open(calldb_path, 'w', encoding='utf-8') as f:
+                                json.dump(db, f, ensure_ascii=False, separators=(',',':'))
+                            print(f"[DB] Mis à jour : {call} → loc:{locator} dept:{dept}")
+                self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Mise à jour d'un QSO (correction)
+        if self.path == '/log/update':
+            try:
+                updated_qso = json.loads(body)
+                qso_id = updated_qso.get('id')
+                with log_lock:
+                    for i, q in enumerate(shared_log):
+                        if q.get('id') == qso_id:
+                            shared_log[i] = updated_qso
+                            break
+                save_log_to_disk()
+                print(f"[LOG] ~QSO corrige id={qso_id}")
+                self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Ajout d'un QSO
+        if self.path == '/log/add':
+            try:
+                qso = json.loads(body)
+                if not qso.get('call'):
+                    self._json({'error': 'Indicatif manquant'}, 400)
+                    return
+                import time as _t
+                qso['server_time'] = _t.time()
+                # Filet de sécurité : date/heure UTC toujours renseignées, même si
+                # le client qui a posté ce QSO ne les a pas envoyées (ex: appel API
+                # direct hors du formulaire habituel).
+                now_utc = datetime.datetime.utcnow()
+                if not qso.get('date'):
+                    qso['date'] = now_utc.strftime('%Y%m%d')
+                if not qso.get('time'):
+                    qso['time'] = now_utc.strftime('%H:%M')
+                with log_lock:
+                    shared_log.append(qso)
+                save_log_to_disk()
+                print(f"[LOG] +QSO {qso.get('call')} {qso.get('band')}MHz")
+                self._json({'ok': True, 'total': len(shared_log)})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Suppression d'un QSO
+        if self.path.startswith('/log/delete/'):
+            try:
+                qso_id = int(self.path.split('/')[-1])
+                with log_lock:
+                    before = len(shared_log)
+                    shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
+                save_log_to_disk()
+                self._json({'ok': True, 'deleted': before - len(shared_log)})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Reset log
+        if self.path == '/log/reset':
+            try:
+                payload = json.loads(body)
+                if payload.get('confirm') == 'RESET':
+                    with log_lock:
+                        shared_log.clear()
+                    save_log_to_disk()
+                    print('[LOG] Log reinitialise !')
+                    self._json({'ok': True})
+                else:
+                    self._json({'error': 'Confirmation requise'}, 400)
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Proxy IA universel (Anthropic / OpenAI / Gemini)
+        if self.path in ('/proxy/ai', '/proxy/anthropic'):
+            provider = (current_config or {}).get('api_provider', 'anthropic')
+            ai_model = (current_config or {}).get('ai_model', 'claude-sonnet-4-6')
+            api_key  = (current_config or {}).get('api_key', '')
+            if not api_key:
+                api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+            print(f"[API] Fournisseur={provider} Modele={ai_model}")
+            try:
+                payload  = json.loads(body)
+                messages = payload.get('messages', [])
+                system_prompt = payload.get('system') or (build_system_prompt(current_config) if current_config else '')
+
+                if not api_key:
+                    self._json({'error': {'message': 'Cle API non configuree'}}, 400)
+                    return
+
+                # ── Anthropic ───────────────────────────────────────────────
+                if provider == 'anthropic':
+                    anth_payload = {
+                        'model':      payload.get('model', ai_model or 'claude-sonnet-4-6'),
+                        'max_tokens': payload.get('max_tokens', 4096),
+                        'messages':   messages,
+                    }
+                    if system_prompt:
+                        anth_payload['system'] = system_prompt
+                    req = urllib.request.Request(
+                        'https://api.anthropic.com/v1/messages',
+                        data=json.dumps(anth_payload).encode(),
+                        headers={
+                            'Content-Type':      'application/json',
+                            'x-api-key':         api_key,
+                            'anthropic-version': '2023-06-01',
+                        },
+                        method='POST'
+                    )
+                    with urllib.request.urlopen(req, timeout=120) as resp:
+                        result = resp.read()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self._cors()
+                    self.end_headers()
+                    self.wfile.write(result)
+                    print(f"[API] Anthropic OK ({len(result)} bytes)")
+
+                # ── OpenAI ──────────────────────────────────────────────────
+                elif provider == 'openai':
+                    oai_messages = []
+                    if system_prompt:
+                        oai_messages.append({'role': 'system', 'content': system_prompt})
+                    oai_messages.extend(messages)
+                    oai_payload = {
+                        'model':      ai_model or 'gpt-4o',
+                        'max_tokens': payload.get('max_tokens', 4096),
+                        'messages':   oai_messages,
+                    }
+                    req = urllib.request.Request(
+                        'https://api.openai.com/v1/chat/completions',
+                        data=json.dumps(oai_payload).encode(),
+                        headers={
+                            'Content-Type':  'application/json',
+                            'Authorization': f'Bearer {api_key}',
+                        },
+                        method='POST'
+                    )
+                    with urllib.request.urlopen(req, timeout=120) as resp:
+                        oai_data = json.loads(resp.read())
+                    # Normaliser en format Anthropic
+                    text = oai_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+                    result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self._cors()
+                    self.end_headers()
+                    self.wfile.write(result)
+                    print(f"[API] OpenAI OK ({len(text)} chars)")
+
+                # ── Gemini ──────────────────────────────────────────────────
+                elif provider == 'gemini':
+                    model_id = ai_model or 'gemini-2.0-flash'
+                    gem_contents = []
+                    for m in messages:
+                        role = 'model' if m['role'] == 'assistant' else 'user'
+                        gem_contents.append({'role': role, 'parts': [{'text': m['content']}]})
+                    gem_payload = {'contents': gem_contents}
+                    if system_prompt:
+                        gem_payload['systemInstruction'] = {'parts': [{'text': system_prompt}]}
+                    url = f'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}'
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(gem_payload).encode(),
+                        headers={'Content-Type': 'application/json'},
+                        method='POST'
+                    )
+                    with urllib.request.urlopen(req, timeout=120) as resp:
+                        gem_data = json.loads(resp.read())
+                    text = gem_data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                    result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self._cors()
+                    self.end_headers()
+                    self.wfile.write(result)
+                    print(f"[API] Gemini OK ({len(text)} chars)")
+
+                else:
+                    self._json({'error': {'message': f'Fournisseur inconnu: {provider}'}}, 400)
+
+            except urllib.error.HTTPError as e:
+                err = e.read()
+                print(f"[API] Erreur HTTP {e.code}: {err[:200]}")
+                self.send_response(e.code)
+                self.send_header('Content-Type', 'application/json')
+                self._cors()
+                self.end_headers()
+                self.wfile.write(err)
+            except Exception as e:
+                print(f"[API] Exception: {e}")
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self._cors()
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': {'message': str(e)}}).encode())
+            return
+
+        self.send_response(404)
+        self._cors()
+        self.end_headers()
+
+    def _load_config_from_query(self):
+        return current_config if current_config else {}
+
+    def _resolve(self, path):
+        local = os.path.join(os.getcwd(), path.lstrip('/'))
+        if os.path.exists(local) and os.path.isfile(local):
+            return local
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        script_local = os.path.join(script_dir, path.lstrip('/'))
+        if os.path.exists(script_local) and os.path.isfile(script_local):
+            return script_local
+        if hasattr(sys, '_MEIPASS'):
+            mei = os.path.join(sys._MEIPASS, path.lstrip('/'))
+            if os.path.exists(mei):
+                return mei
+        return None
+
+    def _json(self, data, code=200):
+        body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _cors(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+
+# ─── MAIN ─────────────────────────────────────────────────────────────────────
+if __name__ == '__main__':
+    load_log_from_disk()
+    load_rules_cache()
+    load_external_contests()
+
+    threading.Thread(target=schedule_annual_check, daemon=True).start()
+
+    import socket as _sock
+    try:
+        _s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+        _s.connect(('8.8.8.8', 80))
+        local_ip = _s.getsockname()[0]
+        _s.close()
+    except Exception:
+        local_ip = '127.0.0.1'
+
+    print('=' * 60)
+    print('  RadioContest AI v3.0 -- F6KQJ/P JN15XC')
+    print('  Rallye des Points Hauts 2026')
+    print('=' * 60)
+    print(f'  -> http://localhost:{PORT}/logbook.html')
+    print(f'  -> http://localhost:{PORT}/rallye-vhf-terrain.html')
+    print(f'  -> http://localhost:{PORT}/configuration.html')
+    print(f'  -> http://localhost:{PORT}/calendrier.html')
+    print('=' * 60)
+    print(f'  Autres postes WiFi : http://{local_ip}:{PORT}/logbook.html')
+    print()
+    print('  Ctrl+C pour arreter')
+    print()
+
+    server = http.server.ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print('73 de F6KQJ/P !')

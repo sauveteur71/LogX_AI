@@ -1,0 +1,371 @@
+{
+  "last_update": "2026-07-15T14:18:53.565399",
+  "year": 2026,
+  "dates": {
+    "REF_RPH": {
+      "name": "Rallye des Points Hauts",
+      "date": "03/07/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_NAT_THF": {
+      "name": "National THF — Trophée F3SK",
+      "date": "06/03/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_PRINTEMPS": {
+      "name": "Concours du Printemps",
+      "date": "01/05/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_ETE": {
+      "name": "Concours d'Été",
+      "date": "01/08/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_CDF_THF": {
+      "name": "Championnat de France THF",
+      "date": "05/06/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_QRP": {
+      "name": "Bol d'Or des QRP — Trophée F8BO",
+      "date": "18/07/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_160M": {
+      "name": "REF 160m — Trophée F8EX",
+      "date": "21/11/2026 à 17h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_CDF_HF_SSB": {
+      "name": "Championnat de France HF Téléphonie",
+      "date": "20/02/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_CDF_HF_CW": {
+      "name": "Championnat de France HF Télégraphie",
+      "date": "23/01/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_VHF": {
+      "name": "IARU R1 VHF 145 MHz",
+      "date": "05/09/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_UHF": {
+      "name": "IARU R1 UHF/SHF",
+      "date": "03/10/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_50MHZ": {
+      "name": "IARU R1 50 MHz — Mémorial F8SH",
+      "date": "19/06/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_MARCONI": {
+      "name": "Marconi Memorial — IARU R1 VHF CW",
+      "date": "07/11/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WW_SSB": {
+      "name": "CQ World Wide DX — SSB",
+      "date": "24/10/2026 → 25/10/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WW_CW": {
+      "name": "CQ World Wide DX — CW",
+      "date": "28/11/2026 → 29/11/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WPX_SSB": {
+      "name": "CQ WPX — SSB",
+      "date": "27/03/2027 → 28/03/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "CQ_WPX_CW": {
+      "name": "CQ WPX — CW",
+      "date": "29/05/2027 → 30/05/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_DX_SSB": {
+      "name": "ARRL DX — SSB",
+      "date": "third_full_weekend_march",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_DX_CW": {
+      "name": "ARRL DX — CW",
+      "date": "second_full_weekend_february",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_FD": {
+      "name": "ARRL Field Day",
+      "date": "26/06/2027 → 27/06/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "SOTA": {
+      "name": "Summits on the Air",
+      "date": "Permanent",
+      "year": 2026,
+      "next_year": false
+    },
+    "POTA": {
+      "name": "Parks on the Air",
+      "date": "Permanent",
+      "year": 2026,
+      "next_year": false
+    }
+  },
+  "dates_next_year": {
+    "REF_RPH": {
+      "name": "Rallye des Points Hauts",
+      "date": "03/07/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_NAT_THF": {
+      "name": "National THF — Trophée F3SK",
+      "date": "06/03/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_PRINTEMPS": {
+      "name": "Concours du Printemps",
+      "date": "01/05/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_ETE": {
+      "name": "Concours d'Été",
+      "date": "01/08/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_CDF_THF": {
+      "name": "Championnat de France THF",
+      "date": "05/06/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_QRP": {
+      "name": "Bol d'Or des QRP — Trophée F8BO",
+      "date": "18/07/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_160M": {
+      "name": "REF 160m — Trophée F8EX",
+      "date": "21/11/2026 à 17h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "REF_CDF_HF_SSB": {
+      "name": "Championnat de France HF Téléphonie",
+      "date": "20/02/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "REF_CDF_HF_CW": {
+      "name": "Championnat de France HF Télégraphie",
+      "date": "23/01/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_VHF": {
+      "name": "IARU R1 VHF 145 MHz",
+      "date": "05/09/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_UHF": {
+      "name": "IARU R1 UHF/SHF",
+      "date": "03/10/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "IARU_50MHZ": {
+      "name": "IARU R1 50 MHz — Mémorial F8SH",
+      "date": "19/06/2027 à 14h00 UTC",
+      "year": 2027,
+      "next_year": true
+    },
+    "IARU_MARCONI": {
+      "name": "Marconi Memorial — IARU R1 VHF CW",
+      "date": "07/11/2026 à 14h00 UTC",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WW_SSB": {
+      "name": "CQ World Wide DX — SSB",
+      "date": "24/10/2026 → 25/10/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WW_CW": {
+      "name": "CQ World Wide DX — CW",
+      "date": "28/11/2026 → 29/11/2026",
+      "year": 2026,
+      "next_year": false
+    },
+    "CQ_WPX_SSB": {
+      "name": "CQ WPX — SSB",
+      "date": "27/03/2027 → 28/03/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "CQ_WPX_CW": {
+      "name": "CQ WPX — CW",
+      "date": "29/05/2027 → 30/05/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_DX_SSB": {
+      "name": "ARRL DX — SSB",
+      "date": "third_full_weekend_march",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_DX_CW": {
+      "name": "ARRL DX — CW",
+      "date": "second_full_weekend_february",
+      "year": 2027,
+      "next_year": true
+    },
+    "ARRL_FD": {
+      "name": "ARRL Field Day",
+      "date": "26/06/2027 → 27/06/2027",
+      "year": 2027,
+      "next_year": true
+    },
+    "SOTA": {
+      "name": "Summits on the Air",
+      "date": "Permanent",
+      "year": 2026,
+      "next_year": false
+    },
+    "POTA": {
+      "name": "Parks on the Air",
+      "date": "Permanent",
+      "year": 2026,
+      "next_year": false
+    }
+  },
+  "rules_checks": {
+    "REF_RPH": {
+      "contest_id": "REF_RPH",
+      "check_url": "https://concours.r-e-f.org/calendrier/calendrier.php",
+      "latest_year_found": 2026,
+      "dates_found": [
+        "01/01/2026",
+        "31/12/2026",
+        "11/01/2026",
+        "11/01/2026",
+        "18/01/2026"
+      ],
+      "contest_mentioned": true,
+      "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_rph_fr_20250312.pdf",
+      "checked_at": "2026-07-15T14:18:53.732399"
+    },
+    "REF_NAT_THF": {
+      "contest_id": "REF_NAT_THF",
+      "check_url": "https://concours.r-e-f.org/calendrier/calendrier.php",
+      "latest_year_found": 2026,
+      "dates_found": [
+        "01/01/2026",
+        "31/12/2026",
+        "11/01/2026",
+        "11/01/2026",
+        "18/01/2026"
+      ],
+      "contest_mentioned": true,
+      "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_natthf_fr_20250312.pdf",
+      "checked_at": "2026-07-15T14:18:54.366650"
+    },
+    "REF_PRINTEMPS": {
+      "contest_id": "REF_PRINTEMPS",
+      "check_url": "https://concours.r-e-f.org/calendrier/calendrier.php",
+      "latest_year_found": 2026,
+      "dates_found": [
+        "01/01/2026",
+        "31/12/2026",
+        "11/01/2026",
+        "11/01/2026",
+        "18/01/2026"
+      ],
+      "contest_mentioned": true,
+      "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_printemps_fr_20250312.pdf",
+      "checked_at": "2026-07-15T14:18:54.988185"
+    },
+    "REF_ETE": {
+      "contest_id": "REF_ETE",
+      "check_url": "https://concours.r-e-f.org/calendrier/calendrier.php",
+      "latest_year_found": 2026,
+      "dates_found": [
+        "01/01/2026",
+        "31/12/2026",
+        "11/01/2026",
+        "11/01/2026",
+        "18/01/2026"
+      ],
+      "contest_mentioned": true,
+      "rules_url": "https://concours.r-e-f.org/reglements/actuels/reg_ete_fr_20250312.pdf",
+      "checked_at": "2026-07-15T14:18:55.616677"
+    },
+    "IARU_VHF": {
+      "contest_id": "IARU_VHF",
+      "check_url": "https://www.iaru-r1.org/on-the-air/contests/",
+      "latest_year_found": 2026,
+      "dates_found": [],
+      "contest_mentioned": false,
+      "rules_url": "https://www.iaru-r1.org/wp-content/uploads/2024/02/Rules-IARU-R1-VHF-up-Contests.pdf",
+      "checked_at": "2026-07-15T14:18:57.104987"
+    },
+    "IARU_UHF": {
+      "contest_id": "IARU_UHF",
+      "check_url": "https://www.iaru-r1.org/on-the-air/contests/",
+      "latest_year_found": 2026,
+      "dates_found": [],
+      "contest_mentioned": false,
+      "rules_url": "https://www.iaru-r1.org/wp-content/uploads/2024/02/Rules-IARU-R1-VHF-up-Contests.pdf",
+      "checked_at": "2026-07-15T14:18:59.193858"
+    },
+    "CQ_WW_SSB": {
+      "contest_id": "CQ_WW_SSB",
+      "check_url": "https://cqww.com/rules.htm",
+      "latest_year_found": 2026,
+      "dates_found": [],
+      "contest_mentioned": true,
+      "rules_url": "https://cqww.com/rules.htm",
+      "checked_at": "2026-07-15T14:19:00.476376"
+    },
+    "CQ_WW_CW": {
+      "contest_id": "CQ_WW_CW",
+      "check_url": "https://cqww.com/rules.htm",
+      "latest_year_found": 2026,
+      "dates_found": [],
+      "contest_mentioned": true,
+      "rules_url": "https://cqww.com/rules.htm",
+      "checked_at": "2026-07-15T14:19:01.761768"
+    }
+  },
+  "alerts": []
+}
