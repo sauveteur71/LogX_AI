@@ -524,105 +524,6 @@ function drawLoggedQSOs(){
 }
 
 // ─── AFFICHAGE SPOTS CLUSTER SUR LA CARTE ────────────────────────────────────
-let leafletSpotMarkers = [];
-let leafletSpotLines   = [];
-let _lastClusterSpots  = {};  // cache pour re-dessiner sans re-fetcher
-
-function drawClusterSpots(spotsByBand){
-  // Nettoyer anciens marqueurs cluster
-  leafletSpotMarkers.forEach(m=>m.remove()); leafletSpotMarkers=[];
-  leafletSpotLines.forEach(l=>l.remove());   leafletSpotLines=[];
-  if(!leafletMap||!cfg||!cfg.locator) return;
-  const myLL = locLL(cfg.locator);
-  if(!myLL) return;
-
-  // Couleur par bande HF
-  const SPOT_BAND_COLOR = {
-    '14':'#FFD60A','7':'#FF9F0A','21':'#34C759','28':'#00C7BE',
-    '50':'#00D4FF','3.5':'#FF6B35','1.8':'#FF2D55',
-    '144':'#BF5AF2','432':'#FF8C00',
-  };
-
-  // Détecter préfixes USA/Canada pour filtrage visuel (concours HF nord-américains)
-  const contest = cfg.contest||'';
-  const NA_CONTESTS = new Set(['ARRL_FD','ARRL_DX_SSB','ARRL_DX_CW']);
-  const isNaContest = NA_CONTESTS.has(contest);
-  const NA_PFX = /^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|KQ|KR|KS|KT|KU|KV|KW|KX|KY|KZ|NA|NB|NC|ND|NE|NF|NG|NH|NI|NJ|NK|NL|NM|NN|NO|NP|NQ|NR|NS|NT|NU|NV|NW|NX|NY|NZ|VE|VA|VO|VY)/i;
-
-  const seen = new Set();
-  let count = 0;
-
-  Object.entries(spotsByBand||{}).forEach(([bandLabel, spots])=>{
-    if(!Array.isArray(spots)) return;
-    // Extraire la fréquence de base pour la couleur (ex: "14 MHz" → "14")
-    const freqKey = bandLabel.replace(' MHz','').trim().split('.')[0];
-    const col = SPOT_BAND_COLOR[freqKey] || '#AAAAAA';
-
-    spots.forEach(s=>{
-      if(!s||typeof s!=='object') return;
-      const dx   = s.dx||'';
-      const lat  = s.lat;
-      const lon  = s.lon;
-      const freq = s.freq||'';
-      const info = s.info||'';
-      const spotter = s.spotter||'';
-
-      if(!dx || lat==null || lon==null) return;
-      if(Math.abs(lat)<0.1 && Math.abs(lon)<0.1) return; // coordonnées nulles
-
-      // Filtrer : si concours NA, ne montrer que W/K/N/VE
-      if(isNaContest && !NA_PFX.test(dx)) return;
-
-      const key = dx+'|'+freq;
-      if(seen.has(key)) return;
-      seen.add(key);
-
-      // Ligne home → spot (fine, pointillée, colorée)
-      const line = L.polyline([[myLL.lat,myLL.lon],[lat,lon]],{
-        color:col, weight:1, opacity:0.35, dashArray:'3 6'
-      }).addTo(leafletMap);
-      leafletSpotLines.push(line);
-
-      // Marqueur pulsant
-      const pulse = isNaContest ? `
-        <div style="position:absolute;width:20px;height:20px;border-radius:50%;
-          border:2px solid ${col};animation:spotPulse 2s ease-out infinite;
-          transform:translate(-50%,-50%);opacity:0.6"></div>` : '';
-      const html = `<div style="position:relative;width:0;height:0">
-        ${pulse}
-        <div style="position:absolute;white-space:nowrap;font-family:monospace;
-          font-size:9px;font-weight:bold;color:${col};
-          text-shadow:0 0 3px #000,0 0 6px ${col};
-          transform:translate(-50%,-22px)">${dx}</div>
-        <div style="position:absolute;width:8px;height:8px;border-radius:50%;
-          background:${col};border:1.5px solid #fff;box-shadow:0 0 5px ${col};
-          transform:translate(-50%,-50%)"></div>
-      </div>`;
-      const icon = L.divIcon({html, className:'rc-spot-icon', iconSize:[0,0], iconAnchor:[0,0]});
-      const mk = L.marker([lat,lon],{icon, zIndexOffset:200}).addTo(leafletMap);
-
-      // Calculer distance + cap antenne
-      const dist = Math.round(haversineLL(myLL.lat,myLL.lon,lat,lon));
-      const capDeg = bearingLL(myLL.lat,myLL.lon,lat,lon);
-      mk.bindPopup(
-        `<div style="font-family:monospace;font-size:12px;line-height:1.8;min-width:160px">` +
-        `<b style="color:${col};font-size:14px">📡 ${dx}</b><br>` +
-        `🔊 ${freq} MHz — ${info||bandLabel}<br>` +
-        `👁️ Spot par ${spotter}<br>` +
-        `📏 ~${dist.toLocaleString()} km depuis toi<br>` +
-        `🧭 Cap antenne : ${capDeg}° ${cardinalLL(capDeg)}<br>` +
-        `<button onclick="document.getElementById('userInput').value='Appelle ${dx} sur ${freq} MHz';document.getElementById('userInput').focus()" ` +
-        `style="margin-top:6px;padding:4px 10px;background:${col}22;border:1px solid ${col};` +
-        `color:${col};border-radius:6px;cursor:pointer;font-family:monospace;font-size:11px">` +
-        `➤ Demander à l'IA</button>` +
-        `</div>`
-      );
-      leafletSpotMarkers.push(mk);
-      count++;
-    });
-  });
-  if(count) console.log(`[MAP-SPOTS] ${count} spots cluster affichés`);
-}
 
 function haversineLL(lat1,lon1,lat2,lon2){
   const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
@@ -792,30 +693,6 @@ function parseScores(text){
   if(qso)document.getElementById('scoreQSO').textContent=qso[1];
 }
 
-function parseStations(text){
-  const blocks=text.split(/📻/).slice(1);
-  if(!blocks.length)return;
-  const stns=[];
-  blocks.forEach(block=>{
-    const cm=block.match(/([A-Z0-9/]{3,})\s*\|?\s*Locator\s+([A-Z]{2}\d{2}[A-Z]{2})/i)||block.match(/^([A-Z0-9/]{3,})[^\n]*([A-Z]{2}\d{2}[A-Z]{2})/);
-    const lm=block.match(/([A-Z]{2}\d{2}[A-Z]{2})/);
-    const fm=block.match(/(14[34]\.\d+|43[23]\.\d+|50\.\d+)/);
-    const dm=block.match(/Distance[^:]*[:：]\s*(\d+)\s*km/i)||block.match(/(\d{3,4})\s*km/);
-    const bm=block.match(/(\d{3})\s*MHz/);
-    const done=block.includes('déjà fait')||block.includes('FAIT');
-    let priority=4;
-    if(block.includes('DX EXCEP'))priority=1;
-    else if(block.includes('HAUTE')&&!block.includes('MOYENNE'))priority=2;
-    else if(block.includes('MOYENNE'))priority=4;
-    else if(block.includes('BASSE'))priority=5;
-    if(done)priority=6;
-    if(cm&&lm){
-      stns.push({call:cm[1],locator:lm[1],freq:fm?parseFloat(fm[1]):144.300,dist:dm?parseInt(dm[1]):null,band:bm?parseInt(bm[1]):144,done,priority});
-    }
-  });
-  if(stns.length)updateMapStations(stns);
-}
-
 // ─── PUSH CLUSTER SPOTS (browser → serveur) ──────────────────────────────────
 // Le serveur Python ne peut pas accéder à HTTPS (bloqué sur ce réseau).
 // Le navigateur peut. On fetch DXSummit depuis le browser et on push au serveur.
@@ -905,11 +782,7 @@ async function fetchTerrainData(){
     if(keys[1])document.getElementById('score2').textContent=(logs[keys[1]].score||0).toLocaleString()+' pts';
     if(data.qso_total!==undefined)document.getElementById('scoreQSO').textContent=data.qso_total;
     if(data.system_prompt)systemPrompt=data.system_prompt;
-    // Afficher les spots cluster sur la carte
-    if(data.spots){
-      _lastClusterSpots = data.spots;
-      drawClusterSpots(data.spots);
-    }
+    // Affichage carte : couche structurée du moteur (refreshRankedStations)
     return data;
   }catch(e){return null;}
 }
