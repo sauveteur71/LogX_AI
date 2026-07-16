@@ -449,8 +449,9 @@ def extract_document_text(data_bytes, url=''):
 def download_rules_document(url, timeout=20):
     """Télécharge un règlement et retourne (texte, extracteur). Lève en cas d'échec."""
     import urllib.request
+    from utils import SSL_CTX
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
         data = resp.read()
     return extract_document_text(data, url)
 

@@ -80,7 +80,9 @@ VERIFICATION_CHECKLIST = [
     "ou selon le mode ?",
     "Le contenu EXACT de l'échange : RST ? numéro de série ? zone ? département/état ? âge ?",
     "La date, l'heure de début UTC et la durée sont-elles exactes ? "
-    "(attention aux heures locales converties)",
+    "(attention aux heures locales converties). Si le règlement parle de "
+    "« weekend », date_rule doit être en *_full_weekend_* et non *_saturday_* "
+    "(un samedi de fin de mois peut ne pas appartenir au dernier week-end complet).",
     "Y a-t-il des QTC ou d'autres mécanismes de points additionnels non modélisables ? "
     "(à signaler en notes)",
     "La deadline d'envoi du log et le format exigé (EDI/Cabrillo/ADIF) sont-ils corrects ?",
@@ -132,6 +134,12 @@ RÈGLES IMPÉRATIVES :
 2. date_rule doit matcher cette grammaire (regex) : {DATE_RULE_PATTERN}
    Exemples : first_saturday_july, third_saturday_november_17h, last_full_weekend_october, permanent.
    Attention : les heures sont en UTC — convertis si le règlement donne une heure locale.
+   PIÈGE : si le règlement dit « weekend » (full weekend, dernier week-end complet...),
+   utilise IMPÉRATIVEMENT la forme *_full_weekend_*, jamais *_saturday_*. Elles divergent
+   quand le dernier samedi du mois n'est pas suivi d'un dimanche du même mois
+   (ex. CQWW octobre 2026 : last_saturday_october → 31/10, mais le dernier week-end
+   COMPLET est le 24-25/10). Réserve *_saturday_*/*_sunday_* aux concours d'un seul jour
+   ou dont le règlement désigne explicitement ce jour précis.
 3. bands : chaînes en MHz ('1.8','3.5','7','14','21','28','50','144','432','1296'...).
 4. scoring : si un type historique correspond EXACTEMENT, utilise-le avec ses paramètres.
    Sinon compose des 'bricks' (prédicats, familles de multiplicateurs, options — tout est
@@ -158,9 +166,10 @@ Le règlement peut être dans n'importe quelle langue. Sois exigeant : un point
 # ─── APPELS FOURNISSEURS À SORTIE FORCÉE ─────────────────────────────────────
 
 def _http_json(url, payload, headers, timeout):
+    from utils import SSL_CTX
     req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                  headers=headers, method='POST')
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
         return json.loads(resp.read())
 
 def call_ai_structured(provider, model, api_key, system, user_text, output_schema,
@@ -235,8 +244,9 @@ def parse_ai_json(text):
 # ─── TÉLÉCHARGEMENT DU DOCUMENT ──────────────────────────────────────────────
 
 def _download_bytes(url, timeout=20):
+    from utils import SSL_CTX
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
         return resp.read()
 
 def _pdf_page_count(pdf_bytes):
