@@ -88,6 +88,7 @@ def log_stats(shared_log, contest_id='', clock=None, now=None):
         'score': sum(e.get('points', 0) or 0 for e in entries),
         'by_band': {},
         'qso_last_hour': 0,
+        'qso_last_10min': 0,
         'rate_avg': None,
         'minutes_since_last': None,
         'hours_operated': 0,
@@ -101,10 +102,16 @@ def log_stats(shared_log, contest_id='', clock=None, now=None):
         if not dt:
             continue
         hours_seen.add(dt.strftime('%Y%m%d%H'))
-        if (now - dt).total_seconds() <= 3600:
+        age_s = (now - dt).total_seconds()
+        if age_s <= 3600:
             stats['qso_last_hour'] += 1
+        if age_s <= 600:
+            stats['qso_last_10min'] += 1
         if last_dt is None or dt > last_dt:
             last_dt = dt
+    # Rate meter : 10 min glissantes extrapolées en QSO/h + 60 min glissantes
+    stats['rate_10min'] = stats['qso_last_10min'] * 6
+    stats['rate_60min'] = stats['qso_last_hour']
     stats['hours_operated'] = len(hours_seen)
     if last_dt:
         stats['minutes_since_last'] = int((now - last_dt).total_seconds() // 60)
@@ -262,6 +269,37 @@ def build_hints(cdef, clock, stats, plan):
     return hints
 
 
+# ─── RUN vs SEARCH & POUNCE ──────────────────────────────────────────────────
+
+def run_sp_recommendation(clock, stats, mult_spots_count=None):
+    """Recommandation de mode d'opération, avec justification courte.
+    RUN = lancer appel CQ (rendement quand ça tourne) ;
+    S&P = chasser les spots (rendement quand le rate tombe et que des
+    multiplicateurs sont disponibles sur le cluster)."""
+    if clock.get('status') != 'en_cours':
+        return None
+    r10 = stats.get('rate_10min') or 0
+    r60 = stats.get('rate_60min') or 0
+    mults = mult_spots_count if mult_spots_count is not None else 0
+    if stats.get('qso_total', 0) < 5:
+        return {'mode': 'S&P', 'reason': "Début de course : chasse les spots pour "
+                                         "amorcer le log, tu passeras en RUN quand ça mord."}
+    if r10 >= max(r60, 30):
+        return {'mode': 'RUN', 'reason': f"{r10}/h sur 10 min — la fréquence tourne, "
+                                         f"reste en RUN (appel CQ)."}
+    if r10 < r60 * 0.6 and mults >= 3:
+        return {'mode': 'S&P', 'reason': f"Rate en chute ({r10}/h contre {r60}/h) et "
+                                         f"{mults} nouveaux mults sur le cluster — "
+                                         f"passe en Search & Pounce."}
+    if r10 <= 6 and mults == 0:
+        return {'mode': 'CHANGE', 'reason': f"{r10}/h et aucun mult spotté — change de "
+                                            f"bande (regarde le plan de bande et la MUF)."}
+    if r10 >= r60:
+        return {'mode': 'RUN', 'reason': f"Rate stable ({r10}/h) — garde la fréquence."}
+    return {'mode': 'S&P', 'reason': f"Rate mou ({r10}/h) — alterne : un tour de "
+                                     f"cluster puis retour en appel."}
+
+
 # ─── PROMPT POUR LE CONSEIL IA ───────────────────────────────────────────────
 
 def build_coach_prompt(cdef, clock, stats, plan, hints):
@@ -293,8 +331,10 @@ def build_coach_prompt(cdef, clock, stats, plan, hints):
 
 # ─── POINT D'ENTRÉE ──────────────────────────────────────────────────────────
 
-def build_coach_state(cfg, shared_log, dxmaps=None, now=None):
-    """État complet du coach — JSON structuré pour le front, sans appel IA."""
+def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=None):
+    """État complet du coach — JSON structuré pour le front, sans appel IA.
+    mult_spots_count : nombre de « nouveau mult » actuellement spottés
+    (fourni par le serveur depuis les caches cluster, pour la reco Run/S&P)."""
     now = now or datetime.datetime.utcnow()
     contest_id = (cfg or {}).get('contest', '')
     cdef = CONTEST_DEFINITIONS.get(contest_id, {}) if isinstance(contest_id, str) else {}
@@ -302,10 +342,13 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None):
     stats = log_stats(shared_log, clock['contest_id'], clock, now)
     plan = band_plan(cdef, clock, dxmaps, now)
     hints = build_hints(cdef, clock, stats, plan)
+    run_sp = run_sp_recommendation(clock, stats, mult_spots_count)
     return {
         'clock': clock,
         'stats': stats,
         'band_plan': plan,
         'hints': hints,
+        'run_sp': run_sp,
+        'mult_spots_count': mult_spots_count,
         'coach_prompt': build_coach_prompt(cdef, clock, stats, plan, hints),
     }

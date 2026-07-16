@@ -76,6 +76,28 @@ def _load_auth_token():
 
 AUTH_TOKEN = _load_auth_token()
 
+# ─── SPOTS DEPUIS LES CACHES (sans re-fetch réseau) ──────────────────────────
+def _spots_from_caches():
+    """{label: spots} depuis SPOTS_CACHE + spots poussés par le navigateur —
+    consommé par /data/spots_ranked et le comptage de mults du coach."""
+    spots_by_band = {}
+    for key, label in (('144', '144 MHz'), ('432', '432 MHz'),
+                       ('50', '50 MHz'), ('HF', 'HF')):
+        cached = SPOTS_CACHE.get(key) or []
+        if cached:
+            spots_by_band[label] = list(cached)
+    with browser_spots_lock:
+        if browser_spots_cache and time.time() - browser_spots_ts < 600:
+            merged = spots_by_band.setdefault('HF', [])
+            seen = {(sp.get('dx', ''), str(sp.get('freq', '')))
+                    for sp in merged if isinstance(sp, dict)}
+            for sp in browser_spots_cache:
+                k = (sp.get('dx', ''), str(sp.get('freq', '')))
+                if k not in seen:
+                    merged.append(sp)
+                    seen.add(k)
+    return spots_by_band
+
 # ─── CHAT MULTI-OPÉRATEUR ─────────────────────────────────────────────────────
 chat_messages = []     # liste {id, op, call, time, text}
 chat_lock = threading.Lock()
@@ -740,7 +762,54 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         _coach_dxmaps_cache = None
                     _coach_dxmaps_ts = time.time()
                 dxmaps = _coach_dxmaps_cache
-            self._json(coach.build_coach_state(cfg_snapshot, shared_log, dxmaps))
+            # Densité de nouveaux mults sur le cluster (caches, pas de réseau)
+            mult_count = None
+            try:
+                from radiocontest_scoring import build_ranked_spots
+                ranked, _ = build_ranked_spots({}, _spots_from_caches(), cfg_snapshot)
+                mult_count = sum(1 for s in ranked
+                                 if s.get('scoring', {}).get('new_mult')
+                                 and not s.get('scoring', {}).get('already_done'))
+            except Exception:
+                pass
+            self._json(coach.build_coach_state(cfg_snapshot, shared_log, dxmaps,
+                                               mult_spots_count=mult_count))
+            return
+
+        # Statut d'un indicatif À LA FRAPPE : nouveau / doublon / nouveau_mult.
+        # Réutilise le moteur de scoring (état reconstruit depuis shared_log).
+        if path.startswith('/log/check'):
+            from urllib.parse import parse_qs, urlparse
+            from radiocontest_scoring import build_ranked_spots
+            qs = parse_qs(urlparse(self.path).query)
+            call = (qs.get('call', [''])[0]).upper().strip()
+            band = (qs.get('band', [''])[0]).strip()
+            mode = (qs.get('mode', [''])[0]).upper().strip()
+            if len(call) < 3:
+                self._json({'status': 'inconnu'})
+                return
+            cfg_snap = self._cfg_snapshot()
+            contest_id = cfg_snap.get('contest', '')
+            with log_lock:
+                dup = any(
+                    str(q.get('call', '')).upper().strip() == call
+                    and str(q.get('band', '')) == band
+                    and (not mode or str(q.get('mode', '')).upper() == mode)
+                    and q.get('contest', '') == contest_id
+                    for q in shared_log)
+            if dup:
+                self._json({'status': 'doublon'})
+                return
+            label = f"{band} MHz" if band else 'HF'
+            ranked, _ = build_ranked_spots(
+                {}, {label: [{'dx': call, 'freq': '', 'info': ''}]}, cfg_snap)
+            sc = ranked[0].get('scoring', {}) if ranked else {}
+            self._json({
+                'status': 'nouveau_mult' if sc.get('new_mult') else 'nouveau',
+                'points': sc.get('direct_pts', 0),
+                'mult_type': sc.get('mult_type', ''),
+                'explanation': sc.get('explanation', ''),
+            })
             return
 
         # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min)
@@ -759,23 +828,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/spots_ranked':
             from radiocontest_scoring import build_ranked_spots
             cfg_snap = self._cfg_snapshot()
-            spots_by_band = {}
-            for key, label in (('144', '144 MHz'), ('432', '432 MHz'),
-                               ('50', '50 MHz'), ('HF', 'HF')):
-                cached = SPOTS_CACHE.get(key) or []
-                if cached:
-                    spots_by_band[label] = list(cached)
-            with browser_spots_lock:
-                if browser_spots_cache and time.time() - browser_spots_ts < 600:
-                    merged = spots_by_band.setdefault('HF', [])
-                    seen = {(sp.get('dx', ''), str(sp.get('freq', '')))
-                            for sp in merged if isinstance(sp, dict)}
-                    for sp in browser_spots_cache:
-                        k = (sp.get('dx', ''), str(sp.get('freq', '')))
-                        if k not in seen:
-                            merged.append(sp)
-                            seen.add(k)
-            ranked, meta = build_ranked_spots({}, spots_by_band, cfg_snap)
+            ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15AA')
             out = []
             for s in ranked[:40]:

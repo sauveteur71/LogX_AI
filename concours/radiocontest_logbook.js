@@ -485,6 +485,41 @@ function isDup(call, band){
   );
 }
 
+// ─── STATUT À LA FRAPPE (serveur) ────────────────────────────────────────────
+// GET /log/check : nouveau / doublon / nouveau_mult, évalué par le MOTEUR DE
+// SCORING contre le log partagé multi-op (pas seulement le log local).
+let _checkTimer = null;
+let _checkSeq = 0;
+
+function checkCallStatus(call){
+  clearTimeout(_checkTimer);
+  const badge = document.getElementById('callStatusBadge');
+  if(!badge) return;
+  if(!call || call.length < 3){ badge.style.display = 'none'; return; }
+  const seq = ++_checkSeq;
+  _checkTimer = setTimeout(async () => {
+    try{
+      const r = await fetch(`/log/check?call=${encodeURIComponent(call)}` +
+                            `&band=${encodeURIComponent(currentBand || '')}` +
+                            `&mode=${encodeURIComponent(currentMode || '')}`);
+      if(!r.ok || seq !== _checkSeq) return;   // réponse périmée : ignorer
+      const st = await r.json();
+      if(st.status === 'inconnu'){ badge.style.display = 'none'; return; }
+      const styles = {
+        doublon:      ['⚠️ DOUBLON sur cette bande', 'var(--red)'],
+        nouveau_mult: ['📈 NOUVEAU MULTIPLICATEUR' + (st.mult_type ? ' (' + st.mult_type + ')' : ''), 'var(--green)'],
+        nouveau:      ['✔ nouveau' + (st.points ? ' · ' + st.points + ' pt' + (st.points > 1 ? 's' : '') : ''), 'var(--accent2)'],
+      };
+      const [txt, col] = styles[st.status] || styles.nouveau;
+      badge.textContent = txt;
+      badge.style.color = col;
+      badge.style.border = '1px solid ' + col;
+      badge.style.display = 'block';
+      badge.title = st.explanation || '';
+    }catch(e){ /* hors ligne : badge local dupWarn suffit */ }
+  }, 250);
+}
+
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 function setupDone(){
   const call = document.getElementById('setupCallsign').value.trim().toUpperCase();
@@ -801,6 +836,10 @@ function onCallInput(){
   } else {
     hideAC();
   }
+
+  // Statut serveur à la frappe : nouveau / doublon / NOUVEAU MULT (moteur
+  // de scoring + log partagé multi-op, pas seulement le log local)
+  checkCallStatus(call);
 
   // Badge pays DXCC
   const dxccBadge = document.getElementById('dxccBadge');
