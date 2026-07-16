@@ -49,6 +49,17 @@ def _normalize_spot(call='', locator='', freq=0.0, spotter='', time_str='', info
     info = info or ''
     source = source or ''
     loc = locator.upper()[:6] if locator else ''
+    # Validation anti-« grille du spotteur » : les commentaires de spots
+    # contiennent souvent le locator DU SPOTTEUR (« JO70OB 539 QSB ») — sans
+    # contrôle, la carte place la station française à Prague. On confronte
+    # tous les candidats (locator + commentaire) aux centroïdes pays cty.dat
+    # du DX et du spotteur, et on rejette ce qui colle au spotteur.
+    if loc or info:
+        try:
+            from radiocontest_scoring import extract_dx_locator
+            loc = extract_dx_locator(call, f"{loc} {info}", spotter)[:6]
+        except Exception:
+            pass
     # Calculer lat/lon depuis le locator pour l'affichage carte
     lat, lon = None, None
     if loc and len(loc) >= 4:

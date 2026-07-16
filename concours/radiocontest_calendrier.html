@@ -185,6 +185,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 })();
 
 let allContests = [];
+let extContests = [];        // onglet MONDIAL WA7BNM
+let currentTab = 'main';     // 'main' | 'ext' — pour que les filtres re-rendent le bon onglet
 let currentFilter = 'all';
 let currentYear = 2026;
 const TODAY = new Date();
@@ -198,6 +200,7 @@ const ORG_CLASSES = {
 function orgClass(org){ return ORG_CLASSES[org] || 'org-ref'; }
 
 async function loadYear(){
+  currentTab = 'main';
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tabNext')?.classList.add('active');
   document.getElementById('calendarContent').innerHTML = '<div class="loading">Calcul des prochaines dates...</div>';
@@ -231,7 +234,8 @@ function setFilter(el){
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   currentFilter = el.dataset.f;
-  renderCalendar();
+  if(currentTab === 'ext') renderExternal();
+  else renderCalendar();
 }
 
 function parseDate(dateStr){
@@ -433,55 +437,90 @@ async function forceUpdate(){
   }
 }
 
+// Prochaine occurrence d'un concours WA7BNM depuis sa date texte ("Jan 1",
+// "Jul 18-19"...) : si la date de cette année est passée, c'est l'an prochain.
+const MONTHS_EN = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+function extNextDate(c){
+  const m = /([A-Z][a-z]{2})\s+(\d{1,2})/.exec(`${c.month||''} ${c.date_str||''}`.trim())
+         || /([A-Z][a-z]{2})\s+(\d{1,2})/.exec(c.date_str||'');
+  const mon = m ? MONTHS_EN[m[1]] : (c.month && MONTHS_EN[String(c.month).slice(0,3)]);
+  const day = m ? parseInt(m[2],10) : 1;
+  if(mon === undefined || mon === null || isNaN(mon)) return null;
+  let d = new Date(TODAY.getFullYear(), mon, day);
+  if(d < new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - 2)){
+    d = new Date(TODAY.getFullYear() + 1, mon, day);   // édition passée → l'an prochain
+  }
+  return d;
+}
+
 async function loadExternal(){
+  currentTab = 'ext';
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tabExt')?.classList.add('active');
   document.getElementById('calendarContent').innerHTML = '<div class="loading">⏳ Récupération WA7BNM...</div>';
   try{
     const res = await fetch(`/data/external_contests?year=${new Date().getFullYear()}`);
     const data = await res.json();
-    const contests = data.contests || [];
-    document.getElementById('statusYear').textContent = `WA7BNM — ${contests.length} concours mondiaux`;
+    extContests = data.contests || [];
+    document.getElementById('statusYear').textContent = `WA7BNM — ${extContests.length} concours mondiaux`;
     document.getElementById('lastUpdate').textContent = data.updated
       ? new Date(data.updated).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'})
       : 'Cache local';
-    document.getElementById('contestCount').textContent = `${contests.length} concours`;
-    if(!contests.length){
+    document.getElementById('contestCount').textContent = `${extContests.length} concours`;
+    if(!extContests.length){
       document.getElementById('calendarContent').innerHTML =
         '<div class="loading">Chargement depuis contestcalendar.com... Réessaie dans 30 secondes.</div>';
       return;
     }
-    const byMonth = {};
-    contests.forEach(c=>{
-      const m = c.month || 'Autre';
-      if(!byMonth[m]) byMonth[m]=[];
-      byMonth[m].push(c);
-    });
-    let html = '';
-    for(const [month, mc] of Object.entries(byMonth)){
-      html += `<div class="month-group">
-        <div class="month-header">📅 ${month.toUpperCase()} <span class="month-count">${mc.length} concours</span></div>`;
-      mc.forEach(c=>{
-        html += `<div class="contest-row upcoming" onclick="window.open('${c.url}','_blank')">
-          <div class="cr-date"><div class="cr-date-main" style="font-size:12px">${c.date_str||'—'}</div><div class="cr-date-year">${c.time_str||''}</div></div>
-          <div class="cr-org"><div class="org-badge org-cq" style="font-size:8px">WW</div></div>
-          <div class="cr-info">
-            <div class="cr-name">${c.name} <span class="tag" style="background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)" title="Paramètres non vérifiés — à confirmer manuellement dans la config (lecture IA du règlement : Phase 3)">⚠ à confirmer</span></div>
-            <div class="cr-exchange" style="color:var(--accent2);font-size:10px">contestcalendar.com ref=${c.ref}</div>
-          </div>
-          <div class="cr-actions">
-            <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${c.ref}')">▶ PRÉPARER</button>
-            <a class="cr-btn" href="${c.url}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
-          </div>
-        </div>`;
-      });
-      html += '</div>';
-    }
-    document.getElementById('calendarContent').innerHTML = html;
+    renderExternal();
   }catch(e){
     document.getElementById('calendarContent').innerHTML =
       `<div class="loading" style="color:var(--red)">❌ ${e.message}</div>`;
   }
+}
+
+function renderExternal(){
+  const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                     'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  // Tri par prochaine occurrence : le concours du week-end prochain d'abord,
+  // plus jamais janvier en tête de page en plein été.
+  let list = extContests.map(c => ({...c, _date: extNextDate(c)}))
+                        .sort((a,b) => (a._date||new Date('2099')) - (b._date||new Date('2099')));
+  if(currentFilter === 'upcoming'){
+    list = list.filter(c => c._date && (c._date - TODAY) / 86400000 <= 31);
+  }
+  if(!list.length){
+    document.getElementById('calendarContent').innerHTML =
+      '<div class="loading">Aucun concours pour ce filtre</div>';
+    return;
+  }
+  let html = '';
+  let curKey = null;
+  list.forEach(c=>{
+    const key = c._date ? `${c._date.getFullYear()}-${c._date.getMonth()}` : 'autre';
+    if(key !== curKey){
+      if(curKey !== null) html += '</div>';
+      const label = c._date ? `${MONTHS_FR[c._date.getMonth()].toUpperCase()} ${c._date.getFullYear()}` : 'AUTRE';
+      const n = list.filter(x => (x._date ? `${x._date.getFullYear()}-${x._date.getMonth()}` : 'autre') === key).length;
+      html += `<div class="month-group">
+        <div class="month-header">📅 ${label} <span class="month-count">${n} concours</span></div>`;
+      curKey = key;
+    }
+    html += `<div class="contest-row upcoming" onclick="window.open('${c.url}','_blank')">
+      <div class="cr-date"><div class="cr-date-main" style="font-size:12px">${c.date_str||'—'}</div><div class="cr-date-year">${c.time_str||''}</div></div>
+      <div class="cr-org"><div class="org-badge org-cq" style="font-size:8px">WW</div></div>
+      <div class="cr-info">
+        <div class="cr-name">${c.name} <span class="tag" style="background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)" title="Paramètres non vérifiés — à confirmer manuellement dans la config (lecture IA du règlement : Phase 3)">⚠ à confirmer</span></div>
+        <div class="cr-exchange" style="color:var(--accent2);font-size:10px">contestcalendar.com ref=${c.ref}</div>
+      </div>
+      <div class="cr-actions">
+        <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${c.ref}')">▶ PRÉPARER</button>
+        <a class="cr-btn" href="${c.url}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  document.getElementById('calendarContent').innerHTML = html;
 }
 
 // Init
