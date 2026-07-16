@@ -1002,11 +1002,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     qso['date'] = now_utc.strftime('%Y%m%d')
                 if not qso.get('time'):
                     qso['time'] = now_utc.strftime('%H:%M')
+
+                # ── Détection de doublon : même indicatif + bande + mode dans
+                # la fenêtre du contest actif. Signalé au client (statut
+                # explicite), refusé sauf si force=true (cas légitimes :
+                # nouvelle période, dupe assumé pour l'arbitre).
+                key = (str(qso.get('call', '')).upper().strip(),
+                       str(qso.get('band', '')), str(qso.get('mode', '')).upper())
+                contest_id = qso.get('contest', '')
+                with log_lock:
+                    dup = next((q for q in shared_log
+                                if (str(q.get('call', '')).upper().strip(),
+                                    str(q.get('band', '')),
+                                    str(q.get('mode', '')).upper()) == key
+                                and q.get('contest', '') == contest_id), None)
+                if dup and not qso.get('force'):
+                    print(f"[LOG] DUP refuse {key[0]} {key[1]}MHz {key[2]}")
+                    self._json({'ok': False, 'duplicate': True,
+                                'existing': {'id': dup.get('id'),
+                                             'date': dup.get('date'),
+                                             'time': dup.get('time'),
+                                             'operator': dup.get('operator', '')},
+                                'error': f"Doublon : {key[0]} déjà contacté sur "
+                                         f"{key[1]} MHz en {key[2]} à {dup.get('time','?')} "
+                                         f"(renvoyer avec force=true pour insister)"},
+                               409)
+                    return
+
+                qso.pop('force', None)
                 with log_lock:
                     shared_log.append(qso)
                 save_log_to_disk()
                 print(f"[LOG] +QSO {qso.get('call')} {qso.get('band')}MHz")
-                self._json({'ok': True, 'total': len(shared_log)})
+                self._json({'ok': True, 'total': len(shared_log),
+                            'duplicate': False})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
