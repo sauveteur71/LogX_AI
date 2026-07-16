@@ -1037,6 +1037,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(state)
             return
 
+        # Liste des archives de concours (dossiers permanents)
+        if path == '/log/archives':
+            import radiocontest_archive as arch
+            self._json({'archives': arch.list_archives()})
+            return
+
         # QTC (WAE) : total et détail par station
         if path.startswith('/qtc/list'):
             from radiocontest_storage import qtc_log, qtc_lock, qtc_total
@@ -1450,14 +1456,52 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = json.loads(body)
                 if payload.get('confirm') == 'RESET':
                     from radiocontest_storage import archive_current_log
-                    archived = archive_current_log()
+                    import radiocontest_archive as arch
+                    cfg_snap = self._cfg_snapshot()
+                    # Archive dossier permanent (log.json + Cabrillo + ADIF +
+                    # résumé) par concours présent dans le log, AVANT d'effacer.
+                    archived_folders = []
+                    with log_lock:
+                        contests = sorted({q.get('contest', '') for q in shared_log})
+                        snapshot = list(shared_log)
+                    for cid in contests:
+                        qs = [q for q in snapshot if q.get('contest', '') == cid]
+                        r = arch.archive_log(qs, cid or 'SANS_CONCOURS', cfg_snap)
+                        if r.get('ok'):
+                            archived_folders.append(r['name'])
+                    archived = archive_current_log()   # + table SQLite (secours)
                     with log_lock:
                         shared_log.clear()
                     save_log_to_disk()
                     print('[LOG] Log reinitialise !')
-                    self._json({'ok': True, 'archived': archived})
+                    self._json({'ok': True, 'archived': archived,
+                                'folders': archived_folders})
                 else:
                     self._json({'error': 'Confirmation requise'}, 400)
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Archiver le concours ACTIF dans un dossier permanent (sans effacer,
+        # sauf clear=true). Fonctionne à la fin d'un concours ou à tout moment.
+        if self.path == '/log/archive':
+            try:
+                payload = json.loads(body) if body else {}
+                import radiocontest_archive as arch
+                cfg_snap = self._cfg_snapshot()
+                cid = cfg_snap.get('contest', '')
+                with log_lock:
+                    qs = [q for q in shared_log
+                          if not cid or q.get('contest', '') in ('', cid)]
+                res = arch.archive_log(qs, cid or 'CONTEST', cfg_snap)
+                if res.get('ok') and payload.get('clear'):
+                    with log_lock:
+                        keep = [q for q in shared_log
+                                if cid and q.get('contest', '') not in ('', cid)]
+                        shared_log[:] = keep
+                    save_log_to_disk()
+                    res['cleared'] = True
+                self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
