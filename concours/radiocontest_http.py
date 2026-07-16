@@ -836,6 +836,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
             })
             return
 
+        # Balises NCDXF/IBP : quelle balise émet MAINTENANT sur chaque bande
+        # (+ distance/azimut depuis le locator) — calcul pur, pas de réseau.
+        if path == '/beacons/now':
+            import radiocontest_beacons as beacons
+            cfg_snap = self._cfg_snapshot()
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            out = beacons.beacons_now()
+            from radiocontest_utils import bearing, cardinal
+            for b in out:
+                bll = locator_to_latlon(b['locator'])
+                if my_ll[0] is not None and bll[0] is not None:
+                    b['dist_km'] = haversine(my_ll[0], my_ll[1], bll[0], bll[1])
+                    deg = bearing(my_ll[0], my_ll[1], bll[0], bll[1])
+                    b['bearing'] = deg
+                    b['cardinal'] = cardinal(deg)
+            self._json({'beacons': out})
+            return
+
+        # PSK Reporter : où mon signal a été décodé (carte d'ouverture propag)
+        if path == '/data/heard_where':
+            import radiocontest_psk as psk
+            cfg_snap = self._cfg_snapshot()
+            call = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign') or '')
+            self._json(psk.heard_where(call, cfg_snap.get('locator', '')))
+            return
+
+        # Météo du point haut (open-meteo, sans clé) — sécurité matériel /P
+        if path == '/data/weather':
+            import radiocontest_weather as weather
+            cfg_snap = self._cfg_snapshot()
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            self._json(weather.get_weather(my_ll[0], my_ll[1]))
+            return
+
         # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min)
         if path == '/data/propagation':
             from radiocontest_clusters import fetch_solar_data, fetch_muf

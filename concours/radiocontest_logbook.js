@@ -1897,6 +1897,22 @@ function refreshRotor(){
 }
 refreshRotor();
 setInterval(refreshRotor, 15000);
+
+// ─── MÉTÉO DU POINT HAUT (sécurité matériel /P) ──────────────────────────────
+function refreshWeather(){
+  fetch('/data/weather').then(r=>r.ok?r.json():null).then(d=>{
+    const el = document.getElementById('weatherWidget');
+    if(!el || !d || !d.ok){ if(el) el.style.display='none'; return; }
+    el.style.display = '';
+    el.innerHTML = `${d.icon} ${d.temp}°C · 💨 ${d.wind}` +
+      (d.gust >= d.wind + 10 ? `/${d.gust}` : '') + ` km/h` +
+      (d.precip > 0 ? ` · 🌧️ ${d.precip}mm` : '') +
+      (d.warn ? ` <b style="color:var(--red)">${d.warn}</b>` : '');
+    el.style.color = d.warn ? 'var(--red)' : 'var(--muted)';
+  }).catch(()=>{});
+}
+refreshWeather();
+setInterval(refreshWeather, 10 * 60 * 1000);   // cache serveur 10 min
 function editMacro(idx){
   const macros = getMacros();
   const m = macros[idx];
