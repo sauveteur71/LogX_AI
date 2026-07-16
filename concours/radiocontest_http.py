@@ -363,9 +363,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_OPTIONS(self):
-        self.send_response(200)
-        self._cors()
-        self.end_headers()
+        self._raw(200, None, None)
 
     def do_DELETE(self):
         """Gérer les requêtes DELETE (ex: /log/delete/42)."""
@@ -380,9 +378,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({'error': str(e)}, 400)
         else:
-            self.send_response(404)
-            self._cors()
-            self.end_headers()
+            self._raw(404, None, None)
 
     def do_GET(self):
         path = self.path.split('?')[0]
@@ -794,9 +790,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with open(filepath, 'rb') as f:
                 self.wfile.write(f.read())
         else:
-            self.send_response(404)
-            self._cors()
-            self.end_headers()
+            self._raw(404, None, None)
 
     def do_POST(self):
         global current_config, chat_seq, browser_spots_cache, browser_spots_ts
@@ -1085,11 +1079,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     )
                     with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
                         result = resp.read()
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self._cors()
-                    self.end_headers()
-                    self.wfile.write(result)
+                    self._raw(200, 'application/json', result)
                     print(f"[API] Anthropic OK ({len(result)} bytes)")
 
                 # ── OpenAI ──────────────────────────────────────────────────
@@ -1117,11 +1107,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # Normaliser en format Anthropic
                     text = oai_data.get('choices', [{}])[0].get('message', {}).get('content', '')
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self._cors()
-                    self.end_headers()
-                    self.wfile.write(result)
+                    self._raw(200, 'application/json', result)
                     print(f"[API] OpenAI OK ({len(text)} chars)")
 
                 # ── Gemini ──────────────────────────────────────────────────
@@ -1145,11 +1131,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         gem_data = json.loads(resp.read())
                     text = gem_data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self._cors()
-                    self.end_headers()
-                    self.wfile.write(result)
+                    self._raw(200, 'application/json', result)
                     print(f"[API] Gemini OK ({len(text)} chars)")
 
                 else:
@@ -1158,23 +1140,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except urllib.error.HTTPError as e:
                 err = e.read()
                 print(f"[API] Erreur HTTP {e.code}: {err[:200]}")
-                self.send_response(e.code)
-                self.send_header('Content-Type', 'application/json')
-                self._cors()
-                self.end_headers()
-                self.wfile.write(err)
+                self._raw(e.code, 'application/json', err)
             except Exception as e:
                 print(f"[API] Exception: {e}")
-                self.send_response(500)
-                self.send_header('Content-Type', 'application/json')
-                self._cors()
-                self.end_headers()
-                self.wfile.write(json.dumps({'error': {'message': str(e)}}).encode())
+                self._raw(500, 'application/json',
+                          json.dumps({'error': {'message': str(e)}}).encode())
             return
 
-        self.send_response(404)
-        self._cors()
-        self.end_headers()
+        self._raw(404, None, None)
 
     def _cfg_snapshot(self):
         """Copie de current_config prise sous config_lock — AUCUN handler ne
@@ -1208,13 +1181,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return candidate
         return None
 
-    def _json(self, data, code=200):
-        body = json.dumps(data, ensure_ascii=False).encode('utf-8')
-        self.send_response(code)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
+    def _raw(self, status, content_type, body_bytes):
+        """Réponse brute : statut + Content-Type + CORS + corps."""
+        self.send_response(status)
+        if content_type:
+            self.send_header('Content-Type', content_type)
         self._cors()
         self.end_headers()
-        self.wfile.write(body)
+        if body_bytes:
+            self.wfile.write(body_bytes)
+
+    def _json(self, data, code=200):
+        self._raw(code, 'application/json; charset=utf-8',
+                  json.dumps(data, ensure_ascii=False).encode('utf-8'))
 
     def _cors(self):
         # CORS restreint aux origines locales attendues (le logiciel est servi
