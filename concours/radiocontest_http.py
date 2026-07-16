@@ -837,9 +837,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 k_index = (fetch_solar_data() or {}).get('k_index')
             except Exception:
                 pass
+            # Langue des textes du coach (le front la connaît : localStorage rc_lang).
+            from urllib.parse import parse_qs, urlparse
+            lang = (parse_qs(urlparse(self.path).query).get('lang') or ['fr'])[0]
             self._json(coach.build_coach_state(cfg_snapshot, shared_log, dxmaps,
                                                mult_spots_count=mult_count,
-                                               k_index=k_index))
+                                               k_index=k_index, lang=lang))
             return
 
         # Recherche QRZ.com d'un indicatif (identifiants lus dans la config,

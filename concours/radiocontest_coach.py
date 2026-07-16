@@ -14,6 +14,7 @@ l'utilisateur peut avoir surchargé.
 import datetime
 
 from radiocontest_definitions import CONTEST_DEFINITIONS
+from radiocontest_coach_i18n import t
 
 HF_BANDS = ('1.8', '3.5', '7', '14', '21', '28')
 
@@ -131,7 +132,7 @@ def _hf_bands_for_hour(hour_utc):
     return ['14', '21', '28']               # plein jour
 
 
-def band_plan(cdef, clock, dxmaps=None, now=None):
+def band_plan(cdef, clock, dxmaps=None, now=None, lang='fr'):
     """Bandes recommandées MAINTENANT, pondérées par le barème du concours.
     Retourne [{band, weight, reason}] trié par intérêt décroissant."""
     now = now or datetime.datetime.utcnow()
@@ -150,21 +151,21 @@ def band_plan(cdef, clock, dxmaps=None, now=None):
             w = weights.get(b, 1)
             is_open = b in open_now
             score = (10 if is_open else 0) + w
-            reason = 'ouverte à cette heure' if is_open else 'hors créneau de propagation'
+            reason = t(lang, 'band_open') if is_open else t(lang, 'band_closed')
             if w > 1:
-                reason += f" — mult ×{w}"
+                reason += t(lang, 'mult_suffix', w=w)
             plan.append({'band': b, 'score': score, 'weight': w,
                          'open': is_open, 'reason': reason})
     else:  # VHF+ : la bande principale reste reine, Es/tropo en bonus
         es = bool((dxmaps or {}).get('es_active'))
         tropo = bool((dxmaps or {}).get('tropo_active'))
         for b in bands:
-            reason = 'bande du concours'
+            reason = t(lang, 'band_contest')
             score = 5
             if es and b in ('50', '144'):
-                score, reason = 12, 'SPORADIQUE-E ACTIF — fonce'
+                score, reason = 12, t(lang, 'band_es')
             elif tropo:
-                score, reason = 10, 'tropo actif — tente les distances'
+                score, reason = 10, t(lang, 'band_tropo')
             plan.append({'band': b, 'score': score, 'weight': 1,
                          'open': True, 'reason': reason})
     plan.sort(key=lambda p: -p['score'])
@@ -173,7 +174,7 @@ def band_plan(cdef, clock, dxmaps=None, now=None):
 
 # ─── CONSEILS DÉTERMINISTES ──────────────────────────────────────────────────
 
-def build_hints(cdef, clock, stats, plan):
+def build_hints(cdef, clock, stats, plan, lang='fr'):
     """Conseils actionnables, du plus urgent au moins urgent.
     level : 'alerte' (agir maintenant) / 'action' / 'info'."""
     hints = []
@@ -184,25 +185,23 @@ def build_hints(cdef, clock, stats, plan):
         h = clock.get('starts_in_h')
         if h is not None and h <= 48:
             hints.append({'level': 'info', 'icon': '⏳',
-                          'text': f"Départ dans {h:.0f} h — passe la CHECKLIST du logbook "
-                                  f"(bouton ✅) : config, heure synchronisée, postes connectés."})
+                          'text': t(lang, 'hint_checklist', h=h)})
         return hints
 
     if status == 'termine':
         deadline = cdef.get('log_deadline', '')
         submit = cdef.get('log_submit', '')
-        txt = "Concours terminé — exporte ton log (📥 dans le LOGBOOK) et envoie-le"
+        txt = t(lang, 'hint_finished_base')
         if deadline:
-            txt += f" (deadline : {deadline})"
+            txt += t(lang, 'hint_finished_deadline', deadline=deadline)
         if submit:
-            txt += f" → {submit}"
+            txt += t(lang, 'hint_finished_submit', submit=submit)
         hints.append({'level': 'alerte', 'icon': '📤', 'text': txt})
         return hints
 
     if status != 'en_cours':
         hints.append({'level': 'info', 'icon': '⚙️',
-                      'text': "Aucun concours actif configuré — passe par CONFIG "
-                              "pour choisir le concours et ses dates."})
+                      'text': t(lang, 'hint_no_contest')})
         return hints
 
     # ── En cours ─────────────────────────────────────────────────────────────
@@ -212,17 +211,14 @@ def build_hints(cdef, clock, stats, plan):
     silent = stats.get('minutes_since_last')
     if silent is not None and silent >= 15:
         hints.append({'level': 'alerte', 'icon': '🔇',
-                      'text': f"Aucun QSO depuis {silent} min — change de bande ou de "
-                              f"fréquence, lance appel, ou va chercher les spots classés."})
+                      'text': t(lang, 'hint_silence', min=silent)})
 
     # Rythme
     rate = stats.get('rate_avg')
     last_h = stats.get('qso_last_hour', 0)
     if rate and last_h < rate * 0.5 and stats.get('qso_total', 0) >= 10:
         hints.append({'level': 'action', 'icon': '📉',
-                      'text': f"Rythme en baisse : {last_h} QSO sur la dernière heure "
-                              f"contre {rate:.0f}/h de moyenne — change quelque chose "
-                              f"(bande, cap d'antenne, recherche→appel)."})
+                      'text': t(lang, 'hint_rate_drop', last_h=last_h, rate=rate)})
 
     # Budget d'opération (off-time WAE : 36 h sur 48)
     max_op = cdef.get('op_time_max_h')
@@ -230,43 +226,36 @@ def build_hints(cdef, clock, stats, plan):
         op_left = max_op - stats.get('hours_operated', 0)
         if op_left <= 0:
             hints.append({'level': 'alerte', 'icon': '⛔',
-                          'text': f"Budget d'opération épuisé ({max_op} h max) — toute "
-                                  f"heure supplémentaire peut invalider ton log."})
+                          'text': t(lang, 'hint_optime_over', max_op=max_op)})
         elif op_left < remaining:
             hints.append({'level': 'action', 'icon': '⏸️',
-                          'text': f"Il te reste {op_left:.0f} h d'opération autorisées pour "
-                                  f"{remaining:.0f} h de concours — planifie "
-                                  f"{remaining - op_left:.0f} h de pause dans les creux "
-                                  f"(pauses de 60 min minimum)."})
+                          'text': t(lang, 'hint_optime_plan', op_left=op_left,
+                                    remaining=remaining, pause=remaining - op_left)})
 
     # QTC (WAE) — compteur réel depuis le logbook (bouton ✉ QTC)
     if cdef.get('qtc'):
         qtc = stats.get('qtc_total', 0)
-        hints.append({'level': 'action', 'icon': '📨',
-                      'text': (f"QTC échangés : {qtc} (+{qtc} pts au score final). " if qtc else
-                               "Pense aux QTC : chaque QTC transféré vaut 1 point ") +
-                              "Max 10 par station — autant que des QSO gratuits."})
+        txt = t(lang, 'hint_qtc_done', qtc=qtc) if qtc else t(lang, 'hint_qtc_todo')
+        txt += t(lang, 'hint_qtc_tail')
+        hints.append({'level': 'action', 'icon': '📨', 'text': txt})
 
     # Bande la plus payante maintenant
     if plan:
         best = plan[0]
         if best.get('weight', 1) > 1 and best.get('open'):
             hints.append({'level': 'action', 'icon': '🎯',
-                          'text': f"{best['band']} MHz est ouverte ET compte ses mults "
-                                  f"×{best['weight']} — c'est la bande la plus rentable "
-                                  f"à cette heure."})
+                          'text': t(lang, 'hint_best_band',
+                                    band=best['band'], w=best['weight'])})
 
     # Fin de course : chasse aux mults
     bricks = (cdef.get('scoring', {}) or {}).get('bricks', {}) or {}
     has_mult = bool(bricks.get('multiplier')) or bool(bricks.get('mult_weight_by_band'))
     if remaining <= 2 and has_mult:
         hints.append({'level': 'action', 'icon': '🏁',
-                      'text': f"Dernières {remaining:.1f} h : un multiplicateur nouveau vaut "
-                              f"plus que des QSO en série — chasse les mults manquants "
-                              f"dans les spots PRIORITÉ MAX."})
+                      'text': t(lang, 'hint_endgame', remaining=remaining)})
     elif remaining <= 1:
         hints.append({'level': 'info', 'icon': '🏁',
-                      'text': "Dernière heure — logge tout, on trie après."})
+                      'text': t(lang, 'hint_last_hour')})
 
     return hints
 
@@ -295,7 +284,7 @@ def exchange_mult_stats(cdef, shared_log, contest_id):
 
 # ─── PRÉVISION SPORADIQUE-E / AURORA (VHF) ───────────────────────────────────
 
-def es_aurora_forecast(cdef, dxmaps=None, k_index=None, now=None):
+def es_aurora_forecast(cdef, dxmaps=None, k_index=None, now=None, lang='fr'):
     """Prévision VHF, distincte du CONFIRMÉ (DXMaps).
     - Es : heuristique saisonnière (mai-août, pics matin ~08-11 et soir ~17-21 UTC)
       sur 6 m et 2 m.
@@ -313,16 +302,13 @@ def es_aurora_forecast(cdef, dxmaps=None, k_index=None, now=None):
         es_confirmed = bool((dxmaps or {}).get('es_active'))
         if es_confirmed:
             out.append({'kind': 'es', 'level': 'confirme',
-                        'text': "⚡ SPORADIQUE-E CONFIRMÉ (DXMaps) — surveille 6 m puis 2 m, "
-                                "les ouvertures montent en fréquence."})
+                        'text': t(lang, 'es_confirmed')})
         elif peak:
             out.append({'kind': 'es', 'level': 'probable',
-                        'text': f"🌤 Es PROBABLE (saison + créneau {h}h UTC) — garde un œil "
-                                f"sur 50.150-50.300, ça peut ouvrir d'un coup vers 800-2000 km."})
+                        'text': t(lang, 'es_probable', h=h)})
         else:
             out.append({'kind': 'es', 'level': 'possible',
-                        'text': "Saison Es : ouverture possible à tout moment sur 6 m, "
-                                "pics probables en matinée et fin d'après-midi (UTC)."})
+                        'text': t(lang, 'es_possible')})
 
     # ── Aurora : indice K ──
     try:
@@ -332,21 +318,19 @@ def es_aurora_forecast(cdef, dxmaps=None, k_index=None, now=None):
     if k is not None and k >= 5:
         if is_vhf:
             lvl = 'fort' if k >= 7 else 'possible'
+            prefix = t(lang, 'aurora_vhf_storm', k=k) if k >= 7 else t(lang, 'aurora_vhf_mild', k=k)
             out.append({'kind': 'aurora', 'level': lvl,
-                        'text': (f"🔴 K={k:.0f} ORAGE GÉOMAGNÉTIQUE — " if k >= 7 else f"🟡 K={k:.0f} — ")
-                                + "aurora VHF possible : antennes vers le NORD sur 2 m "
-                                  "(signaux 'raspy', polarisation aléatoire)."})
+                        'text': prefix + t(lang, 'aurora_vhf_tail')})
         elif k >= 6:
             # Concours HF : l'aurora ne se travaille pas, mais elle DÉGRADE la HF
             out.append({'kind': 'aurora', 'level': 'info',
-                        'text': f"🟡 K={k:.0f} — perturbation géomagnétique : HF bandes hautes "
-                                f"(14/21/28) dégradées, privilégie les bandes basses."})
+                        'text': t(lang, 'aurora_hf', k=k)})
     return out
 
 
 # ─── RUN vs SEARCH & POUNCE ──────────────────────────────────────────────────
 
-def run_sp_recommendation(clock, stats, mult_spots_count=None):
+def run_sp_recommendation(clock, stats, mult_spots_count=None, lang='fr'):
     """Recommandation de mode d'opération, avec justification courte.
     RUN = lancer appel CQ (rendement quand ça tourne) ;
     S&P = chasser les spots (rendement quand le rate tombe et que des
@@ -357,22 +341,16 @@ def run_sp_recommendation(clock, stats, mult_spots_count=None):
     r60 = stats.get('rate_60min') or 0
     mults = mult_spots_count if mult_spots_count is not None else 0
     if stats.get('qso_total', 0) < 5:
-        return {'mode': 'S&P', 'reason': "Début de course : chasse les spots pour "
-                                         "amorcer le log, tu passeras en RUN quand ça mord."}
+        return {'mode': 'S&P', 'reason': t(lang, 'sp_start')}
     if r10 >= max(r60, 30):
-        return {'mode': 'RUN', 'reason': f"{r10}/h sur 10 min — la fréquence tourne, "
-                                         f"reste en RUN (appel CQ)."}
+        return {'mode': 'RUN', 'reason': t(lang, 'run_hot', r10=r10)}
     if r10 < r60 * 0.6 and mults >= 3:
-        return {'mode': 'S&P', 'reason': f"Rate en chute ({r10}/h contre {r60}/h) et "
-                                         f"{mults} nouveaux mults sur le cluster — "
-                                         f"passe en Search & Pounce."}
+        return {'mode': 'S&P', 'reason': t(lang, 'sp_drop', r10=r10, r60=r60, mults=mults)}
     if r10 <= 6 and mults == 0:
-        return {'mode': 'CHANGE', 'reason': f"{r10}/h et aucun mult spotté — change de "
-                                            f"bande (regarde le plan de bande et la MUF)."}
+        return {'mode': 'CHANGE', 'reason': t(lang, 'change_band', r10=r10)}
     if r10 >= r60:
-        return {'mode': 'RUN', 'reason': f"Rate stable ({r10}/h) — garde la fréquence."}
-    return {'mode': 'S&P', 'reason': f"Rate mou ({r10}/h) — alterne : un tour de "
-                                     f"cluster puis retour en appel."}
+        return {'mode': 'RUN', 'reason': t(lang, 'run_stable', r10=r10)}
+    return {'mode': 'S&P', 'reason': t(lang, 'sp_soft', r10=r10)}
 
 
 # ─── PROMPT POUR LE CONSEIL IA ───────────────────────────────────────────────
@@ -414,10 +392,13 @@ def build_coach_prompt(cdef, clock, stats, plan, hints):
 # ─── POINT D'ENTRÉE ──────────────────────────────────────────────────────────
 
 def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=None,
-                      k_index=None):
+                      k_index=None, lang='fr'):
     """État complet du coach — JSON structuré pour le front, sans appel IA.
     mult_spots_count : nombre de « nouveau mult » actuellement spottés
-    (fourni par le serveur depuis les caches cluster, pour la reco Run/S&P)."""
+    (fourni par le serveur depuis les caches cluster, pour la reco Run/S&P).
+    lang : langue des textes du coach (hints/reasons/forecasts) ; 'fr' par
+    défaut. Le coach_prompt reste en français (le LLM répond dans la langue
+    voulue via la directive du prompt système côté client)."""
     now = now or datetime.datetime.utcnow()
     contest_id = (cfg or {}).get('contest', '')
     cdef = CONTEST_DEFINITIONS.get(contest_id, {}) if isinstance(contest_id, str) else {}
@@ -438,10 +419,10 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     if ex_mults:
         stats['exchange_mults'] = ex_mults['mults']
         stats['score_with_mults'] = ex_mults['score_est']
-    plan = band_plan(cdef, clock, dxmaps, now)
-    hints = build_hints(cdef, clock, stats, plan)
-    run_sp = run_sp_recommendation(clock, stats, mult_spots_count)
-    vhf_forecast = es_aurora_forecast(cdef, dxmaps, k_index, now)
+    plan = band_plan(cdef, clock, dxmaps, now, lang)
+    hints = build_hints(cdef, clock, stats, plan, lang)
+    run_sp = run_sp_recommendation(clock, stats, mult_spots_count, lang)
+    vhf_forecast = es_aurora_forecast(cdef, dxmaps, k_index, now, lang)
     return {
         'clock': clock,
         'stats': stats,

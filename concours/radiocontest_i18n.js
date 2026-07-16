@@ -195,6 +195,188 @@
     },
   };
 
+  // Libellés DYNAMIQUES de l'agent IA et du coach (page CARTE IA / mobile) :
+  // messages injectés par JS, boutons, placeholder, horloge/rythme du coach.
+  // Fusionnés dans T pour la traduction par correspondance de texte source.
+  const T_AGENT = {
+    en: {
+      "AGENT": "AGENT", "ANALYSER": "ANALYZE", "Analyse en cours": "Analyzing",
+      "Analyse les clusters et mon log maintenant.": "Analyze the clusters and my log now.",
+      "Bandes :": "Bands:", "CHANGE DE BANDE": "CHANGE BAND", "COACH": "COACH",
+      "Chargement de la configuration...": "Loading configuration...",
+      "Chargement de ta configuration...": "Loading your configuration...",
+      "Clique sur 📡 ANALYSER pour démarrer.": "Click 📡 ANALYZE to start.",
+      "Coach indisponible — vérifie que radiocontest_serveur.py tourne.": "Coach unavailable — check that radiocontest_serveur.py is running.",
+      "Concours :": "Contest:", "Conditions de propagation actuelles ?": "Current propagation conditions?",
+      "Configuration chargée !": "Configuration loaded!",
+      "Envoie un message à l'agent...": "Send a message to the agent...",
+      "MULTS": "MULTS", "Modes :": "Modes:", "PROP": "PROP", "QSO dernière heure": "QSO last hour",
+      "Quel est mon score actuel et ma progression ?": "What's my current score and progress?",
+      "Quels multiplicateurs me manquent encore ?": "Which multipliers am I still missing?",
+      "RÉSUMÉ": "SUMMARY", "Résumé complet de la session.": "Full summary of the session.",
+      "SCORE": "SCORE", "SPOTS": "SPOTS",
+      "Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.": "If you landed here directly, go back to the configuration page first to set up your station and your contest.",
+      "Suis-je spoté sur les clusters ?": "Am I spotted on the clusters?", "VEILLE AUTO": "AUTO WATCH",
+      "départ dans {h} h": "start in {h} h", "moyenne": "average", "mults → score": "mults → score",
+      "pas de concours actif": "no active contest", "pts": "pts", "reste {h}h{mm}": "{h}h{mm} left",
+      "terminé": "over", "total": "total",
+      "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Strategic advice requested (contest status sent)",
+    },
+    de: {
+      "AGENT": "AGENT", "ANALYSER": "ANALYSIEREN", "Analyse en cours": "Analyse läuft",
+      "Analyse les clusters et mon log maintenant.": "Analysiere jetzt die Cluster und mein Log.",
+      "Bandes :": "Bänder :", "CHANGE DE BANDE": "BAND WECHSELN", "COACH": "COACH",
+      "Chargement de la configuration...": "Konfiguration wird geladen...",
+      "Chargement de ta configuration...": "Deine Konfiguration wird geladen...",
+      "Clique sur 📡 ANALYSER pour démarrer.": "Klick auf 📡 ANALYSIEREN, um zu starten.",
+      "Coach indisponible — vérifie que radiocontest_serveur.py tourne.": "Coach nicht verfügbar — prüf, ob radiocontest_serveur.py läuft.",
+      "Concours :": "Contest :", "Conditions de propagation actuelles ?": "Aktuelle Ausbreitungsbedingungen?",
+      "Configuration chargée !": "Konfiguration geladen!",
+      "Envoie un message à l'agent...": "Sende eine Nachricht an den Agenten...",
+      "MULTS": "MULTS", "Modes :": "Modi :", "PROP": "PROP", "QSO dernière heure": "QSO letzte Stunde",
+      "Quel est mon score actuel et ma progression ?": "Wie ist mein aktueller Score und mein Fortschritt?",
+      "Quels multiplicateurs me manquent encore ?": "Welche Multiplikatoren fehlen mir noch?",
+      "RÉSUMÉ": "ZUSAMMENFASSUNG", "Résumé complet de la session.": "Vollständige Zusammenfassung der Session.",
+      "SCORE": "SCORE", "SPOTS": "SPOTS",
+      "Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.": "Wenn du direkt hier landest, geh zuerst zurück auf die Konfigurationsseite, um deine Station und deinen Contest einzurichten.",
+      "Suis-je spoté sur les clusters ?": "Bin ich in den Clustern gespottet?", "VEILLE AUTO": "AUTO-ÜBERWACHUNG",
+      "départ dans {h} h": "Start in {h} h", "moyenne": "Durchschnitt", "mults → score": "Mults → Score",
+      "pas de concours actif": "kein aktiver Contest", "pts": "Pkt.", "reste {h}h{mm}": "noch {h}h{mm}",
+      "terminé": "beendet", "total": "gesamt",
+      "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Strategischer Rat angefragt (Contest-Status übermittelt)",
+    },
+    es: {
+      "AGENT": "AGENTE", "ANALYSER": "ANALIZAR", "Analyse en cours": "Análisis en curso",
+      "Analyse les clusters et mon log maintenant.": "Analiza los clusters y mi log ahora.",
+      "Bandes :": "Bandas :", "CHANGE DE BANDE": "CAMBIA DE BANDA", "COACH": "COACH",
+      "Chargement de la configuration...": "Cargando la configuración…",
+      "Chargement de ta configuration...": "Cargando tu configuración…",
+      "Clique sur 📡 ANALYSER pour démarrer.": "Haz clic en 📡 ANALIZAR para empezar.",
+      "Coach indisponible — vérifie que radiocontest_serveur.py tourne.": "Coach no disponible — verifica que radiocontest_serveur.py esté en ejecución.",
+      "Concours :": "Concurso :", "Conditions de propagation actuelles ?": "¿Condiciones de propagación actuales ?",
+      "Configuration chargée !": "¡Configuración cargada!",
+      "Envoie un message à l'agent...": "Envía un mensaje al agente…",
+      "MULTS": "MULTS", "Modes :": "Modos :", "PROP": "PROP", "QSO dernière heure": "QSO última hora",
+      "Quel est mon score actuel et ma progression ?": "¿Cuál es mi puntaje actual y mi progresión ?",
+      "Quels multiplicateurs me manquent encore ?": "¿Qué multiplicadores me faltan todavía ?",
+      "RÉSUMÉ": "RESUMEN", "Résumé complet de la session.": "Resumen completo de la sesión.",
+      "SCORE": "PUNTAJE", "SPOTS": "SPOTS",
+      "Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.": "Si llegas aquí directamente, vuelve primero a la página de configuración para ajustar tu estación y tu concurso.",
+      "Suis-je spoté sur les clusters ?": "¿Estoy spotado en los clusters ?", "VEILLE AUTO": "VIGILANCIA AUTO",
+      "départ dans {h} h": "salida en {h} h", "moyenne": "media", "mults → score": "mults → puntaje",
+      "pas de concours actif": "sin concurso activo", "pts": "pts", "reste {h}h{mm}": "quedan {h}h{mm}",
+      "terminé": "terminado", "total": "total",
+      "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Consejo estratégico solicitado (estado del concurso transmitido)",
+    },
+    it: {
+      "AGENT": "AGENTE", "ANALYSER": "ANALIZZA", "Analyse en cours": "Analisi in corso",
+      "Analyse les clusters et mon log maintenant.": "Analizza i cluster e il mio log adesso.",
+      "Bandes :": "Bande :", "CHANGE DE BANDE": "CAMBIA BANDA", "COACH": "COACH",
+      "Chargement de la configuration...": "Caricamento della configurazione...",
+      "Chargement de ta configuration...": "Caricamento della tua configurazione...",
+      "Clique sur 📡 ANALYSER pour démarrer.": "Clicca su 📡 ANALIZZA per iniziare.",
+      "Coach indisponible — vérifie que radiocontest_serveur.py tourne.": "Coach non disponibile — verifica che radiocontest_serveur.py sia in esecuzione.",
+      "Concours :": "Contest :", "Conditions de propagation actuelles ?": "Condizioni di propagazione attuali ?",
+      "Configuration chargée !": "Configurazione caricata!",
+      "Envoie un message à l'agent...": "Invia un messaggio all'agente...",
+      "MULTS": "MULTS", "Modes :": "Modi :", "PROP": "PROP", "QSO dernière heure": "QSO ultima ora",
+      "Quel est mon score actuel et ma progression ?": "Qual è il mio punteggio attuale e la mia progressione ?",
+      "Quels multiplicateurs me manquent encore ?": "Quali moltiplicatori mi mancano ancora ?",
+      "RÉSUMÉ": "RIEPILOGO", "Résumé complet de la session.": "Riepilogo completo della sessione.",
+      "SCORE": "PUNTEGGIO", "SPOTS": "SPOTS",
+      "Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.": "Se arrivi qui direttamente, torna prima alla pagina di configurazione per impostare la tua stazione e il tuo contest.",
+      "Suis-je spoté sur les clusters ?": "Sono spottato sui cluster ?", "VEILLE AUTO": "MONITOR AUTO",
+      "départ dans {h} h": "partenza tra {h} h", "moyenne": "media", "mults → score": "mults → punteggio",
+      "pas de concours actif": "nessun contest attivo", "pts": "pt", "reste {h}h{mm}": "restano {h}h{mm}",
+      "terminé": "terminato", "total": "totale",
+      "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Consiglio strategico richiesto (stato del contest trasmesso)",
+    },
+    pt: {
+      "AGENT": "AGENTE", "ANALYSER": "ANALISAR", "Analyse en cours": "Análise em curso",
+      "Analyse les clusters et mon log maintenant.": "Analisa os clusters e o meu log agora.",
+      "Bandes :": "Bandas :", "CHANGE DE BANDE": "MUDA DE BANDA", "COACH": "COACH",
+      "Chargement de la configuration...": "A carregar a configuração...",
+      "Chargement de ta configuration...": "A carregar a tua configuração...",
+      "Clique sur 📡 ANALYSER pour démarrer.": "Clica em 📡 ANALISAR para começar.",
+      "Coach indisponible — vérifie que radiocontest_serveur.py tourne.": "Coach indisponível — verifica que o radiocontest_serveur.py está a correr.",
+      "Concours :": "Concurso :", "Conditions de propagation actuelles ?": "Condições de propagação atuais?",
+      "Configuration chargée !": "Configuração carregada!",
+      "Envoie un message à l'agent...": "Envia uma mensagem ao agente...",
+      "MULTS": "MULTS", "Modes :": "Modos :", "PROP": "PROP", "QSO dernière heure": "QSO última hora",
+      "Quel est mon score actuel et ma progression ?": "Qual é a minha pontuação atual e a minha progressão?",
+      "Quels multiplicateurs me manquent encore ?": "Que multiplicadores ainda me faltam?",
+      "RÉSUMÉ": "RESUMO", "Résumé complet de la session.": "Resumo completo da sessão.",
+      "SCORE": "PONTUAÇÃO", "SPOTS": "SPOTS",
+      "Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.": "Se chegaste aqui diretamente, volta primeiro à página de configuração para configurar a tua estação e o teu concurso.",
+      "Suis-je spoté sur les clusters ?": "Estou spotado nos clusters?", "VEILLE AUTO": "VIGIA AUTO",
+      "départ dans {h} h": "início em {h} h", "moyenne": "média", "mults → score": "mults → pontuação",
+      "pas de concours actif": "sem concurso ativo", "pts": "pts", "reste {h}h{mm}": "restam {h}h{mm}",
+      "terminé": "terminado", "total": "total",
+      "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Conselho estratégico solicitado (estado do concurso transmitido)",
+    },
+    nl: {
+      "AGENT": "AGENT", "ANALYSER": "ANALYSEREN", "Analyse en cours": "Analyse bezig",
+      "Analyse les clusters et mon log maintenant.": "Analyseer nu de clusters en mijn log.",
+      "Bandes :": "Banden:", "CHANGE DE BANDE": "WISSEL VAN BAND", "COACH": "COACH",
+      "Chargement de la configuration...": "Configuratie wordt geladen...",
+      "Chargement de ta configuration...": "Je configuratie wordt geladen...",
+      "Clique sur 📡 ANALYSER pour démarrer.": "Klik op 📡 ANALYSEREN om te starten.",
+      "Coach indisponible — vérifie que radiocontest_serveur.py tourne.": "Coach niet beschikbaar — controleer of radiocontest_serveur.py draait.",
+      "Concours :": "Contest:", "Conditions de propagation actuelles ?": "Huidige propagatieomstandigheden?",
+      "Configuration chargée !": "Configuratie geladen!",
+      "Envoie un message à l'agent...": "Stuur een bericht naar de agent...",
+      "MULTS": "MULTS", "Modes :": "Modes:", "PROP": "PROP", "QSO dernière heure": "QSO laatste uur",
+      "Quel est mon score actuel et ma progression ?": "Wat is mijn huidige score en mijn voortgang?",
+      "Quels multiplicateurs me manquent encore ?": "Welke multipliers ontbreken mij nog?",
+      "RÉSUMÉ": "SAMENVATTING", "Résumé complet de la session.": "Volledige samenvatting van de sessie.",
+      "SCORE": "SCORE", "SPOTS": "SPOTS",
+      "Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.": "Als je hier rechtstreeks belandt, ga dan eerst terug naar de configuratiepagina om je station en je contest in te stellen.",
+      "Suis-je spoté sur les clusters ?": "Ben ik gespot op de clusters?", "VEILLE AUTO": "AUTO-BEWAKING",
+      "départ dans {h} h": "start over {h} u", "moyenne": "gemiddelde", "mults → score": "mults → score",
+      "pas de concours actif": "geen actieve contest", "pts": "pt", "reste {h}h{mm}": "nog {h}u{mm}",
+      "terminé": "afgelopen", "total": "totaal",
+      "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Strategisch advies gevraagd (conteststatus doorgegeven)",
+    },
+    pl: {
+      "AGENT": "AGENT", "ANALYSER": "ANALIZUJ", "Analyse en cours": "Analiza w toku",
+      "Analyse les clusters et mon log maintenant.": "Przeanalizuj klastry i mój log teraz.",
+      "Bandes :": "Pasma :", "CHANGE DE BANDE": "ZMIEŃ PASMO", "COACH": "COACH",
+      "Chargement de la configuration...": "Wczytywanie konfiguracji...",
+      "Chargement de ta configuration...": "Wczytywanie twojej konfiguracji...",
+      "Clique sur 📡 ANALYSER pour démarrer.": "Kliknij 📡 ANALIZUJ, aby rozpocząć.",
+      "Coach indisponible — vérifie que radiocontest_serveur.py tourne.": "Coach niedostępny — sprawdź, czy radiocontest_serveur.py działa.",
+      "Concours :": "Zawody :", "Conditions de propagation actuelles ?": "Aktualne warunki propagacji?",
+      "Configuration chargée !": "Konfiguracja wczytana!",
+      "Envoie un message à l'agent...": "Wyślij wiadomość do agenta...",
+      "MULTS": "MNOŻNIKI", "Modes :": "Tryby :", "PROP": "PROP", "QSO dernière heure": "QSO w ostatniej godzinie",
+      "Quel est mon score actuel et ma progression ?": "Jaki jest mój aktualny wynik i postęp?",
+      "Quels multiplicateurs me manquent encore ?": "Których mnożników jeszcze mi brakuje?",
+      "RÉSUMÉ": "PODSUMOWANIE", "Résumé complet de la session.": "Pełne podsumowanie sesji.",
+      "SCORE": "WYNIK", "SPOTS": "SPOTY",
+      "Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.": "Jeśli trafiłeś tu bezpośrednio, wróć najpierw na stronę konfiguracji, aby ustawić swoją stację i zawody.",
+      "Suis-je spoté sur les clusters ?": "Czy jestem zaspotowany na klastrach?", "VEILLE AUTO": "AUTO-NASŁUCH",
+      "départ dans {h} h": "start za {h} h", "moyenne": "średnia", "mults → score": "mnożniki → wynik",
+      "pas de concours actif": "brak aktywnych zawodów", "pts": "pkt", "reste {h}h{mm}": "zostało {h}h{mm}",
+      "terminé": "zakończone", "total": "razem",
+      "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Poproszono o poradę strategiczną (stan zawodów przekazany)",
+    },
+  };
+  Object.keys(T_AGENT).forEach(function (l) {
+    if (T[l]) Object.assign(T[l], T_AGENT[l]);
+  });
+
+  // Directive de langue pour l'agent IA (ajoutée au prompt système côté client
+  // avant l'appel /proxy/ai). Vide en fr/auto (le navigateur traduit la page).
+  const LLM_DIRECTIVE = {
+    en: "IMPORTANT: reply EXCLUSIVELY in English, whatever the language of the provided context or the question.",
+    de: "WICHTIG: Antworte AUSSCHLIESSLICH auf Deutsch, unabhängig von der Sprache des bereitgestellten Kontexts oder der Frage.",
+    es: "IMPORTANTE: responde EXCLUSIVAMENTE en español, sea cual sea el idioma del contexto proporcionado o de la pregunta.",
+    it: "IMPORTANTE: rispondi ESCLUSIVAMENTE in italiano, qualunque sia la lingua del contesto fornito o della domanda.",
+    pt: "IMPORTANTE: responde EXCLUSIVAMENTE em português, seja qual for a língua do contexto fornecido ou da pergunta.",
+    nl: "BELANGRIJK: antwoord UITSLUITEND in het Nederlands, ongeacht de taal van de aangeleverde context of van de vraag.",
+    pl: "WAŻNE: odpowiadaj WYŁĄCZNIE po polsku, niezależnie od języka podanego kontekstu lub pytania.",
+  };
+
   function getLang() { return localStorage.getItem('rc_lang') || 'fr'; }
 
   // Sauvegarde des textes français d'origine pour pouvoir revenir en arrière
@@ -277,6 +459,32 @@
     if (lang !== 'fr' && lang !== 'auto') walk(T[lang] || {}, document.body);
   };
 
+  // Langue courante, pour les autres scripts (carte, mobile).
+  window.rcGetLang = getLang;
+
+  // Traduit une chaîne source française CONNUE vers la langue courante.
+  // Retourne le français tel quel en fr/auto ou si la clé est absente.
+  // Sert à construire les messages injectés par JS (agent, coach).
+  window.rcT = function (fr) {
+    const l = getLang();
+    if (l === 'fr' || l === 'auto') return fr;
+    const d = T[l] || {};
+    return d[fr] !== undefined ? d[fr] : fr;
+  };
+
+  // Comme rcT mais avec des placeholders {clé} remplacés par params.clé.
+  window.rcTf = function (fr, params) {
+    let s = window.rcT(fr);
+    if (params) for (const k in params) s = s.split('{' + k + '}').join(params[k]);
+    return s;
+  };
+
+  // Directive « réponds dans cette langue » à ajouter au prompt système IA.
+  // Vide en fr/auto : l'IA répond en français (le navigateur traduit la page).
+  window.rcLangDirective = function () {
+    return LLM_DIRECTIVE[getLang()] || '';
+  };
+
   function injectSelector() {
     if (document.getElementById('rcLangSelect')) return;
     const sel = document.createElement('select');
@@ -304,6 +512,25 @@
     injectSelector();
     const lang = getLang();
     if (lang !== 'fr') applyLang(lang);
+
+    // Traduit le contenu injecté APRÈS le chargement (messages de l'agent IA,
+    // panneau coach, listes de spots…). On n'observe QUE l'ajout de nœuds
+    // (childList) : walk() ne modifie que des nodeValue/attributs (non observés),
+    // donc pas de boucle. Débouncé par setTimeout — et NON requestAnimationFrame,
+    // qui est gelé quand l'onglet est en arrière-plan (cas courant en concours :
+    // WSJT-X ou le log au premier plan, la carte derrière).
+    let pending = null;
+    const obs = new MutationObserver(muts => {
+      const l = getLang();
+      if (l === 'fr' || l === 'auto') return;
+      if (pending) return;
+      let added = false;
+      for (const m of muts) { if (m.addedNodes && m.addedNodes.length) { added = true; break; } }
+      if (!added) return;
+      pending = setTimeout(() => { pending = null; window.rcTranslate(); }, 60);
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+
     // Suit les changements faits dans un autre onglet
     window.addEventListener('storage', e => {
       if (e.key === 'rc_lang') {

@@ -196,9 +196,7 @@ textarea::placeholder{color:var(--muted)}
     <div class="chat-msgs" id="chatMsgs">
       <div class="msg msg-agent">
         <div class="msg-lbl">AGENT</div>
-        <div class="bubble">Chargement de ta configuration...
-
-Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.</div>
+        <div class="bubble">Chargement de ta configuration...<br><br>Si tu arrives ici directement, retourne d'abord sur la page de configuration pour paramétrer ta station et ton concours.</div>
       </div>
     </div>
     <div class="chat-input">
@@ -262,6 +260,12 @@ let conversationHistory = [];
 let isWaiting = false;
 let mapStations = [];
 let systemPrompt = '';
+
+// Raccourcis i18n (fournis par radiocontest_i18n.js ; repli = identité si absent).
+const rcT  = (s)   => (window.rcT  ? window.rcT(s)     : s);
+const rcTf = (s, p) => (window.rcTf ? window.rcTf(s, p) : s);
+const rcLangDirective = () => (window.rcLangDirective ? window.rcLangDirective() : '');
+const rcLang = () => (window.rcGetLang ? window.rcGetLang() : 'fr');
 
 // ─── CARTE LEAFLET ───────────────────────────────────────────────────────────
 let leafletMap = null;
@@ -699,7 +703,7 @@ function applyConfig(){
     .filter(([k]) => toggles[k])
     .map(([,v]) => v);
 
-  addMsg('agent',`✅ Configuration chargée !\n\n📻 ${call} | ${loc}\n🏆 Concours : ${contest}\n📡 Bandes : ${bands.join(', ')||'—'}\n🎙️ Modes : ${modes.join(', ')||'—'}\n\nClique sur 📡 ANALYSER pour démarrer.`);
+  addMsg('agent',`✅ ${rcT('Configuration chargée !')}\n\n📻 ${call} | ${loc}\n🏆 ${rcT('Concours :')} ${contest}\n📡 ${rcT('Bandes :')} ${bands.join(', ')||'—'}\n🎙️ ${rcT('Modes :')} ${modes.join(', ')||'—'}\n\n${rcT('Clique sur 📡 ANALYSER pour démarrer.')}`);
 }
 
 // ─── CHAT ────────────────────────────────────────────────────────────────────
@@ -867,7 +871,10 @@ async function send(forcedText,displayText){
       max_tokens:4096,
       messages:conversationHistory,
     };
-    if(systemPrompt)body.system=systemPrompt;
+    // L'agent répond dans la langue choisie (directive ajoutée au prompt système).
+    const _dir=rcLangDirective();
+    const _sys=(systemPrompt||'')+(_dir?'\n\n'+_dir:'');
+    if(_sys.trim())body.system=_sys;
 
     const res=await fetch('/proxy/ai',{
       method:'POST',
@@ -901,14 +908,17 @@ async function send(forcedText,displayText){
   document.getElementById('sendBtn').disabled=false;
 }
 
-function qs(text){document.getElementById('userInput').value=text;send();}
+// Boutons rapides : on envoie la commande en français au LLM (clarté) mais on
+// affiche à l'opérateur la version traduite dans sa langue.
+function qs(text){send(text, rcT(text));}
 
 // ─── COACH STRATÉGIQUE ────────────────────────────────────────────────────────
 let coachState=null;
 
 async function fetchCoach(){
   try{
-    const r=await fetch('/coach/state');
+    // ?lang= : le serveur localise les conseils/prévisions du coach.
+    const r=await fetch('/coach/state?lang='+encodeURIComponent(rcLang()));
     if(!r.ok)return;
     coachState=await r.json();
     renderCoach();
@@ -921,28 +931,28 @@ function renderCoach(){
   const c=coachState.clock,s=coachState.stats;
   p.style.display='block';
 
-  // Horloge
+  // Horloge (libellés localisés côté client)
   let clockTxt='';
   if(c.status==='en_cours'){
     const h=Math.floor(c.remaining_h),m=Math.round((c.remaining_h-h)*60);
-    clockTxt=`⏱ reste ${h}h${String(m).padStart(2,'0')} <span class="cc-pct">(${c.pct_done}%)</span>`;
+    clockTxt=`⏱ ${rcTf('reste {h}h{mm}',{h:h,mm:String(m).padStart(2,'0')})} <span class="cc-pct">(${c.pct_done}%)</span>`;
   }else if(c.status==='avant'){
-    clockTxt=`⏳ départ dans ${c.starts_in_h} h`;
+    clockTxt=`⏳ ${rcTf('départ dans {h} h',{h:c.starts_in_h})}`;
   }else if(c.status==='termine'){
-    clockTxt='🏁 terminé';
+    clockTxt='🏁 '+rcT('terminé');
   }else{
-    clockTxt='— pas de concours actif';
+    clockTxt='— '+rcT('pas de concours actif');
   }
   document.getElementById('coachClock').innerHTML=clockTxt;
 
   // Rythme (+ score exact avec mults par échange quand le barème le permet)
   let rate='';
   if(c.status==='en_cours'){
-    rate=`<b>${s.qso_last_hour}</b> QSO dernière heure`;
-    if(s.rate_avg!=null)rate+=` · moyenne <b>${s.rate_avg}</b>/h`;
-    rate+=` · total <b>${s.qso_total}</b> QSO`;
+    rate=`<b>${s.qso_last_hour}</b> ${rcT('QSO dernière heure')}`;
+    if(s.rate_avg!=null)rate+=` · ${rcT('moyenne')} <b>${s.rate_avg}</b>/h`;
+    rate+=` · ${rcT('total')} <b>${s.qso_total}</b> QSO`;
     if(s.exchange_mults!=null)
-      rate+=` · <b>${s.exchange_mults}</b> mults → score <b>${(s.score_with_mults||0).toLocaleString()}</b> pts`;
+      rate+=` · <b>${s.exchange_mults}</b> ${rcT('mults → score')} <b>${(s.score_with_mults||0).toLocaleString()}</b> ${rcT('pts')}`;
   }
   document.getElementById('coachRate').innerHTML=rate;
 
@@ -958,7 +968,7 @@ function renderCoach(){
   if(rs){
     const col=rs.mode==='RUN'?'var(--green)':rs.mode==='S&P'?'var(--accent2)':'var(--yellow)';
     hintsHtml+=`<div class="coach-hint" style="color:${col};font-weight:700">`+
-      `🎙 ${rs.mode==='CHANGE'?'CHANGE DE BANDE':rs.mode} — ${rs.reason}</div>`;
+      `🎙 ${rs.mode==='CHANGE'?rcT('CHANGE DE BANDE'):rs.mode} — ${rs.reason}</div>`;
   }
   // Prévision Es/aurora VHF (distincte du confirmé)
   (coachState.vhf_forecast||[]).forEach(f=>{
@@ -994,9 +1004,9 @@ setTimeout(refreshRankedStations, 2000);
 async function coachAdvice(){
   await fetchCoach();
   if(coachState&&coachState.coach_prompt){
-    send(coachState.coach_prompt,'🧠 Conseil stratégique demandé (état du concours transmis)');
+    send(coachState.coach_prompt,rcT('🧠 Conseil stratégique demandé (état du concours transmis)'));
   }else{
-    addMsg('agent','❌ Coach indisponible — vérifie que radiocontest_serveur.py tourne.');
+    addMsg('agent','❌ '+rcT('Coach indisponible — vérifie que radiocontest_serveur.py tourne.'));
   }
 }
 
@@ -1072,11 +1082,12 @@ Réponds UNIQUEMENT si mon indicatif est actuellement spoté sur un cluster, ou 
 station DX EXCEPTIONNELLE (priorité maximale, pas encore travaillée) est disponible
 maintenant. Si aucun des deux cas ne s'applique, réponds EXACTEMENT et UNIQUEMENT : RAS`;
 
+    const _dir = rcLangDirective();
     const res = await fetch('/proxy/ai', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         model:'claude-sonnet-4-6', max_tokens:1024,
-        system: systemPrompt,
+        system: (systemPrompt||'') + (_dir ? '\n\n'+_dir : ''),
         messages: [{role:'user', content: checkPrompt}],
       })
     });
