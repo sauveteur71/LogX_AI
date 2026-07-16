@@ -5,3 +5,4 @@ concours/calldb.json
 concours/shared_log.json
 concours/tests/__pycache__/
 concours/.auth_token
+concours/radiocontest.db
