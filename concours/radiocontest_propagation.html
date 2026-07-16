@@ -116,6 +116,14 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       <div class="panel-title">🌍 VHF / SPORADIQUE-E</div>
       <div class="band-cond" id="vhfCond"><div class="loading">…</div></div>
     </div>
+
+    <div class="panel">
+      <div class="panel-title">📡 BALISES NCDXF/IBP <small id="beaconTick">maintenant</small></div>
+      <div class="band-cond" id="beaconList"><div class="loading">…</div></div>
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">
+        Écoute ces fréquences : entendre une balise = la bande est ouverte vers sa région.
+      </div>
+    </div>
   </div>
 
   <!-- Colonne droite : cluster trié par intérêt -->
@@ -129,6 +137,10 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     </div>
     <div id="spotList"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
       <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
+
+    <div class="panel-title" style="margin-top:22px">🌐 OÙ MON SIGNAL EST ENTENDU — PSK REPORTER
+      <small id="pskMeta"></small></div>
+    <div id="pskList"><div class="loading">…</div></div>
   </div>
 
 </div>
@@ -288,10 +300,58 @@ function renderSpots(){
     </div>`).join('');
 }
 
+// ─── BALISES NCDXF/IBP (rotation 3 min, la balise change toutes les 10 s) ────
+async function loadBeacons(){
+  try{
+    const r = await fetch('/beacons/now');
+    if(!r.ok) return;
+    const d = await r.json();
+    document.getElementById('beaconList').innerHTML = (d.beacons||[]).map(b => `
+      <div class="bc-row">
+        <span class="bc-name" style="width:52px">${b.band}</span>
+        <span style="color:var(--accent2);width:70px">${b.freq_khz.toFixed(3)}</span>
+        <span style="color:var(--text);font-weight:700;width:70px">${b.call}</span>
+        <span style="color:var(--muted);flex:1">${b.qth}</span>
+        ${b.bearing!=null ? `<span style="color:var(--accent)">${b.bearing}° ${b.cardinal}</span>` : ''}
+      </div>`).join('');
+  }catch(e){}
+}
+
+// ─── PSK REPORTER : où mon signal est décodé (carte d'ouverture) ─────────────
+async function loadPSK(){
+  try{
+    const r = await fetch('/data/heard_where');
+    if(!r.ok) return;
+    const d = await r.json();
+    const meta = document.getElementById('pskMeta');
+    if(!d.ok){ document.getElementById('pskList').innerHTML =
+      `<div class="loading">${d.error||'—'}</div>`; return; }
+    meta.textContent = `${d.call} · ${d.total} décodages · ` +
+      Object.entries(d.by_band).map(([b,v])=>`${b}: ${v.count} (${v.max_km} km max)`).join(' · ');
+    if(!d.reports.length){
+      document.getElementById('pskList').innerHTML =
+        `<div class="loading">${d.note||'Aucun décodage récent.'}</div>`;
+      return;
+    }
+    document.getElementById('pskList').innerHTML = d.reports.slice(0,25).map(r => `
+      <div class="spot-row">
+        <span class="sr-call">${r.rx_call}</span>
+        <span class="sr-band">${r.band}</span>
+        <span style="width:70px;color:var(--accent2)">${r.snr} dB</span>
+        <span class="sr-cap">${r.bearing!=null ? r.bearing+'° '+r.cardinal : ''}</span>
+        <span class="sr-info">${r.dist_km!=null ? r.dist_km+' km · ' : ''}${r.rx_locator} · ${r.mode}</span>
+      </div>`).join('');
+  }catch(e){}
+}
+
 loadPropagation();
 loadSpots();
+loadBeacons();
+loadPSK();
 setInterval(loadPropagation, 5 * 60 * 1000);   // solaire : lent (caches 15 min)
 setInterval(loadSpots, 60 * 1000);             // need list : chaque minute
+setInterval(loadBeacons, 5 * 1000);            // balises : changent toutes les 10 s
+setInterval(loadPSK, 3 * 60 * 1000);           // PSK Reporter : cache serveur 3 min
 </script>
 </body>
 </html>
