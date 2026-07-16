@@ -29,7 +29,8 @@ CORPUS = [
         'name': 'REF Rallye des Points Hauts (PDF local, français)',
         'file': os.path.join('..', 'reg_rph_fr_20250312.pdf'),
         'expect': [
-            {'path': 'date_rule', 'equals': 'first_saturday_july'},
+            # _14h optionnel : le RPH démarre à 14h00 UTC, la précision est un plus
+            {'path': 'date_rule', 'matches': r'^first_saturday_july(_14h)?$'},
             {'path': 'organizer', 'matches': 'REF'},
             {'path': 'modes', 'contains': ['SSB']},
             {'path': 'log_format', 'equals': 'EDI'},

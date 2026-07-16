@@ -18,10 +18,19 @@ MODES_NUMERIQUES = ['FT8','FT4','JS8','WSPR','PSK','RTTY','DIGI','DATA','MFSK']
 
 
 # ─── UTILS ───────────────────────────────────────────────────────────────────
-# Python 3.13 durcit la validation des certificats et rejette plusieurs sites
-# radioamateur (F5LEN, HamQTH, DXMaps... : "Basic Constraints of CA cert not
-# marked critical"). Repli en non-vérifié UNIQUEMENT après échec SSL : ce sont
-# des données publiques en lecture seule, aucune donnée sensible n'y transite.
+# Python 3.13 active VERIFY_X509_STRICT par défaut, ce qui rejette le certificat
+# racine des antivirus interceptant le HTTPS (Avast Web Shield : "Basic
+# Constraints of CA cert not marked critical") — et donc TOUTES les requêtes
+# HTTPS sur ces machines. SSL_CTX garde la vérification complète des certificats
+# (racine Avast présente dans le magasin Windows) mais retire seulement le mode
+# strict, i.e. le comportement de Python <= 3.12. À passer en context= sur tout
+# urlopen HTTPS du projet.
+SSL_CTX = _ssl.create_default_context()
+if hasattr(_ssl, 'VERIFY_X509_STRICT'):
+    SSL_CTX.verify_flags &= ~_ssl.VERIFY_X509_STRICT
+
+# Repli en non-vérifié UNIQUEMENT après échec SSL (vrais certificats cassés de
+# certains sites radioamateur) : données publiques en lecture seule.
 _ssl_noverify = _ssl.create_default_context()
 _ssl_noverify.check_hostname = False
 _ssl_noverify.verify_mode = _ssl.CERT_NONE
@@ -31,7 +40,7 @@ def fetch_url(url, timeout=10):
         'User-Agent': 'Mozilla/5.0 (compatible; RadioContestAI/2.0)',
     })
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
             charset = resp.headers.get_content_charset() or 'utf-8'
             return resp.read().decode(charset, errors='replace')
     except urllib.error.URLError as e:

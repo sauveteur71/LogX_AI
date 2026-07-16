@@ -14,7 +14,7 @@ import time
 import socket
 
 import rules
-from utils import PORT, CURRENT_YEAR, locator_to_latlon, haversine
+from utils import PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX
 from contest_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
                                  delete_custom_contest)
@@ -956,7 +956,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         },
                         method='POST'
                     )
-                    with urllib.request.urlopen(req, timeout=120) as resp:
+                    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
                         result = resp.read()
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/json')
@@ -985,7 +985,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         },
                         method='POST'
                     )
-                    with urllib.request.urlopen(req, timeout=120) as resp:
+                    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
                         oai_data = json.loads(resp.read())
                     # Normaliser en format Anthropic
                     text = oai_data.get('choices', [{}])[0].get('message', {}).get('content', '')
@@ -1014,7 +1014,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         headers={'Content-Type': 'application/json'},
                         method='POST'
                     )
-                    with urllib.request.urlopen(req, timeout=120) as resp:
+                    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
                         gem_data = json.loads(resp.read())
                     text = gem_data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
