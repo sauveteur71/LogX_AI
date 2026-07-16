@@ -496,24 +496,30 @@ CONTEST_DEFINITIONS = {
         'log_format': 'CABRILLO', 'log_deadline': 'second_monday_after',
     },
     'EU_HF_CHAMP': {
+        # Recoupé le 16/07/2026 avec le PDF officiel 2026 (règles mises à jour
+        # le 30/06/2026) via 🤖 ANALYSER UN RÈGLEMENT — anciennes URLs lea.hamradio.si en 404.
         'name': 'European HF Championship',
-        'organizer': 'SCC (Slovénie)',
-        'check_url': 'https://lea.hamradio.si/scc/euhfc/euhfcrules.htm',
-        'rules_url': 'https://lea.hamradio.si/scc/euhfc/euhfcrules.htm',
+        'organizer': 'Slovenia Contest Club',
+        'check_url': 'https://euhf.s5cc.eu/',
+        'rules_url': 'https://euhf.s5cc.eu/rules/euhfc_rules_latest.pdf',
         'date_rule': 'first_saturday_august_12h',
         'duration_h': 12, 'start_utc': '12:00',
         'bands': ['1.8','3.5','7','14','21','28'], 'modes': ['SSB','CW'],
-        'exchange': 'RS(T) + 2 derniers chiffres de l\'année de 1re licence',
+        'exchange': 'RS(T) + 2 derniers chiffres de l\'année de 1re licence de l\'opérateur',
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':1}],
-                'multiplier': {'kind':'zone_dxcc'},
+                'validity': 'is_eu',
+                'validity_fail_explanation': 'Station {dx_base} hors Europe — seuls les QSO avec l\'Europe comptent en EUHFC',
             },
-            'unit': 'QSO × années de licence par bande',
-            'note': 'Multiplicateur réel : années de 1re licence distinctes par bande — non modélisable au spot, approximé zone/DXCC.',
+            'unit': 'QSO × années de 1re licence distinctes par bande',
+            'note': 'Multiplicateur = nombres à 2 chiffres distincts reçus en échange, une fois par bande '
+                    'tous modes confondus — inconnaissable avant le QSO, aucun mult affiché au spot.',
         },
-        'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
-        'notes': 'Concours européen — 12 h intenses, une seule journée.',
+        'log_format': 'CABRILLO', 'log_deadline': '48_hours_after',
+        'notes': 'Concours européen — 12 h intenses (12:00–24:00 UTC), une seule journée. Single-Op uniquement. '
+                 'Self-spotting autorisé (règles 2026). Max 10 changements bande/mode par heure (sauf cat. UNLIMITED). '
+                 'Log sous 48 h (lundi 23h59 UTC), upload web uniquement.',
     },
     'RUSSIAN_DX': {
         'name': 'Russian DX Contest',
