@@ -1,34 +1,32 @@
 {
-  "_comment": "Configuration RadioContest AI — F6KQJ Rallye des Points Hauts 2026",
-
+  "_comment": "Fichier d'EXEMPLE — copie-le en config.json et personnalise-le. config.json n'est pas suivi par git.",
   "station": {
-    "callsign": "F6KQJ",
-    "callsign_portable": "F6KQJ/P",
-    "locator": "JN15XC",
-    "city": "Chaspinhac",
-    "department": "Haute-Loire",
+    "callsign": "F4ABC",
+    "callsign_portable": "F4ABC/P",
+    "locator": "JN18DU",
+    "city": "Ville",
+    "department": "Département",
     "country": "France",
     "dxcc": "F",
     "continent": "EU",
-    "latitude": 45.10320,
-    "longitude": 3.93007,
+    "latitude": 48.7,
+    "longitude": 2.3,
     "power_watts": 100,
     "power_class": "LP",
     "antennas": {
-      "vhf_144": "Yagi 6 el sur pylone remorque F4GLD",
-      "vhf_432": "Yagi 11 el sur pylone remorque F4GLD"
+      "vhf_144": "Yagi 9 el",
+      "vhf_432": "Yagi 19 el"
     },
-    "operator_name": "Olivier PARRIAUX",
-    "operator_callsign": "F4GLD",
-    "operator_email": "f4gld@hotmail.fr",
-    "club": "F6KQJ",
-    "club_name": "Radio-Club F6KQJ",
+    "operator_name": "Prénom NOM",
+    "operator_callsign": "F4ABC",
+    "operator_email": "ton-email@exemple.fr",
+    "club": "Radio-Club",
+    "club_name": "Radio-Club",
     "section": "MOMB",
     "log_software": "RadioContest AI v3.0 - F6KQJ",
     "log_format": "EDI",
     "record_dx_km": 0
   },
-
   "contest": {
     "id": "REF_RPH",
     "name": "Rallye des Points Hauts — Trophée Micro-Ondes 2026",
@@ -36,8 +34,15 @@
     "end_date": "20260705",
     "start_utc": "1400",
     "end_utc": "1400",
-    "bands": ["144", "432"],
-    "modes": ["SSB", "CW", "FM"],
+    "bands": [
+      "144",
+      "432"
+    ],
+    "modes": [
+      "SSB",
+      "CW",
+      "FM"
+    ],
     "locator": "JN15XC",
     "log_submit_url": "http://concours.r-e-f.org/tools/upload/thf.php",
     "log_deadline": "Mercredi 8 juillet 2026 minuit",
@@ -45,37 +50,33 @@
     "serial_per_band": true,
     "notes": "Alimentation 100% autonome. Modes : SSB, CW, FM. 1 fichier EDI par bande."
   },
-
   "api": {
     "anthropic_key": "REMPLACE_PAR_TA_CLE",
     "model": "claude-sonnet-4-6",
     "max_tokens": 4096
   },
-
   "server": {
     "port": 8080,
     "auto_open_browser": true,
     "refresh_interval_minutes": 2
   },
-
   "operators": [
-    {"id": "OP1", "callsign": "F4GLD", "name": "Olivier PARRIAUX", "role": "Coordinateur"},
-    {"id": "OP2", "callsign": "F1OMQ", "name": "Didier", "role": "Responsable technique"},
-    {"id": "OP3", "callsign": "F1HAW", "name": "Jean ACHARD", "role": "Logistique"},
-    {"id": "OP4", "callsign": "F4WGK", "name": "Stephane", "role": "Operateur phonie DX"},
-    {"id": "OP5", "callsign": "F4ASS", "name": "Sebastien GACHE", "role": "Operateur"}
+    {
+      "id": "OP1",
+      "callsign": "F4ABC",
+      "name": "Prénom NOM",
+      "role": "Opérateur"
+    }
   ],
-
   "frequencies": {
     "calling_frequencies": {
-      "144_ssb_calling": 144.300,
-      "144_ssb_activity": 144.200,
-      "144_fm_calling": 145.500,
-      "432_ssb_calling": 432.200,
-      "432_fm_calling": 433.500
+      "144_ssb_calling": 144.3,
+      "144_ssb_activity": 144.2,
+      "144_fm_calling": 145.5,
+      "432_ssb_calling": 432.2,
+      "432_fm_calling": 433.5
     }
   },
-
   "clusters": {
     "auto_select": true,
     "vhf_clusters": [
@@ -92,13 +93,12 @@
       "on4kst_vhf": "https://www.on4kst.info/chat/start.php?band=1"
     }
   },
-
   "site": {
-    "name": "Chaspinhac — Terrain club parapente",
-    "address": "Chaspinhac, 43700",
-    "gps": "45.10320, 3.93007",
-    "google_maps": "https://maps.app.goo.gl/nDUp6AkoeodaFXkKA",
-    "access": "Route D103 depuis Le Puy-en-Velay direction Chaspinhac",
-    "notes": "Pylone remorque F4GLD avec rotor deja installe. Groupe electrogene F1HAW."
+    "name": "Mon site",
+    "address": "",
+    "gps": "",
+    "google_maps": "",
+    "access": "",
+    "notes": ""
   }
 }

@@ -107,7 +107,10 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 3 http://localhost:8080/log/status)",
       "Bash(curl -s --max-time 3 -i http://localhost:8080/rules/export_custom)",
       "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -match 'serveur\\\\.py' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; \"serveur arrêté\")",
-      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -match 'serveur' } | ForEach-Object { \"PID $\\($_.ProcessId\\) démarré $\\($_.CreationDate\\) cwd?: $\\($_.CommandLine\\)\" })"
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { $_.CommandLine -match 'serveur' } | ForEach-Object { \"PID $\\($_.ProcessId\\) démarré $\\($_.CreationDate\\) cwd?: $\\($_.CommandLine\\)\" })",
+      "Bash(python -c \"import json; c=json.load\\(open\\('concours/config.json'\\)\\); print\\({k:\\(v[:12]+'...' if isinstance\\(v,str\\) and len\\(v\\)>20 else v\\) for k,v in c.items\\(\\)}\\)\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
