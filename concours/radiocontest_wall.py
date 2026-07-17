@@ -82,6 +82,7 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
             'op': str(e.get('operator', '') or e.get('my_call', '') or ''),
             'time': e.get('time', ''), 'date': e.get('date', ''),
             'locator': e.get('locator', ''), 'points': e.get('points', 0) or 0,
+            'freq': str(e.get('freq', '') or ''),
         })
     # Si des QSO n'ont pas de date exploitable, compléter la liste récente
     if len(recents) < recent:
@@ -94,7 +95,8 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
                 'band': str(e.get('band', '')), 'mode': str(e.get('mode', '')).upper(),
                 'op': str(e.get('operator', '') or ''), 'time': e.get('time', ''),
                 'date': e.get('date', ''), 'locator': e.get('locator', ''),
-                'points': e.get('points', 0) or 0})
+                'points': e.get('points', 0) or 0,
+                'freq': str(e.get('freq', '') or '')})
             if len(recents) >= recent:
                 break
 

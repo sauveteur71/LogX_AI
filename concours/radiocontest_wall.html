@@ -94,6 +94,15 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
   let lastTopKey='';
   function fmtTime(t){ return (t||'').slice(0,5); }
 
+  // Noms de bande radioamateur — COPIE de BAND_LABELS (radiocontest_logbook.js).
+  // Le mur est autonome (ne charge pas logbook.js) : garder synchro avec la source.
+  const BAND_LABELS = {
+    '1.8':'160m','3.5':'80m','7':'40m','14':'20m','21':'15m','28':'10m',
+    '50':'6m','70':'4m','144':'2m','432':'70cm','1296':'23cm',
+    '2320':'13cm','3400':'9cm','5760':'6cm','10368':'3cm','24048':'6mm','47088':'4mm',
+  };
+  function bandLabel(b){ return BAND_LABELS[b] || (b + ' MHz'); }
+
   function render(d){
     document.getElementById('wCall').textContent = d.callsign || '—';
     document.getElementById('wContest').textContent = (d.contest||'').replace(/_/g,' ');
@@ -117,7 +126,7 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
         <div class="qrow${i===0&&isNew?' flash':''}">
           <span class="q-time">${fmtTime(q.time)}</span>
           <span class="q-call">${q.call}</span>
-          <span class="q-band">${q.band} MHz</span>
+          <span class="q-band">${bandLabel(q.band)}${q.freq?` <small style="opacity:.6">${q.freq}</small>`:''}</span>
           <span class="q-mode">${q.mode}</span>
           <span class="q-op">${q.op||''}</span>
         </div>`).join('');
@@ -127,7 +136,7 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
     const pb=Object.entries(d.per_band||{});
     const maxB=Math.max(1,...pb.map(([,n])=>n));
     document.getElementById('wBands').innerHTML=pb.map(([b,n])=>`
-      <div class="bar-row"><span class="bar-lbl">${b}</span>
+      <div class="bar-row"><span class="bar-lbl">${bandLabel(b)}</span>
         <span class="bar-wrap"><span class="bar-fill" style="width:${Math.round(100*n/maxB)}%"></span></span>
         <span class="bar-n">${n}</span></div>`).join('') || '<span style="color:var(--muted)">—</span>';
 

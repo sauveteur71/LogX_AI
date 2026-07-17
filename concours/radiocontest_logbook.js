@@ -50,7 +50,7 @@ let myOp = 'OP1';
 let currentContest = window._initContest || 'REF_RPH';
 let currentBand    = (['ARRL_FD','ARRL_DX_SSB','ARRL_DX_CW','CQ_WW_SSB','CQ_WW_CW',
                        'CQ_WPX_SSB','CQ_WPX_CW','REF_CDF_HF_SSB','REF_CDF_HF_CW','IARU_HF']
-                      .includes(currentContest)) ? '20' : '144';
+                      .includes(currentContest)) ? '14' : '144';
 let currentMode = 'SSB';
 
 // ─── FORMATS D'ÉCHANGE PAR CONCOURS ─────────────────────────────────────────
@@ -1129,9 +1129,50 @@ function setBand(el){
   document.querySelectorAll('#bandSelect .bm-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   currentBand = el.dataset.val;
+  setFreqForBand(currentBand);
   updateSerialDisplay();
   if(typeof refreshBandMap === 'function') refreshBandMap();  // spots de la nouvelle bande
   document.getElementById('inputCall').focus();
+}
+
+// Pré-remplit le champ FRÉQUENCE : fréquence réelle de la radio (CAT) si dispo,
+// sinon fréquence d'appel par défaut de la bande.
+function setFreqForBand(band){
+  const el = document.getElementById('inputFreq');
+  if(!el) return;
+  if(typeof rigState === 'object' && rigState && rigState.enabled && rigState.freq_khz > 0){
+    el.value = (rigState.freq_khz / 1000).toFixed(3);
+  } else {
+    el.value = BAND_FREQ[band] || '';
+  }
+}
+
+// L'opérateur tape une fréquence → sélectionne automatiquement la bonne bande.
+function onFreqInput(){
+  const el = document.getElementById('inputFreq');
+  if(!el) return;
+  const b = bandFromFreq(el.value);
+  if(b && b !== currentBand){
+    const btn = document.querySelector(`#bandSelect .bm-btn[data-val="${b}"]`);
+    if(btn){
+      document.querySelectorAll('#bandSelect .bm-btn').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      currentBand = b;
+      updateSerialDisplay();
+      if(typeof refreshBandMap === 'function') refreshBandMap();
+    }
+  }
+}
+
+// Bouton 📻 : force la lecture de la fréquence radio (CAT) dans le champ.
+function freqFromRig(){
+  const el = document.getElementById('inputFreq');
+  if(el && typeof rigState === 'object' && rigState && rigState.freq_khz > 0){
+    el.value = (rigState.freq_khz / 1000).toFixed(3);
+    onFreqInput();
+  } else {
+    notify('Radio non connectée (CAT) — saisis la fréquence à la main.');
+  }
 }
 
 function setMode(el){
@@ -1151,6 +1192,24 @@ const BAND_LABELS = {
   '2320':'13cm','3400':'9cm','5760':'6cm','10368':'3cm',
   '24048':'6mm','47088':'4mm',
 };
+// Fréquence d'appel par défaut (MHz) par bande — pré-remplit le champ FRÉQUENCE
+// quand on change de bande (sauf si le CAT donne la fréquence réelle).
+const BAND_FREQ = {
+  '1.8':'1.843','3.5':'3.650','7':'7.130','14':'14.150','21':'21.250','28':'28.400',
+  '50':'50.150','70':'70.200','144':'144.300','432':'432.200','1296':'1296.200',
+  '2320':'2320.200','3400':'3400.200','5760':'5760.200','10368':'10368.200',
+  '24048':'24048.200','47088':'47088.200',
+};
+// Fréquence (MHz) → clé de bande interne, via les plages _BM_RANGE. Permet de
+// sélectionner automatiquement la bonne bande quand l'opérateur saisit une freq.
+function bandFromFreq(freqMHz){
+  const f = parseFloat(freqMHz);
+  if(!isFinite(f)) return null;
+  for(const [b, r] of Object.entries(_BM_RANGE)){
+    if(f >= r[0] && f <= r[1]) return b;
+  }
+  return null;
+}
 const BANDS_THF = ['144','432','1296','2320','3400','5760','10368','24048','47088']; // 144 MHz → 47 GHz
 const BANDS_HF  = ['1.8','3.5','7','14','21','28'];
 const ALL_BANDS = ['1.8','3.5','7','14','21','28','50','70','144','432','1296','2320','3400','5760','10368','24048','47088'];
@@ -1218,6 +1277,7 @@ function renderBandButtons(contest){
     `<button class="bm-btn${i===0?' active':''}" data-val="${b}" onclick="setBand(this)">${BAND_LABELS[b]||b+' MHz'}</button>`
   ).join('');
   currentBand = visibleBands[0];
+  setFreqForBand(currentBand);
 }
 
 // Correspondance mode affiché → clé toggle configuration
@@ -1472,11 +1532,12 @@ async function submitQSO(){
   const dist = (loc && loc.length >= 6) ? calcDist(loc) : 0;
   const pts  = calcPoints(loc, currentBand, call, currentMode);
 
+  const freq = (document.getElementById('inputFreq')?.value || '').trim();
   const qso = {
     id: Date.now(),
     date: nowDateUTC(),
     time: nowUTC(),
-    call, band: currentBand, mode: currentMode,
+    call, band: currentBand, mode: currentMode, freq,
     rst_sent: rstSent, num_sent: serial,
     rst_rcvd: rstRcvd, num_rcvd: numRcvd,
     locator: loc, dist, points: pts,
@@ -1564,6 +1625,7 @@ function clearForm(){
   document.getElementById('inputRSTrcvd').value = '59';
   document.getElementById('inputNumRcvd').value = '';
   document.getElementById('inputLocator').value = '';
+  setFreqForBand(currentBand);   // ré-affiche la fréquence d'appel/CAT de la bande
   document.getElementById('locHint').style.display = 'none';
   document.getElementById('dupWarn').classList.remove('show');
   const _cbh = document.getElementById('crossBandHint'); if(_cbh) _cbh.classList.remove('show');
@@ -1759,7 +1821,7 @@ function renderLog(){
       <td class="td-num">${incomplete?'<span class=\"incomplete-flag\" title=\"QSO incomplet — champ(s) manquant(s), à corriger\">⚠️</span>':''}${qsoLog.indexOf(q)+1}</td>
       <td class="td-time">${q.time||'—'}</td>
       <td class="td-call">${q.call||'—'}</td>
-      <td class="td-band">${BAND_LABELS[q.band]||q.band||'—'}</td>
+      <td class="td-band"${q.freq?` title="${q.freq} MHz"`:''}>${BAND_LABELS[q.band]||q.band||'—'}${q.freq?`<span style="display:block;font-size:10px;color:var(--muted);font-weight:400">${q.freq}</span>`:''}</td>
       <td class="td-mode">${q.mode||'—'}</td>
       <td class="td-sent">${q.rst_sent||'—'}/${q.num_sent||'—'}</td>
       <td class="td-rcvd">${q.rst_rcvd||'—'}/${q.num_rcvd||'—'}</td>
@@ -2259,9 +2321,11 @@ let rigState = {enabled:false, mode:'', freq_khz:0};
 function refreshRig(){
   fetch('/rig/state').then(r=>r.ok?r.json():null).then(d=>{
     const panel = document.getElementById('rigPanel');
-    if(!d || !d.enabled){ rigState.enabled=false; if(panel) panel.style.display='none'; return; }
+    const freqBtn = document.getElementById('freqRigBtn');
+    if(!d || !d.enabled){ rigState.enabled=false; if(panel) panel.style.display='none'; if(freqBtn) freqBtn.style.display='none'; return; }
     rigState.enabled = true;
     if(panel) panel.style.display = 'block';
+    if(freqBtn) freqBtn.style.display = '';
     const dot = document.getElementById('rigDot');
     if(d.ok){
       rigState.mode = d.mode; rigState.freq_khz = d.freq_khz;
@@ -2270,6 +2334,9 @@ function refreshRig(){
       if(dot) dot.classList.add('on');
       // Suivi automatique : la bande/le mode de saisie suivent la radio
       syncBandModeFromRig(d.freq_khz, d.mode);
+      // La fréquence saisie suit la radio en temps réel (source de vérité = CAT)
+      const fEl = document.getElementById('inputFreq');
+      if(fEl && d.freq_khz > 0) fEl.value = (d.freq_khz / 1000).toFixed(3);
       if(typeof updateKeyerPanels==='function') updateKeyerPanels();
     } else {
       document.getElementById('rigFreq').textContent = 'rigctld injoignable';
@@ -3576,7 +3643,9 @@ function importADIF(text){
   records.forEach(rec => {
     const get = tag => { const m = rec.match(new RegExp('<'+tag+':[^>]*>([^<]*)', 'i')); return m ? m[1].trim() : ''; };
     const call = get('CALL').toUpperCase();
-    const band = adifBandToMhz(get('BAND'));
+    const freq = get('FREQ');                       // MHz (ADIF)
+    // Bande depuis <BAND> ; à défaut, dérivée de la fréquence
+    const band = adifBandToMhz(get('BAND')) || (freq ? bandFromFreq(freq) : '');
     const mode = get('MODE').toUpperCase() || 'SSB';
     const qsoDate = get('QSO_DATE');       // YYYYMMDD
     const timeOn  = (get('TIME_ON')+'0000').slice(0,4); // HHMM
@@ -3591,7 +3660,7 @@ function importADIF(text){
     const pts  = calcPoints(loc, band, call, mode);
     const qso  = {
       id: Date.now() + imported,
-      date, time, call, band, mode,
+      date, time, call, band, mode, freq,
       rst_sent, num_sent:'', rst_rcvd, num_rcvd:'',
       locator: loc, dist, points: pts,
       operator: myOp, my_call: myCall, my_locator: myLocator, contest: currentContest,
@@ -3617,10 +3686,8 @@ function triggerImport(){
 
 // ─── EXPORT ON4KST ────────────────────────────────────────────────────────────
 function exportON4KST(){
-  const freq = currentBand==='144' ? '144.300'
-    : currentBand==='432'  ? '432.200'
-    : currentBand==='1296' ? '1296.200'
-    : currentBand+' MHz';
+  const entered = (document.getElementById('inputFreq')?.value || '').trim();
+  const freq = entered || BAND_FREQ[currentBand] || (currentBand+' MHz');
   const msg = `${myCall} ${myLocator} ${freq} ${currentMode||'SSB'} CQ RPH`;
   navigator.clipboard.writeText(msg).then(()=>{
     const btn = document.querySelector('[onclick="exportON4KST()"]');

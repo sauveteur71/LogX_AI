@@ -128,7 +128,7 @@ def build_adif(qsos, cfg=None):
             _adif_field('qso_date', date),
             _adif_field('time_on', time),
             _adif_field('band', ADIF_BAND.get(_norm_band(q), '')),
-            _adif_field('freq', ''),
+            _adif_field('freq', str(q.get('freq', '') or '')),
             _adif_field('mode', _norm_mode(q)),
             _adif_field('rst_sent', q.get('rst_sent', '')),
             _adif_field('rst_rcvd', q.get('rst_rcvd', '')),
