@@ -286,6 +286,40 @@ def upload_clublog(cfg, adif):
     return {'ok': False, 'service': 'ClubLog', 'error': resp[:200].strip()}
 
 
+# ─── CLUB LOG LIVE STREAM (expédition : QSO poussés en temps réel) ────────────
+
+def realtime_push(cfg, qso):
+    """Pousse UN QSO vers le flux temps réel Club Log (apparaît sur le live
+    stream de l'expédition). Nécessite les identifiants ClubLog + une clé API.
+    Retourne {ok, ...} ; ne lève jamais (appel fire-and-forget)."""
+    s = qsl_settings(cfg)
+    if not s['clublog_enabled']:
+        return {'ok': False, 'error': 'ClubLog non configuré'}
+    try:
+        import radiocontest_export as export
+        adif = export.build_adif([qso], cfg or {})
+    except Exception as e:
+        return {'ok': False, 'error': f'ADIF : {e}'}
+    fields = {
+        'email': s['clublog_email'], 'password': s['clublog_password'],
+        'callsign': s['clublog_callsign'] or
+                    ((cfg or {}).get('callsign_contest') or (cfg or {}).get('callsign') or '').upper(),
+        'api': s['clublog_api_key'], 'adif': adif,
+    }
+    try:
+        body = urllib.parse.urlencode(fields).encode('utf-8')
+        req = urllib.request.Request(
+            'https://clublog.org/realtime.php', data=body,
+            headers={'Content-Type': 'application/x-www-form-urlencoded',
+                     'User-Agent': 'RadioContestAI'})
+        with urllib.request.urlopen(req, timeout=20, context=_ssl_ctx()) as r:
+            resp = r.read().decode('utf-8', 'replace')[:150]
+    except Exception as e:
+        return {'ok': False, 'error': f'ClubLog live injoignable : {e}'}
+    ok = 'OK' in resp.upper() or 'ACCEPTED' in resp.upper() or resp.strip() == ''
+    return {'ok': ok, 'response': resp.strip()}
+
+
 # ─── ÉTAT / HORODATAGE ────────────────────────────────────────────────────────
 
 _STAMP_FILE = 'qsl_sync.json'
