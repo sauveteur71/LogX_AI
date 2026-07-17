@@ -59,6 +59,77 @@ if __name__ == '__main__':
     from radiocontest_dxcc import update_cty_if_stale
     threading.Thread(target=update_cty_if_stale, daemon=True).start()
 
+    # Scoreboard en direct + sauvegarde cloud : deux threads de fond qui lisent
+    # la config à chaud (activés/intervalles réglés dans CONFIG). Inactifs tant
+    # que rien n'est configuré ; ne perturbent jamais le serveur en cas d'échec.
+    def _scoreboard_loop():
+        import time as _t
+        import radiocontest_http as h
+        import radiocontest_scoreboard as sb
+        import radiocontest_storage as st
+        while True:
+            _t.sleep(60)
+            try:
+                with h.config_lock:
+                    cfg = dict(h.current_config)
+                s = sb.scoreboard_settings(cfg)
+                if not s['enabled']:
+                    continue
+                last = sb.status(cfg).get('last', {}).get('last')
+                # Respecte l'intervalle (le stamp est en 'YYYY-MM-DD HH:MM')
+                import datetime as _dt
+                due = True
+                if last:
+                    try:
+                        age = (_dt.datetime.utcnow()
+                               - _dt.datetime.strptime(last, '%Y-%m-%d %H:%M')).total_seconds()
+                        due = age >= s['interval_min'] * 60 - 5
+                    except Exception:
+                        due = True
+                if due:
+                    with st.log_lock:
+                        log_copy = list(st.shared_log)
+                    r = sb.push(cfg, log_copy)
+                    if r.get('ok'):
+                        print(f"[SCOREBOARD] score {r['score']} / {r['qso']} QSO publie")
+            except Exception as _e:
+                print(f"[SCOREBOARD] {_e}")
+
+    def _backup_loop():
+        import time as _t
+        import radiocontest_http as h
+        import radiocontest_backup as bk
+        import radiocontest_storage as st
+        import datetime as _dt
+        while True:
+            _t.sleep(120)
+            try:
+                with h.config_lock:
+                    cfg = dict(h.current_config)
+                s = bk.backup_settings(cfg)
+                if not s['enabled']:
+                    continue
+                last = bk.status(cfg).get('last', {}).get('last')
+                due = True
+                if last:
+                    try:
+                        age = (_dt.datetime.utcnow()
+                               - _dt.datetime.strptime(last, '%Y-%m-%d %H:%M')).total_seconds()
+                        due = age >= s['interval_min'] * 60 - 5
+                    except Exception:
+                        due = True
+                if due:
+                    with st.log_lock:
+                        log_copy = list(st.shared_log)
+                    r = bk.run_backup(cfg, log_copy)
+                    if r.get('ok'):
+                        print(f"[BACKUP] {len(r['files'])} fichiers -> {r['folder']}")
+            except Exception as _e:
+                print(f"[BACKUP] {_e}")
+
+    threading.Thread(target=_scoreboard_loop, daemon=True).start()
+    threading.Thread(target=_backup_loop, daemon=True).start()
+
     # Pont WSJT-X : écouteur UDP FT8/FT4 démarré si activé dans config.json
     # (ou plus tard à chaud dès qu'un /wsjtx/state le voit activé côté client).
     try:
