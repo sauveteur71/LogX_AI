@@ -186,6 +186,29 @@ def test_wall_state_enrichissement_et_champs():
     assert st2['wall_fields']['name'] is True
 
 
+def test_cluster_spot_settings():
+    import radiocontest_clusters as cl
+    s = cl.cluster_spot_settings({'callsign_contest': 'F6KQJ'})
+    assert s['enabled'] is False           # désactivé par défaut
+    assert s['login'] == 'F6KQJ'           # login = indicatif
+    assert s['host'] and s['port'] == 7300
+    s2 = cl.cluster_spot_settings({'cluster_spot_enabled': '1', 'callsign': 'f4gld',
+                                   'cluster_spot_host': 'x.node', 'cluster_spot_port': '8000'})
+    assert s2['enabled'] is True and s2['login'] == 'F4GLD'
+    assert s2['host'] == 'x.node' and s2['port'] == 8000
+
+
+def test_publish_self_spot_validation_et_reseau():
+    import radiocontest_clusters as cl
+    # Validation d'entrée : jamais d'exception, erreurs explicites
+    assert cl.publish_self_spot('h', 7300, '', 'F6KQJ', 144300)['ok'] is False
+    assert cl.publish_self_spot('h', 7300, 'F6KQJ', 'F6KQJ', 0)['ok'] is False
+    assert cl.publish_self_spot('h', 7300, 'F6KQJ', 'F6KQJ', 'abc')['ok'] is False
+    # Hôte injoignable : dégradation propre (pas de spam réseau réel)
+    r = cl.publish_self_spot('127.0.0.1', 1, 'F6KQJ', 'F6KQJ', 144300.0, 'CQ', timeout=1)
+    assert r['ok'] is False and r['error']
+
+
 def test_clublog_realtime_non_configure():
     import radiocontest_qsl as qsl
     r = qsl.realtime_push({}, {'call': 'DL1AA', 'band': '14', 'mode': 'CW'})

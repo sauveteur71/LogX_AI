@@ -1205,7 +1205,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cfg_snap = self._cfg_snapshot()
             safe = {k: cfg_snap.get(k, '') for k in (
                 'callsign', 'callsign_contest', 'locator', 'contest',
-                'expedition_mode', 'clublog_live')}
+                'expedition_mode', 'clublog_live', 'cluster_spot_enabled')}
             self._json(safe)
             return
 
@@ -1658,6 +1658,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     print(f"[ROTOR] Pointe {res['azimuth']} deg")
             else:
                 res = rotor.stop(host, port)
+            self._json(res, 200 if res.get('ok') else 502)
+            return
+
+        # Self-spot : publier son propre spot sur un cluster DX (avec sa fréquence)
+        if self.path == '/cluster/spot':
+            import radiocontest_clusters as clusters
+            cfg_now = self._cfg_snapshot()
+            settings = clusters.cluster_spot_settings(cfg_now)
+            if not settings['enabled']:
+                self._json({'ok': False, 'error': 'Self-spot désactivé — '
+                            'active-le dans CONFIG (section DX CLUSTER)'}, 400)
+                return
+            if not settings['login']:
+                self._json({'ok': False, 'error': 'Indicatif manquant '
+                            '(configure ta station dans CONFIG)'}, 400)
+                return
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            # Fréquence en kHz (freq_khz direct, ou freq_mhz * 1000)
+            freq_khz = payload.get('freq_khz') or 0
+            if not freq_khz and payload.get('freq_mhz'):
+                try:
+                    freq_khz = float(payload['freq_mhz']) * 1000
+                except (TypeError, ValueError):
+                    freq_khz = 0
+            if not freq_khz:
+                self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
+                return
+            # L'indicatif spotté = celui de l'opérateur (login), JAMAIS depuis le body.
+            res = clusters.publish_self_spot(
+                settings['host'], settings['port'], settings['login'],
+                settings['login'], freq_khz, str(payload.get('comment', '')))
             self._json(res, 200 if res.get('ok') else 502)
             return
 

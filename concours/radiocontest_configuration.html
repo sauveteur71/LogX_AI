@@ -872,6 +872,22 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="input-note">Nécessite les identifiants ClubLog (section QSL ci-dessus)</div>
         </div>
         <div class="form-group">
+          <label>AUTO-SPOT DX CLUSTER (self-spot)</label>
+          <select id="cluster_spot_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé — bouton 📡 SELF-SPOT dans le logbook</option>
+          </select>
+          <div class="input-note">Publie ton indicatif + ta fréquence sur le cluster. Login = ton indicatif. ⚠️ Interdit par certains règlements en single-op.</div>
+        </div>
+        <div class="form-group">
+          <label>NŒUD CLUSTER (host : port)</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="cluster_spot_host" placeholder="dxc.ve7cc.net" value="dxc.ve7cc.net" style="flex:1">
+            <input type="number" id="cluster_spot_port" placeholder="7300" value="7300" style="width:90px">
+          </div>
+          <div class="input-note">VE7CC accepte le spot avec le seul indicatif. D'autres nœuds exigent une inscription.</div>
+        </div>
+        <div class="form-group">
           <label>ÉCRAN MURAL (grand écran)</label>
           <a href="radiocontest_wall.html" target="_blank" class="btn btn-secondary" style="display:inline-block;padding:9px 16px;text-decoration:none;margin-top:2px">🖥️ OUVRIR L'ÉCRAN MURAL</a>
           <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran)</div>
@@ -1389,6 +1405,9 @@ async function mergeExternalContests(){
 function applyConfigToForm(cfg) {
   const set = (id, val) => { const el = document.getElementById(id); if(el && val !== undefined && val !== null) el.value = val; };
   if(typeof applyWallFields === 'function') applyWallFields(cfg.wall_fields);
+  set('cluster_spot_enabled', cfg.cluster_spot_enabled);
+  set('cluster_spot_host',    cfg.cluster_spot_host);
+  set('cluster_spot_port',    cfg.cluster_spot_port);
   set('callsign',        cfg.callsign);
   set('callsign_contest',cfg.callsign_contest || cfg.callsign);
   set('locator',         cfg.locator);
@@ -2217,6 +2236,9 @@ function saveConfig(silent = false) {
     rbn_enabled: document.getElementById('rbn_enabled').value,
     clublog_live: document.getElementById('clublog_live').value,
     expedition_mode: document.getElementById('expedition_mode').value,
+    cluster_spot_enabled: document.getElementById('cluster_spot_enabled').value,
+    cluster_spot_host: document.getElementById('cluster_spot_host').value.trim(),
+    cluster_spot_port: parseInt(document.getElementById('cluster_spot_port').value, 10) || 7300,
     wall_fields: {
       time:    document.getElementById('wf_time').checked,
       flag:    document.getElementById('wf_flag').checked,
@@ -2384,7 +2406,8 @@ function loadSavedConfig() {
     ['eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
      'clublog_callsign','clublog_password','clublog_api_key',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
-     'rbn_enabled','clublog_live','expedition_mode'].forEach(k=>{
+     'rbn_enabled','clublog_live','expedition_mode',
+     'cluster_spot_enabled','cluster_spot_host','cluster_spot_port'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;

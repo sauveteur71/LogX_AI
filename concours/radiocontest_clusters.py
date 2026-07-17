@@ -364,6 +364,98 @@ def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, ti
 
     return spots[:max_spots]
 
+
+# ── SELF-SPOT (publier son propre spot sur un cluster DX) ────────────────────
+def cluster_spot_settings(cfg):
+    """Réglages du self-spot. cfg client prioritaire, repli config.json section
+    'cluster_spot'. Le login cluster = l'indicatif de l'opérateur (jamais un
+    identifiant/secret séparé). Défaut : nœud VE7CC (tolérant au spot)."""
+    cfg = cfg or {}
+
+    def g(key, default=''):
+        v = cfg.get(key)
+        return v if v not in (None, '') else default
+
+    enabled = str(g('cluster_spot_enabled', '')) in ('1', 'true', 'True', 'on', 'yes')
+    login = (g('cluster_spot_login') or g('callsign_contest')
+             or g('callsign') or '').upper()
+    host = g('cluster_spot_host', 'dxc.ve7cc.net')
+    try:
+        port = int(g('cluster_spot_port', 7300) or 7300)
+    except (TypeError, ValueError):
+        port = 7300
+    return {'enabled': enabled, 'host': host, 'port': port, 'login': login}
+
+
+def publish_self_spot(host, port, login_call, spot_call, freq_khz,
+                      comment='', timeout=10):
+    """Publie 'DX <freq_kHz> <call> <comment>' sur un nœud DX Spider.
+
+    ATTENTION : la commande DX attend des kHz (144.300 MHz -> 144300.0).
+    login_call = indicatif de l'opérateur. Lit l'écho du cluster pour confirmer
+    la publication (beaucoup de nœuds n'acceptent le spot que d'utilisateurs
+    enregistrés — on remonte alors le refus). Ne lève jamais d'exception.
+    Retourne {'ok', 'raw', 'error'}."""
+    login_call = (login_call or '').upper().strip()
+    spot_call = (spot_call or '').upper().strip()
+    if not login_call:
+        return {'ok': False, 'raw': '', 'error': 'Indicatif (login cluster) manquant'}
+    if not spot_call:
+        return {'ok': False, 'raw': '', 'error': 'Indicatif a spotter manquant'}
+    try:
+        freq_khz = float(freq_khz)
+    except (TypeError, ValueError):
+        return {'ok': False, 'raw': '', 'error': 'Frequence invalide'}
+    if freq_khz <= 0:
+        return {'ok': False, 'raw': '', 'error': 'Frequence invalide'}
+    comment = (comment or '').replace('\r', ' ').replace('\n', ' ').strip()[:30]
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect((host, int(port)))
+
+        def read_until(patterns, max_wait=5):
+            buf = b''
+            deadline = time.time() + max_wait
+            while time.time() < deadline:
+                try:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    low = buf.lower()
+                    if patterns and any(p in low for p in patterns):
+                        break
+                except socket.timeout:
+                    break
+            return buf.decode('utf-8', errors='replace')
+
+        # Prompt de login -> s'identifier (tolère name/QTH la 1re fois)
+        read_until([b'login', b'call', b'>'], max_wait=5)
+        s.sendall((login_call + '\r\n').encode())
+        time.sleep(1.0)
+        read_until([b'>'], max_wait=3)
+        # Commande de spot DX Spider
+        cmd = f'DX {freq_khz:.1f} {spot_call} {comment}'.strip()
+        s.sendall((cmd + '\r\n').encode())
+        echo = read_until([b'spot', b'sent', b'>'], max_wait=4)
+        try:
+            s.sendall(b'bye\r\n')
+        except OSError:
+            pass
+        s.close()
+        low = echo.lower()
+        if any(k in low for k in ('not allowed', 'permission', 'must register',
+                                  'not registered', 'registration', 'denied',
+                                  'invalid call', 'error')):
+            return {'ok': False, 'raw': echo[-400:],
+                    'error': 'Le noeud a refuse le spot (inscription requise ?)'}
+        print(f"[SELF-SPOT] {login_call} -> DX {freq_khz:.1f} {spot_call} @ {host}")
+        return {'ok': True, 'raw': echo[-400:], 'error': None}
+    except Exception as e:
+        return {'ok': False, 'raw': '', 'error': f'Connexion cluster impossible : {e}'}
+
+
 # ── ON4KST CHAT (telnet, compte requis) ───────────────────────────────────────
 # Accès réservé aux radioamateurs, identifiant + mot de passe personnels.
 # Protocole confirmé jusqu'au prompt "Password:" ; le comportement après
