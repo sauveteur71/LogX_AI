@@ -84,6 +84,15 @@ def flag_emoji(iso2):
     return ''.join(chr(0x1F1E6 + ord(c) - ord('A')) for c in iso2)
 
 
+def flag_for_prefix(prefix):
+    """Préfixe principal DXCC -> {'flag', 'country'(FR)}. '' si inconnu.
+    Sert à énumérer les entités (chasse aux pays)."""
+    info = PREFIX_INFO.get(_ALIAS.get(prefix, prefix))
+    if info:
+        return {'flag': flag_emoji(info[0]), 'country': info[1]}
+    return {'flag': '', 'country': ''}
+
+
 def flag_and_country(call):
     """Indicatif -> {'flag': emoji, 'country': nom FR, 'prefix': clé DXCC}.
 
