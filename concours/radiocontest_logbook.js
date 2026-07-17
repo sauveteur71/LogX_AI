@@ -756,7 +756,44 @@ async function refreshBandMap(){
     if(txMhz && !txDone) rows.push(txRow(txMhz));
     list.innerHTML = rows.length ? rows.join('')
       : '<div class="bm-empty">aucun spot sur cette bande</div>';
+    drawBandscope(spots, rng, txMhz);   // spectre d'activité visuel
   }catch(e){ /* serveur injoignable : band map inchangé */ }
+}
+
+// ─── BANDSCOPE : spectre d'activité de la bande (densité de spots) ────────────
+// Un « scope » sans SDR : chaque spot devient une barre placée à sa fréquence,
+// hauteur selon la priorité, vert = nouveau multiplicateur, ▼ = fréquence radio.
+function drawBandscope(spots, rng, txMhz){
+  const svg = document.getElementById('bandscope');
+  if(!svg) return;
+  if(!rng){ svg.innerHTML = ''; return; }
+  const base = 62, x0 = 4, x1 = 176, span = (rng[1] - rng[0]) || 1;
+  const xf = f => x0 + Math.max(0, Math.min(1, (f - rng[0]) / span)) * (x1 - x0);
+  let g = `<line x1="${x0}" y1="${base}" x2="${x1}" y2="${base}" style="stroke:var(--border)" stroke-width="1"/>`;
+  for(let i = 0; i <= 4; i++){
+    const x = x0 + (x1 - x0) * i / 4;
+    g += `<line x1="${x}" y1="${base}" x2="${x}" y2="${base+3}" style="stroke:var(--border)" stroke-width="0.5"/>`;
+  }
+  for(const s of (spots || [])){
+    const f = parseFloat(s.freq);
+    if(!isFinite(f)) continue;
+    const x = xf(f);
+    const h = s.new_mult ? 50 : Math.max(8, 46 - (s.priority || 3) * 7);
+    const col = s.new_mult ? 'var(--green)' : (_BM_PCOL[s.priority] || 'var(--muted)');
+    const op = s.already_done ? 0.35 : 1;
+    const safeCall = String(s.call || '').replace(/[^A-Z0-9/]/gi, '');
+    g += `<rect class="bs-bar" x="${(x-1).toFixed(1)}" y="${(base-h).toFixed(1)}" width="2" height="${h.toFixed(1)}"`
+       + ` style="fill:${col}" opacity="${op}" onclick="bandmapClick('${safeCall}',${f})">`
+       + `<title>${escHtml(s.call)} ${f.toFixed(3)}</title></rect>`;
+  }
+  if(txMhz && txMhz >= rng[0] && txMhz <= rng[1]){
+    const x = xf(txMhz).toFixed(1);
+    g += `<line x1="${x}" y1="8" x2="${x}" y2="${base}" style="stroke:var(--accent)" stroke-width="1.2"/>`
+       + `<text x="${x}" y="7" style="fill:var(--accent)" font-size="6" text-anchor="middle">▼</text>`;
+  }
+  g += `<text x="${x0}" y="72" style="fill:var(--muted)" font-size="7">${rng[0]}</text>`
+     + `<text x="${x1}" y="72" style="fill:var(--muted)" font-size="7" text-anchor="end">${rng[1]}</text>`;
+  svg.innerHTML = g;
 }
 
 function bandmapClick(call, mhz){
