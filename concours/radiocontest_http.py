@@ -120,6 +120,12 @@ def add_qso_to_log(qso, force=False):
     with log_lock:
         shared_log.append(qso)
     save_log_to_disk()
+    # Enrichit l'historique d'indicatifs à chaud (Super Check Partial)
+    try:
+        import radiocontest_callhistory as callhistory
+        callhistory.update_from_qso(qso)
+    except Exception:
+        pass
     return True, {'total': len(shared_log)}
 
 
@@ -845,6 +851,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                                k_index=k_index, lang=lang))
             return
 
+        # Débrief post-concours : stats déterministes + prompt prêt pour l'IA
+        # (le client l'envoie ensuite à /proxy/ai — la clé reste côté serveur).
+        if path == '/coach/debrief':
+            import radiocontest_coach as coach
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(coach.build_debrief(cfg_snap, log_copy))
+            return
+
         # Recherche QRZ.com d'un indicatif (identifiants lus dans la config,
         # jamais dans la requête ni renvoyés au client).
         if path.startswith('/qrz/lookup'):
@@ -897,11 +913,43 @@ class Handler(http.server.BaseHTTPRequestHandler):
             })
             return
 
+        # Validateur de log AVANT soumission (départements/locators/doublons/
+        # fenêtre du concours) — lecture seule, spécial REF.
+        if path == '/log/validate':
+            import radiocontest_validator as validator
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(validator.validate_log(
+                log_copy, cfg_snap.get('contest', ''), cfg_snap))
+            return
+
+        # Index d'indicatifs fusionné (calldb + archives + qso_archive + log) :
+        # remplace /calldb.json côté client pour le Super Check Partial —
+        # même forme, enrichie de qso_count/worked/last_date.
+        if path == '/call/index':
+            import radiocontest_callhistory as callhistory
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(callhistory.export_index(log_copy))
+            return
+
         # Tableau de chasse départements REF : contactés vs total (depuis le log)
         if path == '/data/departments_worked':
             import radiocontest_departments as dep
             cfg_snap = self._cfg_snapshot()
             self._json(dep.departments_progress(shared_log, cfg_snap.get('contest', '')))
+            return
+
+        # Chasse aux départements : manquants + stations connues, croisés avec
+        # les spots cluster actuels (station spottée = cible immédiate).
+        if path == '/departments/targets':
+            import radiocontest_departments as dep
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(dep.department_targets(
+                log_copy, cfg_snap.get('contest', ''), _spots_from_caches()))
             return
 
         # GeoJSON des départements français (cache disque, offline après 1er DL)

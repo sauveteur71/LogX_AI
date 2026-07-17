@@ -389,6 +389,112 @@ def build_coach_prompt(cdef, clock, stats, plan, hints):
     return '\n'.join(lines)
 
 
+# ─── DÉBRIEF POST-CONCOURS ───────────────────────────────────────────────────
+
+def build_debrief(cfg, shared_log, now=None):
+    """Statistiques DÉTERMINISTES du concours écoulé + prompt prêt pour un
+    débrief narratif par l'IA (/proxy/ai côté client).
+    Retourne {'stats': {...}, 'debrief_prompt': str}."""
+    now = now or datetime.datetime.utcnow()
+    cfg = cfg or {}
+    contest_id = cfg.get('contest', '') if isinstance(cfg.get('contest'), str) else ''
+    cdef = CONTEST_DEFINITIONS.get(contest_id, {})
+    clock = contest_clock(cfg, cdef, now)
+    entries = [e for e in (shared_log or [])
+               if not contest_id or e.get('contest', '') in ('', contest_id)]
+
+    from radiocontest_utils import locator_to_latlon, haversine
+    my_loc = str(cfg.get('locator', '')).strip().upper()
+    my_lat, my_lon = locator_to_latlon((my_loc + 'MM')[:6]) if len(my_loc) >= 4 else (None, None)
+
+    per_hour = {}                  # 'JJ HHh' -> n QSO
+    per_band = {}                  # bande -> {qso, km, best_km, best_call, locators}
+    timeline = []                  # datetimes triés pour les silences
+    score = 0
+    for e in entries:
+        score += e.get('points', 0) or 0
+        dt = _entry_dt(e)
+        if dt:
+            timeline.append(dt)
+            per_hour[dt.strftime('%d/%m %Hh')] = per_hour.get(dt.strftime('%d/%m %Hh'), 0) + 1
+        b = str(e.get('band', '?'))
+        pb = per_band.setdefault(b, {'qso': 0, 'km': 0, 'best_km': 0,
+                                     'best_call': '', 'locators': set()})
+        pb['qso'] += 1
+        loc = str(e.get('locator', '')).strip().upper()
+        if loc and len(loc) >= 4:
+            pb['locators'].add(loc[:4])
+            if my_lat is not None:
+                lat, lon = locator_to_latlon((loc + 'MM')[:6])
+                if lat is not None:
+                    km = haversine(my_lat, my_lon, lat, lon)
+                    pb['km'] += km
+                    if km > pb['best_km']:
+                        pb['best_km'], pb['best_call'] = km, str(e.get('call', ''))
+
+    # Silences > 30 min pendant le concours
+    timeline.sort()
+    silences = []
+    for a, b in zip(timeline, timeline[1:]):
+        gap = (b - a).total_seconds() / 60
+        if gap >= 30:
+            silences.append({'from': a.strftime('%d/%m %H:%M'),
+                             'to': b.strftime('%d/%m %H:%M'), 'min': int(gap)})
+
+    hours_sorted = sorted(per_hour.items(), key=lambda kv: -kv[1])
+    stats = {
+        'contest': contest_id,
+        'contest_name': cdef.get('name', contest_id),
+        'status': clock.get('status'),
+        'qso_total': len(entries),
+        'score': score,
+        'per_hour': per_hour,
+        'best_hours': hours_sorted[:3],
+        'worst_hours': hours_sorted[-3:] if len(hours_sorted) > 3 else [],
+        'per_band': {b: {**v, 'locators': len(v['locators'])}
+                     for b, v in per_band.items()},
+        'silences': silences[:10],
+        'departments': None,
+    }
+    # Départements travaillés (concours REF à mult département)
+    if ((cdef.get('scoring', {}) or {}).get('type', '')) == 'dept_dxcc':
+        try:
+            from radiocontest_departments import department_mult_count
+            depts = department_mult_count(shared_log, contest_id)
+            stats['departments'] = len(depts)
+        except Exception:
+            pass
+
+    # ── Prompt de débrief pour l'IA ──
+    lines = ["DÉBRIEF POST-CONCOURS DEMANDÉ — voici le déroulé exact :", ""]
+    lines.append(f"Concours : {stats['contest_name']} — {stats['qso_total']} QSO, "
+                 f"{score} pts (statut : {clock.get('status')})")
+    for b, v in sorted(stats['per_band'].items()):
+        seg = f"{b} MHz : {v['qso']} QSO, {v['locators']} carrés locator"
+        if v['km']:
+            seg += f", {v['km']} km cumulés, ODX {v['best_km']} km ({v['best_call']})"
+        lines.append(seg)
+    if stats['departments'] is not None:
+        lines.append(f"Départements travaillés : {stats['departments']} (mult REF)")
+    if hours_sorted:
+        lines.append("Meilleures heures : "
+                     + ', '.join(f"{h} ({n} QSO)" for h, n in stats['best_hours']))
+        if stats['worst_hours']:
+            lines.append("Heures creuses : "
+                         + ', '.join(f"{h} ({n} QSO)" for h, n in stats['worst_hours']))
+    if silences:
+        lines.append("Silences radio ≥ 30 min : "
+                     + ' / '.join(f"{s['from']}→{s['to']} ({s['min']} min)"
+                                  for s in silences[:6]))
+    lines.append("")
+    lines.append("Fais le débrief de ma participation : 1) trois points forts, "
+                 "2) trois axes d'amélioration CONCRETS pour la prochaine édition "
+                 "(bandes, horaires, stratégie RUN/S&P, cap d'antenne), "
+                 "3) ce qui m'a coûté le plus de points. Sois direct et précis, "
+                 "en t'appuyant sur les chiffres ci-dessus et le barème du concours.")
+    return {'stats': stats, 'debrief_prompt': '\n'.join(lines)}
+
+
 # ─── POINT D'ENTRÉE ──────────────────────────────────────────────────────────
 
 def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=None,

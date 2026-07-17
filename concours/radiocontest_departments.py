@@ -228,6 +228,55 @@ def departments_progress(shared_log, contest_id=''):
     }
 
 
+def department_targets(shared_log, contest_id='', spots_by_label=None, max_calls=5):
+    """CHASSE AUX DÉPARTEMENTS : pour chaque département métropolitain
+    MANQUANT, les stations connues de ce département (historique complet :
+    calldb + archives + log) et celles actuellement SPOTTÉES sur le cluster
+    (avec leur fréquence — prêtes à être appelées).
+    Tri : départements avec une station spottée d'abord."""
+    prog = departments_progress(shared_log, contest_id)
+    worked = set(prog['worked'])
+    missing = [c for c in METRO if c not in worked]
+
+    # Historique complet inversé : département -> stations connues
+    from radiocontest_callhistory import build_index
+    idx = build_index(shared_log)
+    by_dept = {}
+    for call, e in idx.items():
+        d = e.get('dept')
+        if d in DEPARTMENTS:
+            by_dept.setdefault(d, []).append((call, e['qso_count']))
+
+    # Spots cluster actuels : indicatif -> {freq, band} (formats hétérogènes)
+    spotted = {}
+    for label, spots in (spots_by_label or {}).items():
+        for sp in spots or []:
+            if isinstance(sp, dict):
+                c = str(sp.get('dx') or sp.get('call') or '')
+                freq = sp.get('freq', '')
+            else:
+                c = str(sp[0]) if sp else ''
+                freq = sp[1] if len(sp) > 1 else ''
+            c = c.strip().upper()
+            base = c.split('/')[0] if '/' in c and len(c.split('/')[0]) >= 3 else c
+            if len(base) >= 3:
+                spotted[base] = {'freq': freq, 'band': label}
+
+    targets = []
+    for d in missing:
+        calls = sorted(by_dept.get(d, []), key=lambda ce: (-ce[1], ce[0]))
+        sp_here = [{'call': c, **spotted[c]} for c, _ in calls if c in spotted][:3]
+        targets.append({
+            'dept': d,
+            'name': DEPARTMENTS.get(d, ''),
+            'spotted': sp_here,
+            'known': [c for c, _ in calls[:max_calls]],
+        })
+    targets.sort(key=lambda t: (0 if t['spotted'] else 1, t['dept']))
+    return {'missing_total': len(missing), 'worked_total': len(worked),
+            'targets': targets}
+
+
 def load_france_geojson():
     """Contenu du GeoJSON des départements (cache disque, re-téléchargé s'il
     manque). Retourne le texte JSON ou '' si indisponible hors ligne."""

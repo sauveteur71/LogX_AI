@@ -2357,16 +2357,19 @@ async function refreshCluster(){
 let callDB = {};
 
 async function loadCallDB(){
+  // Index FUSIONNÉ serveur (/call/index = calldb + archives + anciens concours,
+  // enrichi de worked/qso_count) ; repli sur calldb.json brut si indisponible.
   // Plusieurs tentatives rapprochées : la 1ère requête « à froid » peut échouer
   for(let attempt=1; attempt<=6; attempt++){
     try{
-      const res = await fetch('/calldb.json', {cache:'force-cache'});
+      let res = await fetch('/call/index');
+      if(!res.ok) res = await fetch('/calldb.json', {cache:'force-cache'});
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
       callDB = data.calls || {};
       return;
     }catch(e){
-      if(attempt === 6){ console.warn('calldb.json indisponible :', e.message); }
+      if(attempt === 6){ console.warn('base indicatifs indisponible :', e.message); }
       else { await new Promise(r=>setTimeout(r, 150)); }
     }
   }
@@ -2402,15 +2405,26 @@ function searchCalls(prefix){
     }
   }
 
-  // 2. Base callDB.json (indicatifs connus avec locator/dept)
+  // 2. Base fusionnée (calldb + archives + anciens concours) — SUPER CHECK
+  //    PARTIAL : préfixe d'abord, puis FRAGMENT n'importe où dans l'indicatif
+  //    (dès 3 caractères, comme N1MM). Les stations déjà travaillées dans un
+  //    concours passé remontent en tête.
   if(out.length < 10){
+    const starts = [], contains = [];
     for(const call in callDB){
-      if(call.startsWith(prefix) && !seen.has(call)){
-        seen.add(call);
-        const d = callDB[call] || {};
-        out.push({call, src:'db', locator:d.locator, dept:d.dept, dup:isDup(call,currentBand)});
-        if(out.length >= 10) break;
-      }
+      if(seen.has(call)) continue;
+      if(call.startsWith(prefix)) starts.push(call);
+      else if(prefix.length >= 3 && call.includes(prefix)) contains.push(call);
+    }
+    const rank = c => ((callDB[c]||{}).worked ? 0 : 1);
+    const byRank = (a,b) => rank(a)-rank(b) || a.localeCompare(b);
+    starts.sort(byRank);
+    contains.sort(byRank);
+    for(const call of starts.concat(contains)){
+      const d = callDB[call] || {};
+      out.push({call, src: d.worked ? 'hist' : 'db',
+                locator:d.locator, dept:d.dept, dup:isDup(call,currentBand)});
+      if(out.length >= 10) break;
     }
   }
   return out;
@@ -2432,6 +2446,8 @@ function showAC(results, call){
     const cname = dxcc ? dxcc.c    : '';
     const srcTag = src==='log'
       ? `<span style="color:var(--green);font-size:13px;font-weight:700">📋 LOG</span>`
+      : src==='hist'
+      ? `<span style="color:var(--green);font-size:13px;font-weight:700">✓ DÉJÀ VU</span>`
       : `<span style="color:var(--muted);font-size:14px">🗂️</span>`;
     const dupTag = dup
       ? `<span style="color:var(--red);font-size:14px;font-weight:800">DUPE</span>`
@@ -2560,6 +2576,18 @@ function applyCallData(dbData, clusterData, logEntry){
       hint.style.display = 'block';
       hint.style.color   = 'var(--accent2)';
       hint.textContent   = `Locator : ${src}`;
+    }
+  }
+
+  // ── Département attendu (concours REF HF : l'échange EST le département) ──
+  // Pré-rempli seulement si le champ est vide — l'opérateur reste maître de
+  // ce qu'il a réellement reçu.
+  if((currentExchange.label_r || '').includes('DEPT')){
+    const numR = document.getElementById('inputNumRcvd');
+    const dept = (dbData && dbData.dept) || (logEntry && logEntry.num_rcvd) || '';
+    if(numR && !numR.value && dept){
+      numR.value = dept;
+      numR.classList.add('ok');
     }
   }
   if(callField) callField.classList.add('ok');
@@ -2845,6 +2873,47 @@ async function showChecklist(){
     return `<div class="shortcuts-row"><span class="shortcuts-key" style="color:${color};min-width:32px">${icon}</span><span>${r.label}</span></div>`;
   }).join('');
 }
+
+// ─── VÉRIFICATION DU LOG AVANT SOUMISSION (validateur serveur, spécial REF) ───
+// Doublons, locators absents/invalides, distances anormales, départements
+// invalides, QSO hors fenêtre — tout ce qui coûterait des points au contrôle.
+async function showValidation(){
+  const ov = document.getElementById('validateOverlay');
+  const inner = document.getElementById('validateInner');
+  if(!ov || !inner) return;
+  ov.classList.add('show');
+  inner.innerHTML = '<div class="shortcuts-row"><span>⏳ Analyse du log en cours…</span></div>';
+  let d;
+  try{
+    const r = await fetch('/log/validate');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    d = await r.json();
+  }catch(e){
+    inner.innerHTML = `<div class="shortcuts-row"><span style="color:var(--red)">❌ Serveur injoignable (${e.message})</span></div>`;
+    return;
+  }
+  const c = d.counts || {};
+  const head =
+    `<div class="shortcuts-row" style="font-weight:700">`+
+    `<span>${d.qso_count} QSO analysés — `+
+    `<span style="color:var(--red)">${c.erreur||0} erreur${(c.erreur||0)>1?'s':''}</span> · `+
+    `<span style="color:var(--yellow)">${c.attention||0} à vérifier</span> · `+
+    `<span style="color:var(--accent2)">${c.info||0} info${(c.info||0)>1?'s':''}</span></span></div>`;
+  if(!(d.findings||[]).length){
+    inner.innerHTML = head +
+      `<div class="shortcuts-row"><span style="color:var(--green);font-weight:700">`+
+      `✅ Aucun problème détecté — le log est prêt à être exporté et envoyé.</span></div>`;
+    return;
+  }
+  const ICO = {erreur:'❌', attention:'⚠️', info:'ℹ️'};
+  const COL = {erreur:'var(--red)', attention:'var(--yellow)', info:'var(--accent2)'};
+  inner.innerHTML = head + d.findings.map(f =>
+    `<div class="shortcuts-row">`+
+    `<span class="shortcuts-key" style="color:${COL[f.level]||'var(--muted)'};min-width:32px">${ICO[f.level]||'•'}</span>`+
+    `<span>${f.msg}${f.at ? ` <span style="color:var(--muted);font-size:12px">(${f.at})</span>` : ''}</span></div>`
+  ).join('') + (d.truncated ? `<div class="shortcuts-row"><span style="color:var(--muted)">… liste tronquée</span></div>` : '');
+}
+
 (function applyTheme(){
   if(localStorage.getItem('rc_theme') === 'day'){
     document.body.classList.add('day-mode');
@@ -2871,6 +2940,8 @@ document.addEventListener('keydown', e => {
     if(editModal && editModal.style.display !== 'none') editModal.style.display = 'none';
     const scOverlay = document.getElementById('shortcutsOverlay');
     if(scOverlay) scOverlay.classList.remove('show');
+    const valOverlay = document.getElementById('validateOverlay');
+    if(valOverlay) valOverlay.classList.remove('show');
     return;
   }
   // ? : afficher/masquer l'aide des raccourcis (sauf pendant une saisie)
