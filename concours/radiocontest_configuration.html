@@ -806,6 +806,46 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section">
+      <div class="section-title">🏆 COMPÉTITION & SÉCURITÉ</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Publie ton score en direct pour te comparer aux rivaux, et sauvegarde
+        automatiquement ton log vers un dossier synchronisé (Synology Drive,
+        Dropbox, OneDrive…).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>SCOREBOARD EN DIRECT</label>
+          <select id="scoreboard_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé — publier le score</option>
+          </select>
+          <div class="input-note">Envoi périodique vers contestonlinescore.com</div>
+        </div>
+        <div class="form-group">
+          <label>SCOREBOARD — INTERVALLE (min)</label>
+          <input type="number" id="scoreboard_interval" placeholder="5" min="2" max="30">
+        </div>
+        <div class="form-group">
+          <label>DOSSIER DE SAUVEGARDE</label>
+          <input type="text" id="backup_folder" placeholder="C:\Users\...\SynologyDrive\logs" autocomplete="off">
+          <div class="input-note">Copie horodatée (.db + .json + ADIF) ; vide = désactivé</div>
+        </div>
+        <div class="form-group">
+          <label>SAUVEGARDE — INTERVALLE (min)</label>
+          <input type="number" id="backup_interval" placeholder="15" min="5" max="120">
+        </div>
+        <div class="form-group">
+          <label>RBN CW (où mon signal est entendu)</label>
+          <select id="rbn_enabled">
+            <option value="1">Activé (par défaut)</option>
+            <option value="">Désactivé</option>
+          </select>
+          <div class="input-note">Panneau RBN sur la page PROPAGATION</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-title">PARAMÈTRES D'ALERTE</div>
       <div class="form-grid">
         <div class="form-group">
@@ -2120,6 +2160,11 @@ function saveConfig(silent = false) {
     clublog_callsign: document.getElementById('clublog_callsign').value.trim(),
     clublog_password: document.getElementById('clublog_password').value,
     clublog_api_key: document.getElementById('clublog_api_key').value.trim(),
+    scoreboard_enabled: document.getElementById('scoreboard_enabled').value,
+    scoreboard_interval: parseInt(document.getElementById('scoreboard_interval').value, 10) || 5,
+    backup_folder: document.getElementById('backup_folder').value.trim(),
+    backup_interval: parseInt(document.getElementById('backup_interval').value, 10) || 15,
+    rbn_enabled: document.getElementById('rbn_enabled').value,
     rig_enabled: !!document.getElementById('rig_enabled').value,
     rig_host: document.getElementById('rig_host').value.trim(),
     rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
@@ -2264,7 +2309,9 @@ function loadSavedConfig() {
     if(c.qrz_user) document.getElementById('qrz_user').value = c.qrz_user;
     if(c.qrz_password) document.getElementById('qrz_password').value = c.qrz_password;
     ['eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
-     'clublog_callsign','clublog_password','clublog_api_key'].forEach(k=>{
+     'clublog_callsign','clublog_password','clublog_api_key',
+     'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
+     'rbn_enabled'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;

@@ -698,7 +698,11 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
   <!-- PANNEAU SAISIE -->
   <div class="saisie-panel">
-    <div class="panel-title">⌨ SAISIE QSO</div>
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>⌨ SAISIE QSO</span>
+      <button id="esmBtn" onclick="toggleEsm()" title="ESM : la touche Entrée enchaîne appel CQ → échange → log (comme N1MM)"
+        style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer">ESM ○</button>
+    </div>
 
     <div class="saisie-form">
 
@@ -869,6 +873,22 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         <div class="macro-btns" id="macroBtns"></div>
       </div>
 
+      <!-- KEYER VOCAL (phonie) : enregistre/rejoue des messages WAV -->
+      <div class="macro-panel expert-only" id="voicePanel" style="display:none">
+        <div class="macro-panel-title">🎙 KEYER VOCAL — clic: jouer · ⏺: enregistrer</div>
+        <div class="macro-btns" id="voiceBtns"></div>
+      </div>
+
+      <!-- DÉCODEUR CW (Web Audio, micro/casque vers l'entrée) -->
+      <div class="macro-panel expert-only" id="cwDecodePanel" style="display:none">
+        <div class="macro-panel-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🎧 DÉCODEUR CW</span>
+          <button id="cwDecodeBtn" onclick="toggleCwDecoder()" style="background:var(--bg3);color:var(--green);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px">▶ écouter</button>
+        </div>
+        <div id="cwDecodeOut" style="font-family:var(--font-mono);font-size:14px;color:var(--green);min-height:34px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:6px 8px;margin-top:6px;letter-spacing:2px;word-break:break-all">—</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Tonalité détectée : <span id="cwTone">—</span> · clique un mot décodé pour le mettre dans l'indicatif</div>
+      </div>
+
       <!-- Derniers QSO -->
       <div class="last-qso">
         <div class="last-qso-title">DERNIERS QSO SAISIS</div>
@@ -922,6 +942,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="export-btn expert-only" onclick="exportON4KST()" style="color:var(--green);border-color:rgba(0,255,0,.4);margin-left:8px">📡 ON4KST</button>
       <button class="export-btn" id="qtcBtn" onclick="addQTC()" style="display:none;color:var(--accent2);border-color:rgba(0,212,255,.4)" title="WAE : enregistrer un échange de QTC (1 pt chacun, max 10 par station)">✉ QTC : 0</button>
       <button class="export-btn" onclick="archiveLog()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px" title="Conserver le log de ce concours dans un dossier permanent (log + Cabrillo + ADIF + résumé)">📦 ARCHIVER</button>
+      <button class="export-btn" onclick="backupNow()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Sauvegarde immédiate vers le dossier configuré (Synology/Dropbox…). Sauvegarde aussi automatique si activée dans CONFIG.">💾 SAUVEGARDER</button>
       <button class="export-btn" onclick="resetLog()" style="color:var(--red);border-color:rgba(255,45,85,.4);margin-left:8px">🗑️ NOUVEAU LOG</button>
       <button class="export-btn" onclick="showRatePanel()" style="color:var(--accent2);border-color:rgba(0,212,255,.4);margin-left:8px">📊 STATS</button>
       <button class="export-btn" onclick="showValidation()" style="color:var(--yellow);border-color:rgba(255,214,10,.4);margin-left:8px" title="Contrôle du log avant soumission : doublons, locators, départements, QSO hors fenêtre">🔍 VÉRIFIER</button>
