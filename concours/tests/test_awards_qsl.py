@@ -1,0 +1,133 @@
+# -*- coding: utf-8 -*-
+"""Tests carnet permanent : diplômes (awards), historique station, parseur ADIF
+des confirmations QSL et fusion."""
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import radiocontest_awards as awards
+import radiocontest_qsl as qsl
+
+
+def _log():
+    return [
+        {'call': 'DL1AA', 'band': '144', 'mode': 'SSB', 'contest': 'X',
+         'date': '20260101', 'time': '10:00', 'locator': 'JO40AA'},
+        {'call': 'DL1AA', 'band': '432', 'mode': 'SSB', 'contest': 'X',
+         'date': '20260101', 'time': '10:05', 'locator': 'JO40AA'},
+        {'call': 'G3XYZ', 'band': '144', 'mode': 'CW', 'contest': 'X',
+         'date': '20260102', 'time': '11:00', 'locator': 'IO91'},
+    ]
+
+
+# ─── Historique station ──────────────────────────────────────────────────────
+
+def test_history_regroupe_les_qso():
+    awards.invalidate()
+    h = awards.history('DL1AA', _log())
+    assert h['count'] == 2
+    assert set(h['bands']) == {'144', '432'}
+    assert h['country'] in ('Fed. Rep. of Germany', 'Germany')
+
+
+def test_history_inconnu():
+    awards.invalidate()
+    assert awards.history('ZZ9ZZ', _log())['count'] == 0
+
+
+# ─── Nouveau à vie ───────────────────────────────────────────────────────────
+
+def test_new_one_pays_jamais_contacte():
+    awards.invalidate()
+    # Un indicatif japonais alors qu'on n'a que EU dans le log
+    res = awards.new_one('JA1AAA', '144', shared_log=_log())
+    assert any(n['type'] == 'dxcc' and n['scope'] == 'atlantic' for n in res)
+
+
+def test_new_one_rien_si_deja_fait():
+    awards.invalidate()
+    res = awards.new_one('DL1AA', '144', shared_log=_log())
+    assert not any(n['scope'] == 'atlantic' for n in res)
+
+
+# ─── Résumé diplômes ─────────────────────────────────────────────────────────
+
+def test_award_summary():
+    # collect_all_qsos fusionne AUSSI les vraies archives de la station :
+    # on vérifie donc des minorants, pas des égalités exactes.
+    awards.invalidate()
+    s = awards.award_summary(_log())
+    assert s['dxcc']['worked'] >= 2          # au moins DL + G
+    assert '144' in s['per_band']
+    assert s['per_band']['144']['qso'] >= 2  # les 2 QSO du log de test + éventuelles archives
+
+
+# ─── Parseur ADIF des confirmations (le bug <EOR> corrigé) ───────────────────
+
+ADIF = ("En-tête libre\n<adif_ver:5>3.1.4<programid:4>test<EOH>\n"
+        "<CALL:5>DL1AA<BAND:2>2m<MODE:3>SSB<QSL_RCVD:1>Y<QSLRDATE:8>20260110<EOR>\n"
+        "<CALL:5>DL1AA<BAND:4>70cm<MODE:3>SSB<QSL_RCVD:1>Y<EOR>\n"
+        "<CALL:5>F5XXX<BAND:3>20m<MODE:2>CW<QSL_RCVD:1>N<EOR>\n")
+
+
+def test_parse_adif_separe_les_records():
+    """Chaque <EOR> ferme bien un record (bug historique : les records
+    fusionnaient car <EOR> n'a pas de longueur)."""
+    recs = qsl._parse_adif_records(ADIF)
+    assert len(recs) == 3
+    assert recs[0]['CALL'] == 'DL1AA' and recs[0]['BAND'] == '2m'
+    assert recs[1]['BAND'] == '70cm'
+
+
+def test_parse_confirmations_bande_alignee_sur_le_log():
+    """La bande ADIF '2m' devient '144' pour matcher la clé du log."""
+    conf = qsl.parse_confirmations(ADIF, 'lotw')
+    assert 'DL1AA|144|SSB' in conf
+    assert 'DL1AA|432|SSB' in conf
+    # QSL_RCVD:N n'est PAS confirmé
+    assert 'F5XXX|14|CW' not in conf
+
+
+def test_confirmations_remontent_dans_awards(tmp_path):
+    """Fusion des confirmations → history marque confirmé, award_summary compte."""
+    cf = awards.CONFIRM_FILE
+    backup = None
+    if os.path.exists(cf):
+        with open(cf, encoding='utf-8') as f:
+            backup = f.read()
+        os.remove(cf)
+    try:
+        conf = qsl.parse_confirmations(ADIF, 'lotw')
+        qsl.merge_confirmations(conf)
+        awards.invalidate()
+        h = awards.history('DL1AA', _log())
+        assert h['confirmed'] == 2
+        s = awards.award_summary(_log())
+        assert s['confirmed_total'] == 2
+        assert s['has_confirmations'] is True
+    finally:
+        if os.path.exists(cf):
+            os.remove(cf)
+        if backup is not None:
+            with open(cf, 'w', encoding='utf-8') as f:
+                f.write(backup)
+        awards.invalidate()
+
+
+# ─── Dégradation gracieuse (services non configurés) ─────────────────────────
+
+def test_qsl_non_configure():
+    assert qsl.upload_eqsl({}, 'adif')['ok'] is False
+    assert qsl.upload_clublog({}, 'adif')['ok'] is False
+    assert qsl.sync_lotw({})['ok'] is False
+    st = qsl.qsl_status({})
+    assert st['eqsl'] is False and st['lotw'] is False
+
+
+def test_qsl_settings_depuis_cfg():
+    s = qsl.qsl_settings({'eqsl_user': 'F4GLD', 'eqsl_password': 'x'})
+    assert s['eqsl_enabled'] is True
+    assert s['lotw_enabled'] is False

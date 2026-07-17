@@ -759,6 +759,53 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section">
+      <div class="section-title">📮 QSL & DIPLÔMES (services en ligne)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Publie ton log après un concours (eQSL, ClubLog) et récupère les
+        confirmations (LoTW) pour suivre tes diplômes DXCC / départements
+        « travaillé / confirmé ». Boutons dans le LOGBOOK → 🏅 DIPLÔMES.
+        Identifiants stockés côté serveur uniquement.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>eQSL — IDENTIFIANT</label>
+          <input type="text" id="eqsl_user" placeholder="ton indicatif eQSL" style="text-transform:uppercase" autocomplete="off">
+          <div class="input-note">Envoi du log (upload ADIF)</div>
+        </div>
+        <div class="form-group">
+          <label>eQSL — MOT DE PASSE</label>
+          <input type="password" id="eqsl_password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>LoTW — IDENTIFIANT</label>
+          <input type="text" id="lotw_user" placeholder="ton indicatif LoTW" style="text-transform:uppercase" autocomplete="off">
+          <div class="input-note">Import des confirmations (pas d'upload : garde TQSL pour publier)</div>
+        </div>
+        <div class="form-group">
+          <label>LoTW — MOT DE PASSE</label>
+          <input type="password" id="lotw_password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>ClubLog — EMAIL</label>
+          <input type="text" id="clublog_email" placeholder="email du compte ClubLog" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>ClubLog — INDICATIF</label>
+          <input type="text" id="clublog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>ClubLog — MOT DE PASSE</label>
+          <input type="password" id="clublog_password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>ClubLog — CLÉ API</label>
+          <input type="text" id="clublog_api_key" placeholder="clé API ClubLog" autocomplete="off">
+          <div class="input-note">Obtenue sur clublog.org (Settings → API keys)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-title">PARAMÈTRES D'ALERTE</div>
       <div class="form-grid">
         <div class="form-group">
@@ -2065,6 +2112,14 @@ function saveConfig(silent = false) {
     on4kst_password: document.getElementById('on4kst_password').value,
     qrz_user: document.getElementById('qrz_user').value.trim(),
     qrz_password: document.getElementById('qrz_password').value,
+    eqsl_user: document.getElementById('eqsl_user').value.trim(),
+    eqsl_password: document.getElementById('eqsl_password').value,
+    lotw_user: document.getElementById('lotw_user').value.trim(),
+    lotw_password: document.getElementById('lotw_password').value,
+    clublog_email: document.getElementById('clublog_email').value.trim(),
+    clublog_callsign: document.getElementById('clublog_callsign').value.trim(),
+    clublog_password: document.getElementById('clublog_password').value,
+    clublog_api_key: document.getElementById('clublog_api_key').value.trim(),
     rig_enabled: !!document.getElementById('rig_enabled').value,
     rig_host: document.getElementById('rig_host').value.trim(),
     rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
@@ -2208,6 +2263,10 @@ function loadSavedConfig() {
     if(c.on4kst_password) document.getElementById('on4kst_password').value = c.on4kst_password;
     if(c.qrz_user) document.getElementById('qrz_user').value = c.qrz_user;
     if(c.qrz_password) document.getElementById('qrz_password').value = c.qrz_password;
+    ['eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
+     'clublog_callsign','clublog_password','clublog_api_key'].forEach(k=>{
+      if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
+    });
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;
     if(c.op_call) document.getElementById('op_call').value = c.op_call;
     if(c.club) document.getElementById('club').value = c.club;

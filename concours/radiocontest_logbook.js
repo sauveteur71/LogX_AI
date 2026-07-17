@@ -595,6 +595,106 @@ function checkCallStatus(call){
   }, 250);
 }
 
+// ─── « DÉJÀ CONTACTÉ » (historique station, tous concours) ───────────────────
+// À la frappe d'un indicatif, montre tous les QSO passés avec cette station
+// (dates, bandes, confirmé LoTW) + alerte « NOUVEAU PAYS/DÉPARTEMENT » à vie —
+// façon fiche « previous contacts » de Log4OM / HRD.
+let _prevTimer = null, _prevSeq = 0;
+
+function checkPrevQsos(call){
+  clearTimeout(_prevTimer);
+  const el = document.getElementById('prevQsos');
+  if(!el) return;
+  if(!call || call.length < 3){ el.style.display = 'none'; return; }
+  const seq = ++_prevSeq;
+  _prevTimer = setTimeout(async () => {
+    try{
+      const r = await fetch(`/call/history?call=${encodeURIComponent(call)}` +
+                            `&band=${encodeURIComponent(currentBand || '')}`);
+      if(!r.ok || seq !== _prevSeq) return;
+      const d = await r.json();
+      const parts = [];
+      // Alerte « nouveau à vie » (pays / département jamais contacté)
+      (d.new_one || []).forEach(n => {
+        parts.push(`<div style="color:var(--green);font-weight:700">🌟 ${n.label}</div>`);
+      });
+      if(d.count > 0){
+        const conf = d.confirmed ? ` · <span style="color:var(--green)">${d.confirmed} confirmé${d.confirmed>1?'s':''}</span>` : '';
+        const bands = d.bands && d.bands.length ? ` sur ${d.bands.join('/')} MHz` : '';
+        parts.push(`<div><b style="color:var(--accent2)">${d.count} QSO</b>${bands}${conf}` +
+                   (d.last ? ` · dernier ${fmtDate(d.last)}` : '') + '</div>');
+        // Les 3 plus récents
+        d.qsos.slice(0,3).forEach(q => {
+          parts.push(`<div style="opacity:.75">${fmtDate(q.date)} — ${q.band} MHz ${q.mode}` +
+                     `${q.contest ? ' · ' + q.contest.replace(/_/g,' ') : ''}` +
+                     `${q.confirmed ? ' ✅' : ''}</div>`);
+        });
+      } else if(!(d.new_one||[]).length){
+        parts.push(`<span style="color:var(--muted)">jamais contacté</span>`);
+      }
+      el.innerHTML = parts.join('');
+      el.style.display = parts.length ? 'block' : 'none';
+    }catch(e){ el.style.display = 'none'; }
+  }, 350);
+}
+
+function fmtDate(d){
+  d = String(d || '');
+  return d.length === 8 ? `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}` : d;
+}
+
+// ─── BAND MAP (spots de la bande courante par fréquence, clic = QSY) ──────────
+// Réutilise /data/spots_ranked (moteur : priorité + new_mult). Le marqueur ▶
+// montre la fréquence de la radio (CAT). Clic sur un spot : remplit l'indicatif
+// et QSY la radio si le CAT est actif.
+const _BM_PCOL = {1:'var(--red)', 2:'var(--accent)', 3:'var(--yellow)',
+                  4:'var(--accent2)', 5:'var(--muted)'};
+
+async function refreshBandMap(){
+  const list = document.getElementById('bandmapList');
+  if(!list) return;
+  const bandEl = document.getElementById('bandmapBand');
+  if(bandEl) bandEl.textContent = (currentBand || '—') + ' MHz';
+  try{
+    const r = await fetch('/data/spots_ranked');
+    if(!r.ok) return;
+    const d = await r.json();
+    const spots = (d.spots || [])
+      .filter(s => String(s.band) === String(currentBand) && s.freq)
+      .sort((a,b) => parseFloat(b.freq) - parseFloat(a.freq));   // fréquence haute en haut
+    const rig = (typeof rigState !== 'undefined') ? rigState : {};
+    const txMhz = (rig.enabled && rig.freq_khz) ? rig.freq_khz/1000 : null;
+    const rows = [];
+    let txDone = false;
+    const txRow = m => `<div class="bm-tx">▶ ${m.toFixed(3)} (radio)</div>`;
+    for(const s of spots){
+      const f = parseFloat(s.freq);
+      if(txMhz && !txDone && f <= txMhz){ rows.push(txRow(txMhz)); txDone = true; }
+      const col = s.new_mult ? 'var(--green)' : (_BM_PCOL[s.priority] || 'var(--text)');
+      const style = `color:${col}` + (s.already_done ? ';opacity:.45;text-decoration:line-through' : '');
+      rows.push(`<div class="bm-spot" onclick="bandmapClick('${s.call}',${f})" title="${(s.explanation||'').replace(/"/g,'')}">`
+        + `<span class="bm-f">${f.toFixed(3)}</span>`
+        + `<span class="bm-c" style="${style}">${s.new_mult ? '★' : ''}${s.call}</span></div>`);
+    }
+    if(txMhz && !txDone) rows.push(txRow(txMhz));
+    list.innerHTML = rows.length ? rows.join('')
+      : '<div class="bm-empty">aucun spot sur cette bande</div>';
+  }catch(e){ /* serveur injoignable : band map inchangé */ }
+}
+
+function bandmapClick(call, mhz){
+  const inp = document.getElementById('inputCall');
+  if(inp){ inp.value = call; onCallInput(); inp.focus(); }
+  const rig = (typeof rigState !== 'undefined') ? rigState : {};
+  if(rig.enabled){
+    fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({freq_khz: Math.round(mhz*1000), mode: currentMode || undefined})
+    }).catch(()=>{});
+  }
+}
+setInterval(refreshBandMap, 15000);
+setTimeout(refreshBandMap, 2500);
+
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 function setupDone(){
   const call = document.getElementById('setupCallsign').value.trim().toUpperCase();
@@ -764,6 +864,7 @@ function setBand(el){
   el.classList.add('active');
   currentBand = el.dataset.val;
   updateSerialDisplay();
+  if(typeof refreshBandMap === 'function') refreshBandMap();  // spots de la nouvelle bande
   document.getElementById('inputCall').focus();
 }
 
@@ -920,6 +1021,7 @@ function onCallInput(){
   // de scoring + log partagé multi-op, pas seulement le log local)
   checkCallStatus(call);
   lookupQRZ(call);
+  checkPrevQsos(call);   // « déjà contacté » + nouveau pays/dept à vie
 
   // Badge pays DXCC
   const dxccBadge = document.getElementById('dxccBadge');
@@ -1196,6 +1298,9 @@ function clearForm(){
   document.getElementById('dupWarn').classList.remove('show');
   const _cbh = document.getElementById('crossBandHint'); if(_cbh) _cbh.classList.remove('show');
   const _db = document.getElementById('dxccBadge'); if(_db) _db.style.display = 'none';
+  const _pq = document.getElementById('prevQsos'); if(_pq) _pq.style.display = 'none';
+  const _qz = document.getElementById('qrzInfo'); if(_qz) _qz.style.display = 'none';
+  const _cs = document.getElementById('callStatusBadge'); if(_cs) _cs.style.display = 'none';
   hideCompassInline();
   if(currentExchange.auto_serial){
     updateSerialDisplay();
@@ -2914,6 +3019,93 @@ async function showValidation(){
   ).join('') + (d.truncated ? `<div class="shortcuts-row"><span style="color:var(--muted)">… liste tronquée</span></div>` : '');
 }
 
+// ─── DIPLÔMES & QSL (carnet permanent, tous concours) ────────────────────────
+async function showAwards(){
+  const ov = document.getElementById('awardsOverlay');
+  const inner = document.getElementById('awardsInner');
+  if(!ov || !inner) return;
+  ov.classList.add('show');
+  inner.innerHTML = '<div class="shortcuts-row"><span>⏳ Calcul des diplômes…</span></div>';
+  let a, q;
+  try{
+    [a, q] = await Promise.all([
+      fetch('/awards/summary').then(r=>r.json()),
+      fetch('/qsl/status').then(r=>r.json()),
+    ]);
+  }catch(e){
+    inner.innerHTML = `<div class="shortcuts-row"><span style="color:var(--red)">❌ Serveur injoignable</span></div>`;
+    return;
+  }
+  const dep = a.departments || {};
+  const bar = (w,t) => {
+    const pct = t ? Math.round(100*w/t) : 0;
+    return `<div style="background:var(--bg3);border-radius:5px;height:10px;overflow:hidden;border:1px solid var(--border)">`+
+           `<div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--green),var(--accent2))"></div></div>`;
+  };
+  const row = (label, val) => `<div style="display:flex;justify-content:space-between;padding:4px 0"><span>${label}</span><b>${val}</b></div>`;
+  const confNote = a.has_confirmations ? '' :
+    `<div style="color:var(--muted);font-size:12px;margin:4px 0 10px">Aucune confirmation importée — synchronise LoTW ci-dessous pour voir le « confirmé ».</div>`;
+  const perBand = Object.entries(a.per_band||{}).map(([b,v]) =>
+    `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${b} MHz : <b style="color:var(--text)">${v.qso}</b> QSO / ${v.dxcc} DXCC</span>`).join('');
+
+  inner.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:13px;line-height:1.6">
+      <div style="color:var(--accent2);letter-spacing:1px;margin:6px 0">📊 CARNET PERMANENT — ${a.qso_total} QSO à vie</div>
+      ${confNote}
+      ${row('🌍 DXCC (pays)', `${a.dxcc.worked} travaillés · <span style="color:var(--green)">${a.dxcc.confirmed} confirmés</span>`)}
+      ${row('🇫🇷 Départements métropole', `${dep.metro_worked}/${dep.metro_total} · <span style="color:var(--green)">${dep.metro_confirmed||0} conf.</span>`)}
+      ${bar(dep.metro_worked, dep.metro_total)}
+      ${dep.dom_worked ? row('🏝️ Outre-mer', dep.dom_worked) : ''}
+      ${row('🗺️ Continents', (a.continents||[]).join(' '))}
+      <div style="margin-top:8px;font-size:12px">${perBand}</div>
+      ${dep.missing && dep.missing.length ? `<div style="margin-top:8px;font-size:12px;color:var(--muted)">Départements manquants : ${dep.missing.join(', ')}${dep.missing.length>=40?'…':''}</div>` : ''}
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;font-family:var(--font-mono);font-size:13px">
+      <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px">📮 QSL — ${a.confirmed_total||0} QSO confirmés (${q.confirmations||0} croisés)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="export-btn" onclick="qslAction('upload','eqsl',this)" ${q.eqsl?'':'disabled title="Configure eQSL dans CONFIG"'} style="color:var(--accent2);border-color:rgba(0,212,255,.4)">⬆ eQSL</button>
+        <button class="export-btn" onclick="qslAction('upload','clublog',this)" ${q.clublog?'':'disabled title="Configure ClubLog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(0,212,255,.4)">⬆ ClubLog</button>
+        <button class="export-btn" onclick="qslAction('sync','lotw',this)" ${q.lotw?'':'disabled title="Configure LoTW dans CONFIG"'} style="color:var(--green);border-color:rgba(0,255,136,.4)">⬇ Confirmations LoTW</button>
+      </div>
+      <div id="qslResult" style="margin-top:10px;color:var(--muted);font-size:12px">${qslLastSync(q)}</div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">Identifiants des services : CONFIG → étape PROPAGATION → « QSL & DIPLÔMES ». Stockés côté serveur.</div>
+    </div>`;
+}
+
+function qslLastSync(q){
+  const l = q.last || {};
+  const bits = [];
+  if(l.eqsl_upload) bits.push('eQSL envoyé le ' + l.eqsl_upload);
+  if(l.clublog_upload) bits.push('ClubLog envoyé le ' + l.clublog_upload);
+  if(l.lotw) bits.push('LoTW synchro le ' + l.lotw);
+  return bits.length ? bits.join(' · ') : 'aucune synchro encore';
+}
+
+async function qslAction(kind, service, btn){
+  const out = document.getElementById('qslResult');
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳…';
+  if(out) out.textContent = (kind==='upload'?'Envoi vers ':'Synchro ') + service + ' en cours…';
+  try{
+    const url = kind === 'upload' ? '/qsl/upload' : '/qsl/sync';
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({service})});
+    const d = await r.json();
+    if(d.ok){
+      if(kind==='upload') out.innerHTML = `<span style="color:var(--green)">✅ ${d.qso_count} QSO envoyés à ${d.service}.</span>`;
+      else out.innerHTML = `<span style="color:var(--green)">✅ ${d.newly_added} nouvelles confirmations (${d.total_confirmations} au total).</span>`;
+      notify('✅ QSL ' + (kind==='upload'?'envoyé':'synchronisé'));
+      if(kind==='sync') setTimeout(showAwards, 800);   // rafraîchit les « confirmés »
+    }else{
+      out.innerHTML = `<span style="color:var(--red)">❌ ${d.error||'échec'}</span>`;
+    }
+  }catch(e){
+    out.innerHTML = `<span style="color:var(--red)">❌ ${e.message}</span>`;
+  }finally{
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
 (function applyTheme(){
   if(localStorage.getItem('rc_theme') === 'day'){
     document.body.classList.add('day-mode');
@@ -2942,6 +3134,8 @@ document.addEventListener('keydown', e => {
     if(scOverlay) scOverlay.classList.remove('show');
     const valOverlay = document.getElementById('validateOverlay');
     if(valOverlay) valOverlay.classList.remove('show');
+    const awOverlay = document.getElementById('awardsOverlay');
+    if(awOverlay) awOverlay.classList.remove('show');
     return;
   }
   // ? : afficher/masquer l'aide des raccourcis (sauf pendant une saisie)
