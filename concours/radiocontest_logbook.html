@@ -722,13 +722,26 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <div class="field-group">
         <div class="field-label">BANDE</div>
         <div class="band-mode-row" id="bandSelect">
-          <button class="bm-btn active" data-val="144" onclick="setBand(this)">144 MHz</button>
-          <button class="bm-btn" data-val="432" onclick="setBand(this)">432 MHz</button>
-          <button class="bm-btn" data-val="1296" onclick="setBand(this)">1296 MHz</button>
-          <button class="bm-btn" data-val="2320" onclick="setBand(this)">2.3 GHz</button>
-          <button class="bm-btn" data-val="3400" onclick="setBand(this)">3.4 GHz</button>
-          <button class="bm-btn" data-val="5760" onclick="setBand(this)">5.7 GHz</button>
-          <button class="bm-btn" data-val="10368" onclick="setBand(this)">10 GHz</button>
+          <button class="bm-btn active" data-val="144" onclick="setBand(this)">2m</button>
+          <button class="bm-btn" data-val="432" onclick="setBand(this)">70cm</button>
+          <button class="bm-btn" data-val="1296" onclick="setBand(this)">23cm</button>
+          <button class="bm-btn" data-val="2320" onclick="setBand(this)">13cm</button>
+          <button class="bm-btn" data-val="3400" onclick="setBand(this)">9cm</button>
+          <button class="bm-btn" data-val="5760" onclick="setBand(this)">6cm</button>
+          <button class="bm-btn" data-val="10368" onclick="setBand(this)">3cm</button>
+        </div>
+      </div>
+
+      <!-- Fréquence exacte (MHz) — saisie ou lue de la radio (CAT) -->
+      <div class="field-group">
+        <div class="field-label">FRÉQUENCE <span style="color:var(--muted);font-weight:400">(MHz)</span></div>
+        <div class="field-wrap" style="display:flex;gap:6px;align-items:center">
+          <input type="text" class="field-input" id="inputFreq" inputmode="decimal"
+            placeholder="144.300" autocomplete="off" style="flex:1"
+            oninput="onFreqInput()"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
+          <button type="button" id="freqRigBtn" class="bm-btn" title="Lire la fréquence de la radio (CAT)"
+            onclick="freqFromRig()" style="display:none;white-space:nowrap">📻 Radio</button>
         </div>
       </div>
 
