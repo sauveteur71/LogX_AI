@@ -964,7 +964,8 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   @media(max-width:1100px){.bandmap-panel{display:none}}
   </style>
   <div class="bandmap-panel" id="bandmapPanel">
-    <div class="bandmap-head">📻 BAND MAP <span id="bandmapBand">—</span></div>
+    <div class="bandmap-head">📻 BAND MAP <span id="bandmapBand">—</span>
+      <button onclick="popoutScope()" title="Détacher le bandscope sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px;margin-left:auto">⇱</button></div>
     <!-- Bandscope : activité de la bande (densité de spots par fréquence) -->
     <div class="bandscope-wrap" id="bandscopeWrap"><svg id="bandscope" viewBox="0 0 180 74" preserveAspectRatio="none"></svg></div>
     <div class="bandmap-list" id="bandmapList">
@@ -990,6 +991,8 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="import-btn" onclick="triggerImport()" style="margin-left:8px">📂 IMPORTER</button>
       <button class="export-btn expert-only" onclick="exportON4KST()" style="color:var(--green);border-color:rgba(0,255,0,.4);margin-left:8px">📡 ON4KST</button>
       <button class="export-btn" id="selfSpotBtn" onclick="selfSpot()" style="display:none;color:var(--accent);border-color:rgba(255,107,0,.5)" title="Publier mon indicatif + ma fréquence sur le cluster DX">📡 SELF-SPOT</button>
+      <button class="export-btn" onclick="popoutScope()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Détacher le bandscope sur un 2e écran">🖥️ SCOPE</button>
+      <button class="export-btn" onclick="popoutWall()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Écran mural (scores + flux QSO) sur un 2e écran">🖥️ MUR</button>
       <button class="export-btn" id="qtcBtn" onclick="addQTC()" style="display:none;color:var(--accent2);border-color:rgba(0,212,255,.4)" title="WAE : enregistrer un échange de QTC (1 pt chacun, max 10 par station)">✉ QTC : 0</button>
       <button class="export-btn" onclick="archiveLog()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px" title="Conserver le log de ce concours dans un dossier permanent (log + Cabrillo + ADIF + résumé)">📦 ARCHIVER</button>
       <button class="export-btn" onclick="backupNow()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Sauvegarde immédiate vers le dossier configuré (Synology/Dropbox…). Sauvegarde aussi automatique si activée dans CONFIG.">💾 SAUVEGARDER</button>
