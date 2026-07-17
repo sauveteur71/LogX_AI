@@ -559,10 +559,19 @@
       const l = getLang();
       if (l === 'fr' || l === 'auto') return;
       if (pending) return;
-      let added = false;
-      for (const m of muts) { if (m.addedNodes && m.addedNodes.length) { added = true; break; } }
-      if (!added) return;
-      pending = setTimeout(() => { pending = null; window.rcTranslate(); }, 60);
+      // On ne re-traduit QUE si un nœud ÉLÉMENT a été ajouté (nouveau contenu
+      // d'UI). On IGNORE les remplacements de nœuds texte seuls — sinon l'horloge,
+      // le compte à rebours, le score… (mis à jour chaque seconde via textContent)
+      // déclencheraient une re-traduction permanente → clignotement.
+      let relevant = false;
+      for (const m of muts) {
+        for (const node of m.addedNodes) {
+          if (node.nodeType === 1) { relevant = true; break; }   // ELEMENT_NODE
+        }
+        if (relevant) break;
+      }
+      if (!relevant) return;
+      pending = setTimeout(() => { pending = null; window.rcTranslate(); }, 120);
     });
     obs.observe(document.body, { childList: true, subtree: true });
 
