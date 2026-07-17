@@ -438,22 +438,41 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
         # Commande de spot DX Spider
         cmd = f'DX {freq_khz:.1f} {spot_call} {comment}'.strip()
         s.sendall((cmd + '\r\n').encode())
-        echo = read_until([b'spot', b'sent', b'>'], max_wait=4)
+        echo = read_until([b'spot', b'sent', b'>'], max_wait=3)
+        # Confirmation POSITIVE : redemander les derniers spots et y chercher le
+        # nôtre (un succès ne peut PAS se déduire de la seule absence de refus).
+        try:
+            s.sendall(b'sh/dx/5\r\n')
+            echo += read_until([b'>'], max_wait=3)
+        except OSError:
+            pass
         try:
             s.sendall(b'bye\r\n')
         except OSError:
             pass
         s.close()
         low = echo.lower()
-        if any(k in low for k in ('not allowed', 'permission', 'must register',
-                                  'not registered', 'registration', 'denied',
-                                  'invalid call', 'error')):
-            return {'ok': False, 'raw': echo[-400:],
+        # Refus explicite — liste large, aussi peu dépendante de la langue que
+        # possible (beaucoup de nœuds n'acceptent le spot que d'inscrits).
+        refus = ('not allowed', 'permission', 'register', 'not registered',
+                 'registration', 'denied', 'rejected', 'ignored', 'invalid',
+                 'not a user', 'set your location', 'sorry', 'duplicate', ' dup',
+                 'error', 'interdit', 'refus')
+        if any(k in low for k in refus):
+            return {'ok': False, 'confirmed': False, 'raw': echo[-500:],
                     'error': 'Le noeud a refuse le spot (inscription requise ?)'}
-        print(f"[SELF-SPOT] {login_call} -> DX {freq_khz:.1f} {spot_call} @ {host}")
-        return {'ok': True, 'raw': echo[-400:], 'error': None}
+        # Notre spot figure-t-il dans la liste renvoyée ? (indicatif + kHz)
+        freq_str = str(int(round(freq_khz)))
+        confirmed = (spot_call.lower() in low) and (freq_str in echo)
+        print(f"[SELF-SPOT] {login_call} -> DX {freq_khz:.1f} {spot_call} @ {host} "
+              f"({'confirme' if confirmed else 'non confirme'})")
+        if confirmed:
+            return {'ok': True, 'confirmed': True, 'raw': echo[-500:], 'error': None}
+        return {'ok': True, 'confirmed': False, 'raw': echo[-500:],
+                'error': 'Spot envoye mais non confirme par le noeud - verifie le cluster'}
     except Exception as e:
-        return {'ok': False, 'raw': '', 'error': f'Connexion cluster impossible : {e}'}
+        return {'ok': False, 'confirmed': False, 'raw': '',
+                'error': f'Connexion cluster impossible : {e}'}
 
 
 # ── ON4KST CHAT (telnet, compte requis) ───────────────────────────────────────

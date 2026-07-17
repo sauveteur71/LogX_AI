@@ -204,6 +204,15 @@ def test_dxcc_list_entities():
     assert len(prefixes) == len(ents)
 
 
+def test_dxcc_wae_fold():
+    import radiocontest_dxcc as dxcc
+    # Sicile (IT9) et Italie continentale -> même entité DXCC 'I' (pas de scission)
+    assert dxcc.dxcc_entity_key('IT9ABC') == dxcc.dxcc_entity_key('IK2ABC') == 'I'
+    # les ajouts WAE ne sont PAS listés comme pays DXCC
+    prefixes = {e['prefix'] for e in dxcc.list_entities()}
+    assert 'IT9' not in prefixes and 'TA1' not in prefixes
+
+
 def test_countries_progress_et_targets():
     import radiocontest_countries as co
     log = [

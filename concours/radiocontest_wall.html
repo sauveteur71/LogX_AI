@@ -136,6 +136,7 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
         if(wf.country)      c.push(`<span class="q-country">${q.country||''}</span>`);
         if(wf.name)         c.push(`<span class="q-name">${q.name||''}</span>`);
         if(wf.band!==false) c.push(`<span class="q-band">${bandLabel(q.band)}${(wf.freq&&q.freq)?` <small style="opacity:.6">${q.freq}</small>`:''}</span>`);
+        else if(wf.freq&&q.freq) c.push(`<span class="q-band"><small style="opacity:.6">${q.freq}</small></span>`);
         if(wf.mode!==false) c.push(`<span class="q-mode">${q.mode}</span>`);
         if(wf.rst)          c.push(`<span class="q-rst">${q.rst_rcvd||q.rst_sent||''}</span>`);
         if(wf.op!==false)   c.push(`<span class="q-op">${q.op||''}</span>`);

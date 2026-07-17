@@ -670,6 +670,7 @@ const _BM_RANGE = {
   '21':[21.0,21.45], '28':[28.0,29.7], '50':[50,54], '70':[70,70.5],
   '144':[144,148], '432':[430,440], '1296':[1240,1300], '2320':[2300,2450],
   '3400':[3400,3475], '5760':[5650,5925], '10368':[10000,10500],
+  '24048':[24000,24250], '47088':[47000,47200],
 };
 
 async function refreshBandMap(){
@@ -1140,8 +1141,13 @@ function setBand(el){
 function setFreqForBand(band){
   const el = document.getElementById('inputFreq');
   if(!el) return;
-  if(typeof rigState === 'object' && rigState && rigState.enabled && rigState.freq_khz > 0){
-    el.value = (rigState.freq_khz / 1000).toFixed(3);
+  delete el.dataset.userEdited;   // changement de bande → la saisie manuelle est réinitialisée
+  const rigMhz = (typeof rigState === 'object' && rigState && rigState.enabled && rigState.freq_khz > 0)
+    ? rigState.freq_khz / 1000 : null;
+  // N'utiliser la fréquence radio que si elle tombe DANS la bande demandée
+  // (sinon on collerait la freq d'une autre bande → couple bande/freq incohérent).
+  if(rigMhz != null && bandFromFreq(rigMhz) === band){
+    el.value = rigMhz.toFixed(3);
   } else {
     el.value = BAND_FREQ[band] || '';
   }
@@ -1151,6 +1157,7 @@ function setFreqForBand(band){
 function onFreqInput(){
   const el = document.getElementById('inputFreq');
   if(!el) return;
+  el.dataset.userEdited = '1';   // saisie manuelle → le CAT ne doit plus écraser
   const b = bandFromFreq(el.value);
   if(b && b !== currentBand){
     const btn = document.querySelector(`#bandSelect .bm-btn[data-val="${b}"]`);
@@ -1170,6 +1177,7 @@ function freqFromRig(){
   if(el && typeof rigState === 'object' && rigState && rigState.freq_khz > 0){
     el.value = (rigState.freq_khz / 1000).toFixed(3);
     onFreqInput();
+    delete el.dataset.userEdited;   // on suit à nouveau la radio en direct
   } else {
     notify('Radio non connectée (CAT) — saisis la fréquence à la main.');
   }
@@ -1200,6 +1208,13 @@ const BAND_FREQ = {
   '2320':'2320.200','3400':'3400.200','5760':'5760.200','10368':'10368.200',
   '24048':'24048.200','47088':'47088.200',
 };
+// Échappement HTML — pour toute donnée d'origine externe (ADIF importé, spots
+// cluster) insérée via innerHTML. Empêche l'injection (XSS) en contexte attribut.
+function escHtml(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 // Fréquence (MHz) → clé de bande interne, via les plages _BM_RANGE. Permet de
 // sélectionner automatiquement la bonne bande quand l'opérateur saisit une freq.
 function bandFromFreq(freqMHz){
@@ -1821,7 +1836,7 @@ function renderLog(){
       <td class="td-num">${incomplete?'<span class=\"incomplete-flag\" title=\"QSO incomplet — champ(s) manquant(s), à corriger\">⚠️</span>':''}${qsoLog.indexOf(q)+1}</td>
       <td class="td-time">${q.time||'—'}</td>
       <td class="td-call">${q.call||'—'}</td>
-      <td class="td-band"${q.freq?` title="${q.freq} MHz"`:''}>${BAND_LABELS[q.band]||q.band||'—'}${q.freq?`<span style="display:block;font-size:10px;color:var(--muted);font-weight:400">${q.freq}</span>`:''}</td>
+      <td class="td-band"${q.freq?` title="${escHtml(q.freq)} MHz"`:''}>${BAND_LABELS[q.band]||escHtml(q.band)||'—'}${q.freq?`<span style="display:block;font-size:10px;color:var(--muted);font-weight:400">${escHtml(q.freq)}</span>`:''}</td>
       <td class="td-mode">${q.mode||'—'}</td>
       <td class="td-sent">${q.rst_sent||'—'}/${q.num_sent||'—'}</td>
       <td class="td-rcvd">${q.rst_rcvd||'—'}/${q.num_rcvd||'—'}</td>
@@ -2334,9 +2349,11 @@ function refreshRig(){
       if(dot) dot.classList.add('on');
       // Suivi automatique : la bande/le mode de saisie suivent la radio
       syncBandModeFromRig(d.freq_khz, d.mode);
-      // La fréquence saisie suit la radio en temps réel (source de vérité = CAT)
+      // La fréquence suit la radio en direct, SAUF si l'opérateur est en train de
+      // la saisir ou l'a saisie manuellement (split, annonce) → on ne l'écrase pas.
       const fEl = document.getElementById('inputFreq');
-      if(fEl && d.freq_khz > 0) fEl.value = (d.freq_khz / 1000).toFixed(3);
+      if(fEl && d.freq_khz > 0 && document.activeElement !== fEl && !fEl.dataset.userEdited)
+        fEl.value = (d.freq_khz / 1000).toFixed(3);
       if(typeof updateKeyerPanels==='function') updateKeyerPanels();
     } else {
       document.getElementById('rigFreq').textContent = 'rigctld injoignable';
@@ -3714,7 +3731,8 @@ async function selfSpot(){
     const r = await fetch('/cluster/spot', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({freq_khz, comment: 'CQ ' + ((currentContest||'').replace(/_/g,' '))})});
     const d = await r.json();
-    if(d.ok) notify(`📡 Spot publié sur le cluster : ${myCall}  ${mhz.toFixed(3)} MHz`);
+    if(d.ok && d.confirmed) notify(`📡 Spot publié et confirmé : ${myCall}  ${mhz.toFixed(3)} MHz`);
+    else if(d.ok) notify(`📡 Spot envoyé (non confirmé par le nœud) : ${myCall}  ${mhz.toFixed(3)} MHz\nVérifie sur le cluster qu'il apparaît.`);
     else notify('❌ Self-spot : ' + (d.error || 'échec'));
   }catch(e){ notify('❌ ' + e.message); }
   finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SELF-SPOT'; } }

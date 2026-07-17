@@ -140,6 +140,13 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 let leafletMap = null, geoLayer = null, geoLoaded = false;
 let workedSet = new Set();
 
+// Échappement HTML — les spots viennent du cluster (réseau non authentifié) :
+// jamais insérer un indicatif/commentaire brut dans innerHTML.
+function esc(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function isDay(){ return document.body.classList.contains('day-mode'); }
 
 function deptStyle(feature){
@@ -243,10 +250,10 @@ async function loadTargets(){
     }
     el.innerHTML = actionable.slice(0, 30).map(t => {
       const sp = t.spotted.map(s =>
-        `<span style="color:var(--green);font-weight:700">⚡ ${s.call}${s.freq ? ' ' + s.freq : ''}</span>`).join(' ');
-      const kn = t.known.slice(0, 4).join(', ');
+        `<span style="color:var(--green);font-weight:700">⚡ ${esc(s.call)}${s.freq ? ' ' + esc(s.freq) : ''}</span>`).join(' ');
+      const kn = t.known.slice(0, 4).map(esc).join(', ');
       return `<div style="margin-bottom:5px">`
-        + `<b style="color:var(--yellow)">${t.dept}</b> <span style="color:var(--text)">${t.name}</span>`
+        + `<b style="color:var(--yellow)">${esc(t.dept)}</b> <span style="color:var(--text)">${esc(t.name)}</span>`
         + (sp ? ` — ${sp}` : '')
         + (kn ? `<br><span style="opacity:.7">${kn}</span>` : '')
         + `</div>`;
@@ -310,15 +317,15 @@ function renderCountries(container, prog, targets, isFull){
       + `<span style="color:var(--muted)">à appeler</span></div><div class="country-grid">`
       + sp.slice(0,24).map(s =>
           `<span class="country-chip" style="color:var(--yellow);border-color:var(--yellow)">`
-          + `${s.flag||''} ${s.call} <b>${s.country||''}</b>${s.freq?(' '+s.freq):''}</span>`).join('')
+          + `${esc(s.flag)} ${esc(s.call)} <b>${esc(s.country)}</b>${s.freq?(' '+esc(s.freq)):''}</span>`).join('')
       + `</div></div>`;
   }
   for(const [cont, list] of Object.entries(prog.by_continent||{})){
     const done = list.filter(x=>x.worked).length;
-    html += `<div class="cont-group"><div class="cont-head"><span>${cn[cont]||cont}</span>`
+    html += `<div class="cont-group"><div class="cont-head"><span>${esc(cn[cont]||cont)}</span>`
       + `<span style="color:var(--muted)">${done}/${list.length}</span></div><div class="country-grid">`
-      + list.map(c => `<span class="country-chip ${c.worked?'worked':''}" title="${c.prefix}">`
-          + `${c.flag||''} ${c.country}</span>`).join('')
+      + list.map(c => `<span class="country-chip ${c.worked?'worked':''}" title="${esc(c.prefix)}">`
+          + `${esc(c.flag)} ${esc(c.country)}</span>`).join('')
       + `</div></div>`;
   }
   container.innerHTML = html || '<div style="color:var(--muted);font-family:var(--font-mono)">Aucune donnée pays.</div>';
