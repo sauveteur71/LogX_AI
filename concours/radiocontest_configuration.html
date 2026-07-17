@@ -285,89 +285,6 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         tu pourras les remplir avant d'envoyer ton log.</div>
     </div>
 
-    <div class="section expert-only">
-      <div class="section-title">💻 WSJT-X (FT8/FT4 — auto-log)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Chaque QSO validé dans WSJT-X arrive AUTOMATIQUEMENT dans le logbook
-        (call, grille, bande, mode, rapports) — plus de ressaisie en numérique.<br>
-        Côté WSJT-X : <b style="color:var(--accent2)">Réglages → Rapports → UDP Server</b>
-        = l'IP de ce PC, port 2237.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>AUTO-LOG WSJT-X</label>
-          <select id="wsjtx_enabled">
-            <option value="">Désactivé</option>
-            <option value="1">Activé</option>
-          </select>
-          <div class="input-note">Désactivé par défaut — écoute UDP en fond si activé</div>
-        </div>
-        <div class="form-group">
-          <label>PORT UDP WSJT-X</label>
-          <input type="number" id="wsjtx_port" placeholder="2237">
-          <div class="input-note">Port « UDP Server » de WSJT-X (défaut 2237)</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section expert-only">
-      <div class="section-title">📻 RADIO (CAT via Hamlib rigctld)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
-        suivis automatiquement, macros CW envoyées par le keyer de la radio.<br>
-        Lance <b style="color:var(--accent2)">rigctld -m &lt;n°modèle&gt; -r &lt;port COM&gt; -T 0.0.0.0</b>
-        sur le PC relié à la radio (fourni avec Hamlib — n° de modèle : <b>rigctl -l</b>).
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>PILOTAGE RADIO</label>
-          <select id="rig_enabled">
-            <option value="">Désactivé</option>
-            <option value="1">Activé</option>
-          </select>
-          <div class="input-note">Désactivé par défaut — aucun effet sans rigctld</div>
-        </div>
-        <div class="form-group">
-          <label>ADRESSE RIGCTLD</label>
-          <input type="text" id="rig_host" placeholder="127.0.0.1 (ou IP du poste radio)">
-          <div class="input-note">IP du PC où tourne rigctld (peut être un autre poste du WiFi)</div>
-        </div>
-        <div class="form-group">
-          <label>PORT RIGCTLD</label>
-          <input type="number" id="rig_port" placeholder="4532">
-        </div>
-      </div>
-    </div>
-
-    <div class="section expert-only">
-      <div class="section-title">🧭 ROTOR D'ANTENNE (via Hamlib rotctld)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
-        depuis ton locator est envoyé au rotor.<br>
-        Lance <b style="color:var(--accent2)">rotctld -m &lt;n°modèle&gt; -r &lt;port&gt; -T 0.0.0.0</b>
-        sur le PC relié au boîtier de commande (fourni avec Hamlib — modèles : <b>rotctl -l</b>).
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>PILOTAGE ROTOR</label>
-          <select id="rotor_enabled">
-            <option value="">Désactivé</option>
-            <option value="1">Activé</option>
-          </select>
-          <div class="input-note">Désactivé par défaut — aucun effet sans rotctld</div>
-        </div>
-        <div class="form-group">
-          <label>ADRESSE ROTCTLD</label>
-          <input type="text" id="rotor_host" placeholder="127.0.0.1 (ou IP du poste rotor)">
-          <div class="input-note">IP du PC où tourne rotctld (peut être un autre poste du WiFi)</div>
-        </div>
-        <div class="form-group">
-          <label>PORT ROTCTLD</label>
-          <input type="number" id="rotor_port" placeholder="4533">
-        </div>
-      </div>
-    </div>
-
     <div class="section" id="opSection">
       <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
       <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
@@ -456,29 +373,6 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section">
-      <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
-      <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
-        📅 Sélectionne un concours dans l'onglet CONCOURS pour calculer les dates automatiquement.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>DATE DÉBUT <span style="font-size:12px;color:var(--muted)">(auto ou manuel)</span></label>
-          <input type="date" id="contest_start_date" placeholder="2026-07-05">
-          <div class="input-note">Champ TDate début dans le fichier EDI</div>
-        </div>
-        <div class="form-group">
-          <label>DATE FIN</label>
-          <input type="date" id="contest_end_date" placeholder="2026-07-06">
-        </div>
-        <div class="form-group">
-          <label>HEURE FIN UTC</label>
-          <input type="time" id="contest_end_utc" placeholder="14:00">
-          <div class="input-note">Pour le compte à rebours du logbook</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
       <div class="section-title">MATÉRIEL &amp; SOUMISSION EDI</div>
       <div class="form-grid">
         <div class="form-group">
@@ -531,6 +425,90 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
     </div>
 
+    <!-- ── Matériel piloté (optionnel, en fin de page : peu utilisé) ── -->
+    <div class="section expert-only">
+      <div class="section-title">💻 WSJT-X (FT8/FT4 — auto-log)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Chaque QSO validé dans WSJT-X arrive AUTOMATIQUEMENT dans le logbook
+        (call, grille, bande, mode, rapports) — plus de ressaisie en numérique.<br>
+        Côté WSJT-X : <b style="color:var(--accent2)">Réglages → Rapports → UDP Server</b>
+        = l'IP de ce PC, port 2237.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>AUTO-LOG WSJT-X</label>
+          <select id="wsjtx_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+          <div class="input-note">Désactivé par défaut — écoute UDP en fond si activé</div>
+        </div>
+        <div class="form-group">
+          <label>PORT UDP WSJT-X</label>
+          <input type="number" id="wsjtx_port" placeholder="2237">
+          <div class="input-note">Port « UDP Server » de WSJT-X (défaut 2237)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">📻 RADIO (CAT via Hamlib rigctld)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
+        suivis automatiquement, macros CW envoyées par le keyer de la radio.<br>
+        Lance <b style="color:var(--accent2)">rigctld -m &lt;n°modèle&gt; -r &lt;port COM&gt; -T 0.0.0.0</b>
+        sur le PC relié à la radio (fourni avec Hamlib — n° de modèle : <b>rigctl -l</b>).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PILOTAGE RADIO</label>
+          <select id="rig_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+          <div class="input-note">Désactivé par défaut — aucun effet sans rigctld</div>
+        </div>
+        <div class="form-group">
+          <label>ADRESSE RIGCTLD</label>
+          <input type="text" id="rig_host" placeholder="127.0.0.1 (ou IP du poste radio)">
+          <div class="input-note">IP du PC où tourne rigctld (peut être un autre poste du WiFi)</div>
+        </div>
+        <div class="form-group">
+          <label>PORT RIGCTLD</label>
+          <input type="number" id="rig_port" placeholder="4532">
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">🧭 ROTOR D'ANTENNE (via Hamlib rotctld)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
+        depuis ton locator est envoyé au rotor.<br>
+        Lance <b style="color:var(--accent2)">rotctld -m &lt;n°modèle&gt; -r &lt;port&gt; -T 0.0.0.0</b>
+        sur le PC relié au boîtier de commande (fourni avec Hamlib — modèles : <b>rotctl -l</b>).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PILOTAGE ROTOR</label>
+          <select id="rotor_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+          <div class="input-note">Désactivé par défaut — aucun effet sans rotctld</div>
+        </div>
+        <div class="form-group">
+          <label>ADRESSE ROTCTLD</label>
+          <input type="text" id="rotor_host" placeholder="127.0.0.1 (ou IP du poste rotor)">
+          <div class="input-note">IP du PC où tourne rotctld (peut être un autre poste du WiFi)</div>
+        </div>
+        <div class="form-group">
+          <label>PORT ROTCTLD</label>
+          <input type="number" id="rotor_port" placeholder="4533">
+        </div>
+      </div>
+    </div>
+
     <div class="btn-row">
       <button class="btn btn-primary" onclick="goStep(2)">SUIVANT → CONCOURS</button>
     </div>
@@ -557,6 +535,29 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none">✕</span>
       </div>
       <div class="contest-grid" id="contestGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
+      <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+        📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>DATE DÉBUT <span style="font-size:12px;color:var(--muted)">(auto ou manuel)</span></label>
+          <input type="date" id="contest_start_date" placeholder="2026-07-05">
+          <div class="input-note">Champ TDate début dans le fichier EDI</div>
+        </div>
+        <div class="form-group">
+          <label>DATE FIN</label>
+          <input type="date" id="contest_end_date" placeholder="2026-07-06">
+        </div>
+        <div class="form-group">
+          <label>HEURE FIN UTC</label>
+          <input type="time" id="contest_end_utc" placeholder="14:00">
+          <div class="input-note">Pour le compte à rebours du logbook</div>
+        </div>
+      </div>
     </div>
 
     <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
