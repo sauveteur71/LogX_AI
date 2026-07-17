@@ -188,16 +188,35 @@ def update_cty_if_stale(max_age_days=CTY_MAX_AGE_DAYS, force=False):
     return True
 
 
+# Entités marquées '*' dans cty.dat = ajouts WAE, PAS des entités DXCC à part
+# entière (Sicile, Italie africaine, Turquie d'Europe…). Pour la « chasse aux
+# pays DXCC » on les replie sur leur entité parente. (Le scoring CQ WW, lui,
+# les compte séparément : il continue d'utiliser country_key, inchangé.)
+_WAE_PARENT = {
+    'IT9': 'I', 'IG9': 'I', 'IH9': 'I',   # Sicile / Italie africaine -> Italie
+    'TA1': 'TA',                           # Turquie d'Europe -> Turquie
+    'GM/s': 'GM', 'JW/b': 'JW', '4U1V': 'OE',
+}
+
+
+def dxcc_entity_key(callsign):
+    """Comme country_key, mais replie les entités WAE sur leur entité DXCC
+    parente. À utiliser pour la CHASSE AUX PAYS (≠ multiplicateur CQ WW)."""
+    k = country_key(callsign)
+    return _WAE_PARENT.get(k, k)
+
+
 def list_entities():
     """Liste dédupliquée des entités DXCC (une par pays), pour la chasse aux
     pays des concours internationaux. Chaque entité :
-    {'prefix'(primaire), 'country'(EN), 'continent', 'lat', 'lon'}."""
+    {'prefix'(primaire), 'country'(EN), 'continent', 'lat', 'lon'}.
+    Les ajouts WAE (Sicile…) sont exclus : ce ne sont pas des entités DXCC."""
     if not _loaded:
         load_cty()
     seen = {}
     for t in _PREFIXES.values():
         primary = t[4]
-        if primary and primary not in seen:
+        if primary and primary not in seen and primary not in _WAE_PARENT:
             seen[primary] = {'prefix': primary, 'country': t[0],
                              'continent': t[1], 'lat': t[5], 'lon': t[6]}
     return sorted(seen.values(), key=lambda e: (e['continent'] or 'ZZ', e['country']))
