@@ -39,6 +39,68 @@ browser_spots_lock  = threading.Lock()
 browser_spots_ts    = 0       # timestamp dernier push
 connected_peers = set()
 
+# ─── ANALYSES IA CÔTÉ SERVEUR (survivent au changement de page) ──────────────
+# Une analyse lancée depuis la CARTE IA tourne dans un thread serveur et son
+# résultat est stocké ici : si l'opérateur change d'onglet (la nav recharge la
+# page), il retrouve le résultat au retour via GET /agent/analyze/state?id=.
+_agent_analyses = {}          # id -> {ts, status:'running|done|error', reply, error}
+_agent_seq = 0
+_agent_lock = threading.Lock()
+
+
+def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
+    """Appelle le fournisseur IA configuré et retourne le TEXTE de la réponse.
+    Même logique que /proxy/ai mais réutilisable côté serveur (analyse en fond).
+    Lève une exception en cas d'échec."""
+    provider = (cfg or {}).get('api_provider', 'anthropic')
+    ai_model = model or (cfg or {}).get('ai_model', 'claude-sonnet-4-6')
+    api_key = (cfg or {}).get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        raise RuntimeError('Clé API non configurée')
+
+    if provider == 'anthropic':
+        payload = {'model': ai_model or 'claude-sonnet-4-6',
+                   'max_tokens': max_tokens, 'messages': messages}
+        if system_prompt:
+            payload['system'] = system_prompt
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages', data=json.dumps(payload).encode(),
+            headers={'Content-Type': 'application/json', 'x-api-key': api_key,
+                     'anthropic-version': '2023-06-01'}, method='POST')
+        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+            data = json.loads(resp.read())
+        return ''.join(b.get('text', '') for b in data.get('content', [])
+                       if b.get('type') == 'text')
+
+    if provider == 'openai':
+        msgs = ([{'role': 'system', 'content': system_prompt}] if system_prompt else []) + messages
+        payload = {'model': ai_model or 'gpt-4o', 'max_tokens': max_tokens, 'messages': msgs}
+        req = urllib.request.Request(
+            'https://api.openai.com/v1/chat/completions', data=json.dumps(payload).encode(),
+            headers={'Content-Type': 'application/json',
+                     'Authorization': f'Bearer {api_key}'}, method='POST')
+        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+            d = json.loads(resp.read())
+        return d.get('choices', [{}])[0].get('message', {}).get('content', '')
+
+    if provider == 'gemini':
+        model_id = ai_model or 'gemini-2.0-flash'
+        contents = [{'role': 'model' if m['role'] == 'assistant' else 'user',
+                     'parts': [{'text': m['content']}]} for m in messages]
+        payload = {'contents': contents}
+        if system_prompt:
+            payload['systemInstruction'] = {'parts': [{'text': system_prompt}]}
+        url = (f'https://generativelanguage.googleapis.com/v1beta/models/'
+               f'{model_id}:generateContent?key={api_key}')
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                     headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+            d = json.loads(resp.read())
+        return (d.get('candidates', [{}])[0].get('content', {})
+                .get('parts', [{}])[0].get('text', ''))
+
+    raise RuntimeError(f'Fournisseur inconnu : {provider}')
+
 # ─── CONFIGURATION COURANTE (mise à jour par /config/save) ───────────────────
 # Persistée dans .server_config.json (gitignoré : contient les identifiants
 # ON4KST) : après un redémarrage du serveur, le coach, la statusbar et la
@@ -416,6 +478,25 @@ def do_refresh(cfg):
     extra.append('\n=== FIN DONNÉES INTERNET ===')
     on4kst_mentions = locals().get('on4kst_mentions', [])
     context += '\n'.join(extra)
+
+    # ── Ouvertures par région depuis le QTH (l'agent peut estimer « mes chances
+    #    vers l'Europe ? » où que soit la station) ──────────────────────────────
+    try:
+        import radiocontest_paths as paths
+        my_ll_op = locator_to_latlon(cfg.get('locator', '') or 'JN15XC')
+        if my_ll_op[0] is not None:
+            solar_op = {'solar': {'k_index': (noaa or {}).get('k_index', 2)}}
+            try:
+                from radiocontest_clusters import fetch_solar_data, fetch_muf
+                sd = fetch_solar_data() or {}
+                solar_op = {'solar': sd, 'muf': fetch_muf(my_ll_op[0], my_ll_op[1])}
+            except Exception:
+                pass
+            ob = paths.context_block(my_ll_op[0], my_ll_op[1], solar=solar_op)
+            if ob:
+                context += '\n\n=== PROPAGATION PAR RÉGION ===\n' + ob
+    except Exception:
+        pass
 
     # ── 8. Classement stations par valeur réelle ──────────────────────────────
     scoring_context = build_scoring_context(logs, spots_by_band, cfg, noaa, dxmaps,
@@ -1043,6 +1124,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/meteors':
             import radiocontest_meteors as met
             self._json(met.ms_quality())
+            return
+
+        # État d'une analyse IA serveur (pour la reprise après changement de page)
+        if path.startswith('/agent/analyze/state'):
+            from urllib.parse import parse_qs, urlparse
+            aid = (parse_qs(urlparse(self.path).query).get('id') or [''])[0]
+            with _agent_lock:
+                a = dict(_agent_analyses.get(aid) or {'status': 'unknown'})
+            a['id'] = aid
+            self._json(a)
+            return
+
+        # Ouvertures par région depuis le QTH (probabilité par bande). ?region=EU
+        # (défaut : survol de toutes les régions).
+        if path.startswith('/data/openings'):
+            from urllib.parse import parse_qs, urlparse
+            import radiocontest_paths as paths
+            cfg_snap = self._cfg_snapshot()
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            if my_ll[0] is None:
+                self._json({'ok': False, 'error': 'Locator station non défini'})
+                return
+            try:
+                from radiocontest_clusters import fetch_solar_data, fetch_muf
+                solar = {'solar': fetch_solar_data() or {},
+                         'muf': fetch_muf(my_ll[0], my_ll[1])}
+            except Exception:
+                solar = {}
+            region = (parse_qs(urlparse(self.path).query).get('region') or [''])[0].upper()
+            if region and region in paths.REGIONS:
+                self._json({'ok': True, 'detail': paths.path_openings(my_ll[0], my_ll[1], region, solar=solar)})
+            else:
+                self._json({'ok': True, 'regions': paths.all_regions(my_ll[0], my_ll[1], solar=solar)})
             return
 
         # RBN : où mon signal CW est entendu (skimmers Reverse Beacon Network)
@@ -1683,6 +1797,43 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # Proxy IA universel (Anthropic / OpenAI / Gemini)
+        # Analyse IA lancée CÔTÉ SERVEUR (thread de fond) : le résultat est
+        # stocké et récupérable via GET /agent/analyze/state — l'analyse se
+        # termine même si l'opérateur change d'onglet (la nav recharge la page).
+        if self.path == '/agent/analyze':
+            global _agent_seq
+            try:
+                cfg_snap = self._cfg_snapshot()
+                payload = json.loads(body) if body else {}
+                messages = payload.get('messages', [])
+                system_prompt = payload.get('system') or (build_system_prompt(cfg_snap) if cfg_snap else '')
+                model = payload.get('model')
+                max_tokens = payload.get('max_tokens', 4096)
+                with _agent_lock:
+                    _agent_seq += 1
+                    aid = f"{int(time.time())}-{_agent_seq}"
+                    _agent_analyses[aid] = {'ts': time.time(), 'status': 'running',
+                                            'reply': '', 'error': ''}
+                    # Rétention : ne garder que les 10 dernières analyses
+                    if len(_agent_analyses) > 10:
+                        for k in sorted(_agent_analyses, key=lambda k: _agent_analyses[k]['ts'])[:-10]:
+                            _agent_analyses.pop(k, None)
+
+                def _run(aid=aid, cfg=cfg_snap, sysp=system_prompt, msgs=messages,
+                         mdl=model, mt=max_tokens):
+                    try:
+                        text = call_llm(cfg, sysp, msgs, mdl, mt)
+                        with _agent_lock:
+                            _agent_analyses[aid].update(status='done', reply=text)
+                    except Exception as e:
+                        with _agent_lock:
+                            _agent_analyses[aid].update(status='error', error=str(e))
+                threading.Thread(target=_run, daemon=True).start()
+                self._json({'id': aid, 'status': 'running'})
+            except Exception as e:
+                self._json({'error': str(e)}, 500)
+            return
+
         if self.path in ('/proxy/ai', '/proxy/anthropic'):
             cfg_snap = self._cfg_snapshot()
             provider = cfg_snap.get('api_provider', 'anthropic')

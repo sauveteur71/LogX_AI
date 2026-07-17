@@ -25,6 +25,37 @@ def test_meteores_faible_hors_creneau_hiver():
     assert q['level'] in ('faible', 'moyen')
 
 
+# ─── Ouvertures par région (paths) ───────────────────────────────────────────
+
+def test_paths_sun_elevation():
+    import radiocontest_paths as p
+    # Équateur, équinoxe : ~90° à midi UTC, ~-90° à minuit
+    assert p.sun_elevation(0, 0, datetime.datetime(2026, 3, 21, 12, 0)) > 80
+    assert p.sun_elevation(0, 0, datetime.datetime(2026, 3, 21, 0, 0)) < -80
+
+
+def test_paths_hiva_oa_vers_europe_long_path():
+    import radiocontest_paths as p
+    hiva = (-9.75, -139.0)
+    solar = {'muf': {'muf_mhz': 22}, 'solar': {'sfi': 140, 'k_index': 2}}
+    d = p.path_openings(hiva[0], hiva[1], 'EU',
+                        datetime.datetime(2026, 7, 17, 18, 0), solar)
+    assert d['distance_km'] > 13000          # très longue distance
+    assert d['long_path'] is True
+    assert d['bands'][0]['score'] >= d['bands'][-1]['score']   # trié
+    assert 0 <= d['bands'][0]['score'] <= 100
+
+
+def test_paths_context_block_et_regions():
+    import radiocontest_paths as p
+    txt = p.context_block(48.8, 2.3, datetime.datetime(2026, 7, 17, 20, 0),
+                          {'muf': {'muf_mhz': 18}, 'solar': {'sfi': 130}})
+    assert 'Europe' in txt and 'UTC' in txt
+    regs = p.all_regions(48.8, 2.3, solar={})
+    assert len(regs) == len(p.REGIONS)
+    assert all('best_band' in r for r in regs)
+
+
 # ─── Tropo (physique de réfractivité) ────────────────────────────────────────
 
 def test_tropo_refractivite_decroit_avec_altitude():
