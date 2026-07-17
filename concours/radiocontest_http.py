@@ -1031,6 +1031,60 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(weather.get_weather(my_ll[0], my_ll[1]))
             return
 
+        # Prévision tropo (ducting) — gradient de réfractivité (open-meteo niveaux)
+        if path == '/data/tropo':
+            import radiocontest_tropo as tropo
+            cfg_snap = self._cfg_snapshot()
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            self._json(tropo.tropo_forecast(my_ll[0], my_ll[1]))
+            return
+
+        # Calendrier météores (Meteor Scatter VHF) — déterministe, pas de réseau
+        if path == '/data/meteors':
+            import radiocontest_meteors as met
+            self._json(met.ms_quality())
+            return
+
+        # Diffusion par avion (aircraft scatter) : ADS-B + géométrie vers le DX.
+        # ?bearing= (cap DX en °) ou ?dx= (locator DX) optionnels.
+        if path.startswith('/data/aircraft'):
+            from urllib.parse import parse_qs, urlparse
+            import radiocontest_aircraft as ac
+            qp = parse_qs(urlparse(self.path).query)
+            cfg_snap = self._cfg_snapshot()
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            dx_bearing = None
+            if qp.get('bearing'):
+                try:
+                    dx_bearing = float(qp['bearing'][0])
+                except ValueError:
+                    dx_bearing = None
+            dx_loc = (qp.get('dx', [''])[0]).strip()
+            planes = ac.fetch_planes(my_ll[0], my_ll[1])
+            cands = ac.scatter_candidates(my_ll[0], my_ll[1], planes,
+                                          dx_bearing=dx_bearing, dx_locator=dx_loc)
+            self._json({'ok': True, 'planes_seen': len(planes),
+                        'candidates': cands, 'summary': ac.summarize(cands, dx_bearing)})
+            return
+
+        # RBN : où mon signal CW est entendu (skimmers Reverse Beacon Network)
+        if path == '/data/rbn':
+            import radiocontest_rbn as rbn
+            cfg_snap = self._cfg_snapshot()
+            call = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign') or '')
+            self._json(rbn.where_heard(call))
+            return
+
+        # État scoreboard / sauvegarde (config + dernière synchro)
+        if path == '/scoreboard/status':
+            import radiocontest_scoreboard as sb
+            self._json(sb.status(self._cfg_snapshot()))
+            return
+        if path == '/backup/status':
+            import radiocontest_backup as bk
+            self._json(bk.status(self._cfg_snapshot()))
+            return
+
         # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min)
         if path == '/data/propagation':
             from radiocontest_clusters import fetch_solar_data, fetch_muf
@@ -1261,6 +1315,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 else:
                     res = {'ok': False, 'error': 'Service inconnu (eqsl|clublog)'}
                 res['qso_count'] = len(qsos)
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Publication du score sur le scoreboard en direct (contestonlinescore).
+        if self.path == '/scoreboard/push':
+            try:
+                import radiocontest_scoreboard as sb
+                with log_lock:
+                    log_copy = list(shared_log)
+                self._json(sb.push(self._cfg_snapshot(), log_copy))
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Sauvegarde manuelle immédiate vers le dossier configuré (cloud/NAS).
+        if self.path == '/backup/now':
+            try:
+                import radiocontest_backup as bk
+                with log_lock:
+                    log_copy = list(shared_log)
+                res = bk.run_backup(self._cfg_snapshot(), log_copy)
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 500)
