@@ -1169,6 +1169,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True, 'regions': paths.all_regions(my_ll[0], my_ll[1], solar=solar)})
             return
 
+        # Carte de propagation mondiale (grille colorée) pour la surcouche carte IA.
+        # ?band=best|14|7… & ?hour=0..23 (décalage horaire depuis maintenant).
+        if path.startswith('/data/propmap'):
+            from urllib.parse import parse_qs, urlparse
+            import radiocontest_paths as paths
+            cfg_snap = self._cfg_snapshot()
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            if my_ll[0] is None:
+                self._json({'ok': False, 'error': 'Locator station non défini'})
+                return
+            qp = parse_qs(urlparse(self.path).query)
+            band = (qp.get('band') or ['best'])[0]
+            try:
+                hour = max(0, min(24, int((qp.get('hour') or ['0'])[0])))
+            except ValueError:
+                hour = 0
+            try:
+                from radiocontest_clusters import fetch_solar_data, fetch_muf
+                solar = {'solar': fetch_solar_data() or {}, 'muf': fetch_muf(my_ll[0], my_ll[1])}
+            except Exception:
+                solar = {}
+            when = datetime.datetime.utcnow() + datetime.timedelta(hours=hour)
+            cells = paths.prop_grid(my_ll[0], my_ll[1], band, when, solar, step=15)
+            self._json({'ok': True, 'band': band, 'hour': hour,
+                        'when_utc': when.strftime('%H:%M'), 'step': 15,
+                        'my': {'lat': my_ll[0], 'lon': my_ll[1]}, 'cells': cells})
+            return
+
         # Écran mural d'expédition : agrégation du log commun en temps réel.
         if path == '/data/wall':
             import radiocontest_wall as wall

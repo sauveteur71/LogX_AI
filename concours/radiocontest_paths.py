@@ -178,6 +178,56 @@ def all_regions(my_lat, my_lon, when=None, solar=None):
     return out
 
 
+def _dist_factor(band, dist):
+    """Aptitude d'une bande à une DISTANCE donnée (footprint réaliste) :
+    les basses portent proche/médium, les hautes veulent du DX."""
+    if band in LOW:                      # 160/80/40 : proche-médium
+        return 1.0 if dist < 3000 else max(0.25, 1 - (dist - 3000) / 9000.0)
+    if band in HIGH:                     # 15/12/10/6 : DX (skip zone proche)
+        return 0.25 if dist < 800 else min(1.0, 0.25 + (dist - 800) / 2200.0)
+    return 1.0 if 300 < dist < 9000 else 0.6   # 30/20 : polyvalentes
+
+
+_grid_cache = {}     # (band, hour_key, muf, sfi, k, mylat, mylon, step) -> cells
+
+
+def prop_grid(my_lat, my_lon, band='best', when=None, solar=None, step=15):
+    """Grille mondiale de scores d'ouverture depuis le QTH, pour une bande
+    donnée (ou 'best' = meilleure bande par point). Chaque cellule :
+    {lat, lon, score, band}. Cache par (bande, heure, solaire)."""
+    when = when or datetime.datetime.utcnow()
+    muf = _muf_mhz(solar)
+    sfi, k = _sfi_k(solar)
+    key = (band, when.strftime('%Y%m%d%H'), round(muf), round(sfi), round(k),
+           round(my_lat, 1), round(my_lon, 1), step)
+    if key in _grid_cache:
+        return _grid_cache[key]
+
+    my_el = sun_elevation(my_lat, my_lon, when)
+    bands = BANDS if band == 'best' else [band]
+    cells = []
+    lat = -75
+    while lat <= 75:
+        lon = -180
+        while lon < 180:
+            dx_el = sun_elevation(lat, lon, when)
+            greyline = abs(dx_el) < 6 or abs(my_el) < 6
+            dist = haversine(my_lat, my_lon, lat, lon)
+            best_sc, best_b = -1, band
+            for b in bands:
+                sc = _band_score(b, my_el, dx_el, muf, sfi, k, greyline)
+                sc = int(sc * _dist_factor(b, dist))
+                if sc > best_sc:
+                    best_sc, best_b = sc, b
+            cells.append({'lat': lat, 'lon': lon, 'score': max(0, best_sc), 'band': best_b})
+            lon += step
+        lat += step
+    if len(_grid_cache) > 60:
+        _grid_cache.clear()
+    _grid_cache[key] = cells
+    return cells
+
+
 def context_block(my_lat, my_lon, when=None, solar=None):
     """Bloc texte compact pour le contexte de l'agent IA : ouvertures depuis le
     QTH vers chaque grande région. Vide si position inconnue."""
