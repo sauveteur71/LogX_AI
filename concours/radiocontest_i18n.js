@@ -221,6 +221,10 @@
       "pas de concours actif": "no active contest", "pts": "pts", "reste {h}h{mm}": "{h}h{mm} left",
       "terminé": "over", "total": "total",
       "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Strategic advice requested (contest status sent)",
+      "VÉRIFIER": "VERIFY", "DÉBRIEF": "DEBRIEF", "VÉRIFICATION DU LOG": "LOG CHECK",
+      "DÉJÀ VU": "SEEN BEFORE", "CIBLES — QUI PEUT LES DONNER": "TARGETS — WHO CAN GIVE THEM",
+      "🎓 Débrief post-concours demandé (déroulé transmis)": "🎓 Post-contest debrief requested (timeline sent)",
+      "Aucun QSO dans le log de ce concours — rien à débriefer pour l'instant.": "No QSO in this contest log — nothing to debrief yet.",
     },
     de: {
       "AGENT": "AGENT", "ANALYSER": "ANALYSIEREN", "Analyse en cours": "Analyse läuft",
@@ -244,6 +248,10 @@
       "pas de concours actif": "kein aktiver Contest", "pts": "Pkt.", "reste {h}h{mm}": "noch {h}h{mm}",
       "terminé": "beendet", "total": "gesamt",
       "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Strategischer Rat angefragt (Contest-Status übermittelt)",
+      "VÉRIFIER": "PRÜFEN", "DÉBRIEF": "DEBRIEF", "VÉRIFICATION DU LOG": "LOG-PRÜFUNG",
+      "DÉJÀ VU": "BEKANNT", "CIBLES — QUI PEUT LES DONNER": "ZIELE — WER SIE GEBEN KANN",
+      "🎓 Débrief post-concours demandé (déroulé transmis)": "🎓 Debrief nach dem Contest angefragt (Verlauf übermittelt)",
+      "Aucun QSO dans le log de ce concours — rien à débriefer pour l'instant.": "Kein QSO im Log dieses Contests — noch nichts zu debriefen.",
     },
     es: {
       "AGENT": "AGENTE", "ANALYSER": "ANALIZAR", "Analyse en cours": "Análisis en curso",
@@ -267,6 +275,10 @@
       "pas de concours actif": "sin concurso activo", "pts": "pts", "reste {h}h{mm}": "quedan {h}h{mm}",
       "terminé": "terminado", "total": "total",
       "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Consejo estratégico solicitado (estado del concurso transmitido)",
+      "VÉRIFIER": "VERIFICAR", "DÉBRIEF": "DEBRIEF", "VÉRIFICATION DU LOG": "VERIFICACIÓN DEL LOG",
+      "DÉJÀ VU": "YA VISTO", "CIBLES — QUI PEUT LES DONNER": "OBJETIVOS — QUIÉN PUEDE DARLOS",
+      "🎓 Débrief post-concours demandé (déroulé transmis)": "🎓 Debrief post-concurso solicitado (desarrollo transmitido)",
+      "Aucun QSO dans le log de ce concours — rien à débriefer pour l'instant.": "Ningún QSO en el log de este concurso — nada que analizar por ahora.",
     },
     it: {
       "AGENT": "AGENTE", "ANALYSER": "ANALIZZA", "Analyse en cours": "Analisi in corso",
@@ -290,6 +302,10 @@
       "pas de concours actif": "nessun contest attivo", "pts": "pt", "reste {h}h{mm}": "restano {h}h{mm}",
       "terminé": "terminato", "total": "totale",
       "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Consiglio strategico richiesto (stato del contest trasmesso)",
+      "VÉRIFIER": "VERIFICA", "DÉBRIEF": "DEBRIEF", "VÉRIFICATION DU LOG": "VERIFICA DEL LOG",
+      "DÉJÀ VU": "GIÀ VISTO", "CIBLES — QUI PEUT LES DONNER": "OBIETTIVI — CHI PUÒ DARLI",
+      "🎓 Débrief post-concours demandé (déroulé transmis)": "🎓 Debrief post-contest richiesto (andamento trasmesso)",
+      "Aucun QSO dans le log de ce concours — rien à débriefer pour l'instant.": "Nessun QSO nel log di questo contest — niente da analizzare per ora.",
     },
     pt: {
       "AGENT": "AGENTE", "ANALYSER": "ANALISAR", "Analyse en cours": "Análise em curso",
@@ -313,6 +329,10 @@
       "pas de concours actif": "sem concurso ativo", "pts": "pts", "reste {h}h{mm}": "restam {h}h{mm}",
       "terminé": "terminado", "total": "total",
       "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Conselho estratégico solicitado (estado do concurso transmitido)",
+      "VÉRIFIER": "VERIFICAR", "DÉBRIEF": "DEBRIEF", "VÉRIFICATION DU LOG": "VERIFICAÇÃO DO LOG",
+      "DÉJÀ VU": "JÁ VISTO", "CIBLES — QUI PEUT LES DONNER": "ALVOS — QUEM PODE DÁ-LOS",
+      "🎓 Débrief post-concours demandé (déroulé transmis)": "🎓 Debrief pós-concurso solicitado (desenrolar transmitido)",
+      "Aucun QSO dans le log de ce concours — rien à débriefer pour l'instant.": "Nenhum QSO no log deste concurso — nada a analisar por agora.",
     },
     nl: {
       "AGENT": "AGENT", "ANALYSER": "ANALYSEREN", "Analyse en cours": "Analyse bezig",
@@ -336,6 +356,10 @@
       "pas de concours actif": "geen actieve contest", "pts": "pt", "reste {h}h{mm}": "nog {h}u{mm}",
       "terminé": "afgelopen", "total": "totaal",
       "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Strategisch advies gevraagd (conteststatus doorgegeven)",
+      "VÉRIFIER": "CONTROLEER", "DÉBRIEF": "DEBRIEF", "VÉRIFICATION DU LOG": "LOGCONTROLE",
+      "DÉJÀ VU": "AL GEZIEN", "CIBLES — QUI PEUT LES DONNER": "DOELEN — WIE ZE KAN GEVEN",
+      "🎓 Débrief post-concours demandé (déroulé transmis)": "🎓 Debrief na de contest gevraagd (verloop doorgegeven)",
+      "Aucun QSO dans le log de ce concours — rien à débriefer pour l'instant.": "Geen QSO in het log van deze contest — nog niets te debriefen.",
     },
     pl: {
       "AGENT": "AGENT", "ANALYSER": "ANALIZUJ", "Analyse en cours": "Analiza w toku",
@@ -359,6 +383,10 @@
       "pas de concours actif": "brak aktywnych zawodów", "pts": "pkt", "reste {h}h{mm}": "zostało {h}h{mm}",
       "terminé": "zakończone", "total": "razem",
       "🧠 Conseil stratégique demandé (état du concours transmis)": "🧠 Poproszono o poradę strategiczną (stan zawodów przekazany)",
+      "VÉRIFIER": "SPRAWDŹ", "DÉBRIEF": "DEBRIEF", "VÉRIFICATION DU LOG": "SPRAWDZENIE LOGU",
+      "DÉJÀ VU": "JUŻ ZNANY", "CIBLES — QUI PEUT LES DONNER": "CELE — KTO MOŻE JE DAĆ",
+      "🎓 Débrief post-concours demandé (déroulé transmis)": "🎓 Poproszono o debrief po zawodach (przebieg przekazany)",
+      "Aucun QSO dans le log de ce concours — rien à débriefer pour l'instant.": "Brak QSO w logu tych zawodów — na razie nie ma czego podsumować.",
     },
   };
   Object.keys(T_AGENT).forEach(function (l) {

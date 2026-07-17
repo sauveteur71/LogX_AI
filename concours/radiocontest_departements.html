@@ -106,6 +106,10 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       <span><b style="background:var(--green)"></b>Contacté</span>
       <span><b style="background:var(--bg3);border:1px solid var(--border)"></b>À faire</span>
     </div>
+
+    <div class="grid-title" style="margin-top:14px">🎯 CIBLES — QUI PEUT LES DONNER</div>
+    <div id="targetsList" style="font-family:var(--font-mono);font-size:12px;line-height:1.7;color:var(--muted)">—</div>
+
     <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6">
       Le département est détecté depuis l'échange reçu, la base d'indicatifs,
       ou la position du locator (stations françaises).
@@ -204,8 +208,44 @@ function renderGrid(d){
   if(cfg.contest) document.getElementById('contestName').textContent = cfg.contest;
 })();
 
+// ─── CHASSE AUX DÉPARTEMENTS ─────────────────────────────────────────────────
+// Pour chaque département manquant : stations connues (historique complet) et
+// stations actuellement SPOTTÉES sur le cluster (avec fréquence = à appeler !).
+async function loadTargets(){
+  try{
+    const r = await fetch('/departments/targets');
+    if(!r.ok) return;
+    const d = await r.json();
+    const el = document.getElementById('targetsList');
+    if(!el) return;
+    if(!d.missing_total){
+      el.innerHTML = '<span style="color:var(--green);font-weight:700">🏆 Tous les départements sont verts !</span>';
+      return;
+    }
+    // Seulement les départements ACTIONNABLES : station spottée ou connue
+    const actionable = (d.targets||[]).filter(t => t.spotted.length || t.known.length);
+    if(!actionable.length){
+      el.textContent = `${d.missing_total} manquants — aucune station connue pour l'instant.`;
+      return;
+    }
+    el.innerHTML = actionable.slice(0, 30).map(t => {
+      const sp = t.spotted.map(s =>
+        `<span style="color:var(--green);font-weight:700">⚡ ${s.call}${s.freq ? ' ' + s.freq : ''}</span>`).join(' ');
+      const kn = t.known.slice(0, 4).join(', ');
+      return `<div style="margin-bottom:5px">`
+        + `<b style="color:var(--yellow)">${t.dept}</b> <span style="color:var(--text)">${t.name}</span>`
+        + (sp ? ` — ${sp}` : '')
+        + (kn ? `<br><span style="opacity:.7">${kn}</span>` : '')
+        + `</div>`;
+    }).join('') + (actionable.length > 30
+      ? `<div style="opacity:.6">… ${actionable.length - 30} autres</div>` : '');
+  }catch(e){/* serveur injoignable : panneau inchangé */}
+}
+
 initMap().then(loadProgress);
 setInterval(loadProgress, 15*1000);   // les nouveaux QSO verdissent en direct
+loadTargets();
+setInterval(loadTargets, 60*1000);    // cibles recalculées avec les spots
 </script>
 </body>
 </html>

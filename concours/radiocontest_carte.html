@@ -202,6 +202,7 @@ textarea::placeholder{color:var(--muted)}
     <div class="chat-input">
       <div class="quick-btns">
         <button class="qbtn qbtn-coach" onclick="coachAdvice()">🧠 COACH</button>
+        <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points">🎓 DÉBRIEF</button>
         <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.')">📡 ANALYSER</button>
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?')">🏆 SCORE</button>
         <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?')">⚡ SPOTS</button>
@@ -1006,6 +1007,24 @@ async function coachAdvice(){
   if(coachState&&coachState.coach_prompt){
     send(coachState.coach_prompt,rcT('🧠 Conseil stratégique demandé (état du concours transmis)'));
   }else{
+    addMsg('agent','❌ '+rcT('Coach indisponible — vérifie que radiocontest_serveur.py tourne.'));
+  }
+}
+
+// ─── DÉBRIEF POST-CONCOURS ────────────────────────────────────────────────────
+// Le serveur calcule les stats déterministes (rythme/heure, bandes, km, ODX,
+// silences, mults départements) ; l'agent IA en tire le débrief narratif.
+async function debriefIA(){
+  try{
+    const r=await fetch('/coach/debrief');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(d&&d.debrief_prompt&&(d.stats||{}).qso_total>0){
+      send(d.debrief_prompt,rcT('🎓 Débrief post-concours demandé (déroulé transmis)'));
+    }else{
+      addMsg('agent','ℹ️ '+rcT('Aucun QSO dans le log de ce concours — rien à débriefer pour l\'instant.'));
+    }
+  }catch(e){
     addMsg('agent','❌ '+rcT('Coach indisponible — vérifie que radiocontest_serveur.py tourne.'));
   }
 }
