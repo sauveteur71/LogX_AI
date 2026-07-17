@@ -37,9 +37,14 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .qrow.flash{animation:flash 1.4s ease-out}
 @keyframes flash{0%{background:rgba(0,255,136,.28)}100%{background:transparent}}
 .q-time{color:var(--muted);font-size:22px;width:70px}
+.q-flag{font-size:30px;width:44px;text-align:center}
 .q-call{color:var(--text);font-weight:800;font-size:34px;flex:1;letter-spacing:2px}
-.q-band{color:var(--accent);font-size:26px;width:110px;text-align:right}
+.q-country{color:var(--muted);font-size:20px;width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-name{color:var(--green);font-size:22px;width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-band{color:var(--accent);font-size:26px;width:120px;text-align:right}
+.q-band small{font-size:15px}
 .q-mode{color:var(--accent2);font-size:24px;width:70px;text-align:center}
+.q-rst{color:var(--yellow);font-size:22px;width:70px;text-align:center}
 .q-op{color:var(--muted);font-size:20px;width:90px;text-align:right}
 .wside{width:420px;flex-shrink:0;display:flex;flex-direction:column;gap:16px;min-height:0}
 .wblock{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;overflow:hidden}
@@ -114,7 +119,8 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
     document.getElementById('wOdxCall').textContent = d.odx&&d.odx.call ? ('ODX ' + d.odx.call) : 'ODX (KM)';
     document.getElementById('wRate10').textContent = d.rate_10min_x6 ? ('~'+d.rate_10min_x6+'/h sur 10 min') : '';
 
-    // Flux QSO
+    // Flux QSO — colonnes pilotées par le menu wall_fields (CONFIG)
+    const wf = d.wall_fields || {};
     const stream=document.getElementById('wStream');
     const recent=d.recent||[];
     if(!recent.length){ stream.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">En attente de QSO…</div>'; }
@@ -122,14 +128,19 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
       const topKey=recent[0].call+'|'+recent[0].band+'|'+recent[0].time;
       const isNew = topKey!==lastTopKey && lastTopKey!=='';
       lastTopKey=topKey;
-      stream.innerHTML=recent.map((q,i)=>`
-        <div class="qrow${i===0&&isNew?' flash':''}">
-          <span class="q-time">${fmtTime(q.time)}</span>
-          <span class="q-call">${q.call}</span>
-          <span class="q-band">${bandLabel(q.band)}${q.freq?` <small style="opacity:.6">${q.freq}</small>`:''}</span>
-          <span class="q-mode">${q.mode}</span>
-          <span class="q-op">${q.op||''}</span>
-        </div>`).join('');
+      stream.innerHTML=recent.map((q,i)=>{
+        const c=[];
+        if(wf.time!==false) c.push(`<span class="q-time">${fmtTime(q.time)}</span>`);
+        if(wf.flag)         c.push(`<span class="q-flag">${q.flag||''}</span>`);
+        c.push(`<span class="q-call">${q.call}</span>`);   // l'indicatif : toujours
+        if(wf.country)      c.push(`<span class="q-country">${q.country||''}</span>`);
+        if(wf.name)         c.push(`<span class="q-name">${q.name||''}</span>`);
+        if(wf.band!==false) c.push(`<span class="q-band">${bandLabel(q.band)}${(wf.freq&&q.freq)?` <small style="opacity:.6">${q.freq}</small>`:''}</span>`);
+        if(wf.mode!==false) c.push(`<span class="q-mode">${q.mode}</span>`);
+        if(wf.rst)          c.push(`<span class="q-rst">${q.rst_rcvd||q.rst_sent||''}</span>`);
+        if(wf.op!==false)   c.push(`<span class="q-op">${q.op||''}</span>`);
+        return `<div class="qrow${i===0&&isNew?' flash':''}">${c.join('')}</div>`;
+      }).join('');
     }
 
     // Par bande (barres)
