@@ -30,10 +30,17 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 
-.container{max-width:1280px;margin:0 auto;padding:20px;display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;flex:1;overflow-y:auto;min-height:0;width:100%}
-@media (max-width:900px){.container{grid-template-columns:1fr}}
+/* Grille de cartes responsive (masonry-like) : les panneaux flottent et
+   remplissent toute la largeur ; les listes (need list, PSK, RBN) prennent
+   deux colonnes. Fini la colonne étroite qui s'empile et les marges perdues. */
+.container{max-width:1760px;margin:0 auto;padding:18px;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(320px,1fr));grid-auto-flow:row dense;
+  gap:16px;align-items:start;align-content:start;flex:1;overflow-y:auto;min-height:0;width:100%}
+@media (max-width:720px){.container{grid-template-columns:1fr}}
 
-.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:0}
+.panel.wide{grid-column:span 2}
+@media (max-width:720px){.panel.wide{grid-column:auto}}
 .panel-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:3px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
 .panel-title small{color:var(--muted);letter-spacing:0;font-size:12px}
 
@@ -99,8 +106,6 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 <div class="container">
 
-  <!-- Colonne gauche : soleil, MUF, conditions -->
-  <div>
     <div class="panel">
       <div class="panel-title">☀️ SOLEIL & IONOSPHÈRE <small id="solarUpdated"></small></div>
       <div class="solar-grid" id="solarGrid"><div class="loading">Chargement…</div></div>
@@ -149,10 +154,9 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       </div>
       <div id="aircraftPanel"><div class="loading">Recherche des avions…</div></div>
     </div>
-  </div>
 
-  <!-- Colonne droite : cluster trié par intérêt -->
-  <div class="panel">
+  <!-- Cartes larges (2 colonnes) : need list + où mon signal est entendu -->
+  <div class="panel wide">
     <div class="panel-title">🎯 CLUSTER TRIÉ PAR INTÉRÊT — NEED LIST
       <small id="spotsMeta"></small></div>
     <div class="filters">
@@ -162,12 +166,16 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     </div>
     <div id="spotList"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
       <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
+  </div>
 
-    <div class="panel-title" style="margin-top:22px">🌐 OÙ MON SIGNAL EST ENTENDU — PSK REPORTER
+  <div class="panel wide">
+    <div class="panel-title">🌐 OÙ MON SIGNAL EST ENTENDU — PSK REPORTER
       <small id="pskMeta"></small></div>
     <div id="pskList"><div class="loading">…</div></div>
+  </div>
 
-    <div class="panel-title" style="margin-top:22px">📻 OÙ MON SIGNAL CW EST ENTENDU — RBN
+  <div class="panel wide">
+    <div class="panel-title">📻 OÙ MON SIGNAL CW EST ENTENDU — RBN
       <small id="rbnMeta"></small></div>
     <div id="rbnList"><div class="loading">Transmets en CW : les skimmers RBN qui te reçoivent apparaîtront ici.</div></div>
   </div>
