@@ -710,6 +710,226 @@ function bandmapClick(call, mhz){
 setInterval(refreshBandMap, 15000);
 setTimeout(refreshBandMap, 2500);
 
+// ═══ OPÉRER PLUS VITE : keyer vocal · ESM · décodeur CW ══════════════════════
+
+// ─── KEYER VOCAL (phonie) ────────────────────────────────────────────────────
+// Enregistre de courts messages WAV (CQ, réponse, report, merci) et les rejoue
+// d'un clic — l'équivalent phonie des macros CW. Stockés en base64 (localStorage).
+const VOICE_SLOTS = [
+  {key:'V1', label:'CQ'}, {key:'V2', label:'RÉPONSE'},
+  {key:'V3', label:'REPORT'}, {key:'V4', label:'MERCI'},
+];
+let _mediaRec = null, _recSlot = null, _recChunks = [];
+
+function voiceStore(){ try{ return JSON.parse(localStorage.getItem('rc_voice')||'{}'); }catch(e){ return {}; } }
+function voiceSave(s){ localStorage.setItem('rc_voice', JSON.stringify(s)); }
+
+function renderVoicePanel(){
+  const box = document.getElementById('voiceBtns');
+  if(!box) return;
+  const store = voiceStore();
+  box.innerHTML = VOICE_SLOTS.map(s => {
+    const has = !!store[s.key];
+    return `<div style="display:flex;gap:4px;margin:3px 0">
+      <button class="macro-btn" style="flex:1;${has?'':'opacity:.5'}" onclick="voicePlay('${s.key}')" ${has?'':'disabled'}>▶ ${s.label}</button>
+      <button class="macro-btn" style="width:36px" onclick="voiceRecord('${s.key}')" id="rec_${s.key}" title="Enregistrer ${s.label}">⏺</button>
+    </div>`;
+  }).join('');
+}
+
+async function voiceRecord(key){
+  const btn = document.getElementById('rec_'+key);
+  if(_mediaRec && _recSlot === key){   // 2e clic = stop
+    _mediaRec.stop();
+    return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    _recChunks = []; _recSlot = key;
+    _mediaRec = new MediaRecorder(stream);
+    _mediaRec.ondataavailable = e => { if(e.data.size) _recChunks.push(e.data); };
+    _mediaRec.onstop = () => {
+      stream.getTracks().forEach(t=>t.stop());
+      const blob = new Blob(_recChunks, {type: _mediaRec.mimeType||'audio/webm'});
+      const rd = new FileReader();
+      rd.onload = () => { const s = voiceStore(); s[key] = rd.result; voiceSave(s); renderVoicePanel(); notify('🎙 Message '+key+' enregistré'); };
+      rd.readAsDataURL(blob);
+      _mediaRec = null; _recSlot = null;
+      if(btn){ btn.textContent = '⏺'; btn.style.color=''; }
+    };
+    _mediaRec.start();
+    if(btn){ btn.textContent = '■'; btn.style.color='var(--red)'; }
+    notify('🎙 Enregistrement… reclique ⏺ pour arrêter');
+  }catch(e){ notify('❌ Micro indisponible : '+e.message); }
+}
+
+function voicePlay(key){
+  const s = voiceStore();
+  if(!s[key]) return;
+  try{ const a = new Audio(s[key]); a.play(); }catch(e){}
+}
+
+// ─── ESM (Enter Sends Message) ───────────────────────────────────────────────
+// Entrée enchaîne : (champ vide) appel CQ → (indicatif saisi) échange → (Entrée
+// dans le N° reçu) log + « merci ». Utilise le keyer CW (macros) ou vocal (WAV)
+// selon le mode. À la N1MM.
+let esmMode = false, esmExchanged = false;
+
+function toggleEsm(){
+  esmMode = !esmMode;
+  const b = document.getElementById('esmBtn');
+  if(b){ b.textContent = 'ESM '+(esmMode?'●':'○'); b.style.color = esmMode?'var(--green)':'var(--muted)';
+    b.style.borderColor = esmMode?'var(--green)':'var(--border)'; }
+  notify(esmMode ? '⏎ ESM activé : Entrée enchaîne appel → échange → log' : 'ESM désactivé');
+}
+
+function esmSend(role){
+  const cw = (typeof rigState!=='undefined') && rigState.enabled && /CW/i.test(rigState.mode||currentMode);
+  if(cw){
+    // Macros CW par convention : F1=CQ, F2=échange/report, F3=merci
+    const idx = {cq:0, exchange:1, tu:2}[role] ?? 0;
+    if(typeof copyMacro==='function') copyMacro(idx);
+  }else{
+    const slot = {cq:'V1', exchange:'V3', tu:'V4'}[role] || 'V1';
+    voicePlay(slot);
+  }
+}
+
+// Appelée par la touche Entrée du champ indicatif quand ESM est actif.
+// Retourne true si ESM a « consommé » l'Entrée (pas de log immédiat).
+function esmHandleEnter(){
+  if(!esmMode) return false;
+  const call = document.getElementById('inputCall').value.trim();
+  if(!call){ esmSend('cq'); return true; }
+  if(!esmExchanged){
+    esmSend('exchange'); esmExchanged = true;
+    const nr = document.getElementById('inputNumRcvd') || document.getElementById('inputRSTrcvd');
+    if(nr) nr.focus();
+    return true;
+  }
+  return false;   // échange déjà envoyé → laisser submitQSO() logguer
+}
+
+// ─── DÉCODEUR CW (Web Audio) ─────────────────────────────────────────────────
+// getUserMedia → AnalyserNode → détection d'énergie dans la bande CW (~500-900 Hz)
+// via Goertzel → chronométrie des points/traits → Morse → texte. Longueur de
+// point adaptative. Décodeur « best effort » (CW propre bien décodée).
+const MORSE = {'.-':'A','-...':'B','-.-.':'C','-..':'D','.':'E','..-.':'F','--.':'G',
+ '....':'H','..':'I','.---':'J','-.-':'K','.-..':'L','--':'M','-.':'N','---':'O',
+ '.--.':'P','--.-':'Q','.-.':'R','...':'S','-':'T','..-':'U','...-':'V','.--':'W',
+ '-..-':'X','-.--':'Y','--..':'Z','-----':'0','.----':'1','..---':'2','...--':'3',
+ '....-':'4','.....':'5','-....':'6','--...':'7','---..':'8','----.':'9','-.-.-':'K',
+ '.-.-.':'+','-...-':'=','..--..':'?','-..-.':'/'};
+let _cwCtx=null, _cwStream=null, _cwAnalyser=null, _cwRAF=null, _cwOn=false;
+let _cwState={on:false, since:0, dot:70, morse:'', text:'', lastEdge:0, gapDone:false};
+
+async function toggleCwDecoder(){
+  if(_cwOn){ stopCwDecoder(); return; }
+  try{
+    _cwStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
+    _cwCtx = _audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if(_cwCtx.state==='suspended') await _cwCtx.resume();
+    const src = _cwCtx.createMediaStreamSource(_cwStream);
+    _cwAnalyser = _cwCtx.createAnalyser();
+    _cwAnalyser.fftSize = 1024;
+    src.connect(_cwAnalyser);
+    _cwOn = true;
+    _cwState = {on:false, since:performance.now(), dot:70, morse:'', text:'', lastEdge:performance.now(), gapDone:false};
+    const b=document.getElementById('cwDecodeBtn'); if(b){ b.textContent='■ stop'; b.style.color='var(--red)'; }
+    _cwLoop();
+  }catch(e){ notify('❌ Micro indisponible : '+e.message); }
+}
+
+function stopCwDecoder(){
+  _cwOn=false;
+  if(_cwRAF) cancelAnimationFrame(_cwRAF);
+  if(_cwStream) _cwStream.getTracks().forEach(t=>t.stop());
+  const b=document.getElementById('cwDecodeBtn'); if(b){ b.textContent='▶ écouter'; b.style.color='var(--green)'; }
+}
+
+function _cwGoertzel(buf, rate){
+  // Cherche l'énergie max dans la bande CW 450-950 Hz (par pas de 50 Hz)
+  let best=0, bestF=0;
+  for(let f=450; f<=950; f+=50){
+    const w = 2*Math.PI*f/rate, cw = Math.cos(w), coeff=2*cw;
+    let s0=0,s1=0,s2=0;
+    for(let i=0;i<buf.length;i++){ s0=coeff*s1-s2+buf[i]; s2=s1; s1=s0; }
+    const mag = s1*s1+s2*s2-coeff*s1*s2;
+    if(mag>best){ best=mag; bestF=f; }
+  }
+  return {mag:Math.sqrt(best)/buf.length, freq:bestF};
+}
+
+let _cwFloor=0.002;
+function _cwLoop(){
+  if(!_cwOn) return;
+  const N=_cwAnalyser.fftSize, buf=new Float32Array(N);
+  _cwAnalyser.getFloatTimeDomainData(buf);
+  const {mag,freq}=_cwGoertzel(buf, _cwCtx.sampleRate);
+  _cwFloor = _cwFloor*0.99 + mag*0.01;               // plancher de bruit adaptatif
+  const on = mag > Math.max(0.004, _cwFloor*3);
+  const now=performance.now();
+  const toneEl=document.getElementById('cwTone');
+  if(toneEl) toneEl.textContent = on ? (freq+' Hz') : '—';
+
+  const st=_cwState;
+  if(on !== st.on){
+    const dur = now - st.lastEdge;
+    if(st.on){                       // fin d'un signal (mark)
+      if(dur < st.dot*2){ st.morse+='.'; st.dot = st.dot*0.7 + dur*0.3; }
+      else { st.morse+='-'; st.dot = st.dot*0.85 + (dur/3)*0.15; }
+      st.dot = Math.max(30, Math.min(200, st.dot));
+    }
+    st.on=on; st.lastEdge=now; st.gapDone=false;
+  } else if(!on && !st.gapDone && st.morse){
+    const gap = now - st.lastEdge;
+    if(gap > st.dot*2){              // fin de lettre
+      const ch = MORSE[st.morse] || '';
+      st.text += ch; st.morse='';
+      _cwRender();
+      st.gapDone=true;
+    }
+  } else if(!on && st.text && (now - st.lastEdge) > st.dot*6 && !st.spaced){
+    st.text += ' '; st.spaced=true; _cwRender();
+  }
+  if(on) st.spaced=false;
+  _cwRAF=requestAnimationFrame(_cwLoop);
+}
+
+function _cwRender(){
+  const out=document.getElementById('cwDecodeOut');
+  if(!out) return;
+  const t=_cwState.text.slice(-40);
+  out.innerHTML = t.replace(/(\S+)/g, '<span style="cursor:pointer" onclick="cwToCall(this.textContent)">$1</span>') || '—';
+}
+function cwToCall(w){
+  const inp=document.getElementById('inputCall');
+  if(inp && /\d/.test(w)){ inp.value=w.trim().toUpperCase(); onCallInput(); inp.focus(); }
+}
+
+// ─── AFFICHAGE DES PANNEAUX SELON LE MODE ────────────────────────────────────
+function updateKeyerPanels(){
+  const cw = (typeof rigState!=='undefined') && /CW/i.test(rigState.mode||currentMode||'');
+  const macro=document.getElementById('macroPanel');
+  const voice=document.getElementById('voicePanel');
+  const cwd=document.getElementById('cwDecodePanel');
+  if(macro) macro.style.display = cw ? '' : 'none';
+  if(voice) voice.style.display = cw ? 'none' : '';
+  if(cwd) cwd.style.display = cw ? '' : 'none';   // décodeur utile surtout en CW
+}
+renderVoicePanel();
+setTimeout(updateKeyerPanels, 300);
+
+// ─── SAUVEGARDE IMMÉDIATE (dossier cloud/NAS) ────────────────────────────────
+async function backupNow(){
+  try{
+    const r = await fetch('/backup/now', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const d = await r.json();
+    if(d.ok) notify(`💾 Sauvegarde OK → ${d.folder} (${d.files.length} fichiers)`);
+    else notify('❌ '+(d.error||'sauvegarde impossible')+' — configure le dossier dans CONFIG');
+  }catch(e){ notify('❌ '+e.message); }
+}
+
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 function setupDone(){
   const call = document.getElementById('setupCallsign').value.trim().toUpperCase();
@@ -900,6 +1120,7 @@ function setMode(el){
   document.querySelectorAll('#modeSelect .bm-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   currentMode = el.dataset.val;
+  if(typeof updateKeyerPanels==='function') updateKeyerPanels();  // keyer vocal/CW
   document.getElementById('inputCall').focus();
 }
 
@@ -1259,6 +1480,7 @@ async function submitQSO(){
       qsoLog.push(qso);
       bcBroadcast('add', qso);
       lastQsoTime = Date.now();
+      if(esmMode) esmSend('tu');   // ESM : envoie « merci » à la validation
       // Vider le formulaire EN PREMIER (avant stats, avant tout)
       clearForm();
       document.getElementById('inputCall').focus();
@@ -1315,6 +1537,7 @@ async function submitQSO(){
 }
 
 function clearForm(){
+  esmExchanged = false;   // ESM : nouveau QSO → l'échange sera à renvoyer
   clearTimeout(callLookupTimer);
   document.getElementById('inputCall').value = '';
   document.getElementById('inputCall').classList.remove('ok','error');
@@ -2028,6 +2251,7 @@ function refreshRig(){
       if(dot) dot.classList.add('on');
       // Suivi automatique : la bande/le mode de saisie suivent la radio
       syncBandModeFromRig(d.freq_khz, d.mode);
+      if(typeof updateKeyerPanels==='function') updateKeyerPanels();
     } else {
       document.getElementById('rigFreq').textContent = 'rigctld injoignable';
       document.getElementById('rigMode').textContent = '';
@@ -2672,8 +2896,9 @@ function onCallKeydown(e){
       selectAC(typeof item === 'string' ? item : item.call);
     } else {
       hideAC();
-      // Entrée = valider le QSO directement (submitQSO avertit si locator vide)
       e.preventDefault();
+      // ESM : Entrée enchaîne appel CQ → échange (sinon valide le QSO).
+      if(esmHandleEnter()) return;
       submitQSO();
     }
   } else if(e.key === 'Escape'){

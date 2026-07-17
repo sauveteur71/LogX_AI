@@ -13,3 +13,7 @@ concours/build/
 concours/dist/
 concours/*.spec.bak
 concours/archives/
+concours/qsl_confirmations.json
+concours/qsl_sync.json
+concours/scoreboard_sync.json
+concours/backup_state.json
