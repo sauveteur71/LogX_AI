@@ -207,6 +207,7 @@ textarea::placeholder{color:var(--muted)}
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?')">🏆 SCORE</button>
         <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?')">⚡ SPOTS</button>
         <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?')">📶 PROP</button>
+        <button class="qbtn" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position">🌍 OUVERTURES</button>
         <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?')">🎯 MULTS</button>
         <button class="qbtn" onclick="qs('Résumé complet de la session.')">📋 RÉSUMÉ</button>
       </div>
@@ -877,36 +878,69 @@ async function send(forcedText,displayText){
     const _sys=(systemPrompt||'')+(_dir?'\n\n'+_dir:'');
     if(_sys.trim())body.system=_sys;
 
-    const res=await fetch('/proxy/ai',{
+    // Analyse lancée CÔTÉ SERVEUR : elle se termine même si on change d'onglet
+    // (la nav recharge la page). Le résultat est récupéré par polling, et
+    // repris au chargement via resumeAnalyze() si on était parti entre-temps.
+    const res=await fetch('/agent/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)
     });
-
-    if(!res.ok){
-      let errMsg=`HTTP ${res.status} — relance radiocontest_serveur.py puis réessaie`;
-      try{const err=await res.json();errMsg=err.error?.message||errMsg;}catch(e){}
-      throw new Error(errMsg);
-    }
-
-    const data=await res.json();
-    const reply=data.content?.filter(b=>b.type==='text')?.map(b=>b.text)?.join('\n')||'Pas de réponse.';
-    conversationHistory.push({role:'assistant',content:reply});
-    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
-
-    removeThinking();
-    const isAlert=reply.includes('⚡')||reply.includes('SPOTÉ');
-    const isDX=reply.includes('🌟')||reply.includes('DX EXCEPTIONNEL');
-    const type=isDX?'dx':isAlert?'alert':'';
-    addMsg('agent',reply,type);
+    const j=await res.json();
+    if(!res.ok||!j.id)throw new Error(j.error||`HTTP ${res.status}`);
+    localStorage.setItem('rc_analyze',JSON.stringify({id:j.id,ts:Date.now()}));
+    pollAnalyze(j.id);   // pas de await : le polling gère la suite (isWaiting)
+    return;
 
   }catch(err){
     removeThinking();
     addMsg('agent',`❌ ${err.message}\n\nVérifie que radiocontest_serveur.py tourne et que ta clé API est configurée.`);
+    isWaiting=false;
+    document.getElementById('sendBtn').disabled=false;
   }
+}
 
-  isWaiting=false;
-  document.getElementById('sendBtn').disabled=false;
+// Récupère le résultat d'une analyse serveur (poll toutes les 1,5 s). Survit au
+// changement de page : au retour, resumeAnalyze() relance ce polling.
+let _analyzePoll=null;
+function pollAnalyze(id, ensureThinking){
+  if(ensureThinking && !document.getElementById('thinking')) showThinking();
+  clearTimeout(_analyzePoll);
+  const done=()=>{ isWaiting=false; const b=document.getElementById('sendBtn'); if(b)b.disabled=false; };
+  const tick=async()=>{
+    let s;
+    try{
+      const r=await fetch('/agent/analyze/state?id='+encodeURIComponent(id));
+      s=await r.json();
+    }catch(e){ _analyzePoll=setTimeout(tick,3000); return; }   // réseau : réessaie
+    if(s.status==='running'){ _analyzePoll=setTimeout(tick,1500); return; }
+    removeThinking();
+    localStorage.removeItem('rc_analyze');
+    if(s.status==='done'){
+      const reply=s.reply||'Pas de réponse.';
+      conversationHistory.push({role:'assistant',content:reply});
+      if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+      const isAlert=reply.includes('⚡')||reply.includes('SPOTÉ');
+      const isDX=reply.includes('🌟')||reply.includes('DX EXCEPTIONNEL');
+      addMsg('agent',reply,isDX?'dx':isAlert?'alert':'');
+    }else if(s.status==='error'){
+      addMsg('agent','❌ '+(s.error||'analyse échouée'));
+    }else{
+      addMsg('agent','⚠️ Analyse introuvable (serveur redémarré ?). Relance-la.');
+    }
+    done();
+  };
+  tick();
+}
+
+// Au chargement de la page : reprend une analyse lancée avant un changement
+// d'onglet (elle a continué côté serveur).
+function resumeAnalyze(){
+  let p; try{ p=JSON.parse(localStorage.getItem('rc_analyze')||'null'); }catch(e){ return; }
+  if(!p||!p.id) return;
+  if(Date.now()-(p.ts||0) > 15*60*1000){ localStorage.removeItem('rc_analyze'); return; }
+  isWaiting=true; const b=document.getElementById('sendBtn'); if(b)b.disabled=true;
+  pollAnalyze(p.id, true);
 }
 
 // Boutons rapides : on envoie la commande en français au LLM (clarté) mais on
@@ -1218,6 +1252,7 @@ function checkMentionAlerts(mentions){
 loadConfig();
 scheduleRefresh();
 scheduleAutoCheck();
+resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
 </script>
 </body>
 </html>

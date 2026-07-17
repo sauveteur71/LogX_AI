@@ -1,0 +1,197 @@
+# -*- coding: utf-8 -*-
+"""Prévision d'ouverture par région — depuis N'IMPORTE QUEL QTH.
+
+Où que soit la station (Hiva Oa, l'Europe, ailleurs), estime pour chaque bande
+la probabilité d'ouverture vers une grande région DX (Europe, Amérique du Nord,
+Japon…). Heuristique (pas VOACAP) combinant :
+  - la géométrie : distance, azimut court/long chemin, nombre de sauts F2 ;
+  - le jour/nuit aux DEUX extrémités (élévation solaire) : bandes basses la
+    nuit, bandes hautes le jour ;
+  - la grey-line (terminateur) : bonus, surtout sur les bandes basses ;
+  - la MUF et le flux solaire (SFI/indice K) fournis par le module propagation.
+
+Sert un endpoint /data/openings et surtout ALIMENTE le contexte de l'agent IA :
+l'opérateur peut demander « mes chances vers l'Europe ce soir ? » et l'IA
+répond avec ces chiffres.
+"""
+import datetime
+import math
+
+from radiocontest_utils import locator_to_latlon, haversine, bearing, cardinal
+
+# Centres représentatifs (densité de stations) des grandes régions DX.
+REGIONS = {
+    'EU': ('Europe',           48.0, 10.0),
+    'NA': ('Amérique du Nord',  40.0, -95.0),
+    'SA': ('Amérique du Sud',  -15.0, -60.0),
+    'AF': ('Afrique',            5.0, 20.0),
+    'AS': ('Asie',              45.0, 90.0),
+    'JA': ('Japon',             36.0, 138.0),
+    'OC': ('Océanie',          -28.0, 140.0),
+}
+
+BANDS = ['1.8', '3.5', '7', '10', '14', '18', '21', '24', '28', '50']
+LOW = {'1.8', '3.5', '7'}
+HIGH = {'21', '24', '28', '50'}
+HOP_KM = 3500.0            # portée max d'un saut F2
+
+
+def sun_elevation(lat, lon, when):
+    """Élévation solaire (degrés) au point (lat, lon) à l'instant UTC `when`.
+    < 0 = nuit, ~0 = grey-line, > 0 = jour."""
+    n = when.timetuple().tm_yday
+    decl = 23.45 * math.sin(math.radians(360.0 / 365.0 * (284 + n)))
+    hours = when.hour + when.minute / 60.0 + when.second / 3600.0
+    lst = hours + lon / 15.0                 # temps solaire local (approx)
+    hour_angle = 15.0 * (lst - 12.0)
+    la, de, ha = map(math.radians, (lat, decl, hour_angle))
+    elev = math.asin(max(-1, min(1, math.sin(la) * math.sin(de)
+                                 + math.cos(la) * math.cos(de) * math.cos(ha))))
+    return math.degrees(elev)
+
+
+def _muf_mhz(solar):
+    try:
+        v = (solar or {}).get('muf', {})
+        if isinstance(v, dict):
+            v = v.get('muf_mhz') or v.get('muf') or v.get('value')
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _sfi_k(solar):
+    s = (solar or {}).get('solar', solar) or {}
+    def num(*keys, default=0):
+        for k in keys:
+            v = s.get(k)
+            try:
+                if v not in (None, ''):
+                    return float(v)
+            except (TypeError, ValueError):
+                pass
+        return default
+    return num('sfi', 'solar_flux', default=100), num('k_index', 'kindex', 'k', default=2)
+
+
+def _band_score(band, my_elev, dx_elev, muf, sfi, k, greyline):
+    """Score 0-100 d'ouverture d'une bande vers la région à cet instant."""
+    f = float(band)
+    # 1) MUF : au-dessus de la MUF, quasi mort ; juste en dessous = optimal.
+    if muf <= 0:
+        muf_factor = 0.6                     # pas de données MUF : neutre
+    elif f > muf * 1.15:
+        muf_factor = 0.08
+    elif f > muf:
+        muf_factor = 0.35
+    elif f > muf * 0.55:
+        muf_factor = 1.0
+    else:
+        muf_factor = 0.75
+    # 2) Jour/nuit selon la bande (moyenne des deux extrémités)
+    day = (max(0, min(1, (my_elev + 6) / 18.0)) + max(0, min(1, (dx_elev + 6) / 18.0))) / 2
+    night = 1 - day
+    if band in LOW:
+        tod = 0.35 + 0.65 * night
+    elif band in HIGH:
+        tod = 0.30 + 0.70 * day
+    else:
+        tod = 0.6 + 0.2 * (1 - abs(day - 0.5) * 2)   # bandes moyennes : polyvalentes
+    # 3) Grey-line : bonus (les basses en profitent le plus)
+    gl = (0.18 if band in LOW else 0.10) if greyline else 0.0
+    # 4) Flux / géomagnétisme : SFI aide les hautes, K fort les dégrade
+    sfi_factor = 1.0
+    if band in HIGH:
+        sfi_factor = max(0.5, min(1.15, sfi / 110.0))
+        if k >= 5:
+            sfi_factor *= 0.6
+    score = 100 * muf_factor * tod * sfi_factor + 100 * gl
+    return int(max(0, min(100, score)))
+
+
+def path_openings(my_lat, my_lon, region_key, when=None, solar=None):
+    """Ouvertures par bande vers `region_key` MAINTENANT + meilleure fenêtre 24 h."""
+    when = when or datetime.datetime.utcnow()
+    name, dlat, dlon = REGIONS[region_key]
+    dist = haversine(my_lat, my_lon, dlat, dlon)
+    az_short = bearing(my_lat, my_lon, dlat, dlon)
+    az_long = (az_short + 180) % 360
+    hops = max(1, round(dist / HOP_KM))
+    muf = _muf_mhz(solar)
+    sfi, k = _sfi_k(solar)
+
+    my_el = sun_elevation(my_lat, my_lon, when)
+    dx_el = sun_elevation(dlat, dlon, when)
+    greyline = abs(my_el) < 6 or abs(dx_el) < 6
+
+    bands = []
+    for b in BANDS:
+        sc = _band_score(b, my_el, dx_el, muf, sfi, k, greyline)
+        bands.append({'band': b, 'score': sc,
+                      'level': 'bon' if sc >= 62 else 'possible' if sc >= 38 else 'faible'})
+    bands.sort(key=lambda x: -x['score'])
+
+    # Meilleure fenêtre : sur 24 h, l'heure où la meilleure bande culmine
+    best_band = bands[0]['band'] if bands else '14'
+    best_hour, best_val = None, -1
+    for dh in range(0, 24):
+        t = when + datetime.timedelta(hours=dh)
+        el1 = sun_elevation(my_lat, my_lon, t)
+        el2 = sun_elevation(dlat, dlon, t)
+        gl = abs(el1) < 6 or abs(el2) < 6
+        v = _band_score(best_band, el1, el2, muf, sfi, k, gl)
+        if v > best_val:
+            best_val, best_hour = v, t
+
+    return {
+        'region': region_key, 'region_name': name,
+        'distance_km': dist, 'hops': hops,
+        'bearing_short': az_short, 'cardinal_short': cardinal(az_short),
+        'bearing_long': az_long, 'cardinal_long': cardinal(az_long),
+        'long_path': dist > 9000,          # au-delà, le long chemin vaut le coup
+        'my_sun_elev': round(my_el), 'dx_sun_elev': round(dx_el),
+        'greyline': greyline, 'muf_mhz': round(muf, 1), 'sfi': sfi, 'k': k,
+        'bands': bands,
+        'best_band': best_band,
+        'best_window_utc': best_hour.strftime('%H:%M') if best_hour else None,
+        'best_window_score': best_val,
+    }
+
+
+def all_regions(my_lat, my_lon, when=None, solar=None):
+    """Meilleure bande + score par région (survol pour l'agent IA)."""
+    when = when or datetime.datetime.utcnow()
+    out = []
+    for key in REGIONS:
+        p = path_openings(my_lat, my_lon, key, when, solar)
+        top = p['bands'][0] if p['bands'] else {}
+        out.append({
+            'region': key, 'region_name': p['region_name'],
+            'distance_km': p['distance_km'],
+            'bearing_short': p['bearing_short'], 'cardinal_short': p['cardinal_short'],
+            'long_path': p['long_path'],
+            'best_band': top.get('band'), 'best_score': top.get('score'),
+            'open_bands': [b['band'] for b in p['bands'] if b['score'] >= 62],
+            'best_window_utc': p['best_window_utc'],
+        })
+    out.sort(key=lambda r: -(r.get('best_score') or 0))
+    return out
+
+
+def context_block(my_lat, my_lon, when=None, solar=None):
+    """Bloc texte compact pour le contexte de l'agent IA : ouvertures depuis le
+    QTH vers chaque grande région. Vide si position inconnue."""
+    if my_lat is None or my_lon is None:
+        return ''
+    when = when or datetime.datetime.utcnow()
+    rows = all_regions(my_lat, my_lon, when, solar)
+    lines = ["OUVERTURES DEPUIS TON QTH (estimation heuristique, "
+             f"{when.strftime('%H:%M')} UTC) :"]
+    for r in rows:
+        openb = ', '.join(r['open_bands']) if r['open_bands'] else 'aucune bonne'
+        lines.append(
+            f"- {r['region_name']} ({r['distance_km']} km, cap {r['bearing_short']}° "
+            f"{r['cardinal_short']}{' / long path' if r['long_path'] else ''}) : "
+            f"meilleure {r['best_band']} MHz ({r['best_score']}/100), bandes ouvertes : "
+            f"{openb} ; pic vers {r['best_window_utc']} UTC")
+    return '\n'.join(lines)
