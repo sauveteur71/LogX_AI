@@ -139,6 +139,12 @@ def build_adif(qsos, cfg=None):
             _adif_field('contest_id', q.get('contest', '')),
             _adif_field('operator', q.get('operator', '')),
             _adif_field('distance', q.get('dist', '')),
+            # Activation POTA/SOTA/IOTA/WWFF : ma référence (MY_SIG) + réf. du
+            # correspondant (SIG) pour les Park-to-Park / Summit-to-Summit.
+            _adif_field('my_sig', q.get('my_sig', '')),
+            _adif_field('my_sig_info', q.get('my_sig_info', '')),
+            _adif_field('sig', q.get('sig', '')),
+            _adif_field('sig_info', q.get('sig_info', '')),
         ]
         records.append(''.join(f for f in fields if f) + '<EOR>')
     return header + '\n'.join(records) + '\n'

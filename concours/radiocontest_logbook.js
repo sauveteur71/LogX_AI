@@ -127,6 +127,54 @@ function applyExpeditionMode(on){
   if(locGrp) locGrp.style.display = expeditionMode ? 'none' : '';
   document.body.classList.toggle('expedition-on', expeditionMode);
 }
+
+// ─── ACTIVATION POTA/SOTA/IOTA/WWFF ──────────────────────────────────────────
+const ACT_MIN = {POTA:10, SOTA:4, IOTA:1, WWFF:44};
+let activationProgram = '';
+let myActivationRef = '';
+let activationTimer = null;
+
+function applyActivationMode(program, ref){
+  activationProgram = (program||'').toUpperCase();
+  myActivationRef = (ref||'').trim().toUpperCase();
+  const on = !!(activationProgram && myActivationRef);
+  const bar = document.getElementById('activationBar');
+  const trg = document.getElementById('theirRefGroup');
+  if(bar) bar.style.display = on ? '' : 'none';
+  if(trg) trg.style.display = on ? '' : 'none';
+  if(on){
+    const p = document.getElementById('actProg'); if(p) p.textContent = activationProgram;
+    const r = document.getElementById('actRef'); if(r) r.textContent = myActivationRef;
+    const pr = document.getElementById('actProgress');
+    if(pr) pr.textContent = '0/' + (ACT_MIN[activationProgram]||10);
+    refreshActivation();
+    if(!activationTimer) activationTimer = setInterval(refreshActivation, 15000);
+  } else if(activationTimer){
+    clearInterval(activationTimer); activationTimer = null;
+  }
+}
+
+async function refreshActivation(){
+  if(!activationProgram || !myActivationRef) return;
+  try{
+    const r = await fetch('/activation/state'); if(!r.ok) return;
+    const d = await r.json();
+    if(!d.active) return;
+    const pr = document.getElementById('actProgress');
+    if(pr) pr.textContent = `${d.qso_total}/${d.min_qso}`;
+    const fill = document.getElementById('actFill');
+    if(fill) fill.style.width = Math.min(100, Math.round(100*d.qso_total/(d.min_qso||1))) + '%';
+    const v = document.getElementById('actValid');
+    if(v) v.innerHTML = d.valid
+      ? '<span style="color:var(--green);font-weight:700">✅ VALIDÉE</span>'
+      : `<span style="color:var(--yellow)">encore ${d.needed}</span>`;
+    const p2p = document.getElementById('actP2P');
+    if(p2p) p2p.textContent = d.p2p_count ? `${d.p2p_label} : ${d.p2p_count}` : '';
+    const r2 = document.getElementById('actRef');
+    if(r2) r2.style.color = d.valid_ref ? 'var(--text)' : 'var(--red)';
+  }catch(e){}
+}
+
 // ─── HORAIRES CONCOURS ────────────────────────────────────────────────────────
 // Format : {start:'ISO', end:'ISO', dur:'durée texte'}
 // Déclaré tôt : référencé dès le chargement par updateClockAndCountdown() (appel
@@ -991,6 +1039,10 @@ function setupDone(){
   applyExpeditionMode(stored.expedition_mode !== undefined && stored.expedition_mode !== ''
     ? stored.expedition_mode
     : (typeof serverExpeditionMode !== 'undefined' ? serverExpeditionMode : ''));
+  // Activation POTA/SOTA/IOTA/WWFF (config locale prioritaire, sinon serveur partagé)
+  applyActivationMode(
+    stored.activation_program || (typeof serverActivationProgram !== 'undefined' ? serverActivationProgram : ''),
+    stored.my_activation_ref  || (typeof serverActivationRef !== 'undefined' ? serverActivationRef : ''));
 
   // Sélectionner le bon bouton OP
   document.querySelectorAll('.op-btn').forEach(b=>{
@@ -1561,6 +1613,15 @@ async function submitQSO(){
     contest: currentContest,
   };
 
+  // Activation POTA/SOTA/IOTA/WWFF : ma référence sur chaque QSO, + réf.
+  // correspondant si c'est un Park-to-Park / Summit-to-Summit.
+  if(activationProgram && myActivationRef){
+    qso.my_sig = activationProgram;
+    qso.my_sig_info = myActivationRef;
+    const tr = (document.getElementById('inputTheirRef')?.value || '').trim().toUpperCase();
+    if(tr){ qso.sig = activationProgram; qso.sig_info = tr; }
+  }
+
   // Mise à jour automatique de la base si nouvelles infos
   if(loc) updateCallDB(call, loc, null);
 
@@ -1582,6 +1643,7 @@ async function submitQSO(){
       try{ renderLog(); }catch(e){ console.warn('renderLog',e); }
       try{ updateStats(); }catch(e){ console.warn('updateStats',e); }
       try{ updateLastQso(qso); }catch(e){}
+      if(activationProgram) refreshActivation();   // MAJ immédiate du compteur d'activation
       playBeep(880, 80);
     } else if(res.status === 409){
       // Doublon détecté par le serveur : l'opérateur décide (2e période,
@@ -1640,6 +1702,7 @@ function clearForm(){
   document.getElementById('inputRSTrcvd').value = '59';
   document.getElementById('inputNumRcvd').value = '';
   document.getElementById('inputLocator').value = '';
+  const _tr = document.getElementById('inputTheirRef'); if(_tr) _tr.value = '';
   setFreqForBand(currentBand);   // ré-affiche la fréquence d'appel/CAT de la bande
   document.getElementById('locHint').style.display = 'none';
   document.getElementById('dupWarn').classList.remove('show');
@@ -3944,6 +4007,8 @@ async function loadServerConfig(){
     // Mode expédition : partagé par le serveur → s'applique à tous les postes,
     // même ceux dont le navigateur n'a jamais ouvert la page CONFIG.
     serverExpeditionMode = cfg.expedition_mode || '';
+    serverActivationProgram = cfg.activation_program || '';
+    serverActivationRef = cfg.my_activation_ref || '';
     // Bouton SELF-SPOT : visible seulement si l'auto-spot est activé (config partagée)
     const ssBtn = document.getElementById('selfSpotBtn');
     if(ssBtn) ssBtn.style.display =

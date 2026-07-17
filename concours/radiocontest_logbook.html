@@ -718,6 +718,20 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         </div>
       </div>
 
+      <!-- Barre d'activation POTA/SOTA/IOTA/WWFF (visible en mode activation) -->
+      <div id="activationBar" style="display:none;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:var(--bg3);border:1px solid var(--accent);font-family:var(--font-mono)">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="color:var(--accent);font-weight:700">🏕️ <span id="actProg">POTA</span></span>
+          <span id="actRef" style="color:var(--text);font-weight:700;letter-spacing:1px">—</span>
+          <span id="actProgress" style="color:var(--green);font-weight:700;font-size:17px">0/10</span>
+          <span id="actValid" style="font-size:12px"></span>
+          <span id="actP2P" style="margin-left:auto;color:var(--accent2);font-size:12px"></span>
+        </div>
+        <div style="height:6px;background:var(--bg2);border-radius:4px;overflow:hidden;margin-top:6px">
+          <div id="actFill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--accent2));transition:width .5s"></div>
+        </div>
+      </div>
+
       <!-- Bande -->
       <div class="field-group">
         <div class="field-label">BANDE</div>
@@ -777,6 +791,14 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         </div>
         <!-- « Déjà contacté » : historique station (tous concours) + nouveau à vie -->
         <div id="prevQsos" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px"></div>
+      </div>
+
+      <!-- Réf. correspondant (Park-to-Park / Summit-to-Summit) -->
+      <div class="field-group" id="theirRefGroup" style="display:none">
+        <div class="field-label">RÉF. CORRESPONDANT <span style="color:var(--accent2)">(P2P / S2S)</span></div>
+        <input type="text" class="field-input" id="inputTheirRef" placeholder="si le correspondant active aussi (ex: DL-0042)"
+          autocomplete="off" autocapitalize="characters" style="text-transform:uppercase"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
       </div>
 
       <!-- RST -->

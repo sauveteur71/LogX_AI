@@ -1088,6 +1088,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body.encode('utf-8'))
             return
 
+        # Activation POTA/SOTA/IOTA/WWFF : avancement en direct (X/min QSO, P2P)
+        if path == '/activation/state':
+            import radiocontest_activation as act
+            cfg_snap = self._cfg_snapshot()
+            program = cfg_snap.get('activation_program', '')
+            my_ref = cfg_snap.get('my_activation_ref', '')
+            if not program or not my_ref:
+                self._json({'active': False, 'programs': act.programs_meta()})
+                return
+            with log_lock:
+                log_copy = list(shared_log)
+            st = act.activation_state(log_copy, program, my_ref)
+            st['active'] = True
+            st['programs'] = act.programs_meta()
+            self._json(st)
+            return
+
         # Mode de chasse géo du concours : 'dept' | 'dept_dxcc' | 'dxcc' | 'other'
         # -> l'onglet bascule entre chasse aux DÉPARTEMENTS et chasse aux PAYS.
         if path == '/contest/geo_mode':
@@ -1233,7 +1250,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cfg_snap = self._cfg_snapshot()
             safe = {k: cfg_snap.get(k, '') for k in (
                 'callsign', 'callsign_contest', 'locator', 'contest',
-                'expedition_mode', 'clublog_live', 'cluster_spot_enabled')}
+                'expedition_mode', 'clublog_live', 'cluster_spot_enabled',
+                'activation_program', 'my_activation_ref')}
             self._json(safe)
             return
 
