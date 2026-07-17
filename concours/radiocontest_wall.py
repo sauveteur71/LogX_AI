@@ -25,12 +25,19 @@ def _entry_dt(e):
 
 def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
     """État pour l'écran mural. Retourne totaux, rythme, répartitions et les
-    `recent` derniers QSO (plus récents d'abord)."""
+    `recent` derniers QSO (plus récents d'abord).
+
+    Par défaut on montre TOUS les QSO du log commun (contest_id=None) : sur une
+    expédition, l'écran mural doit afficher tout ce qui est loggé, sans dépendre
+    du « concours actif » côté serveur (sinon un simple décalage de config masque
+    tout). Un contest_id explicite (non None) réactive le filtrage."""
     cfg = cfg or {}
     now = now or datetime.datetime.utcnow()
-    contest_id = contest_id if contest_id is not None else cfg.get('contest', '')
-    entries = [e for e in (shared_log or [])
-               if not contest_id or e.get('contest', '') in ('', contest_id)]
+    if contest_id:
+        entries = [e for e in (shared_log or [])
+                   if e.get('contest', '') in ('', contest_id)]
+    else:
+        entries = list(shared_log or [])
 
     my_ll = locator_to_latlon(cfg.get('locator', '') or 'JN15XC')
 

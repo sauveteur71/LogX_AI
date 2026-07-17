@@ -856,6 +856,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
       <div class="form-grid">
         <div class="form-group">
+          <label>MODE EXPÉDITION (saisie simplifiée)</label>
+          <select id="expedition_mode">
+            <option value="">Désactivé — saisie concours normale</option>
+            <option value="1">Activé — juste indicatif + RST envoyé/reçu</option>
+          </select>
+          <div class="input-note">En pile-up d'expédition : pas de n° de série ni locator, seulement l'indicatif et les reports (59, 55, 44…)</div>
+        </div>
+        <div class="form-group">
           <label>CLUB LOG LIVE STREAM</label>
           <select id="clublog_live">
             <option value="">Désactivé</option>
@@ -2192,6 +2200,7 @@ function saveConfig(silent = false) {
     backup_interval: parseInt(document.getElementById('backup_interval').value, 10) || 15,
     rbn_enabled: document.getElementById('rbn_enabled').value,
     clublog_live: document.getElementById('clublog_live').value,
+    expedition_mode: document.getElementById('expedition_mode').value,
     rig_enabled: !!document.getElementById('rig_enabled').value,
     rig_host: document.getElementById('rig_host').value.trim(),
     rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
@@ -2338,7 +2347,7 @@ function loadSavedConfig() {
     ['eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
      'clublog_callsign','clublog_password','clublog_api_key',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
-     'rbn_enabled','clublog_live'].forEach(k=>{
+     'rbn_enabled','clublog_live','expedition_mode'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;

@@ -1198,6 +1198,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # Écran mural d'expédition : agrégation du log commun en temps réel.
+        # Config PUBLIQUE (whitelist stricte, AUCUN secret) — permet à chaque
+        # poste d'expédition d'hériter du concours, de la station et du mode
+        # expédition partagés, sans jamais exposer mots de passe / clés API.
+        if path == '/config':
+            cfg_snap = self._cfg_snapshot()
+            safe = {k: cfg_snap.get(k, '') for k in (
+                'callsign', 'callsign_contest', 'locator', 'contest',
+                'expedition_mode', 'clublog_live')}
+            self._json(safe)
+            return
+
         if path == '/data/wall':
             import radiocontest_wall as wall
             cfg_snap = self._cfg_snapshot()
