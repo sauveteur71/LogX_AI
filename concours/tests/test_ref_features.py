@@ -186,6 +186,43 @@ def test_wall_state_enrichissement_et_champs():
     assert st2['wall_fields']['name'] is True
 
 
+def test_contest_geo_mode():
+    from radiocontest_scoring import contest_geo_mode
+    assert contest_geo_mode('REF_RPH') == 'dept'          # VHF français
+    assert contest_geo_mode('CQ_WW_SSB') == 'dxcc'        # international
+    assert contest_geo_mode('CQ_WPX_CW') == 'dxcc'
+    assert contest_geo_mode('REF_CDF_HF_SSB') == 'dept_dxcc'   # HF FR : dept + pays
+
+
+def test_dxcc_list_entities():
+    import radiocontest_dxcc as dxcc
+    ents = dxcc.list_entities()
+    assert len(ents) > 250                                # ~340 entités DXCC
+    prefixes = {e['prefix'] for e in ents}
+    assert 'F' in prefixes and 'DL' in prefixes and 'K' in prefixes
+    # dédup : chaque préfixe une seule fois
+    assert len(prefixes) == len(ents)
+
+
+def test_countries_progress_et_targets():
+    import radiocontest_countries as co
+    log = [
+        {'call': 'DL1AA', 'contest': 'CQ_WW_SSB', 'band': '14'},
+        {'call': 'K1ABC', 'contest': 'CQ_WW_SSB', 'band': '14'},
+        {'call': 'F4GLD', 'contest': 'CQ_WW_SSB', 'band': '14'},
+    ]
+    p = co.countries_progress(log, 'CQ_WW_SSB')
+    assert set(p['worked']) == {'DL', 'K', 'F'} and p['done'] == 3
+    assert p['total'] > 250
+    eu = {c['prefix']: c for c in p['by_continent']['EU']}
+    assert eu['F']['worked'] is True and eu['F']['flag'] == '🇫🇷'
+    # Cibles : une station JA spottée = nouveau pays
+    t = co.country_targets(log, 'CQ_WW_SSB', {'20m': [{'dx': 'JA1XYZ', 'freq': 14.2}]})
+    calls = [s['call'] for s in t['spotted']]
+    assert 'JA1XYZ' in calls
+    assert all(s['prefix'] not in p['worked'] for s in t['spotted'])   # jamais un pays déjà fait
+
+
 def test_cluster_spot_settings():
     import radiocontest_clusters as cl
     s = cl.cluster_spot_settings({'callsign_contest': 'F6KQJ'})

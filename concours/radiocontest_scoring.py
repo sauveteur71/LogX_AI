@@ -388,6 +388,29 @@ def resolve_scoring_bricks(scoring):
     return LEGACY_SCORING_PRESETS.get(scoring.get('type', 'km'),
                                       LEGACY_SCORING_PRESETS['km'])
 
+
+def contest_geo_mode(contest_id):
+    """Type de « chasse aux multiplicateurs géographiques » d'un concours, pour
+    décider si l'onglet montre les DÉPARTEMENTS (FR) ou les PAYS (DXCC) :
+      'dept'      -> départements FR (concours VHF/km français)
+      'dept_dxcc' -> départements FR + pays DXCC (REF HF, 160m)
+      'dxcc'      -> pays DXCC (concours internationaux : CQ WW, WPX, ARRL DX...)
+      'other'     -> ni dept ni pays (états US, sections...) -> repli dept
+    Lit le multiplicateur effectif (briques explicites OU preset legacy), en
+    gérant les DEUX emplacements de classification."""
+    cdef = CONTEST_DEFINITIONS.get(contest_id, {})
+    bricks = resolve_scoring_bricks(cdef.get('scoring', {}))
+    mult = (bricks or {}).get('multiplier') or {}
+    kind = mult.get('kind', '') if isinstance(mult, dict) else ''
+    if kind == 'dept_dxcc':
+        return 'dept_dxcc'
+    if kind in ('zone_dxcc', 'prefix'):
+        return 'dxcc'
+    if kind in ('na_state', 'na_section'):
+        return 'other'
+    # locator, large_square, exchange_distinct, None -> français par défaut
+    return 'dept'
+
 def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
                    done_calls_by_band, done_locators, done_large_squares,
                    done_cq_zones, done_dxcc, current_score_total,

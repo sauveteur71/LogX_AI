@@ -60,6 +60,14 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   .map-wrap{min-height:52vh}
   .grid-panel{width:100%;border-left:none;border-top:1px solid var(--border)}
 }
+
+/* Chasse aux PAYS (concours internationaux) */
+.countries-wrap{flex:1;overflow-y:auto;padding:14px 22px;min-height:0}
+.cont-group{margin-bottom:16px}
+.cont-head{font-family:var(--font-mono);font-size:14px;color:var(--accent2);letter-spacing:1px;margin:8px 0 6px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:4px}
+.country-grid{display:flex;flex-wrap:wrap;gap:5px}
+.country-chip{font-family:var(--font-mono);font-size:12px;padding:4px 8px;border-radius:5px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);white-space:nowrap}
+.country-chip.worked{background:rgba(0,255,136,.18);color:var(--green);border-color:var(--green);font-weight:700}
 </style>
 </head>
 <body>
@@ -114,7 +122,12 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       Le département est détecté depuis l'échange reçu, la base d'indicatifs,
       ou la position du locator (stations françaises).
     </div>
+    <!-- Concours HF (dept_dxcc) : bloc pays DXCC en plus des départements -->
+    <div id="deptDxccCountries" style="display:none;margin-top:14px"></div>
   </div>
+
+  <!-- Concours internationaux (dxcc) : chasse aux PAYS plein écran -->
+  <div class="countries-wrap" id="countriesWrap" style="display:none"></div>
 </div>
 
 <script>
@@ -242,10 +255,101 @@ async function loadTargets(){
   }catch(e){/* serveur injoignable : panneau inchangé */}
 }
 
-initMap().then(loadProgress);
-setInterval(loadProgress, 15*1000);   // les nouveaux QSO verdissent en direct
-loadTargets();
-setInterval(loadTargets, 60*1000);    // cibles recalculées avec les spots
+// ─── CHASSE AUX PAYS (concours internationaux) ───────────────────────────────
+// L'onglet se transforme en « chasse aux pays DXCC » selon le concours actif
+// (dxcc = pays seuls ; dept_dxcc = départements + pays ; dept = actuel).
+let geoMode = 'dept';
+
+async function loadGeoMode(){
+  try{
+    const cfg = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
+    const q = cfg.contest ? ('?contest='+encodeURIComponent(cfg.contest)) : '';
+    const r = await fetch('/contest/geo_mode'+q);
+    if(r.ok){ geoMode = (await r.json()).mode || 'dept'; }
+  }catch(e){}
+  applyGeoModeLayout();
+}
+
+function applyGeoModeLayout(){
+  const logo = document.querySelector('.logo');
+  const nav  = document.querySelector('.app-nav a.active');
+  if(geoMode === 'dxcc'){
+    // Pays seuls : masquer la carte France + la grille départements
+    document.querySelector('.map-wrap').style.display = 'none';
+    document.querySelector('.grid-panel').style.display = 'none';
+    document.getElementById('countriesWrap').style.display = '';
+    if(logo) logo.innerHTML = 'Radio<span>Contest</span> AI — <span style="color:var(--green)">Pays (DXCC)</span>';
+    if(nav)  nav.innerHTML = '🌍 PAYS';
+    document.getElementById('pMsg').textContent = 'objectif : contacter un maximum de pays DXCC 🌍';
+  } else if(geoMode === 'dept_dxcc'){
+    // Départements FR + pays DXCC : on garde la vue dept et on ajoute les pays
+    document.getElementById('deptDxccCountries').style.display = '';
+    if(nav) nav.innerHTML = '🇫🇷 DÉPT + PAYS';
+  }
+}
+
+async function loadCountries(container, isFull){
+  try{
+    const [pr, tr] = await Promise.all([
+      fetch('/data/countries_worked'),
+      fetch('/countries/targets').catch(()=>null),
+    ]);
+    if(!pr || !pr.ok) return;
+    const prog = await pr.json();
+    const targets = (tr && tr.ok) ? await tr.json() : {spotted:[]};
+    renderCountries(container, prog, targets, isFull);
+  }catch(e){}
+}
+
+function renderCountries(container, prog, targets, isFull){
+  const cn = prog.continent_names || {};
+  let html = '';
+  const sp = targets.spotted || [];
+  if(sp.length){
+    html += `<div class="cont-group"><div class="cont-head"><span>🎯 NOUVEAUX PAYS SPOTTÉS</span>`
+      + `<span style="color:var(--muted)">à appeler</span></div><div class="country-grid">`
+      + sp.slice(0,24).map(s =>
+          `<span class="country-chip" style="color:var(--yellow);border-color:var(--yellow)">`
+          + `${s.flag||''} ${s.call} <b>${s.country||''}</b>${s.freq?(' '+s.freq):''}</span>`).join('')
+      + `</div></div>`;
+  }
+  for(const [cont, list] of Object.entries(prog.by_continent||{})){
+    const done = list.filter(x=>x.worked).length;
+    html += `<div class="cont-group"><div class="cont-head"><span>${cn[cont]||cont}</span>`
+      + `<span style="color:var(--muted)">${done}/${list.length}</span></div><div class="country-grid">`
+      + list.map(c => `<span class="country-chip ${c.worked?'worked':''}" title="${c.prefix}">`
+          + `${c.flag||''} ${c.country}</span>`).join('')
+      + `</div></div>`;
+  }
+  container.innerHTML = html || '<div style="color:var(--muted);font-family:var(--font-mono)">Aucune donnée pays.</div>';
+  if(isFull){
+    document.getElementById('pCount').textContent = prog.done;
+    document.getElementById('pTotal').textContent = `/ ${prog.total}`;
+    const pct = prog.total ? Math.round(100*prog.done/prog.total) : 0;
+    document.getElementById('pFill').style.width = pct + '%';
+    document.getElementById('pMsg').textContent = `${prog.done} pays DXCC contactés (${pct}%)`;
+    document.getElementById('pDom').textContent = '';
+  }
+}
+
+// ─── DÉMARRAGE (adaptatif selon le concours) ─────────────────────────────────
+loadGeoMode().then(() => {
+  if(geoMode === 'dxcc'){
+    const wrap = document.getElementById('countriesWrap');
+    loadCountries(wrap, true);
+    setInterval(() => loadCountries(wrap, true), 15*1000);
+  } else {
+    initMap().then(loadProgress);
+    setInterval(loadProgress, 15*1000);   // les nouveaux QSO verdissent en direct
+    loadTargets();
+    setInterval(loadTargets, 60*1000);    // cibles recalculées avec les spots
+    if(geoMode === 'dept_dxcc'){
+      const box = document.getElementById('deptDxccCountries');
+      loadCountries(box, false);
+      setInterval(() => loadCountries(box, false), 60*1000);
+    }
+  }
+});
 </script>
 </body>
 </html>

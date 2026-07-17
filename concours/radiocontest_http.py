@@ -1088,6 +1088,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body.encode('utf-8'))
             return
 
+        # Mode de chasse géo du concours : 'dept' | 'dept_dxcc' | 'dxcc' | 'other'
+        # -> l'onglet bascule entre chasse aux DÉPARTEMENTS et chasse aux PAYS.
+        if path == '/contest/geo_mode':
+            import radiocontest_scoring as sc
+            from urllib.parse import parse_qs, urlparse
+            cfg_snap = self._cfg_snapshot()
+            cid = (parse_qs(urlparse(self.path).query).get('contest') or
+                   [cfg_snap.get('contest', '')])[0]
+            self._json({'contest': cid, 'mode': sc.contest_geo_mode(cid)})
+            return
+
+        # Chasse aux PAYS (DXCC) — variante internationale de la chasse aux dépts
+        if path == '/data/countries_worked':
+            import radiocontest_countries as co
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(co.countries_progress(log_copy, cfg_snap.get('contest', '')))
+            return
+        if path == '/countries/targets':
+            import radiocontest_countries as co
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(co.country_targets(
+                log_copy, cfg_snap.get('contest', ''), _spots_from_caches()))
+            return
+
         # Balises NCDXF/IBP : quelle balise émet MAINTENANT sur chaque bande
         # (+ distance/azimut depuis le locator) — calcul pur, pas de réseau.
         if path == '/beacons/now':

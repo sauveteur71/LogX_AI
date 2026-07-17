@@ -188,6 +188,21 @@ def update_cty_if_stale(max_age_days=CTY_MAX_AGE_DAYS, force=False):
     return True
 
 
+def list_entities():
+    """Liste dédupliquée des entités DXCC (une par pays), pour la chasse aux
+    pays des concours internationaux. Chaque entité :
+    {'prefix'(primaire), 'country'(EN), 'continent', 'lat', 'lon'}."""
+    if not _loaded:
+        load_cty()
+    seen = {}
+    for t in _PREFIXES.values():
+        primary = t[4]
+        if primary and primary not in seen:
+            seen[primary] = {'prefix': primary, 'country': t[0],
+                             'continent': t[1], 'lat': t[5], 'lon': t[6]}
+    return sorted(seen.values(), key=lambda e: (e['continent'] or 'ZZ', e['country']))
+
+
 def country_key(callsign):
     """Clé pays stable pour les sets de multiplicateurs DXCC ('K', 'DL'...).
     Repli : 2 premiers caractères (ancien comportement) si inconnu."""
