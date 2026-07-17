@@ -114,6 +114,19 @@ function applyExchangeFormat(contestId){
     if(fS && ex.def_s && !fS.value) fS.value = ex.def_s;
   }
 }
+
+// ─── MODE EXPÉDITION : saisie simplifiée (indicatif + RST env/reçu seulement) ──
+// En pile-up d'expédition l'échange est juste le report : on masque les champs
+// N° de série et locator pour ne garder que l'essentiel et enchaîner très vite.
+let expeditionMode = false;
+function applyExpeditionMode(on){
+  expeditionMode = (String(on) === '1' || on === true);
+  const numRow = document.getElementById('numFieldRow');
+  const locGrp = document.getElementById('locatorGroup');
+  if(numRow) numRow.style.display = expeditionMode ? 'none' : '';
+  if(locGrp) locGrp.style.display = expeditionMode ? 'none' : '';
+  document.body.classList.toggle('expedition-on', expeditionMode);
+}
 // ─── HORAIRES CONCOURS ────────────────────────────────────────────────────────
 // Format : {start:'ISO', end:'ISO', dur:'durée texte'}
 // Déclaré tôt : référencé dès le chargement par updateClockAndCountdown() (appel
@@ -972,6 +985,11 @@ function setupDone(){
   renderBandButtons(cont);
   renderModeButtons(cont);
   applyExchangeFormat(cont);
+  // Priorité au réglage local (page CONFIG de ce navigateur) ; sinon on hérite
+  // du réglage serveur partagé pour que tous les postes d'expédition l'aient.
+  applyExpeditionMode(stored.expedition_mode !== undefined && stored.expedition_mode !== ''
+    ? stored.expedition_mode
+    : (typeof serverExpeditionMode !== 'undefined' ? serverExpeditionMode : ''));
 
   // Sélectionner le bon bouton OP
   document.querySelectorAll('.op-btn').forEach(b=>{
@@ -1437,8 +1455,9 @@ async function submitQSO(){
     notify('Locator invalide !\nFormat attendu : AA00AA  (ex: JN03QQ)');
     return;
   }
-  // Locator vide : simple avertissement, le QSO est quand même enregistré (0 pt)
-  if(!loc){
+  // Locator vide : simple avertissement, le QSO est quand même enregistré (0 pt).
+  // En mode expédition le locator est masqué : pas d'avertissement, on enchaîne.
+  if(!loc && !expeditionMode){
     notify('⚠️ Locator non renseigné !\nLe QSO va être enregistré sans locator (0 pt).');
   }
 
@@ -3812,6 +3831,9 @@ async function loadServerConfig(){
     if(cfg.callsign)  serverCallsign = cfg.callsign;
     if(cfg.locator)   serverLocator  = cfg.locator;
     if(cfg.contest)   serverContest  = cfg.contest;
+    // Mode expédition : partagé par le serveur → s'applique à tous les postes,
+    // même ceux dont le navigateur n'a jamais ouvert la page CONFIG.
+    serverExpeditionMode = cfg.expedition_mode || '';
   }catch(e){}
 }
 

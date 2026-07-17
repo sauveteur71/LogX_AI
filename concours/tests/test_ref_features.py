@@ -134,6 +134,26 @@ def test_wall_state_expedition():
     assert st['odx']['km'] > 0
 
 
+def test_wall_state_ignore_contest_mismatch():
+    """Régression : l'écran mural ne doit PAS masquer les QSO parce que le
+    concours actif côté serveur diffère de celui des QSO (bug expédition :
+    4 QSO en 'REF_QRP' invisibles quand la config était sur 'REF_RPH')."""
+    import radiocontest_wall as wall
+    log = [
+        {'call': 'F6IRG', 'band': '144', 'mode': 'SSB', 'operator': 'OP1',
+         'date': '20260717', 'time': '14:00', 'locator': 'JN15', 'contest': 'REF_QRP'},
+        {'call': 'F2AI', 'band': '144', 'mode': 'SSB', 'operator': 'OP1',
+         'date': '20260717', 'time': '14:01', 'locator': 'JN25', 'contest': 'REF_QRP'},
+    ]
+    # cfg annonce un AUTRE concours que celui des QSO
+    st = wall.wall_state(log, {'contest': 'REF_RPH', 'locator': 'JN15WD'})
+    assert st['qso_total'] == 2          # tous les QSO restent visibles
+    assert st['unique_calls'] == 2
+    # Un filtrage explicite reste possible si on le demande vraiment
+    st2 = wall.wall_state(log, {'locator': 'JN15WD'}, contest_id='REF_RPH')
+    assert st2['qso_total'] == 0
+
+
 def test_clublog_realtime_non_configure():
     import radiocontest_qsl as qsl
     r = qsl.realtime_push({}, {'call': 'DL1AA', 'band': '14', 'mode': 'CW'})
