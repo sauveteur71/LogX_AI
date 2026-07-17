@@ -846,6 +846,32 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section">
+      <div class="section-title">🏝️ MODE EXPÉDITION</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Plusieurs postes sur le même site (un par bande, voire trois par bande en
+        CW/SSB/FT8) loggent dans le MÊME log commun : chaque poste ouvre le
+        LOGBOOK depuis son navigateur (même WiFi), sélectionne son opérateur, et
+        tous les QSO arrivent ensemble. L'écran mural affiche le flux en direct
+        sur un grand écran/projecteur, et Club Log Live diffuse chaque QSO au monde.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>CLUB LOG LIVE STREAM</label>
+          <select id="clublog_live">
+            <option value="">Désactivé</option>
+            <option value="1">Activé — pousser chaque QSO en temps réel</option>
+          </select>
+          <div class="input-note">Nécessite les identifiants ClubLog (section QSL ci-dessus)</div>
+        </div>
+        <div class="form-group">
+          <label>ÉCRAN MURAL (grand écran)</label>
+          <a href="radiocontest_wall.html" target="_blank" class="btn btn-secondary" style="display:inline-block;padding:9px 16px;text-decoration:none;margin-top:2px">🖥️ OUVRIR L'ÉCRAN MURAL</a>
+          <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-title">PARAMÈTRES D'ALERTE</div>
       <div class="form-grid">
         <div class="form-group">
@@ -2165,6 +2191,7 @@ function saveConfig(silent = false) {
     backup_folder: document.getElementById('backup_folder').value.trim(),
     backup_interval: parseInt(document.getElementById('backup_interval').value, 10) || 15,
     rbn_enabled: document.getElementById('rbn_enabled').value,
+    clublog_live: document.getElementById('clublog_live').value,
     rig_enabled: !!document.getElementById('rig_enabled').value,
     rig_host: document.getElementById('rig_host').value.trim(),
     rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
@@ -2311,7 +2338,7 @@ function loadSavedConfig() {
     ['eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
      'clublog_callsign','clublog_password','clublog_api_key',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
-     'rbn_enabled'].forEach(k=>{
+     'rbn_enabled','clublog_live'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;

@@ -115,6 +115,31 @@ def test_department_targets_spotte_en_tete():
 
 # ─── Débrief ─────────────────────────────────────────────────────────────────
 
+def test_wall_state_expedition():
+    import radiocontest_wall as wall
+    log = [
+        {'call': 'DL1AA', 'band': '14', 'mode': 'CW', 'operator': 'OP1',
+         'date': '20260718', 'time': '14:00', 'locator': 'JO31', 'points': 1, 'contest': 'X'},
+        {'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'operator': 'OP2',
+         'date': '20260718', 'time': '14:01', 'locator': 'JO31', 'points': 1, 'contest': 'X'},
+        {'call': 'EA5ZZ', 'band': '7', 'mode': 'FT8', 'operator': 'OP3',
+         'date': '20260718', 'time': '14:02', 'locator': 'IM98', 'points': 1, 'contest': 'X'},
+    ]
+    st = wall.wall_state(log, {'contest': 'X', 'locator': 'JN15WD'})
+    assert st['qso_total'] == 3
+    assert st['unique_calls'] == 2          # DL1AA compté une fois
+    assert st['per_band']['14'] == 2 and st['per_mode']['FT8'] == 1
+    assert set(st['per_op']) == {'OP1', 'OP2', 'OP3'}
+    assert st['recent'][0]['call'] == 'EA5ZZ'   # le plus récent en tête
+    assert st['odx']['km'] > 0
+
+
+def test_clublog_realtime_non_configure():
+    import radiocontest_qsl as qsl
+    r = qsl.realtime_push({}, {'call': 'DL1AA', 'band': '14', 'mode': 'CW'})
+    assert r['ok'] is False and 'ClubLog' in r['error']
+
+
 def test_build_debrief():
     from radiocontest_coach import build_debrief
     log = [_qso(), _qso(call='DK2ZZ', locator='JO62QD', time='16:00', num_rcvd='002')]

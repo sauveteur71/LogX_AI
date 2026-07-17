@@ -34,13 +34,26 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
    largeur (colonnes régulières), elles se remplissent sans trou et sans marge
    perdue. Les listes longues défilent en interne pour garder des hauteurs
    comparables → lecture claire et homogène. */
-.container{max-width:1680px;margin:0 auto;padding:18px;flex:1;overflow-y:auto;
-  min-height:0;width:100%;column-width:390px;column-gap:18px}
+/* Deux zones : à GAUCHE une maçonnerie de cartes (largeur uniforme), à DROITE
+   le CLUSTER NEED LIST sur toute la hauteur de page (défilement interne) — pour
+   travailler les spots pendant le concours sans un scroll minuscule. */
+.container{max-width:1780px;margin:0 auto;padding:16px;flex:1;min-height:0;
+  width:100%;display:flex;gap:16px;overflow:hidden}
+.prop-main{flex:1;min-width:0;height:100%;overflow-y:auto;
+  column-width:330px;column-gap:16px;padding-right:4px}
+.prop-cluster{width:440px;flex-shrink:0;height:100%}
+.prop-cluster .panel{height:100%;display:flex;flex-direction:column;margin:0}
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
-  padding:16px;margin:0 0 18px 0;break-inside:avoid}
-/* Les listes potentiellement longues sont plafonnées (scroll interne) pour que
-   aucune carte n'écrase les autres. */
-.scroll-list{max-height:340px;overflow-y:auto;margin-right:-6px;padding-right:6px}
+  padding:16px;margin:0 0 16px 0;break-inside:avoid}
+/* Les listes secondaires (PSK, RBN, balises) restent plafonnées. */
+.scroll-list{max-height:320px;overflow-y:auto;margin-right:-6px;padding-right:6px}
+@media (max-width:1000px){
+  .container{flex-direction:column;overflow-y:auto}
+  .prop-main{overflow:visible;height:auto;column-width:320px}
+  .prop-cluster{width:100%;height:auto}
+  .prop-cluster .panel{height:auto}
+  .prop-cluster #spotList{max-height:60vh}
+}
 .panel-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:3px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
 .panel-title small{color:var(--muted);letter-spacing:0;font-size:12px}
 
@@ -106,6 +119,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 <div class="container">
 
+  <div class="prop-main">
+
     <div class="panel">
       <div class="panel-title">☀️ SOLEIL & IONOSPHÈRE <small id="solarUpdated"></small></div>
       <div class="solar-grid" id="solarGrid"><div class="loading">Chargement…</div></div>
@@ -145,17 +160,6 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     </div>
 
   <div class="panel">
-    <div class="panel-title">🎯 CLUSTER — NEED LIST <small id="spotsMeta"></small></div>
-    <div class="filters">
-      <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
-      <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 MULTS</button>
-      <button class="filter-btn" data-f="new" onclick="setFilter(this)">SANS DUPES</button>
-    </div>
-    <div id="spotList" class="scroll-list"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
-      <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
-  </div>
-
-  <div class="panel">
     <div class="panel-title">🌐 SIGNAL ENTENDU — PSK <small id="pskMeta"></small></div>
     <div id="pskList" class="scroll-list"><div class="loading">…</div></div>
   </div>
@@ -163,6 +167,22 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   <div class="panel">
     <div class="panel-title">📻 SIGNAL CW ENTENDU — RBN <small id="rbnMeta"></small></div>
     <div id="rbnList" class="scroll-list"><div class="loading">Transmets en CW : les skimmers RBN qui te reçoivent apparaîtront ici.</div></div>
+  </div>
+
+  </div><!-- /prop-main -->
+
+  <!-- CLUSTER NEED LIST : colonne droite, pleine hauteur, lecture complète -->
+  <div class="prop-cluster">
+    <div class="panel">
+      <div class="panel-title">🎯 CLUSTER — NEED LIST <small id="spotsMeta"></small></div>
+      <div class="filters">
+        <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
+        <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 MULTS</button>
+        <button class="filter-btn" data-f="new" onclick="setFilter(this)">SANS DUPES</button>
+      </div>
+      <div id="spotList" style="flex:1;overflow-y:auto;margin-right:-6px;padding-right:6px"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
+        <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
+    </div>
   </div>
 
 </div>

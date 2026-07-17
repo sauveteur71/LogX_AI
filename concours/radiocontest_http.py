@@ -182,6 +182,16 @@ def add_qso_to_log(qso, force=False):
     with log_lock:
         shared_log.append(qso)
     save_log_to_disk()
+    # Mode expédition : pousse le QSO vers le flux Club Log Live (fire-and-forget)
+    try:
+        with config_lock:
+            cfg_now = dict(current_config)
+        if str(cfg_now.get('clublog_live', '')) in ('1', 'true', 'True', 'on'):
+            import radiocontest_qsl as qsl
+            threading.Thread(target=lambda: qsl.realtime_push(cfg_now, dict(qso)),
+                             daemon=True).start()
+    except Exception:
+        pass
     # Enrichit l'historique d'indicatifs à chaud (Super Check Partial)
     try:
         import radiocontest_callhistory as callhistory
@@ -1157,6 +1167,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True, 'detail': paths.path_openings(my_ll[0], my_ll[1], region, solar=solar)})
             else:
                 self._json({'ok': True, 'regions': paths.all_regions(my_ll[0], my_ll[1], solar=solar)})
+            return
+
+        # Écran mural d'expédition : agrégation du log commun en temps réel.
+        if path == '/data/wall':
+            import radiocontest_wall as wall
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(wall.wall_state(log_copy, cfg_snap))
             return
 
         # RBN : où mon signal CW est entendu (skimmers Reverse Beacon Network)
