@@ -949,10 +949,16 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   .bm-tx{padding:2px 8px;color:var(--accent);font-weight:800;font-size:11px;
     border-top:1px dashed var(--accent);border-bottom:1px dashed var(--accent);background:rgba(255,107,0,.08)}
   .bm-empty{padding:14px 10px;color:var(--muted);font-size:11px;text-align:center}
+  .bandscope-wrap{padding:6px 8px 4px;border-bottom:1px solid var(--border)}
+  .bandscope-wrap svg{width:100%;height:74px;display:block}
+  .bs-bar{cursor:pointer}
+  .bs-bar:hover{opacity:.7}
   @media(max-width:1100px){.bandmap-panel{display:none}}
   </style>
   <div class="bandmap-panel" id="bandmapPanel">
     <div class="bandmap-head">📻 BAND MAP <span id="bandmapBand">—</span></div>
+    <!-- Bandscope : activité de la bande (densité de spots par fréquence) -->
+    <div class="bandscope-wrap" id="bandscopeWrap"><svg id="bandscope" viewBox="0 0 180 74" preserveAspectRatio="none"></svg></div>
     <div class="bandmap-list" id="bandmapList">
       <div class="bm-empty">en attente de spots…</div>
     </div>
