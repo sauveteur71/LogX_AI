@@ -3695,6 +3695,31 @@ function exportON4KST(){
   }).catch(()=>{ prompt('Copier ce message ON4KST :', msg); });
 }
 
+// ─── SELF-SPOT (publier son spot sur le cluster DX avec sa fréquence) ─────────
+async function selfSpot(){
+  // Fréquence : champ saisi > radio (CAT) > fréquence d'appel de la bande
+  let mhz = parseFloat(document.getElementById('inputFreq')?.value);
+  if(!isFinite(mhz) || mhz <= 0){
+    if(typeof rigState === 'object' && rigState && rigState.freq_khz > 0) mhz = rigState.freq_khz / 1000;
+    else mhz = parseFloat(BAND_FREQ[currentBand] || '0');
+  }
+  if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
+  const freq_khz = Math.round(mhz * 1000 * 10) / 10;   // MHz → kHz (commande DX Spider)
+  if(!confirm(`Publier ce spot sur le cluster DX ?\n\n${myCall}   ${mhz.toFixed(3)} MHz   ${currentMode||''}\n\n`+
+              `⚠️ Vérifie que l'auto-spot est autorisé par le règlement du concours.`)) return;
+  const btn = document.getElementById('selfSpotBtn');
+  const orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }
+  try{
+    const r = await fetch('/cluster/spot', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({freq_khz, comment: 'CQ ' + ((currentContest||'').replace(/_/g,' '))})});
+    const d = await r.json();
+    if(d.ok) notify(`📡 Spot publié sur le cluster : ${myCall}  ${mhz.toFixed(3)} MHz`);
+    else notify('❌ Self-spot : ' + (d.error || 'échec'));
+  }catch(e){ notify('❌ ' + e.message); }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SELF-SPOT'; } }
+}
+
 // ─── RAPPEL PÉRIODIQUE ON4KST ─────────────────────────────────────────────────
 let on4kstReminderTimer = null;
 function hideON4KSTReminder(){
@@ -3901,6 +3926,10 @@ async function loadServerConfig(){
     // Mode expédition : partagé par le serveur → s'applique à tous les postes,
     // même ceux dont le navigateur n'a jamais ouvert la page CONFIG.
     serverExpeditionMode = cfg.expedition_mode || '';
+    // Bouton SELF-SPOT : visible seulement si l'auto-spot est activé (config partagée)
+    const ssBtn = document.getElementById('selfSpotBtn');
+    if(ssBtn) ssBtn.style.display =
+      (String(cfg.cluster_spot_enabled||'') && cfg.cluster_spot_enabled!=='0') ? '' : 'none';
   }catch(e){}
 }
 
