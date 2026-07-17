@@ -1088,6 +1088,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body.encode('utf-8'))
             return
 
+        # URL(s) LAN pour connecter un téléphone/tablette (terrain/expédition) :
+        # ouvre le logbook depuis le mobile sur le même WiFi, installable en PWA.
+        if path == '/data/lan_url':
+            import socket as _sock
+            port = self.server.server_address[1] if self.server else 8080
+            ips = set()
+            try:
+                s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+                s.settimeout(0.3)
+                s.connect(('8.8.8.8', 80))
+                ips.add(s.getsockname()[0])
+                s.close()
+            except OSError:
+                pass
+            try:
+                for info in _sock.getaddrinfo(_sock.gethostname(), None, _sock.AF_INET):
+                    ip = info[4][0]
+                    if not ip.startswith('127.'):
+                        ips.add(ip)
+            except OSError:
+                pass
+            urls = [f'http://{ip}:{port}/radiocontest_logbook.html' for ip in sorted(ips)]
+            self._json({'port': port, 'ips': sorted(ips), 'urls': urls})
+            return
+
         # Activation POTA/SOTA/IOTA/WWFF : avancement en direct (X/min QSO, P2P)
         if path == '/activation/state':
             import radiocontest_activation as act
@@ -1446,6 +1471,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if filepath.endswith('.js'):   ct = 'application/javascript'
             if filepath.endswith('.css'):  ct = 'text/css'
             if filepath.endswith('.json'): ct = 'application/json'
+            if filepath.endswith('.svg'):  ct = 'image/svg+xml'
+            if filepath.endswith('.webmanifest'): ct = 'application/manifest+json'
             if ct.startswith('text/html'):
                 # Distribue le token aux navigateurs du logiciel (SameSite=Strict :
                 # jamais envoyé depuis un site tiers → routes d'écriture protégées).

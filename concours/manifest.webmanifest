@@ -1,0 +1,15 @@
+{
+  "name": "RadioContest AI",
+  "short_name": "RadioContest",
+  "description": "Log de concours, expédition et activation POTA/SOTA radioamateur",
+  "start_url": "/radiocontest_logbook.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07080F",
+  "theme_color": "#FF6B00",
+  "lang": "fr",
+  "icons": [
+    { "src": "/radiocontest_icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

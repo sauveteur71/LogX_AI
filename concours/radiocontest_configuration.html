@@ -935,6 +935,11 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
         <div class="input-note">L'indicatif est toujours affiché. Le prénom n'apparaît que pour les indicatifs déjà consultés via QRZ.</div>
       </div>
+      <div class="form-group" style="margin-top:10px">
+        <label>📱 CONNECTER UN TÉLÉPHONE / TABLETTE</label>
+        <div id="lanUrls" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-top:6px;line-height:1.8">Recherche de l'adresse réseau…</div>
+        <div class="input-note">Sur le même WiFi, ouvre cette adresse sur ton téléphone, puis « Ajouter à l'écran d'accueil » : l'appli s'installe et tourne en plein écran (PWA).</div>
+      </div>
     </div>
 
     <div class="section">
@@ -2408,6 +2413,22 @@ window.addEventListener('storage', e => {
     if(t) t.textContent = day ? '🌙' : '☀️';
   }
 });
+
+// Adresse(s) LAN pour connecter un téléphone (mode terrain/expédition)
+async function loadLanUrls(){
+  const el = document.getElementById('lanUrls');
+  if(!el) return;
+  try{
+    const d = await (await fetch('/data/lan_url')).json();
+    if(d.urls && d.urls.length){
+      el.innerHTML = d.urls.map(u =>
+        `<div>📶 <a href="${u}" target="_blank" style="color:var(--accent2);text-decoration:none">${u}</a></div>`).join('');
+    } else {
+      el.textContent = 'Adresse réseau introuvable — sur le téléphone : http://<IP-du-PC>:' + (d.port||8080) + '/radiocontest_logbook.html';
+    }
+  }catch(e){ el.textContent = 'Serveur injoignable.'; }
+}
+window.addEventListener('load', loadLanUrls);
 
 // Restaure les cases « champs de l'écran mural » depuis la config
 function applyWallFields(wf){
