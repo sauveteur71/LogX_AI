@@ -3812,6 +3812,16 @@ function exportON4KST(){
   }).catch(()=>{ prompt('Copier ce message ON4KST :', msg); });
 }
 
+// ─── SECOND ÉCRAN : fenêtres détachables (multi-moniteur) ────────────────────
+function popoutScope(){
+  window.open('/radiocontest_scope.html?band=' + encodeURIComponent(currentBand || '144'),
+    'rc_scope', 'width=1100,height=560,menubar=no,toolbar=no,location=no');
+}
+function popoutWall(){
+  window.open('/radiocontest_wall.html', 'rc_wall',
+    'width=1280,height=720,menubar=no,toolbar=no,location=no');
+}
+
 // ─── SELF-SPOT (publier son spot sur le cluster DX avec sa fréquence) ─────────
 async function selfSpot(){
   // Fréquence : champ saisi > radio (CAT) > fréquence d'appel de la bande
