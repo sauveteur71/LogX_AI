@@ -934,6 +934,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(callhistory.export_index(log_copy))
             return
 
+        # Historique de station (« déjà contacté ») + « nouveau à vie » :
+        # tous les QSO passés avec cette station, sur TOUTE la vie du log.
+        if path.startswith('/call/history'):
+            from urllib.parse import parse_qs, urlparse
+            import radiocontest_awards as awards
+            qp = parse_qs(urlparse(self.path).query)
+            call = (qp.get('call', [''])[0]).upper().strip()
+            band = (qp.get('band', [''])[0]).strip()
+            with log_lock:
+                log_copy = list(shared_log)
+            h = awards.history(call, log_copy)
+            h['new_one'] = awards.new_one(call, band, '', log_copy)
+            self._json(h)
+            return
+
+        # Tableau de bord diplômes : DXCC / départements travaillés & confirmés
+        # sur toute la vie de la station (pas seulement le concours en cours).
+        if path == '/awards/summary':
+            import radiocontest_awards as awards
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(awards.award_summary(log_copy))
+            return
+
+        # État de configuration QSL + horodatage des dernières synchros.
+        if path == '/qsl/status':
+            import radiocontest_qsl as qsl
+            self._json(qsl.qsl_status(self._cfg_snapshot()))
+            return
+
         # Tableau de chasse départements REF : contactés vs total (depuis le log)
         if path == '/data/departments_worked':
             import radiocontest_departments as dep
@@ -1203,6 +1233,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self._json({'ok': True, 'count': len(spots)})
                 else:
                     self._json({'ok': False, 'error': 'expected array'}, 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Upload du log vers un service QSL (eQSL / ClubLog). Le log ADIF est
+        # généré côté serveur ; les identifiants ne quittent jamais le serveur.
+        if self.path == '/qsl/upload':
+            try:
+                payload = json.loads(body) if body else {}
+                service = (payload.get('service') or '').lower()
+                cfg = self._cfg_snapshot()
+                contest_id = payload.get('contest', cfg.get('contest', ''))
+                with log_lock:
+                    qsos = [q for q in shared_log
+                            if not contest_id or q.get('contest', '') in ('', contest_id)]
+                if not qsos:
+                    self._json({'ok': False, 'error': 'Aucun QSO à envoyer'}, 400)
+                    return
+                import radiocontest_export as export
+                import radiocontest_qsl as qsl
+                adif = export.build_adif(qsos, cfg)
+                if service == 'eqsl':
+                    res = qsl.upload_eqsl(cfg, adif)
+                elif service == 'clublog':
+                    res = qsl.upload_clublog(cfg, adif)
+                else:
+                    res = {'ok': False, 'error': 'Service inconnu (eqsl|clublog)'}
+                res['qso_count'] = len(qsos)
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Import des confirmations QSL (LoTW) → marque les QSO « confirmé ».
+        if self.path == '/qsl/sync':
+            try:
+                payload = json.loads(body) if body else {}
+                import radiocontest_qsl as qsl
+                res = qsl.sync_lotw(self._cfg_snapshot(), since=payload.get('since'))
+                self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 500)
             return

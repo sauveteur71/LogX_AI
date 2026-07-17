@@ -571,6 +571,17 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   </div>
 </div>
 
+<!-- DIPLÔMES & QSL (carnet permanent) -->
+<div class="shortcuts-overlay" id="awardsOverlay" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="shortcuts-box" style="max-width:560px">
+    <div class="shortcuts-title">
+      <span>🏅 DIPLÔMES & QSL</span>
+      <span class="shortcuts-close" onclick="document.getElementById('awardsOverlay').classList.remove('show')">✕</span>
+    </div>
+    <div id="awardsInner" style="max-height:60vh;overflow-y:auto"></div>
+  </div>
+</div>
+
 <!-- VÉRIFICATION DU LOG AVANT SOUMISSION (validateur REF) -->
 <div class="shortcuts-overlay" id="validateOverlay" onclick="if(event.target===this)this.classList.remove('show')">
   <div class="shortcuts-box">
@@ -747,6 +758,8 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
           <span class="dxcc-country" id="dxccCountry"></span>
           <span class="dxcc-info" id="dxccInfo"></span>
         </div>
+        <!-- « Déjà contacté » : historique station (tous concours) + nouveau à vie -->
+        <div id="prevQsos" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px"></div>
       </div>
 
       <!-- RST -->
@@ -865,6 +878,31 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
     </div>
   </div>
 
+  <!-- BAND MAP : spots de la bande courante placés par fréquence, clic = QSY -->
+  <style>
+  .bandmap-panel{width:196px;flex-shrink:0;border-right:2px solid var(--border);
+    background:var(--bg2);display:flex;flex-direction:column;min-height:0}
+  .bandmap-head{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;
+    color:var(--accent2);padding:8px 10px;border-bottom:1px solid var(--border);
+    display:flex;justify-content:space-between;align-items:center}
+  .bandmap-head span{color:var(--muted);font-size:11px}
+  .bandmap-list{flex:1;overflow-y:auto;padding:4px 0;font-family:var(--font-mono);font-size:12px}
+  .bm-spot{display:flex;gap:6px;padding:2px 8px;cursor:pointer;align-items:baseline}
+  .bm-spot:hover{background:var(--bg3)}
+  .bm-f{color:var(--muted);min-width:52px;font-size:11px}
+  .bm-c{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bm-tx{padding:2px 8px;color:var(--accent);font-weight:800;font-size:11px;
+    border-top:1px dashed var(--accent);border-bottom:1px dashed var(--accent);background:rgba(255,107,0,.08)}
+  .bm-empty{padding:14px 10px;color:var(--muted);font-size:11px;text-align:center}
+  @media(max-width:1100px){.bandmap-panel{display:none}}
+  </style>
+  <div class="bandmap-panel" id="bandmapPanel">
+    <div class="bandmap-head">📻 BAND MAP <span id="bandmapBand">—</span></div>
+    <div class="bandmap-list" id="bandmapList">
+      <div class="bm-empty">en attente de spots…</div>
+    </div>
+  </div>
+
   <!-- LOG TABLE -->
   <div class="log-panel">
     <div class="log-toolbar">
@@ -887,6 +925,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="export-btn" onclick="resetLog()" style="color:var(--red);border-color:rgba(255,45,85,.4);margin-left:8px">🗑️ NOUVEAU LOG</button>
       <button class="export-btn" onclick="showRatePanel()" style="color:var(--accent2);border-color:rgba(0,212,255,.4);margin-left:8px">📊 STATS</button>
       <button class="export-btn" onclick="showValidation()" style="color:var(--yellow);border-color:rgba(255,214,10,.4);margin-left:8px" title="Contrôle du log avant soumission : doublons, locators, départements, QSO hors fenêtre">🔍 VÉRIFIER</button>
+      <button class="export-btn" onclick="showAwards()" style="color:var(--purple);border-color:rgba(191,90,242,.4);margin-left:8px" title="Diplômes (DXCC, départements) travaillés/confirmés à vie + envoi/synchro QSL (eQSL, ClubLog, LoTW)">🏅 DIPLÔMES</button>
       <button class="export-btn" onclick="showChecklist()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px">✅ CHECKLIST</button>
     </div>
 
