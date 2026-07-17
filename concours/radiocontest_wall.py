@@ -10,8 +10,74 @@ compteur total, rythme, répartition par bande / mode / opérateur, ODX.
 Déterministe (aucun réseau) ; alimente GET /data/wall (poll ~3 s).
 """
 import datetime
+import json
+import os
 
 from radiocontest_utils import locator_to_latlon, haversine
+
+# Champs affichables sur l'écran mural + valeurs par défaut (cochés ou non).
+# L'indicatif (call) est TOUJOURS affiché ; les autres sont pilotés par la
+# config `wall_fields` (menu dans la page CONFIG, section MODE EXPÉDITION).
+WALL_FIELD_KEYS = ['time', 'flag', 'country', 'name', 'band', 'freq', 'mode', 'rst', 'op']
+WALL_FIELDS_DEFAULT = {
+    'time': True, 'flag': True, 'country': True, 'name': False,
+    'band': True, 'freq': False, 'mode': True, 'rst': False, 'op': True,
+}
+
+_calldb_cache = {'mtime': None, 'calls': {}}
+
+
+def _load_calldb():
+    """Charge calldb.json (indicatif -> {dept, locator, country, name}) avec un
+    cache par mtime : on relit seulement si le fichier change. Sert à retrouver
+    le PRÉNOM d'un correspondant déjà vu (best-effort, hors-ligne)."""
+    path = 'calldb.json'
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return {}
+    if _calldb_cache['mtime'] != mtime:
+        try:
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+            _calldb_cache['calls'] = data.get('calls', {}) if isinstance(data, dict) else {}
+            _calldb_cache['mtime'] = mtime
+        except (OSError, ValueError):
+            return _calldb_cache['calls']
+    return _calldb_cache['calls']
+
+
+def _wall_fields(cfg):
+    """Fusionne la config wall_fields avec les défauts (tolère l'absence)."""
+    out = dict(WALL_FIELDS_DEFAULT)
+    wf = (cfg or {}).get('wall_fields')
+    if isinstance(wf, dict):
+        for k in WALL_FIELD_KEYS:
+            if k in wf:
+                out[k] = bool(wf[k]) if not isinstance(wf[k], str) \
+                    else wf[k] not in ('', '0', 'false', 'False')
+    return out
+
+
+def _enrich_recent(recents):
+    """Ajoute drapeau + pays (FR) + prénom (si connu) à chaque QSO récent."""
+    try:
+        import radiocontest_flags as flags
+    except Exception:
+        flags = None
+    calldb = _load_calldb()
+    for r in recents:
+        call = r.get('call', '')
+        if flags:
+            fc = flags.flag_and_country(call)
+            r['flag'] = fc.get('flag', '')
+            r['country'] = fc.get('country', '')
+        else:
+            r['flag'] = r.get('flag', '')
+            r['country'] = r.get('country', '')
+        entry = calldb.get(call) or calldb.get(call.upper()) or {}
+        r['name'] = (entry.get('name', '') if isinstance(entry, dict) else '') or ''
+    return recents
 
 
 def _entry_dt(e):
@@ -83,6 +149,8 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
             'time': e.get('time', ''), 'date': e.get('date', ''),
             'locator': e.get('locator', ''), 'points': e.get('points', 0) or 0,
             'freq': str(e.get('freq', '') or ''),
+            'rst_sent': str(e.get('rst_sent', '') or ''),
+            'rst_rcvd': str(e.get('rst_rcvd', '') or ''),
         })
     # Si des QSO n'ont pas de date exploitable, compléter la liste récente
     if len(recents) < recent:
@@ -96,13 +164,18 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
                 'op': str(e.get('operator', '') or ''), 'time': e.get('time', ''),
                 'date': e.get('date', ''), 'locator': e.get('locator', ''),
                 'points': e.get('points', 0) or 0,
-                'freq': str(e.get('freq', '') or '')})
+                'freq': str(e.get('freq', '') or ''),
+                'rst_sent': str(e.get('rst_sent', '') or ''),
+                'rst_rcvd': str(e.get('rst_rcvd', '') or '')})
             if len(recents) >= recent:
                 break
+
+    _enrich_recent(recents)   # drapeau + pays + prénom par QSO
 
     return {
         'callsign': (cfg.get('callsign_contest') or cfg.get('callsign') or '').upper(),
         'contest': contest_id,
+        'wall_fields': _wall_fields(cfg),
         'qso_total': len(entries),
         'unique_calls': len(calls),
         'score': score,

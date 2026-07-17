@@ -154,6 +154,38 @@ def test_wall_state_ignore_contest_mismatch():
     assert st2['qso_total'] == 0
 
 
+def test_flags_drapeau_pays():
+    import radiocontest_flags as fl
+    assert fl.flag_emoji('FR') == '🇫🇷'
+    assert fl.flag_emoji('') == '' and fl.flag_emoji('X') == ''
+    f = fl.flag_and_country('DL1ABC')
+    assert f['flag'] == '🇩🇪' and 'Allemagne' in f['country']
+    us = fl.flag_and_country('K1ABC')
+    assert us['flag'] == '🇺🇸'
+    # Indicatif inconnu : pas d'exception, drapeau vide
+    unk = fl.flag_and_country('')
+    assert unk['flag'] == ''
+
+
+def test_wall_state_enrichissement_et_champs():
+    import radiocontest_wall as wall
+    log = [
+        {'call': 'DL1AA', 'band': '144', 'mode': 'CW', 'operator': 'OP1',
+         'date': '20260718', 'time': '14:00', 'locator': 'JO31',
+         'freq': '144.055', 'rst_rcvd': '559'},
+    ]
+    st = wall.wall_state(log, {'locator': 'JN15WD'})
+    # wall_fields présents (défaut) + enrichissement drapeau/pays/rst/freq
+    assert isinstance(st['wall_fields'], dict) and 'flag' in st['wall_fields']
+    r = st['recent'][0]
+    assert r['flag'] == '🇩🇪' and 'Allemagne' in r['country']
+    assert r['rst_rcvd'] == '559' and r['freq'] == '144.055'
+    # wall_fields depuis la config (chaînes tolérées)
+    st2 = wall.wall_state(log, {'wall_fields': {'country': False, 'name': '1'}})
+    assert st2['wall_fields']['country'] is False
+    assert st2['wall_fields']['name'] is True
+
+
 def test_clublog_realtime_non_configure():
     import radiocontest_qsl as qsl
     r = qsl.realtime_push({}, {'call': 'DL1AA', 'band': '14', 'mode': 'CW'})

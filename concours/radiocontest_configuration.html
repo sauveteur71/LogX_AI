@@ -877,6 +877,21 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran)</div>
         </div>
       </div>
+      <div class="form-group" style="margin-top:10px">
+        <label>ÉCRAN MURAL — CHAMPS À AFFICHER</label>
+        <div id="wallFields" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:8px;font-family:var(--font-mono);font-size:14px">
+          <label style="cursor:pointer"><input type="checkbox" id="wf_time" checked> Heure</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_flag" checked> 🏴 Drapeau</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_country"> Pays</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_name"> Prénom</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_band" checked> Bande</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_freq"> Fréquence</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_mode" checked> Mode</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_rst"> Report (RST)</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_op" checked> Opérateur</label>
+        </div>
+        <div class="input-note">L'indicatif est toujours affiché. Le prénom n'apparaît que pour les indicatifs déjà consultés via QRZ.</div>
+      </div>
     </div>
 
     <div class="section">
@@ -1373,6 +1388,7 @@ async function mergeExternalContests(){
 // ─── CHARGEMENT CONFIG ───────────────────────────────────────────────────────
 function applyConfigToForm(cfg) {
   const set = (id, val) => { const el = document.getElementById(id); if(el && val !== undefined && val !== null) el.value = val; };
+  if(typeof applyWallFields === 'function') applyWallFields(cfg.wall_fields);
   set('callsign',        cfg.callsign);
   set('callsign_contest',cfg.callsign_contest || cfg.callsign);
   set('locator',         cfg.locator);
@@ -2201,6 +2217,17 @@ function saveConfig(silent = false) {
     rbn_enabled: document.getElementById('rbn_enabled').value,
     clublog_live: document.getElementById('clublog_live').value,
     expedition_mode: document.getElementById('expedition_mode').value,
+    wall_fields: {
+      time:    document.getElementById('wf_time').checked,
+      flag:    document.getElementById('wf_flag').checked,
+      country: document.getElementById('wf_country').checked,
+      name:    document.getElementById('wf_name').checked,
+      band:    document.getElementById('wf_band').checked,
+      freq:    document.getElementById('wf_freq').checked,
+      mode:    document.getElementById('wf_mode').checked,
+      rst:     document.getElementById('wf_rst').checked,
+      op:      document.getElementById('wf_op').checked,
+    },
     rig_enabled: !!document.getElementById('rig_enabled').value,
     rig_host: document.getElementById('rig_host').value.trim(),
     rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
@@ -2329,11 +2356,21 @@ window.addEventListener('storage', e => {
   }
 });
 
+// Restaure les cases « champs de l'écran mural » depuis la config
+function applyWallFields(wf){
+  if(!wf || typeof wf !== 'object') return;
+  ['time','flag','country','name','band','freq','mode','rst','op'].forEach(k=>{
+    const el = document.getElementById('wf_'+k);
+    if(el && wf[k]!==undefined) el.checked = !!wf[k];
+  });
+}
+
 function loadSavedConfig() {
   const saved = localStorage.getItem('radiocontest_config');
   if(!saved) return false;
   try {
     const c = JSON.parse(saved);
+    applyWallFields(c.wall_fields);
     if(c.callsign) document.getElementById('callsign').value = c.callsign;
     if(c.callsign_contest) document.getElementById('callsign_contest').value = c.callsign_contest;
     if(c.locator) { document.getElementById('locator').value = c.locator; updateLocatorHint(); }
