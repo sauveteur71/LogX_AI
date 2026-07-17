@@ -649,6 +649,15 @@ function fmtDate(d){
 // et QSY la radio si le CAT est actif.
 const _BM_PCOL = {1:'var(--red)', 2:'var(--accent)', 3:'var(--yellow)',
                   4:'var(--accent2)', 5:'var(--muted)'};
+// Plages de fréquence (MHz) par bande — le band map ne montre QUE la bande
+// courante, filtrée par FRÉQUENCE (infaillible : un spot 50/432 ne peut pas
+// apparaître sur 2 m même si le serveur l'a mal étiqueté).
+const _BM_RANGE = {
+  '1.8':[1.8,2.0], '3.5':[3.5,4.0], '7':[7.0,7.3], '14':[14.0,14.35],
+  '21':[21.0,21.45], '28':[28.0,29.7], '50':[50,54], '70':[70,70.5],
+  '144':[144,148], '432':[430,440], '1296':[1240,1300], '2320':[2300,2450],
+  '3400':[3400,3475], '5760':[5650,5925], '10368':[10000,10500],
+};
 
 async function refreshBandMap(){
   const list = document.getElementById('bandmapList');
@@ -659,8 +668,14 @@ async function refreshBandMap(){
     const r = await fetch('/data/spots_ranked');
     if(!r.ok) return;
     const d = await r.json();
+    const rng = _BM_RANGE[String(currentBand)];
+    const inBand = s => {
+      if(!s.freq) return false;
+      if(rng){ const f = parseFloat(s.freq); return f >= rng[0] && f <= rng[1]; }
+      return String(s.band) === String(currentBand);   // repli si bande hors table
+    };
     const spots = (d.spots || [])
-      .filter(s => String(s.band) === String(currentBand) && s.freq)
+      .filter(inBand)
       .sort((a,b) => parseFloat(b.freq) - parseFloat(a.freq));   // fréquence haute en haut
     const rig = (typeof rigState !== 'undefined') ? rigState : {};
     const txMhz = (rig.enabled && rig.freq_khz) ? rig.freq_khz/1000 : null;
@@ -793,6 +808,19 @@ let contestEndUTC   = getContestEndUTC();
 let contestStartUTC = getContestStartUTC();
 let contestEndAlertShown = false;
 
+// Le libellé du compte à rebours n'est écrit que lorsqu'il CHANGE de phase
+// (pas chaque seconde) : évite de réécrire du texte en continu — donc évite le
+// clignotement quand une langue ≠ français re-traduit le libellé. On re-traduit
+// une seule fois, au changement.
+let _cdPhase = '';
+function setCountdownLabel(phase, text){
+  const lbl = document.getElementById('sbCountdownLbl');
+  if(!lbl || _cdPhase === phase) return;
+  _cdPhase = phase;
+  lbl.textContent = text;
+  if(window.rcTranslate) window.rcTranslate();
+}
+
 function updateClockAndCountdown(){
   const n = new Date();
   document.getElementById('clock').textContent =
@@ -818,7 +846,7 @@ function updateClockAndCountdown(){
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
-    if(lbl) lbl.textContent = '🟢 DÉBUTE DANS';
+    setCountdownLabel('before', '🟢 DÉBUTE DANS');
     cd.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     cd.style.color = '#34C759';
     if(box) box.style.borderLeftColor = '#34C759';
@@ -826,7 +854,7 @@ function updateClockAndCountdown(){
   }
 
   // ── Phase 2 : concours en cours ─────────────────────────────────────────
-  if(lbl) lbl.textContent = '⏱ TEMPS RESTANT';
+  setCountdownLabel('run', '⏱ TEMPS RESTANT');
   if(box) box.style.borderLeftColor = 'var(--red)';
 
   const diff = contestEndUTC - n;
