@@ -223,6 +223,44 @@ textarea::placeholder{color:var(--muted)}
   <div class="map-panel">
     <div class="map-container">
       <div id="map"></div>
+      <!-- Surcouche PROPAGATION 24 h (carte du monde colorée depuis le QTH) -->
+      <div id="propControl" style="position:absolute;z-index:600;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:224px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span style="color:var(--accent2);letter-spacing:2px">🌍 PROPAGATION</span>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="checkbox" id="propToggle" onchange="togglePropMap()" style="accent-color:var(--accent2)">
+            <span id="propToggleLbl" style="color:var(--muted)">off</span>
+          </label>
+        </div>
+        <div id="propBody" style="display:none;margin-top:9px">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:7px">
+            <select id="propBand" onchange="loadPropMap()" style="flex:1;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px 6px;font-family:var(--font-mono);font-size:12px">
+              <option value="best">Meilleure bande</option>
+              <option value="1.8">160 m · 1.8</option>
+              <option value="3.5">80 m · 3.5</option>
+              <option value="7">40 m · 7</option>
+              <option value="10">30 m · 10</option>
+              <option value="14" selected>20 m · 14</option>
+              <option value="18">17 m · 18</option>
+              <option value="21">15 m · 21</option>
+              <option value="24">12 m · 24</option>
+              <option value="28">10 m · 28</option>
+              <option value="50">6 m · 50</option>
+            </select>
+            <button id="propPlay" onclick="togglePropPlay()" title="Animer les 24 h" style="background:var(--bg3);color:var(--accent);border:1px solid var(--border);border-radius:5px;padding:3px 9px;cursor:pointer;font-size:13px">▶</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <input type="range" id="propHour" min="0" max="24" value="0" step="1" oninput="onPropHour()" style="flex:1;accent-color:var(--accent2)">
+            <span id="propHourLbl" style="color:var(--accent2);width:66px;text-align:right">maintenant</span>
+          </div>
+          <div style="display:flex;gap:5px;margin-top:9px;align-items:center">
+            <span style="color:var(--muted);font-size:11px">fermé</span>
+            <span style="flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#4A4F66,#B0402F,#C7A81E,#2E9E4F,#00FF88)"></span>
+            <span style="color:var(--green);font-size:11px">ouvert</span>
+          </div>
+          <div id="propMeta" style="color:var(--muted);margin-top:6px;font-size:11px"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -327,6 +365,71 @@ function cycleModeBtn(){
   const modes = ['europe','world','usa','france'];
   const next = modes[(modes.indexOf(currentMapMode)+1)%modes.length];
   switchMapMode(next);
+}
+
+// ─── SURCOUCHE PROPAGATION 24 h (carte du monde colorée depuis le QTH) ────────
+let propLayer=null, propPlayTimer=null;
+
+function propColor(score){
+  const s=Math.max(0,Math.min(100,score));
+  if(s<30) return {c:'#4A4F66', o:0.10};   // fermé
+  if(s<45) return {c:'#B0402F', o:0.30};   // faible
+  if(s<62) return {c:'#C7A81E', o:0.36};   // possible
+  if(s<78) return {c:'#2E9E4F', o:0.42};   // bon
+  return {c:'#00FF88', o:0.50};            // excellent
+}
+
+function togglePropMap(){
+  const on=document.getElementById('propToggle').checked;
+  document.getElementById('propBody').style.display = on?'block':'none';
+  document.getElementById('propToggleLbl').textContent = on?'on':'off';
+  if(on){ loadPropMap(); }
+  else { clearPropMap(); if(propPlayTimer){togglePropPlay();} }
+}
+function clearPropMap(){ if(propLayer&&leafletMap){ leafletMap.removeLayer(propLayer); propLayer=null; } }
+
+async function loadPropMap(){
+  const t=document.getElementById('propToggle');
+  if(!t||!t.checked||!leafletMap) return;
+  const band=document.getElementById('propBand').value;
+  const hour=document.getElementById('propHour').value;
+  try{
+    const r=await fetch(`/data/propmap?band=${encodeURIComponent(band)}&hour=${encodeURIComponent(hour)}`);
+    const d=await r.json();
+    if(d&&d.ok) drawPropMap(d);
+    else document.getElementById('propMeta').textContent = (d&&d.error)||'—';
+  }catch(e){}
+}
+
+function drawPropMap(d){
+  clearPropMap();
+  const h=(d.step||15)/2, rects=[];
+  for(const c of (d.cells||[])){
+    const col=propColor(c.score);
+    rects.push(L.rectangle([[c.lat-h,c.lon-h],[c.lat+h,c.lon+h]],
+      {stroke:false, fillColor:col.c, fillOpacity:col.o, interactive:false}));
+  }
+  propLayer=L.layerGroup(rects).addTo(leafletMap);
+  propLayer.eachLayer(l=>{ if(l.bringToBack) l.bringToBack(); });  // sous les spots/lignes
+  document.getElementById('propMeta').textContent =
+    `${d.band==='best'?'meilleure bande / point':d.band+' MHz'} · ${d.when_utc} UTC`;
+}
+
+function onPropHour(){
+  const h=+document.getElementById('propHour').value;
+  document.getElementById('propHourLbl').textContent = h===0?'maintenant':('+'+h+' h');
+  loadPropMap();
+}
+
+function togglePropPlay(){
+  const btn=document.getElementById('propPlay');
+  if(propPlayTimer){ clearInterval(propPlayTimer); propPlayTimer=null; if(btn)btn.textContent='▶'; return; }
+  if(btn)btn.textContent='⏸';
+  propPlayTimer=setInterval(()=>{
+    const sl=document.getElementById('propHour');
+    sl.value = (+sl.value+1)%25;
+    onPropHour();
+  }, 1000);
 }
 
 // ─── FONCTIONS CARTE LEAFLET ─────────────────────────────────────────────────
