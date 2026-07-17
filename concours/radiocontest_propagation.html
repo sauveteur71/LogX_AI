@@ -30,17 +30,17 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 
-/* Grille de cartes responsive (masonry-like) : les panneaux flottent et
-   remplissent toute la largeur ; les listes (need list, PSK, RBN) prennent
-   deux colonnes. Fini la colonne étroite qui s'empile et les marges perdues. */
-.container{max-width:1760px;margin:0 auto;padding:18px;display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(320px,1fr));grid-auto-flow:row dense;
-  gap:16px;align-items:start;align-content:start;flex:1;overflow-y:auto;min-height:0;width:100%}
-@media (max-width:720px){.container{grid-template-columns:1fr}}
-
-.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:0}
-.panel.wide{grid-column:span 2}
-@media (max-width:720px){.panel.wide{grid-column:auto}}
+/* Maçonnerie de cartes de LARGEUR UNIFORME : toutes les cartes ont la même
+   largeur (colonnes régulières), elles se remplissent sans trou et sans marge
+   perdue. Les listes longues défilent en interne pour garder des hauteurs
+   comparables → lecture claire et homogène. */
+.container{max-width:1680px;margin:0 auto;padding:18px;flex:1;overflow-y:auto;
+  min-height:0;width:100%;column-width:390px;column-gap:18px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:16px;margin:0 0 18px 0;break-inside:avoid}
+/* Les listes potentiellement longues sont plafonnées (scroll interne) pour que
+   aucune carte n'écrase les autres. */
+.scroll-list{max-height:340px;overflow-y:auto;margin-right:-6px;padding-right:6px}
 .panel-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:3px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
 .panel-title small{color:var(--muted);letter-spacing:0;font-size:12px}
 
@@ -75,7 +75,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .sr-val{width:110px;text-align:right}
 .sr-mult-badge{font-size:12px;letter-spacing:1px;color:var(--green);border:1px solid rgba(0,255,136,.4);border-radius:3px;padding:1px 6px}
 .sr-cap{width:80px;color:var(--accent)}
-.sr-info{flex:1;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-info{flex:1;min-width:0;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .loading{text-align:center;padding:30px;font-family:var(--font-mono);color:var(--muted)}
 .filters{display:flex;gap:8px;margin-bottom:10px}
 .filter-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
@@ -128,7 +128,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
     <div class="panel">
       <div class="panel-title">📡 BALISES NCDXF/IBP <small id="beaconTick">maintenant</small></div>
-      <div class="band-cond" id="beaconList"><div class="loading">…</div></div>
+      <div class="band-cond scroll-list" id="beaconList"><div class="loading">…</div></div>
       <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">
         Écoute ces fréquences : entendre une balise = la bande est ouverte vers sa région.
       </div>
@@ -144,40 +144,25 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       <div id="meteorPanel"><div class="loading">…</div></div>
     </div>
 
-    <div class="panel">
-      <div class="panel-title">✈️ DIFFUSION PAR AVION <small id="aircraftMeta"></small></div>
-      <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:8px">
-        Cap DX visé :
-        <input id="acBearing" type="number" min="0" max="359" placeholder="ex 90"
-          style="width:70px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px" onchange="loadAircraft()">°
-        <button onclick="loadAircraft()" style="background:var(--bg3);color:var(--accent2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer">↻</button>
-      </div>
-      <div id="aircraftPanel"><div class="loading">Recherche des avions…</div></div>
-    </div>
-
-  <!-- Cartes larges (2 colonnes) : need list + où mon signal est entendu -->
-  <div class="panel wide">
-    <div class="panel-title">🎯 CLUSTER TRIÉ PAR INTÉRÊT — NEED LIST
-      <small id="spotsMeta"></small></div>
+  <div class="panel">
+    <div class="panel-title">🎯 CLUSTER — NEED LIST <small id="spotsMeta"></small></div>
     <div class="filters">
       <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
-      <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 NOUVEAUX MULTS</button>
-      <button class="filter-btn" data-f="new" onclick="setFilter(this)">SANS DOUBLONS</button>
+      <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 MULTS</button>
+      <button class="filter-btn" data-f="new" onclick="setFilter(this)">SANS DUPES</button>
     </div>
-    <div id="spotList"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
+    <div id="spotList" class="scroll-list"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
       <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
   </div>
 
-  <div class="panel wide">
-    <div class="panel-title">🌐 OÙ MON SIGNAL EST ENTENDU — PSK REPORTER
-      <small id="pskMeta"></small></div>
-    <div id="pskList"><div class="loading">…</div></div>
+  <div class="panel">
+    <div class="panel-title">🌐 SIGNAL ENTENDU — PSK <small id="pskMeta"></small></div>
+    <div id="pskList" class="scroll-list"><div class="loading">…</div></div>
   </div>
 
-  <div class="panel wide">
-    <div class="panel-title">📻 OÙ MON SIGNAL CW EST ENTENDU — RBN
-      <small id="rbnMeta"></small></div>
-    <div id="rbnList"><div class="loading">Transmets en CW : les skimmers RBN qui te reçoivent apparaîtront ici.</div></div>
+  <div class="panel">
+    <div class="panel-title">📻 SIGNAL CW ENTENDU — RBN <small id="rbnMeta"></small></div>
+    <div id="rbnList" class="scroll-list"><div class="loading">Transmets en CW : les skimmers RBN qui te reçoivent apparaîtront ici.</div></div>
   </div>
 
 </div>
@@ -420,30 +405,6 @@ async function loadMeteors(){
   }catch(e){}
 }
 
-// ─── DIFFUSION PAR AVION (aircraft scatter) ──────────────────────────────────
-async function loadAircraft(){
-  const el = document.getElementById('aircraftPanel');
-  const bearing = (document.getElementById('acBearing').value || '').trim();
-  el.innerHTML = '<div class="loading">Recherche des avions… (ADS-B, ~15 s)</div>';
-  try{
-    const r = await fetch('/data/aircraft' + (bearing !== '' ? '?bearing=' + encodeURIComponent(bearing) : ''));
-    const d = await r.json();
-    document.getElementById('aircraftMeta').textContent = d.planes_seen != null ? `${d.planes_seen} avions vus` : '';
-    if(!d.candidates || !d.candidates.length){
-      el.innerHTML = `<div class="loading">${(d.summary&&d.summary.text)||'Aucun avion bien placé.'}</div>`;
-      return;
-    }
-    el.innerHTML = (d.summary && d.summary.available ? `<div style="color:var(--green);font-weight:700;margin-bottom:6px">${d.summary.text}</div>` : '')
-      + d.candidates.slice(0,6).map(c => `
-        <div class="bc-row">
-          <span style="color:var(--text);font-weight:700;width:74px">${c.callsign}</span>
-          <span style="color:var(--accent);width:66px">${c.bearing}° ${c.cardinal}</span>
-          <span style="color:var(--muted);width:60px">${c.distance_km} km</span>
-          <span style="color:${c.score>=60?'var(--green)':'var(--muted)'};flex:1">${c.score}/100${c.alt_m?' · '+Math.round(c.alt_m/1000)+'km':''}</span>
-        </div>`).join('');
-  }catch(e){ el.innerHTML = '<div class="loading">Avions indisponibles.</div>'; }
-}
-
 // ─── RBN CW : où mon signal CW est entendu ───────────────────────────────────
 async function loadRBN(){
   try{
@@ -474,7 +435,6 @@ loadBeacons();
 loadPSK();
 loadTropo();
 loadMeteors();
-loadAircraft();
 loadRBN();
 setInterval(loadPropagation, 5 * 60 * 1000);   // solaire : lent (caches 15 min)
 setInterval(loadSpots, 60 * 1000);             // need list : chaque minute
@@ -482,7 +442,6 @@ setInterval(loadBeacons, 5 * 1000);            // balises : changent toutes les 
 setInterval(loadPSK, 3 * 60 * 1000);           // PSK Reporter : cache serveur 3 min
 setInterval(loadTropo, 20 * 60 * 1000);        // tropo : cache 20 min
 setInterval(loadMeteors, 10 * 60 * 1000);      // météores : calendrier lent
-setInterval(loadAircraft, 60 * 1000);          // avions : bougent vite (cache 20 s)
 setInterval(loadRBN, 2 * 60 * 1000);           // RBN CW : cache serveur 2 min
 </script>
 </body>

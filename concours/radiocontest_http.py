@@ -1045,28 +1045,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(met.ms_quality())
             return
 
-        # Diffusion par avion (aircraft scatter) : ADS-B + géométrie vers le DX.
-        # ?bearing= (cap DX en °) ou ?dx= (locator DX) optionnels.
-        if path.startswith('/data/aircraft'):
-            from urllib.parse import parse_qs, urlparse
-            import radiocontest_aircraft as ac
-            qp = parse_qs(urlparse(self.path).query)
-            cfg_snap = self._cfg_snapshot()
-            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
-            dx_bearing = None
-            if qp.get('bearing'):
-                try:
-                    dx_bearing = float(qp['bearing'][0])
-                except ValueError:
-                    dx_bearing = None
-            dx_loc = (qp.get('dx', [''])[0]).strip()
-            planes = ac.fetch_planes(my_ll[0], my_ll[1])
-            cands = ac.scatter_candidates(my_ll[0], my_ll[1], planes,
-                                          dx_bearing=dx_bearing, dx_locator=dx_loc)
-            self._json({'ok': True, 'planes_seen': len(planes),
-                        'candidates': cands, 'summary': ac.summarize(cands, dx_bearing)})
-            return
-
         # RBN : où mon signal CW est entendu (skimmers Reverse Beacon Network)
         if path == '/data/rbn':
             import radiocontest_rbn as rbn
