@@ -186,6 +186,27 @@ def test_wall_state_enrichissement_et_champs():
     assert st2['wall_fields']['name'] is True
 
 
+def test_activation_state():
+    import radiocontest_activation as act
+    assert act.validate_ref('POTA', 'FR-0123') and not act.validate_ref('POTA', 'ZZZ')
+    assert act.validate_ref('SOTA', 'F/AB-001') and act.validate_ref('WWFF', 'FFF-0123')
+    assert act.validate_ref('IOTA', 'EU-064') and not act.validate_ref('IOTA', 'ZZ-1')
+    log = [
+        {'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'my_sig_info': 'FR-0123'},
+        {'call': 'G3XYZ', 'band': '14', 'mode': 'CW', 'my_sig_info': 'FR-0123', 'sig_info': 'GB-0001'},
+        {'call': 'EA5ZZ', 'band': '7', 'mode': 'SSB', 'my_sig_info': 'FR-0123'},
+        {'call': 'HB9XX', 'band': '14', 'mode': 'SSB', 'my_sig_info': 'FR-9999'},  # autre activation
+    ]
+    st = act.activation_state(log, 'POTA', 'FR-0123')
+    assert st['qso_total'] == 3 and st['needed'] == 7 and st['valid'] is False
+    assert st['unique_calls'] == 3
+    assert st['p2p_count'] == 1 and st['p2p'][0]['ref'] == 'GB-0001'
+    # IOTA : 1 QSO suffit
+    st2 = act.activation_state([{'call': 'F1A', 'band': '14', 'mode': 'SSB', 'my_sig_info': 'EU-064'}],
+                               'IOTA', 'EU-064')
+    assert st2['valid'] is True and st2['needed'] == 0
+
+
 def test_contest_geo_mode():
     from radiocontest_scoring import contest_geo_mode
     assert contest_geo_mode('REF_RPH') == 'dept'          # VHF français

@@ -846,6 +846,33 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section">
+      <div class="section-title">🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Tu actives une référence (parc, sommet, île, réserve) : chaque QSO porte
+        ta référence et compte pour valider l'activation. Le logbook affiche
+        l'avancement (X / minimum) et détecte les <b>Park-to-Park / Summit-to-Summit</b>.
+        L'export ADIF inclut les champs SIG / MY_SIG_INFO pour l'upload POTA/SOTA/WWFF.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PROGRAMME</label>
+          <select id="activation_program">
+            <option value="">Désactivé (concours normal)</option>
+            <option value="POTA">POTA — Parks on the Air (10 QSO)</option>
+            <option value="SOTA">SOTA — Summits on the Air (4 QSO)</option>
+            <option value="IOTA">IOTA — Islands on the Air (1 QSO)</option>
+            <option value="WWFF">WWFF — Flora &amp; Fauna (44 QSO)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>MA RÉFÉRENCE ACTIVÉE</label>
+          <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase">
+          <div class="input-note">POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-title">🏝️ MODE EXPÉDITION</div>
       <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
         Plusieurs postes sur le même site (un par bande, voire trois par bande en
@@ -1408,6 +1435,8 @@ function applyConfigToForm(cfg) {
   set('cluster_spot_enabled', cfg.cluster_spot_enabled);
   set('cluster_spot_host',    cfg.cluster_spot_host);
   set('cluster_spot_port',    cfg.cluster_spot_port);
+  set('activation_program',   cfg.activation_program);
+  set('my_activation_ref',    cfg.my_activation_ref);
   set('callsign',        cfg.callsign);
   set('callsign_contest',cfg.callsign_contest || cfg.callsign);
   set('locator',         cfg.locator);
@@ -2236,6 +2265,8 @@ function saveConfig(silent = false) {
     rbn_enabled: document.getElementById('rbn_enabled').value,
     clublog_live: document.getElementById('clublog_live').value,
     expedition_mode: document.getElementById('expedition_mode').value,
+    activation_program: document.getElementById('activation_program').value,
+    my_activation_ref: document.getElementById('my_activation_ref').value.trim().toUpperCase(),
     cluster_spot_enabled: document.getElementById('cluster_spot_enabled').value,
     cluster_spot_host: document.getElementById('cluster_spot_host').value.trim(),
     cluster_spot_port: parseInt(document.getElementById('cluster_spot_port').value, 10) || 7300,
@@ -2407,7 +2438,8 @@ function loadSavedConfig() {
      'clublog_callsign','clublog_password','clublog_api_key',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'rbn_enabled','clublog_live','expedition_mode',
-     'cluster_spot_enabled','cluster_spot_host','cluster_spot_port'].forEach(k=>{
+     'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
+     'activation_program','my_activation_ref'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;
