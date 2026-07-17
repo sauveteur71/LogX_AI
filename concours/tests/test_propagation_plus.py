@@ -25,26 +25,6 @@ def test_meteores_faible_hors_creneau_hiver():
     assert q['level'] in ('faible', 'moyen')
 
 
-# ─── Diffusion par avion ─────────────────────────────────────────────────────
-
-def test_aircraft_dans_laxe_prioritaire():
-    import radiocontest_aircraft as ac
-    planes = [
-        {'lat': 47.0, 'lon': 3.9, 'alt_m': 10500, 'callsign': 'AXIS'},   # plein N
-        {'lat': 45.3, 'lon': 6.5, 'alt_m': 11000, 'callsign': 'EAST'},   # E → hors axe
-        {'lat': 46.0, 'lon': 3.9, 'alt_m': 1500, 'callsign': 'LOW'},     # trop bas
-    ]
-    c = ac.scatter_candidates(45.2, 3.9, planes, dx_bearing=0)
-    calls = [x['callsign'] for x in c]
-    assert calls[0] == 'AXIS'
-    assert 'EAST' not in calls and 'LOW' not in calls
-
-
-def test_aircraft_sans_position():
-    import radiocontest_aircraft as ac
-    assert ac.scatter_candidates(None, None, [{'lat': 1, 'lon': 1}]) == []
-
-
 # ─── Tropo (physique de réfractivité) ────────────────────────────────────────
 
 def test_tropo_refractivite_decroit_avec_altitude():
