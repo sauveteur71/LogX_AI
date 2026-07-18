@@ -1539,8 +1539,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'error': str(e)}, 500)
             return
 
-        # Upload du log vers un service QSL (eQSL / ClubLog). Le log ADIF est
-        # généré côté serveur ; les identifiants ne quittent jamais le serveur.
+        # Upload du log vers un service QSL (eQSL / ClubLog / QRZCQ / HRDLog).
+        # Le point d'entrée est unifié côté qsl.upload_log — ajouter un
+        # service futur ne touche plus à ce handler, juste à radiocontest_qsl.py.
+        # Identifiants générés/lus côté serveur, jamais transmis au client.
         if self.path == '/qsl/upload':
             try:
                 payload = json.loads(body) if body else {}
@@ -1553,15 +1555,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not qsos:
                     self._json({'ok': False, 'error': 'Aucun QSO à envoyer'}, 400)
                     return
-                import radiocontest_export as export
                 import radiocontest_qsl as qsl
-                adif = export.build_adif(qsos, cfg)
-                if service == 'eqsl':
-                    res = qsl.upload_eqsl(cfg, adif)
-                elif service == 'clublog':
-                    res = qsl.upload_clublog(cfg, adif)
-                else:
-                    res = {'ok': False, 'error': 'Service inconnu (eqsl|clublog)'}
+                res = qsl.upload_log(cfg, service, qsos)
                 res['qso_count'] = len(qsos)
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
