@@ -3713,6 +3713,8 @@ document.addEventListener('keydown', e => {
     if(valOverlay) valOverlay.classList.remove('show');
     const awOverlay = document.getElementById('awardsOverlay');
     if(awOverlay) awOverlay.classList.remove('show');
+    const impOverlay = document.getElementById('importOverlay');
+    if(impOverlay && impOverlay.classList.contains('show')) closeImportOverlay();
     return;
   }
   // ? : afficher/masquer l'aide des raccourcis (sauf pendant une saisie)
@@ -3867,48 +3869,15 @@ function crossBandAlert(call, band){
   }
 }
 
-// ─── IMPORT ADIF ─────────────────────────────────────────────────────────────
-function adifBandToMhz(band){
-  const map = {'160m':'1.8','80m':'3.5','40m':'7','30m':'10','20m':'14','17m':'18','15m':'21',
-    '12m':'24','10m':'28','6m':'50','4m':'70','2m':'144','70cm':'432','23cm':'1296',
-    '13cm':'2320','9cm':'3400','6cm':'5760','3cm':'10368'};
-  return map[(band||'').toLowerCase()] || band;
-}
-
-function importADIF(text){
-  const records = text.split(/<EOR>/gi).map(r=>r.trim()).filter(r=>r.length>0);
-  let imported = 0, skipped = 0;
-  records.forEach(rec => {
-    const get = tag => { const m = rec.match(new RegExp('<'+tag+':[^>]*>([^<]*)', 'i')); return m ? m[1].trim() : ''; };
-    const call = get('CALL').toUpperCase();
-    const freq = get('FREQ');                       // MHz (ADIF)
-    // Bande depuis <BAND> ; à défaut, dérivée de la fréquence
-    const band = adifBandToMhz(get('BAND')) || (freq ? bandFromFreq(freq) : '');
-    const mode = get('MODE').toUpperCase() || 'SSB';
-    const qsoDate = get('QSO_DATE');       // YYYYMMDD
-    const timeOn  = (get('TIME_ON')+'0000').slice(0,4); // HHMM
-    const loc     = get('GRIDSQUARE').toUpperCase().slice(0,6);
-    const rst_sent = get('RST_SENT') || '59';
-    const rst_rcvd = get('RST_RCVD') || '59';
-    if(!call || !band){ skipped++; return; }
-    if(isDup(call, band)){ skipped++; return; }
-    const time = timeOn.slice(0,2)+':'+timeOn.slice(2,4);
-    const date = qsoDate || nowDateUTC();
-    const dist = (loc&&loc.length>=6) ? calcDist(loc) : 0;
-    const pts  = calcPoints(loc, band, call, mode);
-    const qso  = {
-      id: Date.now() + imported,
-      date, time, call, band, mode, freq,
-      rst_sent, num_sent:'', rst_rcvd, num_rcvd:'',
-      locator: loc, dist, points: pts,
-      operator: myOp, my_call: myCall, my_locator: myLocator, contest: currentContest,
-    };
-    qsoLog.push(qso);
-    imported++;
-  });
-  renderLog(); updateStats();
-  notify(`Import ADIF terminé :\n✅ ${imported} QSO importés\n⏩ ${skipped} ignorés (doublons ou invalides)`);
-}
+// ─── IMPORT ADIF ──────────────────────────────────────────────────────────────
+// Passe par le SERVEUR (/log/import_adif/preview puis /commit) — une version
+// antérieure poussait les QSO importés directement dans la variable JS locale
+// qsoLog, qui est ÉCRASÉE par le polling fetchLog() toutes les 5 s : les QSO
+// importés disparaissaient silencieusement en quelques secondes, jamais
+// persistés dans shared_log. Le dédoublonnage (par indicatif+bande+mode+
+// date+heure exacts) se fait aussi côté serveur, contre le VRAI log partagé
+// entre tous les postes, pas seulement le qsoLog de ce navigateur.
+let _pendingImportText = '';
 
 function triggerImport(){
   const inp = document.createElement('input');
@@ -3916,10 +3885,77 @@ function triggerImport(){
   inp.onchange = e => {
     const f = e.target.files[0]; if(!f) return;
     const reader = new FileReader();
-    reader.onload = ev => importADIF(ev.target.result);
+    reader.onload = ev => previewImportAdif(ev.target.result);
     reader.readAsText(f, 'UTF-8');
   };
   inp.click();
+}
+
+async function previewImportAdif(text){
+  const overlay = document.getElementById('importOverlay');
+  const inner = document.getElementById('importInner');
+  overlay.classList.add('show');
+  inner.innerHTML = '<div class="shortcuts-row"><span>⏳ Analyse du fichier…</span></div>';
+  document.getElementById('importConfirmBtn').disabled = true;
+  try{
+    const res = await fetch('/log/import_adif/preview', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({adif: text}),
+    });
+    const p = await res.json();
+    if(!p.ok){
+      inner.innerHTML = `<div class="shortcuts-row"><span>❌ ${p.error || 'Fichier illisible'}</span></div>`;
+      return;
+    }
+    _pendingImportText = text;
+    const rows = [];
+    rows.push(`<div class="shortcuts-row"><span>📄 QSO valides dans le fichier</span><span>${p.total_in_file}</span></div>`);
+    rows.push(`<div class="shortcuts-row"><span>✅ Nouveaux à importer</span><span style="color:var(--green)">${p.new}</span></div>`);
+    rows.push(`<div class="shortcuts-row"><span>⏩ Déjà dans le log (doublons exacts)</span><span style="color:var(--muted)">${p.duplicates}</span></div>`);
+    if(p.errors && p.errors.length){
+      rows.push(`<div class="shortcuts-row"><span>⚠️ Records ignorés</span><span style="color:var(--yellow)">${p.errors.length}</span></div>`);
+    }
+    if(p.sample && p.sample.length){
+      rows.push('<div class="shortcuts-row" style="margin-top:8px"><span style="color:var(--muted)">Aperçu (5 premiers nouveaux QSO) :</span></div>');
+      p.sample.forEach(q => {
+        rows.push(`<div class="shortcuts-row"><span>${q.call} · ${q.band} MHz · ${q.mode}</span><span style="color:var(--muted)">${q.date} ${q.time}</span></div>`);
+      });
+    }
+    inner.innerHTML = rows.join('');
+    document.getElementById('importConfirmBtn').disabled = (p.new === 0);
+  }catch(e){
+    inner.innerHTML = `<div class="shortcuts-row"><span>❌ Serveur injoignable : ${e.message}</span></div>`;
+  }
+}
+
+async function confirmImportAdif(){
+  if(!_pendingImportText) return;
+  const btn = document.getElementById('importConfirmBtn');
+  btn.disabled = true; btn.textContent = '⏳ Import en cours…';
+  try{
+    const res = await fetch('/log/import_adif/commit', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({adif: _pendingImportText}),
+    });
+    const r = await res.json();
+    closeImportOverlay();
+    if(r.ok){
+      await fetchLog();   // rafraîchit immédiatement (sinon jusqu'à 5 s d'attente)
+      notify(`Import ADIF terminé :\n✅ ${r.imported} QSO importés` +
+             (r.errors && r.errors.length ? `\n⚠️ ${r.errors.length} records ignorés` : ''));
+    } else {
+      notify(`❌ Import échoué : ${r.error || 'erreur inconnue'}`);
+    }
+  }catch(e){
+    notify(`❌ Import échoué : ${e.message}`);
+  }finally{
+    btn.textContent = "✅ CONFIRMER L'IMPORT";
+  }
+}
+
+function closeImportOverlay(){
+  document.getElementById('importOverlay').classList.remove('show');
+  _pendingImportText = '';
 }
 
 // ─── EXPORT ON4KST ────────────────────────────────────────────────────────────

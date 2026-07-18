@@ -1945,6 +1945,43 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # Reset log
+        # Import ADIF — aperçu SANS écrire (compte nouveaux/doublons/erreurs)
+        if self.path == '/log/import_adif/preview':
+            try:
+                payload = json.loads(body)
+                import radiocontest_import as imp
+                with log_lock:
+                    snapshot = list(shared_log)
+                self._json(imp.preview_import(payload.get('adif', ''), snapshot))
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
+            return
+
+        # Import ADIF — écrit réellement les QSO neufs (une seule sauvegarde
+        # disque, pas de push Club Log Live : import historique, pas un QSO live)
+        if self.path == '/log/import_adif/commit':
+            try:
+                payload = json.loads(body)
+                import radiocontest_import as imp
+                with log_lock:
+                    snapshot = list(shared_log)
+                new_qsos, errors = imp.commit_import(payload.get('adif', ''), snapshot)
+                with log_lock:
+                    shared_log.extend(new_qsos)
+                    total = len(shared_log)
+                save_log_to_disk()
+                for q in new_qsos:
+                    try:
+                        import radiocontest_callhistory as callhistory
+                        callhistory.update_from_qso(q)
+                    except Exception:
+                        pass
+                print(f"[IMPORT] {len(new_qsos)} QSO importés depuis ADIF ({len(errors)} erreurs)")
+                self._json({'ok': True, 'imported': len(new_qsos), 'errors': errors, 'total': total})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
+            return
+
         if self.path == '/log/reset':
             try:
                 payload = json.loads(body)
