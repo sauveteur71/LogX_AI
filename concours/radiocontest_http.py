@@ -26,7 +26,7 @@ from radiocontest_scoring import build_scoring_context
 from radiocontest_prompts import build_system_prompt, build_terrain_context
 from radiocontest_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
 from radiocontest_clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len,
-                      fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster,
+                      fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster, fetch_dxwatch_hf,
                       fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
                       fetch_noaa_kindex, fetch_dxmaps_vhf, fetch_3830_scores,
                       lookup_hamqth, enrich_unknown_calls)
@@ -251,23 +251,32 @@ def _fetch_logs_src(cfg, log_sw, no_digi):
         logs['Log'] = {'qsos': [], 'score': 0, 'total_qso': 0, 'error': 'URL log non configurée'}
     return logs
 
-def _fetch_spots_vhf_src(band, no_digi):
-    s = fetch_all_vhf_spots(band, filter_digital=no_digi)
+def _fetch_spots_vhf_src(band, no_digi, toggles):
+    s = fetch_all_vhf_spots(band, filter_digital=no_digi, toggles=toggles)
     SPOTS_CACHE[str(band)] = s
     print(f"[DATA] {band} MHz: {len(s)} spots (multi-cluster)")
     return s
 
-def _fetch_spots_50_src(no_digi):
+def _fetch_spots_50_src(no_digi, toggles):
+    if not toggles.get('src_f5len', True):
+        SPOTS_CACHE['50'] = []
+        return []
     s = fetch_cluster_f5len(50, filter_digital=no_digi)
     SPOTS_CACHE['50'] = s
     print(f"[DATA] 50 MHz: {len(s)} spots")
     return s
 
-def _fetch_spots_hf_src(callsign, no_digi):
-    """4 sources HF fusionnées et dédupliquées (DXSummit, F5LEN, Telnet, navigateur)."""
-    s_summit = fetch_dxsummit_hf(filter_digital=no_digi)
-    s_f5len = fetch_f5len_hf(filter_digital=no_digi)
-    s_telnet = fetch_telnet_cluster(callsign=callsign or 'F4GLD', filter_digital=no_digi)
+def _fetch_spots_hf_src(callsign, no_digi, toggles):
+    """5 sources HF fusionnées et dédupliquées (DXSummit, F5LEN, DXWatch, Telnet,
+    navigateur) — chacune désactivable individuellement depuis CONFIG
+    (toggles src_dxsummit/src_f5len/src_dxwatch/src_telnet). Toutes actives par
+    défaut (True) si le toggle est absent d'une config existante, pour ne rien
+    changer au comportement des utilisateurs qui n'y touchent jamais."""
+    on = lambda key: toggles.get(key, True)
+    s_summit = fetch_dxsummit_hf(filter_digital=no_digi) if on('src_dxsummit') else []
+    s_f5len = fetch_f5len_hf(filter_digital=no_digi) if on('src_f5len') else []
+    s_dxwatch = fetch_dxwatch_hf(filter_digital=no_digi) if on('src_dxwatch') else []
+    s_telnet = fetch_telnet_cluster(callsign=callsign or 'F4GLD', filter_digital=no_digi) if on('src_telnet') else []
     s_browser = []
     with browser_spots_lock:
         age = time.time() - browser_spots_ts
@@ -276,7 +285,7 @@ def _fetch_spots_hf_src(callsign, no_digi):
             print(f"[BROWSER-SPOTS] {len(s_browser)} spots (age {int(age)}s)")
         elif browser_spots_cache:
             print(f"[BROWSER-SPOTS] cache perime ({int(age)}s)")
-    all_hf = s_summit + s_f5len + s_telnet + s_browser
+    all_hf = s_summit + s_f5len + s_dxwatch + s_telnet + s_browser
     seen_hf = set()
     s = []
     for sp in all_hf:
@@ -286,7 +295,8 @@ def _fetch_spots_hf_src(callsign, no_digi):
         if key not in seen_hf:
             seen_hf.add(key)
             s.append(sp)
-    print(f"[DATA] HF: {len(s)} spots total (DXWatch:{len(s_summit)} F5LEN:{len(s_f5len)} Telnet:{len(s_telnet)} Browser:{len(s_browser)})")
+    print(f"[DATA] HF: {len(s)} spots total (DXSummit:{len(s_summit)} F5LEN:{len(s_f5len)} "
+          f"DXWatch:{len(s_dxwatch)} Telnet:{len(s_telnet)} Browser:{len(s_browser)})")
     SPOTS_CACHE['HF'] = s   # consommé par /data/spots_ranked sans re-fetch
     return s
 
@@ -336,14 +346,14 @@ def do_refresh(cfg):
             '3830': ex.submit(fetch_3830_scores, contest, callsign)}
     if '144' in cdef_bands or (toggles.get('band_2m', False) and not is_hf_contest) \
             or ('144' in str(contest) and not is_hf_contest):
-        futs['spots_144'] = ex.submit(_fetch_spots_vhf_src, 144, no_digi)
+        futs['spots_144'] = ex.submit(_fetch_spots_vhf_src, 144, no_digi, toggles)
     if '432' in cdef_bands or (toggles.get('band_70cm', False) and not is_hf_contest) \
             or ('432' in str(contest) and not is_hf_contest):
-        futs['spots_432'] = ex.submit(_fetch_spots_vhf_src, 432, no_digi)
+        futs['spots_432'] = ex.submit(_fetch_spots_vhf_src, 432, no_digi, toggles)
     if '50' in cdef_bands or toggles.get('band_6m', False):
-        futs['spots_50'] = ex.submit(_fetch_spots_50_src, no_digi)
+        futs['spots_50'] = ex.submit(_fetch_spots_50_src, no_digi, toggles)
     if has_hf_bands or any(toggles.get(b, False) for b in hf_bands):
-        futs['spots_hf'] = ex.submit(_fetch_spots_hf_src, callsign, no_digi)
+        futs['spots_hf'] = ex.submit(_fetch_spots_hf_src, callsign, no_digi, toggles)
     if is_vhf:
         futs['dxmaps'] = ex.submit(fetch_dxmaps_vhf)
     if (is_vhf and toggles.get('src_on4kst', False)
