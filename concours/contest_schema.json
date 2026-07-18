@@ -185,6 +185,13 @@
                     },
                     "description": "Optionnel : la règle ne s'applique qu'aux indicatifs commençant par un de ces préfixes. Ex. UBA : 10 pts pour ['ON','OO','OP']."
                   },
+                  "modes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Optionnel : la règle ne s'applique qu'à ces modes (ex. ARRL 10m : CW=4 pts). Une règle filtrée par mode est SAUTÉE quand le mode est inconnu (spots cluster) — prévoir une règle plancher sans filtre ensuite."
+                  },
                   "points": {
                     "description": "Nombre fixe, 'per_km' (= distance en km), ou référence à un paramètre du bloc scoring : {'param': 'points_dx', 'default': 3}.",
                     "oneOf": [

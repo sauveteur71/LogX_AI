@@ -302,11 +302,132 @@ function hav(lat1,lon1,lat2,lon2){
   return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)));
 }
 
+// ─── SCORING PILOTÉ PAR LE SERVEUR (briques) ─────────────────────────────────
+// Le logbook lit les définitions de scoring de /data/calendar (moteur à briques
+// de radiocontest_scoring.py) au lieu de dupliquer les barèmes en dur : tout
+// concours de la base — y compris ceux analysés par l'IA — est scoré juste.
+// La table codée en dur plus bas ne sert plus que de repli hors-ligne.
+let contestScoringDefs = {};   // id concours → bloc scoring (type/params/bricks)
+
+async function loadScoringDefs(){
+  try{
+    const res = await fetch('/data/calendar');
+    const data = await res.json();
+    (data.contests || []).forEach(c => {
+      if (c.scoring) contestScoringDefs[c.id] = c.scoring;
+    });
+    console.log(`[SCORING] ${Object.keys(contestScoringDefs).length} barèmes chargés du serveur`);
+  }catch(e){ console.warn('[SCORING] serveur indisponible, barèmes locaux :', e); }
+}
+
+// Presets points-only des types historiques — miroir de LEGACY_SCORING_PRESETS
+// (radiocontest_scoring.py), briques 'points'/'validity'/'same_square_points'.
+const LEGACY_JS_BRICKS = {
+  km:                        {points:[{points:'per_km'}]},
+  km_x_locators:             {points:[{points:'per_km'}]},
+  km_x_large_locator_squares:{points:[{points:'per_km'}], same_square_points:{param:'same_square_bonus', default:50}},
+  zone_country_per_band:     {points:[{when:'same_country', points:{param:'points_same_country', default:0}},
+                                      {when:'same_continent', points:{param:'points_same_continent', default:1}},
+                                      {points:{param:'points_dx', default:3}}]},
+  prefix_multiplier:         {points:[{when:'different_continent', points:{param:'points_dx', default:3}},
+                                      {when:'same_country', points:{param:'points_same_country', default:1}},
+                                      {points:{param:'points_same_continent', default:1}}]},
+  prefix:                    {points:[{when:'different_continent', points:6},
+                                      {when:'na_w_ve', points:2}, {points:1}]},
+  power_state:               {points:[{points:{param:'points', default:3}}], validity:'is_na'},
+  fd_class:                  {points:[{modes:['CW'], points:2},
+                                      {modes:['FT8','FT4','RTTY','PSK'], points:2},
+                                      {points:{param:'points_phone', default:1}}], validity:'is_na'},
+  dept_dxcc:                 {points:[{when:'is_french', points:1}, {points:3}]},
+  summit_points:             {points:[{points:{param:'points', default:1}}]},
+  park_points:               {points:[{points:{param:'points', default:1}}]},
+};
+
+const _NA_CALL_RE = /^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|KQ|KR|KS|KT|KU|KV|KW|KX|KY|KZ|NA|NB|NC|ND|NE|NF|NG|NH|NI|NJ|NK|NL|NM|NN|NO|NP|NQ|NR|NS|NT|NU|NV|NW|NX|NY|NZ|VE|VA|VO|VY)/i;
+
+function _brickCtx(callDX){
+  const dxBase = (callDX || '').toUpperCase().split('/')[0];
+  const myBase = (myCall || '').toUpperCase().split('/')[0];
+  const dxInfo = lookupDXCC(dxBase), myInfo = lookupDXCC(myBase);
+  return {
+    dxBase,
+    dxCountry: dxInfo ? dxInfo.c : (dxBase.slice(0,2) || '??'),
+    myCountry: myInfo ? myInfo.c : (myBase.slice(0,2) || 'F'),
+    dxCont: (dxInfo && dxInfo.ct) || 'EU',
+    myCont: (myInfo && myInfo.ct) || 'EU',
+  };
+}
+
+const BRICK_PREDICATES = {
+  always:              () => true,
+  same_country:        x => x.dxCountry === x.myCountry,
+  same_continent:      x => x.dxCont === x.myCont,
+  different_continent: x => x.dxCont !== x.myCont,
+  is_french:           x => /^(F|TM)/.test(x.dxBase),
+  is_na:               x => _NA_CALL_RE.test(x.dxBase),
+  na_w_ve:             x => /^(W|K|N|VE|XE)/.test(x.dxBase),
+  is_asia:             x => x.dxCont === 'AS',
+  is_eu:               x => x.dxCont === 'EU',
+};
+
+// Évalue les points d'un QSO depuis un bloc scoring serveur.
+// Retourne un nombre, ou null si le bloc est inexploitable (→ repli local).
+function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX){
+  const bricks = scoring.bricks || LEGACY_JS_BRICKS[scoring.type];
+  if (!bricks || !Array.isArray(bricks.points)) return null;
+  const ctx = _brickCtx(callDX);
+
+  // Brique validité : nom de prédicat OU {prefix_in:[...]}
+  const v = bricks.validity;
+  if (v){
+    const ok = (typeof v === 'object' && v.prefix_in)
+      ? v.prefix_in.some(p => ctx.dxBase.startsWith(p.toUpperCase()))
+      : (BRICK_PREDICATES[v] || BRICK_PREDICATES.always)(ctx);
+    if (!ok) return 0;
+  }
+
+  // Points fixes "même grand carré" (IARU) — comme le moteur Python,
+  // deux locators absents comptent comme même carré
+  const ssp = bricks.same_square_points;
+  if (ssp !== undefined && ssp !== null){
+    const large = l => (l && l.length >= 4) ? l.slice(0,4).toUpperCase() : null;
+    if (large(myLocator) === large(locDX)){
+      return (typeof ssp === 'object') ? (scoring[ssp.param] ?? ssp.default ?? 50) : ssp;
+    }
+  }
+
+  // Règles de points ordonnées : filtres bands/modes/prefix_in + prédicat when
+  const bandNorm = String(band || '').replace(' MHz','').replace(' GHz','').trim();
+  const modeNorm = String(mode || '').toUpperCase();
+  for (const rule of bricks.points){
+    if (rule.bands && !rule.bands.includes(bandNorm)) continue;
+    if (rule.modes && !rule.modes.map(m => m.toUpperCase()).includes(modeNorm)) continue;
+    if (rule.prefix_in && !rule.prefix_in.some(p => ctx.dxBase.startsWith(p.toUpperCase()))) continue;
+    if (!(BRICK_PREDICATES[rule.when || 'always'] || BRICK_PREDICATES.always)(ctx)) continue;
+    let val = rule.points;
+    if (val && typeof val === 'object') val = scoring[val.param] ?? val.default ?? 0;
+    if (val === 'per_km') return dist;
+    return (typeof val === 'number') ? val : 0;
+  }
+  return 0;
+}
+
 function calcPoints(locDX, band, callDX, mode){
   const myLL = locLL(myLocator);
-  const dxLL = locLL(locDX);
+  const dxLL = locDX ? locLL(locDX) : null;
+  const dist = (myLL && dxLL) ? hav(myLL.lat,myLL.lon,dxLL.lat,dxLL.lon) : 0;
+
+  // 1er choix : le barème du serveur (briques) — couvre TOUS les concours,
+  // y compris ceux ajoutés par analyse IA, et ne requiert un locator que
+  // pour les barèmes à distance
+  const def = contestScoringDefs[currentContest];
+  if (def){
+    const pts = evalPointsFromDef(def, callDX, band, mode, dist, locDX);
+    if (pts !== null) return pts;
+  }
+
+  // ── Repli local historique (serveur injoignable) ──────────────────────────
   if(!myLL||!dxLL) return 0;
-  const dist = hav(myLL.lat,myLL.lon,dxLL.lat,dxLL.lon);
 
   // Scoring selon le concours actif
   const c = currentContest || '';
@@ -4064,6 +4185,7 @@ async function loadServerConfig(){
 }
 
 async function init(){
+  loadScoringDefs();          // barèmes serveur (briques) — non bloquant
   await loadCallDB();
   await loadServerConfig();
   refreshCluster();
