@@ -713,10 +713,12 @@ setTimeout(refreshQTC, 1500);
 let _checkTimer = null;
 let _checkSeq = 0;
 
-// ─── FICHE QRZ.com (à la frappe) ─────────────────────────────────────────────
-// Affiche nom / QTH / locator du correspondant depuis QRZ (identifiants côté
-// serveur). Debounce plus long (600 ms) : une requête réseau par indicatif fini.
+// ─── FICHE CALLBOOK (à la frappe) ────────────────────────────────────────────
+// Affiche nom / QTH / locator du correspondant, en cascade QRZ (si identifiants
+// configurés) -> HamQTH -> HamDB (côté serveur, radiocontest_callbook.py).
+// Debounce plus long (600 ms) : une requête réseau par indicatif fini.
 let _qrzTimer = null, _qrzSeq = 0;
+const CALLBOOK_SOURCE_LABEL = {hamqth: 'HamQTH', hamdb: 'HamDB'};  // QRZ = pas de tag (source par défaut)
 
 function lookupQRZ(call){
   clearTimeout(_qrzTimer);
@@ -729,22 +731,23 @@ function lookupQRZ(call){
       const r = await fetch('/qrz/lookup?call=' + encodeURIComponent(call));
       if(!r.ok || seq !== _qrzSeq) return;
       const d = await r.json();
-      if(d.enabled === false){ el.style.display = 'none'; return; }  // QRZ non configuré
       if(!d.ok){ el.style.display = 'none'; return; }
       const bits = [];
       if(d.name) bits.push('👤 ' + d.name);
       if(d.qth)  bits.push('📍 ' + d.qth);
       if(d.grid) bits.push('🗺 ' + d.grid);
       if(d.country && !d.qth) bits.push(d.country);
+      const sourceLabel = CALLBOOK_SOURCE_LABEL[d.source];
+      if(sourceLabel) bits.push('· ' + sourceLabel);
       el.innerHTML = bits.join(' · ');
       el.style.display = bits.length ? 'block' : 'none';
-      // Pré-remplit le locator s'il est vide et que QRZ en connaît un
+      // Pré-remplit le locator s'il est vide et que la source en connaît un
       const locInput = document.getElementById('inputLocator');
       if(locInput && !locInput.value && d.grid && d.grid.length >= 4){
         locInput.value = d.grid;
         onLocatorInput();
       }
-    }catch(e){ /* réseau QRZ indispo : rien */ }
+    }catch(e){ /* réseau callbook indispo : rien */ }
   }, 600);
 }
 
