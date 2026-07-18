@@ -728,19 +728,30 @@ def fetch_dxmaps_spots_vhf(filter_digital=True):
     return spots[:15]
 
 # ── FUSION DE TOUS LES SPOTS VHF ─────────────────────────────────────────────
-def fetch_all_vhf_spots(band_mhz=144, filter_digital=True):
-    """Agrège tous les clusters disponibles pour la bande donnée."""
+def fetch_all_vhf_spots(band_mhz=144, filter_digital=True, toggles=None):
+    """Agrège tous les clusters disponibles pour la bande donnée. `toggles`
+    (dict src_* -> bool) permet de désactiver chaque source individuellement
+    depuis CONFIG ; toutes actives par défaut (True) si le toggle est absent
+    (config existante n'ayant jamais touché ce réglage, ou appel direct sans
+    toggles) — comportement identique à avant l'ajout des toggles."""
+    toggles = toggles or {}
+    on = lambda key: toggles.get(key, True)
     all_spots = []
     seen_calls = set()
 
-    sources = [
-        ('f5len',      fetch_cluster_f5len(band_mhz, filter_digital)),
-        ('dxsummit',   fetch_dxsummit('VHF', filter_digital)),
-        ('dxwatch',    fetch_dxwatch_vhf(filter_digital)),
-        ('hamqth',     fetch_hamqth_spots(filter_digital)),
-        ('hamspirit',  fetch_hamspirit_vhf(band_mhz, filter_digital)),
-        ('dxmaps',     fetch_dxmaps_spots_vhf(filter_digital)),
-    ]
+    sources = []
+    if on('src_f5len'):
+        sources.append(('f5len', fetch_cluster_f5len(band_mhz, filter_digital)))
+    if on('src_dxsummit'):
+        sources.append(('dxsummit', fetch_dxsummit('VHF', filter_digital)))
+    if on('src_dxwatch'):
+        sources.append(('dxwatch', fetch_dxwatch_vhf(filter_digital)))
+    if on('src_hamqth_spots'):
+        sources.append(('hamqth', fetch_hamqth_spots(filter_digital)))
+    if on('src_hamspirit'):
+        sources.append(('hamspirit', fetch_hamspirit_vhf(band_mhz, filter_digital)))
+    if on('src_dxmaps'):
+        sources.append(('dxmaps', fetch_dxmaps_spots_vhf(filter_digital)))
 
     for src_name, raw_spots in sources:
         for s in raw_spots:
