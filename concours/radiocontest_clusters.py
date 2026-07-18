@@ -718,12 +718,10 @@ def fetch_dxmaps_spots_vhf(filter_digital=True):
             if filter_digital:
                 continue  # DXMaps ne donne pas le mode
             spots.append(_normalize_spot(call, loc, 144.0, '', '', '', 'dxmaps'))
-        # Fallback : chercher paires CALL + LOC proches
-        if not spots:
-            calls = re.findall(r'\b([A-Z][A-Z0-9]{1,2}[0-9][A-Z]{1,3}(?:/P)?)\b', content)
-            locs  = re.findall(r'\b([A-R]{2}[0-9]{2}[A-X]{2})\b', content.upper())
-            for i, (c, l) in enumerate(zip(calls[:15], locs[:15])):
-                spots.append(_normalize_spot(c, l, 144.0, '', '', '', 'dxmaps'))
+        # (l'ancien fallback « apparier tout jeton en forme d'indicatif avec
+        # tout locator de la page » est SUPPRIMÉ : il fabriquait des spots
+        # fantômes — couleurs hex FF00FF prises pour des indicatifs, positions
+        # aléatoires. Aucun spot vaut mieux qu'un spot inventé.)
         print(f"[DXMAPS SPOTS] {len(spots)} spots extraits")
     except Exception as e:
         print(f"[DXMAPS SPOTS] Erreur: {e}")
