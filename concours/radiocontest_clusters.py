@@ -999,11 +999,14 @@ def enrich_unknown_calls(done_calls, calldb_path):
             if base not in calls_db or not calls_db[base].get('locator'):
                 result = lookup_hamqth(base)
                 if result and result.get('locator'):
-                    calls_db[base] = {
-                        'locator': result['locator'],
-                        'country': result.get('country',''),
-                        'continent': result.get('continent',''),
-                    }
+                    # FUSION, jamais de remplacement total : une entrée locale
+                    # peut déjà porter un 'dept' (REF) que HamQTH ignore.
+                    entry = calls_db.setdefault(base, {})
+                    entry['locator'] = result['locator']
+                    if result.get('country'):
+                        entry['country'] = result['country']
+                    if result.get('continent'):
+                        entry['continent'] = result['continent']
                     enriched[base] = result
                     count += 1
         if count > 0:

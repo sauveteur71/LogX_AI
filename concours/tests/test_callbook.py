@@ -1,0 +1,154 @@
+# -*- coding: utf-8 -*-
+"""Tests de la cascade callbook (radiocontest_callbook) : QRZ (si configuré)
+-> HamQTH -> HamDB. Avant ce module, un opérateur sans abonnement QRZ n'avait
+STRICTEMENT AUCUNE fiche à la frappe — /qrz/lookup répondait juste "non
+configuré" sans jamais tenter les deux sources gratuites."""
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import radiocontest_callbook as callbook
+import radiocontest_qrz as qrz
+import radiocontest_clusters as clusters
+
+HAMDB_OK = ('{"hamdb":{"version":"1","callsign":{"call":"W1AW","class":"","expires":'
+            '"02/26/2031","status":"A","grid":"FN31pr","lat":"41.71","lon":"-72.72",'
+            '"fname":"ARRL","mi":"","name":"HQ OPERATORS CLUB","suffix":"","addr1":'
+            '"225 MAIN ST","addr2":"NEWINGTON","state":"CT","zip":"06111",'
+            '"country":"United States"},"messages":{"status":"OK"}}}')
+HAMDB_NOT_FOUND = ('{"hamdb":{"version":"1","callsign":{"call":"NOT_FOUND","class":'
+                   '"NOT_FOUND","expires":"NOT_FOUND","status":"NOT_FOUND","grid":'
+                   '"NOT_FOUND","lat":"NOT_FOUND","lon":"NOT_FOUND","fname":"NOT_FOUND",'
+                   '"mi":"NOT_FOUND","name":"NOT_FOUND","suffix":"NOT_FOUND","addr1":'
+                   '"NOT_FOUND","addr2":"NOT_FOUND","state":"NOT_FOUND","zip":"NOT_FOUND",'
+                   '"country":"NOT_FOUND"},"messages":{"status":"NOT_FOUND"}}}')
+
+
+def _reset():
+    callbook._cache.clear()
+    qrz._session.update(key='', ts=0)
+    qrz._lookup_cache.clear()
+
+
+# ─── lookup_hamdb (parsing JSON réel, vérifié contre l'API en direct) ──────
+
+def test_lookup_hamdb_ok(monkeypatch):
+    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=8: HAMDB_OK)
+    r = callbook.lookup_hamdb('w1aw')
+    assert r['ok'] and r['call'] == 'W1AW' and r['source'] == 'hamdb'
+    assert r['name'] == 'ARRL HQ OPERATORS CLUB'
+    assert r['grid'] == 'FN31PR' and r['country'] == 'United States'
+    assert r['qth'] == 'NEWINGTON, CT'
+
+
+def test_lookup_hamdb_indicatif_hors_usa(monkeypatch):
+    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=8: HAMDB_NOT_FOUND)
+    r = callbook.lookup_hamdb('F4GLD')
+    assert not r['ok'] and 'USA' in r['error']
+
+
+def test_lookup_hamdb_injoignable(monkeypatch):
+    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=8: None)
+    r = callbook.lookup_hamdb('W1AW')
+    assert not r['ok'] and 'injoignable' in r['error']
+
+
+def test_lookup_hamdb_reponse_illisible(monkeypatch):
+    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=8: 'pas du json')
+    r = callbook.lookup_hamdb('W1AW')
+    assert not r['ok'] and 'illisible' in r['error']
+
+
+def test_lookup_hamdb_indicatif_vide():
+    r = callbook.lookup_hamdb('')
+    assert not r['ok'] and 'vide' in r['error'].lower()
+
+
+# ─── Cascade complète ───────────────────────────────────────────────────────
+
+def test_cascade_qrz_en_tete_si_configure(monkeypatch):
+    _reset()
+    monkeypatch.setattr(qrz, 'lookup', lambda call, user, pw: {'ok': True, 'call': call, 'name': 'X'})
+    hamqth_called = {'n': 0}
+    monkeypatch.setattr(clusters, 'lookup_hamqth', lambda call: hamqth_called.update(n=hamqth_called['n'] + 1) or None)
+    r = callbook.lookup('F6KQJ', {'qrz_user': 'u', 'qrz_password': 'p'})
+    assert r['ok'] and r['source'] == 'qrz'
+    assert hamqth_called['n'] == 0  # jamais tenté : QRZ a déjà répondu
+
+
+def test_cascade_repli_hamqth_si_qrz_non_configure(monkeypatch):
+    _reset()
+    monkeypatch.setattr(clusters, 'lookup_hamqth',
+                        lambda call: {'call': call, 'locator': 'JN15XC', 'country': 'France', 'continent': 'EU'})
+    r = callbook.lookup('F6KQJ', {})  # pas d'identifiants QRZ dans cfg
+    assert r['ok'] and r['source'] == 'hamqth'
+    assert r['grid'] == 'JN15XC' and r['country'] == 'France'
+    assert r['name'] == ''  # HamQTH ne donne jamais le nom
+
+
+def test_cascade_repli_hamqth_si_qrz_echoue(monkeypatch):
+    _reset()
+    monkeypatch.setattr(qrz, 'lookup', lambda call, user, pw: {'ok': False, 'error': 'Indicatif introuvable sur QRZ'})
+    monkeypatch.setattr(clusters, 'lookup_hamqth',
+                        lambda call: {'call': call, 'locator': 'FN31PR', 'country': 'USA', 'continent': 'NA'})
+    r = callbook.lookup('W1AW', {'qrz_user': 'u', 'qrz_password': 'p'})
+    assert r['ok'] and r['source'] == 'hamqth'
+
+
+def test_cascade_repli_hamdb_si_hamqth_muet(monkeypatch):
+    _reset()
+    monkeypatch.setattr(clusters, 'lookup_hamqth', lambda call: None)
+    monkeypatch.setattr(callbook, 'lookup_hamdb',
+                        lambda call: {'ok': True, 'call': call, 'name': 'ARRL', 'qth': '', 'state': 'CT',
+                                     'country': 'United States', 'grid': 'FN31PR', 'dxcc': '', 'source': 'hamdb'})
+    r = callbook.lookup('W1AW', {})
+    assert r['ok'] and r['source'] == 'hamdb'
+
+
+def test_cascade_tout_echoue(monkeypatch):
+    _reset()
+    monkeypatch.setattr(clusters, 'lookup_hamqth', lambda call: None)
+    monkeypatch.setattr(callbook, 'lookup_hamdb', lambda call: {'ok': False, 'error': 'Indicatif introuvable sur HamDB'})
+    r = callbook.lookup('ZZ9ZZZ', {})
+    assert not r['ok']
+    assert 'HamQTH' in r['error'] and 'HamDB' in r['error']
+
+
+def test_cascade_indicatif_vide():
+    r = callbook.lookup('', {})
+    assert not r['ok'] and 'vide' in r['error'].lower()
+
+
+def test_cascade_cache_evite_double_appel_hamqth(monkeypatch):
+    _reset()
+    calls = {'n': 0}
+    def fake_hamqth(call):
+        calls['n'] += 1
+        return {'call': call, 'locator': 'JN15XC', 'country': 'France', 'continent': 'EU'}
+    monkeypatch.setattr(clusters, 'lookup_hamqth', fake_hamqth)
+    callbook.lookup('F6KQJ', {})
+    callbook.lookup('F6KQJ', {})  # 2e appel : depuis le cache de la cascade
+    assert calls['n'] == 1
+
+
+# ─── Régression : enrich_unknown_calls ne doit plus écraser l'entrée calldb ──
+# (bug réel documenté en mémoire : un enrichissement HamQTH remplaçait toute
+# l'entrée calls_db[call], perdant le 'dept' déjà connu localement — un
+# radioamateur REF perdait son suivi de département dès que HamQTH répondait).
+
+def test_enrich_unknown_calls_preserve_le_dept_existant(monkeypatch, tmp_path):
+    calldb_path = str(tmp_path / 'calldb.json')
+    with open(calldb_path, 'w', encoding='utf-8') as f:
+        json.dump({'calls': {'F6KQJ': {'dept': '43'}}}, f)
+    monkeypatch.setattr(clusters, 'lookup_hamqth',
+                        lambda call: {'call': call, 'locator': 'JN15XC', 'country': 'France', 'continent': 'EU'})
+    enriched = clusters.enrich_unknown_calls({'F6KQJ': {}}, calldb_path)
+    assert enriched.get('F6KQJ', {}).get('locator') == 'JN15XC'
+    with open(calldb_path, encoding='utf-8') as f:
+        saved = json.load(f)
+    entry = saved['calls']['F6KQJ']
+    assert entry['dept'] == '43'          # PAS perdu
+    assert entry['locator'] == 'JN15XC'   # bien ajouté
+    assert entry['country'] == 'France'

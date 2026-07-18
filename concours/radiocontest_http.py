@@ -649,14 +649,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # Sinon interroger HamQTH
                 result = lookup_hamqth(base)
                 if result and result.get('locator'):
-                    # Persister dans calldb.json
+                    # Persister dans calldb.json — FUSION, jamais de remplacement
+                    # total (une entrée locale peut déjà porter un 'dept' REF
+                    # que HamQTH ignore ; l'écraser cassait le tableau de chasse).
                     if os.path.exists(calldb_path):
                         with open(calldb_path, 'r', encoding='utf-8') as f:
                             db2 = json.load(f)
-                        db2.setdefault('calls', {})[base] = {
-                            'locator': result['locator'],
-                            'country': result.get('country', ''),
-                        }
+                        entry = db2.setdefault('calls', {}).setdefault(base, {})
+                        entry['locator'] = result['locator']
+                        if result.get('country'):
+                            entry['country'] = result['country']
                         save_json_atomic(calldb_path, db2, lock=calldb_lock, compact=True)
                     self._json({'call': base, 'locator': result['locator'], 'country': result.get('country',''), 'source': 'hamqth'})
                     return
@@ -952,18 +954,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(coach.build_debrief(cfg_snap, log_copy))
             return
 
-        # Recherche QRZ.com d'un indicatif (identifiants lus dans la config,
-        # jamais dans la requête ni renvoyés au client).
+        # Recherche d'un indicatif en cascade : QRZ.com (si identifiants
+        # configurés) -> HamQTH -> HamDB (identifiants QRZ lus dans la config,
+        # jamais dans la requête ni renvoyés au client ; les deux replis
+        # gratuits ne demandent aucun identifiant).
         if path.startswith('/qrz/lookup'):
             from urllib.parse import parse_qs, urlparse
-            import radiocontest_qrz as qrz
+            import radiocontest_callbook as callbook
             call = (parse_qs(urlparse(self.path).query).get('call', [''])[0])
-            settings = qrz.qrz_settings(self._cfg_snapshot())
-            if not settings['enabled']:
-                self._json({'ok': False, 'enabled': False,
-                            'error': 'QRZ non configuré (CONFIG → identifiants QRZ)'})
-                return
-            res = qrz.lookup(call, settings['user'], settings['pw'])
+            res = callbook.lookup(call, self._cfg_snapshot())
             res['enabled'] = True
             self._json(res)
             return
