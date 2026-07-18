@@ -604,6 +604,22 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   </div>
 </div>
 
+<!-- APERÇU IMPORT ADIF (avant confirmation) -->
+<div class="shortcuts-overlay" id="importOverlay" onclick="if(event.target===this)closeImportOverlay()">
+  <div class="shortcuts-box">
+    <div class="shortcuts-title">
+      <span>📂 IMPORT ADIF</span>
+      <span class="shortcuts-close" onclick="closeImportOverlay()">✕</span>
+    </div>
+    <div class="shortcuts-list" id="importInner" style="max-height:55vh;overflow-y:auto"></div>
+    <div style="margin-top:16px;text-align:center;display:flex;gap:10px;justify-content:center">
+      <button class="export-btn" onclick="closeImportOverlay()">Annuler</button>
+      <button class="export-btn" id="importConfirmBtn" onclick="confirmImportAdif()"
+        style="color:var(--green);border-color:rgba(0,255,136,.4)">✅ CONFIRMER L'IMPORT</button>
+    </div>
+  </div>
+</div>
+
 <!-- AIDE RACCOURCIS CLAVIER -->
 <div class="shortcuts-overlay" id="shortcutsOverlay" onclick="if(event.target===this)toggleShortcutsHelp()">
   <div class="shortcuts-box">
