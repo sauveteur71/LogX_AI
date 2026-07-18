@@ -959,23 +959,25 @@ async function send(forcedText,displayText){
   showThinking();
 
   try{
-    let enriched=text;
     const isAnalysis=/analys|cluster|log|score|spot|recom|prop|mult|appel|contact|conseil|prochain|chasse|strat[ée]gi|qui (dois|contact|appel)|que(l| ) faire|manqu|dx\b/i.test(text);
-    if(isAnalysis){
-      const d=await fetchTerrainData();
-      if(d&&d.context){
-        enriched=d.context+'\n\nDemande opérateur : '+text;
-        if(d.system_prompt)systemPrompt=d.system_prompt;
-      }
-    }
 
-    conversationHistory.push({role:'user',content:enriched});
-
+    // La demande BRUTE part immédiatement au serveur : l'enrichissement
+    // (refresh terrain ~25 s) se fait dans le thread serveur. Avant, on
+    // attendait /data/refresh ICI — changer d'onglet pendant cette attente
+    // perdait l'analyse. Désormais la fenêtre de perte est ~0,1 s.
     const body={
       model:'claude-sonnet-4-6',
       max_tokens:4096,
-      messages:conversationHistory,
+      message:text,
+      needs_context:isAnalysis,
+      history:conversationHistory.slice(-20),
     };
+    // Compat serveur : l'historique passe par 'messages' (le message du jour
+    // est ajouté côté serveur via 'message').
+    body.messages=body.history;
+    delete body.history;
+    conversationHistory.push({role:'user',content:text});
+
     // L'agent répond dans la langue choisie (directive ajoutée au prompt système).
     const _dir=rcLangDirective();
     const _sys=(systemPrompt||'')+(_dir?'\n\n'+_dir:'');

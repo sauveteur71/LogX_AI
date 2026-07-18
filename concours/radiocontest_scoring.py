@@ -628,6 +628,69 @@ def _band_from_freq(freq):
     return ''
 
 
+# Fenêtres d'appel FT8/FT4 (kHz) — un spot dans une de ces fenêtres est un
+# contact numérique, à écarter quand le concours est SSB/CW uniquement
+# (cas réel : spots 144.174 FT8 proposés au Bol d'Or QRP NO-DIGI).
+_DIGITAL_WINDOWS_KHZ = (
+    (1840, 1846), (3568, 3576), (7071, 7078), (10131, 10140),
+    (14071, 14081), (18095, 18109), (21071, 21081), (24911, 24920),
+    (28071, 28081), (50310, 50325), (144170, 144182), (432170, 432178),
+)
+
+def _is_digital_freq(freq):
+    try:
+        v = float(str(freq).replace(',', '.'))
+    except (ValueError, TypeError):
+        return False
+    khz = v if v > 1000 else v * 1000.0
+    return any(lo <= khz <= hi for lo, hi in _DIGITAL_WINDOWS_KHZ)
+
+
+# Distance max plausible par bande (km) pour un spot terrestre : au-delà,
+# c'est une position erronée ou de l'EME — jamais un contact de concours
+# tropo/Es (cas réel : FK8HA « à 17 014 km en 144 MHz » proposé à l'agent).
+_MAX_PLAUSIBLE_KM = {
+    '50': 6000, '70': 3000, '144': 2500, '432': 2000,
+    '1296': 1200, '2320': 900, '3400': 800, '5760': 700, '10368': 600,
+}
+
+def filter_spots_for_contest(stations, contest):
+    """Ne garde que les spots jouables dans le concours actif : bande autorisée
+    par la définition, mode compatible (fenêtres FT8/FT4 écartées si le
+    concours n'accepte pas le numérique), distance plausible pour la bande.
+    Retourne (gardés, écartés_par_raison)."""
+    cdef = CONTEST_DEFINITIONS.get(contest, {})
+    allowed_bands = {str(b) for b in (cdef.get('bands') or [])}
+    if {b.upper() for b in allowed_bands} & {'ALL', 'TOUTES'}:
+        allowed_bands = set()   # 'all' (SOTA/POTA) = aucune restriction de bande
+    modes = [str(m).upper() for m in (cdef.get('modes') or [])]
+    digital_ok = (not modes) or bool(
+        {'FT8', 'FT4', 'RTTY', 'PSK', 'DIGI', 'DATA', 'ALL'} & set(modes))
+    kept, dropped = [], {'hors_bande': 0, 'numerique': 0, 'distance': 0,
+                         'freq_bande': 0}
+    for s in stations:
+        band = str(s.get('band', ''))
+        # Cohérence fréquence ↔ bande : un spot 50.125 MHz étiqueté « 144 »
+        # est un déchet de parsing (vécu : il polluait 144 ET 432). La
+        # fréquence fait foi quand elle est exploitable.
+        freq_band = _band_from_freq(s.get('freq', ''))
+        if freq_band and freq_band != band:
+            dropped['freq_bande'] += 1
+            continue
+        if allowed_bands and band not in allowed_bands:
+            dropped['hors_bande'] += 1
+            continue
+        if not digital_ok and _is_digital_freq(s.get('freq', '')):
+            dropped['numerique'] += 1
+            continue
+        cap = _MAX_PLAUSIBLE_KM.get(band)
+        if cap and s.get('dist_km', 0) > cap:
+            dropped['distance'] += 1
+            continue
+        kept.append(s)
+    return kept, dropped
+
+
 def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_users=None):
     """Extrait l'état du log, évalue chaque spot au barème du concours et
     retourne (ranked, meta) STRUCTURÉS — consommé par le contexte IA
@@ -768,6 +831,13 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                     'time': 'actif maintenant', 'source': 'on4kst-chat',
                 })
 
+    # Ne garder que les spots JOUABLES dans ce concours (bandes/modes de la
+    # définition, distances plausibles) — sinon l'agent IA et la carte
+    # reçoivent des contacts hors concours (50 MHz au Bol d'Or, FT8 en
+    # NO-DIGI, DX à 17 000 km « en 144 MHz »).
+    total_before = len(all_stations)
+    all_stations, dropped = filter_spots_for_contest(all_stations, contest)
+
     # Calculer et classer
     ranked = rank_stations_by_value(
         all_stations, contest, my_call, my_locator,
@@ -775,6 +845,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         done_cq_zones, done_dxcc, current_score,
         noaa, dxmaps
     )
+    cdef = CONTEST_DEFINITIONS.get(contest, {})
     meta = {
         'contest': contest,
         'my_call': my_call,
@@ -785,6 +856,10 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         'nb_locators': len(done_locators),
         'nb_large_squares': len(done_large_squares),
         'nb_dxcc': len(done_dxcc),
+        'spots_total': total_before,
+        'spots_dropped': dropped,
+        'contest_bands': [str(b) for b in (cdef.get('bands') or [])],
+        'contest_modes': [str(m) for m in (cdef.get('modes') or [])],
     }
     return ranked, meta
 
@@ -800,8 +875,21 @@ def build_scoring_context(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4k
     current_score = meta['current_score']
 
     # Construire le texte de contexte
+    bands_txt = '/'.join(meta.get('contest_bands') or []) or 'toutes'
+    modes_txt = '/'.join(meta.get('contest_modes') or []) or 'tous'
+    dropped = meta.get('spots_dropped') or {}
+    nb_dropped = sum(dropped.values())
     lines = ["\n=== CLASSEMENT STATIONS PAR VALEUR RÉELLE (moteur scoring) ==="]
     lines.append(f"Concours : {contest} | Score actuel : {current_score} pts")
+    lines.append(f"Bandes du concours : {bands_txt} MHz | Modes : {modes_txt}")
+    lines.append("⚠️ CONSIGNE : les spots ci-dessous sont DÉJÀ filtrés (bandes/modes du "
+                 "concours, distances plausibles). Ne propose JAMAIS un contact qui n'y "
+                 "figure pas ; ne propose JAMAIS une bande ou un mode hors concours.")
+    if nb_dropped:
+        lines.append(f"({nb_dropped} spots écartés avant classement : "
+                     f"{dropped.get('hors_bande', 0)} hors bande, "
+                     f"{dropped.get('numerique', 0)} numérique interdit, "
+                     f"{dropped.get('distance', 0)} distance non plausible)")
     lines.append(f"État : {meta['nb_calls']} indicatifs ({meta['nb_qso_bands']} QSO toutes bandes) | "
                 f"{meta['nb_locators']} locators | "
                 f"{meta['nb_large_squares']} grands carrés | {meta['nb_dxcc']} pays/depts\n")
@@ -822,7 +910,12 @@ def build_scoring_context(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4k
         )
 
     if not ranked:
-        lines.append("Aucune station disponible sur les clusters pour le moment.")
+        lines.append(f"AUCUN SPOT EXPLOITABLE pour ce concours en ce moment"
+                     f"{f' ({nb_dropped} spots vus mais tous hors concours)' if nb_dropped else ''}.")
+        lines.append("→ CONSIGNE : dis-le simplement à l'opérateur. NE PROPOSE AUCUN contact "
+                     "inventé ni hors bandes/modes. Donne plutôt un conseil d'action : lancer "
+                     "appel (CQ) sur la bande principale, orienter l'antenne vers les zones "
+                     "actives, revenir aux spots dans quelques minutes.")
 
     lines.append("\n=== TOP 5 RECOMMANDATIONS AGENT ===")
     top5 = [s for s in ranked if not s.get('scoring',{}).get('already_done', False)][:5]
