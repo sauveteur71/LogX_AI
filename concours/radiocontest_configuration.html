@@ -917,12 +917,13 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section">
-      <div class="section-title">🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF)</div>
+      <div class="section-title">🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
       <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        Tu actives une référence (parc, sommet, île, réserve) : chaque QSO porte
-        ta référence et compte pour valider l'activation. Le logbook affiche
-        l'avancement (X / minimum) et détecte les <b>Park-to-Park / Summit-to-Summit</b>.
-        L'export ADIF inclut les champs SIG / MY_SIG_INFO pour l'upload POTA/SOTA/WWFF.
+        Tu actives une référence (parc, sommet, île, réserve, phare, château) :
+        chaque QSO porte ta référence et compte pour valider l'activation. Le
+        logbook affiche l'avancement (X / minimum) et détecte les contacts
+        entre deux activateurs (<b>Park-to-Park / Summit-to-Summit / Light-to-Light...</b>).
+        L'export ADIF inclut les champs SIG / MY_SIG_INFO pour l'upload.
       </div>
       <div class="form-grid">
         <div class="form-group">
@@ -933,12 +934,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <option value="SOTA">SOTA — Summits on the Air (4 QSO)</option>
             <option value="IOTA">IOTA — Islands on the Air (1 QSO)</option>
             <option value="WWFF">WWFF — Flora &amp; Fauna (44 QSO)</option>
+            <option value="ARLHS">ARLHS — Lighthouses (2 QSO)</option>
+            <option value="WCA">WCA — World Castles Award (50 QSO)</option>
           </select>
         </div>
         <div class="form-group">
           <label>MA RÉFÉRENCE ACTIVÉE</label>
           <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase">
-          <div class="input-note">POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN</div>
+          <div class="input-note">POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN</div>
         </div>
       </div>
     </div>

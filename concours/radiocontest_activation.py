@@ -14,6 +14,15 @@ import re
 
 # min_qso : QSO nécessaires pour valider l'activation (règles officielles).
 # ref_re  : format de référence (validation de saisie).
+#
+# ARLHS et WCA vérifiés directement sur les règles/bases officielles (pas de
+# supposition) : ARLHS Activator Award Rules (arlhs.com) — « Two stations
+# must be worked from each light activated » (min_qso=2), format du World
+# List of Lights (wlol.arlhs.com) = préfixe pays 2-3 lettres + tiret + numéro
+# 3-4 chiffres, parfois suivi d'une lettre pour les phares déplacés/historiques
+# (ex. USA-129H). WCA Rules (wcagroup.org) — « not less than 50 QSO » pour
+# qu'une activation compte dans les diplômes WCA-50/WCA-100 (min_qso=50),
+# format = préfixe indicatif pays + tiret + numéro sur 5 chiffres (ex. DL-00001).
 PROGRAM_SPECS = {
     'POTA': {'name': 'Parks on the Air',        'sig': 'POTA',
              'ref_re': r'^[A-Z0-9]{1,4}-\d{3,5}$', 'min_qso': 10,
@@ -27,6 +36,12 @@ PROGRAM_SPECS = {
     'WWFF': {'name': 'World Wide Flora & Fauna', 'sig': 'WWFF',
              'ref_re': r'^[A-Z0-9]{1,3}FF-\d{4}$', 'min_qso': 44,
              'p2p': 'Flora-to-Flora', 'example': 'FFF-0123'},
+    'ARLHS': {'name': 'Amateur Radio Lighthouse Society', 'sig': 'ARLHS',
+              'ref_re': r'^[A-Z]{2,3}-\d{3,4}[A-Z]?$', 'min_qso': 2,
+              'p2p': 'Light-to-Light', 'example': 'FRA-113'},
+    'WCA': {'name': 'World Castles Award',      'sig': 'WCA',
+            'ref_re': r'^[A-Z]{1,3}-\d{5}$', 'min_qso': 50,
+            'p2p': 'Castle-to-Castle', 'example': 'DL-00001'},
 }
 
 
