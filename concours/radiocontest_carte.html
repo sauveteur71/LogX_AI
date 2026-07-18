@@ -1129,6 +1129,7 @@ async function refreshRankedStations(){
     if(!r.ok)return;
     const d=await r.json();
     checkNewMultAlerts(d.spots);   // alerte sur nouveau mult spotté
+    checkCustomAlertRules(d.alert_matches);   // règles d'alerte personnalisées (CONFIG)
     const stns=(d.spots||[])
       .filter(s=>s.locator||(s.lat!=null&&s.lon!=null))  // position sûre requise
       .slice(0,25)
@@ -1341,6 +1342,31 @@ function checkNewMultAlerts(spots){
     _alertedMults[s.call] = now;
     flashAlert(`📈 NOUVEAU MULT spotté : ${s.call} sur ${s.band} MHz`+
                (s.freq?` (${s.freq})`:'')+(s.bearing!=null?` — cap ${s.bearing}° ${s.cardinal}`:''), 'mult');
+  });
+}
+
+// Règles personnalisées (CONFIG → RÈGLES D'ALERTE) : évaluées côté serveur
+// (radiocontest_alerts.py, contre TOUS les spots classés, pas seulement le
+// top affiché) — /data/spots_ranked renvoie alert_matches à chaque poll.
+// Anti-répétition par règle+indicatif, même fenêtre 20 min que les mults.
+const _alertedRuleMatches = {};   // 'ruleId|call' → timestamp
+let _ruleAlertPrimed = false;
+
+function checkCustomAlertRules(matches){
+  const now = Date.now();
+  if(!_ruleAlertPrimed){
+    (matches||[]).forEach(m => { _alertedRuleMatches[m.rule_id+'|'+m.spot.call] = now; });
+    _ruleAlertPrimed = true;
+    return;
+  }
+  (matches||[]).forEach(m => {
+    const key = m.rule_id + '|' + m.spot.call;
+    const last = _alertedRuleMatches[key];
+    if(last && now-last < 20*60*1000) return;
+    _alertedRuleMatches[key] = now;
+    const s = m.spot;
+    flashAlert(`🔔 ${m.rule_name} : ${s.call} sur ${s.band} MHz`+
+               (s.freq?` (${s.freq})`:'')+(s.bearing!=null?` — cap ${s.bearing}° ${s.cardinal}`:''), 'custom');
   });
 }
 
