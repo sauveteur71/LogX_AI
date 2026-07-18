@@ -1371,14 +1371,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Radio CAT (rigctld) : état courant — pollé par le logbook
         if path == '/rig/state':
+            cfg_snap = self._cfg_snapshot()
+            import radiocontest_cat as cat
+            cat_settings = cat.cat_settings(cfg_snap)
+            if cat_settings['enabled'] and cat_settings['mode'] == 'native':
+                self._json(cat.get_state(cfg_snap))
+                return
             import radiocontest_rig as rig
-            settings = rig.rig_settings(self._cfg_snapshot())
+            settings = rig.rig_settings(cfg_snap)
             if not settings['enabled']:
                 self._json({'enabled': False})
                 return
             state = rig.get_state(settings['host'], settings['port'])
             state['enabled'] = True
             self._json(state)
+            return
+
+        # Radio CAT native : ports série disponibles (pour le sélecteur CONFIG)
+        if path == '/rig/ports':
+            import radiocontest_cat as cat
+            self._json({'ports': cat.list_ports()})
             return
 
         # Rotor d'antenne (rotctld) : position courante — pollée par le logbook
@@ -1676,19 +1688,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'error': str(e)}, 400)
             return
 
-        # Radio CAT (rigctld) : QSY, envoi CW, stop CW
-        if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop'):
-            import radiocontest_rig as rig
-            settings = rig.rig_settings(self._cfg_snapshot())
-            if not settings['enabled']:
-                self._json({'ok': False, 'error': 'Radio CAT désactivée — '
-                            'active-la dans CONFIG (mode expert, section RADIO)'}, 400)
-                return
+        # Radio CAT native : test éphémère depuis CONFIG (avant même de
+        # sauvegarder) — ouvre, interroge, ferme, ne touche pas au polling.
+        if self.path == '/rig/connect_test':
+            import radiocontest_cat as cat
             try:
                 payload = json.loads(body) if body else {}
             except Exception:
                 payload = {}
-            host, port = settings['host'], settings['port']
+            res = cat.test_connection(payload.get('brand'), payload.get('model'),
+                                      payload.get('port'), payload.get('baudrate'))
+            self._json(res, 200 if res.get('ok') else 502)
+            return
+
+        # Radio CAT : QSY, envoi CW, stop CW — natif si configuré, sinon rigctld
+        if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop'):
+            cfg_snap = self._cfg_snapshot()
+            import radiocontest_cat as cat
+            cat_settings = cat.cat_settings(cfg_snap)
+            native = cat_settings['enabled'] and cat_settings['mode'] == 'native'
+            if not native:
+                import radiocontest_rig as rig
+                settings = rig.rig_settings(cfg_snap)
+                if not settings['enabled']:
+                    self._json({'ok': False, 'error': 'Radio CAT désactivée — '
+                                'active-la dans CONFIG (mode expert, section RADIO)'}, 400)
+                    return
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+
             if self.path == '/rig/qsy':
                 freq = payload.get('freq_hz') or 0
                 if not freq and payload.get('freq_khz'):
@@ -1696,15 +1726,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not freq:
                     self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
                     return
-                res = rig.set_freq(host, port, int(freq), payload.get('mode'))
+                if native:
+                    res = cat.set_freq(cfg_snap, int(freq), payload.get('mode'))
+                else:
+                    res = rig.set_freq(settings['host'], settings['port'], int(freq), payload.get('mode'))
                 if res.get('ok'):
                     print(f"[RIG] QSY {int(freq)} Hz {payload.get('mode') or ''}")
+            elif native:
+                # Keyer CW natif non implémenté (mode natif = pyserial direct,
+                # pas de sous-couche keyer) — utiliser rigctld pour le CW.
+                self._json({'ok': False, 'error': 'Envoi CW non disponible en mode "Natif" — '
+                            'bascule en mode "Hamlib rigctld" pour le keyer CW'}, 400)
+                return
             elif self.path == '/rig/cw':
-                res = rig.send_morse(host, port, str(payload.get('text', ''))[:120])
+                res = rig.send_morse(settings['host'], settings['port'], str(payload.get('text', ''))[:120])
                 if res.get('ok'):
                     print(f"[RIG] CW: {str(payload.get('text',''))[:40]}")
             else:
-                res = rig.stop_morse(host, port)
+                res = rig.stop_morse(settings['host'], settings['port'])
             self._json(res, 200 if res.get('ok') else 502)
             return
 
@@ -1971,6 +2010,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 cfg_snap = self._cfg_snapshot()
                 payload = json.loads(body) if body else {}
                 messages = payload.get('messages', [])
+                # Nouveau chemin : le client envoie la demande BRUTE + needs_context.
+                # L'enrichissement (do_refresh ~25 s) se fait DANS le thread serveur :
+                # avant, le client attendait /data/refresh AVANT de poster l'analyse —
+                # un changement d'onglet pendant cette phase perdait tout.
+                message = payload.get('message', '')
+                needs_context = bool(payload.get('needs_context'))
                 system_prompt = payload.get('system') or (build_system_prompt(cfg_snap) if cfg_snap else '')
                 model = payload.get('model')
                 max_tokens = payload.get('max_tokens', 4096)
@@ -1985,8 +2030,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             _agent_analyses.pop(k, None)
 
                 def _run(aid=aid, cfg=cfg_snap, sysp=system_prompt, msgs=messages,
-                         mdl=model, mt=max_tokens):
+                         mdl=model, mt=max_tokens, msg=message, ctx=needs_context):
                     try:
+                        if msg:
+                            enriched = msg
+                            if ctx:
+                                try:
+                                    data = do_refresh(cfg)
+                                    if data.get('context'):
+                                        enriched = data['context'] + '\n\nDemande opérateur : ' + msg
+                                    if data.get('system_prompt'):
+                                        sysp = data['system_prompt']
+                                except Exception as e:
+                                    print(f"[AGENT] contexte indisponible : {e}")
+                            msgs = list(msgs) + [{'role': 'user', 'content': enriched}]
                         text = call_llm(cfg, sysp, msgs, mdl, mt)
                         with _agent_lock:
                             _agent_analyses[aid].update(status='done', reply=text)
