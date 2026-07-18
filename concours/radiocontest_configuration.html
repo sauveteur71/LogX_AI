@@ -469,6 +469,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <label>MODE DE PILOTAGE</label>
           <select id="cat_mode" onchange="updateCatModeVisibility()">
             <option value="native">Natif (recommandé — pas de logiciel externe)</option>
+            <option value="tci">TCI (postes SDR — SunSDR/ExpertSDR3 et compatibles)</option>
             <option value="rigctld">Hamlib rigctld (avancé — autres marques)</option>
           </select>
         </div>
@@ -504,6 +505,26 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
         <button type="button" class="btn btn-secondary" onclick="testCatConnection()">🔌 Tester / auto-détecter</button>
         <span id="catTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+
+      <!-- Mode TCI : transceivers SDR (SunSDR/ExpertSDR3 et compatibles), réseau WebSocket -->
+      <div id="catTciFields" class="form-grid" style="display:none;margin-top:12px">
+        <div class="form-group" style="grid-column:1/-1">
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+            Le serveur TCI doit être activé dans ExpertSDR3 (ou logiciel compatible) sur le
+            poste relié au transceiver — pas de port série, connexion réseau directe.
+          </div>
+        </div>
+        <div class="form-group">
+          <label>ADRESSE TCI</label>
+          <input type="text" id="tci_host" placeholder="127.0.0.1 (ou IP du poste SDR)">
+          <div class="input-note">IP du PC où tourne le serveur TCI (peut être un autre poste du WiFi)</div>
+        </div>
+        <div class="form-group">
+          <label>PORT TCI</label>
+          <input type="number" id="tci_port" placeholder="50001">
+          <div class="input-note">50001 par défaut (ExpertSDR3) — 40001 pour l'ancien ESDR2</div>
+        </div>
       </div>
 
       <!-- Mode avancé : Hamlib rigctld -->
@@ -1617,9 +1638,10 @@ const CAT_MODELS = {
 const CAT_DEFAULT_BAUD = { icom: 19200, xiegu: 19200, yaesu: 4800, kenwood: 9600, elecraft: 38400 };
 
 function updateCatModeVisibility(){
-  const native = document.getElementById('cat_mode').value !== 'rigctld';
-  document.getElementById('catNativeFields').style.display = native ? '' : 'none';
-  document.getElementById('catRigctldFields').style.display = native ? 'none' : '';
+  const mode = document.getElementById('cat_mode').value;
+  document.getElementById('catNativeFields').style.display = mode === 'native' ? '' : 'none';
+  document.getElementById('catTciFields').style.display = mode === 'tci' ? '' : 'none';
+  document.getElementById('catRigctldFields').style.display = mode === 'rigctld' ? '' : 'none';
 }
 
 function updateCatModelOptions(){
@@ -1674,16 +1696,24 @@ async function testCatConnection(){
   const result = document.getElementById('catTestResult');
   result.textContent = '⏳ Test en cours...';
   result.style.color = 'var(--muted)';
-  const payload = {
-    brand: document.getElementById('cat_brand').value,
-    model: document.getElementById('cat_model').value,
-    port: document.getElementById('cat_port').value,
-    baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || CAT_DEFAULT_BAUD[document.getElementById('cat_brand').value] || 19200,
-  };
-  if (!payload.port){
-    result.textContent = '⚠️ Choisis un port série d\'abord';
-    result.style.color = 'var(--yellow)';
-    return;
+  const mode = document.getElementById('cat_mode').value;
+  let payload;
+  if (mode === 'tci'){
+    payload = { mode: 'tci',
+      host: document.getElementById('tci_host').value,
+      port: parseInt(document.getElementById('tci_port').value, 10) || 50001 };
+  } else {
+    payload = {
+      brand: document.getElementById('cat_brand').value,
+      model: document.getElementById('cat_model').value,
+      port: document.getElementById('cat_port').value,
+      baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || CAT_DEFAULT_BAUD[document.getElementById('cat_brand').value] || 19200,
+    };
+    if (!payload.port){
+      result.textContent = '⚠️ Choisis un port série d\'abord';
+      result.style.color = 'var(--yellow)';
+      return;
+    }
   }
   try{
     const res = await fetch('/rig/connect_test', {
@@ -1691,7 +1721,10 @@ async function testCatConnection(){
       body: JSON.stringify(payload),
     });
     const r = await res.json();
-    if (r.ok){
+    if (r.ok && mode === 'tci'){
+      result.textContent = `✅ Serveur TCI joint : ${r.device || 'appareil inconnu'} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non reçue'})`;
+      result.style.color = 'var(--green)';
+    } else if (r.ok){
       result.textContent = `✅ Radio détectée : ${r.detected_model || payload.model} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'})`;
       result.style.color = 'var(--green)';
     } else {
@@ -2449,6 +2482,8 @@ function saveConfig(silent = false) {
     cat_model: document.getElementById('cat_model').value,
     cat_port: document.getElementById('cat_port').value,
     cat_baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || 19200,
+    tci_host: document.getElementById('tci_host').value.trim(),
+    tci_port: parseInt(document.getElementById('tci_port').value, 10) || 50001,
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
     wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
@@ -2621,7 +2656,8 @@ function loadSavedConfig() {
      'rbn_enabled','clublog_live','expedition_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
      'activation_program','my_activation_ref',
-     'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate'].forEach(k=>{
+     'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
+     'tci_host','tci_port'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     if (c.cat_brand) updateCatModelOptions();
