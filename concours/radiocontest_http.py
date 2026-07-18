@@ -1369,13 +1369,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(st)
             return
 
-        # Radio CAT (rigctld) : état courant — pollé par le logbook
+        # Radio CAT (natif / TCI / rigctld) : état courant — pollé par le logbook
         if path == '/rig/state':
             cfg_snap = self._cfg_snapshot()
             import radiocontest_cat as cat
             cat_settings = cat.cat_settings(cfg_snap)
             if cat_settings['enabled'] and cat_settings['mode'] == 'native':
                 self._json(cat.get_state(cfg_snap))
+                return
+            if cat_settings['enabled'] and cat_settings['mode'] == 'tci':
+                import radiocontest_tci as tci
+                self._json(tci.get_state(cfg_snap))
                 return
             import radiocontest_rig as rig
             settings = rig.rig_settings(cfg_snap)
@@ -1688,26 +1692,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'error': str(e)}, 400)
             return
 
-        # Radio CAT native : test éphémère depuis CONFIG (avant même de
+        # Radio CAT native/TCI : test éphémère depuis CONFIG (avant même de
         # sauvegarder) — ouvre, interroge, ferme, ne touche pas au polling.
         if self.path == '/rig/connect_test':
-            import radiocontest_cat as cat
             try:
                 payload = json.loads(body) if body else {}
             except Exception:
                 payload = {}
-            res = cat.test_connection(payload.get('brand'), payload.get('model'),
-                                      payload.get('port'), payload.get('baudrate'))
+            if payload.get('mode') == 'tci':
+                import radiocontest_tci as tci
+                res = tci.test_connection(payload.get('host'), payload.get('port'))
+            else:
+                import radiocontest_cat as cat
+                res = cat.test_connection(payload.get('brand'), payload.get('model'),
+                                          payload.get('port'), payload.get('baudrate'))
             self._json(res, 200 if res.get('ok') else 502)
             return
 
-        # Radio CAT : QSY, envoi CW, stop CW — natif si configuré, sinon rigctld
+        # Radio CAT : QSY, envoi CW, stop CW — natif/TCI si configuré, sinon rigctld
         if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop'):
             cfg_snap = self._cfg_snapshot()
             import radiocontest_cat as cat
             cat_settings = cat.cat_settings(cfg_snap)
             native = cat_settings['enabled'] and cat_settings['mode'] == 'native'
-            if not native:
+            use_tci = cat_settings['enabled'] and cat_settings['mode'] == 'tci'
+            if use_tci:
+                import radiocontest_tci as tci
+            if not native and not use_tci:
                 import radiocontest_rig as rig
                 settings = rig.rig_settings(cfg_snap)
                 if not settings['enabled']:
@@ -1728,16 +1739,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 if native:
                     res = cat.set_freq(cfg_snap, int(freq), payload.get('mode'))
+                elif use_tci:
+                    res = tci.set_freq(cfg_snap, int(freq), payload.get('mode'))
                 else:
                     res = rig.set_freq(settings['host'], settings['port'], int(freq), payload.get('mode'))
                 if res.get('ok'):
                     print(f"[RIG] QSY {int(freq)} Hz {payload.get('mode') or ''}")
             elif native:
                 # Keyer CW natif non implémenté (mode natif = pyserial direct,
-                # pas de sous-couche keyer) — utiliser rigctld pour le CW.
+                # pas de sous-couche keyer) — utiliser rigctld ou TCI pour le CW.
                 self._json({'ok': False, 'error': 'Envoi CW non disponible en mode "Natif" — '
-                            'bascule en mode "Hamlib rigctld" pour le keyer CW'}, 400)
+                            'bascule en mode "Hamlib rigctld" ou "TCI" pour le keyer CW'}, 400)
                 return
+            elif use_tci:
+                if self.path == '/rig/cw':
+                    res = tci.send_cw(cfg_snap, str(payload.get('text', ''))[:120])
+                    if res.get('ok'):
+                        print(f"[RIG] CW (TCI): {str(payload.get('text',''))[:40]}")
+                else:
+                    res = tci.stop_cw(cfg_snap)
             elif self.path == '/rig/cw':
                 res = rig.send_morse(settings['host'], settings['port'], str(payload.get('text', ''))[:120])
                 if res.get('ok'):
