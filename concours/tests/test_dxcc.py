@@ -36,6 +36,10 @@ def test_validation_cty():
 
 
 def test_pas_de_maj_si_fichier_recent():
-    """cty.dat vient d'être téléchargé : aucune requête réseau ne doit partir."""
+    """cty.dat récent : aucune requête réseau ne doit partir.
+    On force l'horodatage à maintenant — sinon le test dépendait de la date
+    du dernier téléchargement réel et cassait dès J+1."""
+    import os
+    os.utime(dxcc.CTY_FILE if hasattr(dxcc, 'CTY_FILE') else 'cty.dat', None)
     assert dxcc._cty_age_days() < 1
     assert dxcc.update_cty_if_stale(max_age_days=30) is False

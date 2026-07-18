@@ -73,6 +73,10 @@ def _check_scoring(sc, props):
                 if p is not None and (not isinstance(p, list)
                                       or not all(isinstance(x, str) for x in p)):
                     errs.append(f"bricks.points[{i}].prefix_in doit être une liste de préfixes")
+                m = rule.get('modes')
+                if m is not None and (not isinstance(m, list)
+                                      or not all(isinstance(x, str) for x in m)):
+                    errs.append(f"bricks.points[{i}].modes doit être une liste de modes (ex. ['CW'])")
         weights = bricks.get('mult_weight_by_band')
         if weights is not None:
             if not isinstance(weights, dict) or not all(
