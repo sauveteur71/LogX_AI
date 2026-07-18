@@ -57,6 +57,10 @@ def qsl_settings(cfg):
         'clublog_api_key': (cfg.get('clublog_api_key') or '').strip(),
         'lotw_user': (cfg.get('lotw_user') or '').strip().upper(),
         'lotw_password': cfg.get('lotw_password') or '',
+        'qrzcq_callsign': (cfg.get('qrzcq_callsign') or '').strip().upper(),
+        'qrzcq_api_key': (cfg.get('qrzcq_api_key') or '').strip(),
+        'hrdlog_callsign': (cfg.get('hrdlog_callsign') or '').strip().upper(),
+        'hrdlog_code': (cfg.get('hrdlog_code') or '').strip(),
     }
     if not any(s.values()):
         try:
@@ -70,6 +74,8 @@ def qsl_settings(cfg):
     s['clublog_enabled'] = bool(s['clublog_email'] and s['clublog_callsign']
                                 and s['clublog_password'] and s['clublog_api_key'])
     s['lotw_enabled'] = bool(s['lotw_user'] and s['lotw_password'])
+    s['qrzcq_enabled'] = bool(s['qrzcq_callsign'] and s['qrzcq_api_key'])
+    s['hrdlog_enabled'] = bool(s['hrdlog_callsign'] and s['hrdlog_code'])
     return s
 
 
@@ -286,6 +292,138 @@ def upload_clublog(cfg, adif):
     return {'ok': False, 'service': 'ClubLog', 'error': resp[:200].strip()}
 
 
+# ─── QRZCQ : upload du log (API JSON documentée, qrzcq.com/page/developers) ──
+
+QRZCQ_UPLOAD_URL = 'https://ssl.qrzcq.com/api/logupload'
+
+
+def upload_qrzcq(cfg, adif):
+    s = qsl_settings(cfg)
+    if not s['qrzcq_enabled']:
+        return {'ok': False, 'error': 'QRZCQ non configuré (indicatif + clé API dans CONFIG → QSL)'}
+    payload = json.dumps({'auth': {'call': s['qrzcq_callsign'], 'key': s['qrzcq_api_key']},
+                          'data': {'adif': adif}}).encode('utf-8')
+    req = urllib.request.Request(QRZCQ_UPLOAD_URL, data=payload, headers={
+        'Content-Type': 'application/json', 'User-Agent': 'RadioContestAI'})
+    try:
+        with urllib.request.urlopen(req, timeout=30, context=_ssl_ctx()) as r:
+            resp_text = r.read().decode('utf-8', 'replace')
+    except Exception as e:
+        return {'ok': False, 'error': f'QRZCQ injoignable : {e}'}
+    try:
+        resp = json.loads(resp_text)
+    except ValueError:
+        return {'ok': False, 'service': 'QRZCQ', 'error': resp_text[:200].strip()}
+    if str(resp.get('status', '')).upper() == 'OK':
+        _stamp('qrzcq_upload')
+        return {'ok': True, 'service': 'QRZCQ', 'response': resp.get('message', '')}
+    return {'ok': False, 'service': 'QRZCQ', 'error': resp.get('message') or resp_text[:200].strip()}
+
+
+# ─── HRDLog.net : upload du log ───────────────────────────────────────────────
+# Aucune documentation publique officielle (page autoupload.aspx = tutoriel
+# GUI seulement, specs PDF décrites comme confidentielles). Implémenté à partir
+# du code source réel de la librairie cliente open-source iw1qlh/HRDLOG-net-
+# library (HrdProtocol.cs) : endpoint NewEntry.aspx, formulaire url-encodé
+# Callsign/Code/App/ADIFData. L'API est CONÇUE PAR QSO UNIQUE (« New Entry »,
+# pas de repli batch connu) — contrairement à eQSL/ClubLog/QRZCQ, l'upload
+# envoie donc un POST par QSO, pas un fichier ADIF complet en un coup.
+
+HRDLOG_HOSTS = ('robot.hrdlog.net', 'www.hrdlog.net')  # primaire, puis secours
+_HRDLOG_INSERT_RE = re.compile(r'<insert>(\d+)</insert>', re.I)
+_HRDLOG_ERROR_RE = re.compile(r'<error>(.*?)</error>', re.I | re.S)
+
+
+def _single_qso_adif(qso, cfg):
+    """Un seul enregistrement ADIF (réutilise le générateur existant plutôt
+    que dupliquer le mapping de champs — on ne garde que le corps, sans
+    l'en-tête <EOH> qui n'a pas de sens pour un envoi unitaire)."""
+    import radiocontest_export as export
+    full = export.build_adif([qso], cfg)
+    return full.split('<EOH>\n', 1)[1].strip()
+
+
+def _hrdlog_post_one(host, callsign, code, adif_record, timeout=8):
+    fields = {'Callsign': callsign, 'Code': code, 'App': 'RadioContestAI', 'ADIFData': adif_record}
+    body = urllib.parse.urlencode(fields).encode('utf-8')
+    req = urllib.request.Request(
+        f'https://{host}/NewEntry.aspx', data=body,
+        headers={'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'RadioContestAI'})
+    with urllib.request.urlopen(req, timeout=timeout, context=_ssl_ctx()) as r:
+        return r.read().decode('utf-8', 'replace')
+
+
+def upload_hrdlog(cfg, qsos):
+    """Envoie chaque QSO individuellement (voir note ci-dessus). Retourne le
+    compte envoyé/échoué plutôt qu'un simple ok/erreur binaire, puisqu'un
+    échec partiel est le cas normal pour ce type d'API unitaire."""
+    s = qsl_settings(cfg)
+    if not s['hrdlog_enabled']:
+        return {'ok': False, 'error': "HRDLog non configuré (indicatif + code d'upload dans CONFIG → QSL)"}
+    qsos = qsos or []
+    if not qsos:
+        return {'ok': False, 'error': 'Aucun QSO à envoyer'}
+    sent, failed, last_error = 0, 0, ''
+    for q in qsos:
+        record = _single_qso_adif(q, cfg)
+        ok_one = False
+        for host in HRDLOG_HOSTS:
+            try:
+                resp = _hrdlog_post_one(host, s['hrdlog_callsign'], s['hrdlog_code'], record)
+            except Exception as e:
+                last_error = str(e)
+                continue
+            # Succès = <insert>1</insert> (compte réel d'enregistrements insérés,
+            # PAS l'absence d'une balise <error> — vérifié en direct contre le
+            # vrai serveur : des identifiants invalides renvoient <insert>0</insert>
+            # SANS aucune balise <error>, ce qui aurait été pris pour un succès).
+            m = _HRDLOG_INSERT_RE.search(resp)
+            if m and m.group(1) != '0':
+                ok_one = True
+                break
+            err_m = _HRDLOG_ERROR_RE.search(resp)
+            if err_m:
+                last_error = err_m.group(1).strip()
+            elif m:  # <insert>0</insert> sans <error> : rejet silencieux du serveur
+                last_error = "Rejeté par HRDLog — vérifie l'indicatif et le code d'upload"
+            else:
+                last_error = re.sub(r'<[^>]+>', ' ', resp)[:200].strip() or 'Réponse HRDLog inattendue'
+        if ok_one:
+            sent += 1
+        else:
+            failed += 1
+    if sent:
+        _stamp('hrdlog_upload')
+    return {'ok': sent > 0, 'service': 'HRDLog', 'sent': sent, 'failed': failed,
+            'error': None if sent else (last_error or 'Aucun QSO accepté')}
+
+
+# ─── Point d'entrée unifié — un service de plus = une entrée ici, pas une ────
+# ─── nouvelle branche if/elif dans radiocontest_http.py ──────────────────────
+
+_ADIF_UPLOAD_HANDLERS = {
+    'eqsl': upload_eqsl,
+    'clublog': upload_clublog,
+    'qrzcq': upload_qrzcq,
+}
+
+
+def upload_log(cfg, service, qsos):
+    """Dispatch générique : construit l'ADIF une seule fois pour les services
+    qui uploadent un fichier complet ; HRDLog reçoit la liste de QSO brute
+    (son API est unitaire, voir upload_hrdlog)."""
+    service = (service or '').lower()
+    if service == 'hrdlog':
+        return upload_hrdlog(cfg, qsos)
+    handler = _ADIF_UPLOAD_HANDLERS.get(service)
+    if not handler:
+        return {'ok': False, 'error': f"Service inconnu ({service}) — attendu : "
+                                      f"{', '.join(list(_ADIF_UPLOAD_HANDLERS) + ['hrdlog'])}"}
+    import radiocontest_export as export
+    adif = export.build_adif(qsos, cfg)
+    return handler(cfg, adif)
+
+
 # ─── CLUB LOG LIVE STREAM (expédition : QSO poussés en temps réel) ────────────
 
 def realtime_push(cfg, qso):
@@ -360,6 +498,8 @@ def qsl_status(cfg=None):
         'eqsl': bool(s.get('eqsl_enabled')),
         'clublog': bool(s.get('clublog_enabled')),
         'lotw': bool(s.get('lotw_enabled')),
+        'qrzcq': bool(s.get('qrzcq_enabled')),
+        'hrdlog': bool(s.get('hrdlog_enabled')),
         'last': stamps,
         'confirmations': confirmations,
     }

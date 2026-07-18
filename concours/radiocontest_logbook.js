@@ -3645,6 +3645,8 @@ async function showAwards(){
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="export-btn" onclick="qslAction('upload','eqsl',this)" ${q.eqsl?'':'disabled title="Configure eQSL dans CONFIG"'} style="color:var(--accent2);border-color:rgba(0,212,255,.4)">⬆ eQSL</button>
         <button class="export-btn" onclick="qslAction('upload','clublog',this)" ${q.clublog?'':'disabled title="Configure ClubLog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(0,212,255,.4)">⬆ ClubLog</button>
+        <button class="export-btn" onclick="qslAction('upload','qrzcq',this)" ${q.qrzcq?'':'disabled title="Configure QRZCQ dans CONFIG"'} style="color:var(--accent2);border-color:rgba(0,212,255,.4)">⬆ QRZCQ</button>
+        <button class="export-btn" onclick="qslAction('upload','hrdlog',this)" ${q.hrdlog?'':'disabled title="Configure HRDLog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(0,212,255,.4)">⬆ HRDLog</button>
         <button class="export-btn" onclick="qslAction('sync','lotw',this)" ${q.lotw?'':'disabled title="Configure LoTW dans CONFIG"'} style="color:var(--green);border-color:rgba(0,255,136,.4)">⬇ Confirmations LoTW</button>
       </div>
       <div id="qslResult" style="margin-top:10px;color:var(--muted);font-size:12px">${qslLastSync(q)}</div>
@@ -3657,6 +3659,8 @@ function qslLastSync(q){
   const bits = [];
   if(l.eqsl_upload) bits.push('eQSL envoyé le ' + l.eqsl_upload);
   if(l.clublog_upload) bits.push('ClubLog envoyé le ' + l.clublog_upload);
+  if(l.qrzcq_upload) bits.push('QRZCQ envoyé le ' + l.qrzcq_upload);
+  if(l.hrdlog_upload) bits.push('HRDLog envoyé le ' + l.hrdlog_upload);
   if(l.lotw) bits.push('LoTW synchro le ' + l.lotw);
   return bits.length ? bits.join(' · ') : 'aucune synchro encore';
 }
@@ -3672,7 +3676,9 @@ async function qslAction(kind, service, btn){
       body: JSON.stringify({service})});
     const d = await r.json();
     if(d.ok){
-      if(kind==='upload') out.innerHTML = `<span style="color:var(--green)">✅ ${d.qso_count} QSO envoyés à ${d.service}.</span>`;
+      if(kind==='upload' && service==='hrdlog') out.innerHTML =
+        `<span style="color:var(--green)">✅ ${d.sent}/${d.qso_count} QSO envoyés à HRDLog${d.failed?` (${d.failed} échoués)`:''}.</span>`;
+      else if(kind==='upload') out.innerHTML = `<span style="color:var(--green)">✅ ${d.qso_count} QSO envoyés à ${d.service}.</span>`;
       else out.innerHTML = `<span style="color:var(--green)">✅ ${d.newly_added} nouvelles confirmations (${d.total_confirmations} au total).</span>`;
       notify('✅ QSL ' + (kind==='upload'?'envoyé':'synchronisé'));
       if(kind==='sync') setTimeout(showAwards, 800);   // rafraîchit les « confirmés »

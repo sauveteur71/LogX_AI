@@ -873,6 +873,24 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <input type="text" id="clublog_api_key" placeholder="clé API ClubLog" autocomplete="off">
           <div class="input-note">Obtenue sur clublog.org (Settings → API keys)</div>
         </div>
+        <div class="form-group">
+          <label>QRZCQ — INDICATIF</label>
+          <input type="text" id="qrzcq_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>QRZCQ — CLÉ API</label>
+          <input type="text" id="qrzcq_api_key" placeholder="clé API QRZCQ" autocomplete="off">
+          <div class="input-note">Obtenue sur qrzcq.com (Mon compte → Développeurs)</div>
+        </div>
+        <div class="form-group">
+          <label>HRDLog — INDICATIF</label>
+          <input type="text" id="hrdlog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>HRDLog — CODE D'UPLOAD</label>
+          <input type="text" id="hrdlog_code" placeholder="code d'upload HRDLog" autocomplete="off">
+          <div class="input-note">Obtenu sur hrdlog.net (réglages du compte) — envoi QSO par QSO, peut être lent sur un gros log</div>
+        </div>
       </div>
     </div>
 
@@ -2456,6 +2474,10 @@ function saveConfig(silent = false) {
     clublog_callsign: document.getElementById('clublog_callsign').value.trim(),
     clublog_password: document.getElementById('clublog_password').value,
     clublog_api_key: document.getElementById('clublog_api_key').value.trim(),
+    qrzcq_callsign: document.getElementById('qrzcq_callsign').value.trim(),
+    qrzcq_api_key: document.getElementById('qrzcq_api_key').value.trim(),
+    hrdlog_callsign: document.getElementById('hrdlog_callsign').value.trim(),
+    hrdlog_code: document.getElementById('hrdlog_code').value.trim(),
     scoreboard_enabled: document.getElementById('scoreboard_enabled').value,
     scoreboard_interval: parseInt(document.getElementById('scoreboard_interval').value, 10) || 5,
     backup_folder: document.getElementById('backup_folder').value.trim(),
@@ -2658,6 +2680,7 @@ function loadSavedConfig() {
     if(c.qrz_password) document.getElementById('qrz_password').value = c.qrz_password;
     ['eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
      'clublog_callsign','clublog_password','clublog_api_key',
+     'qrzcq_callsign','qrzcq_api_key','hrdlog_callsign','hrdlog_code',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'rbn_enabled','clublog_live','expedition_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
