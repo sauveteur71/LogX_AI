@@ -78,6 +78,29 @@ def _entry_dt(entry):
     return _parse_dt(entry.get('date', ''), entry.get('time', ''))
 
 
+def hourly_rate_series(entries):
+    """Nombre de QSO par heure UTC, du premier au dernier QSO de la session —
+    les heures sans QSO comptent 0 (pas de trou dans un graphe de rythme),
+    contrairement aux compteurs glissants qso_last_hour/qso_last_10min qui ne
+    montrent que l'instant présent."""
+    buckets = {}
+    for e in entries:
+        dt = _entry_dt(e)
+        if not dt:
+            continue
+        key = dt.replace(minute=0, second=0, microsecond=0)
+        buckets[key] = buckets.get(key, 0) + 1
+    if not buckets:
+        return []
+    start, end = min(buckets), max(buckets)
+    series = []
+    cur = start
+    while cur <= end:
+        series.append({'hour': cur.strftime('%Y-%m-%d %H:00'), 'count': buckets.get(cur, 0)})
+        cur += datetime.timedelta(hours=1)
+    return series
+
+
 def log_stats(shared_log, contest_id='', clock=None, now=None):
     """Rythme et répartition : QSO/h global, dernière heure, silence radio,
     heures opérées (pour le budget off-time), répartition par bande."""
@@ -93,6 +116,7 @@ def log_stats(shared_log, contest_id='', clock=None, now=None):
         'rate_avg': None,
         'minutes_since_last': None,
         'hours_operated': 0,
+        'hourly_rate': hourly_rate_series(entries),
     }
     hours_seen = set()
     last_dt = None

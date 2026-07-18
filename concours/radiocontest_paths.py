@@ -50,6 +50,28 @@ def sun_elevation(lat, lon, when):
     return math.degrees(elev)
 
 
+def _tod_side(locator, when):
+    lat, lon = locator_to_latlon(locator)
+    if lat is None:
+        return None
+    elev = sun_elevation(lat, lon, when)
+    # Heure solaire locale (même approximation que sun_elevation, longitude/15 —
+    # pas de base de fuseaux horaires politiques, cohérent avec le reste du module).
+    local_hour = (when.hour + when.minute / 60.0 + lon / 15.0) % 24
+    return {'elevation': round(elev, 1), 'is_day': elev > 0, 'local_hour': round(local_hour, 2)}
+
+
+def time_of_day_state(my_locator, dx_locator=None, when=None):
+    """Comparatif jour/nuit HOME vs DX (widget Time of Day) : élévation
+    solaire + heure locale approximée pour chacun des deux points. `dx_locator`
+    optionnel — absent tant que l'opérateur ne travaille aucune station."""
+    when = when or datetime.datetime.utcnow()
+    result = {'utc': when.strftime('%H:%M'), 'home': _tod_side(my_locator, when)}
+    if dx_locator:
+        result['dx'] = _tod_side(dx_locator, when)
+    return result
+
+
 def _muf_mhz(solar):
     try:
         v = (solar or {}).get('muf', {})

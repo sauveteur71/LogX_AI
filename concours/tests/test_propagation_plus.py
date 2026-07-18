@@ -34,6 +34,66 @@ def test_paths_sun_elevation():
     assert p.sun_elevation(0, 0, datetime.datetime(2026, 3, 21, 0, 0)) < -80
 
 
+# ─── Widget Time of Day (HOME vs DX) ─────────────────────────────────────────
+
+def test_time_of_day_home_seul():
+    import radiocontest_paths as p
+    when = datetime.datetime(2026, 3, 21, 12, 0)
+    st = p.time_of_day_state('JN15XC', when=when)   # Le Puy-en-Velay, midi équinoxe
+    assert st['utc'] == '12:00'
+    assert st['home']['is_day'] is True
+    assert 'dx' not in st
+
+
+def test_time_of_day_home_vs_dx_oppose():
+    """Le Puy-en-Velay (midi, jour) vs un locator antipodal (nuit) — vérifie
+    que les deux côtés sont bien évalués indépendamment."""
+    import radiocontest_paths as p
+    when = datetime.datetime(2026, 3, 21, 12, 0)
+    st = p.time_of_day_state('JN15XC', dx_locator='RE78ex', when=when)
+    assert st['home']['is_day'] is True
+    assert st['dx']['is_day'] is False
+
+
+def test_time_of_day_locator_invalide_renvoie_none():
+    import radiocontest_paths as p
+    st = p.time_of_day_state('', when=datetime.datetime(2026, 3, 21, 12, 0))
+    assert st['home'] is None
+
+
+def test_time_of_day_sans_dx_absent_du_resultat():
+    import radiocontest_paths as p
+    st = p.time_of_day_state('JN15XC', dx_locator='', when=datetime.datetime(2026, 3, 21, 12, 0))
+    assert 'dx' not in st
+
+
+# ─── Graphe de rythme sur la session complète (coach) ────────────────────────
+
+def test_hourly_rate_series_vide_sans_qso():
+    import radiocontest_coach as coach
+    assert coach.hourly_rate_series([]) == []
+
+
+def test_hourly_rate_series_comble_les_heures_sans_qso():
+    import radiocontest_coach as coach
+    entries = [
+        {'date': '20260801', 'time': '1005'},
+        {'date': '20260801', 'time': '1230'},
+        {'date': '20260801', 'time': '1305'},
+        {'date': '20260801', 'time': '1310'},
+    ]
+    series = coach.hourly_rate_series(entries)
+    assert [s['hour'][-5:] for s in series] == ['10:00', '11:00', '12:00', '13:00']
+    assert [s['count'] for s in series] == [1, 0, 1, 2]
+
+
+def test_hourly_rate_series_ignore_les_entrees_sans_date_valide():
+    import radiocontest_coach as coach
+    entries = [{'date': '20260801', 'time': '1000'}, {'date': '', 'time': ''}]
+    series = coach.hourly_rate_series(entries)
+    assert len(series) == 1 and series[0]['count'] == 1
+
+
 def test_paths_hiva_oa_vers_europe_long_path():
     import radiocontest_paths as p
     hiva = (-9.75, -139.0)
