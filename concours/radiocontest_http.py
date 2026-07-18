@@ -1248,6 +1248,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True, 'regions': paths.all_regions(my_ll[0], my_ll[1], solar=solar)})
             return
 
+        # Widget Time of Day : jour/nuit HOME vs DX (?dx=<locator> optionnel,
+        # ex. locator de la station en cours de saisie dans le logbook).
+        if path.startswith('/data/timeofday'):
+            from urllib.parse import parse_qs, urlparse
+            import radiocontest_paths as paths
+            cfg_snap = self._cfg_snapshot()
+            dx_locator = (parse_qs(urlparse(self.path).query).get('dx') or [''])[0]
+            self._json(paths.time_of_day_state(cfg_snap.get('locator', '') or 'JN15XC', dx_locator))
+            return
+
         # Carte de propagation mondiale (grille colorée) pour la surcouche carte IA.
         # ?band=best|14|7… & ?hour=0..23 (décalage horaire depuis maintenant).
         if path.startswith('/data/propmap'):

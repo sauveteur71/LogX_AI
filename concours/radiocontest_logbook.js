@@ -1656,6 +1656,34 @@ function validateLocator(loc){
   return /^[A-R]{2}[0-9]{2}[A-X]{2}$/i.test(loc);
 }
 
+// ─── WIDGET TIME OF DAY (jour/nuit HOME vs DX) ───────────────────────────────
+let _todTimer = null, _todSeq = 0;
+
+function refreshTimeOfDay(dxLocator){
+  clearTimeout(_todTimer);
+  const el = document.getElementById('todWidget');
+  if(!el) return;
+  if(!dxLocator){ el.style.display = 'none'; return; }
+  const seq = ++_todSeq;
+  _todTimer = setTimeout(async () => {
+    try{
+      const r = await fetch('/data/timeofday?dx=' + encodeURIComponent(dxLocator));
+      if(!r.ok || seq !== _todSeq) return;
+      const d = await r.json();
+      if(!d.home){ el.style.display = 'none'; return; }
+      const side = (label, s) => {
+        if(!s) return '';
+        const icon = s.is_day ? '☀️' : '🌙';
+        return `<span>${icon} ${label} ${String(Math.floor(s.local_hour)).padStart(2,'0')}h${String(Math.round((s.local_hour%1)*60)).padStart(2,'0')}</span>`;
+      };
+      const bits = [side('CHEZ TOI', d.home)];
+      if(d.dx) bits.push(side('DX', d.dx));
+      el.innerHTML = bits.filter(Boolean).join('');
+      el.style.display = bits.some(Boolean) ? 'flex' : 'none';
+    }catch(e){ /* réseau indispo : widget inchangé */ }
+  }, 400);
+}
+
 function onLocatorInput(){
   const loc = document.getElementById('inputLocator').value.toUpperCase();
   document.getElementById('inputLocator').value = loc;
@@ -1667,6 +1695,7 @@ function onLocatorInput(){
     hint.style.display = 'none';
     hideCompassInline();
     hideLocAC();
+    refreshTimeOfDay('');
     return;
   }
   if(loc.length < 6){
@@ -1695,6 +1724,7 @@ function onLocatorInput(){
     }
     field.classList.add('ok');
     field.classList.remove('error');
+    refreshTimeOfDay(loc);
     const dist = calcDist(loc);
     const callInput = document.getElementById('inputCall')?.value?.toUpperCase()||'';
     const modeInput = document.getElementById('inputMode')?.value||currentMode||'SSB';
@@ -1870,6 +1900,7 @@ function clearForm(){
   const _cbh = document.getElementById('crossBandHint'); if(_cbh) _cbh.classList.remove('show');
   const _db = document.getElementById('dxccBadge'); if(_db) _db.style.display = 'none';
   const _pq = document.getElementById('prevQsos'); if(_pq) _pq.style.display = 'none';
+  const _tod = document.getElementById('todWidget'); if(_tod) _tod.style.display = 'none';
   const _qz = document.getElementById('qrzInfo'); if(_qz) _qz.style.display = 'none';
   const _cs = document.getElementById('callStatusBadge'); if(_cs) _cs.style.display = 'none';
   hideCompassInline();
@@ -4349,23 +4380,49 @@ function switchRateTab(tab, btn){
   else if(tab === 'band') renderBandStats();
   else renderHourStats();
 }
+// 'YYYYMMDDHH' depuis les champs réels du QSO (date 'YYYYMMDD' + time 'HHMM'
+// ou 'HH:MM') — les deux fonctions ci-dessous lisaient un champ `.datetime`
+// qui n'a jamais été posé nulle part sur un objet QSO (bug silencieux : le
+// panneau 📊 STATS affichait toujours "aucun QSO", même log bien rempli).
+function _qsoHourKey(q){
+  if(!q || !q.date) return null;
+  const d = String(q.date).replace(/-/g, '');
+  if(d.length < 8) return null;
+  const t = String(q.time || '0000').replace(':', '').padEnd(4, '0');
+  return d.slice(0, 8) + t.slice(0, 2);
+}
+
 function renderRateChart(){
   if(typeof Chart === 'undefined'){ console.warn('Chart.js non chargé'); return; }
   const buckets = {};
   qsoLog.forEach(q => {
-    if(!q.datetime) return;
-    const h = q.datetime.slice(0,13);
+    const h = _qsoHourKey(q);
+    if(!h) return;
     buckets[h] = (buckets[h]||0) + 1;
   });
-  const labels = Object.keys(buckets).sort();
-  const data = labels.map(k => buckets[k]);
+  const keys = Object.keys(buckets).sort();
+  const labels = [], data = [];
+  if(keys.length){
+    // Comble les heures SANS QSO d'un zéro (pas de trou invisible dans le
+    // rythme — un vrai graphique sur toute la session, pas un instantané).
+    const toDate = k => new Date(Date.UTC(+k.slice(0,4), +k.slice(4,6)-1, +k.slice(6,8), +k.slice(8,10)));
+    let cur = toDate(keys[0]);
+    const end = toDate(keys[keys.length-1]);
+    while(cur <= end){
+      const key = cur.getUTCFullYear() + String(cur.getUTCMonth()+1).padStart(2,'0')
+                + String(cur.getUTCDate()).padStart(2,'0') + String(cur.getUTCHours()).padStart(2,'0');
+      labels.push(String(cur.getUTCHours()).padStart(2,'0') + 'h');
+      data.push(buckets[key] || 0);
+      cur = new Date(cur.getTime() + 3600000);
+    }
+  }
   const ctx = document.getElementById('rateChart');
   if(!ctx) return;
   if(window._rateChartInst) window._rateChartInst.destroy();
   window._rateChartInst = new Chart(ctx, {
     type:'bar',
     data:{
-      labels: labels.map(l => l.slice(11)+'h'),
+      labels,
       datasets:[{ label:'QSO/heure', data, backgroundColor:'rgba(0,212,255,.55)', borderColor:'#00D4FF', borderWidth:1 }]
     },
     options:{
@@ -4406,8 +4463,9 @@ function renderHourStats(){
   const allBands = [...new Set(qsoLog.map(q=>q.band||currentBand||'?'))].sort((a,b)=>parseFloat(a)-parseFloat(b));
   const rows = {};
   qsoLog.forEach(q => {
-    if(!q.datetime) return;
-    const h = q.datetime.slice(11,13)+'h';
+    const hk = _qsoHourKey(q);
+    if(!hk) return;
+    const h = hk.slice(8,10)+'h';
     const b = q.band||currentBand||'?';
     if(!rows[h]) rows[h]={};
     rows[h][b] = (rows[h][b]||0)+1;
