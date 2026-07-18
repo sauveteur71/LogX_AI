@@ -1330,11 +1330,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # AUCUN re-fetch réseau, aucune IA : lecture des caches, pollable.
         if path == '/data/spots_ranked':
             from radiocontest_scoring import build_ranked_spots
+            import radiocontest_alerts as alerts
             cfg_snap = self._cfg_snapshot()
             ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15AA')
-            out = []
-            for s in ranked[:40]:
+            # Toutes les correspondances (pas seulement les 40 affichées) : une
+            # règle d'alerte doit pouvoir signaler un spot même hors du top
+            # valeur affiché — les critères d'alerte ne sont pas ceux du score.
+            full_entries = []
+            for s in ranked:
                 sc = s.get('scoring', {})
                 dx_ll = locator_to_latlon(s.get('locator', ''))
                 entry = {
@@ -1342,7 +1346,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'freq': s.get('freq', ''), 'locator': s.get('locator', ''),
                     'lat': s.get('lat'), 'lon': s.get('lon'),
                     'dist_km': s.get('dist_km', 0), 'time': s.get('time', ''),
-                    'source': s.get('source', ''),
+                    'source': s.get('source', ''), 'info': s.get('info', ''),
                     'points': sc.get('direct_pts', 0),
                     'new_mult': bool(sc.get('new_mult')),
                     'mult_type': sc.get('mult_type', ''),
@@ -1350,14 +1354,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'value': s.get('value_total', 0),
                     'already_done': bool(sc.get('already_done')),
                     'explanation': sc.get('explanation', ''),
+                    # Pour le constructeur de règles d'alerte (pays/continent/zone CQ)
+                    'dx_country': sc.get('dx_country', ''),
+                    'dx_continent': sc.get('dx_continent', ''),
+                    'dx_cq_zone': sc.get('dx_cq_zone'),
                 }
                 if my_ll[0] and dx_ll[0]:
                     from radiocontest_utils import bearing, cardinal
                     deg = bearing(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
                     entry['bearing'] = deg
                     entry['cardinal'] = cardinal(deg)
-                out.append(entry)
-            self._json({'spots': out, 'meta': meta})
+                full_entries.append(entry)
+            alert_matches = alerts.check_alerts(cfg_snap.get('alert_rules'), full_entries)
+            self._json({'spots': full_entries[:40], 'meta': meta, 'alert_matches': alert_matches})
             return
 
         # Pont WSJT-X (FT8/FT4) : état de la liaison UDP — pollé par le logbook

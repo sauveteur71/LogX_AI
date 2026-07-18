@@ -460,6 +460,11 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
         'current_score_total': current_score_total,
         'bricks': bricks,  # accessible aux détecteurs (ex. seuils de priorité)
     }
+    # Exposés dans le résultat (pas seulement ctx) pour le constructeur de
+    # règles d'alerte côté client — pays/continent/zone CQ du DX.
+    result['dx_country'] = ctx['dx_country']
+    result['dx_continent'] = ctx['dx_cont']
+    result['dx_cq_zone'] = ctx['dx_cq_zone']
 
     # ── Brique validité : station hors périmètre du concours → 0 pt ─────────
     validity = bricks.get('validity')
@@ -785,7 +790,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                     'freq': s.get('freq',''), 'band': band_eff,
                     'spotter': s.get('spotter',''),
                     'time': s.get('time',''),
-                    'source': 'cluster',
+                    'source': 'cluster', 'info': s.get('info',''),
                 })
             elif isinstance(s, list) and len(s) >= 2:
                 call_val = s[0] if s else ''

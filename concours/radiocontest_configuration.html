@@ -1081,6 +1081,64 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
     </div>
 
+    <div class="section">
+      <div class="section-title">🔔 RÈGLES D'ALERTE PERSONNALISÉES</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        En plus du nouveau multiplicateur et de la mention ON4KST (toujours actifs) :
+        combine préfixe d'indicatif, continent, zone CQ, bande, statut travaillé et
+        texte du commentaire de spot pour créer tes propres alertes sonores. Chaque
+        règle est activable/désactivable indépendamment.
+      </div>
+      <div id="alertRulesList" style="margin-bottom:14px"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>NOM DE LA RÈGLE</label>
+          <input type="text" id="newRuleName" placeholder="ex : DX Asie neuf" maxlength="40">
+        </div>
+        <div class="form-group">
+          <label>PRÉFIXE INDICATIF</label>
+          <input type="text" id="newRulePrefix" placeholder="JA,HL,BY (vide = tous)">
+        </div>
+        <div class="form-group">
+          <label>CONTINENT</label>
+          <select id="newRuleContinent">
+            <option value="">Tous</option>
+            <option value="EU">Europe</option>
+            <option value="NA">Amérique du Nord</option>
+            <option value="SA">Amérique du Sud</option>
+            <option value="AF">Afrique</option>
+            <option value="AS">Asie</option>
+            <option value="OC">Océanie</option>
+            <option value="AN">Antarctique</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ZONE CQ</label>
+          <input type="text" id="newRuleCqZone" placeholder="25,26 (vide = toutes)">
+        </div>
+        <div class="form-group">
+          <label>BANDE (MHz)</label>
+          <input type="text" id="newRuleBand" placeholder="14,21 (vide = toutes)">
+        </div>
+        <div class="form-group">
+          <label>STATUT</label>
+          <select id="newRuleStatus">
+            <option value="any">Indifférent</option>
+            <option value="new_mult">Nouveau multiplicateur</option>
+            <option value="already_done">Déjà travaillé</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>COMMENTAIRE DE SPOT CONTIENT</label>
+          <input type="text" id="newRuleComment" placeholder="ex : POTA, SOTA, QRP">
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="addAlertRule()">➕ AJOUTER LA RÈGLE</button>
+        <span id="ruleAddMsg" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+    </div>
+
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="goStep(3)">← RETOUR</button>
       <button class="btn btn-primary" onclick="goStep(5)">SUIVANT → RÉSUMÉ</button>
@@ -1125,6 +1183,7 @@ const state = {
   step: 1,
   contest: null,
   toggles: {},
+  alertRules: [],
   datesAutoFor: null, // concours pour lequel les dates ont été auto-calculées
 };
 // Contest pour lequel applyContestFilters a déjà été appliqué (évite d'écraser
@@ -2063,6 +2122,74 @@ function toggle(el) {
   state.toggles[el.dataset.key] = el.classList.contains('on');
 }
 
+// ─── RÈGLES D'ALERTE PERSONNALISÉES (évaluées côté serveur, radiocontest_alerts.py) ─
+const CONTINENT_LABEL = {EU:'Europe', NA:'Amérique du Nord', SA:'Amérique du Sud',
+                         AF:'Afrique', AS:'Asie', OC:'Océanie', AN:'Antarctique'};
+
+function renderAlertRules(){
+  const el = document.getElementById('alertRulesList');
+  if(!el) return;
+  const rules = state.alertRules || [];
+  if(!rules.length){
+    el.innerHTML = '<div style="color:var(--muted);font-family:var(--font-mono);font-size:13px">Aucune règle personnalisée pour l\'instant.</div>';
+    return;
+  }
+  el.innerHTML = rules.map(r => {
+    const bits = [];
+    if(r.call_prefix) bits.push('préfixe ' + r.call_prefix);
+    if(r.continent) bits.push(CONTINENT_LABEL[r.continent] || r.continent);
+    if(r.cq_zone) bits.push('zone CQ ' + r.cq_zone);
+    if(r.band) bits.push(r.band + ' MHz');
+    if(r.status === 'new_mult') bits.push('nouveau mult');
+    if(r.status === 'already_done') bits.push('déjà travaillé');
+    if(r.comment_contains) bits.push('commentaire « ' + r.comment_contains + ' »');
+    const on = r.enabled !== false;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:13px">
+      <span class="toggle-btn${on?' on':''}" style="padding:4px 10px" onclick="toggleAlertRule('${r.id}')">${on?'✓ actif':'✕ coupé'}</span>
+      <b style="flex:1;color:var(--text)">${r.name}</b>
+      <span style="color:var(--muted)">${bits.join(' · ') || 'tout spot'}</span>
+      <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="deleteAlertRule('${r.id}')">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function addAlertRule(){
+  const msg = document.getElementById('ruleAddMsg');
+  const name = document.getElementById('newRuleName').value.trim();
+  if(!name){
+    if(msg){ msg.textContent = '⚠️ Donne un nom à la règle'; msg.style.color = 'var(--yellow)'; }
+    return;
+  }
+  const rule = {
+    id: 'r' + Date.now(),
+    name, enabled: true,
+    call_prefix: document.getElementById('newRulePrefix').value.trim().toUpperCase(),
+    continent: document.getElementById('newRuleContinent').value,
+    cq_zone: document.getElementById('newRuleCqZone').value.trim(),
+    band: document.getElementById('newRuleBand').value.trim(),
+    status: document.getElementById('newRuleStatus').value,
+    comment_contains: document.getElementById('newRuleComment').value.trim(),
+  };
+  state.alertRules = (state.alertRules || []).concat([rule]);
+  renderAlertRules();
+  ['newRuleName','newRulePrefix','newRuleCqZone','newRuleBand','newRuleComment'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('newRuleContinent').value = '';
+  document.getElementById('newRuleStatus').value = 'any';
+  if(msg){ msg.textContent = '✅ Règle ajoutée — pense à SAUVEGARDER CONFIG'; msg.style.color = 'var(--green)'; }
+}
+
+function toggleAlertRule(id){
+  const r = (state.alertRules || []).find(x => x.id === id);
+  if(r){ r.enabled = r.enabled === false ? true : false; renderAlertRules(); }
+}
+
+function deleteAlertRule(id){
+  state.alertRules = (state.alertRules || []).filter(x => x.id !== id);
+  renderAlertRules();
+}
+
 // ─── FILTRES AUTOMATIQUES PAR CONCOURS ────────────────────────────────────────
 const CONTEST_FILTERS = {
 
@@ -2524,6 +2651,7 @@ function saveConfig(silent = false) {
     refresh_min: document.getElementById('refresh_min').value,
     priority_mode: document.getElementById('priority_mode').value,
     spot_prefix_filter: document.getElementById('spot_prefix_filter').value,
+    alert_rules: state.alertRules,
     operators: [1,2,3,4,5].map(i => ({
       call: document.getElementById(`op${i}_call`).value.toUpperCase().trim(),
       name: document.getElementById(`op${i}_name`).value.trim(),
@@ -2742,6 +2870,8 @@ function loadSavedConfig() {
     if(c.refresh_min) document.getElementById('refresh_min').value = c.refresh_min;
     if(c.priority_mode) document.getElementById('priority_mode').value = c.priority_mode;
     if(c.spot_prefix_filter !== undefined) document.getElementById('spot_prefix_filter').value = c.spot_prefix_filter;
+    state.alertRules = Array.isArray(c.alert_rules) ? c.alert_rules : [];
+    renderAlertRules();
     if(c.operators && Array.isArray(c.operators)){
       c.operators.forEach((op, i) => {
         const callEl = document.getElementById(`op${i+1}_call`);
