@@ -452,21 +452,68 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section expert-only">
-      <div class="section-title">📻 RADIO (CAT via Hamlib rigctld)</div>
+      <div class="section-title">📻 RADIO (pilotage CAT)</div>
       <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
         Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
-        suivis automatiquement, macros CW envoyées par le keyer de la radio.<br>
-        Lance <b style="color:var(--accent2)">rigctld -m &lt;n°modèle&gt; -r &lt;port COM&gt; -T 0.0.0.0</b>
-        sur le PC relié à la radio (fourni avec Hamlib — n° de modèle : <b>rigctl -l</b>).
+        suivis automatiquement, macros CW envoyées par le keyer de la radio.
       </div>
       <div class="form-grid">
         <div class="form-group">
           <label>PILOTAGE RADIO</label>
-          <select id="rig_enabled">
+          <select id="cat_enabled" onchange="updateCatModeVisibility()">
             <option value="">Désactivé</option>
             <option value="1">Activé</option>
           </select>
-          <div class="input-note">Désactivé par défaut — aucun effet sans rigctld</div>
+        </div>
+        <div class="form-group">
+          <label>MODE DE PILOTAGE</label>
+          <select id="cat_mode" onchange="updateCatModeVisibility()">
+            <option value="native">Natif (recommandé — pas de logiciel externe)</option>
+            <option value="rigctld">Hamlib rigctld (avancé — autres marques)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Mode natif : Icom CI-V / Yaesu / Kenwood / Elecraft directement en pyserial -->
+      <div id="catNativeFields" class="form-grid">
+        <div class="form-group">
+          <label>MARQUE</label>
+          <select id="cat_brand" onchange="updateCatModelOptions()">
+            <option value="icom">Icom (CI-V)</option>
+            <option value="yaesu">Yaesu (CAT)</option>
+            <option value="kenwood">Kenwood (PC Control)</option>
+            <option value="elecraft">Elecraft (K3/KX)</option>
+            <option value="xiegu">Xiegu (CI-V compatible Icom)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>MODÈLE</label>
+          <select id="cat_model"></select>
+          <div class="input-note" id="catAddrNote"></div>
+        </div>
+        <div class="form-group">
+          <label>PORT SÉRIE</label>
+          <select id="cat_port"></select>
+          <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshCatPorts()">🔄 Rafraîchir la liste</button>
+        </div>
+        <div class="form-group">
+          <label>VITESSE (bauds)</label>
+          <input type="number" id="cat_baudrate" placeholder="19200">
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="testCatConnection()">🔌 Tester / auto-détecter</button>
+        <span id="catTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+
+      <!-- Mode avancé : Hamlib rigctld -->
+      <div id="catRigctldFields" class="form-grid" style="display:none;margin-top:12px">
+        <div class="form-group" style="grid-column:1/-1">
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+            Lance <b style="color:var(--accent2)">rigctld -m &lt;n°modèle&gt; -r &lt;port COM&gt; -T 0.0.0.0</b>
+            sur le PC relié à la radio (fourni avec Hamlib — n° de modèle : <b>rigctl -l</b>).
+            À réserver aux marques non couvertes en mode natif (Ten-Tec, RGO, modèles anciens...).
+          </div>
         </div>
         <div class="form-group">
           <label>ADRESSE RIGCTLD</label>
@@ -1548,6 +1595,113 @@ async function init() {
     if (card) card.classList.add('selected');
   }
   handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
+  updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
+}
+
+// ─── RADIO CAT NATIVE (pilotage direct, sans Hamlib) ─────────────────────────
+// Miroir client de radiocontest_cat.py (CIV_ADDRESSES / ASCII_ID_TABLE /
+// BRAND_BY_MODEL) — garder synchronisé si la liste des modèles évolue côté
+// serveur. Les adresses CI-V servent juste d'indication (valeurs usine,
+// modifiables sur la radio) ; le pilote lit toujours la valeur du champ.
+const CAT_MODELS = {
+  icom: [
+    ['IC-705','A4'], ['IC-7100','88'], ['IC-7300','94'], ['IC-7600','7A'],
+    ['IC-7610','98'], ['IC-7800','6A'], ['IC-9100','7C'], ['IC-9700','A2'],
+    ['IC-756PROIII','6E'],
+  ],
+  xiegu: [['XIEGU-G90','70'], ['XIEGU-X6100','A4'], ['XIEGU-X5105','70']],
+  yaesu: [['FT-891'],['FT-991'],['FT-991A'],['FTDX10'],['FTDX101D'],['FTDX101MP']],
+  kenwood: [['TS-2000'],['TS-590S'],['TS-590SG'],['TS-990S'],['TS-890S']],
+  elecraft: [['K3'],['K3S'],['KX3'],['KX2'],['K4']],
+};
+const CAT_DEFAULT_BAUD = { icom: 19200, xiegu: 19200, yaesu: 4800, kenwood: 9600, elecraft: 38400 };
+
+function updateCatModeVisibility(){
+  const native = document.getElementById('cat_mode').value !== 'rigctld';
+  document.getElementById('catNativeFields').style.display = native ? '' : 'none';
+  document.getElementById('catRigctldFields').style.display = native ? 'none' : '';
+}
+
+function updateCatModelOptions(){
+  const brand = document.getElementById('cat_brand').value;
+  const sel = document.getElementById('cat_model');
+  const models = CAT_MODELS[brand] || [];
+  sel.innerHTML = models.map(m => `<option value="${m[0]}">${m[0]}</option>`).join('');
+  const note = document.getElementById('catAddrNote');
+  const isCiv = (brand === 'icom' || brand === 'xiegu');
+  if (isCiv && models.length){
+    note.textContent = `Adresse CI-V usine : ${models[0][1]} (modifiable sur la radio si besoin)`;
+  } else {
+    note.textContent = '';
+  }
+  const baud = document.getElementById('cat_baudrate');
+  if (!baud.value) baud.value = CAT_DEFAULT_BAUD[brand] || 19200;
+  updateCatAddrNoteForModel();
+}
+
+function updateCatAddrNoteForModel(){
+  const brand = document.getElementById('cat_brand').value;
+  const model = document.getElementById('cat_model').value;
+  const note = document.getElementById('catAddrNote');
+  const isCiv = (brand === 'icom' || brand === 'xiegu');
+  if (!isCiv) { note.textContent = ''; return; }
+  const entry = (CAT_MODELS[brand] || []).find(m => m[0] === model);
+  note.textContent = entry ? `Adresse CI-V usine : ${entry[1]} (modifiable sur la radio si besoin)` : '';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const modelSel = document.getElementById('cat_model');
+  if (modelSel) modelSel.addEventListener('change', updateCatAddrNoteForModel);
+});
+
+async function refreshCatPorts(){
+  const sel = document.getElementById('cat_port');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">⏳ Recherche des ports...</option>';
+  try{
+    const res = await fetch('/rig/ports');
+    const data = await res.json();
+    const ports = data.ports || [];
+    sel.innerHTML = ports.length
+      ? ports.map(p => `<option value="${p.device}">${p.device} — ${p.description||''}</option>`).join('')
+      : '<option value="">Aucun port détecté</option>';
+    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+  }catch(e){
+    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+async function testCatConnection(){
+  const result = document.getElementById('catTestResult');
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  const payload = {
+    brand: document.getElementById('cat_brand').value,
+    model: document.getElementById('cat_model').value,
+    port: document.getElementById('cat_port').value,
+    baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || CAT_DEFAULT_BAUD[document.getElementById('cat_brand').value] || 19200,
+  };
+  if (!payload.port){
+    result.textContent = '⚠️ Choisis un port série d\'abord';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  try{
+    const res = await fetch('/rig/connect_test', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const r = await res.json();
+    if (r.ok){
+      result.textContent = `✅ Radio détectée : ${r.detected_model || payload.model} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'})`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Connexion impossible'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
 }
 
 function buildContestGrid(filter = '') {
@@ -2286,9 +2440,15 @@ function saveConfig(silent = false) {
       rst:     document.getElementById('wf_rst').checked,
       op:      document.getElementById('wf_op').checked,
     },
-    rig_enabled: !!document.getElementById('rig_enabled').value,
-    rig_host: document.getElementById('rig_host').value.trim(),
-    rig_port: parseInt(document.getElementById('rig_port').value, 10) || 4532,
+    rig_enabled: !!document.getElementById('rig_enabled')?.value,
+    rig_host: document.getElementById('rig_host')?.value.trim() || '',
+    rig_port: parseInt(document.getElementById('rig_port')?.value, 10) || 4532,
+    cat_enabled: !!document.getElementById('cat_enabled').value,
+    cat_mode: document.getElementById('cat_mode').value,
+    cat_brand: document.getElementById('cat_brand').value,
+    cat_model: document.getElementById('cat_model').value,
+    cat_port: document.getElementById('cat_port').value,
+    cat_baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || 19200,
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
     wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
@@ -2460,17 +2620,28 @@ function loadSavedConfig() {
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'rbn_enabled','clublog_live','expedition_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
-     'activation_program','my_activation_ref'].forEach(k=>{
+     'activation_program','my_activation_ref',
+     'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
+    if (c.cat_brand) updateCatModelOptions();
+    if (c.cat_model && document.getElementById('cat_model')) document.getElementById('cat_model').value = c.cat_model;
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;
     if(c.op_call) document.getElementById('op_call').value = c.op_call;
     if(c.club) document.getElementById('club').value = c.club;
     if(c.email) document.getElementById('email').value = c.email;
     if(c.section) document.getElementById('section_edi').value = c.section;
-    if(c.rig_enabled) document.getElementById('rig_enabled').value = '1';
     if(c.rig_host) document.getElementById('rig_host').value = c.rig_host;
     if(c.rig_port) document.getElementById('rig_port').value = c.rig_port;
+    if(c.cat_enabled) document.getElementById('cat_enabled').value = '1';
+    // Migration : config antérieure au pilotage natif (rig_enabled=true,
+    // cat_mode jamais défini) -> reste en rigctld, PAS de bascule silencieuse
+    // vers le natif (qui n'a ni port ni marque configurés chez ces utilisateurs).
+    if (c.rig_enabled && c.cat_mode === undefined){
+      document.getElementById('cat_enabled').value = '1';
+      document.getElementById('cat_mode').value = 'rigctld';
+    }
+    updateCatModeVisibility();
     if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
     if(c.wsjtx_port) document.getElementById('wsjtx_port').value = c.wsjtx_port;
     if(c.rotor_enabled) document.getElementById('rotor_enabled').value = '1';

@@ -27,7 +27,12 @@ _hidden = ['radiocontest_' + m for m in (
     'utils', 'definitions', 'storage', 'rules', 'scoring', 'clusters',
     'prompts', 'http', 'rules_ai', 'coach', 'validate', 'dxcc', 'departments',
     'export', 'beacons', 'psk', 'weather', 'rig', 'rotor', 'wsjtx', 'qrz',
-    'bootstrap')]
+    'bootstrap', 'cat')]
+# pyserial (radiocontest_cat) : sous-modules non toujours détectés par
+# l'analyse statique (list_ports selon l'OS cible).
+_hidden += ['serial', 'serial.tools.list_ports', 'serial.tools.list_ports_common',
+           'serial.tools.list_ports_windows', 'serial.tools.list_ports_posix',
+           'serial.tools.list_ports_osx']
 
 a = Analysis(
     ['radiocontest_serveur.py'],
