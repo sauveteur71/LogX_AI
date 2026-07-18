@@ -207,6 +207,26 @@ def test_activation_state():
     assert st2['valid'] is True and st2['needed'] == 0
 
 
+def test_activation_arlhs_wca():
+    """ARLHS (phares) et WCA (châteaux) — formats et seuils vérifiés contre
+    les règles officielles (arlhs.com : 2 QSO/phare ; wcagroup.org : 50 QSO
+    minimum pour qu'une activation compte dans les diplômes WCA)."""
+    import radiocontest_activation as act
+    assert act.validate_ref('ARLHS', 'FRA-113') and act.validate_ref('ARLHS', 'USA-129H')
+    assert not act.validate_ref('ARLHS', 'FRANCE-1')
+    assert act.validate_ref('WCA', 'DL-00001') and not act.validate_ref('WCA', 'DL-1')
+    st = act.activation_state(
+        [{'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'my_sig_info': 'FRA-113'},
+         {'call': 'G3XYZ', 'band': '14', 'mode': 'CW', 'my_sig_info': 'FRA-113', 'sig_info': 'ENG-042'}],
+        'ARLHS', 'FRA-113')
+    assert st['min_qso'] == 2 and st['valid'] is True
+    assert st['p2p_label'] == 'Light-to-Light' and st['p2p_count'] == 1
+    st_wca = act.activation_state(
+        [{'call': 'F4GLD', 'band': '14', 'mode': 'SSB', 'my_sig_info': 'DL-00001'}],
+        'WCA', 'DL-00001')
+    assert st_wca['min_qso'] == 50 and st_wca['needed'] == 49 and st_wca['valid'] is False
+
+
 def test_contest_geo_mode():
     from radiocontest_scoring import contest_geo_mode
     assert contest_geo_mode('REF_RPH') == 'dept'          # VHF français

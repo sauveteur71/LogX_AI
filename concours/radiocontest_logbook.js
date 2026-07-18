@@ -128,8 +128,8 @@ function applyExpeditionMode(on){
   document.body.classList.toggle('expedition-on', expeditionMode);
 }
 
-// ─── ACTIVATION POTA/SOTA/IOTA/WWFF ──────────────────────────────────────────
-const ACT_MIN = {POTA:10, SOTA:4, IOTA:1, WWFF:44};
+// ─── ACTIVATION POTA/SOTA/IOTA/WWFF/ARLHS/WCA ────────────────────────────────
+const ACT_MIN = {POTA:10, SOTA:4, IOTA:1, WWFF:44, ARLHS:2, WCA:50};
 let activationProgram = '';
 let myActivationRef = '';
 let activationTimer = null;
