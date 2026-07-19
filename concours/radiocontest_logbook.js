@@ -3630,6 +3630,31 @@ async function showValidation(){
   ).join('') + (d.truncated ? `<div class="shortcuts-row"><span style="color:var(--muted)">… liste tronquée</span></div>` : '');
 }
 
+// ─── WORKED MATRIX (grille bande × CW/Phone/Digital) ─────────────────────────
+function renderWorkedMatrix(m){
+  if(!m || !m.bands || !m.bands.length){
+    return `<div style="font-size:12px;color:var(--muted);font-family:var(--font-mono)">Pas encore de QSO.</div>`;
+  }
+  const catIcon = {CW:'📟', PHONE:'🎙️', DIGITAL:'💻'};
+  const cell = (c) => {
+    if(!c || !c.qso) return `<td style="text-align:center;padding:4px 8px;color:var(--muted)">—</td>`;
+    const conf = c.confirmed ? ` <span style="color:var(--green)">(${c.confirmed})</span>` : '';
+    return `<td style="text-align:center;padding:4px 8px;background:rgba(0,212,255,.08)"><b>${c.qso}</b>${conf}</td>`;
+  };
+  const rows = m.bands.map(b => {
+    const g = m.grid[b] || {};
+    return `<tr><td style="padding:4px 8px;color:var(--muted)">${b} MHz</td>` +
+      m.categories.map(c => cell(g[c])).join('') + `</tr>`;
+  }).join('');
+  const totalsRow = `<tr style="border-top:1px solid var(--border)"><td style="padding:4px 8px;color:var(--muted)">Total</td>` +
+    m.categories.map(c => `<td style="text-align:center;padding:4px 8px"><b>${(m.totals&&m.totals[c])||0}</b></td>`).join('') + `</tr>`;
+  return `<table style="width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12px">
+    <thead><tr><td></td>${m.categories.map(c=>`<td style="text-align:center;padding:4px 8px;color:var(--accent2)">${catIcon[c]||''} ${c}</td>`).join('')}</tr></thead>
+    <tbody>${rows}${totalsRow}</tbody>
+  </table>
+  <div style="font-size:11px;color:var(--muted);margin-top:4px">QSO travaillés · (confirmés) en vert</div>`;
+}
+
 // ─── DIPLÔMES & QSL (carnet permanent, tous concours) ────────────────────────
 async function showAwards(){
   const ov = document.getElementById('awardsOverlay');
@@ -3637,11 +3662,12 @@ async function showAwards(){
   if(!ov || !inner) return;
   ov.classList.add('show');
   inner.innerHTML = '<div class="shortcuts-row"><span>⏳ Calcul des diplômes…</span></div>';
-  let a, q;
+  let a, q, m;
   try{
-    [a, q] = await Promise.all([
+    [a, q, m] = await Promise.all([
       fetch('/awards/summary').then(r=>r.json()),
       fetch('/qsl/status').then(r=>r.json()),
+      fetch('/awards/matrix').then(r=>r.json()),
     ]);
   }catch(e){
     inner.innerHTML = `<div class="shortcuts-row"><span style="color:var(--red)">❌ Serveur injoignable</span></div>`;
@@ -3658,6 +3684,7 @@ async function showAwards(){
     `<div style="color:var(--muted);font-size:12px;margin:4px 0 10px">Aucune confirmation importée — synchronise LoTW ci-dessous pour voir le « confirmé ».</div>`;
   const perBand = Object.entries(a.per_band||{}).map(([b,v]) =>
     `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${b} MHz : <b style="color:var(--text)">${v.qso}</b> QSO / ${v.dxcc} DXCC</span>`).join('');
+  const matrixHtml = renderWorkedMatrix(m);
 
   inner.innerHTML = `
     <div style="font-family:var(--font-mono);font-size:13px;line-height:1.6">
@@ -3670,6 +3697,10 @@ async function showAwards(){
       ${row('🗺️ Continents', (a.continents||[]).join(' '))}
       <div style="margin-top:8px;font-size:12px">${perBand}</div>
       ${dep.missing && dep.missing.length ? `<div style="margin-top:8px;font-size:12px;color:var(--muted)">Départements manquants : ${dep.missing.join(', ')}${dep.missing.length>=40?'…':''}</div>` : ''}
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+      <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">🧮 WORKED MATRIX — bande × mode</div>
+      ${matrixHtml}
     </div>
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;font-family:var(--font-mono);font-size:13px">
       <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px">📮 QSL — ${a.confirmed_total||0} QSO confirmés (${q.confirmations||0} croisés)</div>

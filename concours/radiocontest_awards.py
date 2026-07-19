@@ -317,3 +317,45 @@ def award_summary(shared_log=None):
         'per_band': {b: {'qso': v['qso'], 'dxcc': len(v['dxcc'])}
                      for b, v in sorted(per_band.items())},
     }
+
+
+# ─── WORKED MATRIX (grille bande × CW/Phone/Digital) ─────────────────────────
+
+def _mode_category(mode):
+    """Classe un mode dans une des 3 catégories usuelles des diplômes DXCC/WAS."""
+    m = str(mode or '').upper()
+    if m == 'CW':
+        return 'CW'
+    if m in ('SSB', 'USB', 'LSB', 'AM', 'FM'):
+        return 'PHONE'
+    return 'DIGITAL'    # FT8/FT4/JS8/RTTY/PSK/D-STAR/inconnu
+
+
+def _band_sort_key(b):
+    try:
+        return float(b)
+    except (TypeError, ValueError):
+        return 9999.0
+
+
+def worked_matrix(shared_log=None):
+    """Grille bande × catégorie de mode : nb de QSO travaillés/confirmés par
+    case, sur toute la vie de la station (comme award_summary). Utile pour
+    visualiser d'un coup d'œil les cases DXCC/WAS encore vides."""
+    conf = _load_confirmations()
+    qsos = collect_all_qsos(shared_log)
+    cats = ('CW', 'PHONE', 'DIGITAL')
+    grid = {}
+    for q in qsos:
+        b = str(q.get('band', '?'))
+        cat = _mode_category(q.get('mode', ''))
+        cell = grid.setdefault(b, {c: {'qso': 0, 'confirmed': 0} for c in cats})[cat]
+        cell['qso'] += 1
+        if conf.get(_confirm_key(q)):
+            cell['confirmed'] += 1
+    bands = sorted(grid.keys(), key=_band_sort_key)
+    return {
+        'bands': bands, 'categories': list(cats),
+        'grid': {b: grid[b] for b in bands},
+        'totals': {c: sum(grid[b][c]['qso'] for b in bands) for c in cats},
+    }

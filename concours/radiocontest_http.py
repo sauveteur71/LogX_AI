@@ -1069,6 +1069,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.award_summary(log_copy))
             return
 
+        # Worked Matrix : grille bande × CW/Phone/Digital, sur toute la vie
+        # de la station — d'un coup d'œil, quelles cases DXCC/WAS sont vides.
+        if path == '/awards/matrix':
+            import radiocontest_awards as awards
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(awards.worked_matrix(log_copy))
+            return
+
         # État de configuration QSL + horodatage des dernières synchros.
         if path == '/qsl/status':
             import radiocontest_qsl as qsl

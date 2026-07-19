@@ -224,6 +224,13 @@ textarea::placeholder{color:var(--muted)}
   <div class="map-panel">
     <div class="map-container">
       <div id="map"></div>
+      <!-- Cercles de distance « Great Circle » centrés sur le QTH (1000/2000/3000/4000 km) -->
+      <div id="gcControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
+        <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
+          <input type="checkbox" id="gcToggle" onchange="toggleGreatCircle()" style="accent-color:var(--accent2)">
+          <span style="color:var(--accent2);letter-spacing:1px">🎯 GREAT CIRCLE</span>
+        </label>
+      </div>
       <!-- Surcouche PROPAGATION 24 h (carte du monde colorée depuis le QTH) -->
       <div id="propControl" style="position:absolute;z-index:600;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:224px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -316,6 +323,7 @@ let leafletRangeCircles = [];
 let leafletStations = [];
 let leafletLines = [];
 let currentMapMode = 'europe';
+let greatCircleMode = localStorage.getItem('rc_gc_mode') === '1';
 
 // Vues prédéfinies par zone
 const MAP_VIEWS = {
@@ -461,6 +469,8 @@ function initMap(){
   const btn = document.getElementById('mapModeBtn');
   if(btn) btn.textContent = v.label;
 
+  const gcBtn = document.getElementById('gcToggle');
+  if(gcBtn) gcBtn.checked = greatCircleMode;
   drawRangeCircles();
   drawMyPos();
   drawLoggedQSOs();
@@ -527,8 +537,21 @@ function drawRangeCircles(){
   if(!cfg.locator||!leafletMap) return;
   const ll=locLL(cfg.locator);
   if(!ll) return;
-  const rec=parseInt(cfg.record_dx||0);
   const opt={fill:false,weight:1.2,dashArray:'5,5',opacity:0.55};
+  if(greatCircleMode){
+    // Mode « Great Circle » : les 4 anneaux standard (1000/2000/3000/4000 km),
+    // pour juger d'un coup d'œil la distance depuis le QTH — pas une vraie
+    // projection azimutale (Leaflet reste en Mercator), juste des cercles de
+    // distance réelle (L.circle calcule le rayon en mètres sur la sphère).
+    const rings=[[1000,'#1A6060'],[2000,'#20803A'],[3000,'#8A7A1E'],[4000,'#703030']];
+    rings.forEach(([km,color])=>{
+      const c=L.circle([ll.lat,ll.lon],{...opt,radius:km*1000,color}).addTo(leafletMap);
+      c.bindTooltip(km+' km',{permanent:false,direction:'top',className:'rc-range-lbl'});
+      leafletRangeCircles.push(c);
+    });
+    return;
+  }
+  const rec=parseInt(cfg.record_dx||0);
   const c1=L.circle([ll.lat,ll.lon],{...opt,radius:500000,color:'#20803A'}).addTo(leafletMap);
   c1.bindTooltip('500 km',{permanent:false,direction:'top',className:'rc-range-lbl'});
   leafletRangeCircles.push(c1);
@@ -539,6 +562,12 @@ function drawRangeCircles(){
   const c3=L.circle([ll.lat,ll.lon],{...opt,radius:dist3*1000,color:'#703030'}).addTo(leafletMap);
   c3.bindTooltip(dist3+'km'+(rec>1000?' ★ record':''),{permanent:false,direction:'top',className:'rc-range-lbl'});
   leafletRangeCircles.push(c3);
+}
+
+function toggleGreatCircle(){
+  greatCircleMode = document.getElementById('gcToggle').checked;
+  localStorage.setItem('rc_gc_mode', greatCircleMode ? '1' : '0');
+  drawRangeCircles();
 }
 
 function drawMyPos(){
