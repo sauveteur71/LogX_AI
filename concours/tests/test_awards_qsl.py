@@ -117,6 +117,72 @@ def test_confirmations_remontent_dans_awards(tmp_path):
         awards.invalidate()
 
 
+# ─── Worked Matrix (grille bande × CW/Phone/Digital) ─────────────────────────
+
+def test_mode_category():
+    assert awards._mode_category('CW') == 'CW'
+    assert awards._mode_category('SSB') == 'PHONE'
+    assert awards._mode_category('FM') == 'PHONE'
+    assert awards._mode_category('FT8') == 'DIGITAL'
+    assert awards._mode_category('') == 'DIGITAL'
+
+
+def test_worked_matrix_structure():
+    awards.invalidate()
+    m = awards.worked_matrix(_log())
+    assert set(m['categories']) == {'CW', 'PHONE', 'DIGITAL'}
+    assert '144' in m['bands'] and '432' in m['bands']
+    # 2 QSO SSB (Phone) sur 144, 1 QSO CW sur 144, 1 QSO SSB sur 432
+    assert m['grid']['144']['PHONE']['qso'] >= 2
+    assert m['grid']['144']['CW']['qso'] >= 1
+    assert m['grid']['432']['PHONE']['qso'] >= 1
+    assert m['grid']['144']['DIGITAL']['qso'] == 0
+
+
+def test_worked_matrix_bandes_triees_par_frequence():
+    awards.invalidate()
+    log = [{'call': 'F1AAA', 'band': '432', 'mode': 'SSB', 'contest': 'X',
+            'date': '20260101', 'time': '10:00'},
+           {'call': 'F1BBB', 'band': '14', 'mode': 'CW', 'contest': 'X',
+            'date': '20260101', 'time': '10:01'},
+           {'call': 'F1CCC', 'band': '144', 'mode': 'SSB', 'contest': 'X',
+            'date': '20260101', 'time': '10:02'}]
+    m = awards.worked_matrix(log)
+    idx = {b: i for i, b in enumerate(m['bands'])}
+    assert idx['14'] < idx['144'] < idx['432']
+
+
+def test_worked_matrix_vide():
+    awards.invalidate()
+    m = awards.worked_matrix([])
+    # Peut contenir des QSO de vraies archives de la station -> pas d'assertion
+    # d'égalité stricte, juste la structure de base.
+    assert 'bands' in m and 'categories' in m and 'totals' in m
+
+
+def test_worked_matrix_confirmations(tmp_path):
+    cf = awards.CONFIRM_FILE
+    backup = None
+    if os.path.exists(cf):
+        with open(cf, encoding='utf-8') as f:
+            backup = f.read()
+        os.remove(cf)
+    try:
+        conf = qsl.parse_confirmations(ADIF, 'lotw')
+        qsl.merge_confirmations(conf)
+        awards.invalidate()
+        m = awards.worked_matrix(_log())
+        assert m['grid']['144']['PHONE']['confirmed'] >= 1
+        assert m['grid']['432']['PHONE']['confirmed'] >= 1
+    finally:
+        if os.path.exists(cf):
+            os.remove(cf)
+        if backup is not None:
+            with open(cf, 'w', encoding='utf-8') as f:
+                f.write(backup)
+        awards.invalidate()
+
+
 # ─── Dégradation gracieuse (services non configurés) ─────────────────────────
 
 def test_qsl_non_configure():
