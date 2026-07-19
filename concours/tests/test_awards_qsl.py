@@ -53,6 +53,58 @@ def test_new_one_rien_si_deja_fait():
     assert not any(n['scope'] == 'atlantic' for n in res)
 
 
+# ─── Cibles proactives (spotted_new_ones) ────────────────────────────────────
+# Isolation complète (comme department_targets) : on ne veut PAS dépendre de
+# calldb.json/archives/qso_archive réels de ce poste — seule la logique compte.
+
+def _isolate_awards_et_callhistory(monkeypatch):
+    monkeypatch.setattr(awards, '_read_archives', lambda: [])
+    monkeypatch.setattr(awards, '_read_qso_archive', lambda: [])
+    awards.invalidate()
+    import radiocontest_callhistory as ch
+    monkeypatch.setattr(ch, '_load_archives', lambda: None)
+    monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
+    monkeypatch.setattr(ch, '_load_calldb', lambda: None)
+    ch._index = {}
+    ch._built_at = 0.0
+    return ch
+
+
+def test_spotted_new_ones_pays_jamais_travaille(monkeypatch):
+    _isolate_awards_et_callhistory(monkeypatch)
+    spots = {'20m': [{'dx': 'JA1AAA', 'freq': '14025'}]}
+    out = awards.spotted_new_ones(_log(), spots)
+    assert any(t['type'] == 'dxcc' and t['call'] == 'JA1AAA' for t in out)
+
+
+def test_spotted_new_ones_ignore_pays_deja_travaille(monkeypatch):
+    _isolate_awards_et_callhistory(monkeypatch)
+    # DL (Allemagne) est déjà dans _log() -> pas une nouveauté
+    spots = {'144': [{'dx': 'DL2XYZ', 'freq': '145500'}]}
+    out = awards.spotted_new_ones(_log(), spots)
+    assert not out
+
+
+def test_spotted_new_ones_departement_jamais_travaille(monkeypatch):
+    ch = _isolate_awards_et_callhistory(monkeypatch)
+    monkeypatch.setattr(ch, '_load_calldb', lambda: ch._feed('F5ABC', dept='33'))
+    # La France est DÉJÀ travaillée (dept 75, différent de 33) : sans ça, F5ABC
+    # remonterait comme nouveau PAYS (priorité dxcc > dept) et masquerait le cas
+    # qu'on veut isoler ici — le département jamais travaillé.
+    log = _log() + [{'call': 'F1XYZ', 'band': '144', 'mode': 'SSB', 'contest': 'X',
+                     'date': '20260101', 'time': '09:00', 'locator': 'JN18',
+                     'num_rcvd': '75'}]
+    spots = {'80m': [{'dx': 'F5ABC', 'freq': '3600'}]}
+    out = awards.spotted_new_ones(log, spots)
+    assert any(t['type'] == 'dept' and t['call'] == 'F5ABC' and '33' in t['label']
+               for t in out)
+
+
+def test_spotted_new_ones_rien_si_aucun_spot(monkeypatch):
+    _isolate_awards_et_callhistory(monkeypatch)
+    assert awards.spotted_new_ones(_log(), {}) == []
+
+
 # ─── Résumé diplômes ─────────────────────────────────────────────────────────
 
 def test_award_summary():

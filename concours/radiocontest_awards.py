@@ -257,6 +257,64 @@ def new_one(call, band='', mode='', shared_log=None):
     return out
 
 
+# ─── CIBLES PROACTIVES (jamais travaillées à VIE, spottées maintenant) ───────
+
+def spotted_new_ones(shared_log, spots_by_label=None, max_n=8):
+    """Parmi les stations actuellement SPOTTÉES sur le cluster, celles qui
+    apporteraient un pays (DXCC) ou un département français JAMAIS travaillé
+    À VIE (pas seulement dans le concours en cours — pour ça, voir
+    radiocontest_countries.country_targets/radiocontest_departments.department_
+    targets, qui restent scopés au concours actif). Suggestions poussées
+    PROACTIVEMENT par le coach (/coach/state), sans action de l'utilisateur.
+    Le pays se déduit directement du préfixe (cty.dat, aucun réseau) ; le
+    département d'un correspondant français vient de calldb (déjà indexé par
+    radiocontest_callhistory.build_index), pas de lookup réseau non plus."""
+    import radiocontest_dxcc as dxcc
+    qsos = collect_all_qsos(shared_log)
+    worked_countries = {q['dxcc_country'] for q in qsos if q.get('dxcc_country')}
+    worked_depts = {q['dept'] for q in qsos if q.get('dept')}
+
+    from radiocontest_callhistory import build_index
+    idx = build_index(shared_log)
+
+    spotted = {}
+    for label, spots in (spots_by_label or {}).items():
+        for sp in spots or []:
+            if isinstance(sp, dict):
+                c = str(sp.get('dx') or sp.get('call') or '')
+                freq = sp.get('freq', '')
+            else:
+                c = str(sp[0]) if sp else ''
+                freq = sp[1] if len(sp) > 1 else ''
+            c = c.strip().upper()
+            base = c.split('/')[0] if '/' in c and len(c.split('/')[0]) >= 3 else c
+            if len(base) >= 3 and base not in spotted:
+                spotted[base] = {'freq': freq, 'band': label}
+
+    out = []
+    for call, data in spotted.items():
+        info = None
+        try:
+            info = dxcc.lookup(call)
+        except Exception:
+            pass
+        country = (info or {}).get('country')
+        if country and country not in worked_countries:
+            out.append({'type': 'dxcc', 'call': call, 'label': country, **data})
+            continue    # un seul type de nouveauté par spot (évite le bruit)
+        dept = (idx.get(call) or {}).get('dept')
+        if dept and dept not in worked_depts:
+            try:
+                from radiocontest_departments import DEPARTMENTS
+                name = DEPARTMENTS.get(dept, '')
+            except Exception:
+                name = ''
+            out.append({'type': 'dept', 'call': call,
+                       'label': f'{dept} {name}'.strip(), **data})
+    out.sort(key=lambda t: t['call'])
+    return out[:max_n]
+
+
 # ─── TABLEAU DE BORD DIPLÔMES ─────────────────────────────────────────────────
 
 def award_summary(shared_log=None):

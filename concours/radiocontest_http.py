@@ -960,9 +960,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Langue des textes du coach (le front la connaît : localStorage rc_lang).
             from urllib.parse import parse_qs, urlparse
             lang = (parse_qs(urlparse(self.path).query).get('lang') or ['fr'])[0]
-            self._json(coach.build_coach_state(cfg_snapshot, shared_log, dxmaps,
-                                               mult_spots_count=mult_count,
-                                               k_index=k_index, lang=lang))
+            state = coach.build_coach_state(cfg_snapshot, shared_log, dxmaps,
+                                            mult_spots_count=mult_count,
+                                            k_index=k_index, lang=lang)
+            # Suggestions IA proactives : pays/départements JAMAIS travaillés à
+            # VIE (pas seulement le multiplicateur du concours en cours) parmi
+            # les stations actuellement spottées sur le cluster — poussées ici
+            # sans action de l'utilisateur, comme demandé.
+            try:
+                import radiocontest_awards as awards
+                from radiocontest_coach_i18n import t
+                new_ones = awards.spotted_new_ones(shared_log, _spots_from_caches())
+                new_hints = []
+                for n in new_ones:
+                    freq_txt = f" {n['freq']}" if n.get('freq') else ''
+                    key = 'hint_new_dxcc' if n['type'] == 'dxcc' else 'hint_new_dept'
+                    new_hints.append({'level': 'action', 'icon': '🎯',
+                                      'text': t(lang, key, label=n['label'],
+                                                call=n['call'], freq_txt=freq_txt)})
+                state['hints'] = new_hints + state['hints']
+                state['new_targets'] = new_ones
+            except Exception:
+                pass
+            self._json(state)
             return
 
         # Débrief post-concours : stats déterministes + prompt prêt pour l'IA
