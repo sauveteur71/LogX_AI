@@ -55,6 +55,13 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .profile-btn.del{border-color:rgba(255,45,85,.3);color:var(--red)}
 .profile-btn.del:hover{background:rgba(255,45,85,.1)}
 
+/* MODE D'UTILISATION */
+.usage-mode-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;background:linear-gradient(90deg,rgba(0,212,255,.08),rgba(255,107,0,.05));border:1px solid var(--accent2);border-radius:8px;padding:10px 14px;flex-wrap:wrap}
+.usage-mode-lbl{font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:2px;white-space:nowrap;font-weight:700}
+.usage-mode-bar select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:7px 10px;flex:1;min-width:280px;outline:none}
+.usage-mode-bar select:focus{border-color:var(--accent2)}
+.usage-mode-note{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+
 /* STEPS */
 .steps{display:flex;gap:0;margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
 .step{flex:1;padding:16px 10px;text-align:center;cursor:pointer;transition:all .2s;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:14px;letter-spacing:1px;color:#6A74A8;position:relative}
@@ -195,6 +202,17 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <button class="profile-btn" onclick="loadProfile()">📂 Charger</button>
     <button class="profile-btn save" onclick="saveProfile()">💾 Sauvegarder</button>
     <button class="profile-btn del" onclick="deleteProfile()">🗑️ Supprimer</button>
+  </div>
+
+  <!-- MODE D'UTILISATION : détermine si l'étape CONCOURS est nécessaire -->
+  <div class="usage-mode-bar">
+    <span class="usage-mode-lbl">MODE D'UTILISATION</span>
+    <select id="usage_mode" onchange="onUsageModeChange()">
+      <option value="simple">📋 LOGBOOK SIMPLE — chasse DX / trafic courant, sans concours</option>
+      <option value="contest" selected>🏆 CONCOURS — règlement, échange, scoring, multiplicateurs</option>
+      <option value="expedition">📡 EXPÉDITION / ACTIVATION — pile-up, multi-poste, écran mural</option>
+    </select>
+    <span class="usage-mode-note" id="usageModeNote"></span>
   </div>
 
   <!-- STEPS -->
@@ -613,7 +631,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-primary" onclick="goStep(2)">SUIVANT → CONCOURS</button>
+      <button class="btn btn-primary" id="btnStep1Next" onclick="goStep(2)">SUIVANT → CONCOURS</button>
     </div>
   </div>
 
@@ -788,7 +806,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="btn-row">
-      <button class="btn btn-secondary" onclick="goStep(2)">← RETOUR</button>
+      <button class="btn btn-secondary" id="btnStep3Back" onclick="goStep(2)">← RETOUR</button>
       <button class="btn btn-primary" onclick="goStep(4)">SUIVANT → PROPAGATION</button>
     </div>
   </div>
@@ -1659,6 +1677,8 @@ async function mergeExternalContests(){
 function applyConfigToForm(cfg) {
   const set = (id, val) => { const el = document.getElementById(id); if(el && val !== undefined && val !== null) el.value = val; };
   if(typeof applyWallFields === 'function') applyWallFields(cfg.wall_fields);
+  set('usage_mode', cfg.usage_mode);
+  if(typeof applyUsageMode === 'function') applyUsageMode();
   set('cluster_spot_enabled', cfg.cluster_spot_enabled);
   set('cluster_spot_host',    cfg.cluster_spot_host);
   set('cluster_spot_port',    cfg.cluster_spot_port);
@@ -1760,6 +1780,7 @@ async function init() {
   onProviderChange(); // Initialise le select modèle (Anthropic par défaut)
   const hasLocal = loadSavedConfig();
   if (!hasLocal) await loadFromServerConfig();
+  applyUsageMode(); // Sûr même si aucune config n'a encore été chargée (défaut 'contest')
   updateOpSection(); // Appliquer l'affichage mono/multi selon la section sauvegardée
   // Sélecteur unifié : enrichir avec la base serveur + WA7BNM puis re-render
   await Promise.all([mergeServerContests(), mergeExternalContests()]);
@@ -2448,6 +2469,9 @@ function goStep(n) {
   // Mode débutant : l'étape 4 (PROPAGATION) est masquée → on saute par-dessus
   // dans le sens du déplacement (3 → 5 en avançant, 5 → 3 en reculant).
   if (getUiMode() === 'simple' && n === 4) n = (state.step < 4) ? 5 : 3;
+  // Mode d'utilisation LOGBOOK SIMPLE : pas de concours → l'étape 2 (CONCOURS)
+  // est masquée, on saute par-dessus dans le sens du déplacement.
+  if (getUsageMode() === 'simple' && n === 2) n = (state.step < 2) ? 3 : 1;
   state.step = n;
   document.querySelectorAll('.step').forEach((s,i) => {
     s.classList.remove('active');
@@ -2653,6 +2677,7 @@ function saveConfig(silent = false) {
   localStorage.setItem('radiocontest_ai_provider', provider);
   localStorage.setItem('radiocontest_ai_model', document.getElementById('ai_model').value);
   const config = {
+    usage_mode: document.getElementById('usage_mode').value,
     callsign: document.getElementById('callsign').value,
     callsign_contest: document.getElementById('callsign_contest').value,
     locator: document.getElementById('locator').value,
@@ -2839,6 +2864,48 @@ function toggleUiMode(){
   applyUiMode();
 }
 
+// ─── MODE D'UTILISATION (logbook simple / concours / expédition) ────────────
+// Contrairement au mode débutant/expert (préférence d'affichage locale), ce
+// choix est persisté DANS LA CONFIG (station) : radiocontest_logbook.html le
+// lit aussi pour adapter la saisie QSO (sélecteur de concours, n° de série,
+// score). 'contest' reste la valeur par défaut si absente d'une config plus
+// ancienne — comportement inchangé pour les utilisateurs existants.
+function getUsageMode(){
+  const el = document.getElementById('usage_mode');
+  return (el && el.value) || 'contest';
+}
+
+function applyUsageMode(){
+  const mode = getUsageMode();
+  const simple = mode === 'simple';
+  document.body.classList.toggle('usage-simple', simple);
+  const step2 = document.getElementById('step2');
+  if (step2) step2.style.display = simple ? 'none' : '';
+  const nextBtn = document.getElementById('btnStep1Next');
+  if (nextBtn) nextBtn.textContent = simple ? 'SUIVANT → FILTRES' : 'SUIVANT → CONCOURS';
+  const backBtn = document.getElementById('btnStep3Back');
+  if (backBtn) backBtn.textContent = simple ? '← RETOUR (MA STATION)' : '← RETOUR';
+  const note = document.getElementById('usageModeNote');
+  if (note) note.textContent = simple
+    ? '— étape CONCOURS masquée, bandes/modes librement réglables à l\'étape FILTRES'
+    : (mode === 'expedition'
+        ? '— pense à activer la saisie simplifiée dans la section MODE EXPÉDITION ci-dessous'
+        : '');
+  // Si on est actuellement sur l'étape CONCOURS en passant en simple → avancer
+  if (simple && state.step === 2) goStep(3);
+}
+
+function onUsageModeChange(){
+  const v = document.getElementById('usage_mode').value;
+  // Passage en expédition : propose par défaut la saisie simplifiée (juste
+  // indicatif + RST) si l'utilisateur n'a pas déjà réglé ce champ lui-même.
+  if (v === 'expedition'){
+    const em = document.getElementById('expedition_mode');
+    if (em && !em.value) em.value = '1';
+  }
+  applyUsageMode();
+}
+
 function toggleTheme(){
   const day = document.body.classList.toggle('day-mode');
   localStorage.setItem('rc_theme', day ? 'day' : 'night');
@@ -2904,7 +2971,7 @@ function loadSavedConfig() {
     if(c.on4kst_password) document.getElementById('on4kst_password').value = c.on4kst_password;
     if(c.qrz_user) document.getElementById('qrz_user').value = c.qrz_user;
     if(c.qrz_password) document.getElementById('qrz_password').value = c.qrz_password;
-    ['eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
+    ['usage_mode','eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
      'clublog_callsign','clublog_password','clublog_api_key',
      'qrzcq_callsign','qrzcq_api_key','hrdlog_callsign','hrdlog_code',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
@@ -2916,6 +2983,7 @@ function loadSavedConfig() {
      'tci_host','tci_port'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
+    applyUsageMode();
     if (c.cat_brand) updateCatModelOptions();
     if (c.cat_model && document.getElementById('cat_model')) document.getElementById('cat_model').value = c.cat_model;
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;
@@ -3304,6 +3372,15 @@ function handleContestParam(){
   if (!id) return;
   const banner = document.getElementById('assistantBanner');
   const contest = CONTESTS.find(c => c.id === id);
+
+  // Arriver ici depuis le calendrier avec un concours précis = intention
+  // explicite de faire un concours : basculer hors du mode LOGBOOK SIMPLE
+  // pour que l'étape CONCOURS (masquée dans ce mode) redevienne accessible.
+  const usageSel = document.getElementById('usage_mode');
+  if (usageSel && usageSel.value === 'simple'){
+    usageSel.value = 'contest';
+    applyUsageMode();
+  }
 
   goStep(2);
 
