@@ -9,6 +9,7 @@ concours/radiocontest.db
 concours/.server_config.json
 concours/qtc_log.json
 concours/france_departements.geojson
+concours/world_countries.geojson
 concours/build/
 concours/dist/
 concours/*.spec.bak
