@@ -58,16 +58,24 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   body{overflow:auto}
   .main{flex-direction:column}
   .map-wrap{min-height:52vh}
-  .grid-panel{width:100%;border-left:none;border-top:1px solid var(--border)}
+  .grid-panel,.countries-wrap{width:100%;border-left:none;border-top:1px solid var(--border)}
 }
 
-/* Chasse aux PAYS (concours internationaux) */
-.countries-wrap{flex:1;overflow-y:auto;padding:14px 22px;min-height:0}
+/* Chasse aux PAYS (concours internationaux) — panneau latéral (comme le
+   tableau de chasse départements) : la carte reste visible à côté, quelle
+   que soit l'échelle choisie (Europe/continent/monde). */
+.countries-wrap{width:330px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg2);padding:12px;overflow-y:auto}
 .cont-group{margin-bottom:16px}
 .cont-head{font-family:var(--font-mono);font-size:14px;color:var(--accent2);letter-spacing:1px;margin:8px 0 6px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:4px}
 .country-grid{display:flex;flex-wrap:wrap;gap:5px}
 .country-chip{font-family:var(--font-mono);font-size:12px;padding:4px 8px;border-radius:5px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);white-space:nowrap}
 .country-chip.worked{background:rgba(0,255,136,.18);color:var(--green);border-color:var(--green);font-weight:700}
+
+/* Sélecteur d'échelle géographique */
+.scale-bar{display:flex;align-items:center;gap:10px;background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 20px;flex-shrink:0;flex-wrap:wrap}
+.scale-lbl{font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:2px;white-space:nowrap;font-weight:700}
+.scale-bar select{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:6px 9px;outline:none}
+.scale-bar select:focus{border-color:var(--accent2)}
 </style>
 </head>
 <body>
@@ -87,6 +95,17 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 </nav>
 <script src="radiocontest_statusbar.js"></script>
 <script src="radiocontest_i18n.js"></script>
+
+<div class="scale-bar">
+  <span class="scale-lbl">🗺️ ÉCHELLE</span>
+  <select id="geoScale">
+    <option value="france">🇫🇷 France (départements)</option>
+    <option value="europe">🇪🇺 Europe</option>
+    <option value="continent">🌍 Un continent</option>
+    <option value="world">🌐 Monde (tous les pays)</option>
+  </select>
+  <select id="geoContinent" style="display:none"></select>
+</div>
 
 <div class="progress-panel">
   <span><span class="progress-count" id="pCount">0</span>
@@ -137,8 +156,11 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   }
 })();
 
-let leafletMap = null, geoLayer = null, geoLoaded = false;
+let leafletMap = null;
+let franceLayer = null, worldLayer = null;
+let franceGeoData = null, worldGeoData = null;
 let workedSet = new Set();
+let worldWorkedData = {};
 
 // Échappement HTML — les spots viennent du cluster (réseau non authentifié) :
 // jamais insérer un indicatif/commentaire brut dans innerHTML.
@@ -159,41 +181,53 @@ function deptStyle(feature){
   };
 }
 
-async function initMap(){
-  try{
-    const r = await fetch('/data/france_geojson');
-    if(!r.ok) throw new Error('geojson http ' + r.status);
-    const gj = await r.json();
-    // Carte STATIQUE : la France seule, sans fond mondial, sans zoom —
-    // 100 % hors ligne, toute la place pour l'Hexagone.
-    leafletMap = L.map('map', {
-      zoomControl:false, dragging:false, scrollWheelZoom:false,
-      doubleClickZoom:false, boxZoom:false, keyboard:false,
-      touchZoom:false, attributionControl:false, preferCanvas:true,
-      zoomSnap:0.1,
-    });
-    geoLayer = L.geoJSON(gj, {
-      style: deptStyle,
-      onEachFeature: (f, layer) => {
-        layer.bindTooltip(`${f.properties.code} — ${f.properties.nom}`, {sticky:true});
-      }
-    }).addTo(leafletMap);
-    leafletMap.fitBounds(geoLayer.getBounds(), {padding:[10,10]});
-    geoLoaded = true;
-    applyWorkedToMap();
-    // Réajuste le cadrage si la fenêtre change
-    window.addEventListener('resize', () => {
-      leafletMap.invalidateSize();
-      leafletMap.fitBounds(geoLayer.getBounds(), {padding:[10,10]});
-    });
-  }catch(e){
-    document.getElementById('map').style.display='none';
-    document.getElementById('mapFallback').style.display='flex';
-  }
+// Même clé que radiocontest_worldmap._load_features() côté serveur
+// (ISO_A3, puis ADM0_A3, puis NAME) — indispensable pour que le statut
+// travaillé/non renvoyé par /data/world_worked retombe sur la bonne feature.
+function worldFeatureId(f){
+  const p = f.properties || {};
+  return p.ISO_A3 || p.ADM0_A3 || p.NAME;
+}
+
+function worldStyle(feature){
+  const info = worldWorkedData[worldFeatureId(feature)];
+  const worked = !!(info && info.worked);
+  return {
+    fillColor: worked ? '#00C853' : (isDay()?'#C8CEE2':'#1E2338'),
+    fillOpacity: worked ? 0.85 : 0.45,
+    color: worked ? '#00FF88' : (isDay()?'#8A93B5':'#3A4066'),
+    weight: worked ? 1.2 : 0.4,
+  };
+}
+
+function ensureLeafletMap(){
+  if(leafletMap) return;
+  leafletMap = L.map('map', {
+    zoomControl:true, attributionControl:false, preferCanvas:true, zoomSnap:0.1,
+  });
+  window.addEventListener('resize', () => leafletMap.invalidateSize());
+}
+
+async function ensureFranceGeoData(){
+  if(franceGeoData) return;
+  const r = await fetch('/data/france_geojson');
+  if(!r.ok) throw new Error('geojson http ' + r.status);
+  franceGeoData = await r.json();
+}
+
+async function ensureWorldGeoData(){
+  if(worldGeoData) return;
+  const r = await fetch('/data/world_geojson');
+  if(!r.ok) throw new Error('geojson http ' + r.status);
+  worldGeoData = await r.json();
 }
 
 function applyWorkedToMap(){
-  if(geoLoaded && geoLayer) geoLayer.setStyle(deptStyle);
+  if(franceLayer) franceLayer.setStyle(deptStyle);
+}
+
+function applyWorkedToWorldMap(){
+  if(worldLayer) worldLayer.setStyle(worldStyle);
 }
 
 async function loadProgress(){
@@ -263,39 +297,7 @@ async function loadTargets(){
 }
 
 // ─── CHASSE AUX PAYS (concours internationaux) ───────────────────────────────
-// L'onglet se transforme en « chasse aux pays DXCC » selon le concours actif
-// (dxcc = pays seuls ; dept_dxcc = départements + pays ; dept = actuel).
-let geoMode = 'dept';
-
-async function loadGeoMode(){
-  try{
-    const cfg = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
-    const q = cfg.contest ? ('?contest='+encodeURIComponent(cfg.contest)) : '';
-    const r = await fetch('/contest/geo_mode'+q);
-    if(r.ok){ geoMode = (await r.json()).mode || 'dept'; }
-  }catch(e){}
-  applyGeoModeLayout();
-}
-
-function applyGeoModeLayout(){
-  const logo = document.querySelector('.logo');
-  const nav  = document.querySelector('.app-nav a.active');
-  if(geoMode === 'dxcc'){
-    // Pays seuls : masquer la carte France + la grille départements
-    document.querySelector('.map-wrap').style.display = 'none';
-    document.querySelector('.grid-panel').style.display = 'none';
-    document.getElementById('countriesWrap').style.display = '';
-    if(logo) logo.innerHTML = 'Radio<span>Contest</span> AI — <span style="color:var(--green)">Pays (DXCC)</span>';
-    if(nav)  nav.innerHTML = '🌍 PAYS';
-    document.getElementById('pMsg').textContent = 'objectif : contacter un maximum de pays DXCC 🌍';
-  } else if(geoMode === 'dept_dxcc'){
-    // Départements FR + pays DXCC : on garde la vue dept et on ajoute les pays
-    document.getElementById('deptDxccCountries').style.display = '';
-    if(nav) nav.innerHTML = '🇫🇷 DÉPT + PAYS';
-  }
-}
-
-async function loadCountries(container, isFull){
+async function loadCountries(container){
   try{
     const [pr, tr] = await Promise.all([
       fetch('/data/countries_worked'),
@@ -304,11 +306,11 @@ async function loadCountries(container, isFull){
     if(!pr || !pr.ok) return;
     const prog = await pr.json();
     const targets = (tr && tr.ok) ? await tr.json() : {spotted:[]};
-    renderCountries(container, prog, targets, isFull);
+    renderCountries(container, prog, targets);
   }catch(e){}
 }
 
-function renderCountries(container, prog, targets, isFull){
+function renderCountries(container, prog, targets){
   const cn = prog.continent_names || {};
   let html = '';
   const sp = targets.spotted || [];
@@ -329,33 +331,161 @@ function renderCountries(container, prog, targets, isFull){
       + `</div></div>`;
   }
   container.innerHTML = html || '<div style="color:var(--muted);font-family:var(--font-mono)">Aucune donnée pays.</div>';
-  if(isFull){
-    document.getElementById('pCount').textContent = prog.done;
-    document.getElementById('pTotal').textContent = `/ ${prog.total}`;
-    const pct = prog.total ? Math.round(100*prog.done/prog.total) : 0;
-    document.getElementById('pFill').style.width = pct + '%';
-    document.getElementById('pMsg').textContent = `${prog.done} pays DXCC contactés (${pct}%)`;
-    document.getElementById('pDom').textContent = '';
+}
+
+// ─── ÉCHELLE GÉOGRAPHIQUE (France / Europe / continent / monde) ─────────────
+// Choix par défaut selon le type de concours actif (dept -> France, dxcc/
+// dept_dxcc -> monde, via /contest/geo_mode), mais toujours modifiable à la
+// main via le sélecteur — un choix manuel est mémorisé et prime au retour.
+const CONTINENTS = [
+  ['Europe', '🇪🇺 Europe'], ['Africa', '🌍 Afrique'], ['Asia', '🌏 Asie'],
+  ['North America', '🌎 Amérique du Nord'], ['South America', '🌎 Amérique du Sud'],
+  ['Oceania', '🌏 Océanie'],
+];
+const EUROPE_BOUNDS = [[34, -25], [72, 45]];
+const WORLD_BOUNDS = [[-58, -170], [78, 190]];
+
+let geoMode = 'dept';   // détecté depuis le concours actif (dept/dxcc/dept_dxcc)
+let mapScale = null;    // 'france'|'europe'|'continent'|'world' ; null = suit geoMode
+let mapContinent = 'Europe';
+
+function effectiveScale(){
+  if(mapScale) return mapScale;
+  return geoMode === 'dept' ? 'france' : 'world';
+}
+
+function scopeContinent(){
+  const s = effectiveScale();
+  if(s === 'europe') return 'Europe';
+  if(s === 'continent') return mapContinent;
+  return null;
+}
+
+function initScaleSelector(){
+  const sel = document.getElementById('geoScale');
+  const contSel = document.getElementById('geoContinent');
+  CONTINENTS.forEach(([key, label]) => {
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = label;
+    contSel.appendChild(opt);
+  });
+  const saved = localStorage.getItem('rc_geo_scale');
+  if(saved) mapScale = saved;
+  mapContinent = localStorage.getItem('rc_geo_continent') || 'Europe';
+  sel.value = effectiveScale();
+  contSel.value = mapContinent;
+  contSel.style.display = effectiveScale() === 'continent' ? '' : 'none';
+  sel.addEventListener('change', () => {
+    mapScale = sel.value;
+    localStorage.setItem('rc_geo_scale', mapScale);
+    contSel.style.display = mapScale === 'continent' ? '' : 'none';
+    renderScale();
+  });
+  contSel.addEventListener('change', () => {
+    mapContinent = contSel.value;
+    localStorage.setItem('rc_geo_continent', mapContinent);
+    if(effectiveScale() === 'continent') renderScale();
+  });
+}
+
+async function loadGeoMode(){
+  try{
+    const cfg = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
+    const q = cfg.contest ? ('?contest='+encodeURIComponent(cfg.contest)) : '';
+    const r = await fetch('/contest/geo_mode'+q);
+    if(r.ok){ geoMode = (await r.json()).mode || 'dept'; }
+  }catch(e){}
+  if(!mapScale) document.getElementById('geoScale').value = effectiveScale();
+  if(geoMode === 'dept_dxcc'){
+    // Départements FR + pays DXCC : la vue France reste principale, les pays
+    // s'ajoutent dans le panneau latéral (masqué avec .grid-panel si
+    // l'utilisateur bascule manuellement vers une échelle monde/continent).
+    document.getElementById('deptDxccCountries').style.display = '';
+    loadCountries(document.getElementById('deptDxccCountries'));
+    setInterval(() => loadCountries(document.getElementById('deptDxccCountries')), 60*1000);
   }
 }
 
-// ─── DÉMARRAGE (adaptatif selon le concours) ─────────────────────────────────
-loadGeoMode().then(() => {
-  if(geoMode === 'dxcc'){
-    const wrap = document.getElementById('countriesWrap');
-    loadCountries(wrap, true);
-    setInterval(() => loadCountries(wrap, true), 15*1000);
-  } else {
-    initMap().then(loadProgress);
-    setInterval(loadProgress, 15*1000);   // les nouveaux QSO verdissent en direct
-    loadTargets();
-    setInterval(loadTargets, 60*1000);    // cibles recalculées avec les spots
-    if(geoMode === 'dept_dxcc'){
-      const box = document.getElementById('deptDxccCountries');
-      loadCountries(box, false);
-      setInterval(() => loadCountries(box, false), 60*1000);
+async function renderScale(){
+  ensureLeafletMap();
+  const scale = effectiveScale();
+  const isFrance = scale === 'france';
+  document.querySelector('.grid-panel').style.display = isFrance ? '' : 'none';
+  document.getElementById('countriesWrap').style.display = isFrance ? 'none' : '';
+  const logo = document.querySelector('.logo');
+  try{
+    if(isFrance){
+      if(worldLayer && leafletMap.hasLayer(worldLayer)) leafletMap.removeLayer(worldLayer);
+      await ensureFranceGeoData();
+      if(!franceLayer){
+        franceLayer = L.geoJSON(franceGeoData, {
+          style: deptStyle,
+          onEachFeature: (f, layer) =>
+            layer.bindTooltip(`${f.properties.code} — ${f.properties.nom}`, {sticky:true}),
+        });
+      }
+      if(!leafletMap.hasLayer(franceLayer)) franceLayer.addTo(leafletMap);
+      leafletMap.dragging.disable(); leafletMap.scrollWheelZoom.disable();
+      leafletMap.doubleClickZoom.disable(); leafletMap.boxZoom.disable();
+      leafletMap.fitBounds(franceLayer.getBounds(), {padding:[10,10]});
+      if(logo) logo.innerHTML = 'Radio<span>Contest</span> AI — <span style="color:var(--green)">Départements REF</span>';
+      loadProgress();
+      loadTargets();
+    } else {
+      if(franceLayer && leafletMap.hasLayer(franceLayer)) leafletMap.removeLayer(franceLayer);
+      await ensureWorldGeoData();
+      if(worldLayer) leafletMap.removeLayer(worldLayer);
+      const scope = scopeContinent();
+      worldLayer = L.geoJSON(worldGeoData, {
+        filter: f => !scope || (f.properties||{}).CONTINENT === scope,
+        style: worldStyle,
+        onEachFeature: (f, layer) => layer.bindTooltip((f.properties||{}).NAME || '', {sticky:true}),
+      }).addTo(leafletMap);
+      leafletMap.dragging.enable(); leafletMap.scrollWheelZoom.enable();
+      leafletMap.doubleClickZoom.enable(); leafletMap.boxZoom.enable();
+      if(scale === 'europe' || (scale === 'continent' && mapContinent === 'Europe')){
+        leafletMap.fitBounds(EUROPE_BOUNDS);
+      } else if(scale === 'continent' && worldLayer.getBounds().isValid()){
+        leafletMap.fitBounds(worldLayer.getBounds(), {padding:[10,10]});
+      } else {
+        leafletMap.fitBounds(WORLD_BOUNDS);
+      }
+      const label = scale === 'europe' ? 'Europe' : (scale === 'continent' ? mapContinent : 'Pays (DXCC)');
+      if(logo) logo.innerHTML = `Radio<span>Contest</span> AI — <span style="color:var(--green)">${esc(label)}</span>`;
+      loadWorldProgress();
+      loadCountries(document.getElementById('countriesWrap'));
     }
+  }catch(e){
+    document.getElementById('map').style.display = 'none';
+    document.getElementById('mapFallback').style.display = 'flex';
   }
+}
+
+async function loadWorldProgress(){
+  try{
+    const r = await fetch('/data/world_worked');
+    if(!r.ok) return;
+    worldWorkedData = await r.json();
+    applyWorkedToWorldMap();
+    const scope = scopeContinent();
+    const vals = Object.values(worldWorkedData).filter(c => !scope || c.continent === scope);
+    const done = vals.filter(c => c.worked).length;
+    const total = vals.length;
+    document.getElementById('pCount').textContent = done;
+    document.getElementById('pTotal').textContent = `/ ${total}`;
+    const pct = total ? Math.round(100*done/total) : 0;
+    document.getElementById('pFill').style.width = pct + '%';
+    document.getElementById('pMsg').textContent = `${done} pays contactés (${pct}%)`;
+    document.getElementById('pDom').textContent = '';
+  }catch(e){}
+}
+
+// ─── DÉMARRAGE ────────────────────────────────────────────────────────────
+initScaleSelector();
+loadGeoMode().then(() => {
+  renderScale();
+  setInterval(() => { effectiveScale() === 'france' ? loadProgress() : loadWorldProgress(); }, 15*1000);
+  setInterval(() => { if(effectiveScale() === 'france') loadTargets(); }, 60*1000);
 });
 </script>
 </body>

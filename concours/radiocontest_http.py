@@ -1117,6 +1117,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body.encode('utf-8'))
             return
 
+        # GeoJSON mondial des pays (Europe/continent/monde — sélecteur d'échelle
+        # de la page départements). Cache disque, offline après 1er téléchargement.
+        if path == '/data/world_geojson':
+            import radiocontest_worldmap as wm
+            body = wm.load_world_geojson()
+            if not body:
+                self._json({'error': 'GeoJSON indisponible (hors ligne au 1er accès)'}, 503)
+                return
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Cache-Control', 'max-age=86400')
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body.encode('utf-8'))
+            return
+
+        # Statut travaillé/non par pays (choroplèthe monde), projeté depuis les
+        # entités DXCC contactées (même calcul que /data/countries_worked).
+        if path == '/data/world_worked':
+            import radiocontest_worldmap as wm
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(wm.worked_by_country(log_copy, cfg_snap.get('contest', '')))
+            return
+
         # URL(s) LAN pour connecter un téléphone/tablette (terrain/expédition) :
         # ouvre le logbook depuis le mobile sur le même WiFi, installable en PWA.
         if path == '/data/lan_url':
