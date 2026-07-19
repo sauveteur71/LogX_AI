@@ -132,8 +132,11 @@ def test_worked_matrix_structure():
     m = awards.worked_matrix(_log())
     assert set(m['categories']) == {'CW', 'PHONE', 'DIGITAL'}
     assert '144' in m['bands'] and '432' in m['bands']
-    # 2 QSO SSB (Phone) sur 144, 1 QSO CW sur 144, 1 QSO SSB sur 432
-    assert m['grid']['144']['PHONE']['qso'] >= 2
+    # _log() garantit : 1 QSO SSB (Phone) sur 144 (DL1AA), 1 QSO CW sur 144
+    # (G3XYZ), 1 QSO SSB sur 432 (DL1AA) — >= plutôt que == car
+    # collect_all_qsos() fusionne aussi les vraies archives de la station,
+    # voir la remarque de test_award_summary un peu plus haut.
+    assert m['grid']['144']['PHONE']['qso'] >= 1
     assert m['grid']['144']['CW']['qso'] >= 1
     assert m['grid']['432']['PHONE']['qso'] >= 1
     assert m['grid']['144']['DIGITAL']['qso'] == 0
