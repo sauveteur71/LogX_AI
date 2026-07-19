@@ -123,9 +123,27 @@ function applyExpeditionMode(on){
   expeditionMode = (String(on) === '1' || on === true);
   const numRow = document.getElementById('numFieldRow');
   const locGrp = document.getElementById('locatorGroup');
-  if(numRow) numRow.style.display = expeditionMode ? 'none' : '';
+  // Le n° de série (échange concours) est aussi masqué en LOGBOOK SIMPLE (pas
+  // de concours -> pas d'échange à faire), indépendamment du mode expédition.
+  const hideNum = expeditionMode || usageMode === 'simple';
+  if(numRow) numRow.style.display = hideNum ? 'none' : '';
   if(locGrp) locGrp.style.display = expeditionMode ? 'none' : '';
   document.body.classList.toggle('expedition-on', expeditionMode);
+}
+
+// ─── MODE D'UTILISATION (simple / concours / expédition) ────────────────────
+// Réglé une seule fois dans CONFIG (radiocontest_configuration.html), lu ici
+// pour adapter la saisie : en LOGBOOK SIMPLE, pas de concours -> le sélecteur
+// de concours et son horaire n'ont pas de sens et sont masqués.
+let usageMode = 'contest';
+function applyUsageModeToLogbook(mode){
+  usageMode = mode || 'contest';
+  const simple = usageMode === 'simple';
+  const csWrap = document.getElementById('contestSearchWrap');
+  if(csWrap) csWrap.style.display = simple ? 'none' : '';
+  const timingBox = document.getElementById('contestTimingBox');
+  if(simple && timingBox) timingBox.style.display = 'none';
+  document.body.classList.toggle('usage-simple', simple);
 }
 
 // ─── ACTIVATION POTA/SOTA/IOTA/WWFF/ARLHS/WCA ────────────────────────────────
@@ -1215,7 +1233,7 @@ function setupDone(){
   if(stored.altitude) hdrParts.push(`${stored.altitude}m`);
   if(stored.postal && stored.postal.length>=2) hdrParts.push(`Dépt.${stored.postal.slice(0,2)}`);
   document.getElementById('hdrStation').textContent = hdrParts.join(' · ');
-  document.getElementById('hdrContest').textContent = cont;
+  document.getElementById('hdrContest').textContent = cont || 'LOGBOOK';
   // Indicateur « OP : » — en single-op, montrer l'indicatif plutôt que « OP1 »
   const opsCfg = stored.operators || [];
   const opIdx = parseInt((op||'OP1').replace('OP',''), 10) - 1;
@@ -3823,6 +3841,8 @@ document.addEventListener('keydown', e => {
 function prefillSetupFromConfig(){
   let cfg = {};
   try{ cfg = JSON.parse(localStorage.getItem('radiocontest_config')||'{}'); }catch(e){}
+
+  applyUsageModeToLogbook(cfg.usage_mode);
 
   // Pré-remplir indicatif et locator
   const callEl  = document.getElementById('setupCallsign');
