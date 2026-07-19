@@ -20,3 +20,17 @@ concours/scoreboard_sync.json
 concours/backup_state.json
 concours/cloudsync_state.json
 concours/.cloudsync_instance_id
+
+# Documents personnels de préparation (pas le programme lui-même)
+.claude/launch.json
+.claude/settings.local.json
+Analyse_QSODirector_Roadmap.md
+Plan_Bataille_RadioContest_AI.md
+F6KQJ_Dossier_Checklist_2026.docx
+F6KQJ__1.pdf
+LANCER_RADIOCONTEST.bat
+RALLYE_1.pdf
+RALLYE_2.pdf
+Rallye_Points_Hauts_2026_Plan.docx
+Rallye_Points_Hauts_2026_Tableaux.xlsx
+reg_rph_fr_20250312.pdf
