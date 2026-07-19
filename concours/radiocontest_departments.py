@@ -228,11 +228,57 @@ def departments_progress(shared_log, contest_id=''):
     }
 
 
-def department_targets(shared_log, contest_id='', spots_by_label=None, max_calls=5):
+# Lookup callbook en direct pour les indicatifs spottés jamais croisés
+# nulle part (ni QSO, ni calldb, ni archives) : sans ça, une station spottée
+# EN CE MOMENT dans un département manquant n'apparaît jamais comme cible tant
+# qu'aucun QSO ou lookup manuel n'a été fait pour elle — le pire moment, car
+# c'est en tout DÉBUT de concours (log vide) que cette fonctionnalité serait
+# la plus utile. Échecs mis en petit cache local (15 min) pour ne pas marteler
+# QRZ/HamQTH/HamDB à chaque poll (60 s) pour un indicatif qui ne résoudra
+# jamais (le cache 24h de radiocontest_callbook ne mémorise que les succès).
+_live_fail_cache = {}   # CALL -> timestamp du dernier échec
+LIVE_FAIL_RETRY_S = 15 * 60
+LIVE_LOOKUP_CAP = 5     # plafond de lookups réseau par appel (borne la latence)
+
+
+def _resolve_spotted_live(spotted, known_calls, cfg):
+    """{call: dept} pour les indicatifs spottés français, inconnus localement,
+    résolus via un lookup callbook en direct (grid -> dept_from_locator)."""
+    import time
+    if cfg is None or not spotted:
+        return {}
+    import radiocontest_callbook as callbook
+    now = time.time()
+    resolved = {}
+    attempts = 0
+    for call in spotted:
+        if call in known_calls or not _is_french_call(call):
+            continue
+        last_fail = _live_fail_cache.get(call)
+        if last_fail and now - last_fail < LIVE_FAIL_RETRY_S:
+            continue
+        if attempts >= LIVE_LOOKUP_CAP:
+            break
+        attempts += 1
+        try:
+            r = callbook.lookup(call, cfg)
+        except Exception:
+            r = {'ok': False}
+        d = dept_from_locator(r.get('grid', '')) if r.get('ok') else ''
+        if d in DEPARTMENTS:
+            resolved[call] = d
+        else:
+            _live_fail_cache[call] = now
+    return resolved
+
+
+def department_targets(shared_log, contest_id='', spots_by_label=None, max_calls=5, cfg=None):
     """CHASSE AUX DÉPARTEMENTS : pour chaque département métropolitain
     MANQUANT, les stations connues de ce département (historique complet :
     calldb + archives + log) et celles actuellement SPOTTÉES sur le cluster
-    (avec leur fréquence — prêtes à être appelées).
+    (avec leur fréquence — prêtes à être appelées). Les indicatifs français
+    spottés mais jamais croisés nulle part sont en plus résolus par un lookup
+    callbook en direct (cf. _resolve_spotted_live) si `cfg` est fourni.
     Tri : départements avec une station spottée d'abord."""
     prog = departments_progress(shared_log, contest_id)
     worked = set(prog['worked'])
@@ -262,10 +308,17 @@ def department_targets(shared_log, contest_id='', spots_by_label=None, max_calls
             if len(base) >= 3:
                 spotted[base] = {'freq': freq, 'band': label}
 
+    known_calls = {c for calls in by_dept.values() for c, _ in calls}
+    live_resolved = _resolve_spotted_live(spotted, known_calls, cfg)
+
     targets = []
     for d in missing:
         calls = sorted(by_dept.get(d, []), key=lambda ce: (-ce[1], ce[0]))
         sp_here = [{'call': c, **spotted[c]} for c, _ in calls if c in spotted][:3]
+        already = {t['call'] for t in sp_here}
+        for call, cd in live_resolved.items():
+            if cd == d and call not in already and len(sp_here) < 3:
+                sp_here.append({'call': call, **spotted[call]})
         targets.append({
             'dept': d,
             'name': DEPARTMENTS.get(d, ''),
