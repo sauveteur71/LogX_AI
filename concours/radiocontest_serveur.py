@@ -127,8 +127,42 @@ if __name__ == '__main__':
             except Exception as _e:
                 print(f"[BACKUP] {_e}")
 
+    def _cloudsync_loop():
+        import time as _t
+        import radiocontest_http as h
+        import radiocontest_cloudsync as cs
+        import radiocontest_storage as st
+        import datetime as _dt
+        while True:
+            _t.sleep(60)
+            try:
+                with h.config_lock:
+                    cfg = dict(h.current_config)
+                s = cs.cloudsync_settings(cfg)
+                if not s['enabled']:
+                    continue
+                last = cs.status(cfg).get('last', {}).get('last')
+                due = True
+                interval_min = int(cfg.get('cloudsync_interval', 3) or 3)
+                if last:
+                    try:
+                        age = (_dt.datetime.utcnow()
+                               - _dt.datetime.strptime(last, '%Y-%m-%d %H:%M')).total_seconds()
+                        due = age >= interval_min * 60 - 5
+                    except Exception:
+                        due = True
+                if due:
+                    with st.log_lock:
+                        log_copy = list(st.shared_log)
+                    r = cs.sync_now(cfg, log_copy)
+                    if r.get('ok') and (r.get('pulled') or r.get('pushed')):
+                        print(f"[CLOUDSYNC] mode={r['mode']} pushed={r['pushed']} pulled={r['pulled']}")
+            except Exception as _e:
+                print(f"[CLOUDSYNC] {_e}")
+
     threading.Thread(target=_scoreboard_loop, daemon=True).start()
     threading.Thread(target=_backup_loop, daemon=True).start()
+    threading.Thread(target=_cloudsync_loop, daemon=True).start()
 
     # Pont WSJT-X : écouteur UDP FT8/FT4 démarré si activé dans config.json
     # (ou plus tard à chaud dès qu'un /wsjtx/state le voit activé côté client).

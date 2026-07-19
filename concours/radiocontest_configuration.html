@@ -934,6 +934,42 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
     </div>
 
+    <div class="section expert-only">
+      <div class="section-title">☁️ CLOUD SYNC (multi-poste, sans compte ni service en ligne)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Combine tes QSO avec un AUTRE poste (même expédition, poste de secours...)
+        via un dossier déjà synchronisé (Synology Drive, Dropbox, OneDrive…) —
+        chaque poste pointant vers le MÊME dossier voit les QSO des autres.
+        Aucun compte à créer : le « cloud », c'est l'outil de sync que tu
+        utilises déjà. Différent de la SAUVEGARDE ci-dessus (instantanés à
+        sens unique) : ici les QSO des deux côtés se combinent réellement.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>MODE</label>
+          <select id="cloudsync_mode">
+            <option value="">Désactivé</option>
+            <option value="full">Synchronisation complète (lit + écrit)</option>
+            <option value="push">Envoi seul (écrit, ne récupère rien)</option>
+          </select>
+          <div class="input-note">« Envoi seul » : pour un poste isolé qui alimente le dossier partagé sans avoir besoin des QSO des autres</div>
+        </div>
+        <div class="form-group">
+          <label>DOSSIER PARTAGÉ</label>
+          <input type="text" id="cloudsync_folder" placeholder="vide = même dossier que SAUVEGARDE" autocomplete="off">
+          <div class="input-note">Doit être IDENTIQUE sur tous les postes qui synchronisent ensemble</div>
+        </div>
+        <div class="form-group">
+          <label>INTERVALLE (min)</label>
+          <input type="number" id="cloudsync_interval" placeholder="3" min="1" max="60">
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="cloudsyncNow()">☁️ SYNCHRONISER MAINTENANT</button>
+        <span id="cloudsyncResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+    </div>
+
     <div class="section">
       <div class="section-title">🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
       <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
@@ -2190,6 +2226,27 @@ function deleteAlertRule(id){
   renderAlertRules();
 }
 
+// ─── CLOUD SYNC (dossier partagé multi-poste) ───────────────────────────────
+async function cloudsyncNow(){
+  const result = document.getElementById('cloudsyncResult');
+  result.textContent = '⏳ synchronisation en cours…';
+  result.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/cloudsync/now', {method: 'POST'});
+    const r = await res.json();
+    if(r.ok){
+      result.textContent = `✅ ${r.pushed} QSO envoyés · ${r.pulled} récupérés` + (r.sources ? ` (${r.sources} autre(s) poste(s))` : '');
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
+}
+
 // ─── FILTRES AUTOMATIQUES PAR CONCOURS ────────────────────────────────────────
 const CONTEST_FILTERS = {
 
@@ -2609,6 +2666,9 @@ function saveConfig(silent = false) {
     scoreboard_interval: parseInt(document.getElementById('scoreboard_interval').value, 10) || 5,
     backup_folder: document.getElementById('backup_folder').value.trim(),
     backup_interval: parseInt(document.getElementById('backup_interval').value, 10) || 15,
+    cloudsync_mode: document.getElementById('cloudsync_mode').value,
+    cloudsync_folder: document.getElementById('cloudsync_folder').value.trim(),
+    cloudsync_interval: parseInt(document.getElementById('cloudsync_interval').value, 10) || 3,
     rbn_enabled: document.getElementById('rbn_enabled').value,
     clublog_live: document.getElementById('clublog_live').value,
     expedition_mode: document.getElementById('expedition_mode').value,
@@ -2810,6 +2870,7 @@ function loadSavedConfig() {
      'clublog_callsign','clublog_password','clublog_api_key',
      'qrzcq_callsign','qrzcq_api_key','hrdlog_callsign','hrdlog_code',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
+     'cloudsync_mode','cloudsync_folder','cloudsync_interval',
      'rbn_enabled','clublog_live','expedition_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
      'activation_program','my_activation_ref',
