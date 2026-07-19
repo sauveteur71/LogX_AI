@@ -1512,6 +1512,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(state)
             return
 
+        # Amplificateur HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) :
+        # état courant (puissance/SWR/défaut/operate) — pollé par le logbook.
+        if path == '/amp/state':
+            import radiocontest_amp as amp
+            self._json(amp.get_state(self._cfg_snapshot()))
+            return
+
         # Radio CAT native : ports série disponibles (pour le sélecteur CONFIG)
         if path == '/rig/ports':
             import radiocontest_cat as cat
@@ -1915,6 +1922,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             res = vk.send_voice_message(cfg_snap, text)
             if res.get('ok'):
                 print(f"[RIG] Voix : {text[:60]}")
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        # Amplificateur HF : bascule standby/operate, changement de bande,
+        # acquittement de défaut, mise sous/hors tension à distance, test de
+        # connexion éphémère (bouton CONFIG).
+        if self.path in ('/amp/operate', '/amp/band', '/amp/clear_fault',
+                         '/amp/power', '/amp/test'):
+            import radiocontest_amp as amp
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            if self.path == '/amp/test':
+                res = amp.test_connection(
+                    payload.get('brand', ''), payload.get('port', ''),
+                    payload.get('baudrate') or 0, payload.get('civ_addr'))
+                self._json(res, 200 if res.get('ok') else 400)
+                return
+            cfg_snap = self._cfg_snapshot()
+            if self.path == '/amp/operate':
+                res = amp.set_operate(cfg_snap, bool(payload.get('on')))
+            elif self.path == '/amp/band':
+                res = amp.set_band(cfg_snap, payload.get('band', ''))
+            elif self.path == '/amp/clear_fault':
+                res = amp.clear_fault(cfg_snap)
+            else:
+                res = amp.power_toggle(cfg_snap, bool(payload.get('on')))
             self._json(res, 200 if res.get('ok') else 400)
             return
 

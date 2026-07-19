@@ -641,6 +641,51 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section expert-only">
+      <div class="section-title">🔋 AMPLIFICATEUR HF (pilotage natif)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Puissance/SWR/défaut affichés en direct dans le LOGBOOK, bascule standby/operate
+        et changement de bande depuis l'application — 3 protocoles constructeurs vérifiés
+        contre leur documentation officielle. Port série indépendant de celui de la radio
+        (câble USB/RS-232 dédié à l'ampli).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PILOTAGE AMPLI</label>
+          <select id="amp_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>MARQUE</label>
+          <select id="amp_brand" onchange="updateAmpFieldsVisibility()">
+            <option value="elecraft">Elecraft (KPA500 / KPA1500)</option>
+            <option value="icom">Icom (IC-PW2 / PW-1, CI-V)</option>
+            <option value="spe">SPE / Expert (1.3K-FA / 1.5K-FA / 2K-FA)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>PORT SÉRIE</label>
+          <select id="amp_port"></select>
+          <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshAmpPorts()">🔄 Rafraîchir la liste</button>
+        </div>
+        <div class="form-group">
+          <label>VITESSE (bauds)</label>
+          <input type="number" id="amp_baudrate" placeholder="9600 à 38400 selon marque">
+        </div>
+        <div class="form-group" id="ampCivAddrField" style="display:none">
+          <label>ADRESSE CI-V</label>
+          <input type="text" id="amp_civ_addr" placeholder="AA">
+          <div class="input-note">Adresse usine IC-PW2/PW-1 : AA (modifiable sur l'ampli si besoin)</div>
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="testAmpConnection()">🔌 Tester la connexion</button>
+        <span id="ampTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+    </div>
+
+    <div class="section expert-only">
       <div class="section-title">🧭 ROTOR D'ANTENNE (via Hamlib rotctld)</div>
       <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
         Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
@@ -1832,6 +1877,7 @@ async function init() {
   handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
   updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
   loadVoiceKeyerDevices();
+  updateAmpFieldsVisibility(); refreshAmpPorts(); // Amplificateur HF
 }
 
 // ─── KEYER VOCAL : périphériques audio + voix TTS (chargés une fois) ────────
@@ -1951,6 +1997,73 @@ async function refreshCatPorts(){
     if (prev && ports.some(p => p.device === prev)) sel.value = prev;
   }catch(e){
     sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+// ─── AMPLIFICATEUR HF (Elecraft/Icom/SPE) ────────────────────────────────────
+const AMP_DEFAULT_BAUD = {elecraft: 38400, icom: 19200, spe: 9600};
+
+function updateAmpFieldsVisibility(){
+  const brand = document.getElementById('amp_brand').value;
+  document.getElementById('ampCivAddrField').style.display = brand === 'icom' ? '' : 'none';
+  const baud = document.getElementById('amp_baudrate');
+  if (!baud.value) baud.value = AMP_DEFAULT_BAUD[brand] || 9600;
+}
+
+async function refreshAmpPorts(){
+  const sel = document.getElementById('amp_port');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">⏳ Recherche des ports...</option>';
+  try{
+    const res = await fetch('/rig/ports');
+    const data = await res.json();
+    const ports = data.ports || [];
+    sel.innerHTML = ports.length
+      ? ports.map(p => `<option value="${p.device}">${p.device} — ${p.description||''}</option>`).join('')
+      : '<option value="">Aucun port détecté</option>';
+    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+  }catch(e){
+    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+async function testAmpConnection(){
+  const result = document.getElementById('ampTestResult');
+  const brand = document.getElementById('amp_brand').value;
+  const port = document.getElementById('amp_port').value;
+  if (!port){
+    result.textContent = '⚠️ Choisis un port série d\'abord';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  const payload = {
+    brand, port,
+    baudrate: parseInt(document.getElementById('amp_baudrate').value, 10) || AMP_DEFAULT_BAUD[brand] || 9600,
+    civ_addr: document.getElementById('amp_civ_addr').value.trim() || undefined,
+  };
+  try{
+    const res = await fetch('/amp/test', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const r = await res.json();
+    if (r.ok){
+      const st = r.status || {};
+      const bits = [];
+      if (st.power_w !== undefined) bits.push(`${st.power_w} W`);
+      if (st.swr !== undefined) bits.push(`SWR ${st.swr}`);
+      if (st.power_raw !== undefined) bits.push(`Po brut ${st.power_raw}`);
+      result.textContent = `✅ Ampli joint${bits.length ? ' — ' + bits.join(', ') : ''}`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
   }
 }
 
@@ -2858,6 +2971,11 @@ function saveConfig(silent = false) {
     voicekeyer_device: document.getElementById('voicekeyer_device').value,
     voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
     voicekeyer_rate: parseInt(document.getElementById('voicekeyer_rate').value, 10) || 175,
+    amp_enabled: !!document.getElementById('amp_enabled').value,
+    amp_brand: document.getElementById('amp_brand').value,
+    amp_port: document.getElementById('amp_port').value,
+    amp_baudrate: parseInt(document.getElementById('amp_baudrate').value, 10) || 0,
+    amp_civ_addr: document.getElementById('amp_civ_addr').value.trim(),
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
     rotor_host: document.getElementById('rotor_host').value.trim(),
     rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
@@ -3079,7 +3197,8 @@ function loadSavedConfig() {
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
      'activation_program','my_activation_ref',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
-     'tci_host','tci_port','voicekeyer_rate'].forEach(k=>{
+     'tci_host','tci_port','voicekeyer_rate',
+     'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     applyUsageMode();
@@ -3102,6 +3221,8 @@ function loadSavedConfig() {
     }
     updateCatModeVisibility();
     if(c.voicekeyer_enabled) document.getElementById('voicekeyer_enabled').value = '1';
+    if(c.amp_enabled) document.getElementById('amp_enabled').value = '1';
+    if (c.amp_brand) updateAmpFieldsVisibility();
     if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
     if(c.wsjtx_port) document.getElementById('wsjtx_port').value = c.wsjtx_port;
     if(c.adifnet_mode) document.getElementById('adifnet_mode').value = c.adifnet_mode;
