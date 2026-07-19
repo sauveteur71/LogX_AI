@@ -452,6 +452,41 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section expert-only">
+      <div class="section-title">🌐 RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Interopérabilité temps réel avec N1MM Logger+ et DXLog.net via leur
+        protocole de broadcast UDP <code>&lt;contactinfo&gt;</code> (format de facto
+        entre loggers de concours tiers).<br>
+        Côté N1MM : <b style="color:var(--accent2)">Config → Config Ports → Broadcast Data</b>
+        → cocher « Contact », IP de ce PC, port 12060.<br>
+        Côté DXLog : <b style="color:var(--accent2)">Options → Broadcast → QSOs</b>
+        (format « N1MM-like »), même IP/port.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>MODE</label>
+          <select id="adifnet_mode">
+            <option value="off">Désactivé</option>
+            <option value="listen">Réception seule (importer leurs QSO)</option>
+            <option value="send">Émission seule (leur envoyer nos QSO)</option>
+            <option value="both">Réception + émission</option>
+          </select>
+          <div class="input-note">Désactivé par défaut</div>
+        </div>
+        <div class="form-group">
+          <label>PORT UDP</label>
+          <input type="number" id="adifnet_port" placeholder="12060">
+          <div class="input-note">Port broadcast N1MM/DXLog (défaut 12060)</div>
+        </div>
+        <div class="form-group">
+          <label>IP CIBLE (émission)</label>
+          <input type="text" id="adifnet_target" placeholder="255.255.255.255">
+          <div class="input-note">Broadcast local, ou IP précise du PC voisin</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
       <div class="section-title">📻 RADIO (pilotage CAT)</div>
       <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
         Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
@@ -2701,6 +2736,9 @@ function saveConfig(silent = false) {
     tci_port: parseInt(document.getElementById('tci_port').value, 10) || 50001,
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
     wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
+    adifnet_mode: document.getElementById('adifnet_mode').value,
+    adifnet_port: parseInt(document.getElementById('adifnet_port').value, 10) || 12060,
+    adifnet_target: document.getElementById('adifnet_target').value.trim() || '255.255.255.255',
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
     rotor_host: document.getElementById('rotor_host').value.trim(),
     rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
@@ -2898,6 +2936,9 @@ function loadSavedConfig() {
     updateCatModeVisibility();
     if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
     if(c.wsjtx_port) document.getElementById('wsjtx_port').value = c.wsjtx_port;
+    if(c.adifnet_mode) document.getElementById('adifnet_mode').value = c.adifnet_mode;
+    if(c.adifnet_port) document.getElementById('adifnet_port').value = c.adifnet_port;
+    if(c.adifnet_target) document.getElementById('adifnet_target').value = c.adifnet_target;
     if(c.rotor_enabled) document.getElementById('rotor_enabled').value = '1';
     if(c.rotor_host) document.getElementById('rotor_host').value = c.rotor_host;
     if(c.rotor_port) document.getElementById('rotor_port').value = c.rotor_port;

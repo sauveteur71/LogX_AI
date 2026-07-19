@@ -192,6 +192,17 @@ def add_qso_to_log(qso, force=False):
                              daemon=True).start()
     except Exception:
         pass
+    # Réseau ADIF générique : rediffuse le QSO en UDP <contactinfo> pour un
+    # N1MM/DXLog voisin (mode send/both), fire-and-forget.
+    try:
+        with config_lock:
+            cfg_now2 = dict(current_config)
+        import radiocontest_adifnet as adifnet
+        if adifnet.adifnet_settings(cfg_now2)['send']:
+            threading.Thread(target=lambda: adifnet.broadcast_qso(dict(qso), cfg_now2),
+                             daemon=True).start()
+    except Exception:
+        pass
     # Enrichit l'historique d'indicatifs à chaud (Super Check Partial)
     try:
         import radiocontest_callhistory as callhistory
@@ -1398,6 +1409,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             st = wsjtx.current_status()
             st['enabled'] = True
             st['port'] = settings['port']
+            self._json(st)
+            return
+
+        # Réseau ADIF générique (N1MM/DXLog) : état de l'écoute — pollé par CONFIG
+        if path == '/adifnet/state':
+            import radiocontest_adifnet as adifnet
+            settings = adifnet.adifnet_settings(self._cfg_snapshot())
+            if settings['listen']:
+                # Démarrage à chaud (idempotent)
+                adifnet.start_listener(
+                    get_cfg=lambda: dict(current_config),
+                    add_qso=lambda q: add_qso_to_log(q, force=False)[0],
+                    port=settings['port'])
+            st = adifnet.current_status()
+            st.update(settings)
             self._json(st)
             return
 
