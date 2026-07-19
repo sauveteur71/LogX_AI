@@ -122,7 +122,9 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   <div class="prop-main">
 
     <div class="panel">
-      <div class="panel-title">☀️ SOLEIL & IONOSPHÈRE <small id="solarUpdated"></small></div>
+      <div class="panel-title">☀️ SOLEIL & IONOSPHÈRE <small id="solarUpdated"></small>
+        <button type="button" onclick="window.rcOpenPanel && window.rcOpenPanel('solarweather')" title="Détacher ce panneau dans une fenêtre séparée" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px">⇱</button>
+      </div>
       <div class="solar-grid" id="solarGrid"><div class="loading">Chargement…</div></div>
       <div class="muf-band">
         <div class="si-lbl">MUF — FRÉQUENCE MAX UTILISABLE (3000 km)</div>
@@ -174,7 +176,9 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   <!-- CLUSTER NEED LIST : colonne droite, pleine hauteur, lecture complète -->
   <div class="prop-cluster">
     <div class="panel">
-      <div class="panel-title">🎯 CLUSTER — NEED LIST <small id="spotsMeta"></small></div>
+      <div class="panel-title">🎯 CLUSTER — NEED LIST <small id="spotsMeta"></small>
+        <button type="button" onclick="window.rcOpenPanel && window.rcOpenPanel('cluster')" title="Détacher ce panneau dans une fenêtre séparée" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px">⇱</button>
+      </div>
       <div class="filters">
         <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
         <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 MULTS</button>
