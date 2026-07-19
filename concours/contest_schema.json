@@ -243,7 +243,8 @@
                         "prefix",
                         "dept_dxcc",
                         "na_section",
-                        "na_state"
+                        "na_state",
+                        "exchange_distinct"
                       ]
                     }
                   }
