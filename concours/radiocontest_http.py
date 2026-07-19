@@ -1324,6 +1324,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import radiocontest_backup as bk
             self._json(bk.status(self._cfg_snapshot()))
             return
+        if path == '/cloudsync/status':
+            import radiocontest_cloudsync as cs
+            self._json(cs.status(self._cfg_snapshot()))
+            return
 
         # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min)
         if path == '/data/propagation':
@@ -1600,6 +1604,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with log_lock:
                     log_copy = list(shared_log)
                 res = bk.run_backup(self._cfg_snapshot(), log_copy)
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Cloud Sync manuel immédiat (voir aussi le thread de fond périodique).
+        if self.path == '/cloudsync/now':
+            try:
+                import radiocontest_cloudsync as cs
+                with log_lock:
+                    log_copy = list(shared_log)
+                res = cs.sync_now(self._cfg_snapshot(), log_copy)
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 500)
