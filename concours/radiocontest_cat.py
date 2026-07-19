@@ -512,6 +512,22 @@ def set_freq(cfg, freq_hz, mode=None):
         return {'ok': False, 'error': f'Radio injoignable ({e})'}
 
 
+def set_ptt(cfg, on):
+    """Bascule PTT natif (CivRadio/AsciiRadio ont chacun leur set_ptt) — même
+    signature que radiocontest_rig.set_ptt/radiocontest_tci.set_ptt, pour le
+    keyer vocal (radiocontest_voicekeyer.py)."""
+    settings = cat_settings(cfg)
+    if not settings['enabled'] or settings['mode'] != 'native':
+        return {'ok': False, 'error': 'Pilotage natif non actif'}
+    driver, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    try:
+        return driver.set_ptt(bool(on))
+    except Exception as e:
+        return {'ok': False, 'error': f'Radio injoignable ({e})'}
+
+
 def test_connection(brand, model, port, baudrate):
     """Test ÉPHÉMÈRE (bouton CONFIG) : ouvre, interroge, ferme — ne touche
     jamais à la connexion persistante utilisée par le polling logbook."""

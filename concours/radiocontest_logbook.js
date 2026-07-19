@@ -1010,6 +1010,72 @@ function voicePlay(key){
   try{ const a = new Audio(s[key]); a.play(); }catch(e){}
 }
 
+// ─── CALLBOT (macros vocales DYNAMIQUES : synthèse + PTT + émission radio) ───
+// Contrairement aux macros CW ({CALL} = TA propre station, jamais celle du
+// correspondant — pas besoin en CW de re-taper l'indicatif de l'autre), ici
+// {CALL} = LE CORRESPONDANT actuellement tapé dans la saisie (l'usage typique
+// en phonie : confirmer qui on appelle avant le report), {MYCALL} = ta station.
+const VOICE_MACRO_DEFAULT = [
+  {key:'B1', label:'CQ', text:'CQ Contest, {MYCALL}'},
+  {key:'B2', label:'RÉPONSE', text:'{CALL}'},
+  {key:'B3', label:'REPORT', text:'{RST_SENT}, {MYCALL}'},
+  {key:'B4', label:'MERCI', text:'Thank you, {MYCALL}'},
+];
+function getVoiceDynMacros(){ try{ const s=localStorage.getItem('radiocontest_voice_macros'); return s?JSON.parse(s):VOICE_MACRO_DEFAULT; }catch(e){ return VOICE_MACRO_DEFAULT; } }
+function saveVoiceDynMacros(m){ localStorage.setItem('radiocontest_voice_macros', JSON.stringify(m)); }
+
+function renderVoiceDynPanel(){
+  const btns = document.getElementById('voiceDynBtns');
+  if(!btns) return;
+  const macros = getVoiceDynMacros();
+  btns.innerHTML = '';
+  macros.forEach((m, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'macro-btn';
+    btn.title = m.text;
+    btn.innerHTML = `<span class="mk">${m.key}</span><span class="mt">${m.label}</span>`;
+    btn.onclick    = e => { e.stopPropagation(); sendVoiceDynMacro(idx); };
+    btn.ondblclick = e => { e.stopPropagation(); editVoiceDynMacro(idx); };
+    btns.appendChild(btn);
+  });
+}
+
+async function sendVoiceDynMacro(idx){
+  const m = getVoiceDynMacros()[idx]; if(!m) return;
+  const cfg = JSON.parse(localStorage.getItem('radiocontest_config')||'{}');
+  const rstRcvdEl = document.getElementById('inputRSTrcvd');
+  const numSentEl = document.getElementById('inputNumSent');
+  const payload = {
+    template: m.text,
+    call: document.getElementById('inputCall').value.trim(),
+    mycall: cfg.callsign_contest || cfg.callsign || myCall || '',
+    rst_sent: document.getElementById('inputRSTsent').value.trim() || '59',
+    rst_rcvd: rstRcvdEl ? rstRcvdEl.value.trim() : '',
+    nr: numSentEl ? numSentEl.value.trim() : '',
+  };
+  const out = document.getElementById('voiceDynResult');
+  if(out) out.textContent = '⏳…';
+  try{
+    const r = await fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)});
+    const d = await r.json();
+    if(out) out.textContent = d.ok ? `📻 « ${d.text} »` : `❌ ${d.error}`;
+  }catch(e){
+    if(out) out.textContent = '❌ ' + e.message;
+  }
+}
+
+function editVoiceDynMacro(idx){
+  const macros = getVoiceDynMacros();
+  const m = macros[idx];
+  const newLabel = prompt(`Label pour ${m.key} :`, m.label);
+  if(newLabel === null) return;
+  const newText = prompt('Message ({CALL}=correspondant · {MYCALL}=toi · {RST_SENT}/{RST_RCVD}/{NR}) :', m.text);
+  if(newText === null) return;
+  macros[idx] = {...m, label:newLabel.trim()||m.label, text:newText.trim()||m.text};
+  saveVoiceDynMacros(macros); renderVoiceDynPanel();
+}
+
 // ─── ESM (Enter Sends Message) ───────────────────────────────────────────────
 // Entrée enchaîne : (champ vide) appel CQ → (indicatif saisi) échange → (Entrée
 // dans le N° reçu) log + « merci ». Utilise le keyer CW (macros) ou vocal (WAV)
@@ -1159,6 +1225,7 @@ function updateKeyerPanels(){
   if(cwd) cwd.style.display = cw ? '' : 'none';   // décodeur utile surtout en CW
 }
 renderVoicePanel();
+renderVoiceDynPanel();
 setTimeout(updateKeyerPanels, 300);
 
 // ─── SAUVEGARDE IMMÉDIATE (dossier cloud/NAS) ────────────────────────────────
