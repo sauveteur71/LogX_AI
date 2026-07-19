@@ -983,7 +983,8 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   </style>
   <div class="bandmap-panel" id="bandmapPanel">
     <div class="bandmap-head">📻 BAND MAP <span id="bandmapBand">—</span>
-      <button onclick="popoutScope()" title="Détacher le bandscope sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px;margin-left:auto">⇱</button></div>
+      <button onclick="window.rcOpenPanel && window.rcOpenPanel('bandmap', {band: currentBand})" title="Détacher CE panneau Band Map dans une fenêtre séparée" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px;margin-left:auto">⇱</button>
+      <button onclick="popoutScope()" title="Détacher le bandscope graphique sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">📡</button></div>
     <!-- Bandscope : activité de la bande (densité de spots par fréquence) -->
     <div class="bandscope-wrap" id="bandscopeWrap"><svg id="bandscope" viewBox="0 0 180 74" preserveAspectRatio="none"></svg></div>
     <div class="bandmap-list" id="bandmapList">
