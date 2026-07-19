@@ -138,6 +138,12 @@
   function refreshContest(){
     const cfg = getConfig();
     const el = document.getElementById('rcsbContest');
+    // LOGBOOK SIMPLE : pas de concours, même si un concours a été choisi ou
+    // testé auparavant (state.contest peut rester en mémoire côté serveur).
+    if (cfg.usage_mode === 'simple'){
+      el.textContent = 'logbook simple'; el.title = 'Mode logbook simple — pas de concours actif';
+      return;
+    }
     const id = cfg.contest;
     if (!id){ el.textContent = 'aucun concours'; el.title = 'Choisis un concours dans CONFIG → étape 2'; return; }
     el.textContent = contestNames[id] || id;
@@ -147,7 +153,7 @@
     const cfg = getConfig();
     const el = document.getElementById('rcsbTime');
     el.className = 'rcsb-val';
-    if (!cfg.contest || !cfg.contest_end_date){ el.textContent = '—'; return; }
+    if (cfg.usage_mode === 'simple' || !cfg.contest || !cfg.contest_end_date){ el.textContent = '—'; return; }
     try{
       // start : contest_start_date à 00:00 si l'heure n'est pas connue —
       // on ne s'en sert que pour distinguer "pas commencé" de "en cours".
