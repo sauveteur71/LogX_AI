@@ -1,0 +1,63 @@
+name: Check RadioContest AI
+
+on:
+  push:
+    paths:
+      - 'concours/**'
+  pull_request:
+    paths:
+      - 'concours/**'
+  workflow_dispatch: {}
+
+jobs:
+  validate:
+    name: Validation schema + harnais mock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installer les dependances
+        run: pip install jsonschema
+
+      - name: Valider les definitions de concours
+        working-directory: concours
+        run: python radiocontest_validate.py
+
+      - name: Tester le harnais d'extraction (mode mock, sans appel IA)
+        # Informatif seulement : le mock est volontairement imparfait
+        # (score jamais 100%), ce test verifie juste l'absence de crash.
+        continue-on-error: true
+        working-directory: concours
+        run: python radiocontest_eval.py --mock
+
+  eval-ia:
+    name: Eval extraction IA reelle (corpus complet)
+    # Ne tourne que si la cle API est configuree dans les secrets du repo
+    # (Settings -> Secrets and variables -> Actions -> ANTHROPIC_API_KEY)
+    # ET que la variable de repo ENABLE_AI_EVAL vaut "true".
+    # Optionnel : consomme des appels API reels, pas bloquant pour le build.
+    if: ${{ vars.ENABLE_AI_EVAL == 'true' }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installer les dependances
+        run: pip install jsonschema
+
+      - name: Lancer le corpus d'evaluation complet
+        working-directory: concours
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python radiocontest_eval.py
