@@ -1463,6 +1463,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(st)
             return
 
+        # Keyer vocal : périphériques audio de sortie + voix TTS installées
+        # (pour les select de CONFIG) — appelé une fois, jamais en polling.
+        if path == '/voicekeyer/devices':
+            import radiocontest_voicekeyer as vk
+            self._json({'devices': vk.list_output_devices(), 'voices': vk.list_tts_voices()})
+            return
+
         # Radio CAT (natif / TCI / rigctld) : état courant — pollé par le logbook
         if path == '/rig/state':
             cfg_snap = self._cfg_snapshot()
@@ -1866,6 +1873,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
             else:
                 res = rig.stop_morse(settings['host'], settings['port'])
             self._json(res, 200 if res.get('ok') else 502)
+            return
+
+        # Keyer vocal dynamique : indicatif/report épelés phonétiquement,
+        # synthétisés (TTS hors-ligne) et émis par la radio (PTT via CAT
+        # autour de la lecture, quel que soit le mode natif/TCI/rigctld).
+        if self.path == '/rig/voice':
+            import radiocontest_voicekeyer as vk
+            cfg_snap = self._cfg_snapshot()
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            template = str(payload.get('template', payload.get('text', '')))[:200]
+            ctx = {
+                'call': payload.get('call', ''), 'mycall': payload.get('mycall', ''),
+                'rst_sent': payload.get('rst_sent', ''), 'rst_rcvd': payload.get('rst_rcvd', ''),
+                'nr': payload.get('nr', ''),
+            }
+            text = vk.expand_voice_text(template, ctx)
+            res = vk.send_voice_message(cfg_snap, text)
+            if res.get('ok'):
+                print(f"[RIG] Voix : {text[:60]}")
+            self._json(res, 200 if res.get('ok') else 400)
             return
 
         # Rotor d'antenne (rotctld) : pointer, stopper

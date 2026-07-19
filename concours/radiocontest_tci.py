@@ -389,6 +389,20 @@ def stop_cw(cfg):
         return {'ok': False, 'error': f'Serveur TCI injoignable ({e})'}
 
 
+def set_ptt(cfg, on):
+    """Bascule PTT — même signature que radiocontest_cat.set_ptt/
+    radiocontest_rig.set_ptt, pour le keyer vocal (radiocontest_voicekeyer.py)."""
+    settings = tci_settings(cfg)
+    client, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    try:
+        client.set_ptt(bool(on))
+        return {'ok': True}
+    except Exception as e:
+        return {'ok': False, 'error': f'Serveur TCI injoignable ({e})'}
+
+
 def test_connection(host, port):
     """Test ÉPHÉMÈRE (bouton CONFIG) : connecte, attend l'état initial, ferme
     — ne touche jamais à la connexion persistante utilisée par le polling

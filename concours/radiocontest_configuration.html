@@ -602,6 +602,45 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="section expert-only">
+      <div class="section-title">🎙️ KEYER VOCAL (phonie — indicatif dit automatiquement)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Équivalent phonie des macros CW : synthèse vocale hors-ligne (aucun réseau),
+        indicatif épelé phonétiquement (Alpha, Bravo…) et reports dits chiffre par
+        chiffre, PTT activé automatiquement le temps du message (nécessite le
+        pilotage radio ci-dessus, natif/TCI/rigctld). Le son part vers le
+        PÉRIPHÉRIQUE choisi ci-dessous — utilise un câble audio virtuel
+        (ex. VB-Audio) ou une interface dédiée reliée à l'entrée micro de la
+        radio, jamais tes haut-parleurs de suivi.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>KEYER VOCAL</label>
+          <select id="voicekeyer_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>PÉRIPHÉRIQUE DE SORTIE</label>
+          <select id="voicekeyer_device"><option value="">— chargement… —</option></select>
+          <div class="input-note">Le câble/l'interface relié(e) à l'entrée micro de la radio, PAS tes enceintes</div>
+        </div>
+        <div class="form-group">
+          <label>VOIX</label>
+          <select id="voicekeyer_voice_id"><option value="">— chargement… —</option></select>
+        </div>
+        <div class="form-group">
+          <label>VITESSE (mots/min)</label>
+          <input type="number" id="voicekeyer_rate" placeholder="175" min="80" max="300">
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="testVoiceKeyer()">🔊 Tester (indicatif fictif)</button>
+        <span id="voiceKeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+    </div>
+
+    <div class="section expert-only">
       <div class="section-title">🧭 ROTOR D'ANTENNE (via Hamlib rotctld)</div>
       <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
         Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
@@ -1792,6 +1831,54 @@ async function init() {
   }
   handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
   updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
+  loadVoiceKeyerDevices();
+}
+
+// ─── KEYER VOCAL : périphériques audio + voix TTS (chargés une fois) ────────
+function _vkEsc(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadVoiceKeyerDevices(){
+  const devSel = document.getElementById('voicekeyer_device');
+  const voiceSel = document.getElementById('voicekeyer_voice_id');
+  if(!devSel || !voiceSel) return;
+  try{
+    const r = await fetch('/voicekeyer/devices');
+    if(!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    devSel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+      + (d.devices || []).map(x => `<option value="${x.index}">${_vkEsc(x.name)}</option>`).join('');
+    voiceSel.innerHTML = '<option value="">— voix par défaut —</option>'
+      + (d.voices || []).map(x => `<option value="${_vkEsc(x.id)}">${_vkEsc(x.name)}${x.lang ? ' (' + _vkEsc(x.lang) + ')' : ''}</option>`).join('');
+  }catch(e){
+    devSel.innerHTML = '<option value="">indisponible (sounddevice non installé ?)</option>';
+    voiceSel.innerHTML = '<option value="">indisponible (pyttsx3 non installé ?)</option>';
+  }
+  // Ré-applique les valeurs sauvegardées maintenant que les <option> existent
+  try{
+    const cfg = JSON.parse(localStorage.getItem('radiocontest_config') || '{}');
+    if(cfg.voicekeyer_device !== undefined) devSel.value = cfg.voicekeyer_device;
+    if(cfg.voicekeyer_voice_id !== undefined) voiceSel.value = cfg.voicekeyer_voice_id;
+  }catch(e){}
+}
+
+async function testVoiceKeyer(){
+  const out = document.getElementById('voiceKeyerTestResult');
+  if(out){ out.textContent = '⏳ test en cours…'; out.style.color = 'var(--muted)'; }
+  try{
+    const r = await fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({template: '{CALL} de {MYCALL}, {RST_SENT}',
+        call: 'F8TEST', mycall: document.getElementById('callsign').value || 'F1TEST', rst_sent: '59'})});
+    const d = await r.json();
+    if(out){
+      out.textContent = d.ok ? `✅ Envoyé : « ${d.text} »` : `❌ ${d.error}`;
+      out.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+    }
+  }catch(e){
+    if(out){ out.textContent = '❌ ' + e.message; out.style.color = 'var(--red)'; }
+  }
 }
 
 // ─── RADIO CAT NATIVE (pilotage direct, sans Hamlib) ─────────────────────────
@@ -2767,6 +2854,10 @@ function saveConfig(silent = false) {
     adifnet_mode: document.getElementById('adifnet_mode').value,
     adifnet_port: parseInt(document.getElementById('adifnet_port').value, 10) || 12060,
     adifnet_target: document.getElementById('adifnet_target').value.trim() || '255.255.255.255',
+    voicekeyer_enabled: !!document.getElementById('voicekeyer_enabled').value,
+    voicekeyer_device: document.getElementById('voicekeyer_device').value,
+    voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
+    voicekeyer_rate: parseInt(document.getElementById('voicekeyer_rate').value, 10) || 175,
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
     rotor_host: document.getElementById('rotor_host').value.trim(),
     rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
@@ -2988,7 +3079,7 @@ function loadSavedConfig() {
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
      'activation_program','my_activation_ref',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
-     'tci_host','tci_port'].forEach(k=>{
+     'tci_host','tci_port','voicekeyer_rate'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     applyUsageMode();
@@ -3010,6 +3101,7 @@ function loadSavedConfig() {
       document.getElementById('cat_mode').value = 'rigctld';
     }
     updateCatModeVisibility();
+    if(c.voicekeyer_enabled) document.getElementById('voicekeyer_enabled').value = '1';
     if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
     if(c.wsjtx_port) document.getElementById('wsjtx_port').value = c.wsjtx_port;
     if(c.adifnet_mode) document.getElementById('adifnet_mode').value = c.adifnet_mode;

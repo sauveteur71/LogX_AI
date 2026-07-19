@@ -130,3 +130,16 @@ def stop_morse(host, port):
         return {'ok': True}
     except Exception as e:
         return {'ok': False, 'error': f'rigctld injoignable ({e})'}
+
+
+def set_ptt(host, port, on):
+    """Bascule PTT (commande Hamlib standard 'T 1'/'T 0') — pour le keyer
+    vocal (radiocontest_voicekeyer.py), même signature que
+    radiocontest_cat.set_ptt/radiocontest_tci.set_ptt."""
+    try:
+        lines = _command(host, port, f"T {1 if on else 0}")
+        if not _rprt_ok(lines):
+            return {'ok': False, 'error': f'PTT refusé par rigctld : {lines}'}
+        return {'ok': True}
+    except Exception as e:
+        return {'ok': False, 'error': f'rigctld injoignable ({e})'}
