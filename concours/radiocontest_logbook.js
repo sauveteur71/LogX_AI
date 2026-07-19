@@ -2730,6 +2730,59 @@ function rigStopCW(){
 refreshRig();
 setInterval(refreshRig, 3000);
 
+// ─── AMPLIFICATEUR HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) ──────
+// Panneau compact : puissance/SWR/défaut affichés en direct + bascule
+// standby/operate. Les champs varient selon la marque (radiocontest_amp.py
+// get_state()) : on prend le premier champ disponible dans un ordre de
+// préférence (unités réelles d'abord, valeurs brutes constructeur ensuite).
+let ampState = {enabled: false, operate: false};
+
+function refreshAmp(){
+  fetch('/amp/state').then(r=>r.ok?r.json():null).then(d=>{
+    const panel = document.getElementById('ampPanel');
+    if(!d || !d.enabled){ ampState.enabled = false; if(panel) panel.style.display = 'none'; return; }
+    ampState.enabled = true;
+    if(panel) panel.style.display = 'block';
+    const dot = document.getElementById('ampDot');
+    const powerEl = document.getElementById('ampPower');
+    const swrEl = document.getElementById('ampSwr');
+    const faultEl = document.getElementById('ampFault');
+    const btn = document.getElementById('ampOperateBtn');
+    if(d.ok){
+      ampState.operate = !!d.operate;
+      powerEl.textContent = (d.power_w != null) ? `${Math.round(d.power_w)} W`
+                          : (d.power_raw != null) ? `${d.power_raw} (brut)` : '— W';
+      const swr = (d.swr != null) ? d.swr.toFixed(1)
+                : (d.swr_ant != null) ? d.swr_ant.toFixed(1)
+                : (d.swr_raw != null) ? `${d.swr_raw} (brut)` : '—';
+      swrEl.textContent = `SWR ${swr}`;
+      const faultTxt = d.alarm_label || d.warning_label || d.fault_label
+                      || (d.fault_code ? `Défaut ${d.fault_code}` : '');
+      faultEl.textContent = faultTxt ? `⚠ ${faultTxt}` : '';
+      if(dot) dot.classList.add('on');
+      if(btn){
+        btn.textContent = ampState.operate ? 'OPERATE' : 'STANDBY';
+        btn.style.borderColor = ampState.operate ? 'var(--green)' : 'var(--red)';
+        btn.style.color = ampState.operate ? 'var(--green)' : 'var(--red)';
+      }
+    } else {
+      powerEl.textContent = 'ampli injoignable';
+      swrEl.textContent = '';
+      faultEl.textContent = '';
+      if(dot) dot.classList.remove('on');
+    }
+  }).catch(()=>{});
+}
+
+function toggleAmpOperate(){
+  const target = !ampState.operate;
+  fetch('/amp/operate', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({on: target})}).then(()=>refreshAmp()).catch(()=>{});
+}
+
+refreshAmp();
+setInterval(refreshAmp, 3000);
+
 // ─── ROTOR (rotctld) ─────────────────────────────────────────────────────────
 // Sonde l'état pour savoir si le pilotage est actif (affiche le bouton
 // « pointer » sous la boussole) ; le pointage réel se fait à la demande.
