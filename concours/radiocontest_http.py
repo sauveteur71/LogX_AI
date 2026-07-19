@@ -1099,7 +1099,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with log_lock:
                 log_copy = list(shared_log)
             self._json(dep.department_targets(
-                log_copy, cfg_snap.get('contest', ''), _spots_from_caches()))
+                log_copy, cfg_snap.get('contest', ''), _spots_from_caches(),
+                cfg=cfg_snap))
             return
 
         # GeoJSON des départements français (cache disque, offline après 1er DL)

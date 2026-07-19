@@ -110,8 +110,8 @@ def test_department_targets_spotte_en_tete(monkeypatch):
     à cette machine) : sans ça, le test passe ou échoue selon que le poste de
     dev a déjà croisé F1MOZ dans sa base d'indicatifs accumulée — invisible en
     local, mais casse sur un checkout propre / en CI. Ici F1MOZ n'a AUCUN
-    historique connu : seule la résolution par géographie du spot (à défaut
-    d'indicatif déjà vu) permettrait de le rattacher à un département."""
+    historique connu ET cfg=None (pas de lookup callbook en direct demandé) :
+    aucune source ne peut le rattacher à un département."""
     from radiocontest_departments import department_targets
     monkeypatch.setattr(ch, '_load_calldb', lambda: None)
     monkeypatch.setattr(ch, '_load_archives', lambda: None)
@@ -120,11 +120,78 @@ def test_department_targets_spotte_en_tete(monkeypatch):
     monkeypatch.setattr(ch, '_built_at', 0.0)
     t = department_targets([], '', {'144 MHz': [{'dx': 'F1MOZ', 'freq': 144.3}]})
     assert t['missing_total'] == 96          # rien travaillé
-    # F1MOZ n'a aucun historique connu (calldb/archives neutralisés) : aucun
-    # département ne peut lui être rattaché, donc AUCUNE cible ne le montre
-    # comme spotté — documente le comportement actuel plutôt que d'exiger un
-    # miracle géographique non implémenté.
+    # F1MOZ n'a aucun historique connu (calldb/archives neutralisés) et aucun
+    # cfg n'est fourni : aucun département ne peut lui être rattaché, donc
+    # AUCUNE cible ne le montre comme spotté.
     assert all(not tgt['spotted'] for tgt in t['targets'])
+
+
+def test_department_targets_lookup_callbook_en_direct(monkeypatch):
+    """Avec cfg fourni : un indicatif français spotté, jamais croisé nulle
+    part, est résolu via un lookup callbook en direct (mocké ici — jamais de
+    vrai réseau dans un test) qui renvoie sa grille, projetée sur le
+    département par dept_from_locator (déjà utilisé pour les QSO réels)."""
+    import radiocontest_departments as dep
+    monkeypatch.setattr(ch, '_load_calldb', lambda: None)
+    monkeypatch.setattr(ch, '_load_archives', lambda: None)
+    monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
+    monkeypatch.setattr(ch, '_index', {})
+    monkeypatch.setattr(ch, '_built_at', 0.0)
+    dep._live_fail_cache.clear()
+
+    def fake_lookup(call, cfg):
+        assert call == 'F1MOZ'
+        return {'ok': True, 'grid': 'IN93RS', 'source': 'hamqth'}
+    monkeypatch.setattr('radiocontest_callbook.lookup', fake_lookup)
+
+    t = dep.department_targets([], '', {'144 MHz': [{'dx': 'F1MOZ', 'freq': 144.3}]},
+                               cfg={})
+    dept40 = next(tgt for tgt in t['targets'] if tgt['dept'] == '40')
+    assert dept40['spotted'] and dept40['spotted'][0]['call'] == 'F1MOZ'
+
+
+def test_department_targets_ignore_indicatifs_non_francais(monkeypatch):
+    """Un indicatif non français n'a pas de département REF : jamais de
+    lookup callbook tenté pour lui (le mock lèverait si appelé)."""
+    import radiocontest_departments as dep
+    monkeypatch.setattr(ch, '_load_calldb', lambda: None)
+    monkeypatch.setattr(ch, '_load_archives', lambda: None)
+    monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
+    monkeypatch.setattr(ch, '_index', {})
+    monkeypatch.setattr(ch, '_built_at', 0.0)
+    dep._live_fail_cache.clear()
+
+    def boom(call, cfg):
+        raise AssertionError('ne doit jamais etre appele pour un indicatif non francais')
+    monkeypatch.setattr('radiocontest_callbook.lookup', boom)
+
+    t = dep.department_targets([], '', {'144 MHz': [{'dx': 'DL1AA', 'freq': 144.3}]},
+                               cfg={})
+    assert all(not tgt['spotted'] for tgt in t['targets'])
+
+
+def test_department_targets_echec_lookup_mis_en_cache(monkeypatch):
+    """Un indicatif dont le lookup échoue n'est pas rappelé à chaque poll
+    (cache d'échec local, 15 min) — évite de marteler QRZ/HamQTH/HamDB pour
+    un indicatif qui ne résoudra jamais."""
+    import radiocontest_departments as dep
+    monkeypatch.setattr(ch, '_load_calldb', lambda: None)
+    monkeypatch.setattr(ch, '_load_archives', lambda: None)
+    monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
+    monkeypatch.setattr(ch, '_index', {})
+    monkeypatch.setattr(ch, '_built_at', 0.0)
+    dep._live_fail_cache.clear()
+
+    calls = {'n': 0}
+    def failing_lookup(call, cfg):
+        calls['n'] += 1
+        return {'ok': False, 'error': 'introuvable'}
+    monkeypatch.setattr('radiocontest_callbook.lookup', failing_lookup)
+
+    spots = {'144 MHz': [{'dx': 'F9ZZZ', 'freq': 144.3}]}
+    dep.department_targets([], '', spots, cfg={})
+    dep.department_targets([], '', spots, cfg={})
+    assert calls['n'] == 1   # 2e appel servi par le cache d'echec, pas de reseau
 
 
 # ─── Débrief ─────────────────────────────────────────────────────────────────
