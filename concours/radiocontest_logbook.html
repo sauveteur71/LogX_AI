@@ -928,6 +928,18 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         </div>
       </div>
 
+      <!-- AMPLIFICATEUR HF (visible si pilotage activé dans CONFIG) -->
+      <div class="rig-panel" id="ampPanel" style="display:none">
+        <div class="rig-row">
+          <span class="rig-dot" id="ampDot"></span>
+          <span class="rig-label">🔋 AMPLI</span>
+          <span class="rig-freq" id="ampPower">— W</span>
+          <span class="rig-mode" id="ampSwr">SWR —</span>
+          <span class="rig-mode" id="ampFault" style="color:var(--red)"></span>
+          <button class="rig-stop" id="ampOperateBtn" onclick="toggleAmpOperate()" title="Basculer standby/operate">STANDBY</button>
+        </div>
+      </div>
+
       <!-- MACROS F1–F8 -->
       <div class="macro-panel expert-only" id="macroPanel">
         <div class="macro-panel-title" id="macroPanelTitle">MACROS — clic: copier · double-clic: modifier</div>
