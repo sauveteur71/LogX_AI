@@ -178,6 +178,18 @@ if __name__ == '__main__':
     except Exception as _e:
         print(f"[WSJTX] Demarrage differe: {_e}")
 
+    # Réseau ADIF générique (N1MM/DXLog) : écouteur UDP démarré si activé
+    try:
+        import radiocontest_adifnet as adifnet
+        a = adifnet.adifnet_settings(dict(http_mod.current_config))
+        if a['listen']:
+            adifnet.start_listener(
+                get_cfg=lambda: dict(http_mod.current_config),
+                add_qso=lambda q: http_mod.add_qso_to_log(q, force=False)[0],
+                port=a['port'])
+    except Exception as _e:
+        print(f"[ADIFNET] Demarrage differe: {_e}")
+
     import socket as _sock
     try:
         _s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
