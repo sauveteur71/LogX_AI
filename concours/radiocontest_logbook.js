@@ -1176,7 +1176,11 @@ function setupDone(){
   const call = document.getElementById('setupCallsign').value.trim().toUpperCase();
   const loc  = document.getElementById('setupLocator').value.trim().toUpperCase();
   const op   = document.getElementById('setupOperator').value;
-  const cont = document.getElementById('setupContest').value;
+  // LOGBOOK SIMPLE : le sélecteur de concours est masqué, mais le champ caché
+  // peut garder la valeur d'un concours choisi/testé avant de changer de mode
+  // — ne jamais le réinjecter dans ce cas (bandes/modes/en-tête doivent rester
+  // "libres", pas hérités d'un ancien concours).
+  const cont = usageMode === 'simple' ? '' : document.getElementById('setupContest').value;
 
   if(!call||!loc||!op){
     notify('Remplis tous les champs !');

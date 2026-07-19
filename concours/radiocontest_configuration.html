@@ -2417,7 +2417,10 @@ function applyContestFilters(contestId) {
   if(secVHF) secVHF.style.display = '';
 
   const note = document.getElementById('filterAutoNote');
-  const filters = CONTEST_FILTERS[contestId];
+  // LOGBOOK SIMPLE : pas de concours -> pas de restriction de règlement,
+  // toutes les bandes/tous les modes radioamateur restent sélectionnables
+  // (même si un concours a été choisi ou testé précédemment).
+  const filters = getUsageMode() === 'simple' ? null : CONTEST_FILTERS[contestId];
 
   if (!filters) {
     // Aucun filtre connu → tout laisser visible, cacher la note
@@ -2893,6 +2896,11 @@ function applyUsageMode(){
         : '');
   // Si on est actuellement sur l'étape CONCOURS en passant en simple → avancer
   if (simple && state.step === 2) goStep(3);
+  // Ré-appliquer immédiatement les filtres bande/mode (sans attendre un
+  // changement d'étape) : basculer vers/depuis LOGBOOK SIMPLE doit se voir
+  // tout de suite si l'étape FILTRES est déjà affichée.
+  _filtersAppliedFor = null;
+  if (state.step === 3) applyContestFilters(state.contest);
 }
 
 function onUsageModeChange(){
