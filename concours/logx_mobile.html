@@ -770,7 +770,10 @@ function updateClock() {
   const h = String(now.getUTCHours()).padStart(2,'0');
   const m = String(now.getUTCMinutes()).padStart(2,'0');
   const s = String(now.getUTCSeconds()).padStart(2,'0');
-  document.getElementById('clock').textContent = `${h}:${m}:${s} UTC`;
+  const lh = String(now.getHours()).padStart(2,'0');
+  const lm = String(now.getMinutes()).padStart(2,'0');
+  const ls = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s} UTC · ${lh}:${lm}:${ls} local`;
 }
 setInterval(updateClock, 1000);
 updateClock();

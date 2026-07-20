@@ -1380,8 +1380,9 @@ function setCountdownLabel(phase, text){
 
 function updateClockAndCountdown(){
   const n = new Date();
-  document.getElementById('clock').textContent =
-    `${String(n.getUTCHours()).padStart(2,'0')}:${String(n.getUTCMinutes()).padStart(2,'0')}:${String(n.getUTCSeconds()).padStart(2,'0')} UTC`;
+  const utcStr = `${String(n.getUTCHours()).padStart(2,'0')}:${String(n.getUTCMinutes()).padStart(2,'0')}:${String(n.getUTCSeconds()).padStart(2,'0')}`;
+  const localStr = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;
+  document.getElementById('clock').textContent = `${utcStr} UTC · ${localStr} local`;
 
   const cd  = document.getElementById('sbCountdown');
   const lbl = document.getElementById('sbCountdownLbl');

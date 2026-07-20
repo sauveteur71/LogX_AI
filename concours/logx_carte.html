@@ -166,7 +166,7 @@ textarea::placeholder{color:var(--muted)}
   <a href="logx_logbook.html">📋 LOGBOOK</a>
   <a href="logx_carte.html" class="active">🗺️ CARTE IA</a>
   <a href="logx_propagation.html">📶 PROPAG</a>
-  <a href="logx_departements.html">🇫🇷 DÉPARTEMENTS</a>
+  <a href="logx_departements.html">🇫🇷 Cartes</a>
   <a href="logx_calendrier.html">📅 CALENDRIER</a>
   <div class="nav-spacer"></div>
   <div class="nav-info" id="navContest">—</div>
@@ -780,8 +780,9 @@ const PLBLS={1:'🌟 DX EXCEPTIONNEL',2:'🔴 HAUTE',3:'🟡 HAUTE',4:'🟠 MOYE
 // ─── CLOCK ───────────────────────────────────────────────────────────────────
 setInterval(()=>{
   const n=new Date();
-  document.getElementById('clock').textContent=
-    `${String(n.getUTCHours()).padStart(2,'0')}:${String(n.getUTCMinutes()).padStart(2,'0')}:${String(n.getUTCSeconds()).padStart(2,'0')} UTC`;
+  const utcStr=`${String(n.getUTCHours()).padStart(2,'0')}:${String(n.getUTCMinutes()).padStart(2,'0')}:${String(n.getUTCSeconds()).padStart(2,'0')}`;
+  const localStr=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;
+  document.getElementById('clock').textContent=`${utcStr} UTC · ${localStr} local`;
 },1000);
 
 // ─── LOAD CONFIG ─────────────────────────────────────────────────────────────

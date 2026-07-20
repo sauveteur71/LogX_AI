@@ -163,7 +163,11 @@ header{display:flex;align-items:center;gap:16px;padding:9px 16px;background:line
     if(!p){ body.innerHTML = '<div class="empty">Panneau inconnu : ' + esc(id) + '</div>'; return; }
     document.title = 'LogX AI — ' + p.title;
     document.getElementById('panelTitle').textContent = p.title;
-    setInterval(() => { document.getElementById('clock').textContent = new Date().toISOString().slice(11,19) + ' UTC'; }, 1000);
+    setInterval(() => {
+      const n = new Date();
+      const localStr = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;
+      document.getElementById('clock').textContent = n.toISOString().slice(11,19) + ' UTC · ' + localStr + ' local';
+    }, 1000);
     p.tick();
     setInterval(p.tick, p.pollMs);
   }

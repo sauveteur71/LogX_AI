@@ -81,7 +81,9 @@ header{display:flex;align-items:center;gap:16px;padding:10px 20px;background:lin
   }
 
   async function tick(){
-    document.getElementById('clock').textContent = new Date().toISOString().slice(11,19)+' UTC';
+    const _n = new Date();
+    const _localStr = `${String(_n.getHours()).padStart(2,'0')}:${String(_n.getMinutes()).padStart(2,'0')}:${String(_n.getSeconds()).padStart(2,'0')}`;
+    document.getElementById('clock').textContent = _n.toISOString().slice(11,19) + ' UTC · ' + _localStr + ' local';
     const rng=BM_RANGE[band]||[0,1];
     try{ const rr=await fetch('/rig/state'); if(rr.ok){const rd=await rr.json(); rigMhz=(rd&&rd.enabled&&rd.freq_khz)?rd.freq_khz/1000:null;} }catch(e){}
     try{
