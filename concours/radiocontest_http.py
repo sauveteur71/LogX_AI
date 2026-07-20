@@ -1130,12 +1130,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not body:
                 self._json({'error': 'GeoJSON indisponible (hors ligne au 1er accès)'}, 503)
                 return
+            body_bytes = body.encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body_bytes)))
             self.send_header('Cache-Control', 'max-age=86400')
             self._cors()
             self.end_headers()
-            self.wfile.write(body.encode('utf-8'))
+            self.wfile.write(body_bytes)
             return
 
         # GeoJSON mondial des pays (Europe/continent/monde — sélecteur d'échelle
@@ -1146,12 +1148,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not body:
                 self._json({'error': 'GeoJSON indisponible (hors ligne au 1er accès)'}, 503)
                 return
+            body_bytes = body.encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body_bytes)))
             self.send_header('Cache-Control', 'max-age=86400')
             self._cors()
             self.end_headers()
-            self.wfile.write(body.encode('utf-8'))
+            self.wfile.write(body_bytes)
             return
 
         # Statut travaillé/non par pays (choroplèthe monde), projeté depuis les
@@ -1573,6 +1577,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 fname = f"{call}_{contest_id or 'ALL'}.adi"
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
             self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
             self._cors()
             self.end_headers()
@@ -1610,6 +1615,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         filepath = self._resolve(path)
         if filepath and os.path.isfile(filepath):
+            with open(filepath, 'rb') as f:
+                body = f.read()
             self.send_response(200)
             ct = 'text/html; charset=utf-8'
             if filepath.endswith('.js'):   ct = 'application/javascript'
@@ -1623,11 +1630,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_header('Set-Cookie',
                                  f'rc_token={AUTH_TOKEN}; Path=/; SameSite=Strict; HttpOnly')
             self.send_header('Content-Type', ct)
+            # Content-Length explicite : sans lui (HTTP/1.0 par défaut chez
+            # BaseHTTPRequestHandler, pas de chunked non plus), le client n'a
+            # aucun moyen fiable de savoir où s'arrête le corps de la réponse
+            # — un proxy/antivirus/outil d'inspection réseau local (déjà vu
+            # avec Avast sur ce poste) peut alors couper la connexion en
+            # plein milieu d'un gros fichier (ex. radiocontest_logbook.js).
+            self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
             self._cors()
             self.end_headers()
-            with open(filepath, 'rb') as f:
-                self.wfile.write(f.read())
+            self.wfile.write(body)
         else:
             self._raw(404, None, None)
 
@@ -2440,10 +2453,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return None
 
     def _raw(self, status, content_type, body_bytes):
-        """Réponse brute : statut + Content-Type + CORS + corps."""
+        """Réponse brute : statut + Content-Type + Content-Length + CORS + corps.
+        Content-Length explicite (voir commentaire équivalent dans do_GET) —
+        sans lui le client n'a aucun moyen fiable de savoir où s'arrête le
+        corps de la réponse en HTTP/1.0 sans chunked encoding."""
         self.send_response(status)
         if content_type:
             self.send_header('Content-Type', content_type)
+        self.send_header('Content-Length', str(len(body_bytes) if body_bytes else 0))
         self._cors()
         self.end_headers()
         if body_bytes:
