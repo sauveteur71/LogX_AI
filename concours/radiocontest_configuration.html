@@ -3120,6 +3120,19 @@ function onUsageModeChange(){
     const em = document.getElementById('expedition_mode');
     if (em && !em.value) em.value = '1';
   }
+  // Passage EN LOGBOOK SIMPLE : les bandes/modes forcés par le dernier concours
+  // filtré (ex. REF_QRP -> uniquement VHF/UHF/SHF, cf. applyContestFilters()
+  // étape "1. Tout désactiver") restent sinon cochés en arrière-plan — le
+  // choix manuel de bandes HF de l'utilisateur en mode simple se retrouve
+  // alors MÉLANGÉ à ces cases VHF/SHF jamais décochées. On repart d'une page
+  // blanche uniquement au moment du changement explicite vers "simple" (pas
+  // à chaque rendu, pour ne pas effacer un choix déjà fait en mode simple).
+  if (v === 'simple'){
+    document.querySelectorAll('[data-key^="band_"], [data-key^="mode_"]').forEach(el => {
+      el.classList.remove('on');
+      state.toggles[el.dataset.key] = false;
+    });
+  }
   applyUsageMode();
 }
 

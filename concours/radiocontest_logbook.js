@@ -37,6 +37,17 @@ let myCall     = window._initCall    || '';
 let myLocator  = window._initLocator || '';
 let myOp = 'OP1';
 
+// Repli config serveur (renseignés par loadServerConfig(), voir plus bas) —
+// déclarés ici avec une valeur par défaut : sans ça, tant que loadServerConfig()
+// n'a pas trouvé de valeur non vide à assigner (ex. aucun concours configuré
+// côté serveur), lire ces identifiants via `cfg.x || serverX` levait une
+// ReferenceError (variable jamais déclarée) qui interrompait silencieusement
+// prefillSetupFromConfig() AVANT setupDone() — bandes/modes/opérateur ne se
+// mettaient alors jamais à jour selon la config réelle.
+let serverCallsign = '';
+let serverLocator = '';
+let serverContest = '';
+
 // Lire le concours depuis la config sauvegardée (radiocontest_configuration.html) ou défaut VHF
 (function initFromConfig(){
   try{
@@ -143,6 +154,11 @@ function applyUsageModeToLogbook(mode){
   if(csWrap) csWrap.style.display = simple ? 'none' : '';
   const timingBox = document.getElementById('contestTimingBox');
   if(simple && timingBox) timingBox.style.display = 'none';
+  // LOGBOOK SIMPLE : la bannière score (QSO/heure, doublons, temps restant,
+  // dernier QSO...) n'a de sens que pour le rythme/la compétition d'un
+  // concours chronométré — rien de tout ça ne s'applique à un log personnel.
+  const scoreBanner = document.querySelector('.score-banner');
+  if(scoreBanner) scoreBanner.style.display = simple ? 'none' : '';
   document.body.classList.toggle('usage-simple', simple);
 }
 
@@ -3988,7 +4004,13 @@ function prefillSetupFromConfig(){
   // SINGLE-OP : la section concours SO* (Single Operator) prime — un seul
   // opérateur, sélecteur inutile. On considère aussi single-op si la config
   // ne liste qu'un opérateur. Sinon (MO*) : le multi-op reste disponible.
-  const isSingleOp = /^SO/i.test(cfg.section || '') || ops.length <= 1;
+  // LOGBOOK SIMPLE : la classification SO*/MO* n'a pas de sens hors concours
+  // — seul le champ CLUB (radio-club = plusieurs opérateurs qui se relaient)
+  // justifie le sélecteur ; sinon c'est l'opérateur unique de la config,
+  // pas besoin de choisir entre OP1/OP2/...
+  const isSingleOp = usageMode === 'simple'
+    ? !(cfg.club || '').trim()
+    : (/^SO/i.test(cfg.section || '') || ops.length <= 1);
   if(ops.length){
     opEl.innerHTML = '<option value="">-- Sélectionne ton identifiant opérateur --</option>';
     ops.forEach((op, i) => {
