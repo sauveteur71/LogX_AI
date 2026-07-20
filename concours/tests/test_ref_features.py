@@ -73,6 +73,18 @@ def test_validate_ignore_regles_concours_en_mode_simple():
     assert r['contest'] == ''
 
 
+def test_validate_doublon_pas_signale_en_mode_simple():
+    """Hors concours, recontacter la même station sur la même bande au fil
+    des années est normal — pas une erreur 'doublon'."""
+    cfg = dict(CFG_THF)
+    cfg['usage_mode'] = 'simple'
+    log = [_qso(date='20200718'), _qso(date='20260718')]
+    r = validate_log(log, 'REF_QRP', cfg)
+    codes = {f['code'] for f in r['findings']}
+    assert 'doublon' not in codes
+    assert r['ok']
+
+
 def test_validate_dept_concours_hf():
     """REF HF : département invalide pour une station française = erreur."""
     cfg = {'contest': 'REF_CDF_HF_CW', 'contest_start_date': '2026-01-24',
