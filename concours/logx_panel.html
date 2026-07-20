@@ -10,6 +10,10 @@
   --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--yellow:#FFD60A;
   --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
   --mono:'Share Tech Mono',monospace;}
+body.day-mode{--bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
+  --accent:#CC4026;--accent2:#0060A0;--green:#007030;--yellow:#7A5A00;
+  --red:#CC0030;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--text);font-family:var(--mono);display:flex;flex-direction:column;overflow:hidden}
@@ -44,6 +48,9 @@ header{display:flex;align-items:center;gap:16px;padding:9px 16px;background:line
 <script>
 // Migration localStorage 'radiocontest_' -> 'logx_' (renommage du produit), idempotente.
 (function(){try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('radiocontest_')===0){const nk='logx_'+k.slice(13);if(localStorage.getItem(nk)===null)localStorage.setItem(nk,localStorage.getItem(k));}}}catch(e){}})();
+// Thème jour/nuit : cette fenêtre détachée doit suivre le réglage de la page
+// principale (localStorage partagé, même origine).
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
 (function(){
   if(location.protocol==='file:'){ document.body.innerHTML='<div class="empty">Ouvre via le serveur : http://localhost:8080/logx_panel.html</div>'; return; }
   const params = new URLSearchParams(location.search);

@@ -24,6 +24,24 @@
     --font-main: 'Exo 2', sans-serif;
   }
 
+  body.day-mode {
+    --bg: #EEF0F8;
+    --bg2: #FFFFFF;
+    --bg3: #E0E4F4;
+    --border: #C0C8E0;
+    --accent: #CC4026;
+    --accent2: #0060A0;
+    --green: #007030;
+    --red: #CC0030;
+    --yellow: #7A5A00;
+    --purple: #8040B0;
+    --text: #0A0C20;
+    --muted: #4A5170;
+  }
+  body.day-mode header {
+    background: linear-gradient(90deg, #DDE0EE 0%, #EAEDF8 50%, #DDE0EE 100%);
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -677,6 +695,9 @@ L'ID agent se trouve sur platform.claude.com → Agents → ton agent → copie 
 </div>
 
 <script>
+// Thème jour/nuit : cette page détachée doit suivre le réglage de la page
+// principale (localStorage partagé, même origine).
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
 let isWaiting = false;
 let mapStations = [];
