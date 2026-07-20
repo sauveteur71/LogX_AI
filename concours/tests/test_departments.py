@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from radiocontest_departments import (dept_from_exchange, department_mult_count,
+from logx_departments import (dept_from_exchange, department_mult_count,
                                       dept_from_locator, dept_for_qso, DEPARTMENTS)
 
 

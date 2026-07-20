@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Bandscope (2e écran)</title>
+<link rel="icon" href="/logx_icon.svg">
+<style>
+:root{--bg:#05060C;--bg2:#0C0E1A;--bg3:#14172C;--border:#242844;
+  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--yellow:#FFD60A;
+  --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
+  --mono:'Share Tech Mono',monospace;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:16px;padding:10px 20px;background:linear-gradient(90deg,#080A16,#12152C,#080A16);border-bottom:2px solid var(--border);flex-shrink:0}
+.title{font-size:22px;font-weight:800;color:var(--accent);letter-spacing:2px}
+.bandbtns{display:flex;gap:6px;flex-wrap:wrap}
+.bb{font-family:var(--mono);font-size:16px;padding:5px 12px;border-radius:6px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);cursor:pointer}
+.bb.active{background:rgba(255,80,48,.18);color:var(--accent);border-color:var(--accent);font-weight:700}
+.clock{margin-left:auto;font-size:20px;color:var(--muted)}
+.scopewrap{flex:1;padding:16px 22px;min-height:0;display:flex;flex-direction:column;gap:14px}
+#scope{width:100%;flex:1;min-height:0;background:var(--bg2);border:1px solid var(--border);border-radius:12px}
+.spotstrip{height:34%;background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow-y:auto;padding:6px 0}
+.srow{display:flex;gap:14px;align-items:baseline;padding:4px 18px;font-size:20px;cursor:default;border-bottom:1px solid rgba(255,255,255,.03)}
+.sf{color:var(--muted);min-width:100px}
+.sc{font-weight:800;letter-spacing:1px}
+.si{color:var(--muted);font-size:15px;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="title">📡 BANDSCOPE <span id="bandName" style="color:var(--accent2)">2m</span></div>
+  <div class="bandbtns" id="bandBtns"></div>
+  <div class="clock" id="clock">—</div>
+</header>
+<div class="scopewrap">
+  <svg id="scope" viewBox="0 0 1000 300" preserveAspectRatio="none"></svg>
+  <div class="spotstrip" id="spotList"><div class="empty">En attente de spots…</div></div>
+</div>
+<script>
+// Migration localStorage 'radiocontest_' -> 'logx_' (renommage du produit), idempotente.
+(function(){try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('radiocontest_')===0){const nk='logx_'+k.slice(13);if(localStorage.getItem(nk)===null)localStorage.setItem(nk,localStorage.getItem(k));}}}catch(e){}})();
+(function(){
+  if(location.protocol==='file:'){ document.body.innerHTML='<div class="empty">Ouvre via le serveur : http://localhost:8080/logx_scope.html</div>'; return; }
+  const BAND_LABELS={'1.8':'160m','3.5':'80m','7':'40m','14':'20m','21':'15m','28':'10m','50':'6m','70':'4m','144':'2m','432':'70cm','1296':'23cm','2320':'13cm','3400':'9cm','5760':'6cm','10368':'3cm','24048':'6mm','47088':'4mm'};
+  const BM_RANGE={'1.8':[1.8,2.0],'3.5':[3.5,4.0],'7':[7.0,7.3],'14':[14.0,14.35],'21':[21.0,21.45],'28':[28.0,29.7],'50':[50,54],'70':[70,70.5],'144':[144,148],'432':[430,440],'1296':[1240,1300],'2320':[2300,2450],'3400':[3400,3475],'5760':[5650,5925],'10368':[10000,10500],'24048':[24000,24250],'47088':[47000,47200]};
+  const PCOL={1:'var(--red)',2:'var(--accent)',3:'var(--yellow)',4:'var(--accent2)',5:'var(--muted)'};
+  const BANDS=['144','432','1296','2320','3400','5760','10368','1.8','3.5','7','14','21','28','50'];
+  let band = new URLSearchParams(location.search).get('band') || '144';
+  let rigMhz = null;
+
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function bandLabel(b){return BAND_LABELS[b]||b+' MHz';}
+
+  function renderBands(){
+    document.getElementById('bandBtns').innerHTML = BANDS.map(b=>
+      `<button class="bb${b===band?' active':''}" data-b="${b}">${bandLabel(b)}</button>`).join('');
+    document.querySelectorAll('.bb').forEach(btn=>btn.onclick=()=>{ band=btn.dataset.b; document.getElementById('bandName').textContent=bandLabel(band); renderBands(); tick(); });
+    document.getElementById('bandName').textContent = bandLabel(band);
+  }
+
+  function drawScope(spots, rng){
+    const svg=document.getElementById('scope');
+    const W=1000,H=300,base=250,x0=20,x1=980,span=(rng[1]-rng[0])||1;
+    const xf=f=>x0+Math.max(0,Math.min(1,(f-rng[0])/span))*(x1-x0);
+    let g=`<line x1="${x0}" y1="${base}" x2="${x1}" y2="${base}" style="stroke:var(--border)" stroke-width="2"/>`;
+    for(let i=0;i<=10;i++){const x=x0+(x1-x0)*i/10;const fr=(rng[0]+span*i/10);
+      g+=`<line x1="${x}" y1="${base}" x2="${x}" y2="${base+8}" style="stroke:var(--border)" stroke-width="1"/>`;
+      g+=`<text x="${x}" y="${base+26}" style="fill:var(--muted)" font-size="14" text-anchor="middle">${fr.toFixed(fr<100?3:1)}</text>`;}
+    for(const s of spots){const f=parseFloat(s.freq);if(!isFinite(f))continue;const x=xf(f);
+      const h=s.new_mult?200:Math.max(30,190-(s.priority||3)*28);
+      const col=s.new_mult?'var(--green)':(PCOL[s.priority]||'var(--muted)');
+      const op=s.already_done?0.35:1;
+      g+=`<rect x="${(x-3).toFixed(1)}" y="${(base-h).toFixed(1)}" width="6" height="${h.toFixed(1)}" style="fill:${col}" opacity="${op}"><title>${esc(s.call)} ${f.toFixed(3)}</title></rect>`;
+      g+=`<text x="${x.toFixed(1)}" y="${(base-h-6).toFixed(1)}" style="fill:${col}" font-size="15" font-weight="700" text-anchor="middle" opacity="${op}">${s.new_mult?'★':''}${esc(s.call)}</text>`;}
+    if(rigMhz&&rigMhz>=rng[0]&&rigMhz<=rng[1]){const x=xf(rigMhz).toFixed(1);
+      g+=`<line x1="${x}" y1="20" x2="${x}" y2="${base}" style="stroke:var(--accent)" stroke-width="2"/><text x="${x}" y="18" style="fill:var(--accent)" font-size="16" text-anchor="middle">▼ radio</text>`;}
+    svg.innerHTML=g;
+  }
+
+  async function tick(){
+    document.getElementById('clock').textContent = new Date().toISOString().slice(11,19)+' UTC';
+    const rng=BM_RANGE[band]||[0,1];
+    try{ const rr=await fetch('/rig/state'); if(rr.ok){const rd=await rr.json(); rigMhz=(rd&&rd.enabled&&rd.freq_khz)?rd.freq_khz/1000:null;} }catch(e){}
+    try{
+      const r=await fetch('/data/spots_ranked'); if(!r.ok) return;
+      const d=await r.json();
+      const spots=(d.spots||[]).filter(s=>{const f=parseFloat(s.freq);return isFinite(f)&&f>=rng[0]&&f<=rng[1];}).sort((a,b)=>parseFloat(b.freq)-parseFloat(a.freq));
+      drawScope(spots,rng);
+      const list=document.getElementById('spotList');
+      list.innerHTML = spots.length ? spots.map(s=>{const f=parseFloat(s.freq);
+        const col=s.new_mult?'var(--green)':(PCOL[s.priority]||'var(--text)');
+        const st=`color:${col}`+(s.already_done?';opacity:.45;text-decoration:line-through':'');
+        return `<div class="srow"><span class="sf">${f.toFixed(3)}</span><span class="sc" style="${st}">${s.new_mult?'★':''}${esc(s.call)}</span><span class="si">${esc(s.info||s.spotter||'')}</span></div>`;
+      }).join('') : '<div class="empty">Aucun spot sur '+bandLabel(band)+'</div>';
+    }catch(e){}
+  }
+
+  renderBands(); tick(); setInterval(tick, 10000);
+})();
+</script>
+</body>
+</html>

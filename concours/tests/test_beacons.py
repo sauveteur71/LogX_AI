@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_beacons as beacons
+import logx_beacons as beacons
 
 
 def test_rotation_instant_zero():
@@ -40,14 +40,14 @@ def test_toujours_5_bandes():
 
 def test_psk_parse_reception_reports():
     """Le parseur PSK Reporter extrait bien les attributs d'un rapport."""
-    import radiocontest_psk as psk
+    import logx_psk as psk
     # Fragment XML réel de l'API (format receptionReport)
     sample = ('<receptionReports>'
               '<receptionReport receiverCallsign="OH6BG" receiverLocator="KP03sk" '
               'senderCallsign="F6KQJ" frequency="14074000" mode="FT8" sNR="-8"/>'
               '</receptionReports>')
     import re
-    from radiocontest_utils import locator_to_latlon
+    from logx_utils import locator_to_latlon
     attrs = re.findall(r'<receptionReport\s+([^>]+?)/?>', sample)
     assert len(attrs) == 1
     d = dict(re.findall(r'(\w+)="([^"]*)"', attrs[0]))

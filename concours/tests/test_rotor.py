@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests du pilotage rotor (radiocontest_rotor) contre un FAUX rotctld."""
+"""Tests du pilotage rotor (logx_rotor) contre un FAUX rotctld."""
 import os
 import socket
 import sys
@@ -7,7 +7,7 @@ import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_rotor as rotor
+import logx_rotor as rotor
 
 
 class FakeRotctld:

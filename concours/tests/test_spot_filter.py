@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from radiocontest_scoring import (filter_spots_for_contest, _is_digital_freq,
+from logx_scoring import (filter_spots_for_contest, _is_digital_freq,
                                   _MAX_PLAUSIBLE_KM)
 
 

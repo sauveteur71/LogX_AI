@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Écran mural d'expédition</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@400;700;800&display=swap');
+:root{--bg:#05060C;--bg2:#0C0E1A;--bg3:#14172C;--border:#242844;
+  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--yellow:#FFD60A;
+  --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
+  --mono:'Share Tech Mono',monospace;--sans:'Exo 2',sans-serif;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);
+  display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:24px;padding:14px 28px;
+  background:linear-gradient(90deg,#080A16,#12152C,#080A16);
+  border-bottom:2px solid var(--border);flex-shrink:0}
+.wcall{font-family:var(--mono);font-size:44px;font-weight:800;color:var(--accent);letter-spacing:4px;line-height:1}
+.wcontest{font-family:var(--mono);font-size:20px;color:var(--accent2);letter-spacing:2px}
+.wclock{margin-left:auto;font-family:var(--mono);font-size:30px;color:var(--muted)}
+.wtop{display:flex;gap:16px;padding:16px 28px;flex-shrink:0}
+.kpi{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  padding:14px 20px;text-align:center}
+.kv{font-family:var(--mono);font-size:56px;font-weight:800;line-height:1;color:var(--green)}
+.kpi.b2 .kv{color:var(--accent2)}.kpi.b3 .kv{color:var(--yellow)}.kpi.b4 .kv{color:var(--purple)}
+.kl{font-family:var(--mono);font-size:16px;color:var(--muted);letter-spacing:3px;margin-top:6px}
+.wmain{flex:1;display:flex;gap:16px;padding:0 28px 22px;min-height:0}
+.wstream{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.wstream-head{font-family:var(--mono);font-size:18px;letter-spacing:4px;color:var(--accent2);
+  padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+#wStream{flex:1;overflow:hidden;padding:6px 0}
+.qrow{display:flex;align-items:center;gap:18px;padding:9px 22px;font-family:var(--mono);
+  border-bottom:1px solid rgba(255,255,255,.03)}
+.qrow.flash{animation:flash 1.4s ease-out}
+@keyframes flash{0%{background:rgba(0,255,136,.28)}100%{background:transparent}}
+.q-time{color:var(--muted);font-size:22px;width:70px}
+.q-flag{font-size:30px;width:44px;text-align:center}
+.q-call{color:var(--text);font-weight:800;font-size:34px;flex:1;letter-spacing:2px}
+.q-country{color:var(--muted);font-size:20px;width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-name{color:var(--green);font-size:22px;width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-band{color:var(--accent);font-size:26px;width:120px;text-align:right}
+.q-band small{font-size:15px}
+.q-mode{color:var(--accent2);font-size:24px;width:70px;text-align:center}
+.q-rst{color:var(--yellow);font-size:22px;width:70px;text-align:center}
+.q-op{color:var(--muted);font-size:20px;width:90px;text-align:right}
+.wside{width:420px;flex-shrink:0;display:flex;flex-direction:column;gap:16px;min-height:0}
+.wblock{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;overflow:hidden}
+.wblock.grow{flex:1;overflow-y:auto}
+.wbt{font-family:var(--mono);font-size:16px;letter-spacing:3px;color:var(--muted);margin-bottom:10px}
+.bar-row{display:flex;align-items:center;gap:10px;margin:6px 0;font-family:var(--mono)}
+.bar-lbl{width:64px;color:var(--text);font-size:22px}
+.bar-wrap{flex:1;height:22px;background:var(--bg3);border-radius:6px;overflow:hidden}
+.bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--green),var(--accent2))}
+.bar-n{width:56px;text-align:right;font-size:22px;font-weight:700;color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:20px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;padding:4px 12px}
+.chip b{color:var(--accent2)}
+.wfoot{position:fixed;bottom:6px;right:14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wcall" id="wCall">—</div>
+  <div class="wcontest" id="wContest"></div>
+  <div class="wclock" id="wClock">—</div>
+</header>
+
+<div class="wtop">
+  <div class="kpi"><div class="kv" id="wTotal">0</div><div class="kl">QSO</div></div>
+  <div class="kpi b2"><div class="kv" id="wRate">0</div><div class="kl">QSO / H</div></div>
+  <div class="kpi b3"><div class="kv" id="wCalls">0</div><div class="kl">STATIONS</div></div>
+  <div class="kpi b4"><div class="kv" id="wOdx">—</div><div class="kl" id="wOdxCall">ODX (KM)</div></div>
+</div>
+
+<div class="wmain">
+  <div class="wstream">
+    <div class="wstream-head"><span>⚡ DERNIERS QSO — LOG COMMUN</span><span id="wRate10"></span></div>
+    <div id="wStream"><div style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">En attente de QSO…</div></div>
+  </div>
+  <div class="wside">
+    <div class="wblock grow"><div class="wbt">📊 PAR BANDE</div><div id="wBands"></div></div>
+    <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
+    <div class="wblock"><div class="wbt">👤 PAR OPÉRATEUR</div><div class="chips" id="wOps"></div></div>
+  </div>
+</div>
+<div class="wfoot">LogX AI — écran mural · rafraîchi toutes les 3 s</div>
+
+<script>
+// Migration localStorage 'radiocontest_' -> 'logx_' (renommage du produit), idempotente.
+(function(){try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('radiocontest_')===0){const nk='logx_'+k.slice(13);if(localStorage.getItem(nk)===null)localStorage.setItem(nk,localStorage.getItem(k));}}}catch(e){}})();
+(function(){
+  if(location.protocol==='file:'){
+    document.body.innerHTML='<div style="padding:60px;text-align:center;font-family:monospace;color:#FF2D55">Ouvre via le serveur : http://localhost:8080/logx_wall.html</div>';
+    return;
+  }
+  let lastTopKey='';
+  function fmtTime(t){ return (t||'').slice(0,5); }
+
+  // Noms de bande radioamateur — COPIE de BAND_LABELS (logx_logbook.js).
+  // Le mur est autonome (ne charge pas logbook.js) : garder synchro avec la source.
+  const BAND_LABELS = {
+    '1.8':'160m','3.5':'80m','7':'40m','14':'20m','21':'15m','28':'10m',
+    '50':'6m','70':'4m','144':'2m','432':'70cm','1296':'23cm',
+    '2320':'13cm','3400':'9cm','5760':'6cm','10368':'3cm','24048':'6mm','47088':'4mm',
+  };
+  function bandLabel(b){ return BAND_LABELS[b] || (b + ' MHz'); }
+
+  function render(d){
+    document.getElementById('wCall').textContent = d.callsign || '—';
+    document.getElementById('wContest').textContent = (d.contest||'').replace(/_/g,' ');
+    document.getElementById('wClock').textContent = (d.now_utc||'') + ' UTC';
+    document.getElementById('wTotal').textContent = (d.qso_total||0).toLocaleString();
+    document.getElementById('wRate').textContent = d.rate_hour||0;
+    document.getElementById('wCalls').textContent = (d.unique_calls||0).toLocaleString();
+    document.getElementById('wOdx').textContent = d.odx&&d.odx.km ? d.odx.km.toLocaleString() : '—';
+    document.getElementById('wOdxCall').textContent = d.odx&&d.odx.call ? ('ODX ' + d.odx.call) : 'ODX (KM)';
+    document.getElementById('wRate10').textContent = d.rate_10min_x6 ? ('~'+d.rate_10min_x6+'/h sur 10 min') : '';
+
+    // Flux QSO — colonnes pilotées par le menu wall_fields (CONFIG)
+    const wf = d.wall_fields || {};
+    const stream=document.getElementById('wStream');
+    const recent=d.recent||[];
+    if(!recent.length){ stream.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">En attente de QSO…</div>'; }
+    else{
+      const topKey=recent[0].call+'|'+recent[0].band+'|'+recent[0].time;
+      const isNew = topKey!==lastTopKey && lastTopKey!=='';
+      lastTopKey=topKey;
+      stream.innerHTML=recent.map((q,i)=>{
+        const c=[];
+        if(wf.time!==false) c.push(`<span class="q-time">${fmtTime(q.time)}</span>`);
+        if(wf.flag)         c.push(`<span class="q-flag">${q.flag||''}</span>`);
+        c.push(`<span class="q-call">${q.call}</span>`);   // l'indicatif : toujours
+        if(wf.country)      c.push(`<span class="q-country">${q.country||''}</span>`);
+        if(wf.name)         c.push(`<span class="q-name">${q.name||''}</span>`);
+        if(wf.band!==false) c.push(`<span class="q-band">${bandLabel(q.band)}${(wf.freq&&q.freq)?` <small style="opacity:.6">${q.freq}</small>`:''}</span>`);
+        else if(wf.freq&&q.freq) c.push(`<span class="q-band"><small style="opacity:.6">${q.freq}</small></span>`);
+        if(wf.mode!==false) c.push(`<span class="q-mode">${q.mode}</span>`);
+        if(wf.rst)          c.push(`<span class="q-rst">${q.rst_rcvd||q.rst_sent||''}</span>`);
+        if(wf.op!==false)   c.push(`<span class="q-op">${q.op||''}</span>`);
+        return `<div class="qrow${i===0&&isNew?' flash':''}">${c.join('')}</div>`;
+      }).join('');
+    }
+
+    // Par bande (barres)
+    const pb=Object.entries(d.per_band||{});
+    const maxB=Math.max(1,...pb.map(([,n])=>n));
+    document.getElementById('wBands').innerHTML=pb.map(([b,n])=>`
+      <div class="bar-row"><span class="bar-lbl">${bandLabel(b)}</span>
+        <span class="bar-wrap"><span class="bar-fill" style="width:${Math.round(100*n/maxB)}%"></span></span>
+        <span class="bar-n">${n}</span></div>`).join('') || '<span style="color:var(--muted)">—</span>';
+
+    document.getElementById('wModes').innerHTML=Object.entries(d.per_mode||{})
+      .map(([m,n])=>`<span class="chip">${m} <b>${n}</b></span>`).join('') || '—';
+    document.getElementById('wOps').innerHTML=Object.entries(d.per_op||{})
+      .filter(([o])=>o&&o!=='—').map(([o,n])=>`<span class="chip">${o} <b>${n}</b></span>`).join('') || '—';
+  }
+
+  async function tick(){
+    try{ const r=await fetch('/data/wall'); if(r.ok) render(await r.json()); }catch(e){}
+  }
+  tick();
+  setInterval(tick, 3000);
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests du keyer vocal dynamique (radiocontest_voicekeyer) : épellation
+"""Tests du keyer vocal dynamique (logx_voicekeyer) : épellation
 phonétique, expansion de macros, orchestration PTT+lecture. Jamais de vrai
 TTS/audio/CAT dans ces tests — tout est mocké, seule la logique est testée."""
 import os
@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_voicekeyer as vk
+import logx_voicekeyer as vk
 
 
 # ─── Épellation phonétique ────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ def test_send_voice_message_erreur_lecture_relache_quand_meme_le_ptt(monkeypatch
 # ─── Dispatch PTT selon le mode CAT actif ─────────────────────────────────────
 
 def test_set_ptt_dispatch_natif(monkeypatch):
-    import radiocontest_cat as cat
+    import logx_cat as cat
     monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'native'})
     monkeypatch.setattr(cat, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'native', 'on': on})
     r = vk._set_ptt({}, True)
@@ -168,8 +168,8 @@ def test_set_ptt_dispatch_natif(monkeypatch):
 
 
 def test_set_ptt_dispatch_tci(monkeypatch):
-    import radiocontest_cat as cat
-    import radiocontest_tci as tci
+    import logx_cat as cat
+    import logx_tci as tci
     monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'tci'})
     monkeypatch.setattr(tci, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'tci', 'on': on})
     r = vk._set_ptt({}, False)
@@ -177,8 +177,8 @@ def test_set_ptt_dispatch_tci(monkeypatch):
 
 
 def test_set_ptt_dispatch_rigctld(monkeypatch):
-    import radiocontest_cat as cat
-    import radiocontest_rig as rig
+    import logx_cat as cat
+    import logx_rig as rig
     monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': False, 'mode': 'native'})
     monkeypatch.setattr(rig, 'rig_settings', lambda cfg: {'enabled': True, 'host': 'h', 'port': 1})
     monkeypatch.setattr(rig, 'set_ptt', lambda host, port, on: {'ok': True, 'via': 'rigctld', 'host': host})
@@ -187,8 +187,8 @@ def test_set_ptt_dispatch_rigctld(monkeypatch):
 
 
 def test_set_ptt_dispatch_rien_active(monkeypatch):
-    import radiocontest_cat as cat
-    import radiocontest_rig as rig
+    import logx_cat as cat
+    import logx_rig as rig
     monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': False, 'mode': 'native'})
     monkeypatch.setattr(rig, 'rig_settings', lambda cfg: {'enabled': False, 'host': '', 'port': 0})
     r = vk._set_ptt({}, True)

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Tests du stockage SQLite du log partagé (radiocontest_storage)."""
+"""Tests du stockage SQLite du log partagé (logx_storage)."""
 import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_storage as st
+import logx_storage as st
 
 QSO = {'id': 123, 'call': 'DL1ABC', 'band': '14', 'mode': 'CW',
        'contest': 'EU_HF_CHAMP', 'date': '20260801', 'time': '12:03',

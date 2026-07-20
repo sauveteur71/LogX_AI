@@ -1,0 +1,3667 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Configuration</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root {
+  --bg:#07080F; --bg2:#0D0E1A; --bg3:#13152A; --border:#2B2F4A;
+  --accent:#FF5030; --accent2:#00D4FF; --green:#00FF88; --red:#FF2D55;
+  --yellow:#FFD60A; --purple:#BF5AF2; --text:#E9ECF5; --muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace; --font:'Exo 2',sans-serif;
+}
+/* ─── MODE JOUR ─────────────────────────────────────────────────────────── */
+body.day-mode {
+  --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
+  --accent:#CC4026; --accent2:#0060A0; --green:#007030; --red:#CC0030;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#4A5170;
+}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+body.day-mode .card{background:var(--bg2);border-color:var(--border)}
+body.day-mode input,body.day-mode select,body.day-mode textarea{background:var(--bg2);color:var(--text)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+/* Page « app » : nav, statusbar et barre d'étapes restent visibles,
+   le formulaire défile en interne (plus de scroll de page) */
+body{display:flex;flex-direction:column;overflow:hidden}
+body>.container{flex:1;overflow-y:auto;min-height:0;width:100%}
+header,nav.app-nav{flex-shrink:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:14px 30px;display:flex;align-items:center;justify-content:space-between}
+.logo-badge{background:#EEF0F8;border-radius:8px;padding:4px 10px;display:inline-flex;align-items:center;line-height:0}
+.logo-badge img{height:28px;display:block}
+.header-sub{font-family:var(--font-mono);font-size:14px;color:#7A84B8;letter-spacing:2px;margin-top:4px}
+.version{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+.app-nav .nav-spacer{flex:1}
+.app-nav .nav-info{font-family:var(--font-mono);font-size:13px;color:var(--muted);padding:0 16px;display:flex;align-items:center;gap:10px}
+
+.container{max-width:100%;margin:0 auto;padding:24px 32px}
+
+/* PROFILS */
+.profiles-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;flex-wrap:wrap}
+.profiles-lbl{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:2px;white-space:nowrap}
+.profiles-select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:5px 8px;flex:1;min-width:120px;max-width:220px;outline:none}
+.profiles-select:focus{border-color:var(--accent2)}
+.profile-btn{font-family:var(--font-mono);font-size:12px;padding:5px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);cursor:pointer;white-space:nowrap;transition:all .15s}
+.profile-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.profile-btn.save{border-color:rgba(0,255,136,.4);color:var(--green)}
+.profile-btn.save:hover{background:rgba(0,255,136,.1)}
+.profile-btn.del{border-color:rgba(255,45,85,.3);color:var(--red)}
+.profile-btn.del:hover{background:rgba(255,45,85,.1)}
+
+/* MODE D'UTILISATION */
+.usage-mode-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;background:linear-gradient(90deg,rgba(0,212,255,.08),rgba(255,80,48,.05));border:1px solid var(--accent2);border-radius:8px;padding:10px 14px;flex-wrap:wrap}
+.usage-mode-lbl{font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:2px;white-space:nowrap;font-weight:700}
+.usage-mode-bar select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:7px 10px;flex:1;min-width:280px;outline:none}
+.usage-mode-bar select:focus{border-color:var(--accent2)}
+.usage-mode-note{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+
+/* STEPS */
+.steps{display:flex;gap:0;margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+.step{flex:1;padding:16px 10px;text-align:center;cursor:pointer;transition:all .2s;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:14px;letter-spacing:1px;color:#6A74A8;position:relative}
+.step:last-child{border-right:none}
+.step.active{background:var(--bg3);color:var(--accent);border-bottom:3px solid var(--accent)}
+.step.done{color:var(--green)}
+.step-num{display:block;font-size:22px;font-weight:800;margin-bottom:4px}
+.step.done .step-num::after{content:'✓';font-size:14px}
+
+/* PANELS */
+.panel{display:none;animation:fadeIn .3s ease}
+.panel.active{display:block}
+/* Mode débutant : les réglages avancés sont masqués (bouton 🎚 dans l'en-tête) */
+body.simple-mode .expert-only{display:none!important}
+.simple-note{display:none;font-family:var(--font-mono);font-size:13px;color:var(--muted);border:1px dashed var(--border);border-radius:6px;padding:8px 12px;margin-top:10px;line-height:1.6}
+body.simple-mode .simple-note{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* SECTION */
+.section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px}
+.section-title{font-family:var(--font-mono);font-size:14px;color:var(--accent2);letter-spacing:3px;margin-bottom:20px;display:flex;align-items:center;gap:8px;font-weight:700}
+.section-title::before{content:'';display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--accent2)}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group label{font-size:14px;color:#BCC8F0;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
+.section input,.section select{background:var(--bg3);border:1px solid #2A3060;border-radius:8px;color:#E8ECFF;font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
+.section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
+.section select option{background:var(--bg3)}
+.input-note{font-size:13px;color:#9AA4D8;margin-top:3px;font-style:italic}
+/* Autofill : empêche Chrome/Edge d'injecter fond clair + texte sombre sur les champs pré-remplis par JS */
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{-webkit-text-fill-color:#E8ECFF !important;-webkit-box-shadow:0 0 0 1000px #13152A inset !important;caret-color:#E8ECFF;transition:background-color 9999s ease-in-out 0s}
+body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,body.day-mode input:-webkit-autofill:focus{-webkit-text-fill-color:#0A0C20 !important;-webkit-box-shadow:0 0 0 1000px #FFFFFF inset !important}
+
+/* TOGGLE GRID */
+.toggle-grid{display:flex;flex-wrap:wrap;gap:8px}
+.toggle-btn{font-family:var(--font-mono);font-size:14px;padding:9px 16px;border-radius:8px;border:1px solid #2A3060;background:var(--bg3);color:#7A84B8;cursor:pointer;transition:all .15s;letter-spacing:1px;user-select:none}
+.toggle-btn:hover{border-color:var(--accent);color:var(--accent)}
+.toggle-btn.on{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
+.toggle-btn.on.mode-ssb{border-color:#FF5030;color:#FF5030;background:rgba(255,80,48,.08)}
+.toggle-btn.on.mode-cw{border-color:#FFD60A;color:#FFD60A;background:rgba(255,214,10,.08)}
+.toggle-btn.on.mode-digi{border-color:#BF5AF2;color:#BF5AF2;background:rgba(191,90,242,.08)}
+.toggle-btn.on.flag{border-color:#00FF88;color:#00FF88;background:rgba(0,255,136,.08)}
+.toggle-btn.on.prop{border-color:#FF2D55;color:#FF2D55;background:rgba(255,45,85,.08)}
+
+.band-group{margin-bottom:12px}
+.band-group-title{font-size:14px;color:#7A84B8;letter-spacing:2px;font-family:var(--font-mono);margin-bottom:8px;font-weight:600}
+
+/* CONTEST CARDS */
+.contest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.contest-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:all .2s;position:relative}
+.contest-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.contest-card.selected{border-color:var(--accent2);background:rgba(0,212,255,.06)}
+.contest-card.selected::after{content:'✓ SÉLECTIONNÉ';position:absolute;top:10px;right:10px;font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:1px}
+.contest-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.contest-org{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;letter-spacing:1px}
+.contest-tags{display:flex;flex-wrap:wrap;gap:4px}
+.tag{font-family:var(--font-mono);font-size:12px;padding:3px 7px;border-radius:4px;letter-spacing:1px}
+.tag-band{background:rgba(0,212,255,.1);color:var(--accent2);border:1px solid rgba(0,212,255,.2)}
+.tag-mode{background:rgba(255,80,48,.1);color:var(--accent);border:1px solid rgba(255,80,48,.2)}
+.tag-score{background:rgba(191,90,242,.1);color:var(--purple);border:1px solid rgba(191,90,242,.2)}
+
+/* SUMMARY */
+.summary-box{background:var(--bg3);border:1px solid var(--accent2);border-radius:10px;padding:20px;font-family:var(--font-mono);font-size:14px;line-height:2}
+.summary-row{display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:4px 0}
+.summary-row:last-child{border-bottom:none}
+.summary-key{color:var(--yellow)}
+.summary-val{color:var(--text);font-weight:700}
+.summary-val.accent{color:var(--accent)}
+.summary-val.accent2{color:var(--accent2)}
+.summary-val.green{color:var(--green)}
+
+/* BUTTONS */
+.btn-row{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.btn{font-family:var(--font-mono);font-size:14px;padding:13px 28px;border-radius:8px;border:none;cursor:pointer;letter-spacing:2px;transition:all .15s;font-weight:700}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#FF9500);color:white}
+.btn-primary:hover{opacity:.85;transform:translateY(-1px)}
+.btn-secondary{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-launch{background:linear-gradient(135deg,#00FF88,#00D4FF);color:#0A0B18;font-size:14px;padding:14px 32px}
+.btn-launch:hover{opacity:.9;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,255,136,.2)}
+
+/* LIVE INDICATOR */
+.live{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--green)}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* LOCATOR MAP HINT */
+.locator-hint{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:8px}
+.locator-hint span{color:var(--accent2)}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
+    <div class="header-sub">Assistant IA pour concours radioamateur · Toutes bandes · Tous modes</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button onclick="quickSave()" title="Sauvegarder la configuration"
+      style="font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:1px;
+             background:linear-gradient(135deg,#00FF88,#00D4FF);border:none;border-radius:7px;
+             color:#0A0B18;padding:7px 14px;cursor:pointer;transition:opacity .15s"
+      onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+      💾 SAUVEGARDER
+    </button>
+    <div class="version">v3.0 · <span class="live"><span class="live-dot"></span>PRÊT</span></div>
+    <button id="uiModeToggle" onclick="toggleUiMode()" title="Mode débutant : masque les réglages avancés (IA, propagation, clusters, alertes)"
+      style="font-family:var(--font-mono);font-size:12px;letter-spacing:1px;background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;cursor:pointer;color:var(--muted)">🎚 EXPERT</button>
+    <button id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit"
+      style="font-size:16px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;cursor:pointer;color:var(--text)">☀️</button>
+  </div>
+</header>
+
+<nav class="app-nav">
+  <a href="logx_configuration.html" class="active">⚙ CONFIG</a>
+  <a href="logx_logbook.html">📋 LOGBOOK</a>
+  <a href="logx_carte.html">🗺️ CARTE IA</a>
+  <a href="logx_propagation.html">📶 PROPAG</a>
+  <a href="logx_departements.html">🇫🇷 DÉPARTEMENTS</a>
+  <a href="logx_calendrier.html">📅 CALENDRIER</a>
+  <div class="nav-spacer"></div>
+  <div class="nav-info" id="navContest">—</div>
+</nav>
+<script src="logx_statusbar.js"></script>
+<script src="logx_i18n.js"></script>
+
+<div class="container">
+
+  <!-- PROFILS STATION -->
+  <div class="profiles-bar">
+    <span class="profiles-lbl">PROFIL</span>
+    <select class="profiles-select" id="profileSelect">
+      <option value="">— Sélectionner un profil —</option>
+    </select>
+    <button class="profile-btn" onclick="loadProfile()">📂 Charger</button>
+    <button class="profile-btn save" onclick="saveProfile()">💾 Sauvegarder</button>
+    <button class="profile-btn del" onclick="deleteProfile()">🗑️ Supprimer</button>
+  </div>
+
+  <!-- MODE D'UTILISATION : détermine si l'étape CONCOURS est nécessaire -->
+  <div class="usage-mode-bar">
+    <span class="usage-mode-lbl">MODE D'UTILISATION</span>
+    <select id="usage_mode" onchange="onUsageModeChange()">
+      <option value="simple">📋 LOGBOOK SIMPLE — chasse DX / trafic courant, sans concours</option>
+      <option value="contest" selected>🏆 CONCOURS — règlement, échange, scoring, multiplicateurs</option>
+      <option value="expedition">📡 EXPÉDITION / ACTIVATION — pile-up, multi-poste, écran mural</option>
+    </select>
+    <span class="usage-mode-note" id="usageModeNote"></span>
+  </div>
+
+  <!-- STEPS -->
+  <div class="steps">
+    <div class="step active" id="step1" onclick="goStep(1)">
+      <span class="step-num">1</span>MA STATION
+    </div>
+    <div class="step" id="step2" onclick="goStep(2)">
+      <span class="step-num">2</span>CONCOURS
+    </div>
+    <div class="step" id="step3" onclick="goStep(3)">
+      <span class="step-num">3</span>FILTRES
+    </div>
+    <div class="step" id="step4" onclick="goStep(4)">
+      <span class="step-num">4</span>PROPAGATION
+    </div>
+    <div class="step" id="step5" onclick="goStep(5)">
+      <span class="step-num">5</span>RÉSUMÉ
+    </div>
+  </div>
+
+  <!-- PANEL 1 : MA STATION -->
+  <div class="panel active" id="panel1">
+    <div class="section">
+      <div class="section-title">IDENTITÉ DE LA STATION</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>INDICATIF</label>
+          <input type="text" id="callsign" placeholder="F6KQJ" oninput="updateLocatorHint();autoFillCallsign(this.value)" style="text-transform:uppercase;font-size:18px;font-weight:700;color:var(--accent)">
+        </div>
+        <div class="form-group">
+          <label>INDICATIF CONCOURS <span style="font-size:12px;color:var(--muted)">(si différent)</span></label>
+          <input type="text" id="callsign_contest" placeholder="auto" style="text-transform:uppercase" oninput="_callContest_manual=true">
+          <div class="input-note">Auto-rempli depuis INDICATIF — modifier si /P ou club</div>
+        </div>
+        <div class="form-group">
+          <label>LOCATOR MAIDENHEAD</label>
+          <input type="text" id="locator" placeholder="JN15XC" maxlength="6" oninput="this.value=this.value.toUpperCase();updateLocatorHint()">
+        </div>
+        <div class="form-group">
+          <label>VILLE / QTH</label>
+          <input type="text" id="city" placeholder="Le Puy-en-Velay">
+        </div>
+        <div class="form-group expert-only">
+          <label>ALTITUDE (m)</label>
+          <input type="number" id="altitude" placeholder="930" min="0" max="9000">
+          <div class="input-note">Important pour le Rallye des Points Hauts</div>
+        </div>
+        <div class="form-group expert-only">
+          <label>NOM RESPONSABLE LOG</label>
+          <input type="text" id="operator_name" placeholder="Olivier PARRIAUX">
+          <div class="input-note">Champ RName dans le fichier EDI</div>
+        </div>
+        <div class="form-group expert-only">
+          <label>INDICATIF RESPONSABLE</label>
+          <input type="text" id="op_call" placeholder="F4GLD" style="text-transform:uppercase">
+          <div class="input-note">Champ RCall / MOpe1 dans le fichier EDI</div>
+        </div>
+        <div class="form-group expert-only">
+          <label>CLUB / ASSOCIATION</label>
+          <input type="text" id="club" placeholder="GCEBP43">
+        </div>
+        <div class="form-group expert-only">
+          <label>CODE POSTAL</label>
+          <input type="text" id="postal" placeholder="43700">
+        </div>
+        <div class="form-group expert-only">
+          <label>EMAIL RESPONSABLE</label>
+          <input type="email" id="email" placeholder="f4gld@hotmail.fr">
+          <div class="input-note">Champ RHBBS dans le fichier EDI</div>
+        </div>
+        <div class="form-group expert-only">
+          <label>SECTION CONCOURS</label>
+          <select id="section_edi" onchange="updateOpSection()">
+            <option value="SOMB">SOMB — Single Op Multi-Band</option>
+            <option value="SOSB">SOSB — Single Op Single Band</option>
+            <option value="MOMB">MOMB — Multi Op Multi-Band</option>
+            <option value="MOSB">MOSB — Multi Op Single Band</option>
+          </select>
+          <div class="input-note">Champ PSect dans le fichier EDI</div>
+        </div>
+      </div>
+      <div class="locator-hint" id="locatorHint" style="display:none">
+        📍 Locator <span id="locHintVal"></span> détecté — coordonnées calculées automatiquement
+      </div>
+      <div class="simple-note">💡 Mode simple : seuls les champs essentiels sont affichés.
+        Les champs d'export EDI (responsable log, section...) apparaissent en mode expert 🎚 —
+        tu pourras les remplir avant d'envoyer ton log.</div>
+    </div>
+
+    <div class="section" id="opSection">
+      <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
+      <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
+        Leurs indicatifs apparaîtront sur les boutons OP dans le logbook
+      </div>
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:10px;align-items:center">
+        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">POSTE</div>
+        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">INDICATIF</div>
+        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">PRÉNOM</div>
+        <!-- OP1 — toujours visible -->
+        <div style="font-family:var(--font-mono);font-size:14px;color:var(--accent);font-weight:700">OP1</div>
+        <input type="text" id="op1_call" placeholder="F4GLD" style="text-transform:uppercase;font-size:14px">
+        <input type="text" id="op1_name" placeholder="Olivier" style="font-size:14px">
+        <!-- OP2-OP5 — masqués en mono-op -->
+        <div id="multiop_rows" style="display:contents">
+          <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP2</div>
+          <input type="text" id="op2_call" placeholder="F1OMQ" style="text-transform:uppercase;font-size:14px">
+          <input type="text" id="op2_name" placeholder="Didier" style="font-size:14px">
+          <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP3</div>
+          <input type="text" id="op3_call" placeholder="F1HAW" style="text-transform:uppercase;font-size:14px">
+          <input type="text" id="op3_name" placeholder="Jean" style="font-size:14px">
+          <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP4</div>
+          <input type="text" id="op4_call" placeholder="F4WGK" style="text-transform:uppercase;font-size:14px">
+          <input type="text" id="op4_name" placeholder="Stéphane" style="font-size:14px">
+          <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP5</div>
+          <input type="text" id="op5_call" placeholder="F4ASS" style="text-transform:uppercase;font-size:14px">
+          <input type="text" id="op5_name" placeholder="Sébastien" style="font-size:14px">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">STATION RADIO</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PUISSANCE (WATTS)</label>
+          <input type="number" id="power" placeholder="100" min="1" max="1500">
+        </div>
+        <div class="form-group">
+          <label>CLASSE PUISSANCE</label>
+          <select id="power_class">
+            <option value="QRP">QRP (≤5W)</option>
+            <option value="LP" selected>LP (≤100W)</option>
+            <option value="HP">HP (>100W)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>RECORD DX (KM)</label>
+          <input type="number" id="record_dx" placeholder="1600" min="0">
+          <div class="input-note">Utilisé pour calibrer les priorités</div>
+        </div>
+        <div class="form-group">
+          <label>LOGICIEL DE LOG</label>
+          <select id="log_software">
+            <option value="net-test-thf">Net-TEST THF (f5aib.net)</option>
+            <option value="n1mm">N1MM Logger+</option>
+            <option value="log4om">Log4OM</option>
+            <option value="hamrs">HamRS</option>
+            <option value="vqlog">VQLog</option>
+            <option value="manual">Saisie manuelle</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">ANTENNES</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>HF</label>
+          <input type="text" id="ant_hf" placeholder="Dipôle 40m / Vertical">
+        </div>
+        <div class="form-group">
+          <label>144 MHz</label>
+          <input type="text" id="ant_144" placeholder="Yagi 9 éléments">
+        </div>
+        <div class="form-group">
+          <label>432 MHz</label>
+          <input type="text" id="ant_432" placeholder="Yagi 21 éléments">
+        </div>
+        <div class="form-group">
+          <label>UHF/SHF</label>
+          <input type="text" id="ant_shf" placeholder="Parabole 60cm">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">MATÉRIEL &amp; SOUMISSION EDI</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>TRANSCEIVER</label>
+          <input type="text" id="radio" placeholder="IC-9700">
+          <div class="input-note">Champs STXEq/SRXEq dans le fichier EDI</div>
+        </div>
+        <div class="form-group">
+          <label>PAYS (code 3 lettres)</label>
+          <input type="text" id="country" placeholder="FRA" maxlength="3" style="text-transform:uppercase">
+          <div class="input-note">Champ RCoun dans le fichier EDI</div>
+        </div>
+        <div class="form-group">
+          <label>URL SOUMISSION LOG</label>
+          <input type="text" id="submit_url" placeholder="http://concours.r-e-f.org/tools/upload/thf.php">
+        </div>
+        <div class="form-group">
+          <label>DÉLAI SOUMISSION</label>
+          <input type="text" id="submit_deadline" placeholder="ex: mercredi 9 juillet 2026 minuit">
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">ASSISTANT IA</div>
+      <div class="form-grid">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>FOURNISSEUR</label>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
+              <input type="radio" name="api_provider" value="anthropic" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🤖 Claude (Anthropic)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
+              <input type="radio" name="api_provider" value="openai" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 💚 ChatGPT (OpenAI)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
+              <input type="radio" name="api_provider" value="gemini" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🔵 Gemini (Google)
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>MODÈLE</label>
+          <select id="ai_model" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none;width:100%"></select>
+        </div>
+        <div class="form-group">
+          <label id="api_key_label">CLÉ API</label>
+          <input type="password" id="api_key" placeholder="sk-ant-api03-...">
+          <div class="input-note">🔒 Stockée localement par fournisseur — jamais partagée</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Matériel piloté (optionnel, en fin de page : peu utilisé) ── -->
+    <div class="section expert-only">
+      <div class="section-title">💻 WSJT-X (FT8/FT4 — auto-log)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Chaque QSO validé dans WSJT-X arrive AUTOMATIQUEMENT dans le logbook
+        (call, grille, bande, mode, rapports) — plus de ressaisie en numérique.<br>
+        Côté WSJT-X : <b style="color:var(--accent2)">Réglages → Rapports → UDP Server</b>
+        = l'IP de ce PC, port 2237.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>AUTO-LOG WSJT-X</label>
+          <select id="wsjtx_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+          <div class="input-note">Désactivé par défaut — écoute UDP en fond si activé</div>
+        </div>
+        <div class="form-group">
+          <label>PORT UDP WSJT-X</label>
+          <input type="number" id="wsjtx_port" placeholder="2237">
+          <div class="input-note">Port « UDP Server » de WSJT-X (défaut 2237)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">🌐 RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Interopérabilité temps réel avec N1MM Logger+ et DXLog.net via leur
+        protocole de broadcast UDP <code>&lt;contactinfo&gt;</code> (format de facto
+        entre loggers de concours tiers).<br>
+        Côté N1MM : <b style="color:var(--accent2)">Config → Config Ports → Broadcast Data</b>
+        → cocher « Contact », IP de ce PC, port 12060.<br>
+        Côté DXLog : <b style="color:var(--accent2)">Options → Broadcast → QSOs</b>
+        (format « N1MM-like »), même IP/port.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>MODE</label>
+          <select id="adifnet_mode">
+            <option value="off">Désactivé</option>
+            <option value="listen">Réception seule (importer leurs QSO)</option>
+            <option value="send">Émission seule (leur envoyer nos QSO)</option>
+            <option value="both">Réception + émission</option>
+          </select>
+          <div class="input-note">Désactivé par défaut</div>
+        </div>
+        <div class="form-group">
+          <label>PORT UDP</label>
+          <input type="number" id="adifnet_port" placeholder="12060">
+          <div class="input-note">Port broadcast N1MM/DXLog (défaut 12060)</div>
+        </div>
+        <div class="form-group">
+          <label>IP CIBLE (émission)</label>
+          <input type="text" id="adifnet_target" placeholder="255.255.255.255">
+          <div class="input-note">Broadcast local, ou IP précise du PC voisin</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">📻 RADIO (pilotage CAT)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
+        suivis automatiquement, macros CW envoyées par le keyer de la radio.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PILOTAGE RADIO</label>
+          <select id="cat_enabled" onchange="updateCatModeVisibility()">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>MODE DE PILOTAGE</label>
+          <select id="cat_mode" onchange="updateCatModeVisibility()">
+            <option value="native">Natif (recommandé — pas de logiciel externe)</option>
+            <option value="tci">TCI (postes SDR — SunSDR/ExpertSDR3 et compatibles)</option>
+            <option value="rigctld">Hamlib rigctld (avancé — autres marques)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Mode natif : Icom CI-V / Yaesu / Kenwood / Elecraft directement en pyserial -->
+      <div id="catNativeFields" class="form-grid">
+        <div class="form-group">
+          <label>MARQUE</label>
+          <select id="cat_brand" onchange="updateCatModelOptions()">
+            <option value="icom">Icom (CI-V)</option>
+            <option value="yaesu">Yaesu (CAT)</option>
+            <option value="kenwood">Kenwood (PC Control)</option>
+            <option value="elecraft">Elecraft (K3/KX)</option>
+            <option value="xiegu">Xiegu (CI-V compatible Icom)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>MODÈLE</label>
+          <select id="cat_model"></select>
+          <div class="input-note" id="catAddrNote"></div>
+        </div>
+        <div class="form-group">
+          <label>PORT SÉRIE</label>
+          <select id="cat_port"></select>
+          <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshCatPorts()">🔄 Rafraîchir la liste</button>
+        </div>
+        <div class="form-group">
+          <label>VITESSE (bauds)</label>
+          <input type="number" id="cat_baudrate" placeholder="19200">
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="testCatConnection()">🔌 Tester / auto-détecter</button>
+        <span id="catTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+
+      <!-- Mode TCI : transceivers SDR (SunSDR/ExpertSDR3 et compatibles), réseau WebSocket -->
+      <div id="catTciFields" class="form-grid" style="display:none;margin-top:12px">
+        <div class="form-group" style="grid-column:1/-1">
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+            Le serveur TCI doit être activé dans ExpertSDR3 (ou logiciel compatible) sur le
+            poste relié au transceiver — pas de port série, connexion réseau directe.
+          </div>
+        </div>
+        <div class="form-group">
+          <label>ADRESSE TCI</label>
+          <input type="text" id="tci_host" placeholder="127.0.0.1 (ou IP du poste SDR)">
+          <div class="input-note">IP du PC où tourne le serveur TCI (peut être un autre poste du WiFi)</div>
+        </div>
+        <div class="form-group">
+          <label>PORT TCI</label>
+          <input type="number" id="tci_port" placeholder="50001">
+          <div class="input-note">50001 par défaut (ExpertSDR3) — 40001 pour l'ancien ESDR2</div>
+        </div>
+      </div>
+
+      <!-- Mode avancé : Hamlib rigctld -->
+      <div id="catRigctldFields" class="form-grid" style="display:none;margin-top:12px">
+        <div class="form-group" style="grid-column:1/-1">
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+            Lance <b style="color:var(--accent2)">rigctld -m &lt;n°modèle&gt; -r &lt;port COM&gt; -T 0.0.0.0</b>
+            sur le PC relié à la radio (fourni avec Hamlib — n° de modèle : <b>rigctl -l</b>).
+            À réserver aux marques non couvertes en mode natif (Ten-Tec, RGO, modèles anciens...).
+          </div>
+        </div>
+        <div class="form-group">
+          <label>ADRESSE RIGCTLD</label>
+          <input type="text" id="rig_host" placeholder="127.0.0.1 (ou IP du poste radio)">
+          <div class="input-note">IP du PC où tourne rigctld (peut être un autre poste du WiFi)</div>
+        </div>
+        <div class="form-group">
+          <label>PORT RIGCTLD</label>
+          <input type="number" id="rig_port" placeholder="4532">
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">🎙️ KEYER VOCAL (phonie — indicatif dit automatiquement)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Équivalent phonie des macros CW : synthèse vocale hors-ligne (aucun réseau),
+        indicatif épelé phonétiquement (Alpha, Bravo…) et reports dits chiffre par
+        chiffre, PTT activé automatiquement le temps du message (nécessite le
+        pilotage radio ci-dessus, natif/TCI/rigctld). Le son part vers le
+        PÉRIPHÉRIQUE choisi ci-dessous — utilise un câble audio virtuel
+        (ex. VB-Audio) ou une interface dédiée reliée à l'entrée micro de la
+        radio, jamais tes haut-parleurs de suivi.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>KEYER VOCAL</label>
+          <select id="voicekeyer_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>PÉRIPHÉRIQUE DE SORTIE</label>
+          <select id="voicekeyer_device"><option value="">— chargement… —</option></select>
+          <div class="input-note">Le câble/l'interface relié(e) à l'entrée micro de la radio, PAS tes enceintes</div>
+        </div>
+        <div class="form-group">
+          <label>VOIX</label>
+          <select id="voicekeyer_voice_id"><option value="">— chargement… —</option></select>
+        </div>
+        <div class="form-group">
+          <label>VITESSE (mots/min)</label>
+          <input type="number" id="voicekeyer_rate" placeholder="175" min="80" max="300">
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="testVoiceKeyer()">🔊 Tester (indicatif fictif)</button>
+        <span id="voiceKeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">🔋 AMPLIFICATEUR HF (pilotage natif)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Puissance/SWR/défaut affichés en direct dans le LOGBOOK, bascule standby/operate
+        et changement de bande depuis l'application — 3 protocoles constructeurs vérifiés
+        contre leur documentation officielle. Port série indépendant de celui de la radio
+        (câble USB/RS-232 dédié à l'ampli).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PILOTAGE AMPLI</label>
+          <select id="amp_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>MARQUE</label>
+          <select id="amp_brand" onchange="updateAmpFieldsVisibility()">
+            <option value="elecraft">Elecraft (KPA500 / KPA1500)</option>
+            <option value="icom">Icom (IC-PW2 / PW-1, CI-V)</option>
+            <option value="spe">SPE / Expert (1.3K-FA / 1.5K-FA / 2K-FA)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>PORT SÉRIE</label>
+          <select id="amp_port"></select>
+          <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshAmpPorts()">🔄 Rafraîchir la liste</button>
+        </div>
+        <div class="form-group">
+          <label>VITESSE (bauds)</label>
+          <input type="number" id="amp_baudrate" placeholder="9600 à 38400 selon marque">
+        </div>
+        <div class="form-group" id="ampCivAddrField" style="display:none">
+          <label>ADRESSE CI-V</label>
+          <input type="text" id="amp_civ_addr" placeholder="AA">
+          <div class="input-note">Adresse usine IC-PW2/PW-1 : AA (modifiable sur l'ampli si besoin)</div>
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="testAmpConnection()">🔌 Tester la connexion</button>
+        <span id="ampTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">🧭 ROTOR D'ANTENNE (via Hamlib rotctld)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+        Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
+        depuis ton locator est envoyé au rotor.<br>
+        Lance <b style="color:var(--accent2)">rotctld -m &lt;n°modèle&gt; -r &lt;port&gt; -T 0.0.0.0</b>
+        sur le PC relié au boîtier de commande (fourni avec Hamlib — modèles : <b>rotctl -l</b>).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PILOTAGE ROTOR</label>
+          <select id="rotor_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé</option>
+          </select>
+          <div class="input-note">Désactivé par défaut — aucun effet sans rotctld</div>
+        </div>
+        <div class="form-group">
+          <label>ADRESSE ROTCTLD</label>
+          <input type="text" id="rotor_host" placeholder="127.0.0.1 (ou IP du poste rotor)">
+          <div class="input-note">IP du PC où tourne rotctld (peut être un autre poste du WiFi)</div>
+        </div>
+        <div class="form-group">
+          <label>PORT ROTCTLD</label>
+          <input type="number" id="rotor_port" placeholder="4533">
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnStep1Next" onclick="goStep(2)">SUIVANT → CONCOURS</button>
+    </div>
+  </div>
+
+  <!-- PANEL 2 : CONCOURS -->
+  <div class="panel" id="panel2">
+
+    <!-- ASSISTANT NOUVEAU CONCOURS (rempli par handleContestParam quand on
+         arrive depuis le calendrier avec ?contest=ID) -->
+    <div id="assistantBanner" style="display:none;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:10px;padding:14px 18px;margin-bottom:16px"></div>
+
+    <div class="section">
+      <div class="section-title">SÉLECTIONNER UN CONCOURS</div>
+      <div style="margin-bottom:14px;position:relative">
+        <input type="text" id="contestSearch"
+          placeholder="🔍  Rechercher : Field Day, VHF, RPH, CQ WW…"
+          oninput="buildContestGrid(this.value)"
+          autocomplete="off"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
+          onfocus="this.style.borderColor='var(--accent2)'"
+          onblur="this.style.borderColor='var(--border)'">
+        <span id="contestSearchClear" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
+          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none">✕</span>
+      </div>
+      <div class="contest-grid" id="contestGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
+      <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+        📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>DATE DÉBUT <span style="font-size:12px;color:var(--muted)">(auto ou manuel)</span></label>
+          <input type="date" id="contest_start_date" placeholder="2026-07-05">
+          <div class="input-note">Champ TDate début dans le fichier EDI</div>
+        </div>
+        <div class="form-group">
+          <label>DATE FIN</label>
+          <input type="date" id="contest_end_date" placeholder="2026-07-06">
+        </div>
+        <div class="form-group">
+          <label>HEURE FIN UTC</label>
+          <input type="time" id="contest_end_utc" placeholder="14:00">
+          <div class="input-note">Pour le compte à rebours du logbook</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
+    <div class="section">
+      <div class="section-title">🤖 ANALYSER UN RÈGLEMENT (IA)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+        Concours absent de la liste ? Donne l'URL de son règlement (PDF ou page web) : l'IA en extrait
+        une définition complète (dates, bandes, modes, échange, scoring) <strong style="color:var(--text)">que tu relis et corriges
+        avant enregistrement</strong>. Une fois validé, le concours rejoint la base et resservira chaque année.
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="url" id="aiRulesUrl" placeholder="https://... (URL du règlement PDF ou HTML)"
+          style="flex:2;min-width:280px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
+        <input type="text" id="aiRulesName" placeholder="Nom du concours (optionnel)"
+          style="flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
+        <button class="btn btn-primary" id="aiAnalyzeBtn" onclick="analyzeRules()" style="padding:10px 18px">🤖 ANALYSER</button>
+      </div>
+      <div id="aiAnalyzeStatus" style="display:none;margin-top:10px;font-family:var(--font-mono);font-size:13px;color:var(--accent2)"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap">
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px">PARTAGE ENTRE STATIONS :</span>
+        <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="exportCustomContests()">📤 Exporter mes concours validés</button>
+        <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('importFile').click()">📥 Importer un fichier partagé</button>
+        <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importCustomContests(this.files[0])">
+        <span id="shareStatus" style="font-family:var(--font-mono);font-size:12px"></span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(1)">← RETOUR</button>
+      <button class="btn btn-primary" onclick="goStep(3)">SUIVANT → FILTRES</button>
+    </div>
+  </div>
+
+  <!-- PANEL 3 : FILTRES -->
+  <div class="panel" id="panel3">
+
+    <div id="filterAutoNote" style="display:none;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
+
+    <div class="section">
+      <div class="section-title">MODES</div>
+      <div class="toggle-grid">
+        <span class="toggle-btn mode-ssb on" data-key="mode_ssb" onclick="toggle(this)">SSB</span>
+        <span class="toggle-btn mode-cw" data-key="mode_cw" onclick="toggle(this)">CW</span>
+        <span class="toggle-btn mode-digi" data-key="mode_ft8" onclick="toggle(this)">FT8</span>
+        <span class="toggle-btn mode-digi" data-key="mode_ft4" onclick="toggle(this)">FT4</span>
+        <span class="toggle-btn mode-digi" data-key="mode_js8" onclick="toggle(this)">JS8</span>
+        <span class="toggle-btn mode-digi" data-key="mode_rtty" onclick="toggle(this)">RTTY</span>
+        <span class="toggle-btn mode-digi" data-key="mode_psk" onclick="toggle(this)">PSK</span>
+        <span class="toggle-btn" data-key="mode_am" onclick="toggle(this)">AM</span>
+        <span class="toggle-btn" data-key="mode_fm" onclick="toggle(this)">FM</span>
+        <span class="toggle-btn" data-key="mode_dstar" onclick="toggle(this)">D-STAR</span>
+      </div>
+    </div>
+
+    <div class="section" id="section_hf">
+      <div class="section-title">BANDES VLF / HF</div>
+      <div class="toggle-grid">
+        <span class="toggle-btn" data-key="band_vlf" onclick="toggle(this)">VLF</span>
+        <span class="toggle-btn" data-key="band_160m" onclick="toggle(this)">1.8 MHz <small style="opacity:.7">160m</small></span>
+        <span class="toggle-btn" data-key="band_80m" onclick="toggle(this)">3.5 MHz <small style="opacity:.7">80m</small></span>
+        <span class="toggle-btn" data-key="band_60m" onclick="toggle(this)">5 MHz <small style="opacity:.7">60m</small></span>
+        <span class="toggle-btn" data-key="band_40m" onclick="toggle(this)">7 MHz <small style="opacity:.7">40m</small></span>
+        <span class="toggle-btn" data-key="band_30m" onclick="toggle(this)">10 MHz <small style="opacity:.7">30m</small></span>
+        <span class="toggle-btn" data-key="band_20m" onclick="toggle(this)">14 MHz <small style="opacity:.7">20m</small></span>
+        <span class="toggle-btn" data-key="band_17m" onclick="toggle(this)">18 MHz <small style="opacity:.7">17m</small></span>
+        <span class="toggle-btn" data-key="band_15m" onclick="toggle(this)">21 MHz <small style="opacity:.7">15m</small></span>
+        <span class="toggle-btn" data-key="band_12m" onclick="toggle(this)">24 MHz <small style="opacity:.7">12m</small></span>
+        <span class="toggle-btn" data-key="band_10m" onclick="toggle(this)">28 MHz <small style="opacity:.7">10m</small></span>
+        <span class="toggle-btn" data-key="band_8m" onclick="toggle(this)">40 MHz <small style="opacity:.7">8m</small></span>
+      </div>
+    </div>
+
+    <div class="section" id="section_vhf">
+      <div class="section-title">BANDES VHF / UHF / SHF</div>
+      <div class="band-group">
+        <div class="band-group-title">VHF</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn" data-key="band_6m" onclick="toggle(this)">50 MHz <small style="opacity:.7">6m</small></span>
+          <span class="toggle-btn" data-key="band_4m" onclick="toggle(this)">70 MHz <small style="opacity:.7">4m</small></span>
+          <span class="toggle-btn on" data-key="band_2m" onclick="toggle(this)">144 MHz <small style="opacity:.7">2m</small></span>
+          <span class="toggle-btn" data-key="band_220" onclick="toggle(this)">220 MHz <small style="opacity:.7">1.25m</small></span>
+        </div>
+      </div>
+      <div class="band-group">
+        <div class="band-group-title">UHF</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn on" data-key="band_70cm" onclick="toggle(this)">432 MHz <small style="opacity:.7">70cm</small></span>
+          <span class="toggle-btn" data-key="band_23cm" onclick="toggle(this)">1.2 GHz <small style="opacity:.7">23cm</small></span>
+          <span class="toggle-btn" data-key="band_13cm" onclick="toggle(this)">2.4 GHz <small style="opacity:.7">13cm</small></span>
+        </div>
+      </div>
+      <div class="band-group">
+        <div class="band-group-title">SHF</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn" data-key="band_9cm" onclick="toggle(this)">3.4 GHz <small style="opacity:.7">9cm</small></span>
+          <span class="toggle-btn" data-key="band_6cm" onclick="toggle(this)">5.7 GHz <small style="opacity:.7">6cm</small></span>
+          <span class="toggle-btn" data-key="band_3cm" onclick="toggle(this)">10 GHz <small style="opacity:.7">3cm</small></span>
+          <span class="toggle-btn" data-key="band_6mm" onclick="toggle(this)">24 GHz <small style="opacity:.7">1.2cm</small></span>
+          <span class="toggle-btn" data-key="band_4mm" onclick="toggle(this)">47 GHz <small style="opacity:.7">6mm</small></span>
+        </div>
+      </div>
+      <div class="band-group">
+        <div class="band-group-title">SATELLITE</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn" data-key="band_qo100" onclick="toggle(this)">QO-100</span>
+          <span class="toggle-btn" data-key="band_sat" onclick="toggle(this)">Autres SAT</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">OPTIONS SPÉCIALES</div>
+      <div class="toggle-grid">
+        <span class="toggle-btn flag" data-key="flag_qrp" onclick="toggle(this)">QRP</span>
+        <span class="toggle-btn flag" data-key="flag_iota" onclick="toggle(this)">IOTA</span>
+        <span class="toggle-btn flag" data-key="flag_sota" onclick="toggle(this)">SOTA</span>
+        <span class="toggle-btn flag" data-key="flag_pota" onclick="toggle(this)">POTA</span>
+        <span class="toggle-btn flag" data-key="flag_portable" onclick="toggle(this)">PORTABLE /P</span>
+        <span class="toggle-btn flag" data-key="flag_mobile" onclick="toggle(this)">MOBILE /M</span>
+        <span class="toggle-btn flag" data-key="flag_beacon" onclick="toggle(this)">BEACON</span>
+        <span class="toggle-btn flag" data-key="flag_eme" onclick="toggle(this)">EME</span>
+        <span class="toggle-btn flag" data-key="flag_ms" onclick="toggle(this)">Meteor Scatter</span>
+        <span class="toggle-btn flag" data-key="flag_no_digi" onclick="toggle(this)">NO-DIGI</span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="btnStep3Back" onclick="goStep(2)">← RETOUR</button>
+      <button class="btn btn-primary" onclick="goStep(4)">SUIVANT → PROPAGATION</button>
+    </div>
+  </div>
+
+  <!-- PANEL 4 : PROPAGATION -->
+  <div class="panel" id="panel4">
+    <div class="section">
+      <div class="section-title">MODES DE PROPAGATION À SURVEILLER</div>
+      <div class="toggle-grid">
+        <span class="toggle-btn prop on" data-key="prop_tropo" onclick="toggle(this)">Troposphérique</span>
+        <span class="toggle-btn prop on" data-key="prop_es" onclick="toggle(this)">Sporadique-E</span>
+        <span class="toggle-btn prop" data-key="prop_aurora" onclick="toggle(this)">Aurore</span>
+        <span class="toggle-btn prop" data-key="prop_ms" onclick="toggle(this)">Meteor Scatter</span>
+        <span class="toggle-btn prop" data-key="prop_eme" onclick="toggle(this)">EME</span>
+        <span class="toggle-btn prop on" data-key="prop_f2" onclick="toggle(this)">F2 (ionosphérique)</span>
+        <span class="toggle-btn prop" data-key="prop_ducting" onclick="toggle(this)">Ducting maritime</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">SOURCES DE DONNÉES PROPAGATION</div>
+      <div class="toggle-grid">
+        <span class="toggle-btn on" data-key="src_f5len" onclick="toggle(this)">Cluster F5LEN</span>
+        <span class="toggle-btn on" data-key="src_dxsummit" onclick="toggle(this)">DXSummit</span>
+        <span class="toggle-btn on" data-key="src_dxwatch" onclick="toggle(this)">DXWatch</span>
+        <span class="toggle-btn on" data-key="src_tropo_f5len" onclick="toggle(this)">Tropo F5LEN</span>
+        <span class="toggle-btn on" data-key="src_dxmaps" onclick="toggle(this)">DXMaps</span>
+        <span class="toggle-btn on" data-key="src_hamqth_spots" onclick="toggle(this)">HamQTH spots (VHF)</span>
+        <span class="toggle-btn on" data-key="src_hamspirit" onclick="toggle(this)">HamSpirit (VHF)</span>
+        <span class="toggle-btn on" data-key="src_telnet" onclick="toggle(this)">Telnet DX Spider (HF)</span>
+        <span class="toggle-btn" data-key="src_voacap" onclick="toggle(this)">VOACAP (HF)</span>
+        <span class="toggle-btn on" data-key="src_on4kst" onclick="toggle(this)">ON4KST Chat</span>
+        <span class="toggle-btn" data-key="src_pskreporter" onclick="toggle(this)">PSK Reporter</span>
+        <span class="toggle-btn" data-key="src_solarcycle" onclick="toggle(this)">Cycle solaire</span>
+        <span class="toggle-btn" data-key="src_noaa" onclick="toggle(this)">NOAA K-index</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">COMPTE ON4KST CHAT (optionnel)</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>INDICATIF ON4KST</label>
+          <input type="text" id="on4kst_callsign" placeholder="F4GLD" style="text-transform:uppercase">
+          <div class="input-note">Ton indicatif d'identification sur le chat ON4KST</div>
+        </div>
+        <div class="form-group">
+          <label>MOT DE PASSE ON4KST</label>
+          <input type="password" id="on4kst_password" placeholder="••••••••" autocomplete="new-password">
+          <div class="input-note">Stocké en local uniquement — jamais transmis à l'IA</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🌐 COMPTE QRZ.com (fiches des correspondants)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        À chaque indicatif saisi, affiche nom / QTH / locator / pays depuis QRZ.
+        (Champs détaillés réservés aux comptes abonnés XML QRZ ; le pays reste
+        accessible sans abonnement.)
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>IDENTIFIANT QRZ</label>
+          <input type="text" id="qrz_user" placeholder="ton indicatif QRZ" style="text-transform:uppercase" autocomplete="off">
+          <div class="input-note">Ton login QRZ.com (souvent ton indicatif)</div>
+        </div>
+        <div class="form-group">
+          <label>MOT DE PASSE QRZ</label>
+          <input type="password" id="qrz_password" placeholder="••••••••" autocomplete="new-password">
+          <div class="input-note">Stocké côté serveur uniquement — jamais renvoyé au navigateur ni à l'IA</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📮 QSL & DIPLÔMES (services en ligne)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Publie ton log après un concours (eQSL, ClubLog) et récupère les
+        confirmations (LoTW) pour suivre tes diplômes DXCC / départements
+        « travaillé / confirmé ». Boutons dans le LOGBOOK → 🏅 DIPLÔMES.
+        Identifiants stockés côté serveur uniquement.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>eQSL — IDENTIFIANT</label>
+          <input type="text" id="eqsl_user" placeholder="ton indicatif eQSL" style="text-transform:uppercase" autocomplete="off">
+          <div class="input-note">Envoi du log (upload ADIF)</div>
+        </div>
+        <div class="form-group">
+          <label>eQSL — MOT DE PASSE</label>
+          <input type="password" id="eqsl_password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>LoTW — IDENTIFIANT</label>
+          <input type="text" id="lotw_user" placeholder="ton indicatif LoTW" style="text-transform:uppercase" autocomplete="off">
+          <div class="input-note">Import des confirmations (pas d'upload : garde TQSL pour publier)</div>
+        </div>
+        <div class="form-group">
+          <label>LoTW — MOT DE PASSE</label>
+          <input type="password" id="lotw_password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>ClubLog — EMAIL</label>
+          <input type="text" id="clublog_email" placeholder="email du compte ClubLog" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>ClubLog — INDICATIF</label>
+          <input type="text" id="clublog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>ClubLog — MOT DE PASSE</label>
+          <input type="password" id="clublog_password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>ClubLog — CLÉ API</label>
+          <input type="text" id="clublog_api_key" placeholder="clé API ClubLog" autocomplete="off">
+          <div class="input-note">Obtenue sur clublog.org (Settings → API keys)</div>
+        </div>
+        <div class="form-group">
+          <label>QRZCQ — INDICATIF</label>
+          <input type="text" id="qrzcq_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>QRZCQ — CLÉ API</label>
+          <input type="text" id="qrzcq_api_key" placeholder="clé API QRZCQ" autocomplete="off">
+          <div class="input-note">Obtenue sur qrzcq.com (Mon compte → Développeurs)</div>
+        </div>
+        <div class="form-group">
+          <label>HRDLog — INDICATIF</label>
+          <input type="text" id="hrdlog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>HRDLog — CODE D'UPLOAD</label>
+          <input type="text" id="hrdlog_code" placeholder="code d'upload HRDLog" autocomplete="off">
+          <div class="input-note">Obtenu sur hrdlog.net (réglages du compte) — envoi QSO par QSO, peut être lent sur un gros log</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🏆 COMPÉTITION & SÉCURITÉ</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Publie ton score en direct pour te comparer aux rivaux, et sauvegarde
+        automatiquement ton log vers un dossier synchronisé (Synology Drive,
+        Dropbox, OneDrive…).
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>SCOREBOARD EN DIRECT</label>
+          <select id="scoreboard_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé — publier le score</option>
+          </select>
+          <div class="input-note">Envoi périodique vers contestonlinescore.com</div>
+        </div>
+        <div class="form-group">
+          <label>SCOREBOARD — INTERVALLE (min)</label>
+          <input type="number" id="scoreboard_interval" placeholder="5" min="2" max="30">
+        </div>
+        <div class="form-group">
+          <label>DOSSIER DE SAUVEGARDE</label>
+          <input type="text" id="backup_folder" placeholder="C:\Users\...\SynologyDrive\logs" autocomplete="off">
+          <div class="input-note">Copie horodatée (.db + .json + ADIF) ; vide = désactivé</div>
+        </div>
+        <div class="form-group">
+          <label>SAUVEGARDE — INTERVALLE (min)</label>
+          <input type="number" id="backup_interval" placeholder="15" min="5" max="120">
+        </div>
+        <div class="form-group">
+          <label>RBN CW (où mon signal est entendu)</label>
+          <select id="rbn_enabled">
+            <option value="1">Activé (par défaut)</option>
+            <option value="">Désactivé</option>
+          </select>
+          <div class="input-note">Panneau RBN sur la page PROPAGATION</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">☁️ CLOUD SYNC (multi-poste, sans compte ni service en ligne)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Combine tes QSO avec un AUTRE poste (même expédition, poste de secours...)
+        via un dossier déjà synchronisé (Synology Drive, Dropbox, OneDrive…) —
+        chaque poste pointant vers le MÊME dossier voit les QSO des autres.
+        Aucun compte à créer : le « cloud », c'est l'outil de sync que tu
+        utilises déjà. Différent de la SAUVEGARDE ci-dessus (instantanés à
+        sens unique) : ici les QSO des deux côtés se combinent réellement.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>MODE</label>
+          <select id="cloudsync_mode">
+            <option value="">Désactivé</option>
+            <option value="full">Synchronisation complète (lit + écrit)</option>
+            <option value="push">Envoi seul (écrit, ne récupère rien)</option>
+          </select>
+          <div class="input-note">« Envoi seul » : pour un poste isolé qui alimente le dossier partagé sans avoir besoin des QSO des autres</div>
+        </div>
+        <div class="form-group">
+          <label>DOSSIER PARTAGÉ</label>
+          <input type="text" id="cloudsync_folder" placeholder="vide = même dossier que SAUVEGARDE" autocomplete="off">
+          <div class="input-note">Doit être IDENTIQUE sur tous les postes qui synchronisent ensemble</div>
+        </div>
+        <div class="form-group">
+          <label>INTERVALLE (min)</label>
+          <input type="number" id="cloudsync_interval" placeholder="3" min="1" max="60">
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="cloudsyncNow()">☁️ SYNCHRONISER MAINTENANT</button>
+        <span id="cloudsyncResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Tu actives une référence (parc, sommet, île, réserve, phare, château) :
+        chaque QSO porte ta référence et compte pour valider l'activation. Le
+        logbook affiche l'avancement (X / minimum) et détecte les contacts
+        entre deux activateurs (<b>Park-to-Park / Summit-to-Summit / Light-to-Light...</b>).
+        L'export ADIF inclut les champs SIG / MY_SIG_INFO pour l'upload.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>PROGRAMME</label>
+          <select id="activation_program">
+            <option value="">Désactivé (concours normal)</option>
+            <option value="POTA">POTA — Parks on the Air (10 QSO)</option>
+            <option value="SOTA">SOTA — Summits on the Air (4 QSO)</option>
+            <option value="IOTA">IOTA — Islands on the Air (1 QSO)</option>
+            <option value="WWFF">WWFF — Flora &amp; Fauna (44 QSO)</option>
+            <option value="ARLHS">ARLHS — Lighthouses (2 QSO)</option>
+            <option value="WCA">WCA — World Castles Award (50 QSO)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>MA RÉFÉRENCE ACTIVÉE</label>
+          <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase">
+          <div class="input-note">POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🏝️ MODE EXPÉDITION</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Plusieurs postes sur le même site (un par bande, voire trois par bande en
+        CW/SSB/FT8) loggent dans le MÊME log commun : chaque poste ouvre le
+        LOGBOOK depuis son navigateur (même WiFi), sélectionne son opérateur, et
+        tous les QSO arrivent ensemble. L'écran mural affiche le flux en direct
+        sur un grand écran/projecteur, et Club Log Live diffuse chaque QSO au monde.
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>MODE EXPÉDITION (saisie simplifiée)</label>
+          <select id="expedition_mode">
+            <option value="">Désactivé — saisie concours normale</option>
+            <option value="1">Activé — juste indicatif + RST envoyé/reçu</option>
+          </select>
+          <div class="input-note">En pile-up d'expédition : pas de n° de série ni locator, seulement l'indicatif et les reports (59, 55, 44…)</div>
+        </div>
+        <div class="form-group">
+          <label>CLUB LOG LIVE STREAM</label>
+          <select id="clublog_live">
+            <option value="">Désactivé</option>
+            <option value="1">Activé — pousser chaque QSO en temps réel</option>
+          </select>
+          <div class="input-note">Nécessite les identifiants ClubLog (section QSL ci-dessus)</div>
+        </div>
+        <div class="form-group">
+          <label>AUTO-SPOT DX CLUSTER (self-spot)</label>
+          <select id="cluster_spot_enabled">
+            <option value="">Désactivé</option>
+            <option value="1">Activé — bouton 📡 SELF-SPOT dans le logbook</option>
+          </select>
+          <div class="input-note">Publie ton indicatif + ta fréquence sur le cluster. Login = ton indicatif. ⚠️ Interdit par certains règlements en single-op.</div>
+        </div>
+        <div class="form-group">
+          <label>NŒUD CLUSTER (host : port)</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="cluster_spot_host" placeholder="dxc.ve7cc.net" value="dxc.ve7cc.net" style="flex:1">
+            <input type="number" id="cluster_spot_port" placeholder="7300" value="7300" style="width:90px">
+          </div>
+          <div class="input-note">VE7CC accepte le spot avec le seul indicatif. D'autres nœuds exigent une inscription.</div>
+        </div>
+        <div class="form-group">
+          <label>ÉCRAN MURAL (grand écran)</label>
+          <a href="logx_wall.html" target="_blank" class="btn btn-secondary" style="display:inline-block;padding:9px 16px;text-decoration:none;margin-top:2px">🖥️ OUVRIR L'ÉCRAN MURAL</a>
+          <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran)</div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <label>ÉCRAN MURAL — CHAMPS À AFFICHER</label>
+        <div id="wallFields" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:8px;font-family:var(--font-mono);font-size:14px">
+          <label style="cursor:pointer"><input type="checkbox" id="wf_time" checked> Heure</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_flag" checked> 🏴 Drapeau</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_country" checked> Pays</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_name"> Prénom</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_band" checked> Bande</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_freq"> Fréquence</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_mode" checked> Mode</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_rst"> Report (RST)</label>
+          <label style="cursor:pointer"><input type="checkbox" id="wf_op" checked> Opérateur</label>
+        </div>
+        <div class="input-note">L'indicatif est toujours affiché. Le prénom n'apparaît que pour les indicatifs déjà consultés via QRZ.</div>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <label>📱 CONNECTER UN TÉLÉPHONE / TABLETTE</label>
+        <div id="lanUrls" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-top:6px;line-height:1.8">Recherche de l'adresse réseau…</div>
+        <div class="input-note">Sur le même WiFi, ouvre cette adresse sur ton téléphone, puis « Ajouter à l'écran d'accueil » : l'appli s'installe et tourne en plein écran (PWA).</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">PARAMÈTRES D'ALERTE</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>DISTANCE ALERTE DX (KM)</label>
+          <input type="number" id="alert_dx_km" placeholder="1200" value="1200" min="100" max="5000">
+          <div class="input-note">Au-delà → alerte 🌟 DX EXCEPTIONNEL</div>
+        </div>
+        <div class="form-group">
+          <label>DISTANCE PROBABLE SPOTTER (KM)</label>
+          <input type="number" id="spotter_reliable_km" placeholder="600" value="600" min="50" max="3000">
+          <div class="input-note">En deçà → contact ✅ PROBABLE</div>
+        </div>
+        <div class="form-group">
+          <label>SON DES ALERTES</label>
+          <select id="alert_sound">
+            <option value="1">Activé</option>
+            <option value="">Silencieux</option>
+          </select>
+          <div class="input-note">Bip sur nouveau mult, DX rare, mention ON4KST</div>
+        </div>
+        <div class="form-group">
+          <label>VOLUME ALERTES (%)</label>
+          <input type="number" id="alert_volume" placeholder="60" value="60" min="0" max="100">
+        </div>
+        <div class="form-group">
+          <label>RAFRAÎCHISSEMENT AUTO (MIN)</label>
+          <input type="number" id="refresh_min" placeholder="2" value="2" min="1" max="30">
+        </div>
+        <div class="form-group">
+          <label>PRIORITÉ PRINCIPALE</label>
+          <select id="priority_mode">
+            <option value="distance">Distance (pts/km)</option>
+            <option value="dept">Département manquant</option>
+            <option value="dxcc">DXCC manquant</option>
+            <option value="zone">Zone manquante</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>FILTRE PRÉFIXE SPOTS</label>
+          <input type="text" id="spot_prefix_filter" placeholder="F,DL,ON,G,HB9" maxlength="80"
+            title="Préfixes à surveiller, séparés par virgule. Vide = tous les spots">
+          <div class="input-note">Préfixes inclus (ex : F,DL,G). Vide = aucun filtre</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🔔 RÈGLES D'ALERTE PERSONNALISÉES</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        En plus du nouveau multiplicateur et de la mention ON4KST (toujours actifs) :
+        combine préfixe d'indicatif, continent, zone CQ, bande, statut travaillé et
+        texte du commentaire de spot pour créer tes propres alertes sonores. Chaque
+        règle est activable/désactivable indépendamment.
+      </div>
+      <div id="alertRulesList" style="margin-bottom:14px"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>NOM DE LA RÈGLE</label>
+          <input type="text" id="newRuleName" placeholder="ex : DX Asie neuf" maxlength="40">
+        </div>
+        <div class="form-group">
+          <label>PRÉFIXE INDICATIF</label>
+          <input type="text" id="newRulePrefix" placeholder="JA,HL,BY (vide = tous)">
+        </div>
+        <div class="form-group">
+          <label>CONTINENT</label>
+          <select id="newRuleContinent">
+            <option value="">Tous</option>
+            <option value="EU">Europe</option>
+            <option value="NA">Amérique du Nord</option>
+            <option value="SA">Amérique du Sud</option>
+            <option value="AF">Afrique</option>
+            <option value="AS">Asie</option>
+            <option value="OC">Océanie</option>
+            <option value="AN">Antarctique</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ZONE CQ</label>
+          <input type="text" id="newRuleCqZone" placeholder="25,26 (vide = toutes)">
+        </div>
+        <div class="form-group">
+          <label>BANDE (MHz)</label>
+          <input type="text" id="newRuleBand" placeholder="14,21 (vide = toutes)">
+        </div>
+        <div class="form-group">
+          <label>STATUT</label>
+          <select id="newRuleStatus">
+            <option value="any">Indifférent</option>
+            <option value="new_mult">Nouveau multiplicateur</option>
+            <option value="already_done">Déjà travaillé</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>COMMENTAIRE DE SPOT CONTIENT</label>
+          <input type="text" id="newRuleComment" placeholder="ex : POTA, SOTA, QRP">
+        </div>
+      </div>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn btn-secondary" onclick="addAlertRule()">➕ AJOUTER LA RÈGLE</button>
+        <span id="ruleAddMsg" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(3)">← RETOUR</button>
+      <button class="btn btn-primary" onclick="goStep(5)">SUIVANT → RÉSUMÉ</button>
+    </div>
+  </div>
+
+  <!-- PANEL 5 : RÉSUMÉ -->
+  <div class="panel" id="panel5">
+    <div class="section">
+      <div class="section-title">RÉCAPITULATIF DE LA SESSION</div>
+      <div class="summary-box" id="summaryBox"></div>
+    </div>
+
+    <div class="section expert-only">
+      <div class="section-title">PROMPT SYSTÈME GÉNÉRÉ</div>
+      <textarea id="generatedPrompt" readonly style="width:100%;height:180px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:12px;resize:vertical;outline:none;line-height:1.6"></textarea>
+      <div class="btn-row" style="margin-top:8px;justify-content:flex-start">
+        <button class="btn btn-secondary" onclick="copyPrompt()">📋 COPIER LE PROMPT</button>
+        <button class="btn btn-secondary" onclick="saveConfig()">💾 SAUVEGARDER CONFIG</button>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(4)">← RETOUR</button>
+      <button class="btn btn-launch" onclick="launchApp()">🚀 COMMENCER À LOGGER</button>
+      <button class="btn btn-secondary" onclick="launchApp('logx_carte.html')">🗺️ Ouvrir la carte IA</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL RELECTURE HUMAINE (Phase 3) — la proposition IA n'est JAMAIS
+     enregistrée sans passer par ce modal -->
+<div id="reviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;overflow-y:auto;padding:30px 16px">
+  <div style="max-width:880px;margin:0 auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:14px;padding:24px" id="reviewModalBody">
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const state = {
+  step: 1,
+  contest: null,
+  toggles: {},
+  alertRules: [],
+  datesAutoFor: null, // concours pour lequel les dates ont été auto-calculées
+};
+// Contest pour lequel applyContestFilters a déjà été appliqué (évite d'écraser
+// les choix manuels de l'utilisateur à chaque revisite de l'étape 3)
+let _filtersAppliedFor = null;
+
+// ─── CONTESTS DATA ───────────────────────────────────────────────────────────
+// Calendrier REF 2026 complet + concours internationaux
+const CONTESTS = [
+
+  // ── CALENDRIER REF 2026 ──────────────────────────────────────────────────
+  {
+    id:'REF_CHALLENGE_THF', name:'Challenge THF', org:'REF',
+    date:'01/01/2026 → 31/12/2026', correcteur:'CC',
+    bands:['144MHz→47GHz'], modes:['SSB','CW','FM','DIGI'],
+    score:'Cumulatif annuel — pts/km × locators', color:'#FF5030',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_challengethf_fr_20251209.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_JAN1', name:'Courte Durée Cumulatif — 1re partie', org:'REF',
+    date:'11/01/2026 06h00-11h00', correcteur:'F6IIT',
+    bands:['432MHz','1296MHz','2320MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators — cumulatif 6 épreuves', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_JAN2', name:'Courte Durée Cumulatif — 2e partie', org:'REF',
+    date:'18/01/2026 06h00-11h00', correcteur:'F6IIT',
+    bands:['144MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators — cumulatif 6 épreuves', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CDF_HF_CW', name:'Championnat de France HF Télégraphie', org:'REF',
+    date:'24-25/01/2026 06h00→18h00', correcteur:'F4CWN',
+    bands:['3.5MHz','7MHz','14MHz','21MHz','28MHz'], modes:['CW'],
+    score:'pts × depts + DXCC', color:'#FFD60A',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_cdfhf_fr_20251117.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_FEV1', name:'Courte Durée Cumulatif — 3e partie', org:'REF',
+    date:'08/02/2026 06h00-11h00', correcteur:'F6IIT',
+    bands:['432MHz','1296MHz','2320MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators — cumulatif 6 épreuves', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_FEV2', name:'Courte Durée Cumulatif — 4e partie', org:'REF',
+    date:'15/02/2026 06h00-11h00', correcteur:'F6IIT',
+    bands:['144MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators — cumulatif 6 épreuves', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CDF_HF_SSB', name:'Championnat de France HF Téléphonie', org:'REF',
+    date:'21-22/02/2026 06h00→18h00', correcteur:'F4CWN',
+    bands:['3.5MHz','7MHz','14MHz','21MHz','28MHz'], modes:['SSB'],
+    score:'pts × depts + DXCC', color:'#FF5030',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_cdfhf_fr_20251117.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_NAT_THF', name:'National THF — Trophée F3SK', org:'REF',
+    date:'07-08/03/2026 14h00→14h00', correcteur:'F4CIB',
+    bands:['144MHz→47GHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_natthf_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_MAR', name:'Concours de Courte Durée (Mars)', org:'REF',
+    date:'22/03/2026 06h00-11h00', correcteur:'F6DZR',
+    bands:['144MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_NAT_TVA', name:'National TVA', org:'REF',
+    date:'29/03/2026 06h00-11h00', correcteur:'F1BLQ',
+    bands:['438MHz+','TVA'], modes:['FM','ATV'],
+    score:'pts × relais TVA', color:'#BF5AF2',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20251209.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_AVR_CW', name:'Concours de Courte Durée CW (Avril)', org:'REF',
+    date:'19/04/2026 05h00-10h00', correcteur:'F4CWN',
+    bands:['144MHz'], modes:['CW'],
+    score:'1pt/km × locators', color:'#FFD60A',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_PRINTEMPS', name:'Concours du Printemps', org:'REF',
+    date:'02-03/05/2026 14h00→14h00', correcteur:'F4CIB',
+    bands:['144MHz→47GHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_printemps_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_MAI', name:'Concours de Courte Durée (Mai)', org:'REF',
+    date:'17/05/2026 05h00-10h00', correcteur:'F5RQQ',
+    bands:['432MHz','1296MHz','2320MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CDF_THF', name:'Championnat de France THF', org:'REF',
+    date:'06-07/06/2026 14h00→14h00', correcteur:'F6IIT',
+    bands:['144MHz→47GHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#FF5030',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_cdfthf_fr_20251222.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_IARU_TVA', name:'IARU R1 TVA', org:'REF/IARU',
+    date:'13-14/06/2026 12h00→18h00', correcteur:'F1BLQ',
+    bands:['438MHz+','TVA'], modes:['FM','ATV'],
+    score:'pts × relais TVA', color:'#BF5AF2',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_iarutva_fr_20251209.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_DDFM_50', name:'DDFM 50MHz', org:'REF',
+    date:'13-14/06/2026 14h00→14h00', correcteur:'F4CWN',
+    bands:['50MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#30D158',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ddfm50_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_IARU_50', name:'IARU R1 50MHz — Mémorial F8SH', org:'REF/IARU',
+    date:'20-21/06/2026 14h00→14h00', correcteur:'F4CIB',
+    bands:['50MHz'], modes:['SSB','CW'],
+    score:'1pt/km × locators', color:'#30D158',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_iaru50_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_RPH', name:'Rallye des Points Hauts', org:'REF',
+    date:'04-05/07/2026 14h00→14h00', correcteur:'F6DZR',
+    bands:['144MHz→47GHz'], modes:['SSB'],
+    score:'1pt/km — NO DIGI — portable obligatoire', color:'#FF5030',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_rph_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_QRP', name:'Bol d\'or des QRP — Trophée F8BO', org:'REF',
+    date:'18-19/07/2026 14h00→14h00', correcteur:'F6DZR',
+    bands:['144MHz→47GHz'], modes:['SSB','CW'],
+    score:'1pt/km × locators — QRP uniquement (≤5W)', color:'#FFD60A',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_qrp_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_ETE', name:'Concours d\'été', org:'REF',
+    date:'01-02/08/2026 14h00→14h00', correcteur:'F5RQQ',
+    bands:['144MHz→47GHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ete_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_F8TD', name:'Trophée F8TD', org:'REF',
+    date:'30/08/2026 04h00-13h00', correcteur:'F6DZR',
+    bands:['1296MHz→47GHz'], modes:['SSB','CW'],
+    score:'1pt/km × locators — SHF uniquement', color:'#BF5AF2',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_f8td_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_IARU_VHF', name:'IARU R1 VHF', org:'REF/IARU',
+    date:'05-06/09/2026 14h00→14h00', correcteur:'F4CIB',
+    bands:['144MHz'], modes:['SSB','CW'],
+    score:'1pt/km × locators', color:'#BF5AF2',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_iaruvhf_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CDF_TVA', name:'Championnat de France TVA', org:'REF',
+    date:'12-13/09/2026 12h00→12h00', correcteur:'F1BLQ',
+    bands:['438MHz+','TVA'], modes:['FM','ATV'],
+    score:'pts × relais TVA', color:'#BF5AF2',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_cdftva_fr_20251209.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_IARU_UHF', name:'IARU UHF/SHF', org:'REF/IARU',
+    date:'03-04/10/2026 14h00→14h00', correcteur:'F4CIB',
+    bands:['432MHz→47GHz'], modes:['SSB','CW'],
+    score:'1pt/km × locators', color:'#BF5AF2',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_iaruuhf_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_OCT', name:'Concours de Courte Durée (Octobre)', org:'REF',
+    date:'18/10/2026 05h00-10h00', correcteur:'F5RQQ',
+    bands:['432MHz','1296MHz','2320MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_MARCONI', name:'IARU R1 VHF CW — Mémorial Marconi', org:'REF/IARU',
+    date:'07-08/11/2026 14h00→14h00', correcteur:'F4CIB',
+    bands:['144MHz'], modes:['CW'],
+    score:'1pt/km × locators — CW uniquement', color:'#FFD60A',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_marconi_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_160M', name:'REF 160m — Trophée F8EX', org:'REF',
+    date:'21-22/11/2026 17h00→00h00', correcteur:'F4CWN',
+    bands:['1.8MHz'], modes:['SSB','CW'],
+    score:'pts × depts français + DXCC', color:'#FF2D55',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ref160_fr_20250312.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_NOV', name:'Concours de Courte Durée (Novembre)', org:'REF',
+    date:'22/11/2026 06h00-11h00', correcteur:'F6IIT',
+    bands:['144MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_DEC', name:'Concours de Courte Durée (Décembre)', org:'REF',
+    date:'06/12/2026 06h00-11h00', correcteur:'F5RQQ',
+    bands:['144MHz'], modes:['SSB','CW','FM'],
+    score:'1pt/km × locators', color:'#00D4FF',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_CCD_DEC_CW', name:'Concours de Courte Durée CW (Décembre)', org:'REF',
+    date:'20/12/2026 06h00-11h00', correcteur:'F6DZR',
+    bands:['144MHz'], modes:['CW'],
+    score:'1pt/km × locators — CW uniquement', color:'#FFD60A',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_ccdthf_fr_20260429.pdf',
+    group:'REF'
+  },
+  {
+    id:'REF_NAT_TVA_DEC', name:'National TVA (Décembre)', org:'REF',
+    date:'27/12/2026 06h00-11h00', correcteur:'F1BLQ',
+    bands:['438MHz+','TVA'], modes:['FM','ATV'],
+    score:'pts × relais TVA', color:'#BF5AF2',
+    rules:'https://concours.r-e-f.org/reglements/actuels/reg_nattva_fr_20251209.pdf',
+    group:'REF'
+  },
+
+  // ── AUTRES FRANÇAIS ──────────────────────────────────────────────────────
+  {
+    id:'F9NL', name:'Mémorial F9NL', org:'UFT',
+    date:'3e week-end septembre 05h00-10h00 UTC', correcteur:'UFT',
+    bands:['HF'], modes:['CW'],
+    score:'pts × depts + DXCC — CW uniquement', color:'#FFD60A',
+    rules:'https://www.uft.net', group:'Autre FR'
+  },
+  {
+    id:'UFT_RENCONTRES', name:'Rencontres UFT', org:'UFT',
+    date:'1er week-end décembre', correcteur:'UFT',
+    bands:['HF'], modes:['CW'],
+    score:'pts × depts — CW uniquement', color:'#FFD60A',
+    rules:'https://www.uft.net', group:'Autre FR'
+  },
+
+  // ── INTERNATIONAUX ───────────────────────────────────────────────────────
+  {
+    id:'CQ_WW_SSB', name:'CQ World Wide DX — SSB', org:'CQ Magazine',
+    date:'Dernier week-end octobre', correcteur:'CQ',
+    bands:['1.8','3.5','7','14','21','28MHz'], modes:['SSB'],
+    score:'pts × zones CQ × DXCC', color:'#FF5030', group:'International'
+  },
+  {
+    id:'CQ_WW_CW', name:'CQ World Wide DX — CW', org:'CQ Magazine',
+    date:'Dernier week-end novembre', correcteur:'CQ',
+    bands:['1.8','3.5','7','14','21','28MHz'], modes:['CW'],
+    score:'pts × zones CQ × DXCC', color:'#FFD60A', group:'International'
+  },
+  {
+    id:'CQ_WPX_SSB', name:'CQ WPX — SSB', org:'CQ Magazine',
+    date:'Dernier week-end mars', correcteur:'CQ',
+    bands:['HF'], modes:['SSB'],
+    score:'pts × préfixes uniques', color:'#FF5030', group:'International'
+  },
+  {
+    id:'CQ_WPX_CW', name:'CQ WPX — CW', org:'CQ Magazine',
+    date:'Dernier week-end mai', correcteur:'CQ',
+    bands:['HF'], modes:['CW'],
+    score:'pts × préfixes uniques', color:'#FFD60A', group:'International'
+  },
+  {
+    id:'ARRL_DX_SSB', name:'ARRL DX — SSB', org:'ARRL',
+    date:'3e week-end mars', correcteur:'ARRL',
+    bands:['HF'], modes:['SSB'],
+    score:'3pts × états/provinces US/Canada', color:'#30D158', group:'International'
+  },
+  {
+    id:'ARRL_DX_CW', name:'ARRL DX — CW', org:'ARRL',
+    date:'2e week-end février', correcteur:'ARRL',
+    bands:['HF'], modes:['CW'],
+    score:'3pts × états/provinces US/Canada', color:'#30D158', group:'International'
+  },
+  {
+    id:'ARRL_FD', name:'ARRL Field Day', org:'ARRL',
+    date:'27-28/06/2026 — 18h00 UTC (24h+)', correcteur:'ARRL',
+    bands:['160m','80m','40m','20m','15m','10m','50MHz+'], modes:['SSB','CW','FT8','FT4','RTTY'],
+    score:'QSO_pts × mult puissance + bonus autonomie',
+    color:'#30D158', group:'International',
+    rules:'https://www.arrl.org/field-day-rules'
+  },
+  {
+    id:'SOTA', name:'Summits on the Air', org:'SOTA',
+    date:'Permanent', correcteur:'SOTA',
+    bands:['Toutes'], modes:['Tous'],
+    score:'pts sommets activés/chassés', color:'#FFD60A', group:'International'
+  },
+  {
+    id:'POTA', name:'Parks on the Air', org:'POTA',
+    date:'Permanent', correcteur:'POTA',
+    bands:['Toutes'], modes:['Tous'],
+    score:'pts parcs activés/chassés', color:'#30D158', group:'International'
+  },
+  {
+    id:'CUSTOM', name:'Concours personnalisé', org:'Manuel',
+    date:'À définir', correcteur:'—',
+    bands:['Au choix'], modes:['Au choix'],
+    score:'À configurer manuellement', color:'#8E8E93', group:'Autre'
+  },
+];
+
+// ─── SÉLECTEUR UNIFIÉ : FUSION SERVEUR + WA7BNM ──────────────────────────────
+// Enrichit la liste locale CONTESTS avec :
+//  1. la base serveur (/data/calendar) → badge "✓ règlement suivi" (dates et
+//     règlements re-vérifiés automatiquement chaque année par logx_serveur.py) ;
+//  2. le calendrier mondial WA7BNM (/data/external_contests) → badge
+//     "à confirmer" (paramètres non vérifiés, à saisir manuellement — la
+//     lecture IA du règlement arrivera en Phase 3).
+const VERIFIED_IDS = new Set();   // ids présents dans la base serveur
+
+async function mergeServerContests(){
+  try{
+    const res = await fetch('/data/calendar');
+    const data = await res.json();
+    (data.contests || []).forEach(sc => {
+      VERIFIED_IDS.add(sc.id);
+      const local = CONTESTS.find(c => c.id === sc.id);
+      if (local){
+        // La date serveur est recalculée chaque année → plus fiable que celle en dur
+        if (sc.date && sc.date !== '—') local.date = sc.date;
+        if (sc.rules_url) local.rules = sc.rules_url;
+        local._server_date = sc.date;         // "DD/MM/YYYY à HHhMM UTC"
+        local._duration_h  = sc.duration_h;
+        local._start_utc   = sc.start_utc;
+        local._custom      = !!sc.custom;
+      } else {
+        CONTESTS.push({
+          id: sc.id, name: sc.name, org: sc.organizer,
+          date: sc.date || '', correcteur: '—',
+          bands: (sc.bands || []).map(b => b + 'MHz'),
+          modes: sc.modes || [],
+          score: (sc.scoring && sc.scoring.unit) || '—',
+          color: '#00D4FF', rules: sc.rules_url || '',
+          group: (sc.organizer || '').includes('REF') ? 'REF' : 'International',
+          _server_date: sc.date, _duration_h: sc.duration_h, _start_utc: sc.start_utc,
+          _custom: !!sc.custom,
+        });
+      }
+    });
+  }catch(e){ console.warn('[UNIFIÉ] base serveur non disponible :', e); }
+}
+
+async function mergeExternalContests(){
+  try{
+    const res = await fetch('/data/external_contests');
+    const data = await res.json();
+    (data.contests || []).forEach(ec => {
+      const id = 'EXT_' + (ec.ref || (ec.name || '').replace(/\W+/g, '_').toUpperCase());
+      if (CONTESTS.find(c => c.id === id)) return;
+      CONTESTS.push({
+        id, name: ec.name || 'Concours externe', org: 'WA7BNM',
+        date: [ec.date_str, ec.time_str].filter(Boolean).join(' '), correcteur: '—',
+        bands: [], modes: [],
+        score: 'à confirmer — voir règlement', color: '#FFD60A',
+        rules: ec.url || '', group: 'Mondial (WA7BNM)', external: true,
+      });
+    });
+  }catch(e){ console.warn('[UNIFIÉ] WA7BNM non disponible :', e); }
+}
+
+// ─── CHARGEMENT CONFIG ───────────────────────────────────────────────────────
+function applyConfigToForm(cfg) {
+  const set = (id, val) => { const el = document.getElementById(id); if(el && val !== undefined && val !== null) el.value = val; };
+  if(typeof applyWallFields === 'function') applyWallFields(cfg.wall_fields);
+  set('usage_mode', cfg.usage_mode);
+  if(typeof applyUsageMode === 'function') applyUsageMode();
+  set('cluster_spot_enabled', cfg.cluster_spot_enabled);
+  set('cluster_spot_host',    cfg.cluster_spot_host);
+  set('cluster_spot_port',    cfg.cluster_spot_port);
+  set('activation_program',   cfg.activation_program);
+  set('my_activation_ref',    cfg.my_activation_ref);
+  set('callsign',        cfg.callsign);
+  set('callsign_contest',cfg.callsign_contest || cfg.callsign);
+  set('locator',         cfg.locator);
+  set('city',            cfg.city);
+  set('altitude',        cfg.altitude);
+  set('postal',          cfg.postal);
+  set('on4kst_callsign', cfg.on4kst_callsign);
+  set('on4kst_password', cfg.on4kst_password);
+  set('operator_name',   cfg.op_name);
+  set('op_call',         cfg.op_call);
+  set('club',            cfg.club);
+  set('email',           cfg.email);
+  set('section_edi',     cfg.section);
+  set('contest_start_date', cfg.contest_start_date);
+  set('contest_end_date',   cfg.contest_end_date);
+  set('contest_end_utc',    cfg.contest_end_utc);
+  set('power',           cfg.power);
+  set('power_class',     cfg.power_class);
+  set('record_dx',       cfg.record_dx);
+  set('log_software',    cfg.log_software);
+  set('ant_hf',          cfg.ant_hf);
+  set('ant_144',         cfg.ant_144);
+  set('ant_432',         cfg.ant_432);
+  set('ant_shf',         cfg.ant_shf);
+  set('radio',           cfg.radio);
+  set('country',         cfg.country);
+  set('submit_url',      cfg.submit_url);
+  set('submit_deadline', cfg.submit_deadline);
+  set('alert_dx_km',     cfg.alert_dx_km);
+  set('spotter_reliable_km', cfg.spotter_reliable_km);
+  set('refresh_min',     cfg.refresh_min);
+  set('priority_mode',   cfg.priority_mode);
+  set('spot_prefix_filter', cfg.spot_prefix_filter);
+  // Opérateurs
+  if(Array.isArray(cfg.operators)){
+    cfg.operators.forEach((op, i) => {
+      set(`op${i+1}_call`, op.call);
+      set(`op${i+1}_name`, op.name);
+    });
+  }
+  // Concours sélectionné
+  if(cfg.contest){
+    state.contest = cfg.contest;
+    state.toggles = cfg.toggles || {};
+    // Refléter le choix sauvegardé sur les boutons bande/mode (DOM)
+    document.querySelectorAll('[data-key]').forEach(el => {
+      el.classList.toggle('on', !!state.toggles[el.dataset.key]);
+    });
+    // Empêche goStep(3) d'écraser ces valeurs avec les défauts du règlement
+    _filtersAppliedFor = cfg.contest;
+    // Marquer la carte visuellement
+    document.querySelectorAll('.contest-card').forEach(c => {
+      c.classList.toggle('selected', c.dataset.id === cfg.contest);
+    });
+  }
+  // Fournisseur IA
+  if(cfg.api_provider){
+    const prov = document.querySelector(`input[name="api_provider"][value="${cfg.api_provider}"]`);
+    if(prov) { prov.checked = true; onProviderChange(); }
+  }
+  if(cfg.ai_model){ set('ai_model', cfg.ai_model); }
+  if(cfg.api_key){ set('api_key', cfg.api_key); }
+  // Clé API depuis localStorage isolé
+  const provider = cfg.api_provider || 'anthropic';
+  const savedKey = localStorage.getItem(`logx_apikey_${provider}`) || cfg.api_key || '';
+  if(savedKey) set('api_key', savedKey);
+}
+
+function loadSavedConfig() {
+  try{
+    const raw = localStorage.getItem('logx_config');
+    if(!raw) return false;
+    const cfg = JSON.parse(raw);
+    applyConfigToForm(cfg);
+    return true;
+  } catch(e){ console.warn('loadSavedConfig:', e); return false; }
+}
+
+async function loadFromServerConfig() {
+  try{
+    const res = await fetch('/config');
+    if(!res.ok) return;
+    const cfg = await res.json();
+    if(cfg && typeof cfg === 'object' && cfg.callsign){
+      applyConfigToForm(cfg);
+    }
+  } catch(e){ console.warn('loadFromServerConfig:', e); }
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+async function init() {
+  applyUiMode(); // Mode débutant/expert (avant tout rendu)
+  buildContestGrid();
+  onProviderChange(); // Initialise le select modèle (Anthropic par défaut)
+  const hasLocal = loadSavedConfig();
+  if (!hasLocal) await loadFromServerConfig();
+  applyUsageMode(); // Sûr même si aucune config n'a encore été chargée (défaut 'contest')
+  updateOpSection(); // Appliquer l'affichage mono/multi selon la section sauvegardée
+  // Sélecteur unifié : enrichir avec la base serveur + WA7BNM puis re-render
+  await Promise.all([mergeServerContests(), mergeExternalContests()]);
+  buildContestGrid(document.getElementById('contestSearch').value || '');
+  // Re-marquer la carte du concours sauvegardé (le re-render l'a reconstruite)
+  if (state.contest) {
+    const card = document.getElementById('card_' + state.contest);
+    if (card) card.classList.add('selected');
+  }
+  handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
+  updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
+  loadVoiceKeyerDevices();
+  updateAmpFieldsVisibility(); refreshAmpPorts(); // Amplificateur HF
+}
+
+// ─── KEYER VOCAL : périphériques audio + voix TTS (chargés une fois) ────────
+function _vkEsc(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadVoiceKeyerDevices(){
+  const devSel = document.getElementById('voicekeyer_device');
+  const voiceSel = document.getElementById('voicekeyer_voice_id');
+  if(!devSel || !voiceSel) return;
+  try{
+    const r = await fetch('/voicekeyer/devices');
+    if(!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json();
+    devSel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+      + (d.devices || []).map(x => `<option value="${x.index}">${_vkEsc(x.name)}</option>`).join('');
+    voiceSel.innerHTML = '<option value="">— voix par défaut —</option>'
+      + (d.voices || []).map(x => `<option value="${_vkEsc(x.id)}">${_vkEsc(x.name)}${x.lang ? ' (' + _vkEsc(x.lang) + ')' : ''}</option>`).join('');
+  }catch(e){
+    devSel.innerHTML = '<option value="">indisponible (sounddevice non installé ?)</option>';
+    voiceSel.innerHTML = '<option value="">indisponible (pyttsx3 non installé ?)</option>';
+  }
+  // Ré-applique les valeurs sauvegardées maintenant que les <option> existent
+  try{
+    const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+    if(cfg.voicekeyer_device !== undefined) devSel.value = cfg.voicekeyer_device;
+    if(cfg.voicekeyer_voice_id !== undefined) voiceSel.value = cfg.voicekeyer_voice_id;
+  }catch(e){}
+}
+
+async function testVoiceKeyer(){
+  const out = document.getElementById('voiceKeyerTestResult');
+  if(out){ out.textContent = '⏳ test en cours…'; out.style.color = 'var(--muted)'; }
+  try{
+    const r = await fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({template: '{CALL} de {MYCALL}, {RST_SENT}',
+        call: 'F8TEST', mycall: document.getElementById('callsign').value || 'F1TEST', rst_sent: '59'})});
+    const d = await r.json();
+    if(out){
+      out.textContent = d.ok ? `✅ Envoyé : « ${d.text} »` : `❌ ${d.error}`;
+      out.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+    }
+  }catch(e){
+    if(out){ out.textContent = '❌ ' + e.message; out.style.color = 'var(--red)'; }
+  }
+}
+
+// ─── RADIO CAT NATIVE (pilotage direct, sans Hamlib) ─────────────────────────
+// Miroir client de logx_cat.py (CIV_ADDRESSES / ASCII_ID_TABLE /
+// BRAND_BY_MODEL) — garder synchronisé si la liste des modèles évolue côté
+// serveur. Les adresses CI-V servent juste d'indication (valeurs usine,
+// modifiables sur la radio) ; le pilote lit toujours la valeur du champ.
+const CAT_MODELS = {
+  icom: [
+    ['IC-705','A4'], ['IC-7100','88'], ['IC-7300','94'], ['IC-7600','7A'],
+    ['IC-7610','98'], ['IC-7800','6A'], ['IC-9100','7C'], ['IC-9700','A2'],
+    ['IC-756PROIII','6E'],
+  ],
+  xiegu: [['XIEGU-G90','70'], ['XIEGU-X6100','A4'], ['XIEGU-X5105','70']],
+  yaesu: [['FT-891'],['FT-991'],['FT-991A'],['FTDX10'],['FTDX101D'],['FTDX101MP']],
+  kenwood: [['TS-2000'],['TS-590S'],['TS-590SG'],['TS-990S'],['TS-890S']],
+  elecraft: [['K3'],['K3S'],['KX3'],['KX2'],['K4']],
+};
+const CAT_DEFAULT_BAUD = { icom: 19200, xiegu: 19200, yaesu: 4800, kenwood: 9600, elecraft: 38400 };
+
+function updateCatModeVisibility(){
+  const mode = document.getElementById('cat_mode').value;
+  document.getElementById('catNativeFields').style.display = mode === 'native' ? '' : 'none';
+  document.getElementById('catTciFields').style.display = mode === 'tci' ? '' : 'none';
+  document.getElementById('catRigctldFields').style.display = mode === 'rigctld' ? '' : 'none';
+}
+
+function updateCatModelOptions(){
+  const brand = document.getElementById('cat_brand').value;
+  const sel = document.getElementById('cat_model');
+  const models = CAT_MODELS[brand] || [];
+  sel.innerHTML = models.map(m => `<option value="${m[0]}">${m[0]}</option>`).join('');
+  const note = document.getElementById('catAddrNote');
+  const isCiv = (brand === 'icom' || brand === 'xiegu');
+  if (isCiv && models.length){
+    note.textContent = `Adresse CI-V usine : ${models[0][1]} (modifiable sur la radio si besoin)`;
+  } else {
+    note.textContent = '';
+  }
+  const baud = document.getElementById('cat_baudrate');
+  if (!baud.value) baud.value = CAT_DEFAULT_BAUD[brand] || 19200;
+  updateCatAddrNoteForModel();
+}
+
+function updateCatAddrNoteForModel(){
+  const brand = document.getElementById('cat_brand').value;
+  const model = document.getElementById('cat_model').value;
+  const note = document.getElementById('catAddrNote');
+  const isCiv = (brand === 'icom' || brand === 'xiegu');
+  if (!isCiv) { note.textContent = ''; return; }
+  const entry = (CAT_MODELS[brand] || []).find(m => m[0] === model);
+  note.textContent = entry ? `Adresse CI-V usine : ${entry[1]} (modifiable sur la radio si besoin)` : '';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const modelSel = document.getElementById('cat_model');
+  if (modelSel) modelSel.addEventListener('change', updateCatAddrNoteForModel);
+});
+
+async function refreshCatPorts(){
+  const sel = document.getElementById('cat_port');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">⏳ Recherche des ports...</option>';
+  try{
+    const res = await fetch('/rig/ports');
+    const data = await res.json();
+    const ports = data.ports || [];
+    sel.innerHTML = ports.length
+      ? ports.map(p => `<option value="${p.device}">${p.device} — ${p.description||''}</option>`).join('')
+      : '<option value="">Aucun port détecté</option>';
+    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+  }catch(e){
+    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+// ─── AMPLIFICATEUR HF (Elecraft/Icom/SPE) ────────────────────────────────────
+const AMP_DEFAULT_BAUD = {elecraft: 38400, icom: 19200, spe: 9600};
+
+function updateAmpFieldsVisibility(){
+  const brand = document.getElementById('amp_brand').value;
+  document.getElementById('ampCivAddrField').style.display = brand === 'icom' ? '' : 'none';
+  const baud = document.getElementById('amp_baudrate');
+  if (!baud.value) baud.value = AMP_DEFAULT_BAUD[brand] || 9600;
+}
+
+async function refreshAmpPorts(){
+  const sel = document.getElementById('amp_port');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">⏳ Recherche des ports...</option>';
+  try{
+    const res = await fetch('/rig/ports');
+    const data = await res.json();
+    const ports = data.ports || [];
+    sel.innerHTML = ports.length
+      ? ports.map(p => `<option value="${p.device}">${p.device} — ${p.description||''}</option>`).join('')
+      : '<option value="">Aucun port détecté</option>';
+    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+  }catch(e){
+    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+async function testAmpConnection(){
+  const result = document.getElementById('ampTestResult');
+  const brand = document.getElementById('amp_brand').value;
+  const port = document.getElementById('amp_port').value;
+  if (!port){
+    result.textContent = '⚠️ Choisis un port série d\'abord';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  const payload = {
+    brand, port,
+    baudrate: parseInt(document.getElementById('amp_baudrate').value, 10) || AMP_DEFAULT_BAUD[brand] || 9600,
+    civ_addr: document.getElementById('amp_civ_addr').value.trim() || undefined,
+  };
+  try{
+    const res = await fetch('/amp/test', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const r = await res.json();
+    if (r.ok){
+      const st = r.status || {};
+      const bits = [];
+      if (st.power_w !== undefined) bits.push(`${st.power_w} W`);
+      if (st.swr !== undefined) bits.push(`SWR ${st.swr}`);
+      if (st.power_raw !== undefined) bits.push(`Po brut ${st.power_raw}`);
+      result.textContent = `✅ Ampli joint${bits.length ? ' — ' + bits.join(', ') : ''}`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
+  }
+}
+
+async function testCatConnection(){
+  const result = document.getElementById('catTestResult');
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  const mode = document.getElementById('cat_mode').value;
+  let payload;
+  if (mode === 'tci'){
+    payload = { mode: 'tci',
+      host: document.getElementById('tci_host').value,
+      port: parseInt(document.getElementById('tci_port').value, 10) || 50001 };
+  } else {
+    payload = {
+      brand: document.getElementById('cat_brand').value,
+      model: document.getElementById('cat_model').value,
+      port: document.getElementById('cat_port').value,
+      baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || CAT_DEFAULT_BAUD[document.getElementById('cat_brand').value] || 19200,
+    };
+    if (!payload.port){
+      result.textContent = '⚠️ Choisis un port série d\'abord';
+      result.style.color = 'var(--yellow)';
+      return;
+    }
+  }
+  try{
+    const res = await fetch('/rig/connect_test', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const r = await res.json();
+    if (r.ok && mode === 'tci'){
+      result.textContent = `✅ Serveur TCI joint : ${r.device || 'appareil inconnu'} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non reçue'})`;
+      result.style.color = 'var(--green)';
+    } else if (r.ok){
+      result.textContent = `✅ Radio détectée : ${r.detected_model || payload.model} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'})`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Connexion impossible'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
+}
+
+function buildContestGrid(filter = '') {
+  const grid = document.getElementById('contestGrid');
+  const q = filter.toLowerCase().trim();
+
+  // Bouton effacer
+  const clr = document.getElementById('contestSearchClear');
+  if (clr) clr.style.display = q ? 'block' : 'none';
+
+  // Filtrage
+  const visible = q
+    ? CONTESTS.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.id.toLowerCase().includes(q) ||
+        (c.org||'').toLowerCase().includes(q) ||
+        c.bands.some(b => b.toLowerCase().includes(q)) ||
+        c.modes.some(m => m.toLowerCase().includes(q)) ||
+        (c.score||'').toLowerCase().includes(q)
+      )
+    : CONTESTS;
+
+  const groups = {};
+  visible.forEach(c => {
+    const g = c.group || 'Autre';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(c);
+  });
+
+  if (!visible.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:24px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:14px">Aucun concours pour « ${filter} »</div>`;
+    return;
+  }
+
+  const groupOrder = ['REF', 'Autre FR', 'International', 'Mondial (WA7BNM)', 'Autre'];
+  const groupColors = {
+    'REF': '#00D4FF',
+    'Autre FR': '#FFD60A',
+    'International': '#FF5030',
+    'Mondial (WA7BNM)': '#FFD60A',
+    'Autre': '#8E8E93',
+  };
+
+  // Badge de confiance : base serveur = dates/règlement re-vérifiés chaque année ;
+  // custom = extrait du règlement par l'IA puis validé par relecture humaine
+  const badge = c => c.external
+    ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(255,214,10,.12);color:#FFD60A;border:1px solid rgba(255,214,10,.35)" title="Concours du calendrier mondial WA7BNM — utilise 🤖 ANALYSER UN RÈGLEMENT pour le faire lire par l'IA">⚠ À CONFIRMER</span>`
+    : c._custom
+      ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,212,255,.1);color:#00D4FF;border:1px solid rgba(0,212,255,.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine">🤖 IA + RELECTURE</span>`
+      : VERIFIED_IDS.has(c.id)
+        ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:#00FF88;border:1px solid rgba(0,255,136,.3)" title="Concours de la base serveur — dates et règlement re-vérifiés automatiquement chaque année">✓ RÈGLEMENT SUIVI</span>`
+        : '';
+
+  grid.innerHTML = groupOrder.map(gname => {
+    const cs = groups[gname];
+    if (!cs || !cs.length) return '';
+    return `
+      <div style="grid-column:1/-1;margin-top:12px;margin-bottom:6px">
+        <div style="font-family:var(--font-mono);font-size:12px;color:${groupColors[gname]};letter-spacing:3px;border-bottom:1px solid ${groupColors[gname]}44;padding-bottom:5px">
+          ${gname === 'REF' ? '⭐ ' : ''}${gname.toUpperCase()} ${gname === 'REF' ? '— Calendrier 2026 officiel' : ''}
+        </div>
+      </div>
+      ${cs.map(c => `
+        <div class="contest-card" id="card_${c.id}" data-id="${c.id}" onclick="selectContest('${c.id}')" style="border-left:3px solid ${c.color}44">
+          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${c.name} ${badge(c)}</div>
+          <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
+            <span>${c.org}</span>
+            ${c.rules ? `<a href="${c.rules}" target="_blank" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)">📄 RÈGLEMENT</a>` : ''}
+          </div>
+          ${c.date ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px">📅 ${c.date}</div>` : ''}
+          <div class="contest-tags">
+            ${c.bands.map(b=>`<span class="tag tag-band">${b}</span>`).join('')}
+            ${c.modes.map(m=>`<span class="tag tag-mode">${m}</span>`).join('')}
+            <span class="tag tag-score">${c.score}</span>
+          </div>
+        </div>
+      `).join('')}
+    `;
+  }).join('');
+}
+
+// ─── AUTO-REMPLISSAGE INDICATIF ───────────────────────────────────────────────
+let _callContest_manual = false;
+function autoFillCallsign(val){
+  val = val.toUpperCase();
+  if(!_callContest_manual){
+    document.getElementById('callsign_contest').value = val;
+  }
+  const opCall = document.getElementById('op_call');
+  if(opCall && !opCall.dataset.manual) opCall.value = val;
+  const op1 = document.getElementById('op1_call');
+  if(op1 && !op1.dataset.manual) op1.value = val;
+}
+// ─── PROFILS STATION MULTIPLES ────────────────────────────────────────────────
+function getProfiles(){ try{ return JSON.parse(localStorage.getItem('logx_profiles')||'{}'); }catch(e){ return {}; } }
+function setProfiles(p){ localStorage.setItem('logx_profiles', JSON.stringify(p)); }
+
+function refreshProfileSelect(){
+  const sel = document.getElementById('profileSelect');
+  if(!sel) return;
+  const profiles = getProfiles();
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Sélectionner un profil —</option>';
+  Object.keys(profiles).sort().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    if(name === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function saveProfile(){
+  const name = prompt('Nom du profil (ex: F6KQJ RPH 2026, Club 144, Home HF…) :',
+    document.getElementById('profileSelect').value || '');
+  if(!name || !name.trim()) return;
+  // Capturer l'état courant du formulaire via saveConfig silencieux puis lire
+  saveConfig(true);
+  const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
+  const profiles = getProfiles();
+  profiles[name.trim()] = cfg;
+  setProfiles(profiles);
+  refreshProfileSelect();
+  document.getElementById('profileSelect').value = name.trim();
+  alert(`✅ Profil "${name.trim()}" sauvegardé.`);
+}
+
+function loadProfile(){
+  const sel = document.getElementById('profileSelect');
+  const name = sel ? sel.value : '';
+  if(!name){ alert('Sélectionnez un profil à charger.'); return; }
+  const profiles = getProfiles();
+  const cfg = profiles[name];
+  if(!cfg){ alert(`Profil introuvable : ${name}`); return; }
+  applyConfigToForm(cfg);
+  alert(`📂 Profil "${name}" chargé.`);
+}
+
+function deleteProfile(){
+  const sel = document.getElementById('profileSelect');
+  const name = sel ? sel.value : '';
+  if(!name){ alert('Sélectionnez un profil à supprimer.'); return; }
+  if(!confirm(`Supprimer le profil "${name}" ?`)) return;
+  const profiles = getProfiles();
+  delete profiles[name];
+  setProfiles(profiles);
+  refreshProfileSelect();
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  ['op_call','op1_call'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input',()=>{ el.dataset.manual='1'; });
+  });
+  // Afficher concours actif dans la nav
+  try{
+    const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
+    const el = document.getElementById('navContest');
+    if(el && cfg.contest) el.textContent = cfg.contest.replace(/_/g,' ');
+  }catch(e){}
+  refreshProfileSelect();
+});
+
+// ─── CALCUL DATES DEPUIS CONCOURS ─────────────────────────────────────────────
+// Règles date pour les concours principaux
+const CONTEST_DATE_RULES = {
+  'REF_RPH':        { rule:'first_saturday_july',    dur:24, start_utc:'14:00' },
+  'ARRL_FD':        { rule:'last_full_weekend_june',  dur:27, start_utc:'18:00' },
+  'CQ_WW_SSB':      { rule:'last_full_weekend_oct',   dur:48, start_utc:'00:00' },
+  'CQ_WW_CW':       { rule:'last_full_weekend_nov',   dur:48, start_utc:'00:00' },
+  'CQ_WPX_SSB':     { rule:'last_full_weekend_mar',   dur:48, start_utc:'00:00' },
+  'CQ_WPX_CW':      { rule:'last_full_weekend_may',   dur:48, start_utc:'00:00' },
+  'IARU_HF':        { rule:'second_full_weekend_jul', dur:24, start_utc:'12:00' },
+  'REF_RPH_VHF':    { rule:'first_saturday_july',     dur:24, start_utc:'14:00' },
+  'REF_VHF_UHF_FR': { rule:'first_full_weekend_sep',  dur:24, start_utc:'14:00' },
+  'EU_VHF':         { rule:'first_full_weekend_aug',  dur:24, start_utc:'14:00' },
+  'IARU_VHF':       { rule:'first_full_weekend_sep',  dur:24, start_utc:'14:00' },
+};
+function calcContestDates(id){
+  const yr = new Date().getFullYear();
+  const rule = CONTEST_DATE_RULES[id];
+  if(!rule) return null;
+  let d = null;
+  const r = rule.rule;
+  function nthWeekday(month, weekday, n){
+    // month 0-based, weekday 0=Sun, n=1-based or -1=last
+    let dt = new Date(yr, month, 1);
+    if(n>0){
+      let count=0;
+      while(dt.getMonth()===month){
+        if(dt.getDay()===weekday){ count++; if(count===n) return new Date(dt); }
+        dt.setDate(dt.getDate()+1);
+      }
+    } else { // last
+      dt = new Date(yr, month+1, 0);
+      while(dt.getMonth()===month){
+        if(dt.getDay()===weekday) return new Date(dt);
+        dt.setDate(dt.getDate()-1);
+      }
+    }
+    return null;
+  }
+  function lastFullWeekend(month){
+    // Last Saturday where Sunday is still in the same month
+    let dt = new Date(yr, month+1, 0); // last day of month
+    while(dt.getDay()!==0) dt.setDate(dt.getDate()-1); // last Sunday
+    return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()-1); // Saturday before
+  }
+  function firstFullWeekend(month){
+    let dt = new Date(yr, month, 1);
+    while(dt.getDay()!==6) dt.setDate(dt.getDate()+1); // first Saturday
+    return new Date(dt);
+  }
+  function nthFullWeekend(month, n){
+    let dt = firstFullWeekend(month);
+    dt.setDate(dt.getDate()+(n-1)*7);
+    return dt;
+  }
+  if(r==='first_saturday_july')       d = nthWeekday(6,6,1);
+  else if(r==='last_full_weekend_june') d = lastFullWeekend(5);
+  else if(r==='last_full_weekend_oct')  d = lastFullWeekend(9);
+  else if(r==='last_full_weekend_nov')  d = lastFullWeekend(10);
+  else if(r==='last_full_weekend_mar')  d = lastFullWeekend(2);
+  else if(r==='last_full_weekend_may')  d = lastFullWeekend(4);
+  else if(r==='second_full_weekend_jul')d = nthFullWeekend(6,2);
+  else if(r==='first_full_weekend_sep') d = firstFullWeekend(8);
+  else if(r==='first_full_weekend_aug') d = firstFullWeekend(7);
+  if(!d) return null;
+  const pad = n=>String(n).padStart(2,'0');
+  // d ne porte que la BONNE DATE CALENDAIRE (weekday trouvé en heure locale) —
+  // on reconstruit tout le calcul en UTC pur à partir de là, en y injectant
+  // enfin rule.start_utc (ex: "14:00"), qui était ignoré avant (bug : l'heure
+  // de fin sortait toujours à 00:00 au lieu de start_utc + durée).
+  const [startH, startM] = (rule.start_utc||'00:00').split(':').map(Number);
+  const startMs = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), startH, startM);
+  const endMs   = startMs + rule.dur * 3600 * 1000;
+  const fmtUTC = ms=>{
+    const dt = new Date(ms);
+    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth()+1)}-${pad(dt.getUTCDate())}`;
+  };
+  const startDate = fmtUTC(startMs);
+  const endDate   = fmtUTC(endMs);
+  const endDt = new Date(endMs);
+  const endTime = `${pad(endDt.getUTCHours())}:${pad(endDt.getUTCMinutes())}`;
+  return { startDate, endDate, endTime };
+}
+
+function selectContest(id) {
+  state.contest = id;
+  document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById('card_'+id);
+  if(card) card.classList.add('selected');
+  // Auto-appliquer les bandes/modes du concours dès la sélection
+  applyContestFilters(id);
+  _filtersAppliedFor = id;
+  // Auto-calculer les dates : règle locale, sinon date serveur (recalculée
+  // chaque année par logx_serveur.py — couvre toute la base "règlement suivi")
+  const dates = calcContestDates(id) || serverContestDates(id);
+  const banner = document.getElementById('contest_dates_auto');
+  if(dates){
+    document.getElementById('contest_start_date').value = dates.startDate;
+    document.getElementById('contest_end_date').value   = dates.endDate;
+    document.getElementById('contest_end_utc').value    = dates.endTime;
+    state.datesAutoFor = id; // l'assistant sait que ces dates sont pour CE concours
+    if(banner) banner.innerHTML = `📅 <strong>${id}</strong> — Début : <strong>${dates.startDate}</strong> · Fin : <strong>${dates.endDate} ${dates.endTime} UTC</strong> — <span style="color:var(--muted)">Modifie manuellement si besoin</span>`;
+  } else {
+    // Ne pas laisser traîner les dates d'un AUTRE concours dans les champs
+    if(state.datesAutoFor && state.datesAutoFor !== id){
+      document.getElementById('contest_start_date').value = '';
+      document.getElementById('contest_end_date').value   = '';
+      document.getElementById('contest_end_utc').value    = '';
+    }
+    state.datesAutoFor = null;
+    if(banner) banner.innerHTML = `📅 Dates pour <strong>${id}</strong> non calculables automatiquement — saisis-les manuellement.`;
+  }
+}
+
+// Dates depuis la base serveur : parse "DD/MM/YYYY à HHhMM UTC" + durée
+function serverContestDates(id){
+  const c = CONTESTS.find(x => x.id === id);
+  if (!c || !c._server_date || !c._duration_h) return null;
+  const m = String(c._server_date).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!m) return null;
+  // Heure de début : champ start_utc, sinon le "à 14h00" du libellé serveur
+  // (certaines définitions portent l'heure dans la règle de date uniquement)
+  let startUtc = c._start_utc;
+  if (!startUtc || startUtc === '00:00'){
+    const h = String(c._server_date).match(/à\s+(\d{1,2})h(\d{2})/i);
+    if (h) startUtc = `${h[1].padStart(2,'0')}:${h[2]}`;
+  }
+  const [sh, sm] = (startUtc || '00:00').split(':').map(Number);
+  const startMs = Date.UTC(+m[3], +m[2]-1, +m[1], sh, sm);
+  const endMs = startMs + c._duration_h * 3600 * 1000;
+  const pad = n => String(n).padStart(2,'0');
+  const iso = ms => { const d = new Date(ms); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`; };
+  const endD = new Date(endMs);
+  return { startDate: iso(startMs), endDate: iso(endMs),
+           endTime: `${pad(endD.getUTCHours())}:${pad(endD.getUTCMinutes())}` };
+}
+
+function toggle(el) {
+  el.classList.toggle('on');
+  state.toggles[el.dataset.key] = el.classList.contains('on');
+}
+
+// ─── RÈGLES D'ALERTE PERSONNALISÉES (évaluées côté serveur, logx_alerts.py) ─
+const CONTINENT_LABEL = {EU:'Europe', NA:'Amérique du Nord', SA:'Amérique du Sud',
+                         AF:'Afrique', AS:'Asie', OC:'Océanie', AN:'Antarctique'};
+
+function renderAlertRules(){
+  const el = document.getElementById('alertRulesList');
+  if(!el) return;
+  const rules = state.alertRules || [];
+  if(!rules.length){
+    el.innerHTML = '<div style="color:var(--muted);font-family:var(--font-mono);font-size:13px">Aucune règle personnalisée pour l\'instant.</div>';
+    return;
+  }
+  el.innerHTML = rules.map(r => {
+    const bits = [];
+    if(r.call_prefix) bits.push('préfixe ' + r.call_prefix);
+    if(r.continent) bits.push(CONTINENT_LABEL[r.continent] || r.continent);
+    if(r.cq_zone) bits.push('zone CQ ' + r.cq_zone);
+    if(r.band) bits.push(r.band + ' MHz');
+    if(r.status === 'new_mult') bits.push('nouveau mult');
+    if(r.status === 'already_done') bits.push('déjà travaillé');
+    if(r.comment_contains) bits.push('commentaire « ' + r.comment_contains + ' »');
+    const on = r.enabled !== false;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:13px">
+      <span class="toggle-btn${on?' on':''}" style="padding:4px 10px" onclick="toggleAlertRule('${r.id}')">${on?'✓ actif':'✕ coupé'}</span>
+      <b style="flex:1;color:var(--text)">${r.name}</b>
+      <span style="color:var(--muted)">${bits.join(' · ') || 'tout spot'}</span>
+      <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="deleteAlertRule('${r.id}')">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function addAlertRule(){
+  const msg = document.getElementById('ruleAddMsg');
+  const name = document.getElementById('newRuleName').value.trim();
+  if(!name){
+    if(msg){ msg.textContent = '⚠️ Donne un nom à la règle'; msg.style.color = 'var(--yellow)'; }
+    return;
+  }
+  const rule = {
+    id: 'r' + Date.now(),
+    name, enabled: true,
+    call_prefix: document.getElementById('newRulePrefix').value.trim().toUpperCase(),
+    continent: document.getElementById('newRuleContinent').value,
+    cq_zone: document.getElementById('newRuleCqZone').value.trim(),
+    band: document.getElementById('newRuleBand').value.trim(),
+    status: document.getElementById('newRuleStatus').value,
+    comment_contains: document.getElementById('newRuleComment').value.trim(),
+  };
+  state.alertRules = (state.alertRules || []).concat([rule]);
+  renderAlertRules();
+  ['newRuleName','newRulePrefix','newRuleCqZone','newRuleBand','newRuleComment'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('newRuleContinent').value = '';
+  document.getElementById('newRuleStatus').value = 'any';
+  if(msg){ msg.textContent = '✅ Règle ajoutée — pense à SAUVEGARDER CONFIG'; msg.style.color = 'var(--green)'; }
+}
+
+function toggleAlertRule(id){
+  const r = (state.alertRules || []).find(x => x.id === id);
+  if(r){ r.enabled = r.enabled === false ? true : false; renderAlertRules(); }
+}
+
+function deleteAlertRule(id){
+  state.alertRules = (state.alertRules || []).filter(x => x.id !== id);
+  renderAlertRules();
+}
+
+// ─── CLOUD SYNC (dossier partagé multi-poste) ───────────────────────────────
+async function cloudsyncNow(){
+  const result = document.getElementById('cloudsyncResult');
+  result.textContent = '⏳ synchronisation en cours…';
+  result.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/cloudsync/now', {method: 'POST'});
+    const r = await res.json();
+    if(r.ok){
+      result.textContent = `✅ ${r.pushed} QSO envoyés · ${r.pulled} récupérés` + (r.sources ? ` (${r.sources} autre(s) poste(s))` : '');
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
+}
+
+// ─── FILTRES AUTOMATIQUES PAR CONCOURS ────────────────────────────────────────
+const CONTEST_FILTERS = {
+
+  // ── Challenge THF annuel cumulatif (144MHz→47GHz, tous modes)
+  'REF_CHALLENGE_THF': { modes:['mode_ssb','mode_cw','mode_fm','mode_ft8','mode_ft4'],
+                          bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+
+  // ── CCD parties THF (432/1296/2320 MHz = 70cm+23cm+13cm)
+  'REF_CCD_JAN1':  { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_70cm','band_23cm','band_13cm'] },
+  'REF_CCD_FEV1':  { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_70cm','band_23cm','band_13cm'] },
+  'REF_CCD_MAI':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_70cm','band_23cm','band_13cm'] },
+  'REF_CCD_OCT':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_70cm','band_23cm','band_13cm'] },
+
+  // ── CCD parties 144 MHz (SSB+CW+FM)
+  'REF_CCD_JAN2':  { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
+  'REF_CCD_FEV2':  { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
+  'REF_CCD_MAR':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
+  'REF_CCD_NOV':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
+  'REF_CCD_DEC':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_2m'] },
+
+  // ── CCD CW uniquement (144 MHz)
+  'REF_CCD_AVR_CW':{ modes:['mode_cw'], bands:['band_2m'] },
+  'REF_CCD_DEC_CW':{ modes:['mode_cw'], bands:['band_2m'] },
+
+  // ── CDF HF (80m→10m — PAS de 160m dans le règlement)
+  'REF_CDF_HF_SSB':{ modes:['mode_ssb'], bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
+  'REF_CDF_HF_CW': { modes:['mode_cw'],  bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
+
+  // ── National THF / CDF THF (144MHz→47GHz, SSB+CW+FM)
+  'REF_NAT_THF':   { modes:['mode_ssb','mode_cw','mode_fm'],
+                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+  'REF_CDF_THF':   { modes:['mode_ssb','mode_cw','mode_fm'],
+                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+
+  // ── TVA (ATV/FM relais — 70cm+23cm)
+  'REF_NAT_TVA':     { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
+  'REF_IARU_TVA':    { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
+  'REF_CDF_TVA':     { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
+  'REF_NAT_TVA_DEC': { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
+
+  // ── Concours du Printemps / Été (144MHz→47GHz, SSB+CW+FM)
+  'REF_PRINTEMPS': { modes:['mode_ssb','mode_cw','mode_fm'],
+                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+  'REF_ETE':       { modes:['mode_ssb','mode_cw','mode_fm'],
+                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+
+  // ── 50 MHz
+  'REF_DDFM_50':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_6m'] },
+  'REF_IARU_50':   { modes:['mode_ssb','mode_cw'],           bands:['band_6m'] },
+  'IARU_50':       { modes:['mode_ssb','mode_cw'],           bands:['band_6m'] },
+
+  // ── RPH — SSB + CW + FM, toutes bandes VHF→SHF (144MHz→47GHz)
+  'REF_RPH':       { modes:['mode_ssb','mode_cw','mode_fm'],
+                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+
+  // ── QRP (144MHz→47GHz, SSB+CW — pas de FM)
+  'REF_QRP':       { modes:['mode_ssb','mode_cw'],
+                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+
+  // ── F8TD — SHF uniquement (1296MHz→47GHz, SSB+CW)
+  'REF_F8TD':      { modes:['mode_ssb','mode_cw'],
+                     bands:['band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+
+  // ── IARU VHF (144MHz uniquement, SSB+CW)
+  'REF_IARU_VHF':  { modes:['mode_ssb','mode_cw'], bands:['band_2m'] },
+  'IARU_VHF':      { modes:['mode_ssb','mode_cw'], bands:['band_2m'] },
+
+  // ── Marconi (144MHz, CW UNIQUEMENT)
+  'REF_MARCONI':   { modes:['mode_cw'], bands:['band_2m'] },
+
+  // ── IARU UHF/SHF (432MHz→47GHz)
+  'REF_IARU_UHF':  { modes:['mode_ssb','mode_cw'],
+                     bands:['band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+  'IARU_UHF':      { modes:['mode_ssb','mode_cw'],
+                     bands:['band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
+
+  // ── REF 160m — Trophée F8EX (1.8MHz uniquement)
+  'REF_160M':      { modes:['mode_ssb','mode_cw'], bands:['band_160m'] },
+
+  // ── UFT (HF 80→10m, CW uniquement)
+  'F9NL':          { modes:['mode_cw'], bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
+  'UFT_RENCONTRES':{ modes:['mode_cw'], bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
+
+  // ── CQ Magazine (160→10m)
+  'CQ_WW_SSB':     { modes:['mode_ssb'], bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
+  'CQ_WW_CW':      { modes:['mode_cw'],  bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
+  'CQ_WPX_SSB':    { modes:['mode_ssb'], bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
+  'CQ_WPX_CW':     { modes:['mode_cw'],  bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
+
+  // ── ARRL (160→10m)
+  'ARRL_DX_SSB':   { modes:['mode_ssb'], bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
+  'ARRL_DX_CW':    { modes:['mode_cw'],  bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
+
+  // ── ARRL Field Day (160→10m + 50MHz et plus, pas de 30/17/12m, pas de 4m)
+  'ARRL_FD':       { modes:['mode_ssb','mode_cw','mode_ft8','mode_ft4','mode_rtty'],
+                     bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m',
+                            'band_6m','band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm'] },
+};
+
+const HF_BANDS  = ['band_vlf','band_160m','band_80m','band_60m','band_40m','band_30m','band_20m','band_17m','band_15m','band_12m','band_10m','band_8m'];
+const VHF_BANDS = ['band_6m','band_4m','band_2m','band_220','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm','band_qo100','band_sat'];
+
+function applyContestFilters(contestId) {
+  const secHF  = document.getElementById('section_hf');
+  const secVHF = document.getElementById('section_vhf');
+
+  // Réafficher tout par défaut (si pas de filtre)
+  document.querySelectorAll('[data-key^="band_"]').forEach(el => {
+    el.style.display = '';
+  });
+  if(secHF)  secHF.style.display  = '';
+  if(secVHF) secVHF.style.display = '';
+
+  const note = document.getElementById('filterAutoNote');
+  // LOGBOOK SIMPLE : pas de concours -> pas de restriction de règlement,
+  // toutes les bandes/tous les modes radioamateur restent sélectionnables
+  // (même si un concours a été choisi ou testé précédemment).
+  const filters = getUsageMode() === 'simple' ? null : CONTEST_FILTERS[contestId];
+
+  if (!filters) {
+    // Aucun filtre connu → tout laisser visible, cacher la note
+    if(note) note.style.display = 'none';
+    return;
+  }
+
+  // ── 1. Tout désactiver
+  document.querySelectorAll('[data-key^="mode_"], [data-key^="band_"]').forEach(el => {
+    el.classList.remove('on');
+    state.toggles[el.dataset.key] = false;
+  });
+
+  // ── 2. Cacher TOUS les boutons de bande, puis n'afficher que les autorisés
+  document.querySelectorAll('[data-key^="band_"]').forEach(el => {
+    el.style.display = 'none';
+  });
+  filters.bands.forEach(key => {
+    const el = document.querySelector(`[data-key="${key}"]`);
+    if(el){ el.style.display = ''; el.classList.add('on'); state.toggles[key] = true; }
+  });
+
+  // ── 3. Activer les modes autorisés
+  filters.modes.forEach(key => {
+    const el = document.querySelector(`[data-key="${key}"]`);
+    if(el){ el.classList.add('on'); state.toggles[key] = true; }
+  });
+
+  // ── 4. Masquer les sections entières si aucune bande visible
+  const hasHF  = filters.bands.some(b => HF_BANDS.includes(b));
+  const hasVHF = filters.bands.some(b => VHF_BANDS.includes(b));
+  if(secHF)  secHF.style.display  = hasHF  ? '' : 'none';
+  if(secVHF) secVHF.style.display = hasVHF ? '' : 'none';
+
+  // ── 5. Notification
+  if(note){
+    const contest = CONTESTS.find(c => c.id === contestId);
+    const name = contest ? contest.name : contestId;
+    const bandNames = filters.bands.map(b => {
+      const el = document.querySelector(`[data-key="${b}"]`);
+      return el ? el.textContent.trim() : b;
+    }).join(' · ');
+    note.innerHTML = `✅ <strong>${name}</strong> — Bandes autorisées par le règlement : ${bandNames}<br><small style="opacity:.8">Seules les bandes du règlement sont affichées. Tu peux en désactiver certaines si tu ne les utilises pas.</small>`;
+    note.style.display = 'block';
+  }
+}
+
+function goStep(n) {
+  // Mode débutant : l'étape 4 (PROPAGATION) est masquée → on saute par-dessus
+  // dans le sens du déplacement (3 → 5 en avançant, 5 → 3 en reculant).
+  if (getUiMode() === 'simple' && n === 4) n = (state.step < 4) ? 5 : 3;
+  // Mode d'utilisation LOGBOOK SIMPLE : pas de concours → l'étape 2 (CONCOURS)
+  // est masquée, on saute par-dessus dans le sens du déplacement.
+  if (getUsageMode() === 'simple' && n === 2) n = (state.step < 2) ? 3 : 1;
+  state.step = n;
+  document.querySelectorAll('.step').forEach((s,i) => {
+    s.classList.remove('active');
+    if(i+1 < n) s.classList.add('done');
+    else s.classList.remove('done');
+    if(i+1 === n) s.classList.add('active');
+  });
+  document.querySelectorAll('.panel').forEach((p,i) => {
+    p.classList.remove('active');
+    if(i+1 === n) p.classList.add('active');
+  });
+  if(n === 5) buildSummary();
+  // N'appliquer les filtres par défaut du concours que la 1ère fois qu'on
+  // affiche l'étape 3 pour ce concours — sinon ça écrase les cases à cocher
+  // que l'utilisateur a déjà personnalisées (et non encore sauvegardées).
+  if(n === 3 && state.contest !== _filtersAppliedFor){
+    applyContestFilters(state.contest);
+    _filtersAppliedFor = state.contest;
+  }
+  window.scrollTo(0,0);
+}
+
+function updateLocatorHint() {
+  const loc = document.getElementById('locator').value;
+  const hint = document.getElementById('locatorHint');
+  const val = document.getElementById('locHintVal');
+  if(loc.length === 6) {
+    val.textContent = loc;
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+function getActiveModes() {
+  const modes = [];
+  document.querySelectorAll('[data-key^="mode_"].on').forEach(el => {
+    modes.push(el.textContent.trim());
+  });
+  return modes;
+}
+
+function getActiveBands() {
+  const bands = [];
+  document.querySelectorAll('[data-key^="band_"].on').forEach(el => {
+    bands.push(el.textContent.trim());
+  });
+  return bands;
+}
+
+function getActiveFlags() {
+  const flags = [];
+  document.querySelectorAll('[data-key^="flag_"].on').forEach(el => {
+    flags.push(el.textContent.trim());
+  });
+  return flags;
+}
+
+function getActiveProp() {
+  const props = [];
+  document.querySelectorAll('[data-key^="prop_"].on').forEach(el => {
+    props.push(el.textContent.trim());
+  });
+  return props;
+}
+
+function getActiveSources() {
+  const srcs = [];
+  document.querySelectorAll('[data-key^="src_"].on').forEach(el => {
+    srcs.push(el.textContent.trim());
+  });
+  return srcs;
+}
+
+function buildSummary() {
+  const call = document.getElementById('callsign').value || '—';
+  const callContest = document.getElementById('callsign_contest').value || call;
+  const loc = document.getElementById('locator').value || '—';
+  const city = document.getElementById('city').value || '—';
+  const power = document.getElementById('power').value || '—';
+  const record = document.getElementById('record_dx').value || '—';
+  const contest = CONTESTS.find(c=>c.id===state.contest);
+  const modes = getActiveModes();
+  const bands = getActiveBands();
+  const flags = getActiveFlags();
+  const props = getActiveProp();
+
+  document.getElementById('summaryBox').innerHTML = `
+    <div class="summary-row"><span class="summary-key">Indicatif</span><span class="summary-val accent">${call}</span></div>
+    <div class="summary-row"><span class="summary-key">Contest</span><span class="summary-val accent">${callContest}</span></div>
+    <div class="summary-row"><span class="summary-key">Locator</span><span class="summary-val accent2">${loc}</span></div>
+    <div class="summary-row"><span class="summary-key">QTH</span><span class="summary-val">${city}</span></div>
+    <div class="summary-row"><span class="summary-key">Puissance</span><span class="summary-val">${power}W</span></div>
+    <div class="summary-row"><span class="summary-key">Record DX</span><span class="summary-val green">${record} km</span></div>
+    <div class="summary-row"><span class="summary-key">Concours</span><span class="summary-val accent2">${contest ? contest.name : '— Non sélectionné'}</span></div>
+    <div class="summary-row"><span class="summary-key">Modes actifs</span><span class="summary-val">${modes.join(' · ') || '—'}</span></div>
+    <div class="summary-row"><span class="summary-key">Bandes actives</span><span class="summary-val">${bands.join(' · ') || '—'}</span></div>
+    <div class="summary-row"><span class="summary-key">Options</span><span class="summary-val">${flags.join(' · ') || '—'}</span></div>
+    <div class="summary-row"><span class="summary-key">Propagation</span><span class="summary-val">${props.join(' · ') || '—'}</span></div>
+    ${document.getElementById('spot_prefix_filter').value ? `<div class="summary-row"><span class="summary-key">Filtre spots</span><span class="summary-val accent2">${document.getElementById('spot_prefix_filter').value}</span></div>` : ''}
+  `;
+
+  generatePrompt(call, callContest, loc, city, power, record, contest, modes, bands, flags, props);
+}
+
+function generatePrompt(call, callContest, loc, city, power, record, contest, modes, bands, flags, props) {
+  const noDigital = flags.includes('NO-DIGI');
+  const prompt = `Tu es un assistant radioamateur expert pour les concours.
+
+STATION :
+- Indicatif : ${call} / Contest : ${callContest}
+- Locator : ${loc} (${city})
+- Puissance : ${power}W | Record DX : ${record} km
+- Modes autorisés : ${modes.join(', ') || 'tous'}
+- Bandes actives : ${bands.join(', ') || 'toutes'}
+${noDigital ? '- AUCUN MODE NUMÉRIQUE (FT8, FT4, JS8, WSPR, PSK) — phonie/CW uniquement' : ''}
+${flags.length ? '- Options : ' + flags.join(', ') : ''}
+
+CONCOURS : ${contest ? contest.name + ' (' + contest.org + ')' : 'Non sélectionné'}
+${contest ? '- Bandes contest : ' + contest.bands.join(', ') + '\n- Modes contest : ' + contest.modes.join(', ') + '\n- Scoring : ' + contest.score : ''}
+
+PROPAGATION À SURVEILLER : ${props.join(', ') || 'standard'}
+
+RÈGLES DE PRIORITÉ :
+1. Distance maximale depuis ${loc} (= points maximum)
+2. Fiabilité du spotter (< 600 km de ${loc} = probable)
+3. ${record && parseInt(record) > 0 ? 'Contacts > ' + Math.round(parseInt(record)*0.75) + ' km = DX exceptionnel (record : ' + record + ' km)' : 'Contacts > 1000 km = DX exceptionnel'}
+4. Multiplicateurs manquants (zones, depts, locators, DXCC)
+
+FORMAT DE RECOMMANDATION :
+📻 [Indicatif] | [Locator] | [Bande] MHz [Mode]
+📏 Distance : [X] km = 🏆 [X] pts | 🧭 Cap : [X]° [Cardinal]
+👁️ Spoté par [Indicatif] à [X] km | ✅ [Fiabilité]
+🎯 Priorité : [NIVEAU] | 🕐 il y a [X] min
+
+Ne jamais recommander de modes numériques si NO-DIGI est actif.
+Analyser les données terrain fournies et donner les 5 meilleurs contacts à faire maintenant.`;
+
+  document.getElementById('generatedPrompt').value = prompt;
+}
+
+function copyPrompt() {
+  const ta = document.getElementById('generatedPrompt');
+  ta.select();
+  document.execCommand('copy');
+  alert('Prompt copié dans le presse-papiers !');
+}
+
+// ─── FOURNISSEUR IA ──────────────────────────────────────────────────────────
+const AI_MODELS = {
+  anthropic: [
+    {value:'claude-sonnet-4-6',        label:'Claude Sonnet 4.6 (recommandé)'},
+    {value:'claude-opus-4-8',          label:'Claude Opus 4.8 (puissant)'},
+    {value:'claude-haiku-4-5-20251001',label:'Claude Haiku 4.5 (rapide)'},
+  ],
+  openai: [
+    {value:'gpt-4o',      label:'GPT-4o (recommandé)'},
+    {value:'gpt-4o-mini', label:'GPT-4o mini (rapide/économique)'},
+    {value:'o1-mini',     label:'o1-mini (raisonnement)'},
+  ],
+  gemini: [
+    {value:'gemini-2.0-flash',  label:'Gemini 2.0 Flash (recommandé)'},
+    {value:'gemini-2.5-pro',    label:'Gemini 2.5 Pro (puissant)'},
+    {value:'gemini-1.5-flash',  label:'Gemini 1.5 Flash (rapide)'},
+  ],
+};
+const AI_PLACEHOLDERS = {
+  anthropic: 'sk-ant-api03-...',
+  openai:    'sk-...',
+  gemini:    'AIza...',
+};
+
+function getSelectedProvider() {
+  return document.querySelector('input[name="api_provider"]:checked')?.value || 'anthropic';
+}
+
+function onProviderChange() {
+  const p = getSelectedProvider();
+  // Sauvegarder la clé courante avant de changer
+  const prevKey = document.getElementById('api_key').value;
+  // Mettre à jour le select modèle
+  const sel = document.getElementById('ai_model');
+  sel.innerHTML = AI_MODELS[p].map(m => `<option value="${m.value}">${m.label}</option>`).join('');
+  // Mettre à jour le placeholder
+  document.getElementById('api_key').placeholder = AI_PLACEHOLDERS[p];
+  // Charger la clé du nouveau fournisseur
+  const savedKey = localStorage.getItem(`logx_apikey_${p}`) || '';
+  document.getElementById('api_key').value = savedKey;
+}
+
+function quickSave() {
+  // Sauvegarde silencieuse + feedback visuel sur le bouton
+  saveConfig(true);
+}
+
+function saveConfig(silent = false) {
+  const provider = getSelectedProvider();
+  const apiKey = document.getElementById('api_key').value;
+  if(apiKey){
+    localStorage.setItem(`logx_apikey_${provider}`, apiKey);
+    localStorage.setItem('logx_apikey', apiKey); // compat
+  }
+  localStorage.setItem('logx_ai_provider', provider);
+  localStorage.setItem('logx_ai_model', document.getElementById('ai_model').value);
+  const config = {
+    usage_mode: document.getElementById('usage_mode').value,
+    callsign: document.getElementById('callsign').value,
+    callsign_contest: document.getElementById('callsign_contest').value,
+    locator: document.getElementById('locator').value,
+    city: document.getElementById('city').value,
+    altitude: document.getElementById('altitude').value,
+    postal: document.getElementById('postal').value,
+    op_name: document.getElementById('operator_name').value,
+    op_call: document.getElementById('op_call').value,
+    club: document.getElementById('club').value,
+    email: document.getElementById('email').value,
+    section: document.getElementById('section_edi').value,
+    contest_start_date: document.getElementById('contest_start_date').value,
+    contest_end_date: document.getElementById('contest_end_date').value,
+    contest_end_utc: document.getElementById('contest_end_utc').value,
+    power: document.getElementById('power').value,
+    power_class: document.getElementById('power_class').value,
+    record_dx: document.getElementById('record_dx').value,
+    log_software: document.getElementById('log_software').value,
+    ant_hf: document.getElementById('ant_hf').value,
+    ant_144: document.getElementById('ant_144').value,
+    ant_432: document.getElementById('ant_432').value,
+    ant_shf: document.getElementById('ant_shf').value,
+    radio: document.getElementById('radio').value,
+    country: (document.getElementById('country').value||'FRA').toUpperCase().slice(0,3),
+    submit_url: document.getElementById('submit_url').value,
+    submit_deadline: document.getElementById('submit_deadline').value,
+    contest: state.contest,
+    toggles: state.toggles,
+    on4kst_callsign: document.getElementById('on4kst_callsign').value.toUpperCase().trim(),
+    on4kst_password: document.getElementById('on4kst_password').value,
+    qrz_user: document.getElementById('qrz_user').value.trim(),
+    qrz_password: document.getElementById('qrz_password').value,
+    eqsl_user: document.getElementById('eqsl_user').value.trim(),
+    eqsl_password: document.getElementById('eqsl_password').value,
+    lotw_user: document.getElementById('lotw_user').value.trim(),
+    lotw_password: document.getElementById('lotw_password').value,
+    clublog_email: document.getElementById('clublog_email').value.trim(),
+    clublog_callsign: document.getElementById('clublog_callsign').value.trim(),
+    clublog_password: document.getElementById('clublog_password').value,
+    clublog_api_key: document.getElementById('clublog_api_key').value.trim(),
+    qrzcq_callsign: document.getElementById('qrzcq_callsign').value.trim(),
+    qrzcq_api_key: document.getElementById('qrzcq_api_key').value.trim(),
+    hrdlog_callsign: document.getElementById('hrdlog_callsign').value.trim(),
+    hrdlog_code: document.getElementById('hrdlog_code').value.trim(),
+    scoreboard_enabled: document.getElementById('scoreboard_enabled').value,
+    scoreboard_interval: parseInt(document.getElementById('scoreboard_interval').value, 10) || 5,
+    backup_folder: document.getElementById('backup_folder').value.trim(),
+    backup_interval: parseInt(document.getElementById('backup_interval').value, 10) || 15,
+    cloudsync_mode: document.getElementById('cloudsync_mode').value,
+    cloudsync_folder: document.getElementById('cloudsync_folder').value.trim(),
+    cloudsync_interval: parseInt(document.getElementById('cloudsync_interval').value, 10) || 3,
+    rbn_enabled: document.getElementById('rbn_enabled').value,
+    clublog_live: document.getElementById('clublog_live').value,
+    expedition_mode: document.getElementById('expedition_mode').value,
+    activation_program: document.getElementById('activation_program').value,
+    my_activation_ref: document.getElementById('my_activation_ref').value.trim().toUpperCase(),
+    cluster_spot_enabled: document.getElementById('cluster_spot_enabled').value,
+    cluster_spot_host: document.getElementById('cluster_spot_host').value.trim(),
+    cluster_spot_port: parseInt(document.getElementById('cluster_spot_port').value, 10) || 7300,
+    wall_fields: {
+      time:    document.getElementById('wf_time').checked,
+      flag:    document.getElementById('wf_flag').checked,
+      country: document.getElementById('wf_country').checked,
+      name:    document.getElementById('wf_name').checked,
+      band:    document.getElementById('wf_band').checked,
+      freq:    document.getElementById('wf_freq').checked,
+      mode:    document.getElementById('wf_mode').checked,
+      rst:     document.getElementById('wf_rst').checked,
+      op:      document.getElementById('wf_op').checked,
+    },
+    rig_enabled: !!document.getElementById('rig_enabled')?.value,
+    rig_host: document.getElementById('rig_host')?.value.trim() || '',
+    rig_port: parseInt(document.getElementById('rig_port')?.value, 10) || 4532,
+    cat_enabled: !!document.getElementById('cat_enabled').value,
+    cat_mode: document.getElementById('cat_mode').value,
+    cat_brand: document.getElementById('cat_brand').value,
+    cat_model: document.getElementById('cat_model').value,
+    cat_port: document.getElementById('cat_port').value,
+    cat_baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || 19200,
+    tci_host: document.getElementById('tci_host').value.trim(),
+    tci_port: parseInt(document.getElementById('tci_port').value, 10) || 50001,
+    wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
+    wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
+    adifnet_mode: document.getElementById('adifnet_mode').value,
+    adifnet_port: parseInt(document.getElementById('adifnet_port').value, 10) || 12060,
+    adifnet_target: document.getElementById('adifnet_target').value.trim() || '255.255.255.255',
+    voicekeyer_enabled: !!document.getElementById('voicekeyer_enabled').value,
+    voicekeyer_device: document.getElementById('voicekeyer_device').value,
+    voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
+    voicekeyer_rate: parseInt(document.getElementById('voicekeyer_rate').value, 10) || 175,
+    amp_enabled: !!document.getElementById('amp_enabled').value,
+    amp_brand: document.getElementById('amp_brand').value,
+    amp_port: document.getElementById('amp_port').value,
+    amp_baudrate: parseInt(document.getElementById('amp_baudrate').value, 10) || 0,
+    amp_civ_addr: document.getElementById('amp_civ_addr').value.trim(),
+    rotor_enabled: !!document.getElementById('rotor_enabled').value,
+    rotor_host: document.getElementById('rotor_host').value.trim(),
+    rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
+    alert_dx_km: document.getElementById('alert_dx_km').value,
+    spotter_reliable_km: document.getElementById('spotter_reliable_km').value,
+    alert_sound: document.getElementById('alert_sound').value !== '',
+    alert_volume: parseInt(document.getElementById('alert_volume').value, 10) || 60,
+    refresh_min: document.getElementById('refresh_min').value,
+    priority_mode: document.getElementById('priority_mode').value,
+    spot_prefix_filter: document.getElementById('spot_prefix_filter').value,
+    alert_rules: state.alertRules,
+    operators: [1,2,3,4,5].map(i => ({
+      call: document.getElementById(`op${i}_call`).value.toUpperCase().trim(),
+      name: document.getElementById(`op${i}_name`).value.trim(),
+    })).filter(op => op.call),
+    api_provider: provider,
+    ai_model: document.getElementById('ai_model').value,
+    api_key: apiKey,
+    saved_at: new Date().toISOString(), // affiché par la barre de statut
+  };
+  localStorage.setItem('logx_config', JSON.stringify(config));
+  // Pousser aussi au serveur : sinon logx_serveur.py travaille avec une config
+  // périmée tant que la page CARTE IA (seule à faire ce POST) n'est pas ouverte.
+  fetch('/config/save', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(config)
+  }).catch(e=>console.warn('[CFG] serveur non joignable :', e));
+  if(silent){
+    // Feedback visuel sur le bouton SAUVEGARDER
+    const btn = document.querySelector('button[onclick="quickSave()"]');
+    if(btn){
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✅ SAUVEGARDÉ';
+      btn.style.background = 'var(--green)';
+      setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,#00D4FF)'; }, 1500);
+    }
+  } else {
+    alert('✅ Configuration sauvegardée !');
+  }
+}
+
+// ─── MONO / MULTI OP ─────────────────────────────────────────────────────────
+function updateOpSection(){
+  const sect = document.getElementById('section_edi').value;
+  const isMulti = sect.startsWith('MO'); // MOMB ou MOSB
+  const rows = document.getElementById('multiop_rows');
+  const title = document.getElementById('opSectionTitle');
+  const note  = document.getElementById('opSectionNote');
+
+  if(isMulti){
+    // Afficher OP2-OP5
+    rows.style.display = 'contents';
+    title.textContent = 'OPÉRATEURS (MULTI-OP)';
+    note.textContent  = "Jusqu'à 5 opérateurs — leurs indicatifs apparaîtront sur les boutons OP dans le logbook";
+  } else {
+    // Masquer OP2-OP5, garder seulement OP1
+    rows.style.display = 'none';
+    title.textContent = 'OPÉRATEUR';
+    note.textContent  = 'Ton indicatif personnel (Single Op)';
+  }
+}
+
+// ─── MODE DÉBUTANT / EXPERT ──────────────────────────────────────────────────
+// Le mode débutant masque les réglages avancés (sections .expert-only : IA,
+// propagation, clusters, ON4KST, alertes, prompt) et saute l'étape 4.
+// Les valeurs par défaut de ces réglages restent actives en arrière-plan.
+function getUiMode(){
+  const saved = localStorage.getItem('rc_ui_mode');
+  if (saved) return saved;
+  // Première visite : simple si aucune station configurée, expert sinon
+  try{
+    const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+    return cfg.callsign ? 'expert' : 'simple';
+  }catch(e){ return 'simple'; }
+}
+
+function applyUiMode(){
+  const simple = getUiMode() === 'simple';
+  document.body.classList.toggle('simple-mode', simple);
+  const btn = document.getElementById('uiModeToggle');
+  if (btn){
+    btn.textContent = simple ? '🎚 DÉBUTANT' : '🎚 EXPERT';
+    btn.style.color = simple ? 'var(--green)' : 'var(--muted)';
+  }
+  const step4 = document.getElementById('step4');
+  if (step4) step4.style.display = simple ? 'none' : '';
+  // Libellés des boutons qui encadrent l'étape sautée
+  const nextBtn = document.querySelector('#panel3 .btn-primary');
+  if (nextBtn) nextBtn.textContent = simple ? 'SUIVANT → RÉSUMÉ' : 'SUIVANT → PROPAGATION';
+  const backBtn = document.querySelector('#panel5 .btn-secondary[onclick="goStep(4)"]');
+  if (backBtn) backBtn.textContent = simple ? '← RETOUR (FILTRES)' : '← RETOUR';
+  // Si on est actuellement sur l'étape 4 en passant en simple → aller au résumé
+  if (simple && state.step === 4) goStep(5);
+}
+
+function toggleUiMode(){
+  localStorage.setItem('rc_ui_mode', getUiMode() === 'simple' ? 'expert' : 'simple');
+  applyUiMode();
+}
+
+// ─── MODE D'UTILISATION (logbook simple / concours / expédition) ────────────
+// Contrairement au mode débutant/expert (préférence d'affichage locale), ce
+// choix est persisté DANS LA CONFIG (station) : logx_logbook.html le
+// lit aussi pour adapter la saisie QSO (sélecteur de concours, n° de série,
+// score). 'contest' reste la valeur par défaut si absente d'une config plus
+// ancienne — comportement inchangé pour les utilisateurs existants.
+function getUsageMode(){
+  const el = document.getElementById('usage_mode');
+  return (el && el.value) || 'contest';
+}
+
+function applyUsageMode(){
+  const mode = getUsageMode();
+  const simple = mode === 'simple';
+  document.body.classList.toggle('usage-simple', simple);
+  const step2 = document.getElementById('step2');
+  if (step2) step2.style.display = simple ? 'none' : '';
+  const nextBtn = document.getElementById('btnStep1Next');
+  if (nextBtn) nextBtn.textContent = simple ? 'SUIVANT → FILTRES' : 'SUIVANT → CONCOURS';
+  const backBtn = document.getElementById('btnStep3Back');
+  if (backBtn) backBtn.textContent = simple ? '← RETOUR (MA STATION)' : '← RETOUR';
+  const note = document.getElementById('usageModeNote');
+  if (note) note.textContent = simple
+    ? '— étape CONCOURS masquée, bandes/modes librement réglables à l\'étape FILTRES'
+    : (mode === 'expedition'
+        ? '— pense à activer la saisie simplifiée dans la section MODE EXPÉDITION ci-dessous'
+        : '');
+  // Si on est actuellement sur l'étape CONCOURS en passant en simple → avancer
+  if (simple && state.step === 2) goStep(3);
+  // Ré-appliquer immédiatement les filtres bande/mode (sans attendre un
+  // changement d'étape) : basculer vers/depuis LOGBOOK SIMPLE doit se voir
+  // tout de suite si l'étape FILTRES est déjà affichée.
+  _filtersAppliedFor = null;
+  if (state.step === 3) applyContestFilters(state.contest);
+}
+
+function onUsageModeChange(){
+  const v = document.getElementById('usage_mode').value;
+  // Passage en expédition : propose par défaut la saisie simplifiée (juste
+  // indicatif + RST) si l'utilisateur n'a pas déjà réglé ce champ lui-même.
+  if (v === 'expedition'){
+    const em = document.getElementById('expedition_mode');
+    if (em && !em.value) em.value = '1';
+  }
+  // Passage EN LOGBOOK SIMPLE : les bandes/modes forcés par le dernier concours
+  // filtré (ex. REF_QRP -> uniquement VHF/UHF/SHF, cf. applyContestFilters()
+  // étape "1. Tout désactiver") restent sinon cochés en arrière-plan — le
+  // choix manuel de bandes HF de l'utilisateur en mode simple se retrouve
+  // alors MÉLANGÉ à ces cases VHF/SHF jamais décochées. On repart d'une page
+  // blanche uniquement au moment du changement explicite vers "simple" (pas
+  // à chaque rendu, pour ne pas effacer un choix déjà fait en mode simple).
+  if (v === 'simple'){
+    document.querySelectorAll('[data-key^="band_"], [data-key^="mode_"]').forEach(el => {
+      el.classList.remove('on');
+      state.toggles[el.dataset.key] = false;
+    });
+  }
+  applyUsageMode();
+}
+
+function toggleTheme(){
+  const day = document.body.classList.toggle('day-mode');
+  localStorage.setItem('rc_theme', day ? 'day' : 'night');
+  document.getElementById('themeToggle').textContent = day ? '🌙' : '☀️';
+}
+(function applyTheme(){
+  if(localStorage.getItem('rc_theme') === 'day'){
+    document.body.classList.add('day-mode');
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const t = document.getElementById('themeToggle');
+      if(t) t.textContent = '🌙';
+    });
+  }
+})();
+// Suivre le thème jour/nuit choisi dans un autre onglet (ex: logx_logbook.html)
+window.addEventListener('storage', e => {
+  if(e.key === 'rc_theme'){
+    const day = e.newValue === 'day';
+    document.body.classList.toggle('day-mode', day);
+    const t = document.getElementById('themeToggle');
+    if(t) t.textContent = day ? '🌙' : '☀️';
+  }
+});
+
+// Adresse(s) LAN pour connecter un téléphone (mode terrain/expédition)
+async function loadLanUrls(){
+  const el = document.getElementById('lanUrls');
+  if(!el) return;
+  try{
+    const d = await (await fetch('/data/lan_url')).json();
+    if(d.urls && d.urls.length){
+      el.innerHTML = d.urls.map(u =>
+        `<div>📶 <a href="${u}" target="_blank" style="color:var(--accent2);text-decoration:none">${u}</a></div>`).join('');
+    } else {
+      el.textContent = 'Adresse réseau introuvable — sur le téléphone : http://<IP-du-PC>:' + (d.port||8080) + '/logx_logbook.html';
+    }
+  }catch(e){ el.textContent = 'Serveur injoignable.'; }
+}
+window.addEventListener('load', loadLanUrls);
+
+// Restaure les cases « champs de l'écran mural » depuis la config
+function applyWallFields(wf){
+  if(!wf || typeof wf !== 'object') return;
+  ['time','flag','country','name','band','freq','mode','rst','op'].forEach(k=>{
+    const el = document.getElementById('wf_'+k);
+    if(el && wf[k]!==undefined) el.checked = !!wf[k];
+  });
+}
+
+function loadSavedConfig() {
+  const saved = localStorage.getItem('logx_config');
+  if(!saved) return false;
+  try {
+    const c = JSON.parse(saved);
+    applyWallFields(c.wall_fields);
+    if(c.callsign) document.getElementById('callsign').value = c.callsign;
+    if(c.callsign_contest) document.getElementById('callsign_contest').value = c.callsign_contest;
+    if(c.locator) { document.getElementById('locator').value = c.locator; updateLocatorHint(); }
+    if(c.city) document.getElementById('city').value = c.city;
+    if(c.altitude) document.getElementById('altitude').value = c.altitude;
+    if(c.postal) document.getElementById('postal').value = c.postal;
+    if(c.on4kst_callsign) document.getElementById('on4kst_callsign').value = c.on4kst_callsign;
+    if(c.on4kst_password) document.getElementById('on4kst_password').value = c.on4kst_password;
+    if(c.qrz_user) document.getElementById('qrz_user').value = c.qrz_user;
+    if(c.qrz_password) document.getElementById('qrz_password').value = c.qrz_password;
+    ['usage_mode','eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
+     'clublog_callsign','clublog_password','clublog_api_key',
+     'qrzcq_callsign','qrzcq_api_key','hrdlog_callsign','hrdlog_code',
+     'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
+     'cloudsync_mode','cloudsync_folder','cloudsync_interval',
+     'rbn_enabled','clublog_live','expedition_mode',
+     'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
+     'activation_program','my_activation_ref',
+     'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
+     'tci_host','tci_port','voicekeyer_rate',
+     'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{
+      if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
+    });
+    applyUsageMode();
+    if (c.cat_brand) updateCatModelOptions();
+    if (c.cat_model && document.getElementById('cat_model')) document.getElementById('cat_model').value = c.cat_model;
+    if(c.op_name) document.getElementById('operator_name').value = c.op_name;
+    if(c.op_call) document.getElementById('op_call').value = c.op_call;
+    if(c.club) document.getElementById('club').value = c.club;
+    if(c.email) document.getElementById('email').value = c.email;
+    if(c.section) document.getElementById('section_edi').value = c.section;
+    if(c.rig_host) document.getElementById('rig_host').value = c.rig_host;
+    if(c.rig_port) document.getElementById('rig_port').value = c.rig_port;
+    if(c.cat_enabled) document.getElementById('cat_enabled').value = '1';
+    // Migration : config antérieure au pilotage natif (rig_enabled=true,
+    // cat_mode jamais défini) -> reste en rigctld, PAS de bascule silencieuse
+    // vers le natif (qui n'a ni port ni marque configurés chez ces utilisateurs).
+    if (c.rig_enabled && c.cat_mode === undefined){
+      document.getElementById('cat_enabled').value = '1';
+      document.getElementById('cat_mode').value = 'rigctld';
+    }
+    updateCatModeVisibility();
+    if(c.voicekeyer_enabled) document.getElementById('voicekeyer_enabled').value = '1';
+    if(c.amp_enabled) document.getElementById('amp_enabled').value = '1';
+    if (c.amp_brand) updateAmpFieldsVisibility();
+    if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
+    if(c.wsjtx_port) document.getElementById('wsjtx_port').value = c.wsjtx_port;
+    if(c.adifnet_mode) document.getElementById('adifnet_mode').value = c.adifnet_mode;
+    if(c.adifnet_port) document.getElementById('adifnet_port').value = c.adifnet_port;
+    if(c.adifnet_target) document.getElementById('adifnet_target').value = c.adifnet_target;
+    if(c.rotor_enabled) document.getElementById('rotor_enabled').value = '1';
+    if(c.rotor_host) document.getElementById('rotor_host').value = c.rotor_host;
+    if(c.rotor_port) document.getElementById('rotor_port').value = c.rotor_port;
+    if(c.contest_start_date) document.getElementById('contest_start_date').value = c.contest_start_date;
+    if(c.contest_end_date) document.getElementById('contest_end_date').value = c.contest_end_date;
+    if(c.contest_end_utc) document.getElementById('contest_end_utc').value = c.contest_end_utc;
+    if(c.power) document.getElementById('power').value = c.power;
+    if(c.power_class) document.getElementById('power_class').value = c.power_class;
+    if(c.record_dx) document.getElementById('record_dx').value = c.record_dx;
+    if(c.log_software) document.getElementById('log_software').value = c.log_software;
+    if(c.ant_hf) document.getElementById('ant_hf').value = c.ant_hf;
+    if(c.ant_144) document.getElementById('ant_144').value = c.ant_144;
+    if(c.ant_432) document.getElementById('ant_432').value = c.ant_432;
+    if(c.ant_shf) document.getElementById('ant_shf').value = c.ant_shf;
+    if(c.contest) selectContest(c.contest);
+    if(c.toggles) {
+      // selectContest() vient de réinitialiser state.toggles aux valeurs par
+      // défaut du règlement — on restaure ici le choix réellement sauvegardé,
+      // à la fois dans le DOM (cases cochées) ET dans state.toggles (mémoire),
+      // sinon un save ultérieur réécrirait les valeurs par défaut.
+      state.toggles = Object.assign({}, state.toggles, c.toggles);
+      Object.entries(c.toggles).forEach(([key, val]) => {
+        const el = document.querySelector(`[data-key="${key}"]`);
+        if(el) { if(val) el.classList.add('on'); else el.classList.remove('on'); }
+      });
+    }
+    if(c.alert_dx_km) document.getElementById('alert_dx_km').value = c.alert_dx_km;
+    if(c.spotter_reliable_km) document.getElementById('spotter_reliable_km').value = c.spotter_reliable_km;
+    if(c.alert_sound === false) document.getElementById('alert_sound').value = '';
+    if(c.alert_volume != null) document.getElementById('alert_volume').value = c.alert_volume;
+    if(c.refresh_min) document.getElementById('refresh_min').value = c.refresh_min;
+    if(c.priority_mode) document.getElementById('priority_mode').value = c.priority_mode;
+    if(c.spot_prefix_filter !== undefined) document.getElementById('spot_prefix_filter').value = c.spot_prefix_filter;
+    state.alertRules = Array.isArray(c.alert_rules) ? c.alert_rules : [];
+    renderAlertRules();
+    if(c.operators && Array.isArray(c.operators)){
+      c.operators.forEach((op, i) => {
+        const callEl = document.getElementById(`op${i+1}_call`);
+        const nameEl = document.getElementById(`op${i+1}_name`);
+        if(callEl && op.call) callEl.value = op.call;
+        if(nameEl && op.name) nameEl.value = op.name;
+      });
+    }
+    // Recharger fournisseur IA + clé API
+    const savedProvider = c.api_provider || localStorage.getItem('logx_ai_provider') || 'anthropic';
+    const savedModel    = c.ai_model     || localStorage.getItem('logx_ai_model')    || '';
+    const radio = document.querySelector(`input[name="api_provider"][value="${savedProvider}"]`);
+    if(radio){ radio.checked = true; }
+    onProviderChange(); // met à jour le select modèle et le placeholder
+    if(savedModel){
+      const sel = document.getElementById('ai_model');
+      const opt = sel.querySelector(`option[value="${savedModel}"]`);
+      if(opt) sel.value = savedModel;
+    }
+    // Charger la clé du fournisseur actif
+    const keyForProvider = c.api_key || localStorage.getItem(`logx_apikey_${savedProvider}`) || localStorage.getItem('logx_apikey') || '';
+    if(keyForProvider) document.getElementById('api_key').value = keyForProvider;
+    return true;
+  } catch(e) { console.warn('Config invalide', e); return false; }
+}
+
+// Pré-remplissage depuis config.json (fallback si localStorage vide)
+async function loadFromServerConfig() {
+  try {
+    const res = await fetch('/config.json');
+    if (!res.ok) return;
+    const raw = await res.json();
+    const st  = raw.station  || {};
+    const ct  = raw.contest  || {};
+    const api = raw.api      || {};
+    const ops = raw.operators || [];
+
+    const set = (id, val) => {
+      if (!val && val !== 0) return;
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    };
+
+    // Station
+    set('callsign',       st.callsign);
+    set('callsign_contest', st.callsign_portable || st.callsign);
+    set('locator',        st.locator);
+    set('city',           st.city);
+    set('operator_name',  st.operator_name);
+    set('op_call',        st.operator_callsign);
+    set('email',          st.operator_email);
+    set('club',           st.club);
+    set('section_edi',    st.section);
+    set('power',          st.power_watts);
+    set('power_class',    st.power_class);
+    set('ant_144',        (st.antennas || {}).vhf_144);
+    set('ant_432',        (st.antennas || {}).vhf_432);
+    if (st.locator) updateLocatorHint();
+
+    // Concours
+    if (ct.id) selectContest(ct.id);
+    if (ct.start_date) {
+      const sd = ct.start_date.toString().replace(/-/g,'');
+      set('contest_start_date', `${sd.slice(0,4)}-${sd.slice(4,6)}-${sd.slice(6,8)}`);
+    }
+    if (ct.end_date) {
+      const ed = ct.end_date.toString().replace(/-/g,'');
+      set('contest_end_date', `${ed.slice(0,4)}-${ed.slice(4,6)}-${ed.slice(6,8)}`);
+    }
+    if (ct.end_utc) {
+      const t = ct.end_utc.toString().padStart(4,'0');
+      set('contest_end_utc', `${t.slice(0,2)}:${t.slice(2,4)}`);
+    }
+
+    // Clé API (seulement si ce n'est pas le placeholder)
+    const key = api.anthropic_key || '';
+    if (key && key !== 'REMPLACE_PAR_TA_CLE') {
+      set('api_key', key);
+      localStorage.setItem('logx_apikey', key);
+    }
+
+    // Opérateurs
+    ops.forEach((op, i) => {
+      set(`op${i+1}_call`, op.callsign || op.call || '');
+      set(`op${i+1}_name`, op.name || '');
+    });
+
+    console.log('[CFG] Pré-rempli depuis config.json');
+  } catch(e) {
+    console.warn('[CFG] Impossible de charger config.json :', e);
+  }
+}
+
+function launchApp(dest) {
+  saveConfig();
+  const key = document.getElementById('api_key').value;
+  if(key) localStorage.setItem('logx_apikey', key);
+  // Par défaut : le LOGBOOK (la saisie des QSO) — la carte IA reste à un clic.
+  window.location.href = dest || 'logx_logbook.html';
+}
+
+// ─── PHASE 3 : ANALYSE IA D'UN RÈGLEMENT + RELECTURE HUMAINE ─────────────────
+let _aiProposal = null;   // dernière proposition IA (pour le modal)
+
+// ── Partage communautaire : export/import des concours validés ──────────────
+async function exportCustomContests(){
+  const st = document.getElementById('shareStatus');
+  try{
+    const res = await fetch('/rules/export_custom');
+    const data = await res.json();
+    const n = Object.keys(data.contests || {}).length;
+    if (!n){ st.innerHTML = '<span style="color:var(--yellow)">Aucun concours validé à exporter.</span>'; return; }
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `logx_concours_${(data.exported_by||'partage').replace(/\W+/g,'')}_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    st.innerHTML = `<span style="color:var(--green)">✅ ${n} concours exportés — envoie le fichier aux autres stations.</span>`;
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ ${e.message}</span>`; }
+}
+
+async function importCustomContests(file){
+  const st = document.getElementById('shareStatus');
+  if (!file) return;
+  try{
+    const content = JSON.parse(await file.text());
+    st.textContent = '⏳ Validation et import...';
+    const res = await fetch('/rules/import_custom', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(content),
+    });
+    const r = await res.json();
+    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)">❌ ${r.error}</span>`; return; }
+    const parts = [];
+    if (r.imported.length) parts.push(`✅ ${r.imported.length} importé(s) : ${r.imported.join(', ')}`);
+    if (r.updated.length) parts.push(`🔄 ${r.updated.length} mis à jour`);
+    if (r.skipped_builtin.length) parts.push(`⏭ ${r.skipped_builtin.length} déjà dans la base intégrée`);
+    const nbErr = Object.keys(r.errors || {}).length;
+    if (nbErr) parts.push(`<span style="color:var(--red)">⛔ ${nbErr} refusé(s) à la validation (${Object.keys(r.errors).join(', ')})</span>`);
+    st.innerHTML = parts.join(' · ') || 'Rien à importer.';
+    if (r.imported.length || r.updated.length){
+      await mergeServerContests();
+      buildContestGrid('');
+    }
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ Fichier invalide : ${e.message}</span>`; }
+  document.getElementById('importFile').value = '';
+}
+
+async function analyzeRules(url, name){
+  url  = url  || document.getElementById('aiRulesUrl').value.trim();
+  name = name || document.getElementById('aiRulesName').value.trim();
+  const status = document.getElementById('aiAnalyzeStatus');
+  const btn = document.getElementById('aiAnalyzeBtn');
+  if (!url){ alert('Indique l\'URL du règlement (PDF ou page web).'); return; }
+  // La clé API vit dans la config : la pousser au serveur avant l'analyse
+  quickSave();
+  status.style.display = 'block';
+  status.textContent = '⏳ Téléchargement du règlement + analyse IA en cours (30-90 s)...';
+  btn.disabled = true;
+  try{
+    const res = await fetch('/rules/analyze', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url, name}),
+    });
+    const data = await res.json();
+    if (!data.ok){
+      status.innerHTML = `❌ <span style="color:var(--red)">${data.error || 'Analyse en échec'}</span>`;
+      return;
+    }
+    status.textContent = `✅ Règlement lu (${data.text_chars} caractères via ${data.extractor}) — relis la proposition ci-dessous.`;
+    _aiProposal = {...data, source_url: url};
+    openReviewModal(_aiProposal);
+  }catch(e){
+    status.innerHTML = `❌ <span style="color:var(--red)">Serveur injoignable : ${e.message}</span>`;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function _revField(id, label, value, citation, placeholder=''){
+  const cite = citation
+    ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px">📖 « ${String(citation).replace(/</g,'&lt;')} »</div>`
+    : `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);margin-top:3px">⚠ aucune citation source — vérifie dans le règlement</div>`;
+  return `<div style="margin-bottom:12px">
+    <label style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--muted)">${label}</label>
+    <input type="text" id="rev_${id}" value="${String(value ?? '').replace(/"/g,'&quot;')}" placeholder="${placeholder}"
+      style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:8px 10px;outline:none;margin-top:3px">
+    ${cite}
+  </div>`;
+}
+
+function _verificationBlock(v){
+  if (!v) return '';
+  const esc = s => String(s ?? '').replace(/</g, '&lt;');
+  if (v.error){
+    return `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--yellow)">⚠ ${esc(v.error)} — la définition n'a eu qu'une seule passe, relis avec plus d'attention.</div>`;
+  }
+  const nOk = (v.answers || []).length - (v.issues || []).length;
+  if (!(v.issues || []).length){
+    return `<div style="background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--green)">🔍 <strong>Passe de vérification : ${nOk}/${(v.answers||[]).length} points de contrôle conformes</strong> (restrictions participants, off-time, mults pondérés, QTC, échange, dates, deadline).</div>`;
+  }
+  const items = v.issues.map(i =>
+    `<li style="margin-bottom:6px"><strong>${esc(i.question)}</strong><br>
+     <span style="color:var(--text)">${esc(i.reponse)}</span>
+     ${i.probleme ? `<br><span style="color:var(--red)">→ ${esc(i.probleme)}</span>` : ''}</li>`).join('');
+  return `<div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--accent2)">
+    🔍 <strong>Passe de vérification : ${v.issues.length} point(s) corrigé(s) ou à surveiller</strong>
+    ${v.applied ? ' — <span style="color:var(--green)">corrections appliquées à la définition ci-dessous</span>' : ' — <span style="color:var(--yellow)">corrections NON appliquées, vérifie manuellement</span>'}
+    <ul style="margin:8px 0 0 18px">${items}</ul>
+  </div>`;
+}
+
+function openReviewModal(p){
+  const d = p.definition || {};
+  const c = p.citations || {};
+  const warnings = (p.warnings || []).map(w => `<li>${String(w).replace(/</g,'&lt;')}</li>`).join('');
+  const verrs = (p.validation_errors || []).map(e => `<li>${String(e).replace(/</g,'&lt;')}</li>`).join('');
+  const confColor = {high: 'var(--green)', medium: 'var(--yellow)', low: 'var(--red)'}[p.confidence] || 'var(--muted)';
+
+  document.getElementById('reviewModalBody').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div style="font-family:var(--font-mono);font-size:15px;letter-spacing:2px;color:var(--accent2)">🤖 PROPOSITION IA — RELECTURE OBLIGATOIRE</div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:4px">
+          Rien n'est enregistré tant que tu n'as pas validé. Confiance IA :
+          <span style="color:${confColor};font-weight:700">${(p.confidence || '?').toUpperCase()}</span>
+          · Extraction : ${p.extractor} (${p.text_chars} car.)
+        </div>
+      </div>
+      <button onclick="document.getElementById('reviewModal').style.display='none'"
+        style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px">✕</button>
+    </div>
+
+    ${verrs ? `<div style="background:rgba(255,45,85,.08);border:1px solid var(--red);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--red)"><strong>⛔ Erreurs de validation à corriger avant enregistrement :</strong><ul style="margin:6px 0 0 18px">${verrs}</ul></div>` : ''}
+    ${_verificationBlock(p.verification)}
+    ${warnings ? `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--yellow)"><strong>⚠ Signalé par l'IA :</strong><ul style="margin:6px 0 0 18px">${warnings}</ul></div>` : ''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">
+      ${_revField('id', 'ID DU CONCOURS', p.suggested_id, null, 'WAEDC_CW')}
+      ${_revField('name', 'NOM', d.name, c.name)}
+      ${_revField('organizer', 'ORGANISATEUR', d.organizer, c.organizer)}
+      ${_revField('date_rule', 'RÈGLE DE DATE', d.date_rule, c.date_rule, 'first_saturday_july')}
+      ${_revField('duration_h', 'DURÉE (H)', d.duration_h, c.duration_h)}
+      ${_revField('start_utc', 'DÉBUT UTC (HH:MM)', d.start_utc, c.start_utc)}
+      ${_revField('bands', 'BANDES (MHz, virgules)', (d.bands || []).join(','), c.bands)}
+      ${_revField('modes', 'MODES (virgules)', (d.modes || []).join(','), c.modes)}
+      ${_revField('exchange', 'ÉCHANGE', d.exchange, c.exchange)}
+      ${_revField('log_format', 'FORMAT LOG (EDI/CABRILLO/ADIF)', d.log_format, c.log_format)}
+      ${_revField('log_deadline', 'DEADLINE LOG', d.log_deadline, c.log_deadline)}
+      ${_revField('log_submit', 'SOUMISSION LOG (URL/email)', d.log_submit, c.log_submit)}
+    </div>
+    ${p.date_preview ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--green);margin-bottom:10px">📅 Prochaine occurrence calculée depuis la règle : <strong>${p.date_preview}</strong></div>` : ''}
+    ${_revField('notes', 'NOTES / PARTICULARITÉS', d.notes, c.notes)}
+
+    <div style="margin-bottom:12px">
+      <label style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--muted)">SCORING (JSON — type historique ou briques)</label>
+      <textarea id="rev_scoring" style="width:100%;height:130px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:10px;outline:none;margin-top:3px;resize:vertical">${JSON.stringify(d.scoring || {}, null, 2).replace(/</g,'&lt;')}</textarea>
+      ${c.scoring ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px">📖 « ${String(c.scoring).replace(/</g,'&lt;')} »</div>` : ''}
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <button class="btn btn-launch" style="padding:11px 24px" onclick="saveReviewedDefinition()">✓ J'AI RELU — ENREGISTRER LE CONCOURS</button>
+      <button class="btn btn-secondary" style="padding:11px 18px" onclick="document.getElementById('reviewModal').style.display='none'">✕ Annuler</button>
+      ${p.source_url ? `<a class="btn btn-secondary" style="padding:11px 18px;text-decoration:none" href="${p.source_url}" target="_blank">📄 Ouvrir le règlement</a>` : ''}
+    </div>
+    <div id="reviewSaveStatus" style="margin-top:10px;font-family:var(--font-mono);font-size:13px"></div>`;
+  document.getElementById('reviewModal').style.display = 'block';
+}
+
+async function saveReviewedDefinition(){
+  const g = id => document.getElementById('rev_' + id)?.value.trim() ?? '';
+  const status = document.getElementById('reviewSaveStatus');
+  let scoring;
+  try{ scoring = JSON.parse(document.getElementById('rev_scoring').value); }
+  catch(e){ status.innerHTML = `<span style="color:var(--red)">⛔ Scoring : JSON invalide (${e.message})</span>`; return; }
+
+  const definition = {
+    name: g('name'), organizer: g('organizer'), date_rule: g('date_rule'),
+    bands: g('bands').split(',').map(s=>s.trim()).filter(Boolean),
+    modes: g('modes').split(',').map(s=>s.trim()).filter(Boolean),
+    exchange: g('exchange'), scoring, log_format: g('log_format').toUpperCase(),
+  };
+  // Champs optionnels : n'inclure que s'ils sont renseignés
+  if (g('duration_h')) definition.duration_h = parseInt(g('duration_h'), 10);
+  if (g('start_utc')) definition.start_utc = g('start_utc');
+  if (g('log_deadline')) definition.log_deadline = g('log_deadline');
+  if (g('log_submit')) definition.log_submit = g('log_submit');
+  if (g('notes')) definition.notes = g('notes');
+  if (_aiProposal?.source_url) definition.rules_url = _aiProposal.source_url;
+
+  status.textContent = '⏳ Validation + enregistrement...';
+  try{
+    const res = await fetch('/rules/save_definition', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: g('id'), definition,
+                            source_url: _aiProposal?.source_url || '',
+                            confidence: _aiProposal?.confidence || ''}),
+    });
+    const data = await res.json();
+    if (!data.ok){
+      const errs = (data.validation_errors || [data.error]).join('<br>· ');
+      status.innerHTML = `<span style="color:var(--red)">⛔ ${errs}</span>`;
+      return;
+    }
+    status.innerHTML = `<span style="color:var(--green)">✅ ${data.message} — il apparaît maintenant dans la liste.</span>`;
+    // Rafraîchir la grille et sélectionner le nouveau concours
+    await mergeServerContests();
+    buildContestGrid('');
+    setTimeout(() => {
+      document.getElementById('reviewModal').style.display = 'none';
+      selectContest(g('id'));
+      const card = document.getElementById('card_' + g('id'));
+      if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }, 1200);
+  }catch(e){
+    status.innerHTML = `<span style="color:var(--red)">⛔ Serveur : ${e.message}</span>`;
+  }
+}
+
+// ─── ASSISTANT "NOUVEAU CONCOURS" (3 étapes) ─────────────────────────────────
+// Arrivée depuis logx_calendrier.html avec ?contest=ID :
+//   1. le concours est sélectionné et ses bandes/modes/dates appliqués ;
+//   2. la bannière récapitule ce qui a été pré-rempli et ce qui reste à vérifier ;
+//   3. un clic sur LANCER sauvegarde et ouvre la carte IA.
+function handleContestParam(){
+  const id = new URLSearchParams(location.search).get('contest');
+  if (!id) return;
+  const banner = document.getElementById('assistantBanner');
+  const contest = CONTESTS.find(c => c.id === id);
+
+  // Arriver ici depuis le calendrier avec un concours précis = intention
+  // explicite de faire un concours : basculer hors du mode LOGBOOK SIMPLE
+  // pour que l'étape CONCOURS (masquée dans ce mode) redevienne accessible.
+  const usageSel = document.getElementById('usage_mode');
+  if (usageSel && usageSel.value === 'simple'){
+    usageSel.value = 'contest';
+    applyUsageMode();
+  }
+
+  goStep(2);
+
+  if (!contest){
+    banner.style.display = 'block';
+    banner.style.borderColor = 'rgba(255,214,10,.4)';
+    banner.innerHTML = `⚠️ <strong>Concours « ${id} » introuvable dans la liste.</strong><br>
+      <span style="font-size:14px;color:var(--muted)">Si c'est un concours WA7BNM, le cache externe est peut-être vide — recharge le calendrier, ou choisis un concours ci-dessous.</span>`;
+    return;
+  }
+
+  selectContest(id);
+  const card = document.getElementById('card_' + id);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+  const stationOk = !!(cfg.callsign && cfg.locator);
+  // Dates OK seulement si elles ont été calculées pour CE concours —
+  // un champ non vide peut contenir les dates d'une config précédente
+  const datesOk = state.datesAutoFor === id && !!document.getElementById('contest_start_date').value;
+  const isExternal = !!contest.external;
+
+  const checks = [
+    `✅ Concours sélectionné : <strong>${contest.name}</strong>`,
+    stationOk
+      ? `✅ Station : <strong>${cfg.callsign}</strong> en <strong>${cfg.locator}</strong> (profil sauvegardé)`
+      : `⚠️ Station non configurée — <a href="#" onclick="goStep(1);return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
+    datesOk
+      ? `✅ Dates calculées automatiquement : <strong>${document.getElementById('contest_start_date').value}</strong> → <strong>${document.getElementById('contest_end_date').value}</strong>`
+      : `⚠️ Dates non calculables — saisis-les à l'étape 2 (encadré DATES DU CONCOURS)`,
+    isExternal
+      ? `⚠️ Concours <strong>non vérifié</strong> (source WA7BNM) — contrôle bandes, modes et échange dans le <a href="${contest.rules}" target="_blank" style="color:var(--accent2)">règlement officiel</a>${contest.rules ? ` — ou <a href="#" onclick="analyzeRules('${contest.rules}','${(contest.name||'').replace(/'/g,'')}');return false" style="color:var(--green)">🤖 fais-le lire par l'IA</a>` : ''}`
+      : `✅ Bandes et modes du règlement appliqués (modifiables à l'étape 3)`,
+  ];
+
+  banner.style.display = 'block';
+  banner.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:14px;letter-spacing:2px;color:var(--green);margin-bottom:10px">🧭 ASSISTANT NOUVEAU CONCOURS</div>
+    <div style="font-size:14px;line-height:2">${checks.join('<br>')}</div>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn btn-launch" style="padding:10px 22px" onclick="launchApp()">🚀 TOUT EST BON — LOGGER</button>
+      <button class="btn btn-secondary" style="padding:10px 18px" onclick="goStep(3)">Vérifier bandes/modes →</button>
+      <button class="btn btn-secondary" style="padding:10px 18px" onclick="document.getElementById('assistantBanner').style.display='none'">✕ Fermer l'assistant</button>
+    </div>`;
+}
+
+init();
+</script>
+</body>
+</html>

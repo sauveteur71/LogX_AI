@@ -11,8 +11,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_clusters as clusters
-import radiocontest_http as http
+import logx_clusters as clusters
+import logx_http as http
 
 
 # ─── fetch_all_vhf_spots (VHF) ──────────────────────────────────────────────

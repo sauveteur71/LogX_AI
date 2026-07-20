@@ -13,14 +13,14 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # ─── Météores ────────────────────────────────────────────────────────────────
 
 def test_meteores_perseides_actif_a_laube():
-    import radiocontest_meteors as met
+    import logx_meteors as met
     q = met.ms_quality(datetime.datetime(2026, 8, 12, 6, 0))
     assert q['level'] == 'excellent'
     assert any(s['active'] and s['name'] == 'Perséides' for s in q['showers'])
 
 
 def test_meteores_faible_hors_creneau_hiver():
-    import radiocontest_meteors as met
+    import logx_meteors as met
     q = met.ms_quality(datetime.datetime(2026, 3, 1, 15, 0))
     assert q['level'] in ('faible', 'moyen')
 
@@ -28,7 +28,7 @@ def test_meteores_faible_hors_creneau_hiver():
 # ─── Ouvertures par région (paths) ───────────────────────────────────────────
 
 def test_paths_sun_elevation():
-    import radiocontest_paths as p
+    import logx_paths as p
     # Équateur, équinoxe : ~90° à midi UTC, ~-90° à minuit
     assert p.sun_elevation(0, 0, datetime.datetime(2026, 3, 21, 12, 0)) > 80
     assert p.sun_elevation(0, 0, datetime.datetime(2026, 3, 21, 0, 0)) < -80
@@ -37,7 +37,7 @@ def test_paths_sun_elevation():
 # ─── Widget Time of Day (HOME vs DX) ─────────────────────────────────────────
 
 def test_time_of_day_home_seul():
-    import radiocontest_paths as p
+    import logx_paths as p
     when = datetime.datetime(2026, 3, 21, 12, 0)
     st = p.time_of_day_state('JN15XC', when=when)   # Le Puy-en-Velay, midi équinoxe
     assert st['utc'] == '12:00'
@@ -48,7 +48,7 @@ def test_time_of_day_home_seul():
 def test_time_of_day_home_vs_dx_oppose():
     """Le Puy-en-Velay (midi, jour) vs un locator antipodal (nuit) — vérifie
     que les deux côtés sont bien évalués indépendamment."""
-    import radiocontest_paths as p
+    import logx_paths as p
     when = datetime.datetime(2026, 3, 21, 12, 0)
     st = p.time_of_day_state('JN15XC', dx_locator='RE78ex', when=when)
     assert st['home']['is_day'] is True
@@ -56,13 +56,13 @@ def test_time_of_day_home_vs_dx_oppose():
 
 
 def test_time_of_day_locator_invalide_renvoie_none():
-    import radiocontest_paths as p
+    import logx_paths as p
     st = p.time_of_day_state('', when=datetime.datetime(2026, 3, 21, 12, 0))
     assert st['home'] is None
 
 
 def test_time_of_day_sans_dx_absent_du_resultat():
-    import radiocontest_paths as p
+    import logx_paths as p
     st = p.time_of_day_state('JN15XC', dx_locator='', when=datetime.datetime(2026, 3, 21, 12, 0))
     assert 'dx' not in st
 
@@ -70,12 +70,12 @@ def test_time_of_day_sans_dx_absent_du_resultat():
 # ─── Graphe de rythme sur la session complète (coach) ────────────────────────
 
 def test_hourly_rate_series_vide_sans_qso():
-    import radiocontest_coach as coach
+    import logx_coach as coach
     assert coach.hourly_rate_series([]) == []
 
 
 def test_hourly_rate_series_comble_les_heures_sans_qso():
-    import radiocontest_coach as coach
+    import logx_coach as coach
     entries = [
         {'date': '20260801', 'time': '1005'},
         {'date': '20260801', 'time': '1230'},
@@ -88,14 +88,14 @@ def test_hourly_rate_series_comble_les_heures_sans_qso():
 
 
 def test_hourly_rate_series_ignore_les_entrees_sans_date_valide():
-    import radiocontest_coach as coach
+    import logx_coach as coach
     entries = [{'date': '20260801', 'time': '1000'}, {'date': '', 'time': ''}]
     series = coach.hourly_rate_series(entries)
     assert len(series) == 1 and series[0]['count'] == 1
 
 
 def test_paths_hiva_oa_vers_europe_long_path():
-    import radiocontest_paths as p
+    import logx_paths as p
     hiva = (-9.75, -139.0)
     solar = {'muf': {'muf_mhz': 22}, 'solar': {'sfi': 140, 'k_index': 2}}
     d = p.path_openings(hiva[0], hiva[1], 'EU',
@@ -107,7 +107,7 @@ def test_paths_hiva_oa_vers_europe_long_path():
 
 
 def test_paths_context_block_et_regions():
-    import radiocontest_paths as p
+    import logx_paths as p
     txt = p.context_block(48.8, 2.3, datetime.datetime(2026, 7, 17, 20, 0),
                           {'muf': {'muf_mhz': 18}, 'solar': {'sfi': 130}})
     assert 'Europe' in txt and 'UTC' in txt
@@ -119,7 +119,7 @@ def test_paths_context_block_et_regions():
 # ─── Tropo (physique de réfractivité) ────────────────────────────────────────
 
 def test_tropo_refractivite_decroit_avec_altitude():
-    import radiocontest_tropo as tr
+    import logx_tropo as tr
     n_bas = tr._refractivity(1000, 15, 70)
     n_haut = tr._refractivity(900, 9, 55)
     assert n_bas > n_haut                      # N décroît normalement
@@ -129,7 +129,7 @@ def test_tropo_refractivite_decroit_avec_altitude():
 
 
 def test_tropo_classification_ducting():
-    import radiocontest_tropo as tr
+    import logx_tropo as tr
     assert tr._classify(-200)[0] == 'ducting'
     assert tr._classify(-100)[0] == 'super'
     assert tr._classify(-40)[0] == 'normal'
@@ -139,7 +139,7 @@ def test_tropo_classification_ducting():
 # ─── RBN (parseur, sans réseau) ──────────────────────────────────────────────
 
 def test_rbn_parse_mes_spots():
-    import radiocontest_rbn as rbn
+    import logx_rbn as rbn
     txt = ('DX de DL0ABC-#:  14025.0  F6KQJ  CW    22 dB  28 wpm  CQ    1432Z\n'
            'DX de W3ZZZ-#:  14025.1  F6KQJ  CW  15 dB 25 wpm CQ 1433Z\n'
            'DX de X-#:  7005.0  OTHER  CW  30 dB  20 wpm  CQ  1434Z\n')
@@ -152,7 +152,7 @@ def test_rbn_parse_mes_spots():
 # ─── Scoreboard ──────────────────────────────────────────────────────────────
 
 def test_scoreboard_snapshot_et_xml():
-    import radiocontest_scoreboard as sb
+    import logx_scoreboard as sb
     log = [{'contest': 'X', 'call': 'A', 'band': '144', 'points': 45, 'locator': 'JN25GO'},
            {'contest': 'X', 'call': 'B', 'band': '432', 'points': 30, 'locator': 'JN33AA'}]
     snap = sb.build_score_snapshot(log, {'contest': 'X'})
@@ -162,14 +162,14 @@ def test_scoreboard_snapshot_et_xml():
 
 
 def test_scoreboard_desactive_par_defaut():
-    import radiocontest_scoreboard as sb
+    import logx_scoreboard as sb
     assert sb.push({}, [{'call': 'A'}])['ok'] is False
 
 
 # ─── Backup ──────────────────────────────────────────────────────────────────
 
 def test_backup_ecrit_et_retention():
-    import radiocontest_backup as bk
+    import logx_backup as bk
     d = tempfile.mkdtemp()
     try:
         log = [{'call': 'F1ABC', 'band': '144', 'mode': 'SSB', 'date': '20260718'}]
@@ -186,5 +186,5 @@ def test_backup_ecrit_et_retention():
 
 
 def test_backup_sans_dossier():
-    import radiocontest_backup as bk
+    import logx_backup as bk
     assert bk.run_backup({}, [])['ok'] is False

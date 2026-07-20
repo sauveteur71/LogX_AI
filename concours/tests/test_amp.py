@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests du pilotage d'amplificateurs HF (radiocontest_amp) : logique de
+"""Tests du pilotage d'amplificateurs HF (logx_amp) : logique de
 trame pure (KPA ASCII, CI-V étendu, paquets SPE) + boucle complète contre des
 amplis FICTIFS en mémoire (aucun port série réel requis)."""
 import os
@@ -7,8 +7,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_amp as amp
-import radiocontest_cat as cat
+import logx_amp as amp
+import logx_cat as cat
 
 
 # ─── DOUBLES DE TEST : amplis fictifs en mémoire ─────────────────────────────

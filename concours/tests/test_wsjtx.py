@@ -7,7 +7,7 @@ import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_wsjtx as wsjtx
+import logx_wsjtx as wsjtx
 
 
 def _utf8(s):

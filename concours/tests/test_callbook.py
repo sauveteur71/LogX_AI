@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests de la cascade callbook (radiocontest_callbook) : QRZ (si configuré)
+"""Tests de la cascade callbook (logx_callbook) : QRZ (si configuré)
 -> HamQTH -> HamDB. Avant ce module, un opérateur sans abonnement QRZ n'avait
 STRICTEMENT AUCUNE fiche à la frappe — /qrz/lookup répondait juste "non
 configuré" sans jamais tenter les deux sources gratuites."""
@@ -9,9 +9,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_callbook as callbook
-import radiocontest_qrz as qrz
-import radiocontest_clusters as clusters
+import logx_callbook as callbook
+import logx_qrz as qrz
+import logx_clusters as clusters
 
 HAMDB_OK = ('{"hamdb":{"version":"1","callsign":{"call":"W1AW","class":"","expires":'
             '"02/26/2031","status":"A","grid":"FN31pr","lat":"41.71","lon":"-72.72",'
@@ -35,7 +35,7 @@ def _reset():
 # ─── lookup_hamdb (parsing JSON réel, vérifié contre l'API en direct) ──────
 
 def test_lookup_hamdb_ok(monkeypatch):
-    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=8: HAMDB_OK)
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=8: HAMDB_OK)
     r = callbook.lookup_hamdb('w1aw')
     assert r['ok'] and r['call'] == 'W1AW' and r['source'] == 'hamdb'
     assert r['name'] == 'ARRL HQ OPERATORS CLUB'
@@ -44,19 +44,19 @@ def test_lookup_hamdb_ok(monkeypatch):
 
 
 def test_lookup_hamdb_indicatif_hors_usa(monkeypatch):
-    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=8: HAMDB_NOT_FOUND)
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=8: HAMDB_NOT_FOUND)
     r = callbook.lookup_hamdb('F4GLD')
     assert not r['ok'] and 'USA' in r['error']
 
 
 def test_lookup_hamdb_injoignable(monkeypatch):
-    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=8: None)
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=8: None)
     r = callbook.lookup_hamdb('W1AW')
     assert not r['ok'] and 'injoignable' in r['error']
 
 
 def test_lookup_hamdb_reponse_illisible(monkeypatch):
-    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=8: 'pas du json')
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=8: 'pas du json')
     r = callbook.lookup_hamdb('W1AW')
     assert not r['ok'] and 'illisible' in r['error']
 

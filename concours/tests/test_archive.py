@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_archive as arch
+import logx_archive as arch
 
 QSOS = [
     {'call': 'DL1ABC', 'band': '14', 'mode': 'CW', 'date': '20260801',

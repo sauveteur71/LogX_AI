@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from radiocontest_http import Handler
+from logx_http import Handler
 
 
 def resolve(path):
@@ -38,8 +38,8 @@ def test_fichier_cle_api_jamais_servi():
 
 
 def test_fichier_legitime_servi():
-    p = resolve('/radiocontest_logbook.html')
-    assert p is not None and p.endswith('radiocontest_logbook.html')
+    p = resolve('/logx_logbook.html')
+    assert p is not None and p.endswith('logx_logbook.html')
 
 
 def test_json_legitime_servi():

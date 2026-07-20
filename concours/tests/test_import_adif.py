@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Import ADIF (radiocontest_import) : le log5 précédent poussait les QSO
+"""Import ADIF (logx_import) : le log5 précédent poussait les QSO
 importés dans une variable JS locale qui disparaissait au polling suivant
 (jamais envoyé au serveur) — ce module est la persistance réelle, testée
 sans aucun I/O (parse_adif_to_qsos/preview_import sont pures)."""
@@ -8,10 +8,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_import as imp
+import logx_import as imp
 
 ADIF = (
-    "En-tête de log ADIF\n<adif_ver:5>3.1.4<programid:12>RadioContest<EOH>\n"
+    "En-tête de log ADIF\n<adif_ver:5>3.1.4<programid:12>LogX<EOH>\n"
     "<CALL:5>DL1AA<BAND:2>2m<MODE:3>SSB<QSO_DATE:8>20260710<TIME_ON:4>1230"
     "<GRIDSQUARE:6>JO40AA<MY_GRIDSQUARE:6>JN15XC<RST_SENT:2>59<RST_RCVD:2>59"
     "<STX_STRING:3>001<SRX_STRING:3>045<EOR>\n"

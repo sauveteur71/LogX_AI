@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from radiocontest_scoring import calc_qso_value, extract_dx_locator
+from logx_scoring import calc_qso_value, extract_dx_locator
 
 
 def score(contest, dx, band, dist_km=0, dx_loc='', done_calls=None,

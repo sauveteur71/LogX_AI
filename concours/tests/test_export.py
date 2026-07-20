@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Tests des exports Cabrillo et ADIF (radiocontest_export)."""
+"""Tests des exports Cabrillo et ADIF (logx_export)."""
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from radiocontest_export import build_cabrillo, build_adif
+from logx_export import build_cabrillo, build_adif
 
 QSOS = [
     {'call': 'dl1abc', 'band': '14', 'mode': 'CW', 'date': '20260801',
