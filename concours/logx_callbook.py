@@ -1,0 +1,94 @@
+# -*- coding: utf-8 -*-
+"""Callbook en cascade : QRZ.com (payant, le plus complet) -> HamQTH (gratuit,
+mondial) -> HamDB (gratuit, base FCC américaine uniquement — vérifié : un
+indicatif hors USA y renvoie NOT_FOUND sur tous les champs).
+
+Avant ce module, un opérateur sans abonnement QRZ XML n'avait AUCUNE fiche
+correspondant à la frappe dans le logbook (endpoint /qrz/lookup renvoyait
+"QRZ non configuré" et s'arrêtait là). La cascade essaie chaque source dans
+l'ordre et retourne la première réponse positive, avec `source` pour que le
+client sache d'où vient l'info (et adapte l'affichage : HamQTH/HamDB ne
+donnent jamais le nom de l'opérant, contrairement à QRZ).
+
+HamDB : API JSON publique sans clé (http://api.hamdb.org/v1/<call>/json/<app>),
+vérifiée en direct (W1AW -> fiche complète, F4GLD -> NOT_FOUND partout —
+confirme le périmètre USA uniquement documenté nulle part officiellement).
+"""
+import json
+import time
+
+_cache = {}          # CALL -> {'ts', 'data'}
+CACHE_TTL = 24 * 3600  # les fiches HamQTH/HamDB gratuites ne sont pas mises en
+                       # cache en amont (contrairement à QRZ) : on évite ici de
+                       # marteler ces services publics pour le même indicatif.
+
+
+def lookup_hamdb(call):
+    """Interroge HamDB (FCC US uniquement). {'ok', 'call', 'name', 'qth',
+    'state', 'country', 'grid', 'dxcc': '', 'source': 'hamdb'} ou
+    {'ok': False, 'error': ...}."""
+    from logx_utils import fetch_url
+    call = (call or '').upper().strip()
+    if not call:
+        return {'ok': False, 'error': 'Indicatif vide'}
+    text = fetch_url(f'http://api.hamdb.org/v1/{call}/json/logxai', timeout=8)
+    if not text:
+        return {'ok': False, 'error': 'HamDB injoignable'}
+    try:
+        cs = json.loads(text).get('hamdb', {}).get('callsign', {})
+    except (ValueError, AttributeError):
+        return {'ok': False, 'error': 'Réponse HamDB illisible'}
+
+    def field(name):
+        v = cs.get(name, '')
+        return '' if v == 'NOT_FOUND' else v
+
+    if not field('call'):
+        return {'ok': False, 'error': "Indicatif introuvable sur HamDB (base FCC USA "
+                                      "uniquement — les indicatifs hors USA n'y sont pas)"}
+    name = ' '.join(p for p in (field('fname'), field('name')) if p).strip()
+    return {'ok': True, 'call': call, 'name': name,
+            'qth': ', '.join(p for p in (field('addr2'), field('state')) if p),
+            'state': field('state'), 'country': field('country'),
+            'grid': field('grid').upper(), 'dxcc': '', 'source': 'hamdb'}
+
+
+def lookup(call, cfg):
+    """Cascade complète. Retourne le premier résultat positif ; si tout
+    échoue, {'ok': False, 'error': <résumé des 3 échecs>}."""
+    call = (call or '').upper().strip()
+    if not call:
+        return {'ok': False, 'error': 'Indicatif vide'}
+
+    hit = _cache.get(call)
+    if hit and time.time() - hit['ts'] < CACHE_TTL:
+        return hit['data']
+
+    import logx_qrz as qrz
+    from logx_clusters import lookup_hamqth
+
+    errors = []
+    settings = qrz.qrz_settings(cfg)
+    if settings['enabled']:
+        r = qrz.lookup(call, settings['user'], settings['pw'])
+        if r.get('ok'):
+            r['source'] = 'qrz'
+            return r  # déjà mis en cache par qrz.py lui-même (24 h)
+        errors.append(f"QRZ : {r.get('error', '?')}")
+
+    hq = lookup_hamqth(call)
+    if hq and hq.get('locator'):
+        data = {'ok': True, 'call': call, 'name': '', 'qth': '', 'state': '',
+                'country': hq.get('country', ''), 'grid': hq.get('locator', '').upper(),
+                'dxcc': '', 'source': 'hamqth'}
+        _cache[call] = {'ts': time.time(), 'data': data}
+        return data
+    errors.append("HamQTH : indicatif introuvable ou service injoignable")
+
+    hd = lookup_hamdb(call)
+    if hd.get('ok'):
+        _cache[call] = {'ts': time.time(), 'data': hd}
+        return hd
+    errors.append(f"HamDB : {hd.get('error', '?')}")
+
+    return {'ok': False, 'error': ' · '.join(errors)}

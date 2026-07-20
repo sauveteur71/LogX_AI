@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests du pilotage CAT (radiocontest_rig) contre un FAUX rigctld :
+"""Tests du pilotage CAT (logx_rig) contre un FAUX rigctld :
 un petit serveur TCP qui parle le protocole Hamlib, sans radio."""
 import os
 import socket
@@ -8,7 +8,7 @@ import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_rig as rig
+import logx_rig as rig
 
 
 class FakeRigctld:

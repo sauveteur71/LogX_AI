@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
-#  RadioContest AI - Construction de l'application macOS
-#  Produit : dist/RadioContestAI (autonome, sans Python)
+#  LogX AI - Construction de l'application macOS
+#  Produit : dist/LogXAI (autonome, sans Python)
 #  À LANCER SUR UN MAC (PyInstaller ne cross-compile pas).
 # ============================================================
 set -e
@@ -14,14 +14,14 @@ echo "[2/3] Installation de PyInstaller si nécessaire..."
 python3 -m pip install --quiet --upgrade pyinstaller
 
 echo "[3/3] Construction de l'application..."
-python3 -m PyInstaller --noconfirm --clean radiocontest.spec
+python3 -m PyInstaller --noconfirm --clean logx.spec
 
 echo
-if [ -f "dist/RadioContestAI" ]; then
-  chmod +x dist/RadioContestAI
+if [ -f "dist/LogXAI" ]; then
+  chmod +x dist/LogXAI
   echo "============================================================"
-  echo "  OK ! Application prête : dist/RadioContestAI"
-  echo "  Lance-la par double-clic (ou ./dist/RadioContestAI)."
+  echo "  OK ! Application prête : dist/LogXAI"
+  echo "  Lance-la par double-clic (ou ./dist/LogXAI)."
   echo
   echo "  Note macOS : au 1er lancement, clic droit → Ouvrir"
   echo "  (Gatekeeper bloque les apps non signées par défaut)."

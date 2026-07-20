@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests de la carte monde par pays DXCC (radiocontest_worldmap) : GeoJSON
+"""Tests de la carte monde par pays DXCC (logx_worldmap) : GeoJSON
 mis en cache disque (comme la carte des départements), association entité
 DXCC -> polygone par point-dans-polygone (pas de table manuelle), et calcul
 travaillé/non par pays."""
@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_worldmap as wm
+import logx_worldmap as wm
 
 # Deux pays rectangulaires simples (pas de vraies frontières, juste pour tester
 # la géométrie) : "Testland" (0,0)-(10,10) et "Otherland" (20,0)-(30,10).
@@ -97,9 +97,9 @@ def test_worked_by_country(monkeypatch):
         {'prefix': 'T1', 'country': 'Testland', 'continent': 'EU', 'lat': 5, 'lon': 5},
         {'prefix': 'O1', 'country': 'Otherland', 'continent': 'AS', 'lat': 5, 'lon': 25},
     ]
-    import radiocontest_dxcc as dxcc
+    import logx_dxcc as dxcc
     monkeypatch.setattr(dxcc, 'list_entities', lambda: fake_entities)
-    monkeypatch.setattr('radiocontest_countries._worked_keys', lambda log, cid='': {'T1'})
+    monkeypatch.setattr('logx_countries._worked_keys', lambda log, cid='': {'T1'})
 
     out = wm.worked_by_country([{'call': 'FAKE'}], '')
     assert out['TST']['worked'] is True
@@ -109,9 +109,9 @@ def test_worked_by_country(monkeypatch):
 
 def test_worked_by_country_geojson_vide_ne_plante_pas(monkeypatch):
     monkeypatch.setattr(wm, 'load_world_geojson', lambda: '')
-    import radiocontest_dxcc as dxcc
+    import logx_dxcc as dxcc
     monkeypatch.setattr(dxcc, 'list_entities', lambda: [])
-    monkeypatch.setattr('radiocontest_countries._worked_keys', lambda log, cid='': set())
+    monkeypatch.setattr('logx_countries._worked_keys', lambda log, cid='': set())
     assert wm.worked_by_country([], '') == {}
 
 
@@ -128,7 +128,7 @@ def test_load_world_geojson_cache_disque(monkeypatch, tmp_path):
 def test_load_world_geojson_telecharge_si_absent(monkeypatch, tmp_path):
     missing = str(tmp_path / 'ne_existe_pas.geojson')
     monkeypatch.setattr(wm, 'WORLD_GEOJSON_FILE', missing)
-    import radiocontest_utils as utils
+    import logx_utils as utils
     big_valid = FAKE_GEOJSON + ' ' * 100001  # dépasse le seuil de taille mini
     monkeypatch.setattr(utils, 'fetch_url', lambda url, timeout=30: big_valid)
     result = wm.load_world_geojson()
@@ -139,6 +139,6 @@ def test_load_world_geojson_telecharge_si_absent(monkeypatch, tmp_path):
 def test_load_world_geojson_reseau_indisponible_retourne_vide(monkeypatch, tmp_path):
     missing = str(tmp_path / 'ne_existe_pas2.geojson')
     monkeypatch.setattr(wm, 'WORLD_GEOJSON_FILE', missing)
-    import radiocontest_utils as utils
+    import logx_utils as utils
     monkeypatch.setattr(utils, 'fetch_url', lambda url, timeout=30: None)
     assert wm.load_world_geojson() == ''

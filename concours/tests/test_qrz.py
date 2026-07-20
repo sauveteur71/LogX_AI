@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_qrz as qrz
+import logx_qrz as qrz
 
 AUTH_OK = ('<QRZDatabase><Session><Key>ABC123SESSION</Key>'
            '<SubExp>Mon Dec 31</SubExp></Session></QRZDatabase>')
@@ -35,7 +35,7 @@ def test_tag_extraction():
 def test_lookup_ok(monkeypatch):
     _reset()
     calls = iter([AUTH_OK, LOOKUP_OK])
-    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=15: next(calls))
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15: next(calls))
     r = qrz.lookup('F6KQJ', 'user', 'pw')
     assert r['ok'] and r['call'] == 'F6KQJ'
     assert r['name'] == 'Radio-Club GCEBP43'
@@ -45,7 +45,7 @@ def test_lookup_ok(monkeypatch):
 
 def test_auth_refusee(monkeypatch):
     _reset()
-    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=15: AUTH_ERR)
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15: AUTH_ERR)
     r = qrz.lookup('F6KQJ', 'user', 'badpw')
     assert not r['ok'] and 'incorrect' in r['error']
 
@@ -53,7 +53,7 @@ def test_auth_refusee(monkeypatch):
 def test_indicatif_introuvable(monkeypatch):
     _reset()
     calls = iter([AUTH_OK, LOOKUP_NOTFOUND])
-    monkeypatch.setattr('radiocontest_utils.fetch_url', lambda url, timeout=15: next(calls))
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15: next(calls))
     r = qrz.lookup('ZZ9ZZZ', 'user', 'pw')
     assert not r['ok'] and 'introuvable' in r['error'].lower() or 'Not found' in r['error']
 
@@ -65,7 +65,7 @@ def test_cache_evite_double_requete(monkeypatch):
     def fake(url, timeout=15):
         n['c'] += 1
         return next(seq)
-    monkeypatch.setattr('radiocontest_utils.fetch_url', fake)
+    monkeypatch.setattr('logx_utils.fetch_url', fake)
     qrz.lookup('F6KQJ', 'user', 'pw')
     qrz.lookup('F6KQJ', 'user', 'pw')      # 2e appel : depuis le cache
     assert n['c'] == 2                       # auth + 1 lookup, pas 4

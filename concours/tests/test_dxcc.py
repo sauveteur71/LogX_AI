@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_dxcc as dxcc
+import logx_dxcc as dxcc
 
 
 def test_lookup_pays_et_zones():

@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_qsl as qsl
+import logx_qsl as qsl
 
 QRZCQ_CFG = {'qrzcq_callsign': 'F6KQJ', 'qrzcq_api_key': 'ABCDEF'}
 HRDLOG_CFG = {'hrdlog_callsign': 'F6KQJ', 'hrdlog_code': '0000000000'}

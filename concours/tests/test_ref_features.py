@@ -7,9 +7,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from radiocontest_validator import validate_log
-from radiocontest_callhistory import exchange_wants, suggest, build_index
-import radiocontest_callhistory as ch
+from logx_validator import validate_log
+from logx_callhistory import exchange_wants, suggest, build_index
+import logx_callhistory as ch
 
 
 CFG_THF = {'contest': 'REF_QRP', 'contest_start_date': '2026-07-18',
@@ -75,7 +75,7 @@ def test_validate_dept_concours_hf():
 # ─── Historique / SCP ────────────────────────────────────────────────────────
 
 def test_exchange_wants_ref():
-    from radiocontest_definitions import CONTEST_DEFINITIONS
+    from logx_definitions import CONTEST_DEFINITIONS
     assert exchange_wants(CONTEST_DEFINITIONS['REF_QRP']) == \
         {'dept': False, 'locator': True}
     assert exchange_wants(CONTEST_DEFINITIONS['REF_CDF_HF_CW']) == \
@@ -106,13 +106,13 @@ def test_index_marque_les_travailles():
 # ─── Chasse aux départements ─────────────────────────────────────────────────
 
 def test_department_targets_spotte_en_tete(monkeypatch):
-    """Isolé de calldb.json/archives/radiocontest.db réels (gitignorés, propres
+    """Isolé de calldb.json/archives/logx.db réels (gitignorés, propres
     à cette machine) : sans ça, le test passe ou échoue selon que le poste de
     dev a déjà croisé F1MOZ dans sa base d'indicatifs accumulée — invisible en
     local, mais casse sur un checkout propre / en CI. Ici F1MOZ n'a AUCUN
     historique connu ET cfg=None (pas de lookup callbook en direct demandé) :
     aucune source ne peut le rattacher à un département."""
-    from radiocontest_departments import department_targets
+    from logx_departments import department_targets
     monkeypatch.setattr(ch, '_load_calldb', lambda: None)
     monkeypatch.setattr(ch, '_load_archives', lambda: None)
     monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
@@ -131,7 +131,7 @@ def test_department_targets_lookup_callbook_en_direct(monkeypatch):
     part, est résolu via un lookup callbook en direct (mocké ici — jamais de
     vrai réseau dans un test) qui renvoie sa grille, projetée sur le
     département par dept_from_locator (déjà utilisé pour les QSO réels)."""
-    import radiocontest_departments as dep
+    import logx_departments as dep
     monkeypatch.setattr(ch, '_load_calldb', lambda: None)
     monkeypatch.setattr(ch, '_load_archives', lambda: None)
     monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
@@ -142,7 +142,7 @@ def test_department_targets_lookup_callbook_en_direct(monkeypatch):
     def fake_lookup(call, cfg):
         assert call == 'F1MOZ'
         return {'ok': True, 'grid': 'IN93RS', 'source': 'hamqth'}
-    monkeypatch.setattr('radiocontest_callbook.lookup', fake_lookup)
+    monkeypatch.setattr('logx_callbook.lookup', fake_lookup)
 
     t = dep.department_targets([], '', {'144 MHz': [{'dx': 'F1MOZ', 'freq': 144.3}]},
                                cfg={})
@@ -153,7 +153,7 @@ def test_department_targets_lookup_callbook_en_direct(monkeypatch):
 def test_department_targets_ignore_indicatifs_non_francais(monkeypatch):
     """Un indicatif non français n'a pas de département REF : jamais de
     lookup callbook tenté pour lui (le mock lèverait si appelé)."""
-    import radiocontest_departments as dep
+    import logx_departments as dep
     monkeypatch.setattr(ch, '_load_calldb', lambda: None)
     monkeypatch.setattr(ch, '_load_archives', lambda: None)
     monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
@@ -163,7 +163,7 @@ def test_department_targets_ignore_indicatifs_non_francais(monkeypatch):
 
     def boom(call, cfg):
         raise AssertionError('ne doit jamais etre appele pour un indicatif non francais')
-    monkeypatch.setattr('radiocontest_callbook.lookup', boom)
+    monkeypatch.setattr('logx_callbook.lookup', boom)
 
     t = dep.department_targets([], '', {'144 MHz': [{'dx': 'DL1AA', 'freq': 144.3}]},
                                cfg={})
@@ -174,7 +174,7 @@ def test_department_targets_echec_lookup_mis_en_cache(monkeypatch):
     """Un indicatif dont le lookup échoue n'est pas rappelé à chaque poll
     (cache d'échec local, 15 min) — évite de marteler QRZ/HamQTH/HamDB pour
     un indicatif qui ne résoudra jamais."""
-    import radiocontest_departments as dep
+    import logx_departments as dep
     monkeypatch.setattr(ch, '_load_calldb', lambda: None)
     monkeypatch.setattr(ch, '_load_archives', lambda: None)
     monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
@@ -186,7 +186,7 @@ def test_department_targets_echec_lookup_mis_en_cache(monkeypatch):
     def failing_lookup(call, cfg):
         calls['n'] += 1
         return {'ok': False, 'error': 'introuvable'}
-    monkeypatch.setattr('radiocontest_callbook.lookup', failing_lookup)
+    monkeypatch.setattr('logx_callbook.lookup', failing_lookup)
 
     spots = {'144 MHz': [{'dx': 'F9ZZZ', 'freq': 144.3}]}
     dep.department_targets([], '', spots, cfg={})
@@ -197,7 +197,7 @@ def test_department_targets_echec_lookup_mis_en_cache(monkeypatch):
 # ─── Débrief ─────────────────────────────────────────────────────────────────
 
 def test_wall_state_expedition():
-    import radiocontest_wall as wall
+    import logx_wall as wall
     log = [
         {'call': 'DL1AA', 'band': '14', 'mode': 'CW', 'operator': 'OP1',
          'date': '20260718', 'time': '14:00', 'locator': 'JO31', 'points': 1, 'contest': 'X'},
@@ -219,7 +219,7 @@ def test_wall_state_ignore_contest_mismatch():
     """Régression : l'écran mural ne doit PAS masquer les QSO parce que le
     concours actif côté serveur diffère de celui des QSO (bug expédition :
     4 QSO en 'REF_QRP' invisibles quand la config était sur 'REF_RPH')."""
-    import radiocontest_wall as wall
+    import logx_wall as wall
     log = [
         {'call': 'F6IRG', 'band': '144', 'mode': 'SSB', 'operator': 'OP1',
          'date': '20260717', 'time': '14:00', 'locator': 'JN15', 'contest': 'REF_QRP'},
@@ -236,7 +236,7 @@ def test_wall_state_ignore_contest_mismatch():
 
 
 def test_flags_drapeau_pays():
-    import radiocontest_flags as fl
+    import logx_flags as fl
     assert fl.flag_emoji('FR') == '🇫🇷'
     assert fl.flag_emoji('') == '' and fl.flag_emoji('X') == ''
     f = fl.flag_and_country('DL1ABC')
@@ -249,7 +249,7 @@ def test_flags_drapeau_pays():
 
 
 def test_wall_state_enrichissement_et_champs():
-    import radiocontest_wall as wall
+    import logx_wall as wall
     log = [
         {'call': 'DL1AA', 'band': '144', 'mode': 'CW', 'operator': 'OP1',
          'date': '20260718', 'time': '14:00', 'locator': 'JO31',
@@ -268,7 +268,7 @@ def test_wall_state_enrichissement_et_champs():
 
 
 def test_activation_state():
-    import radiocontest_activation as act
+    import logx_activation as act
     assert act.validate_ref('POTA', 'FR-0123') and not act.validate_ref('POTA', 'ZZZ')
     assert act.validate_ref('SOTA', 'F/AB-001') and act.validate_ref('WWFF', 'FFF-0123')
     assert act.validate_ref('IOTA', 'EU-064') and not act.validate_ref('IOTA', 'ZZ-1')
@@ -292,7 +292,7 @@ def test_activation_arlhs_wca():
     """ARLHS (phares) et WCA (châteaux) — formats et seuils vérifiés contre
     les règles officielles (arlhs.com : 2 QSO/phare ; wcagroup.org : 50 QSO
     minimum pour qu'une activation compte dans les diplômes WCA)."""
-    import radiocontest_activation as act
+    import logx_activation as act
     assert act.validate_ref('ARLHS', 'FRA-113') and act.validate_ref('ARLHS', 'USA-129H')
     assert not act.validate_ref('ARLHS', 'FRANCE-1')
     assert act.validate_ref('WCA', 'DL-00001') and not act.validate_ref('WCA', 'DL-1')
@@ -309,7 +309,7 @@ def test_activation_arlhs_wca():
 
 
 def test_contest_geo_mode():
-    from radiocontest_scoring import contest_geo_mode
+    from logx_scoring import contest_geo_mode
     assert contest_geo_mode('REF_RPH') == 'dept'          # VHF français
     assert contest_geo_mode('CQ_WW_SSB') == 'dxcc'        # international
     assert contest_geo_mode('CQ_WPX_CW') == 'dxcc'
@@ -317,7 +317,7 @@ def test_contest_geo_mode():
 
 
 def test_dxcc_list_entities():
-    import radiocontest_dxcc as dxcc
+    import logx_dxcc as dxcc
     ents = dxcc.list_entities()
     assert len(ents) > 250                                # ~340 entités DXCC
     prefixes = {e['prefix'] for e in ents}
@@ -327,7 +327,7 @@ def test_dxcc_list_entities():
 
 
 def test_dxcc_wae_fold():
-    import radiocontest_dxcc as dxcc
+    import logx_dxcc as dxcc
     # Sicile (IT9) et Italie continentale -> même entité DXCC 'I' (pas de scission)
     assert dxcc.dxcc_entity_key('IT9ABC') == dxcc.dxcc_entity_key('IK2ABC') == 'I'
     # les ajouts WAE ne sont PAS listés comme pays DXCC
@@ -336,7 +336,7 @@ def test_dxcc_wae_fold():
 
 
 def test_countries_progress_et_targets():
-    import radiocontest_countries as co
+    import logx_countries as co
     log = [
         {'call': 'DL1AA', 'contest': 'CQ_WW_SSB', 'band': '14'},
         {'call': 'K1ABC', 'contest': 'CQ_WW_SSB', 'band': '14'},
@@ -355,7 +355,7 @@ def test_countries_progress_et_targets():
 
 
 def test_cluster_spot_settings():
-    import radiocontest_clusters as cl
+    import logx_clusters as cl
     s = cl.cluster_spot_settings({'callsign_contest': 'F6KQJ'})
     assert s['enabled'] is False           # désactivé par défaut
     assert s['login'] == 'F6KQJ'           # login = indicatif
@@ -367,7 +367,7 @@ def test_cluster_spot_settings():
 
 
 def test_publish_self_spot_validation_et_reseau():
-    import radiocontest_clusters as cl
+    import logx_clusters as cl
     # Validation d'entrée : jamais d'exception, erreurs explicites
     assert cl.publish_self_spot('h', 7300, '', 'F6KQJ', 144300)['ok'] is False
     assert cl.publish_self_spot('h', 7300, 'F6KQJ', 'F6KQJ', 0)['ok'] is False
@@ -378,13 +378,13 @@ def test_publish_self_spot_validation_et_reseau():
 
 
 def test_clublog_realtime_non_configure():
-    import radiocontest_qsl as qsl
+    import logx_qsl as qsl
     r = qsl.realtime_push({}, {'call': 'DL1AA', 'band': '14', 'mode': 'CW'})
     assert r['ok'] is False and 'ClubLog' in r['error']
 
 
 def test_build_debrief():
-    from radiocontest_coach import build_debrief
+    from logx_coach import build_debrief
     log = [_qso(), _qso(call='DK2ZZ', locator='JO62QD', time='16:00', num_rcvd='002')]
     d = build_debrief(CFG_THF, log)
     assert d['stats']['qso_total'] == 2

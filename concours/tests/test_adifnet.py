@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests du réseau ADIF générique (radiocontest_adifnet) : interopérabilité
+"""Tests du réseau ADIF générique (logx_adifnet) : interopérabilité
 UDP <contactinfo> avec N1MM Logger+ / DXLog.net (format de facto entre
 loggers de concours tiers)."""
 import os
@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_adifnet as adifnet
+import logx_adifnet as adifnet
 
 N1MM_SAMPLE = """<?xml version="1.0" encoding="utf-8"?>
 <contactinfo>
@@ -102,13 +102,13 @@ def test_build_contactinfo_xml_round_trip():
     qso = {'call': 'F4GLD', 'band': '21', 'mode': 'SSB', 'date': '20260719',
            'time': '14:30', 'rst_sent': '59', 'rst_rcvd': '57', 'locator': 'JN18',
            'operator': 'Olivier'}
-    cfg = {'adifnet_app_name': 'RadioContestAI', 'contest': 'cq_ww_ssb',
+    cfg = {'adifnet_app_name': 'LogXAI', 'contest': 'cq_ww_ssb',
            'callsign_contest': 'F4GLD'}
     xml_text = adifnet.build_contactinfo_xml(qso, cfg)
     assert '<contactinfo>' in xml_text and xml_text.startswith('<?xml')
     fields = adifnet.parse_contactinfo(xml_text)
     assert fields['call'] == 'F4GLD' and fields['band'] == '21' and fields['mode'] == 'SSB'
-    assert fields['app'] == 'RadioContestAI' and fields['mycall'] == 'F4GLD'
+    assert fields['app'] == 'LogXAI' and fields['mycall'] == 'F4GLD'
     assert fields['snt'] == '59' and fields['rcv'] == '57'
     assert fields['gridsquare'] == 'JN18'
     assert fields['timestamp'] == '2026-07-19 14:30:00'

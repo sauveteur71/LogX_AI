@@ -8,8 +8,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_awards as awards
-import radiocontest_qsl as qsl
+import logx_awards as awards
+import logx_qsl as qsl
 
 
 def _log():
@@ -61,7 +61,7 @@ def _isolate_awards_et_callhistory(monkeypatch):
     monkeypatch.setattr(awards, '_read_archives', lambda: [])
     monkeypatch.setattr(awards, '_read_qso_archive', lambda: [])
     awards.invalidate()
-    import radiocontest_callhistory as ch
+    import logx_callhistory as ch
     monkeypatch.setattr(ch, '_load_archives', lambda: None)
     monkeypatch.setattr(ch, '_load_qso_archive', lambda: None)
     monkeypatch.setattr(ch, '_load_calldb', lambda: None)

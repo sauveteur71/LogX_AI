@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Tests des fonctions pures de radiocontest_utils — cas vérifiés à la main."""
+"""Tests des fonctions pures de logx_utils — cas vérifiés à la main."""
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from radiocontest_utils import (locator_to_latlon, haversine, bearing,
+from logx_utils import (locator_to_latlon, haversine, bearing,
                                 cardinal, is_digital_mode)
 
 

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Tests du pilotage TCI (radiocontest_tci) : le client WebSocket RFC 6455
+"""Tests du pilotage TCI (logx_tci) : le client WebSocket RFC 6455
 est écrit à la main (aucune lib externe dispo) donc testé au niveau octets
 contre un mini-serveur TCP réel (thread local) ; le reste (TciClient, couche
-config) est testé avec un double en mémoire, comme radiocontest_cat."""
+config) est testé avec un double en mémoire, comme logx_cat."""
 import base64
 import hashlib
 import os
@@ -14,7 +14,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_tci as tci
+import logx_tci as tci
 
 _WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
@@ -292,7 +292,7 @@ def test_get_state_sans_connexion_prete_renvoie_des_valeurs_none():
 # ─── Couche pilotée par la config (tci_settings / get_state / set_freq) ────
 
 def _fake_open_ws_factory(script):
-    """Fabrique un remplaçant de radiocontest_tci._open_ws qui ignore
+    """Fabrique un remplaçant de logx_tci._open_ws qui ignore
     host/port et renvoie un FakeWs pré-scripté."""
     def _factory(host, port, timeout=3.0):
         return FakeWs(list(script))

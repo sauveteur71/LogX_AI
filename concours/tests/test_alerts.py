@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Tests du constructeur de règles d'alerte (radiocontest_alerts)."""
+"""Tests du constructeur de règles d'alerte (logx_alerts)."""
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_alerts as alerts
+import logx_alerts as alerts
 
 SPOT_JA = {'call': 'JA1ABC', 'band': '21', 'dx_continent': 'AS', 'dx_cq_zone': '25',
            'new_mult': True, 'already_done': False, 'info': 'POTA JA-1234 QRP'}

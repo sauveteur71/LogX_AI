@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests du pilotage CAT natif (radiocontest_cat) : logique de trame pure
+"""Tests du pilotage CAT natif (logx_cat) : logique de trame pure
 (BCD, CI-V, IF ASCII) + boucle complète contre des radios FICTIVES en
 mémoire (aucun port série réel requis, aucune dépendance matérielle)."""
 import os
@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import radiocontest_cat as cat
+import logx_cat as cat
 
 
 # ─── DOUBLES DE TEST : radios fictives en mémoire ──────────────────────────

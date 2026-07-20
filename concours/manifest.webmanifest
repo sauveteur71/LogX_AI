@@ -1,15 +1,15 @@
 {
-  "name": "RadioContest AI",
-  "short_name": "RadioContest",
+  "name": "LogX AI",
+  "short_name": "LogX",
   "description": "Log de concours, expédition et activation POTA/SOTA radioamateur",
-  "start_url": "/radiocontest_logbook.html",
+  "start_url": "/logx_logbook.html",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07080F",
-  "theme_color": "#FF6B00",
+  "theme_color": "#FF5030",
   "lang": "fr",
   "icons": [
-    { "src": "/radiocontest_icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "/logx_icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }
