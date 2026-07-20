@@ -167,12 +167,19 @@ def add_qso_to_log(qso, force=False):
     key = (str(qso.get('call', '')).upper().strip(),
            str(qso.get('band', '')), str(qso.get('mode', '')).upper())
     contest_id = qso.get('contest', '')
-    with log_lock:
-        dup = next((q for q in shared_log
-                    if (str(q.get('call', '')).upper().strip(),
-                        str(q.get('band', '')),
-                        str(q.get('mode', '')).upper()) == key
-                    and q.get('contest', '') == contest_id), None)
+    with config_lock:
+        simple_mode = current_config.get('usage_mode') == 'simple'
+    dup = None
+    # LOGBOOK SIMPLE : recontacter la même station sur la même bande au fil
+    # des années est normal (pas de règle "1 QSO/station/bande" hors concours)
+    # — le blocage "doublon" n'a de sens que pendant un concours actif.
+    if not simple_mode:
+        with log_lock:
+            dup = next((q for q in shared_log
+                        if (str(q.get('call', '')).upper().strip(),
+                            str(q.get('band', '')),
+                            str(q.get('mode', '')).upper()) == key
+                        and q.get('contest', '') == contest_id), None)
     if dup and not force:
         return False, {'duplicate': True, 'existing': {
             'id': dup.get('id'), 'date': dup.get('date'),
@@ -1022,16 +1029,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             cfg_snap = self._cfg_snapshot()
             contest_id = cfg_snap.get('contest', '')
-            with log_lock:
-                dup = any(
-                    str(q.get('call', '')).upper().strip() == call
-                    and str(q.get('band', '')) == band
-                    and (not mode or str(q.get('mode', '')).upper() == mode)
-                    and q.get('contest', '') == contest_id
-                    for q in shared_log)
-            if dup:
-                self._json({'status': 'doublon'})
-                return
+            # LOGBOOK SIMPLE : pas de règle "1 QSO/station/bande" hors concours.
+            if cfg_snap.get('usage_mode') != 'simple':
+                with log_lock:
+                    dup = any(
+                        str(q.get('call', '')).upper().strip() == call
+                        and str(q.get('band', '')) == band
+                        and (not mode or str(q.get('mode', '')).upper() == mode)
+                        and q.get('contest', '') == contest_id
+                        for q in shared_log)
+                if dup:
+                    self._json({'status': 'doublon'})
+                    return
             label = f"{band} MHz" if band else 'HF'
             ranked, _ = build_ranked_spots(
                 {}, {label: [{'dx': call, 'freq': '', 'info': ''}]}, cfg_snap)

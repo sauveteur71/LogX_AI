@@ -1699,7 +1699,7 @@ function onCallInput(){
   const dxccBadge = document.getElementById('dxccBadge');
   if(call.length >= 2){
     const dxcc = lookupDXCC(call);
-    const dup3 = isDup(call, currentBand);
+    const dup3 = usageMode !== 'simple' && isDup(call, currentBand);
     if(dxcc){
       document.getElementById('dxccFlag').textContent = dxcc.flag;
       document.getElementById('dxccCountry').textContent = dxcc.c;
@@ -1713,8 +1713,8 @@ function onCallInput(){
     dxccBadge.style.display = 'none';
   }
 
-  // Dup check
-  const dup = isDup(call, currentBand);
+  // Dup check — hors concours (logbook simple), pas d'erreur "doublon"
+  const dup = usageMode !== 'simple' && isDup(call, currentBand);
   const warn = document.getElementById('dupWarn');
   const input = document.getElementById('inputCall');
   if(dup && call.length >= 3){
@@ -1896,8 +1896,9 @@ async function submitQSO(){
     notify('⚠️ Locator non renseigné !\nLe QSO va être enregistré sans locator (0 pt).');
   }
 
-  // Vérification doublon
-  if(isDup(call, currentBand)){
+  // Vérification doublon — hors concours (logbook simple), recontacter la
+  // même station sur la même bande au fil des années est normal, pas une erreur.
+  if(usageMode !== 'simple' && isDup(call, currentBand)){
     if(!confirm(`⚠️ ${call} est déjà dans le log sur ${currentBand} MHz.\nQuand même enregistrer ?`)) return;
   }
 
@@ -3288,7 +3289,7 @@ function searchCalls(prefix){
   for(const q of qsoLog){
     if(q.call && q.call.startsWith(prefix) && !seen.has(q.call)){
       seen.add(q.call);
-      out.push({call:q.call, src:'log', locator:q.locator, dup:isDup(q.call,currentBand)});
+      out.push({call:q.call, src:'log', locator:q.locator, dup: usageMode !== 'simple' && isDup(q.call,currentBand)});
       if(out.length >= 10) break;
     }
   }
@@ -3311,7 +3312,7 @@ function searchCalls(prefix){
     for(const call of starts.concat(contains)){
       const d = callDB[call] || {};
       out.push({call, src: d.worked ? 'hist' : 'db',
-                locator:d.locator, dept:d.dept, dup:isDup(call,currentBand)});
+                locator:d.locator, dept:d.dept, dup: usageMode !== 'simple' && isDup(call,currentBand)});
       if(out.length >= 10) break;
     }
   }
@@ -3368,10 +3369,11 @@ function selectAC(call){
   document.getElementById('inputCall').value = call;
   hideAC();
 
-  // ── Vérification doublon ─────────────────────────────────────────────────
+  // ── Vérification doublon (hors concours : recontacter la même station sur
+  // la même bande au fil des années est normal, pas un doublon à signaler) ──
   const warn  = document.getElementById('dupWarn');
   const input = document.getElementById('inputCall');
-  if(isDup(call, currentBand)){
+  if(usageMode !== 'simple' && isDup(call, currentBand)){
     warn.style.background  = 'rgba(255,45,85,.15)';
     warn.style.borderColor = 'var(--red)';
     warn.style.color       = 'var(--red)';
@@ -3513,7 +3515,7 @@ function searchByLocator(prefix){
   for(const q of qsoLog){
     if(q.locator && q.locator.toUpperCase().startsWith(prefix) && !seen.has(q.call)){
       seen.add(q.call);
-      out.push({call:q.call, locator:q.locator, src:'log', dup:isDup(q.call,currentBand)});
+      out.push({call:q.call, locator:q.locator, src:'log', dup: usageMode !== 'simple' && isDup(q.call,currentBand)});
       if(out.length >= 12) return out;
     }
   }
@@ -3523,7 +3525,7 @@ function searchByLocator(prefix){
     const d = callDB[call];
     if(d.locator && d.locator.toUpperCase().startsWith(prefix) && !seen.has(call)){
       seen.add(call);
-      out.push({call, locator:d.locator, dept:d.dept||'', src:'db', dup:isDup(call,currentBand)});
+      out.push({call, locator:d.locator, dept:d.dept||'', src:'db', dup: usageMode !== 'simple' && isDup(call,currentBand)});
       if(out.length >= 12) return out;
     }
   }

@@ -66,7 +66,8 @@ def validate_log(qsos, contest_id='', cfg=None):
     # concours (bandes autorisées, échange locator/département obligatoire,
     # fenêtre temporelle) n'ont pas de sens et ne doivent pas s'appliquer,
     # même si `contest` garde la trace d'un concours précédent en config.
-    if cfg.get('usage_mode') == 'simple':
+    simple_mode = cfg.get('usage_mode') == 'simple'
+    if simple_mode:
         contest_id = ''
     qsos = [q for q in (qsos or [])
             if not contest_id or q.get('contest', '') in ('', contest_id)]
@@ -89,7 +90,7 @@ def validate_log(qsos, contest_id='', cfg=None):
     # Fenêtre du concours (mêmes sources que le coach) — non pertinente en
     # logbook simple, même si des dates de concours précédent traînent en config.
     start = end = None
-    if cfg.get('usage_mode') != 'simple':
+    if not simple_mode:
         from logx_coach import _parse_dt
         start = _parse_dt(cfg.get('contest_start_date', ''), cdef.get('start_utc', ''))
         end = _parse_dt(cfg.get('contest_end_date', ''), cfg.get('contest_end_utc', ''))
@@ -112,14 +113,18 @@ def validate_log(qsos, contest_id='', cfg=None):
                "QSO sans indicatif", q, i)
             continue
 
-        # Doublon même station + même bande (règle REF)
-        key = (call, band)
-        if key in seen:
-            _f(findings, 'erreur', 'doublon',
-               f"{call} déjà travaillé sur {band} MHz (QSO n°{seen[key] + 1}) — 0 point",
-               q, i)
-        else:
-            seen[key] = i
+        # Doublon même station + même bande (règle REF : 1 QSO/station/bande
+        # PENDANT le concours) — n'a pas de sens en logbook simple, où l'on
+        # recontacte normalement la même station sur la même bande au fil
+        # des années.
+        if not simple_mode:
+            key = (call, band)
+            if key in seen:
+                _f(findings, 'erreur', 'doublon',
+                   f"{call} déjà travaillé sur {band} MHz (QSO n°{seen[key] + 1}) — 0 point",
+                   q, i)
+            else:
+                seen[key] = i
 
         # Indicatif plausible + préfixe connu
         base = call.split('/')[0] if '/' in call else call
