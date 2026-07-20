@@ -159,6 +159,17 @@ function applyUsageModeToLogbook(mode){
   // concours chronométré — rien de tout ça ne s'applique à un log personnel.
   const scoreBanner = document.querySelector('.score-banner');
   if(scoreBanner) scoreBanner.style.display = simple ? 'none' : '';
+  // Même logique pour le récap par bande, le classement opérateurs et le
+  // graphe QSO/heure : ce sont des outils de rythme de concours, sans
+  // intérêt pour un log personnel hors concours.
+  ['bandRecapBar', 'opStatsBar', 'hourChartBar'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el && simple) el.style.display = 'none';
+  });
+  // Les boutons de filtre rapide 144/432 MHz ciblent un concours VHF/UHF
+  // précis : sans intérêt (et souvent hors sujet) en logbook simple.
+  document.querySelectorAll('.filter-btn[data-f="144"], .filter-btn[data-f="432"]')
+    .forEach(btn => { btn.style.display = simple ? 'none' : ''; });
   document.body.classList.toggle('usage-simple', simple);
 }
 
@@ -2452,6 +2463,7 @@ function updateOpStats(){
   const bar   = document.getElementById('opStatsBar');
   const inner = document.getElementById('opStatsInner');
   if(!bar || !inner) return;
+  if(usageMode === 'simple'){ bar.style.display = 'none'; return; }
 
   const opsUsed = new Set(qsoLog.map(q=>q.operator).filter(Boolean));
   if(opsUsed.size < 2){ bar.style.display = 'none'; return; }
@@ -2483,6 +2495,7 @@ function updateBandRecap(){
   const bar   = document.getElementById('bandRecapBar');
   const inner = document.getElementById('bandRecapInner');
   if(!bar || !inner) return;
+  if(usageMode === 'simple'){ bar.style.display = 'none'; return; }
   if(qsoLog.length === 0){ bar.style.display = 'none'; return; }
 
   const bands = {};
@@ -2522,6 +2535,7 @@ function drawHourChart(){
   const svg  = document.getElementById('hourChartSvg');
   const peak = document.getElementById('hourChartPeak');
   if(!bar || !svg) return;
+  if(usageMode === 'simple'){ bar.style.display = 'none'; return; }
   if(qsoLog.length === 0){ bar.style.display = 'none'; return; }
 
   // Grouper par heure UTC (clé = "YYYYMMDD-HH")

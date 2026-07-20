@@ -58,6 +58,21 @@ def test_validate_distance_suspecte_144():
     assert r['ok']   # attention ≠ erreur
 
 
+def test_validate_ignore_regles_concours_en_mode_simple():
+    """Logbook simple : un concours resté en config (contest stale) ne doit
+    plus imposer ses bandes/échange/fenêtre — seuls les contrôles génériques
+    (doublon, indicatif, RST) restent utiles hors concours."""
+    cfg = dict(CFG_THF)
+    cfg['usage_mode'] = 'simple'
+    log = [_qso(band='14', locator='', date='20260101', time='10:00')]
+    r = validate_log(log, 'REF_QRP', cfg)
+    codes = {f['code'] for f in r['findings']}
+    assert 'bande_hors_concours' not in codes
+    assert 'locator_manquant' not in codes
+    assert 'hors_fenetre' not in codes
+    assert r['contest'] == ''
+
+
 def test_validate_dept_concours_hf():
     """REF HF : département invalide pour une station française = erreur."""
     cfg = {'contest': 'REF_CDF_HF_CW', 'contest_start_date': '2026-01-24',

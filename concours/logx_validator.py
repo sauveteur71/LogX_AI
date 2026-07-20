@@ -62,6 +62,12 @@ def validate_log(qsos, contest_id='', cfg=None):
     """Analyse le log d'un concours. Retourne
     {contest, qso_count, findings[], counts{}, ok}."""
     cfg = cfg or {}
+    # LOGBOOK SIMPLE : aucun concours actif — les contraintes propres à UN
+    # concours (bandes autorisées, échange locator/département obligatoire,
+    # fenêtre temporelle) n'ont pas de sens et ne doivent pas s'appliquer,
+    # même si `contest` garde la trace d'un concours précédent en config.
+    if cfg.get('usage_mode') == 'simple':
+        contest_id = ''
     qsos = [q for q in (qsos or [])
             if not contest_id or q.get('contest', '') in ('', contest_id)]
 
@@ -80,13 +86,16 @@ def validate_log(qsos, contest_id='', cfg=None):
     except Exception:
         dept_from_exchange = None
 
-    # Fenêtre du concours (mêmes sources que le coach)
-    from logx_coach import _parse_dt
-    start = _parse_dt(cfg.get('contest_start_date', ''), cdef.get('start_utc', ''))
-    end = _parse_dt(cfg.get('contest_end_date', ''), cfg.get('contest_end_utc', ''))
-    if start and end and end <= start:
-        import datetime
-        end += datetime.timedelta(days=1)
+    # Fenêtre du concours (mêmes sources que le coach) — non pertinente en
+    # logbook simple, même si des dates de concours précédent traînent en config.
+    start = end = None
+    if cfg.get('usage_mode') != 'simple':
+        from logx_coach import _parse_dt
+        start = _parse_dt(cfg.get('contest_start_date', ''), cdef.get('start_utc', ''))
+        end = _parse_dt(cfg.get('contest_end_date', ''), cfg.get('contest_end_utc', ''))
+        if start and end and end <= start:
+            import datetime
+            end += datetime.timedelta(days=1)
 
     my_lat, my_lon = _loc_latlon(cfg.get('locator', ''))
 
