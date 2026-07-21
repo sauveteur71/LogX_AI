@@ -2057,11 +2057,31 @@ function toggleBip(){
 // (playBeep défini plus haut — version unique avec _audioCtx réutilisé)
 
 // ─── FETCH LOG DEPUIS SERVEUR ─────────────────────────────────────────────────
+// _logVersion : dernière version du log connue de CET onglet (voir
+// logx_storage.log_version côté serveur). Envoyée à chaque poll : si rien n'a
+// changé depuis, le serveur répond par un payload minuscule au lieu de
+// retransmettre tout le log (souvent plusieurs Mo sur un log de contest/
+// logbook simple de plusieurs milliers de QSO) — la quasi-totalité des polls
+// de 5 s ne voient aucun changement en pratique.
+let _logVersion = null;
+
 async function fetchLog(){
   try{
-    const res = await fetch('/log/list');
+    const url = _logVersion != null ? `/log/list?v=${_logVersion}` : '/log/list';
+    const res = await fetch(url);
     if(!res.ok) return;
     const data = await res.json();
+    if(data.unchanged){
+      // Rien de neuf : juste confirmer la connectivité, aucun re-render/parsing
+      // du log (l'essentiel du gain : pas de reconstruction du tableau DOM).
+      const dot = document.getElementById('netDot');
+      dot.className = 'net-dot online';
+      document.getElementById('netStatus').textContent = 'Connecté au serveur';
+      document.getElementById('netPeers').textContent = data.peers || '1';
+      syncOfflineQueue();
+      return;
+    }
+    if(data.version != null) _logVersion = data.version;
     if(data.qsos){
       // Recalculer les sériaux — toujours le plus grand N° envoyé déjà utilisé,
       // jamais un simple comptage (sinon une suppression ou un trou fait reculer le compteur)

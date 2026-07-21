@@ -21,7 +21,7 @@ from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
 from logx_validate import validate_definition
 from logx_rules_ai import analyze_rules
 from logx_storage import (shared_log, log_lock, save_log_to_disk,
-                                  save_json_atomic, calldb_lock)
+                                  save_json_atomic, calldb_lock, bump_log_version)
 from logx_scoring import build_scoring_context
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
@@ -188,6 +188,7 @@ def add_qso_to_log(qso, force=False):
     qso.setdefault('id', int(_t.time() * 1000))
     with log_lock:
         shared_log.append(qso)
+    bump_log_version()
     save_log_to_disk()
     # Mode expédition : pousse le QSO vers le flux Club Log Live (fire-and-forget)
     try:
@@ -583,6 +584,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with log_lock:
                     before = len(shared_log)
                     shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
+                bump_log_version()
                 save_log_to_disk()
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:
@@ -651,6 +653,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/log/list':
             client_ip = self.client_address[0]
             connected_peers.add(client_ip)
+            # Version demandée par le client (?v=N, voir logx_storage.log_version) :
+            # si elle correspond à la version actuelle, RIEN n'a changé depuis son
+            # dernier appel → réponse minuscule au lieu de retransmettre tout le
+            # log. Avec un log de plusieurs milliers de QSO pollé toutes les 5 s
+            # par poste connecté, la quasi-totalité des polls ne voient aucun
+            # changement (personne ne loggue un QSO toutes les 5 s) : c'était
+            # plusieurs Mo transmis, parsés et re-rendus pour rien à chaque fois.
+            from urllib.parse import parse_qs, urlparse
+            import logx_storage as _storage
+            client_v = parse_qs(urlparse(self.path).query).get('v', [''])[0]
             # Copie sous verrou (rapide, juste des références), puis sérialisation
             # JSON + écriture socket HORS verrou : c'était le seul endpoint qui
             # gardait log_lock pendant tout l'envoi. Avec un gros log (milliers de
@@ -658,12 +670,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # ça bloquait en cascade tout autre accès à shared_log (ajout de QSO,
             # /coach/state, /log/status...) pendant toute la durée du transfert.
             with log_lock:
-                log_copy = list(shared_log)
+                current_v = _storage.log_version
+                unchanged = client_v.isdigit() and int(client_v) == current_v
+                total_now = len(shared_log)
+                log_copy = None if unchanged else list(shared_log)
+            if unchanged:
+                self._json({'unchanged': True, 'version': current_v,
+                           'total': total_now, 'peers': len(connected_peers)})
+                return
             self._json({
                 'qsos': log_copy,
                 'total': len(log_copy),
                 'peers': len(connected_peers),
                 'score': sum(q.get('points', 0) for q in log_copy),
+                'version': current_v,
             })
             return
 
@@ -2178,6 +2198,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         if q.get('id') == qso_id:
                             shared_log[i] = updated_qso
                             break
+                bump_log_version()
                 save_log_to_disk()
                 print(f"[LOG] ~QSO corrige id={qso_id}")
                 self._json({'ok': True})
@@ -2218,6 +2239,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with log_lock:
                     before = len(shared_log)
                     shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
+                bump_log_version()
                 save_log_to_disk()
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:
@@ -2249,6 +2271,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with log_lock:
                     shared_log.extend(new_qsos)
                     total = len(shared_log)
+                bump_log_version()
                 save_log_to_disk()
                 for q in new_qsos:
                     try:
@@ -2283,6 +2306,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     archived = archive_current_log()   # + table SQLite (secours)
                     with log_lock:
                         shared_log.clear()
+                    bump_log_version()
                     save_log_to_disk()
                     print('[LOG] Log reinitialise !')
                     self._json({'ok': True, 'archived': archived,
@@ -2310,6 +2334,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         keep = [q for q in shared_log
                                 if cid and q.get('contest', '') not in ('', cid)]
                         shared_log[:] = keep
+                    bump_log_version()
                     save_log_to_disk()
                     res['cleared'] = True
                 self._json(res, 200 if res.get('ok') else 400)

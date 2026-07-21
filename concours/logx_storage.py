@@ -60,6 +60,24 @@ def _qso_from_row(row):
 shared_log = []        # log en mémoire partagé entre tous les postes
 log_lock = threading.Lock()
 
+# Compteur de fraîcheur : incrémenté à CHAQUE modification de shared_log
+# (ajout/édition/suppression/import/reset). Permet à /log/list de répondre par
+# un payload minimal si le client a déjà cette version au lieu de retransmettre
+# tout le log à chaque poll de 5 s — avec un log de plusieurs milliers de QSO,
+# ça représentait plusieurs Mo toutes les 5 s pour rien la plupart du temps
+# (aucun changement entre deux polls successifs). Simple compteur, pas de
+# verrou dédié : un += 1 sur un entier est atomique en pratique sous CPython
+# (protégé par le GIL), et une imprécision occasionnelle ici ne coûterait
+# qu'un rafraîchissement complet de plus — jamais une incohérence de données.
+log_version = 0
+
+
+def bump_log_version():
+    """À appeler après TOUTE modification de shared_log."""
+    global log_version
+    log_version += 1
+    return log_version
+
 # Verrou dédié à calldb.json : écrit depuis plusieurs threads
 # (lookups HamQTH, imports, mises à jour navigateur).
 calldb_lock = threading.Lock()
