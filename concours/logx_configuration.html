@@ -62,8 +62,38 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .usage-mode-bar select:focus{border-color:var(--accent2)}
 .usage-mode-note{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 
-/* STEPS */
-.steps{display:flex;gap:0;margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+/* ─── HUB DE CATÉGORIES (refonte : remplace l'assistant linéaire par étapes) ─
+   Principes (docs/AUDIT_ET_REFONTE_CONFIGURATION.md §3) : cartes cliquables
+   groupées par thème, badge d'état par carte, une popup dédiée par catégorie,
+   validation à la fermeture de la popup plutôt qu'uniquement à la sauvegarde
+   globale. Les popups réutilisent les champs existants (mêmes id, mêmes
+   onchange) — seule leur position dans le DOM change. */
+.hub-group-title{font-family:var(--font-mono);font-size:13px;letter-spacing:3px;color:var(--muted);margin:22px 0 10px;text-transform:uppercase}
+.hub-group-title:first-child{margin-top:0}
+.hub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.hub-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;cursor:pointer;transition:border-color .15s,transform .1s;position:relative;display:flex;flex-direction:column;gap:6px;min-height:74px}
+.hub-card:hover{border-color:var(--accent2);transform:translateY(-1px)}
+.hub-card-title{font-family:var(--font-mono);font-size:14px;color:var(--text);letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.hub-card-sub{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.hub-badge{position:absolute;top:12px;right:14px;font-size:15px;line-height:1}
+.hub-card.status-ok{border-left:3px solid var(--green)}
+.hub-card.status-warning{border-left:3px solid var(--yellow)}
+.hub-card.status-empty{border-left:3px solid var(--border)}
+.hub-launch-row{display:flex;justify-content:center;margin:28px 0 8px}
+
+/* Popup catégorie : même overlay plein écran que la sélection de locator sur
+   carte (mapLocOverlay), un par catégorie pour rester 100% statique (pas de
+   déplacement de nœuds DOM à l'exécution — cf. bug H5 du jscheck de session). */
+.cat-modal{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.72)}
+.cat-modal-box{position:absolute;inset:6% 8%;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+.cat-modal-head{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.cat-modal-title{font-family:var(--font-mono);font-size:15px;letter-spacing:2px;color:var(--accent2);font-weight:700}
+.cat-modal-close{margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono)}
+.cat-modal-body{flex:1;overflow-y:auto;padding:20px 24px}
+
+/* STEPS (ancien assistant par étapes — conservé masqué le temps de la
+   migration complète vers le hub, cf. tâche "retirer l'ancien système") */
+.steps{display:none;gap:0;margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
 .step{flex:1;padding:16px 10px;text-align:center;cursor:pointer;transition:all .2s;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:14px;letter-spacing:1px;color:#6A74A8;position:relative}
 .step:last-child{border-right:none}
 .step.active{background:var(--bg3);color:var(--accent);border-bottom:3px solid var(--accent)}
@@ -71,9 +101,10 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .step-num{display:block;font-size:22px;font-weight:800;margin-bottom:4px}
 .step.done .step-num::after{content:'✓';font-size:14px}
 
-/* PANELS */
-.panel{display:none;animation:fadeIn .3s ease}
-.panel.active{display:block}
+/* PANELS (ancien assistant par étapes — retiré de la vue, le contenu est
+   progressivement relocalisé dans les popups du hub ; section supprimée une
+   fois la migration terminée, cf. tâche "retirer l'ancien système") */
+.panel{display:none!important;animation:fadeIn .3s ease}
 /* Mode débutant : les réglages avancés sont masqués (bouton 🎚 dans l'en-tête) */
 body.simple-mode .expert-only{display:none!important}
 .simple-note{display:none;font-family:var(--font-mono);font-size:13px;color:var(--muted);border:1px dashed var(--border);border-radius:6px;padding:8px 12px;margin-top:10px;line-height:1.6}
@@ -220,1138 +251,124 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <span class="usage-mode-note" id="usageModeNote"></span>
   </div>
 
-  <!-- STEPS -->
-  <div class="steps">
-    <div class="step active" id="step1" onclick="goStep(1)">
-      <span class="step-num">1</span>MA STATION
+  <!-- HUB DE CATÉGORIES (refonte — remplace l'assistant par étapes ci-dessous) -->
+  <div id="configHub">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+      <button class="btn btn-secondary" style="padding:7px 16px;font-size:12px" onclick="openSummaryPopup()">📊 Résumé ▸</button>
     </div>
-    <div class="step" id="step2" onclick="goStep(2)">
-      <span class="step-num">2</span>CONCOURS
-    </div>
-    <div class="step" id="step3" onclick="goStep(3)">
-      <span class="step-num">3</span>FILTRES
-    </div>
-    <div class="step" id="step4" onclick="goStep(4)">
-      <span class="step-num">4</span>PROPAGATION
-    </div>
-    <div class="step" id="step5" onclick="goStep(5)">
-      <span class="step-num">5</span>RÉSUMÉ
-    </div>
-  </div>
-
-  <!-- PANEL 1 : MA STATION -->
-  <div class="panel active" id="panel1">
-    <div class="section">
-      <div class="section-title">IDENTITÉ DE LA STATION</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>INDICATIF</label>
-          <input type="text" id="callsign" placeholder="F6KQJ" oninput="updateLocatorHint();autoFillCallsign(this.value)" style="text-transform:uppercase;font-size:18px;font-weight:700;color:var(--accent)">
-        </div>
-        <div class="form-group">
-          <label>INDICATIF CONCOURS <span style="font-size:12px;color:var(--muted)">(si différent)</span></label>
-          <input type="text" id="callsign_contest" placeholder="auto" style="text-transform:uppercase" oninput="_callContest_manual=true">
-          <div class="input-note">Auto-rempli depuis INDICATIF — modifier si /P ou club</div>
-        </div>
-        <div class="form-group">
-          <label>LOCATOR MAIDENHEAD</label>
-          <div style="display:flex;gap:8px;align-items:stretch">
-            <input type="text" id="locator" placeholder="JN15XC" maxlength="6" oninput="this.value=this.value.toUpperCase();updateLocatorHint()" style="flex:1">
-            <button type="button" onclick="openLocatorMap()" title="Trouver le locator en cliquant sur une carte"
-              style="white-space:nowrap;background:var(--bg3);border:1px solid var(--accent2);color:var(--accent2);border-radius:6px;padding:0 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px">📍 Sur la carte</button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>VILLE / QTH</label>
-          <input type="text" id="city" placeholder="Le Puy-en-Velay">
-        </div>
-        <div class="form-group expert-only">
-          <label>ALTITUDE (m)</label>
-          <input type="number" id="altitude" placeholder="930" min="0" max="9000">
-          <div class="input-note">Important pour le Rallye des Points Hauts</div>
-        </div>
-        <div class="form-group expert-only">
-          <label>NOM RESPONSABLE LOG</label>
-          <input type="text" id="operator_name" placeholder="Olivier PARRIAUX">
-          <div class="input-note">Champ RName dans le fichier EDI</div>
-        </div>
-        <div class="form-group expert-only">
-          <label>INDICATIF RESPONSABLE</label>
-          <input type="text" id="op_call" placeholder="F4GLD" style="text-transform:uppercase">
-          <div class="input-note">Champ RCall / MOpe1 dans le fichier EDI</div>
-        </div>
-        <div class="form-group expert-only">
-          <label>CLUB / ASSOCIATION</label>
-          <input type="text" id="club" placeholder="GCEBP43">
-        </div>
-        <div class="form-group expert-only">
-          <label>CODE POSTAL</label>
-          <input type="text" id="postal" placeholder="43700">
-        </div>
-        <div class="form-group expert-only">
-          <label>EMAIL RESPONSABLE</label>
-          <input type="email" id="email" placeholder="f4gld@hotmail.fr">
-          <div class="input-note">Champ RHBBS dans le fichier EDI</div>
-        </div>
-        <div class="form-group expert-only">
-          <label>SECTION CONCOURS</label>
-          <select id="section_edi" onchange="updateOpSection()">
-            <option value="SOMB">SOMB — Single Op Multi-Band</option>
-            <option value="SOSB">SOSB — Single Op Single Band</option>
-            <option value="MOMB">MOMB — Multi Op Multi-Band</option>
-            <option value="MOSB">MOSB — Multi Op Single Band</option>
-          </select>
-          <div class="input-note">Champ PSect dans le fichier EDI</div>
-        </div>
+    <div class="hub-group-title">MA STATION</div>
+    <div class="hub-grid">
+      <div class="hub-card" id="hubcard_identity" onclick="openCategoryPopup('identity')">
+        <div class="hub-card-title">📛 1. Identité</div>
+        <div class="hub-card-sub">Indicatif, locator, antennes...</div>
+        <span class="hub-badge" id="hubbadge_identity"></span>
       </div>
-      <div class="locator-hint" id="locatorHint" style="display:none">
-        <span id="locHintOk">📍 Locator <span id="locHintVal"></span> détecté — coordonnées calculées automatiquement</span>
-        <span id="locHintErr" style="display:none">⚠️ Locator invalide — format attendu : 2 lettres (A-R) + 2 chiffres + 2 lettres optionnelles (A-X), ex. JN15XC</span>
-      </div>
-      <div class="simple-note">💡 Mode simple : seuls les champs essentiels sont affichés.
-        Les champs d'export EDI (responsable log, section...) apparaissent en mode expert 🎚 —
-        tu pourras les remplir avant d'envoyer ton log.</div>
-    </div>
-
-    <div class="section" id="opSection">
-      <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
-      <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
-        Leurs indicatifs apparaîtront sur les boutons OP dans le logbook
-      </div>
-      <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:10px;align-items:center">
-        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">POSTE</div>
-        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">INDICATIF</div>
-        <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">PRÉNOM</div>
-        <!-- OP1 — toujours visible -->
-        <div style="font-family:var(--font-mono);font-size:14px;color:var(--accent);font-weight:700">OP1</div>
-        <input type="text" id="op1_call" placeholder="F4GLD" style="text-transform:uppercase;font-size:14px">
-        <input type="text" id="op1_name" placeholder="Olivier" style="font-size:14px">
-        <!-- OP2-OP5 — masqués en mono-op -->
-        <div id="multiop_rows" style="display:contents">
-          <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP2</div>
-          <input type="text" id="op2_call" placeholder="F1OMQ" style="text-transform:uppercase;font-size:14px">
-          <input type="text" id="op2_name" placeholder="Didier" style="font-size:14px">
-          <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP3</div>
-          <input type="text" id="op3_call" placeholder="F1HAW" style="text-transform:uppercase;font-size:14px">
-          <input type="text" id="op3_name" placeholder="Jean" style="font-size:14px">
-          <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP4</div>
-          <input type="text" id="op4_call" placeholder="F4WGK" style="text-transform:uppercase;font-size:14px">
-          <input type="text" id="op4_name" placeholder="Stéphane" style="font-size:14px">
-          <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP5</div>
-          <input type="text" id="op5_call" placeholder="F4ASS" style="text-transform:uppercase;font-size:14px">
-          <input type="text" id="op5_name" placeholder="Sébastien" style="font-size:14px">
-        </div>
+      <div class="hub-card" id="hubcard_operators" onclick="openCategoryPopup('operators')">
+        <div class="hub-card-title">🧑‍🤝‍🧑 2. Opérateurs</div>
+        <div class="hub-card-sub">Multi-op, responsable log</div>
+        <span class="hub-badge" id="hubbadge_operators"></span>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">STATION RADIO</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>PUISSANCE (WATTS)</label>
-          <input type="number" id="power" placeholder="100" min="1" max="1500">
-        </div>
-        <div class="form-group">
-          <label>CLASSE PUISSANCE</label>
-          <select id="power_class">
-            <option value="QRP">QRP (≤5W)</option>
-            <option value="LP" selected>LP (≤100W)</option>
-            <option value="HP">HP (>100W)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>RECORD DX (KM)</label>
-          <input type="number" id="record_dx" placeholder="1600" min="0">
-          <div class="input-note">Utilisé pour calibrer les priorités</div>
-        </div>
-        <div class="form-group">
-          <label>LOGICIEL DE LOG</label>
-          <select id="log_software">
-            <option value="net-test-thf">Net-TEST THF (f5aib.net)</option>
-            <option value="n1mm">N1MM Logger+</option>
-            <option value="log4om">Log4OM</option>
-            <option value="hamrs">HamRS</option>
-            <option value="vqlog">VQLog</option>
-            <option value="manual">Saisie manuelle</option>
-          </select>
-        </div>
+    <div class="hub-group-title">CONCOURS</div>
+    <div class="hub-grid">
+      <div class="hub-card" id="hubcard_contest" onclick="openCategoryPopup('contest')">
+        <div class="hub-card-title">🏆 3. Sélection</div>
+        <div class="hub-card-sub" id="hubsub_contest">Aucun concours choisi</div>
+        <span class="hub-badge" id="hubbadge_contest"></span>
+      </div>
+      <div class="hub-card" id="hubcard_filters" onclick="openCategoryPopup('filters')">
+        <div class="hub-card-title">📅 4. Dates &amp; filtres</div>
+        <div class="hub-card-sub">Dates, bandes, modes</div>
+        <span class="hub-badge" id="hubbadge_filters"></span>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">ANTENNES</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>HF</label>
-          <input type="text" id="ant_hf" placeholder="Dipôle 40m / Vertical">
-        </div>
-        <div class="form-group">
-          <label>144 MHz</label>
-          <input type="text" id="ant_144" placeholder="Yagi 9 éléments">
-        </div>
-        <div class="form-group">
-          <label>432 MHz</label>
-          <input type="text" id="ant_432" placeholder="Yagi 21 éléments">
-        </div>
-        <div class="form-group">
-          <label>UHF/SHF</label>
-          <input type="text" id="ant_shf" placeholder="Parabole 60cm">
-        </div>
+    <div class="hub-group-title">MATÉRIEL</div>
+    <div class="hub-grid">
+      <div class="hub-card" id="hubcard_radio" onclick="openCategoryPopup('radio')">
+        <div class="hub-card-title">📻 5. Radio (CAT)</div>
+        <div class="hub-card-sub">Natif / TCI / rigctld</div>
+        <span class="hub-badge" id="hubbadge_radio"></span>
+      </div>
+      <div class="hub-card" id="hubcard_amp" onclick="openCategoryPopup('amp')">
+        <div class="hub-card-title">🔋 6. Amplificateur</div>
+        <div class="hub-card-sub">Pilotage ampli linéaire</div>
+        <span class="hub-badge" id="hubbadge_amp"></span>
+      </div>
+      <div class="hub-card" id="hubcard_rotor" onclick="openCategoryPopup('rotor')">
+        <div class="hub-card-title">🧭 7. Rotor</div>
+        <div class="hub-card-sub">Pointage d'antenne</div>
+        <span class="hub-badge" id="hubbadge_rotor"></span>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">MATÉRIEL &amp; SOUMISSION EDI</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>TRANSCEIVER</label>
-          <input type="text" id="radio" placeholder="IC-9700">
-          <div class="input-note">Champs STXEq/SRXEq dans le fichier EDI</div>
-        </div>
-        <div class="form-group">
-          <label>PAYS (code 3 lettres)</label>
-          <input type="text" id="country" placeholder="FRA" maxlength="3" style="text-transform:uppercase">
-          <div class="input-note">Champ RCoun dans le fichier EDI</div>
-        </div>
-        <div class="form-group">
-          <label>URL SOUMISSION LOG</label>
-          <input type="text" id="submit_url" placeholder="http://concours.r-e-f.org/tools/upload/thf.php">
-        </div>
-        <div class="form-group">
-          <label>DÉLAI SOUMISSION</label>
-          <input type="text" id="submit_deadline" placeholder="ex: mercredi 9 juillet 2026 minuit">
-        </div>
+    <div class="hub-group-title">RÉSEAU &amp; SAUVEGARDE</div>
+    <div class="hub-grid">
+      <div class="hub-card" id="hubcard_network" onclick="openCategoryPopup('network')">
+        <div class="hub-card-title">☁️ 8. Multi-poste &amp; Cloud</div>
+        <div class="hub-card-sub">Cloud Sync, réseau ADIF</div>
+        <span class="hub-badge" id="hubbadge_network"></span>
+      </div>
+      <div class="hub-card" id="hubcard_backup" onclick="openCategoryPopup('backup')">
+        <div class="hub-card-title">💾 9. Sauvegarde auto</div>
+        <div class="hub-card-sub">Dossier, intervalle</div>
+        <span class="hub-badge" id="hubbadge_backup"></span>
       </div>
     </div>
 
-    <div class="section expert-only">
-      <div class="section-title">ASSISTANT IA</div>
-      <div class="form-grid">
-        <div class="form-group" style="grid-column:1/-1">
-          <label>FOURNISSEUR</label>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
-              <input type="radio" name="api_provider" value="anthropic" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🤖 Claude (Anthropic)
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
-              <input type="radio" name="api_provider" value="openai" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 💚 ChatGPT (OpenAI)
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
-              <input type="radio" name="api_provider" value="gemini" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🔵 Gemini (Google)
-            </label>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>MODÈLE</label>
-          <select id="ai_model" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none;width:100%"></select>
-        </div>
-        <div class="form-group">
-          <label id="api_key_label">CLÉ API</label>
-          <input type="password" id="api_key" placeholder="sk-ant-api03-...">
-          <div class="input-note">🔒 Stockée localement par fournisseur — jamais partagée</div>
-        </div>
+    <div class="hub-group-title">PROPAGATION &amp; ALERTES</div>
+    <div class="hub-grid">
+      <div class="hub-card" id="hubcard_sources" onclick="openCategoryPopup('sources')">
+        <div class="hub-card-title">📡 10. Sources</div>
+        <div class="hub-card-sub">Cluster, RBN, ON4KST...</div>
+        <span class="hub-badge" id="hubbadge_sources"></span>
+      </div>
+      <div class="hub-card" id="hubcard_alerts" onclick="openCategoryPopup('alerts')">
+        <div class="hub-card-title">🔔 11. Alertes</div>
+        <div class="hub-card-sub">DX, spotter, règles perso</div>
+        <span class="hub-badge" id="hubbadge_alerts"></span>
       </div>
     </div>
 
-    <!-- ── Matériel piloté (optionnel, en fin de page : peu utilisé) ── -->
-    <div class="section expert-only">
-      <div class="section-title">💻 WSJT-X (FT8/FT4 — auto-log)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Chaque QSO validé dans WSJT-X arrive AUTOMATIQUEMENT dans le logbook
-        (call, grille, bande, mode, rapports) — plus de ressaisie en numérique.<br>
-        Côté WSJT-X : <b style="color:var(--accent2)">Réglages → Rapports → UDP Server</b>
-        = l'IP de ce PC, port 2237.
+    <div class="hub-group-title">APRÈS LE CONCOURS</div>
+    <div class="hub-grid">
+      <div class="hub-card" id="hubcard_qsl" onclick="openCategoryPopup('qsl')">
+        <div class="hub-card-title">📮 12. QSL &amp; diplômes</div>
+        <div class="hub-card-sub">QRZ, eQSL, LoTW, ClubLog...</div>
+        <span class="hub-badge" id="hubbadge_qsl"></span>
       </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>AUTO-LOG WSJT-X</label>
-          <select id="wsjtx_enabled">
-            <option value="">Désactivé</option>
-            <option value="1">Activé</option>
-          </select>
-          <div class="input-note">Désactivé par défaut — écoute UDP en fond si activé</div>
-        </div>
-        <div class="form-group">
-          <label>PORT UDP WSJT-X</label>
-          <input type="number" id="wsjtx_port" placeholder="2237">
-          <div class="input-note">Port « UDP Server » de WSJT-X (défaut 2237)</div>
-        </div>
+      <div class="hub-card" id="hubcard_scoreboard" onclick="openCategoryPopup('scoreboard')">
+        <div class="hub-card-title">🏆 13. Scoreboard &amp; soumission</div>
+        <div class="hub-card-sub">Score en direct, envoi du log</div>
+        <span class="hub-badge" id="hubbadge_scoreboard"></span>
       </div>
     </div>
 
-    <div class="section expert-only">
-      <div class="section-title">🌐 RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Interopérabilité temps réel avec N1MM Logger+ et DXLog.net via leur
-        protocole de broadcast UDP <code>&lt;contactinfo&gt;</code> (format de facto
-        entre loggers de concours tiers).<br>
-        Côté N1MM : <b style="color:var(--accent2)">Config → Config Ports → Broadcast Data</b>
-        → cocher « Contact », IP de ce PC, port 12060.<br>
-        Côté DXLog : <b style="color:var(--accent2)">Options → Broadcast → QSOs</b>
-        (format « N1MM-like »), même IP/port.
+    <div class="hub-group-title">SPÉCIAL</div>
+    <div class="hub-grid">
+      <div class="hub-card" id="hubcard_expedition" onclick="openCategoryPopup('expedition')">
+        <div class="hub-card-title">🏝️ 14. Expédition / Activation</div>
+        <div class="hub-card-sub">POTA, SOTA, IOTA, WWFF...</div>
+        <span class="hub-badge" id="hubbadge_expedition"></span>
       </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>MODE</label>
-          <select id="adifnet_mode">
-            <option value="off">Désactivé</option>
-            <option value="listen">Réception seule (importer leurs QSO)</option>
-            <option value="send">Émission seule (leur envoyer nos QSO)</option>
-            <option value="both">Réception + émission</option>
-          </select>
-          <div class="input-note">Désactivé par défaut</div>
-        </div>
-        <div class="form-group">
-          <label>PORT UDP</label>
-          <input type="number" id="adifnet_port" placeholder="12060">
-          <div class="input-note">Port broadcast N1MM/DXLog (défaut 12060)</div>
-        </div>
-        <div class="form-group">
-          <label>IP CIBLE (émission)</label>
-          <input type="text" id="adifnet_target" placeholder="255.255.255.255">
-          <div class="input-note">Broadcast local, ou IP précise du PC voisin</div>
-        </div>
+      <div class="hub-card" id="hubcard_ai" onclick="openCategoryPopup('ai')">
+        <div class="hub-card-title">🤖 15. Assistant IA</div>
+        <div class="hub-card-sub">Fournisseur, clé API</div>
+        <span class="hub-badge" id="hubbadge_ai"></span>
       </div>
     </div>
 
-    <div class="section expert-only">
-      <div class="section-title">📻 RADIO (pilotage CAT)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
-        suivis automatiquement, macros CW envoyées par le keyer de la radio.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>PILOTAGE RADIO</label>
-          <select id="cat_enabled" onchange="updateCatModeVisibility()">
-            <option value="">Désactivé</option>
-            <option value="1">Activé</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>MODE DE PILOTAGE</label>
-          <select id="cat_mode" onchange="updateCatModeVisibility()">
-            <option value="native">Natif (recommandé — pas de logiciel externe)</option>
-            <option value="tci">TCI (postes SDR — SunSDR/ExpertSDR3 et compatibles)</option>
-            <option value="rigctld">Hamlib rigctld (avancé — autres marques)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Mode natif : Icom CI-V / Yaesu / Kenwood / Elecraft directement en pyserial -->
-      <div id="catNativeFields" class="form-grid">
-        <div class="form-group">
-          <label>MARQUE</label>
-          <select id="cat_brand" onchange="updateCatModelOptions()">
-            <option value="icom">Icom (CI-V)</option>
-            <option value="yaesu">Yaesu (CAT)</option>
-            <option value="kenwood">Kenwood (PC Control)</option>
-            <option value="elecraft">Elecraft (K3/KX)</option>
-            <option value="xiegu">Xiegu (CI-V compatible Icom)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>MODÈLE</label>
-          <select id="cat_model"></select>
-          <div class="input-note" id="catAddrNote"></div>
-        </div>
-        <div class="form-group">
-          <label>PORT SÉRIE</label>
-          <select id="cat_port"></select>
-          <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshCatPorts()">🔄 Rafraîchir la liste</button>
-        </div>
-        <div class="form-group">
-          <label>VITESSE (bauds)</label>
-          <input type="number" id="cat_baudrate" placeholder="19200">
-        </div>
-      </div>
-      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-        <button type="button" class="btn btn-secondary" onclick="testCatConnection()">🔌 Tester / auto-détecter</button>
-        <span id="catTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
-      </div>
-
-      <!-- Mode TCI : transceivers SDR (SunSDR/ExpertSDR3 et compatibles), réseau WebSocket -->
-      <div id="catTciFields" class="form-grid" style="display:none;margin-top:12px">
-        <div class="form-group" style="grid-column:1/-1">
-          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
-            Le serveur TCI doit être activé dans ExpertSDR3 (ou logiciel compatible) sur le
-            poste relié au transceiver — pas de port série, connexion réseau directe.
-          </div>
-        </div>
-        <div class="form-group">
-          <label>ADRESSE TCI</label>
-          <input type="text" id="tci_host" placeholder="127.0.0.1 (ou IP du poste SDR)">
-          <div class="input-note">IP du PC où tourne le serveur TCI (peut être un autre poste du WiFi)</div>
-        </div>
-        <div class="form-group">
-          <label>PORT TCI</label>
-          <input type="number" id="tci_port" placeholder="50001">
-          <div class="input-note">50001 par défaut (ExpertSDR3) — 40001 pour l'ancien ESDR2</div>
-        </div>
-      </div>
-
-      <!-- Mode avancé : Hamlib rigctld -->
-      <div id="catRigctldFields" class="form-grid" style="display:none;margin-top:12px">
-        <div class="form-group" style="grid-column:1/-1">
-          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
-            Lance <b style="color:var(--accent2)">rigctld -m &lt;n°modèle&gt; -r &lt;port COM&gt; -T 0.0.0.0</b>
-            sur le PC relié à la radio (fourni avec Hamlib — n° de modèle : <b>rigctl -l</b>).
-            À réserver aux marques non couvertes en mode natif (Ten-Tec, RGO, modèles anciens...).
-          </div>
-        </div>
-        <div class="form-group">
-          <label>ADRESSE RIGCTLD</label>
-          <input type="text" id="rig_host" placeholder="127.0.0.1 (ou IP du poste radio)">
-          <div class="input-note">IP du PC où tourne rigctld (peut être un autre poste du WiFi)</div>
-        </div>
-        <div class="form-group">
-          <label>PORT RIGCTLD</label>
-          <input type="number" id="rig_port" placeholder="4532">
-        </div>
-      </div>
-    </div>
-
-    <div class="section expert-only">
-      <div class="section-title">🎙️ KEYER VOCAL (phonie — indicatif dit automatiquement)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Équivalent phonie des macros CW : synthèse vocale hors-ligne (aucun réseau),
-        indicatif épelé phonétiquement (Alpha, Bravo…) et reports dits chiffre par
-        chiffre, PTT activé automatiquement le temps du message (nécessite le
-        pilotage radio ci-dessus, natif/TCI/rigctld). Le son part vers le
-        PÉRIPHÉRIQUE choisi ci-dessous — utilise un câble audio virtuel
-        (ex. VB-Audio) ou une interface dédiée reliée à l'entrée micro de la
-        radio, jamais tes haut-parleurs de suivi.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>KEYER VOCAL</label>
-          <select id="voicekeyer_enabled">
-            <option value="">Désactivé</option>
-            <option value="1">Activé</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>PÉRIPHÉRIQUE DE SORTIE</label>
-          <select id="voicekeyer_device"><option value="">— chargement… —</option></select>
-          <div class="input-note">Le câble/l'interface relié(e) à l'entrée micro de la radio, PAS tes enceintes</div>
-        </div>
-        <div class="form-group">
-          <label>VOIX</label>
-          <select id="voicekeyer_voice_id"><option value="">— chargement… —</option></select>
-        </div>
-        <div class="form-group">
-          <label>VITESSE (mots/min)</label>
-          <input type="number" id="voicekeyer_rate" placeholder="175" min="80" max="300">
-        </div>
-      </div>
-      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-        <button type="button" class="btn btn-secondary" onclick="testVoiceKeyer()">🔊 Tester (indicatif fictif)</button>
-        <span id="voiceKeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
-      </div>
-    </div>
-
-    <div class="section expert-only">
-      <div class="section-title">🔋 AMPLIFICATEUR HF (pilotage natif)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Puissance/SWR/défaut affichés en direct dans le LOGBOOK, bascule standby/operate
-        et changement de bande depuis l'application — 3 protocoles constructeurs vérifiés
-        contre leur documentation officielle. Port série indépendant de celui de la radio
-        (câble USB/RS-232 dédié à l'ampli).
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>PILOTAGE AMPLI</label>
-          <select id="amp_enabled" onchange="updateEnabledFieldsVisibility('amp_enabled',['amp_brand','amp_port','amp_baudrate','amp_civ_addr'])">
-            <option value="">Désactivé</option>
-            <option value="1">Activé</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>MARQUE</label>
-          <select id="amp_brand" onchange="updateAmpFieldsVisibility()">
-            <option value="elecraft">Elecraft (KPA500 / KPA1500)</option>
-            <option value="icom">Icom (IC-PW2 / PW-1, CI-V)</option>
-            <option value="spe">SPE / Expert (1.3K-FA / 1.5K-FA / 2K-FA)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>PORT SÉRIE</label>
-          <select id="amp_port"></select>
-          <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshAmpPorts()">🔄 Rafraîchir la liste</button>
-        </div>
-        <div class="form-group">
-          <label>VITESSE (bauds)</label>
-          <input type="number" id="amp_baudrate" placeholder="9600 à 38400 selon marque">
-        </div>
-        <div class="form-group" id="ampCivAddrField" style="display:none">
-          <label>ADRESSE CI-V</label>
-          <input type="text" id="amp_civ_addr" placeholder="AA">
-          <div class="input-note">Adresse usine IC-PW2/PW-1 : AA (modifiable sur l'ampli si besoin)</div>
-        </div>
-      </div>
-      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-        <button type="button" class="btn btn-secondary" onclick="testAmpConnection()">🔌 Tester la connexion</button>
-        <span id="ampTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
-      </div>
-    </div>
-
-    <div class="section expert-only">
-      <div class="section-title">🧭 ROTOR D'ANTENNE (via Hamlib rotctld)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-        Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
-        depuis ton locator est envoyé au rotor.<br>
-        Lance <b style="color:var(--accent2)">rotctld -m &lt;n°modèle&gt; -r &lt;port&gt; -T 0.0.0.0</b>
-        sur le PC relié au boîtier de commande (fourni avec Hamlib — modèles : <b>rotctl -l</b>).
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>PILOTAGE ROTOR</label>
-          <select id="rotor_enabled" onchange="updateEnabledFieldsVisibility('rotor_enabled',['rotor_host','rotor_port'])">
-            <option value="">Désactivé</option>
-            <option value="1">Activé</option>
-          </select>
-          <div class="input-note">Désactivé par défaut — aucun effet sans rotctld</div>
-        </div>
-        <div class="form-group">
-          <label>ADRESSE ROTCTLD</label>
-          <input type="text" id="rotor_host" placeholder="127.0.0.1 (ou IP du poste rotor)">
-          <div class="input-note">IP du PC où tourne rotctld (peut être un autre poste du WiFi)</div>
-        </div>
-        <div class="form-group">
-          <label>PORT ROTCTLD</label>
-          <input type="number" id="rotor_port" placeholder="4533">
-        </div>
-      </div>
-    </div>
-
-    <div class="btn-row">
-      <button class="btn btn-primary" id="btnStep1Next" onclick="goStep(2)">SUIVANT → CONCOURS</button>
+    <div class="hub-launch-row">
+      <button class="btn btn-launch" style="padding:14px 32px;font-size:15px" onclick="launchApp()">🚀 TOUT EST BON — LOGGER</button>
     </div>
   </div>
 
-  <!-- PANEL 2 : CONCOURS -->
-  <div class="panel" id="panel2">
-
-    <!-- ASSISTANT NOUVEAU CONCOURS (rempli par handleContestParam quand on
-         arrive depuis le calendrier avec ?contest=ID) -->
-    <div id="assistantBanner" style="display:none;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:10px;padding:14px 18px;margin-bottom:16px"></div>
-
-    <div class="section">
-      <div class="section-title">SÉLECTIONNER UN CONCOURS</div>
-      <div style="margin-bottom:14px;position:relative">
-        <input type="text" id="contestSearch"
-          placeholder="🔍  Rechercher : Field Day, VHF, RPH, CQ WW…"
-          oninput="buildContestGrid(this.value)"
-          autocomplete="off"
-          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
-          onfocus="this.style.borderColor='var(--accent2)'"
-          onblur="this.style.borderColor='var(--border)'">
-        <span id="contestSearchClear" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
-          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none">✕</span>
-      </div>
-      <div class="contest-grid" id="contestGrid"></div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
-      <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
-        📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>DATE DÉBUT <span style="font-size:12px;color:var(--muted)">(auto ou manuel)</span></label>
-          <input type="date" id="contest_start_date" placeholder="2026-07-05">
-          <div class="input-note">Champ TDate début dans le fichier EDI</div>
-        </div>
-        <div class="form-group">
-          <label>DATE FIN</label>
-          <input type="date" id="contest_end_date" placeholder="2026-07-06">
-        </div>
-        <div class="form-group">
-          <label>HEURE FIN UTC</label>
-          <input type="time" id="contest_end_utc" placeholder="14:00">
-          <div class="input-note">Pour le compte à rebours du logbook</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
-    <div class="section">
-      <div class="section-title">🤖 ANALYSER UN RÈGLEMENT (IA)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">
-        Concours absent de la liste ? Donne l'URL de son règlement (PDF ou page web) : l'IA en extrait
-        une définition complète (dates, bandes, modes, échange, scoring) <strong style="color:var(--text)">que tu relis et corriges
-        avant enregistrement</strong>. Une fois validé, le concours rejoint la base et resservira chaque année.
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input type="url" id="aiRulesUrl" placeholder="https://... (URL du règlement PDF ou HTML)"
-          style="flex:2;min-width:280px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
-        <input type="text" id="aiRulesName" placeholder="Nom du concours (optionnel)"
-          style="flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
-        <button class="btn btn-primary" id="aiAnalyzeBtn" onclick="analyzeRules()" style="padding:10px 18px">🤖 ANALYSER</button>
-      </div>
-      <div id="aiAnalyzeStatus" style="display:none;margin-top:10px;font-family:var(--font-mono);font-size:13px;color:var(--accent2)"></div>
-      <div style="display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap">
-        <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px">PARTAGE ENTRE STATIONS :</span>
-        <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="exportCustomContests()">📤 Exporter mes concours validés</button>
-        <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('importFile').click()">📥 Importer un fichier partagé</button>
-        <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importCustomContests(this.files[0])">
-        <span id="shareStatus" style="font-family:var(--font-mono);font-size:12px"></span>
-      </div>
-    </div>
-
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="goStep(1)">← RETOUR</button>
-      <button class="btn btn-primary" onclick="goStep(3)">SUIVANT → FILTRES</button>
-    </div>
-  </div>
-
-  <!-- PANEL 3 : FILTRES -->
-  <div class="panel" id="panel3">
-
-    <div id="filterAutoNote" style="display:none;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
-
-    <div class="section">
-      <div class="section-title">MODES</div>
-      <div class="toggle-grid">
-        <span class="toggle-btn mode-ssb on" data-key="mode_ssb" onclick="toggle(this)">SSB</span>
-        <span class="toggle-btn mode-cw" data-key="mode_cw" onclick="toggle(this)">CW</span>
-        <span class="toggle-btn mode-digi" data-key="mode_ft8" onclick="toggle(this)">FT8</span>
-        <span class="toggle-btn mode-digi" data-key="mode_ft4" onclick="toggle(this)">FT4</span>
-        <span class="toggle-btn mode-digi" data-key="mode_js8" onclick="toggle(this)">JS8</span>
-        <span class="toggle-btn mode-digi" data-key="mode_rtty" onclick="toggle(this)">RTTY</span>
-        <span class="toggle-btn mode-digi" data-key="mode_psk" onclick="toggle(this)">PSK</span>
-        <span class="toggle-btn" data-key="mode_am" onclick="toggle(this)">AM</span>
-        <span class="toggle-btn" data-key="mode_fm" onclick="toggle(this)">FM</span>
-        <span class="toggle-btn" data-key="mode_dstar" onclick="toggle(this)">D-STAR</span>
-      </div>
-    </div>
-
-    <div class="section" id="section_hf">
-      <div class="section-title">BANDES VLF / HF</div>
-      <div class="toggle-grid">
-        <span class="toggle-btn" data-key="band_vlf" onclick="toggle(this)">VLF</span>
-        <span class="toggle-btn" data-key="band_160m" onclick="toggle(this)">1.8 MHz <small style="opacity:.7">160m</small></span>
-        <span class="toggle-btn" data-key="band_80m" onclick="toggle(this)">3.5 MHz <small style="opacity:.7">80m</small></span>
-        <span class="toggle-btn" data-key="band_60m" onclick="toggle(this)">5 MHz <small style="opacity:.7">60m</small></span>
-        <span class="toggle-btn" data-key="band_40m" onclick="toggle(this)">7 MHz <small style="opacity:.7">40m</small></span>
-        <span class="toggle-btn" data-key="band_30m" onclick="toggle(this)">10 MHz <small style="opacity:.7">30m</small></span>
-        <span class="toggle-btn" data-key="band_20m" onclick="toggle(this)">14 MHz <small style="opacity:.7">20m</small></span>
-        <span class="toggle-btn" data-key="band_17m" onclick="toggle(this)">18 MHz <small style="opacity:.7">17m</small></span>
-        <span class="toggle-btn" data-key="band_15m" onclick="toggle(this)">21 MHz <small style="opacity:.7">15m</small></span>
-        <span class="toggle-btn" data-key="band_12m" onclick="toggle(this)">24 MHz <small style="opacity:.7">12m</small></span>
-        <span class="toggle-btn" data-key="band_10m" onclick="toggle(this)">28 MHz <small style="opacity:.7">10m</small></span>
-        <span class="toggle-btn" data-key="band_8m" onclick="toggle(this)">40 MHz <small style="opacity:.7">8m</small></span>
-      </div>
-    </div>
-
-    <div class="section" id="section_vhf">
-      <div class="section-title">BANDES VHF / UHF / SHF</div>
-      <div class="band-group">
-        <div class="band-group-title">VHF</div>
-        <div class="toggle-grid">
-          <span class="toggle-btn" data-key="band_6m" onclick="toggle(this)">50 MHz <small style="opacity:.7">6m</small></span>
-          <span class="toggle-btn" data-key="band_4m" onclick="toggle(this)">70 MHz <small style="opacity:.7">4m</small></span>
-          <span class="toggle-btn on" data-key="band_2m" onclick="toggle(this)">144 MHz <small style="opacity:.7">2m</small></span>
-          <span class="toggle-btn" data-key="band_220" onclick="toggle(this)">220 MHz <small style="opacity:.7">1.25m</small></span>
-        </div>
-      </div>
-      <div class="band-group">
-        <div class="band-group-title">UHF</div>
-        <div class="toggle-grid">
-          <span class="toggle-btn on" data-key="band_70cm" onclick="toggle(this)">432 MHz <small style="opacity:.7">70cm</small></span>
-          <span class="toggle-btn" data-key="band_23cm" onclick="toggle(this)">1.2 GHz <small style="opacity:.7">23cm</small></span>
-          <span class="toggle-btn" data-key="band_13cm" onclick="toggle(this)">2.4 GHz <small style="opacity:.7">13cm</small></span>
-        </div>
-      </div>
-      <div class="band-group">
-        <div class="band-group-title">SHF</div>
-        <div class="toggle-grid">
-          <span class="toggle-btn" data-key="band_9cm" onclick="toggle(this)">3.4 GHz <small style="opacity:.7">9cm</small></span>
-          <span class="toggle-btn" data-key="band_6cm" onclick="toggle(this)">5.7 GHz <small style="opacity:.7">6cm</small></span>
-          <span class="toggle-btn" data-key="band_3cm" onclick="toggle(this)">10 GHz <small style="opacity:.7">3cm</small></span>
-          <span class="toggle-btn" data-key="band_6mm" onclick="toggle(this)">24 GHz <small style="opacity:.7">1.2cm</small></span>
-          <span class="toggle-btn" data-key="band_4mm" onclick="toggle(this)">47 GHz <small style="opacity:.7">6mm</small></span>
-        </div>
-      </div>
-      <div class="band-group">
-        <div class="band-group-title">SATELLITE</div>
-        <div class="toggle-grid">
-          <span class="toggle-btn" data-key="band_qo100" onclick="toggle(this)">QO-100</span>
-          <span class="toggle-btn" data-key="band_sat" onclick="toggle(this)">Autres SAT</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">OPTIONS SPÉCIALES</div>
-      <div class="toggle-grid">
-        <span class="toggle-btn flag" data-key="flag_qrp" onclick="toggle(this)">QRP</span>
-        <span class="toggle-btn flag" data-key="flag_iota" onclick="toggle(this)">IOTA</span>
-        <span class="toggle-btn flag" data-key="flag_sota" onclick="toggle(this)">SOTA</span>
-        <span class="toggle-btn flag" data-key="flag_pota" onclick="toggle(this)">POTA</span>
-        <span class="toggle-btn flag" data-key="flag_portable" onclick="toggle(this)">PORTABLE /P</span>
-        <span class="toggle-btn flag" data-key="flag_mobile" onclick="toggle(this)">MOBILE /M</span>
-        <span class="toggle-btn flag" data-key="flag_beacon" onclick="toggle(this)">BEACON</span>
-        <span class="toggle-btn flag" data-key="flag_eme" onclick="toggle(this)">EME</span>
-        <span class="toggle-btn flag" data-key="flag_ms" onclick="toggle(this)">Meteor Scatter</span>
-        <span class="toggle-btn flag" data-key="flag_no_digi" onclick="toggle(this)">NO-DIGI</span>
-      </div>
-    </div>
-
-    <div class="btn-row">
-      <button class="btn btn-secondary" id="btnStep3Back" onclick="goStep(2)">← RETOUR</button>
-      <button class="btn btn-primary" onclick="goStep(4)">SUIVANT → PROPAGATION</button>
-    </div>
-  </div>
-
-  <!-- PANEL 4 : PROPAGATION -->
-  <div class="panel" id="panel4">
-    <div class="section">
-      <div class="section-title">MODES DE PROPAGATION À SURVEILLER</div>
-      <div class="toggle-grid">
-        <span class="toggle-btn prop on" data-key="prop_tropo" onclick="toggle(this)">Troposphérique</span>
-        <span class="toggle-btn prop on" data-key="prop_es" onclick="toggle(this)">Sporadique-E</span>
-        <span class="toggle-btn prop" data-key="prop_aurora" onclick="toggle(this)">Aurore</span>
-        <span class="toggle-btn prop" data-key="prop_ms" onclick="toggle(this)">Meteor Scatter</span>
-        <span class="toggle-btn prop" data-key="prop_eme" onclick="toggle(this)">EME</span>
-        <span class="toggle-btn prop on" data-key="prop_f2" onclick="toggle(this)">F2 (ionosphérique)</span>
-        <span class="toggle-btn prop" data-key="prop_ducting" onclick="toggle(this)">Ducting maritime</span>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">SOURCES DE DONNÉES PROPAGATION</div>
-      <div class="toggle-grid">
-        <span class="toggle-btn on" data-key="src_f5len" onclick="toggle(this)">Cluster F5LEN</span>
-        <span class="toggle-btn on" data-key="src_dxsummit" onclick="toggle(this)">DXSummit</span>
-        <span class="toggle-btn on" data-key="src_dxwatch" onclick="toggle(this)">DXWatch</span>
-        <span class="toggle-btn on" data-key="src_tropo_f5len" onclick="toggle(this)">Tropo F5LEN</span>
-        <span class="toggle-btn on" data-key="src_dxmaps" onclick="toggle(this)">DXMaps</span>
-        <span class="toggle-btn on" data-key="src_hamqth_spots" onclick="toggle(this)">HamQTH spots (VHF)</span>
-        <span class="toggle-btn on" data-key="src_hamspirit" onclick="toggle(this)">HamSpirit (VHF)</span>
-        <span class="toggle-btn on" data-key="src_telnet" onclick="toggle(this)">Telnet DX Spider (HF)</span>
-        <span class="toggle-btn" data-key="src_voacap" onclick="toggle(this)">VOACAP (HF)</span>
-        <span class="toggle-btn on" data-key="src_on4kst" onclick="toggle(this)">ON4KST Chat</span>
-        <span class="toggle-btn" data-key="src_pskreporter" onclick="toggle(this)">PSK Reporter</span>
-        <span class="toggle-btn" data-key="src_solarcycle" onclick="toggle(this)">Cycle solaire</span>
-        <span class="toggle-btn" data-key="src_noaa" onclick="toggle(this)">NOAA K-index</span>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">COMPTE ON4KST CHAT (optionnel)</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>INDICATIF ON4KST</label>
-          <input type="text" id="on4kst_callsign" placeholder="F4GLD" style="text-transform:uppercase">
-          <div class="input-note">Ton indicatif d'identification sur le chat ON4KST</div>
-        </div>
-        <div class="form-group">
-          <label>MOT DE PASSE ON4KST</label>
-          <input type="password" id="on4kst_password" placeholder="••••••••" autocomplete="new-password">
-          <div class="input-note">Stocké en local uniquement — jamais transmis à l'IA</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">🌐 COMPTE QRZ.com (fiches des correspondants)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        À chaque indicatif saisi, affiche nom / QTH / locator / pays depuis QRZ.
-        (Champs détaillés réservés aux comptes abonnés XML QRZ ; le pays reste
-        accessible sans abonnement.)
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>IDENTIFIANT QRZ</label>
-          <input type="text" id="qrz_user" placeholder="ton indicatif QRZ" style="text-transform:uppercase" autocomplete="off">
-          <div class="input-note">Ton login QRZ.com (souvent ton indicatif)</div>
-        </div>
-        <div class="form-group">
-          <label>MOT DE PASSE QRZ</label>
-          <input type="password" id="qrz_password" placeholder="••••••••" autocomplete="new-password">
-          <div class="input-note">Stocké côté serveur uniquement — jamais renvoyé au navigateur ni à l'IA</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">📮 QSL & DIPLÔMES (services en ligne)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        Publie ton log après un concours (eQSL, ClubLog) et récupère les
-        confirmations (LoTW) pour suivre tes diplômes DXCC / départements
-        « travaillé / confirmé ». Boutons dans le LOGBOOK → 🏅 DIPLÔMES.
-        Identifiants stockés côté serveur uniquement.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>eQSL — IDENTIFIANT</label>
-          <input type="text" id="eqsl_user" placeholder="ton indicatif eQSL" style="text-transform:uppercase" autocomplete="off">
-          <div class="input-note">Envoi du log (upload ADIF)</div>
-        </div>
-        <div class="form-group">
-          <label>eQSL — MOT DE PASSE</label>
-          <input type="password" id="eqsl_password" placeholder="••••••••" autocomplete="new-password">
-        </div>
-        <div class="form-group">
-          <label>LoTW — IDENTIFIANT</label>
-          <input type="text" id="lotw_user" placeholder="ton indicatif LoTW" style="text-transform:uppercase" autocomplete="off">
-          <div class="input-note">Import des confirmations (pas d'upload : garde TQSL pour publier)</div>
-        </div>
-        <div class="form-group">
-          <label>LoTW — MOT DE PASSE</label>
-          <input type="password" id="lotw_password" placeholder="••••••••" autocomplete="new-password">
-        </div>
-        <div class="form-group">
-          <label>ClubLog — EMAIL</label>
-          <input type="text" id="clublog_email" placeholder="email du compte ClubLog" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label>ClubLog — INDICATIF</label>
-          <input type="text" id="clublog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label>ClubLog — MOT DE PASSE</label>
-          <input type="password" id="clublog_password" placeholder="••••••••" autocomplete="new-password">
-        </div>
-        <div class="form-group">
-          <label>ClubLog — CLÉ API</label>
-          <input type="text" id="clublog_api_key" placeholder="clé API ClubLog" autocomplete="off">
-          <div class="input-note">Obtenue sur clublog.org (Settings → API keys)</div>
-        </div>
-        <div class="form-group">
-          <label>QRZCQ — INDICATIF</label>
-          <input type="text" id="qrzcq_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label>QRZCQ — CLÉ API</label>
-          <input type="text" id="qrzcq_api_key" placeholder="clé API QRZCQ" autocomplete="off">
-          <div class="input-note">Obtenue sur qrzcq.com (Mon compte → Développeurs)</div>
-        </div>
-        <div class="form-group">
-          <label>HRDLog — INDICATIF</label>
-          <input type="text" id="hrdlog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label>HRDLog — CODE D'UPLOAD</label>
-          <input type="text" id="hrdlog_code" placeholder="code d'upload HRDLog" autocomplete="off">
-          <div class="input-note">Obtenu sur hrdlog.net (réglages du compte) — envoi QSO par QSO, peut être lent sur un gros log</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">🏆 COMPÉTITION & SÉCURITÉ</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        Publie ton score en direct pour te comparer aux rivaux, et sauvegarde
-        automatiquement ton log vers un dossier synchronisé (Synology Drive,
-        Dropbox, OneDrive…).
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>SCOREBOARD EN DIRECT</label>
-          <select id="scoreboard_enabled">
-            <option value="">Désactivé</option>
-            <option value="1">Activé — publier le score</option>
-          </select>
-          <div class="input-note">Envoi périodique vers contestonlinescore.com</div>
-        </div>
-        <div class="form-group">
-          <label>SCOREBOARD — INTERVALLE (min)</label>
-          <input type="number" id="scoreboard_interval" placeholder="5" min="2" max="30">
-        </div>
-        <div class="form-group">
-          <label>DOSSIER DE SAUVEGARDE</label>
-          <input type="text" id="backup_folder" placeholder="C:\Users\...\SynologyDrive\logs" autocomplete="off">
-          <div class="input-note">Copie horodatée (.db + .json + ADIF) ; vide = désactivé</div>
-        </div>
-        <div class="form-group">
-          <label>SAUVEGARDE — INTERVALLE (min)</label>
-          <input type="number" id="backup_interval" placeholder="15" min="5" max="120">
-        </div>
-        <div class="form-group">
-          <label>RBN CW (où mon signal est entendu)</label>
-          <select id="rbn_enabled">
-            <option value="1">Activé (par défaut)</option>
-            <option value="">Désactivé</option>
-          </select>
-          <div class="input-note">Panneau RBN sur la page PROPAGATION</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section expert-only">
-      <div class="section-title">☁️ CLOUD SYNC (multi-poste, sans compte ni service en ligne)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        Combine tes QSO avec un AUTRE poste (même expédition, poste de secours...)
-        via un dossier déjà synchronisé (Synology Drive, Dropbox, OneDrive…) —
-        chaque poste pointant vers le MÊME dossier voit les QSO des autres.
-        Aucun compte à créer : le « cloud », c'est l'outil de sync que tu
-        utilises déjà. Différent de la SAUVEGARDE ci-dessus (instantanés à
-        sens unique) : ici les QSO des deux côtés se combinent réellement.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>MODE</label>
-          <select id="cloudsync_mode" onchange="updateEnabledFieldsVisibility('cloudsync_mode',['cloudsync_folder','cloudsync_interval'],v=>v!=='')">
-            <option value="">Désactivé</option>
-            <option value="full">Synchronisation complète (lit + écrit)</option>
-            <option value="push">Envoi seul (écrit, ne récupère rien)</option>
-          </select>
-          <div class="input-note">« Envoi seul » : pour un poste isolé qui alimente le dossier partagé sans avoir besoin des QSO des autres</div>
-        </div>
-        <div class="form-group">
-          <label>DOSSIER PARTAGÉ</label>
-          <input type="text" id="cloudsync_folder" placeholder="vide = même dossier que SAUVEGARDE" autocomplete="off">
-          <div class="input-note">Doit être IDENTIQUE sur tous les postes qui synchronisent ensemble.
-            Configure ce dossier en « toujours conserver sur cet appareil » (pas de fichiers à la
-            demande/placeholder) — sinon une synchro peut ralentir en attendant un téléchargement cloud.</div>
-        </div>
-        <div class="form-group">
-          <label>INTERVALLE (min)</label>
-          <input type="number" id="cloudsync_interval" placeholder="3" min="1" max="60">
-        </div>
-      </div>
-      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-        <button type="button" class="btn btn-secondary" onclick="cloudsyncNow()">☁️ SYNCHRONISER MAINTENANT</button>
-        <span id="cloudsyncResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        Tu actives une référence (parc, sommet, île, réserve, phare, château) :
-        chaque QSO porte ta référence et compte pour valider l'activation. Le
-        logbook affiche l'avancement (X / minimum) et détecte les contacts
-        entre deux activateurs (<b>Park-to-Park / Summit-to-Summit / Light-to-Light...</b>).
-        L'export ADIF inclut les champs SIG / MY_SIG_INFO pour l'upload.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>PROGRAMME</label>
-          <select id="activation_program">
-            <option value="">Désactivé (concours normal)</option>
-            <option value="POTA">POTA — Parks on the Air (10 QSO)</option>
-            <option value="SOTA">SOTA — Summits on the Air (4 QSO)</option>
-            <option value="IOTA">IOTA — Islands on the Air (1 QSO)</option>
-            <option value="WWFF">WWFF — Flora &amp; Fauna (44 QSO)</option>
-            <option value="ARLHS">ARLHS — Lighthouses (2 QSO)</option>
-            <option value="WCA">WCA — World Castles Award (50 QSO)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>MA RÉFÉRENCE ACTIVÉE</label>
-          <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase">
-          <div class="input-note">POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">🏝️ MODE EXPÉDITION</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        Plusieurs postes sur le même site (un par bande, voire trois par bande en
-        CW/SSB/FT8) loggent dans le MÊME log commun : chaque poste ouvre le
-        LOGBOOK depuis son navigateur (même WiFi), sélectionne son opérateur, et
-        tous les QSO arrivent ensemble. L'écran mural affiche le flux en direct
-        sur un grand écran/projecteur, et Club Log Live diffuse chaque QSO au monde.
-      </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>MODE EXPÉDITION (saisie simplifiée)</label>
-          <select id="expedition_mode">
-            <option value="">Désactivé — saisie concours normale</option>
-            <option value="1">Activé — juste indicatif + RST envoyé/reçu</option>
-          </select>
-          <div class="input-note">En pile-up d'expédition : pas de n° de série ni locator, seulement l'indicatif et les reports (59, 55, 44…)</div>
-        </div>
-        <div class="form-group">
-          <label>CLUB LOG LIVE STREAM</label>
-          <select id="clublog_live">
-            <option value="">Désactivé</option>
-            <option value="1">Activé — pousser chaque QSO en temps réel</option>
-          </select>
-          <div class="input-note">Nécessite les identifiants ClubLog (section QSL ci-dessus)</div>
-        </div>
-        <div class="form-group">
-          <label>AUTO-SPOT DX CLUSTER (self-spot)</label>
-          <select id="cluster_spot_enabled">
-            <option value="">Désactivé</option>
-            <option value="1">Activé — bouton 📡 SELF-SPOT dans le logbook</option>
-          </select>
-          <div class="input-note">Publie ton indicatif + ta fréquence sur le cluster. Login = ton indicatif. ⚠️ Interdit par certains règlements en single-op.</div>
-        </div>
-        <div class="form-group">
-          <label>NŒUD CLUSTER (host : port)</label>
-          <div style="display:flex;gap:6px">
-            <input type="text" id="cluster_spot_host" placeholder="dxc.ve7cc.net" value="dxc.ve7cc.net" style="flex:1">
-            <input type="number" id="cluster_spot_port" placeholder="7300" value="7300" style="width:90px">
-          </div>
-          <div class="input-note">VE7CC accepte le spot avec le seul indicatif. D'autres nœuds exigent une inscription.</div>
-        </div>
-        <div class="form-group">
-          <label>ÉCRAN MURAL (grand écran)</label>
-          <a href="logx_wall.html" target="_blank" class="btn btn-secondary" style="display:inline-block;padding:9px 16px;text-decoration:none;margin-top:2px">🖥️ OUVRIR L'ÉCRAN MURAL</a>
-          <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran)</div>
-        </div>
-      </div>
-      <div class="form-group" style="margin-top:10px">
-        <label>ÉCRAN MURAL — CHAMPS À AFFICHER</label>
-        <div id="wallFields" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:8px;font-family:var(--font-mono);font-size:14px">
-          <label style="cursor:pointer"><input type="checkbox" id="wf_time" checked> Heure</label>
-          <label style="cursor:pointer"><input type="checkbox" id="wf_flag" checked> 🏴 Drapeau</label>
-          <label style="cursor:pointer"><input type="checkbox" id="wf_country" checked> Pays</label>
-          <label style="cursor:pointer"><input type="checkbox" id="wf_name"> Prénom</label>
-          <label style="cursor:pointer"><input type="checkbox" id="wf_band" checked> Bande</label>
-          <label style="cursor:pointer"><input type="checkbox" id="wf_freq"> Fréquence</label>
-          <label style="cursor:pointer"><input type="checkbox" id="wf_mode" checked> Mode</label>
-          <label style="cursor:pointer"><input type="checkbox" id="wf_rst"> Report (RST)</label>
-          <label style="cursor:pointer"><input type="checkbox" id="wf_op" checked> Opérateur</label>
-        </div>
-        <div class="input-note">L'indicatif est toujours affiché. Le prénom n'apparaît que pour les indicatifs déjà consultés via QRZ.</div>
-      </div>
-      <div class="form-group" style="margin-top:10px">
-        <label>📱 CONNECTER UN TÉLÉPHONE / TABLETTE</label>
-        <div id="lanUrls" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-top:6px;line-height:1.8">Recherche de l'adresse réseau…</div>
-        <div class="input-note">Sur le même WiFi, ouvre cette adresse sur ton téléphone, puis « Ajouter à l'écran d'accueil » : l'appli s'installe et tourne en plein écran (PWA).</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">PARAMÈTRES D'ALERTE</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>DISTANCE ALERTE DX (KM)</label>
-          <input type="number" id="alert_dx_km" placeholder="1200" value="1200" min="100" max="5000">
-          <div class="input-note">Au-delà → alerte 🌟 DX EXCEPTIONNEL</div>
-        </div>
-        <div class="form-group">
-          <label>DISTANCE PROBABLE SPOTTER (KM)</label>
-          <input type="number" id="spotter_reliable_km" placeholder="600" value="600" min="50" max="3000">
-          <div class="input-note">En deçà → contact ✅ PROBABLE</div>
-        </div>
-        <div class="form-group">
-          <label>SON DES ALERTES</label>
-          <select id="alert_sound">
-            <option value="1">Activé</option>
-            <option value="">Silencieux</option>
-          </select>
-          <div class="input-note">Bip sur nouveau mult, DX rare, mention ON4KST</div>
-        </div>
-        <div class="form-group">
-          <label>VOLUME ALERTES (%)</label>
-          <input type="number" id="alert_volume" placeholder="60" value="60" min="0" max="100">
-        </div>
-        <div class="form-group">
-          <label>RAFRAÎCHISSEMENT AUTO (MIN)</label>
-          <input type="number" id="refresh_min" placeholder="2" value="2" min="1" max="30">
-        </div>
-        <div class="form-group">
-          <label>PRIORITÉ PRINCIPALE</label>
-          <select id="priority_mode">
-            <option value="distance">Distance (pts/km)</option>
-            <option value="dept">Département manquant</option>
-            <option value="dxcc">DXCC manquant</option>
-            <option value="zone">Zone manquante</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>FILTRE PRÉFIXE SPOTS</label>
-          <input type="text" id="spot_prefix_filter" placeholder="F,DL,ON,G,HB9" maxlength="80"
-            title="Préfixes à surveiller, séparés par virgule. Vide = tous les spots">
-          <div class="input-note">Préfixes inclus (ex : F,DL,G). Vide = aucun filtre</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">🔔 RÈGLES D'ALERTE PERSONNALISÉES</div>
-      <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        En plus du nouveau multiplicateur et de la mention ON4KST (toujours actifs) :
-        combine préfixe d'indicatif, continent, zone CQ, bande, statut travaillé et
-        texte du commentaire de spot pour créer tes propres alertes sonores. Chaque
-        règle est activable/désactivable indépendamment.
-      </div>
-      <div id="alertRulesList" style="margin-bottom:14px"></div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>NOM DE LA RÈGLE</label>
-          <input type="text" id="newRuleName" placeholder="ex : DX Asie neuf" maxlength="40">
-        </div>
-        <div class="form-group">
-          <label>PRÉFIXE INDICATIF</label>
-          <input type="text" id="newRulePrefix" placeholder="JA,HL,BY (vide = tous)">
-        </div>
-        <div class="form-group">
-          <label>CONTINENT</label>
-          <select id="newRuleContinent">
-            <option value="">Tous</option>
-            <option value="EU">Europe</option>
-            <option value="NA">Amérique du Nord</option>
-            <option value="SA">Amérique du Sud</option>
-            <option value="AF">Afrique</option>
-            <option value="AS">Asie</option>
-            <option value="OC">Océanie</option>
-            <option value="AN">Antarctique</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>ZONE CQ</label>
-          <input type="text" id="newRuleCqZone" placeholder="25,26 (vide = toutes)">
-        </div>
-        <div class="form-group">
-          <label>BANDE (MHz)</label>
-          <input type="text" id="newRuleBand" placeholder="14,21 (vide = toutes)">
-        </div>
-        <div class="form-group">
-          <label>STATUT</label>
-          <select id="newRuleStatus">
-            <option value="any">Indifférent</option>
-            <option value="new_mult">Nouveau multiplicateur</option>
-            <option value="already_done">Déjà travaillé</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>COMMENTAIRE DE SPOT CONTIENT</label>
-          <input type="text" id="newRuleComment" placeholder="ex : POTA, SOTA, QRP">
-        </div>
-      </div>
-      <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-        <button type="button" class="btn btn-secondary" onclick="addAlertRule()">➕ AJOUTER LA RÈGLE</button>
-        <span id="ruleAddMsg" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
-      </div>
-    </div>
-
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="goStep(3)">← RETOUR</button>
-      <button class="btn btn-primary" onclick="goStep(5)">SUIVANT → RÉSUMÉ</button>
-    </div>
-  </div>
-
-  <!-- PANEL 5 : RÉSUMÉ -->
-  <div class="panel" id="panel5">
-    <div class="section">
-      <div class="section-title">RÉCAPITULATIF DE LA SESSION</div>
-      <div class="summary-box" id="summaryBox"></div>
-    </div>
-
-    <div class="section expert-only">
-      <div class="section-title">PROMPT SYSTÈME GÉNÉRÉ</div>
-      <textarea id="generatedPrompt" readonly style="width:100%;height:180px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:12px;resize:vertical;outline:none;line-height:1.6"></textarea>
-      <div class="btn-row" style="margin-top:8px;justify-content:flex-start">
-        <button class="btn btn-secondary" onclick="copyPrompt()">📋 COPIER LE PROMPT</button>
-        <button class="btn btn-secondary" onclick="saveConfig()">💾 SAUVEGARDER CONFIG</button>
-      </div>
-    </div>
-
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="goStep(4)">← RETOUR</button>
-      <button class="btn btn-launch" onclick="launchApp()">🚀 COMMENCER À LOGGER</button>
-      <button class="btn btn-secondary" onclick="launchApp('logx_carte.html')">🗺️ Ouvrir la carte IA</button>
-    </div>
-  </div>
+  <!-- L'ancien assistant par étapes (barre .steps + panels 1-5) a été retiré :
+       tout le contenu vit désormais dans le hub de catégories ci-dessus et ses
+       popups (voir plus bas). goStep()/state.step subsistent en interne comme
+       mécanisme de seuil de validation (_missingStationFields) et ne pilotent
+       plus aucun élément visible. -->
 
 </div>
 
@@ -1359,6 +376,1190 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
      enregistrée sans passer par ce modal -->
 <div id="reviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;overflow-y:auto;padding:30px 16px">
   <div style="max-width:880px;margin:0 auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:14px;padding:24px" id="reviewModalBody">
+  </div>
+</div>
+
+<!-- Popup RÉSUMÉ (remplace l'ancien panel5) : ouverte depuis le lien
+     "📊 Résumé ▸" en tête du hub. -->
+<div class="cat-modal" id="catmodal_summary">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">📊 RÉSUMÉ DE LA SESSION</span>
+      <button class="cat-modal-close" onclick="closeSummaryPopup()">✕ Fermer</button></div>
+    <div class="cat-modal-body">
+      <div class="section">
+        <div class="section-title">RÉCAPITULATIF DE LA SESSION</div>
+        <div class="summary-box" id="summaryBox"></div>
+      </div>
+      <div class="section expert-only">
+        <div class="section-title">PROMPT SYSTÈME GÉNÉRÉ</div>
+        <textarea id="generatedPrompt" readonly style="width:100%;height:180px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:12px;resize:vertical;outline:none;line-height:1.6"></textarea>
+        <div class="btn-row" style="margin-top:8px;justify-content:flex-start">
+          <button class="btn btn-secondary" onclick="copyPrompt()">📋 COPIER LE PROMPT</button>
+          <button class="btn btn-secondary" onclick="saveConfig()">💾 SAUVEGARDER CONFIG</button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-launch" onclick="launchApp()">🚀 COMMENCER À LOGGER</button>
+        <button class="btn btn-secondary" onclick="launchApp('logx_carte.html')">🗺️ Ouvrir la carte IA</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── POPUPS DE CATÉGORIE (hub) ───────────────────────────────────────────
+     Un overlay statique par catégorie (voir règle CSS .cat-modal) : le
+     contenu (champs existants, déplacés depuis l'ancien assistant par
+     étapes) est rempli au fil de la migration, catégorie par catégorie. -->
+<div class="cat-modal" id="catmodal_identity">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">📛 1. IDENTITÉ DE LA STATION</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('identity')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_identity">
+      <div class="section">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>INDICATIF</label>
+            <input type="text" id="callsign" placeholder="F6KQJ" oninput="updateLocatorHint();autoFillCallsign(this.value)" style="text-transform:uppercase;font-size:18px;font-weight:700;color:var(--accent)">
+          </div>
+          <div class="form-group">
+            <label>INDICATIF CONCOURS <span style="font-size:12px;color:var(--muted)">(si différent)</span></label>
+            <input type="text" id="callsign_contest" placeholder="auto" style="text-transform:uppercase" oninput="_callContest_manual=true">
+            <div class="input-note">Auto-rempli depuis INDICATIF — modifier si /P ou club</div>
+          </div>
+          <div class="form-group">
+            <label>LOCATOR MAIDENHEAD</label>
+            <div style="display:flex;gap:8px;align-items:stretch">
+              <input type="text" id="locator" placeholder="JN15XC" maxlength="6" oninput="this.value=this.value.toUpperCase();updateLocatorHint()" style="flex:1">
+              <button type="button" onclick="openLocatorMap()" title="Trouver le locator en cliquant sur une carte"
+                style="white-space:nowrap;background:var(--bg3);border:1px solid var(--accent2);color:var(--accent2);border-radius:6px;padding:0 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px">📍 Sur la carte</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>VILLE / QTH</label>
+            <input type="text" id="city" placeholder="Le Puy-en-Velay">
+          </div>
+          <div class="form-group expert-only">
+            <label>ALTITUDE (m)</label>
+            <input type="number" id="altitude" placeholder="930" min="0" max="9000">
+            <div class="input-note">Important pour le Rallye des Points Hauts</div>
+          </div>
+          <div class="form-group expert-only">
+            <label>NOM RESPONSABLE LOG</label>
+            <input type="text" id="operator_name" placeholder="Olivier PARRIAUX">
+            <div class="input-note">Champ RName dans le fichier EDI</div>
+          </div>
+          <div class="form-group expert-only">
+            <label>INDICATIF RESPONSABLE</label>
+            <input type="text" id="op_call" placeholder="F4GLD" style="text-transform:uppercase">
+            <div class="input-note">Champ RCall / MOpe1 dans le fichier EDI</div>
+          </div>
+          <div class="form-group expert-only">
+            <label>CLUB / ASSOCIATION</label>
+            <input type="text" id="club" placeholder="GCEBP43">
+          </div>
+          <div class="form-group expert-only">
+            <label>CODE POSTAL</label>
+            <input type="text" id="postal" placeholder="43700">
+          </div>
+          <div class="form-group expert-only">
+            <label>EMAIL RESPONSABLE</label>
+            <input type="email" id="email" placeholder="f4gld@hotmail.fr">
+            <div class="input-note">Champ RHBBS dans le fichier EDI</div>
+          </div>
+          <div class="form-group expert-only">
+            <label>SECTION CONCOURS</label>
+            <select id="section_edi" onchange="updateOpSection()">
+              <option value="SOMB">SOMB — Single Op Multi-Band</option>
+              <option value="SOSB">SOSB — Single Op Single Band</option>
+              <option value="MOMB">MOMB — Multi Op Multi-Band</option>
+              <option value="MOSB">MOSB — Single Op Single Band</option>
+            </select>
+            <div class="input-note">Champ PSect dans le fichier EDI</div>
+          </div>
+        </div>
+        <div class="locator-hint" id="locatorHint" style="display:none">
+          <span id="locHintOk">📍 Locator <span id="locHintVal"></span> détecté — coordonnées calculées automatiquement</span>
+          <span id="locHintErr" style="display:none">⚠️ Locator invalide — format attendu : 2 lettres (A-R) + 2 chiffres + 2 lettres optionnelles (A-X), ex. JN15XC</span>
+        </div>
+        <div class="simple-note">💡 Mode simple : seuls les champs essentiels sont affichés.
+          Les champs d'export EDI (responsable log, section...) apparaissent en mode expert 🎚 —
+          tu pourras les remplir avant d'envoyer ton log.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">STATION RADIO</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PUISSANCE (WATTS)</label>
+            <input type="number" id="power" placeholder="100" min="1" max="1500">
+          </div>
+          <div class="form-group">
+            <label>CLASSE PUISSANCE</label>
+            <select id="power_class">
+              <option value="QRP">QRP (≤5W)</option>
+              <option value="LP" selected>LP (≤100W)</option>
+              <option value="HP">HP (&gt;100W)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>RECORD DX (KM)</label>
+            <input type="number" id="record_dx" placeholder="1600" min="0">
+            <div class="input-note">Utilisé pour calibrer les priorités</div>
+          </div>
+          <div class="form-group">
+            <label>LOGICIEL DE LOG</label>
+            <select id="log_software">
+              <option value="net-test-thf">Net-TEST THF (f5aib.net)</option>
+              <option value="n1mm">N1MM Logger+</option>
+              <option value="log4om">Log4OM</option>
+              <option value="hamrs">HamRS</option>
+              <option value="vqlog">VQLog</option>
+              <option value="manual">Saisie manuelle</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>TRANSCEIVER</label>
+            <input type="text" id="radio" placeholder="IC-9700">
+          </div>
+          <div class="form-group">
+            <label>PAYS (code 3 lettres)</label>
+            <input type="text" id="country" placeholder="FRA" maxlength="3" style="text-transform:uppercase">
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">ANTENNES</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>HF</label>
+            <input type="text" id="ant_hf" placeholder="Dipôle 40m / Vertical">
+          </div>
+          <div class="form-group">
+            <label>144 MHz</label>
+            <input type="text" id="ant_144" placeholder="Yagi 9 éléments">
+          </div>
+          <div class="form-group">
+            <label>432 MHz</label>
+            <input type="text" id="ant_432" placeholder="Yagi 21 éléments">
+          </div>
+          <div class="form-group">
+            <label>UHF/SHF</label>
+            <input type="text" id="ant_shf" placeholder="Parabole 60cm">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_operators">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">🧑‍🤝‍🧑 2. OPÉRATEURS</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('operators')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_operators">
+      <div class="section" id="opSection">
+        <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
+        <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
+          Leurs indicatifs apparaîtront sur les boutons OP dans le logbook
+        </div>
+        <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:10px;align-items:center">
+          <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">POSTE</div>
+          <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">INDICATIF</div>
+          <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">PRÉNOM</div>
+          <!-- OP1 — toujours visible -->
+          <div style="font-family:var(--font-mono);font-size:14px;color:var(--accent);font-weight:700">OP1</div>
+          <input type="text" id="op1_call" placeholder="F4GLD" style="text-transform:uppercase;font-size:14px">
+          <input type="text" id="op1_name" placeholder="Olivier" style="font-size:14px">
+          <!-- OP2-OP5 — masqués en mono-op -->
+          <div id="multiop_rows" style="display:contents">
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP2</div>
+            <input type="text" id="op2_call" placeholder="F1OMQ" style="text-transform:uppercase;font-size:14px">
+            <input type="text" id="op2_name" placeholder="Didier" style="font-size:14px">
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP3</div>
+            <input type="text" id="op3_call" placeholder="F1HAW" style="text-transform:uppercase;font-size:14px">
+            <input type="text" id="op3_name" placeholder="Jean" style="font-size:14px">
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP4</div>
+            <input type="text" id="op4_call" placeholder="F4WGK" style="text-transform:uppercase;font-size:14px">
+            <input type="text" id="op4_name" placeholder="Stéphane" style="font-size:14px">
+            <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP5</div>
+            <input type="text" id="op5_call" placeholder="F4ASS" style="text-transform:uppercase;font-size:14px">
+            <input type="text" id="op5_name" placeholder="Sébastien" style="font-size:14px">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_contest">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">🏆 3. SÉLECTION DU CONCOURS</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('contest')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_contest">
+      <!-- ASSISTANT NOUVEAU CONCOURS (rempli par handleContestParam quand on
+           arrive depuis le calendrier avec ?contest=ID) -->
+      <div id="assistantBanner" style="display:none;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:10px;padding:14px 18px;margin-bottom:16px"></div>
+
+      <div class="section">
+        <div style="margin-bottom:14px;position:relative">
+          <input type="text" id="contestSearch"
+            placeholder="🔍  Rechercher : Field Day, VHF, RPH, CQ WW…"
+            oninput="buildContestGrid(this.value)"
+            autocomplete="off"
+            style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
+            onfocus="this.style.borderColor='var(--accent2)'"
+            onblur="this.style.borderColor='var(--border)'">
+          <span id="contestSearchClear" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
+            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none">✕</span>
+        </div>
+        <div class="contest-grid" id="contestGrid"></div>
+      </div>
+
+      <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
+      <div class="section">
+        <div class="section-title">🤖 ANALYSER UN RÈGLEMENT (IA)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">
+          Concours absent de la liste ? Donne l'URL de son règlement (PDF ou page web) : l'IA en extrait
+          une définition complète (dates, bandes, modes, échange, scoring) <strong style="color:var(--text)">que tu relis et corriges
+          avant enregistrement</strong>. Une fois validé, le concours rejoint la base et resservira chaque année.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="url" id="aiRulesUrl" placeholder="https://... (URL du règlement PDF ou HTML)"
+            style="flex:2;min-width:280px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
+          <input type="text" id="aiRulesName" placeholder="Nom du concours (optionnel)"
+            style="flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
+          <button class="btn btn-primary" id="aiAnalyzeBtn" onclick="analyzeRules()" style="padding:10px 18px">🤖 ANALYSER</button>
+        </div>
+        <div id="aiAnalyzeStatus" style="display:none;margin-top:10px;font-family:var(--font-mono);font-size:13px;color:var(--accent2)"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap">
+          <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px">PARTAGE ENTRE STATIONS :</span>
+          <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="exportCustomContests()">📤 Exporter mes concours validés</button>
+          <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('importFile').click()">📥 Importer un fichier partagé</button>
+          <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importCustomContests(this.files[0])">
+          <span id="shareStatus" style="font-family:var(--font-mono);font-size:12px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_filters">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">📅 4. DATES &amp; BANDES/MODES</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('filters')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_filters">
+      <div class="section">
+        <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
+        <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+          📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>DATE DÉBUT <span style="font-size:12px;color:var(--muted)">(auto ou manuel)</span></label>
+            <input type="date" id="contest_start_date" placeholder="2026-07-05">
+            <div class="input-note">Champ TDate début dans le fichier EDI</div>
+          </div>
+          <div class="form-group">
+            <label>DATE FIN</label>
+            <input type="date" id="contest_end_date" placeholder="2026-07-06">
+          </div>
+          <div class="form-group">
+            <label>HEURE FIN UTC</label>
+            <input type="time" id="contest_end_utc" placeholder="14:00">
+            <div class="input-note">Pour le compte à rebours du logbook</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="filterAutoNote" style="display:none;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
+
+      <div class="section">
+        <div class="section-title">MODES</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn mode-ssb on" data-key="mode_ssb" onclick="toggle(this)">SSB</span>
+          <span class="toggle-btn mode-cw" data-key="mode_cw" onclick="toggle(this)">CW</span>
+          <span class="toggle-btn mode-digi" data-key="mode_ft8" onclick="toggle(this)">FT8</span>
+          <span class="toggle-btn mode-digi" data-key="mode_ft4" onclick="toggle(this)">FT4</span>
+          <span class="toggle-btn mode-digi" data-key="mode_js8" onclick="toggle(this)">JS8</span>
+          <span class="toggle-btn mode-digi" data-key="mode_rtty" onclick="toggle(this)">RTTY</span>
+          <span class="toggle-btn mode-digi" data-key="mode_psk" onclick="toggle(this)">PSK</span>
+          <span class="toggle-btn" data-key="mode_am" onclick="toggle(this)">AM</span>
+          <span class="toggle-btn" data-key="mode_fm" onclick="toggle(this)">FM</span>
+          <span class="toggle-btn" data-key="mode_dstar" onclick="toggle(this)">D-STAR</span>
+        </div>
+      </div>
+
+      <div class="section" id="section_hf">
+        <div class="section-title">BANDES VLF / HF</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn" data-key="band_vlf" onclick="toggle(this)">VLF</span>
+          <span class="toggle-btn" data-key="band_160m" onclick="toggle(this)">1.8 MHz <small style="opacity:.7">160m</small></span>
+          <span class="toggle-btn" data-key="band_80m" onclick="toggle(this)">3.5 MHz <small style="opacity:.7">80m</small></span>
+          <span class="toggle-btn" data-key="band_60m" onclick="toggle(this)">5 MHz <small style="opacity:.7">60m</small></span>
+          <span class="toggle-btn" data-key="band_40m" onclick="toggle(this)">7 MHz <small style="opacity:.7">40m</small></span>
+          <span class="toggle-btn" data-key="band_30m" onclick="toggle(this)">10 MHz <small style="opacity:.7">30m</small></span>
+          <span class="toggle-btn" data-key="band_20m" onclick="toggle(this)">14 MHz <small style="opacity:.7">20m</small></span>
+          <span class="toggle-btn" data-key="band_17m" onclick="toggle(this)">18 MHz <small style="opacity:.7">17m</small></span>
+          <span class="toggle-btn" data-key="band_15m" onclick="toggle(this)">21 MHz <small style="opacity:.7">15m</small></span>
+          <span class="toggle-btn" data-key="band_12m" onclick="toggle(this)">24 MHz <small style="opacity:.7">12m</small></span>
+          <span class="toggle-btn" data-key="band_10m" onclick="toggle(this)">28 MHz <small style="opacity:.7">10m</small></span>
+          <span class="toggle-btn" data-key="band_8m" onclick="toggle(this)">40 MHz <small style="opacity:.7">8m</small></span>
+        </div>
+      </div>
+
+      <div class="section" id="section_vhf">
+        <div class="section-title">BANDES VHF / UHF / SHF</div>
+        <div class="band-group">
+          <div class="band-group-title">VHF</div>
+          <div class="toggle-grid">
+            <span class="toggle-btn" data-key="band_6m" onclick="toggle(this)">50 MHz <small style="opacity:.7">6m</small></span>
+            <span class="toggle-btn" data-key="band_4m" onclick="toggle(this)">70 MHz <small style="opacity:.7">4m</small></span>
+            <span class="toggle-btn on" data-key="band_2m" onclick="toggle(this)">144 MHz <small style="opacity:.7">2m</small></span>
+            <span class="toggle-btn" data-key="band_220" onclick="toggle(this)">220 MHz <small style="opacity:.7">1.25m</small></span>
+          </div>
+        </div>
+        <div class="band-group">
+          <div class="band-group-title">UHF</div>
+          <div class="toggle-grid">
+            <span class="toggle-btn on" data-key="band_70cm" onclick="toggle(this)">432 MHz <small style="opacity:.7">70cm</small></span>
+            <span class="toggle-btn" data-key="band_23cm" onclick="toggle(this)">1.2 GHz <small style="opacity:.7">23cm</small></span>
+            <span class="toggle-btn" data-key="band_13cm" onclick="toggle(this)">2.4 GHz <small style="opacity:.7">13cm</small></span>
+          </div>
+        </div>
+        <div class="band-group">
+          <div class="band-group-title">SHF</div>
+          <div class="toggle-grid">
+            <span class="toggle-btn" data-key="band_9cm" onclick="toggle(this)">3.4 GHz <small style="opacity:.7">9cm</small></span>
+            <span class="toggle-btn" data-key="band_6cm" onclick="toggle(this)">5.7 GHz <small style="opacity:.7">6cm</small></span>
+            <span class="toggle-btn" data-key="band_3cm" onclick="toggle(this)">10 GHz <small style="opacity:.7">3cm</small></span>
+            <span class="toggle-btn" data-key="band_6mm" onclick="toggle(this)">24 GHz <small style="opacity:.7">1.2cm</small></span>
+            <span class="toggle-btn" data-key="band_4mm" onclick="toggle(this)">47 GHz <small style="opacity:.7">6mm</small></span>
+          </div>
+        </div>
+        <div class="band-group">
+          <div class="band-group-title">SATELLITE</div>
+          <div class="toggle-grid">
+            <span class="toggle-btn" data-key="band_qo100" onclick="toggle(this)">QO-100</span>
+            <span class="toggle-btn" data-key="band_sat" onclick="toggle(this)">Autres SAT</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">OPTIONS SPÉCIALES</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn flag" data-key="flag_qrp" onclick="toggle(this)">QRP</span>
+          <span class="toggle-btn flag" data-key="flag_iota" onclick="toggle(this)">IOTA</span>
+          <span class="toggle-btn flag" data-key="flag_sota" onclick="toggle(this)">SOTA</span>
+          <span class="toggle-btn flag" data-key="flag_pota" onclick="toggle(this)">POTA</span>
+          <span class="toggle-btn flag" data-key="flag_portable" onclick="toggle(this)">PORTABLE /P</span>
+          <span class="toggle-btn flag" data-key="flag_mobile" onclick="toggle(this)">MOBILE /M</span>
+          <span class="toggle-btn flag" data-key="flag_beacon" onclick="toggle(this)">BEACON</span>
+          <span class="toggle-btn flag" data-key="flag_eme" onclick="toggle(this)">EME</span>
+          <span class="toggle-btn flag" data-key="flag_ms" onclick="toggle(this)">Meteor Scatter</span>
+          <span class="toggle-btn flag" data-key="flag_no_digi" onclick="toggle(this)">NO-DIGI</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_radio">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">📻 5. RADIO (PILOTAGE CAT)</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('radio')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_radio">
+      <div class="section">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
+          suivis automatiquement, macros CW envoyées par le keyer de la radio.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PILOTAGE RADIO</label>
+            <select id="cat_enabled" onchange="updateCatModeVisibility()">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>MODE DE PILOTAGE</label>
+            <select id="cat_mode" onchange="updateCatModeVisibility()">
+              <option value="native">Natif (recommandé — pas de logiciel externe)</option>
+              <option value="tci">TCI (postes SDR — SunSDR/ExpertSDR3 et compatibles)</option>
+              <option value="rigctld">Hamlib rigctld (avancé — autres marques)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Mode natif : Icom CI-V / Yaesu / Kenwood / Elecraft directement en pyserial -->
+        <div id="catNativeFields" class="form-grid">
+          <div class="form-group">
+            <label>MARQUE</label>
+            <select id="cat_brand" onchange="updateCatModelOptions()">
+              <option value="icom">Icom (CI-V)</option>
+              <option value="yaesu">Yaesu (CAT)</option>
+              <option value="kenwood">Kenwood (PC Control)</option>
+              <option value="elecraft">Elecraft (K3/KX)</option>
+              <option value="xiegu">Xiegu (CI-V compatible Icom)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>MODÈLE</label>
+            <select id="cat_model"></select>
+            <div class="input-note" id="catAddrNote"></div>
+          </div>
+          <div class="form-group">
+            <label>PORT SÉRIE</label>
+            <select id="cat_port"></select>
+            <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshCatPorts()">🔄 Rafraîchir la liste</button>
+          </div>
+          <div class="form-group">
+            <label>VITESSE (bauds)</label>
+            <input type="number" id="cat_baudrate" placeholder="19200">
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testCatConnection()">🔌 Tester / auto-détecter</button>
+          <span id="catTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+
+        <!-- Mode TCI : transceivers SDR (SunSDR/ExpertSDR3 et compatibles), réseau WebSocket -->
+        <div id="catTciFields" class="form-grid" style="display:none;margin-top:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+              Le serveur TCI doit être activé dans ExpertSDR3 (ou logiciel compatible) sur le
+              poste relié au transceiver — pas de port série, connexion réseau directe.
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE TCI</label>
+            <input type="text" id="tci_host" placeholder="127.0.0.1 (ou IP du poste SDR)">
+            <div class="input-note">IP du PC où tourne le serveur TCI (peut être un autre poste du WiFi)</div>
+          </div>
+          <div class="form-group">
+            <label>PORT TCI</label>
+            <input type="number" id="tci_port" placeholder="50001">
+            <div class="input-note">50001 par défaut (ExpertSDR3) — 40001 pour l'ancien ESDR2</div>
+          </div>
+        </div>
+
+        <!-- Mode avancé : Hamlib rigctld -->
+        <div id="catRigctldFields" class="form-grid" style="display:none;margin-top:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+              Lance <b style="color:var(--accent2)">rigctld -m &lt;n°modèle&gt; -r &lt;port COM&gt; -T 0.0.0.0</b>
+              sur le PC relié à la radio (fourni avec Hamlib — n° de modèle : <b>rigctl -l</b>).
+              À réserver aux marques non couvertes en mode natif (Ten-Tec, RGO, modèles anciens...).
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE RIGCTLD</label>
+            <input type="text" id="rig_host" placeholder="127.0.0.1 (ou IP du poste radio)">
+            <div class="input-note">IP du PC où tourne rigctld (peut être un autre poste du WiFi)</div>
+          </div>
+          <div class="form-group">
+            <label>PORT RIGCTLD</label>
+            <input type="number" id="rig_port" placeholder="4532">
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">💻 WSJT-X (FT8/FT4 — auto-log)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Chaque QSO validé dans WSJT-X arrive AUTOMATIQUEMENT dans le logbook
+          (call, grille, bande, mode, rapports) — plus de ressaisie en numérique.<br>
+          Côté WSJT-X : <b style="color:var(--accent2)">Réglages → Rapports → UDP Server</b>
+          = l'IP de ce PC, port 2237.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>AUTO-LOG WSJT-X</label>
+            <select id="wsjtx_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">Désactivé par défaut — écoute UDP en fond si activé</div>
+          </div>
+          <div class="form-group">
+            <label>PORT UDP WSJT-X</label>
+            <input type="number" id="wsjtx_port" placeholder="2237">
+            <div class="input-note">Port « UDP Server » de WSJT-X (défaut 2237)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🎙️ KEYER VOCAL (phonie — indicatif dit automatiquement)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Équivalent phonie des macros CW : synthèse vocale hors-ligne (aucun réseau),
+          indicatif épelé phonétiquement (Alpha, Bravo…) et reports dits chiffre par
+          chiffre, PTT activé automatiquement le temps du message (nécessite le
+          pilotage radio ci-dessus, natif/TCI/rigctld). Le son part vers le
+          PÉRIPHÉRIQUE choisi ci-dessous — utilise un câble audio virtuel
+          (ex. VB-Audio) ou une interface dédiée reliée à l'entrée micro de la
+          radio, jamais tes haut-parleurs de suivi.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>KEYER VOCAL</label>
+            <select id="voicekeyer_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>PÉRIPHÉRIQUE DE SORTIE</label>
+            <select id="voicekeyer_device"><option value="">— chargement… —</option></select>
+            <div class="input-note">Le câble/l'interface relié(e) à l'entrée micro de la radio, PAS tes enceintes</div>
+          </div>
+          <div class="form-group">
+            <label>VOIX</label>
+            <select id="voicekeyer_voice_id"><option value="">— chargement… —</option></select>
+          </div>
+          <div class="form-group">
+            <label>VITESSE (mots/min)</label>
+            <input type="number" id="voicekeyer_rate" placeholder="175" min="80" max="300">
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testVoiceKeyer()">🔊 Tester (indicatif fictif)</button>
+          <span id="voiceKeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_amp">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">🔋 6. AMPLIFICATEUR HF</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('amp')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_amp">
+      <div class="section">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Puissance/SWR/défaut affichés en direct dans le LOGBOOK, bascule standby/operate
+          et changement de bande depuis l'application — 3 protocoles constructeurs vérifiés
+          contre leur documentation officielle. Port série indépendant de celui de la radio
+          (câble USB/RS-232 dédié à l'ampli).
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PILOTAGE AMPLI</label>
+            <select id="amp_enabled" onchange="updateEnabledFieldsVisibility('amp_enabled',['amp_brand','amp_port','amp_baudrate','amp_civ_addr'])">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>MARQUE</label>
+            <select id="amp_brand" onchange="updateAmpFieldsVisibility()">
+              <option value="elecraft">Elecraft (KPA500 / KPA1500)</option>
+              <option value="icom">Icom (IC-PW2 / PW-1, CI-V)</option>
+              <option value="spe">SPE / Expert (1.3K-FA / 1.5K-FA / 2K-FA)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>PORT SÉRIE</label>
+            <select id="amp_port"></select>
+            <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshAmpPorts()">🔄 Rafraîchir la liste</button>
+          </div>
+          <div class="form-group">
+            <label>VITESSE (bauds)</label>
+            <input type="number" id="amp_baudrate" placeholder="9600 à 38400 selon marque">
+          </div>
+          <div class="form-group" id="ampCivAddrField" style="display:none">
+            <label>ADRESSE CI-V</label>
+            <input type="text" id="amp_civ_addr" placeholder="AA">
+            <div class="input-note">Adresse usine IC-PW2/PW-1 : AA (modifiable sur l'ampli si besoin)</div>
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testAmpConnection()">🔌 Tester la connexion</button>
+          <span id="ampTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_rotor">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">🧭 7. ROTOR D'ANTENNE</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('rotor')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_rotor">
+      <div class="section">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
+          depuis ton locator est envoyé au rotor.<br>
+          Lance <b style="color:var(--accent2)">rotctld -m &lt;n°modèle&gt; -r &lt;port&gt; -T 0.0.0.0</b>
+          sur le PC relié au boîtier de commande (fourni avec Hamlib — modèles : <b>rotctl -l</b>).
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PILOTAGE ROTOR</label>
+            <select id="rotor_enabled" onchange="updateEnabledFieldsVisibility('rotor_enabled',['rotor_host','rotor_port'])">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">Désactivé par défaut — aucun effet sans rotctld</div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE ROTCTLD</label>
+            <input type="text" id="rotor_host" placeholder="127.0.0.1 (ou IP du poste rotor)">
+            <div class="input-note">IP du PC où tourne rotctld (peut être un autre poste du WiFi)</div>
+          </div>
+          <div class="form-group">
+            <label>PORT ROTCTLD</label>
+            <input type="number" id="rotor_port" placeholder="4533">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_network">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">☁️ 8. MULTI-POSTE &amp; CLOUD SYNC</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('network')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_network">
+      <div class="section">
+        <div class="section-title">🌐 RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Interopérabilité temps réel avec N1MM Logger+ et DXLog.net via leur
+          protocole de broadcast UDP <code>&lt;contactinfo&gt;</code> (format de facto
+          entre loggers de concours tiers).<br>
+          Côté N1MM : <b style="color:var(--accent2)">Config → Config Ports → Broadcast Data</b>
+          → cocher « Contact », IP de ce PC, port 12060.<br>
+          Côté DXLog : <b style="color:var(--accent2)">Options → Broadcast → QSOs</b>
+          (format « N1MM-like »), même IP/port.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>MODE</label>
+            <select id="adifnet_mode">
+              <option value="off">Désactivé</option>
+              <option value="listen">Réception seule (importer leurs QSO)</option>
+              <option value="send">Émission seule (leur envoyer nos QSO)</option>
+              <option value="both">Réception + émission</option>
+            </select>
+            <div class="input-note">Désactivé par défaut</div>
+          </div>
+          <div class="form-group">
+            <label>PORT UDP</label>
+            <input type="number" id="adifnet_port" placeholder="12060">
+            <div class="input-note">Port broadcast N1MM/DXLog (défaut 12060)</div>
+          </div>
+          <div class="form-group">
+            <label>IP CIBLE (émission)</label>
+            <input type="text" id="adifnet_target" placeholder="255.255.255.255">
+            <div class="input-note">Broadcast local, ou IP précise du PC voisin</div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">☁️ CLOUD SYNC (multi-poste, sans compte ni service en ligne)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Combine tes QSO avec un AUTRE poste (même expédition, poste de secours...)
+          via un dossier déjà synchronisé (Synology Drive, Dropbox, OneDrive…) —
+          chaque poste pointant vers le MÊME dossier voit les QSO des autres.
+          Aucun compte à créer : le « cloud », c'est l'outil de sync que tu
+          utilises déjà. Différent de la SAUVEGARDE (instantanés à
+          sens unique) : ici les QSO des deux côtés se combinent réellement.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>MODE</label>
+            <select id="cloudsync_mode" onchange="updateEnabledFieldsVisibility('cloudsync_mode',['cloudsync_folder','cloudsync_interval'],v=>v!=='')">
+              <option value="">Désactivé</option>
+              <option value="full">Synchronisation complète (lit + écrit)</option>
+              <option value="push">Envoi seul (écrit, ne récupère rien)</option>
+            </select>
+            <div class="input-note">« Envoi seul » : pour un poste isolé qui alimente le dossier partagé sans avoir besoin des QSO des autres</div>
+          </div>
+          <div class="form-group">
+            <label>DOSSIER PARTAGÉ</label>
+            <input type="text" id="cloudsync_folder" placeholder="vide = même dossier que SAUVEGARDE" autocomplete="off">
+            <div class="input-note">Doit être IDENTIQUE sur tous les postes qui synchronisent ensemble.
+              Configure ce dossier en « toujours conserver sur cet appareil » (pas de fichiers à la
+              demande/placeholder) — sinon une synchro peut ralentir en attendant un téléchargement cloud.</div>
+          </div>
+          <div class="form-group">
+            <label>INTERVALLE (min)</label>
+            <input type="number" id="cloudsync_interval" placeholder="3" min="1" max="60">
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="cloudsyncNow()">☁️ SYNCHRONISER MAINTENANT</button>
+          <span id="cloudsyncResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_backup">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">💾 9. SAUVEGARDE AUTOMATIQUE</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('backup')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_backup">
+      <div class="section">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>DOSSIER DE SAUVEGARDE</label>
+            <input type="text" id="backup_folder" placeholder="C:\Users\...\SynologyDrive\logs" autocomplete="off">
+            <div class="input-note">Copie horodatée (.db + .json + ADIF) ; vide = désactivé</div>
+          </div>
+          <div class="form-group">
+            <label>SAUVEGARDE — INTERVALLE (min)</label>
+            <input type="number" id="backup_interval" placeholder="15" min="5" max="120">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_sources">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">📡 10. SOURCES DE PROPAGATION</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('sources')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_sources">
+      <div class="section">
+        <div class="section-title">SOURCES DE DONNÉES PROPAGATION</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn on" data-key="src_f5len" onclick="toggle(this)">Cluster F5LEN</span>
+          <span class="toggle-btn on" data-key="src_dxsummit" onclick="toggle(this)">DXSummit</span>
+          <span class="toggle-btn on" data-key="src_dxwatch" onclick="toggle(this)">DXWatch</span>
+          <span class="toggle-btn on" data-key="src_tropo_f5len" onclick="toggle(this)">Tropo F5LEN</span>
+          <span class="toggle-btn on" data-key="src_dxmaps" onclick="toggle(this)">DXMaps</span>
+          <span class="toggle-btn on" data-key="src_hamqth_spots" onclick="toggle(this)">HamQTH spots (VHF)</span>
+          <span class="toggle-btn on" data-key="src_hamspirit" onclick="toggle(this)">HamSpirit (VHF)</span>
+          <span class="toggle-btn on" data-key="src_telnet" onclick="toggle(this)">Telnet DX Spider (HF)</span>
+          <span class="toggle-btn" data-key="src_voacap" onclick="toggle(this)">VOACAP (HF)</span>
+          <span class="toggle-btn on" data-key="src_on4kst" onclick="toggle(this)">ON4KST Chat</span>
+          <span class="toggle-btn" data-key="src_pskreporter" onclick="toggle(this)">PSK Reporter</span>
+          <span class="toggle-btn" data-key="src_solarcycle" onclick="toggle(this)">Cycle solaire</span>
+          <span class="toggle-btn" data-key="src_noaa" onclick="toggle(this)">NOAA K-index</span>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">COMPTE ON4KST CHAT (optionnel)</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>INDICATIF ON4KST</label>
+            <input type="text" id="on4kst_callsign" placeholder="F4GLD" style="text-transform:uppercase">
+            <div class="input-note">Ton indicatif d'identification sur le chat ON4KST</div>
+          </div>
+          <div class="form-group">
+            <label>MOT DE PASSE ON4KST</label>
+            <input type="password" id="on4kst_password" placeholder="••••••••" autocomplete="new-password">
+            <div class="input-note">Stocké en local uniquement — jamais transmis à l'IA</div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>RBN CW (où mon signal est entendu)</label>
+            <select id="rbn_enabled">
+              <option value="1">Activé (par défaut)</option>
+              <option value="">Désactivé</option>
+            </select>
+            <div class="input-note">Panneau RBN sur la page PROPAGATION</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_alerts">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">🔔 11. ALERTES PERSONNALISÉES</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('alerts')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_alerts">
+      <div class="section">
+        <div class="section-title">MODES DE PROPAGATION À SURVEILLER</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn prop on" data-key="prop_tropo" onclick="toggle(this)">Troposphérique</span>
+          <span class="toggle-btn prop on" data-key="prop_es" onclick="toggle(this)">Sporadique-E</span>
+          <span class="toggle-btn prop" data-key="prop_aurora" onclick="toggle(this)">Aurore</span>
+          <span class="toggle-btn prop" data-key="prop_ms" onclick="toggle(this)">Meteor Scatter</span>
+          <span class="toggle-btn prop" data-key="prop_eme" onclick="toggle(this)">EME</span>
+          <span class="toggle-btn prop on" data-key="prop_f2" onclick="toggle(this)">F2 (ionosphérique)</span>
+          <span class="toggle-btn prop" data-key="prop_ducting" onclick="toggle(this)">Ducting maritime</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">PARAMÈTRES D'ALERTE</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>DISTANCE ALERTE DX (KM)</label>
+            <input type="number" id="alert_dx_km" placeholder="1200" value="1200" min="100" max="5000">
+            <div class="input-note">Au-delà → alerte 🌟 DX EXCEPTIONNEL</div>
+          </div>
+          <div class="form-group">
+            <label>DISTANCE PROBABLE SPOTTER (KM)</label>
+            <input type="number" id="spotter_reliable_km" placeholder="600" value="600" min="50" max="3000">
+            <div class="input-note">En deçà → contact ✅ PROBABLE</div>
+          </div>
+          <div class="form-group">
+            <label>SON DES ALERTES</label>
+            <select id="alert_sound">
+              <option value="1">Activé</option>
+              <option value="">Silencieux</option>
+            </select>
+            <div class="input-note">Bip sur nouveau mult, DX rare, mention ON4KST</div>
+          </div>
+          <div class="form-group">
+            <label>VOLUME ALERTES (%)</label>
+            <input type="number" id="alert_volume" placeholder="60" value="60" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label>RAFRAÎCHISSEMENT AUTO (MIN)</label>
+            <input type="number" id="refresh_min" placeholder="2" value="2" min="1" max="30">
+          </div>
+          <div class="form-group">
+            <label>PRIORITÉ PRINCIPALE</label>
+            <select id="priority_mode">
+              <option value="distance">Distance (pts/km)</option>
+              <option value="dept">Département manquant</option>
+              <option value="dxcc">DXCC manquant</option>
+              <option value="zone">Zone manquante</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>FILTRE PRÉFIXE SPOTS</label>
+            <input type="text" id="spot_prefix_filter" placeholder="F,DL,ON,G,HB9" maxlength="80"
+              title="Préfixes à surveiller, séparés par virgule. Vide = tous les spots">
+            <div class="input-note">Préfixes inclus (ex : F,DL,G). Vide = aucun filtre</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🔔 RÈGLES D'ALERTE PERSONNALISÉES</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          En plus du nouveau multiplicateur et de la mention ON4KST (toujours actifs) :
+          combine préfixe d'indicatif, continent, zone CQ, bande, statut travaillé et
+          texte du commentaire de spot pour créer tes propres alertes sonores. Chaque
+          règle est activable/désactivable indépendamment.
+        </div>
+        <div id="alertRulesList" style="margin-bottom:14px"></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>NOM DE LA RÈGLE</label>
+            <input type="text" id="newRuleName" placeholder="ex : DX Asie neuf" maxlength="40">
+          </div>
+          <div class="form-group">
+            <label>PRÉFIXE INDICATIF</label>
+            <input type="text" id="newRulePrefix" placeholder="JA,HL,BY (vide = tous)">
+          </div>
+          <div class="form-group">
+            <label>CONTINENT</label>
+            <select id="newRuleContinent">
+              <option value="">Tous</option>
+              <option value="EU">Europe</option>
+              <option value="NA">Amérique du Nord</option>
+              <option value="SA">Amérique du Sud</option>
+              <option value="AF">Afrique</option>
+              <option value="AS">Asie</option>
+              <option value="OC">Océanie</option>
+              <option value="AN">Antarctique</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ZONE CQ</label>
+            <input type="text" id="newRuleCqZone" placeholder="25,26 (vide = toutes)">
+          </div>
+          <div class="form-group">
+            <label>BANDE (MHz)</label>
+            <input type="text" id="newRuleBand" placeholder="14,21 (vide = toutes)">
+          </div>
+          <div class="form-group">
+            <label>STATUT</label>
+            <select id="newRuleStatus">
+              <option value="any">Indifférent</option>
+              <option value="new_mult">Nouveau multiplicateur</option>
+              <option value="already_done">Déjà travaillé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>COMMENTAIRE DE SPOT CONTIENT</label>
+            <input type="text" id="newRuleComment" placeholder="ex : POTA, SOTA, QRP">
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="addAlertRule()">➕ AJOUTER LA RÈGLE</button>
+          <span id="ruleAddMsg" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_qsl">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">📮 12. QSL &amp; DIPLÔMES</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('qsl')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_qsl">
+      <div class="section">
+        <div class="section-title">🌐 COMPTE QRZ.com (fiches des correspondants)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          À chaque indicatif saisi, affiche nom / QTH / locator / pays depuis QRZ.
+          (Champs détaillés réservés aux comptes abonnés XML QRZ ; le pays reste
+          accessible sans abonnement.)
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>IDENTIFIANT QRZ</label>
+            <input type="text" id="qrz_user" placeholder="ton indicatif QRZ" style="text-transform:uppercase" autocomplete="off">
+            <div class="input-note">Ton login QRZ.com (souvent ton indicatif)</div>
+          </div>
+          <div class="form-group">
+            <label>MOT DE PASSE QRZ</label>
+            <input type="password" id="qrz_password" placeholder="••••••••" autocomplete="new-password">
+            <div class="input-note">Stocké côté serveur uniquement — jamais renvoyé au navigateur ni à l'IA</div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">📮 QSL &amp; DIPLÔMES (services en ligne)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Publie ton log après un concours (eQSL, ClubLog) et récupère les
+          confirmations (LoTW) pour suivre tes diplômes DXCC / départements
+          « travaillé / confirmé ». Boutons dans le LOGBOOK → 🏅 DIPLÔMES.
+          Identifiants stockés côté serveur uniquement.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>eQSL — IDENTIFIANT</label>
+            <input type="text" id="eqsl_user" placeholder="ton indicatif eQSL" style="text-transform:uppercase" autocomplete="off">
+            <div class="input-note">Envoi du log (upload ADIF)</div>
+          </div>
+          <div class="form-group">
+            <label>eQSL — MOT DE PASSE</label>
+            <input type="password" id="eqsl_password" placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label>LoTW — IDENTIFIANT</label>
+            <input type="text" id="lotw_user" placeholder="ton indicatif LoTW" style="text-transform:uppercase" autocomplete="off">
+            <div class="input-note">Import des confirmations (pas d'upload : garde TQSL pour publier)</div>
+          </div>
+          <div class="form-group">
+            <label>LoTW — MOT DE PASSE</label>
+            <input type="password" id="lotw_password" placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label>ClubLog — EMAIL</label>
+            <input type="text" id="clublog_email" placeholder="email du compte ClubLog" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>ClubLog — INDICATIF</label>
+            <input type="text" id="clublog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>ClubLog — MOT DE PASSE</label>
+            <input type="password" id="clublog_password" placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label>ClubLog — CLÉ API</label>
+            <input type="text" id="clublog_api_key" placeholder="clé API ClubLog" autocomplete="off">
+            <div class="input-note">Obtenue sur clublog.org (Settings → API keys)</div>
+          </div>
+          <div class="form-group">
+            <label>QRZCQ — INDICATIF</label>
+            <input type="text" id="qrzcq_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>QRZCQ — CLÉ API</label>
+            <input type="text" id="qrzcq_api_key" placeholder="clé API QRZCQ" autocomplete="off">
+            <div class="input-note">Obtenue sur qrzcq.com (Mon compte → Développeurs)</div>
+          </div>
+          <div class="form-group">
+            <label>HRDLog — INDICATIF</label>
+            <input type="text" id="hrdlog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>HRDLog — CODE D'UPLOAD</label>
+            <input type="text" id="hrdlog_code" placeholder="code d'upload HRDLog" autocomplete="off">
+            <div class="input-note">Obtenu sur hrdlog.net (réglages du compte) — envoi QSO par QSO, peut être lent sur un gros log</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_scoreboard">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">🏆 13. SCOREBOARD &amp; SOUMISSION</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('scoreboard')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_scoreboard">
+      <div class="section">
+        <div class="section-title">SCOREBOARD EN DIRECT</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>SCOREBOARD EN DIRECT</label>
+            <select id="scoreboard_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé — publier le score</option>
+            </select>
+            <div class="input-note">Envoi périodique vers contestonlinescore.com</div>
+          </div>
+          <div class="form-group">
+            <label>SCOREBOARD — INTERVALLE (min)</label>
+            <input type="number" id="scoreboard_interval" placeholder="5" min="2" max="30">
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">SOUMISSION DU LOG</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>URL SOUMISSION LOG</label>
+            <input type="text" id="submit_url" placeholder="http://concours.r-e-f.org/tools/upload/thf.php">
+          </div>
+          <div class="form-group">
+            <label>DÉLAI SOUMISSION</label>
+            <input type="text" id="submit_deadline" placeholder="ex: mercredi 9 juillet 2026 minuit">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_expedition">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">🏝️ 14. EXPÉDITION / ACTIVATION</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('expedition')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_expedition">
+      <div class="section">
+        <div class="section-title">🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Tu actives une référence (parc, sommet, île, réserve, phare, château) :
+          chaque QSO porte ta référence et compte pour valider l'activation. Le
+          logbook affiche l'avancement (X / minimum) et détecte les contacts
+          entre deux activateurs (<b>Park-to-Park / Summit-to-Summit / Light-to-Light...</b>).
+          L'export ADIF inclut les champs SIG / MY_SIG_INFO pour l'upload.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PROGRAMME</label>
+            <select id="activation_program">
+              <option value="">Désactivé (concours normal)</option>
+              <option value="POTA">POTA — Parks on the Air (10 QSO)</option>
+              <option value="SOTA">SOTA — Summits on the Air (4 QSO)</option>
+              <option value="IOTA">IOTA — Islands on the Air (1 QSO)</option>
+              <option value="WWFF">WWFF — Flora &amp; Fauna (44 QSO)</option>
+              <option value="ARLHS">ARLHS — Lighthouses (2 QSO)</option>
+              <option value="WCA">WCA — World Castles Award (50 QSO)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>MA RÉFÉRENCE ACTIVÉE</label>
+            <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase">
+            <div class="input-note">POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🏝️ MODE EXPÉDITION</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Plusieurs postes sur le même site (un par bande, voire trois par bande en
+          CW/SSB/FT8) loggent dans le MÊME log commun : chaque poste ouvre le
+          LOGBOOK depuis son navigateur (même WiFi), sélectionne son opérateur, et
+          tous les QSO arrivent ensemble. L'écran mural affiche le flux en direct
+          sur un grand écran/projecteur, et Club Log Live diffuse chaque QSO au monde.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>MODE EXPÉDITION (saisie simplifiée)</label>
+            <select id="expedition_mode">
+              <option value="">Désactivé — saisie concours normale</option>
+              <option value="1">Activé — juste indicatif + RST envoyé/reçu</option>
+            </select>
+            <div class="input-note">En pile-up d'expédition : pas de n° de série ni locator, seulement l'indicatif et les reports (59, 55, 44…)</div>
+          </div>
+          <div class="form-group">
+            <label>CLUB LOG LIVE STREAM</label>
+            <select id="clublog_live">
+              <option value="">Désactivé</option>
+              <option value="1">Activé — pousser chaque QSO en temps réel</option>
+            </select>
+            <div class="input-note">Nécessite les identifiants ClubLog (section QSL)</div>
+          </div>
+          <div class="form-group">
+            <label>AUTO-SPOT DX CLUSTER (self-spot)</label>
+            <select id="cluster_spot_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé — bouton 📡 SELF-SPOT dans le logbook</option>
+            </select>
+            <div class="input-note">Publie ton indicatif + ta fréquence sur le cluster. Login = ton indicatif. ⚠️ Interdit par certains règlements en single-op.</div>
+          </div>
+          <div class="form-group">
+            <label>NŒUD CLUSTER (host : port)</label>
+            <div style="display:flex;gap:6px">
+              <input type="text" id="cluster_spot_host" placeholder="dxc.ve7cc.net" value="dxc.ve7cc.net" style="flex:1">
+              <input type="number" id="cluster_spot_port" placeholder="7300" value="7300" style="width:90px">
+            </div>
+            <div class="input-note">VE7CC accepte le spot avec le seul indicatif. D'autres nœuds exigent une inscription.</div>
+          </div>
+          <div class="form-group">
+            <label>ÉCRAN MURAL (grand écran)</label>
+            <a href="logx_wall.html" target="_blank" class="btn btn-secondary" style="display:inline-block;padding:9px 16px;text-decoration:none;margin-top:2px">🖥️ OUVRIR L'ÉCRAN MURAL</a>
+            <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran)</div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label>ÉCRAN MURAL — CHAMPS À AFFICHER</label>
+          <div id="wallFields" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:8px;font-family:var(--font-mono);font-size:14px">
+            <label style="cursor:pointer"><input type="checkbox" id="wf_time" checked> Heure</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_flag" checked> 🏴 Drapeau</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_country" checked> Pays</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_name"> Prénom</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_band" checked> Bande</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_freq"> Fréquence</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_mode" checked> Mode</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_rst"> Report (RST)</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_op" checked> Opérateur</label>
+          </div>
+          <div class="input-note">L'indicatif est toujours affiché. Le prénom n'apparaît que pour les indicatifs déjà consultés via QRZ.</div>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label>📱 CONNECTER UN TÉLÉPHONE / TABLETTE</label>
+          <div id="lanUrls" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-top:6px;line-height:1.8">Recherche de l'adresse réseau…</div>
+          <div class="input-note">Sur le même WiFi, ouvre cette adresse sur ton téléphone, puis « Ajouter à l'écran d'accueil » : l'appli s'installe et tourne en plein écran (PWA).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_ai">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title">🤖 15. ASSISTANT IA</span>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('ai')">✕ Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_ai">
+      <div class="section">
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>FOURNISSEUR</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+              <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
+                <input type="radio" name="api_provider" value="anthropic" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🤖 Claude (Anthropic)
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
+                <input type="radio" name="api_provider" value="openai" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 💚 ChatGPT (OpenAI)
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
+                <input type="radio" name="api_provider" value="gemini" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🔵 Gemini (Google)
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>MODÈLE</label>
+            <select id="ai_model" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none;width:100%"></select>
+          </div>
+          <div class="form-group">
+            <label id="api_key_label">CLÉ API</label>
+            <input type="password" id="api_key" placeholder="sk-ant-api03-...">
+            <div class="input-note">🔒 Stockée localement par fournisseur — jamais partagée</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2147,6 +2348,7 @@ async function init() {
   updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
   updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
+  renderHub(); // Hub de catégories : badges d'état initiaux
 }
 
 // ─── KEYER VOCAL : périphériques audio + voix TTS (chargés une fois) ────────
@@ -2710,6 +2912,7 @@ function selectContest(id, _skipConfirm) {
     state.datesAutoFor = null;
     if(banner) banner.innerHTML = `📅 Dates pour <strong>${id}</strong> non calculables automatiquement — saisis-les manuellement.`;
   }
+  renderHub();
 }
 
 // Dates depuis la base serveur : parse "DD/MM/YYYY à HHhMM UTC" + durée
@@ -2738,6 +2941,108 @@ function serverContestDates(id){
 function toggle(el) {
   el.classList.toggle('on');
   state.toggles[el.dataset.key] = el.classList.contains('on');
+  renderHub();
+}
+
+// ─── HUB DE CATÉGORIES (refonte popup) ──────────────────────────────────────
+// Une popup statique par catégorie (voir CSS .cat-modal) : ouvrir/fermer ne
+// fait que basculer sa visibilité, aucun champ n'est déplacé à l'exécution.
+function openCategoryPopup(cat){
+  const modal = document.getElementById('catmodal_' + cat);
+  if(modal) modal.style.display = 'block';
+}
+
+function closeCategoryPopup(cat){
+  const modal = document.getElementById('catmodal_' + cat);
+  if(modal) modal.style.display = 'none';
+  renderHub();
+}
+
+// Popup RÉSUMÉ (remplace l'ancien panel5/étape 5) : accessible à tout moment
+// depuis le lien "📊 Résumé ▸" en tête du hub, indépendamment des catégories.
+function openSummaryPopup(){
+  buildSummary();
+  document.getElementById('catmodal_summary').style.display = 'block';
+}
+function closeSummaryPopup(){
+  document.getElementById('catmodal_summary').style.display = 'none';
+}
+
+// Statut d'une catégorie pour le badge de sa carte : 'ok' (✅), 'warning' (⚠️,
+// remplie mais invalide/incomplète), 'empty' (○, non configurée — souvent
+// normal, ces catégories sont majoritairement optionnelles).
+function _catStatus(cat){
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  switch(cat){
+    case 'identity': {
+      if(!val('callsign')) return 'empty';
+      const loc = val('locator');
+      return (loc && isValidLocator(loc)) ? 'ok' : 'warning';
+    }
+    case 'operators':
+      return val('op1_call') ? 'ok' : 'empty';
+    case 'contest':
+      if(getUsageMode() === 'simple') return 'ok'; // pas requis dans ce mode (H4/M4)
+      return state.contest ? 'ok' : 'empty';
+    case 'filters': {
+      if(getUsageMode() === 'simple') return 'ok';
+      const hasBand = !!document.querySelector('[data-key^="band_"].on');
+      const hasMode = !!document.querySelector('[data-key^="mode_"].on');
+      const sd = val('contest_start_date'), ed = val('contest_end_date');
+      const datesOk = !(sd && ed && ed < sd);
+      return (hasBand && hasMode && datesOk) ? 'ok' : 'warning';
+    }
+    case 'radio':
+      return val('cat_enabled') === '1' ? 'ok' : 'empty';
+    case 'amp':
+      return val('amp_enabled') === '1' ? 'ok' : 'empty';
+    case 'rotor':
+      return val('rotor_enabled') === '1' ? 'ok' : 'empty';
+    case 'network':
+      return val('cloudsync_mode') ? 'ok' : 'empty';
+    case 'backup':
+      return val('backup_folder') ? 'ok' : 'empty';
+    case 'sources':
+      return 'empty'; // toggles multiples (cluster/RBN/ON4KST) — pas de statut unique pertinent
+    case 'alerts':
+      return (state.alertRules && state.alertRules.length) ? 'ok' : 'empty';
+    case 'qsl': {
+      if(val('clublog_live') === '1'){
+        const missing = ['clublog_email','clublog_callsign','clublog_password','clublog_api_key']
+          .some(id => !val(id));
+        if(missing) return 'warning';
+      }
+      return 'ok';
+    }
+    case 'scoreboard':
+      return 'empty'; // section optionnelle, pas de champ requis
+    case 'expedition':
+      return getUsageMode() === 'expedition' ? (val('activation_program') ? 'ok' : 'warning') : 'empty';
+    case 'ai':
+      return val('api_key') ? 'ok' : 'empty';
+    default:
+      return 'empty';
+  }
+}
+
+const _CAT_BADGE = { ok: '✅', warning: '⚠️', empty: '○' };
+
+function renderHub(){
+  ['identity','operators','contest','filters','radio','amp','rotor','network',
+   'backup','sources','alerts','qsl','scoreboard','expedition','ai'].forEach(cat => {
+    const card = document.getElementById('hubcard_' + cat);
+    const badge = document.getElementById('hubbadge_' + cat);
+    if(!card || !badge) return;
+    const status = _catStatus(cat);
+    card.classList.remove('status-ok','status-warning','status-empty');
+    card.classList.add('status-' + status);
+    badge.textContent = _CAT_BADGE[status] || '';
+  });
+  const sub = document.getElementById('hubsub_contest');
+  if(sub){
+    const c = CONTESTS.find(c => c.id === state.contest);
+    sub.textContent = c ? c.name : (getUsageMode() === 'simple' ? 'Non requis (mode LOGBOOK SIMPLE)' : 'Aucun concours choisi');
+  }
 }
 
 // ─── RÈGLES D'ALERTE PERSONNALISÉES (évaluées côté serveur, logx_alerts.py) ─
@@ -3758,6 +4063,7 @@ function applyUsageMode(){
   // lien calendrier) laisserait l'étape 4 masquée par le calcul déjà fait
   // plus tôt par applyUiMode() avant que ce mode ne soit connu.
   applyUiMode();
+  renderHub();
 }
 
 function onUsageModeChange(){
@@ -3986,6 +4292,7 @@ function applyFullConfigToForm(c) {
     updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
     updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
     updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
+    renderHub(); // Hub de catégories : badges après restauration/changement de profil
 }
 
 // Pré-remplissage depuis config.json (fallback si localStorage vide)
