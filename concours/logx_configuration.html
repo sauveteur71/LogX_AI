@@ -2168,26 +2168,10 @@ function applyConfigToForm(cfg) {
   if(savedKey) set('api_key', savedKey);
 }
 
-function loadSavedConfig() {
-  try{
-    const raw = localStorage.getItem('logx_config');
-    if(!raw) return false;
-    const cfg = JSON.parse(raw);
-    applyConfigToForm(cfg);
-    return true;
-  } catch(e){ console.warn('loadSavedConfig:', e); return false; }
-}
-
-async function loadFromServerConfig() {
-  try{
-    const res = await fetch('/config');
-    if(!res.ok) return;
-    const cfg = await res.json();
-    if(cfg && typeof cfg === 'object' && cfg.callsign){
-      applyConfigToForm(cfg);
-    }
-  } catch(e){ console.warn('loadFromServerConfig:', e); }
-}
+// NOTE : loadSavedConfig()/loadFromServerConfig() réellement utilisées par
+// init() sont définies plus bas (recherche du même nom) — elles restaurent la
+// config normale complète. applyConfigToForm() ci-dessus reste utilisée par
+// loadProfile() (changement de profil).
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 async function init() {
@@ -3474,7 +3458,13 @@ function saveConfig(silent = false) {
       rst:     document.getElementById('wf_rst').checked,
       op:      document.getElementById('wf_op').checked,
     },
-    rig_enabled: !!document.getElementById('rig_enabled')?.value,
+    // Correctif : aucun élément id="rig_enabled" n'existe dans la page (le
+    // pilotage rigctld est en fait activé via cat_enabled + cat_mode='rigctld',
+    // section RADIO unifiée) — l'ancienne ligne renvoyait donc toujours false,
+    // rendant le mode rigctld inopérant côté serveur (logx_rig.py/logx_http.py
+    // conditionnent /rig/qsy, /rig/cw, /rig/stop sur ce seul champ).
+    rig_enabled: document.getElementById('cat_enabled').value === '1'
+                && document.getElementById('cat_mode').value === 'rigctld',
     rig_host: document.getElementById('rig_host')?.value.trim() || '',
     rig_port: parseInt(document.getElementById('rig_port')?.value, 10) || 4532,
     cat_enabled: !!document.getElementById('cat_enabled').value,
@@ -3778,6 +3768,14 @@ function loadSavedConfig() {
     if(c.ant_144) document.getElementById('ant_144').value = c.ant_144;
     if(c.ant_432) document.getElementById('ant_432').value = c.ant_432;
     if(c.ant_shf) document.getElementById('ant_shf').value = c.ant_shf;
+    // Correctif : ces 4 champs étaient envoyés par saveConfig() mais jamais
+    // restaurés ici (seule l'ancienne applyConfigToForm(), plus jamais
+    // exécutée à cause de la redéclaration de fonction plus bas dans ce
+    // fichier, les restaurait) — perte silencieuse au rechargement de page.
+    if(c.radio) document.getElementById('radio').value = c.radio;
+    if(c.country) document.getElementById('country').value = c.country;
+    if(c.submit_url) document.getElementById('submit_url').value = c.submit_url;
+    if(c.submit_deadline) document.getElementById('submit_deadline').value = c.submit_deadline;
     if(c.contest) selectContest(c.contest);
     if(c.toggles) {
       // selectContest() vient de réinitialiser state.toggles aux valeurs par
