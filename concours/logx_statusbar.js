@@ -60,6 +60,9 @@
     <div class="rcsb-item" title="Dernier backup automatique du log (toutes les 5 min sur la page Logbook)">
       💾 <span class="rcsb-val" id="rcsbSave">—</span>
     </div>
+    <div class="rcsb-item" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
+      <a href="logx_propagation.html">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
+    </div>
     <div class="rcsb-item" title="Rate meter : QSO/h sur 10 min glissantes (extrapolé) et 60 min glissantes. Clic : fixer un objectif — vert au-dessus, rouge en dessous."
          id="rcsbRateItem" style="cursor:pointer">
       ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
@@ -101,6 +104,29 @@
   });
   refreshRate();
   setInterval(refreshRate, 60 * 1000);
+
+  // ── Météo solaire (badge compact, toutes pages) ────────────────────────────
+  // Réutilise /data/propagation (déjà servi côté serveur pour la page
+  // propagation et le contexte IA, cache 15 min) — pas de nouvel appel réseau
+  // ajouté au budget de l'app, juste un affichage permanent au lieu de devoir
+  // naviguer vers la page dédiée pour voir SFI/K.
+  function refreshSolar(){
+    fetch('/data/propagation').then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        const el = document.getElementById('rcsbSolar');
+        if (!el) return;
+        const s = (d && d.solar) || {};
+        if (s.sfi === undefined && s.k_index === undefined){ el.textContent = '—'; el.style.color = ''; return; }
+        el.textContent = 'SFI ' + (s.sfi != null && s.sfi !== '' ? s.sfi : '—')
+                        + ' · K ' + (s.k_index != null && s.k_index !== '' ? s.k_index : '—');
+        const k = parseFloat(s.k_index);
+        el.style.color = !isNaN(k)
+          ? (k <= 2 ? 'var(--green,#00FF88)' : k <= 4 ? 'var(--yellow,#FFD60A)' : 'var(--red,#FF2D55)')
+          : '';
+      }).catch(function(){});
+  }
+  refreshSolar();
+  setInterval(refreshSolar, 15 * 60 * 1000);   // aligné sur le cache serveur (15 min)
 
   // ── Thème jour/nuit GLOBAL (rc_theme, basculé sur config/carte/logbook) ───
   // Chaque page définit sa palette body.day-mode ; ici on applique le choix

@@ -1379,7 +1379,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             safe = {k: cfg_snap.get(k, '') for k in (
                 'callsign', 'callsign_contest', 'locator', 'contest',
                 'expedition_mode', 'clublog_live', 'cluster_spot_enabled',
-                'activation_program', 'my_activation_ref')}
+                'activation_program', 'my_activation_ref',
+                'city', 'altitude')}  # ni l'un ni l'autre n'est un secret
             self._json(safe)
             return
 

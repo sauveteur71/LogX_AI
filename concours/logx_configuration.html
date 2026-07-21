@@ -250,7 +250,11 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
         <div class="form-group">
           <label>LOCATOR MAIDENHEAD</label>
-          <input type="text" id="locator" placeholder="JN15XC" maxlength="6" oninput="this.value=this.value.toUpperCase();updateLocatorHint()">
+          <div style="display:flex;gap:8px;align-items:stretch">
+            <input type="text" id="locator" placeholder="JN15XC" maxlength="6" oninput="this.value=this.value.toUpperCase();updateLocatorHint()" style="flex:1">
+            <button type="button" onclick="openLocatorMap()" title="Trouver le locator en cliquant sur une carte"
+              style="white-space:nowrap;background:var(--bg3);border:1px solid var(--accent2);color:var(--accent2);border-radius:6px;padding:0 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px">📍 Sur la carte</button>
+          </div>
         </div>
         <div class="form-group">
           <label>VILLE / QTH</label>
@@ -1347,6 +1351,35 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
      enregistrée sans passer par ce modal -->
 <div id="reviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;overflow-y:auto;padding:30px 16px">
   <div style="max-width:880px;margin:0 auto;background:var(--bg2);border:1px solid var(--accent2);border-radius:14px;padding:24px" id="reviewModalBody">
+  </div>
+</div>
+
+<!-- Sélecteur de locator sur carte (Leaflet chargé à la demande — n'impacte
+     pas l'usage hors-ligne du reste de l'application) -->
+<div id="mapLocOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72)">
+  <div style="position:absolute;inset:3%;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <b style="color:var(--accent2);font-family:var(--font-mono)">📍 Locator sur la carte</b>
+      <input id="mapLocSearch" type="text" placeholder="Ville / adresse…" onkeydown="if(event.key==='Enter'){event.preventDefault();mapLocSearchGo();}"
+        style="flex:1;min-width:150px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-family:var(--font)">
+      <button type="button" onclick="mapLocSearchGo()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer;font-family:var(--font-mono);font-size:12px">🔍 Chercher</button>
+      <button type="button" onclick="mapLocGeoloc()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer;font-family:var(--font-mono);font-size:12px">🛰️ Ma position</button>
+      <span style="margin-left:auto;font-family:var(--font-mono);color:var(--muted)">Locator : <b id="mapLocValue" style="color:var(--green);font-size:16px">—</b></span>
+      <button type="button" id="mapLocUseBtn" onclick="mapLocUse()" disabled
+        style="background:var(--green);border:1px solid var(--green);color:#062;border-radius:6px;padding:7px 13px;cursor:pointer;font-weight:700;font-family:var(--font-mono);opacity:.5">✓ Utiliser</button>
+      <button type="button" onclick="closeLocatorMap()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer">✕</button>
+    </div>
+    <div id="mapLocMap" style="flex:1;min-height:0;background:var(--bg3)"></div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid var(--border);flex-wrap:wrap">
+      <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">📏 Comparer à un locator distant :</span>
+      <input id="mapLocTarget" type="text" placeholder="ex. JN18CR" maxlength="6" oninput="this.value=this.value.toUpperCase()"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();mapLocCompare();}"
+        style="width:110px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 9px;font-family:var(--font-mono);text-transform:uppercase">
+      <button type="button" onclick="mapLocCompare()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 11px;cursor:pointer;font-family:var(--font-mono);font-size:12px">Calculer</button>
+      <span id="mapLocCompareResult" style="font-family:var(--font-mono);font-size:13px;color:var(--accent2)"></span>
+    </div>
+    <div style="padding:6px 14px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;font-family:var(--font-mono)">
+      Cliquez sur votre emplacement précis — la grille Maidenhead 6 caractères est calculée automatiquement.</div>
   </div>
 </div>
 
@@ -2717,6 +2750,187 @@ function updateLocatorHint() {
   } else {
     hint.style.display = 'none';
   }
+}
+
+// ─── SÉLECTEUR DE LOCATOR SUR CARTE ──────────────────────────────────────────
+// Leaflet + tuiles OpenStreetMap chargés À LA DEMANDE (première ouverture) : le
+// reste de la page reste utilisable hors ligne. Le calcul lat/lon → grille
+// Maidenhead se fait en local (aucune API tierce nécessaire pour la conversion).
+let _mapLoc = { map:null, marker:null, loc:'', lat:null, lon:null };
+
+function latLonToLocator(lat, lon){
+  lon = Math.max(-179.9999, Math.min(179.9999, lon)) + 180;
+  lat = Math.max(-89.9999, Math.min(89.9999, lat)) + 90;
+  const U = 'ABCDEFGHIJKLMNOPQRSTUVWX';
+  return U[Math.floor(lon/20)] + U[Math.floor(lat/10)]
+       + Math.floor((lon%20)/2) + Math.floor(lat%10)
+       + U[Math.floor((lon%2)*12)] + U[Math.floor((lat%1)*24)];
+}
+
+function locatorToLatLon(loc){
+  loc = (loc||'').toUpperCase().trim();
+  if(!/^[A-R]{2}[0-9]{2}([A-X]{2})?$/.test(loc)) return null;
+  if(loc.length === 4) loc += 'MM';
+  const lon = (loc.charCodeAt(0)-65)*20 - 180 + parseInt(loc[2])*2 + (loc.charCodeAt(4)-65)*(2/24) + 1/24;
+  const lat = (loc.charCodeAt(1)-65)*10 - 90  + parseInt(loc[3])   + (loc.charCodeAt(5)-65)*(1/24) + 0.5/24;
+  return { lat, lon };
+}
+
+function _loadLeaflet(){
+  return new Promise((resolve, reject)=>{
+    if(window.L){ resolve(); return; }
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    js.onload = ()=>resolve();
+    js.onerror = ()=>reject(new Error('Leaflet indisponible (connexion Internet requise)'));
+    document.head.appendChild(js);
+  });
+}
+
+async function openLocatorMap(){
+  const ov = document.getElementById('mapLocOverlay');
+  ov.style.display = 'block';
+  try{ await _loadLeaflet(); }
+  catch(e){ ov.style.display='none'; alert('Carte indisponible : '+e.message+'.\nLa sélection sur carte nécessite une connexion Internet ; sinon, saisis le locator à la main.'); return; }
+
+  let start = [46.6, 2.5], zoom = 5;   // défaut : centre de la France
+  const cll = locatorToLatLon(document.getElementById('locator').value);
+  if(cll){ start = [cll.lat, cll.lon]; zoom = 10; }
+
+  if(!_mapLoc.map){
+    _mapLoc.map = L.map('mapLocMap').setView(start, zoom);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(_mapLoc.map);
+    _mapLoc.map.on('click', e => _mapLocSet(e.latlng.lat, e.latlng.lng, false));
+  } else {
+    _mapLoc.map.setView(start, zoom);
+  }
+  // Le conteneur vient d'être rendu visible : Leaflet doit recalculer sa taille.
+  setTimeout(()=>{ if(_mapLoc.map) _mapLoc.map.invalidateSize(); }, 120);
+  if(cll) _mapLocSet(cll.lat, cll.lon, false);
+}
+
+function _mapLocSet(lat, lon, pan){
+  _mapLoc.lat = lat; _mapLoc.lon = lon;
+  _mapLoc.loc = latLonToLocator(lat, lon);
+  document.getElementById('mapLocValue').textContent = _mapLoc.loc;
+  const btn = document.getElementById('mapLocUseBtn');
+  btn.disabled = false; btn.style.opacity = '1';
+  // circleMarker : pas d'image d'icône à charger (robuste hors bundler).
+  if(!_mapLoc.marker){
+    _mapLoc.marker = L.circleMarker([lat,lon], {radius:8, color:'#00FF88',
+      fillColor:'#00FF88', fillOpacity:.6, weight:2}).addTo(_mapLoc.map);
+  } else {
+    _mapLoc.marker.setLatLng([lat,lon]);
+  }
+  _mapLoc.marker.bindTooltip(_mapLoc.loc, {permanent:true, direction:'top'}).openTooltip();
+  if(pan) _mapLoc.map.panTo([lat,lon]);
+}
+
+// Distance (km) + azimut (°) entre deux points — mêmes formules que
+// logx_logbook.js (bearing/cardinalDir), dupliquées ici car cette page n'a
+// pas de module JS partagé.
+function _haversineKm(lat1, lon1, lat2, lon2){
+  const R = 6371, toRad = d => d*Math.PI/180;
+  const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return Math.round(R * 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+}
+function _bearingDeg(lat1, lon1, lat2, lon2){
+  const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180, Δλ=(lon2-lon1)*Math.PI/180;
+  const y=Math.sin(Δλ)*Math.cos(φ2);
+  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return Math.round((Math.atan2(y,x)*180/Math.PI+360)%360);
+}
+function _cardinalDir(deg){
+  const dirs=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+  return dirs[Math.round(deg/22.5)%16];
+}
+
+// Compare le point de référence (le point cliqué sur la carte, ou à défaut le
+// locator déjà saisi dans le formulaire) à un locator distant tapé à la main —
+// utile pour vérifier une direction/distance sans avoir à cliquer les deux points.
+function mapLocCompare(){
+  const resEl = document.getElementById('mapLocCompareResult');
+  const raw = document.getElementById('mapLocTarget').value.trim();
+  const target = locatorToLatLon(raw);
+  if(!target){ resEl.textContent = raw ? '⚠ locator invalide' : ''; resEl.style.color = 'var(--red)'; return; }
+
+  let ref = (_mapLoc.lat != null) ? { lat:_mapLoc.lat, lon:_mapLoc.lon }
+                                   : locatorToLatLon(document.getElementById('locator').value);
+  if(!ref){ resEl.textContent = '⚠ clique d\'abord un point (ou renseigne ton locator)'; resEl.style.color='var(--red)'; return; }
+
+  const km = _haversineKm(ref.lat, ref.lon, target.lat, target.lon);
+  const az = _bearingDeg(ref.lat, ref.lon, target.lat, target.lon);
+  resEl.style.color = 'var(--accent2)';
+  resEl.textContent = `${km} km · ${az}° (${_cardinalDir(az)})`;
+
+  if(_mapLoc.targetMarker) _mapLoc.map.removeLayer(_mapLoc.targetMarker);
+  if(_mapLoc.targetLine) _mapLoc.map.removeLayer(_mapLoc.targetLine);
+  _mapLoc.targetMarker = L.circleMarker([target.lat,target.lon], {radius:7, color:'#00D4FF',
+    fillColor:'#00D4FF', fillOpacity:.6, weight:2}).addTo(_mapLoc.map)
+    .bindTooltip(raw.toUpperCase(), {permanent:true, direction:'top'}).openTooltip();
+  _mapLoc.targetLine = L.polyline([[ref.lat,ref.lon],[target.lat,target.lon]],
+    {color:'#00D4FF', weight:2, dashArray:'6,6', opacity:.8}).addTo(_mapLoc.map);
+  _mapLoc.map.fitBounds(L.latLngBounds([[ref.lat,ref.lon],[target.lat,target.lon]]).pad(0.3));
+}
+
+function mapLocUse(){
+  if(!_mapLoc.loc) return;
+  document.getElementById('locator').value = _mapLoc.loc;
+  updateLocatorHint();
+  _reverseGeocodeCity(_mapLoc.lat, _mapLoc.lon);   // remplit VILLE si vide (best-effort)
+  closeLocatorMap();
+}
+
+function closeLocatorMap(){
+  document.getElementById('mapLocOverlay').style.display = 'none';
+  // Réinitialise l'outil de comparaison pour la prochaine ouverture : sinon la
+  // ligne/le marqueur d'un précédent calcul resteraient affichés à tort.
+  if(_mapLoc.targetMarker){ _mapLoc.map.removeLayer(_mapLoc.targetMarker); _mapLoc.targetMarker = null; }
+  if(_mapLoc.targetLine){ _mapLoc.map.removeLayer(_mapLoc.targetLine); _mapLoc.targetLine = null; }
+  document.getElementById('mapLocTarget').value = '';
+  document.getElementById('mapLocCompareResult').textContent = '';
+}
+
+async function mapLocSearchGo(){
+  const q = document.getElementById('mapLocSearch').value.trim();
+  if(!q || !_mapLoc.map) return;
+  try{
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q),
+      { headers:{ 'Accept':'application/json' } });
+    const d = await r.json();
+    if(d && d[0]){
+      const lat = parseFloat(d[0].lat), lon = parseFloat(d[0].lon);
+      _mapLoc.map.setView([lat,lon], 12);
+      _mapLocSet(lat, lon, false);
+    } else { alert('Lieu introuvable.'); }
+  }catch(e){ alert('Recherche indisponible (connexion Internet requise).'); }
+}
+
+function mapLocGeoloc(){
+  if(!navigator.geolocation){ alert('Géolocalisation non disponible sur cet appareil.'); return; }
+  navigator.geolocation.getCurrentPosition(p=>{
+    const lat = p.coords.latitude, lon = p.coords.longitude;
+    if(_mapLoc.map) _mapLoc.map.setView([lat,lon], 13);
+    _mapLocSet(lat, lon, false);
+  }, ()=>alert('Position refusée ou indisponible.'), { enableHighAccuracy:true, timeout:8000 });
+}
+
+async function _reverseGeocodeCity(lat, lon){
+  const cityEl = document.getElementById('city');
+  if(!cityEl || cityEl.value.trim()) return;   // ne pas écraser une ville déjà saisie
+  try{
+    const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&lat=' + lat + '&lon=' + lon,
+      { headers:{ 'Accept':'application/json' } });
+    const a = (await r.json()).address || {};
+    const city = a.city || a.town || a.village || a.municipality || a.county;
+    if(city) cityEl.value = city;
+  }catch(e){ /* géocodage inverse best-effort : silencieux */ }
 }
 
 function getActiveModes() {
