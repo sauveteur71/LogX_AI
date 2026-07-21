@@ -21,7 +21,8 @@ from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
 from logx_validate import validate_definition
 from logx_rules_ai import analyze_rules
 from logx_storage import (shared_log, log_lock, save_log_to_disk,
-                                  save_json_atomic, calldb_lock, bump_log_version)
+                                  save_json_atomic, calldb_lock, bump_log_version,
+                                  qso_scope_id, active_scope_id, cfg_scope_id)
 from logx_scoring import build_scoring_context
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
@@ -155,6 +156,17 @@ def _load_auth_token():
 
 AUTH_TOKEN = _load_auth_token()
 
+# ─── PORTÉE CONCOURS (voir logx_storage.qso_scope_id/active_scope_id/cfg_scope_id) ─
+def _scope_filtered(qsos, cfg):
+    """Sous-ensemble de `qsos` appartenant à la portée active de `cfg` (voir
+    logx_storage.cfg_scope_id) — renvoie une copie de `qsos` inchangée si
+    aucune portée n'est active (mode simple, ou aucun concours sélectionné)."""
+    scope_id = cfg_scope_id(cfg)
+    if not scope_id:
+        return list(qsos or [])
+    return [q for q in (qsos or []) if qso_scope_id(q) == scope_id]
+
+
 # ─── INSERTION D'UN QSO (dédup + persistance) ────────────────────────────────
 def add_qso_to_log(qso, force=False):
     """Ajoute un QSO au log partagé avec détection de doublon. Retourne
@@ -166,7 +178,11 @@ def add_qso_to_log(qso, force=False):
     qso.setdefault('time', now_utc.strftime('%H:%M'))
     key = (str(qso.get('call', '')).upper().strip(),
            str(qso.get('band', '')), str(qso.get('mode', '')).upper())
-    contest_id = qso.get('contest', '')
+    # Portée du NOUVEAU QSO (contest+année, voir logx_storage.active_scope_id) —
+    # dérivée de ses propres champs contest+date plutôt que du contest_id brut :
+    # sans l'année, retravailler la même station/bande sur la même édition d'un
+    # concours ANNUEL récurrent une année différente était refusé comme doublon.
+    scope_id = qso_scope_id(qso)
     with config_lock:
         simple_mode = current_config.get('usage_mode') == 'simple'
     dup = None
@@ -179,7 +195,7 @@ def add_qso_to_log(qso, force=False):
                         if (str(q.get('call', '')).upper().strip(),
                             str(q.get('band', '')),
                             str(q.get('mode', '')).upper()) == key
-                        and q.get('contest', '') == contest_id), None)
+                        and qso_scope_id(q) == scope_id), None)
     if dup and not force:
         return False, {'duplicate': True, 'existing': {
             'id': dup.get('id'), 'date': dup.get('date'),
@@ -732,6 +748,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'unchanged': True, 'version': current_v,
                            'total': total_now, 'peers': len(connected_peers)})
                 return
+            # Portée du concours actif (logx_storage.active_scope_id) : en mode
+            # concours/expédition avec un concours sélectionné, le logbook ne
+            # doit montrer QUE les QSO de CETTE édition (contest+année) —
+            # jamais le log de base (simple), ni un concours/année différent
+            # resté dans shared_log faute d'avoir été archivé. En mode simple,
+            # ou si aucun concours n'est sélectionné, aucun filtrage (log
+            # complet, comportement historique — la "logbook simple" est le
+            # journal personnel complet).
+            log_copy = _scope_filtered(log_copy, self._cfg_snapshot())
             self._json({
                 'qsos': log_copy,
                 'total': len(log_copy),
@@ -1115,7 +1140,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'status': 'inconnu'})
                 return
             cfg_snap = self._cfg_snapshot()
-            contest_id = cfg_snap.get('contest', '')
+            # Portée (contest+année, comme add_qso_to_log) : sans l'année, un
+            # indicatif déjà travaillé sur la MÊME édition annuelle d'un
+            # concours récurrent une année précédente était signalé "doublon"
+            # à tort, en désaccord avec la vraie détection de add_qso_to_log.
+            scope_id = active_scope_id(cfg_snap)
             # LOGBOOK SIMPLE : pas de règle "1 QSO/station/bande" hors concours.
             if cfg_snap.get('usage_mode') != 'simple':
                 with log_lock:
@@ -1123,7 +1152,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         str(q.get('call', '')).upper().strip() == call
                         and str(q.get('band', '')) == band
                         and (not mode or str(q.get('mode', '')).upper() == mode)
-                        and q.get('contest', '') == contest_id
+                        and qso_scope_id(q) == scope_id
                         for q in shared_log)
                 if dup:
                     self._json({'status': 'doublon'})
@@ -1204,7 +1233,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/departments_worked':
             import logx_departments as dep
             cfg_snap = self._cfg_snapshot()
-            self._json(dep.departments_progress(shared_log, cfg_snap.get('contest', '')))
+            self._json(dep.departments_progress(shared_log, cfg_scope_id(cfg_snap)))
             return
 
         # Chasse aux départements : manquants + stations connues, croisés avec
@@ -1215,7 +1244,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with log_lock:
                 log_copy = list(shared_log)
             self._json(dep.department_targets(
-                log_copy, cfg_snap.get('contest', ''), _spots_from_caches(),
+                log_copy, cfg_scope_id(cfg_snap), _spots_from_caches(),
                 cfg=cfg_snap))
             return
 
@@ -1261,7 +1290,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cfg_snap = self._cfg_snapshot()
             with log_lock:
                 log_copy = list(shared_log)
-            self._json(wm.worked_by_country(log_copy, cfg_snap.get('contest', '')))
+            self._json(wm.worked_by_country(log_copy, cfg_scope_id(cfg_snap)))
             return
 
         # URL(s) LAN pour connecter un téléphone/tablette (terrain/expédition) :
@@ -1323,7 +1352,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cfg_snap = self._cfg_snapshot()
             with log_lock:
                 log_copy = list(shared_log)
-            self._json(co.countries_progress(log_copy, cfg_snap.get('contest', '')))
+            self._json(co.countries_progress(log_copy, cfg_scope_id(cfg_snap)))
             return
         if path == '/countries/targets':
             import logx_countries as co
@@ -1331,7 +1360,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with log_lock:
                 log_copy = list(shared_log)
             self._json(co.country_targets(
-                log_copy, cfg_snap.get('contest', ''), _spots_from_caches()))
+                log_copy, cfg_scope_id(cfg_snap), _spots_from_caches()))
             return
 
         # Balises NCDXF/IBP : quelle balise émet MAINTENANT sur chaque bande
@@ -1656,11 +1685,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path.startswith('/qtc/list'):
             from logx_storage import qtc_log, qtc_lock, qtc_total
             cfg_snap = self._cfg_snapshot()
-            cid = cfg_snap.get('contest', '')
+            scope_id = cfg_scope_id(cfg_snap)
             with qtc_lock:
-                entries = [q for q in qtc_log
-                           if not cid or q.get('contest', '') in ('', cid)]
-            self._json({'total': qtc_total(cid), 'entries': entries[-50:]})
+                entries = _scope_filtered(qtc_log, cfg_snap)
+            self._json({'total': qtc_total(scope_id), 'entries': entries[-50:]})
             return
 
         # Exports du log partagé — Cabrillo v3 et ADIF 3
@@ -1668,9 +1696,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_export as export
             cfg_snap = self._cfg_snapshot()
             contest_id = cfg_snap.get('contest', '')
+            # Portée QSO (contest+année) : sans elle, un Cabrillo/ADIF exporté
+            # pour CE concours embarquait aussi tout QSO non tagué (import
+            # générique, log perso jamais nettoyé) — inacceptable pour un
+            # fichier de soumission de concours.
             with log_lock:
-                qsos = [q for q in shared_log
-                        if not contest_id or q.get('contest', '') in ('', contest_id)]
+                qsos = _scope_filtered(shared_log, cfg_snap)
             call = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign')
                     or 'LOG').upper().replace('/', '-')
             if path.endswith('cabrillo'):
@@ -1797,9 +1828,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 service = (payload.get('service') or '').lower()
                 cfg = self._cfg_snapshot()
                 contest_id = payload.get('contest', cfg.get('contest', ''))
+                if 'contest' in payload:
+                    # Portée explicitement demandée par le client : honorée
+                    # telle quelle, même en mode simple (un envoi QSL explicite
+                    # prime sur le mode d'usage courant).
+                    scope_id = active_scope_id({**cfg, 'contest': contest_id})
+                else:
+                    scope_id = cfg_scope_id(cfg)
                 with log_lock:
                     qsos = [q for q in shared_log
-                            if not contest_id or q.get('contest', '') in ('', contest_id)]
+                            if not scope_id or qso_scope_id(q) == scope_id]
                 if not qsos:
                     self._json({'ok': False, 'error': 'Aucun QSO à envoyer'}, 400)
                     return
@@ -1950,6 +1988,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with config_lock:
                     current_config = cfg
                 save_json_atomic(SERVER_CONFIG_FILE, cfg)
+                # /log/list filtre désormais par portée (concours+année, voir
+                # active_scope_id) : changer de concours/mode d'usage change ce
+                # que CETTE portée désigne sans qu'aucun QSO n'ait bougé — sans
+                # ce bump, un client dont le ?v= était déjà à jour recevrait
+                # 'unchanged' et garderait affiché l'ancien concours jusqu'au
+                # prochain vrai QSO ajouté.
+                bump_log_version()
                 print(f"[CFG] Config reçue : {cfg.get('callsign','')} / {cfg.get('locator','')} / {cfg.get('contest','')}")
                 self._json({'ok': True})
             except Exception as e:
@@ -2153,7 +2198,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 count = max(1, min(10, int(payload.get('count', 1))))
                 cfg_snap = self._cfg_snapshot()
                 cid = cfg_snap.get('contest', '')
-                already = qtc_count_for_call(call, cid)
+                # Portée (contest+année) : qtc_count_for_call/qtc_total lisent
+                # qso_scope_id(entrée) en interne depuis ce correctif — leur
+                # passer le nom brut du concours (sans année) les faisait
+                # toujours répondre 0, cassant le plafond réglementaire de 10
+                # QTC par station.
+                scope_id = active_scope_id(cfg_snap)
+                already = qtc_count_for_call(call, scope_id)
                 if call and already + count > 10:
                     self._json({'ok': False,
                                 'error': f"Max 10 QTC par station — déjà {already} "
@@ -2166,7 +2217,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                     'time': now_utc.strftime('%H:%M')})
                 save_qtc_to_disk()
                 print(f"[QTC] +{count} avec {call or '?'}")
-                self._json({'ok': True, 'total': qtc_total(cid),
+                self._json({'ok': True, 'total': qtc_total(scope_id),
                             'with_call': already + count})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
@@ -2328,14 +2379,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     import logx_archive as arch
                     cfg_snap = self._cfg_snapshot()
                     # Archive dossier permanent (log.json + Cabrillo + ADIF +
-                    # résumé) par concours présent dans le log, AVANT d'effacer.
+                    # résumé) par PORTÉE (concours+année, pas le seul nom brut)
+                    # présente dans le log, AVANT d'effacer — sinon deux éditions
+                    # non purgées d'un même concours annuel (ex. REF_QRP 2026 et
+                    # 2027) se retrouvaient fusionnées dans UN SEUL Cabrillo/ADIF.
                     archived_folders = []
                     with log_lock:
-                        contests = sorted({q.get('contest', '') for q in shared_log})
+                        scopes = sorted({qso_scope_id(q) for q in shared_log})
                         snapshot = list(shared_log)
-                    for cid in contests:
-                        qs = [q for q in snapshot if q.get('contest', '') == cid]
-                        r = arch.archive_log(qs, cid or 'SANS_CONCOURS', cfg_snap)
+                    for scope in scopes:
+                        qs = [q for q in snapshot if qso_scope_id(q) == scope]
+                        r = arch.archive_log(qs, scope or 'SANS_CONCOURS', cfg_snap)
                         if r.get('ok'):
                             archived_folders.append(r['name'])
                     archived = archive_current_log()   # + table SQLite (secours)
@@ -2360,14 +2414,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import logx_archive as arch
                 cfg_snap = self._cfg_snapshot()
                 cid = cfg_snap.get('contest', '')
+                # Portée QSO (contest+année, cfg_scope_id — pas active_scope_id :
+                # respecte aussi le mode 'simple'). Si AUCUNE portée n'est active
+                # (pas de concours sélectionné, ou logbook simple), archiver/vider
+                # ne doit porter que sur les QSO NON TAGUÉS (qso_scope_id == '') —
+                # jamais sur tout shared_log, sinon un simple oubli de sélection
+                # de concours effaçait aussi tout l'historique d'autres concours
+                # et années au moment du clear=true.
+                scope_id = cfg_scope_id(cfg_snap)
                 with log_lock:
-                    qs = [q for q in shared_log
-                          if not cid or q.get('contest', '') in ('', cid)]
+                    qs = [q for q in shared_log if qso_scope_id(q) == scope_id]
                 res = arch.archive_log(qs, cid or 'CONTEST', cfg_snap)
                 if res.get('ok') and payload.get('clear'):
                     with log_lock:
-                        keep = [q for q in shared_log
-                                if cid and q.get('contest', '') not in ('', cid)]
+                        keep = [q for q in shared_log if qso_scope_id(q) != scope_id]
                         shared_log[:] = keep
                     bump_log_version()
                     save_log_to_disk()

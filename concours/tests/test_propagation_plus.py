@@ -153,9 +153,13 @@ def test_rbn_parse_mes_spots():
 
 def test_scoreboard_snapshot_et_xml():
     import logx_scoreboard as sb
-    log = [{'contest': 'X', 'call': 'A', 'band': '144', 'points': 45, 'locator': 'JN25GO'},
-           {'contest': 'X', 'call': 'B', 'band': '432', 'points': 30, 'locator': 'JN33AA'}]
-    snap = sb.build_score_snapshot(log, {'contest': 'X'})
+    # date + contest_start_date de la même année : la portée QSO (contest+année,
+    # voir logx_storage.active_scope_id) doit matcher pour que ces QSO comptent.
+    log = [{'contest': 'X', 'call': 'A', 'band': '144', 'points': 45,
+            'locator': 'JN25GO', 'date': '20260315'},
+           {'contest': 'X', 'call': 'B', 'band': '432', 'points': 30,
+            'locator': 'JN33AA', 'date': '20260315'}]
+    snap = sb.build_score_snapshot(log, {'contest': 'X', 'contest_start_date': '2026-03-15'})
     assert snap['score'] == 75 and snap['qso'] == 2 and snap['mults'] == 2
     xml = sb.build_n1mm_xml(snap, {'callsign_contest': 'F6KQJ'})
     assert '<score>75</score>' in xml and '<dynamicresults>' in xml

@@ -78,6 +78,68 @@ def bump_log_version():
     log_version += 1
     return log_version
 
+# ─── PORTÉE CONCOURS (contest + année) ───────────────────────────────────────
+# shared_log est UN SEUL log global (pas de fichier séparé par concours) : le
+# log « simple » (usage perso) et chaque concours y cohabitent, distingués
+# uniquement par le champ 'contest' de chaque QSO. Avant ces deux fonctions,
+# tout le code qui voulait savoir « ce QSO appartient-il au concours actif ? »
+# traitait un QSO SANS tag (contest == '' — import ADIF générique, WSJT-X sans
+# concours actif, ancien log perso) comme un JOKER comptant pour N'IMPORTE
+# QUEL concours (motif `q.get('contest','') in ('', contest_id)` répété dans
+# 7 endroits indépendants) — ce qui faisait apparaître la carte/les stats
+# entièrement « travaillées » dès la sélection d'un concours, avant même le
+# premier QSO. Ces fonctions remplacent ce motif par une portée EXPLICITE
+# 'contest_id#année' : un QSO non tagué ne compte plus JAMAIS pour un concours
+# précis, et un même concours annuel ne se confond plus d'une année à l'autre
+# (l'identifiant de concours lui-même, ex. 'REF_CDF_HF_SSB', ne porte pas
+# l'année — logx_definitions.CONTEST_DEFINITIONS est un référentiel de RÈGLES,
+# pas d'éditions datées).
+
+def qso_scope_id(qso):
+    """Portée d'un QSO déjà loggué, dérivée de SES PROPRES champs 'contest' et
+    'date' (jamais de la config courante — un QSO importé ou loggué l'an
+    dernier garde sa portée propre, indépendamment de ce qui est configuré
+    maintenant). '' si non tagué à un concours (log simple, import générique,
+    WSJT-X sans concours actif) : ces QSO ne doivent jamais matcher la portée
+    d'un concours précis (voir active_scope_id)."""
+    qso = qso or {}
+    contest = str(qso.get('contest', '') or '').strip()
+    if not contest:
+        return ''
+    date = str(qso.get('date', '') or '')
+    year = date[:4] if len(date) >= 4 and date[:4].isdigit() else ''
+    return f'{contest}#{year}' if year else contest
+
+
+def active_scope_id(cfg):
+    """Portée du concours actuellement configuré, même format que
+    qso_scope_id() — l'année vient de contest_start_date (ou de l'année UTC en
+    cours si absente). '' si aucun concours n'est sélectionné : dans ce cas
+    les filtres 'travaillé'/'portée' ne doivent RIEN restreindre (comportement
+    historique préservé quand la config est incomplète)."""
+    cfg = cfg or {}
+    contest = str(cfg.get('contest', '') or '').strip()
+    if not contest:
+        return ''
+    start = str(cfg.get('contest_start_date', '') or '')
+    year = start[:4] if len(start) >= 4 and start[:4].isdigit() else ''
+    if not year:
+        import datetime
+        year = str(datetime.datetime.utcnow().year)
+    return f'{contest}#{year}'
+
+
+def cfg_scope_id(cfg):
+    """Portée à utiliser pour filtrer shared_log/qtc_log selon la config
+    courante. '' en mode 'simple' (jamais de filtrage — le logbook simple est
+    le journal personnel complet, quel que soit le dernier concours resté en
+    config), sinon active_scope_id(cfg) (elle-même '' si aucun concours n'est
+    sélectionné, auquel cas rien n'est filtré non plus)."""
+    if (cfg or {}).get('usage_mode') == 'simple':
+        return ''
+    return active_scope_id(cfg)
+
+
 # Verrou dédié à calldb.json : écrit depuis plusieurs threads
 # (lookups HamQTH, imports, mises à jour navigateur).
 calldb_lock = threading.Lock()
@@ -110,18 +172,21 @@ def save_qtc_to_disk():
 
 
 def qtc_total(contest_id=''):
+    """`contest_id` est une PORTÉE (voir active_scope_id) — un QTC non tagué
+    ne compte jamais pour une portée précise."""
     with qtc_lock:
         return sum(q.get('count', 0) or 0 for q in qtc_log
-                   if not contest_id or q.get('contest', '') in ('', contest_id))
+                   if not contest_id or qso_scope_id(q) == contest_id)
 
 
 def qtc_count_for_call(call, contest_id=''):
-    """Total déjà échangé avec cette station (plafond règlement : 10)."""
+    """Total déjà échangé avec cette station (plafond règlement : 10).
+    `contest_id` est une PORTÉE (voir active_scope_id)."""
     base = (call or '').upper().strip()
     with qtc_lock:
         return sum(q.get('count', 0) or 0 for q in qtc_log
                    if str(q.get('call', '')).upper().strip() == base
-                   and (not contest_id or q.get('contest', '') in ('', contest_id)))
+                   and (not contest_id or qso_scope_id(q) == contest_id))
 
 
 def save_json_atomic(path, data, lock=None, compact=False):

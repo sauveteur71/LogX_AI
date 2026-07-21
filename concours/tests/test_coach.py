@@ -21,7 +21,9 @@ def _log(minutes_ago_list):
 
 def test_rate_10min_extrapole():
     """5 QSO dans les 10 dernières minutes → 30/h extrapolé."""
-    stats = log_stats(_log([1, 3, 5, 7, 9, 25, 45]), 'EU_HF_CHAMP', now=NOW)
+    # contest_id est une PORTÉE 'concours#année' (logx_storage.active_scope_id) —
+    # les QSO de _log() sont datés 2026 (voir NOW), d'où le suffixe '#2026'.
+    stats = log_stats(_log([1, 3, 5, 7, 9, 25, 45]), 'EU_HF_CHAMP#2026', now=NOW)
     assert stats['qso_last_10min'] == 5
     assert stats['rate_10min'] == 30
     assert stats['rate_60min'] == 7            # tous dans l'heure

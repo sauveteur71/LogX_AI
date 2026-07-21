@@ -96,12 +96,16 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
     Par défaut on montre TOUS les QSO du log commun (contest_id=None) : sur une
     expédition, l'écran mural doit afficher tout ce qui est loggé, sans dépendre
     du « concours actif » côté serveur (sinon un simple décalage de config masque
-    tout). Un contest_id explicite (non None) réactive le filtrage."""
+    tout). Un contest_id explicite (non None) réactive le filtrage — par PORTÉE
+    (contest+année, voir logx_storage.active_scope_id) : un QSO non tagué ne
+    compte alors jamais pour un concours précis."""
     cfg = cfg or {}
     now = now or datetime.datetime.utcnow()
     if contest_id:
+        from logx_storage import qso_scope_id, active_scope_id
+        scope_id = active_scope_id({**cfg, 'contest': contest_id})
         entries = [e for e in (shared_log or [])
-                   if e.get('contest', '') in ('', contest_id)]
+                   if qso_scope_id(e) == scope_id]
     else:
         entries = list(shared_log or [])
 

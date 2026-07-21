@@ -54,11 +54,13 @@ En haut de la page CONFIG, le sélecteur **MODE D'UTILISATION** change le compor
 
 | Mode | Pour qui | Ce qui change |
 |---|---|---|
-| **📋 LOGBOOK SIMPLE** | Chasse DX / trafic courant, sans concours | Pas de règle « 1 QSO/station/bande », pas d'étape CONCOURS, recontacter la même station à une autre date n'est pas un doublon |
-| **🏆 CONCOURS** | Participation à une épreuve avec règlement | Échange, scoring, multiplicateurs et détection de doublon actifs, need list et coach affichés |
+| **📋 LOGBOOK SIMPLE** | Chasse DX / trafic courant, sans concours | Pas de règle « 1 QSO/station/bande », pas d'étape CONCOURS, recontacter la même station à une autre date n'est pas un doublon, **le journal affiché est l'historique complet** (tous concours et années confondus) |
+| **🏆 CONCOURS** | Participation à une épreuve avec règlement | Échange, scoring, multiplicateurs et détection de doublon actifs, need list et coach affichés, **le logbook, la carte et le score n'affichent QUE les QSO de CETTE édition** (le concours choisi + l'année en cours) |
 | **📡 EXPÉDITION / ACTIVATION** | DXpédition, SOTA/POTA/IOTA, multi-poste | Saisie simplifiée (indicatif + reports), écran mural, pile-up, suivi de progression d'activation |
 
-Vous pouvez changer de mode à tout moment ; vos QSO existants ne sont jamais perdus lors du changement.
+Vos QSO existants ne sont **jamais perdus** en changeant de mode ou de concours — ils restent tous dans le même journal. Ce qui change, c'est la VUE :
+- En **LOGBOOK SIMPLE**, vous voyez tout, tout le temps.
+- En **CONCOURS**, dès qu'un concours est sélectionné, le logbook et la carte ne montrent que les QSO de cette édition précise (concours + année) : si c'est la première fois que vous logguez ce concours cette année, tout démarre VIERGE (carte non travaillée, score à zéro) ; si vous aviez déjà loggué des QSO plus tôt dans le même concours (ex. après avoir relancé le logiciel), ils réapparaissent normalement. Les QSO d'un AUTRE concours, d'une année précédente du même concours, ou saisis en logbook simple ne comptent jamais dans cette vue — mais restent consultables en repassant en LOGBOOK SIMPLE, ou via **📦 ARCHIVER**/l'export à tout moment.
 
 ---
 
@@ -225,4 +227,4 @@ LogX AI est conçu pour rester utilisable même sans aucune connexion Internet �
 
 ---
 
-*Dernière mise à jour : 21 juillet 2026 — reflète l'état du logiciel après ajout de l'assistant de configuration, du sélecteur de locator sur carte, du badge météo solaire partagé, du lien PSK Reporter, du panneau satellites, de l'annuaire WebSDR, des spots POTA en direct, et du renforcement de la robustesse réseau (diagnostic automatique d'adresse locale, dégradation propre hors connexion pour le callbook/Cloud Sync/QSL, fusion des requêtes d'état matériel rig/ampli/WSJT-X/rotor).*
+*Dernière mise à jour : 21 juillet 2026 — reflète l'état du logiciel après ajout de l'assistant de configuration, du sélecteur de locator sur carte, du badge météo solaire partagé, du lien PSK Reporter, du panneau satellites, de l'annuaire WebSDR, des spots POTA en direct, du renforcement de la robustesse réseau (diagnostic automatique d'adresse locale, dégradation propre hors connexion pour le callbook/Cloud Sync/QSL, fusion des requêtes d'état matériel rig/ampli/WSJT-X/rotor), et de la portée par concours+année (le mode CONCOURS n'affiche plus que les QSO de l'édition active — logbook, carte et score démarrent vierges sur un concours jamais loggué).*

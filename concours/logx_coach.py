@@ -15,6 +15,7 @@ import datetime
 
 from logx_definitions import CONTEST_DEFINITIONS
 from logx_coach_i18n import t
+from logx_storage import qso_scope_id, active_scope_id, cfg_scope_id
 
 HF_BANDS = ('1.8', '3.5', '7', '14', '21', '28')
 
@@ -103,10 +104,12 @@ def hourly_rate_series(entries):
 
 def log_stats(shared_log, contest_id='', clock=None, now=None):
     """Rythme et répartition : QSO/h global, dernière heure, silence radio,
-    heures opérées (pour le budget off-time), répartition par bande."""
+    heures opérées (pour le budget off-time), répartition par bande.
+    `contest_id` est une PORTÉE (voir logx_storage.active_scope_id), pas le nom
+    brut du concours — un QSO non tagué ne compte jamais pour une portée précise."""
     now = now or datetime.datetime.utcnow()
     entries = [e for e in (shared_log or [])
-               if not contest_id or e.get('contest', '') in ('', contest_id)]
+               if not contest_id or qso_scope_id(e) == contest_id]
     stats = {
         'qso_total': len(entries),
         'score': sum(e.get('points', 0) or 0 for e in entries),
@@ -289,7 +292,8 @@ def build_hints(cdef, clock, stats, plan, lang='fr'):
 def exchange_mult_stats(cdef, shared_log, contest_id):
     """Décompte EXACT du multiplicateur 'exchange_distinct' depuis le log :
     valeurs à 2 chiffres distinctes reçues, une fois par bande (EUHFC §6).
-    Retourne {'mults': N, 'score_est': pts × N} ou None si non applicable."""
+    Retourne {'mults': N, 'score_est': pts × N} ou None si non applicable.
+    `contest_id` est une PORTÉE (voir logx_storage.active_scope_id)."""
     import re as _re
     mult = ((cdef.get('scoring', {}) or {}).get('bricks', {}) or {}).get('multiplier')
     if not (isinstance(mult, dict) and mult.get('kind') == 'exchange_distinct'):
@@ -297,7 +301,7 @@ def exchange_mult_stats(cdef, shared_log, contest_id):
     seen = set()
     pts = 0
     for q in shared_log or []:
-        if contest_id and q.get('contest', '') not in ('', contest_id):
+        if contest_id and qso_scope_id(q) != contest_id:
             continue
         pts += q.get('points', 0) or 0
         m = _re.search(r'(\d{2})\s*$', str(q.get('num_rcvd', '')).strip())
@@ -424,8 +428,9 @@ def build_debrief(cfg, shared_log, now=None):
     contest_id = cfg.get('contest', '') if isinstance(cfg.get('contest'), str) else ''
     cdef = CONTEST_DEFINITIONS.get(contest_id, {})
     clock = contest_clock(cfg, cdef, now)
+    scope_id = cfg_scope_id(cfg)
     entries = [e for e in (shared_log or [])
-               if not contest_id or e.get('contest', '') in ('', contest_id)]
+               if not scope_id or qso_scope_id(e) == scope_id]
 
     from logx_utils import locator_to_latlon, haversine
     my_loc = str(cfg.get('locator', '')).strip().upper()
@@ -484,7 +489,7 @@ def build_debrief(cfg, shared_log, now=None):
     if ((cdef.get('scoring', {}) or {}).get('type', '')) == 'dept_dxcc':
         try:
             from logx_departments import department_mult_count
-            depts = department_mult_count(shared_log, contest_id)
+            depts = department_mult_count(shared_log, scope_id)
             stats['departments'] = len(depts)
         except Exception:
             pass
@@ -533,19 +538,23 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     contest_id = (cfg or {}).get('contest', '')
     cdef = CONTEST_DEFINITIONS.get(contest_id, {}) if isinstance(contest_id, str) else {}
     clock = contest_clock(cfg, cdef, now)
-    stats = log_stats(shared_log, clock['contest_id'], clock, now)
+    # Portée QSO (contest+année, voir logx_storage.active_scope_id) : à utiliser
+    # pour tout ce qui COMPTE des QSO du concours actif — clock['contest_id']
+    # reste le nom brut (recherche de règles CONTEST_DEFINITIONS, affichage).
+    scope_id = cfg_scope_id(cfg)
+    stats = log_stats(shared_log, scope_id, clock, now)
     if cdef.get('qtc'):
         from logx_storage import qtc_total
-        stats['qtc_total'] = qtc_total(clock['contest_id'])
+        stats['qtc_total'] = qtc_total(scope_id)
     # Multiplicateur département (concours REF « dept_dxcc ») : compté depuis
     # les échanges reçus (le département n'est pas dans l'indicatif métropolitain).
     scoring_type = (cdef.get('scoring', {}) or {}).get('type', '')
     if scoring_type == 'dept_dxcc':
         from logx_departments import department_mult_count
-        depts = department_mult_count(shared_log, clock['contest_id'])
+        depts = department_mult_count(shared_log, scope_id)
         stats['departments'] = len(depts)
         stats['departments_list'] = sorted(depts)
-    ex_mults = exchange_mult_stats(cdef, shared_log, clock['contest_id'])
+    ex_mults = exchange_mult_stats(cdef, shared_log, scope_id)
     if ex_mults:
         stats['exchange_mults'] = ex_mults['mults']
         stats['score_with_mults'] = ex_mults['score_est']

@@ -12,6 +12,7 @@ Ce module fournit :
   multiplicateur des concours REF « dept_dxcc », inconnaissable au spot).
 """
 import re
+from logx_storage import qso_scope_id
 
 # Départements métropolitains 01-95 + Corse (2A/2B) + Île-de-France + DOM 971-976
 DEPARTMENTS = {
@@ -81,10 +82,12 @@ def dept_from_exchange(num_rcvd):
 
 def department_mult_count(shared_log, contest_id=''):
     """Nombre de départements français DISTINCTS reçus dans les échanges du log
-    — le vrai multiplicateur « dept » des concours REF. Retourne un set de n°."""
+    — le vrai multiplicateur « dept » des concours REF. Retourne un set de n°.
+    `contest_id` est une PORTÉE (voir logx_storage.active_scope_id), pas le nom
+    brut du concours — un QSO non tagué ne compte jamais pour une portée précise."""
     depts = set()
     for q in shared_log or []:
-        if contest_id and q.get('contest', '') not in ('', contest_id):
+        if contest_id and qso_scope_id(q) != contest_id:
             continue
         d = dept_from_exchange(q.get('num_rcvd', ''))
         if d:
@@ -223,11 +226,13 @@ def departments_progress(shared_log, contest_id=''):
     """Tableau de chasse : départements contactés vs total, pour la carte et
     la grille. { worked:[...], metro_total, metro_done, dom_done, all:{code:nom} }.
     Détection à 3 niveaux (échange > calldb > locator) : fonctionne aussi pour
-    les concours REF sans département dans l'échange (Bol d'Or...)."""
+    les concours REF sans département dans l'échange (Bol d'Or...).
+    `contest_id` est une PORTÉE (voir logx_storage.active_scope_id), pas le nom
+    brut du concours — un QSO non tagué ne compte jamais pour une portée précise."""
     calldb = _load_calldb()
     worked = set()
     for q in shared_log or []:
-        if contest_id and q.get('contest', '') not in ('', contest_id):
+        if contest_id and qso_scope_id(q) != contest_id:
             continue
         d = dept_for_qso(q, calldb)
         if d:

@@ -15,6 +15,8 @@ import datetime
 import urllib.request
 import urllib.parse
 
+from logx_storage import active_scope_id, qso_scope_id, cfg_scope_id
+
 _STAMP_FILE = 'scoreboard_sync.json'
 
 
@@ -35,8 +37,13 @@ def build_score_snapshot(shared_log, cfg, contest_id=None):
     """{score, qso, per_band:{band:{qso,points}}, mults} pour le concours actif."""
     cfg = cfg or {}
     contest_id = contest_id if contest_id is not None else cfg.get('contest', '')
+    # Portée QSO (contest+année, voir logx_storage.active_scope_id) : réutilise
+    # l'année de cfg même si contest_id est explicitement surchargé. Un QSO non
+    # tagué (contest == '') ne compte jamais pour une portée précise — sans ça,
+    # un log perso/importé jamais nettoyé gonflait le score publié.
+    scope_id = cfg_scope_id({**cfg, 'contest': contest_id})
     entries = [q for q in (shared_log or [])
-               if not contest_id or q.get('contest', '') in ('', contest_id)]
+               if not scope_id or qso_scope_id(q) == scope_id]
     per_band = {}
     score = 0
     for q in entries:
@@ -55,7 +62,7 @@ def build_score_snapshot(shared_log, cfg, contest_id=None):
         stype = (cdef.get('scoring', {}) or {}).get('type', '')
         if stype == 'dept_dxcc':
             from logx_departments import department_mult_count
-            mults = len(department_mult_count(shared_log, contest_id))
+            mults = len(department_mult_count(shared_log, scope_id))
         else:
             mults = len({str(q.get('locator', ''))[:4] for q in entries
                          if q.get('locator') and len(str(q.get('locator'))) >= 4})

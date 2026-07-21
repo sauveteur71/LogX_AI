@@ -94,8 +94,15 @@ def validate_log(qsos, contest_id='', cfg=None):
     simple_mode = cfg.get('usage_mode') == 'simple'
     if simple_mode:
         contest_id = ''
+    # Portée QSO (contest+année, voir logx_storage.cfg_scope_id), dérivée de
+    # `cfg` plutôt que du seul `contest_id` brut — sans elle un QSO non tagué
+    # (import générique, log perso) passait le filtre de N'IMPORTE QUEL
+    # concours vérifié, et un même concours d'une année précédente non purgée
+    # s'y mélangeait aussi.
+    from logx_storage import qso_scope_id, cfg_scope_id
+    scope_id = cfg_scope_id(cfg)
     qsos = [q for q in (qsos or [])
-            if not contest_id or q.get('contest', '') in ('', contest_id)]
+            if not scope_id or qso_scope_id(q) == scope_id]
 
     from logx_definitions import CONTEST_DEFINITIONS
     cdef = CONTEST_DEFINITIONS.get(contest_id, {}) if contest_id else {}

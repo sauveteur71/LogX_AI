@@ -7,6 +7,7 @@ Déterministe, hors-ligne (cty.dat via logx_dxcc + drapeaux via
 logx_flags). Modelé sur logx_departments.
 """
 import re
+from logx_storage import qso_scope_id
 
 CONTINENT_NAMES = {
     'EU': 'Europe', 'NA': 'Amérique du Nord', 'SA': 'Amérique du Sud',
@@ -16,11 +17,13 @@ CONTINENT_ORDER = ['EU', 'NA', 'SA', 'AS', 'AF', 'OC', 'AN']
 
 
 def _worked_keys(shared_log, contest_id=''):
-    """Ensemble des pays DXCC contactés (toutes bandes confondues)."""
+    """Ensemble des pays DXCC contactés (toutes bandes confondues). `contest_id`
+    est une PORTÉE (voir logx_storage.active_scope_id) — un QSO non tagué ne
+    compte jamais pour une portée précise."""
     import logx_dxcc as dxcc
     worked = set()
     for q in shared_log or []:
-        if contest_id and q.get('contest', '') not in ('', contest_id):
+        if contest_id and qso_scope_id(q) != contest_id:
             continue
         call = str(q.get('call', ''))
         if dxcc.lookup(call):                 # filtre les indicatifs inconnus
@@ -31,11 +34,12 @@ def _worked_keys(shared_log, contest_id=''):
 def _worked_pairs(shared_log, contest_id=''):
     """Ensemble des couples (pays, bande) contactés — pour les concours dont le
     multiplicateur DXCC est PAR BANDE (CQ WW, ARRL DX…) : un pays déjà fait sur
-    20 m reste un multiplicateur neuf sur 15 m."""
+    20 m reste un multiplicateur neuf sur 15 m. `contest_id` est une PORTÉE
+    (voir logx_storage.active_scope_id)."""
     import logx_dxcc as dxcc
     pairs = set()
     for q in shared_log or []:
-        if contest_id and q.get('contest', '') not in ('', contest_id):
+        if contest_id and qso_scope_id(q) != contest_id:
             continue
         call = str(q.get('call', ''))
         if dxcc.lookup(call):
