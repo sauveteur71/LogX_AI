@@ -3,7 +3,7 @@
 LogX AI - Serveur principal v3.1
 Point d'entrée : démarrage du serveur HTTP et des tâches de fond.
 Lance avec : python logx_serveur.py
-Puis ouvre  : http://localhost:8080/logx_configuration.html
+Puis ouvre  : http://127.0.0.1:8080/logx_configuration.html
 
 Le code est organisé en modules :
   logx_utils.py                — réseau, géodésie locator, modes numériques
@@ -207,11 +207,15 @@ if __name__ == '__main__':
     print('  LogX AI -- logiciel de concours multi-tout')
     print('  (config du concours actif : page CONFIG)')
     print('=' * 60)
-    print(f'  -> http://localhost:{PORT}/logx_configuration.html')
-    print(f'  -> http://localhost:{PORT}/logx_logbook.html')
-    print(f'  -> http://localhost:{PORT}/logx_propagation.html')
-    print(f'  -> http://localhost:{PORT}/logx_calendrier.html')
-    print(f'  -> http://localhost:{PORT}/logx_mobile.html (telephone)')
+    # 127.0.0.1 plutôt que localhost : une exception antivirus (Web Shield)
+    # posée pour 127.0.0.1 ne couvre pas localhost par correspondance
+    # textuelle, même si les deux pointent vers la même machine — observé
+    # avec Avast ajoutant ~2 s d'inspection à chaque requête sur localhost.
+    print(f'  -> http://127.0.0.1:{PORT}/logx_configuration.html')
+    print(f'  -> http://127.0.0.1:{PORT}/logx_logbook.html')
+    print(f'  -> http://127.0.0.1:{PORT}/logx_propagation.html')
+    print(f'  -> http://127.0.0.1:{PORT}/logx_calendrier.html')
+    print(f'  -> http://127.0.0.1:{PORT}/logx_mobile.html (telephone)')
     print('=' * 60)
     print(f'  Autres postes WiFi : http://{local_ip}:{PORT}/logx_logbook.html')
     print()

@@ -76,6 +76,11 @@ def open_browser(port, delay=1.5):
     import webbrowser
 
     def _open():
-        webbrowser.open(f'http://localhost:{port}/logx_configuration.html')
+        # 127.0.0.1 plutôt que localhost : certains antivirus (Avast Web
+        # Shield observé sur ce type de poste) filtrent les exceptions de
+        # site par correspondance TEXTUELLE de l'URL — une exception posée
+        # pour 127.0.0.1 ne couvre pas localhost même si les deux pointent
+        # vers la même machine, ajoutant ~2 s d'inspection à chaque requête.
+        webbrowser.open(f'http://127.0.0.1:{port}/logx_configuration.html')
 
     threading.Timer(delay, _open).start()

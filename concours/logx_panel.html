@@ -52,7 +52,7 @@ header{display:flex;align-items:center;gap:16px;padding:9px 16px;background:line
 // principale (localStorage partagé, même origine).
 if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
 (function(){
-  if(location.protocol==='file:'){ document.body.innerHTML='<div class="empty">Ouvre via le serveur : http://localhost:8080/logx_panel.html</div>'; return; }
+  if(location.protocol==='file:'){ document.body.innerHTML='<div class="empty">Ouvre via le serveur : http://127.0.0.1:8080/logx_panel.html</div>'; return; }
   const params = new URLSearchParams(location.search);
   const id = params.get('id') || '';
 

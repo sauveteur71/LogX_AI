@@ -102,7 +102,7 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
 (function(){
   if(location.protocol==='file:'){
-    document.body.innerHTML='<div style="padding:60px;text-align:center;font-family:monospace;color:#FF2D55">Ouvre via le serveur : http://localhost:8080/logx_wall.html</div>';
+    document.body.innerHTML='<div style="padding:60px;text-align:center;font-family:monospace;color:#FF2D55">Ouvre via le serveur : http://127.0.0.1:8080/logx_wall.html</div>';
     return;
   }
   let lastTopKey='';
