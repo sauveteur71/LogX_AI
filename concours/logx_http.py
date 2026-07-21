@@ -2011,6 +2011,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if payload.get('mode') == 'tci':
                 import logx_tci as tci
                 res = tci.test_connection(payload.get('host'), payload.get('port'))
+            elif payload.get('mode') == 'rigctld':
+                # Correctif H6 : jusqu'ici absent — le mode rigctld tombait dans
+                # le "else" natif ci-dessous, qui teste un port SÉRIE (jamais
+                # utilisé par rigctld, protocole réseau texte sur rig_host/rig_port).
+                import logx_rig as rig
+                host = (payload.get('host') or '').strip() or rig.DEFAULT_HOST
+                try:
+                    port = int(payload.get('port') or rig.DEFAULT_PORT)
+                except (TypeError, ValueError):
+                    port = rig.DEFAULT_PORT
+                res = rig.get_state(host, port)
             else:
                 import logx_cat as cat
                 res = cat.test_connection(payload.get('brand'), payload.get('model'),

@@ -153,6 +153,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 /* LOCATOR MAP HINT */
 .locator-hint{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:8px}
 .locator-hint span{color:var(--accent2)}
+.locator-hint.error{border-color:var(--red);color:var(--red)}
+.locator-hint.error span{color:var(--red)}
 </style>
 </head>
 <body>
@@ -301,7 +303,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
       <div class="locator-hint" id="locatorHint" style="display:none">
-        📍 Locator <span id="locHintVal"></span> détecté — coordonnées calculées automatiquement
+        <span id="locHintOk">📍 Locator <span id="locHintVal"></span> détecté — coordonnées calculées automatiquement</span>
+        <span id="locHintErr" style="display:none">⚠️ Locator invalide — format attendu : 2 lettres (A-R) + 2 chiffres + 2 lettres optionnelles (A-X), ex. JN15XC</span>
       </div>
       <div class="simple-note">💡 Mode simple : seuls les champs essentiels sont affichés.
         Les champs d'export EDI (responsable log, section...) apparaissent en mode expert 🎚 —
@@ -2090,88 +2093,13 @@ async function mergeExternalContests(){
 }
 
 // ─── CHARGEMENT CONFIG ───────────────────────────────────────────────────────
-function applyConfigToForm(cfg) {
-  const set = (id, val) => { const el = document.getElementById(id); if(el && val !== undefined && val !== null) el.value = val; };
-  if(typeof applyWallFields === 'function') applyWallFields(cfg.wall_fields);
-  set('usage_mode', cfg.usage_mode);
-  if(typeof applyUsageMode === 'function') applyUsageMode();
-  set('cluster_spot_enabled', cfg.cluster_spot_enabled);
-  set('cluster_spot_host',    cfg.cluster_spot_host);
-  set('cluster_spot_port',    cfg.cluster_spot_port);
-  set('activation_program',   cfg.activation_program);
-  set('my_activation_ref',    cfg.my_activation_ref);
-  set('callsign',        cfg.callsign);
-  set('callsign_contest',cfg.callsign_contest || cfg.callsign);
-  set('locator',         cfg.locator);
-  set('city',            cfg.city);
-  set('altitude',        cfg.altitude);
-  set('postal',          cfg.postal);
-  set('on4kst_callsign', cfg.on4kst_callsign);
-  set('on4kst_password', cfg.on4kst_password);
-  set('operator_name',   cfg.op_name);
-  set('op_call',         cfg.op_call);
-  set('club',            cfg.club);
-  set('email',           cfg.email);
-  set('section_edi',     cfg.section);
-  set('contest_start_date', cfg.contest_start_date);
-  set('contest_end_date',   cfg.contest_end_date);
-  set('contest_end_utc',    cfg.contest_end_utc);
-  set('power',           cfg.power);
-  set('power_class',     cfg.power_class);
-  set('record_dx',       cfg.record_dx);
-  set('log_software',    cfg.log_software);
-  set('ant_hf',          cfg.ant_hf);
-  set('ant_144',         cfg.ant_144);
-  set('ant_432',         cfg.ant_432);
-  set('ant_shf',         cfg.ant_shf);
-  set('radio',           cfg.radio);
-  set('country',         cfg.country);
-  set('submit_url',      cfg.submit_url);
-  set('submit_deadline', cfg.submit_deadline);
-  set('alert_dx_km',     cfg.alert_dx_km);
-  set('spotter_reliable_km', cfg.spotter_reliable_km);
-  set('refresh_min',     cfg.refresh_min);
-  set('priority_mode',   cfg.priority_mode);
-  set('spot_prefix_filter', cfg.spot_prefix_filter);
-  // Opérateurs
-  if(Array.isArray(cfg.operators)){
-    cfg.operators.forEach((op, i) => {
-      set(`op${i+1}_call`, op.call);
-      set(`op${i+1}_name`, op.name);
-    });
-  }
-  // Concours sélectionné
-  if(cfg.contest){
-    state.contest = cfg.contest;
-    state.toggles = cfg.toggles || {};
-    // Refléter le choix sauvegardé sur les boutons bande/mode (DOM)
-    document.querySelectorAll('[data-key]').forEach(el => {
-      el.classList.toggle('on', !!state.toggles[el.dataset.key]);
-    });
-    // Empêche goStep(3) d'écraser ces valeurs avec les défauts du règlement
-    _filtersAppliedFor = cfg.contest;
-    // Marquer la carte visuellement
-    document.querySelectorAll('.contest-card').forEach(c => {
-      c.classList.toggle('selected', c.dataset.id === cfg.contest);
-    });
-  }
-  // Fournisseur IA
-  if(cfg.api_provider){
-    const prov = document.querySelector(`input[name="api_provider"][value="${cfg.api_provider}"]`);
-    if(prov) { prov.checked = true; onProviderChange(); }
-  }
-  if(cfg.ai_model){ set('ai_model', cfg.ai_model); }
-  if(cfg.api_key){ set('api_key', cfg.api_key); }
-  // Clé API depuis localStorage isolé
-  const provider = cfg.api_provider || 'anthropic';
-  const savedKey = localStorage.getItem(`logx_apikey_${provider}`) || cfg.api_key || '';
-  if(savedKey) set('api_key', savedKey);
-}
-
-// NOTE : loadSavedConfig()/loadFromServerConfig() réellement utilisées par
-// init() sont définies plus bas (recherche du même nom) — elles restaurent la
-// config normale complète. applyConfigToForm() ci-dessus reste utilisée par
-// loadProfile() (changement de profil).
+// Correctif H1 : l'ancienne applyConfigToForm() (~40 champs) utilisée par
+// loadProfile() a été retirée — la restauration complète est maintenant
+// applyFullConfigToForm(), partagée avec loadSavedConfig() (voir plus bas,
+// recherche du même nom), pour que changer de profil restaure aussi les
+// identifiants QRZ/eQSL/LoTW/ClubLog/QRZCQ/HRDLog, le pilotage radio/ampli/
+// rotor, WSJT-X, le réseau ADIF, le keyer vocal, scoreboard/backup/cloud
+// sync et les alertes personnalisées.
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 async function init() {
@@ -2393,6 +2321,12 @@ async function testCatConnection(){
     payload = { mode: 'tci',
       host: document.getElementById('tci_host').value,
       port: parseInt(document.getElementById('tci_port').value, 10) || 50001 };
+  } else if (mode === 'rigctld'){
+    // Correctif H6 : jusqu'ici confondu avec le mode natif ci-dessous (testait
+    // un port SÉRIE jamais utilisé par rigctld, qui parle réseau sur rig_host/rig_port).
+    payload = { mode: 'rigctld',
+      host: document.getElementById('rig_host')?.value.trim() || '127.0.0.1',
+      port: parseInt(document.getElementById('rig_port')?.value, 10) || 4532 };
   } else {
     payload = {
       brand: document.getElementById('cat_brand').value,
@@ -2414,6 +2348,9 @@ async function testCatConnection(){
     const r = await res.json();
     if (r.ok && mode === 'tci'){
       result.textContent = `✅ Serveur TCI joint : ${r.device || 'appareil inconnu'} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non reçue'})`;
+      result.style.color = 'var(--green)';
+    } else if (r.ok && mode === 'rigctld'){
+      result.textContent = `✅ rigctld joint (${payload.host}:${payload.port}) : ${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'}${r.mode ? ' — mode ' + r.mode : ''}`;
       result.style.color = 'var(--green)';
     } else if (r.ok){
       result.textContent = `✅ Radio détectée : ${r.detected_model || payload.model} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'})`;
@@ -2569,7 +2506,7 @@ function loadProfile(){
   const profiles = getProfiles();
   const cfg = profiles[name];
   if(!cfg){ alert(`Profil introuvable : ${name}`); return; }
-  applyConfigToForm(cfg);
+  applyFullConfigToForm(cfg);
   alert(`📂 Profil "${name}" chargé.`);
 }
 
@@ -2682,7 +2619,23 @@ function calcContestDates(id){
   return { startDate, endDate, endTime };
 }
 
-function selectContest(id) {
+function selectContest(id, _skipConfirm) {
+  // Correctif H3 : re-cliquer la carte déjà sélectionnée ne changeait rien en
+  // apparence mais réinitialisait quand même bandes/modes/dates en silence —
+  // désormais un no-op franc. Changer POUR un autre concours alors qu'un
+  // concours était déjà actif écrasait aussi silencieusement bandes/modes/
+  // dates personnalisés : on demande confirmation avant.
+  // _skipConfirm=true : appels programmatiques (restauration de config/profil,
+  // lien calendrier ?contest=ID, validation IA d'un règlement) où l'intention
+  // de choisir CE concours est déjà explicite — jamais de confirm() ici.
+  if (id === state.contest) return;
+  if (!_skipConfirm && state.contest) {
+    const prev = CONTESTS.find(c => c.id === state.contest);
+    const next = CONTESTS.find(c => c.id === id);
+    const msg = `Changer pour « ${next ? next.name : id} » va réinitialiser bandes/modes/dates `
+      + `selon ce règlement — tes personnalisations pour « ${prev ? prev.name : state.contest} » seront perdues.\n\nContinuer ?`;
+    if (!confirm(msg)) return;
+  }
   state.contest = id;
   document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
   const card = document.getElementById('card_'+id);
@@ -2994,13 +2947,42 @@ function applyContestFilters(contestId) {
   }
 }
 
-function goStep(n) {
+// Garde-fou H2 : liste ce qui manque pour atteindre l'étape `forStep` sans
+// perte silencieuse (indicatif/locator invalides ou concours non choisi
+// laissaient auparavant sauter directement à RÉSUMÉ → LOGGER sans avertissement).
+function _missingStationFields(forStep){
+  const missing = [];
+  if(forStep >= 2){
+    if(!document.getElementById('callsign').value.trim()) missing.push('INDICATIF (étape MA STATION)');
+    const loc = document.getElementById('locator').value.trim();
+    if(!loc || !isValidLocator(loc)) missing.push('LOCATOR MAIDENHEAD valide, ex. JN15XC (étape MA STATION)');
+  }
+  if(forStep >= 3 && getUsageMode() !== 'simple' && !state.contest){
+    missing.push('un CONCOURS sélectionné (étape CONCOURS)');
+  }
+  return missing;
+}
+
+function _warnMissingStation(missing){
+  alert('⚠️ Configuration incomplète — merci de compléter avant de continuer :\n\n- ' + missing.join('\n- '));
+}
+
+function goStep(n, _internal) {
   // Mode débutant : l'étape 4 (PROPAGATION) est masquée → on saute par-dessus
   // dans le sens du déplacement (3 → 5 en avançant, 5 → 3 en reculant).
   if (getUiMode() === 'simple' && n === 4) n = (state.step < 4) ? 5 : 3;
   // Mode d'utilisation LOGBOOK SIMPLE : pas de concours → l'étape 2 (CONCOURS)
   // est masquée, on saute par-dessus dans le sens du déplacement.
   if (getUsageMode() === 'simple' && n === 2) n = (state.step < 2) ? 3 : 1;
+  // Garde-fou H2 : on ne bloque que les sauts EN AVANT initiés par
+  // l'utilisateur (revenir en arrière pour corriger reste toujours possible).
+  // _internal=true : appel programmatique (repositionnement suite à un
+  // changement de mode, ou lien profond ?contest=ID) — ne doit jamais être
+  // bloqué par un garde-fou qui vise la navigation manuelle dans l'assistant.
+  if (!_internal && n > state.step) {
+    const missing = _missingStationFields(n);
+    if (missing.length) { _warnMissingStation(missing); return; }
+  }
   state.step = n;
   document.querySelectorAll('.step').forEach((s,i) => {
     s.classList.remove('active');
@@ -3023,16 +3005,32 @@ function goStep(n) {
   window.scrollTo(0,0);
 }
 
+const LOCATOR_RE = /^[A-R]{2}[0-9]{2}([A-X]{2})?$/;
+function isValidLocator(loc){ return LOCATOR_RE.test((loc||'').toUpperCase().trim()); }
+
 function updateLocatorHint() {
-  const loc = document.getElementById('locator').value;
+  const loc = document.getElementById('locator').value.toUpperCase().trim();
   const hint = document.getElementById('locatorHint');
+  const ok = document.getElementById('locHintOk');
+  const err = document.getElementById('locHintErr');
   const val = document.getElementById('locHintVal');
-  if(loc.length === 6) {
-    val.textContent = loc;
-    hint.style.display = 'block';
-  } else {
+  if(loc.length !== 6) {
+    // Saisie en cours (< 6) ou champ vide : on ne juge pas une entrée incomplète.
     hint.style.display = 'none';
+    hint.classList.remove('error');
+    return;
   }
+  if(isValidLocator(loc)) {
+    val.textContent = loc;
+    ok.style.display = '';
+    err.style.display = 'none';
+    hint.classList.remove('error');
+  } else {
+    ok.style.display = 'none';
+    err.style.display = '';
+    hint.classList.add('error');
+  }
+  hint.style.display = 'block';
 }
 
 // ─── SÉLECTEUR DE LOCATOR SUR CARTE ──────────────────────────────────────────
@@ -3052,7 +3050,7 @@ function latLonToLocator(lat, lon){
 
 function locatorToLatLon(loc){
   loc = (loc||'').toUpperCase().trim();
-  if(!/^[A-R]{2}[0-9]{2}([A-X]{2})?$/.test(loc)) return null;
+  if(!LOCATOR_RE.test(loc)) return null;
   if(loc.length === 4) loc += 'MM';
   const lon = (loc.charCodeAt(0)-65)*20 - 180 + parseInt(loc[2])*2 + (loc.charCodeAt(4)-65)*(2/24) + 1/24;
   const lat = (loc.charCodeAt(1)-65)*10 - 90  + parseInt(loc[3])   + (loc.charCodeAt(5)-65)*(1/24) + 0.5/24;
@@ -3378,6 +3376,14 @@ function quickSave() {
 }
 
 function saveConfig(silent = false) {
+  // Garde-fou H2 : une sauvegarde explicite (bouton SAUVEGARDER CONFIG,
+  // LOGGER) exige indicatif/locator/concours complets — la sauvegarde rapide
+  // silencieuse (💾 flottant, appelée à chaque étape) reste permissive pour
+  // ne pas gêner la saisie progressive.
+  if(!silent){
+    const missing = _missingStationFields(5);
+    if(missing.length){ _warnMissingStation(missing); return false; }
+  }
   const provider = getSelectedProvider();
   const apiKey = document.getElementById('api_key').value;
   if(apiKey){
@@ -3528,6 +3534,7 @@ function saveConfig(silent = false) {
   } else {
     alert('✅ Configuration sauvegardée !');
   }
+  return true;
 }
 
 // ─── MONO / MULTI OP ─────────────────────────────────────────────────────────
@@ -3573,15 +3580,22 @@ function applyUiMode(){
     btn.textContent = simple ? '🎚 DÉBUTANT' : '🎚 EXPERT';
     btn.style.color = simple ? 'var(--green)' : 'var(--muted)';
   }
+  // Correctif H4 : ne pas masquer l'étape 4 (PROPAGATION) en mode débutant
+  // quand le mode d'utilisation EXPÉDITION/ACTIVATION est actif — ses champs
+  // (expedition_mode, activation_program, my_activation_ref, clublog_live)
+  // n'existent que dans ce panneau et seraient sinon impossibles à atteindre
+  // sans deviner qu'il faut d'abord basculer en mode EXPERT (le sélecteur MODE
+  // D'UTILISATION propose pourtant toujours cette option).
+  const hideStep4 = simple && getUsageMode() !== 'expedition';
   const step4 = document.getElementById('step4');
-  if (step4) step4.style.display = simple ? 'none' : '';
+  if (step4) step4.style.display = hideStep4 ? 'none' : '';
   // Libellés des boutons qui encadrent l'étape sautée
   const nextBtn = document.querySelector('#panel3 .btn-primary');
-  if (nextBtn) nextBtn.textContent = simple ? 'SUIVANT → RÉSUMÉ' : 'SUIVANT → PROPAGATION';
+  if (nextBtn) nextBtn.textContent = hideStep4 ? 'SUIVANT → RÉSUMÉ' : 'SUIVANT → PROPAGATION';
   const backBtn = document.querySelector('#panel5 .btn-secondary[onclick="goStep(4)"]');
-  if (backBtn) backBtn.textContent = simple ? '← RETOUR (FILTRES)' : '← RETOUR';
+  if (backBtn) backBtn.textContent = hideStep4 ? '← RETOUR (FILTRES)' : '← RETOUR';
   // Si on est actuellement sur l'étape 4 en passant en simple → aller au résumé
-  if (simple && state.step === 4) goStep(5);
+  if (hideStep4 && state.step === 4) goStep(5, true);
 }
 
 function toggleUiMode(){
@@ -3617,12 +3631,18 @@ function applyUsageMode(){
         ? '— pense à activer la saisie simplifiée dans la section MODE EXPÉDITION ci-dessous'
         : '');
   // Si on est actuellement sur l'étape CONCOURS en passant en simple → avancer
-  if (simple && state.step === 2) goStep(3);
+  if (simple && state.step === 2) goStep(3, true);
   // Ré-appliquer immédiatement les filtres bande/mode (sans attendre un
   // changement d'étape) : basculer vers/depuis LOGBOOK SIMPLE doit se voir
   // tout de suite si l'étape FILTRES est déjà affichée.
   _filtersAppliedFor = null;
   if (state.step === 3) applyContestFilters(state.contest);
+  // Correctif H4 : la visibilité de l'étape 4 dépend À LA FOIS du mode UI et
+  // du mode d'utilisation (cf. applyUiMode()) — la recalculer ici aussi,
+  // sinon un usage_mode='expedition' restauré après coup (config/profil,
+  // lien calendrier) laisserait l'étape 4 masquée par le calcul déjà fait
+  // plus tôt par applyUiMode() avant que ce mode ne soit connu.
+  applyUiMode();
 }
 
 function onUsageModeChange(){
@@ -3703,6 +3723,19 @@ function loadSavedConfig() {
   if(!saved) return false;
   try {
     const c = JSON.parse(saved);
+    applyFullConfigToForm(c);
+    return true;
+  } catch(e) { console.warn('Config invalide', e); return false; }
+}
+
+// Correctif H1 : saveProfile() capture ~90 champs (via saveConfig() complet)
+// mais loadProfile() ne réappliquait qu'un sous-ensemble restreint (~40, via
+// l'ancienne applyConfigToForm()) — identifiants QRZ/eQSL/LoTW/ClubLog/QRZCQ/
+// HRDLog, radio/ampli/rotor, WSJT-X, réseau ADIF, keyer vocal, scoreboard,
+// backup, cloud sync et alertes restaient ceux du profil précédent après un
+// changement de profil. Un seul chemin de restauration complète, partagé
+// entre chargement de page (loadSavedConfig) et changement de profil (loadProfile).
+function applyFullConfigToForm(c) {
     applyWallFields(c.wall_fields);
     if(c.callsign) document.getElementById('callsign').value = c.callsign;
     if(c.callsign_contest) document.getElementById('callsign_contest').value = c.callsign_contest;
@@ -3747,6 +3780,17 @@ function loadSavedConfig() {
     }
     updateCatModeVisibility();
     if(c.voicekeyer_enabled) document.getElementById('voicekeyer_enabled').value = '1';
+    // Périphérique/voix TTS : <select> peuplés une fois au chargement de page
+    // par loadVoiceKeyerDevices() (liste dépendante du matériel serveur) — on
+    // ne fait que ré-appliquer la valeur sauvegardée sur les <option> déjà là.
+    if(c.voicekeyer_device !== undefined){
+      const devSel = document.getElementById('voicekeyer_device');
+      if(devSel) devSel.value = c.voicekeyer_device;
+    }
+    if(c.voicekeyer_voice_id !== undefined){
+      const voiceSel = document.getElementById('voicekeyer_voice_id');
+      if(voiceSel) voiceSel.value = c.voicekeyer_voice_id;
+    }
     if(c.amp_enabled) document.getElementById('amp_enabled').value = '1';
     if (c.amp_brand) updateAmpFieldsVisibility();
     if(c.wsjtx_enabled) document.getElementById('wsjtx_enabled').value = '1';
@@ -3776,7 +3820,7 @@ function loadSavedConfig() {
     if(c.country) document.getElementById('country').value = c.country;
     if(c.submit_url) document.getElementById('submit_url').value = c.submit_url;
     if(c.submit_deadline) document.getElementById('submit_deadline').value = c.submit_deadline;
-    if(c.contest) selectContest(c.contest);
+    if(c.contest) selectContest(c.contest, true);
     if(c.toggles) {
       // selectContest() vient de réinitialiser state.toggles aux valeurs par
       // défaut du règlement — on restaure ici le choix réellement sauvegardé,
@@ -3819,8 +3863,6 @@ function loadSavedConfig() {
     // Charger la clé du fournisseur actif
     const keyForProvider = c.api_key || localStorage.getItem(`logx_apikey_${savedProvider}`) || localStorage.getItem('logx_apikey') || '';
     if(keyForProvider) document.getElementById('api_key').value = keyForProvider;
-    return true;
-  } catch(e) { console.warn('Config invalide', e); return false; }
 }
 
 // Pré-remplissage depuis config.json (fallback si localStorage vide)
@@ -3857,7 +3899,7 @@ async function loadFromServerConfig() {
     if (st.locator) updateLocatorHint();
 
     // Concours
-    if (ct.id) selectContest(ct.id);
+    if (ct.id) selectContest(ct.id, true);
     if (ct.start_date) {
       const sd = ct.start_date.toString().replace(/-/g,'');
       set('contest_start_date', `${sd.slice(0,4)}-${sd.slice(4,6)}-${sd.slice(6,8)}`);
@@ -3891,7 +3933,7 @@ async function loadFromServerConfig() {
 }
 
 function launchApp(dest) {
-  saveConfig();
+  if(!saveConfig()) return;
   const key = document.getElementById('api_key').value;
   if(key) localStorage.setItem('logx_apikey', key);
   // Par défaut : le LOGBOOK (la saisie des QSO) — la carte IA reste à un clic.
@@ -4108,7 +4150,7 @@ async function saveReviewedDefinition(){
     buildContestGrid('');
     setTimeout(() => {
       document.getElementById('reviewModal').style.display = 'none';
-      selectContest(g('id'));
+      selectContest(g('id'), true);
       const card = document.getElementById('card_' + g('id'));
       if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
     }, 1200);
@@ -4137,7 +4179,7 @@ function handleContestParam(){
     applyUsageMode();
   }
 
-  goStep(2);
+  goStep(2, true);
 
   if (!contest){
     banner.style.display = 'block';
@@ -4147,7 +4189,7 @@ function handleContestParam(){
     return;
   }
 
-  selectContest(id);
+  selectContest(id, true);
   const card = document.getElementById('card_' + id);
   if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
