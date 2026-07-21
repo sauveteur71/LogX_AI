@@ -188,6 +188,11 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     <div id="rbnList" class="scroll-list"><div class="loading">Transmets en CW : les skimmers RBN qui te reçoivent apparaîtront ici.</div></div>
   </div>
 
+  <div class="panel">
+    <div class="panel-title">🏞️ ACTIVATEURS POTA EN DIRECT <small id="potaMeta"></small></div>
+    <div id="potaList" class="scroll-list"><div class="loading">…</div></div>
+  </div>
+
   </div><!-- /prop-main -->
 
   <!-- CLUSTER NEED LIST : colonne droite, pleine hauteur, lecture complète -->
@@ -477,6 +482,32 @@ async function loadRBN(){
   }catch(e){}
 }
 
+// ─── POTA : activateurs en direct (api.pota.app, via le serveur) ────────────
+async function loadPota(){
+  try{
+    const r = await fetch('/data/pota_spots');
+    const d = await r.json();
+    const meta = document.getElementById('potaMeta');
+    const el = document.getElementById('potaList');
+    const spots = d.spots || [];
+    if(!spots.length){
+      el.innerHTML = `<div class="loading">Aucune activation POTA en cours signalée pour l'instant.</div>`;
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = `${spots.length} activateur${spots.length>1?'s':''}`;
+    // Les données viennent d'un service tiers public (n'importe qui peut poster
+    // un commentaire de spot) : chaque champ affiché passe par esc().
+    el.innerHTML = spots.slice(0,30).map(s => `
+      <div class="spot-row">
+        <span class="sr-call">${esc(s.call)}</span>
+        <span class="sr-band">${esc(s.band)||'—'}</span>
+        <span style="width:80px;color:var(--accent2)">${esc(s.reference)}</span>
+        <span class="sr-info">${s.freq?(s.freq/1000).toFixed(3)+' MHz · ':''}${esc(s.mode)}${s.park_name?' · '+esc(s.park_name):''}${s.comment?' · '+esc(s.comment):''}</span>
+      </div>`).join('');
+  }catch(e){}
+}
+
 // ─── LIENS EXTERNES DÉPENDANT DE LA STATION (indicatif + locator) ────────────
 // Construits une fois la config connue : carte PSK Reporter filtrée sur mon
 // indicatif, et prédictions de passages satellites pour mes coordonnées.
@@ -537,12 +568,14 @@ loadPSK();
 loadTropo();
 loadMeteors();
 loadRBN();
+loadPota();
 loadStationLinks();
 setInterval(loadPropagation, 5 * 60 * 1000);   // solaire : lent (caches 15 min)
 setInterval(loadSpots, 60 * 1000);             // need list : chaque minute
 setInterval(loadBeacons, 5 * 1000);            // balises : changent toutes les 10 s
 setInterval(loadPSK, 3 * 60 * 1000);           // PSK Reporter : cache serveur 3 min
 setInterval(loadTropo, 20 * 60 * 1000);        // tropo : cache 20 min
+setInterval(loadPota, 2 * 60 * 1000);          // POTA : cache serveur 90 s
 setInterval(loadMeteors, 10 * 60 * 1000);      // météores : calendrier lent
 setInterval(loadRBN, 2 * 60 * 1000);           // RBN CW : cache serveur 2 min
 </script>

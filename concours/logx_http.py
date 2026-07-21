@@ -1305,6 +1305,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'receivers': websdr.list_websdr()})
             return
 
+        # Spots d'activateurs POTA en direct (api.pota.app, cache 90 s)
+        if path == '/data/pota_spots':
+            import logx_pota as pota
+            self._json({'spots': pota.fetch_pota_spots()})
+            return
+
         # État d'une analyse IA serveur (pour la reprise après changement de page)
         if path.startswith('/agent/analyze/state'):
             from urllib.parse import parse_qs, urlparse

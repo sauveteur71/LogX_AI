@@ -144,6 +144,7 @@ Dans CONFIG (mode 🎚 EXPERT), section radio :
 - **🇫🇷 Cartes** : carte de France des départements REF à verdir, carte du monde des pays DXCC travaillés.
 - **📶 PROPAG** : indices solaires (SFI, K, A, taches, rayons X — également résumés en permanence dans la barre de statut, badge `☀️ SFI x · K x` en haut de chaque page), MUF avec verdict ouvert/fermé par bande, conditions Sporadique-E/tropo/météores, balises NCDXF/IBP. Complété d'un lien direct vers la **carte mondiale PSK Reporter** (filtrée sur votre indicatif) et d'un panneau **🛰️ Satellites** (liens calculés vers Heavens-Above pour les passages visibles et AMSAT pour l'état des satellites radioamateur).
 - **📡 WEBSDR** (nouveau) : annuaire de récepteurs distants (France et international) pilotables depuis un navigateur. Utile pour vérifier comment votre propre émission est reçue ailleurs, écouter une bande fermée chez vous mais ouverte là-bas, ou repérer une station avant de tenter le contact. Ces récepteurs sont opérés bénévolement par d'autres radioamateurs — leur disponibilité n'est pas garantie, un badge de test rapide l'indique à l'ouverture de la page.
+- **🏞️ Activateurs POTA en direct** (nouveau, page PROPAG) : liste en temps réel des activations Parks On The Air en cours dans le monde (indicatif, référence de parc, bande, mode), utile aussi bien pour chasser un parc que pour vérifier qu'un site n'est pas déjà occupé avant sa propre activation. Distinct du suivi de progression d'activation (§7/§11), qui reste local à votre propre session.
 
 ---
 
@@ -198,4 +199,4 @@ Services QSL pris en charge, avec upload/synchronisation en un clic depuis le m�
 
 ---
 
-*Dernière mise à jour : 21 juillet 2026 — reflète l'état du logiciel après ajout de l'assistant de configuration, du sélecteur de locator sur carte, du badge météo solaire partagé, du lien PSK Reporter, du panneau satellites et de l'annuaire WebSDR.*
+*Dernière mise à jour : 21 juillet 2026 — reflète l'état du logiciel après ajout de l'assistant de configuration, du sélecteur de locator sur carte, du badge météo solaire partagé, du lien PSK Reporter, du panneau satellites, de l'annuaire WebSDR et des spots POTA en direct.*
