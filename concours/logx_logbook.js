@@ -777,13 +777,16 @@ function lookupQRZ(call){
       if(!r.ok || seq !== _qrzSeq) return;
       const d = await r.json();
       if(!d.ok){ el.style.display = 'none'; return; }
+      // Données d'annuaires en ligne tiers (QRZ/HamQTH/HamDB) : origine Internet
+      // hors du contrôle de l'utilisateur → échappées avant insertion en innerHTML
+      // (un champ QTH contenant du HTML exécuterait sinon du script à la frappe).
       const bits = [];
-      if(d.name) bits.push('👤 ' + d.name);
-      if(d.qth)  bits.push('📍 ' + d.qth);
-      if(d.grid) bits.push('🗺 ' + d.grid);
-      if(d.country && !d.qth) bits.push(d.country);
+      if(d.name) bits.push('👤 ' + escHtml(d.name));
+      if(d.qth)  bits.push('📍 ' + escHtml(d.qth));
+      if(d.grid) bits.push('🗺 ' + escHtml(d.grid));
+      if(d.country && !d.qth) bits.push(escHtml(d.country));
       const sourceLabel = CALLBOOK_SOURCE_LABEL[d.source];
-      if(sourceLabel) bits.push('· ' + sourceLabel);
+      if(sourceLabel) bits.push('· ' + escHtml(sourceLabel));
       el.innerHTML = bits.join(' · ');
       el.style.display = bits.length ? 'block' : 'none';
       // Pré-remplit le locator s'il est vide et que la source en connaît un
@@ -918,9 +921,14 @@ async function refreshBandMap(){
       if(txMhz && !txDone && f <= txMhz){ rows.push(txRow(txMhz)); txDone = true; }
       const col = s.new_mult ? 'var(--green)' : (_BM_PCOL[s.priority] || 'var(--text)');
       const style = `color:${col}` + (s.already_done ? ';opacity:.45;text-decoration:line-through' : '');
-      rows.push(`<div class="bm-spot" onclick="bandmapClick('${s.call}',${f})" title="${(s.explanation||'').replace(/"/g,'')}">`
+      // s.call vient du cluster DX (source externe non maîtrisée). Pour l'argument
+      // onclick (contexte chaîne JS DANS un attribut HTML), escHtml ne suffit pas :
+      // on restreint l'indicatif aux seuls caractères d'indicatif valides. Le texte
+      // affiché et le title passent par escHtml.
+      const jsCall = String(s.call || '').replace(/[^A-Za-z0-9/]/g, '');
+      rows.push(`<div class="bm-spot" onclick="bandmapClick('${jsCall}',${f})" title="${escHtml(s.explanation||'')}">`
         + `<span class="bm-f">${f.toFixed(3)}</span>`
-        + `<span class="bm-c" style="${style}">${s.new_mult ? '★' : ''}${s.call}</span></div>`);
+        + `<span class="bm-c" style="${style}">${s.new_mult ? '★' : ''}${escHtml(s.call)}</span></div>`);
     }
     if(txMhz && !txDone) rows.push(txRow(txMhz));
     list.innerHTML = rows.length ? rows.join('')
@@ -2197,26 +2205,37 @@ function renderLog(){
   // Rafraîchir la carte si elle est visible
   if(document.getElementById('mapWrap').classList.contains('visible')) refreshMapLayers();
 
+  // Pré-calculs O(n) : nombre d'occurrences (call|band) et position dans le log.
+  // Avant, chaque ligne refaisait un qsoLog.filter() + un qsoLog.indexOf(),
+  // soit O(n²) reconstruit toutes les 5 s — insoutenable sur un log de 3 000+ QSO.
+  const dupCounts = new Map();
+  const posOf = new Map();
+  qsoLog.forEach((x, idx) => {
+    posOf.set(x, idx + 1);
+    const k = (x.call||'') + '|' + (x.band||'');
+    dupCounts.set(k, (dupCounts.get(k) || 0) + 1);
+  });
+
   tbody.innerHTML = filtered.slice().reverse().map((q,i)=>{
     const opClass = OP_COLORS[q.operator] || '';
-    const isDupQ = qsoLog.filter(x=>x.call===q.call&&x.band===q.band).length > 1;
+    const isDupQ = (dupCounts.get((q.call||'') + '|' + (q.band||'')) || 0) > 1;
     const incomplete = !isValidQSO(q);
     const distColor = q.dist>1000?'#FF5030':q.dist>500?'#FFD60A':q.dist>200?'#A0C0FF':'#506090';
     const _brg = (q.locator&&q.locator.length>=6) ? bearing(q.locator) : null;
     const cap = _brg !== null ? cardinalDir(_brg) : '—';
     const rowClass = [isDupQ?'dup-entry':'', q._new?'new-entry':'', incomplete?'incomplete-entry':''].filter(Boolean).join(' ');
     return `<tr class="${rowClass}" id="qso_${q.id}" ondblclick="editQSO(${q.id})" title="Double-clic pour corriger ce QSO">
-      <td class="td-num">${incomplete?'<span class=\"incomplete-flag\" title=\"QSO incomplet — champ(s) manquant(s), à corriger\">⚠️</span>':''}${qsoLog.indexOf(q)+1}</td>
-      <td class="td-time">${q.time||'—'}</td>
-      <td class="td-call">${q.call||'—'}</td>
+      <td class="td-num">${incomplete?'<span class=\"incomplete-flag\" title=\"QSO incomplet — champ(s) manquant(s), à corriger\">⚠️</span>':''}${posOf.get(q)||0}</td>
+      <td class="td-time">${escHtml(q.time)||'—'}</td>
+      <td class="td-call">${escHtml(q.call)||'—'}</td>
       <td class="td-band"${q.freq?` title="${escHtml(q.freq)} MHz"`:''}>${BAND_LABELS[q.band]||escHtml(q.band)||'—'}${q.freq?`<span style="display:block;font-size:10px;color:var(--muted);font-weight:400">${escHtml(q.freq)}</span>`:''}</td>
-      <td class="td-mode">${q.mode||'—'}</td>
-      <td class="td-sent">${q.rst_sent||'—'}/${q.num_sent||'—'}</td>
-      <td class="td-rcvd">${q.rst_rcvd||'—'}/${q.num_rcvd||'—'}</td>
-      <td class="td-loc">${q.locator||'—'}</td>
+      <td class="td-mode">${escHtml(q.mode)||'—'}</td>
+      <td class="td-sent">${escHtml(q.rst_sent)||'—'}/${escHtml(q.num_sent)||'—'}</td>
+      <td class="td-rcvd">${escHtml(q.rst_rcvd)||'—'}/${escHtml(q.num_rcvd)||'—'}</td>
+      <td class="td-loc">${escHtml(q.locator)||'—'}</td>
       <td style="color:${distColor};font-weight:700;font-size:15px">${q.dist?q.dist+' km':'—'}${cap!=='—'?' '+cap:''}</td>
-      <td class="td-pts">${q.points||'—'}</td>
-      <td><span class="td-op ${opClass}">${q.operator||'—'}</span></td>
+      <td class="td-pts">${escHtml(q.points)||'—'}</td>
+      <td><span class="td-op ${opClass}">${escHtml(q.operator)||'—'}</span></td>
       <td class="td-edit" onclick="editQSO(${q.id})" title="Corriger">✏️</td>
       <td class="td-del" onclick="deleteQSO(${q.id})" title="Supprimer">✕</td>
     </tr>`;
@@ -2228,10 +2247,10 @@ function updateLastQso(q){
   const div = document.createElement('div');
   div.className = 'last-qso-item';
   div.innerHTML = `
-    <span class="lqi-call">${q.call}</span>
-    <span class="lqi-loc">${q.locator||'—'}</span>
-    <span class="lqi-pts">${q.points||0} pts</span>
-    <span class="lqi-op">${q.operator}</span>
+    <span class="lqi-call">${escHtml(q.call)}</span>
+    <span class="lqi-loc">${escHtml(q.locator)||'—'}</span>
+    <span class="lqi-pts">${escHtml(q.points)||0} pts</span>
+    <span class="lqi-op">${escHtml(q.operator)}</span>
   `;
   list.insertBefore(div, list.firstChild);
   if(list.children.length > 5) list.removeChild(list.lastChild);
@@ -2370,6 +2389,18 @@ async function undoLastQSO(){
 const VHF_CONTESTS = new Set(['REF_RPH','REF_QRP','REF_CCD','REF_VHF_UHF_FR',
   'IARU_VHF','IARU_UHF','EU_VHF','DARC_VHF','OARC_VHF']);
 
+// Compte des doublons (même call + même bande) en O(n) — remplace un
+// filter()+findIndex() O(n²) qui était recalculé à chaque poll/ajout.
+function countDupes(log){
+  const seen = new Set();
+  let n = 0;
+  for(const q of (log||[])){
+    const k = (q.call||'') + '|' + (q.band||'');
+    if(seen.has(k)) n++; else seen.add(k);
+  }
+  return n;
+}
+
 function updateStats(){
   const isVHF = VHF_CONTESTS.has(currentContest);
 
@@ -2386,7 +2417,7 @@ function updateStats(){
     }
   });
 
-  const dups = qsoLog.filter((q,i)=>qsoLog.findIndex(x=>x.call===q.call&&x.band===q.band)<i).length;
+  const dups = countDupes(qsoLog);
 
   // ── Label et valeur QSO selon type de concours ───────────────────────────
   let qsoLbl, qsoVal;
@@ -2707,10 +2738,23 @@ function copyMacro(idx){
 // ─── RADIO CAT (rigctld) ─────────────────────────────────────────────────────
 // Widget état radio (fréq/mode) + envoi CW des macros. Actif uniquement si le
 // pilotage est activé dans CONFIG. Sondage doux (3 s) ; tolère l'absence de radio.
+// Polling adaptatif : cadence rapide quand le matériel est actif, lente quand
+// il est absent. Un poste sans radio/ampli/WSJT-X générait sinon ~1 400 requêtes
+// de fond par heure (rig+amp+wsjtx à 3-4 s) alors que le serveur répond
+// systématiquement enabled:false. `fn` doit retourner la promesse du fetch.
+function adaptivePoll(fn, fastMs, slowMs, isActive){
+  (function tick(){
+    let p; try{ p = fn(); }catch(e){ p = null; }
+    Promise.resolve(p).catch(()=>{}).then(()=>{
+      setTimeout(tick, isActive() ? fastMs : slowMs);
+    });
+  })();
+}
+
 let rigState = {enabled:false, mode:'', freq_khz:0};
 
 function refreshRig(){
-  fetch('/rig/state').then(r=>r.ok?r.json():null).then(d=>{
+  return fetch('/rig/state').then(r=>r.ok?r.json():null).then(d=>{
     const panel = document.getElementById('rigPanel');
     const freqBtn = document.getElementById('freqRigBtn');
     if(!d || !d.enabled){ rigState.enabled=false; if(panel) panel.style.display='none'; if(freqBtn) freqBtn.style.display='none'; return; }
@@ -2759,8 +2803,7 @@ function rigStopCW(){
   fetch('/rig/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).catch(()=>{});
 }
 
-refreshRig();
-setInterval(refreshRig, 3000);
+adaptivePoll(refreshRig, 3000, 20000, ()=>rigState.enabled);
 
 // ─── AMPLIFICATEUR HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) ──────
 // Panneau compact : puissance/SWR/défaut affichés en direct + bascule
@@ -2770,7 +2813,7 @@ setInterval(refreshRig, 3000);
 let ampState = {enabled: false, operate: false};
 
 function refreshAmp(){
-  fetch('/amp/state').then(r=>r.ok?r.json():null).then(d=>{
+  return fetch('/amp/state').then(r=>r.ok?r.json():null).then(d=>{
     const panel = document.getElementById('ampPanel');
     if(!d || !d.enabled){ ampState.enabled = false; if(panel) panel.style.display = 'none'; return; }
     ampState.enabled = true;
@@ -2812,8 +2855,7 @@ function toggleAmpOperate(){
     body: JSON.stringify({on: target})}).then(()=>refreshAmp()).catch(()=>{});
 }
 
-refreshAmp();
-setInterval(refreshAmp, 3000);
+adaptivePoll(refreshAmp, 3000, 20000, ()=>ampState.enabled);
 
 // ─── ROTOR (rotctld) ─────────────────────────────────────────────────────────
 // Sonde l'état pour savoir si le pilotage est actif (affiche le bouton
@@ -2846,9 +2888,11 @@ setInterval(refreshWeather, 10 * 60 * 1000);   // cache serveur 10 min
 // ─── PONT WSJT-X (FT8/FT4) ───────────────────────────────────────────────────
 // Indicateur de liaison + rafraîchissement du log quand un QSO est auto-loggé.
 let _wsjtxLastTotal = -1;
+let _wsjtxState = {enabled:false};
 function refreshWsjtx(){
-  fetch('/wsjtx/state').then(r=>r.ok?r.json():null).then(d=>{
+  return fetch('/wsjtx/state').then(r=>r.ok?r.json():null).then(d=>{
     const el = document.getElementById('wsjtxWidget');
+    _wsjtxState.enabled = !!(d && d.enabled);
     if(!el || !d || !d.enabled){ if(el) el.style.display='none'; return; }
     el.style.display = '';
     if(d.connected){
@@ -2865,8 +2909,7 @@ function refreshWsjtx(){
     _wsjtxLastTotal = d.logged_total || 0;
   }).catch(()=>{});
 }
-refreshWsjtx();
-setInterval(refreshWsjtx, 4000);
+adaptivePoll(refreshWsjtx, 4000, 20000, ()=>_wsjtxState.enabled);
 function editMacro(idx){
   const macros = getMacros();
   const m = macros[idx];
@@ -2886,7 +2929,7 @@ function exportEDI(){
   if(invalid.length) warnings.push(`⚠️ ${invalid.length} QSO incomplet(s) ignoré(s) (${invalid.map(q=>q.call||'?').join(', ')})`);
   const missingLoc = qsoLog.filter(q=>isValidQSO(q) && (!q.locator||q.locator.length<6));
   if(missingLoc.length) warnings.push(`⚠️ ${missingLoc.length} QSO sans locator (points = 0)`);
-  const dups = qsoLog.filter((q,i)=>qsoLog.findIndex(x=>x.call===q.call&&x.band===q.band)<i).length;
+  const dups = countDupes(qsoLog);
   if(dups) warnings.push(`⚠️ ${dups} doublon(s) dans le log`);
   if(warnings.length){
     if(!confirm('VALIDATION LOG\n\n'+warnings.join('\n')+'\n\nGénérer quand même le fichier EDI ?')) return;
@@ -3341,12 +3384,16 @@ function showAC(results, call){
     const dupTag = dup
       ? `<span style="color:var(--red);font-size:14px;font-weight:800">DUPE</span>`
       : '';
-    const locStr = loc ? `<span style="color:var(--accent2);font-size:14px;font-weight:700">${loc}</span>` : '';
-    const deptStr = dept ? `<span style="color:var(--yellow);font-size:14px;font-weight:700">dpt${dept}</span>` : '';
-    const cStr  = cname ? `<span style="color:var(--muted);font-size:14px">${cname}</span>` : '';
-    return `<div class="ac-item${dup?' dupe-item':''}" data-call="${c}" onmousedown="selectAC('${c}')">`
+    // c/loc/dept viennent de callDB (indicatifs importés d'ADIF, historique) —
+    // données potentiellement non maîtrisées, échappées avant insertion. Pour
+    // l'argument JS de onmousedown, on restreint l'indicatif aux caractères valides.
+    const jsC = String(c || '').replace(/[^A-Za-z0-9/]/g, '');
+    const locStr = loc ? `<span style="color:var(--accent2);font-size:14px;font-weight:700">${escHtml(loc)}</span>` : '';
+    const deptStr = dept ? `<span style="color:var(--yellow);font-size:14px;font-weight:700">dpt${escHtml(dept)}</span>` : '';
+    const cStr  = cname ? `<span style="color:var(--muted);font-size:14px">${escHtml(cname)}</span>` : '';
+    return `<div class="ac-item${dup?' dupe-item':''}" data-call="${escHtml(c)}" onmousedown="selectAC('${jsC}')">`
       + `<span style="font-size:16px">${flag}</span>`
-      + `<b class="ac-call${dup?' dupe-call':''}" style="${dup?'color:var(--red)':'color:var(--green)'}">${c}</b>`
+      + `<b class="ac-call${dup?' dupe-call':''}" style="${dup?'color:var(--red)':'color:var(--green)'}">${escHtml(c)}</b>`
       + `<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:1">${locStr}${deptStr}${cStr}${dupTag}</span>`
       + srcTag
       + `</div>`;
@@ -3798,11 +3845,42 @@ async function showValidation(){
   }
   const ICO = {erreur:'❌', attention:'⚠️', info:'ℹ️'};
   const COL = {erreur:'var(--red)', attention:'var(--yellow)', info:'var(--accent2)'};
-  inner.innerHTML = head + d.findings.map(f =>
-    `<div class="shortcuts-row">`+
-    `<span class="shortcuts-key" style="color:${COL[f.level]||'var(--muted)'};min-width:32px">${ICO[f.level]||'•'}</span>`+
-    `<span>${f.msg}${f.at ? ` <span style="color:var(--muted);font-size:12px">(${f.at})</span>` : ''}</span></div>`
-  ).join('') + (d.truncated ? `<div class="shortcuts-row"><span style="color:var(--muted)">… liste tronquée</span></div>` : '');
+  const BTN = 'cursor:pointer;border:1px solid var(--border,#3a3a4a);background:transparent;'+
+              'border-radius:5px;padding:2px 7px;font-size:13px;line-height:1.4';
+  inner.innerHTML = head + d.findings.map(f => {
+    // f.msg contient l'indicatif (potentiellement issu d'un ADIF importé) : échappé.
+    const act = (f.id != null) ?
+      `<span style="display:inline-flex;gap:6px;margin-left:auto;flex:0 0 auto">`+
+        `<button style="${BTN};color:var(--accent2)" title="Corriger ce QSO" onclick="fixFromValidation(${f.id})">✏️ Corriger</button>`+
+        `<button style="${BTN};color:var(--red)" title="Supprimer ce QSO" onclick="delFromValidation(${f.id})">🗑 Supprimer</button>`+
+      `</span>` : '';
+    return `<div class="shortcuts-row" style="align-items:center;gap:8px">`+
+      `<span class="shortcuts-key" style="color:${COL[f.level]||'var(--muted)'};min-width:32px">${ICO[f.level]||'•'}</span>`+
+      `<span>${escHtml(f.msg)}${f.at ? ` <span style="color:var(--muted);font-size:12px">(${escHtml(f.at)})</span>` : ''}</span>`+
+      act+
+      `</div>`;
+  }).join('') + (d.truncated ? `<div class="shortcuts-row"><span style="color:var(--muted)">… liste tronquée</span></div>` : '');
+}
+
+// Corriger un QSO signalé par le VÉRIFIER : ferme la fenêtre de vérification
+// et ouvre l'édition du QSO (l'utilisateur peut ensuite RE-VÉRIFIER).
+function fixFromValidation(id){
+  const ov = document.getElementById('validateOverlay');
+  if(ov) ov.classList.remove('show');
+  editQSO(id);
+}
+
+// Supprimer directement un QSO signalé, puis rafraîchir la liste des problèmes.
+async function delFromValidation(id){
+  const q = qsoLog.find(x=>x.id===id);
+  const label = q ? `\n${q.call||'?'} — ${q.band||'?'} MHz — ${q.time||''}` : '';
+  if(!confirm('Supprimer ce QSO ?'+label)) return;
+  qsoLog = qsoLog.filter(x=>x.id!==id);
+  try{ await fetch(`/log/delete/${id}`, {method:'DELETE'}); }catch(e){}
+  renderLog();
+  updateStats();
+  try{ bcBroadcast('delete', {id}); }catch(e){}
+  showValidation();   // relance la vérification pour refléter la suppression
 }
 
 // ─── WORKED MATRIX (grille bande × CW/Phone/Digital) ─────────────────────────

@@ -27,6 +27,7 @@ status = {'connected': False, 'last_seen': 0, 'dial_mhz': 0, 'mode': '',
           'tx_mode': '', 'de_call': '', 'logged_total': 0}
 _status_lock = threading.Lock()
 _listener_started = False
+_listener_lock = threading.Lock()
 
 
 # ─── LECTEUR QDataStream (gros-boutien) ──────────────────────────────────────
@@ -101,12 +102,17 @@ def parse_message(data):
     if len(data) < 12:
         return None
     r = _Reader(data)
-    if r.u32() != MAGIC:
-        return None
-    r.u32()                 # schema version
-    mtype = r.u32()
-    r.utf8()                # id (nom de l'instance WSJT-X)
+    # TOUTE la lecture — en-tête compris — est protégée : un datagramme avec le
+    # bon MAGIC mais tronqué (12 octets pile, ou coupé au milieu de l'id) faisait
+    # lever struct.error/IndexError DÈS l'en-tête, hors du try, ce qui remontait
+    # jusqu'à la boucle _run et TUAIT le thread d'écoute (plus aucun auto-log
+    # jusqu'au redémarrage). N'importe quel logiciel parlant sur le port suffisait.
     try:
+        if r.u32() != MAGIC:
+            return None
+        r.u32()                 # schema version
+        mtype = r.u32()
+        r.utf8()                # id (nom de l'instance WSJT-X)
         if mtype == 1:      # Status
             dial_hz = r.u64()
             mode = r.utf8()
@@ -138,9 +144,12 @@ def parse_message(data):
 
 def _mhz_to_band(mhz):
     """Fréquence dial (MHz) → bande interne."""
+    # Bandes WARC (30/17/12 m) mappées sur LEUR propre code interne — pas sur
+    # la bande contest voisine : un QSO 30 m rabattu sur '7' (40 m) faussait la
+    # déduplication, la Worked Matrix, les diplômes DXCC par bande et l'export.
     for lo, hi, b in ((1.8, 2.0, '1.8'), (3.5, 4.0, '3.5'), (7.0, 7.3, '7'),
-                      (10.1, 10.15, '7'), (14.0, 14.35, '14'), (18.0, 18.2, '14'),
-                      (21.0, 21.45, '21'), (24.8, 25.0, '21'), (28.0, 29.7, '28'),
+                      (10.1, 10.15, '10.1'), (14.0, 14.35, '14'), (18.0, 18.2, '18'),
+                      (21.0, 21.45, '21'), (24.8, 25.0, '24'), (28.0, 29.7, '28'),
                       (50, 54, '50'), (70, 71, '70'), (144, 148, '144'),
                       (430, 440, '432')):
         if lo <= mhz <= hi:
@@ -200,11 +209,15 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
     """Démarre l'écouteur UDP en thread de fond (idempotent).
     get_cfg() -> config courante ; add_qso(qso_dict) -> insère dans le log."""
     global _listener_started
-    if _listener_started:
-        return
-    _listener_started = True
+    # Check-then-set sous verrou : deux /wsjtx/state simultanés ne peuvent plus
+    # lancer deux threads sur le même port.
+    with _listener_lock:
+        if _listener_started:
+            return
+        _listener_started = True
 
     def _run():
+        global _listener_started
         import time
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -214,6 +227,10 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
             print(f"[WSJTX] Ecoute UDP sur le port {port}")
         except Exception as e:
             print(f"[WSJTX] Impossible d'ecouter le port {port}: {e}")
+            # Bind raté : on relâche le drapeau pour qu'une tentative ultérieure
+            # (port libéré entre-temps) puisse redémarrer l'écouteur.
+            with _listener_lock:
+                _listener_started = False
             return
         while True:
             try:

@@ -115,6 +115,13 @@ def send_morse(host, port, text):
     text = (text or '').strip()
     if not text:
         return {'ok': False, 'error': 'Texte vide'}
+    # Le protocole rigctld sépare les commandes par '\n'. Un texte CW contenant
+    # un retour à la ligne ('CQ TEST\nF 7000000\nT 1') ferait exécuter à la radio
+    # un QSY et un passage en émission non demandés (injection de commandes).
+    # On neutralise tout caractère de contrôle (CR/LF et < 0x20).
+    text = ''.join(c if ord(c) >= 0x20 else ' ' for c in text).strip()
+    if not text:
+        return {'ok': False, 'error': 'Texte vide'}
     try:
         lines = _command(host, port, f'b {text}')
         if not _rprt_ok(lines):

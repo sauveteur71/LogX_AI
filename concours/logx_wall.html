@@ -107,6 +107,12 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
   }
   let lastTopKey='';
   function fmtTime(t){ return (t||'').slice(0,5); }
+  // Échappement HTML : q.name/q.country viennent des annuaires externes (QRZ/
+  // HamQTH) et q.call du cluster/ADIF importé — données non maîtrisées injectées
+  // en innerHTML sur un écran mural qui pilote la radio. Sans ça, un indicatif
+  // du type <img src=x onerror=...> exécuterait du JS arbitraire.
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
+    c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   // Noms de bande radioamateur — COPIE de BAND_LABELS (logx_logbook.js).
   // Le mur est autonome (ne charge pas logbook.js) : garder synchro avec la source.
@@ -139,16 +145,16 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
       lastTopKey=topKey;
       stream.innerHTML=recent.map((q,i)=>{
         const c=[];
-        if(wf.time!==false) c.push(`<span class="q-time">${fmtTime(q.time)}</span>`);
-        if(wf.flag)         c.push(`<span class="q-flag">${q.flag||''}</span>`);
-        c.push(`<span class="q-call">${q.call}</span>`);   // l'indicatif : toujours
-        if(wf.country)      c.push(`<span class="q-country">${q.country||''}</span>`);
-        if(wf.name)         c.push(`<span class="q-name">${q.name||''}</span>`);
-        if(wf.band!==false) c.push(`<span class="q-band">${bandLabel(q.band)}${(wf.freq&&q.freq)?` <small style="opacity:.6">${q.freq}</small>`:''}</span>`);
-        else if(wf.freq&&q.freq) c.push(`<span class="q-band"><small style="opacity:.6">${q.freq}</small></span>`);
-        if(wf.mode!==false) c.push(`<span class="q-mode">${q.mode}</span>`);
-        if(wf.rst)          c.push(`<span class="q-rst">${q.rst_rcvd||q.rst_sent||''}</span>`);
-        if(wf.op!==false)   c.push(`<span class="q-op">${q.op||''}</span>`);
+        if(wf.time!==false) c.push(`<span class="q-time">${esc(fmtTime(q.time))}</span>`);
+        if(wf.flag)         c.push(`<span class="q-flag">${esc(q.flag||'')}</span>`);
+        c.push(`<span class="q-call">${esc(q.call)}</span>`);   // l'indicatif : toujours
+        if(wf.country)      c.push(`<span class="q-country">${esc(q.country||'')}</span>`);
+        if(wf.name)         c.push(`<span class="q-name">${esc(q.name||'')}</span>`);
+        if(wf.band!==false) c.push(`<span class="q-band">${esc(bandLabel(q.band))}${(wf.freq&&q.freq)?` <small style="opacity:.6">${esc(q.freq)}</small>`:''}</span>`);
+        else if(wf.freq&&q.freq) c.push(`<span class="q-band"><small style="opacity:.6">${esc(q.freq)}</small></span>`);
+        if(wf.mode!==false) c.push(`<span class="q-mode">${esc(q.mode)}</span>`);
+        if(wf.rst)          c.push(`<span class="q-rst">${esc(q.rst_rcvd||q.rst_sent||'')}</span>`);
+        if(wf.op!==false)   c.push(`<span class="q-op">${esc(q.op||'')}</span>`);
         return `<div class="qrow${i===0&&isNew?' flash':''}">${c.join('')}</div>`;
       }).join('');
     }

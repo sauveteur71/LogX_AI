@@ -2112,6 +2112,16 @@ async function testCatConnection(){
   }
 }
 
+// Échappement HTML — c.name/c.org/c.date/c.rules/c.score peuvent venir du flux
+// externe WA7BNM (/data/external_contests, contenu tiers non maîtrisé) via
+// mergeExternalContests(). Sans échappement, ces champs s'injectent en innerHTML.
+function escC(v){ return String(v==null?'':v).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// URL de règlement : n'autoriser que http/https (bloque javascript:, data:...).
+function safeUrl(u){ const s=String(u||''); return /^https?:\/\//i.test(s) ? s : ''; }
+// id de concours pour un argument de chaîne JS (onclick) : caractères sûrs seulement.
+function jsId(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9_\-]/g,''); }
+
 function buildContestGrid(filter = '') {
   const grid = document.getElementById('contestGrid');
   const q = filter.toLowerCase().trim();
@@ -2173,17 +2183,17 @@ function buildContestGrid(filter = '') {
         </div>
       </div>
       ${cs.map(c => `
-        <div class="contest-card" id="card_${c.id}" data-id="${c.id}" onclick="selectContest('${c.id}')" style="border-left:3px solid ${c.color}44">
-          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${c.name} ${badge(c)}</div>
+        <div class="contest-card" id="card_${escC(c.id)}" data-id="${escC(c.id)}" onclick="selectContest('${jsId(c.id)}')" style="border-left:3px solid ${escC(c.color)}44">
+          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} ${badge(c)}</div>
           <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
-            <span>${c.org}</span>
-            ${c.rules ? `<a href="${c.rules}" target="_blank" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)">📄 RÈGLEMENT</a>` : ''}
+            <span>${escC(c.org)}</span>
+            ${safeUrl(c.rules) ? `<a href="${escC(safeUrl(c.rules))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)">📄 RÈGLEMENT</a>` : ''}
           </div>
-          ${c.date ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px">📅 ${c.date}</div>` : ''}
+          ${c.date ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px">📅 ${escC(c.date)}</div>` : ''}
           <div class="contest-tags">
-            ${c.bands.map(b=>`<span class="tag tag-band">${b}</span>`).join('')}
-            ${c.modes.map(m=>`<span class="tag tag-mode">${m}</span>`).join('')}
-            <span class="tag tag-score">${c.score}</span>
+            ${c.bands.map(b=>`<span class="tag tag-band">${escC(b)}</span>`).join('')}
+            ${c.modes.map(m=>`<span class="tag tag-mode">${escC(m)}</span>`).join('')}
+            <span class="tag tag-score">${escC(c.score)}</span>
           </div>
         </div>
       `).join('')}

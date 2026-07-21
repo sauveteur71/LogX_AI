@@ -67,7 +67,9 @@ def test_qso_from_logged_produit_un_qso_loggeable():
 def test_bande_depuis_frequence():
     assert wsjtx._mhz_to_band(14.074) == '14'
     assert wsjtx._mhz_to_band(7.074) == '7'
-    assert wsjtx._mhz_to_band(10.136) == '7'     # 30 m → segment 40 m interne
+    assert wsjtx._mhz_to_band(10.136) == '10.1'  # 30 m → bande WARC propre (plus rabattue sur 40 m)
+    assert wsjtx._mhz_to_band(18.100) == '18'    # 17 m
+    assert wsjtx._mhz_to_band(24.915) == '24'    # 12 m
     assert wsjtx._mhz_to_band(50.313) == '50'
     assert wsjtx._mhz_to_band(144.174) == '144'
 

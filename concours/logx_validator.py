@@ -22,10 +22,31 @@ import re
 
 from logx_utils import locator_to_latlon, haversine
 
-# Indicatif « plausible » : préfixe 1-3 alphanum, un chiffre, suffixe lettres,
-# suffixe portable optionnel (/P, /M, /QRP, /2…)
-CALL_RE = re.compile(r'^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,5}[A-Z](/[A-Z0-9]{1,4})?$')
+# Indicatif de BASE : préfixe 1-3 alphanum + un chiffre + suffixe lettres.
+_BASE_CALL_RE = re.compile(r'^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,5}[A-Z]$')
+# Préfixe de LIEU d'un indicatif portable (EA/, F/, 9A/, PJ2/, VP2E/…).
+_PREFIX_RE = re.compile(r'^[A-Z0-9]{1,4}$')
+# Suffixe portable (/P /M /MM /AM /QRP /A /LH ou /chiffre(s)).
+_PORT_SUFFIX_RE = re.compile(r'^(P|M|MM|AM|QRP|A|LH|[0-9]{1,2})$')
 LOC_RE = re.compile(r'^[A-R]{2}[0-9]{2}([A-X]{2}([0-9]{2})?)?$')
+
+
+def _plausible_call(call):
+    """Indicatif plausible, y compris PORTABLE avec préfixe de lieu
+    (EA/F4GLD = F4GLD opérant depuis l'Espagne), suffixe (F4GLD/P, W1AW/4)
+    ou les deux (EA/F4GLD/P). L'ancien motif n'acceptait qu'un suffixe et
+    signalait à tort tout indicatif à préfixe étranger comme « busted call »."""
+    parts = [p for p in str(call).split('/') if p]
+    if not parts:
+        return False
+    if len(parts) == 1:
+        return bool(_BASE_CALL_RE.match(parts[0]))
+    # Au moins une partie doit être un indicatif complet ; les autres sont des
+    # préfixes de lieu ou des suffixes portables.
+    if not any(_BASE_CALL_RE.match(p) for p in parts):
+        return False
+    return all(_BASE_CALL_RE.match(p) or _PREFIX_RE.match(p) or _PORT_SUFFIX_RE.match(p)
+               for p in parts)
 
 # Distance au-delà de laquelle un QSO est SUSPECT sur la bande (km).
 # Tropo/Es exceptionnels possibles — c'est un signal « à vérifier », pas un rejet.
@@ -44,6 +65,10 @@ def _f(findings, level, code, msg, q=None, index=None):
         item['call'] = str(q.get('call', '')).upper()
         item['band'] = str(q.get('band', ''))
         item['at'] = f"{q.get('date', '')} {q.get('time', '')}".strip()
+        # id du QSO : permet à l'interface d'offrir « Corriger »/« Supprimer »
+        # directement sur le constat.
+        if q.get('id') is not None:
+            item['id'] = q.get('id')
     if index is not None:
         item['index'] = index
     findings.append(item)
@@ -126,14 +151,15 @@ def validate_log(qsos, contest_id='', cfg=None):
             else:
                 seen[key] = i
 
-        # Indicatif plausible + préfixe connu
-        base = call.split('/')[0] if '/' in call else call
-        if not CALL_RE.match(call):
+        # Indicatif plausible (préfixe/suffixe portable inclus) + préfixe connu
+        if not _plausible_call(call):
             _f(findings, 'attention', 'indicatif_suspect',
                f"{call} : format inhabituel — busted call probable", q, i)
         country = None
         if dxcc:
-            info = dxcc.lookup(base)
+            # Indicatif COMPLET passé à lookup() : sa gestion des « / » choisit
+            # le bon pays d'émission (EA/F4GLD → Espagne, pas France).
+            info = dxcc.lookup(call)
             if not info:
                 _f(findings, 'attention', 'prefixe_inconnu',
                    f"{call} : préfixe inconnu de cty.dat — vérifie l'indicatif", q, i)

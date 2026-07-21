@@ -492,6 +492,11 @@ def get_state(cfg):
         st['enabled'] = True
         return st
     except Exception as e:
+        # Port tombé (USB débranché, SerialException) : on invalide la connexion
+        # persistante pour qu'elle soit RÉOUVERTE au prochain appel — sans ça,
+        # l'entrée morte restait et le pilotage échouait indéfiniment, même après
+        # rebranchement sur le même COM.
+        disconnect_persistent()
         return {'ok': False, 'error': f'Radio injoignable ({e})', 'enabled': True}
 
 
@@ -509,6 +514,7 @@ def set_freq(cfg, freq_hz, mode=None):
             driver.set_mode(mode)
         return r
     except Exception as e:
+        disconnect_persistent()
         return {'ok': False, 'error': f'Radio injoignable ({e})'}
 
 
@@ -525,6 +531,7 @@ def set_ptt(cfg, on):
     try:
         return driver.set_ptt(bool(on))
     except Exception as e:
+        disconnect_persistent()
         return {'ok': False, 'error': f'Radio injoignable ({e})'}
 
 

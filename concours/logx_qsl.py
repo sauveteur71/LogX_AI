@@ -221,8 +221,15 @@ def sync_lotw(cfg, since=None):
             body = r.read().decode('utf-8', 'replace')
     except Exception as e:
         return {'ok': False, 'error': f'LoTW injoignable : {e}'}
-    if 'Username/password incorrect' in body or 'ARRL Logbook of the World' in body[:200] and '<' not in body[:5]:
-        return {'ok': False, 'error': 'Identifiants LoTW refusés'}
+    # Détection d'échec sur un critère FIABLE : identifiants explicitement
+    # refusés, OU absence de la balise ADIF <eoh> (tout rapport LoTW valide,
+    # même vide, contient un en-tête ADIF terminé par <eoh>). L'ancien test
+    # cherchait « ARRL Logbook of the World » dans body[:200] — or c'est aussi
+    # la première ligne (« ...Status Report ») d'un téléchargement RÉUSSI, si
+    # bien que toute synchro correcte était rejetée comme « identifiants refusés ».
+    low = body.lower()
+    if 'username/password incorrect' in low or '<eoh>' not in low:
+        return {'ok': False, 'error': 'Identifiants LoTW refusés ou rapport illisible'}
     conf = parse_confirmations(body, 'lotw')
     total, added = merge_confirmations(conf)
     _stamp('lotw')

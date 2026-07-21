@@ -387,6 +387,12 @@ def amp_settings(cfg):
 
 _persistent = {}
 _persistent_lock = threading.Lock()
+# Sérialise les ÉCHANGES série complets (write+read) avec l'ampli : _persistent_lock
+# ne protège que l'obtention du driver, pas les commandes elles-mêmes. Le serveur
+# HTTP étant multi-thread, un polling get_status pouvait s'entrelacer avec un
+# set_band/set_operate — deux write() concurrents sur le même port, chaque read
+# lisant la réponse de l'autre. (Même principe que _lock dans logx_rotor.py.)
+_io_lock = threading.Lock()
 
 
 def _make_driver(brand, transport, civ_addr):
@@ -445,7 +451,8 @@ def get_state(cfg):
     if err:
         return {'ok': False, 'error': err, 'enabled': True}
     try:
-        st = driver.get_status()
+        with _io_lock:
+            st = driver.get_status()
         st['enabled'] = True
         return st
     except Exception as e:
@@ -462,7 +469,8 @@ def set_operate(cfg, on):
     if err:
         return {'ok': False, 'error': err}
     try:
-        return driver.set_operate(bool(on))
+        with _io_lock:
+            return driver.set_operate(bool(on))
     except Exception as e:
         return {'ok': False, 'error': f'Ampli injoignable ({e})'}
 
@@ -476,7 +484,8 @@ def set_band(cfg, band_mhz):
     if err:
         return {'ok': False, 'error': err}
     try:
-        return driver.set_band(band_mhz)
+        with _io_lock:
+            return driver.set_band(band_mhz)
     except Exception as e:
         return {'ok': False, 'error': f'Ampli injoignable ({e})'}
 
@@ -491,7 +500,8 @@ def clear_fault(cfg):
     if not hasattr(driver, 'clear_fault'):
         return {'ok': False, 'error': "Pas d'acquittement de défaut documenté pour cet ampli"}
     try:
-        return driver.clear_fault()
+        with _io_lock:
+            return driver.clear_fault()
     except Exception as e:
         return {'ok': False, 'error': f'Ampli injoignable ({e})'}
 
@@ -508,8 +518,10 @@ def power_toggle(cfg, on):
             if not hasattr(driver, 'power_on'):
                 return {'ok': False, 'error': "Mise sous tension à distance non "
                                               "disponible pour cet ampli"}
-            return driver.power_on()
-        return driver.power_off()
+            with _io_lock:
+                return driver.power_on()
+        with _io_lock:
+            return driver.power_off()
     except Exception as e:
         return {'ok': False, 'error': f'Ampli injoignable ({e})'}
 

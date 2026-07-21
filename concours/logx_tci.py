@@ -70,6 +70,13 @@ class WebSocketClient:
         if '101' not in resp.split('\r\n', 1)[0] or expected not in resp:
             first_line = resp.splitlines()[0] if resp else 'pas de réponse'
             raise ConnectionError(f'Handshake WebSocket refusé : {first_line}')
+        # Handshake terminé : lecture BLOQUANTE. TCI est un protocole push — au
+        # repos le serveur n'envoie plus rien, et le timeout de 3 s faisait alors
+        # lever socket.timeout au bout de 3 s d'inactivité, ce qui tuait le fil de
+        # lecture (état de fréquence figé). recv_message n'étant pas reprenable
+        # après un timeout survenu au milieu d'une frame, bloquer est plus sûr
+        # que « continue » ; une vraie déconnexion lève ConnectionError.
+        self._sock.settimeout(None)
 
     def _read_http_response(self):
         self._sock.settimeout(self.timeout)
@@ -303,7 +310,12 @@ def _ensure_connected(settings):
     key = (settings['host'], settings['port'])
     with _persistent_lock:
         entry = _persistent.get('default')
-        if entry and entry['key'] == key:
+        # On ne réutilise l'entrée que si le fil de lecture est TOUJOURS vivant :
+        # sans ça, une connexion morte (ExpertSDR3 fermé, réseau tombé) servait
+        # indéfiniment le dernier cache d'état avec ok=True — le logbook affichait
+        # et enregistrait une fréquence fausse présentée comme fraîche.
+        reader = getattr(entry['client'], '_reader', None) if entry else None
+        if entry and entry['key'] == key and reader is not None and reader.is_alive():
             return entry['client'], None
         if entry:
             entry['client'].close()
@@ -355,6 +367,7 @@ def set_freq(cfg, freq_hz, mode=None):
             client.set_mode(mode)
         return {'ok': True}
     except Exception as e:
+        disconnect_persistent()
         return {'ok': False, 'error': f'Serveur TCI injoignable ({e})'}
 
 
@@ -374,6 +387,7 @@ def send_cw(cfg, text):
         client.send_cw_macro(text[:120])
         return {'ok': True}
     except Exception as e:
+        disconnect_persistent()
         return {'ok': False, 'error': f'Serveur TCI injoignable ({e})'}
 
 
@@ -386,6 +400,7 @@ def stop_cw(cfg):
         client.stop_cw()
         return {'ok': True}
     except Exception as e:
+        disconnect_persistent()
         return {'ok': False, 'error': f'Serveur TCI injoignable ({e})'}
 
 
@@ -400,6 +415,7 @@ def set_ptt(cfg, on):
         client.set_ptt(bool(on))
         return {'ok': True}
     except Exception as e:
+        disconnect_persistent()
         return {'ok': False, 'error': f'Serveur TCI injoignable ({e})'}
 
 

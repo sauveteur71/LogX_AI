@@ -583,6 +583,11 @@ function drawMyPos(){
   leafletMyMarker=L.marker([ll.lat,ll.lon],{icon,zIndexOffset:2000,interactive:false}).addTo(leafletMap);
 }
 
+// Échappement HTML : s.call/s.locator viennent de /data/spots_ranked, donc du
+// cluster DX (telnet public) — un indicatif forgé injecté dans le divIcon Leaflet
+// exécuterait sinon du JS dans une page qui pilote la radio.
+function escMap(v){ return String(v==null?'':v).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function updateMapStations(stns){
   mapStations=stns;
   leafletStations.forEach(l=>l.remove()); leafletStations=[];
@@ -603,7 +608,7 @@ function updateMapStations(stns){
     const r=s.priority<=2?10:7;
     const glow=(!s.done&&s.priority<=2)?`box-shadow:0 0 12px ${col},0 0 4px ${col}`:'';
     const html=`<div style="position:relative;width:0;height:0">
-      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:${s.priority<=2?13:11}px;font-weight:bold;color:${s.done?'#555':col};text-shadow:0 0 5px ${s.done?'none':col};transform:translate(-50%,-${r*2+14}px)">${s.call}</div>
+      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:${s.priority<=2?13:11}px;font-weight:bold;color:${s.done?'#555':col};text-shadow:0 0 5px ${s.done?'none':col};transform:translate(-50%,-${r*2+14}px)">${escMap(s.call)}</div>
       <div style="position:absolute;width:${r*2}px;height:${r*2}px;border-radius:50%;background:${col};opacity:${s.done?0.3:0.95};${glow};transform:translate(-50%,-50%);cursor:pointer"></div>
     </div>`;
     const icon=L.divIcon({html,className:'rc-station-icon',iconSize:[0,0],iconAnchor:[0,0]});
@@ -1257,8 +1262,16 @@ function extractCallsigns(text){
   return [...new Set(matches.map(c => c.split('/')[0]))];
 }
 
+let _lastVisibleTs = Date.now();
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) _lastVisibleTs = Date.now(); });
+
 async function autoCheckSilently(){
   if(isWaiting || autoCheckInProgress || !cfg.locator) return;
+  // Économie d'appels IA PAYANTS : après 30 min d'onglet masqué en continu
+  // (poste laissé ouvert la nuit, hors opération), on suspend la veille — sinon
+  // ~144 appels/jour étaient facturés pour rien. Les alertes d'arrière-plan
+  // restent actives tant que l'opérateur consulte l'onglet régulièrement.
+  if(document.hidden && (Date.now() - _lastVisibleTs) > 30 * 60 * 1000) return;
   autoCheckInProgress = true;
   try{
     const d = await fetchTerrainData();

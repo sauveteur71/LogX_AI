@@ -22,7 +22,13 @@ Aucune fonction ici ne lève d'exception vers l'appelant HTTP : tout retourne
 """
 import os
 import tempfile
+import threading
 import wave
+
+# Sérialise l'émission vocale : deux /rig/voice concurrents (double-clic macro,
+# CQ relancé pendant sa lecture) jouaient leurs WAV en même temps et, surtout,
+# le finally du premier terminé relâchait le PTT pendant que le second émettait.
+_voice_lock = threading.Lock()
 
 # ─── ÉPELLATION PHONÉTIQUE (alphabet OACI) ───────────────────────────────────
 PHONETIC = {
@@ -215,21 +221,35 @@ def send_voice_message(cfg, text):
     path = synthesize_to_wav(text, settings['voice_id'], settings['rate'])
     if not path:
         return {'ok': False, 'error': 'Synthèse vocale indisponible (moteur TTS)'}
-    ptt_on = _set_ptt(cfg, True)
-    if not ptt_on.get('ok'):
+
+    def _rm():
         try:
             os.remove(path)
         except OSError:
             pass
-        return {'ok': False, 'error': f"PTT refusé : {ptt_on.get('error', '?')}"}
-    try:
-        play_wav(path, settings['device'])
-        return {'ok': True, 'text': text}
-    except Exception as e:
-        return {'ok': False, 'error': f'Lecture audio impossible : {e}'}
-    finally:
-        _set_ptt(cfg, False)
+
+    # Verrou : une seule émission vocale à la fois (voir _voice_lock).
+    with _voice_lock:
+        ptt_on = _set_ptt(cfg, True)
+        if not ptt_on.get('ok'):
+            _rm()
+            return {'ok': False, 'error': f"PTT refusé : {ptt_on.get('error', '?')}"}
+        result = {'ok': True, 'text': text}
         try:
-            os.remove(path)
-        except OSError:
-            pass
+            play_wav(path, settings['device'])
+        except Exception as e:
+            result = {'ok': False, 'error': f'Lecture audio impossible : {e}'}
+        finally:
+            # Relâchement du PTT VÉRIFIÉ, avec une seconde tentative : un échec
+            # silencieux laisserait la radio bloquée en émission continue
+            # (risque matériel pour l'ampli/le transceiver).
+            off = _set_ptt(cfg, False)
+            if not off.get('ok'):
+                off = _set_ptt(cfg, False)
+            if not off.get('ok'):
+                result['ok'] = False
+                result['ptt_release_failed'] = True
+                result['error'] = ("⚠ ÉCHEC DU RELÂCHEMENT PTT — la radio peut "
+                                   "rester en émission ! " + str(off.get('error', '?')))
+            _rm()
+        return result

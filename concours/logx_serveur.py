@@ -164,11 +164,15 @@ if __name__ == '__main__':
     threading.Thread(target=_backup_loop, daemon=True).start()
     threading.Thread(target=_cloudsync_loop, daemon=True).start()
 
+    # Import unique et préalable : sans cela, si l'import du pont WSJT-X échoue,
+    # http_mod restait non défini et le bloc ADIF-net levait un NameError
+    # (avalé) — l'écouteur réseau ADIF ne démarrait alors jamais.
+    import logx_http as http_mod
+
     # Pont WSJT-X : écouteur UDP FT8/FT4 démarré si activé dans config.json
     # (ou plus tard à chaud dès qu'un /wsjtx/state le voit activé côté client).
     try:
         import logx_wsjtx as wsjtx
-        import logx_http as http_mod
         w = wsjtx.wsjtx_settings(None)
         if w['enabled']:
             wsjtx.start_listener(

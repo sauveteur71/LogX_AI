@@ -89,7 +89,15 @@ def _load_features():
             gj = json.loads(raw)
             for f in gj.get('features', []):
                 props = f.get('properties', {}) or {}
-                fid = props.get('ISO_A3') or props.get('ADM0_A3') or props.get('NAME')
+                # ADM0_A3 en priorité : dans Natural Earth 110m, ISO_A3 vaut la
+                # chaîne "-99" (truthy !) pour plusieurs pays — France, Norvège,
+                # Chypre du Nord, Kosovo, Somaliland — qui se retrouvaient alors
+                # tous sous le même id "-99" (collisions : la France n'apparaissait
+                # jamais travaillée, un préfixe DXCC allumait le mauvais pays).
+                iso = props.get('ISO_A3')
+                if iso == '-99':
+                    iso = None
+                fid = props.get('ADM0_A3') or iso or props.get('NAME')
                 if not fid:
                     continue
                 feats.append({

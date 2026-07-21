@@ -79,6 +79,19 @@ def _read_qsos(path):
         return []
 
 
+def _qso_key(q):
+    """Clé d'identité d'un QSO pour la déduplication de fusion : indicatif +
+    bande + mode + date + heure. Indépendante du réglage usage_mode (la dédup
+    de add_qso_to_log est désactivée en mode 'simple', on ne peut donc pas s'y
+    fier ici sous peine de duplication géométrique à chaque cycle de sync)."""
+    q = q or {}
+    return (str(q.get('call', '')).upper().strip(),
+            str(q.get('band', '')).strip(),
+            str(q.get('mode', '')).upper().strip(),
+            str(q.get('date', '')).strip(),
+            str(q.get('time', '')).strip())
+
+
 def sync_now(cfg, shared_log):
     """Synchronise selon le mode configuré. Retourne
     {'ok', 'mode', 'pushed', 'pulled', 'sources'} ou {'ok': False, 'error'}."""
@@ -106,12 +119,22 @@ def sync_now(cfg, shared_log):
     sources = 0
     if s['mode'] == 'full':
         import logx_http as http
+        # Déduplication explicite AVANT insertion : on ne dépend plus du
+        # comportement doublon de add_qso_to_log (sauté en mode 'simple').
+        # 'seen' est amorcé avec les clés du log local et grossit à chaque
+        # QSO importé — un même QSO présent dans plusieurs fichiers distants
+        # (ou déjà local) n'est ajouté qu'une fois.
+        seen = {_qso_key(q) for q in local}
         pattern = os.path.join(s['folder'], SYNC_PREFIX + '*.json')
         for path in glob.glob(pattern):
             if os.path.abspath(path) == os.path.abspath(my_path):
                 continue
             sources += 1
             for q in _read_qsos(path):
+                k = _qso_key(q)
+                if k in seen:
+                    continue
+                seen.add(k)
                 ok, _info = http.add_qso_to_log(dict(q), force=False)
                 if ok:
                     pulled += 1
