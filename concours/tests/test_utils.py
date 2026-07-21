@@ -26,8 +26,19 @@ def test_locator_minuscules_acceptees():
 
 def test_locator_invalide():
     assert locator_to_latlon('') == (None, None)
-    assert locator_to_latlon('JN15') == (None, None)     # trop court
+    assert locator_to_latlon('JN1') == (None, None)      # trop court (3 car.)
+    assert locator_to_latlon('J') == (None, None)
     assert locator_to_latlon(None) == (None, None)
+
+
+def test_locator_4_caracteres_complete_avec_mm():
+    # Correctif M8 : un locator à 4 caractères est un Maidenhead valide (déjà
+    # accepté par le formulaire de config et par locatorToLatLon() côté JS,
+    # qui le complète elle-même) — il ne doit plus être rejeté ici, sous peine
+    # de casser en silence les appelants qui ne compensent pas déjà (ex.
+    # logx_psk.py, dont les locators PSK Reporter font souvent 4 caractères).
+    assert locator_to_latlon('JN15') == locator_to_latlon('JN15MM')
+    assert locator_to_latlon('jn15') == locator_to_latlon('JN15')
 
 
 # ─── haversine ───────────────────────────────────────────────────────────────

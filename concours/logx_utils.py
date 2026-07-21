@@ -71,9 +71,18 @@ def fetch_url(url, timeout=10):
         return None
 
 def locator_to_latlon(loc):
-    if not loc or len(loc) < 6:
+    # Correctif M8 : un locator à 4 caractères est un Maidenhead valide (déjà
+    # accepté par le formulaire de config et par locatorToLatLon() côté JS,
+    # qui le complète elle-même avec 'MM') — le rejeter ici cassait en silence
+    # tout appelant qui ne compensait pas déjà (ex. logx_psk.py, dont les
+    # locators PSK Reporter font souvent 4 caractères).
+    if not loc:
         return None, None
     l = loc.upper()
+    if len(l) == 4:
+        l += 'MM'
+    if len(l) < 6:
+        return None, None
     try:
         lon = (ord(l[0])-65)*20 - 180 + int(l[2])*2 + (ord(l[4])-65)*(2/24) + 1/24
         lat = (ord(l[1])-65)*10 - 90  + int(l[3])   + (ord(l[5])-65)*(1/24) + 0.5/24
@@ -86,7 +95,10 @@ def haversine(lat1, lon1, lat2, lon2):
     dLat = math.radians(lat2-lat1)
     dLon = math.radians(lon2-lon1)
     a = math.sin(dLat/2)**2 + math.cos(math.radians(lat1))*math.cos(math.radians(lat2))*math.sin(dLon/2)**2
-    return int(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)))
+    # Correctif M7 : le JS (Math.round) arrondit au plus proche alors que
+    # int() ici tronque toujours vers le bas — jusqu'à 1 km d'écart entre
+    # la distance affichée côté client et celle calculée côté serveur.
+    return round(R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a)))
 
 def bearing(lat1, lon1, lat2, lon2):
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -94,7 +106,8 @@ def bearing(lat1, lon1, lat2, lon2):
     y = math.sin(dl)*math.cos(phi2)
     x = math.cos(phi1)*math.sin(phi2) - math.sin(phi1)*math.cos(phi2)*math.cos(dl)
     b = math.degrees(math.atan2(y, x))
-    return int((b+360) % 360)
+    # Correctif M7 : même écart d'arrondi que haversine() ci-dessus.
+    return round((b+360) % 360)
 
 def cardinal(deg):
     dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO']

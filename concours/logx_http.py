@@ -1876,9 +1876,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == '/cloudsync/now':
             try:
                 import logx_cloudsync as cs
+                # Correctif M6 : le client envoie désormais les valeurs
+                # ACTUELLEMENT affichées (cloudsync_mode/cloudsync_folder) —
+                # elles surchargent la dernière config sauvegardée, pour ne
+                # pas synchroniser avec des réglages déjà obsolètes si
+                # l'utilisateur vient de les modifier sans cliquer SAUVEGARDER.
+                try:
+                    payload = json.loads(body) if body else {}
+                except Exception:
+                    payload = {}
+                cfg_now = self._cfg_snapshot()
+                if 'cloudsync_mode' in payload:
+                    cfg_now['cloudsync_mode'] = payload['cloudsync_mode']
+                if 'cloudsync_folder' in payload:
+                    cfg_now['cloudsync_folder'] = payload['cloudsync_folder']
                 with log_lock:
                     log_copy = list(shared_log)
-                res = cs.sync_now(self._cfg_snapshot(), log_copy)
+                res = cs.sync_now(cfg_now, log_copy)
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 500)

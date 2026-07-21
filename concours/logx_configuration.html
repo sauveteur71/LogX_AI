@@ -88,6 +88,8 @@ body.simple-mode .simple-note{display:block}
 /* FORM */
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
 .form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.field-disabled{opacity:.45}
+.form-group.field-disabled input,.form-group.field-disabled select{cursor:not-allowed}
 .form-group label{font-size:14px;color:#BCC8F0;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
 .section input,.section select{background:var(--bg3);border:1px solid #2A3060;border-radius:8px;color:#E8ECFF;font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
 .section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
@@ -659,7 +661,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       <div class="form-grid">
         <div class="form-group">
           <label>PILOTAGE AMPLI</label>
-          <select id="amp_enabled">
+          <select id="amp_enabled" onchange="updateEnabledFieldsVisibility('amp_enabled',['amp_brand','amp_port','amp_baudrate','amp_civ_addr'])">
             <option value="">Désactivé</option>
             <option value="1">Activé</option>
           </select>
@@ -704,7 +706,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       <div class="form-grid">
         <div class="form-group">
           <label>PILOTAGE ROTOR</label>
-          <select id="rotor_enabled">
+          <select id="rotor_enabled" onchange="updateEnabledFieldsVisibility('rotor_enabled',['rotor_host','rotor_port'])">
             <option value="">Désactivé</option>
             <option value="1">Activé</option>
           </select>
@@ -1092,7 +1094,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       <div class="form-grid">
         <div class="form-group">
           <label>MODE</label>
-          <select id="cloudsync_mode">
+          <select id="cloudsync_mode" onchange="updateEnabledFieldsVisibility('cloudsync_mode',['cloudsync_folder','cloudsync_interval'],v=>v!=='')">
             <option value="">Désactivé</option>
             <option value="full">Synchronisation complète (lit + écrit)</option>
             <option value="push">Envoi seul (écrit, ne récupère rien)</option>
@@ -1375,6 +1377,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         style="background:var(--green);border:1px solid var(--green);color:#062;border-radius:6px;padding:7px 13px;cursor:pointer;font-weight:700;font-family:var(--font-mono);opacity:.5">✓ Utiliser</button>
       <button type="button" onclick="closeLocatorMap()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer">✕</button>
     </div>
+    <div id="mapLocTileError" style="display:none;background:rgba(255,214,10,.1);border-bottom:1px solid rgba(255,214,10,.4);color:var(--yellow);font-family:var(--font-mono);font-size:13px;padding:8px 14px">
+      ⚠️ Tuiles de carte indisponibles (openstreetmap.org bloqué ?) — la carte peut rester grise. Utilise la saisie manuelle du locator si besoin.
+    </div>
     <div id="mapLocMap" style="flex:1;min-height:0;background:var(--bg3)"></div>
     <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid var(--border);flex-wrap:wrap">
       <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">📏 Comparer à un locator distant :</span>
@@ -1442,6 +1447,8 @@ const CONFIG_HELP = {
   operator_name: "Ton prénom/nom, utilisé dans les exports (ADIF/Cabrillo) et certains formulaires de diplômes.",
   email: "Ton adresse email, utilisée pour certains envois de log automatiques (ex. soumission de concours) si le concours le demande.",
   club: "Le nom de ton club radioamateur, s'il y a lieu — apparaît dans certains exports Cabrillo.",
+  op_call: "L'indicatif de la personne responsable du log si elle diffère de l'opérateur principal (utile en multi-opérateurs) — repris dans les champs RCall/MOpe1 de l'export EDI.",
+  postal: "Ton code postal — les deux premiers chiffres identifient ton département, affiché dans l'en-tête du logbook.",
 
   usage_mode: "Détermine le fonctionnement général du logiciel : LOGBOOK SIMPLE (trafic courant, pas de règles de concours), CONCOURS (scoring/règlement actifs), ou EXPÉDITION (pile-up, multi-poste, écran mural). Change ce réglage si l'étape CONCOURS te paraît hors sujet.",
   expedition_mode: "Active les fonctions pensées pour une activation DXpédition/SOTA/POTA en groupe : écran mural partagé, synchronisation multi-poste, statistiques de pile-up.",
@@ -1455,6 +1462,12 @@ const CONFIG_HELP = {
   submit_url: "Le lien vers lequel envoyer ton log une fois le concours terminé (site officiel de soumission).",
   log_software: "Nom du logiciel avec lequel tu dialogues en réseau (ex. N1MM+, DXLog) si tu utilises le pont ADIF réseau pour partager les QSO entre logiciels.",
   section_edi: "Le code de section utilisé dans l'export EDI (format suisse USKA) — laisse vide si le concours n'en a pas besoin.",
+  radio: "Le modèle de ton transceiver (ex. IC-9700, FT-991A) — purement informatif, affiché dans les résumés de station et repris dans l'export EDI.",
+  country: "Le code pays ISO 3 lettres de ta station (ex. FRA pour la France) — déduit automatiquement de ton indicatif, modifiable si besoin. Repris dans l'export EDI/Cabrillo.",
+  ant_hf: "Description libre de ton antenne HF (ex. Dipôle 40m, Vertical, Yagi 3 éléments) — purement informative, affichée dans les résumés de station.",
+  ant_144: "Description libre de ton antenne 144 MHz (ex. Yagi 9 éléments) — reprise dans l'export EDI.",
+  ant_432: "Description libre de ton antenne 432 MHz (ex. Yagi 21 éléments) — reprise dans l'export EDI.",
+  ant_shf: "Description libre de ton antenne UHF/SHF (ex. parabole 60cm) — purement informative, affichée dans les résumés de station.",
 
   priority_mode: "Comment le logiciel classe les stations à contacter : par distance (les plus lointaines d'abord) ou par valeur de points/multiplicateur. Change l'ordre affiché dans la « need list ».",
   alert_dx_km: "Distance (km) au-delà de laquelle une station spottée est considérée comme un DX exceptionnel à signaler en priorité.",
@@ -1638,6 +1651,13 @@ async function askAssistant(presetQuestion){
   if (!q) return;
   input.value = '';
   addAssistantMsg('user', q);
+
+  // Correctif B5 : attendre que le chargement initial de la config soit
+  // terminé avant de juger #api_key vide — sinon un clic immédiatement après
+  // un rechargement de page (avant la résolution du fetch('/config.json')
+  // asynchrone) donnait "pas de clé API" alors qu'une clé existe côté serveur.
+  // No-op si déjà résolu (cas courant : callsign déjà en localStorage).
+  if (typeof _initReady !== 'undefined') { try { await _initReady; } catch(e){} }
 
   const hits = _searchLocalHelp(q);
   const apiKey = (document.getElementById('api_key').value || '').trim();
@@ -2122,6 +2142,11 @@ async function init() {
   updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
   loadVoiceKeyerDevices();
   updateAmpFieldsVisibility(); refreshAmpPorts(); // Amplificateur HF
+  // Correctif M5 : refléter l'état Activé/Désactivé sur les champs dépendants
+  // dès l'affichage initial (pas seulement au changement manuel du select).
+  updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
+  updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
+  updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
 }
 
 // ─── KEYER VOCAL : périphériques audio + voix TTS (chargés une fois) ────────
@@ -2247,6 +2272,23 @@ async function refreshCatPorts(){
 // ─── AMPLIFICATEUR HF (Elecraft/Icom/SPE) ────────────────────────────────────
 const AMP_DEFAULT_BAUD = {elecraft: 38400, icom: 19200, spe: 9600};
 
+// Correctif M5 : les champs dépendants d'un toggle "Désactivé" (Ampli/Rotor/
+// Cloud Sync) restaient pleinement éditables visuellement quand le toggle
+// était sur Désactivé — aucune perte de donnée, mais aucun indice visuel
+// que ces champs n'ont alors plus aucun effet.
+function updateEnabledFieldsVisibility(toggleId, childIds, isEnabledFn){
+  const toggle = document.getElementById(toggleId);
+  if(!toggle) return;
+  const enabled = isEnabledFn ? isEnabledFn(toggle.value) : toggle.value === '1';
+  childIds.forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.disabled = !enabled;
+    const group = el.closest('.form-group');
+    if(group) group.classList.toggle('field-disabled', !enabled);
+  });
+}
+
 function updateAmpFieldsVisibility(){
   const brand = document.getElementById('amp_brand').value;
   document.getElementById('ampCivAddrField').style.display = brand === 'icom' ? '' : 'none';
@@ -2317,9 +2359,14 @@ async function testCatConnection(){
   result.style.color = 'var(--muted)';
   const mode = document.getElementById('cat_mode').value;
   let payload;
+  // Correctif B3 : contrairement au mode natif (bloque si cat_port est vide),
+  // rien ne signalait un tci_host vide — le serveur retombe silencieusement
+  // sur 127.0.0.1 (valeur par défaut légitime si le logiciel SDR tourne sur
+  // le même PC, donc pas bloquant : juste rendu explicite dans le résultat).
+  const tciHostEmpty = mode === 'tci' && !document.getElementById('tci_host').value.trim();
   if (mode === 'tci'){
     payload = { mode: 'tci',
-      host: document.getElementById('tci_host').value,
+      host: document.getElementById('tci_host').value.trim() || '127.0.0.1',
       port: parseInt(document.getElementById('tci_port').value, 10) || 50001 };
   } else if (mode === 'rigctld'){
     // Correctif H6 : jusqu'ici confondu avec le mode natif ci-dessous (testait
@@ -2347,7 +2394,7 @@ async function testCatConnection(){
     });
     const r = await res.json();
     if (r.ok && mode === 'tci'){
-      result.textContent = `✅ Serveur TCI joint : ${r.device || 'appareil inconnu'} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non reçue'})`;
+      result.textContent = `✅ Serveur TCI joint (${payload.host}${tciHostEmpty ? ' — défaut, champ vide' : ''}) : ${r.device || 'appareil inconnu'} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non reçue'})`;
       result.style.color = 'var(--green)';
     } else if (r.ok && mode === 'rigctld'){
       result.textContent = `✅ rigctld joint (${payload.host}:${payload.port}) : ${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'}${r.mode ? ' — mode ' + r.mode : ''}`;
@@ -2356,7 +2403,7 @@ async function testCatConnection(){
       result.textContent = `✅ Radio détectée : ${r.detected_model || payload.model} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'})`;
       result.style.color = 'var(--green)';
     } else {
-      result.textContent = `❌ ${r.error || 'Connexion impossible'}`;
+      result.textContent = `❌ ${r.error || 'Connexion impossible'}${tciHostEmpty ? ` (adresse TCI non renseignée — testé sur ${payload.host} par défaut)` : ''}`;
       result.style.color = 'var(--red)';
     }
   }catch(e){
@@ -2767,7 +2814,17 @@ async function cloudsyncNow(){
   result.textContent = '⏳ synchronisation en cours…';
   result.style.color = 'var(--muted)';
   try{
-    const res = await fetch('/cloudsync/now', {method: 'POST'});
+    // Correctif M6 : contrairement à testCatConnection()/testAmpConnection()
+    // (lisent les valeurs ACTUELLEMENT affichées), ce bouton n'envoyait rien
+    // et le serveur retombait sur la DERNIÈRE config sauvegardée — un champ
+    // modifié sans clic préalable sur SAUVEGARDER était ignoré en silence.
+    const res = await fetch('/cloudsync/now', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        cloudsync_mode: document.getElementById('cloudsync_mode').value,
+        cloudsync_folder: document.getElementById('cloudsync_folder').value.trim(),
+      }),
+    });
     const r = await res.json();
     if(r.ok){
       result.textContent = `✅ ${r.pushed} QSO envoyés · ${r.pulled} récupérés` + (r.sources ? ` (${r.sources} autre(s) poste(s))` : '');
@@ -2947,6 +3004,21 @@ function applyContestFilters(contestId) {
   }
 }
 
+// Correctif M3 : les attributs min/max HTML d'un <input type="number"> ne
+// contraignent que les flèches du spinner natif — une valeur tapée ou collée
+// au clavier (ex. altitude="-500", alert_volume="-10") passait telle quelle
+// jusqu'à saveConfig() puis était persistée sans aucun contrôle. Un champ vide
+// ou non numérique retombe sur `fallback` (même convention que les anciens
+// `parseInt(...) || N` déjà présents ailleurs dans ce fichier).
+function _numClamped(id, fallback){
+  const el = document.getElementById(id);
+  let v = parseInt(el.value, 10);
+  if(isNaN(v)) v = fallback;
+  if(el.min !== '') v = Math.max(Number(el.min), v);
+  if(el.max !== '') v = Math.min(Number(el.max), v);
+  return v;
+}
+
 // Garde-fou H2 : liste ce qui manque pour atteindre l'étape `forStep` sans
 // perte silencieuse (indicatif/locator invalides ou concours non choisi
 // laissaient auparavant sauter directement à RÉSUMÉ → LOGGER sans avertissement).
@@ -2957,8 +3029,26 @@ function _missingStationFields(forStep){
     const loc = document.getElementById('locator').value.trim();
     if(!loc || !isValidLocator(loc)) missing.push('LOCATOR MAIDENHEAD valide, ex. JN15XC (étape MA STATION)');
   }
-  if(forStep >= 3 && getUsageMode() !== 'simple' && !state.contest){
-    missing.push('un CONCOURS sélectionné (étape CONCOURS)');
+  if(forStep >= 3){
+    if(getUsageMode() !== 'simple' && !state.contest){
+      missing.push('un CONCOURS sélectionné (étape CONCOURS)');
+    }
+    // Correctif M2 : selectContest() pose des dates cohérentes à la sélection
+    // d'un concours, mais rien n'empêchait ensuite une édition manuelle de
+    // casser l'ordre (date de fin antérieure à la date de début), sans
+    // aucun avertissement au moment de sauvegarder/lancer.
+    const sd = document.getElementById('contest_start_date').value;
+    const ed = document.getElementById('contest_end_date').value;
+    if(sd && ed && ed < sd){
+      missing.push('DATE FIN doit être postérieure ou égale à DATE DÉBUT (étape CONCOURS)');
+    }
+  }
+  // Correctif M4 : aucune sauvegarde explicite ni lancement n'était bloqué
+  // même avec zéro bande et zéro mode actifs à l'étape FILTRES — config
+  // inexploitable acceptée en silence.
+  if(forStep >= 4){
+    if(!document.querySelector('[data-key^="band_"].on')) missing.push('au moins une BANDE active (étape FILTRES)');
+    if(!document.querySelector('[data-key^="mode_"].on')) missing.push('au moins un MODE actif (étape FILTRES)');
   }
   return missing;
 }
@@ -3037,7 +3127,7 @@ function updateLocatorHint() {
 // Leaflet + tuiles OpenStreetMap chargés À LA DEMANDE (première ouverture) : le
 // reste de la page reste utilisable hors ligne. Le calcul lat/lon → grille
 // Maidenhead se fait en local (aucune API tierce nécessaire pour la conversion).
-let _mapLoc = { map:null, marker:null, loc:'', lat:null, lon:null };
+let _mapLoc = { map:null, marker:null, loc:'', lat:null, lon:null, tileErrorShown:false };
 
 function latLonToLocator(lat, lon){
   lon = Math.max(-179.9999, Math.min(179.9999, lon)) + 180;
@@ -3075,6 +3165,8 @@ function _loadLeaflet(){
 async function openLocatorMap(){
   const ov = document.getElementById('mapLocOverlay');
   ov.style.display = 'block';
+  document.getElementById('mapLocTileError').style.display = 'none';
+  _mapLoc.tileErrorShown = false;
   try{ await _loadLeaflet(); }
   catch(e){ ov.style.display='none'; alert('Carte indisponible : '+e.message+'.\nLa sélection sur carte nécessite une connexion Internet ; sinon, saisis le locator à la main.'); return; }
 
@@ -3084,8 +3176,18 @@ async function openLocatorMap(){
 
   if(!_mapLoc.map){
     _mapLoc.map = L.map('mapLocMap').setView(start, zoom);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(_mapLoc.map);
+    // Correctif M9 : _loadLeaflet() ne gère que l'échec de chargement du
+    // script Leaflet lui-même (hôte cdnjs) — un blocage réseau spécifique aux
+    // TUILES (hôte openstreetmap.org, souvent bloqué séparément par un
+    // pare-feu) laissait la carte grise sans aucun message. Une seule bannière
+    // même si des dizaines de tuiles échouent (pas de spam).
+    tiles.on('tileerror', () => {
+      if(_mapLoc.tileErrorShown) return;
+      _mapLoc.tileErrorShown = true;
+      document.getElementById('mapLocTileError').style.display = 'block';
+    });
     _mapLoc.map.on('click', e => _mapLocSet(e.latlng.lat, e.latlng.lng, false));
   } else {
     _mapLoc.map.setView(start, zoom);
@@ -3383,6 +3485,19 @@ function saveConfig(silent = false) {
   if(!silent){
     const missing = _missingStationFields(5);
     if(missing.length){ _warnMissingStation(missing); return false; }
+    // Correctif B2 : Club Log Live Stream était activable sans qu'aucun
+    // identifiant ClubLog ne soit renseigné (juste un texte d'avertissement
+    // statique, jamais vérifié) — le serveur pousse alors chaque QSO en tâche
+    // de fond (fire-and-forget) et échoue en silence, sans que l'utilisateur
+    // ne soit jamais informé que rien n'est réellement remonté vers ClubLog.
+    if(document.getElementById('clublog_live').value === '1'){
+      const clubLogMissing = ['clublog_email','clublog_callsign','clublog_password','clublog_api_key']
+        .some(id => !document.getElementById(id).value.trim());
+      if(clubLogMissing){
+        alert('⚠️ Club Log Live Stream est activé mais les identifiants ClubLog ne sont pas tous renseignés (email, indicatif, mot de passe, clé API) — remplis-les dans la section QSL ou désactive le Live Stream.');
+        return false;
+      }
+    }
   }
   const provider = getSelectedProvider();
   const apiKey = document.getElementById('api_key').value;
@@ -3398,7 +3513,7 @@ function saveConfig(silent = false) {
     callsign_contest: document.getElementById('callsign_contest').value,
     locator: document.getElementById('locator').value,
     city: document.getElementById('city').value,
-    altitude: document.getElementById('altitude').value,
+    altitude: _numClamped('altitude', 0),
     postal: document.getElementById('postal').value,
     op_name: document.getElementById('operator_name').value,
     op_call: document.getElementById('op_call').value,
@@ -3408,9 +3523,9 @@ function saveConfig(silent = false) {
     contest_start_date: document.getElementById('contest_start_date').value,
     contest_end_date: document.getElementById('contest_end_date').value,
     contest_end_utc: document.getElementById('contest_end_utc').value,
-    power: document.getElementById('power').value,
+    power: _numClamped('power', 100),
     power_class: document.getElementById('power_class').value,
-    record_dx: document.getElementById('record_dx').value,
+    record_dx: _numClamped('record_dx', 0),
     log_software: document.getElementById('log_software').value,
     ant_hf: document.getElementById('ant_hf').value,
     ant_144: document.getElementById('ant_144').value,
@@ -3439,12 +3554,12 @@ function saveConfig(silent = false) {
     hrdlog_callsign: document.getElementById('hrdlog_callsign').value.trim(),
     hrdlog_code: document.getElementById('hrdlog_code').value.trim(),
     scoreboard_enabled: document.getElementById('scoreboard_enabled').value,
-    scoreboard_interval: parseInt(document.getElementById('scoreboard_interval').value, 10) || 5,
+    scoreboard_interval: _numClamped('scoreboard_interval', 5),
     backup_folder: document.getElementById('backup_folder').value.trim(),
-    backup_interval: parseInt(document.getElementById('backup_interval').value, 10) || 15,
+    backup_interval: _numClamped('backup_interval', 15),
     cloudsync_mode: document.getElementById('cloudsync_mode').value,
     cloudsync_folder: document.getElementById('cloudsync_folder').value.trim(),
-    cloudsync_interval: parseInt(document.getElementById('cloudsync_interval').value, 10) || 3,
+    cloudsync_interval: _numClamped('cloudsync_interval', 3),
     rbn_enabled: document.getElementById('rbn_enabled').value,
     clublog_live: document.getElementById('clublog_live').value,
     expedition_mode: document.getElementById('expedition_mode').value,
@@ -3489,7 +3604,7 @@ function saveConfig(silent = false) {
     voicekeyer_enabled: !!document.getElementById('voicekeyer_enabled').value,
     voicekeyer_device: document.getElementById('voicekeyer_device').value,
     voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
-    voicekeyer_rate: parseInt(document.getElementById('voicekeyer_rate').value, 10) || 175,
+    voicekeyer_rate: _numClamped('voicekeyer_rate', 175),
     amp_enabled: !!document.getElementById('amp_enabled').value,
     amp_brand: document.getElementById('amp_brand').value,
     amp_port: document.getElementById('amp_port').value,
@@ -3498,11 +3613,11 @@ function saveConfig(silent = false) {
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
     rotor_host: document.getElementById('rotor_host').value.trim(),
     rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
-    alert_dx_km: document.getElementById('alert_dx_km').value,
-    spotter_reliable_km: document.getElementById('spotter_reliable_km').value,
+    alert_dx_km: _numClamped('alert_dx_km', 1200),
+    spotter_reliable_km: _numClamped('spotter_reliable_km', 600),
     alert_sound: document.getElementById('alert_sound').value !== '',
-    alert_volume: parseInt(document.getElementById('alert_volume').value, 10) || 60,
-    refresh_min: document.getElementById('refresh_min').value,
+    alert_volume: _numClamped('alert_volume', 60),
+    refresh_min: _numClamped('refresh_min', 2),
     priority_mode: document.getElementById('priority_mode').value,
     spot_prefix_filter: document.getElementById('spot_prefix_filter').value,
     alert_rules: state.alertRules,
@@ -3863,6 +3978,14 @@ function applyFullConfigToForm(c) {
     // Charger la clé du fournisseur actif
     const keyForProvider = c.api_key || localStorage.getItem(`logx_apikey_${savedProvider}`) || localStorage.getItem('logx_apikey') || '';
     if(keyForProvider) document.getElementById('api_key').value = keyForProvider;
+    // Correctif M5 : refléter l'état Activé/Désactivé sur les champs
+    // dépendants après restauration (chargement de page ET changement de
+    // profil, qui appellent tous deux cette fonction) — sinon un profil
+    // désactivant l'ampli/rotor/cloud sync laissait leurs champs enfants
+    // pleinement éditables visuellement malgré le select sur Désactivé.
+    updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
+    updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
+    updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
 }
 
 // Pré-remplissage depuis config.json (fallback si localStorage vide)
@@ -3994,6 +4117,11 @@ async function analyzeRules(url, name){
   const status = document.getElementById('aiAnalyzeStatus');
   const btn = document.getElementById('aiAnalyzeBtn');
   if (!url){ alert('Indique l\'URL du règlement (PDF ou page web).'); return; }
+  // Correctif M1 : mémorise le concours actif au lancement de l'analyse — si
+  // l'utilisateur en choisit un autre pendant les 30-90s d'analyse IA,
+  // saveReviewedDefinition() doit le savoir pour ne pas écraser silencieusement
+  // cette sélection manuelle en validant la proposition IA.
+  const contestAtLaunch = state.contest;
   // La clé API vit dans la config : la pousser au serveur avant l'analyse
   quickSave();
   status.style.display = 'block';
@@ -4010,7 +4138,7 @@ async function analyzeRules(url, name){
       return;
     }
     status.textContent = `✅ Règlement lu (${data.text_chars} caractères via ${data.extractor}) — relis la proposition ci-dessous.`;
-    _aiProposal = {...data, source_url: url};
+    _aiProposal = {...data, source_url: url, _contestAtLaunch: contestAtLaunch};
     openReviewModal(_aiProposal);
   }catch(e){
     status.innerHTML = `❌ <span style="color:var(--red)">Serveur injoignable : ${e.message}</span>`;
@@ -4150,7 +4278,12 @@ async function saveReviewedDefinition(){
     buildContestGrid('');
     setTimeout(() => {
       document.getElementById('reviewModal').style.display = 'none';
-      selectContest(g('id'), true);
+      // Correctif M1 : ne sauter la confirmation H3 que si le concours actif
+      // n'a PAS changé depuis le lancement de l'analyse IA — sinon l'utilisateur
+      // a fait un choix manuel entretemps (30-90s d'analyse + relecture) qu'il
+      // ne faut pas écraser en silence.
+      const contestUnchanged = !_aiProposal || _aiProposal._contestAtLaunch === state.contest;
+      selectContest(g('id'), contestUnchanged);
       const card = document.getElementById('card_' + g('id'));
       if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
     }, 1200);
@@ -4224,7 +4357,14 @@ function handleContestParam(){
     </div>`;
 }
 
-init();
+// Correctif B5 : init() n'est jamais attendue (fire-and-forget, pour ne pas
+// bloquer l'interactivité de la page pendant le chargement) — mais
+// askAssistant() (autre <script>, voir plus haut) lit #api_key AVANT que
+// loadFromServerConfig() (async, appelée seulement si aucune config locale)
+// ait fini, et concluait à tort à l'absence de clé API. _initReady expose
+// la promesse pour que l'assistant puisse l'attendre sans retarder init()
+// elle-même ni le reste de la page.
+const _initReady = init();
 </script>
 </body>
 </html>
