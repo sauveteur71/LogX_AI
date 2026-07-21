@@ -17,6 +17,15 @@ import threading
 DB_FILE = 'logx.db'
 _db_lock = threading.Lock()
 
+# Drapeau de sûreté : passé à True si le chargement du log échoue AU DÉMARRAGE
+# alors que la base existe (verrou transitoire antivirus / Synology Drive, base
+# momentanément illisible). Tant qu'il est vrai, save_log_to_disk() REFUSE
+# d'écrire : sans ce garde-fou, le premier QSO saisi déclencherait un
+# DELETE FROM qso + réécriture de shared_log.json avec un log vide, détruisant
+# tout l'historique. On préfère bloquer la persistance (l'utilisateur relance
+# une fois le verrou levé) plutôt que perdre les données.
+load_failed = False
+
 # Colonnes structurées (indexables) ; tout le reste du QSO va dans extra (JSON)
 _CORE = ('id', 'call', 'band', 'mode', 'contest', 'date', 'time',
          'operator', 'points', 'locator')
@@ -130,6 +139,12 @@ def save_json_atomic(path, data, lock=None, compact=False):
 
 def save_log_to_disk():
     """Persiste le log : SQLite (transaction, primaire) + JSON de secours."""
+    if load_failed:
+        # Le chargement au démarrage a échoué avec une base existante : écrire
+        # maintenant écraserait l'historique par le log (quasi) vide en mémoire.
+        print("[LOG] Sauvegarde BLOQUÉE : chargement initial en échec — "
+              "redémarre le logiciel une fois le verrou sur la base levé.")
+        return
     try:
         with log_lock:
             data = list(shared_log)  # copie sous verrou
@@ -198,3 +213,11 @@ def load_log_from_disk():
             save_log_to_disk()
     except Exception as e:
         print(f"[LOG] Impossible de charger le log : {e}")
+        # Base présente mais illisible : on interdit toute réécriture destructive
+        # jusqu'au prochain démarrage réussi (voir load_failed / save_log_to_disk).
+        if os.path.exists(DB_FILE):
+            global load_failed
+            load_failed = True
+            print(f"[LOG] ⚠ {DB_FILE} présent mais illisible — persistance "
+                  f"GELÉE pour protéger l'historique. Ferme les programmes qui "
+                  f"verrouillent le fichier (antivirus, sync) puis redémarre.")

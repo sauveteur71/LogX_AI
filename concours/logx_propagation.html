@@ -246,6 +246,13 @@ async function qsyTo(freqKhz, call){
 }
 
 const PRIO_COLORS = {1:'#00FF88',2:'#FF2D55',3:'#FF9500',4:'#FFD60A',5:'#8E8E93',6:'#3A3A3C'};
+// Échappement HTML — les spots viennent du cluster DX (telnet public : n'importe
+// qui peut émettre un spot) et de PSK Reporter/RBN. Sans échappement, un champ
+// call/spotter/explanation forgé exécute du JS dans une app qui pilote la radio.
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Indicatif réduit aux caractères valides pour un argument de chaîne JS (onclick).
+function jsCall(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9/]/g,''); }
 
 // La MUF dit quelles bandes HF sont physiquement ouvertes en ce moment
 const HF_BANDS_MHZ = [['10m',28],['15m',21],['20m',14],['40m',7],['80m',3.5],['160m',1.8]];
@@ -339,15 +346,15 @@ function renderSpots(){
   document.getElementById('spotList').innerHTML = list.map(s => `
     <div class="spot-row ${s.new_mult && !s.already_done ? 'sr-mult' : ''} ${s.already_done ? 'sr-done' : ''}">
       <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="priorité ${s.priority}"></span>
-      ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo('${s.freq}','${s.call}')" title="Régler la radio sur ${s.freq} kHz">▶ QSY</button>` : ''}
-      ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo('${s.bearing}','${s.call}')" title="Pointer l'antenne sur ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
-      <span class="sr-call">${s.call}</span>
-      <span class="sr-freq">${s.freq || ''}</span>
-      <span class="sr-band">${s.band} MHz</span>
-      <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : '+' + (s.value || s.points) + ' pts'}</span>
+      ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo(${Number(s.freq)||0},'${jsCall(s.call)}')" title="Régler la radio sur ${esc(s.freq)} kHz">▶ QSY</button>` : ''}
+      ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo(${Number(s.bearing)||0},'${jsCall(s.call)}')" title="Pointer l'antenne sur ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
+      <span class="sr-call">${esc(s.call)}</span>
+      <span class="sr-freq">${esc(s.freq || '')}</span>
+      <span class="sr-band">${esc(s.band)} MHz</span>
+      <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : '+' + esc(s.value || s.points) + ' pts'}</span>
       ${s.new_mult && !s.already_done ? '<span class="sr-mult-badge">📈 NOUVEAU MULT</span>' : ''}
-      <span class="sr-cap">${s.bearing != null ? s.bearing + '° ' + s.cardinal : ''}</span>
-      <span class="sr-info" title="${s.explanation}">${s.dist_km ? s.dist_km + ' km · ' : ''}${s.explanation}</span>
+      <span class="sr-cap">${s.bearing != null ? esc(s.bearing) + '° ' + esc(s.cardinal) : ''}</span>
+      <span class="sr-info" title="${esc(s.explanation)}">${s.dist_km ? esc(s.dist_km) + ' km · ' : ''}${esc(s.explanation)}</span>
     </div>`).join('');
 }
 
@@ -386,11 +393,11 @@ async function loadPSK(){
     }
     document.getElementById('pskList').innerHTML = d.reports.slice(0,25).map(r => `
       <div class="spot-row">
-        <span class="sr-call">${r.rx_call}</span>
-        <span class="sr-band">${r.band}</span>
-        <span style="width:70px;color:var(--accent2)">${r.snr} dB</span>
-        <span class="sr-cap">${r.bearing!=null ? r.bearing+'° '+r.cardinal : ''}</span>
-        <span class="sr-info">${r.dist_km!=null ? r.dist_km+' km · ' : ''}${r.rx_locator} · ${r.mode}</span>
+        <span class="sr-call">${esc(r.rx_call)}</span>
+        <span class="sr-band">${esc(r.band)}</span>
+        <span style="width:70px;color:var(--accent2)">${esc(r.snr)} dB</span>
+        <span class="sr-cap">${r.bearing!=null ? esc(r.bearing)+'° '+esc(r.cardinal) : ''}</span>
+        <span class="sr-info">${r.dist_km!=null ? esc(r.dist_km)+' km · ' : ''}${esc(r.rx_locator)} · ${esc(r.mode)}</span>
       </div>`).join('');
   }catch(e){}
 }
@@ -450,10 +457,10 @@ async function loadRBN(){
     meta.textContent = `${d.call} · ${d.count} skimmers · ${(d.bands||[]).join('/')} MHz`;
     el.innerHTML = d.spots.slice(0,20).map(s => `
       <div class="spot-row">
-        <span class="sr-call">${s.spotter}</span>
-        <span class="sr-band">${s.band}</span>
-        <span style="width:70px;color:var(--accent2)">${s.snr} dB</span>
-        <span class="sr-info">${(s.freq_khz).toFixed(1)} kHz · ${s.mode}${s.wpm?' · '+s.wpm+' wpm':''}</span>
+        <span class="sr-call">${esc(s.spotter)}</span>
+        <span class="sr-band">${esc(s.band)}</span>
+        <span style="width:70px;color:var(--accent2)">${esc(s.snr)} dB</span>
+        <span class="sr-info">${(s.freq_khz).toFixed(1)} kHz · ${esc(s.mode)}${s.wpm?' · '+esc(s.wpm)+' wpm':''}</span>
       </div>`).join('');
   }catch(e){}
 }

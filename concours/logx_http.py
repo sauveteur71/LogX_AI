@@ -573,6 +573,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         """Gérer les requêtes DELETE (ex: /log/delete/42)."""
+        # DELETE supprime des QSO du log : mêmes exigences d'auth que do_POST
+        # (sans quoi n'importe quel appareil du LAN pouvait effacer le carnet).
+        if not self._require_auth():
+            return
         if self.path.startswith('/log/delete/'):
             try:
                 qso_id = int(self.path.split('/')[-1])
@@ -665,11 +669,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 base = call.split('/')[0]
                 calldb_path = os.path.join(os.getcwd(), 'calldb.json')
-                local = {}
-                if os.path.exists(calldb_path):
-                    with open(calldb_path, 'r', encoding='utf-8') as f:
-                        db = json.load(f)
-                    local = db.get('calls', {}).get(base, {})
+                # Lecture via le cache mémoire (invalidé au mtime) : /calldb/lookup
+                # est appelé à chaque frappe d'indicatif — relire tout le fichier
+                # (~19 000 entrées) à chaque fois était le point chaud principal.
+                import logx_departments as _dep
+                local = _dep._load_calldb().get(base, {})
                 # Locator déjà connu localement
                 if local.get('locator'):
                     self._json({'call': base, 'locator': local['locator'], 'dept': local.get('dept',''), 'source': 'local'})
@@ -1379,6 +1383,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(safe)
             return
 
+        # config.json est un fichier de config avancé (structure imbriquée
+        # station/contest lue par la page mobile) qui peut AUSSI contenir une
+        # section 'server' avec auth_token/debug. On le sert par cette route en
+        # retirant systématiquement 'server' — le fichier brut, lui, est bloqué
+        # au service statique (_NEVER_SERVE) pour ne jamais fuiter le jeton.
+        if path == '/config.json':
+            data = {}
+            try:
+                with open('config.json', encoding='utf-8') as f:
+                    data = json.load(f) or {}
+            except Exception:
+                data = {}
+            if isinstance(data, dict):
+                data.pop('server', None)
+            self._json(data)
+            return
+
         if path == '/data/wall':
             import logx_wall as wall
             cfg_snap = self._cfg_snapshot()
@@ -1659,7 +1680,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Toutes les routes POST écrivent ou appellent l'IA : token exigé.
         if not self._require_auth():
             return
-        length = int(self.headers.get('Content-Length', 0))
+        # Plafond de taille du corps : un client malveillant du LAN pouvait
+        # envoyer plusieurs Go et faire gonfler la mémoire jusqu'au crash.
+        # 32 Mo couvre largement un gros import ADIF ; au-delà on refuse.
+        MAX_BODY = 32 * 1024 * 1024
+        try:
+            length = int(self.headers.get('Content-Length', 0) or 0)
+        except (TypeError, ValueError):
+            length = 0
+        if length < 0 or length > MAX_BODY:
+            self._json({'error': 'Corps de requête trop volumineux'}, 413)
+            return
         body = self.rfile.read(length)
 
         # Réception spots cluster depuis le navigateur (HTTPS bloqué côté serveur).
@@ -2439,14 +2470,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _load_config_from_query(self):
         return self._cfg_snapshot()
 
-    # Fichiers présents dans le dossier servi mais qui ne doivent JAMAIS
-    # sortir par HTTP (la clé API notamment).
-    _NEVER_SERVE = {'clef api.txt'}
+    # Fichiers présents dans le dossier servi mais qui ne doivent JAMAIS sortir
+    # par HTTP : secrets (clé API, jetons, identifiants) et données locales.
+    # RÈGLE : tout fichier caché (commençant par '.') est bloqué — cela couvre
+    # .server_config.json (clé API + mots de passe), .auth_token (jeton qui
+    # protège toutes les routes d'écriture) et .cloudsync_instance_id. La liste
+    # noire explicite ajoute les fichiers de config/données SANS point de tête.
+    # Sans ce garde-fou, un GET /.server_config.json livrait tous les secrets à
+    # n'importe quel poste du réseau, sans authentification.
+    _NEVER_SERVE = {
+        'clef api.txt', 'config.json', 'logx.db', 'shared_log.json',
+        'qtc_log.json', 'cloudsync_state.json',
+    }
 
     def _resolve(self, path):
         import urllib.parse
         rel = urllib.parse.unquote(path).lstrip('/\\')
-        if os.path.basename(rel).lower() in self._NEVER_SERVE:
+        base = os.path.basename(rel).lower()
+        if base.startswith('.') or base in self._NEVER_SERVE:
             return None
         bases = [os.getcwd(), os.path.dirname(os.path.abspath(__file__))]
         if hasattr(sys, '_MEIPASS'):

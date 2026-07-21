@@ -1,0 +1,16 @@
+# Dépendances LogX AI — versions épinglées pour des builds/CI reproductibles.
+# Runtime : le cœur du serveur n'utilise que la bibliothèque standard Python.
+# Les libs ci-dessous couvrent la validation des règlements et le matériel.
+
+# Validation des définitions de concours (logx_validate.py)
+jsonschema>=4.20,<5
+
+# Pilotage CAT série natif (logx_cat.py) — optionnel : import protégé par
+# HAS_PYSERIAL, l'appli démarre sans si aucune radio série n'est pilotée.
+pyserial>=3.5,<4
+
+# Keyer vocal TTS hors-ligne (logx_voicekeyer.py) — optionnel, Windows/SAPI5.
+pyttsx3>=2.90
+
+# Tests (suite pytest sous concours/tests/)
+pytest>=8,<10

@@ -29,11 +29,13 @@ SSL_CTX = _ssl.create_default_context()
 if hasattr(_ssl, 'VERIFY_X509_STRICT'):
     SSL_CTX.verify_flags &= ~_ssl.VERIFY_X509_STRICT
 
-# Repli en non-vérifié UNIQUEMENT après échec SSL (vrais certificats cassés de
-# certains sites radioamateur) : données publiques en lecture seule.
-_ssl_noverify = _ssl.create_default_context()
-_ssl_noverify.check_hostname = False
-_ssl_noverify.verify_mode = _ssl.CERT_NONE
+# NOTE SÉCURITÉ : il n'y a PLUS de repli en CERT_NONE. L'ancien code retentait
+# automatiquement SANS vérification de certificat dès la moindre erreur SSL — un
+# attaquant en interception (WiFi public, DNS spoofing) n'avait qu'à présenter un
+# certificat invalide pour déclencher lui-même ce repli et servir du contenu
+# forgé (spots, données injectées dans l'app qui pilote la radio). SSL_CTX vérifie
+# toujours les certificats contre le magasin Windows (racine Avast incluse) ; seul
+# le mode STRICT de Python 3.13 est désactivé. Une vraie erreur SSL échoue net.
 
 def fetch_url(url, timeout=10):
     req = urllib.request.Request(url, headers={
@@ -43,17 +45,6 @@ def fetch_url(url, timeout=10):
         with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
             charset = resp.headers.get_content_charset() or 'utf-8'
             return resp.read().decode(charset, errors='replace')
-    except urllib.error.URLError as e:
-        if isinstance(getattr(e, 'reason', None), _ssl.SSLCertVerificationError):
-            try:
-                with urllib.request.urlopen(req, timeout=timeout, context=_ssl_noverify) as resp:
-                    charset = resp.headers.get_content_charset() or 'utf-8'
-                    return resp.read().decode(charset, errors='replace')
-            except Exception as e2:
-                print(f"  [FETCH] {url[:60]}... -> {e2} (même sans vérif SSL)")
-                return None
-        print(f"  [FETCH] {url[:60]}... -> {e}")
-        return None
     except Exception as e:
         print(f"  [FETCH] {url[:60]}... -> {e}")
         return None

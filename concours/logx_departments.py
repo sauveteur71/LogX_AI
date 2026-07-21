@@ -69,11 +69,13 @@ def dept_from_exchange(num_rcvd):
     if len(toks) > 1 and _is_rst(toks[0]):
         toks = toks[1:]
     for tok in toks:
-        if tok in DEPARTMENTS:       # DOM 971-976 (3 chiffres)
+        # Un token de 2 chiffres (01-95) ou un DOM à 3 chiffres (971-976) est
+        # accepté tel quel. On NE tronque PLUS un token de 3 chiffres à ses 2
+        # premiers : un numéro de série du Bol d'Or ('042', '590') n'est pas le
+        # département '04'/'59' — ce court-circuit verdissait la carte à tort et
+        # gonflait le multiplicateur REF (l'échange prime sur calldb/locator).
+        if tok in DEPARTMENTS:
             return tok
-        d2 = tok[:2]
-        if d2 in DEPARTMENTS:
-            return d2
     return ''
 
 
@@ -191,12 +193,27 @@ def dept_for_qso(qso, calldb=None):
     return dept_from_locator(qso.get('locator', ''))
 
 
+# Cache mémoire de calldb.json invalidé par la signature (mtime, taille) du
+# fichier : departments_progress() est appelée à CHAQUE poll de l'onglet Cartes
+# et re-parsait sinon un fichier de plusieurs milliers d'indicatifs à chaque
+# fois. La réécriture du fichier (lookup HamQTH, /calldb/update) change le mtime
+# et recharge automatiquement.
+_calldb_cache = {'sig': None, 'calls': {}}
+
+
 def _load_calldb():
     import json, os
     try:
         if os.path.exists('calldb.json'):
+            st = os.stat('calldb.json')
+            sig = (st.st_mtime, st.st_size)
+            if _calldb_cache['sig'] == sig:
+                return _calldb_cache['calls']
             with open('calldb.json', encoding='utf-8') as f:
-                return json.load(f).get('calls', {})
+                calls = json.load(f).get('calls', {})
+            _calldb_cache['sig'] = sig
+            _calldb_cache['calls'] = calls
+            return calls
     except Exception:
         pass
     return {}

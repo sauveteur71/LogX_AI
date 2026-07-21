@@ -82,17 +82,36 @@ def load_cty(path=None):
         print(f"[DXCC] {len(_PREFIXES)} prefixes + {len(_EXACT)} indicatifs exacts (cty.dat)")
     except Exception as e:
         print(f"[DXCC] Erreur de chargement {path}: {e}")
+    _lookup_cache.clear()   # la table de préfixes a changé : cache obsolète
     _loaded = True
+
+
+# Cache de résolution indicatif → entité : lookup() est appelé PAR QSO à chaque
+# frappe (/log/check) et à chaque poll (build_ranked_spots, validateur, diplômes,
+# carte…). Le matching de préfixe se refaisait à chaque fois pour les mêmes
+# indicatifs. Vidé au (re)chargement de cty.dat (voir load_cty / update_cty).
+_lookup_cache = {}
+_MISS = object()
 
 
 def lookup(callsign):
     """Indicatif → {'country', 'continent', 'cq_zone', 'itu_zone', 'prefix'}
-    ou None si inconnu. Le /P, /QRP... est ignoré ; F/ON4ABC → préfixe F."""
+    ou None si inconnu. Le /P, /QRP... est ignoré ; F/ON4ABC → préfixe F.
+    Résultat mémoïsé (cache vidé à chaque rechargement de cty.dat)."""
     if not _loaded:
         load_cty()
     if not callsign:
         return None
     call = callsign.upper().strip()
+    cached = _lookup_cache.get(call, _MISS)
+    if cached is not _MISS:
+        return cached
+    r = _lookup_compute(call)
+    _lookup_cache[call] = r
+    return r
+
+
+def _lookup_compute(call):
     # Indicatif exact d'abord (ex: =4U1ITU)
     if call in _EXACT:
         return _as_dict(_EXACT[call])
@@ -180,6 +199,7 @@ def update_cty_if_stale(max_age_days=CTY_MAX_AGE_DAYS, force=False):
     # par référence restent valides)
     _PREFIXES.clear()
     _EXACT.clear()
+    _lookup_cache.clear()
     global _loaded
     _loaded = False
     load_cty()

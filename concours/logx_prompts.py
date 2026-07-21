@@ -69,6 +69,13 @@ def build_system_prompt(cfg):
             active_prop.append(label)
 
     lat, lon = locator_to_latlon(loc)
+    # locator_to_latlon renvoie (None, None) pour un locator vide, < 6 caractères
+    # ou malformé (ex. 'JN15' saisi sans passer par le wizard). Formater None avec
+    # {lat:.3f} plus bas lèverait TypeError et rendrait TOUTE requête IA impossible.
+    if lat is None or lon is None:
+        coords_line = 'Coordonnées : inconnues (locator absent ou invalide)'
+    else:
+        coords_line = f'Coordonnées : {lat:.3f}°N / {lon:.3f}°E'
 
     # ── Récupérer les données dynamiques du concours ─────────────────────────
     cdef = CONTEST_DEFINITIONS.get(contest, {})
@@ -293,11 +300,11 @@ SOUMISSION : https://field-day.arrl.org/fdentry.php
 ║  américaine sur le cluster actuellement, surveiller     ║
 ║  14.225-14.340 MHz" et donner les fréquences FD.       ║
 ║                                                          ║
-║  RÈGLE #4 — STATUT f4gld EN ARRL FD                   ║
-║  f4gld participe en tant que station DX (hors USA/CA). ║
-║  Les stations US/CA qui contactent f4gld gagnent des   ║
-║  points. f4gld doit chercher et appeler des W/K/N/VE.  ║
-║  Ne pas remettre en question la participation de f4gld. ║
+║  RÈGLE #4 — STATUT {call} EN ARRL FD
+║  {call} participe en tant que station DX (hors USA/CA).
+║  Les stations US/CA qui contactent {call} gagnent des points.
+║  {call} doit chercher et appeler des W/K/N/VE.
+║  Ne pas remettre en question la participation de {call}.
 ╚══════════════════════════════════════════════════════════╝
 ═══════════════════════════════════════════════════════"""
 
@@ -324,7 +331,7 @@ Version {CURRENT_YEAR} — Dates et règlements automatiquement à jour.
 IDENTITÉ DE LA STATION :
 - Indicatif : {call}{'/P' if portable else ''} | Contest : {call_c}
 - Locator : {loc}{' (' + city + ')' if city else ''}
-- Coordonnées : {lat:.3f}°N / {lon:.3f}°E
+- {coords_line}
 - Puissance : {power}W{'  QRP' if qrp else ''}
 - Record DX établi : {record} km
 
@@ -576,9 +583,14 @@ def build_terrain_context(logs, spots_by_band, cfg):
         total_qso += qso_count
         lines.append(f"LOG {band_label} : {qso_count} QSO | {score} pts")
         for q in log_data.get('qsos', []):
-            lines.append(f"  {q['time']} {q['call']:12} {q['locator']:6} {q['points']:4}pts {q['mode']}")
-            base = q['call'].split('/')[0]
-            done_calls[base] = {'locator': q['locator'], 'band': band_label, 'points': q['points']}
+            # Accès défensif (.get) : un ADIF importé d'un autre logiciel peut ne
+            # pas porter locator/points — l'accès direct q['locator'] levait une
+            # KeyError qui faisait échouer toute l'analyse terrain IA (erreur 500).
+            lines.append(f"  {q.get('time','')} {q.get('call',''):12} "
+                         f"{q.get('locator',''):6} {q.get('points',0):4}pts {q.get('mode','')}")
+            base = q.get('call', '').split('/')[0]
+            done_calls[base] = {'locator': q.get('locator', ''), 'band': band_label,
+                                'points': q.get('points', 0)}
         if not log_data.get('qsos'):
             lines.append("  (aucun QSO)")
 

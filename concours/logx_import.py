@@ -17,9 +17,32 @@ Fonctions PURES (testables sans I/O) : parse_adif_to_qsos() et
 preview_import(). Seul commit_import() touche le log partagé, et encore,
 en une SEULE écriture disque (pas un save_log_to_disk() par QSO importé).
 """
+import re
 import time
 
 from logx_qsl import _parse_adif_records, _band_from_record
+
+# Indicatif valide : lettres/chiffres/'/' uniquement. Rejette au passage tout
+# record dont le champ CALL contiendrait du HTML (ex. <img src=x onerror=...>)
+# — défense en profondeur au point d'ingestion, en plus de l'échappement à
+# l'affichage. Couvre les préfixes/suffixes /P, /MM, F/DL1AA, etc.
+_CALL_RE = re.compile(r'^[A-Z0-9/]{2,15}$')
+
+
+def _clean_text(v):
+    """Nettoie un champ texte libre d'un ADIF externe : retire les caractères
+    de contrôle et les chevrons (< >) pour qu'aucun fragment HTML ne soit
+    stocké dans le log partagé, puis rogné à une longueur raisonnable."""
+    s = str(v or '')
+    s = ''.join(c for c in s if ord(c) >= 0x20 or c in '\t')
+    return s.replace('<', '').replace('>', '').strip()[:64]
+
+
+def _clean_date(v):
+    """QSO_DATE -> 8 chiffres (AAAAMMJJ) ou '' si absent/malformé : évite les
+    dates tronquées qui corrompaient ensuite l'export Cabrillo/ADIF."""
+    d = re.sub(r'\D', '', str(v or ''))
+    return d if len(d) == 8 else ''
 
 
 def _adif_time(rec):
@@ -57,22 +80,25 @@ def parse_adif_to_qsos(adif_text):
         if not call or not band:
             errors.append(f"Record {i + 1} ignoré (indicatif ou bande manquant/non reconnu)")
             continue
+        if not _CALL_RE.match(call):
+            errors.append(f"Record {i + 1} ignoré (indicatif invalide : « {call[:20]} »)")
+            continue
         qsos.append({
             'call': call,
             'band': band,
-            'mode': (rec.get('MODE') or 'SSB').upper().strip(),
-            'date': (rec.get('QSO_DATE') or '').strip(),
+            'mode': _clean_text((rec.get('MODE') or 'SSB').upper()) or 'SSB',
+            'date': _clean_date(rec.get('QSO_DATE')),
             'time': _adif_time(rec),
-            'rst_sent': rec.get('RST_SENT') or '',
-            'rst_rcvd': rec.get('RST_RCVD') or '',
-            'num_sent': rec.get('STX_STRING') or rec.get('STX') or '',
-            'num_rcvd': rec.get('SRX_STRING') or rec.get('SRX') or '',
-            'locator': (rec.get('GRIDSQUARE') or '').upper().strip(),
-            'my_locator': (rec.get('MY_GRIDSQUARE') or '').upper().strip(),
-            'operator': (rec.get('OPERATOR') or rec.get('STATION_CALLSIGN') or '').upper().strip(),
-            'contest': (rec.get('CONTEST_ID') or ''),
-            'my_sig': rec.get('MY_SIG') or '', 'my_sig_info': rec.get('MY_SIG_INFO') or '',
-            'sig': rec.get('SIG') or '', 'sig_info': rec.get('SIG_INFO') or '',
+            'rst_sent': _clean_text(rec.get('RST_SENT')),
+            'rst_rcvd': _clean_text(rec.get('RST_RCVD')),
+            'num_sent': _clean_text(rec.get('STX_STRING') or rec.get('STX')),
+            'num_rcvd': _clean_text(rec.get('SRX_STRING') or rec.get('SRX')),
+            'locator': _clean_text((rec.get('GRIDSQUARE') or '').upper()),
+            'my_locator': _clean_text((rec.get('MY_GRIDSQUARE') or '').upper()),
+            'operator': _clean_text((rec.get('OPERATOR') or rec.get('STATION_CALLSIGN') or '').upper()),
+            'contest': _clean_text(rec.get('CONTEST_ID')),
+            'my_sig': _clean_text(rec.get('MY_SIG')), 'my_sig_info': _clean_text(rec.get('MY_SIG_INFO')),
+            'sig': _clean_text(rec.get('SIG')), 'sig_info': _clean_text(rec.get('SIG_INFO')),
             'points': 0,     # un import historique n'est pas noté dans un concours actif
             'source': 'adif_import',
         })

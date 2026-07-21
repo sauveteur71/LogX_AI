@@ -472,9 +472,16 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
         result['direct_pts'] = 0
         result['total_impact'] = 0
         result['priority'] = 6
-        result['explanation'] = bricks.get(
-            'validity_fail_explanation', 'Station {dx_base} hors périmètre — 0 pt'
-        ).format(**ctx)
+        _tpl = bricks.get('validity_fail_explanation',
+                          'Station {dx_base} hors périmètre — 0 pt')
+        # Gabarit issu d'une définition extraite par l'IA : un placeholder absent
+        # de ctx (ex. {call} au lieu de {dx_base}) levait un KeyError dans
+        # .format() pour CHAQUE spot évalué, plantant tout le concours. On retombe
+        # sur le gabarit brut plutôt que de casser le classement.
+        try:
+            result['explanation'] = _tpl.format(**ctx)
+        except (KeyError, IndexError, ValueError):
+            result['explanation'] = _tpl
         result['already_done'] = is_already_done
         if is_already_done:
             result['priority'] = 6
@@ -520,7 +527,10 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
                     break
             result['priority'] = prio
             template = bricks.get('explain_direct', '{pts} pts')
-            result['explanation'] = template.format(pts=pts, **ctx)
+            try:
+                result['explanation'] = template.format(pts=pts, **ctx)
+            except (KeyError, IndexError, ValueError):
+                result['explanation'] = template
             # Un contact vu uniquement sur le chat ON4KST (personne connectée en
             # ligne) n'est PAS un signal radio confirmé — juste une occasion de
             # proposer un sked. Sur un contest 1pt/km, la distance seule pousse
@@ -626,7 +636,8 @@ def _band_from_freq(freq):
         return ''
     mhz = v / 1000.0 if v > 1000 else v
     for lo, hi, b in ((1.8, 2.0, '1.8'), (3.5, 4.0, '3.5'), (7.0, 7.3, '7'),
-                      (14.0, 14.35, '14'), (21.0, 21.45, '21'), (28.0, 29.7, '28'),
+                      (10.1, 10.15, '10.1'), (14.0, 14.35, '14'), (18.0, 18.2, '18'),
+                      (21.0, 21.45, '21'), (24.8, 25.0, '24'), (28.0, 29.7, '28'),
                       (50, 54, '50'), (144, 148, '144'), (430, 440, '432')):
         if lo <= mhz <= hi:
             return b

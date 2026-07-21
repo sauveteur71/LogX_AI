@@ -1,4 +1,4 @@
-name: Check RadioContest AI
+name: Check LogX AI
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
 
 jobs:
   validate:
-    name: Validation schema + harnais mock
+    name: Tests + validation schema + harnais mock
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,18 +22,22 @@ jobs:
           python-version: '3.11'
 
       - name: Installer les dependances
-        run: pip install jsonschema
+        run: pip install -r concours/requirements.txt
+
+      - name: Lancer la suite de tests (pytest)
+        working-directory: concours
+        run: python -m pytest -q
 
       - name: Valider les definitions de concours
         working-directory: concours
-        run: python radiocontest_validate.py
+        run: python logx_validate.py
 
       - name: Tester le harnais d'extraction (mode mock, sans appel IA)
         # Informatif seulement : le mock est volontairement imparfait
         # (score jamais 100%), ce test verifie juste l'absence de crash.
         continue-on-error: true
         working-directory: concours
-        run: python radiocontest_eval.py --mock
+        run: python logx_eval.py --mock
 
   eval-ia:
     name: Eval extraction IA reelle (corpus complet)
@@ -54,10 +58,10 @@ jobs:
           python-version: '3.11'
 
       - name: Installer les dependances
-        run: pip install jsonschema
+        run: pip install -r concours/requirements.txt
 
       - name: Lancer le corpus d'evaluation complet
         working-directory: concours
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python radiocontest_eval.py
+        run: python logx_eval.py
