@@ -651,13 +651,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/log/list':
             client_ip = self.client_address[0]
             connected_peers.add(client_ip)
+            # Copie sous verrou (rapide, juste des références), puis sérialisation
+            # JSON + écriture socket HORS verrou : c'était le seul endpoint qui
+            # gardait log_lock pendant tout l'envoi. Avec un gros log (milliers de
+            # QSO) et ce endpoint pollé toutes les 5 s par chaque poste connecté,
+            # ça bloquait en cascade tout autre accès à shared_log (ajout de QSO,
+            # /coach/state, /log/status...) pendant toute la durée du transfert.
             with log_lock:
-                self._json({
-                    'qsos': shared_log,
-                    'total': len(shared_log),
-                    'peers': len(connected_peers),
-                    'score': sum(q.get('points',0) for q in shared_log),
-                })
+                log_copy = list(shared_log)
+            self._json({
+                'qsos': log_copy,
+                'total': len(log_copy),
+                'peers': len(connected_peers),
+                'score': sum(q.get('points', 0) for q in log_copy),
+            })
             return
 
         # Lookup indicatif en temps réel (local → HamQTH si inconnu)
