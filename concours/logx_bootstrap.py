@@ -69,18 +69,78 @@ def bootstrap():
     return data
 
 
-def open_browser(port, delay=1.5):
-    """Ouvre le navigateur sur l'application, après un court délai (laisse le
-    serveur démarrer). En thread pour ne pas bloquer serve_forever()."""
+# ─── DIAGNOSTIC RÉSEAU LOCAL ──────────────────────────────────────────────────
+# Certains antivirus (Avast Web Shield confirmé en usage réel, potentiellement
+# d'autres selon leur "inspection HTTP") interceptent CHAQUE connexion HTTP
+# locale, ajoutant jusqu'à plusieurs secondes de latence. Ce comportement peut
+# être ASYMÉTRIQUE : une exception ajoutée par l'utilisateur pour une adresse
+# IP littérale (127.0.0.1) ne couvre pas forcément "localhost", ou l'inverse
+# selon le logiciel de sécurité. Comme ce programme est destiné à être diffusé
+# à des inconnus (chacun avec un antivirus différent, ou aucun), on ne peut PAS
+# figer un choix a priori — on mesure les deux adresses en direct à chaque
+# démarrage et on retient celle qui répond le plus vite, sans configuration
+# manuelle requise de l'utilisateur.
+_LOCAL_HOSTS = ('127.0.0.1', 'localhost')
+_SLOW_THRESHOLD_MS = 400  # au-delà, la latence n'est plus de la variance normale
+
+
+def _measure_latency(host, port, path='/log/status', timeout=2.0):
+    """Latence (ms) d'un aller-retour HTTP vers host:port+path, None si
+    échec/timeout (serveur pas encore prêt, port bloqué...)."""
+    import time
+    import urllib.request
+    t0 = time.perf_counter()
+    try:
+        with urllib.request.urlopen(f'http://{host}:{port}{path}', timeout=timeout) as r:
+            r.read()
+        return (time.perf_counter() - t0) * 1000
+    except Exception:
+        return None
+
+
+def pick_fastest_host(port):
+    """Teste 127.0.0.1 et localhost, retourne (meilleure_adresse, latence_ms
+    ou None, latence_elevee_partout: bool)."""
+    results = {h: _measure_latency(h, port) for h in _LOCAL_HOSTS}
+    valid = {h: v for h, v in results.items() if v is not None}
+    if not valid:
+        return '127.0.0.1', None, False
+    best = min(valid, key=valid.get)
+    best_ms = valid[best]
+    return best, best_ms, best_ms > _SLOW_THRESHOLD_MS
+
+
+def _report_slow_network(host, ms):
+    print(f"[RÉSEAU] ⚠ Latence locale élevée détectée ({ms:.0f} ms sur {host}) — "
+          f"probablement un antivirus qui inspecte le trafic réseau local "
+          f"(« Web Shield » ou équivalent). Le logiciel reste utilisable mais "
+          f"chaque action sera ralentie. Voir docs/GUIDE_UTILISATEUR.md, "
+          f"section Dépannage, pour ajouter une exception dans ton antivirus.")
+
+
+def start_network_diagnosis(port, delay=1.5, then_open_browser=False):
+    """Lance le diagnostic réseau en tâche de fond (laisse le serveur
+    démarrer avant de le sonder). Si then_open_browser, ouvre le navigateur
+    sur l'adresse la plus rapide une fois le diagnostic terminé — sinon
+    (mode développeur) se contente d'afficher une recommandation en console."""
     import threading
-    import webbrowser
 
-    def _open():
-        # 127.0.0.1 plutôt que localhost : certains antivirus (Avast Web
-        # Shield observé sur ce type de poste) filtrent les exceptions de
-        # site par correspondance TEXTUELLE de l'URL — une exception posée
-        # pour 127.0.0.1 ne couvre pas localhost même si les deux pointent
-        # vers la même machine, ajoutant ~2 s d'inspection à chaque requête.
-        webbrowser.open(f'http://127.0.0.1:{port}/logx_configuration.html')
+    def _run():
+        host, ms, slow = pick_fastest_host(port)
+        if slow:
+            _report_slow_network(host, ms)
+        elif host != '127.0.0.1':
+            print(f"[RÉSEAU] {host} répond plus vite que l'autre adresse locale "
+                  f"sur ce poste ({ms:.0f} ms) — utilisé de préférence.")
+        if then_open_browser:
+            import webbrowser
+            webbrowser.open(f'http://{host}:{port}/logx_configuration.html')
 
-    threading.Timer(delay, _open).start()
+    threading.Timer(delay, _run).start()
+
+
+def open_browser(port, delay=1.5):
+    """Ouvre le navigateur sur l'application, sur l'adresse locale la plus
+    rapide (voir start_network_diagnosis) — jamais figée en dur, puisque le
+    comportement de l'antivirus de l'utilisateur est imprévisible."""
+    start_network_diagnosis(port, delay=delay, then_open_browser=True)

@@ -35,7 +35,7 @@ import threading
 # Amorçage AVANT tout import applicatif : en mode figé (PyInstaller), bascule
 # le répertoire de travail vers le dossier de données utilisateur (inscriptible)
 # et y recopie les fichiers de référence embarqués. En dev : sans effet.
-from logx_bootstrap import bootstrap, open_browser, is_frozen
+from logx_bootstrap import bootstrap, open_browser, is_frozen, start_network_diagnosis
 bootstrap()
 
 from logx_utils import PORT
@@ -222,9 +222,15 @@ if __name__ == '__main__':
     print('  Ctrl+C pour arreter')
     print()
 
-    # Application figée : ouvre le navigateur automatiquement.
+    # Application figée : ouvre le navigateur automatiquement (sur l'adresse
+    # locale la plus rapide — voir logx_bootstrap.pick_fastest_host). En mode
+    # développeur, pas d'ouverture automatique mais le même diagnostic
+    # s'affiche en console : utile aussi pour quelqu'un qui lance le script
+    # directement et dont l'antivirus ralentirait une des deux adresses.
     if is_frozen():
         open_browser(PORT)
+    else:
+        start_network_diagnosis(PORT, then_open_browser=False)
 
     server = http.server.ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     try:

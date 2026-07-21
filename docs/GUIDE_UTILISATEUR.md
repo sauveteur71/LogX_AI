@@ -190,12 +190,29 @@ Services QSL pris en charge, avec upload/synchronisation en un clic depuis le m�
 
 ## 14. Dépannage rapide
 
-- **Le navigateur ne s'ouvre pas au démarrage** : ouvrez manuellement `http://localhost:8080/logx_configuration.html`.
-- **Un autre poste ne voit pas le log partagé** : vérifiez qu'il est sur le **même réseau WiFi**, et utilisez l'adresse IP affichée au démarrage du serveur (pas `localhost`).
+- **Le navigateur ne s'ouvre pas au démarrage** : ouvrez manuellement l'adresse affichée dans la fenêtre du serveur (`http://127.0.0.1:8080/logx_configuration.html` par défaut).
+- **Un autre poste ne voit pas le log partagé** : vérifiez qu'il est sur le **même réseau WiFi**, et utilisez l'adresse IP affichée au démarrage du serveur (« Autres postes WiFi »), pas `127.0.0.1`/`localhost` qui ne désignent que le poste lui-même.
 - **Le copilote IA ne répond pas** : vérifiez la clé API en CONFIG (icône ❓ à côté du champ pour son explication) ; sans clé, tout le reste du logiciel reste utilisable.
 - **Un champ de configuration n'est pas clair** : cliquez l'icône **❓** à côté, ou ouvrez l'assistant **🤖** (voir [§5](#5-lassistant-de-configuration)).
 - **Le pilotage radio ne répond pas** : vérifiez le bon port série (Gestionnaire de périphériques Windows) et que la vitesse (bauds) correspond exactement au réglage de la radio.
 - **Un récepteur WebSDR est marqué « injoignable »** : ce sont des services bénévoles tiers, pas hébergés par LogX AI — réessayez plus tard ou choisissez-en un autre dans la liste.
+
+### Le logiciel répond lentement à chaque clic (antivirus)
+
+LogX AI teste automatiquement, à chaque démarrage, laquelle de ses deux adresses locales (`127.0.0.1` ou `localhost`) répond le plus vite sur votre poste, et utilise la meilleure sans que vous ayez à faire quoi que ce soit. Si malgré ça la fenêtre du serveur affiche un message **« ⚠ Latence locale élevée détectée »**, c'est que votre antivirus inspecte chaque connexion réseau — y compris le trafic purement local entre le logiciel et votre propre navigateur — ce qui ajoute jusqu'à 1 à 2 secondes à chaque action. LogX AI reste utilisable, juste ralenti.
+
+Pour résoudre, ajoutez une exception dans votre antivirus pour l'application ou le port **8080** :
+
+| Antivirus | Où chercher |
+|---|---|
+| **Avast / AVG** | Menu → Paramètres → Protection → **Exceptions** → ajouter le dossier d'installation ou le port 8080 |
+| **Windows Defender** | Sécurité Windows → Protection contre les virus et menaces → Gérer les paramètres → **Exclusions** → ajouter un dossier ou processus |
+| **Norton** | Paramètres → Antivirus → Exclusions/Faible risque → **Éléments à exclure des analyses** |
+| **Kaspersky** | Paramètres → Protection → **Exclusions et applications de confiance** |
+| **Bitdefender** | Protection → Antivirus → Paramètres → **Exclusions** |
+| **McAfee** | Paramètres → Pare-feu ou Protection en temps réel → **Exclusions** |
+
+Dans tous les cas, le plus simple et le plus fiable est d'exclure le **dossier d'installation complet** de LogX AI (ou l'exécutable `LogXAI.exe`) plutôt qu'une adresse réseau précise — certains antivirus filtrent les exceptions d'URL par correspondance exacte du texte (une exception pour `127.0.0.1` ne couvre pas forcément `localhost`, et inversement), alors qu'exclure le programme lui-même couvre toutes ses connexions quelle que soit l'adresse utilisée.
 
 ---
 
