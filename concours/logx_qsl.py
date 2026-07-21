@@ -22,6 +22,11 @@ import time
 import threading
 import urllib.request
 import urllib.parse
+import concurrent.futures as _cf
+
+# Pool dédié : borne l'attente d'un urlopen() dont le timeout ne couvre pas la
+# résolution DNS (getaddrinfo(), bloquante hors du socket — cf. logx_utils.fetch_url).
+_NET_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=4, thread_name_prefix='qsl_net')
 
 CONFIRM_FILE = 'qsl_confirmations.json'
 _lock = threading.Lock()
@@ -215,10 +220,16 @@ def sync_lotw(cfg, since=None):
     if since:
         params['qso_qslsince'] = since
     url = 'https://lotw.arrl.org/lotwuser/lotwreport.adi?' + urllib.parse.urlencode(params)
-    try:
+
+    def _do():
         req = urllib.request.Request(url, headers={'User-Agent': 'LogXAI'})
-        with urllib.request.urlopen(req, timeout=60, context=_ssl_ctx()) as r:
-            body = r.read().decode('utf-8', 'replace')
+        with urllib.request.urlopen(req, timeout=20, context=_ssl_ctx()) as r:
+            return r.read().decode('utf-8', 'replace')
+
+    try:
+        body = _NET_EXECUTOR.submit(_do).result(timeout=23)
+    except _cf.TimeoutError:
+        return {'ok': False, 'error': 'LoTW injoignable : délai dépassé'}
     except Exception as e:
         return {'ok': False, 'error': f'LoTW injoignable : {e}'}
     # Détection d'échec sur un critère FIABLE : identifiants explicitement
@@ -339,6 +350,12 @@ def upload_qrzcq(cfg, adif):
 HRDLOG_HOSTS = ('robot.hrdlog.net', 'www.hrdlog.net')  # primaire, puis secours
 _HRDLOG_INSERT_RE = re.compile(r'<insert>(\d+)</insert>', re.I)
 _HRDLOG_ERROR_RE = re.compile(r'<error>(.*?)</error>', re.I | re.S)
+# Coupe-circuit : sans lui, un envoi sans réseau (terrain /P, HRDLog en panne)
+# retentait les 2 hôtes pour CHAQUE QSO restant — jusqu'à 150 QSO x 16s = 40 min
+# de gel perçu sur une requête HTTP synchrone (POST /qsl/upload). Après N échecs
+# consécutifs (signe clair d'absence réseau plutôt que de malchance répétée),
+# on arrête net plutôt que de rejouer l'attente pour chaque QSO restant.
+HRDLOG_FAIL_CIRCUIT = 5
 
 
 def _single_qso_adif(qso, cfg):
@@ -371,7 +388,9 @@ def upload_hrdlog(cfg, qsos):
     if not qsos:
         return {'ok': False, 'error': 'Aucun QSO à envoyer'}
     sent, failed, last_error = 0, 0, ''
-    for q in qsos:
+    consecutive_fails = 0
+    total = len(qsos)
+    for idx, q in enumerate(qsos):
         record = _single_qso_adif(q, cfg)
         ok_one = False
         for host in HRDLOG_HOSTS:
@@ -397,8 +416,18 @@ def upload_hrdlog(cfg, qsos):
                 last_error = re.sub(r'<[^>]+>', ' ', resp)[:200].strip() or 'Réponse HRDLog inattendue'
         if ok_one:
             sent += 1
+            consecutive_fails = 0
         else:
             failed += 1
+            consecutive_fails += 1
+            if consecutive_fails >= HRDLOG_FAIL_CIRCUIT:
+                remaining = total - (idx + 1)
+                if remaining > 0:
+                    failed += remaining
+                    last_error = (f"Arrêt anticipé après {HRDLOG_FAIL_CIRCUIT} échecs "
+                                  f"consécutifs ({remaining} QSO restant(s) non tenté(s)) — "
+                                  "HRDLog probablement injoignable.")
+                break
     if sent:
         _stamp('hrdlog_upload')
     return {'ok': sent > 0, 'service': 'HRDLog', 'sent': sent, 'failed': failed,

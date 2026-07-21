@@ -35,7 +35,7 @@ def heard_where(callsign, my_locator='', minutes=30):
     from logx_utils import fetch_url
     url = (f'https://retrieve.pskreporter.info/query?senderCallsign={call}'
            f'&flowStartSeconds=-{int(minutes) * 60}&rronly=1')
-    xml = fetch_url(url, timeout=25)
+    xml = fetch_url(url, timeout=10)
     if xml is None:
         return {'ok': False, 'error': 'PSK Reporter injoignable'}
 

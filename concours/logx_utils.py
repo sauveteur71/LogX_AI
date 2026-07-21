@@ -6,6 +6,7 @@ import urllib.error
 import math
 import datetime
 import ssl as _ssl
+import concurrent.futures as _cf
 
 PORT = 8080
 CURRENT_YEAR = datetime.datetime.now().year
@@ -37,14 +38,34 @@ if hasattr(_ssl, 'VERIFY_X509_STRICT'):
 # toujours les certificats contre le magasin Windows (racine Avast incluse) ; seul
 # le mode STRICT de Python 3.13 est désactivé. Une vraie erreur SSL échoue net.
 
+# Pool partagé et borné : fetch_url() y soumet chaque requête au lieu de
+# créer un thread par appel (pas de fuite de threads en cas de dépassement).
+_FETCH_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix='fetch_url')
+
+
 def fetch_url(url, timeout=10):
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
-    })
-    try:
+    """Requête HTTP(S) réellement bornée dans le temps.
+
+    urlopen(timeout=...) ne couvre PAS la résolution DNS : socket.create_connection()
+    appelle getaddrinfo() (résolution système, bloquante) AVANT de créer le socket
+    et d'appliquer le timeout — sur un réseau captif ou un DNS muet (terrain /P
+    sans Internet), l'appel peut rester figé bien au-delà de `timeout` sans
+    qu'aucun except ne s'applique encore. On soumet donc la requête à un pool de
+    threads et on borne l'ATTENTE du résultat avec .result(timeout=...) : si le
+    thread ne revient pas à temps, l'appelant est débloqué immédiatement (le
+    thread abandonné continue seul en arrière-plan jusqu'à sa propre fin, sans
+    jamais allonger le blocage perçu par l'appelant au-delà de la marge fixée)."""
+    def _do():
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
+        })
         with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
             charset = resp.headers.get_content_charset() or 'utf-8'
             return resp.read().decode(charset, errors='replace')
+
+    try:
+        fut = _FETCH_EXECUTOR.submit(_do)
+        return fut.result(timeout=timeout + 3)
     except Exception as e:
         print(f"  [FETCH] {url[:60]}... -> {e}")
         return None

@@ -214,6 +214,15 @@ Pour résoudre, ajoutez une exception dans votre antivirus pour l'application ou
 
 Dans tous les cas, le plus simple et le plus fiable est d'exclure le **dossier d'installation complet** de LogX AI (ou l'exécutable `LogXAI.exe`) plutôt qu'une adresse réseau précise — certains antivirus filtrent les exceptions d'URL par correspondance exacte du texte (une exception pour `127.0.0.1` ne couvre pas forcément `localhost`, et inversement), alors qu'exclure le programme lui-même couvre toutes ses connexions quelle que soit l'adresse utilisée.
 
+### Utilisation sans Internet (terrain /P, zone blanche)
+
+LogX AI est conçu pour rester utilisable même sans aucune connexion Internet — seuls les services EN LIGNE (callbook QRZ/HamQTH/HamDB, clusters DX, propagation, PSK Reporter/RBN, QSL/LoTW, Cloud Sync) sont concernés ; le logbook, le scoring, les diplômes et tout le reste fonctionnent en local sans aucun impact.
+
+- **Recherche d'indicatif (QRZ/HamQTH/HamDB)** : si aucun des trois services ne répond après quelques indicatifs différents tapés de suite, le logiciel « met en pause » cette recherche pendant environ 1 à 2 minutes plutôt que de rejouer une longue attente à chaque nouvel indicatif — il réessaie ensuite automatiquement. C'est normal en zone blanche et n'affecte ni le log ni le scoring.
+- **Envoi vers HRDLog / synchronisation LoTW / Cloud Sync** : ces actions s'arrêtent d'elles-mêmes après quelques échecs consécutifs (plutôt que de rester bloquées plusieurs minutes) et remontent une erreur claire — relancez-les une fois la connexion revenue.
+- **Cloud Sync** : configurez le dossier partagé (OneDrive/Synology Drive/Dropbox) en mode **« toujours conserver sur cet appareil »** plutôt qu'en fichiers à la demande — sinon une synchronisation peut ralentir le temps que le fichier distant soit téléchargé.
+- **Solaire / MUF / propagation** : ces panneaux affichent la dernière valeur connue (avec un indicateur de donnée non fraîche) plutôt que de geler en attendant une réponse réseau qui ne vient pas.
+
 ---
 
-*Dernière mise à jour : 21 juillet 2026 — reflète l'état du logiciel après ajout de l'assistant de configuration, du sélecteur de locator sur carte, du badge météo solaire partagé, du lien PSK Reporter, du panneau satellites, de l'annuaire WebSDR et des spots POTA en direct.*
+*Dernière mise à jour : 21 juillet 2026 — reflète l'état du logiciel après ajout de l'assistant de configuration, du sélecteur de locator sur carte, du badge météo solaire partagé, du lien PSK Reporter, du panneau satellites, de l'annuaire WebSDR, des spots POTA en direct, et du renforcement de la robustesse réseau (diagnostic automatique d'adresse locale, dégradation propre hors connexion pour le callbook/Cloud Sync/QSL, fusion des requêtes d'état matériel rig/ampli/WSJT-X/rotor).*

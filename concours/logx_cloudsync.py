@@ -27,6 +27,7 @@ import glob
 import json
 import os
 import re
+import concurrent.futures as _cf
 
 SYNC_PREFIX = 'logx_cloudsync_'
 _INSTANCE_ID_FILE = '.cloudsync_instance_id'
@@ -92,9 +93,35 @@ def _qso_key(q):
             str(q.get('time', '')).strip())
 
 
+# Le dossier cible est choisi par l'utilisateur et peut être un point de montage
+# géré par un client de sync tiers (OneDrive Files On-Demand, Synology Drive en
+# mode lecteur virtuel, Dropbox Smart Sync) : si un fichier n'est pas hydraté
+# localement, open()/os.makedirs()/os.replace() dessus déclenchent un
+# téléchargement réseau TRANSPARENT côté client de sync, SANS AUCUN timeout
+# Python applicable (ce n'est pas un socket) — l'appel peut rester bloqué des
+# minutes, voire indéfiniment si le poste distant est éteint. Toute la
+# synchronisation (lecture ET écriture) tourne donc dans un thread jetable dont
+# on borne l'ATTENTE : au-delà de SYNC_TIMEOUT, l'appelant (thread de la requête
+# HTTP POST /cloudsync/now, ou le thread de fond périodique) est débloqué et
+# reçoit une erreur claire plutôt qu'un gel sans fin — le thread abandonné, lui,
+# continue seul et se termine de son côté sans jamais affecter l'appelant.
+SYNC_TIMEOUT = 12
+_SYNC_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=3, thread_name_prefix='cloudsync')
+
+
 def sync_now(cfg, shared_log):
     """Synchronise selon le mode configuré. Retourne
     {'ok', 'mode', 'pushed', 'pulled', 'sources'} ou {'ok': False, 'error'}."""
+    try:
+        return _SYNC_EXECUTOR.submit(_sync_now_blocking, cfg, shared_log).result(timeout=SYNC_TIMEOUT)
+    except _cf.TimeoutError:
+        return {'ok': False, 'error': f"Dossier de synchronisation trop lent à répondre "
+                f"(> {SYNC_TIMEOUT}s) — probablement un dossier cloud non téléchargé "
+                "localement (mode « à la demande »). Voir le guide utilisateur, "
+                "section Dépannage."}
+
+
+def _sync_now_blocking(cfg, shared_log):
     s = cloudsync_settings(cfg)
     if not s['enabled']:
         return {'ok': False, 'error': "Cloud Sync désactivé ou dossier non configuré (CONFIG)"}

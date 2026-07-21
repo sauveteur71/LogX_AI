@@ -526,9 +526,9 @@ def do_refresh(cfg):
         if my_ll_op[0] is not None:
             solar_op = {'solar': {'k_index': (noaa or {}).get('k_index', 2)}}
             try:
-                from logx_clusters import fetch_solar_data, fetch_muf
-                sd = fetch_solar_data() or {}
-                solar_op = {'solar': sd, 'muf': fetch_muf(my_ll_op[0], my_ll_op[1])}
+                from logx_clusters import get_solar_cached, get_muf_cached
+                sd = get_solar_cached() or {}
+                solar_op = {'solar': sd, 'muf': get_muf_cached(my_ll_op[0], my_ll_op[1])}
             except Exception:
                 pass
             ob = paths.context_block(my_ll_op[0], my_ll_op[1], solar=solar_op)
@@ -562,6 +562,60 @@ def do_refresh(cfg):
         'on4kst_users': len(on4kst['users']) if on4kst else 0,
         'on4kst_mentions': on4kst_mentions,
     }
+
+# ─── ÉTAT MATÉRIEL (rig/amp/wsjtx/rotor) ─────────────────────────────────────
+# Extrait des anciens corps de handler pour être appelé à la fois par les
+# endpoints individuels (/rig/state, /amp/state, /wsjtx/state, /rotor/state —
+# gardés pour les autres pages) et par /hardware/state (fusion des 4 pour le
+# logbook, qui les pollait séparément à cadence rapide).
+
+def _rig_state_dict(cfg_snap):
+    import logx_cat as cat
+    cat_settings = cat.cat_settings(cfg_snap)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'native':
+        return cat.get_state(cfg_snap)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'tci':
+        import logx_tci as tci
+        return tci.get_state(cfg_snap)
+    import logx_rig as rig
+    settings = rig.rig_settings(cfg_snap)
+    if not settings['enabled']:
+        return {'enabled': False}
+    state = rig.get_state(settings['host'], settings['port'])
+    state['enabled'] = True
+    return state
+
+
+def _amp_state_dict(cfg_snap):
+    import logx_amp as amp
+    return amp.get_state(cfg_snap)
+
+
+def _wsjtx_state_dict(cfg_snap):
+    import logx_wsjtx as wsjtx
+    settings = wsjtx.wsjtx_settings(cfg_snap)
+    if not settings['enabled']:
+        return {'enabled': False}
+    # Démarrage à chaud (idempotent) : pas besoin de relancer le serveur
+    wsjtx.start_listener(
+        get_cfg=lambda: dict(current_config),
+        add_qso=lambda q: add_qso_to_log(q, force=False)[0],
+        port=settings['port'])
+    st = wsjtx.current_status()
+    st['enabled'] = True
+    st['port'] = settings['port']
+    return st
+
+
+def _rotor_state_dict(cfg_snap):
+    import logx_rotor as rotor
+    settings = rotor.rotor_settings(cfg_snap)
+    if not settings['enabled']:
+        return {'enabled': False}
+    state = rotor.get_position(settings['host'], settings['port'])
+    state['enabled'] = True
+    return state
+
 
 # ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -988,11 +1042,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                  and not s.get('scoring', {}).get('already_done'))
             except Exception:
                 pass
-            # Indice K pour la prévision aurora (cache solaire, pas de réseau bloquant)
+            # Indice K pour la prévision aurora — lecture cache seule, jamais
+            # de réseau bloquant (get_solar_cached ne fait qu'un rafraîchissement
+            # de fond si le cache est périmé, /coach/state doit rester rapide).
             k_index = None
             try:
-                from logx_clusters import fetch_solar_data
-                k_index = (fetch_solar_data() or {}).get('k_index')
+                from logx_clusters import get_solar_cached
+                k_index = (get_solar_cached() or {}).get('k_index')
             except Exception:
                 pass
             # Langue des textes du coach (le front la connaît : localStorage rc_lang).
@@ -1359,9 +1415,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'error': 'Locator station non défini'})
                 return
             try:
-                from logx_clusters import fetch_solar_data, fetch_muf
-                solar = {'solar': fetch_solar_data() or {},
-                         'muf': fetch_muf(my_ll[0], my_ll[1])}
+                from logx_clusters import get_solar_cached, get_muf_cached
+                solar = {'solar': get_solar_cached() or {},
+                         'muf': get_muf_cached(my_ll[0], my_ll[1])}
             except Exception:
                 solar = {}
             region = (parse_qs(urlparse(self.path).query).get('region') or [''])[0].upper()
@@ -1398,8 +1454,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError:
                 hour = 0
             try:
-                from logx_clusters import fetch_solar_data, fetch_muf
-                solar = {'solar': fetch_solar_data() or {}, 'muf': fetch_muf(my_ll[0], my_ll[1])}
+                from logx_clusters import get_solar_cached, get_muf_cached
+                solar = {'solar': get_solar_cached() or {}, 'muf': get_muf_cached(my_ll[0], my_ll[1])}
             except Exception:
                 solar = {}
             when = datetime.datetime.utcnow() + datetime.timedelta(hours=hour)
@@ -1470,13 +1526,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(cs.status(self._cfg_snapshot()))
             return
 
-        # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min)
+        # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min,
+        # lecture seule ici — le rafraîchissement réseau se fait en tâche de fond).
         if path == '/data/propagation':
-            from logx_clusters import fetch_solar_data, fetch_muf
+            from logx_clusters import get_solar_cached, get_muf_cached
             cfg_snap = self._cfg_snapshot()
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
-            solar = fetch_solar_data()
-            muf = fetch_muf(my_ll[0], my_ll[1]) if my_ll[0] else fetch_muf()
+            solar = get_solar_cached()
+            muf = get_muf_cached(my_ll[0], my_ll[1]) if my_ll[0] else get_muf_cached()
             self._json({'solar': solar, 'muf': muf})
             return
 
@@ -1526,20 +1583,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Pont WSJT-X (FT8/FT4) : état de la liaison UDP — pollé par le logbook
         if path == '/wsjtx/state':
-            import logx_wsjtx as wsjtx
-            settings = wsjtx.wsjtx_settings(self._cfg_snapshot())
-            if not settings['enabled']:
-                self._json({'enabled': False})
-                return
-            # Démarrage à chaud (idempotent) : pas besoin de relancer le serveur
-            wsjtx.start_listener(
-                get_cfg=lambda: dict(current_config),
-                add_qso=lambda q: add_qso_to_log(q, force=False)[0],
-                port=settings['port'])
-            st = wsjtx.current_status()
-            st['enabled'] = True
-            st['port'] = settings['port']
-            self._json(st)
+            self._json(_wsjtx_state_dict(self._cfg_snapshot()))
             return
 
         # Réseau ADIF générique (N1MM/DXLog) : état de l'écoute — pollé par CONFIG
@@ -1566,31 +1610,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Radio CAT (natif / TCI / rigctld) : état courant — pollé par le logbook
         if path == '/rig/state':
-            cfg_snap = self._cfg_snapshot()
-            import logx_cat as cat
-            cat_settings = cat.cat_settings(cfg_snap)
-            if cat_settings['enabled'] and cat_settings['mode'] == 'native':
-                self._json(cat.get_state(cfg_snap))
-                return
-            if cat_settings['enabled'] and cat_settings['mode'] == 'tci':
-                import logx_tci as tci
-                self._json(tci.get_state(cfg_snap))
-                return
-            import logx_rig as rig
-            settings = rig.rig_settings(cfg_snap)
-            if not settings['enabled']:
-                self._json({'enabled': False})
-                return
-            state = rig.get_state(settings['host'], settings['port'])
-            state['enabled'] = True
-            self._json(state)
+            self._json(_rig_state_dict(self._cfg_snapshot()))
             return
 
         # Amplificateur HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) :
         # état courant (puissance/SWR/défaut/operate) — pollé par le logbook.
         if path == '/amp/state':
-            import logx_amp as amp
-            self._json(amp.get_state(self._cfg_snapshot()))
+            self._json(_amp_state_dict(self._cfg_snapshot()))
             return
 
         # Radio CAT native : ports série disponibles (pour le sélecteur CONFIG)
@@ -1601,14 +1627,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Rotor d'antenne (rotctld) : position courante — pollée par le logbook
         if path == '/rotor/state':
-            import logx_rotor as rotor
-            settings = rotor.rotor_settings(self._cfg_snapshot())
-            if not settings['enabled']:
-                self._json({'enabled': False})
-                return
-            state = rotor.get_position(settings['host'], settings['port'])
-            state['enabled'] = True
-            self._json(state)
+            self._json(_rotor_state_dict(self._cfg_snapshot()))
+            return
+
+        # État matériel groupé : rig+amp+wsjtx+rotor en UNE requête plutôt que 4
+        # séparées. Le logbook pollait chacun individuellement à cadence rapide
+        # (3-4s) — jusqu'à 4 connexions/cycle pour de petits payloads, un coût
+        # non négligeable quand un antivirus inspecte chaque connexion locale.
+        # Les 4 endpoints individuels restent disponibles tels quels (utilisés
+        # aussi par logx_propagation.html/logx_scope.html).
+        if path == '/hardware/state':
+            cfg_snap = self._cfg_snapshot()
+            self._json({
+                'rig': _rig_state_dict(cfg_snap),
+                'amp': _amp_state_dict(cfg_snap),
+                'wsjtx': _wsjtx_state_dict(cfg_snap),
+                'rotor': _rotor_state_dict(cfg_snap),
+            })
             return
 
         # Liste des archives de concours (dossiers permanents)

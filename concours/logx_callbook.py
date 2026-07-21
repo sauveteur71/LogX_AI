@@ -21,6 +21,18 @@ _cache = {}          # CALL -> {'ts', 'data'}
 CACHE_TTL = 24 * 3600  # les fiches HamQTH/HamDB gratuites ne sont pas mises en
                        # cache en amont (contrairement à QRZ) : on évite ici de
                        # marteler ces services publics pour le même indicatif.
+NEG_CACHE_TTL = 5 * 60  # un échec (introuvable/injoignable) se recache court :
+                        # retaper/reconfirmer le même indicatif dans les minutes
+                        # qui suivent ne doit pas rejouer toute la cascade réseau.
+
+# Disjoncteur réseau : en terrain /P sans Internet, chaque NOUVEL indicatif tapé
+# déclenchait la cascade complète (QRZ + HamQTH + HamDB, jusqu'à ~76s cumulés)
+# sans jamais s'accélérer. Après quelques échecs consécutifs sur des indicatifs
+# DIFFÉRENTS (signe que le réseau est absent, pas que ces calls sont introuvables
+# par coïncidence), on coupe court à la cascade pendant un temps de repos.
+_circuit = {'fails': 0, 'until': 0}
+CIRCUIT_THRESHOLD = 3
+CIRCUIT_COOLDOWN = 90
 
 
 def lookup_hamdb(call):
@@ -61,8 +73,17 @@ def lookup(call, cfg):
         return {'ok': False, 'error': 'Indicatif vide'}
 
     hit = _cache.get(call)
-    if hit and time.time() - hit['ts'] < CACHE_TTL:
-        return hit['data']
+    if hit:
+        ttl = CACHE_TTL if hit['data'].get('ok') else NEG_CACHE_TTL
+        if time.time() - hit['ts'] < ttl:
+            return hit['data']
+
+    now = time.time()
+    if now < _circuit['until']:
+        wait = int(_circuit['until'] - now)
+        return {'ok': False, 'error': f"Callbook en pause ({wait}s) : les services "
+                'ont été injoignables sur les derniers indicatifs (probablement '
+                'hors connexion) — nouvelle tentative automatique ensuite.'}
 
     import logx_qrz as qrz
     from logx_clusters import lookup_hamqth
@@ -73,6 +94,7 @@ def lookup(call, cfg):
         r = qrz.lookup(call, settings['user'], settings['pw'])
         if r.get('ok'):
             r['source'] = 'qrz'
+            _circuit['fails'] = 0
             return r  # déjà mis en cache par qrz.py lui-même (24 h)
         errors.append(f"QRZ : {r.get('error', '?')}")
 
@@ -82,13 +104,21 @@ def lookup(call, cfg):
                 'country': hq.get('country', ''), 'grid': hq.get('locator', '').upper(),
                 'dxcc': '', 'source': 'hamqth'}
         _cache[call] = {'ts': time.time(), 'data': data}
+        _circuit['fails'] = 0
         return data
     errors.append("HamQTH : indicatif introuvable ou service injoignable")
 
     hd = lookup_hamdb(call)
     if hd.get('ok'):
         _cache[call] = {'ts': time.time(), 'data': hd}
+        _circuit['fails'] = 0
         return hd
     errors.append(f"HamDB : {hd.get('error', '?')}")
 
-    return {'ok': False, 'error': ' · '.join(errors)}
+    result = {'ok': False, 'error': ' · '.join(errors)}
+    _cache[call] = {'ts': time.time(), 'data': result}
+    _circuit['fails'] += 1
+    if _circuit['fails'] >= CIRCUIT_THRESHOLD:
+        _circuit['until'] = time.time() + CIRCUIT_COOLDOWN
+        _circuit['fails'] = 0
+    return result

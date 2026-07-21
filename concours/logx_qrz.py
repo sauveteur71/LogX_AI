@@ -33,12 +33,15 @@ def _tag(xml, name):
     return m.group(1).strip() if m else ''
 
 
+QRZ_TIMEOUT = 6  # recherche interactive (frappe d'indicatif) : pas de valeur "confort"
+
+
 def _authenticate(user, pw):
     """Ouvre une session QRZ, retourne (key, error)."""
     from logx_utils import fetch_url
     import urllib.parse as up
     url = f'{BASE}?username={up.quote(user)};password={up.quote(pw)};agent=LogXAI'
-    xml = fetch_url(url, timeout=15)
+    xml = fetch_url(url, timeout=QRZ_TIMEOUT)
     if not xml:
         return '', 'QRZ injoignable'
     key = _tag(xml, 'Key')
@@ -49,14 +52,19 @@ def _authenticate(user, pw):
 
 
 def _get_session(user, pw):
-    """Clé de session valide (ré-authentifie si expirée). (key, error)."""
+    """Clé de session valide (ré-authentifie si expirée). (key, error).
+
+    _authenticate() (appel réseau, jusqu'à QRZ_TIMEOUT s) s'exécute HORS du
+    verrou : le tenir pendant l'appel bloquerait tout autre indicatif tapé
+    entre-temps derrière cette même attente, avant même sa propre tentative."""
     with _session_lock:
         if _session['key'] and time.time() - _session['ts'] < SESSION_TTL:
             return _session['key'], ''
-        key, err = _authenticate(user, pw)
-        if key:
+    key, err = _authenticate(user, pw)
+    if key:
+        with _session_lock:
             _session.update(key=key, ts=time.time())
-        return key, err
+    return key, err
 
 
 def lookup(call, user, pw):
@@ -75,7 +83,7 @@ def lookup(call, user, pw):
     key, err = _get_session(user, pw)
     if not key:
         return {'ok': False, 'error': err}
-    xml = fetch_url(f'{BASE}?s={key};callsign={call}', timeout=15)
+    xml = fetch_url(f'{BASE}?s={key};callsign={call}', timeout=QRZ_TIMEOUT)
     if not xml:
         return {'ok': False, 'error': 'QRZ injoignable'}
     # Session expirée : ré-authentifier une fois
@@ -85,7 +93,7 @@ def lookup(call, user, pw):
         key, err = _get_session(user, pw)
         if not key:
             return {'ok': False, 'error': err}
-        xml = fetch_url(f'{BASE}?s={key};callsign={call}', timeout=15) or ''
+        xml = fetch_url(f'{BASE}?s={key};callsign={call}', timeout=QRZ_TIMEOUT) or ''
 
     if '<Callsign>' not in xml:
         return {'ok': False, 'error': _tag(xml, 'Error') or 'Indicatif introuvable sur QRZ'}

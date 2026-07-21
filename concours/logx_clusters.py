@@ -7,6 +7,7 @@ import os
 import re
 import time
 import socket
+import threading
 
 from logx_utils import MODES_NUMERIQUES, fetch_url, is_digital_mode, locator_to_latlon
 
@@ -303,11 +304,17 @@ def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, ti
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(timeout)
             s.connect((host, port))
-            # Lire le prompt de bienvenue
+            # Lire le prompt de bienvenue. Le timeout du socket (settimeout ci-
+            # dessus) borne CHAQUE recv() individuellement, pas la boucle : sans
+            # le recalculer à chaque tour sur la deadline réelle, un seul recv()
+            # qui ne reçoit rien peut à lui seul dépasser le budget de la phase
+            # (ex. 4s annoncées ici) et laisser filer jusqu'au timeout complet du
+            # socket (`timeout`, potentiellement le double ou plus).
             buf = b''
             deadline = time.time() + 4
             while time.time() < deadline:
                 try:
+                    s.settimeout(max(0.05, deadline - time.time()))
                     chunk = s.recv(1024)
                     if not chunk:
                         break
@@ -321,11 +328,12 @@ def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, ti
             time.sleep(1.0)
             # Demander les derniers spots HF
             s.sendall(b'sh/dx/60\r\n')
-            # Lire la réponse
+            # Lire la réponse (même correction de deadline que ci-dessus)
             raw = b''
             deadline = time.time() + timeout
             while time.time() < deadline:
                 try:
+                    s.settimeout(max(0.05, deadline - time.time()))
                     chunk = s.recv(4096)
                     if not chunk:
                         break
@@ -415,10 +423,15 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
         s.connect((host, int(port)))
 
         def read_until(patterns, max_wait=5):
+            # Recalcule le timeout du socket à chaque recv() sur la deadline
+            # RÉELLEMENT restante — sinon un seul recv() peut, à lui seul,
+            # dépasser max_wait jusqu'au timeout du socket (settimeout(timeout)
+            # plus haut), qui peut être bien plus long.
             buf = b''
             deadline = time.time() + max_wait
             while time.time() < deadline:
                 try:
+                    s.settimeout(max(0.05, deadline - time.time()))
                     chunk = s.recv(4096)
                     if not chunk:
                         break
@@ -500,10 +513,13 @@ def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, time
         s.connect((host, port))
 
         def read_until(patterns, max_wait=6):
+            # Même correction que publish_self_spot : recalcule le timeout du
+            # socket sur la deadline restante à chaque recv().
             buf = b''
             deadline = time.time() + max_wait
             while time.time() < deadline:
                 try:
+                    s.settimeout(max(0.05, deadline - time.time()))
                     chunk = s.recv(4096)
                     if not chunk:
                         break
@@ -971,9 +987,11 @@ def fetch_3830_scores(contest_id, callsign):
 # ─── MODULE 5 : HAMQTH (Lookup indicatif inconnu) ───────────────────────────
 def lookup_hamqth(callsign, session_id=None):
     try:
-        # HamQTH API libre (sans clé pour lookup basique)
+        # HamQTH API libre (sans clé pour lookup basique). Timeout court : cet
+        # appel est déclenché à CHAQUE frappe d'indicatif dans le logbook
+        # (/calldb/lookup) — un budget "confort" de 8s s'y perçoit comme un gel.
         url = f'https://www.hamqth.com/dxlite.php?q={callsign}'
-        content = fetch_url(url, timeout=8)
+        content = fetch_url(url, timeout=4)
         if not content: return None
         # Parser XML simple
         grid = re.search(r'<grid>([^<]+)</grid>', content)
@@ -1115,3 +1133,63 @@ def fetch_muf(my_lat=None, my_lon=None):
     except Exception as e:
         print(f"[MUF] Erreur: {e}")
         return _muf_cache['data']
+
+
+# ─── Accès NON BLOQUANT au cache solaire/MUF ─────────────────────────────────
+# fetch_solar_data()/fetch_muf() ci-dessus font un appel réseau synchrone
+# (jusqu'à 15s chacune) dès que le cache de 15 min expire. Appelées en direct
+# depuis un handler HTTP (/coach/state, /data/propagation, /data/openings,
+# /data/propmap — tous documentés "pollables"), elles y gelaient le panneau
+# concerné jusqu'à ~30s toutes les ~15 min si hamqsl.com/prop.kc2g.com étaient
+# lents ou injoignables (cas fréquent en terrain sans Internet fiable). Les
+# fonctions ci-dessous ne font QUE lire le cache existant (même périmé, avec
+# un indicateur 'stale') et déclenchent le rafraîchissement réseau dans un
+# thread de fond détaché — jamais dans le thread de la requête HTTP.
+_solar_refresh_lock = threading.Lock()
+_muf_refresh_lock = threading.Lock()
+
+
+def _refresh_solar_async():
+    if not _solar_refresh_lock.acquire(blocking=False):
+        return  # un rafraîchissement est déjà en vol
+    def _run():
+        try:
+            fetch_solar_data()
+        finally:
+            _solar_refresh_lock.release()
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def get_solar_cached():
+    """Jamais bloquant — à utiliser depuis les handlers HTTP à la place de
+    fetch_solar_data() (réservée aux appels de fond/tests)."""
+    stale = not _solar_cache['data'] or time.time() - _solar_cache['ts'] >= 900
+    if stale:
+        _refresh_solar_async()
+    data = dict(_solar_cache['data']) if _solar_cache['data'] else {}
+    if data:
+        data['stale'] = stale
+    return data
+
+
+def _refresh_muf_async(my_lat, my_lon):
+    if not _muf_refresh_lock.acquire(blocking=False):
+        return
+    def _run():
+        try:
+            fetch_muf(my_lat, my_lon)
+        finally:
+            _muf_refresh_lock.release()
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def get_muf_cached(my_lat=None, my_lon=None):
+    """Jamais bloquant — à utiliser depuis les handlers HTTP à la place de
+    fetch_muf() (réservée aux appels de fond/tests)."""
+    stale = not _muf_cache['data'] or time.time() - _muf_cache['ts'] >= 900
+    if stale:
+        _refresh_muf_async(my_lat, my_lon)
+    data = dict(_muf_cache['data']) if _muf_cache['data'] else {}
+    if data:
+        data['stale'] = stale
+    return data

@@ -15,6 +15,7 @@ import re
 import socket
 import time
 import threading
+import concurrent.futures as _cf
 
 RBN_HOST = 'telnet.reversebeacon.net'
 RBN_PORT = 7000            # 7000 = CW/RTTY, 7001 = numérique (redondant avec PSK)
@@ -22,6 +23,12 @@ RBN_PORT = 7000            # 7000 = CW/RTTY, 7001 = numérique (redondant avec P
 _cache = {'ts': 0, 'data': None, 'call': ''}
 CACHE_S = 120
 _lock = threading.Lock()
+# s.settimeout() borne connect()/recv() mais PAS la résolution DNS de RBN_HOST
+# (getaddrinfo(), appel système bloquant hors du socket) : sur un réseau sans
+# résolveur joignable (/P, box captive), cette étape peut durer bien plus que
+# `timeout` avant même la tentative de connexion. On exécute donc tout le
+# dialogue réseau dans un thread jetable et on borne l'ATTENTE du résultat.
+_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=2, thread_name_prefix='rbn')
 
 # "DX de F4ABC-#:  14025.0  DL9XYZ  CW    18 dB  28 wpm  CQ    1432Z"
 _LINE_RE = re.compile(
@@ -51,15 +58,19 @@ def where_heard(my_call, timeout=9):
                 and time.time() - _cache['ts'] < CACHE_S):
             return _cache['data']
 
-    try:
+    def _dialog():
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(timeout)
         s.connect((RBN_HOST, RBN_PORT))
-        # Prompt de login
+        # Prompt de login. Recalcule le timeout du socket sur la deadline
+        # RÉELLEMENT restante à chaque recv() — sinon un seul recv() peut
+        # dépasser à lui seul le budget de la phase (5s ici) jusqu'au timeout
+        # du socket (`timeout`, réglé plus large pour la lecture principale).
         buf = b''
         deadline = time.time() + 5
         while time.time() < deadline:
             try:
+                s.settimeout(max(0.05, deadline - time.time()))
                 chunk = s.recv(1024)
                 if not chunk:
                     break
@@ -69,11 +80,12 @@ def where_heard(my_call, timeout=9):
             except socket.timeout:
                 break
         s.sendall((base + '\r\n').encode())
-        # Écoute le flux quelques secondes
+        # Écoute le flux quelques secondes (même correction de deadline)
         raw = b''
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
+                s.settimeout(max(0.05, deadline - time.time()))
                 chunk = s.recv(4096)
                 if not chunk:
                     break
@@ -85,6 +97,12 @@ def where_heard(my_call, timeout=9):
         except Exception:
             pass
         s.close()
+        return raw
+
+    try:
+        raw = _EXECUTOR.submit(_dialog).result(timeout=timeout + 3)
+    except _cf.TimeoutError:
+        return {'ok': False, 'error': 'RBN injoignable (délai dépassé, résolution réseau lente)'}
     except Exception as e:
         return {'ok': False, 'error': f'RBN injoignable ({e})'}
 

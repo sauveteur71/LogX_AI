@@ -133,3 +133,22 @@ def test_status_compte_les_autres_installations(tmp_path):
 def test_status_desactive():
     st = cs.status({})
     assert st['enabled'] is False and st['mode'] == 'off'
+
+
+def test_sync_now_borne_si_dossier_cloud_bloque_indefiniment(monkeypatch, tmp_path):
+    """Dossier cloud en mode « placeholder » non hydraté (OneDrive/Synology
+    Drive/Dropbox) : os.makedirs() peut rester bloqué indéfiniment sans lever
+    aucune exception ni respecter aucun timeout Python (ce n'est pas un socket).
+    sync_now() doit quand même rendre la main à l'appelant après SYNC_TIMEOUT,
+    plutôt que de le geler sans fin."""
+    import time
+    def hung_makedirs(*a, **k):
+        time.sleep(cs.SYNC_TIMEOUT + 5)
+    monkeypatch.setattr(cs.os, 'makedirs', hung_makedirs)
+    monkeypatch.setattr(cs, 'SYNC_TIMEOUT', 1)
+    cfg = {'cloudsync_mode': 'push', 'cloudsync_folder': str(tmp_path), 'callsign_contest': 'F4GLD'}
+    t0 = time.time()
+    r = cs.sync_now(cfg, [QSO_A])
+    elapsed = time.time() - t0
+    assert not r['ok'] and 'lent' in r['error'].lower()
+    assert elapsed < 4  # bien avant les cs.SYNC_TIMEOUT+5 s du blocage simulé

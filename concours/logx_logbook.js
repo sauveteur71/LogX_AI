@@ -2774,7 +2774,13 @@ function adaptivePoll(fn, fastMs, slowMs, isActive){
 let rigState = {enabled:false, mode:'', freq_khz:0};
 
 function refreshRig(){
-  return fetch('/rig/state').then(r=>r.ok?r.json():null).then(d=>{
+  return fetch('/rig/state').then(r=>r.ok?r.json():null).then(applyRigState).catch(()=>{});
+}
+
+// Extrait de refreshRig() pour être réutilisable depuis refreshHardware()
+// (poll groupé rig+amp+wsjtx+rotor en 1 requête, voir plus bas) — refreshRig()
+// elle-même reste utilisable telle quelle pour un rafraîchissement ponctuel.
+function applyRigState(d){
     const panel = document.getElementById('rigPanel');
     const freqBtn = document.getElementById('freqRigBtn');
     if(!d || !d.enabled){ rigState.enabled=false; if(panel) panel.style.display='none'; if(freqBtn) freqBtn.style.display='none'; return; }
@@ -2800,7 +2806,6 @@ function refreshRig(){
       document.getElementById('rigMode').textContent = '';
       if(dot) dot.classList.remove('on');
     }
-  }).catch(()=>{});
 }
 
 function syncBandModeFromRig(freqKhz, mode){
@@ -2823,8 +2828,6 @@ function rigStopCW(){
   fetch('/rig/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).catch(()=>{});
 }
 
-adaptivePoll(refreshRig, 3000, 20000, ()=>rigState.enabled);
-
 // ─── AMPLIFICATEUR HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) ──────
 // Panneau compact : puissance/SWR/défaut affichés en direct + bascule
 // standby/operate. Les champs varient selon la marque (logx_amp.py
@@ -2833,7 +2836,11 @@ adaptivePoll(refreshRig, 3000, 20000, ()=>rigState.enabled);
 let ampState = {enabled: false, operate: false};
 
 function refreshAmp(){
-  return fetch('/amp/state').then(r=>r.ok?r.json():null).then(d=>{
+  return fetch('/amp/state').then(r=>r.ok?r.json():null).then(applyAmpState).catch(()=>{});
+}
+
+// Extrait de refreshAmp() — voir applyRigState() plus haut pour le pourquoi.
+function applyAmpState(d){
     const panel = document.getElementById('ampPanel');
     if(!d || !d.enabled){ ampState.enabled = false; if(panel) panel.style.display = 'none'; return; }
     ampState.enabled = true;
@@ -2866,7 +2873,6 @@ function refreshAmp(){
       faultEl.textContent = '';
       if(dot) dot.classList.remove('on');
     }
-  }).catch(()=>{});
 }
 
 function toggleAmpOperate(){
@@ -2875,19 +2881,17 @@ function toggleAmpOperate(){
     body: JSON.stringify({on: target})}).then(()=>refreshAmp()).catch(()=>{});
 }
 
-adaptivePoll(refreshAmp, 3000, 20000, ()=>ampState.enabled);
-
 // ─── ROTOR (rotctld) ─────────────────────────────────────────────────────────
 // Sonde l'état pour savoir si le pilotage est actif (affiche le bouton
 // « pointer » sous la boussole) ; le pointage réel se fait à la demande.
 let rotorState = {enabled:false};
 function refreshRotor(){
-  fetch('/rotor/state').then(r=>r.ok?r.json():null).then(d=>{
-    rotorState.enabled = !!(d && d.enabled);
-  }).catch(()=>{ rotorState.enabled = false; });
+  return fetch('/rotor/state').then(r=>r.ok?r.json():null).then(applyRotorState)
+    .catch(()=>{ rotorState.enabled = false; });
 }
-refreshRotor();
-setInterval(refreshRotor, 15000);
+function applyRotorState(d){
+  rotorState.enabled = !!(d && d.enabled);
+}
 
 // ─── MÉTÉO DU POINT HAUT (sécurité matériel /P) ──────────────────────────────
 function refreshWeather(){
@@ -2910,7 +2914,10 @@ setInterval(refreshWeather, 10 * 60 * 1000);   // cache serveur 10 min
 let _wsjtxLastTotal = -1;
 let _wsjtxState = {enabled:false};
 function refreshWsjtx(){
-  return fetch('/wsjtx/state').then(r=>r.ok?r.json():null).then(d=>{
+  return fetch('/wsjtx/state').then(r=>r.ok?r.json():null).then(applyWsjtxState).catch(()=>{});
+}
+// Extrait de refreshWsjtx() — voir applyRigState() plus haut pour le pourquoi.
+function applyWsjtxState(d){
     const el = document.getElementById('wsjtxWidget');
     _wsjtxState.enabled = !!(d && d.enabled);
     if(!el || !d || !d.enabled){ if(el) el.style.display='none'; return; }
@@ -2927,9 +2934,29 @@ function refreshWsjtx(){
       try{ fetchLog(); playBeep && playBeep(1046, 90); }catch(e){}
     }
     _wsjtxLastTotal = d.logged_total || 0;
+}
+
+// ─── ÉTAT MATÉRIEL GROUPÉ (rig+amp+wsjtx+rotor) ──────────────────────────────
+// Les 4 panneaux ci-dessus étaient pollés séparément (3 requêtes à 3-4s de
+// cadence + le rotor à 15s fixe, non adaptatif) : jusqu'à 4 connexions HTTP
+// par cycle pour de petits payloads, un coût non négligeable si un antivirus
+// (Web Shield ou équivalent) inspecte chaque connexion locale. /hardware/state
+// les groupe en 1 requête ; refreshRig/Amp/Wsjtx/Rotor restent disponibles
+// individuellement (ex. toggleAmpOperate rafraîchit juste l'ampli après un clic).
+function refreshHardware(){
+  return fetch('/hardware/state').then(r=>r.ok?r.json():null).then(d=>{
+    if(!d) return;
+    applyRigState(d.rig);
+    applyAmpState(d.amp);
+    applyWsjtxState(d.wsjtx);
+    applyRotorState(d.rotor);
   }).catch(()=>{});
 }
-adaptivePoll(refreshWsjtx, 4000, 20000, ()=>_wsjtxState.enabled);
+// adaptivePoll() appelle refreshHardware() une 1re fois immédiatement (voir sa
+// définition plus haut) — pas besoin d'un appel initial séparé, contrairement
+// à l'ancien refreshRotor() qui utilisait setInterval (sans appel immédiat).
+adaptivePoll(refreshHardware, 3000, 20000,
+  ()=>rigState.enabled || ampState.enabled || _wsjtxState.enabled || rotorState.enabled);
 function editMacro(idx){
   const macros = getMacros();
   const m = macros[idx];
@@ -3707,11 +3734,19 @@ function hideCompassInline(){
 
 // ─── CHAT MULTI-OPÉRATEUR ─────────────────────────────────────────────────────
 let chatLastId = 0;
-let chatTimer = null;
 
 function startChat(){
-  pollChat();
-  if(!chatTimer) chatTimer = setInterval(pollChat, 3000);
+  // Poll adaptatif : rapide (3s) quand le panneau chat est ouvert, ralenti
+  // (15s) sinon — le point rouge de notification (renderChatMsg) continue de
+  // fonctionner panneau fermé, juste avec une latence un peu plus longue.
+  // Avant ce correctif : setInterval(pollChat, 3000) tournait à vie dès le
+  // chargement de la page, panneau ouvert ou non — la requête la plus
+  // fréquente du fichier avec rig/amp, même sur un poste où personne ne
+  // regarde jamais le chat.
+  adaptivePoll(pollChat, 3000, 15000, ()=>{
+    const panel = document.getElementById('chatPanel');
+    return !!(panel && panel.classList.contains('open'));
+  });
 }
 
 async function pollChat(){
@@ -3770,6 +3805,10 @@ function toggleChat(){
     document.getElementById('chatDot').style.display = 'none';
     document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
     document.getElementById('chatInput').focus();
+    // Poll immédiat à l'ouverture : le poll de fond peut être en cadence
+    // ralentie (15s, panneau fermé) — ne pas attendre jusqu'à ce délai pour
+    // afficher les messages reçus pendant que le panneau était fermé.
+    pollChat();
   }
 }
 

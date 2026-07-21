@@ -1099,7 +1099,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div class="form-group">
           <label>DOSSIER PARTAGÉ</label>
           <input type="text" id="cloudsync_folder" placeholder="vide = même dossier que SAUVEGARDE" autocomplete="off">
-          <div class="input-note">Doit être IDENTIQUE sur tous les postes qui synchronisent ensemble</div>
+          <div class="input-note">Doit être IDENTIQUE sur tous les postes qui synchronisent ensemble.
+            Configure ce dossier en « toujours conserver sur cet appareil » (pas de fichiers à la
+            demande/placeholder) — sinon une synchro peut ralentir en attendant un téléchargement cloud.</div>
         </div>
         <div class="form-group">
           <label>INTERVALLE (min)</label>
@@ -1514,7 +1516,7 @@ const CONFIG_HELP = {
   on4kst_callsign: "Ton indicatif pour te connecter au chat ON4KST (chat texte très utilisé en VHF/UHF pour organiser des skeds).",
   on4kst_password: "Ton mot de passe du chat ON4KST.",
 
-  cloudsync_folder: "Le dossier local DÉJÀ synchronisé par un outil comme Synology Drive/OneDrive/Dropbox : c'est via ce dossier partagé que plusieurs postes échangent leurs QSO, sans service en ligne dédié.",
+  cloudsync_folder: "Le dossier local DÉJÀ synchronisé par un outil comme Synology Drive/OneDrive/Dropbox : c'est via ce dossier partagé que plusieurs postes échangent leurs QSO, sans service en ligne dédié. Choisis l'option « toujours conserver sur cet appareil » dans cet outil (pas de fichiers à la demande) pour que la synchro reste rapide.",
   cloudsync_mode: "FULL = ce poste envoie ET reçoit les QSO des autres postes ; PUSH = il envoie seulement (utile pour un poste isolé avec liaison intermittente) ; OFF = désactivé.",
   cloudsync_interval: "La fréquence (en minutes) à laquelle ce poste vérifie s'il y a de nouveaux QSO à échanger.",
   backup_folder: "Le dossier où les sauvegardes automatiques de ton log sont écrites — choisis un emplacement hors du dossier du logiciel (clé USB, cloud...).",

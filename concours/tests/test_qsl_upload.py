@@ -134,6 +134,35 @@ def test_hrdlog_reponse_avec_erreur_xml(monkeypatch):
     assert 'Duplicate' in r['error']
 
 
+def test_hrdlog_coupe_circuit_apres_echecs_consecutifs(monkeypatch):
+    """Hors ligne : ne doit pas retenter les 2 hôtes pour CHAQUE QSO restant
+    (40 min de gel possible sur 150 QSO avant ce correctif) — s'arrête après
+    HRDLOG_FAIL_CIRCUIT échecs consécutifs et compte le reste en échec."""
+    calls = {'n': 0}
+    def boom(host, call, code, rec, timeout=8):
+        calls['n'] += 1
+        raise OSError('injoignable')
+    monkeypatch.setattr(qsl, '_hrdlog_post_one', boom)
+    qsos = [dict(QSO, call=f'DL{i}AA') for i in range(20)]
+    r = qsl.upload_hrdlog(HRDLOG_CFG, qsos)
+    assert not r['ok'] and r['sent'] == 0 and r['failed'] == 20
+    assert calls['n'] == qsl.HRDLOG_FAIL_CIRCUIT * len(qsl.HRDLOG_HOSTS)
+    assert 'Arrêt anticipé' in r['error']
+
+
+def test_hrdlog_pas_de_coupe_circuit_si_succes_intermittents(monkeypatch):
+    """Un succès remet le compteur d'échecs consécutifs à zéro — pas de coupure
+    tant que le réseau répond, même par intermittence."""
+    def alterne(host, call, code, rec, timeout=8):
+        if host == qsl.HRDLOG_HOSTS[0]:
+            raise OSError('injoignable')
+        return '<NewEntry><insert>1</insert></NewEntry>'
+    monkeypatch.setattr(qsl, '_hrdlog_post_one', alterne)
+    qsos = [dict(QSO, call=f'DL{i}AA') for i in range(10)]
+    r = qsl.upload_hrdlog(HRDLOG_CFG, qsos)
+    assert r['ok'] and r['sent'] == 10 and r['failed'] == 0
+
+
 def test_hrdlog_insert_zero_sans_balise_error_est_bien_un_echec(monkeypatch):
     """Régression : vérifié en direct contre le vrai serveur HRDLog — des
     identifiants invalides renvoient '<insert>0</insert>' SANS balise <error>.
