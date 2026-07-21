@@ -9,7 +9,7 @@ LogX AI est un logiciel de journal de trafic (« logbook ») pour radioamateurs 
 1. [Installation et premier lancement](#1-installation-et-premier-lancement)
 2. [Prise en main en 5 minutes](#2-prise-en-main-en-5-minutes)
 3. [Choisir son mode d'utilisation](#3-choisir-son-mode-dutilisation)
-4. [Configurer sa station, étape par étape](#4-configurer-sa-station-étape-par-étape)
+4. [Configurer sa station : le hub de catégories](#4-configurer-sa-station--le-hub-de-catégories)
 5. [L'assistant de configuration](#5-lassistant-de-configuration)
 6. [Utiliser le Logbook au quotidien](#6-utiliser-le-logbook-au-quotidien)
 7. [Faire un concours de A à Z](#7-faire-un-concours-de-a-à-z)
@@ -39,7 +39,7 @@ L'installation détaillée (Windows/macOS, version autonome vs mode développeur
 Pour logger votre tout premier QSO sans vous perdre dans les réglages :
 
 1. Ouvrez l'onglet **⚙ CONFIG**.
-2. Étape **1 · MA STATION** : renseignez votre **INDICATIF** et votre **LOCATOR MAIDENHEAD** (bouton **📍 Sur la carte** si vous ne le connaissez pas — voir [§4](#4-configurer-sa-station-étape-par-étape)).
+2. Cliquez la carte **📛 1. Identité** (section MA STATION) : renseignez votre **INDICATIF** et votre **LOCATOR MAIDENHEAD** (bouton **📍 Sur la carte** si vous ne le connaissez pas — voir [§4](#4-configurer-sa-station--le-hub-de-catégories)), puis fermez la popup.
 3. En haut de la page, laissez **MODE D'UTILISATION** sur **📋 LOGBOOK SIMPLE** si vous ne participez à aucun concours pour l'instant.
 4. Cliquez **💾 SAUVEGARDER** en bas, puis ouvrez l'onglet **📋 LOGBOOK**.
 5. Tapez un indicatif dans le champ prévu, complétez le RST, validez avec **Entrée** ou **F9**.
@@ -54,7 +54,7 @@ En haut de la page CONFIG, le sélecteur **MODE D'UTILISATION** change le compor
 
 | Mode | Pour qui | Ce qui change |
 |---|---|---|
-| **📋 LOGBOOK SIMPLE** | Chasse DX / trafic courant, sans concours | Pas de règle « 1 QSO/station/bande », pas d'étape CONCOURS, recontacter la même station à une autre date n'est pas un doublon, **le journal affiché est l'historique complet** (tous concours et années confondus) |
+| **📋 LOGBOOK SIMPLE** | Chasse DX / trafic courant, sans concours | Pas de règle « 1 QSO/station/bande », la catégorie CONCOURS du hub CONFIG devient facultative, recontacter la même station à une autre date n'est pas un doublon, **le journal affiché est l'historique complet** (tous concours et années confondus) |
 | **🏆 CONCOURS** | Participation à une épreuve avec règlement | Échange, scoring, multiplicateurs et détection de doublon actifs, need list et coach affichés, **le logbook, la carte et le score n'affichent QUE les QSO de CETTE édition** (le concours choisi + l'année en cours) |
 | **📡 EXPÉDITION / ACTIVATION** | DXpédition, SOTA/POTA/IOTA, multi-poste | Saisie simplifiée (indicatif + reports), écran mural, pile-up, suivi de progression d'activation |
 
@@ -64,24 +64,25 @@ Vos QSO existants ne sont **jamais perdus** en changeant de mode ou de concours 
 
 ---
 
-## 4. Configurer sa station, étape par étape
+## 4. Configurer sa station : le hub de catégories
 
-La configuration se fait en 5 étapes cliquables (revenez en arrière à tout moment) :
+La page CONFIG est un **hub de cartes cliquables**, groupées en 7 sections, plutôt qu'un parcours imposé dans un ordre fixe : ouvrez la catégorie dont vous avez besoin, remplissez sa popup, fermez-la — dans n'importe quel ordre, à tout moment. Chaque carte affiche un badge d'état : **✅** configurée et valide, **⚠️** remplie mais incomplète/invalide, **○** optionnelle et non configurée.
 
-### Étape 1 — MA STATION
-Identité (indicatif, indicatif concours si différent, ville, altitude, puissance) et **locator Maidenhead**. Si vous ne connaissez pas votre locator, cliquez **📍 Sur la carte** à côté du champ : une carte s'ouvre, vous cliquez votre position (ou cherchez une ville, ou utilisez **🛰️ Ma position**), et la grille 6 caractères est calculée automatiquement. Cette même fenêtre permet aussi de **comparer** votre position à un locator distant tapé à la main (distance + azimut affichés, ligne tracée sur la carte).
+| Section | Catégories |
+|---|---|
+| **MA STATION** | 1. Identité (indicatif, locator, antennes, transceiver) · 2. Opérateurs (multi-op, responsable log) |
+| **CONCOURS** | 3. Sélection (grille de concours + recherche + analyse IA d'un règlement) · 4. Dates & filtres (dates, bandes/modes actifs) |
+| **MATÉRIEL** | 5. Radio — pilotage CAT natif/TCI/rigctld, WSJT-X, keyer vocal · 6. Amplificateur · 7. Rotor d'antenne |
+| **RÉSEAU & SAUVEGARDE** | 8. Multi-poste & Cloud — Cloud Sync, réseau ADIF (N1MM/DXLog) · 9. Sauvegarde automatique |
+| **PROPAGATION & ALERTES** | 10. Sources — cluster DX, RBN, ON4KST, PSK Reporter... · 11. Alertes — distance DX, spotter, règles personnalisées |
+| **APRÈS LE CONCOURS** | 12. QSL & diplômes — QRZ, eQSL, LoTW, ClubLog, QRZCQ, HRDLog · 13. Scoreboard & soumission — score en direct, URL/délai d'envoi du log |
+| **SPÉCIAL** | 14. Expédition / Activation — POTA/SOTA/IOTA/WWFF, écran mural, self-spot · 15. Assistant IA — fournisseur, clé API |
 
-### Étape 2 — CONCOURS
-Une grille de cartes recense des dizaines de concours pré-configurés (REF, IARU, CQ WW/WPX, ARRL, WAE, SOTA, POTA...) avec recherche instantanée. Choisir un concours pré-remplit dates, bandes et modes. Pour un concours absent de la liste, collez l'URL de son règlement dans **🤖 ANALYSER UN RÈGLEMENT** : l'IA en extrait bandes, dates, échange et barème — la proposition est **toujours présentée en relecture** avant d'être enregistrée, jamais automatiquement.
+Si vous ne connaissez pas votre locator, ouvrez la carte **1. Identité** puis cliquez **📍 Sur la carte** à côté du champ : une carte s'ouvre, vous cliquez votre position (ou cherchez une ville, ou utilisez **🛰️ Ma position**), et la grille 6 caractères est calculée automatiquement. Cette même fenêtre permet aussi de **comparer** votre position à un locator distant tapé à la main (distance + azimut affichés, ligne tracée sur la carte).
 
-### Étape 3 — FILTRES
-Bandes et modes actifs, filtre de préfixe pour ne garder que certains pays dans la need list, distance à partir de laquelle un spot est considéré comme un DX exceptionnel.
+Pour un concours absent de la grille de la carte **3. Sélection**, collez l'URL de son règlement dans **🤖 ANALYSER UN RÈGLEMENT** : l'IA en extrait bandes, dates, échange et barème — la proposition est **toujours présentée en relecture** avant d'être enregistrée, jamais automatiquement.
 
-### Étape 4 — PROPAGATION
-Réglages liés aux alertes de propagation (Sporadique-E, tropo, aurore) et aux sources de spots à activer (cluster DX, RBN, chat ON4KST).
-
-### Étape 5 — RÉSUMÉ
-Récapitulatif complet avant de démarrer. Un bouton **🎚 EXPERT** (en haut de page) révèle les réglages avancés (radio CAT, ampli, rotor, cloud sync, alertes personnalisées) — masqués par défaut pour ne pas noyer un débutant.
+Le lien **📊 Résumé ▸** en tête du hub ouvre à tout moment un récapitulatif complet avant de démarrer, avec le bouton **🚀 COMMENCER À LOGGER**. Un bouton **🎚 EXPERT** (en haut de page) révèle en plus les réglages avancés (radio CAT, ampli, rotor, cloud sync, alertes personnalisées) dans leurs popups respectives — masqués par défaut pour ne pas noyer un débutant.
 
 ### Profils
 Plusieurs configurations peuvent être sauvegardées sous un nom (ex. « HF fixe », « VHF portable ») et rechargées en un clic via le sélecteur de profil en haut de page.
@@ -152,7 +153,7 @@ Dans CONFIG (mode 🎚 EXPERT), section radio :
 
 ## 10. Le copilote IA
 
-Nécessite une clé API (Anthropic, OpenAI ou Gemini — champ **CLÉ API** en CONFIG, étape PROPAGATION en mode expert). Sans clé, tout le reste du logiciel fonctionne normalement ; seul le copilote est indisponible.
+Nécessite une clé API (Anthropic, OpenAI ou Gemini — champ **CLÉ API** dans la carte **🤖 15. Assistant IA** de CONFIG). Sans clé, tout le reste du logiciel fonctionne normalement ; seul le copilote est indisponible.
 
 Une fois configuré, le chat IA (accessible depuis le logbook et en mobilité) reçoit **automatiquement** votre contexte réel : indicatif, locator, concours actif et son règlement exact, votre log complet, le log partagé multi-opérateur, et tous les spots actifs. Vous n'avez rien à copier/coller. Il peut :
 
@@ -227,4 +228,4 @@ LogX AI est conçu pour rester utilisable même sans aucune connexion Internet �
 
 ---
 
-*Dernière mise à jour : 21 juillet 2026 — reflète l'état du logiciel après ajout de l'assistant de configuration, du sélecteur de locator sur carte, du badge météo solaire partagé, du lien PSK Reporter, du panneau satellites, de l'annuaire WebSDR, des spots POTA en direct, du renforcement de la robustesse réseau (diagnostic automatique d'adresse locale, dégradation propre hors connexion pour le callbook/Cloud Sync/QSL, fusion des requêtes d'état matériel rig/ampli/WSJT-X/rotor), et de la portée par concours+année (le mode CONCOURS n'affiche plus que les QSO de l'édition active — logbook, carte et score démarrent vierges sur un concours jamais loggué).*
+*Dernière mise à jour : 21 juillet 2026 — reflète l'état du logiciel après ajout de l'assistant de configuration, du sélecteur de locator sur carte, du badge météo solaire partagé, du lien PSK Reporter, du panneau satellites, de l'annuaire WebSDR, des spots POTA en direct, du renforcement de la robustesse réseau (diagnostic automatique d'adresse locale, dégradation propre hors connexion pour le callbook/Cloud Sync/QSL, fusion des requêtes d'état matériel rig/ampli/WSJT-X/rotor), de la portée par concours+année (le mode CONCOURS n'affiche plus que les QSO de l'édition active — logbook, carte et score démarrent vierges sur un concours jamais loggué), et de la refonte de la page CONFIG : l'ancien assistant à 5 étapes est remplacé par un hub de 15 catégories cliquables avec badges d'état, chaque catégorie s'ouvrant dans sa propre popup (§4).*
