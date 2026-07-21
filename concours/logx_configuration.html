@@ -41,10 +41,10 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .app-nav .nav-spacer{flex:1}
 .app-nav .nav-info{font-family:var(--font-mono);font-size:13px;color:var(--muted);padding:0 16px;display:flex;align-items:center;gap:10px}
 
-.container{max-width:100%;margin:0 auto;padding:24px 32px}
+.container{max-width:100%;margin:0 auto;padding:16px 32px}
 
 /* PROFILS */
-.profiles-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;flex-wrap:wrap}
+.profiles-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 14px;flex-wrap:wrap}
 .profiles-lbl{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:2px;white-space:nowrap}
 .profiles-select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:5px 8px;flex:1;min-width:120px;max-width:220px;outline:none}
 .profiles-select:focus{border-color:var(--accent2)}
@@ -56,7 +56,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .profile-btn.del:hover{background:rgba(255,45,85,.1)}
 
 /* MODE D'UTILISATION */
-.usage-mode-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;background:linear-gradient(90deg,rgba(0,212,255,.08),rgba(255,80,48,.05));border:1px solid var(--accent2);border-radius:8px;padding:10px 14px;flex-wrap:wrap}
+.usage-mode-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;background:linear-gradient(90deg,rgba(0,212,255,.08),rgba(255,80,48,.05));border:1px solid var(--accent2);border-radius:8px;padding:7px 14px;flex-wrap:wrap}
 .usage-mode-lbl{font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:2px;white-space:nowrap;font-weight:700}
 .usage-mode-bar select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:7px 10px;flex:1;min-width:280px;outline:none}
 .usage-mode-bar select:focus{border-color:var(--accent2)}
@@ -68,18 +68,23 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
    validation à la fermeture de la popup plutôt qu'uniquement à la sauvegarde
    globale. Les popups réutilisent les champs existants (mêmes id, mêmes
    onchange) — seule leur position dans le DOM change. */
-.hub-group-title{font-family:var(--font-mono);font-size:13px;letter-spacing:3px;color:var(--muted);margin:22px 0 10px;text-transform:uppercase}
-.hub-group-title:first-child{margin-top:0}
-.hub-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
-.hub-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;cursor:pointer;transition:border-color .15s,transform .1s;position:relative;display:flex;flex-direction:column;gap:6px;min-height:74px}
+/* Sections en grille (2 a 4 par ligne selon la largeur d'ecran) plutot
+   qu'empilees une par une : sur un ecran large, empiler 7 blocs pleine
+   largeur forcait un defilement vertical alors que la largeur restait
+   trois quarts vide (cf. retour utilisateur). */
+.hub-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:2px 24px;align-items:start}
+.hub-section{min-width:0}
+.hub-group-title{font-family:var(--font-mono);font-size:13px;letter-spacing:3px;color:var(--muted);margin:6px 0 6px;text-transform:uppercase}
+.hub-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.hub-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;cursor:pointer;transition:border-color .15s,transform .1s;position:relative;display:flex;flex-direction:column;gap:2px;min-height:48px}
 .hub-card:hover{border-color:var(--accent2);transform:translateY(-1px)}
-.hub-card-title{font-family:var(--font-mono);font-size:14px;color:var(--text);letter-spacing:.5px;display:flex;align-items:center;gap:8px}
-.hub-card-sub{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
-.hub-badge{position:absolute;top:12px;right:14px;font-size:15px;line-height:1}
+.hub-card-title{font-family:var(--font-mono);font-size:13px;color:var(--text);letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+.hub-card-sub{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.hub-badge{position:absolute;top:9px;right:11px;font-size:13px;line-height:1}
 .hub-card.status-ok{border-left:3px solid var(--green)}
 .hub-card.status-warning{border-left:3px solid var(--yellow)}
 .hub-card.status-empty{border-left:3px solid var(--border)}
-.hub-launch-row{display:flex;justify-content:center;margin:28px 0 8px}
+.hub-launch-row{display:flex;justify-content:center;margin:10px 0 4px}
 
 /* Popup catégorie : même overlay plein écran que la sélection de locator sur
    carte (mapLocOverlay), un par catégorie pour rester 100% statique (pas de
@@ -256,6 +261,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
       <button class="btn btn-secondary" style="padding:7px 16px;font-size:12px" onclick="openSummaryPopup()">📊 Résumé ▸</button>
     </div>
+    <div class="hub-sections">
+    <div class="hub-section">
     <div class="hub-group-title">MA STATION</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_identity" onclick="openCategoryPopup('identity')">
@@ -269,7 +276,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <span class="hub-badge" id="hubbadge_operators"></span>
       </div>
     </div>
+    </div>
 
+    <div class="hub-section">
     <div class="hub-group-title">CONCOURS</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_contest" onclick="openCategoryPopup('contest')">
@@ -283,7 +292,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <span class="hub-badge" id="hubbadge_filters"></span>
       </div>
     </div>
+    </div>
 
+    <div class="hub-section">
     <div class="hub-group-title">MATÉRIEL</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_radio" onclick="openCategoryPopup('radio')">
@@ -302,7 +313,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <span class="hub-badge" id="hubbadge_rotor"></span>
       </div>
     </div>
+    </div>
 
+    <div class="hub-section">
     <div class="hub-group-title">RÉSEAU &amp; SAUVEGARDE</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_network" onclick="openCategoryPopup('network')">
@@ -316,7 +329,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <span class="hub-badge" id="hubbadge_backup"></span>
       </div>
     </div>
+    </div>
 
+    <div class="hub-section">
     <div class="hub-group-title">PROPAGATION &amp; ALERTES</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_sources" onclick="openCategoryPopup('sources')">
@@ -330,7 +345,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <span class="hub-badge" id="hubbadge_alerts"></span>
       </div>
     </div>
+    </div>
 
+    <div class="hub-section">
     <div class="hub-group-title">APRÈS LE CONCOURS</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_qsl" onclick="openCategoryPopup('qsl')">
@@ -344,7 +361,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <span class="hub-badge" id="hubbadge_scoreboard"></span>
       </div>
     </div>
+    </div>
 
+    <div class="hub-section">
     <div class="hub-group-title">SPÉCIAL</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_expedition" onclick="openCategoryPopup('expedition')">
@@ -357,6 +376,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div class="hub-card-sub">Fournisseur, clé API</div>
         <span class="hub-badge" id="hubbadge_ai"></span>
       </div>
+    </div>
+    </div>
     </div>
 
     <div class="hub-launch-row">
