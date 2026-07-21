@@ -241,7 +241,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 .lqi-op{color:var(--muted);font-size:13px}
 
 /* LOG TABLE */
-.log-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.log-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .log-toolbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg2);flex-shrink:0}
 .log-search{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:7px 12px;outline:none;width:200px}
 .log-search:focus{border-color:var(--accent2)}
@@ -251,8 +251,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 .export-btn{font-family:var(--font-mono);font-size:12px;padding:6px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--accent);cursor:pointer;transition:all .15s}
 .export-btn:hover{border-color:var(--accent)}
 
-.log-table-wrap{flex:1;overflow-y:auto}
-.log-table-wrap::-webkit-scrollbar{width:4px}
+.log-table-wrap{flex:1;overflow-y:auto;overflow-x:auto;min-width:0}
+.log-table-wrap::-webkit-scrollbar{width:4px;height:6px}
 .log-table-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 /* CARTE QSO */
 .map-wrap{flex:1;display:none;position:relative}
@@ -267,8 +267,8 @@ body.day-mode .map-legend{background:rgba(255,255,255,.9);border-color:var(--bor
 
 table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:16px}
 thead{position:sticky;top:0;z-index:10;background:#0A0C20}
-th{padding:11px 8px;text-align:left;color:#8899CC;font-size:14px;letter-spacing:2px;border-bottom:2px solid #2A3080;white-space:nowrap;font-weight:700}
-td{padding:11px 8px;border-bottom:1px solid #141630;white-space:nowrap;vertical-align:middle;font-size:16px}
+th{padding:11px 4px;text-align:left;color:#8899CC;font-size:14px;letter-spacing:.5px;border-bottom:2px solid #2A3080;white-space:nowrap;font-weight:700}
+td{padding:11px 4px;border-bottom:1px solid #141630;white-space:nowrap;vertical-align:middle;font-size:16px}
 tr:hover td{background:#101828;cursor:pointer}
 tr.new-entry td{animation:highlight 1.2s ease}
 @keyframes highlight{from{background:rgba(0,255,136,.25)}to{background:transparent}}
@@ -278,7 +278,7 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 
 .td-num{color:#4A6090;font-size:14px;width:36px;text-align:center}
 .td-time{color:#6080B0;font-size:16px;letter-spacing:1px}
-.td-call{color:#00FF88;font-weight:800;font-size:20px;letter-spacing:2px}
+.td-call{color:#00FF88;font-weight:800;font-size:20px;letter-spacing:1px}
 .td-band{color:#00D4FF;font-size:15px;font-weight:700}
 .td-mode{color:#E0A0FF;font-size:15px;font-weight:700}
 .td-sent{color:#FFFFFF;font-size:16px;font-weight:600}
@@ -1048,14 +1048,14 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         <thead>
           <tr>
             <th>#</th>
-            <th>HEURE UTC</th>
+            <th title="Heure UTC">HEURE</th>
             <th>INDICATIF</th>
             <th>BANDE</th>
             <th>MODE</th>
             <th>ENVOYÉ</th>
             <th>REÇU</th>
             <th>LOCATOR</th>
-            <th>DIST / CAP</th>
+            <th>DIST/CAP</th>
             <th>PTS</th>
             <th>OP</th>
             <th></th>
