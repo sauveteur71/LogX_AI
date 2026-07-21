@@ -126,7 +126,11 @@ def _parse_adif_records(text):
 
 
 def _band_from_record(rec):
-    """Bande MHz ('144') depuis un record ADIF (BAND '2m' ou FREQ en MHz)."""
+    """Bande MHz ('144') depuis un record ADIF (BAND '2m' ou FREQ en MHz).
+    Si BAND porte un libellé ADIF officiel absent de notre table interne
+    (ADIF_BAND, ~19 bandes utiles aux concours gérés — 60m, 2190m... n'en
+    font pas partie), il est retourné TEL QUEL plutôt que rejeté : le QSO
+    reste importable même sans multiplicateur concours pour cette bande."""
     b = (rec.get('BAND') or '').lower().strip()
     if b in _BAND_FROM_ADIF:
         return _BAND_FROM_ADIF[b]
@@ -135,7 +139,18 @@ def _band_from_record(rec):
         try:
             mhz = float(freq)
             from logx_scoring import _band_from_freq
-            return _band_from_freq(mhz)
+            found = _band_from_freq(mhz)
+            if found:
+                return found
+            # Repli sur la table officielle complète (33 bandes, voir
+            # logx_adif_enums) : couvre les bandes rares que _band_from_freq
+            # (12 bandes de concours) ne reconnaît pas — sans ce repli, un
+            # QSO avec FREQ mais sans BAND sur une bande rare était rejeté à
+            # tort ("bande... non reconnu") alors que sa fréquence est valide.
+            from logx_adif_enums import band_from_freq as _band_from_freq_adif
+            found = _band_from_freq_adif(mhz)
+            if found:
+                return found
         except Exception:
             pass
     return b

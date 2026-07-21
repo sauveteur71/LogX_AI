@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import logx_callbook as callbook
 import logx_qrz as qrz
 import logx_clusters as clusters
+import logx_callhistory
 
 HAMDB_OK = ('{"hamdb":{"version":"1","callsign":{"call":"W1AW","class":"","expires":'
             '"02/26/2031","status":"A","grid":"FN31pr","lat":"41.71","lon":"-72.72",'
@@ -30,6 +31,7 @@ def _reset():
     callbook._cache.clear()
     qrz._session.update(key='', ts=0)
     qrz._lookup_cache.clear()
+    callbook._circuit.update(fails=0, until=0)
 
 
 # ─── lookup_hamdb (parsing JSON réel, vérifié contre l'API en direct) ──────
@@ -137,6 +139,69 @@ def test_cascade_cache_evite_double_appel_hamqth(monkeypatch):
 # (bug réel documenté en mémoire : un enrichissement HamQTH remplaçait toute
 # l'entrée calls_db[call], perdant le 'dept' déjà connu localement — un
 # radioamateur REF perdait son suivi de département dès que HamQTH répondait).
+
+
+# ─── Previous QSOs (historique local, logx_callhistory) ─────────────────────
+# Ajouté en tête (disjoncteur ouvert = hors ligne) et en filet de dernier
+# recours (cascade réseau tout entière en échec) — jamais de réseau, jamais
+# prioritaire sur un résultat QRZ/HamQTH/HamDB positif.
+
+def test_previous_qso_filet_si_cascade_reseau_echoue_totalement(monkeypatch):
+    _reset()
+    monkeypatch.setattr(clusters, 'lookup_hamqth', lambda call: None)
+    monkeypatch.setattr(callbook, 'lookup_hamdb', lambda call: {'ok': False, 'error': 'Indicatif introuvable sur HamDB'})
+    monkeypatch.setattr(logx_callhistory, 'lookup',
+                        lambda call, shared_log=None: {'call': call, 'dept': None,
+                                                       'locator': 'JN15XC', 'qso_count': 3,
+                                                       'last_date': '20260101', 'worked': True})
+    r = callbook.lookup('F6ZZZ', {}, shared_log=[])
+    assert r['ok'] and r['source'] == 'previous_qso' and r['grid'] == 'JN15XC'
+
+
+def test_previous_qso_ignore_si_aucun_historique(monkeypatch):
+    _reset()
+    monkeypatch.setattr(clusters, 'lookup_hamqth', lambda call: None)
+    monkeypatch.setattr(callbook, 'lookup_hamdb', lambda call: {'ok': False, 'error': 'Indicatif introuvable sur HamDB'})
+    monkeypatch.setattr(logx_callhistory, 'lookup', lambda call, shared_log=None: None)
+    r = callbook.lookup('ZZ9ZZZ', {}, shared_log=[])
+    assert not r['ok']  # aucun filet : jamais croisé localement
+
+
+def test_previous_qso_ne_prime_jamais_sur_un_resultat_reseau_positif(monkeypatch):
+    _reset()
+    monkeypatch.setattr(qrz, 'lookup', lambda call, user, pw: {'ok': True, 'call': call, 'name': 'X', 'grid': 'AA00AA'})
+    monkeypatch.setattr(logx_callhistory, 'lookup',
+                        lambda call, shared_log=None: {'call': call, 'dept': None,
+                                                       'locator': 'JN15XC', 'qso_count': 3,
+                                                       'last_date': '20260101', 'worked': True})
+    r = callbook.lookup('F6KQJ', {'qrz_user': 'u', 'qrz_password': 'p'}, shared_log=[])
+    assert r['ok'] and r['source'] == 'qrz'  # QRZ garde la priorité, pas previous_qso
+
+
+def test_previous_qso_en_tete_si_disjoncteur_ouvert(monkeypatch):
+    _reset()
+    import time as _t
+    callbook._circuit['until'] = _t.time() + 60   # disjoncteur ouvert (hors ligne simulé)
+    reseau_appele = {'n': 0}
+    monkeypatch.setattr(clusters, 'lookup_hamqth', lambda call: reseau_appele.update(n=reseau_appele['n'] + 1))
+    monkeypatch.setattr(logx_callhistory, 'lookup',
+                        lambda call, shared_log=None: {'call': call, 'dept': None,
+                                                       'locator': 'JN15XC', 'qso_count': 1,
+                                                       'last_date': '20260101', 'worked': True})
+    r = callbook.lookup('F6ZZZ', {}, shared_log=[])
+    assert r['ok'] and r['source'] == 'previous_qso'
+    assert reseau_appele['n'] == 0   # jamais tenté : disjoncteur ouvert
+
+
+def test_sans_shared_log_comportement_inchange(monkeypatch):
+    """Rétrocompatibilité : les appelants qui ne passent pas shared_log
+    (logx_departments.py) gardent le comportement d'avant ce correctif."""
+    _reset()
+    monkeypatch.setattr(clusters, 'lookup_hamqth', lambda call: None)
+    monkeypatch.setattr(callbook, 'lookup_hamdb', lambda call: {'ok': False, 'error': 'Indicatif introuvable sur HamDB'})
+    r = callbook.lookup('ZZ9ZZZ', {})   # pas de 3e argument
+    assert not r['ok']
+
 
 def test_enrich_unknown_calls_preserve_le_dept_existant(monkeypatch, tmp_path):
     calldb_path = str(tmp_path / 'calldb.json')

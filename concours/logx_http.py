@@ -1122,7 +1122,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             from urllib.parse import parse_qs, urlparse
             import logx_callbook as callbook
             call = (parse_qs(urlparse(self.path).query).get('call', [''])[0])
-            res = callbook.lookup(call, self._cfg_snapshot())
+            res = callbook.lookup(call, self._cfg_snapshot(), shared_log)
             res['enabled'] = True
             self._json(res)
             return

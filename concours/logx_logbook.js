@@ -4306,6 +4306,13 @@ async function previewImportAdif(text){
     if(p.errors && p.errors.length){
       rows.push(`<div class="shortcuts-row"><span>⚠️ Records ignorés</span><span style="color:var(--yellow)">${p.errors.length}</span></div>`);
     }
+    if(p.mode_warnings && p.mode_warnings.length){
+      // Informatif seulement : ces QSO SONT importés (déjà comptés dans
+      // "Nouveaux à importer"), juste signalés pour vérification.
+      p.mode_warnings.forEach(w => {
+        rows.push(`<div class="shortcuts-row"><span style="color:var(--muted)">ℹ️ ${w}</span></div>`);
+      });
+    }
     if(p.sample && p.sample.length){
       rows.push('<div class="shortcuts-row" style="margin-top:8px"><span style="color:var(--muted)">Aperçu (5 premiers nouveaux QSO) :</span></div>');
       p.sample.forEach(q => {

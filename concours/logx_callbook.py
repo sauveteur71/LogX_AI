@@ -65,9 +65,37 @@ def lookup_hamdb(call):
             'grid': field('grid').upper(), 'dxcc': '', 'source': 'hamdb'}
 
 
-def lookup(call, cfg):
+def _previous_qso_hit(call, shared_log):
+    """Fiche dérivée de l'historique local (calldb + archives + log actif,
+    voir logx_callhistory) — jamais de réseau. None si l'indicatif n'a jamais
+    été croisé ou si aucun locator n'en est dérivable (un dept seul ne suffit
+    pas à afficher grand-chose ici)."""
+    if shared_log is None:
+        return None
+    try:
+        from logx_callhistory import lookup as history_lookup
+        h = history_lookup(call, shared_log)
+    except Exception:
+        return None
+    if not h or not h.get('locator'):
+        return None
+    return {'ok': True, 'call': call, 'name': '', 'qth': '', 'state': '',
+            'country': '', 'grid': h['locator'], 'dxcc': '',
+            'source': 'previous_qso'}
+
+
+def lookup(call, cfg, shared_log=None):
     """Cascade complète. Retourne le premier résultat positif ; si tout
-    échoue, {'ok': False, 'error': <résumé des 3 échecs>}."""
+    échoue, {'ok': False, 'error': <résumé des 3 échecs>}.
+
+    `shared_log`, si fourni, active un filet « Previous QSOs » (historique
+    local — calldb/archives/log, voir logx_callhistory) à deux moments :
+    - EN TÊTE si le disjoncteur réseau est ouvert (probablement hors ligne) :
+      inutile d'attendre le cooldown pour un échec garanti si l'indicatif a
+      déjà été croisé — c'est la seule source disponible dans l'immédiat ;
+    - EN DERNIER RECOURS si QRZ/HamQTH/HamDB échouent tous les trois malgré
+      un réseau disponible (indicatif introuvable sur les 3 services alors
+      qu'on l'a déjà travaillé/croisé par le passé)."""
     call = (call or '').upper().strip()
     if not call:
         return {'ok': False, 'error': 'Indicatif vide'}
@@ -80,6 +108,9 @@ def lookup(call, cfg):
 
     now = time.time()
     if now < _circuit['until']:
+        local = _previous_qso_hit(call, shared_log)
+        if local:
+            return local
         wait = int(_circuit['until'] - now)
         return {'ok': False, 'error': f"Callbook en pause ({wait}s) : les services "
                 'ont été injoignables sur les derniers indicatifs (probablement '
@@ -114,6 +145,10 @@ def lookup(call, cfg):
         _circuit['fails'] = 0
         return hd
     errors.append(f"HamDB : {hd.get('error', '?')}")
+
+    local = _previous_qso_hit(call, shared_log)
+    if local:
+        return local
 
     result = {'ok': False, 'error': ' · '.join(errors)}
     _cache[call] = {'ts': time.time(), 'data': result}

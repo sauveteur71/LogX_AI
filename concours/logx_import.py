@@ -105,9 +105,28 @@ def parse_adif_to_qsos(adif_text):
     return qsos, errors
 
 
+def _mode_warnings(qsos):
+    """Modes qui ne correspondent à aucun Mode/Submode ADIF 3.1.7 officiel
+    (logx_adif_enums) — jamais bloquant (contrairement à l'indicatif/bande) :
+    l'ADIF évolue, un mode récent ou une coquille ne doit pas empêcher
+    l'import, juste être signalé pour vérification."""
+    from logx_adif_enums import is_known_mode
+    seen = set()
+    warnings = []
+    for q in qsos:
+        mode = q.get('mode', '')
+        if mode and mode not in seen and not is_known_mode(mode):
+            seen.add(mode)
+            warnings.append(f"Mode « {mode} » non reconnu dans l'énumération ADIF 3.1.7 "
+                            "officielle (importé quand même — vérifier la casse/l'orthographe)")
+    return warnings
+
+
 def preview_import(adif_text, existing_log):
     """Analyse SANS RIEN ÉCRIRE : compte nouveaux/doublons, donne un
-    échantillon. `existing_log` : snapshot de shared_log (liste de dicts)."""
+    échantillon. `existing_log` : snapshot de shared_log (liste de dicts).
+    `mode_warnings` : modes non standards détectés — INFORMATIF seulement,
+    n'affecte pas `new`/`duplicates` (ces QSO sont importables normalement)."""
     qsos, errors = parse_adif_to_qsos(adif_text)
     existing_keys = {_dedup_key(q) for q in existing_log}
     new_qsos = [q for q in qsos if _dedup_key(q) not in existing_keys]
@@ -118,6 +137,7 @@ def preview_import(adif_text, existing_log):
         'new': len(new_qsos),
         'duplicates': duplicates,
         'errors': errors,
+        'mode_warnings': _mode_warnings(qsos),
         'sample': new_qsos[:5],
     }
 

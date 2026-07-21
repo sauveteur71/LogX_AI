@@ -96,3 +96,42 @@ def test_adif_vide_ou_invalide_ne_leve_jamais():
     assert imp.parse_adif_to_qsos('') == ([], [])
     p = imp.preview_import('texte quelconque sans balises', existing_log=[])
     assert p['ok'] and p['total_in_file'] == 0
+
+
+# ─── Validation ADIF 3.1.7 officielle (bandes rares + modes non standards) ──
+
+def test_bande_rare_via_freq_sans_champ_band_nest_plus_rejetee():
+    """60m (5.06-5.45 MHz) n'est pas l'une des ~19 bandes internes de l'app
+    (aucun concours géré ne l'utilise), mais un QSO FREQ=5.330 sans champ
+    BAND doit rester importable — avant le correctif, le repli fréquence->
+    bande (12 bandes de concours) ne reconnaissait pas cette plage et le
+    record était rejeté pour bande "non reconnue"."""
+    adif = ("<CALL:5>N0CDX<FREQ:5>5.330<MODE:2>CW<QSO_DATE:8>20260710"
+           "<TIME_ON:4>1230<EOR>\n")
+    qsos, errors = imp.parse_adif_to_qsos(adif)
+    assert len(qsos) == 1 and not errors
+    assert qsos[0]['band'] == '60m'
+
+
+def test_mode_non_standard_signale_mais_pas_bloquant():
+    adif = ("<CALL:5>DL1AA<BAND:2>2m<MODE:6>BIDULE<QSO_DATE:8>20260710"
+           "<TIME_ON:4>1230<EOR>\n")
+    p = imp.preview_import(adif, existing_log=[])
+    assert p['new'] == 1 and not p['errors']   # importé quand même, pas une erreur
+    assert any('BIDULE' in w for w in p['mode_warnings'])
+
+
+def test_mode_standard_ne_genere_aucun_avertissement():
+    qsos, _ = imp.parse_adif_to_qsos(ADIF)   # SSB + CW, tous deux standards
+    p = imp.preview_import(ADIF, existing_log=[])
+    assert p['mode_warnings'] == []
+
+
+def test_mode_ft4_reconnu_meme_comme_mode_racine():
+    """WSJT-X et la plupart des loggers réels mettent souvent MODE=FT4
+    directement (plutôt que MODE=MFSK;SUBMODE=FT4, la forme stricte de la
+    spec) — les deux doivent être acceptés sans avertissement."""
+    adif = ("<CALL:5>DL1AA<BAND:2>2m<MODE:3>FT4<QSO_DATE:8>20260710"
+           "<TIME_ON:4>1230<EOR>\n")
+    p = imp.preview_import(adif, existing_log=[])
+    assert p['mode_warnings'] == []
