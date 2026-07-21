@@ -1299,6 +1299,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(met.ms_quality())
             return
 
+        # Annuaire de récepteurs WebSDR distants — liste statique, pas de réseau
+        if path == '/data/websdr':
+            import logx_websdr as websdr
+            self._json({'receivers': websdr.list_websdr()})
+            return
+
         # État d'une analyse IA serveur (pour la reprise après changement de page)
         if path.startswith('/agent/analyze/state'):
             from urllib.parse import parse_qs, urlparse

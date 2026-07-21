@@ -185,6 +185,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
   <a href="logx_propagation.html">📶 PROPAG</a>
   <a href="logx_departements.html">🇫🇷 Cartes</a>
   <a href="logx_calendrier.html">📅 CALENDRIER</a>
+  <a href="logx_websdr.html">📡 WEBSDR</a>
   <div class="nav-spacer"></div>
   <div class="nav-info" id="navContest">—</div>
 </nav>
@@ -1382,6 +1383,302 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       Cliquez sur votre emplacement précis — la grille Maidenhead 6 caractères est calculée automatiquement.</div>
   </div>
 </div>
+
+<!-- ─── ASSISTANT DE CONFIGURATION ────────────────────────────────────────────
+     Deux niveaux d'aide, pour qu'un débutant ne reste jamais bloqué devant un
+     champ qu'il ne comprend pas :
+     1. Un "?" apparaît automatiquement à côté de chaque champ connu — clic =
+        explication immédiate, SANS réseau ni clé API (fonctionne dès le 1er
+        lancement).
+     2. Un bouton flottant "🤖 Assistant" ouvre un panneau de questions libres :
+        recherche d'abord dans la même base locale, et si une clé API IA est
+        déjà renseignée dans ce formulaire, peut aussi poser la question au
+        copilote (réponse contextualisée, jamais obligatoire). -->
+<div id="fieldHelpBubble" style="display:none;position:fixed;z-index:10000;max-width:320px;
+     background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;padding:12px 14px;
+     box-shadow:0 10px 30px rgba(0,0,0,.5);font-family:var(--font);font-size:13.5px;line-height:1.5;color:var(--text)">
+  <div id="fieldHelpText"></div>
+</div>
+
+<button type="button" id="assistantFab" onclick="toggleAssistant()"
+  title="Assistant configuration : pose une question si un champ n'est pas clair"
+  style="position:fixed;right:22px;bottom:22px;z-index:9998;width:54px;height:54px;border-radius:50%;
+  background:var(--accent2);border:none;color:#04222b;font-size:24px;cursor:pointer;
+  box-shadow:0 6px 20px rgba(0,0,0,.4)">🤖</button>
+
+<div id="assistantPanel" style="display:none;position:fixed;right:22px;bottom:88px;z-index:9998;
+  width:340px;max-height:70vh;background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)">
+    <b style="color:var(--accent2);font-family:var(--font-mono);font-size:13px">🤖 ASSISTANT CONFIGURATION</b>
+    <button type="button" onclick="toggleAssistant()" style="margin-left:auto;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px">✕</button>
+  </div>
+  <div id="assistantBody" style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px"></div>
+  <div style="display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--border)">
+    <input id="assistantInput" type="text" placeholder="Ta question…" onkeydown="if(event.key==='Enter'){event.preventDefault();askAssistant();}"
+      style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-family:var(--font)">
+    <button type="button" onclick="askAssistant()" style="background:var(--accent2);border:none;color:#04222b;border-radius:6px;padding:0 12px;cursor:pointer;font-weight:700">➤</button>
+  </div>
+</div>
+
+<script>
+// Base locale : {id du champ -> explication en clair}. C'EST la première ligne
+// d'aide (aucun réseau requis) ; la question libre de l'assistant y cherche
+// aussi une correspondance avant, éventuellement, de solliciter l'IA.
+const CONFIG_HELP = {
+  callsign: "Ton indicatif radioamateur personnel (ex. F4GLD). C'est ton identité de base : il sert notamment à retrouver ton pays/zone automatiquement.",
+  callsign_contest: "L'indicatif que tu émets réellement pendant CE concours, s'il diffère de ton indicatif personnel (ex. indicatif de club, ou /P si tu émets en portable depuis un autre pays comme EA/F4GLD). Laisse vide pour reprendre ton indicatif normal.",
+  locator: "Ta position exprimée en grille Maidenhead (6 caractères, ex. JN15XC). Sert à calculer les distances et les directions d'antenne. Utilise le bouton « 📍 Sur la carte » si tu ne le connais pas par cœur.",
+  city: "Ta ville/QTH, affichée dans les résumés et sur l'écran mural. Purement informatif, n'affecte pas le scoring.",
+  altitude: "Ton altitude en mètres. Utile pour le Rallye des Points Hauts et pour affiner les prédictions de propagation troposphérique.",
+  power: "Ta puissance d'émission en watts. Utilisée pour le calcul de certains bonus/catégories (ex. QRP).",
+  power_class: "Ta catégorie de puissance déclarée pour le concours (HP=haute puissance, LP=basse puissance, QRP=très faible puissance). Certains concours notent différemment selon la catégorie.",
+  record_dx: "Ta plus longue distance déjà réalisée (en km) — sert uniquement de référence affichée, aucun impact sur le score.",
+  operator_name: "Ton prénom/nom, utilisé dans les exports (ADIF/Cabrillo) et certains formulaires de diplômes.",
+  email: "Ton adresse email, utilisée pour certains envois de log automatiques (ex. soumission de concours) si le concours le demande.",
+  club: "Le nom de ton club radioamateur, s'il y a lieu — apparaît dans certains exports Cabrillo.",
+
+  usage_mode: "Détermine le fonctionnement général du logiciel : LOGBOOK SIMPLE (trafic courant, pas de règles de concours), CONCOURS (scoring/règlement actifs), ou EXPÉDITION (pile-up, multi-poste, écran mural). Change ce réglage si l'étape CONCOURS te paraît hors sujet.",
+  expedition_mode: "Active les fonctions pensées pour une activation DXpédition/SOTA/POTA en groupe : écran mural partagé, synchronisation multi-poste, statistiques de pile-up.",
+  activation_program: "Le programme d'activation concerné si tu actives une référence (SOTA, POTA, WWFF, châteaux...). Permet d'afficher les bons outils pour ce programme.",
+  my_activation_ref: "La référence précise du site que tu actives (ex. un code SOTA ou POTA), affichée sur l'écran mural et dans les exports.",
+
+  contest_start_date: "Date de début du concours choisi (remplie automatiquement dès que tu sélectionnes un concours dans l'étape 2, sauf réglage personnalisé).",
+  contest_end_date: "Date de fin du concours — sert au compte à rebours affiché en permanence et au contrôle « QSO hors fenêtre » du bouton VÉRIFIER.",
+  contest_end_utc: "Heure de fin exacte en UTC (temps universel, pas ton heure locale) — les concours radioamateur se règlent presque toujours sur UTC.",
+  submit_deadline: "La date limite d'envoi de ton log au concours — purement informatif, pense à noter un rappel !",
+  submit_url: "Le lien vers lequel envoyer ton log une fois le concours terminé (site officiel de soumission).",
+  log_software: "Nom du logiciel avec lequel tu dialogues en réseau (ex. N1MM+, DXLog) si tu utilises le pont ADIF réseau pour partager les QSO entre logiciels.",
+  section_edi: "Le code de section utilisé dans l'export EDI (format suisse USKA) — laisse vide si le concours n'en a pas besoin.",
+
+  priority_mode: "Comment le logiciel classe les stations à contacter : par distance (les plus lointaines d'abord) ou par valeur de points/multiplicateur. Change l'ordre affiché dans la « need list ».",
+  alert_dx_km: "Distance (km) au-delà de laquelle une station spottée est considérée comme un DX exceptionnel à signaler en priorité.",
+  spotter_reliable_km: "Distance de fiabilité d'un spotteur : au-delà, une info venant d'un cluster lointain est traitée avec plus de prudence (moins de certitude sur la propagation réelle).",
+  spot_prefix_filter: "Liste de préfixes séparés par des virgules (ex. K,VE,W) pour ne garder QUE les spots de ces pays/préfixes dans la need list — utile pour un concours ciblé (ex. ARRL Field Day).",
+
+  cluster_spot_enabled: "Active la réception des spots DX en direct depuis un cluster telnet (annonces d'autres opérateurs sur les stations entendues).",
+  cluster_spot_host: "Adresse du serveur de cluster DX à utiliser (ex. dxc.ref-union.org). Demande à ton club ou cherche « DX cluster telnet » si tu n'en as pas.",
+  cluster_spot_port: "Port réseau du cluster DX — généralement 7300, indiqué par le fournisseur du cluster.",
+  rbn_enabled: "Active le Reverse Beacon Network : un réseau mondial de récepteurs qui te signale automatiquement où et comment ton signal CW est entendu.",
+
+  cat_enabled: "Active le pilotage direct de la radio (lecture fréquence/mode, bascule émission) depuis le logiciel.",
+  cat_mode: "Choisis comment le logiciel parle à ta radio : NATIF (câble série direct, sans logiciel intermédiaire), TCI (protocole réseau moderne type SunSDR/ExpertSDR), ou RIGCTLD (passe par le standard Hamlib, compatible presque toutes les radios).",
+  cat_brand: "La marque de ta radio pour le mode NATIF (Icom, Yaesu, Kenwood, Elecraft...) — détermine le protocole exact utilisé.",
+  cat_model: "Le modèle précis de ta radio, pour affiner l'adresse/le protocole (notamment important pour Icom en CI-V).",
+  cat_port: "Le port série (COM) où ta radio est reliée à l'ordinateur (ex. COM3 sous Windows). Visible dans le Gestionnaire de périphériques Windows.",
+  cat_baudrate: "La vitesse de communication série (bauds) réglée sur ta radio elle-même — doit correspondre EXACTEMENT au réglage du menu de la radio.",
+  rig_host: "Adresse réseau (souvent 127.0.0.1 si sur le même PC) du serveur rigctld qui pilote ta radio via Hamlib.",
+  rig_port: "Port réseau de rigctld — 4532 par défaut.",
+  tci_host: "Adresse réseau du serveur TCI (ex. ExpertSDR3) qui pilote ta radio — 127.0.0.1 si sur le même PC.",
+  tci_port: "Port réseau du serveur TCI — vérifie ce port dans les réglages de ton logiciel SDR.",
+
+  amp_enabled: "Active le pilotage de ton amplificateur linéaire (lecture de puissance/ROS, bascule standby/émission) depuis le logiciel.",
+  amp_brand: "La marque de ton amplificateur (Elecraft, Icom, SPE...) — détermine le protocole de communication utilisé.",
+  amp_port: "Le port série (COM) où ton amplificateur est relié à l'ordinateur.",
+  amp_baudrate: "La vitesse de communication série réglée sur ton amplificateur.",
+  amp_civ_addr: "L'adresse CI-V de l'ampli (pour les modèles compatibles Icom) — vérifie dans le menu de l'ampli si besoin de la changer.",
+
+  rotor_enabled: "Active le pilotage de ton rotor d'antenne (pointage automatique vers une station) depuis le logiciel.",
+  rotor_host: "Adresse réseau du contrôleur de rotor (souvent 127.0.0.1 si rotctld tourne sur le même PC).",
+  rotor_port: "Port réseau du contrôleur de rotor — 4533 par défaut pour rotctld.",
+
+  voicekeyer_enabled: "Active le keyer vocal : le logiciel peut synthétiser et émettre un message phonie (CQ, échange...) automatiquement, sans micro.",
+  voicekeyer_voice_id: "La voix de synthèse à utiliser (dépend des voix installées sur ton système Windows).",
+  voicekeyer_rate: "La vitesse de la voix de synthèse (débit de parole).",
+  voicekeyer_device: "Le périphérique audio de sortie à utiliser pour le keyer vocal — choisis une interface dédiée vers l'entrée micro de ta radio, JAMAIS tes haut-parleurs.",
+
+  wsjtx_enabled: "Active la réception automatique des QSO validés dans WSJT-X (FT8/FT4) : ils apparaissent dans ton log SANS ressaisie.",
+  wsjtx_port: "Le port UDP sur lequel WSJT-X diffuse ses informations — doit correspondre au réglage « UDP Server » dans WSJT-X (Réglages → Rapports), généralement 2237.",
+  adifnet_mode: "Comment ce PC échange des QSO en réseau avec un autre logiciel (N1MM/DXLog) : recevoir seulement, envoyer seulement, ou les deux.",
+  adifnet_port: "Le port UDP utilisé pour cet échange réseau ADIF.",
+  adifnet_target: "L'adresse IP du PC voisin avec lequel échanger les QSO en réseau (laisser vide pour diffuser en broadcast sur tout le réseau local).",
+
+  ai_model: "Le modèle d'intelligence artificielle utilisé par le copilote (analyse de règlement, coach pendant le concours, cet assistant). Change de fournisseur si tu as une clé d'un autre service.",
+  api_key: "Ta clé d'accès personnelle au service d'IA choisi (Anthropic/OpenAI/Gemini). Indispensable pour utiliser le copilote IA — reste stockée uniquement sur ton poste, jamais partagée. Sans elle, le logiciel fonctionne normalement, seul le copilote IA est indisponible.",
+
+  qrz_user: "Ton identifiant de connexion QRZ.com — permet de rechercher automatiquement les infos (nom, QTH, adresse) d'un indicatif que tu contactes.",
+  qrz_password: "Ton mot de passe QRZ.com. Reste stocké uniquement sur ton poste.",
+  eqsl_user: "Ton identifiant eQSL.cc, pour envoyer/recevoir tes confirmations de QSO électroniques.",
+  eqsl_password: "Ton mot de passe eQSL.cc.",
+  lotw_user: "Ton identifiant ARRL Logbook of the World (LoTW), pour synchroniser tes confirmations DXCC.",
+  lotw_password: "Ton mot de passe LoTW (ou mot de passe de certificat TQSL selon ta configuration).",
+  clublog_callsign: "L'indicatif enregistré sur ton compte ClubLog.org, pour l'upload automatique de ton log.",
+  clublog_email: "L'email associé à ton compte ClubLog.org.",
+  clublog_password: "Ton mot de passe ClubLog.org.",
+  clublog_api_key: "Ta clé API ClubLog (fournie par ClubLog.org), nécessaire pour certaines fonctions avancées comme le live upload.",
+  clublog_live: "Active la remontée en direct de chaque QSO vers ClubLog Live pendant une expédition — les chasseurs te voient en temps réel.",
+  qrzcq_callsign: "Ton indicatif enregistré sur QRZCQ.com.",
+  qrzcq_api_key: "Ta clé API QRZCQ.com.",
+  hrdlog_callsign: "Ton indicatif enregistré sur HRDLog.net.",
+  hrdlog_code: "Ton code d'upload personnel HRDLog.net (trouvable dans les réglages de ton compte HRDLog).",
+  on4kst_callsign: "Ton indicatif pour te connecter au chat ON4KST (chat texte très utilisé en VHF/UHF pour organiser des skeds).",
+  on4kst_password: "Ton mot de passe du chat ON4KST.",
+
+  cloudsync_folder: "Le dossier local DÉJÀ synchronisé par un outil comme Synology Drive/OneDrive/Dropbox : c'est via ce dossier partagé que plusieurs postes échangent leurs QSO, sans service en ligne dédié.",
+  cloudsync_mode: "FULL = ce poste envoie ET reçoit les QSO des autres postes ; PUSH = il envoie seulement (utile pour un poste isolé avec liaison intermittente) ; OFF = désactivé.",
+  cloudsync_interval: "La fréquence (en minutes) à laquelle ce poste vérifie s'il y a de nouveaux QSO à échanger.",
+  backup_folder: "Le dossier où les sauvegardes automatiques de ton log sont écrites — choisis un emplacement hors du dossier du logiciel (clé USB, cloud...).",
+  backup_interval: "La fréquence (en minutes) des sauvegardes automatiques.",
+  scoreboard_enabled: "Active la publication automatique de ton score en direct sur un tableau de bord en ligne, visible par d'autres.",
+  scoreboard_interval: "La fréquence (en minutes) de mise à jour du scoreboard en ligne.",
+
+  refresh_min: "La fréquence (en minutes) à laquelle le logiciel rafraîchit automatiquement les spots/la propagation en tâche de fond.",
+};
+
+// Icône "?" ajoutée automatiquement à côté de chaque label dont le champ
+// associé est répertorié dans CONFIG_HELP — pas besoin de modifier le HTML
+// de chaque champ un par un.
+function initFieldHelp(){
+  document.querySelectorAll('.form-group').forEach(group => {
+    const field = group.querySelector('input[id], select[id], textarea[id]');
+    const label = group.querySelector('label');
+    if (!field || !label || !CONFIG_HELP[field.id]) return;
+    if (label.querySelector('.help-dot')) return;   // déjà enrichi
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'help-dot';
+    btn.textContent = '?';
+    btn.title = 'Explication de ce champ';
+    btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;'
+      + 'width:16px;height:16px;margin-left:6px;border-radius:50%;background:var(--bg3);'
+      + 'border:1px solid var(--accent2);color:var(--accent2);font-size:10.5px;font-weight:700;'
+      + 'cursor:pointer;vertical-align:middle;line-height:1';
+    btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showFieldHelp(field.id, btn); });
+    label.appendChild(btn);
+  });
+}
+
+function showFieldHelp(fieldId, anchorEl){
+  const bubble = document.getElementById('fieldHelpBubble');
+  const text = CONFIG_HELP[fieldId];
+  if (!text) return;
+  document.getElementById('fieldHelpText').textContent = text;
+  const r = anchorEl.getBoundingClientRect();
+  bubble.style.display = 'block';
+  // Repositionne si la bulle sortirait de l'écran (bords droit/bas).
+  let left = r.left, top = r.bottom + 8;
+  requestAnimationFrame(() => {
+    const bw = bubble.offsetWidth, bh = bubble.offsetHeight;
+    if (left + bw > window.innerWidth - 12) left = window.innerWidth - bw - 12;
+    if (top + bh > window.innerHeight - 12) top = r.top - bh - 8;
+    bubble.style.left = Math.max(8, left) + 'px';
+    bubble.style.top = Math.max(8, top) + 'px';
+  });
+}
+document.addEventListener('click', e => {
+  const bubble = document.getElementById('fieldHelpBubble');
+  if (bubble.style.display !== 'none' && !e.target.closest('.help-dot') && !e.target.closest('#fieldHelpBubble')) {
+    bubble.style.display = 'none';
+  }
+});
+
+// ─── PANNEAU ASSISTANT (questions libres) ────────────────────────────────────
+const ASSISTANT_SUGGESTIONS = [
+  "Quelle est la différence entre INDICATIF et INDICATIF CONCOURS ?",
+  "Quel mode d'utilisation choisir ?",
+  "Comment trouver mon locator ?",
+  "À quoi sert le mode CAT / TCI / rigctld ?",
+  "Comment fonctionne le Cloud Sync ?",
+  "Ai-je besoin d'une clé API ?",
+];
+
+function toggleAssistant(){
+  const panel = document.getElementById('assistantPanel');
+  const willOpen = panel.style.display === 'none';
+  panel.style.display = willOpen ? 'flex' : 'none';
+  if (willOpen && !panel.dataset.booted){
+    panel.dataset.booted = '1';
+    addAssistantMsg('agent', "Bonjour ! Je peux expliquer n'importe quel champ de cette page. Clique une question ci-dessous, ou tape la tienne.");
+    const sugg = document.createElement('div');
+    sugg.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+    sugg.innerHTML = ASSISTANT_SUGGESTIONS.map(q =>
+      `<button type="button" onclick="askAssistant(${JSON.stringify(q)})" style="text-align:left;background:var(--bg3);`
+      + `border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12.5px">${q}</button>`
+    ).join('');
+    document.getElementById('assistantBody').appendChild(sugg);
+  }
+}
+
+function addAssistantMsg(who, text){
+  const body = document.getElementById('assistantBody');
+  const div = document.createElement('div');
+  div.style.cssText = who === 'user'
+    ? 'align-self:flex-end;background:var(--accent2);color:#04222b;border-radius:10px 10px 2px 10px;padding:8px 11px;max-width:85%;white-space:pre-wrap'
+    : 'align-self:flex-start;background:var(--bg3);color:var(--text);border-radius:10px 10px 10px 2px;padding:8px 11px;max-width:85%;white-space:pre-wrap;border:1px solid var(--border)';
+  div.textContent = text;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+  return div;
+}
+
+// Recherche mot-clé simple dans CONFIG_HELP : suffisant pour une base d'une
+// centaine d'entrées, sans dépendance externe. Retourne les meilleures
+// correspondances (champ trouvé dans le label OU dans le texte d'aide).
+function _searchLocalHelp(query){
+  const q = query.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const words = q.split(/\s+/).filter(w => w.length > 2);
+  if (!words.length) return [];
+  const scored = Object.entries(CONFIG_HELP).map(([id, text]) => {
+    const hay = (id + ' ' + text).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const score = words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0);
+    return { id, text, score };
+  }).filter(x => x.score > 0);
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 3);
+}
+
+async function askAssistant(presetQuestion){
+  const input = document.getElementById('assistantInput');
+  const q = (presetQuestion || input.value).trim();
+  if (!q) return;
+  input.value = '';
+  addAssistantMsg('user', q);
+
+  const hits = _searchLocalHelp(q);
+  const apiKey = (document.getElementById('api_key').value || '').trim();
+
+  if (!apiKey){
+    // Pas de clé IA configurée : réponse basée UNIQUEMENT sur la base locale,
+    // toujours utile et jamais bloquante pour un débutant qui démarre.
+    if (hits.length){
+      addAssistantMsg('agent', hits.map(h => `• ${h.text}`).join('\n\n'));
+    } else {
+      addAssistantMsg('agent', "Je n'ai pas de réponse toute prête pour cette question précise. "
+        + "Survole les « ? » à côté des champs pour leur explication, ou configure une clé API "
+        + "(étape PROPAGATION → COPILOTE IA) pour que je puisse répondre plus librement.");
+    }
+    return;
+  }
+
+  const thinking = addAssistantMsg('agent', '…');
+  try{
+    const helpDump = Object.entries(CONFIG_HELP).map(([id, t]) => `- ${id} : ${t}`).join('\n');
+    const provider = (localStorage.getItem('logx_ai_provider') || 'anthropic');
+    const model = document.getElementById('ai_model') && document.getElementById('ai_model').value || 'claude-sonnet-4-6';
+    const system = "Tu es l'assistant intégré au formulaire de CONFIGURATION du logiciel radioamateur LogX AI. "
+      + "Réponds en français, en 2 à 5 phrases MAXIMUM, avec des mots simples pour un débutant (pas de jargon "
+      + "non expliqué). Voici le sens exact des champs du formulaire (ne parle QUE de ce qui existe réellement "
+      + "ici, n'invente jamais un champ ou une fonctionnalité) :\n" + helpDump;
+    const res = await fetch('/proxy/ai', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ model, max_tokens: 400, system, messages: [{ role:'user', content:q }] })
+    });
+    const data = await res.json();
+    const reply = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    thinking.textContent = reply || "Pas de réponse du copilote IA — vérifie ta clé API.";
+  }catch(e){
+    thinking.textContent = hits.length
+      ? hits.map(h => `• ${h.text}`).join('\n\n')
+      : "Le copilote IA n'a pas répondu (réseau ?) et je n'ai pas de fiche locale pour cette question précise.";
+  }
+}
+
+document.addEventListener('DOMContentLoaded', initFieldHelp);
+// La page reconstruit certains blocs de formulaire dynamiquement (résumé,
+// profils...) ; on ré-applique l'enrichissement après le chargement initial
+// pour couvrir les champs ajoutés après coup.
+setTimeout(initFieldHelp, 800);
+</script>
 
 <script>
 // ─── STATE ───────────────────────────────────────────────────────────────────
