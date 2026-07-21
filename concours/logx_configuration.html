@@ -576,6 +576,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="cat-modal-head"><span class="cat-modal-title">🧑‍🤝‍🧑 2. OPÉRATEURS</span>
       <button class="cat-modal-close" onclick="closeCategoryPopup('operators')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_operators">
+      <div class="form-group" style="margin-bottom:18px">
+        <label>MODE OPÉRATEUR</label>
+        <select id="op_multi_toggle" onchange="onOpMultiToggleChange()">
+          <option value="mono">Un seul opérateur (Single-Op)</option>
+          <option value="multi">Plusieurs opérateurs (Multi-Op)</option>
+        </select>
+        <div class="input-note">Choisis « Plusieurs opérateurs » pour saisir jusqu'à 5 indicatifs ci-dessous</div>
+      </div>
       <div class="section" id="opSection">
         <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
         <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
@@ -1763,6 +1771,8 @@ const CONFIG_HELP = {
   scoreboard_interval: "La fréquence (en minutes) de mise à jour du scoreboard en ligne.",
 
   refresh_min: "La fréquence (en minutes) à laquelle le logiciel rafraîchit automatiquement les spots/la propagation en tâche de fond.",
+
+  op_multi_toggle: "Passe en « Plusieurs opérateurs » pour saisir jusqu'à 5 indicatifs (OP1 à OP5) qui apparaîtront comme boutons dans le logbook. Ce choix met à jour la SECTION CONCOURS (champ PSect de l'export EDI) en conservant la portée de bande déjà sélectionnée.",
 };
 
 // Icône "?" ajoutée automatiquement à côté de chaque label dont le champ
@@ -3985,6 +3995,12 @@ function updateOpSection(){
   const rows = document.getElementById('multiop_rows');
   const title = document.getElementById('opSectionTitle');
   const note  = document.getElementById('opSectionNote');
+  const toggle = document.getElementById('op_multi_toggle');
+
+  // Synchronise le sélecteur simple de la popup Opérateurs, quel que soit
+  // le déclencheur (ce sélecteur, le champ SECTION CONCOURS en mode expert,
+  // ou une config/profil restauré(e)).
+  if(toggle) toggle.value = isMulti ? 'multi' : 'mono';
 
   if(isMulti){
     // Afficher OP2-OP5
@@ -3997,6 +4013,18 @@ function updateOpSection(){
     title.textContent = 'OPÉRATEUR';
     note.textContent  = 'Ton indicatif personnel (Single Op)';
   }
+}
+
+// Bascule mono/multi-op depuis la popup Opérateurs (contrôle toujours visible,
+// contrairement au champ SECTION CONCOURS de la popup Identité qui est
+// expert-only) — ne touche que la lettre S/M de section_edi, en conservant
+// la portée de bande (MB/SB) déjà choisie pour ne pas casser l'export EDI.
+function onOpMultiToggleChange(){
+  const wantMulti = document.getElementById('op_multi_toggle').value === 'multi';
+  const sectSel = document.getElementById('section_edi');
+  const isSB = sectSel.value.endsWith('SB');
+  sectSel.value = wantMulti ? (isSB ? 'MOSB' : 'MOMB') : (isSB ? 'SOSB' : 'SOMB');
+  updateOpSection();
 }
 
 // ─── MODE DÉBUTANT / EXPERT ──────────────────────────────────────────────────
