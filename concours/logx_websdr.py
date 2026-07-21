@@ -24,12 +24,6 @@ WEBSDR_DIRECTORY = [
         'bands': 'HF complet (10 kHz – 30 MHz)', 'kind': 'KiwiSDR',
     },
     {
-        'name': 'F4KJI — Batima Electronic',
-        'city': '', 'country': 'France', 'continent': 'Europe',
-        'url': 'http://www.f4kji.fr:8901/',
-        'bands': 'LF, 160m, 60m, 6m', 'kind': 'WebSDR',
-    },
-    {
         'name': 'WebSDR University of Twente',
         'city': 'Enschede', 'country': 'Pays-Bas', 'continent': 'Europe',
         'url': 'http://websdr.ewi.utwente.nl:8901/',
@@ -50,17 +44,25 @@ WEBSDR_DIRECTORY = [
         'bands': 'HF (antenne boucle magnétique)', 'kind': 'KiwiSDR',
     },
     {
-        'name': 'ZR6AIC WebSDR',
-        'city': '', 'country': 'Afrique du Sud', 'continent': 'Afrique',
-        'url': 'http://zr6aic.giga.co.za:8902/',
-        'bands': 'HF + satellite 70cm', 'kind': 'WebSDR',
-    },
-    {
         'name': 'APPR WebSDR',
         'city': '', 'country': 'Brésil', 'continent': 'Amérique du Sud',
         'url': 'http://appr.org.br:8901/',
         'bands': 'HF', 'kind': 'WebSDR',
         'note': 'Association radioamateur locale.',
+    },
+    {
+        'name': 'VE6JY',
+        'city': 'Lamont, Alberta', 'country': 'Canada', 'continent': 'Amérique du Nord',
+        'url': 'http://kiwisdr.ve6slp.ca:8173/',
+        'bands': 'HF complet (0 – 30 MHz)', 'kind': 'KiwiSDR',
+        'note': 'Station de contest multi-multi bien connue de la communauté.',
+    },
+    {
+        'name': 'SDR Hasenberg',
+        'city': '', 'country': 'Suisse', 'continent': 'Europe',
+        'url': 'https://hasenberg01.kiwisdr.ch/',
+        'bands': 'HF complet (0 – 30 MHz)', 'kind': 'KiwiSDR',
+        'note': 'Site multi-récepteurs (5 KiwiSDR) — celui-ci est le premier.',
     },
 ]
 
