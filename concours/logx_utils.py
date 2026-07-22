@@ -12,6 +12,22 @@ PORT = 8080
 CURRENT_YEAR = datetime.datetime.now().year
 
 
+# ─── FOURNISSEURS IA « OpenAI Chat Completions » ─────────────────────────────
+# OpenAI, Mistral AI (la référence française, api.mistral.ai), xAI/Grok
+# (api.x.ai) et DeepSeek (api.deepseek.com) partagent tous le même contrat
+# d'API (endpoint unique, header Authorization: Bearer, messages
+# [{role,content}], réponse choices[0].message.content) — vérifié sur la
+# documentation officielle de chacun avant d'écrire ce code, jamais deviné.
+# Seuls Anthropic (tool-use natif) et Gemini (systemInstruction dédié) ont un
+# format différent et restent gérés à part dans logx_http.py/logx_rules_ai.py.
+OPENAI_COMPATIBLE_ENDPOINTS = {
+    'openai':   ('https://api.openai.com/v1/chat/completions', 'gpt-4o'),
+    'mistral':  ('https://api.mistral.ai/v1/chat/completions', 'mistral-large-latest'),
+    'xai':      ('https://api.x.ai/v1/chat/completions',       'grok-4.5'),
+    'deepseek': ('https://api.deepseek.com/chat/completions',  'deepseek-v4-flash'),
+}
+
+
 
 # ─── MODES NUMÉRIQUES À FILTRER ──────────────────────────────────────────────
 MODES_NUMERIQUES = ['FT8','FT4','JS8','WSPR','PSK','RTTY','DIGI','DATA','MFSK']
@@ -62,6 +78,24 @@ def fetch_url(url, timeout=10):
         with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
             charset = resp.headers.get_content_charset() or 'utf-8'
             return resp.read().decode(charset, errors='replace')
+
+    try:
+        fut = _FETCH_EXECUTOR.submit(_do)
+        return fut.result(timeout=timeout + 3)
+    except Exception as e:
+        print(f"  [FETCH] {url[:60]}... -> {e}")
+        return None
+
+def fetch_url_binary(url, timeout=10):
+    """Comme fetch_url(), mais renvoie les octets bruts sans décodage — pour
+    les formats binaires (ex. classeur .ods de wcagroup.org), même bornage
+    DNS/attente via le pool de threads partagé."""
+    def _do():
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
+        })
+        with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
+            return resp.read()
 
     try:
         fut = _FETCH_EXECUTOR.submit(_do)

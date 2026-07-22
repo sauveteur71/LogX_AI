@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Spots d'activateurs POTA (Parks On The Air) en direct — api.pota.app.
+"""Spots d'activateurs POTA (Parks On The Air) en direct + base des parcs.
 
 Complète le mode Activation (logx_activation.py, purement local/déterministe :
 validation de référence + progression depuis le log) par une vue en direct de
@@ -10,11 +10,19 @@ de soumission n'a pas de format d'authentification vérifié avec certitude à
 la date d'écriture — mieux vaut ne rien implémenter que deviner et risquer un
 spot mal formé sur un service public partagé).
 
-Endpoint public, sans clé : https://api.pota.app/spot/activator
+Spots en direct, endpoint public sans clé : https://api.pota.app/spot/activator
 Doc communautaire : https://docs.pota.app/
-"""
+
+Base des parcs : https://pota.app/all_parks_ext.csv, l'export CSV complet
+(~9 Mo, ~50 000 parcs) proposé en téléchargement direct par POTA lui-même
+(lié depuis leur page « Park Search »). Comme pour SOTA (logx_sota.py), sert
+à VALIDER une référence saisie (nom, localisation) et à la RECHERCHER par
+code ou par nom — via le moteur générique logx_activation_db.py."""
+import csv
 import json
 import time
+
+from logx_activation_db import ActivationDatabase
 
 POTA_SPOTS_URL = 'https://api.pota.app/spot/activator'
 CACHE_TTL = 90  # secondes — assez réactif sans marteler l'API publique
@@ -69,3 +77,54 @@ def fetch_pota_spots():
     _cache['data'] = spots
     _cache['ts'] = time.time()
     return spots
+
+
+# ─── BASE DES PARCS ───────────────────────────────────────────────────────────
+
+POTA_PARKS_URL = 'https://pota.app/all_parks_ext.csv'
+PARKS_FILE = 'pota_parks.csv'
+
+
+def _looks_valid_parks_csv(content):
+    """Garde-fou avant d'écraser le cache : jamais un fichier tronqué ou une
+    page d'erreur à la place du vrai export (~9 Mo, ~50 000 lignes)."""
+    if not content or len(content) < 500_000:
+        return False
+    return content.count('"reference"') >= 1 and content.count(',') > 50_000
+
+
+def _parse_parks_csv(content):
+    """CSV -> liste de dicts. En-têtes réels (vérifiés en direct) :
+    reference,name,active,entityId,locationDesc,latitude,longitude,grid."""
+    reader = csv.DictReader(content.splitlines())
+    out = []
+    for row in reader:
+        code = (row.get('reference') or '').strip().upper()
+        if not code:
+            continue
+        try:
+            lat = float(row.get('latitude') or '')
+            lon = float(row.get('longitude') or '')
+        except ValueError:
+            lat = lon = None
+        out.append({
+            'code': code,
+            'name': (row.get('name') or '').strip(),
+            'location': (row.get('locationDesc') or '').strip(),
+            'grid': (row.get('grid') or '').strip(),
+            'active': (row.get('active') or '') == '1',
+            'lat': lat,
+            'lon': lon,
+        })
+    return out
+
+
+parks_db = ActivationDatabase(
+    label='POTA',
+    source_url=POTA_PARKS_URL,
+    cache_file=PARKS_FILE,
+    parse_fn=_parse_parks_csv,
+    valid_fn=_looks_valid_parks_csv,
+    max_age_days=30,
+    fetch_timeout=60,
+)

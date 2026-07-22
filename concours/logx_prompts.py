@@ -17,12 +17,12 @@ def build_system_prompt(cfg):
     loc      = cfg.get('locator', 'JN00AA')
     city     = cfg.get('city', '')
     power    = cfg.get('power', '100')
-    record   = cfg.get('record_dx', '0')
     contest  = cfg.get('contest', 'CUSTOM')
     no_digi  = cfg.get('toggles', {}).get('flag_no_digi', False)
     ssb_only = cfg.get('toggles', {}).get('mode_ssb', True) and not cfg.get('toggles', {}).get('mode_cw', False)
     portable = cfg.get('toggles', {}).get('flag_portable', False)
     qrp      = cfg.get('toggles', {}).get('flag_qrp', False)
+    eme_flag = cfg.get('toggles', {}).get('flag_eme', False)
     alert_dx = cfg.get('alert_dx_km', 1200)
     spotter_ok = cfg.get('spotter_reliable_km', 600)
     priority = cfg.get('priority_mode', 'distance')
@@ -85,6 +85,32 @@ def build_system_prompt(cfg):
         coords_line = 'Coordonnées : inconnues (locator absent ou invalide)'
     else:
         coords_line = f'Coordonnées : {lat:.3f}°N / {lon:.3f}°E'
+
+    # Record DX : calculé depuis le vrai locator de chaque QSO archivé (pas
+    # déclaratif — cf. logx_awards.dx_records()). Remplace l'ancien champ
+    # manuel record_dx, qui n'avait pas de sens pour un opérateur multi-bandes
+    # (3000 km est banal en HF, énorme en VHF/UHF).
+    import logx_awards as _awards
+    records = _awards.dx_records(loc, shared_log)
+    overall = records.get('overall')
+    record_line = (f"- Record DX établi : {overall['dist_km']} km "
+                   f"({overall['band']} MHz, {overall['call']})") if overall \
+        else '- Record DX établi : aucun QSO avec locator archivé pour le moment'
+
+    # EME (rebond lunaire) : position de la Lune calculée localement (PyEphem,
+    # cf. logx_eme.py) — ajouté au contexte SEULEMENT si l'opérateur a coché
+    # l'option EME (cfg.toggles.flag_eme), pour ne pas alourdir le prompt de
+    # tous les autres opérateurs qui ne font pas de rebond lunaire.
+    eme_line = ''
+    if eme_flag:
+        import logx_eme as _eme
+        moon = _eme.moon_position(lat, lon) if lat is not None else {'available': False}
+        if moon.get('available'):
+            vis = 'visible' if moon['visible'] else 'sous l\'horizon'
+            eme_line = (f"\n- EME : Lune {vis} (Az {moon['az']}°, El {moon['alt']}°, "
+                       f"{moon['distance_km']:.0f} km, phase {moon['phase_pct']}%)")
+        else:
+            eme_line = f"\n- EME : position lunaire indisponible ({moon.get('error', '?')})"
 
     # ── Récupérer les données dynamiques du concours ─────────────────────────
     cdef = CONTEST_DEFINITIONS.get(contest, {})
@@ -342,7 +368,7 @@ IDENTITÉ DE LA STATION :
 - Locator : {loc}{' (' + city + ')' if city else ''}
 - {coords_line}
 - Puissance : {power}W{'  QRP' if qrp else ''}
-- Record DX établi : {record} km
+{record_line}{eme_line}
 
 CONCOURS EN COURS : {contest}
 - Scoring : {scoring_info['unit']}

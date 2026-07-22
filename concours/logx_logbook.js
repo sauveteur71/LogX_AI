@@ -127,18 +127,26 @@ function applyExchangeFormat(contestId){
 }
 
 // ─── MODE EXPÉDITION : saisie simplifiée (indicatif + RST env/reçu seulement) ──
-// En pile-up d'expédition l'échange est juste le report : on masque les champs
-// N° de série et locator pour ne garder que l'essentiel et enchaîner très vite.
+// En pile-up d'expédition (chasse DX/activation POTA-SOTA... SANS concours
+// réel) l'échange est juste le report : on masque les champs N° de série et
+// locator pour ne garder que l'essentiel et enchaîner très vite.
 let expeditionMode = false;
 function applyExpeditionMode(on){
   expeditionMode = (String(on) === '1' || on === true);
   const numRow = document.getElementById('numFieldRow');
   const locGrp = document.getElementById('locatorGroup');
+  // Un VRAI concours sélectionné (REF/IARU/CQ...) impose son propre échange —
+  // le masquer ferait perdre le n° de série et/ou le locator nécessaires au
+  // calcul du score (ex: REF_CCD noté en km × locators -> 0 pt logué sans
+  // locator correspondant). La saisie simplifiée ne doit donc s'appliquer que
+  // hors concours réel (activation POTA/SOTA/... ou aucun concours choisi).
+  const realContestExchange = !!currentContest && !activationProgram;
   // Le n° de série (échange concours) est aussi masqué en LOGBOOK SIMPLE (pas
   // de concours -> pas d'échange à faire), indépendamment du mode expédition.
-  const hideNum = expeditionMode || usageMode === 'simple';
+  const hideNum = (expeditionMode && !realContestExchange) || usageMode === 'simple';
+  const hideLoc = expeditionMode && !realContestExchange;
   if(numRow) numRow.style.display = hideNum ? 'none' : '';
-  if(locGrp) locGrp.style.display = expeditionMode ? 'none' : '';
+  if(locGrp) locGrp.style.display = hideLoc ? 'none' : '';
   document.body.classList.toggle('expedition-on', expeditionMode);
 }
 
@@ -170,6 +178,11 @@ function applyUsageModeToLogbook(mode){
   // précis : sans intérêt (et souvent hors sujet) en logbook simple.
   document.querySelectorAll('.filter-btn[data-f="144"], .filter-btn[data-f="432"]')
     .forEach(btn => { btn.style.display = simple ? 'none' : ''; });
+  // ARCHIVER clôture le log d'UN concours dans un dossier permanent (Cabrillo/
+  // ADIF/résumé) — sans objet en logbook simple, qui n'a pas de concours à
+  // clôturer (log personnel continu).
+  const archiveBtn = document.getElementById('archiveBtn');
+  if(archiveBtn) archiveBtn.style.display = simple ? 'none' : '';
   document.body.classList.toggle('usage-simple', simple);
 }
 
@@ -1331,20 +1344,20 @@ function setupDone(){
   renderBandButtons(cont);
   renderModeButtons(cont);
   applyExchangeFormat(cont);
+  // Activation POTA/SOTA/IOTA/WWFF (config locale prioritaire, sinon serveur
+  // partagé) — DOIT être appliqué avant applyExpeditionMode() ci-dessous, qui
+  // lit activationProgram pour décider si la saisie simplifiée est légitime.
+  applyActivationMode(
+    stored.activation_program || (typeof serverActivationProgram !== 'undefined' ? serverActivationProgram : ''),
+    stored.my_activation_ref  || (typeof serverActivationRef !== 'undefined' ? serverActivationRef : ''));
   // Priorité au réglage local (page CONFIG de ce navigateur) ; sinon on hérite
   // du réglage serveur partagé pour que tous les postes d'expédition l'aient.
   applyExpeditionMode(stored.expedition_mode !== undefined && stored.expedition_mode !== ''
     ? stored.expedition_mode
     : (typeof serverExpeditionMode !== 'undefined' ? serverExpeditionMode : ''));
-  // Activation POTA/SOTA/IOTA/WWFF (config locale prioritaire, sinon serveur partagé)
-  applyActivationMode(
-    stored.activation_program || (typeof serverActivationProgram !== 'undefined' ? serverActivationProgram : ''),
-    stored.my_activation_ref  || (typeof serverActivationRef !== 'undefined' ? serverActivationRef : ''));
 
-  // Sélectionner le bon bouton OP
-  document.querySelectorAll('.op-btn').forEach(b=>{
-    b.classList.toggle('active', b.dataset.op===op);
-  });
+  // Sélectionner le bon opérateur (bouton courant + popup)
+  _setCurrentOpLabel(op);
 
   // Affichage proéminent de la station opérée : indicatif, locator, altitude, département
   const hdrParts = [call, loc];
@@ -1469,20 +1482,106 @@ setInterval(updateClockAndCountdown, 1000);
 updateClockAndCountdown();
 
 // ─── OPÉRATEUR / BANDE / MODE ────────────────────────────────────────────────
-function setOp(el){
-  document.querySelectorAll('.op-btn').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
-  myOp = el.dataset.op;
-  document.getElementById('currentOp').textContent = myOp;
+// Opérateur courant : même schéma bouton+popup que BANDE/MODE (cf. plus bas)
+// plutôt qu'une rangée de jusqu'à 40 boutons (mode RADIOCLUB).
+function _setCurrentOpLabel(opVal){
+  const popup = document.getElementById('opPickerPopup');
+  const btn = popup ? popup.querySelector(`.op-btn[data-op="${opVal}"]`) : null;
+  const label = (btn && btn.textContent) || opVal;
+  const lbl = document.getElementById('opCurrentLabel');
+  if(lbl) lbl.textContent = label;
+  if(popup) popup.querySelectorAll('.op-btn').forEach(b => b.classList.toggle('active', b.dataset.op === opVal));
+  const cur = document.getElementById('currentOp');
+  if(cur) cur.textContent = label;
 }
 
-function setBand(el){
-  document.querySelectorAll('#bandSelect .bm-btn').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
-  currentBand = el.dataset.val;
+function toggleOpPicker(){
+  const popup = document.getElementById('opPickerPopup');
+  if(!popup) return;
+  popup.style.display = popup.style.display === 'none' ? 'grid' : 'none';
+}
+
+function hideOpPicker(){
+  const popup = document.getElementById('opPickerPopup');
+  if(popup) popup.style.display = 'none';
+}
+
+function pickOp(opVal){
+  myOp = opVal;
+  _setCurrentOpLabel(opVal);
+  hideOpPicker();
+}
+
+// Bande courante : un seul bouton affichant la bande active + une popup pour
+// en choisir une autre (cf. #bandPickerPopup, rempli par renderBandButtons()) —
+// plutôt qu'une rangée de jusqu'à 17 boutons simultanés, illisible dès qu'on
+// active plus de 3-4 bandes.
+function _setCurrentBandLabel(band){
+  const lbl = document.getElementById('bandCurrentLabel');
+  if(lbl) lbl.textContent = BAND_LABELS[band] || band + ' MHz';
+  const popup = document.getElementById('bandPickerPopup');
+  if(popup) popup.querySelectorAll('.bm-btn').forEach(b => b.classList.toggle('active', b.dataset.val === band));
+}
+
+function toggleBandPicker(){
+  const popup = document.getElementById('bandPickerPopup');
+  if(!popup) return;
+  popup.style.display = popup.style.display === 'none' ? 'grid' : 'none';
+}
+
+function hideBandPicker(){
+  const popup = document.getElementById('bandPickerPopup');
+  if(popup) popup.style.display = 'none';
+}
+
+// Fermeture au clic en dehors du bouton/popup (pas de champ à onblur ici,
+// contrairement aux suggestions de recherche — un vrai listener global s'impose).
+// Gère aussi bien le popup BANDE que le popup MODE (même schéma).
+document.addEventListener('click', e => {
+  [['bandPickerPopup','bandCurrentBtn'], ['modePickerPopup','modeCurrentBtn'], ['opPickerPopup','opCurrentBtn']].forEach(([popupId, btnId]) => {
+    const popup = document.getElementById(popupId);
+    const btn = document.getElementById(btnId);
+    if(popup && popup.style.display !== 'none' && !popup.contains(e.target) && e.target !== btn && !btn.contains(e.target)){
+      popup.style.display = 'none';
+    }
+  });
+});
+
+function pickBand(band){
+  currentBand = band;
+  _setCurrentBandLabel(band);
+  hideBandPicker();
   setFreqForBand(currentBand);
   updateSerialDisplay();
   if(typeof refreshBandMap === 'function') refreshBandMap();  // spots de la nouvelle bande
+  document.getElementById('inputCall').focus();
+}
+
+// Mode courant : même schéma que la bande (un bouton + popup, cf. plus haut)
+// plutôt qu'une rangée de jusqu'à 6 boutons (SSB/CW/FM/FT8/FT4/RTTY).
+function _setCurrentModeLabel(mode){
+  const lbl = document.getElementById('modeCurrentLabel');
+  if(lbl) lbl.textContent = mode;
+  const popup = document.getElementById('modePickerPopup');
+  if(popup) popup.querySelectorAll('.bm-btn').forEach(b => b.classList.toggle('active', b.dataset.val === mode));
+}
+
+function toggleModePicker(){
+  const popup = document.getElementById('modePickerPopup');
+  if(!popup) return;
+  popup.style.display = popup.style.display === 'none' ? 'grid' : 'none';
+}
+
+function hideModePicker(){
+  const popup = document.getElementById('modePickerPopup');
+  if(popup) popup.style.display = 'none';
+}
+
+function pickMode(mode){
+  currentMode = mode;
+  _setCurrentModeLabel(mode);
+  hideModePicker();
+  if(typeof updateKeyerPanels==='function') updateKeyerPanels();  // keyer vocal/CW
   document.getElementById('inputCall').focus();
 }
 
@@ -1503,21 +1602,20 @@ function setFreqForBand(band){
   }
 }
 
-// L'opérateur tape une fréquence → sélectionne automatiquement la bonne bande.
+// L'opérateur tape une fréquence → sélectionne automatiquement la bonne bande
+// (parmi les bandes actuellement autorisées — cf. _currentVisibleBands, rempli
+// par renderBandButtons() ; une bande hors de cet ensemble, ex. non cochée
+// dans les toggles, ne change pas la bande courante, comme avant ce correctif).
 function onFreqInput(){
   const el = document.getElementById('inputFreq');
   if(!el) return;
   el.dataset.userEdited = '1';   // saisie manuelle → le CAT ne doit plus écraser
   const b = bandFromFreq(el.value);
-  if(b && b !== currentBand){
-    const btn = document.querySelector(`#bandSelect .bm-btn[data-val="${b}"]`);
-    if(btn){
-      document.querySelectorAll('#bandSelect .bm-btn').forEach(x=>x.classList.remove('active'));
-      btn.classList.add('active');
-      currentBand = b;
-      updateSerialDisplay();
-      if(typeof refreshBandMap === 'function') refreshBandMap();
-    }
+  if(b && b !== currentBand && _currentVisibleBands.includes(b)){
+    currentBand = b;
+    _setCurrentBandLabel(b);
+    updateSerialDisplay();
+    if(typeof refreshBandMap === 'function') refreshBandMap();
   }
 }
 
@@ -1531,14 +1629,6 @@ function freqFromRig(){
   } else {
     notify('Radio non connectée (CAT) — saisis la fréquence à la main.');
   }
-}
-
-function setMode(el){
-  document.querySelectorAll('#modeSelect .bm-btn').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
-  currentMode = el.dataset.val;
-  if(typeof updateKeyerPanels==='function') updateKeyerPanels();  // keyer vocal/CW
-  document.getElementById('inputCall').focus();
 }
 
 // ─── BANDES & MODES PAR CONCOURS (selon règlements REF / IARU / CQ) ───────────
@@ -1621,6 +1711,11 @@ const BAND_TOGGLE_KEY = {
   '24048': 'band_6mm',  '47088': 'band_4mm',
 };
 
+// Bandes actuellement autorisées (concours + toggles) — utilisé par
+// onFreqInput() pour valider une bascule automatique de bande, et par le
+// popup de choix de bande (#bandPickerPopup) pour lister les alternatives.
+let _currentVisibleBands = [];
+
 function renderBandButtons(contest){
   // Bandes du concours filtrées par les toggles de configuration
   const contestBands = CONTEST_BANDS[contest] || ALL_BANDS;
@@ -1637,11 +1732,15 @@ function renderBandButtons(contest){
   });
 
   const visibleBands = finalBands.length ? finalBands : contestBands; // fallback si tout est masqué
-  const box = document.getElementById('bandSelect');
-  box.innerHTML = visibleBands.map((b,i)=>
-    `<button class="bm-btn${i===0?' active':''}" data-val="${b}" onclick="setBand(this)">${BAND_LABELS[b]||b+' MHz'}</button>`
-  ).join('');
+  _currentVisibleBands = visibleBands;
+  const popup = document.getElementById('bandPickerPopup');
+  if(popup){
+    popup.innerHTML = visibleBands.map(b =>
+      `<button class="bm-btn${b===visibleBands[0]?' active':''}" data-val="${b}" onclick="pickBand('${b}')">${BAND_LABELS[b]||b+' MHz'}</button>`
+    ).join('');
+  }
   currentBand = visibleBands[0];
+  _setCurrentBandLabel(currentBand);
   setFreqForBand(currentBand);
 }
 
@@ -1669,11 +1768,14 @@ function renderModeButtons(contest){
     ? ['SSB','CW','FM','FT8','FT4','RTTY'].filter(m => toggles[MODE_TOGGLE_KEY[m]] === true)
     : allModes;
   const finalModes = modes.length > 0 ? modes : allModes; // sécurité: tout afficher si rien de coché
-  const box = document.getElementById('modeSelect');
-  box.innerHTML = finalModes.map((m,i)=>
-    `<button class="bm-btn${i===0?' active':''}" data-val="${m}" onclick="setMode(this)">${m}</button>`
-  ).join('');
+  const popup = document.getElementById('modePickerPopup');
+  if(popup){
+    popup.innerHTML = finalModes.map((m,i)=>
+      `<button class="bm-btn${i===0?' active':''}" data-val="${m}" onclick="pickMode('${m}')">${m}</button>`
+    ).join('');
+  }
   currentMode = finalModes[0];
+  _setCurrentModeLabel(currentMode);
 }
 
 function updateSerialDisplay(){
@@ -1864,7 +1966,7 @@ function onLocatorInput(){
     refreshTimeOfDay(loc);
     const dist = calcDist(loc);
     const callInput = document.getElementById('inputCall')?.value?.toUpperCase()||'';
-    const modeInput = document.getElementById('inputMode')?.value||currentMode||'SSB';
+    const modeInput = currentMode||'SSB';   // le mode vit dans le picker (plus de champ inputMode)
     const pts = calcPoints(loc, currentBand, callInput, modeInput);
     const locAlreadyUsed = qsoLog.some(q => q.locator === loc);
     if(dist > 0){
@@ -2250,7 +2352,11 @@ function renderLog(){
 
   tbody.innerHTML = filtered.slice().reverse().map((q,i)=>{
     const opColor = opColorAttr(q.operator);
-    const isDupQ = (dupCounts.get((q.call||'') + '|' + (q.band||'')) || 0) > 1;
+    // LOGBOOK SIMPLE : retravailler un correspondant déjà eu (même indicatif +
+    // même bande) est normal dans un log personnel — il n'y a pas de points à
+    // perdre comme en concours. Barrer/griser la ligne dans ce cas n'indique
+    // aucune erreur, ça rend juste illisible une vraie part de l'historique.
+    const isDupQ = usageMode !== 'simple' && (dupCounts.get((q.call||'') + '|' + (q.band||'')) || 0) > 1;
     const incomplete = !isValidQSO(q);
     const distColor = q.dist>1000?'#FF5030':q.dist>500?'#FFD60A':q.dist>200?'#A0C0FF':'#506090';
     const _brg = (q.locator&&q.locator.length>=6) ? bearing(q.locator) : null;
@@ -2827,9 +2933,8 @@ function syncBandModeFromRig(freqKhz, mode){
                  [21,21.45,'21'],[28,29.7,'28'],[50,54,'50'],[144,148,'144'],[430,440,'432']];
   for(const [lo,hi,b] of BANDS){
     if(mhz>=lo && mhz<=hi){
-      if(typeof currentBand!=='undefined' && currentBand!==b){
-        const btn = document.querySelector(`.bm-btn[data-val="${b}"]`);
-        if(btn) setBand(btn);
+      if(typeof currentBand!=='undefined' && currentBand!==b && _currentVisibleBands.includes(b)){
+        pickBand(b);
       }
       break;
     }
@@ -3772,7 +3877,9 @@ async function pollChat(){
 }
 
 function renderChatMsg(m){
-  const box = document.getElementById('chatBox');
+  // Le conteneur des messages s'appelle chatBody dans l'HTML (pas chatBox —
+  // ancien nom, l'id n'a jamais existé : le chat n'affichait rien du tout).
+  const box = document.getElementById('chatBody');
   if(!box) return;
   const mine = (m.op === myOp);
   const div = document.createElement('div');
@@ -3786,10 +3893,13 @@ function renderChatMsg(m){
   div.appendChild(meta); div.appendChild(txt);
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
-  // Point rouge clignotant si le panneau est fermé et que ce n'est pas mon message
+  // Badge « non lus » sur l'en-tête si le panneau est fermé et que ce n'est
+  // pas mon message (id chatUnread dans l'HTML — compteur, pas simple point).
   const panel = document.getElementById('chatPanel');
-  if(!panel.classList.contains('open') && !mine){
-    document.getElementById('chatDot').style.display = 'inline-block';
+  const unread = document.getElementById('chatUnread');
+  if(unread && panel && !panel.classList.contains('open') && !mine){
+    unread.textContent = String((parseInt(unread.textContent, 10) || 0) + 1);
+    unread.style.display = 'inline-block';
   }
 }
 
@@ -3810,12 +3920,27 @@ async function sendChat(){
   }
 }
 
+// Les panneaux CHAT et DÉCODEUR CW sont en position:fixed, ancrés bas-droite/
+// bas-gauche — ils flottent donc AU-DESSUS du contenu défilant en dessous
+// (dernier QSO saisis / tableau du log) au lieu de le pousser. Sans cette
+// marge réservée, le panneau recouvre littéralement les dernières lignes,
+// qui semblent alors "manquantes" — d'autant plus visible quand la fenêtre
+// est basse (portable, /P) puisque .saisie-panel/.log-table-wrap défilent
+// alors bien avant d'atteindre leur propre fin.
+function _reserveBottomSpace(panel, scrollEl){
+  if(!panel || !scrollEl) return;
+  scrollEl.style.paddingBottom = panel.offsetHeight + 'px';
+}
+
 function toggleChat(){
   const panel = document.getElementById('chatPanel');
   panel.classList.toggle('open');
+  _reserveBottomSpace(panel, document.querySelector('.log-table-wrap'));
   if(panel.classList.contains('open')){
-    document.getElementById('chatDot').style.display = 'none';
-    document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+    const unread = document.getElementById('chatUnread');
+    if(unread){ unread.style.display = 'none'; unread.textContent = '0'; }
+    const body = document.getElementById('chatBody');
+    if(body) body.scrollTop = body.scrollHeight;
     document.getElementById('chatInput').focus();
     // Poll immédiat à l'ouverture : le poll de fond peut être en cadence
     // ralentie (15s, panneau fermé) — ne pas attendre jusqu'à ce délai pour
@@ -3834,6 +3959,7 @@ let _cwDevicesLoaded = false;
 async function toggleCwPanel(){
   const panel = document.getElementById('cwPanel');
   panel.classList.toggle('open');
+  _reserveBottomSpace(panel, document.querySelector('.saisie-panel'));
   if(panel.classList.contains('open') && !_cwDevicesLoaded) await loadCwInputDevices();
 }
 
@@ -4158,8 +4284,10 @@ document.addEventListener('keydown', e => {
   if(e.key === 'Escape'){
     const modal = document.getElementById('setupModal');
     if(modal && modal.style.display !== 'none') modal.style.display = 'none';
-    const editModal = document.getElementById('editModal');
-    if(editModal && editModal.style.display !== 'none') editModal.style.display = 'none';
+    // La fenêtre d'édition de QSO s'appelle editOverlay et s'ouvre/ferme par
+    // la classe .show (pas editModal/style.display — ancien mécanisme disparu).
+    const editOverlay = document.getElementById('editOverlay');
+    if(editOverlay) editOverlay.classList.remove('show');
     const scOverlay = document.getElementById('shortcutsOverlay');
     if(scOverlay) scOverlay.classList.remove('show');
     const valOverlay = document.getElementById('validateOverlay');
@@ -4249,17 +4377,18 @@ function prefillSetupFromConfig(){
     // Boutons OP du formulaire : régénérés depuis la config (jusqu'à 40 en
     // mode RADIOCLUB, la grille flex existante wrap automatiquement) — un
     // bouton par opérateur réellement configuré, plus de OP4/OP5 fantômes.
-    const opSelectEl = document.getElementById('opSelect');
-    const activeOp = opSelectEl.querySelector('.op-btn.active')?.dataset.op || myOp;
-    opSelectEl.innerHTML = ops.map((op, i) => {
+    const opPopupEl = document.getElementById('opPickerPopup');
+    const activeOp = opPopupEl.querySelector('.op-btn.active')?.dataset.op || myOp;
+    opPopupEl.innerHTML = ops.map((op, i) => {
       const val = `OP${i+1}`;
       const call = op.call || op.callsign || val;
-      return `<button class="op-btn${val===activeOp?' active':''}" data-op="${val}" onclick="setOp(this)">${escHtml(call)}</button>`;
+      return `<button class="op-btn${val===activeOp?' active':''}" data-op="${val}" onclick="pickOp('${val}')">${escHtml(call)}</button>`;
     }).join('');
+    _setCurrentOpLabel(activeOp);
   }
   // Masquer tout ce qui est multi-op en single-op : sélecteur d'opérateur,
   // classement par opérateur, chat inter-postes. L'opérateur reste OP1.
-  const opGroup = document.getElementById('opSelect').closest('.field-group');
+  const opGroup = document.getElementById('opCurrentBtn').closest('.field-group');
   if(opGroup) opGroup.style.display = isSingleOp ? 'none' : '';
   const opStats = document.getElementById('opStatsBar');
   if(opStats) opStats.style.display = isSingleOp ? 'none' : '';
@@ -4555,6 +4684,10 @@ window.addEventListener('DOMContentLoaded', () => {
   renderMacroPanel();
   loadSoapbox();
   initBroadcastChannel();
+  // Réserve dès le chargement l'espace occupé par les panneaux flottants
+  // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace().
+  _reserveBottomSpace(document.getElementById('chatPanel'), document.querySelector('.log-table-wrap'));
+  _reserveBottomSpace(document.getElementById('cwPanel'), document.querySelector('.saisie-panel'));
 });
 
 // ─── CARTE QSO (Leaflet) ──────────────────────────────────────────────────────

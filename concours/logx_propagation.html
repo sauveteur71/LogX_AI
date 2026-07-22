@@ -140,6 +140,16 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     </div>
 
     <div class="panel">
+      <div class="panel-title">🧭 OUVERTURES PAR RÉGION <small>modèle MUF/SFI/K/greyline</small></div>
+      <div id="openingsBody" style="font-family:var(--font-mono);font-size:13px">
+        <div class="loading">…</div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">
+        Calculé depuis ton QTH (pas une simple lecture de spots) : élévation solaire aux deux bouts du trajet, MUF/SFI/K du moment, bonus grey-line. Score ≥62 = bon, ≥38 = possible.
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="panel-title">📶 CONDITIONS PAR BANDE <small>N0NBH</small></div>
       <div class="band-cond" id="bandCond"><div class="loading">…</div></div>
     </div>
@@ -196,6 +206,23 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   <div class="panel">
     <div class="panel-title">🏔️ ACTIVATEURS SOTA EN DIRECT <small id="sotaMeta"></small></div>
     <div id="sotaList" class="scroll-list"><div class="loading">…</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">🌳 ACTIVATEURS WWFF EN DIRECT <small id="wwffMeta"></small></div>
+    <div id="wwffList" class="scroll-list"><div class="loading">…</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">🏰 CHÂTEAUX WCA/COTA — ANNONCÉS <small id="wcaMeta"></small></div>
+    <div id="wcaList" class="scroll-list"><div class="loading">…</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">🌙 EME — REBOND LUNAIRE</div>
+    <div id="emeBody" style="font-family:var(--font-mono);font-size:13px;line-height:1.9">
+      <div class="loading">…</div>
+    </div>
   </div>
 
   </div><!-- /prop-main -->
@@ -539,6 +566,158 @@ async function loadSota(){
   }catch(e){}
 }
 
+// ─── WWFF : activateurs en direct (spots.wwff.co, via le serveur) ───────────
+async function loadWwff(){
+  try{
+    const r = await fetch('/data/wwff_spots');
+    const d = await r.json();
+    const meta = document.getElementById('wwffMeta');
+    const el = document.getElementById('wwffList');
+    const spots = d.spots || [];
+    if(!spots.length){
+      el.innerHTML = `<div class="loading">Aucune activation WWFF en cours signalée pour l'instant.</div>`;
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = `${spots.length} activateur${spots.length>1?'s':''}`;
+    // Service tiers public (n'importe qui peut poster un commentaire de spot) :
+    // chaque champ affiché passe par esc().
+    el.innerHTML = spots.slice(0,30).map(s => `
+      <div class="spot-row">
+        <span class="sr-call">${esc(s.call)}</span>
+        <span class="sr-band">${esc(s.band)||'—'}</span>
+        <span style="width:80px;color:var(--accent2)">${esc(s.reference)}</span>
+        <span class="sr-info">${s.freq?(s.freq/1000).toFixed(3)+' MHz · ':''}${esc(s.mode)}${s.park_name?' · '+esc(s.park_name):''}${s.comment?' · '+esc(s.comment):''}</span>
+      </div>`).join('');
+  }catch(e){}
+}
+
+// ─── WCA/COTA : activations ANNONCÉES à l'avance (flux RSS wcagroup.org) —
+// PAS des spots confirmés sur l'air, contrairement aux panneaux ci-dessus :
+// ce sont des opérateurs qui publient à l'avance leur intention d'activer un
+// château. Étiqueté différemment pour ne pas laisser croire à un spot réel.
+async function loadWca(){
+  try{
+    const r = await fetch('/data/wca_planned');
+    const d = await r.json();
+    const meta = document.getElementById('wcaMeta');
+    const el = document.getElementById('wcaList');
+    const items = d.items || [];
+    if(!items.length){
+      el.innerHTML = `<div class="loading">Aucune activation WCA/COTA annoncée pour l'instant.</div>`;
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = `${items.length} annoncée${items.length>1?'s':''}`;
+    el.innerHTML = items.slice(0,20).map(it => `
+      <div class="spot-row" style="flex-direction:column;align-items:flex-start;gap:2px">
+        <div style="display:flex;gap:8px;width:100%">
+          <span style="color:var(--accent2);font-weight:600">${esc(it.reference)}</span>
+          <span class="sr-info" style="flex:1">${esc(it.title)}</span>
+        </div>
+        <div class="sr-info" style="color:var(--muted);font-size:11px">${esc(it.description).slice(0,160)}</div>
+      </div>`).join('');
+  }catch(e){}
+}
+
+// ─── OUVERTURES PAR RÉGION : modèle MUF/SFI/K/greyline déjà utilisé par le
+// contexte IA (« mes chances vers l'Europe ce soir ? ») — jusqu'ici jamais
+// affiché lui-même dans une vue, cf. logx_paths.py::all_regions().
+const OPENINGS_BAND_LABEL = {
+  '1.8':'160m','3.5':'80m','7':'40m','10':'30m','14':'20m',
+  '18':'17m','21':'15m','24':'12m','28':'10m','50':'6m',
+};
+async function loadOpenings(){
+  const el = document.getElementById('openingsBody');
+  try{
+    const r = await fetch('/data/openings');
+    const d = await r.json();
+    if(!d.ok || !d.regions){
+      el.innerHTML = `<div class="loading">${esc(d.error || 'Indisponible')}</div>`;
+      return;
+    }
+    const regions = d.regions.slice().sort((a,b) => b.best_score - a.best_score);
+    el.innerHTML = `
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;white-space:nowrap">
+        <thead><tr style="color:var(--muted);font-size:11px;text-align:left">
+          <th style="padding:4px 8px 6px 4px">RÉGION</th>
+          <th style="padding:4px 8px 6px">CAP · DIST.</th>
+          <th style="padding:4px 8px 6px">MEILLEURE BANDE</th>
+          <th style="padding:4px 8px 6px">BANDES OUVERTES</th>
+          <th style="padding:4px 4px 6px">FENÊTRE</th>
+        </tr></thead>
+        <tbody>
+        ${regions.map(rg => {
+          const color = rg.best_score >= 62 ? 'var(--green)' : rg.best_score >= 38 ? 'var(--yellow)' : 'var(--muted)';
+          const bandLbl = OPENINGS_BAND_LABEL[rg.best_band] || (rg.best_band + ' MHz');
+          const openBands = (rg.open_bands || []).map(b => OPENINGS_BAND_LABEL[b] || b).join(' · ') || '—';
+          return `<tr style="border-top:1px solid var(--border)">
+            <td style="padding:6px 8px 6px 4px;font-weight:700">${esc(rg.region_name)}</td>
+            <td style="padding:6px 8px;color:var(--muted);font-size:12px">${esc(rg.cardinal_short)} · ${Math.round(rg.distance_km).toLocaleString('fr-FR')} km${rg.long_path ? ' (long path)' : ''}</td>
+            <td style="padding:6px 8px;color:${color};font-weight:700">${bandLbl} (${rg.best_score})</td>
+            <td style="padding:6px 8px;color:var(--muted);font-size:12px">${esc(openBands)}</td>
+            <td style="padding:6px 4px;color:var(--accent2)">${esc(rg.best_window_utc || '—')} UTC</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+      </div>`;
+  }catch(e){
+    el.innerHTML = '<div class="loading">Indisponible</div>';
+  }
+}
+
+// ─── EME (rebond lunaire) : position de la Lune + Doppler + fenêtre commune ──
+// Calculé côté serveur (PyEphem, local, aucune donnée réseau) — cf. logx_eme.py.
+async function loadEme(){
+  const el = document.getElementById('emeBody');
+  try{
+    const [moonRes, d144Res, d432Res] = await Promise.all([
+      fetch('/data/eme_moon'), fetch('/data/eme_doppler?freq=144.1'), fetch('/data/eme_doppler?freq=432.1')
+    ]);
+    const moon = await moonRes.json();
+    if(!moon.available){
+      el.innerHTML = `<div class="loading">${esc(moon.error || 'Indisponible')}</div>`;
+      return;
+    }
+    const d144 = await d144Res.json();
+    const d432 = await d432Res.json();
+    const visBadge = moon.visible
+      ? '<span style="color:var(--green)">● visible</span>'
+      : '<span style="color:var(--muted)">○ sous l\'horizon</span>';
+    el.innerHTML = `
+      <div>🌗 Position : <b>Az ${moon.az}° / El ${moon.alt}°</b> ${visBadge}</div>
+      <div>📏 Distance : ${Math.round(moon.distance_km).toLocaleString('fr-FR')} km · Phase : ${moon.phase_pct}%</div>
+      <div>🌅 Lever : ${esc(moon.rise_utc || '—')} UTC &nbsp;·&nbsp; 🌇 Coucher : ${esc(moon.set_utc || '—')} UTC</div>
+      <div>📻 Doppler estimé : 144.1 MHz → <b>${d144.available ? d144.doppler_hz+' Hz' : '—'}</b> · 432.1 MHz → <b>${d432.available ? d432.doppler_hz+' Hz' : '—'}</b></div>
+      <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input id="emeDxLocator" placeholder="Locator correspondant (ex: FN31pr)" autocapitalize="characters"
+          style="text-transform:uppercase;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-family:var(--font-mono);width:180px"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();searchEmeWindow();}">
+        <button type="button" class="filter-btn" onclick="searchEmeWindow()">🔍 Fenêtre commune (48h)</button>
+      </div>
+      <div id="emeWindowResult" style="margin-top:6px;color:var(--muted)"></div>
+    `;
+  }catch(e){
+    el.innerHTML = `<div class="loading">Indisponible</div>`;
+  }
+}
+
+async function searchEmeWindow(){
+  const loc = document.getElementById('emeDxLocator').value.trim().toUpperCase();
+  const out = document.getElementById('emeWindowResult');
+  if(!loc){ out.textContent = ''; return; }
+  out.textContent = 'Recherche…';
+  try{
+    const r = await fetch(`/data/eme_window?locator=${encodeURIComponent(loc)}&hours=48`);
+    const d = await r.json();
+    if(!d.available){ out.textContent = '❌ ' + (d.error || 'indisponible'); return; }
+    if(!d.windows.length){ out.innerHTML = 'Aucune fenêtre commune dans les 48 prochaines heures.'; return; }
+    out.innerHTML = d.windows.map(w => `<div>🌙 ${esc(w.start_utc)} → ${esc(w.end_utc)} UTC</div>`).join('');
+  }catch(e){ out.textContent = '❌ Recherche indisponible'; }
+}
+
 // ─── LIENS EXTERNES DÉPENDANT DE LA STATION (indicatif + locator) ────────────
 // Construits une fois la config connue : carte PSK Reporter filtrée sur mon
 // indicatif, et prédictions de passages satellites pour mes coordonnées.
@@ -601,6 +780,10 @@ loadMeteors();
 loadRBN();
 loadPota();
 loadSota();
+loadWwff();
+loadWca();
+loadEme();
+loadOpenings();
 loadStationLinks();
 setInterval(loadPropagation, 5 * 60 * 1000);   // solaire : lent (caches 15 min)
 setInterval(loadSpots, 60 * 1000);             // need list : chaque minute
@@ -609,6 +792,10 @@ setInterval(loadPSK, 3 * 60 * 1000);           // PSK Reporter : cache serveur 3
 setInterval(loadTropo, 20 * 60 * 1000);        // tropo : cache 20 min
 setInterval(loadPota, 2 * 60 * 1000);          // POTA : cache serveur 90 s
 setInterval(loadSota, 60 * 1000);              // SOTA : cache serveur 60 s
+setInterval(loadWwff, 60 * 1000);              // WWFF : cache serveur 60 s
+setInterval(loadWca, 5 * 60 * 1000);           // WCA : simple flux RSS de blog, cache serveur 15 min
+setInterval(loadEme, 5 * 60 * 1000);           // EME : position lunaire, évolue lentement
+setInterval(loadOpenings, 5 * 60 * 1000);      // ouvertures par région : dépend du solaire (cache 15 min)
 setInterval(loadMeteors, 10 * 60 * 1000);      // météores : calendrier lent
 setInterval(loadRBN, 2 * 60 * 1000);           // RBN CW : cache serveur 2 min
 </script>

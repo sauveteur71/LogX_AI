@@ -13,11 +13,16 @@ requise sur la machine cible.
 import glob
 import os
 
-# Fichiers embarqués : pages, scripts front, données de référence
+# Fichiers embarqués : pages, scripts front, données de référence.
+# manifest/icône/logo : requis par les pages ET pré-cachés par le service
+# worker (logx_sw.js) — sans eux, logo cassé et cache.addAll échoue en 404,
+# donc la PWA ne s'installe jamais dans l'exécutable (alors que tout marche
+# en mode développeur, où les fichiers sont dans le dossier).
 _datas = [(f, '.') for f in glob.glob('*.html')]
 _datas += [(f, '.') for f in glob.glob('*.js')]
 for ref in ('contest_schema.json', 'cty.dat', 'france_departements.geojson',
-            'custom_contests.json'):
+            'custom_contests.json', 'external_contests.json',
+            'manifest.webmanifest', 'logx_icon.svg', 'logx_logo.png'):
     if os.path.exists(ref):
         _datas.append((ref, '.'))
 
@@ -27,7 +32,8 @@ _hidden = ['logx_' + m for m in (
     'utils', 'definitions', 'storage', 'rules', 'scoring', 'clusters',
     'prompts', 'http', 'rules_ai', 'coach', 'validate', 'dxcc', 'departments',
     'export', 'beacons', 'psk', 'weather', 'rig', 'rotor', 'wsjtx', 'qrz',
-    'bootstrap', 'cat', 'tci', 'websdr', 'pota')]
+    'bootstrap', 'cat', 'tci', 'websdr', 'pota',
+    'activation_db', 'eme', 'iota', 'wca', 'wwff')]
 # pyserial (logx_cat) : sous-modules non toujours détectés par
 # l'analyse statique (list_ports selon l'OS cible).
 _hidden += ['serial', 'serial.tools.list_ports', 'serial.tools.list_ports_common',

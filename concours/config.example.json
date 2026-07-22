@@ -24,8 +24,7 @@
     "club_name": "Radio-Club",
     "section": "MOMB",
     "log_software": "LogX AI v3.0 - F6KQJ",
-    "log_format": "EDI",
-    "record_dx_km": 0
+    "log_format": "EDI"
   },
   "contest": {
     "id": "REF_RPH",

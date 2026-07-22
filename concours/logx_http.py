@@ -14,7 +14,8 @@ import time
 import socket
 
 import logx_rules as rules
-from logx_utils import PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX
+from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX,
+                          OPENAI_COMPATIBLE_ENDPOINTS)
 from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
                                  delete_custom_contest)
@@ -49,6 +50,19 @@ _agent_seq = 0
 _agent_lock = threading.Lock()
 
 
+def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096):
+    """Appelle un fournisseur au format OpenAI Chat Completions, renvoie le TEXTE de la réponse."""
+    msgs = ([{'role': 'system', 'content': system_prompt}] if system_prompt else []) + messages
+    payload = {'model': ai_model or default_model, 'max_tokens': max_tokens, 'messages': msgs}
+    req = urllib.request.Request(
+        base_url, data=json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'},
+        method='POST')
+    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+        d = json.loads(resp.read())
+    return d.get('choices', [{}])[0].get('message', {}).get('content', '')
+
+
 def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     """Appelle le fournisseur IA configuré et retourne le TEXTE de la réponse.
     Même logique que /proxy/ai mais réutilisable côté serveur (analyse en fond).
@@ -73,16 +87,10 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
         return ''.join(b.get('text', '') for b in data.get('content', [])
                        if b.get('type') == 'text')
 
-    if provider == 'openai':
-        msgs = ([{'role': 'system', 'content': system_prompt}] if system_prompt else []) + messages
-        payload = {'model': ai_model or 'gpt-4o', 'max_tokens': max_tokens, 'messages': msgs}
-        req = urllib.request.Request(
-            'https://api.openai.com/v1/chat/completions', data=json.dumps(payload).encode(),
-            headers={'Content-Type': 'application/json',
-                     'Authorization': f'Bearer {api_key}'}, method='POST')
-        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
-            d = json.loads(resp.read())
-        return d.get('choices', [{}])[0].get('message', {}).get('content', '')
+    if provider in OPENAI_COMPATIBLE_ENDPOINTS:
+        base_url, default_model = OPENAI_COMPATIBLE_ENDPOINTS[provider]
+        return _call_openai_compatible(base_url, ai_model, default_model, api_key,
+                                       system_prompt, messages, max_tokens)
 
     if provider == 'gemini':
         model_id = ai_model or 'gemini-2.0-flash'
@@ -631,6 +639,37 @@ def _rotor_state_dict(cfg_snap):
     state = rotor.get_position(settings['host'], settings['port'])
     state['enabled'] = True
     return state
+
+
+def _activation_db_adapter(program):
+    """Programme d'activation -> {search(q), lookup(ref), nearby(lat,lon,max_km)
+    ou None, status()} — interface commune à SOTA (fonctions historiques de
+    logx_sota.py, non modifiées) et POTA/WWFF/IOTA (moteur générique
+    logx_activation_db.ActivationDatabase), pour UNE seule UI de recherche
+    côté configuration plutôt que 5 implémentations quasi identiques. WCA n'a
+    pas de coordonnées GPS dans sa source (cf. logx_wca.py) : nearby=None."""
+    program = (program or '').upper()
+    if program == 'SOTA':
+        import logx_sota as sota
+        return {'search': sota.search_summits, 'lookup': sota.get_summit,
+                'nearby': sota.nearby_summits, 'status': sota.summits_status}
+    if program == 'POTA':
+        import logx_pota as pota
+        return {'search': pota.parks_db.search, 'lookup': pota.parks_db.get,
+                'nearby': pota.parks_db.nearby, 'status': pota.parks_db.status}
+    if program == 'WWFF':
+        import logx_wwff as wwff
+        return {'search': wwff.directory_db.search, 'lookup': wwff.directory_db.get,
+                'nearby': wwff.directory_db.nearby, 'status': wwff.directory_db.status}
+    if program == 'IOTA':
+        import logx_iota as iota
+        return {'search': iota.search_groups, 'lookup': iota.groups_db.get,
+                'nearby': iota.groups_db.nearby, 'status': iota.groups_db.status}
+    if program == 'WCA':
+        import logx_wca as wca
+        return {'search': wca.search_castles, 'lookup': wca.get_castle,
+                'nearby': None, 'status': wca.status}
+    return None
 
 
 # ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
@@ -1223,6 +1262,78 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.worked_matrix(log_copy))
             return
 
+        # Record DX par bande — calculé depuis le vrai locator de chaque QSO
+        # archivé (haversine), remplace l'ancien champ manuel record_dx (un
+        # chiffre unique n'a pas de sens multi-bandes).
+        if path == '/data/dx_records':
+            import logx_awards as awards
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(awards.dx_records(cfg_snap.get('locator', ''), log_copy))
+            return
+
+        # EME (rebond lunaire) : position de la Lune depuis mon QTH + lever/
+        # coucher — calculé localement (PyEphem), aucune donnée réseau.
+        if path == '/data/eme_moon':
+            import logx_eme as eme
+            cfg_snap = self._cfg_snapshot()
+            lat, lon = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            if lat is None:
+                self._json({'available': False, 'error': 'Locator manquant ou invalide (page CONFIG)'})
+                return
+            alt_m = cfg_snap.get('altitude', 0) or 0
+            pos = eme.moon_position(lat, lon, alt_m)
+            rs = eme.moon_rise_set(lat, lon, alt_m)
+            self._json({**pos, **rs})
+            return
+
+        # Décalage Doppler estimé à la fréquence courante (ou 144.1 MHz par défaut).
+        if path.startswith('/data/eme_doppler'):
+            import logx_eme as eme
+            from urllib.parse import parse_qs, urlparse
+            cfg_snap = self._cfg_snapshot()
+            lat, lon = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            if lat is None:
+                self._json({'available': False, 'error': 'Locator manquant ou invalide (page CONFIG)'})
+                return
+            qs = parse_qs(urlparse(self.path).query)
+            try:
+                freq_mhz = float((qs.get('freq') or ['144.1'])[0])
+            except ValueError:
+                freq_mhz = 144.1
+            self._json(eme.doppler_shift_hz(lat, lon, freq_mhz, cfg_snap.get('altitude', 0) or 0))
+            return
+
+        # Fenêtre commune (Lune visible des DEUX QTH simultanément) avec un
+        # correspondant, identifié par son locator (ex: FN31pr).
+        if path.startswith('/data/eme_window'):
+            import logx_eme as eme
+            from urllib.parse import parse_qs, urlparse
+            cfg_snap = self._cfg_snapshot()
+            lat1, lon1 = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            if lat1 is None:
+                self._json({'available': False, 'error': 'Locator manquant ou invalide (page CONFIG)'})
+                return
+            qs = parse_qs(urlparse(self.path).query)
+            loc2 = (qs.get('locator') or [''])[0]
+            lat2, lon2 = locator_to_latlon(loc2)
+            if lat2 is None:
+                self._json({'available': False, 'error': 'Locator du correspondant manquant ou invalide (ex: FN31pr)'})
+                return
+            try:
+                hours = float((qs.get('hours') or ['48'])[0])
+            except ValueError:
+                hours = 48
+            # Borne dure : le balayage éphéméride fait hours*60/pas itérations
+            # PyEphem dans CE thread HTTP — sans plafond, ?hours=48000000
+            # (faute de frappe ou n'importe quel poste du réseau local) bloque
+            # un thread à 100 % CPU pendant des heures. NaN/inf passent float().
+            if not (1 <= hours <= 168):   # faux aussi pour NaN
+                hours = 48
+            self._json(eme.common_window(lat1, lon1, lat2, lon2, hours=hours))
+            return
+
         # État de configuration QSL + horodatage des dernières synchros.
         if path == '/qsl/status':
             import logx_qsl as qsl
@@ -1444,35 +1555,60 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'spots': sota.fetch_sota_spots()})
             return
 
-        # Recherche dans la base des sommets SOTA (code ou nom, auto-complétion
-        # du champ MA RÉFÉRENCE ACTIVÉE) — jamais bloquant : renvoie [] tant que
+        # Spots d'activateurs WWFF en direct (spots.wwff.co, cache 60 s)
+        if path == '/data/wwff_spots':
+            import logx_wwff as wwff
+            self._json({'spots': wwff.fetch_wwff_spots()})
+            return
+
+        # Activations WCA/COTA ANNONCÉES à l'avance (flux RSS wcagroup.org) —
+        # PAS des spots confirmés sur l'air, cf. logx_wca.py.
+        if path == '/data/wca_planned':
+            import logx_wca as wca
+            self._json({'items': wca.fetch_planned_activations()})
+            return
+
+        # Recherche dans la base de références du programme d'activation en
+        # cours (POTA/SOTA/IOTA/WWFF/WCA — code ou nom), pour l'auto-complétion
+        # du champ MA RÉFÉRENCE ACTIVÉE. Jamais bloquant : renvoie [] tant que
         # la base (téléchargée en tâche de fond au premier appel) n'est pas prête.
-        if path.startswith('/sota/search'):
-            import logx_sota as sota
+        if path.startswith('/activation_db/search'):
             from urllib.parse import parse_qs, urlparse
-            q = (parse_qs(urlparse(self.path).query).get('q') or [''])[0]
-            self._json({'results': sota.search_summits(q), 'status': sota.summits_status()})
+            qs = parse_qs(urlparse(self.path).query)
+            adapter = _activation_db_adapter((qs.get('program') or [''])[0])
+            if not adapter:
+                self._json({'results': [], 'status': {'ready': False, 'error': 'programme inconnu'}})
+                return
+            q = (qs.get('q') or [''])[0]
+            self._json({'results': adapter['search'](q), 'status': adapter['status']()})
             return
 
         # Référence exacte -> détails (validation de MA RÉFÉRENCE ACTIVÉE contre
         # la vraie base, au-delà de la simple vérification de FORMAT déjà faite
         # par logx_activation.py).
-        if path.startswith('/sota/lookup'):
-            import logx_sota as sota
-            from urllib.parse import parse_qs, urlparse
-            ref = (parse_qs(urlparse(self.path).query).get('ref') or [''])[0]
-            summit = sota.get_summit(ref)
-            self._json({'summit': summit, 'status': sota.summits_status()})
-            return
-
-        # Sommets SOTA les plus proches d'un point (par défaut : le locator de
-        # la station) — le service que rend sotamaps.org (Range Calculator),
-        # construit directement sur la base déjà en mémoire, sans dépendance
-        # réseau tierce supplémentaire.
-        if path.startswith('/sota/nearby'):
-            import logx_sota as sota
+        if path.startswith('/activation_db/lookup'):
             from urllib.parse import parse_qs, urlparse
             qs = parse_qs(urlparse(self.path).query)
+            adapter = _activation_db_adapter((qs.get('program') or [''])[0])
+            if not adapter:
+                self._json({'entry': None, 'status': {'ready': False, 'error': 'programme inconnu'}})
+                return
+            ref = (qs.get('ref') or [''])[0]
+            self._json({'entry': adapter['lookup'](ref), 'status': adapter['status']()})
+            return
+
+        # Références les plus proches d'un point (par défaut : le locator de la
+        # station) — le service que rend sotamaps.org (Range Calculator) pour
+        # SOTA, généralisé aux autres programmes qui ont des coordonnées GPS
+        # (pas WCA : sa source n'en fournit pas). Construit directement sur la
+        # base déjà en mémoire, sans dépendance réseau tierce supplémentaire.
+        if path.startswith('/activation_db/nearby'):
+            from urllib.parse import parse_qs, urlparse
+            qs = parse_qs(urlparse(self.path).query)
+            adapter = _activation_db_adapter((qs.get('program') or [''])[0])
+            if not adapter or not adapter['nearby']:
+                self._json({'entries': [], 'status': (adapter['status']() if adapter else {'ready': False})})
+                return
             lat_q, lon_q = (qs.get('lat') or [''])[0], (qs.get('lon') or [''])[0]
             if lat_q and lon_q:
                 lat, lon = lat_q, lon_q
@@ -1480,8 +1616,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 cfg_snap = self._cfg_snapshot()
                 lat, lon = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
             max_km = float((qs.get('max_km') or ['100'])[0])
-            self._json({'summits': sota.nearby_summits(lat, lon, max_km=max_km),
-                        'status': sota.summits_status()})
+            self._json({'entries': adapter['nearby'](lat, lon, max_km=max_km),
+                        'status': adapter['status']()})
             return
 
         # État d'une analyse IA serveur (pour la reprise après changement de page)
@@ -2620,19 +2756,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self._raw(200, 'application/json', result)
                     print(f"[API] Anthropic OK ({len(result)} bytes)")
 
-                # ── OpenAI ──────────────────────────────────────────────────
-                elif provider == 'openai':
+                # ── OpenAI / Mistral / xAI / DeepSeek (même format d'API) ────
+                elif provider in OPENAI_COMPATIBLE_ENDPOINTS:
+                    base_url, default_model = OPENAI_COMPATIBLE_ENDPOINTS[provider]
                     oai_messages = []
                     if system_prompt:
                         oai_messages.append({'role': 'system', 'content': system_prompt})
                     oai_messages.extend(messages)
                     oai_payload = {
-                        'model':      ai_model or 'gpt-4o',
+                        'model':      ai_model or default_model,
                         'max_tokens': payload.get('max_tokens', 4096),
                         'messages':   oai_messages,
                     }
                     req = urllib.request.Request(
-                        'https://api.openai.com/v1/chat/completions',
+                        base_url,
                         data=json.dumps(oai_payload).encode(),
                         headers={
                             'Content-Type':  'application/json',
@@ -2646,7 +2783,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     text = oai_data.get('choices', [{}])[0].get('message', {}).get('content', '')
                     result = json.dumps({'content': [{'type': 'text', 'text': text}]}).encode()
                     self._raw(200, 'application/json', result)
-                    print(f"[API] OpenAI OK ({len(text)} chars)")
+                    print(f"[API] {provider} OK ({len(text)} chars)")
 
                 # ── Gemini ──────────────────────────────────────────────────
                 elif provider == 'gemini':
@@ -2707,13 +2844,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
     _NEVER_SERVE = {
         'clef api.txt', 'config.json', 'logx.db', 'shared_log.json',
         'qtc_log.json', 'cloudsync_state.json',
+        'qsl_sync.json', 'scoreboard_sync.json', 'backup_state.json',
     }
+    # Le test par nom exact ne couvre pas les copies renommées (logx.db.bak,
+    # shared_log.json.20260722.bak...) — on bloque aussi par suffixe.
+    _NEVER_SERVE_SUFFIXES = ('.bak', '.db')
 
     def _resolve(self, path):
         import urllib.parse
         rel = urllib.parse.unquote(path).lstrip('/\\')
         base = os.path.basename(rel).lower()
-        if base.startswith('.') or base in self._NEVER_SERVE:
+        if (base.startswith('.') or base in self._NEVER_SERVE
+                or base.endswith(self._NEVER_SERVE_SUFFIXES)):
             return None
         bases = [os.getcwd(), os.path.dirname(os.path.abspath(__file__))]
         if hasattr(sys, '_MEIPASS'):

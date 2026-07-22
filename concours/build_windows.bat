@@ -6,10 +6,16 @@ REM ============================================================
 setlocal
 cd /d "%~dp0"
 
-echo [1/2] Installation de PyInstaller si necessaire...
+echo [1/3] Installation des dependances (requirements.txt)...
+REM Indispensable AVANT PyInstaller : il n'embarque que les bibliotheques
+REM importables au moment du build. Sans cette etape, un poste frais produit
+REM un exe sans CAT serie, sans keyer vocal, sans EME - silencieusement.
+python -m pip install --quiet -r requirements.txt
+
+echo [2/3] Installation de PyInstaller si necessaire...
 python -m pip install --quiet --upgrade pyinstaller
 
-echo [2/2] Construction de l'executable...
+echo [3/3] Construction de l'executable...
 python -m PyInstaller --noconfirm --clean logx.spec
 
 echo.

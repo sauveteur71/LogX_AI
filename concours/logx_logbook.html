@@ -64,6 +64,11 @@ body.day-mode .last-qso-title{color:var(--muted)}
 body.day-mode .lqi-call{color:var(--green)}
 body.day-mode .lqi-loc{color:var(--accent2)}
 body.day-mode .lqi-pts{color:var(--accent)}
+/* Décodeur CW — mode jour : le bandeau garde un fond dégradé sombre codé en
+   dur (pensé pour --green = vert néon en mode nuit), mais --green devient un
+   vert foncé en mode jour -> texte illisible sans ce contre-dégradé clair. */
+body.day-mode .cw-header{background:linear-gradient(135deg,#DCEEDC,#EAF6EA)}
+body.day-mode .cw-btn.active{background:rgba(0,112,48,.15);color:var(--green);border-color:var(--green)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;overflow:hidden;display:flex;flex-direction:column}
 
@@ -224,9 +229,36 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 .dup-warning.show{display:block}
 
 /* BANDE / MODE */
-.band-mode-row{display:flex;gap:7px;flex-wrap:wrap}
 .bm-btn{font-family:var(--font-mono);font-size:16px;padding:6px 16px;border-radius:6px;border:1px solid #2A3060;background:var(--bg3);color:#8A94C8;cursor:pointer;transition:all .15s;font-weight:600}
 .bm-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.12);font-weight:700}
+
+/* Sélecteur de BANDE et de MODE : un seul bouton (valeur courante) + popup de
+   bascule — plutôt qu'une rangée de jusqu'à 17 boutons (1.8 MHz → 47 GHz) ou
+   6 boutons mode, illisible dès qu'on active plus de 3-4 valeurs. */
+.band-current-btn,.mode-current-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  font-family:var(--font-mono);font-size:16px;font-weight:700;padding:9px 16px;border-radius:6px;
+  border:1px solid var(--accent2);background:rgba(0,212,255,.12);color:var(--accent2);cursor:pointer}
+.band-current-arrow,.mode-current-arrow{font-size:11px;color:var(--muted)}
+.band-picker-popup,.mode-picker-popup{position:absolute;top:100%;left:0;right:0;z-index:30;margin-top:4px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);padding:8px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;
+  max-height:260px;overflow-y:auto}
+.band-picker-popup .bm-btn,.mode-picker-popup .bm-btn{width:100%;padding:6px 4px;text-align:center}
+
+/* Sélecteur d'OPÉRATEUR : même schéma bouton+popup, couleur accent (comme les
+   boutons .op-btn existants) plutôt que accent2 (bande/mode) — garde la
+   distinction visuelle déjà en place entre opérateur et bande/mode. */
+.op-current-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  font-family:var(--font-mono);font-size:16px;font-weight:700;padding:9px 16px;border-radius:6px;
+  border:1px solid var(--accent);background:rgba(255,80,48,.12);color:var(--accent);cursor:pointer}
+.op-current-arrow{font-size:11px;color:var(--muted)}
+.op-picker-popup{position:absolute;top:100%;left:0;right:0;z-index:30;margin-top:4px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);padding:8px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;
+  max-height:260px;overflow-y:auto}
+.op-picker-popup .op-btn{width:100%;padding:6px 4px;text-align:center}
 
 /* ZONE SECONDAIRE (soapbox/macros/derniers QSO) — scroll indépendant, ne rogne jamais la saisie */
 .saisie-secondary{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
@@ -658,6 +690,20 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <div class="shortcuts-row"><span class="shortcuts-key">F1 – F8</span><span>Macros — clic pour copier, double-clic pour modifier</span></div>
       <div class="shortcuts-row"><span class="shortcuts-key">?</span><span>Afficher/masquer cette aide</span></div>
     </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:2px;margin-bottom:8px;font-weight:700">⏎ ESM (Enter Sends Message) — comme sur N1MM</div>
+      <div style="font-family:var(--font-mono);font-size:13px;color:var(--text);line-height:1.9">
+        Une fois activé (bouton ESM ● en haut de la saisie), la touche <b>Entrée dans le champ INDICATIF</b> enchaîne 3 étapes SANS toucher la souris :
+      </div>
+      <ol style="font-family:var(--font-mono);font-size:13px;color:var(--text);line-height:1.9;margin:6px 0 0 20px;padding:0">
+        <li><b>Champ INDICATIF vide</b>, Entrée → envoie l'appel CQ (macro/voix), rien n'est loggé</li>
+        <li><b>Indicatif saisi</b>, Entrée → envoie TON échange (report/numéro), place le curseur dans N° REÇU — rien n'est loggé non plus</li>
+        <li><b>N° reçu saisi</b>, Entrée → cette fois le QSO est loggé POUR DE VRAI, et un « merci » est envoyé automatiquement</li>
+      </ol>
+      <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.6">
+        Le champ indicatif se vide ensuite tout seul, prêt pour le prochain appel — c'est ce qui permet d'enchaîner un pile-up au clavier sans jamais lâcher les touches. Désactivé (ESM ○), Entrée valide directement le QSO comme d'habitude, depuis n'importe quel champ.
+      </div>
+    </div>
   </div>
 </div>
 
@@ -746,21 +792,33 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <div class="saisie-panel">
     <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
       <span>⌨ SAISIE QSO</span>
-      <button id="esmBtn" onclick="toggleEsm()" title="ESM : la touche Entrée enchaîne appel CQ → échange → log (comme N1MM)"
+      <button id="esmBtn" onclick="toggleEsm()" title="ESM : la touche Entrée enchaîne appel CQ → échange → log (comme N1MM) — détail complet dans l'aide (bouton ?)"
         style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer">ESM ○</button>
     </div>
 
     <div class="saisie-form">
 
-      <!-- Opérateur actif -->
-      <div class="field-group">
-        <div class="field-label">OPÉRATEUR</div>
-        <div class="op-select" id="opSelect">
-          <button class="op-btn active" data-op="OP1" onclick="setOp(this)">OP1</button>
-          <button class="op-btn" data-op="OP2" onclick="setOp(this)">OP2</button>
-          <button class="op-btn" data-op="OP3" onclick="setOp(this)">OP3</button>
-          <button class="op-btn" data-op="OP4" onclick="setOp(this)">OP4</button>
-          <button class="op-btn" data-op="OP5" onclick="setOp(this)">OP5</button>
+      <!-- Opérateur actif + Bande, côte à côte : même schéma bouton+popup que
+           MODE plus bas, pour gagner la place d'une ligne entière. -->
+      <div class="field-row">
+        <div class="field-group" style="position:relative">
+          <div class="field-label">OPÉRATEUR</div>
+          <button type="button" class="op-current-btn" id="opCurrentBtn" onclick="toggleOpPicker()">
+            <span id="opCurrentLabel">OP1</span>
+            <span class="op-current-arrow">▼</span>
+          </button>
+          <div class="op-picker-popup" id="opPickerPopup" style="display:none"></div>
+        </div>
+
+        <!-- Bande : un bouton (bande courante) + popup pour en choisir une autre,
+             plutôt qu'une rangée de boutons (illisible au-delà de 3-4 bandes). -->
+        <div class="field-group" style="position:relative">
+          <div class="field-label">BANDE</div>
+          <button type="button" class="band-current-btn" id="bandCurrentBtn" onclick="toggleBandPicker()">
+            <span id="bandCurrentLabel">2m</span>
+            <span class="band-current-arrow">▼</span>
+          </button>
+          <div class="band-picker-popup" id="bandPickerPopup" style="display:none"></div>
         </div>
       </div>
 
@@ -778,20 +836,6 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         </div>
       </div>
 
-      <!-- Bande -->
-      <div class="field-group">
-        <div class="field-label">BANDE</div>
-        <div class="band-mode-row" id="bandSelect">
-          <button class="bm-btn active" data-val="144" onclick="setBand(this)">2m</button>
-          <button class="bm-btn" data-val="432" onclick="setBand(this)">70cm</button>
-          <button class="bm-btn" data-val="1296" onclick="setBand(this)">23cm</button>
-          <button class="bm-btn" data-val="2320" onclick="setBand(this)">13cm</button>
-          <button class="bm-btn" data-val="3400" onclick="setBand(this)">9cm</button>
-          <button class="bm-btn" data-val="5760" onclick="setBand(this)">6cm</button>
-          <button class="bm-btn" data-val="10368" onclick="setBand(this)">3cm</button>
-        </div>
-      </div>
-
       <!-- Fréquence exacte (MHz) — saisie ou lue de la radio (CAT) -->
       <div class="field-group">
         <div class="field-label">FRÉQUENCE <span style="color:var(--muted);font-weight:400">(MHz)</span></div>
@@ -805,15 +849,15 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         </div>
       </div>
 
-      <!-- Mode -->
-      <div class="field-group">
+      <!-- Mode : un bouton (mode courant) + popup pour en choisir un autre,
+           même schéma que le sélecteur de BANDE ci-dessus. -->
+      <div class="field-group" style="position:relative">
         <div class="field-label">MODE</div>
-        <div class="band-mode-row" id="modeSelect">
-          <button class="bm-btn active" data-val="SSB" onclick="setMode(this)">SSB</button>
-          <button class="bm-btn" data-val="CW" onclick="setMode(this)">CW</button>
-          <button class="bm-btn" data-val="FM" onclick="setMode(this)">FM</button>
-          <button class="bm-btn" data-val="FT8" onclick="setMode(this)">FT8</button>
-        </div>
+        <button type="button" class="mode-current-btn" id="modeCurrentBtn" onclick="toggleModePicker()">
+          <span id="modeCurrentLabel">SSB</span>
+          <span class="mode-current-arrow">▼</span>
+        </button>
+        <div class="mode-picker-popup" id="modePickerPopup" style="display:none"></div>
       </div>
 
       <!-- Indicatif -->
@@ -1050,7 +1094,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="export-btn" onclick="popoutScope()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Détacher le bandscope sur un 2e écran">🖥️ SCOPE</button>
       <button class="export-btn" onclick="popoutWall()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Écran mural (scores + flux QSO) sur un 2e écran">🖥️ MUR</button>
       <button class="export-btn" id="qtcBtn" onclick="addQTC()" style="display:none;color:var(--accent2);border-color:rgba(0,212,255,.4)" title="WAE : enregistrer un échange de QTC (1 pt chacun, max 10 par station)">✉ QTC : 0</button>
-      <button class="export-btn" onclick="archiveLog()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px" title="Conserver le log de ce concours dans un dossier permanent (log + Cabrillo + ADIF + résumé)">📦 ARCHIVER</button>
+      <button id="archiveBtn" class="export-btn" onclick="archiveLog()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px" title="Conserver le log de ce concours dans un dossier permanent (log + Cabrillo + ADIF + résumé)">📦 ARCHIVER</button>
       <button class="export-btn" onclick="backupNow()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Sauvegarde immédiate vers le dossier configuré (Synology/Dropbox…). Sauvegarde aussi automatique si activée dans CONFIG.">💾 SAUVEGARDER</button>
       <button class="export-btn" onclick="resetLog()" style="color:var(--red);border-color:rgba(255,45,85,.4);margin-left:8px">🗑️ NOUVEAU LOG</button>
       <button class="export-btn" onclick="showRatePanel()" style="color:var(--accent2);border-color:rgba(0,212,255,.4);margin-left:8px">📊 STATS</button>
@@ -1149,9 +1193,12 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <!-- CHAT MULTI-OPÉRATEUR -->
 <div class="chat-panel" id="chatPanel">
   <div class="chat-toggle" onclick="toggleChat()">💬 CHAT MULTI-OP <span id="chatUnread" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:12px;margin-left:6px">0</span></div>
-  <div class="chat-body" id="chatBody" style="display:none;flex-direction:column;gap:6px;padding:10px;max-height:240px;overflow-y:auto"></div>
-  <div class="chat-input-row" style="display:none;gap:6px;padding:8px 10px;border-top:1px solid var(--border)">
-    <input type="text" id="chatInput" placeholder="Message..." style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 8px;font-family:var(--font-mono);font-size:14px" onkeydown="if(e.key==='Enter')sendChat()">
+  <!-- Pas de display:none inline ici : un style inline PRIME sur la règle CSS
+       .chat-panel.open .chat-body{display:flex} — le panneau ne s'ouvrirait
+       jamais visuellement. L'état fermé est déjà géré par la classe .chat-body. -->
+  <div class="chat-body" id="chatBody"></div>
+  <div class="chat-input-row">
+    <input type="text" id="chatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat()">
     <button onclick="sendChat()" style="background:var(--accent2);border:none;border-radius:4px;color:#000;padding:5px 10px;cursor:pointer;font-family:var(--font-mono);font-size:13px">▶</button>
   </div>
 </div>

@@ -27,6 +27,7 @@ import urllib.request
 
 from logx_rules import extract_document_text, DATE_RULE_PATTERN, calc_contest_date
 from logx_validate import validate_definition
+from logx_utils import OPENAI_COMPATIBLE_ENDPOINTS
 
 MAX_RULES_CHARS = 40000        # garde-fou taille prompt en mode texte
 MAX_PDF_BYTES = 25 * 1024 * 1024
@@ -200,9 +201,16 @@ def call_ai_structured(provider, model, api_key, system, user_text, output_schem
             if block.get('type') == 'tool_use':
                 return block.get('input', {})
         raise ValueError("Réponse Anthropic sans bloc tool_use")
-    elif provider == 'openai':
+    elif provider in OPENAI_COMPATIBLE_ENDPOINTS:
+        # OpenAI, Mistral AI (api.mistral.ai), xAI/Grok (api.x.ai) et DeepSeek
+        # (api.deepseek.com) partagent le même contrat d'API — response_format
+        # json_object est confirmé sur la doc officielle d'OpenAI et de Mistral ;
+        # pour xAI/DeepSeek c'est le même paramètre standard des API compatibles
+        # OpenAI, et parse_ai_json() reste le filet de sécurité si un fournisseur
+        # l'ignore et renvoie du texte autour du JSON.
+        base_url, default_model = OPENAI_COMPATIBLE_ENDPOINTS[provider]
         payload = {
-            'model': model or 'gpt-4o',
+            'model': model or default_model,
             'max_tokens': max_tokens,
             'response_format': {'type': 'json_object'},
             'messages': [
@@ -212,7 +220,7 @@ def call_ai_structured(provider, model, api_key, system, user_text, output_schem
                 {'role': 'user', 'content': user_text},
             ],
         }
-        data = _http_json('https://api.openai.com/v1/chat/completions', payload,
+        data = _http_json(base_url, payload,
                           {'Content-Type': 'application/json',
                            'Authorization': f'Bearer {api_key}'}, timeout)
         return parse_ai_json(data.get('choices', [{}])[0].get('message', {}).get('content', ''))

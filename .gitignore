@@ -1,6 +1,7 @@
 concours/clef API.txt
 concours/__pycache__/
 concours/config.json
+concours/_backup_avant_correction_rst/
 concours/calldb.json
 concours/shared_log.json
 concours/tests/__pycache__/
@@ -21,6 +22,11 @@ concours/backup_state.json
 concours/cloudsync_state.json
 concours/.cloudsync_instance_id
 concours/sota_summits.csv
+concours/pota_parks.csv
+concours/wwff_directory.csv
+concours/iota_groups.json
+concours/iota_islands.json
+concours/wca_castles.json
 
 # Documents personnels de préparation (pas le programme lui-même)
 .claude/launch.json

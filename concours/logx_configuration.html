@@ -94,6 +94,21 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .cat-modal-head{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
 .cat-modal-title{font-family:var(--font-mono);font-size:15px;letter-spacing:2px;color:var(--accent2);font-weight:700}
 .cat-modal-close{margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono)}
+.cat-modal-save{margin-left:auto;background:linear-gradient(135deg,#00FF88,#00D4FF);border:none;color:#0A0B18;font-weight:700;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono);transition:opacity .15s}
+.cat-modal-save:hover{opacity:.85}
+
+/* Sélecteur de fournisseur IA : grille responsive plutôt qu'une seule ligne
+   flex-wrap — devenue illisible une fois passée de 3 à 6 fournisseurs (les
+   cartes se compressaient jusqu'à tronquer leur propre texte). */
+.ai-provider-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:6px}
+.ai-provider-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  cursor:pointer;font-family:var(--font-mono);transition:border-color .15s,background .15s}
+.ai-provider-card input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.ai-provider-card.selected{border-color:var(--accent2);background:rgba(0,212,255,.08)}
+.ai-provider-icon{font-size:22px;line-height:1}
+.ai-provider-name{font-size:13px;font-weight:700;color:var(--text)}
+.ai-provider-sub{font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
 .cat-modal-body{flex:1;overflow-y:auto;padding:20px 24px}
 
 /* STEPS (ancien assistant par étapes — conservé masqué le temps de la
@@ -153,6 +168,30 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 
 .band-group{margin-bottom:12px}
 .band-group-title{font-size:14px;color:#7A84B8;letter-spacing:2px;font-family:var(--font-mono);margin-bottom:8px;font-weight:600}
+
+/* Popup DATES & BANDES/MODES : deux colonnes côte à côte + sections plus
+   compactes pour tenir sans scroll malgré le volume (dates, modes, bandes
+   VLF→SHF, satellites, options) — les autres popups gardent leur style
+   normal (.section non préfixé de #catbody_filters). */
+/* Contenu le plus dense des 15 popups (dates + modes + bandes VLF→SHF +
+   satellites + options) : une boîte plus haute que les autres, quitte à
+   réduire un peu la marge autour, pour tenir sans scroll sur un écran
+   courant plutôt que de continuer à rogner les espacements au pixel près. */
+#catmodal_filters .cat-modal-box{inset:1% 6%}
+#catbody_filters{display:block;padding:10px 20px}
+.filters-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+#catbody_filters .section{padding:10px 14px;margin-bottom:8px}
+#catbody_filters .section-title{margin-bottom:8px;font-size:13px;letter-spacing:2px}
+#catbody_filters .toggle-grid{gap:5px}
+#catbody_filters .toggle-btn{padding:5px 9px;font-size:12.5px}
+#catbody_filters .band-group{margin-bottom:6px}
+#catbody_filters .band-group-title{margin-bottom:5px;font-size:12.5px}
+#catbody_filters #contest_dates_auto{margin-bottom:8px;padding:8px 12px}
+#catbody_filters .form-grid{gap:12px}
+#catbody_filters details.sat-details{border:1px dashed var(--border);border-radius:8px;padding:8px 12px;margin-top:4px}
+#catbody_filters details.sat-details summary{cursor:pointer;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:1px;font-weight:600}
+#catbody_filters details.sat-details[open] summary{margin-bottom:8px}
+@media (max-width:640px){.filters-cols{grid-template-columns:1fr}}
 
 /* CONTEST CARDS */
 .contest-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
@@ -259,7 +298,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <select id="usage_mode" onchange="onUsageModeChange()">
       <option value="simple">📋 LOGBOOK SIMPLE — chasse DX / trafic courant, sans concours</option>
       <option value="contest" selected>🏆 CONCOURS — règlement, échange, scoring, multiplicateurs</option>
-      <option value="expedition">📡 EXPÉDITION / ACTIVATION — pile-up, multi-poste, écran mural</option>
+      <option value="expedition">📡 EXPÉDITION / ACTIVATION — pile-up, multi-poste</option>
       <option value="radioclub">🏛️ RADIOCLUB — plusieurs postes, jusqu'à 40 opérateurs</option>
     </select>
     <span class="usage-mode-note" id="usageModeNote"></span>
@@ -443,6 +482,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_identity">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">📛 1. IDENTITÉ DE LA STATION</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'identity')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('identity')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_identity">
       <div class="section">
@@ -534,9 +574,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             </select>
           </div>
           <div class="form-group">
-            <label>RECORD DX (KM)</label>
-            <input type="number" id="record_dx" placeholder="1600" min="0">
-            <div class="input-note">Utilisé pour calibrer les priorités</div>
+            <label>RECORD DX <span style="font-size:11px;color:var(--muted);font-weight:400">(auto)</span></label>
+            <div id="dxRecordDisplay" style="font-family:var(--font-mono);font-size:14px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);min-height:20px">—</div>
+            <div class="input-note">Calculé depuis ton log réel (plus grande distance travaillée) — aucune saisie requise.</div>
           </div>
           <div class="form-group expert-only">
             <label>LOG EXTERNE (PONT RÉSEAU)</label>
@@ -588,6 +628,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_operators">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">🧑‍🤝‍🧑 2. OPÉRATEURS</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'operators')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('operators')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_operators">
       <div class="section" id="opSection">
@@ -633,6 +674,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_contest">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">🏆 3. SÉLECTION DU CONCOURS</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'contest')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('contest')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_contest">
       <!-- ASSISTANT NOUVEAU CONCOURS (rempli par handleContestParam quand on
@@ -640,16 +682,25 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       <div id="assistantBanner" style="display:none;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:10px;padding:14px 18px;margin-bottom:16px"></div>
 
       <div class="section">
-        <div style="margin-bottom:14px;position:relative">
-          <input type="text" id="contestSearch"
-            placeholder="🔍  Rechercher : Field Day, VHF, RPH, CQ WW…"
-            oninput="buildContestGrid(this.value)"
-            autocomplete="off"
-            style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
-            onfocus="this.style.borderColor='var(--accent2)'"
-            onblur="this.style.borderColor='var(--border)'">
-          <span id="contestSearchClear" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
-            style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none">✕</span>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <div style="flex:1;position:relative">
+            <input type="text" id="contestSearch"
+              placeholder="🔍  Rechercher : Field Day, VHF, RPH, CQ WW…"
+              oninput="buildContestGrid(this.value)"
+              autocomplete="off"
+              style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
+              onfocus="this.style.borderColor='var(--accent2)'"
+              onblur="this.style.borderColor='var(--border)'">
+            <span id="contestSearchClear" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
+              style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none">✕</span>
+          </div>
+          <!-- Revenir à « pas de concours » : utile hors concours réel (activation,
+               chasse DX...) — sans ce bouton, une fois un concours choisi il n'y
+               avait aucun moyen de redevenir "sans concours" (cf. EXPÉDITION,
+               où participer ou non à un concours est un vrai choix ponctuel). -->
+          <button type="button" class="btn btn-secondary" onclick="deselectContest()"
+            title="Revenir à « sans concours » — utile en EXPÉDITION/ACTIVATION quand tu ne participes pas (ou plus) à un concours"
+            style="white-space:nowrap;padding:0 16px">✕ Aucun concours</button>
         </div>
         <div class="contest-grid" id="contestGrid"></div>
       </div>
@@ -684,153 +735,162 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_filters">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">📅 4. DATES &amp; BANDES/MODES</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'filters')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('filters')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_filters">
-      <div class="section">
-        <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
-        <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
-          📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.
-        </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>DATE DÉBUT <span style="font-size:12px;color:var(--muted)">(auto ou manuel)</span></label>
-            <input type="date" id="contest_start_date" placeholder="2026-07-05">
-            <div class="input-note">Champ TDate début dans le fichier EDI</div>
+      <div class="filters-cols">
+        <div class="filters-col">
+          <div class="section">
+            <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
+            <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+              📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>DATE DÉBUT <span style="font-size:12px;color:var(--muted)">(auto ou manuel)</span></label>
+                <input type="date" id="contest_start_date" placeholder="2026-07-05">
+                <div class="input-note">Champ TDate début dans le fichier EDI</div>
+              </div>
+              <div class="form-group">
+                <label>DATE FIN</label>
+                <input type="date" id="contest_end_date" placeholder="2026-07-06">
+              </div>
+              <div class="form-group">
+                <label>HEURE FIN UTC</label>
+                <input type="time" id="contest_end_utc" placeholder="14:00">
+                <div class="input-note">Pour le compte à rebours du logbook</div>
+              </div>
+            </div>
           </div>
-          <div class="form-group">
-            <label>DATE FIN</label>
-            <input type="date" id="contest_end_date" placeholder="2026-07-06">
-          </div>
-          <div class="form-group">
-            <label>HEURE FIN UTC</label>
-            <input type="time" id="contest_end_utc" placeholder="14:00">
-            <div class="input-note">Pour le compte à rebours du logbook</div>
-          </div>
-        </div>
-      </div>
 
-      <div id="filterAutoNote" style="display:none;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
+          <div id="filterAutoNote" style="display:none;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
 
-      <div class="section">
-        <div class="section-title">MODES</div>
-        <div class="toggle-grid">
-          <span class="toggle-btn mode-ssb on" data-key="mode_ssb" onclick="toggle(this)">SSB</span>
-          <span class="toggle-btn mode-cw" data-key="mode_cw" onclick="toggle(this)">CW</span>
-          <span class="toggle-btn mode-digi" data-key="mode_ft8" onclick="toggle(this)">FT8</span>
-          <span class="toggle-btn mode-digi" data-key="mode_ft4" onclick="toggle(this)">FT4</span>
-          <span class="toggle-btn mode-digi" data-key="mode_js8" onclick="toggle(this)">JS8</span>
-          <span class="toggle-btn mode-digi" data-key="mode_rtty" onclick="toggle(this)">RTTY</span>
-          <span class="toggle-btn mode-digi" data-key="mode_psk" onclick="toggle(this)">PSK</span>
-          <span class="toggle-btn" data-key="mode_am" onclick="toggle(this)">AM</span>
-          <span class="toggle-btn" data-key="mode_fm" onclick="toggle(this)">FM</span>
-          <span class="toggle-btn" data-key="mode_dstar" onclick="toggle(this)">D-STAR</span>
-        </div>
-      </div>
+          <div class="section">
+            <div class="section-title">MODES</div>
+            <div class="toggle-grid">
+              <span class="toggle-btn mode-ssb on" data-key="mode_ssb" onclick="toggle(this)">SSB</span>
+              <span class="toggle-btn mode-cw" data-key="mode_cw" onclick="toggle(this)">CW</span>
+              <span class="toggle-btn mode-digi" data-key="mode_ft8" onclick="toggle(this)">FT8</span>
+              <span class="toggle-btn mode-digi" data-key="mode_ft4" onclick="toggle(this)">FT4</span>
+              <span class="toggle-btn mode-digi" data-key="mode_js8" onclick="toggle(this)">JS8</span>
+              <span class="toggle-btn mode-digi" data-key="mode_rtty" onclick="toggle(this)">RTTY</span>
+              <span class="toggle-btn mode-digi" data-key="mode_psk" onclick="toggle(this)">PSK</span>
+              <span class="toggle-btn" data-key="mode_am" onclick="toggle(this)">AM</span>
+              <span class="toggle-btn" data-key="mode_fm" onclick="toggle(this)">FM</span>
+              <span class="toggle-btn" data-key="mode_dstar" onclick="toggle(this)">D-STAR</span>
+            </div>
+          </div>
 
-      <div class="section" id="section_hf">
-        <div class="section-title">BANDES VLF / HF</div>
-        <div class="toggle-grid">
-          <span class="toggle-btn" data-key="band_vlf" onclick="toggle(this)">VLF</span>
-          <span class="toggle-btn" data-key="band_160m" onclick="toggle(this)">1.8 MHz <small style="opacity:.7">160m</small></span>
-          <span class="toggle-btn" data-key="band_80m" onclick="toggle(this)">3.5 MHz <small style="opacity:.7">80m</small></span>
-          <span class="toggle-btn" data-key="band_60m" onclick="toggle(this)">5 MHz <small style="opacity:.7">60m</small></span>
-          <span class="toggle-btn" data-key="band_40m" onclick="toggle(this)">7 MHz <small style="opacity:.7">40m</small></span>
-          <span class="toggle-btn" data-key="band_30m" onclick="toggle(this)">10 MHz <small style="opacity:.7">30m</small></span>
-          <span class="toggle-btn" data-key="band_20m" onclick="toggle(this)">14 MHz <small style="opacity:.7">20m</small></span>
-          <span class="toggle-btn" data-key="band_17m" onclick="toggle(this)">18 MHz <small style="opacity:.7">17m</small></span>
-          <span class="toggle-btn" data-key="band_15m" onclick="toggle(this)">21 MHz <small style="opacity:.7">15m</small></span>
-          <span class="toggle-btn" data-key="band_12m" onclick="toggle(this)">24 MHz <small style="opacity:.7">12m</small></span>
-          <span class="toggle-btn" data-key="band_10m" onclick="toggle(this)">28 MHz <small style="opacity:.7">10m</small></span>
-          <span class="toggle-btn" data-key="band_8m" onclick="toggle(this)">40 MHz <small style="opacity:.7">8m</small></span>
+          <div class="section">
+            <div class="section-title">OPTIONS SPÉCIALES</div>
+            <div class="toggle-grid">
+              <span class="toggle-btn flag" data-key="flag_qrp" onclick="toggle(this)">QRP</span>
+              <span class="toggle-btn flag" data-key="flag_iota" onclick="toggle(this)">IOTA</span>
+              <span class="toggle-btn flag" data-key="flag_sota" onclick="toggle(this)">SOTA</span>
+              <span class="toggle-btn flag" data-key="flag_pota" onclick="toggle(this)">POTA</span>
+              <span class="toggle-btn flag" data-key="flag_portable" onclick="toggle(this)">PORTABLE /P</span>
+              <span class="toggle-btn flag" data-key="flag_mobile" onclick="toggle(this)">MOBILE /M</span>
+              <span class="toggle-btn flag" data-key="flag_beacon" onclick="toggle(this)">BEACON</span>
+              <span class="toggle-btn flag" data-key="flag_eme" onclick="toggle(this)">EME</span>
+              <span class="toggle-btn flag" data-key="flag_ms" onclick="toggle(this)">Meteor Scatter</span>
+              <span class="toggle-btn flag" data-key="flag_no_digi" onclick="toggle(this)">NO-DIGI</span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="section" id="section_vhf">
-        <div class="section-title">BANDES VHF / UHF / SHF</div>
-        <div class="band-group">
-          <div class="band-group-title">VHF</div>
-          <div class="toggle-grid">
-            <span class="toggle-btn" data-key="band_6m" onclick="toggle(this)">50 MHz <small style="opacity:.7">6m</small></span>
-            <span class="toggle-btn" data-key="band_4m" onclick="toggle(this)">70 MHz <small style="opacity:.7">4m</small></span>
-            <span class="toggle-btn on" data-key="band_2m" onclick="toggle(this)">144 MHz <small style="opacity:.7">2m</small></span>
-            <span class="toggle-btn" data-key="band_220" onclick="toggle(this)">220 MHz <small style="opacity:.7">1.25m</small></span>
+        <div class="filters-col">
+          <div class="section" id="section_hf">
+            <div class="section-title">BANDES VLF / HF</div>
+            <div class="toggle-grid">
+              <span class="toggle-btn" data-key="band_vlf" onclick="toggle(this)">VLF</span>
+              <span class="toggle-btn" data-key="band_160m" onclick="toggle(this)">1.8 MHz <small style="opacity:.7">160m</small></span>
+              <span class="toggle-btn" data-key="band_80m" onclick="toggle(this)">3.5 MHz <small style="opacity:.7">80m</small></span>
+              <span class="toggle-btn" data-key="band_60m" onclick="toggle(this)">5 MHz <small style="opacity:.7">60m</small></span>
+              <span class="toggle-btn" data-key="band_40m" onclick="toggle(this)">7 MHz <small style="opacity:.7">40m</small></span>
+              <span class="toggle-btn" data-key="band_30m" onclick="toggle(this)">10 MHz <small style="opacity:.7">30m</small></span>
+              <span class="toggle-btn" data-key="band_20m" onclick="toggle(this)">14 MHz <small style="opacity:.7">20m</small></span>
+              <span class="toggle-btn" data-key="band_17m" onclick="toggle(this)">18 MHz <small style="opacity:.7">17m</small></span>
+              <span class="toggle-btn" data-key="band_15m" onclick="toggle(this)">21 MHz <small style="opacity:.7">15m</small></span>
+              <span class="toggle-btn" data-key="band_12m" onclick="toggle(this)">24 MHz <small style="opacity:.7">12m</small></span>
+              <span class="toggle-btn" data-key="band_10m" onclick="toggle(this)">28 MHz <small style="opacity:.7">10m</small></span>
+              <span class="toggle-btn" data-key="band_8m" onclick="toggle(this)">40 MHz <small style="opacity:.7">8m</small></span>
+            </div>
           </div>
-        </div>
-        <div class="band-group">
-          <div class="band-group-title">UHF</div>
-          <div class="toggle-grid">
-            <span class="toggle-btn on" data-key="band_70cm" onclick="toggle(this)">432 MHz <small style="opacity:.7">70cm</small></span>
-            <span class="toggle-btn" data-key="band_23cm" onclick="toggle(this)">1.2 GHz <small style="opacity:.7">23cm</small></span>
-            <span class="toggle-btn" data-key="band_13cm" onclick="toggle(this)">2.4 GHz <small style="opacity:.7">13cm</small></span>
-          </div>
-        </div>
-        <div class="band-group">
-          <div class="band-group-title">SHF</div>
-          <div class="toggle-grid">
-            <span class="toggle-btn" data-key="band_9cm" onclick="toggle(this)">3.4 GHz <small style="opacity:.7">9cm</small></span>
-            <span class="toggle-btn" data-key="band_6cm" onclick="toggle(this)">5.7 GHz <small style="opacity:.7">6cm</small></span>
-            <span class="toggle-btn" data-key="band_3cm" onclick="toggle(this)">10 GHz <small style="opacity:.7">3cm</small></span>
-            <span class="toggle-btn" data-key="band_6mm" onclick="toggle(this)">24 GHz <small style="opacity:.7">1.2cm</small></span>
-            <span class="toggle-btn" data-key="band_4mm" onclick="toggle(this)">47 GHz <small style="opacity:.7">6mm</small></span>
-          </div>
-        </div>
-        <div class="band-group">
-          <div class="band-group-title">SATELLITE</div>
-          <div class="toggle-grid">
-            <span class="toggle-btn" data-key="band_qo100" onclick="toggle(this)">QO-100</span>
-            <span class="toggle-btn" data-key="band_sat" onclick="toggle(this)">Autres SAT</span>
-          </div>
-          <div class="form-group" style="margin-top:10px;max-width:360px">
-            <label>SATELLITE ACTIF <span style="font-size:12px;color:var(--muted)">(repère informatif)</span></label>
-            <select id="active_satellite">
-              <option value="">— Non précisé —</option>
-              <optgroup label="Géostationnaire">
-                <option value="QO-100">QO-100 (Es'hail 2)</option>
-              </optgroup>
-              <optgroup label="Relais FM">
-                <option value="ISS">ISS (voix/APRS/SSTV)</option>
-                <option value="SO-50">SO-50</option>
-                <option value="AO-27">AO-27</option>
-                <option value="AO-91">AO-91 (Fox-1B)</option>
-                <option value="AO-92">AO-92 (Fox-1D)</option>
-                <option value="PO-101">PO-101 (Diwata-2)</option>
-              </optgroup>
-              <optgroup label="Transpondeur linéaire (SSB/CW)">
-                <option value="AO-7">AO-7</option>
-                <option value="FO-29">FO-29</option>
-                <option value="RS-44">RS-44</option>
-                <option value="EO-88">EO-88 (Nayif-1)</option>
-                <option value="JO-97">JO-97</option>
-                <option value="CAS-4A">CAS-4A (ZHUHAI-1)</option>
-                <option value="CAS-4B">CAS-4B (ZHUHAI-1)</option>
-              </optgroup>
-              <option value="AUTRE">Autre (préciser dans le logbook)</option>
-            </select>
-            <div class="input-note">Statut des satellites : <a href="https://www.amsat.org/status/" target="_blank" rel="noopener" style="color:var(--accent2)">AMSAT Live OSCAR Status</a></div>
-          </div>
-          <div class="input-note" style="margin-top:10px;max-width:520px">
-            🛰️ Suivi &amp; Doppler :
-            <a href="https://www.heavens-above.com/" target="_blank" rel="noopener" style="color:var(--accent2)">Heavens-Above</a> ·
-            <a href="https://www.n2yo.com/" target="_blank" rel="noopener" style="color:var(--accent2)">N2YO</a> ·
-            <a href="https://amsat.org/amateur-satellite-index/" target="_blank" rel="noopener" style="color:var(--accent2)">Index AMSAT</a> ·
-            <a href="http://gpredict.oz9aec.net/" target="_blank" rel="noopener" style="color:var(--accent2)">Gpredict</a> (logiciel de tracking + calcul Doppler, non intégré à LogX AI)
-          </div>
-        </div>
-      </div>
 
-      <div class="section">
-        <div class="section-title">OPTIONS SPÉCIALES</div>
-        <div class="toggle-grid">
-          <span class="toggle-btn flag" data-key="flag_qrp" onclick="toggle(this)">QRP</span>
-          <span class="toggle-btn flag" data-key="flag_iota" onclick="toggle(this)">IOTA</span>
-          <span class="toggle-btn flag" data-key="flag_sota" onclick="toggle(this)">SOTA</span>
-          <span class="toggle-btn flag" data-key="flag_pota" onclick="toggle(this)">POTA</span>
-          <span class="toggle-btn flag" data-key="flag_portable" onclick="toggle(this)">PORTABLE /P</span>
-          <span class="toggle-btn flag" data-key="flag_mobile" onclick="toggle(this)">MOBILE /M</span>
-          <span class="toggle-btn flag" data-key="flag_beacon" onclick="toggle(this)">BEACON</span>
-          <span class="toggle-btn flag" data-key="flag_eme" onclick="toggle(this)">EME</span>
-          <span class="toggle-btn flag" data-key="flag_ms" onclick="toggle(this)">Meteor Scatter</span>
-          <span class="toggle-btn flag" data-key="flag_no_digi" onclick="toggle(this)">NO-DIGI</span>
+          <div class="section" id="section_vhf">
+            <div class="section-title">BANDES VHF / UHF / SHF</div>
+            <div class="band-group">
+              <div class="band-group-title">VHF</div>
+              <div class="toggle-grid">
+                <span class="toggle-btn" data-key="band_6m" onclick="toggle(this)">50 MHz <small style="opacity:.7">6m</small></span>
+                <span class="toggle-btn" data-key="band_4m" onclick="toggle(this)">70 MHz <small style="opacity:.7">4m</small></span>
+                <span class="toggle-btn on" data-key="band_2m" onclick="toggle(this)">144 MHz <small style="opacity:.7">2m</small></span>
+                <span class="toggle-btn" data-key="band_220" onclick="toggle(this)">220 MHz <small style="opacity:.7">1.25m</small></span>
+              </div>
+            </div>
+            <div class="band-group">
+              <div class="band-group-title">UHF</div>
+              <div class="toggle-grid">
+                <span class="toggle-btn on" data-key="band_70cm" onclick="toggle(this)">432 MHz <small style="opacity:.7">70cm</small></span>
+                <span class="toggle-btn" data-key="band_23cm" onclick="toggle(this)">1.2 GHz <small style="opacity:.7">23cm</small></span>
+                <span class="toggle-btn" data-key="band_13cm" onclick="toggle(this)">2.4 GHz <small style="opacity:.7">13cm</small></span>
+              </div>
+            </div>
+            <div class="band-group">
+              <div class="band-group-title">SHF</div>
+              <div class="toggle-grid">
+                <span class="toggle-btn" data-key="band_9cm" onclick="toggle(this)">3.4 GHz <small style="opacity:.7">9cm</small></span>
+                <span class="toggle-btn" data-key="band_6cm" onclick="toggle(this)">5.7 GHz <small style="opacity:.7">6cm</small></span>
+                <span class="toggle-btn" data-key="band_3cm" onclick="toggle(this)">10 GHz <small style="opacity:.7">3cm</small></span>
+                <span class="toggle-btn" data-key="band_6mm" onclick="toggle(this)">24 GHz <small style="opacity:.7">1.2cm</small></span>
+                <span class="toggle-btn" data-key="band_4mm" onclick="toggle(this)">47 GHz <small style="opacity:.7">6mm</small></span>
+              </div>
+            </div>
+            <div class="band-group">
+              <div class="toggle-grid">
+                <span class="toggle-btn" data-key="band_qo100" onclick="toggle(this)">QO-100</span>
+                <span class="toggle-btn" data-key="band_sat" onclick="toggle(this)">Autres SAT</span>
+              </div>
+              <details class="sat-details">
+                <summary>🛰️ Satellite actif &amp; liens de suivi</summary>
+                <div class="form-group" style="max-width:360px">
+                  <label>SATELLITE ACTIF <span style="font-size:12px;color:var(--muted)">(repère informatif)</span></label>
+                  <select id="active_satellite">
+                    <option value="">— Non précisé —</option>
+                    <optgroup label="Géostationnaire">
+                      <option value="QO-100">QO-100 (Es'hail 2)</option>
+                    </optgroup>
+                    <optgroup label="Relais FM">
+                      <option value="ISS">ISS (voix/APRS/SSTV)</option>
+                      <option value="SO-50">SO-50</option>
+                      <option value="AO-27">AO-27</option>
+                      <option value="AO-91">AO-91 (Fox-1B)</option>
+                      <option value="AO-92">AO-92 (Fox-1D)</option>
+                      <option value="PO-101">PO-101 (Diwata-2)</option>
+                    </optgroup>
+                    <optgroup label="Transpondeur linéaire (SSB/CW)">
+                      <option value="AO-7">AO-7</option>
+                      <option value="FO-29">FO-29</option>
+                      <option value="RS-44">RS-44</option>
+                      <option value="EO-88">EO-88 (Nayif-1)</option>
+                      <option value="JO-97">JO-97</option>
+                      <option value="CAS-4A">CAS-4A (ZHUHAI-1)</option>
+                      <option value="CAS-4B">CAS-4B (ZHUHAI-1)</option>
+                    </optgroup>
+                    <option value="AUTRE">Autre (préciser dans le logbook)</option>
+                  </select>
+                  <div class="input-note">Statut des satellites : <a href="https://www.amsat.org/status/" target="_blank" rel="noopener" style="color:var(--accent2)">AMSAT Live OSCAR Status</a></div>
+                </div>
+                <div class="input-note" style="margin-top:10px">
+                  🛰️ Suivi &amp; Doppler :
+                  <a href="https://www.heavens-above.com/" target="_blank" rel="noopener" style="color:var(--accent2)">Heavens-Above</a> ·
+                  <a href="https://www.n2yo.com/" target="_blank" rel="noopener" style="color:var(--accent2)">N2YO</a> ·
+                  <a href="https://amsat.org/amateur-satellite-index/" target="_blank" rel="noopener" style="color:var(--accent2)">Index AMSAT</a> ·
+                  <a href="http://gpredict.oz9aec.net/" target="_blank" rel="noopener" style="color:var(--accent2)">Gpredict</a> (logiciel de tracking + calcul Doppler, non intégré à LogX AI)
+                </div>
+              </details>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -839,6 +899,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_radio">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">📻 5. RADIO (PILOTAGE CAT)</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'radio')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('radio')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_radio">
       <div class="section">
@@ -1022,6 +1083,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_amp">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">🔋 6. AMPLIFICATEUR HF</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'amp')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('amp')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_amp">
       <div class="section">
@@ -1073,6 +1135,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_rotor">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">🧭 7. ROTOR D'ANTENNE</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'rotor')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('rotor')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_rotor">
       <div class="section">
@@ -1108,6 +1171,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_network">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">☁️ 8. MULTI-POSTE &amp; CLOUD SYNC</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'network')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('network')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_network">
       <div class="section">
@@ -1187,6 +1251,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_backup">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">💾 9. SAUVEGARDE AUTOMATIQUE</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'backup')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('backup')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_backup">
       <div class="section">
@@ -1208,6 +1273,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_sources">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">📡 10. SOURCES DE PROPAGATION</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'sources')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('sources')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_sources">
       <div class="section">
@@ -1261,6 +1327,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_alerts">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">🔔 11. ALERTES PERSONNALISÉES</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'alerts')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('alerts')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_alerts">
       <div class="section">
@@ -1386,6 +1453,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_qsl">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">📮 12. QSL &amp; DIPLÔMES</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'qsl')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('qsl')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_qsl">
       <div class="section">
@@ -1478,6 +1546,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_scoreboard">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">🏆 13. SCOREBOARD &amp; SOUMISSION</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'scoreboard')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('scoreboard')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_scoreboard">
       <div class="section">
@@ -1516,6 +1585,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_expedition">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">🏝️ 14. EXPÉDITION / ACTIVATION</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'expedition')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('expedition')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_expedition">
       <div class="section">
@@ -1542,21 +1612,27 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
           <div class="form-group" style="position:relative">
             <label>MA RÉFÉRENCE ACTIVÉE</label>
-            <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase" oninput="onActivationRefInput()" onblur="setTimeout(hideSotaSuggestions,200)">
+            <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase" oninput="onActivationRefInput()" onblur="setTimeout(hideActivationSuggestions,200)">
             <div class="input-note">POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN</div>
-            <div id="sotaSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--bg2);border:1px solid var(--accent2);border-radius:6px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.4)"></div>
-            <div id="sotaValidation" style="font-family:var(--font-mono);font-size:12px;margin-top:4px"></div>
+            <div id="activationSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--bg2);border:1px solid var(--accent2);border-radius:6px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.4)"></div>
+            <div id="activationValidation" style="font-family:var(--font-mono);font-size:12px;margin-top:4px"></div>
           </div>
         </div>
-        <div class="form-group" id="sotaNearbyBlock" style="display:none;margin-top:12px">
-          <label>🗺️ SOMMETS SOTA À PROXIMITÉ <span style="font-size:12px;color:var(--muted)">(depuis ton locator)</span></label>
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-            <button type="button" class="btn btn-secondary" style="padding:7px 14px;font-size:12px" onclick="loadNearbySota()">🔍 Chercher autour de moi</button>
-            <input type="number" id="sotaNearbyMaxKm" value="60" min="5" max="500" style="width:70px" title="Rayon de recherche (km)">
-            <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">km</span>
+        <div class="form-group" id="activationNearbyBlock" style="display:none;margin-top:12px">
+          <label>🗺️ <span id="activationNearbyLabel">RÉFÉRENCES</span> À PROXIMITÉ <span style="font-size:12px;color:var(--muted)">(depuis ton locator)</span></label>
+          <div id="activationNearbySearchRow">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+              <button type="button" class="btn btn-secondary" style="padding:7px 14px;font-size:12px" onclick="loadNearbyActivationRefs()">🔍 Chercher autour de moi</button>
+              <input type="number" id="activationNearbyMaxKm" value="60" min="5" max="500" style="width:70px" title="Rayon de recherche (km)">
+              <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">km</span>
+            </div>
+            <div id="activationNearbyList" style="max-height:220px;overflow-y:auto"></div>
+            <div class="input-note">Calculé directement depuis la base déjà chargée côté serveur (pas de service tiers) — clique un résultat pour le mettre dans MA RÉFÉRENCE ACTIVÉE.</div>
           </div>
-          <div id="sotaNearbyList" style="max-height:220px;overflow-y:auto"></div>
-          <div class="input-note">Calculé directement depuis la base des 181 000 sommets déjà chargée (pas de service tiers) — clique un résultat pour le mettre dans MA RÉFÉRENCE ACTIVÉE.</div>
+          <div id="activationNearbyUnavailable" style="display:none;font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:8px 0">
+            ⚠️ Non disponible pour ce programme : la base officielle ne fournit aucune coordonnée GPS par référence, impossible de calculer une distance.
+            La recherche par nom reste disponible juste au-dessus, dans MA RÉFÉRENCE ACTIVÉE.
+          </div>
         </div>
       </div>
 
@@ -1605,7 +1681,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="form-group">
             <label>ÉCRAN MURAL (grand écran)</label>
             <a href="logx_wall.html" target="_blank" class="btn btn-secondary" style="display:inline-block;padding:9px 16px;text-decoration:none;margin-top:2px">🖥️ OUVRIR L'ÉCRAN MURAL</a>
-            <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran)</div>
+            <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran). Marche dans n'importe quel mode d'utilisation (concours, expédition, radioclub, ou même seul) — utile pour suivre les QSO depuis une autre pièce.</div>
           </div>
         </div>
         <div class="form-group" style="margin-top:10px">
@@ -1635,21 +1711,49 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div class="cat-modal" id="catmodal_ai">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title">🤖 15. ASSISTANT IA</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'ai')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('ai')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_ai">
       <div class="section">
         <div class="form-grid">
           <div class="form-group" style="grid-column:1/-1">
             <label>FOURNISSEUR</label>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
-              <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
-                <input type="radio" name="api_provider" value="anthropic" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🤖 Claude (Anthropic)
+            <div class="ai-provider-grid">
+              <label class="ai-provider-card" data-provider="anthropic">
+                <input type="radio" name="api_provider" value="anthropic" onchange="onProviderChange()">
+                <span class="ai-provider-icon">🤖</span>
+                <span class="ai-provider-name">Claude</span>
+                <span class="ai-provider-sub">Anthropic</span>
               </label>
-              <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
-                <input type="radio" name="api_provider" value="openai" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 💚 ChatGPT (OpenAI)
+              <label class="ai-provider-card" data-provider="openai">
+                <input type="radio" name="api_provider" value="openai" onchange="onProviderChange()">
+                <span class="ai-provider-icon">💚</span>
+                <span class="ai-provider-name">ChatGPT</span>
+                <span class="ai-provider-sub">OpenAI</span>
               </label>
-              <label style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:var(--font-mono);font-size:14px;transition:border-color .2s">
-                <input type="radio" name="api_provider" value="gemini" onchange="onProviderChange()" style="accent-color:var(--accent2)"> 🔵 Gemini (Google)
+              <label class="ai-provider-card" data-provider="gemini">
+                <input type="radio" name="api_provider" value="gemini" onchange="onProviderChange()">
+                <span class="ai-provider-icon">🔵</span>
+                <span class="ai-provider-name">Gemini</span>
+                <span class="ai-provider-sub">Google</span>
+              </label>
+              <label class="ai-provider-card" data-provider="mistral">
+                <input type="radio" name="api_provider" value="mistral" onchange="onProviderChange()">
+                <span class="ai-provider-icon">🇫🇷</span>
+                <span class="ai-provider-name">Mistral AI</span>
+                <span class="ai-provider-sub">France</span>
+              </label>
+              <label class="ai-provider-card" data-provider="xai">
+                <input type="radio" name="api_provider" value="xai" onchange="onProviderChange()">
+                <span class="ai-provider-icon">⚡</span>
+                <span class="ai-provider-name">Grok</span>
+                <span class="ai-provider-sub">xAI</span>
+              </label>
+              <label class="ai-provider-card" data-provider="deepseek">
+                <input type="radio" name="api_provider" value="deepseek" onchange="onProviderChange()">
+                <span class="ai-provider-icon">🐋</span>
+                <span class="ai-provider-name">DeepSeek</span>
+                <span class="ai-provider-sub">&nbsp;</span>
               </label>
             </div>
           </div>
@@ -1749,7 +1853,6 @@ const CONFIG_HELP = {
   altitude: "Ton altitude en mètres. Utile pour le Rallye des Points Hauts et pour affiner les prédictions de propagation troposphérique.",
   power: "Ta puissance d'émission en watts. Utilisée pour le calcul de certains bonus/catégories (ex. QRP).",
   power_class: "Ta catégorie de puissance déclarée pour le concours (HP=haute puissance, LP=basse puissance, QRP/QRP10/QRP15=très faible puissance selon ton palier). Certains concours notent différemment selon la catégorie. Dans l'export Cabrillo, les 3 paliers QRP sont tous déclarés comme la catégorie standard « QRP ».",
-  record_dx: "Ta plus longue distance déjà réalisée (en km) — sert uniquement de référence affichée, aucun impact sur le score.",
   active_satellite: "Le satellite via lequel tu opères actuellement — repère informatif uniquement, n'affecte ni le score ni le filtrage des bandes (ça reste les cases QO-100/Autres SAT ci-dessus). Utile en fin de saison pour te souvenir de tes activations.",
   operator_name: "Ton prénom/nom, utilisé dans les exports (ADIF/Cabrillo) et certains formulaires de diplômes.",
   email: "Ton adresse email, utilisée pour certains envois de log automatiques (ex. soumission de concours) si le concours le demande.",
@@ -1757,7 +1860,7 @@ const CONFIG_HELP = {
   op_call: "L'indicatif de la personne responsable du log si elle diffère de l'opérateur principal (utile en multi-opérateurs) — repris dans les champs RCall/MOpe1 de l'export EDI.",
   postal: "Ton code postal — les deux premiers chiffres identifient ton département, affiché dans l'en-tête du logbook.",
 
-  usage_mode: "Détermine le fonctionnement général du logiciel : LOGBOOK SIMPLE (trafic courant, un seul opérateur, pas de règles de concours), CONCOURS (scoring/règlement actifs, jusqu'à 5 opérateurs), EXPÉDITION (pile-up, écran mural, jusqu'à 5 opérateurs), ou RADIOCLUB (plusieurs postes radio et jusqu'à 40 opérateurs, pour un club où plusieurs membres se relaient). Change ce réglage si l'étape CONCOURS te paraît hors sujet.",
+  usage_mode: "Détermine le fonctionnement général du logiciel : LOGBOOK SIMPLE (trafic courant, un seul opérateur, pas de règles de concours), CONCOURS (scoring/règlement actifs, jusqu'à 5 opérateurs), EXPÉDITION (pile-up, multi-poste, jusqu'à 5 opérateurs), ou RADIOCLUB (plusieurs postes radio et jusqu'à 40 opérateurs, pour un club où plusieurs membres se relaient). Change ce réglage si l'étape CONCOURS te paraît hors sujet. L'écran mural (section ci-dessous) n'est PAS réservé au mode EXPÉDITION : il fonctionne dans n'importe quel mode, même seul — pratique pour suivre les QSO depuis une autre pièce.",
   expedition_mode: "Active les fonctions pensées pour une activation DXpédition/SOTA/POTA en groupe : écran mural partagé, synchronisation multi-poste, statistiques de pile-up.",
   activation_program: "Le programme d'activation concerné si tu actives une référence (SOTA, POTA, WWFF, châteaux...). Permet d'afficher les bons outils pour ce programme.",
   my_activation_ref: "La référence précise du site que tu actives (ex. un code SOTA ou POTA), affichée sur l'écran mural et dans les exports.",
@@ -2448,13 +2551,15 @@ async function init() {
   handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
   updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
   loadVoiceKeyerDevices();
+  loadDxRecord();
   updateAmpFieldsVisibility(); refreshAmpPorts(); // Amplificateur HF
   // Correctif M5 : refléter l'état Activé/Désactivé sur les champs dépendants
   // dès l'affichage initial (pas seulement au changement manuel du select).
   updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
   updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
-  validateSotaRef(); // Si une référence SOTA est déjà enregistrée, la vérifier contre la base au chargement
+  validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
+  _updateActivationNearbyVisibility();
   renderHub(); // Hub de catégories : badges d'état initiaux
 }
 
@@ -2465,38 +2570,85 @@ async function init() {
 // serveur — ces fonctions gèrent l'état "pas encore prêt" sans jamais
 // bloquer la saisie (la référence reste éditable manuellement à tout moment,
 // que la base soit chargée, en cours de chargement, ou injoignable).
-let _sotaSearchTimer = null;
+let _activationSearchTimer = null;
 
-function onActivationProgramChange(){
-  const el = document.getElementById('sotaValidation');
-  if (el) el.textContent = '';
-  hideSotaSuggestions();
-  const isSota = document.getElementById('activation_program').value === 'SOTA';
-  const nearbyBlock = document.getElementById('sotaNearbyBlock');
-  if (nearbyBlock) nearbyBlock.style.display = isSota ? '' : 'none';
-  if (isSota) validateSotaRef();
+// Un seul programme (POTA/SOTA/WWFF/IOTA) a un point GPS unique et fiable ;
+// IOTA n'a que le centre d'une boîte englobante (approximatif) ; WCA n'a
+// aucune coordonnée dans sa source (nearby désactivé) ; ARLHS n'a pas de
+// base téléchargée du tout (permission de réutilisation non obtenue — cf.
+// logx_wca.py/logx_iota.py pour le détail des sources), donc absent d'ici :
+// la saisie reste alors une simple validation de FORMAT (regex), comme avant.
+const ACTIVATION_DB_PROGRAMS = {
+  POTA: {hasNearby:true,
+    line:e=>`${_vkEsc(e.name)} <span style="color:var(--muted)">(${_vkEsc(e.location)})</span>`,
+    plain:e=>`${e.name} (${e.location})`},
+  SOTA: {hasNearby:true,
+    line:e=>`${_vkEsc(e.name)} <span style="color:var(--muted)">(${e.alt_m} m, ${e.points} pts, ${_vkEsc(e.region)})</span>`,
+    plain:e=>`${e.name} — ${e.alt_m} m, ${e.points} pts (${e.region})`},
+  WWFF: {hasNearby:true,
+    line:e=>`${_vkEsc(e.name)} <span style="color:var(--muted)">(${_vkEsc(e.country||e.region)})</span>`,
+    plain:e=>`${e.name} (${e.country||e.region})`},
+  IOTA: {hasNearby:true,
+    line:e=>`${_vkEsc(e.name)}`,
+    plain:e=>`${e.name}`},
+  WCA:  {hasNearby:false,
+    line:e=>`${_vkEsc(e.name)} <span style="color:var(--muted)">(${_vkEsc(e.location)})</span>`,
+    plain:e=>`${e.name} (${e.location})`},
+};
+
+function _activationProgram(){
+  const el = document.getElementById('activation_program');
+  return el ? el.value : '';
 }
 
-async function loadNearbySota(){
-  const list = document.getElementById('sotaNearbyList');
-  const maxKm = parseInt(document.getElementById('sotaNearbyMaxKm').value, 10) || 60;
+function onActivationProgramChange(){
+  const el = document.getElementById('activationValidation');
+  if (el) el.textContent = '';
+  hideActivationSuggestions();
+  const spec = ACTIVATION_DB_PROGRAMS[_activationProgram()];
+  _updateActivationNearbyVisibility();
+  if (spec) validateActivationRef();
+}
+
+// Le bloc "À PROXIMITÉ" reste visible pour tout programme dont la base est
+// chargée côté serveur (recherche par nom toujours possible), même quand la
+// recherche par distance elle-même n'a pas de sens faute de coordonnées GPS
+// dans la source (WCA) — sinon le bouton disparaît silencieusement et
+// ressemble à un bug plutôt qu'à une limite documentée de la source.
+function _updateActivationNearbyVisibility(){
+  const spec = ACTIVATION_DB_PROGRAMS[_activationProgram()];
+  const block = document.getElementById('activationNearbyBlock');
+  const searchRow = document.getElementById('activationNearbySearchRow');
+  const unavailable = document.getElementById('activationNearbyUnavailable');
+  if (!block) return;
+  block.style.display = spec ? '' : 'none';
+  if (searchRow) searchRow.style.display = (spec && spec.hasNearby) ? '' : 'none';
+  if (unavailable) unavailable.style.display = (spec && !spec.hasNearby) ? '' : 'none';
+}
+
+async function loadNearbyActivationRefs(){
+  const program = _activationProgram();
+  const spec = ACTIVATION_DB_PROGRAMS[program];
+  const list = document.getElementById('activationNearbyList');
+  const maxKm = parseInt(document.getElementById('activationNearbyMaxKm').value, 10) || 60;
+  if (!spec) return;
   list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">Recherche…</div>';
   try{
-    const r = await fetch(`/sota/nearby?max_km=${maxKm}`);
+    const r = await fetch(`/activation_db/nearby?program=${program}&max_km=${maxKm}`);
     const d = await r.json();
     if (!d.status || !d.status.ready){
-      list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">⏳ Chargement de la base des sommets (~181 000 entrées, une seule fois)…</div>';
+      list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">⏳ Chargement de la base (peut prendre jusqu\'à une minute la première fois)…</div>';
       return;
     }
-    const summits = d.summits || [];
-    if (!summits.length){
-      list.innerHTML = `<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">Aucun sommet à moins de ${maxKm} km — renseigne ton locator dans « MA STATION » ou élargis le rayon.</div>`;
+    const entries = d.entries || [];
+    if (!entries.length){
+      list.innerHTML = `<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">Aucune référence à moins de ${maxKm} km — renseigne ton locator dans « MA STATION » ou élargis le rayon.</div>`;
       return;
     }
-    list.innerHTML = summits.map(s => `
-      <div onclick="pickSotaSummit('${s.code}')" style="padding:7px 10px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px">
-        <span><b style="color:var(--accent2)">${_vkEsc(s.code)}</b> — ${_vkEsc(s.name)} <span style="color:var(--muted)">(${s.alt_m} m, ${s.points} pts)</span></span>
-        <span style="color:var(--muted);white-space:nowrap">${s.dist_km.toFixed(1)} km · ${s.cardinal}</span>
+    list.innerHTML = entries.map(e => `
+      <div onclick="pickActivationRef('${e.code}')" style="padding:7px 10px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px">
+        <span><b style="color:var(--accent2)">${_vkEsc(e.code)}</b> — ${spec.line(e)}</span>
+        <span style="color:var(--muted);white-space:nowrap">${e.dist_km.toFixed(1)} km · ${e.cardinal}</span>
       </div>`).join('');
   }catch(e){
     list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--red)">❌ Recherche indisponible</div>';
@@ -2504,64 +2656,70 @@ async function loadNearbySota(){
 }
 
 function onActivationRefInput(){
-  document.getElementById('sotaValidation').textContent = '';
-  if (document.getElementById('activation_program').value !== 'SOTA') { hideSotaSuggestions(); return; }
+  const elv = document.getElementById('activationValidation');
+  if (elv) elv.textContent = '';
+  const program = _activationProgram();
+  if (!ACTIVATION_DB_PROGRAMS[program]) { hideActivationSuggestions(); return; }
   const val = document.getElementById('my_activation_ref').value.trim();
-  clearTimeout(_sotaSearchTimer);
-  if (val.length < 2) { hideSotaSuggestions(); return; }
-  _sotaSearchTimer = setTimeout(() => searchSotaSummits(val), 300);
+  clearTimeout(_activationSearchTimer);
+  if (val.length < 2) { hideActivationSuggestions(); return; }
+  _activationSearchTimer = setTimeout(() => searchActivationRefs(program, val), 300);
 }
 
-async function searchSotaSummits(query){
-  const box = document.getElementById('sotaSuggestions');
+async function searchActivationRefs(program, query){
+  const spec = ACTIVATION_DB_PROGRAMS[program];
+  const box = document.getElementById('activationSuggestions');
+  if (!spec) { hideActivationSuggestions(); return; }
   try{
-    const r = await fetch('/sota/search?q=' + encodeURIComponent(query));
+    const r = await fetch(`/activation_db/search?program=${program}&q=` + encodeURIComponent(query));
     const d = await r.json();
     if (!d.status || !d.status.ready){
       box.style.display = 'block';
-      box.innerHTML = '<div style="padding:8px 12px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">⏳ Chargement de la base des sommets (~181 000 entrées, une seule fois)…</div>';
+      box.innerHTML = '<div style="padding:8px 12px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">⏳ Chargement de la base (peut prendre jusqu\'à une minute la première fois)…</div>';
       return;
     }
     const results = d.results || [];
-    if (!results.length) { hideSotaSuggestions(); return; }
+    if (!results.length) { hideActivationSuggestions(); return; }
     box.style.display = 'block';
-    box.innerHTML = results.map(s => `
-      <div onmousedown="pickSotaSummit('${s.code}')" style="padding:7px 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border)">
-        <b style="color:var(--accent2)">${_vkEsc(s.code)}</b> — ${_vkEsc(s.name)} <span style="color:var(--muted)">(${s.alt_m} m, ${s.points} pts, ${_vkEsc(s.region)})</span>
+    box.innerHTML = results.map(e => `
+      <div onmousedown="pickActivationRef('${e.code}')" style="padding:7px 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border)">
+        <b style="color:var(--accent2)">${_vkEsc(e.code)}</b> — ${spec.line(e)}
       </div>`).join('');
-  }catch(e){ hideSotaSuggestions(); }
+  }catch(e){ hideActivationSuggestions(); }
 }
 
-function pickSotaSummit(code){
+function pickActivationRef(code){
   document.getElementById('my_activation_ref').value = code;
-  hideSotaSuggestions();
-  validateSotaRef();
+  hideActivationSuggestions();
+  validateActivationRef();
 }
 
-function hideSotaSuggestions(){
-  const box = document.getElementById('sotaSuggestions');
+function hideActivationSuggestions(){
+  const box = document.getElementById('activationSuggestions');
   if (box) { box.style.display = 'none'; box.innerHTML = ''; }
 }
 
-async function validateSotaRef(){
-  const el = document.getElementById('sotaValidation');
+async function validateActivationRef(){
+  const el = document.getElementById('activationValidation');
   if (!el) return;
-  if (document.getElementById('activation_program').value !== 'SOTA') { el.textContent = ''; return; }
+  const program = _activationProgram();
+  const spec = ACTIVATION_DB_PROGRAMS[program];
+  if (!spec) { el.textContent = ''; return; }
   const ref = document.getElementById('my_activation_ref').value.trim().toUpperCase();
   if (!ref) { el.textContent = ''; return; }
   try{
-    const r = await fetch('/sota/lookup?ref=' + encodeURIComponent(ref));
+    const r = await fetch(`/activation_db/lookup?program=${program}&ref=` + encodeURIComponent(ref));
     const d = await r.json();
     if (!d.status || !d.status.ready){
-      el.textContent = '⏳ Vérification en attente du chargement de la base des sommets…';
+      el.textContent = '⏳ Vérification en attente du chargement de la base…';
       el.style.color = 'var(--muted)';
       return;
     }
-    if (d.summit){
-      el.textContent = `✅ ${d.summit.name} — ${d.summit.alt_m} m, ${d.summit.points} pts (${d.summit.region})`;
+    if (d.entry){
+      el.textContent = `✅ ${spec.plain(d.entry)}`;
       el.style.color = 'var(--green)';
     } else {
-      el.textContent = "⚠️ Référence non trouvée dans la base SOTA — vérifie l'orthographe, ou c'est un sommet récent pas encore répertorié (la saisie reste valable)";
+      el.textContent = `⚠️ Référence non trouvée dans la base ${program} — vérifie l'orthographe, ou c'est une entrée récente pas encore répertoriée (la saisie reste valable)`;
       el.style.color = 'var(--yellow)';
     }
   }catch(e){ el.textContent = ''; }
@@ -2571,6 +2729,30 @@ async function validateSotaRef(){
 function _vkEsc(v){
   return String(v == null ? '' : v).replace(/[&<>"']/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ─── RECORD DX (calculé serveur depuis le vrai log, remplace l'ancien champ
+// manuel record_dx) ───────────────────────────────────────────────────────
+let _dxRecordCache = null;
+
+function _dxRecordSummaryText(){
+  return (_dxRecordCache && _dxRecordCache.overall) ? _dxRecordCache.overall.dist_km : '—';
+}
+
+async function loadDxRecord(){
+  const el = document.getElementById('dxRecordDisplay');
+  try{
+    const r = await fetch('/data/dx_records');
+    const d = await r.json();
+    _dxRecordCache = d;
+    if(!el) return;
+    const o = d.overall;
+    el.textContent = o
+      ? `${o.dist_km} km — ${o.band} MHz, ${o.call}${o.date ? ' (' + o.date + ')' : ''}`
+      : 'Aucun QSO avec locator archivé pour le moment';
+  }catch(e){
+    if(el) el.textContent = 'Indisponible (serveur injoignable)';
+  }
 }
 
 async function loadVoiceKeyerDevices(){
@@ -3245,6 +3427,25 @@ function selectContest(id, _skipConfirm) {
   renderHub();
 }
 
+// Revenir à « pas de concours » — seul selectContest() existait, qui ne fait
+// que CHANGER pour un autre concours, jamais redevenir "sans concours". Utile
+// hors mode LOGBOOK SIMPLE (masqué) : en EXPÉDITION notamment, participer ou
+// non à un concours ponctuel est un vrai choix réversible.
+function deselectContest(){
+  if(!state.contest) return;
+  state.contest = null;
+  document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
+  // Ne PAS réinitialiser les bandes/modes déjà cochés (contrairement au
+  // passage en LOGBOOK SIMPLE) : l'utilisateur reprend juste la main
+  // librement à l'étape FILTRES, sans perdre sa sélection en cours.
+  applyContestFilters(null);
+  _filtersAppliedFor = null;
+  state.datesAutoFor = null;
+  const banner = document.getElementById('contest_dates_auto');
+  if(banner) banner.innerHTML = '📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.';
+  renderHub();
+}
+
 // Dates depuis la base serveur : parse "DD/MM/YYYY à HHhMM UTC" + durée
 function serverContestDates(id){
   const c = CONTESTS.find(x => x.id === id);
@@ -3312,7 +3513,7 @@ function _catStatus(cat){
     case 'operators':
       return val('op1_call') ? 'ok' : 'empty';
     case 'contest':
-      if(getUsageMode() === 'simple') return 'ok'; // pas requis dans ce mode (H4/M4)
+      if(_contestOptional()) return 'ok'; // pas requis dans ce mode (H4/M4)
       return state.contest ? 'ok' : 'empty';
     case 'filters': {
       if(getUsageMode() === 'simple') return 'ok';
@@ -3371,7 +3572,7 @@ function renderHub(){
   const sub = document.getElementById('hubsub_contest');
   if(sub){
     const c = CONTESTS.find(c => c.id === state.contest);
-    sub.textContent = c ? c.name : (getUsageMode() === 'simple' ? 'Non requis (mode LOGBOOK SIMPLE)' : 'Aucun concours choisi');
+    sub.textContent = c ? c.name : (_contestOptional() ? 'Non requis dans ce mode' : 'Aucun concours choisi');
   }
 }
 
@@ -3665,7 +3866,7 @@ function _missingStationFields(forStep){
     if(!loc || !isValidLocator(loc)) missing.push('LOCATOR MAIDENHEAD valide, ex. JN15XC (étape MA STATION)');
   }
   if(forStep >= 3){
-    if(getUsageMode() !== 'simple' && !state.contest){
+    if(!_contestOptional() && !state.contest){
       missing.push('un CONCOURS sélectionné (étape CONCOURS)');
     }
     // Correctif M2 : selectContest() pose des dates cohérentes à la sélection
@@ -3997,7 +4198,7 @@ function buildSummary() {
   const loc = document.getElementById('locator').value || '—';
   const city = document.getElementById('city').value || '—';
   const power = document.getElementById('power').value || '—';
-  const record = document.getElementById('record_dx').value || '—';
+  const record = _dxRecordSummaryText();
   const contest = CONTESTS.find(c=>c.id===state.contest);
   const modes = getActiveModes();
   const bands = getActiveBands();
@@ -4083,11 +4284,30 @@ const AI_MODELS = {
     {value:'gemini-2.5-pro',    label:'Gemini 2.5 Pro (puissant)'},
     {value:'gemini-1.5-flash',  label:'Gemini 1.5 Flash (rapide)'},
   ],
+  // Mistral AI, xAI/Grok et DeepSeek : noms de modèles et endpoints vérifiés
+  // sur la documentation officielle de chacun (jamais devinés) — cf.
+  // OPENAI_COMPATIBLE_ENDPOINTS dans logx_utils.py côté serveur.
+  mistral: [
+    {value:'mistral-large-latest', label:'Mistral Large (recommandé)'},
+    {value:'mistral-small-latest', label:'Mistral Small (rapide/économique)'},
+  ],
+  xai: [
+    {value:'grok-4.5',      label:'Grok 4.5 (recommandé)'},
+    {value:'grok-4.3',      label:'Grok 4.3 (contexte long, 1M tokens)'},
+    {value:'grok-build-0.1',label:'Grok Build 0.1 (économique)'},
+  ],
+  deepseek: [
+    {value:'deepseek-v4-flash', label:'DeepSeek V4 Flash (recommandé/rapide)'},
+    {value:'deepseek-v4-pro',   label:'DeepSeek V4 Pro (puissant)'},
+  ],
 };
 const AI_PLACEHOLDERS = {
   anthropic: 'sk-ant-api03-...',
   openai:    'sk-...',
   gemini:    'AIza...',
+  mistral:   'Clé API Mistral...',
+  xai:       'xai-...',
+  deepseek:  'sk-...',
 };
 
 function getSelectedProvider() {
@@ -4096,6 +4316,12 @@ function getSelectedProvider() {
 
 function onProviderChange() {
   const p = getSelectedProvider();
+  // Surligner la carte du fournisseur sélectionné (appelée aussi bien au
+  // clic utilisateur qu'à la restauration de config, donc les deux cas
+  // reflètent toujours le bon fournisseur visuellement).
+  document.querySelectorAll('.ai-provider-card').forEach(card => {
+    card.classList.toggle('selected', card.dataset.provider === p);
+  });
   // Sauvegarder la clé courante avant de changer
   const prevKey = document.getElementById('api_key').value;
   // Mettre à jour le select modèle
@@ -4113,8 +4339,16 @@ function quickSave() {
   saveConfig(true);
 }
 
+// Bouton "💾 Enregistrer" de chaque popup catégorie : sauvegarde ET ferme
+// (contrairement au bouton flottant d'en-tête quickSave(), qui ne ferme rien
+// puisqu'aucune popup n'est nécessairement ouverte).
+function saveConfigAndClose(btn, cat){
+  saveConfig(true, btn);
+  closeCategoryPopup(cat);
+}
+
 let _lastConfigSavePromise = Promise.resolve();
-function saveConfig(silent = false) {
+function saveConfig(silent = false, feedbackBtn = null) {
   // Garde-fou H2 : une sauvegarde explicite (bouton SAUVEGARDER CONFIG,
   // LOGGER) exige indicatif/locator/concours complets — la sauvegarde rapide
   // silencieuse (💾 flottant, appelée à chaque étape) reste permissive pour
@@ -4162,7 +4396,6 @@ function saveConfig(silent = false) {
     contest_end_utc: document.getElementById('contest_end_utc').value,
     power: _numClamped('power', 100),
     power_class: document.getElementById('power_class').value,
-    record_dx: _numClamped('record_dx', 0),
     log_software: document.getElementById('log_software').value,
     ant_hf: document.getElementById('ant_hf').value,
     ant_144: document.getElementById('ant_144').value,
@@ -4286,11 +4519,14 @@ function saveConfig(silent = false) {
     body: JSON.stringify(config)
   }).catch(e=>console.warn('[CFG] serveur non joignable :', e));
   if(silent){
-    // Feedback visuel sur le bouton SAUVEGARDER
-    const btn = document.querySelector('button[onclick="quickSave()"]');
+    // Feedback visuel sur le bouton effectivement cliqué (le bouton flottant
+    // d'en-tête est masqué derrière l'overlay plein écran des popups — cf.
+    // .cat-modal{z-index:9000} — donc chaque popup passe SON PROPRE bouton
+    // "💾 Enregistrer" via saveConfig(true, this) pour recevoir SON feedback).
+    const btn = feedbackBtn || document.querySelector('button[onclick="quickSave()"]');
     if(btn){
       const orig = btn.innerHTML;
-      btn.innerHTML = '✅ SAUVEGARDÉ';
+      btn.innerHTML = '✅ ENREGISTRÉ';
       btn.style.background = 'var(--green)';
       setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,#00D4FF)'; }, 1500);
     }
@@ -4493,6 +4729,15 @@ function toggleUiMode(){
 function getUsageMode(){
   const el = document.getElementById('usage_mode');
   return (el && el.value) || 'contest';
+}
+
+// Une activation POTA/SOTA/WWFF... n'a pas de règlement de concours (bandes/
+// modes/échange se règlent librement à l'étape FILTRES, cf. section 14) — un
+// CONCOURS choisi à l'étape 3 n'a donc pas plus de sens ici qu'en LOGBOOK
+// SIMPLE. Seul RADIOCLUB (multi-op qui fait tourner un vrai concours) le
+// garde obligatoire.
+function _contestOptional(){
+  return getUsageMode() === 'simple' || getUsageMode() === 'expedition';
 }
 
 function applyUsageMode(){
@@ -4702,7 +4947,6 @@ function applyFullConfigToForm(c) {
     if(c.contest_end_utc) document.getElementById('contest_end_utc').value = c.contest_end_utc;
     if(c.power) document.getElementById('power').value = c.power;
     if(c.power_class) document.getElementById('power_class').value = c.power_class;
-    if(c.record_dx) document.getElementById('record_dx').value = c.record_dx;
     if(c.log_software) document.getElementById('log_software').value = c.log_software;
     if(c.ant_hf) document.getElementById('ant_hf').value = c.ant_hf;
     if(c.ant_144) document.getElementById('ant_144').value = c.ant_144;

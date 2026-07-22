@@ -12,5 +12,20 @@ pyserial>=3.5,<4
 # Keyer vocal TTS hors-ligne (logx_voicekeyer.py) — optionnel, Windows/SAPI5.
 pyttsx3>=2.90
 
+# Lecture audio du keyer vocal (logx_voicekeyer.py) — sans lui, la synthèse
+# fonctionne mais la liste des périphériques et la diffusion échouent.
+sounddevice>=0.4
+
+# EME/rebond lunaire (logx_eme.py) — optionnel, import protégé par HAS_EPHEM.
+# Éphéméride VSOP87/ELP2000 embarquée, aucune donnée réseau. Wheel précompilé
+# sous Windows/Linux/macOS (pas de compilateur requis).
+ephem>=4.1
+
 # Tests (suite pytest sous concours/tests/)
 pytest>=8,<10
+
+# ── Optionnels non installés par défaut ──────────────────────────────────────
+# Extraction PDF des règlements (logx_rules.py / logx_rules_ai.py) : cascade
+# fitz (pymupdf) -> pdfplumber -> pypdf, avec repli final sans dépendance.
+# Décommenter pour une extraction de meilleure qualité :
+# pymupdf>=1.24

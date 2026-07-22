@@ -552,7 +552,7 @@ function drawRangeCircles(){
     });
     return;
   }
-  const rec=parseInt(cfg.record_dx||0);
+  const rec=dxRecordOverallKm;
   const c1=L.circle([ll.lat,ll.lon],{...opt,radius:500000,color:'#20803A'}).addTo(leafletMap);
   c1.bindTooltip('500 km',{permanent:false,direction:'top',className:'rc-range-lbl'});
   leafletRangeCircles.push(c1);
@@ -808,6 +808,27 @@ function loadConfig(){
     }catch(e){console.warn('Config invalide',e);}
   }
   initMap();
+  loadDxRecordForMap();
+}
+
+// Record DX réel (calculé serveur depuis le log, cf. logx_awards.dx_records)
+// — remplace l'ancien champ manuel cfg.record_dx pour l'anneau de distance
+// « ★ record » du mode Great Circle ci-dessous.
+let dxRecordOverallKm = 0;
+async function loadDxRecordForMap(){
+  try{
+    const r = await fetch('/data/dx_records');
+    const d = await r.json();
+    if(d.overall && d.overall.dist_km > 0){
+      dxRecordOverallKm = d.overall.dist_km;
+      // initMap() a déjà dessiné les anneaux AVANT la réponse de ce fetch
+      // (rec valait encore 0) : redessiner maintenant, sinon l'anneau
+      // « ★ record » n'apparaît jamais au chargement de la page.
+      if(typeof drawRangeCircles === 'function' && typeof map !== 'undefined' && map){
+        drawRangeCircles();
+      }
+    }
+  }catch(e){ /* repli sur le rayon par défaut de drawRangeCircles() */ }
 }
 
 function applyConfig(){

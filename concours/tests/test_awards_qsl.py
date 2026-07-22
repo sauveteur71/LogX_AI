@@ -39,16 +39,27 @@ def test_history_inconnu():
 
 
 # ─── Nouveau à vie ───────────────────────────────────────────────────────────
+# Isolation complète (même raison que _isolate_awards_et_callhistory plus bas) :
+# new_one() fusionne shared_log avec les VRAIES archives/qso_archive du poste
+# via collect_all_qsos() — sans ce monkeypatch, le test dépend de l'historique
+# réel de la station (ex. un JA déjà travaillé un jour rendrait 'JA1AAA' non
+# nouveau, cassant l'hypothèse du test "on n'a que EU dans le log").
 
-def test_new_one_pays_jamais_contacte():
+def _isolate_awards(monkeypatch):
+    monkeypatch.setattr(awards, '_read_archives', lambda: [])
+    monkeypatch.setattr(awards, '_read_qso_archive', lambda: [])
     awards.invalidate()
+
+
+def test_new_one_pays_jamais_contacte(monkeypatch):
+    _isolate_awards(monkeypatch)
     # Un indicatif japonais alors qu'on n'a que EU dans le log
     res = awards.new_one('JA1AAA', '144', shared_log=_log())
     assert any(n['type'] == 'dxcc' and n['scope'] == 'atlantic' for n in res)
 
 
-def test_new_one_rien_si_deja_fait():
-    awards.invalidate()
+def test_new_one_rien_si_deja_fait(monkeypatch):
+    _isolate_awards(monkeypatch)
     res = awards.new_one('DL1AA', '144', shared_log=_log())
     assert not any(n['scope'] == 'atlantic' for n in res)
 

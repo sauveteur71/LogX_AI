@@ -417,3 +417,51 @@ def worked_matrix(shared_log=None):
         'grid': {b: grid[b] for b in bands},
         'totals': {c: sum(grid[b][c]['qso'] for b in bands) for c in cats},
     }
+
+
+# ─── RECORD DX (remplace l'ancien champ manuel record_dx) ────────────────────
+# Un chiffre unique saisi à la main n'a pas de sens pour un opérateur
+# multi-bandes : 3000 km est banal en HF, exceptionnel en VHF/UHF (le même
+# défaut que corrigeait déjà logx_bands.py pour les seuils d'alerte). Calculé
+# depuis le vrai locator de chaque QSO archivé (haversine), jamais déclaratif.
+
+def dx_records(my_locator, shared_log=None):
+    """Plus grande distance (km) travaillée PAR BANDE, sur toute la vie de la
+    station. Renvoie {'overall': {...} | None, 'by_band': {bande: {...}}}.
+
+    Filtre les distances IMPLAUSIBLES pour la bande (locator erroné, mauvais
+    libellé de bande dans une archive ancienne, EME mal étiqueté...) avec le
+    même plafond déjà utilisé pour écarter les spots aberrants — cf. le cas
+    réel documenté dans logx_scoring.py : « FK8HA à 17 014 km en 144 MHz »
+    proposé à l'agent avant ce garde-fou. Sans lui, un "record" himalayen
+    en UHF serait affiché tel quel, ce qui n'inspirerait pas confiance dans
+    un chiffre calculé automatiquement."""
+    from logx_utils import haversine, locator_to_latlon
+    from logx_scoring import _MAX_PLAUSIBLE_KM
+    my_ll = locator_to_latlon(my_locator or '')
+    if not my_ll[0]:
+        return {'overall': None, 'by_band': {}}
+
+    best = {}  # bande -> {call, locator, dist_km, date, mode}
+    for q in collect_all_qsos(shared_log):
+        loc = q.get('locator', '')
+        if not loc:
+            continue
+        dx_ll = locator_to_latlon(loc)
+        if not dx_ll[0]:
+            continue
+        dist = haversine(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
+        band = str(q.get('band', '?'))
+        cap = _MAX_PLAUSIBLE_KM.get(band)
+        if cap and dist > cap:
+            continue
+        cur = best.get(band)
+        if not cur or dist > cur['dist_km']:
+            best[band] = {'call': q.get('call', ''), 'locator': loc, 'dist_km': dist,
+                          'date': q.get('date', ''), 'mode': q.get('mode', '')}
+
+    bands = sorted(best.keys(), key=_band_sort_key)
+    overall = max(best.values(), key=lambda r: r['dist_km']) if best else None
+    if overall:
+        overall = {**overall, 'band': next(b for b in bands if best[b] is overall)}
+    return {'overall': overall, 'by_band': {b: best[b] for b in bands}}

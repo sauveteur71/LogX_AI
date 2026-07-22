@@ -4,7 +4,13 @@ Deux façons d'utiliser LogX AI :
 
 - **Application autonome** (recommandé) — un seul fichier à lancer, **sans
   installer Python**. C'est ce que décrit ce document.
-- Mode développeur — `python logx_serveur.py` depuis ce dossier.
+- Mode développeur — Python 3 installé, puis depuis ce dossier :
+  ```
+  python -m pip install -r requirements.txt
+  python logx_serveur.py
+  ```
+  (sans le `pip install`, le programme démarre mais perd le pilotage radio
+  CAT, le keyer vocal et le calcul EME — sans message d'erreur.)
 
 L'application est un **serveur local** : au lancement, elle démarre en tâche
 de fond et **ouvre votre navigateur** sur la page de configuration. Tout se
@@ -29,7 +35,8 @@ Il faut Python 3 installé. Puis, dans ce dossier :
 ```
 build_windows.bat
 ```
-Le résultat apparaît dans `dist\LogXAI.exe`.
+Le script installe d'abord les dépendances (`requirements.txt`) puis
+construit. Le résultat apparaît dans `dist\LogXAI.exe`.
 
 ---
 
@@ -47,7 +54,8 @@ Le résultat apparaît dans `dist/LogXAI`. Lancez-le par double-clic.
 > faites **clic droit → Ouvrir**, puis confirmez. À faire une seule fois.
 
 Pas de Mac sous la main ? La construction peut aussi se faire gratuitement
-via **GitHub Actions** (runner `macos-latest`) — demandez-moi le workflow.
+via **GitHub Actions** (runner `macos-latest`) si le projet est hébergé sur
+GitHub — même commande `./build_macos.sh` dans un workflow.
 
 ---
 
