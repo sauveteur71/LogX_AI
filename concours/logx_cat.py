@@ -56,12 +56,25 @@ CIV_MODES = {'LSB': 0x00, 'USB': 0x01, 'AM': 0x02, 'CW': 0x03,
              'RTTY': 0x04, 'FM': 0x05, 'CW-R': 0x07, 'RTTY-R': 0x08}
 CIV_MODES_REV = {v: k for k, v in CIV_MODES.items()}
 
-# Adresses CI-V par défaut usine (modifiables sur la radio en Set mode)
+# Adresses CI-V par défaut usine (modifiables sur la radio en Set mode) —
+# valeurs standard largement documentées (manuels Icom, Hamlib, guides CAT).
+# Un mauvais réglage ici n'empêche rien : le champ MODÈLE ne sert qu'à
+# préremplir l'adresse, elle reste éditable si la radio a été reconfigurée.
 CIV_ADDRESSES = {
-    'IC-705': 0xA4, 'IC-7100': 0x88, 'IC-7300': 0x94, 'IC-7600': 0x7A,
-    'IC-7610': 0x98, 'IC-7800': 0x6A, 'IC-9100': 0x7C, 'IC-9700': 0xA2,
-    'IC-756PROIII': 0x6E, 'XIEGU-G90': 0x70, 'XIEGU-X6100': 0xA4,
-    'XIEGU-X5105': 0x70,
+    # Icom HF/VHF/UHF modernes (USB direct)
+    'IC-705': 0xA4, 'IC-7300': 0x94, 'IC-7100': 0x88, 'IC-7200': 0x76,
+    'IC-7410': 0x80, 'IC-7600': 0x7A, 'IC-7610': 0x98, 'IC-7700': 0x74,
+    'IC-7800': 0x6A, 'IC-7851': 0x8E, 'IC-9100': 0x7C, 'IC-9700': 0xA2,
+    'IC-905': 0xAC,
+    # Icom génération précédente (interface CT-17 ou jack CI-V 3.5mm)
+    'IC-706MKIIG': 0x58, 'IC-7000': 0x70, 'IC-718': 0x5E,
+    'IC-746': 0x56, 'IC-746PRO': 0x66,
+    'IC-756': 0x50, 'IC-756PRO': 0x5C, 'IC-756PROII': 0x64, 'IC-756PROIII': 0x6E,
+    'IC-910H': 0x60,  # populaire en satellite (VHF/UHF/1.2GHz tout-mode)
+    # Récepteurs Icom
+    'IC-R75': 0x5A, 'IC-R8600': 0x96,
+    # Xiegu (émulation CI-V Icom)
+    'XIEGU-G90': 0x70, 'XIEGU-G106': 0x70, 'XIEGU-X6100': 0xA4, 'XIEGU-X5105': 0x70,
 }
 
 

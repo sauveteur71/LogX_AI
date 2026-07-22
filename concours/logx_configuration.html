@@ -846,6 +846,22 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           Pilote le transceiver depuis l'application : QSY au clic sur un spot, bande/mode
           suivis automatiquement, macros CW envoyées par le keyer de la radio.
         </div>
+        <details style="margin-bottom:16px;border:1px dashed var(--border);border-radius:8px;padding:10px 14px">
+          <summary style="cursor:pointer;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:1px">📖 Quel mode choisir pour ma radio ?</summary>
+          <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);line-height:1.8;margin-top:10px">
+            <b style="color:var(--text)">NATIF</b> — deux familles de protocole codées en dur dans LogX AI, sans logiciel intermédiaire :<br>
+            &nbsp;&nbsp;• <b>CI-V (Icom + Xiegu)</b> : <span id="catDocIcomCount">?</span> radios/récepteurs Icom + Xiegu listés ci-dessous (menu MODÈLE) —
+            fonctionne aussi avec tout autre Icom/Xiegu récent en indiquant son adresse CI-V manuellement (menu radio → Set → CI-V Address).<br>
+            &nbsp;&nbsp;• <b>ASCII générique (Yaesu/Kenwood/Elecraft)</b> : commandes FA/MD/IF quasi identiques sur toute la gamme de chaque marque —
+            <span id="catDocYaesuCount">?</span> Yaesu, <span id="catDocKenwoodCount">?</span> Kenwood, <span id="catDocElecraftCount">?</span> Elecraft listés ; un modèle récent absent de la liste
+            fonctionne généralement aussi (même famille de commandes).<br>
+            <b style="color:var(--text)">TCI</b> — protocole réseau (WebSocket) d'Expert Electronics : SunSDR2 DX/PRO/QRP, MB1, ColibriDDC/NANO,
+            ou tout logiciel compatible TCI (ExpertSDR2/3, Log4OM, RUMlogNG, JTDX/WSJT-X « improved », SDC…). Audio et flux I/Q inclus, zéro latence — le choix des stations SDR haut de gamme et du contest.<br>
+            <b style="color:var(--text)">RIGCTLD (Hamlib)</b> — pour tout le reste : Ten-Tec, FlexRadio, anciens modèles, ou toute radio non listée en natif.
+            Hamlib gère plus de 200 modèles (<a href="https://hamlib.github.io/models/" target="_blank" rel="noopener" style="color:var(--accent2)">liste complète des radios supportées</a>) —
+            lance <code>rigctld</code> sur le poste relié à la radio, LogX AI s'y connecte en réseau.
+          </div>
+        </details>
         <div class="form-grid">
           <div class="form-group">
             <label>PILOTAGE RADIO</label>
@@ -2492,16 +2508,34 @@ async function testVoiceKeyer(){
 // modifiables sur la radio) ; le pilote lit toujours la valeur du champ.
 const CAT_MODELS = {
   icom: [
-    ['IC-705','A4'], ['IC-7100','88'], ['IC-7300','94'], ['IC-7600','7A'],
-    ['IC-7610','98'], ['IC-7800','6A'], ['IC-9100','7C'], ['IC-9700','A2'],
-    ['IC-756PROIII','6E'],
+    ['IC-705','A4'], ['IC-706MKIIG','58'], ['IC-7000','70'], ['IC-7100','88'],
+    ['IC-718','5E'], ['IC-7200','76'], ['IC-7300','94'], ['IC-7410','80'],
+    ['IC-746','56'], ['IC-746PRO','66'],
+    ['IC-756','50'], ['IC-756PRO','5C'], ['IC-756PROII','64'], ['IC-756PROIII','6E'],
+    ['IC-7600','7A'], ['IC-7610','98'], ['IC-7700','74'], ['IC-7800','6A'],
+    ['IC-7851','8E'], ['IC-905','AC'], ['IC-910H','60'],
+    ['IC-9100','7C'], ['IC-9700','A2'],
+    ['IC-R75','5A'], ['IC-R8600','96'],
   ],
-  xiegu: [['XIEGU-G90','70'], ['XIEGU-X6100','A4'], ['XIEGU-X5105','70']],
-  yaesu: [['FT-891'],['FT-991'],['FT-991A'],['FTDX10'],['FTDX101D'],['FTDX101MP']],
-  kenwood: [['TS-2000'],['TS-590S'],['TS-590SG'],['TS-990S'],['TS-890S']],
-  elecraft: [['K3'],['K3S'],['KX3'],['KX2'],['K4']],
+  xiegu: [['XIEGU-G90','70'], ['XIEGU-G106','70'], ['XIEGU-X6100','A4'], ['XIEGU-X5105','70']],
+  yaesu: [
+    ['FT-817'],['FT-818'],['FT-857'],['FT-891'],['FT-897'],
+    ['FT-991'],['FT-991A'],['FTDX10'],['FTDX101D'],['FTDX101MP'],
+  ],
+  kenwood: [['TS-480'],['TS-570'],['TS-2000'],['TS-590S'],['TS-590SG'],['TS-890S'],['TS-990S']],
+  elecraft: [['K2'],['K3'],['K3S'],['KX2'],['KX3'],['K4']],
 };
 const CAT_DEFAULT_BAUD = { icom: 19200, xiegu: 19200, yaesu: 4800, kenwood: 9600, elecraft: 38400 };
+
+// Comptes affichés dans le bloc "Quel mode choisir ?" — calculés depuis
+// CAT_MODELS pour ne jamais désynchroniser le texte de la vraie liste.
+(function fillCatDocCounts(){
+  const set = (id, n) => { const el = document.getElementById(id); if(el) el.textContent = n; };
+  set('catDocIcomCount', CAT_MODELS.icom.length + CAT_MODELS.xiegu.length);
+  set('catDocYaesuCount', CAT_MODELS.yaesu.length);
+  set('catDocKenwoodCount', CAT_MODELS.kenwood.length);
+  set('catDocElecraftCount', CAT_MODELS.elecraft.length);
+})();
 
 function updateCatModeVisibility(){
   const mode = document.getElementById('cat_mode').value;
