@@ -182,6 +182,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
 .btn-launch{background:linear-gradient(135deg,#00FF88,#00D4FF);color:#0A0B18;font-size:14px;padding:14px 32px}
 .btn-launch:hover{opacity:.9;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,255,136,.2)}
+.op-row-btn{font-family:var(--font-mono);font-size:12px;padding:6px 14px;border-radius:6px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);cursor:pointer;transition:all .15s}
+.op-row-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.op-rows-cap-note{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 
 /* LIVE INDICATOR */
 .live{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--green)}
@@ -252,6 +255,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       <option value="simple">📋 LOGBOOK SIMPLE — chasse DX / trafic courant, sans concours</option>
       <option value="contest" selected>🏆 CONCOURS — règlement, échange, scoring, multiplicateurs</option>
       <option value="expedition">📡 EXPÉDITION / ACTIVATION — pile-up, multi-poste, écran mural</option>
+      <option value="radioclub">🏛️ RADIOCLUB — plusieurs postes, jusqu'à 40 opérateurs</option>
     </select>
     <span class="usage-mode-note" id="usageModeNote"></span>
   </div>
@@ -489,7 +493,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
           <div class="form-group expert-only">
             <label>SECTION CONCOURS</label>
-            <select id="section_edi" onchange="updateOpSection()">
+            <select id="section_edi">
               <option value="SOMB">SOMB — Single Op Multi-Band</option>
               <option value="SOSB">SOSB — Single Op Single Band</option>
               <option value="MOMB">MOMB — Multi Op Multi-Band</option>
@@ -576,14 +580,6 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="cat-modal-head"><span class="cat-modal-title">🧑‍🤝‍🧑 2. OPÉRATEURS</span>
       <button class="cat-modal-close" onclick="closeCategoryPopup('operators')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_operators">
-      <div class="form-group" style="margin-bottom:18px">
-        <label>MODE OPÉRATEUR</label>
-        <select id="op_multi_toggle" onchange="onOpMultiToggleChange()">
-          <option value="mono">Un seul opérateur (Single-Op)</option>
-          <option value="multi">Plusieurs opérateurs (Multi-Op)</option>
-        </select>
-        <div class="input-note">Choisis « Plusieurs opérateurs » pour saisir jusqu'à 5 indicatifs ci-dessous</div>
-      </div>
       <div class="section" id="opSection">
         <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
         <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
@@ -593,25 +589,32 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">POSTE</div>
           <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">INDICATIF</div>
           <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">PRÉNOM</div>
-          <!-- OP1 — toujours visible -->
+          <!-- OP1 — toujours visible, ligne statique (un écouteur DOMContentLoaded
+               plus bas cible cet id directement, cf. autoFillCallsign()) -->
           <div style="font-family:var(--font-mono);font-size:14px;color:var(--accent);font-weight:700">OP1</div>
           <input type="text" id="op1_call" placeholder="F4GLD" style="text-transform:uppercase;font-size:14px">
           <input type="text" id="op1_name" placeholder="Olivier" style="font-size:14px">
-          <!-- OP2-OP5 — masqués en mono-op -->
-          <div id="multiop_rows" style="display:contents">
-            <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP2</div>
-            <input type="text" id="op2_call" placeholder="F1OMQ" style="text-transform:uppercase;font-size:14px">
-            <input type="text" id="op2_name" placeholder="Didier" style="font-size:14px">
-            <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP3</div>
-            <input type="text" id="op3_call" placeholder="F1HAW" style="text-transform:uppercase;font-size:14px">
-            <input type="text" id="op3_name" placeholder="Jean" style="font-size:14px">
-            <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP4</div>
-            <input type="text" id="op4_call" placeholder="F4WGK" style="text-transform:uppercase;font-size:14px">
-            <input type="text" id="op4_name" placeholder="Stéphane" style="font-size:14px">
-            <div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP5</div>
-            <input type="text" id="op5_call" placeholder="F4ASS" style="text-transform:uppercase;font-size:14px">
-            <input type="text" id="op5_name" placeholder="Sébastien" style="font-size:14px">
-          </div>
+          <!-- OP2+ — générées par addOperatorRow()/ensureOperatorRows(), cap selon
+               le mode d'utilisation (1 en LOGBOOK SIMPLE, 5 en CONCOURS/EXPÉDITION,
+               40 en RADIOCLUB) -->
+          <div id="opExtraRows" style="display:contents"></div>
+        </div>
+        <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button type="button" id="opAddBtn" class="op-row-btn" onclick="addOperatorRow()">+ Ajouter un opérateur</button>
+          <button type="button" id="opRemoveBtn" class="op-row-btn" onclick="removeLastOperatorRow()" style="display:none">－ Retirer le dernier</button>
+          <span id="opRowsCapNote" class="op-rows-cap-note"></span>
+        </div>
+      </div>
+      <div class="section" id="postesSection" style="display:none;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)">
+        <div class="section-title">POSTES RADIO</div>
+        <div class="input-note" style="margin-bottom:12px">
+          Les positions physiques du club (ex. HF1, VHF, Salle jeunes) — repère informatif affiché à la saisie QSO.
+        </div>
+        <div id="posteRowsGrid" style="display:grid;grid-template-columns:1fr;gap:8px"></div>
+        <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button type="button" id="posteAddBtn" class="op-row-btn" onclick="addPosteRow()">+ Ajouter un poste</button>
+          <button type="button" id="posteRemoveBtn" class="op-row-btn" onclick="removeLastPosteRow()" style="display:none">－ Retirer le dernier</button>
+          <span id="posteRowsCapNote" class="op-rows-cap-note"></span>
         </div>
       </div>
     </div>
@@ -1680,7 +1683,7 @@ const CONFIG_HELP = {
   op_call: "L'indicatif de la personne responsable du log si elle diffère de l'opérateur principal (utile en multi-opérateurs) — repris dans les champs RCall/MOpe1 de l'export EDI.",
   postal: "Ton code postal — les deux premiers chiffres identifient ton département, affiché dans l'en-tête du logbook.",
 
-  usage_mode: "Détermine le fonctionnement général du logiciel : LOGBOOK SIMPLE (trafic courant, pas de règles de concours), CONCOURS (scoring/règlement actifs), ou EXPÉDITION (pile-up, multi-poste, écran mural). Change ce réglage si l'étape CONCOURS te paraît hors sujet.",
+  usage_mode: "Détermine le fonctionnement général du logiciel : LOGBOOK SIMPLE (trafic courant, un seul opérateur, pas de règles de concours), CONCOURS (scoring/règlement actifs, jusqu'à 5 opérateurs), EXPÉDITION (pile-up, écran mural, jusqu'à 5 opérateurs), ou RADIOCLUB (plusieurs postes radio et jusqu'à 40 opérateurs, pour un club où plusieurs membres se relaient). Change ce réglage si l'étape CONCOURS te paraît hors sujet.",
   expedition_mode: "Active les fonctions pensées pour une activation DXpédition/SOTA/POTA en groupe : écran mural partagé, synchronisation multi-poste, statistiques de pile-up.",
   activation_program: "Le programme d'activation concerné si tu actives une référence (SOTA, POTA, WWFF, châteaux...). Permet d'afficher les bons outils pour ce programme.",
   my_activation_ref: "La référence précise du site que tu actives (ex. un code SOTA ou POTA), affichée sur l'écran mural et dans les exports.",
@@ -1771,8 +1774,6 @@ const CONFIG_HELP = {
   scoreboard_interval: "La fréquence (en minutes) de mise à jour du scoreboard en ligne.",
 
   refresh_min: "La fréquence (en minutes) à laquelle le logiciel rafraîchit automatiquement les spots/la propagation en tâche de fond.",
-
-  op_multi_toggle: "Passe en « Plusieurs opérateurs » pour saisir jusqu'à 5 indicatifs (OP1 à OP5) qui apparaîtront comme boutons dans le logbook. Ce choix met à jour la SECTION CONCOURS (champ PSect de l'export EDI) en conservant la portée de bande déjà sélectionnée.",
 };
 
 // Icône "?" ajoutée automatiquement à côté de chaque label dont le champ
@@ -2361,7 +2362,7 @@ async function init() {
   const hasLocal = loadSavedConfig();
   if (!hasLocal) await loadFromServerConfig();
   applyUsageMode(); // Sûr même si aucune config n'a encore été chargée (défaut 'contest')
-  updateOpSection(); // Appliquer l'affichage mono/multi selon la section sauvegardée
+  updateOpRowControls(); // État initial des boutons +/- opérateurs (au cas où aucune config n'a encore été restaurée)
   // Sélecteur unifié : enrichir avec la base serveur + WA7BNM puis re-render
   await Promise.all([mergeServerContests(), mergeExternalContests()]);
   buildContestGrid(document.getElementById('contestSearch').value || '');
@@ -3957,10 +3958,16 @@ function saveConfig(silent = false) {
     priority_mode: document.getElementById('priority_mode').value,
     spot_prefix_filter: document.getElementById('spot_prefix_filter').value,
     alert_rules: state.alertRules,
-    operators: [1,2,3,4,5].map(i => ({
-      call: document.getElementById(`op${i}_call`).value.toUpperCase().trim(),
-      name: document.getElementById(`op${i}_name`).value.trim(),
+    // Bornée par le plafond du mode courant (1/5/40) même si des lignes OP2+
+    // restent en mémoire d'un mode précédent (ex. RADIOCLUB -> LOGBOOK SIMPLE) :
+    // la sauvegarde reflète toujours la règle "un seul opérateur" en mode simple.
+    operators: Array.from({length: Math.min(opRowCount, opRowCap())}, (_, idx) => ({
+      call: document.getElementById(`op${idx+1}_call`).value.toUpperCase().trim(),
+      name: document.getElementById(`op${idx+1}_name`).value.trim(),
     })).filter(op => op.call),
+    postes: Array.from({length: posteRowCount}, (_, idx) =>
+      (document.getElementById(`poste${idx+1}_name`)||{}).value || ''
+    ).map(s => s.trim()).filter(Boolean),
     api_provider: provider,
     ai_model: document.getElementById('ai_model').value,
     api_key: apiKey,
@@ -3989,42 +3996,142 @@ function saveConfig(silent = false) {
 }
 
 // ─── MONO / MULTI OP ─────────────────────────────────────────────────────────
-function updateOpSection(){
-  const sect = document.getElementById('section_edi').value;
-  const isMulti = sect.startsWith('MO'); // MOMB ou MOSB
-  const rows = document.getElementById('multiop_rows');
-  const title = document.getElementById('opSectionTitle');
-  const note  = document.getElementById('opSectionNote');
-  const toggle = document.getElementById('op_multi_toggle');
+// ─── LIGNES OPÉRATEUR DYNAMIQUES (OP2+) ──────────────────────────────────────
+// OP1 reste une ligne statique du HTML (cf. catbody_operators) ; OP2 et
+// au-delà sont générées à la volée ici. Le plafond dépend du mode
+// d'utilisation : LOGBOOK SIMPLE = 1 (pas de multi-op, cf. demande explicite
+// de retour en arrière), CONCOURS/EXPÉDITION = 5 (comportement historique,
+// aligné sur les 2 emplacements MOpe1/MOpe2 de l'export EDI + Remarks pour
+// le reste), RADIOCLUB = 40 (plusieurs opérateurs qui se relaient au club).
+let opRowCount = 1;
 
-  // Synchronise le sélecteur simple de la popup Opérateurs, quel que soit
-  // le déclencheur (ce sélecteur, le champ SECTION CONCOURS en mode expert,
-  // ou une config/profil restauré(e)).
-  if(toggle) toggle.value = isMulti ? 'multi' : 'mono';
-
-  if(isMulti){
-    // Afficher OP2-OP5
-    rows.style.display = 'contents';
-    title.textContent = 'OPÉRATEURS (MULTI-OP)';
-    note.textContent  = "Jusqu'à 5 opérateurs — leurs indicatifs apparaîtront sur les boutons OP dans le logbook";
-  } else {
-    // Masquer OP2-OP5, garder seulement OP1
-    rows.style.display = 'none';
-    title.textContent = 'OPÉRATEUR';
-    note.textContent  = 'Ton indicatif personnel (Single Op)';
-  }
+function opRowCap(){
+  const mode = getUsageMode();
+  if(mode === 'simple') return 1;
+  if(mode === 'radioclub') return 40;
+  return 5;
 }
 
-// Bascule mono/multi-op depuis la popup Opérateurs (contrôle toujours visible,
-// contrairement au champ SECTION CONCOURS de la popup Identité qui est
-// expert-only) — ne touche que la lettre S/M de section_edi, en conservant
-// la portée de bande (MB/SB) déjà choisie pour ne pas casser l'export EDI.
-function onOpMultiToggleChange(){
-  const wantMulti = document.getElementById('op_multi_toggle').value === 'multi';
-  const sectSel = document.getElementById('section_edi');
-  const isSB = sectSel.value.endsWith('SB');
-  sectSel.value = wantMulti ? (isSB ? 'MOSB' : 'MOMB') : (isSB ? 'SOSB' : 'SOMB');
-  updateOpSection();
+function operatorRowCells(i){
+  return `<div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP${i}</div>`
+       + `<input type="text" id="op${i}_call" placeholder="Indicatif" style="text-transform:uppercase;font-size:14px">`
+       + `<input type="text" id="op${i}_name" placeholder="Prénom" style="font-size:14px">`;
+}
+
+// Ajout/retrait incrémental : ne touche jamais aux lignes déjà présentes,
+// pour ne jamais perdre une saisie en cours en changeant de mode.
+function addOperatorRow(){
+  if(opRowCount >= opRowCap()) return;
+  opRowCount++;
+  document.getElementById('opExtraRows').insertAdjacentHTML('beforeend', operatorRowCells(opRowCount));
+  updateOpRowControls();
+}
+
+function removeLastOperatorRow(){
+  if(opRowCount <= 1) return;
+  const extra = document.getElementById('opExtraRows');
+  for(let k=0;k<3;k++) extra.lastElementChild && extra.lastElementChild.remove();
+  opRowCount--;
+  updateOpRowControls();
+}
+
+// Reconstruit intégralement les lignes OP2+ pour atteindre `count` — réservé
+// au chargement/restauration d'une config (la grille est alors vide, rien à
+// préserver). addOperatorRow()/removeLastOperatorRow() ne passent jamais par
+// ici, pour ne jamais écraser une saisie utilisateur en cours.
+function ensureOperatorRows(count){
+  count = Math.max(1, Math.min(count, opRowCap()));
+  const extra = document.getElementById('opExtraRows');
+  extra.innerHTML = '';
+  opRowCount = 1;
+  for(let i=2;i<=count;i++){
+    opRowCount = i;
+    extra.insertAdjacentHTML('beforeend', operatorRowCells(i));
+  }
+  updateOpRowControls();
+}
+
+// Champ SECTION CONCOURS (section_edi, popup Identité, expert-only) : garde
+// la lettre S/M synchronisée avec le nombre d'opérateurs déclarés, sans
+// jamais toucher à la portée de bande (MB/SB) déjà choisie par l'utilisateur.
+function syncSectionEdiFromOpCount(){
+  const sel = document.getElementById('section_edi');
+  if(!sel) return;
+  const isSB = sel.value.endsWith('SB');
+  // Compte EFFECTIF (borné au plafond du mode), pas opRowCount brut : en
+  // LOGBOOK SIMPLE les lignes OP2+ restent en mémoire mais sont hors-jeu
+  // (masquées, exclues de saveConfig()) — l'export EDI doit rester cohérent
+  // avec ce qui est réellement sauvegardé, pas avec un historique de saisie.
+  const wantMulti = Math.min(opRowCount, opRowCap()) > 1;
+  if(wantMulti === sel.value.startsWith('MO')) return;
+  sel.value = wantMulti ? (isSB ? 'MOSB' : 'MOMB') : (isSB ? 'SOSB' : 'SOMB');
+}
+
+function updateOpRowControls(){
+  const cap = opRowCap();
+  const extra = document.getElementById('opExtraRows');
+  // LOGBOOK SIMPLE (cap=1) : les lignes OP2+ restent en mémoire (au cas où
+  // l'utilisateur repasse en CONCOURS/RADIOCLUB) mais disparaissent de l'écran
+  // — ce mode ne doit offrir aucune possibilité de saisir plusieurs OP.
+  if(extra) extra.style.display = cap <= 1 ? 'none' : 'contents';
+  const addBtn = document.getElementById('opAddBtn');
+  const rmBtn  = document.getElementById('opRemoveBtn');
+  const note   = document.getElementById('opRowsCapNote');
+  const title  = document.getElementById('opSectionTitle');
+  const sub    = document.getElementById('opSectionNote');
+  if(addBtn) addBtn.style.display = (cap <= 1 || opRowCount >= cap) ? 'none' : '';
+  if(rmBtn)  rmBtn.style.display  = (cap <= 1 || opRowCount <= 1)   ? 'none' : '';
+  if(note)   note.textContent = cap > 1 ? `${opRowCount} / ${cap} opérateurs` : '';
+  const isMulti = cap > 1 && opRowCount > 1;
+  if(title) title.textContent = isMulti ? 'OPÉRATEURS (MULTI-OP)' : 'OPÉRATEUR';
+  if(sub)   sub.textContent = isMulti
+    ? `Jusqu'à ${cap} opérateurs — leurs indicatifs apparaîtront sur les boutons OP dans le logbook`
+    : 'Ton indicatif personnel (Single Op)';
+  syncSectionEdiFromOpCount();
+}
+
+// ─── POSTES RADIO (mode RADIOCLUB) ───────────────────────────────────────────
+const POSTE_ROW_CAP = 20;
+let posteRowCount = 0;
+
+function posteRowHtml(i){
+  return `<input type="text" id="poste${i}_name" placeholder="Poste ${i} (ex. HF1)" style="font-size:14px">`;
+}
+
+function addPosteRow(){
+  if(posteRowCount >= POSTE_ROW_CAP) return;
+  posteRowCount++;
+  document.getElementById('posteRowsGrid').insertAdjacentHTML('beforeend', posteRowHtml(posteRowCount));
+  updatePosteRowControls();
+}
+
+function removeLastPosteRow(){
+  if(posteRowCount <= 0) return;
+  const grid = document.getElementById('posteRowsGrid');
+  grid.lastElementChild && grid.lastElementChild.remove();
+  posteRowCount--;
+  updatePosteRowControls();
+}
+
+function ensurePosteRows(count){
+  count = Math.max(0, Math.min(count, POSTE_ROW_CAP));
+  const grid = document.getElementById('posteRowsGrid');
+  grid.innerHTML = '';
+  posteRowCount = 0;
+  for(let i=1;i<=count;i++){
+    posteRowCount = i;
+    grid.insertAdjacentHTML('beforeend', posteRowHtml(i));
+  }
+  updatePosteRowControls();
+}
+
+function updatePosteRowControls(){
+  const addBtn = document.getElementById('posteAddBtn');
+  const rmBtn  = document.getElementById('posteRemoveBtn');
+  const note   = document.getElementById('posteRowsCapNote');
+  if(addBtn) addBtn.style.display = posteRowCount >= POSTE_ROW_CAP ? 'none' : '';
+  if(rmBtn)  rmBtn.style.display  = posteRowCount <= 0 ? 'none' : '';
+  if(note)   note.textContent = posteRowCount ? `${posteRowCount} / ${POSTE_ROW_CAP} postes` : '';
 }
 
 // ─── MODE DÉBUTANT / EXPERT ──────────────────────────────────────────────────
@@ -4086,7 +4193,19 @@ function getUsageMode(){
 function applyUsageMode(){
   const mode = getUsageMode();
   const simple = mode === 'simple';
+  const radioclub = mode === 'radioclub';
   document.body.classList.toggle('usage-simple', simple);
+  document.body.classList.toggle('usage-radioclub', radioclub);
+  // Plafond opérateurs (1/5/40 selon le mode) : rafraîchir les boutons +/-,
+  // masquer les lignes OP2+ en LOGBOOK SIMPLE (aucune saisie perdue, juste
+  // cachée — cf. updateOpRowControls()).
+  updateOpRowControls();
+  // Section POSTES RADIO : uniquement pertinente en mode RADIOCLUB.
+  const postesSection = document.getElementById('postesSection');
+  if (postesSection){
+    postesSection.style.display = radioclub ? '' : 'none';
+    if (radioclub && posteRowCount === 0) ensurePosteRows(1);
+  }
   const step2 = document.getElementById('step2');
   if (step2) step2.style.display = simple ? 'none' : '';
   const nextBtn = document.getElementById('btnStep1Next');
@@ -4098,7 +4217,9 @@ function applyUsageMode(){
     ? '— étape CONCOURS masquée, bandes/modes librement réglables à l\'étape FILTRES'
     : (mode === 'expedition'
         ? '— pense à activer la saisie simplifiée dans la section MODE EXPÉDITION ci-dessous'
-        : '');
+        : (radioclub
+            ? '— renseigne les postes radio et les opérateurs du club dans la catégorie OPÉRATEURS'
+            : ''));
   // Si on est actuellement sur l'étape CONCOURS en passant en simple → avancer
   if (simple && state.step === 2) goStep(3, true);
   // Ré-appliquer immédiatement les filtres bande/mode (sans attendre un
@@ -4311,12 +4432,22 @@ function applyFullConfigToForm(c) {
     if(c.spot_prefix_filter !== undefined) document.getElementById('spot_prefix_filter').value = c.spot_prefix_filter;
     state.alertRules = Array.isArray(c.alert_rules) ? c.alert_rules : [];
     renderAlertRules();
-    if(c.operators && Array.isArray(c.operators)){
+    if(c.operators && Array.isArray(c.operators) && c.operators.length){
+      ensureOperatorRows(c.operators.length); // crée assez de lignes OP2+ avant de les remplir
       c.operators.forEach((op, i) => {
         const callEl = document.getElementById(`op${i+1}_call`);
         const nameEl = document.getElementById(`op${i+1}_name`);
         if(callEl && op.call) callEl.value = op.call;
         if(nameEl && op.name) nameEl.value = op.name;
+      });
+    } else {
+      ensureOperatorRows(1);
+    }
+    if(c.postes && Array.isArray(c.postes) && c.postes.length){
+      ensurePosteRows(c.postes.length);
+      c.postes.forEach((name, i) => {
+        const el = document.getElementById(`poste${i+1}_name`);
+        if(el && name) el.value = name;
       });
     }
     // Recharger fournisseur IA + clé API
@@ -4400,6 +4531,7 @@ async function loadFromServerConfig() {
     }
 
     // Opérateurs
+    if(ops.length) ensureOperatorRows(ops.length); // crée les lignes OP2+ avant de les remplir
     ops.forEach((op, i) => {
       set(`op${i+1}_call`, op.callsign || op.call || '');
       set(`op${i+1}_name`, op.name || '');

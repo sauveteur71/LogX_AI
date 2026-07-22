@@ -310,6 +310,18 @@ let refreshTimer = null;
 let isSetupDone = false;
 
 const OP_COLORS = {OP1:'op-1',OP2:'op-2',OP3:'op-3',OP4:'op-4',OP5:'op-5'};
+// Au-delà de OP5 (mode RADIOCLUB, jusqu'à 40 opérateurs) : les 5 classes CSS
+// historiques ne suffisent plus — teinte générée par index, style inline.
+// 47° n'est pas un diviseur de 360 : les teintes ne se répètent pas avant
+// d'avoir couvert tout le cercle chromatique, même sur une quarantaine d'index.
+function opColorAttr(opValue){
+  const cls = OP_COLORS[opValue];
+  if(cls) return {cls, style:''};
+  const idx = parseInt(String(opValue||'').replace(/^OP/i,''), 10);
+  if(!idx || idx < 1) return {cls:'', style:''};
+  const hue = ((idx-1) * 47) % 360;
+  return {cls:'', style:`background:hsla(${hue},80%,55%,.3);color:hsl(${hue},80%,68%);border:1px solid hsla(${hue},80%,55%,.4)`};
+}
 
 // ─── AUDIO ───────────────────────────────────────────────────────────────────
 let _audioCtx = null;
@@ -2237,7 +2249,7 @@ function renderLog(){
   });
 
   tbody.innerHTML = filtered.slice().reverse().map((q,i)=>{
-    const opClass = OP_COLORS[q.operator] || '';
+    const opColor = opColorAttr(q.operator);
     const isDupQ = (dupCounts.get((q.call||'') + '|' + (q.band||'')) || 0) > 1;
     const incomplete = !isValidQSO(q);
     const distColor = q.dist>1000?'#FF5030':q.dist>500?'#FFD60A':q.dist>200?'#A0C0FF':'#506090';
@@ -2255,7 +2267,7 @@ function renderLog(){
       <td class="td-loc">${escHtml(q.locator)||'—'}</td>
       <td style="color:${distColor};font-weight:700;font-size:15px">${q.dist?q.dist+' km':'—'}${cap!=='—'?' '+cap:''}</td>
       <td class="td-pts">${escHtml(q.points)||'—'}</td>
-      <td><span class="td-op ${opClass}">${escHtml(q.operator)||'—'}</span></td>
+      <td><span class="td-op ${opColor.cls}" style="${opColor.style}">${escHtml(q.operator)||'—'}</span></td>
       <td class="td-edit" onclick="editQSO(${q.id})" title="Corriger">✏️</td>
       <td class="td-del" onclick="deleteQSO(${q.id})" title="Supprimer">✕</td>
     </tr>`;
@@ -2531,10 +2543,10 @@ function updateOpStats(){
   const sorted = Object.entries(stats).sort((a,b)=>b[1].pts-a[1].pts);
   const topPts = sorted.length ? sorted[0][1].pts : 0;
   inner.innerHTML = sorted.map(([op, d])=>{
-    const opClass = OP_COLORS[op] || '';
+    const opColor = opColorAttr(op);
     const isLeader = d.pts === topPts && topPts > 0;
     return `<div class="ops-item${isLeader?' leader':''}">`
-      + `<div class="ops-op ${opClass}" style="border-radius:4px;display:inline-block;padding:1px 8px">${op}${isLeader?' 🏆':''}</div>`
+      + `<div class="ops-op ${opColor.cls}" style="border-radius:4px;display:inline-block;padding:1px 8px;${opColor.style}">${op}${isLeader?' 🏆':''}</div>`
       + `<div class="ops-lbl">QSO · PTS</div>`
       + `<div class="ops-vals">${d.count} · ${d.pts.toLocaleString()}</div>`
       + `</div>`;
@@ -4158,12 +4170,15 @@ function prefillSetupFromConfig(){
   // SINGLE-OP : la section concours SO* (Single Operator) prime — un seul
   // opérateur, sélecteur inutile. On considère aussi single-op si la config
   // ne liste qu'un opérateur. Sinon (MO*) : le multi-op reste disponible.
-  // LOGBOOK SIMPLE : la classification SO*/MO* n'a pas de sens hors concours
-  // — seul le champ CLUB (radio-club = plusieurs opérateurs qui se relaient)
-  // justifie le sélecteur ; sinon c'est l'opérateur unique de la config,
-  // pas besoin de choisir entre OP1/OP2/...
+  // LOGBOOK SIMPLE : un seul opérateur, point — le rôle auparavant tenu par
+  // le champ CLUB ici (radio-club = plusieurs opérateurs qui se relaient) est
+  // désormais assuré par le mode RADIOCLUB dédié (cf. logx_configuration.html).
+  // RADIOCLUB : jusqu'à 40 opérateurs, pas de classification SO*/MO* EDI
+  // pertinente ici — seul le nombre d'opérateurs déclarés compte.
   const isSingleOp = usageMode === 'simple'
-    ? !(cfg.club || '').trim()
+    ? true
+    : usageMode === 'radioclub'
+    ? ops.length <= 1
     : (/^SO/i.test(cfg.section || '') || ops.length <= 1);
   if(ops.length){
     opEl.innerHTML = '<option value="">-- Sélectionne ton identifiant opérateur --</option>';
@@ -4173,13 +4188,16 @@ function prefillSetupFromConfig(){
       const lbl = call ? `${val} — ${call}${op.name?' ('+op.name+')':''}` : val;
       opEl.innerHTML += `<option value="${val}">${lbl}</option>`;
     });
-    // Boutons OP du formulaire : vrai indicatif, et on masque les emplacements
-    // sans indicatif configuré (plus de OP4/OP5 fantômes).
-    document.querySelectorAll('.op-btn').forEach((btn, i) => {
-      const call = ops[i] && (ops[i].call || ops[i].callsign);
-      if(call){ btn.textContent = call; btn.style.display = ''; }
-      else { btn.style.display = 'none'; }
-    });
+    // Boutons OP du formulaire : régénérés depuis la config (jusqu'à 40 en
+    // mode RADIOCLUB, la grille flex existante wrap automatiquement) — un
+    // bouton par opérateur réellement configuré, plus de OP4/OP5 fantômes.
+    const opSelectEl = document.getElementById('opSelect');
+    const activeOp = opSelectEl.querySelector('.op-btn.active')?.dataset.op || myOp;
+    opSelectEl.innerHTML = ops.map((op, i) => {
+      const val = `OP${i+1}`;
+      const call = op.call || op.callsign || val;
+      return `<button class="op-btn${val===activeOp?' active':''}" data-op="${val}" onclick="setOp(this)">${escHtml(call)}</button>`;
+    }).join('');
   }
   // Masquer tout ce qui est multi-op en single-op : sélecteur d'opérateur,
   // classement par opérateur, chat inter-postes. L'opérateur reste OP1.
