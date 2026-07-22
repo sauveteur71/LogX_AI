@@ -20,6 +20,7 @@ concours/scoreboard_sync.json
 concours/backup_state.json
 concours/cloudsync_state.json
 concours/.cloudsync_instance_id
+concours/sota_summits.csv
 
 # Documents personnels de préparation (pas le programme lui-même)
 .claude/launch.json

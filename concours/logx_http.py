@@ -1438,6 +1438,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'spots': pota.fetch_pota_spots()})
             return
 
+        # Spots d'activateurs SOTA en direct (api2.sota.org.uk, cache 60 s)
+        if path == '/data/sota_spots':
+            import logx_sota as sota
+            self._json({'spots': sota.fetch_sota_spots()})
+            return
+
+        # Recherche dans la base des sommets SOTA (code ou nom, auto-complétion
+        # du champ MA RÉFÉRENCE ACTIVÉE) — jamais bloquant : renvoie [] tant que
+        # la base (téléchargée en tâche de fond au premier appel) n'est pas prête.
+        if path.startswith('/sota/search'):
+            import logx_sota as sota
+            from urllib.parse import parse_qs, urlparse
+            q = (parse_qs(urlparse(self.path).query).get('q') or [''])[0]
+            self._json({'results': sota.search_summits(q), 'status': sota.summits_status()})
+            return
+
+        # Référence exacte -> détails (validation de MA RÉFÉRENCE ACTIVÉE contre
+        # la vraie base, au-delà de la simple vérification de FORMAT déjà faite
+        # par logx_activation.py).
+        if path.startswith('/sota/lookup'):
+            import logx_sota as sota
+            from urllib.parse import parse_qs, urlparse
+            ref = (parse_qs(urlparse(self.path).query).get('ref') or [''])[0]
+            summit = sota.get_summit(ref)
+            self._json({'summit': summit, 'status': sota.summits_status()})
+            return
+
         # État d'une analyse IA serveur (pour la reprise après changement de page)
         if path.startswith('/agent/analyze/state'):
             from urllib.parse import parse_qs, urlparse

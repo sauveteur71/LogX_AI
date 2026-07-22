@@ -1530,7 +1530,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div class="form-grid">
           <div class="form-group">
             <label>PROGRAMME</label>
-            <select id="activation_program">
+            <select id="activation_program" onchange="onActivationProgramChange()">
               <option value="">Désactivé (concours normal)</option>
               <option value="POTA">POTA — Parks on the Air (10 QSO)</option>
               <option value="SOTA">SOTA — Summits on the Air (4 QSO)</option>
@@ -1540,10 +1540,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
               <option value="WCA">WCA — World Castles Award (50 QSO)</option>
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group" style="position:relative">
             <label>MA RÉFÉRENCE ACTIVÉE</label>
-            <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase">
+            <input type="text" id="my_activation_ref" placeholder="ex : FR-0123" autocapitalize="characters" style="text-transform:uppercase" oninput="onActivationRefInput()" onblur="setTimeout(hideSotaSuggestions,200)">
             <div class="input-note">POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN</div>
+            <div id="sotaSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--bg2);border:1px solid var(--accent2);border-radius:6px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.4)"></div>
+            <div id="sotaValidation" style="font-family:var(--font-mono);font-size:12px;margin-top:4px"></div>
           </div>
         </div>
       </div>
@@ -2442,7 +2444,88 @@ async function init() {
   updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
   updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
+  validateSotaRef(); // Si une référence SOTA est déjà enregistrée, la vérifier contre la base au chargement
   renderHub(); // Hub de catégories : badges d'état initiaux
+}
+
+// ─── SOTA : recherche/validation de sommet contre la vraie base ─────────────
+// logx_activation.py ne vérifiait que le FORMAT (regex) de MA RÉFÉRENCE
+// ACTIVÉE, jamais si le sommet existe réellement. La base (181 000 sommets,
+// storage.sota.org.uk/summitslist.csv) se charge en tâche de fond côté
+// serveur — ces fonctions gèrent l'état "pas encore prêt" sans jamais
+// bloquer la saisie (la référence reste éditable manuellement à tout moment,
+// que la base soit chargée, en cours de chargement, ou injoignable).
+let _sotaSearchTimer = null;
+
+function onActivationProgramChange(){
+  const el = document.getElementById('sotaValidation');
+  if (el) el.textContent = '';
+  hideSotaSuggestions();
+  if (document.getElementById('activation_program').value === 'SOTA') validateSotaRef();
+}
+
+function onActivationRefInput(){
+  document.getElementById('sotaValidation').textContent = '';
+  if (document.getElementById('activation_program').value !== 'SOTA') { hideSotaSuggestions(); return; }
+  const val = document.getElementById('my_activation_ref').value.trim();
+  clearTimeout(_sotaSearchTimer);
+  if (val.length < 2) { hideSotaSuggestions(); return; }
+  _sotaSearchTimer = setTimeout(() => searchSotaSummits(val), 300);
+}
+
+async function searchSotaSummits(query){
+  const box = document.getElementById('sotaSuggestions');
+  try{
+    const r = await fetch('/sota/search?q=' + encodeURIComponent(query));
+    const d = await r.json();
+    if (!d.status || !d.status.ready){
+      box.style.display = 'block';
+      box.innerHTML = '<div style="padding:8px 12px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">⏳ Chargement de la base des sommets (~181 000 entrées, une seule fois)…</div>';
+      return;
+    }
+    const results = d.results || [];
+    if (!results.length) { hideSotaSuggestions(); return; }
+    box.style.display = 'block';
+    box.innerHTML = results.map(s => `
+      <div onmousedown="pickSotaSummit('${s.code}')" style="padding:7px 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border)">
+        <b style="color:var(--accent2)">${_vkEsc(s.code)}</b> — ${_vkEsc(s.name)} <span style="color:var(--muted)">(${s.alt_m} m, ${s.points} pts, ${_vkEsc(s.region)})</span>
+      </div>`).join('');
+  }catch(e){ hideSotaSuggestions(); }
+}
+
+function pickSotaSummit(code){
+  document.getElementById('my_activation_ref').value = code;
+  hideSotaSuggestions();
+  validateSotaRef();
+}
+
+function hideSotaSuggestions(){
+  const box = document.getElementById('sotaSuggestions');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+async function validateSotaRef(){
+  const el = document.getElementById('sotaValidation');
+  if (!el) return;
+  if (document.getElementById('activation_program').value !== 'SOTA') { el.textContent = ''; return; }
+  const ref = document.getElementById('my_activation_ref').value.trim().toUpperCase();
+  if (!ref) { el.textContent = ''; return; }
+  try{
+    const r = await fetch('/sota/lookup?ref=' + encodeURIComponent(ref));
+    const d = await r.json();
+    if (!d.status || !d.status.ready){
+      el.textContent = '⏳ Vérification en attente du chargement de la base des sommets…';
+      el.style.color = 'var(--muted)';
+      return;
+    }
+    if (d.summit){
+      el.textContent = `✅ ${d.summit.name} — ${d.summit.alt_m} m, ${d.summit.points} pts (${d.summit.region})`;
+      el.style.color = 'var(--green)';
+    } else {
+      el.textContent = "⚠️ Référence non trouvée dans la base SOTA — vérifie l'orthographe, ou c'est un sommet récent pas encore répertorié (la saisie reste valable)";
+      el.style.color = 'var(--yellow)';
+    }
+  }catch(e){ el.textContent = ''; }
 }
 
 // ─── KEYER VOCAL : périphériques audio + voix TTS (chargés une fois) ────────
