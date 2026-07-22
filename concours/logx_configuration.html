@@ -2461,6 +2461,15 @@ async function loadVoiceKeyerDevices(){
 
 async function testVoiceKeyer(){
   const out = document.getElementById('voiceKeyerTestResult');
+  // Le serveur teste toujours la DERNIÈRE config qu'il a reçue via /config/save,
+  // jamais ce qui est affiché à l'écran — sans ça, changer KEYER VOCAL sur
+  // "Activé" puis cliquer Tester sans être passé par SAUVEGARDER échoue avec
+  // "Keyer vocal désactivé (CONFIG)" alors que le sélecteur affiche "Activé".
+  // On sauvegarde donc (silencieux, permissif) et on ATTEND que le serveur
+  // ait bien reçu cette config avant de lancer le test dessus.
+  if(out){ out.textContent = '⏳ synchronisation de la config…'; out.style.color = 'var(--muted)'; }
+  saveConfig(true);
+  await _lastConfigSavePromise;
   if(out){ out.textContent = '⏳ test en cours…'; out.style.color = 'var(--muted)'; }
   try{
     const r = await fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
@@ -3947,6 +3956,7 @@ function quickSave() {
   saveConfig(true);
 }
 
+let _lastConfigSavePromise = Promise.resolve();
 function saveConfig(silent = false) {
   // Garde-fou H2 : une sauvegarde explicite (bouton SAUVEGARDER CONFIG,
   // LOGGER) exige indicatif/locator/concours complets — la sauvegarde rapide
@@ -4110,7 +4120,11 @@ function saveConfig(silent = false) {
   localStorage.setItem('logx_config', JSON.stringify(config));
   // Pousser aussi au serveur : sinon logx_serveur.py travaille avec une config
   // périmée tant que la page CARTE IA (seule à faire ce POST) n'est pas ouverte.
-  fetch('/config/save', {
+  // Fire-and-forget pour tous les appelants existants (le contrat synchrone
+  // true/false de saveConfig() ne change pas) — _lastConfigSavePromise permet
+  // aux appelants qui en ont besoin (testVoiceKeyer()) d'attendre que le
+  // serveur ait bien reçu CETTE config avant de tester dessus.
+  _lastConfigSavePromise = fetch('/config/save', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(config)
   }).catch(e=>console.warn('[CFG] serveur non joignable :', e));
