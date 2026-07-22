@@ -352,7 +352,7 @@ def do_refresh(cfg):
     toggles = cfg.get('toggles', {})
     no_digi = toggles.get('flag_no_digi', False)
     contest = cfg.get('contest', 'CUSTOM')
-    log_sw  = cfg.get('log_software', 'net-test-thf')
+    log_sw  = cfg.get('log_software', 'manual')
     callsign = cfg.get('callsign_contest', cfg.get('callsign', ''))
 
     print(f"[DATA] Refresh — {callsign} | {cfg.get('locator','?')} | {contest}")

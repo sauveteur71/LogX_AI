@@ -114,6 +114,11 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 body.simple-mode .expert-only{display:none!important}
 .simple-note{display:none;font-family:var(--font-mono);font-size:13px;color:var(--muted);border:1px dashed var(--border);border-radius:6px;padding:8px 12px;margin-top:10px;line-height:1.6}
 body.simple-mode .simple-note{display:block}
+/* Distinct de .simple-mode (niveau UI débutant/expert) : ici il s'agit du
+   MODE D'UTILISATION (usage-simple = LOGBOOK SIMPLE, cf. applyUsageMode()). */
+.usage-simple-only{display:none}
+body.usage-simple .usage-simple-only{display:block}
+body.usage-simple .usage-contest-only{display:none}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* SECTION */
@@ -445,8 +450,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="form-group">
             <label>INDICATIF</label>
             <input type="text" id="callsign" placeholder="F6KQJ" oninput="updateLocatorHint();autoFillCallsign(this.value)" style="text-transform:uppercase;font-size:18px;font-weight:700;color:var(--accent)">
+            <div class="input-note usage-simple-only">Suffixes acceptés : /P, /M, /MM, /AM (ex. F4GLD/P), ou préfixe pays en /portable (ex. EA/F4GLD depuis l'Espagne)</div>
           </div>
-          <div class="form-group">
+          <div class="form-group usage-contest-only">
             <label>INDICATIF CONCOURS <span style="font-size:12px;color:var(--muted)">(si différent)</span></label>
             <input type="text" id="callsign_contest" placeholder="auto" style="text-transform:uppercase" oninput="_callContest_manual=true">
             <div class="input-note">Auto-rempli depuis INDICATIF — modifier si /P ou club</div>
@@ -521,6 +527,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <label>CLASSE PUISSANCE</label>
             <select id="power_class">
               <option value="QRP">QRP (≤5W)</option>
+              <option value="QRP10">QRP 10W</option>
+              <option value="QRP15">QRP 15W</option>
               <option value="LP" selected>LP (≤100W)</option>
               <option value="HP">HP (&gt;100W)</option>
             </select>
@@ -530,16 +538,17 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <input type="number" id="record_dx" placeholder="1600" min="0">
             <div class="input-note">Utilisé pour calibrer les priorités</div>
           </div>
-          <div class="form-group">
-            <label>LOGICIEL DE LOG</label>
+          <div class="form-group expert-only">
+            <label>LOG EXTERNE (PONT RÉSEAU)</label>
             <select id="log_software">
+              <option value="manual" selected>Aucun — LogX AI seul</option>
               <option value="net-test-thf">Net-TEST THF (f5aib.net)</option>
               <option value="n1mm">N1MM Logger+</option>
               <option value="log4om">Log4OM</option>
               <option value="hamrs">HamRS</option>
               <option value="vqlog">VQLog</option>
-              <option value="manual">Saisie manuelle</option>
             </select>
+            <div class="input-note">Uniquement si tu partages tes QSO en réseau avec un AUTRE logiciel (pont ADIF/EDI) — laisse « Aucun » si tu utilises seulement LogX AI</div>
           </div>
           <div class="form-group">
             <label>TRANSCEIVER</label>
@@ -547,7 +556,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
           <div class="form-group">
             <label>PAYS (code 3 lettres)</label>
-            <input type="text" id="country" placeholder="FRA" maxlength="3" style="text-transform:uppercase">
+            <input type="text" id="country" placeholder="FRA" maxlength="3" style="text-transform:uppercase" oninput="this.dataset.manual='1'">
+            <div class="input-note">Déduit automatiquement de l'INDICATIF (ex. EA/F4GLD → ESP) — modifiable si besoin</div>
           </div>
         </div>
       </div>
@@ -769,6 +779,41 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="toggle-grid">
             <span class="toggle-btn" data-key="band_qo100" onclick="toggle(this)">QO-100</span>
             <span class="toggle-btn" data-key="band_sat" onclick="toggle(this)">Autres SAT</span>
+          </div>
+          <div class="form-group" style="margin-top:10px;max-width:360px">
+            <label>SATELLITE ACTIF <span style="font-size:12px;color:var(--muted)">(repère informatif)</span></label>
+            <select id="active_satellite">
+              <option value="">— Non précisé —</option>
+              <optgroup label="Géostationnaire">
+                <option value="QO-100">QO-100 (Es'hail 2)</option>
+              </optgroup>
+              <optgroup label="Relais FM">
+                <option value="ISS">ISS (voix/APRS/SSTV)</option>
+                <option value="SO-50">SO-50</option>
+                <option value="AO-27">AO-27</option>
+                <option value="AO-91">AO-91 (Fox-1B)</option>
+                <option value="AO-92">AO-92 (Fox-1D)</option>
+                <option value="PO-101">PO-101 (Diwata-2)</option>
+              </optgroup>
+              <optgroup label="Transpondeur linéaire (SSB/CW)">
+                <option value="AO-7">AO-7</option>
+                <option value="FO-29">FO-29</option>
+                <option value="RS-44">RS-44</option>
+                <option value="EO-88">EO-88 (Nayif-1)</option>
+                <option value="JO-97">JO-97</option>
+                <option value="CAS-4A">CAS-4A (ZHUHAI-1)</option>
+                <option value="CAS-4B">CAS-4B (ZHUHAI-1)</option>
+              </optgroup>
+              <option value="AUTRE">Autre (préciser dans le logbook)</option>
+            </select>
+            <div class="input-note">Statut des satellites : <a href="https://www.amsat.org/status/" target="_blank" rel="noopener" style="color:var(--accent2)">AMSAT Live OSCAR Status</a></div>
+          </div>
+          <div class="input-note" style="margin-top:10px;max-width:520px">
+            🛰️ Suivi &amp; Doppler :
+            <a href="https://www.heavens-above.com/" target="_blank" rel="noopener" style="color:var(--accent2)">Heavens-Above</a> ·
+            <a href="https://www.n2yo.com/" target="_blank" rel="noopener" style="color:var(--accent2)">N2YO</a> ·
+            <a href="https://amsat.org/amateur-satellite-index/" target="_blank" rel="noopener" style="color:var(--accent2)">Index AMSAT</a> ·
+            <a href="http://gpredict.oz9aec.net/" target="_blank" rel="noopener" style="color:var(--accent2)">Gpredict</a> (logiciel de tracking + calcul Doppler, non intégré à LogX AI)
           </div>
         </div>
       </div>
@@ -1675,8 +1720,9 @@ const CONFIG_HELP = {
   city: "Ta ville/QTH, affichée dans les résumés et sur l'écran mural. Purement informatif, n'affecte pas le scoring.",
   altitude: "Ton altitude en mètres. Utile pour le Rallye des Points Hauts et pour affiner les prédictions de propagation troposphérique.",
   power: "Ta puissance d'émission en watts. Utilisée pour le calcul de certains bonus/catégories (ex. QRP).",
-  power_class: "Ta catégorie de puissance déclarée pour le concours (HP=haute puissance, LP=basse puissance, QRP=très faible puissance). Certains concours notent différemment selon la catégorie.",
+  power_class: "Ta catégorie de puissance déclarée pour le concours (HP=haute puissance, LP=basse puissance, QRP/QRP10/QRP15=très faible puissance selon ton palier). Certains concours notent différemment selon la catégorie. Dans l'export Cabrillo, les 3 paliers QRP sont tous déclarés comme la catégorie standard « QRP ».",
   record_dx: "Ta plus longue distance déjà réalisée (en km) — sert uniquement de référence affichée, aucun impact sur le score.",
+  active_satellite: "Le satellite via lequel tu opères actuellement — repère informatif uniquement, n'affecte ni le score ni le filtrage des bandes (ça reste les cases QO-100/Autres SAT ci-dessus). Utile en fin de saison pour te souvenir de tes activations.",
   operator_name: "Ton prénom/nom, utilisé dans les exports (ADIF/Cabrillo) et certains formulaires de diplômes.",
   email: "Ton adresse email, utilisée pour certains envois de log automatiques (ex. soumission de concours) si le concours le demande.",
   club: "Le nom de ton club radioamateur, s'il y a lieu — apparaît dans certains exports Cabrillo.",
@@ -1693,7 +1739,7 @@ const CONFIG_HELP = {
   contest_end_utc: "Heure de fin exacte en UTC (temps universel, pas ton heure locale) — les concours radioamateur se règlent presque toujours sur UTC.",
   submit_deadline: "La date limite d'envoi de ton log au concours — purement informatif, pense à noter un rappel !",
   submit_url: "Le lien vers lequel envoyer ton log une fois le concours terminé (site officiel de soumission).",
-  log_software: "Nom du logiciel avec lequel tu dialogues en réseau (ex. N1MM+, DXLog) si tu utilises le pont ADIF réseau pour partager les QSO entre logiciels.",
+  log_software: "Uniquement si tu fais dialoguer LogX AI en réseau avec un AUTRE logiciel de log (pont ADIF/EDI) — choisis le format de CET autre logiciel. Laisse « Aucun — LogX AI seul » si tu n'utilises que LogX AI, c'est le réglage par défaut.",
   section_edi: "Le code de section utilisé dans l'export EDI (format suisse USKA) — laisse vide si le concours n'en a pas besoin.",
   radio: "Le modèle de ton transceiver (ex. IC-9700, FT-991A) — purement informatif, affiché dans les résumés de station et repris dans l'export EDI.",
   country: "Le code pays ISO 3 lettres de ta station (ex. FRA pour la France) — déduit automatiquement de ton indicatif, modifiable si besoin. Repris dans l'export EDI/Cabrillo.",
@@ -2737,6 +2783,88 @@ function buildContestGrid(filter = '') {
 
 // ─── AUTO-REMPLISSAGE INDICATIF ───────────────────────────────────────────────
 let _callContest_manual = false;
+
+// Préfixe indicatif → code pays ISO 3 lettres. Couvre l'Europe (usage
+// principal de l'app, champs EDI) + les principales destinations DX ;
+// n'a pas vocation à couvrir les ~340 entités DXCC — le champ PAYS reste
+// éditable pour les cas non couverts (cf. dataset.manual plus bas).
+const CALLSIGN_COUNTRY_PREFIXES = {
+  // France + voisins
+  F:'FRA', TK:'FRA', TM:'FRA', TO:'FRA', TX:'FRA',
+  EA:'ESP', EA6:'ESP', EA8:'ESP', EA9:'ESP', EB:'ESP', EC:'ESP', ED:'ESP', EF:'ESP', EG:'ESP', EH:'ESP',
+  DL:'DEU', DA:'DEU', DB:'DEU', DC:'DEU', DD:'DEU', DF:'DEU', DG:'DEU', DH:'DEU', DJ:'DEU', DK:'DEU', DM:'DEU', DO:'DEU',
+  G:'GBR', M:'GBR', '2E':'GBR', GW:'GBR', GM:'GBR', GI:'GBR', GD:'GBR', GJ:'GBR', GU:'GBR', GX:'GBR',
+  I:'ITA', IK:'ITA', IZ:'ITA', IW:'ITA', IU:'ITA', IQ:'ITA', IN:'ITA',
+  ON:'BEL', OO:'BEL', OP:'BEL', OQ:'BEL', OR:'BEL', OS:'BEL', OT:'BEL',
+  PA:'NLD', PB:'NLD', PC:'NLD', PD:'NLD', PE:'NLD', PF:'NLD', PG:'NLD', PH:'NLD', PI:'NLD',
+  HB9:'CHE', HB3:'CHE', HB0:'LIE',
+  OE:'AUT',
+  SM:'SWE', SA:'SWE', SB:'SWE', SC:'SWE', SD:'SWE', SE:'SWE', SF:'SWE', SG:'SWE', SH:'SWE', SI:'SWE', SJ:'SWE', SK:'SWE', SL:'SWE',
+  LA:'NOR', LB:'NOR', LJ:'NOR',
+  OZ:'DNK', '5P':'DNK', '5Q':'DNK',
+  OH:'FIN', OF:'FIN', OG:'FIN', OI:'FIN', OJ:'FIN',
+  CT:'PRT', CQ:'PRT', CR:'PRT', CS:'PRT',
+  SP:'POL', SN:'POL', SO:'POL', SQ:'POL', SR:'POL', HF:'POL', '3Z':'POL',
+  OK:'CZE', OL:'CZE',
+  OM:'SVK',
+  S5:'SVN',
+  '9A':'HRV',
+  HA:'HUN', HG:'HUN',
+  YO:'ROU', YP:'ROU', YQ:'ROU', YR:'ROU',
+  LZ:'BGR',
+  ES:'EST',
+  YL:'LVA',
+  LY:'LTU',
+  UR:'UKR', UT:'UKR', UU:'UKR', UV:'UKR', UW:'UKR', UX:'UKR', UY:'UKR', UZ:'UKR', EM:'UKR', EN:'UKR', EO:'UKR',
+  EW:'BLR',
+  ER:'MDA',
+  '4O':'MNE', E7:'BIH', Z3:'MKD',
+  SV:'GRC', SW:'GRC', SX:'GRC', SY:'GRC', SZ:'GRC', J4:'GRC',
+  TA:'TUR', TC:'TUR',
+  '4X':'ISR', '4Z':'ISR',
+  JY:'JOR', OD:'LBN',
+  EI:'IRL', EJ:'IRL',
+  C3:'AND', '3A':'MCO', '9H':'MLT', ZA:'ALB', TF:'ISL',
+  UA:'RUS', UB:'RUS', RA:'RUS', RK:'RUS', RN:'RUS', RU:'RUS', RV:'RUS', RW:'RUS', RX:'RUS', RZ:'RUS', R1:'RUS', R2:'RUS', R3:'RUS', R4:'RUS', R5:'RUS', R6:'RUS', R7:'RUS', R8:'RUS', R9:'RUS',
+  // Amérique
+  K:'USA', N:'USA', W:'USA', AA:'USA', AB:'USA', AC:'USA', AD:'USA', AE:'USA', AF:'USA', AG:'USA', AI:'USA', AJ:'USA', AK:'USA', KA:'USA', KB:'USA', KC:'USA', KD:'USA', KE:'USA', KF:'USA', KG:'USA', KI:'USA', KJ:'USA', KK:'USA', KM:'USA', KN:'USA', KO:'USA', KQ:'USA', KR:'USA', KS:'USA', KT:'USA', KU:'USA', KV:'USA', KW:'USA', KX:'USA', KY:'USA', KZ:'USA', WA:'USA', WB:'USA', WC:'USA', WD:'USA', WE:'USA', WF:'USA', WG:'USA', WI:'USA', WJ:'USA', WK:'USA', WM:'USA', WN:'USA', WO:'USA', WQ:'USA', WR:'USA', WS:'USA', WT:'USA', WU:'USA', WV:'USA', WW:'USA', WX:'USA', WY:'USA', WZ:'USA',
+  VE:'CAN', VA:'CAN', VO:'CAN', VY:'CAN',
+  XE:'MEX',
+  PY:'BRA', PP:'BRA', PQ:'BRA', PR:'BRA', PS:'BRA', PT:'BRA', PU:'BRA', PV:'BRA', PW:'BRA', ZV:'BRA', ZW:'BRA', ZX:'BRA', ZY:'BRA', ZZ:'BRA',
+  LU:'ARG', AY:'ARG', AZ:'ARG',
+  CE:'CHL', CX:'URY', HK:'COL', YV:'VEN', OA:'PER', CP:'BOL', HC:'ECU',
+  // Asie-Pacifique / Afrique
+  JA:'JPN', JE:'JPN', JF:'JPN', JG:'JPN', JH:'JPN', JI:'JPN', JJ:'JPN', JK:'JPN', JL:'JPN', JM:'JPN', JN:'JPN', JO:'JPN', JP:'JPN', JQ:'JPN', JR:'JPN', JS:'JPN',
+  BY:'CHN', BG:'CHN', BH:'CHN', BI:'CHN', BJ:'CHN', BL:'CHN',
+  BV:'TWN',
+  HL:'KOR', DS:'KOR',
+  VK:'AUS', ZL:'NZL',
+  ZS:'ZAF', ZR:'ZAF', ZT:'ZAF', ZU:'ZAF',
+  VU:'IND', '9V':'SGP', HS:'THA', E2:'THA',
+  YB:'IDN', YC:'IDN', YD:'IDN', YE:'IDN', YF:'IDN', YG:'IDN', YH:'IDN',
+  DU:'PHL', DV:'PHL', DW:'PHL', DX:'PHL', DY:'PHL', DZ:'PHL',
+  VR:'HKG',
+};
+
+// Suffixes/segments à ignorer quand on choisit quelle partie d'un indicatif
+// barré (EA/F4GLD, F/ON4ABC/P) porte l'information de pays.
+const CALLSIGN_SUFFIX_TOKENS = new Set(['P','M','MM','AM','A','QRP']);
+
+function deriveCountryFromCallsign(call){
+  call = (call||'').toUpperCase().trim();
+  if(!call) return '';
+  let parts = call.split('/').filter(p => p && !CALLSIGN_SUFFIX_TOKENS.has(p) && !/^\d+$/.test(p));
+  if(parts.length > 1) parts.sort((a,b) => a.length - b.length); // préfixe hôte (le plus court) prioritaire
+  else if(!parts.length) parts = [call];
+  for(const part of parts){
+    for(let len = Math.min(part.length, 3); len >= 1; len--){
+      const hit = CALLSIGN_COUNTRY_PREFIXES[part.slice(0, len)];
+      if(hit) return hit;
+    }
+  }
+  return '';
+}
+
 function autoFillCallsign(val){
   val = val.toUpperCase();
   if(!_callContest_manual){
@@ -2746,6 +2874,11 @@ function autoFillCallsign(val){
   if(opCall && !opCall.dataset.manual) opCall.value = val;
   const op1 = document.getElementById('op1_call');
   if(op1 && !op1.dataset.manual) op1.value = val;
+  const countryEl = document.getElementById('country');
+  if(countryEl && !countryEl.dataset.manual){
+    const derived = deriveCountryFromCallsign(val);
+    if(derived) countryEl.value = derived;
+  }
 }
 // ─── PROFILS STATION MULTIPLES ────────────────────────────────────────────────
 function getProfiles(){ try{ return JSON.parse(localStorage.getItem('logx_profiles')||'{}'); }catch(e){ return {}; } }
@@ -3870,6 +4003,7 @@ function saveConfig(silent = false) {
     ant_shf: document.getElementById('ant_shf').value,
     radio: document.getElementById('radio').value,
     country: (document.getElementById('country').value||'FRA').toUpperCase().slice(0,3),
+    active_satellite: document.getElementById('active_satellite').value,
     submit_url: document.getElementById('submit_url').value,
     submit_deadline: document.getElementById('submit_deadline').value,
     contest: state.contest,
@@ -4409,6 +4543,7 @@ function applyFullConfigToForm(c) {
     // fichier, les restaurait) — perte silencieuse au rechargement de page.
     if(c.radio) document.getElementById('radio').value = c.radio;
     if(c.country) document.getElementById('country').value = c.country;
+    if(c.active_satellite) document.getElementById('active_satellite').value = c.active_satellite;
     if(c.submit_url) document.getElementById('submit_url').value = c.submit_url;
     if(c.submit_deadline) document.getElementById('submit_deadline').value = c.submit_deadline;
     if(c.contest) selectContest(c.contest, true);

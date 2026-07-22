@@ -79,7 +79,9 @@ def build_cabrillo(qsos, cdef=None, cfg=None):
         f"CALLSIGN: {callsign}",
         'CATEGORY-OPERATOR: ' + ('MULTI-OP' if len(operators.split()) > 1 else 'SINGLE-OP'),
         'CATEGORY-TRANSMITTER: ONE',
-        f"CATEGORY-POWER: {str(cfg.get('power_class', 'LOW')).upper()}",
+        # Les paliers QRP10/QRP15 (finesse propre à LogX AI) se déclarent tous
+        # comme la catégorie standard Cabrillo « QRP », qui ne connaît que HIGH/LOW/QRP.
+        f"CATEGORY-POWER: {('QRP' if str(cfg.get('power_class', 'LOW')).upper().startswith('QRP') else str(cfg.get('power_class', 'LOW')).upper())}",
         f"CLAIMED-SCORE: {claimed}",
         f"OPERATORS: {operators}",
         f"GRID-LOCATOR: {cfg.get('locator', '')}",
