@@ -124,6 +124,11 @@ def _parse_summits_csv(content):
             points = int(float(row.get('Points') or 0))
         except ValueError:
             points = 0
+        try:
+            lat = float(row.get('Latitude') or '')
+            lon = float(row.get('Longitude') or '')
+        except ValueError:
+            lat = lon = None
         out.append({
             'code': code.upper(),
             'association': (row.get('AssociationName') or '').strip(),
@@ -131,8 +136,8 @@ def _parse_summits_csv(content):
             'name': (row.get('SummitName') or '').strip(),
             'alt_m': alt_m,
             'points': points,
-            'lat': row.get('Latitude') or '',
-            'lon': row.get('Longitude') or '',
+            'lat': lat,
+            'lon': lon,
             'activations': row.get('ActivationCount') or '0',
         })
     return out
@@ -216,6 +221,34 @@ def get_summit(code):
     code = (code or '').strip().upper()
     with _summits_lock:
         return _summits['by_code'].get(code)
+
+
+def nearby_summits(lat, lon, max_km=100, limit=30):
+    """Sommets triés par distance depuis (lat, lon) — la question que pose
+    concrètement un activateur qui planifie sa sortie ("quel sommet à
+    proximité ?", le service que rend sotamaps.org/Range Calculator). Construit
+    directement sur la base déjà chargée (mêmes 181 000 sommets, coordonnées
+    déjà connues) plutôt que d'interroger un service tiers de plus : aucune
+    dépendance réseau supplémentaire, aucun risque de rupture d'API externe."""
+    ensure_loading_started()
+    try:
+        lat, lon = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return []
+    from logx_utils import haversine, bearing, cardinal
+    with _summits_lock:
+        summits = list(_summits['list'])
+    out = []
+    for s in summits:
+        if s['lat'] is None or s['lon'] is None:
+            continue
+        dist = haversine(lat, lon, s['lat'], s['lon'])
+        if dist > max_km:
+            continue
+        brg = bearing(lat, lon, s['lat'], s['lon'])
+        out.append({**s, 'dist_km': dist, 'bearing': brg, 'cardinal': cardinal(brg)})
+    out.sort(key=lambda s: s['dist_km'])
+    return out[:limit]
 
 
 def search_summits(query, limit=25):

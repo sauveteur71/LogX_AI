@@ -1548,6 +1548,16 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <div id="sotaValidation" style="font-family:var(--font-mono);font-size:12px;margin-top:4px"></div>
           </div>
         </div>
+        <div class="form-group" id="sotaNearbyBlock" style="display:none;margin-top:12px">
+          <label>🗺️ SOMMETS SOTA À PROXIMITÉ <span style="font-size:12px;color:var(--muted)">(depuis ton locator)</span></label>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <button type="button" class="btn btn-secondary" style="padding:7px 14px;font-size:12px" onclick="loadNearbySota()">🔍 Chercher autour de moi</button>
+            <input type="number" id="sotaNearbyMaxKm" value="60" min="5" max="500" style="width:70px" title="Rayon de recherche (km)">
+            <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">km</span>
+          </div>
+          <div id="sotaNearbyList" style="max-height:220px;overflow-y:auto"></div>
+          <div class="input-note">Calculé directement depuis la base des 181 000 sommets déjà chargée (pas de service tiers) — clique un résultat pour le mettre dans MA RÉFÉRENCE ACTIVÉE.</div>
+        </div>
       </div>
 
       <div class="section">
@@ -2461,7 +2471,36 @@ function onActivationProgramChange(){
   const el = document.getElementById('sotaValidation');
   if (el) el.textContent = '';
   hideSotaSuggestions();
-  if (document.getElementById('activation_program').value === 'SOTA') validateSotaRef();
+  const isSota = document.getElementById('activation_program').value === 'SOTA';
+  const nearbyBlock = document.getElementById('sotaNearbyBlock');
+  if (nearbyBlock) nearbyBlock.style.display = isSota ? '' : 'none';
+  if (isSota) validateSotaRef();
+}
+
+async function loadNearbySota(){
+  const list = document.getElementById('sotaNearbyList');
+  const maxKm = parseInt(document.getElementById('sotaNearbyMaxKm').value, 10) || 60;
+  list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">Recherche…</div>';
+  try{
+    const r = await fetch(`/sota/nearby?max_km=${maxKm}`);
+    const d = await r.json();
+    if (!d.status || !d.status.ready){
+      list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">⏳ Chargement de la base des sommets (~181 000 entrées, une seule fois)…</div>';
+      return;
+    }
+    const summits = d.summits || [];
+    if (!summits.length){
+      list.innerHTML = `<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">Aucun sommet à moins de ${maxKm} km — renseigne ton locator dans « MA STATION » ou élargis le rayon.</div>`;
+      return;
+    }
+    list.innerHTML = summits.map(s => `
+      <div onclick="pickSotaSummit('${s.code}')" style="padding:7px 10px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px">
+        <span><b style="color:var(--accent2)">${_vkEsc(s.code)}</b> — ${_vkEsc(s.name)} <span style="color:var(--muted)">(${s.alt_m} m, ${s.points} pts)</span></span>
+        <span style="color:var(--muted);white-space:nowrap">${s.dist_km.toFixed(1)} km · ${s.cardinal}</span>
+      </div>`).join('');
+  }catch(e){
+    list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--red)">❌ Recherche indisponible</div>';
+  }
 }
 
 function onActivationRefInput(){

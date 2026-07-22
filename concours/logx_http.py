@@ -1465,6 +1465,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'summit': summit, 'status': sota.summits_status()})
             return
 
+        # Sommets SOTA les plus proches d'un point (par défaut : le locator de
+        # la station) — le service que rend sotamaps.org (Range Calculator),
+        # construit directement sur la base déjà en mémoire, sans dépendance
+        # réseau tierce supplémentaire.
+        if path.startswith('/sota/nearby'):
+            import logx_sota as sota
+            from urllib.parse import parse_qs, urlparse
+            qs = parse_qs(urlparse(self.path).query)
+            lat_q, lon_q = (qs.get('lat') or [''])[0], (qs.get('lon') or [''])[0]
+            if lat_q and lon_q:
+                lat, lon = lat_q, lon_q
+            else:
+                cfg_snap = self._cfg_snapshot()
+                lat, lon = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            max_km = float((qs.get('max_km') or ['100'])[0])
+            self._json({'summits': sota.nearby_summits(lat, lon, max_km=max_km),
+                        'status': sota.summits_status()})
+            return
+
         # État d'une analyse IA serveur (pour la reprise après changement de page)
         if path.startswith('/agent/analyze/state'):
             from urllib.parse import parse_qs, urlparse
