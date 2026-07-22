@@ -4,6 +4,7 @@
 import re
 
 import logx_rules as rules
+from logx_bands import dx_threshold_km, band_spotter_km
 from logx_rules import calc_contest_date
 from logx_definitions import CONTEST_DEFINITIONS, CONTEST_SCORING
 from logx_utils import CURRENT_YEAR, locator_to_latlon, haversine
@@ -43,6 +44,14 @@ def build_system_prompt(cfg):
     for key, label in band_map.items():
         if toggles.get(key, False):
             active_bands.append(label)
+
+    # Seuils DX/spotter par bande active (cf. logx_bands.py) — repli sur les
+    # réglages CONFIG (alert_dx/spotter_ok) pour toute bande sans seuil dédié
+    # (ex. QO-100, dont la distance sol ne reflète pas la difficulté réelle).
+    band_threshold_lines = '\n'.join(
+        f"  {b:9} DX > {dx_threshold_km(b, alert_dx)} km · spotter fiable < {band_spotter_km(b, spotter_ok)} km"
+        for b in active_bands
+    ) or f"  DX > {alert_dx} km · spotter fiable < {spotter_ok} km"
 
     # Modes actifs
     active_modes = []
@@ -469,10 +478,14 @@ CLASSEMENT : trie par valeur totale décroissante (impact réel, pas juste dista
 
 ═══════════════════════════════════════════════════════
 
-VALIDATION PAR LE SPOTTER :
-✅ PROBABLE    : spotter < {spotter_ok} km de {loc}
-⚠️ INCERTAIN  : spotter {spotter_ok}-{int(spotter_ok)*2} km
-🌟 DX EXCEP   : distance station > {alert_dx} km → priorité absolue
+VALIDATION PAR LE SPOTTER ET SEUIL DX — PAR BANDE :
+La propagation HF porte normalement à des milliers de km alors que la
+VHF/UHF/SHF est en général courte portée (tropo) — un seuil unique n'aurait
+aucun sens pour les deux à la fois. Applique le seuil de LA BANDE DU SPOT :
+{band_threshold_lines}
+✅ PROBABLE    : spotter sous le seuil "spotter fiable" de la bande du spot
+⚠️ INCERTAIN  : spotter entre 1x et 2x ce seuil
+🌟 DX EXCEP   : distance station au-dessus du seuil "DX" de sa bande → priorité absolue
 
 SOURCE "on4kst-chat" : station connectée au chat ON4KST 144/432 (pas spotée
 sur une fréquence, aucun signal radio échangé). Cela veut dire qu'on peut lui
@@ -704,7 +717,13 @@ def build_terrain_context(logs, spots_by_band, cfg):
     lines.append(f"\n=== FIN DONNÉES — {call_c} depuis {loc} ===")
     if no_digi:
         lines.append("⚠️ RAPPEL : MODE PHONIE/CW UNIQUEMENT — ignorer FT8/FT4/numérique")
-    lines.append(f"Alerte DX > {alert_dx} km. Spotter fiable < {spotter_ok} km.")
+    # Seuils par bande RÉELLEMENT présente dans les spots reçus (cf. logx_bands.py) —
+    # repli sur alert_dx/spotter_ok pour toute bande sans seuil dédié.
+    band_lines = '\n'.join(
+        f"  {b}: DX > {dx_threshold_km(b, alert_dx)} km, spotter fiable < {band_spotter_km(b, spotter_ok)} km"
+        for b in spots_by_band
+    ) or f"  DX > {alert_dx} km, spotter fiable < {spotter_ok} km"
+    lines.append(f"Seuils DX/spotter par bande (HF porte loin, VHF/UHF est courte portée) :\n{band_lines}")
     lines.append("RAPPEL FORMAT : commence par la liste #1 à #5 des contacts prioritaires avec FRÉQUENCE EXACTE, puis score, puis anomalies.")
 
     return '\n'.join(lines)

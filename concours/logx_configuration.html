@@ -1280,14 +1280,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div class="section-title">PARAMÈTRES D'ALERTE</div>
         <div class="form-grid">
           <div class="form-group">
-            <label>DISTANCE ALERTE DX (KM)</label>
+            <label>DISTANCE ALERTE DX (KM) <span style="font-size:12px;color:var(--muted)">— repli</span></label>
             <input type="number" id="alert_dx_km" placeholder="1200" value="1200" min="100" max="5000">
-            <div class="input-note">Au-delà → alerte 🌟 DX EXCEPTIONNEL</div>
+            <div class="input-note">Au-delà → alerte 🌟 DX EXCEPTIONNEL. Déjà ajusté automatiquement par bande (HF ≫ VHF/UHF/SHF) — cette valeur ne sert que de repli.</div>
           </div>
           <div class="form-group">
-            <label>DISTANCE PROBABLE SPOTTER (KM)</label>
+            <label>DISTANCE PROBABLE SPOTTER (KM) <span style="font-size:12px;color:var(--muted)">— repli</span></label>
             <input type="number" id="spotter_reliable_km" placeholder="600" value="600" min="50" max="3000">
-            <div class="input-note">En deçà → contact ✅ PROBABLE</div>
+            <div class="input-note">En deçà → contact ✅ PROBABLE. Idem : seuil déjà différent par bande automatiquement, ceci n'est que le repli.</div>
           </div>
           <div class="form-group">
             <label>SON DES ALERTES</label>
@@ -1765,8 +1765,8 @@ const CONFIG_HELP = {
   ant_shf: "Description libre de ton antenne UHF/SHF (ex. parabole 60cm) — purement informative, affichée dans les résumés de station.",
 
   priority_mode: "Comment le logiciel classe les stations à contacter : par distance (les plus lointaines d'abord) ou par valeur de points/multiplicateur. Change l'ordre affiché dans la « need list ».",
-  alert_dx_km: "Distance (km) au-delà de laquelle une station spottée est considérée comme un DX exceptionnel à signaler en priorité.",
-  spotter_reliable_km: "Distance de fiabilité d'un spotteur : au-delà, une info venant d'un cluster lointain est traitée avec plus de prudence (moins de certitude sur la propagation réelle).",
+  alert_dx_km: "Distance (km) au-delà de laquelle une station spottée est considérée comme un DX exceptionnel à signaler en priorité. L'assistant IA ajuste déjà ce seuil AUTOMATIQUEMENT selon la bande de chaque spot (HF ≈ milliers de km, VHF/UHF/SHF ≈ centaines à dizaines de km, propagation très différente) — cette valeur ne sert que de repli pour une bande sans seuil dédié.",
+  spotter_reliable_km: "Distance de fiabilité d'un spotteur : au-delà, une info venant d'un cluster lointain est traitée avec plus de prudence. Comme pour l'alerte DX, l'assistant IA applique déjà un seuil différent par bande automatiquement — cette valeur est le repli pour une bande non couverte.",
   spot_prefix_filter: "Liste de préfixes séparés par des virgules (ex. K,VE,W) pour ne garder QUE les spots de ces pays/préfixes dans la need list — utile pour un concours ciblé (ex. ARRL Field Day).",
 
   cluster_spot_enabled: "Active la réception des spots DX en direct depuis un cluster telnet (annonces d'autres opérateurs sur les stations entendues).",
@@ -3920,9 +3920,10 @@ PROPAGATION À SURVEILLER : ${props.join(', ') || 'standard'}
 
 RÈGLES DE PRIORITÉ :
 1. Distance maximale depuis ${loc} (= points maximum)
-2. Fiabilité du spotter (< 600 km de ${loc} = probable)
-3. ${record && parseInt(record) > 0 ? 'Contacts > ' + Math.round(parseInt(record)*0.75) + ' km = DX exceptionnel (record : ' + record + ' km)' : 'Contacts > 1000 km = DX exceptionnel'}
-4. Multiplicateurs manquants (zones, depts, locators, DXCC)
+2. Fiabilité du spotter et seuil DX exceptionnel : seuil différent PAR BANDE
+   (HF = milliers de km, VHF/UHF/SHF = centaines à dizaines de km — la
+   propagation n'a rien à voir), appliqué automatiquement par bande du spot
+3. Multiplicateurs manquants (zones, depts, locators, DXCC)
 
 FORMAT DE RECOMMANDATION :
 📻 [Indicatif] | [Locator] | [Bande] MHz [Mode]
