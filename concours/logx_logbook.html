@@ -431,6 +431,22 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 .chatmeta{font-size:12px;color:var(--muted);letter-spacing:.5px}
 .chattext{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:14px;color:var(--text);word-break:break-word}
 .chatmsg.mine .chattext{background:#0a2a3a;border-color:var(--accent2);color:#cdeaff}
+
+/* ─── DÉCODEUR CW ─── */
+.cw-panel{position:fixed;bottom:0;left:18px;width:300px;background:var(--bg2);border:1px solid var(--green);border-bottom:none;border-radius:8px 8px 0 0;font-family:var(--font-mono);z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.5)}
+.cw-header{display:flex;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,#0a3a1a,#0D2818);color:var(--green);font-size:13px;letter-spacing:1px;cursor:pointer;border-radius:8px 8px 0 0;user-select:none}
+.cw-header-toggle{margin-left:auto;transition:transform .2s}
+.cw-panel.open .cw-header-toggle{transform:rotate(180deg)}
+.cw-body{display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg)}
+.cw-panel.open .cw-body{display:flex}
+.cw-note{font-size:11.5px;color:var(--muted);line-height:1.5}
+.cw-controls{display:flex;gap:6px;align-items:center}
+.cw-controls select{flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:5px}
+.cw-controls input[type=number]{width:58px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:5px}
+.cw-btn{background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;padding:5px 10px;font-family:var(--font-mono);font-size:12px}
+.cw-btn.active{background:var(--green);border-color:var(--green);color:#001a08;font-weight:700}
+.cw-wpm{font-size:12px;color:var(--muted)}
+.cw-output{height:110px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:16px;letter-spacing:1px;color:var(--green);white-space:pre-wrap;word-break:break-word}
 </style>
 </head>
 <body>
@@ -1079,6 +1095,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
 </div>
 
+<script src="logx_cwdecoder.js"></script>
 <script src="logx_logbook.js"></script>
 
 <!-- PANNEAU STATISTIQUES / RATE CHART -->
@@ -1108,6 +1125,24 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         <tbody id="hourBody"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- DÉCODEUR CW -->
+<div class="cw-panel" id="cwPanel">
+  <div class="cw-header" onclick="toggleCwPanel()">🔤 DÉCODEUR CW <span class="cw-wpm" id="cwWpmLabel"></span><span class="cw-header-toggle">▲</span></div>
+  <div class="cw-body" id="cwBody">
+    <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC) et affiche le CW décodé. Fiable sur signal propre et pas trop rapide — pas un substitut à l'oreille en QRM/pileup serré.</div>
+    <div class="cw-controls">
+      <select id="cwDevice"><option value="">— périphérique par défaut —</option></select>
+    </div>
+    <div class="cw-controls">
+      <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
+      <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="if(_cwAudioDecoder) _cwAudioDecoder.setFreq(parseInt(this.value,10)||650)">
+      <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
+    </div>
+    <div class="cw-output" id="cwOutput"></div>
+    <button class="cw-btn" onclick="document.getElementById('cwOutput').textContent=''" style="align-self:flex-start">🗑 Effacer</button>
   </div>
 </div>
 

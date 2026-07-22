@@ -3824,6 +3824,64 @@ function toggleChat(){
   }
 }
 
+// ─── DÉCODEUR CW ─────────────────────────────────────────────────────────────
+// Panneau flottant bas-gauche (symétrique du chat multi-op bas-droite) —
+// pipeline DSP dans logx_cwdecoder.js, ce fichier ne fait que le brancher
+// à l'UI (device picker, bouton start/stop, sortie texte défilante).
+let _cwAudioDecoder = null;
+let _cwDevicesLoaded = false;
+
+async function toggleCwPanel(){
+  const panel = document.getElementById('cwPanel');
+  panel.classList.toggle('open');
+  if(panel.classList.contains('open') && !_cwDevicesLoaded) await loadCwInputDevices();
+}
+
+async function loadCwInputDevices(){
+  const sel = document.getElementById('cwDevice');
+  try{
+    // Les libellés des périphériques ne sont visibles qu'APRÈS une
+    // autorisation micro accordée (contrainte navigateur) — on la demande
+    // une fois ici juste pour peupler la liste, le flux est refermé aussitôt.
+    const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+    tmp.getTracks().forEach(t=>t.stop());
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices.filter(d=>d.kind==='audioinput');
+    sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+      + inputs.map(d=>`<option value="${d.deviceId}">${escHtml(d.label||'Entrée audio')}</option>`).join('');
+    _cwDevicesLoaded = true;
+  }catch(e){
+    sel.innerHTML = '<option value="">Accès micro refusé</option>';
+  }
+}
+
+function toggleCwDecoder(){
+  const btn = document.getElementById('cwStartBtn');
+  if(_cwAudioDecoder){
+    _cwAudioDecoder.stop();
+    _cwAudioDecoder = null;
+    btn.textContent = '▶ Démarrer';
+    btn.classList.remove('active');
+    return;
+  }
+  const deviceId = document.getElementById('cwDevice').value;
+  const freq = parseInt(document.getElementById('cwFreq').value, 10) || 650;
+  const out = document.getElementById('cwOutput');
+  const wpmLabel = document.getElementById('cwWpmLabel');
+  const dec = new CwAudioDecoder({
+    freq,
+    onChar: ch => { out.textContent += ch; out.scrollTop = out.scrollHeight; },
+    onLevel: (mag, threshold, wpm) => { if(wpm) wpmLabel.textContent = wpm + ' MPM'; },
+  });
+  dec.start(deviceId || undefined).then(() => {
+    _cwAudioDecoder = dec;
+    btn.textContent = '■ Arrêter';
+    btn.classList.add('active');
+  }).catch(e => {
+    notify('❌ Micro indisponible : ' + e.message);
+  });
+}
+
 // ─── TOGGLE JOUR/NUIT ────────────────────────────────────────────────────────
 function toggleTheme(){
   const day = document.body.classList.toggle('day-mode');
