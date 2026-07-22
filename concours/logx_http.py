@@ -1363,6 +1363,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log_copy, cfg_scope_id(cfg_snap), _spots_from_caches()))
             return
 
+        # DXpeditions annoncées (NG3K ADXO) — chaque entrée annotée 'worked'
+        # selon les pays DXCC déjà travaillés (portée active), pour repérer
+        # d'un coup d'œil les expéditions vers un pays réellement nouveau.
+        if path == '/data/dxpeditions':
+            import logx_dxpeditions as dxp
+            import logx_countries as co
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            progress = co.countries_progress(log_copy, cfg_scope_id(cfg_snap))
+            worked_names = {x['country'] for grp in progress['by_continent'].values()
+                            for x in grp if x['worked']}
+            self._json({'expeditions': dxp.fetch_dxpeditions(worked_names)})
+            return
+
         # Balises NCDXF/IBP : quelle balise émet MAINTENANT sur chaque bande
         # (+ distance/azimut depuis le locator) — calcul pur, pas de réseau.
         if path == '/beacons/now':

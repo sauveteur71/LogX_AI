@@ -158,6 +158,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   <div class="year-tabs">
     <button class="year-tab active" id="tabNext" onclick="loadYear()">⭐ REF / IARU / Internationaux</button>
     <button class="year-tab" id="tabExt" onclick="loadExternal()">🌍 MONDIAL WA7BNM</button>
+    <button class="year-tab" id="tabDx" onclick="loadDxpeditions()">🏝️ DXPEDITIONS (NG3K)</button>
   </div>
 
   <div class="filters">
@@ -168,6 +169,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     <button class="filter-btn" data-f="VHF" onclick="setFilter(this)">📶 VHF</button>
     <button class="filter-btn" data-f="HF" onclick="setFilter(this)">🌐 HF</button>
     <button class="filter-btn" data-f="upcoming" onclick="setFilter(this)">🔜 À VENIR (31 j)</button>
+    <button class="filter-btn" data-f="new" onclick="setFilter(this)" title="Onglet DXpeditions : n'affiche que les pays DXCC pas encore travaillés">🆕 NOUVEAU PAYS</button>
   </div>
 
   <div id="calendarContent" class="loading">Chargement des dates...</div>
@@ -245,6 +247,7 @@ function setFilter(el){
   el.classList.add('active');
   currentFilter = el.dataset.f;
   if(currentTab === 'ext') renderExternal();
+  else if(currentTab === 'dx') renderDxpeditions();
   else renderCalendar();
 }
 
@@ -526,6 +529,64 @@ function renderExternal(){
       <div class="cr-actions">
         <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${c.ref}')">▶ PRÉPARER</button>
         <a class="cr-btn" href="${c.url}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  document.getElementById('calendarContent').innerHTML = html;
+}
+
+let dxExpeditions = [];   // onglet DXPEDITIONS (NG3K)
+
+async function loadDxpeditions(){
+  currentTab = 'dx';
+  document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tabDx')?.classList.add('active');
+  document.getElementById('calendarContent').innerHTML = '<div class="loading">⏳ Récupération NG3K ADXO...</div>';
+  try{
+    const res = await fetch('/data/dxpeditions');
+    const data = await res.json();
+    dxExpeditions = data.expeditions || [];
+    document.getElementById('statusYear').textContent = `NG3K ADXO — ${dxExpeditions.length} expéditions annoncées`;
+    document.getElementById('lastUpdate').textContent = 'Flux RSS ng3k.com (cache 1h)';
+    document.getElementById('contestCount').textContent = `${dxExpeditions.length} expéditions`;
+    if(!dxExpeditions.length){
+      document.getElementById('calendarContent').innerHTML =
+        '<div class="loading">Aucune donnée — le flux NG3K est peut-être temporairement indisponible.</div>';
+      return;
+    }
+    renderDxpeditions();
+  }catch(e){
+    document.getElementById('calendarContent').innerHTML =
+      `<div class="loading" style="color:var(--red)">❌ ${e.message}</div>`;
+  }
+}
+
+function renderDxpeditions(){
+  let list = dxExpeditions;
+  if(currentFilter === 'new') list = list.filter(e => e.worked === false);
+  if(!list.length){
+    document.getElementById('calendarContent').innerHTML =
+      '<div class="loading">Aucune expédition pour ce filtre</div>';
+    return;
+  }
+  let html = `<div class="month-group">
+    <div class="month-header">🏝️ EXPÉDITIONS ANNONCÉES <span class="month-count">${list.length}</span></div>`;
+  list.forEach(e => {
+    const newBadge = e.worked === false
+      ? `<span class="tag" style="background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.35)" title="Pays DXCC pas encore travaillé dans ce log">🆕 NOUVEAU PAYS</span>`
+      : e.worked === true
+      ? `<span class="tag" style="background:rgba(169,176,200,.1);color:var(--muted);border:1px solid var(--border)" title="Pays DXCC déjà travaillé">✓ déjà travaillé</span>`
+      : '';
+    html += `<div class="contest-row upcoming">
+      <div class="cr-date">
+        <div class="cr-date-main" style="font-size:13px">${e.dates || '—'}</div>
+      </div>
+      <div class="cr-org"><div class="org-badge org-cq" style="font-size:11px">DX</div></div>
+      <div class="cr-info">
+        <div class="cr-name">${e.callsign || '?'} — ${e.entity || '?'} ${newBadge}</div>
+        <div class="cr-exchange">QSL : ${e.qsl || '—'} ${e.source ? '· Source : ' + e.source : ''}</div>
+        ${e.info ? `<div class="cr-tags"><span class="tag tag-band" style="max-width:100%">${e.info}</span></div>` : ''}
       </div>
     </div>`;
   });
