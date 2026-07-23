@@ -146,6 +146,97 @@ def test_qtc_add_annee_precedente_ne_compte_pas_dans_le_plafond(server, monkeypa
     assert status == 200 and res['ok']
 
 
+# ─── /qtc/add : saisie détaillée (heure/indicatif/n° — règlement WAE) ───────
+
+def _qtc_entries(n):
+    return [{'time': f'00{i:02d}'[-4:], 'call': f'DL{i}XX', 'nr': str(100 + i)}
+            for i in range(n)]
+
+
+def test_qtc_add_serie_detaillee_stocke_les_entrees(server, monkeypatch):
+    import logx_storage as storage
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
+                         'contest_start_date': '2027-09-11'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = []
+    entries = _qtc_entries(3)
+    status, res = _post(server, '/qtc/add', {
+        'call': 'DL0XM', 'direction': 'sent', 'band': '14', 'mode': 'CW',
+        'series_number': 1, 'entries': entries})
+    # with_call (pas 'total', qui dépend de la date réelle du système au
+    # moment du test vs. l'année codée en dur de contest_start_date ci-dessus)
+    assert status == 200 and res['ok'] and res['with_call'] == 3
+    stored = storage.qtc_log[-1]
+    assert stored['call'] == 'DL0XM' and stored['direction'] == 'sent'
+    assert stored['count'] == 3      # dérivé de len(entries), jamais du 'count' brut
+    assert stored['entries'] == entries
+    assert isinstance(stored['id'], int)
+
+
+def test_qtc_add_serie_ligne_incomplete_refusee(server, monkeypatch):
+    import logx_storage as storage
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
+                         'contest_start_date': '2027-09-11'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = []
+    status, res = _post(server, '/qtc/add', {
+        'call': 'DL0XM', 'entries': [{'time': '0030', 'call': 'YU1ZZ', 'nr': ''}]})
+    assert status == 400 and not res['ok']
+    assert not storage.qtc_log      # rien n'a été enregistré
+
+
+def test_qtc_add_serie_plus_de_10_qtc_refusee(server, monkeypatch):
+    import logx_storage as storage
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
+                         'contest_start_date': '2027-09-11'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = []
+    status, res = _post(server, '/qtc/add', {'call': 'DL0XM', 'entries': _qtc_entries(11)})
+    assert status == 400 and not res['ok']
+
+
+def test_qtc_add_serie_detaillee_respecte_le_plafond_par_station(server, monkeypatch):
+    """Le plafond de 10 QTC/station (voir test_qtc_add_plafond_respecte_la_portee)
+    doit aussi s'appliquer quand le décompte vient d'une série détaillée."""
+    import logx_storage as storage
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
+                         'contest_start_date': '2027-09-11'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = [{'call': 'DL0XM', 'count': 8, 'contest': 'WAEDC_SSB',
+                               'date': '20270911', 'time': '10:00'}]
+    status, res = _post(server, '/qtc/add', {'call': 'DL0XM', 'entries': _qtc_entries(3)})
+    assert status == 400 and not res['ok'] and 'DL0XM' in res['error']
+
+
+# ─── /qtc/delete/<id> : corriger une série mal saisie ────────────────────────
+
+def test_qtc_delete_supprime_la_serie(server, monkeypatch):
+    import logx_storage as storage
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
+                         'contest_start_date': '2027-09-11'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = []
+    status, res = _post(server, '/qtc/add', {'call': 'DL0XM', 'entries': _qtc_entries(2)})
+    assert status == 200
+    qtc_id = res['id']
+    req = urllib.request.Request(server + f'/qtc/delete/{qtc_id}', method='DELETE',
+                                  headers={'X-RC-Token': httpmod.AUTH_TOKEN})
+    with urllib.request.urlopen(req, timeout=5) as r:
+        d = json.loads(r.read().decode('utf-8'))
+    assert d['ok'] and d['deleted'] == 1
+    assert not any(q.get('id') == qtc_id for q in storage.qtc_log)
+
+
 # ─── /log/reset : archivage groupé par portée (contest+année), pas par nom brut ─
 
 def test_log_reset_groupe_par_portee_pas_par_nom_brut(server, monkeypatch, tmp_path):

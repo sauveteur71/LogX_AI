@@ -674,6 +674,61 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   </div>
 </div>
 
+<!-- QTC (WAE) : saisie détaillée + historique des séries émises/reçues -->
+<div class="shortcuts-overlay" id="qtcOverlay" onclick="if(event.target===this)closeQTCPanel()">
+  <div class="shortcuts-box" style="width:640px;max-width:94vw">
+    <div class="shortcuts-title">
+      <span>✉ QTC (WAE)</span>
+      <span class="shortcuts-close" onclick="closeQTCPanel()">✕</span>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+      Une série QTC copie de 1 à 10 QSO déjà passés vers/depuis une autre station EU↔DX
+      (règlement WAE : heure, indicatif et n° de chaque QSO rapporté — max 10 QTC cumulés
+      émis+reçus avec une même station).
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+      <label style="font-size:12px;color:var(--muted)">Sens
+        <select id="qtcDirection" onchange="suggestQTCSeriesNumber()"
+          style="display:block;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;margin-top:2px">
+          <option value="sent">Envoyée (je transmets)</option>
+          <option value="recv">Reçue (je note)</option>
+        </select>
+      </label>
+      <label style="font-size:12px;color:var(--muted)">Station partenaire
+        <input type="text" id="qtcPartner" placeholder="ex : DL0XM" maxlength="15"
+          style="display:block;width:110px;text-transform:uppercase;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;margin-top:2px">
+      </label>
+      <label style="font-size:12px;color:var(--muted)">Bande
+        <select id="qtcBand" style="display:block;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;margin-top:2px">
+          <option value="3.5">3.5 MHz</option><option value="7">7 MHz</option>
+          <option value="14" selected>14 MHz</option><option value="21">21 MHz</option>
+          <option value="28">28 MHz</option>
+        </select>
+      </label>
+      <label style="font-size:12px;color:var(--muted)">Mode
+        <select id="qtcMode" style="display:block;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;margin-top:2px">
+          <option value="SSB">SSB</option><option value="CW">CW</option><option value="RTTY">RTTY</option>
+        </select>
+      </label>
+      <label style="font-size:12px;color:var(--muted)">N° de série
+        <input type="number" id="qtcSeriesNum" min="1" value="1"
+          style="display:block;width:64px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 8px;margin-top:2px">
+      </label>
+    </div>
+    <div style="font-size:11px;color:var(--muted);display:flex;gap:6px;margin-bottom:4px">
+      <span style="width:60px">HEURE</span><span style="width:110px">INDICATIF</span><span style="width:70px">N°</span>
+    </div>
+    <div id="qtcRows"></div>
+    <div style="margin-top:14px;text-align:center">
+      <button class="export-btn" onclick="saveQTCSeries()" style="color:var(--green);border-color:rgba(0,255,136,.4)">💾 ENREGISTRER LA SÉRIE</button>
+    </div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:1px;margin-bottom:8px">SÉRIES ENREGISTRÉES</div>
+      <div id="qtcListInner" class="shortcuts-list" style="max-height:180px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
 <!-- VÉRIFICATION DU LOG AVANT SOUMISSION (validateur REF) -->
 <div class="shortcuts-overlay" id="validateOverlay" onclick="if(event.target===this)this.classList.remove('show')">
   <div class="shortcuts-box">
@@ -1124,7 +1179,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="export-btn" id="selfSpotBtn" onclick="selfSpot()" style="display:none;color:var(--accent);border-color:rgba(255,80,48,.5)" title="Publier mon indicatif + ma fréquence sur le cluster DX">📡 SELF-SPOT</button>
       <button class="export-btn" onclick="popoutScope()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Détacher le bandscope sur un 2e écran">🖥️ SCOPE</button>
       <button class="export-btn" onclick="popoutWall()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Écran mural (scores + flux QSO) sur un 2e écran">🖥️ MUR</button>
-      <button class="export-btn" id="qtcBtn" onclick="addQTC()" style="display:none;color:var(--accent2);border-color:rgba(0,212,255,.4)" title="WAE : enregistrer un échange de QTC (1 pt chacun, max 10 par station)">✉ QTC : 0</button>
+      <button class="export-btn" id="qtcBtn" onclick="showQTCPanel()" style="display:none;color:var(--accent2);border-color:rgba(0,212,255,.4)" title="WAE : saisir/consulter les séries QTC (1 pt émis + 1 pt reçu par QTC, max 10 cumulés par station)">✉ QTC : 0</button>
       <button id="archiveBtn" class="export-btn" onclick="archiveLog()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px" title="Conserver le log de ce concours dans un dossier permanent (log + Cabrillo + ADIF + résumé)">📦 ARCHIVER</button>
       <button class="export-btn" onclick="backupNow()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Sauvegarde immédiate vers le dossier configuré (Synology/Dropbox…). Sauvegarde aussi automatique si activée dans CONFIG.">💾 SAUVEGARDER</button>
       <button class="export-btn" onclick="resetLog()" style="color:var(--red);border-color:rgba(255,45,85,.4);margin-left:8px">🗑️ NOUVEAU LOG</button>

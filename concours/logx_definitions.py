@@ -475,7 +475,8 @@ CONTEST_DEFINITIONS = {
                 'mult_weight_by_band': {'3.5':4, '7':3, '14':2, '21':2, '28':2},
             },
             'unit': '(QSOs + QTCs) × mults pondérés par bande',
-            'note': 'QTC non modélisés — 1 pt émetteur + 1 pt récepteur par QTC transféré.',
+            'note': '1 pt émetteur + 1 pt récepteur par QTC transféré — saisie détaillée '
+                    'et export Cabrillo via le bouton ✉ QTC du logbook (voir logx_export.build_cabrillo).',
         },
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
         'op_time_max_h': 36, 'off_time_min_min': 60, 'qtc': True,
@@ -497,7 +498,8 @@ CONTEST_DEFINITIONS = {
                 'mult_weight_by_band': {'3.5':4, '7':3, '14':2, '21':2, '28':2},
             },
             'unit': '(QSOs + QTCs) × mults pondérés par bande',
-            'note': 'RTTY : pas de restriction continentale sur les QSO (contrairement à CW/SSB). QTC uniquement entre continents différents.',
+            'note': 'RTTY : pas de restriction continentale sur les QSO (contrairement à CW/SSB). '
+                    'QTC uniquement entre continents différents — saisie/export via le bouton ✉ QTC du logbook.',
         },
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
         'op_time_max_h': 36, 'off_time_min_min': 60, 'qtc': True,

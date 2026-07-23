@@ -64,8 +64,46 @@ def _cabrillo_exchange(qso, sent=True):
     return ' '.join(parts)
 
 
-def build_cabrillo(qsos, cdef=None, cfg=None):
-    """Log partagé → Cabrillo v3 (texte). cdef : définition du concours actif."""
+def _cabrillo_qtc_lines(qtc_series, callsign):
+    """Lignes 'QTC:' (format WAE-QTC officiel, vérifié auprès des règles
+    publiques DARC/WAEDC et des gabarits Cabrillo publiés) :
+        QTC: QRG MODE DATE TIME CALL-RX QTC-GRP CALL-TX TIME-QSO CALL-QSO NR-QSO
+    Une ligne par QTC individuel (pas par série) — QTC-GRP porte le numéro de
+    série ET son nombre total de QTC (ex. '3/7'). CALL-RX/CALL-TX désignent la
+    station qui a reçu/transmis CETTE série ; l'une des deux est toujours notre
+    propre indicatif selon `direction` ('sent' ou 'recv').
+    Les séries sans détail (`entries`, format d'avant cette fonctionnalité —
+    simple comptage) sont ignorées : impossible de reconstituer heure/
+    indicatif/n° a posteriori, mais elles restent comptées dans le score
+    (voir logx_storage.qtc_total)."""
+    lines = []
+    for s in (qtc_series or []):
+        entries = s.get('entries') or []
+        if not entries:
+            continue
+        partner = str(s.get('call', '')).upper().strip()
+        direction = s.get('direction', 'sent')
+        band = str(s.get('band', '')).strip()
+        freq = CABRILLO_FREQ.get(band, str(s.get('freq', '')).strip() or band or '?')
+        mode = CABRILLO_MODE.get(str(s.get('mode', 'CW')).upper().strip(), 'CW')
+        date, time = _qso_datetime(s)
+        date_fmt = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        grp = f"{s.get('series_number', 1)}/{len(entries)}"
+        call_rx = callsign if direction == 'recv' else partner
+        call_tx = partner if direction == 'recv' else callsign
+        for e in entries:
+            qtime = (str(e.get('time', '')).replace(':', '')[:4] or '0000').ljust(4, '0')
+            qcall = str(e.get('call', '')).upper()
+            qnr = str(e.get('nr', ''))
+            lines.append(f"QTC: {freq:>5} {mode:<2} {date_fmt} {time} "
+                         f"{call_rx:<13} {grp:<6} {call_tx:<13} {qtime} {qcall:<13} {qnr}")
+    return lines
+
+
+def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
+    """Log partagé → Cabrillo v3 (texte). cdef : définition du concours actif.
+    qtc_series : séries QTC (WAE) associées à la portée exportée, voir
+    logx_storage.qtc_log — ignoré (silencieusement) pour tout concours sans QTC."""
     cdef = cdef or {}
     cfg = cfg or {}
     callsign = (cfg.get('callsign_contest') or cfg.get('callsign', '')).upper()
@@ -102,6 +140,7 @@ def build_cabrillo(qsos, cdef=None, cfg=None):
         dx = str(q.get('call', '')).upper()
         lines.append(f"QSO: {freq:>5} {mode} {date_fmt} {time} "
                      f"{callsign:<13} {sent:<17} {dx:<13} {rcvd}")
+    lines.extend(_cabrillo_qtc_lines(qtc_series, callsign))
     lines.append('END-OF-LOG:')
     return '\n'.join(lines) + '\n'
 

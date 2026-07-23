@@ -816,6 +816,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
+        elif self.path.startswith('/qtc/delete/'):
+            # Corriger une série QTC mal saisie (règlement WAE : pas de tolérance
+            # sur le format) sans devoir vider tout qtc_log.json à la main.
+            try:
+                from logx_storage import qtc_log, qtc_lock, save_qtc_to_disk
+                qtc_id = int(self.path.split('/')[-1])
+                with qtc_lock:
+                    before = len(qtc_log)
+                    qtc_log[:] = [q for q in qtc_log if q.get('id') != qtc_id]
+                    deleted = before - len(qtc_log)
+                save_qtc_to_disk()
+                self._json({'ok': True, 'deleted': deleted})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
         else:
             self._raw(404, None, None)
 
@@ -2123,8 +2137,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             call = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign')
                     or 'LOG').upper().replace('/', '-')
             if path.endswith('cabrillo'):
+                from logx_storage import qtc_log, qtc_lock
                 cdef = CONTEST_DEFINITIONS.get(contest_id, {})
-                body = export.build_cabrillo(qsos, cdef, cfg_snap).encode('utf-8')
+                with qtc_lock:
+                    qtc_series = _scope_filtered(qtc_log, cfg_snap)
+                body = export.build_cabrillo(qsos, cdef, cfg_snap, qtc_series).encode('utf-8')
                 fname = f"{call}_{contest_id or 'ALL'}.cbr"
             else:
                 body = export.build_adif(qsos, cfg_snap).encode('utf-8')
@@ -2751,15 +2768,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res, 200 if res.get('ok') else 502)
             return
 
-        # QTC (WAE) : enregistrer un échange de QTC avec une station
+        # QTC (WAE) : enregistrer une série QTC (émise ou reçue) avec une station.
+        # Deux formes de payload acceptées :
+        #  - simple (historique) : {call, count} — comptage seul, pas de détail
+        #    exportable en Cabrillo.
+        #  - détaillée (voir logx_logbook.js:saveQTCSeries) : {call, direction,
+        #    band, mode, series_number, entries:[{time,call,nr}, ...]} — le
+        #    détail réglementaire WAE (1 à 10 QSO rapportés), repris tel quel
+        #    par logx_export.build_cabrillo pour générer les lignes "QTC:".
         if self.path == '/qtc/add':
             try:
-                from logx_storage import (qtc_log, qtc_lock,
+                from logx_storage import (qtc_log, qtc_lock, next_qtc_id,
                                                   save_qtc_to_disk,
                                                   qtc_count_for_call, qtc_total)
                 payload = json.loads(body)
                 call = str(payload.get('call', '')).upper().strip()
-                count = max(1, min(10, int(payload.get('count', 1))))
+                direction = payload.get('direction') or 'sent'
+                if direction not in ('sent', 'recv'):
+                    direction = 'sent'
+
+                raw_entries = payload.get('entries') or []
+                entries = []
+                for e in raw_entries:
+                    e_time = str((e or {}).get('time', '')).strip()
+                    e_call = str((e or {}).get('call', '')).upper().strip()
+                    e_nr = str((e or {}).get('nr', '')).strip()
+                    if not (e_time or e_call or e_nr):
+                        continue  # ligne totalement vide (repli du formulaire) : ignorée
+                    if not (e_time and e_call and e_nr):
+                        self._json({'ok': False, 'error':
+                                    "Chaque QTC doit avoir heure + indicatif + n° "
+                                    "(règlement WAE) — ligne incomplète"}, 400)
+                        return
+                    entries.append({'time': e_time, 'call': e_call, 'nr': e_nr})
+                if entries and not 1 <= len(entries) <= 10:
+                    self._json({'ok': False, 'error':
+                                "Une série QTC contient de 1 à 10 QTC (règlement WAE)"}, 400)
+                    return
+
+                count = len(entries) if entries else max(1, min(10, int(payload.get('count', 1))))
                 cfg_snap = self._cfg_snapshot()
                 cid = cfg_snap.get('contest', '')
                 # Portée (contest+année) : qtc_count_for_call/qtc_total lisent
@@ -2775,14 +2822,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                          f"avec {call}"}, 400)
                     return
                 now_utc = datetime.datetime.utcnow()
+                entry = {'id': next_qtc_id(), 'call': call, 'count': count,
+                         'contest': cid, 'date': now_utc.strftime('%Y%m%d'),
+                         'time': now_utc.strftime('%H:%M'), 'direction': direction}
+                if payload.get('band'):
+                    entry['band'] = str(payload['band']).strip()
+                if payload.get('mode'):
+                    entry['mode'] = str(payload['mode']).upper().strip()
+                if payload.get('series_number'):
+                    try:
+                        entry['series_number'] = int(payload['series_number'])
+                    except (TypeError, ValueError):
+                        pass
+                if entries:
+                    entry['entries'] = entries
                 with qtc_lock:
-                    qtc_log.append({'call': call, 'count': count, 'contest': cid,
-                                    'date': now_utc.strftime('%Y%m%d'),
-                                    'time': now_utc.strftime('%H:%M')})
+                    qtc_log.append(entry)
                 save_qtc_to_disk()
-                print(f"[QTC] +{count} avec {call or '?'}")
+                print(f"[QTC] +{count} avec {call or '?'} ({direction})")
                 self._json({'ok': True, 'total': qtc_total(scope_id),
-                            'with_call': already + count})
+                            'with_call': already + count, 'id': entry['id']})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return

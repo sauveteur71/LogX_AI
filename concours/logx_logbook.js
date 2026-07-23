@@ -817,39 +817,154 @@ function isDup(call, band){
 
 // ─── QTC (WAE) ───────────────────────────────────────────────────────────────
 // Visible uniquement quand le concours actif a un mécanisme QTC (WAE) :
-// score final = (QSO + QTC) × mults, chaque QTC transféré vaut 1 point.
+// score final = (QSO + QTC) × mults, chaque QTC transféré (émis OU reçu) vaut
+// 1 point. Une série QTC copie de 1 à 10 QSO déjà loggués vers/depuis une
+// autre station — voir logx_export.build_cabrillo pour le format WAE-QTC
+// exporté (une ligne "QTC:" par QSO rapporté, vérifié contre les règles
+// publiques DARC/WAEDC).
+const QTC_BANDS = ['3.5', '7', '14', '21', '28'];   // seules bandes HF du WAE
+let qtcEntries = [];      // dernier /qtc/list connu (séries déjà enregistrées)
+let qtcRows = [{time: '', call: '', nr: ''}];   // lignes en cours de saisie
+
 async function refreshQTC(){
   try{
     const r = await fetch('/qtc/list');
     if(!r.ok) return;
     const d = await r.json();
+    qtcEntries = d.entries || [];
     const btn = document.getElementById('qtcBtn');
     if(!btn) return;
     btn.textContent = `✉ QTC : ${d.total || 0}`;
     // Afficher le bouton pour les concours à QTC (WAE*) — sinon masqué
     const contest = (JSON.parse(localStorage.getItem('logx_config')||'{}').contest)||'';
     btn.style.display = /^WAEDC/i.test(contest) ? '' : 'none';
+    if(document.getElementById('qtcOverlay')?.classList.contains('show')) renderQTCList();
   }catch(e){}
 }
 
-async function addQTC(){
-  const call = (prompt('QTC — indicatif de la station (série reçue ou envoyée) :')||'').toUpperCase().trim();
-  if(!call) return;
-  const n = parseInt(prompt(`Nombre de QTC échangés avec ${call} (1-10) :`, '10')||'0', 10);
-  if(!n || n < 1) return;
+function showQTCPanel(){
+  const ov = document.getElementById('qtcOverlay');
+  if(!ov) return;
+  ov.classList.add('show');
+  const bandSel = document.getElementById('qtcBand');
+  if(bandSel) bandSel.value = QTC_BANDS.includes(currentBand) ? currentBand : '14';
+  const modeSel = document.getElementById('qtcMode');
+  if(modeSel) modeSel.value = /CW/i.test(currentMode) ? 'CW' : (/RTTY|DIGI|FT/i.test(currentMode) ? 'RTTY' : 'SSB');
+  qtcRows = [{time: '', call: '', nr: ''}];
+  renderQTCRows();
+  suggestQTCSeriesNumber();
+  renderQTCList();
+}
+
+function closeQTCPanel(){
+  document.getElementById('qtcOverlay')?.classList.remove('show');
+}
+
+// Numéro de série suggéré = dernier numéro déjà utilisé DANS CE SENS + 1 (le
+// numéro reste modifiable — pour une série reçue, c'est en réalité le numéro
+// annoncé par l'AUTRE station qu'il faut reporter, pas un compteur qu'on maîtrise).
+function suggestQTCSeriesNumber(){
+  const dir = document.getElementById('qtcDirection')?.value || 'sent';
+  const maxN = qtcEntries
+    .filter(e => (e.direction || 'sent') === dir)
+    .reduce((m, e) => Math.max(m, parseInt(e.series_number, 10) || 0), 0);
+  const numInput = document.getElementById('qtcSeriesNum');
+  if(numInput) numInput.value = maxN + 1;
+}
+
+function renderQTCRows(){
+  const wrap = document.getElementById('qtcRows');
+  if(!wrap) return;
+  wrap.innerHTML = qtcRows.map((row, i) => `
+    <div style="display:flex;gap:6px;margin-bottom:4px;align-items:center">
+      <input type="text" placeholder="HHMM" maxlength="4" value="${escHtml(row.time)}"
+        style="width:60px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 6px"
+        onchange="qtcRows[${i}].time=this.value.trim()">
+      <input type="text" placeholder="Indicatif" value="${escHtml(row.call)}"
+        style="width:110px;text-transform:uppercase;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 6px"
+        onchange="qtcRows[${i}].call=this.value.trim().toUpperCase()">
+      <input type="text" placeholder="N°" value="${escHtml(row.nr)}"
+        style="width:70px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:4px 6px"
+        onchange="qtcRows[${i}].nr=this.value.trim()">
+      <span onclick="removeQTCRow(${i})" title="Retirer cette ligne" style="color:var(--red);cursor:pointer;font-size:13px">✕</span>
+    </div>`).join('') +
+    (qtcRows.length < 10 ?
+      `<button class="export-btn" onclick="addQTCRow()" style="margin-top:4px">+ Ligne (${qtcRows.length}/10)</button>` :
+      `<div style="color:var(--muted);font-size:12px;margin-top:4px">Maximum 10 QTC par série (règlement WAE)</div>`);
+}
+
+function addQTCRow(){
+  if(qtcRows.length >= 10) return;
+  qtcRows.push({time: '', call: '', nr: ''});
+  renderQTCRows();
+}
+
+function removeQTCRow(i){
+  qtcRows.splice(i, 1);
+  if(!qtcRows.length) qtcRows.push({time: '', call: '', nr: ''});
+  renderQTCRows();
+}
+
+async function saveQTCSeries(){
+  const direction = document.getElementById('qtcDirection')?.value || 'sent';
+  const call = (document.getElementById('qtcPartner')?.value || '').toUpperCase().trim();
+  const band = document.getElementById('qtcBand')?.value || '14';
+  const mode = document.getElementById('qtcMode')?.value || 'SSB';
+  const series_number = parseInt(document.getElementById('qtcSeriesNum')?.value, 10) || 1;
+  if(!call){ notify('QTC refusé : indicatif de la station partenaire manquant.'); return; }
+  const entries = qtcRows
+    .map(r => ({time: r.time.trim(), call: r.call.trim().toUpperCase(), nr: r.nr.trim()}))
+    .filter(r => r.time || r.call || r.nr);
+  if(!entries.length){ notify('QTC refusé : aucune ligne saisie.'); return; }
+  if(entries.some(e => !e.time || !e.call || !e.nr)){
+    notify('QTC refusé : chaque ligne doit avoir heure + indicatif + n° (règlement WAE).');
+    return;
+  }
   try{
     const r = await fetch('/qtc/add', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({call, count: n})
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({call, direction, band, mode, series_number, entries})
     });
     const d = await r.json();
     if(r.ok){
-      notify(`✉ +${n} QTC avec ${call} — total ${d.total} (+${d.total} pts au score final)`);
-      refreshQTC();
+      const sens = direction === 'recv' ? 'reçue de' : 'envoyée à';
+      notify(`✉ Série QTC ${series_number}/${entries.length} ${sens} ${call} enregistrée — total ${d.total} pts`);
+      qtcRows = [{time: '', call: '', nr: ''}];
+      renderQTCRows();
+      await refreshQTC();
+      suggestQTCSeriesNumber();
     } else {
       notify('QTC refusé : ' + (d.error || '?'));
     }
   }catch(e){ notify('Serveur injoignable — QTC non enregistré.'); }
+}
+
+function renderQTCList(){
+  const wrap = document.getElementById('qtcListInner');
+  if(!wrap) return;
+  if(!qtcEntries.length){
+    wrap.innerHTML = '<div class="shortcuts-row"><span style="color:var(--muted)">Aucune série QTC enregistrée pour ce concours.</span></div>';
+    return;
+  }
+  wrap.innerHTML = qtcEntries.slice().reverse().map(e => {
+    const dirLabel = e.direction === 'recv' ? '⬇ reçue de' : '⬆ envoyée à';
+    const n = (e.entries || []).length || e.count || 0;
+    const grp = e.series_number ? `QTC ${e.series_number}/${n}` : `${n} QTC`;
+    const delBtn = (e.id != null) ?
+      `<span onclick="deleteQTCSeries(${e.id})" title="Supprimer cette série"
+         style="cursor:pointer;color:var(--red);margin-left:auto;font-size:13px">🗑</span>` : '';
+    return `<div class="shortcuts-row" style="align-items:center;gap:8px">
+      <span style="color:var(--accent2)">${dirLabel} ${escHtml(e.call || '?')}</span>
+      <span style="color:var(--muted);font-size:12px">${grp} — ${escHtml(e.date || '')} ${escHtml(e.time || '')}</span>
+      ${delBtn}
+    </div>`;
+  }).join('');
+}
+
+async function deleteQTCSeries(id){
+  if(!confirm('Supprimer cette série QTC ?')) return;
+  try{ await fetch(`/qtc/delete/${id}`, {method: 'DELETE'}); }catch(e){}
+  await refreshQTC();
 }
 
 setInterval(refreshQTC, 60*1000);

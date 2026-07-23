@@ -239,21 +239,56 @@ def allocate_next_serial(band):
 calldb_lock = threading.Lock()
 
 # ─── QTC (WAE) ───────────────────────────────────────────────────────────────
-# Trafic QTC échangé : chaque QTC transféré vaut 1 point au WAE
-# (score = (QSO + QTC) × mults). Max 10 par station correspondante.
-qtc_log = []           # [{call, count, contest, date, time}]
+# Trafic QTC échangé : chaque QTC transféré vaut 1 point au WAE, à l'émetteur
+# ET au récepteur (score = (QSO + QTC) × mults). Max 10 QTC (cumulés, émis +
+# reçus) entre les deux mêmes stations sur tout le concours.
+#
+# Chaque élément de qtc_log est une SÉRIE QTC (un envoi/une réception groupée,
+# comme sur l'air : « QTC 3/7 » = 3e série de cette station, 7 QTC dedans) :
+#   {id, call, count, contest, date, time,       -> champs historiques (voir
+#                                                    qtc_total/qtc_count_for_call)
+#    direction: 'sent'|'recv', band, mode, series_number,
+#    entries: [{time, call, nr}, ...]}            -> détail réglementaire WAE
+#                                                    (1 à 10 QSO rapportés)
+# 'entries' est absent sur les séries créées avant cette fonctionnalité (simple
+# comptage) : qtc_total/qtc_count_for_call ne lisent que 'count'/'call' et
+# restent donc valables sur les deux formats. L'export Cabrillo (logx_export)
+# ignore en revanche les séries sans 'entries' — impossible de reconstituer le
+# détail heure/indicatif/n° exigé par le format WAE-QTC a posteriori.
+qtc_log = []
 qtc_lock = threading.Lock()
 QTC_FILE = 'qtc_log.json'
+_qtc_next_id = 1   # prochain id de série à distribuer (voir next_qtc_id)
 
 
 def load_qtc_from_disk():
+    global _qtc_next_id
     try:
         if os.path.exists(QTC_FILE):
             with open(QTC_FILE, encoding='utf-8') as f:
                 qtc_log[:] = json.load(f)
+            # Rétro-compatibilité : les séries enregistrées avant l'ajout de la
+            # saisie détaillée n'ont pas d'id — leur en attribuer un pour que
+            # /qtc/delete puisse les cibler comme les nouvelles séries.
+            next_id = 1
+            for q in qtc_log:
+                if not q.get('id'):
+                    q['id'] = next_id
+                next_id = max(next_id, int(q['id']) + 1)
+            _qtc_next_id = next_id
             print(f"[QTC] {sum(q.get('count', 0) for q in qtc_log)} QTC charges")
     except Exception as e:
         print(f"[QTC] Chargement impossible : {e}")
+
+
+def next_qtc_id():
+    """Alloue un id unique de série QTC (sous verrou — plusieurs postes
+    peuvent enregistrer une série au même instant)."""
+    global _qtc_next_id
+    with qtc_lock:
+        i = _qtc_next_id
+        _qtc_next_id += 1
+        return i
 
 
 def save_qtc_to_disk():

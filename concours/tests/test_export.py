@@ -58,3 +58,51 @@ def test_adif_structure():
 def test_export_vide():
     assert build_cabrillo([], {}, CFG).rstrip().endswith('END-OF-LOG:')
     assert build_adif([], CFG).count('<EOR>') == 0
+
+
+# ─── QTC (WAE) : lignes "QTC:" du Cabrillo, format vérifié contre les règles
+# publiques DARC/WAEDC (QRG MODE DATE TIME CALL-RX QTC-GRP CALL-TX TIME-QSO
+# CALL-QSO NR-QSO — une ligne par QTC individuel, pas par série) ────────────
+
+QTC_SENT = {'call': 'DL0XM', 'direction': 'sent', 'band': '14', 'mode': 'CW',
+            'date': '20260810', 'time': '01:55', 'series_number': 1,
+            'entries': [{'time': '00:30', 'call': 'YU1ZZ', 'nr': '62'}]}
+QTC_RECV = {'call': 'CT3KU', 'direction': 'recv', 'band': '14', 'mode': 'CW',
+            'date': '20260810', 'time': '01:55', 'series_number': 7,
+            'entries': [{'time': '13:07', 'call': 'DA1AA', 'nr': '431'}]}
+QTC_SANS_DETAIL = {'call': 'F5ABC', 'count': 3, 'contest': 'WAEDC_SSB'}   # ancien format
+
+
+def test_cabrillo_qtc_serie_envoyee_moi_emetteur():
+    cab = build_cabrillo(QSOS, {}, CFG, [QTC_SENT])
+    lines = [l for l in cab.split('\n') if l.startswith('QTC:')]
+    assert len(lines) == 1
+    line = lines[0]
+    assert '14000' in line and 'CW' in line and '2026-08-10' in line and '0155' in line
+    assert '1/1' in line and '0030' in line and 'YU1ZZ' in line and '62' in line
+    # Envoyée : CALL-RX (partenaire DL0XM) précède CALL-TX (nous, F6KQJ)
+    assert line.index('DL0XM') < line.index('F6KQJ')
+
+
+def test_cabrillo_qtc_serie_recue_moi_recepteur():
+    cab = build_cabrillo(QSOS, {}, CFG, [QTC_RECV])
+    line = [l for l in cab.split('\n') if l.startswith('QTC:')][0]
+    assert '7/1' in line and '1307' in line and 'DA1AA' in line and '431' in line
+    # Reçue : CALL-RX (nous, F6KQJ) précède CALL-TX (partenaire CT3KU)
+    assert line.index('F6KQJ') < line.index('CT3KU')
+
+
+def test_cabrillo_qtc_serie_sans_detail_ignoree_a_l_export():
+    """Une série enregistrée avant cette fonctionnalité (comptage seul, sans
+    'entries') ne peut pas être reconstituée en ligne WAE-QTC valide — elle
+    ne doit pas produire de ligne QTC: fantaisiste, ni faire planter l'export."""
+    cab = build_cabrillo(QSOS, {}, CFG, [QTC_SANS_DETAIL])
+    assert not [l for l in cab.split('\n') if l.startswith('QTC:')]
+    assert cab.rstrip().endswith('END-OF-LOG:')
+
+
+def test_cabrillo_qtc_absent_reste_retrocompatible():
+    # Signature à 3 arguments (avant l'ajout du paramètre qtc_series) : ne
+    # doit toujours rien changer pour les appelants existants.
+    cab = build_cabrillo(QSOS, {}, CFG)
+    assert 'QTC:' not in cab
