@@ -427,6 +427,34 @@
   const REPORT_REPO_FALLBACK = 'sauveteur71/radioaamateur-program-Contest';
   const REPORT_BODY_MAX = 1500; // marge sous la limite GitHub (414 URI Too Long)
 
+  // Tronque en POINTS DE CODE (jamais en unités UTF-16 brutes comme le fait
+  // String.slice()) : couper au milieu d'une paire de substitution (emoji,
+  // etc.) laisse un demi-caractère orphelin, et encodeURIComponent() lève
+  // une URIError non interceptée dessus — voir revue commit f20799a.
+  function truncateCodePoints(str, maxCodePoints){
+    const chars = Array.from(str);
+    if (chars.length <= maxCodePoints) return str;
+    return chars.slice(0, maxCodePoints).join('');
+  }
+
+  // Tronque `str` pour que sa version ENCODÉE (ce qui part réellement dans
+  // l'URL) ne dépasse pas maxEncodedLen unités. Un texte français accentué
+  // peut faire 2 à 6x sa longueur brute une fois passé à encodeURIComponent
+  // (é -> %C3%A9, etc.) : REPORT_BODY_MAX doit borner CE nombre-là, pas
+  // body.length — voir revue commit f20799a. Recherche dichotomique sur les
+  // points de code (jamais sur les unités UTF-16, cf. truncateCodePoints).
+  function truncateToEncodedLength(str, maxEncodedLen){
+    const chars = Array.from(str);
+    if (encodeURIComponent(str).length <= maxEncodedLen) return str;
+    let lo = 0, hi = chars.length;
+    while (lo < hi){
+      const mid = (lo + hi + 1) >> 1;
+      if (encodeURIComponent(chars.slice(0, mid).join('')).length <= maxEncodedLen) lo = mid;
+      else hi = mid - 1;
+    }
+    return chars.slice(0, lo).join('');
+  }
+
   function detectPlatformLabel(){
     try{
       const uaData = navigator.userAgentData;
@@ -452,7 +480,11 @@
     if (!_errState || !_errState.errors || !_errState.errors.length) return '';
     const e = _errState.errors[_errState.errors.length - 1]; // le plus récent
     let tail = (e.traceback || '').trim();
-    if (tail.length > 400) tail = '…' + tail.slice(tail.length - 400);
+    if (tail.length > 400){
+      // Derniers 400 points de code (pas unités UTF-16) : voir truncateCodePoints.
+      const chars = Array.from(tail);
+      tail = '…' + chars.slice(Math.max(0, chars.length - 400)).join('');
+    }
     return '\n**Dernière erreur du journal local** (' + e.ts + ', thread ' + e.thread + ')\n'
          + '```\n' + e.type + ': ' + e.message + '\n' + tail + '\n```\n';
   }
@@ -465,7 +497,7 @@
     const version = (_updState && _updState.current) || 'inconnue';
     const repo = (_updState && _updState.repo) || REPORT_REPO_FALLBACK;
     const firstLine = description.split('\n')[0].trim();
-    const title = firstLine ? ('[Bug] ' + firstLine.slice(0, 80)) : '[Bug] signalé depuis LogX AI';
+    const title = firstLine ? ('[Bug] ' + truncateCodePoints(firstLine, 80)) : '[Bug] signalé depuis LogX AI';
 
     // La dernière erreur du journal local est placée AVANT la description
     // (texte libre, potentiellement long) : si la troncature ci-dessous doit
@@ -475,14 +507,30 @@
              + '**Plateforme** : ' + detectPlatformLabel() + '\n'
              + formatLastErrorForReport() + '\n'
              + '**Description**\n' + (description.trim() || '(non renseignée)');
-    if (body.length > REPORT_BODY_MAX){
-      body = body.slice(0, REPORT_BODY_MAX - 20) + '\n…(tronqué)';
+    // REPORT_BODY_MAX borne la longueur ENCODÉE (ce qui part réellement dans
+    // l'URL), pas body.length : un texte français accentué peut faire 2 à 6x
+    // sa taille brute une fois passé à encodeURIComponent.
+    if (encodeURIComponent(body).length > REPORT_BODY_MAX){
+      const suffix = '\n…(tronqué)';
+      const suffixLen = encodeURIComponent(suffix).length;
+      body = truncateToEncodedLength(body, Math.max(0, REPORT_BODY_MAX - suffixLen)) + suffix;
     }
 
-    const url = 'https://github.com/' + repo + '/issues/new'
-      + '?title=' + encodeURIComponent(title)
-      + '&body=' + encodeURIComponent(body)
-      + '&labels=' + encodeURIComponent('bug');
+    // Filet de sécurité : malgré les troncatures ci-dessus (en points de
+    // code, jamais en unités UTF-16), un caractère invalide échappé de
+    // quelque part lèverait une URIError non interceptée et ferait échouer
+    // le bouton en silence — voir revue commit f20799a.
+    let url;
+    try{
+      url = 'https://github.com/' + repo + '/issues/new'
+        + '?title=' + encodeURIComponent(title)
+        + '&body=' + encodeURIComponent(body)
+        + '&labels=' + encodeURIComponent('bug');
+    }catch(err){
+      alert("Impossible de préparer le rapport de bug (caractère invalide dans le texte saisi). "
+          + 'Ouvre directement une Issue sur https://github.com/' + repo + '/issues/new');
+      return;
+    }
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
