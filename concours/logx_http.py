@@ -1039,10 +1039,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # et l'afficherait indéfiniment chez un pair déjà synchronisé.
                 with log_lock:
                     before = len(shared_log)
+                    removed = [q for q in shared_log if q.get('id') == qso_id]
                     shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
                     bump_log_version()
                     mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
                 save_log_to_disk()
+                # Le QSO supprimé (id normalement unique) peut avoir un scan QSL
+                # papier attaché (voir /qsl_scan/upload) — sans ce nettoyage, le
+                # fichier restait orphelin sur disque indéfiniment (seul le
+                # REMPLACEMENT d'un scan appelait delete_scan(), jamais la
+                # suppression du QSO lui-même).
+                for q in removed:
+                    scan = q.get('qsl_scan')
+                    if scan:
+                        import logx_qsl_scan as qslscan
+                        qslscan.delete_scan(scan)
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
@@ -1743,6 +1754,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 days = int(qp.get('days', ['30'])[0])
             except (TypeError, ValueError):
                 days = 30
+            # activity_by_day() ne fait que max(1, ...) côté bas : sans borne haute
+            # ici, un ?days= énorme construirait une liste de sortie de taille
+            # arbitraire (mémoire/temps de réponse) — 3650 = 10 ans, largement
+            # suffisant pour ce petit graphique du popup Diplômes.
+            days = max(1, min(days, 3650))
             with log_lock:
                 log_copy = list(shared_log)
             self._json({'days': awards.activity_by_day(log_copy, days)})
@@ -2660,17 +2676,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self._json({'ok': False, 'error': 'qso_id ou fichier manquant'}, 400)
                     return
                 qso_id = int(qso_id_raw)
+                # Pré-check SOUS verrou, mais séparé de la mutation finale (juste une
+                # existence, pas un lire-modifier-écrire) : sert seulement à éviter
+                # d'écrire un fichier sur disque pour un id manifestement inexistant.
+                # save_scan() (I/O disque, pas d'accès à shared_log) peut rester hors
+                # verrou — seule la mutation finale ci-dessous doit être atomique.
                 with log_lock:
-                    target = next((q for q in shared_log if q.get('id') == qso_id), None)
-                if not target:
-                    self._json({'ok': False, 'error': 'QSO introuvable'}, 404)
-                    return
-                old_path = target.get('qsl_scan')
+                    if not any(q.get('id') == qso_id for q in shared_log):
+                        self._json({'ok': False, 'error': 'QSO introuvable'}, 404)
+                        return
                 import logx_qsl_scan as qslscan
                 rel_path = qslscan.save_scan(qso_id, upload['filename'], upload['data'])
-                target['qsl_scan'] = rel_path   # dict déjà référencé dans shared_log
-                bump_log_version()
-                stamp_qso_version(target)   # voir /log/list?since=
+                # Récupération de la référence + assignation qsl_scan + stamp_qso_version
+                # DANS LE MÊME bloc with log_lock (comme /log/update) : le QSO a pu être
+                # supprimé ou remplacé (shared_log[i]=...) entre le pré-check ci-dessus
+                # et maintenant, donc on le retrouve et on le mute d'un seul geste,
+                # jamais avec le verrou relâché entre les deux.
+                old_path = None
+                target = None
+                with log_lock:
+                    target = next((q for q in shared_log if q.get('id') == qso_id), None)
+                    if target is not None:
+                        old_path = target.get('qsl_scan')
+                        target['qsl_scan'] = rel_path   # dict déjà référencé dans shared_log
+                        bump_log_version()
+                        stamp_qso_version(target)   # voir /log/list?since=
+                if target is None:
+                    qslscan.delete_scan(rel_path)   # QSO disparu entretemps : pas de fichier orphelin
+                    self._json({'ok': False, 'error': 'QSO introuvable'}, 404)
+                    return
                 save_log_to_disk()
                 if old_path and old_path != rel_path:
                     qslscan.delete_scan(old_path)   # ancien scan remplacé
@@ -3492,10 +3526,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # l'afficherait indéfiniment chez un pair déjà synchronisé.
                 with log_lock:
                     before = len(shared_log)
+                    removed = [q for q in shared_log if q.get('id') == qso_id]
                     shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
                     bump_log_version()
                     mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
                 save_log_to_disk()
+                # Même nettoyage du scan QSL attaché que dans do_DELETE (voir
+                # /qsl_scan/upload) : ce point d'entrée POST duplique la même
+                # suppression, il ne doit pas laisser de fichier orphelin non plus.
+                for q in removed:
+                    scan = q.get('qsl_scan')
+                    if scan:
+                        import logx_qsl_scan as qslscan
+                        qslscan.delete_scan(scan)
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:
                 self._json({'error': str(e)}, 400)

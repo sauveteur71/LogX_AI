@@ -1230,6 +1230,12 @@ function drawBandscope(spots, rng, txMhz){
 // QUAND la bande s'est ouverte, pas juste où. Masqué par défaut (toggleWaterfall)
 // pour ne pas faire tourner de dessin canvas inutilement en arrière-plan.
 let _wfShown = false;
+// Dernière bande dessinée dans le canvas — sert à détecter un changement de
+// bande pour vider l'historique (voir drawWaterfallRow). Sans ce suivi, le
+// canvas n'est vidé QUE quand rng est falsy (bande hors table _BM_RANGE), ce
+// qui n'arrive presque jamais : en pratique, changer de bande empilait les
+// nouveaux spots par-dessus l'ancien historique au lieu de repartir à zéro.
+let _wfLastBand = null;
 
 function toggleWaterfall(){
   _wfShown = !_wfShown;
@@ -1247,9 +1253,19 @@ function _cssVar(name){
 
 function drawWaterfallRow(spots, rng){
   const canvas = document.getElementById('bandWaterfall');
-  if(!canvas || !_wfShown) return;   // caché : inutile de dessiner en arrière-plan
+  if(!canvas) return;
+  // Changement de bande : purge l'historique même si le waterfall est
+  // actuellement masqué, sinon l'ancien contenu resurgit tel quel au prochain
+  // toggleWaterfall() (le canvas n'est jamais touché tant qu'il est caché).
+  const bandChanged = currentBand !== _wfLastBand;
+  _wfLastBand = currentBand;
+  if(!_wfShown){
+    if(bandChanged) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    return;   // caché : inutile de dessiner en arrière-plan
+  }
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
+  if(bandChanged) ctx.clearRect(0, 0, w, h);   // nouvelle bande : pas l'historique de l'ancienne
   if(!rng){ ctx.clearRect(0, 0, w, h); return; }
   // Défile le contenu existant d'une ligne vers le bas en recopiant le canvas
   // sur lui-même décalé — PAS un redraw complet (on perdrait l'historique).
