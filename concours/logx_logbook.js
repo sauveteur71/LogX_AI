@@ -5223,6 +5223,7 @@ async function showAwards(){
     </div>
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;font-family:var(--font-mono);font-size:13px">
       <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px">📮 QSL — ${a.confirmed_total||0} QSO confirmés (${q.confirmations||0} croisés)</div>
+      ${q.clublog_realtime_blocked ? `<div style="color:var(--red);background:rgba(255,68,68,.12);border:1px solid rgba(255,68,68,.4);border-radius:6px;padding:8px 10px;margin-bottom:10px">⚠️ ClubLog Live Stream suspendu (refus HTTP 403) — plus aucun QSO n'est poussé en temps réel. Corrige les identifiants ClubLog dans CONFIG pour réactiver l'envoi.</div>` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="export-btn" onclick="qslAction('upload','eqsl',this)" ${q.eqsl?'':'disabled title="Configure eQSL dans CONFIG"'} style="color:var(--accent2);border-color:rgba(0,212,255,.4)">⬆ eQSL</button>
         <button class="export-btn" onclick="qslAction('upload','clublog',this)" ${q.clublog?'':'disabled title="Configure ClubLog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(0,212,255,.4)">⬆ ClubLog</button>

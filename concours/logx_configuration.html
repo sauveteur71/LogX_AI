@@ -2855,11 +2855,15 @@ async function refreshSotaStatus(){
 
 async function connectSota(){
   // Le serveur lit sota_client_id depuis SA config déjà sauvegardée
-  // (current_config) — on sauvegarde silencieusement avant d'ouvrir la
-  // fenêtre de connexion pour éviter un clientId périmé côté serveur.
+  // (current_config) — on sauvegarde silencieusement et on ATTEND que le
+  // serveur ait bien reçu cette config (même pattern que testVoiceKeyer())
+  // avant d'ouvrir la fenêtre de connexion, sinon la fenêtre OAuth peut
+  // démarrer avec un clientId périmé (course entre le fetch de sauvegarde
+  // et l'ouverture de /sota/oauth/start).
   const clientId = document.getElementById('sota_client_id')?.value.trim();
   if (!clientId){ alert('Renseigne d\'abord le clientId SOTA ci-dessus.'); return; }
   saveConfig(true);
+  await _lastConfigSavePromise;
   window.open('/sota/oauth/start', 'sota_oauth',
     'width=520,height=680,menubar=no,toolbar=no,location=yes');
   setTimeout(refreshSotaStatus, 4000);   // laisse le temps de finir la connexion
@@ -3273,9 +3277,16 @@ async function testQrzLogbook(){
     result.style.color = 'var(--yellow)';
     return;
   }
+  result.textContent = '⏳ synchronisation de la config…';
+  result.style.color = 'var(--muted)';
+  // Le serveur teste sa propre config sauvegardée (current_config), pas le
+  // formulaire affiché — sans ce await, un test lancé juste après avoir tapé
+  // la clé peut encore voir l'ancienne clé (ou aucune) côté serveur (même
+  // pattern que testVoiceKeyer()/connectSota()).
+  saveConfig(true);
+  await _lastConfigSavePromise;
   result.textContent = '⏳ Test en cours...';
   result.style.color = 'var(--muted)';
-  saveConfig(true);
   try{
     const res = await fetch('/qrz_logbook/test', {method: 'POST'});
     const r = await res.json();

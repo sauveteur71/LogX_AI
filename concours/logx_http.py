@@ -3208,19 +3208,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # que clientId + case d'approbation IA ne sont pas configurés (voir
         # sota_spot_settings) : c'est post_spot() qui vérifie, pas ce handler.
         if self.path == '/sota/spot':
+            # try/except global : freq_khz vient du payload JSON de l'appelant
+            # et peut être n'importe quoi (chaîne non numérique, liste, bool...)
+            # — `freq_khz / 1000` plante alors avec une TypeError non capturée
+            # (requête plantée sans réponse JSON, cf. /pota/spot un peu plus
+            # haut qui a un commentaire dédié sur ce même genre de piège).
+            # Même filet que /qrz_logbook/test : jamais de 500 sans corps JSON.
             try:
-                payload = json.loads(body) if body else {}
-            except Exception:
-                payload = {}
-            import logx_sota_spot as sotaspot
-            cfg_now = self._cfg_snapshot()
-            reference = str(payload.get('reference') or cfg_now.get('my_activation_ref') or '').strip().upper()
-            freq_khz = _freq_khz_from_payload(payload)
-            freq_mhz = (freq_khz / 1000) if freq_khz else 0
-            res = sotaspot.post_spot(cfg_now, reference, freq_mhz,
-                                      str(payload.get('mode') or ''),
-                                      comment=str(payload.get('comment') or ''))
-            self._json(res, 200 if res.get('ok') else 502)
+                try:
+                    payload = json.loads(body) if body else {}
+                except Exception:
+                    payload = {}
+                import logx_sota_spot as sotaspot
+                cfg_now = self._cfg_snapshot()
+                reference = str(payload.get('reference') or cfg_now.get('my_activation_ref') or '').strip().upper()
+                freq_khz = _freq_khz_from_payload(payload)
+                freq_mhz = (freq_khz / 1000) if freq_khz else 0
+                res = sotaspot.post_spot(cfg_now, reference, freq_mhz,
+                                          str(payload.get('mode') or ''),
+                                          comment=str(payload.get('comment') or ''))
+                self._json(res, 200 if res.get('ok') else 502)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
             return
 
         # QTC (WAE) : enregistrer une série QTC (émise ou reçue) avec une station.

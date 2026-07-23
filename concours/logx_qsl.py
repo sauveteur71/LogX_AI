@@ -495,6 +495,12 @@ def upload_log(cfg, service, qsos):
 # une requête pour CHAQUE QSO restant du log (fire-and-forget, un thread par
 # QSO ajouté), exactement le comportement que Club Log demande d'éviter.
 _clublog_rt_breaker = {'tripped': False, 'creds_fp': None, 'reason': ''}
+# Protège _clublog_rt_breaker : realtime_push() est appelé fire-and-forget
+# depuis un thread PAR QSO ajouté (voir add_qso_to_log dans logx_http.py),
+# donc potentiellement en concurrence. Lecture ET écriture (reset sur
+# changement d'identifiants + vérif tripped) restent dans le MÊME bloc
+# "with _clublog_rt_lock:" ci-dessous — jamais relâché entre les deux.
+_clublog_rt_lock = threading.Lock()
 
 
 def _clublog_creds_fp(s):
@@ -510,14 +516,17 @@ def realtime_push(cfg, qso):
         return {'ok': False, 'error': 'ClubLog non configuré'}
 
     fp = _clublog_creds_fp(s)
-    if _clublog_rt_breaker['creds_fp'] != fp:
-        # Identifiants différents du dernier essai (nouveau réglage, ou tout
-        # premier appel) : on redonne sa chance, le disjoncteur ne doit pas
-        # bloquer indéfiniment un simple changement de mot de passe/clé.
-        _clublog_rt_breaker.update(tripped=False, creds_fp=fp, reason='')
-    if _clublog_rt_breaker['tripped']:
+    with _clublog_rt_lock:
+        if _clublog_rt_breaker['creds_fp'] != fp:
+            # Identifiants différents du dernier essai (nouveau réglage, ou
+            # tout premier appel) : on redonne sa chance, le disjoncteur ne
+            # doit pas bloquer indéfiniment un simple changement de mot de
+            # passe/clé.
+            _clublog_rt_breaker.update(tripped=False, creds_fp=fp, reason='')
+        blocked, reason = _clublog_rt_breaker['tripped'], _clublog_rt_breaker['reason']
+    if blocked:
         return {'ok': False, 'blocked': True,
-                'error': f"ClubLog Live suspendu après un refus (HTTP 403) — {_clublog_rt_breaker['reason']} "
+                'error': f"ClubLog Live suspendu après un refus (HTTP 403) — {reason} "
                           "Corrige les identifiants ClubLog dans CONFIG pour réessayer."}
 
     try:
@@ -537,7 +546,8 @@ def realtime_push(cfg, qso):
         return {'ok': False, 'error': 'ClubLog live injoignable (réseau)'}
     resp = (text or '')[:150].strip()
     if status == 403:
-        _clublog_rt_breaker.update(tripped=True, creds_fp=fp, reason=resp or 'accès refusé')
+        with _clublog_rt_lock:
+            _clublog_rt_breaker.update(tripped=True, creds_fp=fp, reason=resp or 'accès refusé')
         return {'ok': False, 'blocked': True,
                 'error': f'ClubLog a refusé le flux temps réel (HTTP 403) : {resp}'}
     if status >= 400:
@@ -582,6 +592,8 @@ def qsl_status(cfg=None):
                 confirmations = len(json.load(f) or {})
     except Exception:
         pass
+    with _clublog_rt_lock:
+        clublog_rt_blocked = _clublog_rt_breaker['tripped']
     return {
         'eqsl': bool(s.get('eqsl_enabled')),
         'clublog': bool(s.get('clublog_enabled')),
@@ -590,5 +602,5 @@ def qsl_status(cfg=None):
         'hrdlog': bool(s.get('hrdlog_enabled')),
         'last': stamps,
         'confirmations': confirmations,
-        'clublog_realtime_blocked': _clublog_rt_breaker['tripped'],
+        'clublog_realtime_blocked': clublog_rt_blocked,
     }

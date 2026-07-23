@@ -7,6 +7,7 @@ unifié qsl.upload_log qui remplace les branches if/elif par service."""
 import json
 import os
 import sys
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -306,3 +307,38 @@ def test_realtime_push_reseau_injoignable(monkeypatch):
     monkeypatch.setattr('logx_utils.post_url_form', lambda *a, **k: (None, None))
     r = qsl.realtime_push(_clublog_cfg('s5'), QSO)
     assert not r['ok'] and 'injoignable' in r['error']
+
+
+def test_realtime_push_protege_le_disjoncteur_par_un_verrou_dedie(monkeypatch):
+    """_clublog_rt_breaker est un dict global lu ET modifié par
+    realtime_push(), appelé fire-and-forget depuis un thread PAR QSO ajouté
+    (add_qso_to_log) — donc potentiellement en concurrence, sans protection
+    avant ce fix.
+
+    Reproduction : le thread de TEST prend lui-même qsl._clublog_rt_lock
+    (exactement comme le ferait un autre realtime_push() déjà en train de
+    lire/modifier le disjoncteur) puis lance un realtime_push() dans un
+    thread séparé. Si la lecture+écriture du disjoncteur passe bien par ce
+    verrou, ce thread doit rester bloqué AVANT même d'atteindre le réseau
+    tant qu'on ne relâche pas le verrou — sans le fix, il n'y a tout
+    simplement pas de qsl._clublog_rt_lock (AttributeError immédiate) et
+    rien n'empêcherait deux threads de lire/modifier le dict en même temps."""
+    reached_network = threading.Event()
+
+    def fake_post_url_form(url, fields, timeout=20, headers=None):
+        reached_network.set()
+        return 200, 'OK'
+    monkeypatch.setattr('logx_utils.post_url_form', fake_post_url_form)
+
+    cfg = _clublog_cfg('lock1')
+    qsl._clublog_rt_lock.acquire()
+    try:
+        t = threading.Thread(target=qsl.realtime_push, args=(cfg, QSO))
+        t.start()
+        # Le thread concurrent doit être bloqué SUR LE VERROU : il ne doit
+        # pas avoir atteint le réseau tant qu'on tient _clublog_rt_lock.
+        assert not reached_network.wait(timeout=0.3)
+    finally:
+        qsl._clublog_rt_lock.release()
+    t.join(timeout=5)
+    assert reached_network.wait(timeout=5)   # débloqué dès le relâchement du verrou

@@ -104,6 +104,24 @@ def test_sota_spot_echec_remonte_en_502(server, monkeypatch):
     assert status == 502 and d['ok'] is False
 
 
+def test_sota_spot_freq_khz_non_numerique_renvoie_une_erreur_json_propre(server, monkeypatch):
+    """Reproduction concrète : freq_khz vient du payload JSON de l'appelant
+    et peut être n'importe quoi (ici une chaîne non convertible). Sans
+    try/except global autour du handler, `freq_khz / 1000` lève une
+    TypeError NON capturée — le client reçoit une connexion coupée plutôt
+    qu'une réponse JSON, contrairement à /qrz_logbook/test (déjà protégé,
+    voir les deux tests juste au-dessus). post_spot() ne doit même pas être
+    atteint : le crash a lieu avant, sur le calcul de fréquence."""
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'callsign': 'F6KQJ', 'contest': '', 'my_activation_ref': 'F/AL-001'})
+    monkeypatch.setattr(sotaspot, 'post_spot',
+                        lambda *a, **k: pytest.fail('post_spot ne doit pas être appelé'))
+    status, d = _post(server, '/sota/spot', {'freq_khz': 'invalide', 'mode': 'FM'})
+    assert status == 500
+    assert d['ok'] is False
+    assert 'error' in d
+
+
 # ─── /sota/status ─────────────────────────────────────────────────────────────
 
 def test_sota_status(server, monkeypatch):
