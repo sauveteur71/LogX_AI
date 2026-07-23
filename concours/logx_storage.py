@@ -197,6 +197,43 @@ def cfg_scope_id(cfg):
     return active_scope_id(cfg)
 
 
+# ─── N° DE SÉRIE PAR BANDE (allocation serveur) ──────────────────────────────
+# Avant : chaque poste incrémentait son propre compteur CÔTÉ CLIENT
+# (logx_logbook.js:nextSerial, et un simple champ texte libre côté mobile) —
+# deux postes qui loguent au même instant sur la même bande pouvaient émettre
+# le MÊME numéro, aucune coordination réelle entre eux. Le serveur est
+# désormais seul à distribuer un numéro (voir /log/next_serial), sous
+# log_lock : deux requêtes concurrentes ne peuvent jamais recevoir la même
+# valeur. Haute-eau MÉMOIRE SEULE (jamais persistée) : au redémarrage, on
+# repart de shared_log (rechargé depuis le disque, la vraie source de
+# vérité) — jamais en retard ni en double par rapport à ce qui est déjà
+# loggué, même sans avoir gardé trace du dernier numéro distribué.
+_serial_high_water = {}   # bande normalisée -> dernier n° déjà distribué
+
+
+def allocate_next_serial(band):
+    """Alloue (réserve) le prochain n° de série pour cette bande. Un trou dans
+    la séquence (réservation jamais suivie d'un /log/add, ex. saisie
+    abandonnée) est toléré — comme l'était déjà l'ancien compteur côté client
+    (voir logx_logbook.js:updateSerialDisplay, "ni revenir en arrière, même
+    s'il y a un trou dans la séquence")."""
+    band_norm = str(band or '').strip()
+    with log_lock:
+        max_used = 0
+        for q in shared_log:
+            if str(q.get('band', '')).strip() != band_norm:
+                continue
+            try:
+                n = int(str(q.get('num_sent', '')).strip())
+            except (ValueError, TypeError):
+                continue
+            if n > max_used:
+                max_used = n
+        nxt = max(max_used, _serial_high_water.get(band_norm, 0)) + 1
+        _serial_high_water[band_norm] = nxt
+        return nxt
+
+
 # Verrou dédié à calldb.json : écrit depuis plusieurs threads
 # (lookups HamQTH, imports, mises à jour navigateur).
 calldb_lock = threading.Lock()

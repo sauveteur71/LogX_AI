@@ -4,6 +4,7 @@
 const CACHE = 'logx-v1';
 const SHELL = [
   '/logx_logbook.html', '/logx_logbook.js',
+  '/logx_mobile.html',
   '/logx_statusbar.js', '/logx_i18n.js',
   '/logx_icon.svg', '/manifest.webmanifest',
 ];

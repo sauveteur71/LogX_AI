@@ -601,6 +601,44 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
 
     return result
 
+
+def score_new_qso(qso):
+    """Valeur RÉELLE en points d'un QSO au moment de son INSERTION dans le log
+    partagé — recalcul serveur via calc_qso_value(), quelle que soit l'origine
+    du QSO (PC, mobile, WSJT-X, ADIF réseau, Cloud Sync). Corrige notamment la
+    page mobile, qui n'assumait qu'un barème "points = distance" en dur.
+
+    Ne renvoie QUE direct_pts, jamais total_impact : total_impact inclut une
+    ESTIMATION de la valeur d'un futur multiplicateur (utile pour PRIORISER
+    les spots à travailler, voir build_ranked_spots/rank_stations_by_value),
+    pas la valeur réelle à inscrire au log d'un QSO déjà fait — exactement la
+    même distinction que côté client (logx_logbook.js:calcPoints/
+    evalPointsFromDef n'évalue jamais les briques 'multiplier' non plus).
+
+    Volontairement indépendant de l'historique du log (done_calls_by_band,
+    done_dxcc...) : direct_pts ne dépend jamais de ces ensembles dans le
+    moteur (seul total_impact en dépend, via les évaluateurs de
+    multiplicateur) — passer des ensembles vides est donc sans effet sur le
+    résultat, et évite toute dépendance à l'état (souvent divergent entre
+    modules importés séparément, voir shared_log) de shared_log."""
+    contest_id = qso.get('contest', '')
+    my_call = qso.get('my_call', '') or ''
+    my_locator = qso.get('my_locator', '') or ''
+    dx_call = qso.get('call', '') or ''
+    dx_locator = qso.get('locator', '') or ''
+    my_ll = locator_to_latlon(my_locator) if my_locator else (None, None)
+    dx_ll = locator_to_latlon(dx_locator) if dx_locator else (None, None)
+    dist_km = (haversine(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
+               if (my_ll[0] is not None and dx_ll[0] is not None) else 0)
+    result = calc_qso_value(
+        contest_id, dx_call, dx_locator, my_call, my_locator,
+        {}, set(), set(), set(), set(), 0,
+        band=qso.get('band', ''), dist_km=dist_km,
+        source=qso.get('source', '') or '', mode=qso.get('mode', '') or '',
+    )
+    return result['direct_pts']
+
+
 def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
                             done_calls_by_band, done_locators, done_large_squares,
                             done_cq_zones, done_dxcc, current_score,

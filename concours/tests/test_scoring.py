@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from logx_scoring import calc_qso_value, extract_dx_locator
+from logx_scoring import calc_qso_value, extract_dx_locator, score_new_qso
 
 
 def score(contest, dx, band, dist_km=0, dx_loc='', done_calls=None,
@@ -153,3 +153,62 @@ def test_locator_du_dx_conserve():
 def test_locator_incoherent_avec_le_pays_rejete():
     """Grille européenne pour un indicatif US : trop loin du centroïde."""
     assert extract_dx_locator('W1AW', 'JO70OB', 'OK1SC') == ''
+
+
+# ─── score_new_qso : recalcul serveur des points à l'INSERTION d'un QSO ──────
+# (logx_http.add_qso_to_log, quelle que soit l'origine : PC, mobile, WSJT-X,
+# ADIF réseau, Cloud Sync — voir logx_http.py)
+
+def test_score_new_qso_km_recalcule_la_distance_depuis_les_locators():
+    """Barème 1 pt/km (REF_RPH) : la distance vient des locators, jamais d'un
+    champ 'dist'/'points' envoyé par le client (potentiellement faux ou
+    trafiqué) — même locator des deux côtés = 0 km = 0 pt, quoi qu'envoie
+    le client."""
+    qso = {'contest': 'REF_RPH', 'call': 'F1ABC', 'locator': 'JN15XC',
+           'my_call': 'F6KQJ', 'my_locator': 'JN15XC', 'band': '144',
+           'mode': 'SSB', 'dist': 999999, 'points': 999999}
+    assert score_new_qso(qso) == 0
+
+
+def test_score_new_qso_ignore_le_champ_points_du_client():
+    """La page mobile envoyait 'points' = distance MÊME hors barème
+    kilométrique (ex. concours européen à points fixes) — score_new_qso doit
+    toujours recalculer selon le VRAI barème du concours actif."""
+    qso = {'contest': 'EU_HF_CHAMP', 'call': 'DL1ABC', 'locator': '',
+           'my_call': 'F6KQJ', 'my_locator': 'JN15XC', 'band': '14',
+           'mode': 'SSB', 'points': 12345}
+    assert score_new_qso(qso) == 1   # EU_HF_CHAMP : 1 pt/QSO européen
+
+
+def test_score_new_qso_hors_perimetre_zero_point():
+    qso = {'contest': 'EU_HF_CHAMP', 'call': 'W1AW', 'locator': '',
+           'my_call': 'F6KQJ', 'my_locator': 'JN15XC', 'band': '14',
+           'mode': 'SSB', 'points': 555}
+    assert score_new_qso(qso) == 0
+
+
+def test_score_new_qso_sans_concours_replie_sur_le_bareme_km():
+    """QSO non tagué (logbook simple, contest='') : repli sur le barème
+    km — pas de régression par rapport à l'ancien calcul mobile en dur."""
+    from logx_utils import locator_to_latlon, haversine
+    qso = {'contest': '', 'call': 'F1ABC', 'locator': 'JN25XC',
+           'my_call': 'F6KQJ', 'my_locator': 'JN15XC', 'band': '144', 'mode': 'SSB'}
+    a, b = locator_to_latlon('JN15XC'), locator_to_latlon('JN25XC')
+    assert score_new_qso(qso) == haversine(a[0], a[1], b[0], b[1])
+
+
+def test_score_new_qso_independant_de_l_historique_du_log():
+    """direct_pts ne dépend jamais des ensembles 'déjà travaillé' (seule
+    l'ESTIMATION de multiplicateur en dépend, voir build_ranked_spots) —
+    appeler deux fois de suite le même QSO doit donner la même valeur, sans
+    dépendre d'un état de shared_log qu'on ne lui passe même pas."""
+    qso = {'contest': 'WAEDC_SSB', 'call': 'W1AW', 'locator': '',
+           'my_call': 'F6KQJ', 'my_locator': 'JN15XC', 'band': '14', 'mode': 'SSB'}
+    assert score_new_qso(qso) == score_new_qso(qso) == 1
+
+
+def test_score_new_qso_champs_manquants_ne_plante_pas():
+    """Le pont WSJT-X/ADIF réseau n'envoie ni 'my_call' ni 'points' — un QSO
+    incomplet ne doit jamais faire planter le recalcul."""
+    assert score_new_qso({}) == 0
+    assert score_new_qso({'call': 'DL1ABC', 'band': '14', 'contest': 'EU_HF_CHAMP'}) == 1

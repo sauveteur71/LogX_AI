@@ -25,7 +25,7 @@ from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   save_json_atomic, calldb_lock, bump_log_version,
                                   qso_scope_id, active_scope_id, cfg_scope_id,
                                   stamp_qso_version, mark_qso_deleted, mark_hard_reset)
-from logx_scoring import build_scoring_context
+from logx_scoring import build_scoring_context, score_new_qso
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
 from logx_clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len,
@@ -237,6 +237,25 @@ def add_qso_to_log(qso, force=False):
             'time': dup.get('time'), 'operator': dup.get('operator', '')}}
     qso.pop('force', None)
     qso.setdefault('id', int(_t.time() * 1000))
+    # Recalcule les points côté serveur (moteur unique logx_scoring, celui déjà
+    # utilisé pour classer les spots) — jamais confiance dans la valeur envoyée
+    # par le client : la page mobile assume un barème "points = distance" en
+    # dur, WSJT-X/le pont ADIF réseau n'envoient même pas de points du tout, et
+    # un client PC pourrait être une version ancienne/désynchronisée du barème.
+    # Borné : la seule brique de scoring qui touche le réseau (WWA, roster
+    # hamaward.cloud — voir logx_wwa.py) a un cache 6h et ne fetch qu'à froid ;
+    # au cas où elle tombe sur un cache froid ET un réseau lent, on ne bloque
+    # JAMAIS le thread HTTP au-delà de quelques secondes (voir logx_utils.
+    # fetch_url pour le même principe) — en cas de dépassement/erreur, la
+    # valeur envoyée par le client est conservée plutôt que de faire échouer
+    # l'enregistrement du QSO.
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        _score_ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix='score')
+        qso['points'] = _score_ex.submit(score_new_qso, qso).result(timeout=3)
+    except Exception as e:
+        print(f"[SCORING] Recalcul points abandonné ({type(e).__name__}: {e}) "
+              f"— valeur envoyée par le client conservée")
     with log_lock:
         shared_log.append(qso)
     bump_log_version()
@@ -862,6 +881,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'version': current_v,
                 'boot': _storage.SERVER_BOOT_ID,
             })
+            return
+
+        # N° de série suivant pour une bande — allocation SERVEUR (voir
+        # logx_storage.allocate_next_serial) : remplace l'incrémentation locale
+        # de logx_logbook.js (PC) et le champ texte libre de logx_mobile.html,
+        # pour qu'aucune saisie concurrente (PC + mobile, ou deux mobiles) ne
+        # puisse émettre le même numéro sur la même bande.
+        if path == '/log/next_serial':
+            from urllib.parse import parse_qs, urlparse
+            import logx_storage as _storage
+            band = (parse_qs(urlparse(self.path).query).get('band', ['']) or [''])[0]
+            serial = _storage.allocate_next_serial(band)
+            self._json({'serial': str(serial).zfill(3)})
             return
 
         # Lookup indicatif en temps réel (local → HamQTH si inconnu)

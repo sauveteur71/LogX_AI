@@ -755,7 +755,27 @@ function nowDateUTC(){
   return `${n.getUTCFullYear()}${String(n.getUTCMonth()+1).padStart(2,'0')}${String(n.getUTCDate()).padStart(2,'0')}`;
 }
 
-function nextSerial(band){
+// Alloue le n° de série AUPRÈS DU SERVEUR (voir logx_http.py:/log/next_serial)
+// — jamais un simple compteur local : deux postes qui loguent au même
+// instant sur la même bande ne doivent plus jamais pouvoir émettre le même
+// numéro (avant, chaque poste incrémentait serialByBand pour son propre
+// compte, sans aucune coordination réelle). serialByBand reste tenu à jour
+// localement (repli hors ligne + affichage preview, voir updateSerialDisplay).
+async function nextSerial(band){
+  try{
+    const r = await fetch('/log/next_serial?band=' + encodeURIComponent(band));
+    if(r.ok){
+      const d = await r.json();
+      const n = parseInt(d.serial, 10);
+      if(!isNaN(n)){
+        serialByBand[band] = n;
+        return d.serial;
+      }
+    }
+  }catch(e){ /* serveur injoignable : repli local ci-dessous */ }
+  // Repli hors ligne — collision possible seulement si le réseau est
+  // indisponible ET qu'un autre poste logue au même instant, un cas déjà
+  // couvert par la file d'attente hors-ligne (voir syncOfflineQueue()).
   if(!serialByBand[band]) serialByBand[band] = 0;
   serialByBand[band]++;
   return String(serialByBand[band]).padStart(3,'0');
@@ -2076,7 +2096,7 @@ async function submitQSO(){
 
   // N° envoyé : auto-série (VHF) ou valeur du champ (FD classe, CQ WW zone, HF dept...)
   const numSentField = document.getElementById('inputNumSent').value.trim();
-  const serial = currentExchange.auto_serial ? nextSerial(currentBand) : numSentField;
+  const serial = currentExchange.auto_serial ? await nextSerial(currentBand) : numSentField;
   const dist = (loc && loc.length >= 6) ? calcDist(loc) : 0;
   const pts  = calcPoints(loc, currentBand, call, currentMode);
 

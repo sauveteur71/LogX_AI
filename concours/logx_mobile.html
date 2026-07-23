@@ -6,6 +6,11 @@
 <title>LogX AI — Saisie mobile</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/logx_icon.svg">
+<!-- PWA hors-ligne : même service worker que le logbook PC (logx_sw.js),
+     dont le SHELL pré-cache désormais aussi cette page — un téléphone qui
+     n'a JAMAIS ouvert le logbook PC sur ce navigateur doit pouvoir installer
+     et rouvrir la saisie mobile même sans réseau (terrain POTA/SOTA). -->
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/logx_sw.js').catch(()=>{}));}</script>
 <style>
   /* Page de SAISIE MOBILE : un téléphone/tablette du même WiFi logge dans le
      log partagé du PC serveur. Mobile-first : une colonne, cibles tactiles
@@ -96,6 +101,16 @@
   .submit-btn:active { opacity:.8; }
   .submit-btn:disabled { opacity:.4; }
 
+  /* File d'attente hors-ligne : QSO saisis pendant une coupure réseau, en
+     attente de renvoi automatique (voir syncOfflineQueue()) — jamais perdus
+     silencieusement, contrairement à un simple toast d'erreur transitoire. */
+  .queue-badge {
+    display:none; background:var(--bg2); border:1px solid var(--yellow);
+    border-radius:10px; padding:10px 14px; font-family:var(--font-mono);
+    font-size:13px; font-weight:700; letter-spacing:1px; color:var(--yellow);
+    text-align:center;
+  }
+
   .toast {
     position:fixed; left:14px; right:14px; bottom:18px; z-index:100;
     background:var(--bg2); border:1px solid var(--accent2); border-radius:10px;
@@ -142,6 +157,8 @@
 </div>
 
 <main>
+  <div class="queue-badge" id="queueBadge"></div>
+
   <div>
     <div class="lbl">INDICATIF CORRESPONDANT</div>
     <input type="text" id="inCall" autocomplete="off" autocapitalize="characters"
@@ -153,7 +170,7 @@
   <div class="row">
     <div>
       <div class="lbl">BANDE</div>
-      <select id="inBand" onchange="rememberSel()"></select>
+      <select id="inBand" onchange="rememberSel();refreshSuggestedSerial();"></select>
     </div>
     <div>
       <div class="lbl">MODE</div>
@@ -289,6 +306,23 @@ function onModeChange(){
   if (!cw && r.value === '599') r.value = '59';
 }
 
+// ─── N° de série : ALLOUÉ PAR LE SERVEUR (logx_http.py:/log/next_serial) ─────
+// Même mécanisme que le PC (logx_logbook.js:nextSerial) : deux postes qui
+// loguent au même instant sur la même bande ne peuvent plus jamais émettre
+// le même numéro. Pré-rempli ici à titre de SUGGESTION éditable — la mobile
+// ne connaît pas currentExchange.auto_serial (contexte d'échange complet
+// réservé au PC) — et re-suggéré après chaque QSO enregistré.
+async function refreshSuggestedSerial(){
+  const band = document.getElementById('inBand').value;
+  try{
+    const r = await fetch('/log/next_serial?band=' + encodeURIComponent(band));
+    if(r.ok){
+      const d = await r.json();
+      if(d.serial) document.getElementById('inNumS').value = d.serial;
+    }
+  }catch(e){ /* hors ligne : champ laissé tel quel, saisie manuelle reste possible */ }
+}
+
 // ─── Locator → distance (affichage + points km) ──────────────────────────────
 function locLL(loc){
   if (!loc || loc.length < 6) return null;
@@ -346,11 +380,75 @@ async function pollWall(){
       `<span class="rq-band">${esc(q.band)}</span>` +
       `<span class="rq-op">${esc(q.op)}</span></div>`).join('');
     document.getElementById('liveDot').style.background = 'var(--green)';
+    syncOfflineQueue();   // réseau confirmé UP : tenter le renvoi de la file
   }catch(e){
     document.getElementById('liveDot').style.background = 'var(--red)';
   }
 }
 setInterval(pollWall, 5000);
+
+// ─── File d'attente hors-ligne ────────────────────────────────────────────────
+// Un QSO qui échoue à /log/add (WiFi qui décroche en pleine activation
+// POTA/SOTA...) n'est plus seulement signalé par un toast d'erreur qui
+// disparaît : il est conservé en localStorage et renvoyé automatiquement dès
+// que le réseau revient (voir syncOfflineQueue(), appelée à chaque pollWall()
+// réussi) — jamais perdu silencieusement par un simple rechargement de page.
+// Même clé que le PC (logx_logbook.js:'rc_offline_queue', même format de
+// QSO) : compatible si les deux pages sont un jour ouvertes sur le même
+// navigateur, sans être une dépendance l'une de l'autre.
+const OFFLINE_QUEUE_KEY = 'rc_offline_queue';
+
+function loadOfflineQueue(){
+  try{ return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function saveOfflineQueue(queue){
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  updateQueueBadge(queue.length);
+}
+function queueOfflineQso(qso){
+  const queue = loadOfflineQueue();
+  queue.push(qso);
+  saveOfflineQueue(queue);
+}
+function updateQueueBadge(n){
+  const el = document.getElementById('queueBadge');
+  if (!el) return;
+  if (n > 0){
+    el.textContent = `⏳ ${n} QSO en attente d'envoi`;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+async function syncOfflineQueue(){
+  const queue = loadOfflineQueue();
+  if (!queue.length) return;
+  const stillPending = [];
+  for (let i = 0; i < queue.length; i++){
+    if (stillPending.length){
+      // Un envoi vient d'échouer dans cette même passe : le réseau est
+      // probablement encore coupé, inutile de retenter les suivants
+      // maintenant — on les reprendra au prochain pollWall() (5 s).
+      stillPending.push(queue[i]);
+      continue;
+    }
+    try{
+      // force:true : ce QSO a déjà été validé à la saisie (mode hors ligne),
+      // le contrôle de doublon ne doit pas le faire disparaître en silence.
+      const res = await fetch('/log/add', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({...queue[i], force:true})
+      });
+      if (!res.ok) stillPending.push(queue[i]);
+    }catch(e){
+      stillPending.push(queue[i]);
+    }
+  }
+  saveOfflineQueue(stillPending);
+  if (stillPending.length < queue.length) pollWall();   // stats à jour après resync
+}
 
 // ─── Envoi du QSO ────────────────────────────────────────────────────────────
 function toast(msg, color){
@@ -392,9 +490,11 @@ async function submitQSO(){
     num_sent: document.getElementById('inNumS').value.trim(),
     num_rcvd: document.getElementById('inNumR').value.trim(),
     locator: loc, dist,
-    // Points : barème « 1 pt/km » (le plus courant en VHF). Pour les barèmes
-    // complexes (zones, préfixes...), le poste PC principal fait référence —
-    // cette page est une saisie d'appoint.
+    // Points : valeur de repli « 1 pt/km » (la plus courante en VHF), utilisée
+    // UNIQUEMENT si le recalcul serveur échouait. Le serveur recalcule
+    // toujours les points à l'insertion avec le vrai barème du concours actif
+    // (voir logx_scoring.score_new_qso, appelé depuis add_qso_to_log) — cette
+    // page ne fait donc plus jamais foi sur les points, contrairement à avant.
     points: dist,
     operator: (document.getElementById('inOp').value.trim().toUpperCase()
                || localStorage.getItem('logx_mobile_op') || 'MOBILE'),
@@ -407,44 +507,67 @@ async function submitQSO(){
 
   const btn = document.getElementById('btnSubmit');
   btn.disabled = true;
+  const outcome = await trySendQso(qso);
+  if (outcome === 'declined'){
+    toast('Doublon ignoré — non enregistré.');
+  } else if (outcome === 'ok'){
+    toast(`✅ ${call} loggé !${dist ? ' (' + dist + ' km)' : ''}`, 'var(--green)');
+    resetFieldsAfterSubmit();
+  } else {
+    // 'queue' : réseau ou serveur indisponible — jamais perdu, voir
+    // queueOfflineQso()/syncOfflineQueue(). Le formulaire se vide quand même
+    // (comme un envoi réussi) pour ne pas bloquer la suite de l'activation.
+    queueOfflineQso(qso);
+    toast(`📥 Hors ligne — ${call} mis en file d'attente (sera renvoyé automatiquement).`,
+          'var(--yellow)');
+    resetFieldsAfterSubmit();
+  }
+  btn.disabled = false;
+}
+
+// Envoie un QSO (avec confirmation bloquante sur doublon 409) — retourne
+// 'ok', 'declined' (doublon refusé par l'opérateur) ou 'queue' (échec réseau
+// ou serveur : à mettre en file d'attente hors-ligne).
+async function trySendQso(qso){
   try{
     let res = await fetch('/log/add', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(qso)
     });
     if (res.status === 409){
-      const err = await res.json();
-      const ex = err.existing || {};
-      if (confirm(`DOUBLON : ${call} déjà contacté sur ${qso.band} MHz` +
-                  `${ex.time ? ' à ' + ex.time : ''}.\n\nEnregistrer quand même ?`)){
-        res = await fetch('/log/add', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({...qso, force:true})
-        });
-      } else { toast('Doublon ignoré — non enregistré.'); btn.disabled = false; return; }
-    }
-    if (res.ok){
-      toast(`✅ ${call} loggé !${dist ? ' (' + dist + ' km)' : ''}`, 'var(--green)');
-      document.getElementById('inCall').value = '';
-      document.getElementById('inLoc').value = '';
-      document.getElementById('inNumR').value = '';
-      document.getElementById('locHint').textContent = '';
-      onModeChange();   // reposer les RST par défaut du mode
-      document.getElementById('inCall').focus();
-      pollWall();
-    } else {
       const err = await res.json().catch(() => ({}));
-      toast('Erreur serveur : ' + (err.error || res.status), 'var(--red)');
+      const ex = err.existing || {};
+      if (!confirm(`DOUBLON : ${qso.call} déjà contacté sur ${qso.band} MHz` +
+                   `${ex.time ? ' à ' + ex.time : ''}.\n\nEnregistrer quand même ?`)){
+        return 'declined';
+      }
+      res = await fetch('/log/add', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({...qso, force:true})
+      });
     }
+    return res.ok ? 'ok' : 'queue';
   }catch(e){
-    toast('Serveur injoignable — vérifie le WiFi et que le PC est allumé.', 'var(--red)');
+    return 'queue';
   }
-  btn.disabled = false;
+}
+
+function resetFieldsAfterSubmit(){
+  document.getElementById('inCall').value = '';
+  document.getElementById('inLoc').value = '';
+  document.getElementById('inNumR').value = '';
+  document.getElementById('locHint').textContent = '';
+  onModeChange();          // reposer les RST par défaut du mode
+  refreshSuggestedSerial(); // suggérer le prochain n° de série
+  document.getElementById('inCall').focus();
+  pollWall();
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 fillSelects();
 loadConfig().then(pollWall);
+refreshSuggestedSerial();
+updateQueueBadge(loadOfflineQueue().length);   // file laissée par une session précédente
 </script>
 
 </body>
