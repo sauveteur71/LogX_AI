@@ -10,6 +10,7 @@ Recalcul seulement à l'AJOUT (pas de migration rétroactive du log existant) :
 voir tests/test_storage.py pour la persistance, qui n'est pas concernée ici."""
 import os
 import sys
+import time as _t
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -72,3 +73,49 @@ def test_add_qso_ne_touche_pas_les_qso_deja_loggues(monkeypatch):
     assert ok
     assert http.shared_log[0]['points'] == 42   # inchangé
     assert http.shared_log[1]['points'] == 1    # nouveau QSO, recalculé
+
+
+# ─── Repli borné (3s) : jamais couvert par un test avant ce module ───────────
+# Le recalcul passe par un ThreadPoolExecutor().submit(...).result(timeout=3)
+# précisément pour ne JAMAIS bloquer le thread HTTP au-delà de quelques
+# secondes si score_new_qso tombe sur un cache froid + réseau lent (WWA/
+# hamaward.cloud) — et se rabat sur la valeur du client en cas de dépassement
+# ou d'exception. Ce comportement de repli n'était vérifié nulle part : rien
+# n'empêchait une régression (ex. suppression accidentelle du timeout, ou du
+# try/except) de passer inaperçue puisque le chemin "heureux" (scoring rapide)
+# est le seul exercé par les tests ci-dessus.
+
+def test_add_qso_conserve_points_client_si_scoring_depasse_le_timeout(monkeypatch):
+    """score_new_qso qui met plus de 3s à répondre ne doit jamais faire
+    attendre l'appelant jusqu'au bout (ni faire perdre le QSO) : le timeout
+    doit couper avant, et la valeur envoyée par le client doit être conservée
+    telle quelle plutôt que la valeur (fausse, jamais reçue à temps) du
+    scoring."""
+    _prep(monkeypatch)
+
+    def _scoring_trop_lent(qso):
+        _t.sleep(4)
+        return 777   # ne doit jamais être vu : coupé par le timeout de 3s
+
+    monkeypatch.setattr(http, 'score_new_qso', _scoring_trop_lent)
+    t0 = _t.time()
+    ok, _info = http.add_qso_to_log(_qso(points=42))
+    elapsed = _t.time() - t0
+    assert ok
+    assert http.shared_log[0]['points'] == 42   # valeur du client conservée
+    assert elapsed < 4                           # borné par le timeout, pas les 4s du sleep
+
+
+def test_add_qso_conserve_points_client_si_scoring_leve_une_exception(monkeypatch):
+    """score_new_qso qui lève une exception (bug du moteur, données
+    corrompues, barème introuvable...) ne doit jamais faire échouer l'ajout
+    du QSO : la valeur envoyée par le client doit être conservée."""
+    _prep(monkeypatch)
+
+    def _scoring_casse(qso):
+        raise RuntimeError("barème introuvable")
+
+    monkeypatch.setattr(http, 'score_new_qso', _scoring_casse)
+    ok, _info = http.add_qso_to_log(_qso(points=17))
+    assert ok
+    assert http.shared_log[0]['points'] == 17

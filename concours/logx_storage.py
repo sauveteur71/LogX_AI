@@ -211,6 +211,23 @@ def cfg_scope_id(cfg):
 _serial_high_water = {}   # bande normalisée -> dernier n° déjà distribué
 
 
+def _serial_max_used_locked(band_norm):
+    """Plus grand num_sent déjà loggué pour cette bande. Appelant responsable
+    de tenir log_lock (factorisé entre allocate_next_serial/peek_next_serial,
+    qui doivent lire exactement le même état)."""
+    max_used = 0
+    for q in shared_log:
+        if str(q.get('band', '')).strip() != band_norm:
+            continue
+        try:
+            n = int(str(q.get('num_sent', '')).strip())
+        except (ValueError, TypeError):
+            continue
+        if n > max_used:
+            max_used = n
+    return max_used
+
+
 def allocate_next_serial(band):
     """Alloue (réserve) le prochain n° de série pour cette bande. Un trou dans
     la séquence (réservation jamais suivie d'un /log/add, ex. saisie
@@ -219,19 +236,22 @@ def allocate_next_serial(band):
     s'il y a un trou dans la séquence")."""
     band_norm = str(band or '').strip()
     with log_lock:
-        max_used = 0
-        for q in shared_log:
-            if str(q.get('band', '')).strip() != band_norm:
-                continue
-            try:
-                n = int(str(q.get('num_sent', '')).strip())
-            except (ValueError, TypeError):
-                continue
-            if n > max_used:
-                max_used = n
-        nxt = max(max_used, _serial_high_water.get(band_norm, 0)) + 1
+        nxt = max(_serial_max_used_locked(band_norm), _serial_high_water.get(band_norm, 0)) + 1
         _serial_high_water[band_norm] = nxt
         return nxt
+
+
+def peek_next_serial(band):
+    """Donne le n° qui SERAIT distribué par le prochain allocate_next_serial()
+    pour cette bande, SANS consommer le compteur. Sert à un simple aperçu
+    d'affichage (mobile : rafraîchi à chaque changement de bande, après
+    chaque QSO et au chargement de la page — bien plus souvent qu'un QSO
+    n'est réellement soumis). Sans ce mode, chaque rafraîchissement d'écran
+    brûlait un vrai numéro de série même si l'opérateur n'envoyait jamais le
+    QSO correspondant (voir logx_mobile.html:refreshSuggestedSerial)."""
+    band_norm = str(band or '').strip()
+    with log_lock:
+        return max(_serial_max_used_locked(band_norm), _serial_high_water.get(band_norm, 0)) + 1
 
 
 # Verrou dédié à calldb.json : écrit depuis plusieurs threads

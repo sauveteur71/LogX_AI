@@ -201,7 +201,8 @@
       <div class="row">
         <div>
           <div class="lbl">N° ENVOYÉ</div>
-          <input type="text" id="inNumS" inputmode="numeric" placeholder="—">
+          <input type="text" id="inNumS" inputmode="numeric" placeholder="—"
+            oninput="serialIsSuggestion=false;">
         </div>
         <div>
           <div class="lbl">N° REÇU</div>
@@ -312,13 +313,31 @@ function onModeChange(){
 // le même numéro. Pré-rempli ici à titre de SUGGESTION éditable — la mobile
 // ne connaît pas currentExchange.auto_serial (contexte d'échange complet
 // réservé au PC) — et re-suggéré après chaque QSO enregistré.
+//
+// serialIsSuggestion : vrai tant que le champ N° ENVOYÉ affiche un simple
+// APERÇU (peek=1, ne consomme pas le compteur serveur) jamais retapé à la
+// main depuis. Sert à submitQSO() : seul un champ encore à sa valeur de
+// suggestion déclenche une VRAIE allocation (qui, elle, consomme le
+// compteur) juste avant l'envoi effectif — une valeur saisie à la main est
+// respectée telle quelle, jamais écrasée.
+let serialIsSuggestion = true;
+
 async function refreshSuggestedSerial(){
   const band = document.getElementById('inBand').value;
   try{
-    const r = await fetch('/log/next_serial?band=' + encodeURIComponent(band));
+    // peek=1 (logx_storage.peek_next_serial) : simple APERÇU qui ne consomme
+    // PAS le compteur serveur — cette fonction est appelée à chaque
+    // changement de bande, après chaque QSO et au chargement de la page,
+    // bien plus souvent qu'un QSO n'est réellement soumis. Sans ce mode,
+    // chaque rafraîchissement d'écran brûlait un vrai numéro de série même
+    // si aucun QSO n'était jamais envoyé avec.
+    const r = await fetch('/log/next_serial?band=' + encodeURIComponent(band) + '&peek=1');
     if(r.ok){
       const d = await r.json();
-      if(d.serial) document.getElementById('inNumS').value = d.serial;
+      if(d.serial){
+        document.getElementById('inNumS').value = d.serial;
+        serialIsSuggestion = true;
+      }
     }
   }catch(e){ /* hors ligne : champ laissé tel quel, saisie manuelle reste possible */ }
 }
@@ -426,24 +445,69 @@ async function syncOfflineQueue(){
   const queue = loadOfflineQueue();
   if (!queue.length) return;
   const stillPending = [];
+  let networkDown = false;
   for (let i = 0; i < queue.length; i++){
-    if (stillPending.length){
-      // Un envoi vient d'échouer dans cette même passe : le réseau est
-      // probablement encore coupé, inutile de retenter les suivants
-      // maintenant — on les reprendra au prochain pollWall() (5 s).
+    if (networkDown){
+      // Un envoi a déjà échoué côté RÉSEAU (ou erreur serveur transitoire)
+      // dans cette même passe : le réseau est probablement encore coupé,
+      // inutile de retenter les suivants maintenant — on les reprendra au
+      // prochain pollWall() (5 s).
       stillPending.push(queue[i]);
       continue;
     }
+    let qso = queue[i];
+    if (qso._serial_pending){
+      // Ce n° de série n'a JAMAIS été confirmé par une allocation réelle
+      // côté serveur (saisi pendant que ce poste était hors ligne) : un
+      // autre poste a pu obtenir entretemps le MÊME numéro pour un QSO
+      // différent (voir logx_storage.allocate_next_serial). On le renégocie
+      // — une VRAIE allocation, pas un simple aperçu — juste avant ce renvoi
+      // effectif, plutôt que de renvoyer aveuglément la valeur figée pendant
+      // la coupure : c'est précisément le scénario de collision PC/mobile
+      // que ce mécanisme est censé éliminer.
+      let renegotiated = null;
+      try{
+        const r = await fetch('/log/next_serial?band=' + encodeURIComponent(qso.band));
+        if (r.ok){
+          const d = await r.json();
+          if (d.serial) renegotiated = d.serial;
+        }
+      }catch(e){ /* toujours hors ligne : on retentera à la prochaine passe */ }
+      if (renegotiated === null){
+        stillPending.push(qso);
+        networkDown = true;
+        continue;
+      }
+      qso = {...qso, num_sent: renegotiated};
+    }
+    // _serial_pending est une métadonnée LOCALE (bookkeeping de la file),
+    // jamais un champ du QSO — ne doit jamais être envoyée au serveur.
+    const {_serial_pending, ...payload} = qso;
     try{
       // force:true : ce QSO a déjà été validé à la saisie (mode hors ligne),
       // le contrôle de doublon ne doit pas le faire disparaître en silence.
       const res = await fetch('/log/add', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({...queue[i], force:true})
+        body: JSON.stringify({...payload, force:true})
       });
-      if (!res.ok) stillPending.push(queue[i]);
+      if (res.ok) continue;   // envoyé avec succès, retiré de la file
+      if (res.status >= 500){
+        stillPending.push(qso);
+        networkDown = true;
+        continue;
+      }
+      // Erreur DÉFINITIVE (4xx hors 409, ex. contest/bande devenue invalide
+      // entretemps) : la retenter indéfiniment toutes les 5s ne changerait
+      // rien — on l'abandonne en informant l'opérateur plutôt que de la
+      // garder en file pour toujours, silencieusement (même principe que
+      // trySendQso() : jamais confondre échec réseau/serveur transitoire et
+      // rejet définitif).
+      const err = await res.json().catch(() => ({}));
+      toast(`⚠️ QSO ${qso.call} rejeté par le serveur (${err.error || res.status}) — retiré de la file.`,
+            'var(--red)');
     }catch(e){
-      stillPending.push(queue[i]);
+      stillPending.push(qso);
+      networkDown = true;
     }
   }
   saveOfflineQueue(stillPending);
@@ -478,16 +542,37 @@ async function submitQSO(){
     toast('Locator invalide (format AA00AA, ex: JN15XC)', 'var(--red)'); return;
   }
   const dist = loc ? calcDist(loc) : 0;
+  const band = document.getElementById('inBand').value;
+
+  // N° de série : si le champ affiche encore un simple APERÇU (serialIsSuggestion,
+  // jamais retapé à la main depuis le dernier refreshSuggestedSerial()), on
+  // demande maintenant une VRAIE allocation serveur (qui consomme le compteur,
+  // voir logx_storage.allocate_next_serial) juste avant l'envoi — l'aperçu a pu
+  // devenir périmé si un autre poste a loggué entretemps sur la même bande.
+  // Si injoignable (hors ligne), l'aperçu local est conservé et le QSO sera
+  // marqué "à renégocier" s'il finit en file d'attente (voir plus bas).
+  let numSent = document.getElementById('inNumS').value.trim();
+  let serialUnconfirmed = serialIsSuggestion;
+  if (serialIsSuggestion){
+    try{
+      const r = await fetch('/log/next_serial?band=' + encodeURIComponent(band));
+      if (r.ok){
+        const d = await r.json();
+        if (d.serial){ numSent = d.serial; serialUnconfirmed = false; }
+      }
+    }catch(e){ /* hors ligne : aperçu local conservé, renégocié plus tard */ }
+  }
+
   const qso = {
     id: Date.now(),
     date: nowDateUTC(), time: nowUTC(),
     call,
-    band: document.getElementById('inBand').value,
+    band,
     mode: document.getElementById('inMode').value,
     freq: document.getElementById('inFreq').value.trim(),
     rst_sent: document.getElementById('inRstS').value.trim() || '59',
     rst_rcvd: document.getElementById('inRstR').value.trim() || '59',
-    num_sent: document.getElementById('inNumS').value.trim(),
+    num_sent: numSent,
     num_rcvd: document.getElementById('inNumR').value.trim(),
     locator: loc, dist,
     // Points : valeur de repli « 1 pt/km » (la plus courante en VHF), utilisée
@@ -507,16 +592,26 @@ async function submitQSO(){
 
   const btn = document.getElementById('btnSubmit');
   btn.disabled = true;
-  const outcome = await trySendQso(qso);
-  if (outcome === 'declined'){
+  const result = await trySendQso(qso);
+  if (result.outcome === 'declined'){
     toast('Doublon ignoré — non enregistré.');
-  } else if (outcome === 'ok'){
+  } else if (result.outcome === 'ok'){
     toast(`✅ ${call} loggé !${dist ? ' (' + dist + ' km)' : ''}`, 'var(--green)');
     resetFieldsAfterSubmit();
+  } else if (result.outcome === 'error'){
+    // Réponse HTTP reçue et DÉFINITIVE (400, 404... — hors 409) : le serveur
+    // a bien traité la requête et l'a refusée. Jamais mise en file (une
+    // retentative automatique ne changerait rien) : message réel affiché
+    // immédiatement, formulaire laissé tel quel pour corriger la saisie —
+    // avant ce correctif, ce cas était confondu avec une coupure réseau et
+    // silencieusement mis en file, sans jamais montrer l'erreur réelle.
+    toast('Erreur : ' + result.message, 'var(--red)');
   } else {
-    // 'queue' : réseau ou serveur indisponible — jamais perdu, voir
-    // queueOfflineQso()/syncOfflineQueue(). Le formulaire se vide quand même
-    // (comme un envoi réussi) pour ne pas bloquer la suite de l'activation.
+    // 'queue' : coupure RÉSEAU ou erreur serveur TRANSITOIRE (5xx) — jamais
+    // perdu, voir queueOfflineQso()/syncOfflineQueue(). Le formulaire se vide
+    // quand même (comme un envoi réussi) pour ne pas bloquer la suite de
+    // l'activation.
+    if (serialUnconfirmed) qso._serial_pending = true;   // renégocié à la resynchro
     queueOfflineQso(qso);
     toast(`📥 Hors ligne — ${call} mis en file d'attente (sera renvoyé automatiquement).`,
           'var(--yellow)');
@@ -525,31 +620,49 @@ async function submitQSO(){
   btn.disabled = false;
 }
 
-// Envoie un QSO (avec confirmation bloquante sur doublon 409) — retourne
-// 'ok', 'declined' (doublon refusé par l'opérateur) ou 'queue' (échec réseau
-// ou serveur : à mettre en file d'attente hors-ligne).
+// Envoie un QSO (avec confirmation bloquante sur doublon 409) — retourne un
+// objet {outcome, message?} :
+//  - 'ok' : enregistré.
+//  - 'declined' : doublon refusé par l'opérateur (pas une erreur).
+//  - 'queue' : ÉCHEC RÉSEAU (fetch en exception, serveur injoignable) ou
+//    erreur serveur TRANSITOIRE (5xx) — à mettre en file d'attente
+//    hors-ligne, retentée automatiquement (voir syncOfflineQueue()).
+//  - 'error' : réponse HTTP reçue et DÉFINITIVE (4xx hors 409 : requête
+//    malformée, contest invalide...) — une retentative automatique ne
+//    changerait rien, le message réel doit être affiché immédiatement,
+//    JAMAIS mis en file. Avant ce correctif, ce cas était confondu avec
+//    'queue' : le vrai message d'erreur n'était plus jamais montré à
+//    l'opérateur, juste silencieusement retenté toutes les 5s.
 async function trySendQso(qso){
+  let res;
   try{
-    let res = await fetch('/log/add', {
+    res = await fetch('/log/add', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(qso)
     });
-    if (res.status === 409){
-      const err = await res.json().catch(() => ({}));
-      const ex = err.existing || {};
-      if (!confirm(`DOUBLON : ${qso.call} déjà contacté sur ${qso.band} MHz` +
-                   `${ex.time ? ' à ' + ex.time : ''}.\n\nEnregistrer quand même ?`)){
-        return 'declined';
-      }
+  }catch(e){
+    return {outcome: 'queue'};
+  }
+  if (res.status === 409){
+    const err = await res.json().catch(() => ({}));
+    const ex = err.existing || {};
+    if (!confirm(`DOUBLON : ${qso.call} déjà contacté sur ${qso.band} MHz` +
+                 `${ex.time ? ' à ' + ex.time : ''}.\n\nEnregistrer quand même ?`)){
+      return {outcome: 'declined'};
+    }
+    try{
       res = await fetch('/log/add', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({...qso, force:true})
       });
+    }catch(e){
+      return {outcome: 'queue'};
     }
-    return res.ok ? 'ok' : 'queue';
-  }catch(e){
-    return 'queue';
   }
+  if (res.ok) return {outcome: 'ok'};
+  if (res.status >= 500) return {outcome: 'queue'};   // transitoire : à retenter
+  const err = await res.json().catch(() => ({}));
+  return {outcome: 'error', message: err.error || `serveur (${res.status})`};
 }
 
 function resetFieldsAfterSubmit(){

@@ -81,6 +81,31 @@ def test_reservation_abandonnee_laisse_un_trou_tolere():
     assert storage.allocate_next_serial('144') == 2   # pas de retour à 1
 
 
+def test_peek_ne_consomme_pas_le_compteur():
+    """Reproduction directe du bug : la mobile appelait allocate_next_serial()
+    (bump réel) à chaque rafraîchissement d'affichage (changement de bande,
+    après chaque QSO, chargement de page) juste pour PRÉ-REMPLIR une
+    suggestion — chaque interaction UI brûlait un numéro même si aucun QSO
+    n'était jamais soumis avec. peek_next_serial() doit pouvoir être appelé
+    autant de fois que voulu sans jamais faire avancer la séquence réelle."""
+    _reset()
+    for _ in range(10):
+        assert storage.peek_next_serial('144') == 1   # jamais consommé
+    assert storage.allocate_next_serial('144') == 1    # 1er VRAI numéro, inchangé
+    for _ in range(10):
+        assert storage.peek_next_serial('144') == 2
+    assert storage.allocate_next_serial('144') == 2
+
+
+def test_peek_reflete_les_qso_deja_loggues():
+    """peek_next_serial() doit rester dérivé du même état réel que
+    allocate_next_serial() (shared_log + high-water), pas d'un calcul figé."""
+    _reset()
+    storage.shared_log[:] = [{'band': '144', 'num_sent': '005'}]
+    assert storage.peek_next_serial('144') == 6
+    assert storage.allocate_next_serial('144') == 6   # cohérent avec le peek précédent
+
+
 def test_appels_concurrents_jamais_le_meme_numero():
     """Simule PC + mobile qui réservent au même instant : deux threads
     concurrents ne doivent jamais recevoir la même valeur (log_lock)."""
@@ -131,6 +156,19 @@ def test_endpoint_incremente_a_chaque_appel(server):
     _reset()
     assert _get(server, '/log/next_serial?band=144')['serial'] == '001'
     assert _get(server, '/log/next_serial?band=144')['serial'] == '002'
+
+
+def test_endpoint_peek_ne_consomme_pas(server):
+    """/log/next_serial?peek=1 : même reproduction que
+    test_peek_ne_consomme_pas_le_compteur mais via le VRAI endpoint HTTP
+    (celui appelé par logx_mobile.html:refreshSuggestedSerial)."""
+    _reset()
+    assert _get(server, '/log/next_serial?band=144&peek=1')['serial'] == '001'
+    assert _get(server, '/log/next_serial?band=144&peek=1')['serial'] == '001'
+    assert _get(server, '/log/next_serial?band=144&peek=1')['serial'] == '001'
+    # Sans peek : première VRAIE allocation, toujours 001 (rien consommé avant)
+    assert _get(server, '/log/next_serial?band=144')['serial'] == '001'
+    assert _get(server, '/log/next_serial?band=144&peek=1')['serial'] == '002'
 
 
 def test_endpoint_deux_postes_concurrents_pas_de_collision(server):

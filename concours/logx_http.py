@@ -1134,11 +1134,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # de logx_logbook.js (PC) et le champ texte libre de logx_mobile.html,
         # pour qu'aucune saisie concurrente (PC + mobile, ou deux mobiles) ne
         # puisse émettre le même numéro sur la même bande.
+        # ?peek=1 : simple APERÇU (logx_storage.peek_next_serial), ne consomme
+        # PAS le compteur — utilisé par la mobile pour ne faire que PRÉ-REMPLIR
+        # une suggestion (changement de bande, après un QSO, au chargement de
+        # la page) sans brûler un numéro tant qu'aucun QSO n'est réellement
+        # soumis avec.
         if path == '/log/next_serial':
             from urllib.parse import parse_qs, urlparse
             import logx_storage as _storage
-            band = (parse_qs(urlparse(self.path).query).get('band', ['']) or [''])[0]
-            serial = _storage.allocate_next_serial(band)
+            qs = parse_qs(urlparse(self.path).query)
+            band = (qs.get('band', ['']) or [''])[0]
+            peek = (qs.get('peek', ['']) or [''])[0] in ('1', 'true')
+            serial = _storage.peek_next_serial(band) if peek else _storage.allocate_next_serial(band)
             self._json({'serial': str(serial).zfill(3)})
             return
 
