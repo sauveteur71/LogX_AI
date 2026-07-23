@@ -3542,9 +3542,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     with log_lock:
                         scopes = sorted({qso_scope_id(q) for q in shared_log})
                         snapshot = list(shared_log)
+                    # QTC (WAE) : snapshot à part (verrou dédié qtc_lock) puis
+                    # filtré PAR SCOPE comme les QSO — sinon le Cabrillo archivé
+                    # ici n'a jamais de ligne "QTC:" (voir logx_export.build_cabrillo).
+                    from logx_storage import qtc_log, qtc_lock
+                    with qtc_lock:
+                        qtc_snapshot = list(qtc_log)
                     for scope in scopes:
                         qs = [q for q in snapshot if qso_scope_id(q) == scope]
-                        r = arch.archive_log(qs, scope or 'SANS_CONCOURS', cfg_snap)
+                        qtc_series = [q for q in qtc_snapshot if qso_scope_id(q) == scope]
+                        r = arch.archive_log(qs, scope or 'SANS_CONCOURS', cfg_snap, qtc_series)
                         if r.get('ok'):
                             archived_folders.append(r['name'])
                     archived = archive_current_log()   # + table SQLite (secours)
@@ -3580,7 +3587,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 scope_id = cfg_scope_id(cfg_snap)
                 with log_lock:
                     qs = [q for q in shared_log if qso_scope_id(q) == scope_id]
-                res = arch.archive_log(qs, cid or 'CONTEST', cfg_snap)
+                # QTC (WAE) : mêmes séries que /log/export/cabrillo (scopées par
+                # contest+année) — sans ça, le Cabrillo archivé perd les lignes
+                # "QTC:" (voir logx_export.build_cabrillo).
+                from logx_storage import qtc_log, qtc_lock
+                with qtc_lock:
+                    qtc_series = [q for q in qtc_log if qso_scope_id(q) == scope_id]
+                res = arch.archive_log(qs, cid or 'CONTEST', cfg_snap, qtc_series)
                 if res.get('ok') and payload.get('clear'):
                     with log_lock:
                         keep = [q for q in shared_log if qso_scope_id(q) != scope_id]

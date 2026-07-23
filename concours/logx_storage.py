@@ -290,11 +290,26 @@ def load_qtc_from_disk():
             # Rétro-compatibilité : les séries enregistrées avant l'ajout de la
             # saisie détaillée n'ont pas d'id — leur en attribuer un pour que
             # /qtc/delete puisse les cibler comme les nouvelles séries.
-            next_id = 1
+            # PREMIER passage : calculer le max des id déjà PRÉSENTS dans tout
+            # le fichier avant d'en distribuer de nouveaux. Sans ce pré-calcul,
+            # backfiller une entrée sans id avec le compteur courant peut lui
+            # attribuer le MÊME id qu'une entrée plus loin dans le fichier qui
+            # en a déjà un (ex. [sans id, sans id, id=2, sans id] : la 2e
+            # entrée recevrait l'id 2 en avançant le compteur au fil de l'eau,
+            # entrant en collision avec l'id=2 déjà fixé de la 3e entrée).
+            max_existing_id = 0
+            for q in qtc_log:
+                qid = q.get('id')
+                if qid:
+                    try:
+                        max_existing_id = max(max_existing_id, int(qid))
+                    except (TypeError, ValueError):
+                        pass
+            next_id = max_existing_id + 1
             for q in qtc_log:
                 if not q.get('id'):
                     q['id'] = next_id
-                next_id = max(next_id, int(q['id']) + 1)
+                    next_id += 1
             _qtc_next_id = next_id
             print(f"[QTC] {sum(q.get('count', 0) for q in qtc_log)} QTC charges")
     except Exception as e:

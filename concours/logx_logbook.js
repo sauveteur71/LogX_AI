@@ -858,6 +858,7 @@ function showQTCPanel(){
   if(bandSel) bandSel.value = QTC_BANDS.includes(currentBand) ? currentBand : '14';
   const modeSel = document.getElementById('qtcMode');
   if(modeSel) modeSel.value = /CW/i.test(currentMode) ? 'CW' : (/RTTY|DIGI|FT/i.test(currentMode) ? 'RTTY' : 'SSB');
+  resetQTCFields();
   qtcRows = [{time: '', call: '', nr: ''}];
   renderQTCRows();
   suggestQTCSeriesNumber();
@@ -866,6 +867,18 @@ function showQTCPanel(){
 
 function closeQTCPanel(){
   document.getElementById('qtcOverlay')?.classList.remove('show');
+  resetQTCFields();
+}
+
+// Remet indicatif partenaire + sens à leur valeur neutre — sans ça, le
+// panneau gardait l'indicatif ET le sens (émis/reçu) de la série PRÉCÉDENTE
+// d'une ouverture à l'autre (et après un enregistrement réussi), au risque
+// de logguer la série suivante sous le mauvais indicatif/sens par inattention.
+function resetQTCFields(){
+  const dirSel = document.getElementById('qtcDirection');
+  if(dirSel) dirSel.value = 'sent';
+  const partnerInput = document.getElementById('qtcPartner');
+  if(partnerInput) partnerInput.value = '';
 }
 
 // Numéro de série suggéré = dernier numéro déjà utilisé DANS CE SENS + 1 (le
@@ -939,6 +952,7 @@ async function saveQTCSeries(){
       notify(`✉ Série QTC ${series_number}/${entries.length} ${sens} ${call} enregistrée — total ${d.total} pts`);
       qtcRows = [{time: '', call: '', nr: ''}];
       renderQTCRows();
+      resetQTCFields();
       await refreshQTC();
       suggestQTCSeriesNumber();
     } else {

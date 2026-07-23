@@ -24,9 +24,12 @@ def _safe(s):
     return re.sub(r'[^A-Za-z0-9_.-]', '_', str(s or ''))[:40]
 
 
-def archive_log(qsos, contest_id, cfg=None):
+def archive_log(qsos, contest_id, cfg=None, qtc_series=None):
     """Écrit une archive permanente du log d'un concours. Retourne un dict
-    {ok, folder, qso_count, files} ou {ok: False, error}."""
+    {ok, folder, qso_count, files} ou {ok: False, error}.
+    qtc_series : séries QTC (WAE, voir logx_storage.qtc_log) déjà filtrées par
+    l'appelant sur LA MÊME portée que `qsos` — sans quoi le Cabrillo archivé
+    n'a aucune ligne "QTC:" (règlement WAE : la moitié des points possibles)."""
     qsos = list(qsos or [])
     if not qsos:
         return {'ok': False, 'error': 'Aucun QSO à archiver pour ce concours'}
@@ -53,7 +56,7 @@ def archive_log(qsos, contest_id, cfg=None):
         cdef = CONTEST_DEFINITIONS.get(contest_id, {})
         base = f"{_safe(call)}_{_safe(contest_id or 'ALL')}"
         _write(os.path.join(folder, base + '.cbr'),
-               export.build_cabrillo(qsos, cdef, cfg))
+               export.build_cabrillo(qsos, cdef, cfg, qtc_series))
         _write(os.path.join(folder, base + '.adi'),
                export.build_adif(qsos, cfg))
         files += [base + '.cbr', base + '.adi']

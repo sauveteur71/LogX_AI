@@ -59,6 +59,31 @@ def test_load_qtc_backfill_id_series_ancien_format(tmp_path):
     _in_tmp(tmp_path, run)
 
 
+def test_load_qtc_backfill_pas_de_collision_si_id_existant_arrive_apres(tmp_path):
+    """Reproduction concrète : quand des séries SANS id précèdent, dans le
+    fichier, une série qui a DÉJÀ un id, l'ancien algorithme (qui ne calculait
+    le max des id qu'AU FIL DE L'EAU, en avançant en même temps qu'il
+    attribuait les nouveaux id) pouvait attribuer à une série sans id le
+    MÊME id qu'une série plus loin dans le fichier qui en avait déjà un.
+    Ordre ici : [sans id, sans id, id=2, sans id] -> avec l'ancien code la
+    2e entrée recevait l'id 2 (compteur pas encore informé du id=2 à venir),
+    entrant en collision avec la 3e entrée (id=2 déjà fixé)."""
+    def run():
+        with open(st.QTC_FILE, 'w', encoding='utf-8') as f:
+            json.dump([
+                {'call': 'A', 'count': 1, 'contest': 'X', 'date': '20270101', 'time': '10:00'},
+                {'call': 'B', 'count': 1, 'contest': 'X', 'date': '20270101', 'time': '10:01'},
+                {'id': 2, 'call': 'C', 'count': 1, 'contest': 'X', 'date': '20270101', 'time': '10:02'},
+                {'call': 'D', 'count': 1, 'contest': 'X', 'date': '20270101', 'time': '10:03'},
+            ], f)
+        st.load_qtc_from_disk()
+        ids = [q['id'] for q in st.qtc_log]
+        assert len(ids) == len(set(ids)), f"ids dupliqués après rétro-compatibilité : {ids}"
+        # L'id déjà présent (2) doit rester intact, pas réattribué ailleurs.
+        assert sum(1 for i in ids if i == 2) == 1
+    _in_tmp(tmp_path, run)
+
+
 def test_qtc_total_et_count_for_call_lisent_aussi_les_series_detaillees(tmp_path):
     """qtc_total/qtc_count_for_call ne lisent que 'count'/'call'/'contest' —
     une série détaillée (avec 'entries') doit donc compter exactement comme

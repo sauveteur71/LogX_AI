@@ -96,6 +96,85 @@ def test_log_archive_clear_avec_concours_ne_touche_pas_les_autres(server, monkey
     assert remaining_ids == {2}
 
 
+# ─── /log/archive : le Cabrillo archivé doit contenir les QTC (WAE) ─────────
+# Régression du commit 5a98e7a : /log/export/cabrillo passait bien qtc_series
+# à build_cabrillo, mais /log/archive (archive_log) ne le faisait pas —
+# archiver un concours WAE produisait un .cbr SANS AUCUNE ligne "QTC:",
+# exactement ce que ce commit prétendait avoir corrigé.
+
+def test_log_archive_inclut_les_qtc_de_la_portee(server, monkeypatch, tmp_path):
+    import logx_archive as arch
+    import logx_storage as storage
+    monkeypatch.setattr(arch, 'ARCHIVE_DIR', str(tmp_path))
+    qso = _qso(id=1, contest='WAEDC_SSB', date='20270911', call='F5ABC')
+    monkeypatch.setattr(httpmod, 'shared_log', [qso])
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
+                         'contest_start_date': '2027-09-11', 'callsign': 'F6KQJ'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = [{
+            'id': 1, 'call': 'DL0XM', 'count': 1, 'contest': 'WAEDC_SSB',
+            'date': '20270911', 'time': '10:00', 'direction': 'sent',
+            'band': '14', 'mode': 'CW', 'series_number': 1,
+            'entries': [{'time': '0030', 'call': 'YU1ZZ', 'nr': '62'}],
+        }]
+    status, res = _post(server, '/log/archive', {})
+    assert status == 200 and res.get('ok')
+    folder = res['folder']
+    cbr_name = next(f for f in os.listdir(folder) if f.endswith('.cbr'))
+    with open(os.path.join(folder, cbr_name), encoding='utf-8') as f:
+        content = f.read()
+    assert 'QTC:' in content and 'YU1ZZ' in content
+
+
+def test_log_reset_archives_incluent_les_qtc_par_portee(server, monkeypatch, tmp_path):
+    """Comme ci-dessus, mais pour /log/reset — qui archive PAR PORTÉE (voir
+    test_log_reset_groupe_par_portee_pas_par_nom_brut) : chaque dossier
+    d'archive ne doit contenir QUE les QTC de SA PROPRE portée."""
+    import logx_archive as arch
+    import logx_storage as storage
+    monkeypatch.setattr(arch, 'ARCHIVE_DIR', str(tmp_path))
+    y2026 = _qso(id=1, contest='WAEDC_SSB', date='20260911', call='F5ABC')
+    y2027 = _qso(id=2, contest='WAEDC_SSB', date='20270911', call='F6XYZ')
+    monkeypatch.setattr(httpmod, 'shared_log', [y2026, y2027])
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'archive_current_log', lambda: [])
+    monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'contest'})
+    monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
+    with storage.qtc_lock:
+        storage.qtc_log[:] = [
+            {'id': 1, 'call': 'DL0XM', 'count': 1, 'contest': 'WAEDC_SSB',
+             'date': '20260911', 'time': '10:00', 'direction': 'sent', 'band': '14',
+             'mode': 'CW', 'series_number': 1,
+             'entries': [{'time': '0030', 'call': 'AA2026', 'nr': '1'}]},
+            {'id': 2, 'call': 'CT3KU', 'count': 1, 'contest': 'WAEDC_SSB',
+             'date': '20270911', 'time': '11:00', 'direction': 'recv', 'band': '14',
+             'mode': 'CW', 'series_number': 1,
+             'entries': [{'time': '0031', 'call': 'AA2027', 'nr': '2'}]},
+        ]
+    status, res = _post(server, '/log/reset', {'confirm': 'RESET'})
+    assert status == 200 and res.get('ok')
+    folders = res['folders']
+    assert len(folders) == 2
+    for name in folders:
+        folder = os.path.join(str(tmp_path), name)
+        cbr_name = next(f for f in os.listdir(folder) if f.endswith('.cbr'))
+        with open(os.path.join(folder, cbr_name), encoding='utf-8') as f:
+            content = f.read()
+        assert 'QTC:' in content
+        # Le nom du dossier est '<scope>_<timestamp du jour>' : le timestamp
+        # peut lui-même contenir '2026' (date du jour du test) — se fier au
+        # préfixe de portée ('WAEDC_SSB_2026_'/'WAEDC_SSB_2027_'), pas à une
+        # simple recherche de sous-chaîne dans le nom entier.
+        if name.startswith('WAEDC_SSB_2026_'):
+            assert 'AA2026' in content and 'AA2027' not in content
+        else:
+            assert name.startswith('WAEDC_SSB_2027_')
+            assert 'AA2027' in content and 'AA2026' not in content
+
+
 # ─── /log/check : badge doublon conscient de l'année ────────────────────────
 
 def test_log_check_meme_concours_annee_precedente_pas_doublon(server, monkeypatch):

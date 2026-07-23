@@ -92,7 +92,9 @@ def _cabrillo_qtc_lines(qtc_series, callsign):
         call_rx = callsign if direction == 'recv' else partner
         call_tx = partner if direction == 'recv' else callsign
         for e in entries:
-            qtime = (str(e.get('time', '')).replace(':', '')[:4] or '0000').ljust(4, '0')
+            # zfill (PAS ljust) : '930' saisi doit devenir '0930', pas '9300' —
+            # ljust ajoute les zéros à droite, zfill les ajoute à gauche.
+            qtime = (str(e.get('time', '')).replace(':', '')[:4] or '0000').zfill(4)
             qcall = str(e.get('call', '')).upper()
             qnr = str(e.get('nr', ''))
             lines.append(f"QTC: {freq:>5} {mode:<2} {date_fmt} {time} "

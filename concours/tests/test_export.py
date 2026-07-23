@@ -106,3 +106,20 @@ def test_cabrillo_qtc_absent_reste_retrocompatible():
     # doit toujours rien changer pour les appelants existants.
     cab = build_cabrillo(QSOS, {}, CFG)
     assert 'QTC:' not in cab
+
+
+def test_cabrillo_qtc_heure_individuelle_zero_paddee_a_gauche():
+    """Reproduction : une heure saisie sur 3 chiffres ('930', minuit passé
+    sans le zéro initial) doit devenir '0930' dans l'export (zéro-padding à
+    GAUCHE, comme toute heure Cabrillo), pas '9300' (ljust ajoute les zéros
+    à DROITE)."""
+    series = {'call': 'DL0XM', 'direction': 'sent', 'band': '14', 'mode': 'CW',
+              'date': '20260810', 'time': '01:55', 'series_number': 1,
+              'entries': [{'time': '930', 'call': 'YU1ZZ', 'nr': '62'}]}
+    cab = build_cabrillo(QSOS, {}, CFG, [series])
+    line = [l for l in cab.split('\n') if l.startswith('QTC:')][0]
+    fields = line.split()
+    # QTC: QRG MODE DATE TIME CALL-RX QTC-GRP CALL-TX TIME-QSO CALL-QSO NR-QSO
+    #  0    1    2    3    4     5        6       7       8        9      10
+    assert fields[8] == '0930', f"attendu '0930' (zfill), obtenu {fields[8]!r}"
+    assert '9300' not in line
