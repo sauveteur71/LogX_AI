@@ -1266,6 +1266,328 @@ function voicePlay(key){
   try{ const a = new Audio(s[key]); a.play(); }catch(e){}
 }
 
+// ─── ENREGISTREUR AUDIO PAR QSO (tampon glissant) ────────────────────────────
+// Principe : le flux micro/entrée choisi est enregistré en petits segments
+// AUTONOMES (redémarrage périodique du MediaRecorder) plutôt qu'en flux
+// continu — un WebM/Ogg découpé en plein milieu n'est pas rejouable (seul le
+// tout premier fragment contient l'en-tête du conteneur). Un segment complet,
+// lui, EST rejouable seul, donc décodable indépendamment via Web Audio.
+// Au log d'un QSO : on clôt le segment en cours (capture jusqu'à MAINTENANT),
+// on décode les derniers segments couvrant REC_CLIP_SECONDS, on les recolle
+// en PCM brut puis on réencode en WAV (format simple, universellement
+// lisible) — pas de recollage naïf de plusieurs fichiers WebM bout à bout,
+// que la plupart des lecteurs ne rejouent que jusqu'au premier morceau.
+const REC_SEGMENT_MS   = 5000;    // durée d'un segment avant redémarrage
+const REC_BUFFER_MS    = 130000;  // tampon glissant conservé (~2 min + marge)
+const REC_CLIP_SECONDS = 20;      // durée du clip découpé au moment du log
+
+let recEnabled = (localStorage.getItem('logx_rec_enabled') === 'on');
+let _recStream = null, _recMediaRec = null, _recRestartTimer = null;
+let _recSegments = [];      // [{blob, start, end}] du plus ancien au plus récent
+let _recDirHandle = null;   // FileSystemDirectoryHandle (API File System Access), si choisi
+
+function _recMimeType(){
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  for(const c of candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return '';
+}
+
+function _recPruneSegments(){
+  const cutoff = Date.now() - REC_BUFFER_MS;
+  while(_recSegments.length && _recSegments[0].end < cutoff) _recSegments.shift();
+}
+
+// Démarre UN segment autonome sur le flux déjà ouvert (_recStream). Chaque
+// segment ferme son propre tableau de chunks (pas de variable partagée) :
+// sinon un redémarrage juste après stop() risquerait de mélanger les données
+// du segment sortant avec celles du segment entrant (l'événement
+// dataavailable/stop du premier arrive de façon asynchrone, APRÈS que le
+// second ait déjà commencé à écrire).
+function _recStartSegment(){
+  if(!_recStream) return;
+  const start = Date.now();
+  const chunks = [];
+  const mime = _recMimeType();
+  let rec;
+  try{ rec = mime ? new MediaRecorder(_recStream, {mimeType: mime}) : new MediaRecorder(_recStream); }
+  catch(e){ rec = new MediaRecorder(_recStream); }
+  rec.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    if(chunks.length){
+      _recSegments.push({blob: new Blob(chunks, {type: rec.mimeType || mime || 'audio/webm'}), start, end: Date.now()});
+      _recPruneSegments();
+    }
+  };
+  rec.start();
+  _recMediaRec = rec;
+}
+
+// Clôt le segment EN COURS et attend que son onstop (poussée dans
+// _recSegments) soit passé, avant de relancer un nouveau segment — utilisé
+// au moment du log pour capturer l'audio jusqu'à l'instant présent au lieu
+// de s'arrêter au dernier redémarrage périodique (jusqu'à REC_SEGMENT_MS de
+// retard sinon).
+function _recFinishCurrentSegment(){
+  return new Promise(resolve => {
+    if(!_recMediaRec || _recMediaRec.state === 'inactive'){ resolve(); return; }
+    const rec = _recMediaRec;
+    const prevOnStop = rec.onstop;
+    rec.onstop = ev => { try{ if(prevOnStop) prevOnStop(ev); } finally { resolve(); } };
+    try{ rec.stop(); }catch(e){ resolve(); }
+  });
+}
+
+function _recRestartSegment(){
+  if(!recEnabled || !_recMediaRec || _recMediaRec.state === 'inactive') return;
+  _recMediaRec.stop();     // pousse le segment sortant dans _recSegments (via son propre onstop)
+  _recStartSegment();      // enchaîne aussitôt (léger trou possible, best effort)
+}
+
+function _updateRecToggleBtn(){
+  const b = document.getElementById('qsoRecToggleBtn');
+  if(!b) return;
+  const on = !!_recStream;
+  b.textContent = on ? '● actif' : '○ désactivé';
+  b.style.color = on ? 'var(--red)' : 'var(--muted)';
+  b.style.borderColor = on ? 'var(--red)' : 'var(--border)';
+}
+
+function _updateRecDirLabel(){
+  const el = document.getElementById('qsoRecDirLabel');
+  if(el) el.textContent = _recDirHandle ? ('dossier : ' + _recDirHandle.name) : 'téléchargement direct';
+}
+
+async function startAudioRecorder(){
+  try{
+    const deviceId = localStorage.getItem('logx_rec_device') || '';
+    const constraints = {audio: deviceId ? {deviceId: {exact: deviceId}} : true};
+    _recStream = await navigator.mediaDevices.getUserMedia(constraints);
+    _recSegments = [];
+    _recStartSegment();
+    _recRestartTimer = setInterval(_recRestartSegment, REC_SEGMENT_MS);
+    await loadAudioInputDevices('qsoRecDevice');
+    const sel = document.getElementById('qsoRecDevice');
+    if(sel && deviceId) sel.value = deviceId;
+    _updateRecToggleBtn();
+    notify('🎙️ Enregistreur QSO actif (tampon ' + Math.round(REC_BUFFER_MS/1000) + 's)');
+    return true;
+  }catch(e){
+    notify('❌ Micro indisponible pour l\'enregistreur QSO : ' + e.message);
+    _recStream = null;
+    _updateRecToggleBtn();
+    return false;
+  }
+}
+
+function stopAudioRecorder(){
+  if(_recRestartTimer){ clearInterval(_recRestartTimer); _recRestartTimer = null; }
+  if(_recMediaRec && _recMediaRec.state !== 'inactive'){
+    _recMediaRec.onstop = null;   // désactivation volontaire : ce dernier segment partiel ne sert plus
+    try{ _recMediaRec.stop(); }catch(e){}
+  }
+  _recMediaRec = null;
+  if(_recStream){ _recStream.getTracks().forEach(t => t.stop()); _recStream = null; }
+  _recSegments = [];
+  _updateRecToggleBtn();
+}
+
+async function toggleAudioRecorder(){
+  if(_recStream){
+    stopAudioRecorder();
+    recEnabled = false;
+  } else {
+    recEnabled = await startAudioRecorder();
+  }
+  localStorage.setItem('logx_rec_enabled', recEnabled ? 'on' : 'off');
+}
+
+async function onRecDeviceChange(){
+  const val = document.getElementById('qsoRecDevice').value || '';
+  localStorage.setItem('logx_rec_device', val);
+  if(_recStream){   // changement à chaud : redémarre le flux sur le nouveau périphérique
+    stopAudioRecorder();
+    await startAudioRecorder();
+  }
+}
+
+// ─── Choix du dossier de sauvegarde (File System Access API) ────────────────
+// Optionnel : sans dossier choisi (ou navigateur non compatible — Firefox et
+// Safari n'implémentent pas showDirectoryPicker), chaque clip est simplement
+// proposé en téléchargement.
+function _recIdbOpen(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('logx_audio_rec', 1);
+    req.onupgradeneeded = () => { if(!req.result.objectStoreNames.contains('kv')) req.result.createObjectStore('kv'); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _recIdbGet(key){
+  try{
+    const db = await _recIdbOpen();
+    return await new Promise((resolve, reject) => {
+      const r = db.transaction('kv', 'readonly').objectStore('kv').get(key);
+      r.onsuccess = () => resolve(r.result || null);
+      r.onerror = () => reject(r.error);
+    });
+  }catch(e){ return null; }
+}
+async function _recIdbSet(key, val){
+  try{
+    const db = await _recIdbOpen();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(val, key);
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+  }catch(e){}
+}
+
+async function chooseRecDir(){
+  if(!('showDirectoryPicker' in window)){
+    notify('❌ Ce navigateur ne propose pas le choix de dossier (Chrome/Edge requis) — repli sur le téléchargement.');
+    return;
+  }
+  try{
+    _recDirHandle = await window.showDirectoryPicker({id: 'logx-audio-rec', mode: 'readwrite'});
+    await _recIdbSet('dirHandle', _recDirHandle);
+    _updateRecDirLabel();
+    notify('📁 Dossier des clips QSO : ' + _recDirHandle.name);
+  }catch(e){ /* sélection annulée par l'utilisateur */ }
+}
+
+// Restaure au chargement le dossier choisi lors d'une session précédente, si
+// la permission est encore valable — queryPermission() ne montre jamais de
+// popup (contrairement à requestPermission(), qui exige un geste utilisateur,
+// d'où le bouton « Dossier… » pour la reconnexion si la permission a expiré).
+async function initAudioRecorderPanel(){
+  try{
+    const handle = await _recIdbGet('dirHandle');
+    if(handle && (await handle.queryPermission({mode: 'readwrite'})) === 'granted'){
+      _recDirHandle = handle;
+    }
+  }catch(e){}
+  _updateRecDirLabel();
+  if(recEnabled){
+    const ok = await startAudioRecorder();
+    if(!ok) recEnabled = false;   // permission refusée/périphérique disparu depuis : ne pas rester dans un état incohérent
+  }
+  _updateRecToggleBtn();
+}
+
+// ─── Encodage WAV (PCM 16 bits) à partir de plusieurs AudioBuffer ───────────
+// Concatène les canaux en ne gardant que les `maxSeconds` dernières secondes
+// (les segments les plus anciens fournis peuvent dépasser la fenêtre voulue :
+// seule leur QUEUE est conservée).
+function _encodeWavFromBuffers(buffers, maxSeconds){
+  const sampleRate = buffers[buffers.length-1].sampleRate;
+  const numChannels = buffers[buffers.length-1].numberOfChannels || 1;
+  const maxSamples = Math.round(maxSeconds * sampleRate);
+  let totalLen = 0;
+  buffers.forEach(b => totalLen += b.length);
+  const keepLen = Math.min(totalLen, maxSamples);
+
+  const channels = [];
+  for(let ch = 0; ch < numChannels; ch++){
+    const out = new Float32Array(keepLen);
+    let writePos = keepLen;   // rempli depuis la fin vers le début
+    for(let i = buffers.length - 1; i >= 0 && writePos > 0; i--){
+      const b = buffers[i];
+      const data = ch < b.numberOfChannels ? b.getChannelData(ch) : b.getChannelData(0);
+      const take = Math.min(data.length, writePos);
+      out.set(data.subarray(data.length - take), writePos - take);
+      writePos -= take;
+    }
+    channels.push(out);
+  }
+  return _floatChannelsToWav(channels, sampleRate);
+}
+
+function _floatChannelsToWav(channels, sampleRate){
+  const numChannels = channels.length;
+  const numFrames = channels[0].length;
+  const blockAlign = numChannels * 2;   // PCM 16 bits = 2 octets/échantillon
+  const dataSize = numFrames * blockAlign;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buf);
+  const writeStr = (off, s) => { for(let i=0;i<s.length;i++) view.setUint8(off+i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);   // PCM
+  view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+  writeStr(36, 'data'); view.setUint32(40, dataSize, true);
+  let off = 44;
+  for(let i = 0; i < numFrames; i++){
+    for(let ch = 0; ch < numChannels; ch++){
+      const s = Math.max(-1, Math.min(1, channels[ch][i]));
+      view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      off += 2;
+    }
+  }
+  return new Blob([buf], {type: 'audio/wav'});
+}
+
+// Nom de fichier indicatif_bande_date_heure — ex. F4ABC_144_20260723_1432.wav
+function _recClipName(qso){
+  const call = String(qso.call || 'QSO').replace(/[^A-Za-z0-9]/g, '') || 'QSO';
+  const band = String(qso.band || '').replace(/[^A-Za-z0-9]/g, '');
+  const time = String(qso.time || '').replace(/[^0-9]/g, '');
+  return `${call}_${band}_${qso.date || ''}_${time}.wav`;
+}
+
+// Sauvegarde via l'API File System Access si un dossier a été choisi (et que
+// la permission tient toujours), sinon repli sur un téléchargement classique.
+async function _recSaveClip(blob, name){
+  if(_recDirHandle){
+    try{
+      if((await _recDirHandle.queryPermission({mode: 'readwrite'})) === 'granted'){
+        const fh = await _recDirHandle.getFileHandle(name, {create: true});
+        const w = await fh.createWritable();
+        await w.write(blob);
+        await w.close();
+        notify('🎙️ Clip QSO enregistré : ' + name);
+        return;
+      }
+    }catch(e){ console.warn('[REC] écriture dossier échouée, repli téléchargement', e); }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  notify('🎙️ Clip QSO téléchargé : ' + name);
+}
+
+// Appelée juste après chaque QSO loggué avec succès (voir submitQSO). Ne
+// bloque jamais le flux de saisie : appelée sans await depuis submitQSO,
+// erreurs avalées.
+async function captureQsoAudioClip(qso){
+  if(!recEnabled || !_recStream) return;
+  try{
+    await _recFinishCurrentSegment();
+    _recStartSegment();   // ré-enchaîne aussitôt le tampon glissant
+
+    const cutoff = Date.now() - REC_CLIP_SECONDS * 1000;
+    const segs = _recSegments.filter(s => s.end > cutoff);
+    if(!segs.length) return;
+
+    const ctx = _audioCtx || (_audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+    const buffers = [];
+    for(const s of segs){
+      try{
+        const arr = await s.blob.arrayBuffer();
+        buffers.push(await ctx.decodeAudioData(arr));
+      }catch(e){ /* segment trop court/corrompu (ex: tout premier après un redémarrage) : ignoré */ }
+    }
+    if(!buffers.length) return;
+
+    const wav = _encodeWavFromBuffers(buffers, REC_CLIP_SECONDS);
+    await _recSaveClip(wav, _recClipName(qso));
+  }catch(e){ console.warn('[REC] capture clip QSO', e); }
+}
+
 // ─── CALLBOT (macros vocales DYNAMIQUES : synthèse + PTT + émission radio) ───
 // Contrairement aux macros CW ({CALL} = TA propre station, jamais celle du
 // correspondant — pas besoin en CW de re-taper l'indicatif de l'autre), ici
@@ -1483,6 +1805,7 @@ function updateKeyerPanels(){
 renderVoicePanel();
 renderVoiceDynPanel();
 setTimeout(updateKeyerPanels, 300);
+initAudioRecorderPanel();
 
 // ─── SAUVEGARDE IMMÉDIATE (dossier cloud/NAS) ────────────────────────────────
 async function backupNow(){
@@ -2280,6 +2603,7 @@ async function submitQSO(){
       qsoLog.push(qso);
       bcBroadcast('add', qso);
       lastQsoTime = Date.now();
+      captureQsoAudioClip(qso).catch(e => console.warn('[REC]', e));   // découpe du clip, sans bloquer la saisie
       if(esmMode) esmSend('tu');   // ESM : envoie « merci » à la validation
       // Vider le formulaire EN PREMIER (avant stats, avant tout)
       clearForm();
@@ -2303,6 +2627,7 @@ async function submitQSO(){
         });
         if(res2.ok){
           qsoLog.push(qso); bcBroadcast('add', qso); lastQsoTime = Date.now();
+          captureQsoAudioClip(qso).catch(e => console.warn('[REC]', e));
           clearForm(); document.getElementById('inputCall').focus();
           try{ renderLog(); }catch(e){} try{ updateStats(); }catch(e){}
           playBeep(880, 80);
@@ -2321,6 +2646,7 @@ async function submitQSO(){
     qsoLog.push(qso);
     bcBroadcast('add', qso);
     lastQsoTime = Date.now();
+    captureQsoAudioClip(qso).catch(ex => console.warn('[REC]', ex));
     // Vider le formulaire EN PREMIER
     clearForm();
     document.getElementById('inputCall').focus();
@@ -4271,23 +4597,28 @@ async function toggleCwPanel(){
   if(panel.classList.contains('open') && !_cwDevicesLoaded) await loadCwInputDevices();
 }
 
-async function loadCwInputDevices(){
-  const sel = document.getElementById('cwDevice');
+// Peuple un <select> d'entrées audio disponibles — générique, réutilisé par
+// le décodeur CW ET l'enregistreur audio par QSO (voir plus haut). Les
+// libellés des périphériques ne sont visibles qu'APRÈS une autorisation
+// micro accordée (contrainte navigateur) : on la demande une fois ici juste
+// pour peupler la liste, le flux est refermé aussitôt.
+async function loadAudioInputDevices(selectId){
+  const sel = document.getElementById(selectId);
+  if(!sel) return false;
   try{
-    // Les libellés des périphériques ne sont visibles qu'APRÈS une
-    // autorisation micro accordée (contrainte navigateur) — on la demande
-    // une fois ici juste pour peupler la liste, le flux est refermé aussitôt.
     const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
     tmp.getTracks().forEach(t=>t.stop());
     const devices = await navigator.mediaDevices.enumerateDevices();
     const inputs = devices.filter(d=>d.kind==='audioinput');
     sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
       + inputs.map(d=>`<option value="${d.deviceId}">${escHtml(d.label||'Entrée audio')}</option>`).join('');
-    _cwDevicesLoaded = true;
+    return true;
   }catch(e){
     sel.innerHTML = '<option value="">Accès micro refusé</option>';
+    return false;
   }
 }
+async function loadCwInputDevices(){ _cwDevicesLoaded = await loadAudioInputDevices('cwDevice'); }
 
 function toggleCwDecoder(){
   const btn = document.getElementById('cwStartBtn');

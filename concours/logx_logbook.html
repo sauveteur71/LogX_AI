@@ -1117,6 +1117,26 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         <div style="font-size:11px;color:var(--muted);margin-top:4px">Tonalité détectée : <span id="cwTone">—</span> · clique un mot décodé pour le mettre dans l'indicatif</div>
       </div>
 
+      <!-- ENREGISTREUR AUDIO PAR QSO (tampon glissant ~2 min, coupe les 20
+           dernières secondes à chaque QSO loggué — indicatif douteux à
+           revérifier, contrôle du comité...) -->
+      <div class="macro-panel expert-only" id="qsoRecPanel">
+        <div class="macro-panel-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🎙️ ENREGISTREUR QSO</span>
+          <button id="qsoRecToggleBtn" onclick="toggleAudioRecorder()" title="Activer/désactiver l'enregistrement en tampon glissant" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px">○ désactivé</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+          <select id="qsoRecDevice" onchange="onRecDeviceChange()" title="Micro / entrée audio à enregistrer" style="flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:5px">
+            <option value="">— périphérique par défaut —</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+          <button onclick="chooseRecDir()" title="Choisir le dossier où enregistrer les clips (sinon : téléchargement)" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:4px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px">📁 Dossier…</button>
+          <span id="qsoRecDirLabel" style="font-size:11px;color:var(--muted)">téléchargement direct</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Tampon glissant ~2 min sur l'entrée choisie ; à chaque QSO loggué, les 20 dernières secondes sont sauvegardées (indicatif_bande_date_heure.wav).</div>
+      </div>
+
       <!-- Derniers QSO -->
       <div class="last-qso">
         <div class="last-qso-title">DERNIERS QSO SAISIS</div>
