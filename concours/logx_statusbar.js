@@ -156,6 +156,12 @@
     const cfg = getConfig();
     return cfg.usage_mode !== 'simple' && (cfg.operators || []).length > 1;
   }
+  // Exposée pour réutilisation par logx_logbook.js (vue Partner, cf.
+  // _isMultiOp() dans ce fichier) — évite d'avoir DEUX implémentations qui
+  // pourraient diverger silencieusement. logx_statusbar.js est chargé avant
+  // logx_logbook.js sur logx_logbook.html donc déjà disponible à l'usage ;
+  // logx_logbook.js garde un repli local au cas où il tourne sans cette barre.
+  window.rcIsMultiOp = isMultiOp;
   function tickBandChange(){
     const item = document.getElementById('rcsbBandChangeItem');
     const el = document.getElementById('rcsbBandChange');

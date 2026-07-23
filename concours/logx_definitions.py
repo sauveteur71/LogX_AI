@@ -255,6 +255,11 @@ CONTEST_DEFINITIONS = {
         'itu_r1_notes': '40m SSB interdit >7200 kHz. 160m interdit <1810 kHz.',
         'categories': 'SO-HP(1500W) SO-LP(100W) SO-QRP(5W) SO-Assisted MS M2 MM',
         'notes': 'Auto-spotting interdit en SO. Audio recording obligatoire si top-5.',
+        # Catégorie Multi-Single (et assimilées) : un seul changement de bande
+        # autorisé toutes les 10 min (sauf pour travailler un nouveau mult) —
+        # règle absente pour la plupart des autres concours de cette base, ne
+        # PAS généraliser (cf. logx_coach.build_coach_state, gate sur ce champ).
+        'band_change_rule_min': 10,
     },
     'CQ_WW_CW': {
         'name': 'CQ World Wide DX — CW',
@@ -276,6 +281,7 @@ CONTEST_DEFINITIONS = {
         'log_deadline': '5_days_after',
         'log_submit': 'https://cqww.com/logcheck/',
         'itu_r1_notes': '160m interdit <1810 kHz.',
+        'band_change_rule_min': 10,   # même règle M/S que CQ_WW_SSB
     },
 
     # ── World Wide Award (hamaward.cloud) ──────────────────────────────────
@@ -346,6 +352,7 @@ CONTEST_DEFINITIONS = {
         },
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
         'log_submit': 'https://cqwpx.com/logcheck/',
+        'band_change_rule_min': 10,   # règle M/S 10 min, identique à CQ WW
     },
     'CQ_WPX_CW': {
         'name': 'CQ WPX — CW',
@@ -365,6 +372,7 @@ CONTEST_DEFINITIONS = {
         },
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
         'log_submit': 'https://cqwpx.com/logcheck/',
+        'band_change_rule_min': 10,   # règle M/S 10 min, identique à CQ WW
     },
     'ARRL_DX_SSB': {
         'name': 'ARRL DX — SSB',

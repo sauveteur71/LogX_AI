@@ -616,12 +616,18 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     hints = build_hints(cdef, clock, stats, plan, lang)
     run_sp = run_sp_recommendation(clock, stats, mult_spots_count, lang)
     vhf_forecast = es_aurora_forecast(cdef, dxmaps, k_index, now, lang)
-    # Règle des 10 minutes (multi-op M/S) : pertinente uniquement à plusieurs
-    # opérateurs (un seul opérateur ne peut de toute façon être que sur une
-    # bande à la fois) — calculée quand même à chaque appel (coût négligeable,
-    # lecture du log déjà chargé en mémoire), le tri "multi-op ou pas" reste
-    # un choix d'AFFICHAGE laissé au front (cf. logx_statusbar.js).
-    band_change = band_change_timer(shared_log, scope_id, now)
+    # Règle des 10 minutes (multi-op M/S type CQ WW / CQ WPX) : seuls les
+    # concours dont la définition porte explicitement `band_change_rule_min`
+    # (voir logx_definitions.CONTEST_DEFINITIONS) appliquent réellement cette
+    # contrainte — la plupart des concours (REF, EUHFC, WWA...) n'ont AUCUNE
+    # règle de ce type. Avant ce correctif, band_change_timer() était appelé
+    # pour N'IMPORTE QUEL concours multi-op : un faux compte à rebours de
+    # 10 min s'affichait même là où les changements de bande sont libres. Le
+    # tri "multi-op ou pas" reste un choix d'AFFICHAGE laissé au front (cf.
+    # logx_statusbar.js) ; ici on ne calcule même pas si la règle ne s'applique
+    # pas au concours actif.
+    rule_minutes = cdef.get('band_change_rule_min')
+    band_change = band_change_timer(shared_log, scope_id, now, rule_minutes) if rule_minutes else None
     return {
         'clock': clock,
         'stats': stats,

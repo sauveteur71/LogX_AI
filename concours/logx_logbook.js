@@ -4721,9 +4721,13 @@ function startChat(){
   // chargement de la page, panneau ouvert ou non — la requête la plus
   // fréquente du fichier avec rig/amp, même sur un poste où personne ne
   // regarde jamais le chat.
+  // Reste aussi en cadence rapide en multi-op MÊME panneau fermé : c'est
+  // justement l'état dans lequel la vue Partner doit rester réactive (bandeau
+  // visible sans ouvrir le chat pendant un pile-up) — sans _isMultiOp() ici,
+  // la saisie de l'autre opérateur ne se rafraîchirait qu'à 15s.
   adaptivePoll(pollChat, 3000, 15000, ()=>{
     const panel = document.getElementById('chatPanel');
-    return !!(panel && panel.classList.contains('open'));
+    return !!(panel && panel.classList.contains('open')) || _isMultiOp();
   });
 }
 
@@ -4792,6 +4796,13 @@ async function sendChat(){
 // Diffusion (côté runner) uniquement en multi-op — sur un poste solo, cette
 // info n'intéresse personne et ne vaut pas le trafic réseau supplémentaire.
 function _isMultiOp(){
+  // Même définition que isMultiOp() dans logx_statusbar.js (exposée en
+  // window.rcIsMultiOp) — on la réutilise pour ne pas faire vivre deux
+  // implémentations séparées. Le repli ci-dessous (dupliqué intentionnellement)
+  // ne sert que si ce fichier tournait sans logx_statusbar.js chargé — ce qui
+  // n'arrive pas sur logx_logbook.html (statusbar inclus avant), mais évite
+  // une dépendance dure entre les deux fichiers.
+  if(typeof window.rcIsMultiOp === 'function') return window.rcIsMultiOp();
   try{
     const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
     return cfg.usage_mode !== 'simple' && (cfg.operators || []).length > 1;
@@ -4842,14 +4853,15 @@ function renderPartnerTyping(list){
       + `<span class="partner-text">${escHtml(t.text)}</span></div>`
     ).join('');
   }
-  // Le bandeau change de hauteur avec son contenu : si le panneau CHAT est
-  // ouvert, réajuster la marge réservée en dessous (sinon les dernières
-  // lignes du log se retrouvent masquées, même bug que celui déjà corrigé
-  // pour le chat — cf. _reserveBottomSpace plus bas).
+  // Le bandeau change de hauteur avec son contenu — et il est VISIBLE (donc
+  // occupe de la place dans .chat-panel, position:fixed) que le panneau CHAT
+  // soit ouvert ou fermé : c'est même l'intérêt de la vue Partner (repérer la
+  // saisie du runner sans ouvrir le chat). Recalculer la marge réservée à
+  // CHAQUE changement de contenu, sans condition sur .open — sinon panneau
+  // fermé, le bandeau grandit (jusqu'à ~110px) sans jamais agrandir l'espace
+  // réservé sous le tableau, et chevauche les dernières lignes du log.
   const panel = document.getElementById('chatPanel');
-  if(panel && panel.classList.contains('open')){
-    _reserveBottomSpace(panel, document.querySelector('.log-table-wrap'));
-  }
+  _reserveBottomSpace(panel, document.querySelector('.log-table-wrap'));
 }
 
 // Les panneaux CHAT et DÉCODEUR CW sont en position:fixed, ancrés bas-droite/

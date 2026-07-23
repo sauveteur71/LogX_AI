@@ -172,3 +172,40 @@ def test_band_change_ignore_hors_portee():
             'band': '7', 'contest': 'AUTRE_CONCOURS'}]
     r = band_change_timer(log, 'CQ_WW_CW#2026', now=NOW)
     assert r['current_band'] is None
+
+
+# ─── Gating du compte à rebours par la définition du concours actif ──────────
+# (build_coach_state ne doit calculer/afficher band_change QUE si le concours
+# porte explicitement 'band_change_rule_min' dans CONTEST_DEFINITIONS — avant
+# le correctif, band_change_timer() était appelé pour n'importe quel concours,
+# y compris ceux sans aucune contrainte de changement de bande.)
+
+def test_build_coach_state_band_change_absent_sans_regle_definie():
+    """REF_RPH (144/432 MHz, aucune règle de changement de bande dans sa
+    définition) : même avec un vrai changement de bande récent dans le log
+    (qui rendrait 'ready' False si la règle des 10 min s'appliquait), le coach
+    ne doit afficher AUCUN compte à rebours — reproduit le bug : avant le
+    correctif, band_change était calculé (et donc affichable) pour ce concours
+    alors qu'aucune règle de ce type n'existe au REF."""
+    from logx_coach import build_coach_state
+    log = [{'date': (NOW - datetime.timedelta(minutes=m)).strftime('%Y%m%d'),
+            'time': (NOW - datetime.timedelta(minutes=m)).strftime('%H:%M'),
+            'band': b, 'points': 1, 'contest': 'REF_RPH'}
+           for m, b in [(30, '144'), (20, '144'), (4, '432')]]
+    cfg = {'contest': 'REF_RPH', 'contest_start_date': '20260704'}
+    st = build_coach_state(cfg, log, now=NOW)
+    assert st['band_change'] is None
+
+
+def test_build_coach_state_band_change_present_avec_regle_definie():
+    """CQ_WW_CW définit band_change_rule_min=10 (règle M/S réelle) : le compte
+    à rebours doit être calculé, et cohérent avec un appel direct à
+    band_change_timer() sur le même log/portée."""
+    from logx_coach import build_coach_state, band_change_timer
+    log = _band_log([(30, '14'), (20, '14'), (4, '7')])
+    cfg = {'contest': 'CQ_WW_CW', 'contest_start_date': '20261128'}
+    st = build_coach_state(cfg, log, now=NOW)
+    expected = band_change_timer(log, 'CQ_WW_CW#2026', now=NOW)
+    assert st['band_change'] == expected
+    assert st['band_change']['ready'] is False
+    assert st['band_change']['remaining_s'] == 6 * 60
