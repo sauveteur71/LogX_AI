@@ -218,6 +218,29 @@ def test_worked_matrix_bandes_triees_par_frequence():
     assert idx['14'] < idx['144'] < idx['432']
 
 
+def test_worked_matrix_scope_id_filtre_par_concours():
+    """scope_id restreint la grille aux QSO d'UN concours précis (même format
+    que qso_scope_id() : 'contest#annee') — les QSO d'un autre concours ('Y')
+    disparaissent, ceux du concours demandé ('X') restent."""
+    awards.invalidate()
+    log = _log() + [
+        {'call': 'PA1ZZZ', 'band': '21', 'mode': 'CW', 'contest': 'Y',
+         'date': '20260101', 'time': '12:00'},
+    ]
+    m_scoped = awards.worked_matrix(log, scope_id='X#2026')
+    assert '21' not in m_scoped['bands']
+    assert m_scoped['grid']['144']['PHONE']['qso'] >= 1
+    assert m_scoped['grid']['144']['CW']['qso'] >= 1
+
+
+def test_worked_matrix_scope_id_vide_egale_vie_entiere():
+    """scope_id='' (défaut) doit rester identique au comportement historique
+    (carnet permanent, popup Diplômes) — pas de régression pour cet appelant."""
+    awards.invalidate()
+    log = _log()
+    assert awards.worked_matrix(log, scope_id='') == awards.worked_matrix(log)
+
+
 def test_worked_matrix_vide():
     awards.invalidate()
     m = awards.worked_matrix([])

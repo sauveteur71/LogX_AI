@@ -168,11 +168,66 @@ if(localStorage.getItem('rc_theme') === null){
     }catch(e){ /* serveur injoignable */ }
   }
 
+  // ─── WORKED MATRIX (grille bande × CW/Phone/Digital) ────────────────────
+  // Vie entière (carnet permanent, comme le popup Diplômes) par défaut ; ou
+  // scopée au concours actuellement configuré (?scope=contest côté serveur) —
+  // utile pendant l'épreuve pour voir d'un coup d'œil quelles cases restent
+  // à couvrir DANS ce concours précis, plutôt que le total historique.
+  let _wmScope = 'life';
+  async function tickWorkedMatrix(){
+    const body = document.getElementById('panelBody');
+    const toggle = `<div style="display:flex;gap:6px;margin-bottom:10px">
+      <button data-wm="life" style="flex:1;font-family:inherit;font-size:12px;padding:5px;cursor:pointer;
+        background:${_wmScope==='life'?'var(--accent2)':'var(--bg3)'};color:${_wmScope==='life'?'#04121a':'var(--text)'};
+        border:1px solid var(--border);border-radius:6px">🗂 Vie entière</button>
+      <button data-wm="contest" style="flex:1;font-family:inherit;font-size:12px;padding:5px;cursor:pointer;
+        background:${_wmScope==='contest'?'var(--accent2)':'var(--bg3)'};color:${_wmScope==='contest'?'#04121a':'var(--text)'};
+        border:1px solid var(--border);border-radius:6px">🏁 Ce concours</button>
+    </div>`;
+    try{
+      const url = _wmScope === 'contest' ? '/awards/matrix?scope=contest' : '/awards/matrix';
+      const r = await fetch(url);
+      if(!r.ok) return;
+      const m = await r.json();
+      if(!m || !m.bands || !m.bands.length){
+        body.innerHTML = toggle + '<div class="empty">'
+          + (_wmScope==='contest' ? 'Aucun QSO dans le concours actif pour l\'instant.' : 'Pas encore de QSO.')
+          + '</div>';
+        return;
+      }
+      const catIcon = {CW:'📟', PHONE:'🎙️', DIGITAL:'💻'};
+      const cell = (c) => {
+        if(!c || !c.qso) return `<td style="text-align:center;padding:4px 8px;color:var(--muted)">—</td>`;
+        const conf = c.confirmed ? ` <span style="color:var(--green)">(${c.confirmed})</span>` : '';
+        return `<td style="text-align:center;padding:4px 8px;background:rgba(0,212,255,.08)"><b>${c.qso}</b>${conf}</td>`;
+      };
+      const rows = m.bands.map(b => {
+        const g = m.grid[b] || {};
+        return `<tr><td style="padding:4px 8px;color:var(--muted)">${esc(b)} MHz</td>`
+          + m.categories.map(c => cell(g[c])).join('') + `</tr>`;
+      }).join('');
+      const totalsRow = `<tr style="border-top:1px solid var(--border)"><td style="padding:4px 8px;color:var(--muted)">Total</td>`
+        + m.categories.map(c => `<td style="text-align:center;padding:4px 8px"><b>${(m.totals&&m.totals[c])||0}</b></td>`).join('') + `</tr>`;
+      body.innerHTML = toggle + `<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px">
+        <thead><tr><td></td>${m.categories.map(c=>`<td style="text-align:center;padding:4px 8px;color:var(--accent2)">${catIcon[c]||''} ${esc(c)}</td>`).join('')}</tr></thead>
+        <tbody>${rows}${totalsRow}</tbody>
+        </table>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">QSO travaillés · (confirmés) en vert</div>`;
+    }catch(e){ /* serveur injoignable : contenu inchangé */ }
+  }
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('[data-wm]');
+    if(!btn) return;
+    _wmScope = btn.getAttribute('data-wm');
+    tickWorkedMatrix();
+  });
+
   const PANELS = {
     coach:        {title: '🧠 COACH', pollMs: 15000, tick: tickCoach},
     cluster:      {title: '📡 CLUSTER — NEED LIST', pollMs: 20000, tick: tickCluster},
     solarweather: {title: '☀️ SOLEIL & IONOSPHÈRE', pollMs: 5*60*1000, tick: tickSolarWeather},
     bandmap:      {title: '📶 BAND MAP', pollMs: 15000, tick: tickBandMap},
+    workedmatrix: {title: '🧮 WORKED MATRIX', pollMs: 30000, tick: tickWorkedMatrix},
   };
 
   function boot(){

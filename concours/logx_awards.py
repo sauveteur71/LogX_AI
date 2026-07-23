@@ -396,12 +396,21 @@ def _band_sort_key(b):
         return 9999.0
 
 
-def worked_matrix(shared_log=None):
+def worked_matrix(shared_log=None, scope_id=''):
     """Grille bande × catégorie de mode : nb de QSO travaillés/confirmés par
-    case, sur toute la vie de la station (comme award_summary). Utile pour
-    visualiser d'un coup d'œil les cases DXCC/WAS encore vides."""
+    case. Par défaut sur toute la vie de la station (comme award_summary),
+    utile pour visualiser d'un coup d'œil les cases DXCC/WAS encore vides.
+
+    scope_id (optionnel, même format que qso_scope_id()/active_scope_id() de
+    logx_storage.py, ex. 'CQ_WW_SSB#2026') restreint la grille aux QSO de CE
+    concours précis — utile en cours d'épreuve pour voir d'un coup d'œil quelles
+    cases bande/mode restent à couvrir DANS le concours actif, plutôt que le
+    total historique de la station qui n'aide pas à décider où aller maintenant."""
     conf = _load_confirmations()
     qsos = collect_all_qsos(shared_log)
+    if scope_id:
+        from logx_storage import qso_scope_id
+        qsos = [q for q in qsos if qso_scope_id(q) == scope_id]
     cats = ('CW', 'PHONE', 'DIGITAL')
     grid = {}
     for q in qsos:

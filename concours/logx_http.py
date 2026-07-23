@@ -1253,13 +1253,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.award_summary(log_copy))
             return
 
-        # Worked Matrix : grille bande × CW/Phone/Digital, sur toute la vie
-        # de la station — d'un coup d'œil, quelles cases DXCC/WAS sont vides.
-        if path == '/awards/matrix':
+        # Worked Matrix : grille bande × CW/Phone/Digital. Par défaut sur
+        # toute la vie de la station (Diplômes/QSL) — d'un coup d'œil, quelles
+        # cases DXCC/WAS sont vides. ?scope=contest la restreint au concours
+        # actuellement configuré (panneau détachable, vue "ce concours").
+        if path.startswith('/awards/matrix'):
+            from urllib.parse import parse_qs, urlparse
             import logx_awards as awards
+            qp = parse_qs(urlparse(self.path).query)
+            scope_id = cfg_scope_id(current_config) if qp.get('scope', [''])[0] == 'contest' else ''
             with log_lock:
                 log_copy = list(shared_log)
-            self._json(awards.worked_matrix(log_copy))
+            self._json(awards.worked_matrix(log_copy, scope_id))
             return
 
         # Record DX par bande — calculé depuis le vrai locator de chaque QSO

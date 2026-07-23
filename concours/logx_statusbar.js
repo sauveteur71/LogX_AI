@@ -394,6 +394,7 @@
     cluster:      {w: 560, h: 640, label: 'Cluster — need list'},
     solarweather: {w: 420, h: 420, label: 'Soleil & ionosphère'},
     bandmap:      {w: 260, h: 640, label: 'Band Map'},
+    workedmatrix: {w: 480, h: 520, label: 'Worked Matrix'},
   };
   const _openWindows = {};   // panelId -> ref fenêtre (perdu au rechargement — une disposition rouvre les fenêtres)
 
