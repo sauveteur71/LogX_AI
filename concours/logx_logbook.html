@@ -578,6 +578,18 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       </div>
     </div>
     <div id="editDistInfo" style="font-family:var(--font-mono);font-size:14px;color:#00FF88;margin-bottom:14px;padding:8px 12px;background:rgba(0,255,136,.05);border-radius:6px;border:1px solid rgba(0,255,136,.2);display:none"></div>
+    <div class="edit-field" style="grid-column:1/-1;margin-bottom:14px">
+      <div class="edit-lbl">SCAN QSL PAPIER</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
+        <span id="editQslScanEmpty" style="color:var(--muted);font-size:12px">Aucun scan attaché</span>
+        <a id="editQslScanLink" href="#" target="_blank" rel="noopener" style="display:none">
+          <img id="editQslScanThumb" style="max-height:70px;max-width:110px;border:1px solid var(--border);border-radius:6px;display:block">
+        </a>
+        <input type="file" id="editQslScanFile" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" style="display:none" onchange="uploadQslScan()">
+        <button type="button" class="edit-cancel" style="padding:6px 12px;font-size:12px" onclick="document.getElementById('editQslScanFile').click()">📎 Choisir un scan…</button>
+        <span id="editQslScanStatus" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>
     <div class="edit-btn-row">
       <button class="edit-cancel" onclick="closeEdit()">ANNULER</button>
       <button class="edit-save" onclick="saveEdit()">✅ SAUVEGARDER</button>
@@ -1178,6 +1190,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   .bm-empty{padding:14px 10px;color:var(--muted);font-size:11px;text-align:center}
   .bandscope-wrap{padding:6px 8px 4px;border-bottom:1px solid var(--border)}
   .bandscope-wrap svg{width:100%;height:74px;display:block}
+  .bandscope-wrap canvas{width:100%;height:74px;display:block;image-rendering:pixelated}
   .bs-bar{cursor:pointer}
   .bs-bar:hover{opacity:.7}
   @media(max-width:1100px){.bandmap-panel{display:none}}
@@ -1185,9 +1198,15 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <div class="bandmap-panel" id="bandmapPanel">
     <div class="bandmap-head">📻 BAND MAP <span id="bandmapBand">—</span>
       <button onclick="window.rcOpenPanel && window.rcOpenPanel('bandmap', {band: currentBand})" title="Détacher CE panneau Band Map dans une fenêtre séparée" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px;margin-left:auto">⇱</button>
+      <button onclick="toggleWaterfall()" id="waterfallToggleBtn" title="Vue chute d'eau : activité de la bande dans le temps (défilement, mêmes spots)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🌊</button>
       <button onclick="popoutScope()" title="Détacher le bandscope graphique sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">📡</button></div>
-    <!-- Bandscope : activité de la bande (densité de spots par fréquence) -->
-    <div class="bandscope-wrap" id="bandscopeWrap"><svg id="bandscope" viewBox="0 0 180 74" preserveAspectRatio="none"></svg></div>
+    <!-- Bandscope : activité de la bande (densité de spots par fréquence).
+         Waterfall : mêmes spots, empilés dans le temps (chute d'eau façon SDR)
+         — canvas caché par défaut, basculé par toggleWaterfall(). -->
+    <div class="bandscope-wrap" id="bandscopeWrap">
+      <svg id="bandscope" viewBox="0 0 180 74" preserveAspectRatio="none"></svg>
+      <canvas id="bandWaterfall" width="180" height="74" style="display:none"></canvas>
+    </div>
     <div class="bandmap-list" id="bandmapList">
       <div class="bm-empty">en attente de spots…</div>
     </div>

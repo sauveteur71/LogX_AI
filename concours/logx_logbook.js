@@ -1108,6 +1108,11 @@ function fmtDate(d){
 // et QSY la radio si le CAT est actif.
 const _BM_PCOL = {1:'var(--red)', 2:'var(--accent)', 3:'var(--yellow)',
                   4:'var(--accent2)', 5:'var(--muted)'};
+// Même mapping que _BM_PCOL mais en noms de variable CSS nus (sans 'var()')
+// pour le canvas waterfall, qui doit lire les couleurs via getComputedStyle
+// (un canvas ne comprend pas 'var(--x)' dans ctx.fillStyle) — garder les deux
+// tables synchronisées.
+const _BM_CSSVAR = {1:'--red', 2:'--accent', 3:'--yellow', 4:'--accent2', 5:'--muted'};
 // Plages de fréquence (MHz) par bande — le band map ne montre QUE la bande
 // courante, filtrée par FRÉQUENCE (infaillible : un spot 50/432 ne peut pas
 // apparaître sur 2 m même si le serveur l'a mal étiqueté).
@@ -1163,6 +1168,7 @@ async function refreshBandMap(){
     list.innerHTML = rows.length ? rows.join('')
       : '<div class="bm-empty">aucun spot sur cette bande</div>';
     drawBandscope(spots, rng, txMhz);   // spectre d'activité visuel
+    drawWaterfallRow(spots, rng);       // chute d'eau : mêmes spots, dans le temps
   }catch(e){ /* serveur injoignable : band map inchangé */ }
 }
 
@@ -1200,6 +1206,49 @@ function drawBandscope(spots, rng, txMhz){
   g += `<text x="${x0}" y="72" style="fill:var(--muted)" font-size="7">${rng[0]}</text>`
      + `<text x="${x1}" y="72" style="fill:var(--muted)" font-size="7" text-anchor="end">${rng[1]}</text>`;
   svg.innerHTML = g;
+}
+
+// ─── WATERFALL : mêmes spots que le bandscope, empilés dans le temps ─────────
+// Contrairement au bandscope (redessiné en entier à chaque tick), le canvas
+// est décalé d'une ligne vers le bas et une seule NOUVELLE ligne est peinte en
+// haut (technique standard des waterfalls SDR) — l'historique visuel des
+// derniers ticks (par défaut ~15 s/ligne, voir refreshBandMap) permet de voir
+// QUAND la bande s'est ouverte, pas juste où. Masqué par défaut (toggleWaterfall)
+// pour ne pas faire tourner de dessin canvas inutilement en arrière-plan.
+let _wfShown = false;
+
+function toggleWaterfall(){
+  _wfShown = !_wfShown;
+  const cv = document.getElementById('bandWaterfall');
+  const sv = document.getElementById('bandscope');
+  if(cv) cv.style.display = _wfShown ? 'block' : 'none';
+  if(sv) sv.style.display = _wfShown ? 'none' : 'block';
+  const btn = document.getElementById('waterfallToggleBtn');
+  if(btn) btn.style.color = _wfShown ? 'var(--green)' : 'var(--accent2)';
+}
+
+function _cssVar(name){
+  return (getComputedStyle(document.body).getPropertyValue(name) || '').trim() || '#8792B5';
+}
+
+function drawWaterfallRow(spots, rng){
+  const canvas = document.getElementById('bandWaterfall');
+  if(!canvas || !_wfShown) return;   // caché : inutile de dessiner en arrière-plan
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  if(!rng){ ctx.clearRect(0, 0, w, h); return; }
+  // Défile le contenu existant d'une ligne vers le bas en recopiant le canvas
+  // sur lui-même décalé — PAS un redraw complet (on perdrait l'historique).
+  ctx.drawImage(canvas, 0, 0, w, h - 1, 0, 1, w, h - 1);
+  ctx.clearRect(0, 0, w, 1);   // nouvelle ligne transparente = fond du thème visible
+  const x0 = 4, x1 = w - 4, span = (rng[1] - rng[0]) || 1;
+  for(const s of spots){
+    const f = parseFloat(s.freq);
+    if(!isFinite(f)) continue;
+    const x = Math.round(x0 + Math.max(0, Math.min(1, (f - rng[0]) / span)) * (x1 - x0));
+    ctx.fillStyle = s.new_mult ? _cssVar('--green') : _cssVar(_BM_CSSVAR[s.priority] || '--muted');
+    ctx.fillRect(Math.max(0, x - 1), 0, 3, 1);
+  }
 }
 
 function bandmapClick(call, mhz){
@@ -3009,7 +3058,7 @@ function renderLog(){
     return `<tr class="${rowClass}" id="qso_${q.id}" ondblclick="editQSO(${q.id})" title="Double-clic pour corriger ce QSO">
       <td class="td-num">${incomplete?'<span class=\"incomplete-flag\" title=\"QSO incomplet — champ(s) manquant(s), à corriger\">⚠️</span>':''}${posOf.get(q)||0}</td>
       <td class="td-time">${escHtml(q.time)||'—'}</td>
-      <td class="td-call">${escHtml(q.call)||'—'}</td>
+      <td class="td-call">${escHtml(q.call)||'—'}${q.qsl_scan?` <span title="Scan QSL attaché">📎</span>`:''}</td>
       <td class="td-band"${q.freq?` title="${escHtml(q.freq)} MHz"`:''}>${BAND_LABELS[q.band]||escHtml(q.band)||'—'}${q.freq?`<span style="display:block;font-size:10px;color:var(--muted);font-weight:400">${escHtml(q.freq)}</span>`:''}</td>
       <td class="td-mode">${escHtml(q.mode)||'—'}</td>
       <td class="td-sent">${escHtml(q.rst_sent)||'—'}/${escHtml(q.num_sent)||'—'}</td>
@@ -3070,8 +3119,61 @@ function editQSO(id){
     updateEditDistInfo(this.value.toUpperCase());
     this.value = this.value.toUpperCase();
   });
+  _renderEditQslScan(q.qsl_scan);
+  const scanStatus = document.getElementById('editQslScanStatus');
+  if(scanStatus) scanStatus.textContent = '';
   document.getElementById('editOverlay').classList.add('show');
   document.getElementById('editCall').focus();
+}
+
+// ─── SCAN QSL PAPIER (upload multipart, attaché au QSO en cours d'édition) ───
+function _renderEditQslScan(path){
+  const empty = document.getElementById('editQslScanEmpty');
+  const link = document.getElementById('editQslScanLink');
+  const thumb = document.getElementById('editQslScanThumb');
+  if(!empty || !link || !thumb) return;
+  if(path){
+    const url = '/' + path;
+    const isImg = /\.(jpe?g|png|gif|webp)$/i.test(path);
+    link.href = url;
+    thumb.src = isImg ? url : '/logx_icon.svg';   // repli : pas d'aperçu pour un PDF
+    thumb.title = isImg ? 'Voir le scan en grand' : 'Ouvrir le PDF';
+    link.style.display = 'inline-block';
+    empty.style.display = 'none';
+  } else {
+    link.style.display = 'none';
+    empty.style.display = 'inline';
+  }
+}
+
+async function uploadQslScan(){
+  const id = parseInt(document.getElementById('editId').value, 10);
+  const input = document.getElementById('editQslScanFile');
+  const status = document.getElementById('editQslScanStatus');
+  const file = input && input.files && input.files[0];
+  if(!file || !id) return;
+  if(status){ status.textContent = '⏳ envoi…'; status.style.color = 'var(--muted)'; }
+  try{
+    const fd = new FormData();
+    fd.append('qso_id', String(id));
+    fd.append('file', file);
+    // Pas de Content-Type manuel : le navigateur pose la frontière multipart lui-même.
+    const r = await fetch('/qsl_scan/upload', {method:'POST', body: fd});
+    const d = await r.json();
+    if(d.ok){
+      const q = qsoLog.find(x => x.id === id);
+      if(q) q.qsl_scan = d.qsl_scan;
+      _renderEditQslScan(d.qsl_scan);
+      if(status){ status.textContent = '✅ scan attaché'; status.style.color = 'var(--green)'; }
+      notify('✅ Scan QSL attaché');
+      renderLog();
+    } else {
+      if(status){ status.textContent = '❌ ' + (d.error || 'échec'); status.style.color = 'var(--red)'; }
+    }
+  }catch(e){
+    if(status){ status.textContent = '❌ serveur injoignable'; status.style.color = 'var(--red)'; }
+  }
+  input.value = '';
 }
 
 function updateEditDistInfo(loc){
@@ -4900,6 +5002,44 @@ function renderWorkedMatrix(m){
   <div style="font-size:11px;color:var(--muted);margin-top:4px">QSO travaillés · (confirmés) en vert</div>`;
 }
 
+// ─── RECORDS DX (déjà calculés côté serveur — logx_awards.dx_records) ───────
+function renderDxRecords(dxr){
+  if(!dxr || !dxr.overall){
+    return `<div style="font-size:12px;color:var(--muted);font-family:var(--font-mono)">Aucun record calculable pour l'instant (locator QTH à renseigner dans CONFIG, ou aucun QSO avec locator connu).</div>`;
+  }
+  const rows = Object.entries(dxr.by_band || {}).map(([b, r]) => `
+    <tr><td style="padding:4px 8px;color:var(--muted)">${escHtml(b)} MHz</td>
+      <td style="padding:4px 8px"><b>${Math.round(r.dist_km)} km</b></td>
+      <td style="padding:4px 8px">${escHtml(r.call)}</td>
+      <td style="padding:4px 8px;color:var(--muted)">${escHtml(r.locator)} · ${fmtDate(r.date)}</td>
+    </tr>`).join('');
+  const o = dxr.overall;
+  return `<div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);margin-bottom:8px">
+      🏆 Record absolu : <b style="color:var(--text)">${Math.round(o.dist_km)} km</b> avec ${escHtml(o.call)} sur ${escHtml(o.band)} MHz (${fmtDate(o.date)})</div>
+    <table style="width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12px">
+      <thead><tr style="color:var(--accent2)"><td style="padding:4px 8px">BANDE</td><td style="padding:4px 8px">DISTANCE</td><td style="padding:4px 8px">INDICATIF</td><td style="padding:4px 8px">LOCATOR / DATE</td></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ─── ACTIVITÉ RÉCENTE (petit sparkline, données de logx_awards.activity_by_day)
+function renderActivityChart(days){
+  if(!days || !days.length){
+    return `<div style="font-size:12px;color:var(--muted);font-family:var(--font-mono)">Pas encore de QSO.</div>`;
+  }
+  const max = Math.max(1, ...days.map(d => d.qso));
+  const bars = days.map(d => {
+    const h = d.qso ? Math.max(2, Math.round((d.qso / max) * 40)) : 1;
+    return `<div style="flex:1;display:flex;align-items:flex-end;justify-content:center">
+      <div style="width:100%;max-width:14px;height:${h}px;background:${d.qso ? 'var(--accent2)' : 'var(--border)'};border-radius:2px" title="${fmtDate(d.date)} : ${d.qso} QSO"></div>
+    </div>`;
+  }).join('');
+  return `<div style="display:flex;align-items:flex-end;gap:2px;height:44px">${bars}</div>
+    <div style="font-size:10px;color:var(--muted);display:flex;justify-content:space-between;margin-top:2px">
+      <span>${fmtDate(days[0].date)}</span><span>${fmtDate(days[days.length - 1].date)}</span>
+    </div>`;
+}
+
 // ─── DIPLÔMES & QSL (carnet permanent, tous concours) ────────────────────────
 async function showAwards(){
   const ov = document.getElementById('awardsOverlay');
@@ -4907,12 +5047,14 @@ async function showAwards(){
   if(!ov || !inner) return;
   ov.classList.add('show');
   inner.innerHTML = '<div class="shortcuts-row"><span>⏳ Calcul des diplômes…</span></div>';
-  let a, q, m;
+  let a, q, m, dxr, act;
   try{
-    [a, q, m] = await Promise.all([
+    [a, q, m, dxr, act] = await Promise.all([
       fetch('/awards/summary').then(r=>r.json()),
       fetch('/qsl/status').then(r=>r.json()),
       fetch('/awards/matrix').then(r=>r.json()),
+      fetch('/data/dx_records').then(r=>r.json()),
+      fetch('/awards/activity?days=21').then(r=>r.json()),
     ]);
   }catch(e){
     inner.innerHTML = `<div class="shortcuts-row"><span style="color:var(--red)">❌ Serveur injoignable</span></div>`;
@@ -4930,6 +5072,8 @@ async function showAwards(){
   const perBand = Object.entries(a.per_band||{}).map(([b,v]) =>
     `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${b} MHz : <b style="color:var(--text)">${v.qso}</b> QSO / ${v.dxcc} DXCC</span>`).join('');
   const matrixHtml = renderWorkedMatrix(m);
+  const dxRecordsHtml = renderDxRecords(dxr);
+  const activityHtml = renderActivityChart((act && act.days) || []);
 
   inner.innerHTML = `
     <div style="font-family:var(--font-mono);font-size:13px;line-height:1.6">
@@ -4946,6 +5090,14 @@ async function showAwards(){
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
       <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">🧮 WORKED MATRIX — bande × mode</div>
       ${matrixHtml}
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+      <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">🏆 RECORDS DX — plus grande distance par bande</div>
+      ${dxRecordsHtml}
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+      <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">📅 ACTIVITÉ — 21 derniers jours</div>
+      ${activityHtml}
     </div>
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;font-family:var(--font-mono);font-size:13px">
       <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px">📮 QSL — ${a.confirmed_total||0} QSO confirmés (${q.confirmations||0} croisés)</div>

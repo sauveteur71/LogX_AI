@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests carnet permanent : diplômes (awards), historique station, parseur ADIF
 des confirmations QSL et fusion."""
+import datetime
 import json
 import os
 import sys
@@ -126,6 +127,50 @@ def test_award_summary():
     assert s['dxcc']['worked'] >= 2          # au moins DL + G
     assert '144' in s['per_band']
     assert s['per_band']['144']['qso'] >= 2  # les 2 QSO du log de test + éventuelles archives
+
+
+# ─── Activité par jour (petite vue statistique, popup Diplômes) ─────────────
+
+def test_activity_by_day_fenetre_ancree_sur_aujourdhui(monkeypatch):
+    """La fenêtre doit couvrir EXACTEMENT les `days` derniers jours jusqu'à
+    aujourd'hui (UTC) — pas jusqu'à la dernière date de QSO du log, sans quoi
+    l'activité paraîtrait figée après une pause dans le trafic."""
+    _isolate_awards(monkeypatch)
+    today = datetime.datetime.utcnow().strftime('%Y%m%d')
+    log = [{'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'date': today, 'time': '10:00'}]
+    out = awards.activity_by_day(log, days=7)
+    assert len(out) == 7
+    assert out[-1]['date'] == today
+    assert out[-1]['qso'] == 1
+
+
+def test_activity_by_day_compte_plusieurs_qso_le_meme_jour():
+    d = (datetime.datetime.utcnow() - datetime.timedelta(days=2)).strftime('%Y%m%d')
+    log = [{'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'date': d, 'time': '10:00'},
+           {'call': 'G3XYZ', 'band': '14', 'mode': 'SSB', 'date': d, 'time': '10:05'}]
+    out = awards.activity_by_day(log, days=10)
+    row = next(r for r in out if r['date'] == d)
+    assert row['qso'] >= 2
+
+
+def test_activity_by_day_jour_hors_fenetre_ignore(monkeypatch):
+    """Un QSO trop ancien (hors des `days` derniers jours) ne doit pas fausser
+    le total ni apparaître dans la fenêtre renvoyée."""
+    _isolate_awards(monkeypatch)
+    old = (datetime.datetime.utcnow() - datetime.timedelta(days=400)).strftime('%Y%m%d')
+    log = [{'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'date': old, 'time': '10:00'}]
+    out = awards.activity_by_day(log, days=5)
+    assert old not in [r['date'] for r in out]
+    assert sum(r['qso'] for r in out) == 0
+
+
+def test_activity_by_day_vide(monkeypatch):
+    _isolate_awards(monkeypatch)
+    assert awards.activity_by_day([], days=3) == [
+        {'date': d, 'qso': 0} for d in
+        [(datetime.datetime.utcnow() - datetime.timedelta(days=i)).strftime('%Y%m%d')
+         for i in (2, 1, 0)]
+    ]
 
 
 # ─── Parseur ADIF des confirmations (le bug <EOR> corrigé) ───────────────────

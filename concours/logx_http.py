@@ -112,6 +112,37 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
 
     raise RuntimeError(f'Fournisseur inconnu : {provider}')
 
+
+def _parse_multipart_form(body, content_type):
+    """Extrait champs texte + fichiers d'un corps multipart/form-data. PAS de
+    cgi.FieldStorage (module supprimé en Python 3.13, déjà rencontré sur ce
+    poste — voir mémoire) : parseur minimal suffisant pour un formulaire
+    simple (upload de scan QSL — 1 fichier + qso_id), généré par le propre
+    FormData/fetch du navigateur, pas par un client multipart exotique."""
+    m = re.search(r'boundary=([^;]+)', content_type or '')
+    if not m:
+        return {}, {}
+    boundary = ('--' + m.group(1).strip('"')).encode('utf-8')
+    fields, files = {}, {}
+    for chunk in body.split(boundary)[1:-1]:   # [0]=préambule, [-1]='--\r\n' final
+        chunk = chunk[2:] if chunk[:2] == b'\r\n' else chunk
+        if b'\r\n\r\n' not in chunk:
+            continue
+        head, data = chunk.split(b'\r\n\r\n', 1)
+        if data.endswith(b'\r\n'):
+            data = data[:-2]
+        head_txt = head.decode('utf-8', 'replace')
+        name_m = re.search(r'name="([^"]*)"', head_txt)
+        if not name_m:
+            continue
+        name = name_m.group(1)
+        fn_m = re.search(r'filename="([^"]*)"', head_txt)
+        if fn_m and fn_m.group(1):
+            files[name] = {'filename': fn_m.group(1), 'data': data}
+        else:
+            fields[name] = data.decode('utf-8', 'replace')
+    return fields, files
+
 # ─── CONFIGURATION COURANTE (mise à jour par /config/save) ───────────────────
 # Persistée dans .server_config.json (gitignoré : contient les identifiants
 # ON4KST) : après un redémarrage du serveur, le coach, la statusbar et la
@@ -1584,6 +1615,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.worked_matrix(log_copy, scope_id))
             return
 
+        # Activité par jour (vie entière) : petite vue statistique du popup
+        # Diplômes — ?days=N (défaut 30). Réutilise collect_all_qsos comme
+        # award_summary/worked_matrix, aucun nouveau parcours de fichiers.
+        if path.startswith('/awards/activity'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_awards as awards
+            qp = parse_qs(urlparse(self.path).query)
+            try:
+                days = int(qp.get('days', ['30'])[0])
+            except (TypeError, ValueError):
+                days = 30
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json({'days': awards.activity_by_day(log_copy, days)})
+            return
+
         # Record DX par bande — calculé depuis le vrai locator de chaque QSO
         # archivé (haversine), remplace l'ancien champ manuel record_dx (un
         # chiffre unique n'a pas de sens multi-bandes).
@@ -2379,6 +2426,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if filepath.endswith('.json'): ct = 'application/json'
             if filepath.endswith('.svg'):  ct = 'image/svg+xml'
             if filepath.endswith('.png'):  ct = 'image/png'
+            if filepath.endswith(('.jpg', '.jpeg')): ct = 'image/jpeg'
+            if filepath.endswith('.gif'):  ct = 'image/gif'
+            if filepath.endswith('.webp'): ct = 'image/webp'
+            if filepath.endswith('.pdf'):  ct = 'application/pdf'
             if filepath.endswith('.webmanifest'): ct = 'application/manifest+json'
             if ct.startswith('text/html') and not pw_enabled:
                 # Distribution automatique SEULEMENT si aucun mot de passe n'est
@@ -2473,6 +2524,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 res = qsl.upload_log(cfg, service, qsos)
                 res['qso_count'] = len(qsos)
                 self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Upload d'un scan de carte QSL PAPIER attaché à un QSO (multipart,
+        # champs qso_id + file) — ne pas confondre avec /qsl/upload ci-dessus
+        # (services de confirmation en ligne). Stockage simple sur disque
+        # (logx_qsl_scan.SCANS_DIR), la référence est posée sur le QSO lui-même
+        # (champ qsl_scan) pour être servie par le service de fichiers statique
+        # habituel (GET /qsl_scans/xxx, voir Handler._resolve).
+        if self.path == '/qsl_scan/upload':
+            try:
+                fields, files = _parse_multipart_form(body, self.headers.get('Content-Type', ''))
+                qso_id_raw = fields.get('qso_id')
+                upload = files.get('file')
+                if not qso_id_raw or not upload:
+                    self._json({'ok': False, 'error': 'qso_id ou fichier manquant'}, 400)
+                    return
+                qso_id = int(qso_id_raw)
+                with log_lock:
+                    target = next((q for q in shared_log if q.get('id') == qso_id), None)
+                if not target:
+                    self._json({'ok': False, 'error': 'QSO introuvable'}, 404)
+                    return
+                old_path = target.get('qsl_scan')
+                import logx_qsl_scan as qslscan
+                rel_path = qslscan.save_scan(qso_id, upload['filename'], upload['data'])
+                target['qsl_scan'] = rel_path   # dict déjà référencé dans shared_log
+                bump_log_version()
+                stamp_qso_version(target)   # voir /log/list?since=
+                save_log_to_disk()
+                if old_path and old_path != rel_path:
+                    qslscan.delete_scan(old_path)   # ancien scan remplacé
+                self._json({'ok': True, 'qsl_scan': rel_path})
+            except ValueError as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 500)
             return

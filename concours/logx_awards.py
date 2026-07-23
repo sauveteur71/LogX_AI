@@ -16,6 +16,7 @@ Le statut « confirmé » vient de qsl_confirmations.json (rempli par
 logx_qsl à partir de LoTW / eQSL / ClubLog). Absent ⇒ 0 confirmé,
 le reste fonctionne quand même (travaillé/manquant).
 """
+import datetime
 import json
 import os
 import threading
@@ -474,3 +475,25 @@ def dx_records(my_locator, shared_log=None):
     if overall:
         overall = {**overall, 'band': next(b for b in bands if best[b] is overall)}
     return {'overall': overall, 'by_band': {b: best[b] for b in bands}}
+
+
+# ─── ACTIVITÉ PAR JOUR (vue statistique légère, écran Diplômes) ──────────────
+
+def activity_by_day(shared_log=None, days=30):
+    """Nombre de QSO par jour sur les `days` derniers jours (vie entière).
+    Réutilise collect_all_qsos() déjà chargé pour award_summary/dx_records —
+    aucun nouveau parcours de fichiers. Fenêtre ancrée sur AUJOURD'HUI (pas la
+    dernière date de QSO) : reste lisible même après une pause dans le trafic,
+    plutôt que de figer sur une activité vieille de plusieurs mois."""
+    counts = {}
+    for q in collect_all_qsos(shared_log):
+        d = str(q.get('date', ''))
+        if len(d) == 8 and d.isdigit():
+            counts[d] = counts.get(d, 0) + 1
+    days = max(1, int(days))
+    end = datetime.datetime.utcnow()
+    out = []
+    for i in range(days - 1, -1, -1):
+        d = (end - datetime.timedelta(days=i)).strftime('%Y%m%d')
+        out.append({'date': d, 'qso': counts.get(d, 0)})
+    return out
