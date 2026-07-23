@@ -176,6 +176,16 @@ def test_set_ptt_dispatch_tci(monkeypatch):
     assert r == {'ok': True, 'via': 'tci', 'on': False}
 
 
+def test_set_ptt_dispatch_flrig(monkeypatch):
+    import logx_cat as cat
+    import logx_flrig as flrig
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'flrig'})
+    monkeypatch.setattr(flrig, 'flrig_settings', lambda cfg: {'host': 'h', 'port': 12345})
+    monkeypatch.setattr(flrig, 'set_ptt', lambda host, port, on: {'ok': True, 'via': 'flrig', 'host': host})
+    r = vk._set_ptt({}, True)
+    assert r == {'ok': True, 'via': 'flrig', 'host': 'h'}
+
+
 def test_set_ptt_dispatch_rigctld(monkeypatch):
     import logx_cat as cat
     import logx_rig as rig

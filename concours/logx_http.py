@@ -745,6 +745,12 @@ def _rig_state_dict(cfg_snap):
     if cat_settings['enabled'] and cat_settings['mode'] == 'tci':
         import logx_tci as tci
         return tci.get_state(cfg_snap)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'flrig':
+        import logx_flrig as flrig
+        settings = flrig.flrig_settings(cfg_snap)
+        state = flrig.get_state(settings['host'], settings['port'])
+        state['enabled'] = True
+        return state
     import logx_rig as rig
     settings = rig.rig_settings(cfg_snap)
     if not settings['enabled']:
@@ -2152,7 +2158,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'devices': vk.list_output_devices(), 'voices': vk.list_tts_voices()})
             return
 
-        # Radio CAT (natif / TCI / rigctld) : état courant — pollé par le logbook
+        # Radio CAT (natif / TCI / rigctld / flrig) : état courant — pollé par le logbook
         if path == '/rig/state':
             self._json(_rig_state_dict(self._cfg_snapshot()))
             return
@@ -2666,7 +2672,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             threading.Timer(1.0, lambda: os._exit(0)).start()
             return
 
-        # Radio CAT native/TCI : test éphémère depuis CONFIG (avant même de
+        # Radio CAT native/TCI/flrig : test éphémère depuis CONFIG (avant même de
         # sauvegarder) — ouvre, interroge, ferme, ne touche pas au polling.
         if self.path == '/rig/connect_test':
             try:
@@ -2687,6 +2693,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except (TypeError, ValueError):
                     port = rig.DEFAULT_PORT
                 res = rig.get_state(host, port)
+            elif payload.get('mode') == 'flrig':
+                import logx_flrig as flrig
+                host = (payload.get('host') or '').strip() or flrig.DEFAULT_HOST
+                try:
+                    port = int(payload.get('port') or flrig.DEFAULT_PORT)
+                except (TypeError, ValueError):
+                    port = flrig.DEFAULT_PORT
+                res = flrig.test_connection(host, port)
             else:
                 import logx_cat as cat
                 res = cat.test_connection(payload.get('brand'), payload.get('model'),
@@ -2694,16 +2708,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res, 200 if res.get('ok') else 502)
             return
 
-        # Radio CAT : QSY, envoi CW, stop CW — natif/TCI si configuré, sinon rigctld
+        # Radio CAT : QSY, envoi CW, stop CW — natif/TCI/flrig si configuré, sinon rigctld
         if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop'):
             cfg_snap = self._cfg_snapshot()
             import logx_cat as cat
             cat_settings = cat.cat_settings(cfg_snap)
             native = cat_settings['enabled'] and cat_settings['mode'] == 'native'
             use_tci = cat_settings['enabled'] and cat_settings['mode'] == 'tci'
+            use_flrig = cat_settings['enabled'] and cat_settings['mode'] == 'flrig'
             if use_tci:
                 import logx_tci as tci
-            if not native and not use_tci:
+            if use_flrig:
+                import logx_flrig as flrig
+                flrig_settings = flrig.flrig_settings(cfg_snap)
+            if not native and not use_tci and not use_flrig:
                 import logx_rig as rig
                 settings = rig.rig_settings(cfg_snap)
                 if not settings['enabled']:
@@ -2726,6 +2744,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     res = cat.set_freq(cfg_snap, int(freq), payload.get('mode'))
                 elif use_tci:
                     res = tci.set_freq(cfg_snap, int(freq), payload.get('mode'))
+                elif use_flrig:
+                    res = flrig.set_freq(flrig_settings['host'], flrig_settings['port'],
+                                        int(freq), payload.get('mode'))
                 else:
                     res = rig.set_freq(settings['host'], settings['port'], int(freq), payload.get('mode'))
                 if res.get('ok'):
@@ -2734,6 +2755,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # Keyer CW natif non implémenté (mode natif = pyserial direct,
                 # pas de sous-couche keyer) — utiliser rigctld ou TCI pour le CW.
                 self._json({'ok': False, 'error': 'Envoi CW non disponible en mode "Natif" — '
+                            'bascule en mode "Hamlib rigctld" ou "TCI" pour le keyer CW'}, 400)
+                return
+            elif use_flrig:
+                # flrig n'expose pas de méthode XML-RPC générique d'envoi CW fiable
+                # sans montage DTR/RTS supplémentaire (voir logx_flrig.py) — même
+                # choix que le mode natif.
+                self._json({'ok': False, 'error': 'Envoi CW non disponible en mode "flrig" — '
                             'bascule en mode "Hamlib rigctld" ou "TCI" pour le keyer CW'}, 400)
                 return
             elif use_tci:
@@ -2754,7 +2782,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Keyer vocal dynamique : indicatif/report épelés phonétiquement,
         # synthétisés (TTS hors-ligne) et émis par la radio (PTT via CAT
-        # autour de la lecture, quel que soit le mode natif/TCI/rigctld).
+        # autour de la lecture, quel que soit le mode natif/TCI/rigctld/flrig).
         if self.path == '/rig/voice':
             import logx_voicekeyer as vk
             cfg_snap = self._cfg_snapshot()

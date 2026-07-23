@@ -347,7 +347,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_radio" onclick="openCategoryPopup('radio')">
         <div class="hub-card-title">📻 5. Radio (CAT)</div>
-        <div class="hub-card-sub">Natif / TCI / rigctld</div>
+        <div class="hub-card-sub">Natif / TCI / rigctld / flrig</div>
         <span class="hub-badge" id="hubbadge_radio"></span>
       </div>
       <div class="hub-card" id="hubcard_amp" onclick="openCategoryPopup('amp')">
@@ -958,7 +958,11 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             ou tout logiciel compatible TCI (ExpertSDR2/3, Log4OM, RUMlogNG, JTDX/WSJT-X « improved », SDC…). Audio et flux I/Q inclus, zéro latence — le choix des stations SDR haut de gamme et du contest.<br>
             <b style="color:var(--text)">RIGCTLD (Hamlib)</b> — pour tout le reste : Ten-Tec, FlexRadio, anciens modèles, ou toute radio non listée en natif.
             Hamlib gère plus de 200 modèles (<a href="https://hamlib.github.io/models/" target="_blank" rel="noopener" style="color:var(--accent2)">liste complète des radios supportées</a>) —
-            lance <code>rigctld</code> sur le poste relié à la radio, LogX AI s'y connecte en réseau.
+            lance <code>rigctld</code> sur le poste relié à la radio, LogX AI s'y connecte en réseau.<br>
+            <b style="color:var(--text)">FLRIG</b> — alternative à rigctld très répandue chez les utilisateurs fldigi/Linux, souvent plus réactive
+            que Hamlib sur certains transceivers. Active le serveur XML-RPC de flrig
+            (<code>Config → Xcvr Setup → XML-RPC Server</code>, port 12345 par défaut) puis renseigne son adresse ci-dessous.
+            Pas de keyer CW via ce mode (flrig n'expose pas de commande CW fiable en XML-RPC) — bascule en TCI ou rigctld si tu en as besoin.
           </div>
         </details>
         <div class="form-grid">
@@ -975,6 +979,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
               <option value="native">Natif (recommandé — pas de logiciel externe)</option>
               <option value="tci">TCI (postes SDR — SunSDR/ExpertSDR3 et compatibles)</option>
               <option value="rigctld">Hamlib rigctld (avancé — autres marques)</option>
+              <option value="flrig">flrig (XML-RPC — fldigi/Linux)</option>
             </select>
           </div>
         </div>
@@ -1048,6 +1053,25 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="form-group">
             <label>PORT RIGCTLD</label>
             <input type="number" id="rig_port" placeholder="4532">
+          </div>
+        </div>
+
+        <!-- Mode avancé : flrig (XML-RPC) -->
+        <div id="catFlrigFields" class="form-grid" style="display:none;margin-top:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+              Active le serveur XML-RPC dans flrig (<b style="color:var(--accent2)">Config → Xcvr Setup → XML-RPC Server</b>,
+              activé + port par défaut 12345) sur le poste relié à la radio.
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE FLRIG</label>
+            <input type="text" id="flrig_host" placeholder="127.0.0.1 (ou IP du poste radio)">
+            <div class="input-note">IP du PC où tourne flrig (peut être un autre poste du WiFi)</div>
+          </div>
+          <div class="form-group">
+            <label>PORT FLRIG</label>
+            <input type="number" id="flrig_port" placeholder="12345">
           </div>
         </div>
       </div>
@@ -2010,7 +2034,7 @@ const CONFIG_HELP = {
   rbn_enabled: "Active le Reverse Beacon Network : un réseau mondial de récepteurs qui te signale automatiquement où et comment ton signal CW est entendu.",
 
   cat_enabled: "Active le pilotage direct de la radio (lecture fréquence/mode, bascule émission) depuis le logiciel.",
-  cat_mode: "Choisis comment le logiciel parle à ta radio : NATIF (câble série direct, sans logiciel intermédiaire), TCI (protocole réseau moderne type SunSDR/ExpertSDR), ou RIGCTLD (passe par le standard Hamlib, compatible presque toutes les radios).",
+  cat_mode: "Choisis comment le logiciel parle à ta radio : NATIF (câble série direct, sans logiciel intermédiaire), TCI (protocole réseau moderne type SunSDR/ExpertSDR), RIGCTLD (passe par le standard Hamlib, compatible presque toutes les radios), ou FLRIG (autre pilote CAT réseau, courant sous Linux/fldigi).",
   cat_brand: "La marque de ta radio pour le mode NATIF (Icom, Yaesu, Kenwood, Elecraft...) — détermine le protocole exact utilisé.",
   cat_model: "Le modèle précis de ta radio, pour affiner l'adresse/le protocole (notamment important pour Icom en CI-V).",
   cat_port: "Le port série (COM) où ta radio est reliée à l'ordinateur (ex. COM3 sous Windows). Visible dans le Gestionnaire de périphériques Windows.",
@@ -2019,6 +2043,8 @@ const CONFIG_HELP = {
   rig_port: "Port réseau de rigctld — 4532 par défaut.",
   tci_host: "Adresse réseau du serveur TCI (ex. ExpertSDR3) qui pilote ta radio — 127.0.0.1 si sur le même PC.",
   tci_port: "Port réseau du serveur TCI — vérifie ce port dans les réglages de ton logiciel SDR.",
+  flrig_host: "Adresse réseau (souvent 127.0.0.1 si sur le même PC) du serveur XML-RPC de flrig qui pilote ta radio.",
+  flrig_port: "Port réseau du serveur XML-RPC de flrig — 12345 par défaut.",
 
   amp_enabled: "Active le pilotage de ton amplificateur linéaire (lecture de puissance/ROS, bascule standby/émission) depuis le logiciel.",
   amp_brand: "La marque de ton amplificateur (Elecraft, Icom, SPE...) — détermine le protocole de communication utilisé.",
@@ -2131,7 +2157,7 @@ const ASSISTANT_SUGGESTIONS = [
   "Quelle est la différence entre INDICATIF et INDICATIF CONCOURS ?",
   "Quel mode d'utilisation choisir ?",
   "Comment trouver mon locator ?",
-  "À quoi sert le mode CAT / TCI / rigctld ?",
+  "À quoi sert le mode CAT / TCI / rigctld / flrig ?",
   "Comment fonctionne le Cloud Sync ?",
   "Ai-je besoin d'une clé API ?",
 ];
@@ -3057,6 +3083,7 @@ function updateCatModeVisibility(){
   document.getElementById('catNativeFields').style.display = mode === 'native' ? '' : 'none';
   document.getElementById('catTciFields').style.display = mode === 'tci' ? '' : 'none';
   document.getElementById('catRigctldFields').style.display = mode === 'rigctld' ? '' : 'none';
+  document.getElementById('catFlrigFields').style.display = mode === 'flrig' ? '' : 'none';
 }
 
 function updateCatModelOptions(){
@@ -3242,6 +3269,10 @@ async function testCatConnection(){
     payload = { mode: 'rigctld',
       host: document.getElementById('rig_host')?.value.trim() || '127.0.0.1',
       port: parseInt(document.getElementById('rig_port')?.value, 10) || 4532 };
+  } else if (mode === 'flrig'){
+    payload = { mode: 'flrig',
+      host: document.getElementById('flrig_host')?.value.trim() || '127.0.0.1',
+      port: parseInt(document.getElementById('flrig_port')?.value, 10) || 12345 };
   } else {
     payload = {
       brand: document.getElementById('cat_brand').value,
@@ -3266,6 +3297,9 @@ async function testCatConnection(){
       result.style.color = 'var(--green)';
     } else if (r.ok && mode === 'rigctld'){
       result.textContent = `✅ rigctld joint (${payload.host}:${payload.port}) : ${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'}${r.mode ? ' — mode ' + r.mode : ''}`;
+      result.style.color = 'var(--green)';
+    } else if (r.ok && mode === 'flrig'){
+      result.textContent = `✅ flrig joint (${payload.host}:${payload.port}) : ${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'}${r.mode ? ' — mode ' + r.mode : ''}`;
       result.style.color = 'var(--green)';
     } else if (r.ok){
       result.textContent = `✅ Radio détectée : ${r.detected_model || payload.model} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'})`;
@@ -4823,6 +4857,8 @@ function saveConfig(silent = false, feedbackBtn = null) {
     cat_baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || 19200,
     tci_host: document.getElementById('tci_host').value.trim(),
     tci_port: parseInt(document.getElementById('tci_port').value, 10) || 50001,
+    flrig_host: document.getElementById('flrig_host')?.value.trim() || '',
+    flrig_port: parseInt(document.getElementById('flrig_port')?.value, 10) || 12345,
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
     wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
     adifnet_mode: document.getElementById('adifnet_mode').value,
@@ -5258,7 +5294,7 @@ function applyFullConfigToForm(c) {
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
      'activation_program','my_activation_ref',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
-     'tci_host','tci_port','voicekeyer_rate',
+     'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
      'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });

@@ -202,6 +202,10 @@ def _set_ptt(cfg, on):
     if cat_settings['enabled'] and cat_settings['mode'] == 'tci':
         import logx_tci as tci
         return tci.set_ptt(cfg, on)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'flrig':
+        import logx_flrig as flrig
+        settings = flrig.flrig_settings(cfg)
+        return flrig.set_ptt(settings['host'], settings['port'], on)
     import logx_rig as rig
     rig_settings = rig.rig_settings(cfg)
     if rig_settings['enabled']:
