@@ -2228,13 +2228,49 @@ function toggleBip(){
 // logbook simple de plusieurs milliers de QSO) — la quasi-totalité des polls
 // de 5 s ne voient aucun changement en pratique.
 let _logVersion = null;
+// _serverBoot : jeton de démarrage serveur associé à _logVersion (voir
+// logx_storage.SERVER_BOOT_ID) — à renvoyer avec ?since= pour que le serveur
+// l'accepte. Si le serveur a redémarré entretemps le jeton ne correspond
+// plus : le serveur se replie alors de lui-même sur la liste complète.
+let _serverBoot = null;
+
+// Fusionne un delta serveur (QSO ajoutés/modifiés + id supprimés, voir
+// /log/list?since=) dans le cache local qsoLog SANS tout remplacer — un QSO
+// édité garde sa position (édition en place), un QSO neuf est ajouté en fin
+// de liste, un QSO supprimé est retiré même s'il n'apparaît plus jamais dans
+// aucune réponse serveur (d'où la liste `deletedIds` séparée : sans elle, un
+// QSO supprimé resterait affiché indéfiniment côté client).
+function _mergeLogDelta(changedQsos, deletedIds){
+  if(deletedIds && deletedIds.length){
+    const delSet = new Set(deletedIds);
+    qsoLog = qsoLog.filter(q => !delSet.has(q.id));
+  }
+  if(changedQsos && changedQsos.length){
+    const indexById = new Map();
+    qsoLog.forEach((q,i)=>indexById.set(q.id,i));
+    changedQsos.forEach(q=>{
+      const i = indexById.get(q.id);
+      if(i != null){ qsoLog[i] = q; }
+      else { indexById.set(q.id, qsoLog.length); qsoLog.push(q); }
+    });
+  }
+}
 
 async function fetchLog(){
   try{
-    const url = _logVersion != null ? `/log/list?v=${_logVersion}` : '/log/list';
+    // ?since=&boot= : synchro différentielle (voir logx_http._valid_since) —
+    // ne redemande que ce qui a changé depuis _logVersion au lieu de tout le
+    // log. ?v= reste envoyé en parallèle : garde le repli "unchanged" déjà en
+    // place (le plus rapide des trois cas de figure) quand rien n'a bougé.
+    let url = '/log/list';
+    if(_logVersion != null){
+      url = `/log/list?v=${_logVersion}&since=${_logVersion}`;
+      if(_serverBoot) url += `&boot=${_serverBoot}`;
+    }
     const res = await fetch(url);
     if(!res.ok) return;
     const data = await res.json();
+    if(data.boot) _serverBoot = data.boot;
     if(data.unchanged){
       // Rien de neuf : juste confirmer la connectivité, aucun re-render/parsing
       // du log (l'essentiel du gain : pas de reconstruction du tableau DOM).
@@ -2249,6 +2285,8 @@ async function fetchLog(){
     if(data.qsos){
       // Recalculer les sériaux — toujours le plus grand N° envoyé déjà utilisé,
       // jamais un simple comptage (sinon une suppression ou un trou fait reculer le compteur)
+      // (valable aussi en delta : serialByBand porte déjà le maximum vu lors
+      // des polls précédents, il ne manque que ce qui vient de changer)
       const maxSerialByBand = {};
       data.qsos.forEach(q=>{
         const n = parseInt(q.num_sent, 10);
@@ -2257,7 +2295,11 @@ async function fetchLog(){
       Object.keys(maxSerialByBand).forEach(band=>{
         if(maxSerialByBand[band] > (serialByBand[band]||0)) serialByBand[band] = maxSerialByBand[band];
       });
-      qsoLog = data.qsos;
+      if(data.delta){
+        _mergeLogDelta(data.qsos, data.deleted);
+      } else {
+        qsoLog = data.qsos;
+      }
       // Initialiser le timer depuis le dernier QSO logué
       if(qsoLog.length && !lastQsoTime){
         const last = qsoLog[qsoLog.length-1];

@@ -23,7 +23,8 @@ from logx_validate import validate_definition
 from logx_rules_ai import analyze_rules
 from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   save_json_atomic, calldb_lock, bump_log_version,
-                                  qso_scope_id, active_scope_id, cfg_scope_id)
+                                  qso_scope_id, active_scope_id, cfg_scope_id,
+                                  stamp_qso_version, mark_qso_deleted, mark_hard_reset)
 from logx_scoring import build_scoring_context
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
@@ -175,6 +176,32 @@ def _scope_filtered(qsos, cfg):
     return [q for q in (qsos or []) if qso_scope_id(q) == scope_id]
 
 
+# ─── SYNCHRO DIFFÉRENTIELLE DE /log/list (voir logx_storage : stamp_qso_version,
+# mark_qso_deleted, mark_hard_reset, SERVER_BOOT_ID) ──────────────────────────
+def _valid_since(since_raw, boot_raw, current_v):
+    """Version à utiliser pour un delta /log/list?since=, ou None si absente/
+    invalide — repli explicite sur la liste complète dans ce cas (voir /log/list).
+    Invalide si : pas un entier, hors de [hard_reset_version, current_v], ou
+    jeton de démarrage serveur absent/différent de SERVER_BOOT_ID (un
+    redémarrage remet log_version à zéro : un ancien "since" pourrait sinon
+    retomber par coincidence dans la nouvelle plage de versions et faire
+    croire à tort qu'aucun QSO plus ancien n'a changé)."""
+    # Import local du module (pas juste des noms) : hard_reset_version est
+    # réassigné en place par mark_hard_reset(), un import direct du nom aurait
+    # figé sa valeur au chargement de logx_http.
+    import logx_storage as storage
+    if not since_raw or not since_raw.isdigit():
+        return None
+    since = int(since_raw)
+    if since < 0 or since > current_v:
+        return None
+    if since < storage.hard_reset_version:
+        return None
+    if not boot_raw or boot_raw != storage.SERVER_BOOT_ID:
+        return None
+    return since
+
+
 # ─── INSERTION D'UN QSO (dédup + persistance) ────────────────────────────────
 def add_qso_to_log(qso, force=False):
     """Ajoute un QSO au log partagé avec détection de doublon. Retourne
@@ -213,6 +240,7 @@ def add_qso_to_log(qso, force=False):
     with log_lock:
         shared_log.append(qso)
     bump_log_version()
+    stamp_qso_version(qso)   # voir /log/list?since= (synchro différentielle)
     save_log_to_disk()
     # Mode expédition : pousse le QSO vers le flux Club Log Live (fire-and-forget)
     try:
@@ -694,6 +722,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     before = len(shared_log)
                     shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
                 bump_log_version()
+                mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
                 save_log_to_disk()
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:
@@ -771,7 +800,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # plusieurs Mo transmis, parsés et re-rendus pour rien à chaque fois.
             from urllib.parse import parse_qs, urlparse
             import logx_storage as _storage
-            client_v = parse_qs(urlparse(self.path).query).get('v', [''])[0]
+            qs = parse_qs(urlparse(self.path).query)
+            client_v = qs.get('v', [''])[0]
+            since_raw = qs.get('since', [''])[0]
+            boot_raw = qs.get('boot', [''])[0]
             # Copie sous verrou (rapide, juste des références), puis sérialisation
             # JSON + écriture socket HORS verrou : c'était le seul endpoint qui
             # gardait log_lock pendant tout l'envoi. Avec un gros log (milliers de
@@ -785,7 +817,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log_copy = None if unchanged else list(shared_log)
             if unchanged:
                 self._json({'unchanged': True, 'version': current_v,
-                           'total': total_now, 'peers': len(connected_peers)})
+                           'total': total_now, 'peers': len(connected_peers),
+                           'boot': _storage.SERVER_BOOT_ID})
                 return
             # Portée du concours actif (logx_storage.active_scope_id) : en mode
             # concours/expédition avec un concours sélectionné, le logbook ne
@@ -796,12 +829,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # complet, comportement historique — la "logbook simple" est le
             # journal personnel complet).
             log_copy = _scope_filtered(log_copy, self._cfg_snapshot())
+            # Synchro différentielle (?since=&boot=, voir logx_storage.stamp_qso_version/
+            # mark_qso_deleted/mark_hard_reset et _valid_since ci-dessus) :
+            # renvoie UNIQUEMENT les QSO ajoutés/modifiés depuis cette version
+            # + les id supprimés depuis, au lieu de retransmettre tout le log
+            # filtré. 'total'/'score' restent calculés sur le log COMPLET (pas
+            # le delta) : le client les affiche tels quels, ce ne sont pas des
+            # deltas. Repli explicite sur la liste complète si ?since= est
+            # absent/invalide — compatibilité ascendante totale : un client
+            # qui n'envoie pas ?since reçoit exactement ce qu'il recevait
+            # avant cette fonctionnalité.
+            since = _valid_since(since_raw, boot_raw, current_v)
+            if since is not None:
+                delta_qsos = [q for q in log_copy if q.get('_v', 0) > since]
+                deleted_ids = [d['id'] for d in _storage.deleted_qsos if d['v'] > since]
+                self._json({
+                    'delta': True,
+                    'qsos': delta_qsos,
+                    'deleted': deleted_ids,
+                    'total': len(log_copy),
+                    'peers': len(connected_peers),
+                    'score': sum(q.get('points', 0) for q in log_copy),
+                    'version': current_v,
+                    'boot': _storage.SERVER_BOOT_ID,
+                })
+                return
             self._json({
                 'qsos': log_copy,
                 'total': len(log_copy),
                 'peers': len(connected_peers),
                 'score': sum(q.get('points', 0) for q in log_copy),
                 'version': current_v,
+                'boot': _storage.SERVER_BOOT_ID,
             })
             return
 
@@ -2224,6 +2283,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # 'unchanged' et garderait affiché l'ancien concours jusqu'au
                 # prochain vrai QSO ajouté.
                 bump_log_version()
+                # Idem pour la synchro différentielle (?since=) : aucun QSO
+                # n'a été ajouté/modifié/supprimé, seule la portée visible a
+                # changé — un delta ('_v' de chaque QSO inchangé) serait vide
+                # à tort et laisserait l'ancien concours affiché. mark_hard_reset()
+                # force un client avec un ?since= antérieur à repasser par la
+                # liste complète, recalculée sous la NOUVELLE portée.
+                mark_hard_reset()
                 print(f"[CFG] Config reçue : {cfg.get('callsign','')} / {cfg.get('locator','')} / {cfg.get('contest','')}")
                 self._json({'ok': True})
             except Exception as e:
@@ -2579,6 +2645,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             shared_log[i] = updated_qso
                             break
                 bump_log_version()
+                stamp_qso_version(updated_qso)   # voir /log/list?since=
                 save_log_to_disk()
                 print(f"[LOG] ~QSO corrige id={qso_id}")
                 self._json({'ok': True})
@@ -2620,6 +2687,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     before = len(shared_log)
                     shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
                 bump_log_version()
+                mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
                 save_log_to_disk()
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:
@@ -2652,6 +2720,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     shared_log.extend(new_qsos)
                     total = len(shared_log)
                 bump_log_version()
+                for q in new_qsos:
+                    stamp_qso_version(q)   # voir /log/list?since=
                 save_log_to_disk()
                 for q in new_qsos:
                     try:
@@ -2690,6 +2760,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     with log_lock:
                         shared_log.clear()
                     bump_log_version()
+                    mark_hard_reset()   # voir /log/list?since= : trop de QSO effacés pour des tombstones un par un
                     save_log_to_disk()
                     print('[LOG] Log reinitialise !')
                     self._json({'ok': True, 'archived': archived,
@@ -2724,6 +2795,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         keep = [q for q in shared_log if qso_scope_id(q) != scope_id]
                         shared_log[:] = keep
                     bump_log_version()
+                    mark_hard_reset()   # voir /log/list?since= : effacement en masse, pas un tombstone par QSO
                     save_log_to_disk()
                     res['cleared'] = True
                 self._json(res, 200 if res.get('ok') else 400)
@@ -2943,14 +3015,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return candidate
         return None
 
+    # Sous ce seuil, gzip ne vaut pas le coût CPU (en-tête gzip ~20 octets +
+    # compression) — seules les réponses substantielles (ex. /log/list avec
+    # plusieurs milliers de QSO, plusieurs Mo bruts) en profitent vraiment.
+    _GZIP_MIN_SIZE = 512
+
     def _raw(self, status, content_type, body_bytes):
         """Réponse brute : statut + Content-Type + Content-Length + CORS + corps.
         Content-Length explicite (voir commentaire équivalent dans do_GET) —
         sans lui le client n'a aucun moyen fiable de savoir où s'arrête le
-        corps de la réponse en HTTP/1.0 sans chunked encoding."""
+        corps de la réponse en HTTP/1.0 sans chunked encoding.
+        Compression gzip : activée seulement si le client l'annonce
+        (Accept-Encoding) — sans quoi un client qui ne sait pas décompresser
+        recevrait un corps illisible. C'est le point d'unification de TOUTES
+        les réponses JSON (_json en dérive) : le log partagé (plusieurs Mo à
+        9000+ QSO) en profite sans code dédié par endpoint."""
+        accept_enc = self.headers.get('Accept-Encoding', '') or ''
+        if (body_bytes and len(body_bytes) > self._GZIP_MIN_SIZE
+                and 'gzip' in accept_enc.lower()):
+            import gzip
+            body_bytes = gzip.compress(body_bytes)
+            compressed = True
+        else:
+            compressed = False
         self.send_response(status)
         if content_type:
             self.send_header('Content-Type', content_type)
+        if compressed:
+            self.send_header('Content-Encoding', 'gzip')
         self.send_header('Content-Length', str(len(body_bytes) if body_bytes else 0))
         self._cors()
         self.end_headers()

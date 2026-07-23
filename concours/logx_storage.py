@@ -13,6 +13,7 @@ import json
 import os
 import sqlite3
 import threading
+import uuid
 
 DB_FILE = 'logx.db'
 _db_lock = threading.Lock()
@@ -77,6 +78,62 @@ def bump_log_version():
     global log_version
     log_version += 1
     return log_version
+
+# ─── SYNCHRONISATION DIFFÉRENTIELLE DE /log/list (?since=) ───────────────────
+# log_version (ci-dessus) dit SEULEMENT si quelque chose a changé. Ce qui suit
+# permet de savoir QUOI a changé, pour que /log/list renvoie un delta (QSO
+# ajoutés/modifiés + id supprimés depuis une version connue du client) au lieu
+# de retransmettre tout shared_log à chaque poll — un simple compteur global
+# ne suffit pas, il faut savoir QUELS QSO ont bougé à quelle version.
+
+# Jeton unique par démarrage du serveur. log_version repart de 0 à chaque
+# redémarrage (voir commentaire ci-dessus) : sans ce jeton, un ?since= client
+# datant d'AVANT un redémarrage pourrait par coincidence retomber dans la
+# nouvelle plage de versions (ex. since=5 encore valide après redémarrage) et
+# faire croire à tort qu'aucun QSO plus ancien n'a changé, alors que shared_log
+# a été rechargé depuis zéro. Le client doit renvoyer ce jeton avec son
+# ?since= ; s'il ne correspond plus au jeton courant, ?since= est traité comme
+# invalide (repli sur liste complète, toujours correcte).
+SERVER_BOOT_ID = uuid.uuid4().hex
+
+# Tombstones de suppression INDIVIDUELLE (/log/delete) : un QSO supprimé
+# disparaît de shared_log, donc son '_v' (voir stamp_qso_version) ne suffit
+# pas à prévenir un client qui l'a encore dans son cache local — il faut une
+# trace explicite « cet id a disparu à telle version ». Bornée : les
+# suppressions EN MASSE (reset, archive clear=true, changement de portée
+# concours) passent par mark_hard_reset() plutôt que d'empiler un tombstone
+# par QSO effacé (potentiellement tout un concours d'un coup).
+deleted_qsos = []                  # [{'id': .., 'v': ..}, ...]
+_MAX_DELETED_TOMBSTONES = 2000
+hard_reset_version = 0             # un ?since= antérieur à cette version n'est plus fiable
+
+
+def stamp_qso_version(qso):
+    """Marque `qso` avec la version de log COURANTE — à appeler juste après
+    bump_log_version() pour tout ajout/modification individuelle d'un QSO,
+    afin que /log/list?since=N puisse ne renvoyer que les QSO plus récents que
+    N sans retransmettre tout le log."""
+    qso['_v'] = log_version
+    return qso
+
+
+def mark_qso_deleted(qso_id):
+    """Tombstone pour UNE suppression individuelle de QSO (jamais pour un
+    reset/clear en masse, voir mark_hard_reset)."""
+    global deleted_qsos
+    deleted_qsos.append({'id': qso_id, 'v': log_version})
+    if len(deleted_qsos) > _MAX_DELETED_TOMBSTONES:
+        deleted_qsos = deleted_qsos[-_MAX_DELETED_TOMBSTONES:]
+
+
+def mark_hard_reset():
+    """À appeler juste après un effacement en masse (reset, archive
+    clear=true) OU un changement de portée concours (/config/save, qui change
+    ce que le log filtré désigne SANS toucher un seul QSO) : tout ?since=
+    antérieur à la version courante devient invalide, /log/list se replie
+    alors sur la liste complète (déjà correcte) au lieu d'un delta muet."""
+    global hard_reset_version
+    hard_reset_version = log_version
 
 # ─── PORTÉE CONCOURS (contest + année) ───────────────────────────────────────
 # shared_log est UN SEUL log global (pas de fichier séparé par concours) : le
