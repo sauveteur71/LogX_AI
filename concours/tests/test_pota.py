@@ -71,3 +71,75 @@ def test_json_invalide_ne_leve_jamais(monkeypatch):
     pota._cache.update(data=None, ts=0)
 
     assert pota.fetch_pota_spots() == []
+
+
+# ─── post_spot (auto-spot, POST) ─────────────────────────────────────────────
+# Format vérifié contre hunterlog (cf. docstring du module) : activator/
+# spotter/frequency/reference/mode/source/comments, endpoint /spot/.
+
+def test_post_spot_valide_champs_avant_tout_appel_reseau(monkeypatch):
+    """Une erreur de saisie triviale ne doit jamais déclencher un aller-retour
+    réseau — le mock lève si jamais il est appelé."""
+    import logx_utils
+
+    def boom(*a, **k):
+        raise AssertionError('post_url_json ne doit pas être appelé')
+    monkeypatch.setattr(logx_utils, 'post_url_json', boom)
+
+    assert pota.post_spot('', 'FR-0123', 14285, 'SSB')['error'] == 'Indicatif activateur manquant'
+    assert pota.post_spot('F4GLD', '', 14285, 'SSB')['error'] == 'Référence parc manquante'
+    assert pota.post_spot('F4GLD', 'FR-0123', 0, 'SSB')['error'] == 'Fréquence manquante ou invalide'
+    assert pota.post_spot('F4GLD', 'FR-0123', 14285, '')['error'] == 'Mode manquant'
+
+
+def test_post_spot_succes_construit_le_bon_payload(monkeypatch):
+    captured = {}
+    def fake_post(url, payload, timeout=10, headers=None):
+        captured['url'] = url
+        captured['payload'] = payload
+        captured['headers'] = headers
+        return 200, '{"status":"ok"}'
+    import logx_utils
+    monkeypatch.setattr(logx_utils, 'post_url_json', fake_post)
+
+    r = pota.post_spot('f4gld', 'fr-0123', 14285.0, 'ssb', comment='CQ POTA')
+    assert r['ok'] is True
+    assert captured['url'] == pota.POTA_POST_SPOT_URL == 'https://api.pota.app/spot/'
+    assert captured['payload'] == {
+        'activator': 'F4GLD', 'spotter': 'F4GLD', 'frequency': '14285.0',
+        'reference': 'FR-0123', 'mode': 'SSB', 'source': 'LogXAI',
+        'comments': 'CQ POTA',
+    }
+    assert captured['headers']['User-Agent'].startswith('LogXAI/')
+
+
+def test_post_spot_spotter_distinct_de_l_activateur(monkeypatch):
+    """Cas d'un opérateur qui spotte un P2P (chasseur != activateur)."""
+    captured = {}
+    def fake_post(url, payload, timeout=10, headers=None):
+        captured['payload'] = payload
+        return 200, 'ok'
+    import logx_utils
+    monkeypatch.setattr(logx_utils, 'post_url_json', fake_post)
+
+    pota.post_spot('DL1AA', 'FR-0123', 14285, 'CW', spotter='F4GLD')
+    assert captured['payload']['activator'] == 'DL1AA'
+    assert captured['payload']['spotter'] == 'F4GLD'
+
+
+def test_post_spot_reseau_injoignable(monkeypatch):
+    import logx_utils
+    monkeypatch.setattr(logx_utils, 'post_url_json', lambda *a, **k: (None, None))
+
+    r = pota.post_spot('F4GLD', 'FR-0123', 14285, 'SSB')
+    assert r['ok'] is False and 'injoignable' in r['error']
+
+
+def test_post_spot_refuse_par_le_serveur(monkeypatch):
+    import logx_utils
+    monkeypatch.setattr(logx_utils, 'post_url_json',
+                        lambda *a, **k: (400, 'reference invalide'))
+
+    r = pota.post_spot('F4GLD', 'FR-9999999', 14285, 'SSB')
+    assert r['ok'] is False
+    assert '400' in r['error'] and 'reference invalide' in r['error']

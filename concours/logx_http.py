@@ -2787,6 +2787,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res, 200 if res.get('ok') else 502)
             return
 
+        # Auto-spot POTA (publication sur l'API publique api.pota.app, cf.
+        # logx_pota.post_spot) — pendant de /cluster/spot pour un activateur.
+        # L'indicatif spotté = celui de l'opérateur (station), jamais depuis
+        # le body, comme pour /cluster/spot ci-dessus.
+        if self.path == '/pota/spot':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            import logx_pota as pota
+            cfg_now = self._cfg_snapshot()
+            call = (cfg_now.get('callsign_contest') or cfg_now.get('callsign') or '').strip()
+            if not call:
+                self._json({'ok': False, 'error': 'Indicatif manquant (configure ta station dans CONFIG)'}, 400)
+                return
+            reference = (payload.get('reference') or cfg_now.get('my_activation_ref') or '').strip().upper()
+            freq_khz = payload.get('freq_khz') or 0
+            if not freq_khz and payload.get('freq_mhz'):
+                try:
+                    freq_khz = float(payload['freq_mhz']) * 1000
+                except (TypeError, ValueError):
+                    freq_khz = 0
+            res = pota.post_spot(call, reference, freq_khz,
+                                  str(payload.get('mode', '')), spotter=call,
+                                  comment=str(payload.get('comment', '')))
+            self._json(res, 200 if res.get('ok') else 502)
+            return
+
         # QTC (WAE) : enregistrer une série QTC (émise ou reçue) avec une station.
         # Deux formes de payload acceptées :
         #  - simple (historique) : {call, count} — comptage seul, pas de détail

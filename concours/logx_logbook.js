@@ -217,6 +217,11 @@ function applyActivationMode(program, ref){
     const r = document.getElementById('actRef'); if(r) r.textContent = myActivationRef;
     const pr = document.getElementById('actProgress');
     if(pr) pr.textContent = '0/' + (ACT_MIN[activationProgram]||10);
+    // Auto-spot : pour l'instant seule l'API POTA est vérifiée/implémentée
+    // (cf. logx_pota.post_spot) — SOTA/WWFF/IOTA n'ont pas d'endpoint POST
+    // documenté avec certitude, le bouton reste donc masqué pour eux.
+    const sb = document.getElementById('actSpotBtn');
+    if(sb) sb.style.display = activationProgram === 'POTA' ? '' : 'none';
     refreshActivation();
     if(!activationTimer) activationTimer = setInterval(refreshActivation, 15000);
   } else if(activationTimer){
@@ -5322,6 +5327,31 @@ async function selfSpot(){
     else notify('❌ Self-spot : ' + (d.error || 'échec'));
   }catch(e){ notify('❌ ' + e.message); }
   finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SELF-SPOT'; } }
+}
+
+// ─── SELF-SPOT POTA (publier son activation sur l'API publique api.pota.app) ─
+async function selfSpotPota(){
+  if(activationProgram !== 'POTA' || !myActivationRef) return;
+  // Même repli fréquence que selfSpot() : champ saisi > radio (CAT).
+  let mhz = parseFloat(document.getElementById('inputFreq')?.value);
+  if(!isFinite(mhz) || mhz <= 0){
+    if(typeof rigState === 'object' && rigState && rigState.freq_khz > 0) mhz = rigState.freq_khz / 1000;
+  }
+  if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
+  const freq_khz = Math.round(mhz * 1000 * 10) / 10;
+  if(!confirm(`Publier ce spot sur l'API publique POTA (api.pota.app) ?\n\n${myCall}   ${myActivationRef}   ${mhz.toFixed(3)} MHz   ${currentMode||''}\n\n`+
+              'Visible immédiatement par tous les chasseurs, sans authentification.')) return;
+  const btn = document.getElementById('actSpotBtn');
+  const orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }
+  try{
+    const r = await fetch('/pota/spot', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({reference: myActivationRef, freq_khz, mode: currentMode || ''})});
+    const d = await r.json();
+    if(d.ok) notify(`📡 Spot POTA publié : ${myCall}  ${myActivationRef}  ${mhz.toFixed(3)} MHz`);
+    else notify('❌ Self-spot POTA : ' + (d.error || 'échec'));
+  }catch(e){ notify('❌ ' + e.message); }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SE SPOTTER'; } }
 }
 
 // ─── RAPPEL PÉRIODIQUE ON4KST ─────────────────────────────────────────────────

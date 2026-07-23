@@ -3,6 +3,7 @@
 
 import urllib.request
 import urllib.error
+import json
 import math
 import datetime
 import ssl as _ssl
@@ -103,6 +104,39 @@ def fetch_url_binary(url, timeout=10):
     except Exception as e:
         print(f"  [FETCH] {url[:60]}... -> {e}")
         return None
+
+def post_url_json(url, payload, timeout=10, headers=None):
+    """Comme fetch_url(), mais en POST avec un corps JSON — même pool de
+    threads partagé, pour le même motif (getaddrinfo() bloquant hors du
+    socket, non couvert par le timeout d'urlopen). Utilisé pour toute
+    soumission (self-spot, API tierce...) qui ne doit jamais geler le thread
+    HTTP du serveur (ex. logx_pota.post_spot).
+
+    Renvoie (status_http, texte_réponse) ; (None, None) si injoignable
+    (DNS/timeout/réseau). Un statut d'erreur HTTP (4xx/5xx) est remonté tel
+    quel avec son corps — à distinguer d'une panne réseau côté appelant,
+    plutôt que masqué en simple None comme le ferait un except trop large."""
+    def _do():
+        data = json.dumps(payload).encode('utf-8')
+        hdrs = {'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'}
+        if headers:
+            hdrs.update(headers)
+        req = urllib.request.Request(url, data=data, headers=hdrs, method='POST')
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
+                charset = resp.headers.get_content_charset() or 'utf-8'
+                return resp.status, resp.read().decode(charset, errors='replace')
+        except urllib.error.HTTPError as e:
+            charset = (e.headers.get_content_charset() if e.headers else None) or 'utf-8'
+            return e.code, e.read().decode(charset, errors='replace')
+
+    try:
+        fut = _FETCH_EXECUTOR.submit(_do)
+        return fut.result(timeout=timeout + 3)
+    except Exception as e:
+        print(f"  [FETCH] POST {url[:60]}... -> {e}")
+        return None, None
 
 def locator_to_latlon(loc):
     # Correctif M8 : un locator à 4 caractères est un Maidenhead valide (déjà

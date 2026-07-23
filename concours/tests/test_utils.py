@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 """Tests des fonctions pures de logx_utils — cas vérifiés à la main."""
+import io
+import json as _json
 import os
 import sys
+import urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import logx_utils
 from logx_utils import (locator_to_latlon, haversine, bearing,
-                                cardinal, is_digital_mode)
+                                cardinal, is_digital_mode, post_url_json)
 
 
 # ─── locator_to_latlon ───────────────────────────────────────────────────────
@@ -95,3 +99,68 @@ def test_modes_analogiques_ignores():
     assert not is_digital_mode('SSB')
     assert not is_digital_mode('CW')
     assert not is_digital_mode('FM 145.500')
+
+
+# ─── post_url_json ───────────────────────────────────────────────────────────
+# Pattern des tests réseau du projet (cf. tests/test_qsl_upload.py) : on
+# monkeypatch urllib.request.urlopen, jamais un vrai appel réseau.
+
+class _FakeHeaders:
+    def get_content_charset(self):
+        return 'utf-8'
+
+
+class _FakeResp:
+    def __init__(self, text, status=200):
+        self._text = text.encode('utf-8')
+        self.status = status
+        self.headers = _FakeHeaders()
+    def read(self):
+        return self._text
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+
+
+def test_post_url_json_succes(monkeypatch):
+    captured = {}
+    def fake_urlopen(req, timeout=10, context=None):
+        captured['url'] = req.full_url
+        captured['method'] = req.get_method()
+        captured['body'] = _json.loads(req.data.decode('utf-8'))
+        captured['content_type'] = req.get_header('Content-type')
+        captured['user_agent'] = req.get_header('User-agent')
+        return _FakeResp('{"ok":true}')
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', fake_urlopen)
+
+    status, text = post_url_json('https://api.pota.app/spot/', {'a': 1},
+                                  headers={'User-Agent': 'LogXAI/9.9'})
+    assert status == 200
+    assert text == '{"ok":true}'
+    assert captured['url'] == 'https://api.pota.app/spot/'
+    assert captured['method'] == 'POST'
+    assert captured['body'] == {'a': 1}
+    assert captured['content_type'] == 'application/json'
+    assert captured['user_agent'] == 'LogXAI/9.9'   # écrase le défaut du module
+
+
+def test_post_url_json_erreur_http_remontee_avec_le_corps(monkeypatch):
+    """Un 4xx/5xx doit remonter (status, corps) — PAS (None, None), pour que
+    l'appelant distingue « refusé par le serveur » de « injoignable »."""
+    def fake_urlopen(req, timeout=10, context=None):
+        raise urllib.error.HTTPError(req.full_url, 400, 'Bad Request',
+                                     None, io.BytesIO(b'reference invalide'))
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', fake_urlopen)
+
+    status, text = post_url_json('https://api.pota.app/spot/', {'a': 1})
+    assert status == 400
+    assert 'reference invalide' in text
+
+
+def test_post_url_json_reseau_injoignable(monkeypatch):
+    def boom(req, timeout=10, context=None):
+        raise OSError('timeout')
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', boom)
+
+    assert post_url_json('https://api.pota.app/spot/', {'a': 1}) == (None, None)

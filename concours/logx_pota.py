@@ -5,13 +5,19 @@ Complète le mode Activation (logx_activation.py, purement local/déterministe :
 validation de référence + progression depuis le log) par une vue en direct de
 qui active quoi ACTUELLEMENT dans le monde, utile aussi bien à un chasseur
 (hunter) qu'à un activateur qui veut repérer les parcs déjà occupés à
-proximité. Lecture seule : ce module ne poste jamais de spot (l'API publique
-de soumission n'a pas de format d'authentification vérifié avec certitude à
-la date d'écriture — mieux vaut ne rien implémenter que deviner et risquer un
-spot mal formé sur un service public partagé).
+proximité, ET par l'auto-spot (post_spot ci-dessous) pour publier SA PROPRE
+activation.
 
 Spots en direct, endpoint public sans clé : https://api.pota.app/spot/activator
 Doc communautaire : https://docs.pota.app/
+
+Auto-spot (POST) : format vérifié contre le code source ouvert de hunterlog
+(cwhelchel/hunterlog, src/pota/pota.py, fonction post_spot — pas deviné) :
+endpoint https://api.pota.app/spot/, JSON {activator, spotter, frequency,
+reference, mode, source, comments}, sans authentification (même API ouverte
+que la lecture ci-dessus). fréquence en kHz : cohérent avec fetch_pota_spots
+ci-dessous ET avec le guide utilisateur hunterlog (« Frequency should be
+entered in kilohertz (kHz) »).
 
 Base des parcs : https://pota.app/all_parks_ext.csv, l'export CSV complet
 (~9 Mo, ~50 000 parcs) proposé en téléchargement direct par POTA lui-même
@@ -77,6 +83,56 @@ def fetch_pota_spots():
     _cache['data'] = spots
     _cache['ts'] = time.time()
     return spots
+
+
+# ─── AUTO-SPOT (POST) ─────────────────────────────────────────────────────────
+# Voir le docstring du module : format vérifié contre hunterlog, pas deviné.
+POTA_POST_SPOT_URL = 'https://api.pota.app/spot/'
+
+
+def post_spot(activator, reference, freq_khz, mode, spotter='', comment=''):
+    """Publie un spot d'activateur sur le flux public POTA (équivalent du
+    bouton « Add Spot » de pota.app) — visible immédiatement par tous les
+    chasseurs. Aucune authentification (comme la lecture ci-dessus) : à
+    l'activateur d'appeler cette fonction seulement pour SA PROPRE activation.
+    Valide localement avant tout appel réseau (évite un aller-retour pour une
+    erreur de saisie triviale) ; ne lève jamais, renvoie {'ok': bool, ...}
+    comme les autres fonctions réseau du projet (logx_qsl, logx_clusters...)."""
+    activator = (activator or '').strip().upper()
+    reference = (reference or '').strip().upper()
+    mode = (mode or '').strip().upper()
+    try:
+        freq_khz = float(freq_khz)
+    except (TypeError, ValueError):
+        freq_khz = 0
+    if not activator:
+        return {'ok': False, 'error': 'Indicatif activateur manquant'}
+    if not reference:
+        return {'ok': False, 'error': 'Référence parc manquante'}
+    if freq_khz <= 0:
+        return {'ok': False, 'error': 'Fréquence manquante ou invalide'}
+    if not mode:
+        return {'ok': False, 'error': 'Mode manquant'}
+
+    from logx_utils import post_url_json  # import local : mockable par les tests
+    from logx_version import APP_VERSION
+    payload = {
+        'activator': activator,
+        'spotter': (spotter or activator).strip().upper(),
+        'frequency': str(freq_khz),
+        'reference': reference,
+        'mode': mode,
+        'source': 'LogXAI',
+        'comments': comment or '',
+    }
+    status, text = post_url_json(
+        POTA_POST_SPOT_URL, payload, timeout=10,
+        headers={'User-Agent': f'LogXAI/{APP_VERSION}'})
+    if status is None:
+        return {'ok': False, 'error': 'api.pota.app injoignable (réseau)'}
+    if status >= 400:
+        return {'ok': False, 'error': f'POTA a refusé le spot (HTTP {status}) : {(text or "")[:200].strip()}'}
+    return {'ok': True, 'response': (text or '')[:200].strip()}
 
 
 # ─── BASE DES PARCS ───────────────────────────────────────────────────────────
