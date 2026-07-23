@@ -83,6 +83,10 @@
          id="rcsbRateItem" style="cursor:pointer">
       ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
     </div>
+    <div class="rcsb-item" id="rcsbBandChangeItem" style="display:none"
+         title="Règle des 10 minutes (Multi-Single, CQ WW et concours similaires) : un changement de bande n'est autorisé qu'une fois toutes les 10 minutes. Décompte depuis le dernier changement de bande loggué.">
+      🔄 <span class="rcsb-val" id="rcsbBandChange">—</span>
+    </div>
     <div class="rcsb-item" title="Dernière vérification automatique des règlements par le serveur">
       📄 <a href="logx_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>
@@ -96,21 +100,32 @@
     </div>`;
 
   // ── Rate meter (A3) : QSO/h 10 min extrapolé + 60 min, objectif cliquable ──
+  // Le même appel /coach/state porte aussi `band_change` (règle des 10 min
+  // multi-op) — un seul poll partagé plutôt qu'une requête dédiée de plus.
+  let _bandChange = null;
+  let _bandChangeFetchedAt = 0;
   function refreshRate(){
     fetch('/coach/state').then(function(r){ return r.ok ? r.json() : null; })
       .then(function(st){
+        if (!st) return;
         const el = document.getElementById('rcsbRate');
-        if (!el || !st) return;
-        const s = st.stats || {};
-        const running = st.clock && st.clock.status === 'en_cours';
-        const goal = parseInt(localStorage.getItem('rc_rate_goal') || '0', 10);
-        if (!running){ el.textContent = '—'; el.style.color = ''; return; }
-        el.textContent = (s.rate_10min || 0) + '/h (10min) · '
-                       + (s.rate_60min || 0) + '/h (60min)'
-                       + (goal ? ' · obj ' + goal : '');
-        el.style.color = goal
-          ? ((s.rate_10min || 0) >= goal ? 'var(--green,#00FF88)' : 'var(--red,#FF2D55)')
-          : '';
+        if (el){
+          const s = st.stats || {};
+          const running = st.clock && st.clock.status === 'en_cours';
+          const goal = parseInt(localStorage.getItem('rc_rate_goal') || '0', 10);
+          if (!running){ el.textContent = '—'; el.style.color = ''; }
+          else {
+            el.textContent = (s.rate_10min || 0) + '/h (10min) · '
+                           + (s.rate_60min || 0) + '/h (60min)'
+                           + (goal ? ' · obj ' + goal : '');
+            el.style.color = goal
+              ? ((s.rate_10min || 0) >= goal ? 'var(--green,#00FF88)' : 'var(--red,#FF2D55)')
+              : '';
+          }
+        }
+        _bandChange = st.band_change || null;
+        _bandChangeFetchedAt = Date.now();
+        tickBandChange();
       }).catch(function(){});
   }
   bar.addEventListener('click', function(e){
@@ -122,6 +137,45 @@
       refreshRate();
     }
   });
+
+  // ── Compte à rebours « règle des 10 minutes » (Multi-Single) ──────────────
+  // Visible seulement en multi-op (plusieurs opérateurs déclarés, hors mode
+  // simple) — un opérateur seul ne peut de toute façon être que sur une
+  // bande à la fois, la règle ne le concerne jamais. Le compte à rebours lui-
+  // même est calculé côté serveur (logx_coach.band_change_timer) à partir du
+  // log partagé ; on l'extrapole seconde par seconde ici entre deux polls
+  // (60 s, cf. boot()) pour un affichage fluide sans requête supplémentaire.
+  function isMultiOp(){
+    const cfg = getConfig();
+    return cfg.usage_mode !== 'simple' && (cfg.operators || []).length > 1;
+  }
+  function tickBandChange(){
+    const item = document.getElementById('rcsbBandChangeItem');
+    const el = document.getElementById('rcsbBandChange');
+    if (!item || !el) return;
+    if (!isMultiOp() || !_bandChange || !_bandChange.current_band){
+      item.style.display = 'none';
+      return;
+    }
+    item.style.display = 'flex';
+    const band = _bandChange.current_band;
+    if (_bandChange.ready){
+      el.textContent = band + ' MHz — changement libre';
+      el.style.color = 'var(--green,#00FF88)';
+      return;
+    }
+    const drift = (Date.now() - _bandChangeFetchedAt) / 1000;
+    const remaining = Math.max(0, Math.round(_bandChange.remaining_s - drift));
+    if (remaining <= 0){
+      el.textContent = band + ' MHz — changement libre';
+      el.style.color = 'var(--green,#00FF88)';
+      return;
+    }
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    el.textContent = band + ' MHz — ' + m + ':' + pad(s) + ' avant changement';
+    el.style.color = remaining <= 60 ? 'var(--yellow,#FFD60A)' : 'var(--muted,#A9B0C8)';
+  }
   refreshRate();
   setInterval(refreshRate, 60 * 1000);
 
@@ -544,6 +598,7 @@
     refreshRules();
     refreshUpdateCheck();
     setInterval(refreshCountdown, 1000);
+    setInterval(tickBandChange, 1000);
     setInterval(refreshSave, 15000);
     setInterval(refreshRules, 10 * 60 * 1000);
     setInterval(refreshUpdateCheck, 30 * 60 * 1000);

@@ -384,6 +384,24 @@ chat_messages = []     # liste {id, op, call, time, text}
 chat_lock = threading.Lock()
 chat_seq = 0           # identifiant auto-incrémenté
 
+# ─── VUE PARTNER (saisie en direct, lecture seule) ───────────────────────────
+# État ÉPHÉMÈRE (jamais écrit sur disque, contrairement à chat_messages) : ce
+# qu'un opérateur est en train de taper dans le champ indicatif, pour qu'un
+# second poste (radioclub/expédition) le voie en quasi temps réel. Une entrée
+# par opérateur (écrasée à chaque frappe) ; périmée après TYPING_STALE_S sans
+# mise à jour (poste éteint/onglet fermé sans dernier POST vide).
+typing_state = {}      # op -> {op, label, band, mode, text, ts}
+typing_lock = threading.Lock()
+TYPING_STALE_S = 8
+
+
+def _active_typing():
+    """Saisies en direct encore fraîches, pour GET /chat/list."""
+    now = time.time()
+    with typing_lock:
+        return [dict(v) for v in typing_state.values()
+                if now - v.get('ts', 0) <= TYPING_STALE_S]
+
 # ─── REFRESH DONNÉES ─────────────────────────────────────────────────────────
 # Chaque source réseau est isolée dans sa fonction et lancée EN PARALLÈLE via
 # un ThreadPoolExecutor : une source lente ou en panne est abandonnée au
@@ -1142,7 +1160,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with chat_lock:
                 new_msgs = [m for m in chat_messages if m['id'] > since]
                 last_id = chat_messages[-1]['id'] if chat_messages else 0
-            self._json({'messages': new_msgs, 'last_id': last_id})
+            self._json({'messages': new_msgs, 'last_id': last_id,
+                        'typing': _active_typing()})
             return
 
         # Prompt système actuel
@@ -2864,6 +2883,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     if len(chat_messages) > 200:
                         chat_messages.pop(0)
                 self._json({'ok': True, 'id': chat_seq})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Vue PARTNER — un opérateur diffuse ce qu'il tape dans le champ
+        # indicatif (état éphémère, jamais persisté, écrasé à chaque frappe ;
+        # voir _active_typing pour la lecture). Payload volontairement
+        # minuscule (throttlé côté client à ~3/s) : pas de log, pas de disque.
+        if self.path == '/chat/typing':
+            try:
+                msg = json.loads(body)
+                op = str(msg.get('op', '') or '').strip()[:10]
+                if op:
+                    with typing_lock:
+                        typing_state[op] = {
+                            'op': op,
+                            'label': str(msg.get('label', op) or op)[:60],
+                            'band': str(msg.get('band', '') or '')[:10],
+                            'mode': str(msg.get('mode', '') or '')[:10],
+                            'text': str(msg.get('text', '') or '')[:20],
+                            'ts': time.time(),
+                        }
+                self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return

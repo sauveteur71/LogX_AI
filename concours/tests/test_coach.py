@@ -114,3 +114,61 @@ def test_pas_es_sur_hf():
     f = es_aurora_forecast({'bands': ['14', '7']}, None, None,
                            datetime.datetime(2026, 7, 1, 9, 0))
     assert not any(x['kind'] == 'es' for x in f)
+
+
+# ─── Règle des 10 minutes (multi-op M/S) ─────────────────────────────────────
+
+def _band_log(entries):
+    """entries : liste de (minutes_avant_NOW, bande) → QSO log partagé."""
+    return [{'date': (NOW - datetime.timedelta(minutes=m)).strftime('%Y%m%d'),
+             'time': (NOW - datetime.timedelta(minutes=m)).strftime('%H:%M'),
+             'band': b, 'points': 1, 'contest': 'CQ_WW_CW'}
+            for m, b in entries]
+
+
+def test_band_change_pas_de_qso():
+    from logx_coach import band_change_timer
+    r = band_change_timer([], 'CQ_WW_CW#2026', now=NOW)
+    assert r['ready'] is True
+    assert r['changed_at'] is None
+    assert r['current_band'] is None
+
+
+def test_band_change_jamais_change_de_bande():
+    """Toujours la même bande depuis le début : aucune contrainte encore, même
+    des heures après le premier QSO (le tout premier QSO ne compte pas comme
+    un « changement »)."""
+    from logx_coach import band_change_timer
+    log = _band_log([(300, '14'), (200, '14'), (100, '14')])
+    r = band_change_timer(log, 'CQ_WW_CW#2026', now=NOW)
+    assert r['ready'] is True
+    assert r['changed_at'] is None
+    assert r['current_band'] == '14'
+
+
+def test_band_change_recent_encore_bloque():
+    """Changement 14->7 il y a 4 min : encore 6 min à attendre (règle 10 min)."""
+    from logx_coach import band_change_timer
+    log = _band_log([(30, '14'), (20, '14'), (4, '7')])
+    r = band_change_timer(log, 'CQ_WW_CW#2026', now=NOW)
+    assert r['ready'] is False
+    assert r['current_band'] == '7'
+    assert r['remaining_s'] == 6 * 60
+
+
+def test_band_change_delai_ecoule():
+    """Changement il y a 15 min : la fenêtre de 10 min est passée, autorisé à nouveau."""
+    from logx_coach import band_change_timer
+    log = _band_log([(30, '14'), (15, '7')])
+    r = band_change_timer(log, 'CQ_WW_CW#2026', now=NOW)
+    assert r['ready'] is True
+    assert r['remaining_s'] == 0
+
+
+def test_band_change_ignore_hors_portee():
+    """Un QSO d'une autre portée (autre concours/année) ne doit jamais compter."""
+    from logx_coach import band_change_timer
+    log = [{'date': NOW.strftime('%Y%m%d'), 'time': (NOW - datetime.timedelta(minutes=1)).strftime('%H:%M'),
+            'band': '7', 'contest': 'AUTRE_CONCOURS'}]
+    r = band_change_timer(log, 'CQ_WW_CW#2026', now=NOW)
+    assert r['current_band'] is None

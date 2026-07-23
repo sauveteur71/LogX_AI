@@ -475,6 +475,18 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 .chattext{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:14px;color:var(--text);word-break:break-word}
 .chatmsg.mine .chattext{background:#0a2a3a;border-color:var(--accent2);color:#cdeaff}
 
+/* ─── VUE PARTNER (saisie en direct de l'indicatif par les autres opérateurs) ───
+   Placé entre l'en-tête et le corps du chat : visible même panneau replié
+   (bandeau discret), pour repérer d'un coup d'œil ce que tape le runner
+   sans devoir ouvrir le chat en plein pile-up. */
+.partner-typing{display:none;flex-direction:column;gap:3px;padding:6px 10px;
+  background:rgba(0,255,136,.06);border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);max-height:110px;overflow-y:auto}
+.partner-row{display:flex;align-items:baseline;gap:6px;font-size:12px;overflow:hidden}
+.partner-op{color:var(--green,#00FF88);font-weight:700;flex-shrink:0;white-space:nowrap}
+.partner-ctx{color:var(--muted);font-size:11px;flex-shrink:0;white-space:nowrap}
+.partner-text{color:var(--text);font-weight:700;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ─── DÉCODEUR CW ─── */
 .cw-panel{position:fixed;bottom:0;left:18px;width:300px;background:var(--bg2);border:1px solid var(--green);border-bottom:none;border-radius:8px 8px 0 0;font-family:var(--font-mono);z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.5)}
 .cw-header{display:flex;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,#0a3a1a,#0D2818);color:var(--green);font-size:13px;letter-spacing:1px;cursor:pointer;border-radius:8px 8px 0 0;user-select:none}
@@ -1302,6 +1314,10 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <!-- CHAT MULTI-OPÉRATEUR -->
 <div class="chat-panel" id="chatPanel">
   <div class="chat-toggle" onclick="toggleChat()">💬 CHAT MULTI-OP <span id="chatUnread" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:12px;margin-left:6px">0</span></div>
+  <!-- Vue PARTNER : saisie en direct des autres opérateurs (lecture seule).
+       display:none par défaut, basculé par JS (renderPartnerTyping) — visible
+       même panneau replié, dès qu'un autre poste tape un indicatif. -->
+  <div class="partner-typing" id="partnerTyping" title="Ce que les autres opérateurs sont en train de taper (vue Partner, lecture seule)"></div>
   <!-- Pas de display:none inline ici : un style inline PRIME sur la règle CSS
        .chat-panel.open .chat-body{display:flex} — le panneau ne s'ouvrirait
        jamais visuellement. L'état fermé est déjà géré par la classe .chat-body. -->

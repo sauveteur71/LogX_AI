@@ -148,6 +148,60 @@ def log_stats(shared_log, contest_id='', clock=None, now=None):
     return stats
 
 
+# ─── RÈGLE DES 10 MINUTES (MULTI-SINGLE) ─────────────────────────────────────
+
+DEFAULT_BAND_CHANGE_RULE_MIN = 10
+
+
+def band_change_timer(shared_log, contest_id='', now=None,
+                      rule_minutes=DEFAULT_BAND_CHANGE_RULE_MIN):
+    """Compte à rebours de la « règle des 10 minutes » (Multi-Single CQ WW et
+    règlements similaires) : un changement de bande n'est autorisé qu'une fois
+    toutes les `rule_minutes` minutes. Le compte à rebours démarre au premier
+    QSO loggué sur une bande DIFFÉRENTE de la précédente — un vrai changement,
+    jamais le tout premier QSO du concours (aucune contrainte ne s'applique
+    tant qu'aucun changement n'a encore eu lieu : `ready`=True, changed_at=None).
+    `contest_id` est une PORTÉE (voir logx_storage.active_scope_id), pas le nom
+    brut du concours. Déterministe, aucun appel réseau.
+
+    NB : le champ `time` d'un QSO n'a qu'une précision à la minute — l'instant
+    exact du changement (et donc le compte à rebours) peut dériver de quelques
+    dizaines de secondes, sans conséquence pour un simple indicateur."""
+    now = now or datetime.datetime.utcnow()
+    entries = [e for e in (shared_log or [])
+               if not contest_id or qso_scope_id(e) == contest_id]
+    dated = []
+    for e in entries:
+        dt = _entry_dt(e)
+        if dt:
+            dated.append((dt, str(e.get('band', '?'))))
+    dated.sort(key=lambda x: x[0])
+
+    base = {'current_band': None, 'changed_at': None, 'elapsed_s': None,
+            'remaining_s': 0, 'ready': True, 'rule_minutes': rule_minutes}
+    if not dated:
+        return base
+
+    current_band = dated[-1][1]
+    changed_at = None
+    for i in range(1, len(dated)):
+        if dated[i][1] != dated[i - 1][1]:
+            changed_at = dated[i][0]
+    if changed_at is None:
+        return {**base, 'current_band': current_band}
+
+    elapsed_s = (now - changed_at).total_seconds()
+    remaining_s = max(0, rule_minutes * 60 - elapsed_s)
+    return {
+        'current_band': current_band,
+        'changed_at': changed_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'elapsed_s': int(elapsed_s),
+        'remaining_s': int(remaining_s),
+        'ready': remaining_s <= 0,
+        'rule_minutes': rule_minutes,
+    }
+
+
 # ─── PLAN DE BANDE ───────────────────────────────────────────────────────────
 
 def _hf_bands_for_hour(hour_utc):
@@ -562,6 +616,12 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     hints = build_hints(cdef, clock, stats, plan, lang)
     run_sp = run_sp_recommendation(clock, stats, mult_spots_count, lang)
     vhf_forecast = es_aurora_forecast(cdef, dxmaps, k_index, now, lang)
+    # Règle des 10 minutes (multi-op M/S) : pertinente uniquement à plusieurs
+    # opérateurs (un seul opérateur ne peut de toute façon être que sur une
+    # bande à la fois) — calculée quand même à chaque appel (coût négligeable,
+    # lecture du log déjà chargé en mémoire), le tri "multi-op ou pas" reste
+    # un choix d'AFFICHAGE laissé au front (cf. logx_statusbar.js).
+    band_change = band_change_timer(shared_log, scope_id, now)
     return {
         'clock': clock,
         'stats': stats,
@@ -570,5 +630,6 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
         'run_sp': run_sp,
         'vhf_forecast': vhf_forecast,
         'mult_spots_count': mult_spots_count,
+        'band_change': band_change,
         'coach_prompt': build_coach_prompt(cdef, clock, stats, plan, hints),
     }
