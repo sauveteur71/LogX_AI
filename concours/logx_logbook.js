@@ -97,6 +97,13 @@ const CONTEST_EXCHANGE = {
   'REF_160M':      { label_s:'DEPT ENV', label_r:'DEPT RCU',    def_s:'', ph_r:'ex: 43', ml_s:3, ml_r:3, auto_serial:false, clear_s:false, pad_r:false },
   'F9NL':          { label_s:'DEPT ENV', label_r:'DEPT RCU',    def_s:'', ph_r:'ex: 43', ml_s:3, ml_r:3, auto_serial:false, clear_s:false, pad_r:false },
   'UFT_RENCONTRES':{ label_s:'DEPT ENV', label_r:'DEPT RCU',    def_s:'', ph_r:'ex: 43', ml_s:3, ml_r:3, auto_serial:false, clear_s:false, pad_r:false },
+  // ── World Wide Award : échange = SEULEMENT le report (RS/RST), aucun n°
+  // de série ni zone/dept (règlement §3) — no_exchange masque le champ N°
+  // entièrement (cf. applyExpeditionMode()), même hors mode expédition.
+  'WWA_2027_JAN':  { label_s:'N° ENVOYÉ', label_r:'N° REÇU', def_s:'', ph_r:'',
+                     ml_s:4, ml_r:4, auto_serial:false, clear_s:false, pad_r:false, no_exchange:true },
+  'WWA_2027_JUL':  { label_s:'N° ENVOYÉ', label_r:'N° REÇU', def_s:'', ph_r:'',
+                     ml_s:4, ml_r:4, auto_serial:false, clear_s:false, pad_r:false, no_exchange:true },
 };
 // Format par défaut : N° de série auto (concours VHF/UHF standard)
 const DEFAULT_EXCHANGE = {
@@ -141,9 +148,14 @@ function applyExpeditionMode(on){
   // locator correspondant). La saisie simplifiée ne doit donc s'appliquer que
   // hors concours réel (activation POTA/SOTA/... ou aucun concours choisi).
   const realContestExchange = !!currentContest && !activationProgram;
+  // Certains concours réels n'ont PAS de n° de série du tout (ex. World Wide
+  // Award : juste un report, règlement §3) — currentExchange.no_exchange le
+  // signale explicitement (cf. applyExchangeFormat, déjà appelé avant ceci) :
+  // masquer le champ N° reste correct même si realContestExchange est vrai.
+  const noExchange = currentExchange && currentExchange.no_exchange === true;
   // Le n° de série (échange concours) est aussi masqué en LOGBOOK SIMPLE (pas
   // de concours -> pas d'échange à faire), indépendamment du mode expédition.
-  const hideNum = (expeditionMode && !realContestExchange) || usageMode === 'simple';
+  const hideNum = (expeditionMode && !realContestExchange) || usageMode === 'simple' || noExchange;
   const hideLoc = expeditionMode && !realContestExchange;
   if(numRow) numRow.style.display = hideNum ? 'none' : '';
   if(locGrp) locGrp.style.display = hideLoc ? 'none' : '';
@@ -411,6 +423,17 @@ const LEGACY_JS_BRICKS = {
   dept_dxcc:                 {points:[{when:'is_french', points:1}, {points:3}]},
   summit_points:             {points:[{points:{param:'points', default:1}}]},
   park_points:               {points:[{points:{param:'points', default:1}}]},
+  // World Wide Award (hamaward.cloud) : points fixes par mode — miroir de
+  // LEGACY_SCORING_PRESETS['wwa_sprint'] (logx_scoring.py). validity.roster_check
+  // n'est PAS vérifiable côté client (pas de re-fetch réseau à chaque frappe) :
+  // retour optimiste ici, le serveur (need-list /data/spots_ranked) reste seul
+  // juge de la validité réelle d'une station.
+  wwa_sprint:                {points:[{modes:['CW'], points:10},
+                                      {modes:['SSB','USB','LSB','FM'], points:5},
+                                      {modes:['FT8','FT4','FT2'], points:2},
+                                      {modes:['RTTY','PSK','DIGI'], points:5},
+                                      {points:5}],
+                              validity:{roster_check:'wwa'}},
 };
 
 const _NA_CALL_RE = /^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|KQ|KR|KS|KT|KU|KV|KW|KX|KY|KZ|NA|NB|NC|ND|NE|NF|NG|NH|NI|NJ|NK|NL|NM|NN|NO|NP|NQ|NR|NS|NT|NU|NV|NW|NX|NY|NZ|VE|VA|VO|VY)/i;
@@ -447,12 +470,19 @@ function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX){
   if (!bricks || !Array.isArray(bricks.points)) return null;
   const ctx = _brickCtx(callDX);
 
-  // Brique validité : nom de prédicat OU {prefix_in:[...]}
+  // Brique validité : nom de prédicat, {prefix_in:[...]}, ou {roster_check:...}
+  // (roster externe publié — ex. WWA — non vérifiable ici sans réseau : on
+  // reste optimiste côté client, le serveur reste l'arbitre réel).
   const v = bricks.validity;
   if (v){
-    const ok = (typeof v === 'object' && v.prefix_in)
-      ? v.prefix_in.some(p => ctx.dxBase.startsWith(p.toUpperCase()))
-      : (BRICK_PREDICATES[v] || BRICK_PREDICATES.always)(ctx);
+    let ok;
+    if (typeof v === 'object' && v.prefix_in){
+      ok = v.prefix_in.some(p => ctx.dxBase.startsWith(p.toUpperCase()));
+    } else if (typeof v === 'object' && v.roster_check){
+      ok = true;
+    } else {
+      ok = (BRICK_PREDICATES[v] || BRICK_PREDICATES.always)(ctx);
+    }
     if (!ok) return 0;
   }
 
@@ -910,9 +940,12 @@ const _BM_PCOL = {1:'var(--red)', 2:'var(--accent)', 3:'var(--yellow)',
 // Plages de fréquence (MHz) par bande — le band map ne montre QUE la bande
 // courante, filtrée par FRÉQUENCE (infaillible : un spot 50/432 ne peut pas
 // apparaître sur 2 m même si le serveur l'a mal étiqueté).
+// Mêmes plages que _band_from_freq() côté serveur (logx_scoring.py) pour les
+// bandes WARC — les deux DOIVENT s'accorder sur la clé de bande ('10.1'/'18'/'24').
 const _BM_RANGE = {
-  '1.8':[1.8,2.0], '3.5':[3.5,4.0], '7':[7.0,7.3], '14':[14.0,14.35],
-  '21':[21.0,21.45], '28':[28.0,29.7], '50':[50,54], '70':[70,70.5],
+  '1.8':[1.8,2.0], '3.5':[3.5,4.0], '7':[7.0,7.3], '10.1':[10.1,10.15],
+  '14':[14.0,14.35], '18':[18.0,18.2], '21':[21.0,21.45], '24':[24.8,25.0],
+  '28':[28.0,29.7], '50':[50,54], '70':[70,70.5],
   '144':[144,148], '432':[430,440], '1296':[1240,1300], '2320':[2300,2450],
   '3400':[3400,3475], '5760':[5650,5925], '10368':[10000,10500],
   '24048':[24000,24250], '47088':[47000,47200],
@@ -1633,8 +1666,10 @@ function freqFromRig(){
 
 // ─── BANDES & MODES PAR CONCOURS (selon règlements REF / IARU / CQ) ───────────
 const BAND_LABELS = {
-  // HF — noms par longueur d'onde
-  '1.8':'160m','3.5':'80m','7':'40m','14':'20m','21':'15m','28':'10m',
+  // HF — noms par longueur d'onde (dont les 3 bandes WARC, sans concours —
+  // nécessaires pour des événements comme le World Wide Award)
+  '1.8':'160m','3.5':'80m','7':'40m','10.1':'30m','14':'20m','18':'17m',
+  '21':'15m','24':'12m','28':'10m',
   // VHF/UHF/SHF
   '50':'6m','70':'4m','144':'2m','432':'70cm','1296':'23cm',
   '2320':'13cm','3400':'9cm','5760':'6cm','10368':'3cm',
@@ -1642,8 +1677,10 @@ const BAND_LABELS = {
 };
 // Fréquence d'appel par défaut (MHz) par bande — pré-remplit le champ FRÉQUENCE
 // quand on change de bande (sauf si le CAT donne la fréquence réelle).
+// 30m : pas de phonie (accord international) -> fréquence en zone CW/data.
 const BAND_FREQ = {
-  '1.8':'1.843','3.5':'3.650','7':'7.130','14':'14.150','21':'21.250','28':'28.400',
+  '1.8':'1.843','3.5':'3.650','7':'7.130','10.1':'10.116','14':'14.150',
+  '18':'18.100','21':'21.250','24':'24.910','28':'28.400',
   '50':'50.150','70':'70.200','144':'144.300','432':'432.200','1296':'1296.200',
   '2320':'2320.200','3400':'3400.200','5760':'5760.200','10368':'10368.200',
   '24048':'24048.200','47088':'47088.200',
@@ -1666,8 +1703,12 @@ function bandFromFreq(freqMHz){
   return null;
 }
 const BANDS_THF = ['144','432','1296','2320','3400','5760','10368','24048','47088']; // 144 MHz → 47 GHz
+// BANDS_HF volontairement SANS les bandes WARC (10.1/18/24 MHz) : elles sont
+// exclues par accord international de tous les concours HF classiques
+// (CQ WW, ARRL FD...) — ne jamais les ajouter à cette constante partagée.
 const BANDS_HF  = ['1.8','3.5','7','14','21','28'];
-const ALL_BANDS = ['1.8','3.5','7','14','21','28','50','70','144','432','1296','2320','3400','5760','10368','24048','47088'];
+const BANDS_HF_WARC = ['1.8','3.5','7','10.1','14','18','21','24','28']; // + WARC (ex. World Wide Award)
+const ALL_BANDS = ['1.8','3.5','7','10.1','14','18','21','24','28','50','70','144','432','1296','2320','3400','5760','10368','24048','47088'];
 
 // Bandes autorisées par concours
 const CONTEST_BANDS = {
@@ -1682,6 +1723,9 @@ const CONTEST_BANDS = {
   CQ_WW_SSB:     BANDS_HF,
   CQ_WW_CW:      BANDS_HF,
   ARRL_FD:       [...BANDS_HF, '50'],
+  // World Wide Award : 80-40-30-20-17-15-12-10m (pas de 160m, cf. règlement §4)
+  WWA_2027_JAN:  ['3.5','7','10.1','14','18','21','24','28'],
+  WWA_2027_JUL:  ['3.5','7','10.1','14','18','21','24','28'],
   CUSTOM:        ALL_BANDS,
 };
 
@@ -1698,13 +1742,17 @@ const CONTEST_MODES = {
   CQ_WW_SSB:     ['SSB'],
   CQ_WW_CW:      ['CW'],
   ARRL_FD:       ['SSB','CW','FT8','FT4','RTTY'],
+  // World Wide Award : CW/SSB/DIGI(FT8,FT4,FT2,RTTY,PSK) — règlement §5
+  WWA_2027_JAN:  ['SSB','CW','FT8','FT4','FT2','RTTY','PSK'],
+  WWA_2027_JUL:  ['SSB','CW','FT8','FT4','FT2','RTTY','PSK'],
   CUSTOM:        ['SSB','CW','FM','FT8'],
 };
 
 // Correspondance valeur bande → clé toggle configuration
 const BAND_TOGGLE_KEY = {
   '1.8':   'band_160m', '3.5':   'band_80m',  '7':     'band_40m',
-  '14':    'band_20m',  '21':    'band_15m',   '28':    'band_10m',
+  '10.1':  'band_30m',  '14':    'band_20m',  '18':    'band_17m',
+  '21':    'band_15m',  '24':    'band_12m',  '28':    'band_10m',
   '50':    'band_6m',   '70':    'band_4m',    '144':   'band_2m',
   '432':   'band_70cm', '1296':  'band_23cm',  '2320':  'band_13cm',
   '3400':  'band_9cm',  '5760':  'band_6cm',   '10368': 'band_3cm',
@@ -1753,6 +1801,8 @@ const MODE_TOGGLE_KEY = {
   'FT4':  'mode_ft4',
   'RTTY': 'mode_rtty',
   'DIGI': 'mode_ft8',
+  'FT2':  'mode_ft8',   // WWA (règlement §5) — pas de toggle dédié, rattaché à FT8
+  'PSK':  'mode_rtty',  // WWA — rattaché à RTTY (même famille "DIGI" au règlement)
 };
 
 function renderModeButtons(contest){

@@ -2,6 +2,7 @@
 """Moteur de score : valeur d'un QSO selon le concours, classement des stations, contexte de scoring pour l'IA."""
 
 import re
+import datetime
 
 from logx_definitions import CONTEST_DEFINITIONS
 from logx_utils import locator_to_latlon, haversine, bearing, cardinal
@@ -14,6 +15,9 @@ from logx_storage import shared_log
 # référence que N1MM/DXLog. Remplace l'ancienne table de ~50 préfixes qui
 # approximait le pays par 2 caractères et défaillait en 'EU' par défaut.
 import logx_dxcc as dxcc
+# World Wide Award (hamaward.cloud) : roster public des stations spéciales à
+# contacter — nécessaire à la brique 'wwa_sprint' (validity roster_check).
+import logx_wwa as wwa
 
 
 def get_continent(callsign):
@@ -85,10 +89,15 @@ PREDICATES = {
 }
 
 def _check_validity(validity, ctx):
-    """Brique validité : prédicat nommé OU {'prefix_in': ['SP','SQ',...]}
-    (concours où seuls les contacts avec un pays organisateur comptent)."""
+    """Brique validité : prédicat nommé, {'prefix_in': ['SP','SQ',...]}
+    (concours où seuls les contacts avec un pays organisateur comptent), ou
+    {'roster_check': 'wwa'} (concours où seul un roster externe publié fait
+    foi — ex. World Wide Award : n'importe quel indicatif peut être une
+    station spéciale, impossible à deviner par préfixe ou pays)."""
     if isinstance(validity, dict) and 'prefix_in' in validity:
         return ctx['dx_base'].startswith(tuple(validity['prefix_in']))
+    if isinstance(validity, dict) and validity.get('roster_check') == 'wwa':
+        return wwa.is_wwa_station(ctx['dx_base'], ctx.get('contest_id'))
     return PREDICATES.get(validity, PREDICATES['always'])(ctx)
 
 def _points_value(rule, ctx, scoring):
@@ -378,6 +387,30 @@ LEGACY_SCORING_PRESETS = {
         'priority_default': 3,
         'explain_direct': 'Activation POTA — {pts} pt par parc',
     },
+    # World Wide Award (hamaward.cloud) : points fixes par MODE (jamais par
+    # distance/pays), et seulement si la station travaillée figure au roster
+    # public de l'édition (logx_wwa.py) — sinon 0 pt, comme toute station
+    # « hors périmètre » dans ce moteur. dupe_reset:'daily' signale au
+    # classement (build_ranked_spots) qu'un contact déjà fait n'exclut PAS
+    # une nouvelle proposition demain (règlement §7 : 1 QSO/jour/bande/mode).
+    'wwa_sprint': {
+        'points': [
+            {'modes': ['CW'], 'points': 10},
+            {'modes': ['SSB', 'USB', 'LSB', 'FM'], 'points': 5},
+            {'modes': ['FT8', 'FT4', 'FT2'], 'points': 2},
+            {'modes': ['RTTY', 'PSK', 'DIGI'], 'points': 5},
+            # Mode inconnu (spot cluster sans mode identifié) : valeur plancher
+            # DIGI/SSB (la plus fréquente en pratique) — le vrai mode, et donc
+            # les vrais points, ne se confirment qu'à la saisie du QSO.
+            {'when': 'always', 'points': 5},
+        ],
+        'multiplier': None,
+        'validity': {'roster_check': 'wwa'},
+        'validity_fail_explanation': "{dx_base} n'est pas (ou plus) une station spéciale WWA inscrite — 0 pt",
+        'dupe_reset': 'daily',
+        'priority_default': 2,
+        'explain_direct': 'Station spéciale WWA {dx_base} — {pts} pts (mode à confirmer au QSO)',
+    },
 }
 
 def resolve_scoring_bricks(scoring):
@@ -415,7 +448,7 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
                    done_calls_by_band, done_locators, done_large_squares,
                    done_cq_zones, done_dxcc, current_score_total,
                    band=None, dist_km=0, noaa=None, dxmaps=None, source='',
-                   mode=''):
+                   mode='', done_today_by_band=None):
     """
     Calcule la VALEUR RÉELLE d'un QSO selon le règlement du concours.
     Retourne un dict avec points directs, impact multiplicateur, valeur totale estimée.
@@ -445,8 +478,17 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
     band_norm = str(band).replace(' MHz', '').replace(' GHz', '').strip() if band else ''
     is_already_done = band_norm in done_calls_by_band.get(dx_base, set())
 
+    if bricks.get('dupe_reset') == 'daily':
+        # Concours où le « déjà fait » historique complet (toutes dates
+        # confondues) ne s'applique PAS — seul un contact fait AUJOURD'HUI sur
+        # cette bande compte comme doublon (ex. WWA §7 : 1 QSO/jour/bande/mode
+        # par station spéciale). Sans done_today_by_band fourni par l'appelant,
+        # on considère prudemment qu'aucun contact n'a encore été fait ce jour.
+        is_already_done = band_norm in (done_today_by_band or {}).get(dx_base, set())
+
     # Contexte partagé par toutes les briques
     ctx = {
+        'contest_id': contest_id,
         'dx_base': dx_base, 'my_base': my_base,
         'dx_locator': dx_locator, 'my_locator': my_locator,
         'dx_country': dxcc.country_key(dx_base),
@@ -562,7 +604,7 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
 def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
                             done_calls_by_band, done_locators, done_large_squares,
                             done_cq_zones, done_dxcc, current_score,
-                            noaa=None, dxmaps=None):
+                            noaa=None, dxmaps=None, done_today_by_band=None):
     """
     Prend une liste de stations et les classe par valeur décroissante.
     stations_data = [{'call':str, 'locator':str, 'dist_km':int, 'band':str, ...}]
@@ -577,7 +619,8 @@ def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
             done_calls_by_band, done_locators, done_large_squares,
             done_cq_zones, done_dxcc, current_score,
             s.get('band',''), s.get('dist_km', 0),
-            noaa, dxmaps, s.get('source','')
+            noaa, dxmaps, s.get('source',''), s.get('mode',''),
+            done_today_by_band
         )
         s['scoring'] = val
         s['value_total'] = val['total_impact']
@@ -720,17 +763,25 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     # déjà fait sur 144 MHz reste une opportunité pleine sur 432 MHz (RPH,
     # IARU VHF/UHF, CQ WW... comptent chaque bande séparément).
     done_calls_by_band = {}  # indicatif -> set(bandes normalisées, ex: '144')
+    # Sous-ensemble du dessus limité aux QSO d'AUJOURD'HUI (UTC) — nécessaire
+    # aux concours à réinitialisation quotidienne du doublon (brique
+    # 'dupe_reset':'daily', ex. WWA §7). Sans ça, une station spéciale
+    # travaillée hier resterait « déjà faite » pour toujours.
+    done_today_by_band = {}
+    _today_utc = datetime.datetime.utcnow().strftime('%Y%m%d')
     done_locators = set()
     done_large_squares = set()
     done_cq_zones = set()
     done_dxcc = set()
     current_score = 0
 
-    def _mark_done(call, band):
+    def _mark_done(call, band, date=''):
         base = (call or '').split('/')[0].upper()
         band_norm = str(band or '').replace(' MHz', '').replace(' GHz', '').strip()
         if base:
             done_calls_by_band.setdefault(base, set()).add(band_norm)
+            if str(date or '').strip() == _today_utc:
+                done_today_by_band.setdefault(base, set()).add(band_norm)
         return base
 
     def _mark_country_zone(base):
@@ -745,7 +796,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     # Depuis logs EDI/ADIF (un fichier EDI = une bande = la clé band_label)
     for band_label, log_data in logs.items():
         for q in log_data.get('qsos', []):
-            base = _mark_done(q.get('call',''), band_label)
+            base = _mark_done(q.get('call',''), band_label, q.get('date',''))
             loc = q.get('locator','')
             if loc:
                 done_locators.add(loc)
@@ -756,7 +807,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
 
     # Depuis log partagé multi-op (band déjà présent par QSO)
     for q in shared_log:
-        base = _mark_done(q.get('call',''), q.get('band',''))
+        base = _mark_done(q.get('call',''), q.get('band',''), q.get('date',''))
         loc = q.get('locator','')
         if loc:
             done_locators.add(loc)
@@ -800,7 +851,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                     'lat': dx_ll[0], 'lon': dx_ll[1],
                     'freq': s.get('freq',''), 'band': band_eff,
                     'spotter': s.get('spotter',''),
-                    'time': s.get('time',''),
+                    'time': s.get('time',''), 'mode': s.get('mode',''),
                     'source': 'cluster', 'info': s.get('info',''),
                 })
             elif isinstance(s, list) and len(s) >= 2:
@@ -859,7 +910,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         all_stations, contest, my_call, my_locator,
         done_calls_by_band, done_locators, done_large_squares,
         done_cq_zones, done_dxcc, current_score,
-        noaa, dxmaps
+        noaa, dxmaps, done_today_by_band
     )
     cdef = CONTEST_DEFINITIONS.get(contest, {})
     meta = {

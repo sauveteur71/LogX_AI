@@ -277,6 +277,57 @@ CONTEST_DEFINITIONS = {
         'log_submit': 'https://cqww.com/logcheck/',
         'itu_r1_notes': '160m interdit <1810 kHz.',
     },
+
+    # ── World Wide Award (hamaward.cloud) ──────────────────────────────────
+    # PAS un concours classique : les hunters ne marquent des points qu'en
+    # contactant l'une des stations spéciales inscrites pour l'édition (ex.
+    # II1WWA) — roster public tenu à jour par logx_wwa.py, aucune donnée ici.
+    # Sans date_rule reconnue par calc_contest_date() (fenêtre fixe qui ne
+    # suit aucun format "Nème weekend du mois") : dates à saisir à la main à
+    # l'étape FILTRES, comme pour un concours personnalisé — le calendrier
+    # affichera "Permanent" en repli, sans impact sur le scoring/need-list.
+    'WWA_2027_JAN': {
+        'name': 'World Wide Award — janvier',
+        'organizer': 'HamAward (Ham Innovation Group)',
+        'check_url': 'https://hamaward.cloud/wwa',
+        'rules_url': 'https://hamaward.cloud/wwa/rules',
+        'duration_h': 744, 'start_utc': '00:00',   # 1er → 31 janvier, 31 jours
+        'bands': ['3.5','7','10.1','14','18','21','24','28'],
+        'modes': ['SSB','CW','FT8','FT4','FT2','RTTY','PSK'],
+        'exchange': 'RS/RST (aucun n° de série, règlement §3)',
+        'scoring': {
+            'type': 'wwa_sprint',
+            'multiplier': None,
+            'unit': '10pts CW / 5pts SSB / 2pts FT8-FT4-FT2 / 5pts RTTY-PSK, par station spéciale',
+            'note': 'Points uniquement si la station travaillée figure au roster WWA de cette édition '
+                    '(logx_wwa.py) — sinon 0 pt. 1 QSO valable/jour/bande/mode par station.',
+        },
+        'log_format': '', 'log_deadline': '', 'log_submit': '',
+        'notes': "Award délivré automatiquement par hamaward.cloud (pas de soumission de log). "
+                 "LogX AI n'estime le score que localement pour prioriser les contacts — "
+                 "le classement officiel reste calculé par la plateforme WWA elle-même.",
+    },
+    'WWA_2027_JUL': {
+        'name': 'World Wide Award — Sprint',
+        'organizer': 'HamAward (Ham Innovation Group)',
+        'check_url': 'https://hamaward.cloud/wwa',
+        'rules_url': 'https://hamaward.cloud/wwa/rules',
+        'duration_h': 168, 'start_utc': '00:00',   # 28 juin → 4 juillet, 7 jours
+        'bands': ['3.5','7','10.1','14','18','21','24','28'],
+        'modes': ['SSB','CW','FT8','FT4','FT2','RTTY','PSK'],
+        'exchange': 'RS/RST (aucun n° de série, règlement §3)',
+        'scoring': {
+            'type': 'wwa_sprint',
+            'multiplier': None,
+            'unit': '10pts CW / 5pts SSB / 2pts FT8-FT4-FT2 / 5pts RTTY-PSK, par station spéciale',
+            'note': 'Points uniquement si la station travaillée figure au roster WWA de cette édition '
+                    '(logx_wwa.py) — sinon 0 pt. 1 QSO valable/jour/bande/mode par station.',
+        },
+        'log_format': '', 'log_deadline': '', 'log_submit': '',
+        'notes': "Award délivré automatiquement par hamaward.cloud (pas de soumission de log). "
+                 "LogX AI n'estime le score que localement pour prioriser les contacts — "
+                 "le classement officiel reste calculé par la plateforme WWA elle-même.",
+    },
     'CQ_WPX_SSB': {
         'name': 'CQ WPX — SSB',
         'organizer': 'CQ Magazine',

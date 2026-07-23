@@ -130,6 +130,9 @@ def fetch_dxsummit(band_type='VHF', filter_digital=True):
                 'spotter': s.get('de_call', s.get('spotter_callsign', s.get('spotter', ''))),
                 'dx':      s.get('dx_call', s.get('dx_callsign', s.get('dx', ''))),
                 'freq':    freq,
+                # Mode réel renvoyé par l'API (distinct de 'info' : requis par
+                # les barèmes scorés par mode, ex. WWA — voir logx_scoring.py).
+                'mode':    str(s.get('mode', '')).upper(),
                 'info':    s.get('info', s.get('comment', '')),
                 'time':    s.get('time', s.get('utc', '')),
             })
@@ -172,6 +175,7 @@ def fetch_dxsummit_hf(filter_digital=True):
                     'spotter': spotter,
                     'dx':      dx,
                     'freq':    freq,
+                    'mode':    str(s.get('mode', '')).upper(),
                     'info':    str(s.get('info', s.get('comment', s.get('mode', '')))),
                     'time':    str(s.get('time', s.get('utc', ''))),
                     'lat':     spot_lat,

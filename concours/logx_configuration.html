@@ -2411,6 +2411,28 @@ const CONTESTS = [
     bands:['1.8','3.5','7','14','21','28MHz'], modes:['CW'],
     score:'pts × zones CQ × DXCC', color:'#FFD60A', group:'International'
   },
+  // ── World Wide Award (hamaward.cloud) — pas un concours classique : les
+  // hunters ne marquent des points qu'en contactant l'une des stations
+  // spéciales inscrites (ex. II1WWA), simple report RS/RST, sans N° de série
+  // ni multiplicateur géographique. Voir https://hamaward.cloud/wwa/rules.
+  {
+    id:'WWA_2027_JAN', name:'World Wide Award — janvier', org:'HamAward',
+    date:'01/01/2027 00h00 → 31/01/2027 23h59', correcteur:'',
+    bands:['3.5','7','10.1MHz','14','18MHz','21','24MHz','28MHz'], modes:['SSB','CW','FT8','FT4','FT2','RTTY','PSK'],
+    score:'10pts CW / 5pts SSB / 2pts FT8-FT4-FT2 / 5pts RTTY-PSK par station spéciale — 1 QSO/jour/bande/mode',
+    color:'#FFD60A',
+    rules:'https://hamaward.cloud/wwa/rules',
+    group:'International'
+  },
+  {
+    id:'WWA_2027_JUL', name:'World Wide Award — Sprint', org:'HamAward',
+    date:'28/06/2027 00h00 → 04/07/2027 23h59', correcteur:'',
+    bands:['3.5','7','10.1MHz','14','18MHz','21','24MHz','28MHz'], modes:['SSB','CW','FT8','FT4','FT2','RTTY','PSK'],
+    score:'10pts CW / 5pts SSB / 2pts FT8-FT4-FT2 / 5pts RTTY-PSK par station spéciale — 1 QSO/jour/bande/mode',
+    color:'#FFD60A',
+    rules:'https://hamaward.cloud/wwa/rules',
+    group:'International'
+  },
   {
     id:'CQ_WPX_SSB', name:'CQ WPX — SSB', org:'CQ Magazine',
     date:'Dernier week-end mars', correcteur:'CQ',
@@ -3761,6 +3783,11 @@ const CONTEST_FILTERS = {
   // ── CQ Magazine (160→10m)
   'CQ_WW_SSB':     { modes:['mode_ssb'], bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
   'CQ_WW_CW':      { modes:['mode_cw'],  bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
+  // ── World Wide Award : 80-40-30-20-17-15-12-10m (pas de 160m), tous modes
+  'WWA_2027_JAN':  { modes:['mode_ssb','mode_cw','mode_ft8','mode_ft4','mode_rtty'],
+                      bands:['band_80m','band_40m','band_30m','band_20m','band_17m','band_15m','band_12m','band_10m'] },
+  'WWA_2027_JUL':  { modes:['mode_ssb','mode_cw','mode_ft8','mode_ft4','mode_rtty'],
+                      bands:['band_80m','band_40m','band_30m','band_20m','band_17m','band_15m','band_12m','band_10m'] },
   'CQ_WPX_SSB':    { modes:['mode_ssb'], bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
   'CQ_WPX_CW':     { modes:['mode_cw'],  bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
 
