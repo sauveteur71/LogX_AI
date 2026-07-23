@@ -3677,6 +3677,11 @@ let _wsjtxState = {enabled:false};
 function refreshWsjtx(){
   return fetch('/wsjtx/state').then(r=>r.ok?r.json():null).then(applyWsjtxState).catch(()=>{});
 }
+// Alerte « DXCC/département manquant » façon GridTracker (voir d.missing,
+// calculé côté serveur par logx_awards.spotted_new_ones sur les décodages
+// FT8/FT4 récents) — notifiée UNE SEULE fois par indicatif/type via ce Set,
+// même principe anti-répétition que les autres alertes de l'appli.
+const _wsjtxAlerted = new Set();
 // Extrait de refreshWsjtx() — voir applyRigState() plus haut pour le pourquoi.
 function applyWsjtxState(d){
     const el = document.getElementById('wsjtxWidget');
@@ -3695,6 +3700,14 @@ function applyWsjtxState(d){
       try{ fetchLog(); playBeep && playBeep(1046, 90); }catch(e){}
     }
     _wsjtxLastTotal = d.logged_total || 0;
+    for(const m of (d.missing || [])){
+      const key = m.call + '|' + m.type;
+      if(_wsjtxAlerted.has(key)) continue;
+      _wsjtxAlerted.add(key);
+      const freqTxt = m.freq ? ` (${m.freq} MHz)` : '';
+      notify(`🆕 ${m.call} décodé — ${m.label}${freqTxt}`);
+      try{ playBeep(1318, 110); }catch(e){}
+    }
 }
 
 // ─── ÉTAT MATÉRIEL GROUPÉ (rig+amp+wsjtx+rotor) ──────────────────────────────

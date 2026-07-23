@@ -361,6 +361,32 @@ def add_qso_to_log(qso, force=False):
                              daemon=True).start()
     except Exception:
         pass
+    # Publication MQTT optionnelle (topics logx/qso + logx/score) — désactivée
+    # par défaut, dégradée proprement si paho-mqtt n'est pas installé (voir
+    # logx_mqtt.py). Même schéma fire-and-forget que Club Log Live/QRZ
+    # Logbook/réseau ADIF ci-dessus : le thread HTTP ne doit jamais attendre
+    # le broker. Le score publié est celui de la PORTÉE du QSO (contest+année,
+    # comme le reste de la dédup) — calcul en mémoire, aucun réseau.
+    try:
+        with config_lock:
+            cfg_now4 = dict(current_config)
+        import logx_mqtt as mqtt_bridge
+        if mqtt_bridge.mqtt_settings(cfg_now4)['enabled']:
+            scope_now = qso_scope_id(qso)
+            with log_lock:
+                score_total = sum(q.get('points', 0) or 0 for q in shared_log
+                                  if qso_scope_id(q) == scope_now)
+            def _publish_mqtt(cfg=cfg_now4, qso_copy=dict(qso), score=score_total):
+                # Le concours publié est celui DU QSO (qso['contest'], la
+                # même portée que score_total ci-dessus), pas celui de
+                # current_config — les deux divergent en pratique pour un
+                # QSO auto-loggé WSJT-X pendant un changement de concours
+                # entre-temps, ou hors mode concours (contest='').
+                mqtt_bridge.publish_qso(cfg, qso_copy)
+                mqtt_bridge.publish_score(cfg, score, qso_copy.get('contest', ''))
+            threading.Thread(target=_publish_mqtt, daemon=True).start()
+    except Exception:
+        pass
     # Enrichit l'historique d'indicatifs à chaud (Super Check Partial)
     try:
         import logx_callhistory as callhistory
@@ -738,6 +764,24 @@ def do_refresh(cfg):
 # logbook, qui les pollait séparément à cadence rapide).
 
 def _rig_state_dict(cfg_snap):
+    """Enveloppe _rig_state_dict_impl() pour y greffer la publication MQTT
+    optionnelle (topic logx/rig/freq) SANS toucher aux 4 points de retour de
+    l'implémentation (native/TCI/flrig/rigctld) — un seul endroit à modifier
+    plutôt que dupliquer le hook dans chaque branche."""
+    state = _rig_state_dict_impl(cfg_snap)
+    try:
+        if state.get('enabled') and state.get('ok') and state.get('freq_khz'):
+            import logx_mqtt as mqtt_bridge
+            if (mqtt_bridge.mqtt_settings(cfg_snap)['enabled']
+                    and mqtt_bridge.freq_changed(state['freq_khz'])):
+                threading.Thread(target=lambda: mqtt_bridge.publish_rig_freq(
+                    cfg_snap, state['freq_khz'], state.get('mode', '')), daemon=True).start()
+    except Exception:
+        pass
+    return state
+
+
+def _rig_state_dict_impl(cfg_snap):
     import logx_cat as cat
     cat_settings = cat.cat_settings(cfg_snap)
     if cat_settings['enabled'] and cat_settings['mode'] == 'native':
@@ -778,6 +822,32 @@ def _wsjtx_state_dict(cfg_snap):
     st = wsjtx.current_status()
     st['enabled'] = True
     st['port'] = settings['port']
+    # Alerte « DXCC/département manquant » façon GridTracker : les indicatifs
+    # décodés récemment en FT8/FT4 (pas seulement ceux loggués) sont croisés
+    # avec TOUTE la vie de la station via logx_awards.spotted_new_ones() —
+    # déjà écrite pour poser exactement la même question aux spots du
+    # cluster DX côté /coach/state, réutilisée telle quelle plutôt que
+    # dupliquée (spots_by_label a la même forme : {label: [{dx, freq}...]}).
+    try:
+        import logx_awards as awards
+        decodes = wsjtx.recent_decodes()
+        if decodes:
+            # Groupé par bande réelle (label lisible, même convention que
+            # _spots_from_caches() : '14 MHz'/'HF'...) plutôt qu'une seule
+            # clé 'wsjtx' — spotted_new_ones() recopie ce label tel quel
+            # dans son résultat ('band'), autant qu'il soit parlant pour
+            # l'alerte affichée côté client.
+            spots_by_label = {}
+            for d in decodes:
+                label = f"{d['band']} MHz" if d.get('band') else 'FT8/FT4'
+                spots_by_label.setdefault(label, []).append({'dx': d['call'], 'freq': d['freq_mhz']})
+            with log_lock:
+                log_copy = list(shared_log)
+            st['missing'] = awards.spotted_new_ones(log_copy, spots_by_label, max_n=12)
+        else:
+            st['missing'] = []
+    except Exception:
+        st['missing'] = []
     return st
 
 

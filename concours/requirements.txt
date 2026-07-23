@@ -29,3 +29,12 @@ pytest>=8,<10
 # fitz (pymupdf) -> pdfplumber -> pypdf, avec repli final sans dépendance.
 # Décommenter pour une extraction de meilleure qualité :
 # pymupdf>=1.24
+
+# Publication MQTT optionnelle des événements shack (logx_mqtt.py) : QSO/
+# fréquence radio/score vers un broker local (Mosquitto...), pour un tableau
+# de bord externe (Node-RED, Home Assistant...). Désactivée par défaut, import
+# protégé par HAS_PAHO — le reste de l'appli fonctionne à l'identique sans.
+# Épinglé <2 : paho-mqtt 2.0 a changé la signature de Client() (paramètre
+# callback_api_version requis), non nécessaire pour l'usage simple fait ici.
+# Décommenter pour l'activer :
+# paho-mqtt>=1.6,<2

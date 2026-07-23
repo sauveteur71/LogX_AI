@@ -83,3 +83,85 @@ def test_settings_desactive_par_defaut():
     assert wsjtx.wsjtx_settings({})['enabled'] is False
     s = wsjtx.wsjtx_settings({'wsjtx_enabled': True, 'wsjtx_port': '2237'})
     assert s == {'enabled': True, 'port': 2237}
+
+
+# ─── DECODE (type 2) : alerte « DXCC/département manquant » façon GridTracker ─
+
+def _decode_datagram(mode='FT8', message='CQ F4ABC JN18', snr=-10,
+                     delta_time=0.2, delta_hz=1500, new=1):
+    return (_header(2) + struct.pack('>B', new) + struct.pack('>I', 0) +
+            struct.pack('>i', snr) + struct.pack('>d', delta_time) +
+            struct.pack('>I', delta_hz) + _utf8(mode) + _utf8(message) +
+            struct.pack('>B', 0) + struct.pack('>B', 0))
+
+
+def test_parse_decode():
+    data = _decode_datagram(message='CQ F4ABC JN18', delta_hz=1500)
+    m = wsjtx.parse_message(data)
+    assert m['type'] == 'decode' and m['mode'] == 'FT8'
+    assert m['message'] == 'CQ F4ABC JN18' and m['delta_hz'] == 1500
+
+
+def test_extract_calls_cq():
+    assert wsjtx.extract_calls('CQ F4ABC JN18') == ['F4ABC']
+
+
+def test_extract_calls_cq_avec_qualificatif():
+    # "CQ DX"/"CQ POTA"/"CQ TEST"... : le qualificatif ne doit pas être pris
+    # pour un indicatif, ni la grille Maidenhead qui suit.
+    assert wsjtx.extract_calls('CQ POTA F4ABC/P JN18') == ['F4ABC/P']
+    assert wsjtx.extract_calls('CQ DX F4ABC JN18') == ['F4ABC']
+
+
+def test_extract_calls_echange_exclut_mon_indicatif():
+    # Échange standard "appelant appelé rapport" : mon propre indicatif (celui
+    # auquel je réponds) ne doit JAMAIS remonter comme "station entendue".
+    assert wsjtx.extract_calls('F4ABC F5XYZ +05', my_call='F5XYZ') == ['F4ABC']
+    assert wsjtx.extract_calls('F4ABC F5XYZ RR73', my_call='F5XYZ') == ['F4ABC']
+
+
+def test_extract_calls_grille_6_caracteres_pas_confondue():
+    # JN18AA (grille 6 caractères) a la même forme lettre+digit+lettre que
+    # certains indicatifs — ne doit jamais être pris pour un indicatif.
+    assert wsjtx.extract_calls('CQ F4ABC JN18AA') == ['F4ABC']
+
+
+def test_extract_calls_rien_a_signaler():
+    assert wsjtx.extract_calls('TU 73') == []
+    assert wsjtx.extract_calls('') == []
+
+
+def test_my_call_utilise_indicatif_concours_puis_repli():
+    assert wsjtx._my_call({'callsign_contest': 'F4GLD/P', 'callsign': 'F4GLD'}) == 'F4GLD/P'
+    assert wsjtx._my_call({'callsign': 'F4GLD'}) == 'F4GLD'
+    assert wsjtx._my_call({}) == ''
+
+
+def test_record_decode_alimente_recent_decodes():
+    wsjtx._decodes.clear()
+    wsjtx.status['dial_mhz'] = 14.074
+    msg = {'mode': 'FT8', 'message': 'CQ F4ABC JN18', 'delta_hz': 1500}
+    calls = wsjtx.record_decode(msg, my_call='F5XYZ')
+    assert calls == ['F4ABC']
+    decodes = wsjtx.recent_decodes()
+    assert len(decodes) == 1
+    d = decodes[0]
+    assert d['call'] == 'F4ABC' and d['mode'] == 'FT8' and d['band'] == '14'
+    assert d['freq_mhz'] == 14.0755   # dial + 1500 Hz de décalage audio
+
+
+def test_record_decode_purge_les_entrees_expirees():
+    wsjtx._decodes.clear()
+    wsjtx.status['dial_mhz'] = 14.074
+    wsjtx._decodes['OLD1CALL'] = {'band': '14', 'freq_mhz': 14.07, 'mode': 'FT8',
+                                  'last_seen': 0.0}   # très ancien (epoch)
+    wsjtx.record_decode({'mode': 'FT8', 'message': 'CQ F4ABC JN18', 'delta_hz': 0})
+    calls = {d['call'] for d in wsjtx.recent_decodes()}
+    assert 'F4ABC' in calls
+    assert 'OLD1CALL' not in calls
+
+
+def test_record_decode_sans_indicatif_ne_change_rien():
+    wsjtx._decodes.clear()
+    assert wsjtx.record_decode({'mode': 'FT8', 'message': 'TU 73'}) == []
+    assert wsjtx.recent_decodes() == []

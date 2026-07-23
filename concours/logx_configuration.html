@@ -1308,6 +1308,42 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
       <div class="section">
+        <div class="section-title">📡 PUBLICATION MQTT (optionnelle)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Publie 3 informations simples vers un broker MQTT LOCAL (Mosquitto...)
+          pour un tableau de bord externe (Node-RED, Home Assistant, overlay
+          de stream...) : <code>logx/qso</code> (chaque QSO loggué),
+          <code>logx/rig/freq</code> (fréquence radio courante),
+          <code>logx/score</code> (score du concours en cours).<br>
+          Nécessite le paquet Python optionnel <code>paho-mqtt</code>
+          (voir requirements.txt) — désactivé par défaut, et sans effet si
+          le paquet n'est pas installé.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PUBLICATION MQTT</label>
+            <select id="mqtt_enabled" onchange="updateEnabledFieldsVisibility('mqtt_enabled',['mqtt_host','mqtt_port','mqtt_topic_prefix'])">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE DU BROKER</label>
+            <input type="text" id="mqtt_host" placeholder="127.0.0.1">
+            <div class="input-note">IP du broker MQTT (souvent 127.0.0.1 si Mosquitto tourne sur ce PC)</div>
+          </div>
+          <div class="form-group">
+            <label>PORT</label>
+            <input type="number" id="mqtt_port" placeholder="1883">
+          </div>
+          <div class="form-group">
+            <label>PRÉFIXE DES TOPICS</label>
+            <input type="text" id="mqtt_topic_prefix" placeholder="logx">
+            <div class="input-note">ex. « logx » → topics logx/qso, logx/rig/freq, logx/score</div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
         <div class="section-title">🔒 SÉCURITÉ D'ACCÈS</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Par défaut, TOUT appareil qui charge une page du logiciel sur ce réseau
@@ -2066,6 +2102,10 @@ const CONFIG_HELP = {
   adifnet_mode: "Comment ce PC échange des QSO en réseau avec un autre logiciel (N1MM/DXLog) : recevoir seulement, envoyer seulement, ou les deux.",
   adifnet_port: "Le port UDP utilisé pour cet échange réseau ADIF.",
   adifnet_target: "L'adresse IP du PC voisin avec lequel échanger les QSO en réseau (laisser vide pour diffuser en broadcast sur tout le réseau local).",
+  mqtt_enabled: "Publie QSO/fréquence radio/score vers un broker MQTT local, pour un tableau de bord externe (Node-RED, Home Assistant...). Nécessite le paquet Python optionnel paho-mqtt — sans effet si non installé.",
+  mqtt_host: "Adresse réseau du broker MQTT (ex. Mosquitto) — souvent 127.0.0.1 si le broker tourne sur ce même PC.",
+  mqtt_port: "Port du broker MQTT — 1883 par défaut (sans chiffrement).",
+  mqtt_topic_prefix: "Préfixe des topics publiés (défaut « logx ») : donne logx/qso, logx/rig/freq, logx/score.",
 
   access_password: "Mot de passe optionnel exigé avant d'accorder les droits d'écriture (ajout de QSO, configuration) à un appareil qui charge une page du logiciel. Laisse vide et clique « Désactiver » pour retirer la protection (comportement par défaut : accès automatique, adapté à un LAN de confiance). Circule en clair sur le réseau local (pas de HTTPS) — protège d'un accès non voulu, pas d'une écoute réseau active.",
 
@@ -4864,6 +4904,10 @@ function saveConfig(silent = false, feedbackBtn = null) {
     adifnet_mode: document.getElementById('adifnet_mode').value,
     adifnet_port: parseInt(document.getElementById('adifnet_port').value, 10) || 12060,
     adifnet_target: document.getElementById('adifnet_target').value.trim() || '255.255.255.255',
+    mqtt_enabled: !!document.getElementById('mqtt_enabled')?.value,
+    mqtt_host: document.getElementById('mqtt_host')?.value.trim() || '',
+    mqtt_port: parseInt(document.getElementById('mqtt_port')?.value, 10) || 1883,
+    mqtt_topic_prefix: document.getElementById('mqtt_topic_prefix')?.value.trim() || 'logx',
     voicekeyer_enabled: !!document.getElementById('voicekeyer_enabled').value,
     voicekeyer_device: document.getElementById('voicekeyer_device').value,
     voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
@@ -5340,6 +5384,11 @@ function applyFullConfigToForm(c) {
     if(c.adifnet_mode) document.getElementById('adifnet_mode').value = c.adifnet_mode;
     if(c.adifnet_port) document.getElementById('adifnet_port').value = c.adifnet_port;
     if(c.adifnet_target) document.getElementById('adifnet_target').value = c.adifnet_target;
+    if(c.mqtt_enabled && document.getElementById('mqtt_enabled')) document.getElementById('mqtt_enabled').value = '1';
+    if(c.mqtt_host && document.getElementById('mqtt_host')) document.getElementById('mqtt_host').value = c.mqtt_host;
+    if(c.mqtt_port && document.getElementById('mqtt_port')) document.getElementById('mqtt_port').value = c.mqtt_port;
+    if(c.mqtt_topic_prefix && document.getElementById('mqtt_topic_prefix'))
+      document.getElementById('mqtt_topic_prefix').value = c.mqtt_topic_prefix;
     if(c.rotor_enabled) document.getElementById('rotor_enabled').value = '1';
     if(c.rotor_host) document.getElementById('rotor_host').value = c.rotor_host;
     if(c.rotor_port) document.getElementById('rotor_port').value = c.rotor_port;
@@ -5423,6 +5472,7 @@ function applyFullConfigToForm(c) {
     updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
     updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
     updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
+    updateEnabledFieldsVisibility('mqtt_enabled', ['mqtt_host','mqtt_port','mqtt_topic_prefix']);
     renderHub(); // Hub de catégories : badges après restauration/changement de profil
 }
 

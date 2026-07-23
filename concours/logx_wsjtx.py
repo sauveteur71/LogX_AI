@@ -14,6 +14,7 @@ port 2237. Fonctionnalité désactivée par défaut ; activée dans CONFIG.
 L'insertion dans le log réutilise la même logique (dédup + scoring) que la
 saisie manuelle, via un callback fourni par le serveur.
 """
+import re
 import socket
 import struct
 import threading
@@ -48,6 +49,16 @@ class _Reader:
 
     def i64(self):
         v = struct.unpack_from('>q', self.d, self.i)[0]
+        self.i += 8
+        return v
+
+    def i32(self):
+        v = struct.unpack_from('>i', self.d, self.i)[0]
+        self.i += 4
+        return v
+
+    def f64(self):
+        v = struct.unpack_from('>d', self.d, self.i)[0]
         self.i += 8
         return v
 
@@ -98,7 +109,7 @@ def _jdn_to_datetime(jdn, ms):
 # ─── PARSING DES MESSAGES ────────────────────────────────────────────────────
 def parse_message(data):
     """Retourne un dict décrivant le message, ou None si non pertinent/illisible.
-    Types gérés : 1 (Status) et 5 (QSO Logged)."""
+    Types gérés : 1 (Status), 2 (Decode) et 5 (QSO Logged)."""
     if len(data) < 12:
         return None
     r = _Reader(data)
@@ -121,6 +132,18 @@ def parse_message(data):
             tx_mode = r.utf8()
             return {'type': 'status', 'dial_mhz': round(dial_hz / 1e6, 4),
                     'mode': mode, 'tx_mode': tx_mode}
+        if mtype == 2:      # Decode : un décodage affiché dans le waterfall (PAS un QSO)
+            r.u8()          # 'new' (bool) — pas utilisé
+            r.u32()         # heure du jour (QTime, ms depuis minuit) — IGNORÉE : le
+                            # cache recent_decodes() se base sur l'horloge du serveur
+                            # pour sa fraîcheur (TTL), inutile de gérer le passage de
+                            # minuit UTC d'un QTime qui ne porte pas la date.
+            r.i32()         # SNR — pas utilisé (alerte binaire, pas de tri par signal)
+            r.f64()         # delta temps (s) — idem
+            delta_hz = r.u32()
+            mode = r.utf8()
+            message = r.utf8()
+            return {'type': 'decode', 'mode': mode, 'message': message, 'delta_hz': delta_hz}
         if mtype == 5:      # QSO Logged
             time_off = r.datetime()
             call = r.utf8()
@@ -155,6 +178,99 @@ def _mhz_to_band(mhz):
         if lo <= mhz <= hi:
             return b
     return str(int(mhz)) if mhz else ''
+
+
+# ─── ALERTE « DXCC/DÉPARTEMENT MANQUANT » (façon GridTracker) ────────────────
+# GridTracker (référence de l'écosystème FT8) colore/alerte un décodage qui
+# correspond à un pays/département JAMAIS travaillé — sa fonction la plus
+# plébiscitée. Ici : on extrait le(s) indicatif(s) de chaque message Decode
+# (type 2, un par station ENTENDUE dans le waterfall — pas un QSO) et on les
+# garde en cache le temps qu'ils restent "actifs". Le croisement avec le log
+# (DXCC déjà travaillé/confirmé à VIE) est fait côté logx_http.py via
+# logx_awards.spotted_new_ones() — déjà écrite pour exactement la même
+# question posée aux spots du cluster DX, pas de logique dupliquée ici.
+_GRID_RE = re.compile(r'^[A-X]{2}\d{2}([A-X]{2})?$')
+_CALL_RE = re.compile(r'^[0-9A-Z]{1,4}\d[A-Z]{1,4}(?:/[0-9A-Z]{1,4})?$')
+_REPORT_RE = re.compile(r'^R?[+-]\d{2}$')
+_DECODE_SKIP_TOKENS = {'CQ', 'QRZ', 'DE', 'RRR', 'RR73', '73', 'TNX', 'TU',
+                       'DX', 'TEST', 'POTA', 'SOTA', 'WWFF', 'IOTA', 'AGN'}
+_DECODE_TTL = 300     # 5 min : au-delà, une station décodée n'est plus "active"
+
+_decodes = {}         # call -> {'band','freq_mhz','mode','last_seen'}
+_decodes_lock = threading.Lock()
+
+
+def extract_calls(message, my_call=''):
+    """Indicatifs plausibles dans un message décodé FT8/FT4 (ex. « CQ F4ABC
+    JN18 », « F4ABC F5XYZ +05 », « F4ABC F5XYZ RR73 ») — exclut les grilles
+    Maidenhead, les rapports, les jokers usuels (CQ/DX/POTA...) et mon propre
+    indicatif. Parsing volontairement simple (PAS un décodeur FT8 complet
+    comme WSJT-X lui-même) : suffisant pour savoir QUI est entendu, pas pour
+    rejouer tout l'échange."""
+    my = (my_call or '').upper().strip()
+    out = []
+    for tok in (message or '').upper().replace('<', '').replace('>', '').split():
+        if tok in _DECODE_SKIP_TOKENS or _REPORT_RE.match(tok) or _GRID_RE.match(tok):
+            continue
+        base = tok.split('/')[0]
+        if my and (tok == my or base == my):
+            continue
+        if _CALL_RE.match(tok):
+            out.append(tok)
+    return out
+
+
+def _decode_freq_mhz(msg):
+    """Fréquence réelle du décodage (MHz) = dial courant (dernier message
+    Status reçu) + décalage audio (delta_hz) du décodage. 0 si le dial n'est
+    pas encore connu (aucun Status reçu depuis le démarrage de l'écoute)."""
+    with _status_lock:
+        dial = status.get('dial_mhz') or 0
+    if not dial:
+        return 0
+    return round(dial + (msg.get('delta_hz', 0) or 0) / 1e6, 4)
+
+
+def record_decode(msg, my_call=''):
+    """Message Decode (type 2) -> enregistre le(s) indicatif(s) entendus dans
+    le cache des décodages récents (voir recent_decodes()). Isolé de _run()
+    pour rester testable sans socket UDP. Purge au passage les entrées
+    expirées (cache borné : pas de fuite mémoire sur une session de plusieurs
+    jours d'activité FT8/FT4 continue)."""
+    calls = extract_calls(msg.get('message', ''), my_call)
+    if not calls:
+        return []
+    import time
+    freq_mhz = _decode_freq_mhz(msg)
+    band = _mhz_to_band(freq_mhz) if freq_mhz else ''
+    mode = msg.get('mode') or ''
+    now = time.time()
+    with _decodes_lock:
+        for c in calls:
+            _decodes[c] = {'band': band, 'freq_mhz': freq_mhz, 'mode': mode, 'last_seen': now}
+        cutoff = now - _DECODE_TTL
+        for k in [k for k, v in _decodes.items() if v['last_seen'] < cutoff]:
+            del _decodes[k]
+    return calls
+
+
+def recent_decodes(max_age=_DECODE_TTL):
+    """Décodages FT8/FT4 encore « actifs » (call, band, freq_mhz, mode,
+    last_seen) — consommé par _wsjtx_state_dict() (logx_http.py) pour
+    l'alerte DXCC/département manquant façon GridTracker."""
+    import time
+    cutoff = time.time() - max_age
+    with _decodes_lock:
+        return [dict(call=c, **v) for c, v in _decodes.items() if v['last_seen'] >= cutoff]
+
+
+def _my_call(cfg):
+    """Indicatif réellement émis par la station (celui que WSJT-X transmet),
+    PAS op_call (opérateur responsable du log, souvent différent en
+    multi-opérateurs) — repli sur l'indicatif personnel si aucun indicatif de
+    concours n'est renseigné."""
+    cfg = cfg or {}
+    return (cfg.get('callsign_contest') or cfg.get('callsign') or '').upper().strip()
 
 
 def qso_from_logged(msg, cfg):
@@ -260,6 +376,14 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
                             print(f"[WSJTX] +QSO auto {qso['call']} {qso['band']}MHz {qso['mode']}")
                 except Exception as e:
                     print(f"[WSJTX] Erreur auto-log: {e}")
+            elif msg['type'] == 'decode':
+                # Alerte DXCC/département manquant (voir recent_decodes()) —
+                # le croisement avec le log se fait côté logx_http.py, ici on
+                # ne fait qu'alimenter le cache des décodages entendus.
+                try:
+                    record_decode(msg, _my_call(get_cfg() or {}))
+                except Exception as e:
+                    print(f"[WSJTX] Erreur decode: {e}")
 
     threading.Thread(target=_run, daemon=True).start()
 
