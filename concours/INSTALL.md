@@ -53,9 +53,46 @@ Le résultat apparaît dans `dist/LogXAI`. Lancez-le par double-clic.
 > ⚠️ Au 1er lancement, macOS (Gatekeeper) bloque les apps non signées :
 > faites **clic droit → Ouvrir**, puis confirmez. À faire une seule fois.
 
-Pas de Mac sous la main ? La construction peut aussi se faire gratuitement
-via **GitHub Actions** (runner `macos-latest`) si le projet est hébergé sur
-GitHub — même commande `./build_macos.sh` dans un workflow.
+Pas de Mac sous la main ? Le workflow **GitHub Actions** du dépôt
+(`.github/workflows/build-release.yml`) construit automatiquement les
+exécutables **Windows, macOS et Linux** à chaque tag de release `v*` et les
+attache à la release — aucun Mac à posséder.
+
+---
+
+## 🐧 Linux (et Raspberry Pi)
+
+Le code tourne nativement sous Linux (la CI du projet exécute d'ailleurs
+toute la suite de tests sous Ubuntu). Deux façons :
+
+- **Exécutable autonome** : `./build_linux.sh` dans ce dossier produit
+  `dist/LogXAI` (à construire sur la machine Linux cible ; PortAudio requis
+  pour le keyer vocal : `sudo apt install libportaudio2`). Les releases
+  GitHub incluent aussi un binaire `LogXAI-linux` pré-construit (x86_64).
+- **Depuis les sources** : `pip install -r requirements.txt` puis
+  `python3 logx_serveur.py`.
+
+💡 **Raspberry Pi** : un Pi fait un excellent serveur LogX AI permanent du
+shack — il reste allumé, et tous les postes (PC, téléphones, tablettes) se
+connectent à son adresse WiFi. Construction sur le Pi avec `build_linux.sh`
+(architecture ARM), ou mode sources.
+
+---
+
+## 📱 Android / iPhone
+
+**Aucune application à installer** : les téléphones et tablettes sont des
+*clients* du PC (ou du Pi) qui fait tourner LogX AI. Sur le même WiFi :
+
+1. Ouvrez `http://IP-DU-PC:8080/logx_mobile.html` dans le navigateur du
+   téléphone (Chrome, Safari...) — page de **saisie tactile** dédiée :
+   gros champs, log partagé en direct, identité héritée du serveur.
+2. Menu du navigateur → **« Ajouter à l'écran d'accueil »** : LogX AI
+   apparaît comme une vraie appli (icône, plein écran, sans barre
+   d'adresse) — c'est une PWA, Android et iOS le gèrent nativement.
+
+Le logbook complet, l'écran mural et toutes les autres pages restent aussi
+accessibles depuis le téléphone pour consultation.
 
 ---
 
