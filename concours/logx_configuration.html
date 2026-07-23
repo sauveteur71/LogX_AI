@@ -1245,6 +1245,33 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <span id="cloudsyncResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
+      <div class="section">
+        <div class="section-title">🔒 SÉCURITÉ D'ACCÈS</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Par défaut, TOUT appareil qui charge une page du logiciel sur ce réseau
+          obtient automatiquement les droits d'écriture (ajout de QSO, changement
+          de configuration...) — adapté à un poste/radioclub de confiance.
+          Définis un mot de passe ici pour exiger une connexion explicite avant
+          d'accorder ces droits (utile si le port est exposé plus largement :
+          routeur 4G d'expédition, invités au radioclub...).<br>
+          <b style="color:var(--accent2)">Pas de chiffrement HTTPS ici</b> : le mot
+          de passe circule en clair sur le réseau local, comme tes autres
+          identifiants déjà stockés (ON4KST, QRZ...) — cette protection empêche
+          un accès non voulu, pas une écoute réseau active.
+        </div>
+        <div id="accessPasswordStatus" style="font-family:var(--font-mono);font-size:13px;margin-bottom:14px"></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>NOUVEAU MOT DE PASSE</label>
+            <input type="password" id="access_password" placeholder="vide = pas de protection" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="setAccessPassword()">🔒 Définir / modifier</button>
+          <button type="button" class="btn btn-secondary" id="disableAccessPasswordBtn" onclick="disableAccessPassword()" style="display:none">🔓 Désactiver la protection</button>
+          <span id="accessPasswordResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1921,6 +1948,8 @@ const CONFIG_HELP = {
   adifnet_port: "Le port UDP utilisé pour cet échange réseau ADIF.",
   adifnet_target: "L'adresse IP du PC voisin avec lequel échanger les QSO en réseau (laisser vide pour diffuser en broadcast sur tout le réseau local).",
 
+  access_password: "Mot de passe optionnel exigé avant d'accorder les droits d'écriture (ajout de QSO, configuration) à un appareil qui charge une page du logiciel. Laisse vide et clique « Désactiver » pour retirer la protection (comportement par défaut : accès automatique, adapté à un LAN de confiance). Circule en clair sur le réseau local (pas de HTTPS) — protège d'un accès non voulu, pas d'une écoute réseau active.",
+
   ai_model: "Le modèle d'intelligence artificielle utilisé par le copilote (analyse de règlement, coach pendant le concours, cet assistant). Change de fournisseur si tu as une clé d'un autre service.",
   api_key: "Ta clé d'accès personnelle au service d'IA choisi (Anthropic/OpenAI/Gemini). Indispensable pour utiliser le copilote IA — reste stockée uniquement sur ton poste, jamais partagée. Sans elle, le logiciel fonctionne normalement, seul le copilote IA est indisponible.",
 
@@ -2582,6 +2611,7 @@ async function init() {
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
+  refreshAccessPasswordStatus(); // Mot de passe d'accès optionnel (section RÉSEAU)
   renderHub(); // Hub de catégories : badges d'état initiaux
 }
 
@@ -3691,6 +3721,96 @@ async function cloudsyncNow(){
       result.textContent = `❌ ${r.error || 'échec'}`;
       result.style.color = 'var(--red)';
     }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
+}
+
+// ─── Mot de passe d'accès optionnel (voir logx_http._access_password_enabled) ─
+// Volontairement PAS dans saveConfig()/le gros objet `config` : /config/save
+// REMPLACE tout current_config à chaque sauvegarde (y compris la sauvegarde
+// silencieuse déclenchée par chaque étape) — un champ mot de passe toujours
+// vide dans ce formulaire (on ne peut pas ré-afficher un hash) aurait effacé
+// la protection à la sauvegarde suivante de n'importe quel AUTRE réglage.
+// Route dédiée /auth/set_password à la place, comme /ui/theme.
+async function refreshAccessPasswordStatus(){
+  const el = document.getElementById('accessPasswordStatus');
+  const disableBtn = document.getElementById('disableAccessPasswordBtn');
+  if(!el) return;
+  try{
+    const res = await fetch('/auth/status');
+    const d = await res.json();
+    if(d.enabled){
+      el.textContent = "🔒 Protection activée — un mot de passe est requis pour obtenir les droits d'écriture.";
+      el.style.color = 'var(--accent2)';
+      if(disableBtn) disableBtn.style.display = '';
+    } else {
+      el.textContent = '🔓 Aucun mot de passe configuré — accès en écriture automatique (comportement par défaut).';
+      el.style.color = 'var(--muted)';
+      if(disableBtn) disableBtn.style.display = 'none';
+    }
+  }catch(e){
+    el.textContent = 'Statut indisponible (serveur injoignable).';
+    el.style.color = 'var(--red)';
+  }
+}
+
+async function setAccessPassword(){
+  const input = document.getElementById('access_password');
+  const pw = input.value;
+  const result = document.getElementById('accessPasswordResult');
+  if(!pw){
+    result.textContent = "Champ vide — utilise « Désactiver la protection » pour la retirer.";
+    result.style.color = 'var(--muted)';
+    return;
+  }
+  if(pw.length < 4){
+    result.textContent = '⚠️ 4 caractères minimum.';
+    result.style.color = 'var(--red)';
+    return;
+  }
+  result.textContent = '⏳ enregistrement…';
+  result.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/auth/set_password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw}),
+    });
+    const d = await res.json();
+    if(d.ok){
+      result.textContent = '✅ Mot de passe enregistré.';
+      result.style.color = 'var(--green)';
+      input.value = '';
+      refreshAccessPasswordStatus();
+    } else {
+      result.textContent = `❌ ${d.error || 'échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
+}
+
+async function disableAccessPassword(){
+  if(!confirm("Désactiver la protection ? Tout appareil du réseau obtiendra de nouveau les droits d'écriture automatiquement.")) return;
+  const result = document.getElementById('accessPasswordResult');
+  try{
+    const res = await fetch('/auth/set_password', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({password: ''}),
+    });
+    const d = await res.json();
+    if(d.ok){
+      result.textContent = '✅ Protection désactivée.';
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${d.error || 'échec'}`;
+      result.style.color = 'var(--red)';
+    }
+    document.getElementById('access_password').value = '';
+    refreshAccessPasswordStatus();
   }catch(e){
     result.textContent = `❌ Serveur injoignable : ${e.message}`;
     result.style.color = 'var(--red)';

@@ -165,6 +165,72 @@ def _load_auth_token():
 
 AUTH_TOKEN = _load_auth_token()
 
+# ─── MOT DE PASSE D'ACCÈS OPTIONNEL (avant remise du jeton d'écriture) ───────
+# Par défaut (fichier absent), comportement INCHANGÉ : rc_token est distribué
+# automatiquement à toute page HTML servie (voir do_GET) — adapté à un LAN de
+# confiance. Si un mot de passe est défini depuis CONFIG (POST
+# /auth/set_password), cette distribution automatique s'arrête : seule
+# /auth/login peut désormais poser le cookie, après vérification du mot de
+# passe en temps constant (même logique que AUTH_TOKEN, voir
+# _client_authorized). Le mot de passe n'est JAMAIS conservé en clair :
+# PBKDF2-HMAC-SHA256 + sel aléatoire (un simple sha256 sans sel serait
+# cassable par table arc-en-ciel). Pas de TLS ici (volontairement hors scope,
+# voir le commentaire de _handle_auth_login_post) : le mot de passe circule en
+# clair sur le réseau local, comme les autres identifiants déjà envoyés par
+# /config/save (ON4KST, QRZ...) — cette protection couvre un accès non voulu,
+# pas une écoute réseau active.
+ACCESS_PASSWORD_FILE = '.access_password'
+_access_pw_lock = threading.Lock()
+_PBKDF2_ITERATIONS = 200_000
+
+def _hash_password(password, salt_hex=None):
+    import hashlib
+    import secrets as _secrets
+    salt_hex = salt_hex or _secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'),
+                                  bytes.fromhex(salt_hex), _PBKDF2_ITERATIONS)
+    return salt_hex, digest.hex()
+
+def _load_access_password():
+    """(sel, hash) actuels, ou None si aucun mot de passe n'est configuré
+    (repli explicite : fichier absent/corrompu = protection désactivée, comme
+    le comportement par défaut)."""
+    try:
+        with open(ACCESS_PASSWORD_FILE, encoding='utf-8') as f:
+            data = json.load(f)
+        salt_hex, h = data.get('salt', ''), data.get('hash', '')
+        if salt_hex and h:
+            return salt_hex, h
+    except Exception:
+        pass
+    return None
+
+def _access_password_enabled():
+    with _access_pw_lock:
+        return _load_access_password() is not None
+
+def _verify_access_password(password):
+    with _access_pw_lock:
+        stored = _load_access_password()
+    if not stored or not password:
+        return False
+    salt_hex, expected_hash = stored
+    _, candidate_hash = _hash_password(password, salt_hex)
+    import secrets as _secrets
+    return _secrets.compare_digest(candidate_hash, expected_hash)
+
+def _set_access_password(password):
+    salt_hex, h = _hash_password(password)
+    with _access_pw_lock:
+        save_json_atomic(ACCESS_PASSWORD_FILE, {'salt': salt_hex, 'hash': h})
+
+def _clear_access_password():
+    with _access_pw_lock:
+        try:
+            os.remove(ACCESS_PASSWORD_FILE)
+        except FileNotFoundError:
+            pass
+
 # ─── PORTÉE CONCOURS (voir logx_storage.qso_scope_id/active_scope_id/cfg_scope_id) ─
 def _scope_filtered(qsos, cfg):
     """Sous-ensemble de `qsos` appartenant à la portée active de `cfg` (voir
@@ -2038,6 +2104,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             })
             return
 
+        # Mot de passe d'accès optionnel : état courant (page CONFIG et
+        # formulaire de connexion) — jamais le hash, un simple booléen.
+        if path == '/auth/status':
+            self._json({'enabled': _access_password_enabled(),
+                        'authorized': self._client_authorized()})
+            return
+
+        # Page de connexion : SEULE porte d'entrée du jeton d'écriture quand un
+        # mot de passe est configuré (voir _access_password_enabled). Reste
+        # joignable même protection active — elle ne fuite aucune donnée.
+        if path == '/auth/login':
+            from urllib.parse import parse_qs, urlparse
+            qs = parse_qs(urlparse(self.path).query)
+            self._serve_login_page(qs.get('next', ['/'])[0])
+            return
 
         if path in ('/', ''):
             path = '/logx_configuration.html'
@@ -2057,6 +2138,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         filepath = self._resolve(path)
         if filepath and os.path.isfile(filepath):
+            pw_enabled = _access_password_enabled()
+            # Mot de passe configuré : une page HTML ne se sert plus toute
+            # seule le jeton d'écriture — sans cookie déjà valide, direction
+            # /auth/login au lieu du contenu demandé. Ne s'applique qu'aux
+            # pages HTML (le CSS/JS d'une page déjà affichée doit continuer de
+            # charger normalement, ces fichiers n'ont jamais posé le cookie).
+            if filepath.endswith('.html') and pw_enabled and not self._client_authorized():
+                from urllib.parse import quote
+                self._redirect('/auth/login?next=' + quote(path, safe=''))
+                return
             with open(filepath, 'rb') as f:
                 body = f.read()
             self.send_response(200)
@@ -2067,9 +2158,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if filepath.endswith('.svg'):  ct = 'image/svg+xml'
             if filepath.endswith('.png'):  ct = 'image/png'
             if filepath.endswith('.webmanifest'): ct = 'application/manifest+json'
-            if ct.startswith('text/html'):
-                # Distribue le token aux navigateurs du logiciel (SameSite=Strict :
-                # jamais envoyé depuis un site tiers → routes d'écriture protégées).
+            if ct.startswith('text/html') and not pw_enabled:
+                # Distribution automatique SEULEMENT si aucun mot de passe n'est
+                # configuré (comportement historique, LAN de confiance) — sinon
+                # seule /auth/login (mot de passe vérifié) pose ce cookie
+                # (SameSite=Strict : jamais envoyé depuis un site tiers).
                 self.send_header('Set-Cookie',
                                  f'rc_token={AUTH_TOKEN}; Path=/; SameSite=Strict; HttpOnly')
             self.send_header('Content-Type', ct)
@@ -2089,7 +2182,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         global current_config, chat_seq, browser_spots_cache, browser_spots_ts
-        # Toutes les routes POST écrivent ou appellent l'IA : token exigé.
+        # /auth/login est LA route qui pose rc_token quand un mot de passe est
+        # configuré : elle doit rester joignable SANS jeton (sinon personne ne
+        # pourrait jamais se connecter) — c'est le mot de passe lui-même qui
+        # est vérifié en temps constant (voir _verify_access_password).
+        if self.path.split('?')[0] == '/auth/login':
+            self._handle_auth_login_post()
+            return
+        # Toutes les autres routes POST écrivent ou appellent l'IA : token exigé.
         if not self._require_auth():
             return
         # Plafond de taille du corps : un client malveillant du LAN pouvait
@@ -2324,6 +2424,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 mark_hard_reset()
                 print(f"[CFG] Config reçue : {cfg.get('callsign','')} / {cfg.get('locator','')} / {cfg.get('contest','')}")
                 self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Définit/modifie (password non vide) ou désactive (password vide) le
+        # mot de passe d'accès — voir _access_password_enabled. Volontairement
+        # PAS dans current_config/config/save : ce dernier REMPLACE tout à
+        # chaque sauvegarde (silencieuse ou non) — un champ mot de passe vide
+        # par défaut dans le formulaire aurait effacé la protection à chaque
+        # sauvegarde de n'importe quel autre réglage. Route dédiée, sur le
+        # modèle de /ui/theme (ne touche QUE ce qu'elle doit toucher).
+        # Nécessite déjà le jeton (comme toute route POST) : cohérent, on ne
+        # peut changer ce réglage qu'en étant déjà connecté.
+        if self.path == '/auth/set_password':
+            try:
+                payload = json.loads(body)
+                new_pw = str(payload.get('password', ''))
+                if new_pw == '':
+                    _clear_access_password()
+                    self._json({'ok': True, 'enabled': False})
+                elif len(new_pw) < 4:
+                    self._json({'ok': False,
+                               'error': 'Mot de passe trop court (4 caractères minimum)'}, 400)
+                else:
+                    _set_access_password(new_pw)
+                    self._json({'ok': True, 'enabled': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
@@ -3114,6 +3240,121 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _require_auth(self):
         if self._client_authorized():
             return True
-        self._json({'error': "Non autorisé — recharge une page du logiciel "
-                             "(cookie de session manquant ou invalide)"}, 403)
+        if _access_password_enabled():
+            self._json({'error': "Non autorisé — connecte-toi via /auth/login "
+                                 "(mot de passe d'accès configuré)"}, 403)
+        else:
+            self._json({'error': "Non autorisé — recharge une page du logiciel "
+                                 "(cookie de session manquant ou invalide)"}, 403)
         return False
+
+    def _redirect(self, location):
+        self.send_response(302)
+        self.send_header('Location', location)
+        self.send_header('Content-Length', '0')
+        self._cors()
+        self.end_headers()
+
+    # ── Mot de passe d'accès optionnel (voir _access_password_enabled) ───────
+    def _serve_login_page(self, next_path):
+        """GET /auth/login?next=... : petit formulaire autonome (pas de
+        dépendance CSS/JS externe) qui POST le mot de passe puis redirige vers
+        `next` une fois le cookie rc_token obtenu."""
+        # Anti-redirection-ouverte : `next` vient de la query string, on ne
+        # suit qu'un chemin relatif de CE site, jamais une URL absolue ou un
+        # //hôte-externe.
+        if not next_path or not next_path.startswith('/') or next_path.startswith('//'):
+            next_path = '/'
+        next_json = json.dumps(next_path)
+        page = f"""<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>LogX AI — Accès protégé</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body{{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Arial,sans-serif;
+       display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
+  .box{{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:32px 36px;
+       width:100%;max-width:340px;box-sizing:border-box}}
+  h1{{font-size:17px;margin:0 0 6px}}
+  p.sub{{color:#8b949e;font-size:13px;margin:0 0 20px;line-height:1.5}}
+  input{{width:100%;box-sizing:border-box;background:#0d1117;border:1px solid #30363d;
+        color:#e6edf3;border-radius:6px;padding:10px 12px;font-size:14px;margin-bottom:14px}}
+  button{{width:100%;background:#238636;border:none;color:#fff;border-radius:6px;
+         padding:10px 12px;font-size:14px;cursor:pointer}}
+  button:hover{{background:#2ea043}}
+  button:disabled{{opacity:.6;cursor:default}}
+  p.err{{color:#f85149;font-size:13px;margin:0 0 14px}}
+</style></head>
+<body>
+  <form class="box" id="loginForm">
+    <h1>🔒 LogX AI — Accès protégé</h1>
+    <p class="sub">Un mot de passe est requis pour obtenir les droits d'écriture
+    (ajout de QSO, configuration...) sur ce poste.</p>
+    <input type="password" id="pw" placeholder="Mot de passe" autofocus autocomplete="current-password">
+    <button type="submit">Se connecter</button>
+  </form>
+<script>
+const next = {next_json};
+const form = document.getElementById('loginForm');
+const pwField = document.getElementById('pw');
+function showErr(msg){{
+  let p = document.getElementById('errMsg');
+  if(!p){{ p = document.createElement('p'); p.id = 'errMsg'; p.className = 'err';
+           form.insertBefore(p, pwField); }}
+  p.textContent = msg;
+}}
+form.addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const btn = form.querySelector('button');
+  btn.disabled = true; btn.textContent = 'Connexion...';
+  try {{
+    const r = await fetch('/auth/login', {{method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{password: pwField.value}})}});
+    if (r.ok) {{ location.href = next; return; }}
+    showErr('Mot de passe incorrect.');
+  }} catch (err) {{ showErr('Serveur injoignable.'); }}
+  btn.disabled = false; btn.textContent = 'Se connecter';
+}});
+</script>
+</body></html>"""
+        self._raw(200, 'text/html; charset=utf-8', page.encode('utf-8'))
+
+    def _handle_auth_login_post(self):
+        """POST /auth/login : vérifie le mot de passe d'accès en temps
+        constant (voir _verify_access_password) et pose rc_token si correct —
+        SEULE route qui distribue le jeton d'écriture quand un mot de passe
+        est configuré. Volontairement sans TLS (hors scope de cette
+        fonctionnalité — trop de complexité/avertissements navigateur pour ce
+        lot, à traiter séparément) : le mot de passe circule en clair sur le
+        réseau local, comme les identifiants déjà envoyés par /config/save
+        (ON4KST, QRZ...). Cette protection couvre un accès non voulu (invité
+        au radioclub, port forwardé par erreur), pas une écoute réseau active
+        — un LAN non fiable (WiFi public) reste hors du modèle de menace visé
+        ici."""
+        try:
+            length = int(self.headers.get('Content-Length', 0) or 0)
+        except (TypeError, ValueError):
+            length = 0
+        length = max(0, min(length, 4096))  # un mot de passe tient largement là-dedans
+        body = self.rfile.read(length) if length else b''
+        try:
+            payload = json.loads(body) if body else {}
+        except Exception:
+            payload = {}
+        password = str(payload.get('password', ''))
+        if not _access_password_enabled():
+            self._json({'ok': False, 'error': 'Aucun mot de passe configuré'}, 400)
+            return
+        if _verify_access_password(password):
+            body_out = json.dumps({'ok': True}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Set-Cookie',
+                             f'rc_token={AUTH_TOKEN}; Path=/; SameSite=Strict; HttpOnly')
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body_out)))
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body_out)
+        else:
+            self._json({'ok': False, 'error': 'Mot de passe incorrect'}, 401)
