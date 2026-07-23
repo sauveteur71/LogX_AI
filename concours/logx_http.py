@@ -760,7 +760,11 @@ def _activation_db_adapter(program):
     logx_sota.py, non modifiées) et POTA/WWFF/IOTA (moteur générique
     logx_activation_db.ActivationDatabase), pour UNE seule UI de recherche
     côté configuration plutôt que 5 implémentations quasi identiques. WCA n'a
-    pas de coordonnées GPS dans sa source (cf. logx_wca.py) : nearby=None."""
+    pas de coordonnées GPS dans sa source (cf. logx_wca.py) : nearby=None
+    (chercher les châteaux autour de moi resterait impossible sans géocoder
+    toute la base). lookup() géocode en revanche à la demande LA référence
+    demandée (une seule, mise en cache) pour donner une position à MA
+    référence activée, cf. logx_wca.get_castle_geocoded."""
     program = (program or '').upper()
     if program == 'SOTA':
         import logx_sota as sota
@@ -780,7 +784,7 @@ def _activation_db_adapter(program):
                 'nearby': iota.groups_db.nearby, 'status': iota.groups_db.status}
     if program == 'WCA':
         import logx_wca as wca
-        return {'search': wca.search_castles, 'lookup': wca.get_castle,
+        return {'search': wca.search_castles, 'lookup': wca.get_castle_geocoded,
                 'nearby': None, 'status': wca.status}
     return None
 

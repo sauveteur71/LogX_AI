@@ -1659,6 +1659,10 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div id="activationNearbyUnavailable" style="display:none;font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:8px 0">
             ⚠️ Non disponible pour ce programme : la base officielle ne fournit aucune coordonnée GPS par référence, impossible de calculer une distance.
             La recherche par nom reste disponible juste au-dessus, dans MA RÉFÉRENCE ACTIVÉE.
+            <!-- WCA seul : la référence VALIDÉE dans MA RÉFÉRENCE ACTIVÉE est géocodée à la
+                 demande (nom + localisation via Nominatim, cf. validateActivationRef côté JS
+                 et logx_wca.get_castle_geocoded côté serveur) — rempli seulement dans ce cas. -->
+            <div id="activationWcaGeocoded" style="margin-top:6px"></div>
           </div>
         </div>
       </div>
@@ -2657,6 +2661,7 @@ function onActivationProgramChange(){
   const el = document.getElementById('activationValidation');
   if (el) el.textContent = '';
   hideActivationSuggestions();
+  _renderWcaGeocodedInfo(null); // changement de programme : plus de château affiché
   const spec = ACTIVATION_DB_PROGRAMS[_activationProgram()];
   _updateActivationNearbyVisibility();
   if (spec) validateActivationRef();
@@ -2710,6 +2715,7 @@ async function loadNearbyActivationRefs(){
 function onActivationRefInput(){
   const elv = document.getElementById('activationValidation');
   if (elv) elv.textContent = '';
+  _renderWcaGeocodedInfo(null); // la saisie change : l'ancienne position géocodée n'est plus fiable
   const program = _activationProgram();
   if (!ACTIVATION_DB_PROGRAMS[program]) { hideActivationSuggestions(); return; }
   const val = document.getElementById('my_activation_ref').value.trim();
@@ -2756,9 +2762,9 @@ async function validateActivationRef(){
   if (!el) return;
   const program = _activationProgram();
   const spec = ACTIVATION_DB_PROGRAMS[program];
-  if (!spec) { el.textContent = ''; return; }
+  if (!spec) { el.textContent = ''; _renderWcaGeocodedInfo(null); return; }
   const ref = document.getElementById('my_activation_ref').value.trim().toUpperCase();
-  if (!ref) { el.textContent = ''; return; }
+  if (!ref) { el.textContent = ''; _renderWcaGeocodedInfo(null); return; }
   try{
     const r = await fetch(`/activation_db/lookup?program=${program}&ref=` + encodeURIComponent(ref));
     const d = await r.json();
@@ -2774,7 +2780,32 @@ async function validateActivationRef(){
       el.textContent = `⚠️ Référence non trouvée dans la base ${program} — vérifie l'orthographe, ou c'est une entrée récente pas encore répertoriée (la saisie reste valable)`;
       el.style.color = 'var(--yellow)';
     }
-  }catch(e){ el.textContent = ''; }
+    // WCA seul : le lookup serveur géocode à la demande LA référence trouvée
+    // (cf. logx_wca.get_castle_geocoded) — les autres programmes ont déjà
+    // leurs propres coordonnées et n'en ont pas besoin ici.
+    _renderWcaGeocodedInfo(program === 'WCA' ? d.entry : null);
+  }catch(e){ el.textContent = ''; _renderWcaGeocodedInfo(null); }
+}
+
+// Affiche la position géocodée (Nominatim) de MON château WCA + distance/
+// azimut depuis ma station (mêmes formules que le reste de la page), pour
+// donner à WCA la même info « où est ma référence » que les 5 autres
+// programmes tirent nativement de leur base — sans jamais avoir géocodé
+// autre chose que cette seule référence (cf. logx_wca.geocode_castle).
+function _renderWcaGeocodedInfo(entry){
+  const box = document.getElementById('activationWcaGeocoded');
+  if (!box) return;
+  if (!entry || entry.lat == null || entry.lon == null) { box.innerHTML = ''; return; }
+  let distTxt = '';
+  const loc = locatorToLatLon((document.getElementById('locator') || {}).value || '');
+  if (loc){
+    const km = _haversineKm(loc.lat, loc.lon, entry.lat, entry.lon);
+    const az = _bearingDeg(loc.lat, loc.lon, entry.lat, entry.lon);
+    distTxt = ` — ${km} km · ${az}° (${_cardinalDir(az)}) depuis ta station`;
+  }
+  const mapUrl = `https://www.openstreetmap.org/?mlat=${entry.lat}&mlon=${entry.lon}#map=14/${entry.lat}/${entry.lon}`;
+  box.innerHTML = `📍 Position géocodée (Nominatim) : ${entry.lat.toFixed(4)}, ${entry.lon.toFixed(4)}` +
+    `${distTxt} · <a href="${_vkEsc(mapUrl)}" target="_blank" rel="noopener">voir sur la carte</a>`;
 }
 
 // ─── KEYER VOCAL : périphériques audio + voix TTS (chargés une fois) ────────

@@ -13,7 +13,15 @@ péremption, statut ready/loading/error) reste le même que logx_sota.py.
     ex. « F » pour la France), lié en téléchargement direct depuis
     wcagroup.org. Colonnes réelles (vérifiées en direct, feuille F) : № WCA,
     № CASTLES, PREFIX, NAME OF CASTLE, LOCATION, INFORMATION — PAS de lat/lon
-    dans ce fichier, donc pas de nearby() possible pour les châteaux.
+    dans ce fichier, donc pas de nearby() possible pour les châteaux (il
+    faudrait géocoder ~15-20k entrées, hors de question avec Nominatim limité
+    à 1 requête/s). En revanche geocode_castle()/get_castle_geocoded()
+    géocodent à la demande LA SEULE référence que l'opérateur active (nom +
+    localisation + pays -> lat/lon via Nominatim, sens inverse de
+    _reverseGeocodeCity côté logx_configuration.html), avec mise en cache
+    disque permanente : de quoi positionner MON château sur une carte et
+    calculer distance/azimut depuis ma station, comme les 5 autres
+    programmes le font nativement grâce à leurs propres coordonnées.
   - Activations annoncées : https://wcagroup.org/?feed=rss2, un flux RSS
     WordPress standard. ATTENTION : ce sont des activations PLANIFIÉES /
     auto-annoncées par les opérateurs (« DF6EX va activer... »), PAS des
@@ -29,6 +37,7 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 import zipfile
+from urllib.parse import urlencode
 
 from logx_activation_db import age_days, atomic_write
 
@@ -204,6 +213,136 @@ def search_castles(query, limit=25):
         seen = {it['code'] for it in by_code_prefix}
         merged = by_code_prefix + [it for it in by_name if it['code'] not in seen]
         return merged[:limit]
+
+
+# ─── GÉOCODAGE (sens direct) DE LA RÉFÉRENCE ACTIVÉE ─────────────────────────
+# WCALIST.ods ne fournit aucune coordonnée : impossible de géocoder les
+# ~15-20k châteaux de la base (Nominatim limite à 1 req/s — des heures, et
+# une utilisation en masse contraire à sa politique d'usage). En revanche,
+# UN SEUL château (celui que l'opérateur déclare activer dans MA RÉFÉRENCE
+# ACTIVÉE) peut l'être à la demande, résultat mis en cache disque à vie (un
+# château ne déménage pas) : de quoi lui donner une position sur la carte et
+# une distance/azimut depuis la station, comme les 5 autres programmes
+# d'activation le font nativement grâce à leurs propres coordonnées.
+NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search'
+GEOCODE_CACHE_FILE = 'wca_geocode_cache.json'
+# Un échec (réseau, ou château introuvable sur Nominatim) est re-tenté après
+# ce délai plutôt que mis en cache indéfiniment (transitoire possible) ; un
+# succès, lui, est définitif.
+GEOCODE_NEG_RETRY_DAYS = 7
+
+_geocode_cache = None  # dict code -> {'lat','lon','ts'} ; chargé à la demande
+_geocode_lock = threading.Lock()
+# Horodatage de la dernière requête Nominatim envoyée (toutes références
+# confondues) : impose l'espacement minimal de la politique d'usage Nominatim
+# (1 req/s), même si plusieurs threads appellent geocode_castle() en parallèle.
+_last_nominatim_call = [0.0]
+
+
+def _load_geocode_cache():
+    global _geocode_cache
+    if _geocode_cache is not None:
+        return _geocode_cache
+    try:
+        import json
+        with open(GEOCODE_CACHE_FILE, encoding='utf-8') as f:
+            cache = json.load(f)
+        _geocode_cache = cache if isinstance(cache, dict) else {}
+    except (OSError, ValueError):
+        _geocode_cache = {}
+    return _geocode_cache
+
+
+def _save_geocode_cache():
+    try:
+        import json
+        atomic_write(GEOCODE_CACHE_FILE, json.dumps(_geocode_cache, ensure_ascii=False))
+    except OSError as e:
+        print(f"[WCA] Ecriture cache geocodage impossible (non bloquant): {e}")
+
+
+def _country_for_prefix(prefix):
+    """Préfixe indicatif WCA (ex. 'DL', '9A') -> nom de pays, via la même
+    base cty.dat que le reste de l'app (logx_dxcc) — pour compléter la
+    requête Nominatim au-delà du seul nom du château + sa localisation."""
+    if not prefix:
+        return ''
+    try:
+        import logx_dxcc as dxcc
+        info = dxcc.lookup(prefix)
+        return (info or {}).get('country', '') or ''
+    except Exception:
+        return ''
+
+
+def _throttle_nominatim():
+    """Respecte la politique d'usage Nominatim (1 requête/s max) : attend le
+    complément nécessaire depuis le dernier appel, verrou partagé car on ne
+    géocode jamais qu'une référence à la fois en pratique (une par activation)."""
+    with _geocode_lock:
+        wait = 1.0 - (time.time() - _last_nominatim_call[0])
+        if wait > 0:
+            time.sleep(wait)
+        _last_nominatim_call[0] = time.time()
+
+
+def geocode_castle(code):
+    """Coordonnées GPS d'UN château (nom + localisation + pays -> lat/lon via
+    Nominatim, en cache disque permanent côté succès). Ne déclenche JAMAIS de
+    géocodage pour une référence absente de la base (pas d'appel réseau pour
+    une saisie invalide/inconnue). Renvoie {'lat','lon'} ou None."""
+    castle = get_castle(code)
+    if not castle:
+        return None
+    code = castle['code']
+
+    cache = _load_geocode_cache()
+    with _geocode_lock:
+        hit = cache.get(code)
+    if hit is not None:
+        if hit.get('lat') is not None:
+            return {'lat': hit['lat'], 'lon': hit['lon']}
+        age = (time.time() - hit.get('ts', 0)) / 86400
+        if age < GEOCODE_NEG_RETRY_DAYS:
+            return None
+
+    country = _country_for_prefix(castle.get('prefix', ''))
+    query = ', '.join(p for p in (castle.get('name'), castle.get('location'), country) if p)
+    lat = lon = None
+    if query:
+        _throttle_nominatim()
+        from logx_utils import fetch_url
+        qs = urlencode({'format': 'json', 'limit': 1, 'q': query})
+        raw = fetch_url(f'{NOMINATIM_SEARCH_URL}?{qs}', timeout=10)
+        if raw:
+            try:
+                import json
+                results = json.loads(raw)
+                if results:
+                    lat, lon = float(results[0]['lat']), float(results[0]['lon'])
+            except (ValueError, KeyError, TypeError, IndexError):
+                lat = lon = None
+
+    with _geocode_lock:
+        cache[code] = {'lat': lat, 'lon': lon, 'ts': time.time()}
+        _save_geocode_cache()
+    return {'lat': lat, 'lon': lon} if lat is not None else None
+
+
+def get_castle_geocoded(code):
+    """Comme get_castle(), avec 'lat'/'lon' en plus (None si non géocodable) —
+    utilisé UNIQUEMENT par la validation de MA RÉFÉRENCE ACTIVÉE (une requête
+    Nominatim par référence choisie), jamais par search_castles() (des
+    dizaines de suggestions à chaque frappe : géocoder chacune enfreindrait
+    la politique d'usage Nominatim)."""
+    castle = get_castle(code)
+    if not castle:
+        return None
+    coords = geocode_castle(code)
+    merged = dict(castle)
+    merged['lat'] = coords['lat'] if coords else None
+    merged['lon'] = coords['lon'] if coords else None
+    return merged
 
 
 # ─── ACTIVATIONS ANNONCÉES (RSS — planifiées, PAS des spots confirmés) ────────
