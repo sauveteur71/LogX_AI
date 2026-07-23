@@ -245,13 +245,41 @@ async function refreshActivation(){
   }catch(e){}
 }
 
+// Calcule dynamiquement le prochain week-end RPH (1er samedi de juillet 14h UTC
+// → dimanche 14h UTC), en basculant sur l'année suivante si celui de l'année en
+// cours est déjà passé. Miroir JS de date_rule='first_saturday_july' défini
+// côté serveur pour REF_RPH (logx_definitions.py / logx_rules.calc_contest_date)
+// — à maintenir en cohérence si cette règle REF change un jour. Remplace une
+// ancienne date figée en dur qui périmait à chaque édition (repli cassé une
+// fois le week-end de l'année passé).
+// Déclarée en `function` (hoisting complet) pour rester utilisable dans
+// CONTEST_SCHEDULE ci-dessous malgré l'ordre d'apparition dans le fichier.
+function nextRPHWeekendUTC(now){
+  now = now || new Date();
+  function firstSaturdayOfJulyUTC(year){
+    const dowJuly1 = new Date(Date.UTC(year, 6, 1)).getUTCDay(); // 0=dim..6=sam
+    const day = 1 + ((6 - dowJuly1 + 7) % 7);
+    return Date.UTC(year, 6, day, 14, 0, 0);
+  }
+  let year  = now.getUTCFullYear();
+  let start = firstSaturdayOfJulyUTC(year);
+  let end   = start + 24*3600*1000;
+  if(end <= now.getTime()){ // édition de cette année déjà terminée → année suivante
+    year += 1;
+    start = firstSaturdayOfJulyUTC(year);
+    end   = start + 24*3600*1000;
+  }
+  return {start: new Date(start), end: new Date(end)};
+}
+
 // ─── HORAIRES CONCOURS ────────────────────────────────────────────────────────
 // Format : {start:'ISO', end:'ISO', dur:'durée texte'}
 // Déclaré tôt : référencé dès le chargement par updateClockAndCountdown() (appel
 // synchrone immédiat plus bas) — un const référencé avant sa ligne d'init lève
 // une ReferenceError (TDZ), même via un simple `typeof`.
 const CONTEST_SCHEDULE = {
-  'REF_RPH':      {start:'2026-07-04T14:00:00Z', end:'2026-07-05T14:00:00Z', dur:'24h', email:'rph@r-e-f.org'},
+  'REF_RPH':      (()=>{ const w = nextRPHWeekendUTC();
+                          return {start:w.start.toISOString(), end:w.end.toISOString(), dur:'24h', email:'rph@r-e-f.org'}; })(),
   'REF_CCD_JAN':  {start:'2026-01-03T13:00:00Z', end:'2026-01-03T17:00:00Z', dur:'4h',  email:'ccd@r-e-f.org'},
   'REF_CDF_SSB':  {start:'2026-03-28T14:00:00Z', end:'2026-03-29T14:00:00Z', dur:'24h', email:'logs@r-e-f.org'},
   'REF_CDF_CW':   {start:'2026-03-28T14:00:00Z', end:'2026-03-29T14:00:00Z', dur:'24h', email:'logs@r-e-f.org'},
@@ -1447,7 +1475,7 @@ function getContestEndUTC(){
       return new Date(`${cfg.contest_end_date}T${cfg.contest_end_utc}Z`);
     }
   }catch(e){}
-  return new Date('2026-07-05T14:00:00Z'); // fallback RPH 2026 (sam 4 juil 14h UTC → dim 5 juil 14h UTC)
+  return nextRPHWeekendUTC().end; // repli RPH calculé dynamiquement (jamais de date figée qui périme d'une édition à l'autre)
 }
 function getContestStartUTC(){
   try{

@@ -28,8 +28,10 @@ BAND_DX_THRESHOLD_KM = {
     '1.2 GHz': 400, '2.4 GHz': 300, '3.4 GHz': 250,
     '5.7 GHz': 150, '10 GHz': 100, '24 GHz': 50, '47 GHz': 30,
     # QO-100 (relais géostationnaire) volontairement absent : la distance
-    # sol ne reflète pas la difficulté réelle (couverture quasi uniforme
-    # sur toute l'empreinte Europe/Afrique/Asie) — repli sur alert_dx_km.
+    # sol ne reflète pas la difficulté réelle (couverture quasi uniforme sur
+    # toute l'empreinte Europe/Afrique/Asie). Ne PAS répliquer un repli km
+    # ici : voir SATELLITE_BANDS / is_satellite_band() plus bas, qui bascule
+    # l'alerte sur le critère nouveau DXCC/grille au lieu d'une distance.
 }
 
 # Distance (km) en-deçà de laquelle un spotter est jugé fiable pour cette bande
@@ -40,10 +42,26 @@ BAND_SPOTTER_RELIABLE_KM = {
     '5.7 GHz': 40, '10 GHz': 30, '24 GHz': 15, '47 GHz': 10,
 }
 
+# Bandes où la distance sol n'a PAS de sens pour juger un "DX exceptionnel" :
+# la couverture dépend de l'empreinte du relais/satellite, pas de la
+# propagation terrestre (repli km ci-dessus inapplicable, cf. commentaire plus
+# haut sur QO-100). Le critère pertinent devient "nouveau DXCC/grille" — pas
+# une distance — cf. dx_alert_line() et is_satellite_band() ci-dessous.
+SATELLITE_BANDS = {'QO-100': True}
+
+
+def is_satellite_band(band_label):
+    """True si `band_label` est un mode satellite (QO-100...) pour lequel
+    l'alerte DX doit se baser sur le nouveau DXCC/grille plutôt que sur une
+    distance en km (empreinte quasi uniforme sur tout le continent visible)."""
+    return SATELLITE_BANDS.get(band_label, False)
+
 
 def dx_threshold_km(band_label, fallback):
     """Seuil DX exceptionnel (km) pour `band_label` — `fallback` (typiquement
-    cfg['alert_dx_km']) si la bande n'est pas dans la table."""
+    cfg['alert_dx_km']) si la bande n'est pas dans la table. Non pertinent
+    pour une bande satellite (cf. is_satellite_band) : l'appelant doit
+    d'abord vérifier is_satellite_band() avant d'utiliser ce seuil km."""
     return BAND_DX_THRESHOLD_KM.get(band_label, fallback)
 
 
@@ -51,3 +69,15 @@ def band_spotter_km(band_label, fallback):
     """Distance de fiabilité spotter (km) pour `band_label` — `fallback`
     (typiquement cfg['spotter_reliable_km']) si la bande n'est pas dans la table."""
     return BAND_SPOTTER_RELIABLE_KM.get(band_label, fallback)
+
+
+def dx_alert_line(band_label, dx_fallback, spotter_fallback):
+    """Ligne de consigne (texte humain, pour le prompt système IA) décrivant
+    le critère d'alerte "DX exceptionnel" pour `band_label` : seuils km pour
+    les bandes terrestres, nouveau DXCC/grille pour les bandes satellite —
+    centralise la bascule pour ne pas dupliquer le if/else à chaque appelant."""
+    if is_satellite_band(band_label):
+        return (f"{band_label} : DX exceptionnel = nouveau DXCC ou nouvelle grille "
+                f"Maidenhead (pas de seuil km — couverture par empreinte satellite)")
+    return (f"{band_label} DX > {dx_threshold_km(band_label, dx_fallback)} km · "
+            f"spotter fiable < {band_spotter_km(band_label, spotter_fallback)} km")

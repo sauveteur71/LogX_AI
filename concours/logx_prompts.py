@@ -4,7 +4,7 @@
 import re
 
 import logx_rules as rules
-from logx_bands import dx_threshold_km, band_spotter_km
+from logx_bands import dx_alert_line
 from logx_rules import calc_contest_date
 from logx_definitions import CONTEST_DEFINITIONS, CONTEST_SCORING
 from logx_utils import CURRENT_YEAR, locator_to_latlon, haversine
@@ -46,10 +46,11 @@ def build_system_prompt(cfg):
             active_bands.append(label)
 
     # Seuils DX/spotter par bande active (cf. logx_bands.py) — repli sur les
-    # réglages CONFIG (alert_dx/spotter_ok) pour toute bande sans seuil dédié
-    # (ex. QO-100, dont la distance sol ne reflète pas la difficulté réelle).
+    # réglages CONFIG (alert_dx/spotter_ok) pour toute bande sans seuil dédié.
+    # QO-100/satellite : dx_alert_line() bascule sur nouveau DXCC/grille, la
+    # distance sol n'ayant aucun sens sur l'empreinte d'un satellite.
     band_threshold_lines = '\n'.join(
-        f"  {b:9} DX > {dx_threshold_km(b, alert_dx)} km · spotter fiable < {band_spotter_km(b, spotter_ok)} km"
+        f"  {dx_alert_line(b, alert_dx, spotter_ok)}"
         for b in active_bands
     ) or f"  DX > {alert_dx} km · spotter fiable < {spotter_ok} km"
 
@@ -744,9 +745,10 @@ def build_terrain_context(logs, spots_by_band, cfg):
     if no_digi:
         lines.append("⚠️ RAPPEL : MODE PHONIE/CW UNIQUEMENT — ignorer FT8/FT4/numérique")
     # Seuils par bande RÉELLEMENT présente dans les spots reçus (cf. logx_bands.py) —
-    # repli sur alert_dx/spotter_ok pour toute bande sans seuil dédié.
+    # repli sur alert_dx/spotter_ok pour toute bande sans seuil dédié. QO-100/
+    # satellite : dx_alert_line() bascule sur nouveau DXCC/grille (pas de km).
     band_lines = '\n'.join(
-        f"  {b}: DX > {dx_threshold_km(b, alert_dx)} km, spotter fiable < {band_spotter_km(b, spotter_ok)} km"
+        f"  {dx_alert_line(b, alert_dx, spotter_ok)}"
         for b in spots_by_band
     ) or f"  DX > {alert_dx} km, spotter fiable < {spotter_ok} km"
     lines.append(f"Seuils DX/spotter par bande (HF porte loin, VHF/UHF est courte portée) :\n{band_lines}")
