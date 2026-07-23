@@ -76,6 +76,46 @@ def test_where_heard_ne_leve_jamais_si_le_port_est_bloque(monkeypatch):
     assert 'error' in res and res['error']  # message non vide, jamais d'exception
 
 
+class _FakeBlockingSocket:
+    """Simule le cas visé par l'exécuteur (voir docstring de logx_rbn) : une
+    résolution DNS/connexion qui ne répond jamais (réseau captif, 4G qui
+    droppe silencieusement) — connect() bloque plus longtemps que le budget
+    total `timeout + 3` accordé par where_heard() à Future.result(). Ça doit
+    déclencher un vrai `_cf.TimeoutError` sur .result(), pas une exception
+    remontée depuis le socket lui-même."""
+    def __init__(self, *a, **k):
+        pass
+
+    def settimeout(self, t):
+        pass
+
+    def connect(self, addr):
+        time.sleep(3.3)
+
+    def recv(self, n):
+        return b''
+
+    def sendall(self, data):
+        pass
+
+    def close(self):
+        pass
+
+
+def test_where_heard_message_specifique_si_timeout_reel_depasse(monkeypatch):
+    """connect() bloque au-delà de `timeout + 3` (le budget accordé à
+    Future.result()) -> branche `except _cf.TimeoutError`, pas la branche
+    `except Exception` générique : le message doit rester celui, actionnable,
+    qui mentionne le port 7000 et l'absence d'alternative HTTP chez RBN."""
+    monkeypatch.setattr(rbn.socket, 'socket', lambda *a, **k: _FakeBlockingSocket())
+    _reset_cache()
+    res = rbn.where_heard('F4GLD', timeout=0.1)  # budget total : 0.1+3 = 3.1s
+    assert res['ok'] is False
+    assert '7000' in res['error']
+    assert 'HTTP' in res['error']
+    _reset_cache()
+
+
 def test_where_heard_indicatif_vide():
     _reset_cache()
     res = rbn.where_heard('', timeout=1)
