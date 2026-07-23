@@ -1355,7 +1355,11 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <b style="color:var(--accent2)">Pas de chiffrement HTTPS ici</b> : le mot
           de passe circule en clair sur le réseau local, comme tes autres
           identifiants déjà stockés (ON4KST, QRZ...) — cette protection empêche
-          un accès non voulu, pas une écoute réseau active.
+          un accès non voulu, pas une écoute réseau active.<br>
+          <b style="color:var(--accent2)">Définir ou modifier ce mot de passe déconnecte
+          tous les autres appareils déjà connectés</b> (rechargement de page ou
+          reconnexion via /auth/login nécessaire) — voulu : sinon un accès déjà
+          obtenu avant l'activation resterait valide indéfiniment après.
         </div>
         <div id="accessPasswordStatus" style="font-family:var(--font-mono);font-size:13px;margin-bottom:14px"></div>
         <div class="form-grid">
@@ -2107,7 +2111,7 @@ const CONFIG_HELP = {
   mqtt_port: "Port du broker MQTT — 1883 par défaut (sans chiffrement).",
   mqtt_topic_prefix: "Préfixe des topics publiés (défaut « logx ») : donne logx/qso, logx/rig/freq, logx/score.",
 
-  access_password: "Mot de passe optionnel exigé avant d'accorder les droits d'écriture (ajout de QSO, configuration) à un appareil qui charge une page du logiciel. Laisse vide et clique « Désactiver » pour retirer la protection (comportement par défaut : accès automatique, adapté à un LAN de confiance). Circule en clair sur le réseau local (pas de HTTPS) — protège d'un accès non voulu, pas d'une écoute réseau active.",
+  access_password: "Mot de passe optionnel exigé avant d'accorder les droits d'écriture (ajout de QSO, configuration) à un appareil qui charge une page du logiciel. Laisse vide et clique « Désactiver » pour retirer la protection (comportement par défaut : accès automatique, adapté à un LAN de confiance). Circule en clair sur le réseau local (pas de HTTPS) — protège d'un accès non voulu, pas d'une écoute réseau active. Définir ou modifier ce mot de passe déconnecte immédiatement tous les appareils déjà connectés (jeton d'écriture régénéré) : reconnexion nécessaire partout, y compris sur ce poste (automatique).",
 
   ai_model: "Le modèle d'intelligence artificielle utilisé par le copilote (analyse de règlement, coach pendant le concours, cet assistant). Change de fournisseur si tu as une clé d'un autre service.",
   api_key: "Ta clé d'accès personnelle au service d'IA choisi (Anthropic/OpenAI/Gemini). Indispensable pour utiliser le copilote IA — reste stockée uniquement sur ton poste, jamais partagée. Sans elle, le logiciel fonctionne normalement, seul le copilote IA est indisponible.",

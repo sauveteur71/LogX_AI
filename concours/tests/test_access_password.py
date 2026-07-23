@@ -14,7 +14,7 @@ import json
 import os
 import sys
 import threading
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 import pytest
 
@@ -32,7 +32,32 @@ def isolated_password_file(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def server(isolated_password_file):
+def isolated_auth_token_file(tmp_path, monkeypatch):
+    """Redirige AUTH_TOKEN_FILE vers un tmp_path : _set_access_password fait
+    maintenant tourner AUTH_TOKEN (voir _rotate_auth_token), qui écrirait sinon
+    dans le VRAI .auth_token du poste à chaque test — inacceptable (jeton de
+    production changé par la suite de tests). Le `monkeypatch.setattr` sur
+    AUTH_TOKEN lui-même capture la valeur courante et la restaure après le
+    test, même si _rotate_auth_token la réaffecte entre-temps via `global`."""
+    tok_file = tmp_path / '.auth_token'
+    monkeypatch.setattr(httpmod, 'AUTH_TOKEN_FILE', str(tok_file))
+    monkeypatch.setattr(httpmod, 'AUTH_TOKEN', httpmod.AUTH_TOKEN)
+    yield tok_file
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_rate_limit():
+    """La fenêtre anti-bruteforce (_login_attempts) est un dict global tenu en
+    mémoire pour toute la durée du process pytest : sans reset, les échecs
+    accumulés par un test (ex. le test de rate-limit lui-même) pollueraient
+    les tests suivants qui utilisent la même IP (127.0.0.1)."""
+    httpmod._login_attempts.clear()
+    yield
+    httpmod._login_attempts.clear()
+
+
+@pytest.fixture
+def server(isolated_password_file, isolated_auth_token_file):
     srv = http.server.HTTPServer(('127.0.0.1', 0), httpmod.Handler)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
@@ -205,7 +230,7 @@ def test_disable_password_restaure_la_distribution_automatique(server, isolated_
 
 # ─── Vérification directe des helpers (temps constant, robustesse) ──────────
 
-def test_verify_access_password_helpers(isolated_password_file):
+def test_verify_access_password_helpers(isolated_password_file, isolated_auth_token_file):
     assert httpmod._access_password_enabled() is False
     assert httpmod._verify_access_password('anything') is False
     httpmod._set_access_password('correcthorse')
@@ -215,3 +240,122 @@ def test_verify_access_password_helpers(isolated_password_file):
     assert httpmod._verify_access_password('') is False
     httpmod._clear_access_password()
     assert httpmod._access_password_enabled() is False
+
+
+# ─── Revue adversariale du commit 040e32f : XSS reflété sur /auth/login ──────
+# (voir _serve_login_page). Avant le fix, `next_path` (query string, jamais
+# neutralisé pour un contexte HTML/JS) était interpolé via json.dumps() dans
+# un littéral JS à l'intérieur d'un <script> — json.dumps() n'échappe pas
+# '<'/'>' : une valeur contenant "</script><script>...</script>" refermait le
+# <script> d'origine et exécutait le script injecté sur LA MÊME origine (vol
+# possible du cookie rc_token via un fetch() automatique).
+
+def test_login_page_next_echappe_les_balises_html(server, isolated_password_file):
+    _enable_password(server)
+    poc_variants = [
+        '/</script><script>alert(document.domain)</script>',
+        '/</ScRiPt><ScRiPt>alert(document.domain)</ScRiPt>',  # casse mixte
+    ]
+    for payload in poc_variants:
+        status, headers, body = _raw_request(
+            server, 'GET', '/auth/login?next=' + quote(payload, safe=''))
+        assert status == 200
+        text = body.decode('utf-8')
+        # La séquence de rupture ne doit plus jamais apparaître non échappée
+        # (peu importe la casse) : c'est elle qui referme le <script> d'origine.
+        assert '</script><script>' not in text.lower()
+        # Le nom de balise ne doit plus apparaître adjacent à '<' ou '>' bruts
+        # dans la zone <script> — seule une forme échappée (&lt;/&gt;) est admise.
+        assert '<script>alert(document.domain)' not in text
+        assert '<scRipt>alert(document.domain)' not in text
+
+
+def test_login_page_next_legitime_toujours_fonctionnel(server, isolated_password_file):
+    """Non-régression : un `next` légitime (relatif, sans caractère spécial)
+    doit toujours être repris tel quel après le fix (échappement HTML neutre
+    sur ce genre de valeur)."""
+    _enable_password(server)
+    status, headers, body = _raw_request(
+        server, 'GET', '/auth/login?next=' + quote('/logx_carte.html', safe=''))
+    assert status == 200
+    assert b'/logx_carte.html' in body
+
+
+# ─── Revue adversariale : DoS CPU trivial sur /auth/login (pas de limite) ────
+# (voir _login_rate_limited). Chaque tentative déclenche normalement un
+# PBKDF2-HMAC-SHA256 à 200000 itérations (~83 ms) — sans limite par IP, un
+# client peut le rejouer en boucle serrée et saturer le CPU du serveur.
+
+def test_login_rate_limit_apres_echecs_repetes(server, isolated_password_file, monkeypatch):
+    _enable_password(server)
+    verify_calls = []
+    orig_verify = httpmod._verify_access_password
+
+    def counting_verify(pw):
+        verify_calls.append(pw)
+        return orig_verify(pw)
+
+    monkeypatch.setattr(httpmod, '_verify_access_password', counting_verify)
+    statuses = [
+        _raw_request(server, 'POST', '/auth/login', {'password': 'faux'})[0]
+        for _ in range(httpmod._LOGIN_ATTEMPT_LIMIT + 3)
+    ]
+    # Au-delà du seuil, le serveur rejette (429) sans plus jamais recalculer
+    # le hash coûteux — sans ce fix, chaque appel appelle _verify_access_password
+    # et le dernier statut resterait 401 (mauvais mot de passe), jamais 429.
+    assert statuses[-1] == 429
+    assert len(verify_calls) <= httpmod._LOGIN_ATTEMPT_LIMIT
+
+
+def test_login_rate_limit_nest_pas_par_ip_partagee_entre_tests(server, isolated_password_file):
+    """Un seul échec ne doit jamais suffire à déclencher la limite (seuil
+    largement au-dessus d'une simple faute de frappe)."""
+    _enable_password(server)
+    status, headers, body = _raw_request(
+        server, 'POST', '/auth/login', {'password': 'faux'})
+    assert status == 401
+
+
+# ─── Revue adversariale : lecture tronquée du corps si Content-Length > 4096 ─
+# (voir MAX_LOGIN_BODY dans _handle_auth_login_post). Avant le fix,
+# `length = max(0, min(length, 4096))` lisait silencieusement les 4096
+# premiers octets d'un corps plus grand au lieu de rejeter — incohérent avec
+# MAX_BODY dans do_POST (vérifié AVANT lecture, 413 immédiat).
+
+def test_login_corps_trop_volumineux_rejete_413(server, isolated_password_file):
+    _enable_password(server)
+    huge_password = 'a' * 5000  # garantit un Content-Length > 4096
+    status, headers, body = _raw_request(
+        server, 'POST', '/auth/login', {'password': huge_password})
+    assert status == 413
+    assert 'Set-Cookie' not in headers
+
+
+# ─── Revue adversariale : le token n'est jamais tourné (best-effort, LOW) ────
+# (voir _rotate_auth_token, appelée depuis _set_access_password). Avant le
+# fix, AUTH_TOKEN était un secret statique jamais modifié : activer ou
+# changer le mot de passe d'accès ne révoquait aucun cookie rc_token déjà
+# distribué (ex. obtenu pendant que le port était encore en accès libre).
+
+def test_set_password_tourne_le_jeton_et_revoque_les_anciens_cookies(
+        server, isolated_password_file, isolated_auth_token_file):
+    old_token = httpmod.AUTH_TOKEN
+    status, headers, body = _raw_request(
+        server, 'POST', '/auth/set_password', {'password': 'topsecret'},
+        headers={'X-RC-Token': old_token})
+    assert status == 200
+    assert json.loads(body) == {'ok': True, 'enabled': True}
+    new_token = httpmod.AUTH_TOKEN
+    assert new_token != old_token
+    # L'ancien cookie ne doit plus donner les droits d'écriture.
+    status2, _, _ = _raw_request(
+        server, 'POST', '/auth/set_password', {'password': ''},
+        headers={'Cookie': f'rc_token={old_token}'})
+    assert status2 == 403
+    # La session qui vient de définir le mot de passe reçoit immédiatement le
+    # nouveau jeton — elle ne doit pas se retrouver déconnectée par son propre
+    # changement.
+    assert _cookie_value(headers) == new_token
+    _, _, status_body = _raw_request(
+        server, 'GET', '/auth/status', headers={'Cookie': f'rc_token={new_token}'})
+    assert json.loads(status_body)['authorized'] is True

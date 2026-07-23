@@ -171,6 +171,8 @@ _coach_dxmaps_ts = 0
 # ─── TOKEN D'AUTHENTIFICATION PARTAGÉ ────────────────────────────────────────
 # Priorité : config.json server.auth_token > fichier .auth_token > généré et
 # persisté dans .auth_token (stable entre redémarrages, jamais suivi par git).
+AUTH_TOKEN_FILE = '.auth_token'
+
 def _load_auth_token():
     try:
         with open('config.json', encoding='utf-8') as f:
@@ -180,7 +182,7 @@ def _load_auth_token():
     except Exception:
         pass
     try:
-        with open('.auth_token', encoding='utf-8') as f:
+        with open(AUTH_TOKEN_FILE, encoding='utf-8') as f:
             tok = f.read().strip()
         if tok:
             return tok
@@ -189,13 +191,36 @@ def _load_auth_token():
     import secrets as _secrets
     tok = _secrets.token_hex(16)
     try:
-        with open('.auth_token', 'w', encoding='utf-8') as f:
+        with open(AUTH_TOKEN_FILE, 'w', encoding='utf-8') as f:
             f.write(tok)
     except Exception:
         pass
     return tok
 
 AUTH_TOKEN = _load_auth_token()
+
+def _rotate_auth_token():
+    """Génère un nouveau jeton d'écriture partagé et le persiste dans
+    AUTH_TOKEN_FILE (même fichier que _load_auth_token, pour survivre à un
+    redémarrage). Appelée quand le mot de passe d'accès est activé ou modifié
+    (voir _set_access_password) : un cookie rc_token distribué AVANT cette
+    activation/modification (LAN de confiance, invité déjà reparti, port
+    forwardé par erreur...) n'a plus aucune raison de rester valide après —
+    sans rotation, définir un mot de passe ne révoquerait aucune session déjà
+    ouverte. NB : si server.auth_token est fixé dans config.json, ce fichier
+    reprendra la main au prochain redémarrage (même priorité que
+    _load_auth_token) — cette rotation ne vaut que pour la session serveur en
+    cours, best-effort, pas une garantie absolue face à ce cas de config
+    avancée."""
+    global AUTH_TOKEN
+    import secrets as _secrets
+    AUTH_TOKEN = _secrets.token_hex(16)
+    try:
+        with open(AUTH_TOKEN_FILE, 'w', encoding='utf-8') as f:
+            f.write(AUTH_TOKEN)
+    except Exception:
+        pass
+    return AUTH_TOKEN
 
 # ─── MOT DE PASSE D'ACCÈS OPTIONNEL (avant remise du jeton d'écriture) ───────
 # Par défaut (fichier absent), comportement INCHANGÉ : rc_token est distribué
@@ -255,6 +280,44 @@ def _set_access_password(password):
     salt_hex, h = _hash_password(password)
     with _access_pw_lock:
         save_json_atomic(ACCESS_PASSWORD_FILE, {'salt': salt_hex, 'hash': h})
+    # Révoque les cookies rc_token déjà distribués avant cette
+    # activation/modification (voir _rotate_auth_token) — sinon un accès
+    # obtenu avant la mise en place du mot de passe resterait valide
+    # indéfiniment après coup.
+    _rotate_auth_token()
+
+# ─── ANTI-BRUTEFORCE SUR /auth/login (voir _handle_auth_login_post) ─────────
+# Chaque tentative déclenche normalement un PBKDF2-HMAC-SHA256 à 200000
+# itérations (~83 ms) : sans limite, un client du LAN peut le rejouer en
+# boucle serrée (ThreadingHTTPServer crée un thread OS par connexion, sans
+# plafond) et saturer le CPU du serveur. Fenêtre glissante par IP, en mémoire
+# seulement (best-effort : redémarrer le serveur remet le compteur à zéro,
+# acceptable pour ce risque).
+_LOGIN_ATTEMPT_LIMIT = 5
+_LOGIN_ATTEMPT_WINDOW = 60.0  # secondes
+_login_attempts_lock = threading.Lock()
+_login_attempts = {}  # ip -> [timestamps des échecs récents]
+
+def _login_rate_limited(ip):
+    """True si `ip` a déjà atteint la limite d'échecs récents — purge et
+    lecture dans le MÊME verrou (jamais relâché entre les deux) pour éviter
+    qu'une rafale concurrente ne contourne la limite."""
+    now = time.time()
+    with _login_attempts_lock:
+        attempts = [t for t in _login_attempts.get(ip, ()) if now - t < _LOGIN_ATTEMPT_WINDOW]
+        _login_attempts[ip] = attempts
+        return len(attempts) >= _LOGIN_ATTEMPT_LIMIT
+
+def _record_login_failure(ip):
+    now = time.time()
+    with _login_attempts_lock:
+        attempts = [t for t in _login_attempts.get(ip, ()) if now - t < _LOGIN_ATTEMPT_WINDOW]
+        attempts.append(now)
+        _login_attempts[ip] = attempts
+
+def _reset_login_attempts(ip):
+    with _login_attempts_lock:
+        _login_attempts.pop(ip, None)
 
 def _clear_access_password():
     with _access_pw_lock:
@@ -2801,7 +2864,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                'error': 'Mot de passe trop court (4 caractères minimum)'}, 400)
                 else:
                     _set_access_password(new_pw)
-                    self._json({'ok': True, 'enabled': True})
+                    # _set_access_password vient de tourner AUTH_TOKEN (voir
+                    # _rotate_auth_token) : sans reposer immédiatement un
+                    # cookie valide, la session qui vient de définir ce mot
+                    # de passe se retrouverait elle-même déconnectée par son
+                    # propre changement.
+                    body_out = json.dumps({'ok': True, 'enabled': True}).encode('utf-8')
+                    self.send_response(200)
+                    self.send_header('Set-Cookie',
+                                     f'rc_token={AUTH_TOKEN}; Path=/; SameSite=Strict; HttpOnly')
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.send_header('Content-Length', str(len(body_out)))
+                    self._cors()
+                    self.end_headers()
+                    self.wfile.write(body_out)
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
@@ -3814,7 +3890,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # //hôte-externe.
         if not next_path or not next_path.startswith('/') or next_path.startswith('//'):
             next_path = '/'
-        next_json = json.dumps(next_path)
+        # XSS reflété corrigé ici : `next_path` est un texte arbitraire fourni
+        # par le client (query string), jamais interpolé dans un littéral JS
+        # (un json.dumps() seul n'échappe pas '<'/'>' : un `next` contenant
+        # "</script><script>..." refermait le <script> ci-dessous et exécutait
+        # du JS injecté sur cette origine — vol du cookie rc_token possible).
+        # On le pose en attribut HTML échappé par html.escape (déjà utilisé
+        # pour les pages d'erreur, voir plus haut) et on le relit côté JS
+        # depuis le DOM (dataset), jamais interpolé dans du code.
+        next_attr = html.escape(next_path, quote=True)
         page = f"""<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
 <title>LogX AI — Accès protégé</title>
@@ -3835,7 +3919,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
   p.err{{color:#f85149;font-size:13px;margin:0 0 14px}}
 </style></head>
 <body>
-  <form class="box" id="loginForm">
+  <form class="box" id="loginForm" data-next="{next_attr}">
     <h1>🔒 LogX AI — Accès protégé</h1>
     <p class="sub">Un mot de passe est requis pour obtenir les droits d'écriture
     (ajout de QSO, configuration...) sur ce poste.</p>
@@ -3843,8 +3927,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     <button type="submit">Se connecter</button>
   </form>
 <script>
-const next = {next_json};
 const form = document.getElementById('loginForm');
+const next = form.dataset.next;
 const pwField = document.getElementById('pw');
 function showErr(msg){{
   let p = document.getElementById('errMsg');
@@ -3880,12 +3964,30 @@ form.addEventListener('submit', async (e) => {{
         (ON4KST, QRZ...). Cette protection couvre un accès non voulu (invité
         au radioclub, port forwardé par erreur), pas une écoute réseau active
         — un LAN non fiable (WiFi public) reste hors du modèle de menace visé
-        ici."""
+        ici. Anti-bruteforce (voir _login_rate_limited) : chaque vérification
+        déclenche un PBKDF2 à 200000 itérations (~83 ms) — sans limite par IP,
+        un client du LAN peut le rejouer en boucle serrée et saturer le CPU
+        du serveur (ThreadingHTTPServer crée un thread par connexion, sans
+        plafond)."""
+        ip = self.client_address[0]
+        # Throttle AVANT même de lire le corps : le calcul qu'on protège
+        # (PBKDF2) n'a pas encore eu lieu, autant rejeter au plus tôt.
+        if _login_rate_limited(ip):
+            self._json({'ok': False,
+                       'error': 'Trop de tentatives, réessaie plus tard'}, 429)
+            return
+        # Même principe que MAX_BODY dans do_POST : la taille est vérifiée
+        # AVANT toute lecture, avec un rejet immédiat (413) si elle dépasse le
+        # plafond — jamais de lecture partielle qui tronquerait silencieusement
+        # un corps trop grand (un mot de passe tient largement dans 4096 octets).
+        MAX_LOGIN_BODY = 4096
         try:
             length = int(self.headers.get('Content-Length', 0) or 0)
         except (TypeError, ValueError):
             length = 0
-        length = max(0, min(length, 4096))  # un mot de passe tient largement là-dedans
+        if length < 0 or length > MAX_LOGIN_BODY:
+            self._json({'ok': False, 'error': 'Corps de requête trop volumineux'}, 413)
+            return
         body = self.rfile.read(length) if length else b''
         try:
             payload = json.loads(body) if body else {}
@@ -3896,6 +3998,7 @@ form.addEventListener('submit', async (e) => {{
             self._json({'ok': False, 'error': 'Aucun mot de passe configuré'}, 400)
             return
         if _verify_access_password(password):
+            _reset_login_attempts(ip)
             body_out = json.dumps({'ok': True}).encode('utf-8')
             self.send_response(200)
             self.send_header('Set-Cookie',
@@ -3906,4 +4009,5 @@ form.addEventListener('submit', async (e) => {{
             self.end_headers()
             self.wfile.write(body_out)
         else:
+            _record_login_failure(ip)
             self._json({'ok': False, 'error': 'Mot de passe incorrect'}, 401)
