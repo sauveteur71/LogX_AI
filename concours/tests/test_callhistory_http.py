@@ -105,11 +105,12 @@ def test_import_n1mm_utilise_le_concours_du_payload(server, tmp_path, monkeypatc
 def test_import_n1mm_repli_sur_le_concours_de_la_config(server, tmp_path, monkeypatch):
     """Sans 'contest' explicite dans le corps, retombe sur le concours
     actuellement configuré côté serveur (cohérent avec le concours affiché
-    dans le popup CONFIG au moment de l'import)."""
+    dans le popup CONFIG au moment de l'import). CqZone (pas Exch1) : CQ_WW_SSB
+    n'a pas d'échange département REF, voir bug #2."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(httpmod, 'current_config', {'contest': 'CQ_WW_SSB'})
     status, res = _post(server, '/callhistory/import_n1mm',
-                        {'text': '!!Order!!,Call,Exch1\nF4GLD,14\n'})
+                        {'text': '!!Order!!,Call,CqZone\nF4GLD,14\n'})
     assert status == 200 and res['ok']
     assert ch.call_history_count('CQ_WW_SSB') == 1
 
@@ -143,6 +144,29 @@ def test_callhistory_status_reflete_les_imports(server, tmp_path, monkeypatch):
     assert res['master_scp_count'] == 3
     assert res['contest'] == 'REF_CDF_HF_CW'
     assert res['call_history_count'] == 1
+
+
+def test_callhistory_status_contest_query_prime_sur_la_config(server, tmp_path, monkeypatch):
+    """Bug #3 (revue adversariale commit 36777e2) : côté client,
+    selectContest() change state.contest AVANT toute sauvegarde ('Enregistrer')
+    -- le concours SERVEUR (current_config) reste donc l'ancien jusque-là. Le
+    paramètre ?contest= permet au client de demander le compteur du concours
+    qu'il vient de choisir SANS attendre cette sauvegarde (sinon le compteur
+    affiché restait celui du concours précédent)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(httpmod, 'current_config', {'contest': 'REF_CDF_HF_CW'})
+    _post(server, '/callhistory/import_n1mm',
+         {'contest': 'REF_CDF_HF_CW', 'text': '!!Order!!,Call,Exch1\nF4GLD,75\n'})
+    _post(server, '/callhistory/import_n1mm',
+         {'contest': 'CQ_WW_SSB', 'text': '!!Order!!,Call,CqZone\nW1AW,05\n'})
+    # Le serveur a toujours REF_CDF_HF_CW comme concours actif (pas sauvegardé) :
+    # sans paramètre, le statut retombe dessus (comportement inchangé).
+    res_sans = _get(server, '/callhistory/status')
+    assert res_sans['contest'] == 'REF_CDF_HF_CW' and res_sans['call_history_count'] == 1
+    # Le client vient de sélectionner CQ_WW_SSB (pas encore sauvegardé) :
+    # ?contest= doit refléter CE concours-là, pas celui de la config serveur.
+    res_avec = _get(server, '/callhistory/status?contest=CQ_WW_SSB')
+    assert res_avec['contest'] == 'CQ_WW_SSB' and res_avec['call_history_count'] == 1
 
 
 # ─── /call/index : surclassé par le concours actif ─────────────────────────

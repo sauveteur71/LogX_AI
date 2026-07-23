@@ -12,6 +12,8 @@ cassant sur un checkout propre / en CI."""
 import json
 import os
 import sys
+import threading
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -87,6 +89,49 @@ def test_master_scp_alimente_build_index_sans_ecraser_calldb(tmp_path, monkeypat
     assert 'F9ZZZ' in idx and idx['F9ZZZ']['dept'] is None   # connu, mais sans dept
 
 
+# ─── Bug #1 (revue adversariale commit 36777e2) : cycle lire-fusionner-écrire
+# SANS verrou -- deux imports concurrents perdaient silencieusement l'un des
+# deux jeux de données. Reproduction avec 2 VRAIS threads (pas une simulation
+# d'entrelacement) : un sleep() injecté dans json.load élargit la fenêtre de
+# course pour la rendre déterministe (sans lui, la perte est intermittente,
+# selon l'ordonnancement du thread par l'OS) -- il n'a aucune influence sur
+# la correction du fix : le verrou sérialise les deux imports de toute façon,
+# délai ou pas. Confirmé manuellement AVANT le fix (2 threads, 50+50
+# indicatifs) : un thread perdait intégralement ses 50 indicatifs sans
+# erreur rapportée, et un round a même levé un PermissionError (WinError 5)
+# sur le double os.replace() concurrent -- les deux disparaissent avec le
+# verrou (_master_scp_lock protège le cycle complet, pas seulement l'écriture).
+def test_import_master_scp_concurrent_ne_perd_aucun_indicatif(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    orig_load = json.load
+
+    def _slow_load(f, *a, **kw):
+        data = orig_load(f, *a, **kw)
+        time.sleep(0.05)
+        return data
+
+    monkeypatch.setattr(json, 'load', _slow_load)
+
+    calls_a = [f"F4AAA{i:02d}" for i in range(50)]
+    calls_b = [f"F4BBB{i:02d}" for i in range(50)]
+    results = {}
+
+    def _run(key, calls):
+        results[key] = ch.import_master_scp("\n".join(calls))
+
+    t1 = threading.Thread(target=_run, args=('a', calls_a))
+    t2 = threading.Thread(target=_run, args=('b', calls_b))
+    t1.start(); t2.start()
+    t1.join(); t2.join()
+
+    assert results['a']['ok'] and results['b']['ok']
+    with open('master_scp.json', encoding='utf-8') as f:
+        stored = set(json.load(f)['calls'])
+    assert set(calls_a) <= stored, "indicatifs du thread A perdus (course lire-fusionner-écrire)"
+    assert set(calls_b) <= stored, "indicatifs du thread B perdus (course lire-fusionner-écrire)"
+    assert len(stored) == 100
+
+
 # ─── Vérification N+1 (Damerau-Levenshtein == 1) ───────────────────────────
 
 @pytest.mark.parametrize('a,b,expected', [
@@ -136,8 +181,10 @@ def test_near_matches_tries_travailles_avant(monkeypatch):
 # ─── Call History N1MM : parsing pur ───────────────────────────────────────
 
 def test_parse_n1mm_ordre_par_defaut():
+    # contest='REF_CDF_HF_CW' : concours à échange département REF, seul cas
+    # où Exch1 doit être interprété comme un département (voir bug #2).
     row = _row('F4GLD', 'Jean', 'JN18AA', '', '', '', '', '', '59', '', '', '', '', '', '')
-    parsed, errors = ch.parse_n1mm_call_history(row + '\n')
+    parsed, errors = ch.parse_n1mm_call_history(row + '\n', contest='REF_CDF_HF_CW')
     assert not errors
     assert parsed['F4GLD']['name'] == 'Jean'
     assert parsed['F4GLD']['locator'] == 'JN18AA'
@@ -146,7 +193,7 @@ def test_parse_n1mm_ordre_par_defaut():
 
 def test_parse_n1mm_directive_order():
     text = "!!Order!!,Call,Name,Sect,Exch1\nF4GLD,Jean,IDF,75\n"
-    parsed, errors = ch.parse_n1mm_call_history(text)
+    parsed, errors = ch.parse_n1mm_call_history(text, contest='REF_CDF_HF_CW')
     assert not errors
     assert parsed['F4GLD']['section'] == 'IDF'
     assert parsed['F4GLD']['dept'] == '75'
@@ -196,13 +243,43 @@ def test_parse_n1mm_ignore_commentaires_et_lignes_vides():
 
 def test_parse_n1mm_point_virgule_accepte():
     text = "!!Order!!;Call;Exch1\nF4GLD;33\n"
-    parsed, errors = ch.parse_n1mm_call_history(text)
+    parsed, errors = ch.parse_n1mm_call_history(text, contest='REF_CDF_HF_CW')
     assert not errors and parsed['F4GLD']['dept'] == '33'
 
 
 def test_parse_n1mm_texte_vide():
     parsed, errors = ch.parse_n1mm_call_history('')
     assert parsed == {} and errors == []
+
+
+# ─── Bug #2 (revue adversariale commit 36777e2) : Exch1 n'est un département
+# REF QUE si le concours ciblé a effectivement un échange département ────────
+
+def test_parse_n1mm_exch1_non_interprete_hors_concours_dept():
+    """dept_from_exchange() accepte tout jeton 2 chiffres 01-95 -- ce qui
+    recouvre aussi des zones CQ/ITU ou des n° de série d'autres concours.
+    Reproduction concrète du bug : importer un Call History CQ_WW_SSB avec
+    Exch1='14' (zone CQ 14) ne doit PLUS produire un faux département '14'
+    (Calvados)."""
+    text = "!!Order!!,Call,Exch1\nDL1ABC,14\n"
+    # Sans contest connu : prudence par défaut, rien n'est interprété.
+    parsed, errors = ch.parse_n1mm_call_history(text)
+    assert not errors and 'DL1ABC' not in parsed
+    # CQ_WW_SSB : échange = RS + zone CQ, PAS un département REF.
+    parsed2, errors2 = ch.parse_n1mm_call_history(text, contest='CQ_WW_SSB')
+    assert not errors2 and 'DL1ABC' not in parsed2
+    # REF_CDF_HF_CW : échange = RST + N°série + dept -> Exch1 EST le département.
+    parsed3, errors3 = ch.parse_n1mm_call_history(text, contest='REF_CDF_HF_CW')
+    assert not errors3 and parsed3['DL1ABC']['dept'] == '14'
+
+
+def test_parse_n1mm_cqzone_toujours_interprete_meme_hors_concours_dept():
+    """Le champ CqZone (colonne dédiée), lui, n'est jamais gaté par le type
+    de concours : seul Exch1 est ambigu (échange générique)."""
+    text = "!!Order!!,Call,CqZone\nDL1ABC,14\n"
+    parsed, _ = ch.parse_n1mm_call_history(text, contest='CQ_WW_SSB')
+    assert parsed['DL1ABC']['zone'] == '14'
+    assert 'dept' not in parsed['DL1ABC']
 
 
 # ─── Call History N1MM : import (par concours, jamais un remplacement pur) ─
@@ -216,14 +293,19 @@ def test_import_n1mm_isole_par_concours(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     r1 = ch.import_call_history_n1mm('REF_CDF_HF_CW', "!!Order!!,Call,Exch1\nF4GLD,75\n")
     assert r1['ok'] and r1['imported'] == 1 and r1['total_for_contest'] == 1
-    r2 = ch.import_call_history_n1mm('CQ_WW_SSB', "!!Order!!,Call,Exch1\nF4GLD,14\n")
+    # CQ_WW_SSB n'a PAS d'échange département REF : Exch1='14' (zone CQ) ne
+    # doit jamais devenir un dept -- bug #2 (commit 36777e2, revue
+    # adversariale). CqZone reste interprété (colonne dédiée, sans ambiguïté).
+    r2 = ch.import_call_history_n1mm('CQ_WW_SSB', "!!Order!!,Call,Exch1,CqZone\nF4GLD,14,14\n")
     assert r2['ok'] and r2['total_for_contest'] == 1
     assert ch.call_history_count('REF_CDF_HF_CW') == 1
     assert ch.call_history_count('CQ_WW_SSB') == 1
-    # même indicatif, mais dept différent selon le concours (14 n'est pas un
-    # département valide -> pas de dept pour l'entrée CQ_WW_SSB)
+    # même indicatif, mais dept différent selon le concours
     e1 = ch.lookup('F4GLD', shared_log=[], contest='REF_CDF_HF_CW')
     assert e1['dept'] == '75'
+    e2 = ch.lookup('F4GLD', shared_log=[], contest='CQ_WW_SSB')
+    assert e2.get('dept') is None      # Exch1 ignoré : pas d'échange dept sur CQ_WW_SSB
+    assert e2['zone'] == '14'          # CqZone, lui, est bien remonté
 
 
 def test_import_n1mm_reimport_ecrase_ses_propres_entrees(tmp_path, monkeypatch):
@@ -239,6 +321,50 @@ def test_import_n1mm_fichier_sans_entree_valide(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     r = ch.import_call_history_n1mm('REF_CDF_HF_CW', "!!Order!!,Call,Name\n,Sans indicatif\n")
     assert r['ok'] is False
+
+
+# Bug #1 (revue adversariale commit 36777e2) : même chose que
+# test_import_master_scp_concurrent_ne_perd_aucun_indicatif ci-dessus, mais
+# pour call_history_n1mm.json -- avec en plus DEUX concours différents dans
+# le même fichier store (le point sensible du bug : le cycle lire-fusionner-
+# écrire porte sur TOUT le fichier, pas seulement la tranche d'un concours,
+# donc deux imports sur deux concours DIFFÉRENTS se marchaient dessus aussi).
+def test_import_n1mm_concurrent_ne_perd_aucune_fiche(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    orig_load = json.load
+
+    def _slow_load(f, *a, **kw):
+        data = orig_load(f, *a, **kw)
+        time.sleep(0.05)
+        return data
+
+    monkeypatch.setattr(json, 'load', _slow_load)
+
+    # Colonne Name (toujours non vide, quelle que soit la valeur) plutôt
+    # qu'Exch1 : évite tout risque de confondre une perte par COURSE avec une
+    # entrée légitimement écartée parce que sa valeur ne serait pas un n° de
+    # département FR valide (01-95) -- non pertinent ici, seule la survie des
+    # 100 fiches importe.
+    rows_a = [f"F4AAA{i:02d},OpA{i:02d}" for i in range(50)]
+    rows_b = [f"F4BBB{i:02d},OpB{i:02d}" for i in range(50)]
+    text_a = "!!Order!!,Call,Name\n" + "\n".join(rows_a) + "\n"
+    text_b = "!!Order!!,Call,Name\n" + "\n".join(rows_b) + "\n"
+    results = {}
+
+    def _run(key, contest, text):
+        results[key] = ch.import_call_history_n1mm(contest, text)
+
+    t1 = threading.Thread(target=_run, args=('a', 'REF_CDF_HF_CW', text_a))
+    t2 = threading.Thread(target=_run, args=('b', 'REF_CDF_HF_CW', text_b))
+    t1.start(); t2.start()
+    t1.join(); t2.join()
+
+    assert results['a']['ok'] and results['b']['ok']
+    assert ch.call_history_count('REF_CDF_HF_CW') == 100, (
+        "fiches perdues (course lire-fusionner-écrire sur call_history_n1mm.json)")
+    for i in range(50):
+        assert ch.lookup(f"F4AAA{i:02d}", shared_log=[], contest='REF_CDF_HF_CW') is not None
+        assert ch.lookup(f"F4BBB{i:02d}", shared_log=[], contest='REF_CDF_HF_CW') is not None
 
 
 # ─── Surclassement à la lecture : lookup/suggest/export_index(contest=...) ──

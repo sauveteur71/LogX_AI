@@ -3743,6 +3743,11 @@ function selectContest(id, _skipConfirm) {
     state.datesAutoFor = null;
     if(banner) banner.innerHTML = `📅 Dates pour <strong>${id}</strong> non calculables automatiquement — saisis-les manuellement.`;
   }
+  // Correctif : le statut Call History (MASTER.SCP/Call History N1MM importés)
+  // n'était rafraîchi qu'au chargement de la page et après un import —
+  // changer de concours ici sans recharger la page laissait le compteur du
+  // PRÉCÉDENT concours affiché.
+  refreshCallHistoryStatus();
   renderHub();
 }
 
@@ -3762,6 +3767,7 @@ function deselectContest(){
   state.datesAutoFor = null;
   const banner = document.getElementById('contest_dates_auto');
   if(banner) banner.innerHTML = '📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.';
+  refreshCallHistoryStatus();   // même correctif que selectContest() : ne pas laisser un compteur obsolète
   renderHub();
 }
 
@@ -5653,21 +5659,34 @@ async function importCallHistoryN1mm(file){
   document.getElementById('callHistoryFile').value = '';
 }
 
-// Rappel de l'état déjà importé — appelé au chargement de la page et après
-// chaque import (les compteurs seuls, sans re-choisir de fichier).
+// Rappel de l'état déjà importé — appelé au chargement de la page, après
+// chaque import, ET après un changement de concours (selectContest/
+// deselectContest : voir plus loin). ?contest= transmet le concours EN COURS
+// DE SÉLECTION côté client (state.contest), qui peut différer de celui
+// sauvegardé côté serveur tant que « Enregistrer » n'a pas été cliqué —
+// sans lui, changer de concours affichait le compteur du PRÉCÉDENT concours
+// jusqu'à la sauvegarde (correctif : selectContest() ne rafraîchissait
+// jamais ce statut).
 async function refreshCallHistoryStatus(){
   try{
-    const r = await (await fetch('/callhistory/status')).json();
+    const qs = state.contest ? ('?contest=' + encodeURIComponent(state.contest)) : '';
+    const r = await (await fetch('/callhistory/status' + qs)).json();
     const scpEl = document.getElementById('scpStatus');
     if (scpEl && !scpEl.innerHTML) {
       scpEl.textContent = r.master_scp_count
         ? `${r.master_scp_count} indicatif(s) déjà importés.` : '';
     }
     const chEl = document.getElementById('callHistoryStatus');
-    if (chEl && !chEl.innerHTML) {
+    // Rafraîchit si vide OU si le concours affiché a changé depuis le
+    // dernier rendu (chEl.dataset.contest) — sinon un changement de concours
+    // laissait le compteur du PRÉCÉDENT concours affiché indéfiniment. Ne
+    // touche pas à l'affichage si le concours n'a pas bougé : préserve le
+    // message de succès qu'un import vient de poser juste avant cet appel.
+    if (chEl && (!chEl.innerHTML || chEl.dataset.contest !== (r.contest || ''))) {
       chEl.textContent = r.contest && r.call_history_count
         ? `${r.call_history_count} fiche(s) déjà importées pour ${r.contest}.`
         : (r.contest ? '' : 'Choisis un concours pour voir/importer son Call History.');
+      chEl.dataset.contest = r.contest || '';
     }
   }catch(e){ /* hors ligne : silencieux, comme les autres statuts */ }
 }

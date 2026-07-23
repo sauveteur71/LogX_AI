@@ -43,6 +43,17 @@ _index = {}        # CALL -> {'dept','locator','qso_count','last_date'}
 _built_at = 0.0
 _lock = threading.Lock()
 
+# Verrous DÉDIÉS au cycle lire-fusionner-écrire de master_scp.json et de
+# call_history_n1mm.json (un par fichier, distincts de _lock ci-dessus qui ne
+# protège que l'index mémoire) — voir import_master_scp()/
+# import_call_history_n1mm(). Sans eux, deux imports concurrents pouvaient
+# lire le MÊME état existant avant que l'un des deux n'écrive : le second
+# écrasait alors intégralement le travail du premier, silencieusement (les
+# deux appels renvoient ok=True), et sur Windows le double os.replace()
+# concurrent pouvait même lever un PermissionError (WinError 5).
+_master_scp_lock = threading.Lock()
+_ch_io_lock = threading.Lock()
+
 _LOC_RE = re.compile(r'^[A-R]{2}[0-9]{2}([A-X]{2})?$', re.I)
 # Un vrai indicatif contient TOUJOURS au moins un chiffre (préfixe + chiffre +
 # suffixe) — le lookahead écarte les mots ordinaires qu'un fichier tiers mal
@@ -198,21 +209,29 @@ def import_master_scp(text):
     (jamais un remplacement pur — un import partiel ou un ancien fichier ne
     doit pas faire régresser la base déjà enrichie), persiste, puis invalide
     le cache mémoire pour que les nouveaux indicatifs soient pris en compte
-    dès la prochaine requête (au lieu d'attendre le TTL de 5 min)."""
+    dès la prochaine requête (au lieu d'attendre le TTL de 5 min).
+
+    Le cycle lecture-fusion-écriture est intégralement protégé par
+    _master_scp_lock (voir sa définition) : sans ça, deux imports concurrents
+    (ex. deux onglets CONFIG ouverts) pouvaient chacun lire le fichier AVANT
+    que l'autre n'écrive, puis se marcher dessus à l'écriture — celui qui
+    écrit en second efface le travail du premier sans que rien ne le signale
+    (les deux appels renvoient ok=True)."""
     new_calls = parse_master_scp(text)
     if not new_calls:
         return {'ok': False, 'error': "Aucun indicatif valide trouvé dans le fichier."}
-    existing = set()
-    if os.path.isfile(MASTER_SCP_FILE):
-        try:
-            with open(MASTER_SCP_FILE, encoding='utf-8') as f:
-                existing = set((json.load(f) or {}).get('calls', []))
-        except Exception:
-            existing = set()
-    added = len(set(new_calls) - existing)
-    merged = sorted(existing | set(new_calls))
     from logx_storage import save_json_atomic
-    save_json_atomic(MASTER_SCP_FILE, {'calls': merged, 'count': len(merged)}, compact=True)
+    with _master_scp_lock:
+        existing = set()
+        if os.path.isfile(MASTER_SCP_FILE):
+            try:
+                with open(MASTER_SCP_FILE, encoding='utf-8') as f:
+                    existing = set((json.load(f) or {}).get('calls', []))
+            except Exception:
+                existing = set()
+        added = len(set(new_calls) - existing)
+        merged = sorted(existing | set(new_calls))
+        save_json_atomic(MASTER_SCP_FILE, {'calls': merged, 'count': len(merged)}, compact=True)
     global _built_at
     with _lock:
         _built_at = 0.0     # force la reconstruction complète au prochain accès
@@ -319,13 +338,30 @@ def _ch_split(line):
     return line.split(';') if line.count(';') > line.count(',') else line.split(',')
 
 
-def parse_n1mm_call_history(text):
+def parse_n1mm_call_history(text, contest=None):
     """Parse un fichier Call History au format N1MM -> (dict {indicatif:
     {dept?,locator?,name?,section?,zone?}}, erreurs). Jamais d'exception :
     une ligne illisible est comptée en erreur et ignorée, pas bloquante pour
-    le reste du fichier (fichier tiers, pas garanti impeccable)."""
+    le reste du fichier (fichier tiers, pas garanti impeccable).
+
+    `contest`, s'il est fourni, détermine si Exch1 doit être interprété comme
+    un département REF (voir plus bas) — sans lui (ou pour un concours qui
+    n'a pas d'échange département), Exch1 n'est jamais interprété."""
     from logx_import import _clean_text
     from logx_departments import dept_from_exchange
+    from logx_definitions import CONTEST_DEFINITIONS
+
+    # Exch1 est le champ GÉNÉRIQUE "échange attendu" du format N1MM — son sens
+    # dépend entièrement du concours (n° de département REF, zone CQ, numéro
+    # de série...). dept_from_exchange() accepte tout jeton à 2 chiffres
+    # 01-95, ce qui recouvre aussi des zones CQ/ITU ou des numéros de série
+    # d'autres concours : ne l'appliquer QUE si le concours ciblé est
+    # effectivement un concours à échange département REF (dept_dxcc), sinon
+    # un import CQ_WW/IARU/... avec des indicatifs étrangers produirait de
+    # faux départements français (bug vérifié : Exch1='14' -> dept 'Calvados'
+    # alors que 14 est en réalité une zone CQ).
+    cdef = CONTEST_DEFINITIONS.get(str(contest or '').strip().upper(), {})
+    dept_applicable = exchange_wants(cdef)['dept']
 
     order = _CH_DEFAULT_ORDER
     map_state_to_sect = False
@@ -374,12 +410,14 @@ def parse_n1mm_call_history(text):
         norm_loc = _norm_loc(loc)
         if norm_loc:
             entry['locator'] = norm_loc
-        # Exch1 = champ générique "échange attendu" du format N1MM — dept_from_exchange
-        # y reconnaît un département REF s'il y en a un (réutilise le même parseur
-        # que pour un échange REÇU en direct, voir _feed_qso ci-dessus).
-        dept = dept_from_exchange(row.get('exch1', ''))
-        if dept:
-            entry['dept'] = dept
+        # dept_from_exchange y reconnaît un département REF s'il y en a un
+        # (réutilise le même parseur que pour un échange REÇU en direct, voir
+        # _feed_qso ci-dessus) — mais SEULEMENT si `contest` est bien un
+        # concours à échange département (voir dept_applicable plus haut).
+        if dept_applicable:
+            dept = dept_from_exchange(row.get('exch1', ''))
+            if dept:
+                entry['dept'] = dept
         cqzone = row.get('cqzone', '').strip()
         if cqzone:
             entry['zone'] = _clean_text(cqzone)
@@ -445,24 +483,31 @@ def import_call_history_n1mm(contest, text):
     mêmes règles que import_master_scp), les autres concours restent
     intacts. Les entrées déjà présentes pour ce concours sont écrasées par le
     nouveau fichier (import répété = mise à jour, pas un doublon qui
-    s'accumule)."""
+    s'accumule).
+
+    Le cycle lecture-fusion-écriture est intégralement protégé par
+    _ch_io_lock (mêmes raisons que import_master_scp/_master_scp_lock) : sans
+    ça, deux imports concurrents (même sur DEUX concours différents, puisque
+    c'est le même fichier store qui est lu-fusionné-écrit) pouvaient se
+    marcher dessus et perdre l'un des deux jeux de fiches importées."""
     contest = str(contest or '').strip().upper()
     if not contest:
         return {'ok': False, 'error': "Concours manquant."}
-    parsed, errors = parse_n1mm_call_history(text)
+    parsed, errors = parse_n1mm_call_history(text, contest)
     if not parsed:
         return {'ok': False, 'error': "Aucune entrée valide trouvée dans le fichier.",
                 'errors': errors}
-    store = _load_call_history_store()
-    store = {k: dict(v) for k, v in store.items()}   # copie : ne pas modifier le cache en place
-    slice_ = dict(store.get(contest, {}))
-    slice_.update(parsed)
-    store[contest] = slice_
     from logx_storage import save_json_atomic
-    save_json_atomic(CALL_HISTORY_FILE, store, compact=True)
     global _ch_cache, _ch_cache_mtime
-    _ch_cache = None    # invalide le cache mémoire (rechargé au prochain accès, via mtime)
-    _ch_cache_mtime = None
+    with _ch_io_lock:
+        store = _load_call_history_store()
+        store = {k: dict(v) for k, v in store.items()}   # copie : ne pas modifier le cache en place
+        slice_ = dict(store.get(contest, {}))
+        slice_.update(parsed)
+        store[contest] = slice_
+        save_json_atomic(CALL_HISTORY_FILE, store, compact=True)
+        _ch_cache = None    # invalide le cache mémoire (rechargé au prochain accès, via mtime)
+        _ch_cache_mtime = None
     return {'ok': True, 'imported': len(parsed), 'total_for_contest': len(slice_),
             'errors': errors}
 

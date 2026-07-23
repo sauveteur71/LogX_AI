@@ -1671,6 +1671,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # État des imports (bouton CONFIG) : nombre d'indicatifs MASTER.SCP et
         # de fiches Call History déjà importées pour le concours actif.
         if path == '/callhistory/status':
+            from urllib.parse import parse_qs, urlparse
             import logx_callhistory as callhistory
             cfg_snap = self._cfg_snapshot()
             scp_count = 0
@@ -1680,7 +1681,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         scp_count = (json.load(f) or {}).get('count', 0)
             except Exception:
                 pass
-            contest = cfg_snap.get('contest', '')
+            # Le concours qu'affiche/vient de choisir le CLIENT (?contest=,
+            # state.contest côté logx_configuration.html) peut différer de
+            # celui SAUVEGARDÉ côté serveur — cfg_snap ne se met à jour qu'au
+            # clic « Enregistrer » — d'où la priorité au paramètre explicite
+            # quand il est fourni (sinon on retombe sur la config serveur,
+            # comme avant, pour les appels sans concours en cours de sélection).
+            qp = parse_qs(urlparse(self.path).query)
+            contest = (qp.get('contest', [''])[0] or cfg_snap.get('contest', '')).strip().upper()
             ch_count = callhistory.call_history_count(contest) if contest else 0
             self._json({'master_scp_count': scp_count, 'contest': contest,
                        'call_history_count': ch_count})
