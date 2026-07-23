@@ -286,6 +286,17 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 .log-table-wrap{flex:1;overflow-y:auto;overflow-x:auto;min-width:0}
 .log-table-wrap::-webkit-scrollbar{width:4px;height:6px}
 .log-table-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+/* Barre "Afficher plus" — collée en bas de la zone de scroll (comme le thead
+   collé en haut) : le rendu DOM du log est limité aux N QSO les plus récents
+   (voir renderLog()/LOG_RENDER_STEP dans logx_logbook.js), ce bouton étend la
+   fenêtre par paliers sans jamais reconstruire tout le tbody d'un coup. */
+.log-more-bar{position:sticky;bottom:0;left:0;background:var(--bg2);border-top:1px solid var(--border);
+  padding:8px 14px;text-align:center;display:none}
+.log-more-bar.show{display:block}
+.log-more-btn{font-family:var(--font-mono);font-size:13px;padding:7px 18px;border-radius:6px;
+  border:1px solid var(--accent2);background:rgba(0,212,255,.1);color:var(--accent2);cursor:pointer;
+  letter-spacing:1px;font-weight:700;transition:all .15s}
+.log-more-btn:hover{background:rgba(0,212,255,.22)}
 /* CARTE QSO */
 .map-wrap{flex:1;display:none;position:relative}
 .map-wrap.visible{display:block}
@@ -1143,6 +1154,9 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         </thead>
         <tbody id="logBody"></tbody>
       </table>
+      <div class="log-more-bar" id="logMoreBar">
+        <button class="log-more-btn" onclick="showMoreLog()">Afficher plus (voir les <span id="logMoreCount">0</span> restants)</button>
+      </div>
     </div>
 
     <!-- CARTE QSO -->

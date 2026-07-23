@@ -2399,6 +2399,43 @@ function isValidQSO(q){
   return !!(q.call && q.mode && q.time && q.date && q.rst_sent && q.rst_rcvd);
 }
 
+// ─── FENÊTRE DE RENDU (virtualisation légère) ────────────────────────────────
+// renderLog() était appelé à chaque nouveau QSO, clic de filtre ou frappe dans
+// la recherche, et reconstruisait tbody.innerHTML avec TOUTES les lignes
+// filtrées : sur un gros log (plusieurs milliers de QSO, ex. contest 48h ou
+// logbook simple utilisé des années), ça régénère des milliers de <tr> en
+// boucle. Le tri/filtre/recherche restent calculés sur qsoLog en entier
+// (variable `filtered` ci-dessous) — seul le NOMBRE de <tr> réellement
+// insérés dans le DOM est plafonné aux plus récents, avec un bouton pour
+// étendre la fenêtre par paliers.
+const LOG_RENDER_DEFAULT = 300;
+const LOG_RENDER_STEP = 300;
+let logRenderLimit = LOG_RENDER_DEFAULT;
+// Mémorise le (filtre + recherche) du dernier rendu : un changement de l'un
+// des deux revient à la fenêtre par défaut (nouveau contexte de consultation),
+// alors qu'un nouveau QSO reçu sur le MÊME filtre garde la fenêtre déjà
+// étendue par l'utilisateur (sinon "Afficher plus" se réinitialiserait tout
+// seul dès le QSO suivant, en plein concours).
+let _logRenderKey = null;
+
+function showMoreLog(){
+  logRenderLimit += LOG_RENDER_STEP;
+  renderLog();
+}
+
+// Affiche/masque la barre "Afficher plus" selon ce qu'il reste à montrer.
+function renderLogMoreBar(hiddenCount){
+  const bar = document.getElementById('logMoreBar');
+  if(!bar) return;
+  const cnt = document.getElementById('logMoreCount');
+  if(hiddenCount > 0){
+    if(cnt) cnt.textContent = hiddenCount;
+    bar.classList.add('show');
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
 function setFilter(el){
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
@@ -2431,9 +2468,19 @@ function renderLog(){
   // Rafraîchir la carte si elle est visible
   if(document.getElementById('mapWrap').classList.contains('visible')) refreshMapLayers();
 
+  // Nouveau filtre/recherche => on repart de la fenêtre par défaut. Le même
+  // filtre (ex. juste un nouveau QSO reçu) conserve la fenêtre déjà étendue.
+  const renderKey = currentFilter + '|' + search;
+  if(renderKey !== _logRenderKey){
+    logRenderLimit = LOG_RENDER_DEFAULT;
+    _logRenderKey = renderKey;
+  }
+
   // Pré-calculs O(n) : nombre d'occurrences (call|band) et position dans le log.
   // Avant, chaque ligne refaisait un qsoLog.filter() + un qsoLog.indexOf(),
   // soit O(n²) reconstruit toutes les 5 s — insoutenable sur un log de 3 000+ QSO.
+  // Calculés sur qsoLog EN ENTIER (pas la fenêtre affichée) : le highlighting
+  // doublon doit rester correct même pour les QSO pas encore rendus.
   const dupCounts = new Map();
   const posOf = new Map();
   qsoLog.forEach((x, idx) => {
@@ -2442,7 +2489,13 @@ function renderLog(){
     dupCounts.set(k, (dupCounts.get(k) || 0) + 1);
   });
 
-  tbody.innerHTML = filtered.slice().reverse().map((q,i)=>{
+  // `filtered` reste le résultat COMPLET du tri/filtre/recherche — seule la
+  // tranche [0, logRenderLimit) part réellement dans le DOM (`visible`).
+  const reversed = filtered.slice().reverse();
+  const visible = reversed.slice(0, logRenderLimit);
+  renderLogMoreBar(reversed.length - visible.length);
+
+  tbody.innerHTML = visible.map((q,i)=>{
     const opColor = opColorAttr(q.operator);
     // LOGBOOK SIMPLE : retravailler un correspondant déjà eu (même indicatif +
     // même bande) est normal dans un log personnel — il n'y a pas de points à
