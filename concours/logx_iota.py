@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""IOTA (Islands On The Air) — base des groupes d'îles (pas de spots en direct).
+"""IOTA (Islands On The Air) — base des groupes d'îles + spots en direct.
 
 Source officielle, publique, sans clé, documentée par IOTA elle-même pour un
 usage tiers (téléchargement direct, rafraîchi chaque jour à 00:00 UTC) :
@@ -12,14 +12,23 @@ usage tiers (téléchargement direct, rafraîchi chaque jour à 00:00 UTC) :
     UNIQUEMENT à enrichir la recherche par nom (ex. chercher "Agalega" doit
     trouver AF-001 même si le nom du GROUPE diffère du nom de l'île).
 
-Pas de spots en direct : la seule source trouvée (iota-world.org/iotamaps/
+Pas de source de spots DÉDIÉE : la seule trouvée (iota-world.org/iotamaps/
 index_tools.php?what=getclusterdata) est un endpoint AJAX interne non
 documenté, mélangeant des spots DX généraux tagués IOTA plutôt que des spots
 IOTA propres — écartée par le même principe que ham365.net/sotamaps.org
 (cf. logx_sota.py) : pas assez fiable pour être présentée au même niveau de
 confiance que POTA/SOTA/WWFF.
+
+Spots en direct SANS dépendance externe fragile (spots_from_clusters ci-
+dessous) : les spots cluster classiques déjà collectés par logx_clusters.py
+(F5LEN, DXSummit, DXWatch, telnet...) portent très souvent la référence IOTA
+en commentaire ("IOTA EU-045", "TNX EU-123 QSL VIA..."). On reconnaît le
+format CC-NNN dans ce commentaire et on le valide contre groups_db (la vraie
+base ci-dessus) avant de taguer le spot IOTA — un simple motif CC-NNN qui
+n'existe PAS comme référence réelle (numéro de série, etc.) est écarté.
 """
 import json
+import re
 
 from logx_activation_db import ActivationDatabase
 
@@ -193,3 +202,97 @@ def search_groups(query, limit=25):
         seen = {it['code'] for it in by_code_prefix}
         merged = by_code_prefix + [it for it in by_name if it['code'] not in seen]
         return merged[:limit]
+
+
+# ─── SPOTS EN DIRECT (dérivés des commentaires de spots cluster) ────────────
+
+IOTA_REF_RE = re.compile(r'\b([A-Z]{2}-\d{3})\b')
+
+
+def _spot_info_and_call(spot):
+    """(commentaire, indicatif) d'un spot cluster brut, quel que soit son
+    format de collecte : dict normalisé (clé 'info' — la quasi-totalité des
+    sources, cf. logx_clusters._normalize_spot et fetch_dxsummit_hf/
+    fetch_dxwatch_hf/fetch_telnet_cluster) ou liste brute de cellules HTML
+    (F5LEN, seule source qui ne passe pas par _normalize_spot). Même
+    distinction déjà utilisée par logx_departments.department_targets et
+    logx_scoring.build_ranked_spots pour la même raison (formats hétérogènes
+    accumulés dans SPOTS_CACHE au fil des sources).
+
+    L'indicatif n'est PAS tronqué au premier '/' : beaucoup d'activations
+    IOTA se signent avec un préfixe DXpedition devant l'indicatif de base
+    (ex. '9A/DF5WC', 'TK/F4GLD') — couper sur '/' perdrait l'indicatif réel
+    (comme le fait _normalize_spot pour l'affichage VHF local, où seul le
+    SUFFIXE '/P' importe). POTA/SOTA/WWFF gardent d'ailleurs eux aussi
+    l'indicatif complet tel quel dans leurs spots (cf. fetch_pota_spots)."""
+    if isinstance(spot, dict):
+        call = str(spot.get('call') or spot.get('dx') or '').upper()
+        return str(spot.get('info') or ''), call
+    if isinstance(spot, (list, tuple)) and spot:
+        call = str(spot[0]).upper()
+        return ' '.join(str(c) for c in spot[1:]), call
+    return '', ''
+
+
+def spots_from_clusters(spots_by_band=None):
+    """Spots IOTA en direct, DÉDUITS des spots cluster déjà collectés — jamais
+    un appel réseau propre à ce module (cf. docstring de tête). `spots_by_band`
+    est le même format que celui consommé par logx_scoring.build_ranked_spots
+    ({label: [spots]}) ; à défaut, on lit directement logx_clusters.SPOTS_CACHE
+    (copie superficielle : les fetchs remplacent une clé entière plutôt que de
+    muter une liste en place, une copie du dict suffit contre un changement de
+    taille pendant l'itération).
+
+    Un spot cluster est tagué IOTA quand son commentaire contient une
+    référence au format CC-NNN qui existe RÉELLEMENT dans groups_db — garde-
+    fou contre un faux positif (numéro de série, etc. qui ressemblerait au
+    format sans être une vraie référence).
+
+    Format générique du logiciel, mêmes clés que logx_pota.fetch_pota_spots /
+    logx_sota.fetch_sota_spots / logx_wwff.fetch_wwff_spots."""
+    if spots_by_band is None:
+        from logx_clusters import SPOTS_CACHE
+        spots_by_band = dict(SPOTS_CACHE)
+    groups_db.ensure_loading_started()
+    from logx_scoring import _band_from_freq
+
+    out = []
+    seen = set()
+    for band_label, spots in (spots_by_band or {}).items():
+        for spot in spots or []:
+            info, call = _spot_info_and_call(spot)
+            if not call or len(call) < 3 or not info:
+                continue
+            code = None
+            for m in IOTA_REF_RE.finditer(info.upper()):
+                if groups_db.get(m.group(1)):
+                    code = m.group(1)
+                    break
+            if not code:
+                continue
+            key = (call, code)
+            if key in seen:
+                continue
+            seen.add(key)
+            is_dict = isinstance(spot, dict)
+            try:
+                freq_khz = float(spot.get('freq') or 0) if is_dict else 0.0
+            except (TypeError, ValueError):
+                freq_khz = 0.0
+            band = _band_from_freq(freq_khz) or str(band_label).replace(' MHz', '').replace(' GHz', '')
+            group = groups_db.get(code) or {}
+            out.append({
+                'call': call,
+                'freq': freq_khz,
+                'band': band,
+                'mode': str(spot.get('mode') or '') if is_dict else '',
+                'reference': code,
+                'island_name': group.get('name', ''),
+                'lat': group.get('lat'),
+                'lon': group.get('lon'),
+                'comment': info.strip(),
+                'spotter': str(spot.get('spotter') or '') if is_dict else '',
+                'time': str(spot.get('time') or '') if is_dict else '',
+                'source': 'iota-cluster',
+            })
+    return out

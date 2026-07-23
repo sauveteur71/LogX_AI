@@ -1740,6 +1740,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'spots': wwff.fetch_wwff_spots()})
             return
 
+        # Spots IOTA en direct : PAS une source réseau dédiée (aucune fiable,
+        # cf. logx_iota.py), mais les références IOTA reconnues dans les
+        # commentaires des spots cluster déjà en cache — aucun fetch ici.
+        if path == '/data/iota_spots':
+            import logx_iota as iota
+            self._json({'spots': iota.spots_from_clusters(_spots_from_caches())})
+            return
+
         # Activations WCA/COTA ANNONCÉES à l'avance (flux RSS wcagroup.org) —
         # PAS des spots confirmés sur l'air, cf. logx_wca.py.
         if path == '/data/wca_planned':
