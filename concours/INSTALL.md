@@ -84,3 +84,12 @@ logbook (`http://IP-DU-PC:8080/logx_logbook.html`). Le bouton
 
 Le port utilisé est **8080** — assurez-vous qu'aucun autre programme ne
 l'occupe (une seule instance de LogX AI à la fois).
+
+> ⚠️ **Si un téléphone/second PC n'arrive pas à charger la page**, c'est
+> presque toujours le pare-feu Windows du PC serveur. Deux réglages, sur le
+> PC qui fait tourner LogX AI :
+> 1. Le WiFi doit être en réseau **« Privé »** : Paramètres → Réseau et
+>    Internet → Wi-Fi → votre réseau → Type de profil réseau → **Réseau
+>    privé** (en « Public », Windows bloque toutes les connexions entrantes).
+> 2. Au premier lancement de `LogXAI.exe`, à la fenêtre « Autoriser
+>    l'accès » : cochez **Réseaux privés** puis **Autoriser l'accès**.

@@ -1205,6 +1205,9 @@ En fin de concours, le bouton **📦 ARCHIVER** range tout dans un sous-dossier 
 
 - **Le navigateur ne s'ouvre pas au démarrage** : ouvrez manuellement l'adresse affichée dans la fenêtre du serveur (`http://127.0.0.1:8080/logx_configuration.html` par défaut).
 - **Un autre poste ne voit pas le log partagé** : vérifiez qu'il est sur le **même réseau WiFi**, et utilisez l'adresse IP affichée au démarrage du serveur (« Autres postes WiFi »), pas `127.0.0.1`/`localhost` qui ne désignent que le poste lui-même.
+- **Un téléphone/second PC n'arrive pas à se connecter du tout** (la page ne charge jamais) : c'est presque toujours le **pare-feu Windows** du PC serveur — deux réglages à faire **sur le PC qui fait tourner LogX AI** :
+  1. Le WiFi doit être en réseau **« Privé »** (pas « Public ») : Paramètres Windows → Réseau et Internet → Wi-Fi → cliquez votre réseau → Type de profil réseau → **Réseau privé**. Sur un réseau « Public », Windows bloque toutes les connexions entrantes.
+  2. Au premier lancement de `LogXAI.exe`, quand Windows demande « Autoriser l'accès » : cochez **Réseaux privés** puis **Autoriser l'accès**. Si la fenêtre n'apparaît plus, ajoutez la règle à la main : Sécurité Windows → Pare-feu → Paramètres avancés → Règles de trafic entrant → Nouvelle règle → Port TCP **8080** → Autoriser (profil Privé).
 - **Le copilote IA ne répond pas** : vérifiez la clé API en CONFIG (icône ❓ à côté du champ pour son explication) ; sans clé, tout le reste du logiciel reste utilisable.
 - **Un champ de configuration n'est pas clair** : cliquez l'icône **❓** à côté, ou ouvrez l'assistant **🤖** (voir [§5](#5-configurer-sa-station--le-hub-de-catégories)).
 - **Le pilotage radio ne répond pas** : vérifiez le bon port série (Gestionnaire de périphériques Windows) et que la vitesse (bauds) correspond exactement au réglage de la radio.
