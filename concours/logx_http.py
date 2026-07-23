@@ -354,10 +354,19 @@ def add_qso_to_log(qso, force=False):
     except Exception as e:
         print(f"[SCORING] Recalcul points abandonné ({type(e).__name__}: {e}) "
               f"— valeur envoyée par le client conservée")
+    # bump_log_version()/stamp_qso_version() DANS le même verrou que l'ajout :
+    # /log/list capture current_v+log_copy sous SON PROPRE with log_lock (lecteur
+    # concurrent, ThreadingHTTPServer). Si le stamp arrivait après un relâchement
+    # du verrou, ce lecteur pourrait s'intercaler entre le bump (version déjà
+    # incrémentée) et le stamp (encore absent) : il verrait ce QSO sans '_v' à
+    # jour (défaut 0), donc exclu à tort d'un delta calculé contre une version
+    # déjà avancée — le client adopterait ce curseur et ne reverrait plus JAMAIS
+    # ce QSO. save_log_to_disk() reste HORS verrou (elle reprend log_lock elle-
+    # même pour sa copie ; log_lock n'est pas réentrant, l'appeler ici deadlockerait).
     with log_lock:
         shared_log.append(qso)
-    bump_log_version()
-    stamp_qso_version(qso)   # voir /log/list?since= (synchro différentielle)
+        bump_log_version()
+        stamp_qso_version(qso)   # voir /log/list?since= (synchro différentielle)
     save_log_to_disk()
     # Mode expédition : pousse le QSO vers le flux Club Log Live (fire-and-forget)
     try:
@@ -945,11 +954,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path.startswith('/log/delete/'):
             try:
                 qso_id = int(self.path.split('/')[-1])
+                # bump_log_version()/mark_qso_deleted() DANS le même verrou que la
+                # suppression (voir commentaire équivalent dans add_qso_to_log) :
+                # sans quoi un lecteur /log/list concurrent pourrait capturer un
+                # log_copy déjà privé du QSO mais un tombstone pas encore posé,
+                # et l'afficherait indéfiniment chez un pair déjà synchronisé.
                 with log_lock:
                     before = len(shared_log)
                     shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
-                bump_log_version()
-                mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
+                    bump_log_version()
+                    mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
                 save_log_to_disk()
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:
@@ -3304,13 +3318,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 updated_qso = json.loads(body)
                 qso_id = updated_qso.get('id')
+                # bump_log_version()/stamp_qso_version() DANS le même verrou que la
+                # mutation (même risque de course que l'ajout/la suppression, voir
+                # add_qso_to_log). Portée AVANT/APRÈS (qso_scope_id : contest+année
+                # tirée du champ 'date') comparée pour détecter une correction de
+                # date qui fait sortir le QSO de la portée concours active — le
+                # même genre d'événement que /config/save (qui appelle déjà
+                # mark_hard_reset() pour un changement de portée SANS toucher un
+                # QSO). Sans ce hard reset, un pair déjà synchronisé continuerait
+                # d'afficher indéfiniment ce QSO : il n'est ni dans le delta (son
+                # nouveau 'contest'/'date' le fait exclure par le filtre de portée
+                # AVANT même la comparaison de version) ni dans les tombstones (ce
+                # n'est pas une suppression).
                 with log_lock:
+                    old_scope = None
                     for i, q in enumerate(shared_log):
                         if q.get('id') == qso_id:
+                            old_scope = qso_scope_id(q)
                             shared_log[i] = updated_qso
                             break
-                bump_log_version()
-                stamp_qso_version(updated_qso)   # voir /log/list?since=
+                    bump_log_version()
+                    stamp_qso_version(updated_qso)   # voir /log/list?since=
+                    if old_scope is not None and qso_scope_id(updated_qso) != old_scope:
+                        mark_hard_reset()   # voir /log/list?since= : portée du QSO changée
                 save_log_to_disk()
                 print(f"[LOG] ~QSO corrige id={qso_id}")
                 self._json({'ok': True})
@@ -3348,11 +3378,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path.startswith('/log/delete/'):
             try:
                 qso_id = int(self.path.split('/')[-1])
+                # bump_log_version()/mark_qso_deleted() DANS le même verrou que la
+                # suppression (voir commentaire équivalent dans add_qso_to_log/
+                # do_DELETE) : sinon un lecteur /log/list concurrent pourrait voir
+                # le QSO déjà absent de shared_log mais sans tombstone posé, et
+                # l'afficherait indéfiniment chez un pair déjà synchronisé.
                 with log_lock:
                     before = len(shared_log)
                     shared_log[:] = [q for q in shared_log if q.get('id') != qso_id]
-                bump_log_version()
-                mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
+                    bump_log_version()
+                    mark_qso_deleted(qso_id)   # voir /log/list?since= (synchro différentielle)
                 save_log_to_disk()
                 self._json({'ok': True, 'deleted': before - len(shared_log)})
             except Exception as e:

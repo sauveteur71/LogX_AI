@@ -254,3 +254,113 @@ def test_config_save_force_un_resync_complet_meme_avec_since_valide(server, monk
     after = _get(server, f'/log/list?since={v0}&boot={boot}')
     assert 'delta' not in after          # repli explicite sur liste complète
     assert after['qsos'] == [qso]        # portée REF_QRP#2027 -> QSO maintenant visible
+
+
+# ─── Revue adversariale du commit 5bf7091 : fenêtre de course lecture/écriture ──
+
+def test_add_qso_bump_et_stamp_sont_atomiques_avec_le_verrou(server, monkeypatch):
+    """PROBLEME 1 : avant correctif, bump_log_version() et stamp_qso_version()
+    s'exécutaient APRÈS avoir relâché log_lock (le seul with log_lock: du
+    chemin d'ajout ne couvrait que shared_log.append). Un lecteur /log/list
+    concurrent (ThreadingHTTPServer, propre with log_lock:) pouvait alors
+    s'intercaler ENTRE le bump (version déjà incrémentée) et le stamp (encore
+    absent) : il capturait un QSO déjà dans shared_log mais sans son '_v' à
+    jour (défaut 0), exclu à tort d'un delta calculé contre une version déjà
+    avancée -> ce QSO devenait invisible À JAMAIS pour ce pair (il adopte ce
+    curseur de version, qui ne redescend jamais).
+
+    On force le pire agencement possible : un thread lecteur prêt à dégainer
+    sa capture pile au moment où bump_log_version() vient de s'exécuter. Avec
+    le correctif (bump+stamp DANS le même with log_lock: que l'append), ce
+    lecteur reste bloqué sur l'acquisition du verrou jusqu'à la fin complète
+    de l'écriture : il ne peut plus jamais observer une version bumpée sans le
+    QSO correspondant déjà stampé dans le delta. Sans le correctif, ce test
+    échoue (vérifié en local en repassant temporairement sur le code d'avant :
+    delta renvoyé vide alors que la version a déjà avancé)."""
+    monkeypatch.setattr(httpmod, 'shared_log', [])
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'simple'})
+    monkeypatch.setattr(storage, 'log_version', 0)
+    monkeypatch.setattr(storage, 'hard_reset_version', 0)
+    monkeypatch.setattr(storage, 'deleted_qsos', [])
+
+    reader_may_run = threading.Event()
+    reader_done = threading.Event()
+    reader_result = {}
+
+    real_bump = storage.bump_log_version
+
+    def bump_puis_signale_le_lecteur():
+        v = real_bump()
+        # Le lecteur tente sa capture PILE APRÈS le bump. Avec le correctif,
+        # log_lock est encore tenu à cet instant (bump appelé DANS le même
+        # with log_lock: que l'append) : le lecteur bloque sur l'acquisition
+        # et ne peut plus s'intercaler. Sans le correctif, log_lock était déjà
+        # relâché ici -> le lecteur passait librement.
+        reader_may_run.set()
+        reader_done.wait(timeout=0.4)
+        return v
+
+    monkeypatch.setattr(httpmod, 'bump_log_version', bump_puis_signale_le_lecteur)
+
+    def lecteur():
+        reader_may_run.wait(timeout=2)
+        data = _get(server, f'/log/list?since=0&boot={storage.SERVER_BOOT_ID}')
+        reader_result.update(data)
+        reader_done.set()
+
+    t = threading.Thread(target=lecteur)
+    t.start()
+    ok, _info = httpmod.add_qso_to_log(_qso(call='F4XYZ'))
+    t.join(timeout=5)
+
+    assert ok
+    assert reader_result, "le thread lecteur n'a pas obtenu de réponse"
+    if reader_result.get('version', 0) > 0:
+        # Invariant : version déjà bumpée => le QSO neuf DOIT être dans le
+        # delta (jamais l'un sans l'autre, sous peine d'invisibilité définitive).
+        assert reader_result.get('delta') is True
+        assert len(reader_result.get('qsos', [])) == 1, (
+            "QSO invisible : le lecteur a vu la version déjà incrémentée "
+            "mais le QSO neuf absent du delta (fenêtre de course rouverte)")
+
+
+def test_log_update_changement_de_portee_force_un_resync_complet(server, monkeypatch):
+    """PROBLEME 2 : qso_scope_id() dérive la portée d'un QSO de 'contest' +
+    l'année de son champ 'date'. /log/update laisse modifier cette date (donc
+    la portée) mais n'appelait jamais mark_hard_reset() — contrairement à
+    /config/save qui le fait pour le même genre d'événement (portée qui change
+    sans qu'aucun QSO ne soit ajouté/supprimé). Reproduction : QSO id=42 dans
+    la portée active REF_QRP#2026, déjà vu par un pair (?since= valide) ; sa
+    date est corrigée vers 2027 (portée REF_QRP#2027, qui n'est plus la portée
+    active) -> sans le correctif, ce QSO ne réapparaît ni dans un delta (le
+    filtre de portée l'exclut de log_copy AVANT même la comparaison de
+    version) ni dans les tombstones (ce n'est pas une suppression) : le pair
+    continue de l'afficher indéfiniment. Avec le correctif, le changement de
+    portée force un resync complet (repli explicite, pas de 'delta')."""
+    qso = _qso(id=42, contest='REF_QRP', date='20260101', _v=1)
+    monkeypatch.setattr(httpmod, 'shared_log', [qso])
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    # Portée active = REF_QRP#2026 (édition en cours) : le QSO y est visible.
+    monkeypatch.setattr(httpmod, 'current_config', {
+        'usage_mode': 'contest', 'contest': 'REF_QRP',
+        'contest_start_date': '2026-01-01'})
+    monkeypatch.setattr(storage, 'log_version', 1)
+    monkeypatch.setattr(storage, 'hard_reset_version', 0)
+    monkeypatch.setattr(storage, 'deleted_qsos', [])
+
+    before = _get(server, '/log/list')
+    v0, boot = before['version'], before['boot']
+    assert before['qsos'] == [qso]   # portée REF_QRP#2026 -> visible
+
+    # Correction de la date : le QSO passe à l'édition 2027 (portée différente)
+    updated = dict(qso, date='20270101')
+    status, _res = _post(server, '/log/update', updated)
+    assert status == 200
+
+    after = _get(server, f'/log/list?since={v0}&boot={boot}')
+    # Le QSO n'est plus dans la portée active (REF_QRP#2026) : sans le
+    # correctif, il resterait absent en silence d'un delta vide qui laisse le
+    # cache du pair inchangé -> il faut un repli explicite sur liste complète.
+    assert 'delta' not in after
+    assert after['qsos'] == []
