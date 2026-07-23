@@ -143,3 +143,42 @@ def test_post_spot_refuse_par_le_serveur(monkeypatch):
     r = pota.post_spot('F4GLD', 'FR-9999999', 14285, 'SSB')
     assert r['ok'] is False
     assert '400' in r['error'] and 'reference invalide' in r['error']
+
+
+# ─── Régressions revue adversariale du commit e9a01b8 ───────────────────────
+
+def test_post_spot_reference_non_chaine_ne_plante_pas(monkeypatch):
+    """Reproduit le bug HIGH : un payload JSON peut envoyer une référence
+    numérique ({"reference": 123}, ex. un client mal formé ou du JS qui
+    n'a pas casté). Avant le correctif, (reference or '').strip() levait
+    une AttributeError ('int' object has no attribute 'strip') puisqu'un
+    int non nul est "truthy" et n'a pas de .strip()."""
+    captured = {}
+    def fake_post(url, payload, timeout=10, headers=None):
+        captured['payload'] = payload
+        return 200, 'ok'
+    import logx_utils
+    monkeypatch.setattr(logx_utils, 'post_url_json', fake_post)
+
+    r = pota.post_spot('F4GLD', 123, 14285, 'SSB')
+    assert r['ok'] is True
+    assert captured['payload']['reference'] == '123'
+
+
+def test_post_spot_frequence_arrondie_sans_bruit_flottant(monkeypatch):
+    """Reproduit le bug MEDIUM : str(freq_khz) sur un float issu d'une
+    conversion (MHz*1000, division...) peut contenir du bruit IEEE-754
+    (ex. 21444.052489233058) au lieu d'une fréquence propre — jamais ce
+    qu'on veut envoyer à l'API publique POTA. f'{freq_khz:.1f}' arrondit
+    à la décimale (résolution largement suffisante en kHz)."""
+    captured = {}
+    def fake_post(url, payload, timeout=10, headers=None):
+        captured['payload'] = payload
+        return 200, 'ok'
+    import logx_utils
+    monkeypatch.setattr(logx_utils, 'post_url_json', fake_post)
+
+    bruit_ieee754 = 21444.052489233058
+    assert str(bruit_ieee754) == '21444.052489233058'  # le bug, si on l'avait laissé
+    pota.post_spot('F4GLD', 'FR-0123', bruit_ieee754, 'SSB')
+    assert captured['payload']['frequency'] == '21444.1'

@@ -98,9 +98,12 @@ def post_spot(activator, reference, freq_khz, mode, spotter='', comment=''):
     Valide localement avant tout appel réseau (évite un aller-retour pour une
     erreur de saisie triviale) ; ne lève jamais, renvoie {'ok': bool, ...}
     comme les autres fonctions réseau du projet (logx_qsl, logx_clusters...)."""
-    activator = (activator or '').strip().upper()
-    reference = (reference or '').strip().upper()
-    mode = (mode or '').strip().upper()
+    # str() explicite AVANT .strip() : le payload JSON du endpoint HTTP peut
+    # contenir un champ non-chaîne (ex. {"reference": 123}) — (x or '') ne
+    # protège pas dans ce cas puisque 123 est "truthy" et n'a pas de .strip().
+    activator = str(activator or '').strip().upper()
+    reference = str(reference or '').strip().upper()
+    mode = str(mode or '').strip().upper()
     try:
         freq_khz = float(freq_khz)
     except (TypeError, ValueError):
@@ -118,12 +121,17 @@ def post_spot(activator, reference, freq_khz, mode, spotter='', comment=''):
     from logx_version import APP_VERSION
     payload = {
         'activator': activator,
-        'spotter': (spotter or activator).strip().upper(),
-        'frequency': str(freq_khz),
+        'spotter': str(spotter or activator).strip().upper(),
+        # f'{:.1f}' et non str() brut : freq_khz est un float qui peut avoir
+        # traversé une conversion MHz->kHz (ex. 14.2853 * 1000), et str() sur
+        # un float renvoie parfois du bruit IEEE-754 (14285.299999999999) — un
+        # arrondi à 1 décimale (résolution largement suffisante en kHz) évite
+        # d'envoyer ça tel quel à l'API publique POTA.
+        'frequency': f'{freq_khz:.1f}',
         'reference': reference,
         'mode': mode,
         'source': 'LogXAI',
-        'comments': comment or '',
+        'comments': str(comment or ''),
     }
     status, text = post_url_json(
         POTA_POST_SPOT_URL, payload, timeout=10,

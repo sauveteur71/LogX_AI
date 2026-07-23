@@ -999,6 +999,21 @@ def _activation_db_adapter(program):
     return None
 
 
+def _freq_khz_from_payload(payload):
+    """Fréquence en kHz depuis un payload JSON de self-spot : freq_khz direct,
+    ou repli sur freq_mhz * 1000. Factorisé depuis /cluster/spot, /pota/spot
+    et /sota/spot qui recopiaient exactement ce bloc (copier-coller repéré en
+    revue de code). Renvoie 0 si absent/invalide, sans lever — à l'appelant
+    de décider si une fréquence manquante est bloquante."""
+    freq_khz = payload.get('freq_khz') or 0
+    if not freq_khz and payload.get('freq_mhz'):
+        try:
+            freq_khz = float(payload['freq_mhz']) * 1000
+        except (TypeError, ValueError):
+            freq_khz = 0
+    return freq_khz
+
+
 # ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
 class Handler(http.server.BaseHTTPRequestHandler):
 
@@ -3147,12 +3162,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 payload = {}
             # Fréquence en kHz (freq_khz direct, ou freq_mhz * 1000)
-            freq_khz = payload.get('freq_khz') or 0
-            if not freq_khz and payload.get('freq_mhz'):
-                try:
-                    freq_khz = float(payload['freq_mhz']) * 1000
-                except (TypeError, ValueError):
-                    freq_khz = 0
+            freq_khz = _freq_khz_from_payload(payload)
             if not freq_khz:
                 self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
                 return
@@ -3178,16 +3188,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not call:
                 self._json({'ok': False, 'error': 'Indicatif manquant (configure ta station dans CONFIG)'}, 400)
                 return
-            reference = (payload.get('reference') or cfg_now.get('my_activation_ref') or '').strip().upper()
-            freq_khz = payload.get('freq_khz') or 0
-            if not freq_khz and payload.get('freq_mhz'):
-                try:
-                    freq_khz = float(payload['freq_mhz']) * 1000
-                except (TypeError, ValueError):
-                    freq_khz = 0
+            # str() explicite AVANT .strip()/.upper() : reference peut être un
+            # nombre dans le payload JSON ({"reference": 123}), qui n'a pas de
+            # .strip() -> AttributeError non capturée (requête plantée sans
+            # réponse JSON). (payload.get('mode') or '') plutôt que
+            # .get('mode', '') : {"mode": null} est une clé PRÉSENTE, le
+            # défaut de .get() ne s'applique donc pas et str(None) == 'None'
+            # se serait glissé dans le payload envoyé à l'API publique POTA.
+            reference = str(payload.get('reference') or cfg_now.get('my_activation_ref') or '').strip().upper()
+            freq_khz = _freq_khz_from_payload(payload)
             res = pota.post_spot(call, reference, freq_khz,
-                                  str(payload.get('mode', '')), spotter=call,
-                                  comment=str(payload.get('comment', '')))
+                                  str(payload.get('mode') or ''), spotter=call,
+                                  comment=str(payload.get('comment') or ''))
             self._json(res, 200 if res.get('ok') else 502)
             return
 
@@ -3202,17 +3214,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = {}
             import logx_sota_spot as sotaspot
             cfg_now = self._cfg_snapshot()
-            reference = (payload.get('reference') or cfg_now.get('my_activation_ref') or '').strip().upper()
-            freq_khz = payload.get('freq_khz') or 0
-            if not freq_khz and payload.get('freq_mhz'):
-                try:
-                    freq_khz = float(payload['freq_mhz']) * 1000
-                except (TypeError, ValueError):
-                    freq_khz = 0
+            reference = str(payload.get('reference') or cfg_now.get('my_activation_ref') or '').strip().upper()
+            freq_khz = _freq_khz_from_payload(payload)
             freq_mhz = (freq_khz / 1000) if freq_khz else 0
             res = sotaspot.post_spot(cfg_now, reference, freq_mhz,
-                                      str(payload.get('mode', '')),
-                                      comment=str(payload.get('comment', '')))
+                                      str(payload.get('mode') or ''),
+                                      comment=str(payload.get('comment') or ''))
             self._json(res, 200 if res.get('ok') else 502)
             return
 

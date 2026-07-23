@@ -115,3 +115,43 @@ def test_callsign_contest_prioritaire_sur_callsign(server, monkeypatch):
 
     _post(server, '/pota/spot', {'freq_khz': 14285, 'mode': 'SSB'})
     assert captured['activator'] == 'F4GLD/P' and captured['spotter'] == 'F4GLD/P'
+
+
+# ─── Régressions revue adversariale du commit e9a01b8 ───────────────────────
+
+def test_reference_numerique_ne_plante_pas_le_handler(server, monkeypatch):
+    """Reproduit le bug HIGH : {"reference": 123} est un JSON valide (un
+    client mal formé, ou du JS qui a oublié de caster une valeur numérique
+    saisie) — avant le correctif, .strip() sur l'int levait une
+    AttributeError non capturée dans le handler, et la requête n'obtenait
+    JAMAIS de réponse JSON (connexion coupée côté serveur). Ici on vérifie
+    que la requête aboutit normalement et que la référence est bien
+    coercée en chaîne avant d'atteindre post_spot()."""
+    monkeypatch.setattr(httpmod, 'current_config', {'callsign': 'F4GLD', 'contest': ''})
+    captured = {}
+    def fake_post_spot(activator, reference, freq_khz, mode, spotter='', comment=''):
+        captured['reference'] = reference
+        return {'ok': True}
+    monkeypatch.setattr(pota, 'post_spot', fake_post_spot)
+
+    status, d = _post(server, '/pota/spot', {'reference': 123, 'freq_khz': 14285, 'mode': 'SSB'})
+    assert status == 200 and d['ok'] is True
+    assert captured['reference'] == '123'
+
+
+def test_mode_json_null_ne_devient_pas_la_chaine_none(server, monkeypatch):
+    """Reproduit le bug MEDIUM : {"mode": null} est une clé PRÉSENTE dans le
+    payload -> payload.get('mode', '') ne renvoie PAS le défaut (la clé
+    existe), et str(None) == 'None' se glissait tel quel jusqu'à post_spot()
+    (et de là, potentiellement jusqu'à l'API publique POTA)."""
+    monkeypatch.setattr(httpmod, 'current_config',
+                        {'callsign': 'F4GLD', 'contest': '', 'my_activation_ref': 'FR-0123'})
+    captured = {}
+    def fake_post_spot(activator, reference, freq_khz, mode, spotter='', comment=''):
+        captured['mode'] = mode
+        return {'ok': True}
+    monkeypatch.setattr(pota, 'post_spot', fake_post_spot)
+
+    status, d = _post(server, '/pota/spot', {'freq_khz': 14285, 'mode': None})
+    assert status == 200 and d['ok'] is True
+    assert captured['mode'] == ''
