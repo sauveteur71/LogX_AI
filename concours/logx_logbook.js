@@ -217,11 +217,14 @@ function applyActivationMode(program, ref){
     const r = document.getElementById('actRef'); if(r) r.textContent = myActivationRef;
     const pr = document.getElementById('actProgress');
     if(pr) pr.textContent = '0/' + (ACT_MIN[activationProgram]||10);
-    // Auto-spot : pour l'instant seule l'API POTA est vérifiée/implémentée
-    // (cf. logx_pota.post_spot) — SOTA/WWFF/IOTA n'ont pas d'endpoint POST
-    // documenté avec certitude, le bouton reste donc masqué pour eux.
+    // Auto-spot : POTA (cf. logx_pota.post_spot) et SOTA (cf.
+    // logx_sota_spot.post_spot, connexion SOTA SSO + clientId à configurer
+    // dans CONFIG — reste inactif tant que ce n'est pas fait, le clic
+    // renvoie alors un message d'erreur explicite plutôt que de rester masqué
+    // en silence). WWFF/IOTA restent masqués : aucun endpoint POST documenté
+    // avec certitude pour ces deux-là.
     const sb = document.getElementById('actSpotBtn');
-    if(sb) sb.style.display = activationProgram === 'POTA' ? '' : 'none';
+    if(sb) sb.style.display = (activationProgram === 'POTA' || activationProgram === 'SOTA') ? '' : 'none';
     refreshActivation();
     if(!activationTimer) activationTimer = setInterval(refreshActivation, 15000);
   } else if(activationTimer){
@@ -5350,6 +5353,40 @@ async function selfSpotPota(){
     const d = await r.json();
     if(d.ok) notify(`📡 Spot POTA publié : ${myCall}  ${myActivationRef}  ${mhz.toFixed(3)} MHz`);
     else notify('❌ Self-spot POTA : ' + (d.error || 'échec'));
+  }catch(e){ notify('❌ ' + e.message); }
+  finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SE SPOTTER'; } }
+}
+
+// Le bouton SE SPOTTER est partagé entre programmes d'activation — un seul
+// point d'entrée qui redirige vers l'implémentation du programme actif.
+function selfSpotActivation(){
+  if(activationProgram === 'POTA') return selfSpotPota();
+  if(activationProgram === 'SOTA') return selfSpotSota();
+}
+
+// ─── SELF-SPOT SOTA (publier son activation sur SOTAwatch3, cf.
+// logx_sota_spot.post_spot) — reste INACTIF tant que le clientId SOTA et
+// l'accord préalable de l'équipe SOTA n'ont pas été configurés dans CONFIG
+// (le serveur renvoie alors un message d'erreur explicite, voir post_spot). ─
+async function selfSpotSota(){
+  if(activationProgram !== 'SOTA' || !myActivationRef) return;
+  let mhz = parseFloat(document.getElementById('inputFreq')?.value);
+  if(!isFinite(mhz) || mhz <= 0){
+    if(typeof rigState === 'object' && rigState && rigState.freq_khz > 0) mhz = rigState.freq_khz / 1000;
+  }
+  if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
+  const freq_khz = Math.round(mhz * 1000 * 10) / 10;
+  if(!confirm(`Publier ce spot sur SOTAwatch3 ?\n\n${myCall}   ${myActivationRef}   ${mhz.toFixed(3)} MHz   ${currentMode||''}\n\n`+
+              'Nécessite une connexion SOTA configurée dans CONFIG → EXPÉDITION/ACTIVATION.')) return;
+  const btn = document.getElementById('actSpotBtn');
+  const orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }
+  try{
+    const r = await fetch('/sota/spot', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({reference: myActivationRef, freq_khz, mode: currentMode || ''})});
+    const d = await r.json();
+    if(d.ok) notify(`📡 Spot SOTA publié : ${myCall}  ${myActivationRef}  ${mhz.toFixed(3)} MHz`);
+    else notify('❌ Self-spot SOTA : ' + (d.error || 'échec'));
   }catch(e){ notify('❌ ' + e.message); }
   finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SE SPOTTER'; } }
 }

@@ -213,3 +213,96 @@ def test_qsl_settings_qrzcq_hrdlog():
 def test_qsl_status_expose_qrzcq_hrdlog():
     st = qsl.qsl_status(QRZCQ_CFG)
     assert st['qrzcq'] is True and st['hrdlog'] is False
+
+
+# ─── Club Log Live Stream (realtime.php) ─────────────────────────────────────
+# Format vérifié contre la doc officielle Club Log (clublog.freshdesk.com,
+# "How To Upload QSOs In Real-Time") : POST url-encodé email/password/
+# callsign/adif, `adif` = EXACTEMENT un enregistrement (pas de lot, pas
+# d'en-tête) ; throttle stricte -> un 403 doit couper les essais suivants.
+# Chaque test utilise des identifiants DISTINCTS : le disjoncteur (module-
+# level) se réarme automatiquement dès que les identifiants changent (voir
+# _clublog_creds_fp), ce qui isole les tests entre eux sans fixture dédiée.
+
+def _clublog_cfg(suffix):
+    return {'clublog_email': f'{suffix}@example.com', 'clublog_callsign': 'F6KQJ',
+            'clublog_password': f'app-password-{suffix}', 'clublog_api_key': f'key-{suffix}'}
+
+
+def test_realtime_push_envoie_un_seul_enregistrement_sans_en_tete(monkeypatch):
+    """Régression : l'ancien code envoyait export.build_adif() complet (en-tête
+    <adif_ver>/<programid>/<EOH> inclus) alors que Club Log exige EXACTEMENT
+    un enregistrement terminé par <EOR> pour cette route temps réel."""
+    captured = {}
+    def fake_post_url_form(url, fields, timeout=20, headers=None):
+        captured['url'] = url
+        captured['fields'] = fields
+        return 200, 'OK'
+    monkeypatch.setattr('logx_utils.post_url_form', fake_post_url_form)
+
+    r = qsl.realtime_push(_clublog_cfg('s1'), QSO)
+    assert r['ok'] is True
+    assert captured['url'] == 'https://clublog.org/realtime.php'
+    assert '<EOH>' not in captured['fields']['adif'] and '<adif_ver' not in captured['fields']['adif']
+    assert captured['fields']['adif'].rstrip().endswith('<EOR>')
+    assert captured['fields']['email'] == 's1@example.com'
+    assert 'api' not in captured['fields']  # realtime.php n'attend pas de clé API (contrairement à putlogs.php)
+
+
+def test_realtime_push_403_declenche_le_disjoncteur(monkeypatch):
+    """Un 403 doit arrêter immédiatement les tentatives suivantes (pas de
+    retry agressif) — le 2e appel ne doit PLUS toucher le réseau."""
+    calls = {'n': 0}
+    def fake_post_url_form(url, fields, timeout=20, headers=None):
+        calls['n'] += 1
+        return 403, 'blocked'
+    monkeypatch.setattr('logx_utils.post_url_form', fake_post_url_form)
+
+    cfg = _clublog_cfg('s2')
+    r1 = qsl.realtime_push(cfg, QSO)
+    assert r1['ok'] is False and r1.get('blocked') is True
+
+    r2 = qsl.realtime_push(cfg, dict(QSO, call='G3XYZ'))
+    assert r2['ok'] is False and r2.get('blocked') is True
+    assert calls['n'] == 1   # le 2e appel n'a PAS retenté le réseau
+
+
+def test_realtime_push_disjoncteur_se_reinitialise_si_identifiants_changent(monkeypatch):
+    """Changer les identifiants (l'utilisateur corrige sa config) redonne sa
+    chance — le disjoncteur ne doit pas bloquer indéfiniment."""
+    calls = {'n': 0}
+    def fake_post_url_form(url, fields, timeout=20, headers=None):
+        calls['n'] += 1
+        return 403, 'blocked'
+    monkeypatch.setattr('logx_utils.post_url_form', fake_post_url_form)
+
+    cfg = _clublog_cfg('s3')
+    qsl.realtime_push(cfg, QSO)
+    assert calls['n'] == 1
+
+    new_cfg = _clublog_cfg('s3-corrige')
+    monkeypatch.setattr('logx_utils.post_url_form', lambda *a, **k: (200, 'OK'))
+    r = qsl.realtime_push(new_cfg, QSO)
+    assert r['ok'] is True
+
+
+def test_realtime_push_erreur_non_403_ne_declenche_pas_le_disjoncteur(monkeypatch):
+    """Une erreur transitoire (500) ne doit pas bloquer les QSO suivants,
+    contrairement à un 403 (refus explicite)."""
+    calls = {'n': 0}
+    def fake_post_url_form(url, fields, timeout=20, headers=None):
+        calls['n'] += 1
+        return 500, 'server error'
+    monkeypatch.setattr('logx_utils.post_url_form', fake_post_url_form)
+
+    cfg = _clublog_cfg('s4')
+    r1 = qsl.realtime_push(cfg, QSO)
+    assert r1['ok'] is False and not r1.get('blocked')
+    r2 = qsl.realtime_push(cfg, dict(QSO, call='G3XYZ'))
+    assert calls['n'] == 2   # bien retenté (pas de disjoncteur sur une simple erreur serveur)
+
+
+def test_realtime_push_reseau_injoignable(monkeypatch):
+    monkeypatch.setattr('logx_utils.post_url_form', lambda *a, **k: (None, None))
+    r = qsl.realtime_push(_clublog_cfg('s5'), QSO)
+    assert not r['ok'] and 'injoignable' in r['error']

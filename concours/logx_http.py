@@ -4,6 +4,7 @@
 import http.server
 import urllib.request
 import urllib.error
+import html
 import json
 import os
 import re
@@ -334,6 +335,18 @@ def add_qso_to_log(qso, force=False):
         if str(cfg_now.get('clublog_live', '')) in ('1', 'true', 'True', 'on'):
             import logx_qsl as qsl
             threading.Thread(target=lambda: qsl.realtime_push(cfg_now, dict(qso)),
+                             daemon=True).start()
+    except Exception:
+        pass
+    # QRZ Logbook : insertion temps réel (ACTION=INSERT), fire-and-forget —
+    # même schéma d'activation que Club Log Live ci-dessus (bouton dédié,
+    # pas seulement la présence de la clé — cf. logx_qrz_push.qrz_logbook_settings).
+    try:
+        with config_lock:
+            cfg_now3 = dict(current_config)
+        import logx_qrz_push as qrz_push
+        if qrz_push.qrz_logbook_settings(cfg_now3)['push_enabled']:
+            threading.Thread(target=lambda: qrz_push.push_qso(cfg_now3, dict(qso)),
                              daemon=True).start()
     except Exception:
         pass
@@ -1801,6 +1814,57 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'spots': sota.fetch_sota_spots()})
             return
 
+        # Auto-spot SOTA : état de la connexion SOTA SSO (clientId configuré,
+        # jeton présent, case d'approbation IA cochée — voir logx_sota_spot.py).
+        if path == '/sota/status':
+            import logx_sota_spot as sotaspot
+            self._json(sotaspot.status(self._cfg_snapshot()))
+            return
+
+        # Auto-spot SOTA : lance la connexion SOTA SSO (Authorization Code +
+        # PKCE) — ouvert dans un nouvel onglet par le bouton « Se connecter à
+        # SOTA » (CONFIG), redirige vers le vrai serveur SSO SOTA.
+        if path == '/sota/oauth/start':
+            import logx_sota_spot as sotaspot
+            url, err = sotaspot.build_authorize_url(self._cfg_snapshot())
+            if not url:
+                self._json({'ok': False, 'error': err}, 400)
+                return
+            self._redirect(url)
+            return
+
+        # Auto-spot SOTA : callback de retour depuis SOTA SSO (redirect_uri
+        # enregistré = ce serveur local, voir SOTA_REDIRECT_URI). Échange le
+        # code contre un jeton puis affiche une page de confirmation minimale.
+        if path == '/sota/oauth/callback':
+            import logx_sota_spot as sotaspot
+            from urllib.parse import parse_qs, urlparse
+            qp = parse_qs(urlparse(self.path).query)
+            code = (qp.get('code') or [''])[0]
+            state = (qp.get('state') or [''])[0]
+            sso_error = (qp.get('error_description') or qp.get('error') or [''])[0]
+            if sso_error and not code:
+                ok, msg = False, f'SOTA SSO : {sso_error}'
+            else:
+                ok, msg = sotaspot.handle_oauth_callback(code, state, self._cfg_snapshot())
+            title = 'Connexion SOTA réussie' if ok else 'Échec de la connexion SOTA'
+            color = '#2ea043' if ok else '#f85149'
+            # Échappement HTML : `msg` peut reprendre error_description, un
+            # paramètre de requête fourni par l'appelant du callback (en
+            # pratique SOTA SSO, mais rien n'empêche un autre appel local) —
+            # jamais interpolé tel quel dans la page.
+            safe_msg = html.escape(msg)
+            page = (f'<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+                    f'<title>{html.escape(title)}</title></head>'
+                    f'<body style="background:#0d1117;color:#e6edf3;font-family:Arial,sans-serif;'
+                    f'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">'
+                    f'<div style="text-align:center;max-width:420px;padding:24px">'
+                    f'<h2 style="color:{color}">{html.escape(title)}</h2><p>{safe_msg}</p>'
+                    f'<p style="color:#8b949e;font-size:13px">Tu peux fermer cet onglet et revenir à CONFIG.</p>'
+                    f'</div></body></html>')
+            self._raw(200, 'text/html; charset=utf-8', page.encode('utf-8'))
+            return
+
         # Spots d'activateurs WWFF en direct (spots.wwff.co, cache 60 s)
         if path == '/data/wwff_spots':
             import logx_wwff as wwff
@@ -2397,6 +2461,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'error': str(e)}, 500)
             return
 
+        # QRZ Logbook : vérifie la clé API (ACTION=STATUS) sans insérer de QSO
+        # factice — bouton « Tester la connexion » (CONFIG → QSL), même
+        # logique que /amp/test.
+        if self.path == '/qrz_logbook/test':
+            try:
+                import logx_qrz_push as qrz_push
+                res = qrz_push.test_connection(self._cfg_snapshot())
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
         # ── Phase 3 : analyse IA d'un règlement ──────────────────────────────
         # Télécharge le règlement (ou reçoit son texte), l'envoie à l'IA
         # configurée, valide la proposition contre le schema et le moteur.
@@ -2812,6 +2888,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
             res = pota.post_spot(call, reference, freq_khz,
                                   str(payload.get('mode', '')), spotter=call,
                                   comment=str(payload.get('comment', '')))
+            self._json(res, 200 if res.get('ok') else 502)
+            return
+
+        # Auto-spot SOTA (SOTA SSO + api2.sota.org.uk, cf. logx_sota_spot.py)
+        # — pendant de /pota/spot pour un activateur SOTA. Reste inactif tant
+        # que clientId + case d'approbation IA ne sont pas configurés (voir
+        # sota_spot_settings) : c'est post_spot() qui vérifie, pas ce handler.
+        if self.path == '/sota/spot':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            import logx_sota_spot as sotaspot
+            cfg_now = self._cfg_snapshot()
+            reference = (payload.get('reference') or cfg_now.get('my_activation_ref') or '').strip().upper()
+            freq_khz = payload.get('freq_khz') or 0
+            if not freq_khz and payload.get('freq_mhz'):
+                try:
+                    freq_khz = float(payload['freq_mhz']) * 1000
+                except (TypeError, ValueError):
+                    freq_khz = 0
+            freq_mhz = (freq_khz / 1000) if freq_khz else 0
+            res = sotaspot.post_spot(cfg_now, reference, freq_mhz,
+                                      str(payload.get('mode', '')),
+                                      comment=str(payload.get('comment', '')))
             self._json(res, 200 if res.get('ok') else 502)
             return
 

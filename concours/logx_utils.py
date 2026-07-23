@@ -3,6 +3,7 @@
 
 import urllib.request
 import urllib.error
+import urllib.parse
 import json
 import math
 import datetime
@@ -119,6 +120,35 @@ def post_url_json(url, payload, timeout=10, headers=None):
     def _do():
         data = json.dumps(payload).encode('utf-8')
         hdrs = {'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'}
+        if headers:
+            hdrs.update(headers)
+        req = urllib.request.Request(url, data=data, headers=hdrs, method='POST')
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
+                charset = resp.headers.get_content_charset() or 'utf-8'
+                return resp.status, resp.read().decode(charset, errors='replace')
+        except urllib.error.HTTPError as e:
+            charset = (e.headers.get_content_charset() if e.headers else None) or 'utf-8'
+            return e.code, e.read().decode(charset, errors='replace')
+
+    try:
+        fut = _FETCH_EXECUTOR.submit(_do)
+        return fut.result(timeout=timeout + 3)
+    except Exception as e:
+        print(f"  [FETCH] POST {url[:60]}... -> {e}")
+        return None, None
+
+def post_url_form(url, fields, timeout=10, headers=None):
+    """Comme post_url_json(), mais en POST application/x-www-form-urlencoded —
+    le format attendu par la plupart des API "legacy" du monde radioamateur
+    (QRZ Logbook, Club Log realtime.php, HRDLog...). Même pool de threads
+    partagé, même motif de bornage (DNS non couvert par le timeout d'urlopen).
+
+    Renvoie (status_http, texte_réponse) ; (None, None) si injoignable."""
+    def _do():
+        data = urllib.parse.urlencode(fields).encode('utf-8')
+        hdrs = {'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'}
         if headers:
             hdrs.update(headers)

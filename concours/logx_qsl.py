@@ -476,37 +476,74 @@ def upload_log(cfg, service, qsos):
 
 
 # ─── CLUB LOG LIVE STREAM (expédition : QSO poussés en temps réel) ────────────
+# Format vérifié contre la doc officielle Club Log (clublog.freshdesk.com,
+# "How To Upload QSOs In Real-Time") : POST https://clublog.org/realtime.php,
+# corps url-encodé email/password/callsign/adif — le champ `adif` doit
+# contenir EXACTEMENT UN enregistrement ADIF terminé par <EOR>, JAMAIS un
+# lot ni l'en-tête <adif_ver>/<programid>/<EOH> qu'ajoute build_adif() (bug
+# corrigé ici : l'ancien code envoyait le fichier complet avec en-tête, que
+# Club Log n'attend pas pour cette route temps réel — voir _single_qso_adif).
+# La clé API n'est PAS un paramètre de realtime.php (contrairement à
+# putlogs.php/upload_clublog ci-dessus) ; conservée dans clublog_enabled
+# uniquement pour ne pas dupliquer une seconde condition d'activation.
+#
+# « Un 403 doit arrêter immédiatement les tentatives suivantes, pas de retry
+# agressif » (consigne explicite, cohérente avec le "throttle exists to
+# prevent abuse" de la doc) : un disjoncteur mémoire s'arme dès le premier
+# 403 et bloque tout nouvel essai tant que les identifiants ClubLog n'ont
+# pas changé — sans lui, un identifiant invalide aurait autrement relancé
+# une requête pour CHAQUE QSO restant du log (fire-and-forget, un thread par
+# QSO ajouté), exactement le comportement que Club Log demande d'éviter.
+_clublog_rt_breaker = {'tripped': False, 'creds_fp': None, 'reason': ''}
+
+
+def _clublog_creds_fp(s):
+    return (s['clublog_email'], s['clublog_callsign'], s['clublog_password'], s['clublog_api_key'])
+
 
 def realtime_push(cfg, qso):
     """Pousse UN QSO vers le flux temps réel Club Log (apparaît sur le live
-    stream de l'expédition). Nécessite les identifiants ClubLog + une clé API.
-    Retourne {ok, ...} ; ne lève jamais (appel fire-and-forget)."""
+    stream de l'expédition). Nécessite les identifiants ClubLog. Retourne
+    {ok, ...} ; ne lève jamais (appel fire-and-forget, voir add_qso_to_log)."""
     s = qsl_settings(cfg)
     if not s['clublog_enabled']:
         return {'ok': False, 'error': 'ClubLog non configuré'}
+
+    fp = _clublog_creds_fp(s)
+    if _clublog_rt_breaker['creds_fp'] != fp:
+        # Identifiants différents du dernier essai (nouveau réglage, ou tout
+        # premier appel) : on redonne sa chance, le disjoncteur ne doit pas
+        # bloquer indéfiniment un simple changement de mot de passe/clé.
+        _clublog_rt_breaker.update(tripped=False, creds_fp=fp, reason='')
+    if _clublog_rt_breaker['tripped']:
+        return {'ok': False, 'blocked': True,
+                'error': f"ClubLog Live suspendu après un refus (HTTP 403) — {_clublog_rt_breaker['reason']} "
+                          "Corrige les identifiants ClubLog dans CONFIG pour réessayer."}
+
     try:
-        import logx_export as export
-        adif = export.build_adif([qso], cfg or {})
+        record = _single_qso_adif(qso, cfg or {})
     except Exception as e:
         return {'ok': False, 'error': f'ADIF : {e}'}
     fields = {
         'email': s['clublog_email'], 'password': s['clublog_password'],
         'callsign': s['clublog_callsign'] or
                     ((cfg or {}).get('callsign_contest') or (cfg or {}).get('callsign') or '').upper(),
-        'api': s['clublog_api_key'], 'adif': adif,
+        'adif': record,
     }
-    try:
-        body = urllib.parse.urlencode(fields).encode('utf-8')
-        req = urllib.request.Request(
-            'https://clublog.org/realtime.php', data=body,
-            headers={'Content-Type': 'application/x-www-form-urlencoded',
-                     'User-Agent': 'LogXAI'})
-        with urllib.request.urlopen(req, timeout=20, context=_ssl_ctx()) as r:
-            resp = r.read().decode('utf-8', 'replace')[:150]
-    except Exception as e:
-        return {'ok': False, 'error': f'ClubLog live injoignable : {e}'}
-    ok = 'OK' in resp.upper() or 'ACCEPTED' in resp.upper() or resp.strip() == ''
-    return {'ok': ok, 'response': resp.strip()}
+    from logx_utils import post_url_form  # import local : mockable par les tests
+    status, text = post_url_form('https://clublog.org/realtime.php', fields,
+                                  timeout=20, headers={'User-Agent': 'LogXAI'})
+    if status is None:
+        return {'ok': False, 'error': 'ClubLog live injoignable (réseau)'}
+    resp = (text or '')[:150].strip()
+    if status == 403:
+        _clublog_rt_breaker.update(tripped=True, creds_fp=fp, reason=resp or 'accès refusé')
+        return {'ok': False, 'blocked': True,
+                'error': f'ClubLog a refusé le flux temps réel (HTTP 403) : {resp}'}
+    if status >= 400:
+        return {'ok': False, 'error': f'ClubLog live a répondu HTTP {status} : {resp}'}
+    ok = 'OK' in resp.upper() or 'ACCEPTED' in resp.upper() or resp == ''
+    return {'ok': ok, 'response': resp}
 
 
 # ─── ÉTAT / HORODATAGE ────────────────────────────────────────────────────────
@@ -553,4 +590,5 @@ def qsl_status(cfg=None):
         'hrdlog': bool(s.get('hrdlog_enabled')),
         'last': stamps,
         'confirmations': confirmations,
+        'clublog_realtime_blocked': _clublog_rt_breaker['tripped'],
     }

@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logx_utils
 from logx_utils import (locator_to_latlon, haversine, bearing,
-                                cardinal, is_digital_mode, post_url_json)
+                                cardinal, is_digital_mode, post_url_json,
+                                post_url_form)
 
 
 # ─── locator_to_latlon ───────────────────────────────────────────────────────
@@ -164,3 +165,46 @@ def test_post_url_json_reseau_injoignable(monkeypatch):
     monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', boom)
 
     assert post_url_json('https://api.pota.app/spot/', {'a': 1}) == (None, None)
+
+
+# ─── post_url_form ────────────────────────────────────────────────────────────
+# Même pattern que post_url_json ci-dessus, mais corps
+# application/x-www-form-urlencoded — utilisé par QRZ Logbook, Club Log
+# realtime.php, SOTA SSO (token exchange)...
+
+def test_post_url_form_succes(monkeypatch):
+    captured = {}
+    def fake_urlopen(req, timeout=10, context=None):
+        captured['url'] = req.full_url
+        captured['method'] = req.get_method()
+        captured['body'] = req.data.decode('utf-8')
+        captured['content_type'] = req.get_header('Content-type')
+        return _FakeResp('RESULT=OK&LOGID=42')
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', fake_urlopen)
+
+    status, text = post_url_form('https://logbook.qrz.com/api',
+                                  {'KEY': 'abc', 'ACTION': 'STATUS'},
+                                  headers={'User-Agent': 'LogXAI/9.9'})
+    assert status == 200 and text == 'RESULT=OK&LOGID=42'
+    assert captured['method'] == 'POST'
+    assert captured['content_type'] == 'application/x-www-form-urlencoded'
+    assert captured['body'] == 'KEY=abc&ACTION=STATUS'
+
+
+def test_post_url_form_erreur_http_remontee_avec_le_corps(monkeypatch):
+    def fake_urlopen(req, timeout=10, context=None):
+        raise urllib.error.HTTPError(req.full_url, 403, 'Forbidden',
+                                     None, io.BytesIO(b'quota exceeded'))
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', fake_urlopen)
+
+    status, text = post_url_form('https://clublog.org/realtime.php', {'a': 1})
+    assert status == 403
+    assert 'quota exceeded' in text
+
+
+def test_post_url_form_reseau_injoignable(monkeypatch):
+    def boom(req, timeout=10, context=None):
+        raise OSError('timeout')
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', boom)
+
+    assert post_url_form('https://clublog.org/realtime.php', {'a': 1}) == (None, None)

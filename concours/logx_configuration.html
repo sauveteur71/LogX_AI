@@ -1603,6 +1603,23 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <input type="text" id="hrdlog_code" placeholder="code d'upload HRDLog" autocomplete="off">
             <div class="input-note">Obtenu sur hrdlog.net (réglages du compte) — envoi QSO par QSO, peut être lent sur un gros log</div>
           </div>
+          <div class="form-group">
+            <label>QRZ LOGBOOK — CLÉ API</label>
+            <input type="text" id="qrz_logbook_key" placeholder="clé API QRZ Logbook" autocomplete="off">
+            <div class="input-note">Nécessite un abonnement QRZ XML actif (qrz.com → Mon compte → Logbook Data → API Key)</div>
+          </div>
+          <div class="form-group">
+            <label>QRZ LOGBOOK — ENVOI AUTO</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="qrz_logbook_push" style="flex:1">
+                <option value="">Désactivé</option>
+                <option value="1">Activé — insérer chaque QSO validé</option>
+              </select>
+              <button type="button" class="btn btn-secondary" style="padding:9px 14px;font-size:12px;white-space:nowrap" onclick="testQrzLogbook()">🔌 Tester</button>
+            </div>
+            <div id="qrzLogbookTestResult" style="font-family:var(--font-mono);font-size:12px;margin-top:4px"></div>
+            <div class="input-note">Insertion QSO par QSO (ACTION=INSERT) dès qu'un QSO est ajouté au log — nécessite la clé API ci-dessus</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1702,6 +1719,40 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
                  et logx_wca.get_castle_geocoded côté serveur) — rempli seulement dans ce cas. -->
             <div id="activationWcaGeocoded" style="margin-top:6px"></div>
           </div>
+        </div>
+      </div>
+
+      <div class="section" id="sotaAutoSpotSection" style="display:none">
+        <div class="section-title">🏔️ AUTO-SPOT SOTA (SOTAwatch3)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Publie ton activation directement sur SOTAwatch3, comme le bouton
+          « Add Spot » du site officiel. Nécessite un clientId personnel,
+          délivré par l'équipe SOTA (SOTA Reflector, groupe « API-consumers »)
+          — <b>reste totalement inactif tant que ce champ est vide</b>, comme
+          les autres services externes de ce logiciel.
+          ⚠️ Les Conditions d'Utilisation de l'API SOTA (api2.sota.org.uk)
+          interdisent explicitement à tout logiciel écrit avec une aide IA de
+          se connecter à leur API sans accord préalable de l'équipe — coche la
+          case ci-dessous UNIQUEMENT après avoir obtenu cet accord, au même
+          moment que ta demande de clientId. LogX AI a été développé avec
+          l'aide d'un assistant IA.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>CLIENT ID SOTA</label>
+            <input type="text" id="sota_client_id" placeholder="fourni par l'équipe SOTA" autocomplete="off">
+            <div class="input-note">Vide = fonctionnalité inactive. Redirect URI à communiquer à l'équipe SOTA : <code id="sotaRedirectUriHint">http://localhost:8080/sota/oauth/callback</code></div>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:normal">
+              <input type="checkbox" id="sota_ai_approval_ack" style="margin-top:3px">
+              <span>J'ai l'accord PRÉALABLE et explicite de l'équipe SOTA pour utiliser ce logiciel assisté par IA avec leur API (obligatoire — voir les CGU api2.sota.org.uk).</span>
+            </label>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-secondary" style="padding:9px 16px;font-size:12px" onclick="connectSota()">🔐 Se connecter à SOTA</button>
+          <span id="sotaAuthStatus" style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">Non connecté</span>
         </div>
       </div>
 
@@ -2010,6 +2061,10 @@ const CONFIG_HELP = {
   qrzcq_api_key: "Ta clé API QRZCQ.com.",
   hrdlog_callsign: "Ton indicatif enregistré sur HRDLog.net.",
   hrdlog_code: "Ton code d'upload personnel HRDLog.net (trouvable dans les réglages de ton compte HRDLog).",
+  qrz_logbook_key: "Ta clé API QRZ Logbook (nécessite un abonnement QRZ XML actif — qrz.com → Mon compte → Logbook Data → API Key). Vide = fonctionnalité inactive.",
+  qrz_logbook_push: "Insère automatiquement chaque QSO ajouté dans ton carnet QRZ Logbook (ACTION=INSERT), en plus du log local. Nécessite la clé API ci-dessus.",
+  sota_client_id: "Identifiant OAuth personnel délivré par l'équipe SOTA (SOTA Reflector, groupe « API-consumers ») pour publier tes spots directement sur SOTAwatch3. Vide = fonctionnalité inactive. Les CGU de l'API SOTA exigent en plus un accord préalable explicite pour tout logiciel assisté par IA (voir la case à cocher juste en dessous) — demande les deux en même temps à l'équipe SOTA.",
+  sota_ai_approval_ack: "Confirme que tu as obtenu l'accord explicite de l'équipe SOTA pour utiliser ce logiciel (assisté par IA) avec leur API — exigé par leurs Conditions d'Utilisation avant toute publication de spot, en plus du clientId.",
   on4kst_callsign: "Ton indicatif pour te connecter au chat ON4KST (chat texte très utilisé en VHF/UHF pour organiser des skeds).",
   on4kst_password: "Ton mot de passe du chat ON4KST.",
 
@@ -2653,6 +2708,9 @@ async function init() {
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
+  _updateSotaSectionVisibility(); refreshSotaStatus(); // au cas où loadFromServerConfig() a été utilisé (pas de config locale)
+  const sotaHint = document.getElementById('sotaRedirectUriHint');
+  if (sotaHint) sotaHint.textContent = `http://localhost:${window.location.port || 8080}/sota/oauth/callback`;
   refreshAccessPasswordStatus(); // Mot de passe d'accès optionnel (section RÉSEAU)
   renderHub(); // Hub de catégories : badges d'état initiaux
 }
@@ -2702,7 +2760,39 @@ function onActivationProgramChange(){
   _renderWcaGeocodedInfo(null); // changement de programme : plus de château affiché
   const spec = ACTIVATION_DB_PROGRAMS[_activationProgram()];
   _updateActivationNearbyVisibility();
+  _updateSotaSectionVisibility();
   if (spec) validateActivationRef();
+}
+
+// ─── AUTO-SPOT SOTA (SOTA SSO + api2.sota.org.uk, cf. logx_sota_spot.py) ─────
+function _updateSotaSectionVisibility(){
+  const section = document.getElementById('sotaAutoSpotSection');
+  if (section) section.style.display = (_activationProgram() === 'SOTA') ? '' : 'none';
+}
+
+async function refreshSotaStatus(){
+  const el = document.getElementById('sotaAuthStatus');
+  if (!el) return;
+  try{
+    const r = await fetch('/sota/status');
+    const d = await r.json();
+    if (!d.configured) el.textContent = 'Non configuré (clientId manquant)';
+    else if (!d.ai_approval_ack) el.textContent = '⚠️ Accord IA non coché (voir ci-dessus)';
+    else if (d.authenticated) el.textContent = '✅ Connecté à SOTA';
+    else el.textContent = 'Configuré — clique « Se connecter à SOTA »';
+  }catch(e){ el.textContent = 'État inconnu'; }
+}
+
+async function connectSota(){
+  // Le serveur lit sota_client_id depuis SA config déjà sauvegardée
+  // (current_config) — on sauvegarde silencieusement avant d'ouvrir la
+  // fenêtre de connexion pour éviter un clientId périmé côté serveur.
+  const clientId = document.getElementById('sota_client_id')?.value.trim();
+  if (!clientId){ alert('Renseigne d\'abord le clientId SOTA ci-dessus.'); return; }
+  saveConfig(true);
+  window.open('/sota/oauth/start', 'sota_oauth',
+    'width=520,height=680,menubar=no,toolbar=no,location=yes');
+  setTimeout(refreshSotaStatus, 4000);   // laisse le temps de finir la connexion
 }
 
 // Le bloc "À PROXIMITÉ" reste visible pour tout programme dont la base est
@@ -3090,6 +3180,36 @@ async function testAmpConnection(){
       if (st.swr !== undefined) bits.push(`SWR ${st.swr}`);
       if (st.power_raw !== undefined) bits.push(`Po brut ${st.power_raw}`);
       result.textContent = `✅ Ampli joint${bits.length ? ' — ' + bits.join(', ') : ''}`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
+  }
+}
+
+// QRZ Logbook : ACTION=STATUS (pas d'insertion) pour vérifier la clé avant
+// de compter dessus pendant un concours — sauvegarde d'abord la clé tapée
+// (le serveur lit sa propre config, pas le formulaire) comme connectSota().
+async function testQrzLogbook(){
+  const result = document.getElementById('qrzLogbookTestResult');
+  const key = document.getElementById('qrz_logbook_key').value.trim();
+  if (!key){
+    result.textContent = '⚠️ Renseigne la clé API QRZ Logbook d\'abord';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  saveConfig(true);
+  try{
+    const res = await fetch('/qrz_logbook/test', {method: 'POST'});
+    const r = await res.json();
+    if (r.ok){
+      result.textContent = '✅ Clé QRZ Logbook valide';
       result.style.color = 'var(--green)';
     } else {
       result.textContent = `❌ ${r.error || 'Échec'}`;
@@ -3664,6 +3784,7 @@ function _catStatus(cat){
           .some(id => !val(id));
         if(missing) return 'warning';
       }
+      if(val('qrz_logbook_push') === '1' && !val('qrz_logbook_key')) return 'warning';
       return 'ok';
     }
     case 'scoreboard':
@@ -4585,6 +4706,21 @@ function saveConfig(silent = false, feedbackBtn = null) {
         return false;
       }
     }
+    // Même garde-fou que ci-dessus (B2), pour l'envoi auto QRZ Logbook.
+    if(document.getElementById('qrz_logbook_push').value === '1'
+       && !document.getElementById('qrz_logbook_key').value.trim()){
+      alert('⚠️ L\'envoi auto QRZ Logbook est activé mais la clé API QRZ Logbook est vide — renseigne-la dans la section QSL ou désactive l\'envoi auto.');
+      return false;
+    }
+    // SOTA : la case d'approbation IA sans clientId n'a pas de sens (rien à
+    // approuver) ; le clientId sans case cochée est volontairement TOLÉRÉ ici
+    // (post_spot() bloquera lui-même l'appel réseau) pour ne pas empêcher de
+    // renseigner le clientId avant d'avoir fini la démarche d'approbation.
+    if(document.getElementById('sota_ai_approval_ack')?.checked
+       && !document.getElementById('sota_client_id').value.trim()){
+      alert('⚠️ La case d\'approbation SOTA est cochée mais aucun clientId n\'est renseigné — inutile sans clientId.');
+      return false;
+    }
   }
   const provider = getSelectedProvider();
   const apiKey = document.getElementById('api_key').value;
@@ -4640,6 +4776,10 @@ function saveConfig(silent = false, feedbackBtn = null) {
     qrzcq_api_key: document.getElementById('qrzcq_api_key').value.trim(),
     hrdlog_callsign: document.getElementById('hrdlog_callsign').value.trim(),
     hrdlog_code: document.getElementById('hrdlog_code').value.trim(),
+    qrz_logbook_key: document.getElementById('qrz_logbook_key').value.trim(),
+    qrz_logbook_push: document.getElementById('qrz_logbook_push').value,
+    sota_client_id: document.getElementById('sota_client_id').value.trim(),
+    sota_ai_approval_ack: document.getElementById('sota_ai_approval_ack')?.checked ? '1' : '',
     scoreboard_enabled: document.getElementById('scoreboard_enabled').value,
     scoreboard_interval: _numClamped('scoreboard_interval', 5),
     backup_folder: document.getElementById('backup_folder').value.trim(),
@@ -5111,6 +5251,7 @@ function applyFullConfigToForm(c) {
     ['usage_mode','eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
      'clublog_callsign','clublog_password','clublog_api_key',
      'qrzcq_callsign','qrzcq_api_key','hrdlog_callsign','hrdlog_code',
+     'qrz_logbook_key','qrz_logbook_push','sota_client_id',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'cloudsync_mode','cloudsync_folder','cloudsync_interval',
      'rbn_enabled','clublog_live','expedition_mode',
@@ -5121,6 +5262,10 @@ function applyFullConfigToForm(c) {
      'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
+    if(document.getElementById('sota_ai_approval_ack'))
+      document.getElementById('sota_ai_approval_ack').checked = c.sota_ai_approval_ack === '1';
+    _updateSotaSectionVisibility();
+    refreshSotaStatus();
     applyUsageMode();
     if (c.cat_brand) updateCatModelOptions();
     if (c.cat_model && document.getElementById('cat_model')) document.getElementById('cat_model').value = c.cat_model;
