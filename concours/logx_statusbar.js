@@ -97,6 +97,13 @@
     <div class="rcsb-item" id="rcsbUpdateItem" title="Une nouvelle version de LogX AI est disponible">
       🆕 <span id="rcsbUpdateLabel">mise à jour</span>
       <div id="rcsbUpdateDD" style="display:none"></div>
+    </div>
+    <div class="rcsb-item" title="Version de LogX AI installée — à indiquer en cas de bug">
+      🏷️ <span class="rcsb-val" id="rcsbVersion">—</span>
+    </div>
+    <div class="rcsb-item" id="rcsbReportItem" style="cursor:pointer"
+         title="Ouvre une Issue GitHub pré-remplie (version + plateforme) pour signaler un problème">
+      🐛 <span class="rcsb-val">signaler un problème</span>
     </div>`;
 
   // ── Rate meter (A3) : QSO/h 10 min extrapolé + 60 min, objectif cliquable ──
@@ -391,6 +398,10 @@
     fetch('/app/update_check').then(r => r.ok ? r.json() : null).then(function(d){
       if (!d) return;
       _updState = d;
+      // La version installée vient de 'current', toujours présent (même hors
+      // ligne — voir logx_update.get_cached_check) : pas de requête dédiée.
+      const vEl = document.getElementById('rcsbVersion');
+      if (vEl && d.current) vEl.textContent = 'v' + d.current;
       const item = document.getElementById('rcsbUpdateItem');
       if (!item) return;
       const dismissed = localStorage.getItem('rc_update_dismissed');
@@ -403,6 +414,48 @@
       }
     }).catch(function(){});
   }
+
+  // ── Signaler un problème : Issue GitHub pré-remplie (version + plateforme) ─
+  // Repo lu depuis _updState.repo (source unique = logx_update.GITHUB_REPO) ;
+  // ce repli codé en dur ne sert qu'avant le tout premier /app/update_check.
+  const REPORT_REPO_FALLBACK = 'sauveteur71/radioaamateur-program-Contest';
+  const REPORT_BODY_MAX = 1500; // marge sous la limite GitHub (414 URI Too Long)
+
+  function detectPlatformLabel(){
+    try{
+      const uaData = navigator.userAgentData;
+      if (uaData && uaData.platform) return uaData.platform + ' — ' + navigator.userAgent;
+    }catch(e){ /* userAgentData pas supporté partout, repli ci-dessous */ }
+    return (navigator.platform || 'plateforme inconnue') + ' — ' + navigator.userAgent;
+  }
+
+  function openReportIssue(){
+    const description = prompt(
+      "Décris le problème rencontré (inclus dans l'issue GitHub, tu pourras la relire avant envoi) :", '');
+    if (description === null) return; // annulé
+
+    const version = (_updState && _updState.current) || 'inconnue';
+    const repo = (_updState && _updState.repo) || REPORT_REPO_FALLBACK;
+    const firstLine = description.split('\n')[0].trim();
+    const title = firstLine ? ('[Bug] ' + firstLine.slice(0, 80)) : '[Bug] signalé depuis LogX AI';
+
+    let body = '**Version** : v' + version + '\n'
+             + '**Plateforme** : ' + detectPlatformLabel() + '\n\n'
+             + '**Description**\n' + (description.trim() || '(non renseignée)');
+    if (body.length > REPORT_BODY_MAX){
+      body = body.slice(0, REPORT_BODY_MAX - 20) + '\n…(tronqué)';
+    }
+
+    const url = 'https://github.com/' + repo + '/issues/new'
+      + '?title=' + encodeURIComponent(title)
+      + '&body=' + encodeURIComponent(body)
+      + '&labels=' + encodeURIComponent('bug');
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  bar.addEventListener('click', function(e){
+    if (e.target.closest('#rcsbReportItem')) openReportIssue();
+  });
 
   bar.addEventListener('click', function(e){
     const updItem = e.target.closest('#rcsbUpdateItem');

@@ -90,6 +90,10 @@ def _build_result(data):
         # figé ET si l'artefact de cette plateforme existe sur la release.
         'installable': bool(asset_url) and is_frozen(),
         'checking': False,
+        # Repo exposé ici pour que le bouton "signaler un problème" de la
+        # barre de statut construise son lien GitHub sans dupliquer
+        # GITHUB_REPO côté JS (une seule source de vérité).
+        'repo': GITHUB_REPO,
     }
 
 
@@ -127,7 +131,7 @@ def get_cached_check(force=False):
         return _cache['result']
     return {'available': False, 'current': APP_VERSION, 'latest': APP_VERSION,
             'release_url': '', 'notes': '', 'asset_url': '', 'installable': False,
-            'checking': True}
+            'checking': True, 'repo': GITHUB_REPO}
 
 
 # ─── TÉLÉCHARGEMENT ──────────────────────────────────────────────────────────
