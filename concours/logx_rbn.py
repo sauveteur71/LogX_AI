@@ -10,6 +10,26 @@ les lignes où la station SPOTTÉE est la nôtre → la carte de « qui me reço
 Telnet telnet.reversebeacon.net:7000 (flux CW/RTTY). Réutilise le même modèle
 que le cluster DX. Dégrade proprement : si le réseau/telnet est bloqué,
 retourne {'ok': False, 'error': ...} sans jamais lever d'exception.
+
+Pas de repli HTTP (recherché, volontairement absent) — le port 7000 est
+justement bloqué sur la plupart des réseaux où ce module serait le plus utile
+(wifi d'hôtel, 4G/CGNAT en expédition), mais RBN ne publie AUCUNE alternative
+HTTP fiable pour ce cas d'usage :
+  - Le seul accès documenté par RBN lui-même (page officielle « Telnet
+    servers ») est ce flux telnet 7000 (+ 7001 pour le FT8/FT4).
+  - RBN publie bien des archives (data.reversebeacon.net/rbn_history/AAAAMMJJ.zip)
+    mais UNIQUEMENT en zip quotidien du jour précédent : inutilisable pour
+    « qui m'entend maintenant ».
+  - Le site web (reversebeacon.net) charge ses spots via un point d'entrée
+    JSON interne (/spots.php) NON documenté, non annoncé comme API, sans
+    filtre serveur par indicatif (le filtrage se fait en JS, côté client, sur
+    les dernières lignes tous indicatifs confondus) et surtout verrouillé par
+    un hash de version du site (paramètre `h`, ex. "be25f6") : un hash
+    différent renvoie {"error":888} sans autre forme de procès. RBN régénère
+    ce hash à chaque déploiement de son site, sans préavis ni garantie de
+    stabilité — s'appuyer dessus casserait ce repli en silence au moment où
+    l'expédition en aurait justement besoin. Vérifié en direct (juillet 2026)
+    via les requêtes réseau du site avant de conclure à l'absence de repli.
 """
 import re
 import socket
@@ -102,9 +122,14 @@ def where_heard(my_call, timeout=9):
     try:
         raw = _EXECUTOR.submit(_dialog).result(timeout=timeout + 3)
     except _cf.TimeoutError:
-        return {'ok': False, 'error': 'RBN injoignable (délai dépassé, résolution réseau lente)'}
+        # Pas de repli HTTP possible ici (voir docstring du module) : le seul
+        # message utile est d'orienter vers la cause la plus fréquente.
+        return {'ok': False, 'error': 'RBN injoignable (délai dépassé sur le '
+                'port telnet 7000 — souvent bloqué sur wifi d\'hôtel/4G '
+                'restrictif ; RBN n\'a pas d\'alternative HTTP)'}
     except Exception as e:
-        return {'ok': False, 'error': f'RBN injoignable ({e})'}
+        return {'ok': False, 'error': f'RBN injoignable (telnet 7000 : {e}) '
+                '— RBN n\'a pas d\'alternative HTTP'}
 
     text = raw.decode('utf-8', errors='replace')
     spots = parse_rbn(text, base)
