@@ -993,6 +993,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             })
             return
 
+        # Journal d'erreurs local (sys.excepthook/threading.excepthook, voir
+        # logx_errorlog.py) — alimente le bouton "Signaler un problème" de la
+        # barre de statut (logx_statusbar.js). EXCLU du gate debug ci-dessous
+        # à dessein : contrairement aux autres /debug/*, celui-ci doit rester
+        # utilisable par n'importe quel testeur, pas seulement en mode debug.
+        if path == '/debug/errors':
+            import logx_errorlog as _errlog
+            self._json({'errors': _errlog.get_recent_errors(), 'log_path': _errlog.log_path()})
+            return
+
         # ── Endpoints de diagnostic : désactivés par défaut ──────────────────
         # Activer : "debug": true dans la section server de config.json,
         # ou toggle debug dans la config envoyée par le client.

@@ -429,6 +429,28 @@
     return (navigator.platform || 'plateforme inconnue') + ' — ' + navigator.userAgent;
   }
 
+  // Journal d'erreurs local (voir logx_errorlog.py, GET /debug/errors) : lu en
+  // tâche de fond (comme _updState/refreshUpdateCheck) et JAMAIS via un fetch
+  // synchrone dans openReportIssue() — un window.open() appelé après un
+  // .then() (donc hors du geste utilisateur d'origine) risquerait d'être
+  // bloqué par le popup blocker du navigateur.
+  let _errState = null;
+
+  function refreshErrorsCheck(){
+    fetch('/debug/errors').then(r => r.ok ? r.json() : null).then(function(d){
+      if (d) _errState = d;
+    }).catch(function(){});
+  }
+
+  function formatLastErrorForReport(){
+    if (!_errState || !_errState.errors || !_errState.errors.length) return '';
+    const e = _errState.errors[_errState.errors.length - 1]; // le plus récent
+    let tail = (e.traceback || '').trim();
+    if (tail.length > 400) tail = '…' + tail.slice(tail.length - 400);
+    return '\n**Dernière erreur du journal local** (' + e.ts + ', thread ' + e.thread + ')\n'
+         + '```\n' + e.type + ': ' + e.message + '\n' + tail + '\n```\n';
+  }
+
   function openReportIssue(){
     const description = prompt(
       "Décris le problème rencontré (inclus dans l'issue GitHub, tu pourras la relire avant envoi) :", '');
@@ -439,8 +461,13 @@
     const firstLine = description.split('\n')[0].trim();
     const title = firstLine ? ('[Bug] ' + firstLine.slice(0, 80)) : '[Bug] signalé depuis LogX AI';
 
+    // La dernière erreur du journal local est placée AVANT la description
+    // (texte libre, potentiellement long) : si la troncature ci-dessous doit
+    // couper quelque chose, que ce soit la fin de la description de
+    // l'opérateur plutôt que la donnée technique la plus utile au diagnostic.
     let body = '**Version** : v' + version + '\n'
-             + '**Plateforme** : ' + detectPlatformLabel() + '\n\n'
+             + '**Plateforme** : ' + detectPlatformLabel() + '\n'
+             + formatLastErrorForReport() + '\n'
              + '**Description**\n' + (description.trim() || '(non renseignée)');
     if (body.length > REPORT_BODY_MAX){
       body = body.slice(0, REPORT_BODY_MAX - 20) + '\n…(tronqué)';
@@ -650,11 +677,13 @@
     loadContestNames();
     refreshRules();
     refreshUpdateCheck();
+    refreshErrorsCheck();
     setInterval(refreshCountdown, 1000);
     setInterval(tickBandChange, 1000);
     setInterval(refreshSave, 15000);
     setInterval(refreshRules, 10 * 60 * 1000);
     setInterval(refreshUpdateCheck, 30 * 60 * 1000);
+    setInterval(refreshErrorsCheck, 60 * 1000);
     // Réagir aux sauvegardes faites dans un autre onglet
     window.addEventListener('storage', () => { refreshContest(); refreshSave(); });
   }

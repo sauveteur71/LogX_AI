@@ -29,6 +29,13 @@ for _stream in (sys.stdout, sys.stderr):
         except Exception:
             pass
 
+# Journal d'erreurs (sys.excepthook + threading.excepthook) : posé AVANT tout
+# le reste pour capturer même une exception survenant pendant bootstrap() ou
+# les imports applicatifs suivants. Voir logx_errorlog.py — alimente aussi
+# GET /debug/errors (bouton "Signaler un problème" de la barre de statut).
+import logx_errorlog
+logx_errorlog.install()
+
 import http.server
 import threading
 
