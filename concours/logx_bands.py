@@ -75,9 +75,19 @@ def dx_alert_line(band_label, dx_fallback, spotter_fallback):
     """Ligne de consigne (texte humain, pour le prompt système IA) décrivant
     le critère d'alerte "DX exceptionnel" pour `band_label` : seuils km pour
     les bandes terrestres, nouveau DXCC/grille pour les bandes satellite —
-    centralise la bascule pour ne pas dupliquer le if/else à chaque appelant."""
+    centralise la bascule pour ne pas dupliquer le if/else à chaque appelant.
+
+    Format assumé, PAS un simple copier-coller d'un des deux appelants :
+    avant centralisation, build_system_prompt() alignait le libellé de bande
+    sur 9 caractères (`{b:9} DX > ... km · spotter ...`) tandis que
+    build_terrain_context() utilisait `{b}: DX > ..., spotter ...` (deux-points
+    + virgule, sans alignement). On garde ici l'alignement sur 9 caractères
+    (lisible même avec une seule bande) et le séparateur « · » des deux côtés
+    — les deux appelants partagent désormais EXACTEMENT le même texte, ce qui
+    est le but de la centralisation ; la ponctuation d'origine de
+    build_terrain_context (deux-points/virgule) n'est PAS reproduite."""
     if is_satellite_band(band_label):
         return (f"{band_label} : DX exceptionnel = nouveau DXCC ou nouvelle grille "
                 f"Maidenhead (pas de seuil km — couverture par empreinte satellite)")
-    return (f"{band_label} DX > {dx_threshold_km(band_label, dx_fallback)} km · "
+    return (f"{band_label:9} DX > {dx_threshold_km(band_label, dx_fallback)} km · "
             f"spotter fiable < {band_spotter_km(band_label, spotter_fallback)} km")

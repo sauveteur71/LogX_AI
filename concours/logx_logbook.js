@@ -1964,13 +1964,21 @@ function setupDone(){
 
 // ─── CLOCK + COUNTDOWN ───────────────────────────────────────────────────────
 function getContestEndUTC(){
-  try{
-    const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
-    if(cfg.contest_end_date && cfg.contest_end_utc){
-      return new Date(`${cfg.contest_end_date}T${cfg.contest_end_utc}Z`);
-    }
-  }catch(e){}
-  return nextRPHWeekendUTC().end; // repli RPH calculé dynamiquement (jamais de date figée qui périme d'une édition à l'autre)
+  let cfg = {};
+  try{ cfg = JSON.parse(localStorage.getItem('logx_config')||'{}'); }catch(e){}
+  if(cfg.contest_end_date && cfg.contest_end_utc){
+    return new Date(`${cfg.contest_end_date}T${cfg.contest_end_utc}Z`);
+  }
+  // Repli RPH dynamique UNIQUEMENT si le concours réellement configuré est
+  // REF_RPH (ou qu'aucun concours n'est encore sélectionné, ex. tout premier
+  // chargement) : plusieurs concours du sélecteur (CS_DATA) n'ont PAS
+  // d'entrée dans CONTEST_SCHEDULE (ex. REF_CHALLENGE_THF, REF_CCD_JAN1...),
+  // donc contest_end_date n'est jamais renseigné pour eux — sans ce garde,
+  // on retombait sur une date RPH sans aucun rapport avec le concours choisi.
+  if(!cfg.contest || cfg.contest === 'REF_RPH'){
+    return nextRPHWeekendUTC().end;
+  }
+  return null; // état neutre explicite : pas de date de fin connue pour ce concours
 }
 function getContestStartUTC(){
   try{
@@ -2028,6 +2036,17 @@ function updateClockAndCountdown(){
     cd.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     cd.style.color = '#34C759';
     if(box) box.style.borderLeftColor = '#34C759';
+    return;
+  }
+
+  // ── Phase 2bis : date de fin inconnue (concours sans dates configurées) ──
+  // État neutre explicite : ne JAMAIS afficher un compte à rebours calculé
+  // sur la date d'un autre concours (cf. getContestEndUTC()).
+  if(!contestEndUTC){
+    setCountdownLabel('unknown', '❔ DATES NON CONFIGURÉES');
+    cd.textContent = '—:—:—';
+    cd.style.color = 'var(--muted)';
+    if(box) box.style.borderLeftColor = 'var(--muted)';
     return;
   }
 
@@ -3366,11 +3385,14 @@ function updateStats(){
   if(qsoLog.length >= 2){
     const nowMs = Date.now();
     const win60 = qsoLog.filter(q => { try{ return (nowMs - parseT(q)) <= 3600000; }catch(e){return false;} }).length;
-    const remaining = Math.max(0, (contestEndUTC - nowMs) / 3600000);
-    const proj = Math.round(qsoLog.length + win60 * remaining);
+    // contestEndUTC peut être null (concours sans dates configurées, cf.
+    // getContestEndUTC()) : pas de projection possible dans ce cas, plutôt
+    // qu'un "~NaN" (contestEndUTC - nowMs avec contestEndUTC=null).
+    const remaining = contestEndUTC ? Math.max(0, (contestEndUTC - nowMs) / 3600000) : null;
+    const proj = remaining !== null ? Math.round(qsoLog.length + win60 * remaining) : null;
     const rateEl = document.getElementById('sbRate');
     rateEl.style.color = win60 >= 30 ? 'var(--green)' : win60 >= 15 ? 'var(--yellow)' : 'var(--purple)';
-    rateStr = `${win60}/h · ~${proj}`;
+    rateStr = `${win60}/h · ~${proj !== null ? proj : '—'}`;
   }
 
   document.getElementById('sbQsoLbl').textContent  = qsoLbl;

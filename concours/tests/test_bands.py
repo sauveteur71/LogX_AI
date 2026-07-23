@@ -72,3 +72,14 @@ def test_satellite_bands_ne_contient_que_qo100_pour_linstant():
     """Pas une vraie contrainte métier, juste un garde-fou si quelqu'un ajoute
     une bande satellite sans passer par SATELLITE_BANDS (ex. typo de clé)."""
     assert set(SATELLITE_BANDS) == {'QO-100'}
+
+
+def test_dx_alert_line_alignement_bande_documente():
+    """La centralisation par dx_alert_line() change le format par rapport aux
+    DEUX anciens appelants (cf. sa docstring) : build_system_prompt() alignait
+    le libellé sur 9 caractères, build_terrain_context() utilisait
+    deux-points/virgule sans alignement. Ce test verrouille le format assumé
+    (alignement 9 caractères conservé) pour que tout changement futur soit
+    volontaire, pas silencieux."""
+    line = dx_alert_line('432 MHz', 1200, 600)
+    assert line.startswith(f"{'432 MHz':9} DX >")
