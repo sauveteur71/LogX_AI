@@ -66,7 +66,8 @@ def test_faux_positif_format_correct_mais_absent_de_la_base():
 
 def test_format_liste_cellules_f5len():
     """Source F5LEN : spots en liste de cellules brutes (pas de clé 'info')
-    -> le commentaire IOTA est cherché dans les cellules jointes."""
+    -> le commentaire IOTA est cherché dans les cellules jointes, ET la
+    fréquence réelle est lue dans la cellule spot[1] (pas forcée à 0.0)."""
     _stub_groups_db([EU064])
     spots_by_band = {'50': [
         ['F5ABC', '50.185', '1200Z', 'IOTA EU-064 TNX QSL'],
@@ -75,9 +76,45 @@ def test_format_liste_cellules_f5len():
     assert len(spots) == 1
     assert spots[0]['reference'] == 'EU-064'
     assert spots[0]['call'] == 'F5ABC'
-    # Format liste : pas de fréquence normalisée -> repli sur le libellé de bande
     assert spots[0]['band'] == '50'
+    # Cellule brute "50.185" (MHz) -> convertie en kHz, convention POTA/WWFF
+    assert spots[0]['freq'] == 50185.0
     assert spots[0]['mode'] == ''            # pas de clé 'mode' pour ce format
+
+
+def test_format_liste_dans_bucket_hf_bande_canonique_et_freq_reelle():
+    """Problème vérifié : un spot F5LEN (format liste) noyé dans le bucket
+    générique 'HF' de SPOTS_CACHE (cf. logx_http._fetch_spots_hf_src, qui
+    fusionne dicts DXSummit/DXWatch/telnet ET listes f5len_hf dans la même
+    clé 'HF') recevait TOUJOURS band='HF' (pas une bande canonique) et
+    freq=0.0, alors que la fréquence réelle est présente en clair dans
+    spot[1]. Sans le fix, band vaudrait 'HF' et freq 0.0 ici."""
+    _stub_groups_db([EU064])
+    spots_by_band = {'HF': [
+        ['9A/DF5WC', '14260.0', 'F4GLD', '1205Z', 'IOTA EU-064 QSL VIA F4GLD'],
+    ]}
+    spots = iota.spots_from_clusters(spots_by_band)
+    assert len(spots) == 1
+    s = spots[0]
+    assert s['reference'] == 'EU-064'
+    assert s['band'] == '14'                 # bande canonique dérivée de la fréquence, pas 'HF'
+    assert s['freq'] == 14260.0              # cellule "14260.0" déjà en kHz -> inchangée
+
+
+def test_freq_khz_uniforme_entre_formats_dict_et_liste():
+    """Problème vérifié : le champ 'freq' mélangeait silencieusement kHz (HF)
+    et MHz (VHF) selon la source d'origine, contrairement à la convention
+    documentée pour /data/pota_spots et /data/wwff_spots (toujours en kHz).
+    Un spot dict VHF normalisé (freq en MHz, ex. _normalize_spot) doit
+    ressortir en kHz comme un spot HF déjà en kHz."""
+    _stub_groups_db([EU064])
+    spots_by_band = {
+        '144': [{'call': 'F5ABC', 'freq': 144.310, 'info': 'EU-064'}],
+    }
+    spots = iota.spots_from_clusters(spots_by_band)
+    assert len(spots) == 1
+    assert spots[0]['freq'] == 144310.0      # 144.310 MHz -> 144310 kHz, pas 144.31
+    assert spots[0]['band'] == '144'
 
 
 def test_dedoublonne_meme_indicatif_meme_reference():

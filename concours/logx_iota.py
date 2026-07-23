@@ -219,11 +219,20 @@ def _spot_info_and_call(spot):
     logx_scoring.build_ranked_spots pour la même raison (formats hétérogènes
     accumulés dans SPOTS_CACHE au fil des sources).
 
-    L'indicatif n'est PAS tronqué au premier '/' : beaucoup d'activations
-    IOTA se signent avec un préfixe DXpedition devant l'indicatif de base
-    (ex. '9A/DF5WC', 'TK/F4GLD') — couper sur '/' perdrait l'indicatif réel
-    (comme le fait _normalize_spot pour l'affichage VHF local, où seul le
-    SUFFIXE '/P' importe). POTA/SOTA/WWFF gardent d'ailleurs eux aussi
+    Cette fonction elle-même NE tronque PAS l'indicatif au premier '/' : utile
+    pour les activations IOTA signées avec un préfixe DXpedition (ex.
+    '9A/DF5WC') dont on veut garder l'indicatif de base après le préfixe.
+    ANGLE MORT connu : pour les spots VHF (buckets '144'/'432' de SPOTS_CACHE,
+    et tout spot dict issu de logx_clusters.fetch_all_vhf_spots — DXSummit VHF,
+    DXWatch VHF, HamQTH, HamSpirit, DXMaps), _normalize_spot a DÉJÀ coupé
+    l'indicatif à la première '/' en amont (ne gardant que le suffixe '/P' pour
+    l'affichage carte) : cette fonction reçoit alors un indicatif déjà tronqué
+    et ne peut pas restaurer le préfixe perdu. La préservation complète ne
+    s'applique donc réellement qu'aux sources qui n'ont jamais transité par
+    _normalize_spot : le bucket HF générique (dxsummit_hf/dxwatch_hf/telnet,
+    dicts bruts + f5len_hf, liste de cellules brutes) et le bucket 50 MHz
+    (fetch_cluster_f5len appelé directement, sans passer par
+    fetch_all_vhf_spots). POTA/SOTA/WWFF gardent d'ailleurs eux aussi
     l'indicatif complet tel quel dans leurs spots (cf. fetch_pota_spots)."""
     if isinstance(spot, dict):
         call = str(spot.get('call') or spot.get('dx') or '').upper()
@@ -232,6 +241,25 @@ def _spot_info_and_call(spot):
         call = str(spot[0]).upper()
         return ' '.join(str(c) for c in spot[1:]), call
     return '', ''
+
+
+def _spot_raw_freq(spot, is_dict):
+    """Fréquence BRUTE d'un spot cluster, unité NON normalisée : clé 'freq'
+    pour le format dict, cellule spot[1] pour le format liste (F5LEN — même
+    cellule que celle parsée par logx_clusters.fetch_all_vhf_spots et
+    logx_http._fetch_spots_hf_src pour la clé de dédoublonnage). Auparavant
+    cette fonction n'existait pas et le format liste recevait toujours 0.0 :
+    la vraie fréquence était pourtant présente en clair dans spot[1], jamais
+    lue. 0.0 si absente/illisible (la bande retombe alors sur le libellé du
+    bucket, cf. spots_from_clusters)."""
+    try:
+        if is_dict:
+            return float(spot.get('freq') or 0)
+        if isinstance(spot, (list, tuple)) and len(spot) > 1:
+            return float(re.sub(r'[^\d.]', '', str(spot[1])))
+    except (TypeError, ValueError):
+        pass
+    return 0.0
 
 
 def spots_from_clusters(spots_by_band=None):
@@ -249,7 +277,8 @@ def spots_from_clusters(spots_by_band=None):
     format sans être une vraie référence).
 
     Format générique du logiciel, mêmes clés que logx_pota.fetch_pota_spots /
-    logx_sota.fetch_sota_spots / logx_wwff.fetch_wwff_spots."""
+    logx_sota.fetch_sota_spots / logx_wwff.fetch_wwff_spots — dont la
+    convention 'freq' TOUJOURS en kHz (cf. leurs docstrings respectifs)."""
     if spots_by_band is None:
         from logx_clusters import SPOTS_CACHE
         spots_by_band = dict(SPOTS_CACHE)
@@ -275,11 +304,14 @@ def spots_from_clusters(spots_by_band=None):
                 continue
             seen.add(key)
             is_dict = isinstance(spot, dict)
-            try:
-                freq_khz = float(spot.get('freq') or 0) if is_dict else 0.0
-            except (TypeError, ValueError):
-                freq_khz = 0.0
-            band = _band_from_freq(freq_khz) or str(band_label).replace(' MHz', '').replace(' GHz', '')
+            raw_freq = _spot_raw_freq(spot, is_dict)
+            band = _band_from_freq(raw_freq) or str(band_label).replace(' MHz', '').replace(' GHz', '')
+            # Unité de sortie TOUJOURS en kHz (convention POTA/WWFF) : selon la
+            # source, raw_freq est en MHz (spots VHF, ex. F5LEN "50.185") ou
+            # déjà en kHz (spots HF normalisés, ex. DXSummit 14260.0) — même
+            # heuristique de magnitude que _band_from_freq ci-dessus, pour ne
+            # jamais mélanger les deux unités dans le champ exposé.
+            freq_khz = raw_freq * 1000 if 0 < raw_freq <= 1000 else raw_freq
             group = groups_db.get(code) or {}
             out.append({
                 'call': call,
