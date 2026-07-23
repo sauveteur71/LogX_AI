@@ -2847,6 +2847,7 @@ async function fetchLog(){
         _mergeLogDelta(data.qsos, data.deleted);
       } else {
         qsoLog = data.qsos;
+        resetLogRenderWindow(); // resync complet : autre contenu, la fenêtre de rendu ne s'applique plus
       }
       // Initialiser le timer depuis le dernier QSO logué
       if(qsoLog.length && !lastQsoTime){
@@ -2965,6 +2966,17 @@ let logRenderLimit = LOG_RENDER_DEFAULT;
 // étendue par l'utilisateur (sinon "Afficher plus" se réinitialiserait tout
 // seul dès le QSO suivant, en plein concours).
 let _logRenderKey = null;
+
+// À appeler chaque fois que qsoLog est REMPLACÉ (pas complété) par un autre
+// contenu : reset complet (resetLog), archivage avec vidage (archiveLog en
+// mode clear), resync serveur non-delta (fetchLog quand data.delta est
+// absent). Sans ça, logRenderLimit/_logRenderKey restaient ceux de l'ancien
+// log — currentFilter/search n'ayant pas changé, la fenêtre de rendu gardait
+// sa valeur (potentiellement étendue) et ne pouvait plus jamais redescendre.
+function resetLogRenderWindow(){
+  logRenderLimit = LOG_RENDER_DEFAULT;
+  _logRenderKey = null;
+}
 
 function showMoreLog(){
   logRenderLimit += LOG_RENDER_STEP;
@@ -4112,7 +4124,7 @@ async function archiveLog(){
     if(d.ok){
       notify(`📦 Archivé : ${d.qso_count} QSO dans « ${d.name} »` +
              (d.cleared ? ' — log vidé, prêt pour la suite.' : ' — log conservé.'));
-      if(d.cleared){ qsoLog = qsoLog.filter(q => false); renderLog(); updateStats(); }
+      if(d.cleared){ qsoLog = qsoLog.filter(q => false); resetLogRenderWindow(); renderLog(); updateStats(); }
       else { fetchLog(); }
     } else {
       notify('Archivage : ' + (d.error || 'échec'));
@@ -4138,6 +4150,7 @@ async function resetLog(){
       const d = await res.json().catch(()=>({}));
       qsoLog = [];
       serialByBand = {};
+      resetLogRenderWindow();
       renderLog();
       updateStats();
       updateSerialDisplay();
