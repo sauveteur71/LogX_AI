@@ -232,7 +232,10 @@ GEOCODE_CACHE_FILE = 'wca_geocode_cache.json'
 GEOCODE_NEG_RETRY_DAYS = 7
 
 _geocode_cache = None  # dict code -> {'lat','lon','ts'} ; chargé à la demande
-_geocode_lock = threading.Lock()
+# Réentrant : geocode_castle() tient ce verrou sur TOUT son cycle lire-décider-
+# écrire (chargement du cache inclus), y compris pendant _throttle_nominatim()
+# qui le reprend en interne — un Lock simple ferait deadlocker ce dernier appel.
+_geocode_lock = threading.RLock()
 # Horodatage de la dernière requête Nominatim envoyée (toutes références
 # confondues) : impose l'espacement minimal de la politique d'usage Nominatim
 # (1 req/s), même si plusieurs threads appellent geocode_castle() en parallèle.
@@ -240,6 +243,14 @@ _last_nominatim_call = [0.0]
 
 
 def _load_geocode_cache():
+    """Charge (une fois) le cache disque dans la variable globale partagée.
+    DOIT toujours être appelée avec _geocode_lock déjà tenu par l'appelant :
+    sans verrou, deux tout premiers appels concurrents constatent chacun
+    `_geocode_cache is None`, créent chacun leur PROPRE dict, et écrasent la
+    référence globale l'un après l'autre — la variable locale que le premier
+    appelant a capturée devient alors orpheline, et tout ce qu'il y écrit
+    ensuite n'est jamais persisté par _save_geocode_cache() (qui sauvegarde
+    toujours la variable globale, pas la référence locale de l'appelant)."""
     global _geocode_cache
     if _geocode_cache is not None:
         return _geocode_cache
@@ -254,6 +265,10 @@ def _load_geocode_cache():
 
 
 def _save_geocode_cache():
+    """Persiste _geocode_cache. DOIT elle aussi être appelée avec
+    _geocode_lock tenu (cf. _load_geocode_cache) : ce n'est JAMAIS une
+    référence locale qui est sauvegardée, mais toujours la variable globale
+    couramment tenue par le verrou."""
     try:
         import json
         atomic_write(GEOCODE_CACHE_FILE, json.dumps(_geocode_cache, ensure_ascii=False))
@@ -296,34 +311,38 @@ def geocode_castle(code):
         return None
     code = castle['code']
 
-    cache = _load_geocode_cache()
+    # Tout le cycle lire (charger le cache + regarder si déjà connu) - décider
+    # - au besoin interroger Nominatim - écrire (cache + disque) tient sous LE
+    # MÊME verrou, sans jamais le relâcher entre-temps : c'est le chargement
+    # non protégé de _geocode_cache qui causait la perte silencieuse d'un
+    # résultat fraîchement géocodé (cf. docstring de _load_geocode_cache).
     with _geocode_lock:
+        cache = _load_geocode_cache()
         hit = cache.get(code)
-    if hit is not None:
-        if hit.get('lat') is not None:
-            return {'lat': hit['lat'], 'lon': hit['lon']}
-        age = (time.time() - hit.get('ts', 0)) / 86400
-        if age < GEOCODE_NEG_RETRY_DAYS:
-            return None
+        if hit is not None:
+            if hit.get('lat') is not None:
+                return {'lat': hit['lat'], 'lon': hit['lon']}
+            age = (time.time() - hit.get('ts', 0)) / 86400
+            if age < GEOCODE_NEG_RETRY_DAYS:
+                return None
 
-    country = _country_for_prefix(castle.get('prefix', ''))
-    query = ', '.join(p for p in (castle.get('name'), castle.get('location'), country) if p)
-    lat = lon = None
-    if query:
-        _throttle_nominatim()
-        from logx_utils import fetch_url
-        qs = urlencode({'format': 'json', 'limit': 1, 'q': query})
-        raw = fetch_url(f'{NOMINATIM_SEARCH_URL}?{qs}', timeout=10)
-        if raw:
-            try:
-                import json
-                results = json.loads(raw)
-                if results:
-                    lat, lon = float(results[0]['lat']), float(results[0]['lon'])
-            except (ValueError, KeyError, TypeError, IndexError):
-                lat = lon = None
+        country = _country_for_prefix(castle.get('prefix', ''))
+        query = ', '.join(p for p in (castle.get('name'), castle.get('location'), country) if p)
+        lat = lon = None
+        if query:
+            _throttle_nominatim()
+            from logx_utils import fetch_url
+            qs = urlencode({'format': 'json', 'limit': 1, 'q': query})
+            raw = fetch_url(f'{NOMINATIM_SEARCH_URL}?{qs}', timeout=10)
+            if raw:
+                try:
+                    import json
+                    results = json.loads(raw)
+                    if results:
+                        lat, lon = float(results[0]['lat']), float(results[0]['lon'])
+                except (ValueError, KeyError, TypeError, IndexError):
+                    lat = lon = None
 
-    with _geocode_lock:
         cache[code] = {'lat': lat, 'lon': lon, 'ts': time.time()}
         _save_geocode_cache()
     return {'lat': lat, 'lon': lon} if lat is not None else None
