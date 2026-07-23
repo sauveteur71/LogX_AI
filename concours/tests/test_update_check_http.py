@@ -78,3 +78,58 @@ def test_build_result_inclut_le_repo():
     result = upd._build_result(data)
     assert result['repo'] == upd.GITHUB_REPO
     assert result['current'] == APP_VERSION
+
+
+# ── Nom d'artefact versionné (voir .github/workflows/build-release.yml) ─────
+# Depuis que ce workflow embarque le tag dans le nom de l'artefact attaché à
+# la release (LogXAI-v0.9-beta2.exe et non plus LogXAI.exe fixe), _build_result
+# doit reconstruire EXACTEMENT ce nom pour retrouver l'URL de téléchargement —
+# un décalage silencieux ici laisserait 'asset_url' vide pour toujours,
+# désactivant la mise à jour automatique sans qu'aucune requête ne le signale
+# (fetch + parsing JSON réussissent, seule la recherche par nom échoue).
+
+def test_build_result_trouve_asset_windows_avec_tag(monkeypatch):
+    monkeypatch.setattr(upd, '_platform_key', lambda: 'win')
+    data = {'tag_name': 'v0.9-beta2', 'html_url': '', 'body': '', 'assets': [
+        {'name': 'LogXAI-v0.9-beta2.exe', 'browser_download_url': 'https://x/win.exe'},
+        {'name': 'LogXAI-v0.9-beta2-macos', 'browser_download_url': 'https://x/mac'},
+    ]}
+    result = upd._build_result(data)
+    assert result['asset_url'] == 'https://x/win.exe'
+
+
+def test_build_result_trouve_asset_macos_avec_tag(monkeypatch):
+    monkeypatch.setattr(upd, '_platform_key', lambda: 'darwin')
+    data = {'tag_name': 'v0.9-beta2', 'html_url': '', 'body': '', 'assets': [
+        {'name': 'LogXAI-v0.9-beta2.exe', 'browser_download_url': 'https://x/win.exe'},
+        {'name': 'LogXAI-v0.9-beta2-macos', 'browser_download_url': 'https://x/mac'},
+    ]}
+    result = upd._build_result(data)
+    assert result['asset_url'] == 'https://x/mac'
+
+
+def test_build_result_trouve_asset_linux_avec_tag(monkeypatch):
+    monkeypatch.setattr(upd, '_platform_key', lambda: 'linux')
+    data = {'tag_name': 'v0.9-beta2', 'html_url': '', 'body': '', 'assets': [
+        {'name': 'LogXAI-v0.9-beta2-linux', 'browser_download_url': 'https://x/linux'},
+    ]}
+    result = upd._build_result(data)
+    assert result['asset_url'] == 'https://x/linux'
+
+
+def test_build_result_ancien_nom_fixe_ne_matche_plus():
+    """Non-régression volontaire : un ancien artefact nommé LogXAI.exe (sans
+    tag, produit par l'ancienne version du workflow) ne doit PAS matcher —
+    sinon on proposerait de télécharger une release qui n'a pas cet asset."""
+    data = {'tag_name': 'v0.9-beta2', 'html_url': '', 'body': '',
+            'assets': [{'name': 'LogXAI.exe', 'browser_download_url': 'https://x/old.exe'}]}
+    result = upd._build_result(data)
+    assert result['asset_url'] == ''
+    assert result['installable'] is False
+
+
+def test_build_result_asset_absent_installable_false():
+    data = {'tag_name': 'v0.9-beta2', 'html_url': '', 'body': '', 'assets': []}
+    result = upd._build_result(data)
+    assert result['asset_url'] == ''
+    assert result['installable'] is False

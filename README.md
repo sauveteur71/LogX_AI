@@ -4,7 +4,7 @@
 
 Un copilote IA en temps réel recommande le prochain meilleur QSO, un moteur de score générique s'auto-configure sur n'importe quel concours, et tout tourne en local — sans cloud obligatoire, sans abonnement.
 
-[💛 Soutenir le projet sur HelloAsso](LIEN_HELLOASSO_A_COMPLETER) · [📖 Guide utilisateur](docs/GUIDE_UTILISATEUR.md) · [📋 PRD / roadmap](docs/LogX_AI_PRD.md)
+[💛 Soutenir le projet sur HelloAsso](LIEN_HELLOASSO_A_COMPLETER) · [📖 Guide utilisateur](docs/GUIDE_UTILISATEUR.md) · [📋 PRD / roadmap](docs/LogX_AI_PRD.md) · [🗒️ Journal des modifications](docs/CHANGELOG.md)
 
 ---
 
@@ -31,7 +31,7 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 
 ## Démarrage rapide
 
-1. Télécharger `LogXAI.exe` (Windows/macOS) ou lancer `python logx_serveur.py` depuis `concours/` (Python 3).
+1. Télécharger l'exécutable de la [dernière release](../../releases/latest) (`LogXAI-vX.Y.exe` pour Windows, `-macos`/`-linux` pour les autres OS) ou lancer `python logx_serveur.py` depuis `concours/` (Python 3).
 2. Ouvrir `http://127.0.0.1:8080/logx_configuration.html` — le navigateur s'ouvre automatiquement en version packagée.
 3. Suivre l'assistant de configuration (station, concours, filtres, propagation) — 3 clics suffisent pour un concours déjà connu.
 

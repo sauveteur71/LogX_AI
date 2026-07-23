@@ -1,0 +1,77 @@
+name: "🐛 Signaler un problème"
+description: >-
+  Un bug, un plantage ou un comportement inattendu dans LogX AI ? Ce
+  formulaire guidé suffit, aucune connaissance technique n'est nécessaire.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre le temps de signaler ce problème ! Quatre questions
+        simples suffisent — tu pourras relire le texte final avant de
+        l'envoyer.
+
+        Astuce : la version installée est affichée en bas de l'écran, dans la
+        barre de statut (ex. « v0.9-beta1 »).
+
+  - type: textarea
+    id: activite
+    attributes:
+      label: Que faisiez-vous ?
+      description: >-
+        L'action en cours juste avant le problème (ex. « je saisissais un
+        QSO », « je changeais de concours », « je cliquais sur Sauvegarder »).
+      placeholder: >-
+        Exemple : je venais de valider la fiche d'identité et j'ai cliqué sur
+        Suivant...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version installée
+      description: Visible en bas de l'écran, dans la barre de statut (ex. v0.9-beta1).
+      placeholder: v0.9-beta1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Système d'exploitation
+      description: Sur quel appareil utilises-tu LogX AI ?
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android (navigateur/PWA)
+        - iPhone / iPad (navigateur/PWA)
+        - Autre / je ne sais pas
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description du problème
+      description: >-
+        Que s'est-il passé ? Qu'attendais-tu à la place ? Un message d'erreur
+        s'est-il affiché ? Plus il y a de détails, plus vite le problème sera
+        corrigé.
+      placeholder: >-
+        Exemple : l'écran est resté blanc et je n'ai pas pu revenir en
+        arrière. Le message affiché était « ... ».
+    validations:
+      required: true
+
+  - type: textarea
+    id: journal-technique
+    attributes:
+      label: Journal technique (optionnel)
+      description: >-
+        Rempli automatiquement par le bouton « signaler un problème » de la
+        barre de statut de LogX AI si tu es passé par lui — laisse vide sinon.
+      render: text

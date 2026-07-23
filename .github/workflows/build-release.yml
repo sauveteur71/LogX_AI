@@ -31,16 +31,19 @@ jobs:
         include:
           - os: windows-latest
             label: Windows
-            artefact: LogXAI.exe
             source: dist/LogXAI.exe
+            suffix: ''
+            ext: '.exe'
           - os: macos-latest
             label: macOS
-            artefact: LogXAI-macos
             source: dist/LogXAI
+            suffix: '-macos'
+            ext: ''
           - os: ubuntu-latest
             label: Linux
-            artefact: LogXAI-linux
             source: dist/LogXAI
+            suffix: '-linux'
+            ext: ''
     steps:
       - uses: actions/checkout@v4
 
@@ -63,14 +66,29 @@ jobs:
         working-directory: concours
         run: python -m PyInstaller --noconfirm --clean logx.spec
 
-      - name: Renommer l'artefact
-        if: matrix.artefact != 'LogXAI.exe'
-        working-directory: concours
-        run: mv "${{ matrix.source }}" "dist/${{ matrix.artefact }}"
+      # Resolu une seule fois, meme repli que l'etape d'attachement ci-dessous :
+      # github.ref_name est le tag pousse (push tag v*), mais vaudrait le nom
+      # de la branche en workflow_dispatch — d'ou l'input tag en repli.
+      - name: Determiner le tag de version
+        id: version
         shell: bash
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      # Nomme l'artefact avec le tag (LogXAI-v0.9-beta2.exe, -macos, -linux) :
+      # sans ca, un testeur avec plusieurs versions dans son dossier
+      # Telechargements ne peut plus distinguer laquelle est laquelle (l'exe
+      # Windows produit par PyInstaller s'appelle toujours LogXAI.exe).
+      - name: Renommer l'artefact avec le tag de version
+        id: artefact
+        working-directory: concours
+        shell: bash
+        run: |
+          name="LogXAI-${{ steps.version.outputs.tag }}${{ matrix.suffix }}${{ matrix.ext }}"
+          mv "${{ matrix.source }}" "dist/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - name: Attacher a la release du tag
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          files: concours/dist/${{ matrix.artefact }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: concours/dist/${{ steps.artefact.outputs.name }}

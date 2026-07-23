@@ -1,0 +1,4 @@
+# Empêche la création d'une issue "vierge" (sans structure) : oblige à passer
+# par bug.yml, seul moyen d'avoir systématiquement la version + l'OS + une
+# description exploitable de la part de bêta-testeurs non techniques.
+blank_issues_enabled: false

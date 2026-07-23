@@ -24,6 +24,10 @@ ephem>=4.1
 # Tests (suite pytest sous concours/tests/)
 pytest>=8,<10
 
+# Lecture des formulaires d'issue GitHub (.github/ISSUE_TEMPLATE/*.yml) par
+# test_release_ci_config.py — jamais importé par le code applicatif.
+PyYAML>=6,<7
+
 # ── Optionnels non installés par défaut ──────────────────────────────────────
 # Extraction PDF des règlements (logx_rules.py / logx_rules_ai.py) : cascade
 # fitz (pymupdf) -> pdfplumber -> pypdf, avec repli final sans dépendance.

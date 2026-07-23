@@ -34,12 +34,16 @@ GITHUB_REPO = 'sauveteur71/radioaamateur-program-Contest'
 RELEASES_API = f'https://api.github.com/repos/{GITHUB_REPO}/releases'
 CHECK_TTL = 6 * 3600  # 6h : une nouvelle release n'apparaît pas seconde par seconde
 
-# Nom de l'artefact attaché à la release, par plateforme — doit correspondre
-# EXACTEMENT aux noms produits par .github/workflows/build-release.yml.
-_ASSET_BY_PLATFORM = {
-    'win': 'LogXAI.exe',
-    'darwin': 'LogXAI-macos',
-    'linux': 'LogXAI-linux',
+# Suffixe/extension de l'artefact par plateforme — doit correspondre
+# EXACTEMENT à la matrice de .github/workflows/build-release.yml. Le nom
+# COMPLET inclut aussi le tag de la release (ex. LogXAI-v0.9-beta2.exe,
+# LogXAI-v0.9-beta2-macos) : impossible à figer ici puisqu'il change à
+# chaque version, il est reconstruit dans _build_result() à partir du
+# tag_name de la release effectivement récupérée.
+_ASSET_SUFFIX_BY_PLATFORM = {
+    'win': ('', '.exe'),
+    'darwin': ('-macos', ''),
+    'linux': ('-linux', ''),
 }
 
 _lock = threading.Lock()
@@ -73,7 +77,11 @@ def _fetch_latest_release():
 def _build_result(data):
     tag = str(data.get('tag_name', '') or '').strip()
     latest = tag[1:] if tag[:1].lower() == 'v' else tag
-    asset_name = _ASSET_BY_PLATFORM[_platform_key()]
+    suffix, ext = _ASSET_SUFFIX_BY_PLATFORM[_platform_key()]
+    # Nom attendu reconstruit avec CE tag (celui de la release récupérée),
+    # pas APP_VERSION : c'est justement quand ils diffèrent qu'on cherche
+    # l'artefact à télécharger.
+    asset_name = f'LogXAI-{tag}{suffix}{ext}' if tag else ''
     asset_url = ''
     for a in (data.get('assets') or []):
         if a.get('name') == asset_name:
