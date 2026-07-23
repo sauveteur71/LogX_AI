@@ -1417,12 +1417,30 @@ function _recRestartSegment(){
 }
 
 function _updateRecToggleBtn(){
-  const b = document.getElementById('qsoRecToggleBtn');
-  if(!b) return;
   const on = !!_recStream;
-  b.textContent = on ? '● actif' : '○ désactivé';
-  b.style.color = on ? 'var(--red)' : 'var(--muted)';
-  b.style.borderColor = on ? 'var(--red)' : 'var(--border)';
+  const b = document.getElementById('qsoRecToggleBtn');
+  if(b){
+    b.textContent = on ? '● actif' : '○ désactivé';
+    b.style.color = on ? 'var(--red)' : 'var(--muted)';
+    b.style.borderColor = on ? 'var(--red)' : 'var(--border)';
+  }
+  // Indicateur TOUJOURS visible (en dehors du panneau .expert-only) : quel
+  // que soit le mode UI (débutant/expert), un enregistrement micro actif ne
+  // doit jamais rester invisible — le bouton ci-dessus, lui, est masqué avec
+  // tout le panneau en mode simple.
+  let ind = document.getElementById('qsoRecIndicator');
+  if(on){
+    if(!ind){
+      ind = document.createElement('div');
+      ind.id = 'qsoRecIndicator';
+      ind.title = 'Enregistrement micro actif (enregistreur QSO)';
+      ind.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;background:var(--red);color:#fff;font-family:var(--font-mono);font-size:11px;padding:3px 9px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.4)';
+      ind.textContent = '● REC';
+      document.body.appendChild(ind);
+    }
+  } else if(ind){
+    ind.remove();
+  }
 }
 
 function _updateRecDirLabel(){
@@ -1438,7 +1456,7 @@ async function startAudioRecorder(){
     _recSegments = [];
     _recStartSegment();
     _recRestartTimer = setInterval(_recRestartSegment, REC_SEGMENT_MS);
-    await loadAudioInputDevices('qsoRecDevice');
+    await loadAudioInputDevices('qsoRecDevice', true);   // true : le flux ci-dessus a déjà obtenu la permission, pas un second getUserMedia
     const sel = document.getElementById('qsoRecDevice');
     if(sel && deviceId) sel.value = deviceId;
     _updateRecToggleBtn();
@@ -1529,6 +1547,17 @@ async function chooseRecDir(){
   }catch(e){ /* sélection annulée par l'utilisateur */ }
 }
 
+// Décide si l'auto-démarrage au chargement de page est autorisé. Isolée en
+// fonction pure (aucun I/O) pour rester testable indépendamment du DOM/micro
+// réel : ne JAMAIS démarrer automatiquement l'enregistreur en mode UI
+// « simple » (débutant, cf. logx_statusbar.js) — le panneau #qsoRecPanel qui
+// porte le bouton marche/arrêt est masqué par .expert-only dans ce mode, donc
+// injoignable ; un démarrage silencieux y serait un enregistrement micro sans
+// AUCUN contrôle visible pour l'utilisateur (problème de confidentialité).
+function _recAutoStartAllowed(){
+  return recEnabled && localStorage.getItem('rc_ui_mode') !== 'simple';
+}
+
 // Restaure au chargement le dossier choisi lors d'une session précédente, si
 // la permission est encore valable — queryPermission() ne montre jamais de
 // popup (contrairement à requestPermission(), qui exige un geste utilisateur,
@@ -1541,9 +1570,24 @@ async function initAudioRecorderPanel(){
     }
   }catch(e){}
   _updateRecDirLabel();
-  if(recEnabled){
+  if(recEnabled && !_recAutoStartAllowed()){
+    // Mode UI simple : on refuse l'auto-démarrage ET on resynchronise l'état
+    // persisté (sinon 'logx_rec_enabled' resterait 'on' en localStorage alors
+    // que rien n'enregistre réellement — incohérence au prochain passage en
+    // mode expert, qui redémarrerait le micro sans que l'utilisateur l'ait
+    // redemandé cette fois-là).
+    recEnabled = false;
+    localStorage.setItem('logx_rec_enabled', 'off');
+  } else if(recEnabled){
     const ok = await startAudioRecorder();
-    if(!ok) recEnabled = false;   // permission refusée/périphérique disparu depuis : ne pas rester dans un état incohérent
+    if(!ok){
+      // Permission refusée/périphérique disparu depuis : ne pas rester dans
+      // un état incohérent — corriger AUSSI localStorage, pas seulement la
+      // variable JS locale (sinon un rechargement de page retenterait
+      // indéfiniment le même auto-démarrage voué à l'échec).
+      recEnabled = false;
+      localStorage.setItem('logx_rec_enabled', 'off');
+    }
   }
   _updateRecToggleBtn();
 }
@@ -1600,11 +1644,20 @@ function _floatChannelsToWav(channels, sampleRate){
   return new Blob([buf], {type: 'audio/wav'});
 }
 
-// Nom de fichier indicatif_bande_date_heure — ex. F4ABC_144_20260723_1432.wav
+// Nom de fichier indicatif_bande_date_heure — ex. F4ABC_144_20260723_143205.wav
+// qso.time ne contient que HH:MM (pas les secondes, voir nowUTC()) : deux QSO
+// du même indicatif+bande dans la MÊME MINUTE UTC (ex. relogué après un
+// bust, ou dupe autorisée par le règlement) produiraient sinon EXACTEMENT le
+// même nom de fichier — le second clip écraserait silencieusement le premier.
+// qso.id (Date.now() au moment du log, voir submitQSO) donne une précision à
+// la milliseconde : on en dérive heure:minute:seconde pour lever la collision.
 function _recClipName(qso){
   const call = String(qso.call || 'QSO').replace(/[^A-Za-z0-9]/g, '') || 'QSO';
   const band = String(qso.band || '').replace(/[^A-Za-z0-9]/g, '');
-  const time = String(qso.time || '').replace(/[^0-9]/g, '');
+  const stamp = qso.id ? new Date(qso.id) : new Date();
+  const time = String(stamp.getUTCHours()).padStart(2, '0')
+    + String(stamp.getUTCMinutes()).padStart(2, '0')
+    + String(stamp.getUTCSeconds()).padStart(2, '0');
   return `${call}_${band}_${qso.date || ''}_${time}.wav`;
 }
 
@@ -4847,12 +4900,20 @@ async function toggleCwPanel(){
 // libellés des périphériques ne sont visibles qu'APRÈS une autorisation
 // micro accordée (contrainte navigateur) : on la demande une fois ici juste
 // pour peupler la liste, le flux est refermé aussitôt.
-async function loadAudioInputDevices(selectId){
+// `alreadyGranted` évite de rouvrir un DEUXIÈME flux micro concurrent quand
+// l'appelant a DÉJÀ un flux ouvert avec la permission accordée (cas de
+// startAudioRecorder juste après son propre getUserMedia) : la permission et
+// les libellés sont globaux au navigateur, pas liés à un flux particulier —
+// un second getUserMedia() ici serait un flux superflu, jamais fermé
+// explicitement en cas d'erreur avant son propre stop().
+async function loadAudioInputDevices(selectId, alreadyGranted){
   const sel = document.getElementById(selectId);
   if(!sel) return false;
   try{
-    const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
-    tmp.getTracks().forEach(t=>t.stop());
+    if(!alreadyGranted){
+      const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+      tmp.getTracks().forEach(t=>t.stop());
+    }
     const devices = await navigator.mediaDevices.enumerateDevices();
     const inputs = devices.filter(d=>d.kind==='audioinput');
     sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
