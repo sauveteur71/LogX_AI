@@ -165,3 +165,71 @@ def test_record_decode_sans_indicatif_ne_change_rien():
     wsjtx._decodes.clear()
     assert wsjtx.record_decode({'mode': 'FT8', 'message': 'TU 73'}) == []
     assert wsjtx.recent_decodes() == []
+
+
+# ─── Revue adversariale du commit 75034bd : PRÉFIXE/INDICATIF, échange tiers,
+#     purge de recent_decodes() ────────────────────────────────────────────
+
+def test_extract_calls_prefixe_dxcc_slash_indicatif():
+    # Format DXpedition le plus courant : PRÉFIXE/INDICATIF (ex. PJ4/K1ABC
+    # depuis Bonaire, 9A/OK1ABC depuis la Croatie). AVANT le fix, _CALL_RE ne
+    # reconnaissait que le format inverse INDICATIF/SUFFIXE (/P, /QRP...) et
+    # ratait 100% de ces indicatifs : extract_calls('CQ PJ4/K1ABC FK52')
+    # renvoyait [].
+    assert wsjtx.extract_calls('CQ PJ4/K1ABC FK52') == ['PJ4/K1ABC']
+    assert wsjtx.extract_calls('CQ 9A/OK1ABC JN95') == ['9A/OK1ABC']
+
+
+def test_extract_calls_prefixe_dxcc_distingue_du_suffixe_portable():
+    # Le format INDICATIF/SUFFIXE déjà géré (/P, /QRP, /M, changement de zone
+    # /4...) ne doit pas être cassé par le support du nouveau format inverse.
+    assert wsjtx.extract_calls('CQ F4ABC/P JN18') == ['F4ABC/P']
+    assert wsjtx.extract_calls('CQ F4ABC/QRP JN18') == ['F4ABC/QRP']
+    assert wsjtx.extract_calls('CQ F4ABC/4 JN18') == ['F4ABC/4']
+
+
+def test_extract_calls_prefixe_dxcc_exclut_mon_indicatif_compose():
+    # Mon propre indicatif composé (que je sois DXpéditionnaire ou que
+    # my_call ne porte que la partie "cœur") ne doit jamais remonter comme
+    # "station entendue".
+    assert wsjtx.extract_calls('CQ PJ4/K1ABC FK52', my_call='PJ4/K1ABC') == []
+    assert wsjtx.extract_calls('CQ PJ4/K1ABC FK52', my_call='K1ABC') == []
+
+
+def test_extract_calls_echange_tiers_ne_garde_que_lemetteur():
+    # Grammaire FT8 standard : "<destinataire> <émetteur> <rapport>". Quand
+    # aucun des deux indicatifs n'est le mien (échange entre deux tiers
+    # observé passivement), seul le SECOND a réellement émis CE décodage —
+    # AVANT le fix, les DEUX étaient marqués "entendus".
+    assert wsjtx.extract_calls('F4ABC F5XYZ +05', my_call='F9ZZZ') == ['F5XYZ']
+    assert wsjtx.extract_calls('F4ABC F5XYZ RR73') == ['F5XYZ']
+    # Compound call côté émetteur ou destinataire : même règle.
+    assert wsjtx.extract_calls('PJ4/K1ABC F5XYZ +05', my_call='F9ZZZ') == ['F5XYZ']
+
+
+def test_record_decode_echange_tiers_ne_marque_que_lemetteur():
+    wsjtx._decodes.clear()
+    wsjtx.status['dial_mhz'] = 14.074
+    msg = {'mode': 'FT8', 'message': 'F4ABC F5XYZ +05', 'delta_hz': 0}
+    calls = wsjtx.record_decode(msg, my_call='F9ZZZ')
+    assert calls == ['F5XYZ']
+    decoded_calls = {d['call'] for d in wsjtx.recent_decodes()}
+    assert decoded_calls == {'F5XYZ'}
+    assert 'F4ABC' not in decoded_calls
+
+
+def test_recent_decodes_purge_les_entrees_expirees_sans_nouveau_decode():
+    # AVANT le fix, seule record_decode() purgeait _decodes : sans nouveau
+    # décodage pour la déclencher, une entrée expirée restait dans le cache
+    # (invisible côté vue retournée, mais jamais libérée) indéfiniment.
+    import time
+    wsjtx._decodes.clear()
+    wsjtx._decodes['OLD1CALL'] = {'band': '14', 'freq_mhz': 14.07, 'mode': 'FT8',
+                                  'last_seen': 0.0}   # très ancien (epoch)
+    wsjtx._decodes['NEW1CALL'] = {'band': '14', 'freq_mhz': 14.07, 'mode': 'FT8',
+                                  'last_seen': time.time()}
+    result = wsjtx.recent_decodes()
+    assert {d['call'] for d in result} == {'NEW1CALL'}
+    # Le cache lui-même doit avoir été purgé, pas seulement la vue retournée.
+    assert 'OLD1CALL' not in wsjtx._decodes
+    assert 'NEW1CALL' in wsjtx._decodes

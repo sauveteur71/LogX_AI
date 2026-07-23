@@ -191,6 +191,10 @@ def _mhz_to_band(mhz):
 # question posée aux spots du cluster DX, pas de logique dupliquée ici.
 _GRID_RE = re.compile(r'^[A-X]{2}\d{2}([A-X]{2})?$')
 _CALL_RE = re.compile(r'^[0-9A-Z]{1,4}\d[A-Z]{1,4}(?:/[0-9A-Z]{1,4})?$')
+# Forme "cœur" d'un indicatif (sans préfixe/suffixe composé) — sert à
+# reconnaître le format PRÉFIXE/INDICATIF (voir _is_compound_prefix_call).
+_BASE_CALL_RE = re.compile(r'^[0-9A-Z]{1,4}\d[A-Z]{1,4}$')
+_PORTABLE_SUFFIXES = {'P', 'M', 'MM', 'AM', 'QRP', 'A', 'J', 'LH'}
 _REPORT_RE = re.compile(r'^R?[+-]\d{2}$')
 _DECODE_SKIP_TOKENS = {'CQ', 'QRZ', 'DE', 'RRR', 'RR73', '73', 'TNX', 'TU',
                        'DX', 'TEST', 'POTA', 'SOTA', 'WWFF', 'IOTA', 'AGN'}
@@ -200,23 +204,52 @@ _decodes = {}         # call -> {'band','freq_mhz','mode','last_seen'}
 _decodes_lock = threading.Lock()
 
 
+def _is_compound_prefix_call(tok):
+    """PRÉFIXE/INDICATIF façon DXpedition (ex. PJ4/K1ABC, 9A/OK1ABC) — le
+    format le plus courant en pratique, que _CALL_RE ne reconnaît PAS (il est
+    pensé pour la forme inverse INDICATIF/SUFFIXE : F4ABC/P, F4ABC/QRP...).
+    On distingue les deux formes en regardant quelle moitié a la forme d'un
+    indicatif complet : dans INDICATIF/SUFFIXE c'est la partie AVANT le '/'
+    (le suffixe, court, n'a pas cette forme) ; dans PRÉFIXE/INDICATIF c'est la
+    partie APRÈS. Un préfixe purement numérique (ex. K1ABC/4, changement de
+    zone) n'est pas un préfixe DXCC — exclu pour ne pas empiéter sur ce que
+    _CALL_RE gère déjà."""
+    if tok.count('/') != 1:
+        return False
+    prefix, base = tok.split('/')
+    return bool(_BASE_CALL_RE.match(base)) and prefix not in _PORTABLE_SUFFIXES and not prefix.isdigit()
+
+
 def extract_calls(message, my_call=''):
     """Indicatifs plausibles dans un message décodé FT8/FT4 (ex. « CQ F4ABC
-    JN18 », « F4ABC F5XYZ +05 », « F4ABC F5XYZ RR73 ») — exclut les grilles
-    Maidenhead, les rapports, les jokers usuels (CQ/DX/POTA...) et mon propre
-    indicatif. Parsing volontairement simple (PAS un décodeur FT8 complet
-    comme WSJT-X lui-même) : suffisant pour savoir QUI est entendu, pas pour
-    rejouer tout l'échange."""
+    JN18 », « F4ABC F5XYZ +05 », « F4ABC F5XYZ RR73 », « PJ4/K1ABC F5XYZ
+    +05 ») — exclut les grilles Maidenhead, les rapports, les jokers usuels
+    (CQ/DX/POTA...) et mon propre indicatif (sous sa forme simple OU
+    composée : PJ4/K1ABC exclu si my_call vaut 'K1ABC' OU 'PJ4/K1ABC').
+    Reconnaît aussi bien INDICATIF/SUFFIXE (/P, /QRP, /M...) que PRÉFIXE/
+    INDICATIF façon DXpedition (PJ4/K1ABC, 9A/OK1ABC) — voir
+    _is_compound_prefix_call(). Parsing volontairement simple (PAS un
+    décodeur FT8 complet comme WSJT-X lui-même) : suffisant pour savoir QUI
+    est entendu, pas pour rejouer tout l'échange.
+
+    Grammaire FT8 standard : « <destinataire> <émetteur> <rapport/RRR/
+    RR73/73> ». Si aucun des deux indicatifs trouvés n'est le mien (échange
+    entre deux tiers observé passivement dans le waterfall), seul le SECOND
+    a réellement ÉMIS ce décodage précis — le premier n'est que le
+    destinataire visé, pas prouvé "entendu" par ce message-là. On ne garde
+    donc que l'émetteur dans ce cas, pour ne pas faire remonter un faux
+    "entendu" sur toute conversation tierce."""
     my = (my_call or '').upper().strip()
     out = []
     for tok in (message or '').upper().replace('<', '').replace('>', '').split():
         if tok in _DECODE_SKIP_TOKENS or _REPORT_RE.match(tok) or _GRID_RE.match(tok):
             continue
-        base = tok.split('/')[0]
-        if my and (tok == my or base == my):
+        if my and (tok == my or my in tok.split('/')):
             continue
-        if _CALL_RE.match(tok):
+        if _CALL_RE.match(tok) or _is_compound_prefix_call(tok):
             out.append(tok)
+    if len(out) == 2:
+        out = out[1:]      # échange tiers : ne garder que l'émetteur (2e position)
     return out
 
 
@@ -257,10 +290,25 @@ def record_decode(msg, my_call=''):
 def recent_decodes(max_age=_DECODE_TTL):
     """Décodages FT8/FT4 encore « actifs » (call, band, freq_mhz, mode,
     last_seen) — consommé par _wsjtx_state_dict() (logx_http.py) pour
-    l'alerte DXCC/département manquant façon GridTracker."""
+    l'alerte DXCC/département manquant façon GridTracker.
+
+    Purge aussi le cache (pas seulement record_decode()) : sinon, un flux de
+    décodages qui s'arrête (WSJT-X fermé) laisse les entrées expirées
+    s'accumuler indéfiniment tant que rien ne rappelle record_decode() pour
+    déclencher la purge — même si elles restent invisibles côté appelant
+    (déjà filtrées ci-dessous). Lecture ET purge dans le MÊME bloc
+    "with lock" : jamais de relâchement du verrou entre les deux. La purge
+    utilise le TTL réel du cache (_DECODE_TTL), pas le max_age demandé par
+    l'appelant : ce dernier ne sert qu'à filtrer la VUE retournée, pas à
+    raccourcir la rétention réelle si jamais un appelant passe une fenêtre
+    plus courte."""
     import time
-    cutoff = time.time() - max_age
+    now = time.time()
     with _decodes_lock:
+        purge_cutoff = now - _DECODE_TTL
+        for k in [k for k, v in _decodes.items() if v['last_seen'] < purge_cutoff]:
+            del _decodes[k]
+        cutoff = now - max_age
         return [dict(call=c, **v) for c, v in _decodes.items() if v['last_seen'] >= cutoff]
 
 
