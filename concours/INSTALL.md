@@ -68,7 +68,8 @@ toute la suite de tests sous Ubuntu). Deux façons :
 - **Exécutable autonome** : `./build_linux.sh` dans ce dossier produit
   `dist/LogXAI` (à construire sur la machine Linux cible ; PortAudio requis
   pour le keyer vocal : `sudo apt install libportaudio2`). Les releases
-  GitHub incluent aussi un binaire `LogXAI-linux` pré-construit (x86_64).
+  GitHub incluent aussi un binaire pré-construit (x86_64), nommé avec le tag
+  de la version, par ex. `LogXAI-v0.9-beta2-linux`.
 - **Depuis les sources** : `pip install -r requirements.txt` puis
   `python3 logx_serveur.py`.
 

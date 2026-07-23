@@ -18,6 +18,14 @@ commit, deux défauts vérifiés indépendamment :
    finale envoyée fait ~8400 caractères, largement au-dessus de la marge
    prévue contre le 414 URI Too Long visée par REPORT_BODY_MAX.
 
+Depuis la revue du commit 8194b55 (passage aux GitHub Issue Forms,
+tests/test_report_issue_form_prefill.py), REPORT_BODY_MAX est devenu
+REPORT_FIELD_MAX et le paramètre `body` a été remplacé par plusieurs
+paramètres d'URL (`description`, `journal-technique`, etc.) : les tests
+« post-fix » ci-dessous lisent désormais `description`. Les tests « avant
+fix » rejouent le code historique de f20799a (qui prédate 8194b55) et
+utilisent donc toujours `body`.
+
 Ce module exécute le VRAI code de openReportIssue() — extrait tel quel du
 fichier source par comptage d'accolades (même technique que
 tests/test_config_html_sota_qrz_race.py), PAS retapé — dans un moteur JS réel
@@ -174,15 +182,19 @@ def test_emoji_en_toute_fin_de_texte_reste_valide():
     assert title_decoded == '[Bug] ' + 'b' * 78 + EMOJI
 
 
-# ─── Problème 2 : REPORT_BODY_MAX doit borner la longueur ENCODÉE ─────────
+# ─── Problème 2 : REPORT_FIELD_MAX doit borner la longueur ENCODÉE ────────
+# (REPORT_BODY_MAX à l'époque de f20799a ; renommé REPORT_FIELD_MAX par la
+# revue du commit 8194b55, qui a aussi éclaté l'unique paramètre `body` en
+# plusieurs paramètres d'URL — voir tests/test_report_issue_form_prefill.py.
+# Le paramètre `description` de l'URL est celui qui porte désormais le texte
+# libre de l'opérateur, donc la même protection contre le 414 URI Too Long.)
 
-def test_corps_tres_accentue_reste_sous_report_body_max_une_fois_encode():
-    """1400 caractères accentués : la longueur BRUTE (~1480 avec les
-    en-têtes) reste sous REPORT_BODY_MAX=1500, donc l'ancien contrôle
-    `body.length > REPORT_BODY_MAX` ne se déclenchait jamais — alors que la
-    longueur ENCODÉE (chaque 'é' -> %C3%A9, x6) explose largement au-dessus.
-    Après fix, le paramètre `body` de l'URL doit rester <= REPORT_BODY_MAX
-    caractères ENCODÉS."""
+def test_corps_tres_accentue_reste_sous_report_field_max_une_fois_encode():
+    """1400 caractères accentués : la longueur BRUTE reste sous
+    REPORT_FIELD_MAX=1500, donc un contrôle naïf `str.length > REPORT_FIELD_MAX`
+    ne se déclencherait jamais — alors que la longueur ENCODÉE (chaque
+    'é' -> %C3%A9, x6) explose largement au-dessus. Après fix, le paramètre
+    `description` de l'URL doit rester <= REPORT_FIELD_MAX caractères ENCODÉS."""
     block = _extract_report_block(_current_src())
     ctx = _make_ctx(block)
     description = 'é' * 1400
@@ -192,10 +204,10 @@ def test_corps_tres_accentue_reste_sous_report_body_max_une_fois_encode():
 
     assert ctx.eval('lastAlert') is None
     url = ctx.eval('openedUrl')
-    body_encoded = _url_param(url, 'body')
-    assert len(body_encoded) <= 1500, (
-        f"body encodé fait {len(body_encoded)} caractères, largement au-dessus "
-        "de REPORT_BODY_MAX=1500 — la marge anti 414 URI Too Long n'est plus respectée")
+    description_encoded = _url_param(url, 'description')
+    assert len(description_encoded) <= 1500, (
+        f"description encodée fait {len(description_encoded)} caractères, largement au-dessus "
+        "de REPORT_FIELD_MAX=1500 — la marge anti 414 URI Too Long n'est plus respectée")
 
 
 def test_reproduction_avant_fix_commit_f20799a_corps_encode_depasse_largement_1500():
@@ -230,8 +242,8 @@ def test_corps_court_non_accentue_nest_pas_tronque_inutilement():
 
     assert ctx.eval('lastAlert') is None
     url = ctx.eval('openedUrl')
-    body_encoded = _url_param(url, 'body')
-    assert '…(tronqu' not in __import__('urllib.parse', fromlist=['unquote']).unquote(body_encoded)
+    description_encoded = _url_param(url, 'description')
+    assert '…(tronqu' not in __import__('urllib.parse', fromlist=['unquote']).unquote(description_encoded)
 
 
 def test_pas_de_qso_director():

@@ -425,7 +425,15 @@
   // Repo lu depuis _updState.repo (source unique = logx_update.GITHUB_REPO) ;
   // ce repli codé en dur ne sert qu'avant le tout premier /app/update_check.
   const REPORT_REPO_FALLBACK = 'sauveteur71/radioaamateur-program-Contest';
-  const REPORT_BODY_MAX = 1500; // marge sous la limite GitHub (414 URI Too Long)
+  // Fichier du formulaire GitHub Issue Forms (.github/ISSUE_TEMPLATE/bug.yml).
+  // Les GitHub Issue Forms (YAML) ne se pré-remplissent QUE via
+  // ?template=<fichier>&<id_du_champ>=<valeur> : le format historique des
+  // issues "classiques" (?title=/&body=) est silencieusement IGNORÉ dès
+  // qu'un template YAML existe (blank_issues_enabled: false le rend
+  // d'ailleurs obligatoire, voir config.yml) — le bouton ouvrait alors une
+  // issue vide, formulaire non rempli, sans la moindre erreur visible.
+  const REPORT_TEMPLATE = 'bug.yml';
+  const REPORT_FIELD_MAX = 1500; // marge sous la limite GitHub (414 URI Too Long)
 
   // Tronque en POINTS DE CODE (jamais en unités UTF-16 brutes comme le fait
   // String.slice()) : couper au milieu d'une paire de substitution (emoji,
@@ -440,8 +448,8 @@
   // Tronque `str` pour que sa version ENCODÉE (ce qui part réellement dans
   // l'URL) ne dépasse pas maxEncodedLen unités. Un texte français accentué
   // peut faire 2 à 6x sa longueur brute une fois passé à encodeURIComponent
-  // (é -> %C3%A9, etc.) : REPORT_BODY_MAX doit borner CE nombre-là, pas
-  // body.length — voir revue commit f20799a. Recherche dichotomique sur les
+  // (é -> %C3%A9, etc.) : REPORT_FIELD_MAX doit borner CE nombre-là, pas
+  // str.length — voir revue commit f20799a. Recherche dichotomique sur les
   // points de code (jamais sur les unités UTF-16, cf. truncateCodePoints).
   function truncateToEncodedLength(str, maxEncodedLen){
     const chars = Array.from(str);
@@ -463,6 +471,26 @@
     return (navigator.platform || 'plateforme inconnue') + ' — ' + navigator.userAgent;
   }
 
+  // Doit renvoyer EXACTEMENT une des options du menu déroulant `os` de
+  // bug.yml (voir tests/test_release_ci_config.py::
+  // test_bug_yml_dropdown_os_couvre_les_plateformes_courantes) : une valeur
+  // qui ne correspond à aucune option n'est simplement pas présélectionnée
+  // par GitHub au chargement du formulaire (silencieux, mais dégradé), donc
+  // pas de texte libre ici — uniquement un des 6 libellés fixes.
+  function detectOsFormOption(){
+    let hay = '';
+    try{ hay = ((navigator.userAgent || '') + ' ' + (navigator.platform || '')).toLowerCase(); }
+    catch(e){ /* navigator absent (contexte non-navigateur) */ }
+    // Android avant Linux : le user-agent Android contient aussi "Linux"
+    // (noyau), il faut donc tester le plus spécifique en premier.
+    if (/android/.test(hay)) return 'Android (navigateur/PWA)';
+    if (/iphone|ipad|ipod/.test(hay)) return 'iPhone / iPad (navigateur/PWA)';
+    if (/mac/.test(hay)) return 'macOS';
+    if (/win/.test(hay)) return 'Windows';
+    if (/linux/.test(hay)) return 'Linux';
+    return 'Autre / je ne sais pas';
+  }
+
   // Journal d'erreurs local (voir logx_errorlog.py, GET /debug/errors) : lu en
   // tâche de fond (comme _updState/refreshUpdateCheck) et JAMAIS via un fetch
   // synchrone dans openReportIssue() — un window.open() appelé après un
@@ -477,11 +505,14 @@
   // le corps de l'issue GitHub.
   const ERROR_RECENCY_MS = 15 * 60 * 1000; // 15 minutes
 
-  // Borne la taille de e.message avant construction du corps : contrairement
-  // à `tail` (traceback, déjà tronqué ci-dessous), le message n'était borné
-  // nulle part — un message d'exception anormalement long pouvait à lui seul
-  // dépasser REPORT_BODY_MAX et faire disparaître la description libre de
-  // l'opérateur dans la troncature finale de openReportIssue().
+  // Borne la taille de e.message avant de l'inclure dans le champ
+  // "journal-technique" : contrairement à `tail` (traceback, déjà tronqué
+  // ci-dessous), le message n'était borné nulle part — un message
+  // d'exception anormalement long pouvait à lui seul dépasser
+  // REPORT_FIELD_MAX (le champ journal-technique et le champ description
+  // sont désormais des paramètres d'URL séparés, voir openReportIssue : un
+  // message d'erreur trop long ne peut donc plus effacer la description de
+  // l'opérateur comme avant, seul son propre champ écope).
   const MAX_ERROR_MESSAGE_CHARS = 300;
 
   function refreshErrorsCheck(){
@@ -517,8 +548,11 @@
     if (Array.from(msg).length > MAX_ERROR_MESSAGE_CHARS){
       msg = truncateCodePoints(msg, MAX_ERROR_MESSAGE_CHARS) + '…';
     }
-    return '\n**Dernière erreur du journal local** (' + e.ts + ', thread ' + e.thread + ')\n'
-         + '```\n' + e.type + ': ' + msg + '\n' + tail + '\n```\n';
+    // Texte brut, sans titre markdown ni ```fences``` manuelles : cette
+    // valeur part dans le champ "journal-technique" de bug.yml, dont
+    // `render: text` encadre déjà la réponse d'un bloc de code une fois
+    // l'issue créée — un fence manuel ici casserait ce rendu (bloc imbriqué).
+    return e.ts + ' (thread ' + e.thread + ')\n' + e.type + ': ' + msg + '\n' + tail;
   }
 
   function openReportIssue(){
@@ -531,22 +565,37 @@
     const firstLine = description.split('\n')[0].trim();
     const title = firstLine ? ('[Bug] ' + truncateCodePoints(firstLine, 80)) : '[Bug] signalé depuis LogX AI';
 
-    // La dernière erreur du journal local est placée AVANT la description
-    // (texte libre, potentiellement long) : si la troncature ci-dessous doit
-    // couper quelque chose, que ce soit la fin de la description de
-    // l'opérateur plutôt que la donnée technique la plus utile au diagnostic.
-    let body = '**Version** : v' + version + '\n'
-             + '**Plateforme** : ' + detectPlatformLabel() + '\n'
-             + formatLastErrorForReport() + '\n'
-             + '**Description**\n' + (description.trim() || '(non renseignée)');
-    // REPORT_BODY_MAX borne la longueur ENCODÉE (ce qui part réellement dans
-    // l'URL), pas body.length : un texte français accentué peut faire 2 à 6x
-    // sa taille brute une fois passé à encodeURIComponent.
-    if (encodeURIComponent(body).length > REPORT_BODY_MAX){
+    // REPORT_FIELD_MAX borne la longueur ENCODÉE (ce qui part réellement
+    // dans l'URL), pas descriptionField.length : un texte français accentué
+    // peut faire 2 à 6x sa taille brute une fois passé à encodeURIComponent.
+    let descriptionField = description.trim() || '(non renseignée)';
+    if (encodeURIComponent(descriptionField).length > REPORT_FIELD_MAX){
       const suffix = '\n…(tronqué)';
       const suffixLen = encodeURIComponent(suffix).length;
-      body = truncateToEncodedLength(body, Math.max(0, REPORT_BODY_MAX - suffixLen)) + suffix;
+      descriptionField = truncateToEncodedLength(
+        descriptionField, Math.max(0, REPORT_FIELD_MAX - suffixLen)) + suffix;
     }
+
+    // Un paramètre par `id:` déclaré dans bug.yml (voir REPORT_TEMPLATE
+    // ci-dessus) — "activite" n'est volontairement pas pré-rempli, le
+    // bouton n'a jamais promis plus que "version + plateforme" (voir title
+    // de #rcsbReportItem) et cette réponse reste à la charge de l'opérateur.
+    const params = {
+      template: REPORT_TEMPLATE,
+      title: title,
+      labels: 'bug',
+      version: 'v' + version,
+      os: detectOsFormOption(),
+      description: descriptionField
+    };
+    // Journal technique : plateforme détaillée (User-Agent complet, plus
+    // précis que le libellé fixe du champ "os") + dernière erreur locale
+    // récente, si disponible — c'est la partie de la promesse "version +
+    // plateforme" du bouton (voir title de #rcsbReportItem) qui ne rentre
+    // pas dans le champ "os" (options fixes du menu déroulant de bug.yml).
+    const lastError = formatLastErrorForReport();
+    params['journal-technique'] = detectPlatformLabel()
+      + (lastError ? '\n\nDernière erreur du journal local :\n' + lastError : '');
 
     // Filet de sécurité : malgré les troncatures ci-dessus (en points de
     // code, jamais en unités UTF-16), un caractère invalide échappé de
@@ -554,10 +603,9 @@
     // le bouton en silence — voir revue commit f20799a.
     let url;
     try{
-      url = 'https://github.com/' + repo + '/issues/new'
-        + '?title=' + encodeURIComponent(title)
-        + '&body=' + encodeURIComponent(body)
-        + '&labels=' + encodeURIComponent('bug');
+      url = 'https://github.com/' + repo + '/issues/new?' + Object.keys(params).map(function(k){
+        return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+      }).join('&');
     }catch(err){
       alert("Impossible de préparer le rapport de bug (caractère invalide dans le texte saisi). "
           + 'Ouvre directement une Issue sur https://github.com/' + repo + '/issues/new');

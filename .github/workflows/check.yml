@@ -1,12 +1,22 @@
 name: Check LogX AI
 
 on:
+  # concours/** couvre le code + les tests. Les deux entrees .github/
+  # ci-dessous sont necessaires en plus : tests/test_release_ci_config.py
+  # valide bug.yml/config.yml/build-release.yml, mais vit sous concours/ —
+  # un commit qui ne touche QUE ces fichiers .github/ (sans rien changer
+  # sous concours/) ne declenchait donc jamais ce filet de non-regression
+  # (revue commit 8194b55).
   push:
     paths:
       - 'concours/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/workflows/build-release.yml'
   pull_request:
     paths:
       - 'concours/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/workflows/build-release.yml'
   workflow_dispatch: {}
 
 jobs:

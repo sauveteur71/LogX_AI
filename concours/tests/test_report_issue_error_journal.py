@@ -16,6 +16,14 @@ vérifiés indépendamment :
    la troncature finale de sécurité supprimait alors la description
    ENTIÈRE, ne laissant que la trace technique.
 
+Depuis la revue du commit 8194b55 (passage aux GitHub Issue Forms,
+tests/test_report_issue_form_prefill.py), `body` a été remplacé par des
+paramètres d'URL séparés (`description`, `journal-technique`, etc.) :
+REPORT_BODY_MAX est devenu REPORT_FIELD_MAX, et les tests « post-fix »
+ci-dessous vérifient ces nouveaux paramètres. Les tests « avant fix », eux,
+rejouent le code historique du commit a1bc360 (qui prédate 8194b55) et
+utilisent donc toujours l'ancien paramètre `body`.
+
 Même technique que tests/test_report_issue_unicode.py : le VRAI code est
 extrait tel quel du fichier source (comptage d'accolades), PAS retapé, et
 exécuté dans un moteur JS réel (V8 via py_mini_racer). Chaque test « post-fix »
@@ -41,7 +49,7 @@ PRE_FIX_REV = 'a1bc360'
 
 def _extract_report_block(src):
     """Extrait tout le bloc « signaler un problème » — des constantes
-    REPORT_REPO_FALLBACK/REPORT_BODY_MAX jusqu'à la fin de la fonction
+    REPORT_REPO_FALLBACK/REPORT_FIELD_MAX jusqu'à la fin de la fonction
     openReportIssue() incluse (donc aussi _errState/formatLastErrorForReport/
     refreshErrorsCheck, situés entre les deux) — par comptage d'accolades,
     pour récupérer le VRAI code, pas une réécriture qui pourrait diverger
@@ -118,7 +126,41 @@ def _url_param(url, name):
     return m.group(1)
 
 
+def _url_param_optional(url, name):
+    """Comme _url_param, mais renvoie None au lieu d'échouer si absent — le
+    paramètre `journal-technique` n'existe que si une erreur récente a été
+    trouvée (voir openReportIssue), contrairement à l'ancien `body` qui
+    existait toujours."""
+    m = re.search(r'[?&]' + name + r'=(.*?)(?:&|$)', url)
+    return m.group(1) if m else None
+
+
+def _run_and_get_journal(ctx, description):
+    """Le contenu autrefois placé dans le paramètre `body` (plateforme +
+    dernière erreur) part désormais dans le champ `journal-technique` du
+    formulaire GitHub Issue Forms (bug.yml) — voir revue du commit 8194b55."""
+    _set_prompt_return(ctx, description)
+    ctx.eval('openReportIssue();')
+    assert ctx.eval('lastAlert') is None
+    url = ctx.eval('openedUrl')
+    assert url is not None
+    raw = _url_param_optional(url, 'journal-technique')
+    return urllib.parse.unquote(raw) if raw is not None else None
+
+
+def _run_and_get_description(ctx, description):
+    _set_prompt_return(ctx, description)
+    ctx.eval('openReportIssue();')
+    assert ctx.eval('lastAlert') is None
+    url = ctx.eval('openedUrl')
+    assert url is not None
+    return urllib.parse.unquote(_url_param(url, 'description'))
+
+
 def _run_and_get_body(ctx, description):
+    """Réservé aux tests « avant fix » (code historique du commit
+    PRE_FIX_REV, qui prédate le passage aux GitHub Issue Forms du commit
+    8194b55) : à cette époque, tout partait dans un unique paramètre `body`."""
     _set_prompt_return(ctx, description)
     ctx.eval('openReportIssue();')
     assert ctx.eval('lastAlert') is None
@@ -136,31 +178,33 @@ SAMPLE_TRACEBACK = ('Traceback (most recent call last):\n'
 
 def test_erreur_recente_est_jointe_au_rapport():
     """Non-régression : une erreur qui vient tout juste de se produire reste
-    jointe (c'est tout l'intérêt du mécanisme)."""
+    jointe (c'est tout l'intérêt du mécanisme) — dans le champ
+    `journal-technique` du formulaire Issue Forms (voir 8194b55)."""
     block = _extract_report_block(_current_src())
     ctx = _make_ctx(block)
     recent_ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     _set_err_state(ctx, recent_ts, 'ValueError', 'panne réseau', SAMPLE_TRACEBACK)
 
-    body = _run_and_get_body(ctx, 'Le bouton export ADIF ne répond plus.')
+    journal = _run_and_get_journal(ctx, 'Le bouton export ADIF ne répond plus.')
 
-    assert 'Dernière erreur du journal local' in body
-    assert 'panne réseau' in body
+    assert journal is not None
+    assert 'panne réseau' in journal
 
 
 def test_erreur_ancienne_nest_pas_jointe_au_rapport():
     """Reproduction concrète du problème [MEDIUM] : une erreur vieille de 3
     heures (thread de fond mort il y a longtemps, sans rapport avec ce que
-    l'opérateur signale maintenant) ne doit plus polluer le rapport."""
+    l'opérateur signale maintenant) ne doit plus polluer le rapport. Le champ
+    `journal-technique` reste donc réduit à la plateforme (pas d'erreur)."""
     block = _extract_report_block(_current_src())
     ctx = _make_ctx(block)
     old_ts = (datetime.datetime.now() - datetime.timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
     _set_err_state(ctx, old_ts, 'ValueError', 'panne réseau', SAMPLE_TRACEBACK)
 
-    body = _run_and_get_body(ctx, 'Le bouton export ADIF ne répond plus.')
+    journal = _run_and_get_journal(ctx, 'Le bouton export ADIF ne répond plus.')
 
-    assert 'Dernière erreur du journal local' not in body
-    assert 'panne réseau' not in body
+    assert journal is not None  # toujours présent (plateforme), mais sans l'erreur
+    assert 'panne réseau' not in journal
 
 
 def test_reproduction_avant_fix_commit_a1bc360_erreur_ancienne_est_quand_meme_jointe():
@@ -183,8 +227,11 @@ def test_reproduction_avant_fix_commit_a1bc360_erreur_ancienne_est_quand_meme_jo
 def test_message_derreur_tres_long_ne_supprime_pas_la_description():
     """Reproduction concrète du problème [MEDIUM] : un message d'exception
     de 3000 caractères ne doit ni apparaître intégralement dans le rapport,
-    ni faire disparaître la description libre de l'opérateur (placée APRÈS
-    dans le corps, donc la première victime de la troncature de sécurité)."""
+    ni faire disparaître la description libre de l'opérateur. Depuis
+    8194b55/le passage aux Issue Forms, `description` et `journal-technique`
+    sont deux paramètres d'URL DISTINCTS (donc deux troncatures
+    indépendantes) : ce scénario est désormais structurellement impossible,
+    pas seulement évité par un bon ordre de concaténation."""
     block = _extract_report_block(_current_src())
     ctx = _make_ctx(block)
     recent_ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -192,11 +239,16 @@ def test_message_derreur_tres_long_ne_supprime_pas_la_description():
     _set_err_state(ctx, recent_ts, 'ValueError', long_message, SAMPLE_TRACEBACK)
     description = 'Le bouton export ADIF ne répond plus après un import de gros fichier.'
 
-    body = _run_and_get_body(ctx, description)
+    _set_prompt_return(ctx, description)
+    ctx.eval('openReportIssue();')
+    assert ctx.eval('lastAlert') is None
+    url = ctx.eval('openedUrl')
+    journal = urllib.parse.unquote(_url_param(url, 'journal-technique'))
+    got_description = urllib.parse.unquote(_url_param(url, 'description'))
 
-    assert long_message not in body, 'le message doit être tronqué, pas recopié en entier'
-    assert '**Description**' in body
-    assert description in body, 'la description opérateur a été effacée par la troncature finale'
+    assert long_message not in journal, 'le message doit être tronqué, pas recopié en entier'
+    assert got_description == description, (
+        'la description opérateur a été altérée alors que rien ne justifie sa troncature ici')
 
 
 def test_reproduction_avant_fix_commit_a1bc360_message_tres_long_supprime_la_description():
@@ -225,9 +277,10 @@ def test_message_court_reste_intact():
     recent_ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     _set_err_state(ctx, recent_ts, 'ValueError', 'panne réseau', SAMPLE_TRACEBACK)
 
-    body = _run_and_get_body(ctx, 'Description normale.')
+    journal = _run_and_get_journal(ctx, 'Description normale.')
 
-    assert 'ValueError: panne réseau' in body
+    assert journal is not None
+    assert 'ValueError: panne réseau' in journal
 
 
 def test_pas_de_qso_director():

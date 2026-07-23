@@ -69,22 +69,44 @@ jobs:
       # Resolu une seule fois, meme repli que l'etape d'attachement ci-dessous :
       # github.ref_name est le tag pousse (push tag v*), mais vaudrait le nom
       # de la branche en workflow_dispatch — d'ou l'input tag en repli.
+      #
+      # TAG_INPUT passe par env: plutot que par une interpolation ${{ }}
+      # directe dans le script bash : github.event.inputs.tag est un texte
+      # libre saisi a la main (workflow_dispatch, aucune validation de
+      # format), et l'injecter tel quel dans `run:` permettrait a une
+      # valeur du genre `$(curl ... | sh)` de s'executer sur le runner
+      # (injection de script GitHub Actions, classe de faille connue —
+      # https://docs.github.com/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections).
+      # Une fois dans $TAG_INPUT, le shell la traite comme une simple valeur.
       - name: Determiner le tag de version
         id: version
         shell: bash
-        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG_INPUT: ${{ github.event.inputs.tag || github.ref_name }}
+        run: echo "tag=$TAG_INPUT" >> "$GITHUB_OUTPUT"
 
       # Nomme l'artefact avec le tag (LogXAI-v0.9-beta2.exe, -macos, -linux) :
       # sans ca, un testeur avec plusieurs versions dans son dossier
       # Telechargements ne peut plus distinguer laquelle est laquelle (l'exe
       # Windows produit par PyInstaller s'appelle toujours LogXAI.exe).
+      #
+      # Meme raison que l'etape precedente : TAG reste la meme valeur non
+      # validee (juste passee par steps.version entre-temps), donc pas
+      # d'interpolation ${{ }} directe dans `run:` ici non plus — tout
+      # transite par env:, y compris matrix.suffix/ext/source (statiques,
+      # mais un seul pattern coherent pour toute l'etape).
       - name: Renommer l'artefact avec le tag de version
         id: artefact
         working-directory: concours
         shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          SUFFIX: ${{ matrix.suffix }}
+          EXT: ${{ matrix.ext }}
+          SRC: ${{ matrix.source }}
         run: |
-          name="LogXAI-${{ steps.version.outputs.tag }}${{ matrix.suffix }}${{ matrix.ext }}"
-          mv "${{ matrix.source }}" "dist/$name"
+          name="LogXAI-${TAG}${SUFFIX}${EXT}"
+          mv "$SRC" "dist/$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - name: Attacher a la release du tag
