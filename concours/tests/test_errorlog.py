@@ -55,6 +55,43 @@ def test_record_alimente_le_tampon_et_le_fichier(tmp_path):
     assert 'panne réseau' in content
 
 
+def test_ecriture_disque_protegee_par_le_meme_verrou_que_le_tampon(monkeypatch):
+    """Reproduction concrète du problème [MEDIUM] de la revue du commit
+    a1bc360 : le `with _lock:` d'origine n'enveloppait que l'append au
+    tampon mémoire, PAS _rotate_if_large()+l'écriture disque — deux threads
+    en exception simultanée pouvaient donc entrelacer leurs écritures dans
+    errors.log (ou l'un tronquer le fichier pendant que l'autre y écrit).
+    On vérifie ici que _lock est bien tenu à CHAQUE ouverture du fichier de
+    journal déclenchée par _record() (lecture de rotation, réécriture
+    tronquée, et ajout final) — sans le fix, ce test observe `False`."""
+    monkeypatch.setattr(errlog, '_MAX_LOG_BYTES', 50)
+    target = errlog.log_path()
+    # Fichier déjà gros : force _rotate_if_large() à réellement lire+réécrire
+    # (pas seulement à faire un os.path.getsize() qui échoue sur fichier absent).
+    with open(target, 'w', encoding='utf-8') as f:
+        f.write('X' * 500)
+
+    lock_held_at_open = []
+    real_open = builtins.open
+
+    def _spy_open(file, *args, **kwargs):
+        if str(file) == target:
+            lock_held_at_open.append(errlog._lock.locked())
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, 'open', _spy_open)
+
+    exc_type, exc_value, exc_tb = _make_exc('concurrence')
+    errlog._record(exc_type, exc_value, exc_tb, 'MainThread')
+
+    # 3 ouvertures attendues : lecture pour rotation, réécriture tronquée,
+    # ajout de la nouvelle entrée — TOUTES doivent se produire verrou tenu.
+    assert len(lock_held_at_open) == 3, lock_held_at_open
+    assert all(lock_held_at_open), (
+        "une opération disque a eu lieu HORS du verrou _lock — voir "
+        "_record() dans logx_errorlog.py")
+
+
 def test_get_recent_errors_renvoie_une_copie_pas_la_liste_interne():
     exc_type, exc_value, exc_tb = _make_exc()
     errlog._record(exc_type, exc_value, exc_tb, 'MainThread')

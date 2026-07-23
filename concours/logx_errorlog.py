@@ -75,17 +75,23 @@ def _record(exc_type, exc_value, exc_tb, thread_name):
         'message': str(exc_value),
         'traceback': tb_text,
     }
+    # Le verrou enveloppe AUSSI la rotation + l'écriture disque, pas seulement
+    # le tampon mémoire : deux threads qui lèvent une exception au même
+    # instant (scoreboard + backup, par ex.) écrivaient sinon dans errors.log
+    # sans coordination — écritures entrelacées, ou pire, l'un tronque
+    # (_rotate_if_large réécrit tout le fichier) pendant que l'autre y ajoute,
+    # ce qui perd l'entrée en cours d'écriture.
     with _lock:
         _errors.append(entry)
         if len(_errors) > MAX_ERRORS:
             del _errors[:len(_errors) - MAX_ERRORS]
-    try:
-        path = log_path()
-        _rotate_if_large(path)
-        with open(path, 'a', encoding='utf-8') as f:
-            f.write(f"\n=== {entry['ts']} — thread={thread_name} ===\n{tb_text}")
-    except Exception:
-        pass
+        try:
+            path = log_path()
+            _rotate_if_large(path)
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(f"\n=== {entry['ts']} — thread={thread_name} ===\n{tb_text}")
+        except Exception:
+            pass
     return entry
 
 

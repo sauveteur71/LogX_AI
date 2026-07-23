@@ -470,23 +470,55 @@
   // bloqué par le popup blocker du navigateur.
   let _errState = null;
 
+  // Au-delà de ce délai, la dernière erreur connue est considérée hors-sujet
+  // et n'est plus jointe au rapport : sans cette borne, une exception d'un
+  // thread de fond survenue plusieurs heures plus tôt (donc sans rapport
+  // avec ce que l'opérateur signale maintenant) polluait systématiquement
+  // le corps de l'issue GitHub.
+  const ERROR_RECENCY_MS = 15 * 60 * 1000; // 15 minutes
+
+  // Borne la taille de e.message avant construction du corps : contrairement
+  // à `tail` (traceback, déjà tronqué ci-dessous), le message n'était borné
+  // nulle part — un message d'exception anormalement long pouvait à lui seul
+  // dépasser REPORT_BODY_MAX et faire disparaître la description libre de
+  // l'opérateur dans la troncature finale de openReportIssue().
+  const MAX_ERROR_MESSAGE_CHARS = 300;
+
   function refreshErrorsCheck(){
     fetch('/debug/errors').then(r => r.ok ? r.json() : null).then(function(d){
       if (d) _errState = d;
     }).catch(function(){});
   }
 
+  // Parse le format 'YYYY-MM-DD HH:MM:SS' écrit par logx_errorlog.py
+  // (datetime.now().strftime(...), heure LOCALE) : `new Date(str)` n'est pas
+  // fiable sur ce format (pas de 'T'/'Z', interprétation dépendante du
+  // moteur JS), d'où un parsing manuel des composants.
+  function _parseErrorTs(ts){
+    const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(ts || '');
+    if (!m) return null;
+    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  }
+
   function formatLastErrorForReport(){
     if (!_errState || !_errState.errors || !_errState.errors.length) return '';
     const e = _errState.errors[_errState.errors.length - 1]; // le plus récent
+    const ts = _parseErrorTs(e.ts);
+    // Erreur trop ancienne (ou horodatage illisible) : ne rien joindre plutôt
+    // que d'induire l'opérateur en erreur avec une trace sans rapport.
+    if (ts === null || (Date.now() - ts) > ERROR_RECENCY_MS) return '';
     let tail = (e.traceback || '').trim();
     if (tail.length > 400){
       // Derniers 400 points de code (pas unités UTF-16) : voir truncateCodePoints.
       const chars = Array.from(tail);
       tail = '…' + chars.slice(Math.max(0, chars.length - 400)).join('');
     }
+    let msg = e.message || '';
+    if (Array.from(msg).length > MAX_ERROR_MESSAGE_CHARS){
+      msg = truncateCodePoints(msg, MAX_ERROR_MESSAGE_CHARS) + '…';
+    }
     return '\n**Dernière erreur du journal local** (' + e.ts + ', thread ' + e.thread + ')\n'
-         + '```\n' + e.type + ': ' + e.message + '\n' + tail + '\n```\n';
+         + '```\n' + e.type + ': ' + msg + '\n' + tail + '\n```\n';
   }
 
   function openReportIssue(){

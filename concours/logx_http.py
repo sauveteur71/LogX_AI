@@ -1101,7 +1101,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # barre de statut (logx_statusbar.js). EXCLU du gate debug ci-dessous
         # à dessein : contrairement aux autres /debug/*, celui-ci doit rester
         # utilisable par n'importe quel testeur, pas seulement en mode debug.
+        # Reste protégé par le token de session (_require_auth) : ce sont des
+        # traces Python complètes + un chemin de fichier local, pas question
+        # de les exposer sans auth à n'importe quel appareil du LAN.
         if path == '/debug/errors':
+            if not self._require_auth():
+                return
             import logx_errorlog as _errlog
             self._json({'errors': _errlog.get_recent_errors(), 'log_path': _errlog.log_path()})
             return
