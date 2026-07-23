@@ -1701,7 +1701,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'callsign', 'callsign_contest', 'locator', 'contest',
                 'expedition_mode', 'clublog_live', 'cluster_spot_enabled',
                 'activation_program', 'my_activation_ref',
-                'city', 'altitude')}  # ni l'un ni l'autre n'est un secret
+                'city', 'altitude', 'ui_theme')}  # ni l'un ni l'autre n'est un secret
             self._json(safe)
             return
 
@@ -2207,6 +2207,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # prochain vrai QSO ajouté.
                 bump_log_version()
                 print(f"[CFG] Config reçue : {cfg.get('callsign','')} / {cfg.get('locator','')} / {cfg.get('contest','')}")
+                self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Thème jour/nuit : préférence légère partagée entre tous les postes
+        # qui ouvrent le lien multi-poste (sinon un poste qui rejoint pour la
+        # 1re fois retombe sur le mode nuit par défaut, même si la station
+        # principale est en mode jour). Contrairement à /config/save (qui
+        # REMPLACE tout current_config), on ne touche QUE cette clé — un
+        # poste qui n'a jamais vu le reste de la config ne doit pas pouvoir
+        # l'écraser en poussant juste son thème.
+        if self.path == '/ui/theme':
+            try:
+                payload = json.loads(body)
+                theme = payload.get('theme')
+                if theme not in ('day', 'night'):
+                    self._json({'error': 'theme invalide'}, 400)
+                    return
+                with config_lock:
+                    current_config['ui_theme'] = theme
+                    snap = dict(current_config)
+                save_json_atomic(SERVER_CONFIG_FILE, snap)
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)

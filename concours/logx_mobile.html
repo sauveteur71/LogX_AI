@@ -220,11 +220,25 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ─── Thème (propre à cet appareil) ───────────────────────────────────────────
+// ─── Thème (propre à cet appareil, hérité du serveur au 1er accès) ───────────
 if (localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+// Téléphone qui ouvre le lien multi-poste pour la 1re fois : rien encore en
+// localStorage → retombait sur le mode nuit par défaut même si le PC est en
+// mode jour. On hérite alors du dernier thème connu du serveur (jamais si ce
+// téléphone a déjà choisi lui-même).
+if (localStorage.getItem('rc_theme') === null){
+  fetch('/config').then(r => r.ok ? r.json() : null).then(c => {
+    if (c && c.ui_theme && localStorage.getItem('rc_theme') === null){
+      localStorage.setItem('rc_theme', c.ui_theme);
+      document.body.classList.toggle('day-mode', c.ui_theme === 'day');
+    }
+  }).catch(() => {});
+}
 function toggleTheme(){
   const day = document.body.classList.toggle('day-mode');
   localStorage.setItem('rc_theme', day ? 'day' : 'night');
+  fetch('/ui/theme', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({theme: day ? 'day' : 'night'})}).catch(() => {});
 }
 
 // ─── Identité et concours : depuis le PC serveur (jamais saisis ici) ─────────

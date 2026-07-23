@@ -4013,6 +4013,10 @@ function toggleTheme(){
   const day = document.body.classList.toggle('day-mode');
   localStorage.setItem('rc_theme', day ? 'day' : 'night');
   document.getElementById('themeToggle').textContent = day ? '🌙' : '☀️';
+  // Partagé au serveur : les autres postes ouvrant le lien multi-poste pour
+  // la 1re fois hériteront de ce thème au lieu de retomber en mode nuit.
+  fetch('/ui/theme', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({theme: day ? 'day' : 'night'})}).catch(()=>{});
 }
 
 function toggleShortcutsHelp(){

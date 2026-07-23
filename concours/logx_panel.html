@@ -49,8 +49,19 @@ header{display:flex;align-items:center;gap:16px;padding:9px 16px;background:line
 // Migration localStorage 'radiocontest_' -> 'logx_' (renommage du produit), idempotente.
 (function(){try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('radiocontest_')===0){const nk='logx_'+k.slice(13);if(localStorage.getItem(nk)===null)localStorage.setItem(nk,localStorage.getItem(k));}}}catch(e){}})();
 // Thème jour/nuit : cette fenêtre détachée doit suivre le réglage de la page
-// principale (localStorage partagé, même origine).
+// principale (localStorage partagé, même origine). Si ouverte directement sur
+// un AUTRE poste (écran mural sur un 2e PC/projecteur), aucun rc_theme local
+// encore choisi : hériter du dernier thème connu du serveur plutôt que de
+// retomber en mode nuit par défaut.
 if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+if(localStorage.getItem('rc_theme') === null){
+  fetch('/config').then(r=>r.ok?r.json():null).then(c=>{
+    if(c && c.ui_theme && localStorage.getItem('rc_theme') === null){
+      localStorage.setItem('rc_theme', c.ui_theme);
+      document.body.classList.toggle('day-mode', c.ui_theme === 'day');
+    }
+  }).catch(()=>{});
+}
 (function(){
   if(location.protocol==='file:'){ document.body.innerHTML='<div class="empty">Ouvre via le serveur : http://127.0.0.1:8080/logx_panel.html</div>'; return; }
   const params = new URLSearchParams(location.search);

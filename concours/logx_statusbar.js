@@ -138,6 +138,19 @@
   window.addEventListener('storage', function(e){
     if (e.key === 'rc_theme') applyTheme();
   });
+  // Un poste qui ouvre le lien multi-poste POUR LA 1re FOIS n'a encore rien
+  // dans son localStorage → retombait sur le mode nuit par défaut, même si
+  // la station principale est en mode jour. On hérite alors du dernier
+  // thème connu du serveur (jamais si ce navigateur a déjà choisi lui-même —
+  // même priorité "local d'abord, sinon serveur" que expedition_mode).
+  if (localStorage.getItem('rc_theme') === null){
+    fetch('/config').then(function(r){ return r.ok ? r.json() : null; }).then(function(c){
+      if (c && c.ui_theme && localStorage.getItem('rc_theme') === null){
+        localStorage.setItem('rc_theme', c.ui_theme);
+        applyTheme();
+      }
+    }).catch(function(){});
+  }
 
   // ── Mode débutant/expert GLOBAL (choisi dans CONFIG via 🎚) ────────────────
   // Toutes les pages masquent leurs éléments .expert-only en mode simple ;

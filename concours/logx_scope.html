@@ -48,8 +48,17 @@ header{display:flex;align-items:center;gap:16px;padding:10px 20px;background:lin
 (function(){try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('radiocontest_')===0){const nk='logx_'+k.slice(13);if(localStorage.getItem(nk)===null)localStorage.setItem(nk,localStorage.getItem(k));}}}catch(e){}})();
 // Thème jour/nuit : cette fenêtre détachée doit suivre le réglage de la page
 // principale (localStorage partagé, même origine) — sans ça elle s'ouvre
-// toujours en mode nuit même si l'utilisateur est en mode jour.
+// toujours en mode nuit même si l'utilisateur est en mode jour. Ouverte sur
+// un AUTRE poste (2e écran) sans rc_theme local : hériter du serveur.
 if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+if(localStorage.getItem('rc_theme') === null){
+  fetch('/config').then(r=>r.ok?r.json():null).then(c=>{
+    if(c && c.ui_theme && localStorage.getItem('rc_theme') === null){
+      localStorage.setItem('rc_theme', c.ui_theme);
+      document.body.classList.toggle('day-mode', c.ui_theme === 'day');
+    }
+  }).catch(()=>{});
+}
 (function(){
   if(location.protocol==='file:'){ document.body.innerHTML='<div class="empty">Ouvre via le serveur : http://127.0.0.1:8080/logx_scope.html</div>'; return; }
   const BAND_LABELS={'1.8':'160m','3.5':'80m','7':'40m','14':'20m','21':'15m','28':'10m','50':'6m','70':'4m','144':'2m','432':'70cm','1296':'23cm','2320':'13cm','3400':'9cm','5760':'6cm','10368':'3cm','24048':'6mm','47088':'4mm'};
