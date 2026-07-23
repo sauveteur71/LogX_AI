@@ -1380,14 +1380,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log_copy, cfg_snap.get('contest', ''), cfg_snap))
             return
 
-        # Index d'indicatifs fusionné (calldb + archives + qso_archive + log) :
-        # remplace /calldb.json côté client pour le Super Check Partial —
-        # même forme, enrichie de qso_count/worked/last_date.
+        # Index d'indicatifs fusionné (MASTER.SCP + calldb + archives +
+        # qso_archive + log) : remplace /calldb.json côté client pour le
+        # Super Check Partial — même forme, enrichie de qso_count/worked/
+        # last_date. Le concours actif surclasse dept/locator/nom/section/zone
+        # avec le Call History N1MM importé pour LUI (voir export_index()).
         if path == '/call/index':
             import logx_callhistory as callhistory
+            cfg_snap = self._cfg_snapshot()
             with log_lock:
                 log_copy = list(shared_log)
-            self._json(callhistory.export_index(log_copy))
+            self._json(callhistory.export_index(log_copy, contest=cfg_snap.get('contest', '')))
             return
 
         # Historique de station (« déjà contacté ») + « nouveau à vie » :
@@ -1403,6 +1406,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
             h = awards.history(call, log_copy)
             h['new_one'] = awards.new_one(call, band, '', log_copy)
             self._json(h)
+            return
+
+        # Vérification « N+1 » (busted call check, façon N1MM) : indicatifs
+        # connus à une distance de Damerau-Levenshtein de 1 de celui tapé —
+        # calcul 100% local (aucun réseau), donc appelable directement ici.
+        if path.startswith('/call/near'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_callhistory as callhistory
+            qp = parse_qs(urlparse(self.path).query)
+            call = (qp.get('call', [''])[0]).upper().strip()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json({'matches': callhistory.near_matches(call, log_copy)})
+            return
+
+        # État des imports (bouton CONFIG) : nombre d'indicatifs MASTER.SCP et
+        # de fiches Call History déjà importées pour le concours actif.
+        if path == '/callhistory/status':
+            import logx_callhistory as callhistory
+            cfg_snap = self._cfg_snapshot()
+            scp_count = 0
+            try:
+                if os.path.exists(callhistory.MASTER_SCP_FILE):
+                    with open(callhistory.MASTER_SCP_FILE, encoding='utf-8') as f:
+                        scp_count = (json.load(f) or {}).get('count', 0)
+            except Exception:
+                pass
+            contest = cfg_snap.get('contest', '')
+            ch_count = callhistory.call_history_count(contest) if contest else 0
+            self._json({'master_scp_count': scp_count, 'contest': contest,
+                       'call_history_count': ch_count})
             return
 
         # Tableau de bord diplômes : DXCC / départements travaillés & confirmés
@@ -2802,6 +2836,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
+            return
+
+        # Import MASTER.SCP (Super Check Partial N1MM) : fusionné dans l'index
+        # de logx_callhistory.py, jamais un second système de suggestion.
+        # Calcul 100% local (parsing texte) : pas d'appel réseau, donc pas
+        # besoin du pattern ThreadPoolExecutor+timeout réservé aux vrais I/O.
+        if self.path == '/callhistory/import_scp':
+            try:
+                import logx_callhistory as callhistory
+                payload = json.loads(body) if body else {}
+                text = payload.get('text', '')
+                if not text:
+                    self._json({'ok': False, 'error': 'Fichier vide.'}, 400)
+                    return
+                res = callhistory.import_master_scp(text)
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Import d'un fichier Call History (format N1MM) pour UN concours :
+        # préremplit dept/locator/nom/section/zone de ce concours précis,
+        # en plus (jamais à la place) des données propres à la station.
+        if self.path == '/callhistory/import_n1mm':
+            try:
+                import logx_callhistory as callhistory
+                payload = json.loads(body) if body else {}
+                text = payload.get('text', '')
+                contest = payload.get('contest', '') or self._cfg_snapshot().get('contest', '')
+                if not text:
+                    self._json({'ok': False, 'error': 'Fichier vide.'}, 400)
+                    return
+                res = callhistory.import_call_history_n1mm(contest, text)
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
             return
 
         # Mise à jour d'un QSO (correction)

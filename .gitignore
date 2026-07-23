@@ -29,6 +29,8 @@ concours/iota_groups.json
 concours/iota_islands.json
 concours/wca_castles.json
 concours/wca_geocode_cache.json
+concours/master_scp.json
+concours/call_history_n1mm.json
 
 # Documents personnels de préparation (pas le programme lui-même)
 .claude/launch.json

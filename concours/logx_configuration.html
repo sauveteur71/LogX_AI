@@ -729,6 +729,44 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <span id="shareStatus" style="font-family:var(--font-mono);font-size:12px"></span>
         </div>
       </div>
+
+      <!-- BASES D'INDICATIFS EXTERNES — étend le Super Check Partial déjà en
+           place (logx_callhistory.py) avec deux imports au format N1MM,
+           plutôt que de créer un second système de suggestion en parallèle. -->
+      <div class="section">
+        <div class="section-title">🗂️ BASES D'INDICATIFS EXTERNES (N1MM)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">
+          Vient en complément de l'historique local (QSO déjà loggués + base REF/QRZ) pour l'autocomplétion
+          indicatif (Super Check Partial) et le pré-remplissage de l'échange attendu.
+        </div>
+        <div style="padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);margin-bottom:12px">
+          <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">MASTER.SCP</div>
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+            Fichier texte public (un indicatif de concours par ligne, ~45 000 dans le monde) — remonte des
+            indicatifs jamais croisés localement pendant la saisie. Aucun département/locator dedans : sert
+            uniquement au check partial, pas au pré-remplissage.
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('scpFile').click()">📥 Importer MASTER.SCP</button>
+            <input type="file" id="scpFile" accept=".scp,.txt,text/plain" style="display:none" onchange="importMasterScp(this.files[0])">
+            <span id="scpStatus" style="font-family:var(--font-mono);font-size:12px"></span>
+          </div>
+        </div>
+        <div style="padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+          <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">CALL HISTORY (format N1MM)</div>
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+            Fichier texte propre à UN concours (colonnes Call/Name/Loc/Sect/Exch1/CqZone... documentées sur
+            n1mmwp.hamdocs.com) — pré-remplit département/locator/nom/section/zone pour les indicatifs qu'il
+            liste, EN PLUS des données déjà connues de la station. Importé pour le concours actuellement
+            sélectionné ci-dessus.
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('callHistoryFile').click()">📥 Importer un Call History</button>
+            <input type="file" id="callHistoryFile" accept=".txt,.csv,text/plain,text/csv" style="display:none" onchange="importCallHistoryN1mm(this.files[0])">
+            <span id="callHistoryStatus" style="font-family:var(--font-mono);font-size:12px"></span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -5330,6 +5368,75 @@ async function importCustomContests(file){
   }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ Fichier invalide : ${e.message}</span>`; }
   document.getElementById('importFile').value = '';
 }
+
+// ─── BASES D'INDICATIFS EXTERNES (étend logx_callhistory.py — même index
+// fusionné que calldb.json, jamais un second système de suggestion) ──────────
+
+async function importMasterScp(file){
+  const st = document.getElementById('scpStatus');
+  if (!file) return;
+  try{
+    const text = await file.text();
+    st.textContent = '⏳ Import en cours (peut prendre quelques secondes)...';
+    const res = await fetch('/callhistory/import_scp', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text}),
+    });
+    const r = await res.json();
+    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)">❌ ${r.error}</span>`; return; }
+    st.innerHTML = `<span style="color:var(--green)">✅ ${r.imported} indicatif(s) lus, `
+      + `${r.added} nouveau(x) — ${r.total} au total</span>`;
+    refreshCallHistoryStatus();
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ Fichier invalide : ${e.message}</span>`; }
+  document.getElementById('scpFile').value = '';
+}
+
+async function importCallHistoryN1mm(file){
+  const st = document.getElementById('callHistoryStatus');
+  if (!file) return;
+  if (!state.contest){
+    st.innerHTML = '<span style="color:var(--yellow)">⚠️ Choisis d\'abord un concours ci-dessus '
+      + '(le Call History lui est propre).</span>';
+    document.getElementById('callHistoryFile').value = '';
+    return;
+  }
+  try{
+    const text = await file.text();
+    st.textContent = '⏳ Import en cours...';
+    const res = await fetch('/callhistory/import_n1mm', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text, contest: state.contest}),
+    });
+    const r = await res.json();
+    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)">❌ ${r.error}</span>`; return; }
+    let msg = `<span style="color:var(--green)">✅ ${r.imported} fiche(s) importée(s) pour `
+      + `${escC(state.contest)} — ${r.total_for_contest} au total</span>`;
+    if (r.errors && r.errors.length) msg += ` · <span style="color:var(--yellow)">${r.errors.length} ligne(s) ignorée(s)</span>`;
+    st.innerHTML = msg;
+    refreshCallHistoryStatus();
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ Fichier invalide : ${e.message}</span>`; }
+  document.getElementById('callHistoryFile').value = '';
+}
+
+// Rappel de l'état déjà importé — appelé au chargement de la page et après
+// chaque import (les compteurs seuls, sans re-choisir de fichier).
+async function refreshCallHistoryStatus(){
+  try{
+    const r = await (await fetch('/callhistory/status')).json();
+    const scpEl = document.getElementById('scpStatus');
+    if (scpEl && !scpEl.innerHTML) {
+      scpEl.textContent = r.master_scp_count
+        ? `${r.master_scp_count} indicatif(s) déjà importés.` : '';
+    }
+    const chEl = document.getElementById('callHistoryStatus');
+    if (chEl && !chEl.innerHTML) {
+      chEl.textContent = r.contest && r.call_history_count
+        ? `${r.call_history_count} fiche(s) déjà importées pour ${r.contest}.`
+        : (r.contest ? '' : 'Choisis un concours pour voir/importer son Call History.');
+    }
+  }catch(e){ /* hors ligne : silencieux, comme les autres statuts */ }
+}
+window.addEventListener('load', refreshCallHistoryStatus);
 
 async function analyzeRules(url, name){
   url  = url  || document.getElementById('aiRulesUrl').value.trim();
