@@ -50,6 +50,22 @@
         padding:4px 6px;width:100%}
       #rcsbLayoutDD hr{border:none;border-top:1px solid var(--border,#2B2F4A);margin:8px 0}
       #rcsbLayoutDD .rcsb-dd-title{color:var(--muted,#A9B0C8);letter-spacing:1px;font-size:11px;margin-bottom:4px}
+      #rcsbUpdateItem{display:none;cursor:pointer;position:relative;color:var(--yellow,#FFD60A);font-weight:700}
+      #rcsbUpdateDD{position:absolute;top:100%;right:0;z-index:2000;min-width:280px;
+        background:var(--bg2,#0D0E1A);border:1px solid var(--border,#2B2F4A);border-radius:0 0 8px 8px;
+        box-shadow:0 8px 24px rgba(0,0,0,.5);padding:10px;font-size:13px;white-space:normal;color:var(--text,#E9ECF5)}
+      #rcsbUpdateDD .rcsb-upd-notes{max-height:120px;overflow-y:auto;color:var(--muted,#A9B0C8);
+        font-size:12px;white-space:pre-wrap;margin:6px 0;border-top:1px solid var(--border,#2B2F4A);
+        border-bottom:1px solid var(--border,#2B2F4A);padding:6px 0}
+      #rcsbUpdateDD .rcsb-upd-row{display:flex;gap:6px;margin-top:8px}
+      #rcsbUpdateDD button, #rcsbUpdateDD a.rcsb-upd-btn{font-family:inherit;font-size:12px;
+        background:var(--accent,#FF5030);color:#fff;border:none;border-radius:4px;
+        padding:6px 10px;cursor:pointer;text-decoration:none;display:inline-block;text-align:center;flex:1}
+      #rcsbUpdateDD button.rcsb-upd-secondary{background:var(--bg3,#14172C);color:var(--text,#E9ECF5);
+        border:1px solid var(--border,#2B2F4A);flex:none}
+      #rcsbUpdateDD .rcsb-upd-progress{height:6px;border-radius:3px;background:var(--bg3,#14172C);
+        overflow:hidden;margin-top:8px}
+      #rcsbUpdateDD .rcsb-upd-progress-fill{height:100%;background:var(--green,#00FF88);width:0%;transition:width .3s}
     </style>
     <div class="rcsb-item" title="Concours actif (choisi dans CONFIG)">
       🏁 <span class="rcsb-contest" id="rcsbContest">aucun concours</span>
@@ -73,6 +89,10 @@
     <div class="rcsb-item" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
       🗔 <span class="rcsb-val">DISPOSITION</span>
       <div id="rcsbLayoutDD" style="display:none"></div>
+    </div>
+    <div class="rcsb-item" id="rcsbUpdateItem" title="Une nouvelle version de LogX AI est disponible">
+      🆕 <span id="rcsbUpdateLabel">mise à jour</span>
+      <div id="rcsbUpdateDD" style="display:none"></div>
     </div>`;
 
   // ── Rate meter (A3) : QSO/h 10 min extrapolé + 60 min, objectif cliquable ──
@@ -257,6 +277,110 @@
     }catch(e){ /* le serveur n'est pas indispensable pour la barre */ }
   }
 
+  // ── Mise à jour logicielle (proposée, jamais installée sans clic) ─────────
+  // Sondage léger de /app/update_check (cache serveur 6h, aucun appel réseau
+  // direct GitHub depuis le navigateur). Le badge ne s'affiche QUE si une
+  // version plus récente existe ET que ce navigateur n'a pas déjà refusé
+  // CETTE version précise (rc_update_dismissed).
+  let _updState = null;
+
+  function renderUpdateDD(){
+    const dd = document.getElementById('rcsbUpdateDD');
+    if (!dd || !_updState) return;
+    const st = _updState;
+    const dl = window._rcsbDownload || {status: 'idle', pct: 0};
+    const notes = (st.notes || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+    let actionHtml;
+    if (dl.status === 'downloading'){
+      actionHtml = `<div class="rcsb-upd-progress"><div class="rcsb-upd-progress-fill" style="width:${dl.pct}%"></div></div>
+        <div style="text-align:center;margin-top:4px;color:var(--muted,#A9B0C8)">téléchargement ${dl.pct}%</div>`;
+    } else if (dl.status === 'done'){
+      actionHtml = `<div class="rcsb-upd-row"><button id="rcsbUpdInstall">🔁 installer et redémarrer</button></div>`;
+    } else if (dl.status === 'error'){
+      actionHtml = `<div style="color:var(--red,#FF2D55);margin-top:6px">échec : ${(dl.error||'').replace(/[<>&]/g,'')}</div>
+        <div class="rcsb-upd-row"><button id="rcsbUpdDownload">réessayer</button></div>`;
+    } else if (st.installable){
+      actionHtml = `<div class="rcsb-upd-row">
+        <button id="rcsbUpdDownload">⬇️ télécharger et installer</button>
+        <button class="rcsb-upd-secondary" id="rcsbUpdLater">plus tard</button></div>`;
+    } else {
+      actionHtml = `<div class="rcsb-upd-row">
+        <a class="rcsb-upd-btn" href="${st.release_url || '#'}" target="_blank" rel="noopener">voir la release</a>
+        <button class="rcsb-upd-secondary" id="rcsbUpdLater">plus tard</button></div>`;
+    }
+    dd.innerHTML = `<div class="rcsb-dd-title">LOGX AI ${st.latest}</div>
+      <div>version actuelle : ${st.current}</div>
+      ${notes ? '<div class="rcsb-upd-notes">' + notes + '</div>' : ''}
+      ${actionHtml}`;
+  }
+
+  function pollDownload(){
+    fetch('/app/update_status').then(r => r.ok ? r.json() : null).then(function(d){
+      if (!d) return;
+      window._rcsbDownload = d;
+      renderUpdateDD();
+      if (d.status === 'downloading') setTimeout(pollDownload, 800);
+    }).catch(function(){});
+  }
+
+  function pollServerBackUp(){
+    // Après /app/update_install, le serveur coupe volontairement le processus
+    // pour que le script auxiliaire puisse remplacer l'exécutable — on
+    // réessaie jusqu'à ce que la nouvelle instance réponde, puis recharge.
+    fetch('/data/rules_status', {cache: 'no-store'}).then(function(r){
+      if (r.ok) location.reload();
+      else setTimeout(pollServerBackUp, 2000);
+    }).catch(function(){ setTimeout(pollServerBackUp, 2000); });
+  }
+
+  function refreshUpdateCheck(){
+    fetch('/app/update_check').then(r => r.ok ? r.json() : null).then(function(d){
+      if (!d) return;
+      _updState = d;
+      const item = document.getElementById('rcsbUpdateItem');
+      if (!item) return;
+      const dismissed = localStorage.getItem('rc_update_dismissed');
+      if (d.available && dismissed !== d.latest){
+        item.style.display = 'flex';
+        document.getElementById('rcsbUpdateLabel').textContent = 'v' + d.latest + ' disponible';
+        renderUpdateDD();
+      } else {
+        item.style.display = 'none';
+      }
+    }).catch(function(){});
+  }
+
+  bar.addEventListener('click', function(e){
+    const updItem = e.target.closest('#rcsbUpdateItem');
+    const updDD = document.getElementById('rcsbUpdateDD');
+    if (updItem && !e.target.closest('#rcsbUpdateDD')){
+      const willOpen = updDD.style.display === 'none';
+      updDD.style.display = willOpen ? 'block' : 'none';
+      return;
+    }
+    if (e.target.id === 'rcsbUpdDownload'){
+      fetch('/app/update_download', {method: 'POST'}).then(function(){ pollDownload(); });
+      return;
+    }
+    if (e.target.id === 'rcsbUpdInstall'){
+      e.target.disabled = true;
+      e.target.textContent = 'redémarrage…';
+      fetch('/app/update_install', {method: 'POST'}).then(function(){ setTimeout(pollServerBackUp, 2500); });
+      return;
+    }
+    if (e.target.id === 'rcsbUpdLater'){
+      if (_updState) localStorage.setItem('rc_update_dismissed', _updState.latest);
+      document.getElementById('rcsbUpdateItem').style.display = 'none';
+      updDD.style.display = 'none';
+      return;
+    }
+  });
+  document.addEventListener('click', function(e){
+    const dd = document.getElementById('rcsbUpdateDD');
+    const item = document.getElementById('rcsbUpdateItem');
+    if (dd && dd.style.display !== 'none' && item && !item.contains(e.target)) dd.style.display = 'none';
+  });
+
   // ── Panneaux détachables + dispositions nommées (roadmap "lot structurant",
   // inspiré du docking des loggers concurrents sans copier le docking générique : ici de
   // simples fenêtres popup, une disposition = quelles fenêtres sont ouvertes
@@ -417,9 +541,11 @@
     refreshContest(); refreshCountdown(); refreshSave();
     loadContestNames();
     refreshRules();
+    refreshUpdateCheck();
     setInterval(refreshCountdown, 1000);
     setInterval(refreshSave, 15000);
     setInterval(refreshRules, 10 * 60 * 1000);
+    setInterval(refreshUpdateCheck, 30 * 60 * 1000);
     // Réagir aux sauvegardes faites dans un autre onglet
     window.addEventListener('storage', () => { refreshContest(); refreshSave(); });
   }

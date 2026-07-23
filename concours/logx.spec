@@ -33,7 +33,8 @@ _hidden = ['logx_' + m for m in (
     'prompts', 'http', 'rules_ai', 'coach', 'validate', 'dxcc', 'departments',
     'export', 'beacons', 'psk', 'weather', 'rig', 'rotor', 'wsjtx', 'qrz',
     'bootstrap', 'cat', 'tci', 'websdr', 'pota',
-    'activation_db', 'eme', 'iota', 'wca', 'wwff')]
+    'activation_db', 'eme', 'iota', 'wca', 'wwff', 'wwa',
+    'update', 'version')]
 # pyserial (logx_cat) : sous-modules non toujours détectés par
 # l'analyse statique (list_ports selon l'OS cible).
 _hidden += ['serial', 'serial.tools.list_ports', 'serial.tools.list_ports_common',

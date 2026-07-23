@@ -1549,6 +1549,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'spots': pota.fetch_pota_spots()})
             return
 
+        # Mise à jour logicielle : dernière release GitHub connue (cache 6h,
+        # jamais d'appel réseau dans ce thread — voir logx_update.py).
+        if path == '/app/update_check':
+            import logx_update as upd
+            self._json(upd.get_cached_check())
+            return
+
+        # Progression du téléchargement en cours (idle/downloading/done/error)
+        if path == '/app/update_status':
+            import logx_update as upd
+            self._json(upd.get_download_status())
+            return
+
         # Spots d'activateurs SOTA en direct (api2.sota.org.uk, cache 60 s)
         if path == '/data/sota_spots':
             import logx_sota as sota
@@ -2233,6 +2246,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
+            return
+
+        # Mise à jour logicielle : déclenché par un clic opérateur ("Télécharger
+        # et installer"), jamais automatiquement — voir logx_update.py. Ne
+        # touche jamais au dossier de données utilisateur, seul l'exécutable
+        # est remplacé.
+        if self.path == '/app/update_download':
+            import logx_update as upd
+            check = upd.get_cached_check()
+            if not check.get('asset_url'):
+                self._json({'error': 'Aucun exécutable disponible pour cette plateforme'}, 400)
+                return
+            upd.start_download(check['asset_url'])
+            self._json({'ok': True})
+            return
+
+        if self.path == '/app/update_install':
+            import logx_update as upd
+            status = upd.get_download_status()
+            if status.get('status') != 'done' or not status.get('path'):
+                self._json({'error': 'Téléchargement pas terminé'}, 400)
+                return
+            ok, err = upd.apply_update_and_relaunch(status['path'])
+            if not ok:
+                self._json({'error': err}, 400)
+                return
+            self._json({'ok': True, 'restarting': True})
+            # Laisse le temps à la réponse HTTP de partir avant de couper le
+            # serveur — le script auxiliaire attend déjà la fin de CE
+            # processus pour remplacer l'exécutable et le relancer.
+            threading.Timer(1.0, lambda: os._exit(0)).start()
             return
 
         # Radio CAT native/TCI : test éphémère depuis CONFIG (avant même de
