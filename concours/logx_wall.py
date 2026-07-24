@@ -17,6 +17,13 @@ Chaque QSO de `recent` porte aussi `lat`/`lon` (calculés ici depuis le
 locator) et l'état expose `my_lat`/`my_lon` (position de la station) : la
 carte Leaflet de logx_wall.html s'en sert pour tracer les rayons QSO, sans
 recalcul côté client ni endpoint réseau supplémentaire.
+
+`active_ops` (voir _active_operators()) liste les opérateurs ayant loggué
+récemment (proxy « qui est au poste maintenant »), avec leurs qualifications
+SSB/CW/DIGI — panneau roulement du mur. Le planning à VENIR (créneaux
+horaires) n'est PAS dans cet état : logx_wall.html le récupère séparément
+via GET /shifts/list (logx_storage.shifts_sorted), rafraîchi à un rythme
+plus lent puisqu'il change rarement.
 """
 import datetime
 import json
@@ -147,6 +154,54 @@ def _entry_dt(e):
         return None
 
 
+# Fenêtre de récence pour considérer un opérateur "actuellement actif" sur le
+# panneau roulement du mur — voir _active_operators().
+ACTIVE_OP_WINDOW_MIN = 15
+
+
+def _active_operators(entries, cfg, now, window_min=ACTIVE_OP_WINDOW_MIN):
+    """Opérateur(s) « actuellement actifs » : aucun mécanisme de présence
+    dédié n'existe dans l'appli (pas de heartbeat/chat), donc on se sert du
+    log commun lui-même comme source de vérité — un opérateur ayant loggué un
+    QSO dans les `window_min` dernières minutes est considéré actif. Chaque
+    entrée est enrichie avec les qualifications déclarées en CONFIG
+    (operators[].modes, voir logx_configuration.html popup OPÉRATEURS) pour
+    le badge SSB/CW/DIGI du mur — qualification absente de la config -> True
+    par défaut (même convention que /shifts/add et collectConfig() côté
+    client : jamais un opérateur silencieusement privé d'un mode)."""
+    operators_cfg = {str(o.get('call', '')).upper().strip(): o
+                      for o in (cfg.get('operators') or []) if o.get('call')}
+    last_seen = {}   # indicatif opérateur -> (dt le plus récent, bande, mode)
+    for e in entries:
+        op = str(e.get('operator', '') or e.get('my_call', '') or '').strip()
+        if not op:
+            continue
+        dt = _entry_dt(e)
+        if not dt:
+            continue
+        prev = last_seen.get(op)
+        if prev is None or dt > prev[0]:
+            last_seen[op] = (dt, str(e.get('band', '')), str(e.get('mode', '')).upper())
+
+    active = []
+    for op, (dt, band, mode) in last_seen.items():
+        age = max(0, (now - dt).total_seconds())   # clamp : horloge légèrement en avance sur le log
+        if age > window_min * 60:
+            continue
+        opcfg = operators_cfg.get(op.upper())
+        modes = (opcfg.get('modes') if opcfg else None) or {}
+        active.append({
+            'call': op,
+            'name': (opcfg.get('name') if opcfg else '') or '',
+            'modes': {m: bool(modes.get(m, True)) for m in ('ssb', 'cw', 'digi')},
+            'band': band,
+            'mode': mode,
+            'secs_ago': int(age),
+        })
+    active.sort(key=lambda a: a['secs_ago'])
+    return active
+
+
 def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
     """État pour l'écran mural. Retourne totaux, rythme, répartitions et les
     `recent` derniers QSO (plus récents d'abord).
@@ -233,6 +288,7 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
                 break
 
     _enrich_recent(recents)   # drapeau + pays + prénom par QSO
+    active_ops = _active_operators(entries, cfg, now)
 
     return {
         'callsign': (cfg.get('callsign_contest') or cfg.get('callsign') or '').upper(),
@@ -254,5 +310,6 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
         'per_op': dict(sorted(per_op.items(), key=lambda kv: -kv[1])),
         'odx': odx,
         'recent': recents,
+        'active_ops': active_ops,
         'now_utc': now.strftime('%H:%M:%S'),
     }

@@ -85,6 +85,32 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .cond-row{font-family:var(--mono);font-size:19px;margin:7px 0;color:var(--text);line-height:1.3}
 .cond-row b{font-weight:800}
 .cond-warn{color:var(--red);font-weight:800;display:block;margin-top:2px;font-size:16px}
+/* Roulement opérateurs : qui est actif maintenant (badges qualif SSB/CW/DIGI)
+   + planning à venir (/shifts/list). Polices assez grandes pour rester
+   lisibles de loin (projecteur/TV), même logique que .chip/.bar-lbl. */
+.wsub{font-family:var(--mono);font-size:13px;letter-spacing:2px;color:var(--muted);
+  opacity:.8;margin:10px 0 6px}
+.wsub:first-child{margin-top:0}
+.oprow{display:flex;align-items:center;gap:10px;font-family:var(--mono);
+  font-size:20px;margin:6px 0;flex-wrap:wrap}
+.op-call{color:var(--text);font-weight:800;letter-spacing:1px}
+.op-age{margin-left:auto;color:var(--muted);font-size:14px}
+.opbadge{font-size:13px;font-weight:700;padding:2px 7px;border-radius:5px;
+  letter-spacing:1px;border:1px solid var(--border)}
+.opbadge.on{background:var(--green);color:#04170D;border-color:var(--green)}
+.opbadge.off{color:var(--muted);opacity:.4}
+.shrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);
+  font-size:19px;margin:7px 0;padding:6px 8px;border-radius:8px;flex-wrap:wrap;
+  border-left:3px solid transparent}
+.shrow.now{border-left-color:var(--accent2);background:rgba(0,212,255,.08)}
+.shrow.soon{border-left-color:var(--yellow);background:rgba(255,214,10,.14);
+  animation:shpulse 1.8s ease-in-out infinite}
+@keyframes shpulse{0%,100%{background:rgba(255,214,10,.14)}50%{background:rgba(255,214,10,.28)}}
+.sh-time{color:var(--accent2);font-weight:800;min-width:100px}
+.sh-call{color:var(--text);font-weight:800;flex:1}
+.sh-tag{font-size:13px}
+.sh-tag.now{color:var(--accent2);font-weight:700}
+.sh-tag.soon{color:var(--yellow);font-weight:700}
 .wfoot{position:fixed;bottom:6px;right:14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
 /* Carte du monde (rayons QSO + grayline) — même patron visuel que .wstream :
    en-tête bordé + zone flexible en dessous. Panneau "hero" du mur (colonne la
@@ -169,6 +195,23 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
     <div class="wblock grow"><div class="wbt">📊 PAR BANDE</div><div id="wBands"></div></div>
     <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
     <div class="wblock"><div class="wbt">👤 PAR OPÉRATEUR</div><div class="chips" id="wOps"></div></div>
+    <!-- Roulement opérateurs : qui est actuellement au poste (proxy = dernier
+         QSO loggué par opérateur, voir wall_state()['active_ops']) avec ses
+         qualifications SSB/CW/DIGI, + planning à venir (GET /shifts/list,
+         créé par la tâche 'operator-shifts-backend'). Masqué entièrement si
+         rien à montrer (aucun opérateur récemment actif ET aucun créneau
+         planifié) — jamais un encart vide en permanence sur le mur. -->
+    <div class="wblock" id="wRoulement" style="display:none">
+      <div class="wbt">🔄 ROULEMENT OPÉRATEURS</div>
+      <div id="wActiveOpsBlock" style="display:none">
+        <div class="wsub">ACTIF(S) MAINTENANT</div>
+        <div id="wActiveOps"></div>
+      </div>
+      <div id="wShiftsBlock" style="display:none">
+        <div class="wsub">À VENIR</div>
+        <div id="wShifts"></div>
+      </div>
+    </div>
   </div>
 </div>
 <div class="wfoot">LogX AI — écran mural · rafraîchi toutes les 3 s</div>
@@ -197,6 +240,7 @@ if(localStorage.getItem('rc_theme') === null){
   }
   let lastTopKey='';
   let wallVhfActive=false;   // reflète d.vhf_active — pilote l'affichage du panneau EME
+  let lastShifts=[];         // dernier /shifts/list connu — rafraîchi à part (voir tickShifts)
   function fmtTime(t){ return (t||'').slice(0,5); }
   // Échappement HTML : q.name/q.country viennent des annuaires externes (QRZ/
   // HamQTH) et q.call du cluster/ADIF importé — données non maîtrisées injectées
@@ -327,6 +371,88 @@ if(localStorage.getItem('rc_theme') === null){
     });
   }
 
+  // ── ROULEMENT OPÉRATEURS : actif(s) maintenant + planning à venir ────────
+  function fmtAge(secs){
+    if(secs<60) return "à l'instant";
+    return `il y a ${Math.round(secs/60)} min`;
+  }
+
+  // Bornes {start,end} d'un créneau en UTC. Sans date explicite (cas courant,
+  // planning mono-jour), le créneau est ancré sur le jour UTC COURANT au
+  // moment de l'affichage (même convention que le commentaire de
+  // logx_storage.operator_shifts). Un créneau dont l'heure de fin est <= à
+  // l'heure de début est considéré à cheval sur minuit UTC (concours 24/48 h).
+  function shiftBounds(s){
+    const now=new Date();
+    let y,mo,d;
+    if(s.date && /^\d{8}$/.test(String(s.date))){
+      const ds=String(s.date);
+      y=+ds.slice(0,4); mo=+ds.slice(4,6)-1; d=+ds.slice(6,8);
+    } else {
+      y=now.getUTCFullYear(); mo=now.getUTCMonth(); d=now.getUTCDate();
+    }
+    const [sh,sm]=String(s.start||'00:00').split(':').map(n=>parseInt(n,10)||0);
+    const [eh,em]=String(s.end||'00:00').split(':').map(n=>parseInt(n,10)||0);
+    const start=new Date(Date.UTC(y,mo,d,sh,sm));
+    let end=new Date(Date.UTC(y,mo,d,eh,em));
+    if(end<=start) end=new Date(end.getTime()+24*3600*1000);
+    return {start,end};
+  }
+
+  function renderRoulement(activeOps, shifts){
+    const panel=document.getElementById('wRoulement');
+    const activeBlock=document.getElementById('wActiveOpsBlock');
+    const shiftsBlock=document.getElementById('wShiftsBlock');
+    const hasActive=Array.isArray(activeOps) && activeOps.length>0;
+
+    const now=new Date();
+    const upcoming=(Array.isArray(shifts)?shifts:[])
+      .map(s=>({s, ...shiftBounds(s)}))
+      .filter(x=>x.end>now)          // exclut les créneaux déjà terminés
+      .sort((a,b)=>a.start-b.start)
+      .slice(0,6);
+    const hasShifts=upcoming.length>0;
+
+    // Rien à montrer -> panneau entièrement masqué, jamais un encart vide
+    // en permanence sur un écran mural allumé en continu.
+    if(!hasActive && !hasShifts){ panel.style.display='none'; return; }
+    panel.style.display='';
+
+    activeBlock.style.display=hasActive?'':'none';
+    if(hasActive){
+      document.getElementById('wActiveOps').innerHTML=activeOps.map(o=>{
+        const badges=['ssb','cw','digi'].map(m=>
+          `<span class="opbadge ${o.modes && o.modes[m] ? 'on':'off'}">${m.toUpperCase()}</span>`).join('');
+        return `<div class="oprow"><span class="op-call">${esc(o.call)}</span>${badges}`+
+          `<span class="op-age">${fmtAge(o.secs_ago||0)}</span></div>`;
+      }).join('');
+    }
+
+    shiftsBlock.style.display=hasShifts?'':'none';
+    if(hasShifts){
+      document.getElementById('wShifts').innerHTML=upcoming.map(x=>{
+        const s=x.s;
+        const inProgress=x.start<=now;
+        // Prochain créneau qui commence dans les 15 min -> mis en évidence.
+        const startsSoon=!inProgress && (x.start-now)<=15*60*1000;
+        const cls=inProgress?'now':(startsSoon?'soon':'');
+        const tag=inProgress?'<span class="sh-tag now">● EN COURS</span>'
+          :startsSoon?'<span class="sh-tag soon">⏰ BIENTÔT</span>':'';
+        const modeBadge=['ssb','cw','digi'].includes(String(s.mode||'').toLowerCase())
+          ?`<span class="opbadge on">${esc(String(s.mode).toUpperCase())}</span>`:'';
+        return `<div class="shrow ${cls}"><span class="sh-time">${esc(s.start)}–${esc(s.end)}</span>`+
+          `<span class="sh-call">${esc(s.call)}${s.name?' · '+esc(s.name):''}</span>${modeBadge}${tag}</div>`;
+      }).join('');
+    }
+  }
+
+  async function tickShifts(){
+    try{
+      const r=await fetch('/shifts/list');
+      if(r.ok){ const d=await r.json(); lastShifts=Array.isArray(d.shifts)?d.shifts:[]; }
+    }catch(e){}
+  }
+
   function render(d){
     drawWallRays(d);   // rayons QSO — avant le reste, indépendant du DOM texte ci-dessous
     document.getElementById('wCall').textContent = d.callsign || '—';
@@ -400,6 +526,8 @@ if(localStorage.getItem('rc_theme') === null){
       .map(([m,n])=>`<span class="chip">${m} <b>${n}</b></span>`).join('') || '—';
     document.getElementById('wOps').innerHTML=Object.entries(d.per_op||{})
       .filter(([o])=>o&&o!=='—').map(([o,n])=>`<span class="chip">${o} <b>${n}</b></span>`).join('') || '—';
+
+    renderRoulement(d.active_ops||[], lastShifts);
   }
 
   async function tick(){
@@ -408,6 +536,12 @@ if(localStorage.getItem('rc_theme') === null){
   initWallMap();   // fond de carte + grayline — indépendant du poll, avant le 1er tick()
   tick();
   setInterval(tick, 3000);
+  // Planning de roulement : change rarement (ajout/suppression manuelle
+  // depuis CONFIG), inutile de le repolliner au rythme du log (3 s) — le
+  // panneau se redessine quand même toutes les 3 s via render() ci-dessus
+  // pour faire avancer la mise en évidence "commence bientôt".
+  tickShifts();
+  setInterval(tickShifts, 20000);
 
   // ── CONDITIONS : solaire + EME + météo ────────────────────────────────────
   // Trois sources déjà calculées côté serveur, consommées ici SANS dupliquer
