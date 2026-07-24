@@ -2741,12 +2741,22 @@ const CONTESTS = [
 //     lecture IA du règlement arrivera en Phase 3).
 const VERIFIED_IDS = new Set();   // ids présents dans la base serveur
 
+// Vrai règlement (bandes/modes) tel que connu côté serveur — CONTEST_DEFINITIONS
+// (logx_definitions.py, y compris les concours personnalisés fusionnés depuis
+// custom_contests.json), exposé tel quel par /data/calendar (valeurs brutes
+// MHz ex. '144'/'3.5' et modes majuscules ex. 'SSB'/'FT8', ou 'all'). Utilisé
+// par _resolveContestFilters() pour restreindre l'étape FILTRES sans dupliquer
+// une 2e fois ce règlement à la main (voir LEGACY_CONTEST_FILTERS plus bas,
+// qui ne sert plus que pour les quelques concours ABSENTS de cette base).
+const SERVER_CONTEST_RULES = {};
+
 async function mergeServerContests(){
   try{
     const res = await fetch('/data/calendar');
     const data = await res.json();
     (data.contests || []).forEach(sc => {
       VERIFIED_IDS.add(sc.id);
+      SERVER_CONTEST_RULES[sc.id] = { bands: sc.bands || [], modes: sc.modes || [] };
       const local = CONTESTS.find(c => c.id === sc.id);
       if (local){
         // La date serveur est recalculée chaque année → plus fiable que celle en dur
@@ -4198,7 +4208,26 @@ async function disableAccessPassword(){
 }
 
 // ─── FILTRES AUTOMATIQUES PAR CONCOURS ────────────────────────────────────────
-const CONTEST_FILTERS = {
+// Correctif [audit config bandes/modes] : la grille de toggles était filtrée
+// par un objet client codé à la main (CONTEST_FILTERS, ~35 concours) qui ne
+// couvrait ni les concours personnalisés (custom_contests.json) ni les futurs
+// concours serveur, et ne masquait jamais les MODES hors règlement (seulement
+// les bandes) — un opérateur pouvait cocher un mode que le concours n'autorise
+// pas. Source de vérité désormais : SERVER_CONTEST_RULES (rempli par
+// mergeServerContests() depuis /data/calendar, lui-même dérivé de
+// CONTEST_DEFINITIONS + custom_contests.json côté serveur), traduit vers les
+// clés toggle via BAND_TOGGLE_KEY/MODE_TOGGLE_KEY (repris tels quels de
+// logx_logbook.js pour ne pas re-diverger une 2e fois du même mapping — c'est
+// exactement l'absence de clé WWA FT2/PSK dans CONTEST_FILTERS qui avait
+// provoqué le bug constaté par l'audit).
+//
+// LEGACY_CONTEST_FILTERS ne sert plus que de repli pour les quelques concours
+// ABSENTS de CONTEST_DEFINITIONS (parties CCD mensuelles, TVA, Marconi, F8TD,
+// 50 MHz REF/IARU, UFT...) : leur règlement n'existe nulle part ailleurs côté
+// serveur, donc cette table reste ici l'unique source pour CES ids précis —
+// ce n'est plus une duplication du même règlement que celui déjà exposé par
+// /data/calendar (voir _resolveContestFilters ci-dessous).
+const LEGACY_CONTEST_FILTERS = {
 
   // ── Challenge THF annuel cumulatif (144MHz→47GHz, tous modes)
   'REF_CHALLENGE_THF': { modes:['mode_ssb','mode_cw','mode_fm','mode_ft8','mode_ft4'],
@@ -4221,85 +4250,86 @@ const CONTEST_FILTERS = {
   'REF_CCD_AVR_CW':{ modes:['mode_cw'], bands:['band_2m'] },
   'REF_CCD_DEC_CW':{ modes:['mode_cw'], bands:['band_2m'] },
 
-  // ── CDF HF (80m→10m — PAS de 160m dans le règlement)
-  'REF_CDF_HF_SSB':{ modes:['mode_ssb'], bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
-  'REF_CDF_HF_CW': { modes:['mode_cw'],  bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
-
-  // ── National THF / CDF THF (144MHz→47GHz, SSB+CW+FM)
-  'REF_NAT_THF':   { modes:['mode_ssb','mode_cw','mode_fm'],
-                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-  'REF_CDF_THF':   { modes:['mode_ssb','mode_cw','mode_fm'],
-                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-
   // ── TVA (ATV/FM relais — 70cm+23cm)
   'REF_NAT_TVA':     { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
   'REF_IARU_TVA':    { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
   'REF_CDF_TVA':     { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
   'REF_NAT_TVA_DEC': { modes:['mode_fm'], bands:['band_70cm','band_23cm'] },
 
-  // ── Concours du Printemps / Été (144MHz→47GHz, SSB+CW+FM)
-  'REF_PRINTEMPS': { modes:['mode_ssb','mode_cw','mode_fm'],
-                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-  'REF_ETE':       { modes:['mode_ssb','mode_cw','mode_fm'],
-                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-
   // ── 50 MHz
   'REF_DDFM_50':   { modes:['mode_ssb','mode_cw','mode_fm'], bands:['band_6m'] },
   'REF_IARU_50':   { modes:['mode_ssb','mode_cw'],           bands:['band_6m'] },
   'IARU_50':       { modes:['mode_ssb','mode_cw'],           bands:['band_6m'] },
 
-  // ── RPH — SSB + CW + FM, toutes bandes VHF→SHF (144MHz→47GHz)
-  'REF_RPH':       { modes:['mode_ssb','mode_cw','mode_fm'],
-                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-
-  // ── QRP (144MHz→47GHz, SSB+CW — pas de FM)
-  'REF_QRP':       { modes:['mode_ssb','mode_cw'],
-                     bands:['band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-
   // ── F8TD — SHF uniquement (1296MHz→47GHz, SSB+CW)
   'REF_F8TD':      { modes:['mode_ssb','mode_cw'],
                      bands:['band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
 
-  // ── IARU VHF (144MHz uniquement, SSB+CW)
+  // ── IARU VHF (144MHz uniquement, SSB+CW) — id historique REF_IARU_VHF,
+  // distinct de IARU_VHF (celui-ci EST dans CONTEST_DEFINITIONS)
   'REF_IARU_VHF':  { modes:['mode_ssb','mode_cw'], bands:['band_2m'] },
-  'IARU_VHF':      { modes:['mode_ssb','mode_cw'], bands:['band_2m'] },
 
-  // ── Marconi (144MHz, CW UNIQUEMENT)
+  // ── Marconi (144MHz, CW UNIQUEMENT) — id historique REF_MARCONI, distinct
+  // de IARU_MARCONI (CONTEST_DEFINITIONS)
   'REF_MARCONI':   { modes:['mode_cw'], bands:['band_2m'] },
 
-  // ── IARU UHF/SHF (432MHz→47GHz)
+  // ── IARU UHF/SHF (432MHz→47GHz) — id historique REF_IARU_UHF, distinct de
+  // IARU_UHF (CONTEST_DEFINITIONS)
   'REF_IARU_UHF':  { modes:['mode_ssb','mode_cw'],
                      bands:['band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-  'IARU_UHF':      { modes:['mode_ssb','mode_cw'],
-                     bands:['band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm'] },
-
-  // ── REF 160m — Trophée F8EX (1.8MHz uniquement)
-  'REF_160M':      { modes:['mode_ssb','mode_cw'], bands:['band_160m'] },
 
   // ── UFT (HF 80→10m, CW uniquement)
   'F9NL':          { modes:['mode_cw'], bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
   'UFT_RENCONTRES':{ modes:['mode_cw'], bands:['band_80m','band_40m','band_20m','band_15m','band_10m'] },
-
-  // ── CQ Magazine (160→10m)
-  'CQ_WW_SSB':     { modes:['mode_ssb'], bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
-  'CQ_WW_CW':      { modes:['mode_cw'],  bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
-  // ── World Wide Award : 80-40-30-20-17-15-12-10m (pas de 160m), tous modes
-  'WWA_2027_JAN':  { modes:['mode_ssb','mode_cw','mode_ft8','mode_ft4','mode_rtty'],
-                      bands:['band_80m','band_40m','band_30m','band_20m','band_17m','band_15m','band_12m','band_10m'] },
-  'WWA_2027_JUL':  { modes:['mode_ssb','mode_cw','mode_ft8','mode_ft4','mode_rtty'],
-                      bands:['band_80m','band_40m','band_30m','band_20m','band_17m','band_15m','band_12m','band_10m'] },
-  'CQ_WPX_SSB':    { modes:['mode_ssb'], bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
-  'CQ_WPX_CW':     { modes:['mode_cw'],  bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
-
-  // ── ARRL (160→10m)
-  'ARRL_DX_SSB':   { modes:['mode_ssb'], bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
-  'ARRL_DX_CW':    { modes:['mode_cw'],  bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m'] },
-
-  // ── ARRL Field Day (160→10m + 50MHz et plus, pas de 30/17/12m, pas de 4m)
-  'ARRL_FD':       { modes:['mode_ssb','mode_cw','mode_ft8','mode_ft4','mode_rtty'],
-                     bands:['band_160m','band_80m','band_40m','band_20m','band_15m','band_10m',
-                            'band_6m','band_2m','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm'] },
 };
+
+// Correspondance valeur bande serveur (MHz brut, ex. '144') → clé toggle —
+// copie exacte de BAND_TOGGLE_KEY (logx_logbook.js, ~ligne 2318) : même
+// mapping, pas de 2e version qui pourrait diverger.
+const BAND_TOGGLE_KEY = {
+  '1.8':   'band_160m', '3.5':   'band_80m',  '7':     'band_40m',
+  '10.1':  'band_30m',  '14':    'band_20m',  '18':    'band_17m',
+  '21':    'band_15m',  '24':    'band_12m',  '28':    'band_10m',
+  '50':    'band_6m',   '70':    'band_4m',    '144':   'band_2m',
+  '432':   'band_70cm', '1296':  'band_23cm',  '2320':  'band_13cm',
+  '3400':  'band_9cm',  '5760':  'band_6cm',   '10368': 'band_3cm',
+  '24048': 'band_6mm',  '47088': 'band_4mm',
+};
+
+// Correspondance mode serveur → clé toggle — copie exacte de MODE_TOGGLE_KEY
+// (logx_logbook.js, ~ligne 2362), y compris les rattachements WWA FT2→FT8 et
+// PSK→RTTY déjà en place (règlement WWA §5, même famille "DIGI").
+const MODE_TOGGLE_KEY = {
+  'SSB':  'mode_ssb',
+  'CW':   'mode_cw',
+  'FM':   'mode_fm',
+  'FT8':  'mode_ft8',
+  'FT4':  'mode_ft4',
+  'RTTY': 'mode_rtty',
+  'DIGI': 'mode_ft8',
+  'FT2':  'mode_ft8',   // WWA (règlement §5) — pas de toggle dédié, rattaché à FT8
+  'PSK':  'mode_rtty',  // WWA — rattaché à RTTY (même famille "DIGI" au règlement)
+};
+
+// Résout les clés toggle bandes/modes autorisées pour un concours :
+// 1. règlement serveur (SERVER_CONTEST_RULES, source de vérité) ;
+// 2. à défaut, repli LEGACY_CONTEST_FILTERS (concours absents côté serveur) ;
+// 3. sinon null → aucune restriction (comportement sûr par défaut).
+// 'all' explicite (SOTA/POTA...) sur bands OU modes → aucune restriction non
+// plus : le règlement autorise déjà tout, rien à masquer.
+function _resolveContestFilters(contestId) {
+  const rules = SERVER_CONTEST_RULES[contestId];
+  if (rules) {
+    const bands = rules.bands || [];
+    const modes = rules.modes || [];
+    if (bands.includes('all') || modes.includes('all')) return null;
+    const bandKeys = [...new Set(bands.map(b => BAND_TOGGLE_KEY[b]).filter(Boolean))];
+    const modeKeys = [...new Set(modes.map(m => MODE_TOGGLE_KEY[m]).filter(Boolean))];
+    if (!bandKeys.length && !modeKeys.length) return null; // rien de traduisible → ne rien masquer
+    return { bands: bandKeys, modes: modeKeys };
+  }
+  return LEGACY_CONTEST_FILTERS[contestId] || null;
+}
 
 const HF_BANDS  = ['band_vlf','band_160m','band_80m','band_60m','band_40m','band_30m','band_20m','band_17m','band_15m','band_12m','band_10m','band_8m'];
 const VHF_BANDS = ['band_6m','band_4m','band_2m','band_220','band_70cm','band_23cm','band_13cm','band_9cm','band_6cm','band_3cm','band_6mm','band_4mm','band_qo100','band_sat'];
@@ -4309,7 +4339,7 @@ function applyContestFilters(contestId) {
   const secVHF = document.getElementById('section_vhf');
 
   // Réafficher tout par défaut (si pas de filtre)
-  document.querySelectorAll('[data-key^="band_"]').forEach(el => {
+  document.querySelectorAll('[data-key^="band_"], [data-key^="mode_"]').forEach(el => {
     el.style.display = '';
   });
   if(secHF)  secHF.style.display  = '';
@@ -4319,10 +4349,10 @@ function applyContestFilters(contestId) {
   // LOGBOOK SIMPLE : pas de concours -> pas de restriction de règlement,
   // toutes les bandes/tous les modes radioamateur restent sélectionnables
   // (même si un concours a été choisi ou testé précédemment).
-  const filters = getUsageMode() === 'simple' ? null : CONTEST_FILTERS[contestId];
+  const filters = getUsageMode() === 'simple' ? null : _resolveContestFilters(contestId);
 
   if (!filters) {
-    // Aucun filtre connu → tout laisser visible, cacher la note
+    // Aucun règlement connu (serveur ou repli) → tout laisser visible, cacher la note
     if(note) note.style.display = 'none';
     return;
   }
@@ -4342,10 +4372,16 @@ function applyContestFilters(contestId) {
     if(el){ el.style.display = ''; el.classList.add('on'); state.toggles[key] = true; }
   });
 
-  // ── 3. Activer les modes autorisés
+  // ── 3. Cacher TOUS les boutons de mode, puis n'afficher/activer que les
+  // autorisés — même traitement que les bandes ci-dessus (avant ce correctif,
+  // seules les bandes étaient masquées : un mode hors règlement restait
+  // cochable librement, juste pré-coché sur les modes autorisés).
+  document.querySelectorAll('[data-key^="mode_"]').forEach(el => {
+    el.style.display = 'none';
+  });
   filters.modes.forEach(key => {
     const el = document.querySelector(`[data-key="${key}"]`);
-    if(el){ el.classList.add('on'); state.toggles[key] = true; }
+    if(el){ el.style.display = ''; el.classList.add('on'); state.toggles[key] = true; }
   });
 
   // ── 4. Masquer les sections entières si aucune bande visible
@@ -4362,7 +4398,13 @@ function applyContestFilters(contestId) {
       const el = document.querySelector(`[data-key="${b}"]`);
       return el ? el.textContent.trim() : b;
     }).join(' · ');
-    note.innerHTML = `✅ <strong>${name}</strong> — Bandes autorisées par le règlement : ${bandNames}<br><small style="opacity:.8">Seules les bandes du règlement sont affichées. Tu peux en désactiver certaines si tu ne les utilises pas.</small>`;
+    const modeNames = filters.modes.map(m => {
+      const el = document.querySelector(`[data-key="${m}"]`);
+      return el ? el.textContent.trim() : m;
+    }).join(' · ');
+    note.innerHTML = `✅ <strong>${name}</strong> — Bandes autorisées par le règlement : ${bandNames}`
+      + (modeNames ? `<br>Modes autorisés : ${modeNames}` : '')
+      + `<br><small style="opacity:.8">Seules les bandes/modes du règlement sont affichés. Tu peux en désactiver certains si tu ne les utilises pas.</small>`;
     note.style.display = 'block';
   }
 }
@@ -5674,6 +5716,20 @@ function applyFullConfigToForm(c) {
       Object.entries(c.toggles).forEach(([key, val]) => {
         const el = document.querySelector(`[data-key="${key}"]`);
         if(el) { if(val) el.classList.add('on'); else el.classList.remove('on'); }
+      });
+      // Correctif [fuite masquage] : c.toggles peut ramener à true une bande/
+      // mode qui n'appartient PAS au règlement du concours sélectionné juste
+      // au-dessus (selectContest() a déjà masqué/désactivé la bonne sélection
+      // via applyContestFilters(), mais cette restauration écrase state.toggles
+      // sans jamais retoucher au masquage) — un save ultérieur re-persisterait
+      // alors cette valeur malgré le bouton resté visuellement masqué. On
+      // reclame donc explicitement à false tout data-key band_/mode_ resté
+      // masqué (display:none) après cette restauration.
+      document.querySelectorAll('[data-key^="band_"], [data-key^="mode_"]').forEach(el => {
+        if(el.style.display === 'none'){
+          el.classList.remove('on');
+          state.toggles[el.dataset.key] = false;
+        }
       });
     }
     if(c.alert_dx_km) document.getElementById('alert_dx_km').value = c.alert_dx_km;
