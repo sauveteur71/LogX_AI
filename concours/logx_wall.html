@@ -143,6 +143,15 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
   border-radius:8px;border:1px solid var(--border);background:var(--bg3)}
 .cond-mufmap-credit{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);
   text-decoration:none;margin-top:3px}
+/* Fuseaux DX de référence : panneau séparé de CONDITIONS (jamais mélangé —
+   CONDITIONS = propagation/météo, ceci = simple horloge). Voir tickDxClocks()
+   plus bas : 4 lignes fixes, aucune couleur codée en dur (variables --text/
+   --muted/--accent2 déjà utilisées ailleurs sur le mur pour ce même contraste
+   libellé/valeur, ex. .cond-row/.bar-row). */
+.dxrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:19px;margin:7px 0}
+.dxrow .dxflag{font-size:22px;width:26px;text-align:center;flex-shrink:0}
+.dxrow .dxlbl{flex:1;color:var(--muted)}
+.dxrow .dxtime{font-weight:800;letter-spacing:1px;color:var(--accent2)}
 /* Roulement opérateurs : qui est actif maintenant (badges qualif SSB/CW/DIGI)
    + planning à venir (/shifts/list). Polices assez grandes pour rester
    lisibles de loin (projecteur/TV), même logique que .chip/.bar-lbl. */
@@ -261,6 +270,24 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
       <img id="condMufMap" class="cond-mufmap" loading="lazy"
            alt="Carte MUF mondiale (terminateur jour/nuit + ionosondes) — N0NBH/hamqsl.com">
       <a class="cond-mufmap-credit" href="https://www.hamqsl.com/solarmuf.php" target="_blank" rel="noopener noreferrer">🗺️ Carte MUF · N0NBH/hamqsl.com ↗</a>
+    </div>
+    <!-- Fuseaux DX de référence : zones fixes utiles pour anticiper les
+         fenêtres de propagation pendant un concours DX (mêmes repères qu'un
+         mur N1MM/QSO-forwarding classique) — côte Est et côte Ouest USA
+         (Amérique du Nord, le "gros" de l'activité DX en HF), Japon (chemin
+         longue distance Asie, souvent la fenêtre 10-20 m la plus disputée) et
+         Océanie/VK (souvent la fenêtre la plus courte/rare, la plus utile à
+         surveiller). Panneau séparé de CONDITIONS à dessein (voir CSS) :
+         horloges pures, calculées 100% en JS (Intl.DateTimeFormat/timeZone,
+         voir tickDxClocks) — aucun appel réseau, pas de champ serveur dédié
+         (contrairement à UTC qui vient de /data/wall pour rester cohérent
+         avec l'horodatage du log commun). -->
+    <div class="wblock" id="wDxZones">
+      <div class="wbt">🌐 FUSEAUX DX</div>
+      <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Est</span><span class="dxtime" id="dxUSE">—</span></div>
+      <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Ouest</span><span class="dxtime" id="dxUSW">—</span></div>
+      <div class="dxrow"><span class="dxflag">🇯🇵</span><span class="dxlbl">Japon</span><span class="dxtime" id="dxJA">—</span></div>
+      <div class="dxrow"><span class="dxflag">🇦🇺</span><span class="dxlbl">Océanie</span><span class="dxtime" id="dxOC">—</span></div>
     </div>
     <div class="wblock grow"><div class="wbt">📊 PAR BANDE<span class="wbt-page" id="wBandsPageLbl"></span></div><div id="wBands"></div></div>
     <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
@@ -820,6 +847,29 @@ if(localStorage.getItem('rc_theme') === null){
   }
   tickLocalClock();
   setInterval(tickLocalClock, 1000);
+
+  // Fuseaux DX de référence (panneau 🌐 FUSEAUX DX, voir HTML) — zones fixes,
+  // pas de dépendance au concours actif ni au log (contrairement à ODX/PAR
+  // BANDE, ces horloges ont un sens même log vide). hourCycle:'h23' (pas
+  // hour12:false) : évite un bug connu de certains moteurs ICU qui rendent
+  // minuit "24:00" avec hour12:false — h23 garantit 00-23 sans ambiguïté.
+  const DX_ZONES = [
+    {id:'dxUSE', tz:'America/New_York'},     // côte Est USA
+    {id:'dxUSW', tz:'America/Los_Angeles'},  // côte Ouest USA
+    {id:'dxJA',  tz:'Asia/Tokyo'},           // Japon
+    {id:'dxOC',  tz:'Australia/Sydney'},     // Océanie (VK)
+  ];
+  const dxFormatters = DX_ZONES.map(z => ({
+    id: z.id,
+    el: document.getElementById(z.id),
+    fmt: new Intl.DateTimeFormat('fr-FR', {timeZone:z.tz, hour:'2-digit', minute:'2-digit', hourCycle:'h23'}),
+  }));
+  function tickDxClocks(){
+    const now = new Date();
+    dxFormatters.forEach(z=>{ if(z.el) z.el.textContent = z.fmt.format(now); });
+  }
+  tickDxClocks();
+  setInterval(tickDxClocks, 1000);
 })();
 </script>
 </body>
