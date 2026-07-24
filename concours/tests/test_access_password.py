@@ -270,6 +270,22 @@ def test_login_page_next_echappe_les_balises_html(server, isolated_password_file
         assert '<scRipt>alert(document.domain)' not in text
 
 
+def test_login_page_next_backslash_bloque_comme_double_slash(server, isolated_password_file):
+    """Repli constaté lors de la revue du fix XSS (catégorie différente, pas
+    couverte à l'origine) : les navigateurs normalisent '\\' en '/' pour les
+    schémas spéciaux (http/https), donc "/\\evil.com" équivaut à "//evil.com"
+    une fois résolu — un contournement du seul test startswith('//')."""
+    _enable_password(server)
+    for payload in ('/\\evil.com', '/\\\\evil.com', '/\\/evil.com'):
+        status, headers, body = _raw_request(
+            server, 'GET', '/auth/login?next=' + quote(payload, safe=''))
+        assert status == 200
+        text = body.decode('utf-8')
+        # Neutralisé -> repli explicite sur '/', jamais un chemin gardant l'hôte externe.
+        assert 'data-next="/"' in text
+        assert 'evil.com' not in text
+
+
 def test_login_page_next_legitime_toujours_fonctionnel(server, isolated_password_file):
     """Non-régression : un `next` légitime (relatif, sans caractère spécial)
     doit toujours être repris tel quel après le fix (échappement HTML neutre

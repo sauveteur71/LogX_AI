@@ -3972,8 +3972,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         `next` une fois le cookie rc_token obtenu."""
         # Anti-redirection-ouverte : `next` vient de la query string, on ne
         # suit qu'un chemin relatif de CE site, jamais une URL absolue ou un
-        # //hôte-externe.
-        if not next_path or not next_path.startswith('/') or next_path.startswith('//'):
+        # //hôte-externe. Les navigateurs normalisent '\' en '/' pour les
+        # schémas spéciaux (http/https) : "/\evil.com" est donc équivalent à
+        # "//evil.com" une fois résolu par le navigateur, un contournement du
+        # test startswith('//') seul si on ne neutralise pas '\' d'abord.
+        _next_norm = next_path.replace('\\', '/') if next_path else ''
+        if not next_path or not next_path.startswith('/') or _next_norm.startswith('//'):
             next_path = '/'
         # XSS reflété corrigé ici : `next_path` est un texte arbitraire fourni
         # par le client (query string), jamais interpolé dans un littéral JS
