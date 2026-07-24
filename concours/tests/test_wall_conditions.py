@@ -185,3 +185,58 @@ def test_endpoint_data_wall_expose_vhf_active(server, monkeypatch):
     monkeypatch.setattr(httpmod, 'shared_log', [])
     d = _get(server, '/data/wall')
     assert d['vhf_active'] is True
+
+
+# ─── Carte de l'écran mural : lat/lon des rayons QSO + position station ─────
+# (logx_wall.py : recent[i]['lat']/['lon'] et wall_state()['my_lat']/['my_lon']
+# — consommés par la carte Leaflet "kiosque" de logx_wall.html, aucun calcul
+# de locator refait côté client.)
+
+def test_wall_state_recent_expose_latlon():
+    import logx_wall as wall
+    from logx_utils import locator_to_latlon
+    log = [{'call': 'DL1AA', 'band': '14', 'mode': 'CW', 'operator': 'OP1',
+            'date': '20260718', 'time': '14:00', 'locator': 'JO31XX'}]
+    st = wall.wall_state(log, {'locator': 'JN15WD'})
+    r = st['recent'][0]
+    exp_lat, exp_lon = locator_to_latlon('JO31XX')
+    assert r['lat'] == round(exp_lat, 4)
+    assert r['lon'] == round(exp_lon, 4)
+
+
+def test_wall_state_recent_latlon_accepte_locator_4_caracteres():
+    """Un locator à 4 caractères (grid carré, sans sous-carré) doit quand même
+    donner un point exploitable pour tracer le rayon — locator_to_latlon()
+    complète en interne avec 'MM' (M8)."""
+    import logx_wall as wall
+    log = [{'call': 'EA5ZZ', 'band': '7', 'mode': 'FT8', 'operator': 'OP1',
+            'date': '20260718', 'time': '14:00', 'locator': 'IM98'}]
+    st = wall.wall_state(log, {'locator': 'JN15WD'})
+    r = st['recent'][0]
+    assert r['lat'] is not None and r['lon'] is not None
+
+
+def test_wall_state_recent_latlon_none_si_locator_absent():
+    """Pas de locator connu pour ce correspondant : lat/lon à None (le rayon
+    n'est simplement pas tracé côté carte), jamais d'exception."""
+    import logx_wall as wall
+    log = [{'call': 'F1ABC', 'band': '144', 'mode': 'SSB', 'operator': 'OP1',
+            'date': '20260718', 'time': '14:00', 'locator': ''}]
+    st = wall.wall_state(log, {'locator': 'JN15WD'})
+    r = st['recent'][0]
+    assert r['lat'] is None and r['lon'] is None
+
+
+def test_wall_state_expose_my_lat_lon():
+    import logx_wall as wall
+    from logx_utils import locator_to_latlon
+    st = wall.wall_state([], {'locator': 'JN15WD'})
+    exp_lat, exp_lon = locator_to_latlon('JN15WD')
+    assert st['my_lat'] == round(exp_lat, 4)
+    assert st['my_lon'] == round(exp_lon, 4)
+
+
+def test_wall_state_my_lat_lon_none_si_locator_invalide():
+    import logx_wall as wall
+    st = wall.wall_state([], {'locator': 'XX'})
+    assert st['my_lat'] is None and st['my_lon'] is None

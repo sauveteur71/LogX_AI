@@ -12,6 +12,11 @@ Déterministe (aucun réseau) ; alimente GET /data/wall (poll ~3 s). Le champ
 affiché sur un poste HF pur) — les indices solaires et la météo locale sont
 consommés par le mur directement via /data/propagation et /data/weather
 (déjà servis ailleurs, aucune donnée dupliquée ici).
+
+Chaque QSO de `recent` porte aussi `lat`/`lon` (calculés ici depuis le
+locator) et l'état expose `my_lat`/`my_lon` (position de la station) : la
+carte Leaflet de logx_wall.html s'en sert pour tracer les rayons QSO, sans
+recalcul côté client ni endpoint réseau supplémentaire.
 """
 import datetime
 import json
@@ -77,7 +82,12 @@ def _qso_goal(cfg):
 
 
 def _enrich_recent(recents):
-    """Ajoute drapeau + pays (FR) + prénom (si connu) à chaque QSO récent."""
+    """Ajoute drapeau + pays (FR) + prénom (si connu) + lat/lon à chaque QSO
+    récent. Le lat/lon (calculé ici depuis le locator, via locator_to_latlon —
+    qui accepte 4 ou 6 caractères) alimente les rayons de la carte de l'écran
+    mural : plus simple et plus fiable que de refaire ce calcul en JS avec un
+    champ locator potentiellement à 4 caractères (locLL() de logx_carte.html
+    exige 6 caractères)."""
     try:
         import logx_flags as flags
     except Exception:
@@ -94,6 +104,9 @@ def _enrich_recent(recents):
             r['country'] = r.get('country', '')
         entry = calldb.get(call) or calldb.get(call.upper()) or {}
         r['name'] = (entry.get('name', '') if isinstance(entry, dict) else '') or ''
+        lat, lon = locator_to_latlon(r.get('locator', ''))
+        r['lat'] = round(lat, 4) if lat is not None else None
+        r['lon'] = round(lon, 4) if lon is not None else None
     return recents
 
 
@@ -224,6 +237,10 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
     return {
         'callsign': (cfg.get('callsign_contest') or cfg.get('callsign') or '').upper(),
         'contest': contest_id,
+        # Position de la station (calculée depuis cfg.locator) — pour planter
+        # le marqueur central et l'origine des rayons sur la carte du mur.
+        'my_lat': round(my_ll[0], 4) if my_ll[0] is not None else None,
+        'my_lon': round(my_ll[1], 4) if my_ll[1] is not None else None,
         'vhf_active': _vhf_active(cfg),
         'wall_fields': _wall_fields(cfg),
         'qso_total': len(entries),

@@ -42,7 +42,14 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .kv{font-family:var(--mono);font-size:56px;font-weight:800;line-height:1;color:var(--green)}
 .kpi.b2 .kv{color:var(--accent2)}.kpi.b3 .kv{color:var(--yellow)}.kpi.b4 .kv{color:var(--purple)}
 .kl{font-family:var(--mono);font-size:16px;color:var(--muted);letter-spacing:3px;margin-top:6px}
-.wmain{flex:1;display:flex;gap:16px;padding:0 28px 22px;min-height:0}
+/* Grille 3 colonnes : carte (zone principale, "effet waouh") | flux QSO |
+   colonne infos — le log en direct et les compteurs restent visibles (jamais
+   remplacés par la carte, seulement partage l'espace). */
+.wmain{flex:1;display:grid;grid-template-columns:minmax(380px,1.5fr) minmax(320px,1fr) 420px;
+  grid-template-rows:1fr;gap:16px;padding:0 28px 22px;min-height:0}
+@media (max-width:1500px){
+  .wmain{grid-template-columns:minmax(340px,1.3fr) minmax(300px,1fr) 380px}
+}
 .wstream{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:14px;
   display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .wstream-head{font-family:var(--mono);font-size:18px;letter-spacing:4px;color:var(--accent2);
@@ -62,7 +69,7 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .q-mode{color:var(--accent2);font-size:24px;width:70px;text-align:center}
 .q-rst{color:var(--yellow);font-size:22px;width:70px;text-align:center}
 .q-op{color:var(--muted);font-size:20px;width:90px;text-align:right}
-.wside{width:420px;flex-shrink:0;display:flex;flex-direction:column;gap:16px;min-height:0}
+.wside{display:flex;flex-direction:column;gap:16px;min-height:0;min-width:0}
 .wblock{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;overflow:hidden}
 .wblock.grow{flex:1;overflow-y:auto}
 .wbt{font-family:var(--mono);font-size:16px;letter-spacing:3px;color:var(--muted);margin-bottom:10px}
@@ -79,7 +86,31 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .cond-row b{font-weight:800}
 .cond-warn{color:var(--red);font-weight:800;display:block;margin-top:2px;font-size:16px}
 .wfoot{position:fixed;bottom:6px;right:14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+/* Carte du monde (rayons QSO + grayline) — même patron visuel que .wstream :
+   en-tête bordé + zone flexible en dessous. Panneau "hero" du mur (colonne la
+   plus large de .wmain), mais reste juste un panneau de plus dans la grille :
+   il ne remplace ni le flux QSO ni les compteurs (toujours dans .wmain). */
+.wmap{background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.wmap-head{font-family:var(--mono);font-size:18px;letter-spacing:4px;color:var(--accent2);
+  padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+#wallMap{flex:1;min-height:0}
+/* Repli sans JS : si le CDN Leaflet est inaccessible (salle isolée du net),
+   #wallMap reste sans enfant -> :empty matche et affiche ce message, sans
+   qu'aucun script n'ait à détecter l'échec. Dès que Leaflet peuple la div
+   (tuiles, panes), :empty ne matche plus et le message disparaît seul. */
+#wallMap:empty::before{content:'🌍 Carte hors ligne (CDN inaccessible)';display:flex;
+  align-items:center;justify-content:center;height:100%;color:var(--muted);
+  font-family:var(--mono);font-size:16px;text-align:center;padding:20px}
+.leaflet-container{font-family:var(--mono);background:var(--bg3)!important}
+body.day-mode .leaflet-container{background:#D8E4F0!important}
+.leaflet-control-attribution{font-size:10px;opacity:.45}
 </style>
+<!-- Même bibliothèque/version que logx_carte.html (cohérence de rendu) —
+     carte intégrée directement (pas d'iframe vers logx_carte.html : on évite
+     d'embarquer sa navigation/UI, inutile sur un écran mural sans interaction). -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
 
@@ -109,6 +140,14 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 </div>
 
 <div class="wmain">
+  <!-- Carte du monde : rayons vers les QSO récents (colorés par bande) +
+       ligne de grayline (terminateur jour/nuit). Version "kiosque" de la
+       carte Leaflet de logx_carte.html : ni clic ni changement de vue,
+       rendu passif rafraîchi automatiquement (voir script). -->
+  <div class="wmap">
+    <div class="wmap-head"><span>🌍 CARTE DX — RAYONS QSO &amp; GREYLINE</span></div>
+    <div id="wallMap"></div>
+  </div>
   <div class="wstream">
     <div class="wstream-head"><span>⚡ DERNIERS QSO — LOG COMMUN</span><span id="wRate10"></span></div>
     <div id="wStream"><div style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">En attente de QSO…</div></div>
@@ -175,7 +214,121 @@ if(localStorage.getItem('rc_theme') === null){
   };
   function bandLabel(b){ return BAND_LABELS[b] || (b + ' MHz'); }
 
+  // ── CARTE DU MONDE : rayons QSO + grayline ────────────────────────────────
+  // Carte "kiosque" : aucune interaction (pas de zoom/drag/clic — personne ne
+  // pilote un écran mural), rendu purement passif rafraîchi automatiquement.
+  // Tuiles + grayline PORTÉES de logx_carte.html (même CDN/version Leaflet,
+  // mêmes formules) : calcul autonome, aucune dépendance à l'état de la page
+  // carte. Les rayons viennent de d.recent (lat/lon déjà calculés côté
+  // serveur par logx_wall.wall_state — pas de parsing de locator ici).
+  let wallMap = null, wallTile = null, wallMyMarker = null;
+  let wallGreyLine = null, wallQsoLayer = null;
+
+  const WALL_BAND_COLORS = {
+    '1.8':'#FF2D55','3.5':'#FF6B35','7':'#FF9F0A','14':'#FFD60A',
+    '21':'#34C759','28':'#00C7BE','50':'#00D4FF','144':'#BF5AF2',
+    '432':'#FF8C00','1296':'#FF2D55','default':'#39FF14',
+  };
+
+  function wallTileConfig(){
+    const day = document.body.classList.contains('day-mode');
+    if(day) return {url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', sub:'abc'};
+    return {url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', sub:'abcd'};
+  }
+
+  function initWallMap(){
+    if(typeof L === 'undefined' || wallMap) return;   // CDN pas chargé (repli CSS :empty) ou déjà initialisée
+    const el = document.getElementById('wallMap');
+    if(!el) return;
+    const tile = wallTileConfig();
+    wallMap = L.map('wallMap', {
+      center:[20,0], zoom:2,
+      zoomControl:false, attributionControl:true,
+      dragging:false, scrollWheelZoom:false, doubleClickZoom:false,
+      boxZoom:false, keyboard:false, touchZoom:false, tap:false,
+      preferCanvas:true,
+    });
+    wallTile = L.tileLayer(tile.url, {
+      subdomains:tile.sub, maxZoom:8,
+      attribution:'© OpenStreetMap / CARTO',
+    }).addTo(wallMap);
+    wallQsoLayer = L.layerGroup().addTo(wallMap);
+    drawWallGreyLine();
+    setInterval(drawWallGreyLine, 5*60*1000);   // bouge lentement — même cadence que logx_carte.html
+    window.addEventListener('resize', ()=>{ if(wallMap) wallMap.invalidateSize(); });
+  }
+
+  // Déclinaison solaire (°) — algo NOAA simplifié, PORTÉ tel quel de
+  // solarDeclination() (logx_carte.html) : calcul autonome, sans réseau.
+  function wallSolarDeclination(date){
+    const rad = Math.PI/180;
+    const n = date.getTime()/86400000 + 2440587.5 - 2451545.0;
+    const Lm = (280.460 + 0.9856474*n) % 360;
+    const g = ((357.528 + 0.9856003*n) % 360) * rad;
+    const lambda = (Lm + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * rad;
+    const eps = (23.439 - 0.0000004*n) * rad;
+    return Math.asin(Math.sin(eps)*Math.sin(lambda)) / rad;
+  }
+
+  // PORTÉ tel quel de drawGreyLine() (logx_carte.html) — même algorithme,
+  // même zone de nuit semi-transparente.
+  function drawWallGreyLine(){
+    if(!wallMap) return;
+    if(wallGreyLine){ wallGreyLine.remove(); wallGreyLine = null; }
+    const now = new Date();
+    const rad = Math.PI/180;
+    const dec = wallSolarDeclination(now);
+    const decR = dec*rad;
+    const utcHours = now.getUTCHours()+now.getUTCMinutes()/60+now.getUTCSeconds()/3600;
+    const subLon = 180 - utcHours*15;
+    const nightTop = [], nightBot = [];
+    for(let lon=-180; lon<=180; lon+=3){
+      const H = (lon - subLon)*rad;
+      const lat = Math.atan(-Math.cos(H)/Math.tan(decR))/rad;
+      if(dec >= 0){ nightTop.push([-90, lon]); nightBot.push([lat, lon]); }
+      else        { nightTop.push([90, lon]);  nightBot.push([lat, lon]); }
+    }
+    const poly = nightTop.concat(nightBot.reverse());
+    wallGreyLine = L.polygon(poly, {
+      stroke:true, color:'#FFB800', weight:1, opacity:0.5,
+      fill:true, fillColor:'#000018', fillOpacity:0.28, interactive:false,
+    }).addTo(wallMap);
+  }
+
+  // Rayons vers les QSO récents — redessiné à chaque poll (3 s, même cadence
+  // que le flux QSO). Coût négligeable : borné par `recent` (25 par défaut).
+  function drawWallRays(d){
+    if(!wallMap || !wallQsoLayer) return;
+    wallQsoLayer.clearLayers();
+    const myLat = d.my_lat, myLon = d.my_lon;
+    if(myLat==null || myLon==null) return;
+    if(!wallMyMarker){
+      const icon = L.divIcon({
+        html:'<div style="width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #FF5030;box-shadow:0 0 10px #FF5030"></div>',
+        className:'', iconSize:[14,14], iconAnchor:[7,7],
+      });
+      wallMyMarker = L.marker([myLat,myLon], {icon, zIndexOffset:1000, interactive:false}).addTo(wallMap);
+    } else {
+      wallMyMarker.setLatLng([myLat,myLon]);
+    }
+    const recent = d.recent||[];
+    recent.forEach((q,i)=>{
+      if(q.lat==null || q.lon==null) return;
+      const col = WALL_BAND_COLORS[q.band] || WALL_BAND_COLORS.default;
+      L.polyline([[myLat,myLon],[q.lat,q.lon]], {
+        color:col, weight:i===0?2.5:1.4, opacity:i===0?0.9:0.45, interactive:false,
+      }).addTo(wallQsoLayer);
+      const glow = i===0 ? `,0 0 14px ${col}` : '';
+      const icon = L.divIcon({
+        html:`<div style="width:9px;height:9px;border-radius:50%;background:${col};border:1.5px solid #fff;box-shadow:0 0 6px ${col}${glow}"></div>`,
+        className:'', iconSize:[9,9], iconAnchor:[4,4],
+      });
+      L.marker([q.lat,q.lon], {icon, interactive:false, zIndexOffset:i===0?500:0}).addTo(wallQsoLayer);
+    });
+  }
+
   function render(d){
+    drawWallRays(d);   // rayons QSO — avant le reste, indépendant du DOM texte ci-dessous
     document.getElementById('wCall').textContent = d.callsign || '—';
     document.getElementById('wContest').textContent = (d.contest||'').replace(/_/g,' ');
     document.getElementById('wClock').textContent = (d.now_utc||'') + ' UTC';
@@ -252,6 +405,7 @@ if(localStorage.getItem('rc_theme') === null){
   async function tick(){
     try{ const r=await fetch('/data/wall'); if(r.ok) render(await r.json()); }catch(e){}
   }
+  initWallMap();   // fond de carte + grayline — indépendant du poll, avant le 1er tick()
   tick();
   setInterval(tick, 3000);
 
