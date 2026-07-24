@@ -73,11 +73,12 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 /* flex-shrink:0 par défaut : un panneau court (conditions/mode/opérateur) ne
    doit JAMAIS être rogné pour faire de la place à un voisin — seuls les
    panneaux volontairement "élastiques" (.grow, #wRoulement) l'autorisent, via
-   leur propre overflow-y:auto interne. Sans ça, l'ajout du panneau roulement
-   (contenu variable : N opérateurs actifs + créneaux à venir) écrasait
-   silencieusement PAR BANDE/PAR MODE/PAR OPÉRATEUR (overflow:hidden masquait
-   la perte sans jamais déclencher de scroll — repéré par mesure DOM réelle,
-   pas visible à l'oeil sur un log clairsemé). */
+   leur propre zone de contenu à pagination automatique (voir setupAutoPager
+   plus bas). Sans ça, l'ajout du panneau roulement (contenu variable : N
+   opérateurs actifs + créneaux à venir) écrasait silencieusement PAR
+   BANDE/PAR MODE/PAR OPÉRATEUR (overflow:hidden masquait la perte sans
+   jamais déclencher de scroll — repéré par mesure DOM réelle, pas visible à
+   l'oeil sur un log clairsemé). */
 .wblock{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;overflow:hidden;flex-shrink:0}
 /* basis:auto (PAS 0) sur les deux panneaux élastiques : chacun garde sa
    taille NATURELLE tant que la colonne a la place (cas courant — roulement
@@ -86,13 +87,30 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
    taille naturelle de chacun) ne se déclenche QUE si la somme dépasse
    vraiment l'espace dispo — alors PAR BANDE cède plus que #wRoulement
    (poids 3 contre 2), jamais l'inverse. */
-.wblock.grow{flex:3 1 auto;min-height:110px;overflow-y:auto}
+/* L'écran mural est 100% passif (carte sans zoom/drag/clic, personne ne
+   pilote un mur) : un overflow-y:auto classique est donc un contenu
+   INACCESSIBLE en pratique, personne ne peut jamais faire défiler la boîte
+   (repéré par mesure DOM réelle : ex. 0/4 créneaux "À VENIR" visibles avec
+   un roulement chargé, alors même que le commit précédent affirmait avoir
+   vérifié l'absence de perte). .wblock.grow devient donc une colonne flex :
+   l'en-tête (.wbt) reste FIXE, seule la zone de contenu en dessous
+   (#wBands) pagine automatiquement — voir setupAutoPager. */
+.wblock.grow{flex:3 1 auto;min-height:110px;display:flex;flex-direction:column;overflow:hidden}
+.wblock.grow>.wbt{flex-shrink:0}
+#wBands{flex:1;min-height:0;overflow-y:auto;scroll-behavior:smooth}
 /* #wRoulement partage l'espace restant avec PAR BANDE (poids 2 contre 3) au
    lieu de le lui prendre : si le contenu (opérateurs actifs + créneaux)
-   dépasse l'espace alloué, seule SA propre liste défile en interne (jamais
-   manuellement, juste un troncage propre) — même principe que PAR BANDE. */
-#wRoulement{flex:2 1 auto;min-height:90px;overflow-y:auto}
+   dépasse l'espace alloué, sa zone de contenu (.wroulement-body) pagine
+   automatiquement — même principe que PAR BANDE, en-tête fixe. */
+#wRoulement{flex:2 1 auto;min-height:90px;display:flex;flex-direction:column;overflow:hidden}
+#wRoulement>.wbt{flex-shrink:0}
+.wroulement-body{flex:1;min-height:0;overflow-y:auto;scroll-behavior:smooth}
 .wbt{font-family:var(--mono);font-size:16px;letter-spacing:3px;color:var(--muted);margin-bottom:10px}
+/* Repère "page/total" : seul signal visuel qu'un panneau contient plus que ce
+   qui est affiché (voir setupAutoPager). Rempli/vidé par JS, jamais par CSS
+   seul, car il ne doit apparaître QUE si le contenu dépasse réellement la
+   boîte (sinon un panneau court afficherait "1/1" en permanence, du bruit). */
+.wbt-page{margin-left:8px;color:var(--accent2);font-weight:700}
 .bar-row{display:flex;align-items:center;gap:10px;margin:6px 0;font-family:var(--mono)}
 .bar-lbl{width:64px;color:var(--text);font-size:22px}
 .bar-wrap{flex:1;height:22px;background:var(--bg3);border-radius:6px;overflow:hidden}
@@ -101,12 +119,15 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 /* #wOps seul (PAR OPÉRATEUR) : un radioclub peut déclarer jusqu'à ~40
    opérateurs (voir logx_configuration.html), tous loggant potentiellement
-   dans la même session -> autant de chips. Plafonné + défilement interne
-   pour que ce panneau, désormais flex-shrink:0 (voir .wblock plus haut),
-   ne puisse jamais à lui seul repousser la colonne au-delà de l'écran.
+   dans la même session -> autant de chips. Plafonné + pagination automatique
+   (voir setupAutoPager) pour que ce panneau, désormais flex-shrink:0 (voir
+   .wblock plus haut), ne puisse jamais à lui seul repousser la colonne
+   au-delà de l'écran — ET pour que les chips hors champ restent visibles tôt
+   ou tard (le panneau était déjà correctement isolé du header ici, pas de
+   restructuration flex nécessaire contrairement à PAR BANDE/ROULEMENT).
    #wModes n'a pas ce plafond : le nombre de modes radioamateur est borné
    (SSB/CW/FT8/FT4/RTTY/PSK…), jamais piloté par le nombre d'opérateurs. */
-#wOps{max-height:118px;overflow-y:auto}
+#wOps{max-height:118px;overflow-y:auto;scroll-behavior:smooth}
 .chip{font-family:var(--mono);font-size:20px;background:var(--bg3);border:1px solid var(--border);
   border-radius:8px;padding:4px 12px}
 .chip b{color:var(--accent2)}
@@ -220,9 +241,9 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
       <div class="cond-row" id="condEme" style="display:none">🌗 EME —</div>
       <div class="cond-row" id="condWeather">🌡️ Météo —</div>
     </div>
-    <div class="wblock grow"><div class="wbt">📊 PAR BANDE</div><div id="wBands"></div></div>
+    <div class="wblock grow"><div class="wbt">📊 PAR BANDE<span class="wbt-page" id="wBandsPageLbl"></span></div><div id="wBands"></div></div>
     <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
-    <div class="wblock"><div class="wbt">👤 PAR OPÉRATEUR</div><div class="chips" id="wOps"></div></div>
+    <div class="wblock"><div class="wbt">👤 PAR OPÉRATEUR<span class="wbt-page" id="wOpsPageLbl"></span></div><div class="chips" id="wOps"></div></div>
     <!-- Roulement opérateurs : qui est actuellement au poste (proxy = dernier
          QSO loggué par opérateur, voir wall_state()['active_ops']) avec ses
          qualifications SSB/CW/DIGI, + planning à venir (GET /shifts/list,
@@ -230,14 +251,16 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
          rien à montrer (aucun opérateur récemment actif ET aucun créneau
          planifié) — jamais un encart vide en permanence sur le mur. -->
     <div class="wblock" id="wRoulement" style="display:none">
-      <div class="wbt">🔄 ROULEMENT OPÉRATEURS</div>
-      <div id="wActiveOpsBlock" style="display:none">
-        <div class="wsub">ACTIF(S) MAINTENANT</div>
-        <div id="wActiveOps"></div>
-      </div>
-      <div id="wShiftsBlock" style="display:none">
-        <div class="wsub">À VENIR</div>
-        <div id="wShifts"></div>
+      <div class="wbt">🔄 ROULEMENT OPÉRATEURS<span class="wbt-page" id="wRoulementPageLbl"></span></div>
+      <div class="wroulement-body" id="wRoulementBody">
+        <div id="wActiveOpsBlock" style="display:none">
+          <div class="wsub">ACTIF(S) MAINTENANT</div>
+          <div id="wActiveOps"></div>
+        </div>
+        <div id="wShiftsBlock" style="display:none">
+          <div class="wsub">À VENIR</div>
+          <div id="wShifts"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -280,6 +303,72 @@ if(localStorage.getItem('rc_theme') === null){
   // du type <img src=x onerror=...> exécuterait du JS arbitraire.
   function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
     c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // ── PAGINATION AUTOMATIQUE DES PANNEAUX À CONTENU VARIABLE ────────────────
+  // #wBands/#wOps/.wroulement-body ont un overflow-y:auto interne, mais
+  // l'écran mural est explicitement 100% passif (carte sans zoom/drag/clic
+  // plus haut, "personne ne pilote un écran mural") : un simple scroll manuel
+  // n'est ACCESSIBLE À PERSONNE, donc du contenu qui déborde de la boîte est
+  // perdu aussi silencieusement qu'avant l'overflow (repéré par mesure DOM
+  // réelle sur le commit précédent : ex. 0/4 créneaux "À VENIR" visibles avec
+  // un roulement chargé alors que la boîte affichait bien un scrollbar).
+  // Plutôt qu'un scroll que personne n'actionne, ces boîtes PAGINENT
+  // toutes seules : la vue avance d'une page toutes les PAGE_HOLD_MS, boucle
+  // à la fin, et un repère "page/total" dans l'en-tête (.wbt-page) signale
+  // au spectateur qu'il manque du contenu tant qu'il y a plus d'une page —
+  // pour que TOUT le contenu soit vu tôt ou tard sans jamais nécessiter
+  // d'action humaine.
+  const PAGE_HOLD_MS = 4500;
+  const autoPagers = {};   // boxId -> {page, timer}
+
+  function pagesFor(box){
+    const h = box.clientHeight;
+    const overflow = box.scrollHeight - h;
+    // Tolérance de quelques px : évite un "1/2" en boucle infinie sur un
+    // dépassement d'arrondi de sous-pixel, invisible à l'oeil.
+    return (h > 0 && overflow > 4) ? Math.ceil(box.scrollHeight / h) : 1;
+  }
+
+  function setupAutoPager(boxId, lblId){
+    const box = document.getElementById(boxId);
+    if(!box) return;
+    let st = autoPagers[boxId];
+    if(!st) st = autoPagers[boxId] = {page:0, timer:null};
+    const lbl = lblId ? document.getElementById(lblId) : null;
+    const pages = pagesFor(box);
+    if(st.page >= pages) st.page = 0;
+    box.scrollTop = st.page * box.clientHeight;
+    if(lbl) lbl.textContent = pages > 1 ? `· ${st.page+1}/${pages}` : '';
+    if(pages <= 1){
+      // Le contenu tient déjà entièrement : pas besoin (ni envie) de faire
+      // bouger la boîte pour rien — on arrête un minuteur devenu inutile
+      // (ex. après suppression d'opérateurs actifs) plutôt que de le laisser
+      // tourner à vide.
+      if(st.timer){ clearInterval(st.timer); st.timer = null; }
+      return;
+    }
+    if(!st.timer){
+      st.timer = setInterval(()=>{
+        const pp = pagesFor(box);
+        if(pp <= 1){ clearInterval(st.timer); st.timer = null; if(lbl) lbl.textContent=''; return; }
+        st.page = (st.page + 1) % pp;
+        box.scrollTo({top: st.page * box.clientHeight, behavior:'smooth'});
+        if(lbl) lbl.textContent = `· ${st.page+1}/${pp}`;
+      }, PAGE_HOLD_MS);
+    }
+  }
+
+  // Arrête et efface le repère d'un panneau qu'on vient de masquer (ex.
+  // #wRoulement sans opérateur actif ni créneau) : sinon le minuteur continue
+  // à tourner sur une boîte à clientHeight=0 et le repère resterait affiché
+  // au prochain réaffichage avant le premier tick.
+  function teardownAutoPager(boxId, lblId){
+    const st = autoPagers[boxId];
+    if(st && st.timer){ clearInterval(st.timer); st.timer = null; }
+    if(st) st.page = 0;
+    const lbl = lblId ? document.getElementById(lblId) : null;
+    if(lbl) lbl.textContent = '';
+  }
 
   // Noms de bande radioamateur — COPIE de BAND_LABELS (logx_logbook.js).
   // Le mur est autonome (ne charge pas logbook.js) : garder synchro avec la source.
@@ -458,12 +547,13 @@ if(localStorage.getItem('rc_theme') === null){
       .map(s=>({s, ...shiftBounds(s)}))
       .filter(x=>x.end>now)          // exclut les créneaux déjà terminés
       .sort((a,b)=>a.start-b.start)
-      .slice(0,4);   // panneau compact (mur) : au-delà, #wRoulement défile en interne (CSS)
+      .slice(0,4);   // panneau compact (mur) : au-delà, .wroulement-body pagine automatiquement (voir setupAutoPager)
     const hasShifts=upcoming.length>0;
 
     // Rien à montrer -> panneau entièrement masqué, jamais un encart vide
-    // en permanence sur un écran mural allumé en continu.
-    if(!hasActive && !hasShifts){ panel.style.display='none'; return; }
+    // en permanence sur un écran mural allumé en continu. Le repère de page
+    // doit être arrêté avec lui (sinon minuteur fantôme sur boîte à 0px).
+    if(!hasActive && !hasShifts){ panel.style.display='none'; teardownAutoPager('wRoulementBody','wRoulementPageLbl'); return; }
     panel.style.display='';
 
     activeBlock.style.display=hasActive?'':'none';
@@ -492,6 +582,10 @@ if(localStorage.getItem('rc_theme') === null){
           `<span class="sh-call">${esc(s.call)}${s.name?' · '+esc(s.name):''}</span>${modeBadge}${tag}</div>`;
       }).join('');
     }
+
+    // Contenu (re)construit -> (re)calcule la pagination sur la nouvelle
+    // hauteur réelle. Après le innerHTML ci-dessus, jamais avant.
+    setupAutoPager('wRoulementBody', 'wRoulementPageLbl');
   }
 
   async function tickShifts(){
@@ -569,11 +663,13 @@ if(localStorage.getItem('rc_theme') === null){
       <div class="bar-row"><span class="bar-lbl">${bandLabel(b)}</span>
         <span class="bar-wrap"><span class="bar-fill" style="width:${Math.round(100*n/maxB)}%"></span></span>
         <span class="bar-n">${n}</span></div>`).join('') || '<span style="color:var(--muted)">—</span>';
+    setupAutoPager('wBands', 'wBandsPageLbl');   // après le innerHTML : mesure la hauteur réelle du nouveau contenu
 
     document.getElementById('wModes').innerHTML=Object.entries(d.per_mode||{})
       .map(([m,n])=>`<span class="chip">${m} <b>${n}</b></span>`).join('') || '—';
     document.getElementById('wOps').innerHTML=Object.entries(d.per_op||{})
       .filter(([o])=>o&&o!=='—').map(([o,n])=>`<span class="chip">${o} <b>${n}</b></span>`).join('') || '—';
+    setupAutoPager('wOps', 'wOpsPageLbl');
 
     renderRoulement(d.active_ops||[], lastShifts);
   }
