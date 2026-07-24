@@ -266,6 +266,68 @@ def fetch_dxwatch_hf(filter_digital=True):
 
     return spots[:60]
 
+# ── DXHEAT (dxheat.com) — API JSON publique HF + VHF/UHF en un seul appel ────
+def fetch_dxheat(filter_digital=True, count=100):
+    """DXHeat (dxheat.com/source/spots/) : agrégateur de spots avec une vraie
+    API JSON PUBLIQUE (aucune authentification, content-type application/json,
+    header 'server: gunicorn' — vérifié en direct le 24/07/2026). Contrairement
+    aux autres sources, PAS de filtre de bande côté requête : un seul appel
+    ramène HF ET VHF/UHF mélangés (la fréquence, en kHz comme les autres
+    sources HF de ce fichier, permet de reclasser chaque spot par bande via
+    _band_from_freq() — voir logx_scoring.py, jamais recréé ici). Le locator DX
+    est un vrai champ structuré (DXLocator), pas un pattern à extraire du
+    commentaire comme sur DXWatch/F5LEN/Telnet — bien plus fiable, utilisé en
+    priorité."""
+    # Import tardif, même pattern que extract_dx_locator plus haut dans ce
+    # fichier : logx_scoring est un module plus « lourd » (dxcc/wwa/définitions
+    # de concours) qu'on ne veut pas charger à l'import de logx_clusters, y
+    # compris quand seul le cluster telnet/self-spot est utilisé.
+    from logx_scoring import _band_from_freq
+    url = (f'https://dxheat.com/source/spots/?a={int(count)}'
+           '&m=CW&m=PHONE&m=DIGI&valid=1&spam=1')
+    content = fetch_url(url, timeout=10)
+    if not content:
+        return []
+    try:
+        data = json.loads(content)
+    except (ValueError, TypeError) as e:
+        print(f"[DXHEAT] Erreur parsing JSON: {e}")
+        return []
+    if not isinstance(data, list):
+        return []
+    spots = []
+    for s in data:
+        if not isinstance(s, dict):
+            continue
+        call = (s.get('DXCall') or '').strip()
+        if not call:
+            continue
+        try:
+            freq = float(s.get('Frequency') or 0)
+        except (ValueError, TypeError):
+            continue
+        if not freq:
+            continue
+        mode = str(s.get('Mode') or '').upper()
+        if filter_digital and is_digital_mode(mode):
+            continue
+        spots.append({
+            'spotter':  (s.get('Spotter') or '').upper(),
+            'dx':       call.upper(),
+            'freq':     freq,               # kHz — cohérent avec DXSummit/F5LEN/DXWatch/Telnet HF
+            'mode':     mode,
+            # DXLocator est déjà une vraie grille Maidenhead structurée (pas un
+            # commentaire à parser) — gardée telle quelle, juste normalisée en
+            # majuscules/6 caractères comme le reste du pipeline.
+            'locator':  (s.get('DXLocator') or '').upper()[:6],
+            'info':     s.get('Comment') or '',
+            'time':     s.get('Time') or '',
+            'band':     _band_from_freq(freq),  # '' si bande non couverte (ex. SHF)
+            'source':   'dxheat',
+        })
+    print(f"[DXHEAT] {len(spots)} spots (HF+VHF/UHF)")
+    return spots
+
 def fetch_f5len_hf(filter_digital=True):
     """Fetch spots HF depuis F5LEN Webcluster — bandes 14/21/28/7/3.5 MHz."""
     hf_bands = [14, 21, 28, 7]

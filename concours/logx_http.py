@@ -31,7 +31,7 @@ from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
 from logx_clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len,
                       fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster, fetch_dxwatch_hf,
-                      fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
+                      fetch_dxheat, fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
                       fetch_noaa_kindex, fetch_dxmaps_vhf, fetch_3830_scores,
                       lookup_hamqth, enrich_unknown_calls)
 
@@ -583,16 +583,27 @@ def _fetch_spots_50_src(no_digi, toggles):
     return s
 
 def _fetch_spots_hf_src(callsign, no_digi, toggles):
-    """5 sources HF fusionnées et dédupliquées (DXSummit, F5LEN, DXWatch, Telnet,
-    navigateur) — chacune désactivable individuellement depuis CONFIG
-    (toggles src_dxsummit/src_f5len/src_dxwatch/src_telnet). Toutes actives par
-    défaut (True) si le toggle est absent d'une config existante, pour ne rien
-    changer au comportement des utilisateurs qui n'y touchent jamais."""
+    """6 sources HF fusionnées et dédupliquées (DXSummit, F5LEN, DXWatch, Telnet,
+    DXHeat, navigateur) — chacune désactivable individuellement depuis CONFIG
+    (toggles src_dxsummit/src_f5len/src_dxwatch/src_telnet/src_dxheat). Toutes
+    actives par défaut (True) si le toggle est absent d'une config existante,
+    pour ne rien changer au comportement des utilisateurs qui n'y touchent
+    jamais.
+    DXHeat n'est PAS restreinte à une bande côté requête (elle ramène HF ET
+    VHF/UHF en un seul appel, chaque spot déjà étiqueté avec sa bande réelle
+    via _band_from_freq côté logx_clusters) — on la fusionne ici plutôt que
+    dans les pipelines VHF/144-432/50 dédiés : le lot 'HF' est le seul déjà
+    reclassé par bande à partir de la fréquence de CHAQUE spot dans
+    build_ranked_spots (logx_scoring.py), donc un spot VHF/UHF qui s'y trouve
+    finit malgré tout dans la bonne bande au moment du scoring. Un doublon
+    possible avec les caches 144/432/50 (déjà toléré aujourd'hui : DXSummit-HF
+    inclut aussi du 50 MHz sans dédup inter-cache) n'est pas une régression."""
     on = lambda key: toggles.get(key, True)
     s_summit = fetch_dxsummit_hf(filter_digital=no_digi) if on('src_dxsummit') else []
     s_f5len = fetch_f5len_hf(filter_digital=no_digi) if on('src_f5len') else []
     s_dxwatch = fetch_dxwatch_hf(filter_digital=no_digi) if on('src_dxwatch') else []
     s_telnet = fetch_telnet_cluster(callsign=callsign or 'F4GLD', filter_digital=no_digi) if on('src_telnet') else []
+    s_dxheat = fetch_dxheat(filter_digital=no_digi) if on('src_dxheat') else []
     s_browser = []
     with browser_spots_lock:
         age = time.time() - browser_spots_ts
@@ -601,7 +612,7 @@ def _fetch_spots_hf_src(callsign, no_digi, toggles):
             print(f"[BROWSER-SPOTS] {len(s_browser)} spots (age {int(age)}s)")
         elif browser_spots_cache:
             print(f"[BROWSER-SPOTS] cache perime ({int(age)}s)")
-    all_hf = s_summit + s_f5len + s_dxwatch + s_telnet + s_browser
+    all_hf = s_summit + s_f5len + s_dxwatch + s_telnet + s_dxheat + s_browser
     seen_hf = set()
     s = []
     for sp in all_hf:
@@ -612,7 +623,7 @@ def _fetch_spots_hf_src(callsign, no_digi, toggles):
             seen_hf.add(key)
             s.append(sp)
     print(f"[DATA] HF: {len(s)} spots total (DXSummit:{len(s_summit)} F5LEN:{len(s_f5len)} "
-          f"DXWatch:{len(s_dxwatch)} Telnet:{len(s_telnet)} Browser:{len(s_browser)})")
+          f"DXWatch:{len(s_dxwatch)} Telnet:{len(s_telnet)} DXHeat:{len(s_dxheat)} Browser:{len(s_browser)})")
     SPOTS_CACHE['HF'] = s   # consommé par /data/spots_ranked sans re-fetch
     return s
 

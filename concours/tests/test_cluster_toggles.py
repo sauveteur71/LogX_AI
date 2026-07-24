@@ -72,6 +72,7 @@ def _stub_all_hf_sources(monkeypatch, calls):
     monkeypatch.setattr(http, 'fetch_f5len_hf', make('f5len'))
     monkeypatch.setattr(http, 'fetch_dxwatch_hf', make('dxwatch'))
     monkeypatch.setattr(http, 'fetch_telnet_cluster', make('telnet'))
+    monkeypatch.setattr(http, 'fetch_dxheat', make('dxheat'))
 
 
 def test_dxwatch_hf_desormais_reellement_appelee(monkeypatch):
@@ -86,14 +87,34 @@ def test_toutes_sources_hf_actives_par_defaut(monkeypatch):
     calls = []
     _stub_all_hf_sources(monkeypatch, calls)
     http._fetch_spots_hf_src('F4GLD', False, {})
-    assert set(calls) == {'dxsummit', 'f5len', 'dxwatch', 'telnet'}
+    assert set(calls) == {'dxsummit', 'f5len', 'dxwatch', 'telnet', 'dxheat'}
 
 
 def test_source_hf_desactivee_nest_plus_appelee(monkeypatch):
     calls = []
     _stub_all_hf_sources(monkeypatch, calls)
     http._fetch_spots_hf_src('F4GLD', False, {'src_dxwatch': False, 'src_telnet': False})
-    assert calls == ['dxsummit', 'f5len']  # dxwatch et telnet sautés, jamais appelés
+    assert calls == ['dxsummit', 'f5len', 'dxheat']  # dxwatch et telnet sautés, jamais appelés
+
+
+def test_dxheat_desactivable_individuellement(monkeypatch):
+    """src_dxheat suit le même contrat que les autres toggles HF : off = jamais
+    appelée, mais les autres sources continuent de tourner normalement."""
+    calls = []
+    _stub_all_hf_sources(monkeypatch, calls)
+    http._fetch_spots_hf_src('F4GLD', False, {'src_dxheat': False})
+    assert 'dxheat' not in calls
+    assert set(calls) == {'dxsummit', 'f5len', 'dxwatch', 'telnet'}
+
+
+def test_config_existante_sans_src_dxheat_garde_la_source_active(monkeypatch):
+    """Une config sauvegardée AVANT l'ajout de DXHeat n'a pas cette clé dans
+    son dict toggles -> comportement par défaut = actif, pas de régression."""
+    calls = []
+    _stub_all_hf_sources(monkeypatch, calls)
+    old_toggles = {'src_dxsummit': True, 'src_f5len': True, 'mode_ssb': True}
+    http._fetch_spots_hf_src('F4GLD', False, old_toggles)
+    assert 'dxheat' in calls
 
 
 # ─── _fetch_spots_50_src (6 m) ──────────────────────────────────────────────
