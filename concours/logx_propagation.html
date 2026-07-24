@@ -68,6 +68,11 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .muf-band{background:var(--bg3);border-radius:8px;padding:12px;text-align:center;margin-top:8px;border:1px solid var(--accent2)}
 .muf-val{font-family:var(--font-mono);font-size:30px;font-weight:800;color:var(--accent2)}
 
+/* Foudre en direct (Blitzortung) — iframe tierce, pas de données transitant
+   par notre serveur (embed visuel pur, cf. logx_weather.py pour l'alerte
+   orage déjà calculée depuis le code météo WMO). */
+.lightning-frame{width:100%;height:420px;border:1px solid var(--border);border-radius:8px;display:block;background:var(--bg3)}
+
 /* Conditions par bande */
 .band-cond{display:flex;flex-direction:column;gap:5px;margin-top:8px}
 .bc-row{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:13px}
@@ -164,6 +169,18 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       <div class="band-cond scroll-list" id="beaconList"><div class="loading">…</div></div>
       <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">
         Écoute ces fréquences : entendre une balise = la bande est ouverte vers sa région.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">⚡ FOUDRE EN DIRECT <small>Blitzortung.org</small>
+        <a href="https://www.blitzortung.org/fr/live_lightning_maps.php?map=0" target="_blank" rel="noopener noreferrer"
+           title="Ouvrir la carte de foudre en direct dans un nouvel onglet" style="font-size:12px;color:var(--accent2);text-decoration:none">↗ plein écran</a>
+      </div>
+      <iframe class="lightning-frame" src="https://www.blitzortung.org/fr/live_lightning_maps.php?map=0"
+              title="Carte de foudre en direct — Blitzortung.org" loading="lazy" referrerpolicy="no-referrer"></iframe>
+      <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">
+        Réseau collaboratif de détection d'impacts de foudre — sécurité antenne : un orage proche (cf. alerte météo ⚠️ sur l'écran mural) impose de débrancher.
       </div>
     </div>
 

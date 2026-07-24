@@ -233,13 +233,18 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
          cache 15 min), position lunaire EME (/data/eme_moon, calcul local,
          affiché SEULEMENT si la station est VHF/UHF — cf. vhf_active) et
          météo locale (/data/weather, cache 10 min — sécurité antenne). Panneau
-         secondaire : ne concurrence jamais le flux QSO/compteurs. -->
+         secondaire : ne concurrence jamais le flux QSO/compteurs.
+         + lien statique vers la carte de foudre Blitzortung.org (même thème
+         sécurité antenne que la météo) : juste un lien, jamais l'iframe
+         complète ici — trop lourd pour un affichage permanent (cf.
+         logx_propagation.html pour l'intégration en iframe). -->
     <div class="wblock">
       <div class="wbt">🌍 CONDITIONS</div>
       <div class="cond-row" id="condSolar">☀️ SFI — · K —</div>
       <div class="cond-row" id="condMuf">📡 MUF —</div>
       <div class="cond-row" id="condEme" style="display:none">🌗 EME —</div>
       <div class="cond-row" id="condWeather">🌡️ Météo —</div>
+      <div class="cond-row" id="condLightning"><a href="https://www.blitzortung.org/fr/live_lightning_maps.php?map=0" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">⚡ Foudre en direct ↗</a></div>
     </div>
     <div class="wblock grow"><div class="wbt">📊 PAR BANDE<span class="wbt-page" id="wBandsPageLbl"></span></div><div id="wBands"></div></div>
     <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
