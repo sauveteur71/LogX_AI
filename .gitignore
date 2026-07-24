@@ -32,6 +32,7 @@ concours/wca_geocode_cache.json
 concours/master_scp.json
 concours/call_history_n1mm.json
 concours/sota_oauth_tokens.json
+concours/external_contests.json
 
 # Documents personnels de préparation (pas le programme lui-même)
 .claude/launch.json
