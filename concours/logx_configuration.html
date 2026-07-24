@@ -636,15 +636,21 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
           Leurs indicatifs apparaîtront sur les boutons OP dans le logbook
         </div>
-        <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:10px;align-items:center">
+        <div style="display:grid;grid-template-columns:80px 1fr 1fr 1.6fr;gap:10px;align-items:center">
           <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">POSTE</div>
           <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">INDICATIF</div>
           <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px">PRÉNOM</div>
+          <div style="font-size:14px;color:var(--accent2);font-family:var(--font-mono);letter-spacing:2px" title="Modes que cet opérateur sait pratiquer — utilisé par le planning de l'écran mural pour ne proposer que des créneaux compatibles">QUALIFIÉ</div>
           <!-- OP1 — toujours visible, ligne statique (un écouteur DOMContentLoaded
                plus bas cible cet id directement, cf. autoFillCallsign()) -->
           <div style="font-family:var(--font-mono);font-size:14px;color:var(--accent);font-weight:700">OP1</div>
           <input type="text" id="op1_call" placeholder="F4GLD" style="text-transform:uppercase;font-size:14px">
           <input type="text" id="op1_name" placeholder="Olivier" style="font-size:14px">
+          <div class="op-modes-cell" style="display:flex;gap:10px;font-size:13px;font-family:var(--font-mono);color:var(--text)">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op1_mode_ssb" checked>SSB</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op1_mode_cw" checked>CW</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op1_mode_digi" checked>DIGI</label>
+          </div>
           <!-- OP2+ — générées par addOperatorRow()/ensureOperatorRows(), cap selon
                le mode d'utilisation (1 en LOGBOOK SIMPLE, 5 en CONCOURS/EXPÉDITION,
                40 en RADIOCLUB) -->
@@ -4952,10 +4958,22 @@ function saveConfig(silent = false, feedbackBtn = null) {
     // Bornée par le plafond du mode courant (1/5/40) même si des lignes OP2+
     // restent en mémoire d'un mode précédent (ex. RADIOCLUB -> LOGBOOK SIMPLE) :
     // la sauvegarde reflète toujours la règle "un seul opérateur" en mode simple.
-    operators: Array.from({length: Math.min(opRowCount, opRowCap())}, (_, idx) => ({
-      call: document.getElementById(`op${idx+1}_call`).value.toUpperCase().trim(),
-      name: document.getElementById(`op${idx+1}_name`).value.trim(),
-    })).filter(op => op.call),
+    // modes : qualifications de l'opérateur (SSB/CW/DIGI), consommées par le
+    // planning de l'écran mural pour ne proposer que des créneaux compatibles.
+    // Case absente du DOM (ligne pas encore rendue) -> considérée cochée par
+    // défaut, jamais un opérateur silencieusement privé d'un mode.
+    operators: Array.from({length: Math.min(opRowCount, opRowCap())}, (_, idx) => {
+      const modeVal = id => { const el = document.getElementById(id); return el ? el.checked : true; };
+      return {
+        call: document.getElementById(`op${idx+1}_call`).value.toUpperCase().trim(),
+        name: document.getElementById(`op${idx+1}_name`).value.trim(),
+        modes: {
+          ssb: modeVal(`op${idx+1}_mode_ssb`),
+          cw: modeVal(`op${idx+1}_mode_cw`),
+          digi: modeVal(`op${idx+1}_mode_digi`),
+        },
+      };
+    }).filter(op => op.call),
     postes: Array.from({length: posteRowCount}, (_, idx) =>
       (document.getElementById(`poste${idx+1}_name`)||{}).value || ''
     ).map(s => s.trim()).filter(Boolean),
@@ -5013,7 +5031,12 @@ function opRowCap(){
 function operatorRowCells(i){
   return `<div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP${i}</div>`
        + `<input type="text" id="op${i}_call" placeholder="Indicatif" style="text-transform:uppercase;font-size:14px">`
-       + `<input type="text" id="op${i}_name" placeholder="Prénom" style="font-size:14px">`;
+       + `<input type="text" id="op${i}_name" placeholder="Prénom" style="font-size:14px">`
+       + `<div class="op-modes-cell" style="display:flex;gap:10px;font-size:13px;font-family:var(--font-mono);color:var(--text)">`
+       + `<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op${i}_mode_ssb" checked>SSB</label>`
+       + `<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op${i}_mode_cw" checked>CW</label>`
+       + `<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op${i}_mode_digi" checked>DIGI</label>`
+       + `</div>`;
 }
 
 // Ajout/retrait incrémental : ne touche jamais aux lignes déjà présentes,
@@ -5460,6 +5483,13 @@ function applyFullConfigToForm(c) {
         const nameEl = document.getElementById(`op${i+1}_name`);
         if(callEl && op.call) callEl.value = op.call;
         if(nameEl && op.name) nameEl.value = op.name;
+        // Config sauvegardée avant l'ajout des qualifications (op.modes absent) :
+        // repli sur "qualifié partout", jamais une case décochée par surprise.
+        const modes = op.modes || {};
+        ['ssb','cw','digi'].forEach(m => {
+          const el = document.getElementById(`op${i+1}_mode_${m}`);
+          if(el) el.checked = modes[m] !== undefined ? !!modes[m] : true;
+        });
       });
     } else {
       ensureOperatorRows(1);
