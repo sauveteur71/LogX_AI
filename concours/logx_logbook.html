@@ -260,12 +260,22 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
   max-height:260px;overflow-y:auto}
 .op-picker-popup .op-btn{width:100%;padding:6px 4px;text-align:center}
 
-/* ZONE SECONDAIRE (soapbox/macros/derniers QSO) — scroll indépendant, ne rogne jamais la saisie */
+/* ZONE SECONDAIRE (soapbox/macros/derniers QSO) — scroll indépendant, ne rogne jamais la saisie.
+   min-height:0 (et pas plus) : _reserveBottomSpace() réduit délibérément le max-height de cette
+   zone pour dégager le panneau CW flottant quand il est ouvert (voir son commentaire) — un
+   plancher plus haut que 0 forcerait un CHEVAUCHEMENT PLUS GRAND avec le panneau dans les cas où
+   la place naturelle est juste inférieure au plancher (vérifié empiriquement), au lieu de laisser
+   la zone se réduire exactement à ce qu'il faut pour ne jamais passer sous le panneau. */
 .saisie-secondary{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 
-/* DERNIERS QSO */
+/* DERNIERS QSO — replié par défaut (voir toggleLastQso()), même schéma que REMARQUES EDI */
 .last-qso{padding:10px 16px;border-top:1px solid var(--border)}
-.last-qso-title{font-family:var(--font-mono);font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:8px}
+.last-qso-title{font-family:var(--font-mono);font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.last-qso-title::after{content:'▾';font-size:12px;transition:transform .2s}
+.last-qso-title.collapsed::after{transform:rotate(-90deg)}
+.last-qso-title.collapsed{margin-bottom:0}
+#lastQsoList.hidden{display:none}
+#lastQsoList{max-height:190px;overflow-y:auto}
 .last-qso-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:5px;background:var(--bg3);margin-bottom:4px;font-family:var(--font-mono);font-size:14px;border-left:3px solid var(--green)}
 .lqi-call{color:var(--green);font-weight:700;min-width:80px}
 .lqi-loc{color:var(--accent2);min-width:50px}
@@ -1133,15 +1143,17 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         <div id="voiceDynResult" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px"></div>
       </div>
 
-      <!-- DÉCODEUR CW (Web Audio, micro/casque vers l'entrée) -->
-      <div class="macro-panel expert-only" id="cwDecodePanel" style="display:none">
-        <div class="macro-panel-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>🎧 DÉCODEUR CW</span>
-          <button id="cwDecodeBtn" onclick="toggleCwDecoder()" style="background:var(--bg3);color:var(--green);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px">▶ écouter</button>
-        </div>
-        <div id="cwDecodeOut" style="font-family:var(--font-mono);font-size:14px;color:var(--green);min-height:34px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:6px 8px;margin-top:6px;letter-spacing:2px;word-break:break-all">—</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">Tonalité détectée : <span id="cwTone">—</span> · clique un mot décodé pour le mettre dans l'indicatif</div>
-      </div>
+      <!-- DÉCODEUR CW : PAS de panneau ici — un seul décodeur CW existe dans
+           l'appli, le panneau flottant #cwPanel (bas-gauche, voir plus bas
+           dans le fichier). Il y avait auparavant un second panneau compact
+           ici (#cwDecodePanel) avec sa propre implémentation Web Audio
+           dupliquée dans toggleCwDecoder() — les deux fonctions du même nom
+           se marchaient dessus en JS (la seconde écrasait silencieusement la
+           première), si bien que le bouton de CE panneau pilotait en réalité
+           les éléments DOM du panneau flottant sans jamais les mettre à jour.
+           Consolidé en un seul panneau (le flottant, plus complet : device/
+           fréquence/sortie/WPM) pour supprimer le bug ET libérer de la place
+           verticale dans cette colonne. -->
 
       <!-- ENREGISTREUR AUDIO PAR QSO (tampon glissant ~2 min, coupe les 20
            dernières secondes à chaque QSO loggué — indicatif douteux à
@@ -1163,10 +1175,14 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Tampon glissant ~2 min sur l'entrée choisie ; à chaque QSO loggué, les 20 dernières secondes sont sauvegardées (indicatif_bande_date_heure.wav).</div>
       </div>
 
-      <!-- Derniers QSO -->
+      <!-- Derniers QSO : peu utile au quotidien (le tableau du log liste déjà
+           tout), replié par défaut pour libérer de la place verticale dans la
+           colonne — même schéma repliable que REMARQUES EDI ci-dessus. Mini-
+           scroll interne propre à lastQsoList si un jour la liste s'agrandit,
+           sans jamais affecter le reste de la colonne. -->
       <div class="last-qso">
-        <div class="last-qso-title">DERNIERS QSO SAISIS</div>
-        <div id="lastQsoList"></div>
+        <div class="last-qso-title collapsed" id="lastQsoToggle" onclick="toggleLastQso()">DERNIERS QSO SAISIS</div>
+        <div id="lastQsoList" class="hidden"></div>
       </div>
 
     </div>
@@ -1328,7 +1344,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
     </div>
     <div class="cw-output" id="cwOutput"></div>
-    <button class="cw-btn" onclick="document.getElementById('cwOutput').textContent=''" style="align-self:flex-start">🗑 Effacer</button>
+    <button class="cw-btn" onclick="clearCwOutput()" style="align-self:flex-start">🗑 Effacer</button>
   </div>
 </div>
 

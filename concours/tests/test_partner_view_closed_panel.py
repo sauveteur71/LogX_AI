@@ -59,7 +59,7 @@ function ElProxy(){
       if(prop === 'focus') return function(){};
       if(prop === 'click') return function(){};
       if(prop === 'getContext') return function(){ return null; };
-      if(prop === 'getBoundingClientRect') return function(){ return {top:0,left:0,width:0,height:0,bottom:0,right:0}; };
+      if(prop === 'getBoundingClientRect') return function(){ var h = s._mockHeight || 0; return {top:0,left:0,width:0,height:h,bottom:h,right:0}; };
       if(prop === 'setAttribute') return function(){};
       if(prop === 'getAttribute') return function(){ return null; };
       if(prop === 'remove') return function(){};
@@ -154,19 +154,29 @@ def test_reproduction_bug_sur_cb89dfc_bandeau_ferme_ne_reserve_pas():
 def test_bandeau_partner_reserve_la_marge_meme_panneau_ferme():
     """Sur le code actuel : la marge doit suivre la hauteur du bandeau, que le
     panneau CHAT soit ouvert ou fermé — le panneau reste fermé du début à la
-    fin de ce scénario."""
+    fin de ce scénario.
+
+    _reserveBottomSpace() ne pose plus de padding-bottom (voir son commentaire
+    dans logx_logbook.js : un padding-bottom plus grand que la boîte la force
+    à GRANDIR pour pouvoir le contenir, au lieu de rétrécir — repéré sur
+    .saisie-secondary/panneau CW, cf. logx_logbook.html). Elle réduit
+    désormais max-height d'après la hauteur NATURELLE (sans réservation),
+    mesurée via getBoundingClientRect() — d'où le mock _mockHeight ci-dessous,
+    qui simule cette hauteur naturelle (800px, une valeur arbitraire —
+    seule l'arithmétique importe ici, pas la valeur en soi)."""
     ctx = _make_ctx()
     ctx.eval("""
     myOp = 'OP1';
+    document.querySelector('.log-table-wrap')._mockHeight = 800;
     document.getElementById('chatPanel').offsetHeight = 40;
     _reserveBottomSpace(document.getElementById('chatPanel'), document.querySelector('.log-table-wrap'));
     """)
-    assert ctx.eval("document.querySelector('.log-table-wrap').style.paddingBottom") == '40px'
+    assert ctx.eval("document.querySelector('.log-table-wrap').style.maxHeight") == '760px'
     ctx.eval("""
     document.getElementById('chatPanel').offsetHeight = 150;
     renderPartnerTyping([{op:'OP2', label:'OP2', band:'14', mode:'CW', text:'F5ABC'}]);
     """)
-    assert ctx.eval("document.querySelector('.log-table-wrap').style.paddingBottom") == '150px'
+    assert ctx.eval("document.querySelector('.log-table-wrap').style.maxHeight") == '650px'
     assert ctx.eval("document.getElementById('chatPanel').classList.contains('open')") is False
 
     # Le bandeau se vide (plus aucune saisie distante) : la marge redescend.
@@ -174,7 +184,7 @@ def test_bandeau_partner_reserve_la_marge_meme_panneau_ferme():
     document.getElementById('chatPanel').offsetHeight = 40;
     renderPartnerTyping([]);
     """)
-    assert ctx.eval("document.querySelector('.log-table-wrap').style.paddingBottom") == '40px'
+    assert ctx.eval("document.querySelector('.log-table-wrap').style.maxHeight") == '760px'
 
 
 # ─── Problème 3 : cadence du poll /chat/list en multi-op, panneau fermé ──────

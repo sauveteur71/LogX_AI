@@ -1835,98 +1835,20 @@ function esmHandleEnter(){
   return false;   // échange déjà envoyé → laisser submitQSO() logguer
 }
 
-// ─── DÉCODEUR CW (Web Audio) ─────────────────────────────────────────────────
-// getUserMedia → AnalyserNode → détection d'énergie dans la bande CW (~500-900 Hz)
-// via Goertzel → chronométrie des points/traits → Morse → texte. Longueur de
-// point adaptative. Décodeur « best effort » (CW propre bien décodée).
-const MORSE = {'.-':'A','-...':'B','-.-.':'C','-..':'D','.':'E','..-.':'F','--.':'G',
- '....':'H','..':'I','.---':'J','-.-':'K','.-..':'L','--':'M','-.':'N','---':'O',
- '.--.':'P','--.-':'Q','.-.':'R','...':'S','-':'T','..-':'U','...-':'V','.--':'W',
- '-..-':'X','-.--':'Y','--..':'Z','-----':'0','.----':'1','..---':'2','...--':'3',
- '....-':'4','.....':'5','-....':'6','--...':'7','---..':'8','----.':'9','-.-.-':'K',
- '.-.-.':'+','-...-':'=','..--..':'?','-..-.':'/'};
-let _cwCtx=null, _cwStream=null, _cwAnalyser=null, _cwRAF=null, _cwOn=false;
-let _cwState={on:false, since:0, dot:70, morse:'', text:'', lastEdge:0, gapDone:false};
-
-async function toggleCwDecoder(){
-  if(_cwOn){ stopCwDecoder(); return; }
-  try{
-    _cwStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
-    _cwCtx = _audioCtx || new (window.AudioContext||window.webkitAudioContext)();
-    if(_cwCtx.state==='suspended') await _cwCtx.resume();
-    const src = _cwCtx.createMediaStreamSource(_cwStream);
-    _cwAnalyser = _cwCtx.createAnalyser();
-    _cwAnalyser.fftSize = 1024;
-    src.connect(_cwAnalyser);
-    _cwOn = true;
-    _cwState = {on:false, since:performance.now(), dot:70, morse:'', text:'', lastEdge:performance.now(), gapDone:false};
-    const b=document.getElementById('cwDecodeBtn'); if(b){ b.textContent='■ stop'; b.style.color='var(--red)'; }
-    _cwLoop();
-  }catch(e){ notify('❌ Micro indisponible : '+e.message); }
-}
-
-function stopCwDecoder(){
-  _cwOn=false;
-  if(_cwRAF) cancelAnimationFrame(_cwRAF);
-  if(_cwStream) _cwStream.getTracks().forEach(t=>t.stop());
-  const b=document.getElementById('cwDecodeBtn'); if(b){ b.textContent='▶ écouter'; b.style.color='var(--green)'; }
-}
-
-function _cwGoertzel(buf, rate){
-  // Cherche l'énergie max dans la bande CW 450-950 Hz (par pas de 50 Hz)
-  let best=0, bestF=0;
-  for(let f=450; f<=950; f+=50){
-    const w = 2*Math.PI*f/rate, cw = Math.cos(w), coeff=2*cw;
-    let s0=0,s1=0,s2=0;
-    for(let i=0;i<buf.length;i++){ s0=coeff*s1-s2+buf[i]; s2=s1; s1=s0; }
-    const mag = s1*s1+s2*s2-coeff*s1*s2;
-    if(mag>best){ best=mag; bestF=f; }
-  }
-  return {mag:Math.sqrt(best)/buf.length, freq:bestF};
-}
-
-let _cwFloor=0.002;
-function _cwLoop(){
-  if(!_cwOn) return;
-  const N=_cwAnalyser.fftSize, buf=new Float32Array(N);
-  _cwAnalyser.getFloatTimeDomainData(buf);
-  const {mag,freq}=_cwGoertzel(buf, _cwCtx.sampleRate);
-  _cwFloor = _cwFloor*0.99 + mag*0.01;               // plancher de bruit adaptatif
-  const on = mag > Math.max(0.004, _cwFloor*3);
-  const now=performance.now();
-  const toneEl=document.getElementById('cwTone');
-  if(toneEl) toneEl.textContent = on ? (freq+' Hz') : '—';
-
-  const st=_cwState;
-  if(on !== st.on){
-    const dur = now - st.lastEdge;
-    if(st.on){                       // fin d'un signal (mark)
-      if(dur < st.dot*2){ st.morse+='.'; st.dot = st.dot*0.7 + dur*0.3; }
-      else { st.morse+='-'; st.dot = st.dot*0.85 + (dur/3)*0.15; }
-      st.dot = Math.max(30, Math.min(200, st.dot));
-    }
-    st.on=on; st.lastEdge=now; st.gapDone=false;
-  } else if(!on && !st.gapDone && st.morse){
-    const gap = now - st.lastEdge;
-    if(gap > st.dot*2){              // fin de lettre
-      const ch = MORSE[st.morse] || '';
-      st.text += ch; st.morse='';
-      _cwRender();
-      st.gapDone=true;
-    }
-  } else if(!on && st.text && (now - st.lastEdge) > st.dot*6 && !st.spaced){
-    st.text += ' '; st.spaced=true; _cwRender();
-  }
-  if(on) st.spaced=false;
-  _cwRAF=requestAnimationFrame(_cwLoop);
-}
-
-function _cwRender(){
-  const out=document.getElementById('cwDecodeOut');
-  if(!out) return;
-  const t=_cwState.text.slice(-40);
-  out.innerHTML = t.replace(/(\S+)/g, '<span style="cursor:pointer" onclick="cwToCall(this.textContent)">$1</span>') || '—';
-}
+// ─── DÉCODEUR CW ──────────────────────────────────────────────────────────────
+// Un seul décodeur CW dans toute l'appli : le panneau flottant #cwPanel (bas-
+// gauche, pipeline DSP dans logx_cwdecoder.js — voir toggleCwDecoder() plus
+// bas dans ce fichier, qui branche CwAudioDecoder à l'UI). Il existait
+// auparavant un second panneau ici (compact, dans .saisie-secondary) avec sa
+// propre implémentation Web Audio + une fonction toggleCwDecoder() À ELLE :
+// en JS, deux déclarations `function toggleCwDecoder(){...}` au même scope ne
+// cohabitent pas, la SECONDE (celle du panneau flottant, plus bas dans ce
+// fichier) écrasait silencieusement celle-ci — le bouton du panneau compact
+// finissait par piloter les éléments DOM du panneau flottant, jamais les
+// siens (#cwDecodeOut/#cwTone restaient figés à «—»). Supprimé : un seul
+// panneau CW, plus complet (device/fréquence/sortie/WPM) et débogué (voir
+// logx_cwdecoder.js). cwToCall() est conservée et réutilisée par le panneau
+// flottant pour garder la fonctionnalité « clic sur un mot décodé → indicatif ».
 function cwToCall(w){
   const inp=document.getElementById('inputCall');
   if(inp && /\d/.test(w)){ inp.value=w.trim().toUpperCase(); onCallInput(); inp.focus(); }
@@ -1937,10 +1859,8 @@ function updateKeyerPanels(){
   const cw = (typeof rigState!=='undefined') && /CW/i.test(rigState.mode||currentMode||'');
   const macro=document.getElementById('macroPanel');
   const voice=document.getElementById('voicePanel');
-  const cwd=document.getElementById('cwDecodePanel');
   if(macro) macro.style.display = cw ? '' : 'none';
   if(voice) voice.style.display = cw ? 'none' : '';
-  if(cwd) cwd.style.display = cw ? '' : 'none';   // décodeur utile surtout en CW
 }
 renderVoicePanel();
 renderVoiceDynPanel();
@@ -3199,6 +3119,16 @@ function updateLastQso(q){
   `;
   list.insertBefore(div, list.firstChild);
   if(list.children.length > 5) list.removeChild(list.lastChild);
+}
+
+// Replié par défaut (le tableau du log liste déjà tout) — même schéma que
+// toggleSoapbox() : classe .collapsed sur le titre + .hidden sur le contenu.
+function toggleLastQso(){
+  const title = document.getElementById('lastQsoToggle');
+  const list  = document.getElementById('lastQsoList');
+  if(!title || !list) return;
+  const collapsed = title.classList.toggle('collapsed');
+  list.classList.toggle('hidden', collapsed);
 }
 
 // ─── ÉDITION QSO ─────────────────────────────────────────────────────────────
@@ -4889,7 +4819,30 @@ function renderPartnerTyping(list){
 // alors bien avant d'atteindre leur propre fin.
 function _reserveBottomSpace(panel, scrollEl){
   if(!panel || !scrollEl) return;
-  scrollEl.style.paddingBottom = panel.offsetHeight + 'px';
+  // RÉDUIT max-height (ne rajoute PAS de padding-bottom) : un padding-bottom
+  // plus grand que la boîte la force à GRANDIR pour pouvoir le contenir —
+  // par construction CSS, une boîte ne peut jamais être plus petite que ses
+  // propres marges internes (padding+bordure), donc le padding « gagne »
+  // sur toute hauteur/max-height qu'on lui impose par ailleurs (vérifié
+  // empiriquement : max-height ET height explicites sont tous deux ignorés
+  // dès que le padding-bottom les dépasse). Sur un conteneur flex:1 court
+  // (ex: .saisie-secondary, coincé entre la saisie et le bas de colonne),
+  // ça le fait déborder de SON PROPRE parent — et si ce parent scrolle
+  // aussi (.saisie-panel), révéler le bas du conteneur reviendrait à faire
+  // défiler la zone de SAISIE hors champ, interdit ici (cf. "ZONE
+  // SECONDAIRE ... ne rogne jamais la saisie"). Réduire max-height n'a pas
+  // ce problème : le contenu qui ne rentre plus scrolle via l'overflow-y:
+  // auto déjà en place, sans jamais faire grandir le conteneur au-delà de
+  // ce qu'il occupait chez son parent. Plancher à 0 (pas plus) : un
+  // plancher plus haut forcerait un chevauchement PLUS GRAND avec le
+  // panneau flottant dès que la place naturelle est juste inférieure à ce
+  // plancher (vérifié empiriquement) — 0 laisse toujours la zone se réduire
+  // exactement à ce qu'il faut pour ne jamais passer sous le panneau,
+  // quitte à devenir minuscule (mais jamais négative/incohérente) quand la
+  // fenêtre est vraiment trop basse pour tout afficher.
+  scrollEl.style.maxHeight = 'none';           // repart d'un calcul flex propre avant de mesurer
+  const naturalHeight = scrollEl.getBoundingClientRect().height;
+  scrollEl.style.maxHeight = Math.max(0, naturalHeight - panel.offsetHeight) + 'px';
 }
 
 function toggleChat(){
@@ -4915,11 +4868,17 @@ function toggleChat(){
 // à l'UI (device picker, bouton start/stop, sortie texte défilante).
 let _cwAudioDecoder = null;
 let _cwDevicesLoaded = false;
+let _cwOutText = '';   // texte décodé cumulé (survit aux re-rendus) — voir toggleCwDecoder/clearCwOutput
 
 async function toggleCwPanel(){
   const panel = document.getElementById('cwPanel');
   panel.classList.toggle('open');
-  _reserveBottomSpace(panel, document.querySelector('.saisie-panel'));
+  // Cible .saisie-secondary (le conteneur qui scrolle VRAIMENT — voir son
+  // commentaire CSS) et non .saisie-panel (le conteneur externe) : ce
+  // dernier n'a pas de hauteur propre au contenu (stretch flex depuis
+  // .main), lui ajouter un padding-bottom ne compense donc rien pour
+  // .saisie-secondary, qui a SA PROPRE zone de scroll indépendante.
+  _reserveBottomSpace(panel, document.querySelector('.saisie-secondary'));
   if(panel.classList.contains('open') && !_cwDevicesLoaded) await loadCwInputDevices();
 }
 
@@ -4967,9 +4926,16 @@ function toggleCwDecoder(){
   const freq = parseInt(document.getElementById('cwFreq').value, 10) || 650;
   const out = document.getElementById('cwOutput');
   const wpmLabel = document.getElementById('cwWpmLabel');
+  _cwOutText = '';
   const dec = new CwAudioDecoder({
     freq,
-    onChar: ch => { out.textContent += ch; out.scrollTop = out.scrollHeight; },
+    onChar: ch => {
+      _cwOutText = (_cwOutText + ch).slice(-400);   // borne la mémoire sur une session longue
+      // Mots cliquables : reprend le comportement de l'ancien panneau compact
+      // (voir cwToCall) — clique un mot décodé pour le mettre dans l'indicatif.
+      out.innerHTML = _cwOutText.replace(/(\S+)/g, '<span style="cursor:pointer" onclick="cwToCall(this.textContent)">$1</span>') || '—';
+      out.scrollTop = out.scrollHeight;
+    },
     onLevel: (mag, threshold, wpm) => { if(wpm) wpmLabel.textContent = wpm + ' MPM'; },
   });
   dec.start(deviceId || undefined).then(() => {
@@ -4979,6 +4945,16 @@ function toggleCwDecoder(){
   }).catch(e => {
     notify('❌ Micro indisponible : ' + e.message);
   });
+}
+
+// Vide la sortie décodée — remet aussi _cwOutText à zéro (sinon le prochain
+// caractère décodé re-rendrait tout l'ancien texte accumulé par-dessus le
+// champ visuellement vidé, puisque le texte cumulé vit dans cette variable,
+// pas dans le DOM).
+function clearCwOutput(){
+  _cwOutText = '';
+  const out = document.getElementById('cwOutput');
+  if(out) out.textContent = '';
 }
 
 // ─── TOGGLE JOUR/NUIT ────────────────────────────────────────────────────────
@@ -5772,9 +5748,11 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSoapbox();
   initBroadcastChannel();
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
-  // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace().
+  // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible
+  // .saisie-secondary (SA zone de scroll propre), pas .saisie-panel — voir
+  // le commentaire de toggleCwPanel().
   _reserveBottomSpace(document.getElementById('chatPanel'), document.querySelector('.log-table-wrap'));
-  _reserveBottomSpace(document.getElementById('cwPanel'), document.querySelector('.saisie-panel'));
+  _reserveBottomSpace(document.getElementById('cwPanel'), document.querySelector('.saisie-secondary'));
 });
 
 // ─── CARTE QSO (Leaflet) ──────────────────────────────────────────────────────
