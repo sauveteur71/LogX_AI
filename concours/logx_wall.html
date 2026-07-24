@@ -75,6 +75,9 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .chip{font-family:var(--mono);font-size:20px;background:var(--bg3);border:1px solid var(--border);
   border-radius:8px;padding:4px 12px}
 .chip b{color:var(--accent2)}
+.cond-row{font-family:var(--mono);font-size:19px;margin:7px 0;color:var(--text);line-height:1.3}
+.cond-row b{font-weight:800}
+.cond-warn{color:var(--red);font-weight:800;display:block;margin-top:2px;font-size:16px}
 .wfoot{position:fixed;bottom:6px;right:14px;font-family:var(--mono);font-size:12px;color:var(--muted)}
 </style>
 </head>
@@ -111,6 +114,19 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
     <div id="wStream"><div style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">En attente de QSO…</div></div>
   </div>
   <div class="wside">
+    <!-- Conditions du moment — regroupe 3 données déjà calculées côté serveur
+         ailleurs (jamais dupliquées ici) : indices solaires (/data/propagation,
+         cache 15 min), position lunaire EME (/data/eme_moon, calcul local,
+         affiché SEULEMENT si la station est VHF/UHF — cf. vhf_active) et
+         météo locale (/data/weather, cache 10 min — sécurité antenne). Panneau
+         secondaire : ne concurrence jamais le flux QSO/compteurs. -->
+    <div class="wblock">
+      <div class="wbt">🌍 CONDITIONS</div>
+      <div class="cond-row" id="condSolar">☀️ SFI — · K —</div>
+      <div class="cond-row" id="condMuf">📡 MUF —</div>
+      <div class="cond-row" id="condEme" style="display:none">🌗 EME —</div>
+      <div class="cond-row" id="condWeather">🌡️ Météo —</div>
+    </div>
     <div class="wblock grow"><div class="wbt">📊 PAR BANDE</div><div id="wBands"></div></div>
     <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
     <div class="wblock"><div class="wbt">👤 PAR OPÉRATEUR</div><div class="chips" id="wOps"></div></div>
@@ -141,6 +157,7 @@ if(localStorage.getItem('rc_theme') === null){
     return;
   }
   let lastTopKey='';
+  let wallVhfActive=false;   // reflète d.vhf_active — pilote l'affichage du panneau EME
   function fmtTime(t){ return (t||'').slice(0,5); }
   // Échappement HTML : q.name/q.country viennent des annuaires externes (QRZ/
   // HamQTH) et q.call du cluster/ADIF importé — données non maîtrisées injectées
@@ -168,6 +185,15 @@ if(localStorage.getItem('rc_theme') === null){
     document.getElementById('wOdx').textContent = d.odx&&d.odx.km ? d.odx.km.toLocaleString() : '—';
     document.getElementById('wOdxCall').textContent = d.odx&&d.odx.call ? ('ODX ' + d.odx.call) : 'ODX (KM)';
     document.getElementById('wRate10').textContent = d.rate_10min_x6 ? ('~'+d.rate_10min_x6+'/h sur 10 min') : '';
+
+    // Panneau EME : seulement pertinent si la station est configurée VHF/UHF
+    // (144 MHz+) — jamais pour un poste HF pur, ce serait un encart mort.
+    const vhfNow = !!d.vhf_active;
+    if(vhfNow !== wallVhfActive){
+      wallVhfActive = vhfNow;
+      document.getElementById('condEme').style.display = wallVhfActive ? '' : 'none';
+      if(wallVhfActive) refreshEme();   // peuple tout de suite plutôt qu'attendre le prochain cycle 5 min
+    }
 
     // Objectif QSO de session : le serveur ne fournit que le total configuré
     // (qso_goal) — 0/absent = pas d'objectif défini, panneau masqué plutôt
@@ -228,6 +254,74 @@ if(localStorage.getItem('rc_theme') === null){
   }
   tick();
   setInterval(tick, 3000);
+
+  // ── CONDITIONS : solaire + EME + météo ────────────────────────────────────
+  // Trois sources déjà calculées côté serveur, consommées ici SANS dupliquer
+  // le calcul (mêmes endpoints que logx_propagation.html/logx_statusbar.js) :
+  // /data/propagation (cache serveur 15 min), /data/eme_moon (calcul local
+  // PyEphem, pas de réseau), /data/weather (cache serveur 10 min). Aucun de
+  // ces endpoints ne bloque jamais le thread HTTP côté serveur (lecture de
+  // cache + rafraîchissement en tâche de fond) — voir logx_clusters.get_solar_cached
+  // / get_muf_cached et logx_weather.get_weather_cached.
+  async function refreshSolar(){
+    try{
+      const r=await fetch('/data/propagation'); if(!r.ok) return false;
+      const d=await r.json();
+      const s=d.solar||{}, m=d.muf||{};
+      const elS=document.getElementById('condSolar'), elM=document.getElementById('condMuf');
+      const hasSfi = s.sfi!=null && s.sfi!=='';
+      const hasK = s.k_index!=null && s.k_index!=='';
+      if(!hasSfi && !hasK){ elS.textContent='☀️ SFI — · K —'; elM.textContent='📡 MUF —'; return false; }
+      const k=parseFloat(s.k_index);
+      const kColor = !isNaN(k) ? (k<=2?'var(--green)':k<=4?'var(--yellow)':'var(--red)') : 'var(--text)';
+      elS.innerHTML = `☀️ SFI <b>${esc(hasSfi?s.sfi:'—')}</b> · K <b style="color:${kColor}">${esc(hasK?s.k_index:'—')}</b>`;
+      elM.innerHTML = `📡 MUF <b>${m.muf!=null&&m.muf!==''?esc(m.muf)+' MHz':'—'}</b>`;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  async function refreshEme(){
+    if(!wallVhfActive) return;
+    const block=document.getElementById('condEme');
+    try{
+      const r=await fetch('/data/eme_moon'); if(!r.ok) return;
+      const d=await r.json();
+      if(!d.available){ block.innerHTML='🌗 EME —'; return; }
+      const vis = d.visible ? '<b style="color:var(--green)">● visible</b>' : '<span style="color:var(--muted)">○ sous horizon</span>';
+      block.innerHTML = `🌗 EME Az <b>${esc(d.az)}°</b> / El <b>${esc(d.alt)}°</b> ${vis}`;
+    }catch(e){}
+  }
+
+  async function refreshWeather(){
+    try{
+      const r=await fetch('/data/weather'); if(!r.ok) return false;
+      const d=await r.json();
+      const el=document.getElementById('condWeather');
+      if(!d.ok){ el.textContent='🌡️ Météo —'; return false; }
+      const gustTxt = (d.gust>=d.wind+10) ? ` (raf. ${esc(d.gust)})` : '';
+      el.innerHTML = `${esc(d.icon||'🌡️')} <b>${esc(d.temp)}°C</b> · 💨 <b>${esc(d.wind)}</b> km/h${gustTxt}` +
+        (d.warn ? `<span class="cond-warn">${esc(d.warn)}</span>` : '');
+      return true;
+    }catch(e){ return false; }
+  }
+
+  // Cache serveur froid au démarrage (pas encore de donnée) : réessaie vite
+  // (10 s) plutôt que d'attendre le premier cycle complet (15/10 min) — pour
+  // un écran mural allumé en continu, la CONDITIONS doit se peupler en
+  // quelques secondes, pas au prochain quart d'heure.
+  function pollWithWarmup(fn, steadyMs, warmupMs, maxTries){
+    let n=0;
+    (async function step(){
+      let ok=false;
+      try{ ok=await fn(); }catch(e){}
+      n++;
+      if(ok || n>=maxTries) setInterval(fn, steadyMs);
+      else setTimeout(step, warmupMs);
+    })();
+  }
+  pollWithWarmup(refreshSolar, 15*60*1000, 10*1000, 6);
+  pollWithWarmup(refreshWeather, 10*60*1000, 10*1000, 6);
+  setInterval(refreshEme, 5*60*1000);   // position lunaire : évolue lentement, pas de warmup réseau nécessaire
 
   // Horloge LOCALE du poste : calculée entièrement côté navigateur depuis
   // l'heure système (Date locale) — pas besoin que le serveur connaisse le

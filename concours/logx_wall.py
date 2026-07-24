@@ -7,7 +7,11 @@ partagé (shared_log, multi-opérateur). Ce module en tire un état compact,
 lisible sur un grand écran externe (projecteur/TV) : flux des derniers QSO,
 compteur total, rythme, répartition par bande / mode / opérateur, ODX.
 
-Déterministe (aucun réseau) ; alimente GET /data/wall (poll ~3 s).
+Déterministe (aucun réseau) ; alimente GET /data/wall (poll ~3 s). Le champ
+`vhf_active` renseigne en plus le mur sur le panneau EME optionnel (jamais
+affiché sur un poste HF pur) — les indices solaires et la météo locale sont
+consommés par le mur directement via /data/propagation et /data/weather
+(déjà servis ailleurs, aucune donnée dupliquée ici).
 """
 import datetime
 import json
@@ -91,6 +95,34 @@ def _enrich_recent(recents):
         entry = calldb.get(call) or calldb.get(call.upper()) or {}
         r['name'] = (entry.get('name', '') if isinstance(entry, dict) else '') or ''
     return recents
+
+
+_HF_BAND_TOKENS = {'1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28'}
+_VHF_UP_TOGGLES = ('band_2m', 'band_70cm', 'band_23cm', 'band_13cm',
+                    'band_9cm', 'band_6cm', 'band_3cm', 'band_6mm', 'band_4mm')
+
+
+def _vhf_active(cfg):
+    """True si la station est CONFIGURÉE pour émettre en VHF/UHF et au-delà
+    (144 MHz et plus — le 6 m/50 MHz est volontairement exclu, l'EME y est
+    hors de portée en pratique). Pilote l'affichage du panneau EME du mur :
+    jamais pertinent pour un poste HF pur (encart mort/hors-sujet).
+
+    Même logique que la détection `is_vhf` de do_refresh() (logx_http.py) :
+    bandes du concours actif en premier, repli sur les toggles manuels de
+    bande (CONFIG) si le concours ne tranche pas (bandes 'all'/inconnues)."""
+    cfg = cfg or {}
+    from logx_definitions import CONTEST_DEFINITIONS
+    contest = cfg.get('contest', '')
+    cdef_bands = [str(b) for b in CONTEST_DEFINITIONS.get(contest, {}).get('bands', [])]
+    if any(b not in _HF_BAND_TOKENS and b not in ('50', 'all') for b in cdef_bands):
+        return True   # une bande >= 144 MHz est explicitement dans la définition
+    has_hf_bands = any(b in _HF_BAND_TOKENS for b in cdef_bands)
+    is_hf_contest = has_hf_bands and 'all' not in cdef_bands
+    if is_hf_contest:
+        return False   # concours HF pur défini : les toggles ne doivent pas le contredire
+    toggles = cfg.get('toggles', {}) or {}
+    return any(toggles.get(k, False) for k in _VHF_UP_TOGGLES)
 
 
 def _entry_dt(e):
@@ -192,6 +224,7 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
     return {
         'callsign': (cfg.get('callsign_contest') or cfg.get('callsign') or '').upper(),
         'contest': contest_id,
+        'vhf_active': _vhf_active(cfg),
         'wall_fields': _wall_fields(cfg),
         'qso_total': len(entries),
         'qso_goal': _qso_goal(cfg),

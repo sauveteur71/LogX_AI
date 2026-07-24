@@ -5,6 +5,7 @@ Pour la sécurité du matériel portable en /P (vent et rafales sur les
 antennes, pluie, gel). Coordonnées dérivées du locator courant. Cache 10 min.
 Dégrade proprement sans réseau (retourne le dernier cache ou une erreur).
 """
+import threading
 import time
 
 _cache = {'ts': 0, 'data': None, 'key': ''}
@@ -74,3 +75,45 @@ def get_weather(lat, lon):
         return data
     except Exception as e:
         return _cache['data'] or {'ok': False, 'error': f'Météo illisible ({e})'}
+
+
+# ─── Accès NON BLOQUANT au cache (pour les handlers HTTP) ────────────────────
+# get_weather() ci-dessus fait un appel réseau synchrone (jusqu'à ~18 s, cf.
+# fetch_url) dès que le cache de 10 min expire — appelée en direct depuis un
+# handler HTTP, elle gèlerait la connexion du client (ex. l'écran mural,
+# pollé en continu) jusqu'à ~18 s toutes les 10 min si open-meteo.com est lent
+# ou injoignable. Même remède que get_solar_cached()/get_muf_cached()
+# (logx_clusters.py) : ne lire QUE le cache existant ici, rafraîchissement
+# réseau déclenché dans un thread de fond détaché.
+_weather_refresh_lock = threading.Lock()
+
+
+def _refresh_weather_async(lat, lon):
+    if not _weather_refresh_lock.acquire(blocking=False):
+        return  # un rafraîchissement est déjà en vol
+    def _run():
+        try:
+            get_weather(lat, lon)
+        finally:
+            _weather_refresh_lock.release()
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def get_weather_cached(lat, lon):
+    """Jamais bloquant — à utiliser depuis les handlers HTTP à la place de
+    get_weather() (réservée aux appels de fond/tests). Ne renvoie le dernier
+    cache que s'il correspond au MÊME point (lat/lon) : servir la météo d'un
+    ancien QTH sous prétexte qu'elle est "en cache" serait trompeur pour la
+    sécurité antenne après un changement de locator."""
+    if lat is None or lon is None:
+        return {'ok': False, 'error': 'Locator station non défini'}
+    key = f'{lat:.2f},{lon:.2f}'
+    same_point = bool(_cache['data']) and _cache['key'] == key
+    stale = not same_point or time.time() - _cache['ts'] >= CACHE_S
+    if stale:
+        _refresh_weather_async(lat, lon)
+    if not same_point:
+        return {'ok': False, 'error': 'Météo en cours de récupération…', 'stale': True}
+    data = dict(_cache['data'])
+    data['stale'] = stale
+    return data

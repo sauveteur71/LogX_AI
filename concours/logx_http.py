@@ -2022,12 +2022,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(psk.heard_where(call, cfg_snap.get('locator', '')))
             return
 
-        # Météo du point haut (open-meteo, sans clé) — sécurité matériel /P
+        # Météo du point haut (open-meteo, sans clé) — sécurité matériel /P.
+        # Lecture cache seule ici (jamais bloquant) : le rafraîchissement
+        # réseau se fait en tâche de fond, comme get_solar_cached()/
+        # get_muf_cached() — voir logx_weather.get_weather_cached().
         if path == '/data/weather':
             import logx_weather as weather
             cfg_snap = self._cfg_snapshot()
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
-            self._json(weather.get_weather(my_ll[0], my_ll[1]))
+            self._json(weather.get_weather_cached(my_ll[0], my_ll[1]))
             return
 
         # Prévision tropo (ducting) — gradient de réfractivité (open-meteo niveaux)
