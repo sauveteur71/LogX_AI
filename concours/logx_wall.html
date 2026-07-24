@@ -70,8 +70,28 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .q-rst{color:var(--yellow);font-size:22px;width:70px;text-align:center}
 .q-op{color:var(--muted);font-size:20px;width:90px;text-align:right}
 .wside{display:flex;flex-direction:column;gap:16px;min-height:0;min-width:0}
-.wblock{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;overflow:hidden}
-.wblock.grow{flex:1;overflow-y:auto}
+/* flex-shrink:0 par défaut : un panneau court (conditions/mode/opérateur) ne
+   doit JAMAIS être rogné pour faire de la place à un voisin — seuls les
+   panneaux volontairement "élastiques" (.grow, #wRoulement) l'autorisent, via
+   leur propre overflow-y:auto interne. Sans ça, l'ajout du panneau roulement
+   (contenu variable : N opérateurs actifs + créneaux à venir) écrasait
+   silencieusement PAR BANDE/PAR MODE/PAR OPÉRATEUR (overflow:hidden masquait
+   la perte sans jamais déclencher de scroll — repéré par mesure DOM réelle,
+   pas visible à l'oeil sur un log clairsemé). */
+.wblock{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;overflow:hidden;flex-shrink:0}
+/* basis:auto (PAS 0) sur les deux panneaux élastiques : chacun garde sa
+   taille NATURELLE tant que la colonne a la place (cas courant — roulement
+   avec 1-2 opérateurs ne doit pas être rogné juste parce qu'il "pourrait"
+   grandir) ; le rétrécissement proportionnel (flex-shrink, pondéré par la
+   taille naturelle de chacun) ne se déclenche QUE si la somme dépasse
+   vraiment l'espace dispo — alors PAR BANDE cède plus que #wRoulement
+   (poids 3 contre 2), jamais l'inverse. */
+.wblock.grow{flex:3 1 auto;min-height:110px;overflow-y:auto}
+/* #wRoulement partage l'espace restant avec PAR BANDE (poids 2 contre 3) au
+   lieu de le lui prendre : si le contenu (opérateurs actifs + créneaux)
+   dépasse l'espace alloué, seule SA propre liste défile en interne (jamais
+   manuellement, juste un troncage propre) — même principe que PAR BANDE. */
+#wRoulement{flex:2 1 auto;min-height:90px;overflow-y:auto}
 .wbt{font-family:var(--mono);font-size:16px;letter-spacing:3px;color:var(--muted);margin-bottom:10px}
 .bar-row{display:flex;align-items:center;gap:10px;margin:6px 0;font-family:var(--mono)}
 .bar-lbl{width:64px;color:var(--text);font-size:22px}
@@ -79,6 +99,14 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--green),var(--accent2))}
 .bar-n{width:56px;text-align:right;font-size:22px;font-weight:700;color:var(--text)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
+/* #wOps seul (PAR OPÉRATEUR) : un radioclub peut déclarer jusqu'à ~40
+   opérateurs (voir logx_configuration.html), tous loggant potentiellement
+   dans la même session -> autant de chips. Plafonné + défilement interne
+   pour que ce panneau, désormais flex-shrink:0 (voir .wblock plus haut),
+   ne puisse jamais à lui seul repousser la colonne au-delà de l'écran.
+   #wModes n'a pas ce plafond : le nombre de modes radioamateur est borné
+   (SSB/CW/FT8/FT4/RTTY/PSK…), jamais piloté par le nombre d'opérateurs. */
+#wOps{max-height:118px;overflow-y:auto}
 .chip{font-family:var(--mono);font-size:20px;background:var(--bg3);border:1px solid var(--border);
   border-radius:8px;padding:4px 12px}
 .chip b{color:var(--accent2)}
@@ -230,6 +258,10 @@ if(localStorage.getItem('rc_theme') === null){
     if(c && c.ui_theme && localStorage.getItem('rc_theme') === null){
       localStorage.setItem('rc_theme', c.ui_theme);
       document.body.classList.toggle('day-mode', c.ui_theme === 'day');
+      // La carte Leaflet peut déjà être initialisée (tuiles choisies avant que
+      // ce fetch ne résolve) : la reconstruire avec les bonnes tuiles plutôt
+      // que de la laisser figée en mode sombre par défaut.
+      if(window.__wallRefreshMapTheme) window.__wallRefreshMapTheme();
     }
   }).catch(()=>{});
 }
@@ -280,11 +312,27 @@ if(localStorage.getItem('rc_theme') === null){
     return {url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', sub:'abcd'};
   }
 
+  // Fond de tuiles jour/nuit — extrait d'initWallMap() pour pouvoir être
+  // rappelé plus tard (voir window.__wallRefreshMapTheme ci-dessous) : la
+  // détection du thème au chargement (bloc en tête de <script>) peut résoudre
+  // APRÈS l'init de la carte quand rc_theme n'existe pas encore en
+  // localStorage (fetch('/config') asynchrone) — sans ce ré-appel, la carte
+  // resterait figée sur les tuiles sombres par défaut même si le thème
+  // configuré côté serveur est "jour".
+  function applyWallMapTiles(){
+    if(!wallMap) return;
+    if(wallTile){ wallMap.removeLayer(wallTile); }
+    const tile = wallTileConfig();
+    wallTile = L.tileLayer(tile.url, {
+      subdomains:tile.sub, maxZoom:8,
+      attribution:'© OpenStreetMap / CARTO',
+    }).addTo(wallMap);
+  }
+
   function initWallMap(){
     if(typeof L === 'undefined' || wallMap) return;   // CDN pas chargé (repli CSS :empty) ou déjà initialisée
     const el = document.getElementById('wallMap');
     if(!el) return;
-    const tile = wallTileConfig();
     wallMap = L.map('wallMap', {
       center:[20,0], zoom:2,
       zoomControl:false, attributionControl:true,
@@ -292,15 +340,15 @@ if(localStorage.getItem('rc_theme') === null){
       boxZoom:false, keyboard:false, touchZoom:false, tap:false,
       preferCanvas:true,
     });
-    wallTile = L.tileLayer(tile.url, {
-      subdomains:tile.sub, maxZoom:8,
-      attribution:'© OpenStreetMap / CARTO',
-    }).addTo(wallMap);
+    applyWallMapTiles();
     wallQsoLayer = L.layerGroup().addTo(wallMap);
     drawWallGreyLine();
     setInterval(drawWallGreyLine, 5*60*1000);   // bouge lentement — même cadence que logx_carte.html
     window.addEventListener('resize', ()=>{ if(wallMap) wallMap.invalidateSize(); });
   }
+  // Exposée pour le bloc de détection de thème (hors de cette IIFE, en tête
+  // de <script>) : appelée après un toggle de .day-mode résolu tardivement.
+  window.__wallRefreshMapTheme = applyWallMapTiles;
 
   // Déclinaison solaire (°) — algo NOAA simplifié, PORTÉ tel quel de
   // solarDeclination() (logx_carte.html) : calcul autonome, sans réseau.
@@ -410,7 +458,7 @@ if(localStorage.getItem('rc_theme') === null){
       .map(s=>({s, ...shiftBounds(s)}))
       .filter(x=>x.end>now)          // exclut les créneaux déjà terminés
       .sort((a,b)=>a.start-b.start)
-      .slice(0,6);
+      .slice(0,4);   // panneau compact (mur) : au-delà, #wRoulement défile en interne (CSS)
     const hasShifts=upcoming.length>0;
 
     // Rien à montrer -> panneau entièrement masqué, jamais un encart vide
