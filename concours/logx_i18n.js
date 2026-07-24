@@ -2388,6 +2388,9 @@
       "carte complète": "full map",
       "MUF — FRÉQUENCE MAX UTILISABLE (3000 km)": "MUF — MAXIMUM USABLE FREQUENCY (3000 km)",
       "ionosonde la plus proche": "nearest ionosonde", "Chargement…": "Loading…",
+      "CARTE MUF MONDIALE": "WORLD MUF MAP",
+      "MUF mesurée par un réseau mondial d'ionosondes, terminateur jour/nuit superposé — la propagation HF suit généralement la zone éclairée. Image publique tierce (rafraîchie ici toutes les 15 min) : crédit N0NBH conservé comme demandé sur hamqsl.com.":
+        "MUF measured by a worldwide network of ionosondes, day/night terminator overlaid — HF propagation generally follows the lit zone. Public third-party image (refreshed here every 15 min): N0NBH credit kept as requested on hamqsl.com.",
       "Les spots du dernier refresh apparaissent ici.": "Spots from the last refresh appear here.",
       "Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.":
         "Trigger a refresh from the AI MAP (📡 ANALYZE) or wait for the automatic watch.",
@@ -2475,6 +2478,9 @@
       "carte complète": "vollständige Karte",
       "MUF — FRÉQUENCE MAX UTILISABLE (3000 km)": "MUF — HÖCHSTE NUTZBARE FREQUENZ (3000 km)",
       "ionosonde la plus proche": "nächstgelegene Ionosonde", "Chargement…": "Lädt…",
+      "CARTE MUF MONDIALE": "WELTWEITE MUF-KARTE",
+      "MUF mesurée par un réseau mondial d'ionosondes, terminateur jour/nuit superposé — la propagation HF suit généralement la zone éclairée. Image publique tierce (rafraîchie ici toutes les 15 min) : crédit N0NBH conservé comme demandé sur hamqsl.com.":
+        "MUF gemessen von einem weltweiten Ionosonden-Netzwerk, Tag/Nacht-Terminator überlagert — die KW-Ausbreitung folgt im Allgemeinen der beleuchteten Zone. Öffentliches Drittanbieter-Bild (hier alle 15 Min. aktualisiert): N0NBH-Credit wie auf hamqsl.com gefordert beibehalten.",
       "Les spots du dernier refresh apparaissent ici.": "Die Spots des letzten Refreshs erscheinen hier.",
       "Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.":
         "Löse einen Refresh von der KI-KARTE aus (📡 ANALYSIEREN) oder warte auf die automatische Überwachung.",
@@ -2562,6 +2568,9 @@
       "carte complète": "mapa completo",
       "MUF — FRÉQUENCE MAX UTILISABLE (3000 km)": "MUF — FRECUENCIA MÁXIMA UTILIZABLE (3000 km)",
       "ionosonde la plus proche": "ionosonda más cercana", "Chargement…": "Cargando…",
+      "CARTE MUF MONDIALE": "MAPA MUNDIAL DE MUF",
+      "MUF mesurée par un réseau mondial d'ionosondes, terminateur jour/nuit superposé — la propagation HF suit généralement la zone éclairée. Image publique tierce (rafraîchie ici toutes les 15 min) : crédit N0NBH conservé comme demandé sur hamqsl.com.":
+        "MUF medida por una red mundial de ionosondas, terminador día/noche superpuesto — la propagación HF generalmente sigue la zona iluminada. Imagen pública de terceros (actualizada aquí cada 15 min): crédito de N0NBH conservado como se solicita en hamqsl.com.",
       "Les spots du dernier refresh apparaissent ici.": "Los spots de la última actualización aparecen aquí.",
       "Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.":
         "Lanza una actualización desde el MAPA IA (📡 ANALIZAR) o espera la vigilancia automática.",
@@ -2649,6 +2658,9 @@
       "carte complète": "mappa completa",
       "MUF — FRÉQUENCE MAX UTILISABLE (3000 km)": "MUF — FREQUENZA MASSIMA UTILIZZABILE (3000 km)",
       "ionosonde la plus proche": "ionosonda più vicina", "Chargement…": "Caricamento…",
+      "CARTE MUF MONDIALE": "MAPPA MONDIALE MUF",
+      "MUF mesurée par un réseau mondial d'ionosondes, terminateur jour/nuit superposé — la propagation HF suit généralement la zone éclairée. Image publique tierce (rafraîchie ici toutes les 15 min) : crédit N0NBH conservé comme demandé sur hamqsl.com.":
+        "MUF misurata da una rete mondiale di ionosonde, terminatore giorno/notte sovrapposto — la propagazione HF segue generalmente la zona illuminata. Immagine pubblica di terze parti (aggiornata qui ogni 15 min): credito N0NBH mantenuto come richiesto su hamqsl.com.",
       "Les spots du dernier refresh apparaissent ici.": "Gli spot dell'ultimo aggiornamento appaiono qui.",
       "Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.":
         "Avvia un aggiornamento dalla MAPPA IA (📡 ANALIZZA) o attendi il monitoraggio automatico.",
@@ -2736,6 +2748,9 @@
       "carte complète": "mapa completo",
       "MUF — FRÉQUENCE MAX UTILISABLE (3000 km)": "MUF — FREQUÊNCIA MÁXIMA UTILIZÁVEL (3000 km)",
       "ionosonde la plus proche": "ionossonda mais próxima", "Chargement…": "A carregar…",
+      "CARTE MUF MONDIALE": "MAPA MUNDIAL DE MUF",
+      "MUF mesurée par un réseau mondial d'ionosondes, terminateur jour/nuit superposé — la propagation HF suit généralement la zone éclairée. Image publique tierce (rafraîchie ici toutes les 15 min) : crédit N0NBH conservé comme demandé sur hamqsl.com.":
+        "MUF medida por uma rede mundial de ionossondas, terminador dia/noite sobreposto — a propagação HF geralmente segue a zona iluminada. Imagem pública de terceiros (atualizada aqui a cada 15 min): crédito N0NBH mantido conforme solicitado em hamqsl.com.",
       "Les spots du dernier refresh apparaissent ici.": "Os spots da última atualização aparecem aqui.",
       "Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.":
         "Lança uma atualização a partir do MAPA IA (📡 ANALISAR) ou espera pela vigia automática.",
@@ -2823,6 +2838,9 @@
       "carte complète": "volledige kaart",
       "MUF — FRÉQUENCE MAX UTILISABLE (3000 km)": "MUF — MAXIMAAL BRUIKBARE FREQUENTIE (3000 km)",
       "ionosonde la plus proche": "dichtstbijzijnde ionosonde", "Chargement…": "Laden…",
+      "CARTE MUF MONDIALE": "WERELDWIJDE MUF-KAART",
+      "MUF mesurée par un réseau mondial d'ionosondes, terminateur jour/nuit superposé — la propagation HF suit généralement la zone éclairée. Image publique tierce (rafraîchie ici toutes les 15 min) : crédit N0NBH conservé comme demandé sur hamqsl.com.":
+        "MUF gemeten door een wereldwijd netwerk van ionosondes, dag/nacht-terminator overlay — HF-propagatie volgt over het algemeen de verlichte zone. Publieke afbeelding van derden (hier elke 15 min ververst): N0NBH-credit behouden zoals gevraagd op hamqsl.com.",
       "Les spots du dernier refresh apparaissent ici.": "De spots van de laatste refresh verschijnen hier.",
       "Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.":
         "Start een refresh vanaf de AI-KAART (📡 ANALYSEREN) of wacht op de automatische bewaking.",
@@ -2910,6 +2928,9 @@
       "carte complète": "pełna mapa",
       "MUF — FRÉQUENCE MAX UTILISABLE (3000 km)": "MUF — MAKSYMALNA CZĘSTOTLIWOŚĆ UŻYTECZNA (3000 km)",
       "ionosonde la plus proche": "najbliższa jonosonda", "Chargement…": "Wczytywanie…",
+      "CARTE MUF MONDIALE": "ŚWIATOWA MAPA MUF",
+      "MUF mesurée par un réseau mondial d'ionosondes, terminateur jour/nuit superposé — la propagation HF suit généralement la zone éclairée. Image publique tierce (rafraîchie ici toutes les 15 min) : crédit N0NBH conservé comme demandé sur hamqsl.com.":
+        "MUF mierzona przez ogólnoświatową sieć jonosond, nałożony terminator dzień/noc — propagacja HF zazwyczaj podąża za oświetloną strefą. Publiczny obraz strony trzeciej (odświeżany tutaj co 15 min): zachowano podziękowanie dla N0NBH zgodnie z wymogiem na hamqsl.com.",
       "Les spots du dernier refresh apparaissent ici.": "Spoty z ostatniego odświeżenia pojawiają się tutaj.",
       "Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.":
         "Uruchom odświeżenie z MAPY AI (📡 ANALIZUJ) lub poczekaj na automatyczny nasłuch.",
