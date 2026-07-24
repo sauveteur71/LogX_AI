@@ -151,6 +151,13 @@ body.usage-simple .usage-contest-only{display:none}
 .section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
 .section select option{background:var(--bg3)}
 .input-note{font-size:13px;color:#9AA4D8;margin-top:3px;font-style:italic}
+/* Champ + bouton "parcourir" (ex. DOSSIER DE SAUVEGARDE) : l'input garde
+   .section input (width:100%) via flex:1, le bouton reste à taille fixe. */
+.input-with-btn{display:flex;gap:8px;align-items:stretch}
+.input-with-btn input{flex:1;min-width:0}
+.folder-pick-btn{flex-shrink:0;font-size:18px;padding:0 14px;border-radius:8px;border:1px solid #2A3060;background:var(--bg3);color:#BCC8F0;cursor:pointer;transition:all .15s}
+.folder-pick-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.folder-pick-btn:disabled{opacity:.5;cursor:not-allowed}
 /* Autofill : empêche Chrome/Edge d'injecter fond clair + texte sombre sur les champs pré-remplis par JS */
 input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{-webkit-text-fill-color:#E8ECFF !important;-webkit-box-shadow:0 0 0 1000px #13152A inset !important;caret-color:#E8ECFF;transition:background-color 9999s ease-in-out 0s}
 body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,body.day-mode input:-webkit-autofill:focus{-webkit-text-fill-color:#0A0C20 !important;-webkit-box-shadow:0 0 0 1000px #FFFFFF inset !important}
@@ -1421,8 +1428,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div class="form-grid">
           <div class="form-group">
             <label>DOSSIER DE SAUVEGARDE</label>
-            <input type="text" id="backup_folder" placeholder="C:\Users\...\SynologyDrive\logs" autocomplete="off">
+            <div class="input-with-btn">
+              <input type="text" id="backup_folder" placeholder="C:\Users\...\SynologyDrive\logs" autocomplete="off">
+              <button type="button" class="folder-pick-btn" id="backupFolderPickBtn" onclick="pickBackupFolder()" title="Parcourir… (explorateur Windows)">📁</button>
+            </div>
             <div class="input-note">Copie horodatée (.db + .json + ADIF) ; vide = désactivé</div>
+            <span id="backupFolderPickResult" style="font-family:var(--font-mono);font-size:12px"></span>
           </div>
           <div class="form-group">
             <label>SAUVEGARDE — INTERVALLE (min)</label>
@@ -3340,6 +3351,43 @@ async function testQrzLogbook(){
   }catch(e){
     result.textContent = '❌ Serveur injoignable';
     result.style.color = 'var(--red)';
+  }
+}
+
+// Sélecteur de dossier natif Windows pour DOSSIER DE SAUVEGARDE — le serveur
+// tourne en local sur cette machine, donc peut ouvrir un vrai dialogue OS
+// (voir logx_winshell.py). La requête reste en attente jusqu'à ce que
+// l'utilisateur réponde au dialogue (comportement voulu, pas un bug).
+// N'enregistre pas la config automatiquement : comme d'habitude, il faut
+// encore cliquer "Enregistrer" dans la popup.
+async function pickBackupFolder(){
+  const input = document.getElementById('backup_folder');
+  const btn = document.getElementById('backupFolderPickBtn');
+  const result = document.getElementById('backupFolderPickResult');
+  result.textContent = '';
+  btn.disabled = true;
+  const prevLabel = btn.textContent;
+  btn.textContent = '⏳';
+  try{
+    const res = await fetch('/backup/pick_folder', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ initial_dir: input.value.trim() }),
+    });
+    const r = await res.json();
+    if (r.ok){
+      input.value = r.path;
+    } else if (r.error !== 'annule'){
+      // "annule" = l'utilisateur a fermé le dialogue sans choisir : rien à
+      // signaler, ce n'est pas une erreur.
+      result.textContent = r.message || `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
+  }finally{
+    btn.disabled = false;
+    btn.textContent = prevLabel;
   }
 }
 

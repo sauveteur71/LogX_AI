@@ -2761,6 +2761,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'error': str(e)}, 500)
             return
 
+        # Sélecteur de dossier natif Windows pour le champ DOSSIER DE
+        # SAUVEGARDE (CONFIG). Bloque volontairement le thread de CETTE
+        # requête le temps que l'utilisateur réponde au dialogue — déclenché
+        # par un clic, ce n'est pas un appel réseau automatique (voir
+        # logx_winshell.py). Hors Windows : message de repli, le champ reste
+        # utilisable en saisie manuelle.
+        if self.path == '/backup/pick_folder':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            try:
+                import logx_winshell as winshell
+                res = winshell.pick_folder(
+                    title='Choisir le dossier de sauvegarde',
+                    initial_dir=payload.get('initial_dir', ''),
+                )
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
         # Cloud Sync manuel immédiat (voir aussi le thread de fond périodique).
         if self.path == '/cloudsync/now':
             try:
