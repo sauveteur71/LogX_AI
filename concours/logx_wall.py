@@ -312,4 +312,8 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
         'recent': recents,
         'active_ops': active_ops,
         'now_utc': now.strftime('%H:%M:%S'),
+        # Consommé côté client pour masquer le panneau ROULEMENT en LOGBOOK
+        # SIMPLE (opRowCap()==1 côté CONFIG : jamais plus d'un opérateur dans
+        # ce mode, un planning de roulement n'a alors aucun sens).
+        'usage_mode': cfg.get('usage_mode', ''),
     }

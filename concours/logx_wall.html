@@ -671,7 +671,13 @@ if(localStorage.getItem('rc_theme') === null){
       .filter(([o])=>o&&o!=='—').map(([o,n])=>`<span class="chip">${o} <b>${n}</b></span>`).join('') || '—';
     setupAutoPager('wOps', 'wOpsPageLbl');
 
-    renderRoulement(d.active_ops||[], lastShifts);
+    // LOGBOOK SIMPLE : un seul opérateur possible (opRowCap()==1 côté CONFIG),
+    // un planning de roulement n'a alors aucun sens — jamais affiché plutôt
+    // que de montrer un panneau à un seul nom en permanence (y compris un
+    // planning resté en mémoire d'un mode précédent, d'où le [] explicite
+    // sur les deux arguments plutôt que seulement active_ops).
+    const isSimple = d.usage_mode === 'simple';
+    renderRoulement(isSimple ? [] : (d.active_ops||[]), isSimple ? [] : lastShifts);
   }
 
   async function tick(){

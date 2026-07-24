@@ -187,6 +187,66 @@ def test_endpoint_data_wall_expose_vhf_active(server, monkeypatch):
     assert d['vhf_active'] is True
 
 
+# ─── Portée concours de l'écran mural (/data/wall) ───────────────────────────
+# Avant ce fix : /data/wall appelait wall.wall_state(log, cfg) SANS contest_id,
+# donc le mur montrait toujours le total À VIE de la station (tous concours/
+# années confondus), jamais scopé au concours réellement en cours — signalé
+# en usage réel (capture d'écran : 9391 QSO alors qu'un seul concours venait
+# de démarrer). cfg_scope_id() est le même mécanisme déjà utilisé et testé
+# pour /log/list et le Worked Matrix (logx_storage.py) : '' en LOGBOOK SIMPLE
+# ou si aucun concours n'est sélectionné (le mur reste alors "tout ce qui est
+# loggé", cf. test_wall_state_ignore_contest_mismatch dans test_ref_features.py),
+# sinon le concours réellement actif.
+
+def test_endpoint_data_wall_scope_sur_le_concours_actif(server, monkeypatch):
+    log = [
+        {'call': 'F5ABC', 'band': '14', 'mode': 'SSB', 'date': '20260101', 'time': '10:00',
+         'contest': 'CQ_WW_SSB', 'locator': 'JN18'},
+        {'call': 'G3XYZ', 'band': '21', 'mode': 'CW', 'date': '20250601', 'time': '09:00',
+         'contest': 'REF_RPH', 'locator': 'IO91'},   # autre concours, autre année -> hors portée
+    ]
+    monkeypatch.setattr(httpmod, 'current_config',
+                         {'usage_mode': 'contest', 'contest': 'CQ_WW_SSB',
+                          'contest_start_date': '2026-01-01', 'locator': 'JN15XC'})
+    monkeypatch.setattr(httpmod, 'shared_log', log)
+    d = _get(server, '/data/wall')
+    assert d['qso_total'] == 1
+    assert d['per_band'] == {'14': 1}
+    assert d['usage_mode'] == 'contest'
+
+
+def test_endpoint_data_wall_pas_de_scope_en_mode_simple(server, monkeypatch):
+    """LOGBOOK SIMPLE : jamais de filtrage par concours, même si un concours
+    est resté configuré d'une session précédente (même règle que cfg_scope_id
+    partout ailleurs dans l'app)."""
+    log = [
+        {'call': 'F5ABC', 'band': '14', 'mode': 'SSB', 'date': '20260101', 'time': '10:00',
+         'contest': 'CQ_WW_SSB', 'locator': 'JN18'},
+        {'call': 'G3XYZ', 'band': '21', 'mode': 'CW', 'date': '20250601', 'time': '09:00',
+         'contest': 'REF_RPH', 'locator': 'IO91'},
+    ]
+    monkeypatch.setattr(httpmod, 'current_config',
+                         {'usage_mode': 'simple', 'contest': 'CQ_WW_SSB', 'locator': 'JN15XC'})
+    monkeypatch.setattr(httpmod, 'shared_log', log)
+    d = _get(server, '/data/wall')
+    assert d['qso_total'] == 2
+    assert d['usage_mode'] == 'simple'
+
+
+def test_endpoint_data_wall_pas_de_scope_sans_concours_selectionne(server, monkeypatch):
+    """Mode EXPÉDITION sans concours choisi : le mur reste "tout ce qui est
+    loggé" (comportement historique voulu, cf. docstring wall_state())."""
+    log = [
+        {'call': 'F5ABC', 'band': '14', 'mode': 'SSB', 'date': '20260101', 'time': '10:00',
+         'locator': 'JN18'},
+    ]
+    monkeypatch.setattr(httpmod, 'current_config',
+                         {'usage_mode': 'expedition', 'contest': '', 'locator': 'JN15XC'})
+    monkeypatch.setattr(httpmod, 'shared_log', log)
+    d = _get(server, '/data/wall')
+    assert d['qso_total'] == 1
+
+
 # ─── Carte de l'écran mural : lat/lon des rayons QSO + position station ─────
 # (logx_wall.py : recent[i]['lat']/['lon'] et wall_state()['my_lat']/['my_lon']
 # — consommés par la carte Leaflet "kiosque" de logx_wall.html, aucun calcul

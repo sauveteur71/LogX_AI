@@ -2309,7 +2309,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cfg_snap = self._cfg_snapshot()
             with log_lock:
                 log_copy = list(shared_log)
-            self._json(wall.wall_state(log_copy, cfg_snap))
+            # cfg_scope_id() encapsule déjà la bonne règle (voir logx_storage.py,
+            # même logique que /log/list et le Worked Matrix) : '' en LOGBOOK
+            # SIMPLE ou si aucun concours n'est sélectionné (mode EXPÉDITION
+            # sans concours -> le mur reste "tout ce qui est loggé", cf.
+            # test_wall_state_ignore_contest_mismatch) ; sinon le concours
+            # réellement actif -> le mur ne montre alors QUE ses QSO (et donc
+            # ses bandes, calculées à partir des mêmes entrées filtrées).
+            contest_id = cfg_snap.get('contest') if cfg_scope_id(cfg_snap) else None
+            self._json(wall.wall_state(log_copy, cfg_snap, contest_id=contest_id))
             return
 
         # RBN : où mon signal CW est entendu (skimmers Reverse Beacon Network)

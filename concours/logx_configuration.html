@@ -5147,6 +5147,11 @@ function updateOpRowControls(){
   if(addBtn) addBtn.style.display = (cap <= 1 || opRowCount >= cap) ? 'none' : '';
   if(rmBtn)  rmBtn.style.display  = (cap <= 1 || opRowCount <= 1)   ? 'none' : '';
   if(note)   note.textContent = cap > 1 ? `${opRowCount} / ${cap} opérateurs` : '';
+  // LOGBOOK SIMPLE (cap==1) : un seul opérateur possible, un planning de
+  // roulement entre opérateurs n'a alors aucun sens — masqué avec le reste
+  // du multi-op plutôt que de laisser une section orpheline.
+  const shiftsSec = document.getElementById('shiftsSection');
+  if(shiftsSec) shiftsSec.style.display = cap <= 1 ? 'none' : '';
   const isMulti = cap > 1 && opRowCount > 1;
   if(title) title.textContent = isMulti ? 'OPÉRATEURS (MULTI-OP)' : 'OPÉRATEUR';
   if(sub)   sub.textContent = isMulti
