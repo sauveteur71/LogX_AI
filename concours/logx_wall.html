@@ -147,11 +147,19 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
    CONDITIONS = propagation/météo, ceci = simple horloge). Voir tickDxClocks()
    plus bas : 4 lignes fixes, aucune couleur codée en dur (variables --text/
    --muted/--accent2 déjà utilisées ailleurs sur le mur pour ce même contraste
-   libellé/valeur, ex. .cond-row/.bar-row). */
-.dxrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:19px;margin:7px 0}
-.dxrow .dxflag{font-size:22px;width:26px;text-align:center;flex-shrink:0}
-.dxrow .dxlbl{flex:1;color:var(--muted)}
-.dxrow .dxtime{font-weight:800;letter-spacing:1px;color:var(--accent2)}
+   libellé/valeur, ex. .cond-row/.bar-row).
+   Grille 2 colonnes x 2 lignes (PAS 4 lignes empilées) : ce bloc est
+   flex-shrink:0 comme CONDITIONS/PAR MODE/PAR OPÉRATEUR (voir .wblock plus
+   haut) — en pile verticale ses ~209px poussaient PAR OPÉRATEUR hors écran à
+   1920x1080 (mesuré : bottom=1135 > innerHeight=1080, aucun scroll de secours
+   possible sur cette colonne). Passer à 2x2 réduit sa hauteur d'environ 80px
+   sans rien masquer (les 4 fuseaux restent tous visibles en permanence, pas
+   de pagination nécessaire pour un contenu qui ne varie jamais). */
+.dxgrid{display:grid;grid-template-columns:1fr 1fr;column-gap:16px}
+.dxrow{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:17px;margin:5px 0;min-width:0}
+.dxrow .dxflag{font-size:19px;width:22px;text-align:center;flex-shrink:0}
+.dxrow .dxlbl{flex:1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dxrow .dxtime{font-weight:800;letter-spacing:1px;color:var(--accent2);flex-shrink:0}
 /* Roulement opérateurs : qui est actif maintenant (badges qualif SSB/CW/DIGI)
    + planning à venir (/shifts/list). Polices assez grandes pour rester
    lisibles de loin (projecteur/TV), même logique que .chip/.bar-lbl. */
@@ -284,10 +292,12 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
          avec l'horodatage du log commun). -->
     <div class="wblock" id="wDxZones">
       <div class="wbt">🌐 FUSEAUX DX</div>
-      <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Est</span><span class="dxtime" id="dxUSE">—</span></div>
-      <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Ouest</span><span class="dxtime" id="dxUSW">—</span></div>
-      <div class="dxrow"><span class="dxflag">🇯🇵</span><span class="dxlbl">Japon</span><span class="dxtime" id="dxJA">—</span></div>
-      <div class="dxrow"><span class="dxflag">🇦🇺</span><span class="dxlbl">Océanie</span><span class="dxtime" id="dxOC">—</span></div>
+      <div class="dxgrid">
+        <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Est</span><span class="dxtime" id="dxUSE">—</span></div>
+        <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Ouest</span><span class="dxtime" id="dxUSW">—</span></div>
+        <div class="dxrow"><span class="dxflag">🇯🇵</span><span class="dxlbl">Japon</span><span class="dxtime" id="dxJA">—</span></div>
+        <div class="dxrow"><span class="dxflag">🇦🇺</span><span class="dxlbl">Océanie</span><span class="dxtime" id="dxOC">—</span></div>
+      </div>
     </div>
     <div class="wblock grow"><div class="wbt">📊 PAR BANDE<span class="wbt-page" id="wBandsPageLbl"></span></div><div id="wBands"></div></div>
     <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
