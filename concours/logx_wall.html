@@ -23,8 +23,20 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
   border-bottom:2px solid var(--border);flex-shrink:0}
 .wcall{font-family:var(--mono);font-size:44px;font-weight:800;color:var(--accent);letter-spacing:4px;line-height:1}
 .wcontest{font-family:var(--mono);font-size:20px;color:var(--accent2);letter-spacing:2px}
-.wclock{margin-left:auto;font-family:var(--mono);font-size:30px;color:var(--muted)}
+.wclocks{margin-left:auto;display:flex;gap:26px}
+.wclock-item{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.wclock{font-family:var(--mono);font-size:30px;color:var(--muted)}
+.wclock-item.local .wclock{color:var(--text)}
+.wclock-lbl{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:3px;opacity:.75}
 .wtop{display:flex;gap:16px;padding:16px 28px;flex-shrink:0}
+.wgoal{margin:0 28px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  padding:12px 22px;flex-shrink:0}
+.wgoal-head{display:flex;justify-content:space-between;align-items:baseline;
+  font-family:var(--mono);font-size:16px;letter-spacing:3px;color:var(--muted);margin-bottom:9px}
+.wgoal-head .wgoal-txt{color:var(--text);font-size:20px;font-weight:700;letter-spacing:1px}
+.wgoal-bar{height:24px;background:var(--bg3);border-radius:7px;overflow:hidden}
+.wgoal-fill{height:100%;border-radius:7px;background:linear-gradient(90deg,var(--green),var(--accent2));
+  transition:width .6s ease;min-width:2px}
 .kpi{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:14px;
   padding:14px 20px;text-align:center}
 .kv{font-family:var(--mono);font-size:56px;font-weight:800;line-height:1;color:var(--green)}
@@ -71,7 +83,10 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 <header>
   <div class="wcall" id="wCall">—</div>
   <div class="wcontest" id="wContest"></div>
-  <div class="wclock" id="wClock">—</div>
+  <div class="wclocks">
+    <div class="wclock-item"><div class="wclock" id="wClock">—</div><div class="wclock-lbl">UTC</div></div>
+    <div class="wclock-item local"><div class="wclock" id="wClockLocal">—</div><div class="wclock-lbl" id="wClockLocalLbl">LOCAL</div></div>
+  </div>
 </header>
 
 <div class="wtop">
@@ -79,6 +94,15 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
   <div class="kpi b2"><div class="kv" id="wRate">0</div><div class="kl">QSO / H</div></div>
   <div class="kpi b3"><div class="kv" id="wCalls">0</div><div class="kl">STATIONS</div></div>
   <div class="kpi b4"><div class="kv" id="wOdx">—</div><div class="kl" id="wOdxCall">ODX (KM)</div></div>
+</div>
+
+<!-- Barème objectif QSO de session (ex. "en route vers 10 000 QSO") — distinct
+     du rc_rate_goal (objectif QSO/HEURE, barre de statut). Masqué par défaut :
+     rendu visible uniquement si un objectif > 0 est configuré (CONFIG > MODE
+     EXPÉDITION > wall_qso_goal), voir render(). -->
+<div class="wgoal" id="wGoal" style="display:none">
+  <div class="wgoal-head"><span>🎯 OBJECTIF SESSION</span><span class="wgoal-txt" id="wGoalTxt"></span></div>
+  <div class="wgoal-bar"><div class="wgoal-fill" id="wGoalFill" style="width:0%"></div></div>
 </div>
 
 <div class="wmain">
@@ -145,6 +169,21 @@ if(localStorage.getItem('rc_theme') === null){
     document.getElementById('wOdxCall').textContent = d.odx&&d.odx.call ? ('ODX ' + d.odx.call) : 'ODX (KM)';
     document.getElementById('wRate10').textContent = d.rate_10min_x6 ? ('~'+d.rate_10min_x6+'/h sur 10 min') : '';
 
+    // Objectif QSO de session : le serveur ne fournit que le total configuré
+    // (qso_goal) — 0/absent = pas d'objectif défini, panneau masqué plutôt
+    // qu'une barre bloquée à 0 % en permanence.
+    const goalBlock=document.getElementById('wGoal');
+    const goal=d.qso_goal||0;
+    if(goal>0){
+      const cur=d.qso_total||0;
+      const pct=Math.max(0,Math.min(100,Math.round(100*cur/goal)));
+      goalBlock.style.display='';
+      document.getElementById('wGoalFill').style.width=pct+'%';
+      document.getElementById('wGoalTxt').textContent=`${cur.toLocaleString()} / ${goal.toLocaleString()} QSO — ${pct}%`;
+    } else {
+      goalBlock.style.display='none';
+    }
+
     // Flux QSO — colonnes pilotées par le menu wall_fields (CONFIG)
     const wf = d.wall_fields || {};
     const stream=document.getElementById('wStream');
@@ -189,6 +228,28 @@ if(localStorage.getItem('rc_theme') === null){
   }
   tick();
   setInterval(tick, 3000);
+
+  // Horloge LOCALE du poste : calculée entièrement côté navigateur depuis
+  // l'heure système (Date locale) — pas besoin que le serveur connaisse le
+  // fuseau horaire. Rafraîchie chaque seconde, indépendamment du poll /data/wall
+  // (3 s) pour rester fluide. Le libellé affiche le décalage UTC courant
+  // (ex. « LOCAL UTC+2 ») pour rester lisible par un néophyte devant l'écran.
+  function fmtUtcOffset(mins){
+    const sign = mins>=0 ? '+' : '-';
+    const abs = Math.abs(mins);
+    const h = Math.floor(abs/60), m = abs%60;
+    return `UTC${sign}${h}${m ? ':'+String(m).padStart(2,'0') : ''}`;
+  }
+  function tickLocalClock(){
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    const ss = String(now.getSeconds()).padStart(2,'0');
+    document.getElementById('wClockLocal').textContent = `${hh}:${mm}:${ss}`;
+    document.getElementById('wClockLocalLbl').textContent = 'LOCAL ' + fmtUtcOffset(-now.getTimezoneOffset());
+  }
+  tickLocalClock();
+  setInterval(tickLocalClock, 1000);
 })();
 </script>
 </body>

@@ -59,6 +59,19 @@ def _wall_fields(cfg):
     return out
 
 
+def _qso_goal(cfg):
+    """Objectif de QSO TOTAL pour la session/l'événement (config `wall_qso_goal`,
+    champ CONFIG section MODE EXPÉDITION) — DISTINCT de rc_rate_goal (objectif
+    QSO/HEURE, stocké côté navigateur dans localStorage, affiché dans la barre
+    de statut). 0/absent/invalide = pas d'objectif : le mur n'affiche alors pas
+    le panneau plutôt qu'une barre bloquée à 0 %."""
+    try:
+        goal = int((cfg or {}).get('wall_qso_goal', 0) or 0)
+    except (TypeError, ValueError):
+        goal = 0
+    return max(0, goal)
+
+
 def _enrich_recent(recents):
     """Ajoute drapeau + pays (FR) + prénom (si connu) à chaque QSO récent."""
     try:
@@ -181,6 +194,7 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
         'contest': contest_id,
         'wall_fields': _wall_fields(cfg),
         'qso_total': len(entries),
+        'qso_goal': _qso_goal(cfg),
         'unique_calls': len(calls),
         'score': score,
         'rate_hour': last_hour,

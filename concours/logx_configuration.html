@@ -1917,6 +1917,11 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
           <div class="input-note">L'indicatif est toujours affiché. Le prénom n'apparaît que pour les indicatifs déjà consultés via QRZ.</div>
         </div>
+        <div class="form-group" style="margin-top:10px;max-width:340px">
+          <label>ÉCRAN MURAL — OBJECTIF QSO (SESSION)</label>
+          <input type="number" id="wall_qso_goal" placeholder="ex. 10000" min="0" max="1000000" step="1" value="0">
+          <div class="input-note">Objectif de QSO TOTAL pour la session/l'événement (ex. « en route vers 10 000 QSO ») — affiche une barre de progression sur l'écran mural. Distinct de l'objectif QSO/heure de la barre de statut. 0 = pas de barre affichée.</div>
+        </div>
         <div class="form-group" style="margin-top:10px">
           <label>📱 CONNECTER UN TÉLÉPHONE / TABLETTE</label>
           <div id="lanUrls" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-top:6px;line-height:1.8">Recherche de l'adresse réseau…</div>
@@ -2082,6 +2087,7 @@ const CONFIG_HELP = {
   expedition_mode: "Active les fonctions pensées pour une activation DXpédition/SOTA/POTA en groupe : écran mural partagé, synchronisation multi-poste, statistiques de pile-up.",
   activation_program: "Le programme d'activation concerné si tu actives une référence (SOTA, POTA, WWFF, châteaux...). Permet d'afficher les bons outils pour ce programme.",
   my_activation_ref: "La référence précise du site que tu actives (ex. un code SOTA ou POTA), affichée sur l'écran mural et dans les exports.",
+  wall_qso_goal: "Objectif de QSO TOTAL pour la session/l'événement en cours (ex. « en route vers 10 000 QSO »), affiché sous forme de barre de progression sur l'écran mural — distinct de l'objectif QSO/heure affiché dans la barre de statut. Laisse à 0 pour ne pas afficher cette barre.",
 
   contest_start_date: "Date de début du concours choisi (remplie automatiquement dès que tu sélectionnes un concours dans l'étape 2, sauf réglage personnalisé).",
   contest_end_date: "Date de fin du concours — sert au compte à rebours affiché en permanence et au contrôle « QSO hors fenêtre » du bouton VÉRIFIER.",
@@ -4942,6 +4948,9 @@ function saveConfig(silent = false, feedbackBtn = null) {
       rst:     document.getElementById('wf_rst').checked,
       op:      document.getElementById('wf_op').checked,
     },
+    // Objectif QSO TOTAL de session pour la barre de progression de l'écran
+    // mural — distinct de rc_rate_goal (objectif QSO/HEURE, localStorage).
+    wall_qso_goal: _numClamped('wall_qso_goal', 0),
     // Correctif : aucun élément id="rig_enabled" n'existe dans la page (le
     // pilotage rigctld est en fait activé via cat_enabled + cat_mode='rigctld',
     // section RADIO unifiée) — l'ancienne ligne renvoyait donc toujours false,
@@ -5527,7 +5536,7 @@ function applyFullConfigToForm(c) {
      'cloudsync_mode','cloudsync_folder','cloudsync_interval',
      'rbn_enabled','clublog_live','expedition_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
-     'activation_program','my_activation_ref',
+     'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
      'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
      'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{

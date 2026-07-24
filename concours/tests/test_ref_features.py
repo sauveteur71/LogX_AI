@@ -294,6 +294,32 @@ def test_wall_state_enrichissement_et_champs():
     assert st2['wall_fields']['name'] is True
 
 
+def test_wall_state_qso_goal():
+    """Barème objectif QSO de session (wall_qso_goal) — distinct de rc_rate_goal
+    (objectif QSO/HEURE, purement côté navigateur) : ceci est un total de QSO
+    pour toute la session, configuré côté serveur."""
+    import logx_wall as wall
+    log = [
+        {'call': 'DL1AA', 'band': '14', 'mode': 'CW', 'operator': 'OP1',
+         'date': '20260718', 'time': '14:00', 'locator': 'JO31'},
+    ]
+    # Absent -> 0 : le mur ne doit rien afficher (vérifié côté HTML par goal>0)
+    st = wall.wall_state(log, {'locator': 'JN15WD'})
+    assert st['qso_goal'] == 0
+    # Configuré normalement
+    st2 = wall.wall_state(log, {'locator': 'JN15WD', 'wall_qso_goal': 10000})
+    assert st2['qso_goal'] == 10000
+    assert st2['qso_total'] == 1
+    # Valeurs non numériques ou négatives tolérées sans exception -> 0
+    st3 = wall.wall_state(log, {'wall_qso_goal': 'beaucoup'})
+    assert st3['qso_goal'] == 0
+    st4 = wall.wall_state(log, {'wall_qso_goal': -50})
+    assert st4['qso_goal'] == 0
+    # Chaîne numérique (champ HTML number peut arriver en str depuis un JSON externe)
+    st5 = wall.wall_state(log, {'wall_qso_goal': '500'})
+    assert st5['qso_goal'] == 500
+
+
 def test_activation_state():
     import logx_activation as act
     assert act.validate_ref('POTA', 'FR-0123') and not act.validate_ref('POTA', 'ZZZ')
