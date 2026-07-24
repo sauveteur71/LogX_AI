@@ -855,16 +855,33 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         if q.get('cq_zone'): done_cq_zones.add(str(q['cq_zone']))
         current_score += q.get('points', 0)
 
-    # Collecter tous les spots
+    # Collecter tous les spots — dédupliqué par (indicatif, bande réelle) :
+    # le lot générique 'HF' contient aussi les spots VHF/UHF de DXHeat (déjà
+    # reclassés ci-dessous via band_eff), qui peuvent recouper une même
+    # station déjà présente dans le cache dédié '144'/'432'/'50 MHz' du même
+    # cycle de rafraîchissement (_fetch_spots_hf_src et _fetch_spots_vhf_src/
+    # _fetch_spots_50_src tournent tous les deux dans logx_http.do_refresh
+    # sans dédup croisé entre buckets). Sans ceci, une même station apparaît
+    # deux fois dans la liste classée finale d'un concours mixte HF+VHF.
     all_stations = []
+    seen_station_band = set()
     for band_label, spots in spots_by_band.items():
         band = band_label.replace(' MHz','').replace(' GHz','')
         for s in spots:
             if isinstance(s, dict):
                 dx = s.get('dx','').split('/')[0]
-                # Locator validé contre les centroïdes pays : la grille que le
-                # spotteur met dans le commentaire est la SIENNE, pas celle du DX
-                loc = extract_dx_locator(dx, s.get('info',''), s.get('spotter',''))
+                # Locator structuré fourni directement par la source (ex.
+                # DXHeat 'DXLocator', cf. logx_clusters.fetch_dxheat) : déjà
+                # celui du DX, pas un commentaire à parser — utilisé en
+                # priorité s'il a un format Maidenhead plausible. Sinon repli
+                # sur l'extraction depuis le commentaire, validée contre les
+                # centroïdes pays (la grille que le spotteur met dans le
+                # commentaire est la SIENNE, pas celle du DX).
+                raw_loc = str(s.get('locator','') or '').upper()
+                if re.match(r'^[A-R]{2}\d{2}([A-X]{2})?$', raw_loc):
+                    loc = raw_loc if len(raw_loc) == 6 else raw_loc + 'MM'
+                else:
+                    loc = extract_dx_locator(dx, s.get('info',''), s.get('spotter',''))
                 dx_ll = locator_to_latlon(loc) if loc else (None, None)
                 # Sans locator fiable : coordonnées DX fournies par la source
                 # (l'API DXSummit donne la vraie position de la station)
@@ -884,6 +901,10 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                 band_eff = band
                 if band.upper() == 'HF':
                     band_eff = _band_from_freq(s.get('freq', '')) or band
+                dedup_key = (dx.upper(), str(band_eff))
+                if dedup_key in seen_station_band:
+                    continue  # déjà vu sur cette bande via un autre lot (HF/144/432/50)
+                seen_station_band.add(dedup_key)
                 all_stations.append({
                     'call': dx, 'locator': loc, 'dist_km': dist,
                     'lat': dx_ll[0], 'lon': dx_ll[1],
@@ -904,6 +925,10 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                 dist = 0
                 if dx_ll[0] and my_ll[0]:
                     dist = haversine(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
+                dedup_key = (str(call_val).split('/')[0].upper(), str(band))
+                if dedup_key in seen_station_band:
+                    continue
+                seen_station_band.add(dedup_key)
                 all_stations.append({
                     'call': call_val, 'locator': loc_val, 'dist_km': dist,
                     'band': band, 'source': 'cluster',

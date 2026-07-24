@@ -13,7 +13,15 @@ tests/test_config_html_sota_qrz_race.py), avec un DOM minimal reconstruit à
 partir des VRAIS data-key du fichier (extraits par regex), pour vérifier que :
   - un concours connu côté serveur (SERVER_CONTEST_RULES, simulant /data/
     calendar) restreint désormais aussi bien les bandes que les modes ;
-  - 'all' explicite (SOTA/POTA) ne restreint plus rien ;
+  - 'all' explicite (SOTA/POTA) sur LES DEUX axes ne restreint rien du tout ;
+  - 'all' explicite sur UN SEUL des deux axes (ex. bands:['all'], modes:['CW']
+    pour un concours CW-only sans limite de bande) ne lève la restriction que
+    sur CET axe — jamais sur l'autre. Avant correctif (revue adversariale du
+    24/07/2026), un OR unique (bands.includes('all') || modes.includes('all'))
+    levait TOUTE restriction dès qu'un seul axe était 'all' ;
+  - un code de bande/mode non traduisible par BAND_TOGGLE_KEY/MODE_TOGGLE_KEY
+    sur UN SEUL axe ne masque pas non plus tout l'axe opposé s'il est
+    traduisible, lui (même correctif, pendant symétrique) ;
   - un concours absent du serveur retombe sur LEGACY_CONTEST_FILTERS s'il y
     est, sinon aucune restriction ;
   - un toggle masqué est explicitement remis à false (pas seulement caché
@@ -208,14 +216,30 @@ def test_all_bands_all_modes_ne_restreint_rien():
     assert ctx.eval("_resolveContestFilters('SOTA')") is None
 
 
-def test_all_sur_un_seul_des_deux_ne_restreint_rien_non_plus():
-    """'all' sur bands OU modes (pas nécessairement les deux) → pas de
-    restriction du tout, conformément à la consigne explicite."""
+def test_all_sur_un_seul_des_deux_ne_leve_la_restriction_que_sur_cet_axe():
+    """'all' sur bands SEUL (modes précis par ailleurs) ne doit lever la
+    restriction QUE sur l'axe bandes — les modes listés restent restreints.
+    Symétriquement pour 'all' sur modes seul. Avant correctif : un OR unique
+    levait TOUTE restriction dès qu'un seul des deux axes valait 'all' (ex.
+    un concours CW-only sans limite de bande laissait SSB/FT8/... cochables)."""
     ctx = _make_ctx()
     ctx.eval("SERVER_CONTEST_RULES['X'] = {bands:['all'], modes:['SSB','CW']};")
-    assert ctx.eval("_resolveContestFilters('X')") is None
+    result_x = _js(ctx, "_resolveContestFilters('X')")
+    assert result_x == {'bands': None, 'modes': ['mode_ssb', 'mode_cw']}
     ctx.eval("SERVER_CONTEST_RULES['Y'] = {bands:['144','432'], modes:['all']};")
-    assert ctx.eval("_resolveContestFilters('Y')") is None
+    result_y = _js(ctx, "_resolveContestFilters('Y')")
+    assert result_y == {'bands': ['band_2m', 'band_70cm'], 'modes': None}
+
+
+def test_bande_non_traduisible_ne_masque_pas_les_modes_traduisibles():
+    """Régression du même bug (OR unique) côté 'rien de traduisible', pas
+    seulement 'all' : bands:['XYZ_INCONNU'] (aucune clé BAND_TOGGLE_KEY ne
+    correspond) + modes:['CW'] (traduisible) doit restreindre les modes à CW
+    sans toucher aux bandes (axe libre, pas 'toutes masquées')."""
+    ctx = _make_ctx()
+    ctx.eval("SERVER_CONTEST_RULES['Z'] = {bands:['XYZ_INCONNU'], modes:['CW']};")
+    result = _js(ctx, "_resolveContestFilters('Z')")
+    assert result == {'bands': None, 'modes': ['mode_cw']}
 
 
 def test_concours_inconnu_partout_ne_restreint_rien():
@@ -295,6 +319,43 @@ def test_concours_vhf_pur_masque_hf():
     assert 'band_80m' not in visible and 'band_20m' not in visible
     assert ctx.eval("document.getElementById('section_hf').style.display") == 'none'
     assert ctx.eval("document.getElementById('section_vhf').style.display") == ''
+
+
+def test_concours_cw_only_sans_limite_de_bande_ne_masque_que_les_modes():
+    """Problème 1 (revue adversariale 24/07/2026) : bands:['all'], modes:['CW']
+    (concours CW-only sans limite de bande) doit laisser TOUTES les bandes
+    visibles/sélectionnables (axe libre) mais restreindre les modes à CW
+    seul. Avant correctif, bands:['all'] levait aussi la restriction sur les
+    modes : SSB/FT8/... restaient cochables alors que seul CW est autorisé."""
+    ctx = _make_ctx()
+    ctx.eval("SERVER_CONTEST_RULES['CW_ALL_BANDS'] = {bands:['all'], modes:['CW']};")
+    ctx.eval("applyContestFilters('CW_ALL_BANDS');")
+    visible = _on_keys(ctx)
+    checked = _checked_keys(ctx)
+    # Axe bandes libre : tout reste visible, sections HF et VHF non masquées.
+    assert {'band_160m', 'band_20m', 'band_2m', 'band_70cm'} <= visible
+    assert ctx.eval("document.getElementById('section_hf').style.display") == ''
+    assert ctx.eval("document.getElementById('section_vhf').style.display") == ''
+    # Axe modes restreint : seul CW visible/coché, les autres masqués.
+    assert 'mode_cw' in visible and 'mode_cw' in checked
+    assert 'mode_ssb' not in visible and 'mode_ft8' not in visible
+
+
+def test_bande_non_traduisible_seule_ne_masque_pas_toutes_les_bandes():
+    """Problème 4 (revue adversariale 24/07/2026) : bands:['60'] (code absent
+    de BAND_TOGGLE_KEY côté serveur) + modes:['CW'] (traduisible) ne doit pas
+    masquer TOUTES les bandes de l'étape FILTRES. Avant correctif,
+    _resolveContestFilters renvoyait quand même {bands:[], modes:['mode_cw']}
+    (seul le cas où LES DEUX axes étaient vides retombait sur null), et
+    applyContestFilters cachait alors tous les boutons de bande sans en
+    réafficher aucun — sélection de bande totalement bloquée."""
+    ctx = _make_ctx()
+    ctx.eval("SERVER_CONTEST_RULES['UNK_BAND'] = {bands:['60'], modes:['CW']};")
+    ctx.eval("applyContestFilters('UNK_BAND');")
+    visible = _on_keys(ctx)
+    assert {'band_160m', 'band_20m', 'band_2m'} <= visible  # aucune bande masquée
+    assert 'mode_cw' in visible
+    assert 'mode_ssb' not in visible
 
 
 def test_all_ne_masque_rien_dans_applyContestFilters():

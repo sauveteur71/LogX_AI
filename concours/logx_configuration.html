@@ -4316,18 +4316,26 @@ const MODE_TOGGLE_KEY = {
 // 1. règlement serveur (SERVER_CONTEST_RULES, source de vérité) ;
 // 2. à défaut, repli LEGACY_CONTEST_FILTERS (concours absents côté serveur) ;
 // 3. sinon null → aucune restriction (comportement sûr par défaut).
-// 'all' explicite (SOTA/POTA...) sur bands OU modes → aucune restriction non
-// plus : le règlement autorise déjà tout, rien à masquer.
+// Les deux axes (bandes/modes) sont résolus INDÉPENDAMMENT l'un de l'autre :
+// 'all' explicite, ou un règlement dont aucun code ne se traduit via
+// BAND_TOGGLE_KEY/MODE_TOGGLE_KEY, lève la restriction sur CET axe seul —
+// jamais sur l'autre. Avant ce correctif, un OR unique (bands.includes('all')
+// || modes.includes('all')) levait TOUTE restriction dès que l'un des deux
+// axes était 'all', y compris quand l'autre axe listait des valeurs précises
+// (ex. bands:['all'], modes:['CW'] laissait SSB/FT8/... cochables alors que
+// seul CW est autorisé). Le retour est { bands, modes } où chaque champ vaut
+// soit un tableau de clés à restreindre, soit null si l'axe est libre.
 function _resolveContestFilters(contestId) {
   const rules = SERVER_CONTEST_RULES[contestId];
   if (rules) {
     const bands = rules.bands || [];
     const modes = rules.modes || [];
-    if (bands.includes('all') || modes.includes('all')) return null;
-    const bandKeys = [...new Set(bands.map(b => BAND_TOGGLE_KEY[b]).filter(Boolean))];
-    const modeKeys = [...new Set(modes.map(m => MODE_TOGGLE_KEY[m]).filter(Boolean))];
-    if (!bandKeys.length && !modeKeys.length) return null; // rien de traduisible → ne rien masquer
-    return { bands: bandKeys, modes: modeKeys };
+    const bandKeys = bands.includes('all') ? [] : [...new Set(bands.map(b => BAND_TOGGLE_KEY[b]).filter(Boolean))];
+    const modeKeys = modes.includes('all') ? [] : [...new Set(modes.map(m => MODE_TOGGLE_KEY[m]).filter(Boolean))];
+    const restrictBands = bandKeys.length > 0;
+    const restrictModes = modeKeys.length > 0;
+    if (!restrictBands && !restrictModes) return null; // aucun des deux axes n'a de restriction traduisible
+    return { bands: restrictBands ? bandKeys : null, modes: restrictModes ? modeKeys : null };
   }
   return LEGACY_CONTEST_FILTERS[contestId] || null;
 }
@@ -4358,53 +4366,70 @@ function applyContestFilters(contestId) {
     return;
   }
 
-  // ── 1. Tout désactiver
-  document.querySelectorAll('[data-key^="mode_"], [data-key^="band_"]').forEach(el => {
-    el.classList.remove('on');
-    state.toggles[el.dataset.key] = false;
-  });
+  // Chaque axe est traité indépendamment : filters.bands/filters.modes vaut
+  // soit un tableau de clés à restreindre, soit null si CET axe est libre
+  // (auquel cas on ne touche à rien pour ce type de clé — déjà tout visible
+  // depuis la réinitialisation ci-dessus, et les toggles existants restent
+  // intacts). Avant ce correctif, filters.bands/.modes étaient toujours des
+  // tableaux (jamais null), donc un axe non-restrictif masquait quand même
+  // tout puis ne réaffichait rien (voir Problème 4 du correctif).
+  const bandKeys = filters.bands;
+  const modeKeys = filters.modes;
 
-  // ── 2. Cacher TOUS les boutons de bande, puis n'afficher que les autorisés
-  document.querySelectorAll('[data-key^="band_"]').forEach(el => {
-    el.style.display = 'none';
-  });
-  filters.bands.forEach(key => {
-    const el = document.querySelector(`[data-key="${key}"]`);
-    if(el){ el.style.display = ''; el.classList.add('on'); state.toggles[key] = true; }
-  });
+  // ── 1. Bandes : si l'axe est restreint, tout désactiver/cacher puis ne
+  // réafficher/cocher que les autorisées.
+  if (bandKeys) {
+    document.querySelectorAll('[data-key^="band_"]').forEach(el => {
+      el.classList.remove('on');
+      state.toggles[el.dataset.key] = false;
+      el.style.display = 'none';
+    });
+    bandKeys.forEach(key => {
+      const el = document.querySelector(`[data-key="${key}"]`);
+      if(el){ el.style.display = ''; el.classList.add('on'); state.toggles[key] = true; }
+    });
+  }
 
-  // ── 3. Cacher TOUS les boutons de mode, puis n'afficher/activer que les
-  // autorisés — même traitement que les bandes ci-dessus (avant ce correctif,
-  // seules les bandes étaient masquées : un mode hors règlement restait
-  // cochable librement, juste pré-coché sur les modes autorisés).
-  document.querySelectorAll('[data-key^="mode_"]').forEach(el => {
-    el.style.display = 'none';
-  });
-  filters.modes.forEach(key => {
-    const el = document.querySelector(`[data-key="${key}"]`);
-    if(el){ el.style.display = ''; el.classList.add('on'); state.toggles[key] = true; }
-  });
+  // ── 2. Modes : même traitement, indépendant de l'axe bandes (avant ce
+  // correctif, seules les bandes étaient masquées : un mode hors règlement
+  // restait cochable librement, juste pré-coché sur les modes autorisés).
+  if (modeKeys) {
+    document.querySelectorAll('[data-key^="mode_"]').forEach(el => {
+      el.classList.remove('on');
+      state.toggles[el.dataset.key] = false;
+      el.style.display = 'none';
+    });
+    modeKeys.forEach(key => {
+      const el = document.querySelector(`[data-key="${key}"]`);
+      if(el){ el.style.display = ''; el.classList.add('on'); state.toggles[key] = true; }
+    });
+  }
 
-  // ── 4. Masquer les sections entières si aucune bande visible
-  const hasHF  = filters.bands.some(b => HF_BANDS.includes(b));
-  const hasVHF = filters.bands.some(b => VHF_BANDS.includes(b));
-  if(secHF)  secHF.style.display  = hasHF  ? '' : 'none';
-  if(secVHF) secVHF.style.display = hasVHF ? '' : 'none';
+  // ── 3. Masquer les sections HF/VHF entières seulement si l'axe bandes est
+  // effectivement restreint (sinon toutes les bandes restent visibles, donc
+  // les deux sections aussi).
+  if (bandKeys) {
+    const hasHF  = bandKeys.some(b => HF_BANDS.includes(b));
+    const hasVHF = bandKeys.some(b => VHF_BANDS.includes(b));
+    if(secHF)  secHF.style.display  = hasHF  ? '' : 'none';
+    if(secVHF) secVHF.style.display = hasVHF ? '' : 'none';
+  }
 
-  // ── 5. Notification
+  // ── 4. Notification
   if(note){
     const contest = CONTESTS.find(c => c.id === contestId);
     const name = contest ? contest.name : contestId;
-    const bandNames = filters.bands.map(b => {
+    const bandNames = bandKeys ? bandKeys.map(b => {
       const el = document.querySelector(`[data-key="${b}"]`);
       return el ? el.textContent.trim() : b;
-    }).join(' · ');
-    const modeNames = filters.modes.map(m => {
+    }).join(' · ') : '';
+    const modeNames = modeKeys ? modeKeys.map(m => {
       const el = document.querySelector(`[data-key="${m}"]`);
       return el ? el.textContent.trim() : m;
-    }).join(' · ');
-    note.innerHTML = `✅ <strong>${name}</strong> — Bandes autorisées par le règlement : ${bandNames}`
-      + (modeNames ? `<br>Modes autorisés : ${modeNames}` : '')
+    }).join(' · ') : '';
+    note.innerHTML = `✅ <strong>${name}</strong>`
+      + (bandKeys ? ` — Bandes autorisées par le règlement : ${bandNames}` : '')
+      + (modeKeys ? `<br>Modes autorisés : ${modeNames}` : '')
       + `<br><small style="opacity:.8">Seules les bandes/modes du règlement sont affichés. Tu peux en désactiver certains si tu ne les utilises pas.</small>`;
     note.style.display = 'block';
   }
