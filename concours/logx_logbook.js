@@ -1806,7 +1806,7 @@ function toggleEsm(){
   const b = document.getElementById('esmBtn');
   if(b){ b.textContent = 'ESM '+(esmMode?'●':'○'); b.style.color = esmMode?'var(--green)':'var(--muted)';
     b.style.borderColor = esmMode?'var(--green)':'var(--border)'; }
-  notify(esmMode ? '⏎ ESM activé : Entrée enchaîne appel → échange → log' : 'ESM désactivé');
+  notify(esmMode ? trT('⏎ ESM activé : Entrée enchaîne appel → échange → log') : trT('ESM désactivé'));
 }
 
 function esmSend(role){

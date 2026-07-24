@@ -321,3 +321,52 @@ def test_propre_ecriture_ne_reprogramme_pas_une_traduction_boucle_infinie():
     assert ctx.eval("__timers.length") == 0, (
         "une mutation qui ne fait que refléter notre propre traduction précédente "
         "ne doit jamais reprogrammer une nouvelle passe (boucle infinie sinon)")
+
+
+# ─── 4) Passe de comblement des traductions manquantes (24/07/2026) ─────────
+# Le bouton ✅ ENREGISTRER LE QSO (submitBtn, logx_logbook.html) restait
+# TOUJOURS en français quelle que soit la langue choisie : défaut le plus
+# visible signalé par l'utilisateur, aucune des 7 langues traduites n'avait
+# d'entrée pour ce texte dans T. Corrigé par ajout d'entrées dans le
+# dictionnaire (pas de changement de logique ici) — testé pour éviter une
+# régression silencieuse (clé renommée/mal orthographiée dans une des 7
+# traductions, par exemple).
+
+def test_enregistrer_le_qso_traduit_dans_les_7_langues():
+    """Vérifie qu'une traduction RÉELLE (différente du français source) existe
+    désormais pour ENREGISTRER LE QSO dans chacune des 7 langues traduites."""
+    ctx = _make_ctx()
+    ctx.eval(_real_source())
+    for lang in ['en', 'de', 'es', 'it', 'pt', 'nl', 'pl']:
+        ctx.eval("localStorage.setItem('rc_lang', %r);" % lang)
+        translated = ctx.eval("window.rcT('ENREGISTRER LE QSO')")
+        assert translated != 'ENREGISTRER LE QSO', (
+            "pas de traduction pour la langue %r (clé manquante dans T)" % lang)
+
+
+# ─── 5) OPTION n'est plus exclu du parcours de texte (24/07/2026) ───────────
+# `<option>` était exclu du TreeWalker SHOW_TEXT de walk() (même liste que
+# SCRIPT/STYLE), alors que son texte est un nœud ordinaire — sans effet sur
+# option.value, donc sans risque pour la logique qui lit la valeur
+# sélectionnée. Conséquence AVANT correctif : toute liste déroulante
+# traduisible (sélecteur d'opérateur, de continent, de périphérique audio par
+# défaut...) restait bloquée en français quelle que soit la langue choisie,
+# MÊME quand sa clé existe dans le dictionnaire T — trouvé en vérifiant en
+# direct dans un navigateur réel (logx_logbook.html : "— périphérique par
+# défaut —" ne changeait jamais de langue).
+
+def test_option_text_est_traduit_par_walk():
+    """Un <option> dont le texte correspond à une clé du dictionnaire doit être
+    traduit comme n'importe quel autre nœud texte."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    localStorage.setItem('rc_lang', 'en');
+    var sel = document.createElement('select');
+    var opt = document.createElement('option');
+    opt.textContent = 'Règlement';   // clé connue du dictionnaire (déjà utilisée ailleurs dans ce fichier)
+    sel.appendChild(opt);
+    document.body.appendChild(sel);
+    """)
+    ctx.eval(_real_source())   # init() tourne immédiatement (readyState = 'complete')
+    assert ctx.eval("opt.childNodes[0].nodeValue") == 'Rules', (
+        "le texte d'un <option> doit être traduit comme un nœud texte ordinaire")
