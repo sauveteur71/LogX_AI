@@ -2258,6 +2258,77 @@
     if (T[l]) Object.assign(T[l], T_CONFIG_FIX[l]);
   });
 
+  // Bannière "Créer un raccourci sur le bureau ?" (premier lancement de
+  // l'exécutable figé — voir logx_shortcut.py / checkShortcutOffer()).
+  const T_SHORTCUT_FIX = {
+    en: {
+      "🖥️ RACCOURCI SUR LE BUREAU ?": "🖥️ DESKTOP SHORTCUT?",
+      "Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.": "To relaunch LogX AI easily next time, without hunting for the executable.",
+      "✅ Oui": "✅ Yes",
+      "Non merci": "No thanks",
+      "🖥️ Raccourci créé sur le bureau : {path}": "🖥️ Shortcut created on the desktop: {path}",
+      "❌ Raccourci bureau : {err}": "❌ Desktop shortcut: {err}",
+      "❌ Serveur injoignable pour créer le raccourci": "❌ Server unreachable to create the shortcut",
+    },
+    de: {
+      "🖥️ RACCOURCI SUR LE BUREAU ?": "🖥️ VERKNÜPFUNG AUF DEM DESKTOP?",
+      "Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.": "Um LogX AI beim nächsten Mal einfach neu zu starten, ohne die ausführbare Datei suchen zu müssen.",
+      "✅ Oui": "✅ Ja",
+      "Non merci": "Nein danke",
+      "🖥️ Raccourci créé sur le bureau : {path}": "🖥️ Verknüpfung auf dem Desktop erstellt: {path}",
+      "❌ Raccourci bureau : {err}": "❌ Desktop-Verknüpfung: {err}",
+      "❌ Serveur injoignable pour créer le raccourci": "❌ Server nicht erreichbar, um die Verknüpfung zu erstellen",
+    },
+    es: {
+      "🖥️ RACCOURCI SUR LE BUREAU ?": "🖥️ ¿ACCESO DIRECTO EN EL ESCRITORIO?",
+      "Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.": "Para volver a iniciar LogX AI fácilmente la próxima vez, sin tener que buscar el ejecutable.",
+      "✅ Oui": "✅ Sí",
+      "Non merci": "No, gracias",
+      "🖥️ Raccourci créé sur le bureau : {path}": "🖥️ Acceso directo creado en el escritorio: {path}",
+      "❌ Raccourci bureau : {err}": "❌ Acceso directo de escritorio: {err}",
+      "❌ Serveur injoignable pour créer le raccourci": "❌ Servidor inaccesible para crear el acceso directo",
+    },
+    it: {
+      "🖥️ RACCOURCI SUR LE BUREAU ?": "🖥️ COLLEGAMENTO SUL DESKTOP?",
+      "Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.": "Per riavviare LogX AI facilmente la prossima volta, senza dover cercare l'eseguibile.",
+      "✅ Oui": "✅ Sì",
+      "Non merci": "No grazie",
+      "🖥️ Raccourci créé sur le bureau : {path}": "🖥️ Collegamento creato sul desktop: {path}",
+      "❌ Raccourci bureau : {err}": "❌ Collegamento desktop: {err}",
+      "❌ Serveur injoignable pour créer le raccourci": "❌ Server irraggiungibile per creare il collegamento",
+    },
+    pt: {
+      "🖥️ RACCOURCI SUR LE BUREAU ?": "🖥️ ATALHO NO AMBIENTE DE TRABALHO?",
+      "Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.": "Para reiniciar o LogX AI facilmente da próxima vez, sem teres de procurar o executável.",
+      "✅ Oui": "✅ Sim",
+      "Non merci": "Não, obrigado",
+      "🖥️ Raccourci créé sur le bureau : {path}": "🖥️ Atalho criado no ambiente de trabalho: {path}",
+      "❌ Raccourci bureau : {err}": "❌ Atalho do ambiente de trabalho: {err}",
+      "❌ Serveur injoignable pour créer le raccourci": "❌ Servidor inacessível para criar o atalho",
+    },
+    nl: {
+      "🖥️ RACCOURCI SUR LE BUREAU ?": "🖥️ SNELKOPPELING OP HET BUREAUBLAD?",
+      "Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.": "Om LogX AI de volgende keer makkelijk opnieuw te starten, zonder het uitvoerbare bestand te moeten zoeken.",
+      "✅ Oui": "✅ Ja",
+      "Non merci": "Nee bedankt",
+      "🖥️ Raccourci créé sur le bureau : {path}": "🖥️ Snelkoppeling aangemaakt op het bureaublad: {path}",
+      "❌ Raccourci bureau : {err}": "❌ Snelkoppeling bureaublad: {err}",
+      "❌ Serveur injoignable pour créer le raccourci": "❌ Server niet bereikbaar om de snelkoppeling aan te maken",
+    },
+    pl: {
+      "🖥️ RACCOURCI SUR LE BUREAU ?": "🖥️ SKRÓT NA PULPICIE?",
+      "Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.": "Aby łatwo uruchomić LogX AI ponownie następnym razem, bez szukania pliku wykonywalnego.",
+      "✅ Oui": "✅ Tak",
+      "Non merci": "Nie, dziękuję",
+      "🖥️ Raccourci créé sur le bureau : {path}": "🖥️ Skrót utworzony na pulpicie: {path}",
+      "❌ Raccourci bureau : {err}": "❌ Skrót na pulpicie: {err}",
+      "❌ Serveur injoignable pour créer le raccourci": "❌ Serwer niedostępny, aby utworzyć skrót",
+    },
+  };
+  Object.keys(T_SHORTCUT_FIX).forEach(function (l) {
+    if (T[l]) Object.assign(T[l], T_SHORTCUT_FIX[l]);
+  });
+
 
   // Directive de langue pour l'agent IA (ajoutée au prompt système côté client
   // avant l'appel /proxy/ai). Vide en fr/auto (le navigateur traduit la page).

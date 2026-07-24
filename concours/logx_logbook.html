@@ -186,6 +186,17 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 .on4kst-reminder-row button{font-family:var(--font-mono);font-size:13px;padding:6px 10px;border-radius:5px;cursor:pointer}
 .on4kst-reminder-post{background:var(--green);color:#06140C;border:none;font-weight:700;flex:1}
 .on4kst-reminder-dismiss{background:none;border:1px solid var(--border);color:var(--muted)}
+/* Bannière raccourci bureau (premier lancement de l'exécutable figé, voir
+   logx_shortcut.py) — coin bas-GAUCHE pour ne jamais superposer le toast
+   macro ni le rappel ON4KST, tous deux à droite. */
+.shortcut-offer{position:fixed;bottom:24px;left:24px;background:var(--bg2);border:1px solid var(--accent2);border-radius:10px;padding:14px 18px;font-family:var(--font-mono);z-index:9998;display:none;box-shadow:0 4px 20px rgba(0,0,0,.3);max-width:300px}
+.shortcut-offer.show{display:block;animation:macroToastIn .25s ease}
+.shortcut-offer-title{font-size:14px;color:var(--accent2);font-weight:700;letter-spacing:1px;margin-bottom:6px}
+.shortcut-offer-text{font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.4}
+.shortcut-offer-row{display:flex;gap:8px}
+.shortcut-offer-row button{font-family:var(--font-mono);font-size:13px;padding:6px 10px;border-radius:5px;cursor:pointer}
+.shortcut-offer-yes{background:var(--accent2);color:#06140C;border:none;font-weight:700;flex:1}
+.shortcut-offer-no{background:none;border:1px solid var(--border);color:var(--muted)}
 
 /* MAIN LAYOUT */
 .main{display:flex;flex:1;overflow:hidden;min-height:0}
@@ -902,6 +913,17 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <div class="on4kst-reminder-row">
     <button class="on4kst-reminder-post" onclick="exportON4KST();hideON4KSTReminder()">📡 REPOSTER</button>
     <button class="on4kst-reminder-dismiss" onclick="hideON4KSTReminder()">Plus tard</button>
+  </div>
+</div>
+
+<!-- RACCOURCI BUREAU (premier lancement de l'exécutable figé uniquement,
+     voir logx_shortcut.py — jamais affiché en mode développeur) -->
+<div class="shortcut-offer" id="shortcutOffer">
+  <div class="shortcut-offer-title">🖥️ RACCOURCI SUR LE BUREAU ?</div>
+  <div class="shortcut-offer-text">Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.</div>
+  <div class="shortcut-offer-row">
+    <button class="shortcut-offer-yes" onclick="createDesktopShortcut()">✅ Oui</button>
+    <button class="shortcut-offer-no" onclick="dismissShortcutOffer()">Non merci</button>
   </div>
 </div>
 

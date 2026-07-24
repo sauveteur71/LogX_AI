@@ -16,12 +16,11 @@ besoin — il invoque `powershell.exe` en sous-processus (System.Windows.
 Forms, disponible nativement sur toute machine Windows/.NET) et parse sa
 sortie standard. Aucune nouvelle dépendance Python.
 
-Réutilisable : pensé pour être appelé à la fois par /backup/pick_folder
-(choix du dossier de sauvegarde, CONFIG → SAUVEGARDE AUTOMATIQUE) et par une
-future création de raccourci bureau (tâche « desktop-shortcut » du même
-lot, si elle n'a pas déjà ajouté son propre module) — ajouter ici les
-fonctions correspondantes (ex. create_desktop_shortcut) plutôt que dupliquer
-l'invocation PowerShell ailleurs.
+Réutilisable : appelé à la fois par /backup/pick_folder (choix du dossier de
+sauvegarde, CONFIG → SAUVEGARDE AUTOMATIQUE) et par /shortcut/create_desktop
+(proposition de raccourci bureau au premier lancement figé, voir
+logx_shortcut.py) — toute nouvelle invocation PowerShell doit rejoindre ce
+module plutôt que d'en dupliquer une ailleurs.
 """
 import subprocess
 import sys
@@ -30,6 +29,12 @@ import sys
 # ne jamais bloquer indéfiniment un thread HTTP si l'utilisateur abandonne
 # la fenêtre sans la fermer.
 TIMEOUT_S = 180
+
+# La création de raccourci (WScript.Shell CreateShortcut) n'attend elle
+# AUCUNE action humaine — contrairement au FolderBrowserDialog ci-dessus,
+# c'est un pur appel COM synchrone. Un délai court suffit ; s'il est dépassé,
+# c'est que powershell.exe lui-même est bloqué (pas un utilisateur qui réfléchit).
+SHORTCUT_TIMEOUT_S = 20
 
 
 def pick_folder(title='Choisir un dossier', initial_dir=''):
@@ -95,6 +100,69 @@ def _build_pick_folder_script(title, initial_dir):
         "} else {\n"
         "    Write-Output 'LOGXAI_CANCELLED'\n"
         "}\n"
+    )
+
+
+def create_desktop_shortcut(target, name='LogX AI', description=''):
+    """Crée un raccourci Windows (.lnk) sur le Bureau de l'utilisateur, pointant
+    vers `target` (typiquement sys.executable — l'exécutable figé en cours
+    d'exécution lui-même, jamais un chemin codé en dur). Retourne :
+      {'ok': True, 'path': 'C:\\...\\Desktop\\LogX AI.lnk'}
+      {'ok': False, 'error': 'plateforme non supportee'} hors Windows
+      {'ok': False, 'error': '...'}                       autre échec
+    Ne lève jamais d'exception.
+
+    Utilise $ws.SpecialFolders('Desktop') plutôt que %USERPROFILE%\\Desktop
+    codé en dur : sous OneDrive avec redirection de dossiers connus (« Known
+    Folder Move »), le Bureau réellement affiché à l'utilisateur peut être
+    ailleurs — SpecialFolders('Desktop') est le seul moyen fiable de viser
+    l'endroit que l'utilisateur voit vraiment sur son écran."""
+    if not sys.platform.startswith('win'):
+        return {'ok': False, 'error': 'plateforme non supportee',
+                'message': ("La création automatique de raccourci n'est "
+                             "disponible que sous Windows pour le moment.")}
+
+    ps_script = _build_shortcut_script(target, name, description)
+    try:
+        proc = subprocess.run(
+            ['powershell', '-NoProfile', '-NonInteractive', '-Command', ps_script],
+            capture_output=True, text=True, timeout=SHORTCUT_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        return {'ok': False, 'error': 'delai depasse lors de la creation du raccourci'}
+    except Exception as e:
+        return {'ok': False, 'error': f'impossible de lancer PowerShell : {e}'}
+
+    out = (proc.stdout or '')
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith('LOGXAI_SHORTCUT_OK:'):
+            path = line[len('LOGXAI_SHORTCUT_OK:'):].strip()
+            if path:
+                return {'ok': True, 'path': path}
+
+    # Aucun marqueur de succès : le script PowerShell a échoué avant Save()
+    # (stderr contient le détail — ex. COM indisponible, chemin invalide...).
+    err = (proc.stderr or '').strip()
+    return {'ok': False, 'error': err or "la creation du raccourci a echoue sans message"}
+
+
+def _build_shortcut_script(target, name, description):
+    """Construit le script PowerShell (même choix de concaténation simple
+    que _build_pick_folder_script — voir sa docstring)."""
+    target_ps = _ps_quote(target)
+    name_ps = _ps_quote(name)
+    desc_ps = _ps_quote(description)
+    return (
+        "$ws = New-Object -ComObject WScript.Shell\n"
+        "$desktop = $ws.SpecialFolders('Desktop')\n"
+        "$lnkPath = Join-Path $desktop (" + name_ps + " + '.lnk')\n"
+        "$sc = $ws.CreateShortcut($lnkPath)\n"
+        "$sc.TargetPath = " + target_ps + "\n"
+        "$sc.Description = " + desc_ps + "\n"
+        "$sc.WorkingDirectory = Split-Path " + target_ps + " -Parent\n"
+        "$sc.Save()\n"
+        "Write-Output ('LOGXAI_SHORTCUT_OK:' + $lnkPath)\n"
     )
 
 

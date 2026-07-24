@@ -109,3 +109,76 @@ def test_script_powershell_embarque_le_dossier_initial_quand_fourni():
     assert "$init = 'C:\\logs'" in script
     assert 'ShowNewFolderButton = $true' in script
     assert 'FolderBrowserDialog' in script
+
+
+# ─── create_desktop_shortcut (raccourci bureau, voir logx_shortcut.py) ───────
+# Même logique de test que pick_folder ci-dessus : subprocess.run monkeypatché,
+# on couvre le parsing/repli, jamais une vraie invocation PowerShell.
+
+def test_shortcut_hors_windows_repli_sans_invoquer_powershell(monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'linux')
+
+    def _boom(*a, **k):
+        raise AssertionError('subprocess.run ne doit pas être appelé hors Windows')
+    monkeypatch.setattr(winshell.subprocess, 'run', _boom)
+
+    res = winshell.create_desktop_shortcut('C:\\LogXAI.exe')
+    assert res['ok'] is False
+    assert res['error'] == 'plateforme non supportee'
+    assert 'Windows' in res['message']
+
+
+def test_shortcut_cree_est_parse_depuis_stdout(monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'win32')
+    monkeypatch.setattr(winshell.subprocess, 'run',
+                         lambda *a, **k: _FakeCompletedProcess(
+                             stdout='LOGXAI_SHORTCUT_OK:C:\\Users\\test\\Desktop\\LogX AI.lnk\r\n'))
+
+    res = winshell.create_desktop_shortcut('C:\\LogXAI.exe', name='LogX AI')
+    assert res == {'ok': True, 'path': 'C:\\Users\\test\\Desktop\\LogX AI.lnk'}
+
+
+def test_shortcut_delai_depasse_remonte_une_erreur_dediee(monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'win32')
+
+    def _raise_timeout(*a, **k):
+        raise subprocess.TimeoutExpired(cmd='powershell', timeout=winshell.SHORTCUT_TIMEOUT_S)
+    monkeypatch.setattr(winshell.subprocess, 'run', _raise_timeout)
+
+    res = winshell.create_desktop_shortcut('C:\\LogXAI.exe')
+    assert res['ok'] is False
+    assert 'delai' in res['error']
+
+
+def test_shortcut_echec_powershell_remonte_stderr(monkeypatch):
+    """Aucun marqueur LOGXAI_SHORTCUT_OK sur stdout (ex. COM WScript.Shell
+    indisponible) : le message d'erreur vient de stderr, pas d'un générique muet."""
+    monkeypatch.setattr(sys, 'platform', 'win32')
+    monkeypatch.setattr(winshell.subprocess, 'run',
+                         lambda *a, **k: _FakeCompletedProcess(
+                             stdout='', stderr='Erreur PowerShell : COM introuvable'))
+
+    res = winshell.create_desktop_shortcut('C:\\LogXAI.exe')
+    assert res == {'ok': False, 'error': 'Erreur PowerShell : COM introuvable'}
+
+
+def test_shortcut_exception_a_linvocation_ne_remonte_pas(monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'win32')
+
+    def _raise(*a, **k):
+        raise FileNotFoundError('powershell.exe introuvable')
+    monkeypatch.setattr(winshell.subprocess, 'run', _raise)
+
+    res = winshell.create_desktop_shortcut('C:\\LogXAI.exe')
+    assert res['ok'] is False and 'introuvable' in res['error']
+
+
+def test_script_powershell_du_raccourci_utilise_specialfolders_desktop():
+    """Pas de %USERPROFILE%\\Desktop codé en dur — SpecialFolders('Desktop')
+    reste correct même sous OneDrive avec redirection de dossiers connus."""
+    script = winshell._build_shortcut_script('C:\\LogXAI.exe', 'LogX AI',
+                                              'LogX AI — logiciel de log radioamateur')
+    assert "SpecialFolders('Desktop')" in script
+    assert "$sc.TargetPath = 'C:\\LogXAI.exe'" in script
+    assert "'LogX AI'" in script
+    assert 'USERPROFILE' not in script

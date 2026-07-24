@@ -2072,6 +2072,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(upd.get_download_status())
             return
 
+        # Raccourci bureau proposé au premier lancement figé (voir
+        # logx_shortcut.py) : indique au logbook s'il doit afficher la
+        # bannière "Créer un raccourci ?". Pas d'auth requise (comme
+        # /app/update_check) — c'est un simple booléen, sans donnée sensible.
+        if path == '/shortcut/status':
+            import logx_shortcut as shortcut
+            self._json({'show': shortcut.should_offer()})
+            return
+
         # Spots d'activateurs SOTA en direct (api2.sota.org.uk, cache 60 s)
         if path == '/data/sota_spots':
             import logx_sota as sota
@@ -2779,6 +2788,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     initial_dir=payload.get('initial_dir', ''),
                 )
                 self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Bannière "Créer un raccourci sur le bureau ?" (premier lancement de
+        # l'exécutable figé, voir logx_shortcut.py) — clic "Oui" : crée
+        # réellement le raccourci ET pose le marqueur dans tous les cas
+        # (succès ou échec), pour ne plus jamais reproposer la bannière.
+        if self.path == '/shortcut/create_desktop':
+            try:
+                import logx_shortcut as shortcut
+                res = shortcut.create_and_mark()
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Clic "Non" sur la même bannière : ne crée rien, pose juste le
+        # marqueur pour ne plus jamais la réafficher.
+        if self.path == '/shortcut/dismiss':
+            try:
+                import logx_shortcut as shortcut
+                shortcut.mark_offered()
+                self._json({'ok': True})
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 500)
             return
