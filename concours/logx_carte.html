@@ -422,7 +422,7 @@ function drawPropMap(d){
   propLayer=L.layerGroup(rects).addTo(leafletMap);
   propLayer.eachLayer(l=>{ if(l.bringToBack) l.bringToBack(); });  // sous les spots/lignes
   document.getElementById('propMeta').textContent =
-    `${d.band==='best'?'meilleure bande / point':d.band+' MHz'} · ${d.when_utc} UTC`;
+    `${d.band==='best'?rcT('meilleure bande / point'):d.band+' MHz'} · ${d.when_utc} UTC`;
 }
 
 function onPropHour(){
@@ -710,8 +710,8 @@ function drawLoggedQSOs(){
       `<b style="color:${col}">${q.call}</b> ✅<br>` +
       `📍 ${q.locator}<br>` +
       `📡 ${bandLabel} — ${q.mode}<br>` +
-      `📏 ${q.dist||'?'} km — 🏆 ${q.points||0} pts<br>` +
-      `🧭 Cap antenne : ${capDeg}° ${cardinalLL(capDeg)}` +
+      `📏 ${q.dist||'?'} km — 🏆 ${q.points||0} ${rcT('pts')}<br>` +
+      `🧭 ${rcT('Cap antenne :')} ${capDeg}° ${cardinalLL(capDeg)}` +
       `</div>`
     );
     leafletQSOMarkers.push(mk);
@@ -904,7 +904,7 @@ function removeThinking(){const el=document.getElementById('thinking');if(el)el.
 
 function parseScores(text){
   const tot=text.match(/SCORE\s+TOTAL\s*[:：]\s*([\d\s,]+)\s*pts/i);
-  if(tot)document.getElementById('scoreTotal').textContent=parseInt(tot[1].replace(/[\s,]/g,'')).toLocaleString()+' pts';
+  if(tot)document.getElementById('scoreTotal').textContent=parseInt(tot[1].replace(/[\s,]/g,'')).toLocaleString()+' '+rcT('pts');
   const dx=text.match(/(\d{3,4})\s*km/g);
   if(dx){const m=Math.max(...dx.map(d=>parseInt(d)));if(m>100)document.getElementById('scoreBestDX').textContent=m+' km';}
   const qso=text.match(/(\d+)\s*QSO/i);
@@ -992,12 +992,12 @@ async function fetchTerrainData(){
     if(!res.ok)return null;
     const data=await res.json();
     if(data.score_total!==undefined){
-      document.getElementById('scoreTotal').textContent=data.score_total.toLocaleString()+' pts';
+      document.getElementById('scoreTotal').textContent=data.score_total.toLocaleString()+' '+rcT('pts');
     }
     const logs=data.logs||{};
     const keys=Object.keys(logs);
-    if(keys[0])document.getElementById('score1').textContent=(logs[keys[0]].score||0).toLocaleString()+' pts';
-    if(keys[1])document.getElementById('score2').textContent=(logs[keys[1]].score||0).toLocaleString()+' pts';
+    if(keys[0])document.getElementById('score1').textContent=(logs[keys[0]].score||0).toLocaleString()+' '+rcT('pts');
+    if(keys[1])document.getElementById('score2').textContent=(logs[keys[1]].score||0).toLocaleString()+' '+rcT('pts');
     if(data.qso_total!==undefined)document.getElementById('scoreQSO').textContent=data.qso_total;
     if(data.system_prompt)systemPrompt=data.system_prompt;
     // Affichage carte : couche structurée du moteur (refreshRankedStations)
@@ -1057,7 +1057,7 @@ async function send(forcedText,displayText){
 
   }catch(err){
     removeThinking();
-    addMsg('agent',`❌ ${err.message}\n\nVérifie que logx_serveur.py tourne et que ta clé API est configurée.`);
+    addMsg('agent',`❌ ${err.message}\n\n${rcT('Vérifie que logx_serveur.py tourne et que ta clé API est configurée.')}`);
     isWaiting=false;
     document.getElementById('sendBtn').disabled=false;
   }
@@ -1080,16 +1080,16 @@ function pollAnalyze(id, ensureThinking){
     removeThinking();
     localStorage.removeItem('rc_analyze');
     if(s.status==='done'){
-      const reply=s.reply||'Pas de réponse.';
+      const reply=s.reply||rcT('Pas de réponse.');
       conversationHistory.push({role:'assistant',content:reply});
       if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
       const isAlert=reply.includes('⚡')||reply.includes('SPOTÉ');
       const isDX=reply.includes('🌟')||reply.includes('DX EXCEPTIONNEL');
       addMsg('agent',reply,isDX?'dx':isAlert?'alert':'');
     }else if(s.status==='error'){
-      addMsg('agent','❌ '+(s.error||'analyse échouée'));
+      addMsg('agent','❌ '+(s.error||rcT('analyse échouée')));
     }else{
-      addMsg('agent','⚠️ Analyse introuvable (serveur redémarré ?). Relance-la.');
+      addMsg('agent','⚠️ '+rcT('Analyse introuvable (serveur redémarré ?). Relance-la.'));
     }
     done();
   };
@@ -1269,7 +1269,7 @@ function startTitleFlash(){
   if(titleFlashTimer || !document.hidden) return;
   let on = false;
   titleFlashTimer = setInterval(()=>{
-    document.title = on ? originalTabTitle : '🚨 ALERTE DX !';
+    document.title = on ? originalTabTitle : rcT('🚨 ALERTE DX !');
     on = !on;
   }, 1000);
 }
@@ -1410,8 +1410,8 @@ function checkNewMultAlerts(spots){
     const last = _alertedMults[s.call];
     if(last && now-last < 20*60*1000) return;   // déjà signalé récemment
     _alertedMults[s.call] = now;
-    flashAlert(`📈 NOUVEAU MULT spotté : ${s.call} sur ${s.band} MHz`+
-               (s.freq?` (${s.freq})`:'')+(s.bearing!=null?` — cap ${s.bearing}° ${s.cardinal}`:''), 'mult');
+    flashAlert(`📈 ${rcT('NOUVEAU MULT spotté :')} ${rcTf('{call} sur {band} MHz',{call:s.call,band:s.band})}`+
+               (s.freq?` (${s.freq})`:'')+(s.bearing!=null?` — ${rcTf('cap {deg}° {card}',{deg:s.bearing,card:s.cardinal})}`:''), 'mult');
   });
 }
 
@@ -1435,8 +1435,8 @@ function checkCustomAlertRules(matches){
     if(last && now-last < 20*60*1000) return;
     _alertedRuleMatches[key] = now;
     const s = m.spot;
-    flashAlert(`🔔 ${m.rule_name} : ${s.call} sur ${s.band} MHz`+
-               (s.freq?` (${s.freq})`:'')+(s.bearing!=null?` — cap ${s.bearing}° ${s.cardinal}`:''), 'custom');
+    flashAlert(`🔔 ${m.rule_name} : ${rcTf('{call} sur {band} MHz',{call:s.call,band:s.band})}`+
+               (s.freq?` (${s.freq})`:'')+(s.bearing!=null?` — ${rcTf('cap {deg}° {card}',{deg:s.bearing,card:s.cardinal})}`:''), 'custom');
   });
 }
 
@@ -1445,7 +1445,7 @@ function checkMentionAlerts(mentions){
     const key = m.time+'|'+m.call+'|'+m.text;
     if(_mentionSeen.has(key)) return;
     _mentionSeen.add(key);
-    flashAlert(`💬 ON4KST — ${m.call} te mentionne : « ${m.text} »`, 'mention');
+    flashAlert(`💬 ON4KST — ${m.call} ${rcT('te mentionne :')} « ${m.text} »`, 'mention');
   });
 }
 

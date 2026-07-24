@@ -274,6 +274,9 @@ let filter = 'all';
 let rigEnabled = false;
 let rotorEnabled = false;
 
+// Raccourci i18n (fourni par logx_i18n.js ; repli = identité si absent).
+const rcT = (s) => (window.rcT ? window.rcT(s) : s);
+
 // Radio CAT : bouton QSY sur chaque spot si le pilotage est activé (CONFIG)
 fetch('/rig/state').then(r => r.ok ? r.json() : null)
   .then(d => { rigEnabled = !!(d && d.enabled); if(rigEnabled) renderSpots(); })
@@ -291,7 +294,7 @@ async function pointTo(az, call){
     });
     const d = await r.json();
     const el = document.getElementById('lastRefresh');
-    el.textContent = d.ok ? `🧭 Antenne → ${Math.round(az)}° vers ${call}` : `❌ ${d.error}`;
+    el.textContent = d.ok ? `🧭 ${rcT('Antenne')} → ${Math.round(az)}° ${rcT('vers')} ${call}` : `❌ ${d.error}`;
     el.style.color = d.ok ? 'var(--green)' : 'var(--red)';
     setTimeout(() => { el.style.color = ''; }, 4000);
   }catch(e){}
@@ -347,7 +350,7 @@ async function loadPropagation(){
     const muf = d.muf && d.muf.muf;
     document.getElementById('mufVal').textContent = muf ? muf + ' MHz' : '—';
     document.getElementById('mufStation').textContent = d.muf
-      ? `ionosonde ${d.muf.station} (foF2 ${d.muf.fof2} MHz)` : 'donnée indisponible';
+      ? `${rcT('ionosonde')} ${d.muf.station} (foF2 ${d.muf.fof2} MHz)` : rcT('donnée indisponible');
 
     let condHtml = '';
     if(muf){
@@ -375,7 +378,7 @@ async function loadPropagation(){
       }).join('') || '<div class="loading">—</div>';
 
     document.getElementById('lastRefresh').textContent =
-      'MàJ ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+      rcT('MàJ') + ' ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
   }catch(e){ console.warn('propagation', e); }
 }
 
@@ -411,13 +414,13 @@ function renderSpots(){
   }
   document.getElementById('spotList').innerHTML = list.map(s => `
     <div class="spot-row ${s.new_mult && !s.already_done ? 'sr-mult' : ''} ${s.already_done ? 'sr-done' : ''}">
-      <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="priorité ${s.priority}"></span>
-      ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo(${Number(s.freq)||0},'${jsCall(s.call)}')" title="Régler la radio sur ${esc(s.freq)} kHz">▶ QSY</button>` : ''}
-      ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo(${Number(s.bearing)||0},'${jsCall(s.call)}')" title="Pointer l'antenne sur ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
+      <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="${rcT('priorité')} ${s.priority}"></span>
+      ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo(${Number(s.freq)||0},'${jsCall(s.call)}')" title="${rcT('Régler la radio sur')} ${esc(s.freq)} kHz">▶ QSY</button>` : ''}
+      ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo(${Number(s.bearing)||0},'${jsCall(s.call)}')" title="${rcT("Pointer l'antenne sur")} ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
       <span class="sr-call">${esc(s.call)}</span>
       <span class="sr-freq">${esc(s.freq || '')}</span>
       <span class="sr-band">${esc(s.band)} MHz</span>
-      <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : '+' + esc(s.value || s.points) + ' pts'}</span>
+      <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : '+' + esc(s.value || s.points) + ' ' + rcT('pts')}</span>
       ${s.new_mult && !s.already_done ? '<span class="sr-mult-badge">📈 NOUVEAU MULT</span>' : ''}
       <span class="sr-cap">${s.bearing != null ? esc(s.bearing) + '° ' + esc(s.cardinal) : ''}</span>
       <span class="sr-info" title="${esc(s.explanation)}">${s.dist_km ? esc(s.dist_km) + ' km · ' : ''}${esc(s.explanation)}</span>
@@ -495,7 +498,7 @@ async function loadMeteors(){
     let html = `<div style="font-weight:700;color:${COL[d.level]||'var(--text)'};margin-bottom:6px">`
       + `MS ${d.level.toUpperCase()} — ${d.reason}</div>`
       + `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">`
-      + `Meilleur créneau : ${d.best_hours} · ${d.distance_km}</div>`;
+      + `${rcT('Meilleur créneau :')} ${d.best_hours} · ${d.distance_km}</div>`;
     if((d.showers||[]).length){
       html += `<div style="margin-top:8px">` + d.showers.map(s => `
         <div class="bc-row"><span style="color:${s.active?'var(--green)':'var(--muted)'};font-weight:${s.active?700:400};flex:1">${s.active?'🟢 ':''}${s.name}</span>`
@@ -704,15 +707,15 @@ async function loadEme(){
       ? '<span style="color:var(--green)">● visible</span>'
       : '<span style="color:var(--muted)">○ sous l\'horizon</span>';
     el.innerHTML = `
-      <div>🌗 Position : <b>Az ${moon.az}° / El ${moon.alt}°</b> ${visBadge}</div>
-      <div>📏 Distance : ${Math.round(moon.distance_km).toLocaleString('fr-FR')} km · Phase : ${moon.phase_pct}%</div>
-      <div>🌅 Lever : ${esc(moon.rise_utc || '—')} UTC &nbsp;·&nbsp; 🌇 Coucher : ${esc(moon.set_utc || '—')} UTC</div>
-      <div>📻 Doppler estimé : 144.1 MHz → <b>${d144.available ? d144.doppler_hz+' Hz' : '—'}</b> · 432.1 MHz → <b>${d432.available ? d432.doppler_hz+' Hz' : '—'}</b></div>
+      <div>🌗 ${rcT('Position :')} <b>Az ${moon.az}° / El ${moon.alt}°</b> ${visBadge}</div>
+      <div>📏 ${rcT('Distance :')} ${Math.round(moon.distance_km).toLocaleString('fr-FR')} km · ${rcT('Phase :')} ${moon.phase_pct}%</div>
+      <div>🌅 ${rcT('Lever :')} ${esc(moon.rise_utc || '—')} UTC &nbsp;·&nbsp; 🌇 ${rcT('Coucher :')} ${esc(moon.set_utc || '—')} UTC</div>
+      <div>📻 ${rcT('Doppler estimé :')} 144.1 MHz → <b>${d144.available ? d144.doppler_hz+' Hz' : '—'}</b> · 432.1 MHz → <b>${d432.available ? d432.doppler_hz+' Hz' : '—'}</b></div>
       <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <input id="emeDxLocator" placeholder="Locator correspondant (ex: FN31pr)" autocapitalize="characters"
           style="text-transform:uppercase;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-family:var(--font-mono);width:180px"
           onkeydown="if(event.key==='Enter'){event.preventDefault();searchEmeWindow();}">
-        <button type="button" class="filter-btn" onclick="searchEmeWindow()">🔍 Fenêtre commune (48h)</button>
+        <button type="button" class="filter-btn" onclick="searchEmeWindow()">🔍 ${rcT('Fenêtre commune (48h)')}</button>
       </div>
       <div id="emeWindowResult" style="margin-top:6px;color:var(--muted)"></div>
     `;
