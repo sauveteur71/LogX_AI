@@ -134,6 +134,15 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .cond-row{font-family:var(--mono);font-size:19px;margin:7px 0;color:var(--text);line-height:1.3}
 .cond-row b{font-weight:800}
 .cond-warn{color:var(--red);font-weight:800;display:block;margin-top:2px;font-size:16px}
+/* Carte MUF mondiale compacte (image publique N0NBH/hamqsl.com) — même
+   principe que le lien Foudre juste au-dessus : embed visuel pur, aucune
+   donnée ne transite par notre serveur. Volontairement petite (max-width)
+   pour rester une simple vignette dans un panneau CONDITIONS déjà chargé
+   (voir logx_propagation.html pour la version pleine taille). */
+.cond-mufmap{display:block;margin-top:8px;width:100%;max-width:190px;height:auto;
+  border-radius:8px;border:1px solid var(--border);background:var(--bg3)}
+.cond-mufmap-credit{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);
+  text-decoration:none;margin-top:3px}
 /* Roulement opérateurs : qui est actif maintenant (badges qualif SSB/CW/DIGI)
    + planning à venir (/shifts/list). Polices assez grandes pour rester
    lisibles de loin (projecteur/TV), même logique que .chip/.bar-lbl. */
@@ -237,7 +246,11 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
          + lien statique vers la carte de foudre Blitzortung.org (même thème
          sécurité antenne que la météo) : juste un lien, jamais l'iframe
          complète ici — trop lourd pour un affichage permanent (cf.
-         logx_propagation.html pour l'intégration en iframe). -->
+         logx_propagation.html pour l'intégration en iframe).
+         + vignette de la carte MUF mondiale (image publique N0NBH/hamqsl.com,
+         cf. logx_propagation.html pour la vérification en direct de la
+         source) : contrairement à Blitzortung, c'est un simple GIF (~35 Ko),
+         assez léger pour être embarqué même en compact ici. -->
     <div class="wblock">
       <div class="wbt">🌍 CONDITIONS</div>
       <div class="cond-row" id="condSolar">☀️ SFI — · K —</div>
@@ -245,6 +258,9 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
       <div class="cond-row" id="condEme" style="display:none">🌗 EME —</div>
       <div class="cond-row" id="condWeather">🌡️ Météo —</div>
       <div class="cond-row" id="condLightning"><a href="https://www.blitzortung.org/fr/live_lightning_maps.php?map=0" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">⚡ Foudre en direct ↗</a></div>
+      <img id="condMufMap" class="cond-mufmap" loading="lazy"
+           alt="Carte MUF mondiale (terminateur jour/nuit + ionosondes) — N0NBH/hamqsl.com">
+      <a class="cond-mufmap-credit" href="https://www.hamqsl.com/solarmuf.php" target="_blank" rel="noopener noreferrer">🗺️ Carte MUF · N0NBH/hamqsl.com ↗</a>
     </div>
     <div class="wblock grow"><div class="wbt">📊 PAR BANDE<span class="wbt-page" id="wBandsPageLbl"></span></div><div id="wBands"></div></div>
     <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
@@ -723,6 +739,21 @@ if(localStorage.getItem('rc_theme') === null){
     }catch(e){ return false; }
   }
 
+  // Carte MUF mondiale : image publique tierce (N0NBH/hamqsl.com), embarquée
+  // directement — même principe que le lien Foudre juste au-dessus (aucune
+  // donnée ne transite par notre serveur). Vérifié en direct avant intégration
+  // (200 OK, image/gif, pas de blocage anti-hotlink) — voir logx_propagation.html
+  // pour le détail de la vérification. Rafraîchie par "bucket" de 15 min
+  // (cache-buster dans l'URL) pour ne jamais solliciter la source à chaque
+  // tick du mur (3 s) — même cadence que le cache serveur solaire/MUF (900 s,
+  // cf. get_solar_cached/get_muf_cached dans logx_clusters.py).
+  function refreshMufMap(){
+    const img = document.getElementById('condMufMap');
+    if(!img) return;
+    const bucket = Math.floor(Date.now() / (15*60*1000));
+    img.src = 'https://www.hamqsl.com/solarmuf.php?t=' + bucket;
+  }
+
   async function refreshEme(){
     if(!wallVhfActive) return;
     const block=document.getElementById('condEme');
@@ -765,6 +796,8 @@ if(localStorage.getItem('rc_theme') === null){
   pollWithWarmup(refreshSolar, 15*60*1000, 10*1000, 6);
   pollWithWarmup(refreshWeather, 10*60*1000, 10*1000, 6);
   setInterval(refreshEme, 5*60*1000);   // position lunaire : évolue lentement, pas de warmup réseau nécessaire
+  refreshMufMap();
+  setInterval(refreshMufMap, 15*60*1000);   // carte MUF externe : jamais plus souvent, cf. commentaire ci-dessus
 
   // Horloge LOCALE du poste : calculée entièrement côté navigateur depuis
   // l'heure système (Date locale) — pas besoin que le serveur connaisse le

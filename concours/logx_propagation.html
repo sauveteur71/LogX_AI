@@ -73,6 +73,12 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
    orage déjà calculée depuis le code météo WMO). */
 .lightning-frame{width:100%;height:420px;border:1px solid var(--border);border-radius:8px;display:block;background:var(--bg3)}
 
+/* Carte MUF mondiale (image publique N0NBH/hamqsl.com) — même principe que
+   la foudre ci-dessus : embed visuel pur d'une image tierce, aucune donnée
+   ne transite par notre serveur. Vérifié en direct (headers HTTP, pas de
+   blocage anti-hotlink) avant intégration, cf. commit. */
+.muf-map-img{width:100%;border:1px solid var(--border);border-radius:8px;display:block;background:var(--bg3)}
+
 /* Conditions par bande */
 .band-cond{display:flex;flex-direction:column;gap:5px;margin-top:8px}
 .bc-row{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:13px}
@@ -141,6 +147,18 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
         <div class="si-lbl">MUF — FRÉQUENCE MAX UTILISABLE (3000 km)</div>
         <div class="muf-val" id="mufVal">—</div>
         <div class="si-sub" id="mufStation">ionosonde la plus proche</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">🗺️ CARTE MUF MONDIALE <small>N0NBH · hamqsl.com</small>
+        <a href="https://www.hamqsl.com/solarmuf.php" target="_blank" rel="noopener noreferrer"
+           title="Ouvrir l'image en plein écran" style="font-size:12px;color:var(--accent2);text-decoration:none">↗ plein écran</a>
+      </div>
+      <img id="mufMapImg" class="muf-map-img" loading="lazy"
+           alt="Carte mondiale de la MUF (fréquence maximale utilisable) avec terminateur jour/nuit, mesurée par un réseau d'ionosondes — N0NBH/hamqsl.com">
+      <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">
+        MUF mesurée par un réseau mondial d'ionosondes, terminateur jour/nuit superposé — la propagation HF suit généralement la zone éclairée. Image publique tierce (rafraîchie ici toutes les 15 min) : crédit N0NBH conservé comme demandé sur hamqsl.com.
       </div>
     </div>
 
@@ -380,6 +398,25 @@ async function loadPropagation(){
     document.getElementById('lastRefresh').textContent =
       rcT('MàJ') + ' ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
   }catch(e){ console.warn('propagation', e); }
+}
+
+// ─── CARTE MUF MONDIALE : image publique tierce (N0NBH/hamqsl.com) ──────────
+// Aucun scraping, aucune clé API : un GIF public généré côté hamqsl.com,
+// embarqué directement (comme la carte de foudre Blitzortung plus bas —
+// aucune donnée ne transite par notre serveur). Vérifié en direct avant
+// intégration : 200 OK, image/gif, aucun blocage anti-hotlink (Referer
+// étranger accepté), et le site autorise explicitement la réutilisation
+// ("I do not mind the use of any of this information on your sites, but you
+// must leave the credit to all people intact" — hamqsl.com/solar2.html).
+// Rafraîchie par "bucket" de 15 min (cache-buster dans l'URL) pour ne
+// jamais solliciter la source à chaque poll — même cadence que le cache
+// serveur solaire/MUF (900 s, cf. get_solar_cached/get_muf_cached dans
+// logx_clusters.py).
+function refreshMufMap(){
+  const img = document.getElementById('mufMapImg');
+  if(!img) return;
+  const bucket = Math.floor(Date.now() / (15 * 60 * 1000));
+  img.src = 'https://www.hamqsl.com/solarmuf.php?t=' + bucket;
 }
 
 async function loadSpots(){
@@ -792,6 +829,7 @@ function locatorToLatLon(loc){
 }
 
 loadPropagation();
+refreshMufMap();
 loadSpots();
 loadBeacons();
 loadPSK();
@@ -806,6 +844,7 @@ loadEme();
 loadOpenings();
 loadStationLinks();
 setInterval(loadPropagation, 5 * 60 * 1000);   // solaire : lent (caches 15 min)
+setInterval(refreshMufMap, 15 * 60 * 1000);    // carte MUF externe : jamais plus souvent, cf. commentaire ci-dessus
 setInterval(loadSpots, 60 * 1000);             // need list : chaque minute
 setInterval(loadBeacons, 5 * 1000);            // balises : changent toutes les 10 s
 setInterval(loadPSK, 3 * 60 * 1000);           // PSK Reporter : cache serveur 3 min
