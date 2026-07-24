@@ -662,6 +662,34 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <span id="opRowsCapNote" class="op-rows-cap-note"></span>
         </div>
       </div>
+      <!-- PLANNING DE ROULEMENT — écran mural (logx_wall.html) : qui est censé
+           être au poste et quand. Outil informatif seulement (aucun verrou
+           opérationnel), voir GET/POST /shifts/* dans logx_http.py. -->
+      <div class="section" id="shiftsSection" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border)">
+        <div class="section-title">🕒 PLANNING (roulement des opérateurs)</div>
+        <div class="input-note" style="margin-bottom:12px">
+          Qui est censé être au poste et à quelle heure — affiché sur l'écran mural. Purement informatif :
+          aucun verrou, un opérateur peut toujours logguer en dehors de son créneau.
+        </div>
+        <div id="shiftsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
+        <div id="shiftsEmptyNote" style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px">
+          Aucun créneau planifié.
+        </div>
+        <div style="display:grid;grid-template-columns:1.3fr .85fr .85fr 1fr 1.6fr auto;gap:8px;align-items:center">
+          <select id="shiftOpSelect" style="font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px"></select>
+          <input type="time" id="shiftStart" style="font-size:13px">
+          <input type="time" id="shiftEnd" style="font-size:13px">
+          <select id="shiftMode" style="font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px">
+            <option value="">Mode (optionnel)</option>
+            <option value="ssb">SSB</option>
+            <option value="cw">CW</option>
+            <option value="digi">DIGI</option>
+          </select>
+          <input type="text" id="shiftNote" placeholder="Note (optionnel, ex. pile-up EU)" style="font-size:13px">
+          <button type="button" class="op-row-btn" onclick="addShift()">+ Ajouter</button>
+        </div>
+        <div id="shiftAddStatus" style="display:none;margin-top:10px;font-family:var(--font-mono);font-size:13px"></div>
+      </div>
       <div class="section" id="postesSection" style="display:none;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)">
         <div class="section-title">POSTES RADIO</div>
         <div class="input-note" style="margin-bottom:12px">
@@ -3823,6 +3851,13 @@ function toggle(el) {
 function openCategoryPopup(cat){
   const modal = document.getElementById('catmodal_' + cat);
   if(modal) modal.style.display = 'block';
+  // Planning de roulement (voir plus bas) : liste ET options du <select>
+  // reconstruites à chaque ouverture — les créneaux vivent côté serveur,
+  // hors de l'état de config chargé/sauvegardé par ce popup.
+  if(cat === 'operators'){
+    refreshShiftOperatorSelect();
+    loadShifts();
+  }
 }
 
 function closeCategoryPopup(cat){
@@ -5109,6 +5144,118 @@ function updateOpRowControls(){
     ? `Jusqu'à ${cap} opérateurs — leurs indicatifs apparaîtront sur les boutons OP dans le logbook`
     : 'Ton indicatif personnel (Single Op)';
   syncSectionEdiFromOpCount();
+  // Le <select> du planning (plus bas) doit refléter tout ajout/retrait/
+  // restauration de ligne opérateur, pas seulement l'ouverture du popup.
+  if(typeof refreshShiftOperatorSelect === 'function') refreshShiftOperatorSelect();
+}
+
+// ─── PLANNING DE ROULEMENT DES OPÉRATEURS (écran mural) ──────────────────────
+// Créneaux persistés côté serveur (voir GET/POST /shifts/* dans logx_http.py,
+// modèle dans logx_storage.py) — indépendants de la config elle-même, donc
+// chargés/rafraîchis à part plutôt que via loadConfig()/saveConfig().
+let _shiftsCache = [];   // dernier /shifts/list connu
+
+// Le <select> propose les opérateurs SAISIS dans la grille au-dessus (pas
+// forcément encore enregistrés) : recalculé à chaque ouverture du popup —
+// voir openCategoryPopup('operators').
+function refreshShiftOperatorSelect(){
+  const sel = document.getElementById('shiftOpSelect');
+  if(!sel) return;
+  const cap = opRowCap();
+  const rows = [];
+  for(let i=1;i<=Math.min(opRowCount, cap);i++){
+    const callEl = document.getElementById(`op${i}_call`);
+    const call = ((callEl && callEl.value) || '').toUpperCase().trim();
+    if(!call) continue;
+    const nameEl = document.getElementById(`op${i}_name`);
+    rows.push({call, name: ((nameEl && nameEl.value) || '').trim()});
+  }
+  const prev = sel.value;
+  sel.innerHTML = rows.length
+    ? rows.map(o => `<option value="${escC(o.call)}">${escC(o.call)}${o.name ? ' — ' + escC(o.name) : ''}</option>`).join('')
+    : '<option value="">Configure au moins un opérateur ci-dessus</option>';
+  if(rows.some(o => o.call === prev)) sel.value = prev;
+}
+
+function _shiftAddStatus(msg, color){
+  const el = document.getElementById('shiftAddStatus');
+  if(!el) return;
+  el.style.display = msg ? '' : 'none';
+  el.textContent = msg || '';
+  el.style.color = color || 'var(--muted)';
+}
+
+async function loadShifts(){
+  const list = document.getElementById('shiftsList');
+  const emptyNote = document.getElementById('shiftsEmptyNote');
+  if(!list) return;
+  try{
+    const r = await fetch('/shifts/list');
+    const d = await r.json();
+    _shiftsCache = d.shifts || [];
+  }catch(e){
+    console.warn('[SHIFTS] chargement impossible :', e);
+    list.innerHTML = '';
+    if(emptyNote){ emptyNote.textContent = 'Planning indisponible (serveur injoignable).'; emptyNote.style.display = ''; }
+    return;
+  }
+  if(!_shiftsCache.length){
+    list.innerHTML = '';
+    if(emptyNote){ emptyNote.textContent = 'Aucun créneau planifié.'; emptyNote.style.display = ''; }
+    return;
+  }
+  if(emptyNote) emptyNote.style.display = 'none';
+  list.innerHTML = _shiftsCache.map(s => {
+    const modeTag = s.mode ? ` <span style="color:var(--accent2)">[${escC(String(s.mode).toUpperCase())}]</span>` : '';
+    const dateTag = s.date ? `${escC(s.date)} ` : '';
+    const nameTag = s.name ? ` (${escC(s.name)})` : '';
+    const noteTag = s.note ? ` — <span style="color:var(--muted)">${escC(s.note)}</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--font-mono);font-size:13px">
+      <span style="flex:1">${dateTag}<strong>${escC(s.start)}–${escC(s.end)}</strong> · ${escC(s.call)}${nameTag}${modeTag}${noteTag}</span>
+      <button type="button" class="op-row-btn" onclick="deleteShift(${Number(s.id) || 0})" title="Supprimer ce créneau">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function addShift(){
+  const sel = document.getElementById('shiftOpSelect');
+  const call = sel ? sel.value : '';
+  if(!call){ _shiftAddStatus('⚠️ Choisis un opérateur (configure-le d’abord ci-dessus).', 'var(--red)'); return; }
+  const start = (document.getElementById('shiftStart')||{}).value || '';
+  const end = (document.getElementById('shiftEnd')||{}).value || '';
+  if(!start || !end){ _shiftAddStatus('⚠️ Heure de début et heure de fin requises.', 'var(--red)'); return; }
+  const payload = {
+    call, start, end,
+    mode: (document.getElementById('shiftMode')||{}).value || '',
+    note: (document.getElementById('shiftNote')||{}).value.trim() || '',
+  };
+  _shiftAddStatus('', '');
+  try{
+    const r = await fetch('/shifts/add', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if(!r.ok || !d.ok){
+      _shiftAddStatus('❌ ' + (d.error || "Échec de l'ajout"), 'var(--red)');
+      return;
+    }
+    _shiftAddStatus(d.warning ? ('⚠️ ' + d.warning) : '', 'var(--red)');
+    const noteEl = document.getElementById('shiftNote');
+    if(noteEl) noteEl.value = '';
+    await loadShifts();
+  }catch(e){
+    _shiftAddStatus('❌ Serveur injoignable.', 'var(--red)');
+  }
+}
+
+async function deleteShift(id){
+  try{
+    await fetch(`/shifts/delete/${id}`, {method: 'POST'});
+  }catch(e){
+    console.warn('[SHIFTS] suppression impossible :', e);
+  }
+  await loadShifts();
 }
 
 // ─── POSTES RADIO (mode RADIOCLUB) ───────────────────────────────────────────

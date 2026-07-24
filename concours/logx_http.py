@@ -2467,6 +2467,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'total': qtc_total(scope_id), 'entries': entries[-50:]})
             return
 
+        # Planning de roulement des opérateurs (écran mural) : trié par heure
+        # de début, voir logx_storage.shifts_sorted().
+        if path == '/shifts/list':
+            from logx_storage import shifts_sorted
+            self._json({'shifts': shifts_sorted()})
+            return
+
         # Exports du log partagé — Cabrillo v3 et ADIF 3
         if path in ('/log/export/cabrillo', '/log/export/adif'):
             import logx_export as export
@@ -3347,6 +3354,84 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             'with_call': already + count, 'id': entry['id']})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
+            return
+
+        # Planning de roulement des opérateurs (écran mural) : ajouter un
+        # créneau. Outil INFORMATIF — le seul refus possible est un opérateur
+        # INCONNU de la config (operators[].call, voir logx_configuration.html
+        # popup OPÉRATEURS) ; une qualification de mode manquante
+        # (operators[].modes) ne bloque jamais la création, elle renvoie
+        # seulement un 'warning' pour que l'UI l'affiche.
+        if self.path == '/shifts/add':
+            try:
+                from logx_storage import (operator_shifts, shifts_lock, next_shift_id,
+                                           save_shifts_to_disk)
+                payload = json.loads(body)
+                call = str(payload.get('call', '')).upper().strip()
+                start = str(payload.get('start', '')).strip()
+                end = str(payload.get('end', '')).strip()
+                if not call or not start or not end:
+                    self._json({'ok': False, 'error':
+                                "Indicatif, heure de début et heure de fin sont requis"}, 400)
+                    return
+                cfg_snap = self._cfg_snapshot()
+                operators = cfg_snap.get('operators') or []
+                op = next((o for o in operators
+                           if str(o.get('call', '')).upper().strip() == call), None)
+                if op is None:
+                    self._json({'ok': False, 'error':
+                                f"Opérateur inconnu : {call} — ajoute-le d'abord dans "
+                                "CONFIG ▸ Opérateurs avant de planifier son créneau"}, 400)
+                    return
+                entry = {'id': next_shift_id(), 'call': call,
+                         'name': str(payload.get('name') or op.get('name') or '').strip(),
+                         'start': start, 'end': end}
+                date = str(payload.get('date') or '').strip()
+                if date:
+                    entry['date'] = date
+                note = str(payload.get('note') or '').strip()
+                if note:
+                    entry['note'] = note
+                mode = str(payload.get('mode') or '').strip().lower()
+                warning = None
+                if mode in ('ssb', 'cw', 'digi'):
+                    entry['mode'] = mode
+                    # Qualification absente de la config -> considérée acquise
+                    # par défaut (même convention que collectConfig() côté
+                    # client, logx_configuration.html) : un opérateur dont la
+                    # config ne précise rien n'est jamais signalé à tort comme
+                    # non qualifié.
+                    qualified = bool((op.get('modes') or {}).get(mode, True))
+                    if not qualified:
+                        warning = (f"{call} n'est pas déclaré qualifié {mode.upper()} "
+                                   "dans CONFIG ▸ Opérateurs — créneau ajouté quand même "
+                                   "(le planning reste informatif, pas un verrou).")
+                with shifts_lock:
+                    operator_shifts.append(entry)
+                save_shifts_to_disk()
+                res = {'ok': True, 'shift': entry}
+                if warning:
+                    res['warning'] = warning
+                self._json(res)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
+            return
+
+        # Planning : suppression d'un créneau (POST plutôt que DELETE — voir
+        # /log/delete et /qtc/delete pour la variante DELETE déjà utilisée
+        # ailleurs ; celle-ci suit la spécification demandée pour ce module).
+        if self.path.startswith('/shifts/delete/'):
+            try:
+                from logx_storage import operator_shifts, shifts_lock, save_shifts_to_disk
+                shift_id = int(self.path.split('/')[-1])
+                with shifts_lock:
+                    before = len(operator_shifts)
+                    operator_shifts[:] = [s for s in operator_shifts if s.get('id') != shift_id]
+                    deleted = before - len(operator_shifts)
+                save_shifts_to_disk()
+                self._json({'ok': True, 'deleted': deleted})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
             return
 
         # Chat multi-opérateur — envoi d'un message

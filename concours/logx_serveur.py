@@ -46,7 +46,7 @@ from logx_bootstrap import bootstrap, open_browser, is_frozen, start_network_dia
 bootstrap()
 
 from logx_utils import PORT
-from logx_storage import load_log_from_disk, load_qtc_from_disk
+from logx_storage import load_log_from_disk, load_qtc_from_disk, load_shifts_from_disk
 from logx_rules import load_rules_cache, load_external_contests, schedule_annual_check
 from logx_http import Handler
 
@@ -55,6 +55,7 @@ from logx_http import Handler
 if __name__ == '__main__':
     load_log_from_disk()
     load_qtc_from_disk()
+    load_shifts_from_disk()
     load_rules_cache()
     load_external_contests()
 

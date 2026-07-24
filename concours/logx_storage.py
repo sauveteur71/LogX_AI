@@ -353,6 +353,86 @@ def qtc_count_for_call(call, contest_id=''):
                    and (not contest_id or qso_scope_id(q) == contest_id))
 
 
+# ─── PLANNING DE ROULEMENT DES OPÉRATEURS (écran mural) ──────────────────────
+# Roulement horaire des opérateurs : qui est censé être au micro/clavier à
+# quelle heure, affiché sur l'écran mural (logx_wall.*). Outil INFORMATIF —
+# aucun verrou opérationnel, un opérateur peut toujours logguer hors de son
+# créneau (voir /shifts/add : un opérateur non qualifié pour le mode demandé
+# reçoit un avertissement, jamais un refus). Calqué sur le modèle QTC
+# ci-dessus : liste globale + verrou dédié + save/load JSON atomique + id
+# auto-incrémenté.
+#
+# Chaque créneau : {id, call, name, date (YYYYMMDD, optionnel — absent = jour
+# UTC courant au moment de l'affichage ; explicite seulement si le planning
+# couvre plusieurs jours d'un concours), start (HH:MM), end (HH:MM), mode
+# (optionnel, 'ssb'/'cw'/'digi' — sert uniquement à détecter une
+# qualification manquante, voir /shifts/add), note (texte libre optionnel)}.
+operator_shifts = []
+shifts_lock = threading.Lock()
+SHIFTS_FILE = 'operator_shifts.json'
+_shifts_next_id = 1   # prochain id de créneau à distribuer (voir next_shift_id)
+
+
+def load_shifts_from_disk():
+    global _shifts_next_id
+    try:
+        if os.path.exists(SHIFTS_FILE):
+            with open(SHIFTS_FILE, encoding='utf-8') as f:
+                operator_shifts[:] = json.load(f)
+            # Même logique de backfill que load_qtc_from_disk() : calculer le
+            # max des id déjà présents AVANT d'en distribuer de nouveaux, pour
+            # ne jamais entrer en collision avec un id existant plus loin dans
+            # le fichier.
+            max_existing_id = 0
+            for s in operator_shifts:
+                sid = s.get('id')
+                if sid:
+                    try:
+                        max_existing_id = max(max_existing_id, int(sid))
+                    except (TypeError, ValueError):
+                        pass
+            next_id = max_existing_id + 1
+            for s in operator_shifts:
+                if not s.get('id'):
+                    s['id'] = next_id
+                    next_id += 1
+            _shifts_next_id = next_id
+            print(f"[SHIFTS] {len(operator_shifts)} creneaux charges")
+    except Exception as e:
+        print(f"[SHIFTS] Chargement impossible : {e}")
+
+
+def next_shift_id():
+    """Alloue un id unique de créneau (sous verrou — plusieurs postes peuvent
+    ajouter un créneau au même instant)."""
+    global _shifts_next_id
+    with shifts_lock:
+        i = _shifts_next_id
+        _shifts_next_id += 1
+        return i
+
+
+def save_shifts_to_disk():
+    try:
+        with shifts_lock:
+            data = list(operator_shifts)
+        save_json_atomic(SHIFTS_FILE, data)
+    except Exception as e:
+        print(f"[SHIFTS] Erreur sauvegarde : {e}")
+
+
+def shifts_sorted():
+    """Planning trié par heure de début. Clé (date, start) plutôt que 'start'
+    seul : un créneau à date explicite (planning multi-jours) ne doit jamais
+    se mélanger avec ceux du jour implicite courant. Les créneaux sans date
+    explicite (le cas courant, un seul jour) se trient alors simplement entre
+    eux par heure de début."""
+    with shifts_lock:
+        snap = list(operator_shifts)
+    return sorted(snap, key=lambda s: (str(s.get('date', '') or ''),
+                                        str(s.get('start', '') or '')))
+
+
 def save_json_atomic(path, data, lock=None, compact=False):
     """Écriture JSON ATOMIQUE : fichier temporaire dans le même dossier puis
     os.replace — un crash ou une coupure en pleine écriture ne peut plus
