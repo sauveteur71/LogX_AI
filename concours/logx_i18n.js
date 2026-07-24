@@ -437,15 +437,36 @@
 
   function getLang() { return localStorage.getItem('rc_lang') || 'fr'; }
 
-  // Sauvegarde des textes français d'origine pour pouvoir revenir en arrière
+  // Sauvegarde des textes français d'origine pour pouvoir revenir en arrière.
   const ORIG = new WeakMap();
+  // Dernière valeur ÉCRITE PAR CE MOTEUR (traduction ou restauration) sur un
+  // nœud texte. Sert à distinguer, dans translateText(), un nœud qui a changé
+  // parce qu'ON l'a traduit (LAST_OUT == valeur actuelle → rien à faire) d'un
+  // nœud qui a changé parce que L'APPLICATION a posé un nouveau contenu
+  // français directement en `node.nodeValue`/`textContent` (ex. notify() qui
+  // réutilise le MÊME nœud toast pour chaque nouveau message). Dans ce second
+  // cas, le français mémorisé dans ORIG est PÉRIMÉ (c'est celui du PREMIER
+  // message jamais affiché sur ce nœud) : le garder tel quel referait
+  // remonter ce vieux message par-dessus le nouveau à la prochaine traduction
+  // (voir translateText()) — exactement le bug structurel qui empêchait un
+  // texte dynamique déjà dans le dictionnaire d'être retraduit.
+  const LAST_OUT = new WeakMap();
 
   function setNode(node, raw, value) {
-    if (!ORIG.has(node)) ORIG.set(node, raw);
+    ORIG.set(node, raw);
     node.nodeValue = value;
+    LAST_OUT.set(node, value);
   }
 
   function translateText(dict, node) {
+    // Le contenu a-t-il changé DEPUIS notre dernière écriture ? Si oui, c'est
+    // l'application qui vient de poser du texte français frais sur ce nœud :
+    // on réarme ORIG dessus avant de chercher une correspondance (sinon on
+    // comparerait au dictionnaire un vieux texte plus jamais affiché — cf.
+    // commentaire de LAST_OUT ci-dessus).
+    if (ORIG.has(node) && LAST_OUT.get(node) !== node.nodeValue) {
+      ORIG.set(node, node.nodeValue);
+    }
     // Toujours partir du FRANÇAIS d'origine (sinon on tenterait de traduire
     // depuis la langue précédente — ex. anglais → allemand échouerait).
     const raw = ORIG.has(node) ? ORIG.get(node) : node.nodeValue;
@@ -464,7 +485,7 @@
       return;
     }
     // 3) rien à traduire → restaure le français d'origine si besoin
-    if (ORIG.has(node)) node.nodeValue = ORIG.get(node);
+    if (ORIG.has(node)) { node.nodeValue = ORIG.get(node); LAST_OUT.set(node, node.nodeValue); }
   }
 
   function walk(dict, root) {
@@ -476,6 +497,11 @@
         const tag = p.nodeName;
         if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'OPTION') return NodeFilter.FILTER_REJECT;
         if (p.id === 'rcLangSelect' || (p.closest && p.closest('#rcLangSelect'))) return NodeFilter.FILTER_REJECT;
+        // Contenu qui change en boucle (horloge, chrono, score…) : ce n'est
+        // jamais du texte français à traduire, et le retraduire coûterait un
+        // parcours complet du DOM à chaque tic pour rien. Marqué par la
+        // classe .rc-i18n-live (même exclusion côté MutationObserver plus bas).
+        if (p.closest && p.closest('.rc-i18n-live')) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
     });
@@ -571,32 +597,69 @@
     const lang = getLang();
     if (lang !== 'fr') applyLang(lang);
 
-    // Traduit le contenu injecté APRÈS le chargement (messages de l'agent IA,
-    // panneau coach, listes de spots…). On n'observe QUE l'ajout de nœuds
-    // (childList) : walk() ne modifie que des nodeValue/attributs (non observés),
-    // donc pas de boucle. Débouncé par setTimeout — et NON requestAnimationFrame,
-    // qui est gelé quand l'onglet est en arrière-plan (cas courant en concours :
-    // WSJT-X ou le log au premier plan, la carte derrière).
+    // Traduit le contenu injecté ou modifié APRÈS le chargement (messages de
+    // l'agent IA, panneau coach, listes de spots, notifications toast…).
+    //
+    // IMPORTANT (vérifié en navigateur réel, pas seulement en théorie) :
+    // `el.textContent = msg` sur un nœud qui a DÉJÀ un enfant texte ne modifie
+    // PAS ce nœud texte en place — le DOM le REMPLACE par un nouveau nœud
+    // texte (retrait de l'ancien + ajout du nouveau), donc une mutation
+    // childList, PAS characterData. C'est exactement ce que fait notify()
+    // (`t.textContent = msg` sur #macroToast, réutilisé à chaque message,
+    // logx_logbook.js). L'ancien filtre childList n'acceptait que les nœuds
+    // ÉLÉMENTS ajoutés (nodeType 1) — un nœud TEXTE ajouté (nodeType 3) était
+    // donc ignoré, précisément le cas de notify() : le message n'était donc
+    // jamais retraduit, même quand sa clé existe dans le dictionnaire.
+    // On observe donc aussi characterData en plus (changement de nodeValue
+    // sur un nœud texte qui, lui, ne change PAS d'identité — cas d'un code qui
+    // manipule node.nodeValue/.data directement plutôt que via .textContent).
+    //
+    // Trois garde-fous pour ne pas reproduire le clignotement/la boucle que
+    // l'observation initiale (childList ÉLÉMENTS uniquement) avait fait
+    // éviter jusqu'ici :
+    //  1) .rc-i18n-live exclut l'horloge/le chrono/le score (mis à jour chaque
+    //     seconde) — jamais du texte à traduire, walk() les ignore aussi.
+    //  2) LAST_OUT (voir plus haut) permet d'ignorer nos PROPRES écritures de
+    //     traduction faites via characterData (une traduction réussie modifie
+    //     nodeValue, donc génère elle-même une mutation characterData) : sans
+    //     ça, chaque traduction redéclencherait une traduction → boucle
+    //     infinie. (Un nœud texte REMPLACÉ par .textContent= n'a lui jamais ce
+    //     problème : c'est un nœud FRAÎCHEMENT créé, sans entrée LAST_OUT.)
+    //  3) Un plancher de 800ms entre deux passes complètes (garde-fou perf :
+    //     même si un futur affichage « chaud » oublie la classe
+    //     .rc-i18n-live, on ne repart jamais en boucle serrée).
+    // Débouncé par setTimeout — et NON requestAnimationFrame, qui est gelé
+    // quand l'onglet est en arrière-plan (cas courant en concours : WSJT-X ou
+    // le log au premier plan, la carte derrière).
     let pending = null;
+    let lastRun = 0;
+    const isLiveNode = node => {
+      if (!node) return false;
+      const el = node.nodeType === 1 ? node : node.parentElement;
+      return !!(el && el.closest && el.closest('.rc-i18n-live'));
+    };
     const obs = new MutationObserver(muts => {
       const l = getLang();
       if (l === 'fr' || l === 'auto') return;
       if (pending) return;
-      // On ne re-traduit QUE si un nœud ÉLÉMENT a été ajouté (nouveau contenu
-      // d'UI). On IGNORE les remplacements de nœuds texte seuls — sinon l'horloge,
-      // le compte à rebours, le score… (mis à jour chaque seconde via textContent)
-      // déclencheraient une re-traduction permanente → clignotement.
       let relevant = false;
       for (const m of muts) {
-        for (const node of m.addedNodes) {
-          if (node.nodeType === 1) { relevant = true; break; }   // ELEMENT_NODE
+        if (m.type === 'childList') {
+          for (const node of m.addedNodes) {
+            // ÉLÉMENT (nouveau contenu d'UI) ou TEXTE (ex. .textContent= qui
+            // remplace le nœud texte d'un toast) — jamais un nœud .rc-i18n-live.
+            if ((node.nodeType === 1 || node.nodeType === 3) && !isLiveNode(node)) { relevant = true; break; }
+          }
+        } else if (m.type === 'characterData') {
+          if (!isLiveNode(m.target) && LAST_OUT.get(m.target) !== m.target.nodeValue) relevant = true;
         }
         if (relevant) break;
       }
       if (!relevant) return;
-      pending = setTimeout(() => { pending = null; window.rcTranslate(); }, 120);
+      const wait = Math.max(120, 800 - (Date.now() - lastRun));
+      pending = setTimeout(() => { pending = null; lastRun = Date.now(); window.rcTranslate(); }, wait);
     });
-    obs.observe(document.body, { childList: true, subtree: true });
+    obs.observe(document.body, { childList: true, subtree: true, characterData: true });
 
     // Suit les changements faits dans un autre onglet
     window.addEventListener('storage', e => {

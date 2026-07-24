@@ -71,7 +71,7 @@
       🏁 <span class="rcsb-contest" id="rcsbContest">aucun concours</span>
     </div>
     <div class="rcsb-item" title="Temps restant de l'épreuve (dates de l'étape CONCOURS)">
-      ⏱ <span class="rcsb-val" id="rcsbTime">—</span>
+      ⏱ <span class="rcsb-val rc-i18n-live" id="rcsbTime">—</span>
     </div>
     <div class="rcsb-item" title="Dernier backup automatique du log (toutes les 5 min sur la page Logbook)">
       💾 <span class="rcsb-val" id="rcsbSave">—</span>
@@ -85,7 +85,7 @@
     </div>
     <div class="rcsb-item" id="rcsbBandChangeItem" style="display:none"
          title="Règle des 10 minutes (Multi-Single, CQ WW et concours similaires) : un changement de bande n'est autorisé qu'une fois toutes les 10 minutes. Décompte depuis le dernier changement de bande loggué.">
-      🔄 <span class="rcsb-val" id="rcsbBandChange">—</span>
+      🔄 <span class="rcsb-val rc-i18n-live" id="rcsbBandChange">—</span>
     </div>
     <div class="rcsb-item" title="Dernière vérification automatique des règlements par le serveur">
       📄 <a href="logx_calendrier.html" id="rcsbRules">règlements : —</a>
@@ -278,7 +278,9 @@
   function refreshCountdown(){
     const cfg = getConfig();
     const el = document.getElementById('rcsbTime');
-    el.className = 'rcsb-val';
+    // .rc-i18n-live exclut ce texte purement numérique de la re-traduction i18n
+    // (voir logx_i18n.js) : il ne faut PAS l'écraser en réinitialisant className.
+    el.className = 'rcsb-val rc-i18n-live';
     if (cfg.usage_mode === 'simple' || !cfg.contest || !cfg.contest_end_date){ el.textContent = '—'; return; }
     try{
       // start : contest_start_date à 00:00 si l'heure n'est pas connue —

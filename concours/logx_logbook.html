@@ -673,7 +673,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <div class="hdr-info">
     <div class="live-dot"></div>
     <div class="contest-info" id="hdrStation">—</div>
-    <div class="clock" id="clock">00:00:00 UTC</div>
+    <div class="clock rc-i18n-live" id="clock">00:00:00 UTC</div>
     <button id="bipToggle" onclick="toggleBip()" title="Activer/désactiver le bip de confirmation QSO"
       style="font-size:16px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;cursor:pointer;color:var(--text)">🔔</button>
     <button id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit"
@@ -863,14 +863,14 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
 <!-- SCORE BANNER -->
 <div class="score-banner">
-  <div class="sb-item"><div class="sb-lbl">SCORE TOTAL</div><div class="sb-val" id="sbTotal" style="color:var(--accent)">0 pts</div></div>
-  <div class="sb-item"><div class="sb-lbl" id="sbQsoLbl">QSO</div><div class="sb-val" id="sbQso" style="color:var(--green)">0</div></div>
-  <div class="sb-item"><div class="sb-lbl">MEILLEUR DX</div><div class="sb-val" id="sbBestDX" style="color:var(--yellow);font-size:14px">—</div></div>
-  <div class="sb-item"><div class="sb-lbl" id="sbMultsLbl">LOCATORS UNIQUES</div><div class="sb-val" id="sbMults" style="color:var(--accent2)">0</div></div>
-  <div class="sb-item"><div class="sb-lbl">QSO/HEURE · PROJECTION</div><div class="sb-val" id="sbRate" style="color:var(--purple);font-size:14px">— · —</div></div>
-  <div class="sb-item"><div class="sb-lbl">DOUBLONS</div><div class="sb-val" id="sbDups" style="color:var(--red)">0</div></div>
-  <div class="sb-item" id="sbCountdownItem" style="background:rgba(255,45,85,.05);border-left:2px solid var(--red)"><div class="sb-lbl" id="sbCountdownLbl">⏱ TEMPS RESTANT</div><div class="sb-val" id="sbCountdown" style="color:var(--red);font-size:15px;letter-spacing:1px">--:--:--</div></div>
-  <div class="sb-item" id="sbTimerItem"><div class="sb-lbl">⏲ DERNIER QSO</div><div class="sb-val" id="sbQsoTimer" style="color:var(--muted);font-size:15px">—</div></div>
+  <div class="sb-item"><div class="sb-lbl">SCORE TOTAL</div><div class="sb-val rc-i18n-live" id="sbTotal" style="color:var(--accent)">0 pts</div></div>
+  <div class="sb-item"><div class="sb-lbl" id="sbQsoLbl">QSO</div><div class="sb-val rc-i18n-live" id="sbQso" style="color:var(--green)">0</div></div>
+  <div class="sb-item"><div class="sb-lbl">MEILLEUR DX</div><div class="sb-val rc-i18n-live" id="sbBestDX" style="color:var(--yellow);font-size:14px">—</div></div>
+  <div class="sb-item"><div class="sb-lbl" id="sbMultsLbl">LOCATORS UNIQUES</div><div class="sb-val rc-i18n-live" id="sbMults" style="color:var(--accent2)">0</div></div>
+  <div class="sb-item"><div class="sb-lbl">QSO/HEURE · PROJECTION</div><div class="sb-val rc-i18n-live" id="sbRate" style="color:var(--purple);font-size:14px">— · —</div></div>
+  <div class="sb-item"><div class="sb-lbl">DOUBLONS</div><div class="sb-val rc-i18n-live" id="sbDups" style="color:var(--red)">0</div></div>
+  <div class="sb-item" id="sbCountdownItem" style="background:rgba(255,45,85,.05);border-left:2px solid var(--red)"><div class="sb-lbl" id="sbCountdownLbl">⏱ TEMPS RESTANT</div><div class="sb-val rc-i18n-live" id="sbCountdown" style="color:var(--red);font-size:15px;letter-spacing:1px">--:--:--</div></div>
+  <div class="sb-item" id="sbTimerItem"><div class="sb-lbl">⏲ DERNIER QSO</div><div class="sb-val rc-i18n-live" id="sbQsoTimer" style="color:var(--muted);font-size:15px">—</div></div>
 </div>
 
 <!-- RÉCAP PAR BANDE -->

@@ -949,14 +949,15 @@ async function saveQTCSeries(){
     const d = await r.json();
     if(r.ok){
       const sens = direction === 'recv' ? 'reçue de' : 'envoyée à';
-      notify(`✉ Série QTC ${series_number}/${entries.length} ${sens} ${call} enregistrée — total ${d.total} pts`);
+      notify(trF('✉ Série QTC {num}/{total} {sens} {call} enregistrée — total {pts} pts',
+        {num: series_number, total: entries.length, sens: trT(sens), call, pts: d.total}));
       qtcRows = [{time: '', call: '', nr: ''}];
       renderQTCRows();
       resetQTCFields();
       await refreshQTC();
       suggestQTCSeriesNumber();
     } else {
-      notify('QTC refusé : ' + (d.error || '?'));
+      notify(trF('QTC refusé : {err}', {err: d.error || '?'}));
     }
   }catch(e){ notify('Serveur injoignable — QTC non enregistré.'); }
 }
@@ -1336,7 +1337,7 @@ async function voiceRecord(key){
       stream.getTracks().forEach(t=>t.stop());
       const blob = new Blob(_recChunks, {type: _mediaRec.mimeType||'audio/webm'});
       const rd = new FileReader();
-      rd.onload = () => { const s = voiceStore(); s[key] = rd.result; voiceSave(s); renderVoicePanel(); notify('🎙 Message '+key+' enregistré'); };
+      rd.onload = () => { const s = voiceStore(); s[key] = rd.result; voiceSave(s); renderVoicePanel(); notify(trF('🎙 Message {key} enregistré', {key})); };
       rd.readAsDataURL(blob);
       _mediaRec = null; _recSlot = null;
       if(btn){ btn.textContent = '⏺'; btn.style.color=''; }
@@ -1344,7 +1345,7 @@ async function voiceRecord(key){
     _mediaRec.start();
     if(btn){ btn.textContent = '■'; btn.style.color='var(--red)'; }
     notify('🎙 Enregistrement… reclique ⏺ pour arrêter');
-  }catch(e){ notify('❌ Micro indisponible : '+e.message); }
+  }catch(e){ notify(trF('❌ Micro indisponible : {err}', {err: e.message})); }
 }
 
 function voicePlay(key){
@@ -1476,10 +1477,10 @@ async function startAudioRecorder(){
     const sel = document.getElementById('qsoRecDevice');
     if(sel && deviceId) sel.value = deviceId;
     _updateRecToggleBtn();
-    notify('🎙️ Enregistreur QSO actif (tampon ' + Math.round(REC_BUFFER_MS/1000) + 's)');
+    notify(trF('🎙️ Enregistreur QSO actif (tampon {s}s)', {s: Math.round(REC_BUFFER_MS/1000)}));
     return true;
   }catch(e){
-    notify('❌ Micro indisponible pour l\'enregistreur QSO : ' + e.message);
+    notify(trF('❌ Micro indisponible pour l\'enregistreur QSO : {err}', {err: e.message}));
     _recStream = null;
     _updateRecToggleBtn();
     return false;
@@ -1559,7 +1560,7 @@ async function chooseRecDir(){
     _recDirHandle = await window.showDirectoryPicker({id: 'logx-audio-rec', mode: 'readwrite'});
     await _recIdbSet('dirHandle', _recDirHandle);
     _updateRecDirLabel();
-    notify('📁 Dossier des clips QSO : ' + _recDirHandle.name);
+    notify(trF('📁 Dossier des clips QSO : {name}', {name: _recDirHandle.name}));
   }catch(e){ /* sélection annulée par l'utilisateur */ }
 }
 
@@ -1687,7 +1688,7 @@ async function _recSaveClip(blob, name){
         const w = await fh.createWritable();
         await w.write(blob);
         await w.close();
-        notify('🎙️ Clip QSO enregistré : ' + name);
+        notify(trF('🎙️ Clip QSO enregistré : {name}', {name}));
         return;
       }
     }catch(e){ console.warn('[REC] écriture dossier échouée, repli téléchargement', e); }
@@ -1697,7 +1698,7 @@ async function _recSaveClip(blob, name){
   a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
-  notify('🎙️ Clip QSO téléchargé : ' + name);
+  notify(trF('🎙️ Clip QSO téléchargé : {name}', {name}));
 }
 
 // Appelée juste après chaque QSO loggué avec succès (voir submitQSO). Ne
@@ -1872,9 +1873,9 @@ async function backupNow(){
   try{
     const r = await fetch('/backup/now', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
     const d = await r.json();
-    if(d.ok) notify(`💾 Sauvegarde OK → ${d.folder} (${d.files.length} fichiers)`);
-    else notify('❌ '+(d.error||'sauvegarde impossible')+' — configure le dossier dans CONFIG');
-  }catch(e){ notify('❌ '+e.message); }
+    if(d.ok) notify(trF('💾 Sauvegarde OK → {folder} ({n} fichiers)', {folder: d.folder, n: d.files.length}));
+    else notify(trF('❌ {err} — configure le dossier dans CONFIG', {err: d.error || trT('sauvegarde impossible')}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
 }
 
 // ─── SETUP ───────────────────────────────────────────────────────────────────
@@ -2637,7 +2638,7 @@ async function submitQSO(){
   // Vérification doublon — hors concours (logbook simple), recontacter la
   // même station sur la même bande au fil des années est normal, pas une erreur.
   if(usageMode !== 'simple' && isDup(call, currentBand)){
-    if(!confirm(`⚠️ ${call} est déjà dans le log sur ${currentBand} MHz.\nQuand même enregistrer ?`)) return;
+    if(!confirm(trF('⚠️ {call} est déjà dans le log sur {band} MHz.\nQuand même enregistrer ?', {call, band: currentBand}))) return;
   }
 
   // N° envoyé : auto-série (VHF) ou valeur du champ (FD classe, CQ WW zone, HF dept...)
@@ -2698,9 +2699,10 @@ async function submitQSO(){
       // dupe assumé pour l'arbitre...) — confirm() volontairement bloquant.
       const err = await res.json();
       const ex = err.existing || {};
-      if(confirm(`DOUBLON : ${qso.call} déjà contacté sur ${qso.band} MHz en ${qso.mode}`+
-                 `${ex.time ? ' à '+ex.time : ''}${ex.operator ? ' par '+ex.operator : ''}.\n\n`+
-                 `Enregistrer quand même ?`)){
+      const atPart = ex.time ? trF(' à {t}', {t: ex.time}) : '';
+      const byPart = ex.operator ? trF(' par {op}', {op: ex.operator}) : '';
+      if(confirm(trF('DOUBLON : {call} déjà contacté sur {band} MHz en {mode}{at}{by}.\n\nEnregistrer quand même ?',
+                 {call: qso.call, band: qso.band, mode: qso.mode, at: atPart, by: byPart}))){
         const res2 = await fetch('/log/add', {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({...qso, force:true})
@@ -2712,14 +2714,14 @@ async function submitQSO(){
           try{ renderLog(); }catch(e){} try{ updateStats(); }catch(e){}
           playBeep(880, 80);
         } else {
-          notify('Erreur serveur : '+(await res2.json()).error);
+          notify(trF('Erreur serveur : {err}', {err: (await res2.json()).error}));
         }
       } else {
         notify('Doublon ignoré — QSO non enregistré.');
       }
     } else {
       const err = await res.json();
-      notify('Erreur serveur : '+err.error);
+      notify(trF('Erreur serveur : {err}', {err: err.error}));
     }
   }catch(e){
     // Mode hors ligne : sauvegarde locale + localStorage
@@ -2958,7 +2960,7 @@ function copyShareLink(){
   const url = document.getElementById('shareLink')?.href || '';
   if(!url || url.endsWith('#')){ notify('Adresse pas encore disponible — serveur injoignable ?'); return; }
   navigator.clipboard.writeText(url)
-    .then(()=>notify(`📋 Adresse copiée : ${url}\nColle-la dans le navigateur des autres postes (même WiFi).`))
+    .then(()=>notify(trF('📋 Adresse copiée : {url}\nColle-la dans le navigateur des autres postes (même WiFi).', {url})))
     .catch(()=>prompt('Copie manuelle (Ctrl+C) :', url));
 }
 
@@ -3303,7 +3305,7 @@ async function deleteQSO(id){
 async function undoLastQSO(){
   if(!qsoLog.length){ notify('Aucun QSO à annuler !'); return; }
   const last = qsoLog[qsoLog.length-1];
-  if(!confirm(`Annuler le dernier QSO ?\n${last.call} — ${last.band} MHz — ${last.time}`)) return;
+  if(!confirm(trF('Annuler le dernier QSO ?\n{call} — {band} MHz — {time}', {call: last.call, band: last.band, time: last.time}))) return;
   qsoLog = qsoLog.slice(0,-1);
   try{
     await fetch(`/log/delete/${last.id}`, {method:'DELETE'});
@@ -3630,16 +3632,40 @@ function renderMacroPanel(){
     btns.appendChild(btn);
   });
 }
+// ─── i18n des messages dynamiques (notify() et fonctions similaires) ────────
+// window.rcT()/rcTf() (logx_i18n.js) ne traduisent qu'un texte source français
+// CONNU AU MOT PRÈS : un message déjà interpolé (`${...}`/concaténation, ex.
+// "Erreur serveur : " + err) ne correspond plus à AUCUNE clé du dictionnaire
+// et ne peut donc jamais être traduit, même si son modèle y figure. Tout appel
+// qui injecte une valeur dynamique doit donc passer par trF('modèle {clé}',
+// {clé: valeur}) plutôt que par interpolation directe. trT()/trF() tolèrent
+// aussi l'absence de logx_i18n.js (page qui ne le charge pas, tests JS) en
+// repliant sur le français tel quel (comportement identique à rcT/rcTf en fr).
+function trT(fr){ return window.rcT ? window.rcT(fr) : fr; }
+function trF(fr, params){
+  if (window.rcTf) return window.rcTf(fr, params);
+  let s = fr;
+  if (params) for (const k in params) s = s.split('{' + k + '}').join(params[k]);
+  return s;
+}
+
 // Notification non bloquante — remplace notify() pour ne jamais figer la saisie
 // en plein concours. Couleur selon le contenu, durée selon la longueur.
+//
+// i18n : msg est le texte source FRANÇAIS (voir trT()/trF() ci-dessus pour le
+// construire côté appelant s'il contient une valeur dynamique). La
+// classification erreur/avertissement ci-dessous se fait sur ce français
+// source (mots-clés), donc TOUJOURS avant la traduction pour l'affichage.
 function notify(msg, ms){
   const t = document.getElementById('macroToast');
   if(!t){ alert(msg); return; }   // repli improbable
   msg = String(msg);
-  t.textContent = msg;
+  const isErr  = /❌|[Ee]rreur|[Ii]nvalide|manquant|[Ii]mpossible|injoignable/.test(msg);
+  const isWarn = /⚠|[Aa]nnulé/.test(msg);
+  t.textContent = trT(msg);
   t.className = 'macro-toast';
-  if(/❌|[Ee]rreur|[Ii]nvalide|manquant|[Ii]mpossible|injoignable/.test(msg)) t.classList.add('toast-err');
-  else if(/⚠|[Aa]nnulé/.test(msg)) t.classList.add('toast-warn');
+  if(isErr) t.classList.add('toast-err');
+  else if(isWarn) t.classList.add('toast-warn');
   t.classList.add('show');
   clearTimeout(notify._tm);
   notify._tm = setTimeout(()=>t.classList.remove('show'), ms || Math.min(10000, 2500 + msg.length*35));
@@ -3655,7 +3681,8 @@ function copyMacro(idx){
                       body: JSON.stringify({text: txt})})
       .then(r=>r.json()).then(d=>{
         const toast = document.getElementById('macroToast');
-        if(toast){ toast.textContent = d.ok ? `📻 CW → ${txt}` : `❌ ${d.error}`;
+        if(toast){ toast.textContent = d.ok ? trF('📻 CW → {txt}', {txt})
+                                             : trF('❌ {err}', {err: d.error});
           toast.className = 'macro-toast' + (d.ok ? '' : ' toast-err');
           toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2200); }
       }).catch(()=>{});
@@ -3663,7 +3690,7 @@ function copyMacro(idx){
   }
   navigator.clipboard.writeText(txt).catch(()=>{});
   const toast = document.getElementById('macroToast');
-  if(toast){ toast.textContent = `📋 ${txt}`; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2000); }
+  if(toast){ toast.textContent = trF('📋 {txt}', {txt}); toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2000); }
 }
 
 // ─── RADIO CAT (rigctld) ─────────────────────────────────────────────────────
@@ -3853,8 +3880,8 @@ function applyWsjtxState(d){
       const key = m.call + '|' + m.type;
       if(_wsjtxAlerted.has(key)) continue;
       _wsjtxAlerted.add(key);
-      const freqTxt = m.freq ? ` (${m.freq} MHz)` : '';
-      notify(`🆕 ${m.call} décodé — ${m.label}${freqTxt}`);
+      const freqTxt = m.freq ? trF(' ({f} MHz)', {f: m.freq}) : '';
+      notify(trF('🆕 {call} décodé — {label}{freq}', {call: m.call, label: m.label, freq: freqTxt}));
       try{ playBeep(1318, 110); }catch(e){}
     }
 }
@@ -3896,13 +3923,13 @@ function exportEDI(){
   // Validation avant export
   const warnings = [];
   const invalid = qsoLog.filter(q=>!isValidQSO(q));
-  if(invalid.length) warnings.push(`⚠️ ${invalid.length} QSO incomplet(s) ignoré(s) (${invalid.map(q=>q.call||'?').join(', ')})`);
+  if(invalid.length) warnings.push(trF('⚠️ {n} QSO incomplet(s) ignoré(s) ({calls})', {n: invalid.length, calls: invalid.map(q=>q.call||'?').join(', ')}));
   const missingLoc = qsoLog.filter(q=>isValidQSO(q) && (!q.locator||q.locator.length<6));
-  if(missingLoc.length) warnings.push(`⚠️ ${missingLoc.length} QSO sans locator (points = 0)`);
+  if(missingLoc.length) warnings.push(trF('⚠️ {n} QSO sans locator (points = 0)', {n: missingLoc.length}));
   const dups = countDupes(qsoLog);
-  if(dups) warnings.push(`⚠️ ${dups} doublon(s) dans le log`);
+  if(dups) warnings.push(trF('⚠️ {n} doublon(s) dans le log', {n: dups}));
   if(warnings.length){
-    if(!confirm('VALIDATION LOG\n\n'+warnings.join('\n')+'\n\nGénérer quand même le fichier EDI ?')) return;
+    if(!confirm(trF('VALIDATION LOG\n\n{warnings}\n\nGénérer quand même le fichier EDI ?', {warnings: warnings.join('\n')}))) return;
   }
 
   // Lire config depuis localStorage
@@ -4018,8 +4045,9 @@ function exportEDI(){
   setTimeout(()=>{
     const submitUrl = ediCfg.submit_url || 'http://concours.r-e-f.org/tools/upload/thf.php';
     const submitDeadline = ediCfg.submit_deadline || '';
-    const deadlineLine = submitDeadline ? `\nDélai : ${submitDeadline}` : '';
-    notify(`📤 SOUMISSION DU LOG\n\nURL : ${submitUrl}${deadlineLine}\n\n⚠️ 1 fichier EDI PAR BANDE (144 MHz et 432 MHz séparés)`);
+    const deadlineLine = submitDeadline ? trF('\nDélai : {d}', {d: submitDeadline}) : '';
+    notify(trF('📤 SOUMISSION DU LOG\n\nURL : {url}{deadline}\n\n⚠️ 1 fichier EDI PAR BANDE (144 MHz et 432 MHz séparés)',
+      {url: submitUrl, deadline: deadlineLine}));
   }, bands.length * 500 + 300);
 }
 
@@ -4100,19 +4128,17 @@ function exportCabrillo(cfg, call){
   setTimeout(()=>{
     const submitUrl = cfg.submit_url || '';
     const deadline  = cfg.submit_deadline || '';
-    let msg = `📤 FICHIER CABRILLO GÉNÉRÉ\n\n`;
-    msg += `Concours : ${contestName}\n`;
-    msg += `QSOs : ${qsoLog.length} — Score déclaré : ${totalScore} pts\n`;
-    if(submitUrl) msg += `\nURL soumission : ${submitUrl}`;
-    if(deadline)  msg += `\nDélai : ${deadline}`;
-    notify(msg);
+    const urlPart = submitUrl ? trF('\nURL soumission : {url}', {url: submitUrl}) : '';
+    const deadlinePart = deadline ? trF('\nDélai : {d}', {d: deadline}) : '';
+    notify(trF('📤 FICHIER CABRILLO GÉNÉRÉ\n\nConcours : {contest}\nQSOs : {n} — Score déclaré : {score} pts{url}{deadline}',
+      {contest: contestName, n: qsoLog.length, score: totalScore, url: urlPart, deadline: deadlinePart}));
   }, 400);
 }
 
 function exportADIF(){
   const validQSOs = qsoLog.filter(isValidQSO);
   const skipped = qsoLog.length - validQSOs.length;
-  if(skipped && !confirm(`⚠️ ${skipped} QSO incomplet(s) seront ignorés dans l'export ADIF.\n\nContinuer ?`)) return;
+  if(skipped && !confirm(trF('⚠️ {n} QSO incomplet(s) seront ignorés dans l\'export ADIF.\n\nContinuer ?', {n: skipped}))) return;
 
   let adif = 'LogX AI — Export ADIF\n<EOH>\n\n';
   validQSOs.forEach(q=>{
@@ -4157,19 +4183,19 @@ async function archiveLog(){
     });
     const d = await res.json();
     if(d.ok){
-      notify(`📦 Archivé : ${d.qso_count} QSO dans « ${d.name} »` +
-             (d.cleared ? ' — log vidé, prêt pour la suite.' : ' — log conservé.'));
+      const clearedNote = d.cleared ? trT(' — log vidé, prêt pour la suite.') : trT(' — log conservé.');
+      notify(trF('📦 Archivé : {n} QSO dans « {name} »{note}', {n: d.qso_count, name: d.name, note: clearedNote}));
       if(d.cleared){ qsoLog = qsoLog.filter(q => false); resetLogRenderWindow(); renderLog(); updateStats(); }
       else { fetchLog(); }
     } else {
-      notify('Archivage : ' + (d.error || 'échec'));
+      notify(trF('Archivage : {err}', {err: d.error || trT('échec')}));
     }
   }catch(e){ notify('Serveur injoignable — archivage impossible.'); }
 }
 
 async function resetLog(){
   const n = qsoLog.length;
-  if(!confirm(`⚠️ NOUVEAU LOG\n\nSupprime ${n} QSO du log ACTIF.\nⓘ Ils sont d'abord ARCHIVÉS dans un dossier permanent (par concours),\ndonc rien n'est perdu — tu les retrouveras dans archives/.\n\nTape OK pour continuer.`)) return;
+  if(!confirm(trF('⚠️ NOUVEAU LOG\n\nSupprime {n} QSO du log ACTIF.\nⓘ Ils sont d\'abord ARCHIVÉS dans un dossier permanent (par concours),\ndonc rien n\'est perdu — tu les retrouveras dans archives/.\n\nTape OK pour continuer.', {n}))) return;
   const confirmation = prompt('Tape RESET pour confirmer la suppression complète du log :');
   if(confirmation !== 'RESET'){
     notify('Annulé — le log est inchangé.');
@@ -4190,13 +4216,13 @@ async function resetLog(){
       updateStats();
       updateSerialDisplay();
       const nb = (d.folders || []).length;
-      notify('✅ Log archivé' + (nb ? ` (${nb} dossier${nb>1?'s':''})` : '') +
-             ' puis réinitialisé — prêt pour le concours !');
+      const folderNote = nb ? trF(' ({nb} dossier{plural})', {nb, plural: nb>1?'s':''}) : '';
+      notify(trF('✅ Log archivé{note} puis réinitialisé — prêt pour le concours !', {note: folderNote}));
     } else {
       notify('Erreur serveur lors de la réinitialisation.');
     }
   } catch(e){
-    notify('Impossible de contacter le serveur : '+e.message);
+    notify(trF('Impossible de contacter le serveur : {err}', {err: e.message}));
   }
 }
 
@@ -4648,7 +4674,7 @@ function pointAntennaFromCompass(){
   fetch('/rotor/point', {method:'POST', headers:{'Content-Type':'application/json'},
                          body: JSON.stringify({azimuth: _lastCompassDeg})})
     .then(r=>r.json()).then(d=>{
-      notify(d.ok ? `🧭 Antenne pointée sur ${_lastCompassDeg}°` : `❌ ${d.error}`);
+      notify(d.ok ? trF('🧭 Antenne pointée sur {deg}°', {deg: _lastCompassDeg}) : trF('❌ {err}', {err: d.error}));
     }).catch(()=>notify('Rotor injoignable.'));
 }
 function hideCompassInline(){
@@ -4943,7 +4969,7 @@ function toggleCwDecoder(){
     btn.textContent = '■ Arrêter';
     btn.classList.add('active');
   }).catch(e => {
-    notify('❌ Micro indisponible : ' + e.message);
+    notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
   });
 }
 
@@ -5081,8 +5107,8 @@ function fixFromValidation(id){
 // Supprimer directement un QSO signalé, puis rafraîchir la liste des problèmes.
 async function delFromValidation(id){
   const q = qsoLog.find(x=>x.id===id);
-  const label = q ? `\n${q.call||'?'} — ${q.band||'?'} MHz — ${q.time||''}` : '';
-  if(!confirm('Supprimer ce QSO ?'+label)) return;
+  const label = q ? trF('\n{call} — {band} MHz — {time}', {call: q.call||'?', band: q.band||'?', time: q.time||''}) : '';
+  if(!confirm(trF('Supprimer ce QSO ?{label}', {label}))) return;
   qsoLog = qsoLog.filter(x=>x.id!==id);
   try{ await fetch(`/log/delete/${id}`, {method:'DELETE'}); }catch(e){}
   renderLog();
@@ -5243,7 +5269,7 @@ async function qslAction(kind, service, btn){
   const out = document.getElementById('qslResult');
   const old = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳…';
-  if(out) out.textContent = (kind==='upload'?'Envoi vers ':'Synchro ') + service + ' en cours…';
+  if(out) out.textContent = trF(kind==='upload' ? 'Envoi vers {service} en cours…' : 'Synchro {service} en cours…', {service});
   try{
     const url = kind === 'upload' ? '/qsl/upload' : '/qsl/sync';
     const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
@@ -5251,16 +5277,17 @@ async function qslAction(kind, service, btn){
     const d = await r.json();
     if(d.ok){
       if(kind==='upload' && service==='hrdlog') out.innerHTML =
-        `<span style="color:var(--green)">✅ ${d.sent}/${d.qso_count} QSO envoyés à HRDLog${d.failed?` (${d.failed} échoués)`:''}.</span>`;
-      else if(kind==='upload') out.innerHTML = `<span style="color:var(--green)">✅ ${d.qso_count} QSO envoyés à ${d.service}.</span>`;
-      else out.innerHTML = `<span style="color:var(--green)">✅ ${d.newly_added} nouvelles confirmations (${d.total_confirmations} au total).</span>`;
-      notify('✅ QSL ' + (kind==='upload'?'envoyé':'synchronisé'));
+        `<span style="color:var(--green)">${trF('✅ {sent}/{total} QSO envoyés à HRDLog{failed}.',
+          {sent: d.sent, total: d.qso_count, failed: d.failed ? trF(' ({n} échoués)', {n: d.failed}) : ''})}</span>`;
+      else if(kind==='upload') out.innerHTML = `<span style="color:var(--green)">${trF('✅ {n} QSO envoyés à {service}.', {n: d.qso_count, service: d.service})}</span>`;
+      else out.innerHTML = `<span style="color:var(--green)">${trF('✅ {n} nouvelles confirmations ({total} au total).', {n: d.newly_added, total: d.total_confirmations})}</span>`;
+      notify(trF('✅ QSL {action}', {action: kind==='upload' ? trT('envoyé') : trT('synchronisé')}));
       if(kind==='sync') setTimeout(showAwards, 800);   // rafraîchit les « confirmés »
     }else{
-      out.innerHTML = `<span style="color:var(--red)">❌ ${d.error||'échec'}</span>`;
+      out.innerHTML = `<span style="color:var(--red)">${trF('❌ {err}', {err: d.error || trT('échec')})}</span>`;
     }
   }catch(e){
-    out.innerHTML = `<span style="color:var(--red)">❌ ${e.message}</span>`;
+    out.innerHTML = `<span style="color:var(--red)">${trF('❌ {err}', {err: e.message})}</span>`;
   }finally{
     btn.disabled = false; btn.textContent = old;
   }
@@ -5446,10 +5473,11 @@ function getGPSLocator(){
     const el = document.getElementById('setupLocator');
     if(el) el.value = loc;
     if(btn) btn.textContent = '📍 GPS';
-    notify(`Locator GPS : ${loc}\n(${pos.coords.latitude.toFixed(4)}°N, ${pos.coords.longitude.toFixed(4)}°E)`);
+    notify(trF('Locator GPS : {loc}\n({lat}°N, {lon}°E)',
+      {loc, lat: pos.coords.latitude.toFixed(4), lon: pos.coords.longitude.toFixed(4)}));
   }, err=>{
     if(btn) btn.textContent = '📍 GPS';
-    notify('Erreur GPS : ' + (err.message||err.code));
+    notify(trF('Erreur GPS : {err}', {err: err.message || err.code}));
   }, {timeout:10000, enableHighAccuracy:true});
 }
 
@@ -5548,13 +5576,13 @@ async function confirmImportAdif(){
     closeImportOverlay();
     if(r.ok){
       await fetchLog();   // rafraîchit immédiatement (sinon jusqu'à 5 s d'attente)
-      notify(`Import ADIF terminé :\n✅ ${r.imported} QSO importés` +
-             (r.errors && r.errors.length ? `\n⚠️ ${r.errors.length} records ignorés` : ''));
+      const errPart = (r.errors && r.errors.length) ? trF('\n⚠️ {n} records ignorés', {n: r.errors.length}) : '';
+      notify(trF('Import ADIF terminé :\n✅ {n} QSO importés{errPart}', {n: r.imported, errPart}));
     } else {
-      notify(`❌ Import échoué : ${r.error || 'erreur inconnue'}`);
+      notify(trF('❌ Import échoué : {err}', {err: r.error || trT('erreur inconnue')}));
     }
   }catch(e){
-    notify(`❌ Import échoué : ${e.message}`);
+    notify(trF('❌ Import échoué : {err}', {err: e.message}));
   }finally{
     btn.textContent = "✅ CONFIRMER L'IMPORT";
   }
@@ -5596,8 +5624,8 @@ async function selfSpot(){
   }
   if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
   const freq_khz = Math.round(mhz * 1000 * 10) / 10;   // MHz → kHz (commande DX Spider)
-  if(!confirm(`Publier ce spot sur le cluster DX ?\n\n${myCall}   ${mhz.toFixed(3)} MHz   ${currentMode||''}\n\n`+
-              `⚠️ Vérifie que l'auto-spot est autorisé par le règlement du concours.`)) return;
+  if(!confirm(trF('Publier ce spot sur le cluster DX ?\n\n{call}   {mhz} MHz   {mode}\n\n⚠️ Vérifie que l\'auto-spot est autorisé par le règlement du concours.',
+              {call: myCall, mhz: mhz.toFixed(3), mode: currentMode || ''}))) return;
   const btn = document.getElementById('selfSpotBtn');
   const orig = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }
@@ -5605,10 +5633,10 @@ async function selfSpot(){
     const r = await fetch('/cluster/spot', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({freq_khz, comment: 'CQ ' + ((currentContest||'').replace(/_/g,' '))})});
     const d = await r.json();
-    if(d.ok && d.confirmed) notify(`📡 Spot publié et confirmé : ${myCall}  ${mhz.toFixed(3)} MHz`);
-    else if(d.ok) notify(`📡 Spot envoyé (non confirmé par le nœud) : ${myCall}  ${mhz.toFixed(3)} MHz\nVérifie sur le cluster qu'il apparaît.`);
-    else notify('❌ Self-spot : ' + (d.error || 'échec'));
-  }catch(e){ notify('❌ ' + e.message); }
+    if(d.ok && d.confirmed) notify(trF('📡 Spot publié et confirmé : {call}  {mhz} MHz', {call: myCall, mhz: mhz.toFixed(3)}));
+    else if(d.ok) notify(trF('📡 Spot envoyé (non confirmé par le nœud) : {call}  {mhz} MHz\nVérifie sur le cluster qu\'il apparaît.', {call: myCall, mhz: mhz.toFixed(3)}));
+    else notify(trF('❌ Self-spot : {err}', {err: d.error || trT('échec')}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
   finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SELF-SPOT'; } }
 }
 
@@ -5622,8 +5650,8 @@ async function selfSpotPota(){
   }
   if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
   const freq_khz = Math.round(mhz * 1000 * 10) / 10;
-  if(!confirm(`Publier ce spot sur l'API publique POTA (api.pota.app) ?\n\n${myCall}   ${myActivationRef}   ${mhz.toFixed(3)} MHz   ${currentMode||''}\n\n`+
-              'Visible immédiatement par tous les chasseurs, sans authentification.')) return;
+  if(!confirm(trF('Publier ce spot sur l\'API publique POTA (api.pota.app) ?\n\n{call}   {ref}   {mhz} MHz   {mode}\n\nVisible immédiatement par tous les chasseurs, sans authentification.',
+              {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3), mode: currentMode || ''}))) return;
   const btn = document.getElementById('actSpotBtn');
   const orig = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }
@@ -5631,9 +5659,9 @@ async function selfSpotPota(){
     const r = await fetch('/pota/spot', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({reference: myActivationRef, freq_khz, mode: currentMode || ''})});
     const d = await r.json();
-    if(d.ok) notify(`📡 Spot POTA publié : ${myCall}  ${myActivationRef}  ${mhz.toFixed(3)} MHz`);
-    else notify('❌ Self-spot POTA : ' + (d.error || 'échec'));
-  }catch(e){ notify('❌ ' + e.message); }
+    if(d.ok) notify(trF('📡 Spot POTA publié : {call}  {ref}  {mhz} MHz', {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3)}));
+    else notify(trF('❌ Self-spot POTA : {err}', {err: d.error || trT('échec')}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
   finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SE SPOTTER'; } }
 }
 
@@ -5656,8 +5684,8 @@ async function selfSpotSota(){
   }
   if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
   const freq_khz = Math.round(mhz * 1000 * 10) / 10;
-  if(!confirm(`Publier ce spot sur SOTAwatch3 ?\n\n${myCall}   ${myActivationRef}   ${mhz.toFixed(3)} MHz   ${currentMode||''}\n\n`+
-              'Nécessite une connexion SOTA configurée dans CONFIG → EXPÉDITION/ACTIVATION.')) return;
+  if(!confirm(trF('Publier ce spot sur SOTAwatch3 ?\n\n{call}   {ref}   {mhz} MHz   {mode}\n\nNécessite une connexion SOTA configurée dans CONFIG → EXPÉDITION/ACTIVATION.',
+              {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3), mode: currentMode || ''}))) return;
   const btn = document.getElementById('actSpotBtn');
   const orig = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }
@@ -5665,9 +5693,9 @@ async function selfSpotSota(){
     const r = await fetch('/sota/spot', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({reference: myActivationRef, freq_khz, mode: currentMode || ''})});
     const d = await r.json();
-    if(d.ok) notify(`📡 Spot SOTA publié : ${myCall}  ${myActivationRef}  ${mhz.toFixed(3)} MHz`);
-    else notify('❌ Self-spot SOTA : ' + (d.error || 'échec'));
-  }catch(e){ notify('❌ ' + e.message); }
+    if(d.ok) notify(trF('📡 Spot SOTA publié : {call}  {ref}  {mhz} MHz', {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3)}));
+    else notify(trF('❌ Self-spot SOTA : {err}', {err: d.error || trT('échec')}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
   finally{ if(btn){ btn.disabled = false; btn.textContent = orig || '📡 SE SPOTTER'; } }
 }
 
