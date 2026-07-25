@@ -429,11 +429,21 @@ loadPota();
 loadSota();
 loadWwff();
 loadWca();
-setInterval(loadSpots, 60 * 1000);             // need list : chaque minute
-setInterval(loadPota, 2 * 60 * 1000);          // POTA : cache serveur 90 s
-setInterval(loadSota, 60 * 1000);              // SOTA : cache serveur 60 s
-setInterval(loadWwff, 60 * 1000);              // WWFF : cache serveur 60 s
-setInterval(loadWca, 5 * 60 * 1000);           // WCA : simple flux RSS de blog, cache serveur 15 min
+// Rafraîchissements SUSPENDUS quand l'onglet est masqué (rcPoll, défini par
+// logx_statusbar.js). Depuis que chasse et propagation sont deux pages, un
+// opérateur garde naturellement les DEUX ouvertes à côté du log : sans ce
+// garde-fou, ça faisait deux jeux complets de minuteurs qui interrogeaient le
+// serveur — et à travers lui le cluster DX, POTA, SOTA, WWFF… — pour des
+// onglets masqués que personne ne regarde. rcPoll arrête les minuteurs sur
+// document.hidden et rejoue au retour ceux dont l'échéance est dépassée, donc
+// aucun spot n'est manqué et rien de périmé n'est affiché au retour.
+// Repli identité si la page est ouverte sans la barre de statut.
+const rcPollOr = window.rcPoll || ((fn, ms) => setInterval(fn, ms));
+rcPollOr(loadSpots, 60 * 1000);                // need list : chaque minute
+rcPollOr(loadPota, 2 * 60 * 1000);             // POTA : cache serveur 90 s
+rcPollOr(loadSota, 60 * 1000);                 // SOTA : cache serveur 60 s
+rcPollOr(loadWwff, 60 * 1000);                 // WWFF : cache serveur 60 s
+rcPollOr(loadWca, 5 * 60 * 1000);              // WCA : simple flux RSS de blog, cache serveur 15 min
 </script>
 </body>
 </html>

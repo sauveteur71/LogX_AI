@@ -7,6 +7,51 @@
    ──────────────────────────────────────────────────────────────────────────── */
 (function(){
   'use strict';
+
+  // ── rcPoll : minuteurs de rafraîchissement suspendus onglet masqué ─────────
+  // Ordonnanceur commun à la barre ET aux pages qui restent ouvertes en
+  // permanence (propagation, chasse). setInterval nu continue d'interroger le
+  // serveur — et donc les sources externes — dans un onglet masqué : sur un
+  // poste qui garde ces pages ouvertes à côté du log, c'est du trafic
+  // permanent que personne ne regarde (mesuré : 12 requêtes en 46 s sur une
+  // page CHASSE masquée, 27 en 68 s sur PROPAGATION).
+  //   • document.hidden = true  → tous les minuteurs sont ARRÊTÉS (clearInterval,
+  //     pas un simple « return » : ni requête, ni réveil du minuteur).
+  //   • retour à l'écran       → réarmés, et ceux dont l'échéance est dépassée
+  //     sont rejoués TOUT DE SUITE. Sans ce rattrapage, revenir sur l'onglet
+  //     afficherait des données périmées jusqu'au prochain tick — inacceptable
+  //     pour les balises (5 s) ou les spots.
+  // Volontairement défini AVANT le garde-fou file: ci-dessous : c'est une
+  // fonction utilitaire, les pages doivent pouvoir s'y fier sans condition.
+  // Les minuteurs purement locaux (compte à rebours, extrapolation du timer
+  // de changement de bande, horodatage de sauvegarde) ne passent PAS par
+  // rcPoll : ils ne font aucune requête, et le navigateur les bride déjà.
+  const _polls = [];
+  function _armPoll(p){
+    if (p.timer) return;
+    p.timer = setInterval(function(){ p.last = Date.now(); p.fn(); }, p.ms);
+  }
+  function rcPoll(fn, ms){
+    const p = { fn: fn, ms: ms, timer: null, last: Date.now() };
+    _polls.push(p);
+    if (!document.hidden) _armPoll(p);
+    return p;
+  }
+  window.rcPoll = rcPoll;
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden){
+      _polls.forEach(function(p){
+        if (p.timer){ clearInterval(p.timer); p.timer = null; }
+      });
+      return;
+    }
+    const now = Date.now();
+    _polls.forEach(function(p){
+      _armPoll(p);
+      if (now - p.last >= p.ms){ p.last = now; try { p.fn(); } catch(e){} }
+    });
+  });
+
   if (location.protocol === 'file:') return; // pages affichent déjà leur erreur
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -197,7 +242,7 @@
     el.style.color = remaining <= 60 ? 'var(--yellow,#FFD60A)' : 'var(--muted,#A9B0C8)';
   }
   refreshRate();
-  setInterval(refreshRate, 60 * 1000);
+  rcPoll(refreshRate, 60 * 1000);
 
   // ── Météo solaire (badge compact, toutes pages) ────────────────────────────
   // Réutilise /data/propagation (déjà servi côté serveur pour la page
@@ -220,7 +265,7 @@
       }).catch(function(){});
   }
   refreshSolar();
-  setInterval(refreshSolar, 15 * 60 * 1000);   // aligné sur le cache serveur (15 min)
+  rcPoll(refreshSolar, 15 * 60 * 1000);        // aligné sur le cache serveur (15 min)
 
   // ── Balise NCDXF/IBP active maintenant (badge compact, toutes pages) ──────
   // Découvrabilité du réseau de balises : un utilisateur qui ne va jamais
@@ -258,7 +303,7 @@
       }).catch(function(){});
   }
   refreshBeacon();
-  setInterval(refreshBeacon, 5 * 1000);        // balises : changent toutes les 10 s
+  rcPoll(refreshBeacon, 5 * 1000);             // balises : changent toutes les 10 s
 
   // ── Dégradation réseau (pastille discrète, jamais bloquante) ──────────────
   // Rend VISIBLE côté client des mécanismes qui existaient déjà côté serveur
@@ -292,7 +337,7 @@
       }).catch(function(){ /* le serveur n'est pas indispensable pour la barre */ });
   }
   refreshNetworkStatus();
-  setInterval(refreshNetworkStatus, 20 * 1000);
+  rcPoll(refreshNetworkStatus, 20 * 1000);
 
   // ── Thème jour/nuit GLOBAL (rc_theme, basculé sur config/carte/logbook) ───
   // Chaque page définit sa palette body.day-mode ; ici on applique le choix
@@ -893,12 +938,16 @@
     refreshRules();
     refreshUpdateCheck();
     refreshErrorsCheck();
+    // Purement local (aucune requête) : recalculé à chaque tick depuis
+    // l'horloge et localStorage, donc juste à l'affichage même après un
+    // passage en arrière-plan — pas la peine de les suspendre.
     setInterval(refreshCountdown, 1000);
     setInterval(tickBandChange, 1000);
     setInterval(refreshSave, 15000);
-    setInterval(refreshRules, 10 * 60 * 1000);
-    setInterval(refreshUpdateCheck, 30 * 60 * 1000);
-    setInterval(refreshErrorsCheck, 60 * 1000);
+    // Réseau : suspendus onglet masqué, rattrapés au retour (cf. rcPoll).
+    rcPoll(refreshRules, 10 * 60 * 1000);
+    rcPoll(refreshUpdateCheck, 30 * 60 * 1000);
+    rcPoll(refreshErrorsCheck, 60 * 1000);
     // Réagir aux sauvegardes faites dans un autre onglet
     window.addEventListener('storage', () => { refreshContest(); refreshSave(); });
   }
