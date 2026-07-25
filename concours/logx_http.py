@@ -2122,6 +2122,60 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(upd.get_download_status())
             return
 
+        # ── Mise à jour réseau local (voir logx_update.py, docstring du module) ─
+        # B) Passerelle : ce poste a-t-il un accès internet confirmé récemment
+        # (donc capable de relayer une requête GitHub pour un autre poste) ?
+        # Interrogé PAR UN AUTRE poste du LAN (backend-à-backend, pas depuis un
+        # navigateur) — pas d'auth (comme /app/update_check) : simple booléen.
+        if path == '/app/gateway_status':
+            import logx_update as upd
+            self._json(upd.gateway_status())
+            return
+
+        # B) Relais RÉEL : ce poste (qui SE DÉCLARE passerelle, voir ci-dessus)
+        # fait sa propre requête HTTPS vers l'asset GitHub officiel (tag/
+        # plateforme validés côté logx_update.resolve_relay_asset — jamais une
+        # URL fournie par l'appelant, anti-SSRF) et relaie les octets EN FLUX,
+        # jamais un fichier de son propre disque. Le poste appelant revérifie
+        # le SHA-256 reçu contre SA PROPRE référence locale (voir
+        # logx_update._do_download_via_network) — ce relais n'envoie même pas
+        # de digest, il n'est pas la source de vérité.
+        if path == '/app/update_relay':
+            import logx_update as upd
+            from urllib.parse import parse_qs, urlparse
+            qs = parse_qs(urlparse(self.path).query)
+            tag = (qs.get('tag', [''])[0] or '').strip()
+            platform = (qs.get('platform', [''])[0] or '').strip()
+            ok, info = upd.resolve_relay_asset(tag, platform)
+            if not ok:
+                self._json({'error': info}, 400)
+                return
+            self._stream_asset_relay(info['asset_url'])
+            return
+
+        # C) SECOURS uniquement : état du fichier déjà téléchargé + VÉRIFIÉ
+        # (hash SHA-256, voir logx_update.py) que CE poste peut servir à un
+        # pair sans internet du tout — jamais un chemin arbitraire.
+        if path == '/app/update_serve_status':
+            import logx_update as upd
+            self._json(upd.serve_status())
+            return
+
+        # C) Service RÉEL du fichier déjà vérifié — TOUJOURS le même chemin
+        # interne (logx_update._download['path']), jamais un paramètre client
+        # (aucune traversée de répertoire possible). Le poste appelant
+        # revérifie le SHA-256 reçu contre SA PROPRE référence locale, exactement
+        # comme pour /app/update_relay — voir docstring de logx_update.py pour
+        # le compromis de sécurité de ce chemin de secours.
+        if path == '/app/update_serve':
+            import logx_update as upd
+            info = upd.serve_status()
+            if not info.get('available'):
+                self._json({'error': 'Aucun exécutable vérifié disponible sur ce poste'}, 404)
+                return
+            self._stream_verified_file(upd.get_download_status().get('path', ''))
+            return
+
         # Raccourci bureau proposé au premier lancement figé (voir
         # logx_shortcut.py) : indique au logbook s'il doit afficher la
         # bannière "Créer un raccourci ?". Pas d'auth requise (comme
@@ -3119,7 +3173,50 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not check.get('asset_url'):
                 self._json({'error': 'Aucun exécutable disponible pour cette plateforme'}, 400)
                 return
-            upd.start_download(check['asset_url'])
+            # asset_sha256/asset_size : référence vérifiée en flux pendant le
+            # téléchargement (voir logx_update._do_download) — sans digest
+            # fiable exposé par l'API GitHub pour cet asset, le téléchargement
+            # est refusé plutôt qu'accepté à l'aveugle (docstring logx_update.py).
+            upd.start_download(check['asset_url'], check.get('asset_sha256', ''),
+                                check.get('asset_size', 0))
+            self._json({'ok': True})
+            return
+
+        # ── Mise à jour réseau local (B priorité, C secours — voir logx_update.py) ─
+        # Découverte SEULE (ne télécharge rien) : sonde chaque poste candidat
+        # (peer_list connu du client via /log/status) pour savoir qui peut
+        # servir de passerelle (B) et, à défaut, qui a déjà un exécutable
+        # vérifié à servir en secours (C). Action utilisateur explicite côté
+        # client (bouton "chercher sur le réseau"), jamais un sondage
+        # automatique en tâche de fond.
+        if self.path == '/app/update_network_scan':
+            import logx_update as upd
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            ips = payload.get('ips') or []
+            self._json(upd.scan_network_candidates(ips))
+            return
+
+        # Déclenche le téléchargement via un poste candidat (passerelle ou
+        # pair — voir 'mode' dans le corps) : REFUSE immédiatement si ce
+        # poste n'a lui-même aucune référence SHA-256 obtenue par contact
+        # direct antérieur avec GitHub (voir logx_update.start_download_via_
+        # network — jamais de confiance aveugle envers le pair/la passerelle
+        # pour la référence elle-même).
+        if self.path == '/app/update_download_via_network':
+            import logx_update as upd
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            mode = payload.get('mode', '')
+            ips = payload.get('ips') or []
+            ok, err = upd.start_download_via_network(mode, ips)
+            if not ok:
+                self._json({'error': err}, 400)
+                return
             self._json({'ok': True})
             return
 
@@ -4140,6 +4237,63 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _json(self, data, code=200):
         self._raw(code, 'application/json; charset=utf-8',
                   json.dumps(data, ensure_ascii=False).encode('utf-8'))
+
+    # ── Mise à jour réseau (voir logx_update.py) : réponses STREAMÉES, jamais
+    # un exécutable entier chargé en mémoire (contrairement à _json/_raw qui
+    # supposent un corps déjà en RAM — adapté au JSON, pas à 15-30 Mo binaires).
+    def _stream_asset_relay(self, asset_url):
+        """Chemin B (passerelle) : relaie l'asset GitHub officiel en flux vers
+        le poste appelant. urlopen() est fait ICI (pas avant d'envoyer les
+        entêtes) pour pouvoir répondre une erreur JSON propre si GitHub
+        renvoie 404/erreur AVANT d'avoir engagé la réponse HTTP en flux."""
+        try:
+            req = urllib.request.Request(asset_url, headers={
+                'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'})
+            upstream = urllib.request.urlopen(req, timeout=20, context=SSL_CTX)
+        except Exception as e:
+            self._json({'error': f'Relais impossible : {e}'}, 502)
+            return
+        with upstream:
+            length = upstream.headers.get('Content-Length', '')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            if length:
+                self.send_header('Content-Length', length)
+            self._cors()
+            self.end_headers()
+            while True:
+                chunk = upstream.read(262144)
+                if not chunk:
+                    break
+                try:
+                    self.wfile.write(chunk)
+                except Exception:
+                    return  # poste appelant parti en cours de route
+
+    def _stream_verified_file(self, path):
+        """Chemin C (pair-à-pair, secours) : sert `path` (toujours
+        logx_update._download['path'], jamais un paramètre client — voir
+        l'appelant) en flux, jamais chargé entièrement en mémoire."""
+        try:
+            size = os.path.getsize(path)
+            f = open(path, 'rb')
+        except OSError as e:
+            self._json({'error': str(e)}, 404)
+            return
+        with f:
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Length', str(size))
+            self._cors()
+            self.end_headers()
+            while True:
+                chunk = f.read(262144)
+                if not chunk:
+                    break
+                try:
+                    self.wfile.write(chunk)
+                except Exception:
+                    return  # poste appelant parti en cours de route
 
     def _cors(self):
         # CORS restreint aux origines locales attendues (le logiciel est servi

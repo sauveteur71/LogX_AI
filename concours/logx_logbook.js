@@ -2865,6 +2865,126 @@ function updateVersionStatus(data){
       return `${p.ip} — v${p.version || '?'}${flag}`;
     }).join('\n');
   }
+  // Bouton "🌐 màj réseau" (voir findNetworkUpdatePath ci-dessous) : affiché
+  // uniquement quand CE poste (pas un autre pair) tourne une version
+  // différente de celle du serveur — c'est le seul cas où CE poste a besoin
+  // de récupérer un exécutable plus récent via le réseau local.
+  const pathBtn = document.getElementById('netUpdatePathBtn');
+  if(pathBtn){
+    const myMismatch = !!(_myVersion && serverVer && _myVersion !== serverVer);
+    pathBtn.style.display = myMismatch ? 'inline-block' : 'none';
+    if(!myMismatch){
+      const resEl = document.getElementById('netUpdatePathResult');
+      if(resEl) resEl.textContent = '';
+    }
+  }
+}
+
+// ── Mise à jour réseau (relais B / pair-à-pair C secours) ────────────────────
+// Complète le badge de version ci-dessus : quand CE poste tourne une version
+// différente de celle du serveur ET n'a lui-même pas d'accès internet direct
+// ou dégradé (cas DXpédition/contest — voir docstring de logx_update.py),
+// permet de récupérer l'exécutable via un AUTRE poste du réseau local au
+// lieu de GitHub directement. TOUJOURS 3 clics explicites distincts —
+// jamais de sondage ni de téléchargement automatique en tâche de fond :
+//   1) "🌐 màj réseau" → découverte seule (ne télécharge rien)
+//   2) "mettre à jour via…" → déclenche le vrai transfert vérifié
+//   3) "installer et redémarrer" → applique (comme le chemin GitHub direct)
+// Chemin (B) passerelle proposé EN PRIORITÉ (bouton bleu/accent2) ; le
+// chemin (C) pair-à-pair n'apparaît QUE si aucune passerelle n'a été
+// trouvée, et reste étiqueté "secours" (bouton jaune, libellé explicite)
+// pour que l'opérateur voie tout de suite qu'il s'agit d'un repli, pas du
+// chemin habituel.
+async function findNetworkUpdatePath(){
+  const resEl = document.getElementById('netUpdatePathResult');
+  if(!resEl) return;
+  const ips = (_lastPeerList || []).map(p => p.ip).filter(Boolean);
+  if(!ips.length){
+    resEl.textContent = "aucun autre poste détecté sur le réseau pour l'instant.";
+    return;
+  }
+  resEl.textContent = 'recherche sur le réseau…';
+  try{
+    const r = await fetch('/app/update_network_scan', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ips})
+    });
+    const d = await r.json();
+    _renderNetworkUpdatePath(d);
+  }catch(e){
+    resEl.textContent = 'recherche impossible.';
+  }
+}
+
+function _renderNetworkUpdatePath(d){
+  const resEl = document.getElementById('netUpdatePathResult');
+  if(!resEl) return;
+  if(d.gateways && d.gateways.length){
+    const ip = d.gateways[0];
+    resEl.innerHTML = 'passerelle trouvée : ' + ip
+      + `<button class="net-upd-gateway" onclick="startNetworkUpdate('gateway','${ip}')">mettre à jour via cette passerelle</button>`;
+  } else if(d.peers && d.peers.length){
+    const ip = d.peers[0];
+    resEl.innerHTML = 'aucune passerelle — SECOURS, pair vérifié trouvé : ' + ip
+      + `<button class="net-upd-peer" onclick="startNetworkUpdate('peer','${ip}')">mettre à jour via ce pair (secours, vérifié)</button>`;
+  } else {
+    resEl.textContent = 'aucune passerelle ni pair disponible sur le réseau pour le moment.';
+  }
+}
+
+async function startNetworkUpdate(mode, ip){
+  const resEl = document.getElementById('netUpdatePathResult');
+  if(resEl) resEl.textContent = (mode === 'gateway'
+    ? 'téléchargement via la passerelle ' : 'téléchargement (SECOURS) via le pair ') + ip + '…';
+  try{
+    const r = await fetch('/app/update_download_via_network', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode, ips: [ip]})
+    });
+    const d = await r.json();
+    if(!d.ok){
+      if(resEl) resEl.textContent = 'échec : ' + (d.error || '?');
+      return;
+    }
+    _pollNetworkUpdateStatus();
+  }catch(e){
+    if(resEl) resEl.textContent = 'échec réseau.';
+  }
+}
+
+function _pollNetworkUpdateStatus(){
+  fetch('/app/update_status').then(r => r.ok ? r.json() : null).then(d => {
+    const resEl = document.getElementById('netUpdatePathResult');
+    if(!d || !resEl) return;
+    if(d.status === 'downloading'){
+      resEl.textContent = `téléchargement… ${d.pct || 0}%`;
+      setTimeout(_pollNetworkUpdateStatus, 800);
+    } else if(d.status === 'done' && d.verified){
+      const via = d.via === 'peer' ? 'pair — SECOURS, vérifié' : 'passerelle';
+      resEl.innerHTML = `✅ v${d.version} vérifiée (via ${via}${d.via_peer ? ' ' + d.via_peer : ''}) `
+        + `<button class="net-upd-gateway" onclick="installNetworkUpdate()">installer et redémarrer</button>`;
+    } else if(d.status === 'error'){
+      resEl.textContent = 'échec : ' + (d.error || '?');
+    }
+  }).catch(()=>{});
+}
+
+function installNetworkUpdate(){
+  const resEl = document.getElementById('netUpdatePathResult');
+  if(resEl) resEl.textContent = 'redémarrage…';
+  fetch('/app/update_install', {method: 'POST'})
+    .then(()=> setTimeout(_pollServerBackUpAfterNetworkUpdate, 2500));
+}
+
+function _pollServerBackUpAfterNetworkUpdate(){
+  // Même mécanisme que pollServerBackUp() de logx_statusbar.js (le serveur
+  // coupe volontairement le processus après /app/update_install pour que le
+  // script auxiliaire remplace l'exécutable) — dupliqué ici volontairement :
+  // logx_statusbar.js est une IIFE qui n'expose pas cette fonction.
+  fetch('/data/rules_status', {cache: 'no-store'}).then(r => {
+    if(r.ok) location.reload();
+    else setTimeout(_pollServerBackUpAfterNetworkUpdate, 2000);
+  }).catch(()=> setTimeout(_pollServerBackUpAfterNetworkUpdate, 2000));
 }
 
 // Fusionne un delta serveur (QSO ajoutés/modifiés + id supprimés, voir

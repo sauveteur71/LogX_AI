@@ -11,17 +11,63 @@ manuelle — aucune perte de log, config, ou cache.
 Toute la partie "remplacer l'exe en cours d'exécution" ne s'applique qu'en
 mode figé (PyInstaller) : en développement (`python logx_serveur.py`),
 sys.executable est l'interpréteur Python lui-même, rien à remplacer.
+
+─── VÉRIFICATION D'INTÉGRITÉ (SHA-256) ───────────────────────────────────────
+L'API GitHub Releases expose, par asset, un champ 'digest' au format
+'sha256:<64 hex>' (vérifié en direct sur ce dépôt : présent et cohérent sur
+toutes les releases publiées par le workflow build-release.yml — asset upload
+via `actions/upload-release-asset`/`gh release create`, qui calcule et publie
+ce digest automatiquement depuis 2024). AUCUN téléchargement — direct, via
+passerelle réseau (B) ou via un pair local (C) — n'est accepté sans que son
+empreinte SHA-256 corresponde exactement à ce digest : si l'API ne l'expose
+pas pour un asset donné (champ absent/format inattendu), le téléchargement de
+CET asset est REFUSÉ plutôt que d'accepter un binaire non vérifié en silence.
+
+─── RELAIS RÉSEAU (B, priorité) ET PAIR-À-PAIR (C, secours) ──────────────────
+Contexte : retour beta-testeur sur la fiabilité en DXpédition/contest multi-op
+avec internet absent ou dégradé sur le poste qui a besoin de la mise à jour.
+
+  B) Passerelle réseau : un poste qui a internet relaie, sur simple demande
+     d'un autre poste du LAN, une requête de téléchargement vers l'API
+     GitHub Releases officielle. Le contenu qui transite est le contenu
+     AUTHENTIQUE de GitHub — la passerelle fait une requête HTTPS normale
+     (même SSL_CTX que le chemin direct) vers l'URL officielle de l'asset et
+     RESTREINT à cette URL (construite ici à partir d'un tag+plateforme
+     validés, jamais d'une URL fournie par l'appelant — voir resolve_relay_
+     asset, anti-SSRF), puis relaie les octets EN FLUX (jamais un fichier de
+     son propre disque, jamais une copie mise en cache pour l'occasion).
+  C) Pair-à-pair — SECOURS UNIQUEMENT, déclenché seulement si (B) est
+     indisponible : un poste qui a DÉJÀ téléchargé et VÉRIFIÉ un exécutable
+     (hash SHA-256 validé, voir ci-dessus) le sert à un autre poste via un
+     point HTTP dédié, TOUJOURS le même fichier interne (_download['path']),
+     jamais un chemin fourni par le client (pas de traversée de répertoire).
+
+  Compromis de sécurité (documenté aussi dans le commit) : dans LES DEUX cas,
+  le poste RECEVEUR doit déjà posséder sa PROPRE référence de hash (obtenue
+  par un contact DIRECT antérieur avec l'API GitHub, même périmé en fraîcheur
+  — un digest de release publiée est stable indéfiniment) AVANT de tenter un
+  téléchargement via le réseau local : jamais une référence fournie par la
+  passerelle ou le pair lui-même, même en (B) où le contenu vient bien de
+  GitHub — sans ça, UNE SEULE machine compromise pourrait fournir à la fois
+  le contenu ET la preuve de son intégrité. Un poste qui n'a JAMAIS réussi un
+  contact direct avec GitHub (aucune référence locale) voit donc les deux
+  chemins réseau REFUSÉS explicitement, avec un message clair — jamais un
+  repli silencieux sur la confiance aveugle envers le pair/la passerelle.
 """
+import hashlib
 import os
+import re
 import sys
 import stat
 import json
 import time
 import threading
 import subprocess
+import urllib.error
+import urllib.parse
 import urllib.request
 
-from logx_utils import SSL_CTX
+from logx_utils import PORT, SSL_CTX
 from logx_version import APP_VERSION
 from logx_bootstrap import is_frozen, user_data_dir
 
@@ -32,6 +78,7 @@ GITHUB_REPO = 'sauveteur71/radioaamateur-program-Contest'
 # la liste complète (déjà triée du plus récent au plus ancien par l'API) et
 # on garde son 1er élément — vérifié en direct : /latest -> 404, /releases[0] -> v0.9-beta1.
 RELEASES_API = f'https://api.github.com/repos/{GITHUB_REPO}/releases'
+RELEASE_BY_TAG_API = f'https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{{tag}}'
 CHECK_TTL = 6 * 3600  # 6h : une nouvelle release n'apparaît pas seconde par seconde
 
 # Suffixe/extension de l'artefact par plateforme — doit correspondre
@@ -46,10 +93,29 @@ _ASSET_SUFFIX_BY_PLATFORM = {
     'linux': ('-linux', ''),
 }
 
+# Taille de bloc pour TOUS les flux (téléchargement direct, relais passerelle,
+# service pair-à-pair, ré-hachage) — jamais un fichier entier chargé en
+# mémoire, même pour un exécutable de plusieurs dizaines de Mo.
+_CHUNK = 262144
+
+# Format de tag accepté pour un relais/service réseau — voir resolve_relay_
+# asset : borne stricte contre une injection dans l'URL GitHub reconstruite
+# (le tag vient d'un appelant sur le LAN, jamais garanti de confiance avant
+# validation). Exemples valides : v0.9-beta3, 1.2.3.
+_TAG_RE = re.compile(r'^v?[0-9][0-9A-Za-z.\-]{0,40}$')
+
 _lock = threading.Lock()
 _cache = {'ts': 0, 'result': None}
 _checking = False
-_download = {'status': 'idle', 'pct': 0, 'error': '', 'path': ''}
+_download = {
+    'status': 'idle', 'pct': 0, 'error': '', 'path': '',
+    # Champs ajoutés par la vérification d'intégrité / les chemins réseau —
+    # voir get_download_status() : exposés tels quels, consommés par
+    # logx_statusbar.js (installer) et logx_logbook.js (étiquette réseau).
+    'verified': False, 'sha256': '', 'version': '',
+    'via': 'direct',      # 'direct' | 'gateway' (B) | 'peer' (C, secours)
+    'via_peer': '',       # IP du poste passerelle/pair utilisé, si via != 'direct'
+}
 
 
 def _platform_key():
@@ -58,6 +124,22 @@ def _platform_key():
     if sys.platform == 'darwin':
         return 'darwin'
     return 'linux'
+
+
+def _parse_digest(raw):
+    """'sha256:<64 hex>' -> hex en minuscules, ou None si absent/format
+    inattendu/algorithme différent. Ne JAMAIS accepter un autre algorithme
+    que sha256 ici : un digest 'sha1:...' (plus faible) ou un format non
+    reconnu doit être traité comme ABSENT (retombe sur le refus prévu par
+    _do_download quand expected_sha256 est vide), jamais une fausse
+    confiance sur un algorithme plus faible ou mal parsé."""
+    raw = str(raw or '')
+    if not raw.startswith('sha256:'):
+        return None
+    hexpart = raw[len('sha256:'):].strip().lower()
+    if len(hexpart) == 64 and all(c in '0123456789abcdef' for c in hexpart):
+        return hexpart
+    return None
 
 
 def _fetch_latest_release():
@@ -74,6 +156,20 @@ def _fetch_latest_release():
     return releases[0] if releases else None
 
 
+def _fetch_release_by_tag(tag):
+    """Comme _fetch_latest_release mais pour un tag précis — utilisé par le
+    poste PASSERELLE (chemin B) pour retrouver l'asset d'une plateforme qui
+    n'est pas forcément la sienne (le poste receveur peut tourner sur un OS
+    différent). Appel réseau réel, jamais depuis le thread HTTP principal."""
+    url = RELEASE_BY_TAG_API.format(tag=urllib.parse.quote(tag, safe=''))
+    req = urllib.request.Request(url, headers={
+        'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
+        'Accept': 'application/vnd.github+json',
+    })
+    with urllib.request.urlopen(req, timeout=10, context=SSL_CTX) as resp:
+        return json.loads(resp.read().decode('utf-8', errors='replace'))
+
+
 def _build_result(data):
     tag = str(data.get('tag_name', '') or '').strip()
     latest = tag[1:] if tag[:1].lower() == 'v' else tag
@@ -83,17 +179,32 @@ def _build_result(data):
     # l'artefact à télécharger.
     asset_name = f'LogXAI-{tag}{suffix}{ext}' if tag else ''
     asset_url = ''
+    asset_sha256 = ''
+    asset_size = 0
     for a in (data.get('assets') or []):
         if a.get('name') == asset_name:
             asset_url = a.get('browser_download_url', '')
+            asset_size = int(a.get('size') or 0)
+            asset_sha256 = _parse_digest(a.get('digest')) or ''
             break
     return {
         'available': bool(latest) and latest != APP_VERSION,
         'current': APP_VERSION,
         'latest': latest or APP_VERSION,
+        # Tag GitHub BRUT (avec son 'v' éventuel, ex. 'v0.9-beta3') — 'latest'
+        # ci-dessus est la version "affichable" (sans 'v'), mais reconstruire
+        # une URL d'asset ou interroger /releases/tags/{tag} exige le tag
+        # EXACT tel que GitHub le connaît (voir resolve_relay_asset,
+        # start_download_via_network).
+        'tag': tag,
         'release_url': data.get('html_url', ''),
         'notes': str(data.get('body', '') or '')[:2000],
         'asset_url': asset_url,
+        # '' si l'API n'expose pas de digest fiable pour CET asset — dans ce
+        # cas _do_download refuse le téléchargement plutôt que l'accepter à
+        # l'aveugle (voir docstring du module).
+        'asset_sha256': asset_sha256,
+        'asset_size': asset_size,
         # Le téléchargement+remplacement automatique n'a de sens qu'en exe
         # figé ET si l'artefact de cette plateforme existe sur la release.
         'installable': bool(asset_url) and is_frozen(),
@@ -138,60 +249,312 @@ def get_cached_check(force=False):
     if _cache['result']:
         return _cache['result']
     return {'available': False, 'current': APP_VERSION, 'latest': APP_VERSION,
-            'release_url': '', 'notes': '', 'asset_url': '', 'installable': False,
+            'tag': '', 'release_url': '', 'notes': '', 'asset_url': '',
+            'asset_sha256': '', 'asset_size': 0, 'installable': False,
             'checking': True, 'repo': GITHUB_REPO}
 
 
-# ─── TÉLÉCHARGEMENT ──────────────────────────────────────────────────────────
+def gateway_status():
+    """Ce poste peut-il servir de PASSERELLE réseau (chemin B, priorité 1) à
+    un autre poste sans internet ? Heuristique, pas un ping actif dédié : on
+    réutilise le même signal que "une release est peut-être disponible",
+    déjà rafraîchi périodiquement par chaque client (logx_statusbar.js,
+    refreshUpdateCheck toutes les 30 min, lui-même borné par CHECK_TTL=6h
+    côté cache) — càd "ce poste a réussi à joindre l'API GitHub Releases il
+    y a moins de CHECK_TTL". Un poste peut se déclarer disponible et pourtant
+    échouer au moment T (connexion redevenue mauvaise entretemps) : le
+    relais lui-même (voir /app/update_relay) peut toujours échouer, ceci
+    n'est qu'un indicateur pour orienter la recherche, pas une garantie."""
+    with _lock:
+        ok = bool(_cache['result']) and (time.time() - _cache['ts']) < CHECK_TTL
+    return {'gateway_available': ok, 'repo': GITHUB_REPO, 'version': APP_VERSION}
 
-def start_download(asset_url):
+
+def resolve_relay_asset(tag, platform):
+    """Valide (tag, platform) fournis par un AUTRE poste du LAN et reconstruit
+    l'URL GitHub OFFICIELLE de l'asset — ne fait JAMAIS confiance à une URL
+    fournie par l'appelant (protection anti-SSRF : sans cette validation,
+    /app/update_relay serait un proxy HTTP ouvert vers n'importe quelle URL).
+    Le nom de fichier suit exactement le même schéma que _build_result.
+    Renvoie (True, {'asset_url':..., 'asset_name':...}) ou (False, message)."""
+    tag = (tag or '').strip()
+    platform = (platform or '').strip()
+    if not _TAG_RE.match(tag):
+        return False, 'Tag de release invalide.'
+    if platform not in _ASSET_SUFFIX_BY_PLATFORM:
+        return False, 'Plateforme invalide.'
+    if not gateway_status()['gateway_available']:
+        return False, ("Ce poste n'a pas d'accès internet confirmé récemment "
+                        "— indisponible comme passerelle pour l'instant.")
+    suffix, ext = _ASSET_SUFFIX_BY_PLATFORM[platform]
+    asset_name = f'LogXAI-{tag}{suffix}{ext}'
+    asset_url = f'https://github.com/{GITHUB_REPO}/releases/download/{tag}/{asset_name}'
+    return True, {'asset_url': asset_url, 'asset_name': asset_name}
+
+
+def serve_status():
+    """État du fichier VÉRIFIÉ actuellement disponible sur CE poste pour le
+    servir à un pair en secours (chemin C) — toujours _download['path'],
+    JAMAIS un chemin fourni par le client (aucune traversée de répertoire
+    possible, ce n'est même pas un paramètre d'entrée ici)."""
+    with _lock:
+        d = dict(_download)
+    path = d.get('path', '')
+    ok = bool(d.get('status') == 'done' and d.get('verified') and path and os.path.exists(path))
+    if not ok:
+        return {'available': False, 'sha256': '', 'size': 0, 'version': ''}
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return {'available': False, 'sha256': '', 'size': 0, 'version': ''}
+    return {'available': True, 'sha256': d.get('sha256', ''), 'size': size,
+            'version': d.get('version', '')}
+
+
+def verify_file_sha256(path, expected_hex):
+    """Relit `path` PAR BLOCS (jamais entièrement en mémoire, voir _CHUNK) et
+    compare son empreinte SHA-256 à expected_hex. Utilisé pour re-vérifier un
+    exécutable déjà sur disque (tests, contrôle défensif) — le téléchargement
+    lui-même hache déjà en flux pendant l'écriture (_do_download /
+    _do_download_via_network), ceci n'est pas sur le chemin chaud."""
+    if not expected_hex:
+        return False
+    h = hashlib.sha256()
+    try:
+        with open(path, 'rb') as f:
+            while True:
+                chunk = f.read(_CHUNK)
+                if not chunk:
+                    break
+                h.update(chunk)
+    except OSError:
+        return False
+    return h.hexdigest() == expected_hex.lower()
+
+
+def _peer_get_json(ip, path, timeout=3):
+    """GET JSON vers un AUTRE poste du LAN (même port que celui-ci, voir
+    PORT) — utilisé pour sonder /app/gateway_status et /app/update_serve_
+    status avant de tenter un vrai transfert. Ne lève jamais : renvoie None
+    sur toute erreur (poste éteint, pas LogX AI à cette IP, timeout...)."""
+    try:
+        req = urllib.request.Request(
+            f'http://{ip}:{PORT}{path}',
+            headers={'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode('utf-8', errors='replace'))
+    except Exception:
+        return None
+
+
+def scan_network_candidates(ips):
+    """Sonde chaque IP candidate (postes vus via /log/status → peer_list, cf.
+    logx_http.peer_versions) pour savoir qui peut servir de PASSERELLE
+    (chemin B, prioritaire) et, à défaut, qui a déjà un exécutable vérifié à
+    servir en SECOURS (chemin C). Purement informatif — ne télécharge rien ;
+    c'est start_download_via_network qui agit, sur un second clic explicite
+    de l'opérateur (voir logx_logbook.js). Sondes en parallèle (borné) pour
+    rester réactif même avec une dizaine de postes sur le LAN."""
+    import concurrent.futures
+    ips = [ip for ip in dict.fromkeys(ips) if ip][:20]  # dédoublonne, borne
+    gateways, peers = [], []
+    if not ips:
+        return {'gateways': gateways, 'peers': peers}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(ips))) as ex:
+        gw_results = dict(zip(ips, ex.map(lambda ip: _peer_get_json(ip, '/app/gateway_status', 2), ips)))
+    gateways = [ip for ip in ips if gw_results.get(ip) and gw_results[ip].get('gateway_available')]
+    remaining = [ip for ip in ips if ip not in gateways]
+    if remaining:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(remaining))) as ex:
+            sv_results = dict(zip(remaining, ex.map(lambda ip: _peer_get_json(ip, '/app/update_serve_status', 2), remaining)))
+        peers = [ip for ip in remaining if sv_results.get(ip) and sv_results[ip].get('available')]
+    return {'gateways': gateways, 'peers': peers}
+
+
+# ─── TÉLÉCHARGEMENT DIRECT (GitHub) ───────────────────────────────────────────
+
+def start_download(asset_url, expected_sha256='', expected_size=0):
     """Démarre le téléchargement en tâche de fond (jamais dans le thread
     HTTP — un exécutable fait plusieurs dizaines de Mo). Idempotent : un
-    téléchargement déjà en cours n'en relance pas un second."""
+    téléchargement déjà en cours n'en relance pas un second.
+    expected_sha256/expected_size : référence attendue (voir _build_result,
+    champ 'digest' de l'API GitHub) — voir _do_download pour la vérification
+    et le refus si absente."""
     with _lock:
         if _download['status'] == 'downloading':
             return
-        _download.update(status='downloading', pct=0, error='', path='')
-    threading.Thread(target=_do_download, args=(asset_url,), daemon=True).start()
+        _download.update(status='downloading', pct=0, error='', path='',
+                          verified=False, sha256='', version='', via='direct', via_peer='')
+    threading.Thread(target=_do_download, args=(asset_url, expected_sha256, expected_size),
+                      daemon=True).start()
 
 
-def _do_download(asset_url):
+def _do_download(asset_url, expected_sha256='', expected_size=0):
     dest_dir = os.path.join(user_data_dir(), 'update')
+    tmp = None
     try:
+        if not expected_sha256:
+            # Aucune vérification fiable possible pour cette source (l'API
+            # GitHub n'a pas exposé de digest pour cet asset) : on REFUSE
+            # plutôt que d'accepter un binaire non vérifié en silence — voir
+            # docstring du module (compromis de sécurité documenté).
+            raise ValueError(
+                "Aucune empreinte SHA-256 de référence disponible pour cet "
+                "exécutable (l'API GitHub n'expose pas de digest fiable pour "
+                "cet asset) — téléchargement refusé par sécurité.")
         os.makedirs(dest_dir, exist_ok=True)
         dest = os.path.join(dest_dir, os.path.basename(asset_url) or 'LogXAI_new.exe')
         tmp = dest + '.part'
         req = urllib.request.Request(asset_url, headers={
             'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'})
+        hasher = hashlib.sha256()
         with urllib.request.urlopen(req, timeout=20, context=SSL_CTX) as resp:
             total = int(resp.headers.get('Content-Length', 0) or 0)
             got = 0
             with open(tmp, 'wb') as f:
                 while True:
-                    chunk = resp.read(262144)
+                    chunk = resp.read(_CHUNK)
                     if not chunk:
                         break
                     f.write(chunk)
+                    hasher.update(chunk)
                     got += len(chunk)
                     pct = int(got * 100 / total) if total else 0
                     with _lock:
                         _download['pct'] = pct
+        digest = hasher.hexdigest()
+        if expected_size and got != expected_size:
+            raise ValueError(
+                f"Taille reçue ({got} o) différente de celle annoncée par "
+                f"GitHub ({expected_size} o) — fichier corrompu ou tronqué, rejeté.")
+        if digest != expected_sha256:
+            raise ValueError(
+                "Empreinte SHA-256 du fichier reçu différente de celle "
+                "publiée par GitHub — fichier potentiellement altéré, rejeté.")
         os.replace(tmp, dest)
         with _lock:
-            _download.update(status='done', pct=100, path=dest)
+            _download.update(status='done', pct=100, path=dest, verified=True, sha256=digest)
     except Exception as e:
         try:
-            if os.path.exists(tmp):
+            if tmp and os.path.exists(tmp):
                 os.remove(tmp)
         except Exception:
             pass
         with _lock:
-            _download.update(status='error', error=str(e))
+            _download.update(status='error', error=str(e), verified=False)
 
 
 def get_download_status():
     with _lock:
         return dict(_download)
+
+
+# ─── TÉLÉCHARGEMENT VIA LE RÉSEAU LOCAL (B : passerelle, C : pair-à-pair) ────
+# Déclenché UNIQUEMENT par une action utilisateur explicite côté client (voir
+# logx_logbook.js) — jamais sondé/lancé automatiquement en tâche de fond.
+
+def start_download_via_network(mode, ips):
+    """mode: 'gateway' (chemin B, priorité 1) ou 'peer' (chemin C, secours,
+    seulement si B est indisponible — c'est au CLIENT de ne proposer C que
+    dans ce cas, voir logx_logbook.js). ips : postes candidats (déjà connus
+    du client via /log/status → peer_list). Essaie chaque IP dans l'ordre
+    jusqu'à la première qui répond ET dont le hash vérifie contre la
+    référence LOCALE de ce poste (jamais une référence fournie par le pair/
+    la passerelle — voir docstring du module). Renvoie (True, '') si le
+    téléchargement démarre, (False, message) sinon (refus immédiat, sans
+    lancer de thread ni ouvrir la moindre connexion réseau)."""
+    if mode not in ('gateway', 'peer'):
+        return False, 'Mode de mise à jour réseau invalide.'
+    check = get_cached_check()
+    ref_sha = check.get('asset_sha256') or ''
+    ref_tag = check.get('tag') or ''
+    if not ref_sha or not ref_tag:
+        return False, (
+            "Ce poste n'a jamais réussi à vérifier une version directement "
+            "auprès de GitHub — aucune empreinte de référence fiable en local. "
+            "La mise à jour réseau (passerelle ou pair) est refusée par "
+            "sécurité tant qu'un contact direct n'a pas réussi au moins une "
+            "fois (même ancien : l'empreinte d'une release publiée ne change "
+            "jamais).")
+    ips = [str(ip).strip() for ip in (ips or []) if str(ip).strip()]
+    if not ips:
+        return False, 'Aucun poste candidat sur le réseau local.'
+    with _lock:
+        if _download['status'] == 'downloading':
+            return False, 'Un téléchargement est déjà en cours.'
+        _download.update(status='downloading', pct=0, error='', path='',
+                          verified=False, sha256='', version='', via=mode, via_peer='')
+    ref_size = int(check.get('asset_size') or 0)
+    platform = _platform_key()
+    threading.Thread(target=_do_download_via_network,
+                      args=(mode, ips, ref_tag, platform, ref_sha, ref_size),
+                      daemon=True).start()
+    return True, ''
+
+
+def _do_download_via_network(mode, ips, tag, platform, expected_sha256, expected_size):
+    dest_dir = os.path.join(user_data_dir(), 'update')
+    os.makedirs(dest_dir, exist_ok=True)
+    suffix, ext = _ASSET_SUFFIX_BY_PLATFORM[platform]
+    dest = os.path.join(dest_dir, f'LogXAI-{tag}{suffix}{ext}')
+    last_err = 'Aucun poste candidat joignable ou valide sur le réseau.'
+    for ip in ips:
+        tmp = dest + '.part'
+        try:
+            if mode == 'gateway':
+                status = _peer_get_json(ip, '/app/gateway_status', timeout=3)
+                if not status or not status.get('gateway_available'):
+                    last_err = f'{ip} : pas disponible comme passerelle.'
+                    continue
+                url = (f'http://{ip}:{PORT}/app/update_relay'
+                       f'?tag={urllib.parse.quote(tag)}&platform={urllib.parse.quote(platform)}')
+            else:  # 'peer' — secours
+                status = _peer_get_json(ip, '/app/update_serve_status', timeout=3)
+                if not status or not status.get('available'):
+                    last_err = f'{ip} : aucun exécutable vérifié à servir.'
+                    continue
+                url = f'http://{ip}:{PORT}/app/update_serve'
+
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'})
+            hasher = hashlib.sha256()
+            # Trafic LAN en clair (comme tout le reste de l'application, qui
+            # n'utilise jamais TLS en interne — voir compromis documenté dans
+            # le commit) : PAS de context=SSL_CTX ici, ce n'est pas du HTTPS.
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                total = int(resp.headers.get('Content-Length', 0) or 0)
+                got = 0
+                with open(tmp, 'wb') as f:
+                    while True:
+                        chunk = resp.read(_CHUNK)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        hasher.update(chunk)
+                        got += len(chunk)
+                        pct = int(got * 100 / total) if total else 0
+                        with _lock:
+                            _download['pct'] = pct
+            digest = hasher.hexdigest()
+            if expected_size and got != expected_size:
+                raise ValueError(f"taille reçue ({got} o) ≠ référence GitHub ({expected_size} o)")
+            if digest != expected_sha256:
+                raise ValueError("empreinte SHA-256 ne correspond pas à la référence GitHub — rejeté")
+            os.replace(tmp, dest)
+            with _lock:
+                _download.update(status='done', pct=100, path=dest, verified=True,
+                                  sha256=digest, version=tag, via=mode, via_peer=ip)
+            return
+        except Exception as e:
+            last_err = f'{ip} : {e}'
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+            continue
+    with _lock:
+        _download.update(status='error', error=last_err, verified=False)
 
 
 # ─── INSTALLATION (remplacement de l'exécutable + relance) ──────────────────
@@ -200,7 +563,11 @@ def apply_update_and_relaunch(new_exe_path):
     """Lance un script auxiliaire détaché qui attend la fin du processus
     courant, remplace l'exécutable, puis le relance — puis retourne
     immédiatement (l'appelant doit arrêter le serveur juste après, sinon le
-    script auxiliaire attendra indéfiniment que ce processus se termine)."""
+    script auxiliaire attendra indéfiniment que ce processus se termine).
+    Fonctionne à l'identique quelle que soit la provenance du fichier déjà
+    vérifié (téléchargement direct, passerelle réseau ou pair-à-pair) — la
+    vérification d'intégrité a déjà eu lieu en amont dans _do_download /
+    _do_download_via_network, jamais ici."""
     if not is_frozen():
         return False, "Pas d'exécutable à remplacer en mode développement"
     if not os.path.exists(new_exe_path):
