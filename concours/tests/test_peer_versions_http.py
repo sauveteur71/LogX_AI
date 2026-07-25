@@ -10,6 +10,7 @@ s'alignent sur un numéro de version. Sans ce test, un renommage silencieux
 du paramètre ?ver= ou des champs 'peer_list'/'app_version' laisserait le
 badge introuvable côté client (toujours '—', jamais d'alerte) sans qu'aucune
 requête ne le signale (toujours 200 OK)."""
+import http.client
 import http.server
 import json
 import os
@@ -96,3 +97,85 @@ def test_log_list_ver_ecrase_la_valeur_precedente_meme_ip(server):
     status = _get(server, '/log/status')
     assert len(status['peer_list']) == 1
     assert status['peer_list'][0]['version'] == '0.9-beta3'
+
+
+# ── Purge TTL des postes partis (non-régression du badge fantôme) ────────────
+# Bug corrigé : peer_versions n'était JAMAIS purgé. Un poste qui avait pollé
+# UNE fois avec une version différente (téléphone d'un visiteur, poste pas
+# encore mis à jour changeant ensuite d'IP DHCP, onglet de test) laissait son
+# entrée servie à vie par /log/status → badge "⚠️ versions différentes" et
+# item CHECKLIST "Version cohérente sur tous les postes" ROUGES en permanence,
+# irrécupérables sans redémarrer le serveur — et l'IP périmée restait
+# candidate du scan de mise à jour réseau (_known_peer_ips).
+
+def _get_from(base, path, source_ip):
+    """GET en forçant l'IP SOURCE de la socket (127.0.0.2 est aussi une
+    boucle locale) : le serveur voit une vraie IP socket différente dans
+    client_address — même mécanisme que le vrai réseau, pas une injection."""
+    hostname, port = base.split('//')[1].split(':')
+    conn = http.client.HTTPConnection(hostname, int(port), timeout=5,
+                                      source_address=(source_ip, 0))
+    try:
+        conn.request('GET', path)
+        return json.loads(conn.getresponse().read().decode('utf-8'))
+    finally:
+        conn.close()
+
+
+def _backdate(ip, seconds):
+    """Vieillit last_seen d'une entrée (seule simulation du temps du test)."""
+    with httpmod.peer_versions_lock:
+        httpmod.peer_versions[ip]['last_seen'] -= seconds
+
+
+def test_poste_parti_purge_de_peer_list_apres_ttl(server):
+    """Scénario exact du bug : un visiteur en 0.9-beta3 polle UNE fois depuis
+    127.0.0.2 puis quitte le réseau ; l'hôte (127.0.0.1, version courante)
+    continue de poller. Une fois PEER_VERSION_TTL dépassé, /log/status ne
+    doit PLUS servir l'entrée du visiteur — sinon badge "⚠️ versions
+    différentes" + checklist rouges DÉFINITIVEMENT (les polls sains d'un
+    autre poste ne doivent pas la ressusciter). Échoue sans le correctif :
+    l'entrée périmée restait servie sans condition d'âge."""
+    _get_from(server, '/log/list?ver=0.9-beta3', '127.0.0.2')
+    _get(server, f'/log/list?ver={APP_VERSION}')
+    ips = {p['ip'] for p in _get(server, '/log/status')['peer_list']}
+    assert ips == {'127.0.0.1', '127.0.0.2'}   # avant TTL : les deux visibles
+    _backdate('127.0.0.2', httpmod.PEER_VERSION_TTL + 1)
+    _get(server, f'/log/list?ver={APP_VERSION}')   # l'hôte, lui, polle encore
+    peer_list = _get(server, '/log/status')['peer_list']
+    ips = {p['ip'] for p in peer_list}
+    assert '127.0.0.2' not in ips   # le fantôme a disparu (badge/checklist OK)
+    assert '127.0.0.1' in ips       # le poste encore actif reste affiché
+    # Suppression RÉELLE, pas un simple filtre d'affichage : la mémoire est
+    # libérée (croissance par IP distincte sinon, cf. audit).
+    with httpmod.peer_versions_lock:
+        assert '127.0.0.2' not in httpmod.peer_versions
+
+
+def test_poste_encore_actif_jamais_purge_avant_ttl(server):
+    """Garde-fou inverse : une entrée plus vieille que quelques polls mais
+    PLUS JEUNE que le TTL (onglet en arrière-plan dont les timers sont
+    ralentis par le navigateur) reste servie — la purge ne doit jamais faire
+    disparaître un poste simplement lent à poller."""
+    _get_from(server, '/log/list?ver=0.9-beta3', '127.0.0.2')
+    _backdate('127.0.0.2', httpmod.PEER_VERSION_TTL - 30)
+    ips = {p['ip'] for p in _get(server, '/log/status')['peer_list']}
+    assert '127.0.0.2' in ips
+
+
+def test_ip_perimee_hors_candidats_scan_maj_reseau(server):
+    """L'IP d'un poste parti ne doit plus être réinjectée comme candidate du
+    scan de mise à jour réseau (_known_peer_ips filtre les IP locales, d'où
+    des IP TEST-NET routables ici). Échoue sans le correctif : toute IP
+    jamais vue restait candidate à vie."""
+    now_entry = {'version': '0.9-beta3', 'last_seen': 0}   # epoch 1970 → périmée
+    with httpmod.peer_versions_lock:
+        httpmod.peer_versions['192.0.2.10'] = dict(now_entry)
+    _get_from(server, '/log/list?ver=0.9-beta3', '127.0.0.2')  # pair frais réel
+    import time as _t
+    with httpmod.peer_versions_lock:
+        httpmod.peer_versions['192.0.2.20'] = {'version': '0.9-beta3',
+                                               'last_seen': _t.time()}
+    ips = httpmod._known_peer_ips()
+    assert '192.0.2.10' not in ips   # périmée : plus jamais sondée
+    assert '192.0.2.20' in ips       # fraîche : toujours candidate

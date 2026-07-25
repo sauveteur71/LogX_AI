@@ -52,8 +52,38 @@ connected_peers = set()
 # — même logique que les équipes N1MM qui s'alignent sur un numéro de
 # version avant l'événement. Un écart reste un simple INDICATEUR visuel côté
 # client, jamais un verrou : rien ici ne bloque quoi que ce soit.
+# RÉTENTION (défaut corrigé — voir _prune_stale_peer_versions) : une entrée
+# n'est conservée que PEER_VERSION_TTL secondes après le dernier poll de son
+# IP. Sans cette purge, un poste parti (téléphone d'un visiteur, onglet de
+# test fermé) ou revenu sous une AUTRE IP DHCP laissait son ancienne entrée
+# servie à vie par /log/status → badge "⚠️ versions différentes" et item
+# CHECKLIST "Version cohérente sur tous les postes" ROUGES en permanence,
+# sans aucun moyen de purger sauf redémarrer le serveur — et l'IP périmée
+# restait candidate du scan de mise à jour réseau (_known_peer_ips).
 peer_versions = {}
 peer_versions_lock = threading.Lock()
+# Un poste ACTIF polle /log/list toutes les 5 s (logx_logbook.js, refreshTimer)
+# mais un onglet en arrière-plan peut voir ses timers ralentis à ~1/min par le
+# navigateur : 300 s laissent une marge très large avant de déclarer un poste
+# parti, tout en effaçant une alerte fantôme en quelques minutes au lieu de
+# jamais. Même pattern de fenêtre de fraîcheur que _DECODE_TTL (logx_wsjtx.py)
+# et la fenêtre 30 s de logx_adifnet.py.
+PEER_VERSION_TTL = 300  # secondes
+
+
+def _prune_stale_peer_versions():
+    """Supprime de peer_versions les postes muets depuis plus de
+    PEER_VERSION_TTL secondes. Appelée à chaque écriture (poll /log/list?ver=)
+    et à chaque lecture (/log/status, _known_peer_ips) : la purge est donc
+    effective même si plus personne ne polle, dès la prochaine consultation.
+    Suppression réelle (pas un simple filtre d'affichage) : libère aussi la
+    mémoire (croissance par IP distincte sinon) et retire l'IP des candidats
+    du scan de mise à jour réseau."""
+    cutoff = time.time() - PEER_VERSION_TTL
+    with peer_versions_lock:
+        for ip in [ip for ip, info in peer_versions.items()
+                   if info.get('last_seen', 0) < cutoff]:
+            del peer_versions[ip]
 
 
 def _known_peer_ips():
@@ -82,8 +112,11 @@ def _known_peer_ips():
     interfaces de CE poste ne sont donc jamais des pairs candidats — noter
     que peer_versions lui-même n'est PAS filtré : /log/status → peer_list
     (badge de versions) continue d'afficher tous les postes vus, y compris
-    le navigateur local."""
+    le navigateur local. Fraîcheur : purge TTL d'abord (voir _prune_stale_
+    peer_versions) — une IP qui ne polle plus depuis PEER_VERSION_TTL n'est
+    plus un pair candidat du scan de mise à jour réseau."""
     import logx_update as upd
+    _prune_stale_peer_versions()
     with peer_versions_lock:
         ips = list(peer_versions.keys())
     return {ip for ip in ips if not upd._is_self_ip(ip)}
@@ -1287,6 +1320,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if client_ver:
                 with peer_versions_lock:
                     peer_versions[client_ip] = {'version': client_ver, 'last_seen': time.time()}
+                # Purge TTL au fil de l'eau : les polls sains des postes
+                # présents évacuent les entrées des postes partis, même si
+                # personne ne consulte jamais /log/status (borne la mémoire).
+                _prune_stale_peer_versions()
             # Copie sous verrou (rapide, juste des références), puis sérialisation
             # JSON + écriture socket HORS verrou : c'était le seul endpoint qui
             # gardait log_lock pendant tout l'envoi. Avec un gros log (milliers de
@@ -1415,6 +1452,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # à la version déclarée par un poste, jamais figée) : c'est la
             # référence à laquelle chaque poste (soi-même y compris) doit se
             # comparer côté client pour détecter un écart avant un événement.
+            # Purge TTL AVANT lecture : un poste parti (ou revenu sous une
+            # autre IP DHCP) ne doit pas laisser un badge "versions
+            # différentes" fantôme permanent — voir _prune_stale_peer_versions.
+            _prune_stale_peer_versions()
             with peer_versions_lock:
                 peer_list = [
                     {'ip': ip, 'version': info.get('version', ''), 'last_seen': info.get('last_seen', 0)}
