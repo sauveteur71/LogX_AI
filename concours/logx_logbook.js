@@ -2806,6 +2806,67 @@ let _logVersion = null;
 // plus : le serveur se replie alors de lui-même sur la liste complète.
 let _serverBoot = null;
 
+// ── Version logicielle de CE poste (vérification multi-op / DXpédition) ─────
+// Figée UNE SEULE FOIS au chargement de cette page (voir initShareLink(),
+// qui la lit dans /network/info) et envoyée sur CHAQUE poll /log/list via
+// ?ver=. Volontairement jamais réassignée après coup : si l'hôte redémarre
+// le serveur avec une version plus récente pendant que cet onglet reste
+// ouvert, cette valeur doit rester l'ANCIENNE pour que le serveur puisse la
+// comparer à sa version actuelle (voir /log/status → app_version) et
+// signaler "cet onglet tourne du code périmé, recharge la page" — c'est
+// justement le scénario utile, pas un bug à corriger.
+let _myVersion = null;
+// Dernier snapshot connu (rafraîchi toutes les 60 s par refreshCluster() via
+// /log/status) — réutilisé par updateVersionStatus() ET par la CHECKLIST
+// (showChecklist()) pour ne pas dupliquer un appel réseau.
+let _lastServerVersion = null;
+let _lastPeerList = [];
+
+// Liste les postes (soi-même inclus) dont la version déclarée diffère de la
+// version SERVEUR actuelle (référence unique — voir logx_http.APP_VERSION).
+// Partagée entre le badge de la barre réseau et l'item CHECKLIST pour ne
+// jamais faire diverger les deux affichages.
+function _versionMismatches(serverVer, myVer, peerList){
+  const out = [];
+  if(myVer && serverVer && myVer !== serverVer) out.push({ip: 'ce poste', version: myVer});
+  (peerList || []).forEach(p => {
+    if(p.version && serverVer && p.version !== serverVer) out.push({ip: p.ip, version: p.version});
+  });
+  return out;
+}
+
+// Met à jour le badge "⚠️ versions différentes" de la barre réseau + le
+// détail (tooltip) de "Postes connectés". Un écart n'est JAMAIS bloquant :
+// c'est un indicateur visuel, l'opérateur décide quoi en faire (recharger
+// la page, prévenir l'hôte...).
+function updateVersionStatus(data){
+  const serverVer = data.app_version || null;
+  const peerList  = data.peer_list || [];
+  _lastServerVersion = serverVer;
+  _lastPeerList = peerList;
+  const warnEl  = document.getElementById('netVersionWarn');
+  const peersEl = document.getElementById('netPeers');
+  if(!serverVer) return;
+  const mismatches = _versionMismatches(serverVer, _myVersion, peerList);
+  if(warnEl){
+    if(mismatches.length){
+      warnEl.style.display = 'inline-flex';
+      warnEl.title = 'Versions différentes détectées (recharge la page pour te mettre à jour) :\n'
+        + mismatches.map(m => `${m.ip} : v${m.version}`).join('\n')
+        + `\nRéférence serveur : v${serverVer}`;
+    } else {
+      warnEl.style.display = 'none';
+      warnEl.title = '';
+    }
+  }
+  if(peersEl && peerList.length){
+    peersEl.title = 'Postes connectés :\n' + peerList.map(p => {
+      const flag = (p.version && p.version !== serverVer) ? ' ⚠️' : '';
+      return `${p.ip} — v${p.version || '?'}${flag}`;
+    }).join('\n');
+  }
+}
+
 // Fusionne un delta serveur (QSO ajoutés/modifiés + id supprimés, voir
 // /log/list?since=) dans le cache local qsoLog SANS tout remplacer — un QSO
 // édité garde sa position (édition en place), un QSO neuf est ajouté en fin
@@ -2839,6 +2900,11 @@ async function fetchLog(){
       url = `/log/list?v=${_logVersion}&since=${_logVersion}`;
       if(_serverBoot) url += `&boot=${_serverBoot}`;
     }
+    // ?ver= : version logicielle de CE poste, figée au chargement de la page
+    // (voir _myVersion ci-dessus) — alimente peer_versions côté serveur pour
+    // que /log/status puisse exposer "qui tourne quelle version" à tous les
+    // postes connectés (voir updateVersionStatus()).
+    if(_myVersion) url += (url.includes('?') ? '&' : '?') + `ver=${encodeURIComponent(_myVersion)}`;
     const res = await fetch(url);
     if(!res.ok) return;
     const data = await res.json();
@@ -2951,6 +3017,14 @@ function initShareLink(){
       if(link){ link.href = d.url_logbook; link.textContent = d.url_logbook; }
       const sa = document.getElementById('serverAddr');
       if(sa) sa.textContent = window.location.host;
+    }
+    // Capture UNE SEULE FOIS la version de ce serveur comme "ma version" — voir
+    // le commentaire sur _myVersion plus haut : ne jamais réassigner ensuite,
+    // même si initShareLink() est rappelée plus tard (repli hors-ligne ci-dessous).
+    if(d.app_version && _myVersion == null){
+      _myVersion = d.app_version;
+      const vEl = document.getElementById('netVersion');
+      if(vEl) vEl.textContent = 'v' + _myVersion;
     }
   }).catch(()=>{ setTimeout(initShareLink, 10000); }); // serveur pas encore prêt
 }
@@ -4279,6 +4353,10 @@ async function refreshCluster(){
     });
     clusterCache = cache;
     clusterLastRefresh = Date.now();
+    // Même réponse /log/status : on en profite pour rafraîchir le badge de
+    // vérification de version multi-op (voir updateVersionStatus()) sans
+    // ajouter un second cycle de polling dédié.
+    updateVersionStatus(data);
   }catch(e){ /* serveur hors ligne : on conserve le cache existant */ }
 }
 
@@ -5038,6 +5116,22 @@ async function showChecklist(){
   // 5. Postes connectés (info)
   const peersEl = document.getElementById('netPeers');
   rows.push({ok: true, info: true, label: `Postes connectés au réseau : ${peersEl ? peersEl.textContent : '—'}`});
+
+  // 6. Version cohérente entre postes (même logique que les équipes N1MM qui
+  // s'alignent sur un numéro de version avant un événement) — réutilise le
+  // dernier snapshot connu (rafraîchi toutes les 60 s par refreshCluster(),
+  // voir updateVersionStatus()) plutôt que de refaire un appel réseau ici.
+  if(_lastServerVersion){
+    const versionMism = _versionMismatches(_lastServerVersion, _myVersion, _lastPeerList);
+    rows.push({
+      ok: versionMism.length === 0,
+      label: versionMism.length === 0
+        ? `Version cohérente sur tous les postes (v${_lastServerVersion})`
+        : `Versions différentes : ${versionMism.map(m=>`${m.ip} v${m.version}`).join(', ')} — serveur : v${_lastServerVersion}`,
+    });
+  } else {
+    rows.push({ok: true, info: true, label: 'Version : pas encore vérifiée (patiente quelques secondes puis rouvre la checklist)'});
+  }
 
   inner.innerHTML = rows.map(r=>{
     const icon  = r.info ? 'ℹ️' : (r.ok ? '✅' : '⚠️');

@@ -34,6 +34,7 @@ from logx_clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len
                       fetch_dxheat, fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
                       fetch_noaa_kindex, fetch_dxmaps_vhf, fetch_3830_scores,
                       lookup_hamqth, enrich_unknown_calls)
+from logx_version import APP_VERSION
 
 # ─── CACHE SPOTS CLUSTER ENVOYÉS PAR LE NAVIGATEUR ───────────────────────────
 # Le navigateur accède à HTTPS/DXSummit, le serveur Python ne peut pas (bloqué).
@@ -42,6 +43,17 @@ browser_spots_cache = []      # liste de dicts {spotter, dx, freq, info, time}
 browser_spots_lock  = threading.Lock()
 browser_spots_ts    = 0       # timestamp dernier push
 connected_peers = set()
+# ─── VERSIONS DES POSTES CONNECTÉS (multi-op / DXpédition) ───────────────────
+# {ip: {'version': str, 'last_seen': float epoch}} — alimenté à chaque poll
+# /log/list (paramètre ?ver=, la version que CE poste croit faire tourner,
+# figée côté client au chargement de sa page, voir logx_logbook.js
+# initShareLink()/fetchLog()). Exposé via /log/status pour que chaque poste
+# puisse comparer sa version à celle des autres AVANT un concours/DXpédition
+# — même logique que les équipes N1MM qui s'alignent sur un numéro de
+# version avant l'événement. Un écart reste un simple INDICATEUR visuel côté
+# client, jamais un verrou : rien ici ne bloque quoi que ce soit.
+peer_versions = {}
+peer_versions_lock = threading.Lock()
 
 # ─── ANALYSES IA CÔTÉ SERVEUR (survivent au changement de page) ──────────────
 # Une analyse lancée depuis la CARTE IA tourne dans un thread serveur et son
@@ -1104,6 +1116,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'url_logbook': f'http://{local_ip}:{PORT}/logx_logbook.html',
                 'url_terrain': f'http://{local_ip}:{PORT}/logx_mobile.html',
                 'peers': len(connected_peers),
+                # Version de CE serveur — capturée une fois par le client à son
+                # chargement de page (voir logx_logbook.js initShareLink()) pour
+                # savoir "sa propre version" et la comparer plus tard à celle,
+                # toujours à jour, que renvoie /log/status.
+                'app_version': APP_VERSION,
             })
             return
 
@@ -1174,6 +1191,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             client_v = qs.get('v', [''])[0]
             since_raw = qs.get('since', [''])[0]
             boot_raw = qs.get('boot', [''])[0]
+            # Version LOGICIELLE du poste qui poll (?ver=, voir peer_versions
+            # ci-dessus) : purement déclarative, jamais utilisée pour filtrer
+            # ou refuser quoi que ce soit — juste enregistrée pour affichage.
+            client_ver = qs.get('ver', [''])[0].strip()
+            if client_ver:
+                with peer_versions_lock:
+                    peer_versions[client_ip] = {'version': client_ver, 'last_seen': time.time()}
             # Copie sous verrou (rapide, juste des références), puis sérialisation
             # JSON + écriture socket HORS verrou : c'était le seul endpoint qui
             # gardait log_lock pendant tout l'envoi. Avec un gros log (milliers de
@@ -1295,10 +1319,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Status réseau + spots clusters
         if path == '/log/status':
+            # peer_list : un poste par IP ayant déjà pollé /log/list?ver=,
+            # avec la version qu'il a déclarée et l'horodatage (epoch) de son
+            # dernier contact — voir peer_versions ci-dessus. app_version =
+            # version RÉELLE de CE serveur, à l'instant présent (contrairement
+            # à la version déclarée par un poste, jamais figée) : c'est la
+            # référence à laquelle chaque poste (soi-même y compris) doit se
+            # comparer côté client pour détecter un écart avant un événement.
+            with peer_versions_lock:
+                peer_list = [
+                    {'ip': ip, 'version': info.get('version', ''), 'last_seen': info.get('last_seen', 0)}
+                    for ip, info in peer_versions.items()
+                ]
+            peer_list.sort(key=lambda p: p['ip'])
             self._json({
-                'peers':     len(connected_peers),
-                'qso_count': len(shared_log),
-                'spots':     SPOTS_CACHE,
+                'peers':       len(connected_peers),
+                'qso_count':   len(shared_log),
+                'spots':       SPOTS_CACHE,
+                'app_version': APP_VERSION,
+                'peer_list':   peer_list,
             })
             return
 
