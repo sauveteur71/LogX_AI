@@ -4,7 +4,7 @@ Ce document fixe la politique de versionnage des schémas de données publics du
 
 ## Schéma concours (`concours/contest_schema.json`)
 
-**Statut : v1.0.0** (première version explicitement versionnée, 21/07/2026).
+**Statut : v1.1.0** (25/07/2026).
 
 JSON Schema (draft 2020-12) validant chaque entrée de `CONTEST_DEFINITIONS` (`logx_definitions.py`) — qu'elle soit écrite à la main, importée du calendrier WA7BNM ou extraite d'un règlement par l'IA. Validé par `logx_validate.py` (utilise la lib `jsonschema` si installée, sinon une vérification minimale de secours).
 
