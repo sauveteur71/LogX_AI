@@ -25,6 +25,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Plusieurs tests de non-regression font "git show <ancien-hash>:fichier"
+          # pour prouver qu'un bug se reproduisait sur le commit d'avant son
+          # correctif (ex. tests/test_rph_weekend_fallback.py). Le clone
+          # superficiel par defaut (depth=1) ne contient QUE le dernier commit :
+          # ces anciens hashes n'existent alors pas dans l'objet git du runner,
+          # d'ou un echec systematique (exit 128) sans rapport avec le code
+          # teste lui-meme. Historique complet necessaire.
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
