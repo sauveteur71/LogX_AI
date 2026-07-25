@@ -82,6 +82,56 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .qsy-btn:hover{background:var(--accent);color:#0A0B18}
 .point-btn{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:5px;border:1px solid var(--purple);background:rgba(191,90,242,.12);color:var(--purple);cursor:pointer;letter-spacing:1px;font-weight:700;flex-shrink:0}
 .point-btn:hover{background:var(--purple);color:#0A0B18}
+
+/* ── CLUSTER NEED LIST : une ligne de spot ne tient PAS sur une seule rangée ──
+   À 1366×768 la colonne droite fait 439 px, soit 387 px utiles à l'intérieur
+   d'une .spot-row — alors que ses colonnes fixes en totalisent 446 (110+80+56
+   +110+80+10) plus 90 px de gouttières. En flex mono-rangée, tout le déficit
+   était prélevé sur les éléments compressibles :
+     · .sr-info tombait à 0 px — le MOTIF de l'appel (« 12 850 km · nouveau
+       DXCC + nouvelle zone CQ ») devenait invisible, et comme il est en
+       white-space:nowrap;overflow:hidden, pas même une ellipse n'apparaissait ;
+     · .sr-band / .sr-val / .sr-cap tombaient à ~23-30 px : « 14 MHz » se
+       repliait sur deux lignes et la ligne passait de 37 à 66 px de haut ;
+     · avec CAT + rotor (cas normal, l'appli pilote la radio) les deux boutons
+       aggravaient le manque et la liste gagnait une barre de défilement
+       HORIZONTALE (502 px de contenu pour 411 px de large).
+   On laisse donc la ligne se répartir sur plusieurs rangées, de la plus utile
+   à la moins : 1) identification + score, toujours alignés en colonnes ;
+   2) les actions (QSY / rotor) et le badge MULT ; 3) l'explication.
+   Les rangées 2 et 3 n'existent que si la largeur l'impose : sans CAT, sans
+   rotor et sans MULT la ligne ne fait que 2 rangées et 47 px, et au-delà de
+   1100 px de colonne tout retient sur une seule rangée comme avant.
+   Mesuré à 1366×768, 1920×1080, 1280/1200 (colonne au min-width 380) et en
+   mode empilé <1100 px. */
+.hunt-cluster .spot-row{flex-wrap:wrap;align-content:flex-start;
+  column-gap:5px;row-gap:2px;padding:7px 8px}
+/* Aucune colonne ne se laisse comprimer : c'est cette compression-là qui les
+   repliait sur deux lignes au lieu de les faire passer à la rangée suivante. */
+.hunt-cluster .spot-row>*{flex-shrink:0;white-space:nowrap}
+/* min-width et non width : les colonnes restent alignées d'une ligne à l'autre,
+   mais un indicatif long, « DÉJÀ FAIT » ou « 1296 MHz » s'affichent en entier
+   au lieu d'être coupés. Le total (331 px) est calibré pour tenir dans les
+   324 px utiles de la colonne à son min-width:380px — donc à TOUTE largeur
+   d'écran, la 1re rangée reste complète. */
+.hunt-cluster .sr-call{width:auto;min-width:78px}
+.hunt-cluster .sr-freq{width:auto;min-width:53px}
+.hunt-cluster .sr-band{width:auto;min-width:48px}
+.hunt-cluster .sr-val {width:auto;min-width:56px}
+.hunt-cluster .sr-cap {width:auto;min-width:61px}
+/* Les boutons sont en tête dans le HTML (ordre de tabulation : agir avant de
+   lire le commentaire) ; order les renvoie visuellement en 2e rangée, pour que
+   TOUTES les lignes commencent par la même colonne d'indicatifs. */
+.hunt-cluster .qsy-btn,
+.hunt-cluster .point-btn,
+.hunt-cluster .sr-mult-badge{order:2}
+/* flex-basis 280 px ≈ la largeur naturelle de l'explication : elle ne reste sur
+   la rangée en cours que s'il y a vraiment de quoi la lire, sinon elle bascule
+   sur une rangée à elle et s'y étale entièrement. Un flex-basis:100% forcerait
+   cette rangée même sur un écran large, où elle tenait très bien en bout de
+   ligne. Elle est la seule à pouvoir rétrécir (flex-shrink:1), donc c'est elle
+   qui absorbe le débordement — mais jamais en dessous de 324 px utiles. */
+.hunt-cluster .sr-info{order:3;flex:1 1 280px}
 </style>
 </head>
 <body>
