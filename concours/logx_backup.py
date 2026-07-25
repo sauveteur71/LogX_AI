@@ -96,10 +96,19 @@ def _load_json(path):
 
 
 def _prune(folder):
-    """Ne garde que les KEEP jeux de sauvegarde les plus récents (par base)."""
+    """Ne garde que les KEEP jeux de sauvegarde les plus récents (par base).
+
+    Tri par l'horodatage en fin de nom (logx_{indicatif}_{AAAAMMJJ-HHMMSS}),
+    jamais par le nom complet : l'indicatif précède l'horodatage, et un tri
+    lexicographique du nom entier n'est chronologique que si l'indicatif ne
+    change jamais. Après un retour d'indicatif concours vers l'indicatif
+    personnel (ex. TM5X -> F4GLD, qui trie avant), chaque sauvegarde neuve
+    serait sinon détruite dès son écriture tant qu'il reste KEEP vieux jeux.
+    """
     try:
         bases = sorted({os.path.basename(p).rsplit('.', 1)[0]
-                        for p in glob.glob(os.path.join(folder, 'logx_*'))})
+                        for p in glob.glob(os.path.join(folder, 'logx_*'))},
+                       key=lambda b: (b.rsplit('_', 1)[-1], b))
         for base in bases[:-KEEP]:
             for p in glob.glob(os.path.join(folder, base + '.*')):
                 try:
