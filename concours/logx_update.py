@@ -855,29 +855,55 @@ def apply_update_and_relaunch(new_exe_path):
 
     if sys.platform.startswith('win'):
         helper = os.path.join(update_dir, '_apply_update.bat')
-        script = f'''@echo off
+        # PIÈGE d'encodage (bug réel corrigé ici) : cmd.exe n'interprète
+        # JAMAIS un .bat en UTF-8. Écrit en UTF-8 avec les chemins EN DUR,
+        # tout chemin accentué (« C:\\Users\\Frédéric\\Téléchargements » —
+        # cas ultra-courant pour le public francophone visé : new_exe_path
+        # est sous %APPDATA%, current_exe là où l'utilisateur a posé
+        # LogXAI.exe) était relu mojibaké ('é' UTF-8 0xC3 0xA9 -> 2
+        # caractères), le move /Y échouait 30 fois en silence, `start` n'était
+        # jamais atteint : l'application se fermait (os._exit dans le caller)
+        # et ne redémarrait JAMAIS — sans même le marqueur .update_failed.txt
+        # de :giveup, écrit lui aussi vers le chemin mangé. Pire : la page de
+        # lecture de cmd n'est même pas prévisible — OEM (cp850) avec une
+        # console, mais ANSI (cp1252) quand cmd est lancé en DETACHED_PROCESS
+        # sans console comme ici, et `chcp 65001` est INOPÉRANT sans console
+        # (les trois mesurés sur ce poste, voir le test de non-régression).
+        # La seule écriture fiable est donc un .bat 100 % ASCII (identique
+        # dans TOUTES les pages de code) : plus aucun chemin dans le fichier,
+        # ils sont transmis par variables d'environnement (UTF-16 de bout en
+        # bout via CreateProcessW, expansion %VAR% en mémoire par cmd — aucun
+        # aller-retour par un encodage de fichier, tout Unicode accepté).
+        # encoding='ascii' STRICT : si un caractère non-ASCII se glisse un
+        # jour dans ce script, échec bruyant à l'écriture plutôt qu'une mise
+        # à jour silencieusement morte.
+        script = '''@echo off
 set count=0
 timeout /t 2 /nobreak >NUL
 :retry
-move /Y "{new_exe_path}" "{current_exe}" >NUL 2>&1
+move /Y "%LOGX_UPDATE_NEW%" "%LOGX_UPDATE_CURRENT%" >NUL 2>&1
 if not errorlevel 1 goto launch
 set /a count+=1
 if %count% GEQ 30 goto giveup
 timeout /t 1 /nobreak >NUL
 goto retry
 :launch
-start "" "{current_exe}"
+start "" "%LOGX_UPDATE_CURRENT%"
 del "%~f0"
 goto :eof
 :giveup
-echo Echec du remplacement — fermez LogXAI.exe puis relancez-le manuellement. > "{current_exe}.update_failed.txt"
+echo Echec du remplacement - fermez LogXAI.exe puis relancez-le manuellement. > "%LOGX_UPDATE_CURRENT%.update_failed.txt"
 '''
-        with open(helper, 'w', encoding='utf-8') as f:
+        with open(helper, 'w', encoding='ascii') as f:
             f.write(script)
+        env = os.environ.copy()
+        env['LOGX_UPDATE_NEW'] = new_exe_path
+        env['LOGX_UPDATE_CURRENT'] = current_exe
         subprocess.Popen(
             ['cmd', '/c', helper],
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
             close_fds=True,
+            env=env,
         )
     else:
         helper = os.path.join(update_dir, '_apply_update.sh')

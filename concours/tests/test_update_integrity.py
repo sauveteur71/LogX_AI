@@ -1358,3 +1358,121 @@ def test_reference_sans_digest_necrase_pas_la_bonne(monkeypatch):
     assert ref is not None, "la bonne référence antérieure a été perdue"
     assert ref['tag'] == 'v5.5'
     assert ref['asset_sha256'] == _sha256(asset)
+
+
+# ═══ Écriture du .bat de mise à jour : chemins accentués (mojibake cmd) ═════
+# Défaut corrigé (audit + vérification adversariale) : apply_update_and_
+# relaunch écrivait _apply_update.bat en UTF-8 avec les chemins EN DUR. Or
+# cmd.exe ne lit JAMAIS un .bat en UTF-8 — et la page réellement utilisée
+# n'est même pas prévisible : OEM (cp850) avec une console, mais ANSI
+# (cp1252) quand cmd est lancé en DETACHED_PROCESS sans console (le mode de
+# lancement réel ici), où `chcp 65001` est de surcroît inopérant (les trois
+# mesurés sur poste Windows français, OEMCP=850/ACP=1252). Dès qu'un chemin
+# contenait un accent (« C:\Users\Frédéric\... » — nom d'utilisateur dans
+# %APPDATA% pour new_exe_path, ou dossier où l'utilisateur a posé LogXAI.exe
+# pour current_exe : cas ultra-courant pour le public francophone visé),
+# 'é' UTF-8 (0xC3 0xA9) était relu comme 2 caractères, move /Y échouait 30
+# fois, `start` n'était jamais atteint : l'application se fermait (os._exit
+# du caller /app/update_install) et ne redémarrait JAMAIS — sans même le
+# marqueur .update_failed.txt de :giveup, écrit lui aussi vers le chemin
+# mangé. Correctif : .bat 100 % ASCII (identique dans TOUTES les pages de
+# code), chemins transmis par variables d'environnement (UTF-16 de bout en
+# bout via CreateProcessW, expansion %VAR% en mémoire par cmd — aucun
+# aller-retour par un encodage de fichier).
+
+def _fake_exes_chemin_accentue(tmp_path, dirname):
+    """Un faux LogXAI.exe (OLD) + un faux exécutable téléchargé (NEW) dans un
+    dossier au nom accentué — reproduit la disposition réelle du rapport."""
+    accent = tmp_path / dirname
+    accent.mkdir()
+    old = accent / 'LogXAI.exe'
+    new = accent / 'LogXAI-v0.9-beta5.exe'
+    old.write_bytes(b'OLD BINARY')
+    new.write_bytes(b'NEW BINARY')
+    return old, new
+
+
+def test_bat_pur_ascii_et_chemins_via_environnement(monkeypatch, tmp_path):
+    """Le test qui ÉCHOUE sans le correctif : le .bat généré ne doit contenir
+    AUCUN octet non-ASCII (avant correctif : les chemins accentués y étaient
+    encodés en UTF-8, mojibakés ensuite par cmd) et les chemins doivent
+    passer par l'environnement du processus cmd, jamais par le contenu du
+    fichier. Exécutable partout (Linux CI compris) : branche Windows forcée,
+    constantes DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP fournies si
+    absentes, Popen intercepté (jamais de vrai cmd lancé ici)."""
+    old, new = _fake_exes_chemin_accentue(tmp_path, 'Frédéric_Téléchargements')
+    monkeypatch.setattr(upd, 'is_frozen', lambda: True)
+    monkeypatch.setattr(sys, 'executable', str(old))
+    monkeypatch.setattr(sys, 'platform', 'win32')
+    monkeypatch.setattr(upd.subprocess, 'DETACHED_PROCESS', 0x00000008, raising=False)
+    monkeypatch.setattr(upd.subprocess, 'CREATE_NEW_PROCESS_GROUP', 0x00000200, raising=False)
+    calls = {}
+
+    def fake_popen(args, **kw):
+        calls['args'] = args
+        calls['kw'] = kw
+        return None
+
+    monkeypatch.setattr(upd.subprocess, 'Popen', fake_popen)
+    ok, err = upd.apply_update_and_relaunch(str(new))
+    assert ok, err
+    assert list(calls['args'][:2]) == ['cmd', '/c']
+    helper = calls['args'][-1]
+    with open(helper, 'rb') as f:
+        data = f.read()
+    # Avant correctif : b'Fr\xc3\xa9d\xc3\xa9ric...' (UTF-8) présent -> échec.
+    non_ascii = [b for b in data if b >= 0x80]
+    assert non_ascii == [], (
+        'octets non-ASCII dans le .bat — relus dans une page de code '
+        f'imprévisible par cmd, chemins mojibakés : {non_ascii!r}')
+    # Les chemins ne transitent plus par le fichier mais par %VAR% + env :
+    assert b'%LOGX_UPDATE_NEW%' in data
+    assert b'%LOGX_UPDATE_CURRENT%' in data
+    env = calls['kw'].get('env')
+    assert env is not None, 'aucun environnement transmis à cmd'
+    assert env['LOGX_UPDATE_NEW'] == str(new)
+    assert env['LOGX_UPDATE_CURRENT'] == str(old)
+
+
+@pytest.mark.skipif(not sys.platform.startswith('win'),
+                    reason='exécution réelle de cmd.exe (Windows uniquement)')
+@pytest.mark.parametrize('dirname', [
+    # Cas réel du rapport : accents français (UTF-8 divergent de cp850/cp1252).
+    'Frédéric_Téléchargements',
+    # Hors cp850 ET cp1252 : aucune page de code SBCS ne peut représenter ces
+    # chemins — seule la transmission UTF-16 par l'environnement fonctionne.
+    'Dossier_Δ₿',
+], ids=['accents_francais', 'hors_pages_de_code'])
+def test_move_reel_via_cmd_detache_chemin_accentue(monkeypatch, tmp_path, dirname):
+    """Exécution RÉELLE de bout en bout : le .bat généré par le vrai
+    apply_update_and_relaunch est lancé par un vrai cmd /c avec les MÊMES
+    creationflags que la production (DETACHED_PROCESS, sans console) et doit
+    réussir le move — avant correctif, le contenu restait b'OLD BINARY'
+    pendant que cmd épuisait ses 30 tentatives sur des chemins mojibakés.
+    Seul `start ""` est neutralisé (rem), au niveau octets, pour ne pas
+    tenter de lancer le faux .exe en fin de script."""
+    old, new = _fake_exes_chemin_accentue(tmp_path, dirname)
+    monkeypatch.setattr(upd, 'is_frozen', lambda: True)
+    monkeypatch.setattr(sys, 'executable', str(old))
+    real_popen = upd.subprocess.Popen
+
+    def popen_start_neutralise(args, **kw):
+        helper = args[-1]
+        with open(helper, 'rb') as f:
+            data = f.read()
+        assert b'start ""' in data
+        with open(helper, 'wb') as f:
+            f.write(data.replace(b'start ""', b'rem __ ""'))
+        return real_popen(args, **kw)
+
+    monkeypatch.setattr(upd.subprocess, 'Popen', popen_start_neutralise)
+    ok, err = upd.apply_update_and_relaunch(str(new))
+    assert ok, err
+    # Nominal : ~2 s (timeout /t 2 puis move réussi). Borne large : 40 s
+    # couvre le comportement pré-correctif (30 tentatives x 1 s -> ~32 s).
+    deadline = time.time() + 40
+    while time.time() < deadline and old.read_bytes() != b'NEW BINARY':
+        time.sleep(0.25)
+    assert old.read_bytes() == b'NEW BINARY', (
+        'move /Y jamais abouti — chemins mojibakés dans le .bat ?')
+    assert not new.exists(), 'le nouvel exécutable n a jamais été déplacé'
