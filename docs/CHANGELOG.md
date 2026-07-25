@@ -11,7 +11,44 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
-## [Non publié]
+## [0.9-beta4] - 2026-07-25
+
+### Ajouté
+- Mise à jour réseau résiliente en DXpédition/multi-op : relais passerelle (un poste avec internet relaie l'authentique contenu GitHub) en priorité, relais pair-à-pair (un poste sert un exécutable déjà téléchargé et vérifié) en secours strict uniquement si aucune passerelle n'est disponible — vérification SHA-256 systématique contre une référence obtenue directement de GitHub, jamais du pair/de la passerelle.
+- Affichage de la version logicielle de chaque poste connecté en réseau multi-op, avec alerte visuelle si un poste est resté sur une version différente.
+- Indicateur de dégradation réseau (callbook, solaire, Cloud Sync) dans la barre de statut, au lieu d'une dégradation silencieuse visible seulement en console.
+- CWops (CWT) et les 2 éditions UFT (été/hiver) ajoutés aux concours suivis.
+- Réseau de balises NCDXF/IBP rendu découvrable depuis toutes les pages (il était déjà présent mais peu visible).
+
+### Corrigé
+- Dérive du schéma de définition des concours vis-à-vis de la réalité (CQ WW/CQ WPX, World Wide Award) qui faisait échouer silencieusement la validation en CI.
+- CI GitHub Actions « Check LogX AI » cassée par un clone git superficiel incompatible avec les tests de non-régression qui rejouent un ancien commit.
+- Flakes pytest intermittents (test HTTP sans fermeture explicite de serveur, chemin de dossier invalide non portable sous Linux).
+- Alerte Cloud Sync fantôme qui pouvait rester affichée après correction du dossier.
+
+### Sécurité
+- 3 défauts trouvés en revue adversariale sur le nouveau mécanisme de mise à jour réseau, corrigés avant publication : verrou de vérification d'intégrité absent juste avant le remplacement de l'exécutable, SSRF possible via le champ IP fourni par le client (requêtes serveur sortantes forcées vers une cible arbitraire), priorité passerelle-avant-pair non appliquée côté serveur (seulement une convention d'interface).
+
+## [0.9-beta3] - 2026-07-24
+
+### Ajouté
+- CONFIG : les bandes et modes proposés pour un concours sélectionné reflètent désormais le vrai règlement serveur (calendrier + définitions), plus un objet client dupliqué à la main qui pouvait dériver.
+- DXHeat ajouté comme 6e source cluster HF+VHF/UHF, avec locator structuré (plus fiable qu'un regex sur commentaire).
+- Carte MUF mondiale graphique en direct (hamqsl.com) sur la page Propagation et en vignette sur l'écran mural.
+- Carte de foudre en direct (Blitzortung.org) intégrée à la page Propagation + lien depuis l'écran mural.
+- Fuseaux horaires DX de référence sur l'écran mural, au-delà d'UTC et de l'heure locale.
+- Sélecteur de dossier natif Windows pour la sauvegarde automatique (CONFIG).
+- Raccourci bureau proposé au premier lancement de l'exécutable figé.
+
+### Modifié
+- Décodeur CW : suppression d'un panneau en double qui cassait silencieusement le bouton, et correction de l'affichage qui pouvait cacher l'enregistreur de QSO.
+- Traductions complétées (dont le bouton « ENREGISTRER LE QSO », resté en français dans toutes les langues) et corrections structurelles du moteur i18n pour le texte généré dynamiquement.
+
+### Corrigé
+- 4 défauts de revue adversariale sur les filtres bandes/modes (les deux axes doivent être restreints indépendamment) et sur les spots DXHeat (priorité du locator structuré, doublons entre les lots HF et VHF/UHF).
+- Cache de calendrier externe retiré du suivi git (régénéré automatiquement, n'avait jamais dû être versionné) + bouton « SANS DUPES » qui ne se traduisait jamais.
+
+## [0.9-beta2] - 2026-07-24
 
 ### Ajouté
 - World Wide Award (hamaward.cloud) : nouveau concours avec roster de stations spéciales et scoring dédié.
