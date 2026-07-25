@@ -57,6 +57,7 @@
       // Navigation
       'CONFIG': 'CONFIG', 'LOGBOOK': 'LOGBOOK', 'CARTE IA': 'AI MAP',
       'PROPAG': 'PROPAG', 'DÉPARTEMENTS': 'DEPARTMENTS', 'CALENDRIER': 'CALENDAR',
+      'CHASSE': 'HUNT',
       // Logbook — colonnes / libellés
       'SAISIE QSO': 'QSO ENTRY', 'OPÉRATEUR': 'OPERATOR', 'BANDE': 'BAND',
       'MODE': 'MODE', 'INDICATIF CORRESPONDANT': 'CALLSIGN', 'RST ENVOYÉ': 'RST SENT',
@@ -93,6 +94,7 @@
     de: {
       'CONFIG': 'KONFIG', 'LOGBOOK': 'LOGBUCH', 'CARTE IA': 'KI-KARTE',
       'PROPAG': 'AUSBREITUNG', 'DÉPARTEMENTS': 'DEPARTEMENTS', 'CALENDRIER': 'KALENDER',
+      'CHASSE': 'JAGD',
       'SAISIE QSO': 'QSO-EINGABE', 'OPÉRATEUR': 'OPERATOR', 'BANDE': 'BAND',
       'MODE': 'MODUS', 'INDICATIF CORRESPONDANT': 'RUFZEICHEN', 'RST ENVOYÉ': 'RST GEGEBEN',
       'RST REÇU': 'RST ERHALTEN', 'N° ENVOYÉ': 'NR GEGEBEN', 'N° REÇU': 'NR ERHALTEN',
@@ -116,6 +118,7 @@
     es: {
       'CONFIG': 'CONFIG', 'LOGBOOK': 'CUADERNO', 'CARTE IA': 'MAPA IA',
       'PROPAG': 'PROPAG', 'DÉPARTEMENTS': 'DEPARTAMENTOS', 'CALENDRIER': 'CALENDARIO',
+      'CHASSE': 'CAZA',
       'SAISIE QSO': 'ENTRADA QSO', 'OPÉRATEUR': 'OPERADOR', 'BANDE': 'BANDA',
       'MODE': 'MODO', 'INDICATIF CORRESPONDANT': 'INDICATIVO', 'RST ENVOYÉ': 'RST ENVIADO',
       'RST REÇU': 'RST RECIBIDO', 'N° ENVOYÉ': 'Nº ENVIADO', 'N° REÇU': 'Nº RECIBIDO',
@@ -138,6 +141,7 @@
     it: {
       'CONFIG': 'CONFIG', 'LOGBOOK': 'LOGBOOK', 'CARTE IA': 'MAPPA IA',
       'PROPAG': 'PROPAG', 'DÉPARTEMENTS': 'DIPARTIMENTI', 'CALENDRIER': 'CALENDARIO',
+      'CHASSE': 'CACCIA',
       'SAISIE QSO': 'INSERIMENTO QSO', 'OPÉRATEUR': 'OPERATORE', 'BANDE': 'BANDA',
       'MODE': 'MODO', 'INDICATIF CORRESPONDANT': 'NOMINATIVO', 'RST ENVOYÉ': 'RST INVIATO',
       'RST REÇU': 'RST RICEVUTO', 'N° ENVOYÉ': 'N° INVIATO', 'N° REÇU': 'N° RICEVUTO',
@@ -160,6 +164,7 @@
     pt: {
       'CONFIG': 'CONFIG', 'LOGBOOK': 'DIÁRIO', 'CARTE IA': 'MAPA IA',
       'PROPAG': 'PROPAG', 'DÉPARTEMENTS': 'DEPARTAMENTOS', 'CALENDRIER': 'CALENDÁRIO',
+      'CHASSE': 'CAÇA',
       'SAISIE QSO': 'ENTRADA QSO', 'OPÉRATEUR': 'OPERADOR', 'BANDE': 'BANDA',
       'MODE': 'MODO', 'INDICATIF CORRESPONDANT': 'INDICATIVO', 'RST ENVOYÉ': 'RST ENVIADO',
       'RST REÇU': 'RST RECEBIDO', 'N° ENVOYÉ': 'Nº ENVIADO', 'N° REÇU': 'Nº RECEBIDO',
@@ -182,6 +187,7 @@
     nl: {
       'CONFIG': 'CONFIG', 'LOGBOOK': 'LOGBOEK', 'CARTE IA': 'AI-KAART',
       'PROPAG': 'PROPAG', 'DÉPARTEMENTS': 'DEPARTEMENTEN', 'CALENDRIER': 'KALENDER',
+      'CHASSE': 'JACHT',
       'SAISIE QSO': 'QSO-INVOER', 'OPÉRATEUR': 'OPERATOR', 'BANDE': 'BAND',
       'MODE': 'MODE', 'INDICATIF CORRESPONDANT': 'ROEPLETTERS', 'RST ENVOYÉ': 'RST GEGEVEN',
       'RST REÇU': 'RST ONTVANGEN', 'N° ENVOYÉ': 'NR GEGEVEN', 'N° REÇU': 'NR ONTVANGEN',
@@ -204,6 +210,7 @@
     pl: {
       'CONFIG': 'KONFIG', 'LOGBOOK': 'DZIENNIK', 'CARTE IA': 'MAPA AI',
       'PROPAG': 'PROPAG', 'DÉPARTEMENTS': 'DEPARTAMENTY', 'CALENDRIER': 'KALENDARZ',
+      'CHASSE': 'ŁOWY',
       'SAISIE QSO': 'WPIS QSO', 'OPÉRATEUR': 'OPERATOR', 'BANDE': 'PASMO',
       'MODE': 'EMISJA', 'INDICATIF CORRESPONDANT': 'ZNAK', 'RST ENVOYÉ': 'RST NADANY',
       'RST REÇU': 'RST ODEBRANY', 'N° ENVOYÉ': 'NR NADANY', 'N° REÇU': 'NR ODEBRANY',
@@ -2336,11 +2343,14 @@
     if (T[l]) Object.assign(T[l], T_SHORTCUT_FIX[l]);
   });
 
-  // ─── Comble les traductions manquantes de logx_carte.html et
-  // logx_propagation.html (audit du 24/07/2026) : vues carte (EUROPE/MONDE/
-  // USA/FRANCE), overlays GREAT CIRCLE/PROPAGATION, tooltip station, écran
-  // d'erreur file://, alertes (mult/règle/mention), tous les titres de
-  // panneaux + en-têtes de tableau de la page PROPAG. Fusionne comme les
+  // ─── Comble les traductions manquantes de logx_carte.html,
+  // logx_propagation.html et logx_chasse.html (audit du 24/07/2026) : vues
+  // carte (EUROPE/MONDE/USA/FRANCE), overlays GREAT CIRCLE/PROPAGATION,
+  // tooltip station, écran d'erreur file://, alertes (mult/règle/mention),
+  // tous les titres de panneaux + en-têtes de tableau. Le dictionnaire est
+  // GLOBAL (clé = texte français exact) : les libellés des panneaux de cibles
+  // (POTA/SOTA/WWFF/WCA, cluster need list) servent désormais la page CHASSE
+  // où ces panneaux ont déménagé, sans avoir à être dupliqués. Fusionne comme les
   // blocs T_* ci-dessus. Certaines clés utilisent des placeholders {xxx}
   // (comme 'reste {h}h{mm}' plus haut) car le texte source mélange du
   // français statique et des valeurs dynamiques (indicatif, fréquence, cap) :
@@ -2440,6 +2450,9 @@
       "Position :": "Position:", "Distance :": "Distance:", "Phase :": "Phase:",
       "Lever :": "Rise:", "Coucher :": "Set:", "Doppler estimé :": "Estimated Doppler:",
       "Propagation & Écoute": "Propagation & Listening",
+      "Chasse & Cibles": "Hunting & Targets",
+      "Ouvre cette page via le serveur : http://127.0.0.1:8080/logx_chasse.html":
+        "Open this page via the server: http://127.0.0.1:8080/logx_chasse.html",
     },
     de: {
       "Changer la vue de la carte": "Kartenansicht wechseln",
@@ -2530,6 +2543,9 @@
       "Position :": "Position:", "Distance :": "Entfernung:", "Phase :": "Phase:",
       "Lever :": "Aufgang:", "Coucher :": "Untergang:", "Doppler estimé :": "Geschätzter Doppler:",
       "Propagation & Écoute": "Ausbreitung & Empfang",
+      "Chasse & Cibles": "Jagd & Ziele",
+      "Ouvre cette page via le serveur : http://127.0.0.1:8080/logx_chasse.html":
+        "Öffne diese Seite über den Server: http://127.0.0.1:8080/logx_chasse.html",
     },
     es: {
       "Changer la vue de la carte": "Cambiar la vista del mapa",
@@ -2620,6 +2636,9 @@
       "Position :": "Posición:", "Distance :": "Distancia:", "Phase :": "Fase:",
       "Lever :": "Salida:", "Coucher :": "Puesta:", "Doppler estimé :": "Doppler estimado:",
       "Propagation & Écoute": "Propagación y Escucha",
+      "Chasse & Cibles": "Caza y objetivos",
+      "Ouvre cette page via le serveur : http://127.0.0.1:8080/logx_chasse.html":
+        "Abre esta página a través del servidor: http://127.0.0.1:8080/logx_chasse.html",
     },
     it: {
       "Changer la vue de la carte": "Cambia la vista della mappa",
@@ -2710,6 +2729,9 @@
       "Position :": "Posizione:", "Distance :": "Distanza:", "Phase :": "Fase:",
       "Lever :": "Levata:", "Coucher :": "Tramonto:", "Doppler estimé :": "Doppler stimato:",
       "Propagation & Écoute": "Propagazione e Ascolto",
+      "Chasse & Cibles": "Caccia e obiettivi",
+      "Ouvre cette page via le serveur : http://127.0.0.1:8080/logx_chasse.html":
+        "Apri questa pagina tramite il server: http://127.0.0.1:8080/logx_chasse.html",
     },
     pt: {
       "Changer la vue de la carte": "Mudar a vista do mapa",
@@ -2800,6 +2822,9 @@
       "Position :": "Posição:", "Distance :": "Distância:", "Phase :": "Fase:",
       "Lever :": "Nascer:", "Coucher :": "Pôr:", "Doppler estimé :": "Doppler estimado:",
       "Propagation & Écoute": "Propagação e Escuta",
+      "Chasse & Cibles": "Caça e alvos",
+      "Ouvre cette page via le serveur : http://127.0.0.1:8080/logx_chasse.html":
+        "Abre esta página através do servidor: http://127.0.0.1:8080/logx_chasse.html",
     },
     nl: {
       "Changer la vue de la carte": "Kaartweergave wijzigen",
@@ -2890,6 +2915,9 @@
       "Position :": "Positie:", "Distance :": "Afstand:", "Phase :": "Fase:",
       "Lever :": "Opkomst:", "Coucher :": "Ondergang:", "Doppler estimé :": "Geschatte Doppler:",
       "Propagation & Écoute": "Propagatie & Luisteren",
+      "Chasse & Cibles": "Jacht & doelen",
+      "Ouvre cette page via le serveur : http://127.0.0.1:8080/logx_chasse.html":
+        "Open deze pagina via de server: http://127.0.0.1:8080/logx_chasse.html",
     },
     pl: {
       "Changer la vue de la carte": "Zmień widok mapy",
@@ -2980,6 +3008,9 @@
       "Position :": "Pozycja:", "Distance :": "Odległość:", "Phase :": "Faza:",
       "Lever :": "Wschód:", "Coucher :": "Zachód:", "Doppler estimé :": "Szacowany Doppler:",
       "Propagation & Écoute": "Propagacja i Nasłuch",
+      "Chasse & Cibles": "Łowy i cele",
+      "Ouvre cette page via le serveur : http://127.0.0.1:8080/logx_chasse.html":
+        "Otwórz tę stronę przez serwer: http://127.0.0.1:8080/logx_chasse.html",
     },
   };
   Object.keys(T_CARTE_PROPAG_FIX).forEach(function (l) {

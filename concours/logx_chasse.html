@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Chasse & Cibles</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root {
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
+  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+}
+body.day-mode {
+  --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
+  --accent:#CC4026; --accent2:#0060A0; --green:#007030; --red:#CC0030;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#4A5170;
+}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+/* Page « app » : nav et statusbar fixes, le contenu défile en interne */
+body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;align-items:center;line-height:0}
+.logo-badge img{height:20px;display:block}
+.logo-wrap{display:flex;align-items:center;gap:8px}
+.logo-suffix{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:1px}
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+
+/* CHASSE = « qui contacter maintenant ». Cinq listes de cibles, JAMAIS de
+   défilement de page : la fenêtre est découpée une fois pour toutes et c'est
+   CHAQUE liste qui défile en interne. À gauche une grille 2×2 (les quatre
+   programmes d'activation), à droite le CLUSTER NEED LIST sur toute la
+   hauteur — c'est la liste qu'on travaille en continu pendant un concours,
+   elle mérite la colonne entière. Vérifié à 1920×1080 et 1366×768. */
+.container{max-width:1780px;margin:0 auto;padding:16px;flex:1;min-height:0;
+  width:100%;display:flex;gap:16px;overflow:hidden}
+.hunt-main{flex:2;min-width:0;height:100%;display:grid;
+  grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:16px}
+.hunt-cluster{flex:1;min-width:380px;max-width:560px;height:100%;display:flex}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:16px;margin:0;display:flex;flex-direction:column;min-height:0;
+  min-width:0;overflow:hidden;flex:1}
+.panel-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:3px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.panel-title small{color:var(--muted);letter-spacing:0;font-size:12px}
+/* Chaque liste occupe tout ce qui reste de SON panneau et défile seule. */
+.scroll-list{flex:1;min-height:0;overflow-y:auto;margin-right:-6px;padding-right:6px}
+@media (max-width:1100px){
+  /* Écran étroit (portable en fenêtre réduite, tablette) : on empile et on
+     redonne le défilement à la page — impossible de tenir 5 listes côte à
+     côte sous 1100 px sans les rendre illisibles. */
+  .container{flex-direction:column;overflow-y:auto}
+  .hunt-main{display:block;height:auto}
+  .hunt-main .panel{margin-bottom:16px}
+  .hunt-cluster{width:100%;max-width:none;min-width:0;height:auto}
+  .panel{flex:none}
+  .scroll-list{max-height:46vh}
+}
+
+/* Lignes de spot (identiques à la page PROPAG d'où ces panneaux viennent) */
+.spot-row{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 12px;margin-bottom:5px;font-family:var(--font-mono);font-size:14px}
+.spot-row.sr-mult{border-color:var(--green);background:rgba(0,255,136,.06)}
+.spot-row.sr-done{opacity:.4}
+.sr-prio{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sr-call{width:110px;font-weight:700;color:var(--text);font-size:14px}
+.sr-freq{width:80px;color:var(--accent2)}
+.sr-band{width:56px;color:var(--muted)}
+.sr-val{width:110px;text-align:right}
+.sr-mult-badge{font-size:12px;letter-spacing:1px;color:var(--green);border:1px solid rgba(0,255,136,.4);border-radius:3px;padding:1px 6px}
+.sr-cap{width:80px;color:var(--accent)}
+.sr-info{flex:1;min-width:0;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loading{text-align:center;padding:30px;font-family:var(--font-mono);color:var(--muted)}
+.filters{display:flex;gap:8px;margin-bottom:10px;flex-shrink:0}
+.filter-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
+.filter-btn.active{border-color:var(--accent2);color:var(--accent2)}
+.qsy-btn{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:5px;border:1px solid var(--accent);background:rgba(255,80,48,.1);color:var(--accent);cursor:pointer;letter-spacing:1px;font-weight:700;flex-shrink:0}
+.qsy-btn:hover{background:var(--accent);color:#0A0B18}
+.point-btn{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:5px;border:1px solid var(--purple);background:rgba(191,90,242,.12);color:var(--purple);cursor:pointer;letter-spacing:1px;font-weight:700;flex-shrink:0}
+.point-btn:hover{background:var(--purple);color:#0A0B18}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
+    <span class="logo-suffix"> — <span style="color:var(--green)">Chasse & Cibles</span></span>
+  </div>
+  <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted)" id="lastRefresh">—</div>
+</header>
+
+<nav class="app-nav">
+  <a href="logx_configuration.html">⚙ CONFIG</a>
+  <a href="logx_logbook.html">📋 LOGBOOK</a>
+  <a href="logx_carte.html">🗺️ CARTE IA</a>
+  <a href="logx_propagation.html">📶 PROPAG</a>
+  <a href="logx_chasse.html" class="active">🎯 CHASSE</a>
+  <a href="logx_departements.html">🇫🇷 Cartes</a>
+  <a href="logx_calendrier.html">📅 CALENDRIER</a>
+  <a href="logx_websdr.html">📡 WEBSDR</a>
+</nav>
+<script src="logx_statusbar.js"></script>
+<script src="logx_i18n.js"></script>
+
+<div class="container">
+
+  <div class="hunt-main">
+
+    <div class="panel">
+      <div class="panel-title">🏞️ ACTIVATEURS POTA EN DIRECT <small id="potaMeta"></small></div>
+      <div id="potaList" class="scroll-list"><div class="loading">…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">🏔️ ACTIVATEURS SOTA EN DIRECT <small id="sotaMeta"></small></div>
+      <div id="sotaList" class="scroll-list"><div class="loading">…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">🌳 ACTIVATEURS WWFF EN DIRECT <small id="wwffMeta"></small></div>
+      <div id="wwffList" class="scroll-list"><div class="loading">…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">🏰 CHÂTEAUX WCA/COTA — ANNONCÉS <small id="wcaMeta"></small></div>
+      <div id="wcaList" class="scroll-list"><div class="loading">…</div></div>
+    </div>
+
+  </div><!-- /hunt-main -->
+
+  <!-- CLUSTER NEED LIST : colonne droite, pleine hauteur, lecture complète -->
+  <div class="hunt-cluster">
+    <div class="panel">
+      <div class="panel-title">🎯 CLUSTER — NEED LIST <small id="spotsMeta"></small>
+        <button type="button" onclick="window.rcOpenPanel && window.rcOpenPanel('cluster')" title="Détacher ce panneau dans une fenêtre séparée" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px">⇱</button>
+      </div>
+      <div class="filters">
+        <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
+        <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 MULTS</button>
+        <button class="filter-btn" data-f="new" onclick="setFilter(this)">SANS DUPES</button>
+      </div>
+      <div id="spotList" class="scroll-list"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
+        <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:monospace;color:#FF2D55">Ouvre cette page via le serveur : http://127.0.0.1:8080/logx_chasse.html</div>';
+  }
+})();
+
+let spotsData = [];
+let filter = 'all';
+let rigEnabled = false;
+let rotorEnabled = false;
+
+// Raccourci i18n (fourni par logx_i18n.js ; repli = identité si absent).
+const rcT = (s) => (window.rcT ? window.rcT(s) : s);
+
+// Échappement HTML — les spots viennent du cluster DX (telnet public : n'importe
+// qui peut émettre un spot) et des services d'activation POTA/SOTA/WWFF/WCA.
+// Sans échappement, un champ call/commentaire forgé exécute du JS dans une app
+// qui pilote la radio.
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Indicatif réduit aux caractères valides pour un argument de chaîne JS (onclick).
+function jsCall(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9/]/g,''); }
+
+// Radio CAT : bouton QSY sur chaque spot si le pilotage est activé (CONFIG)
+fetch('/rig/state').then(r => r.ok ? r.json() : null)
+  .then(d => { rigEnabled = !!(d && d.enabled); if(rigEnabled) renderSpots(); })
+  .catch(() => {});
+// Rotor : bouton pointer si activé
+fetch('/rotor/state').then(r => r.ok ? r.json() : null)
+  .then(d => { rotorEnabled = !!(d && d.enabled); if(rotorEnabled) renderSpots(); })
+  .catch(() => {});
+
+async function pointTo(az, call){
+  try{
+    const r = await fetch('/rotor/point', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({azimuth: parseFloat(az)})
+    });
+    const d = await r.json();
+    const el = document.getElementById('lastRefresh');
+    el.textContent = d.ok ? `🧭 ${rcT('Antenne')} → ${Math.round(az)}° ${rcT('vers')} ${call}` : `❌ ${d.error}`;
+    el.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+    setTimeout(() => { el.style.color = ''; }, 4000);
+  }catch(e){}
+}
+
+async function qsyTo(freqKhz, call){
+  try{
+    const r = await fetch('/rig/qsy', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({freq_khz: parseFloat(freqKhz)})
+    });
+    const d = await r.json();
+    const el = document.getElementById('lastRefresh');
+    el.textContent = d.ok ? `📻 QSY ${freqKhz} kHz → ${call}` : `❌ ${d.error}`;
+    el.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+    setTimeout(() => { el.style.color = ''; }, 4000);
+  }catch(e){}
+}
+
+const PRIO_COLORS = {1:'#00FF88',2:'#FF2D55',3:'#FF9500',4:'#FFD60A',5:'#8E8E93',6:'#3A3A3C'};
+
+// ─── CLUSTER NEED LIST : les spots triés par intérêt pour MON concours ───────
+async function loadSpots(){
+  try{
+    const r = await fetch('/data/spots_ranked');
+    if(!r.ok) return;
+    const d = await r.json();
+    spotsData = d.spots || [];
+    const m = d.meta || {};
+    document.getElementById('spotsMeta').textContent =
+      `${m.contest || ''} · ${m.current_score || 0} pts · ${m.nb_dxcc || 0} pays · ${spotsData.length} spots`;
+    renderSpots();
+    document.getElementById('lastRefresh').textContent =
+      rcT('MàJ') + ' ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+  }catch(e){ console.warn('spots', e); }
+}
+
+function setFilter(el){
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  filter = el.dataset.f;
+  renderSpots();
+}
+
+function renderSpots(){
+  let list = spotsData;
+  if(filter === 'mult') list = list.filter(s => s.new_mult && !s.already_done);
+  if(filter === 'new')  list = list.filter(s => !s.already_done);
+  if(!list.length){
+    document.getElementById('spotList').innerHTML =
+      '<div class="loading">Aucun spot' + (filter !== 'all' ? ' pour ce filtre' : '') +
+      ' — lance un refresh depuis la CARTE IA (📡 ANALYSER).</div>';
+    return;
+  }
+  document.getElementById('spotList').innerHTML = list.map(s => `
+    <div class="spot-row ${s.new_mult && !s.already_done ? 'sr-mult' : ''} ${s.already_done ? 'sr-done' : ''}">
+      <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="${rcT('priorité')} ${s.priority}"></span>
+      ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo(${Number(s.freq)||0},'${jsCall(s.call)}')" title="${rcT('Régler la radio sur')} ${esc(s.freq)} kHz">▶ QSY</button>` : ''}
+      ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo(${Number(s.bearing)||0},'${jsCall(s.call)}')" title="${rcT("Pointer l'antenne sur")} ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
+      <span class="sr-call">${esc(s.call)}</span>
+      <span class="sr-freq">${esc(s.freq || '')}</span>
+      <span class="sr-band">${esc(s.band)} MHz</span>
+      <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : '+' + esc(s.value || s.points) + ' ' + rcT('pts')}</span>
+      ${s.new_mult && !s.already_done ? '<span class="sr-mult-badge">📈 NOUVEAU MULT</span>' : ''}
+      <span class="sr-cap">${s.bearing != null ? esc(s.bearing) + '° ' + esc(s.cardinal) : ''}</span>
+      <span class="sr-info" title="${esc(s.explanation)}">${s.dist_km ? esc(s.dist_km) + ' km · ' : ''}${esc(s.explanation)}</span>
+    </div>`).join('');
+}
+
+// ─── POTA : activateurs en direct (api.pota.app, via le serveur) ────────────
+async function loadPota(){
+  try{
+    const r = await fetch('/data/pota_spots');
+    const d = await r.json();
+    const meta = document.getElementById('potaMeta');
+    const el = document.getElementById('potaList');
+    const spots = d.spots || [];
+    if(!spots.length){
+      el.innerHTML = `<div class="loading">Aucune activation POTA en cours signalée pour l'instant.</div>`;
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = `${spots.length} activateur${spots.length>1?'s':''}`;
+    // Les données viennent d'un service tiers public (n'importe qui peut poster
+    // un commentaire de spot) : chaque champ affiché passe par esc().
+    el.innerHTML = spots.slice(0,30).map(s => `
+      <div class="spot-row">
+        <span class="sr-call">${esc(s.call)}</span>
+        <span class="sr-band">${esc(s.band)||'—'}</span>
+        <span style="width:80px;color:var(--accent2)">${esc(s.reference)}</span>
+        <span class="sr-info">${s.freq?(s.freq/1000).toFixed(3)+' MHz · ':''}${esc(s.mode)}${s.park_name?' · '+esc(s.park_name):''}${s.comment?' · '+esc(s.comment):''}</span>
+      </div>`).join('');
+  }catch(e){}
+}
+
+// ─── SOTA : activateurs en direct (api2.sota.org.uk, via le serveur) ────────
+async function loadSota(){
+  try{
+    const r = await fetch('/data/sota_spots');
+    const d = await r.json();
+    const meta = document.getElementById('sotaMeta');
+    const el = document.getElementById('sotaList');
+    const spots = d.spots || [];
+    if(!spots.length){
+      el.innerHTML = `<div class="loading">Aucune activation SOTA en cours signalée pour l'instant.</div>`;
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = `${spots.length} activateur${spots.length>1?'s':''}`;
+    // Service tiers public (n'importe qui peut poster un commentaire de spot) :
+    // chaque champ affiché passe par esc().
+    el.innerHTML = spots.slice(0,30).map(s => `
+      <div class="spot-row">
+        <span class="sr-call">${esc(s.call)}</span>
+        <span class="sr-band">${esc(s.band)||'—'}</span>
+        <span style="width:80px;color:var(--accent2)">${esc(s.reference)}</span>
+        <span class="sr-info">${s.freq?(s.freq/1000).toFixed(3)+' MHz · ':''}${esc(s.mode)}${s.summit_name?' · '+esc(s.summit_name):''}${s.alt_m?' ('+esc(s.alt_m)+'m, '+esc(s.points)+'pts)':''}${s.comment?' · '+esc(s.comment):''}</span>
+      </div>`).join('');
+  }catch(e){}
+}
+
+// ─── WWFF : activateurs en direct (spots.wwff.co, via le serveur) ───────────
+async function loadWwff(){
+  try{
+    const r = await fetch('/data/wwff_spots');
+    const d = await r.json();
+    const meta = document.getElementById('wwffMeta');
+    const el = document.getElementById('wwffList');
+    const spots = d.spots || [];
+    if(!spots.length){
+      el.innerHTML = `<div class="loading">Aucune activation WWFF en cours signalée pour l'instant.</div>`;
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = `${spots.length} activateur${spots.length>1?'s':''}`;
+    // Service tiers public (n'importe qui peut poster un commentaire de spot) :
+    // chaque champ affiché passe par esc().
+    el.innerHTML = spots.slice(0,30).map(s => `
+      <div class="spot-row">
+        <span class="sr-call">${esc(s.call)}</span>
+        <span class="sr-band">${esc(s.band)||'—'}</span>
+        <span style="width:80px;color:var(--accent2)">${esc(s.reference)}</span>
+        <span class="sr-info">${s.freq?(s.freq/1000).toFixed(3)+' MHz · ':''}${esc(s.mode)}${s.park_name?' · '+esc(s.park_name):''}${s.comment?' · '+esc(s.comment):''}</span>
+      </div>`).join('');
+  }catch(e){}
+}
+
+// ─── WCA/COTA : activations ANNONCÉES à l'avance (flux RSS wcagroup.org) —
+// PAS des spots confirmés sur l'air, contrairement aux panneaux ci-dessus :
+// ce sont des opérateurs qui publient à l'avance leur intention d'activer un
+// château. Étiqueté différemment pour ne pas laisser croire à un spot réel.
+async function loadWca(){
+  try{
+    const r = await fetch('/data/wca_planned');
+    const d = await r.json();
+    const meta = document.getElementById('wcaMeta');
+    const el = document.getElementById('wcaList');
+    const items = d.items || [];
+    if(!items.length){
+      el.innerHTML = `<div class="loading">Aucune activation WCA/COTA annoncée pour l'instant.</div>`;
+      meta.textContent = '';
+      return;
+    }
+    meta.textContent = `${items.length} annoncée${items.length>1?'s':''}`;
+    el.innerHTML = items.slice(0,20).map(it => `
+      <div class="spot-row" style="flex-direction:column;align-items:flex-start;gap:2px">
+        <div style="display:flex;gap:8px;width:100%">
+          <span style="color:var(--accent2);font-weight:600">${esc(it.reference)}</span>
+          <span class="sr-info" style="flex:1">${esc(it.title)}</span>
+        </div>
+        <div class="sr-info" style="color:var(--muted);font-size:11px">${esc(it.description).slice(0,160)}</div>
+      </div>`).join('');
+  }catch(e){}
+}
+
+loadSpots();
+loadPota();
+loadSota();
+loadWwff();
+loadWca();
+setInterval(loadSpots, 60 * 1000);             // need list : chaque minute
+setInterval(loadPota, 2 * 60 * 1000);          // POTA : cache serveur 90 s
+setInterval(loadSota, 60 * 1000);              // SOTA : cache serveur 60 s
+setInterval(loadWwff, 60 * 1000);              // WWFF : cache serveur 60 s
+setInterval(loadWca, 5 * 60 * 1000);           // WCA : simple flux RSS de blog, cache serveur 15 min
+</script>
+</body>
+</html>
