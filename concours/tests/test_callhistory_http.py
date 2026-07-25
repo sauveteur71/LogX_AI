@@ -39,6 +39,15 @@ def server():
     finally:
         srv.shutdown()
         t.join(timeout=5)
+        # server_close() (jamais appelé avant ce fix) libère le socket
+        # d'écoute de façon déterministe. shutdown()+join() n'arrêtent QUE la
+        # boucle serve_forever() côté thread ; sans server_close(), le socket
+        # écouteur du port éphémère ne se ferme que lorsque le garbage
+        # collector récupère l'objet HTTPServer -- comportement non garanti
+        # (CPython le fait par refcounting en pratique, mais rien ne
+        # l'assure), potentiel facteur du flake pytest intermittent constaté
+        # sur ce fichier (test_import_scp_sans_token_refuse, run complet).
+        srv.server_close()
 
 
 def _get(base, path):
