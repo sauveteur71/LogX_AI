@@ -3029,7 +3029,46 @@
     pl: "WAŻNE: odpowiadaj WYŁĄCZNIE po polsku, niezależnie od języka podanego kontekstu lub pytania.",
   };
 
-  function getLang() { return localStorage.getItem('rc_lang') || 'fr'; }
+  // Langue de l'interface du NAVIGATEUR, ramenée à une langue du dictionnaire
+  // (français par défaut : c'est la langue source, donc le repli sûr).
+  function browserLang() {
+    const codes = LANGS.map(l => l.code).filter(c => c !== 'auto');
+    const nav = (typeof navigator !== 'undefined') ? navigator : null;
+    const tags = (nav && nav.languages && nav.languages.length)
+      ? nav.languages : [(nav && nav.language) || ''];
+    for (const tag of tags) {
+      const base = String(tag).toLowerCase().split('-')[0];
+      if (codes.indexOf(base) !== -1) return base;
+    }
+    return 'fr';
+  }
+
+  function getLang() {
+    let saved = null;
+    try { saved = localStorage.getItem('rc_lang'); } catch (e) {}
+    if (saved) return saved;
+    // Page ouverte par DOUBLE-CLIC (file://) : c'est une ORIGINE DE STOCKAGE
+    // distincte de http://127.0.0.1:8080, donc `rc_lang` y vaut TOUJOURS null
+    // — le choix de langue fait dans l'application n'y est structurellement
+    // pas lisible, et aucune API ne permet de le lire depuis là. Sans ce
+    // repli, l'écran « Ouvre cette page via le serveur : … » (seul contenu
+    // qu'une page file:// affiche encore, cf. logx_chasse.html /
+    // logx_propagation.html) restait TOUJOURS en français et ses traductions
+    // étaient du code mort. Le meilleur signal disponible dans cette origine
+    // est la langue du navigateur.
+    // Volontairement limité à file:// : en http, l'absence de `rc_lang` est un
+    // vrai « pas encore choisi », et basculer l'application entière dans la
+    // langue du navigateur au premier lancement serait un autre changement.
+    // `typeof` et non `location` nu : ce fichier est aussi exécuté HORS
+    // navigateur par la suite de tests (V8 nu via py_mini_racer, cf.
+    // tests/test_i18n_dynamic_retranslation.py), où ni `location` ni
+    // `navigator` n'existent — une référence nue y lèverait une
+    // ReferenceError qui tuerait tout le moteur de traduction.
+    if (typeof location !== 'undefined' && location.protocol === 'file:') {
+      return browserLang();
+    }
+    return 'fr';
+  }
 
   // Sauvegarde des textes français d'origine pour pouvoir revenir en arrière.
   const ORIG = new WeakMap();
@@ -3166,7 +3205,10 @@
   }
 
   function applyLang(lang) {
-    localStorage.setItem('rc_lang', lang);
+    // Mémorisation best-effort : une origine file:// peut refuser l'écriture
+    // selon la configuration du navigateur, et l'échec ne doit pas empêcher
+    // la traduction elle-même (sinon l'écran file:// resterait en français).
+    try { localStorage.setItem('rc_lang', lang); } catch (e) {}
     if (lang === 'fr' || lang === 'auto') {
       // Restaure le français source (le mode 'auto' laisse le navigateur agir)
       const dict = {};

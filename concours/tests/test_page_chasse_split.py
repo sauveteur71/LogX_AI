@@ -244,6 +244,71 @@ def test_i18n_ecran_file_de_la_page_chasse_traduit():
             'la traduction %s renvoie vers la mauvaise page : %s' % (lang, val))
 
 
+def test_i18n_message_file_de_chasse_est_bien_la_cle_du_dictionnaire():
+    """Le test precedent verifie que la CLE existe — mais il retape la chaine
+    a la main. Si le message de logx_chasse.html derive (une espace, un
+    deux-points), la cle reste presente dans le dictionnaire et le test
+    continue de passer alors que plus rien ne correspond a l'execution :
+    l'i18n fonctionne par correspondance EXACTE. On extrait donc la chaine
+    de la PAGE et on exige qu'elle soit la cle."""
+    page = _lire(CHASSE)
+    m = re.search(r"document\.body\.innerHTML = '<div[^>]*>([^<]+)</div>';", page)
+    assert m, 'garde-fou file:// introuvable dans logx_chasse.html'
+    message = m.group(1)
+    blocs = _blocs_par_langue(_lire(I18N))
+    for lang in LANGUES:
+        val = _traduction(blocs, lang,
+                          re.escape('"' + message + '"') + r':\s*\n\s*"([^"]+)"')
+        assert val, (
+            'le message affiche par logx_chasse.html n\'est pas une cle du '
+            'dictionnaire %s : %r' % (lang, message))
+
+
+def test_i18n_langue_retombe_sur_le_navigateur_en_file():
+    """Les 7 traductions ci-dessus sont INATTEIGNABLES sans ce repli.
+
+    La langue choisie par l'operateur est rangee dans localStorage sous
+    `rc_lang`, et localStorage est CLOISONNE PAR ORIGINE : `file://` est une
+    origine distincte de `http://127.0.0.1:8080`. Une page ouverte par
+    double-clic ne peut donc PAS lire ce choix — `rc_lang` y vaut toujours
+    null, et un getLang() ecrit `localStorage.getItem('rc_lang') || 'fr'`
+    renvoie 'fr' quoi qu'il arrive : l'ecran « ouvre cette page via le
+    serveur » reste en francais meme avec l'application reglee en allemand,
+    et les 7 traductions ne servent jamais. Le seul signal disponible dans
+    cette origine est la langue du navigateur.
+
+    Verifie en navigateur reel (Chrome, file:///…/logx_chasse.html, rc_lang
+    absent) : navigateur allemand -> « Öffne diese Seite über den Server: … »,
+    navigateur russe -> francais, et en http:// avec navigateur allemand ->
+    francais (le repli reste bien confine a file://)."""
+    src = _lire(I18N)
+    # Corps de getLang() SEUL : le negatif (?!\n  function ) empeche la capture
+    # de deborder sur les fonctions suivantes — sans lui, un getLang() ecrit
+    # sur une seule ligne (la version fautive, justement) ferait capturer tout
+    # le code d'apres et les assertions passeraient sur du texte etranger.
+    corps = re.search(r'\n  function getLang\(\)\s*\{'
+                      r'((?:(?!\n  function )[\s\S])*?)\n  \}', src)
+    assert corps, 'getLang() introuvable (ou reduit a une seule ligne)'
+    corps = corps.group(1)
+    assert "location.protocol === 'file:'" in corps and 'typeof location' in corps, (
+        "getLang() ne traite pas le cas file:// : la langue de l'application "
+        "n'y est PAS lisible (autre origine de stockage), l'ecran d'erreur "
+        'restera en francais dans les 7 langues')
+    # Le repli doit venir de la langue du NAVIGATEUR, pas d'une constante.
+    repli = re.search(r'\n  function browserLang\(\)\s*\{(.*?)\n  \}', src, re.S)
+    assert repli, 'browserLang() introuvable'
+    assert 'navigator' in repli.group(1) and '.languages' in repli.group(1), (
+        'le repli file:// doit lire la langue du navigateur')
+    # …et rester CONFINE a file:// : en http, l'absence de choix veut dire
+    # « pas encore choisi » et doit continuer de donner le francais.
+    assert re.search(r"location\.protocol === 'file:'\)\s*\{\s*\n"
+                     r"\s*return browserLang\(\);\s*\n"
+                     r"\s*\}\s*\n"
+                     r"\s*return 'fr';", corps), (
+        'le repli navigateur doit etre reserve a file:// (sinon il change la '
+        "langue par defaut de toute l'application au premier lancement)")
+
+
 # ── Mise en page : aucun defilement vertical possible par construction ─────
 
 def test_chasse_ne_peut_pas_defiler_verticalement():
