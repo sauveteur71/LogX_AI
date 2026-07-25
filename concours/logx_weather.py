@@ -68,9 +68,15 @@ def get_weather(lat, lon):
             warns.append(f'⚠️ Rafales {gust:.0f} km/h — surveille le pylône')
         if temp <= 0:
             warns.append('❄️ Gel — attention au givre sur les éléments')
+        # `storm` : l'orage ISOLÉ du reste, en booléen. La pastille de foudre de
+        # la barre de statut (logx_statusbar.js) en a besoin seule — `warn`
+        # agrège orage + rafales + gel dans une phrase FRANÇAISE, et un client
+        # qui y chercherait le mot « ORAGE » se casserait au premier
+        # reformulage ou dans une interface traduite.
         data = {'ok': True, 'temp': round(temp), 'wind': round(wind),
                 'gust': round(gust), 'precip': precip, 'desc': desc,
-                'icon': icon, 'warn': ' · '.join(warns)}
+                'icon': icon, 'warn': ' · '.join(warns),
+                'storm': code in (95, 96, 99)}
         _cache.update(ts=time.time(), data=data, key=key)
         return data
     except Exception as e:

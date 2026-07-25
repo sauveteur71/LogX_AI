@@ -127,6 +127,11 @@
     <div class="rcsb-item" id="rcsbBeaconItem" title="Balise NCDXF/IBP active maintenant sur 20m (réseau mondial de 18 balises, rotation de 10 s) — clic : les 5 bandes + panneau complet">
       <a href="logx_propagation.html#beaconPanel">📻 <span class="rcsb-val" id="rcsbBeacon">—</span></a>
     </div>
+    <div class="rcsb-item" id="rcsbStormItem" style="display:none">
+      <a id="rcsbStormLink" href="https://www.blitzortung.org/fr/live_lightning_maps.php?map=0"
+         target="_blank" rel="noopener noreferrer">
+        <span id="rcsbStormIcon">⚡</span> <span class="rcsb-val" id="rcsbStorm">—</span></a>
+    </div>
     <div class="rcsb-item" id="rcsbNetworkItem" style="display:none"
          title="Un service en ligne est temporairement injoignable — l'appli continue de fonctionner en local, nouvelle tentative automatique dès que possible">
       📡 <span class="rcsb-val" id="rcsbNetworkText" style="color:var(--red,#FF2D55)">—</span>
@@ -304,6 +309,61 @@
   }
   refreshBeacon();
   rcPoll(refreshBeacon, 5 * 1000);             // balises : changent toutes les 10 s
+
+  // ── Foudre / orage au QTH (pastille d'alerte, toutes pages) ───────────────
+  // Remplace l'ancien panneau « FOUDRE EN DIRECT » de logx_propagation.html :
+  // une iframe Blitzortung de 420 px de haut, occupée en permanence par une
+  // carte qu'on ne consulte qu'en cas d'orage, et visible seulement quand on
+  // était SUR la page propagation — donc jamais au moment où ça compte, c'est-
+  // à-dire pendant qu'on logue. La sécurité antenne devient donc une pastille
+  // présente sur TOUTES les pages, et la carte tierce n'est plus encadrée mais
+  // ouverte dans un onglet séparé (le frame-buster de blitzortung.org, qui
+  // avait déjà détourné l'onglet entier, n'a plus de prise du tout).
+  //
+  // Source : /data/weather (Open-Meteo, cache serveur 10 min, jamais bloquant)
+  // — déjà servi pour l'écran mural et le logbook, aucun nouvel appel ajouté
+  // au budget réseau. On lit le booléen `storm` (codes WMO 95/96/99 isolés
+  // côté serveur) plutôt que de chercher le mot « ORAGE » dans la phrase
+  // d'alerte française, qui ne survivrait ni à un reformulage ni à la
+  // traduction de l'interface.
+  function refreshStorm(){
+    fetch('/data/weather').then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        const item = document.getElementById('rcsbStormItem');
+        const el = document.getElementById('rcsbStorm');
+        const icon = document.getElementById('rcsbStormIcon');
+        if (!item || !el || !icon) return;
+        // Pas de locator, ou cache encore vide au tout premier chargement :
+        // on n'affiche rien plutôt qu'un « — » que l'opérateur prendrait pour
+        // une absence d'orage constatée.
+        if (!d || !d.ok){ item.style.display = 'none'; return; }
+        item.style.display = 'flex';
+        if (d.storm){
+          icon.textContent = '⛈️';
+          el.textContent = 'ORAGE';
+          el.style.color = 'var(--red,#FF2D55)';
+          el.style.fontWeight = '700';
+        } else {
+          icon.textContent = '⚡';
+          el.textContent = 'pas d\'orage';
+          el.style.color = 'var(--muted,#A9B0C8)';
+          el.style.fontWeight = '';
+        }
+        item.title = (d.storm
+            ? 'ORAGE sur le QTH — débranche les antennes. '
+            : 'Aucun orage sur le QTH ' + (d.desc ? '(' + d.desc + '). ' : '. '))
+          + (d.warn ? d.warn + ' — ' : '')
+          + 'Clic : carte de foudre en direct Blitzortung.org (nouvel onglet).';
+      }).catch(function(){});
+  }
+  // PAS de refreshStorm() ici : la barre n'est encore qu'un <div> détaché à ce
+  // stade (insert() n'a lieu qu'au DOMContentLoaded), donc getElementById
+  // rendrait null et la fonction sortirait sans rien faire — la pastille
+  // resterait masquée pendant 5 MINUTES, jusqu'au premier tic. Le 1er appel
+  // est donc fait dans boot(), après insert(). Constaté en navigateur : avec
+  // une réponse /data/weather servie instantanément, la pastille ne
+  // s'affichait jamais.
+  rcPoll(refreshStorm, 5 * 60 * 1000);         // aligné sous le cache serveur (10 min)
 
   // ── Dégradation réseau (pastille discrète, jamais bloquante) ──────────────
   // Rend VISIBLE côté client des mécanismes qui existaient déjà côté serveur
@@ -938,6 +998,7 @@
     refreshRules();
     refreshUpdateCheck();
     refreshErrorsCheck();
+    refreshStorm();   // après insert() : la pastille n'existe pas avant
     // Purement local (aucune requête) : recalculé à chaque tick depuis
     // l'horloge et localStorage, donc juste à l'affichage même après un
     // passage en arrière-plan — pas la peine de les suspendre.

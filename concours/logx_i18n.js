@@ -3017,6 +3017,90 @@
     if (T[l]) Object.assign(T[l], T_CARTE_PROPAG_FIX[l]);
   });
 
+  // ── Onglets de la page PROPAG + pastille foudre de la barre de statut ──────
+  // « HF » et « VHF & EME » ne sont volontairement PAS dans le dictionnaire :
+  // ce sont les mêmes abréviations dans les sept langues, une « traduction »
+  // n'y ferait qu'introduire des variantes locales inutiles. « M'ENTEND-ON »
+  // en revanche est une phrase, et resterait en français au milieu d'une
+  // interface traduite — c'est justement le mode d'échec silencieux de ce
+  // moteur (correspondance sur le texte français EXACT, pas d'erreur quand la
+  // clé manque).
+  const T_PROP_TABS_FIX = {
+    en: {
+      "M'ENTEND-ON": "AM I HEARD?",
+      "Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP":
+        "Sun, MUF, openings by region, band conditions, NCDXF/IBP beacons",
+      "Sporadique-E, tropo/ducting, météores, rebond lunaire, satellites":
+        "Sporadic-E, tropo/ducting, meteors, moonbounce, satellites",
+      "Où mon signal est réellement décodé : PSK Reporter et skimmers RBN":
+        "Where my signal is actually decoded: PSK Reporter and RBN skimmers",
+      "ORAGE": "THUNDERSTORM", "pas d'orage": "no storm",
+    },
+    de: {
+      "M'ENTEND-ON": "WERDE ICH GEHÖRT?",
+      "Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP":
+        "Sonne, MUF, Öffnungen nach Region, Bandbedingungen, NCDXF/IBP-Baken",
+      "Sporadique-E, tropo/ducting, météores, rebond lunaire, satellites":
+        "Sporadic-E, Tropo/Ducting, Meteore, Mondreflexion, Satelliten",
+      "Où mon signal est réellement décodé : PSK Reporter et skimmers RBN":
+        "Wo mein Signal tatsächlich dekodiert wird: PSK Reporter und RBN-Skimmer",
+      "ORAGE": "GEWITTER", "pas d'orage": "kein Gewitter",
+    },
+    es: {
+      "M'ENTEND-ON": "¿ME OYEN?",
+      "Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP":
+        "Sol, MUF, aperturas por región, condiciones por banda, balizas NCDXF/IBP",
+      "Sporadique-E, tropo/ducting, météores, rebond lunaire, satellites":
+        "Esporádica-E, tropo/ducting, meteoros, rebote lunar, satélites",
+      "Où mon signal est réellement décodé : PSK Reporter et skimmers RBN":
+        "Dónde se decodifica realmente mi señal: PSK Reporter y skimmers RBN",
+      "ORAGE": "TORMENTA", "pas d'orage": "sin tormenta",
+    },
+    it: {
+      "M'ENTEND-ON": "MI SENTONO?",
+      "Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP":
+        "Sole, MUF, aperture per regione, condizioni per banda, beacon NCDXF/IBP",
+      "Sporadique-E, tropo/ducting, météores, rebond lunaire, satellites":
+        "Sporadica-E, tropo/ducting, meteore, rimbalzo lunare, satelliti",
+      "Où mon signal est réellement décodé : PSK Reporter et skimmers RBN":
+        "Dove il mio segnale viene realmente decodificato: PSK Reporter e skimmer RBN",
+      "ORAGE": "TEMPORALE", "pas d'orage": "nessun temporale",
+    },
+    pt: {
+      "M'ENTEND-ON": "OUVEM-ME?",
+      "Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP":
+        "Sol, MUF, aberturas por região, condições por banda, balizas NCDXF/IBP",
+      "Sporadique-E, tropo/ducting, météores, rebond lunaire, satellites":
+        "Esporádica-E, tropo/ducting, meteoros, ressalto lunar, satélites",
+      "Où mon signal est réellement décodé : PSK Reporter et skimmers RBN":
+        "Onde o meu sinal é realmente descodificado: PSK Reporter e skimmers RBN",
+      "ORAGE": "TROVOADA", "pas d'orage": "sem trovoada",
+    },
+    nl: {
+      "M'ENTEND-ON": "WORD IK GEHOORD?",
+      "Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP":
+        "Zon, MUF, openingen per regio, bandcondities, NCDXF/IBP-bakens",
+      "Sporadique-E, tropo/ducting, météores, rebond lunaire, satellites":
+        "Sporadic-E, tropo/ducting, meteoren, maanreflectie, satellieten",
+      "Où mon signal est réellement décodé : PSK Reporter et skimmers RBN":
+        "Waar mijn signaal echt wordt gedecodeerd: PSK Reporter en RBN-skimmers",
+      "ORAGE": "ONWEER", "pas d'orage": "geen onweer",
+    },
+    pl: {
+      "M'ENTEND-ON": "CZY MNIE SŁYCHAĆ?",
+      "Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP":
+        "Słońce, MUF, otwarcia wg regionu, warunki na pasmach, latarnie NCDXF/IBP",
+      "Sporadique-E, tropo/ducting, météores, rebond lunaire, satellites":
+        "Sporadic-E, tropo/ducting, meteory, odbicie od Księżyca, satelity",
+      "Où mon signal est réellement décodé : PSK Reporter et skimmers RBN":
+        "Gdzie mój sygnał jest naprawdę dekodowany: PSK Reporter i skimmery RBN",
+      "ORAGE": "BURZA", "pas d'orage": "brak burzy",
+    },
+  };
+  Object.keys(T_PROP_TABS_FIX).forEach(function (l) {
+    if (T[l]) Object.assign(T[l], T_PROP_TABS_FIX[l]);
+  });
+
   // Directive de langue pour l'agent IA (ajoutée au prompt système côté client
   // avant l'appel /proxy/ai). Vide en fr/auto (le navigateur traduit la page).
   const LLM_DIRECTIVE = {

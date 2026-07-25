@@ -32,14 +32,31 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 
-/* Cette page ne répond QU'À une question : « quel est l'état de la
-   propagation ». Les cibles de trafic (POTA/SOTA/WWFF/WCA, cluster need list)
-   vivent désormais sur la page CHASSE — deux modes mentaux différents, deux
-   pages. Il ne reste donc qu'une zone : la maçonnerie de cartes.
-   Maçonnerie de LARGEUR UNIFORME : toutes les cartes ont la même largeur
-   (colonnes régulières), elles se remplissent sans trou et sans marge perdue.
-   Les listes longues défilent en interne pour garder des hauteurs comparables
-   → lecture claire et homogène. */
+/* ── Onglets internes ───────────────────────────────────────────────────────
+   Même après le départ des cibles vers CHASSE, la page empilait 13 panneaux
+   dans une seule maçonnerie : sur 1366×768 on ne voyait jamais plus du tiers
+   de la page, et les trois questions qu'elle traite (« la HF passe-t-elle ? »,
+   « la VHF passe-t-elle ? », « m'entend-on ? ») n'ont ni le même rythme de
+   consultation ni les mêmes sources. Trois onglets, donc, et un seul jeu de
+   panneaux affiché à la fois. Ils sont pilotés en JS (pas en :target ni en
+   input:checked) parce que l'affichage n'est que la moitié du travail : voir
+   le planificateur en bas de page, qui SUSPEND les rafraîchissements des
+   onglets masqués. */
+.prop-tabs{display:flex;align-items:stretch;background:var(--bg);border-bottom:1px solid var(--border);
+  flex-shrink:0;padding:0 16px;gap:0}
+.prop-tabs button{font-family:var(--font-mono);font-size:12.5px;font-weight:700;letter-spacing:2px;
+  color:var(--muted);background:none;border:none;border-bottom:3px solid transparent;
+  padding:9px 20px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .15s}
+.prop-tabs button:hover{color:var(--text)}
+.prop-tabs button[aria-selected="true"]{color:var(--accent2);border-bottom-color:var(--accent2)}
+/* [hidden] est déjà display:none par défaut, mais .prop-pane porte des règles
+   de mise en page : on le réaffirme pour qu'aucune ne puisse le ressusciter. */
+.prop-pane[hidden]{display:none}
+
+/* Chaque onglet est une maçonnerie de LARGEUR UNIFORME : toutes les cartes ont
+   la même largeur (colonnes régulières), elles se remplissent sans trou et
+   sans marge perdue. Les listes longues défilent en interne pour garder des
+   hauteurs comparables → lecture claire et homogène. */
 .container{max-width:1780px;margin:0 auto;padding:16px;flex:1;min-height:0;
   width:100%;display:flex;gap:16px;overflow:hidden}
 /* IMPORTANT — deux boîtes distinctes, et pas une seule :
@@ -82,15 +99,18 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .muf-band{background:var(--bg3);border-radius:8px;padding:12px;text-align:center;margin-top:8px;border:1px solid var(--accent2)}
 .muf-val{font-family:var(--font-mono);font-size:30px;font-weight:800;color:var(--accent2)}
 
-/* Foudre en direct (Blitzortung) — iframe tierce, pas de données transitant
-   par notre serveur (embed visuel pur, cf. logx_weather.py pour l'alerte
-   orage déjà calculée depuis le code météo WMO). */
-.lightning-frame{width:100%;height:420px;border:1px solid var(--border);border-radius:8px;display:block;background:var(--bg3)}
+/* Plus d'iframe Blitzortung ici : la foudre était un panneau de 420 px de
+   haut occupé en permanence par une carte tierce qu'on ne consulte qu'en cas
+   d'orage — et qui, encadrée, avait déjà détourné l'onglet entier une fois
+   (frame-buster, cf. commit 20307e3). Elle est devenue une PASTILLE D'ALERTE
+   dans la barre de statut (logx_statusbar.js, #rcsbStormItem) : visible sur
+   TOUTES les pages, rouge quand la météo du QTH signale un orage, et qui
+   ouvre la carte Blitzortung en plein onglet séparé quand on clique.
+   Le risque de frame-busting disparaît avec l'iframe. */
 
-/* Carte MUF mondiale (image publique N0NBH/hamqsl.com) — même principe que
-   la foudre ci-dessus : embed visuel pur d'une image tierce, aucune donnée
-   ne transite par notre serveur. Vérifié en direct (headers HTTP, pas de
-   blocage anti-hotlink) avant intégration, cf. commit. */
+/* Carte MUF mondiale (image publique N0NBH/hamqsl.com) : embed visuel pur
+   d'une image tierce, aucune donnée ne transite par notre serveur. Vérifié en
+   direct (headers HTTP, pas de blocage anti-hotlink) avant intégration. */
 .muf-map-img{width:100%;border:1px solid var(--border);border-radius:8px;display:block;background:var(--bg3)}
 
 /* Conditions par bande */
@@ -138,10 +158,24 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 <script src="logx_statusbar.js"></script>
 <script src="logx_i18n.js"></script>
 
+<div class="prop-tabs" role="tablist" aria-label="Vues de la propagation">
+  <button type="button" role="tab" id="propTabBtn-hf" data-pane="hf"
+          aria-selected="true" aria-controls="propPane-hf"
+          title="Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP">📶 HF</button>
+  <button type="button" role="tab" id="propTabBtn-vhf" data-pane="vhf"
+          aria-selected="false" aria-controls="propPane-vhf"
+          title="Sporadique-E, tropo/ducting, météores, rebond lunaire, satellites">📡 VHF &amp; EME</button>
+  <button type="button" role="tab" id="propTabBtn-heard" data-pane="heard"
+          aria-selected="false" aria-controls="propPane-heard"
+          title="Où mon signal est réellement décodé : PSK Reporter et skimmers RBN">🌐 M'ENTEND-ON</button>
+</div>
+
 <div class="container">
 
   <div class="prop-main">
-   <div class="prop-cols">
+
+   <div class="prop-cols prop-pane" id="propPane-hf" data-pane="hf"
+        role="tabpanel" aria-labelledby="propTabBtn-hf">
 
     <div class="panel">
       <div class="panel-title">☀️ SOLEIL & IONOSPHÈRE <small id="solarUpdated"></small>
@@ -182,11 +216,6 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       <div class="band-cond" id="bandCond"><div class="loading">…</div></div>
     </div>
 
-    <div class="panel">
-      <div class="panel-title">🌍 VHF / SPORADIQUE-E</div>
-      <div class="band-cond" id="vhfCond"><div class="loading">…</div></div>
-    </div>
-
     <div class="panel" id="beaconPanel">
       <div class="panel-title">📡 BALISES NCDXF/IBP <small id="beaconTick">maintenant</small></div>
       <div class="band-cond scroll-list" id="beaconList"><div class="loading">…</div></div>
@@ -195,33 +224,20 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       </div>
     </div>
 
+   </div><!-- /propPane-hf -->
+
+   <!-- La foudre en direct N'EST PLUS un panneau : c'est la pastille d'alerte
+        #rcsbStormItem de la barre de statut (logx_statusbar.js), visible sur
+        toutes les pages et qui ouvre la carte Blitzortung dans un onglet
+        séparé. Un panneau de 420 px consacré en permanence à une carte
+        consultée deux fois par an ne valait pas sa place ici. -->
+
+   <div class="prop-cols prop-pane" id="propPane-vhf" data-pane="vhf" hidden
+        role="tabpanel" aria-labelledby="propTabBtn-vhf">
+
     <div class="panel">
-      <div class="panel-title">⚡ FOUDRE EN DIRECT <small>Blitzortung.org</small>
-        <a href="https://www.blitzortung.org/fr/live_lightning_maps.php?map=0" target="_blank" rel="noopener noreferrer"
-           title="Ouvrir la carte de foudre en direct dans un nouvel onglet" style="font-size:12px;color:var(--accent2);text-decoration:none">↗ plein écran</a>
-      </div>
-      <!-- sandbox OBLIGATOIRE : sans lui, la page tierce s'échappe du cadre et
-           navigue l'onglet ENTIER vers blitzortung.org au bout d'une dizaine de
-           secondes (constaté en usage réel — l'opérateur clique sur PROPAGATION
-           et se retrouve hors de LogX AI sans rien avoir demandé). C'est le
-           comportement normal d'un « frame-buster » : du JS de la page encadrée
-           qui force top.location. La seule parade fiable est côté navigateur —
-           un iframe sandboxé SANS 'allow-top-navigation' se voit REFUSER cette
-           navigation par le navigateur lui-même, quoi que fasse son script.
-           On accorde le strict nécessaire pour que la carte fonctionne :
-           allow-scripts (carte dynamique) et allow-same-origin (ses propres
-           requêtes/stockage). Ce couple est sans danger ICI parce que le
-           contenu est CROSS-ORIGIN : 'same-origin' désigne l'origine de
-           blitzortung.org, jamais la nôtre — la page encadrée ne peut donc ni
-           lire notre DOM, ni retirer son propre bac à sable.
-           NE JAMAIS ajouter 'allow-top-navigation' : ce serait rouvrir
-           exactement le défaut (voir tests/test_lightning_iframe_sandbox.py). -->
-      <iframe class="lightning-frame" src="https://www.blitzortung.org/fr/live_lightning_maps.php?map=0"
-              sandbox="allow-scripts allow-same-origin allow-popups"
-              title="Carte de foudre en direct — Blitzortung.org" loading="lazy" referrerpolicy="no-referrer"></iframe>
-      <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">
-        Réseau collaboratif de détection d'impacts de foudre — sécurité antenne : un orage proche (cf. alerte météo ⚠️ sur l'écran mural) impose de débrancher.
-      </div>
+      <div class="panel-title">🌍 VHF / SPORADIQUE-E</div>
+      <div class="band-cond" id="vhfCond"><div class="loading">…</div></div>
     </div>
 
     <div class="panel">
@@ -242,27 +258,33 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       </div>
     </div>
 
-  <div class="panel">
-    <div class="panel-title">🌐 SIGNAL ENTENDU — PSK <small id="pskMeta"></small>
-      <a id="pskExtLink" href="https://pskreporter.info/pskmap.html" target="_blank" rel="noopener noreferrer"
-         title="Ouvrir la carte mondiale complète sur pskreporter.info" style="font-size:12px;color:var(--accent2);text-decoration:none">↗ carte complète</a>
+    <div class="panel">
+      <div class="panel-title">🌙 EME — REBOND LUNAIRE</div>
+      <div id="emeBody" style="font-family:var(--font-mono);font-size:13px;line-height:1.9">
+        <div class="loading">…</div>
+      </div>
     </div>
-    <div id="pskList" class="scroll-list"><div class="loading">…</div></div>
-  </div>
 
-  <div class="panel">
-    <div class="panel-title">📻 SIGNAL CW ENTENDU — RBN <small id="rbnMeta"></small></div>
-    <div id="rbnList" class="scroll-list"><div class="loading">Transmets en CW : les skimmers RBN qui te reçoivent apparaîtront ici.</div></div>
-  </div>
+   </div><!-- /propPane-vhf -->
 
-  <div class="panel">
-    <div class="panel-title">🌙 EME — REBOND LUNAIRE</div>
-    <div id="emeBody" style="font-family:var(--font-mono);font-size:13px;line-height:1.9">
-      <div class="loading">…</div>
+   <div class="prop-cols prop-pane" id="propPane-heard" data-pane="heard" hidden
+        role="tabpanel" aria-labelledby="propTabBtn-heard">
+
+    <div class="panel">
+      <div class="panel-title">🌐 SIGNAL ENTENDU — PSK <small id="pskMeta"></small>
+        <a id="pskExtLink" href="https://pskreporter.info/pskmap.html" target="_blank" rel="noopener noreferrer"
+           title="Ouvrir la carte mondiale complète sur pskreporter.info" style="font-size:12px;color:var(--accent2);text-decoration:none">↗ carte complète</a>
+      </div>
+      <div id="pskList" class="scroll-list"><div class="loading">…</div></div>
     </div>
-  </div>
 
-   </div><!-- /prop-cols -->
+    <div class="panel">
+      <div class="panel-title">📻 SIGNAL CW ENTENDU — RBN <small id="rbnMeta"></small></div>
+      <div id="rbnList" class="scroll-list"><div class="loading">Transmets en CW : les skimmers RBN qui te reçoivent apparaîtront ici.</div></div>
+    </div>
+
+   </div><!-- /propPane-heard -->
+
   </div><!-- /prop-main -->
 
 </div>
@@ -630,31 +652,116 @@ function locatorToLatLon(loc){
   return { lat, lon };
 }
 
-loadPropagation();
-refreshMufMap();
-loadPSK();
-loadTropo();
-loadMeteors();
-loadRBN();
-loadEme();
-loadOpenings();
-loadStationLinks();
-setInterval(loadPropagation, 5 * 60 * 1000);   // solaire : lent (caches 15 min)
-setInterval(refreshMufMap, 15 * 60 * 1000);    // carte MUF externe : jamais plus souvent, cf. commentaire ci-dessus
-// Balises : PAS de minuteur local. logx_statusbar.js poll déjà /beacons/now
-// toutes les 5 s pour son badge et rediffuse la réponse ('logx:beacons'), à
-// laquelle renderBeacons() est abonné. Repli seulement si la barre est absente
-// (page ouverte sans elle), sinon la page ferait 2 fois le même appel.
-if (!window.logxBeaconFeed){
-  loadBeacons();
-  setInterval(loadBeacons, 5 * 1000);          // balises : changent toutes les 10 s
+// ─── ONGLETS + PLANIFICATEUR DE RAFRAÎCHISSEMENT ─────────────────────────────
+// Découper la page en trois onglets ne sert à rien si les treize chargeurs
+// continuent tous de tourner : on aurait juste caché les panneaux, en payant
+// toujours PSK Reporter, RBN, tropo, météores, EME et les balises pendant
+// qu'on regarde la seule colonne HF. Chaque tâche déclare donc les onglets
+// qu'elle alimente, et un unique minuteur (1 s) ne la déclenche que si l'un
+// d'eux est AFFICHÉ.
+//
+// Un seul minuteur maître plutôt qu'un setInterval par tâche, pour une raison
+// précise : avec des minuteurs individuels, un tic tombé pendant que l'onglet
+// était masqué serait simplement perdu, et la donnée pourrait rester périmée
+// jusqu'à deux intervalles après le retour sur l'onglet. Ici l'échéance est
+// recalculée à chaque tic depuis la date du DERNIER appel réussi : revenir
+// sur un onglet resservi rafraîchit immédiatement ce qui a expiré, et rien
+// d'autre.
+const PROP_PANES = ['hf', 'vhf', 'heard'];
+let propActivePane = 'hf';
+const PROP_TASKS = [];
+
+// panes : onglets alimentés. loadPropagation en alimente DEUX (le solaire et
+// les conditions par bande sont en HF, le verdict VHF/Es en VHF & EME) — d'où
+// une liste et pas un seul nom.
+function propTask(fn, ms, panes){
+  PROP_TASKS.push({ fn: fn, ms: ms, panes: panes, last: 0, busy: false });
 }
-setInterval(loadPSK, 3 * 60 * 1000);           // PSK Reporter : cache serveur 3 min
-setInterval(loadTropo, 20 * 60 * 1000);        // tropo : cache 20 min
-setInterval(loadEme, 5 * 60 * 1000);           // EME : position lunaire, évolue lentement
-setInterval(loadOpenings, 5 * 60 * 1000);      // ouvertures par région : dépend du solaire (cache 15 min)
-setInterval(loadMeteors, 10 * 60 * 1000);      // météores : calendrier lent
-setInterval(loadRBN, 2 * 60 * 1000);           // RBN CW : cache serveur 2 min
+propTask(loadPropagation,  5 * 60 * 1000, ['hf', 'vhf']);  // solaire : lent (caches 15 min)
+propTask(refreshMufMap,   15 * 60 * 1000, ['hf']);         // carte MUF externe : jamais plus souvent, cf. commentaire ci-dessus
+propTask(loadOpenings,     5 * 60 * 1000, ['hf']);         // ouvertures par région : dépend du solaire (cache 15 min)
+propTask(loadTropo,       20 * 60 * 1000, ['vhf']);        // tropo : cache 20 min
+propTask(loadMeteors,     10 * 60 * 1000, ['vhf']);        // météores : calendrier lent
+propTask(loadEme,          5 * 60 * 1000, ['vhf']);        // EME : position lunaire, évolue lentement
+propTask(loadPSK,          3 * 60 * 1000, ['heard']);      // PSK Reporter : cache serveur 3 min
+propTask(loadRBN,          2 * 60 * 1000, ['heard']);      // RBN CW : cache serveur 2 min
+// Balises : normalement PAS de tâche ici. logx_statusbar.js poll déjà
+// /beacons/now toutes les 5 s pour son badge et rediffuse la réponse
+// ('logx:beacons'), à laquelle renderBeacons() est abonné. Repli seulement si
+// la barre est absente (page ouverte sans elle), sinon la page ferait 2 fois
+// le même appel.
+if (!window.logxBeaconFeed) propTask(loadBeacons, 5 * 1000, ['hf']);
+
+function propRunTask(t){
+  if(t.busy) return;
+  t.busy = true;
+  t.last = Date.now();
+  // Les chargeurs sont async et avalent déjà leurs erreurs ; Promise.resolve()
+  // couvre aussi refreshMufMap(), qui est synchrone.
+  Promise.resolve().then(t.fn).catch(() => {}).then(() => { t.busy = false; });
+}
+
+function propTick(){
+  const now = Date.now();
+  PROP_TASKS.forEach(t => {
+    if(t.panes.indexOf(propActivePane) < 0) return;   // onglet masqué : rien
+    if(now - t.last < t.ms) return;                   // pas encore échu
+    propRunTask(t);
+  });
+}
+
+function propSelectPane(name){
+  if(PROP_PANES.indexOf(name) < 0) name = 'hf';
+  propActivePane = name;
+  PROP_PANES.forEach(p => {
+    const pane = document.getElementById('propPane-' + p);
+    const btn  = document.getElementById('propTabBtn-' + p);
+    if(pane) pane.hidden = (p !== name);
+    if(btn) btn.setAttribute('aria-selected', p === name ? 'true' : 'false');
+  });
+  // La zone de défilement est commune aux trois onglets : sans remise à zéro,
+  // on arrive au milieu du nouvel onglet avec le décalage de l'ancien.
+  const main = document.querySelector('.prop-main');
+  if(main) main.scrollTop = 0;
+  try{ localStorage.setItem('rc_prop_pane', name); }catch(e){}
+  propTick();   // sert immédiatement ce qui a expiré pendant le masquage
+}
+
+document.querySelectorAll('.prop-tabs button').forEach(btn => {
+  btn.addEventListener('click', () => propSelectPane(btn.dataset.pane));
+});
+
+// Lien ancré entrant (#beaconPanel depuis la pastille balise de la barre de
+// statut) : sélectionner l'onglet qui CONTIENT la cible. Sans ça le lien
+// pointerait vers un panneau masqué et ne ferait visiblement rien — panne
+// silencieuse classique, puisque l'ancre reste techniquement valide.
+function propPaneOfHash(){
+  const id = (location.hash || '').slice(1);
+  if(!id) return null;
+  const el = document.getElementById(id);
+  const pane = el && el.closest && el.closest('.prop-pane');
+  return pane ? pane.dataset.pane : null;
+}
+window.addEventListener('hashchange', () => {
+  const p = propPaneOfHash();
+  if(p) propSelectPane(p);
+});
+
+let propInitialPane = null;
+try{ propInitialPane = localStorage.getItem('rc_prop_pane'); }catch(e){}
+propSelectPane(propPaneOfHash() || propInitialPane || 'hf');
+// window.rcPoll (logx_statusbar.js) = même minuteur, mais suspendu quand
+// l'ONGLET DU NAVIGATEUR est masqué et rattrapé au retour. On l'utilise s'il
+// est là : les deux suspensions se cumulent alors naturellement (onglet
+// interne masqué ET onglet navigateur masqué). Repli sur setInterval si la
+// page est ouverte sans la barre de statut.
+if (window.rcPoll) window.rcPoll(propTick, 1000);
+else setInterval(propTick, 1000);
+
+// Hors onglets : une seule fois au chargement (liens externes construits
+// depuis la config — carte PSK filtrée sur l'indicatif, passages satellites
+// pour le locator). Ils ne se périment pas.
+loadStationLinks();
 </script>
 </body>
 </html>
