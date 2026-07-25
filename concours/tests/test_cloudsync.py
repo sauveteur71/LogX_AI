@@ -152,3 +152,36 @@ def test_sync_now_borne_si_dossier_cloud_bloque_indefiniment(monkeypatch, tmp_pa
     elapsed = time.time() - t0
     assert not r['ok'] and 'lent' in r['error'].lower()
     assert elapsed < 4  # bien avant les cs.SYNC_TIMEOUT+5 s du blocage simulé
+
+
+def test_last_error_disparait_quand_on_desactive_cloudsync():
+    """Revue adversariale : un échec avec Cloud Sync activé ne doit plus
+    jamais réapparaître une fois l'utilisateur repassé en mode='off'."""
+    cfg_bad = {'cloudsync_mode': 'full', 'cloudsync_folder': r'Z:\introuvable_xyz',
+               'callsign_contest': 'F4GLD'}
+    cs.sync_now(cfg_bad, [])
+    assert cs.status(cfg_bad)['last_error'] is not None  # échec bien enregistré
+
+    cfg_off = dict(cfg_bad, cloudsync_mode='off')
+    st = cs.status(cfg_off)
+    assert st['enabled'] is False and st['last_error'] is None
+
+
+def test_last_error_disparait_quand_le_dossier_est_corrige(tmp_path):
+    """Revue adversariale : dossier cassé -> corrigé (toujours activé) mais
+    aucune nouvelle tentative n'a encore eu lieu -> ne doit pas afficher
+    l'ancienne erreur comme si le nouveau dossier avait déjà échoué."""
+    cfg_bad = {'cloudsync_mode': 'full', 'cloudsync_folder': r'Z:\introuvable_xyz2',
+               'callsign_contest': 'F4GLD'}
+    cs.sync_now(cfg_bad, [])
+    assert cs.status(cfg_bad)['last_error'] is not None
+
+    cfg_fixed = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path),
+                 'callsign_contest': 'F4GLD'}
+    st = cs.status(cfg_fixed)
+    assert st['enabled'] is True and st['last_error'] is None
+
+    # et si le dossier redevient cassé sans nouvelle tentative, la pastille
+    # ne doit pas non plus être ressuscitée par erreur (aucun test n'a couru
+    # sur cfg_bad depuis le sync_now ci-dessus -> reste correctement signalée)
+    assert cs.status(cfg_bad)['last_error'] is not None

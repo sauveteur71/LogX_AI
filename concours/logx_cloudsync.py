@@ -41,7 +41,13 @@ _STAMP_FILE = 'cloudsync_state.json'
 # (voir sync_now ci-dessous) : un appel avec mode='off' n'est pas une panne
 # réseau, juste une fonctionnalité inutilisée — ne doit jamais déclencher
 # l'indicateur de dégradation.
-_last_error = {'ts': 0, 'msg': ''}
+# 'folder'/'mode' mémorisent la config qui a PRODUIT l'échec : status()
+# ne le réaffiche que si la config actuelle est identique. Sans ça, l'échec
+# restait un état fantôme après désactivation (mode='off', jamais revisité
+# ici) ou après correction du dossier (nouveau dossier valide mais pas encore
+# resynchronisé) — la pastille rouge persistait alors qu'aucune tentative
+# n'avait échoué avec la config actuelle.
+_last_error = {'ts': 0, 'msg': '', 'folder': '', 'mode': ''}
 
 
 def _safe(s):
@@ -132,13 +138,18 @@ def sync_now(cfg, shared_log):
     # Enregistré seulement si Cloud Sync est réellement activé : un appel
     # désactivé (r['error'] = "désactivé...") n'est pas une dégradation
     # réseau à signaler — voir _last_error ci-dessus.
-    if cloudsync_settings(cfg).get('enabled'):
+    s = cloudsync_settings(cfg)
+    if s.get('enabled'):
         if r.get('ok'):
             _last_error['ts'] = 0
             _last_error['msg'] = ''
+            _last_error['folder'] = ''
+            _last_error['mode'] = ''
         else:
             _last_error['ts'] = time.time()
             _last_error['msg'] = r.get('error', '')
+            _last_error['folder'] = s.get('folder', '')
+            _last_error['mode'] = s.get('mode', '')
     return r
 
 
@@ -216,8 +227,16 @@ def status(cfg=None):
         pattern = os.path.join(s['folder'], SYNC_PREFIX + '*.json')
         my_path = os.path.join(s['folder'], s.get('my_file', ''))
         other_sources = sum(1 for p in glob.glob(pattern) if os.path.abspath(p) != os.path.abspath(my_path))
+    # last_error n'est réaffiché que si : Cloud Sync est actuellement activé
+    # ET la config actuelle (dossier + mode) est EXACTEMENT celle qui a
+    # produit cet échec. Toute désactivation (mode='off') ou tout changement
+    # de dossier/mode depuis l'échec (ex. correction du problème) le masque
+    # immédiatement, sans attendre le prochain cycle de _cloudsync_loop —
+    # évite l'état fantôme (voir commentaire sur _last_error ci-dessus).
     last_error = None
-    if _last_error['ts']:
+    if (_last_error['ts'] and s.get('enabled')
+            and s.get('folder') == _last_error.get('folder')
+            and s.get('mode') == _last_error.get('mode')):
         last_error = {'msg': _last_error['msg'], 'age_s': int(time.time() - _last_error['ts'])}
     return {'enabled': bool(s.get('enabled')), 'mode': s.get('mode', 'off'),
             'folder': s.get('folder', ''), 'last': last, 'other_installations': other_sources,
