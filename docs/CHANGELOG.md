@@ -11,6 +11,30 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta5] - 2026-07-25
+
+Version issue d'un audit systématique du code (6 angles d'analyse, chaque
+constat soumis à une vérification adversariale indépendante avant correction) :
+17 défauts réels confirmés et corrigés. **Mise à jour recommandée à tous les
+utilisateurs de la 0.9-beta4**, qui contient les deux défauts critiques
+ci-dessous.
+
+### Sécurité
+- **Critique — fuite du jeton d'écriture et des identifiants** : la liste noire des fichiers jamais servis (`.auth_token`, `.server_config.json`, log complet…) filtrait l'URL demandée au lieu du fichier réellement atteint. Un simple slash final (`/.auth_token/`), un `%2F` ou un détour par `..` la contournaient et renvoyaient le contenu en clair. Ces routes étant servies avant toute authentification et le serveur écoutant sur le réseau local, n'importe quel appareil du LAN pouvait récupérer le jeton d'écriture partagé — et donc réinitialiser le log, modifier la configuration ou déclencher une mise à jour. La protection par mot de passe optionnelle ne couvrait pas ce chemin.
+- **Injection de code sans authentification** : la version déclarée par un poste voisin (`/log/list?ver=`, route sans jeton) était réinjectée sans échappement dans la CHECKLIST d'avant-concours. Un appareil du réseau pouvait ainsi faire exécuter son propre JavaScript dans l'onglet d'un opérateur authentifié. Corrigé par un double verrou (échappement côté client + filtrage de la valeur avant stockage côté serveur).
+
+### Corrigé
+- **Critique — corruption silencieuse du carnet (Cloud Sync `full`)** : la fusion était purement additive. Un QSO supprimé réapparaissait au cycle de synchronisation suivant (suppression définitivement impossible), et corriger un QSO recréait son ancienne version en doublon. Corrigé par des marqueurs de suppression persistants, qui propagent la suppression au lieu de l'annuler.
+- **Numéro de série faux en concours** : l'allocation ignorait la portée du concours actif et repartait du plus grand numéro de tout l'historique de la bande — le premier QSO d'un nouveau concours pouvait recevoir 801 au lieu de 001, échange erroné transmis sur l'air puis enregistré, sans recours possible.
+- **Mise à jour Windows impossible dès qu'un accent figure dans le chemin** (`C:\Users\Frédéric\…`) : le script d'installation était écrit dans un encodage que `cmd` ne lit pas, l'application s'arrêtait sans jamais redémarrer ni signaler d'erreur, et reproposait indéfiniment la même mise à jour.
+- **QSO importés invisibles pour les autres postes** : sur un import ADIF, le marquage de version se faisait hors du verrou du log ; un poste qui interrogeait le serveur au mauvais moment n'apprenait jamais l'existence de ces QSO.
+- Blocage du serveur jusqu'à 21 s (mesuré) sur un dossier Cloud Sync injoignable, sondé toutes les 20 s par toutes les pages.
+- Sauvegarde la plus récente supprimée immédiatement après un changement d'indicatif (tri des fichiers par nom au lieu de la date).
+- Copie de la base de données sans verrou lors des sauvegardes (instantané potentiellement corrompu) et écritures de sauvegarde non atomiques.
+- Assistant « Nouveau concours » invisible et deux boutons sans effet dans sa bannière (régression de la refonte de la page CONFIGURATION).
+- Mise à jour réseau : un poste se découvrait lui-même comme passerelle, masquant les passerelles réelles ; un pair d'une autre plateforme était proposé puis rejeté après téléchargement complet ; la référence d'intégrité ne survivait pas à un redémarrage.
+- Alerte « versions différentes » fantôme après le départ d'un poste, et synchronisation différentielle qui retransmettait presque tout le log après chaque redémarrage.
+
 ## [0.9-beta4] - 2026-07-25
 
 ### Ajouté
