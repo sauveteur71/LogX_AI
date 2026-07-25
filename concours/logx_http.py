@@ -1422,7 +1422,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             qs = parse_qs(urlparse(self.path).query)
             band = (qs.get('band', ['']) or [''])[0]
             peek = (qs.get('peek', ['']) or [''])[0] in ('1', 'true')
-            serial = _storage.peek_next_serial(band) if peek else _storage.allocate_next_serial(band)
+            # Portée du concours actif (cfg_scope_id, même règle que /log/list) :
+            # sans elle, le max était calculé sur TOUT shared_log — le 1er QSO
+            # d'un nouveau concours héritait du max d'un concours précédent
+            # resté en log (ex. 801 au lieu de 001), transmis sur l'air sans
+            # recours (champ readOnly côté opérateur, purge des anciens
+            # concours opt-in depuis le commit 4d91f6a).
+            scope_id = cfg_scope_id(self._cfg_snapshot())
+            serial = (_storage.peek_next_serial(band, scope_id) if peek
+                      else _storage.allocate_next_serial(band, scope_id))
             self._json({'serial': str(serial).zfill(3)})
             return
 

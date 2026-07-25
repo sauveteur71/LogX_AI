@@ -229,16 +229,34 @@ def cfg_scope_id(cfg):
 # repart de shared_log (rechargé depuis le disque, la vraie source de
 # vérité) — jamais en retard ni en double par rapport à ce qui est déjà
 # loggué, même sans avoir gardé trace du dernier numéro distribué.
-_serial_high_water = {}   # bande normalisée -> dernier n° déjà distribué
+# Clé = (portée concours, bande) et PAS la bande seule : shared_log est un log
+# GLOBAL où cohabitent le log simple et tous les concours/années (voir la
+# section PORTÉE CONCOURS ci-dessus) — un compteur par bande seule ferait
+# démarrer le concours suivant au max de TOUT l'historique de la bande
+# (ex. 801 au lieu de 001), y compris sans redémarrage entre deux concours.
+_serial_high_water = {}   # (scope_id, bande normalisée) -> dernier n° distribué
 
 
-def _serial_max_used_locked(band_norm):
-    """Plus grand num_sent déjà loggué pour cette bande. Appelant responsable
-    de tenir log_lock (factorisé entre allocate_next_serial/peek_next_serial,
-    qui doivent lire exactement le même état)."""
+def _serial_max_used_locked(band_norm, scope_id=''):
+    """Plus grand num_sent déjà loggué pour cette bande DANS LA PORTÉE
+    concours donnée (même règle que logx_http._scope_filtered : scope_id non
+    vide -> seuls les QSO dont qso_scope_id() correspond comptent ; scope_id
+    vide = mode simple/aucun concours -> tout le log compte, comportement
+    historique). Sans ce filtre, un concours précédent resté dans shared_log
+    (comportement nominal : /log/archive ne purge que sur clear=true) ou un
+    import ADIF avec STX dans le log perso faisait démarrer le concours
+    suivant au max historique de la bande au lieu de 1 — numéro d'échange
+    faux transmis sur l'air, sans aucun recours opérateur (champ readOnly,
+    allocation serveur). L'ancien compteur client (logx_logbook.js:nextSerial)
+    comptait sur /log/list DÉJÀ filtré par portée : il était implicitement
+    scopé, l'allocation serveur doit l'être explicitement. Appelant
+    responsable de tenir log_lock (factorisé entre allocate_next_serial/
+    peek_next_serial, qui doivent lire exactement le même état)."""
     max_used = 0
     for q in shared_log:
         if str(q.get('band', '')).strip() != band_norm:
+            continue
+        if scope_id and qso_scope_id(q) != scope_id:
             continue
         try:
             n = int(str(q.get('num_sent', '')).strip())
@@ -249,30 +267,35 @@ def _serial_max_used_locked(band_norm):
     return max_used
 
 
-def allocate_next_serial(band):
-    """Alloue (réserve) le prochain n° de série pour cette bande. Un trou dans
+def allocate_next_serial(band, scope_id=''):
+    """Alloue (réserve) le prochain n° de série pour cette bande, dans la
+    portée concours `scope_id` (cfg_scope_id de la config courante — chaque
+    concours/édition repart de 1, voir _serial_max_used_locked). Un trou dans
     la séquence (réservation jamais suivie d'un /log/add, ex. saisie
     abandonnée) est toléré — comme l'était déjà l'ancien compteur côté client
     (voir logx_logbook.js:updateSerialDisplay, "ni revenir en arrière, même
     s'il y a un trou dans la séquence")."""
     band_norm = str(band or '').strip()
+    key = (str(scope_id or ''), band_norm)
     with log_lock:
-        nxt = max(_serial_max_used_locked(band_norm), _serial_high_water.get(band_norm, 0)) + 1
-        _serial_high_water[band_norm] = nxt
+        nxt = max(_serial_max_used_locked(band_norm, key[0]), _serial_high_water.get(key, 0)) + 1
+        _serial_high_water[key] = nxt
         return nxt
 
 
-def peek_next_serial(band):
+def peek_next_serial(band, scope_id=''):
     """Donne le n° qui SERAIT distribué par le prochain allocate_next_serial()
-    pour cette bande, SANS consommer le compteur. Sert à un simple aperçu
-    d'affichage (mobile : rafraîchi à chaque changement de bande, après
-    chaque QSO et au chargement de la page — bien plus souvent qu'un QSO
-    n'est réellement soumis). Sans ce mode, chaque rafraîchissement d'écran
-    brûlait un vrai numéro de série même si l'opérateur n'envoyait jamais le
-    QSO correspondant (voir logx_mobile.html:refreshSuggestedSerial)."""
+    pour cette bande et cette portée concours, SANS consommer le compteur.
+    Sert à un simple aperçu d'affichage (mobile : rafraîchi à chaque
+    changement de bande, après chaque QSO et au chargement de la page — bien
+    plus souvent qu'un QSO n'est réellement soumis). Sans ce mode, chaque
+    rafraîchissement d'écran brûlait un vrai numéro de série même si
+    l'opérateur n'envoyait jamais le QSO correspondant (voir
+    logx_mobile.html:refreshSuggestedSerial)."""
     band_norm = str(band or '').strip()
+    key = (str(scope_id or ''), band_norm)
     with log_lock:
-        return max(_serial_max_used_locked(band_norm), _serial_high_water.get(band_norm, 0)) + 1
+        return max(_serial_max_used_locked(band_norm, key[0]), _serial_high_water.get(key, 0)) + 1
 
 
 # Verrou dédié à calldb.json : écrit depuis plusieurs threads
