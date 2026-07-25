@@ -70,6 +70,23 @@ peer_versions_lock = threading.Lock()
 # et la fenêtre 30 s de logx_adifnet.py.
 PEER_VERSION_TTL = 300  # secondes
 
+# Format admis pour une version DÉCLARÉE par un pair (?ver=). Un poste s'annonce
+# avec logx_version.APP_VERSION ('0.9-beta4') : chiffres, lettres, '.', '-', '+',
+# '_' suffisent largement, y compris pour un futur '1.2.3+build.7'.
+# POURQUOI valider (faille corrigée) : /log/list est servi par do_GET SANS
+# authentification (aucun jeton requis pour POSER la valeur), et cette chaîne
+# était stockée telle quelle puis restituée brute par /log/status → peer_list,
+# que chaque poste polle. Côté client, le badge de version et surtout l'item
+# CHECKLIST l'interpolaient dans de l'HTML : n'importe quel appareil du LAN
+# pouvait donc faire exécuter du script dans l'origine d'un opérateur
+# AUTHENTIFIÉ (le cookie rc_token part tout seul en same-origin → /log/reset,
+# /config/save, /auth/set_password...). L'échappement côté client reste la
+# défense principale (voir escHtml dans logx_logbook.js), celle-ci coupe le mal
+# à la racine : une valeur non conforme n'entre jamais en mémoire.
+# La borne de longueur ferme au passage la croissance non bornée de la valeur
+# (la ligne de requête HTTP autorise ~64 Ko, tous stockés verbatim auparavant).
+PEER_VERSION_RE = re.compile(r'[\w.+-]{1,32}')   # utilisé avec .fullmatch()
+
 
 def _prune_stale_peer_versions():
     """Supprime de peer_versions les postes muets depuis plus de
@@ -1316,7 +1333,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Version LOGICIELLE du poste qui poll (?ver=, voir peer_versions
             # ci-dessus) : purement déclarative, jamais utilisée pour filtrer
             # ou refuser quoi que ce soit — juste enregistrée pour affichage.
+            # Filtrée par PEER_VERSION_RE : une valeur non conforme (HTML/JS
+            # injecté par un appareil du LAN, chaîne géante) est IGNORÉE, pas
+            # stockée — voir le commentaire de PEER_VERSION_RE.
             client_ver = qs.get('ver', [''])[0].strip()
+            if client_ver and not PEER_VERSION_RE.fullmatch(client_ver):
+                client_ver = ''
             if client_ver:
                 with peer_versions_lock:
                     peer_versions[client_ip] = {'version': client_ver, 'last_seen': time.time()}

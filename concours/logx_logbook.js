@@ -5243,11 +5243,19 @@ async function showChecklist(){
   // voir updateVersionStatus()) plutôt que de refaire un appel réseau ici.
   if(_lastServerVersion){
     const versionMism = _versionMismatches(_lastServerVersion, _myVersion, _lastPeerList);
+    // escHtml OBLIGATOIRE ici (faille corrigée) : r.label est injecté tel quel
+    // dans inner.innerHTML quelques lignes plus bas, or m.version est une
+    // chaîne DÉCLARÉE par un autre poste (GET /log/list?ver=, route servie
+    // SANS authentification). Sans échappement, n'importe quel appareil du LAN
+    // faisait exécuter son HTML/JS dans cette page — qui porte le cookie de
+    // session de l'opérateur, donc accès à /log/reset, /config/save,
+    // /auth/set_password... C'était le seul chemin réseau du fichier oublié
+    // par escHtml (cf. bandmap, callbook, chat, validation).
     rows.push({
       ok: versionMism.length === 0,
       label: versionMism.length === 0
-        ? `Version cohérente sur tous les postes (v${_lastServerVersion})`
-        : `Versions différentes : ${versionMism.map(m=>`${m.ip} v${m.version}`).join(', ')} — serveur : v${_lastServerVersion}`,
+        ? `Version cohérente sur tous les postes (v${escHtml(_lastServerVersion)})`
+        : `Versions différentes : ${versionMism.map(m=>`${escHtml(m.ip)} v${escHtml(m.version)}`).join(', ')} — serveur : v${escHtml(_lastServerVersion)}`,
     });
   } else {
     rows.push({ok: true, info: true, label: 'Version : pas encore vérifiée (patiente quelques secondes puis rouvre la checklist)'});
