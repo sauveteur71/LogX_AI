@@ -781,6 +781,137 @@ CONTEST_DEFINITIONS = {
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
         'notes': 'ATTENTION : départ réel le VENDREDI 22:00 UTC (la date affichée est le samedi — grammaire de dates limitée au sam/dim).',
     },
+
+    # ── CWops (CW Operators' Club) ────────────────────────────────────────────
+    # Mini-test hebdomadaire de 60 min, 4 sessions/semaine (mer+jeu UTC) — AUCUNE
+    # grammaire date_rule existante ne sait exprimer une récurrence hebdomadaire
+    # (seulement 'permanent' ou 'Nème {samedi|dimanche} du mois' ou 'Nème weekend
+    # complet du mois' — cf. contest_schema.json). Même repli que WWA_2027_JAN/
+    # JUL plus haut : 'permanent' explicite + horaire réel documenté en 'notes'.
+    # duration_h=1 reste pertinent ici (contrairement à WWA) car chaque SESSION
+    # individuelle dure réellement 60 min.
+    # Règles vérifiées le 25/07/2026 par fetch direct de cwops.org/cwops-tests/,
+    # recoupé par une recherche web indépendante (jours/heures, bandes, exchange,
+    # scoring concordants sur les deux sources).
+    'CWOPS_CWT': {
+        'name': 'CWops Mini-Test (CWT)',
+        'organizer': "CWops (CW Operators' Club)",
+        'check_url': 'https://cwops.org/cwops-tests/',
+        'rules_url': 'https://cwops.org/cwops-tests/',
+        'date_rule': 'permanent',
+        'start_utc': '13:00',   # 1re des 4 sessions seulement — horaire complet réel en 'notes'
+        'bands': ['1.8','3.5','7','14','21','28'], 'modes': ['CW'],
+        'exchange': "Prénom + N° membre CWops (non-membres : prénom + état/province ou indicatif "
+                    'pays DXCC ; étudiants CW Academy : prénom + "CWA")',
+        'scoring': {
+            'bricks': {
+                'points': [{'when': 'always', 'points': 1}],
+                'multiplier': {'kind': 'exchange_distinct'},
+            },
+            'unit': '1 pt/QSO (1x par bande) × indicatifs uniques travaillés',
+            'note': "Multiplicateur réel = nombre d'indicatifs UNIQUES travaillés sur toute la session "
+                    "(pas par bande) — exchange_distinct est l'approximation la plus proche disponible "
+                    "dans le moteur à briques (compte par bande) ; décompte exact fait sur le log (coach).",
+        },
+        'log_format': '', 'log_deadline': '48_hours_after',
+        'log_submit': 'https://www.3830scores.com/',
+        'categories': "Toutes catégories (QRP/LP/HP), ouvert aux non-membres — pas de restriction de participation",
+        'notes': "4 sessions hebdomadaires de 60 min : mercredi 13h00-14h00 UTC, mercredi 19h00-20h00 UTC, "
+                 "jeudi 03h00-04h00 UTC, jeudi 07h00-08h00 UTC (horaire réel — 'permanent' ci-dessus est un "
+                 "repli technique de date_rule, pas la vraie règle). Pas de log Cabrillo formel à soumettre : "
+                 "simple claim de score par session sur 3830scores.com (une session = un formulaire séparé, "
+                 "identifié CWT-1300/CWT-1900/CWT-0300/CWT-0700). Bandes non-WARC uniquement (pas de 30/17/12m).",
+    },
+
+    # ── UFT — Challenges saisonniers (hiver / été) ────────────────────────────
+    # Distincts de UFT_RENCONTRES (1er weekend complet de décembre — présent
+    # seulement dans CONTEST_SCORING legacy, pas ici) : ce sont des défis
+    # d'ACTIVITÉ CUMULATIVE sur plusieurs semaines, pas une session continue —
+    # même situation que WWA_2027_* : 'permanent' (fenêtre réelle en 'notes'),
+    # aucune grammaire date_rule ne sachant exprimer "1er juillet→31 août" ni
+    # "1er dimanche de février→dimanche suivant", et duration_h (max 48h dans
+    # le schéma) ne peut de toute façon pas encoder plusieurs semaines.
+    # Sources : pages officielles uft.net (fetch direct le 25/07/2026). Cf.
+    # HYPOTHÈSES explicites en 'notes'/'scoring.note' pour ce qui n'a PAS pu
+    # être confirmé avec certitude (barème point-par-bande complet, mode exact
+    # autorisé) — pages sans tableau exploitable ni PDF de règlement trouvé.
+    'UFT_CHALLENGE_ETE': {
+        'name': "Challenge d'été F5CED",
+        'organizer': 'UFT',
+        'check_url': 'https://www.uft.net/activites-et-concours/challenge-dete-f5ced/',
+        'rules_url': 'https://www.uft.net/activites-et-concours/challenge-dete-f5ced/',
+        'date_rule': 'permanent',
+        'start_utc': '00:00',   # fenêtre réelle : 1er juillet → 31 août (62 jours), 00h00→23h59 UTC
+        'bands': ['1.8','3.5','7','10.1','14','18','21','24','28','50','144'],
+        'modes': ['CW'],
+        'exchange': "RST (pas d'échange contest formel — trafic normal/rondes/skeds comptabilisé ; "
+                    "l'UFT recoupe le statut membre/non-membre sur le log soumis, pas via un code transmis)",
+        'scoring': {
+            'bricks': {
+                'points': [
+                    {'prefix_in': ['F8UFT'], 'points': 4},
+                    {'when': 'different_continent', 'points': 4},
+                    {'when': 'always', 'points': 2},
+                ],
+                'multiplier': None,
+            },
+            'unit': 'pts variables par bande × distance, doublés sur QSO avec F8UFT',
+            'note': "HYPOTHÈSE — barème complet non confirmé avec certitude (page web sans tableau "
+                    "exploitable, pas de PDF de règlement trouvé). Ancres réelles relevées sur uft.net : "
+                    "3,5MHz Europe-Europe = 2 pts, 1,8MHz Europe-DX autre continent = 6 pts ; le vrai "
+                    "barème croît sur les bandes basses et selon la distance/le continent. Les valeurs "
+                    "2/4 ci-dessus sont une APPROXIMATION prudente pour la priorisation du coach — PAS le "
+                    "score officiel. Règle confirmée et modélisée fidèlement : tout QSO avec F8UFT double "
+                    "les points.",
+        },
+        'log_format': 'CABRILLO', 'log_deadline': '8_days_after',
+        'log_submit': 'commission-concours@uft.net',
+        'notes': "Défi d'activité cumulatif du 1er juillet au 31 août, PAS une session continue. Mode CW "
+                 "supposé par analogie avec la vocation de l'UFT et les autres entrées UFT de cette base "
+                 "(F9NL, UFT_RENCONTRES) — NON re-confirmé mot pour mot sur cette page précise (le texte "
+                 "dit seulement 'tous les QSO sont autorisés'), À VÉRIFIER avant tout usage compétitif "
+                 "sérieux. Bandes déduites du tableau de scoring du règlement ('1,8 / 3,5 à 10 / 14 à 28 / "
+                 "50 / 144 / 432 et plus MHz') — plage large, pas de restriction de bande annoncée.",
+    },
+    'UFT_CHALLENGE_HIVER': {
+        'name': "Challenge d'hiver UFT",
+        'organizer': 'UFT',
+        'check_url': 'https://www.uft.net/activites-et-concours/challenge-dhiver-uft/',
+        'rules_url': 'https://www.uft.net/activites-et-concours/challenge-dhiver-uft/',
+        'date_rule': 'permanent',
+        'start_utc': '00:00',   # fenêtre réelle 2026 : dim. 1er février 00h00 → dim. 8 février 23h59 UTC (8 j.)
+        'bands': ['1.8','3.5','7','10.1','14','18','21','24','28','50','144'],
+        'modes': ['CW'],
+        'exchange': "RST (pas d'échange contest formel — trafic normal/rondes/skeds comptabilisé ; "
+                    "l'UFT recoupe le statut membre/non-membre sur le log soumis, pas via un code transmis)",
+        'scoring': {
+            'bricks': {
+                'points': [
+                    {'prefix_in': ['F8UFT'], 'points': 4},
+                    {'when': 'different_continent', 'points': 4},
+                    {'when': 'always', 'points': 2},
+                ],
+                'multiplier': None,
+            },
+            'unit': 'pts variables par bande × distance (2-10 même continent / 3-15 autre continent selon '
+                    'la bande), doublés sur QSO avec F8UFT',
+            'note': "HYPOTHÈSE — barème complet non confirmé avec certitude (page web sans tableau "
+                    "exploitable, pas de PDF de règlement trouvé). Plage annoncée sur uft.net : 2 à 10 pts "
+                    "même continent, 3 à 15 pts autre continent selon la bande (1,8→432MHz). Les valeurs "
+                    "2/4 ci-dessus sont une APPROXIMATION prudente pour la priorisation du coach — PAS le "
+                    "score officiel. Règle confirmée et modélisée fidèlement : tout QSO avec F8UFT double "
+                    "les points.",
+        },
+        'log_format': 'CABRILLO', 'log_deadline': '8_days_after',
+        'log_submit': 'commission-concours@uft.net',
+        'notes': "Défi d'activité cumulatif sur 8 jours (chaque année en février ; 2026 : dimanche 1er → "
+                 "dimanche 8 février, 00h00→23h59 UTC), PAS une session continue. Mode CW supposé par "
+                 "analogie avec la vocation de l'UFT et les autres entrées UFT de cette base (F9NL, "
+                 "UFT_RENCONTRES) — NON re-confirmé mot pour mot sur cette page précise, À VÉRIFIER avant "
+                 "tout usage compétitif sérieux. Bandes déduites du tableau de scoring du règlement "
+                 "('1,8 / 3,5 à 10 / 14 à 28 / 50 / 144 / 432 et plus MHz'). Logiciel dédié fourni par "
+                 "l'UFT (génère aussi un export ADIF) en plus du format Cabrillo standard.",
+    },
 }
 
 # ─── CONCOURS PERSONNALISÉS (extraction IA + relecture humaine, Phase 3) ─────
