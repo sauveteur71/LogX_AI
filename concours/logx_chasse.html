@@ -363,7 +363,13 @@ async function loadWca(){
           <span style="color:var(--accent2);font-weight:600">${esc(it.reference)}</span>
           <span class="sr-info" style="flex:1">${esc(it.title)}</span>
         </div>
-        <div class="sr-info" style="color:var(--muted);font-size:11px">${esc(it.description).slice(0,160)}</div>
+        <!-- width:100% OBLIGATOIRE : la ligne est en flex-direction:column /
+             align-items:flex-start, donc sans largeur imposée l'item se
+             dimensionne sur son max-content ; comme .sr-info est en
+             white-space:nowrap, ce max-content est la description entière et
+             l'ellipsis ne s'applique jamais — la liste gagne alors une barre
+             de défilement HORIZONTALE. Idem pour la 1re ligne ci-dessus. -->
+        <div class="sr-info" style="width:100%;color:var(--muted);font-size:11px">${esc(it.description).slice(0,160)}</div>
       </div>`).join('');
   }catch(e){}
 }
