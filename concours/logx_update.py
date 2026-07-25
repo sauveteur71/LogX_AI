@@ -61,6 +61,18 @@ avec internet absent ou dégradé sur le poste qui a besoin de la mise à jour.
   contact direct avec GitHub (aucune référence locale) voit donc les deux
   chemins réseau REFUSÉS explicitement, avec un message clair — jamais un
   repli silencieux sur la confiance aveugle envers le pair/la passerelle.
+
+  « Même ancien » vaut Y COMPRIS après un redémarrage de l'exécutable
+  (coupure secteur, déplacement du poste — routinier en DXpédition) : la
+  référence {tag, asset_sha256, asset_size} est PERSISTÉE sur disque à chaque
+  contact GitHub réussi (_save_reference, dans user_data_dir()/update/ comme
+  les téléchargements du module) et rechargée en secours par
+  start_download_via_network quand le cache mémoire du processus est vide
+  (_load_persisted_reference). Sans cette persistance, la fenêtre
+  d'utilisabilité réelle de B/C se réduisait à « contact GitHub réussi plus
+  tôt dans le MÊME run de processus » — un simple restart de LogXAI.exe
+  ramenait un poste sans internet au refus « jamais contacté », contredisant
+  le compromis documenté ci-dessus.
 """
 import hashlib
 import ipaddress
@@ -226,6 +238,77 @@ def _build_result(data):
     }
 
 
+def _reference_path():
+    """Fichier de persistance de la référence de mise à jour réseau —
+    recalculé à chaque appel (jamais figé à l'import) : user_data_dir() peut
+    être redirigé par les tests, et le sous-dossier 'update' est le même que
+    celui des téléchargements du module."""
+    return os.path.join(user_data_dir(), 'update', 'update_reference.json')
+
+
+def _save_reference(result):
+    """Persiste sur disque la référence {tag, asset_sha256, asset_size} issue
+    d'un contact DIRECT réussi avec l'API GitHub — pour qu'elle survive à un
+    redémarrage du processus (voir docstring du module : « même ancien » doit
+    valoir y compris après un restart de LogXAI.exe, pas seulement dans le
+    même run). Écriture atomique (tmp + os.replace) : jamais un fichier
+    tronqué lisible par un prochain démarrage. Un résultat SANS digest
+    exploitable n'écrase JAMAIS une bonne référence antérieure (un digest de
+    release publiée est stable indéfiniment — mieux vaut une référence
+    ancienne complète que rien). Ne lève jamais : un échec disque ne doit pas
+    casser la vérification de version elle-même."""
+    tag = str(result.get('tag') or '').strip()
+    sha = str(result.get('asset_sha256') or '').strip()
+    if not tag or not sha:
+        return
+    path = _reference_path()
+    tmp = path + '.tmp'
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump({'tag': tag, 'asset_sha256': sha,
+                       'asset_size': int(result.get('asset_size') or 0),
+                       'saved_ts': time.time()}, f)
+        os.replace(tmp, path)
+    except Exception as e:
+        print(f"[UPDATE] Persistance de la référence impossible : {e}")
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+
+
+def _load_persisted_reference():
+    """Relit la référence écrite par _save_reference lors d'une session
+    ANTÉRIEURE. Renvoie {'tag', 'asset_sha256', 'asset_size'} ou None si
+    absente/corrompue. Validation défensive du contenu (fichier sur disque,
+    modifiable hors du programme) : le tag doit passer _TAG_RE — il finit
+    dans l'URL de relais reconstruite (voir resolve_relay_asset côté
+    passerelle, défense en profondeur ici aussi) — et l'empreinte doit être
+    exactement 64 hex minuscules, comme _parse_digest l'exige d'un digest
+    GitHub. Tout contenu douteux est traité comme ABSENT (refus sûr en aval),
+    jamais comme une référence de confiance."""
+    try:
+        with open(_reference_path(), 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    tag = str(data.get('tag') or '').strip()
+    sha = str(data.get('asset_sha256') or '').strip().lower()
+    if not _TAG_RE.match(tag):
+        return None
+    if len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha):
+        return None
+    try:
+        size = max(0, int(data.get('asset_size') or 0))
+    except (TypeError, ValueError):
+        size = 0
+    return {'tag': tag, 'asset_sha256': sha, 'asset_size': size}
+
+
 def _refresh(force=False):
     global _checking
     with _lock:
@@ -246,6 +329,10 @@ def _refresh(force=False):
             _cache['result'] = result
             _cache['ts'] = time.time()
         _checking = False
+    if result:
+        # Hors du verrou (I/O disque) et déjà dans un thread de fond, jamais
+        # le thread HTTP : la référence survit désormais aux redémarrages.
+        _save_reference(result)
 
 
 def get_cached_check(force=False):
@@ -607,6 +694,22 @@ def start_download_via_network(mode, ips, known_lan_ips=None):
     check = get_cached_check()
     ref_sha = check.get('asset_sha256') or ''
     ref_tag = check.get('tag') or ''
+    ref_size = int(check.get('asset_size') or 0)
+    if not ref_sha or not ref_tag:
+        # Cache mémoire vide — cas d'un processus fraîchement (re)démarré,
+        # routinier en DXpédition (coupure secteur, déplacement du poste) :
+        # la référence a pu être obtenue lors d'une session ANTÉRIEURE et
+        # persistée par _save_reference. La recharger ici honore le compromis
+        # documenté (« même ancien : l'empreinte d'une release publiée ne
+        # change jamais ») — sans ça, un simple restart ramenait tous les
+        # postes sans internet au refus « jamais contacté ». Ça reste bien
+        # SA PROPRE référence (contact direct GitHub antérieur de CE poste),
+        # jamais une donnée fournie par la passerelle ou le pair.
+        persisted = _load_persisted_reference()
+        if persisted:
+            ref_sha = persisted['asset_sha256']
+            ref_tag = persisted['tag']
+            ref_size = persisted['asset_size']
     if not ref_sha or not ref_tag:
         return False, (
             "Ce poste n'a jamais réussi à vérifier une version directement "
@@ -623,7 +726,9 @@ def start_download_via_network(mode, ips, known_lan_ips=None):
             return False, 'Un téléchargement est déjà en cours.'
         _download.update(status='downloading', pct=0, error='', path='',
                           verified=False, sha256='', version='', via=mode, via_peer='')
-    ref_size = int(check.get('asset_size') or 0)
+    # ref_size est calculé en tête (cache mémoire, sinon référence persistée
+    # d'une session antérieure) — jamais réécrasé ici depuis `check`, qui est
+    # vide après un redémarrage.
     platform = _platform_key()
     known_lan_ips = [str(ip).strip() for ip in (known_lan_ips or []) if str(ip).strip()]
     threading.Thread(target=_do_download_via_network,

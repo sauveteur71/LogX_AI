@@ -363,10 +363,15 @@ def test_gateway_indisponible_bascule_pas_automatiquement(fake_gateway):
     assert st['status'] == 'error'
 
 
-def test_start_download_via_network_refuse_sans_reference_locale(fake_gateway):
+def test_start_download_via_network_refuse_sans_reference_locale(fake_gateway, monkeypatch):
     """Ce poste n'a JAMAIS contacté GitHub avec succès (aucune référence
-    locale) : refus IMMÉDIAT, sans même sonder le réseau (voir _cache resté
-    à {'ts': 0, 'result': None} via la fixture d'isolation)."""
+    locale, ni en mémoire — _cache resté à {'ts': 0, 'result': None} via la
+    fixture d'isolation — ni persistée sur disque — user_data_dir() redirigé
+    vers un tmp_path vierge) : refus IMMÉDIAT, sans même sonder le réseau.
+    _checking forcé : le cache vide déclencherait sinon un VRAI _refresh de
+    fond (contact GitHub réel + écriture d'une référence persistée hors du
+    tmp_path une fois le monkeypatch restauré)."""
+    monkeypatch.setattr(upd, '_checking', True)
     ok, err = upd.start_download_via_network('gateway', ['127.0.0.1'])
     assert ok is False
     assert upd.get_download_status()['status'] == 'idle'
@@ -694,7 +699,10 @@ def test_http_update_network_scan_sans_ip(server):
     assert d['gateways'] == [] and d['peers'] == []
 
 
-def test_http_update_download_via_network_refuse_sans_reference(server):
+def test_http_update_download_via_network_refuse_sans_reference(server, monkeypatch):
+    # _checking forcé : même raison que test_start_download_via_network_
+    # refuse_sans_reference_locale (jamais de vrai _refresh de fond en test).
+    monkeypatch.setattr(upd, '_checking', True)
     upd._cache.update({'ts': 0, 'result': None})
     code, d = _post(server, '/app/update_download_via_network',
                      {'mode': 'gateway', 'ips': ['127.0.0.1']})
@@ -1217,3 +1225,136 @@ def test_http_scenario_dxpedition_auto_decouverte_corrigee(server, monkeypatch):
     finally:
         srv.shutdown()
         t.join(timeout=5)
+
+
+# ═══ Défaut corrigé : la référence locale ne survivait pas au redémarrage ════
+# La docstring du module (et le commit d'origine) promettent que le poste
+# receveur s'appuie sur SA référence obtenue par un contact direct ANTÉRIEUR
+# avec GitHub, « même périmé en fraîcheur — un digest de release publiée est
+# stable indéfiniment ». Or cette référence ne vivait que dans le dict
+# module-level _cache, jamais persisté : après un simple redémarrage de
+# LogXAI.exe (coupure secteur, déplacement du poste — routinier en
+# DXpédition), un poste sans internet retombait sur le refus « jamais
+# contacté GitHub » alors qu'il avait bien une référence la session
+# précédente. Correctif : _save_reference (appelé par _refresh à chaque
+# contact réussi, écriture atomique dans user_data_dir()/update/) +
+# _load_persisted_reference (rechargé en secours par
+# start_download_via_network quand le cache mémoire est vide).
+# Le « redémarrage » est simulé exactement comme un processus frais : _cache
+# remis à {'ts': 0, 'result': None} (l'état initial du module) tandis que
+# user_data_dir() (tmp_path, fixture d'isolation) est conservé — c'est le
+# disque, pas la mémoire, qui doit porter la référence.
+
+def _fake_release(tag, asset_bytes, platform='win'):
+    """Payload minimal de l'API GitHub Releases pour le tag+contenu donnés —
+    même schéma de nom d'asset que _build_result."""
+    suffix, ext = upd._ASSET_SUFFIX_BY_PLATFORM[platform]
+    return {
+        'tag_name': tag, 'html_url': '', 'body': '',
+        'assets': [{'name': f'LogXAI-{tag}{suffix}{ext}',
+                    'browser_download_url': f'https://x/LogXAI-{tag}{suffix}{ext}',
+                    'size': len(asset_bytes),
+                    'digest': f'sha256:{_sha256(asset_bytes)}'}],
+    }
+
+
+def test_reference_locale_survit_au_redemarrage_du_processus(monkeypatch):
+    """LE test de non-régression du défaut : session 1 = contact direct
+    GitHub réussi (via _refresh, le vrai chemin de production — pas une
+    écriture directe du fichier, qui passerait même sans le correctif côté
+    _refresh) ; session 2 = processus frais (cache mémoire vierge), la garde
+    de référence de start_download_via_network doit PASSER grâce à la
+    référence persistée. Preuve du franchissement SANS aucun réseau (même
+    sonde que la revue adversariale) : _download préréglé à 'downloading',
+    donc un franchissement de la garde répond « déjà en cours » — situé
+    APRÈS elle — au lieu du refus « jamais réussi »."""
+    asset = b'asset-de-la-session-precedente' * 50
+    monkeypatch.setattr(upd, '_platform_key', lambda: 'win')
+    monkeypatch.setattr(upd, '_fetch_latest_release',
+                         lambda: _fake_release('v7.7', asset))
+    upd._refresh(force=True)  # session 1 : contact direct réussi -> persistance
+    assert upd._cache['result']['asset_sha256'] == _sha256(asset)
+
+    # ── Redémarrage simulé : mémoire du processus perdue, disque conservé ──
+    monkeypatch.setattr(upd, '_cache', {'ts': 0, 'result': None})
+    monkeypatch.setattr(upd, '_checking', True)  # aucun thread de refresh réel
+    monkeypatch.setattr(upd, '_download', dict(upd._download, status='downloading'))
+
+    ok, err = upd.start_download_via_network('gateway', ['192.0.2.1'])
+    assert ok is False
+    assert 'jamais réussi' not in err, (
+        "après un simple redémarrage, le poste est retraité comme « jamais "
+        f"contacté GitHub » : la référence n'a pas survécu ({err!r})")
+    assert 'cours' in err  # la garde de référence a bien été franchie
+
+
+def test_reference_persistee_transmise_au_telechargement(monkeypatch):
+    """Le secours disque ne doit pas seulement franchir la garde : c'est bien
+    LA référence persistée (tag + sha + taille de la session 1) qui doit être
+    transmise au thread de téléchargement — jamais une valeur vide."""
+    asset = b'contenu-verifie-en-session-1' * 40
+    monkeypatch.setattr(upd, '_platform_key', lambda: 'win')
+    monkeypatch.setattr(upd, '_fetch_latest_release',
+                         lambda: _fake_release('v8.8', asset))
+    upd._refresh(force=True)
+
+    monkeypatch.setattr(upd, '_cache', {'ts': 0, 'result': None})
+    monkeypatch.setattr(upd, '_checking', True)
+    captured = {}
+
+    def _capture(target=None, args=(), daemon=None):
+        captured['args'] = args
+        return type('T', (), {'start': lambda self: None})()
+
+    monkeypatch.setattr(upd.threading, 'Thread', _capture)
+    ok, err = upd.start_download_via_network('gateway', ['192.0.2.1'])
+    assert ok is True, err
+    mode, ips, ref_tag, platform, ref_sha, ref_size, known = captured['args']
+    assert ref_tag == 'v8.8'
+    assert ref_sha == _sha256(asset)
+    assert ref_size == len(asset)
+
+
+def test_reference_persistee_corrompue_refusee(monkeypatch, tmp_path):
+    """Défense en profondeur : un fichier de référence corrompu (JSON cassé,
+    tag hors _TAG_RE — il finit dans une URL de relais —, sha non-hex) est
+    traité comme ABSENT : refus sûr, jamais une confiance sur du contenu
+    douteux."""
+    monkeypatch.setattr(upd, '_checking', True)
+    ref_path = upd._reference_path()
+    os.makedirs(os.path.dirname(ref_path), exist_ok=True)
+    for garbage in (
+            b'pas du json du tout {',
+            json.dumps({'tag': '; rm -rf /', 'asset_sha256': 'a' * 64,
+                        'asset_size': 1}).encode(),
+            json.dumps({'tag': 'v1.0', 'asset_sha256': 'zz' * 32,
+                        'asset_size': 1}).encode(),
+            json.dumps(['pas', 'un', 'objet']).encode()):
+        with open(ref_path, 'wb') as f:
+            f.write(garbage)
+        assert upd._load_persisted_reference() is None, garbage
+        ok, err = upd.start_download_via_network('gateway', ['192.0.2.1'])
+        assert ok is False
+        assert 'jamais réussi' in err
+
+
+def test_reference_sans_digest_necrase_pas_la_bonne(monkeypatch):
+    """Une vérification réussie dont l'asset n'expose PAS de digest (champ
+    absent côté API) ne doit JAMAIS écraser une bonne référence persistée
+    antérieure : un digest de release publiée est stable indéfiniment, mieux
+    vaut une référence ancienne complète que rien."""
+    asset = b'release-avec-digest' * 30
+    monkeypatch.setattr(upd, '_platform_key', lambda: 'win')
+    monkeypatch.setattr(upd, '_fetch_latest_release',
+                         lambda: _fake_release('v5.5', asset))
+    upd._refresh(force=True)
+
+    sans_digest = _fake_release('v6.0', b'nouvelle-release')
+    del sans_digest['assets'][0]['digest']
+    monkeypatch.setattr(upd, '_fetch_latest_release', lambda: sans_digest)
+    upd._refresh(force=True)
+
+    ref = upd._load_persisted_reference()
+    assert ref is not None, "la bonne référence antérieure a été perdue"
+    assert ref['tag'] == 'v5.5'
+    assert ref['asset_sha256'] == _sha256(asset)
