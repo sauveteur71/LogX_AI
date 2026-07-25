@@ -3224,7 +3224,13 @@
     if (TITLE_ORIG === null || (TITLE_OUT !== null && TITLE_OUT !== document.title)) {
       TITLE_ORIG = document.title;
     }
-    const raw = TITLE_ORIG;
+    // Coercition en chaîne AVANT tout appel de méthode : translateTitle() est
+    // appelée par applyLang()/init(), et une exception ici ferait avorter TOUTE
+    // la passe de traduction — la page resterait intégralement en français,
+    // pour un simple titre absent. Un document sans titre exploitable n'est pas
+    // qu'une hypothèse de test : les fenêtres détachées (logx_panel.html) et
+    // tout contexte DOM minimal peuvent en fournir un vide ou indéfini.
+    const raw = (TITLE_ORIG === null || TITLE_ORIG === undefined) ? '' : String(TITLE_ORIG);
     const key = raw.trim();
     let out = raw;                       // dict vide / clé absente → français
     if (dict[key] !== undefined) {

@@ -115,6 +115,12 @@ Object.defineProperty(localStorage, 'length', {get:function(){ return Object.key
 
 var document = {
   readyState: 'complete',
+  // Un vrai document a TOUJOURS un titre (chaine, vide au pire) : l'omettre
+  // rendait ce faux DOM infidele, et translateTitle() — appelee par init() —
+  // levait alors une exception qui faisait avorter toute la passe de
+  // traduction, faisant echouer les 6 tests de ce fichier pour une raison
+  // etrangere a ce qu'ils verifient.
+  title: 'LogX AI — Test',
   documentElement: makeEl('html'),
   body: makeEl('body'),
   createElement: function(tag){ return makeEl(tag); },
@@ -370,3 +376,55 @@ def test_option_text_est_traduit_par_walk():
     ctx.eval(_real_source())   # init() tourne immédiatement (readyState = 'complete')
     assert ctx.eval("opt.childNodes[0].nodeValue") == 'Rules', (
         "le texte d'un <option> doit être traduit comme un nœud texte ordinaire")
+
+
+# ─── 3) Traduction du titre de l'onglet (translateTitle) ────────────────────
+# Fonctionnalite livree SANS aucun test : elle a fait echouer les 6 tests
+# ci-dessus (translateTitle() appelee par init() levait une exception sur un
+# document sans titre, ce qui faisait avorter TOUTE la passe de traduction).
+# Le defaut n'etait pas dans ce qu'elle traduit, mais dans sa capacite a
+# casser tout le reste — c'est donc surtout ca qu'on fige ici.
+
+def test_titre_traduit_via_le_suffixe_apres_le_separateur():
+    """Les pages s'intitulent « LogX AI — <section> » : c'est le suffixe apres
+    le tiret cadratin qui porte le sens et doit etre traduit, la marque
+    restant intacte."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    localStorage.setItem('rc_lang', 'en');
+    document.title = 'LogX AI — Règlement';
+    """)
+    ctx.eval(_real_source())
+    assert ctx.eval('document.title') == 'LogX AI — Rules', (
+        'le suffixe du titre doit etre traduit, la marque conservee')
+
+
+def test_titre_absent_ne_casse_pas_la_traduction_de_la_page():
+    """LE garde-fou : un document sans titre exploitable ne doit JAMAIS
+    interrompre la passe de traduction. translateTitle() est appelee par
+    init() ; si elle leve, plus une seule chaine de la page n'est traduite —
+    l'utilisateur voit une interface entierement en francais sans le moindre
+    message d'erreur. C'est exactement ce qui s'est produit."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    localStorage.setItem('rc_lang', 'en');
+    delete document.title;               // document minimal : aucun titre
+    var p = document.createElement('p');
+    p.textContent = 'Règlement';         // cle connue du dictionnaire
+    document.body.appendChild(p);
+    """)
+    ctx.eval(_real_source())             # ne doit PAS lever
+    assert ctx.eval('p.childNodes[0].nodeValue') == 'Rules', (
+        "un titre absent a fait avorter la traduction du reste de la page")
+
+
+def test_titre_sans_correspondance_reste_inchange():
+    """Non-regression inverse : un titre dont rien ne correspond au
+    dictionnaire doit rester tel quel, pas devenir vide."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    localStorage.setItem('rc_lang', 'en');
+    document.title = 'Titre sans correspondance possible';
+    """)
+    ctx.eval(_real_source())
+    assert ctx.eval('document.title') == 'Titre sans correspondance possible'
