@@ -2578,9 +2578,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # serveur (disjoncteur callbook, échecs solaires consécutifs, dernier
         # échec Cloud Sync) mais restaient invisibles en dehors des print()
         # console — l'opérateur ne savait jamais pourquoi une fiche indicatif
-        # ou la météo solaire ne se rafraîchissait plus. Lecture seule, sans
-        # aucun appel réseau ici (juste l'état déjà calculé en mémoire) :
-        # pollable à intervalle rapproché sans coût.
+        # ou la météo solaire ne se rafraîchissait plus. Lecture seule :
+        # callbook et solaire rendent l'état déjà calculé en mémoire ;
+        # cs.status() touche le dossier de sync (isdir + glob) mais avec une
+        # attente BORNÉE (STATUS_SCAN_TIMEOUT + cache, logx_cloudsync.py) —
+        # sans cette borne, un NAS/partage SMB injoignable gelait CE thread
+        # ~21 s à chaque poll (timeout SMB Windows), précisément le cas que
+        # la pastille doit signaler. Pollable à intervalle rapproché.
         if path == '/data/network_status':
             import logx_callbook as callbook
             import logx_cloudsync as cs

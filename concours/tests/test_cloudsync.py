@@ -154,6 +154,73 @@ def test_sync_now_borne_si_dossier_cloud_bloque_indefiniment(monkeypatch, tmp_pa
     assert elapsed < 4  # bien avant les cs.SYNC_TIMEOUT+5 s du blocage simulé
 
 
+def test_status_borne_si_dossier_cloud_bloque_indefiniment(monkeypatch, tmp_path):
+    """GET /data/network_status (pollé toutes les 20 s par la barre de statut
+    de CHAQUE page ouverte, logx_statusbar.js) appelle status() dans le thread
+    de la requête HTTP. Si le dossier de sync est un partage SMB/NAS
+    injoignable, os.path.isdir() y bloque ~21 s (timeout SMB Windows) SANS
+    lever d'exception — exactement le blocage déjà couvert pour sync_now par
+    SYNC_TIMEOUT. status() doit rendre la main en STATUS_SCAN_TIMEOUT maxi
+    (valeur en cache, sinon 0) au lieu de geler un thread serveur à chaque
+    poll, précisément quand la pastille « Cloud Sync en échec » serait utile."""
+    import threading
+    import time
+    release = threading.Event()
+    real_isdir = os.path.isdir
+
+    def hung_isdir(path):
+        if os.path.abspath(str(path)) == os.path.abspath(str(tmp_path)):
+            release.wait(15)   # seul le dossier de sync « SMB » bloque
+            return False
+        return real_isdir(path)
+
+    monkeypatch.setattr(cs.os.path, 'isdir', hung_isdir)
+    # raising=False : sans le correctif la constante n'existe pas encore —
+    # on veut alors exercer le vrai chemin bloquant, pas un AttributeError.
+    monkeypatch.setattr(cs, 'STATUS_SCAN_TIMEOUT', 1, raising=False)
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path), 'callsign_contest': 'F4GLD'}
+    try:
+        t0 = time.time()
+        st = cs.status(cfg)
+        elapsed = time.time() - t0
+    finally:
+        release.set()   # libère le thread de scan abandonné avant le test suivant
+    assert elapsed < 5  # bien avant les 15 s du blocage SMB simulé
+    assert st['other_installations'] == 0  # aucune valeur connue -> 0, pas de gel
+
+
+def test_status_rend_la_derniere_valeur_connue_quand_le_scan_bloque(monkeypatch, tmp_path):
+    """Pendant un blocage SMB, les polls suivants doivent recevoir le DERNIER
+    comptage complet connu (cache mémoire), pas un 0 mensonger qui ferait
+    croire que les autres postes ont disparu."""
+    import threading
+    import time
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path), 'callsign_contest': 'F4GLD'}
+    (tmp_path / 'logx_cloudsync_G3XYZ_abcd1234.json').write_text(
+        json.dumps([QSO_B]), encoding='utf-8')
+    assert cs.status(cfg)['other_installations'] == 1  # cache chauffé, dossier sain
+
+    release = threading.Event()
+    real_isdir = os.path.isdir
+
+    def hung_isdir(path):
+        if os.path.abspath(str(path)) == os.path.abspath(str(tmp_path)):
+            release.wait(15)
+            return False
+        return real_isdir(path)
+
+    monkeypatch.setattr(cs.os.path, 'isdir', hung_isdir)
+    monkeypatch.setattr(cs, 'STATUS_SCAN_TIMEOUT', 1, raising=False)
+    try:
+        t0 = time.time()
+        st = cs.status(cfg)
+        elapsed = time.time() - t0
+    finally:
+        release.set()
+    assert elapsed < 5
+    assert st['other_installations'] == 1  # cache, pas 0
+
+
 def test_last_error_disparait_quand_on_desactive_cloudsync(tmp_path):
     """Revue adversariale : un échec avec Cloud Sync activé ne doit plus
     jamais réapparaître une fois l'utilisateur repassé en mode='off'."""

@@ -27,6 +27,7 @@ import glob
 import json
 import os
 import re
+import threading
 import time
 import concurrent.futures as _cf
 
@@ -213,6 +214,81 @@ def _stamp(folder, pushed, pulled, sources):
         pass
 
 
+# status() est devenu un chemin CHAUD avec GET /data/network_status (pollé
+# toutes les 20 s par la barre de statut de CHAQUE page ouverte,
+# logx_statusbar.js) : son comptage des autres installations (os.path.isdir +
+# glob sur le dossier de sync) est la même I/O non bornée que celle qui a valu
+# SYNC_TIMEOUT à sync_now. Sur un partage SMB/NAS injoignable — le cas EXACT
+# que la pastille est censée signaler — os.path.isdir() bloque ~21 s (timeout
+# SMB Windows, mesuré) dans le thread de la requête HTTP, et se re-déclenche
+# à chaque poll dès que le cache négatif SMB expire : threads serveur gelés en
+# continu (ThreadingHTTPServer sans plafond) précisément quand l'indicateur
+# serait utile. Attention : cloudsync_settings() replie folder sur
+# backup_folder, donc cette I/O s'exécute MÊME avec cloudsync_mode='off' si un
+# dossier de sauvegarde NAS est configuré. Protection en deux volets :
+#   - attente COURTE (STATUS_SCAN_TIMEOUT, pas SYNC_TIMEOUT) : une pastille
+#     peut être en retard de quelques secondes, pas geler une requête 21 s ;
+#   - vol unique + cache mémoire : un seul scan en cours par dossier ; si le
+#     scan dépasse la borne, on répond la dernière valeur COMPLÈTE connue (ou
+#     0) au lieu d'empiler un nouveau thread bloqué à chaque poll.
+STATUS_SCAN_TIMEOUT = 2
+_SCAN_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=1, thread_name_prefix='cloudsync-scan')
+_scan_lock = threading.Lock()
+_scan_cache = {'key': None, 'count': 0}       # dernier comptage COMPLET connu
+_scan_flight = {'key': None, 'future': None}  # scan actuellement en vol
+
+
+def _count_other_installations(folder, my_file):
+    """Comptage BLOQUANT des fichiers de sync écrits par d'autres postes —
+    exécuté uniquement dans _SCAN_EXECUTOR, jamais dans le thread d'une
+    requête HTTP (voir commentaire STATUS_SCAN_TIMEOUT ci-dessus)."""
+    if not (folder and os.path.isdir(folder)):
+        return 0
+    pattern = os.path.join(folder, SYNC_PREFIX + '*.json')
+    my_path = os.path.join(folder, my_file or '')
+    return sum(1 for p in glob.glob(pattern) if os.path.abspath(p) != os.path.abspath(my_path))
+
+
+def _memorise_scan(fut, key):
+    """Un scan abandonné par timeout finit quand même son travail tout seul :
+    sa valeur nourrit le cache pour les polls suivants."""
+    try:
+        c = fut.result()
+    except Exception:
+        return
+    with _scan_lock:
+        _scan_cache['key'] = key
+        _scan_cache['count'] = c
+
+
+def _other_installations_bounded(s):
+    """Version à attente bornée de _count_other_installations pour status()."""
+    folder = s.get('folder') or ''
+    if not folder:
+        return 0
+    key = (folder, s.get('my_file', ''))
+    submitted = False
+    with _scan_lock:
+        fut = _scan_flight['future']
+        if fut is None or fut.done() or _scan_flight['key'] != key:
+            fut = _SCAN_EXECUTOR.submit(_count_other_installations, folder, s.get('my_file', ''))
+            _scan_flight['future'] = fut
+            _scan_flight['key'] = key
+            submitted = True
+    if submitted:
+        # Hors du verrou : si le futur est déjà terminé, le callback s'exécute
+        # immédiatement dans CE thread — sous _scan_lock ce serait un deadlock
+        # (Lock non réentrant, _memorise_scan le reprend).
+        fut.add_done_callback(lambda f, key=key: _memorise_scan(f, key))
+    try:
+        return fut.result(timeout=STATUS_SCAN_TIMEOUT)
+    except Exception:
+        with _scan_lock:
+            if _scan_cache['key'] == key:
+                return _scan_cache['count']
+        return 0
+
+
 def status(cfg=None):
     s = cloudsync_settings(cfg) if cfg is not None else {}
     last = {}
@@ -222,11 +298,11 @@ def status(cfg=None):
                 last = json.load(f) or {}
     except Exception:
         pass
-    other_sources = 0
-    if s.get('folder') and os.path.isdir(s['folder']):
-        pattern = os.path.join(s['folder'], SYNC_PREFIX + '*.json')
-        my_path = os.path.join(s['folder'], s.get('my_file', ''))
-        other_sources = sum(1 for p in glob.glob(pattern) if os.path.abspath(p) != os.path.abspath(my_path))
+    # I/O disque sur le dossier de sync à attente BORNÉE (voir
+    # STATUS_SCAN_TIMEOUT ci-dessus) : status() tourne dans le thread des
+    # requêtes HTTP et ne doit jamais rester suspendu au timeout SMB d'un
+    # NAS tombé, sous peine de geler les pages qui le pollent.
+    other_sources = _other_installations_bounded(s)
     # last_error n'est réaffiché que si : Cloud Sync est actuellement activé
     # ET la config actuelle (dossier + mode) est EXACTEMENT celle qui a
     # produit cet échec. Toute désactivation (mode='off') ou tout changement
