@@ -1476,3 +1476,173 @@ def test_move_reel_via_cmd_detache_chemin_accentue(monkeypatch, tmp_path, dirnam
     assert old.read_bytes() == b'NEW BINARY', (
         'move /Y jamais abouti — chemins mojibakés dans le .bat ?')
     assert not new.exists(), 'le nouvel exécutable n a jamais été déplacé'
+
+
+# ═══ Défaut corrigé : pair d'une AUTRE plateforme/version proposé et téléchargé ═
+# Le chemin C n'a aucune négociation de plateforme ni de version : le pair sert
+# TOUJOURS son propre fichier (_download['path'], l'asset de SA plateforme dans
+# SA version) via /app/update_serve, sans paramètre — contrairement au chemin B
+# qui transmet tag+platform à resolve_relay_asset. Or scan_network_candidates()
+# et _do_download_via_network mode='peer' ne regardaient QUE
+# status.get('available') : jamais le sha256/size pourtant déjà exposés par
+# serve_status() du pair. Conséquences dans le scénario exact du docstring du
+# module (DXpédition multi-op OS mixte, internet dégradé) : un receveur
+# macOS/Linux avec un pair Windows (ou même OS mais versions différentes) se
+# voyait proposer un « pair vérifié » (logx_logbook.js), téléchargeait
+# l'exécutable EN ENTIER (dizaines de Mo sur lien dégradé) puis le rejetait
+# SYSTÉMATIQUEMENT avec un message évoquant une altération (« empreinte SHA-256
+# ne correspond pas ») — le secours ne pouvait JAMAIS réussir. Correctif :
+# _peer_asset_mismatch (comparaison GRATUITE des sha256/size annoncés à la
+# référence GitHub locale) appliqué dans scan_network_candidates() ET avant le
+# GET /app/update_serve. L'intégrité n'a jamais été en cause (le hash local
+# protégeait déjà) : c'est le gaspillage + le message trompeur qui sont corrigés.
+
+class _FakeWrongAssetPeerHandler(http.server.BaseHTTPRequestHandler):
+    """Pair honnête mais d'une AUTRE plateforme/version : serve_status annonce
+    fidèlement (sha256/size/version) l'asset qu'il a réellement — qui n'est
+    PAS celui que le receveur attend. Compte les GET /app/update_serve reçus
+    pour PROUVER qu'aucun octet d'exécutable n'a transité (pas seulement que
+    le résultat final est un refus — une régression pourrait re-télécharger
+    en entier tout en finissant quand même en erreur, comme avant)."""
+    asset_bytes = b'executable-windows-du-pair' * 10000  # 260 000 o
+    version = 'v9.9'
+    serve_hits = []
+
+    def log_message(self, fmt, *a):
+        pass
+
+    def _send(self, code, ctype, body):
+        self.send_response(code)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == '/app/update_serve_status':
+            self._send(200, 'application/json', json.dumps({
+                'available': True, 'sha256': _sha256(self.asset_bytes),
+                'size': len(self.asset_bytes), 'version': self.version}).encode())
+        elif self.path == '/app/update_serve':
+            self.__class__.serve_hits.append(self.path)
+            self._send(200, 'application/octet-stream', self.asset_bytes)
+        else:
+            self._send(404, 'application/json', b'{}')
+
+
+@pytest.fixture
+def fake_wrong_asset_peer(monkeypatch):
+    handler_cls = type('H', (_FakeWrongAssetPeerHandler,), {'serve_hits': []})
+    srv = http.server.HTTPServer(('127.0.0.1', 0), handler_cls)
+    port = srv.server_address[1]
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    monkeypatch.setattr(upd, 'PORT', port)
+    # Pair DISTANT simulé sur la boucle locale (seul moyen pratique sur une
+    # machine) : exclusion de soi-même neutralisée ICI SEULEMENT, comme dans
+    # la section priorité B>C.
+    monkeypatch.setattr(upd, '_is_self_ip', lambda ip: False)
+    try:
+        yield handler_cls
+    finally:
+        srv.shutdown()
+        t.join(timeout=5)
+
+
+def test_scan_pair_autre_plateforme_jamais_propose(fake_wrong_asset_peer, monkeypatch):
+    """Volet IHM du repro exact du rapport : receveur macOS (référence locale
+    = binaire macOS), pair Windows disponible sur le LAN. AVANT correctif :
+    {'gateways': [], 'peers': ['127.0.0.1']} — logx_logbook.js affichait
+    « SECOURS, pair vérifié trouvé » pour un secours qui ne pouvait JAMAIS
+    réussir. APRÈS : jamais proposé."""
+    monkeypatch.setattr(upd, '_platform_key', lambda: 'darwin')
+    _set_local_reference('v9.9', b'binaire-macos-attendu-par-ce-poste' * 8000)
+    assert upd.scan_network_candidates(['127.0.0.1']) == {'gateways': [], 'peers': []}
+
+
+def test_peer_autre_plateforme_ignore_sans_transferer_un_octet(fake_wrong_asset_peer,
+                                                               monkeypatch):
+    """Volet téléchargement : AVANT correctif, les 260 000 octets Windows
+    transitaient EN ENTIER avant le rejet « taille reçue ≠ référence GitHub »
+    (ou, à tailles égales, « empreinte SHA-256 ne correspond pas » — message
+    d'altération trompeur). APRÈS : aucun GET /app/update_serve, message
+    explicite « autre plateforme ou autre version »."""
+    monkeypatch.setattr(upd, '_platform_key', lambda: 'darwin')
+    handler_cls = fake_wrong_asset_peer
+    _set_local_reference('v9.9', b'binaire-macos-attendu-par-ce-poste' * 8000)
+    ok, err = upd.start_download_via_network('peer', ['127.0.0.1'])
+    assert ok, err
+    st = _wait_download_terminal()
+    assert st['status'] == 'error'
+    assert st['verified'] is False
+    assert handler_cls.serve_hits == [], (
+        'des octets d exécutable ont transité alors que le pair annonçait un '
+        'autre asset — pré-filtrage absent ?')
+    assert 'autre plateforme ou autre version' in st['error']
+    assert 'empreinte' not in st['error'].lower()  # plus de message d'altération trompeur
+
+
+def test_peer_meme_taille_autre_contenu_ignore_sans_transfert(fake_wrong_asset_peer):
+    """Variante « à tailles égales » du rapport (même OS, pair resté sur une
+    version antérieure de MÊME taille) : seule l'empreinte diffère — c'était
+    le cas au message le plus trompeur (« empreinte SHA-256 ne correspond
+    pas... rejeté » après transfert complet). Le sha256 annoncé par
+    serve_status() suffit à écarter le pair sans un octet transféré."""
+    handler_cls = fake_wrong_asset_peer
+    autre_contenu_meme_taille = b'x' * len(handler_cls.asset_bytes)
+    _set_local_reference('v9.8', autre_contenu_meme_taille)
+    ok, err = upd.start_download_via_network('peer', ['127.0.0.1'])
+    assert ok, err
+    st = _wait_download_terminal()
+    assert st['status'] == 'error'
+    assert handler_cls.serve_hits == []
+    assert 'autre plateforme ou autre version' in st['error']
+
+
+def test_peer_annoncant_le_bon_asset_toujours_accepte(fake_wrong_asset_peer):
+    """Non-régression du cas nominal : un pair qui annonce EXACTEMENT l'asset
+    attendu (sha/size identiques à la référence locale) reste téléchargé et
+    vérifié — le pré-filtrage n'écarte que les mismatchs PROUVÉS. (Le cas
+    d'un pair qui n'annonce ni sha ni size — réponse partielle — est déjà
+    couvert par test_peer_secours_nominal_telecharge_et_verifie : _FakePeer
+    Handler n'expose que 'available', et le transfert doit alors avoir lieu,
+    vérifié après coup contre la même référence.)"""
+    handler_cls = fake_wrong_asset_peer
+    _set_local_reference('v9.9', handler_cls.asset_bytes)
+    ok, err = upd.start_download_via_network('peer', ['127.0.0.1'])
+    assert ok, err
+    st = _wait_download_terminal()
+    assert st['status'] == 'done'
+    assert st['verified'] is True
+    assert st['via'] == 'peer'
+    assert handler_cls.serve_hits == ['/app/update_serve']
+
+
+def test_scan_sans_reference_locale_comportement_inchange(fake_wrong_asset_peer):
+    """Sans référence locale (jamais de contact direct GitHub), aucune
+    comparaison possible : le scan retient le pair comme avant — c'est le
+    refus explicite « jamais contacté GitHub » de start_download_via_network
+    qui prend le relais, jamais un filtrage silencieux sur une référence
+    inexistante."""
+    assert upd.scan_network_candidates(['127.0.0.1']) == {
+        'gateways': [], 'peers': ['127.0.0.1']}
+
+
+def test_peer_asset_mismatch_unitaire():
+    """_peer_asset_mismatch : mismatch PROUVÉ seulement — un champ absent ou
+    illisible côté pair (réponse partielle/hostile) n'écarte jamais le pair
+    (le hash local vérifie de toute façon après transfert)."""
+    sha_a, sha_b = 'a' * 64, 'b' * 64
+    # Rien d'annoncé : pas de preuve, pas de filtrage.
+    assert upd._peer_asset_mismatch({'available': True}, sha_a, 100) == ''
+    # Annonce exacte : pas de filtrage (casse du hex tolérée).
+    assert upd._peer_asset_mismatch({'sha256': sha_a, 'size': 100}, sha_a, 100) == ''
+    assert upd._peer_asset_mismatch({'sha256': sha_a.upper(), 'size': 100}, sha_a, 100) == ''
+    # Sha différent : filtré, même sans taille.
+    assert 'autre plateforme' in upd._peer_asset_mismatch({'sha256': sha_b}, sha_a, 0)
+    # Sha absent mais taille annoncée différente : filtré aussi.
+    assert 'taille' in upd._peer_asset_mismatch({'size': 260000}, sha_a, 270000)
+    # Donnée hostile non numérique : pas une preuve, pas de filtrage.
+    assert upd._peer_asset_mismatch({'size': 'garbage'}, sha_a, 270000) == ''
+    # Référence locale absente : jamais de filtrage.
+    assert upd._peer_asset_mismatch({'sha256': sha_b, 'size': 1}, '', 0) == ''

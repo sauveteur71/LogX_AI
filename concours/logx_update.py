@@ -546,11 +546,85 @@ def _peer_get_json(ip, path, timeout=3):
         return None
 
 
+def _local_reference():
+    """Référence GitHub LOCALE de CE poste — (tag, sha256, size), issue d'un
+    contact DIRECT antérieur avec l'API GitHub : cache mémoire d'abord
+    (lecture directe de _cache, JAMAIS get_cached_check() ici — pas question
+    de déclencher un rafraîchissement réseau depuis un scan LAN dont la
+    raison d'être est précisément « ce poste n'a pas internet »), sinon la
+    référence persistée d'une session antérieure (_load_persisted_reference,
+    même logique de secours que start_download_via_network). Renvoie
+    ('', '', 0) si ce poste n'a jamais réussi de contact direct."""
+    with _lock:
+        result = dict(_cache['result'] or {})
+    tag = str(result.get('tag') or '').strip()
+    sha = str(result.get('asset_sha256') or '').strip().lower()
+    try:
+        size = max(0, int(result.get('asset_size') or 0))
+    except (TypeError, ValueError):
+        size = 0
+    if not tag or not sha:
+        persisted = _load_persisted_reference()
+        if persisted:
+            return persisted['tag'], persisted['asset_sha256'], persisted['asset_size']
+        return '', '', 0
+    return tag, sha, size
+
+
+def _peer_asset_mismatch(status, ref_sha, ref_size):
+    """Compare ce qu'un pair ANNONCE servir (serve_status() : sha256/size/
+    version) à la référence GitHub LOCALE de ce poste — AVANT le moindre GET
+    de l'exécutable. Renvoie '' si rien ne PROUVE que le pair sert un autre
+    asset, sinon un message explicite (jamais « corrompu/altéré » : ce n'est
+    pas une altération, juste le mauvais asset — autre plateforme ou autre
+    version). Défaut corrigé : le pair sert TOUJOURS son propre fichier
+    (_download['path'], l'asset de SA plateforme dans SA version) sans aucune
+    négociation possible via /app/update_serve — sans ce pré-filtrage, un
+    receveur macOS/Linux avec un pair Windows (ou un pair resté sur une
+    version antérieure) téléchargeait l'exécutable EN ENTIER (dizaines de Mo
+    sur le lien dégradé du scénario DXpédition visé par ce module) avant un
+    rejet CERTAIN, avec un message évoquant une altération. La comparaison
+    est GRATUITE : serve_status() expose déjà ces champs, aucun octet de
+    l'exécutable n'a besoin de transiter pour conclure. Un champ absent côté
+    pair (réponse partielle/hostile) n'est PAS une preuve de mismatch : on
+    laisse alors le transfert se faire — le contenu reçu reste de toute façon
+    haché et vérifié contre la même référence locale après transfert
+    (_do_download_via_network), ce pré-filtrage est une économie de bande
+    passante + un message honnête, jamais LA barrière d'intégrité."""
+    status = status or {}
+    peer_sha = str(status.get('sha256') or '').strip().lower()
+    ref_sha = str(ref_sha or '').strip().lower()
+    if peer_sha and ref_sha and peer_sha != ref_sha:
+        peer_version = str(status.get('version') or '').strip()
+        detail = f" (version annoncée : {peer_version})" if peer_version else ''
+        return ("le pair sert un autre exécutable que celui attendu par ce "
+                f"poste — autre plateforme ou autre version{detail}, ignoré "
+                "sans téléchargement.")
+    try:
+        peer_size = max(0, int(status.get('size') or 0))
+    except (TypeError, ValueError):
+        peer_size = 0
+    try:
+        ref_size = max(0, int(ref_size or 0))
+    except (TypeError, ValueError):
+        ref_size = 0
+    if peer_size and ref_size and peer_size != ref_size:
+        return (f"le pair annonce une taille ({peer_size} o) différente de la "
+                f"référence GitHub locale ({ref_size} o) — autre plateforme ou "
+                "autre version, ignoré sans téléchargement.")
+    return ''
+
+
 def scan_network_candidates(ips):
     """Sonde chaque IP candidate (postes vus via /log/status → peer_list, cf.
     logx_http.peer_versions) pour savoir qui peut servir de PASSERELLE
     (chemin B, prioritaire) et, à défaut, qui a déjà un exécutable vérifié à
-    servir en SECOURS (chemin C). Purement informatif — ne télécharge rien ;
+    servir en SECOURS (chemin C). Un pair n'est retenu que s'il annonce LE
+    BON asset (voir _peer_asset_mismatch : sha256/size de serve_status()
+    comparés à la référence GitHub locale) — sans ce filtre, un pair d'une
+    autre plateforme ou d'une autre version était proposé « pair vérifié »
+    à l'IHM (logx_logbook.js) alors que son téléchargement ne pouvait JAMAIS
+    réussir (rejet certain après transfert complet). Purement informatif — ne télécharge rien ;
     c'est start_download_via_network qui agit, sur un second clic explicite
     de l'opérateur (voir logx_logbook.js). Sondes en parallèle (borné) pour
     rester réactif même avec une dizaine de postes sur le LAN.
@@ -579,7 +653,16 @@ def scan_network_candidates(ips):
     if remaining:
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(remaining))) as ex:
             sv_results = dict(zip(remaining, ex.map(lambda ip: _peer_get_json(ip, '/app/update_serve_status', 2), remaining)))
-        peers = [ip for ip in remaining if sv_results.get(ip) and sv_results[ip].get('available')]
+        # Même pré-filtrage que le téléchargement lui-même (_peer_asset_
+        # mismatch) : un pair qui annonce un AUTRE asset que la référence
+        # locale n'est jamais proposé comme « pair vérifié ». Sans référence
+        # locale (jamais de contact direct GitHub), pas de comparaison
+        # possible : comportement inchangé — le refus explicite « jamais
+        # contacté » de start_download_via_network prend le relais.
+        _tag, ref_sha, ref_size = _local_reference()
+        peers = [ip for ip in remaining
+                 if sv_results.get(ip) and sv_results[ip].get('available')
+                 and not _peer_asset_mismatch(sv_results[ip], ref_sha, ref_size)]
     return {'gateways': gateways, 'peers': peers}
 
 
@@ -787,6 +870,16 @@ def _do_download_via_network(mode, ips, tag, platform, expected_sha256, expected
                 status = _peer_get_json(ip, '/app/update_serve_status', timeout=3)
                 if not status or not status.get('available'):
                     last_err = f'{ip} : aucun exécutable vérifié à servir.'
+                    continue
+                # Pré-filtrage AVANT le GET (voir _peer_asset_mismatch) : le
+                # pair sert toujours l'asset de SA plateforme dans SA version,
+                # sans négociation — s'il annonce (sha256/size) un autre asset
+                # que la référence locale, on l'IGNORE ici, sans transférer un
+                # seul octet de l'exécutable, avec un message qui dit le vrai
+                # problème (mauvais asset) au lieu d'évoquer une altération.
+                mismatch = _peer_asset_mismatch(status, expected_sha256, expected_size)
+                if mismatch:
+                    last_err = f'{ip} : {mismatch}'
                     continue
                 url = f'http://{ip}:{PORT}/app/update_serve'
 
