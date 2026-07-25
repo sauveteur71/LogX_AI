@@ -230,9 +230,21 @@
   // juste un affichage permanent + un lien ancré vers le panneau détaillé.
   // On affiche la bande 20m comme repère (bande d'écoute la plus universelle)
   // et le détail des 5 bandes apparaît dans l'infobulle au survol.
+  // Mutualisation réelle : ce minuteur est le SEUL à interroger /beacons/now.
+  // La réponse est rediffusée via l'événement 'logx:beacons' pour que le
+  // panneau complet de logx_propagation.html s'y abonne au lieu de lancer son
+  // propre poll à 5 s (sinon 2 requêtes identiques toutes les 5 s sur la page
+  // justement destinée à rester ouverte en permanence). Le drapeau est posé
+  // AVANT le 1er fetch : la barre est incluse avant le script de la page, qui
+  // peut donc tester sa présence de façon fiable.
+  window.logxBeaconFeed = true;
   function refreshBeacon(){
     fetch('/beacons/now').then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
+        if (d){
+          try { document.dispatchEvent(new CustomEvent('logx:beacons', { detail: d })); }
+          catch(e){}
+        }
         const el = document.getElementById('rcsbBeacon');
         const item = document.getElementById('rcsbBeaconItem');
         if (!el || !item) return;

@@ -362,12 +362,24 @@ function refreshMufMap(){
 }
 
 // ─── BALISES NCDXF/IBP (rotation 3 min, la balise change toutes les 10 s) ────
+// La barre de statut (logx_statusbar.js) interroge déjà /beacons/now toutes les
+// 5 s pour son badge et rediffuse la réponse via l'événement 'logx:beacons' :
+// le panneau s'y abonne (renderBeacons) au lieu de refaire le même appel. Le
+// fetch local ne sert plus que de repli quand la barre est absente.
+document.addEventListener('logx:beacons', e => renderBeacons(e.detail));
+
 async function loadBeacons(){
   try{
     const r = await fetch('/beacons/now');
     if(!r.ok) return;
-    const d = await r.json();
-    document.getElementById('beaconList').innerHTML = (d.beacons||[]).map(b => `
+    renderBeacons(await r.json());
+  }catch(e){}
+}
+
+function renderBeacons(d){
+  const el = document.getElementById('beaconList');
+  if(!el || !d) return;
+  el.innerHTML = ((d && d.beacons)||[]).map(b => `
       <div class="bc-row">
         <span class="bc-name" style="width:52px">${b.band}</span>
         <span style="color:var(--accent2);width:70px">${b.freq_khz.toFixed(3)}</span>
@@ -375,7 +387,6 @@ async function loadBeacons(){
         <span style="color:var(--muted);flex:1">${b.qth}</span>
         ${b.bearing!=null ? `<span style="color:var(--accent)">${b.bearing}° ${b.cardinal}</span>` : ''}
       </div>`).join('');
-  }catch(e){}
 }
 
 // ─── PSK REPORTER : où mon signal est décodé (carte d'ouverture) ─────────────
@@ -621,7 +632,6 @@ function locatorToLatLon(loc){
 
 loadPropagation();
 refreshMufMap();
-loadBeacons();
 loadPSK();
 loadTropo();
 loadMeteors();
@@ -631,7 +641,14 @@ loadOpenings();
 loadStationLinks();
 setInterval(loadPropagation, 5 * 60 * 1000);   // solaire : lent (caches 15 min)
 setInterval(refreshMufMap, 15 * 60 * 1000);    // carte MUF externe : jamais plus souvent, cf. commentaire ci-dessus
-setInterval(loadBeacons, 5 * 1000);            // balises : changent toutes les 10 s
+// Balises : PAS de minuteur local. logx_statusbar.js poll déjà /beacons/now
+// toutes les 5 s pour son badge et rediffuse la réponse ('logx:beacons'), à
+// laquelle renderBeacons() est abonné. Repli seulement si la barre est absente
+// (page ouverte sans elle), sinon la page ferait 2 fois le même appel.
+if (!window.logxBeaconFeed){
+  loadBeacons();
+  setInterval(loadBeacons, 5 * 1000);          // balises : changent toutes les 10 s
+}
 setInterval(loadPSK, 3 * 60 * 1000);           // PSK Reporter : cache serveur 3 min
 setInterval(loadTropo, 20 * 60 * 1000);        // tropo : cache 20 min
 setInterval(loadEme, 5 * 60 * 1000);           // EME : position lunaire, évolue lentement
