@@ -19,6 +19,41 @@ import glob
 KEEP = 20                 # nombre de sauvegardes conservées
 
 
+def _copy_atomic(src, dst):
+    """Copie via un .tmp puis os.replace (même motif que save_json_atomic de
+    logx_storage) : un arrêt en pleine copie — fermeture de l'appli (le thread
+    backup est daemon), arrêt Windows — ne peut plus laisser un fichier
+    TRONQUÉ sous un nom de sauvegarde légitime, qui deviendrait « la
+    sauvegarde la plus récente » et repousserait un bon backup vers la
+    limite de rétention KEEP."""
+    tmp = dst + '.tmp'
+    try:
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dst)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _write_atomic(dst, text, newline=None):
+    """Écriture texte ATOMIQUE (.tmp + os.replace) — même raison que
+    _copy_atomic : jamais de backup tronqué portant un nom légitime."""
+    tmp = dst + '.tmp'
+    try:
+        with open(tmp, 'w', encoding='utf-8', newline=newline) as f:
+            f.write(text)
+        os.replace(tmp, dst)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def backup_settings(cfg):
     cfg = cfg or {}
     return {
@@ -46,20 +81,29 @@ def run_backup(cfg, shared_log=None):
     base = f'logx_{_safe(call)}_{stamp}'
     written = []
     try:
-        # 1) SQLite (source de vérité) si présent
+        # 1) SQLite (source de vérité) si présent — copie SOUS _db_lock :
+        # save_log_to_disk() (appelé par le thread HTTP à chaque /log/add)
+        # réécrit la base par DELETE FROM qso + INSERT dans une transaction ;
+        # une copie sans verrou tombant dans cette fenêtre capture le fichier
+        # en plein milieu de transaction, SANS son journal de rollback — le
+        # .db sauvegardé peut être corrompu ou vide de QSO, alors que c'est
+        # LE fichier présenté comme source de vérité (et le seul compté par
+        # status() dans backups_kept).
         if os.path.isfile('logx.db'):
+            import logx_storage as storage
             dst = os.path.join(folder, base + '.db')
-            shutil.copy2('logx.db', dst)
+            with storage._db_lock:
+                _copy_atomic('logx.db', dst)
             written.append(os.path.basename(dst))
         # 2) shared_log.json (lisible) ou depuis shared_log en mémoire
         if shared_log is not None:
             dst = os.path.join(folder, base + '.json')
-            with open(dst, 'w', encoding='utf-8') as f:
-                json.dump(list(shared_log), f, ensure_ascii=False, indent=1)
+            _write_atomic(dst, json.dumps(list(shared_log),
+                                          ensure_ascii=False, indent=1))
             written.append(os.path.basename(dst))
         elif os.path.isfile('shared_log.json'):
             dst = os.path.join(folder, base + '.json')
-            shutil.copy2('shared_log.json', dst)
+            _copy_atomic('shared_log.json', dst)
             written.append(os.path.basename(dst))
         # 3) Export ADIF ré-importable partout
         try:
@@ -68,8 +112,7 @@ def run_backup(cfg, shared_log=None):
             if qsos:
                 adif = export.build_adif(qsos, cfg or {})
                 dst = os.path.join(folder, base + '.adi')
-                with open(dst, 'w', encoding='utf-8', newline='') as f:
-                    f.write(adif)
+                _write_atomic(dst, adif, newline='')
                 written.append(os.path.basename(dst))
         except Exception:
             pass
@@ -126,8 +169,7 @@ def _stamp(folder, now, files):
     try:
         data = {'last': now.strftime('%Y-%m-%d %H:%M'), 'folder': folder,
                 'files': files}
-        with open(_STAMP, 'w', encoding='utf-8') as f:
-            json.dump(data, f)
+        _write_atomic(_STAMP, json.dumps(data))
     except Exception:
         pass
 
