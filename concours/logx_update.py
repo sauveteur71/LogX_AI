@@ -41,6 +41,14 @@ avec internet absent ou dégradé sur le poste qui a besoin de la mise à jour.
      (hash SHA-256 validé, voir ci-dessus) le sert à un autre poste via un
      point HTTP dédié, TOUJOURS le même fichier interne (_download['path']),
      jamais un chemin fourni par le client (pas de traversée de répertoire).
+     Priorité B>C RESTREINTE CÔTÉ SERVEUR (pas seulement une convention
+     d'interface côté client) : avant de servir une requête mode='peer',
+     _do_download_via_network sonde elle-même (scan_network_candidates) la
+     liste des candidats — ceux fournis par l'appelant UNIS à ceux que CE
+     serveur a lui-même vus passer sur le LAN (peer_versions, voir logx_
+     http.py, jamais une donnée fournie par le client) — et REFUSE le
+     secours pair-à-pair si l'un d'eux répond disponible comme passerelle,
+     même pour un appel HTTP direct qui contournerait l'IHM cliente.
 
   Compromis de sécurité (documenté aussi dans le commit) : dans LES DEUX cas,
   le poste RECEVEUR doit déjà posséder sa PROPRE référence de hash (obtenue
@@ -484,16 +492,24 @@ def get_download_status():
 # Déclenché UNIQUEMENT par une action utilisateur explicite côté client (voir
 # logx_logbook.js) — jamais sondé/lancé automatiquement en tâche de fond.
 
-def start_download_via_network(mode, ips):
+def start_download_via_network(mode, ips, known_lan_ips=None):
     """mode: 'gateway' (chemin B, priorité 1) ou 'peer' (chemin C, secours,
-    seulement si B est indisponible — c'est au CLIENT de ne proposer C que
-    dans ce cas, voir logx_logbook.js). ips : postes candidats (déjà connus
+    seulement si B est indisponible). ips : postes candidats (déjà connus
     du client via /log/status → peer_list). Essaie chaque IP dans l'ordre
     jusqu'à la première qui répond ET dont le hash vérifie contre la
     référence LOCALE de ce poste (jamais une référence fournie par le pair/
     la passerelle — voir docstring du module). Renvoie (True, '') si le
     téléchargement démarre, (False, message) sinon (refus immédiat, sans
     lancer de thread ni ouvrir la moindre connexion réseau).
+    Priorité B>C RESTREINTE CÔTÉ SERVEUR, pas seulement côté client : pour
+    mode='peer', _do_download_via_network sonde elle-même — dans le thread
+    de fond, jamais dans ce thread HTTP — l'UNION de `ips` et de
+    `known_lan_ips` (postes que CE serveur a lui-même vus passer sur le LAN,
+    voir peer_versions dans logx_http.py, jamais une donnée fournie par
+    l'appelant) et REFUSE le secours si l'un d'eux répond disponible comme
+    passerelle. Un appel HTTP direct à mode='peer' qui contournerait l'IHM
+    cliente (voir logx_logbook.js) ne peut donc plus obtenir le secours tant
+    qu'une passerelle connue de ce serveur est disponible.
     Anti-SSRF : `ips` peut provenir indirectement d'un corps JSON client (voir
     logx_http./app/update_download_via_network, qui doit lui-même déjà
     restreindre aux pairs CONNUS de ce serveur — peer_versions). Ici, en
@@ -523,18 +539,40 @@ def start_download_via_network(mode, ips):
                           verified=False, sha256='', version='', via=mode, via_peer='')
     ref_size = int(check.get('asset_size') or 0)
     platform = _platform_key()
+    known_lan_ips = [str(ip).strip() for ip in (known_lan_ips or []) if str(ip).strip()]
     threading.Thread(target=_do_download_via_network,
-                      args=(mode, ips, ref_tag, platform, ref_sha, ref_size),
+                      args=(mode, ips, ref_tag, platform, ref_sha, ref_size, known_lan_ips),
                       daemon=True).start()
     return True, ''
 
 
-def _do_download_via_network(mode, ips, tag, platform, expected_sha256, expected_size):
+def _do_download_via_network(mode, ips, tag, platform, expected_sha256, expected_size,
+                              known_lan_ips=None):
     dest_dir = os.path.join(user_data_dir(), 'update')
     os.makedirs(dest_dir, exist_ok=True)
     suffix, ext = _ASSET_SUFFIX_BY_PLATFORM[platform]
     dest = os.path.join(dest_dir, f'LogXAI-{tag}{suffix}{ext}')
     last_err = 'Aucun poste candidat joignable ou valide sur le réseau.'
+    if mode == 'peer':
+        # Priorité B>C RESTREINTE ICI, côté serveur — pas seulement une
+        # convention respectée par le client (voir logx_logbook.js). Sonde
+        # (réseau, donc dans CE thread de fond, jamais dans le thread HTTP —
+        # voir logx_update.py docstring module) l'UNION des candidats fournis
+        # par l'appelant ET de ceux que ce serveur a lui-même vus passer sur
+        # le LAN (known_lan_ips, voir peer_versions dans logx_http.py) : un
+        # appelant qui omettrait délibérément l'IP d'une passerelle de son
+        # `ips` (pour forcer le secours via un appel HTTP direct) ne peut
+        # donc pas empêcher cette détection, qui repose sur la connaissance
+        # PROPRE de ce serveur, jamais sur ce que le client déclare.
+        candidates = list(dict.fromkeys(list(ips) + list(known_lan_ips or [])))
+        scan = scan_network_candidates(candidates)
+        if scan['gateways']:
+            with _lock:
+                _download.update(status='error', verified=False, error=(
+                    f"Passerelle disponible sur le réseau local ({scan['gateways'][0]}) — "
+                    "le secours pair-à-pair (C) est refusé tant qu'une passerelle (B) "
+                    "répond, même si elle n'était pas dans la liste de candidats fournie."))
+            return
     for ip in ips:
         tmp = dest + '.part'
         # Anti-SSRF (défense en profondeur — start_download_via_network filtre

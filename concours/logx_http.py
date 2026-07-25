@@ -55,6 +55,26 @@ connected_peers = set()
 peer_versions = {}
 peer_versions_lock = threading.Lock()
 
+
+def _known_peer_ips():
+    """IP des postes que CE serveur a lui-même vus se connecter — clés de
+    peer_versions, alimenté UNIQUEMENT depuis self.client_address[0] (l'IP
+    socket réelle de la connexion TCP entrante sur /log/list, jamais une
+    valeur lue dans un corps de requête). Anti-SSRF (voir audit sécurité) :
+    /app/update_network_scan et /app/update_download_via_network reçoivent
+    un champ 'ips' fourni par le CLIENT dans le corps JSON — sans ce filtre,
+    un appelant pourrait y placer n'importe quel hôte/IP arbitraire et
+    forcer ce serveur à émettre de vraies requêtes HTTP sortantes vers lui
+    (scan de service interne, voire un début de téléchargement, cf.
+    logx_update._peer_get_json/_do_download_via_network). En restreignant
+    aux IP que ce serveur a lui-même observées comme pairs réels, un
+    attaquant ne peut plus faire sonder/télécharger que des postes qui se
+    sont DÉJÀ connectés ici de leur propre initiative — il ne peut pas
+    injecter une IP/un hôte de son choix via le seul corps JSON."""
+    with peer_versions_lock:
+        return set(peer_versions.keys())
+
+
 # ─── ANALYSES IA CÔTÉ SERVEUR (survivent au changement de page) ──────────────
 # Une analyse lancée depuis la CARTE IA tourne dans un thread serveur et son
 # résultat est stocké ici : si l'opérateur change d'onglet (la nav recharge la
@@ -3279,7 +3299,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = json.loads(body) if body else {}
             except Exception:
                 payload = {}
-            ips = payload.get('ips') or []
+            # Anti-SSRF (revue sécurité) : le corps JSON vient du CLIENT et
+            # n'est donc jamais digne de confiance tel quel — sans ce filtre,
+            # scan_network_candidates() construisait une requête HTTP sortante
+            # vers N'IMPORTE QUELLE IP/hôte fourni ici (ex. {"ips": ["1.2.3.4"]}
+            # ou même un nom comme "localhost"), y compris un poste qui ne
+            # s'est JAMAIS connecté à ce serveur. On ne retient donc que les IP
+            # que CE serveur a lui-même vues comme pairs réels (_known_peer_ips,
+            # alimenté depuis l'IP socket de connexions entrantes réelles,
+            # jamais depuis un corps de requête) — un appelant ne peut plus
+            # faire sonder que des postes déjà connus, pas un hôte de son choix.
+            ips = [ip for ip in (payload.get('ips') or []) if str(ip).strip() in _known_peer_ips()]
             self._json(upd.scan_network_candidates(ips))
             return
 
@@ -3288,7 +3318,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # poste n'a lui-même aucune référence SHA-256 obtenue par contact
         # direct antérieur avec GitHub (voir logx_update.start_download_via_
         # network — jamais de confiance aveugle envers le pair/la passerelle
-        # pour la référence elle-même).
+        # pour la référence elle-même). Priorité B>C RESTREINTE CÔTÉ SERVEUR :
+        # pour mode='peer', on transmet aussi known_lan_ips=_known_peer_ips()
+        # (postes que CE serveur a lui-même vus, jamais une donnée du corps
+        # JSON) — start_download_via_network/_do_download_via_network sondent
+        # alors elles-mêmes cette liste pour une passerelle disponible et
+        # refusent le secours si l'une répond, même si l'appelant a omis son
+        # IP de `ips` pour tenter de contourner l'IHM cliente (voir revue
+        # sécurité : le mode='peer' n'était auparavant restreint que par
+        # convention côté client, jamais vérifié ici).
         if self.path == '/app/update_download_via_network':
             import logx_update as upd
             try:
@@ -3296,8 +3334,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 payload = {}
             mode = payload.get('mode', '')
-            ips = payload.get('ips') or []
-            ok, err = upd.start_download_via_network(mode, ips)
+            # Anti-SSRF (revue sécurité, même filtre que /app/update_network_
+            # scan ci-dessus) : `ips` vient du corps JSON du CLIENT — sans ce
+            # filtre, un appelant pouvait faire ouvrir par ce serveur une VRAIE
+            # connexion HTTP sortante (sonde + éventuel début de téléchargement
+            # en flux) vers n'importe quel hôte de son choix, jamais vérifié
+            # contre les pairs réellement connus. On ne retient que les IP déjà
+            # vues comme pairs réels par CE serveur (_known_peer_ips).
+            known = _known_peer_ips()
+            ips = [ip for ip in (payload.get('ips') or []) if str(ip).strip() in known]
+            ok, err = upd.start_download_via_network(mode, ips, known_lan_ips=list(known))
             if not ok:
                 self._json({'error': err}, 400)
                 return

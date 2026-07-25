@@ -450,6 +450,148 @@ def test_peer_secours_rien_disponible_refuse(fake_peer):
     assert st['status'] == 'error'
 
 
+# ═══ Priorité B>C restreinte CÔTÉ SERVEUR (pas seulement côté client) ═══════
+# Défaut corrigé : mode='peer' était accepté sans jamais vérifier qu'aucune
+# passerelle n'était disponible — seule une convention côté client (voir
+# logx_logbook.js _renderNetworkUpdatePath) empêchait de le proposer dans
+# l'IHM, mais un appel HTTP direct à /app/update_download_via_network avec
+# {"mode":"peer", ...} passait toujours, même en présence d'une passerelle
+# valide et disponible sur le LAN.
+
+class _FakeDualHandler(http.server.BaseHTTPRequestHandler):
+    """Simule un poste qui répond À LA FOIS disponible comme passerelle (B)
+    ET comme pair de secours (C) — utilisé pour prouver que (C) est refusé
+    dès qu'une passerelle répond, même demandé explicitement en mode='peer'."""
+    gateway_available = True
+    serve_available = True
+    asset_bytes = b'contenu-servi-par-ce-double-role' * 100
+
+    def log_message(self, fmt, *a):
+        pass
+
+    def _send(self, code, ctype, body):
+        self.send_response(code)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == '/app/gateway_status':
+            self._send(200, 'application/json',
+                       json.dumps({'gateway_available': self.gateway_available}).encode())
+        elif self.path == '/app/update_serve_status':
+            self._send(200, 'application/json',
+                       json.dumps({'available': self.serve_available}).encode())
+        elif self.path == '/app/update_serve':
+            self._send(200, 'application/octet-stream', self.asset_bytes)
+        else:
+            self._send(404, 'application/json', b'{}')
+
+
+@pytest.fixture
+def fake_dual(monkeypatch):
+    handler_cls = type('H', (_FakeDualHandler,), {})
+    srv = http.server.HTTPServer(('127.0.0.1', 0), handler_cls)
+    port = srv.server_address[1]
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    monkeypatch.setattr(upd, 'PORT', port)
+    try:
+        yield handler_cls
+    finally:
+        srv.shutdown()
+        t.join(timeout=5)
+
+
+def test_peer_secours_refuse_si_le_candidat_est_aussi_passerelle(fake_dual):
+    """Reproduit l'appel direct décrit dans la revue de sécurité : mode='peer'
+    avec un unique candidat qui se trouve être — lui-même — disponible comme
+    passerelle. Avant le correctif, ceci téléchargeait via le secours sans
+    la moindre vérification de disponibilité d'une passerelle. Après :
+    refus, rien n'est téléchargé via le pair."""
+    handler_cls = fake_dual
+    handler_cls.gateway_available = True
+    handler_cls.serve_available = True
+    _set_local_reference('v3.0', handler_cls.asset_bytes)
+    ok, err = upd.start_download_via_network('peer', ['127.0.0.1'])
+    assert ok, err  # démarre le thread — la vérification réseau est asynchrone
+    st = _wait_download_terminal()
+    assert st['status'] == 'error'
+    assert st['verified'] is False
+    assert 'passerelle' in st['error'].lower()
+
+
+def test_peer_secours_nominal_toujours_ok_si_aucune_passerelle(fake_dual):
+    """Non-régression : le secours (C) doit rester utilisable normalement
+    quand AUCUNE passerelle n'est disponible parmi les candidats — le
+    correctif ne doit pas bloquer le cas nominal légitime."""
+    handler_cls = fake_dual
+    handler_cls.gateway_available = False
+    handler_cls.serve_available = True
+    _set_local_reference('v3.0b', handler_cls.asset_bytes)
+    ok, err = upd.start_download_via_network('peer', ['127.0.0.1'])
+    assert ok, err
+    st = _wait_download_terminal()
+    assert st['status'] == 'done'
+    assert st['verified'] is True
+    assert st['via'] == 'peer'
+
+
+class _FakeGatewayOnlyHandler(http.server.BaseHTTPRequestHandler):
+    """Simule une passerelle disponible qui ne répond QUE sur son propre
+    endpoint (/app/gateway_status) — jamais interrogée comme pair de secours
+    dans ces tests."""
+    gateway_available = True
+
+    def log_message(self, fmt, *a):
+        pass
+
+    def _send(self, code, ctype, body):
+        self.send_response(code)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == '/app/gateway_status':
+            self._send(200, 'application/json',
+                       json.dumps({'gateway_available': self.gateway_available}).encode())
+        else:
+            self._send(404, 'application/json', b'{}')
+
+
+def test_peer_secours_refuse_via_passerelle_connue_du_serveur_hors_ips(fake_peer):
+    """Variante la plus forte de l'attaque décrite : l'appelant (contournant
+    l'IHM cliente) ne fournit dans `ips` QUE le pair (127.0.0.1, voir
+    fake_peer), en omettant délibérément l'IP d'une passerelle par ailleurs
+    disponible sur le LAN. Le serveur la connaît quand même via
+    `known_lan_ips` (dans la vraie vie : logx_http.peer_versions, alimenté
+    UNIQUEMENT par l'IP socket réelle des connexions entrantes — jamais par
+    le corps JSON d'un appelant) : le secours doit donc être refusé même si
+    aucune passerelle ne figure dans `ips`."""
+    handler_cls = fake_peer
+    handler_cls.available = True
+    _set_local_reference('v3.1', handler_cls.asset_bytes)
+
+    gw_cls = type('GW', (_FakeGatewayOnlyHandler,), {})
+    gw_srv = http.server.HTTPServer(('127.0.0.2', upd.PORT), gw_cls)
+    gw_thread = threading.Thread(target=gw_srv.serve_forever, daemon=True)
+    gw_thread.start()
+    try:
+        ok, err = upd.start_download_via_network('peer', ['127.0.0.1'], known_lan_ips=['127.0.0.2'])
+        assert ok, err
+        st = _wait_download_terminal()
+        assert st['status'] == 'error'
+        assert st['verified'] is False
+        assert 'passerelle' in st['error'].lower()
+        assert '127.0.0.2' in st['error']
+    finally:
+        gw_srv.shutdown()
+        gw_thread.join(timeout=5)
+
+
 def test_start_download_via_network_mode_invalide():
     ok, err = upd.start_download_via_network('n_importe_quoi', ['127.0.0.1'])
     assert ok is False
@@ -550,6 +692,58 @@ def test_http_update_download_via_network_refuse_sans_reference(server):
                      {'mode': 'gateway', 'ips': ['127.0.0.1']})
     assert code == 400
     assert 'error' in d
+
+
+def test_http_update_download_via_network_peer_refuse_si_passerelle_connue_hors_ips(
+        server, monkeypatch):
+    """Bout-en-bout, exactement le scénario d'attaque de la revue de
+    sécurité : POST direct à /app/update_download_via_network avec
+    {"mode":"peer", "ips":[...]} — ici le corps JSON de l'attaquant ne cite
+    QUE le pair (127.0.0.1), en omettant délibérément l'IP de la passerelle
+    (127.0.0.2). Les DEUX sont connues du SERVEUR via httpmod.peer_versions
+    (jamais via le corps JSON de CETTE requête — un autre correctif de la
+    même revue restreint déjà `ips` aux pairs connus de peer_versions, voir
+    _known_peer_ips ci-dessus ; c'est le `known_lan_ips` transmis en plus,
+    indépendamment de ce que le client a cité dans `ips`, qui doit détecter
+    la passerelle ici). Avant CE correctif, ce POST aurait démarré un
+    téléchargement via secours pair-à-pair sans la moindre vérification de
+    disponibilité d'une passerelle ; après, la requête doit refuser."""
+    handler_cls = type('GW', (_FakeGatewayOnlyHandler,), {'gateway_available': True})
+    gw_srv = http.server.HTTPServer(('127.0.0.2', 0), handler_cls)
+    gw_port = gw_srv.server_address[1]
+    gw_thread = threading.Thread(target=gw_srv.serve_forever, daemon=True)
+    gw_thread.start()
+    monkeypatch.setattr(upd, 'PORT', gw_port)
+    # Simule que CE serveur a lui-même vu 127.0.0.1 (pair) ET 127.0.0.2
+    # (passerelle) se connecter par le passé (comme le ferait /log/list?ver=
+    # en conditions réelles) — jamais une donnée fournie par l'attaquant dans
+    # le corps de CETTE requête.
+    monkeypatch.setattr(httpmod, 'peer_versions', {
+        '127.0.0.1': {'version': '1.0', 'last_seen': time.time()},
+        '127.0.0.2': {'version': '1.0', 'last_seen': time.time()},
+    })
+    try:
+        _set_local_reference('v4.0', b'peu importe le contenu ici' * 10)
+        code, d = _post(server, '/app/update_download_via_network',
+                         {'mode': 'peer', 'ips': ['127.0.0.1']})
+        assert code == 200 and d.get('ok'), d
+        # La décision (refus) est asynchrone (thread de fond, jamais le
+        # thread HTTP — voir docstring du module) : on la lit via le status.
+        deadline = time.time() + 5
+        st = None
+        while time.time() < deadline:
+            _, st = _get(server, '/app/update_status')
+            if st.get('status') in ('done', 'error'):
+                break
+            time.sleep(0.05)
+        assert st is not None
+        assert st['status'] == 'error', st
+        assert st.get('verified') is False
+        assert 'passerelle' in st.get('error', '').lower()
+        assert '127.0.0.2' in st.get('error', '')
+    finally:
+        gw_srv.shutdown()
+        gw_thread.join(timeout=5)
 
 
 def test_http_update_install_refuse_si_non_verifie(server, tmp_path, monkeypatch):
@@ -729,3 +923,149 @@ def test_update_serve_rate_limited_apres_rafale(server, tmp_path):
             codes.append(e.code)
     assert codes[:httpmod._RELAY_ATTEMPT_LIMIT] == [200] * httpmod._RELAY_ATTEMPT_LIMIT
     assert codes[httpmod._RELAY_ATTEMPT_LIMIT:] == [429] * (len(codes) - httpmod._RELAY_ATTEMPT_LIMIT)
+
+
+# ═══ Anti-SSRF : 'ip'/'ips' fourni par le client n'est jamais utilisé tel
+# quel pour construire une requête sortante ═══════════════════════════════════
+# Défaut corrigé (revue sécurité, angle SSRF) : scan_network_candidates()/
+# _peer_get_json()/_do_download_via_network() construisaient
+# f'http://{ip}:{PORT}{path}' avec `ip` pris tel quel dans le corps JSON du
+# client — ni un littéral IPv4/IPv6 valide, ni une IP connue de ce serveur
+# (peer_versions) n'étaient exigés. Un appelant en possession du jeton (voir
+# rc_token, obtenu en chargeant n'importe quelle page tant qu'aucun mot de
+# passe d'accès n'est configuré) pouvait donc forcer ce serveur à émettre de
+# VRAIES requêtes HTTP sortantes vers un hôte/domaine arbitraire de son choix.
+# Double correctif : (1) logx_update._is_valid_ip rejette tout ce qui n'est
+# pas un littéral IP (jamais de nom d'hôte, jamais de résolution DNS) ;
+# (2) logx_http._known_peer_ips restreint, AVANT même d'atteindre
+# logx_update, `ips` aux seules IP que CE serveur a lui-même vues comme pairs
+# réels (peer_versions, alimenté depuis l'IP socket des connexions entrantes,
+# jamais depuis un corps de requête).
+
+class _HitCounterHandler(http.server.BaseHTTPRequestHandler):
+    """Service externe factice qui compte simplement le nombre de requêtes
+    reçues (peu importe le chemin) — utilisé pour PROUVER qu'aucune requête
+    sortante n'a été émise vers lui, pas seulement que le résultat renvoyé au
+    client est vide (une régression future pourrait renvoyer un résultat vide
+    tout en continuant à sonder discrètement)."""
+    hits = []
+
+    def log_message(self, fmt, *a):
+        pass
+
+    def do_GET(self):
+        self.__class__.hits.append(self.path)
+        body = json.dumps({'gateway_available': True, 'available': True}).encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+@pytest.fixture
+def hit_counter(monkeypatch):
+    """Démarre le service factice ci-dessus et pointe logx_update.PORT dessus
+    (comme fake_gateway/fake_peer) — réutilisé pour les deux volets (appel
+    direct logx_update ET bout-en-bout HTTP via logx_http)."""
+    handler_cls = type('H', (_HitCounterHandler,), {'hits': []})
+    srv = http.server.HTTPServer(('127.0.0.1', 0), handler_cls)
+    port = srv.server_address[1]
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    monkeypatch.setattr(upd, 'PORT', port)
+    try:
+        yield handler_cls
+    finally:
+        srv.shutdown()
+        t.join(timeout=5)
+
+
+def test_is_valid_ip_accepte_ipv4_ipv6_rejette_le_reste():
+    assert upd._is_valid_ip('127.0.0.1') is True
+    assert upd._is_valid_ip('192.168.1.42') is True
+    assert upd._is_valid_ip('::1') is True
+    assert upd._is_valid_ip('localhost') is False
+    assert upd._is_valid_ip('evil.example.com') is False
+    assert upd._is_valid_ip('127.0.0.1:8080') is False  # port collé -> pas un littéral IP pur
+    assert upd._is_valid_ip('') is False
+    assert upd._is_valid_ip(None) is False
+    assert upd._is_valid_ip('   ') is False
+    assert upd._is_valid_ip(' 127.0.0.1 ') is True  # espaces en bord tolérés (strip())
+
+
+def test_peer_get_json_refuse_hostname_jamais_de_requete_emise(hit_counter):
+    """Reproduction EXACTE de l'attaque confirmée dans le rapport :
+    _peer_get_json('localhost', ...) ne doit JAMAIS émettre la moindre
+    requête — avant le correctif, le service factice recevait un GET
+    /app/gateway_status malgré 'localhost' n'étant ni une IP ni un pair
+    connu."""
+    assert upd._peer_get_json('localhost', '/app/gateway_status', timeout=2) is None
+    assert hit_counter.hits == []
+
+
+def test_scan_network_candidates_ignore_hostname_non_ip(hit_counter):
+    """Reproduction du repro exact du rapport : scan_network_candidates(
+    ['localhost']) devait auparavant sonder le service factice (résultat
+    observé : {'gateways': ['localhost'], 'peers': []} + une requête reçue).
+    Après correctif : ni sondé, ni retenu comme candidat."""
+    result = upd.scan_network_candidates(['localhost'])
+    assert result == {'gateways': [], 'peers': []}
+    assert hit_counter.hits == []
+
+
+def test_do_download_via_network_refuse_hostname_non_ip(hit_counter):
+    """Même reproduction pour le chemin téléchargement (_do_download_via_
+    network) : un 'ip' qui n'est pas un littéral IP ne doit jamais aboutir à
+    la moindre connexion sortante, même en appelant la fonction directement
+    (contournement de start_download_via_network)."""
+    upd._do_download_via_network('gateway', ['localhost'], 'v1.0', 'win',
+                                  'a' * 64, 0)
+    assert hit_counter.hits == []
+    st = upd.get_download_status()
+    assert st['status'] == 'error'
+    assert 'invalide' in st['error'].lower()
+
+
+def test_http_update_network_scan_ignore_ip_inconnue_du_serveur(server, hit_counter, monkeypatch):
+    """Variante bout-en-bout de l'attaque décrite dans le rapport, via le
+    VRAI endpoint HTTP : {"ips": ["<ip jamais vue par ce serveur>"]}. Même si
+    l'IP fournie est un littéral IPv4 valide et réellement joignable (le
+    service factice ci-dessus), le serveur ne doit PAS la sonder tant qu'elle
+    ne figure pas dans peer_versions (jamais un pair connu de CE serveur —
+    voir logx_http._known_peer_ips)."""
+    monkeypatch.setattr(httpmod, 'peer_versions', {})  # isolation : aucun pair connu
+    code, d = _post(server, '/app/update_network_scan', {'ips': ['127.0.0.1']})
+    assert code == 200
+    assert d == {'gateways': [], 'peers': []}
+    assert hit_counter.hits == []
+
+
+def test_http_update_network_scan_accepte_un_pair_reellement_connu(server, hit_counter, monkeypatch):
+    """Non-régression : le cas légitime doit continuer à fonctionner —
+    une fois l'IP effectivement vue comme pair (poll réel de /log/list?ver=,
+    donc peer_versions alimenté par l'IP SOCKET réelle, jamais par le corps
+    JSON), le scan doit à nouveau la sonder normalement."""
+    monkeypatch.setattr(httpmod, 'peer_versions', {})
+    _get(server, '/log/list?ver=0.9-beta9')  # enregistre 127.0.0.1 comme pair connu
+    code, d = _post(server, '/app/update_network_scan', {'ips': ['127.0.0.1']})
+    assert code == 200
+    assert d == {'gateways': ['127.0.0.1'], 'peers': []}
+    assert hit_counter.hits == ['/app/gateway_status']
+
+
+def test_http_update_download_via_network_refuse_ip_inconnue_du_serveur(server, hit_counter, monkeypatch):
+    """Même vérification bout-en-bout pour le second endpoint concerné par le
+    rapport : /app/update_download_via_network avec une IP jamais vue par ce
+    serveur doit être refusé SANS ouvrir la moindre connexion sortante vers
+    elle (aucun sondage, aucun octet transféré) — même avec une référence
+    SHA-256 locale valide (ce qui, avant ce correctif précis, aurait laissé
+    passer l'IP jusqu'à _do_download_via_network)."""
+    monkeypatch.setattr(httpmod, 'peer_versions', {})
+    _set_local_reference('v9.0', b'peu importe le contenu ici' * 10)
+    code, d = _post(server, '/app/update_download_via_network',
+                     {'mode': 'gateway', 'ips': ['127.0.0.1']})
+    assert code == 400
+    assert 'error' in d
+    assert hit_counter.hits == []
+    assert upd.get_download_status()['status'] in ('idle', 'error')
