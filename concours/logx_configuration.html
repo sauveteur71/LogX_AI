@@ -6227,6 +6227,13 @@ function handleContestParam(){
 
   goStep(2, true);
 
+  // Depuis la migration hub/popups, #assistantBanner vit DANS la popup
+  // #catmodal_contest, masquée par défaut (.cat-modal{display:none}) — goStep
+  // ne bascule que l'ANCIEN assistant par étapes, conservé masqué. Sans
+  // ouverture explicite de la popup, tout ce qui suit (bannière récapitulative
+  // comme message « introuvable ») serait rempli mais invisible.
+  openCategoryPopup('contest');
+
   if (!contest){
     banner.style.display = 'block';
     banner.style.borderColor = 'rgba(255,214,10,.4)';
