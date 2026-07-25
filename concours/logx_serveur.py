@@ -36,7 +36,6 @@ for _stream in (sys.stdout, sys.stderr):
 import logx_errorlog
 logx_errorlog.install()
 
-import http.server
 import threading
 
 # Amorçage AVANT tout import applicatif : en mode figé (PyInstaller), bascule
@@ -49,10 +48,57 @@ from logx_utils import PORT
 from logx_storage import load_log_from_disk, load_qtc_from_disk, load_shifts_from_disk
 from logx_rules import load_rules_cache, load_external_contests, schedule_annual_check
 from logx_http import Handler
+import logx_singleton
 
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
+
+    def _abandonner(message, code=1):
+        """Affiche l'explication puis termine, sans traceback Python.
+        En mode figé, garde la fenêtre console ouverte : Windows la referme
+        sinon dès la fin du process et l'utilisateur ne lit jamais pourquoi
+        rien ne s'est lancé (même raison que logx_errorlog._excepthook)."""
+        print(message)
+        if is_frozen():
+            try:
+                input('\nAppuie sur Entree pour fermer cette fenetre... ')
+            except Exception:
+                pass
+        sys.exit(code)
+
+    # ─── UNE SEULE INSTANCE PAR PORT ──────────────────────────────────────────
+    # Tout premier geste du démarrage, AVANT le moindre chargement ou la
+    # moindre écriture : si un serveur LogX AI répond déjà sur le port, ce
+    # processus ne doit rien faire d'autre qu'ouvrir la fenêtre existante et
+    # s'arrêter. Sans ce garde-fou, Windows laissait le second serveur se lier
+    # au port en silence : l'utilisateur croyait avoir redémarré alors que
+    # l'ANCIEN processus répondait toujours, et les deux serveurs écrivaient
+    # dans les mêmes fichiers de données sans exclusion mutuelle (chacun avec
+    # son propre verrou en mémoire). Détail complet dans logx_singleton.py.
+    _instance = logx_singleton.probe(PORT)
+    if _instance['state'] == logx_singleton.LOGX:
+        # Même fonction d'ouverture que le démarrage nominal (elle choisit
+        # l'adresse locale la plus rapide) : l'utilisateur voulait voir LogX
+        # AI, il obtient la fenêtre de l'instance qui tourne. En mode
+        # développeur, pas d'ouverture automatique — comme au démarrage normal.
+        if is_frozen():
+            open_browser(PORT, delay=0.2)
+        # Code 0 : de son point de vue rien n'a échoué, la fenêtre demandée
+        # s'ouvre. Un code d'erreur ferait afficher une alerte inutile par
+        # certains lanceurs (raccourci Windows, script de mise à jour).
+        # _abandonner garde la console ouverte en mode figé, et c'est ici que
+        # ça compte le plus : c'est CE message qui explique à l'utilisateur
+        # pourquoi il retombe sur l'ancienne version après une mise à jour, et
+        # comment fermer l'instance en cours. Sans la pause, il défilerait dans
+        # une fenêtre qui se referme aussitôt — le problème d'origine intact.
+        _abandonner(logx_singleton.message_deja_lance(
+            PORT, _instance['version'], ouvre_navigateur=is_frozen()), code=0)
+    if _instance['state'] == logx_singleton.OTHER:
+        # Port occupé par autre chose : ne surtout pas prétendre que LogX AI
+        # tourne déjà, et ne pas ouvrir de navigateur sur un logiciel tiers.
+        _abandonner(logx_singleton.message_port_occupe(PORT, _instance['detail']))
+
     load_log_from_disk()
     load_qtc_from_disk()
     load_shifts_from_disk()
@@ -211,6 +257,18 @@ if __name__ == '__main__':
     except Exception:
         local_ip = '127.0.0.1'
 
+    # Ouverture du port AVANT la bannière et le navigateur : si le bind
+    # échoue, l'utilisateur ne doit pas avoir sous les yeux une liste d'URL
+    # qui ne répondront jamais, ni un navigateur qui s'ouvre dans le vide.
+    # LogXHTTPServer (et non ThreadingHTTPServer) : sous Windows il refuse un
+    # port déjà écouté au lieu de s'y greffer en silence — filet de sécurité
+    # pour la course possible entre la sonde ci-dessus et ce bind.
+    try:
+        server = logx_singleton.LogXHTTPServer((logx_singleton.BIND_HOST, PORT),
+                                               Handler)
+    except OSError as _e:
+        _abandonner(logx_singleton.message_bind_impossible(PORT, _e))
+
     print('=' * 60)
     print('  LogX AI -- logiciel de concours multi-tout')
     print('  (config du concours actif : page CONFIG)')
@@ -240,7 +298,6 @@ if __name__ == '__main__':
     else:
         start_network_diagnosis(PORT, then_open_browser=False)
 
-    server = http.server.ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
