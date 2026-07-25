@@ -56,6 +56,7 @@ with open(HTML_PATH, encoding='utf-8') as _f:
 _HANDLE_SRC = _extract_function(_HTML_SRC, 'handleContestParam')
 _GOSTEP_SRC = _extract_function(_HTML_SRC, 'goStep')
 _OPENCAT_SRC = _extract_function(_HTML_SRC, 'openCategoryPopup')
+_CLOSECAT_SRC = _extract_function(_HTML_SRC, 'closeCategoryPopup')
 
 # ─── DOM minimal fidèle à l'état CSS initial de la page ──────────────────────
 # .cat-modal{display:none} (règle CSS) et #assistantBanner style="display:none"
@@ -77,6 +78,8 @@ function makeEl(id, initDisplay){
 var _els = {
   assistantBanner:    makeEl('assistantBanner', 'none'),
   catmodal_contest:   makeEl('catmodal_contest', 'none'),
+  catmodal_identity:  makeEl('catmodal_identity', 'none'),
+  catmodal_filters:   makeEl('catmodal_filters', 'none'),
   usage_mode:         makeEl('usage_mode', ''),
   contest_start_date: makeEl('contest_start_date', ''),
   contest_end_date:   makeEl('contest_end_date', ''),
@@ -122,17 +125,33 @@ function alert(){}
 """
 
 
-def _make_ctx(search):
+def _make_ctx(search, station_cfg=None):
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
     ctx.eval("var location = { search: %r };" % search)
-    # Le VRAI openCategoryPopup est injecté : le test vérifie le comportement
-    # de bout en bout (la popup passe réellement en display:block), pas
-    # seulement qu'un appel a eu lieu.
+    if station_cfg is not None:
+        # Station configurée : handleContestParam lit logx_config depuis
+        # localStorage pour décider quel contrôle afficher dans la bannière.
+        ctx.eval(
+            "localStorage.getItem = function(k){"
+            " return k === 'logx_config' ? %r : null; };" % station_cfg)
+    # Les VRAIS open/closeCategoryPopup sont injectés : le test vérifie le
+    # comportement de bout en bout (la popup passe réellement en
+    # display:block), pas seulement qu'un appel a eu lieu.
     ctx.eval(_OPENCAT_SRC)
+    ctx.eval(_CLOSECAT_SRC)
     ctx.eval(_GOSTEP_SRC)
     ctx.eval(_HANDLE_SRC)
     return ctx
+
+
+def _onclick_of(banner_html, label):
+    """Extrait l'attribut onclick du contrôle de la bannière dont le libellé
+    commence par `label` — [^>]* interdit de franchir la fin de balise, donc
+    l'onclick capturé appartient bien à CE contrôle."""
+    m = re.search(r'onclick="([^"]*)"[^>]*>\s*' + re.escape(label), banner_html)
+    assert m, 'contrôle « %s » introuvable dans la bannière :\n%s' % (label, banner_html)
+    return m.group(1)
 
 
 def test_handleContestParam_ouvre_la_popup_contest():
@@ -180,3 +199,51 @@ def test_sans_parametre_contest_la_popup_reste_fermee():
     ctx.eval("handleContestParam();")
     assert ctx.eval("_els.catmodal_contest.style.display") == 'none'
     assert ctx.eval("_els.assistantBanner.style.display") == 'none'
+
+
+# ─── Boutons morts de la bannière (résidus goStep de l'ancien assistant) ─────
+# Les deux contrôles utilisateur de la bannière appelaient goStep(1)/goStep(3),
+# qui ne manipule que des éléments .step/.panel retirés à la migration
+# hub/popups : le clic ne produisait STRICTEMENT RIEN (ni popup, ni
+# navigation). Ces tests extraient le VRAI attribut onclick du HTML généré et
+# l'exécutent comme le ferait le navigateur — sans le correctif
+# (closeCategoryPopup('contest') + openCategoryPopup(cible)), la popup cible
+# reste en display:none et ils échouent.
+
+def test_bouton_verifier_bandes_modes_ouvre_la_popup_filtres():
+    """Station configurée : « Vérifier bandes/modes → » doit réellement ouvrir
+    la popup #catmodal_filters (et refermer #catmodal_contest, même z-index)."""
+    ctx = _make_ctx('?contest=TEST_ID',
+                    station_cfg='{"callsign":"F4TEST","locator":"JN18EU"}')
+    ctx.eval("handleContestParam();")
+    banner = ctx.eval("_els.assistantBanner.innerHTML")
+    onclick = _onclick_of(banner, 'Vérifier bandes/modes')
+    # Exécution fidèle d'un onclick navigateur : corps de fonction (autorise
+    # un éventuel `return false`).
+    ctx.eval("(function(){ %s })();" % onclick)
+    assert ctx.eval("_els.catmodal_filters.style.display") == 'block', (
+        "clic « Vérifier bandes/modes → » sans effet : la popup "
+        "#catmodal_filters n'est pas ouverte (résidu goStep(3) de l'ancien "
+        "assistant par étapes, qui ne pilote plus aucun élément)")
+    assert ctx.eval("_els.catmodal_contest.style.display") == 'none', (
+        "#catmodal_contest doit être refermée : à z-index égal, la popup "
+        "cible peut rester cachée derrière elle")
+
+
+def test_lien_station_non_configuree_ouvre_la_popup_identite():
+    """Station NON configurée : « complète l'étape 1 MA STATION » doit ouvrir
+    la popup #catmodal_identity — d'autant que #catmodal_identity précède
+    #catmodal_contest dans le DOM (sans fermeture, elle s'ouvrirait DERRIÈRE)."""
+    ctx = _make_ctx('?contest=TEST_ID')  # localStorage vide → station absente
+    ctx.eval("handleContestParam();")
+    banner = ctx.eval("_els.assistantBanner.innerHTML")
+    assert 'Station non configurée' in banner
+    onclick = _onclick_of(banner, "complète l'étape 1 MA STATION")
+    ctx.eval("(function(){ %s })();" % onclick)
+    assert ctx.eval("_els.catmodal_identity.style.display") == 'block', (
+        "clic « complète l'étape 1 MA STATION » sans effet : la popup "
+        "#catmodal_identity n'est pas ouverte (résidu goStep(1) de l'ancien "
+        "assistant par étapes)")
+    assert ctx.eval("_els.catmodal_contest.style.display") == 'none', (
+        "#catmodal_contest doit être refermée, sinon elle recouvre "
+        "#catmodal_identity (même z-index, ordre DOM défavorable)")

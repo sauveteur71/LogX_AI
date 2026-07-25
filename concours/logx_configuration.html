@@ -6253,11 +6253,19 @@ function handleContestParam(){
   const datesOk = state.datesAutoFor === id && !!document.getElementById('contest_start_date').value;
   const isExternal = !!contest.external;
 
+  // Les contrôles de la bannière ci-dessous ouvraient jadis les étapes de
+  // l'ancien assistant via goStep(1)/goStep(3) — mort depuis la migration
+  // hub/popups (plus aucun élément .step/.panel dans la page) : le clic ne
+  // produisait STRICTEMENT RIEN. Ils pointent désormais vers les popups du
+  // hub. Fermer #catmodal_contest AVANT d'ouvrir la cible est indispensable :
+  // les .cat-modal partagent le même z-index (9000) et #catmodal_identity
+  // précède #catmodal_contest dans le DOM — ouverte sans fermer, la popup
+  // Identité resterait cachée DERRIÈRE la popup Concours.
   const checks = [
     `✅ Concours sélectionné : <strong>${contest.name}</strong>`,
     stationOk
       ? `✅ Station : <strong>${cfg.callsign}</strong> en <strong>${cfg.locator}</strong> (profil sauvegardé)`
-      : `⚠️ Station non configurée — <a href="#" onclick="goStep(1);return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
+      : `⚠️ Station non configurée — <a href="#" onclick="closeCategoryPopup('contest');openCategoryPopup('identity');return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
     datesOk
       ? `✅ Dates calculées automatiquement : <strong>${document.getElementById('contest_start_date').value}</strong> → <strong>${document.getElementById('contest_end_date').value}</strong>`
       : `⚠️ Dates non calculables — saisis-les à l'étape 2 (encadré DATES DU CONCOURS)`,
@@ -6272,7 +6280,7 @@ function handleContestParam(){
     <div style="font-size:14px;line-height:2">${checks.join('<br>')}</div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       <button class="btn btn-launch" style="padding:10px 22px" onclick="launchApp()">🚀 TOUT EST BON — LOGGER</button>
-      <button class="btn btn-secondary" style="padding:10px 18px" onclick="goStep(3)">Vérifier bandes/modes →</button>
+      <button class="btn btn-secondary" style="padding:10px 18px" onclick="closeCategoryPopup('contest');openCategoryPopup('filters')">Vérifier bandes/modes →</button>
       <button class="btn btn-secondary" style="padding:10px 18px" onclick="document.getElementById('assistantBanner').style.display='none'">✕ Fermer l'assistant</button>
     </div>`;
 }
