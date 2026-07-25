@@ -1214,6 +1214,7 @@ En fin de concours, le bouton **📦 ARCHIVER** range tout dans un sous-dossier 
 - **Le chat multi-opérateur n'apparaît pas** : il n'est visible qu'en configuration **multi-opérateur** (plusieurs opérateurs déclarés et section MO*) — en single-op, le panneau est masqué, c'est normal.
 - **Un récepteur WebSDR est marqué « injoignable »** : ce sont des services bénévoles tiers, pas hébergés par LogX AI — réessayez plus tard ou choisissez-en un autre dans la liste.
 - **Le décodeur CW n'écrit rien** : vérifiez que le navigateur a l'autorisation d'accéder au micro (icône caméra/micro dans la barre d'adresse) et que le bon périphérique d'entrée est choisi dans le panneau.
+- **Un bandeau technique « FILES » apparaît en bas ou sur le côté de l'écran, avec une longue liste de requêtes qui défile** : ce n'est pas LogX AI, ce sont les **outils de développement de votre navigateur** (l'onglet « Réseau »/« Network »), ouverts par erreur — souvent en appuyant sans le vouloir sur la touche **F12**. C'est normal de voir beaucoup de lignes défiler : LogX AI interroge régulièrement le serveur en arrière-plan (spots, propagation…), rien d'anormal ni d'inquiétant pour votre sécurité. Pour le refermer, appuyez à nouveau sur **F12**, ou cliquez sur la croix **✕** du panneau.
 
 ### Le logiciel répond lentement à chaque clic (antivirus)
 
@@ -1244,4 +1245,6 @@ LogX AI est conçu pour rester utilisable même sans aucune connexion Internet �
 
 ---
 
-*Dernière mise à jour : 22 juillet 2026 — refonte complète du guide : nouveau plan en 15 chapitres reflétant l'état actuel du logiciel (4 modes d'utilisation dont RADIOCLUB, menus déroulants opérateur/bande/mode, ESM, décodeur CW, panneau EME, ouvertures par région, activations POTA/SOTA/WWFF/IOTA/WCA avec bases embarquées, chasse aux DXpéditions, écran mural utilisable dans tous les modes, 6 fournisseurs IA, chat multi-op).*
+*Dernière mise à jour : 25 juillet 2026 — ajout au chapitre Dépannage : le bandeau « FILES »/liste de requêtes réseau qui inquiète certains utilisateurs est en fait l'onglet Réseau des outils de développement du navigateur (F12), pas un composant de LogX AI.*
+
+*Mise à jour précédente : 22 juillet 2026 — refonte complète du guide : nouveau plan en 15 chapitres reflétant l'état actuel du logiciel (4 modes d'utilisation dont RADIOCLUB, menus déroulants opérateur/bande/mode, ESM, décodeur CW, panneau EME, ouvertures par région, activations POTA/SOTA/WWFF/IOTA/WCA avec bases embarquées, chasse aux DXpéditions, écran mural utilisable dans tous les modes, 6 fournisseurs IA, chat multi-op).*
