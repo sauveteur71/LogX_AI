@@ -603,3 +603,129 @@ def test_http_update_download_via_network_sans_jeton_refuse(server):
     except urllib.error.HTTPError as e:
         code = e.code
     assert code == 403
+
+
+# ═══ Défaut corrigé : relais anonyme sans borne (revue adversariale) ════════
+# Les 4 routes /app/gateway_status, /app/update_relay, /app/update_serve_
+# status, /app/update_serve n'ont JAMAIS de jeton de session (appels
+# backend-à-backend entre postes distincts, voir logx_update._peer_get_json)
+# — mais avant correction, n'importe quel appareil capable d'atteindre le
+# serveur (0.0.0.0 : tout le LAN, voire depuis internet si le port est
+# redirigé par une box) pouvait déclencher /app/update_relay (une VRAIE
+# requête HTTPS sortante vers GitHub) en boucle serrée, sans aucune limite.
+# Corrigé par _is_lan_ip (self.client_address, jamais falsifiable par un
+# en-tête HTTP) + _relay_rate_limited (fenêtre glissante par IP).
+
+def test_is_lan_ip_rejette_les_adresses_publiques():
+    assert httpmod._is_lan_ip('8.8.8.8') is False
+    assert httpmod._is_lan_ip('203.0.113.5') is False
+    assert httpmod._is_lan_ip('') is False
+    assert httpmod._is_lan_ip(None) is False
+
+
+def test_is_lan_ip_accepte_les_plages_privees_et_boucle_locale():
+    assert httpmod._is_lan_ip('127.0.0.1') is True
+    assert httpmod._is_lan_ip('192.168.1.42') is True
+    assert httpmod._is_lan_ip('10.0.0.7') is True
+    assert httpmod._is_lan_ip('172.16.0.1') is True
+    assert httpmod._is_lan_ip('172.31.255.255') is True
+    # Hors de la plage RFC1918 172.16-31.x.x (172.32.x.x n'est PAS privé) :
+    assert httpmod._is_lan_ip('172.32.0.1') is False
+
+
+@pytest.fixture(autouse=True)
+def _isolate_relay_rate_limit(monkeypatch):
+    """État module-level du rate-limiter remis à neuf à chaque test — sinon
+    un test précédent fausserait le suivant (fenêtre glissante partagée)."""
+    monkeypatch.setattr(httpmod, '_relay_attempts', {})
+    yield
+
+
+class _SpoofedSourceServer(http.server.HTTPServer):
+    """Serveur de test qui force l'IP source vue par le Handler (self.
+    client_address) à une valeur choisie par le test, tout en acceptant une
+    VRAIE connexion TCP loopback — exerce donc exactement le même chemin de
+    code que la production (qui ne consulte jamais que self.client_address,
+    jamais un en-tête HTTP falsifiable) sans dépendre d'une IP réellement
+    routable jusqu'à la machine de test."""
+    spoofed_ip = '203.0.113.5'  # TEST-NET-3 (RFC 5737), non-LAN par construction
+
+    def get_request(self):
+        request, real_addr = super().get_request()
+        return request, (self.spoofed_ip, real_addr[1])
+
+
+@pytest.fixture
+def spoofed_server():
+    srv = _SpoofedSourceServer(('127.0.0.1', 0), httpmod.Handler)
+    port = srv.server_address[1]
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    try:
+        yield f'http://127.0.0.1:{port}'
+    finally:
+        srv.shutdown()
+        t.join(timeout=5)
+
+
+@pytest.mark.parametrize('path', [
+    '/app/gateway_status',
+    '/app/update_relay?tag=v1.0&platform=win',
+    '/app/update_serve_status',
+    '/app/update_serve',
+])
+def test_endpoints_relais_bloques_pour_ip_hors_lan(spoofed_server, path):
+    """Scénario d'attaque du rapport : un appelant dont l'IP source N'EST PAS
+    dans le LAN (ex. port du serveur redirigé par erreur depuis internet)
+    doit recevoir 403 sur les 4 routes visées — jamais le comportement
+    normal (200/400) qu'elles avaient avant correction."""
+    upd._cache.update({'ts': time.time(), 'result': {'x': 1}})
+    code, d = _get(spoofed_server, path)
+    assert code == 403
+    assert 'error' in d
+
+
+def test_gateway_status_toujours_accessible_depuis_le_lan(server):
+    """Non-régression : une IP LAN authentique (127.0.0.1 dans le test, voir
+    fixture `server`) continue de passer — la correction ne doit pas casser
+    l'usage légitime backend-à-backend entre postes du LAN."""
+    upd._cache.update({'ts': time.time(), 'result': {'x': 1}})
+    code, d = _get(server, '/app/gateway_status')
+    assert code == 200
+    assert d['gateway_available'] is True
+
+
+def test_update_relay_rate_limited_apres_rafale(server):
+    """Scénario d'attaque du rapport : rejouer /app/update_relay en boucle
+    serrée depuis la MÊME IP doit finir par être bloqué (429), jamais laissé
+    déclencher une requête sortante GitHub indéfiniment. On force un échec de
+    validation (tag invalide -> 400) pour isoler le rate-limit lui-même sans
+    dépendre du réseau réel : le compteur incrémente AVANT la validation du
+    tag (voir do_GET), donc la limite est bien atteinte même sur des appels
+    qui échouent tous en 400."""
+    upd._cache.update({'ts': time.time(), 'result': {'x': 1}})
+    codes = []
+    for _ in range(httpmod._RELAY_ATTEMPT_LIMIT + 3):
+        code, _d = _get(server, '/app/update_relay?tag=' + urllib.parse.quote('; rm -rf /') + '&platform=win')
+        codes.append(code)
+    assert codes[:httpmod._RELAY_ATTEMPT_LIMIT] == [400] * httpmod._RELAY_ATTEMPT_LIMIT
+    assert codes[httpmod._RELAY_ATTEMPT_LIMIT:] == [429] * (len(codes) - httpmod._RELAY_ATTEMPT_LIMIT)
+
+
+def test_update_serve_rate_limited_apres_rafale(server, tmp_path):
+    """Même scénario que ci-dessus pour /app/update_serve (chemin C, sert un
+    fichier depuis le disque local — coûteux en bande passante/threads)."""
+    p = tmp_path / 'LogXAI-v1.exe'
+    content = b'binaire-servi-en-secours' * 300
+    p.write_bytes(content)
+    upd._download.update(status='done', verified=True, path=str(p),
+                          sha256=_sha256(content), version='v1')
+    codes = []
+    for _ in range(httpmod._RELAY_ATTEMPT_LIMIT + 3):
+        try:
+            with urllib.request.urlopen(server + '/app/update_serve', timeout=5) as r:
+                codes.append(r.status)
+        except urllib.error.HTTPError as e:
+            codes.append(e.code)
+    assert codes[:httpmod._RELAY_ATTEMPT_LIMIT] == [200] * httpmod._RELAY_ATTEMPT_LIMIT
+    assert codes[httpmod._RELAY_ATTEMPT_LIMIT:] == [429] * (len(codes) - httpmod._RELAY_ATTEMPT_LIMIT)

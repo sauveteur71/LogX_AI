@@ -338,6 +338,61 @@ def _clear_access_password():
         except FileNotFoundError:
             pass
 
+# ─── BORNAGE DES ENDPOINTS DE RELAIS RÉSEAU (voir /app/gateway_status,
+# /app/update_relay, /app/update_serve_status, /app/update_serve dans do_GET,
+# et logx_update.py pour le contexte complet) ─────────────────────────────
+# Ces 4 routes sont volontairement SANS jeton de session (_require_auth) :
+# ce sont des appels backend-à-backend entre postes LogX AI distincts (voir
+# logx_update._peer_get_json) — l'appelant n'a jamais le jeton propre à CE
+# poste, exiger _require_auth casserait donc le mécanisme lui-même. Mais
+# sans aucune autre barrière, N'IMPORTE QUEL appareil capable d'atteindre le
+# serveur (0.0.0.0 : tout le LAN, voire au-delà si le port est redirigé
+# depuis une box/routeur) pouvait déclencher /app/update_relay — une VRAIE
+# requête HTTPS sortante vers GitHub — en boucle serrée, sans limite : abus
+# possible en relais de bande passante ou épuisement de threads locaux
+# (ThreadingHTTPServer, un thread OS par connexion, sans plafond). Deux
+# garde-fous complémentaires, cohérents avec le modèle de menace déjà
+# documenté ailleurs dans ce fichier (voir _handle_auth_login_post : "un LAN
+# non fiable... reste hors du modèle de menace visé ici", donc on ne vise
+# PAS à authentifier chaque pair, seulement à exclure internet et les abus
+# en rafale) :
+#   1) _is_lan_ip : réutilise le même principe que _cors() (origines LAN
+#      RFC1918 + boucle locale) mais sur l'IP SOURCE réelle de la connexion
+#      TCP (self.client_address, jamais falsifiable par un en-tête HTTP) —
+#      bloque tout appelant hors LAN, y compris via port forwarding.
+#   2) _relay_rate_limited : fenêtre glissante par IP, même principe que
+#      _login_rate_limited ci-dessus, état séparé (une rafale sur l'un ne
+#      doit pas geler l'autre).
+_LAN_IPV4_RE = re.compile(
+    r'^(127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$')
+
+def _is_lan_ip(ip):
+    """True si `ip` (self.client_address[0], jamais un en-tête falsifiable)
+    appartient à un bloc privé RFC1918 ou à la boucle locale."""
+    return bool(_LAN_IPV4_RE.match(ip or ''))
+
+_RELAY_ATTEMPT_LIMIT = 10
+_RELAY_ATTEMPT_WINDOW = 60.0  # secondes
+_relay_attempts_lock = threading.Lock()
+_relay_attempts = {}  # ip -> [timestamps des appels récents à /app/update_relay ou /app/update_serve]
+
+def _relay_rate_limited(ip):
+    """True si `ip` a déjà déclenché _RELAY_ATTEMPT_LIMIT appels à
+    /app/update_relay ou /app/update_serve dans la fenêtre glissante — sinon
+    enregistre CET appel et renvoie False. Vérification + enregistrement dans
+    le MÊME verrou (jamais relâché entre les deux), même précaution que
+    _login_rate_limited contre une rafale concurrente qui contournerait la
+    limite."""
+    now = time.time()
+    with _relay_attempts_lock:
+        attempts = [t for t in _relay_attempts.get(ip, ()) if now - t < _RELAY_ATTEMPT_WINDOW]
+        if len(attempts) >= _RELAY_ATTEMPT_LIMIT:
+            _relay_attempts[ip] = attempts
+            return True
+        attempts.append(now)
+        _relay_attempts[ip] = attempts
+        return False
+
 # ─── PORTÉE CONCOURS (voir logx_storage.qso_scope_id/active_scope_id/cfg_scope_id) ─
 def _scope_filtered(qsos, cfg):
     """Sous-ensemble de `qsos` appartenant à la portée active de `cfg` (voir
@@ -2126,8 +2181,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # B) Passerelle : ce poste a-t-il un accès internet confirmé récemment
         # (donc capable de relayer une requête GitHub pour un autre poste) ?
         # Interrogé PAR UN AUTRE poste du LAN (backend-à-backend, pas depuis un
-        # navigateur) — pas d'auth (comme /app/update_check) : simple booléen.
+        # navigateur) — pas de jeton de session (comme /app/update_check),
+        # mais borné au LAN (voir _is_lan_ip ci-dessus) : simple booléen, sans
+        # donnée sensible, mais sonder ce poste depuis internet n'a aucune
+        # raison d'être autorisé.
         if path == '/app/gateway_status':
+            if not _is_lan_ip(self.client_address[0]):
+                self._json({'error': 'Réservé au réseau local'}, 403)
+                return
             import logx_update as upd
             self._json(upd.gateway_status())
             return
@@ -2139,8 +2200,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # jamais un fichier de son propre disque. Le poste appelant revérifie
         # le SHA-256 reçu contre SA PROPRE référence locale (voir
         # logx_update._do_download_via_network) — ce relais n'envoie même pas
-        # de digest, il n'est pas la source de vérité.
+        # de digest, il n'est pas la source de vérité. Borné au LAN + limité
+        # en fréquence par IP (voir _is_lan_ip/_relay_rate_limited ci-dessus) :
+        # c'est la route qui déclenche une VRAIE requête sortante vers
+        # GitHub, jamais à exposer à internet ni à laisser rejouer en boucle.
         if path == '/app/update_relay':
+            ip = self.client_address[0]
+            if not _is_lan_ip(ip):
+                self._json({'error': 'Réservé au réseau local'}, 403)
+                return
+            if _relay_rate_limited(ip):
+                self._json({'error': 'Trop de requêtes de relais, réessaie plus tard'}, 429)
+                return
             import logx_update as upd
             from urllib.parse import parse_qs, urlparse
             qs = parse_qs(urlparse(self.path).query)
@@ -2155,8 +2226,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # C) SECOURS uniquement : état du fichier déjà téléchargé + VÉRIFIÉ
         # (hash SHA-256, voir logx_update.py) que CE poste peut servir à un
-        # pair sans internet du tout — jamais un chemin arbitraire.
+        # pair sans internet du tout — jamais un chemin arbitraire. Borné au
+        # LAN (voir _is_lan_ip ci-dessus), même raisonnement que gateway_status.
         if path == '/app/update_serve_status':
+            if not _is_lan_ip(self.client_address[0]):
+                self._json({'error': 'Réservé au réseau local'}, 403)
+                return
             import logx_update as upd
             self._json(upd.serve_status())
             return
@@ -2166,8 +2241,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # (aucune traversée de répertoire possible). Le poste appelant
         # revérifie le SHA-256 reçu contre SA PROPRE référence locale, exactement
         # comme pour /app/update_relay — voir docstring de logx_update.py pour
-        # le compromis de sécurité de ce chemin de secours.
+        # le compromis de sécurité de ce chemin de secours. Borné au LAN +
+        # limité en fréquence par IP, même raisonnement que /app/update_relay
+        # (ce fichier peut faire plusieurs dizaines de Mo, servi en flux).
         if path == '/app/update_serve':
+            ip = self.client_address[0]
+            if not _is_lan_ip(ip):
+                self._json({'error': 'Réservé au réseau local'}, 403)
+                return
+            if _relay_rate_limited(ip):
+                self._json({'error': 'Trop de requêtes de relais, réessaie plus tard'}, 429)
+                return
             import logx_update as upd
             info = upd.serve_status()
             if not info.get('available'):

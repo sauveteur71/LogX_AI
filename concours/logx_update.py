@@ -55,6 +55,7 @@ avec internet absent ou dégradé sur le poste qui a besoin de la mise à jour.
   repli silencieux sur la confiance aveugle envers le pair/la passerelle.
 """
 import hashlib
+import ipaddress
 import os
 import re
 import sys
@@ -332,11 +333,35 @@ def verify_file_sha256(path, expected_hex):
     return h.hexdigest() == expected_hex.lower()
 
 
+def _is_valid_ip(ip):
+    """True SEULEMENT si `ip` est un littéral IPv4/IPv6 valide — JAMAIS un
+    nom d'hôte/domaine (anti-SSRF, voir audit sécurité : sans ce filtre,
+    _peer_get_json/scan_network_candidates/_do_download_via_network
+    construisaient f'http://{ip}:{PORT}{path}' à partir de N'IMPORTE QUELLE
+    chaîne fournie par le client — un appelant pouvait ainsi forcer ce
+    serveur à émettre de vraies requêtes HTTP sortantes vers un hôte/domaine
+    arbitraire, par ex. 'localhost' ou un nom public pointant vers un
+    service interne). ipaddress.ip_address() rejette tout ce qui n'est pas
+    une adresse littérale — pas de résolution DNS ici, donc pas de fenêtre
+    de "DNS rebinding" non plus."""
+    try:
+        ipaddress.ip_address(str(ip).strip())
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 def _peer_get_json(ip, path, timeout=3):
     """GET JSON vers un AUTRE poste du LAN (même port que celui-ci, voir
     PORT) — utilisé pour sonder /app/gateway_status et /app/update_serve_
     status avant de tenter un vrai transfert. Ne lève jamais : renvoie None
-    sur toute erreur (poste éteint, pas LogX AI à cette IP, timeout...)."""
+    sur toute erreur (poste éteint, pas LogX AI à cette IP, timeout...).
+    Anti-SSRF : refuse tout `ip` qui n'est pas un littéral IPv4/IPv6 (voir
+    _is_valid_ip) AVANT de construire la moindre URL — défense en profondeur,
+    même si les appelants (scan_network_candidates, _do_download_via_network)
+    filtrent déjà en amont."""
+    if not _is_valid_ip(ip):
+        return None
     try:
         req = urllib.request.Request(
             f'http://{ip}:{PORT}{path}',
@@ -354,9 +379,15 @@ def scan_network_candidates(ips):
     servir en SECOURS (chemin C). Purement informatif — ne télécharge rien ;
     c'est start_download_via_network qui agit, sur un second clic explicite
     de l'opérateur (voir logx_logbook.js). Sondes en parallèle (borné) pour
-    rester réactif même avec une dizaine de postes sur le LAN."""
+    rester réactif même avec une dizaine de postes sur le LAN.
+    Anti-SSRF : `ips` peut, à cet appel, provenir indirectement d'un corps
+    JSON client (voir logx_http./app/update_network_scan, qui doit lui-même
+    déjà restreindre aux pairs CONNUS de ce serveur — peer_versions, jamais
+    une IP choisie librement par l'appelant) ; ici, en secours, on rejette
+    aussi tout ce qui n'est pas un littéral IP valide (_is_valid_ip) — un nom
+    d'hôte comme 'localhost' ou un domaine arbitraire n'est JAMAIS sondé."""
     import concurrent.futures
-    ips = [ip for ip in dict.fromkeys(ips) if ip][:20]  # dédoublonne, borne
+    ips = [ip for ip in dict.fromkeys(ips) if ip and _is_valid_ip(ip)][:20]  # dédoublonne, valide, borne
     gateways, peers = [], []
     if not ips:
         return {'gateways': gateways, 'peers': peers}
@@ -462,7 +493,13 @@ def start_download_via_network(mode, ips):
     référence LOCALE de ce poste (jamais une référence fournie par le pair/
     la passerelle — voir docstring du module). Renvoie (True, '') si le
     téléchargement démarre, (False, message) sinon (refus immédiat, sans
-    lancer de thread ni ouvrir la moindre connexion réseau)."""
+    lancer de thread ni ouvrir la moindre connexion réseau).
+    Anti-SSRF : `ips` peut provenir indirectement d'un corps JSON client (voir
+    logx_http./app/update_download_via_network, qui doit lui-même déjà
+    restreindre aux pairs CONNUS de ce serveur — peer_versions). Ici, en
+    secours, tout ce qui n'est pas un littéral IPv4/IPv6 valide (_is_valid_ip)
+    est rejeté avant même d'être retenu comme candidat : jamais un nom
+    d'hôte/domaine arbitraire, jamais de résolution DNS pour ce chemin."""
     if mode not in ('gateway', 'peer'):
         return False, 'Mode de mise à jour réseau invalide.'
     check = get_cached_check()
@@ -476,7 +513,7 @@ def start_download_via_network(mode, ips):
             "sécurité tant qu'un contact direct n'a pas réussi au moins une "
             "fois (même ancien : l'empreinte d'une release publiée ne change "
             "jamais).")
-    ips = [str(ip).strip() for ip in (ips or []) if str(ip).strip()]
+    ips = [str(ip).strip() for ip in (ips or []) if str(ip).strip() and _is_valid_ip(ip)]
     if not ips:
         return False, 'Aucun poste candidat sur le réseau local.'
     with _lock:
@@ -500,6 +537,15 @@ def _do_download_via_network(mode, ips, tag, platform, expected_sha256, expected
     last_err = 'Aucun poste candidat joignable ou valide sur le réseau.'
     for ip in ips:
         tmp = dest + '.part'
+        # Anti-SSRF (défense en profondeur — start_download_via_network filtre
+        # déjà `ips` en amont, mais cette fonction reste appelable directement,
+        # ex. depuis un test) : jamais de requête sortante vers autre chose
+        # qu'un littéral IPv4/IPv6 (voir _is_valid_ip). Un nom d'hôte comme
+        # 'localhost' ou un domaine arbitraire est rejeté ICI, avant toute
+        # tentative de connexion.
+        if not _is_valid_ip(ip):
+            last_err = f'{ip} : IP invalide.'
+            continue
         try:
             if mode == 'gateway':
                 status = _peer_get_json(ip, '/app/gateway_status', timeout=3)
