@@ -112,6 +112,23 @@ def test_tous_les_polls_reseau_de_la_barre_passent_par_rcpoll():
             "%s tourne encore en setInterval nu : jamais suspendu" % nom
 
 
+def test_aucun_setinterval_de_la_barre_ne_declenche_de_requete():
+    """Regle generale, valable aussi pour les minuteurs pas encore ecrits.
+
+    La liste POLLS_RESEAU ci-dessus vieillit : le jour ou quelqu'un ajoute un
+    badge a la barre, il ajoutera son minuteur sans penser a ce fichier. On
+    verifie donc l'invariant lui-meme — tout setInterval() de la barre vise
+    une fonction qui ne fait AUCUNE requete — plutot qu'une enumeration.
+    """
+    src = lire(STATUSBAR)
+    for nom in re.findall(r'setInterval\(\s*([A-Za-z_$][\w$]*)\s*,', src):
+        corps = corps_fonction(src, nom)
+        assert 'fetch(' not in corps, (
+            "setInterval(%s, ...) : ce minuteur appelle le serveur et n'est "
+            "donc jamais suspendu quand l'onglet est masque — passer par "
+            "rcPoll()" % nom)
+
+
 def test_les_ticks_locaux_ne_font_aucune_requete():
     """Justification de les laisser en setInterval nu — a re-verifier a chaque
     evolution, sinon un fetch() ajoute la-dedans reintroduirait le defaut."""
