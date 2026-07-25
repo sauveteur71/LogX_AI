@@ -3082,6 +3082,41 @@
     if (ORIG.has(node)) { node.nodeValue = ORIG.get(node); LAST_OUT.set(node, node.nodeValue); }
   }
 
+  // ─── Titre de l'onglet (<title>) ────────────────────────────────────────
+  // <title> vit dans <head> : le TreeWalker de walk(), qui part de
+  // document.body, ne l'atteint JAMAIS. L'onglet restait donc en français
+  // (« LogX AI — Chasse & Cibles ») alors que toute la page était traduite.
+  // Les titres suivent le motif « LogX AI — <libellé de page> » : on tente
+  // d'abord la chaîne entière, puis le seul libellé après le tiret cadratin —
+  // c'est lui qui est dans le dictionnaire (partagé avec l'en-tête de page).
+  const TITLE_SEP = ' — ';   // espace + tiret cadratin + espace
+  let TITLE_ORIG = null;          // français source
+  let TITLE_OUT = null;           // dernière valeur écrite PAR CE MOTEUR
+
+  function translateTitle(dict) {
+    // Même raisonnement que LAST_OUT pour les nœuds texte : si le titre a
+    // changé depuis notre dernière écriture, c'est la PAGE qui l'a
+    // repositionné (alerte DX clignotante de logx_carte.html, titre du
+    // panneau détaché…) — ce nouveau texte devient le français source.
+    if (TITLE_ORIG === null || (TITLE_OUT !== null && TITLE_OUT !== document.title)) {
+      TITLE_ORIG = document.title;
+    }
+    const raw = TITLE_ORIG;
+    const key = raw.trim();
+    let out = raw;                       // dict vide / clé absente → français
+    if (dict[key] !== undefined) {
+      out = dict[key];
+    } else {
+      const i = raw.indexOf(TITLE_SEP);
+      const suffix = i >= 0 ? raw.slice(i + TITLE_SEP.length).trim() : '';
+      if (suffix && dict[suffix] !== undefined) {
+        out = raw.slice(0, i + TITLE_SEP.length) + dict[suffix];
+      }
+    }
+    document.title = out;
+    TITLE_OUT = out;
+  }
+
   function walk(dict, root) {
     // Nœuds de texte
     const it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -3124,6 +3159,10 @@
         }
       });
     });
+    // Titre de l'onglet : appelé ICI plutôt qu'auprès de chacun des trois
+    // appels à walk() (applyLang ×2 + rcTranslate), pour qu'aucun chemin de
+    // traduction ne puisse l'oublier — y compris un futur appelant.
+    if (root === document.body || root === document.documentElement) translateTitle(dict);
   }
 
   function applyLang(lang) {
