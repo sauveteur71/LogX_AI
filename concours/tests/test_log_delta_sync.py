@@ -325,6 +325,93 @@ def test_add_qso_bump_et_stamp_sont_atomiques_avec_le_verrou(server, monkeypatch
             "mais le QSO neuf absent du delta (fenêtre de course rouverte)")
 
 
+@pytest.fixture
+def threaded_server():
+    """ThreadingHTTPServer — le serveur de PRODUCTION (logx_serveur.py), un
+    thread par requête. Indispensable pour une course entre deux REQUÊTES
+    HTTP : avec le HTTPServer mono-thread de la fixture `server`, le GET
+    concurrent est sérialisé derrière le POST et la course est masquée
+    (le test passerait même sans le correctif)."""
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), httpmod.Handler)
+    port = srv.server_address[1]
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    try:
+        yield f'http://127.0.0.1:{port}'
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        t.join(timeout=5)
+
+
+def test_import_adif_commit_bump_et_stamp_sont_atomiques_avec_le_verrou(
+        threaded_server, monkeypatch):
+    """Même course que test_add_qso_bump_et_stamp_sont_atomiques_avec_le_verrou
+    (PROBLEME 1), mais sur le chemin d'IMPORT ADIF : /log/import_adif/commit
+    faisait `with log_lock: shared_log.extend(...)` puis bump_log_version() et
+    la boucle stamp_qso_version() APRÈS avoir relâché le verrou — le motif
+    d'avant correctif que /log/add, /log/update et /log/delete ont déjà
+    abandonné. Un lecteur /log/list?since= concurrent pouvait s'intercaler
+    entre le bump et le stamp : il capturait les QSO importés sans '_v'
+    (défaut 0), les excluait du delta calculé contre une version déjà
+    avancée, et adoptait ce curseur — les QSO stampés ensuite avec _v égal
+    (jamais strictement supérieur) au curseur restaient invisibles À JAMAIS
+    pour ce pair. Fenêtre d'autant plus large que l'import est gros (le
+    stamp boucle sur tout l'import). Sans le correctif (bump+stamp DANS le
+    même with log_lock: que l'extend), ce test échoue : delta vide alors que
+    la version a déjà avancé."""
+    monkeypatch.setattr(httpmod, 'shared_log', [])
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'simple'})
+    monkeypatch.setattr(storage, 'log_version', 0)
+    monkeypatch.setattr(storage, 'hard_reset_version', 0)
+    monkeypatch.setattr(storage, 'deleted_qsos', [])
+
+    reader_may_run = threading.Event()
+    reader_done = threading.Event()
+    reader_result = {}
+
+    real_bump = storage.bump_log_version
+
+    def bump_puis_signale_le_lecteur():
+        v = real_bump()
+        # Le lecteur dégaine PILE APRÈS le bump. Avec le correctif, log_lock
+        # est encore tenu ici (bump appelé DANS le même with log_lock: que
+        # l'extend) : le lecteur bloque jusqu'à la fin des stamps. Sans le
+        # correctif, le verrou était déjà relâché -> il passait librement.
+        reader_may_run.set()
+        reader_done.wait(timeout=0.4)
+        return v
+
+    monkeypatch.setattr(httpmod, 'bump_log_version', bump_puis_signale_le_lecteur)
+
+    def lecteur():
+        reader_may_run.wait(timeout=5)
+        data = _get(threaded_server,
+                    f'/log/list?since=0&boot={storage.SERVER_BOOT_ID}')
+        reader_result.update(data)
+        reader_done.set()
+
+    t = threading.Thread(target=lecteur)
+    t.start()
+    adif = ("<CALL:5>F4XYZ<BAND:3>20m<MODE:3>SSB"
+            "<QSO_DATE:8>20260720<TIME_ON:4>1000<EOR>")
+    status, res = _post(threaded_server, '/log/import_adif/commit',
+                        {'adif': adif})
+    t.join(timeout=5)
+
+    assert status == 200 and res.get('imported') == 1
+    assert reader_result, "le thread lecteur n'a pas obtenu de réponse"
+    if reader_result.get('version', 0) > 0:
+        # Invariant : version déjà bumpée => le QSO importé DOIT être dans le
+        # delta (jamais l'un sans l'autre, sous peine d'invisibilité définitive).
+        assert reader_result.get('delta') is True
+        assert len(reader_result.get('qsos', [])) == 1, (
+            "QSO importé invisible : le lecteur a vu la version déjà "
+            "incrémentée mais le QSO absent du delta (fenêtre de course "
+            "de /log/import_adif/commit rouverte)")
+
+
 def test_log_update_changement_de_portee_force_un_resync_complet(server, monkeypatch):
     """PROBLEME 2 : qso_scope_id() dérive la portée d'un QSO de 'contest' +
     l'année de son champ 'date'. /log/update laisse modifier cette date (donc

@@ -4112,12 +4112,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with log_lock:
                     snapshot = list(shared_log)
                 new_qsos, errors = imp.commit_import(payload.get('adif', ''), snapshot)
+                # bump_log_version()/stamp_qso_version() DANS le même verrou que
+                # l'extend : même fenêtre de course que /log/add (voir le
+                # commentaire détaillé dans add_qso_to_log) — un lecteur
+                # /log/list?since= concurrent (ThreadingHTTPServer) pouvait
+                # s'intercaler entre le bump (version déjà incrémentée) et le
+                # stamp (encore absent) et exclure à jamais les QSO importés de
+                # tous ses deltas. Fenêtre d'autant plus large ici que le stamp
+                # boucle sur TOUT l'import. save_log_to_disk() reste HORS verrou
+                # (elle reprend log_lock elle-même ; non réentrant sinon deadlock).
                 with log_lock:
                     shared_log.extend(new_qsos)
+                    bump_log_version()
+                    for q in new_qsos:
+                        stamp_qso_version(q)   # voir /log/list?since=
                     total = len(shared_log)
-                bump_log_version()
-                for q in new_qsos:
-                    stamp_qso_version(q)   # voir /log/list?since=
                 save_log_to_disk()
                 for q in new_qsos:
                     try:
