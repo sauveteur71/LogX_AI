@@ -154,10 +154,18 @@ def test_sync_now_borne_si_dossier_cloud_bloque_indefiniment(monkeypatch, tmp_pa
     assert elapsed < 4  # bien avant les cs.SYNC_TIMEOUT+5 s du blocage simulé
 
 
-def test_last_error_disparait_quand_on_desactive_cloudsync():
+def test_last_error_disparait_quand_on_desactive_cloudsync(tmp_path):
     """Revue adversariale : un échec avec Cloud Sync activé ne doit plus
     jamais réapparaître une fois l'utilisateur repassé en mode='off'."""
-    cfg_bad = {'cloudsync_mode': 'full', 'cloudsync_folder': r'Z:\introuvable_xyz',
+    # Un chemin de lecteur Windows (ex. "Z:\...") n'échoue QUE sous Windows —
+    # sous Linux (CI), ':' et '\' sont des caractères de nom de fichier
+    # valides : os.makedirs() créerait bêtement un dossier ainsi nommé au
+    # lieu d'échouer (constaté en CI, cf. revue). Un sous-dossier d'un
+    # FICHIER ordinaire échoue de façon garantie sur les deux plateformes
+    # (NotADirectoryError), sans dépendre d'un chemin propre à un OS.
+    blocker = tmp_path / 'bloqueur.txt'
+    blocker.write_text('pas un dossier')
+    cfg_bad = {'cloudsync_mode': 'full', 'cloudsync_folder': str(blocker / 'sous_dossier'),
                'callsign_contest': 'F4GLD'}
     cs.sync_now(cfg_bad, [])
     assert cs.status(cfg_bad)['last_error'] is not None  # échec bien enregistré
@@ -171,7 +179,11 @@ def test_last_error_disparait_quand_le_dossier_est_corrige(tmp_path):
     """Revue adversariale : dossier cassé -> corrigé (toujours activé) mais
     aucune nouvelle tentative n'a encore eu lieu -> ne doit pas afficher
     l'ancienne erreur comme si le nouveau dossier avait déjà échoué."""
-    cfg_bad = {'cloudsync_mode': 'full', 'cloudsync_folder': r'Z:\introuvable_xyz2',
+    # Même technique de dossier garanti invalide sur toute plateforme que
+    # ci-dessus (voir commentaire dans test_last_error_disparait_quand_on_desactive_cloudsync).
+    blocker = tmp_path / 'bloqueur2.txt'
+    blocker.write_text('pas un dossier')
+    cfg_bad = {'cloudsync_mode': 'full', 'cloudsync_folder': str(blocker / 'sous_dossier'),
                'callsign_contest': 'F4GLD'}
     cs.sync_now(cfg_bad, [])
     assert cs.status(cfg_bad)['last_error'] is not None
