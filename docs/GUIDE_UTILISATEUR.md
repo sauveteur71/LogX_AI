@@ -12,7 +12,7 @@
 6. [Le logbook au quotidien](#6-le-logbook-au-quotidien)
 7. [Faire un concours de A à Z](#7-faire-un-concours-de-a-à-z)
 8. [Piloter sa radio et son matériel](#8-piloter-sa-radio-et-son-matériel)
-9. [Cartes, propagation, EME et écoute à distance](#9-cartes-propagation-eme-et-écoute-à-distance)
+9. [Cartes, propagation, chasse, EME et écoute à distance](#9-cartes-propagation-chasse-eme-et-écoute-à-distance)
 10. [Activations POTA, SOTA, WWFF, IOTA, WCA](#10-activations-pota-sota-wwff-iota-wca)
 11. [Multi-poste, expédition, radioclub et écran mural](#11-multi-poste-expédition-radioclub-et-écran-mural)
 12. [Diplômes, QSL et historique à vie](#12-diplômes-qsl-et-historique-à-vie)
@@ -175,7 +175,7 @@ En haut de page, vous retrouvez :
 - le bouton **💾 SAUVEGARDER** : enregistrement immédiat et « permissif » — il n'exige rien, vous pouvez sauvegarder une configuration à moitié remplie et y revenir plus tard. Un message **✅ ENREGISTRÉ** s'affiche brièvement en confirmation ;
 - le bouton **🎚 EXPERT** / **🎚 DÉBUTANT** : en mode débutant, les champs avancés sont masqués pour alléger l'écran. À la première visite, si aucun indicatif n'est encore configuré, la page démarre automatiquement en mode débutant ;
 - le bouton de thème **☀️** / **🌙** (jour/nuit), synchronisé entre tous les onglets ouverts du logiciel ;
-- la barre de navigation vers les autres pages : **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**, avec le nom du concours actif rappelé à droite.
+- la barre de navigation vers les autres pages : **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**, avec le nom du concours actif rappelé à droite.
 
 Juste en dessous, la barre **MODE D'UTILISATION** conditionne toute la suite : **📋 LOGBOOK SIMPLE** (chasse DX, trafic courant, sans concours), **🏆 CONCOURS** (le mode par défaut), **📡 EXPÉDITION / ACTIVATION** (pile-up, multi-poste) ou **🏛️ RADIOCLUB** (plusieurs postes, jusqu'à 40 opérateurs). Une note contextuelle explique les conséquences du mode choisi. Deux effets à connaître : passer en EXPÉDITION pré-coche la saisie simplifiée, et passer en LOGBOOK SIMPLE décoche toutes les bandes et tous les modes (vous repartez d'une page blanche à régler librement à l'étape FILTRES). En modes SIMPLE et EXPÉDITION, le choix d'un concours est facultatif.
 
@@ -607,7 +607,7 @@ Pendant que vous tapez l'indicatif, un badge s'affiche en temps réel : **⚠️
 
 #### Need list et carte : les priorités en points réels
 
-La **🎯 CLUSTER — NEED LIST** (page propagation et panneau détachable) classe les spots du cluster par valeur réelle au barème du concours : nouveaux multiplicateurs en tête, puis points directs décroissants, avec pour chacun la distance, le cap antenne (degrés + point cardinal) et une explication en clair. Les onglets de chasse ciblée (**🎯 CIBLES — QUI PEUT LES DONNER**) listent, selon le concours, les départements qui vous manquent (toutes bandes confondues) ou les pays qui vous manquent **sur chaque bande**, avec les stations spottées prêtes à être appelées et leur fréquence.
+La **🎯 CLUSTER — NEED LIST** (page **🎯 CHASSE** et panneau détachable) classe les spots du cluster par valeur réelle au barème du concours : nouveaux multiplicateurs en tête, puis points directs décroissants, avec pour chacun la distance, le cap antenne (degrés + point cardinal) et une explication en clair. Les onglets de chasse ciblée (**🎯 CIBLES — QUI PEUT LES DONNER**) listent, selon le concours, les départements qui vous manquent (toutes bandes confondues) ou les pays qui vous manquent **sur chaque bande**, avec les stations spottées prêtes à être appelées et leur fréquence.
 
 Sur la carte, la couleur et la taille des marqueurs viennent du moteur de score, pas d'une appréciation libre de l'IA : priorités 1 et 2 en surbrillance, stations déjà travaillées grisées. Deux nuances honnêtes : un spot VHF passe en priorité maximale quand une ouverture Sporadique-E, tropo ou aurore est signalée, mais avec la mention explicite qu'il n'y a « pas de garantie sur ce trajet précis » ; et une station vue seulement sur le chat ON4KST est plafonnée en priorité, sa propagation n'étant pas confirmée.
 
@@ -785,15 +785,18 @@ Tout le reste du logiciel fonctionne à l'identique sans le moindre câble : sai
 
 ---
 
-## 9. Cartes, propagation, EME et écoute à distance
+## 9. Cartes, propagation, chasse, EME et écoute à distance
 
-Ce chapitre couvre les cinq pages qui vous font sortir du logbook : voir où sont les stations à contacter, savoir quelles bandes sont ouvertes et vers où, préparer un contact par rebond lunaire, écouter votre propre signal depuis un récepteur distant, et planifier vos concours et chasses aux DXpéditions. Les cinq pages partagent la même barre d'onglets (**⚙ CONFIG**, **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**) et le même thème jour/nuit, mémorisé d'une visite à l'autre.
+Ce chapitre couvre les six pages qui vous font sortir du logbook : voir où sont les stations à contacter, savoir quelles bandes sont ouvertes et vers où, repérer les activateurs en l'air et les spots qui valent des points, préparer un contact par rebond lunaire, écouter votre propre signal depuis un récepteur distant, et planifier vos concours et chasses aux DXpéditions. Les six pages partagent la même barre d'onglets (**⚙ CONFIG**, **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**) et le même thème jour/nuit, mémorisé d'une visite à l'autre.
+
+Deux pages voisines à ne pas confondre : **📶 PROPAG** répond à « quelles bandes sont ouvertes, et vers où ? » — on la consulte de temps en temps ; **🎯 CHASSE** répond à « qui est-ce que je contacte maintenant ? » — on la travaille en continu. C'est pourquoi les cinq panneaux de cibles (activateurs POTA/SOTA/WWFF, châteaux WCA, need list du cluster) vivent sur CHASSE et non sur PROPAG.
 
 | Page | À quoi elle sert |
 |---|---|
 | **🗺️ CARTE IA** | Carte tactique du concours : stations classées par priorité, anneaux de distance (dont votre record DX réel), ligne grise, chat avec le coach IA |
 | **🇫🇷 Cartes** | Tableaux de chasse géographiques : départements français à « verdir » et pays DXCC travaillés, avec les stations qui peuvent vous donner ce qui manque |
-| **📶 PROPAG** | Salle de veille : soleil et ionosphère, ouvertures par région, balises, tropo, météores, EME, spots POTA/SOTA/WWFF, qui entend votre signal (PSK/RBN), need list du cluster |
+| **📶 PROPAG** | Salle de veille : soleil et ionosphère, ouvertures par région, conditions par bande, balises, tropo, météores, EME, qui entend votre signal (PSK/RBN) |
+| **🎯 CHASSE** | Les cibles du moment : activateurs POTA/SOTA/WWFF en direct, châteaux WCA annoncés, et la need list du cluster valorisée pour votre concours |
 | **📡 WEBSDR** | Annuaire de récepteurs distants pilotables au navigateur, pour écouter ailleurs qu'à la maison |
 | **📅 CALENDRIER** | Dates des concours (REF, IARU, internationaux, calendrier mondial) et DXpéditions annoncées, croisées avec votre log |
 
@@ -852,7 +855,7 @@ Carte mondiale des pays DXCC travaillés (en vert) avec compteur « N pays conta
 
 ### 9.3 📶 PROPAG — la salle de veille
 
-Cette page rassemble en un seul écran tout ce qui, autrement, vous demanderait dix sites web ouverts : conditions solaires, ouvertures calculées depuis votre QTH, balises, activateurs sur l'air, et la preuve que votre propre signal porte. Les panneaux se rafraîchissent seuls (des balises toutes les 5 s à la tropo toutes les 20 min) — laissez la page ouverte sur un coin d'écran.
+Cette page rassemble en un seul écran tout ce qui, autrement, vous demanderait dix sites web ouverts : conditions solaires, ouvertures calculées depuis votre QTH, balises, et la preuve que votre propre signal porte. Elle ne traite que de la propagation : les activateurs en l'air et la need list du cluster sont sur la page **🎯 CHASSE** (§9.5). Les panneaux se rafraîchissent seuls (des balises toutes les 5 s à la tropo toutes les 20 min) — laissez la page ouverte sur un coin d'écran.
 
 | Panneau | Ce qu'il apporte |
 |---|---|
@@ -866,13 +869,7 @@ Cette page rassemble en un seul écran tout ce qui, autrement, vous demanderait 
 | « 🛰️ SATELLITES » | Pas de calcul local : liens directs vers Heavens-Above (prochains passages visibles, ISS…) et l'AMSAT, pré-réglés sur votre locator et altitude. Sans locator configuré, la page vous invite à le renseigner dans **⚙ CONFIG** |
 | « 🌐 SIGNAL ENTENDU — PSK » | Où **votre** signal est décodé (PSK Reporter) : récepteur, bande, SNR, cap, distance ; lien « ↗ carte complète » pré-filtré sur votre indicatif |
 | « 📻 SIGNAL CW ENTENDU — RBN » | Les skimmers CW qui vous reçoivent : spotter, bande, SNR, fréquence, vitesse wpm. Si vide : « Aucun skimmer ne t'entend en CW pour l'instant (transmets en CW). » |
-| « 🏞️ ACTIVATEURS POTA EN DIRECT » | Spots POTA confirmés sur l'air : indicatif, bande, référence, fréquence, mode, nom du parc |
-| « 🏔️ ACTIVATEURS SOTA EN DIRECT » | Idem pour les sommets SOTA, avec altitude et points du sommet |
-| « 🌳 ACTIVATEURS WWFF EN DIRECT » | Idem pour les réserves naturelles WWFF |
-| « 🏰 CHÂTEAUX WCA/COTA — ANNONCÉS » | Attention, différent des trois précédents : ce sont des activations **annoncées à l'avance**, pas des spots confirmés sur l'air |
 | « 🌙 EME — REBOND LUNAIRE » | Voir la sous-section dédiée ci-dessous |
-
-La colonne de droite, fixe, est le panneau « 🎯 CLUSTER — NEED LIST » (détachable) : les spots du cluster valorisés pour **votre** concours, avec filtres « TOUS » / « 📈 MULTS » / « SANS DUPES ». Chaque spot affiche sa pastille de priorité, la valeur « +N pts » ou « DÉJÀ FAIT », le badge « 📈 NOUVEAU MULT », le cap et la distance — et deux boutons d'action directe si le pilotage matériel est activé dans la configuration : **▶ QSY** règle votre radio sur la fréquence, **🧭 N°** pointe votre rotor.
 
 ### 9.4 🌙 EME — rebond lunaire : deux locators suffisent
 
@@ -886,7 +883,23 @@ Le panneau affiche en permanence :
 
 Pour planifier un sked : saisissez le locator de l'autre station dans le champ « Locator correspondant (ex: FN31pr) » puis cliquez **🔍 Fenêtre commune (48h)**. Le logiciel balaie les 48 prochaines heures par pas de 10 minutes et liste les créneaux « 🌙 début → fin UTC » où la Lune est visible **simultanément** des deux QTH — la condition nécessaire à tout QSO EME. Rappel honnête : le panneau vous dit *quand* tenter, pas *si* votre station suffit — l'EME reste exigeant en antennes et en puissance, et le bilan de liaison reste à évaluer de votre côté.
 
-### 9.5 📡 WEBSDR — écouter ailleurs qu'à la maison
+### 9.5 🎯 CHASSE — qui contacter maintenant
+
+Cette page répond à une seule question, celle qu'on se pose en permanence pendant une session : **qui est-ce que je contacte maintenant ?** Elle regroupe les cinq listes de cibles, qui vivaient auparavant au milieu des indices solaires de la page PROPAG.
+
+Sa mise en page est faite pour l'opération : **la page ne défile jamais**. L'écran est découpé une fois pour toutes — une grille 2×2 à gauche pour les quatre programmes d'activation, la need list du cluster sur toute la hauteur à droite — et c'est chaque liste qui défile dans son propre panneau. Vous pouvez donc la laisser ouverte sur un second écran sans jamais avoir à chercher un panneau.
+
+| Panneau | Ce qu'il apporte | Rafraîchissement |
+|---|---|---|
+| « 🏞️ ACTIVATEURS POTA EN DIRECT » | Spots POTA confirmés sur l'air : indicatif, bande, référence, fréquence, mode, nom du parc | 2 min |
+| « 🏔️ ACTIVATEURS SOTA EN DIRECT » | Idem pour les sommets SOTA, avec altitude et points du sommet | 1 min |
+| « 🌳 ACTIVATEURS WWFF EN DIRECT » | Idem pour les réserves naturelles WWFF | 1 min |
+| « 🏰 CHÂTEAUX WCA/COTA — ANNONCÉS » | Attention, différent des trois précédents : ce sont des activations **annoncées à l'avance**, pas des spots confirmés sur l'air | 5 min |
+| « 🎯 CLUSTER — NEED LIST » (détachable) | Colonne de droite, pleine hauteur : voir ci-dessous | 1 min |
+
+Le panneau « 🎯 CLUSTER — NEED LIST » présente les spots du cluster valorisés pour **votre** concours, avec les filtres « TOUS » / « 📈 MULTS » / « SANS DUPES ». Chaque spot affiche sa pastille de priorité, la valeur « +N pts » ou « DÉJÀ FAIT », le badge « 📈 NOUVEAU MULT », le cap et la distance — et deux boutons d'action directe si le pilotage matériel est activé dans la configuration : **▶ QSY** règle votre radio sur la fréquence, **🧭 N°** pointe votre rotor. Le bouton **⇱** détache le panneau dans une fenêtre séparée. Tant qu'aucun spot n'est encore arrivé, la page vous le dit : « lance un refresh depuis la CARTE IA (📡 ANALYSER) », ou attendez simplement la veille automatique.
+
+### 9.6 📡 WEBSDR — écouter ailleurs qu'à la maison
 
 Un WebSDR est un récepteur radio installé chez un autre radioamateur ou une association, pilotable depuis votre navigateur. Trois usages concrets : vérifier comment votre propre émission est reçue ailleurs, écouter une bande fermée chez vous mais ouverte là-bas, et repérer une station avant de tenter le contact.
 
@@ -904,7 +917,7 @@ L'annuaire est volontairement **court et vérifié à la main** : chaque récept
 
 À l'ouverture de la page, chaque récepteur est testé une seule fois (4 secondes maximum) et reçoit un badge « 🟢 en ligne » ou « 🔴 injoignable ». Prenez ce badge pour ce qu'il est — l'encart « ⚠ Disponibilité non garantie. » le rappelle : ce sont des serveurs **bénévoles**, qui peuvent être saturés ou arrêtés à tout moment. Filtrez par « 🌍 Tous les continents » ou par le champ « Filtrer par nom, pays, bande… », puis cliquez **▶ Ouvrir dans un nouvel onglet** : le récepteur s'ouvre sur son propre site, indépendant de LogX AI.
 
-### 9.6 📅 CALENDRIER — concours et DXpéditions annoncées
+### 9.7 📅 CALENDRIER — concours et DXpéditions annoncées
 
 Cette page répond à deux questions : « quel concours ce week-end ? » et « quelle expédition rare arrive, et me manque-t-elle ? ». Les dates sont recalculées automatiquement chaque année (sous-titre : « Dates calculées automatiquement · Mise à jour annuelle ») ; la barre d'état affiche la dernière vérification et le bouton **🔄 VÉRIFIER LES RÈGLEMENTS**.
 
@@ -961,7 +974,7 @@ Dès qu'un programme et une référence sont configurés, une barre d'activation
 
 ### La chasse : les activateurs en direct
 
-Sur la page PROPAGATION, quatre panneaux montrent qui est actuellement (ou bientôt) en l'air :
+Sur la page **🎯 CHASSE** (onglet à droite de PROPAG, voir §9.5), quatre panneaux montrent qui est actuellement (ou bientôt) en l'air :
 
 - **🏞️ ACTIVATEURS POTA EN DIRECT**
 - **🏔️ ACTIVATEURS SOTA EN DIRECT**
@@ -1245,6 +1258,8 @@ LogX AI est conçu pour rester utilisable même sans aucune connexion Internet �
 
 ---
 
-*Dernière mise à jour : 25 juillet 2026 — ajout au chapitre Dépannage : le bandeau « FILES »/liste de requêtes réseau qui inquiète certains utilisateurs est en fait l'onglet Réseau des outils de développement du navigateur (F12), pas un composant de LogX AI.*
+*Dernière mise à jour : 25 juillet 2026 — nouvelle page **🎯 CHASSE** : les cinq panneaux de cibles (activateurs POTA/SOTA/WWFF, châteaux WCA, need list du cluster) ont quitté la page PROPAG. Chapitre 9 : entrée CHASSE ajoutée aux deux listes d'onglets, nouvelle section §9.5, panneaux retirés de la section PROPAG (WEBSDR et CALENDRIER renumérotés §9.6 et §9.7), et chapitre 10 corrigé (les activateurs en direct sont sur CHASSE).*
 
-*Mise à jour précédente : 22 juillet 2026 — refonte complète du guide : nouveau plan en 15 chapitres reflétant l'état actuel du logiciel (4 modes d'utilisation dont RADIOCLUB, menus déroulants opérateur/bande/mode, ESM, décodeur CW, panneau EME, ouvertures par région, activations POTA/SOTA/WWFF/IOTA/WCA avec bases embarquées, chasse aux DXpéditions, écran mural utilisable dans tous les modes, 6 fournisseurs IA, chat multi-op).*
+*Mise à jour précédente : 25 juillet 2026 — ajout au chapitre Dépannage : le bandeau « FILES »/liste de requêtes réseau qui inquiète certains utilisateurs est en fait l'onglet Réseau des outils de développement du navigateur (F12), pas un composant de LogX AI.*
+
+*Mise à jour antérieure : 22 juillet 2026 — refonte complète du guide : nouveau plan en 15 chapitres reflétant l'état actuel du logiciel (4 modes d'utilisation dont RADIOCLUB, menus déroulants opérateur/bande/mode, ESM, décodeur CW, panneau EME, ouvertures par région, activations POTA/SOTA/WWFF/IOTA/WCA avec bases embarquées, chasse aux DXpéditions, écran mural utilisable dans tous les modes, 6 fournisseurs IA, chat multi-op).*
