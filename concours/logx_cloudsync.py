@@ -22,6 +22,31 @@ postes qui synchroniseraient au même instant. La fusion se fait à la LECTURE
 (un poste en mode 'full' lit tous les fichiers des AUTRES installations et
 réutilise la dédup native de add_qso_to_log — jamais de doublon, jamais
 d'écrasement).
+
+Propagation des SUPPRESSIONS et protection des CORRECTIONS (tombstones) :
+une fusion purement additive ressuscitait tout QSO supprimé localement dès
+qu'un fichier d'un autre poste le contenait encore (résurrection silencieuse
+toutes les ~3 min), et ré-importait en DOUBLON — avec collision d'id —
+l'ancienne version d'un QSO corrigé via /log/update (la clé de fusion
+call+band+mode+date+heure diffère alors que l'id est identique). Deux
+mécanismes, tous deux confinés à ce module :
+  - chaque installation écrit AUSSI son propre fichier de tombstones
+    (logx_cloudtomb_<indicatif>_<id installation>.json : liste de
+    {'id', 'key', 'ts'}) pour ses suppressions individuelles
+    (logx_storage.deleted_qsos) ; au pull, un QSO distant dont l'id est
+    tombstoné n'est jamais ré-importé, et un tombstone distant dont l'id ET
+    la clé correspondent à un QSO local le supprime (la suppression se
+    propage au lieu que le QSO ressuscite). La double condition id+clé évite
+    qu'une collision d'id (deux postes créant un QSO à la même milliseconde)
+    supprime un QSO légitime, et un QSO ré-ajouté volontairement après
+    suppression reçoit un id neuf, donc n'est jamais bloqué.
+  - un QSO distant portant l'id d'un QSO déjà présent localement est ignoré :
+    c'est l'ancienne version d'une correction faite ici (/log/update remplace
+    EN PLACE, même id) — la ré-importer recréerait le doublon et la collision
+    d'id.
+Le préfixe des fichiers de tombstones est distinct de SYNC_PREFIX : les
+anciennes versions du programme (glob sur logx_cloudsync_*) ne les lisent
+jamais, et ils ne comptent pas comme « autres installations » dans status().
 """
 import glob
 import json
@@ -32,6 +57,14 @@ import time
 import concurrent.futures as _cf
 
 SYNC_PREFIX = 'logx_cloudsync_'
+# Tombstones de suppression : préfixe VOLONTAIREMENT hors du motif
+# SYNC_PREFIX + '*' — un poste resté sur une ancienne version ne lira jamais
+# ces fichiers comme des listes de QSO, et status() ne les comptera pas comme
+# des installations supplémentaires.
+TOMB_PREFIX = 'logx_cloudtomb_'
+# Même borne que logx_storage._MAX_DELETED_TOMBSTONES : les suppressions
+# individuelles sont rares, la liste persistée doit rester petite.
+_MAX_SYNC_TOMBSTONES = 2000
 _INSTANCE_ID_FILE = '.cloudsync_instance_id'
 _STAMP_FILE = 'cloudsync_state.json'
 
@@ -84,8 +117,10 @@ def cloudsync_settings(cfg):
     if mode not in ('full', 'push', 'off'):
         mode = 'off'
     call = cfg.get('callsign_contest') or cfg.get('callsign') or 'poste'
+    base = f'{_safe(call)}_{_instance_id()}'
     return {'folder': folder, 'mode': mode, 'enabled': mode != 'off' and bool(folder),
-            'my_file': f'{SYNC_PREFIX}{_safe(call)}_{_instance_id()}.json'}
+            'my_file': f'{SYNC_PREFIX}{base}.json',
+            'my_tomb': f'{TOMB_PREFIX}{base}.json'}
 
 
 def _read_qsos(path):
@@ -95,6 +130,20 @@ def _read_qsos(path):
         return data if isinstance(data, list) else []
     except Exception:
         return []
+
+
+def _read_tombstones(path):
+    """Liste des tombstones [{'id', 'key', 'ts'}, ...] d'un fichier
+    logx_cloudtomb_*.json — [] si absent/illisible (même tolérance que
+    _read_qsos : un fichier corrompu ne doit jamais faire échouer la sync)."""
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [t for t in data if isinstance(t, dict) and t.get('id') is not None]
 
 
 def _qso_key(q):
@@ -189,7 +238,14 @@ def _sync_now_locked(cfg, shared_log):
         return {'ok': False, 'error': f"Dossier inaccessible : {e}"}
 
     my_path = os.path.join(s['folder'], s['my_file'])
+    tomb_path = os.path.join(s['folder'], s['my_tomb'])
     local = list(shared_log or [])
+
+    # Contenu du push PRÉCÉDENT, lu AVANT réécriture : c'est la seule trace
+    # complète (id + clé call/band/mode/date/heure) d'un QSO supprimé
+    # localement depuis le dernier cycle — le QSO n'est plus dans shared_log
+    # et logx_storage.deleted_qsos n'en mémorise que l'id.
+    prev = _read_qsos(my_path)
 
     # ── PUSH : ce poste réécrit UNIQUEMENT son propre fichier, jamais celui
     # d'un autre — aucune concurrence possible entre deux postes qui
@@ -200,10 +256,56 @@ def _sync_now_locked(cfg, shared_log):
     except Exception as e:
         return {'ok': False, 'error': f"Écriture impossible : {e}"}
 
+    # ── TOMBSTONES (voir docstring du module) : sans eux, un QSO supprimé ici
+    # ressuscitait au pull suivant depuis le fichier d'un autre poste, et la
+    # suppression devenait définitivement impossible tant que la sync tournait.
+    # Le fichier de tombstones de CE poste est persistant (il survit aux
+    # redémarrages, contrairement à logx_storage.deleted_qsos, mémoire de
+    # process) et n'est écrit que par ce poste — même anti-collision que
+    # my_file. Seules les suppressions INDIVIDUELLES (/log/delete →
+    # mark_qso_deleted) produisent un tombstone : les purges en masse (reset,
+    # archive, changement de portée) passent par mark_hard_reset et ne doivent
+    # JAMAIS se propager comme autant de suppressions chez les autres postes.
+    import logx_storage as storage
+    tombs = _read_tombstones(tomb_path)
+    tombs_dirty = False
+    own_tomb_ids = {t.get('id') for t in tombs}
+    mem_deleted = {d.get('id') for d in list(storage.deleted_qsos)} - {None}
+    if mem_deleted:
+        local_ids_now = {q.get('id') for q in local}
+        for q in prev:
+            qid = q.get('id')
+            if (qid is not None and qid in mem_deleted
+                    and qid not in local_ids_now and qid not in own_tomb_ids):
+                tombs.append({'id': qid, 'key': list(_qso_key(q)), 'ts': time.time()})
+                own_tomb_ids.add(qid)
+                tombs_dirty = True
+
     pulled = 0
+    removed_count = 0
     sources = 0
     if s['mode'] == 'full':
         import logx_http as http
+        # Tombstones écrits par les AUTRES postes : leurs suppressions doivent
+        # s'appliquer ici aussi, sinon ce poste re-pousserait indéfiniment le
+        # QSO supprimé là-bas (et le ferait ressusciter partout).
+        remote_tombs = []
+        for tpath in glob.glob(os.path.join(s['folder'], TOMB_PREFIX + '*.json')):
+            if os.path.abspath(tpath) == os.path.abspath(tomb_path):
+                continue
+            remote_tombs.extend(_read_tombstones(tpath))
+        # Suppression locale UNIQUEMENT sur id ET clé identiques : deux postes
+        # peuvent créer deux QSO différents à la même milliseconde (id =
+        # int(time*1000)) — l'id seul supprimerait alors un QSO légitime.
+        remote_pairs = {(t.get('id'), tuple(t.get('key') or ())) for t in remote_tombs}
+        # Blocage de ré-import par id seul (jamais par clé seule : un QSO
+        # ré-ajouté volontairement après suppression a un id NEUF et ne doit
+        # pas être bloqué) — l'union couvre les trois mémoires : suppressions
+        # de cette session (deleted_qsos), tombstones persistés de ce poste
+        # (survivent au redémarrage), tombstones des autres postes.
+        blocked_ids = (own_tomb_ids | {t.get('id') for t in remote_tombs}
+                       | mem_deleted) - {None}
+
         # Déduplication explicite AVANT insertion : on ne dépend plus du
         # comportement doublon de add_qso_to_log (sauté en mode 'simple').
         # 'seen' grossit à chaque QSO importé — un même QSO présent dans
@@ -217,9 +319,40 @@ def _sync_now_locked(cfg, shared_log):
         # sous log_lock puis RELÂCHÉ avant les insertions (add_qso_to_log
         # reprend log_lock lui-même, non réentrant) : _sync_serial_lock
         # garantit qu'aucune autre sync ne s'intercale entre cette lecture et
-        # nos insertions.
+        # nos insertions. L'application des tombstones distants se fait dans
+        # le MÊME verrou que la suppression + bump + tombstone local, comme le
+        # handler /log/delete (un lecteur /log/list concurrent ne doit jamais
+        # voir le QSO absent sans tombstone posé).
+        removed = []
         with http.log_lock:
+            if remote_pairs:
+                keep = []
+                for q in http.shared_log:
+                    if (q.get('id'), _qso_key(q)) in remote_pairs:
+                        removed.append(q)
+                    else:
+                        keep.append(q)
+                if removed:
+                    http.shared_log[:] = keep
+                    storage.bump_log_version()
+                    for q in removed:
+                        storage.mark_qso_deleted(q.get('id'))
             seen = {_qso_key(q) for q in http.shared_log}
+            local_ids = {q.get('id') for q in http.shared_log if q.get('id') is not None}
+        if removed:
+            removed_count = len(removed)
+            http.save_log_to_disk()
+            # Même nettoyage du scan QSL attaché que /log/delete : cette
+            # suppression propagée ne doit pas laisser de fichier orphelin.
+            for q in removed:
+                scan = q.get('qsl_scan')
+                if scan:
+                    try:
+                        import logx_qsl_scan as qslscan
+                        qslscan.delete_scan(scan)
+                    except Exception:
+                        pass
+
         pattern = os.path.join(s['folder'], SYNC_PREFIX + '*.json')
         for path in glob.glob(pattern):
             if os.path.abspath(path) == os.path.abspath(my_path):
@@ -229,13 +362,44 @@ def _sync_now_locked(cfg, shared_log):
                 k = _qso_key(q)
                 if k in seen:
                     continue
+                qid = q.get('id')
+                if qid is not None and qid in local_ids:
+                    # Même id déjà présent localement avec un autre contenu :
+                    # c'est l'ancienne version d'un QSO CORRIGÉ ici via
+                    # /log/update (remplacement en place, id conservé) restée
+                    # dans le fichier d'un autre poste — la ré-importer
+                    # recréerait un doublon avec collision d'id à chaque cycle.
+                    continue
+                if qid is not None and qid in blocked_ids:
+                    # QSO supprimé (ici ou ailleurs) : jamais ré-importé. Si le
+                    # blocage ne vient que de la mémoire de session
+                    # (deleted_qsos, perdue au redémarrage), la copie distante
+                    # fournit la clé complète : on persiste le tombstone pour
+                    # que la suppression se propage et survive au redémarrage.
+                    if qid not in own_tomb_ids:
+                        tombs.append({'id': qid, 'key': list(k), 'ts': time.time()})
+                        own_tomb_ids.add(qid)
+                        tombs_dirty = True
+                    continue
                 seen.add(k)
                 ok, _info = http.add_qso_to_log(dict(q), force=False)
                 if ok:
                     pulled += 1
+                    if qid is not None:
+                        local_ids.add(qid)
+
+    if tombs_dirty:
+        if len(tombs) > _MAX_SYNC_TOMBSTONES:
+            tombs = tombs[-_MAX_SYNC_TOMBSTONES:]
+        try:
+            from logx_storage import save_json_atomic
+            save_json_atomic(tomb_path, tombs, compact=True)
+        except Exception:
+            pass  # réessayé au prochain cycle, deleted_qsos couvre la session
 
     _stamp(s['folder'], len(local), pulled, sources)
-    return {'ok': True, 'mode': s['mode'], 'pushed': len(local), 'pulled': pulled, 'sources': sources}
+    return {'ok': True, 'mode': s['mode'], 'pushed': len(local), 'pulled': pulled,
+            'removed': removed_count, 'sources': sources}
 
 
 def _stamp(folder, pushed, pulled, sources):

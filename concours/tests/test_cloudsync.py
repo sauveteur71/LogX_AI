@@ -328,3 +328,139 @@ def test_last_error_disparait_quand_le_dossier_est_corrige(tmp_path):
     # ne doit pas non plus être ressuscitée par erreur (aucun test n'a couru
     # sur cfg_bad depuis le sync_now ci-dessus -> reste correctement signalée)
     assert cs.status(cfg_bad)['last_error'] is not None
+
+
+# ─── Non-régression : suppressions/corrections vs fusion 'full' (tombstones) ──
+# Bug critique confirmé : la fusion purement additive ressuscitait un QSO
+# supprimé localement dès qu'un fichier d'un autre poste le contenait encore
+# (résurrection silencieuse à chaque cycle de _cloudsync_loop), et
+# ré-importait en DOUBLON — avec collision d'id — l'ancienne version d'un QSO
+# corrigé via /log/update (la clé call+band+mode+date+heure diffère alors que
+# l'id est identique). Tests avec le VRAI add_qso_to_log (pas de mock) : le
+# scénario reproduit exactement le flux /log/delete → sync et /log/update →
+# sync des postes réels.
+
+def _isole_log_vivant(monkeypatch, initial_log):
+    """Isole l'état partagé (log vivant, tombstones mémoire, config, disque)
+    pour un test de fusion — tout est restauré par monkeypatch."""
+    import logx_http as httpmod
+    import logx_storage as storage
+    monkeypatch.setattr(httpmod, 'shared_log', list(initial_log))
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'current_config', {})
+    monkeypatch.setattr(storage, 'deleted_qsos', [])
+    return httpmod, storage
+
+
+def test_full_ne_ressuscite_pas_un_qso_supprime(tmp_path, monkeypatch):
+    """Scénario 1 du bug : le poste A supprime le QSO id=555001 (/log/delete :
+    retrait de shared_log + mark_qso_deleted), le fichier du poste B le
+    contient encore -> le pull ne doit PAS le ré-importer ('ok, pulled=1'
+    silencieux avant correctif), et un tombstone persistant doit être écrit
+    pour que la suppression se propage à B et survive à un redémarrage."""
+    httpmod, storage = _isole_log_vivant(monkeypatch, [])
+    supprime = {'id': 555001, 'call': 'F5ABC', 'band': '14', 'mode': 'SSB',
+                'date': '20260720', 'time': '10:00'}
+    (tmp_path / 'logx_cloudsync_G3XYZ_abcd1234.json').write_text(
+        json.dumps([supprime]), encoding='utf-8')
+    # Réplique fidèle de l'état APRÈS /log/delete/555001 côté A :
+    storage.deleted_qsos.append({'id': 555001, 'v': 1})
+
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path),
+           'callsign_contest': 'F4GLD'}
+    r = cs.sync_now(cfg, list(httpmod.shared_log))
+    assert r['ok'] and r['pulled'] == 0, \
+        f"QSO supprimé ressuscité par la sync : {r} / {httpmod.shared_log}"
+    assert httpmod.shared_log == []
+    # Le tombstone est persisté (la clé vient de la copie distante) : il
+    # propage la suppression au poste B et survit à un redémarrage du serveur.
+    tomb = tmp_path / cs.cloudsync_settings(cfg)['my_tomb']
+    assert tomb.exists()
+    assert 555001 in {t['id'] for t in json.loads(tomb.read_text(encoding='utf-8'))}
+
+
+def test_full_ne_reimporte_pas_l_ancienne_version_d_un_qso_corrige(tmp_path, monkeypatch):
+    """Scénario 2 du bug : correction F5ABC -> F5ABD via /log/update
+    (remplacement EN PLACE, même id). L'ancienne version restée dans le
+    fichier du poste B a une clé de fusion différente -> avant correctif elle
+    revenait en DOUBLON avec collision d'id (deux QSO id=555002, /log/update
+    et /log/delete visant le premier trouvé)."""
+    corrige = {'id': 555002, 'call': 'F5ABD', 'band': '14', 'mode': 'SSB',
+               'date': '20260720', 'time': '10:00'}
+    ancienne = {'id': 555002, 'call': 'F5ABC', 'band': '14', 'mode': 'SSB',
+                'date': '20260720', 'time': '10:00'}
+    httpmod, _storage = _isole_log_vivant(monkeypatch, [corrige])
+    (tmp_path / 'logx_cloudsync_G3XYZ_abcd1234.json').write_text(
+        json.dumps([ancienne]), encoding='utf-8')
+
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path),
+           'callsign_contest': 'F4GLD'}
+    r = cs.sync_now(cfg, list(httpmod.shared_log))
+    assert r['ok'] and r['pulled'] == 0
+    assert [q['call'] for q in httpmod.shared_log] == ['F5ABD'], \
+        f"Ancienne version revenue en doublon : {httpmod.shared_log}"
+    assert [q['id'] for q in httpmod.shared_log] == [555002]  # pas de collision d'id
+
+
+def test_full_applique_la_suppression_d_un_autre_poste(tmp_path, monkeypatch):
+    """Propagation : le poste B a supprimé le QSO id=555003 (tombstone dans
+    SON fichier logx_cloudtomb_*). Ce poste doit le supprimer aussi (avec
+    tombstone /log/list pour ses propres clients) au lieu de le re-pousser
+    indéfiniment — c'est ce re-push qui rendait la suppression impossible."""
+    qso = {'id': 555003, 'call': 'F5DEL', 'band': '14', 'mode': 'SSB',
+           'date': '20260720', 'time': '10:00'}
+    httpmod, storage = _isole_log_vivant(monkeypatch, [qso])
+    (tmp_path / 'logx_cloudtomb_G3XYZ_abcd1234.json').write_text(
+        json.dumps([{'id': 555003, 'key': ['F5DEL', '14', 'SSB', '20260720', '10:00'],
+                     'ts': 1}]), encoding='utf-8')
+    # B n'a pas encore réécrit son fichier de QSO : il contient toujours 555003
+    (tmp_path / 'logx_cloudsync_G3XYZ_abcd1234.json').write_text(
+        json.dumps([qso]), encoding='utf-8')
+
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path),
+           'callsign_contest': 'F4GLD'}
+    r = cs.sync_now(cfg, list(httpmod.shared_log))
+    assert r['ok'] and r.get('removed') == 1 and r['pulled'] == 0
+    assert httpmod.shared_log == []
+    # tombstone /log/list posé : un client delta de CE poste voit la disparition
+    assert 555003 in {d['id'] for d in storage.deleted_qsos}
+
+
+def test_tombstone_distant_ne_supprime_pas_un_qso_a_id_en_collision(tmp_path, monkeypatch):
+    """Garde-fou : deux postes peuvent créer deux QSO DIFFÉRENTS à la même
+    milliseconde (id = int(time*1000)). Un tombstone distant ne supprime que
+    sur id ET clé identiques — jamais un QSO local légitime qui partage l'id
+    par coïncidence."""
+    autre_qso = {'id': 555004, 'call': 'F5BBB', 'band': '7', 'mode': 'CW',
+                 'date': '20260720', 'time': '10:00'}
+    httpmod, _storage = _isole_log_vivant(monkeypatch, [autre_qso])
+    (tmp_path / 'logx_cloudtomb_G3XYZ_abcd1234.json').write_text(
+        json.dumps([{'id': 555004, 'key': ['F5AAA', '14', 'SSB', '20260720', '09:00'],
+                     'ts': 1}]), encoding='utf-8')
+
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path),
+           'callsign_contest': 'F4GLD'}
+    r = cs.sync_now(cfg, list(httpmod.shared_log))
+    assert r['ok'] and r.get('removed') == 0
+    assert [q['call'] for q in httpmod.shared_log] == ['F5BBB']
+
+
+def test_tombstone_persiste_bloque_encore_apres_redemarrage(tmp_path, monkeypatch):
+    """logx_storage.deleted_qsos est une mémoire de PROCESS (vidée à chaque
+    redémarrage du serveur) : c'est le fichier de tombstones de ce poste qui
+    doit continuer de bloquer la résurrection après redémarrage."""
+    httpmod, _storage = _isole_log_vivant(monkeypatch, [])   # deleted_qsos vide = redémarré
+    supprime = {'id': 555005, 'call': 'F5OLD', 'band': '14', 'mode': 'SSB',
+                'date': '20260720', 'time': '10:00'}
+    (tmp_path / 'logx_cloudsync_G3XYZ_abcd1234.json').write_text(
+        json.dumps([supprime]), encoding='utf-8')
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path),
+           'callsign_contest': 'F4GLD'}
+    tomb = tmp_path / cs.cloudsync_settings(cfg)['my_tomb']
+    tomb.write_text(json.dumps(
+        [{'id': 555005, 'key': ['F5OLD', '14', 'SSB', '20260720', '10:00'], 'ts': 1}]),
+        encoding='utf-8')
+
+    r = cs.sync_now(cfg, list(httpmod.shared_log))
+    assert r['ok'] and r['pulled'] == 0
+    assert httpmod.shared_log == []
