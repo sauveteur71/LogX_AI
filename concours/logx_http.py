@@ -3226,6 +3226,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if status.get('status') != 'done' or not status.get('path'):
                 self._json({'error': 'Téléchargement pas terminé'}, 400)
                 return
+            # Dernier verrou avant remplacement de l'exécutable en cours : ne
+            # JAMAIS faire confiance aveugle à status=='done' seul. Contrôle
+            # défensif explicite du flag 'verified' ICI, au point qui EXÉCUTE
+            # réellement apply_update_and_relaunch — même si les 3 chemins de
+            # téléchargement (_do_download, _do_download_via_network B et C)
+            # sont censés toujours le fixer ensemble avec status='done' dans
+            # le même appel _download.update() atomique. Une régression future
+            # sur l'un de ces sites d'écriture (ou un nouveau chemin ajouté
+            # plus tard) ne doit jamais suffire à faire remplacer le binaire
+            # par un fichier non vérifié.
+            if not status.get('verified'):
+                self._json({'error': 'Fichier téléchargé non vérifié'}, 400)
+                return
             ok, err = upd.apply_update_and_relaunch(status['path'])
             if not ok:
                 self._json({'error': err}, 400)

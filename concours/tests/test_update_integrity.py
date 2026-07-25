@@ -552,6 +552,45 @@ def test_http_update_download_via_network_refuse_sans_reference(server):
     assert 'error' in d
 
 
+def test_http_update_install_refuse_si_non_verifie(server, tmp_path, monkeypatch):
+    """Dernier verrou avant apply_update_and_relaunch (remplacement de
+    l'exécutable en cours) : même si un état incohérent apparaissait en amont
+    — status=='done' + 'path' rempli mais verified=False, ce que les 4 sites
+    d'écriture actuels (_do_download, _do_download_via_network B/C) ne
+    produisent jamais ensemble, mais qu'une régression future pourrait
+    introduire — /app/update_install DOIT refuser SANS MÊME APPELER
+    apply_update_and_relaunch. Avant le correctif, seul 'status'/'path'
+    étaient contrôlés ici : le code passait bien l'appel jusqu'à
+    apply_update_and_relaunch, qui n'était bloqué que par is_frozen()==False
+    en environnement de développement (donc HTTP 400 pour la MAUVAISE
+    raison ici) — silencieusement dangereux en exécutable figé (PyInstaller,
+    l'environnement réel de production), où is_frozen() vaut True et rien
+    n'aurait plus arrêté le remplacement. On simule ce cas en gardant
+    is_frozen() à sa valeur normale (False en test) MAIS en instrumentant
+    apply_update_and_relaunch pour prouver qu'il n'est jamais invoqué du
+    tout — la seule preuve qui distingue 'refusé pour la bonne raison' de
+    'refusé accidentellement par is_frozen()'."""
+    calls = []
+    monkeypatch.setattr(upd, 'apply_update_and_relaunch',
+                         lambda path: calls.append(path) or (True, ''))
+    p = tmp_path / 'LogXAI-non-verifie.exe'
+    p.write_bytes(b'contenu-jamais-verifie')
+    upd._download.update(status='done', path=str(p), verified=False,
+                          sha256='', version='v1')
+    code, d = _post(server, '/app/update_install', {})
+    assert code == 400
+    assert 'error' in d
+    # Preuve directe du verrou : apply_update_and_relaunch — qui remplace
+    # l'exécutable en cours — ne doit JAMAIS être appelé pour un fichier non
+    # vérifié, peu importe status/path.
+    assert calls == [], (
+        "apply_update_and_relaunch a été appelé avec un fichier non vérifié "
+        f"(verified=False) : {calls!r}")
+    # Le fichier non vérifié ne doit jamais avoir été touché.
+    assert p.exists()
+    assert p.read_bytes() == b'contenu-jamais-verifie'
+
+
 def test_http_update_download_via_network_sans_jeton_refuse(server):
     """Comme toutes les autres routes POST (voir do_POST) : jeton exigé."""
     body = json.dumps({'mode': 'gateway', 'ips': []}).encode('utf-8')
