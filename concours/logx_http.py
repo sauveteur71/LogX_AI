@@ -4381,12 +4381,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # shared_log.json.20260722.bak...) — on bloque aussi par suffixe.
     _NEVER_SERVE_SUFFIXES = ('.bak', '.db')
 
+    @classmethod
+    def _interdit(cls, candidate, base_real):
+        """Liste noire appliquée au chemin RÉELLEMENT résolu, pas à la chaîne
+        d'URL brute. Tester os.path.basename(rel) avant normalisation laissait
+        passer toutes les écritures équivalentes du même fichier : '/.auth_token/'
+        et '/.auth_token%2F' donnent un basename VIDE, '/x/../.auth_token/' aussi,
+        et realpath() les ramenait ensuite sur le vrai secret — le jeton d'écriture
+        partait alors à n'importe quel poste du LAN, sans authentification.
+        On inspecte donc chaque segment du chemin final : un seul segment caché
+        (fichier OU dossier, ex. /.git/config dont le basename est 'config')
+        suffit à refuser."""
+        try:
+            rel_real = os.path.relpath(candidate, base_real)
+        except ValueError:          # lecteurs Windows différents
+            return True
+        segments = [s for s in rel_real.replace('\\', '/').split('/') if s]
+        if not segments:
+            return True
+        if any(seg.startswith('.') for seg in segments):
+            return True
+        dernier = segments[-1].lower()
+        return (dernier in cls._NEVER_SERVE
+                or dernier.endswith(cls._NEVER_SERVE_SUFFIXES))
+
     def _resolve(self, path):
         import urllib.parse
         rel = urllib.parse.unquote(path).lstrip('/\\')
-        base = os.path.basename(rel).lower()
-        if (base.startswith('.') or base in self._NEVER_SERVE
-                or base.endswith(self._NEVER_SERVE_SUFFIXES)):
+        # Un ':' ne peut désigner qu'un flux de données alternatif NTFS
+        # ('shared_log.json::$DATA' ouvre bien shared_log.json alors que le nom
+        # vu par la liste noire diffère) ou une lettre de lecteur : aucun
+        # fichier légitimement servi n'en contient, on refuse d'emblée.
+        if ':' in rel:
             return None
         bases = [os.getcwd(), os.path.dirname(os.path.abspath(__file__))]
         if hasattr(sys, '_MEIPASS'):
@@ -4398,8 +4424,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # STRICTEMENT à l'intérieur du répertoire de base (404 sinon).
             if not candidate.startswith(base_real + os.sep):
                 continue
-            if os.path.isfile(candidate):
-                return candidate
+            if not os.path.isfile(candidate):
+                continue
+            # Interdit ici et pas plus haut : la liste noire doit voir le chemin
+            # normalisé, seul reflet de ce que open() lira réellement.
+            if self._interdit(candidate, base_real):
+                return None
+            return candidate
         return None
 
     # Sous ce seuil, gzip ne vaut pas le coût CPU (en-tête gzip ~20 octets +
