@@ -504,12 +504,17 @@ def fake_dual(monkeypatch):
         t.join(timeout=5)
 
 
-def test_peer_secours_refuse_si_le_candidat_est_aussi_passerelle(fake_dual):
+def test_peer_secours_refuse_si_le_candidat_est_aussi_passerelle(fake_dual, monkeypatch):
     """Reproduit l'appel direct décrit dans la revue de sécurité : mode='peer'
     avec un unique candidat qui se trouve être — lui-même — disponible comme
     passerelle. Avant le correctif, ceci téléchargeait via le secours sans
     la moindre vérification de disponibilité d'une passerelle. Après :
-    refus, rien n'est téléchargé via le pair."""
+    refus, rien n'est téléchargé via le pair.
+    Ce test simule un poste DISTANT sur la boucle locale (seul moyen pratique
+    sur une seule machine) : l'exclusion de soi-même (_is_self_ip, correctif
+    auto-découverte — voir la section dédiée en fin de fichier) est donc
+    neutralisée ICI SEULEMENT, sinon elle filtrerait le candidat simulé."""
+    monkeypatch.setattr(upd, '_is_self_ip', lambda ip: False)
     handler_cls = fake_dual
     handler_cls.gateway_available = True
     handler_cls.serve_available = True
@@ -562,7 +567,7 @@ class _FakeGatewayOnlyHandler(http.server.BaseHTTPRequestHandler):
             self._send(404, 'application/json', b'{}')
 
 
-def test_peer_secours_refuse_via_passerelle_connue_du_serveur_hors_ips(fake_peer):
+def test_peer_secours_refuse_via_passerelle_connue_du_serveur_hors_ips(fake_peer, monkeypatch):
     """Variante la plus forte de l'attaque décrite : l'appelant (contournant
     l'IHM cliente) ne fournit dans `ips` QUE le pair (127.0.0.1, voir
     fake_peer), en omettant délibérément l'IP d'une passerelle par ailleurs
@@ -570,7 +575,10 @@ def test_peer_secours_refuse_via_passerelle_connue_du_serveur_hors_ips(fake_peer
     `known_lan_ips` (dans la vraie vie : logx_http.peer_versions, alimenté
     UNIQUEMENT par l'IP socket réelle des connexions entrantes — jamais par
     le corps JSON d'un appelant) : le secours doit donc être refusé même si
-    aucune passerelle ne figure dans `ips`."""
+    aucune passerelle ne figure dans `ips`.
+    Postes DISTANTS simulés sur la boucle locale : exclusion de soi-même
+    neutralisée ICI SEULEMENT (voir la section dédiée en fin de fichier)."""
+    monkeypatch.setattr(upd, '_is_self_ip', lambda ip: False)
     handler_cls = fake_peer
     handler_cls.available = True
     _set_local_reference('v3.1', handler_cls.asset_bytes)
@@ -707,7 +715,10 @@ def test_http_update_download_via_network_peer_refuse_si_passerelle_connue_hors_
     indépendamment de ce que le client a cité dans `ips`, qui doit détecter
     la passerelle ici). Avant CE correctif, ce POST aurait démarré un
     téléchargement via secours pair-à-pair sans la moindre vérification de
-    disponibilité d'une passerelle ; après, la requête doit refuser."""
+    disponibilité d'une passerelle ; après, la requête doit refuser.
+    Postes DISTANTS simulés sur la boucle locale : exclusion de soi-même
+    neutralisée ICI SEULEMENT (voir la section dédiée en fin de fichier)."""
+    monkeypatch.setattr(upd, '_is_self_ip', lambda ip: False)
     handler_cls = type('GW', (_FakeGatewayOnlyHandler,), {'gateway_available': True})
     gw_srv = http.server.HTTPServer(('127.0.0.2', 0), handler_cls)
     gw_port = gw_srv.server_address[1]
@@ -1045,7 +1056,11 @@ def test_http_update_network_scan_accepte_un_pair_reellement_connu(server, hit_c
     """Non-régression : le cas légitime doit continuer à fonctionner —
     une fois l'IP effectivement vue comme pair (poll réel de /log/list?ver=,
     donc peer_versions alimenté par l'IP SOCKET réelle, jamais par le corps
-    JSON), le scan doit à nouveau la sonder normalement."""
+    JSON), le scan doit à nouveau la sonder normalement.
+    Le pair 'réellement connu' est simulé sur la boucle locale (seul moyen
+    pratique sur une seule machine) : exclusion de soi-même neutralisée ICI
+    SEULEMENT (voir la section dédiée en fin de fichier)."""
+    monkeypatch.setattr(upd, '_is_self_ip', lambda ip: False)
     monkeypatch.setattr(httpmod, 'peer_versions', {})
     _get(server, '/log/list?ver=0.9-beta9')  # enregistre 127.0.0.1 comme pair connu
     code, d = _post(server, '/app/update_network_scan', {'ips': ['127.0.0.1']})
@@ -1069,3 +1084,136 @@ def test_http_update_download_via_network_refuse_ip_inconnue_du_serveur(server, 
     assert 'error' in d
     assert hit_counter.hits == []
     assert upd.get_download_status()['status'] in ('idle', 'error')
+
+
+# ═══ Défaut corrigé : le poste se découvrait LUI-MÊME comme passerelle ═══════
+# (auto-découverte 127.0.0.1). peer_versions contient TOUJOURS '127.0.0.1'
+# dès qu'un navigateur local est ouvert (le serveur invite à ouvrir
+# http://127.0.0.1:PORT — usage nominal), et rien n'excluait jamais le poste
+# DEMANDEUR de ses propres candidats : le scan sondait
+# http://127.0.0.1:PORT/app/gateway_status = le serveur lui-même, dont
+# gateway_status() répond 'disponible' tant que le cache GitHub a moins de
+# CHECK_TTL (6 h) — précisément le cas du poste qui VIENT de perdre internet
+# (scénario DXpédition visé par le module). Conséquences observées avant
+# correctif : (a) scan -> gateways=['127.0.0.1'] (relayer GitHub via
+# soi-même, sans internet -> échec garanti), (b) une vraie passerelle était
+# masquée (tri par IP : 127.0.0.1 en tête, le client ne propose que
+# gateways[0]), (c) mode='peer' refusé en s'auto-citant comme passerelle.
+# Correctif : _is_self_ip (boucle locale + IP des interfaces de CE poste)
+# appliqué dans logx_update.scan_network_candidates ET dans
+# logx_http._known_peer_ips — un poste n'est JAMAIS son propre candidat.
+
+def test_is_self_ip_boucle_locale_interfaces_et_ips_distantes():
+    """Le prédicat lui-même : toute la boucle locale (127.0.0.0/8, ::1, forme
+    IPv6-mappée), l'adresse non spécifiée et chaque adresse d'interface
+    locale sont 'soi-même' ; une IP distante (TEST-NET/publique) ou un
+    non-littéral ne le sont jamais."""
+    assert upd._is_self_ip('127.0.0.1') is True
+    assert upd._is_self_ip('127.0.0.2') is True   # toute la plage 127/8
+    assert upd._is_self_ip('::1') is True
+    assert upd._is_self_ip('::ffff:127.0.0.1') is True
+    assert upd._is_self_ip('0.0.0.0') is True
+    for own_ip in upd._local_interface_ips():
+        assert upd._is_self_ip(own_ip) is True, own_ip
+    assert upd._is_self_ip('192.0.2.1') is False   # TEST-NET-1, jamais locale
+    assert upd._is_self_ip('203.0.113.5') is False
+    assert upd._is_self_ip('localhost') is False   # pas un littéral IP
+    assert upd._is_self_ip('') is False
+    assert upd._is_self_ip(None) is False
+
+
+def test_known_peer_ips_exclut_le_navigateur_local(server, monkeypatch):
+    """Cause racine : le navigateur LOCAL poll /log/list?ver= depuis
+    127.0.0.1, donc peer_versions contenait toujours la boucle locale et
+    _known_peer_ips la laissait passer comme 'pair candidat'. Après
+    correctif : peer_versions garde bien l'entrée (le badge de versions
+    /log/status -> peer_list continue d'afficher tous les postes vus), mais
+    _known_peer_ips ne la propose plus jamais comme candidat de mise à
+    jour."""
+    monkeypatch.setattr(httpmod, 'peer_versions', {})
+    _get(server, '/log/list?ver=0.9-beta3')  # poll réel du navigateur local
+    assert '127.0.0.1' in httpmod.peer_versions        # badge intact
+    assert '127.0.0.1' not in httpmod._known_peer_ips()  # jamais candidat
+
+
+def test_scan_network_candidates_ne_sonde_jamais_soi_meme(fake_gateway):
+    """Reproduction directe de la conséquence (a) : un serveur répond
+    'passerelle disponible' sur 127.0.0.1:PORT — en prod c'est le poste
+    DEMANDEUR lui-même (même IP, même PORT). Avant correctif :
+    {'gateways': ['127.0.0.1']} (le poste se découvre lui-même). Après :
+    jamais sondé, jamais retenu."""
+    handler_cls = fake_gateway
+    handler_cls.gateway_available = True
+    assert upd.scan_network_candidates(['127.0.0.1']) == {'gateways': [], 'peers': []}
+
+
+def test_scan_vraie_passerelle_plus_masquee_par_soi_meme(monkeypatch):
+    """Conséquence (b) : une VRAIE passerelle du LAN ne doit plus être
+    masquée par l'auto-découverte. Topologie simulée sur une machine :
+    127.0.0.1 = le poste demandeur lui-même, 127.0.0.2 = la vraie passerelle
+    distante (déclarée 'distante' en restreignant _is_self_ip à 127.0.0.1
+    — sur le terrain ce serait 192.168.x.x). Avant correctif, le scan
+    renvoyait ['127.0.0.1', '127.0.0.2'] et le client ne proposait que
+    gateways[0] = soi-même ; après, seule la vraie passerelle reste."""
+    monkeypatch.setattr(upd, '_is_self_ip', lambda ip: ip == '127.0.0.1')
+    gw_cls = type('GW', (_FakeGatewayOnlyHandler,), {'gateway_available': True})
+    gw_srv = http.server.HTTPServer(('127.0.0.2', 0), gw_cls)
+    gw_thread = threading.Thread(target=gw_srv.serve_forever, daemon=True)
+    gw_thread.start()
+    monkeypatch.setattr(upd, 'PORT', gw_srv.server_address[1])
+    try:
+        scan = upd.scan_network_candidates(['127.0.0.1', '127.0.0.2'])
+        assert scan['gateways'] == ['127.0.0.2']
+        assert '127.0.0.1' not in scan['gateways'] + scan['peers']
+    finally:
+        gw_srv.shutdown()
+        gw_thread.join(timeout=5)
+
+
+def test_http_scenario_dxpedition_auto_decouverte_corrigee(server, monkeypatch):
+    """Bout-en-bout, la reproduction EXACTE du rapport (topologie prod :
+    upd.PORT = port du serveur, donc toute sonde vers 127.0.0.1 atteint le
+    serveur DEMANDEUR lui-même) : poste en DXpédition qui VIENT de perdre
+    internet (cache GitHub frais < CHECK_TTL, gateway_status() répond donc
+    'disponible'), navigateur local enregistré comme pair par un poll réel
+    de /log/list?ver=. Avant correctif : le scan renvoyait
+    {'gateways': ['127.0.0.1']} et mode='peer' répondait ok puis s'annulait
+    avec « Passerelle disponible sur le réseau local (127.0.0.1) » — le
+    poste se bloquait LUI-MÊME pendant 6 h. Après : le scan ne renvoie
+    jamais soi-même, et mode='peer' refuse proprement faute de candidat (au
+    lieu de s'auto-citer comme passerelle).
+    Serveur MULTI-THREAD ici (comme logx_serveur en prod, contrairement à la
+    fixture `server`) : indispensable pour que la sonde du serveur vers
+    lui-même puisse réellement aboutir — c'est exactement ce chemin
+    auto-sonde qui constituait le bug."""
+    import socketserver
+
+    class _ThreadingSrv(socketserver.ThreadingMixIn, http.server.HTTPServer):
+        daemon_threads = True
+
+    monkeypatch.setattr(httpmod, 'peer_versions', {})
+    srv = _ThreadingSrv(('127.0.0.1', 0), httpmod.Handler)
+    base = f'http://127.0.0.1:{srv.server_address[1]}'
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    monkeypatch.setattr(upd, 'PORT', srv.server_address[1])  # topologie prod
+    try:
+        _get(base, '/log/list?ver=0.9-beta3')        # le navigateur local se fait voir
+        _set_local_reference('v9.9', b'reference locale' * 10)  # cache frais -> gateway dispo
+        assert upd.gateway_status()['gateway_available'] is True
+
+        code, scan = _post(base, '/app/update_network_scan', {'ips': ['127.0.0.1']})
+        assert code == 200
+        assert scan == {'gateways': [], 'peers': []}, (
+            f"le poste s'est découvert lui-même : {scan}")
+
+        code, d = _post(base, '/app/update_download_via_network',
+                         {'mode': 'peer', 'ips': ['127.0.0.1']})
+        assert code == 400, (
+            "mode='peer' aurait dû être refusé immédiatement (aucun candidat) au "
+            f"lieu de démarrer puis s'auto-bloquer : HTTP {code} {d}")
+        assert 'candidat' in d.get('error', '').lower()
+        assert '127.0.0.1' not in d.get('error', '')  # jamais d'auto-citation
+    finally:
+        srv.shutdown()
+        t.join(timeout=5)

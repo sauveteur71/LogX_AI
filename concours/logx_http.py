@@ -70,9 +70,23 @@ def _known_peer_ips():
     aux IP que ce serveur a lui-même observées comme pairs réels, un
     attaquant ne peut plus faire sonder/télécharger que des postes qui se
     sont DÉJÀ connectés ici de leur propre initiative — il ne peut pas
-    injecter une IP/un hôte de son choix via le seul corps JSON."""
+    injecter une IP/un hôte de son choix via le seul corps JSON.
+    Exclusion de soi-même (défaut corrigé — voir logx_update._is_self_ip) :
+    le navigateur LOCAL poll /log/list?ver= depuis 127.0.0.1 (le serveur
+    invite à ouvrir http://127.0.0.1:PORT, usage nominal), donc la boucle
+    locale figurait TOUJOURS dans peer_versions — et le poste se découvrait
+    LUI-MÊME comme passerelle de mise à jour (gateway_status() répond
+    'disponible' 6 h après la perte d'internet, cache CHECK_TTL) : vraie
+    passerelle masquée (tri par IP, 127.0.0.1 en tête) et secours
+    pair-à-pair refusé en s'auto-citant. La boucle locale et les IP des
+    interfaces de CE poste ne sont donc jamais des pairs candidats — noter
+    que peer_versions lui-même n'est PAS filtré : /log/status → peer_list
+    (badge de versions) continue d'afficher tous les postes vus, y compris
+    le navigateur local."""
+    import logx_update as upd
     with peer_versions_lock:
-        return set(peer_versions.keys())
+        ips = list(peer_versions.keys())
+    return {ip for ip in ips if not upd._is_self_ip(ip)}
 
 
 # ─── ANALYSES IA CÔTÉ SERVEUR (survivent au changement de page) ──────────────

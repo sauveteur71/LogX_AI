@@ -66,6 +66,7 @@ import hashlib
 import ipaddress
 import os
 import re
+import socket
 import sys
 import stat
 import json
@@ -359,6 +360,84 @@ def _is_valid_ip(ip):
         return False
 
 
+# ─── EXCLUSION DE SOI-MÊME (jamais son propre candidat de mise à jour) ───────
+# Défaut corrigé : la découverte réseau n'excluait JAMAIS le poste demandeur
+# de ses propres candidats. peer_versions (logx_http.py) contient TOUJOURS
+# '127.0.0.1' dès qu'un navigateur local est ouvert (le serveur invite à
+# ouvrir http://127.0.0.1:PORT au démarrage — usage nominal), donc le scan
+# sondait http://127.0.0.1:PORT/app/gateway_status = CE serveur lui-même,
+# dont gateway_status() répond 'disponible' tant que le cache GitHub a moins
+# de CHECK_TTL (6 h) — précisément le cas du poste qui VIENT de perdre
+# internet, le scénario DXpédition visé par ce module. Trois conséquences :
+# le poste se proposait LUI-MÊME comme passerelle (relayer GitHub via
+# soi-même, sans internet → échec garanti), une vraie passerelle était
+# masquée ('127.0.0.1' trie avant '192.168.x.x' et le client ne propose que
+# gateways[0]), et le secours pair-à-pair (C) était refusé en s'auto-citant
+# comme passerelle (B) disponible. D'où : la boucle locale et les adresses
+# des interfaces de CE poste ne sont JAMAIS retenues comme candidats — ni
+# ici (scan_network_candidates), ni côté logx_http (_known_peer_ips).
+
+_SELF_IPS_TTL = 300  # les interfaces changent (DHCP, Wi-Fi) : re-relevé périodique
+_self_ips_cache = {'ts': 0.0, 'ips': frozenset()}
+_self_ips_lock = threading.Lock()
+
+
+def _local_interface_ips():
+    """Adresses IP des interfaces de CE poste (toutes cartes), en cache
+    _SELF_IPS_TTL. Deux relevés complémentaires, purement locaux (jamais de
+    requête DNS externe ni de paquet émis) : les adresses associées au nom
+    d'hôte local (résolution locale par la pile IP), et l'IP source de la
+    route sortante par défaut (connect() UDP n'émet AUCUN paquet — simple
+    décision de routage locale). Ne lève jamais : au pire un ensemble vide,
+    la boucle locale restant couverte par _is_self_ip() sans ce relevé."""
+    now = time.time()
+    with _self_ips_lock:
+        if now - _self_ips_cache['ts'] < _SELF_IPS_TTL:
+            return _self_ips_cache['ips']
+    found = set()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            try:
+                found.add(str(ipaddress.ip_address(str(info[4][0]))))
+            except ValueError:
+                pass  # ex. IPv6 avec zone '%...' non parsable : ignoré
+    except OSError:
+        pass
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('192.0.2.1', 9))  # TEST-NET-1 (RFC 5737), jamais joint réellement
+            found.add(s.getsockname()[0])
+        finally:
+            s.close()
+    except OSError:
+        pass
+    ips = frozenset(found)
+    with _self_ips_lock:
+        _self_ips_cache.update(ts=now, ips=ips)
+    return ips
+
+
+def _is_self_ip(ip):
+    """True si `ip` désigne CE poste lui-même : boucle locale (127.0.0.0/8,
+    ::1, y compris la forme IPv6-mappée ::ffff:127.x.x.x), adresse non
+    spécifiée (0.0.0.0/::), ou adresse d'une des interfaces locales (voir
+    _local_interface_ips). Un poste ne doit JAMAIS être son propre candidat
+    passerelle/pair — voir le bloc de commentaire ci-dessus. Renvoie False
+    pour tout ce qui n'est pas un littéral IP (déjà exclu par _is_valid_ip
+    en amont, jamais sondé de toute façon)."""
+    try:
+        addr = ipaddress.ip_address(str(ip).strip())
+    except (ValueError, TypeError):
+        return False
+    mapped = getattr(addr, 'ipv4_mapped', None)
+    if mapped is not None:
+        addr = mapped
+    if addr.is_loopback or addr.is_unspecified:
+        return True
+    return str(addr) in _local_interface_ips()
+
+
 def _peer_get_json(ip, path, timeout=3):
     """GET JSON vers un AUTRE poste du LAN (même port que celui-ci, voir
     PORT) — utilisé pour sonder /app/gateway_status et /app/update_serve_
@@ -393,9 +472,16 @@ def scan_network_candidates(ips):
     déjà restreindre aux pairs CONNUS de ce serveur — peer_versions, jamais
     une IP choisie librement par l'appelant) ; ici, en secours, on rejette
     aussi tout ce qui n'est pas un littéral IP valide (_is_valid_ip) — un nom
-    d'hôte comme 'localhost' ou un domaine arbitraire n'est JAMAIS sondé."""
+    d'hôte comme 'localhost' ou un domaine arbitraire n'est JAMAIS sondé.
+    Exclusion de soi-même (_is_self_ip, voir bloc de commentaire dédié) : le
+    poste demandeur ne se sonde JAMAIS lui-même — sinon il se découvrait
+    comme sa propre passerelle (127.0.0.1, toujours présent dans
+    peer_versions dès qu'un navigateur local est ouvert) et masquait/bloquait
+    les vrais candidats du LAN."""
     import concurrent.futures
-    ips = [ip for ip in dict.fromkeys(ips) if ip and _is_valid_ip(ip)][:20]  # dédoublonne, valide, borne
+    # dédoublonne, valide, exclut soi-même, borne
+    ips = [ip for ip in dict.fromkeys(ips)
+           if ip and _is_valid_ip(ip) and not _is_self_ip(ip)][:20]
     gateways, peers = [], []
     if not ips:
         return {'gateways': gateways, 'peers': peers}
