@@ -54,11 +54,12 @@ Ce module n'importe QUE la bibliothèque standard (aucun module applicatif) :
 il doit rester utilisable très tôt au démarrage, sans effet de bord.
 """
 
+import http.client
 import http.server
 import json
 import socket
 import sys
-import urllib.request
+import threading
 
 WINDOWS = sys.platform.startswith('win')
 
@@ -67,9 +68,13 @@ WINDOWS = sys.platform.startswith('win')
 BIND_HOST = '0.0.0.0'
 
 # États retournés par probe()
-FREE = 'free'     # personne n'écoute : on peut démarrer
-LOGX = 'logx'     # une instance de LogX AI répond déjà
-OTHER = 'other'   # le port est pris, mais pas par LogX AI
+FREE = 'free'       # personne n'écoute : on peut démarrer
+LOGX = 'logx'       # une instance de LogX AI répond déjà
+OTHER = 'other'     # le port est pris par un tiers, ET il nous prendrait
+                    # l'adresse que nous annonçons : démarrer serait inutile
+SHARED = 'shared'   # un tiers écoute aussi ce port, mais sur d'AUTRES adresses
+                    # que la nôtre : LogX AI se lie et répond normalement.
+                    # Avertissement en console, PAS un refus de démarrer.
 
 # Endpoint de détection : /network/info est servi tout en haut de do_GET, sans
 # jeton de session (il sert justement à afficher l'URL WiFi avant toute
@@ -84,6 +89,24 @@ PROBE_PATH = '/network/info'
 _SIGNATURE = ('local_ip', 'port', 'url_logbook')
 
 _MAX_BODY = 65536   # un serveur tiers pourrait répondre un flux sans fin
+
+# Échéance MURALE de l'identification HTTP, en secondes — à ne pas confondre
+# avec le timeout de socket, qui borne CHAQUE opération réseau et jamais leur
+# somme. _MAX_BODY borne la mémoire, pas l'attente : mesuré ici, un tiers qui
+# répond au goutte à goutte (1 octet toutes les 0,1 s, donc jamais le moindre
+# silence de 1,5 s) n'a déclenché AUCUN timeout — la sonde tournait encore à
+# T+10 s avec 99 octets reçus sur les 65 536 attendus, soit ~1 h 50 projetées,
+# sans qu'une seule ligne ne s'affiche. Le même piège vaut pour les en-têtes
+# (http.client les lit ligne par ligne, jusqu'à 100 lignes de 64 Kio), d'où une
+# échéance qui couvre TOUT l'échange et pas seulement le corps.
+#
+# 2 s : une instance LogX AI répond /network/info en quelques millisecondes
+# (mesuré : 0,357 s pour la sonde complète, connexion comprise) ; ce budget lui
+# laisse un facteur 5 même sur un poste chargé, tout en restant sous le seuil
+# où l'utilisateur qui double-clique croirait à un plantage. Dépassement =
+# état OTHER, jamais FREE : on ne démarre pas un second serveur sur un port
+# qui, de toute évidence, répond à quelqu'un.
+_HTTP_BUDGET = 2.0
 
 
 # ─── B) FILET DE SÉCURITÉ AU BIND ────────────────────────────────────────────
@@ -103,8 +126,13 @@ class LogXHTTPServer(http.server.ThreadingHTTPServer):
 
 # ─── A) DÉTECTION AVANT LE BIND ──────────────────────────────────────────────
 
-def _bind_test(port):
+def _bind_test(port, host=BIND_HOST):
     """Le port est-il libre ? Retourne (libre: bool, detail_erreur: str).
+
+    `host` par défaut = l'adresse du vrai serveur (0.0.0.0). Il est aussi
+    appelé avec une adresse PRÉCISE par _garde_l_adresse_sondee, qui a besoin
+    de savoir non pas « puis-je ouvrir le port » mais « qui gagnera cette
+    adresse-là » — voir sa docstring.
 
     Premier des deux tests de la sonde (le second est _port_accepts), et
     d'abord celui-ci parce que :
@@ -133,7 +161,7 @@ def _bind_test(port):
     try:
         if LogXHTTPServer.allow_reuse_address:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((BIND_HOST, port))
+        s.bind((host, port))
         return True, ''
     except OSError as e:
         return False, 'bind refuse: %s' % e
@@ -147,10 +175,15 @@ def _port_accepts(host, port, timeout):
     Indispensable EN PLUS de _bind_test, et ce n'est pas théorique : mesuré
     ici avec `python -m http.server` (comme beaucoup d'outils modernes, il
     écoute sur une socket IPv6 « dual-stack » [::]). Windows ne voit aucun
-    conflit entre cette socket et un bind IPv4 sur 0.0.0.0 — le bind de test
-    réussit donc alors que le navigateur, lui, tombe bel et bien sur l'autre
-    logiciel en visitant http://127.0.0.1:8080. Seule une vraie connexion vers
-    127.0.0.1 (l'adresse que le navigateur utilisera) le révèle.
+    conflit entre cette socket et un bind IPv4 sur 0.0.0.0 : le bind de test
+    réussit alors que quelqu'un écoute bel et bien ce port. Seule une vraie
+    connexion vers 127.0.0.1 (l'adresse que le navigateur utilisera) le
+    révèle.
+
+    ATTENTION : « quelqu'un répond ici » ne veut PAS dire « ce sera lui que
+    le navigateur trouvera après notre bind ». Répondre à cette question-là
+    est le travail de _garde_l_adresse_sondee, et le confondre avec ce test
+    revenait à refuser des démarrages parfaitement légitimes.
 
     Timeout court assumé : sur ce poste, un port loopback FERMÉ met ~2 s à
     refuser la connexion (retransmissions SYN), et l'utilisateur qui
@@ -165,21 +198,128 @@ def _port_accepts(host, port, timeout):
         return False
 
 
-def _fetch_signature(host, port, timeout):
+def _garde_l_adresse_sondee(host, port):
+    """Une fois NOTRE serveur lié à 0.0.0.0, les connexions vers `host`
+    arriveront-elles chez nous, ou chez le logiciel déjà en écoute ?
+
+    C'est LA question qui décide entre « je démarre » et « je renonce », et
+    elle n'a rien d'évident : un tiers peut écouter le port sans nous prendre
+    l'adresse dont nous avons besoin. Windows (comme Linux) route une
+    connexion vers la socket la PLUS SPÉCIFIQUE ; notre bind 0.0.0.0 est donc
+    prioritaire sur un [::] dual-stack, mais perdant face à un 127.0.0.1
+    nominatif. Mesuré sur ce poste, tiers et LogX AI liés simultanément au
+    même port (0.0.0.0 pour LogX AI) :
+
+      tiers lié sur      | notre bind 0.0.0.0 | bind de test sur 127.0.0.1
+                         |                    |  → qui sert 127.0.0.1 ?
+      -------------------+--------------------+---------------------------
+      [::] (dual-stack)  | réussit            | réussit  → LogX AI
+      127.0.0.1          | réussit            | ÉCHOUE   → le tiers
+      <IP LAN>           | réussit            | réussit  → LogX AI
+      0.0.0.0            | ÉCHOUE (traité en amont : conflit franc)
+
+    Le bind de test sur l'adresse PRÉCISE suit donc exactement le routage
+    réel : il échoue si et seulement si le tiers nous prendrait cette
+    adresse. Un bind, pas une connexion : c'est instantané, sans listen()
+    (donc sans fenêtre de pare-feu Windows) et sans le moindre paquet envoyé
+    au logiciel d'en face.
+    """
+    return _bind_test(port, host=host)[0]
+
+
+def _couper(sock, echeance_depassee):
+    """Débloque une lecture en cours quand l'échéance est dépassée.
+
+    Le drapeau est levé AVANT la coupure : le thread principal doit pouvoir
+    distinguer « c'est moi qui ai coupé » d'une vraie erreur réseau au moment
+    où son exception remonte. Sans lui, le détail affiché serait le message
+    système brut — mesuré ici : « [WinError 10053] Une connexion etablie a ete
+    abandonnee par un logiciel de votre ordinateur hote », accentué (donc
+    mojibaké sur la console de LogXAI.exe) et trompeur : il désigne un logiciel
+    fautif alors que la coupure est notre propre garde-fou.
+
+    shutdown() plutôt que close() : il fait rendre EOF au recv() bloqué sans
+    invalider le descripteur, que le thread principal est en train d'utiliser.
+    Fermer une socket sous les pieds d'un autre thread rend le descripteur
+    réutilisable immédiatement — une autre socket ouverte au même instant
+    hériterait du numéro et la lecture en cours lirait ses octets à elle.
+    Muet par construction : la socket peut avoir été fermée normalement entre
+    le déclenchement du minuteur et cet appel, c'est le cas le plus fréquent.
+    """
+    echeance_depassee.set()
+    try:
+        sock.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass
+
+
+def _fetch_signature(host, port, timeout, budget=_HTTP_BUDGET):
     """Interroge PROBE_PATH. Retourne (données_json_ou_None, detail_texte).
 
-    Adresse IP littérale : aucune résolution DNS ne peut donc rallonger
-    l'attente au-delà du timeout (piège connu de urlopen). ProxyHandler vide :
-    un proxy système configuré ne doit surtout pas intercepter une requête
-    vers 127.0.0.1 — sans ça la sonde interrogerait le proxy, pas l'instance.
+    Retourne au plus tard à `budget` secondes (échéance murale) : voir
+    _HTTP_BUDGET. Le timeout de socket seul ne suffit pas — il borne chaque
+    recv(), pas leur nombre — donc un minuteur coupe la socket à l'échéance,
+    ce qui fait échouer la lecture en cours au lieu de la laisser durer. Le
+    minuteur est armé APRÈS connect(), le seul moment où la socket existe ; ce
+    connect() est, lui, une opération unique, déjà bornée par `timeout`.
+
+    http.client en direct plutôt qu'urllib, pour deux raisons de fond :
+
+    1. AUCUNE redirection n'est suivie, alors que l'opener d'urllib embarque
+       HTTPRedirectHandler par défaut. Une instance LogX AI répond 200 sur
+       /network/info, elle n'a jamais besoin d'être redirigée ; à l'inverse,
+       suivre une redirection laisserait le logiciel qui occupe le port
+       décider de l'URL interrogée — identification détournable, et surtout
+       requête sortante vers une adresse arbitraire (portail captif, agent
+       d'entreprise qui répond 302) à CHAQUE démarrage. Mesuré avant
+       correction : la sonde demandait bien /network/info puis /ailleurs.
+    2. Aucun proxy n'est consulté : http.client se connecte à l'adresse
+       demandée, point. Un proxy système configuré ne doit surtout pas
+       intercepter une requête vers 127.0.0.1, sans quoi la sonde
+       interrogerait le proxy et LogX AI ne se reconnaîtrait pas lui-même.
+       C'est acquis par construction, là où urllib l'obtenait par un
+       ProxyHandler vide qu'il ne fallait pas oublier.
+
+    Adresse IP littérale : aucune résolution DNS ne peut rallonger l'attente.
     """
-    url = 'http://%s:%d%s' % (host, port, PROBE_PATH)
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    conn = http.client.HTTPConnection(host, port, timeout=timeout)
+    echeance_depassee = threading.Event()
+    minuteur = None
+    raw = None
+    statut = None
+    detail = ''
     try:
-        with opener.open(url, timeout=timeout) as r:
-            raw = r.read(_MAX_BODY)
+        conn.connect()
+        minuteur = threading.Timer(budget, _couper, (conn.sock, echeance_depassee))
+        minuteur.daemon = True     # ne doit jamais retarder l'arrêt du process
+        minuteur.start()
+        conn.request('GET', PROBE_PATH)
+        r = conn.getresponse()
+        statut = r.status
+        raw = r.read(_MAX_BODY)
     except Exception as e:
-        return None, '%s: %s' % (type(e).__name__, e)
+        detail = '%s: %s' % (type(e).__name__, e)
+    finally:
+        if minuteur is not None:
+            minuteur.cancel()
+        try:
+            conn.close()
+        except Exception:
+            pass
+    if raw is None:
+        if echeance_depassee.is_set():
+            # ASCII strict, comme tous les messages de ce module : ce texte
+            # ressort tel quel dans message_port_occupe(), sur une console
+            # dont la page de code n'est pas prévisible.
+            return None, ('pas de reponse exploitable en %.1f s '
+                          '(port occupe par un logiciel qui repond trop '
+                          'lentement pour etre identifie)' % budget)
+        return None, detail
+    if statut != 200:
+        # Inclut le cas de la redirection, désormais non suivie : le dire
+        # explicitement vaut mieux qu'un « reponse non-JSON (0 octets) »
+        # incompréhensible pour qui cherche quel logiciel occupe le port.
+        return None, 'reponse HTTP %d (une instance LogX AI repond 200)' % statut
     try:
         data = json.loads(raw.decode('utf-8', 'replace'))
     except Exception:
@@ -189,7 +329,8 @@ def _fetch_signature(host, port, timeout):
     return data, ''
 
 
-def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5):
+def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5,
+          http_budget=_HTTP_BUDGET):
     """Qui occupe le port ? Retourne {'state', 'version', 'detail'}.
 
     Deux tests dont AUCUN ne peut déclarer un port occupé à tort (un échec de
@@ -200,11 +341,29 @@ def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5):
     « LogX AI tourne déjà » de « un autre logiciel occupe le port » change du
     tout au tout le message et la conduite à tenir.
 
-    Coût : ~0 s quand le port est libre ET que le système refuse vite les
-    connexions ; au pire connect_timeout (0,35 s) au démarrage normal, borne
-    assumée pour ne pas faire patienter l'utilisateur. Ne lève jamais : en cas
-    d'imprévu on renvoie FREE plutôt que d'empêcher un démarrage légitime, le
-    filet de sécurité au bind rattrapant de toute façon une vraie collision.
+    Un tiers identifié ne suffit PAS à renoncer : encore faut-il qu'il nous
+    prenne l'adresse que nous annonçons. Un écouteur dual-stack [::] (banal :
+    `python -m http.server`, tout serveur Node ou Go sur :8080) laisse notre
+    bind 0.0.0.0 gagner 127.0.0.1 et l'IP du réseau local — l'application est
+    alors 100 % utilisable, et la refuser était une VRAIE régression : le
+    logiciel ne démarrait plus du tout sur ces postes. D'où le troisième
+    verdict SHARED (avertir, puis démarrer), réservé au cas mesuré comme sûr
+    par _garde_l_adresse_sondee. Refuser reste la conduite quand le tiers
+    détient réellement notre adresse (état OTHER).
+
+    Coût, borné dans TOUS les cas (aucun chemin ne peut attendre sans fin) :
+      * port libre et connexions refusées vite : ~0 s ;
+      * port libre, système lent à refuser : connect_timeout (0,35 s), c'est
+        le pire cas du démarrage normal, borne assumée pour ne pas faire
+        patienter l'utilisateur ;
+      * port occupé : + au plus http_budget (2 s) pour l'identification, quoi
+        que réponde le logiciel en face — silence, goutte à goutte ou flux
+        sans fin (voir _HTTP_BUDGET). Ce cas se termine de toute façon par un
+        message et un arrêt : rien ne tourne derrière.
+
+    Ne lève jamais : en cas d'imprévu on renvoie FREE plutôt que d'empêcher un
+    démarrage légitime, le filet de sécurité au bind rattrapant de toute façon
+    une vraie collision.
     """
     try:
         libre, bind_err = _bind_test(port)
@@ -212,12 +371,17 @@ def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5):
             if not _port_accepts(host, port, connect_timeout):
                 return {'state': FREE, 'version': None, 'detail': ''}
             bind_err = ''   # le bind aurait réussi : ne pas polluer le détail
-        data, http_err = _fetch_signature(host, port, http_timeout)
-        if data is None:
-            return {'state': OTHER, 'version': None,
-                    'detail': '; '.join(x for x in (bind_err, http_err) if x)}
-        version = data.get('app_version') or None
-        return {'state': LOGX, 'version': version, 'detail': ''}
+        data, http_err = _fetch_signature(host, port, http_timeout, http_budget)
+        if data is not None:
+            version = data.get('app_version') or None
+            return {'state': LOGX, 'version': version, 'detail': ''}
+        # Un tiers occupe le port. Reste à savoir s'il nous prend l'adresse
+        # que nous annonçons : si non, notre serveur répondra normalement et
+        # l'arrêter serait un refus de démarrage injustifié.
+        detail = '; '.join(x for x in (bind_err, http_err) if x)
+        if libre and _garde_l_adresse_sondee(host, port):
+            return {'state': SHARED, 'version': None, 'detail': detail}
+        return {'state': OTHER, 'version': None, 'detail': detail}
     except Exception as e:      # défensif : jamais bloquer le démarrage
         return {'state': FREE, 'version': None,
                 'detail': 'sonde impossible: %s' % e}
@@ -277,8 +441,43 @@ def message_deja_lance(port, version=None, ouvre_navigateur=True):
     ))
 
 
+def message_port_partage(port, detail=''):
+    """Un tiers écoute aussi le port, mais pas sur notre adresse : LogX AI
+    démarre normalement — c'est un AVERTISSEMENT, pas un refus.
+
+    Ton volontairement rassurant : l'utilisateur voit passer un pavé au
+    démarrage, il doit comprendre en une ligne que son logiciel fonctionne.
+    On ne lui demande RIEN tant qu'il ne constate pas d'anomalie : lui
+    prescrire de fermer un autre programme qui ne le gêne pas le lancerait
+    dans une chasse inutile (et l'autre programme est peut-être le sien)."""
+    lignes = [
+        _LIGNE,
+        '  Note : un AUTRE logiciel ecoute aussi le port %d sur ce poste.' % port,
+        '  Il n occupe pas les memes adresses que LogX AI (typiquement une',
+        '  socket IPv6 dite dual-stack : python -m http.server, un serveur',
+        '  Node ou Go...). Verification faite avant ce demarrage : les',
+        '  adresses annoncees par LogX AI lui reviennent bien.',
+        '',
+        '  LogX AI demarre normalement. A savoir :',
+        '   - utilise http://127.0.0.1:%d/ (adresse affichee ci-dessous)' % port,
+        '     ainsi que l adresse WiFi du poste : elles sont bien a nous ;',
+        '   - evite en revanche http://localhost:%d/ : selon le poste, ce' % port,
+        '     nom peut mener a l AUTRE logiciel.',
+        '',
+        '  Si une page inattendue s affichait malgre tout, identifie le',
+        '  programme qui partage le port %d :' % port,
+        _qui_occupe(port),
+    ]
+    if detail:
+        lignes.append('  Detail technique : %s' % detail)
+    lignes.append(_LIGNE)
+    return '\n'.join(lignes)
+
+
 def message_port_occupe(port, detail=''):
-    """Le port est pris, mais la réponse ne vient pas de LogX AI."""
+    """Le port est pris, la réponse ne vient pas de LogX AI, ET le tiers nous
+    prend l'adresse que nous annonçons (mesuré par _garde_l_adresse_sondee) :
+    démarrer donnerait un serveur que le navigateur ne trouverait pas."""
     lignes = [
         _LIGNE,
         '  Demarrage impossible : le port %d est deja utilise par un AUTRE' % port,

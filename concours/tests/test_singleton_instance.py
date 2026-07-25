@@ -76,6 +76,42 @@ def serveur_ephemere():
 
 
 @pytest.fixture
+def serveur_dual_stack():
+    """Tiers écoutant sur [::] en « dual-stack » — donc joignable en IPv4 sans
+    tenir aucune adresse IPv4 en propre. C'est le cas de `python -m
+    http.server`, de tout serveur Node (`server.listen(8080)`) et de tout
+    serveur Go (`:8080`) : banal sur un port comme 8080, et c'est exactement
+    la configuration qui empêchait LogX AI de démarrer."""
+    serveurs = []
+
+    class _DualStack(http.server.ThreadingHTTPServer):
+        address_family = socket.AF_INET6
+        allow_reuse_address = False
+
+        def server_bind(self):
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            super().server_bind()
+
+    def _start(payload=b'{"service":"autre"}'):
+        handler = type('H', (_FakeHandler,), {'payload': payload})
+        try:
+            srv = _DualStack(('::', 0), handler)
+        except OSError as e:                     # poste sans IPv6
+            pytest.skip('pas de socket IPv6 dual-stack ici : %s' % e)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        serveurs.append(srv)
+        port = srv.server_address[1]
+        if not S._port_accepts('127.0.0.1', port, 1.0):
+            pytest.skip('IPv6 dual-stack non joignable en IPv4 sur ce poste')
+        return port
+
+    yield _start
+    for srv in serveurs:
+        srv.shutdown()
+        srv.server_close()
+
+
+@pytest.fixture
 def ecouteur_meme_adresse():
     """Socket en écoute sur EXACTEMENT l'adresse que le vrai serveur demande
     (S.BIND_HOST) — c'est le cas « une autre instance de LogX AI tient déjà le
@@ -86,6 +122,62 @@ def ecouteur_meme_adresse():
     lst.listen(5)
     yield lst.getsockname()[1]
     lst.close()
+
+
+@pytest.fixture
+def serveur_brut():
+    """Serveur TCP piloté octet par octet, pour les comportements que
+    http.server ne sait pas produire : réponse au goutte à goutte, redirection.
+    Retourne (port, chemins_demandes) — la liste des chemins se remplit au fil
+    des requêtes, c'est elle qui prouve ce que la sonde est allée chercher.
+
+    `servir(chemin, conn)` écrit la réponse brute. Une connexion qui n'envoie
+    rien est ignorée : c'est celle de _port_accepts, qui se contente d'ouvrir
+    et de refermer — la compter fausserait tout raisonnement sur l'ordre des
+    requêtes (piège rencontré en écrivant ces tests)."""
+    ecouteurs = []
+
+    def _start(servir):
+        lst = socket.socket()
+        lst.bind(('127.0.0.1', 0))
+        lst.listen(8)
+        ecouteurs.append(lst)
+        chemins = []
+
+        def _client(c):
+            try:
+                req = c.recv(8192).decode('latin-1')
+                if not req.strip():
+                    return
+                chemins.append(req.split(' ')[1])
+                servir(chemins[-1], c)
+            except OSError:
+                pass
+            finally:
+                try:
+                    c.close()
+                except OSError:
+                    pass
+
+        def _boucle():
+            while True:
+                try:
+                    c, _ = lst.accept()
+                except OSError:
+                    return
+                threading.Thread(target=_client, args=(c,), daemon=True).start()
+
+        threading.Thread(target=_boucle, daemon=True).start()
+        return lst.getsockname()[1], chemins
+
+    yield _start
+    for lst in ecouteurs:
+        lst.close()
+
+
+def _http_200(corps):
+    return (b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
+            b'Content-Length: %d\r\n\r\n' % len(corps)) + corps
 
 
 def _reponse_logx(version='9.9-test'):
@@ -194,15 +286,75 @@ def test_probe_port_libre():
     assert r['version'] is None
 
 
-def test_probe_detecte_un_serveur_invisible_au_bind(monkeypatch, serveur_ephemere):
-    """Cas mesuré en vrai avec `python -m http.server` : le tiers écoute sur
-    une socket IPv6 « dual-stack », Windows n'y voit aucun conflit avec un
-    bind IPv4 0.0.0.0 — le test de bind conclut « libre » alors que le
-    navigateur, lui, tombera sur l'autre logiciel en visitant 127.0.0.1.
-    Seule la connexion réelle le révèle : elle doit rester dans la sonde."""
+def test_probe_detecte_un_serveur_invisible_au_bind(serveur_ephemere):
+    """Le bind joker 0.0.0.0 ne voit RIEN d'un tiers lié à 127.0.0.1 (mesuré :
+    il réussit). Sans la connexion réelle, la sonde conclurait « libre » et on
+    démarrerait un serveur que le navigateur ne trouverait jamais — c'est
+    pourquoi _port_accepts doit rester dans la sonde."""
     port = serveur_ephemere(json.dumps({'service': 'autre'}).encode())
-    monkeypatch.setattr(S, '_bind_test', lambda p: (True, ''))   # bind aveugle
+    assert S._bind_test(port)[0] is True          # le bind joker est aveugle
     assert S.probe(port)['state'] == S.OTHER
+
+
+def test_probe_laisse_demarrer_derriere_un_ecouteur_dual_stack(serveur_dual_stack):
+    """LA régression corrigée ici. Un tiers dual-stack [::] (python -m
+    http.server, tout serveur Node ou Go) faisait conclure OTHER, et
+    logx_serveur.py s'arrêtait en code 1 : LogX AI devenait IMPOSSIBLE à
+    lancer sur ces postes, alors qu'il fonctionnait parfaitement avant.
+
+    Mesuré : notre bind 0.0.0.0 est plus spécifique que le [::] du tiers, donc
+    c'est LogX AI qui sert 127.0.0.1 et l'IP du réseau local — soit toutes les
+    URL que l'application affiche et ouvre elle-même. Verdict attendu : SHARED
+    (on avertit, on démarre), surtout pas OTHER (on refuse)."""
+    port = serveur_dual_stack()
+    assert S._bind_test(port)[0] is True             # on POURRAIT se lier...
+    assert S._port_accepts('127.0.0.1', port, 1.0)   # ...et pourtant ça répond
+    assert S.probe(port)['state'] == S.SHARED
+
+
+def test_shared_veut_bien_dire_que_c_est_nous_qui_repondrons(serveur_dual_stack):
+    """Preuve de bout en bout du verdict SHARED : on démarre VRAIMENT le
+    serveur comme le fait logx_serveur.py, puis on resonde. Si le tiers gardait
+    l'adresse, la sonde continuerait de voir un inconnu ; elle doit maintenant
+    reconnaître LogX AI. Sans ce test, SHARED ne serait qu'une intention."""
+    port = serveur_dual_stack()
+    assert S.probe(port)['state'] == S.SHARED
+    srv = S.LogXHTTPServer((S.BIND_HOST, port),
+                           type('H', (_FakeHandler,),
+                                {'payload': _reponse_logx('7.7-preuve')}))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        r = S.probe(port)
+        assert r['state'] == S.LOGX, 'le tiers repond encore : SHARED etait faux'
+        assert r['version'] == '7.7-preuve'
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_other_veut_bien_dire_que_le_tiers_garde_l_adresse(serveur_ephemere):
+    """Le pendant du test précédent, et la raison de ne PAS transformer tous
+    les OTHER en avertissements : un tiers lié nominativement à 127.0.0.1 nous
+    prend cette adresse (socket la plus spécifique). Même après notre bind, il
+    répond toujours — refuser de démarrer est ici la bonne conduite."""
+    port = serveur_ephemere(json.dumps({'service': 'autre'}).encode())
+    assert S.probe(port)['state'] == S.OTHER
+    srv = S.LogXHTTPServer((S.BIND_HOST, port),
+                           type('H', (_FakeHandler,), {'payload': _reponse_logx()}))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        assert S.probe(port)['state'] == S.OTHER
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_un_conflit_franc_reste_un_refus(ecouteur_meme_adresse):
+    """Garde-fou du nouvel état : SHARED est réservé au cas où notre bind
+    réussit. Quand le port est tenu sur 0.0.0.0, le bind échoue et le verdict
+    doit rester OTHER — sinon on démarrerait dans le mur."""
+    r = S.probe(ecouteur_meme_adresse, http_timeout=0.3)
+    assert r['state'] == S.OTHER
 
 
 def test_probe_bornee_dans_le_temps_si_le_port_ne_repond_pas():
@@ -274,6 +426,84 @@ def test_probe_ne_lit_pas_un_flux_sans_fin():
         srv.server_close()
 
 
+def test_probe_bornee_face_a_un_flux_au_goutte_a_goutte(serveur_brut):
+    """LE test du second bug : _MAX_BODY borne les OCTETS, jamais l'ATTENTE.
+
+    Le test ci-dessus ne couvrait que le tiers qui inonde à pleine vitesse —
+    les 65 536 octets arrivent instantanément et tout va bien. Un tiers qui
+    répond au goutte à goutte ne déclenche AUCUN timeout de socket (chaque
+    recv() rend un octet bien avant l'échéance) et la lecture dure jusqu'à ce
+    que la limite d'octets soit atteinte. Mesuré avant correction, timeouts par
+    défaut : la sonde tournait encore à T+10 s avec 99 octets sur 65 536, soit
+    ~1 h 50 projetées, sans qu'une ligne ne s'affiche — et comme _bind_test
+    disait « libre », l'utilisateur n'avait même pas de collision à soupçonner.
+
+    Ici : 1 octet toutes les 50 ms, soit ~55 min pour atteindre la limite si
+    l'attente n'est pas bornée."""
+    def servir(chemin, c):
+        c.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
+                  b'Content-Length: 65536\r\n\r\n')
+        while True:
+            c.sendall(b'x')
+            time.sleep(0.05)
+
+    port, _ = serveur_brut(servir)
+    t0 = time.perf_counter()
+    r = S.probe(port, http_budget=0.6)
+    ecoule = time.perf_counter() - t0
+    assert r['state'] == S.OTHER
+    assert ecoule < 3, 'sonde non bornee dans le temps : %.1f s' % ecoule
+    # Le détail s'affiche sur la console de LogXAI.exe : il doit rester
+    # lisible (ASCII) et dire « delai », pas rapporter un WinError localisé
+    # qui accuserait un logiciel tiers de notre propre coupure.
+    r['detail'].encode('ascii')
+    assert 'reponse exploitable' in r['detail']
+
+
+def test_probe_ne_suit_pas_les_redirections(serveur_brut):
+    """La sonde ne doit interroger QUE PROBE_PATH.
+
+    urllib.request.build_opener() embarque HTTPRedirectHandler par défaut :
+    avant correction, la sonde demandait bien /network/info puis /ailleurs
+    (mesuré). Trois conséquences, toutes évitées ici :
+      * l'identification devient détournable — d'où la réponse redirigée qui
+        IMITE la signature LogX AI ci-dessous : si elle était suivie, LogX AI
+        se croirait déjà lancé et refuserait de démarrer ;
+      * le logiciel qui occupe le port choisit une URL vers laquelle une
+        requête part, à chaque démarrage (une adresse externe ferait sortir
+        cette requête du poste) ;
+      * chaque saut ajoute son délai au démarrage."""
+    def servir(chemin, c):
+        if chemin == S.PROBE_PATH:
+            c.sendall(b'HTTP/1.1 302 Found\r\nLocation: /ailleurs\r\n'
+                      b'Content-Length: 0\r\n\r\n')
+        else:
+            c.sendall(_http_200(_reponse_logx()))
+
+    port, chemins = serveur_brut(servir)
+    r = S.probe(port)
+    assert r['state'] == S.OTHER, (
+        'une redirection ne doit jamais pouvoir faire passer un tiers pour '
+        'une instance LogX AI')
+    assert chemins == [S.PROBE_PATH], 'chemins demandes : %r' % chemins
+
+
+def test_probe_ne_laisse_aucun_thread_non_daemon(serveur_brut):
+    """Le minuteur d'échéance ne doit pas retarder l'arrêt du processus : un
+    thread non-daemon serait attendu à la sortie de l'interpréteur, ce qui
+    rendrait au démarrage le blocage que cette échéance vient supprimer."""
+    def servir(chemin, c):
+        while True:
+            time.sleep(0.05)
+
+    port, _ = serveur_brut(servir)
+    avant = set(threading.enumerate())
+    S.probe(port, http_budget=0.4)
+    restants = [t for t in threading.enumerate()
+                if t not in avant and not t.daemon]
+    assert not restants, 'threads non-daemon residuels : %r' % restants
+
+
 # ─── MESSAGES CONSOLE ────────────────────────────────────────────────────────
 
 def _tous_les_messages():
@@ -283,6 +513,8 @@ def _tous_les_messages():
         S.message_deja_lance(8080, '0.9-beta5', ouvre_navigateur=False),
         S.message_port_occupe(8080, 'HTTPError: 404'),
         S.message_port_occupe(8080, ''),
+        S.message_port_partage(8080, 'HTTPError: 404'),
+        S.message_port_partage(8080, ''),
         S.message_bind_impossible(8080, OSError('[WinError 10048] occupe')),
     ]
 
@@ -331,6 +563,20 @@ def test_message_port_occupe_ne_pretend_pas_que_logx_tourne():
     assert msg != S.message_deja_lance(8080, None)
 
 
+def test_message_port_partage_annonce_un_demarrage_qui_reussit():
+    """Ce message accompagne un démarrage NORMAL : s'il ressemblait à un
+    message d'échec, l'utilisateur fermerait la fenêtre en croyant que rien
+    n'a démarré — exactement le mal qu'on vient de corriger."""
+    msg = S.message_port_partage(8080, '')
+    assert 'Demarrage impossible' not in msg
+    assert 'DEJA lance' not in msg
+    assert 'demarre normalement' in msg
+    # Et il oriente vers l'adresse qui fonctionne, en écartant celle qui peut
+    # mener au tiers (mesuré : « localhost » part en IPv6 et tombe sur lui).
+    assert 'http://127.0.0.1:8080/' in msg
+    assert 'localhost' in msg
+
+
 def test_message_bind_impossible_rapporte_l_erreur_systeme():
     msg = S.message_bind_impossible(8080, OSError('[WinError 10048] occupe'))
     assert '10048' in msg
@@ -364,16 +610,31 @@ def test_serveur_sonde_avant_de_charger_les_donnees():
     assert i_probe < i_load < i_bind
 
 
-def test_serveur_traite_les_trois_verdicts_de_la_sonde():
+def test_serveur_traite_les_quatre_verdicts_de_la_sonde():
     src = _source_serveur()
     assert 'logx_singleton.LOGX' in src
     assert 'logx_singleton.OTHER' in src
+    assert 'logx_singleton.SHARED' in src
     assert 'message_deja_lance' in src
     assert 'message_port_occupe' in src
+    assert 'message_port_partage' in src
     assert 'message_bind_impossible' in src
     # Instance déjà là = situation normale, pas une panne : code de sortie 0
     # (un code d'erreur ferait afficher une alerte par certains lanceurs).
     assert 'code=0' in src
+
+
+def test_serveur_ne_s_arrete_pas_sur_un_port_seulement_partage():
+    """Le cœur de la correction, côté chemin de démarrage : SHARED doit
+    AVERTIR puis laisser le démarrage continuer. Le verdict a beau être juste
+    dans logx_singleton.py, un _abandonner() ici ramènerait tel quel le bug —
+    LogX AI impossible à lancer derrière un écouteur dual-stack."""
+    src = _source_serveur()
+    i_shared = src.index("_instance['state'] == logx_singleton.SHARED")
+    i_load = src.index('load_log_from_disk()')
+    assert i_shared < i_load, 'la branche SHARED doit rester avant le chargement'
+    assert '_abandonner' not in src[i_shared:i_load], (
+        'un port seulement partage ne doit PAS interrompre le demarrage')
 
 
 def test_spec_pyinstaller_embarque_le_module():

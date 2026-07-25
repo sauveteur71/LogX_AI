@@ -95,9 +95,18 @@ if __name__ == '__main__':
         _abandonner(logx_singleton.message_deja_lance(
             PORT, _instance['version'], ouvre_navigateur=is_frozen()), code=0)
     if _instance['state'] == logx_singleton.OTHER:
-        # Port occupé par autre chose : ne surtout pas prétendre que LogX AI
-        # tourne déjà, et ne pas ouvrir de navigateur sur un logiciel tiers.
+        # Port occupé par autre chose, ET ce tiers nous prendrait l'adresse
+        # que nous annonçons : ne surtout pas prétendre que LogX AI tourne
+        # déjà, et ne pas ouvrir de navigateur sur un logiciel tiers.
         _abandonner(logx_singleton.message_port_occupe(PORT, _instance['detail']))
+    if _instance['state'] == logx_singleton.SHARED:
+        # Un tiers écoute aussi le port, mais sur d'AUTRES adresses (cas banal
+        # de l'écouteur IPv6 dual-stack). Mesuré : notre bind 0.0.0.0 gagne
+        # 127.0.0.1 et l'IP du réseau local, donc TOUTES les URL que LogX AI
+        # affiche et ouvre. On avertit, et on démarre : refuser ici était une
+        # régression qui rendait le logiciel impossible à lancer sur un poste
+        # faisant tourner le moindre serveur Node, Go ou python -m http.server.
+        print(logx_singleton.message_port_partage(PORT, _instance['detail']))
 
     load_log_from_disk()
     load_qtc_from_disk()
