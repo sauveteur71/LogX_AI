@@ -56,6 +56,51 @@ def test_migration_one_shot_depuis_json(tmp_path):
     _in_tmp(tmp_path, run)
 
 
+def test_reload_purge_le_marqueur_de_version_delta(tmp_path):
+    """Non-régression : '_v' (posé par stamp_qso_version pour la synchro
+    différentielle de /log/list) partait dans la colonne extra de logx.db et
+    dans shared_log.json, puis était restauré tel quel au redémarrage — alors
+    que log_version repart de 0. Tous les QSO des sessions précédentes
+    retombaient donc dans CHAQUE réponse delta (q.get('_v', 0) > since
+    toujours vrai) tant que la nouvelle session n'avait pas cumulé autant de
+    mutations que l'ancienne : la synchro différentielle redevenait une
+    retransmission quasi complète à chaque mutation. Le chargement doit
+    purger '_v'."""
+    def run():
+        st.shared_log[:] = [dict(QSO, _v=347)]
+        st.save_log_to_disk()
+        st.shared_log[:] = []
+        st.load_log_from_disk()                     # redémarrage simulé
+        assert len(st.shared_log) == 1
+        q = st.shared_log[0]
+        assert '_v' not in q, (
+            "'_v' périmé de la session précédente restauré au chargement : "
+            "le filtre delta de /log/list retransmettra ce QSO à chaque poll")
+        # Les autres champs extra survivent, seule la purge de '_v' a lieu
+        assert q['rst_sent'] == '599' and q['_edited'] is True
+        # Réplique du filtre delta de /log/list (logx_http.py) : première
+        # mutation de la nouvelle session (log_version=1), client à jour
+        # (since=1) -> AUCUN QSO de la session précédente retransmis.
+        assert [x for x in st.shared_log if x.get('_v', 0) > 1] == []
+    _in_tmp(tmp_path, run)
+
+
+def test_migration_json_purge_aussi_le_marqueur_de_version_delta(tmp_path):
+    """Même purge sur le chemin de migration one-shot depuis shared_log.json
+    (l'autre branche de load_log_from_disk) : la purge a lieu AVANT le
+    save_log_to_disk() de migration, la base créée est donc saine aussi."""
+    def run():
+        with open('shared_log.json', 'w', encoding='utf-8') as f:
+            json.dump([dict(QSO, _v=347)], f)
+        st.load_log_from_disk()
+        assert '_v' not in st.shared_log[0]
+        # La base issue de la migration ne contient pas '_v' non plus
+        st.shared_log[:] = []
+        st.load_log_from_disk()
+        assert '_v' not in st.shared_log[0]
+    _in_tmp(tmp_path, run)
+
+
 def test_reset_archive_sans_perte(tmp_path):
     def run():
         st.shared_log[:] = [QSO]

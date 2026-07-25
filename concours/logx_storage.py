@@ -117,6 +117,27 @@ def stamp_qso_version(qso):
     return qso
 
 
+def _strip_stale_delta_versions():
+    """Purge le marqueur '_v' des QSO fraîchement rechargés du disque.
+
+    '_v' est posé par stamp_qso_version() directement sur le dict du QSO ;
+    n'étant pas dans _CORE, il part dans la colonne extra de logx.db et dans
+    shared_log.json à chaque save_log_to_disk(), puis est restauré tel quel au
+    chargement. Or log_version repart de 0 à chaque démarrage (voir plus
+    haut) : un '_v' hérité d'une session précédente est donc quasi toujours
+    très SUPÉRIEUR à la version courante, et le filtre delta de /log/list
+    (q.get('_v', 0) > since) ré-inclurait ces QSO dans CHAQUE réponse delta
+    tant que log_version ne les a pas rattrapés — la synchro différentielle
+    redeviendrait une retransmission quasi complète à chaque mutation,
+    exactement ce qu'elle devait éliminer. SERVER_BOOT_ID ne protège pas de
+    ça : il n'invalide que les curseurs CLIENT d'avant redémarrage, pas les
+    '_v' périmés côté serveur. D'où cette purge systématique au chargement
+    (qui assainit aussi les bases déjà polluées par les versions antérieures)."""
+    for q in shared_log:
+        if isinstance(q, dict):
+            q.pop('_v', None)
+
+
 def mark_qso_deleted(qso_id):
     """Tombstone pour UNE suppression individuelle de QSO (jamais pour un
     reset/clear en masse, voir mark_hard_reset)."""
@@ -530,11 +551,13 @@ def load_log_from_disk():
                 ).fetchall()
                 conn.close()
             shared_log[:] = [_qso_from_row(r) for r in rows]
+            _strip_stale_delta_versions()
             print(f"[LOG] {len(shared_log)} QSO charges depuis {DB_FILE}")
             return
         if os.path.exists('shared_log.json'):
             with open('shared_log.json', 'r', encoding='utf-8') as f:
                 shared_log[:] = json.load(f)
+            _strip_stale_delta_versions()
             print(f"[LOG] Migration one-shot : {len(shared_log)} QSO "
                   f"shared_log.json -> {DB_FILE}")
             save_log_to_disk()
