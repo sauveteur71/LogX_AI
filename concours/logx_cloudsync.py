@@ -27,11 +27,21 @@ import glob
 import json
 import os
 import re
+import time
 import concurrent.futures as _cf
 
 SYNC_PREFIX = 'logx_cloudsync_'
 _INSTANCE_ID_FILE = '.cloudsync_instance_id'
 _STAMP_FILE = 'cloudsync_state.json'
+
+# Dernier échec de synchro (mémoire process, jamais persisté sur disque —
+# comme le disjoncteur callbook) : la boucle de fond _cloudsync_loop
+# (logx_serveur.py) n'affichait cet échec qu'en console serveur (print),
+# jamais côté client. Rempli/vidé uniquement quand Cloud Sync est ACTIVÉ
+# (voir sync_now ci-dessous) : un appel avec mode='off' n'est pas une panne
+# réseau, juste une fonctionnalité inutilisée — ne doit jamais déclencher
+# l'indicateur de dégradation.
+_last_error = {'ts': 0, 'msg': ''}
 
 
 def _safe(s):
@@ -113,12 +123,23 @@ def sync_now(cfg, shared_log):
     """Synchronise selon le mode configuré. Retourne
     {'ok', 'mode', 'pushed', 'pulled', 'sources'} ou {'ok': False, 'error'}."""
     try:
-        return _SYNC_EXECUTOR.submit(_sync_now_blocking, cfg, shared_log).result(timeout=SYNC_TIMEOUT)
+        r = _SYNC_EXECUTOR.submit(_sync_now_blocking, cfg, shared_log).result(timeout=SYNC_TIMEOUT)
     except _cf.TimeoutError:
-        return {'ok': False, 'error': f"Dossier de synchronisation trop lent à répondre "
+        r = {'ok': False, 'error': f"Dossier de synchronisation trop lent à répondre "
                 f"(> {SYNC_TIMEOUT}s) — probablement un dossier cloud non téléchargé "
                 "localement (mode « à la demande »). Voir le guide utilisateur, "
                 "section Dépannage."}
+    # Enregistré seulement si Cloud Sync est réellement activé : un appel
+    # désactivé (r['error'] = "désactivé...") n'est pas une dégradation
+    # réseau à signaler — voir _last_error ci-dessus.
+    if cloudsync_settings(cfg).get('enabled'):
+        if r.get('ok'):
+            _last_error['ts'] = 0
+            _last_error['msg'] = ''
+        else:
+            _last_error['ts'] = time.time()
+            _last_error['msg'] = r.get('error', '')
+    return r
 
 
 def _sync_now_blocking(cfg, shared_log):
@@ -195,5 +216,9 @@ def status(cfg=None):
         pattern = os.path.join(s['folder'], SYNC_PREFIX + '*.json')
         my_path = os.path.join(s['folder'], s.get('my_file', ''))
         other_sources = sum(1 for p in glob.glob(pattern) if os.path.abspath(p) != os.path.abspath(my_path))
+    last_error = None
+    if _last_error['ts']:
+        last_error = {'msg': _last_error['msg'], 'age_s': int(time.time() - _last_error['ts'])}
     return {'enabled': bool(s.get('enabled')), 'mode': s.get('mode', 'off'),
-            'folder': s.get('folder', ''), 'last': last, 'other_installations': other_sources}
+            'folder': s.get('folder', ''), 'last': last, 'other_installations': other_sources,
+            'last_error': last_error}

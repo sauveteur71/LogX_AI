@@ -1117,6 +1117,14 @@ def enrich_unknown_calls(done_calls, calldb_path):
 _solar_cache = {'data': None, 'ts': 0}
 _muf_cache = {'data': None, 'ts': 0}
 
+# Compteur d'échecs CONSÉCUTIFS de fetch_solar_data (remis à 0 dès qu'un fetch
+# réussit) — sert uniquement à solar_status() ci-dessous pour distinguer une
+# vraie panne réseau prolongée d'un cache simplement périmé entre deux
+# rafraîchissements normaux (le cache expire toutes les 15 min, donc un seul
+# échec ne veut encore rien dire).
+_solar_fail_count = {'n': 0}
+SOLAR_DEGRADED_THRESHOLD = 2  # >= 2 échecs d'affilée (~30 min) avant d'alerter
+
 def fetch_solar_data():
     """Indices solaires N0NBH (hamqsl.com) : SFI, index A/K, taches, rayons X,
     vent solaire, conditions calculées par bande (jour/nuit) et phénomènes VHF
@@ -1125,6 +1133,7 @@ def fetch_solar_data():
         return _solar_cache['data']
     xml = fetch_url('https://www.hamqsl.com/solarxml.php', timeout=15)
     if not xml:
+        _solar_fail_count['n'] += 1
         return _solar_cache['data']  # ancien cache plutôt que rien
 
     def tag(name):
@@ -1150,6 +1159,7 @@ def fetch_solar_data():
     }
     _solar_cache['data'] = data
     _solar_cache['ts'] = time.time()
+    _solar_fail_count['n'] = 0
     print(f"[SOLAR] SFI={data['sfi']} A={data['a_index']} K={data['k_index']}")
     return data
 
@@ -1236,6 +1246,19 @@ def get_solar_cached():
     if data:
         data['stale'] = stale
     return data
+
+
+def solar_status():
+    """Signal de dégradation réseau pour la barre de statut (voir GET
+    /data/network_status, logx_statusbar.js) — volontairement DIFFÉRENT du
+    'stale' de get_solar_cached() ci-dessus : 'stale' devient vrai à CHAQUE
+    limite de cache de 15 min, y compris en fonctionnement tout à fait normal
+    (le temps que le rafraîchissement asynchrone en cours se termine), et
+    clignoterait donc en permanence si on l'utilisait tel quel comme alerte.
+    Ici, dégradé seulement après plusieurs échecs RÉSEAU consécutifs (même
+    seuil de principe que le disjoncteur callbook, voir logx_callbook.py)."""
+    return {'degraded': _solar_fail_count['n'] >= SOLAR_DEGRADED_THRESHOLD,
+            'fails': _solar_fail_count['n']}
 
 
 def _refresh_muf_async(my_lat, my_lon):

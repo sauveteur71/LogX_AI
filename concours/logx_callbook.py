@@ -35,6 +35,16 @@ CIRCUIT_THRESHOLD = 3
 CIRCUIT_COOLDOWN = 90
 
 
+def circuit_status():
+    """État du disjoncteur pour affichage client (voir GET /data/network_status,
+    consommé par logx_statusbar.js) : le disjoncteur lui-même existe depuis la
+    pause hors-ligne ci-dessus, seule cette fonction est nouvelle — elle ne fait
+    que rendre visible un état déjà calculé, jusqu'ici silencieux (uniquement
+    lisible dans le message d'erreur d'un /qrz/lookup individuel)."""
+    wait = _circuit['until'] - time.time()
+    return {'open': wait > 0, 'wait_s': max(0, int(wait))}
+
+
 def lookup_hamdb(call):
     """Interroge HamDB (FCC US uniquement). {'ok', 'call', 'name', 'qth',
     'state', 'country', 'grid', 'dxcc': '', 'source': 'hamdb'} ou

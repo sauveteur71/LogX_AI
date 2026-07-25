@@ -2401,6 +2401,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(cs.status(self._cfg_snapshot()))
             return
 
+        # Dégradations réseau à signaler DISCRÈTEMENT côté client (barre de
+        # statut, logx_statusbar.js) : ces mécanismes existent déjà côté
+        # serveur (disjoncteur callbook, échecs solaires consécutifs, dernier
+        # échec Cloud Sync) mais restaient invisibles en dehors des print()
+        # console — l'opérateur ne savait jamais pourquoi une fiche indicatif
+        # ou la météo solaire ne se rafraîchissait plus. Lecture seule, sans
+        # aucun appel réseau ici (juste l'état déjà calculé en mémoire) :
+        # pollable à intervalle rapproché sans coût.
+        if path == '/data/network_status':
+            import logx_callbook as callbook
+            import logx_cloudsync as cs
+            from logx_clusters import solar_status
+            self._json({
+                'callbook': callbook.circuit_status(),
+                'solar': solar_status(),
+                'cloudsync': cs.status(self._cfg_snapshot()),
+            })
+            return
+
         # Propagation : indices solaires N0NBH + MUF réelle KC2G (caches 15 min,
         # lecture seule ici — le rafraîchissement réseau se fait en tâche de fond).
         if path == '/data/propagation':

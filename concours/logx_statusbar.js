@@ -79,6 +79,10 @@
     <div class="rcsb-item" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
       <a href="logx_propagation.html">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
     </div>
+    <div class="rcsb-item" id="rcsbNetworkItem" style="display:none"
+         title="Un service en ligne est temporairement injoignable — l'appli continue de fonctionner en local, nouvelle tentative automatique dès que possible">
+      📡 <span class="rcsb-val" id="rcsbNetworkText" style="color:var(--red,#FF2D55)">—</span>
+    </div>
     <div class="rcsb-item" title="Rate meter : QSO/h sur 10 min glissantes (extrapolé) et 60 min glissantes. Clic : fixer un objectif — vert au-dessus, rouge en dessous."
          id="rcsbRateItem" style="cursor:pointer">
       ⚡ <span class="rcsb-val" id="rcsbRate">—</span>
@@ -214,6 +218,40 @@
   }
   refreshSolar();
   setInterval(refreshSolar, 15 * 60 * 1000);   // aligné sur le cache serveur (15 min)
+
+  // ── Dégradation réseau (pastille discrète, jamais bloquante) ──────────────
+  // Rend VISIBLE côté client des mécanismes qui existaient déjà côté serveur
+  // mais restaient silencieux hors de la console (disjoncteur callbook,
+  // échecs solaires consécutifs, dernier échec Cloud Sync — voir GET
+  // /data/network_status). N'apparaît QUE si quelque chose est réellement
+  // dégradé ; disparaît tout seul dès que le service concerné se rétablit.
+  function refreshNetworkStatus(){
+    fetch('/data/network_status').then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        const item = document.getElementById('rcsbNetworkItem');
+        const el = document.getElementById('rcsbNetworkText');
+        if (!item || !el || !d) return;
+        const parts = [];
+        if (d.callbook && d.callbook.open){
+          parts.push('Callbook hors ligne (retry ' + d.callbook.wait_s + 's)');
+        }
+        if (d.solar && d.solar.degraded){
+          parts.push('Météo solaire injoignable');
+        }
+        if (d.cloudsync && d.cloudsync.enabled && d.cloudsync.last_error){
+          const mn = Math.max(0, Math.round(d.cloudsync.last_error.age_s / 60));
+          parts.push('Cloud Sync en échec (depuis ' + mn + ' min)');
+        }
+        if (parts.length){
+          item.style.display = 'flex';
+          el.textContent = parts.join(' · ');
+        } else {
+          item.style.display = 'none';
+        }
+      }).catch(function(){ /* le serveur n'est pas indispensable pour la barre */ });
+  }
+  refreshNetworkStatus();
+  setInterval(refreshNetworkStatus, 20 * 1000);
 
   // ── Thème jour/nuit GLOBAL (rc_theme, basculé sur config/carte/logbook) ───
   // Chaque page définit sa palette body.day-mode ; ici on applique le choix
