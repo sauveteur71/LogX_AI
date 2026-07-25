@@ -125,6 +125,23 @@ def _qso_key(q):
 SYNC_TIMEOUT = 12
 _SYNC_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=3, thread_name_prefix='cloudsync')
 
+# Deux synchronisations peuvent réellement se CHEVAUCHER : POST /cloudsync/now
+# (bouton « synchroniser maintenant », logx_http.py) pendant un cycle de
+# _cloudsync_loop (logx_serveur.py), ou un worker abandonné après SYNC_TIMEOUT
+# (dossier « à la demande » lent — le cas exact visé par le timeout) qui
+# continue seul pendant que le cycle suivant démarre (le stamp de fin n'ayant
+# jamais été écrit, due=True à la minute suivante). _SYNC_EXECUTOR autorise
+# jusqu'à 3 _sync_now_blocking simultanés : sans sérialisation, chaque worker
+# amorçait son 'seen' AVANT les insertions de l'autre et les deux tiraient le
+# même QSO distant — doublon PERSISTANT en usage_mode 'simple', où
+# add_qso_to_log ne refuse pas les doublons (par conception), jamais résorbé
+# aux cycles suivants. Accessoirement, deux pushs simultanés faisaient aussi
+# échouer os.replace sur le même fichier d'instance (WinError 5 observé).
+# Ce verrou n'est pris que DANS le worker : l'attente de l'appelant reste
+# bornée par SYNC_TIMEOUT, un worker bloqué par un dossier cloud gelé ne gèle
+# toujours aucune requête HTTP.
+_sync_serial_lock = threading.Lock()
+
 
 def sync_now(cfg, shared_log):
     """Synchronise selon le mode configuré. Retourne
@@ -155,6 +172,14 @@ def sync_now(cfg, shared_log):
 
 
 def _sync_now_blocking(cfg, shared_log):
+    # Une seule synchronisation à la fois (voir _sync_serial_lock ci-dessus) —
+    # sérialise aussi le worker « abandonné » par un timeout de sync_now, qui
+    # détient le verrou jusqu'à sa vraie fin.
+    with _sync_serial_lock:
+        return _sync_now_locked(cfg, shared_log)
+
+
+def _sync_now_locked(cfg, shared_log):
     s = cloudsync_settings(cfg)
     if not s['enabled']:
         return {'ok': False, 'error': "Cloud Sync désactivé ou dossier non configuré (CONFIG)"}
@@ -181,10 +206,20 @@ def _sync_now_blocking(cfg, shared_log):
         import logx_http as http
         # Déduplication explicite AVANT insertion : on ne dépend plus du
         # comportement doublon de add_qso_to_log (sauté en mode 'simple').
-        # 'seen' est amorcé avec les clés du log local et grossit à chaque
-        # QSO importé — un même QSO présent dans plusieurs fichiers distants
-        # (ou déjà local) n'est ajouté qu'une fois.
-        seen = {_qso_key(q) for q in local}
+        # 'seen' grossit à chaque QSO importé — un même QSO présent dans
+        # plusieurs fichiers distants (ou déjà local) n'est ajouté qu'une fois.
+        # Amorcé depuis le log VIVANT (http.shared_log, celui-là même où
+        # add_qso_to_log insère), PAS depuis le snapshot 'local' : les
+        # appelants figent leur copie AVANT d'appeler sync_now (logx_http
+        # /cloudsync/now, logx_serveur _cloudsync_loop), donc ce snapshot peut
+        # précéder les insertions d'une synchronisation qui vient de se
+        # terminer — s'y fier ré-insérerait ces QSO fraîchement tirés. Lecture
+        # sous log_lock puis RELÂCHÉ avant les insertions (add_qso_to_log
+        # reprend log_lock lui-même, non réentrant) : _sync_serial_lock
+        # garantit qu'aucune autre sync ne s'intercale entre cette lecture et
+        # nos insertions.
+        with http.log_lock:
+            seen = {_qso_key(q) for q in http.shared_log}
         pattern = os.path.join(s['folder'], SYNC_PREFIX + '*.json')
         for path in glob.glob(pattern):
             if os.path.abspath(path) == os.path.abspath(my_path):

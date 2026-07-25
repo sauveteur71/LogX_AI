@@ -121,6 +121,70 @@ def test_full_qso_deja_present_localement_nest_pas_recompte(tmp_path, monkeypatc
     assert r['ok'] and r['pulled'] == 0 and r['sources'] == 1
 
 
+def test_full_deux_syncs_concurrentes_ne_dupliquent_pas_en_mode_simple(tmp_path, monkeypatch):
+    """Non-régression : deux synchronisations 'full' CONCURRENTES (POST
+    /cloudsync/now pendant un cycle de _cloudsync_loop, ou worker abandonné
+    après SYNC_TIMEOUT qui continue seul pendant le cycle suivant) tiraient
+    chacune le même QSO distant. Chaque worker amorçait son 'seen' depuis un
+    snapshot figé AVANT les insertions de l'autre, et add_qso_to_log ne refuse
+    pas les doublons en usage_mode 'simple' (par conception) : doublon
+    PERSISTANT dans le carnet (logx.db + shared_log.json + exports ADIF),
+    jamais résorbé aux cycles suivants. Deux protections vérifiées ensemble ici
+    (chacune insuffisante seule) : sérialisation des syncs (_sync_serial_lock)
+    ET amorçage de 'seen' depuis le log VIVANT plutôt que depuis le snapshot de
+    l'appelant — les vrais appelants figent leur copie AVANT sync_now."""
+    import threading
+    import logx_http as httpmod
+
+    monkeypatch.setattr(httpmod, 'shared_log', [])
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'simple'})
+
+    remote = {'call': 'F5REM', 'band': '14', 'mode': 'SSB',
+              'date': '20260720', 'time': '10:00', 'id': 111}
+    (tmp_path / 'logx_cloudsync_AUTREPOSTE_deadbeef.json').write_text(
+        json.dumps([remote]), encoding='utf-8')
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path),
+           'callsign_contest': 'F4GLD', 'usage_mode': 'simple'}
+
+    # Barrière dans _read_qsos : force l'entrelacement au pire moment (les deux
+    # 'seen' déjà calculés, aucune insertion faite) — le hasard des threads
+    # produit le même entrelacement sans barrière dès que la lecture du dossier
+    # cloud prend quelques centaines de ms (SYNC_TIMEOUT existe précisément
+    # parce qu'elle peut durer des minutes). Timeout court : avec le correctif,
+    # les syncs sont sérialisées, un seul worker atteint la barrière — elle
+    # casse au bout de 2 s et chacun continue seul.
+    barrier = threading.Barrier(2, timeout=2)
+    real_read = cs._read_qsos
+
+    def read_avec_barriere(path):
+        try:
+            barrier.wait()
+        except threading.BrokenBarrierError:
+            pass
+        return real_read(path)
+
+    monkeypatch.setattr(cs, '_read_qsos', read_avec_barriere)
+
+    # Comme les vrais appelants (/cloudsync/now dans logx_http, _cloudsync_loop
+    # dans logx_serveur) : chaque déclencheur fige SA copie du log AVANT
+    # d'appeler sync_now.
+    snapshots = [list(httpmod.shared_log), list(httpmod.shared_log)]
+    results = []
+    threads = [threading.Thread(target=lambda s=s: results.append(cs.sync_now(cfg, s)))
+               for s in snapshots]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=30)
+
+    calls = [q.get('call') for q in httpmod.shared_log]
+    assert calls.count('F5REM') == 1, \
+        f"QSO distant dupliqué par deux syncs concurrentes : {calls}"
+    assert len(results) == 2 and all(r.get('ok') for r in results)
+    assert sum(r.get('pulled', 0) for r in results) == 1
+
+
 def test_status_compte_les_autres_installations(tmp_path):
     cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path), 'callsign_contest': 'F4GLD'}
     cs.sync_now(cfg, [QSO_A])
