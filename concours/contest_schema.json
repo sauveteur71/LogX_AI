@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://f6kqj.local/contest_schema.json",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "$comment": "Contrat public versionné (semver) — voir docs/CONTRATS_DONNEES.md pour la politique de migration. $id reste STABLE d'une version mineure/patch à l'autre ; seul un changement majeur (retrait/renommage d'un champ requis) justifierait un nouveau $id.",
   "title": "Définition d'un concours LogX AI",
   "description": "Schéma formel d'une entrée de CONTEST_DEFINITIONS (contest_definitions.py). C'est le contrat que devra respecter toute nouvelle définition de concours, qu'elle soit écrite à la main, importée du calendrier WA7BNM (Phase 4) ou extraite d'un règlement par l'IA (Phase 3). Le vocabulaire de date_rule est implémenté dans rules.py:calc_contest_date ; les types de scoring dans scoring.py:calc_qso_value.",
@@ -134,9 +134,10 @@
             "fd_class",
             "dept_dxcc",
             "summit_points",
-            "park_points"
+            "park_points",
+            "wwa_sprint"
           ],
-          "description": "Type de calcul : km (1 pt/km), km_x_locators (km × carrés locator), km_x_large_locator_squares (km × grands carrés), zone_country_per_band (zones+pays CQ par bande), prefix_multiplier (préfixes WPX), power_state (états/provinces ARRL), fd_class (classes Field Day), dept_dxcc (départements+DXCC REF), summit_points (SOTA), park_points (POTA)."
+          "description": "Type de calcul : km (1 pt/km), km_x_locators (km × carrés locator), km_x_large_locator_squares (km × grands carrés), zone_country_per_band (zones+pays CQ par bande), prefix_multiplier (préfixes WPX), power_state (états/provinces ARRL), fd_class (classes Field Day), dept_dxcc (départements+DXCC REF), summit_points (SOTA), park_points (POTA), wwa_sprint (points fixes par mode + validité sur roster de stations spéciales, World Wide Award hamaward.cloud — scoring.py:LEGACY_SCORING_PRESETS['wwa_sprint'])."
         },
         "bricks": {
           "type": "object",
@@ -429,9 +430,10 @@
       "enum": [
         "EDI",
         "CABRILLO",
-        "ADIF"
+        "ADIF",
+        ""
       ],
-      "description": "Format de log attendu par l'organisateur."
+      "description": "Format de log attendu par l'organisateur. Chaîne vide '' réservée aux concours sans soumission de log traditionnelle (ex. World Wide Award : classement tenu par la plateforme externe, pas de log à envoyer) — le champ reste requis pour forcer un choix explicite plutôt qu'une omission silencieuse."
     },
     "log_deadline": {
       "type": [
@@ -466,6 +468,11 @@
       "type": "integer",
       "minimum": 1,
       "description": "Durée minimale d'une période de repos en minutes (ex. WAE : 60)."
+    },
+    "band_change_rule_min": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Règle Multi-Single : nombre de minutes minimum entre deux changements de bande (sauf pour travailler un nouveau multiplicateur), ex. 10 pour CQ WW / CQ WPX. Absent = pas de contrainte de ce type pour ce concours (lu par logx_coach.py:build_coach_state, qui ne calcule/affiche le compte à rebours que si ce champ est présent — ne PAS généraliser à tous les concours multi-op)."
     },
     "qtc": {
       "type": "boolean",

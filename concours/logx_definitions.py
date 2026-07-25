@@ -288,16 +288,28 @@ CONTEST_DEFINITIONS = {
     # PAS un concours classique : les hunters ne marquent des points qu'en
     # contactant l'une des stations spéciales inscrites pour l'édition (ex.
     # II1WWA) — roster public tenu à jour par logx_wwa.py, aucune donnée ici.
-    # Sans date_rule reconnue par calc_contest_date() (fenêtre fixe qui ne
-    # suit aucun format "Nème weekend du mois") : dates à saisir à la main à
-    # l'étape FILTRES, comme pour un concours personnalisé — le calendrier
-    # affichera "Permanent" en repli, sans impact sur le scoring/need-list.
+    # 'date_rule': 'permanent' explicite ci-dessous (et non une grammaire
+    # "Nème weekend du mois", que cette fenêtre fixe ne suit pas) : c'est
+    # EXACTEMENT le repli déjà appliqué par calc_contest_date/get_next_
+    # contest_date via cdef.get('date_rule', 'permanent') quand la clé est
+    # absente (logx_rules.py) — la rendre explicite satisfait le schema
+    # (date_rule requis) sans changer le calcul : le calendrier affiche
+    # "Permanent", dates à saisir à la main à l'étape FILTRES comme pour un
+    # concours personnalisé, sans impact sur le scoring/need-list.
+    # Pas de 'duration_h' : ce champ modélise la durée d'une SESSION de
+    # concours (24-48h, compte à rebours du coach) — non pertinent pour une
+    # fenêtre d'un mois/d'une semaine sans session continue, et rien dans le
+    # code ne lit duration_h pour WWA (cdef.get('date_rule') ne matchant
+    # jamais un format de date calendaire, le calcul de fin côté client
+    # dans logx_configuration.html:serverContestDates() ne s'exécute jamais
+    # pour ce concours). Voir 'notes' ci-dessous pour la fenêtre réelle.
     'WWA_2027_JAN': {
         'name': 'World Wide Award — janvier',
         'organizer': 'HamAward (Ham Innovation Group)',
         'check_url': 'https://hamaward.cloud/wwa',
         'rules_url': 'https://hamaward.cloud/wwa/rules',
-        'duration_h': 744, 'start_utc': '00:00',   # 1er → 31 janvier, 31 jours
+        'date_rule': 'permanent',
+        'start_utc': '00:00',   # fenêtre réelle : 1er → 31 janvier (31 jours)
         'bands': ['3.5','7','10.1','14','18','21','24','28'],
         'modes': ['SSB','CW','FT8','FT4','FT2','RTTY','PSK'],
         'exchange': 'RS/RST (aucun n° de série, règlement §3)',
@@ -318,7 +330,8 @@ CONTEST_DEFINITIONS = {
         'organizer': 'HamAward (Ham Innovation Group)',
         'check_url': 'https://hamaward.cloud/wwa',
         'rules_url': 'https://hamaward.cloud/wwa/rules',
-        'duration_h': 168, 'start_utc': '00:00',   # 28 juin → 4 juillet, 7 jours
+        'date_rule': 'permanent',
+        'start_utc': '00:00',   # fenêtre réelle : 28 juin → 4 juillet (7 jours)
         'bands': ['3.5','7','10.1','14','18','21','24','28'],
         'modes': ['SSB','CW','FT8','FT4','FT2','RTTY','PSK'],
         'exchange': 'RS/RST (aucun n° de série, règlement §3)',
