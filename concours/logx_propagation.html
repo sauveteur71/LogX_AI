@@ -47,6 +47,14 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .prop-cluster .panel{height:100%;display:flex;flex-direction:column;margin:0}
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
   padding:16px;margin:0 0 16px 0;break-inside:avoid}
+/* Arrivée depuis un lien ancré (ex: mini-indicateur balise de la barre de
+   statut) : flash discret pour repérer le panneau visé sans devoir chercher
+   dans toute la page. S'efface tout seul, ne gêne pas une lecture normale. */
+.panel:target{animation:panel-target-flash 2.4s ease-out 1}
+@keyframes panel-target-flash{
+  0%{box-shadow:0 0 0 2px var(--accent2)}
+  100%{box-shadow:0 0 0 0 transparent}
+}
 /* Les listes secondaires (PSK, RBN, balises) restent plafonnées. */
 .scroll-list{max-height:320px;overflow-y:auto;margin-right:-6px;padding-right:6px}
 @media (max-width:1000px){
@@ -182,7 +190,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       <div class="band-cond" id="vhfCond"><div class="loading">…</div></div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="beaconPanel">
       <div class="panel-title">📡 BALISES NCDXF/IBP <small id="beaconTick">maintenant</small></div>
       <div class="band-cond scroll-list" id="beaconList"><div class="loading">…</div></div>
       <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">

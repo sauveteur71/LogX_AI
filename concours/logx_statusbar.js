@@ -79,6 +79,9 @@
     <div class="rcsb-item" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
       <a href="logx_propagation.html">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
     </div>
+    <div class="rcsb-item" id="rcsbBeaconItem" title="Balise NCDXF/IBP active maintenant sur 20m (réseau mondial de 18 balises, rotation de 10 s) — clic : les 5 bandes + panneau complet">
+      <a href="logx_propagation.html#beaconPanel">📻 <span class="rcsb-val" id="rcsbBeacon">—</span></a>
+    </div>
     <div class="rcsb-item" id="rcsbNetworkItem" style="display:none"
          title="Un service en ligne est temporairement injoignable — l'appli continue de fonctionner en local, nouvelle tentative automatique dès que possible">
       📡 <span class="rcsb-val" id="rcsbNetworkText" style="color:var(--red,#FF2D55)">—</span>
@@ -218,6 +221,32 @@
   }
   refreshSolar();
   setInterval(refreshSolar, 15 * 60 * 1000);   // aligné sur le cache serveur (15 min)
+
+  // ── Balise NCDXF/IBP active maintenant (badge compact, toutes pages) ──────
+  // Découvrabilité du réseau de balises : un utilisateur qui ne va jamais
+  // sur la page Propagation ne sait pas que la fonctionnalité existe. Ce
+  // badge réutilise /beacons/now (déjà servi pour le panneau complet de
+  // logx_propagation.html, calcul pur sans réseau) — aucune logique dupliquée,
+  // juste un affichage permanent + un lien ancré vers le panneau détaillé.
+  // On affiche la bande 20m comme repère (bande d'écoute la plus universelle)
+  // et le détail des 5 bandes apparaît dans l'infobulle au survol.
+  function refreshBeacon(){
+    fetch('/beacons/now').then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        const el = document.getElementById('rcsbBeacon');
+        const item = document.getElementById('rcsbBeaconItem');
+        if (!el || !item) return;
+        const list = (d && d.beacons) || [];
+        if (!list.length){ el.textContent = '—'; return; }
+        const main = list.find(function(b){ return b.band === '20m'; }) || list[0];
+        el.textContent = main.call + ' ' + main.band;
+        item.title = 'Balises NCDXF/IBP actives maintenant : ' + list.map(function(b){
+          return b.band + ' ' + b.call + ' (' + b.qth + ')';
+        }).join(' · ') + ' — clic : panneau complet + écoute';
+      }).catch(function(){});
+  }
+  refreshBeacon();
+  setInterval(refreshBeacon, 5 * 1000);        // balises : changent toutes les 10 s
 
   // ── Dégradation réseau (pastille discrète, jamais bloquante) ──────────────
   // Rend VISIBLE côté client des mécanismes qui existaient déjà côté serveur
