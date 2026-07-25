@@ -42,8 +42,17 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
    → lecture claire et homogène. */
 .container{max-width:1780px;margin:0 auto;padding:16px;flex:1;min-height:0;
   width:100%;display:flex;gap:16px;overflow:hidden}
-.prop-main{flex:1;min-width:0;height:100%;overflow-y:auto;
-  column-width:330px;column-gap:16px;padding-right:4px}
+/* IMPORTANT — deux boîtes distinctes, et pas une seule :
+   .prop-main = la zone qui DÉFILE (hauteur définie par le flex parent) ;
+   .prop-cols = la maçonnerie multi-colonnes (hauteur AUTO, obligatoire).
+   Fusionner les deux casse tout en silence : une multi-colonne de hauteur
+   définie ne s'allonge pas vers le BAS, elle fabrique des colonnes
+   supplémentaires vers la DROITE (« overflow columns », CSS Multicol §3.3).
+   Sous 1780 px de large, la moitié des panneaux partait donc hors écran
+   derrière une barre horizontale — page d'apparence complète, panneaux
+   invisibles. Ne jamais remettre column-* et height:100% sur la même boîte. */
+.prop-main{flex:1;min-width:0;height:100%;overflow-y:auto;padding-right:4px}
+.prop-cols{column-width:330px;column-gap:16px}
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
   padding:16px;margin:0 0 16px 0;break-inside:avoid}
 /* Arrivée depuis un lien ancré (ex: mini-indicateur balise de la barre de
@@ -58,7 +67,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .scroll-list{max-height:320px;overflow-y:auto;margin-right:-6px;padding-right:6px}
 @media (max-width:1000px){
   .container{flex-direction:column;overflow-y:auto}
-  .prop-main{overflow:visible;height:auto;column-width:320px}
+  .prop-main{overflow:visible;height:auto}
+  .prop-cols{column-width:320px}
 }
 .panel-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:3px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
 .panel-title small{color:var(--muted);letter-spacing:0;font-size:12px}
@@ -131,6 +141,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 <div class="container">
 
   <div class="prop-main">
+   <div class="prop-cols">
 
     <div class="panel">
       <div class="panel-title">☀️ SOLEIL & IONOSPHÈRE <small id="solarUpdated"></small>
@@ -251,6 +262,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     </div>
   </div>
 
+   </div><!-- /prop-cols -->
   </div><!-- /prop-main -->
 
 </div>
