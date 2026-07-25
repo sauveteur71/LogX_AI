@@ -52,7 +52,8 @@ Diplômes à vie (DXCC, départements, zones, Worked Matrix bande × mode), reco
 | **Bandes** | 17, de 1.8 MHz à 47 GHz |
 | **Modes ADIF reconnus** | 49 |
 | **Langues de l'interface** | 8 (français, anglais, allemand, espagnol, italien, portugais, néerlandais, polonais) |
-| **Fournisseurs IA au choix** | 6 — et 100 % fonctionnel sans aucun |
+| **Fournisseurs IA au choix** | 6 (Anthropic, OpenAI, Google Gemini, Mistral AI, xAI, DeepSeek) |
+| **Fonctionnement sans IA configurée** | 100 % — journal, scoring, export : rien ne dépend d'une clé IA |
 | **Abonnement, compte, cloud obligatoire** | 0 |
 | **Tests automatiques validant chaque version** | 470 |
 
