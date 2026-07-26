@@ -137,6 +137,129 @@ def test_corps_trop_volumineux_ferme_aussi_la_connexion(serveur):
     c.close()
 
 
+@pytest.fixture
+def login_bloque():
+    """Amene /auth/login au plafond anti-bruteforce pour 127.0.0.1 — l'etat
+    exact d'un operateur qui s'est trompe 5 fois de mot de passe d'acces.
+    Aucun mot de passe n'a besoin d'etre configure : le throttle est teste
+    AVANT toute verification (c'est justement le PBKDF2 qu'il protege)."""
+    httpmod._reset_login_attempts('127.0.0.1')
+    for _ in range(httpmod._LOGIN_ATTEMPT_LIMIT):
+        httpmod._record_login_failure('127.0.0.1')
+    assert httpmod._login_rate_limited('127.0.0.1')
+    try:
+        yield
+    finally:
+        httpmod._reset_login_attempts('127.0.0.1')
+
+
+def _compte_reponses(octets):
+    return octets.count(b'HTTP/1.1 ')
+
+
+def _tout_lire(s, limite=6.0):
+    s.settimeout(limite)
+    recu = b''
+    try:
+        while True:
+            bloc = s.recv(65536)
+            if not bloc:
+                break
+            recu += bloc
+    except socket.timeout:
+        pass
+    except OSError:
+        # Le serveur ferme alors que des octets non lus restent dans le tampon
+        # de reception : Windows repond par un RST (WinError 10054). C'est le
+        # comportement ATTENDU ici — la preuve que la connexion est fermee.
+        pass
+    return recu
+
+
+def test_login_413_ferme_la_connexion_et_ne_repond_pas_au_reliquat(serveur):
+    """/auth/login est aiguille AVANT _require_auth : c'est le SEUL POST
+    joignable sans jeton, et ses deux refus precoces echappaient donc aux
+    fermetures posees dans _require_auth et dans le plafond MAX_BODY.
+
+    Sans fermeture, le corps annonce mais jamais lu est interprete comme la
+    requete SUIVANTE : le serveur y repond, et cette reponse est delivree au
+    client comme si elle repondait a SA requete suivante. Mesure du defaut :
+    3 reponses pour 2 requetes, le client qui demandait /network/info
+    recevant le corps de /data/rules_status."""
+    s = socket.create_connection(('127.0.0.1', serveur), timeout=8)
+    try:
+        s.sendall(b'POST /auth/login HTTP/1.1\r\nHost: 127.0.0.1\r\n'
+                  b'Content-Type: application/json\r\n'
+                  b'Content-Length: 5000\r\n\r\n')
+        # « Corps » annonce mais jamais lu : une requete HTTP complete.
+        s.sendall(b'GET /data/rules_status HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n')
+        # La vraie requete suivante du client.
+        s.sendall(b'GET /network/info HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n')
+        recu = _tout_lire(s)
+    finally:
+        s.close()
+    # L'invariant, c'est qu'AUCUNE reponse ne parte vers le reliquat : sinon
+    # elle sera prise pour la reponse a la requete suivante du client.
+    assert _compte_reponses(recu) <= 1, (
+        'le serveur a repondu au reliquat du corps : %d reponses recues, le '
+        'client recevra la reponse d une AUTRE requete que la sienne'
+        % _compte_reponses(recu))
+    assert b'contests_count' not in recu, (
+        'le corps de /data/rules_status, glisse dans le corps non lu, a ete '
+        'servi comme une vraie reponse')
+    if recu:
+        # Fermer avec des octets non lus dans le tampon fait repondre Windows
+        # par un RST, qui peut effacer la reponse deja mise en file. Quand elle
+        # nous parvient, elle doit etre le refus, fermeture annoncee.
+        assert b' 413 ' in recu.split(b'\r\n')[0], recu[:200]
+        assert b'Connection: close' in recu, (
+            'refus 413 sans lecture du corps : la fermeture doit etre annoncee')
+
+
+def test_login_429_ferme_la_connexion_et_ne_rejoue_pas_le_mot_de_passe(
+        serveur, login_bloque):
+    """Cas utilisateur reel : 5 erreurs de mot de passe d'acces suffisent (LAN
+    multi-poste, c'est le cas d'usage meme du plafond). La 6e tentative repond
+    429 sans lire le corps ; sur une connexion persistante la requete suivante
+    du navigateur etait alors collee a ce corps, d'ou un « 400 Bad request
+    syntax » dont la page d'erreur REAFFICHE le mot de passe tape en clair."""
+    secret = 'MotDePasseEnClair2026'
+    c = http.client.HTTPConnection('127.0.0.1', serveur, timeout=8)
+    try:
+        c.request('POST', '/auth/login',
+                  body=('{"password": "%s"}' % secret).encode('utf-8'),
+                  headers={'Content-Type': 'application/json'})
+        try:
+            r = c.getresponse()
+            r.read()
+            statut, connexion = r.status, (r.getheader('Connection') or '').lower()
+        except (OSError, http.client.HTTPException):
+            # Fermer avec le corps non lu dans le tampon fait repondre Windows
+            # par un RST, qui peut effacer la reponse deja mise en file. Brutal
+            # pour le client, mais c'est bien la fermeture attendue — et sans
+            # elle il n'y aurait AUCUNE erreur : juste la reponse suivante
+            # silencieusement corrompue.
+            statut, connexion = None, 'reset'
+        assert connexion in ('close', 'reset'), (
+            'blocage anti-bruteforce sans lecture du corps : la connexion doit '
+            'etre fermee, sinon le mot de passe non lu parasite la requete '
+            'suivante (recu : statut %s, Connection=%r)' % (statut, connexion))
+        if statut is not None:
+            assert statut == 429
+        c.close()
+        # La requete suivante doit recevoir SA reponse, pas un « 400 Bad request
+        # syntax » dont la page d'erreur reaffiche le mot de passe.
+        c.request('GET', '/logx_logbook.html')
+        r2 = c.getresponse()
+        corps = r2.read()
+        assert r2.status == 200, 'page cassee juste apres un blocage : %s' % r2.status
+        assert secret.encode('utf-8') not in corps, (
+            'le mot de passe d acces est reaffiche en clair dans la reponse '
+            'suivante')
+    finally:
+        c.close()
+
+
 def test_une_connexion_inactive_est_fermee_par_le_serveur(serveur):
     """Preuve que le delai d'inactivite agit vraiment (et non qu'il est juste
     declare) : on ouvre, on ne dit rien, le serveur doit finir par raccrocher.

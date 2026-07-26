@@ -4801,6 +4801,14 @@ form.addEventListener('submit', async (e) => {{
         # Throttle AVANT même de lire le corps : le calcul qu'on protège
         # (PBKDF2) n'a pas encore eu lieu, autant rejeter au plus tôt.
         if _login_rate_limited(ip):
+            # Refus AVANT lecture du corps, donc même règle que dans
+            # _require_auth et le plafond MAX_BODY de do_POST : en connexion
+            # persistante le corps non lu resterait dans le tampon et serait
+            # interprété comme la requête SUIVANTE. Ici le corps contient le
+            # mot de passe d'accès en clair : sans fermeture, le navigateur
+            # enchaîne sur la même connexion et reçoit un « 400 Bad request
+            # syntax » dont la page d'erreur RÉAFFICHE ce mot de passe.
+            self.close_connection = True
             self._json({'ok': False,
                        'error': 'Trop de tentatives, réessaie plus tard'}, 429)
             return
@@ -4814,6 +4822,11 @@ form.addEventListener('submit', async (e) => {{
         except (TypeError, ValueError):
             length = 0
         if length < 0 or length > MAX_LOGIN_BODY:
+            # Idem : ce corps ne sera pas lu (c'est justement son volume qu'on
+            # refuse), il faut donc fermer la connexion — sinon ces octets
+            # deviennent la requête suivante et le client reçoit la réponse
+            # d'une AUTRE requête que la sienne.
+            self.close_connection = True
             self._json({'ok': False, 'error': 'Corps de requête trop volumineux'}, 413)
             return
         body = self.rfile.read(length) if length else b''
