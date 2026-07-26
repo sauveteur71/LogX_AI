@@ -11,6 +11,35 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta6] - 2026-07-26
+
+Refonte de la page PROPAGATION, jugée « inutilisable » par un utilisateur :
+18 panneaux répondant à 5 questions différentes y étaient empilés. Plus une
+série de correctifs de fond sur le serveur.
+
+### Ajouté
+- **Page CHASSE** : les cibles de trafic (activateurs POTA, SOTA, WWFF, châteaux WCA, need list du cluster) quittent la propagation pour une page dédiée — chercher qui appeler et consulter les conditions sont deux gestes différents.
+- **PROPAGATION en 3 onglets** : HF · VHF & EME · M'entend-on ? La page s'ouvre automatiquement sur l'onglet pertinent selon le concours actif (bandes VHF → onglet VHF). Aucun défilement, vérifié par mesure à 1366×768 comme à 1920×1080.
+- **Alerte orage dans la barre de statut**, présente sur toutes les pages, à la place du panneau de carte permanent : on n'a pas besoin de voir la foudre en continu, mais d'être prévenu quand il faut débrancher les antennes.
+- **Nombre d'opérateurs saisi directement**, au lieu d'un clic par opérateur — neuf clics pour une équipe de dix. Réduire l'effectif demande confirmation si les lignes supprimées contiennent déjà un indicatif.
+- **Plafond d'opérateurs porté de 5 à 40** en concours et expédition. La limite de 5 était historique et sans justification technique (le mode radioclub tournait déjà à 40 avec le même export) : une DXpédition à 10 opérateurs, ou une équipe de 9 en contest IOTA, était purement et simplement bloquée.
+- **Protection contre le double lancement** : relancer le logiciel alors qu'une instance tournait affichait un démarrage normal… mais c'est l'ANCIENNE qui continuait de répondre, et deux serveurs écrivaient dans le même journal de contacts. Message clair et ouverture de la fenêtre existante.
+- **Réseau de balises NCDXF/IBP** rendu accessible depuis toutes les pages.
+
+### Modifié
+- **Connexions HTTP persistantes** : une page ouvrait autant de connexions réseau que de fichiers, et chaque sondage périodique en rouvrait une. Elles sont désormais réutilisées — moins de va-et-vient réseau, utile en multi-poste.
+- Les rafraîchissements d'un onglet masqué sont **suspendus** : une page laissée ouverte en arrière-plan interrogeait le serveur en continu pour personne (mesuré : 27 requêtes en 68 s).
+
+### Corrigé
+- **Infobulles qui clignotaient** indéfiniment entre le français et la langue choisie, sur toutes les pages en langue étrangère.
+- Traduction du titre d'onglet qui, si elle échouait, interrompait **toute** la traduction de la page — celle-ci restait alors intégralement en français sans le moindre message.
+- Plusieurs libellés illisibles à 1366×768 (mode et nom du parc dans les listes d'activateurs, explication de la need list).
+- Mise à jour réseau : un fichier plus court qu'annoncé bloquait 30 s au lieu d'échouer immédiatement.
+
+### Sécurité
+- **Mot de passe d'accès réaffiché en clair.** Après 5 essais infructueux — exactement le cas pour lequel la protection anti-force-brute existe — la tentative suivante était refusée sans lire les données envoyées. Celles-ci se retrouvaient collées à la requête suivante du navigateur, produisant une page d'erreur qui contenait le mot de passe tapé. Défaut apparu avec les connexions persistantes de cette même version, jamais publié.
+- Deux autres cas de désynchronisation de connexion (requête refusée dont les données n'étaient ni lues ni écartées) pouvant délivrer à un client la réponse destinée à une autre requête.
+
 ## [0.9-beta5] - 2026-07-25
 
 Version issue d'un audit systématique du code (6 angles d'analyse, chaque
