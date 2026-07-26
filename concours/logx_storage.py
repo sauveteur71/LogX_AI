@@ -13,6 +13,7 @@ import json
 import os
 import sqlite3
 import threading
+import time
 import uuid
 
 DB_FILE = 'logx.db'
@@ -145,6 +146,94 @@ SERVER_BOOT_ID = uuid.uuid4().hex
 deleted_qsos = []                  # [{'id': .., 'v': ..}, ...]
 _MAX_DELETED_TOMBSTONES = 2000
 hard_reset_version = 0             # un ?since= antérieur à cette version n'est plus fiable
+
+# ─── ID DE QSO : ALLOCATEUR UNIQUE ───────────────────────────────────────────
+# L'id est la CLÉ D'IDENTITÉ du QSO dans tout le programme, et aucun de ces
+# chemins ne sait départager deux porteurs du même id :
+#   /log/delete  garde `[q for q in shared_log if q['id'] != qso_id]` — effacer
+#                UN QSO en efface silencieusement plusieurs ;
+#   /log/update  remplace le PREMIER porteur trouvé — la correction écrase un
+#                QSO qui n'a rien à voir et la cible réelle reste fausse ;
+#   logx_cloudsync fusionne les logs des postes par id (local_ids/blocked_ids).
+#
+# Un int(time.time() * 1000) isolé NE SUFFIT PAS. L'import ADIF doit numéroter
+# N QSO d'un coup : en partant de l'horloge il consommait N millisecondes, donc
+# N/1000 SECONDES d'id FUTURS (17 000 QSO importés = 17 s pendant lesquelles
+# tout QSO saisi recevait un id déjà porté par un QSO importé ; et deux imports
+# à une seconde d'intervalle se recouvraient à ~90 %, collision GARANTIE et non
+# probabiliste). D'où cet allocateur : le prochain id est toujours strictement
+# supérieur à tous les id déjà connus — QSO en mémoire, tombstones de
+# suppression (ne jamais recycler un id : logx_cloudsync bloque le ré-import
+# par id) et ids déjà distribués. Même motif que next_qtc_id()/next_shift_id().
+_qso_id_high_water = 0
+
+
+def next_free_qso_id(used_ids, now_ms=None):
+    """Premier id libre : strictement supérieur à tous les `used_ids` fournis
+    et jamais inférieur à l'horodatage courant en millisecondes (les id restent
+    croissants dans le temps et restent lisibles comme une date).
+
+    Fonction PURE : c'est le noyau partagé avec logx_import.commit_import(),
+    qui travaille sur un instantané du log sans connaître shared_log."""
+    top = (int(time.time() * 1000) if now_ms is None else int(now_ms)) - 1
+    for v in used_ids:
+        try:
+            iv = int(v)
+        except (TypeError, ValueError):
+            continue          # id absent ou illisible : ne contraint rien
+        if iv > top:
+            top = iv
+    return top + 1
+
+
+def _used_qso_ids(log):
+    """Id déjà pris : ceux du log ET ceux sous tombstone (un id supprimé ne
+    doit jamais être recyclé — logx_cloudsync bloque le ré-import par id, un
+    QSO neuf qui hériterait d'un id enterré serait écarté à tort par les
+    autres postes). Parcours direct, sans copie : appelé sous log_lock, donc
+    aucune mutation concurrente possible."""
+    used = set()
+    for source in (log, deleted_qsos):
+        for item in source:
+            try:
+                used.add(int(item.get('id')))
+            except (TypeError, ValueError, AttributeError):
+                continue
+    return used
+
+
+def allocate_qso_ids_locked(count=1, log=None, now_ms=None):
+    """Alloue `count` id de QSO CONSÉCUTIFS et libres, et retourne la liste.
+
+    À APPELER AVEC log_lock DÉJÀ TENU (ne le reprend pas : Lock non réentrant,
+    cf. save_log_to_disk), et le verrou doit couvrir l'allocation ET l'insertion
+    dans le log — sinon deux insertions concurrentes lisent le même maximum et
+    reçoivent le même id. `log` est explicite (défaut shared_log) parce que
+    logx_http en détient sa propre référence."""
+    global _qso_id_high_water
+    used = _used_qso_ids(shared_log if log is None else log)
+    used.add(_qso_id_high_water)
+    start = next_free_qso_id(used, now_ms)
+    n = max(0, int(count))
+    if n:
+        _qso_id_high_water = start + n - 1
+    return list(range(start, start + n))
+
+
+def reserve_qso_id_locked(proposed=None, log=None, now_ms=None):
+    """Id à donner à un QSO qui en propose déjà un (les pages client envoient
+    un `id: Date.now()`, et logx_cloudsync réinsère les QSO d'un autre poste EN
+    CONSERVANT leur id : c'est son identité de fusion). On garde `proposed`
+    tant qu'il est réellement LIBRE ; sinon on en alloue un neuf plutôt que de
+    laisser deux QSO partager une clé d'identité. Mêmes règles de verrou que
+    allocate_qso_ids_locked()."""
+    try:
+        pid = int(proposed)
+    except (TypeError, ValueError):
+        pid = None
+    if pid is not None and pid not in _used_qso_ids(shared_log if log is None else log):
+        return pid
+    return allocate_qso_ids_locked(1, log, now_ms)[0]
 
 
 def stamp_qso_version(qso):

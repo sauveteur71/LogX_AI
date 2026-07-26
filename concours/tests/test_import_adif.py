@@ -135,3 +135,95 @@ def test_mode_ft4_reconnu_meme_comme_mode_racine():
            "<TIME_ON:4>1230<EOR>\n")
     p = imp.preview_import(adif, existing_log=[])
     assert p['mode_warnings'] == []
+
+
+# ─── UNICITÉ DES id DE QSO (bug critique : import qui vole des id futurs) ────
+# `q['id'] = int(now * 1000) + i` faisait consommer à un import de N QSO N
+# millisecondes d'espace d'id, c'est-à-dire N/1000 SECONDES d'id FUTURS, dans
+# le MÊME espace que l'allocateur des QSO saisis en direct. Conséquences
+# vérifiées : /log/delete filtre `q['id'] != qso_id` et effaçait donc plusieurs
+# QSO d'un coup ; /log/update remplace le PREMIER porteur de l'id et corrigeait
+# un QSO qui n'avait rien à voir en laissant la vraie cible fausse ; et
+# logx_cloudsync fusionne les logs des postes par id.
+
+def _adif_bloc(prefixe, n, date='20260710'):
+    """n records ADIF valides et tous distincts (pas de dédup parasite)."""
+    out = []
+    for i in range(n):
+        call = f'{prefixe}{i:04d}'
+        out.append(f"<CALL:{len(call)}>{call}<BAND:3>20m<MODE:2>CW"
+                   f"<QSO_DATE:8>{date}<TIME_ON:6>{i // 3600:02d}"
+                   f"{(i // 60) % 60:02d}{i % 60:02d}<EOR>")
+    return '\n'.join(out) + '\n'
+
+
+def test_import_ne_reutilise_jamais_un_id_deja_present_dans_le_log():
+    """Un import précédent avait réservé 1 000 id (dont des id FUTURS) : le
+    suivant doit numéroter AU-DESSUS, pas repartir de l'horloge."""
+    import time as _t
+    now_ms = int(_t.time() * 1000)
+    deja = [{'call': f'W1A{i:04d}', 'band': '14', 'mode': 'CW',
+             'date': '20200101', 'time': '0000', 'id': now_ms + i}
+            for i in range(1000)]
+    neufs, _ = imp.commit_import(_adif_bloc('K2B', 5), existing_log=deja)
+    assert len(neufs) == 5
+    assert min(q['id'] for q in neufs) > max(q['id'] for q in deja)
+
+
+def test_deux_imports_successifs_ne_partagent_aucun_id():
+    """Cas le plus banal qui soit : deux fichiers ADIF importés à la suite
+    (deux sources différentes, ou une simple re-tentative). Avant le
+    correctif, les deux blocs se recouvraient à ~90 % — collision GARANTIE,
+    pas probabiliste, puisque les deux partent de l'horloge courante."""
+    a, _ = imp.commit_import(_adif_bloc('F5A', 500), existing_log=[])
+    b, _ = imp.commit_import(_adif_bloc('G3B', 500), existing_log=list(a))
+    ids_a = {q['id'] for q in a}
+    ids_b = {q['id'] for q in b}
+    assert len(ids_a) == 500 and len(ids_b) == 500      # pas de doublon interne
+    assert not (ids_a & ids_b), f"{len(ids_a & ids_b)} id en collision"
+
+
+def test_import_numerote_sans_trou_malgre_les_doublons_ignores():
+    """La numérotation suit le rang des QSO RETENUS, pas l'indice de boucle :
+    les doublons sautés ne doivent pas creuser de trous d'id (c'est ce qui
+    faisait consommer de l'espace d'id pour rien)."""
+    adif = _adif_bloc('F5A', 4)
+    deja = [{'call': 'F5A0001', 'band': '14', 'mode': 'CW',
+             'date': '20260710', 'time': '0000'}]
+    neufs, _ = imp.commit_import(adif, existing_log=deja)
+    ids = sorted(q['id'] for q in neufs)
+    assert len(neufs) == 3
+    assert ids == list(range(ids[0], ids[0] + 3))
+
+
+def test_qso_saisi_apres_un_import_ne_recoit_pas_un_id_deja_pris(monkeypatch):
+    """Le geste inaugural typique — importer son carnet ADIF avant une
+    expédition — réservait N ms d'id FUTURS. Tout QSO logué pendant cette
+    fenêtre (ici l'`id: Date.now()` que les pages client envoient elles-mêmes)
+    portait un id DÉJÀ attribué à un QSO importé : /log/delete sur ce QSO en
+    effaçait deux, dont un QSO d'archive que personne n'avait demandé à
+    supprimer, et le serveur répondait {'ok': True}."""
+    import time as _t
+    import logx_http as http
+    now_ms = int(_t.time() * 1000)
+    log = [{'call': f'F5A{i:04d}', 'band': '14', 'mode': 'CW', 'contest': '',
+            'date': '20200101', 'time': '00:00', 'id': now_ms + i}
+           for i in range(3000)]           # import de 3 000 QSO = 3 s d'id futurs
+    monkeypatch.setattr(http, 'shared_log', log)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'current_config', {'usage_mode': 'simple'})
+    ok, _info = http.add_qso_to_log({'call': 'G0LIVE', 'band': '14',
+                                     'mode': 'SSB', 'contest': '',
+                                     'date': '20260710', 'time': '12:00',
+                                     'id': int(_t.time() * 1000)})
+    assert ok
+    live = next(q for q in log if q['call'] == 'G0LIVE')
+    # La cause : l'id du QSO live n'est porté que par lui.
+    assert sum(1 for q in log if q.get('id') == live['id']) == 1
+    # La conséquence : /log/delete (même filtre que le handler) n'efface qu'un
+    # seul QSO, et aucun QSO importé ne disparaît au passage.
+    restant = [q for q in log if q.get('id') != live['id']]
+    assert len(restant) == len(log) - 1
+    # Et l'invariant global : aucun id dupliqué nulle part dans le log.
+    ids = [q.get('id') for q in log]
+    assert len(ids) == len(set(ids))

@@ -20,6 +20,7 @@ en une SEULE écriture disque (pas un save_log_to_disk() par QSO importé).
 import re
 import time
 
+import logx_storage as storage
 from logx_qsl import _parse_adif_records, _band_from_record
 
 # Indicatif valide : lettres/chiffres/'/' uniquement. Rejette au passage tout
@@ -150,10 +151,22 @@ def commit_import(adif_text, existing_log):
     existing_keys = {_dedup_key(q) for q in existing_log}
     new_qsos = []
     now = time.time()
-    for i, q in enumerate(qsos):
+    # Numérotation AU-DESSUS du plus grand id déjà présent dans le log, jamais
+    # à partir de la seule horloge : `int(now*1000) + i` consommait une
+    # milliseconde d'espace d'id PAR QSO IMPORTÉ, donc N/1000 SECONDES d'id
+    # FUTURS — 17 000 QSO importés volaient leur id à tout QSO saisi dans les
+    # 17 s suivantes, et deux imports rapprochés se recouvraient massivement.
+    # Or l'id est la clé d'identité de /log/delete (qui efface TOUS ses
+    # porteurs), de /log/update (qui corrige le PREMIER porteur) et de la
+    # fusion multi-poste logx_cloudsync. Voir logx_storage.next_free_qso_id.
+    # Numérotation DENSE (len(new_qsos) et non l'indice de boucle) : les
+    # doublons ignorés ne doivent pas laisser de trous d'id derrière eux.
+    base_id = storage.next_free_qso_id((q.get('id') for q in existing_log),
+                                       int(now * 1000))
+    for q in qsos:
         if _dedup_key(q) in existing_keys:
             continue
-        q['id'] = int(now * 1000) + i
+        q['id'] = base_id + len(new_qsos)
         q['server_time'] = now
         new_qsos.append(q)
         existing_keys.add(_dedup_key(q))   # le fichier importé peut contenir ses propres doublons

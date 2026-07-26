@@ -26,7 +26,8 @@ from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   save_json_atomic, calldb_lock, bump_log_version,
                                   qso_scope_id, active_scope_id, cfg_scope_id,
                                   contest_actif,
-                                  stamp_qso_version, mark_qso_deleted, mark_hard_reset)
+                                  stamp_qso_version, mark_qso_deleted, mark_hard_reset,
+                                  allocate_qso_ids_locked, reserve_qso_id_locked)
 from logx_scoring import build_scoring_context, score_new_qso
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
@@ -549,7 +550,9 @@ def add_qso_to_log(qso, force=False):
             'id': dup.get('id'), 'date': dup.get('date'),
             'time': dup.get('time'), 'operator': dup.get('operator', '')}}
     qso.pop('force', None)
-    qso.setdefault('id', int(_t.time() * 1000))
+    # L'id n'est PLUS attribué ici : il l'est sous log_lock, dans le même
+    # verrou que l'insertion dans shared_log (voir plus bas) — un id lu puis
+    # posé hors du verrou peut être distribué deux fois.
     # Recalcule les points côté serveur (moteur unique logx_scoring, celui déjà
     # utilisé pour classer les spots) — jamais confiance dans la valeur envoyée
     # par le client : la page mobile assume un barème "points = distance" en
@@ -579,6 +582,16 @@ def add_qso_to_log(qso, force=False):
     # ce QSO. save_log_to_disk() reste HORS verrou (elle reprend log_lock elle-
     # même pour sa copie ; log_lock n'est pas réentrant, l'appeler ici deadlockerait).
     with log_lock:
+        # Id attribué ICI, dans le verrou qui couvre aussi l'insertion : c'est
+        # la seule façon d'en garantir l'unicité (voir logx_storage
+        # .reserve_qso_id_locked). L'id proposé par l'appelant est conservé
+        # s'il est libre — les pages client envoient un `id: Date.now()` et
+        # logx_cloudsync réinsère les QSO d'un autre poste en gardant leur id,
+        # qui est son identité de fusion — mais un id DÉJÀ PRIS (typiquement
+        # celui d'un QSO fraîchement importé, l'import réservant autrefois
+        # plusieurs secondes d'id futurs) est remplacé plutôt que dupliqué :
+        # deux QSO de même id, et /log/delete en efface deux au lieu d'un.
+        qso['id'] = reserve_qso_id_locked(qso.get('id'), shared_log)
         shared_log.append(qso)
         bump_log_version()
         stamp_qso_version(qso)   # voir /log/list?since= (synchro différentielle)
@@ -4198,6 +4211,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # boucle sur TOUT l'import. save_log_to_disk() reste HORS verrou
                 # (elle reprend log_lock elle-même ; non réentrant sinon deadlock).
                 with log_lock:
+                    # Numérotation AUTORITAIRE des id sous le verrou : celle de
+                    # commit_import() a été calculée contre l'INSTANTANÉ pris
+                    # plus haut, et un /log/add concurrent (ThreadingHTTPServer,
+                    # expédition multi-opérateur) a pu s'insérer entre les deux.
+                    # Sans ça un QSO importé et un QSO live pourraient partager
+                    # un id, et /log/delete les effacerait tous les deux.
+                    for q, new_id in zip(new_qsos,
+                                         allocate_qso_ids_locked(len(new_qsos), shared_log)):
+                        q['id'] = new_id
                     shared_log.extend(new_qsos)
                     bump_log_version()
                     for q in new_qsos:
