@@ -4597,7 +4597,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         with upstream:
             length = upstream.headers.get('Content-Length', '')
-            if not length:
+            try:
+                annonce = int(length)
+            except (TypeError, ValueError):
+                annonce = None
+            if annonce is None:
                 # Sans taille annoncée par la source, on ne peut PAS délimiter
                 # le corps en connexion persistante : le poste appelant
                 # attendrait indéfiniment la suite d'un fichier déjà complet.
@@ -4606,12 +4610,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.close_connection = True
             self.send_response(200)
             self.send_header('Content-Type', 'application/octet-stream')
-            if length:
-                self.send_header('Content-Length', length)
+            if annonce is not None:
+                self.send_header('Content-Length', str(annonce))
             else:
                 self.send_header('Connection', 'close')
             self._cors()
             self.end_headers()
+            envoyes = 0
             while True:
                 chunk = upstream.read(262144)
                 if not chunk:
@@ -4624,6 +4629,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # lire ce reliquat comme la réponse suivante — on la ferme.
                     self.close_connection = True
                     return  # poste appelant parti en cours de route
+                envoyes += len(chunk)
+            if annonce is not None and envoyes != annonce:
+                # L'amont a annoncé une taille et en a livré MOINS : uplink de
+                # la passerelle coupé pendant le relais, ou source qui tronque.
+                # La boucle sort alors NORMALEMENT (chunk vide) et rien ne
+                # signalerait l'anomalie : le corps est pourtant plus court que
+                # le Content-Length que nous venons d'annoncer nous-mêmes. En
+                # connexion persistante, le poste appelant attendrait la suite
+                # jusqu'au délai d'inactivité (30 s) avant de pouvoir basculer
+                # sur le secours pair-à-pair ; la fermeture lui rend l'échec
+                # immédiat qu'il avait en HTTP/1.0.
+                self.close_connection = True
 
     def _stream_verified_file(self, path):
         """Chemin C (pair-à-pair, secours) : sert `path` (toujours
@@ -4641,6 +4658,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(size))
             self._cors()
             self.end_headers()
+            envoyes = 0
             while True:
                 chunk = f.read(262144)
                 if not chunk:
@@ -4653,6 +4671,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # connexion ne peut pas être réutilisée telle quelle.
                     self.close_connection = True
                     return  # poste appelant parti en cours de route
+                envoyes += len(chunk)
+            if envoyes != size:
+                # Le fichier a rétréci entre getsize() et la fin de la lecture
+                # (l'exécutable est justement remplacé pendant qu'on le sert) :
+                # on a annoncé plus d'octets qu'on n'en a écrits. Même
+                # conséquence que dans _stream_asset_relay — sans fermeture, le
+                # pair attend la suite jusqu'au délai d'inactivité.
+                self.close_connection = True
 
     def _cors(self):
         # CORS restreint aux origines locales attendues (le logiciel est servi
