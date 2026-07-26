@@ -5204,11 +5204,17 @@ function opRowCap(){
   return getUsageMode() === 'simple' ? 1 : 40;
 }
 
+// Chaque cellule porte data-op-row="i" : c'est le SEUL lien fiable entre une
+// ligne logique et ses cellules, la grille étant en display:contents (les
+// cellules sont des enfants directs de #opExtraRows, sans conteneur de ligne).
+// removeLastOperatorRow() s'en sert pour retirer la ligne ENTIÈRE : compter les
+// cellules à la main a déjà divergé une fois (la 4e colonne QUALIFIÉ a été
+// ajoutée après la boucle de suppression, qui en retirait toujours 3).
 function operatorRowCells(i){
-  return `<div style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP${i}</div>`
-       + `<input type="text" id="op${i}_call" placeholder="Indicatif" style="text-transform:uppercase;font-size:14px">`
-       + `<input type="text" id="op${i}_name" placeholder="Prénom" style="font-size:14px">`
-       + `<div class="op-modes-cell" style="display:flex;gap:10px;font-size:13px;font-family:var(--font-mono);color:var(--text)">`
+  return `<div data-op-row="${i}" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:700">OP${i}</div>`
+       + `<input data-op-row="${i}" type="text" id="op${i}_call" placeholder="Indicatif" style="text-transform:uppercase;font-size:14px">`
+       + `<input data-op-row="${i}" type="text" id="op${i}_name" placeholder="Prénom" style="font-size:14px">`
+       + `<div data-op-row="${i}" class="op-modes-cell" style="display:flex;gap:10px;font-size:13px;font-family:var(--font-mono);color:var(--text)">`
        + `<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op${i}_mode_ssb" checked>SSB</label>`
        + `<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op${i}_mode_cw" checked>CW</label>`
        + `<label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="op${i}_mode_digi" checked>DIGI</label>`
@@ -5227,7 +5233,14 @@ function addOperatorRow(){
 function removeLastOperatorRow(){
   if(opRowCount <= 1) return;
   const extra = document.getElementById('opExtraRows');
-  for(let k=0;k<3;k++) extra.lastElementChild && extra.lastElementChild.remove();
+  // Retirer TOUTES les cellules de la dernière ligne, pas un nombre figé : la
+  // version précédente en enlevait 3 alors qu'operatorRowCells() en produit 4
+  // depuis l'ajout de la colonne QUALIFIÉ. Une cellule survivante décalait
+  // toute la grille d'une colonne, et surtout laissait à l'écran des lignes
+  // complètes et éditables qu'opRowCount ne couvrait plus : saveConfig() ne
+  // lisant que jusqu'à opRowCount, ces opérateurs bien visibles disparaissaient
+  // en silence de la config, de l'export et des boutons OP du logbook.
+  extra.querySelectorAll(`[data-op-row="${opRowCount}"]`).forEach(el => el.remove());
   opRowCount--;
   updateOpRowControls();
 }
