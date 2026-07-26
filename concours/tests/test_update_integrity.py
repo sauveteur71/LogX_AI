@@ -51,6 +51,23 @@ def _isolate_download_state(monkeypatch, tmp_path):
     monkeypatch.setattr(upd, '_cache', {'ts': 0, 'result': None})
     monkeypatch.setattr(upd, 'user_data_dir', lambda: str(tmp_path))
     yield
+    # BARRIÈRE DE FIN DE TEST — remplacer le dict ne suffit pas à isoler.
+    # _do_download tourne dans un thread de fond et écrit dans le _download
+    # COURANT du module, résolu à chaque accès : un thread encore en vol quand
+    # le test suivant démarre écrit donc dans l'état TOUT NEUF de ce test-là.
+    # C'est ce qui rendait test_peer_annoncant_le_bon_asset_toujours_accepte
+    # rouge au hasard, uniquement en suite complète (jamais isolé, jamais avec
+    # son seul fichier) : il lisait 'error' laissé par le téléchargement d'un
+    # test précédent, pas par le sien. On attend donc la fin des threads avant
+    # de rendre la main.
+    fin = time.time() + 30
+    while time.time() < fin:
+        try:
+            if upd.get_download_status().get('status') != 'downloading':
+                break
+        except Exception:
+            break
+        time.sleep(0.02)
 
 
 def _wait_download_terminal(timeout=30):
