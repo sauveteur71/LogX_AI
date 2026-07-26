@@ -292,7 +292,17 @@ def test_probe_detecte_un_serveur_invisible_au_bind(serveur_ephemere):
     démarrerait un serveur que le navigateur ne trouverait jamais — c'est
     pourquoi _port_accepts doit rester dans la sonde."""
     port = serveur_ephemere(json.dumps({'service': 'autre'}).encode())
-    assert S._bind_test(port)[0] is True          # le bind joker est aveugle
+    if S.WINDOWS:
+        # Windows : le bind joker 0.0.0.0 est aveugle a un tiers lie a
+        # 127.0.0.1 — il REUSSIT, d'ou l'interet vital de _port_accepts.
+        assert S._bind_test(port)[0] is True
+    else:
+        # Linux/macOS : une adresse plus specifique bloque le joker, le bind
+        # echoue de lui-meme. La sonde par connexion reste utile (elle sert
+        # aussi a IDENTIFIER qui repond), mais elle n'est plus le seul filet.
+        assert S._bind_test(port)[0] is False
+    # Universel, et c'est ce qui compte pour l'utilisateur : un tiers occupe
+    # l'adresse que le navigateur utilisera -> on refuse de demarrer.
     assert S.probe(port)['state'] == S.OTHER
 
 
@@ -307,11 +317,23 @@ def test_probe_laisse_demarrer_derriere_un_ecouteur_dual_stack(serveur_dual_stac
     URL que l'application affiche et ouvre elle-même. Verdict attendu : SHARED
     (on avertit, on démarre), surtout pas OTHER (on refuse)."""
     port = serveur_dual_stack()
-    assert S._bind_test(port)[0] is True             # on POURRAIT se lier...
-    assert S._port_accepts('127.0.0.1', port, 1.0)   # ...et pourtant ça répond
-    assert S.probe(port)['state'] == S.SHARED
+    assert S._port_accepts('127.0.0.1', port, 1.0)   # le tiers repond bien
+    if S.WINDOWS:
+        assert S._bind_test(port)[0] is True         # on POURRAIT se lier...
+        assert S.probe(port)['state'] == S.SHARED
+    else:
+        # Sous Linux/macOS un ecouteur [::] occupe AUSSI l'IPv4 : notre bind
+        # echoue, il n'y a donc rien a partager et SHARED n'a pas lieu d'etre.
+        # Refuser est alors la seule conduite correcte — demarrer serait
+        # impossible de toute facon.
+        assert S._bind_test(port)[0] is False
+        assert S.probe(port)['state'] == S.OTHER
 
 
+@pytest.mark.skipif(not S.WINDOWS,
+                    reason="SHARED n'existe que sous Windows : ailleurs, un "
+                           "ecouteur [::] occupe aussi l'IPv4 et notre bind "
+                           'echoue, il n y a donc pas d adresse a partager')
 def test_shared_veut_bien_dire_que_c_est_nous_qui_repondrons(serveur_dual_stack):
     """Preuve de bout en bout du verdict SHARED : on démarre VRAIMENT le
     serveur comme le fait logx_serveur.py, puis on resonde. Si le tiers gardait
@@ -339,6 +361,13 @@ def test_other_veut_bien_dire_que_le_tiers_garde_l_adresse(serveur_ephemere):
     répond toujours — refuser de démarrer est ici la bonne conduite."""
     port = serveur_ephemere(json.dumps({'service': 'autre'}).encode())
     assert S.probe(port)['state'] == S.OTHER
+    if not S.WINDOWS:
+        # Sous Linux/macOS la demonstration s'arrete la, et elle est meme plus
+        # forte : le tiers lie a 127.0.0.1 nous interdit carrement le bind
+        # joker. Tenter de demarrer par-dessus leverait EADDRINUSE — ce que
+        # faisait ce test, ecrit avec les seules semantiques Windows en tete.
+        assert S._bind_test(port)[0] is False
+        return
     srv = S.LogXHTTPServer((S.BIND_HOST, port),
                            type('H', (_FakeHandler,), {'payload': _reponse_logx()}))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -457,7 +486,18 @@ def test_probe_bornee_face_a_un_flux_au_goutte_a_goutte(serveur_brut):
     # lisible (ASCII) et dire « delai », pas rapporter un WinError localisé
     # qui accuserait un logiciel tiers de notre propre coupure.
     r['detail'].encode('ascii')
-    assert 'reponse exploitable' in r['detail']
+    if S.WINDOWS:
+        # Windows : notre bind reussit malgre le tiers, la sonde va donc au
+        # bout de l'echange HTTP et c'est bien l'attente de reponse qui est
+        # bornee — le detail doit le dire.
+        assert 'reponse exploitable' in r['detail']
+    else:
+        # Linux/macOS : le tiers nous prend l'adresse, le bind echoue AVANT
+        # meme l'echange HTTP. Le bornage reste verifie (assertion de duree
+        # ci-dessus, la seule qui compte pour l'utilisateur), mais le detail
+        # rapporte logiquement le refus de bind. Exiger ici le libelle Windows
+        # reviendrait a tester la plateforme, pas le bornage.
+        assert 'bind refuse' in r['detail']
 
 
 def test_probe_ne_suit_pas_les_redirections(serveur_brut):
