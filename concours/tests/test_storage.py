@@ -101,6 +101,70 @@ def test_migration_json_purge_aussi_le_marqueur_de_version_delta(tmp_path):
     _in_tmp(tmp_path, run)
 
 
+def test_un_qso_malforme_ne_gele_pas_la_persistance(tmp_path):
+    """Non-régression (perte TOTALE du carnet) : un seul QSO dont un champ
+    _CORE n'est pas un scalaire liable par sqlite3 (liste, dict, entier hors
+    64 bits) faisait lever l'executemany de save_log_to_disk() -> transaction
+    annulée ET save_json_atomic('shared_log.json') jamais atteint. Le QSO
+    empoisonné restant dans shared_log, CHAQUE sauvegarde suivante échouait au
+    même endroit : plus rien n'était jamais écrit sur disque jusqu'au
+    redémarrage, alors que /log/add continuait de répondre 200 {'ok': true} et
+    que le logbook affichait tout. Tout ce qui était loggué après le QSO
+    empoisonné était perdu à la coupure suivante.
+
+    Valeurs testées ici toutes productibles depuis du JSON standard : /log/add
+    ne valide que la présence de 'call', /log/update ne valide rien, et le
+    champ 'contest' des QSO fabriqués côté serveur (pont N1MM/DXLog
+    logx_adifnet, WSJT-X) est hérité tel quel de current_config, remplacé sans
+    validation par /config/save."""
+    def run():
+        st.shared_log[:] = [dict(QSO, id=1, call='F5AAA')]
+        st.save_log_to_disk()
+
+        poison = dict(QSO, id=2, call='F5BBB',
+                      band=['14'],            # liste -> ProgrammingError
+                      contest={'c': 'X'},     # dict  -> ProgrammingError
+                      points=2 ** 70)         # >64 bits -> OverflowError
+        st.shared_log.append(poison)
+        for i in range(3):                    # QSO parfaitement normaux ENSUITE
+            st.shared_log.append(dict(QSO, id=10 + i, call=f'G3XY{i}'))
+        st.save_log_to_disk()
+
+        conn = st._db()
+        db_calls = [r[0] for r in
+                    conn.execute('SELECT call FROM qso ORDER BY rowid_pk')]
+        conn.close()
+        with open('shared_log.json', encoding='utf-8') as f:
+            json_calls = [q['call'] for q in json.load(f)]
+        attendu = ['F5AAA', 'F5BBB', 'G3XY0', 'G3XY1', 'G3XY2']
+        assert db_calls == attendu, (
+            f'persistance GELÉE par un QSO malformé : logx.db contient '
+            f'{db_calls} au lieu de {attendu} — tous les QSO suivants sont '
+            f'perdus au prochain redémarrage')
+        assert json_calls == attendu, (
+            f'shared_log.json de secours GELÉ : {json_calls}')
+
+        # archive_current_log() passe par le même _row_from_qso : sans le
+        # correctif elle renvoie 0, donc /log/reset efface le log SANS l'avoir
+        # archivé (la protection « une remise à zéro ne détruit jamais
+        # d'historique » ne tenait plus).
+        assert st.archive_current_log() == 5
+
+        # Rechargement : les 5 QSO reviennent, seul le champ aberrant est
+        # dégradé en texte — aucune perte de QSO.
+        st.shared_log[:] = []
+        st.load_log_from_disk()
+        assert [q['call'] for q in st.shared_log] == attendu
+        bad = next(q for q in st.shared_log if q['call'] == 'F5BBB')
+        assert isinstance(bad['band'], str) and '14' in bad['band']
+        assert isinstance(bad['contest'], str)
+        # Les QSO sains gardent EXACTEMENT leurs types d'origine
+        ok = next(q for q in st.shared_log if q['call'] == 'G3XY0')
+        assert ok['band'] == '14' and ok['contest'] == 'EU_HF_CHAMP'
+        assert ok['points'] == 1 and ok['_edited'] is True
+    _in_tmp(tmp_path, run)
+
+
 def test_reset_archive_sans_perte(tmp_path):
     def run():
         st.shared_log[:] = [QSO]

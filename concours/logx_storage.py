@@ -44,9 +44,48 @@ def _db():
     return conn
 
 
+# Bornes de l'entier signé 64 bits : au-delà, sqlite3 lève OverflowError
+# (« Python int too large to convert to SQLite INTEGER ») au moment du bind.
+_INT64_MIN, _INT64_MAX = -2 ** 63, 2 ** 63 - 1
+
+
+def _sqlite_safe(value):
+    """Rend `value` LIABLE par sqlite3, quoi qu'elle contienne.
+
+    sqlite3 n'accepte que None / str / bytes / int 64 bits / float : tout le
+    reste (liste, dict, entier hors 64 bits, objet) fait lever le bind. Or
+    save_log_to_disk() écrit les 10 colonnes _CORE telles quelles, et RIEN sur
+    le chemin d'écriture ne normalisait leur type — /log/add ne vérifie que la
+    présence de 'call', /log/update ne vérifie rien, et le champ 'contest' des
+    QSO fabriqués côté SERVEUR (logx_adifnet.qso_from_contactinfo,
+    logx_wsjtx) est hérité tel quel de current_config, lui-même remplacé sans
+    validation par /config/save. Un SEUL QSO ainsi malformé faisait échouer
+    l'executemany, donc annuler la transaction ET sauter le shared_log.json de
+    secours : la persistance restait gelée jusqu'au redémarrage alors que le
+    client continuait de recevoir 200 {'ok': true} — tout ce qui était loggué
+    ensuite était perdu à la coupure suivante (et archive_current_log(), qui
+    passe par ici aussi, renvoyait 0 : un /log/reset effaçait alors le log sans
+    l'avoir archivé). Dégrader une valeur aberrante en texte est toujours
+    préférable à perdre le carnet."""
+    if value is None or isinstance(value, (str, bytes, float, bool)):
+        return value
+    if isinstance(value, int):
+        return value if _INT64_MIN <= value <= _INT64_MAX else str(value)
+    if isinstance(value, (list, tuple, dict)):
+        try:
+            return json.dumps(value, ensure_ascii=False, default=str)
+        except Exception:
+            pass
+    return str(value)
+
+
 def _row_from_qso(q):
     extra = {k: v for k, v in q.items() if k not in _CORE}
-    return tuple(q.get(k) for k in _CORE) + (json.dumps(extra, ensure_ascii=False),)
+    # default=str sur extra pour la même raison : un objet non sérialisable
+    # glissé dans un champ annexe ferait lever json.dumps ICI, donc gèlerait
+    # l'écriture exactement comme un bind impossible.
+    return (tuple(_sqlite_safe(q.get(k)) for k in _CORE)
+            + (json.dumps(extra, ensure_ascii=False, default=str),))
 
 
 def _qso_from_row(row):
