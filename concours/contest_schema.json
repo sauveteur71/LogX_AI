@@ -489,6 +489,25 @@
     "itu_r1_notes": {
       "type": "string",
       "description": "Notes spécifiques IARU Région 1."
+    },
+    "cabrillo_name": {
+      "type": "string",
+      "description": "Nom OFFICIEL du concours attendu dans la ligne 'CONTEST:' du fichier Cabrillo (ex. 'CQ-WW-SSB'). Absent = l'identifiant interne est utilise, ce qui convient aux concours qui ne se soumettent pas en Cabrillo (les THF francais partent en EDI).",
+      "minLength": 2
+    },
+    "cabrillo_exchange": {
+      "type": "array",
+      "description": "Composition de l'echange dans la ligne QSO du Cabrillo, dans l'ordre. 'rst' = compte-rendu, 'exch' = le champ N tel que saisi (zone CQ, n de serie, etat/puissance, classe+section selon le concours), 'locator'. Absent = RST + N + locator s'il est present (comportement historique, adapte aux concours VHF/THF europeens).",
+      "items": {
+        "type": "string",
+        "enum": [
+          "rst",
+          "exch",
+          "locator"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
     }
   }
 }
