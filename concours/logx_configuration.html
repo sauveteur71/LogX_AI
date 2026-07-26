@@ -665,6 +665,16 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div id="opExtraRows" style="display:contents"></div>
         </div>
         <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <!-- Saisie DIRECTE du nombre d'opérateurs : en expédition on sait
+               d'avance qu'on sera 8 ou 10, et cliquer neuf fois sur « Ajouter »
+               est absurde. Les boutons +/− restent pour l'ajustement à l'unité
+               (un opérateur qui se décommande la veille). -->
+          <label id="opCountLabel" for="opCountInput" style="display:none;align-items:center;gap:6px">
+            Nombre d'opérateurs :
+            <input type="number" id="opCountInput" min="1" step="1"
+                   onchange="setOperatorCount(this.value)"
+                   style="width:70px;text-align:center">
+          </label>
           <button type="button" id="opAddBtn" class="op-row-btn" onclick="addOperatorRow()">+ Ajouter un opérateur</button>
           <button type="button" id="opRemoveBtn" class="op-row-btn" onclick="removeLastOperatorRow()" style="display:none">－ Retirer le dernier</button>
           <span id="opRowsCapNote" class="op-rows-cap-note"></span>
@@ -5175,18 +5185,23 @@ function saveConfig(silent = false, feedbackBtn = null) {
 // ─── MONO / MULTI OP ─────────────────────────────────────────────────────────
 // ─── LIGNES OPÉRATEUR DYNAMIQUES (OP2+) ──────────────────────────────────────
 // OP1 reste une ligne statique du HTML (cf. catbody_operators) ; OP2 et
-// au-delà sont générées à la volée ici. Le plafond dépend du mode
-// d'utilisation : LOGBOOK SIMPLE = 1 (pas de multi-op, cf. demande explicite
-// de retour en arrière), CONCOURS/EXPÉDITION = 5 (comportement historique,
-// aligné sur les 2 emplacements MOpe1/MOpe2 de l'export EDI + Remarks pour
-// le reste), RADIOCLUB = 40 (plusieurs opérateurs qui se relaient au club).
+// au-delà sont générées à la volée ici.
+//
+// Plafond : 1 en LOGBOOK SIMPLE (pas de multi-op, cf. demande explicite de
+// retour en arrière), 40 dans tous les modes multi-op.
+//
+// CONCOURS/EXPÉDITION étaient historiquement limités à 5, « aligné sur les 2
+// emplacements MOpe1/MOpe2 de l'export EDI + Remarks pour le reste ». Ce
+// n'était pas une contrainte technique : RADIOCLUB tourne depuis toujours à
+// 40 avec le MÊME export (au-delà de 2, tout le monde passe par Remarks, que
+// l'on soit 6 ou 30). C'était donc un mur arbitraire, et les effectifs réels
+// le dépassent couramment — une DXpédition à 10 opérateurs, une équipe de 9
+// en contest IOTA (cas rapportés par des utilisateurs). Un opérateur bloqué
+// à 5 n'a AUCUN recours : il ne peut pas déclarer son équipe.
 let opRowCount = 1;
 
 function opRowCap(){
-  const mode = getUsageMode();
-  if(mode === 'simple') return 1;
-  if(mode === 'radioclub') return 40;
-  return 5;
+  return getUsageMode() === 'simple' ? 1 : 40;
 }
 
 function operatorRowCells(i){
@@ -5215,6 +5230,57 @@ function removeLastOperatorRow(){
   for(let k=0;k<3;k++) extra.lastElementChild && extra.lastElementChild.remove();
   opRowCount--;
   updateOpRowControls();
+}
+
+// Une ligne opérateur porte-t-elle une saisie ? Sert à ne jamais supprimer
+// en silence un indicatif déjà tapé (voir setOperatorCount).
+function operatorRowFilled(i){
+  const call = document.getElementById(`op${i}_call`);
+  const name = document.getElementById(`op${i}_name`);
+  return !!((call && call.value.trim()) || (name && name.value.trim()));
+}
+
+// Choix DIRECT du nombre d'opérateurs (champ « Nombre d'opérateurs »). En
+// expédition ou en radioclub on connaît l'effectif d'avance : cliquer neuf
+// fois sur « Ajouter » pour dix opérateurs n'a aucun sens.
+// Passe par addOperatorRow()/removeLastOperatorRow() plutôt que par
+// ensureOperatorRows() : celle-ci VIDE la grille avant de la reconstruire, ce
+// qui effacerait les lignes déjà remplies. Ici on ajoute ou on retire
+// seulement à la fin, les saisies existantes sont préservées.
+function setOperatorCount(valeur){
+  const cap = opRowCap();
+  let n = parseInt(valeur, 10);
+  if(!isFinite(n)) n = opRowCount;              // saisie vide/absurde : on ne touche à rien
+  n = Math.max(1, Math.min(n, cap));
+  // Réduction : les lignes retirées sont les DERNIÈRES. Si l'une d'elles
+  // contient déjà un indicatif ou un prénom, on demande confirmation — perdre
+  // une saisie sans prévenir serait la pire des surprises la veille d'un
+  // concours.
+  if(n < opRowCount){
+    const perdues = [];
+    for(let i = n + 1; i <= opRowCount; i++){
+      if(operatorRowFilled(i)) perdues.push(`OP${i}`);
+    }
+    if(perdues.length && !confirm(
+        `Réduire à ${n} opérateur(s) supprimera ${perdues.join(', ')}, `
+        + `qui ${perdues.length > 1 ? 'contiennent' : 'contient'} déjà une saisie.\n\nContinuer ?`)){
+      syncOpCountInput();                       // remet le champ sur la valeur réelle
+      return;
+    }
+  }
+  while(opRowCount < n) addOperatorRow();
+  while(opRowCount > n) removeLastOperatorRow();
+  syncOpCountInput();
+}
+
+// Le champ doit toujours refléter le nombre RÉEL de lignes : il est aussi
+// modifié par les boutons +/−, par la restauration d'une config et par un
+// changement de mode d'utilisation (qui change le plafond).
+function syncOpCountInput(){
+  const input = document.getElementById('opCountInput');
+  if(!input) return;
+  input.value = opRowCount;
+  input.max = opRowCap();
 }
 
 // Reconstruit intégralement les lignes OP2+ pour atteindre `count` — réservé
@@ -5264,6 +5330,13 @@ function updateOpRowControls(){
   if(addBtn) addBtn.style.display = (cap <= 1 || opRowCount >= cap) ? 'none' : '';
   if(rmBtn)  rmBtn.style.display  = (cap <= 1 || opRowCount <= 1)   ? 'none' : '';
   if(note)   note.textContent = cap > 1 ? `${opRowCount} / ${cap} opérateurs` : '';
+  // Saisie directe de l'effectif : masquée en LOGBOOK SIMPLE (un seul
+  // opérateur possible), et tenue à jour ici — c'est le point de passage
+  // commun aux boutons +/−, à la restauration d'une config et au changement
+  // de mode d'utilisation (qui change le plafond).
+  const countLbl = document.getElementById('opCountLabel');
+  if(countLbl) countLbl.style.display = cap <= 1 ? 'none' : 'inline-flex';
+  syncOpCountInput();
   // LOGBOOK SIMPLE (cap==1) : un seul opérateur possible, un planning de
   // roulement entre opérateurs n'a alors aucun sens — masqué avec le reste
   // du multi-op plutôt que de laisser une section orpheline.
