@@ -5676,7 +5676,47 @@ async function qslAction(kind, service, btn){
 })();
 
 // ─── RACCOURCIS CLAVIER ───────────────────────────────────────────────────────
+// Une fenêtre modale est-elle ouverte ? Sert à neutraliser les macros F1-F8 :
+// en train d'éditer un QSO ou de relire le vérificateur, on ne veut surtout pas
+// qu'une touche de fonction parte en émission. Mêmes boîtes que celles que la
+// touche Échap referme, plus bas.
+function _modaleOuverte(){
+  const setup = document.getElementById('setupModal');
+  if(setup && setup.style.display !== 'none' && setup.style.display !== '') return true;
+  return ['editOverlay', 'shortcutsOverlay', 'validateOverlay',
+          'awardsOverlay', 'importOverlay'].some(id => {
+    const el = document.getElementById(id);
+    return el && el.classList.contains('show');
+  });
+}
+
 document.addEventListener('keydown', e => {
+  // ─── F1 à F8 : les macros, au clavier ─────────────────────────────────────
+  // Les boutons AFFICHENT « F1 »… « F8 » depuis toujours, mais seul le clic les
+  // déclenchait : en run ou en pile-up, la main devait quitter le clavier pour
+  // viser un bouton. C'est la fonction que N1MM, Win-Test et DXLog mettent en
+  // avant en premier, et la première qu'un contesteur essaie.
+  //
+  // Volontairement actif MÊME quand le focus est dans un champ de saisie :
+  // c'est tout l'intérêt — on tape l'indicatif, on envoie l'échange, on
+  // continue de taper sans rien viser.
+  //
+  // preventDefault() n'est pas une politesse : dans un navigateur, F5 recharge
+  // la page (perte de la saisie en cours EN PLEIN CONCOURS), F3 ouvre la
+  // recherche, F1 l'aide et F6 la barre d'adresse. Sans lui, la moitié des
+  // macros seraient inutilisables.
+  //
+  // On cherche la macro par son libellé de touche plutôt que par sa position :
+  // l'utilisateur peut réaffecter la touche d'une macro (editMacro), et le
+  // clavier doit suivre ce qu'il voit écrit sur le bouton.
+  if(/^F[1-8]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey){
+    e.preventDefault();
+    if(!isSetupDone || _modaleOuverte()) return;
+    const macros = getMacros();
+    const idx = macros.findIndex(m => m && m.key === e.key);
+    if(idx >= 0) copyMacro(idx);
+    return;
+  }
   // F9 : soumettre le QSO depuis n'importe où
   if(e.key === 'F9'){
     e.preventDefault();
