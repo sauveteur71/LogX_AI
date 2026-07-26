@@ -25,6 +25,7 @@ from logx_rules_ai import analyze_rules
 from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   save_json_atomic, calldb_lock, bump_log_version,
                                   qso_scope_id, active_scope_id, cfg_scope_id,
+                                  contest_actif,
                                   stamp_qso_version, mark_qso_deleted, mark_hard_reset)
 from logx_scoring import build_scoring_context, score_new_qso
 from logx_prompts import build_system_prompt, build_terrain_context
@@ -1011,6 +1012,10 @@ def do_refresh(cfg):
         'score_total': total_score,
         'qso_total': total_qso,
         'contest': contest,
+        # Les scores ci-dessus n'ont de sens QUE si un concours est
+        # sélectionné — sinon le barème retombe sur le repli 1 pt/km et
+        # affiche un total qu'aucun règlement ne compte (cf. contest_actif()).
+        'contest_actif': contest_actif(cfg),
         'callsign': callsign,
         'locator': cfg.get('locator', ''),
         'noaa': noaa,

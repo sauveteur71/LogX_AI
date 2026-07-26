@@ -151,7 +151,7 @@ textarea::placeholder{color:var(--muted)}
     <div class="contest-badge" id="contestBadge">—</div>
   </div>
   <div class="hdr-right">
-    <div class="score-hdr">
+    <div class="score-hdr" id="scoreHdr">
       <div class="score-lbl">SCORE TOTAL</div>
       <div class="score-val rc-i18n-live" id="scoreTotal">— pts</div>
     </div>
@@ -177,8 +177,8 @@ textarea::placeholder{color:var(--muted)}
 <script src="logx_i18n.js"></script>
 
 <div class="score-bar">
-  <div class="score-item"><div class="si-lbl">BANDE 1</div><div class="si-val" id="score1" style="color:var(--accent2)">— pts</div></div>
-  <div class="score-item"><div class="si-lbl">BANDE 2</div><div class="si-val" id="score2" style="color:var(--purple)">— pts</div></div>
+  <div class="score-item" id="scoreItem1"><div class="si-lbl">BANDE 1</div><div class="si-val" id="score1" style="color:var(--accent2)">— pts</div></div>
+  <div class="score-item" id="scoreItem2"><div class="si-lbl">BANDE 2</div><div class="si-val" id="score2" style="color:var(--purple)">— pts</div></div>
   <div class="score-item"><div class="si-lbl">QSO TOTAL</div><div class="si-val" id="scoreQSO" style="color:var(--green)">0</div></div>
   <div class="score-item"><div class="si-lbl">MEILLEUR DX</div><div class="si-val" id="scoreBestDX" style="color:var(--yellow)">— km</div></div>
   <div class="score-item"><div class="si-lbl">LOCATOR</div><div class="si-val" id="myLocator" style="color:var(--accent);font-size:14px">—</div></div>
@@ -711,7 +711,7 @@ function drawLoggedQSOs(){
       `<b style="color:${col}">${q.call}</b> ✅<br>` +
       `📍 ${q.locator}<br>` +
       `📡 ${bandLabel} — ${q.mode}<br>` +
-      `📏 ${q.dist||'?'} km — 🏆 ${q.points||0} ${rcT('pts')}<br>` +
+      `📏 ${q.dist||'?'} km${contestActif ? ` — 🏆 ${q.points||0} ${rcT('pts')}` : ''}<br>` +
       `🧭 ${rcT('Cap antenne :')} ${capDeg}° ${cardinalLL(capDeg)}` +
       `</div>`
     );
@@ -985,6 +985,22 @@ async function pushClusterSpots(){
   }
 }
 
+// ─── POINTS : uniquement si un concours est sélectionné ──────────────────────
+// Hors concours (logbook simple, ou mode concours sans concours choisi), le
+// moteur retombe sur le barème 1 pt/km : les totaux affichés sont exacts mais
+// ne comptent pour rien. On masque les tuiles de score plutôt que de laisser
+// croire à un classement. QSO TOTAL, MEILLEUR DX et LOCATOR restent affichés :
+// eux sont vrais dans tous les cas. Drapeau calculé par le serveur
+// (contest_actif() dans logx_storage) pour ne pas redupliquer la règle ici.
+let contestActif = false;
+function applyContestActif(actif){
+  contestActif = !!actif;
+  ['scoreHdr','scoreItem1','scoreItem2'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = contestActif ? '' : 'none';
+  });
+}
+
 // ─── SEND ────────────────────────────────────────────────────────────────────
 async function fetchTerrainData(){
   try{
@@ -992,6 +1008,7 @@ async function fetchTerrainData(){
     const res=await fetch('/data/refresh');
     if(!res.ok)return null;
     const data=await res.json();
+    applyContestActif(data.contest_actif);
     if(data.score_total!==undefined){
       document.getElementById('scoreTotal').textContent=data.score_total.toLocaleString()+' '+rcT('pts');
     }

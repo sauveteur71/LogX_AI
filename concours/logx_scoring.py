@@ -6,7 +6,7 @@ import datetime
 
 from logx_definitions import CONTEST_DEFINITIONS
 from logx_utils import locator_to_latlon, haversine, bearing, cardinal
-from logx_storage import shared_log
+from logx_storage import shared_log, contest_actif
 
 # ─── MOTEUR DE SCORING UNIVERSEL ─────────────────────────────────────────────
 # Calcule la valeur réelle en points d'un contact selon le règlement actif
@@ -978,6 +978,12 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     cdef = CONTEST_DEFINITIONS.get(contest, {})
     meta = {
         'contest': contest,
+        # Les points ci-dessous sont TOUJOURS calculés (le classement de la
+        # need list s'en sert pour trier, y compris hors concours où le repli
+        # 1 pt/km donne un ordre par distance parfaitement utile). Ce drapeau
+        # dit s'ils veulent dire quelque chose pour l'opérateur, donc s'il
+        # faut les AFFICHER — cf. contest_actif() dans logx_storage.
+        'contest_actif': contest_actif(cfg),
         'my_call': my_call,
         'my_locator': my_locator,
         'current_score': current_score,

@@ -231,6 +231,9 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 let spotsData = [];
 let filter = 'all';
+// Renseigné par /data/spots_ranked (meta.contest_actif) : faux tant qu'aucun
+// concours n'est sélectionné, auquel cas on masque tout affichage de points.
+let contestActif = false;
 let rigEnabled = false;
 let rotorEnabled = false;
 
@@ -293,8 +296,12 @@ async function loadSpots(){
     const d = await r.json();
     spotsData = d.spots || [];
     const m = d.meta || {};
-    document.getElementById('spotsMeta').textContent =
-      `${m.contest || ''} · ${m.current_score || 0} pts · ${m.nb_dxcc || 0} pays · ${spotsData.length} spots`;
+    // Hors concours, le classement reste utile (tri par distance) mais le
+    // « score » ne compte pour rien : on n'affiche ni le barème ni le total.
+    contestActif = !!m.contest_actif;
+    document.getElementById('spotsMeta').textContent = contestActif
+      ? `${m.contest || ''} · ${m.current_score || 0} pts · ${m.nb_dxcc || 0} pays · ${spotsData.length} spots`
+      : `${m.nb_dxcc || 0} pays · ${spotsData.length} spots`;
     renderSpots();
     document.getElementById('lastRefresh').textContent =
       rcT('MàJ') + ' ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
@@ -326,10 +333,10 @@ function renderSpots(){
       <span class="sr-call">${esc(s.call)}</span>
       <span class="sr-freq">${esc(s.freq || '')}</span>
       <span class="sr-band">${esc(s.band)} MHz</span>
-      <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : '+' + esc(s.value || s.points) + ' ' + rcT('pts')}</span>
+      <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : (contestActif ? '+' + esc(s.value || s.points) + ' ' + rcT('pts') : rcT('NOUVEAU'))}</span>
       ${s.new_mult && !s.already_done ? '<span class="sr-mult-badge">📈 NOUVEAU MULT</span>' : ''}
       <span class="sr-cap">${s.bearing != null ? esc(s.bearing) + '° ' + esc(s.cardinal) : ''}</span>
-      <span class="sr-info" title="${esc(s.explanation)}">${s.dist_km ? esc(s.dist_km) + ' km · ' : ''}${esc(s.explanation)}</span>
+      <span class="sr-info" title="${contestActif ? esc(s.explanation) : ''}">${s.dist_km ? esc(s.dist_km) + ' km' : ''}${contestActif && s.explanation ? (s.dist_km ? ' · ' : '') + esc(s.explanation) : ''}</span>
     </div>`).join('');
 }
 
