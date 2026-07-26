@@ -307,7 +307,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       <option value="simple">📋 LOGBOOK SIMPLE — chasse DX / trafic courant, sans concours</option>
       <option value="contest" selected>🏆 CONCOURS — règlement, échange, scoring, multiplicateurs</option>
       <option value="expedition">📡 EXPÉDITION / ACTIVATION — pile-up, multi-poste</option>
-      <option value="radioclub">🏛️ RADIOCLUB — plusieurs postes, jusqu'à 40 opérateurs</option>
+      <option value="radioclub">🏛️ RADIOCLUB — plusieurs postes radio, opérateurs qui se relaient</option>
     </select>
     <span class="usage-mode-note" id="usageModeNote"></span>
   </div>
@@ -2106,7 +2106,7 @@ const CONFIG_HELP = {
   op_call: "L'indicatif de la personne responsable du log si elle diffère de l'opérateur principal (utile en multi-opérateurs) — repris dans les champs RCall/MOpe1 de l'export EDI.",
   postal: "Ton code postal — les deux premiers chiffres identifient ton département, affiché dans l'en-tête du logbook.",
 
-  usage_mode: "Détermine le fonctionnement général du logiciel : LOGBOOK SIMPLE (trafic courant, un seul opérateur, pas de règles de concours), CONCOURS (scoring/règlement actifs, jusqu'à 5 opérateurs), EXPÉDITION (pile-up, multi-poste, jusqu'à 5 opérateurs), ou RADIOCLUB (plusieurs postes radio et jusqu'à 40 opérateurs, pour un club où plusieurs membres se relaient). Change ce réglage si l'étape CONCOURS te paraît hors sujet. L'écran mural (section ci-dessous) n'est PAS réservé au mode EXPÉDITION : il fonctionne dans n'importe quel mode, même seul — pratique pour suivre les QSO depuis une autre pièce.",
+  usage_mode: "Détermine le fonctionnement général du logiciel : LOGBOOK SIMPLE (trafic courant, un seul opérateur, pas de règles de concours), CONCOURS (scoring/règlement actifs), EXPÉDITION (pile-up, multi-poste), ou RADIOCLUB (déclaration des postes radio physiques, pour un club où plusieurs membres se relaient). Sauf en LOGBOOK SIMPLE, mono-opérateur par conception, tous les modes acceptent jusqu'à 40 opérateurs : une DXpédition à 10 n'a AUCUNE raison de passer en RADIOCLUB. Change ce réglage si l'étape CONCOURS te paraît hors sujet. L'écran mural (section ci-dessous) n'est PAS réservé au mode EXPÉDITION : il fonctionne dans n'importe quel mode, même seul — pratique pour suivre les QSO depuis une autre pièce.",
   expedition_mode: "Active les fonctions pensées pour une activation DXpédition/SOTA/POTA en groupe : écran mural partagé, synchronisation multi-poste, statistiques de pile-up.",
   activation_program: "Le programme d'activation concerné si tu actives une référence (SOTA, POTA, WWFF, châteaux...). Permet d'afficher les bons outils pour ce programme.",
   my_activation_ref: "La référence précise du site que tu actives (ex. un code SOTA ou POTA), affichée sur l'écran mural et dans les exports.",

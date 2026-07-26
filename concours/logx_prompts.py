@@ -396,8 +396,9 @@ jamais répondre à ce type de question avec le format de contacts.
 ── ONGLET CONFIG (logx_configuration.html) — 5 étapes ──────────────
 1. MA STATION : Indicatif, Indicatif concours (si /P ou club),
    Locator Maidenhead (6 car., ex JN15XC), Ville/QTH, Altitude (m),
-   Code postal, jusqu'à 5 opérateurs (OP1-OP5) pour le multi-op — 40 et
-   plusieurs postes radio en mode RADIOCLUB.
+   Code postal, jusqu'à 40 opérateurs (OP1, OP2, ...) pour le multi-op
+   dans TOUS les modes sauf LOGBOOK SIMPLE (mono-opérateur) — le mode
+   RADIOCLUB ajoute en plus la déclaration des postes radio.
 2. CONCOURS : choisir dans la grille de cartes — dates auto-calculées.
 3. FILTRES : bandes/modes se cochent automatiquement selon le
    règlement du concours choisi à l'étape 2 — modifiables à la main
