@@ -1179,6 +1179,43 @@ def _freq_khz_from_payload(payload):
 # ─── HTTP HANDLER ─────────────────────────────────────────────────────────────
 class Handler(http.server.BaseHTTPRequestHandler):
 
+    # ── CONNEXIONS PERSISTANTES (HTTP/1.1) ───────────────────────────────────
+    # En HTTP/1.0 (le défaut de BaseHTTPRequestHandler), le serveur RACCROCHE
+    # après chaque réponse : ouvrir une page = autant de connexions TCP que de
+    # ressources (HTML + JS + CSS + fetch), et chaque sondage périodique
+    # (balises 5 s, spots, statut) en rouvre une. En multi-poste, plusieurs
+    # machines multiplient ce va-et-vient — et sous Windows chaque fermeture
+    # laisse le port en TIME_WAIT plusieurs minutes. Mesuré ici : sous rafale
+    # de connexions simultanées, une petite part d'entre elles échoue
+    # (timeout / connexion réinitialisée), ce qui peut figer une page dont un
+    # script bloquant n'arrive jamais.
+    #
+    # En HTTP/1.1 la connexion reste ouverte et sert plusieurs requêtes. Deux
+    # conditions IMPÉRATIVES, sans quoi le remède serait pire que le mal :
+    #
+    #   1. CHAQUE réponse doit délimiter son corps. Tant que le serveur
+    #      raccrochait, « fin de connexion » signifiait « fin du corps » ; ce
+    #      n'est plus vrai. Une réponse sans Content-Length exact fait attendre
+    #      le navigateur INDÉFINIMENT. Toutes les réponses de ce fichier en
+    #      envoient un (vérifié une par une) ; les deux seules qui ne le
+    #      peuvent pas — relais d'un asset dont la source ne l'annonce pas, et
+    #      flux interrompu en cours d'envoi — forcent close_connection (voir
+    #      _stream_asset_relay / _stream_verified_file).
+    #
+    #   2. Le corps d'une requête POST doit être ENTIÈREMENT lu, sinon les
+    #      octets restants seraient interprétés comme la requête suivante sur
+    #      la même connexion. Les deux chemins qui refusent AVANT de lire le
+    #      corps (jeton absent, corps trop volumineux) ferment donc la
+    #      connexion — voir _require_auth() et le plafond MAX_BODY de do_POST.
+    #
+    # timeout : un fil d'exécution est mobilisé par connexion ouverte. Sans
+    # délai d'inactivité, des onglets qui gardent la ligne épuiseraient les
+    # fils. Au-delà, BaseHTTPRequestHandler met fin à la connexion de
+    # lui-même (socket.timeout -> close_connection), le navigateur en rouvre
+    # une au besoin : invisible pour l'utilisateur.
+    protocol_version = 'HTTP/1.1'
+    timeout = 30
+
     def log_message(self, fmt, *args):
         pass
 
@@ -2955,6 +2992,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             length = 0
         if length < 0 or length > MAX_BODY:
+            # Même raison que dans _require_auth : on refuse sans lire le
+            # corps, il faut donc fermer la connexion plutôt que de laisser
+            # ces octets parasiter la requête suivante. (Les lire pour les
+            # jeter serait absurde : c'est justement leur volume qu'on refuse.)
+            self.close_connection = True
             self._json({'error': 'Corps de requête trop volumineux'}, 413)
             return
         body = self.rfile.read(length)
@@ -4496,6 +4538,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             compressed = False
         self.send_response(status)
+        # Si un appelant a decidé de fermer (refus avant lecture du corps, voir
+        # _require_auth et le plafond MAX_BODY), il faut le DIRE au client :
+        # sinon il croit la connexion réutilisable, envoie sa requête suivante
+        # dans une socket déjà fermée et doit la rejouer — erreur transitoire
+        # visible pour rien. L'en-tête rend la fermeture explicite et attendue.
+        if self.close_connection:
+            self.send_header('Connection', 'close')
         if content_type:
             self.send_header('Content-Type', content_type)
         if compressed:
@@ -4527,10 +4576,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         with upstream:
             length = upstream.headers.get('Content-Length', '')
+            if not length:
+                # Sans taille annoncée par la source, on ne peut PAS délimiter
+                # le corps en connexion persistante : le poste appelant
+                # attendrait indéfiniment la suite d'un fichier déjà complet.
+                # On revient alors au seul délimiteur possible — la fermeture
+                # de connexion — en l'annonçant explicitement.
+                self.close_connection = True
             self.send_response(200)
             self.send_header('Content-Type', 'application/octet-stream')
             if length:
                 self.send_header('Content-Length', length)
+            else:
+                self.send_header('Connection', 'close')
             self._cors()
             self.end_headers()
             while True:
@@ -4540,6 +4598,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 try:
                     self.wfile.write(chunk)
                 except Exception:
+                    # Envoi interrompu : le corps est tronqué par rapport au
+                    # Content-Length annoncé. Réutiliser cette connexion ferait
+                    # lire ce reliquat comme la réponse suivante — on la ferme.
+                    self.close_connection = True
                     return  # poste appelant parti en cours de route
 
     def _stream_verified_file(self, path):
@@ -4565,6 +4627,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 try:
                     self.wfile.write(chunk)
                 except Exception:
+                    # Corps tronqué par rapport au Content-Length annoncé :
+                    # même raisonnement que dans _stream_asset_relay, la
+                    # connexion ne peut pas être réutilisée telle quelle.
+                    self.close_connection = True
                     return  # poste appelant parti en cours de route
 
     def _cors(self):
@@ -4596,6 +4662,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _require_auth(self):
         if self._client_authorized():
             return True
+        # Refus AVANT lecture du corps (voir do_POST) : en connexion
+        # persistante, les octets du corps resteraient dans le tampon et
+        # seraient lus comme la requête suivante — requête corrompue, réponse
+        # incohérente. Fermer la connexion est la seule issue sûre, et sans
+        # conséquence : ce client n'est de toute façon pas autorisé.
+        self.close_connection = True
         if _access_password_enabled():
             self._json({'error': "Non autorisé — connecte-toi via /auth/login "
                                  "(mot de passe d'accès configuré)"}, 403)
