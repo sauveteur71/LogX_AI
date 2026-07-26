@@ -3348,7 +3348,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'error': str(e)}, 500)
             return
 
-        # Sauvegarde configuration courante (appelé par logx_carte.html au démarrage)
+        # Sauvegarde configuration courante. SEUL appelant client légitime :
+        # logx_configuration.html (action explicite de l'opérateur). Cette
+        # route REMPLACE tout current_config, dont les champs qui définissent
+        # la portée partagée (contest/contest_start_date/usage_mode) — aucune
+        # page d'affichage ne doit la solliciter en silence au chargement
+        # (cf. le POST retiré de logx_carte.html:loadConfig).
         if self.path == '/config/save':
             try:
                 cfg = json.loads(body)
