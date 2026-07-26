@@ -126,6 +126,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['3.5','7','14','21','28'],
         'modes': ['SSB'],
         'exchange': 'RS + N°serie + dept',
+        'cabrillo_name': 'CDF-HF-SSB',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {'type':'dept_dxcc','multiplier':'depts+DXCC','unit':'pts × depts+DXCC'},
         'log_format': 'CABRILLO',
     },
@@ -139,6 +141,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['3.5','7','14','21','28'],
         'modes': ['CW'],
         'exchange': 'RST + N°serie + dept',
+        'cabrillo_name': 'CDF-HF-CW',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {'type':'dept_dxcc','multiplier':'depts+DXCC','unit':'pts × depts+DXCC'},
         'log_format': 'CABRILLO',
     },
@@ -242,6 +246,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8','3.5','7','14','21','28'],
         'modes': ['SSB'],
         'exchange': 'RS + zone_CQ (ex: 59 14)',
+        'cabrillo_name': 'CQ-WW-SSB',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'type': 'zone_country_per_band',
             'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 0,
@@ -271,6 +277,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8','3.5','7','14','21','28'],
         'modes': ['CW'],
         'exchange': 'RST + zone_CQ (ex: 599 14)',
+        'cabrillo_name': 'CQ-WW-CW',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'type': 'zone_country_per_band',
             'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 0,
@@ -357,6 +365,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8','3.5','7','14','21','28'],
         'modes': ['SSB'],
         'exchange': 'RS + N°serie (ex: 59 001)',
+        'cabrillo_name': 'CQ-WPX-SSB',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'type': 'prefix_multiplier',
             'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 1,
@@ -377,6 +387,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8','3.5','7','14','21','28'],
         'modes': ['CW'],
         'exchange': 'RST + N°serie (ex: 599 001)',
+        'cabrillo_name': 'CQ-WPX-CW',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'type': 'prefix_multiplier',
             'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 1,
@@ -397,6 +409,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8','3.5','7','14','21','28'],
         'modes': ['SSB'],
         'exchange': 'RS + état/province (W/VE) ou RS + power (DX)',
+        'cabrillo_name': 'ARRL-DX-SSB',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'type': 'power_state',
             'points': 3,
@@ -416,6 +430,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8','3.5','7','14','21','28'],
         'modes': ['CW'],
         'exchange': 'RST + état/province (W/VE) ou RST + power (DX)',
+        'cabrillo_name': 'ARRL-DX-CW',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'type': 'power_state',
             'points': 3,
@@ -435,6 +451,8 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8','3.5','7','14','21','28','50'],
         'modes': ['SSB','CW','FT8','FT4','RTTY'],
         'exchange': '[N°TX][Classe] [Section] — ex: 2A CT | DX: 2A DX',
+        'cabrillo_name': 'ARRL-FIELD-DAY',
+        'cabrillo_exchange': ['exch'],
         'scoring': {
             'type': 'fd_class',
             'points_phone': 1, 'points_cw': 2, 'points_digital': 2,
@@ -487,6 +505,8 @@ CONTEST_DEFINITIONS = {
         'duration_h': 48, 'start_utc': '00:00',
         'bands': ['3.5','7','14','21','28'], 'modes': ['SSB'],
         'exchange': 'RS + N°serie (QTC : heure/indicatif/n°)',
+        'cabrillo_name': 'WAE-DC-SSB',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':1}],
@@ -512,6 +532,8 @@ CONTEST_DEFINITIONS = {
         'duration_h': 48, 'start_utc': '00:00',
         'bands': ['3.5','7','14','21','28'], 'modes': ['RTTY'],
         'exchange': 'RST + N°serie (QTC entre continents différents)',
+        'cabrillo_name': 'WAE-DC-RTTY',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':1}],
@@ -746,6 +768,8 @@ CONTEST_DEFINITIONS = {
         'duration_h': 48, 'start_utc': '00:00',
         'bands': ['28'], 'modes': ['SSB','CW'],
         'exchange': 'RS(T) + état/province (W/VE) ou N°serie',
+        'cabrillo_name': 'ARRL-10-METER',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'bricks': {
                 'points': [
@@ -769,6 +793,8 @@ CONTEST_DEFINITIONS = {
         'duration_h': 42, 'start_utc': '22:00',
         'bands': ['1.8'], 'modes': ['CW'],
         'exchange': 'RST (+ section ARRL pour W/VE)',
+        'cabrillo_name': 'ARRL-160-METER',
+        'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':5}],

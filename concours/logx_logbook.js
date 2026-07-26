@@ -4415,87 +4415,24 @@ function exportEDI(){
   }, bands.length * 500 + 300);
 }
 
+// Le fichier Cabrillo est fabriqué PAR LE SERVEUR (logx_export.build_cabrillo).
+// Il y avait ici une seconde implémentation, complète et divergente : elle
+// détenait seule les noms officiels de concours, mais écrivait l'échange SANS
+// le compte-rendu (un CQ WW partait avec « 001 » au lieu de « 59 14 »),
+// n'émettait les lignes CATEGORY-* que pour le Field Day, et exportait qsoLog
+// sans le filtrage de portée concours+année qu'applique /log/export/cabrillo.
+// Deux générateurs pour un même fichier, c'est une divergence garantie : le
+// second est supprimé, les noms officiels sont passés dans les définitions de
+// concours (cabrillo_name), où le serveur les lit.
 function exportCabrillo(cfg, call){
-  const contestName = {
-    'ARRL_FD':       'ARRL-FIELD-DAY',
-    'ARRL_DX_SSB':   'ARRL-DX-SSB',
-    'ARRL_DX_CW':    'ARRL-DX-CW',
-    'CQ_WW_SSB':     'CQ-WW-SSB',
-    'CQ_WW_CW':      'CQ-WW-CW',
-    'CQ_WPX_SSB':    'CQ-WPX-SSB',
-    'CQ_WPX_CW':     'CQ-WPX-CW',
-    'IARU_HF':       'IARU-HF',
-    'WAE_CW':        'WAE-CW',
-    'WAE_SSB':       'WAE-SSB',
-    'REF_CDF_HF_SSB':'CDF-HF-SSB',
-    'REF_CDF_HF_CW': 'CDF-HF-CW',
-  }[currentContest] || currentContest;
-
-  const BAND_MHZ = {
-    '1.8':'1800','3.5':'3500','7':'7000','14':'14000',
-    '21':'21000','28':'28000','50':'50000',
-    '144':'144000','432':'432000',
-  };
-
-  const MODE_CAB = {'SSB':'PH','CW':'CW','FT8':'DG','FT4':'DG','RTTY':'RY','FM':'PH'};
-
-  const totalScore = qsoLog.reduce((s,q)=>s+(q.points||0),0);
-  const operators  = (cfg.operators||[]).map(o=>o.call).filter(Boolean).join(',') || call;
-
-  let cab = `START-OF-LOG: 3.0\r\n`;
-  cab += `CREATED-BY: LogX AI v3.0\r\n`;
-  cab += `CONTEST: ${contestName}\r\n`;
-  cab += `CALLSIGN: ${call||cfg.callsign||'F4GLD'}\r\n`;
-  cab += `OPERATORS: ${operators}\r\n`;
-  cab += `CLUB: ${cfg.club||''}\r\n`;
-  cab += `NAME: ${cfg.op_name||''}\r\n`;
-  cab += `ADDRESS: ${cfg.city||''}\r\n`;
-  cab += `ADDRESS-CITY: ${cfg.city||''}\r\n`;
-  cab += `ADDRESS-COUNTRY: ${cfg.country||'FRANCE'}\r\n`;
-  cab += `EMAIL: ${cfg.email||''}\r\n`;
-  cab += `LOCATION: ${cfg.section||''}\r\n`;
-
-  // ARRL FD spécifique : classe
-  if(currentContest === 'ARRL_FD'){
-    const nTx = cfg.operators?.length || 1;
-    const fdClass = cfg.section||'DX';
-    cab += `CATEGORY-OPERATOR: ${nTx>1?'MULTI-OP':'SINGLE-OP'}\r\n`;
-    cab += `CATEGORY-TRANSMITTER: ${nTx}\r\n`;
-    cab += `CATEGORY-POWER: ${parseInt(cfg.power||100)<=5?'QRP':parseInt(cfg.power||100)<=100?'LOW':'HIGH'}\r\n`;
-    cab += `CATEGORY-STATION: PORTABLE\r\n`;
-    cab += `CATEGORY-SECTION: ${fdClass}\r\n`;
-  }
-
-  cab += `CLAIMED-SCORE: ${totalScore}\r\n`;
-  cab += `\r\n`;
-
-  qsoLog.forEach(q=>{
-    const freq = BAND_MHZ[q.band] || q.band;
-    const mode = MODE_CAB[q.mode] || 'PH';
-    const date = `${q.date.slice(0,4)}-${q.date.slice(4,6)}-${q.date.slice(6,8)}`;
-    const time = q.time.replace(':','');
-    const myExch = q.num_sent || '001';
-    const dxExch = q.num_rcvd || '001';
-    // QSO: freq mode date time mycall sent dxcall rcvd
-    cab += `QSO: ${freq.padEnd(6)} ${mode} ${date} ${time} ${(call||'F4GLD').padEnd(13)} ${String(myExch).padEnd(6)} ${q.call.padEnd(13)} ${dxExch}\r\n`;
-  });
-
-  cab += `END-OF-LOG:\r\n`;
-
-  const blob = new Blob([cab],{type:'text/plain;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  const year = (cfg.contest_start_date||'').slice(0,4) || new Date().getUTCFullYear();
-  a.download = `${(call||'F4GLD').replace('/','_')}_${currentContest}_${year}.log`;
-  a.click();
-
-  setTimeout(()=>{
-    const submitUrl = cfg.submit_url || '';
-    const deadline  = cfg.submit_deadline || '';
-    const urlPart = submitUrl ? trF('\nURL soumission : {url}', {url: submitUrl}) : '';
-    const deadlinePart = deadline ? trF('\nDélai : {d}', {d: deadline}) : '';
-    notify(trF('📤 FICHIER CABRILLO GÉNÉRÉ\n\nConcours : {contest}\nQSOs : {n} — Score déclaré : {score} pts{url}{deadline}',
-      {contest: contestName, n: qsoLog.length, score: totalScore, url: urlPart, deadline: deadlinePart}));
+  const nom = (CONTEST_SCHEDULE[currentContest] || {}).name || currentContest;
+  const score = qsoLog.reduce((s, q) => s + (q.points || 0), 0);
+  // Téléchargement par navigation : le serveur pose déjà Content-Disposition
+  // avec le bon nom de fichier, et le cookie de session part avec la requête.
+  window.location.href = '/log/export/cabrillo';
+  setTimeout(() => {
+    notify(trF('📤 FICHIER CABRILLO GÉNÉRÉ\n\nConcours : {contest}\nQSOs : {n} — Score déclaré : {score} pts',
+      {contest: nom, n: qsoLog.length, score: score}));
   }, 400);
 }
 
