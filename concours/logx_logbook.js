@@ -3832,11 +3832,38 @@ const DEFAULT_MACROS = [
 ];
 function getMacros(){ try{ const s=localStorage.getItem('logx_macros'); return s?JSON.parse(s):DEFAULT_MACROS; }catch(e){ return DEFAULT_MACROS; } }
 function saveMacros(m){ localStorage.setItem('logx_macros', JSON.stringify(m)); }
+// {NR} doit valoir EXACTEMENT le numéro qui sera loggué : la macro F2
+// (« 59 {NR} {LOC} ») part directement au keyer de la radio via copyMacro() →
+// POST /rig/cw, y compris automatiquement en mode ESM (esmSend('exchange')).
+// La seule source de vérité est donc le champ N° ENVOYÉ (#inputNumSent), tenu
+// à jour par updateSerialDisplay() à partir de serialByBand[bande] — le n° de
+// série est alloué PAR BANDE et par portée concours (nextSerial() →
+// /log/next_serial → logx_storage.allocate_next_serial), et c'est cette
+// valeur-là qui finit dans num_sent puis dans l'EDI/Cabrillo.
+//
+// L'ancien calcul, String(qsoLog.length+1), comptait TOUS les QSO de l'édition
+// toutes bandes confondues (et, en multi-poste, ceux loggués par les autres
+// opérateurs sur les autres bandes) : les deux formules ne coïncidaient que sur
+// un concours mono-bande sans trou. Dès le premier QSO d'une deuxième bande —
+// cas normal en IARU UHF/SHF, Marconi, Rallye des Points Hauts, CQ WPX… — la
+// radio envoyait sur l'air un numéro absent du log, et l'écart croissait à
+// chaque QSO ; le correspondant note un numéro introuvable au cross-check, les
+// deux QSO tombent, et l'opérateur n'a aucun recours (champ readOnly par
+// conception, cf. updateSerialDisplay). Le chemin VOCAL (sendVoiceDynMacro)
+// lisait déjà ce même champ : seul le chemin CW était resté sur le compteur global.
 function expandMacro(text){
   const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
   const call = cfg.callsign || myCall || '—';
   const loc  = cfg.locator  || myLocator || '—';
-  const nr   = String(qsoLog.length + 1).padStart(3,'0');
+  const nrEl = document.getElementById('inputNumSent');
+  const nrField = nrEl ? String(nrEl.value || '').trim() : '';
+  // Repli si le champ n'est pas encore renseigné (panneau macros rendu avant
+  // le premier updateSerialDisplay()) : même formule que l'affichage, jamais
+  // un compteur global. Pour un échange non sériel (zone, dept, classe…) il
+  // n'y a rien à prédire : on laisse la valeur du champ telle quelle.
+  const nr = nrField || (currentExchange.auto_serial
+    ? String((serialByBand[currentBand] || 0) + 1).padStart(3,'0')
+    : '');
   return text.replace(/{CALL}/g,call).replace(/{LOC}/g,loc).replace(/{NR}/g,nr);
 }
 function renderMacroPanel(){
