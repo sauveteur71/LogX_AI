@@ -58,6 +58,26 @@ let serverContest = '';
   }catch(e){}
 })();
 
+// ─── POINTS : uniquement si un concours est sélectionné ──────────────────────
+// Miroir EXACT de contest_actif() (logx_storage.py) : faux en mode 'simple',
+// faux aussi en mode concours tant qu'aucun concours n'est choisi. Sans
+// concours, currentContest retombe sur 'REF_RPH' (voir juste dessous) et le
+// barème produit 1 pt/km : un total parfaitement calculé, mais qu'aucun
+// règlement ne compte. On ne l'affiche donc pas. Les pages qui reçoivent déjà
+// un payload serveur (CARTE, CHASSE, panneau détaché) lisent le drapeau
+// calculé par le serveur ; le logbook, lui, totalise localement — d'où ce
+// miroir. Si la règle change côté serveur, elle doit changer ICI aussi.
+function contestActif(){
+  let cfg = {};
+  try{ cfg = JSON.parse(localStorage.getItem('logx_config')||'{}'); }catch(e){}
+  return cfg.usage_mode !== 'simple' && !!String(cfg.contest||'').trim();
+}
+// Pose/retire la classe qui masque les affichages de points (règles CSS
+// body.sans-concours dans logx_logbook.html).
+function applyContestActifToLogbook(){
+  if(document.body) document.body.classList.toggle('sans-concours', !contestActif());
+}
+
 let currentContest = window._initContest || 'REF_RPH';
 let currentBand    = (['ARRL_FD','ARRL_DX_SSB','ARRL_DX_CW','CQ_WW_SSB','CQ_WW_CW',
                        'CQ_WPX_SSB','CQ_WPX_CW','REF_CDF_HF_SSB','REF_CDF_HF_CW','IARU_HF']
@@ -196,6 +216,9 @@ function applyUsageModeToLogbook(mode){
   const archiveBtn = document.getElementById('archiveBtn');
   if(archiveBtn) archiveBtn.style.display = simple ? 'none' : '';
   document.body.classList.toggle('usage-simple', simple);
+  // Appliqué aussi ici : updateStats() ne tourne qu'une fois le log chargé,
+  // or la colonne PTS du tableau et le compas existent dès l'ouverture.
+  applyContestActifToLogbook();
 }
 
 // ─── ACTIVATION POTA/SOTA/IOTA/WWFF/ARLHS/WCA ────────────────────────────────
@@ -3604,6 +3627,11 @@ function updateStats(){
     rateStr = `${win60}/h · ~${proj !== null ? proj : '—'}`;
   }
 
+  // Recalculé à chaque rafraîchissement de la bannière plutôt qu'au seul
+  // changement de concours : ça garde l'affichage juste quel que soit le
+  // chemin par lequel la config a changé (CONFIG, chargement de profil,
+  // synchro multi-poste), sans devoir traquer chaque point d'appel.
+  applyContestActifToLogbook();
   document.getElementById('sbQsoLbl').textContent  = qsoLbl;
   document.getElementById('sbTotal').textContent   = total.toLocaleString() + ' pts';
   document.getElementById('sbQso').textContent     = qsoVal;

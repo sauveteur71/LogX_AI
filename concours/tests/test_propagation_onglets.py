@@ -73,11 +73,21 @@ def _nb_panneaux(frag):
 
 
 def _panes(src):
-    """{ nom d'onglet -> fragment HTML de l'onglet }."""
+    """{ nom d'onglet -> fragment HTML de l'onglet }.
+
+    L'invariant verifie ici est « chaque onglet existe et delimite ses
+    panneaux », PAS la liste exacte de ses classes CSS : un onglet peut poser
+    la maconnerie multi-colonnes sur lui-meme (class="prop-cols prop-pane") ou
+    la deleguer a un conteneur interne quand un panneau doit rester en pleine
+    largeur au-dessus des autres — c'est le cas de HF depuis qu'OUVERTURES PAR
+    REGION, un tableau de 5 colonnes, en est sorti. Figer la chaine complete
+    faisait echouer les 5 tests du fichier pour un simple deplacement de
+    classe, sans qu'aucun onglet ne soit reellement casse.
+    """
     out = {}
     for nom in ONGLETS:
         m = re.search(
-            r'<div class="prop-cols prop-pane" id="propPane-%s"(.*?)'
+            r'<div class="[^"]*\bprop-pane\b[^"]*" id="propPane-%s"(.*?)'
             r'</div><!-- /propPane-%s -->' % (nom, nom), src, flags=re.DOTALL)
         assert m, "onglet introuvable dans logx_propagation.html : " + nom
         out[nom] = m.group(1)

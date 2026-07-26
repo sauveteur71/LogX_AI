@@ -113,14 +113,17 @@ if(localStorage.getItem('rc_theme') === null){
       if(!r.ok) return;
       const d = await r.json();
       const spots = (d.spots || []).slice(0, 40);
+      // Sans concours sélectionné, le barème retombe sur 1 pt/km : le tri
+      // reste bon mais le chiffre ne compte pour rien — on ne l'affiche pas.
+      const contestActif = !!((d.meta || {}).contest_actif);
       if(!spots.length){ body.innerHTML = '<div class="empty">Aucun spot exploitable</div>'; return; }
       body.innerHTML = spots.map(s => `
         <div class="row">
           <span class="call ${s.already_done?'done':''}">${s.new_mult&&!s.already_done?'★ ':''}${esc(s.call)}</span>
           <span class="muted">${esc(s.freq||'')}</span>
           <span class="muted">${esc(s.band)} MHz</span>
-          <span class="${s.new_mult&&!s.already_done?'mult':''}">${s.already_done?'déjà fait':'+' + (s.value||s.points||0) + ' pts'}</span>
-          <span class="info" title="${esc(s.explanation||'')}">${esc(s.info || s.spotter || '')}</span>
+          <span class="${s.new_mult&&!s.already_done?'mult':''}">${s.already_done?'déjà fait':(contestActif?'+' + (s.value||s.points||0) + ' pts':'nouveau')}</span>
+          <span class="info" title="${contestActif?esc(s.explanation||''):''}">${esc(s.info || s.spotter || '')}</span>
         </div>`).join('');
     }catch(e){ /* serveur injoignable */ }
   }

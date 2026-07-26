@@ -257,6 +257,21 @@ def cfg_scope_id(cfg):
     return active_scope_id(cfg)
 
 
+def contest_actif(cfg):
+    """Un concours est-il RÉELLEMENT sélectionné ? Source unique de vérité
+    pour l'affichage des points/scores dans toutes les pages.
+
+    Sans concours (mode 'simple', ou mode concours sans concours choisi), le
+    moteur de scoring retombe sur le préréglage 'km' de REF_RPH — il produit
+    donc des « points » (1 pt/km) parfaitement calculés mais qui ne veulent
+    rien dire : aucun règlement ne les compte. Les afficher fait croire à un
+    score. On s'appuie sur cfg_scope_id() plutôt que de retester
+    usage_mode/contest page par page : c'est exactement la même question, et
+    la dupliquer à la main est ce qui avait produit la dérive de
+    CONTEST_FILTERS."""
+    return bool(cfg_scope_id(cfg))
+
+
 # ─── N° DE SÉRIE PAR BANDE (allocation serveur) ──────────────────────────────
 # Avant : chaque poste incrémentait son propre compteur CÔTÉ CLIENT
 # (logx_logbook.js:nextSerial, et un simple champ texte libre côté mobile) —

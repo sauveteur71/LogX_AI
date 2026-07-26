@@ -86,6 +86,19 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:2
 
 /* SCORE BANNER */
 .score-banner{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+/* Sans concours sélectionné, le barème retombe sur le repli 1 pt/km : les
+   points restent justes arithmétiquement mais aucun règlement ne les compte,
+   et un « SCORE TOTAL » laisse croire à un classement. On les masque — la
+   distance, le nombre de QSO et le meilleur DX, eux, restent vrais et
+   affichés. Classe posée par contestActif() (logx_logbook.js), miroir de
+   contest_actif() côté serveur. En mode 'simple' toute la bannière est déjà
+   masquée par applyUsageModeToLogbook() : ces règles couvrent le cas
+   restant, le mode concours AVANT d'avoir choisi un concours. */
+body.sans-concours #sbTotalItem,
+body.sans-concours .td-pts,
+body.sans-concours .th-pts,
+body.sans-concours .lqi-pts,
+body.sans-concours .compass-pts{display:none}
 .sb-item{flex:1;padding:5px 16px;border-right:1px solid var(--border);text-align:center}
 .sb-item:last-child{border-right:none}
 .sb-lbl{font-size:13px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
@@ -893,7 +906,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
 <!-- SCORE BANNER -->
 <div class="score-banner">
-  <div class="sb-item"><div class="sb-lbl">SCORE TOTAL</div><div class="sb-val rc-i18n-live" id="sbTotal" style="color:var(--accent)">0 pts</div></div>
+  <div class="sb-item" id="sbTotalItem"><div class="sb-lbl">SCORE TOTAL</div><div class="sb-val rc-i18n-live" id="sbTotal" style="color:var(--accent)">0 pts</div></div>
   <div class="sb-item"><div class="sb-lbl" id="sbQsoLbl">QSO</div><div class="sb-val rc-i18n-live" id="sbQso" style="color:var(--green)">0</div></div>
   <div class="sb-item"><div class="sb-lbl">MEILLEUR DX</div><div class="sb-val rc-i18n-live" id="sbBestDX" style="color:var(--yellow);font-size:14px">—</div></div>
   <div class="sb-item"><div class="sb-lbl" id="sbMultsLbl">LOCATORS UNIQUES</div><div class="sb-val rc-i18n-live" id="sbMults" style="color:var(--accent2)">0</div></div>
@@ -1312,7 +1325,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
             <th>REÇU</th>
             <th>LOCATOR</th>
             <th>DIST/CAP</th>
-            <th>PTS</th>
+            <th class="th-pts">PTS</th>
             <th>OP</th>
             <th></th>
           </tr>
