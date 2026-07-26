@@ -68,7 +68,16 @@ réseau local, l'écran mural, le décodeur CW dans le navigateur, et 8 langues 
 
 Classés par ce qu'ils coûtent, pas par leur difficulté.
 
-### 1. L'opération au clavier — manquant, effort faible
+> **État au 27 juillet 2026.** Cinq de ces huit points ont été traités dans la
+> nuit du 26 au 27 juillet. Les descriptions ci-dessous sont conservées telles
+> qu'elles étaient au moment du constat — c'est ce qui rend la correction
+> lisible —, avec l'état réel en tête de chaque section.
+>
+> Reste à faire : le **band map Search & Pounce** (6), le **RTTY** (7), le
+> **SO2R** (8), et le volet **WinKeyer matériel** du point 3, seul capable de
+> couvrir Icom et Yaesu.
+
+### 1. L'opération au clavier — ✅ FAIT (commit 87d6c6d)
 
 C'est la promesse commune de N1MM, Win-Test et DXLog : **tout faire sans quitter le
 clavier**. F1 à F8 pour les macros, Tab entre les champs, Ctrl+W pour effacer.
@@ -83,7 +92,7 @@ c'est ce qu'un contester teste dans les cinq premières minutes. S'il doit viser
 excellent — ESM, autocomplétion, focus qui revient sur l'indicatif. Il manque
 l'interception des touches.
 
-### 2. Cabrillo réellement soumissible — présent mais non conforme, effort moyen
+### 2. Cabrillo réellement soumissible — ✅ FAIT (commits 1c7ae46 et ed97c38)
 
 C'est l'argument le plus cité en faveur de N1MM : *« un log presque toujours parfait et
 prêt à soumettre »*. Les robots de réception (CQ WW, WPX, ARRL, IARU) refusent ou
@@ -104,7 +113,7 @@ Un week-end entier de trafic peut être déclassé pour une ligne d'en-tête. C'
 précis où la confiance dans un logiciel se gagne ou se perd. *(L'export EDI, lui, est
 irréprochable.)*
 
-### 3. Manipulation CW — absent dans le mode par défaut, effort moyen
+### 3. Manipulation CW — ⚠️ PARTIELLEMENT FAIT (commit 9259953)
 
 Plus sérieux que je ne l'avais écrit. Le CW n'existe qu'en TCI et rigctld. Le mode
 **« Natif (recommandé) »** — celui que la page CONFIG pousse par défaut pour Icom, Yaesu,
@@ -119,7 +128,14 @@ fait du contest CW, avec une régularité que les commandes CAT n'atteignent pas
 texte CW. Le WinKeyer est donc la vraie réponse, avec la commande `KY` en bonus pour
 Kenwood et Elecraft.
 
-### 4. Support des transverters — manquant, effort faible
+**Fait :** la commande `KY` est branchée en mode Natif pour **Kenwood et Elecraft**. Icom
+reste sans manipulation native (CI-V n'a pas la commande) et Yaesu est volontairement
+écarté — sa commande équivalente n'a pas la même signification selon les modèles, et
+l'envoyer à l'aveugle mettrait n'importe quoi sur l'air. Le **WinKeyer matériel**, qui
+couvrirait ces deux marques, reste à faire. Aucune radio n'a été branchée : les trames
+sont vérifiées octet par octet contre la documentation constructeur, pas sur l'air.
+
+### 4. Support des transverters — ✅ FAIT (commit 06a1be3)
 
 Zéro occurrence dans tout le dépôt. Sur 1296, 2320, 5760, 10 GHz et au-delà, la radio
 affiche la FI et non la fréquence réelle : sans table d'offsets, le CAT choisit la
@@ -131,7 +147,7 @@ déclarées partout** dans LogX AI (CONFIG, band map, EDI) : il ne manque que la
 son application. Et le public concerné — Rallye des Points Hauts, National THF, F8TD SHF,
 Challenge THF — est exactement celui que LogX AI vise.
 
-### 5. Keyer vocal vers la radio — présent mais inopérant, effort faible
+### 5. Keyer vocal vers la radio — ✅ FAIT (commit 2d762d1)
 
 `voicePlay()` fait un simple `new Audio().play()` : sortie par défaut du navigateur,
 aucune sélection de périphérique, aucun PTT. Les WAV vivent dans le navigateur, donc
@@ -171,6 +187,9 @@ l'écart relève du prestige plutôt que de l'usage** pour le public francophone
 REF / IARU / activations que LogX AI vise. À faire en dernier.
 
 ## Ce que je recommanderais
+
+*(Section rédigée avant les travaux ; l'ordre a été suivi. Les cinq premiers
+points sont faits, sauf le volet WinKeyer matériel du point 5.)*
 
 **D'abord, parce que c'est peu de travail pour beaucoup d'effet :**
 
