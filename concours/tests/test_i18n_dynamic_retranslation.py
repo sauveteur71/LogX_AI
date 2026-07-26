@@ -54,23 +54,47 @@ function matchSel(n, sel){
   if(!n || !sel) return false;
   if(sel[0]==='#') return n.id === sel.slice(1);
   if(sel[0]==='.') return (' '+(n.className||'')+' ').indexOf(' '+sel.slice(1)+' ') >= 0;
+  // Sélecteur d'attribut « [title] » : indispensable pour que le bloc
+  // title/placeholder de walk() tourne pour de vrai. Un querySelectorAll qui
+  // renvoyait [] en dur (l'état antérieur de ce faux DOM) rendait ce bloc
+  // INEXÉCUTABLE en test — c'est précisément pour ça que l'oscillation
+  // fr ⇄ langue cible des infobulles n'a jamais été vue ici.
+  if(sel[0]==='[' && sel[sel.length-1]===']'){
+    var a = sel.slice(1, -1);
+    return n.nodeType === 1 && !!n.getAttribute && n.getAttribute(a) !== null;
+  }
   return (n.tagName||'').toLowerCase() === sel.toLowerCase();
+}
+// Liste de sélecteurs séparés par des virgules, comme « [title],[placeholder] ».
+function matchSelAny(n, sel){
+  return String(sel).split(',').some(function(s){ return matchSel(n, s.trim()); });
 }
 function makeText(value){
   return {nodeType:3, nodeValue:value, parentNode:null, parentElement:null};
 }
 function makeEl(tag){
   var node = {nodeType:1, tagName:(tag||'DIV').toUpperCase(), id:'', className:'',
-              parentNode:null, parentElement:null, childNodes:[], style:{}};
+              parentNode:null, parentElement:null, childNodes:[], style:{}, dataset:{}};
   node.nodeName = node.tagName;
   node.appendChild = function(child){ child.parentNode = node; child.parentElement = node; node.childNodes.push(child); return child; };
   node.insertBefore = function(child){ child.parentNode = node; child.parentElement = node; node.childNodes.unshift(child); return child; };
-  node.setAttribute = function(k,v){ node[k]=v; };
+  node.setAttribute = function(k,v){ node[k]=String(v); };
   node.getAttribute = function(k){ return (k in node) ? node[k] : null; };
   node.addEventListener = function(){};
   node.removeEventListener = function(){};
   node.querySelector = function(){ return null; };
-  node.querySelectorAll = function(){ return []; };
+  // Parcours réel du sous-arbre (éléments seulement), au lieu du [] en dur.
+  node.querySelectorAll = function(sel){
+    var out = [];
+    (function collect(n){
+      (n.childNodes||[]).forEach(function(c){
+        if(c.nodeType !== 1) return;
+        if(matchSelAny(c, sel)) out.push(c);
+        collect(c);
+      });
+    })(node);
+    return out;
+  };
   node.closest = function(sel){
     var n = node;
     while(n){ if(matchSel(n, sel)) return n; n = n.parentNode; }
@@ -151,7 +175,13 @@ var document = {
   }
 };
 var window = this;
-window.addEventListener = function(){};
+// Le listener `storage` est capturé (comme le callback du MutationObserver) :
+// c'est le seul chemin exposé qui rejoue applyLang() avec une langue
+// arbitraire — dont 'fr', que window.rcTranslate() refuse par conception.
+// Réaliste : c'est ce qui se produit quand la langue est changée dans un AUTRE
+// onglet de l'application.
+var __storageCb = null;
+window.addEventListener = function(type, cb){ if(type === 'storage') __storageCb = cb; };
 window.removeEventListener = function(){};
 """
 
@@ -428,3 +458,151 @@ def test_titre_sans_correspondance_reste_inchange():
     """)
     ctx.eval(_real_source())
     assert ctx.eval('document.title') == 'Titre sans correspondance possible'
+
+
+# ─── 4) title / placeholder : oscillation fr ⇄ langue cible (26/07/2026) ────
+# Défaut PRÉ-EXISTANT, mesuré en navigateur réel (Chrome headless, CDP) sur
+# logx_propagation.html en rc_lang=de : les infobulles OSCILLAIENT entre le
+# français et l'allemand — français à t+0..2s, allemand à t+3..7s, français à
+# t+8..11s — et, de façon déterministe, 4 appels consécutifs à rcTranslate()
+# donnaient DE, FR, DE, FR.
+#
+# Cause : le bloc « Attributs title / placeholder » de walk() partait de la
+# valeur COURANTE de l'attribut au lieu du français mémorisé. Passe 1 : valeur =
+# français, clé trouvée → allemand écrit. Passe 2 : valeur = allemand,
+# dict['<allemand>'] est undefined → la branche de restauration remettait le
+# français. Etc. Comme le MutationObserver relance une passe toutes les ~800 ms
+# sur une page qui mute en permanence (barre de statut, panneaux), le
+# clignotement était perpétuel. C'est exactement le piège que translateText()
+# évitait déjà pour les nœuds texte via ORIG (« toujours partir du FRANÇAIS
+# d'origine ») : le bloc attributs n'appliquait pas cette règle.
+#
+# UNE SEULE passe ne reproduit pas le défaut — d'où la double passe systématique
+# ci-dessous. Portée : TOUS les title/placeholder de TOUTES les pages
+# (22 éléments porteurs de title sur la seule page propagation).
+
+# Vraie infobulle de logx_propagation.html (#propTabBtn-heard), celle sur
+# laquelle l'oscillation a été mesurée ; présente dans les 7 langues.
+TOOLTIP_FR = "Où mon signal est réellement décodé : PSK Reporter et skimmers RBN"
+
+
+def _page_avec_infobulle(lang, titre=TOOLTIP_FR):
+    """DOM minimal reproduisant un onglet porteur d'un `title` traduisible."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    localStorage.setItem('rc_lang', %r);
+    var btn = document.createElement('button');
+    btn.id = 'propTabBtn-heard';
+    btn.setAttribute('title', %r);
+    document.body.appendChild(btn);
+    """ % (lang, titre))
+    ctx.eval(_real_source())   # init() → applyLang() : 1re passe
+    return ctx
+
+
+def test_title_ne_revient_pas_au_francais_a_la_seconde_passe():
+    """LE test de non-régression : quatre passes consécutives doivent toutes
+    laisser l'infobulle dans la langue choisie. AVANT correctif la séquence
+    était DE, FR, DE, FR."""
+    ctx = _page_avec_infobulle('de')
+    attendu = ctx.eval("(window.rcT(%r))" % TOOLTIP_FR)
+    assert attendu != TOOLTIP_FR, "prérequis : la clé doit être traduite en allemand"
+    assert ctx.eval("btn.getAttribute('title')") == attendu
+    for passe in range(2, 6):
+        ctx.eval("window.rcTranslate();")
+        assert ctx.eval("btn.getAttribute('title')") == attendu, (
+            "passe %d : le title est retombé en français (oscillation)" % passe)
+
+
+def test_placeholder_ne_revient_pas_au_francais_a_la_seconde_passe():
+    """Même défaut, même bloc de code : `placeholder` doit rester traduit d'une
+    passe à l'autre (champs de saisie du log, de la config…).
+
+    Le contrôle est fait après CHAQUE passe, jamais seulement à la fin : le
+    défaut inversant la valeur à chaque passe, un nombre PAIR de passes
+    retombait sur la bonne valeur et le test passait alors qu'il clignotait —
+    la même raison, exactement, qui a fait que personne n'a jamais vu ce
+    défaut."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    localStorage.setItem('rc_lang', 'en');
+    var inp = document.createElement('input');
+    inp.setAttribute('placeholder', 'Règlement');   // clé connue du dictionnaire
+    document.body.appendChild(inp);
+    """)
+    ctx.eval(_real_source())
+    assert ctx.eval("inp.getAttribute('placeholder')") == 'Rules'
+    for passe in range(2, 6):
+        ctx.eval("window.rcTranslate();")
+        assert ctx.eval("inp.getAttribute('placeholder')") == 'Rules', (
+            "passe %d : le placeholder est retombé en français (oscillation)" % passe)
+
+
+def test_title_reecrit_en_francais_par_lapplication_est_retraduit():
+    """Piège du mémo PÉRIMÉ (même raisonnement que LAST_OUT côté texte) :
+    certains `title` sont RÉÉCRITS dynamiquement en français par l'application
+    (item.title = … dans refreshBeacon()/refreshStorm() de logx_statusbar.js,
+    badge/bouton/peers dans logx_logbook.js). La passe suivante doit traduire ce
+    NOUVEAU libellé, et surtout PAS restaurer l'ancien français mémorisé
+    par-dessus — ce qui afficherait une infobulle sans rapport avec l'état
+    courant, pire que pas de traduction du tout."""
+    ctx = _page_avec_infobulle('en', 'Règlement')
+    assert ctx.eval("btn.getAttribute('title')") == 'Rules'
+
+    # L'application pose un nouveau libellé français sur le MÊME élément.
+    ctx.eval("btn.setAttribute('title', 'Postes connectés :');")
+    ctx.eval("window.rcTranslate();")
+    assert ctx.eval("btn.getAttribute('title')") == 'Connected stations:', (
+        "le nouveau libellé doit être traduit sur SA PROPRE clé, pas remplacé "
+        "par la traduction (ou le français) du libellé précédent")
+    # Et il ne doit pas osciller non plus.
+    ctx.eval("window.rcTranslate(); window.rcTranslate();")
+    assert ctx.eval("btn.getAttribute('title')") == 'Connected stations:'
+
+
+def test_title_non_traduisible_reecrit_par_lapplication_nest_pas_ecrase():
+    """Variante du mémo périmé sans traduction disponible : un `title` posé par
+    l'application et absent du dictionnaire doit rester TEL QUEL, et non se
+    faire remplacer par l'ancien français mémorisé."""
+    ctx = _page_avec_infobulle('en', 'Règlement')
+    assert ctx.eval("btn.getAttribute('title')") == 'Rules'
+    ctx.eval("btn.setAttribute('title', 'Balises actives : DL0IGI, 4U1UN');")
+    ctx.eval("window.rcTranslate(); window.rcTranslate();")
+    assert ctx.eval("btn.getAttribute('title')") == 'Balises actives : DL0IGI, 4U1UN', (
+        "un libellé hors dictionnaire posé par l'application a été écrasé par "
+        "le mémo périmé")
+
+
+def test_changement_de_langue_traduit_depuis_le_francais_pas_depuis_la_precedente():
+    """Le corollaire direct de la règle : après en → de, la cible doit être
+    l'allemand. Traduire depuis la valeur courante (l'anglais) ne trouverait
+    aucune clé et laisserait l'attribut en anglais ou le renverrait au
+    français."""
+    ctx = _page_avec_infobulle('en')
+    en = ctx.eval("(window.rcT(%r))" % TOOLTIP_FR)
+    ctx.eval("localStorage.setItem('rc_lang', 'de');")
+    de = ctx.eval("(window.rcT(%r))" % TOOLTIP_FR)
+    assert de != en, "prérequis : les traductions en et de doivent différer"
+    ctx.eval("window.rcTranslate();")
+    assert ctx.eval("btn.getAttribute('title')") == de
+
+
+def test_retour_au_francais_restaure_le_title_dorigine_et_sy_tient():
+    """Le retour à 'fr' (dictionnaire vide) doit restaurer le français source —
+    et rester stable, sans repartir dans l'autre sens."""
+    ctx = _page_avec_infobulle('de')
+    assert ctx.eval("btn.getAttribute('title')") != TOOLTIP_FR
+    # Langue repassée à 'fr' (ici via l'événement storage : un autre onglet).
+    ctx.eval("localStorage.setItem('rc_lang', 'fr'); __storageCb({key:'rc_lang', newValue:'fr'});")
+    assert ctx.eval("btn.getAttribute('title')") == TOOLTIP_FR
+    ctx.eval("__storageCb({key:'rc_lang', newValue:'fr'});")
+    assert ctx.eval("btn.getAttribute('title')") == TOOLTIP_FR
+
+
+def test_title_hors_dictionnaire_reste_intact_sur_plusieurs_passes():
+    """Non-régression inverse : un `title` sans correspondance ne doit être ni
+    vidé, ni modifié, quel que soit le nombre de passes."""
+    ctx = _page_avec_infobulle('de', 'Infobulle sans aucune correspondance')
+    for _ in range(3):
+        ctx.eval("window.rcTranslate();")
+        assert ctx.eval("btn.getAttribute('title')") == 'Infobulle sans aucune correspondance'

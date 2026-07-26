@@ -3246,6 +3246,48 @@
     TITLE_OUT = out;
   }
 
+  // ─── Attributs title / placeholder ──────────────────────────────────────
+  // MÊME RÈGLE QUE translateText() : toujours partir du FRANÇAIS d'origine.
+  // L'ancien code partait de la valeur COURANTE de l'attribut, ce qui le
+  // faisait OSCILLER entre les deux langues d'une passe à l'autre : passe 1,
+  // valeur = français, clé trouvée → on écrit l'allemand ; passe 2, valeur =
+  // allemand, dict['<allemand>'] est undefined → la branche de restauration
+  // remettait le français ; passe 3, re-traduit… Comme le MutationObserver
+  // relance une passe toutes les ~800 ms sur une page qui mute en permanence
+  // (barre de statut, panneaux), les infobulles CLIGNOTAIENT indéfiniment —
+  // mesuré en navigateur réel sur logx_propagation.html en rc_lang=de. Le
+  // texte des nœuds, lui, était correct : seul ce bloc ignorait la règle.
+  //
+  // Deux mémos par élément et par attribut, exactement l'équivalent de
+  // ORIG/LAST_OUT pour les nœuds texte :
+  //   data-__i18n_<attr>    → le FRANÇAIS source (même clé qu'avant)
+  //   data-__i18nout_<attr> → la dernière valeur ÉCRITE PAR CE MOTEUR
+  // Le second est indispensable, et pas seulement par symétrie : beaucoup de
+  // `title` sont RÉÉCRITS en français par l'application au fil de l'eau
+  // (item.title = … dans refreshBeacon()/refreshStorm() de logx_statusbar.js,
+  // badge/bouton/peers dans logx_logbook.js). Sans lui, impossible de
+  // distinguer « l'attribut porte encore NOTRE traduction » de « l'application
+  // vient d'y poser un nouveau libellé français », et la passe suivante
+  // restaurerait le VIEUX français mémorisé par-dessus le nouveau.
+  function translateAttr(dict, el, attr) {
+    const cur = el.getAttribute(attr);
+    if (cur === null) return;
+    const okey = '__i18n_' + attr;      // français source
+    const lkey = '__i18nout_' + attr;   // dernière écriture du moteur
+    const ds = el.dataset;
+    // Jamais vu, ou valeur posée par l'APPLICATION depuis notre dernière
+    // écriture → c'est cette valeur qui devient le français source.
+    if (ds[okey] === undefined || (ds[lkey] !== undefined && ds[lkey] !== cur)) {
+      ds[okey] = cur;
+    }
+    const raw = ds[okey];
+    const key = raw.trim();
+    // dict vide (retour au français) ou clé absente → le français d'origine.
+    const out = (key && dict[key] !== undefined) ? raw.replace(key, dict[key]) : raw;
+    if (cur !== out) el.setAttribute(attr, out);
+    ds[lkey] = out;
+  }
+
   function walk(dict, root) {
     // Nœuds de texte
     const it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -3275,18 +3317,10 @@
     const nodes = [];
     let n; while ((n = it.nextNode())) nodes.push(n);
     nodes.forEach(node => translateText(dict, node));
-    // Attributs title / placeholder
+    // Attributs title / placeholder (voir translateAttr : toujours repartir du
+    // français mémorisé, jamais de la valeur courante).
     root.querySelectorAll('[title],[placeholder]').forEach(el => {
-      ['title', 'placeholder'].forEach(attr => {
-        const v = el.getAttribute(attr);
-        if (v && dict[v.trim()] !== undefined) {
-          const okey = '__i18n_' + attr;
-          if (!el.dataset[okey]) el.dataset[okey] = v;
-          el.setAttribute(attr, dict[v.trim()]);
-        } else if (el.dataset['__i18n_' + attr]) {
-          el.setAttribute(attr, el.dataset['__i18n_' + attr]);
-        }
-      });
+      ['title', 'placeholder'].forEach(attr => translateAttr(dict, el, attr));
     });
     // Titre de l'onglet : appelé ICI plutôt qu'auprès de chacun des trois
     // appels à walk() (applyLang ×2 + rcTranslate), pour qu'aucun chemin de
