@@ -326,7 +326,19 @@
   // côté serveur) plutôt que de chercher le mot « ORAGE » dans la phrase
   // d'alerte française, qui ne survivrait ni à un reformulage ni à la
   // traduction de l'interface.
+  // Reprise courte après un cache serveur froid — justification sous la
+  // fonction, avec celle du 1er appel dans boot().
+  const STORM_RETRY_MS = 3000;
+  const STORM_RETRY_MAX = 5;
+  let _stormRetries = 0;
+  // Point d'entrée « normal » (boot + tic rcPoll) : ouvre un nouveau budget de
+  // reprises rapprochées. Les reprises, elles, rappellent fetchStorm() pour ne
+  // pas remettre le compteur à zéro et boucler indéfiniment.
   function refreshStorm(){
+    _stormRetries = STORM_RETRY_MAX;
+    fetchStorm();
+  }
+  function fetchStorm(){
     fetch('/data/weather').then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
         const item = document.getElementById('rcsbStormItem');
@@ -336,7 +348,23 @@
         // Pas de locator, ou cache encore vide au tout premier chargement :
         // on n'affiche rien plutôt qu'un « — » que l'opérateur prendrait pour
         // une absence d'orage constatée.
-        if (!d || !d.ok){ item.style.display = 'none'; return; }
+        if (!d || !d.ok){
+          item.style.display = 'none';
+          // ... mais on RÉESSAIE tout de suite, quelques fois. Le serveur ne
+          // préchauffe pas son cache météo : get_weather_cached() (logx_weather
+          // .py) répond ok:false + stale:true au tout premier appel du process
+          // ET après tout changement de locator, en lançant seulement un
+          // rafraîchissement de fond — la donnée arrive ~1 à 2 s plus tard.
+          // Sans reprise, le seul autre déclencheur est le tic rcPoll : la
+          // pastille « débranche les antennes » resterait invisible 5 MINUTES
+          // à CHAQUE démarrage, et 5 minutes de plus dès qu'on saisit son
+          // locator /P en arrivant sur site — exactement les moments où on
+          // manipule les antennes. Budget borné (5 × 3 s) : au-delà, ce n'est
+          // plus un cache froid mais une panne, que le tic normal couvrira.
+          if (_stormRetries-- > 0) setTimeout(fetchStorm, STORM_RETRY_MS);
+          return;
+        }
+        _stormRetries = 0;
         item.style.display = 'flex';
         if (d.storm){
           icon.textContent = '⛈️';
@@ -363,6 +391,9 @@
   // est donc fait dans boot(), après insert(). Constaté en navigateur : avec
   // une réponse /data/weather servie instantanément, la pastille ne
   // s'affichait jamais.
+  // Ce 1er appel dans boot() était nécessaire mais PAS suffisant : au démarrage
+  // du serveur, /data/weather rend forcément ok:false (cache froid), d'où la
+  // reprise courte ajoutée dans fetchStorm().
   rcPoll(refreshStorm, 5 * 60 * 1000);         // aligné sous le cache serveur (10 min)
 
   // ── Dégradation réseau (pastille discrète, jamais bloquante) ──────────────
