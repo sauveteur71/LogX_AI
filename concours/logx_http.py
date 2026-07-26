@@ -3689,10 +3689,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             else f" (reel {freq_reelle} Hz via transverter)")
                     print(f"[RIG] QSY {int(freq)} Hz{_via} {payload.get('mode') or ''}")
             elif native:
-                # Keyer CW natif non implémenté (mode natif = pyserial direct,
-                # pas de sous-couche keyer) — utiliser rigctld ou TCI pour le CW.
-                self._json({'ok': False, 'error': 'Envoi CW non disponible en mode "Natif" — '
-                            'bascule en mode "Hamlib rigctld" ou "TCI" pour le keyer CW'}, 400)
+                # Manipulation CW en natif (commande KY, Kenwood et Elecraft).
+                # Le mode natif refusait TOUT envoi CW — or c'est celui que la
+                # CONFIG recommande par défaut : un opérateur CW n'avait donc
+                # aucune manipulation, ESM se contentant de copier le texte
+                # dans le presse-papier. Icom et Yaesu restent refusés, mais
+                # avec un message qui nomme la cause et la solution.
+                if self.path == '/rig/stop':
+                    res = cat.stop_cw(cfg_snap)
+                else:
+                    res = cat.send_cw(cfg_snap, payload.get('text', ''))
+                    if res.get('ok'):
+                        print(f"[RIG] CW natif -> {str(res.get('text',''))[:60]}")
+                self._json(res, 200 if res.get('ok') else 400)
                 return
             elif use_flrig:
                 # flrig n'expose pas de méthode XML-RPC générique d'envoi CW fiable

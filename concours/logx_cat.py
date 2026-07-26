@@ -356,6 +356,51 @@ class AsciiRadio:
         self._cmd('TX;' if on else 'RX;', read_reply=False)
         return {'ok': True}
 
+    # ─── MANIPULATION CW ────────────────────────────────────────────────────
+    # Kenwood et Elecraft acceptent la commande KY : le texte est envoyé au
+    # keyer interne de la radio, qui le manipule à la vitesse réglée sur le
+    # poste. Jusqu'ici le mode natif refusait tout envoi CW — or c'est le mode
+    # que la CONFIG recommande par DÉFAUT pour Icom, Yaesu, Kenwood, Elecraft
+    # et Xiegu. Concrètement, un opérateur CW en mode natif n'avait pas de
+    # manipulation du tout : ESM se contentait de copier le texte dans le
+    # presse-papier.
+    #
+    # Yaesu est volontairement ABSENT : la commande existe sur certains
+    # modèles avec une sémantique différente (mémoires du keyer plutôt
+    # qu'envoi de texte libre), et se tromper enverrait n'importe quoi sur
+    # l'air. Mieux vaut un refus explicite qu'une manipulation fantaisiste.
+    CW_BRANDS = ('kenwood', 'elecraft')
+    # Le tampon KY accepte 24 caractères. On découpe plus court pour laisser
+    # la radio respirer entre deux envois.
+    CW_CHUNK = 24
+    # Jeu de caractères réellement manipulable. Tout le reste est écarté
+    # plutôt qu'envoyé tel quel : un caractère refusé peut faire ignorer la
+    # commande ENTIÈRE par la radio, donc perdre tout le message.
+    CW_ALLOWED = set('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 /?.,=+-')
+
+    def send_cw(self, text):
+        if self.brand not in self.CW_BRANDS:
+            return {'ok': False,
+                    'error': "Envoi CW non disponible en mode Natif pour %s — "
+                             "utilise un WinKeyer, rigctld ou TCI" % self.brand}
+        propre = ''.join(c for c in str(text or '').upper() if c in self.CW_ALLOWED)
+        propre = ' '.join(propre.split())        # espaces multiples = un seul
+        if not propre:
+            return {'ok': False, 'error': 'Rien à manipuler (texte vide après filtrage)'}
+        for i in range(0, len(propre), self.CW_CHUNK):
+            self._cmd('KY %s;' % propre[i:i + self.CW_CHUNK], read_reply=False)
+        return {'ok': True, 'text': propre}
+
+    def stop_cw(self):
+        """Vide le tampon du keyer. `KY0;` est la forme reconnue par Kenwood
+        comme par Elecraft ; on repasse en réception ensuite pour ne pas
+        laisser la radio en émission si le tampon était déjà vide."""
+        if self.brand not in self.CW_BRANDS:
+            return {'ok': False, 'error': 'Arrêt CW non disponible pour %s' % self.brand}
+        self._cmd('KY0;', read_reply=False)
+        self._cmd('RX;', read_reply=False)
+        return {'ok': True}
+
     def get_smeter(self):
         reply = self._cmd('SM0;' if self.brand == 'yaesu' else 'SM;')
         if reply and reply.startswith('SM'):
@@ -543,6 +588,49 @@ def set_ptt(cfg, on):
         return {'ok': False, 'error': err}
     try:
         return driver.set_ptt(bool(on))
+    except Exception as e:
+        disconnect_persistent()
+        return {'ok': False, 'error': f'Radio injoignable ({e})'}
+
+
+def send_cw(cfg, text):
+    """Manipulation CW en mode natif — même signature que logx_rig.send_cw /
+    logx_tci.send_cw, pour que /rig/cw dispatche sans cas particulier.
+
+    Icom n'est PAS couvert : le protocole CI-V ne publie pas de commande
+    d'envoi de texte CW (vérifié sur la documentation constructeur). Le refus
+    est explicite et nomme la solution, plutôt que de laisser croire à une
+    panne."""
+    settings = cat_settings(cfg)
+    if not settings['enabled'] or settings['mode'] != 'native':
+        return {'ok': False, 'error': 'Pilotage natif non actif'}
+    driver, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    if not hasattr(driver, 'send_cw'):
+        return {'ok': False,
+                'error': "Envoi CW indisponible en CI-V : Icom ne publie pas de "
+                         "commande d'envoi de texte CW. Utilise un WinKeyer, "
+                         "rigctld ou TCI."}
+    try:
+        return driver.send_cw(text)
+    except Exception as e:
+        disconnect_persistent()
+        return {'ok': False, 'error': f'Radio injoignable ({e})'}
+
+
+def stop_cw(cfg):
+    """Vide le tampon du keyer (bouton ■ STOP CW)."""
+    settings = cat_settings(cfg)
+    if not settings['enabled'] or settings['mode'] != 'native':
+        return {'ok': False, 'error': 'Pilotage natif non actif'}
+    driver, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    if not hasattr(driver, 'stop_cw'):
+        return {'ok': False, 'error': 'Arrêt CW indisponible en CI-V'}
+    try:
+        return driver.stop_cw()
     except Exception as e:
         disconnect_persistent()
         return {'ok': False, 'error': f'Radio injoignable ({e})'}
