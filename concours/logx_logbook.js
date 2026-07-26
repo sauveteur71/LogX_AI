@@ -4141,6 +4141,31 @@ function editMacro(idx){
 }
 
 // ─── EXPORTS ─────────────────────────────────────────────────────────────────
+
+// N° de série d'un enregistrement EDI, tel qu'il a RÉELLEMENT circulé sur l'air.
+//
+// Le n° envoyé est alloué par le serveur (logx_storage.allocate_next_serial via
+// /log/next_serial), affiché à l'opérateur puis transmis au correspondant : il
+// ne doit JAMAIS être redérivé de la position du QSO dans le fichier exporté.
+// La séquence des num_sent comporte des trous parfaitement NOMINAUX — QSO
+// supprimé en cours d'épreuve (deleteQSO/undoLastQSO), doublon refusé après
+// allocation, erreur serveur après allocation, n° corrigé à la main, sans
+// compter les QSO incomplets écartés par isValidQSO() — et allocate_next_serial
+// ne réutilise jamais un numéro libéré (« un trou dans la séquence est
+// toléré »). Renuméroter 1..N décale alors TOUS les QSO suivants de la bande :
+// en cross-check IARU/REF, un n° envoyé qui ne correspond pas au n° reçu par le
+// correspondant fait tomber le QSO (NIL) des DEUX côtés.
+//
+// Un champ vide reste vide : dans un log de soumission on n'invente pas un
+// numéro qui n'a jamais été échangé (l'ancien repli `||'001'` sur le n° reçu
+// fabriquait de la donnée). Un échange fixe non numérique (type Field Day) est
+// recopié tel quel.
+function ediSerial(v){
+  const s = String(v == null ? '' : v).trim();
+  if(!s) return '';
+  return /^\d+$/.test(s) ? s.padStart(3,'0') : s;
+}
+
 function exportEDI(){
   // Validation avant export
   const warnings = [];
@@ -4148,6 +4173,10 @@ function exportEDI(){
   if(invalid.length) warnings.push(trF('⚠️ {n} QSO incomplet(s) ignoré(s) ({calls})', {n: invalid.length, calls: invalid.map(q=>q.call||'?').join(', ')}));
   const missingLoc = qsoLog.filter(q=>isValidQSO(q) && (!q.locator||q.locator.length<6));
   if(missingLoc.length) warnings.push(trF('⚠️ {n} QSO sans locator (points = 0)', {n: missingLoc.length}));
+  // isValidQSO() n'exige pas le n° envoyé (import ADIF sans STX, champ vidé à la
+  // main) : il partira VIDE plutôt qu'inventé — autant le signaler avant.
+  const missingSerial = qsoLog.filter(q=>isValidQSO(q) && !ediSerial(q.num_sent));
+  if(missingSerial.length) warnings.push(trF('⚠️ {n} QSO sans n° de série envoyé ({calls})', {n: missingSerial.length, calls: missingSerial.map(q=>q.call||'?').join(', ')}));
   const dups = countDupes(qsoLog);
   if(dups) warnings.push(trF('⚠️ {n} doublon(s) dans le log', {n: dups}));
   if(warnings.length){
@@ -4245,11 +4274,17 @@ function exportEDI(){
     ];
 
     let edi = lines.join('\r\n') + '\r\n';
-    bandQSOs.forEach((q, idx)=>{
-      const serial = String(idx+1).padStart(3,'0');
+    bandQSOs.forEach(q=>{
+      const serial  = ediSerial(q.num_sent);   // celui transmis sur l'air, JAMAIS l'index de boucle
+      const numRcvd = ediSerial(q.num_rcvd);   // vide reste vide : rien d'inventé
       const timeStr = q.time.replace(':',''); // HHMM
       const modeCode = q.mode==='CW'?2:q.mode==='FM'?6:1; // 1=SSB
-      edi += `${q.date};${timeStr};${q.call};${modeCode};${q.rst_sent};${serial};${q.rst_rcvd};${q.num_rcvd||'001'};;${q.locator||''};${q.points||0};;${q.mode};\r\n`;
+      // Gabarit REG1TEST, 15 champs : date;heure;indicatif;mode;RST env;n° env;
+      // RST reçu;n° reçu;échange reçu;WWL reçu;points;new exchange;new WWL;
+      // new DXCC;doublon. Le mode est déjà en champ 4 sous forme de code
+      // numérique — le champ 13 est l'indicateur « new WWL », pas une seconde
+      // copie du mode en texte.
+      edi += `${q.date};${timeStr};${q.call};${modeCode};${q.rst_sent};${serial};${q.rst_rcvd};${numRcvd};;${q.locator||''};${q.points||0};;;;\r\n`;
     });
     edi += `[END; do not edit below this line]\r\n`;
 
