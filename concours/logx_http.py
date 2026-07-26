@@ -2838,6 +2838,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(_rig_state_dict(self._cfg_snapshot()))
             return
 
+        # Quels emplacements DVK sont réellement enregistrés (et leur durée) —
+        # côté serveur, donc identiques sur tous les postes du réseau.
+        if path == '/voice/slots':
+            import logx_voicekeyer as vk
+            self._json({'ok': True, 'slots': vk.messages_disponibles()})
+            return
+
         # Amplificateur HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) :
         # état courant (puissance/SWR/défaut/operate) — pollé par le logbook.
         if path == '/amp/state':
@@ -3713,6 +3720,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Keyer vocal dynamique : indicatif/report épelés phonétiquement,
         # synthétisés (TTS hors-ligne) et émis par la radio (PTT via CAT
         # autour de la lecture, quel que soit le mode natif/TCI/rigctld/flrig).
+        # ─── DVK : messages enregistrés par l'opérateur ──────────────────────
+        # Enregistrés dans le navigateur mais STOCKÉS ET JOUÉS ICI. Avant, ils
+        # vivaient en localStorage et partaient par `new Audio().play()` : sortie
+        # par défaut du navigateur, aucun PTT — le correspondant n'entendait
+        # rien, et changer de poste perdait les messages.
+        if self.path in ('/voice/save', '/voice/play', '/voice/delete'):
+            import logx_voicekeyer as vk
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            slot = str(payload.get('slot', ''))
+            if self.path == '/voice/save':
+                import base64
+                brut = payload.get('wav_base64') or ''
+                # Data URL éventuelle ("data:audio/wav;base64,....") : on ne
+                # garde que la charge utile.
+                if ',' in brut[:64] and brut.lstrip().startswith('data:'):
+                    brut = brut.split(',', 1)[1]
+                try:
+                    donnees = base64.b64decode(brut, validate=True)
+                except Exception:
+                    self._json({'ok': False, 'error': 'Données audio illisibles'}, 400)
+                    return
+                res = vk.enregistrer_message(slot, donnees)
+            elif self.path == '/voice/delete':
+                res = vk.supprimer_message(slot)
+            else:
+                res = vk.envoyer_message(self._cfg_snapshot(), slot)
+                if res.get('ok'):
+                    print(f"[RIG] Message vocal {slot} emis")
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
         if self.path == '/rig/voice':
             import logx_voicekeyer as vk
             cfg_snap = self._cfg_snapshot()

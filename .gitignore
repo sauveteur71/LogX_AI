@@ -47,3 +47,6 @@ RALLYE_2.pdf
 Rallye_Points_Hauts_2026_Plan.docx
 Rallye_Points_Hauts_2026_Tableaux.xlsx
 reg_rph_fr_20250312.pdf
+
+# Messages vocaux enregistres par l'operateur (sa voix, propre a sa station)
+concours/voice_messages/

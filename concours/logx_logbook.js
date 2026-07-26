@@ -1329,17 +1329,65 @@ const VOICE_SLOTS = [
 ];
 let _mediaRec = null, _recSlot = null, _recChunks = [];
 
-function voiceStore(){ try{ return JSON.parse(localStorage.getItem('rc_voice')||'{}'); }catch(e){ return {}; } }
-function voiceSave(s){ localStorage.setItem('rc_voice', JSON.stringify(s)); }
+// Emplacements DVK réellement enregistrés, tels que le SERVEUR les connaît.
+// Ils y sont stockés (et non plus en localStorage) pour deux raisons : ils sont
+// joués par le serveur vers la radio, et ils doivent suivre l'opérateur d'un
+// poste à l'autre — c'est tout l'intérêt du multi-poste.
+let voiceSlots = {};
+async function voiceRefreshSlots(){
+  try{
+    const d = await fetch('/voice/slots').then(r => r.json());
+    voiceSlots = d.slots || {};
+  }catch(e){ /* serveur injoignable : on garde le dernier état connu */ }
+  renderVoicePanel();
+  voiceMigrerAnciens();
+}
+
+// Reprise des messages enregistrés AVANT que le stockage passe côté serveur.
+// Ils dormaient en localStorage au format WebM. Les abandonner sans rien dire
+// serait une perte de données silencieuse — même si, tels quels, ils ne
+// partaient de toute façon pas sur l'air.
+// Une seule tentative : en cas d'échec de conversion on laisse la clé en place
+// plutôt que de la détruire, et on n'insiste pas à chaque chargement de page.
+let _voiceMigrationFaite = false;
+async function voiceMigrerAnciens(){
+  if(_voiceMigrationFaite) return;
+  _voiceMigrationFaite = true;
+  let anciens = {};
+  try{ anciens = JSON.parse(localStorage.getItem('rc_voice') || '{}'); }catch(e){ return; }
+  const aReprendre = Object.keys(anciens).filter(k => voiceSlots[k] === undefined && anciens[k]);
+  if(!aReprendre.length) return;
+  let repris = 0;
+  for(const cle of aReprendre){
+    try{
+      const blob = await (await fetch(anciens[cle])).blob();   // data URL -> Blob
+      const ctx = _audioCtx || (_audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+      const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+      const canaux = [];
+      for(let c = 0; c < buf.numberOfChannels; c++) canaux.push(buf.getChannelData(c));
+      const b64 = await _blobToBase64(_floatChannelsToWav(canaux, buf.sampleRate));
+      const res = await fetch('/voice/save', {method:'POST', headers:{'Content-Type':'application/json'},
+                                              body: JSON.stringify({slot: cle, wav_base64: b64})}).then(r=>r.json());
+      if(res.ok){ delete anciens[cle]; repris++; }
+    }catch(e){ /* enregistrement illisible : on le laisse où il est */ }
+  }
+  if(repris){
+    try{ localStorage.setItem('rc_voice', JSON.stringify(anciens)); }catch(e){}
+    const d = await fetch('/voice/slots').then(r => r.json()).catch(()=>null);
+    if(d && d.slots){ voiceSlots = d.slots; renderVoicePanel(); }
+    notify(trF('🎙 {n} message(s) vocal(aux) repris depuis ce navigateur', {n: repris}));
+  }
+}
 
 function renderVoicePanel(){
   const box = document.getElementById('voiceBtns');
   if(!box) return;
-  const store = voiceStore();
   box.innerHTML = VOICE_SLOTS.map(s => {
-    const has = !!store[s.key];
+    const dur = voiceSlots[s.key];
+    const has = dur !== undefined;
+    const lbl = has ? `${s.label} <span style="color:var(--muted)">${dur}s</span>` : s.label;
     return `<div style="display:flex;gap:4px;margin:3px 0">
-      <button class="macro-btn" style="flex:1;${has?'':'opacity:.5'}" onclick="voicePlay('${s.key}')" ${has?'':'disabled'}>▶ ${s.label}</button>
+      <button class="macro-btn" style="flex:1;${has?'':'opacity:.5'}" onclick="voicePlay('${s.key}')" ${has?'':'disabled'}>▶ ${lbl}</button>
       <button class="macro-btn" style="width:36px" onclick="voiceRecord('${s.key}')" id="rec_${s.key}" title="Enregistrer ${s.label}">⏺</button>
     </div>`;
   }).join('');
@@ -1356,14 +1404,26 @@ async function voiceRecord(key){
     _recChunks = []; _recSlot = key;
     _mediaRec = new MediaRecorder(stream);
     _mediaRec.ondataavailable = e => { if(e.data.size) _recChunks.push(e.data); };
-    _mediaRec.onstop = () => {
+    _mediaRec.onstop = async () => {
       stream.getTracks().forEach(t=>t.stop());
       const blob = new Blob(_recChunks, {type: _mediaRec.mimeType||'audio/webm'});
-      const rd = new FileReader();
-      rd.onload = () => { const s = voiceStore(); s[key] = rd.result; voiceSave(s); renderVoicePanel(); notify(trF('🎙 Message {key} enregistré', {key})); };
-      rd.readAsDataURL(blob);
       _mediaRec = null; _recSlot = null;
       if(btn){ btn.textContent = '⏺'; btn.style.color=''; }
+      // Réencodage en WAV AVANT l'envoi : le navigateur enregistre en WebM/Opus,
+      // que le serveur ne sait pas jouer (wave.open). On réutilise l'encodeur
+      // déjà écrit pour les clips de QSO plutôt que d'en poser un second.
+      try{
+        const ctx = _audioCtx || (_audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+        const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+        const canaux = [];
+        for(let c = 0; c < buf.numberOfChannels; c++) canaux.push(buf.getChannelData(c));
+        const wav = _floatChannelsToWav(canaux, buf.sampleRate);
+        const b64 = await _blobToBase64(wav);
+        const res = await fetch('/voice/save', {method:'POST', headers:{'Content-Type':'application/json'},
+                                                body: JSON.stringify({slot: key, wav_base64: b64})}).then(r=>r.json());
+        if(res.ok){ await voiceRefreshSlots(); notify(trF('🎙 Message {key} enregistré', {key})); }
+        else       notify(trF('❌ {err}', {err: res.error || 'enregistrement refusé'}));
+      }catch(e){ notify(trF('❌ Réencodage impossible : {err}', {err: e.message})); }
     };
     _mediaRec.start();
     if(btn){ btn.textContent = '■'; btn.style.color='var(--red)'; }
@@ -1371,10 +1431,28 @@ async function voiceRecord(key){
   }catch(e){ notify(trF('❌ Micro indisponible : {err}', {err: e.message})); }
 }
 
-function voicePlay(key){
-  const s = voiceStore();
-  if(!s[key]) return;
-  try{ const a = new Audio(s[key]); a.play(); }catch(e){}
+// Base64 d'un Blob, sans concaténation manuelle (un message de plusieurs
+// secondes dépasse la taille d'argument de String.fromCharCode(...tableau)).
+function _blobToBase64(blob){
+  return new Promise((resolve, reject) => {
+    const rd = new FileReader();
+    rd.onload = () => resolve(String(rd.result).split(',', 2)[1] || '');
+    rd.onerror = () => reject(rd.error || new Error('lecture impossible'));
+    rd.readAsDataURL(blob);
+  });
+}
+
+// Le message part par la RADIO, pas par les enceintes : le serveur lève le PTT,
+// joue le WAV vers le périphérique de sortie choisi en CONFIG (câble vers
+// l'entrée micro de la radio) puis relâche le PTT en vérifiant qu'il est bien
+// retombé. `new Audio().play()` ne faisait aucune des trois choses.
+async function voicePlay(key){
+  if(voiceSlots[key] === undefined) return;
+  try{
+    const res = await fetch('/voice/play', {method:'POST', headers:{'Content-Type':'application/json'},
+                                            body: JSON.stringify({slot: key})}).then(r=>r.json());
+    if(!res.ok) notify(trF('❌ {err}', {err: res.error || 'émission impossible'}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
 }
 
 // ─── ENREGISTREUR AUDIO PAR QSO (tampon glissant) ────────────────────────────
@@ -1886,7 +1964,9 @@ function updateKeyerPanels(){
   if(macro) macro.style.display = cw ? '' : 'none';
   if(voice) voice.style.display = cw ? 'none' : '';
 }
-renderVoicePanel();
+// Au démarrage on demande au SERVEUR quels messages existent : ils n'ont
+// jamais été dans ce navigateur si l'opérateur les a enregistrés ailleurs.
+voiceRefreshSlots();
 renderVoiceDynPanel();
 setTimeout(updateKeyerPanels, 300);
 initAudioRecorderPanel();
