@@ -29,6 +29,7 @@ from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   stamp_qso_version, mark_qso_deleted, mark_hard_reset,
                                   allocate_qso_ids_locked, reserve_qso_id_locked)
 from logx_scoring import build_scoring_context, score_new_qso
+import logx_transverter as transverter
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
 from logx_clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len,
@@ -1051,7 +1052,11 @@ def _rig_state_dict(cfg_snap):
     optionnelle (topic logx/rig/freq) SANS toucher aux 4 points de retour de
     l'implémentation (native/TCI/flrig/rigctld) — un seul endroit à modifier
     plutôt que dupliquer le hook dans chaque branche."""
-    state = _rig_state_dict_impl(cfg_snap)
+    # Transverter AVANT tout le reste : à partir d'ici, la fréquence manipulée
+    # est la fréquence RÉELLE sur l'air. MQTT publie donc lui aussi la vraie
+    # fréquence — un écran mural annonçant 144 MHz pendant qu'on trafique en
+    # 1296 serait exactement le défaut que ce chantier corrige.
+    state = _appliquer_transverter(_rig_state_dict_impl(cfg_snap), cfg_snap)
     try:
         if state.get('enabled') and state.get('ok') and state.get('freq_khz'):
             import logx_mqtt as mqtt_bridge
@@ -1061,6 +1066,30 @@ def _rig_state_dict(cfg_snap):
                     cfg_snap, state['freq_khz'], state.get('mode', '')), daemon=True).start()
     except Exception:
         pass
+    return state
+
+
+def _appliquer_transverter(state, cfg_snap):
+    """Convertit la fréquence FI rendue par la radio en fréquence RÉELLE.
+
+    Appliqué ICI, sur le seul point de passage commun aux 4 backends CAT
+    (natif, TCI, flrig, rigctld) : chacun rend le même dict {freq_hz, freq_khz},
+    et convertir dans chacun d'eux aurait garanti qu'un des quatre soit oublié.
+    Sans transverter configuré, la fréquence ressort inchangée.
+
+    `freq_fi_hz` est conservée à part : c'est ce qui est réellement affiché sur
+    la radio, utile pour comprendre un écart quand on regarde le poste."""
+    if not isinstance(state, dict) or not state.get('ok'):
+        return state
+    fi = state.get('freq_hz')
+    if fi in (None, 0):
+        return state
+    reelle = transverter.rf_depuis_fi(fi, cfg_snap)
+    if reelle != fi:
+        state['freq_fi_hz'] = fi
+        state['freq_hz'] = reelle
+        state['freq_khz'] = round(reelle / 1000.0, 2)
+        state['transverter'] = transverter.bande_depuis_hz(reelle)
     return state
 
 
@@ -3357,6 +3386,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == '/config/save':
             try:
                 cfg = json.loads(body)
+                # Transverters : deux actifs sur la même FI rendraient toute
+                # fréquence lue ambiguë (144,100 = 1296,100 ou 2320,100 ?).
+                # On refuse la sauvegarde plutôt que de départager au hasard :
+                # un mauvais choix ici produit un log entier sur la mauvaise
+                # bande, sans le moindre message.
+                _erreurs_tvtr = transverter.erreurs_config(cfg.get('transverters'))
+                if _erreurs_tvtr:
+                    self._json({'ok': False, 'error': ' '.join(_erreurs_tvtr)}, 400)
+                    return
                 with config_lock:
                     current_config = cfg
                 save_json_atomic(SERVER_CONFIG_FILE, cfg)
@@ -3623,6 +3661,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not freq:
                     self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
                     return
+                # La fréquence demandée est celle du trafic RÉEL (un spot à
+                # 1296,200). La radio, elle, ne comprend que sa FI : sans cette
+                # conversion inverse on lui demanderait 1296,200 MHz, hors de
+                # sa couverture — refus, ou pire, déplacement silencieux en
+                # bord de bande. Sans transverter configuré, freq est inchangée.
+                freq_reelle = int(freq)
+                freq = transverter.fi_depuis_rf(freq_reelle, cfg_snap)
                 if native:
                     res = cat.set_freq(cfg_snap, int(freq), payload.get('mode'))
                 elif use_tci:
@@ -3633,7 +3678,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 else:
                     res = rig.set_freq(settings['host'], settings['port'], int(freq), payload.get('mode'))
                 if res.get('ok'):
-                    print(f"[RIG] QSY {int(freq)} Hz {payload.get('mode') or ''}")
+                    _via = ('' if freq == freq_reelle
+                            else f" (reel {freq_reelle} Hz via transverter)")
+                    print(f"[RIG] QSY {int(freq)} Hz{_via} {payload.get('mode') or ''}")
             elif native:
                 # Keyer CW natif non implémenté (mode natif = pyserial direct,
                 # pas de sous-couche keyer) — utiliser rigctld ou TCI pour le CW.
