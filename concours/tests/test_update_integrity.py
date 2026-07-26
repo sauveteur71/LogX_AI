@@ -53,9 +53,18 @@ def _isolate_download_state(monkeypatch, tmp_path):
     yield
 
 
-def _wait_download_terminal(timeout=5):
+def _wait_download_terminal(timeout=30):
     """Attend que _download sorte de l'état 'downloading' (thread de fond de
-    start_download/start_download_via_network)."""
+    start_download/start_download_via_network).
+
+    Le budget était de 5 s. C'est une attente d'HORLOGE MURALE sur un thread de
+    fond : sous la charge d'une suite de 1500 tests (et l'ordre aléatoire de
+    pytest-randomly), il passait parfois de justesse et le test échouait seul,
+    puis repassait au coup d'après — un faux rouge, exactement ce qui apprend à
+    ne plus regarder la CI. Le budget ne rallonge AUCUN test qui réussit : la
+    boucle sort dès l'état terminal atteint, en général en quelques
+    millisecondes. Il ne fait que couvrir le cas d'une machine chargée — et une
+    CI Linux/macOS partagée est plus lente que ce poste."""
     start = time.time()
     while time.time() - start < timeout:
         st = upd.get_download_status()
