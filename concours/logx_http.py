@@ -2987,10 +2987,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # envoyer plusieurs Go et faire gonfler la mémoire jusqu'au crash.
         # 32 Mo couvre largement un gros import ADIF ; au-delà on refuse.
         MAX_BODY = 32 * 1024 * 1024
-        try:
-            length = int(self.headers.get('Content-Length', 0) or 0)
-        except (TypeError, ValueError):
-            length = 0
+        # La longueur du corps doit être CERTAINE avant de le lire. Trois cas
+        # la rendent indéterminable : en-tête illisible (« Content-Length:
+        # abc »), plusieurs Content-Length contradictoires, ou corps annoncé
+        # en « Transfer-Encoding: chunked » — que BaseHTTPRequestHandler ne
+        # sait pas décoder. On retombait alors sur length = 0, or read(0) ne
+        # consomme RIEN : en connexion persistante les octets du corps sont
+        # ensuite lus comme la requête SUIVANTE (mesuré : le corps recollé à
+        # la ligne de requête du GET suivant, qui ne reçoit jamais sa
+        # réponse). C'est la même désynchronisation que pour un refus avant
+        # lecture, donc le même remède — refuser ET fermer. Un vrai
+        # « Content-Length: 0 » (POST sans corps) reste parfaitement
+        # déterminé : il doit continuer normalement, connexion réutilisable.
+        te = (self.headers.get('Transfer-Encoding') or '').strip().lower()
+        if te and te != 'identity':
+            self.close_connection = True
+            self._json({'error': "Transfer-Encoding non supporté : "
+                                 "envoie un Content-Length"}, 411)
+            return
+        annonces = [str(v).strip() for v in (self.headers.get_all('Content-Length') or [])]
+        if (any(not re.fullmatch(r'[0-9]+', v) for v in annonces)
+                or len(set(annonces)) > 1):
+            self.close_connection = True
+            self._json({'error': 'Content-Length invalide'}, 400)
+            return
+        length = int(annonces[0]) if annonces else 0
         if length < 0 or length > MAX_BODY:
             # Même raison que dans _require_auth : on refuse sans lire le
             # corps, il faut donc fermer la connexion plutôt que de laisser
