@@ -5155,7 +5155,9 @@ function saveConfig(silent = false, feedbackBtn = null) {
   };
   localStorage.setItem('logx_config', JSON.stringify(config));
   // Pousser aussi au serveur : sinon logx_serveur.py travaille avec une config
-  // périmée tant que la page CARTE IA (seule à faire ce POST) n'est pas ouverte.
+  // périmée. Cette page est la SEULE à faire ce POST (la page CARTE le faisait
+  // aussi, en silence à chaque chargement : un poste au localStorage périmé
+  // imposait alors sa portée concours à tout le réseau — POST retiré).
   // Fire-and-forget pour tous les appelants existants (le contrat synchrone
   // true/false de saveConfig() ne change pas) — _lastConfigSavePromise permet
   // aux appelants qui en ont besoin (testVoiceKeyer()) d'attendre que le

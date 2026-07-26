@@ -12,11 +12,16 @@ testable ; ne lève jamais d'exception (retourne un dict d'état).
 """
 import json
 import os
+import re
 import shutil
 import datetime
 import glob
 
 KEEP = 20                 # nombre de sauvegardes conservées
+
+# Nom d'un JEU de sauvegarde : logx_{indicatif}_{AAAAMMJJ-HHMMSS}. Seuls ces
+# noms-là sont soumis à la rotation (voir _prune).
+_BASE_RE = re.compile(r'^logx_.*_\d{8}-\d{6}$')
 
 
 def _copy_atomic(src, dst):
@@ -147,10 +152,29 @@ def _prune(folder):
     change jamais. Après un retour d'indicatif concours vers l'indicatif
     personnel (ex. TM5X -> F4GLD, qui trie avant), chaque sauvegarde neuve
     serait sinon détruite dès son écriture tant qu'il reste KEEP vieux jeux.
+
+    N'élague QUE les noms de jeux de sauvegarde (_BASE_RE), jamais tout
+    'logx_*' : ce dossier est AUSSI, par défaut, le dossier Cloud Sync
+    (cloudsync_settings replie cloudsync_folder sur backup_folder — « vide =
+    même dossier que SAUVEGARDE » dans CONFIG). Il contient alors
+    logx_cloudsync_{indicatif}_{id installation}.json et
+    logx_cloudtomb_{indicatif}_{id installation}.json, qui matchent 'logx_*'
+    mais se terminent par l'identifiant d'installation (uuid4().hex[:8]) et
+    non par un horodatage : un id commençant par un chiffre bas triait AVANT
+    tout horodatage « 2026… » et ces deux fichiers étaient détruits à chaque
+    cycle dès qu'il y avait plus de KEEP jeux. Or le fichier de tombstones est
+    la SEULE trace persistante des suppressions individuelles
+    (logx_storage.deleted_qsos est en mémoire de process) : le supprimer fait
+    RESSUSCITER les QSO supprimés au premier redémarrage, depuis le fichier
+    d'un autre poste — précisément la panne que ce mécanisme existe pour
+    empêcher. Même quand l'id survit au tri, ces fichiers consommaient 2 des
+    KEEP emplacements de rétention (18 vraies sauvegardes au lieu de 20).
     """
     try:
-        bases = sorted({os.path.basename(p).rsplit('.', 1)[0]
-                        for p in glob.glob(os.path.join(folder, 'logx_*'))},
+        bases = sorted({b for b in (os.path.basename(p).rsplit('.', 1)[0]
+                                    for p in glob.glob(
+                                        os.path.join(folder, 'logx_*')))
+                        if _BASE_RE.match(b)},
                        key=lambda b: (b.rsplit('_', 1)[-1], b))
         for base in bases[:-KEEP]:
             for p in glob.glob(os.path.join(folder, base + '.*')):

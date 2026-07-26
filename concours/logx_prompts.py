@@ -388,24 +388,45 @@ PROPAGATION À SURVEILLER : {', '.join(active_prop) if active_prop else 'Standar
 Si la question porte sur L'UTILISATION DE L'APPLI (configuration,
 navigation, "où est le bouton pour...", "comment je fais pour...")
 et PAS sur la stratégie de concours, réponds avec ce guide — chemin
-exact onglet → étape → bouton, avec les noms réels ci-dessous. Ne
-jamais répondre à ce type de question avec le format de contacts.
+exact onglet → carte/section → bouton, avec les noms réels ci-dessous.
+Ne jamais répondre à ce type de question avec le format de contacts.
 
 3 onglets en haut de chaque page : CARTE IA · LOGBOOK · CONFIG
 
-── ONGLET CONFIG (logx_configuration.html) — 5 étapes ──────────────
-1. MA STATION : Indicatif, Indicatif concours (si /P ou club),
-   Locator Maidenhead (6 car., ex JN15XC), Ville/QTH, Altitude (m),
-   Code postal, jusqu'à 40 opérateurs (OP1, OP2, ...) pour le multi-op
-   dans TOUS les modes sauf LOGBOOK SIMPLE (mono-opérateur) — le mode
-   RADIOCLUB ajoute en plus la déclaration des postes radio.
-2. CONCOURS : choisir dans la grille de cartes — dates auto-calculées.
-3. FILTRES : bandes/modes se cochent automatiquement selon le
-   règlement du concours choisi à l'étape 2 — modifiables à la main
-   ensuite (ex: décocher une bande non équipée).
-4. PROPAGATION : sources de spots, seuils d'alerte DX, clé API IA.
-5. RÉSUMÉ : vérifier puis cliquer le bouton "💾 SAUVEGARDER CONFIG"
-   — sans ce clic, rien n'est retenu.
+── ONGLET CONFIG (logx_configuration.html) — hub de cartes ──────────
+Page organisée en 7 sections de cartes cliquables (pas un parcours
+imposé) : cliquer une carte ouvre sa popup, la remplir, fermer — dans
+n'importe quel ordre. Badge par carte : ✅ configurée et valide,
+⚠️ incomplète/invalide, ○ optionnelle non configurée.
+  • MA STATION : 1. Identité (indicatif, locator, antennes,
+    transceiver) · 2. Opérateurs (jusqu'à 40 opérateurs,
+    responsable du log ; mono-opérateur en LOGBOOK SIMPLE, et le mode
+    RADIOCLUB ajoute la déclaration des postes radio)
+  • CONCOURS : 3. Sélection (grille + recherche + 🤖 ANALYSER UN
+    RÈGLEMENT par IA) · 4. Dates & filtres (dates, bandes/modes actifs)
+  • MATÉRIEL : 5. Radio — CAT natif/TCI/rigctld, WSJT-X, keyer vocal
+    · 6. Amplificateur · 7. Rotor d'antenne
+  • RÉSEAU & SAUVEGARDE : 8. Multi-poste & Cloud (Cloud Sync, réseau
+    ADIF N1MM/DXLog) · 9. Sauvegarde automatique
+  • PROPAGATION & ALERTES : 10. Sources (cluster DX, RBN, ON4KST, PSK
+    Reporter...) · 11. Alertes (distance DX, spotter, règles perso)
+  • APRÈS LE CONCOURS : 12. QSL & diplômes (QRZ, eQSL, LoTW, ClubLog,
+    QRZCQ, HRDLog) · 13. Scoreboard & soumission (score en direct,
+    URL/délai d'envoi du log)
+  • SPÉCIAL : 14. Expédition/Activation (POTA/SOTA/IOTA/WWFF/ARLHS/
+    WCA, écran mural, self-spot) · 15. Assistant IA (fournisseur IA,
+    clé API)
+Locator inconnu ? Carte 1. Identité → "📍 Sur la carte" (clic sur la
+carte, recherche de ville, ou "🛰️ Ma position" → grille 6 caractères
+calculée automatiquement ; sert aussi à comparer à un locator distant).
+Concours absent de la grille (carte 3) : coller l'URL du règlement
+dans "🤖 ANALYSER UN RÈGLEMENT" — l'IA propose bandes/dates/échange/
+barème, TOUJOURS en relecture avant enregistrement, jamais automatique.
+Bouton "💾 SAUVEGARDER" en haut de page (toujours visible) ou lien
+"📊 Résumé ▸" pour un récapitulatif complet avant de cliquer
+"🚀 COMMENCER À LOGGER". Bouton "🎚 EXPERT" en haut : révèle les
+réglages avancés (radio CAT, ampli, rotor, cloud sync, alertes perso)
+dans leurs popups — masqués par défaut pour un débutant.
 En haut de la page : PROFIL permet de sauvegarder/charger plusieurs
 configs nommées (utile pour plusieurs sites d'opération).
 
@@ -430,11 +451,11 @@ SPOTS, PROP, MULTS, RÉSUMÉ. Bouton "🗺️ EUROPE" en haut change la vue
 de la carte (Europe/Monde/USA/France).
 
 ── NOVICE QUI DÉMARRE — ordre conseillé ────────────────────────
-1) CONFIG étape 1 : indicatif + locator. 2) étape 2 : choisir le
-concours. 3) étape 5 : SAUVEGARDER CONFIG. 4) LOGBOOK : la fenêtre
-de démarrage doit être pré-remplie, sinon la compléter. 5) loguer
-les QSO. La CARTE IA sert pendant le concours pour les
-recommandations — pas besoin d'y toucher avant.
+1) CONFIG carte 1. Identité : indicatif + locator. 2) carte 3.
+Sélection : choisir le concours. 3) "💾 SAUVEGARDER" en haut de page.
+4) LOGBOOK : la fenêtre de démarrage doit être pré-remplie, sinon la
+compléter. 5) loguer les QSO. La CARTE IA sert pendant le concours
+pour les recommandations — pas besoin d'y toucher avant.
 
 Ne jamais modifier la configuration à la place de l'opérateur —
 indique où cliquer, il/elle le fait lui-même.

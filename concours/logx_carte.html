@@ -804,8 +804,20 @@ function loadConfig(){
       const apiKey = cfg.api_key || localStorage.getItem(`logx_apikey_${provider}`) || localStorage.getItem('logx_apikey') || '';
       if(apiKey) cfg.api_key=apiKey;
       applyConfig();
-      fetch('/config/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})
-        .catch(e=>console.warn('[CFG]',e));
+      // AUCUN POST /config/save ici, volontairement : cette page ne fait
+      // qu'AFFICHER. Le localStorage de CE navigateur n'a aucune autorité sur
+      // la config du SERVEUR, qui est un état PARTAGÉ par tous les postes —
+      // /config/save REMPLACE intégralement current_config (logx_http.py), et
+      // cfg_scope_id(current_config) pilote le filtrage de /log/list,
+      // l'allocation des n° de série (/log/next_serial) et la portée des
+      // exports Cabrillo/ADIF pour TOUT LE RÉSEAU.
+      // Ce POST silencieux suffisait donc à ce qu'un poste de secours qui
+      // ouvre simplement la carte, avec un localStorage périmé (concours du
+      // mois dernier, ou usage_mode:'simple'), mette SANS LE MOINDRE CLIC le
+      // carnet des 5 postes à 0 QSO et remette les n° de série à 001 —
+      // numéros dupliqués sur l'air, doublons plus détectés, export vide.
+      // La config serveur ne se pousse que depuis la page CONFIGURATION, sur
+      // action explicite de l'opérateur (logx_configuration.html:saveConfig).
     }catch(e){console.warn('Config invalide',e);}
   }
   initMap();

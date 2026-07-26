@@ -2,9 +2,11 @@
 """Log partagé multi-opérateur : état en mémoire + persistance SQLite.
 
 Architecture : shared_log (liste en mémoire) reste la source de vérité que
-tous les modules consultent ; chaque save_log_to_disk() la réécrit dans
-logx.db (table qso indexée indicatif/bande/mode, transactionnelle —
-zéro risque de troncature) + un shared_log.json de secours lisible.
+tous les modules consultent ; save_log_to_disk() la persiste dans logx.db
+(table qso indexée indicatif/bande/mode, transactionnelle — zéro risque de
+troncature) + un shared_log.json de secours lisible. L'écriture est
+INCRÉMENTALE : seuls les QSO réellement ajoutés/corrigés/supprimés partent sur
+le disque (voir la section PERSISTANCE INCRÉMENTALE plus bas).
 Migration one-shot : au premier démarrage sans base, shared_log.json est
 importé. /log/reset ARCHIVE les QSO (table qso_archive) au lieu de les
 perdre : l'historique multi-concours survit aux remises à zéro."""
@@ -651,8 +653,158 @@ def save_json_atomic(path, data, lock=None, compact=False):
         _write()
 
 
+# ─── PERSISTANCE INCRÉMENTALE ────────────────────────────────────────────────
+# save_log_to_disk() est appelée UNE FOIS PAR QSO : /log/add (dans le thread de
+# la requête, AVANT que la réponse HTTP ne parte), /log/update, /log/delete,
+# /qsl_scan/upload, et une fois par QSO tiré par Cloud Sync (logx_cloudsync
+# appelle add_qso_to_log en boucle). Elle faisait un DELETE FROM qso + la
+# RÉINSERTION DE TOUT LE CARNET, puis réécrivait intégralement shared_log.json :
+# le coût d'UN QSO était linéaire en taille du carnet, donc le coût cumulé
+# QUADRATIQUE. Mesuré (POST /log/add réel, SSD local) :
+#
+#     carnet      0 QSO ->    10 ms
+#     carnet 20 000 QSO ->   487 ms
+#     carnet 40 000 QSO -> 1 013 ms   (shared_log.json = 14,7 Mo)
+#     carnet 80 000 QSO -> 2 089 ms   (shared_log.json = 29,4 Mo)
+#
+# Exactement le motif de dérive lente redouté en expédition : parfaitement
+# fluide au démarrage, 2 secondes de gel de l'interface par QSO au bout de dix
+# jours de pile-up, sur un site où rien n'est réparable — et de l'ordre du
+# téraoctet réellement écrit sur le support pour 80 000 QSO loggués. Un
+# rattrapage Cloud Sync de 500 QSO sur un carnet de 20 000 mesurait 232 s et
+# 4,55 Go écrits, pour 500 QSO récupérés.
+#
+# On tient donc un MIROIR de ce qui est réellement sur le disque, et on n'écrit
+# que la différence. Le miroir ne vaut que pour LA base à laquelle il
+# correspond : tout changement de dossier de travail, disparition du fichier ou
+# erreur d'écriture le fait oublier, et la sauvegarde suivante réécrit tout.
+_disk_path = None      # chemin ABSOLU de la base décrite par le miroir
+_disk_ids = set()      # ids (tels que stockés) présents dans la table qso
+_disk_version = None   # log_version dont l'état est déjà écrit ; None = inconnu
+_disk_pending = 0      # QSO écrits en delta depuis la dernière réécriture complète
+
+# Réécriture COMPLÈTE (base + shared_log.json) tous les len(log)//200 QSO
+# touchés. Deux raisons, et une propriété :
+#   - shared_log.json ne peut PAS être écrit en delta (c'est un tableau JSON
+#     réécrit d'un bloc) ; c'est un secours LISIBLE, pas la source de vérité
+#     (logx.db, transactionnelle, reste à jour au QSO près à chaque instant, et
+#     logx_backup.run_backup écrit de toute façon son propre JSON depuis la
+#     mémoire). Le rafraîchir périodiquement suffit ;
+#   - filet de sécurité : si un futur chemin de mutation oubliait son
+#     stamp_qso_version(), la réécriture complète répare l'écart au lieu de le
+#     laisser s'installer.
+# Propriété : l'intervalle étant proportionnel à la taille du carnet, le coût
+# AMORTI par QSO reste constant au lieu de croître linéairement — le volume
+# total écrit sur une expédition redevient linéaire (quelques Go) au lieu de
+# quadratique (~1,8 To). Sous 200 QSO, comportement identique à l'ancien :
+# chaque sauvegarde réécrit tout (c'est instantané à cette taille).
+_RESYNC_DIVISOR = 200
+
+
+def _forget_disk_state():
+    """Le miroir ne décrit plus le disque : tout réécrire au prochain passage."""
+    global _disk_path, _disk_ids, _disk_version, _disk_pending
+    _disk_path, _disk_ids, _disk_version, _disk_pending = None, set(), None, 0
+
+
+def _disk_key(qso):
+    """Clé de ligne = l'id du QSO TEL QU'IL EST STOCKÉ (voir _sqlite_safe : une
+    valeur aberrante est dégradée en texte), pour que le WHERE id=? d'un UPDATE
+    ou d'un DELETE retombe exactement sur la valeur écrite."""
+    return _sqlite_safe(qso.get('id'))
+
+
+def _plan_ecriture(data, base_version):
+    """(à_insérer, à_mettre_à_jour, ids_supprimés, ids_courants), ou None s'il
+    faut réécrire tout le carnet. Appelant responsable de tenir _db_lock.
+
+    UNE SEULE passe sur le carnet, à deux accès de dictionnaire par QSO : c'est
+    tout ce qui reste de linéaire dans une sauvegarde, et ça doit le rester
+    (c'est le chemin parcouru à chaque QSO d'un pile-up)."""
+    if base_version is None:
+        return None                     # état du disque inconnu
+    ids_now, a_inserer, a_majour = set(), [], []
+    for q in data:
+        k = q.get('id')
+        if type(k) is not int or not (_INT64_MIN <= k <= _INT64_MAX):
+            # Cas rare (id absent, ou valeur que _sqlite_safe dégrade avant de
+            # l'écrire) : on repasse par la clé exacte telle que stockée.
+            k = _disk_key(q)
+            if k is None:
+                return None             # QSO sans id : aucune ligne à cibler
+        ids_now.add(k)
+        if k in _disk_ids:
+            # Les QSO modifiés sont ceux estampillés depuis la dernière
+            # écriture — le même marqueur '_v' que la synchro différentielle de
+            # /log/list, posé par stamp_qso_version() sous log_lock à CHAQUE
+            # mutation individuelle.
+            if (q.get('_v') or 0) > base_version:
+                a_majour.append((q, k))
+        else:
+            a_inserer.append(q)
+    if len(ids_now) != len(data):
+        return None                     # ids dupliqués : un UPDATE ... WHERE id=?
+                                        # toucherait plusieurs QSO à la fois
+    supprimes = _disk_ids - ids_now
+    touches = len(a_inserer) + len(a_majour) + len(supprimes)
+    if _disk_pending + touches >= max(1, len(data) // _RESYNC_DIVISOR):
+        return None                     # résynchronisation complète amortie
+    return a_inserer, a_majour, supprimes, ids_now
+
+
+def _ecrire_tout(data, version_now):
+    """Réécriture complète : base + shared_log.json de secours."""
+    global _disk_path, _disk_ids, _disk_version, _disk_pending
+    conn = _db()
+    try:
+        with conn:  # transaction : réécriture tout-ou-rien
+            conn.execute('DELETE FROM qso')
+            conn.executemany(
+                f"INSERT INTO qso ({','.join(_CORE)}, extra) "
+                f"VALUES ({','.join('?' * (len(_CORE) + 1))})",
+                [_row_from_qso(q) for q in data])
+    finally:
+        conn.close()
+    save_json_atomic('shared_log.json', data)
+    _disk_path = os.path.abspath(DB_FILE)
+    _disk_ids = {_disk_key(q) for q in data}
+    _disk_version = version_now
+    _disk_pending = 0
+
+
+def _ecrire_delta(data, version_now, plan):
+    """N'écrit QUE les QSO ajoutés/corrigés/supprimés (une transaction, comme
+    la réécriture complète : tout-ou-rien)."""
+    global _disk_ids, _disk_version, _disk_pending
+    a_inserer, a_majour, supprimes, ids_now = plan
+    conn = _db()
+    try:
+        with conn:
+            if supprimes:
+                conn.executemany('DELETE FROM qso WHERE id=?',
+                                 [(k,) for k in supprimes])
+            if a_majour:
+                conn.executemany(
+                    f"UPDATE qso SET {'=?, '.join(_CORE)}=?, extra=? WHERE id=?",
+                    [_row_from_qso(q) + (k,) for q, k in a_majour])
+            if a_inserer:
+                conn.executemany(
+                    f"INSERT INTO qso ({','.join(_CORE)}, extra) "
+                    f"VALUES ({','.join('?' * (len(_CORE) + 1))})",
+                    [_row_from_qso(q) for q in a_inserer])
+    finally:
+        conn.close()
+    _disk_ids = ids_now
+    _disk_version = version_now
+    _disk_pending += len(a_inserer) + len(a_majour) + len(supprimes)
+
+
 def save_log_to_disk():
-    """Persiste le log : SQLite (transaction, primaire) + JSON de secours."""
+    """Persiste le log : SQLite (transaction, primaire) + JSON de secours.
+
+    Écriture INCRÉMENTALE (voir la section PERSISTANCE INCRÉMENTALE ci-dessus) :
+    au retour, logx.db contient TOUJOURS l'intégralité du carnet — rien n'est
+    différé, seul le travail inutile est supprimé."""
     if load_failed:
         # Le chargement au démarrage a échoué avec une base existante : écrire
         # maintenant écraserait l'historique par le log (quasi) vide en mémoire.
@@ -662,17 +814,30 @@ def save_log_to_disk():
     try:
         with log_lock:
             data = list(shared_log)  # copie sous verrou
+            version_now = log_version
         with _db_lock:
-            conn = _db()
-            with conn:  # transaction : réécriture tout-ou-rien
-                conn.execute('DELETE FROM qso')
-                conn.executemany(
-                    f"INSERT INTO qso ({','.join(_CORE)}, extra) "
-                    f"VALUES ({','.join('?' * (len(_CORE) + 1))})",
-                    [_row_from_qso(q) for q in data])
-            conn.close()
-        save_json_atomic('shared_log.json', data)
+            if _disk_path != os.path.abspath(DB_FILE) or not os.path.exists(DB_FILE):
+                _forget_disk_state()   # autre base, ou base disparue sous nos pieds
+            elif _disk_version is not None and version_now < _disk_version:
+                # Instantané plus ancien que ce qui est déjà écrit : une autre
+                # requête (ThreadingHTTPServer) a persisté entretemps un état
+                # PLUS récent, qui contient forcément notre propre mutation.
+                # Sans ce garde-fou, notre liste d'ids périmée ferait supprimer
+                # de la base les QSO ajoutés par l'autre thread.
+                return
+            plan = _plan_ecriture(data, _disk_version)
+            if plan is None:
+                _ecrire_tout(data, version_now)
+            else:
+                _ecrire_delta(data, version_now, plan)
     except Exception as e:
+        # État du disque devenu incertain : la prochaine sauvegarde réécrit tout
+        # plutôt que d'empiler un delta sur une base dont on ne sait plus rien.
+        # SOUS _db_lock (déjà relâché par le `with` pendant la remontée de
+        # l'exception) : le miroir ne doit jamais être vidé pendant qu'un autre
+        # thread est en train de calculer son delta contre lui.
+        with _db_lock:
+            _forget_disk_state()
         print(f"[LOG] Erreur sauvegarde : {e}")
 
 
@@ -708,7 +873,9 @@ def load_log_from_disk():
     Mutation EN PLACE (shared_log[:] = ...) et non réassignation : les autres
     modules importent shared_log par référence, une réassignation les laisserait
     pointer sur l'ancienne liste vide."""
+    global _disk_path, _disk_ids, _disk_version, _disk_pending
     try:
+        _forget_disk_state()   # on ne sait rien du disque tant qu'on n'a pas lu
         if os.path.exists(DB_FILE):
             with _db_lock:
                 conn = _db()
@@ -718,6 +885,13 @@ def load_log_from_disk():
                 conn.close()
             shared_log[:] = [_qso_from_row(r) for r in rows]
             _strip_stale_delta_versions()
+            # La mémoire vient d'être remplie DEPUIS la base : le miroir de
+            # persistance incrémentale est exact, la première sauvegarde de la
+            # session n'aura que le premier QSO à écrire (et non tout le carnet).
+            _disk_path = os.path.abspath(DB_FILE)
+            _disk_ids = {_disk_key(q) for q in shared_log}
+            _disk_version = log_version
+            _disk_pending = 0
             print(f"[LOG] {len(shared_log)} QSO charges depuis {DB_FILE}")
             return
         if os.path.exists('shared_log.json'):

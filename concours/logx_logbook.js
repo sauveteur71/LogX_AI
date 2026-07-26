@@ -3832,11 +3832,38 @@ const DEFAULT_MACROS = [
 ];
 function getMacros(){ try{ const s=localStorage.getItem('logx_macros'); return s?JSON.parse(s):DEFAULT_MACROS; }catch(e){ return DEFAULT_MACROS; } }
 function saveMacros(m){ localStorage.setItem('logx_macros', JSON.stringify(m)); }
+// {NR} doit valoir EXACTEMENT le numéro qui sera loggué : la macro F2
+// (« 59 {NR} {LOC} ») part directement au keyer de la radio via copyMacro() →
+// POST /rig/cw, y compris automatiquement en mode ESM (esmSend('exchange')).
+// La seule source de vérité est donc le champ N° ENVOYÉ (#inputNumSent), tenu
+// à jour par updateSerialDisplay() à partir de serialByBand[bande] — le n° de
+// série est alloué PAR BANDE et par portée concours (nextSerial() →
+// /log/next_serial → logx_storage.allocate_next_serial), et c'est cette
+// valeur-là qui finit dans num_sent puis dans l'EDI/Cabrillo.
+//
+// L'ancien calcul, String(qsoLog.length+1), comptait TOUS les QSO de l'édition
+// toutes bandes confondues (et, en multi-poste, ceux loggués par les autres
+// opérateurs sur les autres bandes) : les deux formules ne coïncidaient que sur
+// un concours mono-bande sans trou. Dès le premier QSO d'une deuxième bande —
+// cas normal en IARU UHF/SHF, Marconi, Rallye des Points Hauts, CQ WPX… — la
+// radio envoyait sur l'air un numéro absent du log, et l'écart croissait à
+// chaque QSO ; le correspondant note un numéro introuvable au cross-check, les
+// deux QSO tombent, et l'opérateur n'a aucun recours (champ readOnly par
+// conception, cf. updateSerialDisplay). Le chemin VOCAL (sendVoiceDynMacro)
+// lisait déjà ce même champ : seul le chemin CW était resté sur le compteur global.
 function expandMacro(text){
   const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
   const call = cfg.callsign || myCall || '—';
   const loc  = cfg.locator  || myLocator || '—';
-  const nr   = String(qsoLog.length + 1).padStart(3,'0');
+  const nrEl = document.getElementById('inputNumSent');
+  const nrField = nrEl ? String(nrEl.value || '').trim() : '';
+  // Repli si le champ n'est pas encore renseigné (panneau macros rendu avant
+  // le premier updateSerialDisplay()) : même formule que l'affichage, jamais
+  // un compteur global. Pour un échange non sériel (zone, dept, classe…) il
+  // n'y a rien à prédire : on laisse la valeur du champ telle quelle.
+  const nr = nrField || (currentExchange.auto_serial
+    ? String((serialByBand[currentBand] || 0) + 1).padStart(3,'0')
+    : '');
   return text.replace(/{CALL}/g,call).replace(/{LOC}/g,loc).replace(/{NR}/g,nr);
 }
 function renderMacroPanel(){
@@ -4392,17 +4419,77 @@ function exportCabrillo(cfg, call){
   }, 400);
 }
 
+// ─── EXPORT ADIF ─────────────────────────────────────────────────────────────
+// <BAND> attend un LIBELLÉ de l'énumération Band d'ADIF ('20m', '2m', '70cm'),
+// jamais une fréquence. La bande interne du log étant la fréquence en MHz
+// ('14', '144', '3.5'), elle doit être TRADUITE : coller un 'M' à la valeur
+// interne produisait <BAND>14M / <BAND>144M, refusé par TQSL/LoTW, eQSL et
+// Club Log sur les 20 bandes gérées.
+// Table jumelle de logx_export.ADIF_BAND (version Python, /log/export/adif).
+// Ne PAS réutiliser BAND_LABELS : c'est une table d'AFFICHAGE, dont deux
+// entrées (24048 → '6mm', 47088 → '4mm') portent le nom d'usage et non le
+// libellé ADIF officiel ('1.25cm' et '6mm').
+const ADIF_BAND = {
+  '1.8':'160m','3.5':'80m','7':'40m','10.1':'30m','14':'20m','18':'17m',
+  '21':'15m','24':'12m','28':'10m','50':'6m','70':'4m','144':'2m',
+  '432':'70cm','1296':'23cm','2320':'13cm','3400':'9cm','5760':'6cm',
+  '10368':'3cm','24048':'1.25cm','47088':'6mm',
+};
+// Libellés ADIF officiels (ADIF 3.1.7, cf. logx_adif_enums.ADIF_BANDS). Un QSO
+// IMPORTÉ conserve tel quel le libellé ADIF quand sa bande sort de notre table
+// interne (60m, 2190m, 1mm… — voir logx_qsl._band_from_record) : il est alors
+// DÉJÀ valide et doit ressortir intact, surtout pas suffixé ('1mmM').
+const ADIF_BAND_OFFICIELLES = new Set([
+  '2190m','630m','560m','160m','80m','60m','40m','30m','20m','17m','15m',
+  '12m','10m','8m','6m','5m','4m','2m','1.25m','70cm','33cm','23cm','13cm',
+  '9cm','6cm','3cm','1.25cm','6mm','4mm','2.5mm','2mm','1mm','submm',
+]);
+// Bande interne → libellé ADIF, '' si intraduisible (le champ est alors OMIS :
+// une valeur hors énumération fait rejeter tout l'enregistrement).
+function adifBandLabel(band){
+  const raw = String(band == null ? '' : band).trim();
+  if(!raw) return '';
+  if(ADIF_BAND[raw]) return ADIF_BAND[raw];
+  const bas = raw.toLowerCase();
+  return ADIF_BAND_OFFICIELLES.has(bas) ? bas : '';
+}
+// Un champ ADIF : <NOM:longueur>valeur. Valeur vide = champ absent.
+function adifField(name, value){
+  const v = String(value == null ? '' : value).trim();
+  return v ? `<${name}:${v.length}>${v} ` : '';
+}
+
 function exportADIF(){
   const validQSOs = qsoLog.filter(isValidQSO);
   const skipped = qsoLog.length - validQSOs.length;
   if(skipped && !confirm(trF('⚠️ {n} QSO incomplet(s) seront ignorés dans l\'export ADIF.\n\nContinuer ?', {n: skipped}))) return;
 
-  let adif = 'LogX AI — Export ADIF\n<EOH>\n\n';
+  let adif = 'LogX AI — Export ADIF\n';
+  adif += adifField('ADIF_VER', '3.1.4') + adifField('PROGRAMID', 'LogX AI') + '\n<EOH>\n\n';
   validQSOs.forEach(q=>{
-    adif += `<CALL:${q.call.length}>${q.call} <BAND:${(q.band+'M').length}>${q.band}M <MODE:${q.mode.length}>${q.mode} `;
-    adif += `<RST_SENT:${q.rst_sent.length}>${q.rst_sent} <RST_RCVD:${q.rst_rcvd.length}>${q.rst_rcvd} `;
-    if(q.locator) adif += `<GRIDSQUARE:${q.locator.length}>${q.locator} `;
-    adif += `<QSO_DATE:8>${q.date} <TIME_ON:4>${q.time.replace(':','')} <EOR>\n`;
+    const date = String(q.date || '').replace(/-/g, '').slice(0, 8);
+    const time = String(q.time || '').replace(/:/g, '').slice(0, 4).padEnd(4, '0');
+    adif += adifField('CALL', String(q.call).toUpperCase());
+    adif += adifField('QSO_DATE', date);
+    adif += adifField('TIME_ON', time);
+    adif += adifField('BAND', adifBandLabel(q.band));
+    // FREQ : seulement si elle a réellement été relevée (CAT/saisie) — c'est
+    // aussi le seul moyen, pour un importateur, de retrouver la bande d'un
+    // QSO dont le libellé serait intraduisible.
+    adif += adifField('FREQ', q.freq);
+    adif += adifField('MODE', q.mode);
+    adif += adifField('RST_SENT', q.rst_sent);
+    adif += adifField('RST_RCVD', q.rst_rcvd);
+    adif += adifField('STX_STRING', q.num_sent);
+    adif += adifField('SRX_STRING', q.num_rcvd);
+    adif += adifField('GRIDSQUARE', q.locator);
+    adif += adifField('MY_GRIDSQUARE', q.my_locator || myLocator);
+    // Multi-op : sans STATION_CALLSIGN/OPERATOR le log n'est attribuable ni à
+    // la station ni à l'opérateur qui a fait le QSO.
+    adif += adifField('STATION_CALLSIGN', String(q.my_call || myCall || '').toUpperCase());
+    adif += adifField('OPERATOR', q.operator);
+    adif += adifField('CONTEST_ID', q.contest);
+    adif += '<EOR>\n';
   });
   const blob = new Blob([adif],{type:'text/plain'});
   const a = document.createElement('a');
