@@ -1192,6 +1192,42 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
 
+      <!-- ─── WINKEYER ─────────────────────────────────────────────────────
+           Seule voie de manipulation CW pour Icom (CI-V ne publie pas de
+           commande d'envoi de texte) et pour Yaesu. Sur les autres marques il
+           reste préférable : son propre port, son propre processeur, donc une
+           cadence indépendante du trafic CAT. -->
+      <div class="section">
+        <div class="section-title">🎛️ MANIPULATEUR WINKEYER (K1EL)</div>
+        <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
+          Boîtier de manipulation CW branché sur son propre port série. Activé, il prend
+          la main sur l'envoi CW <b style="color:var(--text)">quelle que soit la marque de
+          radio</b> — c'est la seule manipulation possible en Icom et en Yaesu. La vitesse
+          se règle ici et non sur la radio.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>WINKEYER</label>
+            <select id="winkeyer_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>PORT SÉRIE</label>
+            <input type="text" id="winkeyer_port" placeholder="COM5 ou /dev/ttyUSB1">
+          </div>
+          <div class="form-group">
+            <label>VITESSE (mots/min)</label>
+            <input type="number" id="winkeyer_wpm" placeholder="25" min="5" max="99">
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testWinKeyer()">🔌 Tester le WinKeyer</button>
+          <span id="winkeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+
       <!-- ─── TRANSVERTERS ─────────────────────────────────────────────────
            Au-dessus de 1296 MHz la radio affiche sa FI (144 ou 432 MHz) et
            non la fréquence réelle. Sans cette table, la bande déduite, le QSO
@@ -4961,6 +4997,26 @@ function onProviderChange() {
   document.getElementById('api_key').value = savedKey;
 }
 
+// Le test ouvre une session avec le boîtier et lit la VERSION de son
+// micrologiciel : c'est la seule preuve qu'un WinKeyer est bien au bout du
+// câble. Un adaptateur USB sans rien derrière répondrait « port ouvert » sans
+// jamais manipuler, et les macros partiraient dans le vide en plein concours.
+async function testWinKeyer(){
+  const out = document.getElementById('winkeyerTestResult');
+  const port = document.getElementById('winkeyer_port')?.value.trim();
+  if(!port){ if(out){ out.style.color = 'var(--yellow)'; out.textContent = '⚠ Renseigne le port série d\'abord'; } return; }
+  if(out){ out.style.color = 'var(--muted)'; out.textContent = '⏳ ouverture…'; }
+  try{
+    const res = await fetch('/winkeyer/test', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({port, wpm: document.getElementById('winkeyer_wpm')?.value})}).then(r=>r.json());
+    if(out){
+      out.style.color = res.ok ? 'var(--green)' : 'var(--red)';
+      out.textContent = res.ok ? '✅ ' + (res.version_texte || 'WinKeyer détecté')
+                               : '❌ ' + (res.error || 'échec');
+    }
+  }catch(e){ if(out){ out.style.color = 'var(--red)'; out.textContent = '❌ ' + e.message; } }
+}
+
 // ─── TRANSVERTERS ────────────────────────────────────────────────────────────
 // Bandes FI : celles qu'une radio du commerce couvre réellement. Bandes RF :
 // les clés SONT les fréquences nominales des montages (un 144 → 1296 a son
@@ -5235,6 +5291,9 @@ function saveConfig(silent = false, feedbackBtn = null) {
     voicekeyer_device: document.getElementById('voicekeyer_device').value,
     voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
     voicekeyer_rate: _numClamped('voicekeyer_rate', 175),
+    winkeyer_enabled: document.getElementById('winkeyer_enabled')?.value || '',
+    winkeyer_port: document.getElementById('winkeyer_port')?.value.trim() || '',
+    winkeyer_wpm: _numClamped('winkeyer_wpm', 25),
     transverters: readTransverters(),
     amp_enabled: !!document.getElementById('amp_enabled').value,
     amp_brand: document.getElementById('amp_brand').value,
@@ -5875,6 +5934,7 @@ function applyFullConfigToForm(c) {
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
      'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
+     'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
      'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });

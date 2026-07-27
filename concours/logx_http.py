@@ -3644,9 +3644,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res, 200 if res.get('ok') else 502)
             return
 
+        # Test du WinKeyer : l'ouverture de session renvoie la version du
+        # micrologiciel, seule preuve qu'un manipulateur est bien au bout du
+        # câble — un adaptateur USB sans rien derrière passerait sinon pour un
+        # WinKeyer et les macros partiraient dans le vide.
+        if self.path == '/winkeyer/test':
+            import logx_winkeyer as wk
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            cfg_test = dict(self._cfg_snapshot())
+            if payload.get('port'):
+                cfg_test['winkeyer_port'] = payload['port']
+            if payload.get('wpm'):
+                cfg_test['winkeyer_wpm'] = payload['wpm']
+            res = wk.tester(cfg_test)
+            self._json(res, 200 if res.get('ok') else 502)
+            return
+
         # Radio CAT : QSY, envoi CW, stop CW — natif/TCI/flrig si configuré, sinon rigctld
         if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop'):
             cfg_snap = self._cfg_snapshot()
+            # WinKeyer AVANT tout backend CAT, et quel que soit le mode : c'est
+            # tout son intérêt. Il a son propre port et son propre processeur,
+            # donc une cadence qui ne dépend pas du trafic CAT — et il est la
+            # SEULE voie de manipulation pour Icom (CI-V n'a pas de commande
+            # d'envoi de texte CW) et pour Yaesu. Le QSY, lui, reste au CAT :
+            # un manipulateur ne règle pas la fréquence.
+            if self.path in ('/rig/cw', '/rig/stop'):
+                import logx_winkeyer as wk
+                if wk.parametres(cfg_snap)['enabled']:
+                    if self.path == '/rig/stop':
+                        res = wk.arreter(cfg_snap)
+                    else:
+                        res = wk.envoyer(cfg_snap, (json.loads(body) if body else {}).get('text', ''))
+                        if res.get('ok'):
+                            print(f"[WK] CW -> {str(res.get('text',''))[:60]} "
+                                  f"({res.get('wpm')} mots/min)")
+                    self._json(res, 200 if res.get('ok') else 400)
+                    return
             import logx_cat as cat
             cat_settings = cat.cat_settings(cfg_snap)
             native = cat_settings['enabled'] and cat_settings['mode'] == 'native'
