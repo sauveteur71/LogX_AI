@@ -2037,11 +2037,140 @@ function cwToCall(w){
 
 // ─── AFFICHAGE DES PANNEAUX SELON LE MODE ────────────────────────────────────
 function updateKeyerPanels(){
-  const cw = (typeof rigState!=='undefined') && /CW/i.test(rigState.mode||currentMode||'');
+  const mode = (typeof rigState!=='undefined' && rigState.mode) || currentMode || '';
+  const cw = /CW/i.test(mode);
+  const rtty = /RTTY|RY/i.test(mode);
   const macro=document.getElementById('macroPanel');
   const voice=document.getElementById('voicePanel');
   if(macro) macro.style.display = cw ? '' : 'none';
-  if(voice) voice.style.display = cw ? 'none' : '';
+  // En RTTY, ni les macros CW ni le keyer vocal n'ont de sens : c'est le
+  // décodeur qui prend la place.
+  if(voice) voice.style.display = (cw || rtty) ? 'none' : '';
+  const dec = document.getElementById('rttyDecoder');
+  if(dec) dec.style.display = rtty ? '' : 'none';
+  // Le panneau CW s'appelle cwPanel (pas cwDecoder) : viser le mauvais id
+  // n'aurait leve AUCUNE erreur, le decodeur CW serait simplement reste
+  // affiche en RTTY. Verifie contre le balisage.
+  const cwDec = document.getElementById('cwPanel');
+  if(cwDec) cwDec.style.display = rtty ? 'none' : '';
+}
+
+// ─── DÉCODEUR RTTY ───────────────────────────────────────────────────────────
+let _rttyDecoder = null;
+let _rttyTexte = '';
+
+function toggleRttyPanel(){
+  const b = document.getElementById('rttyBody');
+  if(b) b.style.display = b.style.display === 'none' ? '' : 'none';
+}
+
+function rttyTons(){
+  const mark = parseInt(document.getElementById('rttyMark')?.value, 10) || 2125;
+  const shift = parseInt(document.getElementById('rttyShift')?.value, 10) || 170;
+  return {mark, space: mark + shift};
+}
+
+function rttyAppliquerTons(){
+  const t = rttyTons();
+  if(_rttyDecoder) _rttyDecoder.setShift(t.mark, t.space);
+}
+
+async function toggleRttyDecoder(){
+  const btn = document.getElementById('rttyStartBtn');
+  const etat = document.getElementById('rttyStatus');
+  if(_rttyDecoder){
+    _rttyDecoder.stop();
+    _rttyDecoder = null;
+    if(btn) btn.textContent = '▶ Démarrer';
+    if(etat) etat.textContent = '';
+    return;
+  }
+  const t = rttyTons();
+  const out = document.getElementById('rttyOutput');
+  _rttyDecoder = new RttyAudioDecoder({
+    mark: t.mark, space: t.space,
+    onChar: c => {
+      // Le texte accumulé vit dans _rttyTexte et non dans le DOM : il est
+      // re-rendu en jetons cliquables à chaque caractère. On le borne pour
+      // qu'une nuit de réception ne fasse pas gonfler la page indéfiniment.
+      _rttyTexte += c;
+      if(_rttyTexte.length > 4000) _rttyTexte = _rttyTexte.slice(-3000);
+      rttyRender(_rttyTexte);
+    },
+  });
+  try{
+    await _rttyDecoder.start(document.getElementById('rttyDevice')?.value || '');
+    if(btn) btn.textContent = '■ Arrêter';
+    if(etat) etat.textContent = t.mark + '/' + t.space + ' Hz';
+  }catch(e){
+    _rttyDecoder = null;
+    notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
+  }
+}
+
+function clearRttyOutput(){
+  _rttyTexte = '';
+  rttyRender('');
+}
+
+// Un jeton ressemble-t-il à un indicatif ? Lettres et chiffres, au moins un
+// chiffre, éventuellement barré (/P, /MM). Le filtre évite de proposer « CQ »,
+// « TEST » ou « DE » comme correspondants.
+function rttyEstIndicatif(mot){
+  const propre = String(mot || '').toUpperCase().replace(/[^A-Z0-9/]/g, '');
+  // Au moins un chiffre ET au moins une lettre. Sans la lettre, le report
+  // « 599 » et le numéro de série « 001 » — qui sont dans TOUS les échanges
+  // RTTY — devenaient cliquables et proposaient d'aller dans le champ
+  // indicatif : un clic de travers et on loggue « 599 ».
+  return (propre.length >= 3 && /[0-9]/.test(propre) && /[A-Z]/.test(propre))
+         ? propre : '';
+}
+
+// Le texte décodé est rendu en JETONS : chaque indicatif devient un élément
+// cliquable à part entière.
+//
+// La première version lisait window.getSelection() et, à défaut, la position
+// du curseur. Les deux se sont révélées fragiles : dans la page réelle, une
+// sélection posée par programme rend une chaîne VIDE, et la position du
+// curseur demande des coordonnées d'écran. Un élément par mot ne dépend
+// d'aucune de ces API — le clic arrive directement sur sa cible.
+function rttyRender(texte){
+  const out = document.getElementById('rttyOutput');
+  if(!out) return;
+  const frag = document.createDocumentFragment();
+  // On coupe en gardant les séparateurs, pour ne pas écraser la mise en page
+  // du texte reçu (retours ligne du correspondant compris).
+  for(const jeton of String(texte).split(/(\s+)/)){
+    const call = rttyEstIndicatif(jeton);
+    if(call){
+      const el = document.createElement('span');
+      el.className = 'rtty-call';
+      el.dataset.call = call;
+      el.textContent = jeton;
+      el.title = 'Cliquer pour mettre ' + call + ' dans la saisie';
+      frag.appendChild(el);
+    } else {
+      frag.appendChild(document.createTextNode(jeton));
+    }
+  }
+  out.innerHTML = '';
+  out.appendChild(frag);
+  out.scrollTop = out.scrollHeight;
+}
+
+// Clic sur un indicatif décodé : il part dans la saisie. C'est CE geste qui
+// fait la vitesse en RTTY — recopier à la main un indicatif déjà affiché est
+// du temps perdu, et une source de faute de frappe.
+function rttyClicTexte(ev){
+  const cible = ev.target && ev.target.closest ? ev.target.closest('.rtty-call') : null;
+  const call = cible && cible.dataset ? cible.dataset.call : '';
+  if(!call) return;
+  const inp = document.getElementById('inputCall');
+  if(inp){
+    inp.value = call;
+    inp.focus();
+    inp.dispatchEvent(new Event('input', {bubbles: true}));
+  }
 }
 // Au démarrage on demande au SERVEUR quels messages existent : ils n'ont
 // jamais été dans ce navigateur si l'opérateur les a enregistrés ailleurs.

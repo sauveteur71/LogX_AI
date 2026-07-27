@@ -492,6 +492,10 @@ Attention à la convention : dans les macros CW, `{CALL}` est **votre** indicati
 
 #### 🎙 KEYER VOCAL (modes phonie)
 
+**📠 DÉCODEUR RTTY.** En mode RTTY, un panneau de décodage remplace celui du CW. Il écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, **pas le micro du PC**) et affiche le texte décodé — sans logiciel externe, là où N1MM s'appuie sur MMTTY, MMVARI ou Fldigi. Réglez **Mark** (2125 Hz par défaut) et le **Shift** (170 Hz, le standard amateur) ; restez à moins de 50 Hz du signal, au-delà le décodage se dégrade.
+
+**Chaque indicatif décodé est cliquable** : un clic le met dans la saisie. C'est ce geste qui fait la vitesse en RTTY — recopier à la main un indicatif déjà affiché est du temps perdu et une source de faute de frappe. Les mots ordinaires (CQ, TEST, DE) et les reports chiffrés ne sont pas cliquables, pour éviter les clics de travers.
+
 Le panneau « 🎙 KEYER VOCAL — clic: jouer · ⏺: enregistrer » remplace les macros quand le mode n'est pas CW. Quatre slots : **CQ**, **RÉPONSE**, **REPORT**, **MERCI**. Le bouton ⏺ enregistre au micro de votre PC (re-clic pour arrêter), ▶ rejoue le message. Le message part **par la radio** : le serveur lève le PTT, l'envoie vers le périphérique de sortie choisi dans CONFIG (le câble vers l'entrée micro de la radio — voir §5, carte Radio), puis relâche le PTT en vérifiant qu'il est bien retombé. La durée de chaque message est affichée sur son bouton. Les enregistrements vivent **sur le serveur** : vous les retrouvez depuis n'importe quel poste du réseau, et ils survivent au vidage du cache du navigateur. Le pilotage radio et le keyer vocal doivent être activés dans CONFIG — sans eux, le PTT ne peut pas être levé et le message est refusé avec un message explicite plutôt que joué dans le vide.
 
 #### 🤖 CALLBOT (phonie automatisée par la radio)
