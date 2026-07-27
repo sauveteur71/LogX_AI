@@ -1192,6 +1192,74 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
 
+      <!-- ─── SO2R : DEUXIÈME RADIO + BOÎTIER DE COMMUTATION ──────────────
+           Appeler CQ sur une bande pendant qu'on cherche sur l'autre. La
+           commutation réelle (émission, audio) se fait dans un boîtier
+           matériel : aucun logiciel ne route de l'audio à la place d'un
+           relais. LogX AI lui DIT quoi commuter, par le protocole OTRSP. -->
+      <div class="section">
+        <div class="section-title">🎚️ SO2R — DEUXIÈME RADIO</div>
+        <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
+          À remplir seulement si vous opérez avec <b style="color:var(--text)">deux radios</b>.
+          Le QSY, les macros et le manipulateur visent alors la radio qui a l'émission ;
+          la bascule se fait au clavier par <b style="color:var(--text)">Ctrl+Espace</b>.
+          Le boîtier OTRSP (microHAM, YCCC, EA4TX...) commute l'émission et l'audio ;
+          sans lui, la bascule reste logicielle et vous rebranchez le casque à la main.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>RADIO 2</label>
+            <select id="cat2_enabled">
+              <option value="">Désactivée</option>
+              <option value="1">Activée</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>MARQUE</label>
+            <select id="cat2_brand">
+              <option value="">—</option>
+              <option value="icom">Icom</option>
+              <option value="yaesu">Yaesu</option>
+              <option value="kenwood">Kenwood</option>
+              <option value="elecraft">Elecraft</option>
+              <option value="xiegu">Xiegu</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>PORT SÉRIE</label>
+            <input type="text" id="cat2_port" placeholder="COM4">
+          </div>
+          <div class="form-group">
+            <label>VITESSE (bauds)</label>
+            <input type="number" id="cat2_baudrate" placeholder="19200">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>BOÎTIER OTRSP</label>
+            <select id="so2r_enabled">
+              <option value="">Aucun</option>
+              <option value="1">Connecté</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>PORT DU BOÎTIER</label>
+            <input type="text" id="so2r_port" placeholder="COM9">
+          </div>
+          <div class="form-group">
+            <label>ÉCOUTE</label>
+            <select id="so2r_stereo">
+              <option value="1">Stéréo (une oreille sur chaque radio)</option>
+              <option value="0">Mono (suit l'émission)</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testSo2r()">🔌 Tester le boîtier</button>
+          <span id="so2rTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+
       <!-- ─── WINKEYER ─────────────────────────────────────────────────────
            Seule voie de manipulation CW pour Icom (CI-V ne publie pas de
            commande d'envoi de texte) et pour Yaesu. Sur les autres marques il
@@ -5001,6 +5069,19 @@ function onProviderChange() {
 // micrologiciel : c'est la seule preuve qu'un WinKeyer est bien au bout du
 // câble. Un adaptateur USB sans rien derrière répondrait « port ouvert » sans
 // jamais manipuler, et les macros partiraient dans le vide en plein concours.
+async function testSo2r(){
+  const out = document.getElementById('so2rTestResult');
+  const port = document.getElementById('so2r_port')?.value.trim();
+  if(!port){ if(out){ out.style.color='var(--yellow)'; out.textContent='⚠ Renseigne le port du boîtier'; } return; }
+  if(out){ out.style.color='var(--muted)'; out.textContent='⏳ envoi de TX1…'; }
+  try{
+    const res = await fetch('/so2r/test', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({port})}).then(r=>r.json());
+    if(out){ out.style.color = res.ok ? 'var(--green)' : 'var(--red)';
+             out.textContent = res.ok ? '✅ ' + (res.note || 'boîtier joignable') : '❌ ' + (res.error||'échec'); }
+  }catch(e){ if(out){ out.style.color='var(--red)'; out.textContent='❌ '+e.message; } }
+}
+
 async function testWinKeyer(){
   const out = document.getElementById('winkeyerTestResult');
   const port = document.getElementById('winkeyer_port')?.value.trim();
@@ -5291,6 +5372,14 @@ function saveConfig(silent = false, feedbackBtn = null) {
     voicekeyer_device: document.getElementById('voicekeyer_device').value,
     voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
     voicekeyer_rate: _numClamped('voicekeyer_rate', 175),
+    cat2_enabled: document.getElementById('cat2_enabled')?.value || '',
+    cat2_mode: 'native',
+    cat2_brand: document.getElementById('cat2_brand')?.value || '',
+    cat2_port: document.getElementById('cat2_port')?.value.trim() || '',
+    cat2_baudrate: parseInt(document.getElementById('cat2_baudrate')?.value, 10) || 0,
+    so2r_enabled: document.getElementById('so2r_enabled')?.value || '',
+    so2r_port: document.getElementById('so2r_port')?.value.trim() || '',
+    so2r_stereo: document.getElementById('so2r_stereo')?.value || '1',
     winkeyer_enabled: document.getElementById('winkeyer_enabled')?.value || '',
     winkeyer_port: document.getElementById('winkeyer_port')?.value.trim() || '',
     winkeyer_wpm: _numClamped('winkeyer_wpm', 25),
@@ -5935,6 +6024,8 @@ function applyFullConfigToForm(c) {
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
      'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
+     'cat2_enabled','cat2_brand','cat2_port','cat2_baudrate',
+     'so2r_enabled','so2r_port','so2r_stereo',
      'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });

@@ -1500,7 +1500,8 @@ async function voiceRecord(key){
         const b64 = await _blobToBase64(wav);
         const res = await fetch('/voice/save', {method:'POST', headers:{'Content-Type':'application/json'},
                                                 body: JSON.stringify({slot: key, wav_base64: b64})}).then(r=>r.json());
-        if(res.ok){ await voiceRefreshSlots(); notify(trF('🎙 Message {key} enregistré', {key})); }
+        if(res.ok){ await voiceRefreshSlots();
+so2rRafraichir(); notify(trF('🎙 Message {key} enregistré', {key})); }
         else       notify(trF('❌ {err}', {err: res.error || 'enregistrement refusé'}));
       }catch(e){ notify(trF('❌ Réencodage impossible : {err}', {err: e.message})); }
     };
@@ -2053,6 +2054,40 @@ function updateKeyerPanels(){
   // affiche en RTTY. Verifie contre le balisage.
   const cwDec = document.getElementById('cwPanel');
   if(cwDec) cwDec.style.display = rtty ? 'none' : '';
+}
+
+// ─── SO2R : bascule d'émission ───────────────────────────────────────────────
+// L'état vit CÔTÉ SERVEUR : le band map, la barre de statut et toute page
+// ouverte doivent voir la même radio en émission. Le tenir dans le navigateur
+// ferait diverger deux écrans du même poste.
+let _so2rFocus = 1;
+
+async function so2rBasculer(radio){
+  try{
+    const res = await fetch('/so2r/focus', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(radio ? {radio} : {})}).then(r => r.json());
+    if(res.focus){ _so2rFocus = res.focus; so2rAfficher(res); }
+    if(!res.ok) notify(trF('❌ SO2R : {err}', {err: res.error || 'échec'}));
+    else notify(trF('🎚 Émission → radio {n}', {n: res.focus}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+}
+
+function so2rAfficher(etat){
+  const el = document.getElementById('so2rIndicateur');
+  if(!el) return;
+  // L'indicateur n'apparaît QUE si une seconde radio est déclarée : sur une
+  // station mono-radio, un voyant « RADIO 1 » permanent serait du bruit.
+  if(!etat || !etat.configure){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.textContent = '🎚 TX R' + (etat.focus || 1) + (etat.ecoute ? ' · ' + etat.ecoute : '');
+}
+
+async function so2rRafraichir(){
+  try{
+    const etat = await fetch('/so2r/state').then(r => r.json());
+    if(etat && etat.focus){ _so2rFocus = etat.focus; }
+    so2rAfficher(etat);
+  }catch(e){ /* serveur injoignable : on garde le dernier état connu */ }
 }
 
 // ─── DÉCODEUR RTTY ───────────────────────────────────────────────────────────
@@ -5956,6 +5991,14 @@ document.addEventListener('keydown', e => {
   if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){
     e.preventDefault();
     if(isSetupDone && !_modaleOuverte()) bandmapNoter();
+    return;
+  }
+  // SO2R : Ctrl+Espace bascule l'émission sur l'autre radio. C'est LE geste
+  // du SO2R, il doit être atteignable sans quitter le clavier ni regarder
+  // l'écran — on appelle CQ d'un côté en cherchant de l'autre.
+  if((e.ctrlKey || e.metaKey) && e.key === ' '){
+    e.preventDefault();
+    if(isSetupDone && !_modaleOuverte()) so2rBasculer();
     return;
   }
   // F9 : soumettre le QSO depuis n'importe où

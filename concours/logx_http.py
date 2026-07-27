@@ -2841,6 +2841,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Band map Search & Pounce : les stations que l'opérateur a entendues
         # lui-même. Côté serveur, donc partagées entre postes — la station
         # entendue depuis le poste 144 est visible du poste 432.
+        # SO2R : quelle radio emet, et ce qu'on ecoute. Etat cote serveur,
+        # donc identique sur toutes les pages ouvertes.
+        if path == '/so2r/state':
+            import logx_so2r as so2r
+            etat = so2r.focus()
+            etat['configure'] = so2r.parametres(self._cfg_snapshot())['enabled']
+            self._json(etat)
+            return
+
         if path == '/bandmap/local':
             import logx_bandmap as bm
             self._json({'ok': True, 'spots': bm.spots()})
@@ -3665,7 +3674,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Radio CAT : QSY, envoi CW, stop CW — natif/TCI/flrig si configuré, sinon rigctld
         if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop'):
-            cfg_snap = self._cfg_snapshot()
+            # SO2R : tout le pilotage vise la radio qui a le FOCUS. La config
+            # de la radio 2 (cat2_*) est présentée sous les noms cat_*, si bien
+            # que les quatre backends fonctionnent sans savoir qu'il y a deux
+            # radios. Sans SO2R configuré, la config ressort inchangée.
+            import logx_so2r as so2r
+            cfg_snap = so2r.config_radio_active(self._cfg_snapshot())
             # WinKeyer AVANT tout backend CAT, et quel que soit le mode : c'est
             # tout son intérêt. Il a son propre port et son propre processeur,
             # donc une cadence qui ne dépend pas du trafic CAT — et il est la
@@ -3774,6 +3788,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Keyer vocal dynamique : indicatif/report épelés phonétiquement,
         # synthétisés (TTS hors-ligne) et émis par la radio (PTT via CAT
         # autour de la lecture, quel que soit le mode natif/TCI/rigctld/flrig).
+        if self.path in ('/so2r/focus', '/so2r/test'):
+            import logx_so2r as so2r
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            cfg_snap = self._cfg_snapshot()
+            if self.path == '/so2r/test':
+                res = so2r.tester(cfg_snap)
+            else:
+                res = so2r.basculer(cfg_snap, payload.get('radio'))
+                if res.get('ok'):
+                    print(f"[SO2R] emission -> radio {res.get('focus')} "
+                          f"({res.get('ecoute')})")
+            self._json(res, 200 if res.get('ok') else 502)
+            return
+
         if self.path in ('/bandmap/add', '/bandmap/delete', '/bandmap/clear'):
             import logx_bandmap as bm
             try:
