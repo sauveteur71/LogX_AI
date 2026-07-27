@@ -51,6 +51,15 @@ qui doit être incrémentée à chaque tag poussé.
 
 ### Interne
 
+- `logx_i18n.js` n'emploie plus `\p{L}` : les échappements de propriété
+  Unicode exigent un moteur JS compilé **avec ICU**, or le V8 embarqué par la
+  suite de tests (`py_mini_racer`) est un build **sans ICU** et lève une
+  `SyntaxError` dessus. Comme V8 ne compile une expression régulière littérale
+  qu'à sa *première évaluation*, l'erreur restait invisible tant que la
+  correspondance directe aboutissait : la règle du préfixe emoji était
+  structurellement **intestable**. Remplacé par une recherche de première
+  lettre écrite à la main, vérifiée sur un corpus de 1005 chaînes réelles
+  (14 divergences, toutes multilignes, toutes sans effet).
 - `logx_singleton.sonde_sans_bind()` : sonde qui se contente de se connecter,
   sans jamais ouvrir le port. `probe()` fait un vrai `bind` pour savoir si le
   port est libre ; l'employer en boucle pendant qu'un serveur démarre lui
