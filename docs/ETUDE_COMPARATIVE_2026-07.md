@@ -73,9 +73,14 @@ Classés par ce qu'ils coûtent, pas par leur difficulté.
 > qu'elles étaient au moment du constat — c'est ce qui rend la correction
 > lisible —, avec l'état réel en tête de chaque section.
 >
-> **Mise à jour du 27 juillet, soir.** Il ne reste que le **RTTY** (7) et le
-> **SO2R** (8) — les deux points que l'étude classait déjà en dernier, et les
-> deux plus lourds. Le band map S&P et le WinKeyer matériel sont faits.
+> **Mise à jour finale du 27 juillet.** Les **huit points sont traités**.
+>
+> Reste une réserve qui vaut pour la moitié d'entre eux : **rien n'a été
+> éprouvé sur l'air**. WinKeyer, commande `KY`, transverters, keyer vocal et
+> boîtier OTRSP ont été livrés sans qu'aucun matériel soit branché — les
+> trames sont conformes aux spécifications et vérifiées octet par octet, mais
+> le premier essai reste à faire. Le décodeur RTTY, lui, est vérifié de bout
+> en bout (signal AFSK synthétique), sauf en pile-up réel.
 
 ### 1. L'opération au clavier — ✅ FAIT (commit 87d6c6d)
 
@@ -167,7 +172,7 @@ la navigation clavier de spot en spot.
 Le S&P représente facilement la moitié des QSO d'un mono-opérateur, et une station
 entendue mais spottée par personne est aujourd'hui perdue.
 
-### 7. RTTY — manquant, effort important
+### 7. RTTY — ✅ FAIT (commit 64ed74e)
 
 N1MM s'interface avec MMTTY, MMVARI et Fldigi, jusqu'à 4 fenêtres de décodage. LogX AI
 couvre proprement FT8/FT4 via WSJT-X, mais le RTTY n'existe que comme étiquette de mode.
@@ -175,7 +180,7 @@ couvre proprement FT8/FT4 via WSJT-X, mais le RTTY n'existe que comme étiquette
 À relativiser : **aucun concours REF n'est en RTTY**. C'est un élargissement de public
 plus qu'un manque pour l'utilisateur type, et c'est l'effort le plus lourd de la liste.
 
-### 8. SO2R — fondations présentes, mode absent, effort important
+### 8. SO2R — ✅ FAIT (fondations utilisables)
 
 Le module CAT contient déjà un gestionnaire multi-radios que le code décrit lui-même
 comme « la brique de base d'un futur mode SO2R », et l'allocation des numéros de série est
