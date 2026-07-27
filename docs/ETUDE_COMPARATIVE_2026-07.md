@@ -73,9 +73,9 @@ Classés par ce qu'ils coûtent, pas par leur difficulté.
 > qu'elles étaient au moment du constat — c'est ce qui rend la correction
 > lisible —, avec l'état réel en tête de chaque section.
 >
-> Reste à faire : le **band map Search & Pounce** (6), le **RTTY** (7), le
-> **SO2R** (8), et le volet **WinKeyer matériel** du point 3, seul capable de
-> couvrir Icom et Yaesu.
+> **Mise à jour du 27 juillet, soir.** Il ne reste que le **RTTY** (7) et le
+> **SO2R** (8) — les deux points que l'étude classait déjà en dernier, et les
+> deux plus lourds. Le band map S&P et le WinKeyer matériel sont faits.
 
 ### 1. L'opération au clavier — ✅ FAIT (commit 87d6c6d)
 
@@ -113,7 +113,7 @@ Un week-end entier de trafic peut être déclassé pour une ligne d'en-tête. C'
 précis où la confiance dans un logiciel se gagne ou se perd. *(L'export EDI, lui, est
 irréprochable.)*
 
-### 3. Manipulation CW — ⚠️ PARTIELLEMENT FAIT (commit 9259953)
+### 3. Manipulation CW — ✅ FAIT (commits 9259953 et WinKeyer)
 
 Plus sérieux que je ne l'avais écrit. Le CW n'existe qu'en TCI et rigctld. Le mode
 **« Natif (recommandé) »** — celui que la page CONFIG pousse par défaut pour Icom, Yaesu,
@@ -128,12 +128,12 @@ fait du contest CW, avec une régularité que les commandes CAT n'atteignent pas
 texte CW. Le WinKeyer est donc la vraie réponse, avec la commande `KY` en bonus pour
 Kenwood et Elecraft.
 
-**Fait :** la commande `KY` est branchée en mode Natif pour **Kenwood et Elecraft**. Icom
-reste sans manipulation native (CI-V n'a pas la commande) et Yaesu est volontairement
-écarté — sa commande équivalente n'a pas la même signification selon les modèles, et
-l'envoyer à l'aveugle mettrait n'importe quoi sur l'air. Le **WinKeyer matériel**, qui
-couvrirait ces deux marques, reste à faire. Aucune radio n'a été branchée : les trames
-sont vérifiées octet par octet contre la documentation constructeur, pas sur l'air.
+**Fait, en deux temps.** La commande `KY` est branchée en mode Natif pour **Kenwood et
+Elecraft**. Puis le **WinKeyer K1EL** a été ajouté : branché sur son propre port série, il
+prend la main sur l'envoi CW quelle que soit la marque — c'est la seule manipulation
+possible en Icom et en Yaesu, et il reste préférable ailleurs puisque sa cadence ne dépend
+plus du trafic CAT. Aucune radio ni aucun boîtier n'a été branché : les trames sont
+vérifiées octet par octet contre la documentation des protocoles, pas sur l'air.
 
 ### 4. Support des transverters — ✅ FAIT (commit 06a1be3)
 
@@ -157,7 +157,7 @@ Un concours SSB de 24 h détruit la voix ; le DVK est ce qui permet de tenir. Sa
 l'ESM ne sert qu'en CW. Toute la plomberie existe déjà — le PTT est disponible dans les
 trois modes CAT, et le module keyer vocal sait sélectionner un périphérique de sortie.
 
-### 6. Band map Search & Pounce — partiel, effort moyen
+### 6. Band map Search & Pounce — ✅ FAIT (commit 149c10a)
 
 Le band map ne lit que le cluster. Il fait déjà très bien le reste (filtrage par
 fréquence réelle, étoile sur les nouveaux multiplicateurs, stations faites barrées, QSY au
