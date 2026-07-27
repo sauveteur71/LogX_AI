@@ -5883,8 +5883,13 @@ function applyUsageMode(){
   const backBtn = document.getElementById('btnStep3Back');
   if (backBtn) backBtn.textContent = simple ? '← RETOUR (MA STATION)' : '← RETOUR';
   const note = document.getElementById('usageModeNote');
+  // Ce texte décrivait encore le parcours en étapes retiré depuis la migration
+  // vers le hub de cartes : il envoyait l'utilisateur vers une « étape
+  // CONCOURS » et une « étape FILTRES » qui n'existent plus. Même défaut que
+  // le guide récité par l'IA, corrigé au même titre — un texte affiché qui
+  // décrit une interface disparue est pire que pas de texte du tout.
   if (note) note.textContent = simple
-    ? '— étape CONCOURS masquée, bandes/modes librement réglables à l\'étape FILTRES'
+    ? '— carte 3. Sélection sans objet, bandes et modes librement réglables dans 4. Dates & filtres'
     : (mode === 'expedition'
         ? '— pense à activer la saisie simplifiée dans la section MODE EXPÉDITION ci-dessous'
         : (radioclub

@@ -3796,7 +3796,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = {}
             cfg_snap = self._cfg_snapshot()
             if self.path == '/so2r/test':
-                res = so2r.tester(cfg_snap)
+                # Le port saisi dans la page PRIME sur celui de la config
+                # enregistrée : sinon le bouton « Tester » ne pourrait rien
+                # tester tant qu'on n'a pas sauvegardé — c'est exactement
+                # l'inverse de ce qu'on attend d'un bouton de test. Même
+                # comportement que /winkeyer/test.
+                cfg_test = dict(cfg_snap)
+                if payload.get('port'):
+                    cfg_test['so2r_port'] = payload['port']
+                res = so2r.tester(cfg_test)
             else:
                 res = so2r.basculer(cfg_snap, payload.get('radio'))
                 if res.get('ok'):

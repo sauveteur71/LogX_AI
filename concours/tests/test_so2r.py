@@ -221,3 +221,19 @@ def test_le_test_envoie_une_commande_inoffensive():
 
 def test_le_test_sans_port_refuse():
     assert not so2r.tester({'so2r_enabled': '1'})['ok']
+
+
+def test_le_bouton_tester_utilise_le_port_SAISI_pas_celui_enregistre():
+    """Defaut trouve a la passe de verification, sur serveur reel : /so2r/test
+    lisait le port de la config ENREGISTREE et ignorait celui envoye par la
+    page. Le bouton « Tester le boitier » ne pouvait donc rien tester tant
+    qu'on n'avait pas sauvegarde -- l'inverse de ce qu'on attend d'un bouton de
+    test, et la page affichait « port non renseigne » alors qu'il l'etait.
+    /winkeyer/test faisait deja les choses correctement."""
+    with open(os.path.join(CONCOURS, 'logx_http.py'), encoding='utf-8') as f:
+        src = f.read()
+    bloc = src[src.index("if self.path in ('/so2r/focus', '/so2r/test')"):]
+    bloc = bloc[:bloc.index('if self.path in (\'/bandmap/add\'')]
+    assert "payload.get('port')" in bloc, (
+        'le port saisi dans la page doit primer sur celui de la config')
+    assert "cfg_test['so2r_port']" in bloc
