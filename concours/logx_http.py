@@ -2838,6 +2838,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(_rig_state_dict(self._cfg_snapshot()))
             return
 
+        # Band map Search & Pounce : les stations que l'opérateur a entendues
+        # lui-même. Côté serveur, donc partagées entre postes — la station
+        # entendue depuis le poste 144 est visible du poste 432.
+        if path == '/bandmap/local':
+            import logx_bandmap as bm
+            self._json({'ok': True, 'spots': bm.spots()})
+            return
+
         # Quels emplacements DVK sont réellement enregistrés (et leur durée) —
         # côté serveur, donc identiques sur tous les postes du réseau.
         if path == '/voice/slots':
@@ -3729,6 +3737,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Keyer vocal dynamique : indicatif/report épelés phonétiquement,
         # synthétisés (TTS hors-ligne) et émis par la radio (PTT via CAT
         # autour de la lecture, quel que soit le mode natif/TCI/rigctld/flrig).
+        if self.path in ('/bandmap/add', '/bandmap/delete', '/bandmap/clear'):
+            import logx_bandmap as bm
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            if self.path == '/bandmap/clear':
+                res = bm.vider()
+            elif self.path == '/bandmap/delete':
+                res = bm.supprimer(payload.get('call'), payload.get('freq_khz'))
+            else:
+                res = bm.ajouter(payload.get('call'), payload.get('freq_khz'),
+                                 payload.get('band', ''), payload.get('mode', ''),
+                                 payload.get('note', ''))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
         # ─── DVK : messages enregistrés par l'opérateur ──────────────────────
         # Enregistrés dans le navigateur mais STOCKÉS ET JOUÉS ICI. Avant, ils
         # vivaient en localStorage et partaient par `new Audio().play()` : sortie

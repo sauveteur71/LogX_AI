@@ -849,6 +849,8 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <div class="shortcuts-row"><span class="shortcuts-key">Ctrl+Z</span><span>Annuler le dernier QSO enregistré</span></div>
       <div class="shortcuts-row"><span class="shortcuts-key">Ctrl+F</span><span>Focus sur le champ INDICATIF</span></div>
       <div class="shortcuts-row"><span class="shortcuts-key">F1 – F8</span><span>Envoyer la macro correspondante — marche aussi pendant la saisie (double-clic sur le bouton pour la modifier)</span></div>
+      <div class="shortcuts-row"><span class="shortcuts-key">Ctrl+↑ / Ctrl+↓</span><span>Search &amp; Pounce : sauter au spot précédent/suivant du band map (QSY + indicatif pré-rempli)</span></div>
+      <div class="shortcuts-row"><span class="shortcuts-key">Ctrl+Entrée</span><span>Noter la station entendue dans le band map, à la fréquence où la radio est posée</span></div>
       <div class="shortcuts-row"><span class="shortcuts-key">?</span><span>Afficher/masquer cette aide</span></div>
     </div>
     <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
@@ -1269,7 +1271,8 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
     <div class="bandmap-head">📻 BAND MAP <span id="bandmapBand">—</span>
       <button onclick="window.rcOpenPanel && window.rcOpenPanel('bandmap', {band: currentBand})" title="Détacher CE panneau Band Map dans une fenêtre séparée" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px;margin-left:auto">⇱</button>
       <button onclick="toggleWaterfall()" id="waterfallToggleBtn" title="Vue chute d'eau : activité de la bande dans le temps (défilement, mêmes spots)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🌊</button>
-      <button onclick="popoutScope()" title="Détacher le bandscope graphique sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">📡</button></div>
+      <button onclick="popoutScope()" title="Détacher le bandscope graphique sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">📡</button>
+      <button onclick="bandmapNoter()" title="Noter la station entendue (indicatif tapé + fréquence radio) — Ctrl+Entrée. Ctrl+↑/↓ saute de spot en spot." style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">👂</button></div>
     <!-- Bandscope : activité de la bande (densité de spots par fréquence).
          Waterfall : mêmes spots, empilés dans le temps (chute d'eau façon SDR)
          — canvas caché par défaut, basculé par toggleWaterfall(). -->

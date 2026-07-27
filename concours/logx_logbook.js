@@ -1165,6 +1165,57 @@ const _BM_RANGE = {
   '24048':[24000,24250], '47088':[47000,47200],
 };
 
+// ─── BAND MAP : SEARCH & POUNCE ──────────────────────────────────────────────
+// Les spots réellement affichés, dans l'ordre où ils le sont : c'est sur cette
+// liste que saute la navigation clavier, pour que « suivant » veuille dire la
+// ligne suivante À L'ÉCRAN et pas autre chose.
+let _bmSpots = [];
+
+// Noter la station en cours : l'indicatif tapé, à la fréquence où la radio est
+// posée. C'est LE geste du S&P — on entend quelqu'un, on le note, on continue
+// de balayer, on le rappellera plus tard.
+async function bandmapNoter(){
+  const inp = document.getElementById('inputCall');
+  const call = inp ? inp.value.trim().toUpperCase() : '';
+  const rig = (typeof rigState !== 'undefined') ? rigState : {};
+  if(!call){ notify('👂 Tape d\'abord l\'indicatif entendu'); return; }
+  if(!rig.enabled || !rig.freq_khz){
+    notify('👂 Fréquence radio inconnue — le pilotage CAT doit être actif');
+    return;
+  }
+  try{
+    const res = await fetch('/bandmap/add', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({call, freq_khz: rig.freq_khz, band: currentBand,
+                            mode: rig.mode || currentMode})}).then(r=>r.json());
+    if(res.ok){
+      notify(trF('👂 {call} noté sur {f} kHz', {call, f: Math.round(rig.freq_khz)}));
+      refreshBandMap();
+    } else notify(trF('❌ {err}', {err: res.error || 'refus'}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+}
+
+// Saut de spot en spot au clavier, sans jamais viser à la souris. L'indicatif
+// est pré-rempli au passage : en S&P on arrive sur la station en sachant déjà
+// qui c'est, il ne reste qu'à confirmer et loguer.
+function bandmapSaut(sens){
+  if(!_bmSpots.length){ notify('band map vide sur cette bande'); return; }
+  const rig = (typeof rigState !== 'undefined') ? rigState : {};
+  const ici = (rig.enabled && rig.freq_khz) ? rig.freq_khz / 1000 : null;
+  let cible = null;
+  if(ici === null){
+    cible = _bmSpots[sens > 0 ? 0 : _bmSpots.length - 1];
+  } else if(sens < 0){
+    // _bmSpots est trié fréquence DÉCROISSANTE : « suivant vers le haut » est
+    // donc le dernier élément encore au-dessus de la fréquence courante.
+    const sup = _bmSpots.filter(s => parseFloat(s.freq) > ici + 0.0002);
+    cible = sup.length ? sup[sup.length - 1] : null;
+  } else {
+    cible = _bmSpots.find(s => parseFloat(s.freq) < ici - 0.0002) || null;
+  }
+  if(!cible){ notify(sens > 0 ? 'dernier spot de la bande' : 'premier spot de la bande'); return; }
+  bandmapClick(String(cible.call || '').replace(/[^A-Za-z0-9/]/g, ''), parseFloat(cible.freq));
+}
+
 async function refreshBandMap(){
   const list = document.getElementById('bandmapList');
   if(!list) return;
@@ -1174,15 +1225,39 @@ async function refreshBandMap(){
     const r = await fetch('/data/spots_ranked');
     if(!r.ok) return;
     const d = await r.json();
+    // Deuxième source : ce que l'opérateur a entendu LUI-MÊME en balayant.
+    // Le S&P fait facilement la moitié des QSO d'un mono-opérateur, et une
+    // station entendue mais spottée par personne était jusqu'ici perdue.
+    let locaux = [];
+    try{
+      const rl = await fetch('/bandmap/local');
+      if(rl.ok) locaux = (await rl.json()).spots || [];
+    }catch(e){ /* le band map cluster reste utilisable sans les spots locaux */ }
     const rng = _BM_RANGE[String(currentBand)];
     const inBand = s => {
       if(!s.freq) return false;
       if(rng){ const f = parseFloat(s.freq); return f >= rng[0] && f <= rng[1]; }
       return String(s.band) === String(currentBand);   // repli si bande hors table
     };
+    // Les spots locaux portent leur fréquence en kHz : on la ramène en MHz
+    // pour parler la même langue que le cluster avant de fusionner.
+    const locauxMhz = locaux.map(s => ({
+      call: s.call, freq: (Number(s.freq_khz) || 0) / 1000, band: s.band,
+      local: true, age_s: s.age_s, note: s.note,
+      explanation: 'Entendu il y a ' + Math.round((s.age_s || 0) / 60) + ' min'
+                   + (s.note ? ' — ' + s.note : ''),
+    }));
+    // Une station à la fois spottée et entendue ne doit pas apparaître deux
+    // fois : le spot du cluster gagne (il porte les points et le statut
+    // multiplicateur), on ne garde le local que s'il n'a pas d'équivalent.
+    const clusterCles = new Set((d.spots || []).map(
+      s => String(s.call || '').toUpperCase() + '@' + Math.round(parseFloat(s.freq) * 1000)));
     const spots = (d.spots || [])
+      .concat(locauxMhz.filter(
+        s => !clusterCles.has(String(s.call || '').toUpperCase() + '@' + Math.round(s.freq * 1000))))
       .filter(inBand)
       .sort((a,b) => parseFloat(b.freq) - parseFloat(a.freq));   // fréquence haute en haut
+    _bmSpots = spots;   // memorise pour la navigation clavier
     const rig = (typeof rigState !== 'undefined') ? rigState : {};
     const txMhz = (rig.enabled && rig.freq_khz) ? rig.freq_khz/1000 : null;
     const rows = [];
@@ -1191,7 +1266,11 @@ async function refreshBandMap(){
     for(const s of spots){
       const f = parseFloat(s.freq);
       if(txMhz && !txDone && f <= txMhz){ rows.push(txRow(txMhz)); txDone = true; }
-      const col = s.new_mult ? 'var(--green)' : (_BM_PCOL[s.priority] || 'var(--text)');
+      // Un spot local se distingue à l'œil du spot cluster : l'opérateur doit
+      // savoir s'il regarde une information vérifiée par le réseau ou sa
+      // propre note de balayage.
+      const col = s.local ? 'var(--accent2)'
+                          : (s.new_mult ? 'var(--green)' : (_BM_PCOL[s.priority] || 'var(--text)'));
       const style = `color:${col}` + (s.already_done ? ';opacity:.45;text-decoration:line-through' : '');
       // s.call vient du cluster DX (source externe non maîtrisée). Pour l'argument
       // onclick (contexte chaîne JS DANS un attribut HTML), escHtml ne suffit pas :
@@ -1200,7 +1279,7 @@ async function refreshBandMap(){
       const jsCall = String(s.call || '').replace(/[^A-Za-z0-9/]/g, '');
       rows.push(`<div class="bm-spot" onclick="bandmapClick('${jsCall}',${f})" title="${escHtml(s.explanation||'')}">`
         + `<span class="bm-f">${f.toFixed(3)}</span>`
-        + `<span class="bm-c" style="${style}">${s.new_mult ? '★' : ''}${escHtml(s.call)}</span></div>`);
+        + `<span class="bm-c" style="${style}">${s.local ? '👂' : (s.new_mult ? '★' : '')}${escHtml(s.call)}</span></div>`);
     }
     if(txMhz && !txDone) rows.push(txRow(txMhz));
     list.innerHTML = rows.length ? rows.join('')
@@ -5732,6 +5811,22 @@ document.addEventListener('keydown', e => {
     const macros = getMacros();
     const idx = macros.findIndex(m => m && m.key === e.key);
     if(idx >= 0) copyMacro(idx);
+    return;
+  }
+  // ─── Search & Pounce au clavier ───────────────────────────────────────────
+  // Ctrl+↑ / Ctrl+↓ : sauter au spot suivant/précédent du band map, QSY compris
+  // et indicatif pré-rempli. Ctrl+Entrée : noter la station en cours.
+  // Ces trois gestes forment la boucle du S&P — balayer, noter, rappeler —
+  // sans jamais quitter le clavier. Les flèches SEULES restent aux suggestions
+  // d'indicatif et de locator, qu'on ne doit pas leur voler.
+  if((e.ctrlKey || e.metaKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')){
+    e.preventDefault();
+    if(isSetupDone && !_modaleOuverte()) bandmapSaut(e.key === 'ArrowDown' ? 1 : -1);
+    return;
+  }
+  if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){
+    e.preventDefault();
+    if(isSetupDone && !_modaleOuverte()) bandmapNoter();
     return;
   }
   // F9 : soumettre le QSO depuis n'importe où

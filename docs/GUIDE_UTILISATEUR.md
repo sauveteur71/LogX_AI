@@ -346,7 +346,20 @@ Le panneau de gauche, titré **⌨ SAISIE QSO**, est conçu pour être piloté a
 Ces deux sélecteurs partagent le même principe : un bouton qui affiche la valeur courante (flèche ▼), et un clic ouvre une grille de choix. C'est volontaire : afficher en permanence jusqu'à 17 boutons de bande (de 1,8 MHz à 47 GHz) ou 40 boutons d'opérateur serait illisible. Les grilles se referment d'un clic en dehors.
 
 - **OPÉRATEUR** (bouton orange, pour le distinguer des sélecteurs cyan) : la grille liste les indicatifs réellement déclarés dans votre configuration (jusqu'à 40 en mode radioclub) — la couleur d'étiquette propre à chaque opérateur apparaît dans la colonne OP de la table du log et dans le classement des opérateurs. Ce sélecteur est **masqué** si vous opérez seul : catégorie single-op, un seul opérateur configuré, ou mode LOGBOOK SIMPLE.
-- **BANDE** : la grille ne propose que les bandes **autorisées par le concours choisi** (ex. IARU VHF = 144 MHz seulement) et cochées dans votre CONFIG. Les libellés sont en longueur d'onde (« 2m », « 70cm », « 23cm », et 160m→10m en HF). Changer de bande pré-remplit la fréquence (fréquence d'appel de la bande, ou fréquence réelle de la radio si le pilotage CAT est actif et déjà dans cette bande), met à jour le numéro envoyé (les séries sont comptées par bande), rafraîchit le **📻 BAND MAP** et remet le focus sur l'indicatif.
+- **BANDE** : la grille ne propose que les bandes **autorisées par le concours choisi** (ex. IARU VHF = 144 MHz seulement) et cochées dans votre CONFIG. Les libellés sont en longueur d'onde (« 2m », « 70cm », « 23cm », et 160m→10m en HF). Changer de bande pré-remplit la fréquence (fréquence d'appel de la bande, ou fréquence réelle de la radio si le pilotage CAT est actif et déjà dans cette bande), met à jour le numéro envoyé (les séries sont comptées par bande), rafraîchit le Le band map affiche **deux sources** : les spots du cluster DX, et **les stations que vous avez entendues vous-même** en balayant la bande — celles-ci portent l'icône 👂 et une couleur distincte, pour que vous sachiez toujours si vous regardez une information du réseau ou votre propre note. C'est la moitié « Search & Pounce » : en concours mono-opérateur, une station entendue mais que personne n'a spottée était jusqu'ici perdue.
+
+Trois gestes, tous au clavier :
+
+| | |
+|---|---|
+| **Ctrl+Entrée** | note la station : l'indicatif tapé, à la fréquence où la radio est posée (bouton 👂 aussi) |
+| **Ctrl+↓** | saute au spot suivant vers le bas de la bande — QSY et indicatif pré-rempli |
+| **Ctrl+↑** | saute au spot suivant vers le haut |
+
+Les notes sont **enregistrées sur le serveur** : elles survivent à un rechargement de page, et en multi-opérateur la station entendue depuis un poste est visible des autres. Elles **s'effacent d'elles-mêmes au bout de 30 minutes** — en concours, une station entendue il y a une heure a presque sûrement changé de fréquence, et l'afficher encore vous enverrait sur une fréquence vide.
+
+
+**📻 BAND MAP** et remet le focus sur l'indicatif.
 
 #### La barre d'activation (POTA, SOTA, IOTA, WWFF…)
 

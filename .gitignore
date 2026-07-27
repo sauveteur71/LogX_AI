@@ -50,3 +50,6 @@ reg_rph_fr_20250312.pdf
 
 # Messages vocaux enregistres par l'operateur (sa voix, propre a sa station)
 concours/voice_messages/
+
+# Band map Search & Pounce : notes de balayage, propres a la station
+concours/bandmap_local.json
