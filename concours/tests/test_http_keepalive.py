@@ -104,20 +104,30 @@ def test_chaque_reponse_delimite_son_corps(serveur, chemin):
     c.close()
 
 
-def test_post_refuse_sans_jeton_ferme_la_connexion(serveur):
-    """Le corps n'est pas lu quand le jeton manque (voir do_POST) : ces octets
-    seraient interpretes comme la requete SUIVANTE. La connexion doit donc
-    etre fermee, et le client doit en etre AVERTI — sinon il reutilise une
-    socket morte et doit rejouer sa requete."""
+def test_post_refuse_sans_jeton_repond_et_ne_desynchronise_pas(serveur):
+    """Refus 403 sans jeton : le corps est VIDE de la socket (borne) au lieu
+    d etre laisse dedans, puis on repond.
+
+    Ce test exigeait auparavant que la connexion soit FERMEE. C etait le
+    moyen, pas la fin : fermer une socket dont le tampon contient encore des
+    octets fait envoyer un RST par la pile TCP au lieu d un FIN, et le RST
+    DETRUIT la reponse deja emise — le client recevait une erreur reseau au
+    lieu du 403 qui lui dit quoi faire. L invariant reel est double : le 403
+    arrive, et la requete SUIVANTE recoit bien SA reponse."""
     c = http.client.HTTPConnection('127.0.0.1', serveur, timeout=8)
     c.request('POST', '/config/save', body=b'{"bidon":1}' * 200,
               headers={'Content-Type': 'application/json'})
     r = c.getresponse()
     r.read()
     assert r.status == 403
-    assert (r.getheader('Connection') or '').lower() == 'close', (
-        "refus sans lecture du corps : la fermeture doit etre annoncee, "
-        "sinon le reliquat parasite la requete suivante")
+    # Pas de desynchronisation : la requete suivante doit recevoir SA reponse
+    # et non le reliquat du corps precedent interprete comme une requete.
+    c.request('GET', '/logx_logbook.html')
+    r2 = c.getresponse()
+    r2.read()
+    assert r2.status == 200, (
+        'requete suivante cassee (%s) : le corps refuse a parasite la '
+        'connexion' % r2.status)
     c.close()
 
 
@@ -216,13 +226,14 @@ def test_login_413_ferme_la_connexion_et_ne_repond_pas_au_reliquat(serveur):
             'refus 413 sans lecture du corps : la fermeture doit etre annoncee')
 
 
-def test_login_429_ferme_la_connexion_et_ne_rejoue_pas_le_mot_de_passe(
+def test_login_429_arrive_et_ne_rejoue_pas_le_mot_de_passe(
         serveur, login_bloque):
     """Cas utilisateur reel : 5 erreurs de mot de passe d'acces suffisent (LAN
     multi-poste, c'est le cas d'usage meme du plafond). La 6e tentative repond
-    429 sans lire le corps ; sur une connexion persistante la requete suivante
-    du navigateur etait alors collee a ce corps, d'ou un « 400 Bad request
-    syntax » dont la page d'erreur REAFFICHE le mot de passe tape en clair."""
+    429. Le corps (qui contient le mot de passe en clair) est VIDE de la socket
+    sans etre analyse : sans ca, sur une connexion persistante, la requete
+    suivante du navigateur etait collee a ce corps, d'ou un « 400 Bad request
+    syntax » dont la page d'erreur REAFFICHE le mot de passe tape."""
     secret = 'MotDePasseEnClair2026'
     c = http.client.HTTPConnection('127.0.0.1', serveur, timeout=8)
     try:
@@ -231,21 +242,22 @@ def test_login_429_ferme_la_connexion_et_ne_rejoue_pas_le_mot_de_passe(
                   headers={'Content-Type': 'application/json'})
         try:
             r = c.getresponse()
-            r.read()
+            corps_429 = r.read()
             statut, connexion = r.status, (r.getheader('Connection') or '').lower()
-        except (OSError, http.client.HTTPException):
-            # Fermer avec le corps non lu dans le tampon fait repondre Windows
-            # par un RST, qui peut effacer la reponse deja mise en file. Brutal
-            # pour le client, mais c'est bien la fermeture attendue — et sans
-            # elle il n'y aurait AUCUNE erreur : juste la reponse suivante
-            # silencieusement corrompue.
-            statut, connexion = None, 'reset'
-        assert connexion in ('close', 'reset'), (
-            'blocage anti-bruteforce sans lecture du corps : la connexion doit '
-            'etre fermee, sinon le mot de passe non lu parasite la requete '
-            'suivante (recu : statut %s, Connection=%r)' % (statut, connexion))
-        if statut is not None:
-            assert statut == 429
+        except (OSError, http.client.HTTPException) as e:
+            raise AssertionError(
+                'la reponse 429 doit ARRIVER. Ce test acceptait auparavant un '
+                'RST comme "fermeture attendue" : c etait tolerer que la '
+                'reponse soit PERDUE. Le refus vide desormais le corps de la '
+                'socket avant de repondre, ce qui evite le RST tout en '
+                'empechant le mot de passe de parasiter la requete suivante '
+                '(recu : %s)' % e)
+        # L'invariant n'est PAS "la connexion est fermee" — c'etait le moyen,
+        # pas la fin. Ce qui compte : le 429 arrive, et le mot de passe ne
+        # ressort pas. La connexion peut rester ouverte, c'est meme preferable.
+        assert statut == 429, 'statut recu : %s' % statut
+        assert secret.encode('utf-8') not in corps_429, (
+            'le mot de passe tape ne doit jamais reapparaitre dans la reponse')
         c.close()
         # La requete suivante doit recevoir SA reponse, pas un « 400 Bad request
         # syntax » dont la page d'erreur reaffiche le mot de passe.

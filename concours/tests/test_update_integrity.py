@@ -323,7 +323,7 @@ def fake_gateway(monkeypatch):
     module-level PORT pour joindre un pair — voir _peer_get_json/_do_
     download_via_network)."""
     handler_cls = type('H', (_FakeGatewayHandler,), {})
-    srv = http.server.HTTPServer(('127.0.0.1', 0), handler_cls)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler_cls)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -332,6 +332,7 @@ def fake_gateway(monkeypatch):
         yield handler_cls
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 
@@ -434,7 +435,7 @@ class _FakePeerHandler(http.server.BaseHTTPRequestHandler):
 @pytest.fixture
 def fake_peer(monkeypatch):
     handler_cls = type('H', (_FakePeerHandler,), {})
-    srv = http.server.HTTPServer(('127.0.0.1', 0), handler_cls)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler_cls)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -443,6 +444,7 @@ def fake_peer(monkeypatch):
         yield handler_cls
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 
@@ -523,7 +525,7 @@ class _FakeDualHandler(http.server.BaseHTTPRequestHandler):
 @pytest.fixture
 def fake_dual(monkeypatch):
     handler_cls = type('H', (_FakeDualHandler,), {})
-    srv = http.server.HTTPServer(('127.0.0.1', 0), handler_cls)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler_cls)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -532,6 +534,7 @@ def fake_dual(monkeypatch):
         yield handler_cls
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 
@@ -615,7 +618,7 @@ def test_peer_secours_refuse_via_passerelle_connue_du_serveur_hors_ips(fake_peer
     _set_local_reference('v3.1', handler_cls.asset_bytes)
 
     gw_cls = type('GW', (_FakeGatewayOnlyHandler,), {})
-    gw_srv = http.server.HTTPServer(('127.0.0.2', upd.PORT), gw_cls)
+    gw_srv = http.server.ThreadingHTTPServer(('127.0.0.2', upd.PORT), gw_cls)
     gw_thread = threading.Thread(target=gw_srv.serve_forever, daemon=True)
     gw_thread.start()
     try:
@@ -628,6 +631,7 @@ def test_peer_secours_refuse_via_passerelle_connue_du_serveur_hors_ips(fake_peer
         assert '127.0.0.2' in st['error']
     finally:
         gw_srv.shutdown()
+        gw_srv.server_close()   # libere la socket d ecoute
         gw_thread.join(timeout=5)
 
 
@@ -646,7 +650,7 @@ def test_start_download_via_network_sans_ip_refuse():
 
 @pytest.fixture
 def server():
-    srv = http.server.HTTPServer(('127.0.0.1', 0), httpmod.Handler)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), httpmod.Handler)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -654,6 +658,7 @@ def server():
         yield f'http://127.0.0.1:{port}'
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 
@@ -754,7 +759,7 @@ def test_http_update_download_via_network_peer_refuse_si_passerelle_connue_hors_
     neutralisée ICI SEULEMENT (voir la section dédiée en fin de fichier)."""
     monkeypatch.setattr(upd, '_is_self_ip', lambda ip: False)
     handler_cls = type('GW', (_FakeGatewayOnlyHandler,), {'gateway_available': True})
-    gw_srv = http.server.HTTPServer(('127.0.0.2', 0), handler_cls)
+    gw_srv = http.server.ThreadingHTTPServer(('127.0.0.2', 0), handler_cls)
     gw_port = gw_srv.server_address[1]
     gw_thread = threading.Thread(target=gw_srv.serve_forever, daemon=True)
     gw_thread.start()
@@ -788,6 +793,7 @@ def test_http_update_download_via_network_peer_refuse_si_passerelle_connue_hors_
         assert '127.0.0.2' in st.get('error', '')
     finally:
         gw_srv.shutdown()
+        gw_srv.server_close()   # libere la socket d ecoute
         gw_thread.join(timeout=5)
 
 
@@ -904,6 +910,7 @@ def spoofed_server():
         yield f'http://127.0.0.1:{port}'
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 
@@ -1014,7 +1021,7 @@ def hit_counter(monkeypatch):
     (comme fake_gateway/fake_peer) — réutilisé pour les deux volets (appel
     direct logx_update ET bout-en-bout HTTP via logx_http)."""
     handler_cls = type('H', (_HitCounterHandler,), {'hits': []})
-    srv = http.server.HTTPServer(('127.0.0.1', 0), handler_cls)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler_cls)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -1023,6 +1030,7 @@ def hit_counter(monkeypatch):
         yield handler_cls
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 
@@ -1191,7 +1199,7 @@ def test_scan_vraie_passerelle_plus_masquee_par_soi_meme(monkeypatch):
     gateways[0] = soi-même ; après, seule la vraie passerelle reste."""
     monkeypatch.setattr(upd, '_is_self_ip', lambda ip: ip == '127.0.0.1')
     gw_cls = type('GW', (_FakeGatewayOnlyHandler,), {'gateway_available': True})
-    gw_srv = http.server.HTTPServer(('127.0.0.2', 0), gw_cls)
+    gw_srv = http.server.ThreadingHTTPServer(('127.0.0.2', 0), gw_cls)
     gw_thread = threading.Thread(target=gw_srv.serve_forever, daemon=True)
     gw_thread.start()
     monkeypatch.setattr(upd, 'PORT', gw_srv.server_address[1])
@@ -1201,6 +1209,7 @@ def test_scan_vraie_passerelle_plus_masquee_par_soi_meme(monkeypatch):
         assert '127.0.0.1' not in scan['gateways'] + scan['peers']
     finally:
         gw_srv.shutdown()
+        gw_srv.server_close()   # libere la socket d ecoute
         gw_thread.join(timeout=5)
 
 
@@ -1250,6 +1259,7 @@ def test_http_scenario_dxpedition_auto_decouverte_corrigee(server, monkeypatch):
         assert '127.0.0.1' not in d.get('error', '')  # jamais d'auto-citation
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 
@@ -1559,7 +1569,7 @@ class _FakeWrongAssetPeerHandler(http.server.BaseHTTPRequestHandler):
 @pytest.fixture
 def fake_wrong_asset_peer(monkeypatch):
     handler_cls = type('H', (_FakeWrongAssetPeerHandler,), {'serve_hits': []})
-    srv = http.server.HTTPServer(('127.0.0.1', 0), handler_cls)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler_cls)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -1572,6 +1582,7 @@ def fake_wrong_asset_peer(monkeypatch):
         yield handler_cls
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 

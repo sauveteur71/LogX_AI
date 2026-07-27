@@ -58,7 +58,7 @@ def _reset_login_rate_limit():
 
 @pytest.fixture
 def server(isolated_password_file, isolated_auth_token_file):
-    srv = http.server.HTTPServer(('127.0.0.1', 0), httpmod.Handler)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), httpmod.Handler)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -66,6 +66,7 @@ def server(isolated_password_file, isolated_auth_token_file):
         yield f'http://127.0.0.1:{port}'
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 
@@ -375,3 +376,47 @@ def test_set_password_tourne_le_jeton_et_revoque_les_anciens_cookies(
     _, _, status_body = _raw_request(
         server, 'GET', '/auth/status', headers={'Cookie': f'rc_token={new_token}'})
     assert json.loads(status_body)['authorized'] is True
+
+
+# ─── Refus 429 : la réponse doit ARRIVER, pas se perdre dans un RST ──────────
+# Trouvé en reproduisant un flake sous charge (3 échecs sur 12) : le refus ne
+# lisait pas le corps puis fermait la connexion. Or fermer une socket dont le
+# tampon de réception contient encore des octets fait envoyer un RST par la
+# pile TCP au lieu d'un FIN, et le RST DÉTRUIT la réponse déjà émise.
+# L'utilisateur qui atteignait la limite recevait une erreur réseau au lieu du
+# message « Trop de tentatives ».
+
+def test_le_429_arrive_bien_avec_un_corps_volumineux(server, isolated_password_file):
+    """Corps proche du plafond : c'est le cas qui produisait le RST. La réponse
+    doit être lue intégralement par le client, sans ConnectionResetError."""
+    _enable_password(server)
+    gros = {'password': 'x' * 3000}
+    derniers = []
+    for _ in range(httpmod._LOGIN_ATTEMPT_LIMIT + 3):
+        status, _headers, body = _raw_request(server, 'POST', '/auth/login', gros)
+        derniers.append((status, body))
+    status, body = derniers[-1]
+    assert status == 429
+    assert b'Trop de tentatives' in body, "le corps de la reponse 429 doit arriver entier"
+
+
+def test_le_mot_de_passe_ne_fuit_pas_dans_la_reponse_429(server, isolated_password_file):
+    """Le corps est vidé de la socket puis JETÉ : il ne doit jamais ressortir,
+    ni analysé, ni réaffiché dans une page d'erreur."""
+    _enable_password(server)
+    secret = 'MonMotDePasseTresSecret42'
+    for _ in range(httpmod._LOGIN_ATTEMPT_LIMIT + 3):
+        status, _h, body = _raw_request(server, 'POST', '/auth/login', {'password': secret})
+    assert status == 429
+    assert secret.encode() not in body
+
+
+def test_dix_refus_d_affilee_sur_la_meme_connexion_restent_lisibles(server, isolated_password_file):
+    """Non-régression du motif : dix refus successifs doivent tous rendre un
+    429 lisible. Si des octets résiduels étaient interprétés comme la requête
+    suivante, on verrait apparaître un 400 « Bad request syntax »."""
+    _enable_password(server)
+    statuts = [_raw_request(server, 'POST', '/auth/login', {'password': 'faux'})[0]
+               for _ in range(10)]
+    assert statuts[-5:] == [429] * 5
+    assert 400 not in statuts

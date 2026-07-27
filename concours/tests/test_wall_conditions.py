@@ -148,7 +148,7 @@ def test_weather_cached_nouveau_lieu_ne_sert_pas_la_meteo_dun_autre_qth(monkeypa
 
 @pytest.fixture
 def server():
-    srv = http.server.HTTPServer(('127.0.0.1', 0), httpmod.Handler)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), httpmod.Handler)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -156,6 +156,7 @@ def server():
         yield f'http://127.0.0.1:{port}'
     finally:
         srv.shutdown()
+        srv.server_close()   # libere la socket d ecoute
         t.join(timeout=5)
 
 

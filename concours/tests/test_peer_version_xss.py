@@ -51,7 +51,7 @@ def server(monkeypatch):
     # les assertions (même isolation que tests/test_peer_versions_http.py).
     monkeypatch.setattr(httpmod, 'peer_versions', {})
     monkeypatch.setattr(httpmod, 'connected_peers', set())
-    srv = http.server.HTTPServer(('127.0.0.1', 0), httpmod.Handler)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), httpmod.Handler)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()

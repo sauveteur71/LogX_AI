@@ -4900,12 +4900,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _require_auth(self):
         if self._client_authorized():
             return True
-        # Refus AVANT lecture du corps (voir do_POST) : en connexion
-        # persistante, les octets du corps resteraient dans le tampon et
-        # seraient lus comme la requête suivante — requête corrompue, réponse
-        # incohérente. Fermer la connexion est la seule issue sûre, et sans
-        # conséquence : ce client n'est de toute façon pas autorisé.
-        self.close_connection = True
+        # Le corps n'est pas EXPLOITÉ, mais il doit être VIDÉ DE LA SOCKET,
+        # sinon ses octets seraient lus comme la requête suivante — requête
+        # corrompue, réponse incohérente.
+        #
+        # Vider PLUTÔT QUE fermer : fermer une connexion dont le tampon de
+        # réception contient encore des octets fait envoyer un RST par la pile
+        # TCP au lieu d'un FIN, et le RST DÉTRUIT la réponse déjà émise. Le
+        # client recevait alors une erreur réseau au lieu du 403 qui lui dit
+        # quoi faire (« recharge une page du logiciel »).
+        #
+        # Borné : vider un corps de taille quelconque serait un vecteur de
+        # déni de service (un client non autorisé ferait lire des mégaoctets
+        # au serveur). Au-delà du plafond on ferme franchement — le RST est
+        # alors acceptable, ce cas étant rare et déjà anormal.
+        _DRAIN_MAX = 64 * 1024
+        try:
+            _len = int(self.headers.get('Content-Length', 0) or 0)
+        except (TypeError, ValueError):
+            _len = 0
+        if 0 < _len <= _DRAIN_MAX:
+            try:
+                self.rfile.read(_len)   # lu puis jeté : jamais analysé
+            except Exception:
+                self.close_connection = True
+        elif _len:
+            self.close_connection = True
         if _access_password_enabled():
             self._json({'error': "Non autorisé — connecte-toi via /auth/login "
                                  "(mot de passe d'accès configuré)"}, 403)
@@ -5018,14 +5038,34 @@ form.addEventListener('submit', async (e) => {{
         # Throttle AVANT même de lire le corps : le calcul qu'on protège
         # (PBKDF2) n'a pas encore eu lieu, autant rejeter au plus tôt.
         if _login_rate_limited(ip):
-            # Refus AVANT lecture du corps, donc même règle que dans
-            # _require_auth et le plafond MAX_BODY de do_POST : en connexion
-            # persistante le corps non lu resterait dans le tampon et serait
-            # interprété comme la requête SUIVANTE. Ici le corps contient le
-            # mot de passe d'accès en clair : sans fermeture, le navigateur
-            # enchaîne sur la même connexion et reçoit un « 400 Bad request
-            # syntax » dont la page d'erreur RÉAFFICHE ce mot de passe.
-            self.close_connection = True
+            # Le corps n'est pas EXPLOITÉ (on refuse avant tout PBKDF2), mais il
+            # doit quand même être VIDÉ DE LA SOCKET avant de fermer.
+            #
+            # Fermer une connexion dont le tampon de réception contient encore
+            # des octets fait envoyer un RST par la pile TCP au lieu d'un FIN —
+            # et un RST DÉTRUIT la réponse déjà émise, y compris si elle est
+            # entièrement partie. L'utilisateur qui atteint la limite recevait
+            # donc, une fois sur trois sous charge, une erreur réseau au lieu du
+            # message « Trop de tentatives ». Reproduit sous charge (3 échecs
+            # sur 12) avant correction : ConnectionResetError WinError 10054.
+            #
+            # Vider règle aussi ce pour quoi la fermeture avait été posée : plus
+            # d'octets résiduels interprétés comme la requête SUIVANTE, donc pas
+            # de page d'erreur « Bad request syntax » réaffichant le mot de passe
+            # en clair. La lecture est BORNÉE au même plafond que le chemin
+            # nominal : un corps annoncé au-delà relève du 413 juste en dessous,
+            # qui lui ne peut pas être vidé et ferme donc franchement.
+            try:
+                _len = int(self.headers.get('Content-Length', 0) or 0)
+            except (TypeError, ValueError):
+                _len = 0
+            if 0 < _len <= 4096:
+                try:
+                    self.rfile.read(_len)   # lu puis jeté : jamais analysé
+                except Exception:
+                    pass
+            else:
+                self.close_connection = True
             self._json({'ok': False,
                        'error': 'Trop de tentatives, réessaie plus tard'}, 429)
             return
