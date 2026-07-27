@@ -413,22 +413,46 @@ def _qui_occupe(port):
     return '     lsof -nP -iTCP:%d -sTCP:LISTEN' % port
 
 
-def message_deja_lance(port, version=None, ouvre_navigateur=True):
+def message_deja_lance(port, version=None, ouvre_navigateur=True,
+                       version_locale=None):
     """Instance LogX AI déjà en écoute : ce lancement s'arrête volontairement.
 
     ouvre_navigateur=False (mode développeur, où le démarrage n'ouvre jamais
     le navigateur tout seul) : on donne l'adresse au lieu d'annoncer une
-    ouverture qui n'aura pas lieu — un message faux ferait douter du reste."""
+    ouverture qui n'aura pas lieu — un message faux ferait douter du reste.
+
+    version_locale — version présente DANS CE DOSSIER (APP_VERSION). Quand elle
+    diffère de celle qui répond, on le dit en toutes lettres, avec les deux
+    numéros côte à côte. Le texte générique en dessous décrivait déjà le
+    mécanisme (« c est l ANCIEN qui continuerait de repondre »), mais décrire
+    un mécanisme n'est pas constater un fait : l'utilisateur qui vient de
+    mettre à jour cherche un numéro de version, pas une explication. Cas réel
+    ayant motivé ce paramètre : un serveur laissé en route depuis la veille
+    faisait afficher la 0.9-beta5 alors que la 0.9-beta7 était installée, sans
+    que rien nulle part ne rapproche les deux numéros. Ce module n'important
+    aucun module applicatif (voir docstring), la version locale est PASSÉE ici,
+    jamais importée."""
     qui = ('version %s' % version) if version else 'version non communiquee'
     if ouvre_navigateur:
         suite = '  -> Ouverture de la fenetre existante dans le navigateur.'
     else:
         suite = '  -> Elle repond ici : http://127.0.0.1:%d/logx_logbook.html' % port
-    return '\n'.join((
+    lignes = [
         _LIGNE,
         '  LogX AI est DEJA lance sur ce poste.',
         '  Une instance repond sur le port %d (%s).' % (port, qui),
         suite,
+    ]
+    if version and version_locale and version != version_locale:
+        lignes += [
+            '',
+            '  ATTENTION : ce n est PAS la version installee dans ce dossier.',
+            '     version qui repond    : %s' % version,
+            '     version installee ici : %s' % version_locale,
+            '  Tant que cette instance tourne, la mise a jour reste SANS EFFET',
+            '  a l ecran : c est l ancienne qui repond au navigateur.',
+        ]
+    lignes += [
         '',
         '  Ce nouveau lancement s arrete ici, VOLONTAIREMENT : deux serveurs',
         '  sur le meme port ecriraient en meme temps dans le meme journal de',
@@ -438,7 +462,8 @@ def message_deja_lance(port, version=None, ouvre_navigateur=True):
         '  Pour redemarrer pour de bon (apres une mise a jour par exemple) :',
         _comment_fermer(),
         _LIGNE,
-    ))
+    ]
+    return '\n'.join(lignes)
 
 
 def message_port_partage(port, detail=''):

@@ -45,6 +45,7 @@ from logx_bootstrap import bootstrap, open_browser, is_frozen, start_network_dia
 bootstrap()
 
 from logx_utils import PORT
+from logx_version import APP_VERSION
 from logx_storage import load_log_from_disk, load_qtc_from_disk, load_shifts_from_disk
 from logx_rules import load_rules_cache, load_external_contests, schedule_annual_check
 from logx_http import Handler
@@ -93,7 +94,8 @@ if __name__ == '__main__':
         # comment fermer l'instance en cours. Sans la pause, il défilerait dans
         # une fenêtre qui se referme aussitôt — le problème d'origine intact.
         _abandonner(logx_singleton.message_deja_lance(
-            PORT, _instance['version'], ouvre_navigateur=is_frozen()), code=0)
+            PORT, _instance['version'], ouvre_navigateur=is_frozen(),
+            version_locale=APP_VERSION), code=0)
     if _instance['state'] == logx_singleton.OTHER:
         # Port occupé par autre chose, ET ce tiers nous prendrait l'adresse
         # que nous annonçons : ne surtout pas prétendre que LogX AI tourne

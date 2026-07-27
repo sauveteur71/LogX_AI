@@ -11,6 +11,36 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [Non publié]
+
+### Corrigé
+
+- **Le lanceur Windows pouvait rouvrir l'ANCIENNE version après une mise à
+  jour, en affichant que tout allait bien.** `LANCER_RADIOCONTEST.bat` testait
+  le port avec `curl http://localhost:8080/` : dès que quelque chose répondait,
+  il affichait « [OK] Serveur deja en route » et ouvrait le navigateur **sans
+  jamais exécuter `logx_serveur.py`**. Or c'est ce dernier qui porte la
+  détection d'instance déjà lancée (`logx_singleton`). Un serveur laissé en
+  route depuis la veille servait donc indéfiniment son ancienne version, et
+  l'utilisateur concluait que la mise à jour avait échoué. Constaté sur poste
+  réel : la 0.9-beta5 s'affichait alors que la 0.9-beta7 était installée.
+  Le lanceur appelle désormais `logx_instance.py`, qui compare la version qui
+  répond à celle du dossier ; à version différente il **n'ouvre aucune page**
+  et explique quoi fermer.
+- **Le message « LogX AI est déjà lancé » nomme maintenant les deux versions**
+  côte à côte (celle qui répond, celle installée). Il décrivait le mécanisme
+  — « c'est l'ANCIEN qui continuerait de répondre » — sans jamais donner les
+  numéros, alors que c'est exactement ce que cherche quelqu'un qui vient de
+  mettre à jour. Vaut aussi pour `LogXAI.exe`, qui ne passe pas par le `.bat`
+  mais tombait dans le même piège.
+
+### Interne
+
+- `LANCER_RADIOCONTEST.bat` était listé dans `.gitignore` parmi les
+  « documents personnels de préparation », entre deux PDF. C'est un fichier du
+  programme (chemins relatifs, prévu pour un zip extrait n'importe où) : il est
+  désormais suivi, et son câblage est vérifié par les tests.
+
 ## [0.9-beta7] - 2026-07-27
 
 Version issue d'une **étude comparative** avec N1MM Logger+, DXLog.net, Tucnak,
