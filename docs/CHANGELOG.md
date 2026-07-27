@@ -125,6 +125,7 @@ série de correctifs de fond sur le serveur.
 
 ### Corrigé
 - **Infobulles qui clignotaient** indéfiniment entre le français et la langue choisie, sur toutes les pages en langue étrangère.
+- **Le champ de recherche de concours de la configuration restait en français** dans les 7 langues traduites — il n'avait de traduction dans aucune. Plus généralement, les infobulles et champs de saisie introduits par un pictogramme (🔍, ✅…) suivent désormais la même règle de traduction que le reste du texte : jusqu'ici seuls les libellés en bénéficiaient.
 - Traduction du titre d'onglet qui, si elle échouait, interrompait **toute** la traduction de la page — celle-ci restait alors intégralement en français sans le moindre message.
 - Plusieurs libellés illisibles à 1366×768 (mode et nom du parc dans les listes d'activateurs, explication de la need list).
 - Mise à jour réseau : un fichier plus court qu'annoncé bloquait 30 s au lieu d'échouer immédiatement.

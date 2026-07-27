@@ -606,3 +606,102 @@ def test_title_hors_dictionnaire_reste_intact_sur_plusieurs_passes():
     for _ in range(3):
         ctx.eval("window.rcTranslate();")
         assert ctx.eval("btn.getAttribute('title')") == 'Infobulle sans aucune correspondance'
+
+
+# ─── 5) Préfixe emoji sur title / placeholder (27/07/2026) ──────────────────
+# Seconde moitié du même défaut structurel : translateText() savait isoler le
+# cœur alphabétique après un préfixe emoji (« 🗺️ CARTE IA ») pour ne traduire
+# que lui et garder l'emoji, mais le bloc des attributs ne connaissait QUE la
+# correspondance directe. Les deux règles sont désormais dans translateKey(),
+# point unique appelé par les nœuds texte ET par les attributs : la divergence
+# qui a produit successivement le clignotement fr ⇄ langue cible puis
+# l'absence de cas n°2 côté attributs n'est plus reproductible.
+#
+# Effet réel : `🔍  Rechercher : Field Day, VHF, RPH, CQ WW…`
+# (logx_configuration.html) était le SEUL title/placeholder à préfixe emoji de
+# toute l'application sans aucune traduction — il restait en français dans les
+# 7 langues. Sa clé est maintenant dans T SANS le 🔍, que le cas n°2 remet.
+
+# Valeur exacte du placeholder de logx_configuration.html (deux espaces après
+# l'emoji : c'est aussi ce que la mise en forme d'origine doit préserver).
+PH_CONFIG_FR = '🔍  Rechercher : Field Day, VHF, RPH, CQ WW…'
+PH_CONFIG_CORE = 'Rechercher : Field Day, VHF, RPH, CQ WW…'
+
+
+def _page_avec_placeholder(lang, valeur):
+    ctx = _make_ctx()
+    ctx.eval("""
+    localStorage.setItem('rc_lang', %r);
+    var inp = document.createElement('input');
+    inp.setAttribute('placeholder', %r);
+    document.body.appendChild(inp);
+    """ % (lang, valeur))
+    ctx.eval(_real_source())
+    return ctx
+
+
+@pytest.mark.parametrize('lang', ['en', 'de', 'es', 'it', 'pt', 'nl', 'pl'])
+def test_placeholder_a_prefixe_emoji_traduit_en_gardant_lemoji(lang):
+    """Le cœur alphabétique doit être traduit et le préfixe emoji conservé tel
+    quel, espaces compris — dans chacune des 7 langues."""
+    ctx = _page_avec_placeholder(lang, PH_CONFIG_FR)
+    coeur_traduit = ctx.eval("window.rcT(%r)" % PH_CONFIG_CORE)
+    assert coeur_traduit != PH_CONFIG_CORE, (
+        "prérequis : le cœur doit avoir une traduction en %r" % lang)
+    assert ctx.eval("inp.getAttribute('placeholder')") == '🔍  ' + coeur_traduit, (
+        "le préfixe emoji (et ses deux espaces) doit être conservé et le cœur traduit")
+
+
+def test_placeholder_a_prefixe_emoji_ne_clignote_pas():
+    """Le cas n°2 doit obéir à la même règle que le cas n°1 : repartir du
+    français mémorisé. Sinon il rouvre exactement l'oscillation corrigée pour la
+    correspondance directe — la valeur traduite ne contient plus la clé, donc la
+    passe suivante ne trouverait rien et restaurerait le français."""
+    ctx = _page_avec_placeholder('de', PH_CONFIG_FR)
+    attendu = ctx.eval("inp.getAttribute('placeholder')")
+    assert attendu != PH_CONFIG_FR
+    for passe in range(2, 6):
+        ctx.eval("window.rcTranslate();")
+        assert ctx.eval("inp.getAttribute('placeholder')") == attendu, (
+            "passe %d : le placeholder à préfixe emoji a clignoté" % passe)
+
+
+def test_title_a_prefixe_emoji_traduit_via_le_coeur():
+    """Même mécanisme sur `title` (et non seulement `placeholder`), avec une clé
+    du dictionnaire de base préfixée d'un emoji absent de T."""
+    ctx = _page_avec_infobulle('en', '🔍 Règlement')
+    assert ctx.eval("btn.getAttribute('title')") == '🔍 Rules'
+
+
+def test_correspondance_directe_prioritaire_sur_le_prefixe_emoji():
+    """Non-régression sur les DEUX placeholders « 🔍 Rechercher … » de
+    logx_logbook.html, dont la clé complète (emoji INCLUS) est dans T : la
+    correspondance directe est essayée avant le cas n°2 et doit gagner, sinon
+    leur traduction actuelle changerait de forme."""
+    ctx = _page_avec_placeholder('de', '🔍 Rechercher un concours...')
+    assert ctx.eval("inp.getAttribute('placeholder')") == '🔍 Contest suchen...'
+
+
+def test_retour_au_francais_pour_un_prefixe_emoji():
+    """Le retour à 'fr' doit restaurer la valeur française COMPLÈTE, emoji et
+    espaces d'origine compris."""
+    ctx = _page_avec_placeholder('de', PH_CONFIG_FR)
+    assert ctx.eval("inp.getAttribute('placeholder')") != PH_CONFIG_FR
+    ctx.eval("localStorage.setItem('rc_lang', 'fr'); __storageCb({key:'rc_lang', newValue:'fr'});")
+    assert ctx.eval("inp.getAttribute('placeholder')") == PH_CONFIG_FR
+
+
+def test_placeholder_technique_a_prefixe_non_lettre_reste_intact():
+    """Garde-fou du cas n°2 : il déclenche sur TOUT préfixe non-lettre, pas
+    seulement sur un emoji — y compris les placeholders techniques de
+    logx_configuration.html (« 127.0.0.1 (ou IP du poste radio) »,
+    « 14,21 (vide = toutes) »). Aucun de leurs cœurs n'est dans T, donc ils
+    doivent rester strictement intacts : ce test se déclenchera si une future
+    entrée de dictionnaire vient à en traduire un morceau par accident."""
+    for valeur in ['127.0.0.1 (ou IP du poste radio)', '14,21 (vide = toutes)',
+                   '9600 à 38400 selon marque']:
+        ctx = _page_avec_placeholder('de', valeur)
+        for _ in range(3):
+            ctx.eval("window.rcTranslate();")
+            assert ctx.eval("inp.getAttribute('placeholder')") == valeur, (
+                "placeholder technique %r modifié par le cas n°2" % valeur)

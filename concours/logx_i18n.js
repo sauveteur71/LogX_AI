@@ -3101,6 +3101,28 @@
     if (T[l]) Object.assign(T[l], T_PROP_TABS_FIX[l]);
   });
 
+  // --- Placeholder de recherche de concours (logx_configuration.html) --------
+  // Seul title/placeholder de toute l'application à préfixe emoji dont AUCUNE
+  // langue n'avait de traduction : il restait en français dans les 7 langues.
+  // Clé volontairement SANS le 🔍 : c'est translateKey() (cas n°2) qui isole le
+  // préfixe et le remet en place, au lieu de recopier l'emoji dans la clé et
+  // dans les 7 traductions comme le faisaient les deux placeholders
+  // « 🔍 Rechercher … » de logx_logbook.html (14 entrées, emoji dupliqué).
+  // Ces deux-là continuent de passer par la correspondance DIRECTE, essayée
+  // avant le cas n°2 : rien à y changer.
+  const T_CONFIG_SEARCH_FIX = {
+    en: { "Rechercher : Field Day, VHF, RPH, CQ WW…": "Search: Field Day, VHF, RPH, CQ WW…" },
+    de: { "Rechercher : Field Day, VHF, RPH, CQ WW…": "Suchen: Field Day, VHF, RPH, CQ WW…" },
+    es: { "Rechercher : Field Day, VHF, RPH, CQ WW…": "Buscar: Field Day, VHF, RPH, CQ WW…" },
+    it: { "Rechercher : Field Day, VHF, RPH, CQ WW…": "Cerca: Field Day, VHF, RPH, CQ WW…" },
+    pt: { "Rechercher : Field Day, VHF, RPH, CQ WW…": "Procurar: Field Day, VHF, RPH, CQ WW…" },
+    nl: { "Rechercher : Field Day, VHF, RPH, CQ WW…": "Zoeken: Field Day, VHF, RPH, CQ WW…" },
+    pl: { "Rechercher : Field Day, VHF, RPH, CQ WW…": "Szukaj: Field Day, VHF, RPH, CQ WW…" },
+  };
+  Object.keys(T_CONFIG_SEARCH_FIX).forEach(function (l) {
+    if (T[l]) Object.assign(T[l], T_CONFIG_SEARCH_FIX[l]);
+  });
+
   // Directive de langue pour l'agent IA (ajoutée au prompt système côté client
   // avant l'appel /proxy/ai). Vide en fr/auto (le navigateur traduit la page).
   const LLM_DIRECTIVE = {
@@ -3175,6 +3197,71 @@
     LAST_OUT.set(node, value);
   }
 
+  // Position de la première LETTRE de s, ou -1 s'il n'y en a aucune. Sert à
+  // isoler un préfixe emoji/symbole du cœur alphabétique qui le suit.
+  //
+  // Écrit à la main, SANS \p{L} — ce n'est pas un détail de style. L'ancienne
+  // version employait /^([^\p{L}]+?\s*)(\p{L}.*)$/u, or les échappements de
+  // propriété Unicode exigent un moteur JS compilé AVEC ICU : le V8 embarqué
+  // par la suite de tests (py_mini_racer) est un build SANS ICU et lève une
+  // SyntaxError dessus. Comme V8 ne compile une expression régulière littérale
+  // qu'à sa PREMIÈRE ÉVALUATION, l'erreur restait invisible tant que la
+  // correspondance directe aboutissait — donc jamais atteinte par les tests, et
+  // la règle du préfixe emoji était structurellement INTESTABLE (elle aurait
+  // aussi fait tomber n'importe quel moteur sans ICU dès le premier libellé non
+  // traduit). Les navigateurs, eux, gèrent \p{L} depuis 2018 : aucun défaut
+  // visible en production, mais aucune couverture non plus.
+  //
+  // « Lettre » = caractère qui a une casse (é, ç, Ł, Я inclus). Suffisant et
+  // exact ici : les clés sources sont du français. Les demi-codets d'un emoji
+  // (paire de substitution) n'ont pas de casse, donc ne sont jamais pris pour
+  // une lettre, et l'emoji reste intact puisqu'on ne coupe que sur une lettre.
+  //
+  // Une seule différence avec l'ancienne expression régulière, mesurée sur un
+  // corpus de 1005 chaînes réelles (logx_configuration.html en direct) : 14
+  // divergences, TOUTES sur des chaînes MULTILIGNES. L'ancien `.*` ne
+  // franchissait pas un saut de ligne et abandonnait donc le découpage ; ici il
+  // aboutit. Sans effet aujourd'hui — aucun de ces 14 cœurs n'est une clé du
+  // dictionnaire — et cohérent avec la correspondance directe, qui accepte déjà
+  // des clés multilignes (trim() ne retire pas les sauts de ligne internes).
+  function firstLetterIndex(s) {
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (c.toLowerCase() !== c.toUpperCase()) return i;
+    }
+    return -1;
+  }
+
+  // Traduction d'UNE chaîne source française, indépendamment de l'endroit où
+  // elle vit (nœud texte ou attribut title/placeholder). Retourne la chaîne
+  // traduite — habillage d'origine préservé : espaces autour, préfixe emoji —
+  // ou null si RIEN ne correspond, ce que l'appelant traduit par « restaure le
+  // français ».
+  //
+  // Point unique EXPRÈS : ces deux règles (correspondance directe, puis cœur
+  // alphabétique après un préfixe emoji) étaient auparavant écrites dans
+  // translateText() seul, et le bloc des attributs n'en appliquait aucune. Un
+  // seul endroit rend cette divergence impossible à reproduire — c'est elle qui
+  // a produit d'abord le clignotement fr ⇄ langue cible des infobulles, puis
+  // l'absence de traitement du préfixe emoji côté attributs.
+  function translateKey(dict, raw) {
+    const key = raw.trim();
+    if (!key) return null;
+    // 1) correspondance directe
+    if (dict[key] !== undefined) return raw.replace(key, dict[key]);
+    // 2) préfixe emoji/symbole (« 🗺️ CARTE IA », « 🔍 Rechercher… ») : on isole
+    //    le cœur alphabétique et on ne traduit que lui, en gardant l'emoji.
+    //    Évite de recopier l'emoji dans la clé ET dans les 7 traductions.
+    const i = firstLetterIndex(key);
+    if (i > 0) {
+      const core = key.slice(i).trim();
+      if (dict[core] !== undefined) {
+        return raw.replace(key, key.slice(0, i) + dict[core]);
+      }
+    }
+    return null;
+  }
+
   function translateText(dict, node) {
     // Le contenu a-t-il changé DEPUIS notre dernière écriture ? Si oui, c'est
     // l'application qui vient de poser du texte français frais sur ce nœud :
@@ -3187,21 +3274,9 @@
     // Toujours partir du FRANÇAIS d'origine (sinon on tenterait de traduire
     // depuis la langue précédente — ex. anglais → allemand échouerait).
     const raw = ORIG.has(node) ? ORIG.get(node) : node.nodeValue;
-    const key = raw.trim();
-    if (!key) return;
-    // 1) correspondance directe
-    if (dict[key] !== undefined) {
-      setNode(node, raw, raw.replace(key, dict[key]));
-      return;
-    }
-    // 2) le texte a un préfixe emoji/symbole (« 🗺️ CARTE IA ») : on isole le
-    //    cœur alphabétique et on ne traduit que lui, en gardant l'emoji.
-    const m = key.match(/^([^\p{L}]+?\s*)(\p{L}.*)$/u);
-    if (m && dict[m[2].trim()] !== undefined) {
-      setNode(node, raw, raw.replace(key, m[1] + dict[m[2].trim()]));
-      return;
-    }
-    // 3) rien à traduire → restaure le français d'origine si besoin
+    const out = translateKey(dict, raw);
+    if (out !== null) { setNode(node, raw, out); return; }
+    // rien à traduire → restaure le français d'origine si besoin
     if (ORIG.has(node)) { node.nodeValue = ORIG.get(node); LAST_OUT.set(node, node.nodeValue); }
   }
 
@@ -3281,11 +3356,12 @@
       ds[okey] = cur;
     }
     const raw = ds[okey];
-    const key = raw.trim();
+    // Mêmes règles que les nœuds texte, préfixe emoji compris (translateKey).
     // dict vide (retour au français) ou clé absente → le français d'origine.
-    const out = (key && dict[key] !== undefined) ? raw.replace(key, dict[key]) : raw;
-    if (cur !== out) el.setAttribute(attr, out);
-    ds[lkey] = out;
+    const out = translateKey(dict, raw);
+    const val = (out === null) ? raw : out;
+    if (cur !== val) el.setAttribute(attr, val);
+    ds[lkey] = val;
   }
 
   function walk(dict, root) {
