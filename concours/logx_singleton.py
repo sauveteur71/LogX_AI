@@ -387,6 +387,28 @@ def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5,
                 'detail': 'sonde impossible: %s' % e}
 
 
+def sonde_sans_bind(port, host='127.0.0.1', timeout=1.5, budget=_HTTP_BUDGET):
+    """Une instance LogX AI répond-elle DÉJÀ sur ce port ? Retourne sa version
+    ('' si elle répond sans la communiquer), ou None si rien d'identifiable.
+
+    NE SE LIE JAMAIS AU PORT, contrairement à probe(). C'est toute la raison
+    d'être de cette fonction, et ce n'est pas un détail de style : `_bind_test`
+    ouvre réellement le port le temps du test. Employée en boucle pendant qu'un
+    serveur est en train de démarrer — exactement ce que fait le lanceur quand
+    il attend que le serveur réponde — elle lui volerait le port à l'instant
+    précis de son bind, et sous Windows (où `allow_reuse_address` est
+    volontairement désactivé, voir LogXHTTPServer) ce bind échouerait avec
+    WinError 10048. L'attente aurait alors PROVOQUÉ la panne qu'elle surveille.
+
+    Ne sert donc qu'à la question « est-ce déjà debout ? », jamais à « puis-je
+    démarrer ici ? » — cette seconde question reste celle de probe().
+    """
+    data, _ = _fetch_signature(host, port, timeout, budget)
+    if data is None:
+        return None
+    return data.get('app_version') or ''
+
+
 # ─── MESSAGES (console) ──────────────────────────────────────────────────────
 # ASCII strict, à dessein : ces messages s'affichent dans la fenêtre console
 # de l'exécutable Windows, dont la page de code n'est pas prévisible (cp850 ou

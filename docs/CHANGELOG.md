@@ -34,8 +34,29 @@ qui doit être incrémentée à chaque tag poussé.
   mettre à jour. Vaut aussi pour `LogXAI.exe`, qui ne passe pas par le `.bat`
   mais tombait dans le même piège.
 
+- **Le lanceur n'ouvre plus le navigateur sans savoir si le serveur a
+  démarré.** Il attendait `timeout /t 3` en aveugle, puis ouvrait les pages
+  quoi qu'il arrive. Deux conséquences : la fenêtre du serveur étant lancée
+  minimisée (`start /MIN`), un refus de démarrer — port pris entre la sonde et
+  le bind, fichier manquant — s'affichait là où personne ne regarde pendant
+  que le navigateur montrait « impossible de se connecter » sans la moindre
+  explication ; et 3 secondes n'était qu'une devinette, donc sur un poste lent
+  (ou avec un antivirus qui inspecte l'interpréteur) la page s'ouvrait trop tôt
+  sur la même erreur alors que tout allait bien. Le lanceur attend désormais
+  que le port **réponde** ; s'il ne répond pas, il n'ouvre rien, nomme la
+  fenêtre minimisée où lire la cause, et affiche les dernières lignes du
+  journal d'erreurs **si elles datent de ce démarrage** (un journal n'étant pas
+  effacé entre deux lancements, l'afficher sans regarder sa date désignerait
+  une panne ancienne comme cause du problème du jour).
+
 ### Interne
 
+- `logx_singleton.sonde_sans_bind()` : sonde qui se contente de se connecter,
+  sans jamais ouvrir le port. `probe()` fait un vrai `bind` pour savoir si le
+  port est libre ; l'employer en boucle pendant qu'un serveur démarre lui
+  volerait le port à l'instant de son bind — sous Windows, où
+  `allow_reuse_address` est volontairement désactivé, ce bind échouerait en
+  `WinError 10048`. L'attente aurait provoqué la panne qu'elle surveille.
 - `LANCER_RADIOCONTEST.bat` était listé dans `.gitignore` parmi les
   « documents personnels de préparation », entre deux PDF. C'est un fichier du
   programme (chemins relatifs, prévu pour un zip extrait n'importe où) : il est

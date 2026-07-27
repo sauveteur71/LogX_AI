@@ -120,9 +120,10 @@ def test_aucun_code_utile_ne_vaut_1():
     """Python sort avec 1 sur toute exception non rattrapée. Si un code utile
     valait 1, un simple ImportError dans ce pré-contrôle aurait fait ouvrir le
     navigateur (ou refuser le démarrage) sans qu'aucun serveur ne tourne."""
-    codes = (LI.OUVRIR_SEULEMENT, LI.VERSION_DIFFERENTE, LI.PORT_OCCUPE)
+    codes = (LI.OUVRIR_SEULEMENT, LI.VERSION_DIFFERENTE, LI.PORT_OCCUPE,
+             LI.PAS_DEMARRE)
     assert 1 not in codes
-    assert len(set(codes)) == 3
+    assert len(set(codes)) == 4
 
 
 def test_un_plantage_du_precontrole_fait_demarrer_le_serveur():
@@ -148,6 +149,155 @@ def test_le_code_de_sortie_arrive_reellement_au_shell():
     r = subprocess.run([sys.executable, '-c', prog], capture_output=True)
     assert r.returncode == LI.VERSION_DIFFERENTE
     assert b'0.0-vieille' in r.stdout
+
+
+# ─── L'attente du démarrage ──────────────────────────────────────────────────
+
+class _Horloge:
+    """Temps simulé : les tests n'attendent jamais 40 secondes pour de vrai."""
+
+    def __init__(self):
+        self.t = 0.0
+
+    def maintenant(self):
+        return self.t
+
+    def dormir(self, s):
+        self.t += s
+
+
+def test_attendre_rend_la_main_des_que_le_serveur_repond(monkeypatch):
+    reponses = [None, None, '0.9-beta7']
+    monkeypatch.setattr(S, 'sonde_sans_bind',
+                        lambda *a, **k: reponses.pop(0))
+    h = _Horloge()
+    code, msg = LI.attendre(port=PORT_TEST, version_locale='0.9-beta7',
+                            horloge=h.maintenant, dormir=h.dormir)
+    assert code == LI.OUVRIR_SEULEMENT and msg == ''
+    assert reponses == []
+
+
+def test_attendre_ne_se_lie_JAMAIS_au_port(monkeypatch):
+    """LE piège de ce correctif. probe() ouvre réellement le port pour tester
+    s'il est libre ; l'appeler en boucle pendant que le serveur cherche à se
+    lier lui volerait le port — sous Windows, allow_reuse_address étant
+    volontairement désactivé, son bind échouerait en WinError 10048.
+    L'attente aurait PROVOQUÉ la panne qu'elle surveille."""
+    appels = []
+    monkeypatch.setattr(S, '_bind_test',
+                        lambda *a, **k: appels.append(a) or (True, ''))
+    monkeypatch.setattr(S, 'sonde_sans_bind',
+                        lambda *a, **k: '0.9-beta7')
+    h = _Horloge()
+    LI.attendre(port=PORT_TEST, version_locale='0.9-beta7',
+                horloge=h.maintenant, dormir=h.dormir)
+    assert appels == [], 'aucun bind ne doit avoir lieu pendant l attente'
+
+
+def test_sonde_sans_bind_ne_se_lie_pas_non_plus(monkeypatch):
+    """Garde-fou au niveau du module : si sonde_sans_bind se remettait à
+    binder, le test ci-dessus deviendrait vert pour de mauvaises raisons."""
+    appels = []
+    monkeypatch.setattr(S, '_bind_test',
+                        lambda *a, **k: appels.append(a) or (True, ''))
+    monkeypatch.setattr(S, '_fetch_signature',
+                        lambda *a, **k: ({'app_version': '0.9-beta7'}, ''))
+    assert S.sonde_sans_bind(PORT_TEST) == '0.9-beta7'
+    assert appels == []
+
+
+def test_attendre_abandonne_au_bout_du_delai(monkeypatch):
+    monkeypatch.setattr(S, 'sonde_sans_bind', lambda *a, **k: None)
+    h = _Horloge()
+    code, msg = LI.attendre(delai_max=40.0, pas=0.5, port=PORT_TEST,
+                            horloge=h.maintenant, dormir=h.dormir)
+    assert code == LI.PAS_DEMARRE
+    assert h.t >= 40.0
+    assert 'MINIMISEE' in msg, (
+        'le message doit dire ou lire la cause : la fenetre du serveur est '
+        'minimisee, c est tout le probleme')
+
+
+def test_le_message_d_echec_reste_en_ascii(monkeypatch):
+    """Trouvé en l'exécutant pour de vrai : mes guillemets « » ressortaient
+    en mojibake dans la console Windows."""
+    monkeypatch.setattr(S, 'sonde_sans_bind', lambda *a, **k: None)
+    monkeypatch.setattr(LI, 'journal_erreurs_frais', lambda *a, **k: '')
+    h = _Horloge()
+    _, msg = LI.attendre(delai_max=1.0, pas=0.5, port=PORT_TEST,
+                         horloge=h.maintenant, dormir=h.dormir)
+    assert msg.isascii(), [c for c in msg if not c.isascii()]
+
+
+def test_le_journal_accentue_ne_casse_pas_le_message(tmp_path, monkeypatch):
+    """DÉFAUT TROUVÉ PAR LA SUITE COMPLÈTE, pas par relecture — et pas un
+    caprice de test. Tout ce module est écrit en ASCII à la main, mais la fin
+    de errors.log vient d'ailleurs : c'est une trace Python, dont les messages
+    et les chemins de fichiers portent des accents. Le message de diagnostic
+    redevenait donc mojibaké dans la console Windows, précisément au moment où
+    l'utilisateur a besoin de le lire.
+
+    Le test d'origine lisait le VRAI errors.log du poste : il passait ou non
+    selon ce que la suite venait d'y écrire. Celui-ci fixe le contenu."""
+    import logx_errorlog
+    journal = tmp_path / 'errors.log'
+    journal.write_text(
+        "Traceback : fichier déjà supprimé, opération annulée\n"
+        "  File \"C:\\Users\\opérateur\\Bureau\\log.py\", line 3\n",
+        encoding='utf-8')
+    monkeypatch.setattr(logx_errorlog, 'log_path', lambda: str(journal))
+    monkeypatch.setattr(S, 'sonde_sans_bind', lambda *a, **k: None)
+    h = _Horloge()
+    _, msg = LI.attendre(delai_max=1.0, pas=0.5, port=PORT_TEST,
+                         horloge=h.maintenant, dormir=h.dormir)
+    assert msg.isascii(), [c for c in msg if not c.isascii()]
+    # Repli lisible, pas une bouillie : les accents tombent, le texte reste.
+    assert 'deja supprime' in msg
+    assert 'operateur' in msg
+
+
+def test_attendre_n_ouvre_rien_si_c_est_une_autre_version_qui_repond(monkeypatch):
+    """Course entre deux lancements : le serveur qu'on vient de lancer s'est
+    effacé devant une instance déjà en place."""
+    monkeypatch.setattr(S, 'sonde_sans_bind',
+                        lambda *a, **k: '0.9-beta5')
+    h = _Horloge()
+    code, msg = LI.attendre(port=PORT_TEST, version_locale='0.9-beta7',
+                            horloge=h.maintenant, dormir=h.dormir)
+    assert code == LI.VERSION_DIFFERENTE
+    assert '0.9-beta5' in msg and '0.9-beta7' in msg
+
+
+def test_journal_d_erreurs_perime_n_est_PAS_affiche(tmp_path, monkeypatch):
+    """Même famille d'erreur que celle qui m'a fait annoncer une suite verte
+    en lisant un rapport de la veille : un journal d'erreurs n'est pas effacé
+    entre deux lancements. L'afficher sans regarder sa date désignerait la
+    panne de la semaine dernière comme cause du problème du jour."""
+    import logx_errorlog
+    vieux = tmp_path / 'errors.log'
+    vieux.write_text('panne de la semaine derniere\n', encoding='utf-8')
+    monkeypatch.setattr(logx_errorlog, 'log_path', lambda: str(vieux))
+    mtime = os.path.getmtime(str(vieux))
+    assert LI.journal_erreurs_frais(maintenant=mtime + 10) != ''
+    assert LI.journal_erreurs_frais(maintenant=mtime + 10_000) == ''
+
+
+def test_journal_d_erreurs_absent_ne_fait_pas_echouer_le_diagnostic(monkeypatch):
+    """Le diagnostic ne doit pas planter parce que le diagnostic a raté."""
+    import logx_errorlog
+    monkeypatch.setattr(logx_errorlog, 'log_path', lambda: '/n/existe/pas.log')
+    assert LI.journal_erreurs_frais() == ''
+
+
+def test_le_mode_attente_est_atteignable_en_ligne_de_commande(monkeypatch):
+    """C'est `--attendre` que le .bat appelle : si l'argument n'était pas lu,
+    le lanceur relancerait le pré-contrôle et croirait le port libre."""
+    monkeypatch.setattr(S, 'sonde_sans_bind',
+                        lambda *a, **k: LI.APP_VERSION)
+    monkeypatch.setattr(S, 'probe',
+                        lambda *a, **k: pytest.fail('probe() ne doit pas etre '
+                                                    'appelee en mode attente'))
+    assert LI.main(['--attendre']) == LI.OUVRIR_SEULEMENT
 
 
 # ─── Le câblage du lanceur (la moitié qui a lâché) ───────────────────────────
@@ -177,24 +327,53 @@ def test_le_lanceur_teste_les_codes_reellement_definis(bat):
     diverger en silence, ce qui rendrait le contrôle inopérant sans erreur."""
     testes = set(int(n) for n in re.findall(r'"%ETAT%"=="(\d+)"', bat))
     assert testes == {LI.OUVRIR_SEULEMENT, LI.VERSION_DIFFERENTE,
-                      LI.PORT_OCCUPE}
+                      LI.PORT_OCCUPE}, (
+        'PAS_DEMARRE (13) est volontairement absent : apres l attente, tout '
+        'code autre que 10 tombe dans :probleme, ce qui couvre aussi les '
+        'codes futurs')
 
 
-def test_le_lanceur_n_ouvre_pas_le_navigateur_sur_une_autre_version(bat):
-    """Il doit sortir AVANT :ouvre_browser. Un `goto ouvre_browser` dans cette
-    branche ramènerait exactement le défaut d'origine."""
-    bloc = bat[bat.index('"%ETAT%"=="11"'):]
-    bloc = bloc[:bloc.index(')')]
+def test_seul_le_code_10_mene_au_navigateur(bat):
+    """Invariant central du lanceur : on n'ouvre une page que si un serveur de
+    LA BONNE version a répondu. Toute autre issue doit mener à :probleme."""
+    for ligne in bat.splitlines():
+        if 'goto ouvre_browser' in ligne or 'goto probleme' in ligne:
+            if 'ouvre_browser' in ligne and '"%ETAT%"' in ligne:
+                assert '"%ETAT%"=="10"' in ligne, ligne
+    # Le bloc parenthésé du cas 10 (pré-contrôle) est la seule autre porte.
+    bloc10 = bat[bat.index('"%ETAT%"=="10" ('):]
+    bloc10 = bloc10[:bloc10.index('\n)')]
+    assert 'goto ouvre_browser' in bloc10
+
+
+def test_le_lanceur_sort_sans_rien_ouvrir_sur_les_cas_de_refus(bat):
+    """11 et 12 doivent partir vers :probleme, qui se termine par un exit —
+    jamais retomber dans :ouvre_browser."""
+    for code in ('11', '12'):
+        assert 'if "%%ETAT%%"=="%s" goto probleme' % code in bat, code
+    bloc = bat[bat.index(':probleme'):]
+    bloc = bloc[:bloc.index(':ouvre_browser')]
     assert 'exit /b' in bloc
-    assert 'ouvre_browser' not in bloc
 
 
-def test_le_lanceur_ouvre_encore_le_navigateur_a_version_egale(bat):
-    """L'inverse compte autant : relancer le .bat sur son propre serveur en
-    cours doit rendre la fenêtre, pas exiger un redémarrage."""
-    bloc = bat[bat.index('"%ETAT%"=="10"'):]
-    bloc = bloc[:bloc.index(')')]
-    assert 'goto ouvre_browser' in bloc
+def test_le_lanceur_attend_la_reponse_du_serveur_pas_un_delai_fixe(bat):
+    """DÉFAUT CORRIGÉ. Le lanceur faisait `timeout /t 3` puis ouvrait le
+    navigateur quoi qu'il arrive. La fenêtre du serveur étant minimisée
+    (`start /MIN`), un refus de démarrer restait invisible et la page
+    s'ouvrait sur une adresse morte. Et 3 s n'était qu'une devinette : sur un
+    poste lent, le navigateur s'ouvrait trop tôt sur la même erreur alors que
+    tout allait bien."""
+    assert '--attendre' in bat
+    apres_demarrage = bat[bat.index('start "LogX Serveur"'):]
+    apres_demarrage = apres_demarrage[:apres_demarrage.index(':ouvre_browser')]
+    assert '--attendre' in apres_demarrage, (
+        "l'attente doit venir APRES le lancement du serveur")
+    # Hors commentaires : ceux-ci CITENT l'ancien `timeout /t 3` pour expliquer
+    # ce qui a ete corrige, et faisaient echouer l'assertion a tort.
+    code_seul = [l for l in apres_demarrage.splitlines()
+                 if not l.strip().startswith('::')]
+    assert not any('timeout /t' in l for l in code_seul), (
+        'plus aucune attente en aveugle entre le demarrage et le navigateur')
 
 
 # ─── Le serveur lui-même annonce le décalage de version ──────────────────────
