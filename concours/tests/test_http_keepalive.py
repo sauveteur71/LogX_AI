@@ -198,13 +198,30 @@ def test_login_413_ferme_la_connexion_et_ne_repond_pas_au_reliquat(serveur):
     recevant le corps de /data/rules_status."""
     s = socket.create_connection(('127.0.0.1', serveur), timeout=8)
     try:
-        s.sendall(b'POST /auth/login HTTP/1.1\r\nHost: 127.0.0.1\r\n'
-                  b'Content-Type: application/json\r\n'
-                  b'Content-Length: 5000\r\n\r\n')
-        # « Corps » annonce mais jamais lu : une requete HTTP complete.
-        s.sendall(b'GET /data/rules_status HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n')
-        # La vraie requete suivante du client.
-        s.sendall(b'GET /network/info HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n')
+        try:
+            s.sendall(b'POST /auth/login HTTP/1.1\r\nHost: 127.0.0.1\r\n'
+                      b'Content-Type: application/json\r\n'
+                      b'Content-Length: 5000\r\n\r\n')
+            # « Corps » annonce mais jamais lu : une requete HTTP complete.
+            s.sendall(b'GET /data/rules_status HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n')
+            # La vraie requete suivante du client.
+            s.sendall(b'GET /network/info HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n')
+        except OSError:
+            # ECHEC CI REEL (Linux, 27/07/2026) : BrokenPipeError sur le 3e
+            # envoi. Le serveur avait deja refuse en 413 et ferme -- donc le
+            # comportement VOULU. Fermer avec des octets annonces mais non lus
+            # fait partir un RST, et tout envoi ulterieur echoue.
+            #
+            # Ce n'est pas un assouplissement du test : les assertions
+            # ci-dessous portent sur ce qui a ete RECU, et restent entieres.
+            # Si le serveur repondait au reliquat, la reponse serait la et le
+            # test tomberait. Verifie en cassant volontairement le serveur.
+            #
+            # La lecture etait deja protegee de la meme facon (voir _tout_lire)
+            # ; l'ecriture ne l'etait pas. Windows ne le montre pas : un envoi
+            # vers une socket dont le pair a ferme y reussit encore, meme apres
+            # 0,6 s d'attente (mesure ici, la reproduction locale a echoue).
+            pass
         recu = _tout_lire(s)
     finally:
         s.close()
