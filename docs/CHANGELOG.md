@@ -11,6 +11,48 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta7] - 2026-07-27
+
+Version issue d'une **étude comparative** avec N1MM Logger+, DXLog.net, Tucnak,
+Win-Test et Wavelog (voir `docs/ETUDE_COMPARATIVE_2026-07.md`). Huit écarts y
+avaient été identifiés et vérifiés ; les huit sont traités ici. S'y ajoutent les
+correctifs d'une passe d'audit, dont plusieurs pertes de données silencieuses.
+
+**Réserve importante, à lire avant de compter dessus** : le WinKeyer, la
+commande CW `KY`, les transverters, le keyer vocal et le boîtier SO2R ont été
+développés **sans qu'aucun matériel soit branché**. Les trames sont conformes
+aux spécifications des protocoles et vérifiées octet par octet, mais le premier
+essai sur un poste réel reste à faire. Le décodeur RTTY, lui, est vérifié de
+bout en bout par signal synthétique — sauf en pile-up réel.
+
+### Ajouté
+- **Les macros se déclenchent aux touches F1 à F8.** Les boutons affichaient « F1 »… « F8 » depuis toujours, mais seul le clic les déclenchait : en run, la main devait quitter le clavier pour viser un bouton. C'est la fonction que N1MM, Win-Test et DXLog mettent en avant en premier. Actif même pendant la saisie — on tape l'indicatif, on envoie l'échange, on continue.
+- **Manipulation CW en mode Natif** (commande `KY`) pour **Kenwood et Elecraft**. Le mode que la configuration recommande par défaut refusait auparavant tout envoi CW : un opérateur CW n'avait donc aucune manipulation.
+- **Manipulateur WinKeyer K1EL** sur son propre port série. Il prend la main sur l'envoi CW **quelle que soit la marque** — c'est la seule manipulation possible en Icom (le protocole CI-V ne publie aucune commande d'envoi de texte CW) et en Yaesu. Sa cadence ne dépend plus du trafic CAT.
+- **Support des transverters.** Au-dessus de 1296 MHz la radio affiche sa fréquence intermédiaire : sans table de conversion, la bande déduite, le QSO enregistré, le filtre du band map, le QSY et le fichier EDI étaient **tous faux au même moment, sans le moindre message**. Concerne directement le Rallye des Points Hauts, le National THF et le Challenge THF.
+- **Décodeur RTTY (Baudot/ITA2) dans le navigateur**, sans logiciel externe — N1MM s'appuie sur MMTTY, MMVARI ou Fldigi. Chaque indicatif décodé est **cliquable** et part dans la saisie : c'est ce geste qui fait la vitesse en RTTY.
+- **Band map Search & Pounce** : les stations que vous entendez vous-même en balayant s'ajoutent à celles du cluster, avec un repère distinct. `Ctrl+Entrée` note la station en cours, `Ctrl+↑`/`Ctrl+↓` sautent de spot en spot (QSY et indicatif pré-remplis). Les notes vivent sur le serveur — partagées entre postes — et s'effacent au bout de 30 minutes, une station entendue il y a une heure ayant presque sûrement changé de fréquence.
+- **SO2R** : deuxième radio déclarable, bascule d'émission par `Ctrl+Espace`, pilotage d'un boîtier OTRSP (microHAM, YCCC, EA4TX). Le QSY, les macros et le manipulateur visent la radio qui a l'émission. Le « dueling CQ » automatique et le second band map ne sont **pas** faits.
+
+### Modifié
+- **Le keyer vocal émet enfin par la radio.** Les messages enregistrés partaient vers la sortie par défaut du navigateur, sans PTT : le correspondant n'entendait rien. Ils empruntent désormais le chemin du callbot (PTT levé, lecture vers le périphérique choisi, PTT relâché avec vérification). Ils sont stockés **sur le serveur**, donc suivent l'opérateur d'un poste à l'autre et survivent au vidage du cache ; les enregistrements existants sont repris automatiquement.
+- **Les points ne s'affichent que si un concours est sélectionné.** Sans concours, le barème retombait sur 1 pt/km et affichait des scores parfaitement calculés mais qu'aucun règlement ne compte. Distance, nombre de QSO, meilleur DX et pays restent affichés — eux sont vrais dans tous les cas.
+- **PROPAGATION** : le tableau OUVERTURES PAR RÉGION passe en pleine largeur au-dessus des autres panneaux. Coincé dans une colonne, il se repliait derrière une barre de défilement horizontale qui masquait la colonne RÉGION — la seule qui identifie la ligne.
+
+### Corrigé
+- **Cabrillo enfin soumissible.** Deux générateurs coexistaient pour le même fichier, chacun avec ses défauts : l'en-tête portait l'identifiant interne (`REF_CDF_HF_SSB`) au lieu du nom officiel, le locator était ajouté à l'échange même en HF, et le générateur du navigateur écrivait l'échange **sans le compte-rendu** — un CQ WW partait avec `001` au lieu de `59 14`. Les robots de réception refusent ou déclassent en *checklog* pour moins que ça. Un seul générateur subsiste, et les lignes `CATEGORY-*` sont complètes.
+- **Un seul QSO malformé gelait définitivement toute la sauvegarde sur disque**, en silence.
+- **Les identifiants de QSO pouvaient entrer en collision** : l'import ADIF consommait plusieurs secondes d'identifiants futurs, si bien qu'un QSO saisi juste après en héritait. Supprimer un contact en effaçait alors un autre, sans erreur.
+- **Chaque QSO réécrivait l'intégralité du carnet** — de l'ordre du téraoctet écrit sur une expédition de 15 jours.
+- **La rotation des sauvegardes effaçait les fichiers Cloud Sync** et les marqueurs de suppression du poste.
+- **Export EDI** : le numéro de série envoyé était régénéré depuis la position dans la liste ; le numéro réellement passé sur l'air était jeté.
+- **Macro CW `{NR}`** : envoyait le nombre total de QSO + 1 au lieu du numéro de série de la bande — le numéro annoncé n'était pas celui du log.
+- **Ouvrir la page CARTE écrasait la configuration partagée** du serveur : carnet vidé et numérotation remise à 001 sur tous les postes.
+- **Export ADIF** : le champ `<BAND>` était invalide sur les 14 bandes.
+- **Refus HTTP** : les réponses « trop de tentatives » et « non autorisé » pouvaient se perdre. Fermer une connexion dont le tampon contient encore des octets fait envoyer un RST qui détruit la réponse déjà émise — l'utilisateur recevait une erreur réseau au lieu du message lui disant quoi faire.
+- **Le guide récité par l'assistant IA** décrivait une page de configuration en 5 étapes remplacée depuis par un ensemble de cartes : il envoyait les utilisateurs vers des écrans inexistants. Même correction pour un texte de la page CONFIG.
+- **Suite de tests** : elle produisait environ un échec aléatoire par passe, sur un test différent à chaque fois. Deux causes corrigées ; deux passes complètes de 1691 tests sont désormais sans échec.
+
 ## [0.9-beta6] - 2026-07-26
 
 Refonte de la page PROPAGATION, jugée « inutilisable » par un utilisateur :
