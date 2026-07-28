@@ -11,12 +11,23 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
-## [Non publié]
+## [0.9-beta8] - 2026-07-28
+
+### Modifié
+
+- **Les panneaux décodeurs n'apparaissent plus que dans leur mode** (demande
+  utilisateur) : le panneau 🔤 DÉCODEUR CW n'est visible qu'en mode CW — il
+  restait auparavant affiché dans tous les modes sauf RTTY — et le panneau
+  🖼 DÉCODEUR SSTV qu'en mode SSTV. Le mode SSTV lui-même est opt-in : une
+  case **SSTV** a été ajoutée à CONFIG > MODES (aucun concours ne l'impose,
+  c'est un mode d'activité — dimanches SSTV, ISS) ; cochée, le bouton SSTV
+  apparaît dans le sélecteur de mode du logbook. Les deux panneaux occupent
+  le même emplacement bas-gauche puisqu'ils ne peuvent plus coexister.
 
 ### Ajouté
 
-- **Décodeur SSTV intégré au logbook** (panneau 🖼 en bas de l'écran, à droite
-  du décodeur CW) : réception des images à balayage lent — activations,
+- **Décodeur SSTV intégré au logbook** (panneau 🖼 en bas de l'écran, visible
+  en mode SSTV) : réception des images à balayage lent — activations,
   dimanches SSTV, transmissions de l'ISS en PD120 — **sans MMSSTV ni RX-SSTV
   à côté**, tout se passe dans le navigateur comme pour les décodeurs CW et
   RTTY. Détection automatique du mode par l'en-tête VIS (Martin M1/M2,
@@ -49,6 +60,15 @@ qui doit être incrémentée à chaque tag poussé.
   mettre à jour. Vaut aussi pour `LogXAI.exe`, qui ne passe pas par le `.bat`
   mais tombait dans le même piège.
 
+- **Bande vide et défilement inutile sous le keyer vocal.** La hauteur réservée
+  au panneau décodeur flottant était calculée une seule fois, au chargement,
+  avant que la page ait fini de se construire — puis conservée toute la
+  session. Mesuré en fenêtre 1400 px, décodeur fermé (donc rien à réserver) :
+  la zone était bridée à 257 px alors qu'elle pouvait en occuper 366, d'où
+  109 px de vide en dessous et une barre de défilement sur un contenu qui
+  serait tenu sans. Le calcul est refait une fois la page terminée et à chaque
+  changement de taille de fenêtre — agrandir la fenêtre ne rendait jamais la
+  hauteur gagnée.
 - **Le lanceur n'ouvre plus le navigateur sans savoir si le serveur a
   démarré.** Il attendait `timeout /t 3` en aveugle, puis ouvrait les pages
   quoi qu'il arrive. Deux conséquences : la fenêtre du serveur étant lancée
