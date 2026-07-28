@@ -865,6 +865,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
               <span class="toggle-btn mode-digi" data-key="mode_js8" onclick="toggle(this)">JS8</span>
               <span class="toggle-btn mode-digi" data-key="mode_rtty" onclick="toggle(this)">RTTY</span>
               <span class="toggle-btn mode-digi" data-key="mode_psk" onclick="toggle(this)">PSK</span>
+              <span class="toggle-btn mode-digi" data-key="mode_sstv" onclick="toggle(this)" title="Affiche aussi le bouton SSTV et le panneau décodeur d'images dans le logbook">SSTV</span>
               <span class="toggle-btn" data-key="mode_am" onclick="toggle(this)">AM</span>
               <span class="toggle-btn" data-key="mode_fm" onclick="toggle(this)">FM</span>
               <span class="toggle-btn" data-key="mode_dstar" onclick="toggle(this)">D-STAR</span>
@@ -4443,6 +4444,7 @@ const MODE_TOGGLE_KEY = {
   'FT8':  'mode_ft8',
   'FT4':  'mode_ft4',
   'RTTY': 'mode_rtty',
+  'SSTV': 'mode_sstv',  // mode d'activité (dimanches SSTV, ISS) — jamais imposé par un concours
   'DIGI': 'mode_ft8',
   'FT2':  'mode_ft8',   // WWA (règlement §5) — pas de toggle dédié, rattaché à FT8
   'PSK':  'mode_rtty',  // WWA — rattaché à RTTY (même famille "DIGI" au règlement)

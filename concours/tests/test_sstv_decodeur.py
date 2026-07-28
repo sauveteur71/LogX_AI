@@ -28,11 +28,15 @@ chaque aller-retour manipulerait 5 millions d'échantillons, à 11025 c'est
 """
 import json
 import os
+import re
 
 import pytest
 
 CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS = os.path.join(CONCOURS, 'logx_sstvdecoder.js')
+LOGBOOK_JS = os.path.join(CONCOURS, 'logx_logbook.js')
+LOGBOOK_HTML = os.path.join(CONCOURS, 'logx_logbook.html')
+CONFIG_HTML = os.path.join(CONCOURS, 'logx_configuration.html')
 
 py_mini_racer = pytest.importorskip('py_mini_racer')
 
@@ -173,6 +177,53 @@ def test_une_parite_fausse_est_rejetee(moteur):
     r = _aller_retour(moteur, 'M1', {'lignes': 2, 'pariteFausse': True})
     assert r['mode'] is None
     assert r['vis'] is None       # jamais validé, donc jamais retenu
+
+
+# ─── Intégration UI : chaque décodeur n'apparaît que dans SON mode ──────────
+# Vérifications par lecture de source (même modèle que
+# test_cw_panel_consolidation.py) : demande utilisateur explicite — « pas la
+# peine d'afficher CW et SSTV si pas sélectionnés dans les modes ».
+
+def _lire(chemin):
+    with open(chemin, encoding='utf-8') as f:
+        return f.read()
+
+
+def test_updateKeyerPanels_pilote_les_panneaux_cw_et_sstv():
+    """updateKeyerPanels() doit décider de la visibilité des DEUX panneaux
+    décodeurs : cwPanel seulement en mode CW (avant, il restait affiché dans
+    tous les modes sauf RTTY), sstvPanel seulement en mode SSTV."""
+    src = _lire(LOGBOOK_JS)
+    m = re.search(r'function\s+updateKeyerPanels\s*\([^)]*\)\s*\{(.*?)\n\}', src, re.S)
+    assert m, 'updateKeyerPanels() introuvable'
+    corps = m.group(1)
+    assert 'sstvPanel' in corps
+    assert 'cwPanel' in corps
+    assert re.search(r'cwDec\.style\.display\s*=\s*cw\s*\?', corps), \
+        'cwPanel doit suivre le mode CW, pas « tout sauf RTTY »'
+
+
+def test_panneaux_decodeurs_masques_par_defaut_dans_le_html():
+    """Les panneaux partent masqués dans le HTML : c'est updateKeyerPanels()
+    (appelé dès renderModeButtons) qui les montre dans leur mode. Sans ça, un
+    panneau flasherait à l'écran au chargement dans les modes phonie."""
+    html = _lire(LOGBOOK_HTML)
+    for panneau in ('cwPanel', 'sstvPanel'):
+        m = re.search(r'<div[^>]*id="%s"[^>]*>' % panneau, html)
+        assert m, panneau + ' introuvable dans le HTML'
+        assert 'display:none' in m.group(0), panneau + ' doit partir masqué'
+
+
+def test_le_mode_sstv_est_declare_partout():
+    """Le mode SSTV doit exister dans les trois endroits qui se répondent :
+    la case de la page CONFIG (mode_sstv), la table MODE_TOGGLE_KEY du
+    logbook, et la liste des modes proposables du sélecteur — en oublier un
+    rendrait le décodeur inaccessible sans qu'aucune erreur n'apparaisse."""
+    assert 'data-key="mode_sstv"' in _lire(CONFIG_HTML)
+    src = _lire(LOGBOOK_JS)
+    assert re.search(r"'SSTV':\s*'mode_sstv'", src)
+    assert re.search(r"'RTTY','SSTV'\]", src), \
+        'SSTV absent de la liste des modes du sélecteur (renderModeButtons)'
 
 
 # ─── Conversions couleur ─────────────────────────────────────────────────────

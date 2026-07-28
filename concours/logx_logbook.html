@@ -555,10 +555,11 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 .rtty-call{color:var(--green);cursor:pointer;border-bottom:1px dotted var(--green);padding:0 1px}
   .rtty-call:hover{background:var(--green);color:var(--bg)}
   .cw-output{height:110px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:16px;letter-spacing:1px;color:var(--green);white-space:pre-wrap;word-break:break-word}
-/* Panneau SSTV : même famille visuelle que le panneau CW, décalé à sa droite
-   (le CW occupe left:18px sur 300px). Le canvas garde le ratio du mode reçu ;
+/* Panneau SSTV : même famille visuelle et même emplacement que le panneau CW
+   — les deux ne sont jamais visibles ensemble, chacun n'apparaît que dans SON
+   mode (updateKeyerPanels). Le canvas garde le ratio du mode reçu ;
    image-rendering:pixelated évite le flou d'interpolation sur du 320×256. */
-#sstvPanel{left:330px;width:352px}
+#sstvPanel{width:352px}
 #sstvCanvas{width:100%;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:6px;display:block}
 
 /* ─── BANNIÈRE MOBILE ─── Le logbook complet est pensé pour un écran large :
@@ -1397,8 +1398,9 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   </div>
 </div>
 
-<!-- DÉCODEUR CW -->
-<div class="cw-panel" id="cwPanel">
+<!-- DÉCODEUR CW — visible uniquement en mode CW (updateKeyerPanels) : un
+     panneau décodeur permanent dans les autres modes est du bruit à l'écran. -->
+<div class="cw-panel" id="cwPanel" style="display:none">
   <div class="cw-header" onclick="toggleCwPanel()">🔤 DÉCODEUR CW <span class="cw-wpm" id="cwWpmLabel"></span><span class="cw-header-toggle">▲</span></div>
   <div class="cw-body" id="cwBody">
     <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC) et affiche le CW décodé. Fiable sur signal propre et pas trop rapide — pas un substitut à l'oreille en QRM/pileup serré.</div>
@@ -1439,8 +1441,10 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <!-- DÉCODEUR SSTV — activations, ISS (PD120), dimanches SSTV : jusqu'ici il
      fallait ouvrir MMSSTV ou RX-SSTV à côté. Le mode est détecté tout seul
      par l'en-tête VIS, l'image se construit ligne par ligne pendant la
-     réception (pipeline DSP dans logx_sstvdecoder.js). -->
-<div class="cw-panel" id="sstvPanel">
+     réception (pipeline DSP dans logx_sstvdecoder.js). Visible uniquement en
+     mode SSTV (case à cocher dans CONFIG > MODES, puis sélecteur de mode du
+     logbook — updateKeyerPanels). -->
+<div class="cw-panel" id="sstvPanel" style="display:none">
   <div class="cw-header" onclick="toggleSstvPanel()">🖼 DÉCODEUR SSTV <span class="cw-wpm" id="sstvStatus"></span><span class="cw-header-toggle">▲</span></div>
   <div class="cw-body" id="sstvBody">
     <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC). Détection automatique du mode par code VIS : Martin M1/M2, Scottie S1/S2/DX, Robot 36/72, PD50 à PD290 (ISS : PD120). L'image apparaît ligne par ligne pendant la réception.</div>
