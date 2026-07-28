@@ -216,6 +216,104 @@ def test_reserve_bottom_space_ne_devient_jamais_negatif():
     assert ctx.eval("document.querySelector('.saisie-secondary').style.maxHeight") == '0px'
 
 
+# ─── Bug #3 : le plafond restait FIGÉ sur une mise en page transitoire ───────
+# Signalé par l'utilisateur (« pourquoi ce scroll en bas avec une partie
+# blanche inutile ? »), puis reproduit à la mesure sur le serveur réel.
+#
+# _reserveBottomSpace() pose un plafond en PIXELS ABSOLUS, mesuré à un instant
+# donné. Les deux appels ne se faisaient qu'au DOMContentLoaded — donc AVANT
+# que init() (asynchrone : config serveur, log, calldb) ait fini de peupler et
+# d'afficher les panneaux. Le plafond était calculé sur une mise en page qui
+# n'existait déjà plus, puis gardé tel quel pour toute la session.
+#
+# Mesure sur la page réelle, fenêtre 1400 px, panneau CW flottant FERMÉ (donc
+# strictement rien à réserver) : plafond figé à 257 px alors que la zone
+# pouvait occuper 366 px. Conséquences visibles, exactement celles décrites :
+#   * une BANDE VIDE de 109 px sous le keyer vocal, dans le panneau de saisie ;
+#   * une barre de défilement sur une zone qui aurait tenu sans.
+# Après correction, même fenêtre : bande vide 0 px.
+#
+# Et aucun recalcul au redimensionnement : agrandir la fenêtre ne rendait
+# jamais la hauteur gagnée.
+
+def _ctx_avec_ecouteurs():
+    """Comme _make_ctx(), mais window.addEventListener ENREGISTRE les
+    écouteurs au lieu de les jeter — sans quoi on ne peut pas vérifier que le
+    recalcul est bien reprogrammé."""
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval(_DOM_PREAMBLE)
+    ctx.eval("window.__ecouteurs = [];"
+             "window.addEventListener = function(ev){ window.__ecouteurs.push(ev); };")
+    ctx.eval(_read(JS_PATH))
+    return ctx
+
+
+def test_le_plafond_suit_la_mise_en_page_au_lieu_de_rester_fige():
+    """LE défaut. Un plafond calculé une fois pour toutes devient faux dès que
+    la page finit de se construire ou que la fenêtre change de taille."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    document.querySelector('.saisie-secondary')._mockHeight = 200;
+    document.getElementById('cwPanel').offsetHeight = 0;   // panneau fermé
+    _majReservesBas();
+    """)
+    assert ctx.eval("document.querySelector('.saisie-secondary').style.maxHeight") == '200px'
+    # La fenêtre grandit : la zone peut occuper davantage. Sans recalcul, elle
+    # resterait bridée à 200 px et laisserait une bande vide en dessous.
+    ctx.eval("""
+    document.querySelector('.saisie-secondary')._mockHeight = 500;
+    _majReservesBas();
+    """)
+    assert ctx.eval("document.querySelector('.saisie-secondary').style.maxHeight") == '500px', (
+        'le plafond est reste fige sur la mesure precedente : c est exactement '
+        'ce qui produisait la bande vide sous le keyer vocal')
+
+
+def test_maj_reserves_bas_couvre_les_DEUX_zones():
+    """Les deux panneaux flottants (CHAT en bas-droite sur le tableau du log,
+    CW en bas-gauche sur la zone secondaire) doivent être traités ensemble :
+    n'en recalculer qu'un laisserait l'autre figé."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    document.querySelector('.saisie-secondary')._mockHeight = 300;
+    document.querySelector('.log-table-wrap')._mockHeight = 400;
+    document.getElementById('cwPanel').offsetHeight = 50;
+    document.getElementById('chatPanel').offsetHeight = 60;
+    _majReservesBas();
+    """)
+    assert ctx.eval("document.querySelector('.saisie-secondary').style.maxHeight") == '250px'
+    assert ctx.eval("document.querySelector('.log-table-wrap').style.maxHeight") == '340px'
+
+
+def test_un_recalcul_est_reprogramme_apres_le_chargement_et_au_redimensionnement():
+    """Sans ces deux reprogrammations, le plafond du DOMContentLoaded reste
+    celui de toute la session — le défaut d'origine."""
+    ctx = _ctx_avec_ecouteurs()
+    ecouteurs = ctx.eval("JSON.stringify(window.__ecouteurs)")
+    assert 'load' in ecouteurs, (
+        'la mise en page n est pas encore finale au DOMContentLoaded : il faut '
+        'refaire le calcul une fois la page terminee')
+    assert 'resize' in ecouteurs, (
+        'sans ecoute du redimensionnement, agrandir la fenetre ne rend jamais '
+        'la hauteur gagnee')
+
+
+def test_les_deux_reprogrammations_appellent_bien_le_recalcul():
+    """Garde-fou de câblage : les écouteurs peuvent exister et ne rien faire
+    d'utile. On vérifie dans la source qu'ils mènent au recalcul."""
+    src = _read(JS_PATH)
+    bloc_load = src[src.index("window.addEventListener('load'"):]
+    bloc_load = bloc_load[:400]
+    assert '_majReservesBas' in bloc_load
+
+    bloc_resize = src[src.index("window.addEventListener('resize'"):]
+    bloc_resize = bloc_resize[:400]
+    assert '_majReservesBas' in bloc_resize
+    assert 'clearTimeout' in bloc_resize, (
+        'un redimensionnement a la souris emet des dizaines d evenements et '
+        'chaque recalcul force une mesure de mise en page : il faut les grouper')
+
+
 # ─── Amélioration : DERNIERS QSO SAISIS repliable ────────────────────────────
 
 def test_toggle_last_qso_replie_et_deplie():

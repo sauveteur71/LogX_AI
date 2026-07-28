@@ -2041,19 +2041,28 @@ function updateKeyerPanels(){
   const mode = (typeof rigState!=='undefined' && rigState.mode) || currentMode || '';
   const cw = /CW/i.test(mode);
   const rtty = /RTTY|RY/i.test(mode);
+  // La radio ne signale jamais « SSTV » (elle reste en USB pendant la SSTV) :
+  // seul le sélecteur de mode du logbook peut donc dire qu'on en fait.
+  const sstv = /SSTV/i.test(mode) || /SSTV/i.test(currentMode || '');
   const macro=document.getElementById('macroPanel');
   const voice=document.getElementById('voicePanel');
   if(macro) macro.style.display = cw ? '' : 'none';
-  // En RTTY, ni les macros CW ni le keyer vocal n'ont de sens : c'est le
-  // décodeur qui prend la place.
-  if(voice) voice.style.display = (cw || rtty) ? 'none' : '';
+  // En RTTY comme en SSTV, ni les macros CW ni le keyer vocal n'ont de sens :
+  // c'est le décodeur qui prend la place.
+  if(voice) voice.style.display = (cw || rtty || sstv) ? 'none' : '';
   const dec = document.getElementById('rttyDecoder');
   if(dec) dec.style.display = rtty ? '' : 'none';
   // Le panneau CW s'appelle cwPanel (pas cwDecoder) : viser le mauvais id
   // n'aurait leve AUCUNE erreur, le decodeur CW serait simplement reste
   // affiche en RTTY. Verifie contre le balisage.
+  //
+  // Chaque décodeur n'apparaît que dans SON mode (demande utilisateur) : un
+  // panneau CW permanent en SSB ou FT8 est du bruit à l'écran. Avant, le
+  // panneau CW restait affiché dans tous les modes sauf RTTY.
   const cwDec = document.getElementById('cwPanel');
-  if(cwDec) cwDec.style.display = rtty ? 'none' : '';
+  if(cwDec) cwDec.style.display = cw ? '' : 'none';
+  const sstvDec = document.getElementById('sstvPanel');
+  if(sstvDec) sstvDec.style.display = sstv ? '' : 'none';
 }
 
 // ─── SO2R : bascule d'émission ───────────────────────────────────────────────
@@ -2815,6 +2824,7 @@ const MODE_TOGGLE_KEY = {
   'FT8':  'mode_ft8',
   'FT4':  'mode_ft4',
   'RTTY': 'mode_rtty',
+  'SSTV': 'mode_sstv',  // active aussi le panneau décodeur SSTV (updateKeyerPanels)
   'DIGI': 'mode_ft8',
   'FT2':  'mode_ft8',   // WWA (règlement §5) — pas de toggle dédié, rattaché à FT8
   'PSK':  'mode_rtty',  // WWA — rattaché à RTTY (même famille "DIGI" au règlement)
@@ -2829,8 +2839,10 @@ function renderModeButtons(contest){
   try{ cfgLocal = JSON.parse(localStorage.getItem('logx_config')||'{}'); }catch(e){}
   const toggles = cfgLocal.toggles || {};
   const hasModeTgls = Object.keys(toggles).some(k => k.startsWith('mode_'));
+  // SSTV n'apparaît QUE si la case est cochée en config : aucun concours ne
+  // le propose par défaut, c'est un mode d'activité (dimanches SSTV, ISS).
   const modes = hasModeTgls
-    ? ['SSB','CW','FM','FT8','FT4','RTTY'].filter(m => toggles[MODE_TOGGLE_KEY[m]] === true)
+    ? ['SSB','CW','FM','FT8','FT4','RTTY','SSTV'].filter(m => toggles[MODE_TOGGLE_KEY[m]] === true)
     : allModes;
   const finalModes = modes.length > 0 ? modes : allModes; // sécurité: tout afficher si rien de coché
   const popup = document.getElementById('modePickerPopup');
@@ -2841,6 +2853,10 @@ function renderModeButtons(contest){
   }
   currentMode = finalModes[0];
   _setCurrentModeLabel(currentMode);
+  // Le mode initial vient d'être choisi : ajuster tout de suite les panneaux
+  // (décodeurs CW/SSTV, keyer). Sans cet appel, l'état par défaut du HTML
+  // resterait affiché jusqu'au premier changement de mode ou retour CAT.
+  if(typeof updateKeyerPanels === 'function') updateKeyerPanels();
 }
 
 function updateSerialDisplay(){
@@ -5582,6 +5598,28 @@ function _reserveBottomSpace(panel, scrollEl){
   scrollEl.style.maxHeight = Math.max(0, naturalHeight - panel.offsetHeight) + 'px';
 }
 
+// Recalcule les DEUX réserves d'espace. Le plafond posé par
+// _reserveBottomSpace() est une valeur ABSOLUE en pixels, mesurée à un
+// instant donné : elle devient fausse dès que la mise en page bouge.
+//
+// DÉFAUT RÉEL, signalé par l'utilisateur puis reproduit à la mesure : les deux
+// appels ne se faisaient qu'au DOMContentLoaded, donc AVANT que init() (async :
+// config serveur, log, calldb) ait fini de peupler et d'afficher les panneaux.
+// Le plafond était calculé sur une mise en page transitoire, puis gardé tel
+// quel pour toute la session. Mesuré en fenêtre 1400 px, panneau CW flottant
+// FERMÉ (donc rien à réserver) : plafond figé à 257 px alors que la zone
+// pouvait en occuper 366 — d'où une BANDE VIDE de 109 px sous le keyer vocal,
+// et une barre de défilement sur une zone qui aurait tenu sans.
+//
+// Et aucun recalcul au redimensionnement : agrandir la fenêtre ne rendait
+// jamais la hauteur gagnée.
+function _majReservesBas(){
+  _reserveBottomSpace(document.getElementById('chatPanel'),
+                      document.querySelector('.log-table-wrap'));
+  _reserveBottomSpace(document.getElementById('cwPanel'),
+                      document.querySelector('.saisie-secondary'));
+}
+
 function toggleChat(){
   const panel = document.getElementById('chatPanel');
   panel.classList.toggle('open');
@@ -6620,8 +6658,30 @@ window.addEventListener('DOMContentLoaded', () => {
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible
   // .saisie-secondary (SA zone de scroll propre), pas .saisie-panel — voir
   // le commentaire de toggleCwPanel().
-  _reserveBottomSpace(document.getElementById('chatPanel'), document.querySelector('.log-table-wrap'));
-  _reserveBottomSpace(document.getElementById('cwPanel'), document.querySelector('.saisie-secondary'));
+  _majReservesBas();
+});
+
+// Le calcul ci-dessus porte sur une mise en page ENCORE TRANSITOIRE : init()
+// est asynchrone et continue de peupler/afficher des panneaux après le
+// DOMContentLoaded. Un plafond en pixels absolus fige alors une valeur fausse
+// pour toute la session (voir _majReservesBas). On refait donc le calcul une
+// fois la page vraiment terminée, puis à chaque changement de taille.
+window.addEventListener('load', () => {
+  // Deux trames : la 1re laisse le navigateur appliquer la mise en page
+  // finale, la 2de mesure dessus. Mesurer dans la 1re rendrait la valeur
+  // d'avant — le défaut même qu'on corrige.
+  requestAnimationFrame(() => requestAnimationFrame(_majReservesBas));
+});
+
+// Redimensionnement : sans ça, agrandir la fenêtre ne rendait jamais la
+// hauteur gagnée (le plafond restait celui de l'ancienne taille), et la
+// réduire laissait le panneau flottant recouvrir le contenu.
+let _reservesTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_reservesTimer);
+  // Groupé : un redimensionnement à la souris émet des dizaines
+  // d'événements, et chaque recalcul force une mesure de mise en page.
+  _reservesTimer = setTimeout(_majReservesBas, 150);
 });
 
 // ─── CARTE QSO (Leaflet) ──────────────────────────────────────────────────────
