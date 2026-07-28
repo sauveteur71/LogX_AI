@@ -13,6 +13,21 @@ qui doit être incrémentée à chaque tag poussé.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Décodeur SSTV intégré au logbook** (panneau 🖼 en bas de l'écran, à droite
+  du décodeur CW) : réception des images à balayage lent — activations,
+  dimanches SSTV, transmissions de l'ISS en PD120 — **sans MMSSTV ni RX-SSTV
+  à côté**, tout se passe dans le navigateur comme pour les décodeurs CW et
+  RTTY. Détection automatique du mode par l'en-tête VIS (Martin M1/M2,
+  Scottie S1/S2/DX, Robot 36/72, PD50 à PD290), image construite ligne par
+  ligne pendant la réception, compensation continue de la dérive d'horloge
+  entre cartes son (l'image « penchée » classique) sur les impulsions de
+  synchro, export PNG horodaté. Pipeline DSP dans `logx_sstvdecoder.js`,
+  couvert par des tests aller-retour encode → décode (fidélité mesurée au
+  pixel près sur les 14 modes, dérive d'horloge, bruit, rejet des en-têtes
+  VIS invalides).
+
 ### Corrigé
 
 - **Le lanceur Windows pouvait rouvrir l'ANCIENNE version après une mise à

@@ -551,6 +551,8 @@ Soyez lucide sur ses limites, affichées dans le panneau lui-même : le décodag
 
 Un second décodeur, plus simple (**🎧 DÉCODEUR CW**, dans la colonne de saisie, visible en mode CW et masqué en mode débutant), offre un raccourci précieux : **cliquer sur un mot décodé contenant un chiffre le place directement dans le champ indicatif**.
 
+Juste à droite du panneau CW, le panneau **🖼 DÉCODEUR SSTV** reçoit les images à balayage lent — activations, dimanches SSTV, et les transmissions de l'**ISS** (mode PD120) — sans MMSSTV ni RX-SSTV à côté. Mêmes prérequis audio que le décodeur CW (audio de réception de la radio, pas le micro du PC). Aucun réglage de mode : l'en-tête **VIS** du signal est détecté automatiquement (Martin M1/M2, Scottie S1/S2/DX, Robot 36/72, PD50 à PD290) et l'image se construit ligne par ligne sur l'écran, avec la progression en pourcentage dans l'en-tête du panneau. La dérive d'horloge entre cartes son (l'image « penchée » bien connue en SSTV) est compensée en continu sur les impulsions de synchro. **💾 PNG** télécharge l'image reçue (nom horodaté, pour enchaîner les réceptions sans rien écraser), **🗑** efface l'écran.
+
 À droite, le panneau **💬 CHAT MULTI-OP** (visible uniquement en multi-opérateurs) permet de discuter entre postes : messages horodatés avec l'opérateur, badge rouge de messages non lus quand le panneau est replié, Entrée pour envoyer. Si le serveur est injoignable, votre texte est remis dans le champ au lieu d'être perdu.
 
 ### 6.8 Le bandeau de score et le compte à rebours

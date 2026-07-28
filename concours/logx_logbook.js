@@ -2207,6 +2207,109 @@ function rttyClicTexte(ev){
     inp.dispatchEvent(new Event('input', {bubbles: true}));
   }
 }
+
+// ─── DÉCODEUR SSTV ───────────────────────────────────────────────────────────
+// Panneau flottant à droite du panneau CW — pipeline DSP dans
+// logx_sstvdecoder.js, ce fichier ne fait que le brancher à l'UI (device
+// picker, bouton start/stop, canvas construit ligne à ligne).
+let _sstvDecoder = null;
+let _sstvDevicesLoaded = false;
+let _sstvLignesRecues = 0;   // pour savoir si le canvas contient quelque chose à sauver
+
+async function toggleSstvPanel(){
+  const panel = document.getElementById('sstvPanel');
+  panel.classList.toggle('open');
+  // Même mécanique que le panneau CW : réserver la place en bas de la zone
+  // qui scrolle vraiment (voir le commentaire de _reserveBottomSpace).
+  _reserveBottomSpace(panel, document.querySelector('.saisie-secondary'));
+  if(panel.classList.contains('open') && !_sstvDevicesLoaded){
+    _sstvDevicesLoaded = await loadAudioInputDevices('sstvDevice');
+  }
+}
+
+async function toggleSstvDecoder(){
+  const btn = document.getElementById('sstvStartBtn');
+  const statut = document.getElementById('sstvStatus');
+  const info = document.getElementById('sstvInfo');
+  if(_sstvDecoder){
+    _sstvDecoder.stop();
+    _sstvDecoder = null;
+    if(btn){ btn.textContent = '▶ Démarrer'; btn.classList.remove('active'); }
+    if(statut) statut.textContent = '';
+    if(info) info.textContent = 'Arrêté.';
+    return;
+  }
+  const canvas = document.getElementById('sstvCanvas');
+  const ctx2d = canvas.getContext('2d');
+  const dec = new SstvAudioDecoder({
+    onDebutImage: mode => {
+      // Le canvas prend les dimensions NATIVES du mode (jusqu'à 800×616 en
+      // PD290) — c'est le CSS qui le remet à la largeur du panneau. Redonner
+      // width/height efface aussi l'image précédente, c'est voulu : une
+      // nouvelle réception commence.
+      canvas.width = mode.largeur;
+      canvas.height = mode.hauteur;
+      ctx2d.fillStyle = '#000';
+      ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+      _sstvLignesRecues = 0;
+      if(statut) statut.textContent = mode.nom;
+    },
+    onLigne: (y, rangee, mode) => {
+      ctx2d.putImageData(new ImageData(new Uint8ClampedArray(rangee), mode.largeur, 1), 0, y);
+      _sstvLignesRecues++;
+      if(statut && _sstvLignesRecues % 8 === 0){
+        statut.textContent = mode.nom + ' · ' + Math.round(_sstvLignesRecues / mode.hauteur * 100) + '%';
+      }
+    },
+    onFinImage: mode => {
+      if(statut) statut.textContent = mode.nom + ' ✓';
+      notify(trF('🖼 Image SSTV reçue ({mode})', {mode: mode.nom}));
+    },
+    onEtat: txt => { if(info) info.textContent = txt; },
+  });
+  try{
+    await dec.start(document.getElementById('sstvDevice')?.value || '');
+    _sstvDecoder = dec;
+    if(btn){ btn.textContent = '■ Arrêter'; btn.classList.add('active'); }
+    if(info) info.textContent = 'À l\'écoute — en attente d\'un en-tête VIS…';
+  }catch(e){
+    notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
+  }
+}
+
+function sstvSauverImage(){
+  if(!_sstvLignesRecues){
+    notify(trF('🖼 Aucune image SSTV à sauvegarder pour l\'instant'));
+    return;
+  }
+  const canvas = document.getElementById('sstvCanvas');
+  canvas.toBlob(blob => {
+    if(!blob) return;
+    // Horodatage dans le nom : plusieurs images se succèdent pendant un
+    // dimanche SSTV, « sstv.png » les écraserait l'une l'autre.
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const nom = 'sstv_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate())
+              + '_' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds()) + '.png';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nom;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, 'image/png');
+}
+
+function sstvEffacerImage(){
+  const canvas = document.getElementById('sstvCanvas');
+  const ctx2d = canvas.getContext('2d');
+  ctx2d.fillStyle = '#000';
+  ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+  _sstvLignesRecues = 0;
+  const statut = document.getElementById('sstvStatus');
+  if(statut) statut.textContent = '';
+  const info = document.getElementById('sstvInfo');
+  if(info) info.textContent = _sstvDecoder ? 'À l\'écoute — en attente d\'un en-tête VIS…' : 'En attente de signal…';
+}
 // Au démarrage on demande au SERVEUR quels messages existent : ils n'ont
 // jamais été dans ce navigateur si l'opérateur les a enregistrés ailleurs.
 voiceRefreshSlots();
