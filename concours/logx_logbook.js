@@ -1027,6 +1027,11 @@ let _checkSeq = 0;
 // configurés) -> HamQTH -> HamDB (côté serveur, logx_callbook.py).
 // Debounce plus long (600 ms) : une requête réseau par indicatif fini.
 let _qrzTimer = null, _qrzSeq = 0;
+// Dernier état US rapporté par l'annuaire, avec l'indicatif auquel il se
+// rapporte ({call, state}). L'indicatif est conservé À DESSEIN : la réponse
+// arrive en différé, et sans cette vérification l'état d'une station
+// précédente se retrouverait collé au QSO en cours de saisie.
+let _stateAnnuaire = null;
 const CALLBOOK_SOURCE_LABEL = {hamqth: 'HamQTH', hamdb: 'HamDB'};  // QRZ = pas de tag (source par défaut)
 
 function lookupQRZ(call){
@@ -1059,6 +1064,12 @@ function lookupQRZ(call){
         locInput.value = d.grid;
         onLocatorInput();
       }
+      // État US retenu pour le QSO : c'est la SEULE source à la saisie, l'état
+      // ne se déduisant pas de l'indicatif (un W6 peut habiter n'importe où).
+      // Mémorisé avec l'indicatif auquel il se rapporte : sans ça, un état
+      // resté d'une frappe précédente serait recopié sur le QSO suivant.
+      _stateAnnuaire = (d.state && /^[A-Z]{2}$/.test(String(d.state).toUpperCase()))
+        ? {call: call, state: String(d.state).toUpperCase()} : null;
     }catch(e){ /* réseau callbook indispo : rien */ }
   }, 600);
 }
@@ -3125,6 +3136,14 @@ async function submitQSO(){
     my_call: myCall, my_locator: myLocator,
     contest: currentContest,
   };
+
+  // État US (diplôme WAS) : repris de l'annuaire UNIQUEMENT s'il concerne bien
+  // l'indicatif qu'on enregistre. Réserve à connaître : l'annuaire donne
+  // l'adresse ACTUELLE de la station, pas forcément celle du jour du QSO —
+  // pour un diplôme, seule une confirmation LoTW fait foi.
+  if(_stateAnnuaire && _stateAnnuaire.call === call){
+    qso.state = _stateAnnuaire.state;
+  }
 
   // Activation POTA/SOTA/IOTA/WWFF : ma référence sur chaque QSO, + réf.
   // correspondant si c'est un Park-to-Park / Summit-to-Summit.
@@ -5984,6 +6003,43 @@ async function showAwards(){
     `<div style="color:var(--muted);font-size:12px;margin:4px 0 10px">Aucune confirmation importée — synchronise LoTW ci-dessous pour voir le « confirmé ».</div>`;
   const perBand = Object.entries(a.per_band||{}).map(([b,v]) =>
     `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${b} MHz : <b style="color:var(--text)">${v.qso}</b> QSO / ${v.dxcc} DXCC</span>`).join('');
+  // ── Diplômes classiques ────────────────────────────────────────────────
+  // Tous calculés RÉTROACTIVEMENT sur le carnet existant, sauf le WAS :
+  // l'entité, la zone et le continent se déduisent de l'indicatif, le champ et
+  // le carré du locator déjà enregistré. L'état US, lui, ne se déduit de rien.
+  const dip = (label, d, unite) => {
+    if(!d) return '';
+    const tot = d.total ? `/${d.total}` : '';
+    const conf = `<span style="color:var(--green)">${d.confirmed} conf.</span>`;
+    return row(label, `${d.worked}${tot} ${unite||''} · ${conf}`) +
+           (d.total ? bar(d.worked, d.total) : '');
+  };
+  const manquants = (d, titre) => (d && d.missing && d.missing.length)
+    ? `<div style="margin-top:4px;font-size:12px;color:var(--muted)">${titre} : ${d.missing.join(' ')}</div>` : '';
+  // Le WAS s'affiche différemment tant qu'aucun état n'est connu : « 0/50 »
+  // laisserait croire à un carnet vide alors que c'est la DONNÉE qui manque.
+  const wasHtml = a.was_data
+    ? dip('🇺🇸 WAS (états US)', a.was) + manquants(a.was, 'États manquants')
+    : row('🇺🇸 WAS (états US)', `<span style="color:var(--muted)">état non renseigné</span>`) +
+      `<div style="margin-top:2px;font-size:12px;color:var(--muted)">L'état ne se déduit pas de l'indicatif. Il se remplit à la saisie (annuaire) et par un import ADIF LoTW/ClubLog.</div>`;
+  const vuccBandes = (a.vucc && a.vucc.per_band)
+    ? Object.entries(a.vucc.per_band).map(([b,n]) =>
+        `<span style="display:inline-block;margin:2px 6px 2px 0;color:var(--muted)">${b} MHz : <b style="color:var(--text)">${n}</b></span>`).join('')
+    : '';
+  const diplomesHtml = `
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+      <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">🏅 DIPLÔMES</div>
+      <div style="font-family:var(--font-mono);font-size:13px;line-height:1.6">
+        ${dip('🌐 WAZ (zones CQ)', a.waz)}
+        ${manquants(a.waz, 'Zones manquantes')}
+        ${dip('🗺️ WAC (continents)', a.wac)}
+        ${wasHtml}
+        ${dip('📻 DXCC Challenge', a.dxcc_challenge, 'cases entité×bande')}
+        ${dip('🔲 VUCC (carrés QRA)', a.vucc, 'carrés')}
+        ${vuccBandes ? `<div style="margin-top:2px;font-size:12px">${vuccBandes}</div>` : ''}
+        ${dip('🧭 CQ DX Field (champs QRA)', a.dx_field, 'champs')}
+      </div>
+    </div>`;
   const matrixHtml = renderWorkedMatrix(m);
   const dxRecordsHtml = renderDxRecords(dxr);
   const activityHtml = renderActivityChart((act && act.days) || []);
@@ -6000,6 +6056,7 @@ async function showAwards(){
       <div style="margin-top:8px;font-size:12px">${perBand}</div>
       ${dep.missing && dep.missing.length ? `<div style="margin-top:8px;font-size:12px;color:var(--muted)">Départements manquants : ${dep.missing.join(', ')}${dep.missing.length>=40?'…':''}</div>` : ''}
     </div>
+    ${diplomesHtml}
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
       <div style="color:var(--accent2);letter-spacing:1px;margin-bottom:8px;font-family:var(--font-mono);font-size:13px">🧮 WORKED MATRIX — bande × mode</div>
       ${matrixHtml}

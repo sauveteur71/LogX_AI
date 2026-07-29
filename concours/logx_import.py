@@ -95,6 +95,10 @@ def parse_adif_to_qsos(adif_text):
             'num_sent': _clean_text(rec.get('STX_STRING') or rec.get('STX')),
             'num_rcvd': _clean_text(rec.get('SRX_STRING') or rec.get('SRX')),
             'locator': _clean_text((rec.get('GRIDSQUARE') or '').upper()),
+            # État US : indispensable au WAS, et IMPOSSIBLE à déduire autrement
+            # (un W6 peut habiter n'importe quel état depuis la fin du découpage
+            # géographique des préfixes). Un ADIF LoTW/ClubLog le porte.
+            'state': _clean_text((rec.get('STATE') or '').upper()),
             'my_locator': _clean_text((rec.get('MY_GRIDSQUARE') or '').upper()),
             'operator': _clean_text((rec.get('OPERATOR') or rec.get('STATION_CALLSIGN') or '').upper()),
             'contest': _clean_text(rec.get('CONTEST_ID')),
@@ -104,6 +108,53 @@ def parse_adif_to_qsos(adif_text):
             'source': 'adif_import',
         })
     return qsos, errors
+
+
+def etats_depuis_adif(adif_text):
+    """{INDICATIF: 'XX'} — les états US portés par un ADIF (LoTW, ClubLog…).
+
+    Indexé par INDICATIF et non par QSO, à dessein : l'état est une propriété
+    de la STATION, pas du contact. Un seul record W1ABC/STATE=MA suffit donc à
+    renseigner TOUS les QSO déjà faits avec W1ABC, y compris sur d'autres
+    bandes et à d'autres dates — là où une correspondance QSO par QSO exigerait
+    que le rapport couvre exactement les mêmes contacts.
+
+    LIMITE ASSUMÉE : si un opérateur a déménagé d'un état à l'autre entre deux
+    QSO, tous ses contacts reçoivent le dernier état connu. Pour le WAS c'est
+    sans conséquence dans l'immense majorité des cas, et de toute façon seule
+    une confirmation LoTW fait foi devant l'ARRL.
+    """
+    etats = {}
+    try:
+        records = _parse_adif_records(adif_text)
+    except Exception:
+        return etats
+    for rec in records:
+        call = (rec.get('CALL') or '').upper().strip()
+        st = (rec.get('STATE') or '').upper().strip()
+        if call and len(st) == 2 and st.isalpha():
+            etats[call] = st
+    return etats
+
+
+def appliquer_etats(log, etats):
+    """Pose l'état sur les QSO qui n'en ont pas. Retourne (qso_remplis, calls).
+
+    N'ÉCRASE JAMAIS un état déjà présent : une valeur saisie ou confirmée vaut
+    mieux qu'une valeur d'annuaire, et un import ne doit pas pouvoir dégrader
+    une donnée existante. Ne crée aucun QSO non plus — c'est le rôle de
+    commit_import ; ici on ne fait qu'enrichir l'existant.
+    """
+    remplis, calls = 0, set()
+    for q in log:
+        if q.get('state'):
+            continue
+        st = etats.get(str(q.get('call', '')).upper().strip())
+        if st:
+            q['state'] = st
+            remplis += 1
+            calls.add(q['call'])
+    return remplis, calls
 
 
 def _mode_warnings(qsos):

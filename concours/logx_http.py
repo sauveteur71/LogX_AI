@@ -4441,6 +4441,49 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'error': str(e)}, 400)
             return
 
+        # Import ADIF LoTW/ClubLog — ENRICHIT les QSO déjà au log (état US pour
+        # le diplôme WAS) et fusionne les confirmations. N'ajoute AUCUN QSO :
+        # c'est /log/import_adif/commit qui fait ça, et mélanger les deux
+        # ferait entrer des contacts d'un rapport de confirmations dans le
+        # carnet. L'état ne se déduit pas d'un indicatif — c'est la seule
+        # source possible pour le passé.
+        if self.path == '/log/import_adif/etats':
+            try:
+                payload = json.loads(body)
+                adif = payload.get('adif', '')
+                import logx_import as imp
+                etats = imp.etats_depuis_adif(adif)
+                with log_lock:
+                    remplis, calls = imp.appliquer_etats(shared_log, etats)
+                    if remplis:
+                        bump_log_version()
+                        for q in shared_log:
+                            if q.get('call') in calls:
+                                stamp_qso_version(q)
+                if remplis:
+                    save_log_to_disk()
+                # Les confirmations passent par le mécanisme existant (même
+                # fichier, même clé CALL|MHz|MODE que le calcul des diplômes).
+                confirmes = 0
+                try:
+                    import logx_qsl as qsl
+                    total_conf, confirmes = qsl.merge_confirmations(
+                        qsl.parse_confirmations(adif, source='lotw'))
+                except Exception:
+                    pass
+                try:
+                    import logx_awards as awards
+                    awards.invalidate()   # le cache des diplômes doit repartir
+                except Exception:
+                    pass
+                print(f"[IMPORT] etats US : {remplis} QSO renseignes "
+                      f"({len(etats)} indicatifs), {confirmes} confirmations")
+                self._json({'ok': True, 'states_filled': remplis,
+                            'calls': len(etats), 'confirmations': confirmes})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
+            return
+
         if self.path == '/log/reset':
             try:
                 payload = json.loads(body)

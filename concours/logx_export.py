@@ -231,6 +231,9 @@ def build_adif(qsos, cfg=None):
             _adif_field('stx_string', q.get('num_sent', '')),
             _adif_field('srx_string', q.get('num_rcvd', '')),
             _adif_field('gridsquare', q.get('locator', '')),
+            # État US : porté par l'ADIF pour que le WAS reste calculable après
+            # un export/réimport, ou dans le logiciel du correspondant.
+            _adif_field('state', q.get('state', '')),
             _adif_field('my_gridsquare', q.get('my_locator', cfg.get('locator', ''))),
             _adif_field('contest_id', q.get('contest', '')),
             _adif_field('operator', q.get('operator', '')),

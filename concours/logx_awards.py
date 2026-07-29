@@ -318,6 +318,56 @@ def spotted_new_ones(shared_log, spots_by_label=None, max_n=8):
 
 # ─── TABLEAU DE BORD DIPLÔMES ─────────────────────────────────────────────────
 
+# ─── RÉFÉRENTIELS DES DIPLÔMES CLASSIQUES ────────────────────────────────────
+
+# WAS (Worked All States, ARRL) — les 50 états. Le district de Columbia n'en
+# fait PAS partie : le WAS se compte sur 50, DC est rattaché au Maryland pour
+# ce diplôme. Un état ne se déduit JAMAIS de l'indicatif (un W6 peut habiter
+# n'importe où depuis la fin du découpage géographique des préfixes) : il vient
+# du champ ADIF STATE, de l'annuaire, ou d'une confirmation LoTW.
+US_STATES = (
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+)
+
+# WAZ (Worked All Zones, CQ) — 40 zones CQ, déduites de l'indicatif via cty.dat.
+WAZ_TOTAL = 40
+
+# WAC (Worked All Continents, IARU) — 6 continents. L'Antarctique (AN) figure
+# dans cty.dat mais ne compte PAS pour le WAC : l'inclure ferait afficher 7/6.
+WAC_CONTINENTS = ('AF', 'AS', 'EU', 'NA', 'OC', 'SA')
+
+# DXCC Challenge (ARRL) — une « case » par couple entité × bande, sur les
+# bandes 160 à 6 m, WARC comprises. Clés en MHz : c'est le format réellement
+# stocké dans le log (mesuré : '14', '7', '3.5', '144'...), pas en longueur
+# d'onde. Le 2 m et au-dessus n'entrent pas dans le Challenge.
+CHALLENGE_BANDS = ('1.8', '3.5', '7', '10', '14', '18', '21', '24', '28', '50')
+
+
+def _grid(q, n):
+    """Les n premiers caractères du locator, en majuscules, ou ''.
+
+    n=2 -> le CHAMP QRA (CQ DX Field) ; n=4 -> le CARRÉ (VUCC).
+    Mesuré sur le log réel : les locators font 4, 6 ou 8 caractères, donc on
+    tronque au lieu d'exiger une longueur exacte.
+    """
+    loc = str(q.get('locator') or '').strip().upper()
+    return loc[:n] if len(loc) >= n else ''
+
+
+def _paire(worked, confirmed, total=None, manquants=None):
+    """Forme commune à tous les diplômes : travaillé / confirmé / reste."""
+    out = {'worked': len(worked), 'confirmed': len(confirmed)}
+    if total is not None:
+        out['total'] = total
+    if manquants is not None:
+        out['missing'] = manquants
+    return out
+
+
 def award_summary(shared_log=None):
     """Travaillé / confirmé par diplôme, sur toute la vie de la station."""
     conf = _load_confirmations()
@@ -328,14 +378,31 @@ def award_summary(shared_log=None):
     conts, zones = set(), set()
     per_band = {}          # bande -> {qso, dxcc:set}
     total_conf = 0
+    # Diplômes classiques, tous comptés en travaillé ET confirmé. Sauf le WAS,
+    # tous se calculent RÉTROACTIVEMENT sur le carnet existant : l'entité, la
+    # zone et le continent se déduisent de l'indicatif (cty.dat), le champ et
+    # le carré du locator déjà enregistré. Le WAS fait exception — l'état ne se
+    # déduit de rien, il doit avoir été saisi ou importé (voir US_STATES).
+    zones_w, zones_c = set(), set()
+    conts_w, conts_c = set(), set()
+    states_w, states_c = set(), set()
+    fields_w, fields_c = set(), set()          # champs QRA (CQ DX Field)
+    squares_w, squares_c = set(), set()        # carrés QRA (VUCC)
+    squares_par_bande = {}                     # bande -> set de carrés
+    challenge_w, challenge_c = set(), set()    # couples (entité, bande)
     for q in qsos:
         is_conf = bool(conf.get(_confirm_key(q)))
         total_conf += 1 if is_conf else 0
         c = q.get('dxcc_country')
+        b = str(q.get('band', '?'))
         if c:
             countries_w.add(c)
             if is_conf:
                 countries_c.add(c)
+            if b in CHALLENGE_BANDS:
+                challenge_w.add((c, b))
+                if is_conf:
+                    challenge_c.add((c, b))
         d = q.get('dept')
         if d:
             depts_w.add(d)
@@ -343,9 +410,31 @@ def award_summary(shared_log=None):
                 depts_c.add(d)
         if q.get('continent'):
             conts.add(q['continent'])
+            if q['continent'] in WAC_CONTINENTS:
+                conts_w.add(q['continent'])
+                if is_conf:
+                    conts_c.add(q['continent'])
         if q.get('cq_zone'):
             zones.add(q['cq_zone'])
-        b = str(q.get('band', '?'))
+            zones_w.add(str(q['cq_zone']))
+            if is_conf:
+                zones_c.add(str(q['cq_zone']))
+        st = str(q.get('state') or '').strip().upper()
+        if st in US_STATES:
+            states_w.add(st)
+            if is_conf:
+                states_c.add(st)
+        champ = _grid(q, 2)
+        if champ:
+            fields_w.add(champ)
+            if is_conf:
+                fields_c.add(champ)
+        carre = _grid(q, 4)
+        if carre:
+            squares_w.add(carre)
+            squares_par_bande.setdefault(b, set()).add(carre)
+            if is_conf:
+                squares_c.add(carre)
         pb = per_band.setdefault(b, {'qso': 0, 'dxcc': set()})
         pb['qso'] += 1
         if c:
@@ -375,6 +464,22 @@ def award_summary(shared_log=None):
         'cq_zones': sorted(zones),
         'per_band': {b: {'qso': v['qso'], 'dxcc': len(v['dxcc'])}
                      for b, v in sorted(per_band.items())},
+        # ── Diplômes classiques ──────────────────────────────────────────────
+        'waz': _paire(zones_w, zones_c, WAZ_TOTAL,
+                      sorted((str(z) for z in range(1, WAZ_TOTAL + 1)
+                              if str(z) not in zones_w), key=int)),
+        'wac': _paire(conts_w, conts_c, len(WAC_CONTINENTS),
+                      [c for c in WAC_CONTINENTS if c not in conts_w]),
+        'was': _paire(states_w, states_c, len(US_STATES),
+                      [s for s in US_STATES if s not in states_w]),
+        # Le WAS n'a de sens que si l'état est renseigné quelque part : sans
+        # cette information, afficher « 0/50 » laisserait croire à un carnet
+        # vide alors que c'est la DONNÉE qui manque, pas les contacts.
+        'was_data': bool(states_w),
+        'dx_field': _paire(fields_w, fields_c),
+        'vucc': dict(_paire(squares_w, squares_c),
+                     per_band={b: len(s) for b, s in sorted(squares_par_bande.items())}),
+        'dxcc_challenge': _paire(challenge_w, challenge_c),
     }
 
 
