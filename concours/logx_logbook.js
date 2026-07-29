@@ -187,9 +187,28 @@ function applyExpeditionMode(on){
 // pour adapter la saisie : en LOGBOOK SIMPLE, pas de concours -> le sélecteur
 // de concours et son horaire n'ont pas de sens et sont masqués.
 let usageMode = 'contest';
+
+// Les bandeaux de RYTHME (score, récap par bande, classement opérateurs,
+// graphe QSO/heure) sont-ils hors sujet dans le mode courant ?
+//
+// POINT UNIQUE EXPRÈS : la règle est appliquée à QUATRE endroits —
+// applyUsageModeToLogbook() au changement de mode, et les trois fonctions de
+// rendu qui repositionnent leur bandeau à chaque rafraîchissement des stats.
+// Écrite quatre fois, elle divergerait : masquer au changement de mode ne
+// servirait à rien puisque le premier calcul de stats ferait réapparaître les
+// bandeaux. C'est précisément ce qui serait arrivé au mode expédition.
+function bandeauxRythmeMasques(){
+  // Expédition : ni score à suivre, ni temps restant, ni classement à
+  // départager — on log en continu pendant des jours. Les 310 px mesurés que
+  // ces bandeaux occupent manquent bien davantage à la saisie, surtout sur un
+  // portable en /P.
+  return usageMode === 'simple' || usageMode === 'expedition';
+}
+
 function applyUsageModeToLogbook(mode){
   usageMode = mode || 'contest';
   const simple = usageMode === 'simple';
+  const sansBandeaux = bandeauxRythmeMasques();
   const csWrap = document.getElementById('contestSearchWrap');
   if(csWrap) csWrap.style.display = simple ? 'none' : '';
   const timingBox = document.getElementById('contestTimingBox');
@@ -198,13 +217,18 @@ function applyUsageModeToLogbook(mode){
   // dernier QSO...) n'a de sens que pour le rythme/la compétition d'un
   // concours chronométré — rien de tout ça ne s'applique à un log personnel.
   const scoreBanner = document.querySelector('.score-banner');
-  if(scoreBanner) scoreBanner.style.display = simple ? 'none' : '';
+  if(scoreBanner) scoreBanner.style.display = sansBandeaux ? 'none' : '';
   // Même logique pour le récap par bande, le classement opérateurs et le
   // graphe QSO/heure : ce sont des outils de rythme de concours, sans
   // intérêt pour un log personnel hors concours.
+  //
+  // Le ternaire RESTAURE l'affichage, là où l'ancien `if(el && simple)` se
+  // contentait de masquer : repasser en mode CONCOURS laissait les trois
+  // bandeaux définitivement invisibles jusqu'au rechargement de la page —
+  // un réglage qu'on ne peut plus annuler depuis l'écran où on l'a fait.
   ['bandRecapBar', 'opStatsBar', 'hourChartBar'].forEach(id => {
     const el = document.getElementById(id);
-    if(el && simple) el.style.display = 'none';
+    if(el) el.style.display = sansBandeaux ? 'none' : '';
   });
   // Les boutons de filtre rapide 144/432 MHz ciblent un concours VHF/UHF
   // précis : sans intérêt (et souvent hors sujet) en logbook simple.
@@ -1118,7 +1142,8 @@ function checkPrevQsos(call){
   _prevTimer = setTimeout(async () => {
     try{
       const r = await fetch(`/call/history?call=${encodeURIComponent(call)}` +
-                            `&band=${encodeURIComponent(currentBand || '')}`);
+                            `&band=${encodeURIComponent(currentBand || '')}` +
+                            `&mode=${encodeURIComponent(currentMode || '')}`);
       if(!r.ok || seq !== _prevSeq) return;
       const d = await r.json();
       const parts = [];
@@ -1126,6 +1151,21 @@ function checkPrevQsos(call){
       (d.new_one || []).forEach(n => {
         parts.push(`<div style="color:var(--green);font-weight:700">🌟 ${n.label}</div>`);
       });
+      // Besoin LoTW : « pas confirmé LoTW » n'est PAS « jamais contacté ». Un
+      // pays travaillé dix fois mais jamais confirmé ne compte toujours pas
+      // pour le DXCC — et une confirmation eQSL ou papier n'y change rien.
+      // L'entité jamais confirmée nulle part passe en rouge : c'est celle qui
+      // fait avancer le compteur.
+      if(d.lotw_need && d.lotw_need.besoin){
+        const jamais = d.lotw_need.raison === 'jamais_confirme';
+        parts.push(`<div style="color:${jamais ? 'var(--red)' : 'var(--accent2)'};font-weight:700">` +
+                   `${jamais ? '📛' : '📻'} ${escHtml(d.lotw_need.label)}</div>`);
+      }
+      // État US / province canadienne, quand on la connaît (même champ ADIF
+      // STATE des deux côtés de la frontière).
+      if(d.state){
+        parts.push(`<div style="color:var(--muted)">🏛 ${escHtml(d.state)}</div>`);
+      }
       if(d.count > 0){
         const conf = d.confirmed ? ` · <span style="color:var(--green)">${d.confirmed} confirmé${d.confirmed>1?'s':''}</span>` : '';
         const bands = d.bands && d.bands.length ? ` sur ${d.bands.join('/')} MHz` : '';
@@ -4111,7 +4151,7 @@ function updateOpStats(){
   const bar   = document.getElementById('opStatsBar');
   const inner = document.getElementById('opStatsInner');
   if(!bar || !inner) return;
-  if(usageMode === 'simple'){ bar.style.display = 'none'; return; }
+  if(bandeauxRythmeMasques()){ bar.style.display = 'none'; return; }
 
   const opsUsed = new Set(qsoLog.map(q=>q.operator).filter(Boolean));
   if(opsUsed.size < 2){ bar.style.display = 'none'; return; }
@@ -4143,7 +4183,7 @@ function updateBandRecap(){
   const bar   = document.getElementById('bandRecapBar');
   const inner = document.getElementById('bandRecapInner');
   if(!bar || !inner) return;
-  if(usageMode === 'simple'){ bar.style.display = 'none'; return; }
+  if(bandeauxRythmeMasques()){ bar.style.display = 'none'; return; }
   if(qsoLog.length === 0){ bar.style.display = 'none'; return; }
 
   const bands = {};
@@ -4183,7 +4223,7 @@ function drawHourChart(){
   const svg  = document.getElementById('hourChartSvg');
   const peak = document.getElementById('hourChartPeak');
   if(!bar || !svg) return;
-  if(usageMode === 'simple'){ bar.style.display = 'none'; return; }
+  if(bandeauxRythmeMasques()){ bar.style.display = 'none'; return; }
   if(qsoLog.length === 0){ bar.style.display = 'none'; return; }
 
   // Grouper par heure UTC (clé = "YYYYMMDD-HH")

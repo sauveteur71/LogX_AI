@@ -258,6 +258,118 @@ def new_one(call, band='', mode='', shared_log=None):
     return out
 
 
+# ─── BESOINS LoTW PAR CRÉNEAU ENTITÉ × BANDE × MODE ──────────────────────────
+# DEMANDE UTILISATEUR, mot pour mot : « même si je les ai contactés ça
+# m'apporte rien, je veux une alerte jusqu'à ce que j'aie le DXCC confirmé par
+# LoTW et pas autre chose, car ça n'a pas de valeur ».
+#
+# C'est un CHANGEMENT DE CRITÈRE, pas un affichage de plus. new_one() ci-dessus
+# répond à « jamais CONTACTÉ » ; ici on répond à « pas encore CONFIRMÉ PAR
+# LoTW », ce qui est la seule chose que l'ARRL accepte. Un QSO confirmé par
+# eQSL ou par carte papier reste donc un BESOIN pour ce calcul — d'où le
+# filtrage explicite sur la source, et pas un simple « il y a une
+# confirmation ».
+#
+# Second changement : l'axe MODE. new_one() ne connaît que (entité, bande) ;
+# le DXCC se poursuit par créneau entité × bande × mode (CW / Phonie /
+# Numérique), et c'est à ce grain que se décide un appel.
+
+LOTW_SOURCE = 'lotw'
+
+
+def _creneaux_confirmes_lotw(qsos, conf):
+    """{(entité, bande, catégorie de mode)} confirmés PAR LoTW uniquement."""
+    out = set()
+    for q in qsos:
+        srcs = conf.get(_confirm_key(q)) or {}
+        if not srcs.get(LOTW_SOURCE):
+            continue
+        pays = q.get('dxcc_country')
+        if pays:
+            out.add((pays, str(q.get('band', '')), _mode_category(q.get('mode'))))
+    return out
+
+
+def besoin_lotw(call, band='', mode='', shared_log=None):
+    """Ce QSO comblerait-il un créneau entité×bande×mode non confirmé LoTW ?
+
+    Retourne {'besoin': bool, 'country', 'band', 'mode_cat', 'label', 'raison'}
+    — 'raison' vaut 'jamais_confirme' si l'entité n'est confirmée LoTW sur
+    AUCUNE bande/mode (le plus intéressant), 'creneau' si elle l'est ailleurs
+    mais pas ici.
+    """
+    call = str(call or '').upper().strip()
+    if len(call) < 3:
+        return {'besoin': False}
+    base = call.split('/')[0] if '/' in call else call
+    try:
+        import logx_dxcc as dxcc
+        pays = (dxcc.lookup(base) or {}).get('country')
+    except Exception:
+        pays = None
+    if not pays:
+        return {'besoin': False}
+
+    cat = _mode_category(mode)
+    b = str(band or '')
+    conf = _load_confirmations()
+    creneaux = _creneaux_confirmes_lotw(collect_all_qsos(shared_log), conf)
+    if (pays, b, cat) in creneaux:
+        return {'besoin': False, 'country': pays, 'band': b, 'mode_cat': cat}
+
+    jamais = not any(c[0] == pays for c in creneaux)
+    label = (f"{pays} — JAMAIS confirmé LoTW" if jamais
+             else f"{pays} — pas confirmé LoTW en {cat} sur {b} MHz")
+    return {'besoin': True, 'country': pays, 'band': b, 'mode_cat': cat,
+            'raison': 'jamais_confirme' if jamais else 'creneau',
+            'label': label}
+
+
+def besoins_lotw_spottes(spots, shared_log=None, max_n=20):
+    """Parmi les stations spottées, celles qui comblent un créneau non confirmé
+    LoTW. Le calcul lourd (parcours du log + confirmations) est fait UNE fois
+    pour toute la liste : appeler besoin_lotw() par spot relirait le carnet
+    entier à chaque ligne — quelques centaines de spots suffisent à rendre la
+    page inutilisable.
+    """
+    conf = _load_confirmations()
+    qsos = collect_all_qsos(shared_log)
+    creneaux = _creneaux_confirmes_lotw(qsos, conf)
+    pays_confirmes = {c[0] for c in creneaux}
+    try:
+        import logx_dxcc as dxcc
+    except Exception:
+        return []
+    out, vus = [], set()
+    for s in (spots or []):
+        call = str(s.get('call') or s.get('dx') or '').upper().strip()
+        if len(call) < 3:
+            continue
+        base = call.split('/')[0] if '/' in call else call
+        pays = (dxcc.lookup(base) or {}).get('country')
+        if not pays:
+            continue
+        b = str(s.get('band', '') or '')
+        cat = _mode_category(s.get('mode'))
+        if (pays, b, cat) in creneaux:
+            continue
+        cle = (call, b, cat)
+        if cle in vus:
+            continue
+        vus.add(cle)
+        jamais = pays not in pays_confirmes
+        out.append({'call': call, 'country': pays, 'band': b, 'mode_cat': cat,
+                    'freq': s.get('freq'),
+                    'raison': 'jamais_confirme' if jamais else 'creneau',
+                    'label': (f"{pays} — JAMAIS confirmé LoTW" if jamais
+                              else f"{pays} — manque en {cat} sur {b} MHz")})
+        if len(out) >= max_n:
+            break
+    # Les entités jamais confirmées d'abord : c'est là que se joue le DXCC.
+    out.sort(key=lambda x: 0 if x['raison'] == 'jamais_confirme' else 1)
+    return out
+
+
 # ─── CIBLES PROACTIVES (jamais travaillées à VIE, spottées maintenant) ───────
 
 def spotted_new_ones(shared_log, spots_by_label=None, max_n=8):

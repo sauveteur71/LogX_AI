@@ -1973,10 +1973,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             qp = parse_qs(urlparse(self.path).query)
             call = (qp.get('call', [''])[0]).upper().strip()
             band = (qp.get('band', [''])[0]).strip()
+            mode = (qp.get('mode', [''])[0]).strip()
             with log_lock:
                 log_copy = list(shared_log)
             h = awards.history(call, log_copy)
             h['new_one'] = awards.new_one(call, band, '', log_copy)
+            # « Pas confirmé LoTW » n'est PAS la même question que « jamais
+            # contacté » : un pays travaillé dix fois mais jamais confirmé par
+            # LoTW ne compte toujours pas pour le DXCC. Calculé au grain
+            # entité × bande × mode, celui auquel se décide un appel.
+            h['lotw_need'] = awards.besoin_lotw(call, band, mode, log_copy)
+            # État US / province canadienne. En ADIF, STATE porte la
+            # « subdivision administrative primaire » : c'est le même champ des
+            # deux côtés de la frontière (MA, TX… mais aussi ON, QC, BC). Seul
+            # le compteur WAS filtre sur les 50 états — l'affichage, lui, montre
+            # ce qui est connu, quel que soit le pays.
+            h['state'] = next((q.get('state') for q in log_copy
+                               if str(q.get('call', '')).upper() == call
+                               and q.get('state')), '')
             self._json(h)
             return
 
