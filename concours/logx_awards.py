@@ -796,6 +796,14 @@ _CRENEAUX_KHZ = (
     (70000, 70650, 'PHONE'),
     (144000, 144100, 'CW'),  (144100, 144500, 'PHONE'), (144500, 148000, 'PHONE'),
     (220000, 221000, 'CW'),  (222000, 224000, 'PHONE'),
+    # 70 cm : ABSENT de la table CC User, qui s'arrête au 222 MHz (elle est
+    # pensée pour l'Amérique du Nord). C'est pourtant une bande de concours
+    # majeure en région 1 — Rallye des Points Hauts, National THF, Challenge
+    # THF. Bornes reprises de logx_transverter.BANDES_MHZ (430-440, déjà
+    # utilisées par le pilotage radio du logiciel) et coupure étroite/large à
+    # 432.100, la limite universellement retenue en région 1. Signalé ici parce
+    # que ce couple de lignes ne vient PAS de la source citée pour le reste.
+    (430000, 432100, 'CW'),  (432100, 440000, 'PHONE'),
 )
 
 
@@ -820,6 +828,50 @@ def mode_depuis_frequence(freq_mhz):
         if lo <= khz < hi:
             return cat
     return ''
+
+
+def segments_bande(band):
+    """Découpage CW / numérique / phonie d'une bande, en MHz.
+
+    Retourne {'lo','hi','segments':[{'lo','hi','cat'}]} ou None si la bande
+    n'est pas connue. Dérivé de _CRENEAUX_KHZ — la MÊME table que le mode
+    déduit de la fréquence, pour qu'une réglette de bande et une alerte ne
+    puissent jamais désigner des segments différents.
+
+    Sert à dessiner l'échelle des fenêtres de surveillance : voir où se
+    concentre l'activité, et surtout où il reste un trou pour appeler.
+    """
+    try:
+        centre = float(band)
+    except (TypeError, ValueError):
+        return None
+    # La « bande » est nommée par sa fréquence basse en MHz dans tout le
+    # logiciel ('14', '3.5', '144')… SAUF le 70 cm, nommé 432 alors qu'il
+    # commence à 430. D'où une tolérance BASSE proportionnelle (0,5 %) plutôt
+    # qu'un plancher strict : sans elle, le segment CW 430-432,1 disparaissait
+    # de la réglette 432 — constaté en vérifiant les bandes une par une.
+    # La tolérance haute (12 %) sépare 14 de 18, et 24 de 28 ; la basse reste
+    # assez serrée pour que le 60 m (5260) n'entre pas dans la bande 7 MHz.
+    khz = centre * 1000.0
+    seg = [(lo, hi, cat) for lo, hi, cat in _CRENEAUX_KHZ
+           if khz * 0.995 <= lo < khz + max(1000.0, khz * 0.12)]
+    if not seg:
+        return None
+    # Fusion des segments ADJACENTS de même catégorie : la table distingue
+    # SSB et FM (deux lignes « PHONE » qui se touchent), or les afficher
+    # séparément dessinerait une frontière là où l'opérateur n'en voit aucune.
+    fusion = []
+    for lo, hi, cat in seg:
+        if fusion and fusion[-1][2] == cat and fusion[-1][1] == lo:
+            fusion[-1] = (fusion[-1][0], hi, cat)
+        else:
+            fusion.append((lo, hi, cat))
+    return {
+        'lo': fusion[0][0] / 1000.0,
+        'hi': fusion[-1][1] / 1000.0,
+        'segments': [{'lo': lo / 1000.0, 'hi': hi / 1000.0, 'cat': cat}
+                     for lo, hi, cat in fusion],
+    }
 
 
 def _mode_category(mode, freq_mhz=None):

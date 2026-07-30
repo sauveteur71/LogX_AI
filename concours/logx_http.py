@@ -2069,6 +2069,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # bande : le VUCC s'obtient bande par bande, jamais toutes bandes
         # confondues — une carte « toutes bandes » ne correspondrait à aucun
         # diplôme réel.
+        # Découpage CW / numérique / phonie d'une bande — pour dessiner la
+        # réglette des fenêtres de surveillance. Lecture seule, aucun accès au
+        # log : pollé par autant de fenêtres que l'opérateur en ouvre.
+        if path.startswith('/data/bande_segments'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_awards as awards
+            qp = parse_qs(urlparse(self.path).query)
+            self._json(awards.segments_bande((qp.get('band', [''])[0]).strip())
+                       or {'segments': []})
+            return
+
         if path.startswith('/awards/carres'):
             from urllib.parse import parse_qs, urlparse
             import logx_awards as awards

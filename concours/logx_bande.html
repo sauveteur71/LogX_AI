@@ -43,7 +43,25 @@ header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:line
 .bande{font-size:20px;font-weight:800;color:var(--accent);letter-spacing:1px}
 .compte{font-size:12px;color:var(--muted)}
 .clock{margin-left:auto;font-size:13px;color:var(--muted)}
-.wrap{flex:1;overflow-y:auto}
+.wrap{flex:1;overflow-y:auto;display:flex}
+/* RÉGLETTE DE FRÉQUENCE — la différence entre « qui est là » et « OÙ ».
+   Une liste dit qui trafique ; une échelle montre où l'activité se concentre
+   et surtout OÙ IL RESTE UN TROU pour appeler. C'est l'information qu'une
+   liste ne peut pas donner, et c'est ce que font les fenêtres de Logger32. */
+.regle{position:relative;width:96px;flex-shrink:0;border-right:1px solid var(--border);background:var(--bg2)}
+.seg{position:absolute;left:0;right:0}
+.seg-cw{background:rgba(255,214,10,.13)}
+.seg-digital{background:rgba(191,90,242,.13)}
+.seg-phone{background:rgba(0,212,255,.10)}
+.seg-lbl{position:absolute;left:3px;font-size:9px;color:var(--muted);letter-spacing:1px}
+.tick{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,.08)}
+.tick span{position:absolute;right:3px;top:-6px;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pin{position:absolute;right:2px;height:10px;padding:0 3px;border-radius:2px;font-size:9px;
+     line-height:10px;white-space:nowrap;cursor:pointer;font-weight:700}
+.pin-besoin{background:var(--red);color:#fff}
+.pin-lotw{background:var(--green);color:#04120a}
+.pin-autre{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+.liste-col{flex:1;overflow-y:auto;min-width:0}
 .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
 .row{display:grid;grid-template-columns:auto 82px 1fr auto;gap:8px;align-items:baseline;
      padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;cursor:pointer}
@@ -69,7 +87,10 @@ footer{flex-shrink:0;padding:5px 12px;border-top:1px solid var(--border);font-si
   <span class="compte" id="compte"></span>
   <span class="clock" id="clock">--:--:--</span>
 </header>
-<div class="wrap"><div id="liste"><div class="empty">Chargement…</div></div></div>
+<div class="wrap">
+  <div class="regle" id="regle" title="Échelle de fréquence : jaune = CW, violet = numérique, bleu = phonie. Les trous sont les fréquences libres."></div>
+  <div class="liste-col"><div id="liste"><div class="empty">Chargement…</div></div></div>
+</div>
 <footer>
   <span>clic = QSY</span>
   <span class="lotw tag">LoTW</span>
@@ -138,6 +159,63 @@ if(localStorage.getItem('rc_theme') === null){
     </div>`;
   }
 
+  // ── Réglette de fréquence ────────────────────────────────────────────────
+  // Les bornes et le découpage CW/numérique/phonie viennent du serveur
+  // (logx_awards.segments_bande), qui les dérive de la MÊME table que le mode
+  // déduit de la fréquence : une réglette et une alerte ne peuvent donc jamais
+  // désigner des segments différents.
+  let _plage = null;   // {lo, hi, segments:[...]}
+
+  async function chargerPlage(){
+    try{
+      const r = await fetch('/data/bande_segments?band=' + encodeURIComponent(bande));
+      if(!r.ok) return;
+      const d = await r.json();
+      if(d && d.segments && d.segments.length) _plage = d;
+    }catch(e){ /* la fenêtre reste utilisable en liste seule */ }
+  }
+
+  function pct(mhz){
+    // Position verticale : le HAUT de la réglette est le BAS de bande, comme
+    // sur un récepteur qu'on remonte en fréquence.
+    if(!_plage) return null;
+    const p = (mhz - _plage.lo) / (_plage.hi - _plage.lo);
+    return (p < 0 || p > 1) ? null : p * 100;
+  }
+
+  function dessinerRegle(spots){
+    const el = document.getElementById('regle');
+    if(!el) return;
+    if(!_plage){ el.innerHTML = ''; el.style.display = 'none'; return; }
+    el.style.display = '';
+    const bouts = [];
+    for(const s of _plage.segments){
+      const h = pct(s.hi) - pct(s.lo);
+      bouts.push(`<div class="seg seg-${s.cat.toLowerCase()}" style="top:${pct(s.lo)}%;height:${h}%"></div>`);
+      // Étiquette seulement si le segment est assez haut pour la contenir —
+      // sinon les libellés se chevauchent et deviennent illisibles.
+      if(h > 7) bouts.push(`<div class="seg-lbl" style="top:${pct(s.lo) + 0.6}%">${s.cat === 'DIGITAL' ? 'DIGI' : s.cat}</div>`);
+    }
+    // Graduations : une tous les 100 kHz sur les bandes étroites, sinon une
+    // par tranche régulière — dix repères suffisent à se situer.
+    const etendue = _plage.hi - _plage.lo;
+    const pas = etendue <= 0.2 ? 0.05 : etendue <= 0.6 ? 0.1 : etendue <= 2 ? 0.5 : 1;
+    for(let f = Math.ceil(_plage.lo / pas) * pas; f < _plage.hi; f += pas){
+      const p = pct(f);
+      if(p === null) continue;
+      bouts.push(`<div class="tick" style="top:${p}%"><span>${f.toFixed(etendue <= 0.6 ? 3 : 1)}</span></div>`);
+    }
+    for(const s of (spots || [])){
+      const p = pct(parseFloat(s.freq));
+      if(p === null) continue;
+      const cls = s.lotw_need_ici ? 'pin-besoin' : (s.lotw === true ? 'pin-lotw' : 'pin-autre');
+      bouts.push(`<div class="pin ${cls}" style="top:${p}%" data-freq="${esc(s.freq)}"
+                   title="${esc(s.call)} · ${esc(s.freq)} MHz">${esc(s.call)}</div>`);
+    }
+    el.innerHTML = bouts.join('');
+    el.querySelectorAll('.pin').forEach(p => { p.onclick = () => qsy(p.dataset.freq); });
+  }
+
   async function tick(){
     horloge();
     try{
@@ -152,16 +230,20 @@ if(localStorage.getItem('rc_theme') === null){
       const liste = document.getElementById('liste');
       if(!spots.length){
         liste.innerHTML = '<div class="empty">Aucun spot sur ' + esc(bande) + ' MHz</div>';
+        // La réglette reste dessinée : bande vide = bande ENTIÈREMENT libre,
+        // c'est une information, pas une absence d'information.
+        dessinerRegle([]);
         return;
       }
       liste.innerHTML = spots.map(ligne).join('');
       liste.querySelectorAll('.row').forEach(el => {
         el.onclick = () => qsy(el.dataset.freq);
       });
+      dessinerRegle(spots);
     }catch(e){ /* serveur injoignable : on garde l'affichage précédent */ }
   }
 
-  tick();
+  chargerPlage().then(tick);
   setInterval(tick, 15000);
   setInterval(horloge, 1000);
 })();

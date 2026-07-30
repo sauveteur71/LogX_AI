@@ -203,3 +203,82 @@ def test_chaque_bande_a_son_propre_nom_de_fenetre():
     bloc = src[src.index('function popoutBandes('):]
     bloc = bloc[:bloc.index('\n}')]
     assert "'rc_bande_'" in bloc
+
+
+# ─── Réglette de fréquence ───────────────────────────────────────────────────
+# Une liste dit QUI trafique ; une échelle montre OÙ l'activité se concentre et
+# surtout où il reste un trou pour appeler. C'est l'information qu'une liste ne
+# peut pas donner — et c'est ce que j'avais manqué en livrant des listes.
+
+@pytest.mark.parametrize('bande,lo,hi,nb_seg', [
+    ('1.8', 1.8, 2.0, 2),
+    ('7', 7.0, 7.3, 3),
+    ('14', 14.0, 14.35, 3),
+    ('50', 50.0, 54.0, 2),
+    ('144', 144.0, 148.0, 2),
+])
+def test_le_decoupage_des_bandes(bande, lo, hi, nb_seg):
+    r = aw.segments_bande(bande)
+    assert abs(r['lo'] - lo) < 1e-6 and abs(r['hi'] - hi) < 1e-6
+    assert len(r['segments']) == nb_seg
+
+
+def test_le_70cm_est_couvert_malgre_son_absence_de_la_table_CC():
+    """La table du manuel CC User s'arrête au 222 MHz — elle vise l'Amérique du
+    Nord. Le 70 cm est une bande de concours majeure en région 1 (Rallye des
+    Points Hauts, National THF) : la laisser de côté rendrait la réglette
+    inutilisable là où l'utilisateur trafique le plus."""
+    r = aw.segments_bande('432')
+    assert r is not None
+    assert abs(r['lo'] - 430.0) < 1e-6, 'la bande commence a 430, pas a 432'
+    assert [s['cat'] for s in r['segments']] == ['CW', 'PHONE']
+
+
+def test_une_bande_nommee_au_dessus_de_sa_borne_basse():
+    """DÉFAUT DE MON PREMIER JET : le filtre supposait que le nom de la bande
+    EST sa fréquence basse. Vrai pour 14, 7, 144… mais pas pour le 432, qui
+    commence à 430 — son segment CW disparaissait de la réglette."""
+    assert aw.segments_bande('432')['segments'][0]['cat'] == 'CW'
+
+
+def test_le_60m_ne_contamine_pas_le_40m():
+    """5,260 MHz est plus proche de 7 MHz que de toute autre bande nommée : la
+    tolérance basse doit rester assez serrée pour l'exclure."""
+    seg = aw.segments_bande('7')['segments']
+    assert all(s['lo'] >= 7.0 for s in seg)
+
+
+def test_les_segments_adjacents_de_meme_categorie_fusionnent():
+    """La table distingue SSB et FM (deux lignes PHONE qui se touchent) :
+    les afficher séparément dessinerait une frontière que l'opérateur ne voit
+    pas sur sa bande."""
+    cats = [s['cat'] for s in aw.segments_bande('144')['segments']]
+    assert cats == ['CW', 'PHONE'], 'SSB et FM doivent etre fusionnes'
+
+
+def test_une_bande_inconnue_ne_leve_pas():
+    for v in ('', None, 'abc', '999'):
+        assert aw.segments_bande(v) is None
+
+
+def test_la_reglette_partage_la_table_du_mode_par_frequence():
+    """Une seule source de vérité : sinon la réglette pourrait dessiner un
+    segment CW là où l'alerte compte un créneau numérique."""
+    for s in aw.segments_bande('14')['segments']:
+        milieu = (s['lo'] + s['hi']) / 2
+        assert aw.mode_depuis_frequence(milieu) == s['cat']
+
+
+def test_la_page_dessine_bien_la_reglette():
+    src = _lire(PAGE)
+    assert 'function dessinerRegle' in src and 'bande_segments' in src
+    assert "class=\"seg seg-" in src or 'seg seg-' in src
+
+
+def test_la_reglette_reste_affichee_quand_la_bande_est_vide():
+    """Bande vide = bande ENTIÈREMENT libre. C'est une information, pas une
+    absence d'information — et c'est le moment où l'échelle sert le plus."""
+    src = _lire(PAGE)
+    bloc = src[src.index("if(!spots.length){"):]
+    bloc = bloc[:bloc.index('return;')]
+    assert 'dessinerRegle' in bloc
