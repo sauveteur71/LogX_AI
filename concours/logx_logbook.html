@@ -1206,7 +1206,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
            côté serveur (logx_awards.suivi_carres), portée concours ou à vie
            selon le mode. -->
       <div class="macro-panel" id="carresBox" style="display:none">
-        <div class="macro-panel-title" title="Carrés entendus en FT8/FT4 qui manquent : rouge = jamais travaillé à vie, jaune = neuf pour ce concours">🔲 CARRÉS ENTENDUS</div>
+        <div class="macro-panel-title" title="Carrés entendus en FT8/FT4 qui manquent : rouge = jamais travaillé à vie, jaune = neuf pour ce concours. Clic sur une ligne : WSJT-X prépare la réponse — c'est VOUS qui appuyez ensuite sur Enable TX.">🔲 CARRÉS ENTENDUS
+          <!-- Coupe-circuit : visible dès qu'un appel a été armé. Il doit
+               rester atteignable en un geste, sans chercher où cliquer. -->
+          <button type="button" id="btnCouperWsjtx" onclick="couperEmissionWsjtx()"
+                  title="Demander à WSJT-X d'arrêter d'émettre immédiatement"
+                  style="display:none;margin-left:auto;background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;cursor:pointer;font-size:11px;padding:0 6px">⏹ COUPER</button>
+        </div>
         <div id="carresEntendus" style="font-family:var(--font-mono);font-size:12px"></div>
       </div>
 

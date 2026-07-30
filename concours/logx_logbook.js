@@ -4780,13 +4780,50 @@ function applyWsjtxState(d){
 // toutes les 15 secondes, un son à chaque cycle rendrait le poste inutilisable.
 const _carresAlertes = new Set();
 
+// ─── WAIT-AND-POUNCE NIVEAU 2 : armer le coup ────────────────────────────────
+// LogX demande à WSJT-X de PRÉPARER la réponse — indicatif rempli, décalage
+// audio calé — exactement comme un double-clic sur la ligne du waterfall.
+// RIEN NE PART SUR L'AIR de ce seul fait : l'émission reste sous le doigt de
+// l'opérateur, qui appuie sur Enable TX. Le libellé et l'infobulle le disent,
+// parce qu'un doute là-dessus est la pire chose possible.
+async function armerReponse(call){
+  if(!call) return;
+  try{
+    const r = await fetch('/wsjtx/repondre', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({call})});
+    const d = await r.json();
+    if(d.ok){
+      notify(trF('▶ {call} armé dans WSJT-X — à toi d\'émettre', {call: d.call}));
+      const b = document.getElementById('btnCouperWsjtx');
+      if(b) b.style.display = '';
+    } else {
+      // Chaque refus dit POURQUOI : « rien ne se passe » après un clic est le
+      // retour le plus décourageant qui soit.
+      notify(trF('❌ {err}', {err: d.error || 'refus'}));
+    }
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+}
+
+async function couperEmissionWsjtx(){
+  try{
+    const d = await fetch('/wsjtx/couper', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: '{}'}).then(r=>r.json());
+    notify(d.ok ? '⏹ Émission coupée' : trF('❌ {err}', {err: d.error || 'refus'}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+}
+
 function appliquerSuiviCarres(carres){
   const liste = document.getElementById('carresEntendus');
   const items = (carres || []).filter(c => c.interet > 0);
   if(liste){
     liste.innerHTML = items.length ? items.map(c => {
       const prio = c.interet === 2;
-      return `<div style="display:flex;gap:8px;align-items:baseline;padding:2px 0">
+      // Clic = « armer le coup » (niveau 2). L'indicatif est restreint aux
+      // caractères d'indicatif avant d'entrer dans l'argument onclick : il
+      // vient d'un décodage radio, donc d'une source non maîtrisée.
+      const jsCall = String(c.call || '').replace(/[^A-Za-z0-9/]/g, '');
+      return `<div onclick="armerReponse('${jsCall}')" style="display:flex;gap:8px;align-items:baseline;padding:2px 0;cursor:pointer"
+                   title="Préparer la réponse à ${escHtml(c.call || '')} dans WSJT-X — l'émission reste sous votre doigt">
         <b style="color:${prio ? 'var(--red)' : 'var(--yellow)'}">${escHtml(c.grid)}</b>
         <span style="color:var(--text)">${escHtml(c.call || '')}</span>
         <span style="color:var(--muted);font-size:11px">${escHtml(c.libelle || '')}</span>

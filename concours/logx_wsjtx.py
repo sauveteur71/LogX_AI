@@ -415,6 +415,15 @@ def record_decode(msg, my_call=''):
         for i, c in enumerate(calls):
             connu = _decodes.get(c) or {}
             e = {'band': band, 'freq_mhz': freq_mhz, 'mode': mode, 'last_seen': now}
+            # Les champs BRUTS du décodage, conservés pour pouvoir y RÉPONDRE
+            # plus tard : un message « Reply » doit les renvoyer à l'identique,
+            # c'est ainsi que WSJT-X retrouve la ligne visée (voir
+            # construire_reply). Sans eux, on sait qui on a entendu mais on est
+            # incapable de le rappeler.
+            for cle in ('time_ms', 'snr', 'dt', 'delta_hz', 'message',
+                        'wsjtx_id', 'schema'):
+                if cle in msg:
+                    e[cle] = msg[cle]
             # Le carré une fois connu N'EST JAMAIS EFFACÉ par un décodage
             # ultérieur qui n'en porte pas. Sur un QSO FT8, « CQ F4ABC JN18 »
             # est suivi de « ... -15 », « ... RR73 », « ... 73 » : sans cette
@@ -427,6 +436,101 @@ def record_decode(msg, my_call=''):
         for k in [k for k, v in _decodes.items() if v['last_seen'] < cutoff]:
             del _decodes[k]
     return calls
+
+
+# ─── NIVEAU 2 : RÉPONDRE À UN DÉCODAGE ───────────────────────────────────────
+# « Armer le coup » : LogX remplit l'indicatif dans WSJT-X et cale le décalage
+# audio, exactement comme un double-clic sur la ligne. C'est ENSUITE l'opérateur
+# qui appuie sur Enable TX — rien ne part sur l'air du seul fait de ce clic.
+#
+# Trois choses manquaient, toutes jetées par l'écouteur : l'adresse d'où parle
+# WSJT-X, la socket par laquelle lui répondre, et l'identifiant de son
+# instance. On répond DEPUIS LA SOCKET D'ÉCOUTE et non depuis une socket
+# neuve : WSJT-X répond au port d'où vient le message, et une socket éphémère
+# ferait aussi trébucher le premier pare-feu venu.
+_liaison = {'sock': None, 'peer': None, 'wsjtx_id': '', 'schema': 2}
+_liaison_lock = threading.Lock()
+
+# Un décodage plus vieux que ça ne désigne plus rien pour WSJT-X : les cycles
+# FT8 durent 15 s et il ne garde que l'activité récente. Répondre à une ligne
+# périmée ne provoque aucune erreur — simplement rien ne se passe, ce qui est
+# le pire des retours. Mieux vaut refuser en le disant.
+AGE_MAX_REPONSE_S = 120
+
+
+def liaison_prete():
+    """La liaison permet-elle d'ÉMETTRE vers WSJT-X ?
+
+    Écouter et pouvoir répondre sont deux choses différentes : tant qu'aucun
+    datagramme n'est arrivé, on ignore à quelle adresse parler.
+    """
+    with _liaison_lock:
+        return bool(_liaison['sock'] and _liaison['peer'])
+
+
+def _noter_liaison(sock, peer, msg):
+    with _liaison_lock:
+        _liaison['sock'] = sock
+        _liaison['peer'] = peer
+        if msg.get('wsjtx_id'):
+            _liaison['wsjtx_id'] = msg['wsjtx_id']
+        if msg.get('schema'):
+            _liaison['schema'] = msg['schema']
+
+
+def repondre_a(call):
+    """Demande à WSJT-X de répondre au dernier décodage de `call`.
+
+    Retourne un dict explicite : {'ok': True, ...} ou {'ok': False, 'error'}.
+    Chaque refus dit POURQUOI — « rien ne s'est passé » est le retour le plus
+    frustrant qui soit quand on vient de cliquer sur un indicatif.
+    """
+    import time
+    c = str(call or '').upper().strip()
+    if not c:
+        return {'ok': False, 'error': 'Indicatif manquant'}
+    with _decodes_lock:
+        d = dict(_decodes.get(c) or {})
+    if not d:
+        return {'ok': False, 'error': 'Indicatif %s pas entendu recemment' % c}
+    if 'time_ms' not in d:
+        # Décodage mémorisé avant que les champs bruts soient conservés : on ne
+        # peut pas fabriquer un Reply qui désigne quoi que ce soit.
+        return {'ok': False, 'error': 'Decodage trop ancien pour etre rappele'}
+    age = time.time() - d.get('last_seen', 0)
+    if age > AGE_MAX_REPONSE_S:
+        return {'ok': False,
+                'error': 'Decodage vieux de %ds : WSJT-X ne le connait plus' % int(age)}
+    with _liaison_lock:
+        sock, peer = _liaison['sock'], _liaison['peer']
+        wid = d.get('wsjtx_id') or _liaison['wsjtx_id']
+        schema = d.get('schema') or _liaison['schema']
+    if not sock or not peer:
+        return {'ok': False,
+                'error': "Aucun message recu de WSJT-X : verifie le serveur UDP "
+                         "dans Reglages -> Rapports"}
+    try:
+        sock.sendto(construire_reply(d, wid, schema), peer)
+    except Exception as e:
+        return {'ok': False, 'error': 'Envoi impossible : %s' % e}
+    print("[WSJTX] Reply -> %s (%s)" % (c, d.get('message', '')))
+    return {'ok': True, 'call': c, 'message': d.get('message', ''),
+            'mode': d.get('mode', ''), 'delta_hz': d.get('delta_hz', 0)}
+
+
+def couper_emission(auto_seulement=False):
+    """Coupe-circuit : demande à WSJT-X d'arrêter d'émettre."""
+    with _liaison_lock:
+        sock, peer = _liaison['sock'], _liaison['peer']
+        wid, schema = _liaison['wsjtx_id'], _liaison['schema']
+    if not sock or not peer:
+        return {'ok': False, 'error': 'Aucune liaison WSJT-X'}
+    try:
+        sock.sendto(construire_halt_tx(wid, auto_seulement, schema), peer)
+    except Exception as e:
+        return {'ok': False, 'error': 'Envoi impossible : %s' % e}
+    print("[WSJTX] Halt Tx (auto_seulement=%s)" % auto_seulement)
+    return {'ok': True, 'auto_seulement': bool(auto_seulement)}
 
 
 def recent_decodes(max_age=_DECODE_TTL):
@@ -540,7 +644,7 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
             return
         while True:
             try:
-                data, _ = sock.recvfrom(8192)
+                data, peer = sock.recvfrom(8192)
             except socket.timeout:
                 continue
             except Exception:
@@ -548,6 +652,13 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
             msg = parse_message(data)
             if not msg:
                 continue
+            # L'adresse de l'émetteur était JETÉE. C'est pourtant la seule
+            # façon de savoir à qui répondre : WSJT-X n'annonce nulle part son
+            # port d'écoute, il faut le déduire de ce qu'il nous envoie. On
+            # garde aussi la socket : répondre depuis une autre changerait le
+            # port source, ce que WSJT-X et les pare-feu n'aiment ni l'un ni
+            # l'autre.
+            _noter_liaison(sock, peer, msg)
             with _status_lock:
                 status['connected'] = True
                 status['last_seen'] = time.time()

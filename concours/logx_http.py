@@ -3625,6 +3625,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'error': str(e)}, 400)
             return
 
+        # NIVEAU 2 de Wait-and-Pounce : « armer le coup ». On demande à WSJT-X
+        # de préparer la réponse à un décodage — indicatif rempli, décalage
+        # audio calé — exactement comme un double-clic sur la ligne. RIEN NE
+        # PART SUR L'AIR de ce seul fait : c'est l'opérateur qui appuie ensuite
+        # sur Enable TX. La route est protégée comme toutes les écritures.
+        if self.path == '/wsjtx/repondre':
+            import logx_wsjtx as wsjtx
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            res = wsjtx.repondre_a(payload.get('call', ''))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        # Le coupe-circuit. Volontairement SANS condition : il doit répondre
+        # même si tout le reste est en panne, et depuis n'importe quel poste du
+        # réseau — l'opérateur qui veut arrêter l'émission ne doit jamais avoir
+        # à chercher où cliquer.
+        if self.path == '/wsjtx/couper':
+            import logx_wsjtx as wsjtx
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            res = wsjtx.couper_emission(bool(payload.get('auto_seulement')))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
         # Filtre d'affichage des spots. Même précaution que /ui/theme juste
         # au-dessus : on n'écrit QUE 'spot_filter', jamais tout current_config.
         # Réglage partagé entre postes à dessein — en multi-op, deux écrans qui
