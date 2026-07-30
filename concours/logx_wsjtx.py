@@ -615,9 +615,19 @@ def wsjtx_settings(cfg):
     return {'enabled': enabled, 'port': port}
 
 
-def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
+def start_listener(get_cfg, add_qso, port=DEFAULT_PORT, on_decode=None,
+                   on_qso=None):
     """Démarre l'écouteur UDP en thread de fond (idempotent).
-    get_cfg() -> config courante ; add_qso(qso_dict) -> insère dans le log."""
+
+    get_cfg() -> config courante ; add_qso(qso_dict) -> insère dans le log.
+
+    on_decode(calls, msg) et on_qso(msg) sont des rappels FACULTATIFS, fournis
+    par logx_http pour Wait-and-Pounce. Ils vivent là-bas et pas ici parce que
+    décider s'il faut appeler demande le carnet, les confirmations LoTW et le
+    barème du concours — que ce module n'a aucune raison de connaître. Ils
+    tournent dans CE thread : au niveau 4, personne n'a de navigateur ouvert,
+    la décision ne peut donc pas dépendre d'un client qui interroge.
+    """
     global _listener_started
     # Check-then-set sous verrou : deux /wsjtx/state simultanés ne peuvent plus
     # lancer deux threads sur le même port.
@@ -677,14 +687,33 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
                             print(f"[WSJTX] +QSO auto {qso['call']} {qso['band']}MHz {qso['mode']}")
                 except Exception as e:
                     print(f"[WSJTX] Erreur auto-log: {e}")
+                # Le QSO a abouti : la session d'appel automatique doit le
+                # savoir, sinon elle rappellerait indéfiniment une station
+                # déjà travaillée. Enveloppé à part, même raison que ci-dessous.
+                if on_qso:
+                    try:
+                        on_qso(msg)
+                    except Exception as e:
+                        print(f"[WSJTX] Erreur pounce (QSO): {e}")
             elif msg['type'] == 'decode':
                 # Alerte DXCC/département manquant (voir recent_decodes()) —
                 # le croisement avec le log se fait côté logx_http.py, ici on
                 # ne fait qu'alimenter le cache des décodages entendus.
+                calls = []
                 try:
-                    record_decode(msg, _my_call(get_cfg() or {}))
+                    calls = record_decode(msg, _my_call(get_cfg() or {}))
                 except Exception as e:
                     print(f"[WSJTX] Erreur decode: {e}")
+                # Wait-and-Pounce (niveaux 3 et 4). Le rappel est enveloppé
+                # SÉPARÉMENT : une erreur dans la logique d'appel automatique ne
+                # doit pas emporter l'auto-log avec elle. Le thread d'écoute mort,
+                # c'est TOUT le pont WSJT-X qui s'arrête jusqu'au redémarrage —
+                # défaut déjà rencontré ici, on ne le refait pas.
+                if on_decode and calls:
+                    try:
+                        on_decode(calls, msg)
+                    except Exception as e:
+                        print(f"[WSJTX] Erreur pounce: {e}")
 
     threading.Thread(target=_run, daemon=True).start()
 

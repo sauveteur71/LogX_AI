@@ -1121,6 +1121,98 @@ def _amp_state_dict(cfg_snap):
     return amp.get_state(cfg_snap)
 
 
+# ─── WAIT-AND-POUNCE : le câblage, niveaux 3 et 4 ────────────────────────────
+# Ces deux fonctions sont appelées DEPUIS LE THREAD UDP de logx_wsjtx, pas
+# depuis un handler HTTP. C'est la seule façon de tenir le niveau 4 : « personne
+# devant la radio » veut dire personne pour ouvrir un navigateur, donc rien ne
+# peut dépendre d'un client qui interroge.
+#
+# Le calcul de l'intérêt REUTILISE les fonctions déjà éprouvées de logx_awards
+# plutôt que d'en réécrire une variante. Deux réponses différentes à « cette
+# station vaut-elle un appel ? » selon qu'on la pose à l'écran ou au moteur
+# d'appel, c'est le genre d'incohérence qui fait perdre confiance dans tout le
+# reste — c'est exactement le défaut corrigé sur la grille bande × mode.
+
+def _interet_pounce(call, band, mode, grid, cfg_snap):
+    """Ce que LogX sait de cette station, sous la forme attendue par le moteur."""
+    import logx_awards as awards
+    interet = {'nouveau_pays': False, 'besoin_lotw': False,
+               'carre_neuf': False, 'nouveau_mult': False}
+    with log_lock:
+        log_copy = list(shared_log)
+    try:
+        b = awards.besoin_lotw(call, band, mode, log_copy)
+        interet['besoin_lotw'] = bool(b.get('besoin'))
+        # « Jamais confirmée nulle part » est le cas fort : l'entité n'est
+        # confirmée LoTW sur AUCUNE bande ni AUCUN mode.
+        interet['nouveau_pays'] = (b.get('raison') == 'jamais_confirme')
+    except Exception:
+        pass
+    if grid:
+        try:
+            # active_scope_id vit dans logx_storage, PAS dans logx_awards — il
+            # est déjà importé en tête de ce module. Le passer permet à
+            # suivi_carres d'appliquer la règle de portée posée par
+            # l'utilisateur : en concours, seule la durée du concours compte,
+            # mais un carré absent AUSSI du carnet à vie passe devant.
+            suivi = awards.suivi_carres([{'call': call, 'grid': grid, 'band': band}],
+                                        log_copy, scope_id=active_scope_id(cfg_snap),
+                                        bande=band)
+            if suivi:
+                interet['carre_neuf'] = bool(suivi[0].get('neuf_a_vie'))
+                interet['nouveau_mult'] = suivi[0].get('interet', 0) > 0
+        except Exception:
+            pass
+    return interet
+
+
+def _pounce_sur_decodage(calls, msg):
+    """Un décodage vient d'arriver : faut-il appeler ?
+
+    Sortie IMMÉDIATE si aucune session n'est armée — ce chemin est traversé à
+    chaque décodage FT8, soit plusieurs fois par cycle de 15 s, et il ne doit
+    rien coûter tant que la fonction n'est pas utilisée.
+    """
+    import logx_pounce as pounce
+    import logx_wsjtx as wsjtx
+    if not pounce.session.active:
+        return
+    if pounce.session.expiree():
+        pounce.session.desarmer('duree ecoulee')
+        wsjtx.couper_emission(auto_seulement=True)
+        print("[POUNCE] Duree ecoulee : session desarmee, emission coupee")
+        return
+    cfg_snap = dict(current_config)
+    # Un SEUL appel à recent_decodes() : il parcourt et purge le cache sous
+    # verrou, l'appeler une fois par indicatif serait payé à chaque décodage.
+    par_call = {d['call']: d for d in wsjtx.recent_decodes()}
+    for call in calls:
+        d = par_call.get(call)
+        if not d:
+            continue
+        interet = _interet_pounce(call, d.get('band', ''), d.get('mode', ''),
+                                  d.get('grid', ''), cfg_snap)
+        avis = pounce.session.decider(d, interet)
+        if not avis.get('appeler'):
+            continue
+        res = wsjtx.repondre_a(call)
+        if res.get('ok'):
+            # Journalisé APRÈS l'envoi seulement : noter un appel qui a échoué
+            # fausserait le plafond et l'historique que l'opérateur relira.
+            pounce.session.noter_appel(call, avis.get('motif', ''))
+            print("[POUNCE] Appel %s — %s" % (call, avis.get('motif', '')))
+        else:
+            print("[POUNCE] Appel %s refuse : %s" % (call, res.get('error')))
+        return          # un seul appel par décodage : WSJT-X en mène un à la fois
+
+
+def _pounce_sur_qso(msg):
+    """QSO abouti : la station ne doit plus être rappelée."""
+    import logx_pounce as pounce
+    if pounce.session.active:
+        pounce.session.noter_qso(msg.get('call', ''))
+
+
 def _wsjtx_state_dict(cfg_snap):
     import logx_wsjtx as wsjtx
     settings = wsjtx.wsjtx_settings(cfg_snap)
@@ -1130,7 +1222,9 @@ def _wsjtx_state_dict(cfg_snap):
     wsjtx.start_listener(
         get_cfg=lambda: dict(current_config),
         add_qso=lambda q: add_qso_to_log(q, force=False)[0],
-        port=settings['port'])
+        port=settings['port'],
+        on_decode=_pounce_sur_decodage,
+        on_qso=_pounce_sur_qso)
     st = wsjtx.current_status()
     st['enabled'] = True
     st['port'] = settings['port']
@@ -2927,6 +3021,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         'alert_matches': alert_matches, 'filtre': comptes_filtre})
             return
 
+        # État de la session d'appel automatique : minuterie restante, appel en
+        # cours, journal de ce qui est parti. Consultable depuis N'IMPORTE quel
+        # poste — au niveau 4 l'opérateur n'est pas devant la radio, mais il
+        # doit pouvoir regarder ce qu'elle fait depuis son téléphone.
+        if path == '/pounce/state':
+            import logx_pounce as pounce
+            # Une session dont la minuterie est écoulée pendant que rien ne
+            # décodait doit se désarmer ICI aussi : sinon elle resterait
+            # « active » à l'écran, sans plus jamais l'être en fait.
+            if pounce.session.expiree():
+                pounce.session.desarmer('duree ecoulee')
+            self._json(pounce.session.etat())
+            return
+
         # Pont WSJT-X (FT8/FT4) : état de la liaison UDP — pollé par le logbook
         if path == '/wsjtx/state':
             self._json(_wsjtx_state_dict(self._cfg_snapshot()))
@@ -3623,6 +3731,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
+            return
+
+        # Wait-and-Pounce niveaux 3 et 4 : ARMER l'appel automatique. C'est LE
+        # geste qui autorise la station à émettre sans qu'on la touche — il est
+        # donc explicite, daté, et borné dans le temps par construction (voir
+        # logx_pounce.Session.armer, qui refuse un armement sans critère).
+        if self.path == '/pounce/armer':
+            import logx_pounce as pounce
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            res = pounce.session.armer(payload)
+            if res.get('ok'):
+                print("[POUNCE] ARME niveau %d pour %d min"
+                      % (res['niveau'], payload.get('duree_min', pounce.DUREE_DEFAUT_MIN)))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        # DÉSARMER. Comme le coupe-circuit : sans condition, et il coupe AUSSI
+        # l'émission en cours — désarmer sans arrêter WSJT-X laisserait la
+        # séquence en cours partir jusqu'au bout, ce que personne n'attend en
+        # cliquant « arrêter ».
+        if self.path == '/pounce/desarmer':
+            import logx_pounce as pounce
+            import logx_wsjtx as wsjtx
+            res = pounce.session.desarmer('arret manuel')
+            try:
+                wsjtx.couper_emission(auto_seulement=False)
+            except Exception:
+                pass
+            self._json(res)
             return
 
         # NIVEAU 2 de Wait-and-Pounce : « armer le coup ». On demande à WSJT-X
