@@ -107,6 +107,103 @@ def _jdn_to_datetime(jdn, ms):
 
 
 # ─── PARSING DES MESSAGES ────────────────────────────────────────────────────
+# ─── ÉCRITEUR QDataStream : le sens SORTANT, vers WSJT-X ─────────────────────
+# Jusqu'ici la liaison était en écoute seule. WSJT-X accepte pourtant des
+# messages sur le même socket UDP, et c'est la seule voie pour lui faire
+# répondre à un décodage sans que personne ne touche la souris.
+#
+# LE PIÈGE DE FORMAT, et il est silencieux : Qt sérialise un `float` déclaré
+# dans WSJT-X sur HUIT octets, pas quatre — QDataStream est en double précision
+# par défaut. Le décodeur du projet le confirme, il lit ce champ avec f64
+# (voir le type 2 « Decode » plus bas). Écrire 4 octets décalerait tout ce qui
+# suit et WSJT-X jetterait le message sans un mot. On mirroir donc exactement
+# le lecteur : c'est LUI la référence, pas la documentation.
+
+TYPE_REPLY = 4
+TYPE_HALT_TX = 8
+
+
+class _Writer:
+    """Miroir strict de _Reader. Toute méthode ajoutée ici doit avoir sa
+    jumelle en lecture, sinon les deux formats divergent en silence."""
+
+    def __init__(self):
+        self.parts = []
+
+    def u32(self, v):
+        self.parts.append(struct.pack('>I', int(v) & 0xFFFFFFFF))
+        return self
+
+    def i32(self, v):
+        self.parts.append(struct.pack('>i', int(v)))
+        return self
+
+    def f64(self, v):
+        self.parts.append(struct.pack('>d', float(v)))
+        return self
+
+    def u8(self, v):
+        self.parts.append(struct.pack('>B', int(v) & 0xFF))
+        return self
+
+    def utf8(self, s):
+        """Chaîne Qt : longueur u32 puis octets UTF-8. Une chaîne VIDE et une
+        chaîne NULLE ne s'encodent pas pareil (0 contre 0xffffffff) ; WSJT-X
+        tolère les deux ici, on écrit la forme vide, plus simple à relire."""
+        b = ('' if s is None else str(s)).encode('utf-8')
+        self.u32(len(b))
+        if b:
+            self.parts.append(b)
+        return self
+
+    def octets(self):
+        return b''.join(self.parts)
+
+
+def _entete(mtype, wsjtx_id, schema=2):
+    w = _Writer()
+    w.u32(MAGIC).u32(schema).u32(mtype).utf8(wsjtx_id or '')
+    return w
+
+
+def construire_reply(decodage, wsjtx_id, schema=2):
+    """Message « Reply » (type 4) : demande à WSJT-X de répondre À CE décodage.
+
+    C'est l'équivalent exact d'un double-clic sur la ligne dans le waterfall :
+    WSJT-X remplit l'indicatif, cale le décalage audio et arme l'émission selon
+    ses propres réglages. On ne fabrique donc AUCUN message radio nous-mêmes —
+    c'est WSJT-X qui reste maître de ce qui part sur l'air.
+
+    Les champs du décodage sont RENVOYÉS TELS QUELS. WSJT-X s'en sert pour
+    retrouver la ligne concernée : une heure ou un delta approximatif et il ne
+    reconnaît rien. D'où la nécessité d'avoir conservé time_ms, snr et dt à la
+    lecture — ce que l'ancien parseur jetait.
+    """
+    w = _entete(TYPE_REPLY, wsjtx_id, schema)
+    w.u32(decodage.get('time_ms', 0))
+    w.i32(decodage.get('snr', 0))
+    w.f64(decodage.get('dt', 0.0))
+    w.u32(decodage.get('delta_hz', 0))
+    w.utf8(decodage.get('mode', ''))
+    w.utf8(decodage.get('message', ''))
+    w.u8(1 if decodage.get('low_confidence') else 0)
+    w.u8(int(decodage.get('modifiers', 0)))
+    return w.octets()
+
+
+def construire_halt_tx(wsjtx_id, auto_seulement=False, schema=2):
+    """Message « Halt Tx » (type 8) : coupe l'émission de WSJT-X.
+
+    C'est le coupe-circuit. auto_seulement=True désarme l'émission automatique
+    en laissant finir la séquence en cours ; False coupe immédiatement. Les
+    deux doivent exister : l'arrêt propre pour la fin d'une session sans
+    surveillance, l'arrêt net pour un opérateur qui reprend la main.
+    """
+    w = _entete(TYPE_HALT_TX, wsjtx_id, schema)
+    w.u8(1 if auto_seulement else 0)
+    return w.octets()
+
+
 def parse_message(data):
     """Retourne un dict décrivant le message, ou None si non pertinent/illisible.
     Types gérés : 1 (Status), 2 (Decode) et 5 (QSO Logged)."""
@@ -121,9 +218,13 @@ def parse_message(data):
     try:
         if r.u32() != MAGIC:
             return None
-        r.u32()                 # schema version
+        schema = r.u32()
         mtype = r.u32()
-        r.utf8()                # id (nom de l'instance WSJT-X)
+        # L'identifiant d'instance et la version de schéma étaient LUS PUIS
+        # JETÉS. Ils sont indispensables pour répondre : tout message qu'on
+        # renvoie doit porter le même id (WSJT-X ignore les autres) et le même
+        # schéma. On les remonte donc systématiquement.
+        wsjtx_id = r.utf8()
         if mtype == 1:      # Status
             dial_hz = r.u64()
             mode = r.utf8()
@@ -131,19 +232,24 @@ def parse_message(data):
             r.utf8()        # report
             tx_mode = r.utf8()
             return {'type': 'status', 'dial_mhz': round(dial_hz / 1e6, 4),
-                    'mode': mode, 'tx_mode': tx_mode}
+                    'mode': mode, 'tx_mode': tx_mode,
+                    'wsjtx_id': wsjtx_id, 'schema': schema}
         if mtype == 2:      # Decode : un décodage affiché dans le waterfall (PAS un QSO)
             r.u8()          # 'new' (bool) — pas utilisé
-            r.u32()         # heure du jour (QTime, ms depuis minuit) — IGNORÉE : le
-                            # cache recent_decodes() se base sur l'horloge du serveur
-                            # pour sa fraîcheur (TTL), inutile de gérer le passage de
-                            # minuit UTC d'un QTime qui ne porte pas la date.
-            r.i32()         # SNR — pas utilisé (alerte binaire, pas de tri par signal)
-            r.f64()         # delta temps (s) — idem
+            # Heure, SNR et delta temps étaient LUS PUIS JETÉS : le cache de
+            # décodages se contente de l'horloge du serveur pour sa fraîcheur.
+            # Mais un message « Reply » doit RENVOYER ces trois champs à
+            # l'identique — c'est ainsi que WSJT-X retrouve la ligne visée. Les
+            # jeter, c'était s'interdire à jamais de répondre à un décodage.
+            time_ms = r.u32()   # QTime : ms depuis minuit UTC
+            snr = r.i32()
+            dt = r.f64()        # delta temps (s), 8 octets — voir _Writer.f64
             delta_hz = r.u32()
             mode = r.utf8()
             message = r.utf8()
-            return {'type': 'decode', 'mode': mode, 'message': message, 'delta_hz': delta_hz}
+            return {'type': 'decode', 'mode': mode, 'message': message,
+                    'delta_hz': delta_hz, 'time_ms': time_ms, 'snr': snr,
+                    'dt': dt, 'wsjtx_id': wsjtx_id, 'schema': schema}
         if mtype == 5:      # QSO Logged
             time_off = r.datetime()
             call = r.utf8()
