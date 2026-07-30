@@ -1166,6 +1166,16 @@ function checkPrevQsos(call){
       if(d.state){
         parts.push(`<div style="color:var(--muted)">🏛 ${escHtml(d.state)}</div>`);
       }
+      // Utilisateur LoTW. Décisif juste au-dessus de l'alerte « pas confirmé
+      // LoTW » : si le correspondant n'uploade pas, le créneau ne se comblera
+      // jamais avec lui. `undefined`/null = liste pas encore téléchargée, on
+      // n'affiche RIEN plutôt que d'annoncer « n'utilise pas LoTW » à tort.
+      if(d.lotw_user === true){
+        const depuis = d.lotw_last ? ` · dernier envoi ${escHtml(d.lotw_last)}` : '';
+        parts.push(`<div style="color:var(--green)">✅ LoTW${depuis}</div>`);
+      } else if(d.lotw_user === false){
+        parts.push(`<div style="color:var(--muted)">🚫 pas sur LoTW — ne sera jamais confirmé</div>`);
+      }
       if(d.count > 0){
         const conf = d.confirmed ? ` · <span style="color:var(--green)">${d.confirmed} confirmé${d.confirmed>1?'s':''}</span>` : '';
         const bands = d.bands && d.bands.length ? ` sur ${d.bands.join('/')} MHz` : '';

@@ -1991,6 +1991,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             h['state'] = next((q.get('state') for q in log_copy
                                if str(q.get('call', '')).upper() == call
                                and q.get('state')), '')
+            # Cette station uploade-t-elle vers LoTW ? Décisif quand l'alerte
+            # ci-dessus dit « pas confirmé LoTW » : si le correspondant n'y est
+            # pas, le créneau ne se comblera jamais avec lui.
+            try:
+                import logx_lotwusers as lotw
+                h['lotw_user'] = lotw.is_lotw_user(call)
+                h['lotw_last'] = lotw.last_upload(call)
+            except Exception:
+                h['lotw_user'], h['lotw_last'] = None, ''
             self._json(h)
             return
 
@@ -2816,6 +2825,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     entry['bearing'] = deg
                     entry['cardinal'] = cardinal(deg)
                 full_entries.append(entry)
+            # Utilisateur LoTW ou non : inutile de courir après une station qui
+            # n'uploade jamais, le QSO ne sera jamais confirmé et ne comptera
+            # jamais pour le DXCC. Annoté en UNE passe pour toute la liste
+            # (voir logx_lotwusers.annoter). 'lotw' vaut None tant que la liste
+            # n'est pas téléchargée — « on ne sait pas » n'est pas « non ».
+            try:
+                import logx_lotwusers as lotw
+                lotw.annoter(full_entries)
+            except Exception:
+                pass
             alert_matches = alerts.check_alerts(cfg_snap.get('alert_rules'), full_entries)
             self._json({'spots': full_entries[:40], 'meta': meta, 'alert_matches': alert_matches})
             return

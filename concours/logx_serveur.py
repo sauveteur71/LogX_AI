@@ -124,6 +124,20 @@ if __name__ == '__main__':
     from logx_dxcc import update_cty_if_stale
     threading.Thread(target=update_cty_if_stale, daemon=True).start()
 
+    # Liste publique des utilisateurs LoTW (ARRL) : sert à colorer les
+    # indicatifs et à écarter des alertes les stations qui n'uploadent jamais
+    # — un QSO avec elles ne sera jamais confirmé, donc ne comptera jamais pour
+    # le DXCC. En fond comme cty.dat : 6 Mo à télécharger ne doivent pas
+    # retarder le démarrage, et sans réseau on garde la liste qu'on a.
+    def _maj_lotw():
+        try:
+            import logx_lotwusers as lotw
+            lotw.update_if_stale()
+            lotw.load()
+        except Exception as _e:
+            print(f'[LoTW] {_e}')
+    threading.Thread(target=_maj_lotw, daemon=True).start()
+
     # Scoreboard en direct + sauvegarde cloud : deux threads de fond qui lisent
     # la config à chaud (activés/intervalles réglés dans CONFIG). Inactifs tant
     # que rien n'est configuré ; ne perturbent jamais le serveur en cas d'échec.
