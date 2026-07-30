@@ -5302,11 +5302,38 @@ form.addEventListener('submit', async (e) => {{
         except (TypeError, ValueError):
             length = 0
         if length < 0 or length > MAX_LOGIN_BODY:
-            # Idem : ce corps ne sera pas lu (c'est justement son volume qu'on
-            # refuse), il faut donc fermer la connexion — sinon ces octets
-            # deviennent la requête suivante et le client reçoit la réponse
-            # d'une AUTRE requête que la sienne.
-            self.close_connection = True
+            # Ce corps ne sera pas EXPLOITÉ — c'est justement son volume qu'on
+            # refuse — mais il doit quand même être VIDÉ DE LA SOCKET, pour la
+            # raison déjà expliquée au 429 plus haut : fermer sur un tampon de
+            # réception non vide fait envoyer un RST au lieu d'un FIN, et le RST
+            # DÉTRUIT la réponse 413 déjà émise. Le client recevait alors une
+            # erreur réseau au lieu de « corps trop volumineux ». Mesuré avant
+            # correction : 3 échecs sur 10 en exécution ISOLÉE — donc pas un
+            # aléa de charge, mais une course permanente que la fermeture
+            # « franche » causait elle-même.
+            #
+            # Vider dispense AUSSI de fermer : plus d'octets résiduels à prendre
+            # pour la requête suivante, donc la connexion reste réutilisable.
+            # C'est cette propriété-là qui est testable de façon déterministe,
+            # contrairement à la course (voir test_access_password.py).
+            #
+            # Le vidage est BORNÉ : au-delà de PURGE_MAX on ne brûle pas de la
+            # bande passante pour rester poli avec un client qui annonce des
+            # mégaoctets sur une route de mot de passe — là seulement on ferme
+            # sèchement, en assumant le RST.
+            PURGE_MAX = 256 * 1024
+            if 0 < length <= PURGE_MAX:
+                reste = length
+                try:
+                    while reste > 0:
+                        morceau = self.rfile.read(min(reste, 65536))
+                        if not morceau:
+                            break
+                        reste -= len(morceau)     # lu puis jeté : jamais analysé
+                except Exception:
+                    self.close_connection = True
+            else:
+                self.close_connection = True
             self._json({'ok': False, 'error': 'Corps de requête trop volumineux'}, 413)
             return
         body = self.rfile.read(length) if length else b''

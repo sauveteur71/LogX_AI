@@ -348,6 +348,75 @@ def test_login_corps_trop_volumineux_rejete_413(server, isolated_password_file):
     assert 'Set-Cookie' not in headers
 
 
+def test_APRES_UN_413_LA_CONNEXION_RESTE_UTILISABLE(server, isolated_password_file):
+    """Le serveur doit VIDER le corps refusé de la socket, pas fermer dessus.
+
+    LE DÉFAUT. Il refusait sans lire les 5 000 octets annoncés. Fermer une
+    connexion dont le tampon de réception contient encore des octets fait
+    envoyer un RST au lieu d'un FIN par la pile TCP — et un RST DÉTRUIT la
+    réponse déjà émise. Le client recevait ConnectionResetError (WinError
+    10054) au lieu du 413 : « corps trop volumineux » devenait « le serveur a
+    coupé ». Mesuré : 3 échecs sur 10 en exécution ISOLÉE.
+
+    POURQUOI CE TEST-CI ET PAS UNE BOUCLE. La course elle-même n'est pas
+    reproductible de façon fiable — une première version de ce test rejouait
+    dix fois la requête et passait quand même, correctif retiré : elle ne
+    protégeait rien. On teste donc la propriété DÉTERMINISTE que le correctif
+    garantit et qui est absente sans lui : le corps ayant été vidé, il ne reste
+    aucun octet à prendre pour la requête suivante, donc la connexion n'a plus
+    besoin d'être fermée et RESTE RÉUTILISABLE. Sans vidage, le serveur pose
+    close_connection et la seconde requête sur la même socket échoue.
+
+    SOCKET BRUTE OBLIGATOIRE : http.client rouvre tout seul une connexion
+    fermée (auto_open), ce qui masque complètement la différence. Une deuxième
+    version de ce test utilisait HTTPConnection et passait, correctif retiré.
+    """
+    import socket as _socket
+    _enable_password(server)
+    u = urlparse(server)
+    corps = json.dumps({'password': 'a' * 5000}).encode('utf-8')
+    requete = (b'POST /auth/login HTTP/1.1\r\nHost: x\r\n'
+               b'Content-Type: application/json\r\n'
+               b'Content-Length: ' + str(len(corps)).encode() + b'\r\n\r\n' + corps)
+    def lire_reponse(sock):
+        """Une réponse ENTIÈRE : en-têtes puis exactement Content-Length octets.
+        Sans cela, le corps du 413 traîne dans le tampon et c'est LUI qu'on
+        relit ensuite en croyant lire la réponse suivante."""
+        brut = b''
+        while b'\r\n\r\n' not in brut:
+            bout = sock.recv(65536)
+            if not bout:
+                return brut
+            brut += bout
+        entete, _, corps = brut.partition(b'\r\n\r\n')
+        n = 0
+        for ligne in entete.split(b'\r\n'):
+            if ligne.lower().startswith(b'content-length:'):
+                n = int(ligne.split(b':', 1)[1].strip())
+        while len(corps) < n:
+            bout = sock.recv(65536)
+            if not bout:
+                break
+            corps += bout
+        return entete + b'\r\n\r\n' + corps
+
+    s = _socket.create_connection((u.hostname, u.port), timeout=10)
+    try:
+        s.sendall(requete)
+        rep1 = lire_reponse(s)
+        assert b'413' in rep1.split(b'\r\n')[0], rep1[:80]
+
+        # LA vérification : même socket, requête suivante. Elle n'aboutit que
+        # si le serveur a réellement consommé les 5 000 octets refusés — sinon
+        # il a posé close_connection et fermé, et on ne reçoit plus rien.
+        s.sendall(b'GET /auth/login HTTP/1.1\r\nHost: x\r\n\r\n')
+        rep2 = lire_reponse(s)
+        assert rep2, 'connexion fermee apres le 413 : le corps n a pas ete vide'
+        assert b'200' in rep2.split(b'\r\n')[0], rep2[:80]
+    finally:
+        s.close()
+
+
 # ─── Revue adversariale : le token n'est jamais tourné (best-effort, LOW) ────
 # (voir _rotate_auth_token, appelée depuis _set_access_password). Avant le
 # fix, AUTH_TOKEN était un secret statique jamais modifié : activer ou

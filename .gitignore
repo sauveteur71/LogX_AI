@@ -1,3 +1,14 @@
+# Secrets : motifs NON ancrés, donc valables dans N'IMPORTE QUEL dossier.
+# Les lignes « concours/... » plus bas ne couvrent que ce dossier-là : un
+# serveur lancé depuis la racine (ou un test, ou un script d'analyse) y crée
+# les mêmes fichiers, et ceux-là n'étaient PAS ignorés. Un « git add -A » aurait
+# publié .auth_token — le jeton qui autorise toutes les écritures.
+.auth_token
+.access_password
+.server_config.json
+clef API.txt
+sota_oauth_tokens.json
+
 concours/clef API.txt
 concours/__pycache__/
 concours/config.json
