@@ -216,9 +216,13 @@ def build_adif(qsos, cfg=None):
               + _adif_field('adif_ver', '3.1.4')
               + _adif_field('programid', 'LogX AI')
               + '<EOH>\n')
+    import logx_satellites as sat
     records = []
     for q in qsos:
         date, time = _qso_datetime(q)
+        # Calculé UNE fois : les deux champs satellite vont ensemble ou pas du
+        # tout (voir logx_satellites.champs_adif).
+        sat_q = sat.champs_adif(q)
         fields = [
             _adif_field('call', str(q.get('call', '')).upper()),
             _adif_field('qso_date', date),
@@ -238,6 +242,14 @@ def build_adif(qsos, cfg=None):
             _adif_field('contest_id', q.get('contest', '')),
             _adif_field('operator', q.get('operator', '')),
             _adif_field('distance', q.get('dist', '')),
+            # SATELLITE : les DEUX champs sans lesquels LoTW crédite le QSO
+            # comme un contact TERRESTRE ordinaire. PROP_MODE=SAT est ce qui le
+            # range dans la catégorie satellite (DXCC, WAS, VUCC et mentions
+            # associées), SAT_NAME dit lequel. Voir logx_satellites : le nom
+            # doit être orthographié exactement comme LoTW l'attend, sans quoi
+            # c'est le fichier ENTIER qui est rejeté au téléversement.
+            _adif_field('prop_mode', sat_q.get('prop_mode', '')),
+            _adif_field('sat_name', sat_q.get('sat_name', '')),
             # Activation POTA/SOTA/IOTA/WWFF : ma référence (MY_SIG) + réf. du
             # correspondant (SIG) pour les Park-to-Park / Summit-to-Summit.
             _adif_field('my_sig', q.get('my_sig', '')),

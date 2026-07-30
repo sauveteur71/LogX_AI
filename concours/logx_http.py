@@ -518,11 +518,37 @@ def _valid_since(since_raw, boot_raw, current_v):
 
 
 # ─── INSERTION D'UN QSO (dédup + persistance) ────────────────────────────────
+def _tamponner_satellite(qso):
+    """Reporte le satellite actif de CONFIG sur le QSO, s'il n'en porte pas.
+
+    Le champ existait déjà en configuration mais son aide le disait elle-même :
+    « repère informatif uniquement ». Il devient ici la source de SAT_NAME, donc
+    de PROP_MODE=SAT à l'export — sans quoi LoTW crédite un contact TERRESTRE.
+
+    DEUX PRÉCAUTIONS. Un QSO qui porte DÉJÀ un satellite n'est jamais écrasé :
+    il peut venir d'un import ADIF ou d'un autre poste, et sa valeur est plus
+    sûre qu'un réglage global. Et la valeur « AUTRE » du sélecteur est ignorée :
+    envoyer SAT_NAME=AUTRE à LoTW ferait rejeter le FICHIER ENTIER, ce qui est
+    pire que ne rien envoyer.
+    """
+    if qso.get('sat_name'):
+        return qso
+    # Sous config_lock comme le reste de add_qso_to_log : /config/save REMPLACE
+    # current_config en entier, une lecture non protégée pourrait tomber sur
+    # l'ancien dictionnaire pendant l'échange.
+    with config_lock:
+        nom = str(current_config.get('active_satellite') or '').strip().upper()
+    if nom and nom != 'AUTRE':
+        qso['sat_name'] = nom
+    return qso
+
+
 def add_qso_to_log(qso, force=False):
     """Ajoute un QSO au log partagé avec détection de doublon. Retourne
     (ok, info). Chemin commun à /log/add et au pont WSJT-X."""
     import time as _t
     qso['server_time'] = _t.time()
+    _tamponner_satellite(qso)
     now_utc = datetime.datetime.utcnow()
     qso.setdefault('date', now_utc.strftime('%Y%m%d'))
     qso.setdefault('time', now_utc.strftime('%H:%M'))

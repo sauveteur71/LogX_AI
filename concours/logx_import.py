@@ -99,6 +99,12 @@ def parse_adif_to_qsos(adif_text):
             # (un W6 peut habiter n'importe quel état depuis la fin du découpage
             # géographique des préfixes). Un ADIF LoTW/ClubLog le porte.
             'state': _clean_text((rec.get('STATE') or '').upper()),
+            # SATELLITE : relu à l'import pour qu'un aller-retour ADIF ne
+            # DÉGRADE pas un QSO satellite en contact terrestre. Un carnet
+            # réimporté depuis LoTW ou depuis un autre logiciel porte SAT_NAME ;
+            # le perdre ici reviendrait à effacer silencieusement le seul champ
+            # qui rend le QSO créditable en satellite.
+            'sat_name': _clean_text((rec.get('SAT_NAME') or '').upper()),
             'my_locator': _clean_text((rec.get('MY_GRIDSQUARE') or '').upper()),
             'operator': _clean_text((rec.get('OPERATOR') or rec.get('STATION_CALLSIGN') or '').upper()),
             'contest': _clean_text(rec.get('CONTEST_ID')),
