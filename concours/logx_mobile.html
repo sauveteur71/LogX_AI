@@ -145,19 +145,19 @@
     <div class="hdr-call" id="hdrCall">LogX AI</div>
     <div class="hdr-sub" id="hdrSub">saisie mobile · log partagé</div>
   </div>
-  <div class="hdr-clock" id="hdrClock">--:--<br>UTC</div>
+  <div class="hdr-clock rc-i18n-live" id="hdrClock">--:--<br>UTC</div>
   <button type="button" class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀️</button>
 </header>
 
 <div class="stats">
-  <div class="stat"><div class="stat-lbl">QSO</div><div class="stat-val" id="stQso" style="color:var(--green)">—</div></div>
-  <div class="stat"><div class="stat-lbl">SCORE</div><div class="stat-val" id="stScore" style="color:var(--accent)">—</div></div>
-  <div class="stat"><div class="stat-lbl">ODX</div><div class="stat-val" id="stOdx" style="color:var(--yellow)">—</div></div>
-  <div class="stat"><div class="stat-lbl">RYTHME/H</div><div class="stat-val" id="stRate" style="color:var(--accent2)">—</div></div>
+  <div class="stat"><div class="stat-lbl">QSO</div><div class="stat-val rc-i18n-live" id="stQso" style="color:var(--green)">—</div></div>
+  <div class="stat"><div class="stat-lbl">SCORE</div><div class="stat-val rc-i18n-live" id="stScore" style="color:var(--accent)">—</div></div>
+  <div class="stat"><div class="stat-lbl">ODX</div><div class="stat-val rc-i18n-live" id="stOdx" style="color:var(--yellow)">—</div></div>
+  <div class="stat"><div class="stat-lbl">RYTHME/H</div><div class="stat-val rc-i18n-live" id="stRate" style="color:var(--accent2)">—</div></div>
 </div>
 
 <main>
-  <div class="queue-badge" id="queueBadge"></div>
+  <div class="queue-badge rc-i18n-live" id="queueBadge"></div>
 
   <div>
     <div class="lbl">INDICATIF CORRESPONDANT</div>
@@ -196,7 +196,7 @@
         <div class="lbl">LOCATOR CORRESPONDANT <span style="opacity:.6">(optionnel)</span></div>
         <input type="text" id="inLoc" maxlength="6" autocapitalize="characters" spellcheck="false"
           oninput="this.value=this.value.toUpperCase();onLocInput()">
-        <div class="loc-hint" id="locHint"></div>
+        <div class="loc-hint rc-i18n-live" id="locHint"></div>
       </div>
       <div class="row">
         <div>
@@ -227,7 +227,7 @@
 
   <div class="recent">
     <div class="recent-title">DERNIERS QSO DU LOG PARTAGÉ</div>
-    <div id="recentList"></div>
+    <div id="recentList" class="rc-i18n-live"></div>
   </div>
 
   <div class="foot-link">
@@ -683,5 +683,6 @@ refreshSuggestedSerial();
 updateQueueBadge(loadOfflineQueue().length);   // file laissée par une session précédente
 </script>
 
+<script src="logx_i18n.js"></script>
 </body>
 </html>

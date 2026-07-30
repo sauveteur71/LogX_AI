@@ -39,12 +39,18 @@ header{display:flex;align-items:center;gap:16px;padding:9px 16px;background:line
 .band-chip.closed{opacity:.4}
 </style>
 </head>
-<body>
+<body data-rc-no-lang-select>
 <header>
   <div class="title" id="panelTitle">—</div>
-  <div class="clock" id="clock">—</div>
+  <div class="clock rc-i18n-live" id="clock">—</div>
 </header>
+<!-- panelBody N'EST PAS exclu : il affiche « Chargement… », « Aucun spot
+     exploitable », « Panneau inconnu : … » — des messages que l'utilisateur
+     lit. Son contenu utile est de la donnée (indicatifs, fréquences) qui ne
+     correspond à aucune clé, et les passes restent espacées de 800 ms au
+     minimum par le garde-fou du moteur. -->
 <div class="wrap" id="panelBody">Chargement…</div>
+<script src="logx_i18n.js"></script>
 <script>
 // Migration localStorage 'radiocontest_' -> 'logx_' (renommage du produit), idempotente.
 (function(){try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('radiocontest_')===0){const nk='logx_'+k.slice(13);if(localStorage.getItem(nk)===null)localStorage.setItem(nk,localStorage.getItem(k));}}}catch(e){}})();

@@ -5071,6 +5071,15 @@
 
   function injectSelector() {
     if (document.getElementById('rcLangSelect')) return;
+    // Une page peut refuser le sélecteur : `<body data-rc-no-lang-select>`.
+    // C'est le cas des AFFICHAGES et des fenêtres DÉTACHÉES (écran mural,
+    // bandscope, panneau, band map) — on les regarde, on n'interagit pas
+    // avec, et une liste déroulante y serait un objet visible que personne
+    // n'a demandé, au milieu d'un écran lu à plusieurs mètres. Ces pages
+    // suivent la langue de la fenêtre principale via l'événement `storage`,
+    // donc elles restent traduites sans rien à régler sur place.
+    const hote = document.body || document.documentElement;
+    if (hote && hote.hasAttribute && hote.hasAttribute('data-rc-no-lang-select')) return;
     const sel = document.createElement('select');
     sel.id = 'rcLangSelect';
     sel.title = 'Langue / Language';
