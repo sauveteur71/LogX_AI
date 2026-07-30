@@ -735,7 +735,8 @@ function showTooltip(s,ev,color){
   document.getElementById('ttCall').style.color=color;
   document.getElementById('ttLoc').textContent=s.locator||'—';
   document.getElementById('ttDist').textContent=`${dist} km`;
-  document.getElementById('ttFreq').textContent=s.freq?`${s.freq} MHz`:'—';
+  // s.freq est en kHz (freq_en_khz) : l'infobulle annoncait « 21263 MHz ».
+  document.getElementById('ttFreq').textContent=s.freq?`${(parseFloat(s.freq)/1000).toFixed(3)} MHz`:'—';
   document.getElementById('ttCap').textContent=`${cap}° ${crd}`;
   document.getElementById('ttBand').textContent=`${s.band||144} MHz`;
   const st=document.getElementById('ttStatus');

@@ -40,6 +40,45 @@ PROPAGATION_SOURCES = {
 # ─── CACHE SPOTS GLOBAL (accessible par /log/status) ─────────────────────────
 SPOTS_CACHE = {}   # band → [{ call, locator, freq, spotter, time, source }]
 
+
+def freq_en_khz(freq, band=''):
+    """Ramène une fréquence de spot en kHz, quelle que soit l'unité de la source.
+
+    LE PROBLÈME, mesuré sur les sources réelles : elles ne s'accordent pas.
+    DXSummit HF rend 14074, DXHeat rend 7089 et 144360 — des kHz. DXSummit VHF
+    rend 50.313 et 144.480 — des MHz. Le champ 'freq' des spots n'avait donc
+    aucune unité fixe, et AUCUN écran ne pouvait avoir raison : la page Chasse
+    supposait des kHz (juste en HF, faux en VHF), le band map, le bandscope, la
+    chute d'eau, la réglette et les fenêtres par bande supposaient des MHz. En
+    pratique le band map n'affichait que les spots DXSummit VHF, les seuls du
+    bon côté du hasard — et un clic dessus aurait commandé un QSY 1000 fois
+    trop haut si les autres s'étaient affichés.
+
+    ON TRANCHE PAR LA BANDE, PAS PAR LA MAGNITUDE. La clé de bande ('14',
+    '10.1', '144', '10368'…) est le début de la bande en MHz : on garde
+    l'interprétation qui tombe le plus près. Un seuil de magnitude marcherait
+    pour la HF mais se tromperait dans les micro-ondes, où 10368 MHz (3 cm) est
+    un nombre parfaitement plausible en kHz. Sans bande connue, on retombe sur
+    la magnitude, faute de mieux.
+
+    kHz et pas MHz parce que c'est l'unité native du protocole cluster, celle
+    de la majorité des sources, et celle que /rig/qsy attend déjà (freq_khz).
+    """
+    try:
+        v = float(freq or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if v <= 0:
+        return 0.0
+    try:
+        debut_mhz = float(band)
+    except (TypeError, ValueError):
+        debut_mhz = 0.0
+    if debut_mhz > 0:
+        return v * 1000.0 if abs(v - debut_mhz) < abs(v / 1000.0 - debut_mhz) else v
+    return v if v > 1000 else v * 1000.0
+
+
 def _normalize_spot(call='', locator='', freq=0.0, spotter='', time_str='', info='', source=''):
     """Retourne un dict de spot normalisé avec coordonnées si locator disponible."""
     # Défense contre les None explicites (ex: champ JSON null) — le défaut de paramètre

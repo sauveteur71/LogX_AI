@@ -135,11 +135,15 @@ if(localStorage.getItem('rc_theme') === null){
 
   // QSY : passe par le serveur, donc marche depuis n'importe quel poste du
   // réseau — y compris une tablette posée à côté du transceiver.
-  async function qsy(freq){
-    if(!freq) return;
+  // Reçoit des kHz. /rig/qsy ne lit QUE freq_hz ou freq_khz : la version
+  // précédente envoyait {freq:...}, jamais relu côté serveur, et le clic sur
+  // une épingle ne faisait donc rien du tout — même radio allumée.
+  async function qsy(khz){
+    const f = Number(khz);
+    if(!f) return;
     try{
       await fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
-                               body: JSON.stringify({freq: String(freq)})});
+                               body: JSON.stringify({freq_khz: f})});
     }catch(e){ /* radio non pilotée : le clic reste sans effet, sans erreur */ }
   }
 
@@ -151,9 +155,13 @@ if(localStorage.getItem('rc_theme') === null){
     if(besoin) tags.push('<span class="tag besoin">DXCC</span>');
     if(s.lotw === true) tags.push('<span class="tag lotw">LoTW</span>');
     else if(s.lotw === false) tags.push('<span class="tag nolotw">pas LoTW</span>');
+    // Le serveur envoie des kHz (freq_en_khz) ; on affiche des MHz, seule
+    // écriture qu'un opérateur lit d'un coup d'oeil. data-freq garde les kHz,
+    // c'est ce que /rig/qsy attend.
+    const mhz = (parseFloat(s.freq) || 0) / 1000;
     return `<div class="${classes.join(' ')}" data-freq="${esc(s.freq||'')}">
       <span class="call">${s.new_mult && !s.already_done ? '★ ' : ''}${esc(s.call)}</span>
-      <span class="freq">${esc(s.freq||'')}</span>
+      <span class="freq">${mhz ? mhz.toFixed(3) : ''}</span>
       <span class="pays">${esc(s.dx_country || s.info || '')}</span>
       <span>${tags.join(' ')}</span>
     </div>`;
@@ -206,11 +214,15 @@ if(localStorage.getItem('rc_theme') === null){
       bouts.push(`<div class="tick" style="top:${p}%"><span>${f.toFixed(etendue <= 0.6 ? 3 : 1)}</span></div>`);
     }
     for(const s of (spots || [])){
-      const p = pct(parseFloat(s.freq));
+      // _plage vient de /data/bande_segments, en MHz ; les spots arrivent en
+      // kHz. Sans cette conversion, pct() rendait null pour TOUS les spots et
+      // la réglette restait vide en permanence.
+      const smhz = (parseFloat(s.freq) || 0) / 1000;
+      const p = pct(smhz);
       if(p === null) continue;
       const cls = s.lotw_need_ici ? 'pin-besoin' : (s.lotw === true ? 'pin-lotw' : 'pin-autre');
       bouts.push(`<div class="pin ${cls}" style="top:${p}%" data-freq="${esc(s.freq)}"
-                   title="${esc(s.call)} · ${esc(s.freq)} MHz">${esc(s.call)}</div>`);
+                   title="${esc(s.call)} · ${smhz.toFixed(3)} MHz">${esc(s.call)}</div>`);
     }
     el.innerHTML = bouts.join('');
     el.querySelectorAll('.pin').forEach(p => { p.onclick = () => qsy(p.dataset.freq); });

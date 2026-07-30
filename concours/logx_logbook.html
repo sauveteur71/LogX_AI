@@ -1285,6 +1285,20 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   .bandscope-wrap canvas{width:100%;height:74px;display:block;image-rendering:pixelated}
   .bs-bar{cursor:pointer}
   .bs-bar:hover{opacity:.7}
+  /* Filtre d'affichage des spots (logx_spotfilter.py côté serveur) : replié
+     par défaut, il ne prend de la place que quand on s'en occupe. */
+  .bm-filtre{display:none;padding:5px 8px 7px;border-bottom:1px solid var(--border);background:var(--bg2)}
+  .bm-filtre.on{display:block}
+  .bm-fl{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.6px;margin:4px 0 2px}
+  .bm-chips{display:flex;flex-wrap:wrap;gap:3px}
+  .bm-chip{border:1px solid var(--border);border-radius:3px;background:none;color:var(--muted);
+    font-size:10px;font-weight:700;padding:1px 5px;cursor:pointer;font-family:inherit}
+  .bm-chip.on{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.12)}
+  .bm-opt{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text);margin-top:4px;cursor:pointer}
+  /* Le compte de masqués n'est PAS décoratif : sans lui, une liste vide veut
+     dire à la fois « le filtre coupe tout » et « le cluster est muet ». */
+  .bm-masques{padding:3px 8px;font-size:10px;color:var(--yellow);border-top:1px dashed var(--border)}
+  .bm-spot.hors{border-left:2px solid var(--yellow)}
   @media(max-width:1100px){.bandmap-panel{display:none}}
   </style>
   <div class="bandmap-panel" id="bandmapPanel">
@@ -1292,7 +1306,22 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button onclick="window.rcOpenPanel && window.rcOpenPanel('bandmap', {band: currentBand})" title="Détacher CE panneau Band Map dans une fenêtre séparée" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px;margin-left:auto">⇱</button>
       <button onclick="toggleWaterfall()" id="waterfallToggleBtn" title="Vue chute d'eau : activité de la bande dans le temps (défilement, mêmes spots)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🌊</button>
       <button onclick="popoutScope()" title="Détacher le bandscope graphique sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">📡</button>
-      <button onclick="bandmapNoter()" title="Noter la station entendue (indicatif tapé + fréquence radio) — Ctrl+Entrée. Ctrl+↑/↓ saute de spot en spot." style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">👂</button></div>
+      <button onclick="bandmapNoter()" title="Noter la station entendue (indicatif tapé + fréquence radio) — Ctrl+Entrée. Ctrl+↑/↓ saute de spot en spot." style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">👂</button>
+      <button onclick="toggleSpotFiltre()" id="spotFiltreBtn" title="Filtrer les spots affichés (continent du spotteur, besoins DXCC…)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🔎</button></div>
+    <!-- Filtre d'affichage. Le continent DU SPOTTEUR est le critère qui compte
+         le plus : ce qu'un EU entend ressemble à ce que j'entends, ce qu'un JA
+         entend, non. Pas de filtre « spotteur à moins de N km » : cty.dat donne
+         la position du PAYS, W1AW et W6XX tombent au même point (voir
+         logx_spotfilter.py). Appliqué CÔTÉ SERVEUR avant la coupe à 40. -->
+    <div class="bm-filtre" id="bmFiltre">
+      <div class="bm-fl">Continent du spotteur</div>
+      <div class="bm-chips" id="bmChipsSpotter"></div>
+      <div class="bm-fl">Continent de la station DX</div>
+      <div class="bm-chips" id="bmChipsDx"></div>
+      <label class="bm-opt"><input type="checkbox" id="bmFiltreDejaFaits" onchange="majSpotFiltre()">masquer les déjà travaillés</label>
+      <label class="bm-opt"><input type="checkbox" id="bmFiltreLotw" onchange="majSpotFiltre()">utilisateurs LoTW seulement</label>
+      <label class="bm-opt"><input type="checkbox" id="bmFiltreBesoins" onchange="majSpotFiltre()">besoins DXCC non confirmés</label>
+    </div>
     <!-- Bandscope : activité de la bande (densité de spots par fréquence).
          Waterfall : mêmes spots, empilés dans le temps (chute d'eau façon SDR)
          — canvas caché par défaut, basculé par toggleWaterfall(). -->
@@ -1303,6 +1332,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
     <div class="bandmap-list" id="bandmapList">
       <div class="bm-empty">en attente de spots…</div>
     </div>
+    <div class="bm-masques" id="bmMasques" style="display:none"></div>
   </div>
 
   <!-- LOG TABLE -->

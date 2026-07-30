@@ -36,7 +36,7 @@ from logx_clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len
                       fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster, fetch_dxwatch_hf,
                       fetch_dxheat, fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
                       fetch_noaa_kindex, fetch_dxmaps_vhf, fetch_3830_scores,
-                      lookup_hamqth, enrich_unknown_calls)
+                      lookup_hamqth, enrich_unknown_calls, freq_en_khz)
 from logx_version import APP_VERSION
 
 # ─── CACHE SPOTS CLUSTER ENVOYÉS PAR LE NAVIGATEUR ───────────────────────────
@@ -2840,12 +2840,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             for s in ranked:
                 sc = s.get('scoring', {})
                 dx_ll = locator_to_latlon(s.get('locator', ''))
+                # Fréquence RAMENÉE EN kHz. Les sources ne s'accordent pas sur
+                # l'unité (DXSummit HF et DXHeat en kHz, DXSummit VHF en MHz),
+                # si bien que ce champ n'en avait aucune de fixe et qu'aucun
+                # écran ne pouvait le lire juste. Un seul point de conversion,
+                # ici, pour les six pages qui consomment cet endpoint —
+                # voir logx_clusters.freq_en_khz.
                 entry = {
                     'call': s.get('call', ''), 'band': s.get('band', ''),
-                    'freq': s.get('freq', ''), 'locator': s.get('locator', ''),
+                    'freq': freq_en_khz(s.get('freq', ''), s.get('band', '')),
+                    'locator': s.get('locator', ''),
                     'lat': s.get('lat'), 'lon': s.get('lon'),
                     'dist_km': s.get('dist_km', 0), 'time': s.get('time', ''),
                     'source': s.get('source', ''), 'info': s.get('info', ''),
+                    # Qui a posté le spot : jusqu'ici la donnée existait dans
+                    # le cache cluster mais mourait ici. C'est pourtant elle
+                    # qui dit si la liaison annoncée ressemble à la mienne —
+                    # un JA qui spotte une VK décrit un chemin JA-VK.
+                    'spotter': s.get('spotter', ''),
                     'points': sc.get('direct_pts', 0),
                     'new_mult': bool(sc.get('new_mult')),
                     'mult_type': sc.get('mult_type', ''),
@@ -2886,7 +2898,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 pass
             alert_matches = alerts.check_alerts(cfg_snap.get('alert_rules'), full_entries)
-            self._json({'spots': full_entries[:40], 'meta': meta, 'alert_matches': alert_matches})
+            # Filtre d'affichage. L'ORDRE des trois opérations est le fond du
+            # sujet : les alertes sont évaluées AVANT (elles doivent voir tout
+            # le cluster, cf. le commentaire plus haut), le filtre s'applique
+            # ENSUITE, et la coupe à 40 vient EN DERNIER. Filtrer après la
+            # coupe ne servirait à rien — c'est justement parce qu'on coupe
+            # qu'il faut d'abord écarter. Les spots retenus par une alerte
+            # traversent le filtre, marqués hors_filtre (logx_spotfilter).
+            visibles, comptes_filtre = full_entries, {}
+            try:
+                import logx_spotfilter as spotfilter
+                calls_alertes = [(m.get('spot') or {}).get('call', '')
+                                 for m in alert_matches]
+                for e in full_entries:
+                    e['spotter_continent'] = spotfilter.continent_spotteur(e)
+                visibles, comptes_filtre = spotfilter.filtrer(
+                    full_entries, cfg_snap.get('spot_filter'), calls_alertes)
+                # Les réglages effectifs repartent avec la réponse : l'écran se
+                # synchronise sur la vérité du serveur au premier rafraîchisse-
+                # ment, sans requête supplémentaire ni ordre de chargement à
+                # respecter — et en multi-poste, un réglage changé sur un poste
+                # apparaît sur les autres au tick suivant.
+                comptes_filtre['reglages'] = spotfilter.reglages_valides(
+                    cfg_snap.get('spot_filter'))
+            except Exception:
+                pass        # un filtre en panne montre tout, il ne cache rien
+            self._json({'spots': visibles[:40], 'meta': meta,
+                        'alert_matches': alert_matches, 'filtre': comptes_filtre})
             return
 
         # Pont WSJT-X (FT8/FT4) : état de la liaison UDP — pollé par le logbook
@@ -3583,6 +3621,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     snap = dict(current_config)
                 save_json_atomic(SERVER_CONFIG_FILE, snap)
                 self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Filtre d'affichage des spots. Même précaution que /ui/theme juste
+        # au-dessus : on n'écrit QUE 'spot_filter', jamais tout current_config.
+        # Réglage partagé entre postes à dessein — en multi-op, deux écrans qui
+        # affichent des listes de spots différentes sans que personne ne sache
+        # pourquoi, c'est la garantie d'un multiplicateur perdu.
+        if self.path == '/spots/filter':
+            try:
+                import logx_spotfilter as spotfilter
+                payload = json.loads(body) if body else {}
+                propre = spotfilter.reglages_valides(payload)
+                with config_lock:
+                    current_config['spot_filter'] = propre
+                    snap = dict(current_config)
+                save_json_atomic(SERVER_CONFIG_FILE, snap)
+                self._json({'ok': True, 'spot_filter': propre,
+                            'actif': spotfilter.actif(propre)})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return

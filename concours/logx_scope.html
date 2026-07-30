@@ -106,7 +106,11 @@ if(localStorage.getItem('rc_theme') === null){
     try{
       const r=await fetch('/data/spots_ranked'); if(!r.ok) return;
       const d=await r.json();
-      const spots=(d.spots||[]).filter(s=>{const f=parseFloat(s.freq);return isFinite(f)&&f>=rng[0]&&f<=rng[1];}).sort((a,b)=>parseFloat(b.freq)-parseFloat(a.freq));
+      // Le serveur envoie des kHz (freq_en_khz) et rng est en MHz : sans
+      // cette conversion le filtre rejetait TOUS les spots et le scope
+      // detache restait desesperement vide.
+      const spots=(d.spots||[]).map(s=>Object.assign({},s,{freq:(parseFloat(s.freq)||0)/1000}))
+        .filter(s=>{const f=parseFloat(s.freq);return isFinite(f)&&f>=rng[0]&&f<=rng[1];}).sort((a,b)=>parseFloat(b.freq)-parseFloat(a.freq));
       drawScope(spots,rng);
       const list=document.getElementById('spotList');
       list.innerHTML = spots.length ? spots.map(s=>{const f=parseFloat(s.freq);
