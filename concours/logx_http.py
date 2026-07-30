@@ -2835,6 +2835,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 lotw.annoter(full_entries)
             except Exception:
                 pass
+            # Besoin DXCC non confirme LoTW sur CE creneau bande x mode : les
+            # fenetres de surveillance par bande le surlignent. On ANNOTE sans
+            # filtrer — elles montrent tout ce qui est spotte, masquer le reste
+            # priverait l'operateur de la vue d'ensemble qu'il vient chercher.
+            try:
+                import logx_awards as awards
+                with log_lock:
+                    log_copy = list(shared_log)
+                awards.annoter_besoin_lotw(full_entries, log_copy)
+            except Exception:
+                pass
             alert_matches = alerts.check_alerts(cfg_snap.get('alert_rules'), full_entries)
             self._json({'spots': full_entries[:40], 'meta': meta, 'alert_matches': alert_matches})
             return

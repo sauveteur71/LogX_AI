@@ -325,6 +325,40 @@ def besoin_lotw(call, band='', mode='', shared_log=None):
             'label': label}
 
 
+def annoter_besoin_lotw(spots, shared_log=None):
+    """Pose 'lotw_need_ici' (bool) sur chaque spot, SANS filtrer la liste.
+
+    Pendant que besoins_lotw_spottes() répond à « que dois-je appeler ? », ici
+    on répond à « lesquels, dans ce que j'affiche déjà, valent un appel ? ».
+    Les fenêtres de surveillance par bande montrent TOUT ce qui est spotté —
+    masquer le reste priverait l'opérateur de la vue d'ensemble qu'il est
+    justement venu chercher.
+
+    Un seul parcours du carnet pour toute la liste, même raison que le calcul
+    groupé ci-dessous : ces fenêtres se rafraîchissent en continu.
+    """
+    if not spots:
+        return spots
+    conf = _load_confirmations()
+    creneaux = _creneaux_confirmes_lotw(collect_all_qsos(shared_log), conf)
+    try:
+        import logx_dxcc as dxcc
+    except Exception:
+        for s in spots:
+            s['lotw_need_ici'] = False
+        return spots
+    for s in spots:
+        call = str(s.get('call') or s.get('dx') or '').upper().strip()
+        base = call.split('/')[0] if '/' in call else call
+        pays = (dxcc.lookup(base) or {}).get('country') if len(base) >= 3 else None
+        if not pays:
+            s['lotw_need_ici'] = False
+            continue
+        cle = (pays, str(s.get('band', '') or ''), _mode_category(s.get('mode')))
+        s['lotw_need_ici'] = cle not in creneaux
+    return spots
+
+
 def besoins_lotw_spottes(spots, shared_log=None, max_n=20):
     """Parmi les stations spottées, celles qui comblent un créneau non confirmé
     LoTW. Le calcul lourd (parcours du log + confirmations) est fait UNE fois

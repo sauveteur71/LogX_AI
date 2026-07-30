@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Bande</title>
+<link rel="icon" href="/logx_icon.svg">
+<!--
+  SURVEILLANCE D'UNE BANDE — fenêtre détachable, une par bande.
+
+  DEMANDE UTILISATEUR : « je veux surveiller simultanément toutes les bandes en
+  même temps ; je peux en ouvrir autant que je veux pour voir ce qu'il se
+  passe ». C'est ce que fait Logger32 avec ses fenêtres multiples.
+
+  POURQUOI C'EST FACILE ICI ET DIFFICILE AILLEURS : ce sont des pages web. On
+  en ouvre autant qu'on veut, on les répartit sur plusieurs écrans, et rien
+  n'empêche d'en mettre une sur un second PC ou une tablette — il suffit de
+  l'adresse du serveur. Un logiciel de bureau devrait gérer lui-même le
+  multi-fenêtre et ne sortirait jamais de sa machine.
+
+  LECTURE SEULE, à dessein, sauf le QSY : cette fenêtre sert à SURVEILLER
+  pendant qu'on trafique ailleurs. Y mettre la saisie dupliquerait le logbook
+  et créerait deux endroits où enregistrer un QSO.
+
+  Une seule requête réseau pour toutes les fenêtres ouvertes : chacune lit
+  /data/spots_ranked (déjà servi depuis les caches du serveur, sans appel
+  extérieur) et filtre SA bande. Dix fenêtres ne font donc pas dix connexions
+  au cluster.
+-->
+<style>
+:root{--bg:#05060C;--bg2:#0C0E1A;--bg3:#14172C;--border:#242844;
+  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--yellow:#FFD60A;
+  --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
+  --mono:'Share Tech Mono',monospace;}
+body.day-mode{--bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
+  --accent:#CC4026;--accent2:#0060A0;--green:#007030;--yellow:#7A5A00;
+  --red:#CC0030;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:linear-gradient(90deg,#080A16,#12152C,#080A16);border-bottom:2px solid var(--border);flex-shrink:0}
+.bande{font-size:20px;font-weight:800;color:var(--accent);letter-spacing:1px}
+.compte{font-size:12px;color:var(--muted)}
+.clock{margin-left:auto;font-size:13px;color:var(--muted)}
+.wrap{flex:1;overflow-y:auto}
+.empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
+.row{display:grid;grid-template-columns:auto 82px 1fr auto;gap:8px;align-items:baseline;
+     padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;cursor:pointer}
+.row:hover{background:var(--bg3)}
+.call{font-weight:800;letter-spacing:.5px}
+.freq{color:var(--accent2);font-variant-numeric:tabular-nums}
+.pays{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:11px;padding:1px 5px;border-radius:4px;white-space:nowrap}
+/* Utilisateur LoTW : le QSO pourra être confirmé, donc compter pour le DXCC. */
+.lotw{background:rgba(0,255,136,.14);color:var(--green)}
+/* Pas sur LoTW : le contact ne sera JAMAIS confirmé. Volontairement discret —
+   c'est une information, pas une interdiction de trafiquer. */
+.nolotw{color:var(--muted);opacity:.65}
+/* Besoin DXCC non confirmé LoTW : ce qui fait avancer le compteur. */
+.besoin{background:rgba(255,45,85,.16);color:var(--red);font-weight:700}
+.done{opacity:.35;text-decoration:line-through}
+footer{flex-shrink:0;padding:5px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;gap:14px}
+</style>
+</head>
+<body>
+<header>
+  <span class="bande" id="titreBande">—</span>
+  <span class="compte" id="compte"></span>
+  <span class="clock" id="clock">--:--:--</span>
+</header>
+<div class="wrap"><div id="liste"><div class="empty">Chargement…</div></div></div>
+<footer>
+  <span>clic = QSY</span>
+  <span class="lotw tag">LoTW</span>
+  <span class="besoin tag">besoin DXCC</span>
+</footer>
+<script>
+// Thème jour/nuit : ces pages détachées n'incluent pas logx_statusbar.js, le
+// réglage est donc relu ici depuis localStorage puis, à défaut, depuis la
+// config serveur — sans quoi une fenêtre ouverte en plein jour repasserait en
+// mode nuit alors que le logbook est en clair.
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+if(localStorage.getItem('rc_theme') === null){
+  fetch('/config').then(r=>r.ok?r.json():null).then(c=>{
+    if(c && c.ui_theme && localStorage.getItem('rc_theme') === null){
+      localStorage.setItem('rc_theme', c.ui_theme);
+      document.body.classList.toggle('day-mode', c.ui_theme === 'day');
+    }
+  }).catch(()=>{});
+}
+
+(function(){
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = '<div class="empty">Ouvre via le serveur : ' +
+      'http://127.0.0.1:8080/logx_bande.html?band=14</div>';
+    return;
+  }
+  const params = new URLSearchParams(location.search);
+  const bande = (params.get('band') || '14').trim();
+  document.getElementById('titreBande').textContent = bande + ' MHz';
+  document.title = 'LogX AI — ' + bande + ' MHz';
+
+  const esc = v => String(v==null?'':v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function horloge(){
+    const d = new Date();
+    document.getElementById('clock').textContent =
+      String(d.getUTCHours()).padStart(2,'0') + ':' +
+      String(d.getUTCMinutes()).padStart(2,'0') + ':' +
+      String(d.getUTCSeconds()).padStart(2,'0') + ' UTC';
+  }
+
+  // QSY : passe par le serveur, donc marche depuis n'importe quel poste du
+  // réseau — y compris une tablette posée à côté du transceiver.
+  async function qsy(freq){
+    if(!freq) return;
+    try{
+      await fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
+                               body: JSON.stringify({freq: String(freq)})});
+    }catch(e){ /* radio non pilotée : le clic reste sans effet, sans erreur */ }
+  }
+
+  function ligne(s){
+    const besoin = s.lotw_need_ici;
+    const classes = ['row'];
+    if(s.already_done) classes.push('done');
+    const tags = [];
+    if(besoin) tags.push('<span class="tag besoin">DXCC</span>');
+    if(s.lotw === true) tags.push('<span class="tag lotw">LoTW</span>');
+    else if(s.lotw === false) tags.push('<span class="tag nolotw">pas LoTW</span>');
+    return `<div class="${classes.join(' ')}" data-freq="${esc(s.freq||'')}">
+      <span class="call">${s.new_mult && !s.already_done ? '★ ' : ''}${esc(s.call)}</span>
+      <span class="freq">${esc(s.freq||'')}</span>
+      <span class="pays">${esc(s.dx_country || s.info || '')}</span>
+      <span>${tags.join(' ')}</span>
+    </div>`;
+  }
+
+  async function tick(){
+    horloge();
+    try{
+      const r = await fetch('/data/spots_ranked');
+      if(!r.ok) return;
+      const d = await r.json();
+      // Filtrage sur NOTRE bande uniquement : c'est tout l'intérêt d'ouvrir
+      // une fenêtre par bande plutôt qu'une liste unique où tout se mélange.
+      const spots = (d.spots || []).filter(s => String(s.band) === bande);
+      document.getElementById('compte').textContent =
+        spots.length ? spots.length + ' spot' + (spots.length>1?'s':'') : '';
+      const liste = document.getElementById('liste');
+      if(!spots.length){
+        liste.innerHTML = '<div class="empty">Aucun spot sur ' + esc(bande) + ' MHz</div>';
+        return;
+      }
+      liste.innerHTML = spots.map(ligne).join('');
+      liste.querySelectorAll('.row').forEach(el => {
+        el.onclick = () => qsy(el.dataset.freq);
+      });
+    }catch(e){ /* serveur injoignable : on garde l'affichage précédent */ }
+  }
+
+  tick();
+  setInterval(tick, 15000);
+  setInterval(horloge, 1000);
+})();
+</script>
+</body>
+</html>

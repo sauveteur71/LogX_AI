@@ -6558,6 +6558,43 @@ function popoutWall(){
     'width=1280,height=720,menubar=no,toolbar=no,location=no');
 }
 
+// Surveillance simultanée de toutes les bandes : une fenêtre par bande, comme
+// on le fait avec un logiciel de bureau à fenêtres multiples — sauf qu'ici ce
+// sont des pages web, donc déplaçables sur un 2e écran ou même un autre poste.
+//
+// LES BANDES VIENNENT DE _currentVisibleBands — celles du concours, filtrées
+// par les cases de CONFIG, exactement la liste des boutons BANDE affichés.
+// Une liste en dur ouvrirait une fenêtre 50 MHz à quelqu'un qui ne fait que du
+// HF, et oublierait les bandes ajoutées depuis (WARC).
+//
+// PAS DE REPLI SILENCIEUX si la liste est vide : mieux vaut le dire que
+// d'ouvrir six fenêtres sur des bandes que l'opérateur n'utilise pas. (Premier
+// jet de cette fonction : je visais une variable `activeBands` qui n'existe
+// pas, et le garde `typeof` retombait TOUJOURS sur la liste en dur — sans que
+// rien ne le signale.)
+function popoutBandes(){
+  const bandes = (typeof _currentVisibleBands !== 'undefined' && _currentVisibleBands)
+    ? _currentVisibleBands.slice() : [];
+  if(!bandes.length){
+    notify("Aucune bande active : choisis un concours ou coche des bandes dans CONFIG");
+    return;
+  }
+  if(bandes.length > 12){
+    // Garde-fou : douze fenêtres, c'est déjà tout un écran. Au-delà, le
+    // navigateur bloque en général l'ouverture et l'utilisateur ne comprend
+    // pas pourquoi seules les premières sont apparues.
+    notify('Trop de bandes actives (' + bandes.length + ') : ouvre-les au besoin depuis ce bouton bande par bande');
+    return;
+  }
+  // Décalage en cascade : superposées, elles seraient indiscernables.
+  bandes.forEach((b, i) => {
+    const x = 40 + i * 40, y = 40 + i * 30;
+    window.open('/logx_bande.html?band=' + encodeURIComponent(b),
+      'rc_bande_' + String(b).replace('.', '_'),
+      `width=420,height=520,left=${x},top=${y},menubar=no,toolbar=no,location=no`);
+  });
+}
+
 // ─── SELF-SPOT (publier son spot sur le cluster DX avec sa fréquence) ─────────
 async function selfSpot(){
   // Fréquence : champ saisi > radio (CAT) > fréquence d'appel de la bande
