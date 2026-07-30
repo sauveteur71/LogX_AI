@@ -4739,6 +4739,10 @@ const _wsjtxAlerted = new Set();
 function applyWsjtxState(d){
     const el = document.getElementById('wsjtxWidget');
     _wsjtxState.enabled = !!(d && d.enabled);
+    // Le panneau Wait-and-Pounce suit la liaison WSJT-X : sans elle, il n'a
+    // rien à piloter. Rafraîchi ici plutôt que sur sa propre minuterie —
+    // l'état matériel est déjà pollé, inutile d'ajouter un cycle.
+    try{ refreshPounce(); }catch(e){}
     if(!el || !d || !d.enabled){ if(el) el.style.display='none'; return; }
     el.style.display = '';
     if(d.connected){
@@ -4804,6 +4808,115 @@ async function armerReponse(call){
   }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
 }
 
+// ─── WAIT-AND-POUNCE : l'écran des quatre niveaux ────────────────────────────
+// Les niveaux 1 et 2 sont des COMPORTEMENTS permanents de cet écran (alerter,
+// rendre les lignes cliquables) : ils vivent en localStorage, ils ne concernent
+// que ce poste et n'ont rien à faire dans une session serveur. Les niveaux 3 et
+// 4 sont une SESSION bornée dans le temps, partagée et surveillable depuis
+// n'importe quel poste — c'est indispensable au niveau 4, où l'opérateur n'est
+// pas devant la radio mais doit pouvoir regarder ce qu'elle fait.
+const _POUNCE_CLE = 'logx_pounce_local';
+let _pounceLocal = {n1: true, n2: true};
+try{
+  const brut = JSON.parse(localStorage.getItem(_POUNCE_CLE) || '{}');
+  _pounceLocal = {n1: brut.n1 !== false, n2: brut.n2 !== false};
+}catch(e){ /* stockage indisponible : on garde les valeurs par défaut */ }
+
+function majPounceLocal(){
+  const c1 = document.getElementById('pounceN1'), c2 = document.getElementById('pounceN2');
+  if(c1) _pounceLocal.n1 = !!c1.checked;
+  if(c2) _pounceLocal.n2 = !!c2.checked;
+  try{ localStorage.setItem(_POUNCE_CLE, JSON.stringify(_pounceLocal)); }catch(e){}
+}
+
+function majPounceUI(){
+  const n = parseInt((document.getElementById('pounceNiveau')||{}).value || '0', 10);
+  const box = document.getElementById('pounceReglages');
+  if(box) box.style.display = n ? '' : 'none';
+  // L'avertissement n'apparaît QUE pour le niveau 4 : un avertissement
+  // permanent finit par ne plus être lu du tout.
+  const av = document.getElementById('pounceAvertN4');
+  if(av) av.style.display = (n === 4) ? '' : 'none';
+}
+
+async function armerPounce(){
+  const n = parseInt(document.getElementById('pounceNiveau').value || '0', 10);
+  if(!n) return;
+  const criteres = [];
+  const m = {pcNouveauPays:'nouveau_pays', pcBesoinLotw:'besoin_lotw',
+             pcCarreNeuf:'carre_neuf', pcNouveauMult:'nouveau_mult'};
+  for(const id in m){ const el = document.getElementById(id); if(el && el.checked) criteres.push(m[id]); }
+  const duree = parseInt(document.getElementById('pounceDuree').value || '30', 10);
+  // Le niveau 4 demande une confirmation explicite. Ce n'est pas de la
+  // paperasse : c'est le seul moment où l'opérateur décide que sa station
+  // émettra en son nom sans qu'il la regarde.
+  if(n === 4 && !confirm(trF('La station va émettre sans personne devant elle pendant {d} minutes.\n\nElle s\'arrêtera toute seule à la fin. Confirmer ?', {d: duree}))) return;
+  try{
+    const d = await fetch('/pounce/armer', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({niveau: n, criteres, duree_min: duree})}).then(r=>r.json());
+    notify(d.ok ? trF('🎯 Appel automatique armé pour {d} min', {d: duree})
+                : trF('❌ {err}', {err: d.error || 'refus'}));
+    refreshPounce();
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+}
+
+async function desarmerPounce(){
+  try{
+    await fetch('/pounce/desarmer', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    notify('⏹ Appel automatique arrêté');
+    refreshPounce();
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+}
+
+function _mmss(s){
+  const m = Math.floor(s / 60);
+  return m + ' min ' + String(s % 60).padStart(2, '0') + ' s';
+}
+
+async function refreshPounce(){
+  const panneau = document.getElementById('pouncePanel');
+  if(!panneau) return;
+  panneau.style.display = _wsjtxState.enabled ? '' : 'none';
+  if(!_wsjtxState.enabled) return;
+  let d;
+  try{ d = await fetch('/pounce/state').then(r=>r.json()); }catch(e){ return; }
+  const c1 = document.getElementById('pounceN1'), c2 = document.getElementById('pounceN2');
+  if(c1) c1.checked = _pounceLocal.n1;
+  if(c2) c2.checked = _pounceLocal.n2;
+
+  const min = document.getElementById('pounceMinuterie');
+  const stop = document.getElementById('pounceBtnStop');
+  const reglages = document.getElementById('pounceReglages');
+  const sel = document.getElementById('pounceNiveau');
+  if(d.active){
+    // Session en cours : on montre la minuterie et le bouton d'arrêt, et on
+    // masque les réglages — les changer sans désarmer donnerait l'illusion
+    // qu'ils s'appliquent, alors que la session tourne sur ceux d'origine.
+    if(min){ min.style.display=''; min.textContent = '⏱ ' + _mmss(d.restant_s); }
+    if(stop) stop.style.display = '';
+    if(reglages) reglages.style.display = 'none';
+    if(sel){ sel.value = String(d.niveau); sel.disabled = true; }
+  } else {
+    // Le texte est VIDÉ, pas seulement masqué : sinon le prochain armement
+    // ferait clignoter l'ancien décompte le temps d'un rafraîchissement.
+    if(min){ min.style.display = 'none'; min.textContent = ''; }
+    if(stop) stop.style.display = 'none';
+    if(sel) sel.disabled = false;
+    majPounceUI();
+  }
+  const etat = document.getElementById('pounceEtat');
+  if(etat){
+    etat.textContent = d.active
+      ? trF('{n} appel(s) · en cours : {c}', {n: d.appels, c: d.appel_en_cours || '—'})
+      : (d.motif_arret ? trF('arrêté : {m}', {m: d.motif_arret}) : '');
+  }
+  const jr = document.getElementById('pounceJournal');
+  if(jr){
+    jr.innerHTML = (d.journal || []).slice().reverse().map(j =>
+      `<div>${escHtml(j.call)} <span style="opacity:.7">${escHtml(j.motif || '')}</span></div>`).join('');
+  }
+}
+
 async function couperEmissionWsjtx(){
   try{
     const d = await fetch('/wsjtx/couper', {method:'POST',
@@ -4818,12 +4931,15 @@ function appliquerSuiviCarres(carres){
   if(liste){
     liste.innerHTML = items.length ? items.map(c => {
       const prio = c.interet === 2;
-      // Clic = « armer le coup » (niveau 2). L'indicatif est restreint aux
-      // caractères d'indicatif avant d'entrer dans l'argument onclick : il
-      // vient d'un décodage radio, donc d'une source non maîtrisée.
+      // Clic = « armer le coup » (niveau 2), désactivable par la case du
+      // panneau Wait-and-Pounce. L'indicatif est restreint aux caractères
+      // d'indicatif avant d'entrer dans l'argument onclick : il vient d'un
+      // décodage radio, donc d'une source non maîtrisée.
       const jsCall = String(c.call || '').replace(/[^A-Za-z0-9/]/g, '');
-      return `<div onclick="armerReponse('${jsCall}')" style="display:flex;gap:8px;align-items:baseline;padding:2px 0;cursor:pointer"
-                   title="Préparer la réponse à ${escHtml(c.call || '')} dans WSJT-X — l'émission reste sous votre doigt">
+      const act = _pounceLocal.n2
+        ? `onclick="armerReponse('${jsCall}')" style="display:flex;gap:8px;align-items:baseline;padding:2px 0;cursor:pointer" title="Préparer la réponse à ${escHtml(c.call || '')} dans WSJT-X — l'émission reste sous votre doigt"`
+        : 'style="display:flex;gap:8px;align-items:baseline;padding:2px 0"';
+      return `<div ${act}>
         <b style="color:${prio ? 'var(--red)' : 'var(--yellow)'}">${escHtml(c.grid)}</b>
         <span style="color:var(--text)">${escHtml(c.call || '')}</span>
         <span style="color:var(--muted);font-size:11px">${escHtml(c.libelle || '')}</span>
@@ -4832,10 +4948,14 @@ function appliquerSuiviCarres(carres){
     const box = document.getElementById('carresBox');
     if(box) box.style.display = items.length ? '' : 'none';
   }
+  // Niveau 1 « signaler » décoché : la liste reste affichée, mais plus aucun
+  // son ni notification. On marque quand même les carrés comme vus, sinon
+  // rallumer la case ferait sonner d'un coup tout l'historique accumulé.
   for(const c of items){
     const cle = c.grid + '|' + (c.band || '');
     if(_carresAlertes.has(cle)) continue;
     _carresAlertes.add(cle);
+    if(!_pounceLocal.n1) continue;
     if(c.interet === 2){
       notify(trF('🔲 NOUVEAU CARRÉ {grid} — {call} (jamais travaillé)',
                  {grid: c.grid, call: c.call || ''}));
