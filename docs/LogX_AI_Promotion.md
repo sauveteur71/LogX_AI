@@ -2,11 +2,11 @@
 
 ## Le compagnon de trafic radioamateur nouvelle génération
 
-**Logbook intelligent · Concours · Activations · Propagation · Copilote IA — tout-en-un, en local, sans abonnement.**
+**Logbook intelligent · Concours · Portable · Propagation · Copilote IA — tout-en-un, en local, sans abonnement.**
 
 ---
 
-Vous connaissez la situation : un logiciel pour le log de tous les jours, un autre pour les concours, un site web pour la propagation, un tableur pour les activations POTA, et une pile d'onglets ouverts pour le cluster, les cartes et les QSL. **LogX AI réunit tout cela dans une seule application**, qui tourne entièrement sur votre ordinateur et s'utilise depuis votre navigateur — du QSO du dimanche matin à la DXpédition multi-poste.
+Vous connaissez la situation : un logiciel pour le log de tous les jours, un autre pour les concours, un site web pour la propagation, un tableur pour les sorties portabless POTA, et une pile d'onglets ouverts pour le cluster, les cartes et les QSL. **LogX AI réunit tout cela dans une seule application**, qui tourne entièrement sur votre ordinateur et s'utilise depuis votre navigateur — du QSO du dimanche matin à la DXpédition multi-poste.
 
 ---
 
@@ -20,7 +20,7 @@ Vous connaissez la situation : un logiciel pour le log de tous les jours, un aut
 
 **📻 Multi-poste sans rien installer ailleurs.** Les autres postes du shack — PC, tablette, téléphone — rejoignent le même log en ouvrant une simple adresse WiFi. Jusqu'à 40 opérateurs en mode radioclub, un chat intégré, et un écran mural à projeter : le flux des QSO en direct, visible depuis la salle à manger pendant que les copains mangent. C'est aussi ça, la radio conviviale.
 
-**🏕️ Plus de 415 000 références d'activation embarquées.** SOTA, POTA, WWFF, IOTA et châteaux WCA : bases complètes en local, recherche instantanée, validation de référence, spots des activateurs en direct, progression de votre activation en temps réel et park-to-park détecté.
+**🏕️ Plus de 415 000 références embarquées.** SOTA, POTA, WWFF, IOTA et châteaux WCA : bases complètes en local, recherche instantanée, validation de référence, spots des stations en direct, progression de votre sortie en temps réel et park-to-park détecté.
 
 ---
 
@@ -47,7 +47,7 @@ Diplômes à vie (DXCC, départements, zones, Worked Matrix bande × mode), reco
 
 | | |
 |---|---|
-| **Références d'activation embarquées** | 415 000+ (181 045 sommets SOTA · 93 676 parcs POTA · 68 446 réf. WWFF · 71 362 châteaux WCA · 1 178 groupes IOTA) |
+| **Références embarquées** | 415 000+ (181 045 sommets SOTA · 93 676 parcs POTA · 68 446 réf. WWFF · 71 362 châteaux WCA · 1 178 groupes IOTA) |
 | **Concours suivis avec scoring exact** | 36 + calendrier mondial + analyse IA de tout règlement |
 | **Bandes** | 17, de 1.8 MHz à 47 GHz |
 | **Modes ADIF reconnus** | 49 |

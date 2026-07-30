@@ -40,10 +40,15 @@ PAGES_AVEC_NAV = [
 ]
 
 # Titres exacts des cinq panneaux deplaces (accents et emojis compris).
+# Libelles renommes le 30/07/2026 a la demande de l'utilisateur : « activateur »
+# et « activation » ont disparu des ecrans francais, au profit du vocabulaire
+# radioamateur (voir tests/test_vocabulaire_portable.py, qui verrouille aussi la
+# correspondance avec les cles de traduction). Les identifiants DOM ci-dessous
+# n'ont PAS bouge : ils ne sont jamais vus par l'operateur.
 TITRES_DEPLACES = [
-    '\U0001F3DE️ ACTIVATEURS POTA EN DIRECT',
-    '\U0001F3D4️ ACTIVATEURS SOTA EN DIRECT',
-    '\U0001F333 ACTIVATEURS WWFF EN DIRECT',
+    '\U0001F3DE️ STATIONS POTA EN DIRECT',
+    '\U0001F3D4️ STATIONS SOTA EN DIRECT',
+    '\U0001F333 STATIONS WWFF EN DIRECT',
     '\U0001F3F0 CHÂTEAUX WCA/COTA — ANNONCÉS',
     '\U0001F3AF CLUSTER — NEED LIST',
 ]

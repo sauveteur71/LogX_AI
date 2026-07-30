@@ -24,7 +24,7 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 - Radio CAT via Hamlib/rigctld, TCI, pont WSJT-X ; pilotage ampli et rotor.
 - Clusters DX multi-sources, RBN, PSK Reporter, balises NCDXF/IBP.
 - Callbook (QRZ/HamQTH/HamDB), historique d'indicatifs (Super Check Partial), DXCC/pays.
-- Programmes d'activation POTA/SOTA/IOTA/WWFF, chasse aux départements français, diplômes.
+- Programmes portables POTA/SOTA/IOTA/WWFF, chasse aux départements français, diplômes.
 - Export Cabrillo v3 / ADIF 3 / EDI, upload eQSL/ClubLog/LoTW, scoreboard en direct.
 - Annuaire WebSDR (écoute déportée) + assistant de configuration guidé.
 - Interface en 8 langues, mode débutant/expert.

@@ -122,7 +122,7 @@ def build_authorize_url(cfg):
     (bouton « Se connecter à SOTA » dans CONFIG). (url, error)."""
     settings = sota_spot_settings(cfg)
     if not settings['configured']:
-        return None, 'clientId SOTA manquant (CONFIG → EXPÉDITION/ACTIVATION)'
+        return None, 'clientId SOTA manquant (CONFIG → EXPÉDITION/PORTABLE)'
     _purge_pending()
     state = secrets.token_urlsafe(24)
     verifier, challenge = _new_pkce_pair()
@@ -219,7 +219,7 @@ def ensure_access_token(cfg):
     _load_tokens()
     settings = sota_spot_settings(cfg)
     if not settings['configured']:
-        return None, 'clientId SOTA manquant (CONFIG → EXPÉDITION/ACTIVATION)'
+        return None, 'clientId SOTA manquant (CONFIG → EXPÉDITION/PORTABLE)'
     with _tok_lock:
         if _tokens.get('access_token') and time.time() < _tokens.get('expires_at', 0) - 30:
             return _tokens['access_token'], ''
@@ -269,11 +269,11 @@ def post_spot(cfg, summit_code, freq_mhz, mode, comment=''):
     voir docstring du module) avant le moindre appel réseau réel."""
     settings = sota_spot_settings(cfg)
     if not settings['configured']:
-        return {'ok': False, 'error': 'SOTA non configuré (clientId manquant dans CONFIG → EXPÉDITION/ACTIVATION)'}
+        return {'ok': False, 'error': 'SOTA non configuré (clientId manquant dans CONFIG → EXPÉDITION/PORTABLE)'}
     if not settings['ai_approval_ack']:
         return {'ok': False, 'error':
                 "Publication bloquée : coche d'abord « J'ai l'accord préalable de l'équipe SOTA pour ce "
-                "logiciel assisté par IA » dans CONFIG → EXPÉDITION/ACTIVATION — exigé par les Conditions "
+                "logiciel assisté par IA » dans CONFIG → EXPÉDITION/PORTABLE — exigé par les Conditions "
                 "d'Utilisation de l'API SOTA (api2.sota.org.uk)."}
 
     summit_code = (summit_code or '').strip().upper()

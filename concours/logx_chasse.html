@@ -183,17 +183,17 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   <div class="hunt-main">
 
     <div class="panel">
-      <div class="panel-title">🏞️ ACTIVATEURS POTA EN DIRECT <small id="potaMeta"></small></div>
+      <div class="panel-title">🏞️ STATIONS POTA EN DIRECT <small id="potaMeta"></small></div>
       <div id="potaList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-title">🏔️ ACTIVATEURS SOTA EN DIRECT <small id="sotaMeta"></small></div>
+      <div class="panel-title">🏔️ STATIONS SOTA EN DIRECT <small id="sotaMeta"></small></div>
       <div id="sotaList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-title">🌳 ACTIVATEURS WWFF EN DIRECT <small id="wwffMeta"></small></div>
+      <div class="panel-title">🌳 STATIONS WWFF EN DIRECT <small id="wwffMeta"></small></div>
       <div id="wwffList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
@@ -349,11 +349,11 @@ async function loadPota(){
     const el = document.getElementById('potaList');
     const spots = d.spots || [];
     if(!spots.length){
-      el.innerHTML = `<div class="loading">Aucune activation POTA en cours signalée pour l'instant.</div>`;
+      el.innerHTML = `<div class="loading">Aucun trafic POTA signalé pour l'instant.</div>`;
       meta.textContent = '';
       return;
     }
-    meta.textContent = `${spots.length} activateur${spots.length>1?'s':''}`;
+    meta.textContent = `${spots.length} station${spots.length>1?'s':''}`;
     // Les données viennent d'un service tiers public (n'importe qui peut poster
     // un commentaire de spot) : chaque champ affiché passe par esc().
     el.innerHTML = spots.slice(0,30).map(s => `
@@ -379,11 +379,11 @@ async function loadSota(){
     const el = document.getElementById('sotaList');
     const spots = d.spots || [];
     if(!spots.length){
-      el.innerHTML = `<div class="loading">Aucune activation SOTA en cours signalée pour l'instant.</div>`;
+      el.innerHTML = `<div class="loading">Aucun trafic SOTA signalé pour l'instant.</div>`;
       meta.textContent = '';
       return;
     }
-    meta.textContent = `${spots.length} activateur${spots.length>1?'s':''}`;
+    meta.textContent = `${spots.length} station${spots.length>1?'s':''}`;
     // Service tiers public (n'importe qui peut poster un commentaire de spot) :
     // chaque champ affiché passe par esc().
     el.innerHTML = spots.slice(0,30).map(s => `
@@ -409,11 +409,11 @@ async function loadWwff(){
     const el = document.getElementById('wwffList');
     const spots = d.spots || [];
     if(!spots.length){
-      el.innerHTML = `<div class="loading">Aucune activation WWFF en cours signalée pour l'instant.</div>`;
+      el.innerHTML = `<div class="loading">Aucun trafic WWFF signalé pour l'instant.</div>`;
       meta.textContent = '';
       return;
     }
-    meta.textContent = `${spots.length} activateur${spots.length>1?'s':''}`;
+    meta.textContent = `${spots.length} station${spots.length>1?'s':''}`;
     // Service tiers public (n'importe qui peut poster un commentaire de spot) :
     // chaque champ affiché passe par esc().
     el.innerHTML = spots.slice(0,30).map(s => `
@@ -442,7 +442,7 @@ async function loadWca(){
     const el = document.getElementById('wcaList');
     const items = d.items || [];
     if(!items.length){
-      el.innerHTML = `<div class="loading">Aucune activation WCA/COTA annoncée pour l'instant.</div>`;
+      el.innerHTML = `<div class="loading">Aucun trafic WCA/COTA annoncé pour l'instant.</div>`;
       meta.textContent = '';
       return;
     }

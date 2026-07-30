@@ -6842,7 +6842,7 @@ async function selfSpotSota(){
   }
   if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
   const freq_khz = Math.round(mhz * 1000 * 10) / 10;
-  if(!confirm(trF('Publier ce spot sur SOTAwatch3 ?\n\n{call}   {ref}   {mhz} MHz   {mode}\n\nNécessite une connexion SOTA configurée dans CONFIG → EXPÉDITION/ACTIVATION.',
+  if(!confirm(trF('Publier ce spot sur SOTAwatch3 ?\n\n{call}   {ref}   {mhz} MHz   {mode}\n\nNécessite une connexion SOTA configurée dans CONFIG → EXPÉDITION/PORTABLE.',
               {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3), mode: currentMode || ''}))) return;
   const btn = document.getElementById('actSpotBtn');
   const orig = btn ? btn.textContent : '';

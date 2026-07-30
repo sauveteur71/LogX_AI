@@ -9,13 +9,13 @@
 3. [Prise en main en 5 minutes](#3-prise-en-main-en-5-minutes)
 4. [Les quatre modes d'utilisation](#4-les-quatre-modes-dutilisation)
 5. [Configurer sa station : le hub de catégories](#5-configurer-sa-station--le-hub-de-catégories)
-6. [Le logbook au quotidien](#6-le-logbook-au-quotidien)
+6. [Le logbook au quotidien](#6-le-logbook-au-quotidien--lécran-de-saisie-détaillé)
 7. [Faire un concours de A à Z](#7-faire-un-concours-de-a-à-z)
 8. [Piloter sa radio et son matériel](#8-piloter-sa-radio-et-son-matériel)
 9. [Cartes, propagation, chasse, EME et écoute à distance](#9-cartes-propagation-chasse-eme-et-écoute-à-distance)
-10. [Activations POTA, SOTA, WWFF, IOTA, WCA](#10-activations-pota-sota-wwff-iota-wca)
+10. [Sorties en portable POTA, SOTA, WWFF, IOTA, WCA](#10-sorties-en-portable-pota-sota-wwff-iota-wca)
 11. [Multi-poste, expédition, radioclub et écran mural](#11-multi-poste-expédition-radioclub-et-écran-mural)
-12. [Diplômes, QSL et historique à vie](#12-diplômes-qsl-et-historique-à-vie)
+12. [Diplômes, QSL et historique à vie](#12-diplômes-qsl-et-historique-à-vie--le-carnet-permanent)
 13. [Le copilote IA](#13-le-copilote-ia)
 14. [Import, export et vos données](#14-import-export-et-vos-données)
 15. [Dépannage rapide](#15-dépannage-rapide)
@@ -24,7 +24,7 @@
 
 ## 1. Qu'est-ce que LogX AI ?
 
-LogX AI est un logiciel de journal de trafic (logbook) en français qui couvre trois usages dans une seule interface : le trafic courant et la chasse au DX, les concours (règlement, échange, score et multiplicateurs calculés en direct) et les expéditions ou activations de programmes comme POTA, SOTA, IOTA, WWFF, les phares (ARLHS) ou les châteaux (WCA).
+LogX AI est un logiciel de journal de trafic (logbook) en français qui couvre trois usages dans une seule interface : le trafic courant et la chasse au DX, les concours (règlement, échange, score et multiplicateurs calculés en direct) et les expéditions ou sorties portables des programmes comme POTA, SOTA, IOTA, WWFF, les phares (ARLHS) ou les châteaux (WCA).
 
 Son fonctionnement le distingue des logbooks « en ligne » : un petit serveur tourne sur votre propre PC, et vous utilisez l'application dans votre navigateur habituel. Vos QSO, votre configuration et vos archives restent chez vous, dans un dossier de votre ordinateur. C'est la philosophie du logiciel : rien ne quitte votre poste sans un réglage explicite de votre part (envoi d'un log, synchronisation cloud, assistant IA...).
 
@@ -66,7 +66,7 @@ Tout y est : votre journal de trafic, votre configuration, la base d'indicatifs,
 
 - **Sauvegarder** = copier ce dossier (sur une clé USB, dans votre cloud personnel...).
 - **Repartir de zéro** = supprimer ce dossier ; il sera recréé vide au prochain lancement.
-- Le fichier des pays DXCC (`cty.dat`) est mis à jour automatiquement à chaque démarrage dès qu'il a plus de 30 jours. Les bases de références d'activation (sommets SOTA, parcs POTA, réserves WWFF, îles IOTA, châteaux WCA) sont de même téléchargées à leur première utilisation puis rafraîchies automatiquement selon la même règle des 30 jours.
+- Le fichier des pays DXCC (`cty.dat`) est mis à jour automatiquement à chaque démarrage dès qu'il a plus de 30 jours. Les bases de références (sommets SOTA, parcs POTA, réserves WWFF, îles IOTA, châteaux WCA) sont de même téléchargées à leur première utilisation puis rafraîchies automatiquement selon la même règle des 30 jours.
 
 ### Sur macOS
 
@@ -140,7 +140,7 @@ Le mode d'utilisation adapte toute l'interface à ce que vous faites réellement
 |---|---|---|---|---|
 | **📋 LOGBOOK SIMPLE — chasse DX / trafic courant, sans concours** | Le trafic de tous les jours | Aucun | 1 | Tout ce qui est lié au score disparaît (bannière score, numéro de série, récap par bande, classement, bouton d'archivage). Bandes et modes librement réglables. Le journal affiché est votre journal personnel **complet**. Un doublon (même indicatif, même bande) n'est ni bloqué ni signalé — recontacter une station au fil des années est normal ; le panneau « Déjà contacté » affiche de toute façon votre historique avec cette station. Suffixes acceptés dans l'indicatif : /P, /M, /MM, /AM, ou préfixe pays (ex. EA/F4GLD). |
 | **🏆 CONCOURS — règlement, échange, scoring, multiplicateurs** | Participer à un concours (mode par défaut) | Obligatoire | Jusqu'à 5 | Toutes les fonctions de rythme et de score sont actives. Le logbook n'affiche que les QSO de l'édition en cours du concours (voir la portée ci-dessous). |
-| **📡 EXPÉDITION / ACTIVATION — pile-up, multi-poste** | POTA, SOTA, IOTA, WWFF, phares, châteaux, ou toute sortie portable | Optionnel | Jusqu'à 5 | Saisie simplifiée « juste indicatif + RST » pré-activée. La carte **🏝️ 14. Expédition / Activation** permet de choisir le **PROGRAMME** (POTA, SOTA, IOTA, WWFF, ARLHS, WCA — chacun avec son minimum de QSO pour valider) et **MA RÉFÉRENCE ACTIVÉE**, avec vérification du format et, pour POTA, SOTA, WWFF, IOTA et WCA, contrôle de l'existence de la référence dans la vraie base du programme (ARLHS : vérification du format uniquement, sans base embarquée). Le logbook affiche une barre de progression vers la validation et un compteur de contacts parc-à-parc. |
+| **📡 EXPÉDITION / PORTABLE — pile-up, multi-poste** | POTA, SOTA, IOTA, WWFF, phares, châteaux, ou toute sortie portable | Optionnel | Jusqu'à 5 | Saisie simplifiée « juste indicatif + RST » pré-activée. La carte **🏝️ 14. Expédition / Portable** permet de choisir le **PROGRAMME** (POTA, SOTA, IOTA, WWFF, ARLHS, WCA — chacun avec son minimum de QSO pour valider) et **MA RÉFÉRENCE**, avec vérification du format et, pour POTA, SOTA, WWFF, IOTA et WCA, contrôle de l'existence de la référence dans la vraie base du programme (ARLHS : vérification du format uniquement, sans base embarquée). Le logbook affiche une barre de progression vers la validation et un compteur de contacts parc-à-parc. |
 | **🏛️ RADIOCLUB — plusieurs postes, jusqu'à 40 opérateurs** | Concours de club, opérateurs qui se relaient | Obligatoire | Jusqu'à 40 | Section **POSTES RADIO** visible (déclarez les postes physiques du club). Le logbook affiche un bouton par opérateur réel, généré depuis la configuration. |
 
 Deux précisions honnêtes :
@@ -160,7 +160,7 @@ La barre de statut, sous la navigation, indique en permanence dans quelle vue vo
 
 ### Ne pas confondre avec le mode 🎚 DÉBUTANT / EXPERT
 
-C'est un réglage différent, purement d'affichage. Le bouton **🎚 EXPERT** / **🎚 DÉBUTANT** dans l'en-tête de la page **⚙ CONFIG** masque ou révèle les réglages avancés (assistant IA, propagation, clusters, alertes, champs d'export EDI comme le responsable du log ou la section). En mode débutant, ces réglages gardent leurs valeurs par défaut en arrière-plan — rien n'est désactivé, seulement caché. À la première visite, LogX AI choisit débutant si aucun indicatif n'est encore configuré, expert sinon. Exception utile : en mode **📡 EXPÉDITION / ACTIVATION**, le panneau expédition reste accessible même en affichage débutant.
+C'est un réglage différent, purement d'affichage. Le bouton **🎚 EXPERT** / **🎚 DÉBUTANT** dans l'en-tête de la page **⚙ CONFIG** masque ou révèle les réglages avancés (assistant IA, propagation, clusters, alertes, champs d'export EDI comme le responsable du log ou la section). En mode débutant, ces réglages gardent leurs valeurs par défaut en arrière-plan — rien n'est désactivé, seulement caché. À la première visite, LogX AI choisit débutant si aucun indicatif n'est encore configuré, expert sinon. Exception utile : en mode **📡 EXPÉDITION / PORTABLE**, le panneau expédition reste accessible même en affichage débutant.
 
 ---
 
@@ -177,7 +177,7 @@ En haut de page, vous retrouvez :
 - le bouton de thème **☀️** / **🌙** (jour/nuit), synchronisé entre tous les onglets ouverts du logiciel ;
 - la barre de navigation vers les autres pages : **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**, avec le nom du concours actif rappelé à droite.
 
-Juste en dessous, la barre **MODE D'UTILISATION** conditionne toute la suite : **📋 LOGBOOK SIMPLE** (chasse DX, trafic courant, sans concours), **🏆 CONCOURS** (le mode par défaut), **📡 EXPÉDITION / ACTIVATION** (pile-up, multi-poste) ou **🏛️ RADIOCLUB** (plusieurs postes, jusqu'à 40 opérateurs). Une note contextuelle explique les conséquences du mode choisi. Deux effets à connaître : passer en EXPÉDITION pré-coche la saisie simplifiée, et passer en LOGBOOK SIMPLE décoche toutes les bandes et tous les modes (vous repartez d'une page blanche à régler librement à l'étape FILTRES). En modes SIMPLE et EXPÉDITION, le choix d'un concours est facultatif.
+Juste en dessous, la barre **MODE D'UTILISATION** conditionne toute la suite : **📋 LOGBOOK SIMPLE** (chasse DX, trafic courant, sans concours), **🏆 CONCOURS** (le mode par défaut), **📡 EXPÉDITION / PORTABLE** (pile-up, multi-poste) ou **🏛️ RADIOCLUB** (plusieurs postes, jusqu'à 40 opérateurs). Une note contextuelle explique les conséquences du mode choisi. Deux effets à connaître : passer en EXPÉDITION pré-coche la saisie simplifiée, et passer en LOGBOOK SIMPLE décoche toutes les bandes et tous les modes (vous repartez d'une page blanche à régler librement à l'étape FILTRES). En modes SIMPLE et EXPÉDITION, le choix d'un concours est facultatif.
 
 En tête du hub, le bouton **📊 Résumé ▸** ouvre le récapitulatif **📊 RÉSUMÉ DE LA SESSION** : l'état de votre configuration en une page, avec en mode expert la zone **PROMPT SYSTÈME GÉNÉRÉ** (le contexte que l'assistant IA recevra), les boutons **📋 COPIER LE PROMPT** et **💾 SAUVEGARDER CONFIG**, et deux raccourcis : **🚀 COMMENCER À LOGGER** et **🗺️ Ouvrir la carte IA**. Tout en bas du hub, le bouton **🚀 TOUT EST BON — LOGGER** effectue une sauvegarde stricte (voir §5.8) puis vous emmène directement dans le logbook.
 
@@ -200,7 +200,7 @@ Chaque carte ouvre une fenêtre de réglages avec deux boutons : **💾 Enregist
 | | **🔔 11. Alertes** | DX, spotter, règles perso |
 | **APRÈS LE CONCOURS** | **📮 12. QSL & diplômes** | QRZ, eQSL, LoTW, ClubLog... |
 | | **🏆 13. Scoreboard & soumission** | Score en direct, envoi du log |
-| **SPÉCIAL** | **🏝️ 14. Expédition / Activation** | POTA, SOTA, IOTA, WWFF... |
+| **SPÉCIAL** | **🏝️ 14. Expédition / Portable** | POTA, SOTA, IOTA, WWFF... |
 | | **🤖 15. Assistant IA** | Fournisseur, clé API |
 
 Chaque carte porte un badge d'état :
@@ -277,7 +277,7 @@ La section **COMPTE ON4KST CHAT (optionnel)** accueille votre **INDICATIF ON4KST
 
 #### SPÉCIAL
 
-**🏝️ 14. EXPÉDITION / ACTIVATION** — La section **🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)** transforme LogX AI en journal d'activation :
+**🏝️ 14. EXPÉDITION / PORTABLE** — La section **🏕️ TRAFIC EN PORTABLE (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)** transforme LogX AI en journal de trafic portable :
 
 | **PROGRAMME** | Minimum de QSO |
 |---|---|
@@ -288,7 +288,7 @@ La section **COMPTE ON4KST CHAT (optionnel)** accueille votre **INDICATIF ON4KST
 | **ARLHS — Lighthouses** | 2 |
 | **WCA — World Castles Award** | 50 |
 
-Le champ **MA RÉFÉRENCE ACTIVÉE** propose autocomplétion et validation du format (« POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN »). Le bloc **🗺️ RÉFÉRENCES À PROXIMITÉ** (**🔍 Chercher autour de moi**, rayon 60 km par défaut) liste les références proches calculées depuis votre locator, sur la base embarquée du logiciel — aucun service tiers n'est consulté. Limite : le message **⚠️ Non disponible pour ce programme** apparaît quand la base ne contient pas de coordonnées GPS, ce qui est le cas du WCA. Pendant l'activation, le logbook affiche votre avancement (X QSO sur le minimum requis), détecte les liaisons Park-to-Park / Summit-to-Summit, et l'export ADIF inclut les champs officiels du programme. La section **🏝️ MODE EXPÉDITION** ajoute : **MODE EXPÉDITION** (« Activé — juste indicatif + RST envoyé/reçu » : saisie ultra-rapide pour le pile-up), **CLUB LOG LIVE STREAM** (« Activé — pousser chaque QSO en temps réel », nécessite vos identifiants ClubLog complets), **AUTO-SPOT DX CLUSTER** (ajoute un bouton **📡 SELF-SPOT** dans le logbook — attention : « ⚠️ Interdit par certains règlements en single-op »), **NŒUD CLUSTER (host : port)** (dxc.ve7cc.net:7300 par défaut), le lien **🖥️ OUVRIR L'ÉCRAN MURAL** (grand écran d'affichage des derniers QSO, utilisable dans tous les modes, avec **ÉCRAN MURAL — CHAMPS À AFFICHER** : Heure, 🏴 Drapeau, Pays, Prénom, Bande, Fréquence, Mode, Report (RST), Opérateur — l'indicatif est toujours affiché) et **📱 CONNECTER UN TÉLÉPHONE / TABLETTE** (adresses du réseau local détectées automatiquement, installation en application via « Ajouter à l'écran d'accueil »).
+Le champ **MA RÉFÉRENCE** propose autocomplétion et validation du format (« POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN »). Le bloc **🗺️ RÉFÉRENCES À PROXIMITÉ** (**🔍 Chercher autour de moi**, rayon 60 km par défaut) liste les références proches calculées depuis votre locator, sur la base embarquée du logiciel — aucun service tiers n'est consulté. Limite : le message **⚠️ Non disponible pour ce programme** apparaît quand la base ne contient pas de coordonnées GPS, ce qui est le cas du WCA. Pendant la sortie, le logbook affiche votre avancement (X QSO sur le minimum requis), détecte les liaisons Park-to-Park / Summit-to-Summit, et l'export ADIF inclut les champs officiels du programme. La section **🏝️ MODE EXPÉDITION** ajoute : **MODE EXPÉDITION** (« Activé — juste indicatif + RST envoyé/reçu » : saisie ultra-rapide pour le pile-up), **CLUB LOG LIVE STREAM** (« Activé — pousser chaque QSO en temps réel », nécessite vos identifiants ClubLog complets), **AUTO-SPOT DX CLUSTER** (ajoute un bouton **📡 SELF-SPOT** dans le logbook — attention : « ⚠️ Interdit par certains règlements en single-op »), **NŒUD CLUSTER (host : port)** (dxc.ve7cc.net:7300 par défaut), le lien **🖥️ OUVRIR L'ÉCRAN MURAL** (grand écran d'affichage des derniers QSO, utilisable dans tous les modes, avec **ÉCRAN MURAL — CHAMPS À AFFICHER** : Heure, 🏴 Drapeau, Pays, Prénom, Bande, Fréquence, Mode, Report (RST), Opérateur — l'indicatif est toujours affiché) et **📱 CONNECTER UN TÉLÉPHONE / TABLETTE** (adresses du réseau local détectées automatiquement, installation en application via « Ajouter à l'écran d'accueil »).
 
 **🤖 15. ASSISTANT IA** — Choisissez votre **FOURNISSEUR** parmi six : **Claude / Anthropic**, **ChatGPT / OpenAI**, **Gemini / Google**, **Mistral AI / France**, **Grok / xAI**, **DeepSeek** ; puis le **MODÈLE** et votre **CLÉ API** (« 🔒 Stockée localement par fournisseur — jamais partagée » : une clé est mémorisée par fournisseur et restaurée quand vous rebasculez). Point important : sans clé API, tout le logiciel fonctionne normalement — seul le copilote IA est indisponible. La clé s'obtient (souvent moyennant paiement à l'usage) directement chez le fournisseur choisi.
 
@@ -306,7 +306,7 @@ La carte **🏆 3. SÉLECTION DU CONCOURS** vous évite de configurer bandes, mo
 
 **Rechercher et choisir.** Le champ **🔍 Rechercher : Field Day, VHF, RPH, CQ WW…** filtre en direct sur le nom, l'organisateur, les bandes, les modes et le barème. Les concours sont groupés dans l'ordre : **REF** (marqués **⭐** et « — Calendrier 2026 officiel »), **Autre FR**, **International**, **Mondial (WA7BNM)** (issu du calendrier mondial externe WA7BNM) et **Autre**. Chaque carte de concours porte un badge de confiance : **✓ RÈGLEMENT SUIVI** (base intégrée, dates et règlement re-vérifiés chaque année), **🤖 IA + RELECTURE** (règlement extrait par l'IA puis validé par relecture humaine) ou **⚠ À CONFIRMER** (concours WA7BNM non vérifié — faites lire le règlement par l'IA avant de vous y fier). Un lien **📄 RÈGLEMENT** ouvre le texte officiel quand il est disponible. À la sélection, bandes et modes sont cochés automatiquement et les dates calculées quand la règle est connue (une bannière les affiche : « Début : … · Fin : … UTC — Modifie manuellement si besoin » ; sinon, on vous invite à les saisir). Attention : changer de concours alors qu'un autre est déjà actif réinitialise bandes, modes et dates — une confirmation explicite vous prévient que vos personnalisations seront perdues.
 
-**Le bouton ✕ Aucun concours** vous ramène à un fonctionnement « sans concours » sans toucher aux bandes et modes déjà cochés — typiquement utile en mode EXPÉDITION/ACTIVATION quand vous ne participez pas (ou plus) à un concours.
+**Le bouton ✕ Aucun concours** vous ramène à un fonctionnement « sans concours » sans toucher aux bandes et modes déjà cochés — typiquement utile en mode EXPÉDITION/PORTABLE quand vous ne participez pas (ou plus) à un concours.
 
 **Depuis le calendrier.** Si vous arrivez depuis la page **📅 CALENDRIER** avec un concours pré-choisi, la bannière **🧭 ASSISTANT NOUVEAU CONCOURS** affiche une check-list : concours sélectionné, station configurée (avec lien vers l'étape 1 sinon), dates calculées ou à saisir, et pour un concours WA7BNM un avertissement de contrôle du règlement officiel. Le mode d'utilisation bascule automatiquement de simple vers concours si nécessaire.
 
@@ -369,9 +369,9 @@ Les notes sont **enregistrées sur le serveur** : elles survivent à un recharge
 
 **📻 BAND MAP** et remet le focus sur l'indicatif.
 
-#### La barre d'activation (POTA, SOTA, IOTA, WWFF…)
+#### La barre de trafic portable (POTA, SOTA, IOTA, WWFF…)
 
-Visible uniquement en mode activation, elle affiche le programme, votre référence, la progression vers le minimum de QSO exigé (POTA 10, SOTA 4, IOTA 1, WWFF 44, ARLHS 2, WCA 50), un badge **✅ VALIDÉE** (ou « encore N »), le compteur de contacts Park-to-Park et une barre de progression. Elle se met à jour toutes les 15 secondes.
+Visible uniquement en mode portable, elle affiche le programme, votre référence, la progression vers le minimum de QSO exigé (POTA 10, SOTA 4, IOTA 1, WWFF 44, ARLHS 2, WCA 50), un badge **✅ VALIDÉE** (ou « encore N »), le compteur de contacts Park-to-Park et une barre de progression. Elle se met à jour toutes les 15 secondes.
 
 #### FRÉQUENCE (MHz)
 
@@ -399,7 +399,7 @@ Le champ le plus assisté du logiciel. La saisie est forcée en majuscules, et d
 
 #### RÉF. CORRESPONDANT (P2P / S2S)
 
-Visible uniquement en mode activation. Si votre correspondant active lui aussi un parc ou un sommet, saisissez sa référence (ex. DL-0042) : le QSO est enregistré comme Park-to-Park / Summit-to-Summit (champs SIG/MY_SIG) dans les fichiers ADIF générés par le serveur — notamment ceux de l'archivage 📦 ARCHIVER. Attention : l'export rapide 📥 ADIF de la barre d'outils n'inclut pas ces champs.
+Visible uniquement en mode portable. Si votre correspondant active lui aussi un parc ou un sommet, saisissez sa référence (ex. DL-0042) : le QSO est enregistré comme Park-to-Park / Summit-to-Summit (champs SIG/MY_SIG) dans les fichiers ADIF générés par le serveur — notamment ceux de l'archivage 📦 ARCHIVER. Attention : l'export rapide 📥 ADIF de la barre d'outils n'inclut pas ces champs.
 
 #### RST ENVOYÉ / RST REÇU
 
@@ -551,7 +551,7 @@ Soyez lucide sur ses limites, affichées dans le panneau lui-même : le décodag
 
 Un second décodeur, plus simple (**🎧 DÉCODEUR CW**, dans la colonne de saisie, visible en mode CW et masqué en mode débutant), offre un raccourci précieux : **cliquer sur un mot décodé contenant un chiffre le place directement dans le champ indicatif**.
 
-Au même emplacement, le panneau **🖼 DÉCODEUR SSTV** n'apparaît qu'en **mode SSTV** : cochez d'abord **SSTV** dans CONFIG > MODES, puis choisissez SSTV dans le sélecteur de mode du logbook. Il reçoit les images à balayage lent — activations, dimanches SSTV, et les transmissions de l'**ISS** (mode PD120) — sans MMSSTV ni RX-SSTV à côté. Mêmes prérequis audio que le décodeur CW (audio de réception de la radio, pas le micro du PC). Aucun réglage de mode : l'en-tête **VIS** du signal est détecté automatiquement (Martin M1/M2, Scottie S1/S2/DX, Robot 36/72, PD50 à PD290) et l'image se construit ligne par ligne sur l'écran, avec la progression en pourcentage dans l'en-tête du panneau. La dérive d'horloge entre cartes son (l'image « penchée » bien connue en SSTV) est compensée en continu sur les impulsions de synchro. **💾 PNG** télécharge l'image reçue (nom horodaté, pour enchaîner les réceptions sans rien écraser), **🗑** efface l'écran.
+Au même emplacement, le panneau **🖼 DÉCODEUR SSTV** n'apparaît qu'en **mode SSTV** : cochez d'abord **SSTV** dans CONFIG > MODES, puis choisissez SSTV dans le sélecteur de mode du logbook. Il reçoit les images à balayage lent — sorties portables, dimanches SSTV, et les transmissions de l'**ISS** (mode PD120) — sans MMSSTV ni RX-SSTV à côté. Mêmes prérequis audio que le décodeur CW (audio de réception de la radio, pas le micro du PC). Aucun réglage de mode : l'en-tête **VIS** du signal est détecté automatiquement (Martin M1/M2, Scottie S1/S2/DX, Robot 36/72, PD50 à PD290) et l'image se construit ligne par ligne sur l'écran, avec la progression en pourcentage dans l'en-tête du panneau. La dérive d'horloge entre cartes son (l'image « penchée » bien connue en SSTV) est compensée en continu sur les impulsions de synchro. **💾 PNG** télécharge l'image reçue (nom horodaté, pour enchaîner les réceptions sans rien écraser), **🗑** efface l'écran.
 
 À droite, le panneau **💬 CHAT MULTI-OP** (visible uniquement en multi-opérateurs) permet de discuter entre postes : messages horodatés avec l'opérateur, badge rouge de messages non lus quand le panneau est replié, Entrée pour envoyer. Si le serveur est injoignable, votre texte est remis dans le champ au lieu d'être perdu.
 
@@ -692,7 +692,7 @@ Deux points pratiques pour l'EDI : le règlement impose **un fichier par bande**
 
 #### Le scoreboard en ligne (pendant le concours)
 
-LogX AI peut publier votre score en direct sur contestonlinescore.com, au format « score dynamique N1MM », pour vous comparer à vos rivaux en temps réel. Tout se règle dans **CONFIG**, section **🏆 13. SCOREBOARD & SOUMISSION** : activation (**SCOREBOARD EN DIRECT**), intervalle d'envoi (5 minutes par défaut) et catégorie. Le score publié est filtré sur le concours et l'année en cours — un vieux log importé ne gonflera jamais votre total. À savoir : contestonlinescore.com est un service tiers bénévole ; s'il est indisponible, l'envoi échoue silencieusement sans perturber votre trafic, et reprendra tout seul.
+LogX AI peut publier votre score en direct sur contestonlinescore.com, au format « score dynamique N1MM », pour vous comparer à vos rivaux en temps réel. Tout se règle dans **CONFIG**, section **🏆 13. SCOREBOARD & SOUMISSION** : mise en service (**SCOREBOARD EN DIRECT**), intervalle d'envoi (5 minutes par défaut) et catégorie. Le score publié est filtré sur le concours et l'année en cours — un vieux log importé ne gonflera jamais votre total. À savoir : contestonlinescore.com est un service tiers bénévole ; s'il est indisponible, l'envoi échoue silencieusement sans perturber votre trafic, et reprendra tout seul.
 
 #### Le débrief
 
@@ -820,16 +820,16 @@ Tout le reste du logiciel fonctionne à l'identique sans le moindre câble : sai
 
 ## 9. Cartes, propagation, chasse, EME et écoute à distance
 
-Ce chapitre couvre les six pages qui vous font sortir du logbook : voir où sont les stations à contacter, savoir quelles bandes sont ouvertes et vers où, repérer les activateurs en l'air et les spots qui valent des points, préparer un contact par rebond lunaire, écouter votre propre signal depuis un récepteur distant, et planifier vos concours et chasses aux DXpéditions. Les six pages partagent la même barre d'onglets (**⚙ CONFIG**, **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**) et le même thème jour/nuit, mémorisé d'une visite à l'autre.
+Ce chapitre couvre les six pages qui vous font sortir du logbook : voir où sont les stations à contacter, savoir quelles bandes sont ouvertes et vers où, repérer les stations en portable et les spots qui valent des points, préparer un contact par rebond lunaire, écouter votre propre signal depuis un récepteur distant, et planifier vos concours et chasses aux DXpéditions. Les six pages partagent la même barre d'onglets (**⚙ CONFIG**, **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**) et le même thème jour/nuit, mémorisé d'une visite à l'autre.
 
-Deux pages voisines à ne pas confondre : **📶 PROPAG** répond à « quelles bandes sont ouvertes, et vers où ? » — on la consulte de temps en temps ; **🎯 CHASSE** répond à « qui est-ce que je contacte maintenant ? » — on la travaille en continu. C'est pourquoi les cinq panneaux de cibles (activateurs POTA/SOTA/WWFF, châteaux WCA, need list du cluster) vivent sur CHASSE et non sur PROPAG.
+Deux pages voisines à ne pas confondre : **📶 PROPAG** répond à « quelles bandes sont ouvertes, et vers où ? » — on la consulte de temps en temps ; **🎯 CHASSE** répond à « qui est-ce que je contacte maintenant ? » — on la travaille en continu. C'est pourquoi les cinq panneaux de cibles (stations POTA/SOTA/WWFF, châteaux WCA, need list du cluster) vivent sur CHASSE et non sur PROPAG.
 
 | Page | À quoi elle sert |
 |---|---|
 | **🗺️ CARTE IA** | Carte tactique du concours : stations classées par priorité, anneaux de distance (dont votre record DX réel), ligne grise, chat avec le coach IA |
 | **🇫🇷 Cartes** | Tableaux de chasse géographiques : départements français à « verdir » et pays DXCC travaillés, avec les stations qui peuvent vous donner ce qui manque |
 | **📶 PROPAG** | Salle de veille : soleil et ionosphère, ouvertures par région, conditions par bande, balises, tropo, météores, EME, qui entend votre signal (PSK/RBN) |
-| **🎯 CHASSE** | Les cibles du moment : activateurs POTA/SOTA/WWFF en direct, châteaux WCA annoncés, et la need list du cluster valorisée pour votre concours |
+| **🎯 CHASSE** | Les cibles du moment : stations POTA/SOTA/WWFF en direct, châteaux WCA annoncés, et la need list du cluster valorisée pour votre concours |
 | **📡 WEBSDR** | Annuaire de récepteurs distants pilotables au navigateur, pour écouter ailleurs qu'à la maison |
 | **📅 CALENDRIER** | Dates des concours (REF, IARU, internationaux, calendrier mondial) et DXpéditions annoncées, croisées avec votre log |
 
@@ -888,7 +888,7 @@ Carte mondiale des pays DXCC travaillés (en vert) avec compteur « N pays conta
 
 ### 9.3 📶 PROPAG — la salle de veille
 
-Cette page rassemble en un seul écran tout ce qui, autrement, vous demanderait dix sites web ouverts : conditions solaires, ouvertures calculées depuis votre QTH, balises, et la preuve que votre propre signal porte. Elle ne traite que de la propagation : les activateurs en l'air et la need list du cluster sont sur la page **🎯 CHASSE** (§9.5). Les panneaux se rafraîchissent seuls (des balises toutes les 5 s à la tropo toutes les 20 min) — laissez la page ouverte sur un coin d'écran.
+Cette page rassemble en un seul écran tout ce qui, autrement, vous demanderait dix sites web ouverts : conditions solaires, ouvertures calculées depuis votre QTH, balises, et la preuve que votre propre signal porte. Elle ne traite que de la propagation : les stations en portable et la need list du cluster sont sur la page **🎯 CHASSE** (§9.5). Les panneaux se rafraîchissent seuls (des balises toutes les 5 s à la tropo toutes les 20 min) — laissez la page ouverte sur un coin d'écran.
 
 | Panneau | Ce qu'il apporte |
 |---|---|
@@ -920,14 +920,14 @@ Pour planifier un sked : saisissez le locator de l'autre station dans le champ �
 
 Cette page répond à une seule question, celle qu'on se pose en permanence pendant une session : **qui est-ce que je contacte maintenant ?** Elle regroupe les cinq listes de cibles, qui vivaient auparavant au milieu des indices solaires de la page PROPAG.
 
-Sa mise en page est faite pour l'opération : **la page ne défile jamais**. L'écran est découpé une fois pour toutes — une grille 2×2 à gauche pour les quatre programmes d'activation, la need list du cluster sur toute la hauteur à droite — et c'est chaque liste qui défile dans son propre panneau. Vous pouvez donc la laisser ouverte sur un second écran sans jamais avoir à chercher un panneau.
+Sa mise en page est faite pour l'opération : **la page ne défile jamais**. L'écran est découpé une fois pour toutes — une grille 2×2 à gauche pour les quatre programmes portables, la need list du cluster sur toute la hauteur à droite — et c'est chaque liste qui défile dans son propre panneau. Vous pouvez donc la laisser ouverte sur un second écran sans jamais avoir à chercher un panneau.
 
 | Panneau | Ce qu'il apporte | Rafraîchissement |
 |---|---|---|
-| « 🏞️ ACTIVATEURS POTA EN DIRECT » | Spots POTA confirmés sur l'air : indicatif, bande, référence, fréquence, mode, nom du parc | 2 min |
-| « 🏔️ ACTIVATEURS SOTA EN DIRECT » | Idem pour les sommets SOTA, avec altitude et points du sommet | 1 min |
-| « 🌳 ACTIVATEURS WWFF EN DIRECT » | Idem pour les réserves naturelles WWFF | 1 min |
-| « 🏰 CHÂTEAUX WCA/COTA — ANNONCÉS » | Attention, différent des trois précédents : ce sont des activations **annoncées à l'avance**, pas des spots confirmés sur l'air | 5 min |
+| « 🏞️ STATIONS POTA EN DIRECT » | Spots POTA confirmés sur l'air : indicatif, bande, référence, fréquence, mode, nom du parc | 2 min |
+| « 🏔️ STATIONS SOTA EN DIRECT » | Idem pour les sommets SOTA, avec altitude et points du sommet | 1 min |
+| « 🌳 STATIONS WWFF EN DIRECT » | Idem pour les réserves naturelles WWFF | 1 min |
+| « 🏰 CHÂTEAUX WCA/COTA — ANNONCÉS » | Attention, différent des trois précédents : ce sont des sorties **annoncées à l'avance**, pas des spots confirmés sur l'air | 5 min |
 | « 🎯 CLUSTER — NEED LIST » (détachable) | Colonne de droite, pleine hauteur : voir ci-dessous | 1 min |
 
 Le panneau « 🎯 CLUSTER — NEED LIST » présente les spots du cluster valorisés pour **votre** concours, avec les filtres « TOUS » / « 📈 MULTS » / « SANS DUPES ». Chaque spot affiche sa pastille de priorité, la valeur « +N pts » ou « DÉJÀ FAIT », le badge « 📈 NOUVEAU MULT », le cap et la distance — et deux boutons d'action directe si le pilotage matériel est activé dans la configuration : **▶ QSY** règle votre radio sur la fréquence, **🧭 N°** pointe votre rotor. Le bouton **⇱** détache le panneau dans une fenêtre séparée. Tant qu'aucun spot n'est encore arrivé, la page vous le dit : « lance un refresh depuis la CARTE IA (📡 ANALYSER) », ou attendez simplement la veille automatique.
@@ -964,9 +964,9 @@ Une rangée de filtres commune complète les onglets : « TOUS », « ⭐ REF »
 
 ---
 
-## 10. Activations POTA, SOTA, WWFF, IOTA, WCA
+## 10. Sorties en portable POTA, SOTA, WWFF, IOTA, WCA
 
-Que vous activiez un parc, un sommet ou un château, LogX AI intègre les bases officielles de référence et compte vos QSO en temps réel : vous savez à tout moment si votre activation est validée, sans pointage manuel ni tableur à côté. Le logiciel vous montre aussi les autres activateurs actuellement en l'air, pour la chasse.
+Que vous opériez depuis un parc, un sommet ou un château, LogX AI intègre les bases officielles de référence et compte vos QSO en temps réel : vous savez à tout moment si votre sortie est validée, sans pointage manuel ni tableur à côté. Le logiciel vous montre aussi les autres stations actuellement en l'air, pour la chasse.
 
 ### Les cinq programmes avec base intégrée
 
@@ -978,7 +978,7 @@ Les bases officielles sont téléchargées automatiquement en arrière-plan, con
 | **SOTA** — Summits on the Air | ~181 000 sommets, liste officielle sota.org.uk | Oui (3 dernières heures, même source que SOTAwatch), actualisés toutes les 1 min | 4 |
 | **WWFF** — Flora & Fauna | ~68 400 réserves, répertoire officiel wwff.co | Oui, via le « Spotline » officiel WWFF, actualisés toutes les 1 min | 44 |
 | **IOTA** — Islands on the Air | ~1 180 groupes d'îles + ~13 000 noms d'îles (la recherche « Agalega » trouve bien AF-001) | Non — aucune source de spots officielle et fiable n'existe pour IOTA ; plutôt que d'afficher des données douteuses, LogX n'en affiche pas | 1 |
-| **WCA** — World Castles Award | ~71 300 châteaux, classeur officiel wcagroup.org (201 pays). La source ne fournit aucune coordonnée GPS | Pas de spots temps réel — LogX affiche à la place les **annonces** d'activations planifiées publiées par le WCA, actualisées toutes les 15 min (flux RSS de blog, pas un flux temps réel) et clairement étiquetées comme telles | 50 |
+| **WCA** — World Castles Award | ~71 300 châteaux, classeur officiel wcagroup.org (201 pays). La source ne fournit aucune coordonnée GPS | Pas de spots temps réel — LogX affiche à la place les **annonces** de sorties planifiées publiées par le WCA, actualisées toutes les 15 min (flux RSS de blog, pas un flux temps réel) et clairement étiquetées comme telles | 50 |
 
 Deux points d'honnêteté : ces bases et spots proviennent de services bénévoles tiers (POTA, SOTA, WWFF, IOTA, WCA) ; si l'un d'eux est momentanément indisponible, LogX affiche le dernier résultat connu plutôt qu'une liste vide. Et LogX est en lecture seule : il ne publie jamais de spot POTA à votre place.
 
@@ -986,12 +986,12 @@ Deux points d'honnêteté : ces bases et spots proviennent de services bénévol
 
 Le programme des phares **ARLHS — Lighthouses (2 QSO)** est bien proposé dans la liste, mais volontairement **sans** base de références téléchargée : la liste officielle des phares n'est pas librement réutilisable, et la permission écrite nécessaire n'a pas été obtenue. LogX respecte cette règle plutôt que de la contourner. Concrètement : vous saisissez votre référence à la main, LogX vérifie seulement son format (XXX-NNN, ex. FRA-113, ou USA-129H pour un phare historique), et il n'y a ni auto-complétion ni recherche à proximité pour ce programme. Le minimum de 2 QSO vient du règlement officiel (« Two stations must be worked from each light activated »).
 
-### Déclarer votre activation
+### Déclarer votre sortie
 
-Tout se passe dans CONFIG, carte **🏝️ 14. EXPÉDITION / ACTIVATION**, section **🏕️ ACTIVATION (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)** :
+Tout se passe dans CONFIG, carte **🏝️ 14. EXPÉDITION / PORTABLE**, section **🏕️ TRAFIC EN PORTABLE (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)** :
 
-1. **PROGRAMME** : choisissez votre programme dans la liste (« POTA — Parks on the Air (10 QSO) », « SOTA — Summits on the Air (4 QSO) », etc.), ou laissez « Désactivé (concours normal) » hors activation.
-2. **MA RÉFÉRENCE ACTIVÉE** : tapez le code (ex. FR-0123) **ou le nom** du lieu — l'auto-complétion interroge la base intégrée, sans tenir compte des accents, dès 2 caractères. La validité du format s'affiche sous le champ, avec un rappel des formats attendus : « POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN ».
+1. **PROGRAMME** : choisissez votre programme dans la liste (« POTA — Parks on the Air (10 QSO) », « SOTA — Summits on the Air (4 QSO) », etc.), ou laissez « Désactivé (concours normal) » hors sortie portable.
+2. **MA RÉFÉRENCE** : tapez le code (ex. FR-0123) **ou le nom** du lieu — l'auto-complétion interroge la base intégrée, sans tenir compte des accents, dès 2 caractères. La validité du format s'affiche sous le champ, avec un rappel des formats attendus : « POTA : XX-NNNN · SOTA : XX/RR-NNN · IOTA : CC-NNN · WWFF : XXFF-NNNN · ARLHS : XXX-NNN · WCA : X-NNNNN ».
 
 ### Les références à proximité (dont les sommets SOTA)
 
@@ -1001,20 +1001,20 @@ Deux exceptions, affichées honnêtement dans l'interface : pour WCA, le bloc in
 
 ### La barre de progression et le P2P dans le logbook
 
-Dès qu'un programme et une référence sont configurés, une barre d'activation apparaît dans le logbook. Elle affiche : le programme, votre référence (en rouge si le format est invalide), la progression « x/N » en gros et en vert (N étant le minimum du programme), une barre de progression, puis **✅ VALIDÉE** une fois le seuil atteint — ou « encore N » en jaune tant qu'il manque des QSO. Elle se met à jour toutes les 15 secondes. Seuls comptent les QSO portant **votre** référence d'activation : les QSO d'un autre concours ou d'une autre activation ne polluent jamais le compteur.
+Dès qu'un programme et une référence sont configurés, une barre de trafic portable apparaît dans le logbook. Elle affiche : le programme, votre référence (en rouge si le format est invalide), la progression « x/N » en gros et en vert (N étant le minimum du programme), une barre de progression, puis **✅ VALIDÉE** une fois le seuil atteint — ou « encore N » en jaune tant qu'il manque des QSO. Elle se met à jour toutes les 15 secondes. Seuls comptent les QSO portant **votre** référence : les QSO d'un autre concours ou d'une autre sortie ne polluent jamais le compteur.
 
-À droite de la barre, un compteur dédié suit vos contacts avec d'autres activateurs, sous le nom consacré par chaque programme : « Park-to-Park », « Summit-to-Summit », « Island-to-Island », « Flora-to-Flora », « Light-to-Light » ou « Castle-to-Castle ». Pour l'alimenter, un champ de saisie supplémentaire apparaît en mode activation : **RÉF. CORRESPONDANT (P2P / S2S)** (« si le correspondant active aussi (ex: DL-0042) »). Ces informations sont écrites dans l'export ADIF dans les champs standard (SIG / MY_SIG) lus par les sites d'upload POTA, SOTA et WWFF — votre fichier est donc directement acceptable pour la validation officielle.
+À droite de la barre, un compteur dédié suit vos contacts avec d'autres stations en portable, sous le nom consacré par chaque programme : « Park-to-Park », « Summit-to-Summit », « Island-to-Island », « Flora-to-Flora », « Light-to-Light » ou « Castle-to-Castle ». Pour l'alimenter, un champ de saisie supplémentaire apparaît en mode portable : **RÉF. CORRESPONDANT (P2P / S2S)** (« si le correspondant active aussi (ex: DL-0042) »). Ces informations sont écrites dans l'export ADIF dans les champs standard (SIG / MY_SIG) lus par les sites d'upload POTA, SOTA et WWFF — votre fichier est donc directement acceptable pour la validation officielle.
 
-### La chasse : les activateurs en direct
+### La chasse : les stations en direct
 
 Sur la page **🎯 CHASSE** (onglet à droite de PROPAG, voir §9.5), quatre panneaux montrent qui est actuellement (ou bientôt) en l'air :
 
-- **🏞️ ACTIVATEURS POTA EN DIRECT**
-- **🏔️ ACTIVATEURS SOTA EN DIRECT**
-- **🌳 ACTIVATEURS WWFF EN DIRECT**
-- **🏰 CHÂTEAUX WCA/COTA — ANNONCÉS** (activations planifiées, annoncées à l'avance — pas des spots temps réel)
+- **🏞️ STATIONS POTA EN DIRECT**
+- **🏔️ STATIONS SOTA EN DIRECT**
+- **🌳 STATIONS WWFF EN DIRECT**
+- **🏰 CHÂTEAUX WCA/COTA — ANNONCÉS** (sorties planifiées, annoncées à l'avance — pas des spots temps réel)
 
-C'est l'outil du chasseur : repérez un activateur, contactez-le, et si vous êtes vous-même en activation, notez sa référence dans **RÉF. CORRESPONDANT (P2P / S2S)** pour marquer le contact programme-à-programme.
+C'est l'outil du chasseur : repérez une station, contactez-la, et si vous êtes vous-même en portable, notez sa référence dans **RÉF. CORRESPONDANT (P2P / S2S)** pour marquer le contact programme-à-programme.
 
 ## 11. Multi-poste, expédition, radioclub et écran mural
 
@@ -1026,7 +1026,7 @@ Lancez LogX AI sur un seul PC. Sur les autres postes, ouvrez simplement le logbo
 
 ### Sur téléphone ou tablette
 
-Dans CONFIG, carte **🏝️ 14. EXPÉDITION / ACTIVATION**, le bloc **📱 CONNECTER UN TÉLÉPHONE / TABLETTE** liste les adresses détectées sur votre réseau local, avec cette consigne : « Sur le même WiFi, ouvre cette adresse sur ton téléphone, puis « Ajouter à l'écran d'accueil » : l'appli s'installe et tourne en plein écran (PWA) ». Il existe en outre une page « Mobile Terrain (/P) » spécialement pensée pour le portable VHF/UHF (144/432 MHz) sur le terrain.
+Dans CONFIG, carte **🏝️ 14. EXPÉDITION / PORTABLE**, le bloc **📱 CONNECTER UN TÉLÉPHONE / TABLETTE** liste les adresses détectées sur votre réseau local, avec cette consigne : « Sur le même WiFi, ouvre cette adresse sur ton téléphone, puis « Ajouter à l'écran d'accueil » : l'appli s'installe et tourne en plein écran (PWA) ». Il existe en outre une page « Mobile Terrain (/P) » spécialement pensée pour le portable VHF/UHF (144/432 MHz) sur le terrain.
 
 ### Le chat entre opérateurs
 
@@ -1038,7 +1038,7 @@ Dans la carte 14, section **🏝️ MODE EXPÉDITION** : plusieurs postes sur le
 
 Le réglage **MODE EXPÉDITION** → « Activé — juste indicatif + RST envoyé/reçu » allège la saisie pour le pile-up : « pas de n° de série ni locator, seulement l'indicatif et les reports (59, 55, 44…) », et plus d'avertissement de locator vide. Le réglage est partagé par le serveur : tous les postes l'héritent automatiquement, même sans avoir ouvert la page CONFIG.
 
-Garde-fou important : si un **vrai concours** est sélectionné (sans programme d'activation), la saisie simplifiée ne s'applique pas — le numéro de série et le locator restent affichés, car le règlement en a besoin pour le score (ex. les concours REF comptés en km × locators). Impossible donc de saboter son score de concours par un réglage d'expédition oublié.
+Garde-fou important : si un **vrai concours** est sélectionné (sans programme portable), la saisie simplifiée ne s'applique pas — le numéro de série et le locator restent affichés, car le règlement en a besoin pour le score (ex. les concours REF comptés en km × locators). Impossible donc de saboter son score de concours par un réglage d'expédition oublié.
 
 Deux options d'expédition complètent la section, toutes deux facultatives :
 
@@ -1200,7 +1200,7 @@ La barre du **📋 LOGBOOK** propose trois boutons : **📥 EDI**, **📥 ADIF**
 |---|---|---|
 | **EDI** (REG1TEST) | Soumission des concours VHF/UHF | En-tête complet (indicatif, locator, club, responsable, ville, code postal, altitude, email, champ « REMARQUES EDI (soapbox) »). Une **validation avant export** recense les QSO incomplets (ignorés), les QSO sans locator (0 point) et les doublons, puis demande : « Générer quand même le fichier EDI ? » |
 | **Cabrillo v3** | Soumission des concours HF | En-têtes remplis automatiquement : concours, indicatif, catégorie SINGLE-OP ou MULTI-OP déduite du nombre d'opérateurs, puissance, score revendiqué, liste des opérateurs, locator |
-| **ADIF 3** | Échange universel (tout logiciel de log, LoTW via TQSL, eQSL…) | Tous les champs standard, y compris les références d'activation POTA/SOTA/IOTA/WWFF **des deux côtés du QSO** — vos Park-to-Park et Summit-to-Summit sont conservés |
+| **ADIF 3** | Échange universel (tout logiciel de log, LoTW via TQSL, eQSL…) | Tous les champs standard, y compris les références POTA/SOTA/IOTA/WWFF **des deux côtés du QSO** — vos Park-to-Park et Summit-to-Summit sont conservés |
 | **CSV** | Tableur (Excel, LibreOffice) | Colonnes N°, Date, Heure, Indicatif, Bande, Mode, RST env/reçu, N° env/reçu, Locator, Distance_km, Points, Opérateur |
 
 ### 14.2 L'import ADIF, avec aperçu avant écriture
@@ -1281,18 +1281,18 @@ Dans tous les cas, le plus simple et le plus fiable est d'exclure le **dossier d
 
 ### Utilisation sans Internet (terrain /P, zone blanche)
 
-LogX AI est conçu pour rester utilisable même sans aucune connexion Internet — seuls les services EN LIGNE (callbook QRZ/HamQTH/HamDB, clusters DX, propagation, PSK Reporter/RBN, QSL/LoTW, Cloud Sync, spots d'activation) sont concernés ; le logbook, le scoring, les diplômes, les bases d'activation déjà téléchargées et tout le reste fonctionnent en local sans aucun impact.
+LogX AI est conçu pour rester utilisable même sans aucune connexion Internet — seuls les services EN LIGNE (callbook QRZ/HamQTH/HamDB, clusters DX, propagation, PSK Reporter/RBN, QSL/LoTW, Cloud Sync, spots portables) sont concernés ; le logbook, le scoring, les diplômes, les bases de références déjà téléchargées et tout le reste fonctionnent en local sans aucun impact.
 
 - **Recherche d'indicatif (QRZ/HamQTH/HamDB)** : si aucun des trois services ne répond après quelques indicatifs différents tapés de suite, le logiciel « met en pause » cette recherche pendant environ 1 à 2 minutes plutôt que de rejouer une longue attente à chaque nouvel indicatif — il réessaie ensuite automatiquement. C'est normal en zone blanche et n'affecte ni le log ni le scoring.
 - **Envoi vers HRDLog / synchronisation LoTW / Cloud Sync** : ces actions s'arrêtent d'elles-mêmes après quelques échecs consécutifs (plutôt que de rester bloquées plusieurs minutes) et remontent une erreur claire — relancez-les une fois la connexion revenue.
 - **Cloud Sync** : configurez le dossier partagé (OneDrive/Synology Drive/Dropbox) en mode **« toujours conserver sur cet appareil »** plutôt qu'en fichiers à la demande — sinon une synchronisation peut ralentir le temps que le fichier distant soit téléchargé.
 - **Solaire / MUF / propagation** : ces panneaux affichent la dernière valeur connue (avec un indicateur de donnée non fraîche) plutôt que de geler en attendant une réponse réseau qui ne vient pas.
-- **Bases d'activation (SOTA/POTA/WWFF/IOTA/WCA)** : téléchargées automatiquement au premier usage puis conservées en local ~30 jours — pensez à ouvrir une fois la recherche de référence AVANT de partir en portable, la base restera disponible sur le terrain.
+- **Bases de références (SOTA/POTA/WWFF/IOTA/WCA)** : téléchargées automatiquement au premier usage puis conservées en local ~30 jours — pensez à ouvrir une fois la recherche de référence AVANT de partir en portable, la base restera disponible sur le terrain.
 
 ---
 
-*Dernière mise à jour : 25 juillet 2026 — nouvelle page **🎯 CHASSE** : les cinq panneaux de cibles (activateurs POTA/SOTA/WWFF, châteaux WCA, need list du cluster) ont quitté la page PROPAG. Chapitre 9 : entrée CHASSE ajoutée aux deux listes d'onglets, nouvelle section §9.5, panneaux retirés de la section PROPAG (WEBSDR et CALENDRIER renumérotés §9.6 et §9.7), et chapitre 10 corrigé (les activateurs en direct sont sur CHASSE).*
+*Dernière mise à jour : 25 juillet 2026 — nouvelle page **🎯 CHASSE** : les cinq panneaux de cibles (stations POTA/SOTA/WWFF, châteaux WCA, need list du cluster) ont quitté la page PROPAG. Chapitre 9 : entrée CHASSE ajoutée aux deux listes d'onglets, nouvelle section §9.5, panneaux retirés de la section PROPAG (WEBSDR et CALENDRIER renumérotés §9.6 et §9.7), et chapitre 10 corrigé (les stations en direct sont sur CHASSE).*
 
 *Mise à jour précédente : 25 juillet 2026 — ajout au chapitre Dépannage : le bandeau « FILES »/liste de requêtes réseau qui inquiète certains utilisateurs est en fait l'onglet Réseau des outils de développement du navigateur (F12), pas un composant de LogX AI.*
 
-*Mise à jour antérieure : 22 juillet 2026 — refonte complète du guide : nouveau plan en 15 chapitres reflétant l'état actuel du logiciel (4 modes d'utilisation dont RADIOCLUB, menus déroulants opérateur/bande/mode, ESM, décodeur CW, panneau EME, ouvertures par région, activations POTA/SOTA/WWFF/IOTA/WCA avec bases embarquées, chasse aux DXpéditions, écran mural utilisable dans tous les modes, 6 fournisseurs IA, chat multi-op).*
+*Mise à jour antérieure : 22 juillet 2026 — refonte complète du guide : nouveau plan en 15 chapitres reflétant l'état actuel du logiciel (4 modes d'utilisation dont RADIOCLUB, menus déroulants opérateur/bande/mode, ESM, décodeur CW, panneau EME, ouvertures par région, sorties portables POTA/SOTA/WWFF/IOTA/WCA avec bases embarquées, chasse aux DXpéditions, écran mural utilisable dans tous les modes, 6 fournisseurs IA, chat multi-op).*
