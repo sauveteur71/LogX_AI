@@ -807,7 +807,72 @@ Le panneau **🔤 DÉCODEUR CW** transcrit en texte le CW reçu, entièrement da
 
 Mode d'emploi : ouvrez le panneau (en bas à gauche du logbook), choisissez le périphérique d'**entrée** audio (les noms des périphériques n'apparaissent qu'après avoir autorisé le micro dans le navigateur), ajustez au besoin **Ton (Hz)** (650 par défaut, réglable 300–1200, même en cours de décodage), puis **▶ Démarrer**. Le texte défile dans la zone ; **■ Arrêter** stoppe l'écoute, **🗑 Effacer** vide la zone. La vitesse est estimée automatiquement et affichée en direct dans l'en-tête (« xx MPM », plage 4–60 mots/min) ; lettres, chiffres, ponctuation et prosigns (<AR>, <SK>, <BK>…) sont reconnus.
 
-### 8.7 Et sans aucun matériel ?
+### 8.7 🛰️ Satellites : les deux champs sans lesquels vos QSO ne comptent pas
+
+Si vous trafiquez par satellite, un point est **impératif** : renseignez le satellite dans **CONFIG > 🛰️ Satellite actif**. Ce n'est plus un simple repère informatif — c'est de lui que LogX tire les deux champs ADIF que LoTW exige :
+
+- **`PROP_MODE = SAT`** : c'est ce champ qui range le QSO dans la catégorie satellite, pour le DXCC, le WAS, le VUCC et les mentions associées ;
+- **`SAT_NAME`** : le nom du satellite.
+
+**Sans eux, LoTW crédite votre QSO comme un contact terrestre ordinaire.** Le contact est enregistré, il apparaît dans votre carnet, il est confirmé — mais il ne compte pour aucun diplôme satellite.
+
+Trois choses à savoir :
+
+**L'orthographe doit être exacte.** LoTW attend `AO-7`, pas `AO7`. Un seul nom mal orthographié fait **rejeter le fichier entier** au téléversement, pas seulement la ligne fautive. C'est pourquoi le champ est un menu déroulant plutôt qu'une saisie libre. Si vous trafiquez un satellite absent de la liste, LogX vous laisse le saisir mais vous avertit de vérifier son orthographe dans TQSL.
+
+**L'option « Autre » n'est jamais envoyée.** C'est un marqueur du menu, pas un satellite : `SAT_NAME=AUTRE` ferait échouer le téléversement.
+
+**La bande à consigner est la MONTANTE**, celle sur laquelle vous émettez — pas celle que vous entendez. C'est contre-intuitif, et c'est une source d'erreur classique : en liaison croisée, l'ADIF veut la montante dans `BAND`, la descendante allant dans `BAND_RX`.
+
+Un QSO qui porte déjà un satellite — importé depuis un ADIF ou saisi sur un autre poste — n'est jamais écrasé par le réglage global : sa valeur est plus sûre qu'un menu resté sur le satellite de la veille.
+
+> **Ce que LogX ne fait pas encore** : la prédiction de passage (AOS/LOS, azimut, élévation) et le suivi automatique du rotor. Pour cela, la page CONFIG renvoie vers Heavens-Above, N2YO et Gpredict.
+
+### 8.8 🎯 WAIT & POUNCE — appeler automatiquement en FT8/FT4
+
+Le panneau **🎯 WAIT & POUNCE** n'apparaît que si la liaison WSJT-X est active (CONFIG > WSJT-X). Il propose quatre niveaux, **activables séparément**, et il faut bien comprendre qu'ils ne sont pas de même nature.
+
+**Les deux premiers sont des comportements permanents de votre écran**, réglés par deux cases :
+
+| Niveau | Ce qu'il fait |
+|---|---|
+| **1 · Signaler** | Son et couleur quand un décodage vaut le coup. Décocher n'éteint que le son : la liste reste affichée. |
+| **2 · Armer au clic** | Un clic sur un indicatif entendu demande à WSJT-X de **préparer** la réponse — indicatif rempli, décalage audio calé. C'est exactement un double-clic sur la ligne du waterfall. **L'émission reste sous votre doigt** : c'est vous qui appuyez sur Enable TX. |
+
+**Les deux suivants sont une session**, bornée dans le temps, exclusifs l'un de l'autre, et **partagée entre tous vos postes** — indispensable au niveau 4, où vous n'êtes pas devant la radio mais devez pouvoir la surveiller depuis votre téléphone :
+
+| Niveau | Ce qu'il fait |
+|---|---|
+| **3 · Appeler seul** | Le logiciel déclenche l'appel dès qu'un décodage correspond à vos critères. Vous êtes là. |
+| **4 · Sans personne devant la radio** | La même chose, sans surveillance. Armer ce niveau demande une confirmation explicite. |
+
+#### Les critères : ce que LogX sait et que les autres ignorent
+
+Un utilitaire d'appel automatique classique raisonne sur « déjà contacté ou non ». LogX peut faire beaucoup plus fin, parce qu'il connaît votre carnet à vie et vos confirmations :
+
+- **entité jamais travaillée** ;
+- **entité non confirmée LoTW sur ce créneau bande × mode précis** — c'est le critère le plus utile pour qui court après le DXCC : une entité confirmée en 20 m CW reste à faire en 20 m numérique ;
+- **carré jamais travaillé** (VUCC) ;
+- **nouveau multiplicateur** du concours en cours.
+
+Armer **sans cocher aucun critère est refusé** : « appelle ce qui est intéressant » sans dire ce qui l'est reviendrait à appeler tout le monde, et cela ne se verrait qu'une fois la station lancée.
+
+#### Les garde-fous
+
+Ils ne sont pas décoratifs : chacun répond à une façon de mal finir quand personne ne regarde.
+
+- **Durée maximale.** La session s'arrête **toute seule** et coupe l'émission. Sans cela, un lancement du samedi soir émet encore le dimanche midi.
+- **Un seul appel en vol.** WSJT-X mène un QSO à la fois ; sans cette règle le logiciel sauterait de station en station sans en terminer aucune.
+- **Trois appels maximum par station.** Si elle n'a pas répondu en trois cycles, elle ne vous entend pas — insister encombre la fréquence.
+- **Plafond de 30 appels par quart d'heure**, qui **désarme** la session. En FT8 un QSO prend au mieux une minute : au-delà c'est un défaut, pas un bon week-end.
+- **Journal de tout ce qui part**, affiché du plus récent au plus ancien. Sans surveillance, c'est la seule façon de savoir après coup ce que votre station a fait en votre nom.
+- **La session n'est jamais enregistrée sur disque.** Un redémarrage du serveur ne peut pas relancer l'émission tout seul.
+
+Pendant une session, l'écran affiche la **minuterie qui décompte**, le bouton **⏹ ARRÊTER MAINTENANT**, et **gèle les réglages** — les changer sans désarmer donnerait l'illusion qu'ils s'appliquent, alors que la session tourne sur ceux d'origine.
+
+> **Ce que LogX ne fait jamais.** Il ne fabrique aucun signal radio. Il envoie à WSJT-X le même message qu'un double-clic sur une ligne de décodage ; c'est WSJT-X qui décide de ce qui part sur l'air, selon ses propres réglages. Le niveau 4 reste une décision d'opérateur : votre station émet sous votre indicatif et sous votre responsabilité.
+
+### 8.9 Et sans aucun matériel ?
 
 Tout le reste du logiciel fonctionne à l'identique sans le moindre câble : saisie et vérification des QSO, score, cartes, cluster et spots, statistiques, assistants IA. Les fonctions matérielles se dégradent proprement :
 

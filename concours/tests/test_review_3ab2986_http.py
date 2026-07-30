@@ -45,18 +45,27 @@ def server():
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
+# Delai client porte de 5 s a 30 s. Ce n'est PAS pour masquer une lenteur :
+# mesure ce jour, /awards/activity?days=3650 repond en 46 ms par HTTP. Sous la
+# suite complete en revanche, 25 fichiers de test ouvrent chacun leur serveur
+# HTTP sur la meme machine -- l'ordonnanceur affame parfois l'un d'eux plus de
+# 5 s, et le test tombait environ une fois sur trois passes SANS jamais echouer
+# en execution isolee (8/8). Une suite qui n'est jamais verte en local est une
+# suite qu'on cesse de regarder ; c'est le harnais qu'on desserre, pas
+# l'exigence. Un vrai defaut de performance se teste par une assertion de
+# duree explicite, pas par un delai reseau.
 def _get(base, path):
-    with urllib.request.urlopen(base + path, timeout=5) as r:
+    with urllib.request.urlopen(base + path, timeout=30) as r:
         return json.loads(r.read().decode('utf-8'))
 
 
 def _delete(base, path):
     req = urllib.request.Request(base + path, method='DELETE',
                                   headers={'X-RC-Token': httpmod.AUTH_TOKEN})
-    with urllib.request.urlopen(req, timeout=5) as r:
+    with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode('utf-8'))
 
 
@@ -66,7 +75,7 @@ def _post_json(base, path, payload):
         base + path, data=body, method='POST',
         headers={'Content-Type': 'application/json',
                  'X-RC-Token': httpmod.AUTH_TOKEN})
-    with urllib.request.urlopen(req, timeout=5) as r:
+    with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode('utf-8'))
 
 
@@ -93,7 +102,7 @@ def _post_multipart(base, path, fields=None, files=None):
         headers={'Content-Type': f'multipart/form-data; boundary={boundary}',
                  'X-RC-Token': httpmod.AUTH_TOKEN})
     try:
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=30) as r:
             return r.status, json.loads(r.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read().decode('utf-8'))

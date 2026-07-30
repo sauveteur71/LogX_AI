@@ -11,6 +11,85 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta9] - 2026-07-30
+
+### Ajouté
+
+- **🎯 WAIT & POUNCE — appel automatique en FT8/FT4, en quatre niveaux
+  activables séparément.** Niveau 1 : signaler (son + couleur). Niveau 2 : un
+  clic sur un indicatif entendu prépare la réponse dans WSJT-X, l'émission
+  restant sous votre doigt. Niveau 3 : le logiciel appelle seul dès qu'un
+  décodage correspond à vos critères. Niveau 4 : la même chose **sans personne
+  devant la radio**. Les critères s'appuient sur ce que LogX sait déjà et
+  qu'aucun utilitaire équivalent ne connaît — entité jamais travaillée, entité
+  non confirmée LoTW **sur ce créneau bande × mode précis**, carré jamais
+  travaillé, nouveau multiplicateur — le tout contre le carnet à vie.
+  Garde-fous : durée maximale avec désarmement automatique, un seul appel en
+  vol, trois appels maximum par station, plafond de 30 appels par quart d'heure
+  qui désarme la session, journal de tout ce qui est parti, et coupe-circuit
+  atteignable depuis n'importe quel poste. La session n'est jamais enregistrée
+  sur disque : un redémarrage ne peut pas relancer l'émission.
+- **La liaison WSJT-X sait désormais ÉMETTRE**, pas seulement écouter. C'est
+  la fondation des quatre niveaux : LogX envoie un message `Reply`, strictement
+  équivalent à un double-clic sur la ligne du waterfall. Aucun signal radio
+  n'est fabriqué par LogX — WSJT-X reste maître de ce qui part sur l'air.
+- **Satellites : `PROP_MODE=SAT` et `SAT_NAME` à l'export ADIF.** Sans ces deux
+  champs, LoTW créditait les QSO satellite comme des contacts **terrestres**.
+  Le satellite choisi en CONFIG est désormais reporté sur les QSO, avec deux
+  précautions : un QSO qui porte déjà un satellite n'est jamais écrasé, et la
+  valeur « Autre » du sélecteur n'est jamais envoyée — `SAT_NAME=AUTRE` ferait
+  rejeter le fichier entier au téléversement.
+- **Filtres d'affichage des spots** (inspirés de `SET/FILTER` des clusters CC) :
+  continent du spotteur, continent de la station DX, masquer les déjà
+  travaillés, utilisateurs LoTW seulement, besoins DXCC seulement. Appliqués
+  **côté serveur avant la coupe à 40** : c'est ce qui fait apparaître des
+  stations qui étaient auparavant repoussées hors de la liste par le bruit. Le
+  nombre de spots masqués est toujours affiché, et un spot retenu par une règle
+  d'alerte traverse le filtre plutôt que de disparaître.
+- **Grille bande × mode : le nombre d'entités DXCC**, en plus des QSO, avec la
+  colonne LoTW distincte. C'est ce chiffre qui dit où vous en êtes du Challenge.
+
+### Corrigé
+
+- **Le band map, le bandscope, la chute d'eau et le scope détaché
+  n'affichaient PAS les spots HF du cluster** — et ce depuis toujours, pas
+  depuis une régression. Les sources ne s'accordent pas sur l'unité (DXSummit
+  HF et DXHeat en kHz, DXSummit VHF en MHz) et le serveur recopiait la valeur
+  telle quelle : seuls les spots du bon côté du hasard passaient. Une seule
+  unité est désormais imposée, tranchée **par la bande** et non par la
+  magnitude. Dessous se cachait un second défaut : un clic sur un spot HF
+  aurait commandé un QSY 1000 fois trop haut.
+- **Bandscope détaché : les indicatifs se superposaient.** Trois stations sur
+  la même fréquence FT8 écrivaient au même endroit ; deux fréquences voisines
+  se télescopaient. Les indicatifs s'empilent maintenant, avec un filet de
+  rappel vers leur barre.
+- **La réglette de fréquence des fenêtres par bande était vide en
+  permanence**, et le clic sur une épingle ne faisait rien — le message envoyé
+  à la radio ne portait pas un champ que le serveur sait lire.
+- **Le refus « corps trop volumineux » de la page de connexion n'arrivait pas
+  au client** : la connexion était fermée sur des octets non lus, ce qui
+  détruit la réponse déjà émise. L'utilisateur voyait une erreur réseau au lieu
+  du message.
+- **Grille bande × mode et panneau Diplômes annonçaient un nombre de cases
+  Challenge différent** (454 contre 435) : la grille comptait des bandes qui
+  n'entrent pas dans le Challenge ARRL.
+- Deux liens du sommaire du guide utilisateur (chapitres 6 et 12) ne menaient
+  nulle part depuis leur écriture.
+
+### Modifié
+
+- **Vocabulaire : « activation » et « activateur » ont disparu des écrans
+  français** (demande utilisateur), au profit du vocabulaire radioamateur —
+  « stations en direct », « trafic », « EXPÉDITION / PORTABLE ». L'anglais et
+  l'allemand conservent les termes officiels de POTA, SOTA et WWFF.
+
+### Sécurité
+
+- Les motifs `.gitignore` protégeant les secrets étaient **ancrés sur
+  `concours/`**. Un serveur, un test ou un script lancé depuis la racine y crée
+  les mêmes fichiers, non ignorés : un `git add -A` aurait pu publier
+  `.auth_token`, le jeton qui autorise toutes les écritures.
+
 ## [0.9-beta8] - 2026-07-28
 
 ### Modifié

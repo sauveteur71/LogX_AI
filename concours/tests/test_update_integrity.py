@@ -333,7 +333,7 @@ def fake_gateway(monkeypatch):
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
 def _set_local_reference(tag, asset_bytes):
@@ -445,7 +445,7 @@ def fake_peer(monkeypatch):
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
 def test_peer_secours_nominal_telecharge_et_verifie(fake_peer):
@@ -535,7 +535,7 @@ def fake_dual(monkeypatch):
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
 def test_peer_secours_refuse_si_le_candidat_est_aussi_passerelle(fake_dual, monkeypatch):
@@ -632,7 +632,7 @@ def test_peer_secours_refuse_via_passerelle_connue_du_serveur_hors_ips(fake_peer
     finally:
         gw_srv.shutdown()
         gw_srv.server_close()   # libere la socket d ecoute
-        gw_thread.join(timeout=5)
+        gw_thread.join(timeout=30)
 
 
 def test_start_download_via_network_mode_invalide():
@@ -659,12 +659,21 @@ def server():
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
+# Delai client porte de 5 s a 30 s. Ce n'est PAS pour masquer une lenteur :
+# mesure ce jour, /awards/activity?days=3650 repond en 46 ms par HTTP. Sous la
+# suite complete en revanche, 25 fichiers de test ouvrent chacun leur serveur
+# HTTP sur la meme machine -- l'ordonnanceur affame parfois l'un d'eux plus de
+# 5 s, et le test tombait environ une fois sur trois passes SANS jamais echouer
+# en execution isolee (8/8). Une suite qui n'est jamais verte en local est une
+# suite qu'on cesse de regarder ; c'est le harnais qu'on desserre, pas
+# l'exigence. Un vrai defaut de performance se teste par une assertion de
+# duree explicite, pas par un delai reseau.
 def _get(base, path):
     try:
-        with urllib.request.urlopen(base + path, timeout=5) as r:
+        with urllib.request.urlopen(base + path, timeout=30) as r:
             return r.status, json.loads(r.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read().decode('utf-8'))
@@ -675,7 +684,7 @@ def _post(base, path, payload):
     headers = {'Content-Type': 'application/json', 'X-RC-Token': httpmod.AUTH_TOKEN}
     req = urllib.request.Request(base + path, data=body, method='POST', headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=30) as r:
             return r.status, json.loads(r.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read().decode('utf-8'))
@@ -717,7 +726,7 @@ def test_http_update_serve_sert_le_fichier_verifie(server, tmp_path):
     p.write_bytes(content)
     upd._download.update(status='done', verified=True, path=str(p),
                           sha256=_sha256(content), version='v1')
-    with urllib.request.urlopen(server + '/app/update_serve', timeout=5) as r:
+    with urllib.request.urlopen(server + '/app/update_serve', timeout=30) as r:
         assert r.status == 200
         received = r.read()
     assert received == content
@@ -794,7 +803,7 @@ def test_http_update_download_via_network_peer_refuse_si_passerelle_connue_hors_
     finally:
         gw_srv.shutdown()
         gw_srv.server_close()   # libere la socket d ecoute
-        gw_thread.join(timeout=5)
+        gw_thread.join(timeout=30)
 
 
 def test_http_update_install_refuse_si_non_verifie(server, tmp_path, monkeypatch):
@@ -843,7 +852,7 @@ def test_http_update_download_via_network_sans_jeton_refuse(server):
                                   data=body, method='POST',
                                   headers={'Content-Type': 'application/json'})
     try:
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=30) as r:
             code = r.status
     except urllib.error.HTTPError as e:
         code = e.code
@@ -911,7 +920,7 @@ def spoofed_server():
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
 @pytest.mark.parametrize('path', [
@@ -969,7 +978,7 @@ def test_update_serve_rate_limited_apres_rafale(server, tmp_path):
     codes = []
     for _ in range(httpmod._RELAY_ATTEMPT_LIMIT + 3):
         try:
-            with urllib.request.urlopen(server + '/app/update_serve', timeout=5) as r:
+            with urllib.request.urlopen(server + '/app/update_serve', timeout=30) as r:
                 codes.append(r.status)
         except urllib.error.HTTPError as e:
             codes.append(e.code)
@@ -1031,7 +1040,7 @@ def hit_counter(monkeypatch):
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
 def test_is_valid_ip_accepte_ipv4_ipv6_rejette_le_reste():
@@ -1210,7 +1219,7 @@ def test_scan_vraie_passerelle_plus_masquee_par_soi_meme(monkeypatch):
     finally:
         gw_srv.shutdown()
         gw_srv.server_close()   # libere la socket d ecoute
-        gw_thread.join(timeout=5)
+        gw_thread.join(timeout=30)
 
 
 def test_http_scenario_dxpedition_auto_decouverte_corrigee(server, monkeypatch):
@@ -1260,7 +1269,7 @@ def test_http_scenario_dxpedition_auto_decouverte_corrigee(server, monkeypatch):
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
 # ═══ Défaut corrigé : la référence locale ne survivait pas au redémarrage ════
@@ -1583,7 +1592,7 @@ def fake_wrong_asset_peer(monkeypatch):
     finally:
         srv.shutdown()
         srv.server_close()   # libere la socket d ecoute
-        t.join(timeout=5)
+        t.join(timeout=30)
 
 
 def test_scan_pair_autre_plateforme_jamais_propose(fake_wrong_asset_peer, monkeypatch):
