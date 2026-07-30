@@ -4644,6 +4644,54 @@ function applyWsjtxState(d){
       notify(trF('🆕 {call} décodé — {label}{freq}', {call: m.call, label: m.label, freq: freqTxt}));
       try{ playBeep(1318, 110); }catch(e){}
     }
+    appliquerSuiviCarres(d.carres);
+}
+
+// ─── LOCATOR TRACKER ─────────────────────────────────────────────────────────
+// Les carrés QRA entendus en FT8/FT4, croisés avec le carnet. Le carré vient
+// du décodage (« CQ F4ABC JN18 ») ; le serveur le mémorise tant que la station
+// reste active, car les messages suivants (-15, RR73, 73) n'en portent pas.
+//
+// DEUX SONS DISTINCTS, parce que les deux cas n'appellent pas la même réaction
+// (règle posée par l'utilisateur) :
+//   • carré jamais travaillé À VIE, en plus d'être neuf pour le concours :
+//     double intérêt, son plus aigu, et il est déjà remonté en tête côté
+//     serveur ;
+//   • carré neuf pour CE concours seulement : c'est un multiplicateur à faire,
+//     il mérite un son, mais discret.
+// Une seule alerte par carré et par bande : en FT8 la même station réapparaît
+// toutes les 15 secondes, un son à chaque cycle rendrait le poste inutilisable.
+const _carresAlertes = new Set();
+
+function appliquerSuiviCarres(carres){
+  const liste = document.getElementById('carresEntendus');
+  const items = (carres || []).filter(c => c.interet > 0);
+  if(liste){
+    liste.innerHTML = items.length ? items.map(c => {
+      const prio = c.interet === 2;
+      return `<div style="display:flex;gap:8px;align-items:baseline;padding:2px 0">
+        <b style="color:${prio ? 'var(--red)' : 'var(--yellow)'}">${escHtml(c.grid)}</b>
+        <span style="color:var(--text)">${escHtml(c.call || '')}</span>
+        <span style="color:var(--muted);font-size:11px">${escHtml(c.libelle || '')}</span>
+      </div>`;
+    }).join('') : '';
+    const box = document.getElementById('carresBox');
+    if(box) box.style.display = items.length ? '' : 'none';
+  }
+  for(const c of items){
+    const cle = c.grid + '|' + (c.band || '');
+    if(_carresAlertes.has(cle)) continue;
+    _carresAlertes.add(cle);
+    if(c.interet === 2){
+      notify(trF('🔲 NOUVEAU CARRÉ {grid} — {call} (jamais travaillé)',
+                 {grid: c.grid, call: c.call || ''}));
+      try{ playBeep(1760, 150); }catch(e){}
+    } else {
+      notify(trF('🔲 {grid} — {call} : carré neuf pour ce concours',
+                 {grid: c.grid, call: c.call || ''}));
+      try{ playBeep(988, 90); }catch(e){}
+    }
+  }
 }
 
 // ─── ÉTAT MATÉRIEL GROUPÉ (rig+amp+wsjtx+rotor) ──────────────────────────────

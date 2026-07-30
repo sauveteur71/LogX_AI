@@ -1199,6 +1199,17 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
         <div class="macro-btns" id="macroBtns"></div>
       </div>
 
+      <!-- LOCATOR TRACKER : carrés QRA entendus en FT8/FT4 qui apportent
+           quelque chose. Masqué tant qu'il n'y a rien à signaler — un panneau
+           vide en permanence prend la place de la saisie pour rien.
+           Rempli par appliquerSuiviCarres() ; le calcul de « neuf » est fait
+           côté serveur (logx_awards.suivi_carres), portée concours ou à vie
+           selon le mode. -->
+      <div class="macro-panel" id="carresBox" style="display:none">
+        <div class="macro-panel-title" title="Carrés entendus en FT8/FT4 qui manquent : rouge = jamais travaillé à vie, jaune = neuf pour ce concours">🔲 CARRÉS ENTENDUS</div>
+        <div id="carresEntendus" style="font-family:var(--font-mono);font-size:12px"></div>
+      </div>
+
       <!-- KEYER VOCAL (phonie) : enregistre/rejoue des messages WAV -->
       <div class="macro-panel expert-only" id="voicePanel" style="display:none">
         <div class="macro-panel-title">🎙 KEYER VOCAL — clic: jouer · ⏺: enregistrer</div>

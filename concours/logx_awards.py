@@ -310,7 +310,7 @@ def besoin_lotw(call, band='', mode='', shared_log=None):
     if not pays:
         return {'besoin': False}
 
-    cat = _mode_category(mode)
+    cat = _mode_category(mode, freq_mhz=None)
     b = str(band or '')
     conf = _load_confirmations()
     creneaux = _creneaux_confirmes_lotw(collect_all_qsos(shared_log), conf)
@@ -370,6 +370,74 @@ def carres_travailles(shared_log=None, bande=''):
             'locators_factices': factices}
 
 
+def suivi_carres(entendus, shared_log=None, scope_id='', bande=''):
+    """Locator tracker : parmi les stations ENTENDUES, lesquelles apportent un
+    carré neuf ? Retourne la liste annotée, les plus intéressantes en tête.
+
+    LA RÈGLE, telle que l'utilisateur l'a tranchée. En concours, l'alerte porte
+    sur la DURÉE DU CONCOURS : un carré travaillé en 2019 reste un
+    multiplicateur à faire ce week-end, donc il sonne. Mais celui qui est en
+    plus absent du carnet À VIE vaut double — multiplicateur ET carré neuf pour
+    les diplômes — et passe devant les autres.
+
+    Hors concours (scope_id vide), la seule question qui vaille est « l'ai-je à
+    vie ? » : les deux référentiels se confondent alors, et rien ne remonte
+    artificiellement.
+
+    Trois niveaux dans 'interet' :
+      2  neuf pour le concours ET jamais travaillé à vie   -> priorité
+      1  neuf pour le concours seulement                   -> multiplicateur
+      0  déjà fait                                         -> silencieux
+    """
+    qsos = collect_all_qsos(shared_log)
+    a_vie, dans_scope = set(), set()
+    for q in qsos:
+        g = _grid(q, 4)
+        if not g:
+            continue
+        a_vie.add(g)
+        if scope_id and qso_scope_id_safe(q) == scope_id:
+            dans_scope.add(g)
+    # Sans concours actif, « déjà fait » veut dire « déjà fait à vie ».
+    deja = dans_scope if scope_id else a_vie
+
+    out = []
+    for e in (entendus or []):
+        g = str(e.get('grid') or '').strip().upper()[:4]
+        if not g or _locator_factice(e.get('grid')):
+            continue
+        if bande and str(e.get('band', '')) != str(bande):
+            continue
+        neuf_ici = g not in deja
+        neuf_a_vie = g not in a_vie
+        if not neuf_ici:
+            interet = 0
+        elif neuf_a_vie:
+            interet = 2
+        else:
+            interet = 1
+        out.append(dict(e, grid=g, interet=interet,
+                        neuf_a_vie=neuf_a_vie,
+                        libelle=('NOUVEAU CARRÉ — jamais travaillé' if interet == 2
+                                 else 'carré neuf pour ce concours' if interet == 1
+                                 else '')))
+    # Les plus intéressants en tête : sur 30 à 50 décodages toutes les 15 s,
+    # l'opérateur ne lit que le haut de la liste.
+    out.sort(key=lambda x: -x['interet'])
+    return out
+
+
+def qso_scope_id_safe(q):
+    """qso_scope_id() de logx_storage, sans faire dépendre tout ce module de
+    son import — logx_awards est chargé très tôt et par des outils qui n'ont
+    pas besoin du stockage."""
+    try:
+        from logx_storage import qso_scope_id
+        return qso_scope_id(q)
+    except Exception:
+        return ''
+
+
 def annoter_besoin_lotw(spots, shared_log=None):
     """Pose 'lotw_need_ici' (bool) sur chaque spot, SANS filtrer la liste.
 
@@ -399,7 +467,7 @@ def annoter_besoin_lotw(spots, shared_log=None):
         if not pays:
             s['lotw_need_ici'] = False
             continue
-        cle = (pays, str(s.get('band', '') or ''), _mode_category(s.get('mode')))
+        cle = (pays, str(s.get('band', '') or ''), _mode_category(s.get('mode'), s.get('freq')))
         s['lotw_need_ici'] = cle not in creneaux
     return spots
 
@@ -429,7 +497,7 @@ def besoins_lotw_spottes(spots, shared_log=None, max_n=20):
         if not pays:
             continue
         b = str(s.get('band', '') or '')
-        cat = _mode_category(s.get('mode'))
+        cat = _mode_category(s.get('mode'), s.get('freq'))
         if (pays, b, cat) in creneaux:
             continue
         cle = (call, b, cat)
@@ -700,14 +768,82 @@ def award_summary(shared_log=None):
 
 # ─── WORKED MATRIX (grille bande × CW/Phone/Digital) ─────────────────────────
 
-def _mode_category(mode):
-    """Classe un mode dans une des 3 catégories usuelles des diplômes DXCC/WAS."""
+# Créneaux bande/mode par FRÉQUENCE, repris de la table publiée dans le manuel
+# CC User (annexe C, « Filtering band/mode segments (slots) on a CC Cluster »).
+# Bornes en kHz : (début, fin, catégorie).
+#
+# POURQUOI LA FRÉQUENCE ET PAS LE MODE ANNONCÉ. Le manuel l'explique, et c'est
+# la raison pour laquelle CC Cluster filtre ainsi depuis toujours : « beaucoup
+# de spots DX n'indiquent pas le mode réellement utilisé, mais TOUS indiquent
+# la fréquence — c'est un champ obligatoire de tout spot valide ».
+#
+# DÉFAUT RÉEL QUE ÇA CORRIGE ICI : _mode_category() renvoyait DIGITAL pour un
+# mode absent, vide ou inconnu. Un DX en CW spotté sans champ mode — cas
+# courant sur le cluster — était donc compté comme un créneau NUMÉRIQUE, et
+# l'alerte « pas confirmé LoTW en CW » ne se déclenchait jamais pour lui.
+_CRENEAUX_KHZ = (
+    (1800, 1850, 'CW'),      (1850, 2000, 'PHONE'),
+    (3500, 3580, 'CW'),      (3580, 3700, 'DIGITAL'),  (3700, 4000, 'PHONE'),
+    (5260, 5405, 'PHONE'),
+    (7000, 7040, 'CW'),      (7040, 7100, 'DIGITAL'),  (7100, 7300, 'PHONE'),
+    (10100, 10130, 'CW'),    (10130, 10150, 'DIGITAL'),
+    (14000, 14070, 'CW'),    (14070, 14150, 'DIGITAL'), (14150, 14350, 'PHONE'),
+    (18068, 18100, 'CW'),    (18100, 18110, 'DIGITAL'), (18110, 18168, 'PHONE'),
+    (21000, 21070, 'CW'),    (21070, 21200, 'DIGITAL'), (21200, 21450, 'PHONE'),
+    (24890, 24920, 'CW'),    (24920, 24930, 'DIGITAL'), (24930, 24990, 'PHONE'),
+    (28000, 28070, 'CW'),    (28070, 28300, 'DIGITAL'), (28300, 29700, 'PHONE'),
+    (50000, 50080, 'CW'),    (50080, 50500, 'PHONE'),   (50500, 54000, 'PHONE'),
+    (70000, 70650, 'PHONE'),
+    (144000, 144100, 'CW'),  (144100, 144500, 'PHONE'), (144500, 148000, 'PHONE'),
+    (220000, 221000, 'CW'),  (222000, 224000, 'PHONE'),
+)
+
+
+def mode_depuis_frequence(freq_mhz):
+    """Catégorie de mode déduite de la fréquence, ou '' hors des créneaux.
+
+    Sert de REPLI quand le spot n'annonce pas son mode — jamais à écraser un
+    mode explicitement annoncé, qui reste plus fiable qu'un découpage par
+    plage (rien n'interdit un QSO CW dans un segment phonie).
+    """
+    try:
+        v = float(freq_mhz)
+    except (TypeError, ValueError):
+        return ''
+    # Selon la source, un spot arrive en MHz (14.074) ou déjà en kHz (14074).
+    # Le seuil discrimine sans ambiguïté sur les bandes amateur : aucune n'est
+    # à la fois > 1000 MHz et < 1000 kHz. (Premier jet : je multipliais par
+    # 1000 une valeur déjà en kHz, ce qui envoyait 14074 à 14 074 000 kHz —
+    # hors table, donc aucun mode déduit. Attrapé par le test.)
+    khz = v if v > 1000 else v * 1000.0
+    for lo, hi, cat in _CRENEAUX_KHZ:
+        if lo <= khz < hi:
+            return cat
+    return ''
+
+
+def _mode_category(mode, freq_mhz=None):
+    """Classe un mode dans une des 3 catégories usuelles des diplômes DXCC/WAS.
+
+    `freq_mhz` sert de repli quand le mode est absent ou non reconnu — voir
+    _CRENEAUX_KHZ. Sans lui, l'ancien comportement (tout inconnu -> DIGITAL)
+    est conservé, pour ne pas changer le sens des appels qui n'ont pas de
+    fréquence sous la main (un QSO du carnet en a toujours un, un mode).
+    """
     m = str(mode or '').upper()
     if m == 'CW':
         return 'CW'
     if m in ('SSB', 'USB', 'LSB', 'AM', 'FM'):
         return 'PHONE'
-    return 'DIGITAL'    # FT8/FT4/JS8/RTTY/PSK/D-STAR/inconnu
+    if m in ('FT8', 'FT4', 'JS8', 'RTTY', 'PSK', 'PSK31', 'MFSK', 'JT65',
+             'JT9', 'OLIVIA', 'DATA', 'DIGI', 'DIGITAL'):
+        return 'DIGITAL'
+    # Mode absent ou inconnu : la fréquence tranche mieux qu'un défaut arbitraire.
+    if freq_mhz is not None:
+        cat = mode_depuis_frequence(freq_mhz)
+        if cat:
+            return cat
+    return 'DIGITAL'
 
 
 def _band_sort_key(b):

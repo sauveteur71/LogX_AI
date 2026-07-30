@@ -166,3 +166,59 @@ def test_une_liste_de_spots_vide_ne_leve_pas(sans_fichiers):
     sans_fichiers({})
     assert aw.besoins_lotw_spottes([], LOG) == []
     assert aw.besoins_lotw_spottes(None, LOG) == []
+
+
+# ─── Mode déduit de la fréquence (inspiré du manuel CC User, annexe C) ───────
+# DÉFAUT RÉEL CORRIGÉ. _mode_category() renvoyait DIGITAL pour tout mode
+# absent, vide ou inconnu. Or beaucoup de spots du cluster n'indiquent PAS le
+# mode : un DX en CW spotté sans ce champ était donc rangé dans le créneau
+# NUMÉRIQUE, et l'alerte « pas confirmé LoTW en CW » ne se déclenchait jamais
+# pour lui.
+#
+# La solution est celle qu'applique CC Cluster depuis toujours, et son manuel
+# en donne la raison : « beaucoup de spots DX n'indiquent pas le mode
+# réellement utilisé, mais TOUS indiquent la fréquence — c'est un champ
+# obligatoire de tout spot valide ». La table de créneaux vient de son
+# annexe C.
+
+@pytest.mark.parametrize('mhz,attendu', [
+    (1.820, 'CW'), (1.900, 'PHONE'),
+    (3.520, 'CW'), (3.590, 'DIGITAL'), (3.750, 'PHONE'),
+    (7.030, 'CW'), (7.074, 'DIGITAL'), (7.150, 'PHONE'),
+    (10.120, 'CW'), (10.136, 'DIGITAL'),
+    (14.020, 'CW'), (14.074, 'DIGITAL'), (14.250, 'PHONE'),
+    (21.030, 'CW'), (21.074, 'DIGITAL'), (21.300, 'PHONE'),
+    (28.020, 'CW'), (28.074, 'DIGITAL'), (28.400, 'PHONE'),
+    (144.050, 'CW'), (144.300, 'PHONE'),
+])
+def test_le_mode_se_deduit_de_la_frequence(mhz, attendu):
+    assert aw.mode_depuis_frequence(mhz) == attendu
+
+
+def test_un_spot_CW_sans_mode_n_est_plus_range_en_numerique():
+    """LE défaut : sans fréquence, un mode absent tombait en DIGITAL."""
+    assert aw._mode_category(None) == 'DIGITAL'          # ancien comportement
+    assert aw._mode_category(None, 14.020) == 'CW'       # corrigé
+
+
+def test_le_mode_ANNONCE_prime_sur_la_frequence():
+    """Rien n'interdit un QSO CW dans un segment phonie : une information
+    explicite vaut mieux qu'un découpage par plage."""
+    assert aw._mode_category('CW', 14.250) == 'CW'
+    assert aw._mode_category('FT8', 14.020) == 'DIGITAL'
+
+
+def test_une_frequence_en_kHz_est_acceptee():
+    """Selon la source, un spot arrive en MHz (14.074) ou en kHz (14074)."""
+    assert aw.mode_depuis_frequence(14074) == 'DIGITAL'
+    assert aw.mode_depuis_frequence(14.074) == 'DIGITAL'
+
+
+@pytest.mark.parametrize('valeur', [None, '', 'abc', 0])
+def test_une_frequence_inexploitable_ne_leve_pas(valeur):
+    assert aw.mode_depuis_frequence(valeur) == ''
+
+
+def test_hors_de_toute_bande_amateur_on_ne_devine_pas():
+    """Mieux vaut ne rien conclure que d'inventer un créneau."""
+    assert aw.mode_depuis_frequence(12.000) == ''

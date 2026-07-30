@@ -253,6 +253,29 @@ def extract_calls(message, my_call=''):
     return out
 
 
+def extract_grid(message):
+    """Carré Maidenhead porté par un décodage FT8/FT4, ou '' s'il n'y en a pas.
+
+    LE PIÈGE, et il casse la moitié des implémentations maison : « RR73 »
+    CORRESPOND au motif d'un carré — RR est un champ valide (A-X), 73 des
+    chiffres valides. Un parseur naïf invente donc un carré en Sibérie
+    orientale à chaque fin de QSO, c'est-à-dire tout le temps. Idem pour
+    « RRR » et « 73 ». D'où le filtrage par _DECODE_SKIP_TOKENS AVANT le
+    motif, et jamais l'inverse.
+
+    Seuls « CQ CALL GRID » et « CALL CALL GRID » portent un carré : un
+    décodage avec rapport (« F4GLD K1ABC -15 »), un RR73 ou un 73 n'en a pas.
+    C'est pourquoi le carré doit être MÉMORISÉ par indicatif (voir
+    record_decode) et pas relu à chaque message.
+    """
+    for tok in (message or '').upper().replace('<', '').replace('>', '').split():
+        if tok in _DECODE_SKIP_TOKENS:
+            continue
+        if _GRID_RE.match(tok):
+            return tok
+    return ''
+
+
 def _decode_freq_mhz(msg):
     """Fréquence réelle du décodage (MHz) = dial courant (dernier message
     Status reçu) + décalage audio (delta_hz) du décodage. 0 si le dial n'est
@@ -278,9 +301,22 @@ def record_decode(msg, my_call=''):
     band = _mhz_to_band(freq_mhz) if freq_mhz else ''
     mode = msg.get('mode') or ''
     now = time.time()
+    # Le carré appartient à l'ÉMETTEUR, dernier indicatif de la grammaire FT8
+    # « <destinataire> <émetteur> <carré> » — et c'est justement celui que
+    # extract_calls conserve quand il en trouve deux.
+    grid = extract_grid(msg.get('message', ''))
     with _decodes_lock:
-        for c in calls:
-            _decodes[c] = {'band': band, 'freq_mhz': freq_mhz, 'mode': mode, 'last_seen': now}
+        for i, c in enumerate(calls):
+            connu = _decodes.get(c) or {}
+            e = {'band': band, 'freq_mhz': freq_mhz, 'mode': mode, 'last_seen': now}
+            # Le carré une fois connu N'EST JAMAIS EFFACÉ par un décodage
+            # ultérieur qui n'en porte pas. Sur un QSO FT8, « CQ F4ABC JN18 »
+            # est suivi de « ... -15 », « ... RR73 », « ... 73 » : sans cette
+            # persistance, le carré disparaîtrait une seconde après son
+            # apparition et l'alerte n'aurait jamais le temps de se déclencher.
+            e['grid'] = (grid if (grid and i == len(calls) - 1)
+                         else connu.get('grid', ''))
+            _decodes[c] = e
         cutoff = now - _DECODE_TTL
         for k in [k for k, v in _decodes.items() if v['last_seen'] < cutoff]:
             del _decodes[k]

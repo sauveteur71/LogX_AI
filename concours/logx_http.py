@@ -1156,10 +1156,24 @@ def _wsjtx_state_dict(cfg_snap):
             with log_lock:
                 log_copy = list(shared_log)
             st['missing'] = awards.spotted_new_ones(log_copy, spots_by_label, max_n=12)
+            # LOCATOR TRACKER : les carrés entendus, neufs ou non. Le carré
+            # vient du décodage lui-même (« CQ F4ABC JN18 ») et reste mémorisé
+            # tant que la station est active — les messages suivants (-15,
+            # RR73, 73) n'en portent pas.
+            #
+            # La PORTÉE change tout, et c'est un choix de l'utilisateur : en
+            # concours l'alerte suit la durée du concours (un carré travaillé
+            # en 2019 reste un multiplicateur à faire ce week-end), mais celui
+            # qui est EN PLUS absent du carnet à vie passe devant — il vaut
+            # multiplicateur ET carré neuf pour les diplômes.
+            st['carres'] = awards.suivi_carres(
+                decodes, log_copy, scope_id=active_scope_id(cfg_snap))
         else:
             st['missing'] = []
+            st['carres'] = []
     except Exception:
         st['missing'] = []
+        st['carres'] = []
     return st
 
 
