@@ -34,15 +34,23 @@ if CONCOURS not in sys.path:
 I18N = os.path.join(CONCOURS, 'logx_i18n.js')
 
 
+# Les clés s'écrivent avec DEUX styles de guillemets : le dictionnaire de base
+# de logx_i18n.js utilise des apostrophes simples et empile plusieurs paires par
+# ligne, les objets correctifs des guillemets doubles. Ne lire que le second
+# style revient à ignorer le dictionnaire principal — donc à croire manquantes
+# des centaines de clés qui existent.
+_PAIRE = re.compile(
+    r"""(?P<q>['"])(?P<cle>(?:[^'"\\]|\\.|(?!(?P=q))['"])*)(?P=q)\s*:\s*"""
+    r"""(?P<q2>['"])""")
+
+
 def _cles():
     src = io.open(I18N, encoding='utf-8').read()
     out = set()
-    for m in re.finditer(r'"(?:[^"\\]|\\.)*"\s*:', src):
-        b = m.group(0).rstrip().rstrip(':').rstrip()
-        try:
-            out.add(json.loads(b))
-        except ValueError:
-            pass
+    for m in _PAIRE.finditer(src):
+        k = m.group('cle')
+        out.add(k.replace('\\\\', '\x00').replace("\\'", "'")
+                 .replace('\\"', '"').replace('\x00', '\\'))
     return out
 
 

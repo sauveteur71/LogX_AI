@@ -37,6 +37,10 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .intro h1{font-family:var(--font-mono);font-size:18px;color:var(--accent2);letter-spacing:1px;margin-bottom:8px}
 .intro p{color:var(--muted);font-size:14px;line-height:1.6;max-width:820px}
 .intro p+p{margin-top:8px}
+.intro ul.usages{color:var(--muted);font-size:14px;line-height:1.6;max-width:820px;
+                 margin:6px 0 0 20px;list-style:disc}
+.intro ul.usages li{margin-top:4px}
+.intro ul.usages+p{margin-top:10px}
 
 .warn-box{background:rgba(255,214,10,.08);border:1px solid var(--yellow);border-radius:10px;
   padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--text);line-height:1.5}
@@ -97,20 +101,26 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
   <div class="intro">
     <h1>📡 ÉTENDRE TA STATION AVEC UN RÉCEPTEUR DISTANT</h1>
-    <p>Un WebSDR est un récepteur radio piloté depuis un navigateur, installé chez un autre radioamateur ou une
-      association, quelque part dans le monde. Tu peux le régler et l'écouter à distance, en même temps que
-      d'autres auditeurs — utile pour <b>vérifier comment ta propre émission est reçue ailleurs</b> (fais-toi
-      écouter par quelqu'un connecté à ce récepteur), <b>écouter une bande fermée chez toi mais ouverte
-      là-bas</b>, ou repérer une station avant de tenter le contact.</p>
-    <p>Choisis un récepteur ci-dessous et clique « ▶ Ouvrir » — il s'ouvre dans un nouvel onglet, indépendant de
-      LogX AI.</p>
+    <!-- Chaque phrase tient sur UNE ligne et forme une unité grammaticale
+         COMPLÈTE. Auparavant, cette énumération était une seule phrase coupée
+         par des <b> : le moteur i18n indexe chaque nœud texte séparément, donc
+         « — utile pour », « (fais-toi écouter par… », « , ou repérer… »
+         devenaient autant de clés distinctes. Des bouts de phrase ne se
+         traduisent pas : l'ordre des mots d'une subordonnée allemande ou
+         polonaise ne suit pas celui du français, et le résultat recollé
+         n'aurait été une phrase dans aucune langue. -->
+    <p>Un WebSDR est un récepteur radio piloté depuis un navigateur, installé chez un autre radioamateur ou une association, quelque part dans le monde. Tu peux le régler et l'écouter à distance, en même temps que d'autres auditeurs.</p>
+    <p>C'est utile pour :</p>
+    <ul class="usages">
+      <li><b>Vérifier comment ta propre émission est reçue ailleurs.</b> Fais-toi écouter par quelqu'un connecté à ce récepteur.</li>
+      <li><b>Écouter une bande fermée chez toi, mais ouverte là-bas.</b></li>
+      <li><b>Repérer une station avant de tenter le contact.</b></li>
+    </ul>
+    <p>Choisis un récepteur ci-dessous et clique « ▶ Ouvrir » — il s'ouvre dans un nouvel onglet, indépendant de LogX AI.</p>
   </div>
 
   <div class="warn-box">
-    <b>⚠ Disponibilité non garantie.</b> Ces récepteurs sont opérés bénévolement par d'autres radioamateurs ou
-    associations, souvent depuis une connexion personnelle — contrairement au reste de LogX AI, leur présence en
-    ligne 24h/24 n'est pas assurée. Le badge « en ligne / injoignable » ci-dessous est un test rapide effectué par
-    ton navigateur à l'ouverture de cette page, pas une garantie.
+    <b>⚠ Disponibilité non garantie.</b> Ces récepteurs sont opérés bénévolement par d'autres radioamateurs ou associations, souvent depuis une connexion personnelle — contrairement au reste de LogX AI, leur présence en ligne 24h/24 n'est pas assurée. Le badge « en ligne / injoignable » ci-dessous est un test rapide effectué par ton navigateur à l'ouverture de cette page, pas une garantie.
   </div>
 
   <div class="filters">
