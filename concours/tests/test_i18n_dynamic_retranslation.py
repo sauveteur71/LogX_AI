@@ -72,9 +72,30 @@ function matchSelAny(n, sel){
 function makeText(value){
   return {nodeType:3, nodeValue:value, parentNode:null, parentElement:null};
 }
+// `dataset` n'est PAS un objet ordinaire : c'est un DOMStringMap, qui REFUSE
+// tout nom contenant un tiret suivi d'une minuscule (il servirait à écrire un
+// attribut data-* ambigu). Le stub qui écrivait `dataset:{}` acceptait tout,
+// et c'est exactement ce qui a laissé passer le défaut de l'attribut
+// `aria-label` : translateAttr construisait la clé « __i18n_aria-label », le
+// navigateur levait « is not a valid property name », l'exception avortait la
+// boucle des attributs — et la suite restait verte parce qu'ICI rien ne
+// protestait. Un faux DOM plus PERMISSIF que le vrai ne fait pas que rater un
+// défaut : il certifie du code qui ne peut pas tourner.
+function makeDataset(){
+  return new Proxy({}, {
+    set: function(cible, nom, valeur){
+      if(typeof nom === 'string' && /-[a-z]/.test(nom))
+        throw new SyntaxError("Failed to set a named property '" + nom +
+          "' on 'DOMStringMap': '" + nom + "' is not a valid property name.");
+      cible[nom] = valeur;
+      return true;
+    }
+  });
+}
 function makeEl(tag){
   var node = {nodeType:1, tagName:(tag||'DIV').toUpperCase(), id:'', className:'',
-              parentNode:null, parentElement:null, childNodes:[], style:{}, dataset:{}};
+              parentNode:null, parentElement:null, childNodes:[], style:{},
+              dataset:makeDataset()};
   node.nodeName = node.tagName;
   node.appendChild = function(child){ child.parentNode = node; child.parentElement = node; node.childNodes.push(child); return child; };
   node.insertBefore = function(child){ child.parentNode = node; child.parentElement = node; node.childNodes.unshift(child); return child; };
@@ -705,3 +726,79 @@ def test_placeholder_technique_a_prefixe_non_lettre_reste_intact():
             ctx.eval("window.rcTranslate();")
             assert ctx.eval("inp.getAttribute('placeholder')") == valeur, (
                 "placeholder technique %r modifié par le cas n°2" % valeur)
+
+
+# ─── Un attribut à TIRET fait exploser translateAttr ─────────────────────────
+# TROUVÉ À L'ÉCRAN, pas ici. En allemand, `alt` et `aria-label` restaient en
+# français alors que le dictionnaire les contenait et que le moteur les
+# demandait. La console disait tout :
+#   Failed to set a named property '__i18n_aria-label' on 'DOMStringMap':
+#   '__i18n_aria-label' is not a valid property name.
+# translateAttr mémorise le français d'origine dans `dataset`, sous une clé
+# fabriquée à partir du NOM de l'attribut. Un DOMStringMap refuse le tiret.
+# L'exception n'était rattrapée nulle part : elle avortait le forEach, donc la
+# traduction des attributs des éléments SUIVANTS aussi. Un seul `aria-label`
+# suffisait à faire tomber le reste de la page.
+
+def _page_deux_attributs(lang):
+    """Un aria-label AVANT un title : si le premier lève, le second témoigne."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    localStorage.setItem('rc_lang', '%s');
+    var boite = document.createElement('div');
+    boite.setAttribute('aria-label', 'Vues de la propagation');
+    document.body.appendChild(boite);
+    var bouton = document.createElement('button');
+    bouton.setAttribute('title', 'Règlement');
+    document.body.appendChild(bouton);
+    """ % lang)
+    ctx.eval(_real_source())
+    return ctx
+
+
+def test_aria_label_est_traduit():
+    """L'attribut au tiret lui-même."""
+    ctx = _page_deux_attributs('en')
+    assert ctx.eval("boite.getAttribute('aria-label')") == 'Propagation views'
+
+
+def test_un_attribut_a_tiret_n_interrompt_PAS_les_suivants():
+    """Le vrai dégât : ce n'est pas l'attribut fautif qui manque à l'appel,
+    c'est TOUT CE QUI VIENT APRÈS. Sans le correctif, ce title reste français
+    alors qu'il n'a rien à voir avec l'histoire — le genre de symptôme qu'on
+    va chercher dans le dictionnaire pendant une heure."""
+    ctx = _page_deux_attributs('en')
+    assert ctx.eval("bouton.getAttribute('title')") == 'Rules'
+
+
+def test_le_retour_au_francais_marche_aussi_pour_un_attribut_a_tiret():
+    """La clé dataset sert à MÉMORISER le français : si elle n'est pas écrite,
+    on traduit une fois et on ne revient jamais."""
+    ctx = _page_deux_attributs('de')
+    assert ctx.eval("boite.getAttribute('aria-label')") == 'Ausbreitungsansichten'
+    ctx.eval("localStorage.setItem('rc_lang','fr'); __storageCb({key:'rc_lang', newValue:'fr'});")
+    assert ctx.eval("boite.getAttribute('aria-label')") == 'Vues de la propagation'
+
+
+def test_LE_FAUX_DOM_REFUSE_LE_TIRET_COMME_LE_VRAI():
+    """Garde-fou du garde-fou, et la vraie leçon de la journée.
+
+    Les trois tests ci-dessus ne valent QUE si ce banc d'essai est aussi
+    sévère que le navigateur. Tant que le stub écrivait `dataset:{}`, un objet
+    JavaScript ordinaire acceptait n'importe quelle clé : le code fautif
+    passait ici et échouait chez l'utilisateur. Si quelqu'un « simplifie » un
+    jour makeDataset(), c'est ce test qui tombera — pas les autres, qui
+    redeviendraient silencieusement incapables de voir le défaut."""
+    ctx = _make_ctx()
+    assert ctx.eval("""(function(){
+      var el = document.createElement('div');
+      try { el.dataset['x-y'] = '1'; return 'ACCEPTE'; }
+      catch(e){ return e.name; }
+    })()""") == 'SyntaxError'
+    # ...et une clé légitime doit toujours passer, sinon on aurait juste
+    # remplacé un stub trop permissif par un stub trop strict.
+    assert ctx.eval("""(function(){
+      var el = document.createElement('div');
+      el.dataset.__i18n_ariaLabel = 'ok';
+      return el.dataset.__i18n_ariaLabel;
+    })()""") == 'ok'

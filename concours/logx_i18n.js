@@ -2531,6 +2531,8 @@
     "Géostationnaire": "Geostationary",
     "Transpondeur linéaire (SSB/CW)": "Linear transponder (SSB/CW)",
         "Relais FM": "FM repeaters",
+        "Carte mondiale de la MUF (fréquence maximale utilisable) avec terminateur jour/nuit, mesurée par un réseau d'ionosondes — N0NBH/hamqsl.com": "World MUF map (maximum usable frequency) with day/night terminator, measured by a network of ionosondes — N0NBH/hamqsl.com",
+    "Vues de la propagation": "Propagation views",
     "STATIONS POTA EN DIRECT": "LIVE POTA ACTIVATORS", "STATIONS SOTA EN DIRECT": "LIVE SOTA ACTIVATORS",
       "STATIONS WWFF EN DIRECT": "LIVE WWFF ACTIVATORS",
       "CHÂTEAUX WCA/COTA — ANNONCÉS": "WCA/COTA CASTLES — ANNOUNCED",
@@ -2761,6 +2763,8 @@
     "Géostationnaire": "Geostationär",
     "Transpondeur linéaire (SSB/CW)": "Linearer Transponder (SSB/CW)",
         "Relais FM": "FM-Relais",
+        "Carte mondiale de la MUF (fréquence maximale utilisable) avec terminateur jour/nuit, mesurée par un réseau d'ionosondes — N0NBH/hamqsl.com": "Weltweite MUF-Karte (höchste nutzbare Frequenz) mit Tag/Nacht-Grenze, gemessen von einem Ionosonden-Netz — N0NBH/hamqsl.com",
+    "Vues de la propagation": "Ausbreitungsansichten",
     "STATIONS POTA EN DIRECT": "POTA-AKTIVIERUNGEN LIVE", "STATIONS SOTA EN DIRECT": "SOTA-AKTIVIERUNGEN LIVE",
       "STATIONS WWFF EN DIRECT": "WWFF-AKTIVIERUNGEN LIVE",
       "CHÂTEAUX WCA/COTA — ANNONCÉS": "WCA/COTA-BURGEN — ANGEKÜNDIGT",
@@ -2991,6 +2995,8 @@
     "Géostationnaire": "Geoestacionario",
     "Transpondeur linéaire (SSB/CW)": "Transpondedor lineal (SSB/CW)",
         "Relais FM": "Repetidores FM",
+        "Carte mondiale de la MUF (fréquence maximale utilisable) avec terminateur jour/nuit, mesurée par un réseau d'ionosondes — N0NBH/hamqsl.com": "Mapa mundial de la MUF (frecuencia máxima utilizable) con terminador día/noche, medida por una red de ionosondas — N0NBH/hamqsl.com",
+    "Vues de la propagation": "Vistas de la propagación",
     "STATIONS POTA EN DIRECT": "ACTIVADORES POTA EN DIRECTO", "STATIONS SOTA EN DIRECT": "ACTIVADORES SOTA EN DIRECTO",
       "STATIONS WWFF EN DIRECT": "ACTIVADORES WWFF EN DIRECTO",
       "CHÂTEAUX WCA/COTA — ANNONCÉS": "CASTILLOS WCA/COTA — ANUNCIADOS",
@@ -3221,6 +3227,8 @@
     "Géostationnaire": "Geostazionario",
     "Transpondeur linéaire (SSB/CW)": "Transponder lineare (SSB/CW)",
         "Relais FM": "Ripetitori FM",
+        "Carte mondiale de la MUF (fréquence maximale utilisable) avec terminateur jour/nuit, mesurée par un réseau d'ionosondes — N0NBH/hamqsl.com": "Mappa mondiale della MUF (frequenza massima utilizzabile) con terminatore giorno/notte, misurata da una rete di ionosonde — N0NBH/hamqsl.com",
+    "Vues de la propagation": "Viste della propagazione",
     "STATIONS POTA EN DIRECT": "ATTIVATORI POTA IN DIRETTA", "STATIONS SOTA EN DIRECT": "ATTIVATORI SOTA IN DIRETTA",
       "STATIONS WWFF EN DIRECT": "ATTIVATORI WWFF IN DIRETTA",
       "CHÂTEAUX WCA/COTA — ANNONCÉS": "CASTELLI WCA/COTA — ANNUNCIATI",
@@ -3451,6 +3459,8 @@
     "Géostationnaire": "Geoestacionário",
     "Transpondeur linéaire (SSB/CW)": "Transponder linear (SSB/CW)",
         "Relais FM": "Repetidores FM",
+        "Carte mondiale de la MUF (fréquence maximale utilisable) avec terminateur jour/nuit, mesurée par un réseau d'ionosondes — N0NBH/hamqsl.com": "Mapa mundial da MUF (frequência máxima utilizável) com terminador dia/noite, medida por uma rede de ionossondas — N0NBH/hamqsl.com",
+    "Vues de la propagation": "Vistas da propagação",
     "STATIONS POTA EN DIRECT": "ATIVADORES POTA EM DIRETO", "STATIONS SOTA EN DIRECT": "ATIVADORES SOTA EM DIRETO",
       "STATIONS WWFF EN DIRECT": "ATIVADORES WWFF EM DIRETO",
       "CHÂTEAUX WCA/COTA — ANNONCÉS": "CASTELOS WCA/COTA — ANUNCIADOS",
@@ -3681,6 +3691,8 @@
     "Géostationnaire": "Geostationair",
     "Transpondeur linéaire (SSB/CW)": "Lineaire transponder (SSB/CW)",
         "Relais FM": "FM-repeaters",
+        "Carte mondiale de la MUF (fréquence maximale utilisable) avec terminateur jour/nuit, mesurée par un réseau d'ionosondes — N0NBH/hamqsl.com": "Wereldkaart van de MUF (maximaal bruikbare frequentie) met dag/nacht-terminator, gemeten door een netwerk van ionosondes — N0NBH/hamqsl.com",
+    "Vues de la propagation": "Propagatieweergaven",
     "STATIONS POTA EN DIRECT": "POTA-ACTIVATORS LIVE", "STATIONS SOTA EN DIRECT": "SOTA-ACTIVATORS LIVE",
       "STATIONS WWFF EN DIRECT": "WWFF-ACTIVATORS LIVE",
       "CHÂTEAUX WCA/COTA — ANNONCÉS": "WCA/COTA-KASTELEN — AANGEKONDIGD",
@@ -3911,6 +3923,8 @@
     "Géostationnaire": "Geostacjonarny",
     "Transpondeur linéaire (SSB/CW)": "Transponder liniowy (SSB/CW)",
         "Relais FM": "Przemienniki FM",
+        "Carte mondiale de la MUF (fréquence maximale utilisable) avec terminateur jour/nuit, mesurée par un réseau d'ionosondes — N0NBH/hamqsl.com": "Światowa mapa MUF (maksymalna użyteczna częstotliwość) z terminatorem dzień/noc, mierzona przez sieć jonosond — N0NBH/hamqsl.com",
+    "Vues de la propagation": "Widoki propagacji",
     "STATIONS POTA EN DIRECT": "AKTYWATORZY POTA NA ŻYWO", "STATIONS SOTA EN DIRECT": "AKTYWATORZY SOTA NA ŻYWO",
       "STATIONS WWFF EN DIRECT": "AKTYWATORZY WWFF NA ŻYWO",
       "CHÂTEAUX WCA/COTA — ANNONCÉS": "ZAMKI WCA/COTA — ZAPOWIEDZIANE",
@@ -4306,8 +4320,16 @@
   function translateAttr(dict, el, attr) {
     const cur = el.getAttribute(attr);
     if (cur === null) return;
-    const okey = '__i18n_' + attr;      // français source
-    const lkey = '__i18nout_' + attr;   // dernière écriture du moteur
+    // Le nom d'attribut sert de CLÉ dataset, et une clé dataset ne tolère pas
+    // de tiret : « aria-label » faisait lever
+    // « '__i18n_aria-label' is not a valid property name » — et cette
+    // exception avortait la boucle, emportant la traduction des attributs
+    // suivants ET des éléments suivants. Un attribut qui ne se traduit pas
+    // aurait pu passer pour un simple oubli de dictionnaire ; c'était le
+    // moteur qui s'arrêtait en silence.
+    const cle = attr.replace(/[^A-Za-z0-9]/g, '_');
+    const okey = '__i18n_' + cle;      // français source
+    const lkey = '__i18nout_' + cle;   // dernière écriture du moteur
     const ds = el.dataset;
     // Jamais vu, ou valeur posée par l'APPLICATION depuis notre dernière
     // écriture → c'est cette valeur qui devient le français source.
@@ -4354,8 +4376,16 @@
     nodes.forEach(node => translateText(dict, node));
     // Attributs title / placeholder (voir translateAttr : toujours repartir du
     // français mémorisé, jamais de la valeur courante).
-    root.querySelectorAll('[title],[placeholder]').forEach(el => {
-      ['title', 'placeholder'].forEach(attr => translateAttr(dict, el, attr));
+    // `alt` et `aria-label` complètent la liste : ce sont les deux AUTRES
+    // attributs dont la valeur est lue par un utilisateur — `alt` quand
+    // l'image ne s'affiche pas, `aria-label` par un lecteur d'écran. Ils ne
+    // sautent pas aux yeux comme un libellé resté en français, ce qui est
+    // précisément pourquoi ils étaient restés en dehors : personne ne les
+    // VOIT. Recensement fait sur toutes les pages : title 63, placeholder 23,
+    // label 3, alt 1, aria-label 1 — la liste est desormais complete.
+    root.querySelectorAll('[title],[placeholder],[alt],[aria-label]').forEach(el => {
+      ['title', 'placeholder', 'alt', 'aria-label'].forEach(
+        attr => translateAttr(dict, el, attr));
     });
     // <optgroup label="…"> : le titre d'un GROUPE de choix dans un menu
     // déroulant. C'est un attribut, pas un nœud texte — le TreeWalker ci-dessus
