@@ -224,3 +224,61 @@ def test_un_qso_sans_etat_n_ecrit_pas_de_balise_vide():
     from logx_export import build_adif
     adif = build_adif([_qso('F6ABC', locator='JN18')])
     assert 'STATE' not in adif.upper()
+
+
+# ─── Grille bande × mode : entités DXCC, pas seulement des QSO ───────────────
+# La grille existait déjà (worked_matrix) mais ne comptait que des QSO. Or le
+# nombre de QSO dit l'ACTIVITÉ sur une case, tandis que le nombre d'ENTITÉS dit
+# l'AVANCEMENT du DXCC Challenge. Mesuré sur le log réel : 3 621 QSO en phonie
+# 20 m pour 135 entités — le second chiffre est celui qui indique où il reste
+# à faire.
+
+def test_la_grille_compte_les_entites_pas_seulement_les_QSO(monkeypatch):
+    monkeypatch.setattr(aw, '_read_archives', lambda: [])
+    monkeypatch.setattr(aw, '_read_qso_archive', lambda: [])
+    monkeypatch.setattr(aw, '_load_confirmations', lambda: {})
+    aw.invalidate()
+    # Trois QSO sur 20 m phonie, mais deux entités seulement.
+    log = [_qso('W1ABC', '14', 'SSB', time='1200'),
+           _qso('W2DEF', '14', 'SSB', time='1300'),
+           _qso('JA1XYZ', '14', 'SSB', time='1400')]
+    c = aw.worked_matrix(log)['grid']['14']['PHONE']
+    assert c['qso'] == 3
+    assert c['dxcc'] == 2, 'W1ABC et W2DEF sont la meme entite'
+
+
+def test_seul_LoTW_compte_dans_la_colonne_confirmee(monkeypatch):
+    """Même règle que les alertes : pour l'ARRL une confirmation eQSL ne vaut
+    rien. Deux compteurs distincts, jamais un seul « confirmé » ambigu."""
+    monkeypatch.setattr(aw, '_read_archives', lambda: [])
+    monkeypatch.setattr(aw, '_read_qso_archive', lambda: [])
+    monkeypatch.setattr(aw, '_load_confirmations', lambda: {
+        'W1ABC|14|SSB': {'lotw': True},
+        'JA1XYZ|14|SSB': {'eqsl': True},
+    })
+    aw.invalidate()
+    log = [_qso('W1ABC', '14', 'SSB', time='1200'),
+           _qso('JA1XYZ', '14', 'SSB', time='1400')]
+    c = aw.worked_matrix(log)['grid']['14']['PHONE']
+    assert c['confirmed'] == 2, 'les deux ont UNE confirmation'
+    assert c['dxcc_lotw'] == 1, 'mais une seule est confirmee LoTW'
+
+
+def test_les_DEUX_ecrans_annoncent_le_MEME_nombre_de_cases_Challenge(monkeypatch):
+    """DÉFAUT ATTRAPÉ ICI. La grille comptait 454 cases là où le panneau
+    Diplômes en annonçait 435 : elle incluait le 144, le 432 et une bande
+    « 1mm » issue d'une saisie douteuse, qui n'entrent pas dans le Challenge
+    ARRL (160 m à 6 m). Deux chiffres différents pour la même chose au même
+    écran, c'est ce qui fait douter de tout le reste."""
+    monkeypatch.setattr(aw, '_read_archives', lambda: [])
+    monkeypatch.setattr(aw, '_read_qso_archive', lambda: [])
+    monkeypatch.setattr(aw, '_load_confirmations', lambda: {})
+    aw.invalidate()
+    log = [_qso('W1ABC', '14', 'SSB', time='1200'),
+           _qso('JA1XYZ', '7', 'CW', time='1300'),
+           _qso('VK3ZZZ', '144', 'SSB', time='1400'),   # hors Challenge
+           _qso('PY2AAA', '432', 'SSB', time='1500')]   # hors Challenge
+    a = aw.award_summary(log)
+    m = aw.worked_matrix(log)
+    assert m['challenge'] == a['dxcc_challenge']['worked']
+    assert m['challenge'] == 2, 'seuls le 20 m et le 40 m comptent'

@@ -922,18 +922,55 @@ def worked_matrix(shared_log=None, scope_id=''):
         qsos = [q for q in qsos if qso_scope_id(q) == scope_id]
     cats = ('CW', 'PHONE', 'DIGITAL')
     grid = {}
+    # Entités DXCC par case, en plus du simple compte de QSO.
+    #
+    # POURQUOI LES DEUX. Le nombre de QSO dit l'ACTIVITÉ sur une case ; le
+    # nombre d'ENTITÉS dit l'AVANCEMENT du DXCC Challenge, qui se compte en
+    # couples entité × bande et se moque de savoir si on a fait dix QSO ou un
+    # seul avec le même pays. Une case à 900 QSO et 12 entités est une case
+    # d'habitué ; une case à 12 QSO et 12 entités est une case de chasseur.
+    #
+    # Et la confirmation LoTW est comptée à part : pour l'ARRL, une
+    # confirmation eQSL ou papier ne vaut rien — voir besoin_lotw().
+    entites = {}       # bande -> cat -> set d'entités
+    entites_lotw = {}  # idem, confirmées LoTW seulement
     for q in qsos:
         b = str(q.get('band', '?'))
         cat = _mode_category(q.get('mode', ''))
         cell = grid.setdefault(b, {c: {'qso': 0, 'confirmed': 0} for c in cats})[cat]
         cell['qso'] += 1
-        if conf.get(_confirm_key(q)):
+        srcs = conf.get(_confirm_key(q)) or {}
+        if srcs:
             cell['confirmed'] += 1
+        pays = q.get('dxcc_country')
+        if pays:
+            entites.setdefault(b, {}).setdefault(cat, set()).add(pays)
+            if srcs.get(LOTW_SOURCE):
+                entites_lotw.setdefault(b, {}).setdefault(cat, set()).add(pays)
+    for b, cols in grid.items():
+        for c in cats:
+            cols[c]['dxcc'] = len(entites.get(b, {}).get(c, ()))
+            cols[c]['dxcc_lotw'] = len(entites_lotw.get(b, {}).get(c, ()))
     bands = sorted(grid.keys(), key=_band_sort_key)
     return {
         'bands': bands, 'categories': list(cats),
         'grid': {b: grid[b] for b in bands},
         'totals': {c: sum(grid[b][c]['qso'] for b in bands) for c in cats},
+        # Cases du DXCC Challenge : une par couple entité × bande, toutes
+        # catégories de mode confondues (l'ARRL ne distingue pas le mode pour
+        # le Challenge, contrairement au DXCC par mode).
+        #
+        # RESTREINT À CHALLENGE_BANDS, comme award_summary()['dxcc_challenge'].
+        # Sans ce filtre, cette grille annonçait 454 cases là où le panneau
+        # Diplômes en annonçait 435 : elle comptait le 144, le 432 et une bande
+        # « 1mm » issue d'une saisie douteuse, qui n'entrent pas dans le
+        # Challenge. Deux chiffres différents pour la même chose au même écran,
+        # c'est le genre d'incohérence qui fait douter de tout le reste.
+        'challenge': sum(len(set().union(*cols.values())) if cols else 0
+                         for b, cols in entites.items() if b in CHALLENGE_BANDS),
+        'challenge_lotw': sum(len(set().union(*cols.values())) if cols else 0
+                              for b, cols in entites_lotw.items()
+                              if b in CHALLENGE_BANDS),
     }
 
 

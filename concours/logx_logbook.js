@@ -6013,10 +6013,20 @@ function renderWorkedMatrix(m){
     return `<div style="font-size:12px;color:var(--muted);font-family:var(--font-mono)">Pas encore de QSO.</div>`;
   }
   const catIcon = {CW:'📟', PHONE:'🎙️', DIGITAL:'💻'};
+  // Chaque case porte DEUX chiffres, et ils ne disent pas la même chose : le
+  // nombre de QSO dit l'ACTIVITÉ, le nombre d'entités DXCC dit l'AVANCEMENT du
+  // Challenge. Une case à 3621 QSO et 135 entités est une case d'habitué ; une
+  // case à 12 QSO et 12 entités est une case de chasseur. C'est le second
+  // chiffre qui indique où il reste à faire.
+  //
+  // L'entité confirmée LoTW est distinguée du reste : pour l'ARRL, une
+  // confirmation eQSL ou papier ne compte pas (même règle que les alertes).
   const cell = (c) => {
     if(!c || !c.qso) return `<td style="text-align:center;padding:4px 8px;color:var(--muted)">—</td>`;
-    const conf = c.confirmed ? ` <span style="color:var(--green)">(${c.confirmed})</span>` : '';
-    return `<td style="text-align:center;padding:4px 8px;background:rgba(0,212,255,.08)"><b>${c.qso}</b>${conf}</td>`;
+    const dxcc = c.dxcc ? `<div style="font-size:11px;color:var(--accent2)">${c.dxcc} DXCC` +
+      (c.dxcc_lotw ? ` · <span style="color:var(--green)">${c.dxcc_lotw} LoTW</span>` : '') + `</div>` : '';
+    return `<td style="text-align:center;padding:4px 8px;background:rgba(0,212,255,.08)">` +
+           `<b>${c.qso}</b>${dxcc}</td>`;
   };
   const rows = m.bands.map(b => {
     const g = m.grid[b] || {};
@@ -6029,7 +6039,9 @@ function renderWorkedMatrix(m){
     <thead><tr><td></td>${m.categories.map(c=>`<td style="text-align:center;padding:4px 8px;color:var(--accent2)">${catIcon[c]||''} ${c}</td>`).join('')}</tr></thead>
     <tbody>${rows}${totalsRow}</tbody>
   </table>
-  <div style="font-size:11px;color:var(--muted);margin-top:4px">QSO travaillés · (confirmés) en vert</div>`;
+  <div style="font-size:11px;color:var(--muted);margin-top:4px">QSO travaillés · entités DXCC · confirmées LoTW en vert${
+    m.challenge ? ` — <b style="color:var(--text)">${m.challenge}</b> cases DXCC Challenge (160 m → 6 m)` +
+                  (m.challenge_lotw ? `, <span style="color:var(--green)">${m.challenge_lotw} confirmées LoTW</span>` : '') : ''}</div>`;
 }
 
 // ─── RECORDS DX (déjà calculés côté serveur — logx_awards.dx_records) ───────
