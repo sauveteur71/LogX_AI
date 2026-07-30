@@ -2051,6 +2051,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.award_summary(log_copy))
             return
 
+        # Carrés QRA travaillés, pour la carte VUCC. ?band=144 restreint à une
+        # bande : le VUCC s'obtient bande par bande, jamais toutes bandes
+        # confondues — une carte « toutes bandes » ne correspondrait à aucun
+        # diplôme réel.
+        if path.startswith('/awards/carres'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_awards as awards
+            qp = parse_qs(urlparse(self.path).query)
+            bande = (qp.get('band', [''])[0]).strip()
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(awards.carres_travailles(log_copy, bande))
+            return
+
         # Worked Matrix : grille bande × CW/Phone/Digital. Par défaut sur
         # toute la vie de la station (Diplômes/QSL) — d'un coup d'œil, quelles
         # cases DXCC/WAS sont vides. ?scope=contest la restreint au concours

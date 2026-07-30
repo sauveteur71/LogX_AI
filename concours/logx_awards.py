@@ -325,6 +325,51 @@ def besoin_lotw(call, band='', mode='', shared_log=None):
             'label': label}
 
 
+def carres_travailles(shared_log=None, bande=''):
+    """Carrés QRA (4 caractères) travaillés, pour la carte VUCC.
+
+    Retourne {'squares': [{'g','n','conf','bands'}], 'total', 'confirmed'} —
+    `g` le carré, `n` le nombre de QSO, `conf` s'il est confirmé, `bands` les
+    bandes où il a été travaillé.
+
+    LE COMPTE PAR CARRÉ N'EST PAS DÉCORATIF : sur la carte, un carré touché une
+    seule fois et un carré travaillé cinquante fois se ressemblent. Pour un
+    collectionneur de carrés, le premier est le plus fragile — c'est celui dont
+    la confirmation manque le plus souvent.
+
+    Le filtre `bande` sert au VUCC, qui s'obtient bande par bande (100 carrés
+    en 6 m, en 2 m…) et jamais toutes bandes confondues.
+    """
+    conf = _load_confirmations()
+    par_carre = {}
+    factices = 0
+    for q in collect_all_qsos(shared_log):
+        b = str(q.get('band', '') or '')
+        if bande and b != str(bande):
+            continue
+        if _locator_factice(q.get('locator')):
+            factices += 1
+            continue
+        g = _grid(q, 4)
+        if not g:
+            continue
+        e = par_carre.setdefault(g, {'g': g, 'n': 0, 'conf': False, 'bands': set()})
+        e['n'] += 1
+        e['bands'].add(b)
+        if conf.get(_confirm_key(q)):
+            e['conf'] = True
+    carres = [{'g': e['g'], 'n': e['n'], 'conf': e['conf'],
+               'bands': sorted(e['bands'], key=_band_sort_key)}
+              for e in par_carre.values()]
+    carres.sort(key=lambda x: x['g'])
+    return {'squares': carres, 'total': len(carres),
+            'confirmed': sum(1 for c in carres if c['conf']),
+            # Signalé, jamais masqué : l'opérateur doit savoir qu'une part de
+            # son carnet ne porte pas de position exploitable, et pouvoir la
+            # corriger. Le taire donnerait un compte de carrés inexpliqué.
+            'locators_factices': factices}
+
+
 def annoter_besoin_lotw(spots, shared_log=None):
     """Pose 'lotw_need_ici' (bool) sur chaque spot, SANS filtrer la liste.
 
@@ -493,6 +538,28 @@ WAC_CONTINENTS = ('AF', 'AS', 'EU', 'NA', 'OC', 'SA')
 CHALLENGE_BANDS = ('1.8', '3.5', '7', '10', '14', '18', '21', '24', '28', '50')
 
 
+# Locators « par défaut » écrits par certains logiciels quand la case est
+# restée vide. Ce sont des chaînes Maidenhead PARFAITEMENT VALIDES — d'où le
+# fait que rien ne les signale — mais elles ne décrivent aucune position.
+#
+# TROUVÉ DANS LE LOG RÉEL de la station en préparant la carte des carrés :
+# JJ00AA y figure 300 fois, sur des QSO avec la Russie, la France, l'Ukraine,
+# l'Angleterre… soit 3,2 % du carnet. JJ00 se situe à 0° N, 0° E, en plein
+# golfe de Guinée : ces contacts calculaient une distance moyenne de 5 032 km,
+# et une station japonaise y était annoncée à 5 032 km au lieu de ~9 500.
+#
+# Ces QSO restent au log — ce sont de vrais contacts, seule leur POSITION est
+# fausse. Ils sont simplement écartés des diplômes de carrés, où les compter
+# reviendrait à revendiquer un carré jamais travaillé, et signalés en clair
+# plutôt que retirés en silence.
+LOCATORS_FACTICES = frozenset({'JJ00AA', 'AA00AA', 'AA00', 'JJ00'})
+
+
+def _locator_factice(loc):
+    l = str(loc or '').strip().upper()
+    return l in LOCATORS_FACTICES
+
+
 def _grid(q, n):
     """Les n premiers caractères du locator, en majuscules, ou ''.
 
@@ -501,6 +568,8 @@ def _grid(q, n):
     tronque au lieu d'exiger une longueur exacte.
     """
     loc = str(q.get('locator') or '').strip().upper()
+    if _locator_factice(loc):
+        return ''
     return loc[:n] if len(loc) >= n else ''
 
 

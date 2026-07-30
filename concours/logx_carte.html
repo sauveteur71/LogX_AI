@@ -233,6 +233,37 @@ textarea::placeholder{color:var(--muted)}
           <span style="color:var(--accent2);letter-spacing:1px">🎯 GREAT CIRCLE</span>
         </label>
       </div>
+      <!-- Surcouche CARRÉS QRA travaillés (VUCC). Placée SOUS le bloc
+           propagation : ce sont deux surcouches indépendantes, cumulables. -->
+      <div id="carresControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:236px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span style="color:var(--accent2);letter-spacing:2px">🔲 CARRÉS QRA</span>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="checkbox" id="carresOn" onchange="loadCarres()" style="accent-color:var(--accent2)">
+            <span style="color:var(--muted)">off</span>
+          </label>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
+          <!-- Le VUCC s'obtient BANDE PAR BANDE (100 carrés en 6 m, en 2 m…) :
+               une carte toutes bandes confondues ne correspondrait à aucun
+               diplôme réel. D'où le sélecteur, « toutes » restant utile pour
+               la vue d'ensemble du carnet. -->
+          <select id="carresBand" onchange="loadCarres()" style="flex:1;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px 6px;font-family:var(--font-mono);font-size:12px">
+            <option value="">Toutes bandes</option>
+            <option value="1.8">160 m</option>
+            <option value="3.5">80 m</option>
+            <option value="7">40 m</option>
+            <option value="14">20 m</option>
+            <option value="21">15 m</option>
+            <option value="28">10 m</option>
+            <option value="50">6 m</option>
+            <option value="144">2 m</option>
+            <option value="432">70 cm</option>
+          </select>
+        </div>
+        <div id="carresMeta" style="margin-top:6px;color:var(--muted);font-size:11px;line-height:1.35"></div>
+      </div>
+
       <!-- Surcouche PROPAGATION 24 h (carte du monde colorée depuis le QTH) -->
       <div id="propControl" style="position:absolute;z-index:600;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:224px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -424,6 +455,79 @@ function drawPropMap(d){
   propLayer.eachLayer(l=>{ if(l.bringToBack) l.bringToBack(); });  // sous les spots/lignes
   document.getElementById('propMeta').textContent =
     `${d.band==='best'?rcT('meilleure bande / point'):d.band+' MHz'} · ${d.when_utc} UTC`;
+}
+
+// ─── CARRÉS QRA TRAVAILLÉS (VUCC) ────────────────────────────────────────────
+// Demande utilisateur : « une carte pour les collectionneurs de carrés
+// locators, et y'en a un paquet pour le VUCC ».
+//
+// UN CARRÉ MAIDENHEAD N'EST PAS UN CARRÉ : 2° de longitude sur 1° de latitude,
+// donc un rectangle deux fois plus large que haut en degrés — et à 60° de
+// latitude, la moitié moins large en kilomètres qu'à l'équateur. On dessine
+// donc les vraies bornes du carré, jamais un carré centré sur un point : le
+// second serait faux partout sauf à l'équateur.
+let carresLayer = null;
+
+function carreVersBornes(g){
+  // 'JN18' -> [[lat_sud, lon_ouest], [lat_nord, lon_est]]
+  const G = String(g || '').toUpperCase();
+  if(G.length < 4) return null;
+  const lon = (G.charCodeAt(0) - 65) * 20 - 180 + parseInt(G[2], 10) * 2;
+  const lat = (G.charCodeAt(1) - 65) * 10 - 90  + parseInt(G[3], 10) * 1;
+  if(!isFinite(lon) || !isFinite(lat)) return null;
+  return [[lat, lon], [lat + 1, lon + 2]];
+}
+
+function clearCarres(){
+  if(carresLayer){ leafletMap.removeLayer(carresLayer); carresLayer = null; }
+}
+
+async function loadCarres(){
+  const actif = document.getElementById('carresOn');
+  if(actif && !actif.checked){ clearCarres(); majCarresMeta(''); return; }
+  const bande = document.getElementById('carresBand')
+    ? document.getElementById('carresBand').value : '';
+  try{
+    const r = await fetch('/awards/carres' + (bande ? '?band=' + encodeURIComponent(bande) : ''));
+    if(!r.ok) return;
+    drawCarres(await r.json());
+  }catch(e){ /* serveur injoignable : on garde l'affichage précédent */ }
+}
+
+function drawCarres(d){
+  clearCarres();
+  const rects = [];
+  for(const c of (d.squares || [])){
+    const b = carreVersBornes(c.g);
+    if(!b) continue;
+    // Confirmé en vert plein, travaillé en bleu translucide : pour un
+    // diplôme, seul le confirmé compte — la distinction doit sauter aux yeux
+    // sans avoir à cliquer.
+    const conf = !!c.conf;
+    rects.push(L.rectangle(b, {
+      color: conf ? '#00FF88' : '#00D4FF',
+      weight: 1, fillColor: conf ? '#00FF88' : '#00D4FF',
+      fillOpacity: conf ? 0.35 : 0.15,
+    }).bindTooltip(`${c.g} · ${c.n} QSO${c.n > 1 ? 's' : ''}` +
+                   (c.bands && c.bands.length ? ` · ${c.bands.join(', ')} MHz` : '') +
+                   (conf ? ' · confirmé' : '')));
+  }
+  carresLayer = L.layerGroup(rects).addTo(leafletMap);
+  carresLayer.eachLayer(l => { if(l.bringToBack) l.bringToBack(); });
+  let txt = `${d.total} carré${d.total > 1 ? 's' : ''}`;
+  if(d.confirmed) txt += ` · ${d.confirmed} confirmé${d.confirmed > 1 ? 's' : ''}`;
+  // Les QSO au locator par défaut sont SIGNALÉS, pas cachés : sans ça, le
+  // compte de carrés serait inexpliqué. Trouvé dans un log réel : 305 QSO
+  // portant JJ00AA / AA00AA, qui plaçaient un carré fantôme à 0°N 0°E.
+  if(d.locators_factices){
+    txt += ` · ${d.locators_factices} QSO au locator par défaut, ignorés`;
+  }
+  majCarresMeta(txt);
+}
+
+function majCarresMeta(t){
+  const el = document.getElementById('carresMeta');
+  if(el) el.textContent = t;
 }
 
 function onPropHour(){
