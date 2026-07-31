@@ -49,6 +49,10 @@ def _isolate_download_state(monkeypatch, tmp_path):
         'via': 'direct', 'via_peer': '',
     })
     monkeypatch.setattr(upd, '_cache', {'ts': 0, 'result': None})
+    # La référence de thread aussi : _demarrer_telechargement écrit le global
+    # du module — un stub laissé là par un test contaminerait le teardown des
+    # suivants exactement comme _download contaminait leurs statuts.
+    monkeypatch.setattr(upd, '_download_thread', None)
     monkeypatch.setattr(upd, 'user_data_dir', lambda: str(tmp_path))
     yield
     # BARRIÈRE DE FIN DE TEST — remplacer le dict ne suffit pas à isoler.
@@ -56,18 +60,28 @@ def _isolate_download_state(monkeypatch, tmp_path):
     # COURANT du module, résolu à chaque accès : un thread encore en vol quand
     # le test suivant démarre écrit donc dans l'état TOUT NEUF de ce test-là.
     # C'est ce qui rendait test_peer_annoncant_le_bon_asset_toujours_accepte
-    # rouge au hasard, uniquement en suite complète (jamais isolé, jamais avec
-    # son seul fichier) : il lisait 'error' laissé par le téléchargement d'un
-    # test précédent, pas par le sien. On attend donc la fin des threads avant
-    # de rendre la main.
-    fin = time.time() + 30
-    while time.time() < fin:
-        try:
-            if upd.get_download_status().get('status') != 'downloading':
-                break
-        except Exception:
-            break
-        time.sleep(0.02)
+    # rouge au hasard, uniquement en suite complète.
+    #
+    # L'ANCIENNE BARRIÈRE POLLAIT LE STATUT, ET AVAIT DEUX TROUS — le flake a
+    # persisté avec elle, c'est la preuve qu'ils étaient réels :
+    #   1. elle sortait dès que status != 'downloading'. Or un thread qui vient
+    #      de poser 'done'/'error' TOURNE ENCORE (fermeture du serveur pair,
+    #      suppression du .part...) ; et un handler traînard d'un test
+    #      précédent qui n'avait pas ENCORE posé 'downloading' passait au
+    #      travers d'un statut 'idle' ;
+    #   2. après 30 s, elle RENDAIT LA MAIN EN SILENCE — la contamination
+    #      continuait, simplement plus tard, dans un test plus lointain.
+    # On joint désormais LE THREAD LUI-MÊME (upd._download_thread, la référence
+    # posée par _demarrer_telechargement), et l'échec est BRUYANT : un thread
+    # qui survit 30 s au test qui l'a lancé est un défaut à corriger, pas un
+    # aléa à absorber.
+    t = getattr(upd, '_download_thread', None)
+    if t is not None and t.is_alive():
+        t.join(timeout=30)
+        if t.is_alive():
+            pytest.fail(
+                'Thread de téléchargement encore vivant 30 s après le test '
+                'qui l\'a lancé — il contaminerait les tests suivants.')
 
 
 def _wait_download_terminal(timeout=30):
@@ -75,10 +89,12 @@ def _wait_download_terminal(timeout=30):
     start_download/start_download_via_network).
 
     Le budget était de 5 s. C'est une attente d'HORLOGE MURALE sur un thread de
-    fond : sous la charge d'une suite de 1500 tests (et l'ordre aléatoire de
-    pytest-randomly), il passait parfois de justesse et le test échouait seul,
-    puis repassait au coup d'après — un faux rouge, exactement ce qui apprend à
-    ne plus regarder la CI. Le budget ne rallonge AUCUN test qui réussit : la
+    fond : sous la charge d'une suite de 1500 tests, il passait parfois de
+    justesse et le test échouait seul, puis repassait au coup d'après — un faux
+    rouge, exactement ce qui apprend à ne plus regarder la CI. (Une version
+    antérieure de ce commentaire invoquait « l'ordre aléatoire de
+    pytest-randomly » : le plugin n'est pas installé, ni en local ni en CI —
+    vérifié le 31/07/2026.) Le budget ne rallonge AUCUN test qui réussit : la
     boucle sort dès l'état terminal atteint, en général en quelques
     millisecondes. Il ne fait que couvrir le cas d'une machine chargée — et une
     CI Linux/macOS partagée est plus lente que ce poste."""
@@ -1324,6 +1340,22 @@ def test_reference_locale_survit_au_redemarrage_du_processus(monkeypatch):
     monkeypatch.setattr(upd, '_cache', {'ts': 0, 'result': None})
     monkeypatch.setattr(upd, '_checking', True)  # aucun thread de refresh réel
     monkeypatch.setattr(upd, '_download', dict(upd._download, status='downloading'))
+    # La sonde « déjà en cours » exige désormais un thread VIVANT : un
+    # 'downloading' sans thread est un orphelin que _demarrer_telechargement
+    # guérit (et le téléchargement partirait). Le faux thread porte TOUTE
+    # l'interface que la barrière de teardown utilise — is_alive ET join, et
+    # comme un vrai thread il est mort après join.
+    class _FauxThreadVivant:
+        def __init__(self):
+            self._vivant = True
+
+        def is_alive(self):
+            return self._vivant
+
+        def join(self, timeout=None):
+            self._vivant = False
+
+    monkeypatch.setattr(upd, '_download_thread', _FauxThreadVivant())
 
     ok, err = upd.start_download_via_network('gateway', ['192.0.2.1'])
     assert ok is False
@@ -1349,7 +1381,11 @@ def test_reference_persistee_transmise_au_telechargement(monkeypatch):
 
     def _capture(target=None, args=(), daemon=None):
         captured['args'] = args
-        return type('T', (), {'start': lambda self: None})()
+        # is_alive fait partie de l'interface imitée : la barrière de teardown
+        # l'appelle. Un stub trop pauvre casse le teardown des tests SUIVANTS —
+        # même leçon que le faux DOM d'i18n.
+        return type('T', (), {'start': lambda self: None,
+                              'is_alive': lambda self: False})()
 
     monkeypatch.setattr(upd.threading, 'Thread', _capture)
     ok, err = upd.start_download_via_network('gateway', ['192.0.2.1'])

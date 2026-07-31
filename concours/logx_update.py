@@ -139,6 +139,63 @@ _download = {
     'via_peer': '',       # IP du poste passerelle/pair utilisé, si via != 'direct'
 }
 
+# Le thread de téléchargement EN COURS — hors de _download, qui est sérialisé
+# tel quel vers le client (get_download_status -> dict -> JSON) : un objet
+# Thread n'y a pas sa place.
+#
+# POURQUOI CETTE RÉFÉRENCE EXISTE : LE VERROU FANTÔME. start_download* pose
+# status='downloading' puis refuse tout nouvel appel tant que ce statut tient.
+# Si le thread meurt SANS poser d'état terminal (exception hors try — c'était
+# le cas des premières lignes de _do_download_via_network — ou Thread.start()
+# qui lève sous famine de threads), rien ne réinitialisait jamais ce statut :
+# LA MISE À JOUR ÉTAIT MORTE JUSQU'AU REDÉMARRAGE, sans message. Sur une
+# expédition, c'est la panne qu'on découvre le jour où on en a besoin.
+# Avec cette référence, _demarrer_telechargement() détecte l'orphelin
+# (status='downloading' + thread mort) et s'auto-guérit.
+_download_thread = None
+
+
+def _demarrer_telechargement(target, args, via='direct'):
+    """Pose 'downloading' et démarre le thread, le tout SOUS _lock, d'un bloc.
+
+    Retourne (True, '') ou (False, raison). Trois protections, chacune née
+    d'un défaut réel constaté :
+      1. l'ORPHELIN s'auto-guérit : status='downloading' avec un thread mort
+         (ou jamais démarré) est un état cadavre — on le remplace par 'error'
+         et on laisse le nouveau téléchargement partir ;
+      2. Thread.start() PEUT LEVER (RuntimeError « can't start new thread »
+         sous famine — observé sur ce poste pendant la suite de tests) : sans
+         le try, le statut 'downloading' venait d'être posé et devenait
+         précisément l'orphelin du point 1 ;
+      3. start() est appelé sous _lock : entre la pose du statut et celle de
+         _download_thread, aucun autre appel ne peut observer un 'downloading'
+         sans thread et conclure à tort à un orphelin. Pas de deadlock : le
+         thread enfant qui voudrait _lock attend simplement la sortie du with.
+    """
+    global _download_thread
+    with _lock:
+        if _download['status'] == 'downloading':
+            if _download_thread is not None and _download_thread.is_alive():
+                return False, 'Un téléchargement est déjà en cours.'
+            # Orphelin : le statut dit « en cours », aucun thread ne vit.
+            _download.update(
+                status='error', verified=False,
+                error='Téléchargement précédent interrompu sans état terminal '
+                      '(thread mort) — état réinitialisé automatiquement.')
+        t = threading.Thread(target=target, args=args, daemon=True)
+        _download.update(status='downloading', pct=0, error='', path='',
+                          verified=False, sha256='', version='',
+                          via=via, via_peer='')
+        try:
+            t.start()
+        except Exception as e:
+            _download.update(status='error', verified=False,
+                             error=f'Impossible de démarrer le téléchargement : {e}')
+            _download_thread = None
+            return False, f'Impossible de démarrer le téléchargement : {e}'
+        _download_thread = t
+    return True, ''
+
 
 def _platform_key():
     if sys.platform.startswith('win'):
@@ -675,13 +732,11 @@ def start_download(asset_url, expected_sha256='', expected_size=0):
     expected_sha256/expected_size : référence attendue (voir _build_result,
     champ 'digest' de l'API GitHub) — voir _do_download pour la vérification
     et le refus si absente."""
-    with _lock:
-        if _download['status'] == 'downloading':
-            return
-        _download.update(status='downloading', pct=0, error='', path='',
-                          verified=False, sha256='', version='', via='direct', via_peer='')
-    threading.Thread(target=_do_download, args=(asset_url, expected_sha256, expected_size),
-                      daemon=True).start()
+    # Pose du statut + démarrage du thread d'un seul bloc sous _lock, avec
+    # auto-guérison de l'orphelin — voir _demarrer_telechargement.
+    _demarrer_telechargement(_do_download,
+                             (asset_url, expected_sha256, expected_size),
+                             via='direct')
 
 
 def _do_download(asset_url, expected_sha256='', expected_size=0):
@@ -804,24 +859,47 @@ def start_download_via_network(mode, ips, known_lan_ips=None):
     ips = [str(ip).strip() for ip in (ips or []) if str(ip).strip() and _is_valid_ip(ip)]
     if not ips:
         return False, 'Aucun poste candidat sur le réseau local.'
-    with _lock:
-        if _download['status'] == 'downloading':
-            return False, 'Un téléchargement est déjà en cours.'
-        _download.update(status='downloading', pct=0, error='', path='',
-                          verified=False, sha256='', version='', via=mode, via_peer='')
     # ref_size est calculé en tête (cache mémoire, sinon référence persistée
     # d'une session antérieure) — jamais réécrasé ici depuis `check`, qui est
     # vide après un redémarrage.
     platform = _platform_key()
     known_lan_ips = [str(ip).strip() for ip in (known_lan_ips or []) if str(ip).strip()]
-    threading.Thread(target=_do_download_via_network,
-                      args=(mode, ips, ref_tag, platform, ref_sha, ref_size, known_lan_ips),
-                      daemon=True).start()
-    return True, ''
+    # Pose du statut + démarrage du thread d'un seul bloc sous _lock, avec
+    # auto-guérison de l'orphelin — voir _demarrer_telechargement.
+    return _demarrer_telechargement(
+        _do_download_via_network,
+        (mode, ips, ref_tag, platform, ref_sha, ref_size, known_lan_ips),
+        via=mode)
 
 
 def _do_download_via_network(mode, ips, tag, platform, expected_sha256, expected_size,
                               known_lan_ips=None):
+    """Enveloppe de _do_download_via_network_corps : QUOI QU'IL ARRIVE, un état
+    terminal est posé.
+
+    DÉFAUT RÉEL QUE CE FILET CORRIGE. Les premières lignes du corps —
+    user_data_dir(), os.makedirs, _ASSET_SUFFIX_BY_PLATFORM[platform] — et le
+    scan pair-à-pair (scan_network_candidates, qui utilise un ThreadPoolExecutor
+    et peut lever « can't start new thread » sous famine) vivaient HORS de tout
+    try, alors que le chemin direct (_do_download) est protégé de bout en bout.
+    Une exception y tuait le thread SANS état terminal : status restait
+    'downloading' pour toujours, et start_download_via_network refusait tout
+    nouvel essai — la mise à jour était morte jusqu'au redémarrage, sans un
+    message. C'est aussi ce thread traînard qui écrivait 'error' dans l'état
+    tout neuf du test suivant (le flake de test_update_integrity).
+    """
+    try:
+        _do_download_via_network_corps(mode, ips, tag, platform,
+                                       expected_sha256, expected_size,
+                                       known_lan_ips)
+    except Exception as e:
+        with _lock:
+            _download.update(status='error', verified=False,
+                             error=f'Téléchargement réseau interrompu : {e}')
+
+
+def _do_download_via_network_corps(mode, ips, tag, platform, expected_sha256,
+                                   expected_size, known_lan_ips=None):
     dest_dir = os.path.join(user_data_dir(), 'update')
     os.makedirs(dest_dir, exist_ok=True)
     suffix, ext = _ASSET_SUFFIX_BY_PLATFORM[platform]
@@ -861,14 +939,31 @@ def _do_download_via_network(mode, ips, tag, platform, expected_sha256, expected
         try:
             if mode == 'gateway':
                 status = _peer_get_json(ip, '/app/gateway_status', timeout=3)
-                if not status or not status.get('gateway_available'):
+                # Même distinction que côté pair, plus bas : injoignable et
+                # « pas passerelle » ne se dépannent pas au même endroit.
+                if status is None:
+                    last_err = (f'{ip} : injoignable (poste éteint, occupé, ou '
+                                f'délai de sonde de 3 s dépassé).')
+                    continue
+                if not status.get('gateway_available'):
                     last_err = f'{ip} : pas disponible comme passerelle.'
                     continue
                 url = (f'http://{ip}:{PORT}/app/update_relay'
                        f'?tag={urllib.parse.quote(tag)}&platform={urllib.parse.quote(platform)}')
             else:  # 'peer' — secours
                 status = _peer_get_json(ip, '/app/update_serve_status', timeout=3)
-                if not status or not status.get('available'):
+                # DEUX CAUSES DISTINCTES, DEUX MESSAGES. _peer_get_json rend
+                # None sur TOUTE erreur (poste éteint, délai de sonde 3 s
+                # dépassé sur un poste chargé...) : l'ancien message unique
+                # « aucun exécutable vérifié à servir » accusait le pair de ne
+                # rien avoir alors qu'il n'avait simplement pas répondu à
+                # temps — en multi-op, l'opérateur cherchait le problème sur
+                # le mauvais poste.
+                if status is None:
+                    last_err = (f'{ip} : injoignable (poste éteint, occupé, ou '
+                                f'délai de sonde de 3 s dépassé).')
+                    continue
+                if not status.get('available'):
                     last_err = f'{ip} : aucun exécutable vérifié à servir.'
                     continue
                 # Pré-filtrage AVANT le GET (voir _peer_asset_mismatch) : le
