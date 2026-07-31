@@ -205,9 +205,97 @@ function bandeauxRythmeMasques(){
   return usageMode === 'simple' || usageMode === 'expedition';
 }
 
+// ─── Menu DÉBUT / FIN ────────────────────────────────────────────────────────
+// DEMANDE UTILISATEUR : « le logbook a énormément d'icônes qui ne servent
+// qu'à la fin d'un concours ou au début ; épure cette page. » Compté avant de
+// trancher : 30 commandes, dont 11 utilisées uniquement AVANT ou APRÈS
+// l'épreuve — la moitié de la barre, encombrée pendant tout le trafic.
+//
+// Le contenu S'ADAPTE AU MODE : en logbook simple il n'y a ni règlement, ni
+// score, ni log à soumettre — proposer EDI, VÉRIFIER ou ARCHIVER n'y a aucun
+// sens et ne ferait qu'égarer. C'est le pendant côté écran du travail fait
+// côté serveur dans logx_mode.py.
+function itemsMenuLogbook(){
+  const concours = contestActif();
+  const grp = [];
+  const avant = [];
+  if(concours) avant.push(['✅', 'CHECKLIST', 'showChecklist']);
+  avant.push(['📂', 'IMPORTER un log (ADIF/Cabrillo)', 'triggerImport']);
+  grp.push(['AVANT LA SESSION', avant]);
+
+  const suivi = [['📊', 'STATS — rythme et répartition', 'showRatePanel'],
+                 ['🏅', 'DIPLÔMES & QSL', 'showAwards']];
+  grp.push(['SUIVI', suivi]);
+
+  const apres = [];
+  if(concours){
+    apres.push(['🔍', 'VÉRIFIER le log avant envoi', 'showValidation']);
+    apres.push(['📥', 'Exporter EDI', 'exportEDI']);
+  }
+  apres.push(['📥', 'Exporter ADIF', 'exportADIF']);
+  apres.push(['📥', 'Exporter CSV', 'exportCSV']);
+  if(concours) apres.push(['📦', 'ARCHIVER ce concours', 'archiveLog']);
+  apres.push(['💾', 'SAUVEGARDER maintenant', 'backupNow']);
+  if(concours) apres.push(['📡', 'Message ON4KST', 'exportON4KST']);
+  grp.push(['APRÈS LA SESSION', apres]);
+
+  grp.push([null, [['🗑️', 'NOUVEAU LOG (efface le log actif)', 'resetLog', true]]]);
+  return grp;
+}
+
+function buildLbMenu(){
+  const dd = document.getElementById('lbMenuDD');
+  if(!dd) return;
+  const esc = s => String(s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let h = '';
+  itemsMenuLogbook().forEach(([titre, items], i) => {
+    if(!items.length) return;
+    if(i) h += '<hr>';
+    // window.rcT et PAS rcT : une variable non déclarée lève une
+    // ReferenceError, un accès de propriété rend undefined. Le menu se
+    // construit avant que le moteur i18n soit forcément là.
+    if(titre) h += '<div class="grp">'
+                 + esc(window.rcT ? window.rcT(titre) : titre) + '</div>';
+    items.forEach(([ico, lbl, fn, danger]) => {
+      h += '<button class="' + (danger ? 'danger' : '') + '" data-fn="' + esc(fn) + '">'
+         + '<span class="ico">' + ico + '</span>' + esc(lbl) + '</button>';
+    });
+  });
+  dd.innerHTML = h;
+  dd.querySelectorAll('button[data-fn]').forEach(b => {
+    b.onclick = () => {
+      fermerLbMenu();
+      const f = window[b.dataset.fn];
+      if(typeof f === 'function') f();
+    };
+  });
+}
+
+function fermerLbMenu(){
+  const dd = document.getElementById('lbMenuDD');
+  if(dd) dd.style.display = 'none';
+}
+
+function toggleLbMenu(ev){
+  if(ev) ev.stopPropagation();
+  const dd = document.getElementById('lbMenuDD');
+  if(!dd) return;
+  const ouvert = dd.style.display !== 'none';
+  if(ouvert){ fermerLbMenu(); return; }
+  buildLbMenu();          // reconstruit à l'ouverture : le mode a pu changer
+  dd.style.display = 'block';
+}
+// Un menu qui ne se referme pas au clic à côté reste en travers du log.
+document.addEventListener('click', e => {
+  if(!e.target.closest || !e.target.closest('#lbMenu')) fermerLbMenu();
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape') fermerLbMenu(); });
+
 function applyUsageModeToLogbook(mode){
   usageMode = mode || 'contest';
   const simple = usageMode === 'simple';
+  buildLbMenu();   // le contenu du menu dépend du mode
   const sansBandeaux = bandeauxRythmeMasques();
   const csWrap = document.getElementById('contestSearchWrap');
   if(csWrap) csWrap.style.display = simple ? 'none' : '';
@@ -236,9 +324,9 @@ function applyUsageModeToLogbook(mode){
     .forEach(btn => { btn.style.display = simple ? 'none' : ''; });
   // ARCHIVER clôture le log d'UN concours dans un dossier permanent (Cabrillo/
   // ADIF/résumé) — sans objet en logbook simple, qui n'a pas de concours à
-  // clôturer (log personnel continu).
-  const archiveBtn = document.getElementById('archiveBtn');
-  if(archiveBtn) archiveBtn.style.display = simple ? 'none' : '';
+  // clôturer (log personnel continu). La règle vit désormais dans
+  // itemsMenuLogbook() : la commande n'est plus un bouton de la barre qu'on
+  // masque, elle n'est tout simplement pas proposée dans le menu.
   document.body.classList.toggle('usage-simple', simple);
   // Appliqué aussi ici : updateStats() ne tourne qu'une fois le log chargé,
   // or la colonne PTS du tableau et le compas existent dès l'ouverture.
