@@ -359,8 +359,32 @@ SCORING : pts × préfixes uniques contactés (toutes bandes)
 LOG : CABRILLO — délai 5 jours — https://cqwpx.com/logsubmit.htm
 ═══════════════════════════════════════════════════════"""
 
-    prompt = f"""Tu es LogX AI, un assistant expert pour les concours radioamateur.
+    # MODE D'UTILISATION — placé TOUT EN HAUT, avant les règlements.
+    #
+    # DEMANDE UTILISATEUR : « qu'il s'adapte à l'utilisation faite : logbook
+    # simple, concours ou expédition, ce ne sont pas les mêmes besoins ».
+    # `usage_mode` existait dans la config depuis longtemps mais n'arrivait
+    # JAMAIS jusqu'ici : l'assistant parlait concours en toutes circonstances,
+    # y compris à quelqu'un qui chasse le DX sans épreuve en cours.
+    #
+    # Le bloc est en langage clair, et porte autant sur ce qu'il NE FAUT PAS
+    # évoquer que sur ce qui compte : c'est la consigne négative qui empêche
+    # de réclamer une checklist d'avant-concours hors concours. Écrit ainsi,
+    # il vaut pour N'IMPORTE QUEL fournisseur d'IA — aucun réglage propre à un
+    # modèle, juste des phrases.
+    from logx_mode import bloc_prompt, parle_concours
+    bloc_mode = bloc_prompt(cfg)
+    # Les règlements n'ont rien à faire dans le prompt s'il n'y a pas
+    # d'épreuve : ils occupent la fenêtre de contexte et invitent le modèle à
+    # y revenir.
+    if not parle_concours(cfg):
+        specific_rules = ''
+        rules_alert = ''
+
+    prompt = f"""Tu es LogX AI, un assistant expert pour le trafic radioamateur.
 Version {CURRENT_YEAR} — Dates et règlements automatiquement à jour.
+
+{bloc_mode}
 {rules_alert}
 {specific_rules}
 
