@@ -11,6 +11,101 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta10] - 2026-07-31
+
+### Ajouté
+
+- **🎯 FOCUS BANDE — une page entière consacrée à la bande que vous regardez.**
+  Tout ce que le logiciel sait déjà de cette bande, rassemblé sur un écran au
+  lieu d'être éparpillé : le cluster filtré **bande ET mode**, les carrés
+  travaillés ailleurs mais pas ici, l'état des ouvertures région par région,
+  les concours actifs **sur cette bande et ce mode à cet instant**, les
+  suggestions de contact de l'IA, et le classement de toutes les bandes avec la
+  raison du classement écrite en clair. La bande se choisit à la main **ou suit
+  la radio** (CAT). Faite pour rester ouverte sur un deuxième écran : un seul
+  appel serveur (`/data/focus`) toutes les 15 s au lieu de six, et une réponse
+  bornée — le panneau coach envoyait jusque-là 5,5 Mo à chaque rafraîchissement
+  pour une donnée que personne n'affichait.
+- **Autant de fenêtres par bande qu'on veut, côte à côte.** Cinq band maps sur
+  un deuxième écran pour surveiller cinq bandes en même temps, chacune dans sa
+  propre fenêtre.
+- **Les écrans détachés sont atteignables depuis TOUTES les pages** — SCOPE,
+  MUR et FENÊTRES PAR BANDE ont rejoint le menu DISPOSITION de la barre de
+  statut. On peut donc ouvrir l'écran mural depuis la page propagation, ce qui
+  était impossible auparavant.
+- **Menu « DÉBUT / FIN » du logbook**, dont le contenu s'adapte au mode : en
+  logbook simple, ni CHECKLIST, ni VÉRIFIER, ni EDI, ni ARCHIVER — il n'y a
+  aucun log à soumettre.
+
+### Modifié
+
+- **La page CONFIGURATION ne s'impose plus à chaque démarrage.** Elle ne
+  s'ouvre que tant que la station n'est pas configurée ; ensuite le logiciel
+  ouvre directement le logbook. Le test porte sur l'indicatif renseigné, pas
+  sur l'existence du fichier de configuration : un fichier créé par un réglage
+  sans rapport ne doit pas faire croire que la station est prête.
+- **Logbook épuré : 30 commandes dans la barre, 11 désormais.** Compté avant de
+  trancher — 11 d'entre elles ne servaient qu'avant ou après l'épreuve, pour
+  deux clics par concours, tout en occupant la moitié de la barre pendant tout
+  le trafic. Ne reste que ce qu'on touche la main sur le manipulateur.
+- **L'assistant IA sait enfin à quel usage il répond.** Le réglage
+  *logbook simple / concours / expédition / radioclub* existait depuis
+  longtemps mais **n'arrivait jamais jusqu'au prompt** : l'IA parlait stratégie
+  de concours à quelqu'un qui chasse tranquillement le DX. La consigne envoyée
+  au modèle est écrite en langage clair — pas en drapeaux — ce qui la rend
+  valable pour **n'importe quel fournisseur d'IA**, et elle porte autant sur ce
+  qu'il ne faut PAS évoquer que sur ce qui compte. Hors concours, les
+  règlements ne sont plus chargés du tout dans le prompt.
+- **Le bandeau des bandes sort dans l'ordre des fréquences**, et non plus par
+  score : il se relit toutes les 15 s, les bandes changeaient donc de place
+  sous le doigt. Le classement passe de la position à un marqueur (barre de
+  score + liseré vert sur la bande recommandée), qui ne déplace rien.
+- **Tout le plan de bandes est proposé** (1,8 · 3,5 · 7 · 10,1 · 14 · 18 · 21 ·
+  24 · 28 · 50 · 70 · 144 · 432), WARC comprises, plus les bandes du concours
+  et celles où un spot tombe. La liste venait des seules bandes du concours
+  actif : sur une épreuve à deux bandes, la page devenait borgne.
+
+### Corrigé
+
+- **Un attribut à tiret faisait exploser la traduction de tous les suivants.**
+  Le moteur i18n mémorisait l'original d'un attribut dans `dataset`, sous une
+  clé reprenant son nom : `aria-label` donnait `__i18n_aria-label`, que
+  `DOMStringMap` **refuse** avec une exception. Celle-ci avortait la boucle,
+  donc la traduction de tous les attributs restants de la page — sans le
+  moindre message. Les tests ne pouvaient pas le voir : leur faux DOM acceptait
+  n'importe quelle clé.
+- **Cinq pages ne chargeaient pas du tout le moteur de traduction** — fenêtre
+  par bande, mobile, panneau détaché, scope, écran mural : un cinquième du
+  logiciel restait en français quelle que soit la langue choisie.
+- **Le coach décomptait vers un concours qui n'existait pas** : « départ dans
+  18,2 h — passe la CHECKLIST » alors que la barre de statut affichait « aucun
+  concours ». Les dates d'une épreuve précédente survivent dans la
+  configuration ; le compte à rebours était cohérent et ne portait sur rien.
+- **Cinq fenêtres par bande demandées ne donnaient qu'UNE fenêtre**, chaque
+  nouvelle bande remplaçant la précédente : `window.open` réutilise la fenêtre
+  qui porte déjà le nom demandé.
+- **FOCUS : le filtre de mode ne filtrait rien** (les spots du cluster ne
+  portent pas de mode fiable — il est désormais **déduit de la fréquence**, par
+  la même table que la réglette de bande), **la carte des carrés restait vide
+  en permanence** et **les suggestions aussi** (deux hypothèses fausses sur la
+  forme des données, l'une et l'autre silencieuses), **les ouvertures
+  s'affichaient sans chiffre** pour toutes les régions sauf une.
+- **Traductions : 7 formulations établies étaient réécrites en silence.**
+  L'extracteur de clés ne lisait qu'un seul style de guillemets et une seule
+  paire par ligne — il annonçait donc des textes « non traduits » qui
+  l'étaient, et faisait apparaître un trou allemand qui n'existait pas.
+
+### Interne
+
+- **Les phrases à valeur variable sont traduisibles.** « Aucun spot sur 14 MHz »
+  ne peut être aucune clé de dictionnaire ; `rcTf()` remplace les trous
+  **après** traduction, et le script de génération refuse d'écrire si une
+  traduction perd ou renomme un trou — sans ce garde-fou, `{call}` s'afficherait
+  tel quel dans une seule langue, sans que rien ne le signale.
+- **Mesure corrigée** : j'avais annoncé « 646 chaînes JavaScript à traduire ».
+  Une chaîne injectée dans le DOM est traduite par le moteur sans aucun appel
+  explicite ; seules trois familles lui échappent. Le vrai chiffre est ~190.
+
 ## [0.9-beta9] - 2026-07-30
 
 ### Ajouté

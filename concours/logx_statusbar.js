@@ -966,6 +966,53 @@
   }
   window.rcOpenPanel = function(id, geo){ return openPanel(id, geo); };
   window.rcClosePanel = function(id){ closePanel(id); };
+  // ── Écrans détachés (bandscope, mural, une fenêtre par bande) ────────────
+  // Ces trois-là ne sont PAS des « panneaux » (logx_panel.html) mais des pages
+  // à part entière. Ils vivaient sur des boutons de la barre d'outils du
+  // logbook ; en épurant cette page je les ai retirés en croyant que le menu
+  // DISPOSITION les couvrait déjà — il ne couvrait que les panneaux, et
+  // popoutBandes() s'est retrouvée SANS AUCUN APPELANT. Rattrapé par le test
+  // qui protégeait ce câblage.
+  //
+  // Les mettre ICI vaut mieux que de les rendre au logbook : la barre de
+  // statut est sur toutes les pages, on peut donc ouvrir l'écran mural depuis
+  // la page propagation, ce qui était impossible avant.
+  function ouvrirEcran(quoi){
+    // Sur la page logbook, on réutilise les fonctions existantes : elles
+    // connaissent la bande courante et les bandes réellement visibles.
+    const local = {scope: 'popoutScope', mur: 'popoutWall', bandes: 'popoutBandes'}[quoi];
+    if (local && typeof window[local] === 'function') { window[local](); return; }
+    if (quoi === 'mur') {
+      window.open('/logx_wall.html', 'rc_wall',
+        'width=1280,height=720,menubar=no,toolbar=no,location=no');
+      return;
+    }
+    // Hors logbook, la liste des bandes vient de la config partagée.
+    let bandes = [];
+    try {
+      const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
+      bandes = (cfg.bands || []).map(String).filter(Boolean);
+    } catch (e) { /* config illisible : on retombe sur la bande par défaut */ }
+    if (quoi === 'scope') {
+      const b = bandes[0] || '144';
+      window.open('/logx_scope.html?band=' + encodeURIComponent(b),
+        'rc_scope_' + b.replace(/\./g, '_'),
+        'width=1100,height=560,menubar=no,toolbar=no,location=no');
+      return;
+    }
+    if (!bandes.length) {
+      alert(rcT("Aucune bande active : choisis un concours ou coche des bandes dans CONFIG"));
+      return;
+    }
+    bandes.slice(0, 12).forEach(function(b, i){
+      window.open('/logx_bande.html?band=' + encodeURIComponent(b),
+        'rc_bande_' + String(b).replace(/\./g, '_'),
+        'width=420,height=520,left=' + (40 + i * 40) + ',top=' + (40 + i * 30)
+        + ',menubar=no,toolbar=no,location=no');
+    });
+  }
+  window.rcOuvrirEcran = ouvrirEcran;
+
   // Le bouton du menu agit sur le TYPE : s'il y a cinq band maps ouverts,
   // « fermer » les ferme tous les cinq — sinon il en resterait quatre à
   // fermer une par une, alors que le bouton affiche « fermer (5) ».
@@ -1066,8 +1113,19 @@
             + '<button data-layout-del="' + n.replace(/"/g, '&quot;') + '">supprimer</button></div>';
         }).join('')
       : '<div style="color:var(--muted,#A9B0C8);padding:2px 0">aucune disposition enregistrée</div>';
+    // Écrans détachés : des PAGES entières (bandscope, mural, une fenêtre par
+    // bande), à distinguer des panneaux ci-dessus.
+    const ecranRows =
+      '<div class="rcsb-panel-row"><span>' + rcT('Bandscope') + '</span>'
+      + '<button data-ecran="scope">' + rcT('ouvrir') + '</button></div>'
+      + '<div class="rcsb-panel-row"><span>' + rcT('Écran mural') + '</span>'
+      + '<button data-ecran="mur">' + rcT('ouvrir') + '</button></div>'
+      + '<div class="rcsb-panel-row"><span>' + rcT('Une fenêtre par bande') + '</span>'
+      + '<button data-ecran="bandes">' + rcT('ouvrir') + '</button></div>';
+
     dd.innerHTML =
       '<div class="rcsb-dd-title">PANNEAUX</div>' + panelRows +
+      '<hr><div class="rcsb-dd-title">' + rcT('ÉCRANS DÉTACHÉS') + '</div>' + ecranRows +
       '<hr><div class="rcsb-dd-title">' + rcT('DISPOSITIONS ENREGISTRÉES') + '</div>' + layoutRows +
       '<hr><input type="text" id="rcsbNewLayoutName" placeholder="' + rcT('nom de la disposition') + '">' +
       '<div style="display:flex;gap:6px;margin-top:6px">' +
@@ -1088,6 +1146,8 @@
     }
     const toggleBtn = e.target.closest('[data-panel-toggle]');
     if (toggleBtn){ window.rcTogglePanel(toggleBtn.getAttribute('data-panel-toggle')); return; }
+    const ecranBtn = e.target.closest('[data-ecran]');
+    if (ecranBtn){ ouvrirEcran(ecranBtn.getAttribute('data-ecran')); return; }
     const loadBtn = e.target.closest('[data-layout-load]');
     if (loadBtn){ loadLayout(loadBtn.getAttribute('data-layout-load')); return; }
     const delBtn = e.target.closest('[data-layout-del]');

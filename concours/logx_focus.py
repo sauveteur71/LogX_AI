@@ -38,6 +38,27 @@ BONUS_RUN = 8.0             # on ne quitte pas un run qui marche
 QSO_MINI_POUR_RUN = 5       # QSO dans la dernière heure définissant un « run »
 
 
+# Bandes proposées par défaut, DANS L'ORDRE DES FRÉQUENCES.
+#
+# DEUX REPROCHES DE L'UTILISATEUR, tous deux fondés :
+#   « pourquoi les bandes sont dans le désordre » — le bandeau était trié par
+#   SCORE. Un classement se relit toutes les 15 s : les bandes changeaient donc
+#   de place sous le doigt, et retrouver « le 20 m » demandait de lire les huit
+#   étiquettes à chaque fois. L'ordre est maintenant celui des fréquences,
+#   fixe ; le classement reste lisible par la barre de score et le liseré vert
+#   de la meilleure bande.
+#   « pourquoi il manque plusieurs bandes » — la liste venait des seules bandes
+#   du concours actif. Hors concours, ou sur un concours à deux bandes, la page
+#   devenait borgne : impossible d'aller voir ailleurs.
+#
+# Contenu : toutes les bandes du plan IARU région 1 que connaît la table de
+# logx_awards (1,8 → 432 MHz). Les bandes hyperfréquences n'y sont pas
+# découpées en segments ; elles apparaissent quand même si le concours les
+# utilise ou si un spot y tombe (voir bandes_a_proposer).
+BANDES_STANDARD = ('1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28',
+                   '50', '70', '144', '432')
+
+
 def _txt(v):
     return str(v if v is not None else '').strip()
 
@@ -205,7 +226,30 @@ def _mode_compatible(mode, modes_concours):
     return False
 
 
-def classer_bandes(bandes, spots=(), regions=(), log=(), now=None):
+def bandes_a_proposer(bandes_concours=(), spots=(), bande_demandee=''):
+    """Toutes les bandes du sélecteur, DANS L'ORDRE DES FRÉQUENCES.
+
+    Réunion de trois sources : le plan de bandes standard, celles du concours
+    actif (qui peut en utiliser une hors table), et celles où un spot est
+    tombé (hyperfréquences comprises). Plus la bande explicitement demandée —
+    on peut vouloir regarder une bande que rien ne signale.
+    """
+    vues = list(BANDES_STANDARD)
+    for src in (bandes_concours or ()), (b.get('band') for b in (spots or ())
+                                         if isinstance(b, dict)):
+        for b in src:
+            bb = _bande(b)
+            if bb and bb not in vues:
+                vues.append(bb)
+    bd = _bande(bande_demandee)
+    if bd and bd not in vues:
+        vues.append(bd)
+    # Ordre des fréquences ; ce qui n'est pas numérique va à la fin, par nom.
+    return sorted(vues, key=lambda x: (0, float(x)) if _est_nombre(x) else (1, x))
+
+
+def classer_bandes(bandes, spots=(), regions=(), log=(), now=None,
+                   bandes_concours=()):
     """Classe les bandes par opportunité MAINTENANT, la meilleure d'abord.
 
     Renvoie une liste de dictionnaires portant le score ET son détail, pour que
@@ -254,10 +298,21 @@ def classer_bandes(bandes, spots=(), regions=(), log=(), now=None):
             'mults': d['mults'],
             'qso_derniere_heure': recents,
             'pourquoi': ' · '.join(motifs),
+            # Bande utilisée par le concours en cours : la page la distingue,
+            # sans la faire disparaître — on peut vouloir regarder ailleurs.
+            'dans_concours': b in [_bande(x) for x in (bandes_concours or ())],
         })
-    # Score décroissant ; à égalité, la bande la plus basse d'abord (elle porte
-    # en général plus loin la nuit, et c'est un ordre stable donc reproductible).
-    out.sort(key=lambda x: (-x['score'], float(x['band']) if _est_nombre(x['band']) else 1e9))
+    # ORDRE DES FRÉQUENCES, pas du score. Un bandeau trié par score se
+    # réordonne à chaque rafraîchissement : les bandes changent de place sous
+    # le doigt et retrouver « le 20 m » demande de relire toutes les
+    # étiquettes. Le classement reste lisible — barre de score, et `rang`
+    # ci-dessous désigne la bande recommandée.
+    out.sort(key=lambda x: (0, float(x['band'])) if _est_nombre(x['band'])
+             else (1, x['band']))
+    if out:
+        meilleur = max(out, key=lambda x: x['score'])
+        for x in out:
+            x['recommandee'] = (x is meilleur and meilleur['score'] > 0)
     return out
 
 
@@ -269,24 +324,123 @@ def _est_nombre(s):
         return False
 
 
-def carres_manquants(carres, bande=''):
-    """Carrés locator entendus mais pas travaillés, filtrés sur la bande.
+def carres_a_faire_sur_la_bande(carres, bande=''):
+    """Carrés déjà travaillés AILLEURS mais PAS sur cette bande.
 
-    `carres` vient de /awards/carres : chaque entrée porte le carré et, quand
-    l'information existe, la bande où il a été entendu. Un carré SANS bande est
-    conservé quelle que soit la bande demandée : il manque partout, et le
-    masquer priverait l'opérateur de la cible.
+    PREMIER JET FAUX, corrigé après essai sur les vraies données. Je croyais
+    que /awards/carres renvoyait des carrés « manquants » portant `square`,
+    `worked` et `band` ; il renvoie en fait les carrés TRAVAILLÉS, sous la
+    forme {'g': 'JN18', 'n': 3, 'conf': False, 'bands': ['14','144']}. Mon
+    filtre cherchait des clés inexistantes : la carte restait vide en
+    permanence, sans erreur ni message.
+
+    Il n'existe pas, côté serveur, de liste des carrés « jamais faits » — le
+    panneau CARRÉS ENTENDUS du logbook la construit depuis les décodages
+    WSJT-X, qui ne transitent pas par ici. On affiche donc ce que les données
+    permettent réellement et qui a du sens en concours : un carré déjà dans le
+    log sur une AUTRE bande est une cible immédiate sur celle-ci — l'opérateur
+    sait que la station existe et qu'elle est à portée.
     """
     b = _bande(bande)
     out = []
     for c in (carres or []):
         if not isinstance(c, dict):
             continue
-        if c.get('worked') or c.get('done'):
+        carre = _txt(c.get('g') or c.get('square') or c.get('locator'))
+        if not carre:
             continue
-        cb = _bande(c.get('band'))
-        if b and cb and cb != b:
+        bandes = [_bande(x) for x in (c.get('bands') or [])]
+        if b and b in bandes:
+            continue          # déjà fait sur CETTE bande : ce n'est plus une cible
+        out.append({'square': carre, 'bandes': [x for x in bandes if x],
+                    'confirmed': bool(c.get('conf') or c.get('confirmed'))})
+    # Les carrés faits sur le plus de bandes d'abord : ce sont les stations les
+    # plus actives, donc les plus faciles à retrouver sur une bande de plus.
+    out.sort(key=lambda x: (-len(x['bandes']), x['square']))
+    return out
+
+
+def bande_depuis_freq(freq, bandes=()):
+    """Bande la plus PROCHE de la fréquence, parmi celles connues.
+
+    Pas de table en dur, et surtout pas de « fréquence ≥ nom de bande » : le
+    432 commence à 430, son segment CW se perdrait. La fréquence arrive en kHz
+    ou en MHz selon la source — même discrimination que
+    logx_awards.mode_depuis_frequence.
+    """
+    try:
+        v = float(freq or 0)
+    except (TypeError, ValueError):
+        return ''
+    if v <= 0:
+        return ''
+    mhz = v / 1000.0 if v > 1000 else v
+    best, ecart = '', None
+    for b in (bandes or []):
+        bb = _bande(b)
+        try:
+            val = float(bb)
+        except (TypeError, ValueError):
             continue
-        out.append({'square': _txt(c.get('square') or c.get('locator') or c.get('grid')),
-                    'band': cb, 'confirmed': bool(c.get('confirmed'))})
-    return [x for x in out if x['square']]
+        e = abs(mhz - val)
+        if ecart is None or e < ecart:
+            best, ecart = bb, e
+    if not best:
+        return ''
+    return best if ecart <= max(2.0, float(best) * 0.12) else ''
+
+
+def filtrer_par_mode(spots, mode='', mode_de_freq=None):
+    """Ne garde que les spots du mode demandé. Mode vide = tout garder.
+
+    LE MODE N'EST PAS DANS LE SPOT. Le cluster ne l'annonce pas de façon
+    fiable : c'est ce qui faisait que changer CW/SSB ne changeait rien à la
+    liste. On le DÉDUIT donc de la fréquence, via la même table que la
+    réglette de bande (logx_awards.mode_depuis_frequence) — une seule source
+    de vérité, sinon la réglette pourrait dessiner un segment CW là où le
+    filtre compte du numérique.
+
+    Un spot dont le mode ne peut pas être déduit est CONSERVÉ : mieux vaut une
+    ligne de trop qu'une station manquée parce que sa fréquence sort des
+    créneaux habituels.
+    """
+    m = _txt(mode).upper()
+    if not m:
+        return list(spots or [])
+    if mode_de_freq is None:
+        try:
+            from logx_awards import mode_depuis_frequence as mode_de_freq
+        except Exception:
+            return list(spots or [])
+    out = []
+    for s in (spots or []):
+        if not isinstance(s, dict):
+            continue
+        cat = _txt(s.get('mode')).upper() or _txt(mode_de_freq(s.get('freq'))).upper()
+        if not cat or _mode_compatible(m, [cat]):
+            out.append(s)
+    return out
+
+
+def score_ouverture_region(region, bande):
+    """Score d'ouverture d'UNE région pour LA bande demandée.
+
+    /data/openings ne chiffre que la MEILLEURE bande de chaque région. Afficher
+    « · » pour toutes les autres — ce que faisait le premier jet — revient à
+    lister sept régions ouvertes sans dire à quel point : l'information la plus
+    utile de la carte manquait. On applique donc la même règle que le
+    classement : score plein pour la meilleure bande, part réduite pour les
+    autres bandes ouvertes.
+    """
+    if not isinstance(region, dict):
+        return 0.0
+    b = _bande(bande)
+    try:
+        score = float(region.get('best_score') or 0)
+    except (TypeError, ValueError):
+        score = 0.0
+    if _bande(region.get('best_band')) == b:
+        return round(score, 1)
+    if b in [_bande(x) for x in (region.get('open_bands') or [])]:
+        return round(score * 0.55, 1)
+    return 0.0

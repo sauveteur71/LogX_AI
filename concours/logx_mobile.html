@@ -503,7 +503,7 @@ async function syncOfflineQueue(){
       // trySendQso() : jamais confondre échec réseau/serveur transitoire et
       // rejet définitif).
       const err = await res.json().catch(() => ({}));
-      toast(`⚠️ QSO ${qso.call} rejeté par le serveur (${err.error || res.status}) — retiré de la file.`,
+      toast('⚠️ ' + Tf('QSO {call} rejeté par le serveur ({err}) — retiré de la file.', {call: qso.call, err: err.error || res.status}),
             'var(--red)');
     }catch(e){
       stillPending.push(qso);
@@ -515,6 +515,14 @@ async function syncOfflineQueue(){
 }
 
 // ─── Envoi du QSO ────────────────────────────────────────────────────────────
+// Raccourcis i18n (fournis par logx_i18n.js ; repli = identite si absent).
+// Tf remplace les trous {x} APRES traduction : « ✅ F1ABC logge ! (412 km) »
+// change a chaque QSO, elle ne peut pas etre une cle de dictionnaire.
+const T = s => (window.rcT ? window.rcT(s) : s);
+const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+  let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+})());
+
 function toast(msg, color){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -594,9 +602,12 @@ async function submitQSO(){
   btn.disabled = true;
   const result = await trySendQso(qso);
   if (result.outcome === 'declined'){
-    toast('Doublon ignoré — non enregistré.');
+    toast(T('Doublon ignoré — non enregistré.'));
   } else if (result.outcome === 'ok'){
-    toast(`✅ ${call} loggé !${dist ? ' (' + dist + ' km)' : ''}`, 'var(--green)');
+    // « km » ne se traduit pas : une entrée de dictionnaire identique dans les
+    // sept langues ne serait que du bruit.
+    toast('✅ ' + Tf('{call} loggé !', {call: call})
+          + (dist ? ' (' + dist + ' km)' : ''), 'var(--green)');
     resetFieldsAfterSubmit();
   } else if (result.outcome === 'error'){
     // Réponse HTTP reçue et DÉFINITIVE (400, 404... — hors 409) : le serveur
@@ -613,7 +624,7 @@ async function submitQSO(){
     // l'activation.
     if (serialUnconfirmed) qso._serial_pending = true;   // renégocié à la resynchro
     queueOfflineQso(qso);
-    toast(`📥 Hors ligne — ${call} mis en file d'attente (sera renvoyé automatiquement).`,
+    toast('📥 ' + Tf("Hors ligne — {call} mis en file d'attente (sera renvoyé automatiquement).", {call: call}),
           'var(--yellow)');
     resetFieldsAfterSubmit();
   }
@@ -646,8 +657,10 @@ async function trySendQso(qso){
   if (res.status === 409){
     const err = await res.json().catch(() => ({}));
     const ex = err.existing || {};
-    if (!confirm(`DOUBLON : ${qso.call} déjà contacté sur ${qso.band} MHz` +
-                 `${ex.time ? ' à ' + ex.time : ''}.\n\nEnregistrer quand même ?`)){
+    if (!confirm(Tf('DOUBLON : {call} déjà contacté sur {band} MHz{heure}.',
+                 {call: qso.call, band: qso.band,
+                  heure: ex.time ? Tf(' à {t}', {t: ex.time}) : ''})
+                 + '\n\n' + T('Enregistrer quand même ?'))){
       return {outcome: 'declined'};
     }
     try{

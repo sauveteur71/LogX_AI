@@ -69,7 +69,15 @@ button:hover,select:hover{border-color:var(--accent2)}
   border-radius:9px;padding:7px 9px;cursor:pointer;transition:border-color .12s}
 .bchip:hover{border-color:var(--accent2)}
 .bchip.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+/* La bande recommandée se signale par la COULEUR, plus par sa position :
+   l'ordre est celui des fréquences, fixe. */
 .bchip.premier .bnom{color:var(--green)}
+.bchip.premier{border-color:var(--green)}
+/* Bande utilisée par le concours en cours : discret, pour ne pas concurrencer
+   le liseré de la recommandation. */
+.bchip.concours .bnom::after{content:'•';color:var(--accent2);font-size:11px;
+  vertical-align:super;margin-left:3px}
+.bchip:not(.concours) .bnom{opacity:.82}
 .bchip-tete{display:flex;align-items:baseline;gap:6px}
 .bnom{font-size:16px;font-weight:800}
 .bscore{margin-left:auto;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -193,7 +201,13 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);
   </div>
 
   <div class="carte">
-    <h2>🔲 CARRÉS QRA MANQUANTS<span class="compte rc-i18n-live" id="cCarres"></span></h2>
+    <!-- Titre honnête : il n'existe pas, côté serveur, de liste des carrés
+         « jamais faits » (le panneau CARRÉS ENTENDUS du logbook la construit
+         depuis les décodages WSJT-X, qui ne passent pas par ici). Ce qu'on
+         montre est ce que les données permettent VRAIMENT, et qui a du sens en
+         concours : un carré déjà dans le log sur une autre bande est une cible
+         immédiate sur celle-ci — la station existe et elle est à portée. -->
+    <h2>🔲 CARRÉS À REPRENDRE SUR CETTE BANDE<span class="compte rc-i18n-live" id="cCarres"></span></h2>
     <div class="corps rc-i18n-live" id="carres"><div class="vide">Chargement…</div></div>
   </div>
 
@@ -207,7 +221,9 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);
 </div>
 
 <footer>
-  <span>clic sur une bande = focus</span>
+  <span>bandes dans l'ordre des fréquences · clic = focus</span>
+  <span style="color:var(--green)">vert = la plus intéressante maintenant</span>
+  <span style="color:var(--accent2)">• = bande du concours</span>
   <span class="etiq mult">multiplicateur neuf</span>
   <span>barré = déjà travaillé</span>
 </footer>
@@ -293,9 +309,16 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
   function rendreClassement(liste){
     if(!liste.length){ $('classement').innerHTML = ''; return; }
     const max = Math.max(1, ...liste.map(c => c.score));
-    $('classement').innerHTML = liste.map((c, i) => `
-      <div class="bchip ${c.band === bande ? 'active' : ''} ${i === 0 && c.score > 0 ? 'premier' : ''}"
-           data-b="${esc(c.band)}" title="${esc(c.pourquoi)}">
+    // ORDRE DES FRÉQUENCES, tel que le serveur l'envoie — surtout pas trié par
+    // score ici : un bandeau qui se réordonne toutes les 15 s fait changer les
+    // bandes de place sous le doigt. La recommandation reste visible par le
+    // liseré vert (`recommandee`) et par la barre de score.
+    $('classement').innerHTML = liste.map(c => `
+      <div class="bchip ${c.band === bande ? 'active' : ''} ${c.recommandee ? 'premier' : ''}
+                  ${c.dans_concours ? 'concours' : ''}"
+           data-b="${esc(c.band)}"
+           title="${esc(c.pourquoi)}${c.dans_concours ? ' — bande du concours' : ''}${
+             c.recommandee ? ' — la plus intéressante en ce moment' : ''}">
         <div class="bchip-tete"><span class="bnom">${esc(c.band)}</span>
           <span class="bscore">${Math.round(c.score)}</span></div>
         <div class="bbar"><i style="width:${Math.round(100 * c.score / max)}%"></i></div>
@@ -326,7 +349,8 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
         <span class="call ${s.already_done ? 'fait' : ''}">${esc(s.call)}</span>
         <span class="freq">${s.freq ? (s.freq / 1000).toFixed(3) : ''}</span>
         <span class="pays" title="${esc(s.explanation || '')}">${esc(s.dx_country || s.info || '')}</span>
-        <span>${s.new_mult && !s.already_done ? '<span class="etiq mult">MULT</span>' : ''}</span>
+        <span>${s.mode ? '<span class="etiq">' + esc(s.mode) + '</span> ' : ''}${
+          s.new_mult && !s.already_done ? '<span class="etiq mult">MULT</span>' : ''}</span>
       </div>`).join('');
   }
 
@@ -351,9 +375,15 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
       $('regions').innerHTML = '<div class="vide">Aucune ouverture signalée sur cette bande</div>';
       return;
     }
+    // Le serveur chiffre l'ouverture POUR CETTE BANDE (score_bande) : afficher
+    // « · » dès que la bande n'est pas la meilleure de la région revenait à
+    // lister sept régions ouvertes sans dire à quel point.
+    ouvertes.sort((a, b2) => (b2.score_bande || 0) - (a.score_bande || 0));
     $('regions').innerHTML = ouvertes.map(r => `
       <div class="reg"><span>${esc(r.region_name || r.region)}</span>
-        <span class="sc">${String(r.best_band) === b ? Math.round(r.best_score || 0) : '·'}</span>
+        <span class="sc" title="${String(r.best_band) === b
+          ? 'meilleure bande vers cette région' : 'ouverte, mais une autre bande porte mieux'}"
+          >${Math.round(r.score_bande || 0)}</span>
       </div>`).join('');
   }
 
@@ -374,11 +404,15 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
   function rendreCarres(liste){
     $('cCarres').textContent = liste.length || '';
     if(!liste.length){
-      $('carres').innerHTML = '<div class="vide">Aucun carré manquant connu</div>';
+      $('carres').innerHTML = '<div class="vide">Aucun carré à reprendre sur cette bande</div>';
       return;
     }
+    // Chaque carré dit sur QUELLES bandes il est déjà fait : c'est ce qui
+    // permet de juger s'il vaut le coup de le chercher sur celle-ci.
     $('carres').innerHTML = '<div class="carres">'
-      + liste.map(c => `<span class="carre">${esc(c.square)}</span>`).join('') + '</div>';
+      + liste.map(c => `<span class="carre" title="déjà fait sur ${
+          esc((c.bandes || []).join(', ') || '—')} MHz">${esc(c.square)}</span>`).join('')
+      + '</div>';
   }
 
   // Réglette : segments réglementaires + une épingle par spot. C'est le seul

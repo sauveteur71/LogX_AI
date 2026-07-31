@@ -95,10 +95,33 @@ def test_le_classement_couvre_les_bandes_proposees(server):
     assert {c['band'] for c in d['classement']} == set(d['bandes'])
 
 
-def test_le_classement_est_trie_du_meilleur_au_moins_bon(server):
+def test_le_classement_sort_dans_l_ORDRE_DES_FREQUENCES(server):
+    """Il sortait trie par SCORE. L'utilisateur : « pourquoi les bandes sont
+    dans le desordre ». Un bandeau relu toutes les 15 s faisait changer les
+    bandes de place sous le doigt. L'ordre est desormais celui des frequences,
+    fixe ; la recommandation passe par le marqueur `recommandee`."""
     d = _get(server, '/data/focus')
-    scores = [c['score'] for c in d['classement']]
-    assert scores == sorted(scores, reverse=True), scores
+    vals = [float(c['band']) for c in d['classement']
+            if c['band'].replace('.', '', 1).isdigit()]
+    assert vals == sorted(vals), vals
+
+
+def test_UNE_SEULE_bande_est_recommandee(server):
+    d = _get(server, '/data/focus')
+    reco = [c['band'] for c in d['classement'] if c.get('recommandee')]
+    assert len(reco) <= 1, reco
+    if reco:
+        best = max(d['classement'], key=lambda c: c['score'])
+        assert best['band'] == reco[0]
+
+
+def test_TOUT_LE_PLAN_DE_BANDES_EST_SERVI(server):
+    """« pourquoi il manque plusieurs bandes » : la liste venait des seules
+    bandes du concours actif."""
+    d = _get(server, '/data/focus')
+    for b in ('1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28',
+              '50', '144', '432'):
+        assert b in d['bandes'], (b, d['bandes'])
 
 
 def test_chaque_ligne_du_classement_porte_sa_justification(server):
@@ -182,3 +205,56 @@ def test_sans_module_de_diplomes_les_suggestions_sont_vides_sans_erreur(server, 
     _casser(monkeypatch, 'logx_awards', 'spotted_new_ones')
     d = _get(server, '/data/focus?band=14')
     assert d['ok'] is True and d['suggestions'] == []
+
+
+# ─── Le defaut signale a l'ecran : « si je change le mode, le cluster ne
+#     change pas ! il affiche digital cw ssb... » ─────────────────────────────
+
+def test_CHAQUE_SPOT_PORTE_SON_MODE(server):
+    """Sans ce champ, aucun filtre n'etait possible : le cluster n'annonce pas
+    le mode, il faut le deduire de la frequence cote serveur."""
+    d = _get(server, '/data/focus?band=14')
+    for s in d['spots']:
+        assert 'mode' in s, s
+
+
+def test_LE_MODE_FILTRE_REELLEMENT_LA_LISTE(server):
+    """Le coeur du signalement. Demander CW ne doit plus rendre des spots
+    phonie."""
+    import logx_awards as awards
+    d = _get(server, '/data/focus?band=14&mode=CW')
+    for s in d['spots']:
+        cat = (s.get('mode') or awards.mode_depuis_frequence(s.get('freq')) or '')
+        assert cat in ('', 'CW'), s
+
+
+def test_demander_SSB_ne_rend_pas_de_CW(server):
+    d = _get(server, '/data/focus?band=14&mode=SSB')
+    for s in d['spots']:
+        assert (s.get('mode') or '') != 'CW', s
+
+
+def test_sans_mode_la_liste_est_au_moins_aussi_longue(server):
+    """Un filtre ne peut qu'enlever des lignes."""
+    tout = _get(server, '/data/focus?band=14')
+    cw = _get(server, '/data/focus?band=14&mode=CW')
+    assert len(cw['spots']) <= len(tout['spots'])
+
+
+def test_chaque_region_porte_un_SCORE_POUR_CETTE_BANDE(server):
+    """La page affichait « · » pour toute region dont la bande regardee n'etait
+    pas la meilleure — sept regions listees sans dire a quel point elles sont
+    ouvertes."""
+    d = _get(server, '/data/focus?band=14')
+    for r in d['regions']:
+        assert 'score_bande' in r, r
+        assert isinstance(r['score_bande'], (int, float)), r
+
+
+def test_les_carres_renvoyes_portent_LEURS_bandes(server):
+    """Nouvelle semantique : carres deja faits AILLEURS, donc cibles ici. La
+    liste des bandes ou ils sont faits est ce qui permet d'en juger."""
+    d = _get(server, '/data/focus?band=14')
+    for c in d['carres_manquants']:
+        assert 'square' in c and 'bandes' in c, c
+        assert '14' not in c['bandes'], c

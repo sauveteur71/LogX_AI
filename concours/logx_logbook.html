@@ -315,6 +315,22 @@ body.sans-concours .compass-pts{display:none}
 .filter-btn.active{border-color:var(--accent2);color:var(--accent2)}
 .log-count{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:auto}
 .export-btn{font-family:var(--font-mono);font-size:12px;padding:6px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--accent);cursor:pointer;transition:all .15s}
+/* Menu DÉBUT / FIN — tout ce qui encadre une session de trafic, replié.
+   Position absolue et z-index élevé : il se déploie PAR-DESSUS le tableau du
+   log, sans repousser les lignes ni faire sauter la mise en page. */
+.lb-menu{position:relative;display:inline-block}
+.lb-menu-dd{position:absolute;top:calc(100% + 4px);right:0;z-index:400;
+  min-width:250px;background:var(--bg2);border:1px solid var(--border);
+  border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.lb-menu-dd .grp{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;
+  color:var(--muted);padding:6px 8px 3px}
+.lb-menu-dd hr{border:none;border-top:1px solid var(--border);margin:4px 0}
+.lb-menu-dd button{display:flex;align-items:center;gap:8px;width:100%;
+  text-align:left;font-family:var(--font-mono);font-size:12.5px;padding:7px 9px;
+  border:none;border-radius:5px;background:none;color:var(--text);cursor:pointer}
+.lb-menu-dd button:hover{background:var(--bg3)}
+.lb-menu-dd button .ico{width:18px;text-align:center}
+.lb-menu-dd button.danger{color:var(--red)}
 .export-btn:hover{border-color:var(--accent)}
 
 .log-table-wrap{flex:1;overflow-y:auto;overflow-x:auto;min-width:0}
@@ -1398,24 +1414,35 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
       <button class="filter-btn" data-f="mine" onclick="setFilter(this)">MES QSO</button>
       <div class="log-count" id="logCount">0 QSO</div>
+      <!-- ══ BARRE DE TRAFIC ══════════════════════════════════════════════
+           DEMANDE UTILISATEUR : « le logbook a énormément d'icônes qui ne
+           servent qu'à la fin d'un concours ou au début ; épure cette page ».
+           Compté avant de trancher : 30 commandes, dont 11 utilisées
+           uniquement avant ou après l'épreuve. Elles occupaient la moitié de
+           la barre pendant tout le trafic.
+
+           Ne restent ici que les commandes qu'on touche LA MAIN SUR LE
+           MANIPULATEUR. Le reste part dans le menu ci-dessous.
+
+           SUPPRIMÉS SANS REMPLACEMENT : SCOPE, MUR, BANDES. Le menu
+           DISPOSITION de la barre de statut fait déjà exactement cela, sur
+           TOUTES les pages, avec les dispositions enregistrées — trois
+           boutons de moins sans rien perdre. -->
       <button class="map-toggle-btn" id="mapToggleBtn" onclick="toggleMapView()">🗺️ CARTE</button>
-      <button class="export-btn" onclick="exportEDI()">📥 EDI</button>
-      <button class="export-btn" onclick="exportADIF()">📥 ADIF</button>
-      <button class="export-btn" onclick="exportCSV()">📥 CSV</button>
-      <button class="import-btn" onclick="triggerImport()" style="margin-left:8px">📂 IMPORTER</button>
-      <button class="export-btn expert-only" onclick="exportON4KST()" style="color:var(--green);border-color:rgba(0,255,0,.4);margin-left:8px">📡 ON4KST</button>
       <button class="export-btn" id="selfSpotBtn" onclick="selfSpot()" style="display:none;color:var(--accent);border-color:rgba(255,80,48,.5)" title="Publier mon indicatif + ma fréquence sur le cluster DX">📡 SELF-SPOT</button>
-      <button class="export-btn" onclick="popoutScope()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Détacher le bandscope sur un 2e écran">🖥️ SCOPE</button>
-      <button class="export-btn" onclick="popoutWall()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Écran mural (scores + flux QSO) sur un 2e écran">🖥️ MUR</button>
-      <button class="export-btn" onclick="popoutBandes()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Une fenêtre de surveillance par bande active — à répartir sur un 2e écran, un autre PC ou une tablette">📶 BANDES</button>
       <button class="export-btn" id="qtcBtn" onclick="showQTCPanel()" style="display:none;color:var(--accent2);border-color:rgba(0,212,255,.4)" title="WAE : saisir/consulter les séries QTC (1 pt émis + 1 pt reçu par QTC, max 10 cumulés par station)">✉ QTC : 0</button>
-      <button id="archiveBtn" class="export-btn" onclick="archiveLog()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px" title="Conserver le log de ce concours dans un dossier permanent (log + Cabrillo + ADIF + résumé)">📦 ARCHIVER</button>
-      <button class="export-btn" onclick="backupNow()" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" title="Sauvegarde immédiate vers le dossier configuré (Synology/Dropbox…). Sauvegarde aussi automatique si activée dans CONFIG.">💾 SAUVEGARDER</button>
-      <button class="export-btn" onclick="resetLog()" style="color:var(--red);border-color:rgba(255,45,85,.4);margin-left:8px">🗑️ NOUVEAU LOG</button>
-      <button class="export-btn" onclick="showRatePanel()" style="color:var(--accent2);border-color:rgba(0,212,255,.4);margin-left:8px">📊 STATS</button>
-      <button class="export-btn" onclick="showValidation()" style="color:var(--yellow);border-color:rgba(255,214,10,.4);margin-left:8px" title="Contrôle du log avant soumission : doublons, locators, départements, QSO hors fenêtre">🔍 VÉRIFIER</button>
-      <button class="export-btn" onclick="showAwards()" style="color:var(--purple);border-color:rgba(191,90,242,.4);margin-left:8px" title="Diplômes (DXCC, départements) travaillés/confirmés à vie + envoi/synchro QSL (eQSL, ClubLog, LoTW)">🏅 DIPLÔMES</button>
-      <button class="export-btn" onclick="showChecklist()" style="color:var(--green);border-color:rgba(0,255,136,.4);margin-left:8px">✅ CHECKLIST</button>
+
+      <!-- ══ MENU DÉBUT / FIN ═════════════════════════════════════════════
+           Un seul bouton pour tout ce qui encadre une session : préparation
+           et clôture. Le contenu S'ADAPTE AU MODE D'UTILISATION (voir
+           logx_mode.py) — en logbook simple, EDI/VÉRIFIER/ARCHIVER n'ont
+           aucun sens, il n'y a rien à soumettre. -->
+      <div class="lb-menu" id="lbMenu">
+        <button class="export-btn" id="lbMenuBtn" onclick="toggleLbMenu(event)"
+                style="color:var(--accent2);border-color:rgba(0,212,255,.4);margin-left:8px"
+                title="Préparation et clôture : import, contrôle, exports, archivage, diplômes">☰ DÉBUT / FIN ▾</button>
+        <div class="lb-menu-dd" id="lbMenuDD" style="display:none"></div>
+      </div>
     </div>
 
     <div class="log-table-wrap" id="logTableWrap">

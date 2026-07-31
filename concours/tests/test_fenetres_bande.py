@@ -161,9 +161,35 @@ def test_la_page_ne_duplique_pas_la_saisie():
 
 # ─── Le câblage ──────────────────────────────────────────────────────────────
 
-def test_le_bouton_existe_et_appelle_la_fonction():
-    assert 'popoutBandes()' in _lire(HTML)
+def test_le_point_d_entree_existe_et_appelle_la_fonction():
+    """LE POINT D'ENTRÉE A DÉMÉNAGÉ — et ce test a attrapé la régression.
+
+    En épurant la page logbook (30 commandes → 11), j'ai retiré le bouton
+    BANDES en croyant que le menu DISPOSITION de la barre de statut le
+    couvrait déjà. Il ne couvrait que les PANNEAUX (logx_panel.html) :
+    popoutBandes() s'est retrouvée SANS AUCUN APPELANT, et la fonctionnalité
+    demandée — cinq band maps côte à côte — devenait inatteignable. Sans ce
+    test, l'épuration aurait supprimé une fonction en la laissant dans le code.
+
+    Le point d'entrée est désormais dans la barre de statut, donc disponible
+    depuis TOUTES les pages : on peut ouvrir l'écran mural depuis la page
+    propagation, ce qui était impossible avant.
+    """
+    barre = _lire(os.path.join(CONCOURS, 'logx_statusbar.js'))
+    assert 'data-ecran="bandes"' in barre
+    assert "'popoutBandes'" in barre, (
+        'la version du logbook doit rester privilegiee : elle connait les '
+        'bandes REELLEMENT visibles')
+    assert 'logx_bande.html' in barre, 'repli hors logbook'
     assert 'function popoutBandes(' in _lire(JS)
+
+
+@pytest.mark.parametrize('ecran', ['scope', 'mur', 'bandes'])
+def test_les_trois_ecrans_detaches_sont_atteignables(ecran):
+    """Chacun doit avoir sa ligne dans le menu ET son traitement."""
+    barre = _lire(os.path.join(CONCOURS, 'logx_statusbar.js'))
+    assert 'data-ecran="%s"' % ecran in barre, ecran
+    assert "data-ecran]" in barre, 'le gestionnaire de clic doit exister'
 
 
 def test_les_bandes_viennent_de_la_VRAIE_variable():

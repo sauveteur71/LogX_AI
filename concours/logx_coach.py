@@ -51,6 +51,17 @@ def contest_clock(cfg, cdef=None, now=None):
         'start_utc': start.strftime('%Y-%m-%d %H:%M') if start else None,
         'end_utc': end.strftime('%Y-%m-%d %H:%M') if end else None,
     }
+    # AUCUN CONCOURS SÉLECTIONNÉ : on s'arrête là, sans regarder les dates.
+    #
+    # DÉFAUT SIGNALÉ PAR L'UTILISATEUR : « pourquoi l'IA met ça alors que je
+    # suis sans concours ! » Les dates d'un concours PRÉCÉDENT survivent dans
+    # la configuration ; l'horloge les lisait sans vérifier qu'une épreuve est
+    # réellement choisie, annonçait « départ dans 18,2 h », et le coach
+    # enchaînait sur la checklist d'avant-concours. Le contenu était cohérent,
+    # il ne portait simplement sur rien.
+    if not contest_id.strip():
+        clock['status'] = 'sans_concours'
+        return clock
     if not start or not end:
         return clock
     if end <= start:  # fin le lendemain saisie sans changer la date
@@ -279,6 +290,13 @@ def build_hints(cdef, clock, stats, plan, lang='fr'):
     hints = []
     cdef = cdef or {}
     status = clock.get('status')
+
+    # Pas de concours choisi : aucun conseil d'épreuve n'a de sens. Le coach
+    # se tait ici plutôt que d'inventer un contexte — la carte IA et les
+    # suggestions « jamais travaillé » restent, elles, pertinentes en trafic
+    # courant.
+    if status == 'sans_concours':
+        return hints
 
     if status == 'avant':
         h = clock.get('starts_in_h')

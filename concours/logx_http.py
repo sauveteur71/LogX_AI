@@ -2968,13 +2968,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             bande = (qp.get('band', [''])[0] or '').strip()
             mode = (qp.get('mode', [''])[0] or '').strip()
 
+            import logx_awards as _aw
             ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
             spots = []
             for s in ranked:
                 sc = s.get('scoring', {})
+                _khz = freq_en_khz(s.get('freq', ''), s.get('band', ''))
                 spots.append({
                     'call': s.get('call', ''), 'band': s.get('band', ''),
-                    'freq': freq_en_khz(s.get('freq', ''), s.get('band', '')),
+                    'freq': _khz,
+                    # Le cluster n'annonce pas le mode de façon fiable : on le
+                    # déduit de la fréquence, avec la MÊME table que la
+                    # réglette de bande. Sans ce champ, choisir CW ou SSB ne
+                    # changeait rien à la liste affichée.
+                    'mode': s.get('mode') or _aw.mode_depuis_frequence(_khz),
                     'time': s.get('time', ''), 'info': s.get('info', ''),
                     'spotter': s.get('spotter', ''),
                     'dist_km': s.get('dist_km', 0),
@@ -3001,14 +3008,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with log_lock:
                 log_copy = list(shared_log)
 
-            # Bandes proposées : celles du concours actif, sinon celles où il se
-            # passe quelque chose. Une liste vide rendrait la page muette.
-            bandes = [str(b) for b in (cfg_snap.get('bands') or []) if str(b).strip()]
-            if not bandes:
-                bandes = sorted({str(s['band']) for s in spots if str(s.get('band', ''))},
-                                key=lambda x: float(x) if x.replace('.', '', 1).isdigit() else 1e9)
-            if bande and bande not in bandes:
-                bandes.append(bande)
+            # Bandes proposées : TOUT le plan de bandes, dans l'ordre des
+            # fréquences — plus celles du concours et celles où un spot tombe.
+            # Se limiter aux bandes du concours rendait la page borgne dès
+            # qu'aucun concours ne tournait, ou qu'il n'en utilisait que deux.
+            bandes_concours = [str(b) for b in (cfg_snap.get('bands') or [])
+                               if str(b).strip()]
+            bandes = focus.bandes_a_proposer(bandes_concours, spots, bande)
 
             calendrier = []
             try:
@@ -3026,24 +3032,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 calendrier = []
 
+            # Carrés : /awards/carres renvoie les carrés TRAVAILLÉS
+            # ({'g','n','conf','bands'}), pas les manquants. On appelle donc
+            # SANS filtre de bande — sinon on ne recevrait que ceux déjà faits
+            # ici — et on en déduit les cibles : faits ailleurs, pas ici.
             carres = []
             try:
                 import logx_awards as awards
-                res = awards.carres_travailles(log_copy, bande)
-                carres = focus.carres_manquants(res.get('squares') or [], bande)
+                res = awards.carres_travailles(log_copy, '')
+                carres = focus.carres_a_faire_sur_la_bande(res.get('squares') or [], bande)
             except Exception:
                 carres = []
 
             # « Les propositions de contact IA » : parmi les stations SPOTTÉES,
             # celles qui apporteraient un pays ou un département JAMAIS
             # travaillé À VIE — pas seulement un multiplicateur du concours en
-            # cours. C'est la même source que les suggestions proactives du
-            # coach ; on la filtre sur la bande regardée.
+            # cours. Même source que les suggestions proactives du coach.
+            #
+            # ATTENTION AU CHAMP `band` : dans spotted_new_ones il contient le
+            # nom de la SOURCE du spot (« cluster »…), pas une bande — un
+            # héritage de logx_awards. Filtrer dessus vidait la carte à tous
+            # les coups. On déduit donc la bande de la FRÉQUENCE.
             suggestions = []
             try:
                 import logx_awards as awards
                 for n in awards.spotted_new_ones(log_copy, _spots_from_caches()) or []:
-                    if bande and focus._bande(n.get('band')) != focus._bande(bande):
+                    b = focus.bande_depuis_freq(n.get('freq'), bandes)
+                    n = dict(n, band=b or '')
+                    if bande and b and b != focus._bande(bande):
                         continue
                     suggestions.append(n)
             except Exception:
@@ -3054,11 +3070,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'band': bande, 'mode': mode,
                 'bandes': bandes,
                 'suggestions': suggestions,
-                'classement': focus.classer_bandes(bandes, spots=spots,
-                                                   regions=regions, log=log_copy),
-                'spots': [s for s in spots
-                          if not bande or focus._bande(s.get('band')) == focus._bande(bande)],
-                'regions': regions,
+                'classement': focus.classer_bandes(
+                    bandes, spots=spots, regions=regions, log=log_copy,
+                    bandes_concours=bandes_concours),
+                # Bande PUIS mode : le mode ne filtrait rien jusqu'ici, faute
+                # de champ `mode` sur les spots.
+                'spots': focus.filtrer_par_mode(
+                    [s for s in spots
+                     if not bande or focus._bande(s.get('band')) == focus._bande(bande)],
+                    mode),
+                # Score d'ouverture POUR CETTE BANDE, calculé ici : /data/openings
+                # ne chiffre que la meilleure bande de chaque région, et la page
+                # affichait « · » pour toutes les autres.
+                'regions': [dict(r, score_bande=focus.score_ouverture_region(r, bande))
+                            for r in regions if isinstance(r, dict)],
                 'concours': focus.concours_actifs(calendrier, bande=bande, mode=mode),
                 'carres_manquants': carres[:60],
                 'contest_actif': (meta or {}).get('contest_actif', False),
