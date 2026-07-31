@@ -275,6 +275,19 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
       </div>
     </div>
 
+    <!-- SATELLITES : quand il passe et où pointer. L'ÂGE DU JEU TLE est
+         affiché avec les passages, jamais caché — une éphémérie de trois
+         semaines décale les passages de plusieurs minutes, ce qui suffit à en
+         rater un qui dure dix minutes. -->
+    <div class="panel">
+      <div class="panel-title">🛰 SATELLITES — PROCHAINS PASSAGES
+        <select id="satSel" style="margin-left:auto;font-size:11px"></select>
+      </div>
+      <div id="satBody" style="font-family:var(--font-mono);font-size:13px;line-height:1.7">
+        <div class="loading">…</div>
+      </div>
+    </div>
+
    </div><!-- /propPane-vhf -->
 
    <div class="prop-cols prop-pane" id="propPane-heard" data-pane="heard" hidden
@@ -561,6 +574,70 @@ async function loadOpenings(){
   }
 }
 
+// ─── SATELLITES : prochains passages, position, Doppler ─────────────────────
+// UN SEUL APPEL (/data/sat) rend tout, y compris l'ÂGE DU JEU TLE. Cet âge est
+// affiché, jamais tu : un TLE se dégrade, et une éphéméride de trois semaines
+// décale les passages de plusieurs minutes — de quoi rater un passage qui dure
+// dix minutes. Le calcul est local (PyEphem), seul le TLE vient du réseau, et
+// il est mis en cache pour tenir une expédition sans Internet.
+let satChoisi = '';
+
+async function loadSat(){
+  const el = document.getElementById('satBody');
+  const sel = document.getElementById('satSel');
+  try{
+    const r = await fetch('/data/sat' + (satChoisi ? '?sat=' + encodeURIComponent(satChoisi) : ''));
+    const d = await r.json();
+
+    // Le sélecteur n'est rempli qu'une fois : le reconstruire à chaque
+    // rafraîchissement refermerait la liste sous le doigt de l'opérateur.
+    if(sel && !sel.options.length && (d.satellites || []).length){
+      sel.innerHTML = d.satellites.map(s =>
+        `<option value="${esc(s)}"${s === d.sat ? ' selected' : ''}>${esc(s)}</option>`).join('');
+      sel.onchange = () => { satChoisi = sel.value; loadSat(); };
+    }
+
+    const age = d.tle_age;
+    const couleurAge = !age ? 'var(--muted)'
+      : age.etat === 'frais' ? 'var(--green)'
+      : age.etat === 'vieux' ? 'var(--yellow)' : 'var(--red)';
+    const ligneAge = age
+      ? `<div style="color:${couleurAge};font-size:11px">${rcTf(
+          'Éphémérides TLE : {j} j ({etat})', {j: age.jours, etat: rcT(age.etat)})}</div>`
+      : `<div style="color:var(--muted);font-size:11px">${rcT('Éphémérides TLE : âge inconnu')}</div>`;
+
+    if(!d.available || !(d.passages || []).length){
+      el.innerHTML = ligneAge + `<div class="loading">${esc(d.error
+        || rcT('Aucun passage prévu dans les prochaines 24 h.'))}</div>`;
+      return;
+    }
+
+    const pos = d.position;
+    const visBadge = pos && pos.visible
+      ? `<span style="color:var(--green)">● ${rcT('en vue')} — Az ${pos.az}° / El ${pos.el}°</span>`
+      : `<span style="color:var(--muted)">○ ${rcT('sous l\'horizon')}</span>`;
+
+    const lignes = d.passages.slice(0, 6).map(p => {
+      // Un passage haut vaut mieux qu'un rasant : court et bruité.
+      const c = p.el_max >= 40 ? 'var(--green)' : p.el_max >= 20 ? 'var(--yellow)' : 'var(--muted)';
+      return `<div style="display:flex;gap:10px;align-items:baseline">
+        <span style="font-variant-numeric:tabular-nums">${esc(p.aos_utc.slice(11,16))}</span>
+        <span style="color:${c};font-weight:700;min-width:52px">${p.el_max}°</span>
+        <span style="color:var(--muted);font-size:12px">Az ${p.az_aos}° → ${p.az_los}°
+          · ${Math.round(p.duree_s/60)} min</span></div>`;
+    }).join('');
+
+    el.innerHTML = ligneAge
+      + `<div style="margin:4px 0 6px">🛰 <b>${esc(d.sat)}</b> ${visBadge}${
+          d.doppler_hz != null ? ` · ${rcT('Doppler')} ${d.doppler_hz} Hz @ ${d.freq_mhz} MHz` : ''}</div>`
+      + lignes
+      + `<div style="color:var(--muted);font-size:11px;margin-top:6px">${
+          rcT('Heures UTC · élévation maximale du passage')}</div>`;
+  }catch(e){
+    el.innerHTML = `<div class="loading">${rcT('Serveur injoignable')}</div>`;
+  }
+}
+
 // ─── EME (rebond lunaire) : position de la Lune + Doppler + fenêtre commune ──
 // Calculé côté serveur (PyEphem, local, aucune donnée réseau) — cf. logx_eme.py.
 async function loadEme(){
@@ -703,6 +780,10 @@ propTask(loadOpenings,     5 * 60 * 1000, ['hf']);         // ouvertures par ré
 propTask(loadTropo,       20 * 60 * 1000, ['vhf']);        // tropo : cache 20 min
 propTask(loadMeteors,     10 * 60 * 1000, ['vhf']);        // météores : calendrier lent
 propTask(loadEme,          5 * 60 * 1000, ['vhf']);        // EME : position lunaire, évolue lentement
+// Satellites : 60 s. Plus lent serait faux PENDANT un passage — l'azimut d'un
+// LEO bouge de plusieurs degrés par minute — et plus rapide ne servirait à
+// rien, le calcul est local et la liste des passages ne change pas.
+propTask(loadSat,          60 * 1000,      ['vhf']);
 propTask(loadPSK,          3 * 60 * 1000, ['heard']);      // PSK Reporter : cache serveur 3 min
 propTask(loadRBN,          2 * 60 * 1000, ['heard']);      // RBN CW : cache serveur 2 min
 // Balises : normalement PAS de tâche ici. logx_statusbar.js poll déjà
