@@ -5803,6 +5803,82 @@
   for (const l of ['en','de','es','it','pt','nl','pl']) {
     if (T[l]) Object.assign(T[l], T_DIALOGUES_FIX[l]);
   }
+  // Panneau SATELLITES (page propagation).
+  const T_SAT_FIX = {
+    en: {
+      "Éphémérides TLE : {j} j ({etat})": "TLE ephemeris: {j} d ({etat})",
+      "Éphémérides TLE : âge inconnu": "TLE ephemeris: age unknown",
+      "Aucun passage prévu dans les prochaines 24 h.": "No pass predicted in the next 24 h.",
+      "en vue": "in view",
+      "Heures UTC · élévation maximale du passage": "UTC times · maximum elevation of the pass",
+      "frais": "fresh",
+      "vieux": "ageing",
+      "perime": "stale",
+    },
+    de: {
+      "Éphémérides TLE : {j} j ({etat})": "TLE-Ephemeriden: {j} T ({etat})",
+      "Éphémérides TLE : âge inconnu": "TLE-Ephemeriden: Alter unbekannt",
+      "Aucun passage prévu dans les prochaines 24 h.": "Kein Überflug in den nächsten 24 h.",
+      "en vue": "in Sicht",
+      "Heures UTC · élévation maximale du passage": "UTC-Zeiten · maximale Elevation des Überflugs",
+      "frais": "frisch",
+      "vieux": "alt",
+      "perime": "veraltet",
+    },
+    es: {
+      "Éphémérides TLE : {j} j ({etat})": "Efemérides TLE: {j} d ({etat})",
+      "Éphémérides TLE : âge inconnu": "Efemérides TLE: edad desconocida",
+      "Aucun passage prévu dans les prochaines 24 h.": "Ningún paso previsto en las próximas 24 h.",
+      "en vue": "a la vista",
+      "Heures UTC · élévation maximale du passage": "Horas UTC · elevación máxima del paso",
+      "frais": "reciente",
+      "vieux": "antiguas",
+      "perime": "caducadas",
+    },
+    it: {
+      "Éphémérides TLE : {j} j ({etat})": "Effemeridi TLE: {j} g ({etat})",
+      "Éphémérides TLE : âge inconnu": "Effemeridi TLE: età sconosciuta",
+      "Aucun passage prévu dans les prochaines 24 h.": "Nessun passaggio previsto nelle prossime 24 h.",
+      "en vue": "in vista",
+      "Heures UTC · élévation maximale du passage": "Orari UTC · elevazione massima del passaggio",
+      "frais": "recenti",
+      "vieux": "datate",
+      "perime": "scadute",
+    },
+    pt: {
+      "Éphémérides TLE : {j} j ({etat})": "Efemérides TLE: {j} d ({etat})",
+      "Éphémérides TLE : âge inconnu": "Efemérides TLE: idade desconhecida",
+      "Aucun passage prévu dans les prochaines 24 h.": "Nenhuma passagem prevista nas próximas 24 h.",
+      "en vue": "à vista",
+      "Heures UTC · élévation maximale du passage": "Horas UTC · elevação máxima da passagem",
+      "frais": "recentes",
+      "vieux": "antigas",
+      "perime": "caducadas",
+    },
+    nl: {
+      "Éphémérides TLE : {j} j ({etat})": "TLE-efemeriden: {j} d ({etat})",
+      "Éphémérides TLE : âge inconnu": "TLE-efemeriden: leeftijd onbekend",
+      "Aucun passage prévu dans les prochaines 24 h.": "Geen overkomst voorspeld in de komende 24 uur.",
+      "en vue": "in zicht",
+      "Heures UTC · élévation maximale du passage": "UTC-tijden · maximale elevatie van de overkomst",
+      "frais": "vers",
+      "vieux": "verouderd",
+      "perime": "verlopen",
+    },
+    pl: {
+      "Éphémérides TLE : {j} j ({etat})": "Efemerydy TLE: {j} d ({etat})",
+      "Éphémérides TLE : âge inconnu": "Efemerydy TLE: nieznany wiek",
+      "Aucun passage prévu dans les prochaines 24 h.": "Brak przelotu w ciągu najbliższych 24 h.",
+      "en vue": "widoczny",
+      "Heures UTC · élévation maximale du passage": "Czas UTC · maksymalna elewacja przelotu",
+      "frais": "świeże",
+      "vieux": "stare",
+      "perime": "przeterminowane",
+    },
+  };
+  for (const l of ['en','de','es','it','pt','nl','pl']) {
+    if (T[l]) Object.assign(T[l], T_SAT_FIX[l]);
+  }
   // Exposé pour re-traduire après un rendu dynamique
   window.rcTranslate = function () {
     const lang = getLang();

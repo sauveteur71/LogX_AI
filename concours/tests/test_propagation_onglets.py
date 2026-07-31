@@ -174,11 +174,19 @@ def test_aucun_panneau_hors_des_onglets():
 
 
 def test_repartition_des_panneaux():
-    """Repartition attendue : 5 / 5 / 2 (le 13e, la foudre, est devenu la
-    pastille de la barre de statut)."""
+    """Repartition attendue : 5 / 6 / 2.
+
+    Le 13e panneau d'origine, la foudre, est devenu la pastille de la barre de
+    statut. Le 6e de l'onglet VHF est le panneau SATELLITES (31/07/2026) :
+    l'intitule de l'onglet annoncait deja « satellites » alors que rien ne les
+    affichait — l'endpoint /data/sat existait sans aucun ecran pour le lire.
+
+    Ce test n'est pas un compteur decoratif : il tombe des qu'un panneau est
+    ajoute ou deplace, et oblige a verifier qu'il est bien DANS un onglet
+    (sinon il resterait affiche en permanence, cf. test ci-dessus)."""
     panes = _panes(_lire())
     compte = {nom: _nb_panneaux(frag) for nom, frag in panes.items()}
-    assert compte == {'hf': 5, 'vhf': 5, 'heard': 2}, compte
+    assert compte == {'hf': 5, 'vhf': 6, 'heard': 2}, compte
 
 
 # ── Le coeur : les onglets masques ne rafraichissent plus ───────────────────
