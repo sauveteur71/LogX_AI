@@ -841,6 +841,9 @@ _MARGE_NUMERIQUE_KHZ = 0.5     # tolérance sur une fréquence de spot arrondie
 #      Autorité : ANFR / TNRBF, arrêté du 21 septembre 2000 modifié. C'est ce
 #      qui fixe 430-440 MHz en France, 144-146, 50-52, 1240-1300…
 #      Le drapeau `fr` de chaque ligne relève de CETTE catégorie.
+#      Dernière modification connue : TNRBF, modification du 26 mai 2026
+#      (anfr.fr/fileadmin/TNRBF/2026/) — à reconsulter avant toute reprise, le
+#      tableau évolue plusieurs fois par an.
 #
 #   2. LE DÉCOUPAGE PAR MODE (CW / numérique / phonie) — PAS RÉGLEMENTAIRE.
 #      C'est une convention IARU. Autorité : plan de bandes IARU Région 1.
@@ -866,10 +869,11 @@ _MARGE_NUMERIQUE_KHZ = 0.5     # tolérance sur une fréquence de spot arrondie
 #      marqueur binaire de fortune, pas un axe de région : il dit « France ou
 #      pas », ce qui suffit aujourd'hui et ne suffira plus.
 #
-#   b) LE 23 cm EST EN COURS DE RESTRICTION pour cohabitation avec Galileo
-#      (post-CMR-23). NE RIEN FIGER sans vérifier l'état ECC/CEPT du moment.
-#      C'est la raison pour laquelle la bande 1296 n'a toujours aucun segment
-#      ici : ce n'est pas un oubli.
+#   b) LE 23 cm : la décision est tombée. ECC/DEC/(25)01, approuvée le
+#      27 juin 2025, impose des LIMITES DE PUISSANCE par sous-bande entre 1258
+#      et 1300 MHz pour protéger les récepteurs Galileo. Elle ne redécoupe pas
+#      la bande — c'est une contrainte d'un autre ordre qu'un segment de mode.
+#      Voir logx_bandplan_vhf.CONTRAINTES_23CM.
 #
 #   c) AUCUN FORMAT LISIBLE PAR MACHINE n'existe côté IARU. La saisie se fera
 #      depuis le PDF, à la main. Chaque ligne ajoutée devra porter le document,
@@ -1023,7 +1027,26 @@ def segments_bande(band):
     seg = [(lo, hi, cat) for lo, hi, cat, fr in _CRENEAUX_KHZ
            if fr and khz * 0.995 <= lo < khz + max(1000.0, khz * 0.12)]
     if not seg:
-        return None
+        # AU-DESSUS DE 440 MHz, la table ci-dessus n'a rien : on passe au plan
+        # IARU R1 (logx_bandplan_vhf), qui couvre 23 cm à 241 GHz.
+        #
+        # LA CONVERSION EST UNE PERTE ASSUMÉE. Ce plan distingue ATV, satellite,
+        # balises exclusives, largeurs maximales ; la réglette ne sait colorer
+        # que CW / numérique / phonie. Les segments sans équivalent (ATV,
+        # satellite) sont ÉCARTÉS plutôt que rangés de force dans « phonie » :
+        # mieux vaut un trou dans la réglette qu'une couleur qui ment.
+        try:
+            import logx_bandplan_vhf as _bp
+        except ImportError:
+            return None
+        rich = _bp.segments(str(int(centre)) if centre == int(centre) else str(centre))
+        seg = []
+        for s in rich:
+            cat = _bp.categorie_affichage(s['mode'])
+            if cat:
+                seg.append((s['lo_mhz'] * 1000.0, s['hi_mhz'] * 1000.0, cat))
+        if not seg:
+            return None
     # Fusion des segments ADJACENTS de même catégorie : la table distingue
     # SSB et FM (deux lignes « PHONE » qui se touchent), or les afficher
     # séparément dessinerait une frontière là où l'opérateur n'en voit aucune.

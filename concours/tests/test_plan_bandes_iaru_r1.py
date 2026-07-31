@@ -267,19 +267,34 @@ def test_les_bornes_de_region_2_ont_bien_disparu_des_DEUX_tables(cle, haut):
     assert abs(_bornes_awards(cle)[1] - haut) < 1e-6, cle
 
 
-def test_les_bandes_hyperfrequences_n_ont_PAS_de_segments_et_c_est_ASSUME():
-    """Constat, pas correction. La table des segments s'arrête à 440 MHz : la
-    réglette est donc vide sur 23 cm et au-dessus.
+def test_les_bandes_hyperfrequences_ONT_MAINTENANT_leurs_segments():
+    """CE TEST DISAIT L'INVERSE, et c'était voulu : il figeait l'absence de
+    segments au-dessus de 440 MHz tant que je n'avais pas de source, avec cette
+    consigne — « le jour où les segments seront ajoutés depuis une vraie
+    source, il tombera et rappellera de le mettre à jour ». C'est arrivé le
+    31/07/2026 : F4GLD a fourni le plan IARU R1 (édition 2017/Landshut).
 
-    Je n'invente PAS ces segments. La référence donne les ALLOCATIONS (23 cm
-    1240-1300, 13 cm 2300-2450, 10 GHz…) mais renvoie au plan de bandes IARU R1
-    pour le découpage par mode à l'intérieur — et écrire une table de domaine
-    de mémoire est précisément ce qui a produit tout ce chantier.
-
-    Ce test fige l'état connu : le jour où les segments seront ajoutés depuis
-    une vraie source, il tombera et rappellera de le mettre à jour."""
+    Les segments vivent dans logx_bandplan_vhf, qui garde le vocabulaire de la
+    source (ATV, satellite, balises exclusives, largeurs nationales) ; la
+    réglette n'en reçoit que ce qui se colore."""
     for cle in ('1296', '2320', '3400', '5760', '10368', '24048'):
-        assert aw.segments_bande(cle) is None, cle
+        r = aw.segments_bande(cle)
+        assert r is not None, cle
+        assert r['segments'], cle
+
+
+def test_la_reglette_ECARTE_ce_qu_elle_ne_sait_pas_colorer():
+    """ATV et satellite n'ont pas d'équivalent parmi CW / numérique / phonie.
+    Les ranger de force dans « phonie » dessinerait une réglette qui ment :
+    mieux vaut un trou. Sur 23 cm, ATV et satellite occupent l'essentiel de
+    1243-1291 — la réglette doit donc y montrer moins de segments que le plan
+    n'en compte."""
+    import logx_bandplan_vhf as bpv
+    plan = bpv.segments('1296')
+    reglette = aw.segments_bande('1296')['segments']
+    assert len(reglette) < len(plan), (len(reglette), len(plan))
+    for s in reglette:
+        assert s['cat'] in ('CW', 'DIGITAL', 'PHONE'), s
 
 
 def test_si_TOUTES_les_bandes_sont_WARC_on_recommande_quand_meme():
