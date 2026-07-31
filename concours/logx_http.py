@@ -2982,6 +2982,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # réglette de bande. Sans ce champ, choisir CW ou SSB ne
                     # changeait rien à la liste affichée.
                     'mode': s.get('mode') or _aw.mode_depuis_frequence(_khz),
+                    # Spot situé hors des bandes amateur françaises — cas
+                    # courant et légitime : une station de région 2 à 7,250 MHz
+                    # est en règle chez elle. Le spot est CONSERVÉ (l'entendre
+                    # est instructif) mais marqué : sans ça, un clic dessus
+                    # commande à la radio un QSY hors bande, sans un mot.
+                    'hors_bande': _aw.hors_bande_france(_khz),
                     'time': s.get('time', ''), 'info': s.get('info', ''),
                     'spotter': s.get('spotter', ''),
                     'dist_km': s.get('dist_km', 0),

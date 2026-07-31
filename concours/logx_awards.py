@@ -781,29 +781,118 @@ def award_summary(shared_log=None):
 # mode absent, vide ou inconnu. Un DX en CW spotté sans champ mode — cas
 # courant sur le cluster — était donc compté comme un créneau NUMÉRIQUE, et
 # l'alerte « pas confirmé LoTW en CW » ne se déclenchait jamais pour lui.
+# ─── LES FRÉQUENCES D'APPEL NUMÉRIQUES, D'ABORD ──────────────────────────────
+#
+# DÉFAUT RÉEL QUE CE BLOC CORRIGE, mesuré : FT8 était classé PHONE sur 6 m, 2 m
+# et 70 cm, et CW sur 160, 80 et 12 m — six bandes sur douze. L'utilisateur
+# demandait « si je passe en SSB je veux voir QUE les spots SSB » : sur 2 m, le
+# filtre SSB lui servait du FT8.
+#
+# POURQUOI UN DÉCOUPAGE PAR PLAGES NE PEUT PAS Y ARRIVER. Le plan de bandes
+# officiel et l'usage réel ne coïncident PAS. 144,174 MHz tombe dans le segment
+# « SSB » du plan IARU R1 ; c'est pourtant la fréquence FT8 du 2 m, la même
+# partout dans le monde. Idem 50,313 · 432,174 · 7,074. Les conventions FT8/FT4
+# se sont installées là où il restait de la place, sans redécoupage du plan.
+#
+# Ces créneaux sont donc consultés AVANT le plan de bandes. Ils sont étroits
+# (le signal occupe les 3 kHz au-dessus de la fréquence affichée) et identiques
+# dans les trois régions UIT — c'est tout l'intérêt de la convention.
+_APPELS_NUMERIQUES_KHZ = (
+    # FT8 — de loin le plus utilisé
+    1840, 3573, 5357, 7074, 10136, 14074, 18100, 21074, 24915, 28074,
+    50313, 144174, 432174,
+    # FT4
+    3575, 7047.5, 10140, 14080, 18104, 21140, 24919, 28180, 50318,
+    # JS8Call
+    1842, 3578, 7078, 14078, 21078, 24922, 28078,
+    # WSPR (balises de propagation : très faible puissance, jamais de la phonie)
+    1836.6, 3568.6, 7038.6, 10138.7, 14095.6, 18104.6, 21094.6, 24924.6,
+    28124.6, 50293,
+)
+_LARGEUR_NUMERIQUE_KHZ = 3.0   # le signal occupe le haut de la fréquence affichée
+_MARGE_NUMERIQUE_KHZ = 0.5     # tolérance sur une fréquence de spot arrondie
+
+
+# ─── LE PLAN DE BANDES ───────────────────────────────────────────────────────
+#
+# Quatrième champ : la plage est-elle dans l'allocation FRANÇAISE (ANFR) ?
+#
+# POURQUOI CE DRAPEAU. La table venait de l'annexe C du manuel CC Cluster,
+# pensée pour l'AMÉRIQUE DU NORD : elle décrit le 40 m jusqu'à 7,300, le 80 m
+# jusqu'à 4,000, le 2 m jusqu'à 148, et contient une bande 222 MHz qui
+# N'EXISTE PAS en région 1. Un opérateur français y lisait des segments où il
+# n'a pas le droit d'émettre — et un clic sur un spot à 7,250 commandait un QSY
+# hors bande.
+#
+# Les deux usages n'ont pas le même besoin, d'où le drapeau plutôt qu'une coupe
+# franche :
+#   - CLASSER un spot (mode_depuis_frequence) : toute la table. Une station
+#     américaine à 7,250 fait bien de la phonie, et le dire est utile.
+#   - DESSINER la bande de l'opérateur (segments_bande) : la part française
+#     seulement. La réglette montre où l'on peut travailler, pas où d'autres
+#     travaillent.
+#
+# Bornes d'allocation : plan de bandes France / IARU région 1. Le découpage
+# CW/numérique/phonie À L'INTÉRIEUR d'une bande reste celui de la table
+# d'origine — grossier mais suffisant pour un repli. Pour une valeur de segment
+# exacte, l'autorité est le TNRBF de l'ANFR et le plan de bandes IARU R1, qui
+# évoluent après chaque CMR : ne pas l'affiner de mémoire.
 _CRENEAUX_KHZ = (
-    (1800, 1850, 'CW'),      (1850, 2000, 'PHONE'),
-    (3500, 3580, 'CW'),      (3580, 3700, 'DIGITAL'),  (3700, 4000, 'PHONE'),
-    (5260, 5405, 'PHONE'),
-    (7000, 7040, 'CW'),      (7040, 7100, 'DIGITAL'),  (7100, 7300, 'PHONE'),
-    (10100, 10130, 'CW'),    (10130, 10150, 'DIGITAL'),
-    (14000, 14070, 'CW'),    (14070, 14150, 'DIGITAL'), (14150, 14350, 'PHONE'),
-    (18068, 18100, 'CW'),    (18100, 18110, 'DIGITAL'), (18110, 18168, 'PHONE'),
-    (21000, 21070, 'CW'),    (21070, 21200, 'DIGITAL'), (21200, 21450, 'PHONE'),
-    (24890, 24920, 'CW'),    (24920, 24930, 'DIGITAL'), (24930, 24990, 'PHONE'),
-    (28000, 28070, 'CW'),    (28070, 28300, 'DIGITAL'), (28300, 29700, 'PHONE'),
-    (50000, 50080, 'CW'),    (50080, 50500, 'PHONE'),   (50500, 54000, 'PHONE'),
-    (70000, 70650, 'PHONE'),
-    (144000, 144100, 'CW'),  (144100, 144500, 'PHONE'), (144500, 148000, 'PHONE'),
-    (220000, 221000, 'CW'),  (222000, 224000, 'PHONE'),
-    # 70 cm : ABSENT de la table CC User, qui s'arrête au 222 MHz (elle est
-    # pensée pour l'Amérique du Nord). C'est pourtant une bande de concours
-    # majeure en région 1 — Rallye des Points Hauts, National THF, Challenge
-    # THF. Bornes reprises de logx_transverter.BANDES_MHZ (430-440, déjà
-    # utilisées par le pilotage radio du logiciel) et coupure étroite/large à
-    # 432.100, la limite universellement retenue en région 1. Signalé ici parce
-    # que ce couple de lignes ne vient PAS de la source citée pour le reste.
-    (430000, 432100, 'CW'),  (432100, 440000, 'PHONE'),
+    #  de      à       catégorie   France
+    (1800,   1810,   'CW',      False),  # 160 m France : 1810-1850
+    (1810,   1850,   'CW',      True),
+    (1850,   2000,   'PHONE',   False),  # région 2
+    (3500,   3580,   'CW',      True),
+    (3580,   3700,   'DIGITAL', True),
+    (3700,   3800,   'PHONE',   True),   # 80 m France : 3500-3800
+    (3800,   4000,   'PHONE',   False),  # région 2
+    (5260,   5351.5, 'PHONE',   False),  # 60 m France : 5351,5-5366,5 seulement
+    (5351.5, 5366.5, 'PHONE',   True),
+    (5366.5, 5405,   'PHONE',   False),
+    (7000,   7040,   'CW',      True),
+    (7040,   7100,   'DIGITAL', True),
+    (7100,   7200,   'PHONE',   True),   # 40 m France : 7000-7200
+    (7200,   7300,   'PHONE',   False),  # région 2
+    (10100,  10130,  'CW',      True),   # 30 m : CW et data UNIQUEMENT,
+    (10130,  10150,  'DIGITAL', True),   #        jamais de phonie
+    (14000,  14070,  'CW',      True),
+    (14070,  14150,  'DIGITAL', True),
+    (14150,  14350,  'PHONE',   True),
+    (18068,  18100,  'CW',      True),
+    (18100,  18110,  'DIGITAL', True),
+    (18110,  18168,  'PHONE',   True),
+    (21000,  21070,  'CW',      True),
+    (21070,  21200,  'DIGITAL', True),
+    (21200,  21450,  'PHONE',   True),
+    (24890,  24920,  'CW',      True),
+    (24920,  24930,  'DIGITAL', True),
+    (24930,  24990,  'PHONE',   True),
+    (28000,  28070,  'CW',      True),
+    (28070,  28300,  'DIGITAL', True),
+    (28300,  29700,  'PHONE',   True),
+    (50000,  50080,  'CW',      True),
+    (50080,  50500,  'PHONE',   True),
+    (50500,  52000,  'PHONE',   True),   # 6 m France : 50-52
+    (52000,  54000,  'PHONE',   False),  # région 2
+    # 4 m (70 MHz) : attribué dans plusieurs pays de région 1 (G, OZ, OH...),
+    # PAS aux amateurs en France. Classé, jamais proposé.
+    (70000,  70650,  'PHONE',   False),
+    (144000, 144100, 'CW',      True),
+    (144100, 144500, 'PHONE',   True),
+    (144500, 146000, 'PHONE',   True),   # 2 m région 1 : 144-146
+    (146000, 148000, 'PHONE',   False),  # région 2
+    # 222 MHz : bande de région 2 uniquement, elle n'existe pas en Europe.
+    (220000, 221000, 'CW',      False),
+    (222000, 224000, 'PHONE',   False),
+    # 70 cm : ABSENT de la table CC User, qui s'arrête au 222 MHz. C'est
+    # pourtant une bande de concours majeure en région 1 — Rallye des Points
+    # Hauts, National THF, Challenge THF. Bornes reprises de
+    # logx_transverter.BANDES_MHZ (430-440, déjà utilisées par le pilotage
+    # radio du logiciel) et coupure étroite/large à 432.100, la limite
+    # universellement retenue en région 1. Signalé ici parce que ce couple de
+    # lignes ne vient PAS de la source citée pour le reste.
+    (430000, 432100, 'CW',      True),
+    (432100, 440000, 'PHONE',   True),
 )
 
 
@@ -824,10 +913,40 @@ def mode_depuis_frequence(freq_mhz):
     # 1000 une valeur déjà en kHz, ce qui envoyait 14074 à 14 074 000 kHz —
     # hors table, donc aucun mode déduit. Attrapé par le test.)
     khz = v if v > 1000 else v * 1000.0
-    for lo, hi, cat in _CRENEAUX_KHZ:
+    # Les fréquences d'appel numériques D'ABORD : elles tombent souvent dans un
+    # segment que le plan de bandes déclare « phonie » (144,174 · 50,313 ·
+    # 432,174 · 7,074). Voir _APPELS_NUMERIQUES_KHZ.
+    for f in _APPELS_NUMERIQUES_KHZ:
+        if f - _MARGE_NUMERIQUE_KHZ <= khz <= f + _LARGEUR_NUMERIQUE_KHZ:
+            return 'DIGITAL'
+    for lo, hi, cat, _fr in _CRENEAUX_KHZ:
         if lo <= khz < hi:
             return cat
     return ''
+
+
+def hors_bande_france(freq_mhz):
+    """True si cette fréquence est en dehors des bandes amateur françaises.
+
+    Sert à MARQUER un spot, jamais à le masquer : entendre une station hors de
+    sa propre allocation est courant et instructif (une station de région 2 à
+    7,250 MHz est parfaitement en règle chez elle). Ce qui ne l'est pas, c'est
+    de lui répondre — ou de laisser un clic commander le QSY sans rien dire.
+
+    Renvoie False quand la fréquence est inexploitable ou inconnue : on ne
+    signale que ce dont on est sûr.
+    """
+    try:
+        v = float(freq_mhz)
+    except (TypeError, ValueError):
+        return False
+    if not v:
+        return False
+    khz = v if v > 1000 else v * 1000.0
+    for lo, hi, _cat, fr in _CRENEAUX_KHZ:
+        if lo <= khz < hi:
+            return not fr
+    return False
 
 
 def segments_bande(band):
@@ -852,9 +971,14 @@ def segments_bande(band):
     # de la réglette 432 — constaté en vérifiant les bandes une par une.
     # La tolérance haute (12 %) sépare 14 de 18, et 24 de 28 ; la basse reste
     # assez serrée pour que le 60 m (5260) n'entre pas dans la bande 7 MHz.
+    #
+    # `fr` FILTRE ICI, et seulement ici : la réglette dessine la bande sur
+    # laquelle l'opérateur peut travailler. Elle s'arrêtait à 7,300 · 4,000 ·
+    # 148 MHz — les bornes nord-américaines de la table d'origine — en montrant
+    # à un Français des centaines de kHz où il n'a pas le droit d'émettre.
     khz = centre * 1000.0
-    seg = [(lo, hi, cat) for lo, hi, cat in _CRENEAUX_KHZ
-           if khz * 0.995 <= lo < khz + max(1000.0, khz * 0.12)]
+    seg = [(lo, hi, cat) for lo, hi, cat, fr in _CRENEAUX_KHZ
+           if fr and khz * 0.995 <= lo < khz + max(1000.0, khz * 0.12)]
     if not seg:
         return None
     # Fusion des segments ADJACENTS de même catégorie : la table distingue

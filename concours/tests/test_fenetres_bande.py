@@ -236,17 +236,50 @@ def test_chaque_bande_a_son_propre_nom_de_fenetre():
 # surtout où il reste un trou pour appeler. C'est l'information qu'une liste ne
 # peut pas donner — et c'est ce que j'avais manqué en livrant des listes.
 
+# BORNES CORRIGÉES LE 31/07/2026, et c'est une correction de fond : ces valeurs
+# encodaient le plan de bandes NORD-AMÉRICAIN. Elles venaient de l'annexe C du
+# manuel CC Cluster, que j'avais reprise sans vérifier à quelle région UIT elle
+# s'applique — 40 m jusqu'à 7,300 · 160 m jusqu'à 2,000 · 6 m jusqu'à 54 · 2 m
+# jusqu'à 148. Un opérateur français lisait donc une réglette qui lui montrait
+# des centaines de kHz où il n'a pas le droit d'émettre, et un clic sur une
+# épingle placée là commandait un QSY hors bande.
+#
+# Les valeurs ci-dessous sont celles de l'allocation FRANÇAISE. Les tests
+# n'étaient pas « à corriger pour qu'ils passent » : ils affirmaient quelque
+# chose de faux, et ils l'affirmaient en vert.
 @pytest.mark.parametrize('bande,lo,hi,nb_seg', [
-    ('1.8', 1.8, 2.0, 2),
-    ('7', 7.0, 7.3, 3),
-    ('14', 14.0, 14.35, 3),
-    ('50', 50.0, 54.0, 2),
-    ('144', 144.0, 148.0, 2),
+    ('1.8', 1.81, 1.85, 1),     # 160 m France : 1810-1850, CW seulement
+    ('7', 7.0, 7.2, 3),         # 40 m France s'arrête à 7,200 (7,300 en R2)
+    ('14', 14.0, 14.35, 3),     # identique dans les trois régions
+    ('50', 50.0, 52.0, 2),      # 6 m France : 50-52 (54 en R2)
+    ('144', 144.0, 146.0, 2),   # 2 m région 1 : 144-146 (148 en R2)
 ])
 def test_le_decoupage_des_bandes(bande, lo, hi, nb_seg):
     r = aw.segments_bande(bande)
     assert abs(r['lo'] - lo) < 1e-6 and abs(r['hi'] - hi) < 1e-6
     assert len(r['segments']) == nb_seg
+
+
+def test_la_reglette_ne_deborde_JAMAIS_de_l_allocation_francaise():
+    """Garde-fou général : quelle que soit la bande, aucun segment dessiné ne
+    doit tomber hors des bandes amateur françaises. C'est le test qui aurait
+    dû exister avant que je reprenne une table nord-américaine."""
+    for b in ('1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28',
+              '50', '144', '432'):
+        r = aw.segments_bande(b)
+        assert r, b
+        for s in r['segments']:
+            # Milieu du segment : les bornes exactes sont ambiguës (la fin d'un
+            # segment est le début du suivant).
+            milieu = (s['lo'] + s['hi']) / 2.0
+            assert not aw.hors_bande_france(milieu), (b, s)
+
+
+def test_la_bande_222_MHz_n_existe_pas_en_region_1():
+    """Elle figurait dans la table reprise du manuel CC Cluster. Aucun
+    radioamateur européen n'y a accès."""
+    assert aw.segments_bande('222') is None
+    assert aw.hors_bande_france(223.0)
 
 
 def test_le_70cm_est_couvert_malgre_son_absence_de_la_table_CC():

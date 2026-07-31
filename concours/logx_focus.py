@@ -51,12 +51,29 @@ QSO_MINI_POUR_RUN = 5       # QSO dans la dernière heure définissant un « run
 #   du concours actif. Hors concours, ou sur un concours à deux bandes, la page
 #   devenait borgne : impossible d'aller voir ailleurs.
 #
-# Contenu : toutes les bandes du plan IARU région 1 que connaît la table de
-# logx_awards (1,8 → 432 MHz). Les bandes hyperfréquences n'y sont pas
-# découpées en segments ; elles apparaissent quand même si le concours les
-# utilise ou si un spot y tombe (voir bandes_a_proposer).
+# Contenu : les bandes amateur FRANÇAISES que connaît la table de logx_awards
+# (1,8 → 432 MHz). Les bandes hyperfréquences n'y sont pas découpées en
+# segments ; elles apparaissent quand même si le concours les utilise ou si un
+# spot y tombe (voir bandes_a_proposer).
+#
+# LE 4 m (70 MHz) A ÉTÉ RETIRÉ. Je l'avais mis en annonçant « tout le plan IARU
+# région 1 » : il est bien attribué dans plusieurs pays de région 1 (G, OZ,
+# OH…), mais PAS aux amateurs en France. Proposer une bande où l'utilisateur
+# n'a pas le droit d'émettre, sur une page dont le rôle est justement de dire
+# « va travailler là », est une faute. Elle reste atteignable par
+# bandes_a_proposer si un spot y tombe ou si un concours l'utilise — ce qui
+# couvre le cas de l'expédition dans un pays qui l'attribue.
+#
+# Le 60 m (5,3515-5,3665) est bien attribué en France, mais volontairement
+# absent : segment de 15 kHz à puissance très réduite, aucun concours. Il
+# apparaîtra de la même façon si un spot y tombe.
 BANDES_STANDARD = ('1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28',
-                   '50', '70', '144', '432')
+                   '50', '144', '432')
+
+# Bandes WARC (30 · 17 · 12 m). Convention IARU : PAS DE CONCOURS dessus. Ce
+# sont les bandes de repli du trafic courant pendant qu'une épreuve occupe tout
+# le reste — raison même de la convention.
+BANDES_WARC = ('10.1', '18', '24')
 
 
 def _txt(v):
@@ -301,6 +318,7 @@ def classer_bandes(bandes, spots=(), regions=(), log=(), now=None,
             # Bande utilisée par le concours en cours : la page la distingue,
             # sans la faire disparaître — on peut vouloir regarder ailleurs.
             'dans_concours': b in [_bande(x) for x in (bandes_concours or ())],
+            'warc': b in BANDES_WARC,
         })
     # ORDRE DES FRÉQUENCES, pas du score. Un bandeau trié par score se
     # réordonne à chaque rafraîchissement : les bandes changent de place sous
@@ -309,8 +327,24 @@ def classer_bandes(bandes, spots=(), regions=(), log=(), now=None,
     # ci-dessous désigne la bande recommandée.
     out.sort(key=lambda x: (0, float(x['band'])) if _est_nombre(x['band'])
              else (1, x['band']))
-    if out:
-        meilleur = max(out, key=lambda x: x['score'])
+    # LA BANDE RECOMMANDÉE NE PEUT PAS ÊTRE UNE WARC PENDANT UN CONCOURS.
+    #
+    # Mesuré avant correction : concours sur 14 MHz, 40 spots tombent sur 18
+    # MHz, et la page collait le liseré vert sur le 17 m. Elle envoyait donc
+    # l'opérateur faire des QSO de concours sur une bande où la convention IARU
+    # les interdit — des points refusés au dépouillement, et un manquement aux
+    # usages devant toute la bande.
+    #
+    # C'est la RECOMMANDATION qui est bridée, pas l'affichage : le 17 m reste
+    # dans la liste avec son score et ses spots. Hors concours, aucune
+    # restriction — c'est même une excellente bande, tranquille et ouverte.
+    candidats = out
+    if bandes_concours:
+        hors_warc = [x for x in out if not x['warc']]
+        if hors_warc:
+            candidats = hors_warc
+    if candidats:
+        meilleur = max(candidats, key=lambda x: x['score'])
         for x in out:
             x['recommandee'] = (x is meilleur and meilleur['score'] > 0)
     return out
