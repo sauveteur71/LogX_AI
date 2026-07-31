@@ -3034,10 +3034,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 carres = []
 
+            # « Les propositions de contact IA » : parmi les stations SPOTTÉES,
+            # celles qui apporteraient un pays ou un département JAMAIS
+            # travaillé À VIE — pas seulement un multiplicateur du concours en
+            # cours. C'est la même source que les suggestions proactives du
+            # coach ; on la filtre sur la bande regardée.
+            suggestions = []
+            try:
+                import logx_awards as awards
+                for n in awards.spotted_new_ones(log_copy, _spots_from_caches()) or []:
+                    if bande and focus._bande(n.get('band')) != focus._bande(bande):
+                        continue
+                    suggestions.append(n)
+            except Exception:
+                suggestions = []
+
             self._json({
                 'ok': True,
                 'band': bande, 'mode': mode,
                 'bandes': bandes,
+                'suggestions': suggestions,
                 'classement': focus.classer_bandes(bandes, spots=spots,
                                                    regions=regions, log=log_copy),
                 'spots': [s for s in spots

@@ -57,7 +57,7 @@ def test_l_endpoint_repond_et_porte_TOUTES_les_sections(server):
     d = _get(server, '/data/focus')
     assert d['ok'] is True
     for cle in ('bandes', 'classement', 'spots', 'regions', 'concours',
-                'carres_manquants', 'contest_actif'):
+                'carres_manquants', 'suggestions', 'contest_actif'):
         assert cle in d, cle
 
 
@@ -167,3 +167,18 @@ def test_la_reponse_reste_LEGERE(server):
     with urllib.request.urlopen(server + '/data/focus?band=14', timeout=20) as r:
         taille = len(r.read())
     assert taille < 300_000, '%d octets' % taille
+
+
+def test_les_suggestions_sont_filtrees_sur_la_bande(server):
+    """« Les propositions de contact IA » : pays et departements JAMAIS
+    travailles a vie parmi ce qui est spotte. Sur la page 20 m, une suggestion
+    sur 2 m n'a rien a y faire."""
+    d = _get(server, '/data/focus?band=14')
+    for s in d['suggestions']:
+        assert str(s.get('band', '')).startswith('14'), s
+
+
+def test_sans_module_de_diplomes_les_suggestions_sont_vides_sans_erreur(server, monkeypatch):
+    _casser(monkeypatch, 'logx_awards', 'spotted_new_ones')
+    d = _get(server, '/data/focus?band=14')
+    assert d['ok'] is True and d['suggestions'] == []

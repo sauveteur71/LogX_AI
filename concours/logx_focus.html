@@ -196,6 +196,14 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);
     <h2>🔲 CARRÉS QRA MANQUANTS<span class="compte rc-i18n-live" id="cCarres"></span></h2>
     <div class="corps rc-i18n-live" id="carres"><div class="vide">Chargement…</div></div>
   </div>
+
+  <!-- Pays et départements JAMAIS travaillés à vie, parmi ce qui est spotté
+       maintenant sur cette bande. Pas le multiplicateur du concours en cours :
+       ce qui manque à la collection depuis toujours. -->
+  <div class="carte">
+    <h2>🤖 SUGGESTIONS — JAMAIS TRAVAILLÉ<span class="compte rc-i18n-live" id="cSug"></span></h2>
+    <div class="corps rc-i18n-live" id="suggestions"><div class="vide">Chargement…</div></div>
+  </div>
 </div>
 
 <footer>
@@ -349,6 +357,20 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
       </div>`).join('');
   }
 
+  function rendreSuggestions(liste){
+    $('cSug').textContent = liste.length || '';
+    if(!liste.length){
+      $('suggestions').innerHTML =
+        '<div class="vide">Rien de neuf à vie sur cette bande pour l\'instant</div>';
+      return;
+    }
+    $('suggestions').innerHTML = liste.map(s => `
+      <div class="cts"><div class="nom">${esc(s.call || '')}
+        <span class="etiq mult">${esc(s.country || s.dept || 'NEUF')}</span></div>
+        <div class="det">${esc(s.band || '')} MHz${s.freq ? ' · ' + esc(s.freq) : ''}${
+          s.reason ? ' · ' + esc(s.reason) : ''}</div></div>`).join('');
+  }
+
   function rendreCarres(liste){
     $('cCarres').textContent = liste.length || '';
     if(!liste.length){
@@ -412,6 +434,7 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
       rendreConcours(d.concours || []);
       rendreRegions(d.regions || []);
       rendreCarres(d.carres_manquants || []);
+      rendreSuggestions(d.suggestions || []);
       rendreRegle(d.spots || []);
     }catch(e){
       $('spots').innerHTML = '<div class="vide">Serveur injoignable — dernier affichage conservé</div>';
