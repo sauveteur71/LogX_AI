@@ -79,11 +79,26 @@ def _entry_dt(entry):
     return _parse_dt(entry.get('date', ''), entry.get('time', ''))
 
 
-def hourly_rate_series(entries):
-    """Nombre de QSO par heure UTC, du premier au dernier QSO de la session —
-    les heures sans QSO comptent 0 (pas de trou dans un graphe de rythme),
+# 72 h : plus long que le plus long des concours (48 h pour un CQ WW), assez
+# court pour que la série reste minuscule. Voir hourly_rate_series.
+HEURES_RYTHME_MAX = 72
+
+
+def hourly_rate_series(entries, heures_max=HEURES_RYTHME_MAX):
+    """Nombre de QSO par heure UTC sur les `heures_max` dernières heures d'activité
+    — les heures sans QSO comptent 0 (pas de trou dans un graphe de rythme),
     contrairement aux compteurs glissants qso_last_hour/qso_last_10min qui ne
-    montrent que l'instant présent."""
+    montrent que l'instant présent.
+
+    LA BORNE N'EST PAS COSMÉTIQUE. Sans elle, la série allait du PREMIER au
+    DERNIER QSO du log : sur un carnet de vie entière commencé en 2011, cela
+    fait 131 104 tranches horaires, presque toutes à zéro. `/coach/state` pesait
+    alors 5,5 Mo — et le panneau coach détachable l'interroge TOUTES LES 15 s,
+    soit 22 Mo par minute à sérialiser puis à analyser dans le navigateur, en
+    permanence. Pour une donnée qu'aucune page n'affiche aujourd'hui.
+
+    Mesuré sur le log réel de ce poste : 131 104 tranches -> 72.
+    """
     buckets = {}
     for e in entries:
         dt = _entry_dt(e)
@@ -93,7 +108,10 @@ def hourly_rate_series(entries):
         buckets[key] = buckets.get(key, 0) + 1
     if not buckets:
         return []
-    start, end = min(buckets), max(buckets)
+    end = max(buckets)
+    # On coupe par le DÉBUT : un graphe de rythme se lit vers le présent, et
+    # c'est la dernière heure qui intéresse l'opérateur, pas la première.
+    start = max(min(buckets), end - datetime.timedelta(hours=max(1, int(heures_max)) - 1))
     series = []
     cur = start
     while cur <= end:

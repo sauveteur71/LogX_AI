@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Focus bande</title>
+<link rel="icon" href="/logx_icon.svg">
+<!--
+  FOCUS BANDE — tout ce que le programme sait d'UNE bande, et où aller ensuite.
+
+  DEMANDE UTILISATEUR : « une seconde page qui afficherait l'ensemble des
+  éléments que le programme a en sa possession lorsqu'une bande est choisie :
+  le cluster correspondant, les carrés locator pas faits, la propagation de
+  cette bande, une liste des concours actifs à ce moment-là sur cette bande et
+  ce mode, les propositions de contact IA, la band map correspondante. »
+
+  LE MODULE COMPLÉMENTAIRE, en haut : le CLASSEMENT DE TOUTES LES BANDES. Cette
+  page répond à « qu'y a-t-il sur 20 m ? » ; le bandeau répond à « où
+  devrais-je être maintenant ? ». C'est l'information qu'aucune fenêtre par
+  bande ne peut donner, même en en ouvrant douze — et c'est celle qui fait
+  gagner un concours.
+
+  DEUX FAÇONS DE CHOISIR LA BANDE, au choix de l'opérateur :
+    • à la main, en cliquant une bande du bandeau ;
+    • en suivant la radio (CAT) — on tourne le VFO, la page se recompose.
+  Le second mode est celui qui en fait un vrai second écran : en concours, on
+  ne va pas cliquer un menu à chaque QSY.
+
+  UN SEUL APPEL RÉSEAU pour six informations (/data/focus) : cette page reste
+  ouverte en permanence sur un 2e écran, six requêtes toutes les 15 s seraient
+  six connexions à tenir pour ce que le serveur a déjà en cache.
+-->
+<style>
+:root{--bg:#05060C;--bg2:#0C0E1A;--bg3:#14172C;--border:#242844;
+  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--yellow:#FFD60A;
+  --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
+  --mono:'Share Tech Mono',monospace;}
+body.day-mode{--bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
+  --accent:#CC4026;--accent2:#0060A0;--green:#007030;--yellow:#7A5A00;
+  --red:#CC0030;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);
+     display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 14px;
+  background:linear-gradient(90deg,#080A16,#12152C,#080A16);
+  border-bottom:2px solid var(--border);flex-shrink:0}
+.titre{font-size:17px;font-weight:800;color:var(--accent);letter-spacing:1px}
+.bande-en-cours{font-size:22px;font-weight:800;color:var(--accent2)}
+.clock{margin-left:auto;font-size:13px;color:var(--muted)}
+select,button{font-family:var(--mono);font-size:12px;background:var(--bg3);
+  color:var(--text);border:1px solid var(--border);border-radius:6px;
+  padding:4px 8px;cursor:pointer}
+button:hover,select:hover{border-color:var(--accent2)}
+.cat-suivi{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.cat-suivi input{cursor:pointer}
+.cat-etat{font-size:11px;padding:2px 6px;border-radius:4px;background:var(--bg3)}
+.cat-on{color:var(--green);border:1px solid var(--green)}
+.cat-off{color:var(--muted)}
+
+/* ── Bandeau de classement ────────────────────────────────────────────────
+   Horizontal et compact : il doit se lire d'un coup d'œil depuis le fauteuil,
+   pas se parcourir. La barre de score est relative à la MEILLEURE bande —
+   un score absolu ne veut rien dire, ce qui compte est l'écart. */
+.classement{display:flex;gap:8px;padding:9px 14px;overflow-x:auto;flex-shrink:0;
+  background:var(--bg2);border-bottom:1px solid var(--border)}
+.bchip{min-width:132px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);
+  border-radius:9px;padding:7px 9px;cursor:pointer;transition:border-color .12s}
+.bchip:hover{border-color:var(--accent2)}
+.bchip.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.bchip.premier .bnom{color:var(--green)}
+.bchip-tete{display:flex;align-items:baseline;gap:6px}
+.bnom{font-size:16px;font-weight:800}
+.bscore{margin-left:auto;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bbar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:5px 0 4px}
+.bbar > i{display:block;height:100%;border-radius:2px;background:var(--accent2)}
+.bchip.premier .bbar > i{background:var(--green)}
+.bpourquoi{font-size:10.5px;color:var(--muted);line-height:1.35}
+
+/* ── Grille des panneaux ──────────────────────────────────────────────── */
+.grille{flex:1;overflow-y:auto;display:grid;gap:10px;padding:10px 14px;
+  grid-template-columns:repeat(auto-fit,minmax(290px,1fr));align-content:start}
+.carte{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  display:flex;flex-direction:column;min-height:150px;overflow:hidden}
+.carte.large{grid-column:span 2}
+@media(max-width:900px){.carte.large{grid-column:span 1}}
+.carte h2{font-size:12px;letter-spacing:1px;color:var(--accent2);padding:8px 11px;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px}
+.carte h2 .compte{margin-left:auto;color:var(--muted);font-size:11px}
+.corps{padding:7px 11px;overflow-y:auto;flex:1}
+.vide{padding:22px;text-align:center;color:var(--muted);font-size:12px}
+
+.ligne{display:grid;grid-template-columns:auto 74px 1fr auto;gap:8px;
+  align-items:baseline;padding:4px 2px;font-size:12.5px;
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.call{font-weight:800;letter-spacing:.5px}
+.freq{color:var(--accent2);font-variant-numeric:tabular-nums}
+.pays{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.etiq{font-size:10.5px;padding:1px 5px;border-radius:4px;white-space:nowrap}
+.mult{background:rgba(0,255,136,.16);color:var(--green);font-weight:700}
+.fait{opacity:.38;text-decoration:line-through}
+
+.reg{display:flex;justify-content:space-between;gap:8px;padding:4px 2px;
+  font-size:12.5px;border-bottom:1px solid rgba(255,255,255,.05)}
+.reg .sc{color:var(--accent2);font-variant-numeric:tabular-nums}
+.carres{display:flex;flex-wrap:wrap;gap:5px}
+.carre{background:var(--bg3);border:1px solid var(--border);border-radius:5px;
+  padding:2px 7px;font-size:12px}
+.cts{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px}
+.cts .nom{font-weight:700}
+.cts .det{color:var(--muted);font-size:11px;margin-top:2px}
+
+/* Réglette de fréquence : une liste dit QUI trafique, l'échelle dit OÙ, et
+   surtout où il reste un trou pour appeler. */
+.regle{position:relative;height:58px;margin:6px 2px 2px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.seg{position:absolute;top:0;bottom:16px}
+.seg-CW{background:rgba(255,214,10,.16)}
+.seg-DIGITAL{background:rgba(191,90,242,.16)}
+.seg-PHONE{background:rgba(0,212,255,.13)}
+.seg-lbl{position:absolute;top:2px;font-size:9px;color:var(--muted);letter-spacing:1px}
+.pin{position:absolute;top:20px;width:2px;bottom:16px;background:var(--accent)}
+.pin.m{background:var(--green)}
+.regle-ech{position:absolute;left:0;right:0;bottom:0;height:15px;
+  border-top:1px solid var(--border);font-size:9px;color:var(--muted)}
+.regle-ech span{position:absolute;transform:translateX(-50%);top:1px}
+footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);
+  font-size:11px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
+/* La page est listée dans la navigation des autres écrans : sans barre ici,
+   on y entre sans pouvoir en sortir. */
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);
+  border-bottom:2px solid var(--border);flex-shrink:0;overflow-x:auto}
+.app-nav a{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--muted);
+  text-decoration:none;padding:8px 16px;border-right:1px solid var(--border);
+  display:flex;align-items:center;gap:6px;white-space:nowrap;transition:all .15s;
+  border-bottom:3px solid transparent;margin-bottom:-2px}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+</style>
+</head>
+<body>
+<nav class="app-nav">
+  <a href="logx_configuration.html">⚙ CONFIG</a>
+  <a href="logx_logbook.html">📋 LOGBOOK</a>
+  <a href="logx_carte.html">🗺️ CARTE IA</a>
+  <a href="logx_propagation.html">📶 PROPAG</a>
+  <a href="logx_chasse.html">🎯 CHASSE</a>
+  <a href="logx_departements.html">🇫🇷 Cartes</a>
+  <a href="logx_calendrier.html">📅 CALENDRIER</a>
+  <a href="logx_websdr.html">📡 WEBSDR</a>
+  <a href="logx_focus.html" class="active">🎯 FOCUS</a>
+</nav>
+<header>
+  <span class="titre">🎯 FOCUS BANDE</span>
+  <span class="bande-en-cours rc-i18n-live" id="bandeEnCours">—</span>
+  <label class="cat-suivi">
+    <input type="checkbox" id="suivreCat">
+    <span>suivre la radio (CAT)</span>
+    <span class="cat-etat rc-i18n-live" id="catEtat">—</span>
+  </label>
+  <select id="selMode" title="Mode : filtre les concours actifs affichés">
+    <option value="">tous modes</option>
+    <option value="CW">CW</option>
+    <option value="SSB">SSB</option>
+    <option value="FT8">FT8</option>
+    <option value="RTTY">RTTY</option>
+  </select>
+  <span class="clock rc-i18n-live" id="clock">--:--:--</span>
+</header>
+
+<!-- Le bandeau ne porte que des données recalculées à chaque passe : exclu de
+     la traduction pour ne pas relancer une passe complète toutes les 15 s. -->
+<div class="classement rc-i18n-live" id="classement"></div>
+
+<div class="grille">
+  <div class="carte large">
+    <h2>📡 CLUSTER SUR CETTE BANDE<span class="compte rc-i18n-live" id="cSpots"></span></h2>
+    <div class="corps">
+      <div class="regle rc-i18n-live" id="regle"></div>
+      <div class="rc-i18n-live" id="spots"><div class="vide">Chargement…</div></div>
+    </div>
+  </div>
+
+  <div class="carte">
+    <h2>🏆 CONCOURS ACTIFS MAINTENANT<span class="compte rc-i18n-live" id="cConcours"></span></h2>
+    <div class="corps rc-i18n-live" id="concours"><div class="vide">Chargement…</div></div>
+  </div>
+
+  <div class="carte">
+    <h2>🧭 OUVERTURES SUR CETTE BANDE<span class="compte rc-i18n-live" id="cRegions"></span></h2>
+    <div class="corps rc-i18n-live" id="regions"><div class="vide">Chargement…</div></div>
+  </div>
+
+  <div class="carte">
+    <h2>🔲 CARRÉS QRA MANQUANTS<span class="compte rc-i18n-live" id="cCarres"></span></h2>
+    <div class="corps rc-i18n-live" id="carres"><div class="vide">Chargement…</div></div>
+  </div>
+</div>
+
+<footer>
+  <span>clic sur une bande = focus</span>
+  <span class="etiq mult">multiplicateur neuf</span>
+  <span>barré = déjà travaillé</span>
+</footer>
+
+<script src="logx_statusbar.js"></script>
+<script src="logx_i18n.js"></script>
+<script>
+// Thème jour/nuit : comme les autres fenêtres détachables, on relit le réglage
+// partagé plutôt que de repartir en mode nuit sur un 2e écran en plein jour.
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+
+(function(){
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = '<div class="vide">Ouvre via le serveur : '
+      + 'http://127.0.0.1:8080/logx_focus.html</div>';
+    return;
+  }
+  const params = new URLSearchParams(location.search);
+  let bande = (params.get('band') || localStorage.getItem('rc_focus_band') || '').trim();
+  let mode  = (params.get('mode') || localStorage.getItem('rc_focus_mode') || '').trim();
+  let bandes = [];
+
+  const $ = id => document.getElementById(id);
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  $('selMode').value = mode;
+  $('selMode').onchange = () => {
+    mode = $('selMode').value;
+    localStorage.setItem('rc_focus_mode', mode);
+    charger();
+  };
+
+  // ── Suivi de la radio ────────────────────────────────────────────────────
+  // La bande n'est PAS déduite d'une table en dur : on prend la bande connue
+  // la plus proche de la fréquence lue. C'est ce qui évite le piège du 432,
+  // dont le nom (432) n'est pas la borne basse (430) — une comparaison
+  // « fréquence ≥ nom de bande » y perd le segment CW.
+  function bandeDepuisFreq(khz){
+    if(!khz || !bandes.length) return '';
+    const mhz = khz / 1000;
+    let best = '', d = Infinity;
+    bandes.forEach(b => {
+      const v = parseFloat(b);
+      if(isNaN(v)) return;
+      const e = Math.abs(mhz - v);
+      if(e < d){ d = e; best = b; }
+    });
+    // Garde-fou : au-delà d'un écart déraisonnable, on préfère ne rien dire
+    // plutôt que d'afficher une bande fausse pendant tout un concours.
+    return (d <= Math.max(2, parseFloat(best) * 0.12)) ? best : '';
+  }
+
+  $('suivreCat').checked = localStorage.getItem('rc_focus_cat') === '1';
+  $('suivreCat').onchange = () => {
+    localStorage.setItem('rc_focus_cat', $('suivreCat').checked ? '1' : '0');
+    if($('suivreCat').checked) lireRadio();
+  };
+
+  async function lireRadio(){
+    if(!$('suivreCat').checked){ $('catEtat').textContent = 'manuel';
+      $('catEtat').className = 'cat-etat rc-i18n-live cat-off'; return; }
+    try{
+      const r = await fetch('/rig/state');
+      if(!r.ok) throw 0;
+      const d = await r.json();
+      if(!d.enabled){ $('catEtat').textContent = 'CAT désactivé';
+        $('catEtat').className = 'cat-etat rc-i18n-live cat-off'; return; }
+      if(!d.ok || !d.freq_khz){ $('catEtat').textContent = 'radio muette';
+        $('catEtat').className = 'cat-etat rc-i18n-live cat-off'; return; }
+      $('catEtat').textContent = (d.freq_khz / 1000).toFixed(3) + ' MHz';
+      $('catEtat').className = 'cat-etat rc-i18n-live cat-on';
+      const b = bandeDepuisFreq(d.freq_khz);
+      if(b && b !== bande){ bande = b; charger(); }
+      if(d.mode && d.mode !== mode){ mode = d.mode; $('selMode').value = mode; }
+    }catch(e){
+      $('catEtat').textContent = 'serveur injoignable';
+      $('catEtat').className = 'cat-etat rc-i18n-live cat-off';
+    }
+  }
+
+  // ── Rendu ────────────────────────────────────────────────────────────────
+  function rendreClassement(liste){
+    if(!liste.length){ $('classement').innerHTML = ''; return; }
+    const max = Math.max(1, ...liste.map(c => c.score));
+    $('classement').innerHTML = liste.map((c, i) => `
+      <div class="bchip ${c.band === bande ? 'active' : ''} ${i === 0 && c.score > 0 ? 'premier' : ''}"
+           data-b="${esc(c.band)}" title="${esc(c.pourquoi)}">
+        <div class="bchip-tete"><span class="bnom">${esc(c.band)}</span>
+          <span class="bscore">${Math.round(c.score)}</span></div>
+        <div class="bbar"><i style="width:${Math.round(100 * c.score / max)}%"></i></div>
+        <div class="bpourquoi">${esc(c.pourquoi)}</div>
+      </div>`).join('');
+    $('classement').querySelectorAll('.bchip').forEach(el => {
+      el.onclick = () => {
+        bande = el.dataset.b;
+        localStorage.setItem('rc_focus_band', bande);
+        // Choisir une bande à la main coupe le suivi : sinon la radio
+        // reprendrait la main à la seconde suivante et le clic paraîtrait
+        // sans effet.
+        if($('suivreCat').checked){ $('suivreCat').checked = false;
+          localStorage.setItem('rc_focus_cat', '0'); }
+        charger();
+      };
+    });
+  }
+
+  function rendreSpots(spots){
+    $('cSpots').textContent = spots.length ? spots.length + ' spots' : '';
+    if(!spots.length){
+      $('spots').innerHTML = '<div class="vide">Aucun spot sur cette bande</div>';
+      return;
+    }
+    $('spots').innerHTML = spots.map(s => `
+      <div class="ligne">
+        <span class="call ${s.already_done ? 'fait' : ''}">${esc(s.call)}</span>
+        <span class="freq">${s.freq ? (s.freq / 1000).toFixed(3) : ''}</span>
+        <span class="pays" title="${esc(s.explanation || '')}">${esc(s.dx_country || s.info || '')}</span>
+        <span>${s.new_mult && !s.already_done ? '<span class="etiq mult">MULT</span>' : ''}</span>
+      </div>`).join('');
+  }
+
+  function rendreConcours(liste){
+    $('cConcours').textContent = liste.length || '';
+    if(!liste.length){
+      $('concours').innerHTML = '<div class="vide">Aucun concours en cours sur cette bande et ce mode</div>';
+      return;
+    }
+    $('concours').innerHTML = liste.map(c => `
+      <div class="cts"><div class="nom">${esc(c.name)}</div>
+        <div class="det">reste ${esc(c.heures_restantes)} h${
+          c.exchange ? ' · échange : ' + esc(c.exchange) : ''}</div></div>`).join('');
+  }
+
+  function rendreRegions(regions){
+    const b = String(bande);
+    const ouvertes = (regions || []).filter(r =>
+      (r.open_bands || []).map(String).indexOf(b) >= 0 || String(r.best_band) === b);
+    $('cRegions').textContent = ouvertes.length || '';
+    if(!ouvertes.length){
+      $('regions').innerHTML = '<div class="vide">Aucune ouverture signalée sur cette bande</div>';
+      return;
+    }
+    $('regions').innerHTML = ouvertes.map(r => `
+      <div class="reg"><span>${esc(r.region_name || r.region)}</span>
+        <span class="sc">${String(r.best_band) === b ? Math.round(r.best_score || 0) : '·'}</span>
+      </div>`).join('');
+  }
+
+  function rendreCarres(liste){
+    $('cCarres').textContent = liste.length || '';
+    if(!liste.length){
+      $('carres').innerHTML = '<div class="vide">Aucun carré manquant connu</div>';
+      return;
+    }
+    $('carres').innerHTML = '<div class="carres">'
+      + liste.map(c => `<span class="carre">${esc(c.square)}</span>`).join('') + '</div>';
+  }
+
+  // Réglette : segments réglementaires + une épingle par spot. C'est le seul
+  // affichage qui montre les TROUS — l'endroit où appeler.
+  async function rendreRegle(spots){
+    const el = $('regle');
+    if(!bande){ el.innerHTML = ''; return; }
+    let plage = null;
+    try{
+      const r = await fetch('/data/bande_segments?band=' + encodeURIComponent(bande));
+      if(r.ok) plage = await r.json();
+    }catch(e){ /* réglette absente ≠ page cassée */ }
+    if(!plage || !plage.segments || !plage.segments.length){ el.innerHTML = ''; return; }
+    const lo = plage.lo, hi = plage.hi, largeur = hi - lo;
+    if(!(largeur > 0)){ el.innerHTML = ''; return; }
+    const pct = mhz => Math.max(0, Math.min(100, 100 * (mhz - lo) / largeur));
+    let h = plage.segments.map(s => `
+      <div class="seg seg-${esc(s.cat)}" style="left:${pct(s.lo)}%;width:${pct(s.hi) - pct(s.lo)}%">
+        <span class="seg-lbl">${esc(s.cat)}</span></div>`).join('');
+    h += (spots || []).map(s => {
+      const mhz = (s.freq || 0) / 1000;
+      if(mhz < lo || mhz > hi) return '';
+      return `<div class="pin ${s.new_mult && !s.already_done ? 'm' : ''}"
+                   style="left:${pct(mhz)}%" title="${esc(s.call)} ${mhz.toFixed(3)}"></div>`;
+    }).join('');
+    h += '<div class="regle-ech">'
+      + [0, 0.25, 0.5, 0.75, 1].map(f =>
+          `<span style="left:${f * 100}%">${(lo + f * largeur).toFixed(3)}</span>`).join('')
+      + '</div>';
+    el.innerHTML = h;
+  }
+
+  // ── Chargement ───────────────────────────────────────────────────────────
+  let enCours = false;
+  async function charger(){
+    if(enCours) return;            // une passe à la fois : la page peut être
+    enCours = true;                // rafraîchie par le minuteur ET par un clic
+    try{
+      const q = '?band=' + encodeURIComponent(bande) + '&mode=' + encodeURIComponent(mode);
+      const r = await fetch('/data/focus' + q);
+      if(!r.ok) throw 0;
+      const d = await r.json();
+      bandes = d.bandes || [];
+      if(!bande && d.classement && d.classement.length){
+        // Rien de choisi : on ouvre sur la bande que le classement recommande.
+        bande = d.classement[0].band;
+        localStorage.setItem('rc_focus_band', bande);
+      }
+      $('bandeEnCours').textContent = bande ? bande + ' MHz' : '—';
+      document.title = 'LogX AI — Focus ' + (bande ? bande + ' MHz' : 'bande');
+      rendreClassement(d.classement || []);
+      rendreSpots(d.spots || []);
+      rendreConcours(d.concours || []);
+      rendreRegions(d.regions || []);
+      rendreCarres(d.carres_manquants || []);
+      rendreRegle(d.spots || []);
+    }catch(e){
+      $('spots').innerHTML = '<div class="vide">Serveur injoignable — dernier affichage conservé</div>';
+    }finally{ enCours = false; }
+  }
+
+  function horloge(){
+    const d = new Date();
+    $('clock').textContent = d.toISOString().slice(11, 19) + ' UTC';
+  }
+
+  horloge(); setInterval(horloge, 1000);
+  charger(); setInterval(charger, 15000);
+  lireRadio(); setInterval(lireRadio, 3000);
+})();
+</script>
+</body>
+</html>
