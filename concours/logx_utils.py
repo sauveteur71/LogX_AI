@@ -6,6 +6,7 @@ import urllib.error
 import urllib.parse
 import json
 import math
+import re
 import datetime
 import ssl as _ssl
 import concurrent.futures as _cf
@@ -168,25 +169,54 @@ def post_url_form(url, fields, timeout=10, headers=None):
         print(f"  [FETCH] POST {url[:60]}... -> {e}")
         return None, None
 
+# Maidenhead : champ 2 lettres A-R (20° lon × 10° lat), carré 2 chiffres 0-9
+# (2° × 1°), sous-carré 2 lettres A-X (5′ × 2,5′). Le prolongement à 8
+# caractères (2 chiffres de plus) existe et reste toléré — on l'ignore, le
+# sous-carré suffit largement pour une distance ou un azimut.
+#
+# CE QUE LA VALIDATION CORRIGE. Il n'y en avait aucune, et le `except:` nu ne
+# rattrapait que le int() des chiffres. Mesuré : 'JN18ZZ' rendait 49,06 N —
+# HORS de son propre carré, qui s'arrête à 49 ; 'ZZ99XX' rendait une longitude
+# de 339° ; 'JN18@@' un point situé AVANT le coin du carré. Aucun message, une
+# position plausible et fausse. Les locators arrivent du cluster, de PSK
+# Reporter, de l'import ADIF d'un log tiers et surtout de la SAISIE MANUELLE
+# en concours, où la faute de frappe est la règle : en THF, un locator faux
+# c'est un multiplicateur faux et une distance fausse, donc des points refusés
+# au dépouillement.
+#
+# Les trois copies JavaScript (config, propagation, mobile) validaient déjà
+# par une expression régulière équivalente. Seul le Python acceptait tout.
+_LOCATOR_RE = re.compile(r'^[A-R]{2}[0-9]{2}(?:[A-X]{2}(?:[0-9]{2})?)?$')
+
+
 def locator_to_latlon(loc):
-    # Correctif M8 : un locator à 4 caractères est un Maidenhead valide (déjà
-    # accepté par le formulaire de config et par locatorToLatLon() côté JS,
-    # qui le complète elle-même avec 'MM') — le rejeter ici cassait en silence
-    # tout appelant qui ne compensait pas déjà (ex. logx_psk.py, dont les
-    # locators PSK Reporter font souvent 4 caractères).
+    """Centre de la case Maidenhead, en (lat, lon). (None, None) si invalide.
+
+    Un locator à 4 caractères est un Maidenhead valide (correctif M8) : les
+    spots PSK Reporter en donnent souvent. On renvoie alors le centre du CARRÉ.
+    """
     if not loc:
         return None, None
-    l = loc.upper()
-    if len(l) == 4:
-        l += 'MM'
-    if len(l) < 6:
+    l = str(loc).upper().strip().replace(' ', '')
+    if not _LOCATOR_RE.match(l):
         return None, None
-    try:
-        lon = (ord(l[0])-65)*20 - 180 + int(l[2])*2 + (ord(l[4])-65)*(2/24) + 1/24
-        lat = (ord(l[1])-65)*10 - 90  + int(l[3])   + (ord(l[5])-65)*(1/24) + 0.5/24
-        return lat, lon
-    except:
-        return None, None
+    lon = (ord(l[0])-65)*20 - 180 + int(l[2])*2
+    lat = (ord(l[1])-65)*10 - 90  + int(l[3])
+    if len(l) >= 6:
+        lon += (ord(l[4])-65)*(2/24) + 1/24     # centre du sous-carré
+        lat += (ord(l[5])-65)*(1/24) + 0.5/24
+    else:
+        # CENTRE DU CARRÉ, soit +1° de longitude et +0,5° de latitude.
+        #
+        # Le code complétait par 'MM' avant de dérouler le calcul du
+        # sous-carré, ce qui donnait +1,0417° et +0,5208° : le point tombait
+        # 3,8 km au NORD-EST du centre, systématiquement, sur tout locator à
+        # 4 caractères. 'M' est la 13e lettre, or le milieu des 24 lettres
+        # n'en est aucune — il est entre 'L' et 'M'. Aucun complément par
+        # lettres ne peut donc donner le centre : il faut le calculer.
+        lon += 1.0
+        lat += 0.5
+    return lat, lon
 
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371

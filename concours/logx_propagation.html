@@ -658,9 +658,17 @@ async function loadStationLinks(){
 function locatorToLatLon(loc){
   loc = (loc||'').toUpperCase().trim();
   if(!/^[A-R]{2}[0-9]{2}([A-X]{2})?$/.test(loc)) return null;
-  if(loc.length === 4) loc += 'MM';
-  const lon = (loc.charCodeAt(0)-65)*20 - 180 + parseInt(loc[2])*2 + (loc.charCodeAt(4)-65)*(2/24) + 1/24;
-  const lat = (loc.charCodeAt(1)-65)*10 - 90  + parseInt(loc[3])   + (loc.charCodeAt(5)-65)*(1/24) + 0.5/24;
+  let lon = (loc.charCodeAt(0)-65)*20 - 180 + parseInt(loc[2])*2;
+  let lat = (loc.charCodeAt(1)-65)*10 - 90  + parseInt(loc[3]);
+  if(loc.length >= 6){
+    lon += (loc.charCodeAt(4)-65)*(2/24) + 1/24;   // centre du sous-carre
+    lat += (loc.charCodeAt(5)-65)*(1/24) + 0.5/24;
+  } else {
+    // Centre du carre : +1 deg lon, +0,5 deg lat. Le complement par 'MM'
+    // placait le point 3,8 km au nord-est du centre (voir logx_utils.py).
+    lon += 1.0;
+    lat += 0.5;
+  }
   return { lat, lon };
 }
 
