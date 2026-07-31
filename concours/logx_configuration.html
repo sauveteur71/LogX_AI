@@ -3307,9 +3307,20 @@ const CAT_MODELS = {
     ['IC-R75','5A'], ['IC-R8600','96'],
   ],
   xiegu: [['XIEGU-G90','70'], ['XIEGU-G106','70'], ['XIEGU-X6100','A4'], ['XIEGU-X5105','70']],
+  // Yaesu a DEUX protocoles CAT selon l'epoque du poste, et le pilote natif
+  // n'en parle qu'un.
+  //   - famille ASCII (FT-891, FT-991/991A, FTDX10, FTDX101) : 2 lettres + ';'
+  //   - famille BINAIRE 5 octets (FT-817/818/857/897, FT-847, FT-100) :
+  //     commandes de longueur fixe, le dernier octet est l'opcode.
+  // Les quatre postes binaires etaient proposes ici alors que le pilote natif
+  // leur envoyait « IF; » : ils ne repondent JAMAIS, sans le moindre message
+  // d'erreur cote radio. Ils restent dans la liste — les faire disparaitre
+  // laisserait leur proprietaire sans reponse — mais marques, et le pilotage
+  // passe par le mode rigctld/Hamlib, qui les gere parfaitement.
   yaesu: [
-    ['FT-817'],['FT-818'],['FT-857'],['FT-891'],['FT-897'],
-    ['FT-991'],['FT-991A'],['FTDX10'],['FTDX101D'],['FTDX101MP'],
+    ['FT-891'],['FT-991'],['FT-991A'],['FTDX10'],['FTDX101D'],['FTDX101MP'],
+    ['FT-817', '', 'hamlib'],['FT-818', '', 'hamlib'],
+    ['FT-857', '', 'hamlib'],['FT-897', '', 'hamlib'],
   ],
   kenwood: [['TS-480'],['TS-570'],['TS-2000'],['TS-590S'],['TS-590SG'],['TS-890S'],['TS-990S']],
   elecraft: [['K2'],['K3'],['K3S'],['KX2'],['KX3'],['K4']],
@@ -3338,7 +3349,11 @@ function updateCatModelOptions(){
   const brand = document.getElementById('cat_brand').value;
   const sel = document.getElementById('cat_model');
   const models = CAT_MODELS[brand] || [];
-  sel.innerHTML = models.map(m => `<option value="${m[0]}">${m[0]}</option>`).join('');
+  // m[2] === 'hamlib' : poste que le pilote NATIF ne sait pas commander (voir
+  // le commentaire de CAT_MODELS). Le dire dans l'intitule, sinon l'operateur
+  // choisit son poste, ne voit rien venir, et cherche un probleme de cable.
+  sel.innerHTML = models.map(m => `<option value="${m[0]}">${m[0]}${
+    m[2] === 'hamlib' ? ' — via rigctld/Hamlib' : ''}</option>`).join('');
   const note = document.getElementById('catAddrNote');
   const isCiv = (brand === 'icom' || brand === 'xiegu');
   if (isCiv && models.length){
@@ -3355,9 +3370,15 @@ function updateCatAddrNoteForModel(){
   const brand = document.getElementById('cat_brand').value;
   const model = document.getElementById('cat_model').value;
   const note = document.getElementById('catAddrNote');
+  const entry = (CAT_MODELS[brand] || []).find(m => m[0] === model);
+  if (entry && entry[2] === 'hamlib'){
+    note.textContent = `${model} : protocole CAT binaire 5 octets, que le pilotage `
+      + `natif ne parle pas. Choisis le mode « rigctld / Hamlib » plus haut — `
+      + `Hamlib gère ce poste parfaitement.`;
+    return;
+  }
   const isCiv = (brand === 'icom' || brand === 'xiegu');
   if (!isCiv) { note.textContent = ''; return; }
-  const entry = (CAT_MODELS[brand] || []).find(m => m[0] === model);
   note.textContent = entry ? `Adresse CI-V usine : ${entry[1]} (modifiable sur la radio si besoin)` : '';
 }
 document.addEventListener('DOMContentLoaded', () => {

@@ -162,8 +162,10 @@ class CivRadio:
             return {'ok': False, 'error': 'Pas de réponse mode (CI-V)'}
         return {'ok': True, 'mode': CIV_MODES_REV.get(parsed[4][0], '?')}
 
-    def set_mode(self, mode):
-        code = CIV_MODES.get(mode.upper())
+    def set_mode(self, mode, freq_hz=None):
+        # normaliser_mode traduit le vocabulaire du carnet (SSB, FT8…) vers
+        # celui de la radio (LSB/USB…) — voir son commentaire.
+        code = CIV_MODES.get(normaliser_mode(mode, freq_hz, 'icom'))
         if code is None:
             return {'ok': False, 'error': f"Mode CI-V inconnu : {mode}"}
         parsed = self._query(0x06, data=bytes([code]))
@@ -203,8 +205,12 @@ class CivRadio:
 
 # Tables de mode par marque (les codes diffèrent légèrement — vérifié doc).
 ASCII_MODES = {
+    # 'C' = DATA-USB : le créneau des modes numériques (FT8, FT4, PSK) sur les
+    # Yaesu ASCII. Il manquait — la radio ne pouvait donc PAS être mise en
+    # numérique par le logiciel (voir normaliser_mode ci-dessous).
     'yaesu':    {'1': 'LSB', '2': 'USB', '3': 'CW', '4': 'FM', '5': 'AM',
-                 '6': 'RTTY-LSB', '7': 'CW-R', '9': 'RTTY-USB'},
+                 '6': 'RTTY-LSB', '7': 'CW-R', '9': 'RTTY-USB',
+                 'C': 'DATA-USB'},
     'kenwood':  {'1': 'LSB', '2': 'USB', '3': 'CW', '4': 'FM', '5': 'AM',
                  '6': 'FSK', '7': 'CW-R', '9': 'FSK-R'},
     'elecraft': {'1': 'LSB', '2': 'USB', '3': 'CW', '4': 'FM', '5': 'AM',
@@ -231,6 +237,42 @@ ASCII_ID_TABLE = {
     '019': 'TS-2000', '021': 'TS-590S', '023': 'TS-590SG',
     '022': 'TS-990S', '024': 'TS-890S',
 }
+
+# Postes dont le CAT est BINAIRE 5 octets (famille A Yaesu) : le dernier octet
+# est l'opcode, la trame est de longueur fixe, il n'y a pas de terminateur.
+# Ce pilote ne parle qu'ASCII : il leur envoyait « IF; », auquel ils ne
+# repondent JAMAIS — pas d'erreur, pas de trame, juste le silence, et
+# l'operateur qui cherche un probleme de cable ou de vitesse.
+#
+# Ils NE SONT PAS retires de la page CONFIG : leur proprietaire doit savoir
+# quoi faire, pas voir son poste disparaitre. Le mode rigctld/Hamlib, deja
+# present dans le logiciel, les pilote parfaitement.
+MODELES_CAT_BINAIRE = {
+    'FT-817': 'Yaesu CAT binaire 5 octets',
+    'FT-817ND': 'Yaesu CAT binaire 5 octets',
+    'FT-818': 'Yaesu CAT binaire 5 octets',
+    'FT-857': 'Yaesu CAT binaire 5 octets',
+    'FT-857D': 'Yaesu CAT binaire 5 octets',
+    'FT-897': 'Yaesu CAT binaire 5 octets',
+    'FT-897D': 'Yaesu CAT binaire 5 octets',
+    'FT-847': 'Yaesu CAT binaire 5 octets',
+    'FT-100': 'Yaesu CAT binaire 5 octets',
+    'FT-100D': 'Yaesu CAT binaire 5 octets',
+}
+
+
+def modele_non_pilotable(model):
+    """Message d'explication si ce modèle n'est pas pilotable en natif, sinon
+    None. Retourner un message EXPLICITE vaut infiniment mieux qu'un timeout :
+    le symptôme d'un protocole inadapté et celui d'un câble débranché sont
+    exactement le même — rien ne répond."""
+    proto = MODELES_CAT_BINAIRE.get(str(model or '').upper().strip())
+    if not proto:
+        return None
+    return ('%s : %s, que le pilotage natif ne parle pas. '
+            'Utilise le mode « rigctld / Hamlib », qui gère ce poste.'
+            % (model, proto))
+
 
 BRAND_BY_MODEL = {
     'FT-891': 'yaesu', 'FT-991': 'yaesu', 'FT-991A': 'yaesu', 'FTDX10': 'yaesu',
@@ -286,15 +328,96 @@ def ascii_parse_if(frame, brand):
     return result
 
 
-def ascii_encode_freq_cmd(vfo_cmd, freq_hz):
-    """FAxxxxxxxxxxx; — 11 chiffres, zéros de tête (Kenwood/Elecraft/Yaesu
-    récents). Les modèles Yaesu plus anciens acceptent aussi ce format à
-    11 chiffres (au pire des zéros de tête surnuméraires sans effet)."""
-    return f'{vfo_cmd}{int(freq_hz):011d};'
+# Largeur du champ fréquence, EN CHIFFRES, par marque.
+#
+# DÉFAUT RÉEL QUE ÇA CORRIGE. Cette fonction envoyait 11 chiffres à tout le
+# monde, avec pour justification écrite dans son docstring : « les modèles
+# Yaesu acceptent aussi ce format, au pire des zéros de tête surnuméraires sans
+# effet ». C'était une supposition, pas une lecture de manuel — et elle est
+# fausse : le CAT ASCII Yaesu est à CHAMPS DE LARGEUR FIXE. `FA` y prend
+# 9 chiffres (`FA014074000;`), pas 11.
+#
+# Le code se contredisait lui-même : _IF_FIELDS déclare `('yaesu', 2, 9, ...)`
+# pour LIRE la fréquence. On lisait donc 9 chiffres et on en écrivait 11.
+# Conséquence : sur toute la famille Yaesu ASCII — FT-891, FT-991/991A,
+# FTDX10, FTDX101 — cliquer un spot ne faisait PAS changer la radio de
+# fréquence. C'est la fonction principale du logiciel.
+#
+# NON VÉRIFIÉ SUR MATÉRIEL RÉEL, faute de poste : la source est la fiche CAT
+# Yaesu (« FA;  → FA014074000; ») et la cohérence avec le chemin de lecture
+# déjà en place. À confirmer sur un vrai FT-991A avant de s'y fier.
+ASCII_FREQ_DIGITS = {'yaesu': 9, 'kenwood': 11, 'elecraft': 11}
+ASCII_FREQ_DIGITS_DEFAUT = 11
 
 
-def ascii_encode_mode_cmd(mode, brand, vfo_suffix=''):
-    code = ASCII_MODES.get(brand + '_rev', {}).get(mode.upper())
+def ascii_encode_freq_cmd(vfo_cmd, freq_hz, brand=None):
+    """FA/FB + fréquence en Hz, zéros de tête, puis ';'.
+
+    La largeur dépend de la MARQUE (voir ASCII_FREQ_DIGITS). `brand=None`
+    garde 11 chiffres — le comportement Kenwood/Elecraft, majoritaire.
+    """
+    n = ASCII_FREQ_DIGITS.get(brand, ASCII_FREQ_DIGITS_DEFAUT)
+    return f'{vfo_cmd}{int(freq_hz):0{n}d};'
+
+
+# ─── Le carnet et la radio ne parlent pas la même langue ─────────────────────
+#
+# DÉFAUT RÉEL, mesuré : le carnet manipule SSB · CW · FM · AM · RTTY · FT8 ·
+# FT4 · PSK, la radio veut LSB · USB · CW · AM · FM · RTTY. « SSB » — le mode
+# par défaut au démarrage, et de loin le plus utilisé — ne correspondait à
+# AUCUNE entrée, sur aucune marque. Cliquer un spot changeait donc la
+# fréquence en laissant la radio dans le mode précédent, et l'échec était
+# avalé (set_freq ignore le retour de set_mode). Même chose pour FT8, FT4 et
+# PSK : la radio ne passait jamais en numérique.
+#
+# DEUX CONVENTIONS À CONNAÎTRE, et elles ne se déduisent pas l'une de l'autre :
+#   - PHONIE : LSB sur 160/80/40 m, USB sur 20 m et au-dessus, et toute la
+#     VHF/UHF. La bascule tient à l'usage, pas à un règlement.
+#   - NUMÉRIQUE : USB sur TOUTES les bandes, y compris 80 et 40 m où la phonie
+#     est en LSB. Appliquer la règle de la phonie au FT8 mettrait la radio en
+#     LSB sur 7,074 MHz — la station serait inaudible.
+SEUIL_LSB_USB_HZ = 10_000_000
+
+MODES_NUMERIQUES = frozenset((
+    'FT8', 'FT4', 'JS8', 'JS8CALL', 'PSK', 'PSK31', 'PSK63', 'MFSK',
+    'JT65', 'JT9', 'OLIVIA', 'DATA', 'DIGI', 'DIGITAL', 'MSK144', 'Q65',
+))
+MODES_PHONIE = frozenset(('SSB', 'PHONE', 'PHONIE', 'VOICE'))
+# Nom du créneau numérique par marque. Yaesu a un mode DATA-USB dédié ; sur les
+# autres, l'usage est de rester en USB et de router l'audio par la prise DATA —
+# c'est ce que fait tout le monde, et ça ne peut pas mal tourner.
+MODE_NUMERIQUE_PAR_MARQUE = {'yaesu': 'DATA-USB'}
+# RTTY : trois noms pour la même chose selon la marque.
+MODE_RTTY_PAR_MARQUE = {'yaesu': 'RTTY-LSB', 'kenwood': 'FSK', 'elecraft': 'DATA'}
+
+
+def normaliser_mode(mode, freq_hz=None, brand=None):
+    """Traduit un mode du carnet vers le vocabulaire de la radio.
+
+    `freq_hz` n'est utile que pour la phonie (LSB ou USB). Sans lui, on
+    retourne USB : c'est le choix le moins dommageable — il couvre 20 m et
+    au-dessus, plus toute la VHF/UHF, soit la majorité du trafic, et une erreur
+    de bande latérale s'entend immédiatement.
+    """
+    m = str(mode or '').upper().strip().replace('_', '-')
+    if not m:
+        return ''
+    if m in MODES_PHONIE:
+        try:
+            f = float(freq_hz) if freq_hz else 0
+        except (TypeError, ValueError):
+            f = 0
+        return 'LSB' if 0 < f < SEUIL_LSB_USB_HZ else 'USB'
+    if m in MODES_NUMERIQUES:
+        return MODE_NUMERIQUE_PAR_MARQUE.get(brand, 'USB')
+    if m in ('RTTY', 'FSK'):
+        return MODE_RTTY_PAR_MARQUE.get(brand, 'RTTY')
+    return m
+
+
+def ascii_encode_mode_cmd(mode, brand, vfo_suffix='', freq_hz=None):
+    nom = normaliser_mode(mode, freq_hz, brand)
+    code = ASCII_MODES.get(brand + '_rev', {}).get(nom)
     if code is None:
         return None
     return f'MD{vfo_suffix}{code};'
@@ -329,11 +452,12 @@ class AsciiRadio:
         return parsed
 
     def set_freq(self, freq_hz):
-        reply = self._cmd(ascii_encode_freq_cmd('FA', freq_hz), read_reply=False)
+        reply = self._cmd(ascii_encode_freq_cmd('FA', freq_hz, self.brand),
+                          read_reply=False)
         return {'ok': True}
 
-    def set_mode(self, mode):
-        cmd = ascii_encode_mode_cmd(mode, self.brand)
+    def set_mode(self, mode, freq_hz=None):
+        cmd = ascii_encode_mode_cmd(mode, self.brand, freq_hz=freq_hz)
         if cmd is None:
             return {'ok': False, 'error': f"Mode inconnu pour {self.brand} : {mode}"}
         self._cmd(cmd, read_reply=False)
@@ -504,6 +628,12 @@ def _ensure_connected(settings):
             _persistent.pop('default', None)
         if not settings['port']:
             return None, 'Port série non configuré'
+        # AVANT d'ouvrir le port : un poste au CAT binaire ne repondra a aucune
+        # de nos trames. Ouvrir puis attendre le timeout donnerait « pas de
+        # reponse », strictement indiscernable d'un cable debranche.
+        refus = modele_non_pilotable(settings['model'])
+        if refus:
+            return None, refus
         try:
             transport = _open_serial(settings['port'], baudrate=settings['baudrate'])
         except Exception as e:
@@ -569,7 +699,13 @@ def set_freq(cfg, freq_hz, mode=None):
     try:
         r = driver.set_freq(freq_hz)
         if r.get('ok') and mode:
-            driver.set_mode(mode)
+            # La FRÉQUENCE est passée à set_mode : elle décide de LSB ou USB en
+            # phonie. Et l'échec n'est plus avalé — c'est ce silence qui a
+            # laissé « SSB inconnu » passer inaperçu.
+            m = driver.set_mode(mode, freq_hz)
+            if not m.get('ok'):
+                r = dict(r)
+                r['mode_error'] = m.get('error', 'mode non appliqué')
         return r
     except Exception as e:
         disconnect_persistent()
