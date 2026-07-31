@@ -474,7 +474,7 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
         localStorage.setItem('rc_focus_band', bande);
       }
       $('bandeEnCours').textContent = bande ? bande + ' MHz' : '—';
-      document.title = 'LogX AI — Focus ' + (bande ? bande + ' MHz' : 'bande');
+      document.title = 'LogX AI — ' + (bande ? Tf('Focus {b} MHz', {b: bande}) : T('Focus bande'));
       rendreClassement(d.classement || []);
       rendreSpots(d.spots || []);
       rendreConcours(d.concours || []);

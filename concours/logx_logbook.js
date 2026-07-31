@@ -1120,7 +1120,7 @@ function renderQTCList(){
 }
 
 async function deleteQTCSeries(id){
-  if(!confirm('Supprimer cette série QTC ?')) return;
+  if(!confirm(trT('Supprimer cette série QTC ?'))) return;
   try{ await fetch(`/qtc/delete/${id}`, {method: 'DELETE'}); }catch(e){}
   await refreshQTC();
 }
@@ -2234,9 +2234,9 @@ async function sendVoiceDynMacro(idx){
 function editVoiceDynMacro(idx){
   const macros = getVoiceDynMacros();
   const m = macros[idx];
-  const newLabel = prompt(`Label pour ${m.key} :`, m.label);
+  const newLabel = prompt(trF('Label pour {k} :', {k: m.key}), m.label);
   if(newLabel === null) return;
-  const newText = prompt('Message ({CALL}=correspondant · {MYCALL}=toi · {RST_SENT}/{RST_RCVD}/{NR}) :', m.text);
+  const newText = prompt(trT('Message ({CALL}=correspondant · {MYCALL}=toi · {RST_SENT}/{RST_RCVD}/{NR}) :'), m.text);
   if(newText === null) return;
   macros[idx] = {...m, label:newLabel.trim()||m.label, text:newText.trim()||m.text};
   saveVoiceDynMacros(macros); renderVoiceDynPanel();
@@ -3894,7 +3894,7 @@ function copyShareLink(){
   if(!url || url.endsWith('#')){ notify('Adresse pas encore disponible — serveur injoignable ?'); return; }
   navigator.clipboard.writeText(url)
     .then(()=>notify(trF('📋 Adresse copiée : {url}\nColle-la dans le navigateur des autres postes (même WiFi).', {url})))
-    .catch(()=>prompt('Copie manuelle (Ctrl+C) :', url));
+    .catch(()=>prompt(trT('Copie manuelle (Ctrl+C) :'), url));
 }
 
 // ─── RENDER LOG ───────────────────────────────────────────────────────────────
@@ -4225,7 +4225,7 @@ async function saveEdit(){
 }
 
 async function deleteQSO(id){
-  if(!confirm('Supprimer ce QSO ?')) return;
+  if(!confirm(trT('Supprimer ce QSO ?'))) return;
   qsoLog = qsoLog.filter(q=>q.id!==id);
   try{
     await fetch(`/log/delete/${id}`, {method:'DELETE'});
@@ -5080,9 +5080,9 @@ adaptivePoll(refreshHardware, 3000, 20000,
 function editMacro(idx){
   const macros = getMacros();
   const m = macros[idx];
-  const newLabel = prompt(`Label pour ${m.key} :`, m.label);
+  const newLabel = prompt(trF('Label pour {k} :', {k: m.key}), m.label);
   if(newLabel === null) return;
-  const newText = prompt(`Message ({CALL} {LOC} {NR}) :`, m.text);
+  const newText = prompt(trT('Message ({CALL} {LOC} {NR}) :'), m.text);
   if(newText === null) return;
   macros[idx] = {...m, label:newLabel.trim()||m.label, text:newText.trim()||m.text};
   saveMacros(macros); renderMacroPanel();
@@ -5373,7 +5373,7 @@ function exportCSV(){
 // + résumé). Optionnellement, vide ensuite ce concours du log actif.
 async function archiveLog(){
   try{
-    const clear = confirm('📦 ARCHIVER CE CONCOURS\n\n' +
+    const clear = confirm(trT('📦 ARCHIVER CE CONCOURS') + '\n\n' +
       'Le log du concours actif va être conservé dans un dossier permanent\n' +
       '(log.json + Cabrillo + ADIF + résumé), qui restera même si tu changes\n' +
       'de concours.\n\n' +
@@ -5398,7 +5398,7 @@ async function archiveLog(){
 async function resetLog(){
   const n = qsoLog.length;
   if(!confirm(trF('⚠️ NOUVEAU LOG\n\nSupprime {n} QSO du log ACTIF.\nⓘ Ils sont d\'abord ARCHIVÉS dans un dossier permanent (par concours),\ndonc rien n\'est perdu — tu les retrouveras dans archives/.\n\nTape OK pour continuer.', {n}))) return;
-  const confirmation = prompt('Tape RESET pour confirmer la suppression complète du log :');
+  const confirmation = prompt(trT('Tape RESET pour confirmer la suppression complète du log :'));
   if(confirmation !== 'RESET'){
     notify('Annulé — le log est inchangé.');
     return;
@@ -6967,7 +6967,7 @@ function exportON4KST(){
   navigator.clipboard.writeText(msg).then(()=>{
     const btn = document.querySelector('[onclick="exportON4KST()"]');
     if(btn){ const orig=btn.textContent; btn.textContent='✅ Copié !'; setTimeout(()=>btn.textContent=orig,2000); }
-  }).catch(()=>{ prompt('Copier ce message ON4KST :', msg); });
+  }).catch(()=>{ prompt(trT('Copier ce message ON4KST :'), msg); });
 }
 
 // ─── SECOND ÉCRAN : fenêtres détachables (multi-moniteur) ────────────────────

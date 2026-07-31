@@ -258,7 +258,9 @@ if(localStorage.getItem('rc_theme') === null){
     const p = PANELS[id];
     const body = document.getElementById('panelBody');
     if(!p){ body.innerHTML = '<div class="empty">Panneau inconnu : ' + esc(id) + '</div>'; return; }
-    document.title = 'LogX AI — ' + p.title;
+    // document.title n'est PAS un noeud du DOM : translateTitle() ne lit que
+    // le titre INITIAL de la page, celui-ci lui echappe.
+    document.title = 'LogX AI — ' + (window.rcT ? window.rcT(p.title) : p.title);
     document.getElementById('panelTitle').textContent = p.title;
     setInterval(() => {
       const n = new Date();

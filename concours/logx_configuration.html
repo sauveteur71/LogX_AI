@@ -2215,6 +2215,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 
 <script>
+// Raccourcis i18n (fournis par logx_i18n.js ; repli = identite si absent).
+// Le moteur traduit tout ce qui passe par le DOM, mais PAS alert/confirm/
+// prompt : ces textes ne sont jamais des noeuds. Tf remplace les trous {x}
+// APRES traduction — indispensable des qu'une phrase porte une valeur.
+const T = s => (window.rcT ? window.rcT(s) : s);
+const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+  let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+})());
 // Base locale : {id du champ -> explication en clair}. C'EST la première ligne
 // d'aide (aucun réseau requis) ; la question libre de l'assistant y cherche
 // aussi une correspondance avant, éventuellement, de solliciter l'IA.
@@ -3061,7 +3069,7 @@ async function connectSota(){
   // démarrer avec un clientId périmé (course entre le fetch de sauvegarde
   // et l'ouverture de /sota/oauth/start).
   const clientId = document.getElementById('sota_client_id')?.value.trim();
-  if (!clientId){ alert('Renseigne d\'abord le clientId SOTA ci-dessus.'); return; }
+  if (!clientId){ alert(T('Renseigne d\'abord le clientId SOTA ci-dessus.')); return; }
   saveConfig(true);
   await _lastConfigSavePromise;
   window.open('/sota/oauth/start', 'sota_oauth',
@@ -3853,7 +3861,7 @@ function refreshProfileSelect(){
 }
 
 function saveProfile(){
-  const name = prompt('Nom du profil (ex: F6KQJ RPH 2026, Club 144, Home HF…) :',
+  const name = prompt(T('Nom du profil (ex: F6KQJ RPH 2026, Club 144, Home HF…) :'),
     document.getElementById('profileSelect').value || '');
   if(!name || !name.trim()) return;
   // Capturer l'état courant du formulaire via saveConfig silencieux puis lire
@@ -3864,25 +3872,25 @@ function saveProfile(){
   setProfiles(profiles);
   refreshProfileSelect();
   document.getElementById('profileSelect').value = name.trim();
-  alert(`✅ Profil "${name.trim()}" sauvegardé.`);
+  alert(Tf('✅ Profil « {n} » sauvegardé.', {n: name.trim()}));
 }
 
 function loadProfile(){
   const sel = document.getElementById('profileSelect');
   const name = sel ? sel.value : '';
-  if(!name){ alert('Sélectionnez un profil à charger.'); return; }
+  if(!name){ alert(T('Sélectionnez un profil à charger.')); return; }
   const profiles = getProfiles();
   const cfg = profiles[name];
-  if(!cfg){ alert(`Profil introuvable : ${name}`); return; }
+  if(!cfg){ alert(Tf('Profil introuvable : {n}', {n: name})); return; }
   applyFullConfigToForm(cfg);
-  alert(`📂 Profil "${name}" chargé.`);
+  alert(Tf('📂 Profil « {n} » chargé.', {n: name}));
 }
 
 function deleteProfile(){
   const sel = document.getElementById('profileSelect');
   const name = sel ? sel.value : '';
-  if(!name){ alert('Sélectionnez un profil à supprimer.'); return; }
-  if(!confirm(`Supprimer le profil "${name}" ?`)) return;
+  if(!name){ alert(T('Sélectionnez un profil à supprimer.')); return; }
+  if(!confirm(Tf('Supprimer le profil « {n} » ?', {n: name}))) return;
   const profiles = getProfiles();
   delete profiles[name];
   setProfiles(profiles);
@@ -4664,7 +4672,7 @@ function _missingStationFields(forStep){
 }
 
 function _warnMissingStation(missing){
-  alert('⚠️ Configuration incomplète — merci de compléter avant de continuer :\n\n- ' + missing.join('\n- '));
+  alert(T('⚠️ Configuration incomplète — merci de compléter avant de continuer :') + '\n\n- ' + missing.join('\n- '));
 }
 
 function goStep(n, _internal) {
@@ -4790,7 +4798,7 @@ async function openLocatorMap(){
   document.getElementById('mapLocTileError').style.display = 'none';
   _mapLoc.tileErrorShown = false;
   try{ await _loadLeaflet(); }
-  catch(e){ ov.style.display='none'; alert('Carte indisponible : '+e.message+'.\nLa sélection sur carte nécessite une connexion Internet ; sinon, saisis le locator à la main.'); return; }
+  catch(e){ ov.style.display='none'; alert(Tf('Carte indisponible : {err}.\nLa sélection sur carte nécessite une connexion Internet ; sinon, saisis le locator à la main.', {err: e.message})); return; }
 
   let start = [46.6, 2.5], zoom = 5;   // défaut : centre de la France
   const cll = locatorToLatLon(document.getElementById('locator').value);
@@ -4913,17 +4921,17 @@ async function mapLocSearchGo(){
       const lat = parseFloat(d[0].lat), lon = parseFloat(d[0].lon);
       _mapLoc.map.setView([lat,lon], 12);
       _mapLocSet(lat, lon, false);
-    } else { alert('Lieu introuvable.'); }
-  }catch(e){ alert('Recherche indisponible (connexion Internet requise).'); }
+    } else { alert(T('Lieu introuvable.')); }
+  }catch(e){ alert(T('Recherche indisponible (connexion Internet requise).')); }
 }
 
 function mapLocGeoloc(){
-  if(!navigator.geolocation){ alert('Géolocalisation non disponible sur cet appareil.'); return; }
+  if(!navigator.geolocation){ alert(T('Géolocalisation non disponible sur cet appareil.')); return; }
   navigator.geolocation.getCurrentPosition(p=>{
     const lat = p.coords.latitude, lon = p.coords.longitude;
     if(_mapLoc.map) _mapLoc.map.setView([lat,lon], 13);
     _mapLocSet(lat, lon, false);
-  }, ()=>alert('Position refusée ou indisponible.'), { enableHighAccuracy:true, timeout:8000 });
+  }, ()=>alert(T('Position refusée ou indisponible.')), { enableHighAccuracy:true, timeout:8000 });
 }
 
 async function _reverseGeocodeCity(lat, lon){
@@ -5050,7 +5058,7 @@ function copyPrompt() {
   const ta = document.getElementById('generatedPrompt');
   ta.select();
   document.execCommand('copy');
-  alert('Prompt copié dans le presse-papiers !');
+  alert(T('Prompt copié dans le presse-papiers !'));
 }
 
 // ─── FOURNISSEUR IA ──────────────────────────────────────────────────────────
@@ -5288,14 +5296,14 @@ function saveConfig(silent = false, feedbackBtn = null) {
       const clubLogMissing = ['clublog_email','clublog_callsign','clublog_password','clublog_api_key']
         .some(id => !document.getElementById(id).value.trim());
       if(clubLogMissing){
-        alert('⚠️ Club Log Live Stream est activé mais les identifiants ClubLog ne sont pas tous renseignés (email, indicatif, mot de passe, clé API) — remplis-les dans la section QSL ou désactive le Live Stream.');
+        alert(T('⚠️ Club Log Live Stream est activé mais les identifiants ClubLog ne sont pas tous renseignés (email, indicatif, mot de passe, clé API) — remplis-les dans la section QSL ou désactive le Live Stream.'));
         return false;
       }
     }
     // Même garde-fou que ci-dessus (B2), pour l'envoi auto QRZ Logbook.
     if(document.getElementById('qrz_logbook_push').value === '1'
        && !document.getElementById('qrz_logbook_key').value.trim()){
-      alert('⚠️ L\'envoi auto QRZ Logbook est activé mais la clé API QRZ Logbook est vide — renseigne-la dans la section QSL ou désactive l\'envoi auto.');
+      alert(T('⚠️ L\'envoi auto QRZ Logbook est activé mais la clé API QRZ Logbook est vide — renseigne-la dans la section QSL ou désactive l\'envoi auto.'));
       return false;
     }
     // SOTA : la case d'approbation IA sans clientId n'a pas de sens (rien à
@@ -5304,7 +5312,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     // renseigner le clientId avant d'avoir fini la démarche d'approbation.
     if(document.getElementById('sota_ai_approval_ack')?.checked
        && !document.getElementById('sota_client_id').value.trim()){
-      alert('⚠️ La case d\'approbation SOTA est cochée mais aucun clientId n\'est renseigné — inutile sans clientId.');
+      alert(T('⚠️ La case d\'approbation SOTA est cochée mais aucun clientId n\'est renseigné — inutile sans clientId.'));
       return false;
     }
   }
@@ -5508,7 +5516,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
       setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,#00D4FF)'; }, 1500);
     }
   } else {
-    alert('✅ Configuration sauvegardée !');
+    alert(T('✅ Configuration sauvegardée !'));
   }
   return true;
 }
@@ -6461,7 +6469,7 @@ async function analyzeRules(url, name){
   name = name || document.getElementById('aiRulesName').value.trim();
   const status = document.getElementById('aiAnalyzeStatus');
   const btn = document.getElementById('aiAnalyzeBtn');
-  if (!url){ alert('Indique l\'URL du règlement (PDF ou page web).'); return; }
+  if (!url){ alert(T('Indique l\'URL du règlement (PDF ou page web).')); return; }
   // Correctif M1 : mémorise le concours actif au lancement de l'analyse — si
   // l'utilisateur en choisit un autre pendant les 30-90s d'analyse IA,
   // saveReviewedDefinition() doit le savoir pour ne pas écraser silencieusement
