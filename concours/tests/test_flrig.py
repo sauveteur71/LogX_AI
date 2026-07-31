@@ -49,6 +49,10 @@ class FakeFlrig:
     def close(self):
         self.srv.shutdown()
         self.srv.server_close()
+        # Sans le join, le thread serve_forever du test N peut encore vivre
+        # pendant le test N+1 — c'est la famille de fuites qui rendait la
+        # suite non reproductible (diagnostic du 31/07/2026).
+        self._thread.join(timeout=5)
 
 
 def test_get_state():

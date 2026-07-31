@@ -65,14 +65,19 @@ def serveur_ephemere():
         handler = type('H', (_FakeHandler,),
                        {'payload': payload, 'ctype': ctype})
         srv = http.server.ThreadingHTTPServer((host, 0), handler)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
-        serveurs.append(srv)
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        serveurs.append((srv, t))
         return srv.server_address[1]
 
     yield _start
-    for srv in serveurs:
+    # shutdown + server_close + JOIN : sans le join, le thread serve_forever
+    # du test N vit encore pendant le test N+1 — la famille de fuites qui
+    # rendait la suite non reproductible (diagnostic du 31/07/2026).
+    for srv, t in serveurs:
         srv.shutdown()
         srv.server_close()
+        t.join(timeout=5)
 
 
 @pytest.fixture
@@ -98,17 +103,19 @@ def serveur_dual_stack():
             srv = _DualStack(('::', 0), handler)
         except OSError as e:                     # poste sans IPv6
             pytest.skip('pas de socket IPv6 dual-stack ici : %s' % e)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
-        serveurs.append(srv)
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        serveurs.append((srv, t))
         port = srv.server_address[1]
         if not S._port_accepts('127.0.0.1', port, 1.0):
             pytest.skip('IPv6 dual-stack non joignable en IPv4 sur ce poste')
         return port
 
     yield _start
-    for srv in serveurs:
+    for srv, t in serveurs:
         srv.shutdown()
         srv.server_close()
+        t.join(timeout=5)
 
 
 @pytest.fixture
