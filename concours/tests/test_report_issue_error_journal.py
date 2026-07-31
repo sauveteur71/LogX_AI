@@ -86,6 +86,11 @@ def _pre_fix_src():
 # touche jamais le DOM), juste navigator/prompt/alert/window.open mockés,
 # comme tests/test_report_issue_unicode.py ────────────────────────────────
 _HARNESS_PREAMBLE = r"""
+// rcT : le VRAI logx_statusbar.js definit ce repli en tete de son IIFE
+// (`const rcT = s => (window.rcT ? window.rcT(s) : s)`), au-dessus du bloc que
+// ce test extrait. Sans lui ici, le bloc extrait leve « rcT is not defined » —
+// un echec du BANC D'ESSAI, pas du produit : en page reelle, le repli est la.
+function rcT(s){ return s; }
 var navigator = { platform: 'TestPlatform', userAgent: 'TestUA/1.0' };
 var openedUrl = null;
 var window = { open: function(url){ openedUrl = url; return {}; } };

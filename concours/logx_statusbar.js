@@ -61,6 +61,22 @@
   }
   const pad = n => String(n).padStart(2, '0');
 
+  // ── Traduction ─────────────────────────────────────────────────────────────
+  // Le gros du texte de cette barre est injecté par innerHTML : le
+  // MutationObserver de logx_i18n.js le traduit tout seul, une entrée de
+  // dictionnaire suffit. Ces deux raccourcis servent aux DEUX cas qu'aucun
+  // observateur ne peut atteindre :
+  //   • ce qui sort du DOM — prompt(), confirm(), et `el.title = …` posé
+  //     depuis le JS (l'observateur ne surveille pas les attributs) ;
+  //   • ce qui est ASSEMBLÉ avec une valeur (`'… (depuis ' + n + ' min)'`) :
+  //     la chaîne finale ne pourra jamais être une clé, donc on traduit le
+  //     gabarit et on y réinjecte la valeur.
+  // Repli identité si logx_i18n.js n'est pas encore chargé — cette barre est
+  // incluse AVANT lui sur plusieurs pages, et rien ne doit dépendre de l'ordre.
+  const rcT = s => (window.rcT ? window.rcT(s) : s);
+  const rcTf = (s, p) => (window.rcTf ? window.rcTf(s, p)
+    : String(s).replace(/\{(\w+)\}/g, (m, k) => (p && k in p) ? p[k] : m));
+
   // ── Création du DOM ────────────────────────────────────────────────────────
   const bar = document.createElement('div');
   bar.id = 'rcStatusBar';
@@ -195,7 +211,7 @@
   bar.addEventListener('click', function(e){
     if (!e.target.closest('#rcsbRateItem')) return;
     const cur = localStorage.getItem('rc_rate_goal') || '0';
-    const v = prompt('Objectif de rate (QSO/h) — 0 pour désactiver :', cur);
+    const v = prompt(rcT('Objectif de rate (QSO/h) — 0 pour désactiver :'), cur);
     if (v !== null){
       localStorage.setItem('rc_rate_goal', String(parseInt(v, 10) || 0));
       refreshRate();
@@ -302,9 +318,10 @@
         if (!list.length){ el.textContent = '—'; return; }
         const main = list.find(function(b){ return b.band === '20m'; }) || list[0];
         el.textContent = main.call + ' ' + main.band;
-        item.title = 'Balises NCDXF/IBP actives maintenant : ' + list.map(function(b){
-          return b.band + ' ' + b.call + ' (' + b.qth + ')';
-        }).join(' · ') + ' — clic : panneau complet + écoute';
+        item.title = rcTf('Balises NCDXF/IBP actives maintenant : {liste} — clic : panneau complet + écoute',
+          {liste: list.map(function(b){
+            return b.band + ' ' + b.call + ' (' + b.qth + ')';
+          }).join(' · ')});
       }).catch(function(){});
   }
   refreshBeacon();
@@ -378,10 +395,10 @@
           el.style.fontWeight = '';
         }
         item.title = (d.storm
-            ? 'ORAGE sur le QTH — débranche les antennes. '
-            : 'Aucun orage sur le QTH ' + (d.desc ? '(' + d.desc + '). ' : '. '))
+            ? rcT('ORAGE sur le QTH — débranche les antennes.') + ' '
+            : rcT('Aucun orage sur le QTH') + ' ' + (d.desc ? '(' + d.desc + '). ' : '. '))
           + (d.warn ? d.warn + ' — ' : '')
-          + 'Clic : carte de foudre en direct Blitzortung.org (nouvel onglet).';
+          + rcT('Clic : carte de foudre en direct Blitzortung.org (nouvel onglet).');
       }).catch(function(){});
   }
   // PAS de refreshStorm() ici : la barre n'est encore qu'un <div> détaché à ce
@@ -409,15 +426,19 @@
         const el = document.getElementById('rcsbNetworkText');
         if (!item || !el || !d) return;
         const parts = [];
+        // Chaque morceau est traduit AVANT le join : la chaîne assemblée
+        // (« Callbook hors ligne · Cloud Sync en échec ») ne serait une clé
+        // dans aucun dictionnaire, et resterait donc en français dès qu'il y a
+        // plus d'un service dégradé — précisément le cas où on la lit.
         if (d.callbook && d.callbook.open){
-          parts.push('Callbook hors ligne (retry ' + d.callbook.wait_s + 's)');
+          parts.push(rcTf('Callbook hors ligne (retry {s}s)', {s: d.callbook.wait_s}));
         }
         if (d.solar && d.solar.degraded){
-          parts.push('Météo solaire injoignable');
+          parts.push(rcT('Météo solaire injoignable'));
         }
         if (d.cloudsync && d.cloudsync.enabled && d.cloudsync.last_error){
           const mn = Math.max(0, Math.round(d.cloudsync.last_error.age_s / 60));
-          parts.push('Cloud Sync en échec (depuis ' + mn + ' min)');
+          parts.push(rcTf('Cloud Sync en échec (depuis {n} min)', {n: mn}));
         }
         if (parts.length){
           item.style.display = 'flex';
@@ -482,11 +503,13 @@
     // LOGBOOK SIMPLE : pas de concours, même si un concours a été choisi ou
     // testé auparavant (state.contest peut rester en mémoire côté serveur).
     if (cfg.usage_mode === 'simple'){
-      el.textContent = 'logbook simple'; el.title = 'Mode logbook simple — pas de concours actif';
+      // .title posé depuis le JS : l'observateur du moteur ne surveille pas les
+      // attributs, donc lui seul ne suffirait pas — d'où rcT() ici.
+      el.textContent = 'logbook simple'; el.title = rcT('Mode logbook simple — pas de concours actif');
       return;
     }
     const id = cfg.contest;
-    if (!id){ el.textContent = 'aucun concours'; el.title = 'Choisis un concours dans CONFIG → étape 2'; return; }
+    if (!id){ el.textContent = 'aucun concours'; el.title = rcT('Choisis un concours dans CONFIG → étape 2'); return; }
     el.textContent = contestNames[id] || id;
   }
 
@@ -506,7 +529,7 @@
       if (isNaN(end)){ el.textContent = '—'; return; }
       if (start && now < start){
         const days = Math.ceil((start - now) / 86400000);
-        el.textContent = `début dans ${days} j`;
+        el.textContent = rcTf('début dans {j} j', {j: days});
         el.classList.add('rcsb-soon');
         return;
       }
@@ -541,12 +564,13 @@
       const d = await r.json();
       if (d.last_update){
         const dt = new Date(d.last_update);
-        el.textContent = `règlements : ${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`;
+        el.textContent = rcTf('règlements : {date}',
+          {date: `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`});
       } else {
         el.textContent = 'règlements : jamais vérifiés';
       }
       if (d.alerts && d.alerts.length){
-        el.textContent += ` · ⚠️ ${d.alerts.length} alerte(s)`;
+        el.textContent += rcTf(' · ⚠️ {n} alerte(s)', {n: d.alerts.length});
         el.style.color = 'var(--yellow,#FFD60A)';
       }
     }catch(e){ el.textContent = 'règlements : serveur ?'; }
@@ -577,11 +601,11 @@
     let actionHtml;
     if (dl.status === 'downloading'){
       actionHtml = `<div class="rcsb-upd-progress"><div class="rcsb-upd-progress-fill" style="width:${dl.pct}%"></div></div>
-        <div style="text-align:center;margin-top:4px;color:var(--muted,#A9B0C8)">téléchargement ${dl.pct}%</div>`;
+        <div style="text-align:center;margin-top:4px;color:var(--muted,#A9B0C8)">${rcTf('téléchargement {pct}%', {pct: dl.pct})}</div>`;
     } else if (dl.status === 'done'){
       actionHtml = `<div class="rcsb-upd-row"><button id="rcsbUpdInstall">🔁 installer et redémarrer</button></div>`;
     } else if (dl.status === 'error'){
-      actionHtml = `<div style="color:var(--red,#FF2D55);margin-top:6px">échec : ${(dl.error||'').replace(/[<>&]/g,'')}</div>
+      actionHtml = `<div style="color:var(--red,#FF2D55);margin-top:6px">${rcTf('échec : {err}', {err: (dl.error||'').replace(/[<>&]/g,'')})}</div>
         <div class="rcsb-upd-row"><button id="rcsbUpdDownload">réessayer</button></div>`;
     } else if (st.installable){
       actionHtml = `<div class="rcsb-upd-row">
@@ -774,7 +798,7 @@
 
   function openReportIssue(){
     const description = prompt(
-      "Décris le problème rencontré (inclus dans l'issue GitHub, tu pourras la relire avant envoi) :", '');
+      rcT("Décris le problème rencontré (inclus dans l'issue GitHub, tu pourras la relire avant envoi) :"), '');
     if (description === null) return; // annulé
 
     const version = (_updState && _updState.current) || 'inconnue';
@@ -824,8 +848,9 @@
         return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
       }).join('&');
     }catch(err){
-      alert("Impossible de préparer le rapport de bug (caractère invalide dans le texte saisi). "
-          + 'Ouvre directement une Issue sur https://github.com/' + repo + '/issues/new');
+      alert(rcT("Impossible de préparer le rapport de bug (caractère invalide dans le texte saisi).") + " "
+          + rcTf('Ouvre directement une Issue sur {url}',
+                 {url: 'https://github.com/' + repo + '/issues/new'}));
       return;
     }
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -881,7 +906,28 @@
     bandmap:      {w: 260, h: 640, label: 'Band Map'},
     workedmatrix: {w: 480, h: 520, label: 'Worked Matrix'},
   };
-  const _openWindows = {};   // panelId -> ref fenêtre (perdu au rechargement — une disposition rouvre les fenêtres)
+  const _openWindows = {};   // clé d'instance -> ref fenêtre (perdu au rechargement — une disposition rouvre les fenêtres)
+
+  // CLÉ D'INSTANCE, pas de type. Un band map n'a de sens que rapporté À UNE
+  // BANDE : en vouloir cinq côte à côte (20 m, 15 m, 10 m, 6 m, 2 m) sur un 2e
+  // écran est l'usage NORMAL en concours, pas un cas limite.
+  //
+  // DÉFAUT CORRIGÉ ICI : le nom de fenêtre était « rc_panel_bandmap », sans la
+  // bande. Or window.open() RÉUTILISE la fenêtre qui porte déjà ce nom : le 2e
+  // band map ne s'ouvrait pas, il faisait CHANGER DE BANDE le premier. Aucune
+  // erreur, aucun message — juste une fenêtre qui saute d'une bande à l'autre
+  // pendant qu'on croit en avoir ouvert deux.
+  function panelKey(id, g){
+    return (id === 'bandmap' && g && g.band) ? id + '@' + g.band : id;
+  }
+  function panelBand(cle){
+    const i = String(cle).indexOf('@');
+    return i < 0 ? null : String(cle).slice(i + 1);
+  }
+  function panelId(cle){
+    const i = String(cle).indexOf('@');
+    return i < 0 ? String(cle) : String(cle).slice(0, i);
+  }
 
   function openPanel(id, geo){
     const d = PANEL_DEFAULTS[id];
@@ -892,23 +938,43 @@
     const top = g.y != null ? g.y : Math.max(0, (screen.height - h) / 2);
     let url = 'logx_panel.html?id=' + encodeURIComponent(id);
     if (id === 'bandmap' && g.band) url += '&band=' + encodeURIComponent(g.band);
-    const win = window.open(url, 'rc_panel_' + id,
+    const cle = panelKey(id, g);
+    // Le nom de fenêtre doit être un identifiant simple : la bande peut
+    // contenir un point (10.1 MHz), que l'on remplace comme le fait déjà
+    // popoutBandes() dans logx_logbook.js.
+    const nom = 'rc_panel_' + cle.replace('@', '_').replace(/\./g, '_');
+    const win = window.open(url, nom,
       `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no`);
-    if (win) _openWindows[id] = win;
+    if (win) _openWindows[cle] = win;
     return win;
   }
-  function closePanel(id){
-    const win = _openWindows[id];
+  function closePanel(cle){
+    const win = _openWindows[cle];
     if (win && !win.closed) win.close();
-    delete _openWindows[id];
+    delete _openWindows[cle];
   }
-  function isPanelOpen(id){
-    const win = _openWindows[id];
+  function isPanelOpen(cle){
+    const win = _openWindows[cle];
     return !!(win && !win.closed);
+  }
+  // Toutes les instances OUVERTES d'un type — « bandmap » en a autant que de
+  // bandes détachées.
+  function openInstances(id){
+    return Object.keys(_openWindows).filter(function(cle){
+      return panelId(cle) === id && isPanelOpen(cle);
+    });
   }
   window.rcOpenPanel = function(id, geo){ return openPanel(id, geo); };
   window.rcClosePanel = function(id){ closePanel(id); };
-  window.rcTogglePanel = function(id){ isPanelOpen(id) ? closePanel(id) : openPanel(id); renderLayoutDD(); };
+  // Le bouton du menu agit sur le TYPE : s'il y a cinq band maps ouverts,
+  // « fermer » les ferme tous les cinq — sinon il en resterait quatre à
+  // fermer une par une, alors que le bouton affiche « fermer (5) ».
+  window.rcTogglePanel = function(id){
+    const ouvertes = openInstances(id);
+    if (ouvertes.length) ouvertes.forEach(closePanel);
+    else openPanel(id);
+    renderLayoutDD();
+  };
 
   function getLayouts(){
     try { return JSON.parse(localStorage.getItem('rc_layouts') || '{}'); }
@@ -922,13 +988,20 @@
     if (!name) return;
     const layouts = getLayouts();
     const panels = {};
-    Object.keys(PANEL_DEFAULTS).forEach(function(id){
-      if (!isPanelOpen(id)) return;
-      const win = _openWindows[id];
+    // On parcourt les fenêtres OUVERTES, pas la liste des TYPES de panneaux :
+    // sinon cinq band maps sur cinq bandes n'en auraient enregistré qu'un, et
+    // recharger la disposition en aurait rouvert un seul. La bande est
+    // mémorisée dans l'entrée pour pouvoir rouvrir la bonne.
+    Object.keys(_openWindows).forEach(function(cle){
+      if (!isPanelOpen(cle)) return;
+      const win = _openWindows[cle];
       let geo = {};
       try { geo = {w: win.outerWidth, h: win.outerHeight, x: win.screenX, y: win.screenY}; }
       catch (e) { /* fenêtre cross-origin ou navigateur restrictif : tailles par défaut au chargement */ }
-      panels[id] = geo;
+      geo.id = panelId(cle);
+      const b = panelBand(cle);
+      if (b) geo.band = b;
+      panels[cle] = geo;
     });
     layouts[name] = {panels: panels};
     setLayouts(layouts);
@@ -938,15 +1011,21 @@
     const layout = getLayouts()[name];
     if (!layout) return;
     // Ferme d'abord ce qui n'appartient pas à cette disposition
-    Object.keys(_openWindows).forEach(function(id){
-      if (!layout.panels[id]) closePanel(id);
+    Object.keys(_openWindows).forEach(function(cle){
+      if (!layout.panels[cle]) closePanel(cle);
     });
     // Ouvre/repositionne chaque panneau de la disposition (synchrone, dans le
     // même geste de clic — les navigateurs bloquent les popup ouvertes hors
     // d'une interaction utilisateur directe).
-    Object.keys(layout.panels).forEach(function(id){
-      closePanel(id);
-      openPanel(id, layout.panels[id]);
+    Object.keys(layout.panels).forEach(function(cle){
+      const geo = layout.panels[cle] || {};
+      // Dispositions enregistrées AVANT l'ajout des instances : la clé valait
+      // le type seul et l'entrée n'avait ni `id` ni `band`. On les relit sans
+      // rien casser en dérivant les deux depuis la clé.
+      const id = geo.id || panelId(cle);
+      if (!geo.band) { const b = panelBand(cle); if (b) geo.band = b; }
+      closePanel(cle);
+      openPanel(id, geo);
     });
     renderLayoutDD();
   }
@@ -971,9 +1050,14 @@
     const layouts = getLayouts();
     const names = Object.keys(layouts);
     const panelRows = Object.keys(PANEL_DEFAULTS).map(function(id){
-      const open = isPanelOpen(id);
+      // Compte les INSTANCES : cinq band maps ouverts, c'est « fermer (5) ».
+      // Se contenter de isPanelOpen(id) afficherait « ouvrir » alors que cinq
+      // fenêtres sont sous les yeux de l'opérateur.
+      const n = openInstances(id).length;
+      const suffixe = n > 1 ? ' (' + n + ')' : '';
       return '<div class="rcsb-panel-row"><span>' + PANEL_DEFAULTS[id].label + '</span>'
-        + '<button data-panel-toggle="' + id + '">' + (open ? 'fermer' : 'ouvrir') + '</button></div>';
+        + '<button data-panel-toggle="' + id + '">'
+        + (n ? 'fermer' + suffixe : 'ouvrir') + '</button></div>';
     }).join('');
     const layoutRows = names.length
       ? names.map(function(n){
@@ -984,8 +1068,8 @@
       : '<div style="color:var(--muted,#A9B0C8);padding:2px 0">aucune disposition enregistrée</div>';
     dd.innerHTML =
       '<div class="rcsb-dd-title">PANNEAUX</div>' + panelRows +
-      '<hr><div class="rcsb-dd-title">DISPOSITIONS ENREGISTRÉES</div>' + layoutRows +
-      '<hr><input type="text" id="rcsbNewLayoutName" placeholder="nom de la disposition">' +
+      '<hr><div class="rcsb-dd-title">' + rcT('DISPOSITIONS ENREGISTRÉES') + '</div>' + layoutRows +
+      '<hr><input type="text" id="rcsbNewLayoutName" placeholder="' + rcT('nom de la disposition') + '">' +
       '<div style="display:flex;gap:6px;margin-top:6px">' +
       '<button id="rcsbSaveLayoutBtn" style="flex:1">💾 enregistrer l\'actuelle</button>' +
       '<button id="rcsbResetLayoutBtn">tout fermer</button></div>';

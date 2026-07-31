@@ -98,6 +98,11 @@ def _bug_yml_os_options():
 # ─── Contexte JS minimal : pas besoin du DOM complet, juste navigator/
 # prompt/alert/window.open mockés, comme les autres tests du module ────────
 _HARNESS_PREAMBLE = r"""
+// rcT : le VRAI logx_statusbar.js definit ce repli en tete de son IIFE
+// (`const rcT = s => (window.rcT ? window.rcT(s) : s)`), au-dessus du bloc que
+// ce test extrait. Sans lui ici, le bloc extrait leve « rcT is not defined » —
+// un echec du BANC D'ESSAI, pas du produit : en page reelle, le repli est la.
+function rcT(s){ return s; }
 var navigator = { platform: 'Win32', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' };
 var openedUrl = null;
 var window = { open: function(url){ openedUrl = url; return {}; } };
