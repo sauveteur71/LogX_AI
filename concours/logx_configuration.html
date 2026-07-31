@@ -3377,6 +3377,25 @@ function updateCatAddrNoteForModel(){
       + `Hamlib gère ce poste parfaitement.`;
     return;
   }
+  // VITESSE : 4800 est le repli par defaut de la marque Yaesu, et c'est la
+  // valeur d'usine des FT-8x7 et des Yaesu historiques (FT-840, FT-900,
+  // FT-1000) — un repli sur pour un premier branchement.
+  //
+  // Mais le pilote NATIF ne gere justement PAS ces postes-la (CAT binaire, ils
+  // passent par Hamlib). Les Yaesu qu'il gere — FT-891, FT-991/991A, FTDX10,
+  // FTDX101 — sortent d'usine bien plus haut, 9600 ou 38400. Le champ
+  // pre-rempli a 4800 les fait donc echouer... sur un « pas de reponse »
+  // indiscernable d'un cable debranche.
+  //
+  // On ne devine PAS la valeur exacte par modele (elle depend du menu CAT
+  // RATE, que l'operateur a pu changer) : on le DIT, et il regarde son poste.
+  if (brand === 'yaesu' && entry){
+    note.textContent = `Vérifie la vitesse : le champ propose 4800 bauds `
+      + `(valeur d'usine des FT-8x7), mais un ${model} sort d'usine plus haut — `
+      + `9600 ou 38400 selon le poste. La valeur est dans le menu CAT RATE de `
+      + `la radio, et les deux doivent coïncider, sinon rien ne répond.`;
+    return;
+  }
   const isCiv = (brand === 'icom' || brand === 'xiegu');
   if (!isCiv) { note.textContent = ''; return; }
   note.textContent = entry ? `Adresse CI-V usine : ${entry[1]} (modifiable sur la radio si besoin)` : '';

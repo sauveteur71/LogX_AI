@@ -197,6 +197,28 @@ def test_la_page_affiche_la_mention_a_l_ecran():
     assert 'rigctld/Hamlib' in src
 
 
+# ─── La vitesse Yaesu : repli conservé, silence supprimé ─────────────────────
+
+def test_le_repli_yaesu_reste_a_4800():
+    """DÉCISION DE L'OPÉRATEUR (F4GLD), pas une déduction : 4800 est la valeur
+    d'usine des FT-8x7 et des Yaesu historiques (FT-840, FT-900, FT-1000),
+    donc un repli sûr au premier branchement. Ce test existe pour qu'une
+    « correction » future ne la change pas sans le vouloir."""
+    assert C.CAT_DEFAULT_BAUD['yaesu'] == 4800
+
+
+def test_mais_la_page_PREVIENT_pour_les_postes_reellement_pilotes():
+    """Le pilote natif ne gère PAS les FT-8x7 (CAT binaire, ils passent par
+    Hamlib). Les Yaesu qu'il gère sortent d'usine à 9600 ou 38400 : pré-remplir
+    4800 les fait échouer sur un « pas de réponse » indiscernable d'un câble
+    débranché. On ne devine pas la valeur — on dit où la lire."""
+    html = os.path.join(CONCOURS, 'logx_configuration.html')
+    with open(html, encoding='utf-8') as f:
+        src = f.read()
+    assert 'CAT RATE' in src
+    assert '38400' in src
+
+
 # ─── 3. Le carnet et la radio ne parlaient pas la même langue ────────────────
 #
 # MESURÉ AVANT CORRECTION : « SSB » — mode par défaut au démarrage, et de loin
