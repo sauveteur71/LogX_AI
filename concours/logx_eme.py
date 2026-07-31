@@ -115,18 +115,47 @@ def doppler_shift_hz(lat, lon, freq_mhz, elevation_m=0, when=None):
         return {'available': False, 'error': str(e)}
 
 
+# Réflecteur lunaire : rayon 1738 km, albédo radar ≈ 6,5 % de la section
+# géométrique. Ces deux valeurs, injectées dans l'équation radar ci-dessous,
+# redonnent les pertes de référence à moins de 0,5 dB sur les trois bandes EME
+# usuelles (252 / 262 / 271 dB à 144 / 432 / 1296 MHz) — c'est la vérification
+# qui les valide, pas leur provenance.
+RAYON_LUNE_M = 1_738_000.0
+ALBEDO_RADAR_LUNE = 0.065
+SIGMA_LUNE_M2 = ALBEDO_RADAR_LUNE * math.pi * RAYON_LUNE_M ** 2
+
+
 def path_loss_db(distance_km, freq_mhz):
-    """Atténuation de parcours en espace libre ALLER-RETOUR (formule FSPL
-    standard, doublée pour Terre→Lune→Terre) — physique de base, pas une
-    supposition. N'inclut PAS le gain de réflexion propre à la Lune (son
-    albédo radar réel varie selon les sources et les conditions de
-    libration ; plutôt que d'inventer une constante précise, ce chiffre
-    reste explicitement le plancher théorique, à charge pour l'opérateur
-    d'y ajouter la dégradation empirique de son propre bilan de liaison)."""
+    """Perte de trajet EME totale Terre→Lune→Terre, en dB.
+
+    ÉQUATION RADAR, et c'est tout l'objet de cette correction.
+
+    CE QUE FAISAIT LE CODE : il calculait la perte en espace libre sur un
+    trajet simple, puis la DOUBLAIT EN dB. Doubler des décibels revient à
+    élever le rapport de puissance au carré — ça ne décrit aucune physique.
+    Résultat mesuré : 374,6 dB à 144 MHz au lieu de 252, soit 123 dB de trop ;
+    et l'erreur croissait avec la fréquence (+19 dB entre 144 et 432 MHz là où
+    la réalité en donne 10), parce que la perte variait comme f⁴ au lieu de f².
+
+    Le docstring appelait ça « le plancher théorique », en expliquant qu'il
+    n'incluait pas l'albédo lunaire. C'était une justification, pas une mesure :
+    un plancher trop haut de 123 dB n'est pas un plancher, c'est un chiffre qui
+    dit que l'EME est impossible. La Lune n'est pas un point qui réémet — elle
+    a une SECTION EFFICACE gigantesque, et c'est elle qui manquait.
+
+    L = 10·log10( (4π)³ · d⁴ / (λ² · σ) )
+
+    N'inclut ni la dégradation (périgée/apogée, bruit de ciel, Voie lactée) ni
+    la rotation de Faraday : ce sont des conditions du moment, pas de la
+    géométrie. L'écart périgée/apogée ressort en revanche naturellement du
+    calcul — environ 2,3 dB, conforme aux ~2 dB documentés.
+    """
     if distance_km <= 0 or freq_mhz <= 0:
         return None
-    fspl_one_way_db = 32.45 + 20 * math.log10(freq_mhz) + 20 * math.log10(distance_km)
-    return round(2 * fspl_one_way_db, 1)
+    d_m = distance_km * 1000.0
+    lambda_m = 299_792_458.0 / (freq_mhz * 1e6)
+    rapport = ((4 * math.pi) ** 3 * d_m ** 4) / (lambda_m ** 2 * SIGMA_LUNE_M2)
+    return round(10 * math.log10(rapport), 1)
 
 
 def common_window(lat1, lon1, lat2, lon2, hours=48, step_minutes=10, min_elevation_deg=0):

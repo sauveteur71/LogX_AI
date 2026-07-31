@@ -2285,7 +2285,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 freq_mhz = float((qs.get('freq') or ['144.1'])[0])
             except ValueError:
                 freq_mhz = 144.1
-            self._json(eme.doppler_shift_hz(lat, lon, freq_mhz, cfg_snap.get('altitude', 0) or 0))
+            _dop = eme.doppler_shift_hz(lat, lon, freq_mhz, cfg_snap.get('altitude', 0) or 0)
+            # PERTE DE TRAJET, jointe au Doppler. path_loss_db() existait déjà
+            # mais n'avait AUCUN appelant : une fonction fausse de 123 dB que
+            # personne ne voyait — corrigée par l'équation radar, elle sert
+            # enfin à quelque chose. La distance vient de la position lunaire
+            # du moment, donc le chiffre suit le cycle périgée/apogée (≈ 2 dB).
+            try:
+                _pos = eme.moon_position(lat, lon, cfg_snap.get('altitude', 0) or 0)
+                _d = _pos.get('distance_km') if isinstance(_pos, dict) else None
+                if _d:
+                    _dop['path_loss_db'] = eme.path_loss_db(_d, freq_mhz)
+                    _dop['distance_km'] = _d
+            except Exception:
+                pass    # la perte de trajet est un bonus : jamais au prix du Doppler
+            self._json(_dop)
             return
 
         # Fenêtre commune (Lune visible des DEUX QTH simultanément) avec un
