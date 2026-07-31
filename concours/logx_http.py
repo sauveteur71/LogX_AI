@@ -2256,6 +2256,75 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(awards.dx_records(cfg_snap.get('locator', ''), log_copy))
             return
 
+        # SATELLITES : quand passe-t-il, et où pointer.
+        #
+        # UN SEUL APPEL rend le prochain passage, la liste des suivants, la
+        # position instantanée, le Doppler et L'ÂGE DU JEU TLE. Cet âge n'est
+        # pas un détail de journal : un TLE se dégrade, et une prédiction
+        # calculée sur un jeu de trois semaines est fausse sans le dire. Il
+        # part donc avec la réponse, systématiquement.
+        #
+        # AUCUN ACCÈS RÉSEAU ICI : le téléchargement des TLE se fait en tâche
+        # de fond (logx_serveur), le handler ne lit que le cache disque. Sur une
+        # expédition sans Internet, cet endpoint continue de répondre avec le
+        # dernier jeu connu — dégradé, mais annoncé comme tel.
+        if path.startswith('/data/sat'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_sat_passes as satp
+            qp = parse_qs(urlparse(self.path).query)
+            cfg_snap = self._cfg_snapshot()
+            lat, lon = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            if lat is None:
+                self._json({'available': False,
+                            'error': 'Locator manquant ou invalide (page CONFIG)'})
+                return
+            alt_m = cfg_snap.get('altitude', 0) or 0
+            nom = (qp.get('sat', [''])[0] or cfg_snap.get('satellite', '')
+                   or 'ISS (ZARYA)').strip()
+            try:
+                heures = max(1, min(168, float(qp.get('hours', ['24'])[0])))
+            except ValueError:
+                heures = 24
+            try:
+                el_min = max(0.0, min(89.0, float(qp.get('min_el', ['0'])[0])))
+            except ValueError:
+                el_min = 0.0
+            try:
+                freq = float(qp.get('freq', ['145.8'])[0])
+            except ValueError:
+                freq = 145.8
+
+            cache = satp.charger_tle()
+            out = {'available': False, 'sat': nom,
+                   'tle_age': satp.age_tle(cache),
+                   'satellites': satp.satellites_connus(cache)}
+            if not cache:
+                out['error'] = ("Aucun jeu TLE en cache — il se télécharge au "
+                                "démarrage du serveur (CelesTrak).")
+                self._json(out)
+                return
+            # Chaque source est isolée : un satellite absent du jeu ne doit pas
+            # emporter la position, ni l'inverse.
+            try:
+                r = satp.passages(cache, nom, lat, lon, alt_m, heures=heures,
+                                  elevation_min=el_min)
+                out['passages'] = r.get('passages', [])
+                out['available'] = bool(r.get('available'))
+                if r.get('error'):
+                    out['error'] = r['error']
+            except Exception as e:
+                out['error'] = str(e)
+            try:
+                pos = satp.position(cache, nom, lat, lon, alt_m)
+                if pos.get('available'):
+                    out['position'] = pos
+                    out['doppler_hz'] = satp.doppler_hz(pos['range_rate_ms'], freq)
+                    out['freq_mhz'] = freq
+            except Exception:
+                pass
+            self._json(out)
+            return
+
         # EME (rebond lunaire) : position de la Lune depuis mon QTH + lever/
         # coucher — calculé localement (PyEphem), aucune donnée réseau.
         if path == '/data/eme_moon':

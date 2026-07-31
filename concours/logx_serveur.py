@@ -126,6 +126,27 @@ if __name__ == '__main__':
     from logx_dxcc import update_cty_if_stale
     threading.Thread(target=update_cty_if_stale, daemon=True).start()
 
+    # TLE des satellites amateur (CelesTrak) : mêmes raisons que cty.dat, plus
+    # une qui lui est propre — un TLE se DÉGRADE. Une éphéméride de trois
+    # semaines donne des passages faux de plusieurs minutes, ce qui suffit à
+    # rater un passage de dix minutes.
+    #
+    # EN FOND, ET JAMAIS BLOQUANT : sur une expédition sans Internet, le
+    # serveur doit démarrer normalement et la prédiction continuer sur le
+    # dernier jeu connu. rafraichir_tle() refuse d'écraser un cache valide par
+    # une réponse inexploitable (portail captif) — c'est là que ça se joue.
+    def _maj_tle():
+        try:
+            import logx_sat_passes as satp
+            age = satp.age_tle(satp.charger_tle())
+            if age is None or age['etat'] != 'frais':
+                r = satp.rafraichir_tle()
+                print('[TLE] %s' % ('%d satellites' % r['nb'] if r.get('ok')
+                                    else r.get('error', 'echec')))
+        except Exception as e:
+            print('[TLE] indisponible : %s' % e)
+    threading.Thread(target=_maj_tle, daemon=True).start()
+
     # Liste publique des utilisateurs LoTW (ARRL) : sert à colorer les
     # indicatifs et à écarter des alertes les stations qui n'uploadent jamais
     # — un QSO avec elles ne sera jamais confirmé, donc ne comptera jamais pour

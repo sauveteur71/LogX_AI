@@ -64,3 +64,7 @@ concours/voice_messages/
 
 # Band map Search & Pounce : notes de balayage, propres a la station
 concours/bandmap_local.json
+
+# TLE des satellites amateur (CelesTrak) : cache telecharge, se regenere
+# seul au demarrage. Le suivre figerait une ephemeride perimee dans le depot.
+concours/tle_amateur.json
