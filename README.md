@@ -43,7 +43,7 @@ Guide complet, dépannage et FAQ : [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILIS
 
 ## Statut du projet
 
-Version courante : **0.9-beta11** ([journal des modifications](docs/CHANGELOG.md)). Phases 0 à 4 livrées, Phase 5 (validation terrain) en cours. Roadmap détaillée et exigences à venir dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
+Version courante : **0.9-beta12** ([journal des modifications](docs/CHANGELOG.md)). Phases 0 à 4 livrées, Phase 5 (validation terrain) en cours. Roadmap détaillée et exigences à venir dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
 
 Le logiciel se met à jour tout seul : au lancement, il compare sa version à la dernière release et propose le téléchargement, dont il vérifie l'empreinte SHA-256 avant de remplacer quoi que ce soit.
 

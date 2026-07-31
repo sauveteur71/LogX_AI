@@ -11,6 +11,58 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta12] - 2026-07-31
+
+Suite de la beta11, même méthode : le code confronté à des références
+chiffrées plutôt que relu. Six défauts de plus, et le chantier des traductions
+terminé.
+
+### Corrigé
+
+- **Les dialogues du logiciel étaient intraduisibles.** Le moteur de traduction
+  couvre tout ce qui passe par le DOM, mais `alert`/`confirm`/`prompt` ne sont
+  jamais des nœuds : rien ne pouvait les voir. La page CONFIGURATION — la plus
+  longue, celle qu'on voit en premier — n'avait même aucun mécanisme de
+  traduction pour ses 20 dialogues. **31 textes traduits × 7 langues.**
+- **Le locator n'était pas validé côté serveur.** `JN18ZZ` donnait un point
+  situé **hors de son propre carré** ; `ZZ99XX`, une longitude de 339° ;
+  `JN18@@`, un point avant le coin du carré. Aucun message : une position
+  plausible et fausse. Les locators viennent du cluster, de PSK Reporter, de
+  l'import ADIF — et surtout de la saisie manuelle en concours, où la faute de
+  frappe est la règle. En THF, un locator faux, c'est un multiplicateur faux.
+- **Tout locator à 4 caractères tombait 3,8 km au nord-est du centre de son
+  carré**, systématiquement, dans les trois implémentations à la fois.
+- **La perte de trajet EME était fausse de 123 dB** — 374 dB à 144 MHz au lieu
+  de 252 — et sa croissance avec la fréquence l'était aussi. Le calcul doublait
+  une atténuation en décibels au lieu d'appliquer l'équation radar : la Lune
+  n'est pas un point qui réémet, elle a une immense surface réfléchissante.
+  Vérifié contre les trois valeurs de référence à moins de 0,4 dB. *La fonction
+  n'avait aucun appelant : personne n'a jamais vu ce chiffre. Elle est désormais
+  branchée sur le panneau EME, avec la distance lunaire du moment.*
+- **Pendant un orage géomagnétique, le logiciel fermait le 6 m au moment même où
+  il y annonçait l'aurora.** À K=6 le score d'ouverture de la bande chutait de
+  40 %, pendant que le coach affichait « aurora possible, pointe au nord ».
+  Il se trompait de signe. La pénalité par bande a été **retirée** : aucune
+  norme n'en donne (l'échelle du NOAA est latitudinale, pas fréquentielle), et
+  une tempête peut tout aussi bien *améliorer* la propagation. L'aurora reste
+  annoncée là où elle est fondée — et elle **ouvre** la VHF.
+- **La table de bandes des transverters décrivait encore la région 2** (6 m
+  jusqu'à 54 MHz, 2 m jusqu'à 148) après la correction de la beta11 : deux
+  tables du même logiciel décrivaient les mêmes bandes différemment.
+
+### Modifié
+
+- **L'indice A géomagnétique est enfin servi.** Il était récupéré, affiché, et
+  n'entrait dans aucun calcul — or c'est lui qui porte l'**historique** des
+  dernières 24 h, ce qu'un indice instantané ne peut pas donner. Il est
+  désormais transmis à l'écran et à l'assistant IA, qui peuvent en tenir compte.
+- **Le plan de bandes dit d'où viennent ses chiffres.** Les bornes légales
+  (ANFR) et le découpage par mode (convention IARU) sont deux choses
+  différentes, qui évoluent à des rythmes différents ; elles étaient mélangées
+  sans que rien ne le dise. L'absence de segments au-dessus de 440 MHz est
+  maintenant un **choix documenté** — la réglementation du 23 cm est en cours
+  de révision — et non un oubli.
+
 ## [0.9-beta11] - 2026-07-31
 
 Version de **correction**, sans nouvelle fonctionnalité. Sept défauts, tous
