@@ -124,9 +124,18 @@ if(localStorage.getItem('rc_theme') === null){
 }
 
 (function(){
+  // Raccourcis i18n (fournis par logx_i18n.js ; repli = identité si absent).
+  // Tf remplace les trous {x} APRÈS traduction : indispensable dès qu'un texte
+  // contient une valeur, puisque la phrase assemblée — « Aucun spot sur 14 MHz »
+  // — ne peut être aucune clé de dictionnaire, elle change avec la bande.
+  const T = s => (window.rcT ? window.rcT(s) : s);
+  const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+    let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+  })());
   if(location.protocol === 'file:'){
-    document.body.innerHTML = '<div class="empty">Ouvre via le serveur : ' +
-      'http://127.0.0.1:8080/logx_bande.html?band=14</div>';
+    document.body.innerHTML = '<div class="empty">'
+      + Tf('Ouvre via le serveur : {url}',
+           {url: 'http://127.0.0.1:8080/logx_bande.html?band=14'}) + '</div>';
     return;
   }
   const params = new URLSearchParams(location.search);
@@ -166,7 +175,7 @@ if(localStorage.getItem('rc_theme') === null){
     const tags = [];
     if(besoin) tags.push('<span class="tag besoin">DXCC</span>');
     if(s.lotw === true) tags.push('<span class="tag lotw">LoTW</span>');
-    else if(s.lotw === false) tags.push('<span class="tag nolotw">pas LoTW</span>');
+    else if(s.lotw === false) tags.push('<span class="tag nolotw">' + T('pas LoTW') + '</span>');
     // Le serveur envoie des kHz (freq_en_khz) ; on affiche des MHz, seule
     // écriture qu'un opérateur lit d'un coup d'oeil. data-freq garde les kHz,
     // c'est ce que /rig/qsy attend.
@@ -253,7 +262,8 @@ if(localStorage.getItem('rc_theme') === null){
         spots.length ? spots.length + ' spot' + (spots.length>1?'s':'') : '';
       const liste = document.getElementById('liste');
       if(!spots.length){
-        liste.innerHTML = '<div class="empty">Aucun spot sur ' + esc(bande) + ' MHz</div>';
+        liste.innerHTML = '<div class="empty">'
+          + Tf('Aucun spot sur {bande} MHz', {bande: esc(bande)}) + '</div>';
         // La réglette reste dessinée : bande vide = bande ENTIÈREMENT libre,
         // c'est une information, pas une absence d'information.
         dessinerRegle([]);

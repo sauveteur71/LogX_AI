@@ -70,7 +70,15 @@ if(localStorage.getItem('rc_theme') === null){
   }).catch(()=>{});
 }
 (function(){
-  if(location.protocol==='file:'){ document.body.innerHTML='<div class="empty">Ouvre via le serveur : http://127.0.0.1:8080/logx_scope.html</div>'; return; }
+  // Raccourcis i18n (fournis par logx_i18n.js ; repli = identite si absent).
+  // rcTf remplace les trous {x} APRES traduction : indispensable des qu'un
+  // texte contient une valeur, puisque la phrase assemblee ne peut pas etre
+  // une cle de dictionnaire.
+  const T = s => (window.rcT ? window.rcT(s) : s);
+  const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+    let o = s; for (const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+  })());
+  if(location.protocol==='file:'){ document.body.innerHTML='<div class="empty">' + Tf('Ouvre via le serveur : {url}', {url: 'http://127.0.0.1:8080/logx_scope.html'}) + '</div>'; return; }
   const BAND_LABELS={'1.8':'160m','3.5':'80m','7':'40m','14':'20m','21':'15m','28':'10m','50':'6m','70':'4m','144':'2m','432':'70cm','1296':'23cm','2320':'13cm','3400':'9cm','5760':'6cm','10368':'3cm','24048':'6mm','47088':'4mm'};
   const BM_RANGE={'1.8':[1.8,2.0],'3.5':[3.5,4.0],'7':[7.0,7.3],'14':[14.0,14.35],'21':[21.0,21.45],'28':[28.0,29.7],'50':[50,54],'70':[70,70.5],'144':[144,148],'432':[430,440],'1296':[1240,1300],'2320':[2300,2450],'3400':[3400,3475],'5760':[5650,5925],'10368':[10000,10500],'24048':[24000,24250],'47088':[47000,47200]};
   const PCOL={1:'var(--red)',2:'var(--accent)',3:'var(--yellow)',4:'var(--accent2)',5:'var(--muted)'};
@@ -228,7 +236,7 @@ if(localStorage.getItem('rc_theme') === null){
         const col=s.new_mult?'var(--green)':(PCOL[s.priority]||'var(--text)');
         const st=`color:${col}`+(s.already_done?';opacity:.45;text-decoration:line-through':'');
         return `<div class="srow"><span class="sf">${f.toFixed(3)}</span><span class="sc" style="${st}">${s.new_mult?'★':''}${esc(s.call)}</span><span class="si">${esc(s.info||s.spotter||'')}</span></div>`;
-      }).join('') : '<div class="empty">Aucun spot sur '+bandLabel(band)+'</div>';
+      }).join('') : '<div class="empty">' + Tf('Aucun spot sur {bande}', {bande: bandLabel(band)}) + '</div>';
     }catch(e){}
   }
 

@@ -347,8 +347,18 @@ if(localStorage.getItem('rc_theme') === null){
   }).catch(()=>{});
 }
 (function(){
+  // Raccourcis i18n (fournis par logx_i18n.js ; repli = identité si absent).
+  // Tf remplace les trous {x} APRÈS traduction : une phrase qui contient une
+  // valeur — « il y a 12 min » — ne peut correspondre à aucune clé, elle change
+  // à chaque rafraîchissement.
+  const T = s => (window.rcT ? window.rcT(s) : s);
+  const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+    let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+  })());
   if(location.protocol==='file:'){
-    document.body.innerHTML='<div style="padding:60px;text-align:center;font-family:monospace;color:#FF2D55">Ouvre via le serveur : http://127.0.0.1:8080/logx_wall.html</div>';
+    document.body.innerHTML='<div style="padding:60px;text-align:center;font-family:monospace;color:#FF2D55">'
+      + Tf('Ouvre via le serveur : {url}',
+           {url: 'http://127.0.0.1:8080/logx_wall.html'}) + '</div>';
     return;
   }
   let lastTopKey='';
@@ -568,8 +578,8 @@ if(localStorage.getItem('rc_theme') === null){
 
   // ── ROULEMENT OPÉRATEURS : actif(s) maintenant + planning à venir ────────
   function fmtAge(secs){
-    if(secs<60) return "à l'instant";
-    return `il y a ${Math.round(secs/60)} min`;
+    if(secs<60) return T("à l'instant");
+    return Tf('il y a {n} min', {n: Math.round(secs/60)});
   }
 
   // Bornes {start,end} d'un créneau en UTC. Sans date explicite (cas courant,
@@ -632,8 +642,8 @@ if(localStorage.getItem('rc_theme') === null){
         // Prochain créneau qui commence dans les 15 min -> mis en évidence.
         const startsSoon=!inProgress && (x.start-now)<=15*60*1000;
         const cls=inProgress?'now':(startsSoon?'soon':'');
-        const tag=inProgress?'<span class="sh-tag now">● EN COURS</span>'
-          :startsSoon?'<span class="sh-tag soon">⏰ BIENTÔT</span>':'';
+        const tag=inProgress?'<span class="sh-tag now">● ' + T('EN COURS') + '</span>'
+          :startsSoon?'<span class="sh-tag soon">⏰ ' + T('BIENTÔT') + '</span>':'';
         const modeBadge=['ssb','cw','digi'].includes(String(s.mode||'').toLowerCase())
           ?`<span class="opbadge on">${esc(String(s.mode).toUpperCase())}</span>`:'';
         return `<div class="shrow ${cls}"><span class="sh-time">${esc(s.start)}–${esc(s.end)}</span>`+
