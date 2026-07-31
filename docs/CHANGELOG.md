@@ -11,6 +11,61 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta11] - 2026-07-31
+
+Version de **correction**, sans nouvelle fonctionnalité. Sept défauts, tous
+trouvés en confrontant le code à une référence radioamateur chiffrée (plan de
+bandes IARU R1 / France, et fiches de pilotage CAT) au lieu de le relire.
+
+### Corrigé — plan de bandes
+
+- **FT8 était classé PHONIE sur 6 m, 2 m et 70 cm, et CW sur 160, 80 et 12 m.**
+  Six bandes sur douze. Choisir « SSB » sur 2 m affichait donc les spots FT8 —
+  le mode le plus utilisé au monde, sur les bandes des concours THF. *Pourquoi
+  un découpage par plages ne pouvait pas y arriver : le plan de bandes officiel
+  et l'usage réel ne coïncident pas. 144,174 MHz tombe dans le segment « SSB »
+  du plan IARU R1, et c'est pourtant LA fréquence FT8 du 2 m, la même partout
+  dans le monde.* Les fréquences d'appel numériques (FT8, FT4, JS8, WSPR) sont
+  désormais consultées avant le plan de bandes.
+- **La table des segments décrivait l'Amérique du Nord** : 40 m jusqu'à 7,300 ·
+  80 m jusqu'à 4,000 · 160 m jusqu'à 2,000 · 6 m jusqu'à 54 · 2 m jusqu'à 148,
+  et une bande 222 MHz **qui n'existe pas en région 1**. La réglette montrait
+  des centaines de kHz où un opérateur français n'a pas le droit d'émettre, et
+  un clic sur une épingle placée là commandait un QSY hors bande. Un spot hors
+  des bandes françaises est maintenant **conservé mais marqué** : l'entendre
+  renseigne sur la propagation, y répondre n'est pas permis.
+- **Le 4 m (70 MHz) était proposé comme bande standard.** Il est attribué dans
+  plusieurs pays de région 1, pas aux amateurs en France. Il réapparaît si un
+  spot y tombe ou si un concours l'utilise — le cas de l'expédition.
+- **Une bande WARC pouvait être « recommandée » pendant un concours**, où la
+  convention IARU les interdit. Seule la recommandation est bridée : la bande
+  reste affichée avec son score, et hors concours elle redevient recommandable.
+
+### Corrigé — pilotage de la radio
+
+- **« SSB » n'atteignait aucune table de mode, sur aucune marque.** Le carnet
+  parle *SSB · FT8 · FT4 · PSK*, la radio veut *LSB · USB*. Sur douze modes du
+  carnet, cinq seulement arrivaient quelque part. Cliquer un spot changeait la
+  fréquence et **laissait la radio dans son mode précédent**, sans un mot.
+  Deux conventions sont désormais appliquées, et elles ne se déduisent pas
+  l'une de l'autre : la **phonie** est en LSB sur 160/80/40 m puis USB à partir
+  du 20 m ; le **numérique est en USB sur toutes les bandes**, y compris là où
+  la phonie est en LSB — sans quoi la radio se serait mise en LSB sur 7,074 MHz.
+- **Le QSY ne fonctionnait pas sur les Yaesu ASCII** (FT-891, FT-991/991A,
+  FTDX10, FTDX101) : la fréquence partait sur 11 chiffres à un protocole à
+  champs de largeur fixe qui en attend 9.
+- **FT-817, FT-818, FT-857 et FT-897 étaient proposés** alors que leur CAT est
+  binaire et que le pilotage natif ne parle qu'ASCII : la radio ne répondait
+  jamais, exactement comme un câble débranché. Ils restent proposés, marqués
+  **« via rigctld/Hamlib »**, avec l'explication affichée — et le pilote natif
+  les refuse avant d'ouvrir le port au lieu d'attendre un délai d'expiration.
+- **Le mode DATA-USB manquait pour les Yaesu** : la radio ne pouvait pas être
+  mise en numérique par le logiciel.
+- **La vitesse série** est signalée sur la page CONFIG : le champ propose
+  4800 bauds (valeur d'usine des FT-8x7 et des Yaesu historiques), mais les
+  postes pilotés en natif sortent d'usine plus haut, et les deux valeurs
+  doivent coïncider sinon rien ne répond.
+
 ## [0.9-beta10] - 2026-07-31
 
 ### Ajouté
