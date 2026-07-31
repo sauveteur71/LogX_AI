@@ -182,3 +182,56 @@ def test_sans_module_de_diplomes_les_suggestions_sont_vides_sans_erreur(server, 
     _casser(monkeypatch, 'logx_awards', 'spotted_new_ones')
     d = _get(server, '/data/focus?band=14')
     assert d['ok'] is True and d['suggestions'] == []
+
+
+# ─── Le defaut signale a l'ecran : « si je change le mode, le cluster ne
+#     change pas ! il affiche digital cw ssb... » ─────────────────────────────
+
+def test_CHAQUE_SPOT_PORTE_SON_MODE(server):
+    """Sans ce champ, aucun filtre n'etait possible : le cluster n'annonce pas
+    le mode, il faut le deduire de la frequence cote serveur."""
+    d = _get(server, '/data/focus?band=14')
+    for s in d['spots']:
+        assert 'mode' in s, s
+
+
+def test_LE_MODE_FILTRE_REELLEMENT_LA_LISTE(server):
+    """Le coeur du signalement. Demander CW ne doit plus rendre des spots
+    phonie."""
+    import logx_awards as awards
+    d = _get(server, '/data/focus?band=14&mode=CW')
+    for s in d['spots']:
+        cat = (s.get('mode') or awards.mode_depuis_frequence(s.get('freq')) or '')
+        assert cat in ('', 'CW'), s
+
+
+def test_demander_SSB_ne_rend_pas_de_CW(server):
+    d = _get(server, '/data/focus?band=14&mode=SSB')
+    for s in d['spots']:
+        assert (s.get('mode') or '') != 'CW', s
+
+
+def test_sans_mode_la_liste_est_au_moins_aussi_longue(server):
+    """Un filtre ne peut qu'enlever des lignes."""
+    tout = _get(server, '/data/focus?band=14')
+    cw = _get(server, '/data/focus?band=14&mode=CW')
+    assert len(cw['spots']) <= len(tout['spots'])
+
+
+def test_chaque_region_porte_un_SCORE_POUR_CETTE_BANDE(server):
+    """La page affichait « · » pour toute region dont la bande regardee n'etait
+    pas la meilleure — sept regions listees sans dire a quel point elles sont
+    ouvertes."""
+    d = _get(server, '/data/focus?band=14')
+    for r in d['regions']:
+        assert 'score_bande' in r, r
+        assert isinstance(r['score_bande'], (int, float)), r
+
+
+def test_les_carres_renvoyes_portent_LEURS_bandes(server):
+    """Nouvelle semantique : carres deja faits AILLEURS, donc cibles ici. La
+    liste des bandes ou ils sont faits est ce qui permet d'en juger."""
+    d = _get(server, '/data/focus?band=14')
+    for c in d['carres_manquants']:
+        assert 'square' in c and 'bandes' in c, c
+        assert '14' not in c['bandes'], c

@@ -238,24 +238,14 @@ def test_un_concours_sans_duree_ne_leve_pas():
         assert F.concours_actifs(cal, now=MAINTENANT) == []
 
 
-# ─── Carrés manquants ────────────────────────────────────────────────────────
-
-def test_les_carres_deja_travailles_sont_ecartes():
-    c = F.carres_manquants([{'square': 'JN18', 'worked': True},
-                            {'square': 'JN19', 'worked': False}])
-    assert [x['square'] for x in c] == ['JN19']
-
-
-def test_UN_CARRE_SANS_BANDE_EST_CONSERVE():
-    """Il manque partout : le masquer parce qu'on regarde le 20 m priverait
-    l'opérateur d'une cible valable sur cette bande aussi."""
-    c = F.carres_manquants([{'square': 'JN18'}], bande='14')
-    assert [x['square'] for x in c] == ['JN18']
-
-
-def test_un_carre_d_une_AUTRE_bande_est_ecarte():
-    c = F.carres_manquants([{'square': 'JN18', 'band': '144'}], bande='14')
-    assert c == []
+# ─── Carrés ──────────────────────────────────────────────────────────────────
+# Les trois tests qui vivaient ici ont été SUPPRIMÉS, pas corrigés : ils
+# validaient une forme de données que j'avais SUPPOSÉE (`square`, `worked`,
+# `band`) et que /awards/carres n'a jamais eue. Des tests verts sur une
+# hypothèse fausse sont pires que pas de tests : ils donnent confiance dans une
+# carte qui restait vide en permanence. Les remplaçants, plus bas, travaillent
+# sur la forme réelle ({'g','n','conf','bands'}) et sont accompagnés d'un
+# garde-fou qui tombera si cette forme change.
 
 
 # ─── Robustesse : ces fonctions tournent dans un handler HTTP ────────────────
@@ -266,7 +256,9 @@ def test_un_carre_d_une_AUTRE_bande_est_ecarte():
     (F.spots_par_bande, (None,)),
     (F.qso_recents_par_bande, (None,)),
     (F.concours_actifs, (None,)),
-    (F.carres_manquants, (None,)),
+    (F.carres_a_faire_sur_la_bande, (None,)),
+    (F.filtrer_par_mode, (None, 'CW')),
+    (F.bande_depuis_freq, (None, [])),
 ])
 def test_aucune_entree_vide_ne_leve(fn, args):
     fn(*args)
@@ -279,4 +271,130 @@ def test_des_entrees_ABIMEES_ne_levent_pas():
     F.classer_bandes(['14'], spots=pourries, regions=pourries, log=pourries,
                      now=MAINTENANT)
     F.concours_actifs(pourries, now=MAINTENANT)
-    F.carres_manquants(pourries)
+    F.carres_a_faire_sur_la_bande(pourries)
+    F.filtrer_par_mode(pourries, 'CW')
+
+
+# ─── QUATRE DEFAUTS TROUVES A L'ECRAN, pas par un test ───────────────────────
+# L'utilisateur a ouvert la page et a dit : « si je change le mode CW ou SSB le
+# cluster ne change pas, et les autres cases restent vides ». Les trois causes
+# etaient dans MON code, et toutes venaient de la meme faute de methode :
+# j'avais suppose la forme des donnees au lieu de la lire.
+
+def test_LE_MODE_FILTRE_VRAIMENT_LE_CLUSTER():
+    """Le cluster n'annonce pas le mode : sans deduction depuis la frequence,
+    changer CW/SSB ne changeait STRICTEMENT rien a la liste affichee."""
+    spots = [{'call': 'A', 'freq': 14030.0},    # segment CW
+             {'call': 'B', 'freq': 14250.0},    # segment phonie
+             {'call': 'C', 'freq': 14074.0}]    # segment numerique
+    cw = [s['call'] for s in F.filtrer_par_mode(spots, 'CW')]
+    ssb = [s['call'] for s in F.filtrer_par_mode(spots, 'SSB')]
+    assert cw == ['A'], cw
+    assert ssb == ['B'], ssb
+
+
+def test_un_mode_annonce_par_le_spot_prime_sur_la_frequence():
+    """Rien n'interdit un QSO CW dans un segment phonie : si la source annonce
+    le mode, on la croit."""
+    spots = [{'call': 'A', 'freq': 14250.0, 'mode': 'CW'}]
+    assert [s['call'] for s in F.filtrer_par_mode(spots, 'CW')] == ['A']
+
+
+def test_un_spot_AU_MODE_INDEDUCTIBLE_est_CONSERVE():
+    """Mieux vaut une ligne de trop qu'une station manquee parce que sa
+    frequence sort des creneaux habituels."""
+    spots = [{'call': 'X', 'freq': 0}]
+    assert len(F.filtrer_par_mode(spots, 'CW')) == 1
+
+
+def test_sans_mode_demande_rien_n_est_filtre():
+    spots = [{'call': 'A', 'freq': 14030.0}, {'call': 'B', 'freq': 14250.0}]
+    assert len(F.filtrer_par_mode(spots, '')) == 2
+
+
+def test_SSB_et_PHONE_restent_le_meme_mode_dans_le_filtre():
+    """La table des creneaux repond « PHONE » ; l'operateur choisit « SSB »."""
+    spots = [{'call': 'B', 'freq': 14250.0}]
+    assert len(F.filtrer_par_mode(spots, 'SSB')) == 1
+
+
+# ─── Carres : la VRAIE forme des donnees ─────────────────────────────────────
+
+def _carre(g, bandes, conf=False):
+    """Forme reelle de /awards/carres — que j'avais supposee autrement."""
+    return {'g': g, 'n': 1, 'conf': conf, 'bands': bandes}
+
+
+def test_UN_CARRE_DEJA_FAIT_SUR_CETTE_BANDE_N_EST_PLUS_UNE_CIBLE():
+    c = F.carres_a_faire_sur_la_bande([_carre('JN18', ['14'])], bande='14')
+    assert c == []
+
+
+def test_un_carre_fait_AILLEURS_est_une_cible_sur_cette_bande():
+    """La station existe et elle est a portee : c'est l'information utile."""
+    c = F.carres_a_faire_sur_la_bande([_carre('JN18', ['144'])], bande='14')
+    assert [x['square'] for x in c] == ['JN18']
+    assert c[0]['bandes'] == ['144']
+
+
+def test_les_carres_les_plus_actifs_d_abord():
+    """Un carre fait sur cinq bandes se retrouvera plus facilement sur une
+    sixieme qu'un carre vu une seule fois."""
+    liste = [_carre('AA00', ['144']), _carre('BB11', ['144', '432', '1296'])]
+    c = F.carres_a_faire_sur_la_bande(liste, bande='14')
+    assert [x['square'] for x in c] == ['BB11', 'AA00']
+
+
+def test_LA_FORME_REELLE_DES_CARRES_EST_BIEN_CELLE_ATTENDUE():
+    """Garde-fou de la lecon : mon premier jet cherchait 'square'/'worked'/
+    'band', qui n'existent pas — la carte restait vide en permanence, sans
+    erreur. Si /awards/carres change de forme, ce test doit tomber."""
+    import logx_awards as awards
+    res = awards.carres_travailles([{'call': 'DL1ABC', 'band': '14',
+                                     'locator': 'JN18AA', 'mode': 'SSB',
+                                     'date': '20260101', 'time': '1200'}], '')
+    sq = res.get('squares') or []
+    assert sq, 'aucun carre produit : la forme a change'
+    assert 'g' in sq[0] and 'bands' in sq[0], sq[0]
+
+
+# ─── Bande deduite de la frequence ───────────────────────────────────────────
+
+BANDES = ['1.8', '3.5', '7', '10.1', '14', '18', '21', '28', '50', '144', '432']
+
+
+@pytest.mark.parametrize('freq,attendu', [
+    (14074.0, '14'),      # kHz
+    (14.074, '14'),       # MHz
+    (7150.0, '7'),
+    (10125.0, '10.1'),
+    (430100.0, '432'),    # LE PIEGE : le nom de la bande n'est pas sa borne basse
+    (144300.0, '144'),
+])
+def test_la_bande_se_deduit_de_la_frequence(freq, attendu):
+    assert F.bande_depuis_freq(freq, BANDES) == attendu
+
+
+@pytest.mark.parametrize('freq', [0, None, '', 'abc', 999999.0])
+def test_une_frequence_inutilisable_ne_donne_aucune_bande(freq):
+    assert F.bande_depuis_freq(freq, BANDES) == ''
+
+
+# ─── Score d'ouverture par bande ─────────────────────────────────────────────
+
+def test_la_meilleure_bande_d_une_region_garde_son_score_plein():
+    r = _region('Europe', '14', 80, ['14', '7'])
+    assert F.score_ouverture_region(r, '14') == 80
+
+
+def test_une_AUTRE_bande_ouverte_a_un_score_REDUIT_mais_PAS_NUL():
+    """Afficher « · » revenait a lister des regions ouvertes sans dire a quel
+    point — l'information la plus utile de la carte manquait."""
+    r = _region('Europe', '14', 80, ['14', '7'])
+    s = F.score_ouverture_region(r, '7')
+    assert 0 < s < 80
+
+
+def test_une_bande_fermee_vaut_zero():
+    r = _region('Europe', '14', 80, ['14'])
+    assert F.score_ouverture_region(r, '28') == 0
