@@ -3,7 +3,8 @@
 LogX AI - Serveur principal v3.1
 Point d'entrée : démarrage du serveur HTTP et des tâches de fond.
 Lance avec : python logx_serveur.py
-Puis ouvre  : http://127.0.0.1:8080/logx_configuration.html
+Puis ouvre  : le carnet (logx_logbook.html), ou la page CONFIGURATION tant que
+              l'indicatif n'est pas renseigne — voir logx_bootstrap.py.
 
 Le code est organisé en modules :
   logx_utils.py                — réseau, géodésie locator, modes numériques
