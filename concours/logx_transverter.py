@@ -24,10 +24,22 @@ rester testable sans radio ni serveur.
 # Limites de bande en MHz — même vocabulaire de clés que le band map côté
 # navigateur (_BM_RANGE dans logx_logbook.js) : la clé EST le libellé de bande
 # utilisé dans le log, pas une valeur décorative.
+# BORNES 6 m ET 2 m CORRIGÉES : elles décrivaient la région 2 (50-54 et
+# 144-148) alors que l'allocation est 50-52 et 144-146 en France / région 1.
+# Deux tables du MÊME logiciel décrivaient donc les mêmes bandes différemment
+# — la table de logx_awards vient d'être corrigée sur ce point, et c'est
+# exactement ainsi qu'était né le bug d'unités kHz/MHz du band map : deux
+# sources qui ne s'accordent pas. Un test croisé (tests/test_plan_bandes_
+# iaru_r1.py) les compare désormais l'une à l'autre.
+#
+# Le 4 m est CONSERVÉ ici alors qu'il n'est pas attribué en France : c'est la
+# table des transverters, et un opérateur qui monte un transverter 4 m le fait
+# pour trafiquer là où la bande existe (G, OZ, OH…) ou en expédition. Ce
+# fichier décrit un montage, pas un droit d'émettre.
 BANDES_MHZ = {
-    '50': (50.0, 54.0),
-    '70': (70.0, 70.5),
-    '144': (144.0, 148.0),
+    '50': (50.0, 52.0),      # France / région 1 (50-54 en région 2)
+    '70': (70.0, 70.5),      # non attribué en France — voir ci-dessus
+    '144': (144.0, 146.0),   # région 1 (144-148 en région 2)
     '432': (430.0, 440.0),
     '1296': (1240.0, 1300.0),
     '2320': (2300.0, 2450.0),

@@ -230,6 +230,58 @@ def test_les_bandes_de_concours_ne_sont_pas_marquees_WARC(b):
     assert res[0]['warc'] is False
 
 
+# ─── 6. Les DEUX tables de bandes du logiciel doivent s'accorder ─────────────
+#
+# Il y en a deux, pour deux usages différents : _CRENEAUX_KHZ (logx_awards)
+# découpe les bandes en segments de mode, BANDES_MHZ (logx_transverter) donne
+# les bornes d'allocation au pilotage des transverters.
+#
+# ELLES NE S'ACCORDAIENT PAS. La seconde décrivait encore la région 2 — 6 m
+# jusqu'à 54 MHz, 2 m jusqu'à 148 — après correction de la première. Deux
+# sources qui divergent sur la même grandeur, c'est exactement la forme du bug
+# d'unités kHz/MHz qui avait rendu le band map muet pendant des mois. Le test
+# ci-dessous existe pour que ça ne recommence pas.
+
+def _bornes_awards(cle_mhz):
+    """Bornes d'une bande vues par la table des segments de logx_awards."""
+    seg = aw.segments_bande(cle_mhz)
+    return (seg['lo'], seg['hi']) if seg else None
+
+
+@pytest.mark.parametrize('cle', ['50', '144', '432'])
+def test_les_deux_tables_de_bandes_donnent_les_MEMES_bornes(cle):
+    import logx_transverter as tv
+    attendu = tv.BANDES_MHZ[cle]
+    obtenu = _bornes_awards(cle)
+    assert obtenu is not None, cle
+    assert abs(obtenu[0] - attendu[0]) < 1e-6, (cle, obtenu, attendu)
+    assert abs(obtenu[1] - attendu[1]) < 1e-6, (cle, obtenu, attendu)
+
+
+@pytest.mark.parametrize('cle,haut', [('50', 52.0), ('144', 146.0)])
+def test_les_bornes_de_region_2_ont_bien_disparu_des_DEUX_tables(cle, haut):
+    """50-54 et 144-148 sont les allocations de région 2. Un opérateur de
+    région 1 n'y a pas accès."""
+    import logx_transverter as tv
+    assert tv.BANDES_MHZ[cle][1] == haut, cle
+    assert abs(_bornes_awards(cle)[1] - haut) < 1e-6, cle
+
+
+def test_les_bandes_hyperfrequences_n_ont_PAS_de_segments_et_c_est_ASSUME():
+    """Constat, pas correction. La table des segments s'arrête à 440 MHz : la
+    réglette est donc vide sur 23 cm et au-dessus.
+
+    Je n'invente PAS ces segments. La référence donne les ALLOCATIONS (23 cm
+    1240-1300, 13 cm 2300-2450, 10 GHz…) mais renvoie au plan de bandes IARU R1
+    pour le découpage par mode à l'intérieur — et écrire une table de domaine
+    de mémoire est précisément ce qui a produit tout ce chantier.
+
+    Ce test fige l'état connu : le jour où les segments seront ajoutés depuis
+    une vraie source, il tombera et rappellera de le mettre à jour."""
+    for cle in ('1296', '2320', '3400', '5760', '10368', '24048'):
+        assert aw.segments_bande(cle) is None, cle
+
+
 def test_si_TOUTES_les_bandes_sont_WARC_on_recommande_quand_meme():
     """Cas tordu mais réel : un concours dont la seule bande visible est une
     WARC (World Wide Award, qui les utilise). Mieux vaut recommander que de
