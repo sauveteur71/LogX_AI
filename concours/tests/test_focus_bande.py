@@ -63,14 +63,21 @@ def test_UNE_BANDE_A_MULTIPLICATEURS_PASSE_DEVANT_UNE_BANDE_VIDE_OUVERTE():
     """Le cœur du classement. Une bande grande ouverte mais sans rien dessus ne
     rapporte aucun point ; une bande moyennement ouverte avec deux
     multiplicateurs neufs, si. C'est ce qu'un opérateur fait spontanément, et
-    c'est ce que le classement doit reproduire."""
+    c'est ce que le classement doit reproduire.
+
+    La comparaison porte sur le SCORE et sur le marqueur `recommandee`, PAS sur
+    la position : depuis que l'utilisateur a signale le desordre, la liste sort
+    dans l'ordre des frequences et ne se reordonne plus sous le doigt."""
     classement = F.classer_bandes(
         ['14', '21'],
         spots=[_spot('21', mult=True), _spot('21', mult=True)],
         regions=[_region('Europe', '14', 95, ['14']),
                  _region('Asie', '21', 40, ['21'])],
         now=MAINTENANT)
-    assert classement[0]['band'] == '21', classement
+    par_bande = {x['band']: x for x in classement}
+    assert par_bande['21']['score'] > par_bande['14']['score'], classement
+    assert par_bande['21']['recommandee'] is True
+    assert par_bande['14']['recommandee'] is False
 
 
 def test_une_bande_sans_rien_finit_derriere():
@@ -79,8 +86,9 @@ def test_une_bande_sans_rien_finit_derriere():
         spots=[_spot('14')],
         regions=[_region('Europe', '14', 60, ['14'])],
         now=MAINTENANT)
-    assert classement[-1]['band'] == '28'
-    assert classement[-1]['score'] == 0
+    par_bande = {x['band']: x for x in classement}
+    assert par_bande['28']['score'] == 0
+    assert par_bande['28']['recommandee'] is False
 
 
 def test_un_spot_DEJA_TRAVAILLE_ne_fait_pas_monter_la_bande():
@@ -96,9 +104,10 @@ def test_le_run_en_cours_compte():
     ailleurs."""
     log = [_qso('14', m) for m in range(0, 50, 5)]   # 10 QSO dans l'heure
     c = F.classer_bandes(['14', '21'], log=log, now=MAINTENANT)
-    assert c[0]['band'] == '14'
-    assert c[0]['qso_derniere_heure'] == 10
-    assert 'run en cours' in c[0]['pourquoi']
+    q = {x['band']: x for x in c}['14']
+    assert q['recommandee'] is True
+    assert q['qso_derniere_heure'] == 10
+    assert 'run en cours' in q['pourquoi']
 
 
 def test_un_QSO_trop_ancien_ne_fait_pas_un_run():
@@ -398,3 +407,85 @@ def test_une_AUTRE_bande_ouverte_a_un_score_REDUIT_mais_PAS_NUL():
 def test_une_bande_fermee_vaut_zero():
     r = _region('Europe', '14', 80, ['14'])
     assert F.score_ouverture_region(r, '28') == 0
+
+
+# ─── Ordre et completude du bandeau ──────────────────────────────────────────
+# DEUX REPROCHES DE L'UTILISATEUR, tous deux fondes : « pourquoi les bandes
+# sont dans le desordre » et « pourquoi il manque plusieurs bandes ».
+
+def test_LES_BANDES_SONT_DANS_L_ORDRE_DES_FREQUENCES():
+    """Le bandeau etait trie par SCORE. Il se relit toutes les 15 s : les
+    bandes changeaient de place sous le doigt, et retrouver « le 20 m »
+    demandait de relire les huit etiquettes a chaque fois."""
+    b = F.bandes_a_proposer([], [])
+    valeurs = [float(x) for x in b]
+    assert valeurs == sorted(valeurs), b
+
+
+def test_le_CLASSEMENT_aussi_sort_dans_l_ordre_des_frequences():
+    c = F.classer_bandes(['28', '14', '3.5'],
+                         spots=[_spot('28', mult=True)] * 3, now=MAINTENANT)
+    assert [x['band'] for x in c] == ['3.5', '14', '28']
+
+
+def test_la_bande_recommandee_est_SIGNALEE_sans_changer_de_place():
+    """L'information du classement ne disparait pas : elle passe de la POSITION
+    a un marqueur, qui ne bouge pas quand les scores evoluent."""
+    c = F.classer_bandes(['28', '14'], spots=[_spot('28', mult=True)] * 3,
+                         now=MAINTENANT)
+    reco = [x['band'] for x in c if x.get('recommandee')]
+    assert reco == ['28'], c
+
+
+def test_aucune_bande_recommandee_quand_rien_ne_se_passe():
+    """Mettre en avant une bande au hasard serait un mauvais conseil."""
+    c = F.classer_bandes(['14', '28'], now=MAINTENANT)
+    assert not any(x.get('recommandee') for x in c)
+
+
+def test_TOUT_LE_PLAN_DE_BANDES_EST_PROPOSE_meme_hors_concours():
+    """La liste venait des seules bandes du concours : hors concours, ou sur un
+    concours a deux bandes, la page devenait borgne."""
+    b = F.bandes_a_proposer([], [])
+    for attendue in ('1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28',
+                     '50', '144', '432'):
+        assert attendue in b, (attendue, b)
+
+
+def test_les_bandes_WARC_sont_la():
+    """30, 17 et 12 m manquaient dans les captures de l'utilisateur."""
+    b = F.bandes_a_proposer(['14'], [])
+    assert '10.1' in b and '18' in b and '24' in b
+
+
+def test_une_bande_HORS_TABLE_apparait_si_un_spot_y_tombe():
+    """Les hyperfrequences ne sont pas dans le plan de bandes decoupe en
+    segments ; elles doivent quand meme etre atteignables quand il s'y passe
+    quelque chose."""
+    b = F.bandes_a_proposer([], [{'band': '1296'}])
+    assert '1296' in b
+
+
+def test_une_bande_du_concours_hors_table_apparait_aussi():
+    b = F.bandes_a_proposer(['2320'], [])
+    assert '2320' in b
+
+
+def test_la_bande_DEMANDEE_apparait_meme_si_rien_ne_la_signale():
+    b = F.bandes_a_proposer([], [], bande_demandee='5760')
+    assert '5760' in b
+
+
+def test_les_bandes_du_concours_sont_MARQUEES_sans_etre_privilegiees():
+    """On doit pouvoir regarder ailleurs : le marqueur informe, il ne filtre
+    pas."""
+    c = F.classer_bandes(['14', '28'], now=MAINTENANT, bandes_concours=['14'])
+    par_bande = {x['band']: x for x in c}
+    assert par_bande['14']['dans_concours'] is True
+    assert par_bande['28']['dans_concours'] is False
+    assert len(c) == 2, 'la bande hors concours ne doit pas disparaitre'
+
+
+def test_aucun_doublon_dans_la_liste():
+    b = F.bandes_a_proposer(['14', '14.0', '144'], [{'band': '14'}], '14')
+    assert len(b) == len(set(b)), b

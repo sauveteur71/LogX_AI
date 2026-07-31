@@ -38,6 +38,27 @@ BONUS_RUN = 8.0             # on ne quitte pas un run qui marche
 QSO_MINI_POUR_RUN = 5       # QSO dans la dernière heure définissant un « run »
 
 
+# Bandes proposées par défaut, DANS L'ORDRE DES FRÉQUENCES.
+#
+# DEUX REPROCHES DE L'UTILISATEUR, tous deux fondés :
+#   « pourquoi les bandes sont dans le désordre » — le bandeau était trié par
+#   SCORE. Un classement se relit toutes les 15 s : les bandes changeaient donc
+#   de place sous le doigt, et retrouver « le 20 m » demandait de lire les huit
+#   étiquettes à chaque fois. L'ordre est maintenant celui des fréquences,
+#   fixe ; le classement reste lisible par la barre de score et le liseré vert
+#   de la meilleure bande.
+#   « pourquoi il manque plusieurs bandes » — la liste venait des seules bandes
+#   du concours actif. Hors concours, ou sur un concours à deux bandes, la page
+#   devenait borgne : impossible d'aller voir ailleurs.
+#
+# Contenu : toutes les bandes du plan IARU région 1 que connaît la table de
+# logx_awards (1,8 → 432 MHz). Les bandes hyperfréquences n'y sont pas
+# découpées en segments ; elles apparaissent quand même si le concours les
+# utilise ou si un spot y tombe (voir bandes_a_proposer).
+BANDES_STANDARD = ('1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28',
+                   '50', '70', '144', '432')
+
+
 def _txt(v):
     return str(v if v is not None else '').strip()
 
@@ -205,7 +226,30 @@ def _mode_compatible(mode, modes_concours):
     return False
 
 
-def classer_bandes(bandes, spots=(), regions=(), log=(), now=None):
+def bandes_a_proposer(bandes_concours=(), spots=(), bande_demandee=''):
+    """Toutes les bandes du sélecteur, DANS L'ORDRE DES FRÉQUENCES.
+
+    Réunion de trois sources : le plan de bandes standard, celles du concours
+    actif (qui peut en utiliser une hors table), et celles où un spot est
+    tombé (hyperfréquences comprises). Plus la bande explicitement demandée —
+    on peut vouloir regarder une bande que rien ne signale.
+    """
+    vues = list(BANDES_STANDARD)
+    for src in (bandes_concours or ()), (b.get('band') for b in (spots or ())
+                                         if isinstance(b, dict)):
+        for b in src:
+            bb = _bande(b)
+            if bb and bb not in vues:
+                vues.append(bb)
+    bd = _bande(bande_demandee)
+    if bd and bd not in vues:
+        vues.append(bd)
+    # Ordre des fréquences ; ce qui n'est pas numérique va à la fin, par nom.
+    return sorted(vues, key=lambda x: (0, float(x)) if _est_nombre(x) else (1, x))
+
+
+def classer_bandes(bandes, spots=(), regions=(), log=(), now=None,
+                   bandes_concours=()):
     """Classe les bandes par opportunité MAINTENANT, la meilleure d'abord.
 
     Renvoie une liste de dictionnaires portant le score ET son détail, pour que
@@ -254,10 +298,21 @@ def classer_bandes(bandes, spots=(), regions=(), log=(), now=None):
             'mults': d['mults'],
             'qso_derniere_heure': recents,
             'pourquoi': ' · '.join(motifs),
+            # Bande utilisée par le concours en cours : la page la distingue,
+            # sans la faire disparaître — on peut vouloir regarder ailleurs.
+            'dans_concours': b in [_bande(x) for x in (bandes_concours or ())],
         })
-    # Score décroissant ; à égalité, la bande la plus basse d'abord (elle porte
-    # en général plus loin la nuit, et c'est un ordre stable donc reproductible).
-    out.sort(key=lambda x: (-x['score'], float(x['band']) if _est_nombre(x['band']) else 1e9))
+    # ORDRE DES FRÉQUENCES, pas du score. Un bandeau trié par score se
+    # réordonne à chaque rafraîchissement : les bandes changent de place sous
+    # le doigt et retrouver « le 20 m » demande de relire toutes les
+    # étiquettes. Le classement reste lisible — barre de score, et `rang`
+    # ci-dessous désigne la bande recommandée.
+    out.sort(key=lambda x: (0, float(x['band'])) if _est_nombre(x['band'])
+             else (1, x['band']))
+    if out:
+        meilleur = max(out, key=lambda x: x['score'])
+        for x in out:
+            x['recommandee'] = (x is meilleur and meilleur['score'] > 0)
     return out
 
 

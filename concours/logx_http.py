@@ -3008,14 +3008,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with log_lock:
                 log_copy = list(shared_log)
 
-            # Bandes proposées : celles du concours actif, sinon celles où il se
-            # passe quelque chose. Une liste vide rendrait la page muette.
-            bandes = [str(b) for b in (cfg_snap.get('bands') or []) if str(b).strip()]
-            if not bandes:
-                bandes = sorted({str(s['band']) for s in spots if str(s.get('band', ''))},
-                                key=lambda x: float(x) if x.replace('.', '', 1).isdigit() else 1e9)
-            if bande and bande not in bandes:
-                bandes.append(bande)
+            # Bandes proposées : TOUT le plan de bandes, dans l'ordre des
+            # fréquences — plus celles du concours et celles où un spot tombe.
+            # Se limiter aux bandes du concours rendait la page borgne dès
+            # qu'aucun concours ne tournait, ou qu'il n'en utilisait que deux.
+            bandes_concours = [str(b) for b in (cfg_snap.get('bands') or [])
+                               if str(b).strip()]
+            bandes = focus.bandes_a_proposer(bandes_concours, spots, bande)
 
             calendrier = []
             try:
@@ -3071,8 +3070,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'band': bande, 'mode': mode,
                 'bandes': bandes,
                 'suggestions': suggestions,
-                'classement': focus.classer_bandes(bandes, spots=spots,
-                                                   regions=regions, log=log_copy),
+                'classement': focus.classer_bandes(
+                    bandes, spots=spots, regions=regions, log=log_copy,
+                    bandes_concours=bandes_concours),
                 # Bande PUIS mode : le mode ne filtrait rien jusqu'ici, faute
                 # de champ `mode` sur les spots.
                 'spots': focus.filtrer_par_mode(

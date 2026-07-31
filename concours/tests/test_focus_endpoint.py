@@ -95,10 +95,33 @@ def test_le_classement_couvre_les_bandes_proposees(server):
     assert {c['band'] for c in d['classement']} == set(d['bandes'])
 
 
-def test_le_classement_est_trie_du_meilleur_au_moins_bon(server):
+def test_le_classement_sort_dans_l_ORDRE_DES_FREQUENCES(server):
+    """Il sortait trie par SCORE. L'utilisateur : « pourquoi les bandes sont
+    dans le desordre ». Un bandeau relu toutes les 15 s faisait changer les
+    bandes de place sous le doigt. L'ordre est desormais celui des frequences,
+    fixe ; la recommandation passe par le marqueur `recommandee`."""
     d = _get(server, '/data/focus')
-    scores = [c['score'] for c in d['classement']]
-    assert scores == sorted(scores, reverse=True), scores
+    vals = [float(c['band']) for c in d['classement']
+            if c['band'].replace('.', '', 1).isdigit()]
+    assert vals == sorted(vals), vals
+
+
+def test_UNE_SEULE_bande_est_recommandee(server):
+    d = _get(server, '/data/focus')
+    reco = [c['band'] for c in d['classement'] if c.get('recommandee')]
+    assert len(reco) <= 1, reco
+    if reco:
+        best = max(d['classement'], key=lambda c: c['score'])
+        assert best['band'] == reco[0]
+
+
+def test_TOUT_LE_PLAN_DE_BANDES_EST_SERVI(server):
+    """« pourquoi il manque plusieurs bandes » : la liste venait des seules
+    bandes du concours actif."""
+    d = _get(server, '/data/focus')
+    for b in ('1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28',
+              '50', '144', '432'):
+        assert b in d['bandes'], (b, d['bandes'])
 
 
 def test_chaque_ligne_du_classement_porte_sa_justification(server):
