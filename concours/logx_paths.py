@@ -96,8 +96,41 @@ def _sfi_k(solar):
     return num('sfi', 'solar_flux', default=100), num('k_index', 'kindex', 'k', default=2)
 
 
+def _a_index(solar):
+    """Indice A (Ap) — moyenne sur 24 h des huit valeurs trihoraires ak.
+
+    POURQUOI IL EST REMONTÉ ALORS QU'IL NE PONDÈRE RIEN. Chaque Kp trihoraire
+    se convertit en amplitude équivalente ak (table de Bartels) ; Ap est la
+    moyenne des huit sur 24 h (définition SWPC/GFZ). A n'apporte donc AUCUNE
+    information physique nouvelle par rapport à la série des K — il apporte de
+    l'HISTORIQUE, ce qu'un K instantané n'a pas. Et c'est justement l'historique
+    que la littérature utilise : le modèle STORM (intégré à IRI) est piloté par
+    les 33 heures précédentes de ap.
+
+    Il était récupéré depuis NOAA, affiché, et n'entrait dans aucun calcul :
+    la variable même dont on a besoin était jetée. Elle est désormais SERVIE au
+    client et à l'IA, qui peuvent la lire. Elle n'est délibérément multipliée à
+    rien — voir le commentaire de _band_score : sans les tables de coefficients
+    de STORM, tout facteur « Ap → dégradation » serait inventé.
+    """
+    s = (solar or {}).get('solar', solar) or {}
+    for k in ('a_index', 'aindex', 'ap', 'a'):
+        v = s.get(k)
+        try:
+            if v not in (None, ''):
+                return float(v)
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
 def _band_score(band, my_elev, dx_elev, muf, sfi, k, greyline):
-    """Score 0-100 d'ouverture d'une bande vers la région à cet instant."""
+    """Score 0-100 d'ouverture d'une bande vers la région à cet instant.
+
+    `k` est CONSERVÉ dans la signature mais volontairement inutilisé : voir le
+    bloc « L'INDICE K NE PONDÈRE PLUS RIEN » plus bas. Le retirer donnerait
+    l'impression d'un oubli ; le garder dit qu'on a tranché.
+    """
     f = float(band)
     # 1) MUF : au-dessus de la MUF, quasi mort ; juste en dessous = optimal.
     if muf <= 0:
@@ -121,12 +154,42 @@ def _band_score(band, my_elev, dx_elev, muf, sfi, k, greyline):
         tod = 0.6 + 0.2 * (1 - abs(day - 0.5) * 2)   # bandes moyennes : polyvalentes
     # 3) Grey-line : bonus (les basses en profitent le plus)
     gl = (0.18 if band in LOW else 0.10) if greyline else 0.0
-    # 4) Flux / géomagnétisme : SFI aide les hautes, K fort les dégrade
+    # 4) Flux solaire : le SFI aide les bandes hautes. Sourçable (l'ionisation
+    #    F2 croît avec le flux 10,7 cm), et c'est une médiane, pas un événement.
     sfi_factor = 1.0
     if band in HIGH:
         sfi_factor = max(0.5, min(1.15, sfi / 110.0))
-        if k >= 5:
-            sfi_factor *= 0.6
+    #
+    # L'INDICE K NE PONDÈRE PLUS RIEN, ET C'EST UNE SUPPRESSION VOULUE.
+    #
+    # Il y avait ici `if k >= 5: sfi_factor *= 0.6`, appliqué aux seules bandes
+    # HAUTES — or HIGH contient '50'. Mesuré : à K=6 le score du 6 m tombait de
+    # 8 à 5, PENDANT que es_aurora_forecast() annonçait sur cette même bande
+    # « orage géomagnétique, aurora possible, pointe au nord ». Le logiciel se
+    # trompait de signe sur 6 m, et se contredisait dans la même seconde.
+    #
+    # Ce coefficient n'était étayé par rien. Il n'existe pas de norme donnant
+    # une dégradation « par bande » en fonction de K :
+    #   - l'échelle G du NOAA est définie sur Kp (G1 = Kp 5) et son libellé HF
+    #     est LATITUDINAL — affaiblissement aux hautes latitudes, coupure sur
+    #     les trajets polaires — jamais « bandes hautes » ;
+    #   - ITU-R P.533-14 et VOACAP, les deux modèles de référence, sont pilotés
+    #     par R12 et n'ingèrent PAS Kp ;
+    #   - une tempête ionosphérique a une phase POSITIVE (foF2 en hausse) et
+    #     une phase négative, et le modèle de référence (STORM, intégré à IRI)
+    #     dépend de la latitude, de la saison et de l'heure locale.
+    #
+    # Le bon axe n'est donc pas la bande : c'est (latitude géomagnétique du
+    # trajet, saison, heure locale, phase de la tempête). Deux voies honnêtes
+    # existent — implémenter STORM (Araujo-Pradere, Fuller-Rowell & Codrescu,
+    # « STORM: An empirical storm-time ionospheric correction model: 1. Model
+    # description », Radio Science 37(5), 1070, 2002 : entrée = historique 33 h
+    # de ap, sortie = correction de foF2), ou ne pas modéliser la tempête et
+    # AFFICHER K et Ap bruts. C'est la seconde qui est retenue ici, faute des
+    # tables de coefficients de STORM.
+    #
+    # L'aurora reste traitée là où elle est sourçable : es_aurora_forecast(),
+    # sur l'échelle G du NOAA, et elle OUVRE la VHF au lieu de la fermer.
     score = 100 * muf_factor * tod * sfi_factor + 100 * gl
     return int(max(0, min(100, score)))
 
@@ -172,7 +235,11 @@ def path_openings(my_lat, my_lon, region_key, when=None, solar=None):
         'bearing_long': az_long, 'cardinal_long': cardinal(az_long),
         'long_path': dist > 9000,          # au-delà, le long chemin vaut le coup
         'my_sun_elev': round(my_el), 'dx_sun_elev': round(dx_el),
+        # `a_index` : historique géomagnétique 24 h. Il ne pondère aucun score
+        # (voir _a_index et _band_score) mais il est SERVI — c'est la variable
+        # que la littérature utilise, et la jeter serait la vraie perte.
         'greyline': greyline, 'muf_mhz': round(muf, 1), 'sfi': sfi, 'k': k,
+        'a_index': _a_index(solar),
         'bands': bands,
         'best_band': best_band,
         'best_window_utc': best_hour.strftime('%H:%M') if best_hour else None,
