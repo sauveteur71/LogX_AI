@@ -832,11 +832,54 @@ _MARGE_NUMERIQUE_KHZ = 0.5     # tolérance sur une fréquence de spot arrondie
 #     seulement. La réglette montre où l'on peut travailler, pas où d'autres
 #     travaillent.
 #
-# Bornes d'allocation : plan de bandes France / IARU région 1. Le découpage
-# CW/numérique/phonie À L'INTÉRIEUR d'une bande reste celui de la table
-# d'origine — grossier mais suffisant pour un repli. Pour une valeur de segment
-# exacte, l'autorité est le TNRBF de l'ANFR et le plan de bandes IARU R1, qui
-# évoluent après chaque CMR : ne pas l'affiner de mémoire.
+# ─── PROVENANCE (à lire avant toute modification de la table) ────────────────
+#
+# DEUX CHOSES DIFFÉRENTES SONT MÉLANGÉES DANS CHAQUE LIGNE, et il faut le
+# savoir pour la mettre à jour correctement :
+#
+#   1. LES BORNES D'ALLOCATION (où l'on a le droit d'émettre) — RÉGLEMENTAIRE.
+#      Autorité : ANFR / TNRBF, arrêté du 21 septembre 2000 modifié. C'est ce
+#      qui fixe 430-440 MHz en France, 144-146, 50-52, 1240-1300…
+#      Le drapeau `fr` de chaque ligne relève de CETTE catégorie.
+#
+#   2. LE DÉCOUPAGE PAR MODE (CW / numérique / phonie) — PAS RÉGLEMENTAIRE.
+#      C'est une convention IARU. Autorité : plan de bandes IARU Région 1.
+#      Les valeurs ci-dessous viennent de l'annexe C du manuel CC Cluster,
+#      corrigée aux bornes françaises le 31/07/2026 — elles ne sont donc PAS
+#      issues du document IARU, et c'est leur faiblesse connue.
+#
+# SOURCE NORMATIVE POUR (2), à utiliser lors d'une reprise sérieuse :
+#   IARU-R1 VHF/UHF/SHF Committee C5 — VHF and up band planning
+#   https://www.iaru-r1.org/about-us/committees-and-working-groups/
+#           vhf-uhf-shf-committee-c5/vhf-up-bandplanning/
+#   Les plans y sont publiés SANS les notes de bas de page, or ce sont les
+#   notes qui portent l'essentiel : segments à bande étroite des bandes
+#   hautes, fréquences d'appel, statut des balises. Elles sont dans le
+#   IARU Region 1 VHF Handbook V9.00 (novembre 2020) — vérifier s'il existe
+#   une version postérieure à la conférence de Zlatibor.
+#
+# TROIS PIÈGES SIGNALÉS PAR L'OPÉRATEUR, à traiter AVANT d'étendre la table :
+#
+#   a) PAR RÉGION. IARU R1 ≠ R2 ≠ R3. Ce logiciel sert à l'international (huit
+#      langues, concours ARRL et CQ intégrés). La clé devra devenir
+#      (région, bande) et non (bande). Le drapeau `fr` booléen actuel est un
+#      marqueur binaire de fortune, pas un axe de région : il dit « France ou
+#      pas », ce qui suffit aujourd'hui et ne suffira plus.
+#
+#   b) LE 23 cm EST EN COURS DE RESTRICTION pour cohabitation avec Galileo
+#      (post-CMR-23). NE RIEN FIGER sans vérifier l'état ECC/CEPT du moment.
+#      C'est la raison pour laquelle la bande 1296 n'a toujours aucun segment
+#      ici : ce n'est pas un oubli.
+#
+#   c) AUCUN FORMAT LISIBLE PAR MACHINE n'existe côté IARU. La saisie se fera
+#      depuis le PDF, à la main. Chaque ligne ajoutée devra porter le document,
+#      sa version et la date de conférence dont elle sort — c'est ce qui
+#      permettra de rejouer la vérification dans deux ans plutôt que de tout
+#      re-sourcer.
+#
+# RÈGLE QUI A COÛTÉ QUATRE CHANTIERS LE 31/07/2026 : ne jamais affiner ce
+# découpage de mémoire. Une table de domaine vraisemblable et fausse ne fait
+# tomber aucun test.
 _CRENEAUX_KHZ = (
     #  de      à       catégorie   France
     (1800,   1810,   'CW',      False),  # 160 m France : 1810-1850
