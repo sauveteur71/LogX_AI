@@ -4751,9 +4751,21 @@ function latLonToLocator(lat, lon){
 function locatorToLatLon(loc){
   loc = (loc||'').toUpperCase().trim();
   if(!LOCATOR_RE.test(loc)) return null;
-  if(loc.length === 4) loc += 'MM';
-  const lon = (loc.charCodeAt(0)-65)*20 - 180 + parseInt(loc[2])*2 + (loc.charCodeAt(4)-65)*(2/24) + 1/24;
-  const lat = (loc.charCodeAt(1)-65)*10 - 90  + parseInt(loc[3])   + (loc.charCodeAt(5)-65)*(1/24) + 0.5/24;
+  let lon = (loc.charCodeAt(0)-65)*20 - 180 + parseInt(loc[2])*2;
+  let lat = (loc.charCodeAt(1)-65)*10 - 90  + parseInt(loc[3]);
+  if(loc.length >= 6){
+    lon += (loc.charCodeAt(4)-65)*(2/24) + 1/24;   // centre du sous-carre
+    lat += (loc.charCodeAt(5)-65)*(1/24) + 0.5/24;
+  } else {
+    // CENTRE DU CARRE : +1 deg de longitude, +0,5 deg de latitude.
+    // On completait par 'MM' avant de derouler le calcul du sous-carre, ce
+    // qui donnait +1,0417 et +0,5208 : le point tombait 3,8 km au NORD-EST
+    // du centre, systematiquement. 'M' est la 13e lettre, or le milieu des
+    // 24 lettres n'en est aucune (il est entre 'L' et 'M') : aucun
+    // complement par lettres ne peut donner le centre, il faut le calculer.
+    lon += 1.0;
+    lat += 0.5;
+  }
   return { lat, lon };
 }
 

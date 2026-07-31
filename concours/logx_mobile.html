@@ -345,7 +345,14 @@ async function refreshSuggestedSerial(){
 // ─── Locator → distance (affichage + points km) ──────────────────────────────
 function locLL(loc){
   if (!loc || loc.length < 6) return null;
-  const l = loc.toUpperCase();
+  const l = loc.toUpperCase().trim();
+  // VALIDATION DES LETTRES, qui manquait ici comme cote Python : 'JN18ZZ'
+  // donnait un point HORS de son propre carre, sans erreur. Cette page compte
+  // des POINTS KILOMETRIQUES en concours THF — un locator mal saisi y devient
+  // une distance fausse, donc des points refuses au depouillement.
+  // Le minimum de 6 caracteres est conserve : sur un carre de 2 deg x 1 deg,
+  // l'incertitude atteint 55 km, ce qui n'a pas sa place dans un score.
+  if (!/^[A-R]{2}[0-9]{2}[A-X]{2}/.test(l)) return null;
   try{
     const lon = (l.charCodeAt(0)-65)*20 - 180 + parseInt(l[2])*2 + (l.charCodeAt(4)-65)*(2/24) + 1/24;
     const lat = (l.charCodeAt(1)-65)*10 - 90 + parseInt(l[3]) + (l.charCodeAt(5)-65)*(1/24) + 0.5/24;
