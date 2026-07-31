@@ -33,16 +33,26 @@ header{display:flex;align-items:center;gap:16px;padding:10px 20px;background:lin
 .empty{padding:30px;text-align:center;color:var(--muted)}
 </style>
 </head>
-<body>
+<body data-rc-no-lang-select>
 <header>
-  <div class="title">📡 BANDSCOPE <span id="bandName" style="color:var(--accent2)">2m</span></div>
-  <div class="bandbtns" id="bandBtns"></div>
-  <div class="clock" id="clock">—</div>
+  <!-- rc-i18n-live : nom de bande, boutons de bande et horloge ne portent que
+       des données réécrites en boucle. Le titre « BANDSCOPE », lui, reste hors
+       de la classe et se traduit normalement. -->
+  <div class="title">📡 BANDSCOPE <span id="bandName" class="rc-i18n-live" style="color:var(--accent2)">2m</span></div>
+  <div class="bandbtns rc-i18n-live" id="bandBtns"></div>
+  <div class="clock rc-i18n-live" id="clock">—</div>
 </header>
 <div class="scopewrap">
-  <svg id="scope" viewBox="0 0 1000 300" preserveAspectRatio="none"></svg>
+  <!-- Le SVG est entièrement reconstruit à chaque tick et ne contient que des
+       indicatifs et des fréquences : c'est le plus gros producteur de
+       mutations de la page, donc celui qu'il importe le plus d'exclure. -->
+  <svg id="scope" class="rc-i18n-live" viewBox="0 0 1000 300" preserveAspectRatio="none"></svg>
+  <!-- spotList N'EST PAS exclu : il porte « En attente de spots… », un texte
+       que l'utilisateur voit tant qu'aucun spot n'arrive. Le reste (indicatifs,
+       fréquences) ne correspond à aucune clé, donc rien ne bouge. -->
   <div class="spotstrip" id="spotList"><div class="empty">En attente de spots…</div></div>
 </div>
+<script src="logx_i18n.js"></script>
 <script>
 // Migration localStorage 'radiocontest_' -> 'logx_' (renommage du produit), idempotente.
 (function(){try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.indexOf('radiocontest_')===0){const nk='logx_'+k.slice(13);if(localStorage.getItem(nk)===null)localStorage.setItem(nk,localStorage.getItem(k));}}}catch(e){}})();

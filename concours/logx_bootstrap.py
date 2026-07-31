@@ -118,6 +118,47 @@ def _report_slow_network(host, ms):
           f"section Dépannage, pour ajouter une exception dans ton antivirus.")
 
 
+# Config persistée du poste : c'est ce fichier qui dit si la station a déjà été
+# renseignée une fois (même nom que logx_http.SERVER_CONFIG_FILE — on ne
+# l'importe pas pour ne pas faire dépendre l'amorçage du serveur HTTP).
+SERVER_CONFIG_FILE = '.server_config.json'
+
+
+def station_deja_configuree(dossier=None):
+    """La station a-t-elle déjà un indicatif enregistré ?
+
+    L'indicatif est le seul réglage sans lequel RIEN ne fonctionne : pas de
+    log, pas de score, pas d'export. Sa présence est donc le meilleur signe
+    que le premier lancement a déjà eu lieu. On ne teste pas la simple
+    existence du fichier : il est créé dès la première sauvegarde, même
+    partielle (thème, langue…), et suffirait alors à faire croire à une
+    station configurée.
+    """
+    import json
+    chemin = os.path.join(dossier or os.getcwd(), SERVER_CONFIG_FILE)
+    try:
+        with open(chemin, encoding='utf-8') as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        return False
+    if not isinstance(cfg, dict):
+        return False
+    return bool(str(cfg.get('callsign', '') or '').strip())
+
+
+def page_de_demarrage(dossier=None):
+    """Sur quelle page ouvrir le navigateur au lancement ?
+
+    DEMANDE UTILISATEUR : « à chaque ouverture la page configuration s'ouvre
+    inutilement, la configuration se fait à la première utilisation ». C'était
+    exact : le navigateur était envoyé sur CONFIG À CHAQUE DÉMARRAGE, sans
+    jamais regarder si la station était déjà réglée. Une fois l'indicatif
+    saisi, la page utile est le LOGBOOK — celle où l'on trafique.
+    """
+    return ('/logx_logbook.html' if station_deja_configuree(dossier)
+            else '/logx_configuration.html')
+
+
 def start_network_diagnosis(port, delay=1.5, then_open_browser=False):
     """Lance le diagnostic réseau en tâche de fond (laisse le serveur
     démarrer avant de le sonder). Si then_open_browser, ouvre le navigateur
@@ -134,7 +175,7 @@ def start_network_diagnosis(port, delay=1.5, then_open_browser=False):
                   f"sur ce poste ({ms:.0f} ms) — utilisé de préférence.")
         if then_open_browser:
             import webbrowser
-            webbrowser.open(f'http://{host}:{port}/logx_configuration.html')
+            webbrowser.open(f'http://{host}:{port}{page_de_demarrage()}')
 
     threading.Timer(delay, _run).start()
 

@@ -2947,6 +2947,124 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Need list structurée : les spots du dernier refresh évalués au barème
         # du concours actif et triés par valeur (nouveaux mults en tête) —
         # AUCUN re-fetch réseau, aucune IA : lecture des caches, pollable.
+        # ─── FOCUS BANDE : tout ce qu'on sait d'UNE bande, + où aller ────────
+        # DEMANDE UTILISATEUR : « une seconde page qui affiche l'ensemble des
+        # éléments que le programme a en sa possession lorsqu'une bande est
+        # choisie » — cluster, carrés manquants, propagation, concours actifs
+        # sur cette bande ET ce mode, suggestions, band map. Plus le classement
+        # de TOUTES les bandes : « qu'y a-t-il sur 20 m » est utile, « où
+        # devrais-je être » l'est davantage.
+        #
+        # UN SEUL APPEL pour six informations : cette page est faite pour
+        # rester ouverte sur un 2e écran. Six requêtes toutes les 15 s, c'est
+        # six fois plus de connexions à tenir pour la même chose — et le
+        # serveur a déjà tout en cache ici.
+        if path.startswith('/data/focus'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_focus as focus
+            from logx_scoring import build_ranked_spots
+            qp = parse_qs(urlparse(self.path).query)
+            cfg_snap = self._cfg_snapshot()
+            bande = (qp.get('band', [''])[0] or '').strip()
+            mode = (qp.get('mode', [''])[0] or '').strip()
+
+            ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
+            spots = []
+            for s in ranked:
+                sc = s.get('scoring', {})
+                spots.append({
+                    'call': s.get('call', ''), 'band': s.get('band', ''),
+                    'freq': freq_en_khz(s.get('freq', ''), s.get('band', '')),
+                    'time': s.get('time', ''), 'info': s.get('info', ''),
+                    'spotter': s.get('spotter', ''),
+                    'dist_km': s.get('dist_km', 0),
+                    'dx_country': sc.get('dx_country', ''),
+                    'new_mult': bool(sc.get('new_mult')),
+                    'already_done': bool(sc.get('already_done')),
+                    'value': s.get('value_total', 0),
+                    'explanation': sc.get('explanation', ''),
+                })
+
+            # Ouvertures : même source que /data/openings, sans refaire l'appel.
+            regions = []
+            try:
+                import logx_paths as paths
+                from logx_clusters import get_solar_cached, get_muf_cached
+                my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+                if my_ll[0] is not None:
+                    solar = {'solar': get_solar_cached() or {},
+                             'muf': get_muf_cached(my_ll[0], my_ll[1])}
+                    regions = paths.all_regions(my_ll[0], my_ll[1], solar=solar) or []
+            except Exception:
+                regions = []   # propagation indisponible ≠ page cassée
+
+            with log_lock:
+                log_copy = list(shared_log)
+
+            # Bandes proposées : celles du concours actif, sinon celles où il se
+            # passe quelque chose. Une liste vide rendrait la page muette.
+            bandes = [str(b) for b in (cfg_snap.get('bands') or []) if str(b).strip()]
+            if not bandes:
+                bandes = sorted({str(s['band']) for s in spots if str(s.get('band', ''))},
+                                key=lambda x: float(x) if x.replace('.', '', 1).isdigit() else 1e9)
+            if bande and bande not in bandes:
+                bandes.append(bande)
+
+            calendrier = []
+            try:
+                cal = calc_all_dates()
+                for cid, cdef in CONTEST_DEFINITIONS.items():
+                    info = cal.get(cid, {})
+                    calendrier.append({
+                        'id': cid, 'name': cdef.get('name', cid),
+                        'date': info.get('date', ''),
+                        'start_utc': cdef.get('start_utc', '0000'),
+                        'duration_h': cdef.get('duration_h', 0),
+                        'bands': cdef.get('bands', []), 'modes': cdef.get('modes', []),
+                        'exchange': cdef.get('exchange', ''),
+                    })
+            except Exception:
+                calendrier = []
+
+            carres = []
+            try:
+                import logx_awards as awards
+                res = awards.carres_travailles(log_copy, bande)
+                carres = focus.carres_manquants(res.get('squares') or [], bande)
+            except Exception:
+                carres = []
+
+            # « Les propositions de contact IA » : parmi les stations SPOTTÉES,
+            # celles qui apporteraient un pays ou un département JAMAIS
+            # travaillé À VIE — pas seulement un multiplicateur du concours en
+            # cours. C'est la même source que les suggestions proactives du
+            # coach ; on la filtre sur la bande regardée.
+            suggestions = []
+            try:
+                import logx_awards as awards
+                for n in awards.spotted_new_ones(log_copy, _spots_from_caches()) or []:
+                    if bande and focus._bande(n.get('band')) != focus._bande(bande):
+                        continue
+                    suggestions.append(n)
+            except Exception:
+                suggestions = []
+
+            self._json({
+                'ok': True,
+                'band': bande, 'mode': mode,
+                'bandes': bandes,
+                'suggestions': suggestions,
+                'classement': focus.classer_bandes(bandes, spots=spots,
+                                                   regions=regions, log=log_copy),
+                'spots': [s for s in spots
+                          if not bande or focus._bande(s.get('band')) == focus._bande(bande)],
+                'regions': regions,
+                'concours': focus.concours_actifs(calendrier, bande=bande, mode=mode),
+                'carres_manquants': carres[:60],
+                'contest_actif': (meta or {}).get('contest_actif', False),
+            })
+            return
+
         if path == '/data/spots_ranked':
             from logx_scoring import build_ranked_spots
             import logx_alerts as alerts

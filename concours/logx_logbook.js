@@ -6884,8 +6884,15 @@ function exportON4KST(){
 
 // ─── SECOND ÉCRAN : fenêtres détachables (multi-moniteur) ────────────────────
 function popoutScope(){
-  window.open('/logx_scope.html?band=' + encodeURIComponent(currentBand || '144'),
-    'rc_scope', 'width=1100,height=560,menubar=no,toolbar=no,location=no');
+  // NOM DE FENÊTRE PAR BANDE. Avec le nom fixe « rc_scope », détacher le
+  // bandscope sur une 2e bande ne créait pas de fenêtre : window.open()
+  // réutilise celle qui porte déjà ce nom, donc la première changeait de bande
+  // en silence. Surveiller 20 m et 2 m côte à côte était impossible sans que
+  // rien ne l'explique.
+  const b = String(currentBand || '144');
+  window.open('/logx_scope.html?band=' + encodeURIComponent(b),
+    'rc_scope_' + b.replace(/\./g, '_'),
+    'width=1100,height=560,menubar=no,toolbar=no,location=no');
 }
 function popoutWall(){
   window.open('/logx_wall.html', 'rc_wall',

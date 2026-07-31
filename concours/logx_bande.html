@@ -81,14 +81,22 @@ header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:line
 footer{flex-shrink:0;padding:5px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;gap:14px}
 </style>
 </head>
-<body>
+<body data-rc-no-lang-select>
 <header>
-  <span class="bande" id="titreBande">—</span>
-  <span class="compte" id="compte"></span>
-  <span class="clock" id="clock">--:--:--</span>
+  <!-- rc-i18n-live : ces trois-là ne contiennent QUE des données réécrites en
+       boucle (fréquence de bande, compteur, horloge à la seconde). Sans cette
+       classe, chaque tick déclencherait une passe de traduction complète sur
+       une page qui, en expédition, reste ouverte des jours durant. -->
+  <span class="bande rc-i18n-live" id="titreBande">—</span>
+  <span class="compte rc-i18n-live" id="compte"></span>
+  <span class="clock rc-i18n-live" id="clock">--:--:--</span>
 </header>
 <div class="wrap">
-  <div class="regle" id="regle" title="Échelle de fréquence : jaune = CW, violet = numérique, bleu = phonie. Les trous sont les fréquences libres."></div>
+  <!-- L'échelle est reconstruite à chaque rafraîchissement et ne contient que
+       des fréquences ; son infobulle, elle, est bien traduite : translateAttr
+       lit les attributs par querySelectorAll, sans passer par le TreeWalker
+       que rc-i18n-live exclut. -->
+  <div class="regle rc-i18n-live" id="regle" title="Échelle de fréquence : jaune = CW, violet = numérique, bleu = phonie. Les trous sont les fréquences libres."></div>
   <div class="liste-col"><div id="liste"><div class="empty">Chargement…</div></div></div>
 </div>
 <footer>
@@ -96,6 +104,10 @@ footer{flex-shrink:0;padding:5px 12px;border-top:1px solid var(--border);font-si
   <span class="lotw tag">LoTW</span>
   <span class="besoin tag">besoin DXCC</span>
 </footer>
+<!-- Moteur de traduction. Cette page ne le chargeait PAS : elle restait
+     intégralement en français quelle que soit la langue choisie, y compris son
+     titre d'onglet, alors que le dictionnaire contenait déjà ses libellés. -->
+<script src="logx_i18n.js"></script>
 <script>
 // Thème jour/nuit : ces pages détachées n'incluent pas logx_statusbar.js, le
 // réglage est donc relu ici depuis localStorage puis, à défaut, depuis la

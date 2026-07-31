@@ -41,7 +41,8 @@ import threading
 # Amorçage AVANT tout import applicatif : en mode figé (PyInstaller), bascule
 # le répertoire de travail vers le dossier de données utilisateur (inscriptible)
 # et y recopie les fichiers de référence embarqués. En dev : sans effet.
-from logx_bootstrap import bootstrap, open_browser, is_frozen, start_network_diagnosis
+from logx_bootstrap import (bootstrap, open_browser, is_frozen,
+                            start_network_diagnosis, station_deja_configuree)
 bootstrap()
 
 from logx_utils import PORT
@@ -302,8 +303,15 @@ if __name__ == '__main__':
     # posée pour 127.0.0.1 ne couvre pas localhost par correspondance
     # textuelle, même si les deux pointent vers la même machine — observé
     # avec Avast ajoutant ~2 s d'inspection à chaque requête sur localhost.
-    print(f'  -> http://127.0.0.1:{PORT}/logx_configuration.html')
-    print(f'  -> http://127.0.0.1:{PORT}/logx_logbook.html')
+    # Le logbook en premier dès que la station est réglée : c'est la page sur
+    # laquelle le navigateur s'ouvre, autant que la console dise la même chose.
+    if station_deja_configuree():
+        print(f'  -> http://127.0.0.1:{PORT}/logx_logbook.html   (ouvert automatiquement)')
+        print(f'  -> http://127.0.0.1:{PORT}/logx_configuration.html')
+    else:
+        print(f'  -> http://127.0.0.1:{PORT}/logx_configuration.html   '
+              f'(premiere utilisation : renseigne ton indicatif)')
+        print(f'  -> http://127.0.0.1:{PORT}/logx_logbook.html')
     print(f'  -> http://127.0.0.1:{PORT}/logx_propagation.html')
     print(f'  -> http://127.0.0.1:{PORT}/logx_calendrier.html')
     print(f'  -> http://127.0.0.1:{PORT}/logx_mobile.html (telephone)')

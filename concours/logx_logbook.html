@@ -765,9 +765,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <span class="shortcuts-close" onclick="closeQTCPanel()">✕</span>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
-      Une série QTC copie de 1 à 10 QSO déjà passés vers/depuis une autre station EU↔DX
-      (règlement WAE : heure, indicatif et n° de chaque QSO rapporté — max 10 QTC cumulés
-      émis+reçus avec une même station).
+      Une série QTC copie de 1 à 10 QSO déjà passés vers/depuis une autre station EU↔DX (règlement WAE : heure, indicatif et n° de chaque QSO rapporté — max 10 QTC cumulés émis+reçus avec une même station).
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px">
       <label style="font-size:12px;color:var(--muted)">Sens
@@ -889,6 +887,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <a href="logx_departements.html" onclick="intentionalNavigation=true">🇫🇷 Cartes</a>
   <a href="logx_calendrier.html" onclick="intentionalNavigation=true">📅 CALENDRIER</a>
   <a href="logx_websdr.html" onclick="intentionalNavigation=true">📡 WEBSDR</a>
+  <a href="logx_focus.html" onclick="intentionalNavigation=true">🎯 FOCUS</a>
   <div class="nav-spacer"></div>
   <div class="nav-info">
     OP : <span id="currentOp" style="color:var(--accent)">—</span>
@@ -1252,8 +1251,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
           <!-- L'avertissement du niveau 4 n'apparaît QUE pour lui : un
                avertissement permanent finit par ne plus être lu. -->
           <div id="pounceAvertN4" style="display:none;margin-top:6px;padding:5px 7px;border:1px solid var(--red);border-radius:4px;color:var(--red);font-size:11px;line-height:1.35">
-            La station émettra sans personne devant elle. Elle s'arrête toute seule
-            à la fin de la minuterie, et tout ce qui part est journalisé ci-dessous.
+            La station émettra sans personne devant elle. Elle s'arrête toute seule à la fin de la minuterie, et tout ce qui part est journalisé ci-dessous.
           </div>
           <button type="button" id="pounceBtnArmer" onclick="armerPounce()"
                   style="width:100%;margin-top:7px;padding:4px;border-radius:4px;border:1px solid var(--green);background:transparent;color:var(--green);cursor:pointer;font-family:inherit;font-weight:700">▶ ARMER</button>

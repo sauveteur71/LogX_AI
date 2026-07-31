@@ -213,22 +213,22 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
-<body>
+<body data-rc-no-lang-select>
 
 <header>
-  <div class="wcall" id="wCall">—</div>
-  <div class="wcontest" id="wContest"></div>
+  <div class="wcall rc-i18n-live" id="wCall">—</div>
+  <div class="wcontest rc-i18n-live" id="wContest"></div>
   <div class="wclocks">
-    <div class="wclock-item"><div class="wclock" id="wClock">—</div><div class="wclock-lbl">UTC</div></div>
-    <div class="wclock-item local"><div class="wclock" id="wClockLocal">—</div><div class="wclock-lbl" id="wClockLocalLbl">LOCAL</div></div>
+    <div class="wclock-item"><div class="wclock rc-i18n-live" id="wClock">—</div><div class="wclock-lbl">UTC</div></div>
+    <div class="wclock-item local"><div class="wclock rc-i18n-live" id="wClockLocal">—</div><div class="wclock-lbl rc-i18n-live" id="wClockLocalLbl">LOCAL</div></div>
   </div>
 </header>
 
 <div class="wtop">
-  <div class="kpi"><div class="kv" id="wTotal">0</div><div class="kl">QSO</div></div>
-  <div class="kpi b2"><div class="kv" id="wRate">0</div><div class="kl">QSO / H</div></div>
-  <div class="kpi b3"><div class="kv" id="wCalls">0</div><div class="kl">STATIONS</div></div>
-  <div class="kpi b4"><div class="kv" id="wOdx">—</div><div class="kl" id="wOdxCall">ODX (KM)</div></div>
+  <div class="kpi"><div class="kv rc-i18n-live" id="wTotal">0</div><div class="kl">QSO</div></div>
+  <div class="kpi b2"><div class="kv rc-i18n-live" id="wRate">0</div><div class="kl">QSO / H</div></div>
+  <div class="kpi b3"><div class="kv rc-i18n-live" id="wCalls">0</div><div class="kl">STATIONS</div></div>
+  <div class="kpi b4"><div class="kv rc-i18n-live" id="wOdx">—</div><div class="kl" id="wOdxCall">ODX (KM)</div></div>
 </div>
 
 <!-- Barème objectif QSO de session (ex. "en route vers 10 000 QSO") — distinct
@@ -236,8 +236,8 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
      rendu visible uniquement si un objectif > 0 est configuré (CONFIG > MODE
      EXPÉDITION > wall_qso_goal), voir render(). -->
 <div class="wgoal" id="wGoal" style="display:none">
-  <div class="wgoal-head"><span>🎯 OBJECTIF SESSION</span><span class="wgoal-txt" id="wGoalTxt"></span></div>
-  <div class="wgoal-bar"><div class="wgoal-fill" id="wGoalFill" style="width:0%"></div></div>
+  <div class="wgoal-head"><span>🎯 OBJECTIF SESSION</span><span class="wgoal-txt rc-i18n-live" id="wGoalTxt"></span></div>
+  <div class="wgoal-bar"><div class="wgoal-fill rc-i18n-live" id="wGoalFill" style="width:0%"></div></div>
 </div>
 
 <div class="wmain">
@@ -247,10 +247,10 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
        rendu passif rafraîchi automatiquement (voir script). -->
   <div class="wmap">
     <div class="wmap-head"><span>🌍 CARTE DX — RAYONS QSO &amp; GREYLINE</span></div>
-    <div id="wallMap"></div>
+    <div class="rc-i18n-live" id="wallMap"></div>
   </div>
   <div class="wstream">
-    <div class="wstream-head"><span>⚡ DERNIERS QSO — LOG COMMUN</span><span id="wRate10"></span></div>
+    <div class="wstream-head"><span>⚡ DERNIERS QSO — LOG COMMUN</span><span class="rc-i18n-live" id="wRate10"></span></div>
     <div id="wStream"><div style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">En attente de QSO…</div></div>
   </div>
   <div class="wside">
@@ -270,9 +270,9 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
          assez léger pour être embarqué même en compact ici. -->
     <div class="wblock">
       <div class="wbt">🌍 CONDITIONS</div>
-      <div class="cond-row" id="condSolar">☀️ SFI — · K —</div>
-      <div class="cond-row" id="condMuf">📡 MUF —</div>
-      <div class="cond-row" id="condEme" style="display:none">🌗 EME —</div>
+      <div class="cond-row rc-i18n-live" id="condSolar">☀️ SFI — · K —</div>
+      <div class="cond-row rc-i18n-live" id="condMuf">📡 MUF —</div>
+      <div class="cond-row rc-i18n-live" id="condEme" style="display:none">🌗 EME —</div>
       <div class="cond-row" id="condWeather">🌡️ Météo —</div>
       <div class="cond-row" id="condLightning"><a href="https://www.blitzortung.org/fr/live_lightning_maps.php?map=0" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">⚡ Foudre en direct ↗</a></div>
       <img id="condMufMap" class="cond-mufmap" loading="lazy"
@@ -293,15 +293,15 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
     <div class="wblock" id="wDxZones">
       <div class="wbt">🌐 FUSEAUX DX</div>
       <div class="dxgrid">
-        <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Est</span><span class="dxtime" id="dxUSE">—</span></div>
-        <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Ouest</span><span class="dxtime" id="dxUSW">—</span></div>
-        <div class="dxrow"><span class="dxflag">🇯🇵</span><span class="dxlbl">Japon</span><span class="dxtime" id="dxJA">—</span></div>
-        <div class="dxrow"><span class="dxflag">🇦🇺</span><span class="dxlbl">Océanie</span><span class="dxtime" id="dxOC">—</span></div>
+        <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Est</span><span class="dxtime rc-i18n-live" id="dxUSE">—</span></div>
+        <div class="dxrow"><span class="dxflag">🇺🇸</span><span class="dxlbl">USA Ouest</span><span class="dxtime rc-i18n-live" id="dxUSW">—</span></div>
+        <div class="dxrow"><span class="dxflag">🇯🇵</span><span class="dxlbl">Japon</span><span class="dxtime rc-i18n-live" id="dxJA">—</span></div>
+        <div class="dxrow"><span class="dxflag">🇦🇺</span><span class="dxlbl">Océanie</span><span class="dxtime rc-i18n-live" id="dxOC">—</span></div>
       </div>
     </div>
-    <div class="wblock grow"><div class="wbt">📊 PAR BANDE<span class="wbt-page" id="wBandsPageLbl"></span></div><div id="wBands"></div></div>
-    <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips" id="wModes"></div></div>
-    <div class="wblock"><div class="wbt">👤 PAR OPÉRATEUR<span class="wbt-page" id="wOpsPageLbl"></span></div><div class="chips" id="wOps"></div></div>
+    <div class="wblock grow"><div class="wbt">📊 PAR BANDE<span class="wbt-page rc-i18n-live" id="wBandsPageLbl"></span></div><div class="rc-i18n-live" id="wBands"></div></div>
+    <div class="wblock"><div class="wbt">🎙 PAR MODE</div><div class="chips rc-i18n-live" id="wModes"></div></div>
+    <div class="wblock"><div class="wbt">👤 PAR OPÉRATEUR<span class="wbt-page rc-i18n-live" id="wOpsPageLbl"></span></div><div class="chips rc-i18n-live" id="wOps"></div></div>
     <!-- Roulement opérateurs : qui est actuellement au poste (proxy = dernier
          QSO loggué par opérateur, voir wall_state()['active_ops']) avec ses
          qualifications SSB/CW/DIGI, + planning à venir (GET /shifts/list,
@@ -309,15 +309,15 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
          rien à montrer (aucun opérateur récemment actif ET aucun créneau
          planifié) — jamais un encart vide en permanence sur le mur. -->
     <div class="wblock" id="wRoulement" style="display:none">
-      <div class="wbt">🔄 ROULEMENT OPÉRATEURS<span class="wbt-page" id="wRoulementPageLbl"></span></div>
+      <div class="wbt">🔄 ROULEMENT OPÉRATEURS<span class="wbt-page rc-i18n-live" id="wRoulementPageLbl"></span></div>
       <div class="wroulement-body" id="wRoulementBody">
         <div id="wActiveOpsBlock" style="display:none">
           <div class="wsub">ACTIF(S) MAINTENANT</div>
-          <div id="wActiveOps"></div>
+          <div class="rc-i18n-live" id="wActiveOps"></div>
         </div>
         <div id="wShiftsBlock" style="display:none">
           <div class="wsub">À VENIR</div>
-          <div id="wShifts"></div>
+          <div class="rc-i18n-live" id="wShifts"></div>
         </div>
       </div>
     </div>
@@ -882,5 +882,6 @@ if(localStorage.getItem('rc_theme') === null){
   setInterval(tickDxClocks, 1000);
 })();
 </script>
+<script src="logx_i18n.js"></script>
 </body>
 </html>

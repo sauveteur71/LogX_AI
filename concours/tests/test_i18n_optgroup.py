@@ -34,15 +34,23 @@ if CONCOURS not in sys.path:
 I18N = os.path.join(CONCOURS, 'logx_i18n.js')
 
 
+# Les clés s'écrivent avec DEUX styles de guillemets : le dictionnaire de base
+# de logx_i18n.js utilise des apostrophes simples et empile plusieurs paires par
+# ligne, les objets correctifs des guillemets doubles. Ne lire que le second
+# style revient à ignorer le dictionnaire principal — donc à croire manquantes
+# des centaines de clés qui existent.
+_PAIRE = re.compile(
+    r"""(?P<q>['"])(?P<cle>(?:[^'"\\]|\\.|(?!(?P=q))['"])*)(?P=q)\s*:\s*"""
+    r"""(?P<q2>['"])""")
+
+
 def _cles():
     src = io.open(I18N, encoding='utf-8').read()
     out = set()
-    for m in re.finditer(r'"(?:[^"\\]|\\.)*"\s*:', src):
-        b = m.group(0).rstrip().rstrip(':').rstrip()
-        try:
-            out.add(json.loads(b))
-        except ValueError:
-            pass
+    for m in _PAIRE.finditer(src):
+        k = m.group('cle')
+        out.add(k.replace('\\\\', '\x00').replace("\\'", "'")
+                 .replace('\\"', '"').replace('\x00', '\\'))
     return out
 
 
@@ -74,9 +82,42 @@ def test_le_label_passe_par_translateAttr_comme_title():
     français laisserait la valeur traduite en place — un aller sans retour."""
     src = io.open(I18N, encoding='utf-8').read()
     i = src.index("querySelectorAll('optgroup[label]')")
-    # la boucle title/placeholder existe toujours et juste avant
+    # la boucle des attributs classiques existe toujours et juste avant
     avant = src[:i]
-    assert "['title', 'placeholder'].forEach" in avant
+    assert "'title', 'placeholder', 'alt', 'aria-label'" in avant
+
+
+# ─── La liste des attributs porteurs est-elle COMPLETE ? ─────────────────────
+
+def _attributs_traites():
+    """Ce que le moteur va reellement chercher, tableau de taille quelconque."""
+    src = io.open(I18N, encoding='utf-8').read()
+    traites = set(re.findall(r"translateAttr\(dict, el, '([a-z-]+)'\)", src))
+    for bloc in re.findall(r"\[((?:'[a-z-]+',?\s*)+)\]\.forEach\(", src):
+        traites |= set(re.findall(r"'([a-z-]+)'", bloc))
+    return traites
+
+
+@pytest.mark.parametrize('attr', ['title', 'placeholder', 'label', 'alt', 'aria-label'])
+def test_TOUS_LES_ATTRIBUTS_PORTEURS_DE_TEXTE_SONT_LUS(attr):
+    """Recensement fait sur toutes les pages : title 63, placeholder 23,
+    label 3, alt 1, aria-label 1. Ce sont les cinq seuls attributs dont la
+    valeur est lue par un utilisateur.
+
+    `alt` et `aria-label` ne SAUTENT PAS AUX YEUX quand ils restent en
+    français — l'un ne s'affiche que si l'image manque, l'autre n'est
+    prononcé que par un lecteur d'écran. C'est exactement pourquoi ils
+    étaient restés dehors : personne ne les voit.
+    """
+    assert attr in _attributs_traites()
+
+
+def test_alt_et_aria_label_ont_leur_traduction():
+    """Le moteur peut bien les lire : sans entree, il rendrait la cle telle
+    quelle et rien ne changerait."""
+    cles = _cles()
+    assert 'Vues de la propagation' in cles
+    assert any(k.startswith('Carte mondiale de la MUF') for k in cles)
 
 
 # ─── Le dictionnaire est-il complet pour ces titres ? ────────────────────────
