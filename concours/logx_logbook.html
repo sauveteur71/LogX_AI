@@ -250,6 +250,19 @@ body.sans-concours .compass-pts{display:none}
 
 /* DUPLEX CHECK */
 .dup-warning{background:rgba(255,45,85,.12);border:1px solid var(--red);border-radius:6px;padding:10px 14px;font-family:var(--font-mono);font-size:15px;color:var(--red);display:none;font-weight:700}
+/* Filet anti-busted call. DÉLIBÉRÉMENT plus discret que .dup-warning : c'est
+   une SUGGESTION sur un QSO déjà enregistré, pas une alerte à traiter. Jaune,
+   pas rouge, et jamais affiché pendant la frappe. */
+#bustedPastille{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;
+  background:rgba(255,214,10,.10);border:1px solid var(--yellow);border-radius:6px;
+  padding:7px 11px;font-family:var(--font-mono);font-size:13px;color:var(--yellow)}
+#bustedPastille .bp-txt{font-weight:700}
+#bustedPastille .bp-info{color:var(--muted);font-size:11.5px}
+#bustedPastille button{font-family:var(--font-mono);font-size:12px;border-radius:4px;
+  padding:3px 11px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text)}
+#bustedPastille .bp-oui{border-color:var(--green);color:var(--green);font-weight:700}
+#bustedPastille .bp-oui:hover{background:rgba(0,255,136,.12)}
+#bustedPastille .bp-non{margin-left:auto;color:var(--muted)}
 .dup-warning.show{display:block}
 
 /* BANDE / MODE */
@@ -1073,6 +1086,10 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
           <div class="autocomplete-box" id="acBox" style="display:none"></div>
         </div>
         <div class="dup-warning" id="dupWarn">⚠️ DOUBLON — Ce correspondant est déjà dans le log !</div>
+        <!-- Filet anti-busted call : rempli APRÈS l'enregistrement d'un QSO,
+             jamais pendant la frappe. Masqué au repos (display:none), il ne
+             prend aucune place et ne décale jamais le formulaire. -->
+        <div id="bustedPastille" style="display:none"></div>
         <div id="callStatusBadge" style="display:none;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;padding:3px 10px;border-radius:4px;margin-top:4px;width:fit-content"></div>
         <div id="qrzInfo" style="display:none;font-family:var(--font-mono);font-size:13px;color:var(--accent2);margin-top:4px;line-height:1.5" title="Fiche callbook (QRZ / HamQTH / HamDB)"></div>
         <div class="cross-band-hint" id="crossBandHint"></div>

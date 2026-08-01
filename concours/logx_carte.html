@@ -1159,8 +1159,12 @@ async function send(forcedText,displayText){
     // (refresh terrain ~25 s) se fait dans le thread serveur. Avant, on
     // attendait /data/refresh ICI — changer d'onglet pendant cette attente
     // perdait l'analyse. Désormais la fenêtre de perte est ~0,1 s.
+    // PAS de champ « model » : cette page ignore quel fournisseur l'opérateur
+    // a réglé. Elle envoyait un nom Anthropic codé en dur, qui écrasait le
+    // choix de la page CONFIG et partait tel quel à OpenAI, Mistral, xAI,
+    // DeepSeek ou Gemini — échec à chaque message. Le serveur décide seul
+    // (voir logx_utils.modele_effectif).
     const body={
-      model:'claude-sonnet-4-6',
       max_tokens:4096,
       message:text,
       needs_context:isAnalysis,
@@ -1423,6 +1427,12 @@ function extractCallsigns(text){
 let _lastVisibleTs = Date.now();
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) _lastVisibleTs = Date.now(); });
 
+// La cadence de la veille, à UN SEUL endroit : elle pilote le minuteur ET la
+// phrase envoyée au modèle. Les deux disaient des choses différentes (10 min
+// pour le minuteur, « toutes les 5 minutes » dans le prompt) — le modèle
+// raisonnait donc sur une fréquence de veille fausse.
+const AUTO_CHECK_MIN = 10;
+
 async function autoCheckSilently(){
   if(isWaiting || autoCheckInProgress || !cfg.locator) return;
   // Économie d'appels IA PAYANTS : après 30 min d'onglet masqué en continu
@@ -1438,7 +1448,7 @@ async function autoCheckSilently(){
 
     const checkPrompt = d.context + `
 
-[VÉRIFICATION AUTOMATIQUE DE VEILLE — toutes les 5 minutes, PAS une demande de l'opérateur]
+[VÉRIFICATION AUTOMATIQUE DE VEILLE — toutes les ${AUTO_CHECK_MIN} minutes, PAS une demande de l'opérateur]
 Réponds UNIQUEMENT si mon indicatif est actuellement spoté sur un cluster, ou si une
 station DX EXCEPTIONNELLE (priorité maximale, pas encore travaillée) est disponible
 maintenant. Si aucun des deux cas ne s'applique, réponds EXACTEMENT et UNIQUEMENT : RAS`;
@@ -1447,7 +1457,7 @@ maintenant. Si aucun des deux cas ne s'applique, réponds EXACTEMENT et UNIQUEME
     const res = await fetch('/proxy/ai', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        model:'claude-sonnet-4-6', max_tokens:1024,
+        max_tokens:1024,   // pas de « model » : c'est la CONFIG qui décide
         system: (systemPrompt||'') + (_dir ? '\n\n'+_dir : ''),
         messages: [{role:'user', content: checkPrompt}],
       })
@@ -1459,6 +1469,14 @@ maintenant. Si aucun des deux cas ne s'applique, réponds EXACTEMENT et UNIQUEME
 
     // Anti-répétition : ne pas re-signaler le(s) même(s) indicatif(s) en boucle
     const calls = extractCallsigns(reply);
+    // GARDE STRUCTURELLE, en plus de la convention « RAS ». Cette convention
+    // est un accord de texte que rien ne contraint : un modèle qui préface
+    // poliment (« Bien sûr ! RAS ») ou qui répond dans une autre langue ne la
+    // respecte pas, et déclenchait une alerte SONORE pour rien. Une veille qui
+    // sonne à tort est une veille qu'on finit par couper. Or une alerte sans
+    // indicatif n'est de toute façon pas exploitable : pas d'indicatif, pas
+    // d'alerte.
+    if(!calls.length) return;
     const now = Date.now();
     const newCalls = calls.filter(c => !lastAlertedCalls[c] || (now - lastAlertedCalls[c]) > ALERT_COOLDOWN_MS);
     if(calls.length && !newCalls.length) return; // déjà signalé récemment
@@ -1472,7 +1490,7 @@ maintenant. Si aucun des deux cas ne s'applique, réponds EXACTEMENT et UNIQUEME
 }
 
 function scheduleAutoCheck(){
-  setInterval(autoCheckSilently, 10 * 60 * 1000);
+  setInterval(autoCheckSilently, AUTO_CHECK_MIN * 60 * 1000);
 }
 
 // ─── TOGGLE JOUR/NUIT ────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import socket
 
 import logx_rules as rules
 from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX,
+                        modele_effectif,
                           OPENAI_COMPATIBLE_ENDPOINTS)
 from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
@@ -170,13 +171,15 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     Même logique que /proxy/ai mais réutilisable côté serveur (analyse en fond).
     Lève une exception en cas d'échec."""
     provider = (cfg or {}).get('api_provider', 'anthropic')
-    ai_model = model or (cfg or {}).get('ai_model', 'claude-sonnet-4-6')
+    # Le modèle vient de la CONFIGURATION ; celui que passe l'appelant n'est
+    # retenu que s'il appartient au fournisseur configuré (voir modele_effectif).
+    ai_model = modele_effectif(provider, model, (cfg or {}).get('ai_model'))
     api_key = (cfg or {}).get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
     if not api_key:
         raise RuntimeError('Clé API non configurée')
 
     if provider == 'anthropic':
-        payload = {'model': ai_model or 'claude-sonnet-4-6',
+        payload = {'model': ai_model,
                    'max_tokens': max_tokens, 'messages': messages}
         if system_prompt:
             payload['system'] = system_prompt
@@ -195,7 +198,7 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
                                        system_prompt, messages, max_tokens)
 
     if provider == 'gemini':
-        model_id = ai_model or 'gemini-2.0-flash'
+        model_id = ai_model
         contents = [{'role': 'model' if m['role'] == 'assistant' else 'user',
                      'parts': [{'text': m['content']}]} for m in messages]
         payload = {'contents': contents}
@@ -5256,7 +5259,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 message = payload.get('message', '')
                 needs_context = bool(payload.get('needs_context'))
                 system_prompt = payload.get('system') or (build_system_prompt(cfg_snap) if cfg_snap else '')
-                model = payload.get('model')
+                # Comme /proxy/ai : le modèle demandé par la page est ignoré,
+                # c'est le réglage de CONFIG qui fait foi. C'est ici que le nom
+                # Anthropic codé en dur de la carte partait vers OpenAI ou
+                # Gemini, et faisait échouer tout le chat.
+                model = None
                 max_tokens = payload.get('max_tokens', 4096)
                 with _agent_lock:
                     _agent_seq += 1
@@ -5298,7 +5305,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path in ('/proxy/ai', '/proxy/anthropic'):
             cfg_snap = self._cfg_snapshot()
             provider = cfg_snap.get('api_provider', 'anthropic')
-            ai_model = cfg_snap.get('ai_model', 'claude-sonnet-4-6')
+            ai_model = modele_effectif(provider, None, cfg_snap.get('ai_model'))
             api_key  = cfg_snap.get('api_key', '')
             if not api_key:
                 api_key = os.environ.get('ANTHROPIC_API_KEY', '')
@@ -5315,7 +5322,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # ── Anthropic ───────────────────────────────────────────────
                 if provider == 'anthropic':
                     anth_payload = {
-                        'model':      payload.get('model', ai_model or 'claude-sonnet-4-6'),
+                        # `payload['model']` est DÉLIBÉRÉMENT ignoré : ce proxy
+                        # sert des pages du navigateur, et une page n'a pas à
+                        # décider du modèle — l'opérateur l'a réglé dans CONFIG.
+                        # Un appelant SERVEUR qui a besoin d'un palier précis
+                        # passe par call_llm(model=…), dont la demande est
+                        # honorée si elle est de la bonne famille.
+                        'model':      ai_model,
                         'max_tokens': payload.get('max_tokens', 4096),
                         'messages':   messages,
                     }
@@ -5367,7 +5380,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
                 # ── Gemini ──────────────────────────────────────────────────
                 elif provider == 'gemini':
-                    model_id = ai_model or 'gemini-2.0-flash'
+                    model_id = ai_model
                     gem_contents = []
                     for m in messages:
                         role = 'model' if m['role'] == 'assistant' else 'user'

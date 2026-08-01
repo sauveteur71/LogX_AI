@@ -30,6 +30,59 @@ OPENAI_COMPATIBLE_ENDPOINTS = {
     'deepseek': ('https://api.deepseek.com/chat/completions',  'deepseek-v4-flash'),
 }
 
+# Modèle par défaut de chaque fournisseur — la valeur employée quand la config
+# n'en porte aucune. Les deux fournisseurs au format propre ne sont pas dans
+# OPENAI_COMPATIBLE_ENDPOINTS, d'où cette table qui les couvre tous.
+MODELE_DEFAUT = {
+    'anthropic': 'claude-sonnet-4-6',
+    'gemini':    'gemini-2.0-flash',
+    'openai':    OPENAI_COMPATIBLE_ENDPOINTS['openai'][1],
+    'mistral':   OPENAI_COMPATIBLE_ENDPOINTS['mistral'][1],
+    'xai':       OPENAI_COMPATIBLE_ENDPOINTS['xai'][1],
+    'deepseek':  OPENAI_COMPATIBLE_ENDPOINTS['deepseek'][1],
+}
+
+# À quoi ressemble un nom de modèle chez chaque fournisseur. Ne sert QU'À
+# écarter un nom qui ne peut pas lui appartenir — jamais à valider finement un
+# nom de modèle, ce qui périmerait à chaque sortie.
+FAMILLES_MODELE = {
+    'anthropic': ('claude-',),
+    'gemini':    ('gemini-',),
+    'openai':    ('gpt-', 'o1', 'o3', 'o4', 'chatgpt-'),
+    'mistral':   ('mistral-', 'ministral-', 'magistral-', 'open-mistral',
+                  'codestral', 'pixtral'),
+    'xai':       ('grok-',),
+    'deepseek':  ('deepseek-',),
+}
+
+
+def modele_effectif(provider, demande=None, configure=None):
+    """Quel modèle employer réellement — LE CHOIX APPARTIENT À LA CONFIGURATION.
+
+    Une page qui appelle l'IA n'a pas à décider du modèle : elle ignore quel
+    fournisseur l'opérateur a réglé. La carte IA envoyait pourtant un nom
+    Anthropic codé en dur, et il écrasait le choix de la page CONFIG. Deux
+    conséquences mesurées : un opérateur ayant choisi Opus ou Haiku ne l'obtenait
+    jamais, et un opérateur ayant choisi OpenAI, Mistral, xAI, DeepSeek ou Gemini
+    voyait ce nom Anthropic partir tel quel à leur API — échec garanti à chaque
+    message, alors que la veille automatique continuait de fonctionner (elle
+    passe par un chemin qui ignorait déjà ce champ).
+
+    `demande` n'est donc honoré que s'il appartient à la FAMILLE du fournisseur
+    configuré : un appelant interne garde ainsi le droit de viser un palier
+    (Haiku pour une tâche courte), sans pouvoir réintroduire l'incohérence.
+    """
+    p = (provider or 'anthropic').strip().lower()
+    conf = (configure or '').strip()
+    dem = (demande or '').strip()
+    if dem:
+        prefixes = FAMILLES_MODELE.get(p)
+        # Fournisseur inconnu de la table : on ne peut rien affirmer, on laisse
+        # passer plutôt que d'imposer un défaut qui serait tout aussi arbitraire.
+        if prefixes is None or dem.lower().startswith(prefixes):
+            return dem
+    return conf or MODELE_DEFAUT.get(p, MODELE_DEFAUT['anthropic'])
+
 
 
 # ─── MODES NUMÉRIQUES À FILTRER ──────────────────────────────────────────────
