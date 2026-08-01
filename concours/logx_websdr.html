@@ -4,6 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LogX AI — WebSDR distants</title>
+<!--
+  ANNUAIRE WEBSDR VIVANT — ~850 récepteurs, état en direct, carte cliquable.
+
+  D'OÙ VIENNENT LES DONNÉES (un seul appel, /data/websdr) :
+    - la liste KiwiSDR de Pierre Ynard (rx.linkfanel.net), rafraîchie par le
+      serveur toutes les 15 min : occupation, SNR mesuré, GPS — l'état du parc
+      SANS sonder un seul récepteur ;
+    - la sélection curée (websdr_cures.json) : stations françaises et
+      classiques (Twente…), provenance par entrée, sondées 1×/h par le serveur.
+  La page ne sonde RIEN elle-même : l'ancienne version lançait une requête
+  no-cors par récepteur depuis le navigateur — supportable pour 7 stations,
+  impensable pour 850.
+
+  LE GESTE CONTEST : le champ fréquence en tête. Chaque bouton ÉCOUTER ouvre
+  alors le récepteur DIRECTEMENT sur cette fréquence (syntaxe KiwiSDR vérifiée
+  sur la doc officielle). « S'ÉCOUTER » = le meilleur SNR près du QTH, sur la
+  fréquence courante — contrôle de modulation instantané.
+-->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
 :root {
@@ -18,6 +36,7 @@ body.day-mode {
   --yellow:#7A5A00;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;
 }
 body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+body.day-mode .leaflet-container{background:#D8E4F0}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
@@ -31,48 +50,58 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 
-.container{flex:1;overflow-y:auto;padding:22px 26px 60px;max-width:1180px;margin:0 auto;width:100%}
+.container{flex:1;overflow-y:auto;padding:16px 26px 60px;max-width:1280px;margin:0 auto;width:100%}
 
-.intro{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:20px}
-.intro h1{font-family:var(--font-mono);font-size:18px;color:var(--accent2);letter-spacing:1px;margin-bottom:8px}
-.intro p{color:var(--muted);font-size:14px;line-height:1.6;max-width:820px}
-.intro p+p{margin-top:8px}
-.intro ul.usages{color:var(--muted);font-size:14px;line-height:1.6;max-width:820px;
-                 margin:6px 0 0 20px;list-style:disc}
-.intro ul.usages li{margin-top:4px}
-.intro ul.usages+p{margin-top:10px}
+.bandeau{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.bandeau h1{font-family:var(--font-mono);font-size:17px;color:var(--accent2);letter-spacing:1px}
+.age{font-family:var(--font-mono);font-size:11.5px}
+.age.frais{color:var(--green)} .age.vieux{color:var(--yellow)} .age.perime{color:var(--red)} .age.inconnu{color:var(--muted)}
+.intro-courte{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:10px;max-width:920px}
 
-.warn-box{background:rgba(255,214,10,.08);border:1px solid var(--yellow);border-radius:10px;
-  padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--text);line-height:1.5}
-.warn-box b{color:var(--yellow)}
+.suggestion{background:rgba(0,255,136,.06);border:1px solid var(--green);border-radius:10px;
+  padding:10px 14px;margin-bottom:12px;font-size:13.5px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.suggestion b{color:var(--green)}
 
-.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+#map{height:380px;border:1px solid var(--border);border-radius:12px;margin-bottom:14px}
+.map-off{padding:18px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12.5px}
+
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .filters select, .filters input{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   border-radius:6px;padding:8px 11px;font-family:var(--font-mono);font-size:13px;outline:none}
 .filters select:focus, .filters input:focus{border-color:var(--accent2)}
-.filters input{flex:1;min-width:200px}
+.filters input[type=text]{flex:1;min-width:180px}
+.filters input[type=number]{width:100px}
+.filters label{font-family:var(--font-mono);font-size:12px;color:var(--muted);display:flex;gap:5px;align-items:center}
 .result-count{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 
-.sdr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-.sdr-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;
-  display:flex;flex-direction:column;gap:8px;transition:border-color .15s}
+.sdr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
+.sdr-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:13px 15px;
+  display:flex;flex-direction:column;gap:6px;transition:border-color .15s}
 .sdr-card:hover{border-color:var(--accent2)}
+.sdr-card.fr{border-left:3px solid var(--accent2)}
 .sdr-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
-.sdr-name{font-weight:700;font-size:15px;color:var(--text);line-height:1.3}
-.sdr-loc{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:2px}
+.sdr-name{font-weight:700;font-size:14px;color:var(--text);line-height:1.3;word-break:break-word}
+.sdr-loc{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:2px}
 .sdr-badge{flex-shrink:0;font-family:var(--font-mono);font-size:11px;padding:3px 8px;border-radius:20px;
   border:1px solid var(--border);color:var(--muted);white-space:nowrap}
 .sdr-badge.up{color:var(--green);border-color:var(--green);background:rgba(0,255,136,.08)}
+.sdr-badge.plein{color:var(--yellow);border-color:var(--yellow);background:rgba(255,214,10,.08)}
 .sdr-badge.down{color:var(--red);border-color:var(--red);background:rgba(255,45,85,.08)}
-.sdr-bands{font-family:var(--font-mono);font-size:12.5px;color:var(--accent2)}
-.sdr-note{font-size:12px;color:var(--muted);font-style:italic;line-height:1.4}
-.sdr-kind{display:inline-block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:1px;
-  color:var(--purple);border:1px solid var(--purple);border-radius:4px;padding:1px 6px;width:fit-content}
-.sdr-open{margin-top:4px;text-align:center;background:var(--accent2);color:#04222b;font-weight:700;
-  text-decoration:none;border-radius:6px;padding:9px;font-family:var(--font-mono);font-size:13px}
+.sdr-meta{font-family:var(--font-mono);font-size:12px;color:var(--accent2);display:flex;gap:12px;flex-wrap:wrap}
+.sdr-note{font-size:11.5px;color:var(--muted);font-style:italic;line-height:1.35}
+.sdr-open{margin-top:2px;text-align:center;background:var(--accent2);color:#04222b;font-weight:700;
+  text-decoration:none;border-radius:6px;padding:8px;font-family:var(--font-mono);font-size:13px}
 .sdr-open:hover{filter:brightness(1.1)}
 .empty{text-align:center;color:var(--muted);padding:50px 0;font-family:var(--font-mono);font-size:13px}
+.plus{grid-column:1/-1;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:8px}
+
+.leaflet-container{font-family:var(--font-mono)}
+.leaflet-control-attribution{font-size:11px;opacity:.5}
+.leaflet-control-zoom a{background:var(--bg3)!important;color:var(--text)!important;border-color:var(--border)!important}
+.leaflet-popup-content-wrapper{background:var(--bg2);color:var(--text);border:1px solid var(--border)}
+.leaflet-popup-tip{background:var(--bg2)}
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 </head>
 <body>
 
@@ -100,122 +129,288 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 <div class="container">
 
-  <div class="intro">
-    <h1>📡 ÉTENDRE TA STATION AVEC UN RÉCEPTEUR DISTANT</h1>
-    <!-- Chaque phrase tient sur UNE ligne et forme une unité grammaticale
-         COMPLÈTE. Auparavant, cette énumération était une seule phrase coupée
-         par des <b> : le moteur i18n indexe chaque nœud texte séparément, donc
-         « — utile pour », « (fais-toi écouter par… », « , ou repérer… »
-         devenaient autant de clés distinctes. Des bouts de phrase ne se
-         traduisent pas : l'ordre des mots d'une subordonnée allemande ou
-         polonaise ne suit pas celui du français, et le résultat recollé
-         n'aurait été une phrase dans aucune langue. -->
-    <p>Un WebSDR est un récepteur radio piloté depuis un navigateur, installé chez un autre radioamateur ou une association, quelque part dans le monde. Tu peux le régler et l'écouter à distance, en même temps que d'autres auditeurs.</p>
-    <p>C'est utile pour :</p>
-    <ul class="usages">
-      <li><b>Vérifier comment ta propre émission est reçue ailleurs.</b> Fais-toi écouter par quelqu'un connecté à ce récepteur.</li>
-      <li><b>Écouter une bande fermée chez toi, mais ouverte là-bas.</b></li>
-      <li><b>Repérer une station avant de tenter le contact.</b></li>
-    </ul>
-    <p>Choisis un récepteur ci-dessous et clique « ▶ Ouvrir » — il s'ouvre dans un nouvel onglet, indépendant de LogX AI.</p>
+  <div class="bandeau">
+    <h1>📡 <span id="titreN" class="rc-i18n-live">…</span></h1>
+    <span class="age inconnu rc-i18n-live" id="ageJeu">…</span>
+    <span class="result-count rc-i18n-live" id="resCount"></span>
   </div>
 
-  <div class="warn-box">
-    <b>⚠ Disponibilité non garantie.</b> Ces récepteurs sont opérés bénévolement par d'autres radioamateurs ou associations, souvent depuis une connexion personnelle — contrairement au reste de LogX AI, leur présence en ligne 24h/24 n'est pas assurée. Le badge « en ligne / injoignable » ci-dessous est un test rapide effectué par ton navigateur à l'ouverture de cette page, pas une garantie.
-  </div>
+  <p class="intro-courte">Un WebSDR est un récepteur radio piloté depuis un navigateur, installé chez un autre radioamateur, quelque part dans le monde. Écoute ta propre émission depuis là-bas, une bande fermée chez toi, ou une station avant de tenter le contact. Ces récepteurs sont opérés bénévolement : leur disponibilité n'est pas garantie — l'état affiché vient des annonces des propriétaires et des sondes du serveur, rafraîchies en continu.</p>
+
+  <div class="suggestion rc-i18n-live" id="suggestion" style="display:none"></div>
+
+  <div id="map"></div>
 
   <div class="filters">
-    <select id="fContinent"><option value="">🌍 Tous les continents</option></select>
-    <input id="fSearch" type="text" placeholder="Filtrer par nom, pays, bande…">
-    <span class="result-count" id="resCount"></span>
+    <input type="text" id="fSearch" placeholder="Rechercher (nom, lieu, indicatif…)">
+    <select id="fType">
+      <option value="">Tous types</option>
+      <option value="kiwi">KiwiSDR</option>
+      <option value="websdr">WebSDR</option>
+      <option value="openwebrx">OpenWebRX</option>
+    </select>
+    <select id="fEtat">
+      <option value="">Tous états</option>
+      <option value="libre">En ligne, place libre</option>
+      <option value="ligne">En ligne</option>
+    </select>
+    <select id="fTri">
+      <option value="dist">Tri : distance</option>
+      <option value="snr">Tri : meilleur SNR</option>
+      <option value="nom">Tri : nom</option>
+    </select>
+    <label><input type="checkbox" id="fFrance"> 🇫🇷 <span>France d'abord</span></label>
+    <label>kHz <input type="number" id="fKhz" min="0" step="0.1" placeholder="14074"></label>
+    <select id="fMode">
+      <option value="">mode auto</option>
+      <option>CW</option><option>SSB</option><option>USB</option>
+      <option>LSB</option><option>AM</option><option>FM</option><option>FT8</option>
+    </select>
   </div>
 
-  <div class="sdr-grid" id="sdrGrid"><div class="empty">Chargement…</div></div>
-  <div class="empty" id="sdrEmpty" style="display:none">Aucun récepteur ne correspond à ce filtre.</div>
+  <div class="sdr-grid rc-i18n-live" id="sdrGrid"></div>
+  <div class="empty" id="sdrEmpty" style="display:none">Aucun récepteur ne correspond à ces filtres.</div>
 
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-let ALL_RECEIVERS = [];
-
 function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const T = s => (window.rcT ? window.rcT(s) : s);
+const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+  let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+})());
 
-async function loadReceivers(){
+let STATIONS = [];
+let carte = null, couche = null;
+
+// ── L'URL d'écoute, MIROIR de logx_websdr.url_ecoute côté serveur ───────────
+// Dupliquée ici parce qu'elle dépend du champ fréquence que l'utilisateur
+// tape en direct — un aller-retour serveur par clic serait absurde. Le test
+// test_websdr_annuaire.py vérifie la version Python ; celle-ci suit la même
+// table. KiwiSDR : ?f=7021.3cw (doc officielle). Classique : ?tune= (usage).
+const MODES_KIWI = {USB:'usb', LSB:'lsb', CW:'cw', 'CW-R':'cwn', AM:'am',
+                    FM:'nbfm', FT8:'usb', FT4:'usb', DIGITAL:'usb', RTTY:'usb'};
+function urlEcoute(s, khz, mode){
+  const url = String(s.url || '').trim().replace(/\/+$/, '');
+  // Même garde de schéma que le Python : un href « javascript:… » venant d'une
+  // entrée curée éditée à la main s'exécuterait au clic.
+  if (!/^https?:\/\//i.test(url)) return '';
+  const f = parseFloat(khz);
+  if (!Number.isFinite(f) || f <= 0) return url;   // même garde que le Python
+  let m = String(mode || '').toUpperCase().trim();
+  if (m === 'SSB' || m === '') m = f < 10000 ? 'LSB' : 'USB';
+  const suf = MODES_KIWI[m] || 'usb';
+  if (s.type === 'kiwi') return url + '/?f=' + f.toFixed(1) + suf;
+  return url + '/?tune=' + Math.round(f) + suf;
+}
+
+function freqCourante(){
+  return { khz: document.getElementById('fKhz').value,
+           mode: document.getElementById('fMode').value };
+}
+
+function etatDe(s){
+  if (s.en_ligne === false) return 'down';
+  if (s.en_ligne == null) return 'inconnu';
+  if (s.users_max != null && s.users != null && s.users >= s.users_max) return 'plein';
+  return 'up';
+}
+
+// ── La carte : ~850 marqueurs en canvas, cercles colorés par état ───────────
+function initCarte(){
   try{
-    const r = await fetch('/data/websdr');
-    const d = await r.json();
-    ALL_RECEIVERS = d.receivers || [];
+    if (typeof L === 'undefined') throw new Error('Leaflet non chargé');
+    carte = L.map('map', { preferCanvas: true, worldCopyJump: true })
+             .setView([46.5, 3.0], 4);
+    const tuiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 12, attribution: '© OpenStreetMap' });
+    // Même repli que la carte principale (correctif M9) : les tuiles peuvent
+    // être bloquées (pare-feu, hors ligne) — le dire au lieu d'un carré noir.
+    let erreurs = 0;
+    tuiles.on('tileerror', () => {
+      if (++erreurs === 8){
+        document.getElementById('map').insertAdjacentHTML('beforebegin',
+          '<div class="map-off">' + T('Fond de carte injoignable (connexion Internet requise) — la liste ci-dessous reste complète.') + '</div>');
+      }
+    });
+    tuiles.addTo(carte);
+    couche = L.layerGroup().addTo(carte);
   }catch(e){
-    document.getElementById('sdrGrid').innerHTML = '<div class="empty">Serveur injoignable.</div>';
-    return;
+    document.getElementById('map').outerHTML =
+      '<div class="map-off">' + T('Carte indisponible — la liste ci-dessous reste complète.') + '</div>';
+    carte = null;
   }
-  const continents = [...new Set(ALL_RECEIVERS.map(r => r.continent).filter(Boolean))].sort();
-  const sel = document.getElementById('fContinent');
-  continents.forEach(c => {
-    const o = document.createElement('option');
-    o.value = c; o.textContent = c;
-    sel.appendChild(o);
+}
+
+const COULEURS = { up: '#00FF88', plein: '#FFD60A', down: '#FF2D55', inconnu: '#7A8199' };
+
+function majCarte(liste){
+  if (!carte || !couche) return;
+  couche.clearLayers();
+  for (const s of liste){
+    if (s.lat == null) continue;
+    const et = etatDe(s);
+    const m = L.circleMarker([s.lat, s.lon], {
+      radius: et === 'up' ? 5 : 4, weight: 1, color: '#000',
+      fillColor: COULEURS[et], fillOpacity: .85 });
+    const fq = freqCourante();
+    m.bindPopup(
+      '<b>' + esc(s.nom) + '</b><br>' + esc(s.lieu || '') +
+      (s.snr != null ? '<br>SNR ' + s.snr + ' dB' : '') +
+      (s.users_max != null ? '<br>' + s.users + '/' + s.users_max + ' ' + T('auditeurs') : '') +
+      (s.dist_km != null ? '<br>' + s.dist_km + ' km · ' + s.azimut + '°' : '') +
+      '<br><a href="' + esc(urlEcoute(s, fq.khz, fq.mode)) +
+      '" target="_blank" rel="noopener noreferrer">▶ ' + T('ÉCOUTER') + '</a>');
+    m.addTo(couche);
+  }
+}
+
+// ── La liste, filtrée et plafonnée pour rester fluide ───────────────────────
+const PLAFOND_LISTE = 120;
+
+function filtrer(){
+  const q = document.getElementById('fSearch').value.trim().toLowerCase();
+  const type = document.getElementById('fType').value;
+  const etat = document.getElementById('fEtat').value;
+  let liste = STATIONS.filter(s => {
+    if (type && s.type !== type) return false;
+    if (etat === 'ligne' && s.en_ligne !== true) return false;
+    if (etat === 'libre' && etatDe(s) !== 'up') return false;
+    if (!q) return true;
+    return [s.nom, s.lieu, s.grid, s.antenne, s.pays].join(' ').toLowerCase().includes(q);
   });
-  render();
-  probeAll();
+  const tri = document.getElementById('fTri').value;
+  if (tri === 'snr') liste.sort((a, b) => (b.snr ?? -1) - (a.snr ?? -1));
+  else if (tri === 'nom') liste.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+  else liste.sort((a, b) => (a.dist_km ?? 1e9) - (b.dist_km ?? 1e9));
+  if (document.getElementById('fFrance').checked){
+    // « D'abord », pas « seulement » : les stations FR remontent, le reste suit.
+    const fr = s => (s.pays === 'FR' || / FRANCE|, France/i.test(s.nom + ' ' + (s.lieu || ''))) ? 0 : 1;
+    liste.sort((a, b) => fr(a) - fr(b));
+  }
+  return liste;
 }
 
 function render(){
-  const cont = document.getElementById('fContinent').value;
-  const q = document.getElementById('fSearch').value.trim().toLowerCase();
-  const list = ALL_RECEIVERS.filter(r => {
-    if (cont && r.continent !== cont) return false;
-    if (!q) return true;
-    const hay = [r.name, r.city, r.country, r.bands, r.kind].join(' ').toLowerCase();
-    return hay.includes(q);
-  });
-  document.getElementById('resCount').textContent = list.length + ' récepteur' + (list.length > 1 ? 's' : '');
-  const grid = document.getElementById('sdrGrid');
-  document.getElementById('sdrEmpty').style.display = list.length ? 'none' : 'block';
-  grid.innerHTML = list.map((r, i) => `
-    <div class="sdr-card">
+  const liste = filtrer();
+  document.getElementById('resCount').textContent =
+    Tf('{n} affichés / {t} récepteurs', {n: Math.min(liste.length, PLAFOND_LISTE), t: STATIONS.length});
+  document.getElementById('sdrEmpty').style.display = liste.length ? 'none' : 'block';
+  majCarte(liste);
+  const fq = freqCourante();
+  const cartes = liste.slice(0, PLAFOND_LISTE).map(s => {
+    const et = etatDe(s);
+    const badge = et === 'up' ? '🟢 ' + T('en ligne')
+      : et === 'plein' ? '🟡 ' + T('complet')
+      : et === 'down' ? '🔴 ' + T('hors ligne') : '⚪ ' + T('non sondé');
+    const estFr = s.pays === 'FR' || / FRANCE|, France/i.test(s.nom + ' ' + (s.lieu || ''));
+    return `
+    <div class="sdr-card${estFr ? ' fr' : ''}">
       <div class="sdr-top">
         <div>
-          <div class="sdr-name">${esc(r.name)}</div>
-          <div class="sdr-loc">${esc([r.city, r.country].filter(Boolean).join(' · '))}</div>
+          <div class="sdr-name">${esc(s.nom)}</div>
+          <div class="sdr-loc">${esc(s.lieu || '')}${s.grid ? ' · ' + esc(s.grid) : ''}</div>
         </div>
-        <span class="sdr-badge" id="badge_${i}" data-url="${esc(r.url)}">…</span>
+        <span class="sdr-badge ${et === 'inconnu' ? '' : et}">${badge}</span>
       </div>
-      <span class="sdr-kind">${esc(r.kind || 'WebSDR')}</span>
-      <div class="sdr-bands">📻 ${esc(r.bands)}</div>
-      ${r.note ? `<div class="sdr-note">${esc(r.note)}</div>` : ''}
-      <a class="sdr-open" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">▶ Ouvrir dans un nouvel onglet</a>
-    </div>`).join('');
-}
-
-// Test de disponibilité léger : une requête no-cors par récepteur, timeout 4 s.
-// En mode no-cors la réponse est toujours "opaque" (on ne peut pas lire le
-// code HTTP) mais une erreur réseau/timeout, elle, est bien détectable — assez
-// pour distinguer "probablement joignable" de "hors ligne". Fait UNE fois au
-// chargement de la page, jamais en boucle (ce sont des serveurs bénévoles).
-function probeAll(){
-  document.querySelectorAll('.sdr-badge').forEach(async (el) => {
-    const url = el.dataset.url;
-    if (!url) return;
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 4000);
-    try{
-      await fetch(url, { mode: 'no-cors', signal: ctrl.signal, cache: 'no-store' });
-      el.textContent = '🟢 en ligne';
-      el.className = 'sdr-badge up';
-    }catch(e){
-      el.textContent = '🔴 injoignable';
-      el.className = 'sdr-badge down';
-    }finally{
-      clearTimeout(t);
-    }
+      <div class="sdr-meta">
+        ${s.snr != null ? `<span>📶 SNR ${s.snr} dB</span>` : ''}
+        ${s.users_max != null ? `<span>👥 ${s.users}/${s.users_max}</span>` : ''}
+        ${s.dist_km != null ? `<span>📏 ${s.dist_km} km · ${s.azimut}°</span>` : ''}
+      </div>
+      ${s.antenne ? `<div class="sdr-note">📡 ${esc(s.antenne)}</div>` : ''}
+      ${s.note ? `<div class="sdr-note">${esc(s.note)}</div>` : ''}
+      <a class="sdr-open" href="${esc(urlEcoute(s, fq.khz, fq.mode))}"
+         target="_blank" rel="noopener noreferrer">▶ ${T('ÉCOUTER')}</a>
+    </div>`;
   });
+  if (liste.length > PLAFOND_LISTE){
+    cartes.push(`<div class="plus">${Tf('… et {n} autres — affine le filtre, ou utilise la carte.',
+                                       {n: liste.length - PLAFOND_LISTE})}</div>`);
+  }
+  document.getElementById('sdrGrid').innerHTML = cartes.join('');
 }
 
-document.getElementById('fContinent').addEventListener('change', render);
-document.getElementById('fSearch').addEventListener('input', render);
-loadReceivers();
+// ── La suggestion « s'écouter » ─────────────────────────────────────────────
+function majSuggestion(sug){
+  const el = document.getElementById('suggestion');
+  if (!sug){ el.style.display = 'none'; return; }
+  const fq = freqCourante();
+  el.style.display = 'flex';
+  el.innerHTML = '🔊 ' + Tf("S'écouter : meilleur récepteur près de chez toi — {nom}",
+                            {nom: esc(sug.nom)})
+    + (sug.snr != null ? ` · SNR <b>${sug.snr} dB</b>` : '')
+    + (sug.dist_km != null ? ` · ${sug.dist_km} km` : '')
+    + ` <a class="sdr-open" style="margin:0;padding:6px 14px" href="${esc(urlEcoute(sug, fq.khz, fq.mode))}"
+         target="_blank" rel="noopener noreferrer">▶ ${T("S'ÉCOUTER")}</a>`;
+}
+
+let DERNIERE_SUGGESTION = null;
+let DERNIER_AGE = null;
+
+function majAge(age){
+  document.getElementById('titreN').textContent =
+    Tf('{n} récepteurs WebSDR', {n: STATIONS.length});
+  const ageEl = document.getElementById('ageJeu');
+  if (age){
+    ageEl.className = 'age ' + age.etat + ' rc-i18n-live';
+    ageEl.textContent = Tf('état du parc : il y a {min} min', {min: Math.round(age.secondes / 60)});
+  } else {
+    ageEl.className = 'age inconnu rc-i18n-live';
+    ageEl.textContent = T('état du parc : pas encore téléchargé (démarrage du serveur)');
+  }
+}
+
+async function charger(){
+  try{
+    const r = await fetch('/data/websdr');
+    const d = await r.json();
+    STATIONS = d.stations || [];
+    DERNIERE_SUGGESTION = d.suggestion || null;
+    DERNIER_AGE = d.age || null;
+    majAge(DERNIER_AGE);
+    majSuggestion(DERNIERE_SUGGESTION);
+    // Préremplir la fréquence avec celle de la radio si le CAT tourne — le
+    // geste « s'écouter » n'a alors plus rien à taper. Un seul essai, silencieux.
+    try{
+      const rig = await (await fetch('/rig/state')).json();
+      if (rig && rig.ok && rig.freq_khz && !document.getElementById('fKhz').value){
+        document.getElementById('fKhz').value = rig.freq_khz;
+      }
+    }catch(e){}
+    render();
+  }catch(e){
+    document.getElementById('sdrGrid').innerHTML =
+      '<div class="empty">' + T('Serveur injoignable.') + '</div>';
+  }
+}
+
+for (const id of ['fSearch', 'fType', 'fEtat', 'fTri', 'fFrance', 'fKhz', 'fMode']){
+  document.getElementById(id).addEventListener(
+    id === 'fSearch' || id === 'fKhz' ? 'input' : 'change', () => {
+      render();
+      majSuggestion(DERNIERE_SUGGESTION);   // le lien S'ÉCOUTER suit la fréquence
+    });
+}
+
+// Changement de langue : les phrases à valeurs (« 120 affichés / 879
+// récepteurs », les badges d'état, la suggestion) sont fabriquées ici et ne
+// sont plus des clés une fois leurs nombres insérés — le moteur i18n ne peut
+// pas les rattraper, seule cette page le peut. On redessine.
+window.addEventListener('rc-lang', () => {
+  if (!STATIONS.length) return;   // rien à redessiner avant le 1er chargement
+  render();
+  majSuggestion(DERNIERE_SUGGESTION);
+  majAge(DERNIER_AGE);
+});
+
+initCarte();
+charger();
+// L'état du parc évolue (occupation, SNR) : relire toutes les 5 min — c'est le
+// rythme utile, le serveur ne rafraîchit sa source que toutes les 15 min.
+setInterval(charger, 5 * 60 * 1000);
 </script>
 </body>
 </html>

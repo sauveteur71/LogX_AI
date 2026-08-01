@@ -1543,9 +1543,28 @@ async function refreshBandMap(){
       const infoBulle = (s.explanation || '')
         + (s.hors_filtre ? ' — hors filtre, gardé par une règle d\'alerte' : '')
         + (s.spotter ? ' — spotté par ' + s.spotter : '');
+      // « Écouter ce spot » : mêmes règles d'hygiène que jsCall — mode et
+      // coordonnées viennent du cluster (source externe), on ne laisse passer
+      // dans l'attribut onclick que des caractères/nombres sûrs.
+      const modeSpot = String(s.mode || '').replace(/[^A-Za-z0-9/-]/g, '');
+      const earLat = Number.isFinite(s.lat) ? s.lat : 'null';
+      const earLon = Number.isFinite(s.lon) ? s.lon : 'null';
+      // Le cluster fournit bien plus souvent une GRILLE que des coordonnées,
+      // et un spot local (entendu par l'opérateur) n'a aucune position. Sans
+      // ça, le bouton promettait « proche du DX » et donnait en silence un
+      // récepteur proche de CHEZ MOI — le titre le dit maintenant, et la
+      // grille est transmise pour que le serveur situe le DX quand il peut.
+      const grilleSpot = String(s.locator || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 6);
+      const dxSitue = Number.isFinite(s.lat) || grilleSpot.length >= 4;
+      const titreOreille = dxSitue
+        ? trT('Écouter ce spot sur un récepteur WebSDR proche du DX')
+        : trT('Position du DX inconnue — écouter cette fréquence sur un récepteur proche de chez toi');
       rows.push(`<div class="${cls}" onclick="bandmapClick('${jsCall}',${f})" title="${escHtml(infoBulle)}">`
         + `<span class="bm-f">${f.toFixed(3)}</span>`
-        + `<span class="bm-c" style="${style}">${s.local ? '👂' : (s.new_mult ? '★' : '')}${escHtml(s.call)}</span></div>`);
+        + `<span class="bm-c" style="${style}">${s.local ? '👂' : (s.new_mult ? '★' : '')}${escHtml(s.call)}</span>`
+        + `<span class="bm-ear${dxSitue ? '' : ' flou'}" onclick="event.stopPropagation();`
+        + `ecouterSpot(${(f * 1000).toFixed(1)},${earLat},${earLon},'${modeSpot}','${grilleSpot}')"`
+        + ` title="${escHtml(titreOreille)}">🔊</span></div>`);
     }
     if(txMhz && !txDone) rows.push(txRow(txMhz));
     list.innerHTML = rows.length ? rows.join('')
@@ -1662,6 +1681,40 @@ function bandmapClick(call, mhz){
 }
 setInterval(refreshBandMap, 15000);
 setTimeout(refreshBandMap, 2500);
+
+// ─── ÉCOUTER SUR UN WEBSDR : le serveur choisit le récepteur ─────────────────
+// Deux gestes, un seul endpoint (/data/websdr/ecouter, annuaire en cache) :
+//   - ecouterSpot(khz, lat, lon, mode) : récepteur PROCHE DU DX — entendre à
+//     peu près ce que le DX entend avant de l'appeler ;
+//   - sEcouter() : récepteur proche de CHEZ MOI, sur la fréquence radio —
+//     contrôle de modulation instantané. La page WEBSDR fait le tour complet.
+async function ecouterSpot(khz, lat, lon, mode, loc){
+  try{
+    const p = new URLSearchParams();
+    if(khz) p.set('khz', khz);
+    if(mode) p.set('mode', mode);
+    if(lat != null && lon != null){ p.set('lat', lat); p.set('lon', lon); }
+    else if(loc) p.set('loc', loc);   // le serveur situe le DX par sa grille
+    const r = await fetch('/data/websdr/ecouter?' + p.toString());
+    const d = await r.json();
+    if(!d.ok || !d.url){
+      alert(trT('Aucun récepteur WebSDR en ligne assez près (rayon 1500 km).'));
+      return;
+    }
+    window.open(d.url, '_blank', 'noopener');
+  }catch(e){ /* serveur injoignable : geste optionnel, pas d'erreur bloquante */ }
+}
+
+function sEcouter(){
+  const rig = (typeof rigState !== 'undefined') ? rigState : {};
+  // Sans CAT, pas de fréquence à transmettre : le récepteur s'ouvre sur sa
+  // fréquence par défaut, l'opérateur règle à la main (mieux que rien).
+  const khz = (rig.enabled && rig.freq_khz) ? rig.freq_khz : null;
+  // Le mode RÉEL de la radio prime sur celui du logiciel : c'est celui-là
+  // qu'il faut écouter pour juger sa propre modulation (même choix qu'au
+  // décodeur CW et au keyer, plus haut dans ce fichier).
+  ecouterSpot(khz, null, null, rig.mode || currentMode || '');
+}
 
 // ═══ OPÉRER PLUS VITE : keyer vocal · ESM · décodeur CW ══════════════════════
 
