@@ -184,10 +184,17 @@
   // multi-op) — un seul poll partagé plutôt qu'une requête dédiée de plus.
   let _bandChange = null;
   let _bandChangeFetchedAt = 0;
+  function nudgesOn(){ try { return localStorage.getItem('rc_live_nudges') === '1'; } catch(e){ return false; } }
   function refreshRate(){
-    fetch('/coach/state').then(function(r){ return r.ok ? r.json() : null; })
+    // Nudges live (OFF par défaut) : on ne demande le calcul serveur que si
+    // l'opérateur l'a activé — sinon `?nudges=1` absent, le serveur ne dépense
+    // rien. Même poll partagé, aucune boucle réseau supplémentaire.
+    var url = '/coach/state?lang=' + encodeURIComponent((typeof rcLang === 'function') ? rcLang() : 'fr');
+    if (nudgesOn()) url += '&nudges=1';
+    fetch(url).then(function(r){ return r.ok ? r.json() : null; })
       .then(function(st){
         if (!st) return;
+        if (st.nudge) maybeShowNudge(st.nudge);
         const el = document.getElementById('rcsbRate');
         if (el){
           const s = st.stats || {};
@@ -208,6 +215,44 @@
         tickBandChange();
       }).catch(function(){});
   }
+
+  // ── Nudges IA événementiels : UNE phrase d'action en toast, au bon moment ──
+  // Débounce DUR (≥5 min) + dédup par signature d'événement : jamais deux fois
+  // le même, jamais une rafale (fatigue d'alerte). Le serveur ne renvoie un
+  // `nudge` que si l'option est active (voir refreshRate/`?nudges=1`).
+  var NUDGE_DEBOUNCE_MS = 5 * 60 * 1000;
+  function maybeShowNudge(nudge){
+    if (!nudge || !nudge.text || !nudge.sig) return;
+    var last = {};
+    try { last = JSON.parse(localStorage.getItem('rc_nudge_last') || '{}'); } catch(e){}
+    var now = Date.now();
+    if (last.sig === nudge.sig) return;                              // événement déjà montré
+    if (last.ts && (now - last.ts) < NUDGE_DEBOUNCE_MS) return;      // débounce dur
+    try { localStorage.setItem('rc_nudge_last', JSON.stringify({sig: nudge.sig, ts: now})); } catch(e){}
+    showNudgeToast(nudge);
+  }
+  function escNudge(s){ var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+  function showNudgeToast(nudge){
+    var el = document.getElementById('rcsbNudgeToast');
+    if (!el){
+      el = document.createElement('div');
+      el.id = 'rcsbNudgeToast';
+      el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:52px;z-index:99999;'
+        + 'max-width:min(560px,92vw);background:var(--bg2,#12172e);color:var(--text,#dfe6ff);'
+        + 'border:1px solid var(--accent2,#22e0ff);border-left:4px solid var(--accent2,#22e0ff);'
+        + 'border-radius:8px;padding:10px 14px;font-family:var(--font-mono,monospace);font-size:14px;'
+        + 'line-height:1.5;box-shadow:0 8px 30px rgba(0,0,0,.5);display:flex;gap:10px;align-items:center';
+      document.body.appendChild(el);
+    }
+    el.innerHTML = '<span style="flex:1">🤖 ' + escNudge(nudge.text) + '</span>'
+      + '<button aria-label="fermer" style="cursor:pointer;border:0;background:transparent;'
+      + 'color:var(--muted,#7a86b6);font-size:18px;line-height:1">✕</button>';
+    el.querySelector('button').onclick = function(){ el.remove(); };
+    el.style.display = 'flex';
+    clearTimeout(el._auto);
+    el._auto = setTimeout(function(){ if (el && el.parentNode) el.remove(); }, 30000);
+  }
+
   bar.addEventListener('click', function(e){
     if (!e.target.closest('#rcsbRateItem')) return;
     const cur = localStorage.getItem('rc_rate_goal') || '0';

@@ -2131,6 +2131,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 state['new_targets'] = new_ones
             except Exception:
                 pass
+            # Nudge événementiel (UNE phrase d'action) : calculé UNIQUEMENT si la
+            # page le demande (?nudges=1) — sinon le serveur ne dépense rien et
+            # les stations qui n'ont pas activé l'option ne paient aucun calcul.
+            if (parse_qs(urlparse(self.path).query).get('nudges') or [''])[0] == '1':
+                try:
+                    state['nudge'] = coach.coach_nudge(state, lang)
+                except Exception:
+                    state['nudge'] = None
             self._json(state)
             return
 

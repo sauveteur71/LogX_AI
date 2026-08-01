@@ -198,6 +198,10 @@ textarea::placeholder{color:var(--muted)}
       <div class="coach-rate" id="coachRate"></div>
       <div class="coach-bands" id="coachBands"></div>
       <div class="coach-hints" id="coachHints"></div>
+      <label class="coach-nudge-toggle" title="Une phrase d'action poussée en toast quand un événement mérite ton attention : entité/département rare jamais fait et spotté, rythme effondré, silence radio." style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted,#8792B5);margin-top:6px;cursor:pointer">
+        <input type="checkbox" id="nudgeToggle" onchange="toggleNudges(this.checked)" style="cursor:pointer">
+        🤖 <span>Nudges en direct</span>
+      </label>
     </div>
     <div class="chat-msgs" id="chatMsgs">
       <div class="msg msg-agent">
@@ -1447,7 +1451,13 @@ function renderCoach(){
   hintsHtml+=(coachState.hints||[]).slice(0,3).map(h=>
     `<div class="coach-hint ch-${h.level}">${h.icon} ${h.text}</div>`).join('');
   document.getElementById('coachHints').innerHTML=hintsHtml;
+  const _nt=document.getElementById('nudgeToggle');   // reflète l'état stocké (OFF par défaut)
+  if(_nt)_nt.checked=(localStorage.getItem('rc_live_nudges')==='1');
 }
+
+// Interrupteur « Nudges en direct » : la barre d'état (logx_statusbar.js) lit
+// rc_live_nudges à chaque poll /coach/state pour demander (ou non) le calcul.
+function toggleNudges(on){ try{ localStorage.setItem('rc_live_nudges', on?'1':'0'); }catch(e){} }
 
 // ─── CARTE PILOTÉE PAR LE MOTEUR (spots classés structurés) ──────────────────
 // Remplace le re-parsing de la prose du LLM : priorités et positions fiables,
