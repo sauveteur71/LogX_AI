@@ -606,8 +606,44 @@ async function loadSat(){
           'Éphémérides TLE : {j} j ({etat})', {j: age.jours, etat: rcT(age.etat)})}</div>`
       : `<div style="color:var(--muted);font-size:11px">${rcT('Éphémérides TLE : âge inconnu')}</div>`;
 
+    // L'état du suivi se construit AVANT l'early-return « aucun passage » :
+    // sans ça, le bouton ARRÊTER disparaissait de l'écran précisément quand
+    // le suivi tournait sans passage listé — et le rafraîchissement accéléré
+    // mourait avec lui (constats de revue C1/C4).
+    const trk = d.tracking || {};
+    window._satTrackActif = !!trk.actif;
+
+    // Suivi rotor : bouton + état. Le bloc apparaît si le rotor est configuré
+    // OU si un suivi est actif — désactiver le rotor dans CONFIG pendant un
+    // suivi ne doit JAMAIS faire disparaître le bouton ARRÊTER (constat SAT-6).
+    let rotorHtml = '';
+    if (d.rotor_enabled || trk.actif){
+      if (trk.actif){
+        const ph = trk.phase === 'attente'
+          ? rcT('en attente du lever — antenne pré-pointée')
+          : rcT('suivi en cours');
+        rotorHtml = `<div style="margin:4px 0;padding:5px 8px;border:1px solid var(--green);border-radius:6px">
+          🎯 <b>${esc(trk.sat)}</b> — ${ph}
+          · ${rcT('cible')} Az ${trk.cible_az ?? '—'}° / El ${trk.cible_el ?? '—'}°
+          · ${rcT('rotor')} Az ${trk.rotor_az ?? '—'}° / El ${trk.rotor_el ?? '—'}°
+          <button onclick="satTrackStop()" style="margin-left:8px">■ ${rcT('ARRÊTER')}</button></div>`;
+      } else {
+        const dernier = (trk.phase === 'fini' || trk.phase === 'erreur') && trk.message
+          ? `<span style="color:var(--muted);font-size:11px"> · ${esc(trk.message)}</span>` : '';
+        rotorHtml = `<div style="margin:4px 0">
+          <button onclick="satTrackStart()">🎯 ${rcT('SUIVRE AU ROTOR')}</button>${dernier}</div>`;
+      }
+    }
+
+    // L'avertissement non bloquant de la boucle (ex. grand tour au nord).
+    const noteHtml = trk.note
+      ? `<div style="color:var(--yellow);font-size:11px">⚠ ${esc(trk.note)}</div>` : '';
+
+    // L'early-return « aucun passage » vient APRÈS rotorHtml et L'INCLUT : un
+    // suivi actif reste pilotable même quand la liste des passages est vide.
     if(!d.available || !(d.passages || []).length){
-      el.innerHTML = ligneAge + `<div class="loading">${esc(d.error
+      el.innerHTML = ligneAge + rotorHtml + noteHtml
+        + `<div class="loading">${esc(d.error
         || rcT('Aucun passage prévu dans les prochaines 24 h.'))}</div>`;
       return;
     }
@@ -630,12 +666,67 @@ async function loadSat(){
     el.innerHTML = ligneAge
       + `<div style="margin:4px 0 6px">🛰 <b>${esc(d.sat)}</b> ${visBadge}${
           d.doppler_hz != null ? ` · ${rcT('Doppler')} ${d.doppler_hz} Hz @ ${d.freq_mhz} MHz` : ''}</div>`
+      + rotorHtml + noteHtml
       + lignes
       + `<div style="color:var(--muted);font-size:11px;margin-top:6px">${
           rcT('Heures UTC · élévation maximale du passage')}</div>`;
   }catch(e){
-    el.innerHTML = `<div class="loading">${rcT('Serveur injoignable')}</div>`;
+    // Un échec ponctuel n'efface PAS l'état ni le bouton ARRÊTER — pendant un
+    // suivi, remplacer tout le panneau par « serveur injoignable » supprimait
+    // le seul moyen d'arrêter l'antenne (constats SAT-TRACK-5/C4).
+    const avis = document.createElement('div');
+    avis.className = 'loading';
+    avis.textContent = rcT('Serveur injoignable');
+    if (!window._satTrackActif) el.innerHTML = '';
+    else el.querySelectorAll('.loading').forEach(n => n.remove());
+    el.appendChild(avis);
+  }finally{
+    // Réarmement du rafraîchissement accéléré (5 s pendant un suivi) dans le
+    // FINALLY, décidé sur l'état hissé hors du try : l'early-return et le
+    // catch tuaient le minuteur, et l'écran gelait en plein suivi.
+    clearTimeout(window._satTrackTimer);
+    if (window._satTrackActif) window._satTrackTimer = setTimeout(loadSat, 5000);
   }
+}
+
+async function satTrackStart(){
+  const sel = document.getElementById('satSel');
+  const sat = satChoisi || (sel && sel.value) || '';
+  try{
+    const r = await fetch('/rotor/sat_track', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sat})});
+    const d = await r.json();
+    // Le refus est SYNCHRONE et porte sa raison (passage trop lointain, rotor
+    // éteint...) : on la montre, on ne laisse pas un bouton muet.
+    if(!d.ok) notifyProp(d.error || rcT('Suivi refusé'));
+  }catch(e){ notifyProp(rcT('Serveur injoignable')); }
+  loadSat();
+}
+
+async function satTrackStop(){
+  try{ await fetch('/rotor/sat_track_stop', {method:'POST'}); }catch(e){}
+  // La boucle s'arrête à son prochain tour (≤ 2 s) — on attend un peu avant
+  // de relire, sinon l'état affiché dit encore « en cours ».
+  setTimeout(loadSat, 2500);
+  loadSat();
+}
+
+// Petit toast local : alert() bloquerait la page pendant un passage.
+function notifyProp(msg){
+  let t = document.getElementById('propToast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'propToast';
+    t.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);'
+      + 'background:var(--bg3);border:1px solid var(--accent2);border-radius:8px;'
+      + 'padding:8px 14px;z-index:99;font-size:13px;max-width:80%';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>{ t.style.display = 'none'; }, 6000);
 }
 
 // ─── EME (rebond lunaire) : position de la Lune + Doppler + fenêtre commune ──
