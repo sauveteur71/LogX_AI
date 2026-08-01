@@ -3148,7 +3148,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
             solar = get_solar_cached()
             muf = get_muf_cached(my_ll[0], my_ll[1]) if my_ll[0] else get_muf_cached()
-            self._json({'solar': solar, 'muf': muf})
+            # Verdict par bande calculé DEPUIS LE QTH (élévation solaire aux
+            # deux bouts, MUF de l'ionosonde la plus proche). Il remplace le
+            # `fréquence <= MUF` que faisait la page : la MUF est la borne
+            # HAUTE, et sans borne basse le 160 m passait pour ouvert en plein
+            # midi. Calculé ici, en Python, où il est testable — et non plus
+            # dupliqué dans le JavaScript de la page.
+            etat_bandes = None
+            if my_ll[0] is not None:
+                try:
+                    from logx_paths import etat_bandes_hf
+                    etat_bandes = etat_bandes_hf(my_ll[0], my_ll[1],
+                                                 solar={'solar': solar or {},
+                                                        'muf': muf or {}})
+                except Exception:
+                    etat_bandes = None
+            self._json({'solar': solar, 'muf': muf, 'etat_bandes': etat_bandes})
             return
 
         # Need list structurée : les spots du dernier refresh évalués au barème
@@ -3490,6 +3505,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # Rotor d'antenne (rotctld) : position courante — pollée par le logbook
+        # La station physique : antennes, rotors, amplis, et ce qui sert sur
+        # une bande donnée. Un seul appel, aucune I/O — les écrans (CONFIG,
+        # logbook, band map) y lisent la même vérité.
+        if path.startswith('/station'):
+            import logx_station as station
+            from urllib.parse import parse_qs, urlparse
+            cfg_snap = self._cfg_snapshot()
+            st = station.charger(cfg_snap)
+            rep = dict(st)
+            rep['resume'] = station.resume(st)
+            bande = (parse_qs(urlparse(self.path).query).get('bande', [''])[0]).strip()
+            if bande:
+                choix = cfg_snap.get('antenne_par_bande')
+                a = station.antenne_active(st, bande, choix)
+                r = station.rotor_pour_bande(st, bande, choix)
+                m = station.ampli_pour_bande(st, bande, choix)
+                rep['pour_bande'] = {
+                    'bande': bande, 'antenne': a, 'rotor': r, 'ampli': m,
+                    'choix_possibles': station.antennes_pour_bande(st, bande),
+                }
+            self._json(rep)
+            return
+
         if path == '/rotor/state':
             self._json(_rotor_state_dict(self._cfg_snapshot()))
             return
@@ -4654,21 +4692,63 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if self.path in ('/rotor/point', '/rotor/stop'):
             import logx_rotor as rotor
-            settings = rotor.rotor_settings(self._cfg_snapshot())
-            if not settings['enabled']:
-                self._json({'ok': False, 'error': 'Rotor désactivé — '
-                            'active-le dans CONFIG (mode expert, section ROTOR)'}, 400)
-                return
+            import logx_station as station
+            cfg_now = self._cfg_snapshot()
             try:
                 payload = json.loads(body) if body else {}
             except Exception:
                 payload = {}
-            host, port = settings['host'], settings['port']
+            # QUEL rotor ? Une station peut en avoir plusieurs (trois pylônes,
+            # trois antennes, trois rotors). Deux façons de le désigner :
+            #   - `bande` : le rotor de l'antenne active sur cette bande. C'est
+            #     le chemin du clic sur un spot — SEUL ce pylône tourne, les
+            #     autres restent où ils sont (indispensable en multi-opérateur) ;
+            #   - `rotor_id` : désignation directe, pour un pointage à la main.
+            # Sans l'un ni l'autre : l'ancien rotor unique, pour que les
+            # configurations non migrées continuent de fonctionner.
+            st = station.charger(cfg_now)
+            cible = None
+            if payload.get('rotor_id'):
+                cible = station.rotor_par_id(st, payload['rotor_id'])
+                if cible is None:
+                    self._json({'ok': False,
+                                'error': 'Rotor inconnu : %s' % payload['rotor_id']}, 404)
+                    return
+            elif payload.get('bande'):
+                cible = station.rotor_pour_bande(st, payload['bande'],
+                                                 cfg_now.get('antenne_par_bande'))
+                if cible is None:
+                    # Antenne fixe, ou aucune antenne déclarée sur la bande :
+                    # ne RIEN faire tourner est la bonne réponse, et le dire
+                    # vaut mieux qu'un silence qu'on prendrait pour une panne.
+                    self._json({'ok': False, 'sans_rotor': True,
+                                'error': "Aucun rotor pour l'antenne de cette bande"}, 200)
+                    return
+            if cible is not None:
+                if not cible['enabled'] or not cible['host']:
+                    self._json({'ok': False, 'error': 'Rotor « %s » désactivé ou '
+                                'sans adresse' % (cible['nom'] or cible['id'])}, 400)
+                    return
+                host, port, offset = cible['host'], cible['port'], cible
+            else:
+                settings = rotor.rotor_settings(cfg_now)
+                if not settings['enabled']:
+                    self._json({'ok': False, 'error': 'Rotor désactivé — '
+                                'active-le dans CONFIG (mode expert, section ROTOR)'}, 400)
+                    return
+                host, port, offset = settings['host'], settings['port'], None
             if self.path == '/rotor/point':
                 az = payload.get('azimuth')
                 if az is None:
                     self._json({'ok': False, 'error': 'Azimut manquant'}, 400)
                     return
+                # Décalage mécanique du pylône appliqué ICI, une seule fois :
+                # l'appelant raisonne toujours en azimut VRAI.
+                if offset is not None:
+                    az = station.azimut_rotor(offset, az)
+                    if az is None:
+                        self._json({'ok': False, 'error': 'Azimut invalide'}, 400)
+                        return
                 res = rotor.set_position(host, port, az, payload.get('elevation', 0))
                 if res.get('ok'):
                     print(f"[ROTOR] Pointe {res['azimuth']} deg")
