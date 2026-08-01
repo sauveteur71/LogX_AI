@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — École de CW</title>
+<!--
+  L'ÉCOLE DE CW BRANCHÉE SUR LA BANDE DE CE SOIR.
+
+  Ce qui la distingue d'un entraîneur morse ordinaire : la matière vient du
+  poste. Les indicatifs sont ceux de l'index de l'opérateur (log, archives,
+  base d'indicatifs, MASTER.SCP s'il l'a importé — 21 081 sur ce poste) et
+  l'échange est celui que le concours choisi demande VRAIMENT. On s'entraîne
+  sur ce qu'on va entendre.
+
+  RIEN NE PART SUR L'AIR : le morse est synthétisé ici, dans le casque, par
+  l'API audio du navigateur. Aucun accès à la radio, aucun réseau autre que
+  /cw/serie (local), aucune IA, aucun coût. C'est exactement l'usage d'un soir
+  d'expédition, quand plus rien d'autre n'est joignable.
+
+  LA SAISIE EST CELLE DU CARNET : même champ, même touche de validation. On
+  entraîne le geste complet — écouter ET taper — pas la seule reconnaissance.
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root{
+  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
+  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+}
+body.day-mode{
+  --bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
+  --accent:#CC4026;--accent2:#0060A0;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--text:#0A0C20;--muted:#4A5170;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);
+  padding:10px 24px;display:flex;align-items:center;justify-content:space-between}
+body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+.logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;line-height:0}
+.logo-badge img{height:20px;display:block}
+.logo-wrap{display:flex;align-items:center;gap:8px}
+.logo-suffix{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:1px}
+.app-nav{display:flex;background:var(--bg2);border-bottom:2px solid var(--border);overflow-x:auto}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);
+  text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);white-space:nowrap}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom:3px solid var(--accent);background:var(--bg3)}
+
+.wrap{max-width:820px;margin:0 auto;padding:22px 20px 70px}
+h1{font-family:var(--font-mono);font-size:19px;color:var(--accent2);letter-spacing:1px;margin-bottom:6px}
+.intro{color:var(--muted);font-size:13.5px;line-height:1.55;margin-bottom:18px}
+
+.reglages{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px}
+.reglages label{font-family:var(--font-mono);font-size:11px;color:var(--muted);
+  letter-spacing:1px;display:flex;flex-direction:column;gap:5px}
+.reglages input,.reglages select{background:var(--bg3);border:1px solid var(--border);color:var(--text);
+  border-radius:6px;padding:7px 10px;font-family:var(--font-mono);font-size:14px;width:96px}
+button{font-family:var(--font-mono);font-size:14px;font-weight:700;letter-spacing:1px;
+  border-radius:6px;padding:9px 20px;cursor:pointer;border:1px solid var(--green);
+  background:rgba(0,255,136,.12);color:var(--green)}
+button:hover{filter:brightness(1.25)}
+button.sec{border-color:var(--border);background:var(--bg3);color:var(--muted)}
+button:disabled{opacity:.4;cursor:default}
+
+.piste{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px 18px;
+  text-align:center;margin-bottom:16px}
+.compteur{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:2px;margin-bottom:12px}
+#saisie{background:var(--bg3);border:2px solid var(--accent2);color:var(--text);border-radius:8px;
+  padding:14px 18px;font-family:var(--font-mono);font-size:30px;letter-spacing:4px;text-align:center;
+  width:100%;max-width:420px;text-transform:uppercase;outline:none}
+#saisie:disabled{border-color:var(--border);opacity:.5}
+.aide{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:10px;letter-spacing:1px}
+.onde{height:6px;border-radius:3px;background:var(--border);margin:16px auto 0;max-width:420px;overflow:hidden}
+.onde i{display:block;height:100%;width:0;background:var(--accent2);transition:width .12s linear}
+
+.bilan{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px;display:none}
+.score{font-family:var(--font-mono);font-size:34px;letter-spacing:2px;margin-bottom:4px}
+.score.bon{color:var(--green)} .score.moyen{color:var(--yellow)} .score.faible{color:var(--red)}
+.score-sous{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:16px}
+.bloc-titre{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);
+  margin:16px 0 8px;border-top:1px solid var(--border);padding-top:12px}
+.chars{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-family:var(--font-mono);font-size:13px;border:1px solid var(--red);color:var(--red);
+  background:rgba(255,45,85,.10);border-radius:20px;padding:4px 12px}
+.chip.conf{border-color:var(--yellow);color:var(--yellow);background:rgba(255,214,10,.10)}
+table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:13px}
+td{padding:5px 8px;border-bottom:1px solid var(--border)}
+td.ko{color:var(--red)} td.ok{color:var(--green)}
+.vide{color:var(--muted);font-size:13px;font-style:italic}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
+    <span class="logo-suffix"> — <span style="color:var(--green)">École de CW</span></span>
+  </div>
+  <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted)">dans le casque, jamais sur l'air</div>
+</header>
+
+<nav class="app-nav">
+  <a href="logx_configuration.html">⚙ CONFIG</a>
+  <a href="logx_logbook.html">📋 LOGBOOK</a>
+  <a href="logx_carte.html">🗺️ CARTE IA</a>
+  <a href="logx_propagation.html">📶 PROPAG</a>
+  <a href="logx_cw.html" class="active">🎧 ÉCOLE CW</a>
+  <a href="logx_websdr.html">📡 WEBSDR</a>
+  <a href="logx_calendrier.html">📅 CALENDRIER</a>
+</nav>
+<script src="logx_statusbar.js"></script>
+<script src="logx_i18n.js"></script>
+
+<div class="wrap">
+  <h1>🎧 <span class="rc-i18n-live" id="titre">Dix minutes de CW</span></h1>
+  <p class="intro">Les indicatifs viennent de <b>ton</b> index — ton log, tes archives, ta base — et l'échange est celui que <b>ton</b> concours demande. Tu t'entraînes sur ce que tu vas réellement entendre. Le morse est synthétisé dans le casque : rien ne part sur l'air, rien ne passe par Internet.</p>
+
+  <div class="reglages">
+    <label>VITESSE (WPM)<input type="number" id="wpm" min="8" max="40" value="18"></label>
+    <label>STATIONS<input type="number" id="nb" min="5" max="60" value="15"></label>
+    <label>TONALITÉ (Hz)<input type="number" id="ton" min="400" max="1000" step="50" value="600"></label>
+    <label>ÉCHANGE<select id="avecEch"><option value="0">indicatif seul</option><option value="1">indicatif + échange</option></select></label>
+    <button id="btnGo" onclick="demarrer()">▶ COMMENCER</button>
+    <button id="btnStop" class="sec" onclick="arreter()" disabled>■ ARRÊTER</button>
+  </div>
+
+  <div class="piste">
+    <div class="compteur rc-i18n-live" id="compteur">prêt</div>
+    <input type="text" id="saisie" autocomplete="off" autocapitalize="characters" spellcheck="false" disabled>
+    <div class="onde"><i id="onde"></i></div>
+    <div class="aide rc-i18n-live" id="aide">Entrée = valider · Échap = réécouter</div>
+  </div>
+
+  <div class="bilan" id="bilan"></div>
+</div>
+
+<script>
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const T  = s => (window.rcT ? window.rcT(s) : s);
+const Tf = (s,p) => (window.rcTf ? window.rcTf(s,p) : (function(){
+  let o=s; for(const k in (p||{})) o=o.split('{'+k+'}').join(p[k]); return o; })());
+
+// ── Le morse, synthétisé dans le casque ─────────────────────────────────────
+// Table INVERSÉE de logx_cwdecoder.js (qui va du motif vers le caractère) :
+// une seule table dans le dépôt, pas deux à tenir d'accord.
+const MORSE = {
+  'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.','H':'....',
+  'I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.','O':'---','P':'.--.',
+  'Q':'--.-','R':'.-.','S':'...','T':'-','U':'..-','V':'...-','W':'.--','X':'-..-',
+  'Y':'-.--','Z':'--..','0':'-----','1':'.----','2':'..---','3':'...--','4':'....-',
+  '5':'.....','6':'-....','7':'--...','8':'---..','9':'----.','/':'-..-.','?':'..--..'
+};
+
+let ctxAudio = null, sourceEnCours = [], serie = [], reponses = [], idx = 0, enCours = false;
+
+function ditMs(wpm){ return 1200 / Math.max(8, Math.min(40, wpm)); }   // PARIS
+
+// Joue un texte et rend une promesse résolue à la fin. L'enveloppe (montée et
+// descente de 4 ms) évite le « clic » qui rend un morse synthétique fatigant à
+// l'oreille et, surtout, moins ressemblant à une vraie station.
+function jouer(texte, wpm, hz){
+  if(!ctxAudio) ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+  const dit = ditMs(wpm) / 1000, RAMPE = 0.004;
+  let t = ctxAudio.currentTime + 0.15;
+  const debut = t;
+  // LES SILENCES SONT AJOUTÉS ENTRE LES ÉLÉMENTS, JAMAIS APRÈS LE DERNIER.
+  // Première version : un silence d'un point après CHAQUE élément puis deux
+  // de plus par caractère, et sept pour l'espace — soit trois de trop avant
+  // chaque espace, déjà comptés par le caractère précédent. Mesuré dans le
+  // navigateur : « PARIS » durait 3,18 s à 20 WPM au lieu de 3,00. La vitesse
+  // annoncée était donc fausse de 6 %, et un opérateur qui s'entraîne pour
+  // tenir 25 WPM le jour J n'en aurait travaillé que 23,5.
+  // Convention PARIS : point = 1, trait = 3, silence entre éléments = 1,
+  // entre caractères = 3, entre mots = 7. « PARIS » + espace = 50 unités,
+  // donc 60/WPM secondes exactement.
+  const chars = [...String(texte).toUpperCase()];
+  for(let i = 0; i < chars.length; i++){
+    const ch = chars[i];
+    if(ch === ' '){ t += 7 * dit; continue; }
+    const motif = MORSE[ch];
+    if(!motif) continue;                            // caractère non transmissible
+    for(let k = 0; k < motif.length; k++){
+      const duree = (motif[k] === '-' ? 3 : 1) * dit;
+      const osc = ctxAudio.createOscillator(), g = ctxAudio.createGain();
+      osc.frequency.value = hz; osc.type = 'sine';
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.25, t + RAMPE);
+      g.gain.setValueAtTime(0.25, t + duree - RAMPE);
+      g.gain.linearRampToValueAtTime(0, t + duree);
+      osc.connect(g).connect(ctxAudio.destination);
+      osc.start(t); osc.stop(t + duree + 0.01);
+      sourceEnCours.push(osc);
+      t += duree;
+      if(k < motif.length - 1) t += dit;             // entre ÉLÉMENTS
+    }
+    const suivant = chars[i + 1];
+    // L'espace porte déjà son silence complet : ne pas le doubler.
+    if(suivant !== undefined && suivant !== ' ') t += 3 * dit;
+  }
+  const total = (t - debut) * 1000;
+  animerOnde(total);
+  return new Promise(r => setTimeout(r, total + 60));
+}
+
+function animerOnde(ms){
+  const o = document.getElementById('onde');
+  o.style.transition = 'none'; o.style.width = '0';
+  requestAnimationFrame(() => {
+    o.style.transition = 'width ' + Math.round(ms) + 'ms linear';
+    o.style.width = '100%';
+  });
+}
+
+function couperSon(){
+  sourceEnCours.forEach(o => { try{ o.stop(); }catch(e){} });
+  sourceEnCours = [];
+}
+
+// ── La série ────────────────────────────────────────────────────────────────
+async function demarrer(){
+  const nb = parseInt(document.getElementById('nb').value, 10) || 15;
+  document.getElementById('bilan').style.display = 'none';
+  try{
+    const r = await fetch('/cw/serie?n=' + nb);
+    const d = await r.json();
+    serie = d.serie || [];
+  }catch(e){ serie = []; }
+  if(!serie.length){
+    document.getElementById('compteur').textContent =
+      T("Aucun indicatif dans ton index — fais quelques QSO, ou importe MASTER.SCP dans CONFIG.");
+    return;
+  }
+  reponses = []; idx = 0; enCours = true;
+  document.getElementById('btnGo').disabled = true;
+  document.getElementById('btnStop').disabled = false;
+  const s = document.getElementById('saisie');
+  s.disabled = false; s.value = ''; s.focus();
+  await passer();
+}
+
+async function passer(){
+  if(!enCours) return;
+  if(idx >= serie.length){ return terminer(); }
+  document.getElementById('compteur').textContent =
+    Tf('station {i} / {n}', {i: idx + 1, n: serie.length});
+  await rejouer();
+}
+
+async function rejouer(){
+  if(!enCours) return;
+  const item = serie[idx];
+  const avecEch = document.getElementById('avecEch').value === '1';
+  const wpm = parseInt(document.getElementById('wpm').value, 10) || 18;
+  const hz  = parseInt(document.getElementById('ton').value, 10) || 600;
+  const texte = avecEch ? (item.call + ' ' + item.echange) : item.call;
+  await jouer(texte, wpm, hz);
+}
+
+function valider(){
+  if(!enCours) return;
+  const s = document.getElementById('saisie');
+  reponses.push(s.value.trim());
+  s.value = '';
+  idx++;
+  passer();
+}
+
+function arreter(){
+  enCours = false;
+  couperSon();
+  document.getElementById('btnGo').disabled = false;
+  document.getElementById('btnStop').disabled = true;
+  document.getElementById('saisie').disabled = true;
+  document.getElementById('compteur').textContent = T('série interrompue');
+}
+
+async function terminer(){
+  enCours = false;
+  couperSon();
+  document.getElementById('btnGo').disabled = false;
+  document.getElementById('btnStop').disabled = true;
+  document.getElementById('saisie').disabled = true;
+  document.getElementById('compteur').textContent = T('série terminée');
+  let b;
+  try{
+    const r = await fetch('/cw/corriger', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      // La vitesse COURANTE part avec : sans elle le serveur repart de sa
+      // valeur par défaut (18) et « la vitesse suivante » ramenait un opérateur
+      // qui travaille à 30 WPM à 19 — l'inverse d'un entraînement progressif.
+      // Vu en jouant une vraie série dans le navigateur.
+      body: JSON.stringify({serie: serie, reponses: reponses,
+                            wpm: parseInt(document.getElementById('wpm').value, 10) || 18})
+    });
+    b = await r.json();
+  }catch(e){ return; }
+  afficherBilan(b);
+}
+
+function afficherBilan(b){
+  const el = document.getElementById('bilan');
+  const cls = b.taux >= 90 ? 'bon' : b.taux >= 60 ? 'moyen' : 'faible';
+  const wpm = parseInt(document.getElementById('wpm').value, 10) || 18;
+  let h = `<div class="score ${cls}">${b.taux} %</div>`
+        + `<div class="score-sous">${esc(Tf('{j} indicatifs justes sur {t}', {j: b.justes, t: b.total}))}`
+        + ` · ${esc(Tf('vitesse suivante : {w} WPM', {w: b.vitesse_suivante}))}</div>`;
+  if((b.par_caractere || []).length){
+    h += `<div class="bloc-titre">${esc(T('CE QUI TE FAIT PERDRE DES QSO'))}</div><div class="chars">`;
+    h += b.par_caractere.slice(0, 10).map(([c, n]) =>
+      `<span class="chip">${esc(c)} × ${n}</span>`).join('');
+    h += '</div>';
+  }
+  if((b.confusions || []).length){
+    h += `<div class="bloc-titre">${esc(T('CONFUSIONS CLASSIQUES EN CW'))}</div><div class="chars">`;
+    h += b.confusions.slice(0, 8).map(([c, n]) =>
+      `<span class="chip conf">${esc(c)} × ${n}</span>`).join('');
+    h += '</div>';
+  }
+  h += `<div class="bloc-titre">${esc(T('DÉTAIL'))}</div><table>`;
+  h += (b.details || []).map(d =>
+    `<tr><td class="${d.juste ? 'ok' : 'ko'}">${d.juste ? '✓' : '✗'}</td>`
+    + `<td>${esc(d.attendu)}</td>`
+    + `<td class="${d.juste ? '' : 'ko'}">${esc(d.saisi) || '—'}</td></tr>`).join('');
+  h += '</table>';
+  el.innerHTML = h;
+  el.style.display = 'block';
+  // La vitesse monte (ou redescend) toute seule pour la série suivante : un
+  // entraîneur qui reste à la même vitesse n'entraîne rien.
+  if(b.vitesse_suivante) document.getElementById('wpm').value = b.vitesse_suivante;
+}
+
+document.getElementById('saisie').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){ e.preventDefault(); valider(); }
+  else if(e.key === 'Escape'){ e.preventDefault(); couperSon(); rejouer(); }
+});
+</script>
+</body>
+</html>

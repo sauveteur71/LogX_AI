@@ -17,6 +17,7 @@ import socket
 
 import logx_rules as rules
 from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX,
+                        modele_effectif,
                           OPENAI_COMPATIBLE_ENDPOINTS, utcnow)
 from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
@@ -170,13 +171,15 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     Même logique que /proxy/ai mais réutilisable côté serveur (analyse en fond).
     Lève une exception en cas d'échec."""
     provider = (cfg or {}).get('api_provider', 'anthropic')
-    ai_model = model or (cfg or {}).get('ai_model', 'claude-sonnet-4-6')
+    # Le modèle vient de la CONFIGURATION ; celui que passe l'appelant n'est
+    # retenu que s'il appartient au fournisseur configuré (voir modele_effectif).
+    ai_model = modele_effectif(provider, model, (cfg or {}).get('ai_model'))
     api_key = (cfg or {}).get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
     if not api_key:
         raise RuntimeError('Clé API non configurée')
 
     if provider == 'anthropic':
-        payload = {'model': ai_model or 'claude-sonnet-4-6',
+        payload = {'model': ai_model,
                    'max_tokens': max_tokens, 'messages': messages}
         if system_prompt:
             payload['system'] = system_prompt
@@ -195,7 +198,7 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
                                        system_prompt, messages, max_tokens)
 
     if provider == 'gemini':
-        model_id = ai_model or 'gemini-2.0-flash'
+        model_id = ai_model
         contents = [{'role': 'model' if m['role'] == 'assistant' else 'user',
                      'parts': [{'text': m['content']}]} for m in messages]
         payload = {'contents': contents}
@@ -1255,6 +1258,13 @@ def _wsjtx_state_dict(cfg_snap):
     st = wsjtx.current_status()
     st['enabled'] = True
     st['port'] = settings['port']
+    # L'horloge mesurée sur le consensus des stations reçues — la seule
+    # référence de temps disponible en expédition, sans NTP. Calcul purement
+    # local sur des décodages déjà en mémoire : aucun réseau, aucune IA.
+    try:
+        st['horloge'] = wsjtx.derive_horloge()
+    except Exception:
+        st['horloge'] = {'etat': 'aucune_mesure', 'couleur': 'inconnu'}
     # Alerte « DXCC/département manquant » façon GridTracker : les indicatifs
     # décodés récemment en FT8/FT4 (pas seulement ceux loggués) sont croisés
     # avec TOUTE la vie de la station via logx_awards.spotted_new_ones() —
@@ -2136,6 +2146,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 h['lotw_user'], h['lotw_last'] = None, ''
             self._json(h)
+            return
+
+        # École de CW : une série d'entraînement tirée de l'index du poste, avec
+        # l'échange RÉELLEMENT demandé par le concours choisi. Aucun réseau,
+        # aucune IA, aucun coût — et rien ne part sur l'air : le morse est
+        # généré dans le navigateur, dans le casque.
+        if path.startswith('/cw/serie'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_callhistory as callhistory
+            import logx_cw_ecole as ecole
+            qp = parse_qs(urlparse(self.path).query)
+            try:
+                n = max(1, min(60, int(qp.get('n', ['20'])[0])))
+            except ValueError:
+                n = 20
+            cfg_snap = self._cfg_snapshot()
+            cdef = CONTEST_DEFINITIONS.get(cfg_snap.get('contest', ''), {})
+            with log_lock:
+                log_copy = list(shared_log)
+            idx = callhistory.build_index(log_copy)
+            # Les locators et départements viennent du log RÉEL : les échanges
+            # entendus à l'entraînement ressemblent alors à ceux du concours,
+            # au lieu d'être tous identiques.
+            locs = [q.get('locator') for q in log_copy if q.get('locator')][-40:]
+            deps = [q.get('num_rcvd') for q in log_copy if q.get('num_rcvd')][-40:]
+            self._json({
+                'serie': ecole.serie(idx, cdef, n=n, locators=locs, depts=deps,
+                                     zone=cfg_snap.get('cq_zone')),
+                'contest': cfg_snap.get('contest', ''),
+                'exchange': cdef.get('exchange', ''),
+                'indicatifs_disponibles': len(idx),
+            })
             return
 
         # Vérification « N+1 » (busted call check, façon N1MM) : indicatifs
@@ -4114,6 +4156,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # audio calé — exactement comme un double-clic sur la ligne. RIEN NE
         # PART SUR L'AIR de ce seul fait : c'est l'opérateur qui appuie ensuite
         # sur Enable TX. La route est protégée comme toutes les écritures.
+        # École de CW : la correction d'une série. Le barème vit en Python
+        # (testé), pas dans la page — un bilan qui se trompe décourage
+        # l'opérateur au lieu de le faire progresser.
+        if self.path == '/cw/corriger':
+            import logx_cw_ecole as ecole
+            try:
+                p = json.loads(body)
+            except (ValueError, TypeError):
+                self._json({'error': 'corps JSON invalide'}, 400)
+                return
+            serie = p.get('serie') or []
+            if not isinstance(serie, list) or len(serie) > 200:
+                self._json({'error': 'série invalide'}, 400)
+                return
+            bilan = ecole.corriger(serie, p.get('reponses') or [])
+            try:
+                wpm = int(p.get('wpm') or 18)
+            except (TypeError, ValueError):
+                wpm = 18
+            bilan['vitesse_suivante'] = ecole.vitesse_suivante(wpm, bilan['taux'])
+            self._json(bilan)
+            return
+
         if self.path == '/wsjtx/repondre':
             import logx_wsjtx as wsjtx
             try:
@@ -5256,7 +5321,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 message = payload.get('message', '')
                 needs_context = bool(payload.get('needs_context'))
                 system_prompt = payload.get('system') or (build_system_prompt(cfg_snap) if cfg_snap else '')
-                model = payload.get('model')
+                # Comme /proxy/ai : le modèle demandé par la page est ignoré,
+                # c'est le réglage de CONFIG qui fait foi. C'est ici que le nom
+                # Anthropic codé en dur de la carte partait vers OpenAI ou
+                # Gemini, et faisait échouer tout le chat.
+                model = None
                 max_tokens = payload.get('max_tokens', 4096)
                 with _agent_lock:
                     _agent_seq += 1
@@ -5298,7 +5367,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path in ('/proxy/ai', '/proxy/anthropic'):
             cfg_snap = self._cfg_snapshot()
             provider = cfg_snap.get('api_provider', 'anthropic')
-            ai_model = cfg_snap.get('ai_model', 'claude-sonnet-4-6')
+            ai_model = modele_effectif(provider, None, cfg_snap.get('ai_model'))
             api_key  = cfg_snap.get('api_key', '')
             if not api_key:
                 api_key = os.environ.get('ANTHROPIC_API_KEY', '')
@@ -5315,7 +5384,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # ── Anthropic ───────────────────────────────────────────────
                 if provider == 'anthropic':
                     anth_payload = {
-                        'model':      payload.get('model', ai_model or 'claude-sonnet-4-6'),
+                        # `payload['model']` est DÉLIBÉRÉMENT ignoré : ce proxy
+                        # sert des pages du navigateur, et une page n'a pas à
+                        # décider du modèle — l'opérateur l'a réglé dans CONFIG.
+                        # Un appelant SERVEUR qui a besoin d'un palier précis
+                        # passe par call_llm(model=…), dont la demande est
+                        # honorée si elle est de la bonne famille.
+                        'model':      ai_model,
                         'max_tokens': payload.get('max_tokens', 4096),
                         'messages':   messages,
                     }
@@ -5367,7 +5442,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
                 # ── Gemini ──────────────────────────────────────────────────
                 elif provider == 'gemini':
-                    model_id = ai_model or 'gemini-2.0-flash'
+                    model_id = ai_model
                     gem_contents = []
                     for m in messages:
                         role = 'model' if m['role'] == 'assistant' else 'user'

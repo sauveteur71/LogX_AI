@@ -285,6 +285,45 @@ def band_plan(cdef, clock, dxmaps=None, now=None, lang='fr'):
 
 # ─── CONSEILS DÉTERMINISTES ──────────────────────────────────────────────────
 
+_MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet',
+            'août', 'septembre', 'octobre', 'novembre', 'décembre']
+_JOURS_FR = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi',
+             'dimanche']
+
+
+def _deadline_lisible(log_deadline, fin_utc, aujourdhui=None):
+    """« mercredi 8 juillet (dans 4 jours) » au lieu de « wednesday_after ».
+
+    Rend le texte brut inchangé si le code n'est pas interprétable ou si la
+    date de fin du concours n'est pas connue : jamais de date inventée sur une
+    échéance de dépôt.
+    """
+    from logx_utils import date_limite_depot
+    brut = str(log_deadline or '').strip()
+    if not brut or not fin_utc:
+        return brut
+    try:
+        fin = datetime.datetime.strptime(str(fin_utc)[:10], '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return brut
+    d, _ = date_limite_depot(brut, fin)
+    if d is None:
+        return brut
+    txt = '%s %d %s' % (_JOURS_FR[d.weekday()], d.day, _MOIS_FR[d.month - 1])
+    jours = (d - (aujourdhui or datetime.date.today())).days
+    if jours > 1:
+        txt += ', dans %d jours' % jours
+    elif jours == 1:
+        txt += ', demain'
+    elif jours == 0:
+        txt += ", AUJOURD'HUI"
+    else:
+        # Le dire franchement : un log en retard peut encore être accepté par
+        # certains organisateurs, mais l'opérateur doit savoir qu'il l'est.
+        txt += ', DÉPASSÉE depuis %d jour(s)' % (-jours)
+    return txt
+
+
 def build_hints(cdef, clock, stats, plan, lang='fr'):
     """Conseils actionnables, du plus urgent au moins urgent.
     level : 'alerte' (agir maintenant) / 'action' / 'info'."""
@@ -310,6 +349,12 @@ def build_hints(cdef, clock, stats, plan, lang='fr'):
         deadline = cdef.get('log_deadline', '')
         submit = cdef.get('log_submit', '')
         txt = t(lang, 'hint_finished_base')
+        # La date limite était affichée SOUS SA FORME CODÉE : l'opérateur
+        # lisait « deadline : wednesday_after », ce qui ne lui dit ni le jour
+        # ni s'il est déjà en retard. Résolue en date réelle quand le code est
+        # interprétable, laissée telle quelle sinon — une date fausse sur une
+        # échéance de dépôt serait pire que pas de date du tout.
+        deadline = _deadline_lisible(deadline, clock.get('end_utc'))
         if deadline:
             txt += t(lang, 'hint_finished_deadline', deadline=deadline)
         if submit:
