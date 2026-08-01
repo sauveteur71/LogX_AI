@@ -14,6 +14,8 @@ port 2237. Fonctionnalité désactivée par défaut ; activée dans CONFIG.
 L'insertion dans le log réutilise la même logique (dédup + scoring) que la
 saisie manuelle, via un callback fourni par le serveur.
 """
+import collections
+import math
 import re
 import socket
 import struct
@@ -393,6 +395,93 @@ def _decode_freq_mhz(msg):
     return round(dial + (msg.get('delta_hz', 0) or 0) / 1e6, 4)
 
 
+# ─── L'HORLOGE SANS INTERNET ────────────────────────────────────────────────
+# En expédition, sans NTP, l'horloge du PC dérive de quelques secondes par
+# jour. Au-delà d'environ une seconde, les stations d'en face cessent de
+# décoder les appels FT8 — et RIEN ne le signale : on croit simplement que la
+# bande est fermée. C'est une panne silencieuse qui peut coûter des jours.
+#
+# LA MESURE EXISTE DÉJÀ, gratuitement : chaque décodage WSJT-X porte son DT,
+# l'écart entre le début du signal reçu et le début de MA fenêtre de
+# réception. Le consensus de dizaines de stations distinctes est la seule
+# référence de temps disponible quand il n'y a plus de réseau.
+#
+# SENS DU DT, démontré et non recopié de mémoire (le projet a déjà payé cher
+# une table écrite au jugé) : soit e l'avance de mon horloge sur l'UTC vrai
+# (e > 0 = j'avance). Une station correcte émet à l'instant UTC vrai T. Ma
+# fenêtre de réception s'ouvre quand MON horloge affiche T, c'est-à-dire à
+# l'instant vrai T − e. Le signal commence donc e seconde APRÈS l'ouverture de
+# ma fenêtre : DT = +e. Autrement dit, un DT médian positif signifie que MON
+# horloge AVANCE, et qu'il faut la reculer d'autant. Le temps de propagation
+# (au plus ~40 ms en HF) est négligeable devant le seuil d'une seconde.
+#
+# CE QUE CETTE FONCTION NE FAIT PAS : corriger rétroactivement l'heure des
+# QSO. La dérive qui tue le FT8 se joue à ±1 s, or ni les robots de concours
+# ni LoTW ne contestent à la seconde près — leurs tolérances sont en minutes.
+# Réécrire un log pour ça serait prendre un risque sans contrepartie.
+_dt_echantillons = collections.deque(maxlen=4000)   # (ts, indicatif, dt)
+
+# Trois états, jamais deux. « Pas de mesure » (expédition CW/SSB, aucun
+# décodage) n'est PAS « horloge bonne » ; et un effondrement du nombre de
+# décodages est justement le symptôme d'une horloge partie trop loin — le dire
+# vaut mieux que d'afficher une dérive calculée sur trois échantillons.
+DERIVE_VERTE_S = 0.5
+DERIVE_ROUGE_S = 1.2
+DERIVE_MIN_STATIONS = 5
+
+
+def _note_dt(call, msg, maintenant):
+    dt = msg.get('dt')
+    if not isinstance(dt, (int, float)):
+        return
+    if not math.isfinite(dt) or abs(dt) > 15:
+        return          # hors de tout sens physique : décodage aberrant
+    _dt_echantillons.append((maintenant, call, float(dt)))
+
+
+def derive_horloge(fenetre_s=3 * 3600, maintenant=None):
+    """L'écart mesuré entre mon horloge et le consensus des stations reçues.
+
+    Rend toujours un dict avec `etat` :
+      - 'mesuree'  : assez de stations DISTINCTES pour conclure ;
+      - 'peu_de_donnees' : des décodages, mais pas assez de stations ;
+      - 'aucune_mesure'  : aucun décodage dans la fenêtre.
+    La médiane est prise sur les stations distinctes (un dernier DT par
+    indicatif) : une station bavarde ne doit pas peser plus qu'une autre.
+    """
+    import time as _t
+    now = maintenant if maintenant is not None else _t.time()
+    debut = now - fenetre_s
+    par_station = {}
+    total = 0
+    for ts, call, dt in _dt_echantillons:
+        if ts < debut:
+            continue
+        total += 1
+        par_station[call] = dt          # le plus récent de cette station
+    n_stations = len(par_station)
+    if not n_stations:
+        return {'etat': 'aucune_mesure', 'echantillons': 0, 'stations': 0,
+                'secondes': None, 'dispersion': None, 'couleur': 'inconnu'}
+    valeurs = sorted(par_station.values())
+    m = len(valeurs)
+    mediane = (valeurs[m // 2] if m % 2 else
+               (valeurs[m // 2 - 1] + valeurs[m // 2]) / 2.0)
+    ecarts = sorted(abs(v - mediane) for v in valeurs)
+    dispersion = (ecarts[m // 2] if m % 2 else
+                  (ecarts[m // 2 - 1] + ecarts[m // 2]) / 2.0)
+    if n_stations < DERIVE_MIN_STATIONS:
+        etat, couleur = 'peu_de_donnees', 'inconnu'
+    else:
+        etat = 'mesuree'
+        a = abs(mediane)
+        couleur = ('verte' if a < DERIVE_VERTE_S
+                   else 'rouge' if a > DERIVE_ROUGE_S else 'orange')
+    return {'etat': etat, 'echantillons': total, 'stations': n_stations,
+            'secondes': round(mediane, 2), 'dispersion': round(dispersion, 2),
+            'couleur': couleur}
+
+
 def record_decode(msg, my_call=''):
     """Message Decode (type 2) -> enregistre le(s) indicatif(s) entendus dans
     le cache des décodages récents (voir recent_decodes()). Isolé de _run()
@@ -432,6 +521,11 @@ def record_decode(msg, my_call=''):
             e['grid'] = (grid if (grid and i == len(calls) - 1)
                          else connu.get('grid', ''))
             _decodes[c] = e
+            # Le DT part AUSSI dans un flux à part : _decodes est indexé par
+            # indicatif, donc le dernier décodage y écrase le précédent — on ne
+            # peut pas y lire une série temporelle. Sans ce flux, la dérive
+            # d'horloge se calculerait sur un instantané, pas sur trois heures.
+            _note_dt(c, msg, now)
         cutoff = now - _DECODE_TTL
         for k in [k for k, v in _decodes.items() if v['last_seen'] < cutoff]:
             del _decodes[k]

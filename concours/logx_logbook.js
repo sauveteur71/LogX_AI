@@ -4966,6 +4966,29 @@ setInterval(refreshWeather, 10 * 60 * 1000);   // cache serveur 10 min
 // ─── PONT WSJT-X (FT8/FT4) ───────────────────────────────────────────────────
 // Indicateur de liaison + rafraîchissement du log quand un QSO est auto-loggé.
 let _wsjtxLastTotal = -1;
+// ═══ L'HORLOGE SANS INTERNET ═════════════════════════════════════════════════
+// Sans NTP, l'horloge du PC dérive de quelques secondes par jour. Passé environ
+// une seconde, les correspondants cessent de décoder tes appels FT8 — et rien
+// ne te le dit : tu crois que la bande est fermée. La mesure est celle du
+// consensus des stations reçues (voir logx_wsjtx.derive_horloge), gratuite et
+// sans réseau. Aucune IA : il n'y a rien à faire rédiger sur un chiffre et un
+// seuil.
+function horlogeHtml(h){
+  if(!h) return '';
+  if(h.etat === 'aucune_mesure' || h.etat === 'peu_de_donnees') return '';
+  const c = h.couleur === 'verte' ? 'var(--green)'
+          : h.couleur === 'rouge' ? 'var(--red)' : 'var(--yellow)';
+  const s = Number(h.secondes) || 0;
+  const signe = s >= 0 ? '+' : '';
+  // Le sens est démontré dans logx_wsjtx.py : un DT médian positif signifie que
+  // MON horloge avance, et qu'il faut la reculer d'autant.
+  const sens = s >= 0 ? trT('ton horloge avance') : trT('ton horloge retarde');
+  const detail = trF('{sens} de {n} s — médiane sur {st} stations. Au-delà de ±1,2 s, '
+                   + 'tes appels FT8 ne seront plus décodés en face.',
+                   {sens: sens, n: Math.abs(s).toFixed(1), st: h.stations});
+  return ` · <span style="color:${c}" title="${escHtml(detail)}">⏱ ${signe}${s.toFixed(1)} s</span>`;
+}
+
 let _wsjtxState = {enabled:false};
 function refreshWsjtx(){
   return fetch('/wsjtx/state').then(r=>r.ok?r.json():null).then(applyWsjtxState).catch(()=>{});
@@ -4986,7 +5009,8 @@ function applyWsjtxState(d){
     if(!el || !d || !d.enabled){ if(el) el.style.display='none'; return; }
     el.style.display = '';
     if(d.connected){
-      el.innerHTML = `💻 WSJT-X <b style="color:var(--green)">●</b> ${d.dial_mhz||''} MHz ${d.mode||''} · ${d.logged_total||0} auto-loggés`;
+      el.innerHTML = `💻 WSJT-X <b style="color:var(--green)">●</b> ${d.dial_mhz||''} MHz ${d.mode||''} · ${d.logged_total||0} auto-loggés`
+                   + horlogeHtml(d.horloge);
       el.style.color = 'var(--muted)';
     } else {
       el.innerHTML = `💻 WSJT-X <b style="color:var(--red)">○</b> en attente (port ${d.port})`;

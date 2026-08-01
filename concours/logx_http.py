@@ -1258,6 +1258,13 @@ def _wsjtx_state_dict(cfg_snap):
     st = wsjtx.current_status()
     st['enabled'] = True
     st['port'] = settings['port']
+    # L'horloge mesurée sur le consensus des stations reçues — la seule
+    # référence de temps disponible en expédition, sans NTP. Calcul purement
+    # local sur des décodages déjà en mémoire : aucun réseau, aucune IA.
+    try:
+        st['horloge'] = wsjtx.derive_horloge()
+    except Exception:
+        st['horloge'] = {'etat': 'aucune_mesure', 'couleur': 'inconnu'}
     # Alerte « DXCC/département manquant » façon GridTracker : les indicatifs
     # décodés récemment en FT8/FT4 (pas seulement ceux loggués) sont croisés
     # avec TOUTE la vie de la station via logx_awards.spotted_new_ones() —
