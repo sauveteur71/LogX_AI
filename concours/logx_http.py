@@ -2298,6 +2298,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             out = {'available': False, 'sat': nom,
                    'tle_age': satp.age_tle(cache),
                    'satellites': satp.satellites_connus(cache)}
+            # État du suivi rotor : la boucle de fond ÉCRIT, ce handler LIT —
+            # aucun appel réseau ici, la dernière position rotor connue vient
+            # de la boucle elle-même (logx_sat_track).
+            try:
+                import logx_sat_track as strack
+                out['tracking'] = strack.etat_suivi()
+                import logx_rotor as _rot
+                out['rotor_enabled'] = _rot.rotor_settings(cfg_snap)['enabled']
+            except Exception:
+                pass
             if not cache:
                 out['error'] = ("Aucun jeu TLE en cache — il se télécharge au "
                                 "démarrage du serveur (CelesTrak).")
@@ -4481,6 +4491,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # Rotor d'antenne (rotctld) : pointer, stopper
+        # Suivi rotor d'un passage satellite : démarrage/arrêt de la boucle de
+        # fond (logx_sat_track). Les refus sont SYNCHRONES — rotor éteint,
+        # satellite inconnu, passage trop lointain — pour que l'opérateur ait
+        # la raison sous les yeux immédiatement.
+        if self.path in ('/rotor/sat_track', '/rotor/sat_track_stop'):
+            import logx_sat_track as strack
+            if self.path == '/rotor/sat_track_stop':
+                strack.arreter_suivi()
+                self._json({'ok': True})
+                return
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            ok, msg = strack.demarrer_suivi(payload.get('sat', ''),
+                                            self._cfg_snapshot())
+            self._json({'ok': ok, 'error': msg} if not ok else {'ok': True},
+                       200 if ok else 409)
+            return
+
         if self.path in ('/rotor/point', '/rotor/stop'):
             import logx_rotor as rotor
             settings = rotor.rotor_settings(self._cfg_snapshot())

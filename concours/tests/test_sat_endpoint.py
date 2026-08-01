@@ -26,6 +26,33 @@ if CONCOURS not in sys.path:
     sys.path.insert(0, CONCOURS)
 
 import logx_http as httpmod   # noqa: E402
+import logx_sat_track as strack   # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _rotor_isole(monkeypatch):
+    """CONSTAT DE REVUE SAT-TRACK-1/C2, le plus grave du chantier : ces tests
+    parlent au Handler réel, qui lit la VRAIE config de la machine — et
+    logx_rotor.rotor_settings retombe EN PLUS sur le vrai config.json du cwd
+    dès que host ou port manque. Sur le poste de l'opérateur (rotor configuré,
+    rotctld à l'écoute, passage en cours), le verdict du test dépendait de la
+    position du satellite dans le ciel, et un échec sous -x aurait laissé un
+    thread commander la VRAIE antenne toutes les 2 s.
+
+    Isolement : rotor_settings est remplacé À LA SOURCE (le repli config.json
+    n'est alors jamais consulté), et le teardown arrête + joint tout suivi,
+    bruyamment — même motif que test_sat_track."""
+    monkeypatch.setattr(strack.rotor, 'rotor_settings',
+                        lambda cfg: {'enabled': False,
+                                     'host': '127.0.0.1', 'port': 4533})
+    yield
+    strack.arreter_suivi()
+    t = strack._track_thread
+    if t is not None and hasattr(t, 'join') and t.is_alive():
+        t.join(timeout=10)
+        assert not t.is_alive(), (
+            'boucle de suivi trainarde apres un test d\'endpoint — elle '
+            'commanderait le rotor pendant le reste de la suite')
 
 
 @pytest.fixture
@@ -102,6 +129,53 @@ def test_la_reponse_reste_LEGERE(server):
     with urllib.request.urlopen(server + '/data/sat?hours=168', timeout=30) as r:
         taille = len(r.read())
     assert taille < 200_000, '%d octets' % taille
+
+
+def test_l_etat_du_suivi_rotor_est_dans_la_reponse(server):
+    """Le panneau lit TOUT dans /data/sat — l'état du suivi compris. La boucle
+    de fond écrit, le handler lit : aucun appel réseau vers le rotor ici."""
+    d = _get(server, '/data/sat')
+    assert 'tracking' in d, d.keys()
+    assert 'phase' in d['tracking']
+    assert 'rotor_enabled' in d
+
+
+def test_demarrer_un_suivi_sans_rotor_configure_est_refuse_PROPREMENT(server):
+    """Refus synchrone avec la raison — pas un bouton muet ni un 500. Le POST
+    porte le jeton d'écriture (X-RC-Token), comme tout client légitime."""
+    import urllib.error
+    req = urllib.request.Request(server + '/rotor/sat_track',
+                                 data=b'{"sat":"ISS"}',
+                                 headers={'Content-Type': 'application/json',
+                                          'X-RC-Token': httpmod.AUTH_TOKEN})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            d = json.loads(r.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        d = json.loads(e.read().decode('utf-8'))
+    assert d.get('ok') is False
+    assert d.get('error'), d
+
+
+def test_arreter_un_suivi_inexistant_ne_leve_pas(server):
+    req = urllib.request.Request(server + '/rotor/sat_track_stop', data=b'',
+                                 headers={'X-RC-Token': httpmod.AUTH_TOKEN})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        d = json.loads(r.read().decode('utf-8'))
+    assert d.get('ok') is True
+
+
+def test_un_POST_de_suivi_SANS_jeton_est_refuse(server):
+    """Le suivi rotor est une ÉCRITURE (il bouge une antenne) : il doit être
+    derrière la même authentification que les autres écritures — un voisin de
+    réseau ne doit pas pouvoir piloter le rotor."""
+    import urllib.error
+    req = urllib.request.Request(server + '/rotor/sat_track',
+                                 data=b'{"sat":"ISS"}',
+                                 headers={'Content-Type': 'application/json'})
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req, timeout=30)
+    assert exc.value.code in (401, 403)
 
 
 def test_le_module_est_bien_CABLE():

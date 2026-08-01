@@ -5879,6 +5879,75 @@
   for (const l of ['en','de','es','it','pt','nl','pl']) {
     if (T[l]) Object.assign(T[l], T_SAT_FIX[l]);
   }
+  // Suivi rotor des passages satellite (page propagation).
+  const T_SAT_ROTOR_FIX = {
+    en: {
+      "SUIVRE AU ROTOR": "TRACK WITH ROTATOR",
+      "ARRÊTER": "STOP",
+      "suivi en cours": "tracking in progress",
+      "en attente du lever — antenne pré-pointée": "waiting for AOS — antenna pre-positioned",
+      "cible": "target",
+      "rotor": "rotator",
+      "Suivi refusé": "Tracking refused",
+    },
+    de: {
+      "SUIVRE AU ROTOR": "MIT ROTOR VERFOLGEN",
+      "ARRÊTER": "STOPP",
+      "suivi en cours": "Verfolgung läuft",
+      "en attente du lever — antenne pré-pointée": "warte auf AOS — Antenne vorpositioniert",
+      "cible": "Ziel",
+      "rotor": "Rotor",
+      "Suivi refusé": "Verfolgung abgelehnt",
+    },
+    es: {
+      "SUIVRE AU ROTOR": "SEGUIR CON ROTOR",
+      "ARRÊTER": "DETENER",
+      "suivi en cours": "seguimiento en curso",
+      "en attente du lever — antenne pré-pointée": "esperando el orto — antena preposicionada",
+      "cible": "objetivo",
+      "rotor": "rotor",
+      "Suivi refusé": "Seguimiento rechazado",
+    },
+    it: {
+      "SUIVRE AU ROTOR": "INSEGUI COL ROTORE",
+      "ARRÊTER": "FERMA",
+      "suivi en cours": "inseguimento in corso",
+      "en attente du lever — antenne pré-pointée": "in attesa del sorgere — antenna preposizionata",
+      "cible": "obiettivo",
+      "rotor": "rotore",
+      "Suivi refusé": "Inseguimento rifiutato",
+    },
+    pt: {
+      "SUIVRE AU ROTOR": "SEGUIR COM ROTOR",
+      "ARRÊTER": "PARAR",
+      "suivi en cours": "seguimento em curso",
+      "en attente du lever — antenne pré-pointée": "à espera do nascer — antena pré-apontada",
+      "cible": "alvo",
+      "rotor": "rotor",
+      "Suivi refusé": "Seguimento recusado",
+    },
+    nl: {
+      "SUIVRE AU ROTOR": "VOLGEN MET ROTOR",
+      "ARRÊTER": "STOPPEN",
+      "suivi en cours": "volgen bezig",
+      "en attente du lever — antenne pré-pointée": "wacht op AOS — antenne voorgepositioneerd",
+      "cible": "doel",
+      "rotor": "rotor",
+      "Suivi refusé": "Volgen geweigerd",
+    },
+    pl: {
+      "SUIVRE AU ROTOR": "ŚLEDŹ ROTOREM",
+      "ARRÊTER": "ZATRZYMAJ",
+      "suivi en cours": "śledzenie w toku",
+      "en attente du lever — antenne pré-pointée": "oczekiwanie na wschód — antena wstępnie ustawiona",
+      "cible": "cel",
+      "rotor": "rotor",
+      "Suivi refusé": "Śledzenie odrzucone",
+    },
+  };
+  for (const l of ['en','de','es','it','pt','nl','pl']) {
+    if (T[l]) Object.assign(T[l], T_SAT_ROTOR_FIX[l]);
+  }
   // Exposé pour re-traduire après un rendu dynamique
   window.rcTranslate = function () {
     const lang = getLang();
