@@ -19,6 +19,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logx_sat_passes as sp                                        # noqa: E402
+import logx_websdr as websdr                                        # noqa: E402
 from logx_utils import utcnow, as_naive_utc                         # noqa: E402
 
 RACINE = pathlib.Path(__file__).resolve().parent.parent
@@ -83,6 +84,26 @@ def test_age_tle_survit_a_un_horodatage_avec_fuseau():
 
 def test_age_tle_horodatage_illisible_rend_none():
     assert sp.age_tle({'recupere': 'pas une date', 'tle': {'ISS': []}}) is None
+
+
+# ─── Même frontière, même piège : le cache de l'annuaire WebSDR ──────────────
+
+def test_age_kiwis_lit_le_cache_naif_existant():
+    maintenant = datetime.datetime(2026, 8, 1, 12, 0)
+    cache = {'recupere': datetime.datetime(2026, 8, 1, 11, 0).isoformat(),
+             'stations': [{'nom': 'test'}]}
+    assert websdr.age_kiwis(cache, maintenant)['secondes'] == 3600
+
+
+def test_age_kiwis_survit_a_un_horodatage_avec_fuseau():
+    """age_kiwis reproduit trait pour trait le motif de age_tle — parsing dans
+    le try, soustraction HORS du try. Le durcissement doit couvrir les deux :
+    ce module est arrivé par une branche parallèle, après le début de cette
+    migration, et l'aurait sinon contournée sans bruit."""
+    cache = {'recupere': datetime.datetime(2026, 8, 1, 11, 0,
+                                           tzinfo=datetime.UTC).isoformat(),
+             'stations': [{'nom': 'test'}]}
+    assert websdr.age_kiwis(cache, datetime.datetime(2026, 8, 1, 12, 0))['secondes'] == 3600
 
 
 # ─── Garde-fou : plus aucun appel déprécié dans le dépôt ────────────────────

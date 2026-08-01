@@ -47,7 +47,7 @@ import os
 import re
 import threading
 
-from logx_utils import locator_to_latlon, haversine, bearing
+from logx_utils import locator_to_latlon, haversine, bearing, utcnow, as_naive_utc
 
 KIWI_URL = 'http://rx.linkfanel.net/kiwisdr_com.js'
 KIWI_CACHE = 'websdr_kiwis.json'          # gitignoré : donnée vivante
@@ -135,7 +135,6 @@ def rafraichir_kiwis(dossier=None, timeout=25):
     un portail captif « réussit » avec zéro récepteur."""
     from logx_utils import fetch_url
     from logx_storage import save_json_atomic
-    import datetime
     try:
         texte = fetch_url(KIWI_URL, timeout=timeout)
     except Exception as e:
@@ -146,7 +145,7 @@ def rafraichir_kiwis(dossier=None, timeout=25):
                 'error': 'Réponse inexploitable (%d récepteur(s) lus) — cache '
                          'conservé' % len(stations)}
     save_json_atomic(_chemin(KIWI_CACHE, dossier), {
-        'recupere': datetime.datetime.utcnow().isoformat(),
+        'recupere': utcnow().isoformat(),
         'source': KIWI_URL, 'stations': stations})
     return {'ok': True, 'nb': len(stations)}
 
@@ -169,10 +168,15 @@ def age_kiwis(cache, maintenant=None):
     if not cache:
         return None
     try:
-        t = datetime.datetime.fromisoformat(str(cache.get('recupere')))
+        # as_naive_utc : la soustraction ci-dessous est HORS de ce try —
+        # un horodatage porteur d'un fuseau (cache recopie d'une autre
+        # installation, ecrit par une version ulterieure) leverait donc
+        # TypeError en pleine figure de l'appelant. Meme motif que
+        # logx_sat_passes.age_tle.
+        t = as_naive_utc(datetime.datetime.fromisoformat(str(cache.get('recupere'))))
     except (TypeError, ValueError):
         return None
-    s = ((maintenant or datetime.datetime.utcnow()) - t).total_seconds()
+    s = ((maintenant or utcnow()) - t).total_seconds()
     etat = ('frais' if s < AGE_FRAIS_S else
             'vieux' if s < AGE_VIEUX_S else 'perime')
     return {'secondes': int(s), 'etat': etat, 'recupere': cache.get('recupere')}
@@ -321,7 +325,6 @@ def sonder_cures(dossier=None, timeout=8):
     l'opérateur sur un récepteur éteint.
     """
     from logx_storage import save_json_atomic
-    import datetime
     urls = [s['url'] for s in stations_curees(dossier) if s.get('url')]
     if not urls:
         return {'ok': False, 'error': 'aucune station curée'}
@@ -355,7 +358,7 @@ def sonder_cures(dossier=None, timeout=8):
                     'error': 'la même page pour %d récepteurs (portail '
                              'captif ?) — état précédent conservé' % combien}
     save_json_atomic(_chemin(ETAT_CURES_CACHE, dossier), {
-        'sonde': datetime.datetime.utcnow().isoformat(), 'etat': etat})
+        'sonde': utcnow().isoformat(), 'etat': etat})
     return {'ok': True, 'nb': len(etat), 'vivantes': vivantes}
 
 
