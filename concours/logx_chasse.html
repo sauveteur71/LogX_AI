@@ -259,11 +259,13 @@ fetch('/rotor/state').then(r => r.ok ? r.json() : null)
   .then(d => { rotorEnabled = !!(d && d.enabled); if(rotorEnabled) renderSpots(); })
   .catch(() => {});
 
-async function pointTo(az, call){
+async function pointTo(az, call, band){
   try{
     const r = await fetch('/rotor/point', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({azimuth: parseFloat(az)})
+      // La bande du spot part avec : le serveur tourne le rotor de l'antenne
+      // de CETTE bande (et lui seul), décalage mécanique compris.
+      body: JSON.stringify({azimuth: parseFloat(az), bande: band || undefined})
     });
     const d = await r.json();
     const el = document.getElementById('lastRefresh');
@@ -330,7 +332,7 @@ function renderSpots(){
     <div class="spot-row ${s.new_mult && !s.already_done ? 'sr-mult' : ''} ${s.already_done ? 'sr-done' : ''}">
       <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="${rcT('priorité')} ${s.priority}"></span>
       ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo(${Number(s.freq)||0},'${jsCall(s.call)}')" title="${rcT('Régler la radio sur')} ${esc(s.freq)} kHz">▶ QSY</button>` : ''}
-      ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo(${Number(s.bearing)||0},'${jsCall(s.call)}')" title="${rcT("Pointer l'antenne sur")} ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
+      ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo(${Number(s.bearing)||0},'${jsCall(s.call)}','${esc(s.band)}')" title="${rcT("Pointer l'antenne sur")} ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
       <span class="sr-call">${esc(s.call)}</span>
       <span class="sr-freq">${esc(s.freq || '')}</span>
       <span class="sr-band">${esc(s.band)} MHz</span>

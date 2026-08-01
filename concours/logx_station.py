@@ -258,6 +258,50 @@ def rotor_par_id(station, rotor_id):
     return _par_id((station or {}).get('rotors'), str(rotor_id or '').strip())
 
 
+def _premier_rotor_actif(station):
+    for r in (station or {}).get('rotors', []):
+        if r.get('enabled') and r.get('host'):
+            return r
+    return None
+
+
+def rotor_defaut(cfg, prefer_bandes=None):
+    """LE rotor à commander quand aucun sélecteur n'est fourni — la SOURCE
+    UNIQUE de /rotor/state, du bouton « pointer » et du suivi satellite.
+
+    POURQUOI CETTE FONCTION EXISTE (revue du 01/08/2026) : le parc à plusieurs
+    rotors était injoignable depuis l'interface. `logx_rotor.rotor_settings` ne
+    lit QUE les anciens champs (rotor_host/rotor_enabled) et ignore la liste
+    `rotors` ; une station configurée uniquement via le nouvel éditeur voyait
+    donc son bouton « pointer » masqué et son décalage mécanique jamais
+    appliqué. Tout le backend du jour était correct mais sans appelant qui
+    l'atteigne — le piège même que ce chantier corrigeait ailleurs.
+
+    Priorité : un rotor lié à l'une des `prefer_bandes` (le suivi satellite
+    donne ['144','432']), sinon le premier rotor actif du parc, sinon l'ancien
+    rotor unique (offset 0, aucun décalage à appliquer). Rend toujours un dict
+    {enabled, host, port, offset_deg, nom, id, source} — `enabled` est vrai
+    seulement si le rotor est activé ET a une adresse.
+    """
+    st = charger(cfg)
+    r = None
+    for b in (prefer_bandes or []):
+        r = rotor_pour_bande(st, b, (cfg or {}).get('antenne_par_bande'))
+        if r:
+            break
+    if r is None:
+        r = _premier_rotor_actif(st)
+    if r is not None:
+        return {'enabled': bool(r['enabled'] and r['host']),
+                'host': r['host'], 'port': r['port'],
+                'offset_deg': r['offset_deg'], 'nom': r['nom'],
+                'id': r['id'], 'source': 'parc'}
+    import logx_rotor
+    leg = logx_rotor.rotor_settings(cfg)
+    return {'enabled': leg['enabled'], 'host': leg['host'], 'port': leg['port'],
+            'offset_deg': 0.0, 'nom': 'Rotor', 'id': '', 'source': 'legacy'}
+
+
 def ampli_par_id(station, ampli_id):
     return _par_id((station or {}).get('amplis'), str(ampli_id or '').strip())
 

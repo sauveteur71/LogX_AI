@@ -423,6 +423,14 @@ def _decode_freq_mhz(msg):
 # ni LoTW ne contestent à la seconde près — leurs tolérances sont en minutes.
 # Réécrire un log pour ça serait prendre un risque sans contrepartie.
 _dt_echantillons = collections.deque(maxlen=4000)   # (ts, indicatif, dt)
+# Le flux DT est écrit par le thread d'écoute UDP (_note_dt) et lu par le
+# thread HTTP (derive_horloge). Itérer un deque pendant qu'un autre thread y
+# ajoute lève « deque mutated during iteration » — reproduit sous charge : sur
+# une bande FT8 chargée, l'alerte de dérive d'horloge plantait justement quand
+# on en avait le plus besoin. Un verrou dédié protège les deux accès (imbriqué
+# sous _decodes_lock quand _note_dt est appelé depuis record_decode : ordre
+# constant, pas d'interblocage).
+_dt_lock = threading.Lock()
 
 # Trois états, jamais deux. « Pas de mesure » (expédition CW/SSB, aucun
 # décodage) n'est PAS « horloge bonne » ; et un effondrement du nombre de
@@ -439,7 +447,8 @@ def _note_dt(call, msg, maintenant):
         return
     if not math.isfinite(dt) or abs(dt) > 15:
         return          # hors de tout sens physique : décodage aberrant
-    _dt_echantillons.append((maintenant, call, float(dt)))
+    with _dt_lock:
+        _dt_echantillons.append((maintenant, call, float(dt)))
 
 
 def derive_horloge(fenetre_s=3 * 3600, maintenant=None):
@@ -457,7 +466,11 @@ def derive_horloge(fenetre_s=3 * 3600, maintenant=None):
     debut = now - fenetre_s
     par_station = {}
     total = 0
-    for ts, call, dt in _dt_echantillons:
+    # Copie sous verrou puis calcul hors verrou : on ne retient jamais le thread
+    # d'écoute plus longtemps qu'une recopie de liste.
+    with _dt_lock:
+        echantillons = list(_dt_echantillons)
+    for ts, call, dt in echantillons:
         if ts < debut:
             continue
         total += 1
