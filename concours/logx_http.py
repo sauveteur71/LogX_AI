@@ -152,6 +152,15 @@ _agent_analyses = {}          # id -> {ts, status:'running|done|error', reply, e
 _agent_seq = 0
 _agent_lock = threading.Lock()
 
+# Flux SSE d'une analyse (voir /agent/analyze/stream et _sse_agent_stream) :
+# ThreadingHTTPServer mobilise UN thread OS par connexion ouverte, et le
+# logiciel tourne 24h/24 pendant des expéditions de 15 jours — un flux qui ne
+# se termine JAMAIS serait une fuite de threads garantie sur 360 h. La deadline
+# dure ci-dessous borne la vie d'un flux quoi qu'il arrive (générations LLM
+# < 120 s) ; le heartbeat tient la socket sous le timeout d'inactivité (30 s).
+SSE_DEADLINE_S = 150
+SSE_HEARTBEAT_S = 12
+
 
 def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096):
     """Appelle un fournisseur au format OpenAI Chat Completions, renvoie le TEXTE de la réponse."""
@@ -214,6 +223,96 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
                 .get('parts', [{}])[0].get('text', ''))
 
     raise RuntimeError(f'Fournisseur inconnu : {provider}')
+
+
+def _stream_openai_compatible(base_url, ai_model, default_model, api_key,
+                              system_prompt, messages, max_tokens, on_delta):
+    """Streame un fournisseur au format OpenAI (SSE 'data:' + '[DONE]'). Appelle
+    on_delta(fragment) au fil de l'eau et retourne le TEXTE complet."""
+    msgs = ([{'role': 'system', 'content': system_prompt}] if system_prompt else []) + messages
+    payload = {'model': ai_model or default_model, 'max_tokens': max_tokens,
+               'messages': msgs, 'stream': True}
+    req = urllib.request.Request(
+        base_url, data=json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'},
+        method='POST')
+    morceaux = []
+    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+        for raw in resp:                       # itération = readline : streame au fil de l'eau
+            line = raw.decode('utf-8', 'replace').strip()
+            if not line.startswith('data:'):
+                continue
+            data = line[5:].strip()
+            if data == '[DONE]':
+                break
+            try:
+                obj = json.loads(data)
+            except Exception:
+                continue
+            piece = ((obj.get('choices') or [{}])[0].get('delta', {}) or {}).get('content') or ''
+            if piece:
+                morceaux.append(piece)
+                if on_delta:
+                    on_delta(piece)
+    return ''.join(morceaux)
+
+
+def call_llm_stream(cfg, system_prompt, messages, model=None, max_tokens=4096, on_delta=None):
+    """Comme call_llm mais STREAME : on_delta(fragment) est appelé à chaque bout
+    de texte reçu du fournisseur, et le TEXTE complet est retourné. Anthropic et
+    les fournisseurs OpenAI-compatibles streament en natif (SSE 'stream:true') ;
+    Gemini (format SSE distinct) et tout fournisseur non streamable retombent sur
+    call_llm() — un seul on_delta avec le texte entier. Le dispatch (modèle
+    effectif, clé) est STRICTEMENT celui de call_llm : c'est la même logique, en
+    flux, pour ne pas dupliquer une 4e fois la sélection de fournisseur."""
+    provider = (cfg or {}).get('api_provider', 'anthropic')
+    ai_model = modele_effectif(provider, model, (cfg or {}).get('ai_model'))
+    api_key = (cfg or {}).get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        raise RuntimeError('Clé API non configurée')
+
+    if provider == 'anthropic':
+        payload = {'model': ai_model, 'max_tokens': max_tokens,
+                   'messages': messages, 'stream': True}
+        if system_prompt:
+            payload['system'] = system_prompt
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages', data=json.dumps(payload).encode(),
+            headers={'Content-Type': 'application/json', 'x-api-key': api_key,
+                     'anthropic-version': '2023-06-01'}, method='POST')
+        morceaux = []
+        with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+            for raw in resp:
+                line = raw.decode('utf-8', 'replace').strip()
+                if not line.startswith('data:'):
+                    continue
+                try:
+                    obj = json.loads(line[5:].strip())
+                except Exception:
+                    continue
+                typ = obj.get('type')
+                if typ == 'content_block_delta':
+                    piece = (obj.get('delta') or {}).get('text') or ''
+                    if piece:
+                        morceaux.append(piece)
+                        if on_delta:
+                            on_delta(piece)
+                elif typ == 'error':
+                    raise RuntimeError((obj.get('error') or {}).get('message', 'stream error'))
+                elif typ == 'message_stop':
+                    break
+        return ''.join(morceaux)
+
+    if provider in OPENAI_COMPATIBLE_ENDPOINTS:
+        base_url, default_model = OPENAI_COMPATIBLE_ENDPOINTS[provider]
+        return _stream_openai_compatible(base_url, ai_model, default_model, api_key,
+                                         system_prompt, messages, max_tokens, on_delta)
+
+    # Gemini et tout fournisseur non streamable : repli NON streamé (un bloc).
+    text = call_llm(cfg, system_prompt, messages, model, max_tokens)
+    if on_delta and text:
+        on_delta(text)
+    return text
 
 
 def _parse_multipart_form(body, content_type):
@@ -2993,6 +3092,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(a)
             return
 
+        # Flux SSE d'une analyse IA : pousse la réponse au fil de l'eau (token
+        # par token) au lieu d'attendre le texte complet (~120 s figés avant).
+        # La GÉNÉRATION tourne dans le thread de fond de /agent/analyze (elle
+        # survit au changement d'onglet) ; ce handler ne fait que TAILER le
+        # buffer. Le client retombe sur /agent/analyze/state (polling) si
+        # l'EventSource coupe — le buffer streamé y est aussi visible.
+        if path == '/agent/analyze/stream':
+            from urllib.parse import parse_qs, urlparse
+            aid = (parse_qs(urlparse(self.path).query).get('id') or [''])[0]
+            self._sse_agent_stream(aid)
+            return
+
         # Ouvertures par région depuis le QTH (probabilité par bande). ?region=EU
         # (défaut : survol de toutes les régions).
         if path.startswith('/data/openings'):
@@ -5444,12 +5555,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 except Exception as e:
                                     print(f"[AGENT] contexte indisponible : {e}")
                             msgs = list(msgs) + [{'role': 'user', 'content': enriched}]
-                        text = call_llm(cfg, sysp, msgs, mdl, mt)
+                        # Streamé : chaque fragment est ajouté au buffer sous
+                        # verrou, ce que /agent/analyze/state (polling) ET
+                        # /agent/analyze/stream (SSE) exposent au fil de l'eau.
+                        # La génération reste dans CE thread de fond : elle
+                        # survit au changement d'onglet, le flux SSE ne fait que
+                        # tailer le buffer (il ne tient PAS la génération).
+                        def _on_delta(piece, _aid=aid):
+                            with _agent_lock:
+                                a = _agent_analyses.get(_aid)
+                                if a is not None:
+                                    a['reply'] = (a.get('reply') or '') + piece
+                        text = call_llm_stream(cfg, sysp, msgs, mdl, mt, on_delta=_on_delta)
                         with _agent_lock:
-                            _agent_analyses[aid].update(status='done', reply=text)
+                            a = _agent_analyses.get(aid)
+                            if a is not None:
+                                # Recale sur le texte complet (cohérence finale
+                                # buffer == réponse), puis marque terminé.
+                                a.update(status='done', reply=text)
                     except Exception as e:
                         with _agent_lock:
-                            _agent_analyses[aid].update(status='error', error=str(e))
+                            a = _agent_analyses.get(aid)
+                            if a is not None:
+                                # On GARDE le partiel déjà streamé (le flux SSE
+                                # l'a montré) et on signale l'erreur à côté.
+                                a.update(status='error', error=str(e))
                 threading.Thread(target=_run, daemon=True).start()
                 self._json({'id': aid, 'status': 'running'})
             except Exception as e:
@@ -5793,6 +5923,80 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # conséquence que dans _stream_asset_relay — sans fermeture, le
                 # pair attend la suite jusqu'au délai d'inactivité.
                 self.close_connection = True
+
+    def _sse_agent_stream(self, aid):
+        """Flux SSE (text/event-stream) qui TAILE le buffer d'une analyse IA :
+        pousse chaque nouveau fragment de _agent_analyses[aid]['reply'], puis un
+        événement 'done' (réponse complète) ou 'failed' (erreur/introuvable/délai).
+
+        BORNÉ PAR CONCEPTION (contrainte 360 h, un thread OS par connexion) : la
+        boucle se termine TOUJOURS — soit l'analyse finit (done/error), soit la
+        deadline dure tombe, soit le client part (write échoue). Un `retry:` très
+        long est envoyé en tête : si le client oublie de fermer, EventSource ne
+        reconnecte qu'une fois par heure au lieu d'une rafale (le client appelle
+        es.close() sur 'done'/'failed')."""
+        self.close_connection = True
+        try:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('X-Accel-Buffering', 'no')   # pas de tampon proxy intermédiaire
+            self.send_header('Connection', 'close')
+            self._cors()
+            self.end_headers()
+        except Exception:
+            return
+
+        def _send(block):
+            """Écrit un bloc SSE ; renvoie False si le client est parti."""
+            try:
+                self.wfile.write(block.encode('utf-8'))
+                self.wfile.flush()
+                return True
+            except Exception:
+                return False
+
+        # Backstop anti-reconnexion en rafale (voir docstring).
+        if not _send('retry: 3600000\n\n'):
+            return
+
+        start = time.time()
+        last_beat = start
+        sent = 0                       # position déjà poussée dans reply
+        while True:
+            now = time.time()
+            with _agent_lock:
+                a = _agent_analyses.get(aid)
+                if a is None:
+                    status, reply, err = None, '', ''
+                else:
+                    status = a.get('status', 'running')
+                    reply = a.get('reply') or ''
+                    err = a.get('error') or ''
+            if a is None:
+                _send('event: failed\ndata: ' + json.dumps({'error': 'introuvable'}) + '\n\n')
+                return
+            if len(reply) > sent:
+                if not _send('data: ' + json.dumps({'t': reply[sent:]}) + '\n\n'):
+                    return
+                sent = len(reply)
+                last_beat = now
+            if status == 'done':
+                _send('event: done\ndata: ' + json.dumps({'reply': reply}) + '\n\n')
+                return
+            if status == 'error':
+                _send('event: failed\ndata: '
+                      + json.dumps({'error': err or 'analyse échouée', 'reply': reply}) + '\n\n')
+                return
+            if now - start > SSE_DEADLINE_S:
+                _send('event: failed\ndata: '
+                      + json.dumps({'error': 'délai dépassé', 'reply': reply}) + '\n\n')
+                return
+            if now - last_beat > SSE_HEARTBEAT_S:
+                if not _send(': ping\n\n'):     # commentaire SSE : tient la socket
+                    return
+                last_beat = now
+            time.sleep(0.2)
 
     def _cors(self):
         # CORS restreint aux origines locales attendues (le logiciel est servi
