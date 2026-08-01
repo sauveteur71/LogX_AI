@@ -76,6 +76,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .action-card .act-yes{color:#0a0e1e;background:var(--accent);border-color:var(--accent)}
 .action-card .act-yes:disabled{opacity:.6;cursor:default}
 .action-card .act-no{color:var(--muted);background:transparent}
+.skill-sel{font-family:var(--font-mono);font-size:12px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px;cursor:pointer}
 .bubble.alert{border-color:var(--red);background:rgba(255,45,85,.08);box-shadow:0 0 20px rgba(255,45,85,.15)}
 .bubble.dx{border-color:var(--yellow);background:rgba(255,214,10,.06);box-shadow:0 0 16px rgba(255,214,10,.1)}
 .bubble.auto-alert{border-color:var(--green);background:rgba(0,255,136,.07);box-shadow:0 0 20px rgba(0,255,136,.18);animation:autoAlertPulse 1.6s ease 2}
@@ -220,6 +221,11 @@ textarea::placeholder{color:var(--muted)}
         <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points">🎓 DÉBRIEF</button>
         <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)">🔇</button>
         <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider">🎯 CHASSE ASSISTÉE</button>
+        <select id="skillSel" class="skill-sel" onchange="setSkill(this.value)" title="Niveau : adapte le ton et le niveau de détail des réponses de l'IA">
+          <option value="debutant">🐣 Débutant</option>
+          <option value="confirme">🎯 Confirmé</option>
+          <option value="expert">🚀 Expert</option>
+        </select>
         <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.','resume')">📡 ANALYSER</button>
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')">🏆 SCORE</button>
         <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')">⚡ SPOTS</button>
@@ -360,7 +366,10 @@ let systemPrompt = '';
 const rcT  = (s)   => (window.rcT  ? window.rcT(s)     : s);
 const rcTf = (s, p) => (window.rcTf ? window.rcTf(s, p) : s);
 const rcLangDirective = () => (window.rcLangDirective ? window.rcLangDirective() : '');
+const rcSkillDirective = () => (window.rcSkillDirective ? window.rcSkillDirective() : '');
 const rcLang = () => (window.rcGetLang ? window.rcGetLang() : 'fr');
+// Directives IA combinées (langue + niveau #21) ajoutées au prompt système.
+const rcAiDirectives = () => [rcLangDirective(), rcSkillDirective()].filter(Boolean).join('\n\n');
 
 // ─── CARTE LEAFLET ───────────────────────────────────────────────────────────
 let leafletMap = null;
@@ -1045,6 +1054,9 @@ function toggleTts(){
   syncTtsBtn();
   if(on&&window.rcSpeak) window.rcSpeak(rcT('Lecture vocale activée.'),true);   // confirmation audible
 }
+// Niveau IA (#21) : stocké dans rc_skill, lu par window.rcSkillDirective().
+function setSkill(v){ try{ localStorage.setItem('rc_skill', v); }catch(e){} }
+function syncSkillSel(){ const s=document.getElementById('skillSel'); if(s&&window.rcSkill) s.value=window.rcSkill(); }
 
 function showThinking(){
   const c=document.getElementById('chatMsgs');
@@ -1215,7 +1227,7 @@ async function send(forcedText,displayText,topic){
     conversationHistory.push({role:'user',content:text});
 
     // L'agent répond dans la langue choisie (directive ajoutée au prompt système).
-    const _dir=rcLangDirective();
+    const _dir=rcAiDirectives();
     const _sys=(systemPrompt||'')+(_dir?'\n\n'+_dir:'');
     if(_sys.trim())body.system=_sys;
 
@@ -1427,7 +1439,7 @@ async function assistedHunt(){
   addMsg('user', rcT('🎯 Chasse assistée : trouve-moi le meilleur spot'));
   isWaiting=true; document.getElementById('sendBtn').disabled=true; showThinking();
   try{
-    const _dir=rcLangDirective();
+    const _dir=rcAiDirectives();
     const _sys=(systemPrompt||'')+(_dir?'\n\n'+_dir:'');
     const body={ needs_context:true };
     if(_sys.trim()) body.system=_sys;
@@ -1868,6 +1880,7 @@ scheduleRefresh();
 scheduleAutoCheck();
 resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
 syncTtsBtn();      // état initial du bouton 🔊 (#6)
+syncSkillSel();    // niveau IA courant dans le sélecteur (#21)
 </script>
 </body>
 </html>

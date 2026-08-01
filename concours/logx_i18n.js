@@ -6282,6 +6282,22 @@
     return LLM_DIRECTIVE[getLang()] || '';
   };
 
+  // Directive « niveau de l'opérateur » à ajouter au prompt système IA (#21) :
+  // adapte le TON et le détail des réponses, sur le même patron que la langue.
+  // Confirmé (défaut) = aucune directive (comportement standard).
+  var RC_SKILL_DIRECTIVE = {
+    debutant: "L'opérateur est DÉBUTANT en concours : explique le jargon quand tu "
+            + "l'emploies, reste simple et pédagogue, et donne le POURQUOI de chaque conseil.",
+    expert: "L'opérateur est EXPERT : va droit au but, le jargon technique est le "
+          + "bienvenu, pas d'explications de base, sois dense et concis."
+  };
+  window.rcSkill = function () {
+    try { return localStorage.getItem('rc_skill') || 'confirme'; } catch (e) { return 'confirme'; }
+  };
+  window.rcSkillDirective = function () {
+    return RC_SKILL_DIRECTIVE[window.rcSkill()] || '';
+  };
+
   function injectSelector() {
     if (document.getElementById('rcLangSelect')) return;
     // Une page peut refuser le sélecteur : `<body data-rc-no-lang-select>`.
