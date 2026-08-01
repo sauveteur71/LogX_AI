@@ -21,6 +21,7 @@ import threading
 import datetime
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as _xml_escape
+from logx_utils import utcnow
 
 DEFAULT_PORT = 12060
 
@@ -98,7 +99,7 @@ def qso_from_contactinfo(fields, cfg):
     doit rejoindre le concours actif de CETTE instance pour que le scoring
     (rules_db) s'applique correctement."""
     from logx_utils import locator_to_latlon, haversine
-    dt = _parse_timestamp(fields.get('timestamp', '')) or datetime.datetime.utcnow()
+    dt = _parse_timestamp(fields.get('timestamp', '')) or utcnow()
     my_loc = (cfg or {}).get('locator', '')
     grid = (fields.get('gridsquare') or '').upper()
     dist = 0

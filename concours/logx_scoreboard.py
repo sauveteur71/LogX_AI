@@ -11,11 +11,11 @@ testable sans réseau ; seul le POST touche le réseau et dégrade proprement.
 import json
 import os
 import time
-import datetime
 import urllib.request
 import urllib.parse
 
 from logx_storage import active_scope_id, qso_scope_id, cfg_scope_id
+from logx_utils import utcnow
 
 _STAMP_FILE = 'scoreboard_sync.json'
 
@@ -82,7 +82,7 @@ def build_n1mm_xml(snapshot, cfg, klass='SO'):
     cfg = cfg or {}
     call = (cfg.get('callsign_contest') or cfg.get('callsign') or 'STATION').upper()
     ops = call
-    now = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    now = utcnow().strftime('%Y-%m-%d %H:%M:%S')
     lines = ['<?xml version="1.0" encoding="utf-8"?>', '<dynamicresults>',
              f'<contest>{_esc(snapshot.get("contest",""))}</contest>',
              f'<call>{_esc(call)}</call>', f'<ops>{_esc(ops)}</ops>',
@@ -136,7 +136,7 @@ def push(cfg, shared_log):
 
 def _stamp(snap):
     try:
-        data = {'last': datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M'),
+        data = {'last': utcnow().strftime('%Y-%m-%d %H:%M'),
                 'score': snap.get('score'), 'qso': snap.get('qso')}
         with open(_STAMP_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f)

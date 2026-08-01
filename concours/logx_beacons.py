@@ -9,7 +9,7 @@ ouverte vers cette région (on l'entend ou pas).
 
 Réf : www.ncdxf.org/beacon — schéma de rotation officiel.
 """
-import datetime
+from logx_utils import utcnow
 
 # 18 balises dans l'ordre du créneau (slot 0..17) : indicatif, locator, QTH
 BEACONS = [
@@ -43,7 +43,7 @@ SLOT_S = 10
 def beacons_now(now=None):
     """Pour l'instant courant : la balise active sur chaque bande.
     Retourne [{band, freq_khz, call, locator, qth, seconds_left}]."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     # Secondes depuis minuit UTC (les balises sont synchronisées sur l'UTC)
     secs = now.hour * 3600 + now.minute * 60 + now.second
     cycle_pos = secs % CYCLE_S

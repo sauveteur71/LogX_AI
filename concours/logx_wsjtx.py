@@ -19,6 +19,7 @@ import socket
 import struct
 import threading
 import datetime
+from logx_utils import utcnow
 
 MAGIC = 0xADBCCBDA
 DEFAULT_PORT = 2237
@@ -570,7 +571,7 @@ def _my_call(cfg):
 def qso_from_logged(msg, cfg):
     """Message QSO Logged → dict QSO prêt pour le log partagé."""
     from logx_utils import locator_to_latlon, haversine
-    dt = msg.get('time_on') or datetime.datetime.utcnow()
+    dt = msg.get('time_on') or utcnow()
     my_loc = (cfg or {}).get('locator', '')
     grid = (msg.get('grid') or '').upper()
     dist = 0

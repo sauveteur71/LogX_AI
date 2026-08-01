@@ -15,6 +15,51 @@ PORT = 8080
 CURRENT_YEAR = datetime.datetime.now().year
 
 
+# ─── TEMPS : UN SEUL MODÈLE, L'UTC NAÏF ──────────────────────────────────────
+
+def utcnow():
+    """L'instant présent en UTC, en datetime NAÏF (sans tzinfo).
+
+    Remplace `datetime.datetime.utcnow()`, déprécié depuis Python 3.12 et
+    programmé pour suppression. La valeur rendue est rigoureusement la même :
+    même instant, même absence de fuseau.
+
+    POURQUOI NAÏF, ET NON `datetime.now(datetime.UTC)` DIRECTEMENT ?
+    Parce que tout le modèle temporel du logiciel est en UTC naïf, et pas par
+    accident — un datetime AWARE ne se soustrait PAS à un naïf, il lève
+    TypeError. Or l'instant « maintenant » rencontre partout des naïfs :
+
+      - ephem rend des datetime naïfs (`aos.datetime()`), comparés directement
+        à cet instant dans logx_sat_passes.passages() ;
+      - les dates/heures du log sont naïves PAR NORME (ADIF, Cabrillo) ;
+      - les caches DÉJÀ écrits sur le disque des utilisateurs portent des
+        horodatages sans fuseau — le cache TLE, les fichiers d'estampille ;
+      - l'API ionosondes KC2G rend « 2026-03-19T22:10:05 », sans offset.
+
+    Sur plusieurs de ces frontières le TypeError serait avalé par un `except`
+    voisin : la panne serait SILENCIEUSE (la MUF réelle disparaîtrait sans un
+    mot). D'où la règle unique du dépôt : en interne le temps est naïf-UTC, et
+    ce qui vient de l'extérieur y est ramené par `as_naive_utc`.
+    """
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+
+
+def as_naive_utc(dt):
+    """Ramène un datetime au modèle interne : UTC, sans fuseau.
+
+    Un datetime AWARE est réellement CONVERTI en UTC (pas seulement dépouillé
+    de son fuseau, ce qui décalerait l'instant) ; un naïf est rendu tel quel,
+    supposé déjà UTC ; None passe sans bruit.
+
+    À utiliser aux frontières de LECTURE — `fromisoformat` sur un cache disque
+    ou sur une réponse d'API : rien ne garantit qu'un « +00:00 » n'apparaîtra
+    pas un jour, et ce jour-là la soustraction qui suit ne doit pas exploser.
+    """
+    if dt is None or dt.tzinfo is None:
+        return dt
+    return dt.astimezone(datetime.UTC).replace(tzinfo=None)
+
+
 # ─── FOURNISSEURS IA « OpenAI Chat Completions » ─────────────────────────────
 # OpenAI, Mistral AI (la référence française, api.mistral.ai), xAI/Grok
 # (api.x.ai) et DeepSeek (api.deepseek.com) partagent tous le même contrat

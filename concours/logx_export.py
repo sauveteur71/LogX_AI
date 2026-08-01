@@ -5,7 +5,7 @@ Fonctions PURES (testables) : build_cabrillo(qsos, cdef, cfg) et
 build_adif(qsos, cfg). Les en-têtes s'appuient sur la définition du concours
 (CONTEST_DEFINITIONS) et la config client (callsign, locator, opérateurs).
 """
-import datetime
+from logx_utils import utcnow
 
 # Bande interne (MHz, chaîne) → fréquence Cabrillo (kHz nominal en HF,
 # désignateur de bande au-delà — spécification Cabrillo v3).
@@ -182,7 +182,7 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
         f"EMAIL: {cfg.get('email', '')}",
         f"CLUB: {cfg.get('club', '')}",
         f"CREATED-BY: LogX AI",
-        f"SOAPBOX: Exporte le {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
+        f"SOAPBOX: Exporte le {utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
     ]
     for q in qsos:
         band = _norm_band(q)

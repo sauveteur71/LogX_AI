@@ -9,7 +9,7 @@ import time
 import socket
 import threading
 
-from logx_utils import MODES_NUMERIQUES, fetch_url, is_digital_mode, locator_to_latlon
+from logx_utils import MODES_NUMERIQUES, fetch_url, is_digital_mode, locator_to_latlon, utcnow, as_naive_utc
 
 # ─── CORRESPONDANCE BANDES → CLUSTERS ────────────────────────────────────────
 CLUSTER_MAP = {
@@ -1214,12 +1214,17 @@ def fetch_muf(my_lat=None, my_lon=None):
     try:
         import datetime as _dt
         stations = json.loads(raw)
-        now = _dt.datetime.utcnow()
+        now = utcnow()
         best = None
         best_dist = 1e12
         for st in stations:
             try:
-                t = _dt.datetime.fromisoformat(st.get('time', ''))
+                # KC2G rend aujourd'hui « 2026-03-19T22:10:05 », sans offset —
+                # vérifié sur l'API, pas supposé. Si elle se mettait à publier
+                # un fuseau, la soustraction lèverait TypeError, avalé par le
+                # `except` ci-dessous : la MUF réelle disparaîtrait de l'écran
+                # SANS le moindre message. On normalise donc à l'entrée.
+                t = as_naive_utc(_dt.datetime.fromisoformat(st.get('time', '')))
                 if (now - t).total_seconds() > 3 * 3600:
                     continue  # mesure périmée (sonde en panne)
                 fof2, md = float(st.get('fof2') or 0), float(st.get('md') or 0)

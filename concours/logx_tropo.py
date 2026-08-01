@@ -21,6 +21,7 @@ Déterministe hormis l'appel météo ; cache 20 min ; dégrade sans réseau.
 """
 import math
 import time
+from logx_utils import utcnow
 
 _cache = {'ts': 0, 'data': None, 'key': ''}
 CACHE_S = 1200
@@ -90,8 +91,7 @@ def tropo_forecast(lat, lon):
         if not n_hours:
             return {'ok': False, 'error': 'Données tropo absentes'}
 
-        import datetime
-        idx = min(datetime.datetime.utcnow().hour, n_hours - 1)
+        idx = min(utcnow().hour, n_hours - 1)
 
         def grad_at(i):
             pts = []

@@ -18,6 +18,7 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import logx_storage as storage
 import logx_http as http
 from logx_storage import qso_scope_id, active_scope_id, cfg_scope_id
+from logx_utils import utcnow
 
 
 # ─── Helpers de portée (logx_storage) ────────────────────────────────────────
@@ -49,9 +50,8 @@ def test_active_scope_id_avec_contest_start_date():
 
 
 def test_active_scope_id_sans_date_replie_sur_annee_courante():
-    import datetime
     cfg = {'contest': 'REF_QRP'}
-    assert active_scope_id(cfg) == f'REF_QRP#{datetime.datetime.utcnow().year}'
+    assert active_scope_id(cfg) == f'REF_QRP#{utcnow().year}'
 
 
 def test_cfg_scope_id_mode_simple_jamais_de_portee():

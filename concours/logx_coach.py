@@ -16,6 +16,7 @@ import datetime
 from logx_definitions import CONTEST_DEFINITIONS
 from logx_coach_i18n import t
 from logx_storage import qso_scope_id, active_scope_id, cfg_scope_id
+from logx_utils import utcnow
 
 HF_BANDS = ('1.8', '3.5', '7', '14', '21', '28')
 
@@ -37,7 +38,7 @@ def contest_clock(cfg, cdef=None, now=None):
     Lit la config CLIENT (plate : contest, contest_start_date, contest_end_date,
     contest_end_utc) ; l'heure de départ vient de la définition (start_utc).
     Retourne un dict toujours exploitable, même sans config complète."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     cfg = cfg or {}
     cdef = cdef or {}
     contest_id = cfg.get('contest', '') if isinstance(cfg.get('contest'), str) else ''
@@ -136,7 +137,7 @@ def log_stats(shared_log, contest_id='', clock=None, now=None):
     heures opérées (pour le budget off-time), répartition par bande.
     `contest_id` est une PORTÉE (voir logx_storage.active_scope_id), pas le nom
     brut du concours — un QSO non tagué ne compte jamais pour une portée précise."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     entries = [e for e in (shared_log or [])
                if not contest_id or qso_scope_id(e) == contest_id]
     stats = {
@@ -196,7 +197,7 @@ def band_change_timer(shared_log, contest_id='', now=None,
     NB : le champ `time` d'un QSO n'a qu'une précision à la minute — l'instant
     exact du changement (et donc le compte à rebours) peut dériver de quelques
     dizaines de secondes, sans conséquence pour un simple indicateur."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     entries = [e for e in (shared_log or [])
                if not contest_id or qso_scope_id(e) == contest_id]
     dated = []
@@ -245,7 +246,7 @@ def _hf_bands_for_hour(hour_utc):
 def band_plan(cdef, clock, dxmaps=None, now=None, lang='fr'):
     """Bandes recommandées MAINTENANT, pondérées par le barème du concours.
     Retourne [{band, weight, reason}] trié par intérêt décroissant."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     bands = [str(b) for b in (cdef or {}).get('bands', [])]
     if not bands:
         return []
@@ -408,7 +409,7 @@ def es_aurora_forecast(cdef, dxmaps=None, k_index=None, now=None, lang='fr'):
       sur 6 m et 2 m.
     - Aurora : dérivée de l'indice K (>=5 = orage géomagnétique → aurora VHF).
     Retourne une liste de dicts {kind, level, text} ou []."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     bands = [str(b) for b in (cdef or {}).get('bands', [])]
     is_vhf = any(b in ('50', '70', '144') for b in bands)
     out = []
@@ -513,7 +514,7 @@ def build_debrief(cfg, shared_log, now=None):
     """Statistiques DÉTERMINISTES du concours écoulé + prompt prêt pour un
     débrief narratif par l'IA (/proxy/ai côté client).
     Retourne {'stats': {...}, 'debrief_prompt': str}."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     cfg = cfg or {}
     contest_id = cfg.get('contest', '') if isinstance(cfg.get('contest'), str) else ''
     cdef = CONTEST_DEFINITIONS.get(contest_id, {})
@@ -624,7 +625,7 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     lang : langue des textes du coach (hints/reasons/forecasts) ; 'fr' par
     défaut. Le coach_prompt reste en français (le LLM répond dans la langue
     voulue via la directive du prompt système côté client)."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     contest_id = (cfg or {}).get('contest', '')
     cdef = CONTEST_DEFINITIONS.get(contest_id, {}) if isinstance(contest_id, str) else {}
     clock = contest_clock(cfg, cdef, now)

@@ -16,7 +16,7 @@ import socket
 
 import logx_rules as rules
 from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX,
-                          OPENAI_COMPATIBLE_ENDPOINTS)
+                          OPENAI_COMPATIBLE_ENDPOINTS, utcnow)
 from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
                                  delete_custom_contest)
@@ -549,7 +549,7 @@ def add_qso_to_log(qso, force=False):
     import time as _t
     qso['server_time'] = _t.time()
     _tamponner_satellite(qso)
-    now_utc = datetime.datetime.utcnow()
+    now_utc = utcnow()
     qso.setdefault('date', now_utc.strftime('%Y%m%d'))
     qso.setdefault('time', now_utc.strftime('%H:%M'))
     key = (str(qso.get('call', '')).upper().strip(),
@@ -1928,7 +1928,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({
                     'format': 'logx-custom-contests',
                     'version': 1,
-                    'exported_at': datetime.datetime.utcnow().isoformat(),
+                    'exported_at': utcnow().isoformat(),
                     'exported_by': self._cfg_snapshot().get('callsign', ''),
                     'contests': data,
                 })
@@ -2927,7 +2927,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 solar = {'solar': get_solar_cached() or {}, 'muf': get_muf_cached(my_ll[0], my_ll[1])}
             except Exception:
                 solar = {}
-            when = datetime.datetime.utcnow() + datetime.timedelta(hours=hour)
+            when = utcnow() + datetime.timedelta(hours=hour)
             cells = paths.prop_grid(my_ll[0], my_ll[1], band, when, solar, step=15)
             self._json({'ok': True, 'band': band, 'hour': hour,
                         'when_utc': when.strftime('%H:%M'), 'step': 15,
@@ -3845,7 +3845,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 'validation_errors': errors}, 400)
                     return
                 ok, msg = save_custom_contest(cid, definition, meta={
-                    'validated_at': datetime.datetime.utcnow().isoformat(),
+                    'validated_at': utcnow().isoformat(),
                     'source_url': payload.get('source_url', ''),
                     'ai_confidence': payload.get('confidence', ''),
                 })
@@ -3878,7 +3878,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     was_update = cid in CUSTOM_CONTEST_IDS
                     meta = {k: v for k, v in (entry.items() if isinstance(entry, dict) else [])
                             if k != 'definition'}
-                    meta['imported_at'] = datetime.datetime.utcnow().isoformat()
+                    meta['imported_at'] = utcnow().isoformat()
                     ok, _ = save_custom_contest(cid, definition, meta=meta)
                     if ok:
                         (updated if was_update else imported).append(cid)
@@ -4677,7 +4677,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 'error': f"Max 10 QTC par station — déjà {already} "
                                          f"avec {call}"}, 400)
                     return
-                now_utc = datetime.datetime.utcnow()
+                now_utc = utcnow()
                 entry = {'id': next_qtc_id(), 'call': call, 'count': count,
                          'contest': cid, 'date': now_utc.strftime('%Y%m%d'),
                          'time': now_utc.strftime('%H:%M'), 'direction': direction}
@@ -4784,7 +4784,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == '/chat/send':
             try:
                 msg = json.loads(body)
-                now = datetime.datetime.utcnow().strftime('%H:%M')
+                now = utcnow().strftime('%H:%M')
                 with chat_lock:
                     chat_seq += 1
                     entry = {
