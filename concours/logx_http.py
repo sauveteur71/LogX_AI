@@ -2148,6 +2148,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(h)
             return
 
+        # École de CW : une série d'entraînement tirée de l'index du poste, avec
+        # l'échange RÉELLEMENT demandé par le concours choisi. Aucun réseau,
+        # aucune IA, aucun coût — et rien ne part sur l'air : le morse est
+        # généré dans le navigateur, dans le casque.
+        if path.startswith('/cw/serie'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_callhistory as callhistory
+            import logx_cw_ecole as ecole
+            qp = parse_qs(urlparse(self.path).query)
+            try:
+                n = max(1, min(60, int(qp.get('n', ['20'])[0])))
+            except ValueError:
+                n = 20
+            cfg_snap = self._cfg_snapshot()
+            cdef = CONTEST_DEFINITIONS.get(cfg_snap.get('contest', ''), {})
+            with log_lock:
+                log_copy = list(shared_log)
+            idx = callhistory.build_index(log_copy)
+            # Les locators et départements viennent du log RÉEL : les échanges
+            # entendus à l'entraînement ressemblent alors à ceux du concours,
+            # au lieu d'être tous identiques.
+            locs = [q.get('locator') for q in log_copy if q.get('locator')][-40:]
+            deps = [q.get('num_rcvd') for q in log_copy if q.get('num_rcvd')][-40:]
+            self._json({
+                'serie': ecole.serie(idx, cdef, n=n, locators=locs, depts=deps,
+                                     zone=cfg_snap.get('cq_zone')),
+                'contest': cfg_snap.get('contest', ''),
+                'exchange': cdef.get('exchange', ''),
+                'indicatifs_disponibles': len(idx),
+            })
+            return
+
         # Vérification « N+1 » (busted call check, façon N1MM) : indicatifs
         # connus à une distance de Damerau-Levenshtein de 1 de celui tapé —
         # calcul 100% local (aucun réseau), donc appelable directement ici.
@@ -4124,6 +4156,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # audio calé — exactement comme un double-clic sur la ligne. RIEN NE
         # PART SUR L'AIR de ce seul fait : c'est l'opérateur qui appuie ensuite
         # sur Enable TX. La route est protégée comme toutes les écritures.
+        # École de CW : la correction d'une série. Le barème vit en Python
+        # (testé), pas dans la page — un bilan qui se trompe décourage
+        # l'opérateur au lieu de le faire progresser.
+        if self.path == '/cw/corriger':
+            import logx_cw_ecole as ecole
+            try:
+                p = json.loads(body)
+            except (ValueError, TypeError):
+                self._json({'error': 'corps JSON invalide'}, 400)
+                return
+            serie = p.get('serie') or []
+            if not isinstance(serie, list) or len(serie) > 200:
+                self._json({'error': 'série invalide'}, 400)
+                return
+            bilan = ecole.corriger(serie, p.get('reponses') or [])
+            try:
+                wpm = int(p.get('wpm') or 18)
+            except (TypeError, ValueError):
+                wpm = 18
+            bilan['vitesse_suivante'] = ecole.vitesse_suivante(wpm, bilan['taux'])
+            self._json(bilan)
+            return
+
         if self.path == '/wsjtx/repondre':
             import logx_wsjtx as wsjtx
             try:
