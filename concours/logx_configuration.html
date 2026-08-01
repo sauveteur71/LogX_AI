@@ -610,8 +610,21 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
       </div>
+      <!-- ─── PARC D'ANTENNES, DE ROTORS ET D'AMPLIS ────────────────────────
+           Une station sérieuse en a PLUSIEURS : l'exemple qui a motivé cet
+           écran est trois pylônes, trois antennes, trois rotors. Chaque
+           antenne désigne SON rotor et SON ampli ; un clic sur un spot ne fait
+           alors tourner que le pylône concerné.
+           Les quatre champs texte historiques restent plus bas : ils
+           alimentent l'export EDI et servent de reprise automatique tant que
+           ce tableau est vide. -->
       <div class="section">
-        <div class="section-title">ANTENNES</div>
+        <div class="section-title">PARC D'ANTENNES</div>
+        <div id="parcStation"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">ANTENNES — DESCRIPTION (export EDI)</div>
         <div class="form-grid">
           <div class="form-group">
             <label>HF</label>
@@ -1131,16 +1144,21 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
 
       <div class="section">
-        <div class="section-title">💻 WSJT-X (FT8/FT4 — auto-log)</div>
+        <div class="section-title">💻 WSJT-X · JTDX · MSHV (FT8/FT4 — auto-log)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-          Chaque QSO validé dans WSJT-X arrive AUTOMATIQUEMENT dans le logbook
-          (call, grille, bande, mode, rapports) — plus de ressaisie en numérique.<br>
-          Côté WSJT-X : <b style="color:var(--accent2)">Réglages → Rapports → UDP Server</b>
-          = l'IP de ce PC, port 2237.
+          Chaque QSO validé dans ton logiciel numérique arrive AUTOMATIQUEMENT
+          dans le logbook (call, grille, bande, mode, rapports) — plus de
+          ressaisie.<br>
+          <b style="color:var(--accent2)">JTDX et MSHV parlent le même protocole
+          UDP que WSJT-X</b> : ils fonctionnent ici sans réglage particulier, et
+          le logbook affiche le nom de celui qui est réellement connecté.<br>
+          Côté logiciel : <b style="color:var(--accent2)">Réglages → Rapports →
+          UDP Server</b> (WSJT-X et JTDX) ou l'équivalent « WSJT-X UDP » de
+          MSHV = l'IP de ce PC, port 2237.
         </div>
         <div class="form-grid">
           <div class="form-group">
-            <label>AUTO-LOG WSJT-X</label>
+            <label>AUTO-LOG NUMÉRIQUE</label>
             <select id="wsjtx_enabled">
               <option value="">Désactivé</option>
               <option value="1">Activé</option>
@@ -1148,9 +1166,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <div class="input-note">Désactivé par défaut — écoute UDP en fond si activé</div>
           </div>
           <div class="form-group">
-            <label>PORT UDP WSJT-X</label>
+            <label>PORT UDP</label>
             <input type="number" id="wsjtx_port" placeholder="2237">
-            <div class="input-note">Port « UDP Server » de WSJT-X (défaut 2237)</div>
+            <div class="input-note">Port « UDP Server » du logiciel (défaut 2237)</div>
           </div>
         </div>
       </div>
@@ -2975,6 +2993,7 @@ async function init() {
     if (card) card.classList.add('selected');
   }
   handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
+  renderParcStation(); // Parc antennes/rotors/amplis (vide si jamais configuré)
   updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
   loadVoiceKeyerDevices();
   loadDxRecord();
@@ -3360,8 +3379,20 @@ function updateCatModelOptions(){
   // m[2] === 'hamlib' : poste que le pilote NATIF ne sait pas commander (voir
   // le commentaire de CAT_MODELS). Le dire dans l'intitule, sinon l'operateur
   // choisit son poste, ne voit rien venir, et cherche un probleme de cable.
+  // LA SÉLECTION EST PRÉSERVÉE À TRAVERS LA RECONSTRUCTION.
+  //
+  // DÉFAUT SIGNALÉ PAR F4GLD : « je choisis une radio, je sauvegarde, je vais
+  // au logbook, je reviens et ma radio n'est plus sélectionnée ». Cause :
+  // init() restaure la config (qui pose bien la marque ET le modèle), puis
+  // rappelle updateCatModelOptions() quelques lignes plus bas. Réécrire
+  // innerHTML remet un <select> sur sa PREMIÈRE option — le modèle enregistré
+  // était donc perdu à chaque retour sur la page, sans le moindre message.
+  const modelePrecedent = sel.value || (window._cfgRestauree || {}).cat_model || '';
   sel.innerHTML = models.map(m => `<option value="${m[0]}">${m[0]}${
     m[2] === 'hamlib' ? ' — via rigctld/Hamlib' : ''}</option>`).join('');
+  if (modelePrecedent && models.some(m => m[0] === modelePrecedent)) {
+    sel.value = modelePrecedent;
+  }
   const note = document.getElementById('catAddrNote');
   const isCiv = (brand === 'icom' || brand === 'xiegu');
   if (isCiv && models.length){
@@ -3415,7 +3446,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function refreshCatPorts(){
   const sel = document.getElementById('cat_port');
-  const prev = sel.value;
+  // Le port enregistré sert de REPLI. Au chargement, la liste des ports arrive
+  // du serveur APRÈS la restauration de la config : poser `.value` sur un
+  // <select> encore vide échoue en silence, `sel.value` est alors vide, et le
+  // port sauvegardé était perdu au profit du premier port détecté. Même
+  // défaut que le modèle de radio, même remède.
+  const prev = sel.value || (window._cfgRestauree || {}).cat_port || '';
   sel.innerHTML = '<option value="">⏳ Recherche des ports...</option>';
   try{
     const res = await fetch('/rig/ports');
@@ -3459,7 +3495,9 @@ function updateAmpFieldsVisibility(){
 
 async function refreshAmpPorts(){
   const sel = document.getElementById('amp_port');
-  const prev = sel.value;
+  // Même repli que refreshCatPorts : le port de l'ampli était perdu de la
+  // même façon, la liste arrivant du serveur après la restauration.
+  const prev = sel.value || (window._cfgRestauree || {}).amp_port || '';
   sel.innerHTML = '<option value="">⏳ Recherche des ports...</option>';
   try{
     const res = await fetch('/rig/ports');
@@ -5265,6 +5303,216 @@ function removeTransverter(i){
   renderTransverters();
 }
 
+// ═══ PARC D'ANTENNES, DE ROTORS ET D'AMPLIS ══════════════════════════════════
+// Une station peut avoir PLUSIEURS de chaque — l'exemple qui a motivé cet
+// écran : trois pylônes, trois antennes, trois rotors. Chaque antenne désigne
+// SON rotor et SON ampli ; un clic sur un spot ne fait alors tourner que le
+// pylône de la bande courante, les autres restent où ils sont.
+//
+// Le miroir serveur (logx_station.py) fait foi : c'est lui qui normalise,
+// attribue les identifiants et reprend les anciennes configurations. Cet écran
+// ne fait que saisir.
+const PARC_BANDES = ['1.8','3.5','7','10.1','14','18','21','24','28','50','70',
+                     '144','432','1296','2320','3400','5760','10368','24048','47088'];
+const PARC_TYPES = ['', 'directive', 'omni', 'filaire', 'verticale', 'parabole'];
+const PARC_MARQUES_AMPLI = ['', 'elecraft', 'icom', 'spe'];
+
+let antennesRows = [], rotorsRows = [], amplisRows = [];
+
+function _pOpt(v, sel, lbl){
+  return `<option value="${v}"${String(sel) === String(v) ? ' selected' : ''}>${lbl || v || '—'}</option>`;
+}
+
+function renderParcStation(){
+  const box = document.getElementById('parcStation');
+  if(!box) return;
+  const rotOpts = ['<option value="">— aucun —</option>'].concat(
+    rotorsRows.map((r, i) => `<option value="${escAttrParc(r.id || ('rotor' + (i+1)))}">`
+      + `${escAttrParc(r.nom || ('Rotor ' + (i+1)))}</option>`)).join('');
+  const ampOpts = ['<option value="">— aucun —</option>'].concat(
+    amplisRows.map((m, i) => `<option value="${escAttrParc(m.id || ('ampli' + (i+1)))}">`
+      + `${escAttrParc(m.nom || ('Ampli ' + (i+1)))}</option>`)).join('');
+
+  let h = '<div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:12px">'
+        + "Une ligne par antenne. Coche ses bandes, et dis-lui quel rotor la tourne et quel ampli la précède. "
+        + "Une antenne fixe se déclare sans rotor : rien ne tournera pour elle."
+        + '</div>';
+
+  // ── Antennes ──
+  h += antennesRows.map((a, i) => `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div class="form-row" style="align-items:flex-end;gap:10px">
+        <div class="form-group" style="flex:2;min-width:150px">
+          <label>ANTENNE ${i + 1}</label>
+          <input type="text" data-parc="ant.nom" data-i="${i}" value="${escAttrParc(a.nom)}"
+                 placeholder="Yagi 6 él. 20m">
+        </div>
+        <div class="form-group" style="max-width:130px">
+          <label>TYPE</label>
+          <select data-parc="ant.type" data-i="${i}">
+            ${PARC_TYPES.map(t => _pOpt(t, a.type, t || '—')).join('')}
+          </select>
+        </div>
+        <div class="form-group" style="max-width:150px">
+          <label>ROTOR</label>
+          <select data-parc="ant.rotor_id" data-i="${i}">${rotOpts}</select>
+        </div>
+        <div class="form-group" style="max-width:150px">
+          <label>AMPLI</label>
+          <select data-parc="ant.ampli_id" data-i="${i}">${ampOpts}</select>
+        </div>
+        <div class="form-group" style="max-width:60px">
+          <label>&nbsp;</label>
+          <button type="button" class="btn btn-secondary" onclick="removeAntenne(${i})">✕</button>
+        </div>
+      </div>
+      <div style="margin-top:6px">
+        <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">BANDES</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${PARC_BANDES.map(b => `<label style="font-family:var(--font-mono);font-size:11px;
+            border:1px solid ${(a.bandes||[]).includes(b) ? 'var(--green)' : 'var(--border)'};
+            color:${(a.bandes||[]).includes(b) ? 'var(--green)' : 'var(--muted)'};
+            border-radius:4px;padding:2px 6px;cursor:pointer;display:inline-flex;gap:3px;align-items:center">
+            <input type="checkbox" data-parc="ant.bande" data-i="${i}" data-b="${b}"
+              ${(a.bandes||[]).includes(b) ? 'checked' : ''} style="margin:0">${b}</label>`).join('')}
+        </div>
+      </div>
+    </div>`).join('');
+  if(!antennesRows.length){
+    h += '<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:4px 0 10px">'
+       + 'Aucune antenne déclarée — les champs de description plus bas seront repris automatiquement.</div>';
+  }
+  h += `<button type="button" class="btn btn-secondary" onclick="addAntenne()">+ ANTENNE</button>`;
+
+  // ── Rotors ──
+  h += '<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);margin:18px 0 8px;border-top:1px solid var(--border);padding-top:12px">ROTORS</div>';
+  h += rotorsRows.map((r, i) => `
+    <div class="form-row" style="align-items:flex-end;gap:10px;margin-bottom:8px">
+      <div class="form-group" style="max-width:80px">
+        <label>ACTIF</label>
+        <select data-parc="rot.enabled" data-i="${i}">
+          ${_pOpt('1', r.enabled ? '1' : '0', 'Oui')}${_pOpt('0', r.enabled ? '1' : '0', 'Non')}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:120px">
+        <label>NOM</label>
+        <input type="text" data-parc="rot.nom" data-i="${i}" value="${escAttrParc(r.nom)}" placeholder="Pylône 1">
+      </div>
+      <div class="form-group" style="flex:1;min-width:130px">
+        <label>ADRESSE rotctld</label>
+        <input type="text" data-parc="rot.host" data-i="${i}" value="${escAttrParc(r.host)}" placeholder="192.168.1.20">
+      </div>
+      <div class="form-group" style="max-width:100px">
+        <label>PORT</label>
+        <input type="number" data-parc="rot.port" data-i="${i}" value="${escAttrParc(r.port || 4533)}">
+      </div>
+      <div class="form-group" style="max-width:110px">
+        <label>DÉCALAGE °</label>
+        <input type="number" step="0.1" data-parc="rot.offset_deg" data-i="${i}" value="${escAttrParc(r.offset_deg || 0)}">
+      </div>
+      <div class="form-group" style="max-width:60px">
+        <label>&nbsp;</label>
+        <button type="button" class="btn btn-secondary" onclick="removeRotor(${i})">✕</button>
+      </div>
+    </div>`).join('');
+  h += `<button type="button" class="btn btn-secondary" onclick="addRotor()">+ ROTOR</button>`;
+  h += '<div style="font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:6px">'
+     + 'DÉCALAGE : à renseigner si le zéro mécanique du rotor n\'est pas au nord — sinon tout son pointage est faux du même angle.</div>';
+
+  // ── Amplis ──
+  h += '<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);margin:18px 0 8px;border-top:1px solid var(--border);padding-top:12px">AMPLIFICATEURS</div>';
+  h += amplisRows.map((m, i) => `
+    <div class="form-row" style="align-items:flex-end;gap:10px;margin-bottom:8px">
+      <div class="form-group" style="max-width:80px">
+        <label>ACTIF</label>
+        <select data-parc="amp.enabled" data-i="${i}">
+          ${_pOpt('1', m.enabled ? '1' : '0', 'Oui')}${_pOpt('0', m.enabled ? '1' : '0', 'Non')}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:120px">
+        <label>NOM</label>
+        <input type="text" data-parc="amp.nom" data-i="${i}" value="${escAttrParc(m.nom)}" placeholder="SPE 2K-FA">
+      </div>
+      <div class="form-group" style="max-width:130px">
+        <label>MARQUE</label>
+        <select data-parc="amp.brand" data-i="${i}">
+          ${PARC_MARQUES_AMPLI.map(b => _pOpt(b, m.brand, b || '—')).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="max-width:120px">
+        <label>PORT</label>
+        <input type="text" data-parc="amp.port" data-i="${i}" value="${escAttrParc(m.port)}" placeholder="COM5">
+      </div>
+      <div class="form-group" style="max-width:60px">
+        <label>&nbsp;</label>
+        <button type="button" class="btn btn-secondary" onclick="removeAmpli(${i})">✕</button>
+      </div>
+    </div>`).join('');
+  h += `<button type="button" class="btn btn-secondary" onclick="addAmpli()">+ AMPLI</button>`;
+
+  box.innerHTML = h;
+  // Les <select> de rotor/ampli sont posés APRÈS coup : leur valeur ne peut pas
+  // l'être dans le HTML tant que les options n'existent pas — c'est exactement
+  // le défaut qui faisait perdre la radio choisie dans la carte CAT.
+  box.querySelectorAll('[data-parc="ant.rotor_id"]').forEach(el => {
+    el.value = antennesRows[+el.dataset.i].rotor_id || '';
+  });
+  box.querySelectorAll('[data-parc="ant.ampli_id"]').forEach(el => {
+    el.value = antennesRows[+el.dataset.i].ampli_id || '';
+  });
+  box.querySelectorAll('[data-parc]').forEach(el => {
+    el.addEventListener('change', onParcChange);
+  });
+}
+
+function escAttrParc(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function onParcChange(e){
+  readParcStation();
+  // Renommer un rotor doit rafraîchir les listes déroulantes des antennes.
+  if(/^(rot|amp)\.(nom)$/.test(e.target.dataset.parc)) renderParcStation();
+}
+
+function readParcStation(){
+  const box = document.getElementById('parcStation');
+  if(!box) return;
+  box.querySelectorAll('[data-parc]').forEach(el => {
+    const [quoi, champ] = el.dataset.parc.split('.');
+    const i = +el.dataset.i;
+    const cible = quoi === 'ant' ? antennesRows[i] : quoi === 'rot' ? rotorsRows[i] : amplisRows[i];
+    if(!cible) return;
+    if(champ === 'bande'){
+      const b = el.dataset.b;
+      cible.bandes = cible.bandes || [];
+      const dedans = cible.bandes.includes(b);
+      if(el.checked && !dedans) cible.bandes.push(b);
+      if(!el.checked && dedans) cible.bandes = cible.bandes.filter(x => x !== b);
+    } else if(champ === 'enabled'){
+      cible.enabled = el.value === '1';
+    } else if(champ === 'port' && quoi === 'rot'){
+      cible.port = parseInt(el.value, 10) || 4533;
+    } else if(champ === 'offset_deg'){
+      cible.offset_deg = parseFloat(el.value) || 0;
+    } else {
+      cible[champ] = el.value;
+    }
+  });
+  // Les bandes restent dans l'ordre du plan de bandes, pas dans celui des clics.
+  antennesRows.forEach(a => {
+    a.bandes = PARC_BANDES.filter(b => (a.bandes || []).includes(b));
+  });
+}
+
+function addAntenne(){ readParcStation(); antennesRows.push({nom:'', bandes:[], type:'', rotor_id:'', ampli_id:''}); renderParcStation(); }
+function removeAntenne(i){ readParcStation(); antennesRows.splice(i,1); renderParcStation(); }
+function addRotor(){ readParcStation(); rotorsRows.push({id:'rotor'+(rotorsRows.length+1), nom:'', enabled:true, host:'', port:4533, offset_deg:0}); renderParcStation(); }
+function removeRotor(i){ readParcStation(); rotorsRows.splice(i,1); renderParcStation(); }
+function addAmpli(){ readParcStation(); amplisRows.push({id:'ampli'+(amplisRows.length+1), nom:'', enabled:true, brand:'', port:''}); renderParcStation(); }
+function removeAmpli(i){ readParcStation(); amplisRows.splice(i,1); renderParcStation(); }
+
 function quickSave() {
   // Sauvegarde silencieuse + feedback visuel sur le bouton
   saveConfig(true);
@@ -5447,6 +5695,11 @@ function saveConfig(silent = false, feedbackBtn = null) {
     winkeyer_port: document.getElementById('winkeyer_port')?.value.trim() || '',
     winkeyer_wpm: _numClamped('winkeyer_wpm', 25),
     transverters: readTransverters(),
+    // Parc de la station. readParcStation() relit les champs à l'instant de la
+    // sauvegarde — ne jamais sérialiser l'état mémoire sans cette relecture,
+    // sinon une modification non encore validée par un « change » serait perdue.
+    ...(function(){ readParcStation(); return {
+      antennes: antennesRows, rotors: rotorsRows, amplis: amplisRows}; })(),
     amp_enabled: !!document.getElementById('amp_enabled').value,
     amp_brand: document.getElementById('amp_brand').value,
     amp_port: document.getElementById('amp_port').value,
@@ -6069,6 +6322,15 @@ function loadSavedConfig() {
 // changement de profil. Un seul chemin de restauration complète, partagé
 // entre chargement de page (loadSavedConfig) et changement de profil (loadProfile).
 function applyFullConfigToForm(c) {
+    // LA CONFIG RESTAURÉE EST MÉMORISÉE, et pas seulement recopiée dans les
+    // champs. Trois listes déroulantes (modèle de radio, port CAT, port ampli)
+    // sont remplies APRÈS cette restauration — par init(), ou par une réponse
+    // du serveur qui arrive plus tard. Poser une valeur sur un <select> qui
+    // n'a pas encore ses <option> échoue SANS ERREUR, et reconstruire les
+    // options remet le select sur la première. C'est ce qui faisait « perdre »
+    // la radio choisie dès qu'on quittait la page et qu'on y revenait. Ces
+    // trois fonctions relisent donc ici la valeur voulue.
+    window._cfgRestauree = c || {};
     applyWallFields(c.wall_fields);
     if(c.callsign) document.getElementById('callsign').value = c.callsign;
     if(c.callsign_contest) document.getElementById('callsign_contest').value = c.callsign_contest;
@@ -6103,6 +6365,21 @@ function applyFullConfigToForm(c) {
       lo_mhz: (t.lo_mhz === undefined || t.lo_mhz === null) ? null : Number(t.lo_mhz)
     })) : [];
     renderTransverters();
+    // Parc de la station. Les listes absentes restent VIDES : le serveur
+    // (logx_station.charger) reprend alors les anciens champs ant_hf/rotor_*/
+    // amp_* tout seul. Fabriquer ici une reprise côté page la figerait dans la
+    // configuration à la première sauvegarde, et l'opérateur ne pourrait plus
+    // revenir en arrière.
+    antennesRows = Array.isArray(c.antennes) ? c.antennes.map(a => ({
+      id: a.id || '', nom: a.nom || '', bandes: Array.isArray(a.bandes) ? a.bandes.slice() : [],
+      type: a.type || '', rotor_id: a.rotor_id || '', ampli_id: a.ampli_id || ''})) : [];
+    rotorsRows = Array.isArray(c.rotors) ? c.rotors.map(r => ({
+      id: r.id || '', nom: r.nom || '', enabled: r.enabled !== false,
+      host: r.host || '', port: r.port || 4533, offset_deg: r.offset_deg || 0})) : [];
+    amplisRows = Array.isArray(c.amplis) ? c.amplis.map(m => ({
+      id: m.id || '', nom: m.nom || '', enabled: m.enabled !== false,
+      brand: m.brand || '', port: m.port || ''})) : [];
+    renderParcStation();
     if(document.getElementById('sota_ai_approval_ack'))
       document.getElementById('sota_ai_approval_ack').checked = c.sota_ai_approval_ack === '1';
     _updateSotaSectionVisibility();

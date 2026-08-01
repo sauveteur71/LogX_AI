@@ -143,10 +143,19 @@ def _band_score(band, my_elev, dx_elev, muf, sfi, k, greyline):
         muf_factor = 1.0
     else:
         muf_factor = 0.75
-    # 2) Jour/nuit selon la bande (moyenne des deux extrémités)
-    day = (max(0, min(1, (my_elev + 6) / 18.0)) + max(0, min(1, (dx_elev + 6) / 18.0))) / 2
+    # 2) Jour/nuit selon la bande
+    jour_moi = max(0, min(1, (my_elev + 6) / 18.0))
+    jour_dx = max(0, min(1, (dx_elev + 6) / 18.0))
+    day = (jour_moi + jour_dx) / 2
     night = 1 - day
     if band in LOW:
+        # L'ABSORPTION DE LA COUCHE D NE SE MOYENNE PAS — elle se subit à CHAQUE
+        # extrémité, et le signal doit traverser les deux. Avec la moyenne, une
+        # extrémité nocturne « rachetait » une extrémité en plein midi : le
+        # 160 m était donné ouvert vers le Japon à 09h41 UTC un 1er août, soleil
+        # à 53° au-dessus de l'horizon à JN15WD (défaut signalé par F4GLD).
+        # C'est le bout le PLUS ÉCLAIRÉ qui commande, pas la moyenne.
+        night = 1 - max(jour_moi, jour_dx)
         tod = 0.35 + 0.65 * night
     elif band in HIGH:
         tod = 0.30 + 0.70 * day
@@ -245,6 +254,74 @@ def path_openings(my_lat, my_lon, region_key, when=None, solar=None):
         'best_window_utc': best_hour.strftime('%H:%M') if best_hour else None,
         'best_window_score': best_val,
     }
+
+
+def etat_bandes_hf(my_lat, my_lon, when=None, solar=None):
+    """« Cette bande est-elle ouverte DEPUIS CHEZ MOI, maintenant ? »
+
+    DÉFAUT CORRIGÉ (signalé par F4GLD le 01/08/2026) : la page comparait
+    simplement `fréquence <= MUF`. Or la MUF est la borne HAUTE — celle
+    au-dessus de laquelle l'onde traverse l'ionosphère. Il n'y avait AUCUNE
+    borne basse, si bien que toute bande sous la MUF était déclarée ouverte :
+    le 160 m annoncé OUVERT à 09h41 UTC un 1er août, soleil à 52° au-dessus de
+    l'horizon à JN15WD. C'est le contraire de la réalité — en plein jour la
+    couche D absorbe d'autant plus fort que la fréquence est basse, et le
+    160/80 m n'y survit qu'en onde de sol.
+
+    La bande utile est comprise ENTRE la LUF (plancher d'absorption D) et la
+    MUF. Plutôt que d'inventer un modèle de LUF avec des coefficients par
+    bande — le genre de chiffre inventé qui a déjà coûté cher ici — on réutilise
+    le moteur d'ouvertures DÉJÀ écrit et déjà testé (`_band_score`), qui
+    modélise le jour/nuit par l'élévation solaire aux deux bouts du trajet.
+
+    Une bande est « ouverte » si elle l'est vers AU MOINS une région : c'est
+    exactement le sens de la question posée par le panneau. On rend la région
+    porteuse, pour que le verdict soit vérifiable au lieu d'être asséné.
+    """
+    when = when or utcnow()
+    muf = _muf_mhz(solar)
+    sfi, k = _sfi_k(solar)
+    my_el = sun_elevation(my_lat, my_lon, when)
+    out = []
+    for b in BANDS:
+        meilleur, region = -1, None
+        for key, (nom, dlat, dlon) in REGIONS.items():
+            dx_el = sun_elevation(dlat, dlon, when)
+            gl = abs(my_el) < 6 or abs(dx_el) < 6
+            sc = _band_score(b, my_el, dx_el, muf, sfi, k, gl)
+            if sc > meilleur:
+                meilleur, region = sc, nom
+        f = float(b)
+        # Bande basse ET soleil levé CHEZ MOI : quoi qu'annonce le score, le DX
+        # lointain ne passe pas — la couche D absorbe d'autant plus fort que la
+        # fréquence est basse. Ce qui reste possible est le trafic RÉGIONAL
+        # (onde de sol, NVIS). Nommer une région lointaine ici serait faux :
+        # « 160 m possible vers le Japon » à midi n'a aucun sens.
+        jour_chez_moi = b in LOW and my_el > 0
+        if muf > 0 and f > muf * 1.15:
+            etat, raison = 'fermee', 'au-dessus de la MUF (%.1f MHz)' % muf
+        elif jour_chez_moi:
+            etat = 'regional'
+            raison = 'couche D le jour — régional seulement'
+        elif meilleur >= 62:
+            etat, raison = 'ouverte', region
+        elif meilleur >= 38:
+            etat, raison = 'possible', region
+        else:
+            # Sous la MUF mais sans trajet exploitable : en plein jour c'est
+            # l'absorption de la couche D qui l'explique, la nuit c'est le
+            # manque d'ionisation F sur les bandes hautes.
+            etat = 'fermee'
+            raison = ('absorption couche D (jour)' if (b in LOW and my_el > 0)
+                      else 'aucun trajet exploitable')
+        out.append({'band': b, 'etat': etat, 'raison': raison,
+                    'score': meilleur})
+    # MUF inconnue (cache pas encore rempli au tout premier appel, ou aucune
+    # ionosonde fraîche) : on rend None, pas 0.0. « MUF 0,0 MHz » se lirait
+    # comme une mesure alors que c'est une absence de mesure — et les verdicts
+    # ci-dessus ont alors été calculés SANS borne haute.
+    return {'bandes': out, 'muf_mhz': round(muf, 1) if muf > 0 else None,
+            'soleil_deg': round(my_el)}
 
 
 def all_regions(my_lat, my_lon, when=None, solar=None):

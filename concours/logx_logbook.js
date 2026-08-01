@@ -5061,7 +5061,12 @@ function applyWsjtxState(d){
     if(!el || !d || !d.enabled){ if(el) el.style.display='none'; return; }
     el.style.display = '';
     if(d.connected){
-      el.innerHTML = `💻 WSJT-X <b style="color:var(--green)">●</b> ${d.dial_mhz||''} MHz ${d.mode||''} · ${d.logged_total||0} auto-loggés`
+      // Le nom du logiciel RÉELLEMENT connecté. Le protocole UDP de WSJT-X est
+      // aussi celui de JTDX et de MSHV : ils étaient déjà acceptés, mais le
+      // widget affichait « WSJT-X » quoi qu'il arrive — un opérateur sous JTDX
+      // ou MSHV ne pouvait pas savoir que sa liaison marchait.
+      const soft = escHtml(d.soft || 'WSJT-X');
+      el.innerHTML = `💻 ${soft} <b style="color:var(--green)">●</b> ${d.dial_mhz||''} MHz ${d.mode||''} · ${d.logged_total||0} auto-loggés`
                    + horlogeHtml(d.horloge);
       el.style.color = 'var(--muted)';
     } else {

@@ -220,7 +220,12 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
     </div>
 
     <div class="panel">
-      <div class="panel-title">📶 CONDITIONS PAR BANDE <small>N0NBH</small></div>
+      <!-- Le crédit était « N0NBH » pour TOUT le panneau, ce qui a fait croire
+           que la propagation entière venait de hamqsl. En réalité seules les
+           lignes ☀️/🌙 du bas en viennent (indication MONDIALE, la même pour
+           tout le monde) ; le verdict par bande du haut est calculé depuis le
+           QTH de l'opérateur. Deux origines, deux crédits. -->
+      <div class="panel-title">📶 CONDITIONS PAR BANDE <small>depuis ton QTH</small></div>
       <div class="band-cond" id="bandCond"><div class="loading">…</div></div>
     </div>
 
@@ -329,7 +334,6 @@ function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // La MUF dit quelles bandes HF sont physiquement ouvertes en ce moment
-const HF_BANDS_MHZ = [['10m',28],['15m',21],['20m',14],['40m',7],['80m',3.5],['160m',1.8]];
 
 async function loadPropagation(){
   try{
@@ -357,20 +361,42 @@ async function loadPropagation(){
     document.getElementById('mufStation').textContent = d.muf
       ? `${rcT('ionosonde')} ${d.muf.station} (foF2 ${d.muf.fof2} MHz)` : rcT('donnée indisponible');
 
+    // VERDICT PAR BANDE, calculé par le serveur DEPUIS TON QTH — pas une
+    // comparaison à la MUF. La MUF est la borne HAUTE ; sans borne basse, la
+    // page annonçait le 160 m « OUVERTE » à midi, alors que la couche D
+    // l'absorbe entièrement (défaut signalé par F4GLD le 01/08/2026).
+    const ETIQ = {
+      ouverte:  ['bc-open',   '● ouverte'],
+      possible: ['bc-open',   '◐ possible'],
+      regional: ['bc-closed', '◔ régional'],
+      fermee:   ['bc-closed', '○ fermée'],
+    };
     let condHtml = '';
-    if(muf){
-      condHtml += HF_BANDS_MHZ.map(([name, mhz]) => {
-        const open = mhz <= muf;
-        return `<div class="bc-row"><span class="bc-name">${name}</span>
-          <span class="${open ? 'bc-open' : 'bc-closed'}">${open ? '● OUVERTE (MUF)' : '○ fermée (MUF)'}</span></div>`;
+    const eb = d.etat_bandes;
+    if(eb && eb.bandes){
+      condHtml += eb.bandes.map(b => {
+        const [cls, txt] = ETIQ[b.etat] || ETIQ.fermee;
+        return `<div class="bc-row" title="${esc(b.raison || '')}">
+          <span class="bc-name">${esc(OPENINGS_BAND_LABEL[b.band] || b.band)}</span>
+          <span class="${cls}">${txt}</span></div>`;
       }).join('');
-      condHtml += '<div style="height:8px"></div>';
+      const mufTxt = eb.muf_mhz ? `MUF ${eb.muf_mhz} MHz` : rcT('MUF pas encore mesurée');
+      condHtml += `<div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin:6px 0 8px">`
+                + `${rcT('depuis ton QTH')} · ${rcT('soleil')} ${eb.soleil_deg}° · ${esc(mufTxt)}</div>`;
     }
-    condHtml += Object.entries(s.bands || {}).map(([name, dn]) => {
+    // Les lignes ☀️/🌙 sont l'appréciation MONDIALE de N0NBH : la même valeur
+    // pour tout le monde, quelle que soit la position. Dit franchement, pour
+    // qu'on ne les confonde pas avec le verdict ci-dessus, qui est le tien.
+    const lignesN0NBH = Object.entries(s.bands || {}).map(([name, dn]) => {
       const tag = v => `<span class="bc-tag bc-${(v||'').toLowerCase().replace('good','good').replace('fair','fair').replace('poor','poor')}">${v||'?'}</span>`;
-      return `<div class="bc-row"><span class="bc-name">${name}</span>
+      return `<div class="bc-row"><span class="bc-name">${esc(name)}</span>
         ☀️${tag(dn.day)} 🌙${tag(dn.night)}</div>`;
     }).join('');
+    if(lignesN0NBH){
+      condHtml += `<div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);`
+                + `border-top:1px solid var(--border);padding-top:6px;margin-top:2px">`
+                + `tendance mondiale N0NBH (pas ta position)</div>` + lignesN0NBH;
+    }
     document.getElementById('bandCond').innerHTML = condHtml || '<div class="loading">—</div>';
 
     document.getElementById('vhfCond').innerHTML = Object.entries(s.vhf || {})

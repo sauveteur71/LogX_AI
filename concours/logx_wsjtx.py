@@ -28,7 +28,9 @@ DEFAULT_PORT = 2237
 
 # État partagé pour l'indicateur de liaison (widget logbook)
 status = {'connected': False, 'last_seen': 0, 'dial_mhz': 0, 'mode': '',
-          'tx_mode': '', 'de_call': '', 'logged_total': 0}
+          'tx_mode': '', 'de_call': '', 'logged_total': 0,
+          # Le logiciel réellement à l'autre bout : WSJT-X, JTDX, MSHV…
+          'soft': ''}
 _status_lock = threading.Lock()
 _listener_started = False
 _listener_lock = threading.Lock()
@@ -771,6 +773,15 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT, on_decode=None,
                     status['dial_mhz'] = msg['dial_mhz']
                 if msg.get('mode'):
                     status['mode'] = msg['mode']
+                # QUEL logiciel parle. Le protocole UDP de WSJT-X est aussi
+                # celui de JTDX et de MSHV (forks/compatibles) : ce module les
+                # accepte déjà tous — vérifié en rejouant des datagrammes
+                # portant chacun de ces identifiants. Mais l'écran annonçait
+                # « WSJT-X » quoi qu'il arrive, si bien qu'un opérateur sous
+                # JTDX ou MSHV n'avait aucun moyen de savoir que sa liaison
+                # fonctionnait. On affiche désormais ce que la station envoie.
+                if msg.get('wsjtx_id'):
+                    status['soft'] = str(msg['wsjtx_id'])[:24]
             if msg['type'] == 'qso_logged':
                 try:
                     qso = qso_from_logged(msg, get_cfg() or {})
