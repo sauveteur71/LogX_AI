@@ -213,6 +213,7 @@ textarea::placeholder{color:var(--muted)}
       <div class="quick-btns">
         <button class="qbtn qbtn-coach" onclick="coachAdvice()">🧠 COACH</button>
         <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points">🎓 DÉBRIEF</button>
+        <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)">🔇</button>
         <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.','resume')">📡 ANALYSER</button>
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')">🏆 SCORE</button>
         <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')">⚡ SPOTS</button>
@@ -1005,6 +1006,7 @@ function addMsg(role,text,type=''){
   const bub=document.createElement('div');
   bub.className='bubble'+(type?' '+type:'');
   bub.textContent=text;
+  if(role==='agent'&&text) addSpeakIcon(bub,text);   // 🔊 rejeu à la demande (#6)
   div.appendChild(lbl);div.appendChild(bub);
   c.appendChild(div);
   c.scrollTop=c.scrollHeight;
@@ -1012,6 +1014,30 @@ function addMsg(role,text,type=''){
   // La carte est désormais pilotée par le JSON structuré du moteur
   // (/data/spots_ranked) — plus de re-parsing fragile de la prose de l'IA.
   refreshRankedStations();
+}
+
+// ─── LECTURE VOCALE HORS-LIGNE (#6) : le cœur rcSpeak est dans logx_statusbar.js
+// (partagé, voix locales). Ici : le toggle 🔊 et l'icône de rejeu par bulle. ──
+function addSpeakIcon(bub,text){
+  if(!bub||!window.speechSynthesis) return;
+  const b=document.createElement('button');
+  b.textContent='🔊'; b.title=rcT('Lire à voix haute');
+  b.style.cssText='cursor:pointer;border:0;background:transparent;font-size:12px;opacity:.5;margin-left:6px;padding:0;vertical-align:1px';
+  b.onmouseenter=()=>b.style.opacity='1'; b.onmouseleave=()=>b.style.opacity='.5';
+  b.onclick=(e)=>{ e.stopPropagation(); if(window.rcSpeak) window.rcSpeak(text,true); };  // force : rejeu même toggle OFF
+  bub.appendChild(b);
+}
+function syncTtsBtn(){
+  const b=document.getElementById('ttsBtn'); if(!b) return;
+  const on=window.rcTtsEnabled&&window.rcTtsEnabled();
+  b.textContent=on?'🔊':'🔇';
+  b.classList.toggle('qbtn-coach',!!on);   // réutilise le style « actif » du bouton COACH
+}
+function toggleTts(){
+  const on=!(window.rcTtsEnabled&&window.rcTtsEnabled());
+  try{ localStorage.setItem('rc_tts', on?'1':'0'); }catch(e){}
+  syncTtsBtn();
+  if(on&&window.rcSpeak) window.rcSpeak(rcT('Lecture vocale activée.'),true);   // confirmation audible
 }
 
 function showThinking(){
@@ -1240,6 +1266,7 @@ function finalizeAgentReply(bub,reply){
   if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
   parseScores(reply);
   refreshRankedStations();
+  addSpeakIcon(bub,reply);   // 🔊 rejeu de la réponse streamée (#6)
   const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
 }
 
@@ -1625,6 +1652,7 @@ maintenant. Si aucun des deux cas ne s'applique, réponds EXACTEMENT et UNIQUEME
     calls.forEach(c => lastAlertedCalls[c] = now);
     addMsg('agent', reply, 'auto-alert');
     playAlertSound();
+    if(window.rcSpeak) window.rcSpeak(reply);   // lecture vocale de l'alerte (#6, si 🔊 activé)
     if(document.hidden) startTitleFlash();
   }catch(e){ console.warn('[AUTO-CHECK]', e); }
   finally{ autoCheckInProgress = false; }
@@ -1749,6 +1777,7 @@ loadConfig();
 scheduleRefresh();
 scheduleAutoCheck();
 resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
+syncTtsBtn();      // état initial du bouton 🔊 (#6)
 </script>
 </body>
 </html>

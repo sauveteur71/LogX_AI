@@ -249,9 +249,56 @@
       + 'color:var(--muted,#7a86b6);font-size:18px;line-height:1">✕</button>';
     el.querySelector('button').onclick = function(){ el.remove(); };
     el.style.display = 'flex';
+    if (window.rcSpeak) window.rcSpeak(nudge.text);   // lecture vocale si activée (#6)
     clearTimeout(el._auto);
     el._auto = setTimeout(function(){ if (el && el.parentNode) el.remove(); }, 30000);
   }
+
+  // ── Lecture vocale HORS-LIGNE (#6) : l'agent PARLE via speechSynthesis, avec
+  // les voix SAPI LOCALES (localService) — aucune clé, aucun réseau, jamais la
+  // radio (casque de suivi). En pile-up, entendre une alerte la tête baissée
+  // peut faire décrocher le contact. Exposé en window.rcSpeak pour toutes les
+  // pages (carte, barre d'état). Régex volontairement SIMPLES (pas de lookbehind
+  // ni \p{} ni flag u) : elles sont sûres partout, y compris en test.
+  var _rcVoices = [];
+  function _rcLoadVoices(){ try { _rcVoices = (window.speechSynthesis ? speechSynthesis.getVoices() : []) || []; } catch(e){ _rcVoices = []; } }
+  if (window.speechSynthesis){
+    _rcLoadVoices();
+    try { speechSynthesis.onvoiceschanged = _rcLoadVoices; } catch(e){}   // getVoices() se peuple en asynchrone
+  }
+  function _rcPickVoice(){
+    var lang = ((typeof rcLang === 'function') ? rcLang() : 'fr').toLowerCase();
+    var local = _rcVoices.filter(function(v){ return v.localService; });  // 100% hors-ligne
+    var pool = local.length ? local : _rcVoices;
+    var same = pool.filter(function(v){ return (v.lang || '').toLowerCase().indexOf(lang) === 0; });
+    return same[0] || pool[0] || null;
+  }
+  var _RC_EMO = ['⚡','🌟','🎯','📡','🏆','📶','📋','🌍','🤖','🔊','🔇','✅','⚠️','❌','ℹ️','📴','🧠','⏱','⏳','🏁','💡','🔴','🟡','🌤','🇫🇷'];
+  function _rcShorten(text){
+    var s = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    for (var i = 0; i < _RC_EMO.length; i++){ s = s.split(_RC_EMO[i]).join(''); }
+    s = s.replace(/\s+/g, ' ').trim();
+    var idx = s.search(/[.!?]/);                       // 1re phrase seulement (pas les 4000 tokens)
+    if (idx >= 0 && idx < s.length - 1) s = s.slice(0, idx + 1);
+    if (s.length > 180) s = s.slice(0, 180);
+    return s.trim();
+  }
+  window.rcTtsEnabled = function(){ try { return localStorage.getItem('rc_tts') === '1'; } catch(e){ return false; } };
+  window.rcSpeak = function(text, force){
+    if (!window.speechSynthesis) return;
+    if (!force && !window.rcTtsEnabled()) return;      // auto-lecture seulement si activée
+    var phrase = _rcShorten(text);
+    if (!phrase) return;
+    try {
+      speechSynthesis.cancel();                        // ne pas empiler les tirades
+      var u = new SpeechSynthesisUtterance(phrase);
+      // Affecter la voix dans un try SÉPARÉ : si le setter la refuse, on garde
+      // la voix par défaut plutôt que de perdre TOUTE la lecture.
+      try { var v = _rcPickVoice(); if (v){ u.voice = v; u.lang = v.lang; } } catch(e){}
+      u.rate = 1.0; u.volume = 1.0;
+      speechSynthesis.speak(u);
+    } catch(e){}
+  };
 
   bar.addEventListener('click', function(e){
     if (!e.target.closest('#rcsbRateItem')) return;
