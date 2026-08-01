@@ -69,6 +69,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .bubble{max-width:360px;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .msg-user .bubble{background:linear-gradient(135deg,#1A2060,#0D1240);border:1px solid #2A3080;color:#C0C8FF;border-radius:12px 12px 2px 12px}
 .msg-agent .bubble{background:var(--bg3);border:1px solid var(--border);font-family:var(--font-mono);border-radius:12px 12px 12px 2px}
+.msg-agent .bubble.streaming::after{content:'▌';color:var(--accent2);animation:blink 1s infinite;margin-left:1px}
+.off-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#0a0e1e;background:var(--muted,#7a86b6);border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
 .bubble.alert{border-color:var(--red);background:rgba(255,45,85,.08);box-shadow:0 0 20px rgba(255,45,85,.15)}
 .bubble.dx{border-color:var(--yellow);background:rgba(255,214,10,.06);box-shadow:0 0 16px rgba(255,214,10,.1)}
 .bubble.auto-alert{border-color:var(--green);background:rgba(0,255,136,.07);box-shadow:0 0 20px rgba(0,255,136,.18);animation:autoAlertPulse 1.6s ease 2}
@@ -207,13 +209,13 @@ textarea::placeholder{color:var(--muted)}
       <div class="quick-btns">
         <button class="qbtn qbtn-coach" onclick="coachAdvice()">🧠 COACH</button>
         <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points">🎓 DÉBRIEF</button>
-        <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.')">📡 ANALYSER</button>
-        <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?')">🏆 SCORE</button>
-        <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?')">⚡ SPOTS</button>
-        <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?')">📶 PROP</button>
-        <button class="qbtn" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position">🌍 OUVERTURES</button>
-        <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?')">🎯 MULTS</button>
-        <button class="qbtn" onclick="qs('Résumé complet de la session.')">📋 RÉSUMÉ</button>
+        <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.','resume')">📡 ANALYSER</button>
+        <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')">🏆 SCORE</button>
+        <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')">⚡ SPOTS</button>
+        <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?','prop')">📶 PROP</button>
+        <button class="qbtn" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position">🌍 OUVERTURES</button>
+        <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')">🎯 MULTS</button>
+        <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')">📋 RÉSUMÉ</button>
       </div>
       <div class="input-row">
         <textarea id="userInput" placeholder="Envoie un message à l'agent..." rows="1"
@@ -1142,7 +1144,7 @@ async function fetchTerrainData(){
   }catch(e){return null;}
 }
 
-async function send(forcedText,displayText){
+async function send(forcedText,displayText,topic){
   const inp=document.getElementById('userInput');
   const text=(forcedText!==undefined?forcedText:inp.value.trim());
   if(!text||isWaiting)return;
@@ -1192,23 +1194,145 @@ async function send(forcedText,displayText){
     const j=await res.json();
     if(!res.ok||!j.id)throw new Error(j.error||`HTTP ${res.status}`);
     localStorage.setItem('rc_analyze',JSON.stringify({id:j.id,ts:Date.now()}));
-    pollAnalyze(j.id);   // pas de await : le polling gère la suite (isWaiting)
+    streamAnalyze(j.id, topic); // flux SSE token par token ; repli auto polling/hors-ligne
     return;
 
   }catch(err){
     removeThinking();
-    addMsg('agent',`❌ ${err.message}\n\n${rcT('Vérifie que logx_serveur.py tourne et que ta clé API est configurée.')}`);
+    // Serveur/IA injoignable : si c'est un bouton rapide, le coach déterministe
+    // répond quand même (repli hors-ligne). Sinon, message d'erreur habituel.
+    const bub=makeAgentBubble();
+    if(!(await offlineFallback(topic,bub))){
+      bub.textContent=`❌ ${err.message}\n\n${rcT('Vérifie que logx_serveur.py tourne et que ta clé API est configurée.')}`;
+    }
     isWaiting=false;
     document.getElementById('sendBtn').disabled=false;
   }
 }
 
-// Récupère le résultat d'une analyse serveur (poll toutes les 1,5 s). Survit au
-// changement de page : au retour, resumeAnalyze() relance ce polling.
+// Crée une bulle 'agent' VIDE et renvoie son élément .bubble, pour un
+// remplissage incrémental (streaming). On ne parse rien ici : parseScores et la
+// carte se font à la FINALISATION, sur le texte complet.
+function makeAgentBubble(){
+  const c=document.getElementById('chatMsgs');
+  const div=document.createElement('div');div.className='msg msg-agent';
+  const lbl=document.createElement('div');lbl.className='msg-lbl';lbl.textContent='AGENT';
+  const bub=document.createElement('div');bub.className='bubble';
+  div.appendChild(lbl);div.appendChild(bub);
+  c.appendChild(div);c.scrollTop=c.scrollHeight;
+  return bub;
+}
+
+// Applique le rendu FINAL d'une réponse agent dans une bulle existante : style
+// alerte/DX, historique, parseScores, carte — la même finition que addMsg, mais
+// sur une bulle déjà remplie au fil de l'eau.
+function finalizeAgentReply(bub,reply){
+  bub.textContent=reply;
+  bub.classList.remove('streaming');
+  const isAlert=reply.includes('⚡')||reply.includes('SPOTÉ');
+  const isDX=reply.includes('🌟')||reply.includes('DX EXCEPTIONNEL');
+  if(isDX)bub.classList.add('dx');else if(isAlert)bub.classList.add('alert');
+  conversationHistory.push({role:'assistant',content:reply});
+  if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+  parseScores(reply);
+  refreshRankedStations();
+  const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+}
+
+// Flux SSE token par token : la génération tourne côté serveur (survit au
+// changement d'onglet), on TAILE son buffer via EventSource. Si l'EventSource
+// coupe AVANT la fin, on retombe sur le polling — qui affiche aussi le partiel
+// déjà présent dans le buffer serveur.
+// Repli DÉTERMINISTE quand l'IA est injoignable (expédition SANS internet) : le
+// coach — 100 % déterministe, aucun LLM — répond aux boutons rapides via
+// /coach/answer. Renvoie true s'il a répondu. Le texte libre n'est PAS
+// répondable hors-ligne (topic absent) → false, l'appelant montre l'erreur.
+async function offlineFallback(topic, bub){
+  if(!topic) return false;
+  try{
+    const r=await fetch('/coach/answer?topic='+encodeURIComponent(topic)+'&lang='+encodeURIComponent(rcLang()));
+    const j=await r.json();
+    if(j && j.text){
+      if(!bub) bub=makeAgentBubble();
+      bub.classList.remove('streaming');
+      bub.textContent='';
+      bub.appendChild(offlineBadge());
+      bub.appendChild(document.createTextNode(j.text));
+      conversationHistory.push({role:'assistant',content:j.text});
+      if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+      parseScores(j.text);
+      const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+      return true;
+    }
+  }catch(e){/* le serveur LOCAL lui-même est injoignable : rien à faire */}
+  return false;
+}
+function offlineBadge(){
+  const s=document.createElement('span');s.className='off-badge';
+  s.textContent='📴 '+rcT('hors-ligne');
+  return s;
+}
+// Message quand l'IA échoue sur du texte LIBRE (non répondable hors-ligne).
+function freeTextOffline(bub,err){
+  bub.classList.remove('streaming');
+  bub.textContent='❌ '+(err||rcT('analyse échouée'))+'\n\n'
+    +rcT('Hors-ligne ? Je réponds aux boutons rapides (🏆 📶 🎯 📋 🌍), pas au texte libre — l\'analyse IA complète a besoin d\'internet.');
+}
+
+let _analyzeES=null;
+function streamAnalyze(id, topic){
+  removeThinking();
+  if(_analyzeES){try{_analyzeES.close();}catch(e){}_analyzeES=null;}
+  const bub=makeAgentBubble();bub.classList.add('streaming');
+  const done=()=>{isWaiting=false;const b=document.getElementById('sendBtn');if(b)b.disabled=false;};
+  let acc='',finished=false,es;
+  try{es=new EventSource('/agent/analyze/stream?id='+encodeURIComponent(id));}
+  catch(e){pollAnalyze(id,false,bub,0,topic);return;}
+  _analyzeES=es;
+  es.onmessage=(e)=>{
+    let t='';try{t=JSON.parse(e.data).t||'';}catch(_){}
+    if(!t)return;
+    acc+=t;bub.textContent=acc;
+    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+  };
+  es.addEventListener('done',(e)=>{
+    finished=true;try{es.close();}catch(_){}_analyzeES=null;
+    localStorage.removeItem('rc_analyze');
+    let reply=acc;try{reply=JSON.parse(e.data).reply||acc;}catch(_){}
+    finalizeAgentReply(bub,reply||rcT('Pas de réponse.'));
+    done();
+  });
+  es.addEventListener('failed',async(e)=>{
+    // 'failed' du serveur = terminal (introuvable / erreur / délai). Named
+    // event 'failed' (PAS 'error', qui entre en collision avec es.onerror).
+    finished=true;try{es.close();}catch(_){}_analyzeES=null;
+    localStorage.removeItem('rc_analyze');
+    bub.classList.remove('streaming');   // sinon le curseur ▌ clignote sous l'erreur
+    let err='';try{err=JSON.parse(e.data).error||'';}catch(_){}
+    if(acc){finalizeAgentReply(bub,acc);done();return;}
+    // IA injoignable (pas de clé, réseau, provider) : le coach répond hors-ligne.
+    if(await offlineFallback(topic,bub)){done();return;}
+    if(err==='introuvable'){bub.textContent='⚠️ '+rcT('Analyse introuvable (serveur redémarré ?). Relance-la.');}
+    else{freeTextOffline(bub,err);}
+    done();
+  });
+  es.onerror=()=>{
+    // Coupure réseau de l'EventSource (pas un 'failed' serveur) : on ferme et on
+    // reprend en polling, qui récupère la suite depuis le buffer serveur.
+    if(finished)return;
+    finished=true;try{es.close();}catch(_){}_analyzeES=null;
+    pollAnalyze(id,false,bub,acc.length,topic);
+  };
+}
+
+// Récupère le résultat d'une analyse serveur par polling (repli du streaming, et
+// reprise après changement de page). Affiche le partiel du buffer au fil des
+// sondages, puis finalise. `bub`/`sentLen` : reprise dans une bulle déjà entamée.
 let _analyzePoll=null;
-function pollAnalyze(id, ensureThinking){
-  if(ensureThinking && !document.getElementById('thinking')) showThinking();
+function pollAnalyze(id, ensureThinking, bub, sentLen, topic){
+  if(ensureThinking && !document.getElementById('thinking') && !bub) showThinking();
   clearTimeout(_analyzePoll);
+  sentLen=sentLen||0;
   const done=()=>{ isWaiting=false; const b=document.getElementById('sendBtn'); if(b)b.disabled=false; };
   const tick=async()=>{
     let s;
@@ -1216,20 +1340,27 @@ function pollAnalyze(id, ensureThinking){
       const r=await fetch('/agent/analyze/state?id='+encodeURIComponent(id));
       s=await r.json();
     }catch(e){ _analyzePoll=setTimeout(tick,3000); return; }   // réseau : réessaie
-    if(s.status==='running'){ _analyzePoll=setTimeout(tick,1500); return; }
+    if(s.status==='running'){
+      if(s.reply && s.reply.length>sentLen){   // révèle le partiel accumulé
+        if(!bub){ removeThinking(); bub=makeAgentBubble(); bub.classList.add('streaming'); }
+        bub.textContent=s.reply; sentLen=s.reply.length;
+        const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+      }
+      _analyzePoll=setTimeout(tick,1200); return;
+    }
     removeThinking();
     localStorage.removeItem('rc_analyze');
     if(s.status==='done'){
-      const reply=s.reply||rcT('Pas de réponse.');
-      conversationHistory.push({role:'assistant',content:reply});
-      if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
-      const isAlert=reply.includes('⚡')||reply.includes('SPOTÉ');
-      const isDX=reply.includes('🌟')||reply.includes('DX EXCEPTIONNEL');
-      addMsg('agent',reply,isDX?'dx':isAlert?'alert':'');
+      if(!bub)bub=makeAgentBubble();
+      finalizeAgentReply(bub,s.reply||rcT('Pas de réponse.'));
     }else if(s.status==='error'){
-      addMsg('agent','❌ '+(s.error||rcT('analyse échouée')));
+      if(bub && bub.textContent){ finalizeAgentReply(bub,bub.textContent); }
+      else if(await offlineFallback(topic,bub)){ /* coach a répondu hors-ligne */ }
+      else{ if(!bub)bub=makeAgentBubble(); freeTextOffline(bub,s.error); }
     }else{
-      addMsg('agent','⚠️ '+rcT('Analyse introuvable (serveur redémarré ?). Relance-la.'));
+      if(bub && bub.textContent){ finalizeAgentReply(bub,bub.textContent); }
+      else if(await offlineFallback(topic,bub)){ /* coach a répondu hors-ligne */ }
+      else addMsg('agent','⚠️ '+rcT('Analyse introuvable (serveur redémarré ?). Relance-la.'));
     }
     done();
   };
@@ -1237,18 +1368,18 @@ function pollAnalyze(id, ensureThinking){
 }
 
 // Au chargement de la page : reprend une analyse lancée avant un changement
-// d'onglet (elle a continué côté serveur).
+// d'onglet (elle a continué côté serveur) — en streaming, qui tail le reste.
 function resumeAnalyze(){
   let p; try{ p=JSON.parse(localStorage.getItem('rc_analyze')||'null'); }catch(e){ return; }
   if(!p||!p.id) return;
   if(Date.now()-(p.ts||0) > 15*60*1000){ localStorage.removeItem('rc_analyze'); return; }
   isWaiting=true; const b=document.getElementById('sendBtn'); if(b)b.disabled=true;
-  pollAnalyze(p.id, true);
+  streamAnalyze(p.id);
 }
 
 // Boutons rapides : on envoie la commande en français au LLM (clarté) mais on
 // affiche à l'opérateur la version traduite dans sa langue.
-function qs(text){send(text, rcT(text));}
+function qs(text,topic){send(text, rcT(text), topic);}
 
 // ─── COACH STRATÉGIQUE ────────────────────────────────────────────────────────
 let coachState=null;

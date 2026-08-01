@@ -96,10 +96,10 @@ const CONTEST_EXCHANGE = {
                      ml_s:7, ml_r:8, auto_serial:false, clear_s:false, pad_r:false },
   // ── CQ World Wide : RST + zone CQ (France = zone 14)
   'CQ_WW_SSB':     { label_s:'ZONE ENV', label_r:'ZONE RCU',
-                     def_s:'14', ph_r:'zone 1-40',
+                     def_s:'14', ph_r:'zone 1-40', check:'cq_zone',
                      ml_s:3, ml_r:3, auto_serial:false, clear_s:false, pad_r:false },
   'CQ_WW_CW':      { label_s:'ZONE ENV', label_r:'ZONE RCU',
-                     def_s:'14', ph_r:'zone 1-40',
+                     def_s:'14', ph_r:'zone 1-40', check:'cq_zone',
                      ml_s:3, ml_r:3, auto_serial:false, clear_s:false, pad_r:false },
   // ── CQ WPX / ARRL DX : N° de série standard
   'CQ_WPX_SSB':    { label_s:'N° ENVOYÉ', label_r:'N° REÇU',    def_s:'', ph_r:'001', ml_s:4, ml_r:4, auto_serial:true,  clear_s:true,  pad_r:true  },
@@ -151,6 +151,7 @@ function applyExchangeFormat(contestId){
   } else {
     if(fS && ex.def_s && !fS.value) fS.value = ex.def_s;
   }
+  if(typeof clearExchWarn === 'function') clearExchWarn();   // change de concours : avertissement zone périmé
 }
 
 // ─── MODE EXPÉDITION : saisie simplifiée (indicatif + RST env/reçu seulement) ──
@@ -3241,6 +3242,7 @@ function onCallInput(){
   const call = document.getElementById('inputCall').value.toUpperCase();
   document.getElementById('inputCall').value = call;
   broadcastTyping(call);   // vue PARTNER : le runner diffuse sa saisie en direct
+  if(typeof clearExchWarn === 'function') clearExchWarn();   // indicatif retapé : avertissement zone périmé
 
   // Autocomplete
   if(call.length >= 2){
@@ -3650,6 +3652,62 @@ function vieillirPastilleBusted(){
   if(--_bcPastille.restant <= 0) fermerPastilleBusted();
 }
 
+// ─── GARDE-FOU « MULT FANTÔME » : zone CQ reçue vs cty.dat ───────────────────
+// À la saisie de la zone reçue (CQ WW), on la compare à ce que cty.dat attend
+// pour l'indicatif — désaccord = candidat multiplicateur FANTÔME (compté comme
+// mult, retiré au checking : pénalité nette). Le contrôle est DÉTERMINISTE et
+// instantané (/exchange/check, aucun LLM) ; l'IA ne tranche l'ambigu (portable,
+// /MM, pays à cheval sur plusieurs zones) QU'À LA DEMANDE, via /proxy/ai.
+let _exchAI = null;
+async function checkExchangeZone(){
+  if(!currentExchange || currentExchange.check !== 'cq_zone') return clearExchWarn();
+  const call = (document.getElementById('inputCall').value || '').trim().toUpperCase();
+  const value = (document.getElementById('inputNumRcvd').value || '').trim();
+  if(!call || !value) return clearExchWarn();
+  try{
+    const r = await fetch('/exchange/check?kind=cq_zone&call='+encodeURIComponent(call)+'&value='+encodeURIComponent(value));
+    const d = await r.json();
+    if(!d || d.match !== false) return clearExchWarn();   // correspond, ou indicatif inconnu : rien
+    _exchAI = {call, value, expected: d.expected, entity: d.entity || ''};
+    const zone = document.getElementById('exchWarn');
+    if(!zone) return;
+    const info = d.entity ? trF('{e} → zone {z} attendue', {e: d.entity, z: d.expected})
+                          : trF('zone {z} attendue', {z: d.expected});
+    zone.innerHTML =
+        `<span class="ew-txt">⚠️ ${escHtml(trF('zone {v} pour {c} ?', {v: value, c: call}))}</span>`
+      + `<span class="ew-info">${escHtml(info)}</span>`
+      + `<button class="ew-ai" onclick="askExchangePlausible()">🤖 ${escHtml(trT('plausible ?'))}</button>`
+      + `<button class="ew-x" onclick="clearExchWarn()">${escHtml(trT('ignorer'))}</button>`;
+    zone.style.display = 'flex';
+  }catch(e){ /* garde-fou optionnel : jamais d'erreur visible pour l'opérateur */ }
+}
+function clearExchWarn(){
+  const zone = document.getElementById('exchWarn');
+  if(zone){ zone.style.display = 'none'; zone.innerHTML = ''; }
+  _exchAI = null;
+}
+async function askExchangePlausible(){
+  const ctx = _exchAI; if(!ctx) return;
+  const info = document.querySelector('#exchWarn .ew-info');
+  if(info) info.textContent = '…';
+  const prompt = `En concours CQ WW, la station ${ctx.call} (${ctx.entity||'entité inconnue'}, `
+    + `zone CQ attendue ${ctx.expected} d'après cty.dat) a passé la zone ${ctx.value}. `
+    + `Est-ce PLAUSIBLE (station portable /P dans une autre zone, maritime mobile /MM, ou pays `
+    + `à cheval sur plusieurs zones CQ : USA 3-5, Russie 16-23, Canada 1-5, Australie 29-30) `
+    + `ou probablement une ERREUR de copie ? Réponds en UNE phrase courte.`;
+  try{
+    const dir = (typeof rcLangDirective === 'function') ? rcLangDirective() : '';
+    const body = {messages:[{role:'user', content:prompt}], max_tokens:200};
+    if(dir) body.system = dir;
+    const r = await fetch('/proxy/ai', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    const txt = (d && d.content && d.content[0] && d.content[0].text) ? d.content[0].text.trim() : '';
+    if(info) info.textContent = txt || trT('pas de réponse IA');
+  }catch(e){
+    if(info) info.textContent = trT('IA injoignable (hors-ligne) — vérifie la zone à la main.');
+  }
+}
+
 async function corrigerBusted(){
   const p = _bcPastille;
   if(!p) return;
@@ -3678,6 +3736,7 @@ function clearForm(){
   clearTimeout(callLookupTimer);
   document.getElementById('inputCall').value = '';
   document.getElementById('inputCall').classList.remove('ok','error');
+  if(typeof clearExchWarn === 'function') clearExchWarn();   // nouveau QSO : avertissement zone effacé
   broadcastTyping('');   // vue PARTNER : champ vidé → l'affichage distant se vide aussitôt
   document.getElementById('inputRSTsent').value = '59';
   document.getElementById('inputRSTrcvd').value = '59';

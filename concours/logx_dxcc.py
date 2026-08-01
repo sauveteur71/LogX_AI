@@ -261,3 +261,30 @@ def continent(callsign, default='EU'):
 def cq_zone(callsign):
     r = lookup(callsign)
     return r['cq_zone'] if r else None
+
+
+def verifier_zone_cq(callsign, valeur_recue):
+    """Compare la zone CQ SAISIE à celle attendue de cty.dat pour cet indicatif —
+    garde-fou contre le multiplicateur FANTÔME (une zone bustée compte comme mult,
+    puis est retirée au checking : pénalité nette). La zone vient de lookup(), qui
+    honore les dérogations « (zz) » par préfixe ET les entrées exactes « =CALL »
+    de cty.dat — jamais une table de zones codée en dur.
+
+    Retourne {match, expected, entity, entered} :
+      - match=True  : la zone saisie correspond à l'attendu ;
+      - match=False : désaccord (candidat mult fantôme) → l'IA peut trancher ;
+      - match=None  : indicatif inconnu ou valeur vide/non comparable → AUCUNE
+                      alerte (ne jamais crier sur ce qu'on ne sait pas vérifier).
+    """
+    entered = str(valeur_recue or '').strip()
+    r = lookup(callsign)
+    if not r or not r.get('cq_zone') or not entered:
+        return {'match': None, 'expected': (r or {}).get('cq_zone'),
+                'entity': (r or {}).get('country'), 'entered': entered}
+    expected = str(r['cq_zone']).strip()
+    if entered.isdigit() and expected.isdigit():
+        match = int(entered) == int(expected)
+    else:
+        match = entered.upper() == expected.upper()
+    return {'match': match, 'expected': expected,
+            'entity': r.get('country'), 'entered': entered}
