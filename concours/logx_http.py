@@ -6,6 +6,7 @@ import urllib.request
 import urllib.error
 import html
 import json
+import math
 import os
 import re
 import sys
@@ -2616,10 +2617,81 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(met.ms_quality())
             return
 
+        # « Écouter ce spot » / « s'écouter » depuis le logbook : UN récepteur,
+        # choisi côté serveur (annuaire en cache, AUCUN réseau ici), l'URL déjà
+        # réglée sur la fréquence. Avec lat/lon (position du DX spotté) le tri
+        # privilégie la proximité du DX ; sans, c'est « s'écouter » : le
+        # meilleur SNR près du QTH. Route AVANT /data/websdr : ce chemin en est
+        # un préfixe.
+        if path == '/data/websdr/ecouter':
+            import logx_websdr as websdr
+            from urllib.parse import parse_qs, urlparse
+            qs = parse_qs(urlparse(self.path).query)
+            def _qf(nom):
+                # float('nan') et float('1e400') réussissent SANS exception :
+                # sans isfinite, pres_de=(nan, nan) atteignait haversine(), qui
+                # lève ValueError sur round(nan) — la requête mourait alors sans
+                # aucune réponse HTTP (connexion fermée, traceback sur stderr).
+                # L'API n'est pas authentifiée et le logbook est servi en WiFi
+                # au reste de l'équipe : n'importe quel poste pouvait forger
+                # l'URL. Rien n'oblige à passer par le client officiel.
+                try:
+                    v = float(qs.get(nom, [''])[0])
+                except (TypeError, ValueError):
+                    return None
+                return v if math.isfinite(v) else None
+            khz, lat, lon = _qf('khz'), _qf('lat'), _qf('lon')
+            mode = (qs.get('mode', [''])[0] or '').strip()
+            # Le cluster donne bien plus souvent une GRILLE que des
+            # coordonnées : sans ce repli, « écouter ce spot » retombait en
+            # silence sur le tri « près de chez moi » et l'opérateur croyait
+            # entendre ce que le DX entend.
+            if (lat is None or lon is None):
+                loc = (qs.get('loc', [''])[0] or '').strip()
+                if loc:
+                    lat, lon = locator_to_latlon(loc)
+            cfg_snap = self._cfg_snapshot()
+            a = websdr.annuaire(cfg_snap)
+            pres_de = (lat, lon) if lat is not None and lon is not None else None
+            r = websdr.meilleur_recepteur(a['stations'], pres_de=pres_de)
+            # url_ecoute rend '' pour une URL au schéma refusé : sans ce test,
+            # ok=True porterait une URL vide et le bouton ouvrirait un onglet
+            # sur la page courante au lieu de dire qu'il n'a rien trouvé.
+            lien = websdr.url_ecoute(r, khz, mode) if r else ''
+            if not r or not lien:
+                self._json({'ok': False})
+                return
+            # La distance affichée est celle qui a guidé le choix : au DX pour
+            # un spot, au QTH pour s'écouter (déjà dans dist_km via annuaire).
+            d = r.get('dist_km')
+            if pres_de is not None and r.get('lat') is not None:
+                d = round(haversine(pres_de[0], pres_de[1], r['lat'], r['lon']))
+            # `pres_du_dx` dit au client CE QU'IL A OBTENU. Sans ce drapeau,
+            # un spot sans position faisait retomber le choix sur « près de
+            # chez moi » sans que rien ne le signale : le bouton promettait
+            # d'entendre ce que le DX entend et donnait tout autre chose.
+            self._json({'ok': True, 'nom': r.get('nom'), 'snr': r.get('snr'),
+                        'dist_km': d, 'url': lien,
+                        'pres_du_dx': pres_de is not None})
+            return
+
         # Annuaire de récepteurs WebSDR distants — liste statique, pas de réseau
         if path == '/data/websdr':
+            # UN appel = tout l'annuaire (~880 stations) + l'âge du jeu vivant.
+            # AUCUN appel réseau ici : la tâche de fond (logx_serveur) écrit
+            # les caches, ce handler LIT. ~350 Ko de JSON — c'est une page
+            # qu'on ouvre, pas un poll : acceptable, et le client filtre en
+            # local sans re-demander.
             import logx_websdr as websdr
-            self._json({'receivers': websdr.list_websdr()})
+            cfg_snap = self._cfg_snapshot()
+            a = websdr.annuaire(cfg_snap)
+            # `suggestion` : le meilleur récepteur près du QTH — le bouton
+            # « s'écouter » du logbook n'a alors qu'à lire ce champ.
+            try:
+                a['suggestion'] = websdr.meilleur_recepteur(a['stations'])
+            except Exception:
+                a['suggestion'] = None
+            self._json(a)
             return
 
         # Spots d'activateurs POTA en direct (api.pota.app, cache 90 s)
@@ -3220,6 +3292,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # qui dit si la liaison annoncée ressemble à la mienne —
                     # un JA qui spotte une VK décrit un chemin JA-VK.
                     'spotter': s.get('spotter', ''),
+                    # Mode annoncé par la source quand elle en a un (DXHeat,
+                    # DXSummit…) : le bouton « écouter ce spot » ouvre alors le
+                    # WebSDR dans la bonne modulation, pas en SSB par défaut.
+                    'mode': s.get('mode', ''),
                     'points': sc.get('direct_pts', 0),
                     'new_mult': bool(sc.get('new_mult')),
                     'mult_type': sc.get('mult_type', ''),

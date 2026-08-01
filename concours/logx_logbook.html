@@ -1345,6 +1345,14 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   .bm-spot:hover{background:var(--bg3)}
   .bm-f{color:var(--muted);min-width:52px;font-size:11px}
   .bm-c{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* « Écouter ce spot » : discret au repos pour ne pas charger la liste,
+     franc au survol de la ligne — le clic n'est pas celui du QSY. */
+  .bm-ear{margin-left:auto;opacity:.25;font-size:10px;flex-shrink:0}
+  .bm-spot:hover .bm-ear{opacity:1}
+  /* DX non situé : le récepteur sera proche de MOI, pas du DX. Le geste reste
+     offert (écouter la fréquence), mais il ne se fait pas passer pour l'autre. */
+  .bm-ear.flou{filter:grayscale(1)}
+  .bm-spot:hover .bm-ear.flou{opacity:.55}
   .bm-tx{padding:2px 8px;color:var(--accent);font-weight:800;font-size:11px;
     border-top:1px dashed var(--accent);border-bottom:1px dashed var(--accent);background:rgba(255,80,48,.08)}
   .bm-empty{padding:14px 10px;color:var(--muted);font-size:11px;text-align:center}
@@ -1375,6 +1383,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button onclick="toggleWaterfall()" id="waterfallToggleBtn" title="Vue chute d'eau : activité de la bande dans le temps (défilement, mêmes spots)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🌊</button>
       <button onclick="popoutScope()" title="Détacher le bandscope graphique sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">📡</button>
       <button onclick="bandmapNoter()" title="Noter la station entendue (indicatif tapé + fréquence radio) — Ctrl+Entrée. Ctrl+↑/↓ saute de spot en spot." style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">👂</button>
+      <button onclick="sEcouter()" title="S'écouter : ouvrir un récepteur WebSDR proche de chez toi sur la fréquence de la radio" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🔊</button>
       <button onclick="toggleSpotFiltre()" id="spotFiltreBtn" title="Filtrer les spots affichés (continent du spotteur, besoins DXCC…)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🔎</button></div>
     <!-- Filtre d'affichage. Le continent DU SPOTTEUR est le critère qui compte
          le plus : ce qu'un EU entend ressemble à ce que j'entends, ce qu'un JA
