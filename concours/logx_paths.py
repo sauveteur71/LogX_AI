@@ -292,12 +292,17 @@ def etat_bandes_hf(my_lat, my_lon, when=None, solar=None):
             if sc > meilleur:
                 meilleur, region = sc, nom
         f = float(b)
-        # Bande basse ET soleil levé CHEZ MOI : quoi qu'annonce le score, le DX
+        # Bande basse ET soleil HAUT chez moi : quoi qu'annonce le score, le DX
         # lointain ne passe pas — la couche D absorbe d'autant plus fort que la
         # fréquence est basse. Ce qui reste possible est le trafic RÉGIONAL
-        # (onde de sol, NVIS). Nommer une région lointaine ici serait faux :
-        # « 160 m possible vers le Japon » à midi n'a aucun sens.
-        jour_chez_moi = b in LOW and my_el > 0
+        # (onde de sol, NVIS). Nommer une région lointaine ici serait faux.
+        #
+        # SEUIL À 6°, PAS 0° (revue 01/08/2026) : entre 0° et +6°, c'est la
+        # fenêtre GREY-LINE du lever, le pic de propagation DX des bandes
+        # basses, et _band_score lui accorde justement un bonus (abs(el) < 6).
+        # À 0° on écrasait ce verdict « ouverte » en « régional » pile au
+        # meilleur moment. Au-dessus de 6°, la couche D domine : régional.
+        jour_chez_moi = b in LOW and my_el > 6
         if muf > 0 and f > muf * 1.15:
             etat, raison = 'fermee', 'au-dessus de la MUF (%.1f MHz)' % muf
         elif jour_chez_moi:

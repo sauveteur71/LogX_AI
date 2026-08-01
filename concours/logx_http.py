@@ -1310,11 +1310,17 @@ def _wsjtx_state_dict(cfg_snap):
 
 def _rotor_state_dict(cfg_snap):
     import logx_rotor as rotor
-    settings = rotor.rotor_settings(cfg_snap)
-    if not settings['enabled']:
+    import logx_station as station
+    # Le rotor par défaut du parc OU l'ancien rotor unique — sans quoi une
+    # station configurée uniquement via le nouvel éditeur de parc voyait son
+    # bouton « pointer » masqué (revue 01/08/2026).
+    d = station.rotor_defaut(cfg_snap)
+    if not d['enabled']:
         return {'enabled': False}
-    state = rotor.get_position(settings['host'], settings['port'])
+    state = rotor.get_position(d['host'], d['port'])
     state['enabled'] = True
+    # nb_rotors permet à l'UI de proposer un sélecteur quand il y en a plusieurs.
+    state['nb_rotors'] = len(station.charger(cfg_snap)['rotors'])
     return state
 
 
@@ -4731,12 +4737,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 host, port, offset = cible['host'], cible['port'], cible
             else:
-                settings = rotor.rotor_settings(cfg_now)
-                if not settings['enabled']:
+                # Sans sélecteur : le rotor par défaut du parc (avec son
+                # décalage), ou l'ancien rotor unique. C'est ce chemin que
+                # prend le bouton « pointer » de la boussole et de la chasse
+                # tant qu'ils n'envoient pas de bande — il applique désormais
+                # le décalage mécanique, qui était perdu (revue 01/08/2026).
+                d = station.rotor_defaut(cfg_now)
+                if not d['enabled']:
                     self._json({'ok': False, 'error': 'Rotor désactivé — '
                                 'active-le dans CONFIG (mode expert, section ROTOR)'}, 400)
                     return
-                host, port, offset = settings['host'], settings['port'], None
+                host, port = d['host'], d['port']
+                offset = d if d['offset_deg'] else None
             if self.path == '/rotor/point':
                 az = payload.get('azimuth')
                 if az is None:

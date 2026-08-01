@@ -126,7 +126,13 @@ def demarrer_suivi(nom_sat, cfg):
     aller relire."""
     global _track_thread
 
-    rs = rotor.rotor_settings(cfg)
+    # Le rotor du parc lié à l'antenne VHF/UHF (144 puis 432), sinon le premier
+    # rotor actif, sinon l'ancien rotor unique — la MÊME résolution que
+    # /rotor/point et /rotor/state (revue 01/08/2026). Sans elle, une station
+    # configurée uniquement via le nouvel éditeur de parc ne pouvait lancer
+    # aucun suivi, et le décalage mécanique n'était jamais appliqué au passage.
+    import logx_station as station
+    rs = station.rotor_defaut(cfg, prefer_bandes=['144', '432'])
     if not rs['enabled']:
         return False, ('Rotor non activé — voir CONFIG, section rotor '
                        '(mode expert).')
@@ -203,7 +209,7 @@ def demarrer_suivi(nom_sat, cfg):
         t = threading.Thread(
             target=_boucle_suivi,
             args=(nom, rs['host'], rs['port'], lat, lon, alt_m, cache, ev),
-            kwargs={'duree_max_s': duree_max},
+            kwargs={'duree_max_s': duree_max, 'offset_az': rs['offset_deg']},
             daemon=True)
         _track.update(actif=True, sat=nom, phase='attente', message='', note='',
                       cible_az=None, cible_el=None,
@@ -252,13 +258,14 @@ TOURS_ENTRE_LECTURES = 5
 
 def _boucle_suivi(nom, host, port, lat, lon, alt_m, cache, stop_ev,
                   cadence_s=CADENCE_S, duree_max_s=DUREE_MAX_S,
-                  deadband_deg=DEADBAND_DEG):
+                  deadband_deg=DEADBAND_DEG, offset_az=0.0):
     """Le corps du suivi. Enveloppé de bout en bout : quoi qu'il arrive, un
     état terminal est posé — la leçon du verrou fantôme, appliquée d'entrée.
-    `stop_ev` est l'Event PROPRE à ce suivi (jamais un Event module partagé)."""
+    `stop_ev` est l'Event PROPRE à ce suivi (jamais un Event module partagé).
+    `offset_az` = décalage mécanique du pylône, appliqué à l'azimut envoyé."""
     try:
         _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
-                            cadence_s, duree_max_s, deadband_deg)
+                            cadence_s, duree_max_s, deadband_deg, offset_az)
     except Exception as e:
         try:
             rotor.stop(host, port)
@@ -268,7 +275,7 @@ def _boucle_suivi(nom, host, port, lat, lon, alt_m, cache, stop_ev,
 
 
 def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
-                        cadence_s, duree_max_s, deadband_deg):
+                        cadence_s, duree_max_s, deadband_deg, offset_az=0.0):
     import math
     debut = time.monotonic()
     vu_au_dessus = False
@@ -345,7 +352,14 @@ def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
             # après le « Arrêté par l'opérateur » (constat SAT-TRACK-3).
             if stop_ev.is_set():
                 continue
-            r = rotor.set_position(host, port, cible_az, cible_el)
+            # Décalage mécanique du pylône appliqué à l'AZIMUT envoyé (l'azimut
+            # vrai reste cible_az pour l'affichage et la logique). Sans lui, un
+            # rotor dont le zéro n'est pas au nord dépointe tout le passage.
+            import logx_station as _st
+            az_envoi = _st.azimut_rotor({'offset_deg': offset_az}, cible_az)
+            if az_envoi is None:
+                az_envoi = cible_az
+            r = rotor.set_position(host, port, az_envoi, cible_el)
             if r.get('ok'):
                 echecs = 0
                 derniere_consigne = (cible_az, cible_el)

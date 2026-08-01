@@ -4450,7 +4450,7 @@ async function undoLastQSO(){
 // On déduit désormais du LOG lui-même : si des QSO sont sur des bandes THF,
 // c'est un concours THF. La donnée est sous la main, elle ne périme pas, et
 // elle ne dépend d'aucun identifiant à tenir à jour.
-const BANDES_THF = ['144','432','1296','2320','3400','5760','10368','24048','47088'];
+const BANDES_THF = ['50','144','432','1296','2320','3400','5760','10368','24048','47088'];
 
 function estConcoursThf(){
   return qsoLog.some(q => BANDES_THF.includes(String(q.band)));
@@ -5399,7 +5399,10 @@ function exportEDI(){
     return;
   }
 
-  const VHF_UHF_SHF_BANDS = ['144','432','1296','2320','3400','5760','10368','24048','47088'];
+  // Le 6 m (50 MHz) EST du THF et se dépose en EDI : sans lui, IARU_50MHZ (et
+  // tout log 6 m) donnait « Aucun QSO VHF/UHF à exporter » — aucun fichier au
+  // moment du dépôt (revue 01/08/2026).
+  const VHF_UHF_SHF_BANDS = ['50','144','432','1296','2320','3400','5760','10368','24048','47088'];
   const bands = [...new Set(qsoLog.map(q=>q.band))].filter(b=>VHF_UHF_SHF_BANDS.includes(b));
   if(!bands.length){ notify('Aucun QSO VHF/UHF à exporter !\n\nPour les concours HF (ARRL FD, CQ WW, etc.),\nle format Cabrillo sera généré automatiquement.'); return; }
 
@@ -6106,8 +6109,13 @@ function showCompassInline(deg, distKm, pts){
 
 function pointAntennaFromCompass(){
   if(_lastCompassDeg == null) return;
+  // La BANDE courante part avec la consigne : le serveur tourne alors le rotor
+  // de l'antenne active sur cette bande — et lui seul — avec son décalage
+  // mécanique. Sans elle, une station à trois pylônes voyait toujours tourner
+  // le même (revue 01/08/2026).
   fetch('/rotor/point', {method:'POST', headers:{'Content-Type':'application/json'},
-                         body: JSON.stringify({azimuth: _lastCompassDeg})})
+                         body: JSON.stringify({azimuth: _lastCompassDeg,
+                           bande: (typeof currentBand !== 'undefined') ? currentBand : undefined})})
     .then(r=>r.json()).then(d=>{
       notify(d.ok ? trF('🧭 Antenne pointée sur {deg}°', {deg: _lastCompassDeg}) : trF('❌ {err}', {err: d.error}));
     }).catch(()=>notify('Rotor injoignable.'));

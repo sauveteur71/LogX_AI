@@ -5506,11 +5506,21 @@ function readParcStation(){
   });
 }
 
+// Un id LIBRE, jamais un déjà pris. `'rotor'+(length+1)` reforgeait un id
+// existant après une suppression (retirer le 1er de deux, en rajouter un ->
+// deux fois 'rotor2'), et l'antenne qui pointait sur l'ancien se reliait alors
+// au mauvais pylône en silence (revue 01/08/2026).
+function _idLibre(prefixe, rows){
+  const pris = new Set(rows.map(r => r.id));
+  let n = 1;
+  while(pris.has(prefixe + n)) n++;
+  return prefixe + n;
+}
 function addAntenne(){ readParcStation(); antennesRows.push({nom:'', bandes:[], type:'', rotor_id:'', ampli_id:''}); renderParcStation(); }
 function removeAntenne(i){ readParcStation(); antennesRows.splice(i,1); renderParcStation(); }
-function addRotor(){ readParcStation(); rotorsRows.push({id:'rotor'+(rotorsRows.length+1), nom:'', enabled:true, host:'', port:4533, offset_deg:0}); renderParcStation(); }
+function addRotor(){ readParcStation(); rotorsRows.push({id:_idLibre('rotor', rotorsRows), nom:'', enabled:true, host:'', port:4533, offset_deg:0}); renderParcStation(); }
 function removeRotor(i){ readParcStation(); rotorsRows.splice(i,1); renderParcStation(); }
-function addAmpli(){ readParcStation(); amplisRows.push({id:'ampli'+(amplisRows.length+1), nom:'', enabled:true, brand:'', port:''}); renderParcStation(); }
+function addAmpli(){ readParcStation(); amplisRows.push({id:_idLibre('ampli', amplisRows), nom:'', enabled:true, brand:'', port:''}); renderParcStation(); }
 function removeAmpli(i){ readParcStation(); amplisRows.splice(i,1); renderParcStation(); }
 
 function quickSave() {
