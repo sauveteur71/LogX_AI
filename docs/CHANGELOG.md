@@ -11,6 +11,68 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta13] - 2026-07-31
+
+### Ajouté
+
+- **🛰 Prédiction de passages satellite.** LogX savait nommer un satellite
+  (export ADIF) et pointer un rotor en azimut et en élévation — mais pas dire
+  *quand* le satellite passe. Il fallait ouvrir Gpredict à côté. Le nouveau
+  panneau de la page propagation (onglet VHF & EME, dont l'intitulé annonçait
+  « satellites » depuis toujours) donne les prochains passages — heure,
+  élévation maximale, azimuts de lever et de coucher, durée — la position
+  instantanée, le Doppler, et un sélecteur des ~90 satellites amateur du jeu
+  d'éphémérides CelesTrak.
+  - **L'âge des éphémérides est la première ligne, colorée** : un TLE se
+    dégrade, et trois semaines de dérive décalent un passage de plusieurs
+    minutes — sur un passage qui en dure dix. Une prédiction sans son âge est
+    une prédiction dont on ignore ce qu'elle vaut.
+  - **Pensé pour l'expédition** : les éphémérides sont en cache sur disque et
+    un jeu périmé reste utilisable ; le téléchargement tourne en tâche de fond
+    et **refuse d'écraser un cache valide** par une réponse inexploitable — un
+    portail captif d'hôtel répond « 200 » avec une page de connexion, et
+    l'écraser détruirait la seule chose encore utilisable sur le terrain.
+  - Le Doppler satellite n'a **pas** de facteur 2, contrairement à l'EME où le
+    signal fait l'aller-retour — le piège de recopie est testé.
+- **📻 La réglette de fréquence fonctionne enfin au-dessus de 440 MHz** : 23 cm,
+  13 cm, 9 cm, 6 cm, 3 cm et 24 GHz, d'après le plan de bandes IARU Région 1
+  (édition 2017, conférence de Landshut). Les segments sans équivalent
+  d'affichage (télévision amateur, satellite) laissent un blanc plutôt qu'une
+  couleur qui ment.
+- **Le 23 cm d'après la CMR-23.** La décision ECC (25)01 du 27 juin 2025 ne
+  redécoupe pas la bande : elle **plafonne la puissance** par sous-bande entre
+  1258 et 1300 MHz pour protéger les récepteurs Galileo. Ces plafonds sont
+  dans le logiciel avec leur grandeur exacte (e.i.r.p. ou puissance émetteur —
+  les confondre fausserait le chiffre de plusieurs dizaines de dB), la
+  dérogation EME conditionnelle, et les trois paliers par angle de site pour
+  la montée satellite. *Période transitoire nationale possible jusqu'à trois
+  ans : la date d'application réelle dépend du pays.*
+
+### Corrigé
+
+- **La mise à jour pouvait mourir jusqu'au redémarrage, sans un message.** Si
+  le téléchargement échouait dans ses toutes premières étapes (création du
+  dossier, démarrage du fil d'exécution sous une machine chargée), le statut
+  « téléchargement en cours » restait posé à jamais et tout nouvel essai était
+  refusé. Sur une expédition — quinze jours, rien de réparable sur place —
+  c'est la panne qu'on découvre le jour où on en a besoin. L'état bloqué est
+  désormais **détecté et réparé automatiquement**, et chaque échec pose un
+  message.
+- **Les messages du téléchargement pair-à-pair distinguent enfin deux pannes**
+  qui ne se dépannent pas au même endroit : « poste injoignable (éteint,
+  occupé, délai de sonde dépassé) » et « aucun exécutable vérifié à servir ».
+  L'ancien message unique accusait le pair de ne rien avoir alors qu'il
+  n'avait simplement pas répondu à temps — en multi-op, on cherchait le
+  problème sur le mauvais poste.
+
+### Interne
+
+- La suite de tests locale est redevenue **reproductiblement verte** : le
+  défaut ci-dessus contaminait les tests suivants au hasard (un échec par
+  passe, jamais le même). Diagnostic par vérification adversariale — 17
+  hypothèses, 12 réfutées, dont l'épuisement des ports réseau, écarté par la
+  mesure. Trois passes complètes consécutives vertes après correctif.
+
 ## [0.9-beta12] - 2026-07-31
 
 Suite de la beta11, même méthode : le code confronté à des références
