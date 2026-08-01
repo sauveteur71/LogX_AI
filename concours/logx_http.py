@@ -177,6 +177,41 @@ _act_jobs = {}                # id -> {ts, status, reply, action, error}
 _act_seq = 0
 _act_lock = threading.Lock()
 
+# Stratégie pile-up FT8 (voir /wsjtx/strategy) : l'IA lit la SÉRIE des décodages
+# d'UNE station et conseille où/quand appeler. Purement consultatif (jamais
+# d'émission auto). Job de fond, récupéré par /wsjtx/strategy/state.
+_strat_jobs = {}
+_strat_seq = 0
+_strat_lock = threading.Lock()
+
+
+FT8_STRATEGY_SYSTEM = (
+    "Tu es un opérateur FT8 chevronné. On te donne la SÉRIE des derniers "
+    "décodages WSJT-X d'UNE station DX (heure relative en secondes, SNR en dB, "
+    "décalage audio en Hz, message brut). La grammaire FT8 est « <destinataire> "
+    "<émetteur> <report/grille> ». À partir de CES cycles seulement :\n"
+    "- repère la fréquence audio (Hz) à laquelle la DX émet et si elle travaille "
+    "en SPLIT (répond à des stations sur d'autres décalages) ;\n"
+    "- vois qui elle répond (SNR de ceux qu'elle contacte) pour situer le niveau "
+    "de signal qui « passe » ;\n"
+    "- déduis OÙ te caler et QUAND appeler (tout de suite, ou attendre un cycle).\n"
+    "Reste CONSULTATIF et PRUDENT : c'est peu de données, ne SURVENDS pas. Ne "
+    "propose JAMAIS d'émettre automatiquement — l'opérateur garde la main. "
+    "Réponds en 2-4 phrases COURTES, en français."
+)
+
+
+def build_ft8_strategy_prompt(call, series):
+    lignes = []
+    for d in series:
+        lignes.append('il y a %ss | SNR %s dB | %s Hz | %s' % (
+            d.get('il_y_a_s', '?'),
+            d.get('snr') if d.get('snr') is not None else '?',
+            d.get('df') if d.get('df') is not None else '?',
+            d.get('msg', '')))
+    return ("Station visée : %s\nDerniers décodages (du plus ancien au plus "
+            "récent) :\n%s\n\nOù et quand dois-je appeler %s ?" % (call, '\n'.join(lignes), call))
+
 
 def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096):
     """Appelle un fournisseur au format OpenAI Chat Completions, renvoie le TEXTE de la réponse."""
@@ -3299,6 +3334,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(a)
             return
 
+        # État d'une stratégie pile-up FT8 (voir POST /wsjtx/strategy).
+        if path.startswith('/wsjtx/strategy/state'):
+            from urllib.parse import parse_qs, urlparse
+            aid = (parse_qs(urlparse(self.path).query).get('id') or [''])[0]
+            with _strat_lock:
+                a = dict(_strat_jobs.get(aid) or {'status': 'unknown'})
+            a['id'] = aid
+            self._json(a)
+            return
+
         # Ouvertures par région depuis le QTH (probabilité par bande). ?region=EU
         # (défaut : survol de toutes les régions).
         if path.startswith('/data/openings'):
@@ -5706,6 +5751,60 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Analyse IA lancée CÔTÉ SERVEUR (thread de fond) : le résultat est
         # stocké et récupérable via GET /agent/analyze/state — l'analyse se
         # termine même si l'opérateur change d'onglet (la nav recharge la page).
+        # Stratégie pile-up FT8 : l'IA lit la SÉRIE des décodages d'UNE station DX
+        # et conseille où/quand appeler. Job de fond ; purement CONSULTATIF (aucune
+        # émission). Le client poll /wsjtx/strategy/state.
+        if self.path == '/wsjtx/strategy':
+            global _strat_seq
+            try:
+                import logx_wsjtx as wsjtx
+                cfg_snap = self._cfg_snapshot()
+                payload = json.loads(body) if body else {}
+                call = (payload.get('call') or '').strip().upper()
+                if not call:
+                    self._json({'error': 'Indicatif manquant'}, 400)
+                    return
+                api_key = cfg_snap.get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+                if not api_key:
+                    self._json({'error': 'Clé API non configurée'}, 400)
+                    return
+                series = wsjtx.decode_history(call)
+                with _strat_lock:
+                    _strat_seq += 1
+                    aid = f"{int(time.time())}-strat-{_strat_seq}"
+                    _strat_jobs[aid] = {'ts': time.time(), 'status': 'running',
+                                        'reply': '', 'call': call, 'decodes': series, 'error': ''}
+                    if len(_strat_jobs) > 10:
+                        for k in sorted(_strat_jobs, key=lambda k: _strat_jobs[k]['ts'])[:-10]:
+                            _strat_jobs.pop(k, None)
+
+                def _run(aid=aid, cfg=cfg_snap, call=call, series=series):
+                    try:
+                        if len(series) < 2:
+                            with _strat_lock:
+                                if aid in _strat_jobs:
+                                    _strat_jobs[aid].update(
+                                        status='done',
+                                        reply=("Pas assez de décodages récents de %s pour "
+                                               "analyser sa stratégie — il faut l'entendre "
+                                               "sur plusieurs cycles FT8." % call))
+                            return
+                        prompt = build_ft8_strategy_prompt(call, series)
+                        text = call_llm(cfg, FT8_STRATEGY_SYSTEM,
+                                        [{'role': 'user', 'content': prompt}], None, 800)
+                        with _strat_lock:
+                            if aid in _strat_jobs:
+                                _strat_jobs[aid].update(status='done', reply=text)
+                    except Exception as e:
+                        with _strat_lock:
+                            if aid in _strat_jobs:
+                                _strat_jobs[aid].update(status='error', error=str(e))
+                threading.Thread(target=_run, daemon=True).start()
+                self._json({'id': aid, 'status': 'running'})
+            except Exception as e:
+                self._json({'error': str(e)}, 500)
+            return
+
         # Chasse assistée : l'agent PROPOSE une action physique (pointer rotor /
         # QSY) via tool-use. Job de fond ; le serveur n'exécute rien — le client
         # affiche une carte de confirmation, et c'est le CLIC qui appelle

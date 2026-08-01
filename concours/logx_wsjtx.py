@@ -314,6 +314,15 @@ _DECODE_TTL = 300     # 5 min : au-delà, une station décodée n'est plus "acti
 _decodes = {}         # call -> {'band','freq_mhz','mode','last_seen'}
 _decodes_lock = threading.Lock()
 
+# Série temporelle par indicatif (pour la STRATÉGIE pile-up FT8, #8) : _decodes
+# est indexé par indicatif et le dernier décodage y écrase le précédent — on ne
+# peut donc PAS y lire une série. Ici on garde les N derniers décodages BRUTS
+# (heure, SNR, décalage Hz, message) de chaque station, pour que l'IA raisonne
+# sur SES cycles. Borné DEUX fois pour tenir 360 h : deque(maxlen) par indicatif
+# ET purge des indicatifs inactifs (mêmes cutoffs que _decodes ci-dessous).
+_DECODE_SERIE_MAX = 30
+_decode_series = {}   # call -> deque[{'t','snr','df','msg'}]  (maxlen borné)
+
 
 def _is_compound_prefix_call(tok):
     """PRÉFIXE/INDICATIF façon DXpedition (ex. PJ4/K1ABC, 9A/OK1ABC) — le
@@ -542,9 +551,17 @@ def record_decode(msg, my_call=''):
             # peut pas y lire une série temporelle. Sans ce flux, la dérive
             # d'horloge se calculerait sur un instantané, pas sur trois heures.
             _note_dt(c, msg, now)
+            # Série temporelle brute (voir _decode_series) : chaque décodage
+            # mentionnant `c` alimente SA série — l'IA y lira ses cycles.
+            ser = _decode_series.get(c)
+            if ser is None:
+                ser = _decode_series[c] = collections.deque(maxlen=_DECODE_SERIE_MAX)
+            ser.append({'t': now, 'snr': msg.get('snr'),
+                        'df': msg.get('delta_hz'), 'msg': msg.get('message', '')})
         cutoff = now - _DECODE_TTL
         for k in [k for k, v in _decodes.items() if v['last_seen'] < cutoff]:
             del _decodes[k]
+            _decode_series.pop(k, None)   # la série suit le cache (pas de fuite)
     return calls
 
 
@@ -664,8 +681,27 @@ def recent_decodes(max_age=_DECODE_TTL):
         purge_cutoff = now - _DECODE_TTL
         for k in [k for k, v in _decodes.items() if v['last_seen'] < purge_cutoff]:
             del _decodes[k]
+            _decode_series.pop(k, None)
         cutoff = now - max_age
         return [dict(call=c, **v) for c, v in _decodes.items() if v['last_seen'] >= cutoff]
+
+
+def decode_history(call, max_n=_DECODE_SERIE_MAX):
+    """Série temporelle des derniers décodages BRUTS d'une station (heure
+    relative en secondes, SNR, décalage Hz, message) — pour la stratégie
+    pile-up FT8 (#8). Le plus RÉCENT en dernier. Liste vide si la station n'a
+    pas été entendue récemment (l'IA dira alors qu'il n'y a pas assez de données)."""
+    import time
+    c = (call or '').strip().upper()
+    now = time.time()
+    with _decodes_lock:
+        ser = list(_decode_series.get(c) or [])
+    out = []
+    for d in ser[-max_n:]:
+        out.append({'il_y_a_s': round(now - d.get('t', now)),
+                    'snr': d.get('snr'), 'df': d.get('df'),
+                    'msg': d.get('msg', '')})
+    return out
 
 
 def _my_call(cfg):

@@ -153,6 +153,16 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
    ligne. Elle est la seule à pouvoir rétrécir (flex-shrink:1), donc c'est elle
    qui absorbe le débordement — mais jamais en dessous de 324 px utiles. */
 .hunt-cluster .sr-info{order:3;flex:1 1 280px}
+/* Stratégie pile-up FT8 (#8) */
+.strat-btn{cursor:pointer;background:transparent;border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:13px;color:var(--accent2,#22e0ff)}
+.strat-btn:hover{background:rgba(0,224,255,.12)}
+#stratOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;padding:16px}
+.strat-box{background:var(--bg2,#12172e);border:1px solid var(--accent2,#22e0ff);border-radius:10px;max-width:520px;width:100%;max-height:80vh;overflow:auto;padding:14px 18px;font-family:var(--font-mono)}
+.strat-head{display:flex;align-items:center;justify-content:space-between;font-weight:700;color:var(--accent2,#22e0ff);margin-bottom:10px}
+.strat-x{cursor:pointer;background:none;border:0;color:var(--muted,#7a86b6);font-size:18px}
+.strat-verdict{font-size:14px;line-height:1.6}
+.strat-raw-title{margin-top:12px;font-size:11px;color:var(--muted,#7a86b6);text-transform:uppercase;letter-spacing:.5px}
+.strat-raw{font-size:12px;color:var(--muted,#7a86b6);margin-top:4px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -333,6 +343,7 @@ function renderSpots(){
       <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="${rcT('priorité')} ${s.priority}"></span>
       ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo(${Number(s.freq)||0},'${jsCall(s.call)}')" title="${rcT('Régler la radio sur')} ${esc(s.freq)} kHz">▶ QSY</button>` : ''}
       ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo(${Number(s.bearing)||0},'${jsCall(s.call)}','${esc(s.band)}')" title="${rcT("Pointer l'antenne sur")} ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
+      ${(s.mode && /ft8|ft4/i.test(s.mode)) ? `<button class="strat-btn" onclick="ft8Strategy('${jsCall(s.call)}')" title="${rcT('Stratégie pile-up FT8 : où et quand appeler')}">🧠</button>` : ''}
       <span class="sr-call">${esc(s.call)}</span>
       <span class="sr-freq">${esc(s.freq || '')}</span>
       <span class="sr-band">${esc(s.band)} MHz</span>
@@ -342,6 +353,55 @@ function renderSpots(){
       <span class="sr-info" title="${contestActif ? esc(s.explanation) : ''}">${s.dist_km ? esc(s.dist_km) + ' km' : ''}${contestActif && s.explanation ? (s.dist_km ? ' · ' : '') + esc(s.explanation) : ''}</span>
     </div>`).join('');
 }
+
+// ─── STRATÉGIE PILE-UP FT8 (#8) : l'IA lit la série des décodages d'UNE DX ────
+// Purement CONSULTATIF (aucune émission). Job serveur, récupéré par polling ;
+// on affiche le verdict ET les décodages BRUTS utilisés (transparence).
+function ft8Strategy(call){
+  call=(call||'').trim().toUpperCase(); if(!call) return;
+  openStratModal(call, '<div class="loading">⏳ '+rcT('Analyse de la stratégie…')+'</div>');
+  fetch('/wsjtx/strategy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({call})})
+    .then(r=>r.json()).then(j=>{
+      if(!j.id){ setStratBody('❌ '+esc(j.error||'erreur')); return; }
+      pollStrat(j.id);
+    }).catch(e=>setStratBody('❌ '+esc(e.message)));
+}
+function pollStrat(id){
+  const tick=async()=>{
+    let s;
+    try{ const r=await fetch('/wsjtx/strategy/state?id='+encodeURIComponent(id)); s=await r.json(); }
+    catch(e){ setTimeout(tick,2500); return; }
+    if(s.status==='running'){ setTimeout(tick,1500); return; }
+    if(s.status==='done') renderStrat(s);
+    else if(s.status==='error') setStratBody('❌ '+esc(s.error||'échec'));
+    else setStratBody('⚠️ '+rcT('Analyse introuvable (serveur redémarré ?).'));
+  };
+  tick();
+}
+function renderStrat(s){
+  let html='<div class="strat-verdict">'+esc(s.reply||'').replace(/\n/g,'<br>')+'</div>';
+  const dec=s.decodes||[];
+  if(dec.length){
+    html+='<div class="strat-raw-title">'+rcT('Décodages utilisés')+'</div><div class="strat-raw">'+
+      dec.map(d=>`il y a ${esc(d.il_y_a_s)}s · SNR ${esc(d.snr)} dB · ${esc(d.df)} Hz · ${esc(d.msg)}`).join('<br>')+'</div>';
+  }
+  setStratBody(html);
+}
+function openStratModal(call, inner){
+  let ov=document.getElementById('stratOverlay');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='stratOverlay';
+    ov.onclick=(e)=>{ if(e.target===ov) closeStrat(); };
+    ov.innerHTML='<div class="strat-box"><div class="strat-head"><span id="stratTitle"></span>'+
+      '<button onclick="closeStrat()" class="strat-x" aria-label="fermer">✕</button></div><div id="stratBody"></div></div>';
+    document.body.appendChild(ov);
+  }
+  document.getElementById('stratTitle').textContent='🧠 '+rcT('Stratégie')+' — '+call;
+  setStratBody(inner);
+  ov.style.display='flex';
+}
+function setStratBody(html){ const b=document.getElementById('stratBody'); if(b) b.innerHTML=html; }
+function closeStrat(){ const ov=document.getElementById('stratOverlay'); if(ov) ov.style.display='none'; }
 
 // ─── POTA : activateurs en direct (api.pota.app, via le serveur) ────────────
 async function loadPota(){
