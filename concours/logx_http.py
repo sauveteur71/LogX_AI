@@ -169,6 +169,14 @@ _audit_jobs = {}              # id -> {ts, status:'running|done|error', findings
 _audit_seq = 0
 _audit_lock = threading.Lock()
 
+# Chasse assistée (voir /agent/act) : l'agent PROPOSE une action physique
+# (pointer le rotor, QSY) via un outil ; le serveur ne l'EXÉCUTE PAS, il renvoie
+# une `action` que le client affiche en carte de confirmation. Job de fond
+# (tool-use non streamé), récupéré par polling /agent/act/state.
+_act_jobs = {}                # id -> {ts, status, reply, action, error}
+_act_seq = 0
+_act_lock = threading.Lock()
+
 
 def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096):
     """Appelle un fournisseur au format OpenAI Chat Completions, renvoie le TEXTE de la réponse."""
@@ -321,6 +329,107 @@ def call_llm_stream(cfg, system_prompt, messages, model=None, max_tokens=4096, o
     if on_delta and text:
         on_delta(text)
     return text
+
+
+# ─── CHASSE ASSISTÉE : l'agent PROPOSE une action physique (tool-use) ─────────
+# Le serveur n'EXÉCUTE JAMAIS l'action ici : il renvoie ce que le modèle propose,
+# et c'est le CLIC de l'opérateur (carte de confirmation côté client) qui appelle
+# l'endpoint existant (/rotor/point, /rig/qsy). Single-shot (pas de boucle), et
+# seul Anthropic gère les outils — les autres fournisseurs répondent en TEXTE.
+ACTION_TOOLS = [
+    {
+        'name': 'pointer_rotor',
+        'description': "Proposer de faire tourner le rotor d'antenne vers un azimut "
+                       "(degrés vrais, 0-360) pour viser une station ou une région. "
+                       "À utiliser quand orienter l'antenne fait gagner du signal vers "
+                       "un DX ou un multiplicateur intéressant.",
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'azimut': {'type': 'number', 'description': 'azimut vrai en degrés (0-360)'},
+                'cible': {'type': 'string', 'description': 'libellé court (indicatif/région) pour la confirmation'},
+            },
+            'required': ['azimut', 'cible'],
+        },
+    },
+    {
+        'name': 'qsy_radio',
+        'description': "Proposer d'amener la radio sur une fréquence (kHz) et un mode "
+                       "pour travailler un spot précis qui en vaut la peine.",
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'freq_khz': {'type': 'number', 'description': 'fréquence en kHz'},
+                'mode': {'type': 'string', 'description': 'CW, SSB, USB, LSB, FT8... (optionnel)'},
+                'cible': {'type': 'string', 'description': 'libellé court (indicatif) pour la confirmation'},
+            },
+            'required': ['freq_khz', 'cible'],
+        },
+    },
+]
+
+
+def call_llm_actions(cfg, system_prompt, messages, max_tokens=1024):
+    """Comme call_llm mais avec les OUTILS d'action (tool-use Anthropic). Ne les
+    exécute pas : renvoie {'text', 'action'} où action = le 1er tool_use proposé
+    (ou None). Single-shot. Seul Anthropic gère les outils ; les autres
+    fournisseurs retombent sur une réponse TEXTE (action None) — le chat ne casse
+    jamais."""
+    provider = (cfg or {}).get('api_provider', 'anthropic')
+    ai_model = modele_effectif(provider, None, (cfg or {}).get('ai_model'))
+    api_key = (cfg or {}).get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        raise RuntimeError('Clé API non configurée')
+    if provider != 'anthropic':
+        return {'text': call_llm(cfg, system_prompt, messages, None, max_tokens), 'action': None}
+    payload = {'model': ai_model, 'max_tokens': max_tokens, 'messages': messages,
+               'tools': ACTION_TOOLS}
+    if system_prompt:
+        payload['system'] = system_prompt
+    req = urllib.request.Request(
+        'https://api.anthropic.com/v1/messages', data=json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json', 'x-api-key': api_key,
+                 'anthropic-version': '2023-06-01'}, method='POST')
+    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
+        data = json.loads(resp.read())
+    text = ''.join(b.get('text', '') for b in data.get('content', [])
+                   if b.get('type') == 'text')
+    action = None
+    for b in data.get('content', []):
+        if b.get('type') == 'tool_use':
+            action = {'tool': b.get('name'), 'input': b.get('input', {})}
+            break
+    return {'text': text, 'action': action}
+
+
+def pending_action_from_tool(action):
+    """Valide et normalise l'action proposée par le modèle en une `pending_action`
+    exploitable par le client — ou None si elle est aberrante (azimut hors 0-360,
+    fréquence non positive) : on ne propose JAMAIS de piloter la station sur une
+    valeur absurde, même si le modèle la sort."""
+    if not action or not isinstance(action, dict):
+        return None
+    inp = action.get('input') or {}
+    tool = action.get('tool')
+    if tool == 'pointer_rotor':
+        try:
+            az = float(inp.get('azimut'))
+        except (TypeError, ValueError):
+            return None
+        if not (0 <= az <= 360) or not math.isfinite(az):
+            return None
+        return {'type': 'rotor', 'azimut': round(az), 'cible': str(inp.get('cible', ''))[:40]}
+    if tool == 'qsy_radio':
+        try:
+            khz = float(inp.get('freq_khz'))
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(khz) or khz <= 0:
+            return None
+        return {'type': 'qsy', 'freq_khz': round(khz, 3),
+                'mode': str(inp.get('mode', '') or '')[:6],
+                'cible': str(inp.get('cible', ''))[:40]}
+    return None
 
 
 def _parse_multipart_form(body, content_type):
@@ -3179,6 +3288,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._sse_agent_stream(aid)
             return
 
+        # État d'une chasse assistée (tool-use) : texte + action proposée à
+        # confirmer (voir POST /agent/act).
+        if path.startswith('/agent/act/state'):
+            from urllib.parse import parse_qs, urlparse
+            aid = (parse_qs(urlparse(self.path).query).get('id') or [''])[0]
+            with _act_lock:
+                a = dict(_act_jobs.get(aid) or {'status': 'unknown'})
+            a['id'] = aid
+            self._json(a)
+            return
+
         # Ouvertures par région depuis le QTH (probabilité par bande). ?region=EU
         # (défaut : survol de toutes les régions).
         if path.startswith('/data/openings'):
@@ -5586,6 +5706,62 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Analyse IA lancée CÔTÉ SERVEUR (thread de fond) : le résultat est
         # stocké et récupérable via GET /agent/analyze/state — l'analyse se
         # termine même si l'opérateur change d'onglet (la nav recharge la page).
+        # Chasse assistée : l'agent PROPOSE une action physique (pointer rotor /
+        # QSY) via tool-use. Job de fond ; le serveur n'exécute rien — le client
+        # affiche une carte de confirmation, et c'est le CLIC qui appelle
+        # /rotor/point ou /rig/qsy. Single-shot ; non-Anthropic -> texte seul.
+        if self.path == '/agent/act':
+            global _act_seq
+            try:
+                cfg_snap = self._cfg_snapshot()
+                payload = json.loads(body) if body else {}
+                message = payload.get('message') or (
+                    "Trouve LE meilleur spot non-doublon à travailler maintenant "
+                    "(mult ou DX rentable) et, si c'est pertinent, propose de pointer "
+                    "l'antenne dessus ou de m'y amener en fréquence. Sinon, conseille "
+                    "en une phrase.")
+                needs_context = payload.get('needs_context', True)
+                system_prompt = payload.get('system') or (build_system_prompt(cfg_snap) if cfg_snap else '')
+                api_key = cfg_snap.get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+                if not api_key:
+                    self._json({'error': 'Clé API non configurée'}, 400)
+                    return
+                with _act_lock:
+                    _act_seq += 1
+                    aid = f"{int(time.time())}-act-{_act_seq}"
+                    _act_jobs[aid] = {'ts': time.time(), 'status': 'running',
+                                      'reply': '', 'action': None, 'error': ''}
+                    if len(_act_jobs) > 10:
+                        for k in sorted(_act_jobs, key=lambda k: _act_jobs[k]['ts'])[:-10]:
+                            _act_jobs.pop(k, None)
+
+                def _run(aid=aid, cfg=cfg_snap, sysp=system_prompt, msg=message, ctx=needs_context):
+                    try:
+                        enriched = msg
+                        if ctx:
+                            try:
+                                data = do_refresh(cfg)
+                                if data.get('context'):
+                                    enriched = data['context'] + '\n\nDemande opérateur : ' + msg
+                                if data.get('system_prompt'):
+                                    sysp = data['system_prompt']
+                            except Exception as e:
+                                print(f"[ACT] contexte indisponible : {e}")
+                        r = call_llm_actions(cfg, sysp, [{'role': 'user', 'content': enriched}])
+                        pending = pending_action_from_tool(r.get('action'))
+                        with _act_lock:
+                            if aid in _act_jobs:
+                                _act_jobs[aid].update(status='done', reply=r.get('text', ''), action=pending)
+                    except Exception as e:
+                        with _act_lock:
+                            if aid in _act_jobs:
+                                _act_jobs[aid].update(status='error', error=str(e))
+                threading.Thread(target=_run, daemon=True).start()
+                self._json({'id': aid, 'status': 'running'})
+            except Exception as e:
+                self._json({'error': str(e)}, 500)
+            return
+
         # Audit IA du log avant dépôt : lance un job de fond (l'appel LLM à
         # sortie JSON forcée peut durer). Le client poll /log/audit/state et
         # fusionne les constats sous ceux du VÉRIFIER déterministe.
