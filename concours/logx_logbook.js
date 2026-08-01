@@ -6619,10 +6619,19 @@ async function showValidation(){
     `<span style="color:var(--red)">${c.erreur||0} erreur${(c.erreur||0)>1?'s':''}</span> · `+
     `<span style="color:var(--yellow)">${c.attention||0} à vérifier</span> · `+
     `<span style="color:var(--accent2)">${c.info||0} info${(c.info||0)>1?'s':''}</span></span></div>`;
+  // Audit IA APPROFONDI (à la demande) : relit le log et repère ce qu'aucune
+  // règle ne code. Déterministe d'abord, IA en bonus — les constats IA se
+  // fusionnent SOUS ceux-ci, avec les mêmes boutons Corriger/Supprimer.
+  const aiSection =
+    `<div class="shortcuts-row" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;gap:8px;align-items:center">`+
+    `<button id="aiAuditBtn" class="export-btn" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" onclick="runAiAudit()">🤖 ${escHtml(trT('AUDIT IA APPROFONDI'))}</button>`+
+    `<span style="color:var(--muted);font-size:12px">${escHtml(trT('l\'IA relit le log et repère ce que les règles ne voient pas'))}</span>`+
+    `</div><div id="aiAuditResults"></div>`;
   if(!(d.findings||[]).length){
     inner.innerHTML = head +
       `<div class="shortcuts-row"><span style="color:var(--green);font-weight:700">`+
-      `✅ Aucun problème détecté — le log est prêt à être exporté et envoyé.</span></div>`;
+      `✅ Aucun problème détecté — le log est prêt à être exporté et envoyé.</span></div>`+
+      aiSection;
     return;
   }
   const ICO = {erreur:'❌', attention:'⚠️', info:'ℹ️'};
@@ -6641,7 +6650,67 @@ async function showValidation(){
       `<span>${escHtml(f.msg)}${f.at ? ` <span style="color:var(--muted);font-size:12px">(${escHtml(f.at)})</span>` : ''}</span>`+
       act+
       `</div>`;
-  }).join('') + (d.truncated ? `<div class="shortcuts-row"><span style="color:var(--muted)">… liste tronquée</span></div>` : '');
+  }).join('') + (d.truncated ? `<div class="shortcuts-row"><span style="color:var(--muted)">… liste tronquée</span></div>` : '') + aiSection;
+}
+
+// ─── AUDIT IA DU LOG (à la demande, sous le VÉRIFIER déterministe) ───────────
+// Lance un job serveur (l'appel LLM peut durer) et poll son état, puis fusionne
+// les constats IA — MÊME format {level,msg,id} — avec les boutons Corriger/
+// Supprimer déjà câblés. Hors-ligne / sans clé : message clair, jamais d'erreur
+// brutale (le VÉRIFIER déterministe, lui, a déjà fait son travail au-dessus).
+async function runAiAudit(){
+  const res = document.getElementById('aiAuditResults');
+  const btn = document.getElementById('aiAuditBtn');
+  if(!res) return;
+  if(btn) btn.disabled = true;
+  res.innerHTML = `<div class="shortcuts-row"><span>⏳ ${escHtml(trT('Audit IA en cours…'))}</span></div>`;
+  let id;
+  try{
+    const r = await fetch('/log/audit', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const j = await r.json();
+    if(!r.ok || !j.id) throw new Error(j.error || ('HTTP '+r.status));
+    id = j.id;
+  }catch(e){
+    res.innerHTML = `<div class="shortcuts-row"><span style="color:var(--yellow)">🤖 ${escHtml(trT('Audit IA indisponible'))} — ${escHtml(e.message)}</span></div>`;
+    if(btn) btn.disabled = false;
+    return;
+  }
+  const poll = async () => {
+    let s;
+    try{ const r = await fetch('/log/audit/state?id='+encodeURIComponent(id)); s = await r.json(); }
+    catch(e){ setTimeout(poll, 2500); return; }
+    if(s.status === 'running'){ setTimeout(poll, 1500); return; }
+    if(btn) btn.disabled = false;
+    if(s.status === 'done') renderAiFindings(s.findings || [], !!s.truncated);
+    else if(s.status === 'error') res.innerHTML = `<div class="shortcuts-row"><span style="color:var(--yellow)">🤖 ${escHtml(trT('Audit IA échoué'))} — ${escHtml(s.error||'')}</span></div>`;
+    else res.innerHTML = `<div class="shortcuts-row"><span style="color:var(--muted)">🤖 ${escHtml(trT('Audit introuvable (serveur redémarré ?)'))}</span></div>`;
+  };
+  poll();
+}
+function renderAiFindings(findings, truncated){
+  const res = document.getElementById('aiAuditResults');
+  if(!res) return;
+  const ICO = {erreur:'❌', attention:'⚠️', info:'ℹ️'};
+  const COL = {erreur:'var(--red)', attention:'var(--yellow)', info:'var(--accent2)'};
+  const BTN = 'cursor:pointer;border:1px solid var(--border,#3a3a4a);background:transparent;'+
+              'border-radius:5px;padding:2px 7px;font-size:13px;line-height:1.4';
+  if(!findings.length){
+    res.innerHTML = `<div class="shortcuts-row"><span style="color:var(--green)">🤖 ${escHtml(trT('L\'IA n\'a rien trouvé de plus à corriger.'))}</span></div>`;
+    return;
+  }
+  const headTxt = truncated ? trT('🤖 Constats IA (log tronqué aux plus récents)') : trT('🤖 Constats IA');
+  res.innerHTML =
+    `<div class="shortcuts-row" style="font-weight:700;color:var(--accent2)"><span>${escHtml(headTxt)}</span></div>`+
+    findings.map(f => {
+      const act = (f.id != null) ?
+        `<span style="display:inline-flex;gap:6px;margin-left:auto;flex:0 0 auto">`+
+          `<button style="${BTN};color:var(--accent2)" title="Corriger ce QSO" onclick="fixFromValidation(${f.id})">✏️ ${escHtml(trT('Corriger'))}</button>`+
+          `<button style="${BTN};color:var(--red)" title="Supprimer ce QSO" onclick="delFromValidation(${f.id})">🗑 ${escHtml(trT('Supprimer'))}</button>`+
+        `</span>` : '';
+      return `<div class="shortcuts-row" style="align-items:center;gap:8px">`+
+        `<span class="shortcuts-key" style="color:${COL[f.level]||'var(--muted)'};min-width:32px">🤖${ICO[f.level]||''}</span>`+
+        `<span>${escHtml(f.msg)}</span>`+ act +`</div>`;
+    }).join('');
 }
 
 // Corriger un QSO signalé par le VÉRIFIER : ferme la fenêtre de vérification

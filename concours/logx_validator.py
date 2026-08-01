@@ -236,3 +236,109 @@ def validate_log(qsos, contest_id='', cfg=None):
         'ok': counts['erreur'] == 0,
         'truncated': len(findings) >= MAX_FINDINGS,
     }
+
+
+# ─── AUDIT IA DU LOG AVANT DÉPÔT ─────────────────────────────────────────────
+# En COMPLÉMENT de validate_log (déterministe), une passe IA relit le log scopé
+# et repère ce qu'aucune règle ne code. Les constats sortent au MÊME format que
+# validate_log ({level, msg, id}) : la fenêtre VÉRIFIER et ses boutons
+# Corriger/Supprimer les affichent tels quels. L'appel LLM lui-même est lancé
+# côté serveur en tâche de fond (voir /log/audit) — jamais dans le thread HTTP.
+
+MAX_AUDIT_QSOS = 400   # plafond de contexte : au-delà on audite les plus récents
+
+AUDIT_SYSTEM = (
+    "Tu es un correcteur de log de concours radioamateur. On te donne les QSO "
+    "d'UN concours (déjà filtrés, chacun avec un id). Repère UNIQUEMENT les "
+    "anomalies qu'un contrôle automatique de format ne voit pas, chacune "
+    "RATTACHÉE à l'id EXACT d'un QSO fourni :\n"
+    "- indicatif très probablement mal copié (busté) au vu des autres QSO ;\n"
+    "- échange incohérent avec l'indicatif (zone CQ, État, préfixe manifestement "
+    "faux pour ce pays) ;\n"
+    "- même indicatif logué avec DEUX échanges DIFFÉRENTS et contradictoires ;\n"
+    "- QSO propagativement très improbable à cette heure/bande ;\n"
+    "- série de numéros reçus manifestement incohérente (bond ou retour massif) ;\n"
+    "- multiplicateur qui semble compté deux fois.\n"
+    "N'invente RIEN et ne signale PAS ce qu'un contrôle de format couvre déjà "
+    "(doublon exact, RST manquant, champ vide). Dans le DOUTE, ABSTIENS-toi — "
+    "un faux positif fait perdre confiance. Chaque constat porte un niveau "
+    "('erreur' seulement si c'est presque sûr, sinon 'attention' ou 'info'), un "
+    "message COURT en français nommant l'indicatif, et le qso_id d'un QSO fourni."
+)
+
+AUDIT_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'findings': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'properties': {
+                    'level': {'type': 'string', 'enum': ['erreur', 'attention', 'info']},
+                    'message': {'type': 'string'},
+                    'qso_id': {'type': 'integer'},
+                },
+                'required': ['level', 'message', 'qso_id'],
+            },
+        },
+    },
+    'required': ['findings'],
+}
+
+
+def build_audit_input(qsos, contest_id='', cfg=None):
+    """Prépare l'entrée de l'audit IA : QSO scopés (contest+année, MÊME portée
+    que validate_log) sérialisés en une liste compacte avec leur id, plus
+    l'ensemble des id valides (pour rejeter tout constat visant un id absent).
+    Retourne {system, user_text, valid_ids, truncated, count}."""
+    cfg = cfg or {}
+    if cfg.get('usage_mode') == 'simple':
+        contest_id = ''
+    from logx_storage import qso_scope_id, cfg_scope_id
+    scope_id = cfg_scope_id(cfg)
+    scoped = [q for q in (qsos or [])
+              if (not scope_id or qso_scope_id(q) == scope_id) and q.get('id') is not None]
+    truncated = len(scoped) > MAX_AUDIT_QSOS
+    lot = scoped[-MAX_AUDIT_QSOS:] if truncated else scoped
+    valid_ids = {int(q['id']) for q in lot}
+
+    from logx_definitions import CONTEST_DEFINITIONS
+    cdef = CONTEST_DEFINITIONS.get(contest_id, {}) if contest_id else {}
+    name = cdef.get('name', contest_id or 'log')
+    lignes = []
+    for q in lot:
+        lignes.append('%s | %s | %s | %s | recu=%s | env=%s | %s %s' % (
+            q['id'], str(q.get('call', '')).upper(), q.get('band', ''),
+            q.get('mode', ''), q.get('num_rcvd', ''), q.get('num_sent', ''),
+            q.get('date', ''), q.get('time', '')))
+    user_text = ('Concours : %s\nQSO (id | indicatif | bande MHz | mode | échange '
+                 'reçu | échange envoyé | date heure UTC) :\n%s' % (name, '\n'.join(lignes)))
+    return {'system': AUDIT_SYSTEM, 'user_text': user_text,
+            'valid_ids': valid_ids, 'truncated': truncated, 'count': len(lot)}
+
+
+def normalize_audit_findings(raw, valid_ids):
+    """Filtre/normalise les constats bruts de l'IA au format de validate_log.
+    REJETTE tout constat dont le qso_id n'appartient pas au lot envoyé : sans
+    cible réelle, les boutons Corriger/Supprimer n'ont rien sur quoi agir."""
+    out = []
+    for f in (raw or []):
+        if not isinstance(f, dict):
+            continue
+        qid = f.get('qso_id')
+        try:
+            qid = int(qid)
+        except (TypeError, ValueError):
+            continue
+        if qid not in valid_ids:
+            continue
+        level = f.get('level')
+        if level not in ('erreur', 'attention', 'info'):
+            level = 'attention'
+        msg = str(f.get('message') or f.get('msg') or '').strip()
+        if not msg:
+            continue
+        out.append({'level': level, 'code': 'ia', 'msg': msg[:300], 'id': qid, 'ai': True})
+    order = {'erreur': 0, 'attention': 1, 'info': 2}
+    out.sort(key=lambda x: order.get(x['level'], 3))
+    return out[:MAX_FINDINGS]

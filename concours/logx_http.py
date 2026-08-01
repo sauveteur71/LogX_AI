@@ -161,6 +161,14 @@ _agent_lock = threading.Lock()
 SSE_DEADLINE_S = 150
 SSE_HEARTBEAT_S = 12
 
+# Audit IA du log avant dépôt (voir /log/audit) : l'appel LLM (latence longue,
+# sortie JSON forcée) tourne en THREAD DE FOND — jamais dans le thread HTTP —
+# et son résultat est récupéré par polling (/log/audit/state), comme les
+# analyses de la carte. Constats au format de validate_log.
+_audit_jobs = {}              # id -> {ts, status:'running|done|error', findings, error}
+_audit_seq = 0
+_audit_lock = threading.Lock()
+
 
 def _call_openai_compatible(base_url, ai_model, default_model, api_key, system_prompt, messages, max_tokens=4096):
     """Appelle un fournisseur au format OpenAI Chat Completions, renvoie le TEXTE de la réponse."""
@@ -2227,6 +2235,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log_copy = list(shared_log)
             self._json(validator.validate_log(
                 log_copy, cfg_snap.get('contest', ''), cfg_snap))
+            return
+
+        # État d'un audit IA du log (lancé par POST /log/audit, tourne en fond).
+        if path.startswith('/log/audit/state'):
+            from urllib.parse import parse_qs, urlparse
+            aid = (parse_qs(urlparse(self.path).query).get('id') or [''])[0]
+            with _audit_lock:
+                a = dict(_audit_jobs.get(aid) or {'status': 'unknown'})
+            a['id'] = aid
+            self._json(a)
             return
 
         # Index d'indicatifs fusionné (MASTER.SCP + calldb + archives +
@@ -5560,6 +5578,60 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Analyse IA lancée CÔTÉ SERVEUR (thread de fond) : le résultat est
         # stocké et récupérable via GET /agent/analyze/state — l'analyse se
         # termine même si l'opérateur change d'onglet (la nav recharge la page).
+        # Audit IA du log avant dépôt : lance un job de fond (l'appel LLM à
+        # sortie JSON forcée peut durer). Le client poll /log/audit/state et
+        # fusionne les constats sous ceux du VÉRIFIER déterministe.
+        if self.path == '/log/audit':
+            global _audit_seq
+            try:
+                import logx_validator as validator
+                cfg_snap = self._cfg_snapshot()
+                with log_lock:
+                    log_copy = list(shared_log)
+                inp = validator.build_audit_input(
+                    log_copy, cfg_snap.get('contest', ''), cfg_snap)
+                if not inp['valid_ids']:
+                    self._json({'error': 'Aucun QSO à auditer'}, 400)
+                    return
+                provider = cfg_snap.get('api_provider', 'anthropic')
+                model = modele_effectif(provider, None, cfg_snap.get('ai_model'))
+                api_key = cfg_snap.get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+                if not api_key:
+                    self._json({'error': 'Clé API non configurée'}, 400)
+                    return
+                with _audit_lock:
+                    _audit_seq += 1
+                    aid = f"{int(time.time())}-{_audit_seq}"
+                    _audit_jobs[aid] = {'ts': time.time(), 'status': 'running',
+                                        'findings': [], 'error': '',
+                                        'truncated': inp['truncated'], 'count': inp['count']}
+                    if len(_audit_jobs) > 10:
+                        for k in sorted(_audit_jobs, key=lambda k: _audit_jobs[k]['ts'])[:-10]:
+                            _audit_jobs.pop(k, None)
+
+                def _run(aid=aid, inp=inp, provider=provider, model=model, api_key=api_key):
+                    try:
+                        import logx_rules_ai as rai
+                        import logx_validator as validator
+                        obj = rai.call_ai_structured(
+                            provider, model, api_key, inp['system'], inp['user_text'],
+                            validator.AUDIT_SCHEMA, max_tokens=4000)
+                        found = validator.normalize_audit_findings(
+                            (obj or {}).get('findings', []), inp['valid_ids'])
+                        with _audit_lock:
+                            if aid in _audit_jobs:
+                                _audit_jobs[aid].update(status='done', findings=found)
+                    except Exception as e:
+                        with _audit_lock:
+                            if aid in _audit_jobs:
+                                _audit_jobs[aid].update(status='error', error=str(e))
+                threading.Thread(target=_run, daemon=True).start()
+                self._json({'id': aid, 'status': 'running',
+                            'truncated': inp['truncated'], 'count': inp['count']})
+            except Exception as e:
+                self._json({'error': str(e)}, 500)
+            return
+
         if self.path == '/agent/analyze':
             global _agent_seq
             try:
