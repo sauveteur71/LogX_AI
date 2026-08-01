@@ -2325,6 +2325,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'matches': callhistory.near_matches(call, log_copy)})
             return
 
+        # Garde-fou « multiplicateur fantôme » : la zone CQ SAISIE correspond-elle
+        # à ce que cty.dat attend pour cet indicatif ? DÉTERMINISTE et instantané
+        # (aucun LLM, aucun réseau) — l'IA n'intervient qu'à la demande, côté
+        # client, via /proxy/ai (bouton « est-ce plausible ? »). Une zone bustée
+        # compte comme mult puis est retirée au checking : pénalité nette évitée
+        # AU MOMENT de la saisie.
+        if path.startswith('/exchange/check'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_dxcc as dxcc
+            qp = parse_qs(urlparse(self.path).query)
+            call = (qp.get('call', [''])[0]).upper().strip()
+            value = (qp.get('value', [''])[0]).strip()
+            kind = (qp.get('kind', ['cq_zone'])[0]).strip()
+            if kind == 'cq_zone':
+                res = dxcc.verifier_zone_cq(call, value)
+                res['kind'] = 'cq_zone'
+                res['ok'] = True
+                self._json(res)
+            else:
+                self._json({'ok': False, 'match': None, 'kind': kind})
+            return
+
         # État des imports (bouton CONFIG) : nombre d'indicatifs MASTER.SCP et
         # de fiches Call History déjà importées pour le concours actif.
         if path == '/callhistory/status':

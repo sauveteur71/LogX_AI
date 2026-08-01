@@ -263,6 +263,16 @@ body.sans-concours .compass-pts{display:none}
 #bustedPastille .bp-oui{border-color:var(--green);color:var(--green);font-weight:700}
 #bustedPastille .bp-oui:hover{background:rgba(0,255,136,.12)}
 #bustedPastille .bp-non{margin-left:auto;color:var(--muted)}
+#exchWarn{display:none;align-items:center;gap:9px;flex-wrap:wrap;margin-top:6px;
+  background:rgba(255,214,10,.10);border:1px solid var(--yellow);border-radius:6px;
+  padding:7px 11px;font-family:var(--font-mono);font-size:13px;color:var(--yellow)}
+#exchWarn .ew-txt{font-weight:700}
+#exchWarn .ew-info{color:var(--muted);font-size:11.5px}
+#exchWarn button{font-family:var(--font-mono);font-size:12px;border-radius:4px;
+  padding:3px 11px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text)}
+#exchWarn .ew-ai{border-color:var(--accent2);color:var(--accent2);font-weight:700}
+#exchWarn .ew-ai:hover{background:rgba(0,224,255,.12)}
+#exchWarn .ew-x{margin-left:auto;color:var(--muted)}
 .dup-warning.show{display:block}
 
 /* BANDE / MODE */
@@ -1139,9 +1149,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
           <input type="text" class="field-input" id="inputNumRcvd" maxlength="4" inputmode="numeric"
             style="font-size:26px;font-weight:700;color:var(--text);text-align:center"
             onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}"
-            onblur="if(currentExchange.pad_r===true&&this.value.trim())this.value=String(parseInt(this.value,10)||0).padStart(3,'0')">
+            onblur="if(currentExchange.pad_r===true&&this.value.trim())this.value=String(parseInt(this.value,10)||0).padStart(3,'0');checkExchangeZone()">
         </div>
       </div>
+      <!-- Garde-fou « mult fantôme » : zone CQ saisie incohérente avec cty.dat.
+           Masqué au repos, rempli par checkExchangeZone() (déterministe) ; le
+           bouton IA ne s'allume qu'à la demande. -->
+      <div id="exchWarn" style="display:none"></div>
 
       <!-- Locator -->
       <div class="field-group" id="locatorGroup">
