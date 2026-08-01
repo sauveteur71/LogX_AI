@@ -1,6 +1,6 @@
 {
  "genere_le": "2026-08-01",
- "note": "Selection editoriale : stations joignables au 01/08/2026 OU francaises. Sources croisees (PDF dxrn 2018, REF, F5KIA, websdr.org) — provenance par entree.",
+ "note": "Selection editoriale : stations joignables au 01/08/2026 OU francaises. Sources croisees (PDF dxrn 2018, REF, F5KIA, websdr.org) — provenance par entree. Passe de verification du 01/08/2026 sur les pages elles-memes : SUWS Farnham retire (la page annonce le demontage du materiel), websdr.at retire (redirige vers le login.asp d'un enregistreur video), doublon 9A1RBZ/9A7AOF fusionne (meme IP, page identique), portail websdr.jestok.com remplace par ses recepteurs reels.",
  "stations": [
   {
    "nom": "DK1ML",
@@ -57,17 +57,6 @@
    "locator_confiance": "page_du_recepteur"
   },
   {
-   "nom": "SUWS Farnham WebSDR 2",
-   "url": "http://farnham-sdr.com/",
-   "type": "websdr",
-   "pays": "GB",
-   "lieu": "Farnham",
-   "bandes": "LF - 6/2m - 70/3cm",
-   "provenance": "https://www.dxrn.info/wp-content/uploads/2018/10/Lexique-des-WEBSDR-en-Europe-V1.0.pdf",
-   "note": "S.OK (PDF dxrn daté 2018)",
-   "joignable": true
-  },
-  {
    "nom": "OE3MUC",
    "url": "http://sdr.packetradio.at:8901/",
    "type": "websdr",
@@ -79,16 +68,6 @@
    "locator": "JN78SK",
    "locator_source": "http://sdr.packetradio.at:8901/ — champ 'webrx-rx-desc' d'OpenWebRX+",
    "locator_confiance": "page_du_recepteur"
-  },
-  {
-   "nom": "OE3DUS - OE6RKE - OE4RLC",
-   "url": "http://www.websdr.at/",
-   "type": "websdr",
-   "pays": "AT",
-   "bandes": "80m - 5200 à 7248 kHz - 20m - 2m",
-   "provenance": "https://www.dxrn.info/wp-content/uploads/2018/10/Lexique-des-WEBSDR-en-Europe-V1.0.pdf",
-   "note": "S.OK (PDF dxrn daté 2018)",
-   "joignable": true
   },
   {
    "nom": "ON4BCB & ON7UN",
@@ -130,29 +109,20 @@
    "locator_confiance": "page_du_recepteur"
   },
   {
-   "nom": "9A7AOF",
+   "nom": "9A1CRA (9A7AOF / 9A3LI)",
    "url": "http://9a7aof.ddns.net:8902/",
    "type": "websdr",
    "pays": "HR",
-   "bandes": "20m",
-   "provenance": "https://www.dxrn.info/wp-content/uploads/2018/10/Lexique-des-WEBSDR-en-Europe-V1.0.pdf",
-   "note": "S.OK (PDF dxrn daté 2018)",
+   "lieu": "près de Krizevci",
+   "bandes": "0-2 MHz (LF/MW) - 60/80m - 40/49m",
+   "provenance": [
+    "http://9a7aof.ddns.net:8902/ — page du recepteur, verifiee le 01/08/2026",
+    "https://www.dxrn.info/wp-content/uploads/2018/10/Lexique-des-WEBSDR-en-Europe-V1.0.pdf"
+   ],
+   "note": "Une SEULE station, deux noms d'hote : 9a7aof.ddns.net:8902 et 9a1rbz.ddns.net:8902 resolvent la meme IP (89.201.158.202) et servent une page octet pour octet identique (verifie le 01/08/2026) — l'entree 9A1RBZ en doublon a ete retiree. Bandes relevees sur l'endpoint /~~status du recepteur ; le PDF dxrn 2018 annoncait 20m et 70cm, ce qui ne correspond plus au recepteur en service. Exploite par Darko 9A3LI et Darko 9A7AOF sous l'indicatif de club 9A1CRA.",
    "joignable": true,
    "locator": "JN86",
-   "locator_source": "http://9a7aof.ddns.net:8902/ — balise <title> + geocodage Nominatim de Krizevci",
-   "locator_confiance": "ville_confirmee"
-  },
-  {
-   "nom": "9A1RBZ",
-   "url": "http://9a1rbz.ddns.net:8902/",
-   "type": "websdr",
-   "pays": "HR",
-   "bandes": "70cm",
-   "provenance": "https://www.dxrn.info/wp-content/uploads/2018/10/Lexique-des-WEBSDR-en-Europe-V1.0.pdf",
-   "note": "S.OK (PDF dxrn daté 2018)",
-   "joignable": true,
-   "locator": "JN86",
-   "locator_source": "http://9a1rbz.ddns.net:8902/ — balise <title> + geocodage Nominatim de Krizevci",
+   "locator_source": "http://9a7aof.ddns.net:8902/ — la page ne publie aucun locator, seulement 'located near Krizevci, Croatia' ; grille deduite par geocodage Nominatim de Krizevci",
    "locator_confiance": "ville_confirmee"
   },
   {
@@ -392,14 +362,40 @@
    "locator_confiance": "page_du_recepteur"
   },
   {
-   "nom": "PZK OT21",
-   "url": "http://websdr.jestok.com/",
-   "type": "websdr",
+   "nom": "SR4DON Olsztyn (PZK OT21) — SDR 1",
+   "url": "https://1.websdr.jestok.com/",
+   "type": "openwebrx",
    "pays": "PL",
-   "bandes": "2m - 70cm",
-   "provenance": "https://www.dxrn.info/wp-content/uploads/2018/10/Lexique-des-WEBSDR-en-Europe-V1.0.pdf",
-   "note": "S.OK (PDF dxrn daté 2018)",
-   "joignable": true
+   "lieu": "Olsztyn",
+   "bandes": "70cm/2m/4m/6m/8m/10-15m",
+   "provenance": [
+    "https://1.websdr.jestok.com/ — page du recepteur, verifiee le 01/08/2026",
+    "https://websdr.jestok.com/ — portail du club, verifie le 01/08/2026",
+    "https://www.dxrn.info/wp-content/uploads/2018/10/Lexique-des-WEBSDR-en-Europe-V1.0.pdf"
+   ],
+   "note": "websdr.jestok.com n'est PAS un recepteur mais le portail du PZK OT21 Olsztyn, qui renvoie vers trois SDR distincts ; l'ancienne entree unique a ete remplacee par ses recepteurs reels. SDR 2 (https://2.websdr.jestok.com/) est volontairement absent : en HTTPS il repond 401 avec un certificat au mauvais nom, et en HTTP il redirige (301) vers SDR 3 — un operateur qui cliquerait 'ecouter' atterrirait a Jastrzebia Gora, a 192 km d'Olsztyn (KO03gr -> JO94du, orthodromie).",
+   "joignable": true,
+   "locator": "KO03gr",
+   "locator_source": "https://1.websdr.jestok.com/ — champ 'webrx-rx-desc' d'OpenWebRX+ ('Olsztyn, Poland | Loc: KO03gr, ASL: 168 m')",
+   "locator_confiance": "page_du_recepteur"
+  },
+  {
+   "nom": "SR4DON Jastrzebia Gora (PZK OT21) — SDR 3",
+   "url": "https://3.websdr.jestok.com/",
+   "type": "openwebrx",
+   "pays": "PL",
+   "lieu": "Jastrzebia Gora",
+   "bandes": "LW-MW-SW-VHF-UHF",
+   "provenance": [
+    "https://3.websdr.jestok.com/ — page du recepteur, verifiee le 01/08/2026",
+    "https://websdr.jestok.com/ — portail du club, verifie le 01/08/2026",
+    "https://www.dxrn.info/wp-content/uploads/2018/10/Lexique-des-WEBSDR-en-Europe-V1.0.pdf"
+   ],
+   "note": "Deuxieme recepteur joignable du portail PZK OT21 (voir la note de SDR 1) ; a 192 km d'Olsztyn, d'ou l'impossibilite de garder une position unique pour le portail.",
+   "joignable": true,
+   "locator": "JO94du",
+   "locator_source": "https://3.websdr.jestok.com/ — champ 'webrx-rx-desc' d'OpenWebRX+ ('Jastrzebia Gora | Loc: JO94du, ASL: 60 m')",
+   "locator_confiance": "page_du_recepteur"
   },
   {
    "nom": "Airband Station",
@@ -523,12 +519,15 @@
    "url": "http://appr.org.br:8901/",
    "type": "websdr",
    "pays": "BR",
-   "lieu": "",
+   "lieu": "Pardinho, SP",
    "bandes": "HF",
-   "provenance": "annuaire historique LogX",
+   "provenance": [
+    "http://appr.org.br:8901/ — page du recepteur, verifiee le 01/08/2026",
+    "annuaire historique LogX"
+   ],
    "note": "Association radioamateur locale.",
    "locator": "GG56TV",
-   "locator_source": "http://appr.org.br:8901/index_2.html — en-tete de la page du recepteur",
+   "locator_source": "http://appr.org.br:8901/ — titre et en-tete de la page ('Pardinho WebSDR - SP - Brazil (GG56TV)')",
    "locator_confiance": "page_du_recepteur"
   },
   {
