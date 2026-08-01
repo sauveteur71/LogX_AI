@@ -71,6 +71,12 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .msg-agent .bubble{background:var(--bg3);border:1px solid var(--border);font-family:var(--font-mono);border-radius:12px 12px 12px 2px}
 .msg-agent .bubble.streaming::after{content:'▌';color:var(--accent2);animation:blink 1s infinite;margin-left:1px}
 .off-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#0a0e1e;background:var(--muted,#7a86b6);border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
+.msg-agent .bubble.action-card{border:1px solid var(--accent);border-left:4px solid var(--accent);background:rgba(255,214,10,.06)}
+.action-card button{cursor:pointer;font-family:var(--font-mono);font-size:13px;font-weight:700;border-radius:5px;padding:5px 14px;border:1px solid var(--border)}
+.action-card .act-yes{color:#0a0e1e;background:var(--accent);border-color:var(--accent)}
+.action-card .act-yes:disabled{opacity:.6;cursor:default}
+.action-card .act-no{color:var(--muted);background:transparent}
+.skill-sel{font-family:var(--font-mono);font-size:12px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px;cursor:pointer}
 .bubble.alert{border-color:var(--red);background:rgba(255,45,85,.08);box-shadow:0 0 20px rgba(255,45,85,.15)}
 .bubble.dx{border-color:var(--yellow);background:rgba(255,214,10,.06);box-shadow:0 0 16px rgba(255,214,10,.1)}
 .bubble.auto-alert{border-color:var(--green);background:rgba(0,255,136,.07);box-shadow:0 0 20px rgba(0,255,136,.18);animation:autoAlertPulse 1.6s ease 2}
@@ -198,6 +204,10 @@ textarea::placeholder{color:var(--muted)}
       <div class="coach-rate" id="coachRate"></div>
       <div class="coach-bands" id="coachBands"></div>
       <div class="coach-hints" id="coachHints"></div>
+      <label class="coach-nudge-toggle" title="Une phrase d'action poussée en toast quand un événement mérite ton attention : entité/département rare jamais fait et spotté, rythme effondré, silence radio." style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted,#8792B5);margin-top:6px;cursor:pointer">
+        <input type="checkbox" id="nudgeToggle" onchange="toggleNudges(this.checked)" style="cursor:pointer">
+        🤖 <span>Nudges en direct</span>
+      </label>
     </div>
     <div class="chat-msgs" id="chatMsgs">
       <div class="msg msg-agent">
@@ -209,6 +219,13 @@ textarea::placeholder{color:var(--muted)}
       <div class="quick-btns">
         <button class="qbtn qbtn-coach" onclick="coachAdvice()">🧠 COACH</button>
         <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points">🎓 DÉBRIEF</button>
+        <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)">🔇</button>
+        <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider">🎯 CHASSE ASSISTÉE</button>
+        <select id="skillSel" class="skill-sel" onchange="setSkill(this.value)" title="Niveau : adapte le ton et le niveau de détail des réponses de l'IA">
+          <option value="debutant">🐣 Débutant</option>
+          <option value="confirme">🎯 Confirmé</option>
+          <option value="expert">🚀 Expert</option>
+        </select>
         <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.','resume')">📡 ANALYSER</button>
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')">🏆 SCORE</button>
         <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')">⚡ SPOTS</button>
@@ -349,7 +366,10 @@ let systemPrompt = '';
 const rcT  = (s)   => (window.rcT  ? window.rcT(s)     : s);
 const rcTf = (s, p) => (window.rcTf ? window.rcTf(s, p) : s);
 const rcLangDirective = () => (window.rcLangDirective ? window.rcLangDirective() : '');
+const rcSkillDirective = () => (window.rcSkillDirective ? window.rcSkillDirective() : '');
 const rcLang = () => (window.rcGetLang ? window.rcGetLang() : 'fr');
+// Directives IA combinées (langue + niveau #21) ajoutées au prompt système.
+const rcAiDirectives = () => [rcLangDirective(), rcSkillDirective()].filter(Boolean).join('\n\n');
 
 // ─── CARTE LEAFLET ───────────────────────────────────────────────────────────
 let leafletMap = null;
@@ -1001,6 +1021,7 @@ function addMsg(role,text,type=''){
   const bub=document.createElement('div');
   bub.className='bubble'+(type?' '+type:'');
   bub.textContent=text;
+  if(role==='agent'&&text) addSpeakIcon(bub,text);   // 🔊 rejeu à la demande (#6)
   div.appendChild(lbl);div.appendChild(bub);
   c.appendChild(div);
   c.scrollTop=c.scrollHeight;
@@ -1009,6 +1030,33 @@ function addMsg(role,text,type=''){
   // (/data/spots_ranked) — plus de re-parsing fragile de la prose de l'IA.
   refreshRankedStations();
 }
+
+// ─── LECTURE VOCALE HORS-LIGNE (#6) : le cœur rcSpeak est dans logx_statusbar.js
+// (partagé, voix locales). Ici : le toggle 🔊 et l'icône de rejeu par bulle. ──
+function addSpeakIcon(bub,text){
+  if(!bub||!window.speechSynthesis) return;
+  const b=document.createElement('button');
+  b.textContent='🔊'; b.title=rcT('Lire à voix haute');
+  b.style.cssText='cursor:pointer;border:0;background:transparent;font-size:12px;opacity:.5;margin-left:6px;padding:0;vertical-align:1px';
+  b.onmouseenter=()=>b.style.opacity='1'; b.onmouseleave=()=>b.style.opacity='.5';
+  b.onclick=(e)=>{ e.stopPropagation(); if(window.rcSpeak) window.rcSpeak(text,true); };  // force : rejeu même toggle OFF
+  bub.appendChild(b);
+}
+function syncTtsBtn(){
+  const b=document.getElementById('ttsBtn'); if(!b) return;
+  const on=window.rcTtsEnabled&&window.rcTtsEnabled();
+  b.textContent=on?'🔊':'🔇';
+  b.classList.toggle('qbtn-coach',!!on);   // réutilise le style « actif » du bouton COACH
+}
+function toggleTts(){
+  const on=!(window.rcTtsEnabled&&window.rcTtsEnabled());
+  try{ localStorage.setItem('rc_tts', on?'1':'0'); }catch(e){}
+  syncTtsBtn();
+  if(on&&window.rcSpeak) window.rcSpeak(rcT('Lecture vocale activée.'),true);   // confirmation audible
+}
+// Niveau IA (#21) : stocké dans rc_skill, lu par window.rcSkillDirective().
+function setSkill(v){ try{ localStorage.setItem('rc_skill', v); }catch(e){} }
+function syncSkillSel(){ const s=document.getElementById('skillSel'); if(s&&window.rcSkill) s.value=window.rcSkill(); }
 
 function showThinking(){
   const c=document.getElementById('chatMsgs');
@@ -1179,7 +1227,7 @@ async function send(forcedText,displayText,topic){
     conversationHistory.push({role:'user',content:text});
 
     // L'agent répond dans la langue choisie (directive ajoutée au prompt système).
-    const _dir=rcLangDirective();
+    const _dir=rcAiDirectives();
     const _sys=(systemPrompt||'')+(_dir?'\n\n'+_dir:'');
     if(_sys.trim())body.system=_sys;
 
@@ -1236,6 +1284,7 @@ function finalizeAgentReply(bub,reply){
   if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
   parseScores(reply);
   refreshRankedStations();
+  addSpeakIcon(bub,reply);   // 🔊 rejeu de la réponse streamée (#6)
   const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
 }
 
@@ -1381,6 +1430,90 @@ function resumeAnalyze(){
 // affiche à l'opérateur la version traduite dans sa langue.
 function qs(text,topic){send(text, rcT(text), topic);}
 
+// ─── CHASSE ASSISTÉE (#7) : l'agent PROPOSE une action, l'opérateur valide ────
+// L'agent (tool-use) propose UNE action physique (pointer l'antenne / QSY) sous
+// forme de carte à 2 boutons. Rien n'est exécuté tant que l'opérateur ne clique
+// pas VALIDER — qui appelle l'endpoint EXISTANT (/rotor/point, /rig/qsy).
+async function assistedHunt(){
+  if(isWaiting) return;
+  addMsg('user', rcT('🎯 Chasse assistée : trouve-moi le meilleur spot'));
+  isWaiting=true; document.getElementById('sendBtn').disabled=true; showThinking();
+  try{
+    const _dir=rcAiDirectives();
+    const _sys=(systemPrompt||'')+(_dir?'\n\n'+_dir:'');
+    const body={ needs_context:true };
+    if(_sys.trim()) body.system=_sys;
+    const r=await fetch('/agent/act',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!r.ok||!j.id) throw new Error(j.error||('HTTP '+r.status));
+    pollAct(j.id);
+  }catch(err){
+    removeThinking();
+    const bub=makeAgentBubble();
+    if(!(await offlineFallback('spots',bub))) bub.textContent='❌ '+err.message;
+    isWaiting=false; document.getElementById('sendBtn').disabled=false;
+  }
+}
+function pollAct(id){
+  const done=()=>{ isWaiting=false; const b=document.getElementById('sendBtn'); if(b)b.disabled=false; };
+  const tick=async()=>{
+    let s;
+    try{ const r=await fetch('/agent/act/state?id='+encodeURIComponent(id)); s=await r.json(); }
+    catch(e){ setTimeout(tick,2500); return; }
+    if(s.status==='running'){ setTimeout(tick,1500); return; }
+    removeThinking();
+    if(s.status==='done'){
+      const bub=makeAgentBubble(); finalizeAgentReply(bub, s.reply||rcT('Pas de réponse.'));
+      if(s.action) renderActionCard(s.action);
+    }else if(s.status==='error'){ addMsg('agent','❌ '+(s.error||rcT('analyse échouée'))); }
+    else{ addMsg('agent','⚠️ '+rcT('Analyse introuvable (serveur redémarré ?). Relance-la.')); }
+    done();
+  };
+  tick();
+}
+function renderActionCard(action){
+  const c=document.getElementById('chatMsgs');
+  const div=document.createElement('div'); div.className='msg msg-agent';
+  const lbl=document.createElement('div'); lbl.className='msg-lbl'; lbl.textContent='AGENT';
+  const card=document.createElement('div'); card.className='bubble action-card';
+  const cible=action.cible||'—';
+  const desc=(action.type==='rotor')
+    ? rcTf('🎯 Pointer l\'antenne à {az}° ({cible}) ?',{az:action.azimut,cible:cible})
+    : rcTf('📻 QSY sur {f} kHz {m} ({cible}) ?',{f:action.freq_khz,m:action.mode||'',cible:cible});
+  const head=document.createElement('div'); head.style.marginBottom='8px'; head.textContent=desc;
+  const row=document.createElement('div'); row.style.cssText='display:flex;gap:8px';
+  const yes=document.createElement('button'); yes.className='act-yes'; yes.textContent='✅ '+rcT('VALIDER');
+  const no=document.createElement('button'); no.className='act-no'; no.textContent='✕ '+rcT('ANNULER');
+  yes.onclick=()=>execAction(action,card,yes,no);
+  no.onclick=()=>{ card.textContent='✕ '+rcT('Action annulée.'); };   // tool_result « refusé »
+  row.appendChild(yes); row.appendChild(no);
+  card.appendChild(head); card.appendChild(row);
+  div.appendChild(lbl); div.appendChild(card); c.appendChild(div); c.scrollTop=c.scrollHeight;
+  if(window.rcSpeak) window.rcSpeak(desc);
+}
+async function execAction(action,card,yes,no){
+  yes.disabled=true; no.disabled=true; yes.textContent='⏳';   // anti-double-clic (idempotence)
+  try{
+    let r;
+    if(action.type==='rotor'){
+      const b={azimuth:action.azimut};
+      if(typeof currentBand!=='undefined'&&currentBand) b.bande=currentBand;
+      r=await fetch('/rotor/point',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+    }else{
+      const b={freq_khz:action.freq_khz}; if(action.mode) b.mode=action.mode;
+      r=await fetch('/rig/qsy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+    }
+    const res=await r.json();
+    if(r.ok && res && res.ok!==false){
+      card.textContent=(action.type==='rotor')
+        ? '✅ '+rcTf('Antenne pointée à {az}°.',{az:action.azimut})
+        : '✅ '+rcTf('Radio sur {f} kHz.',{f:action.freq_khz});
+    }else{
+      card.textContent='❌ '+((res&&res.error)||rcT('échec de la commande'));
+    }
+  }catch(e){ card.textContent='❌ '+e.message; }
+}
+
 // ─── COACH STRATÉGIQUE ────────────────────────────────────────────────────────
 let coachState=null;
 
@@ -1447,7 +1580,13 @@ function renderCoach(){
   hintsHtml+=(coachState.hints||[]).slice(0,3).map(h=>
     `<div class="coach-hint ch-${h.level}">${h.icon} ${h.text}</div>`).join('');
   document.getElementById('coachHints').innerHTML=hintsHtml;
+  const _nt=document.getElementById('nudgeToggle');   // reflète l'état stocké (OFF par défaut)
+  if(_nt)_nt.checked=(localStorage.getItem('rc_live_nudges')==='1');
 }
+
+// Interrupteur « Nudges en direct » : la barre d'état (logx_statusbar.js) lit
+// rc_live_nudges à chaque poll /coach/state pour demander (ou non) le calcul.
+function toggleNudges(on){ try{ localStorage.setItem('rc_live_nudges', on?'1':'0'); }catch(e){} }
 
 // ─── CARTE PILOTÉE PAR LE MOTEUR (spots classés structurés) ──────────────────
 // Remplace le re-parsing de la prose du LLM : priorités et positions fiables,
@@ -1615,6 +1754,7 @@ maintenant. Si aucun des deux cas ne s'applique, réponds EXACTEMENT et UNIQUEME
     calls.forEach(c => lastAlertedCalls[c] = now);
     addMsg('agent', reply, 'auto-alert');
     playAlertSound();
+    if(window.rcSpeak) window.rcSpeak(reply);   // lecture vocale de l'alerte (#6, si 🔊 activé)
     if(document.hidden) startTitleFlash();
   }catch(e){ console.warn('[AUTO-CHECK]', e); }
   finally{ autoCheckInProgress = false; }
@@ -1739,6 +1879,8 @@ loadConfig();
 scheduleRefresh();
 scheduleAutoCheck();
 resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
+syncTtsBtn();      // état initial du bouton 🔊 (#6)
+syncSkillSel();    // niveau IA courant dans le sélecteur (#21)
 </script>
 </body>
 </html>

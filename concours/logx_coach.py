@@ -817,3 +817,45 @@ def answer_text(state, topic, cdef=None, lang='fr'):
         return '\n'.join(x for x in lines if x)
 
     return ''      # sujet inconnu (texte libre) : le client montre off_freetext
+
+
+# ─── NUDGE ÉVÉNEMENTIEL (une phrase d'action, poussée en toast) ──────────────
+
+def coach_nudge(state, lang='fr'):
+    """UN nudge d'action MAINTENANT, ou None. Événementiel : ne renvoie que ce
+    qui mérite d'interrompre l'opérateur, avec une signature de dédup (le client
+    n'affiche pas deux fois le même événement, et débounce dans le temps).
+
+    Priorité — la plus payante d'abord :
+      1) une entité/dept JAMAIS faite à vie ET actuellement spottée : le spot lui-
+         même PROUVE que la bande est ouverte vers elle (calculé côté serveur,
+         voir /coach/state -> new_targets) ;
+      2) effondrement du rythme (bien sous la moyenne, temps restant utile) ;
+      3) silence radio prolongé.
+    Rien en dehors du concours en cours (un nudge hors épreuve n'a pas de sens)."""
+    clock = (state or {}).get('clock', {}) or {}
+    if clock.get('status') != 'en_cours':
+        return None
+    stats = (state or {}).get('stats', {}) or {}
+
+    targets = (state or {}).get('new_targets') or []
+    if targets:
+        n = targets[0]
+        call = n.get('call', '')
+        freq = (' ' + str(n.get('freq'))) if n.get('freq') else ''
+        key = 'nudge_new_dxcc' if n.get('type') == 'dxcc' else 'nudge_new_dept'
+        return {'sig': 'target:' + str(call), 'level': 'action',
+                'text': t(lang, key, label=n.get('label', ''), call=call, freq_txt=freq)}
+
+    avg = stats.get('rate_avg')
+    last_h = stats.get('qso_last_hour', 0)
+    remaining = clock.get('remaining_h', 0) or 0
+    if avg and avg >= 20 and last_h < 0.5 * avg and remaining > 0.5:
+        return {'sig': 'rate:%d' % int(last_h), 'level': 'attention',
+                'text': t(lang, 'nudge_rate', last_h=last_h, avg=round(avg))}
+
+    msl = stats.get('minutes_since_last')
+    if msl is not None and msl >= 15:
+        return {'sig': 'silence:%d' % (int(msl) // 15), 'level': 'attention',
+                'text': t(lang, 'nudge_silence', min=int(msl))}
+    return None

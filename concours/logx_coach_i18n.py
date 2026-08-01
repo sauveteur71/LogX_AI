@@ -101,6 +101,12 @@ _FR = {
     'off_mults_hint': "Pour voir les mults qui MANQUENT, il faut le cluster (retour en ligne).",
     'off_spots_na': "⚠ Hors-ligne : impossible de vérifier tes spots (cluster / PSK / RBN sans réseau). "
                     "Je peux te donner 🏆 Score, 📶 Prop, 🎯 Mults et 📋 Résumé.",
+    # Nudges IA événementiels (coach_nudge) : UNE phrase d'action en toast.
+    'nudge_new_dxcc': "🌍 {label} jamais fait à vie ET spotté ({call}{freq_txt}) — appelle-le !",
+    'nudge_new_dept': "🇫🇷 {label} jamais fait à vie ET spotté ({call}{freq_txt}) — appelle-le !",
+    'nudge_rate': "Rythme effondré : {last_h} QSO sur la dernière heure contre {avg}/h de moyenne — "
+                  "change de bande, de cap, ou passe en recherche.",
+    'nudge_silence': "Silence radio depuis {min} min — lance un appel ou va chercher les mults spottés.",
 }
 
 # ─── LANGUES TRADUITES À LA MAIN (jargon radioamateur respecté) ────────────────
@@ -161,6 +167,11 @@ _EN = {
     'off_mults_hint': 'To see the mults you are MISSING you need the cluster (back online).',
     'off_spots_na': '⚠ Offline: cannot check your spots (cluster / PSK / RBN need the network). '
                     'I can give you 🏆 Score, 📶 Prop, 🎯 Mults and 📋 Summary.',
+    'nudge_new_dxcc': '🌍 {label} never worked AND spotted now ({call}{freq_txt}) — call it!',
+    'nudge_new_dept': '🇫🇷 {label} never worked AND spotted ({call}{freq_txt}) — call it!',
+    'nudge_rate': 'Rate collapsed: {last_h} QSO in the last hour vs {avg}/h average — '
+                  'change band, heading, or switch to search.',
+    'nudge_silence': 'Radio silent for {min} min — call CQ or go hunt the spotted mults.',
 }
 
 _DE = {
