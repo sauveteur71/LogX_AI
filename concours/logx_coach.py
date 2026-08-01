@@ -721,3 +721,99 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
         'band_change': band_change,
         'coach_prompt': build_coach_prompt(cdef, clock, stats, plan, hints),
     }
+
+
+# ─── RÉPONSES HORS-LIGNE DU CHAT (repli déterministe, ZÉRO LLM) ───────────────
+
+def _off_clock(clock, lang):
+    st = (clock or {}).get('status')
+    if st == 'en_cours':
+        return t(lang, 'off_clock_run', h='%.0f' % (clock.get('remaining_h') or 0),
+                 pct=clock.get('pct_done', 0))
+    if st == 'avant':
+        return t(lang, 'off_clock_before', h='%.0f' % (clock.get('starts_in_h') or 0))
+    if st == 'termine':
+        return t(lang, 'off_clock_done')
+    return t(lang, 'off_no_contest')
+
+
+def _off_nmults(stats):
+    nm = stats.get('exchange_mults')
+    if isinstance(nm, (list, dict)):
+        return len(nm)
+    if nm is not None:
+        return nm
+    if stats.get('departments') is not None:
+        return stats['departments']
+    return 0
+
+
+def _off_score(clock, stats, lang):
+    line = t(lang, 'off_score', qso=stats.get('qso_total', 0), score=stats.get('score', 0))
+    if stats.get('score_with_mults') is not None:
+        line += t(lang, 'off_score_m', score_m=stats['score_with_mults'], nmults=_off_nmults(stats))
+    if stats.get('departments') is not None:
+        line += t(lang, 'off_depts', ndept=stats['departments'])
+    return line
+
+
+def _off_rate(stats, lang):
+    line = t(lang, 'off_rate', last_h=stats.get('qso_last_hour', 0))
+    if stats.get('rate_avg') is not None:
+        line += t(lang, 'off_rate_avg', avg='%.0f' % stats['rate_avg'])
+    msl = stats.get('minutes_since_last')
+    if msl is not None and msl >= 10:
+        line += t(lang, 'off_silence', min=msl)
+    return line
+
+
+def answer_text(state, topic, cdef=None, lang='fr'):
+    """Réponse TEXTE déterministe (ZÉRO LLM) à un sujet du chat, pour le repli
+    HORS-LIGNE : quand l'IA est injoignable (expédition sans internet), les
+    boutons rapides du chat répondent quand même via l'état DÉJÀ calculé par
+    build_coach_state. On ne recopie AUCUNE logique de score/mults — on formate.
+
+    Renvoie '' pour un sujet non répondable sans réseau (texte libre) : le
+    client affiche alors le message « boutons seulement »."""
+    clock = (state or {}).get('clock', {}) or {}
+    stats = (state or {}).get('stats', {}) or {}
+    plan = (state or {}).get('band_plan', []) or []
+    topic = (topic or '').lower()
+
+    if topic == 'spots':
+        return t(lang, 'off_spots_na')            # nécessite le réseau : honnête
+
+    if topic == 'score':
+        return '\n'.join([_off_clock(clock, lang), _off_score(clock, stats, lang),
+                          _off_rate(stats, lang)])
+
+    if topic in ('prop', 'openings'):
+        if not plan:
+            return t(lang, 'off_bands_none')
+        rows = '\n'.join(t(lang, 'off_band_row', band=p['band'], reason=p['reason'])
+                         for p in plan)
+        return t(lang, 'off_bands_head') + '\n' + rows
+
+    if topic == 'mults':
+        if stats.get('score_with_mults') is not None or stats.get('departments') is not None:
+            head = t(lang, 'off_mults_head', nmults=_off_nmults(stats),
+                     score_m=stats.get('score_with_mults', stats.get('score', 0)))
+        else:
+            head = t(lang, 'off_mults_none')
+        parts = [head]
+        by = stats.get('by_band') or {}
+        if by:
+            rows = ', '.join('%s MHz (%d)' % (b, n)
+                             for b, n in sorted(by.items(), key=lambda kv: -kv[1]))
+            parts.append(t(lang, 'off_byband_head', rows=rows))
+        parts.append(t(lang, 'off_mults_hint'))
+        return '\n'.join(parts)
+
+    if topic == 'resume':
+        hints = (state or {}).get('hints') or []
+        lines = [_off_clock(clock, lang), _off_score(clock, stats, lang), _off_rate(stats, lang)]
+        if hints:
+            lines.append('💡 ' + (hints[0].get('text') or ''))
+        return '\n'.join(x for x in lines if x)
+
+    return ''      # sujet inconnu (texte libre) : le client montre off_freetext

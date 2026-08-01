@@ -80,6 +80,27 @@ _FR = {
     'run_stable': "Rate stable ({r10}/h) — garde la fréquence.",
     'sp_soft': "Rate mou ({r10}/h) — alterne : un tour de cluster puis "
                "retour en appel.",
+    # Réponses HORS-LIGNE du chat (answer_text) : le coach déterministe répond
+    # aux boutons rapides quand l'IA est injoignable (expédition sans internet).
+    'off_score': "🏆 {qso} QSO — {score} points",
+    'off_score_m': " (avec multiplicateurs : {score_m} pts, {nmults} mults)",
+    'off_depts': " · {ndept} département(s)",
+    'off_clock_run': "⏱ reste {h} h ({pct} %)",
+    'off_clock_before': "⏳ départ dans {h} h",
+    'off_clock_done': "🏁 concours terminé — pense à exporter et déposer",
+    'off_no_contest': "Aucun concours actif — choisis-le dans CONFIG",
+    'off_rate': "📈 {last_h} QSO sur la dernière heure",
+    'off_rate_avg': " · moyenne {avg}/h",
+    'off_silence': " · silence radio depuis {min} min",
+    'off_bands_head': "📶 Bandes maintenant (du plus rentable au moins) :",
+    'off_band_row': "• {band} MHz — {reason}",
+    'off_bands_none': "Aucune bande configurée pour ce concours.",
+    'off_mults_head': "🎯 {nmults} multiplicateur(s) confirmé(s), score avec mults : {score_m} pts.",
+    'off_mults_none': "🎯 Aucun multiplicateur confirmé pour l'instant.",
+    'off_byband_head': "Par bande : {rows}",
+    'off_mults_hint': "Pour voir les mults qui MANQUENT, il faut le cluster (retour en ligne).",
+    'off_spots_na': "⚠ Hors-ligne : impossible de vérifier tes spots (cluster / PSK / RBN sans réseau). "
+                    "Je peux te donner 🏆 Score, 📶 Prop, 🎯 Mults et 📋 Résumé.",
 }
 
 # ─── LANGUES TRADUITES À LA MAIN (jargon radioamateur respecté) ────────────────
@@ -121,6 +142,25 @@ _EN = {
     'change_band': '{r10}/h and no mult spotted — change band (check the band plan and the MUF).',
     'run_stable': 'Rate stable ({r10}/h) — hold the frequency.',
     'sp_soft': 'Rate soft ({r10}/h) — alternate: one sweep of the cluster then back to calling.',
+    'off_score': '🏆 {qso} QSO — {score} points',
+    'off_score_m': ' (with multipliers: {score_m} pts, {nmults} mults)',
+    'off_depts': ' · {ndept} department(s)',
+    'off_clock_run': '⏱ {h} h left ({pct} %)',
+    'off_clock_before': '⏳ start in {h} h',
+    'off_clock_done': '🏁 contest over — remember to export and submit',
+    'off_no_contest': 'No active contest — pick it in CONFIG',
+    'off_rate': '📈 {last_h} QSO in the last hour',
+    'off_rate_avg': ' · {avg}/h average',
+    'off_silence': ' · radio silence for {min} min',
+    'off_bands_head': '📶 Bands right now (most to least rewarding):',
+    'off_band_row': '• {band} MHz — {reason}',
+    'off_bands_none': 'No band configured for this contest.',
+    'off_mults_head': '🎯 {nmults} multiplier(s) confirmed, score with mults: {score_m} pts.',
+    'off_mults_none': '🎯 No multiplier confirmed yet.',
+    'off_byband_head': 'By band: {rows}',
+    'off_mults_hint': 'To see the mults you are MISSING you need the cluster (back online).',
+    'off_spots_na': '⚠ Offline: cannot check your spots (cluster / PSK / RBN need the network). '
+                    'I can give you 🏆 Score, 📶 Prop, 🎯 Mults and 📋 Summary.',
 }
 
 _DE = {

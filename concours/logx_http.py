@@ -2136,6 +2136,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(coach.build_debrief(cfg_snap, log_copy))
             return
 
+        # Réponse DÉTERMINISTE (zéro LLM) à un sujet du chat — repli HORS-LIGNE :
+        # quand l'IA est injoignable (expédition sans internet), les boutons
+        # rapides du chat basculent ici. Réutilise build_coach_state (aucune
+        # logique de score recopiée) et le formateur answer_text. Aucun réseau :
+        # le K vient du cache seul, tout le reste est calculé depuis le log.
+        if path == '/coach/answer':
+            import logx_coach as coach
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            topic = (q.get('topic') or [''])[0]
+            lang = (q.get('lang') or ['fr'])[0]
+            cfg_snap = self._cfg_snapshot()
+            k_index = None
+            try:
+                from logx_clusters import get_solar_cached
+                k_index = (get_solar_cached() or {}).get('k_index')
+            except Exception:
+                pass
+            with log_lock:
+                log_copy = list(shared_log)
+            state = coach.build_coach_state(cfg_snap, log_copy, None,
+                                            mult_spots_count=None, k_index=k_index, lang=lang)
+            cdef = CONTEST_DEFINITIONS.get(cfg_snap.get('contest', ''), {})
+            text = coach.answer_text(state, topic, cdef, lang)
+            self._json({'ok': bool(text), 'topic': topic, 'text': text})
+            return
+
         # Recherche d'un indicatif en cascade : QRZ.com (si identifiants
         # configurés) -> HamQTH -> HamDB (identifiants QRZ lus dans la config,
         # jamais dans la requête ni renvoyés au client ; les deux replis
