@@ -242,6 +242,64 @@ def post_url_form(url, fields, timeout=10, headers=None):
 _LOCATOR_RE = re.compile(r'^[A-R]{2}[0-9]{2}(?:[A-X]{2}(?:[0-9]{2})?)?$')
 
 
+# ─── LA DATE LIMITE DE DÉPÔT, EN VRAIE DATE ─────────────────────────────────
+# Le champ `log_deadline` des définitions mêle des codes exploitables
+# (« wednesday_after », « 7_days_after », « second_monday_after »…) et du texte
+# libre (« 14 jours »). Ces codes étaient AFFICHÉS TELS QUELS à l'opérateur —
+# le coach lui annonçait « délai wednesday_after », ce qui ne dit pas s'il lui
+# reste quatre jours ou s'il est déjà en retard.
+#
+# Cette fonction rend la date réelle quand le code est interprétable, et laisse
+# passer le texte libre sans l'inventer : mieux vaut « 14 jours » affiché tel
+# quel qu'une date fausse au jour près sur une échéance de dépôt.
+_DEADLINE_JOURS = {'lundi': 0, 'monday': 0, 'mardi': 1, 'tuesday': 1,
+                   'mercredi': 2, 'wednesday': 2, 'jeudi': 3, 'thursday': 3,
+                   'vendredi': 4, 'friday': 4, 'samedi': 5, 'saturday': 5,
+                   'dimanche': 6, 'sunday': 6}
+
+
+def date_limite_depot(log_deadline, fin_concours):
+    """(date, texte_brut) — la date limite de dépôt, résolue si possible.
+
+    `fin_concours` : date ou datetime de fin de l'épreuve.
+    Rend (None, texte) quand le délai n'est pas interprétable : l'appelant
+    affiche alors le texte tel quel, sans prétendre à une date.
+    """
+    brut = str(log_deadline or '').strip()
+    if not brut or fin_concours is None:
+        return None, brut
+    fin = fin_concours
+    if isinstance(fin, datetime.datetime):
+        fin = fin.date()
+    if not isinstance(fin, datetime.date):
+        return None, brut
+    cle = brut.lower()
+
+    m = re.match(r'^(\d+)_days?_after$', cle)
+    if m:
+        return fin + datetime.timedelta(days=int(m.group(1))), brut
+    m = re.match(r'^(\d+)_hours?_after$', cle)
+    if m:
+        # Arrondi au jour SUPÉRIEUR : une échéance à 48 h après une fin le
+        # dimanche tombe le mardi. Annoncer le lundi ferait courir l'opérateur
+        # pour rien ; annoncer trop tard lui coûterait sa participation, donc
+        # on ne dépasse jamais l'échéance réelle.
+        h = int(m.group(1))
+        return fin + datetime.timedelta(days=h // 24), brut
+    m = re.match(r'^(?:(second|deuxieme|deuxième|first|premier)_)?'
+                 r'([a-zéè]+)_after$', cle)
+    if m:
+        rang, nom = m.group(1), m.group(2)
+        jour = _DEADLINE_JOURS.get(nom)
+        if jour is not None:
+            delta = (jour - fin.weekday()) % 7 or 7   # STRICTEMENT après la fin
+            d = fin + datetime.timedelta(days=delta)
+            if rang in ('second', 'deuxieme', 'deuxième'):
+                d += datetime.timedelta(days=7)
+            return d, brut
+    return None, brut
+
+
 def locator_to_latlon(loc):
     """Centre de la case Maidenhead, en (lat, lon). (None, None) si invalide.
 

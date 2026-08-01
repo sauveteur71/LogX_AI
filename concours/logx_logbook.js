@@ -215,7 +215,10 @@ function bandeauxRythmeMasques(){
 // score, ni log à soumettre — proposer EDI, VÉRIFIER ou ARCHIVER n'y a aucun
 // sens et ne ferait qu'égarer. C'est le pendant côté écran du travail fait
 // côté serveur dans logx_mode.py.
-function itemsMenuLogbook(){
+// `format` : 'EDI' ou 'CABRILLO', celui que l'organisateur attend. Passé en
+// paramètre — et non lu dans l'état global — pour que cette fonction reste
+// PURE : elle est exécutée seule, dans un V8 nu, par le test du menu.
+function itemsMenuLogbook(format){
   const concours = contestActif();
   const grp = [];
   const avant = [];
@@ -230,7 +233,13 @@ function itemsMenuLogbook(){
   const apres = [];
   if(concours){
     apres.push(['🔍', 'VÉRIFIER le log avant envoi', 'showValidation']);
-    apres.push(['📥', 'Exporter EDI', 'exportEDI']);
+    // Le libellé dit le format que l'organisateur ATTEND. « Exporter EDI » était
+    // affiché pour tous les concours, y compris les vingt-six qui déposent en
+    // Cabrillo — et pour dix-sept d'entre eux le bouton ne produisait rien.
+    // Le format arrive en PARAMÈTRE : cette fonction doit rester pure, elle est
+    // exécutée seule dans un V8 nu par test_logbook_menu_debut_fin.py.
+    apres.push(['📥', format === 'EDI' ? 'Exporter le log (EDI)'
+                                       : 'Exporter le log (Cabrillo)', 'exportEDI']);
   }
   apres.push(['📥', 'Exporter ADIF', 'exportADIF']);
   apres.push(['📥', 'Exporter CSV', 'exportCSV']);
@@ -249,7 +258,7 @@ function buildLbMenu(){
   const esc = s => String(s).replace(/[&<>"']/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let h = '';
-  itemsMenuLogbook().forEach(([titre, items], i) => {
+  itemsMenuLogbook(formatDepot()).forEach(([titre, items], i) => {
     if(!items.length) return;
     if(i) h += '<hr>';
     // window.rcT et PAS rcT : une variable non déclarée lève une
@@ -561,6 +570,10 @@ function hav(lat1,lon1,lat2,lon2){
 // concours de la base — y compris ceux analysés par l'IA — est scoré juste.
 // La table codée en dur plus bas ne sert plus que de repli hors-ligne.
 let contestScoringDefs = {};   // id concours → bloc scoring (type/params/bricks)
+// Les règles de DÉPÔT du concours (format du fichier, adresse, date limite).
+// Elles voyagent déjà dans /data/calendar mais n'étaient conservées nulle part :
+// l'export retombait sur une liste d'identifiants écrite à la main.
+let contestDepotDefs = {};     // id concours → {log_format, log_submit, log_deadline}
 
 async function loadScoringDefs(){
   try{
@@ -568,9 +581,33 @@ async function loadScoringDefs(){
     const data = await res.json();
     (data.contests || []).forEach(c => {
       if (c.scoring) contestScoringDefs[c.id] = c.scoring;
+      contestDepotDefs[c.id] = {log_format: c.log_format || '',
+                                log_submit: c.log_submit || '',
+                                log_deadline: c.log_deadline || ''};
     });
     console.log(`[SCORING] ${Object.keys(contestScoringDefs).length} barèmes chargés du serveur`);
   }catch(e){ console.warn('[SCORING] serveur indisponible, barèmes locaux :', e); }
+}
+
+// ── LE FORMAT DE DÉPÔT VIENT DU RÈGLEMENT, PAS D'UNE LISTE ÉCRITE À LA MAIN ──
+// Le routage se faisait sur HF_CONTESTS, douze identifiants codés en dur, alors
+// que VINGT-SIX définitions déclarent `log_format: 'CABRILLO'`. Mesuré sur la
+// base livrée : dix-sept concours Cabrillo — WAEDC CW/SSB/RTTY, ARRL 10 m et
+// 160 m, Russian DX, EU HF Championship, All Asian, Stew Perry, UBA, SP, HA,
+// REF 160 m, les deux UFT Challenge — tombaient dans la branche EDI et
+// n'obtenaient AUCUN fichier : « Aucun QSO VHF/UHF à exporter ». Au moment du
+// dépôt, veille de date limite. Trois identifiants de cette liste n'existaient
+// même pas (IARU_HF, WAE_CW, WAE_SSB : les vrais sont WAEDC_*).
+const REPLI_FORMAT_DEPOT = {EDI: 'EDI', CABRILLO: 'CABRILLO', ADIF: 'ADIF'};
+
+function formatDepot(contestId){
+  const d = contestDepotDefs[contestId || currentContest] || {};
+  const f = REPLI_FORMAT_DEPOT[String(d.log_format || '').toUpperCase()];
+  if (f) return f;
+  // Définition muette (3 sur 41) ou serveur injoignable au moment du clic :
+  // on déduit des bandes RÉELLEMENT présentes dans le log plutôt que de
+  // deviner d'après l'identifiant. L'EDI est le format des concours THF.
+  return estConcoursThf() ? 'EDI' : 'CABRILLO';   // BANDES_THF, plus bas
 }
 
 // Presets points-only des types historiques — miroir de LEGACY_SCORING_PRESETS
@@ -4400,9 +4437,24 @@ async function undoLastQSO(){
 }
 
 // ─── STATS ───────────────────────────────────────────────────────────────────
-// Concours VHF/UHF — affichage 144/432
-const VHF_CONTESTS = new Set(['REF_RPH','REF_QRP','REF_CCD','REF_VHF_UHF_FR',
-  'IARU_VHF','IARU_UHF','EU_VHF','DARC_VHF','OARC_VHF']);
+// Concours THF : les compteurs affichent « QSO 144 / 432 » et les locators
+// uniques, au lieu du total par bande et des sections.
+//
+// MÊME DÉFAUT QUE LE ROUTAGE D'EXPORT, mesuré sur la base livrée : la liste
+// codée en dur comptait NEUF identifiants dont CINQ n'existaient pas
+// (DARC_VHF, REF_CCD, EU_VHF, OARC_VHF, REF_VHF_UHF_FR), et elle en oubliait
+// sept bien réels — dont REF_CDF_THF (le Championnat de France THF),
+// REF_NAT_THF, IARU_MARCONI et les deux UFT Challenge. Un opérateur du CDF THF
+// voyait donc des statistiques HF pendant tout le concours.
+//
+// On déduit désormais du LOG lui-même : si des QSO sont sur des bandes THF,
+// c'est un concours THF. La donnée est sous la main, elle ne périme pas, et
+// elle ne dépend d'aucun identifiant à tenir à jour.
+const BANDES_THF = ['144','432','1296','2320','3400','5760','10368','24048','47088'];
+
+function estConcoursThf(){
+  return qsoLog.some(q => BANDES_THF.includes(String(q.band)));
+}
 
 // Compte des doublons (même call + même bande) en O(n) — remplace un
 // filter()+findIndex() O(n²) qui était recalculé à chaque poll/ajout.
@@ -4417,7 +4469,7 @@ function countDupes(log){
 }
 
 function updateStats(){
-  const isVHF = VHF_CONTESTS.has(currentContest);
+  const isVHF = estConcoursThf();
 
   // ── Recalculer points dynamiquement selon le concours actif ─────────────
   let total = 0;
@@ -5335,13 +5387,9 @@ function exportEDI(){
   const TDATE_END   = (ediCfg.contest_end_date  ||'20260705').replace(/-/g,'');
   const totalScore  = qsoLog.reduce((s,q)=>s+(q.points||0),0);
 
-  // Détecter si concours HF → Cabrillo, VHF/UHF → EDI
-  const HF_CONTESTS = ['ARRL_FD','ARRL_DX_SSB','ARRL_DX_CW','CQ_WW_SSB','CQ_WW_CW',
-                        'CQ_WPX_SSB','CQ_WPX_CW','REF_CDF_HF_SSB','REF_CDF_HF_CW',
-                        'IARU_HF','WAE_CW','WAE_SSB'];
-  const isHFContest = HF_CONTESTS.includes(currentContest);
-
-  if(isHFContest){
+  // Le format vient du RÈGLEMENT du concours (voir formatDepot) et non plus
+  // d'une liste d'identifiants tenue à la main, qui en oubliait dix-sept.
+  if(formatDepot() !== 'EDI'){
     exportCabrillo(ediCfg, myCall);
     return;
   }
