@@ -29,7 +29,8 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 - Callbook (QRZ/HamQTH/HamDB), historique d'indicatifs (Super Check Partial, MASTER.SCP, Call History N1MM), DXCC/pays.
 - Programmes portables POTA/SOTA/IOTA/WWFF/WCA, chasse aux départements français, diplômes, satellites (`PROP_MODE=SAT` à l'export).
 - Export Cabrillo v3 / ADIF 3 / EDI, upload eQSL/ClubLog/LoTW, scoreboard en direct.
-- Annuaire WebSDR (écoute déportée) ; page CONFIGURATION en hub de catégories, avec une aide contextuelle rédigée pour chaque réglage.
+- Annuaire WebSDR vivant (~880 récepteurs, carte cliquable, occupation et SNR en direct) : « s'écouter » depuis le band map, ou écouter un spot sur un récepteur proche du DX avant de l'appeler.
+- Page CONFIGURATION en hub de catégories, avec une aide contextuelle rédigée pour chaque réglage.
 - **Mise à jour proposée automatiquement**, sans perte de données — et, sur le terrain, relayable par un poste voisin du réseau local quand un seul a Internet.
 - Interface en 8 langues, mode débutant/expert, quatre modes d'utilisation (carnet simple, concours, expédition, radioclub).
 

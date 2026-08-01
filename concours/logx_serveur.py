@@ -147,6 +147,29 @@ if __name__ == '__main__':
             print('[TLE] indisponible : %s' % e)
     threading.Thread(target=_maj_tle, daemon=True).start()
 
+    # Annuaire WebSDR : la liste KiwiSDR de linkfanel toutes les 15 min (UN
+    # fichier = l'état des ~850 récepteurs, personne n'est martelé — voir
+    # logx_websdr), et la sonde douce des stations curées toutes les heures.
+    # En boucle de fond, jamais dans un handler ; l'échec conserve le cache.
+    def _maj_websdr():
+        import time as _t
+        import logx_websdr as ws
+        tours = 0
+        while True:
+            try:
+                r = ws.rafraichir_kiwis()
+                if tours == 0:
+                    print('[WEBSDR] %s' % ('%d récepteurs' % r['nb']
+                                           if r.get('ok') else r.get('error', 'echec')))
+                if tours % 4 == 0:      # 1 h : la sonde des curées
+                    ws.sonder_cures()
+            except Exception as e:
+                if tours == 0:
+                    print('[WEBSDR] indisponible : %s' % e)
+            tours += 1
+            _t.sleep(15 * 60)
+    threading.Thread(target=_maj_websdr, daemon=True).start()
+
     # Liste publique des utilisateurs LoTW (ARRL) : sert à colorer les
     # indicatifs et à écarter des alertes les stations qui n'uploadent jamais
     # — un QSO avec elles ne sera jamais confirmé, donc ne comptera jamais pour
