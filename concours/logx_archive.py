@@ -14,8 +14,8 @@ données utilisateur en mode application, cf. logx_bootstrap).
 """
 import os
 import json
-import datetime
 import re
+from logx_utils import utcnow
 
 ARCHIVE_DIR = 'archives'
 
@@ -34,7 +34,7 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None):
     if not qsos:
         return {'ok': False, 'error': 'Aucun QSO à archiver pour ce concours'}
     cfg = cfg or {}
-    now = datetime.datetime.utcnow()
+    now = utcnow()
     call = (cfg.get('callsign_contest') or cfg.get('callsign') or 'LOG').upper()
     name = f"{_safe(contest_id or 'CONTEST')}_{now.strftime('%Y%m%d-%H%M')}"
     folder = os.path.join(ARCHIVE_DIR, name)

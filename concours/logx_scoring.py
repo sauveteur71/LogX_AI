@@ -2,10 +2,9 @@
 """Moteur de score : valeur d'un QSO selon le concours, classement des stations, contexte de scoring pour l'IA."""
 
 import re
-import datetime
 
 from logx_definitions import CONTEST_DEFINITIONS
-from logx_utils import locator_to_latlon, haversine, bearing, cardinal
+from logx_utils import locator_to_latlon, haversine, bearing, cardinal, utcnow
 from logx_storage import shared_log, contest_actif
 
 # ─── MOTEUR DE SCORING UNIVERSEL ─────────────────────────────────────────────
@@ -806,7 +805,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     # 'dupe_reset':'daily', ex. WWA §7). Sans ça, une station spéciale
     # travaillée hier resterait « déjà faite » pour toujours.
     done_today_by_band = {}
-    _today_utc = datetime.datetime.utcnow().strftime('%Y%m%d')
+    _today_utc = utcnow().strftime('%Y%m%d')
     done_locators = set()
     done_large_squares = set()
     done_cq_zones = set()

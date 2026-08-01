@@ -24,6 +24,7 @@ qui l'a fait monter — « 2 mults neufs · ouverture 78 · 6 spots » — pour 
 l'opérateur puisse être en désaccord en connaissance de cause.
 """
 import datetime
+from logx_utils import utcnow
 
 # ─── Poids du classement ─────────────────────────────────────────────────────
 # Choisis pour que l'ORDRE DE GRANDEUR corresponde à ce qu'un opérateur fait
@@ -162,7 +163,7 @@ def spots_par_bande(spots):
 
 def qso_recents_par_bande(log, now=None, minutes=60):
     """{bande: nb de QSO des `minutes` dernières minutes} — détecte le run."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     limite = now - datetime.timedelta(minutes=minutes)
     out = {}
     for e in (log or []):
@@ -187,7 +188,7 @@ def concours_actifs(calendrier, bande='', mode='', now=None):
     calendrier, et la traiter comme « aucune » ferait disparaître les concours
     les plus ouverts — exactement ceux qui intéressent.
     """
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     b, m = _bande(bande), _txt(mode).upper()
     out = []
     for c in (calendrier or []):
@@ -272,7 +273,7 @@ def classer_bandes(bandes, spots=(), regions=(), log=(), now=None,
     Renvoie une liste de dictionnaires portant le score ET son détail, pour que
     la page puisse afficher « pourquoi » à côté de « où ».
     """
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     ouv = ouverture_par_bande(regions)
     sp = spots_par_bande(spots)
     qso = qso_recents_par_bande(log, now=now)

@@ -35,6 +35,7 @@ import datetime
 import json
 import math
 import os
+from logx_utils import utcnow, as_naive_utc
 
 try:
     import ephem
@@ -91,7 +92,7 @@ def sauver_tle(jeux, dossier=None, quand=None):
     l'époque des TLE : c'est lui qui dit depuis quand on n'a pas vu le réseau.
     """
     from logx_storage import save_json_atomic
-    data = {'recupere': (quand or datetime.datetime.utcnow()).isoformat(),
+    data = {'recupere': (quand or utcnow()).isoformat(),
             'source': TLE_URL, 'tle': jeux}
     save_json_atomic(_chemin_cache(dossier), data)
     return data
@@ -119,10 +120,16 @@ def age_tle(cache, maintenant=None):
     if not cache:
         return None
     try:
-        t = datetime.datetime.fromisoformat(str(cache.get('recupere')))
+        # as_naive_utc : le cache DÉJÀ présent chez les utilisateurs porte un
+        # horodatage sans fuseau, mais rien ne garantit qu'il en soit toujours
+        # ainsi (fichier recopié d'une autre installation, écrit par une
+        # version ultérieure...). Sans cette normalisation, un « +00:00 » ferait
+        # lever TypeError à la soustraction ci-dessous — HORS du try, donc en
+        # pleine figure de l'appelant.
+        t = as_naive_utc(datetime.datetime.fromisoformat(str(cache.get('recupere'))))
     except (TypeError, ValueError):
         return None
-    jours = ((maintenant or datetime.datetime.utcnow()) - t).total_seconds() / 86400.0
+    jours = ((maintenant or utcnow()) - t).total_seconds() / 86400.0
     if jours < AGE_FRAIS_JOURS:
         etat = 'frais'
     elif jours < AGE_VIEUX_JOURS:
@@ -192,7 +199,7 @@ def _observer(lat, lon, altitude_m=0, quand=None):
     # Pas de réfraction : on pointe une antenne sur la position GÉOMÉTRIQUE,
     # comme pour l'EME. La réfraction (~34' à l'horizon) fausserait un rotor.
     obs.pressure = 0
-    obs.date = quand or datetime.datetime.utcnow()
+    obs.date = quand or utcnow()
     return obs
 
 
@@ -256,7 +263,7 @@ def passages(cache, nom, lat, lon, altitude_m=0, heures=24,
     sat = _corps(cache, nom)
     if sat is None:
         return {'available': False, 'error': 'Satellite inconnu du jeu TLE : %s' % nom}
-    debut = quand or datetime.datetime.utcnow()
+    debut = quand or utcnow()
     fin = debut + datetime.timedelta(hours=float(heures or 24))
     obs = _observer(lat, lon, altitude_m, debut)
     out = []

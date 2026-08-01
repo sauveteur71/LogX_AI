@@ -21,6 +21,7 @@ import json
 import os
 import threading
 import time
+from logx_utils import utcnow
 
 TTL = 120
 _cache = {'qsos': None, 'at': 0.0}
@@ -1226,7 +1227,7 @@ def activity_by_day(shared_log=None, days=30):
         if len(d) == 8 and d.isdigit():
             counts[d] = counts.get(d, 0) + 1
     days = max(1, int(days))
-    end = datetime.datetime.utcnow()
+    end = utcnow()
     out = []
     for i in range(days - 1, -1, -1):
         d = (end - datetime.timedelta(days=i)).strftime('%Y%m%d')

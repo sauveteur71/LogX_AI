@@ -55,6 +55,7 @@ import re
 import threading
 import time
 import concurrent.futures as _cf
+from logx_utils import utcnow
 
 SYNC_PREFIX = 'logx_cloudsync_'
 # Tombstones de suppression : préfixe VOLONTAIREMENT hors du motif
@@ -404,8 +405,7 @@ def _sync_now_locked(cfg, shared_log):
 
 def _stamp(folder, pushed, pulled, sources):
     try:
-        import datetime
-        data = {'last': datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M'),
+        data = {'last': utcnow().strftime('%Y-%m-%d %H:%M'),
                 'folder': folder, 'pushed': pushed, 'pulled': pulled, 'sources': sources}
         with open(_STAMP_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f)

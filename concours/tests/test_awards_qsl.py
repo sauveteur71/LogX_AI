@@ -11,6 +11,7 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logx_awards as awards
 import logx_qsl as qsl
+from logx_utils import utcnow
 
 
 def _log():
@@ -136,7 +137,7 @@ def test_activity_by_day_fenetre_ancree_sur_aujourdhui(monkeypatch):
     aujourd'hui (UTC) — pas jusqu'à la dernière date de QSO du log, sans quoi
     l'activité paraîtrait figée après une pause dans le trafic."""
     _isolate_awards(monkeypatch)
-    today = datetime.datetime.utcnow().strftime('%Y%m%d')
+    today = utcnow().strftime('%Y%m%d')
     log = [{'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'date': today, 'time': '10:00'}]
     out = awards.activity_by_day(log, days=7)
     assert len(out) == 7
@@ -145,7 +146,7 @@ def test_activity_by_day_fenetre_ancree_sur_aujourdhui(monkeypatch):
 
 
 def test_activity_by_day_compte_plusieurs_qso_le_meme_jour():
-    d = (datetime.datetime.utcnow() - datetime.timedelta(days=2)).strftime('%Y%m%d')
+    d = (utcnow() - datetime.timedelta(days=2)).strftime('%Y%m%d')
     log = [{'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'date': d, 'time': '10:00'},
            {'call': 'G3XYZ', 'band': '14', 'mode': 'SSB', 'date': d, 'time': '10:05'}]
     out = awards.activity_by_day(log, days=10)
@@ -157,7 +158,7 @@ def test_activity_by_day_jour_hors_fenetre_ignore(monkeypatch):
     """Un QSO trop ancien (hors des `days` derniers jours) ne doit pas fausser
     le total ni apparaître dans la fenêtre renvoyée."""
     _isolate_awards(monkeypatch)
-    old = (datetime.datetime.utcnow() - datetime.timedelta(days=400)).strftime('%Y%m%d')
+    old = (utcnow() - datetime.timedelta(days=400)).strftime('%Y%m%d')
     log = [{'call': 'DL1AA', 'band': '14', 'mode': 'SSB', 'date': old, 'time': '10:00'}]
     out = awards.activity_by_day(log, days=5)
     assert old not in [r['date'] for r in out]
@@ -168,7 +169,7 @@ def test_activity_by_day_vide(monkeypatch):
     _isolate_awards(monkeypatch)
     assert awards.activity_by_day([], days=3) == [
         {'date': d, 'qso': 0} for d in
-        [(datetime.datetime.utcnow() - datetime.timedelta(days=i)).strftime('%Y%m%d')
+        [(utcnow() - datetime.timedelta(days=i)).strftime('%Y%m%d')
          for i in (2, 1, 0)]
     ]
 

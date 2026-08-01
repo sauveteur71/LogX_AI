@@ -46,7 +46,7 @@ from logx_bootstrap import (bootstrap, open_browser, is_frozen,
                             start_network_diagnosis, station_deja_configuree)
 bootstrap()
 
-from logx_utils import PORT
+from logx_utils import PORT, utcnow
 from logx_version import APP_VERSION
 from logx_storage import load_log_from_disk, load_qtc_from_disk, load_shifts_from_disk
 from logx_rules import load_rules_cache, load_external_contests, schedule_annual_check
@@ -206,7 +206,7 @@ if __name__ == '__main__':
                 due = True
                 if last:
                     try:
-                        age = (_dt.datetime.utcnow()
+                        age = (utcnow()
                                - _dt.datetime.strptime(last, '%Y-%m-%d %H:%M')).total_seconds()
                         due = age >= s['interval_min'] * 60 - 5
                     except Exception:
@@ -238,7 +238,7 @@ if __name__ == '__main__':
                 due = True
                 if last:
                     try:
-                        age = (_dt.datetime.utcnow()
+                        age = (utcnow()
                                - _dt.datetime.strptime(last, '%Y-%m-%d %H:%M')).total_seconds()
                         due = age >= s['interval_min'] * 60 - 5
                     except Exception:
@@ -271,7 +271,7 @@ if __name__ == '__main__':
                 interval_min = int(cfg.get('cloudsync_interval', 3) or 3)
                 if last:
                     try:
-                        age = (_dt.datetime.utcnow()
+                        age = (utcnow()
                                - _dt.datetime.strptime(last, '%Y-%m-%d %H:%M')).total_seconds()
                         due = age >= interval_min * 60 - 5
                     except Exception:

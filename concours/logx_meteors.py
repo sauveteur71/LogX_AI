@@ -13,6 +13,7 @@ Tout est DÉTERMINISTE (dates/ZHR tabulées, heuristique horaire) : aucune
 donnée réseau. Sert un panneau « MÉTÉORES » et enrichit le coach VHF.
 """
 import datetime
+from logx_utils import utcnow
 
 # Essaims majeurs exploitables en MS. (mois, jour) = maximum ; ZHR = taux
 # horaire zénithal au pic ; window = ± jours d'activité notable ; radiant_az =
@@ -51,7 +52,7 @@ def active_showers(now=None):
     """Essaims actifs (dans leur fenêtre) ou à venir sous 30 jours, triés du
     plus proche/actif au plus lointain. Chaque entrée porte days_to_peak et
     active(bool)."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     out = []
     for s in SHOWERS:
         best = None
@@ -75,7 +76,7 @@ def ms_quality(now=None):
     """Qualité MS courante (heuristique heure + essaims actifs).
     Retourne {level, score, reason, best_hours, showers}. level ∈
     {'excellent','bon','moyen','faible'}."""
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     showers = active_showers(now)
     active = [s for s in showers if s['active']]
 

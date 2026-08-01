@@ -17,7 +17,7 @@ répond avec ces chiffres.
 import datetime
 import math
 
-from logx_utils import locator_to_latlon, haversine, bearing, cardinal
+from logx_utils import locator_to_latlon, haversine, bearing, cardinal, utcnow
 
 # Centres représentatifs (densité de stations) des grandes régions DX.
 REGIONS = {
@@ -65,7 +65,7 @@ def time_of_day_state(my_locator, dx_locator=None, when=None):
     """Comparatif jour/nuit HOME vs DX (widget Time of Day) : élévation
     solaire + heure locale approximée pour chacun des deux points. `dx_locator`
     optionnel — absent tant que l'opérateur ne travaille aucune station."""
-    when = when or datetime.datetime.utcnow()
+    when = when or utcnow()
     result = {'utc': when.strftime('%H:%M'), 'home': _tod_side(my_locator, when)}
     if dx_locator:
         result['dx'] = _tod_side(dx_locator, when)
@@ -196,7 +196,7 @@ def _band_score(band, my_elev, dx_elev, muf, sfi, k, greyline):
 
 def path_openings(my_lat, my_lon, region_key, when=None, solar=None):
     """Ouvertures par bande vers `region_key` MAINTENANT + meilleure fenêtre 24 h."""
-    when = when or datetime.datetime.utcnow()
+    when = when or utcnow()
     name, dlat, dlon = REGIONS[region_key]
     dist = haversine(my_lat, my_lon, dlat, dlon)
     az_short = bearing(my_lat, my_lon, dlat, dlon)
@@ -249,7 +249,7 @@ def path_openings(my_lat, my_lon, region_key, when=None, solar=None):
 
 def all_regions(my_lat, my_lon, when=None, solar=None):
     """Meilleure bande + score par région (survol pour l'agent IA)."""
-    when = when or datetime.datetime.utcnow()
+    when = when or utcnow()
     out = []
     for key in REGIONS:
         p = path_openings(my_lat, my_lon, key, when, solar)
@@ -284,7 +284,7 @@ def prop_grid(my_lat, my_lon, band='best', when=None, solar=None, step=15):
     """Grille mondiale de scores d'ouverture depuis le QTH, pour une bande
     donnée (ou 'best' = meilleure bande par point). Chaque cellule :
     {lat, lon, score, band}. Cache par (bande, heure, solaire)."""
-    when = when or datetime.datetime.utcnow()
+    when = when or utcnow()
     muf = _muf_mhz(solar)
     sfi, k = _sfi_k(solar)
     key = (band, when.strftime('%Y%m%d%H'), round(muf), round(sfi), round(k),
@@ -322,7 +322,7 @@ def context_block(my_lat, my_lon, when=None, solar=None):
     QTH vers chaque grande région. Vide si position inconnue."""
     if my_lat is None or my_lon is None:
         return ''
-    when = when or datetime.datetime.utcnow()
+    when = when or utcnow()
     rows = all_regions(my_lat, my_lon, when, solar)
     lines = ["OUVERTURES DEPUIS TON QTH (estimation heuristique, "
              f"{when.strftime('%H:%M')} UTC) :"]

@@ -67,7 +67,7 @@ import time
 
 import logx_rotor as rotor
 import logx_sat_passes as sp
-from logx_utils import locator_to_latlon
+from logx_utils import locator_to_latlon, utcnow
 
 # Choix d'ingénierie — voir l'en-tête pour la justification de chacun.
 DEADBAND_DEG = 4.0
@@ -156,7 +156,7 @@ def demarrer_suivi(nom_sat, cfg):
         try:
             import datetime
             aos = datetime.datetime.strptime(p['aos_utc'], '%Y-%m-%d %H:%M:%S')
-            dans_s = (aos - datetime.datetime.utcnow()).total_seconds()
+            dans_s = (aos - utcnow()).total_seconds()
         except (ValueError, KeyError):
             return False, 'Passage illisible dans la prédiction.'
         if dans_s > PREAVIS_MAX_S:
@@ -182,7 +182,7 @@ def demarrer_suivi(nom_sat, cfg):
             los = datetime.datetime.strptime(p['los_utc'], '%Y-%m-%d %H:%M:%S')
             duree_max = min(4 * 3600, max(
                 DUREE_MAX_S,
-                (los - datetime.datetime.utcnow()).total_seconds() + 600))
+                (los - utcnow()).total_seconds() + 600))
         except (ValueError, KeyError, TypeError):
             pass
 

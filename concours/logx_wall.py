@@ -29,7 +29,7 @@ import datetime
 import json
 import os
 
-from logx_utils import locator_to_latlon, haversine
+from logx_utils import locator_to_latlon, haversine, utcnow
 
 # Champs affichables sur l'écran mural + valeurs par défaut (cochés ou non).
 # L'indicatif (call) est TOUJOURS affiché ; les autres sont pilotés par la
@@ -213,7 +213,7 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
     (contest+année, voir logx_storage.active_scope_id) : un QSO non tagué ne
     compte alors jamais pour un concours précis."""
     cfg = cfg or {}
-    now = now or datetime.datetime.utcnow()
+    now = now or utcnow()
     if contest_id:
         from logx_storage import qso_scope_id, active_scope_id
         scope_id = active_scope_id({**cfg, 'contest': contest_id})

@@ -17,6 +17,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from logx_utils import utcnow
 
 DB_FILE = 'logx.db'
 _db_lock = threading.Lock()
@@ -332,8 +333,7 @@ def active_scope_id(cfg):
     start = str(cfg.get('contest_start_date', '') or '')
     year = start[:4] if len(start) >= 4 and start[:4].isdigit() else ''
     if not year:
-        import datetime
-        year = str(datetime.datetime.utcnow().year)
+        year = str(utcnow().year)
     return f'{contest}#{year}'
 
 
@@ -844,13 +844,12 @@ def save_log_to_disk():
 def archive_current_log():
     """Copie les QSO courants dans qso_archive (appelé AVANT un reset) :
     une remise à zéro ne détruit plus jamais d'historique."""
-    import datetime
     try:
         with log_lock:
             data = list(shared_log)
         if not data:
             return 0
-        stamp = datetime.datetime.utcnow().isoformat()
+        stamp = utcnow().isoformat()
         with _db_lock:
             conn = _db()
             with conn:

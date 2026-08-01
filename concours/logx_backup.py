@@ -14,8 +14,8 @@ import json
 import os
 import re
 import shutil
-import datetime
 import glob
+from logx_utils import utcnow
 
 KEEP = 20                 # nombre de sauvegardes conservées
 
@@ -80,7 +80,7 @@ def run_backup(cfg, shared_log=None):
     except Exception as e:
         return {'ok': False, 'error': f'Dossier inaccessible : {e}'}
 
-    now = datetime.datetime.utcnow()
+    now = utcnow()
     stamp = now.strftime('%Y%m%d-%H%M%S')
     call = (cfg or {}).get('callsign_contest') or (cfg or {}).get('callsign') or 'LOG'
     base = f'logx_{_safe(call)}_{stamp}'

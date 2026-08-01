@@ -23,6 +23,7 @@ import threading
 import urllib.request
 import urllib.parse
 import concurrent.futures as _cf
+from logx_utils import utcnow
 
 # Pool dédié : borne l'attente d'un urlopen() dont le timeout ne couvre pas la
 # résolution DNS (getaddrinfo(), bloquante hors du socket — cf. logx_utils.fetch_url).
@@ -563,12 +564,11 @@ _STAMP_FILE = 'qsl_sync.json'
 
 def _stamp(action):
     try:
-        import datetime
         data = {}
         if os.path.exists(_STAMP_FILE):
             with open(_STAMP_FILE, encoding='utf-8') as f:
                 data = json.load(f) or {}
-        data[action] = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+        data[action] = utcnow().strftime('%Y-%m-%d %H:%M')
         with open(_STAMP_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f)
     except Exception:

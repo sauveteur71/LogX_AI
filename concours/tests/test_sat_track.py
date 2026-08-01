@@ -23,6 +23,7 @@ if CONCOURS not in sys.path:
     sys.path.insert(0, CONCOURS)
 
 import logx_sat_track as st   # noqa: E402
+from logx_utils import utcnow
 
 
 class FauxRotor:
@@ -311,7 +312,7 @@ def test_refus_si_le_passage_est_trop_lointain(monkeypatch):
     plus. Refus avec l'heure du passage — il sait quand revenir."""
     import datetime
     _prets(monkeypatch, visible=False)
-    aos = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+    aos = utcnow() + datetime.timedelta(hours=3)
     monkeypatch.setattr(st.sp, 'prochain_passage', lambda *a, **k: {
         'available': True,
         'passage': {'aos_utc': aos.strftime('%Y-%m-%d %H:%M:%S'),
@@ -325,7 +326,7 @@ def test_refus_si_le_passage_est_trop_lointain(monkeypatch):
 def test_accepte_si_le_passage_est_proche(monkeypatch):
     import datetime
     _prets(monkeypatch, visible=False)
-    aos = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+    aos = utcnow() + datetime.timedelta(minutes=5)
     monkeypatch.setattr(st.sp, 'prochain_passage', lambda *a, **k: {
         'available': True,
         'passage': {'aos_utc': aos.strftime('%Y-%m-%d %H:%M:%S'),
@@ -524,8 +525,8 @@ def test_la_duree_max_est_dimensionnee_par_le_passage(monkeypatch):
     import datetime
     captures = {}
     _prets(monkeypatch, visible=False)
-    los = datetime.datetime.utcnow() + datetime.timedelta(minutes=70)
-    aos = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+    los = utcnow() + datetime.timedelta(minutes=70)
+    aos = utcnow() + datetime.timedelta(minutes=5)
     monkeypatch.setattr(st.sp, 'prochain_passage', lambda *a, **k: {
         'available': True,
         'passage': {'aos_utc': aos.strftime('%Y-%m-%d %H:%M:%S'),
