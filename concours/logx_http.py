@@ -1579,8 +1579,15 @@ def _rotor_state_dict(cfg_snap):
     d = station.rotor_defaut(cfg_snap)
     if not d['enabled']:
         return {'enabled': False}
-    state = rotor.get_position(d['host'], d['port'])
+    state = rotor.get_position(d['host'], d['port'], d.get('proto', 'rotctld'))
     state['enabled'] = True
+    # Protocole/marque/modèle : l'UI affiche « GS-232 · Yaesu G-5500 » et sait
+    # si l'élévation est pertinente (boîtier Az/El).
+    state['proto'] = d.get('proto', 'rotctld')
+    state['brand'] = d.get('brand', '')
+    state['model'] = d.get('model', '')
+    info = rotor.model_info(d.get('brand'), d.get('model'))
+    state['elevation_capable'] = bool(info and info.get('elevation'))
     # nb_rotors permet à l'UI de proposer un sélecteur quand il y en a plusieurs.
     state['nb_rotors'] = len(station.charger(cfg_snap)['rotors'])
     return state
@@ -3900,6 +3907,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(_rotor_state_dict(self._cfg_snapshot()))
             return
 
+        # Catalogue des marques/modèles de rotor, pour les listes déroulantes de
+        # CONFIG (marque -> modèles -> protocole + élévation). Statique, aucune
+        # config : sert juste à ce que l'opérateur reconnaisse SON rotor.
+        if path == '/rotor/models':
+            import logx_rotor as rotor
+            self._json({'brands': rotor.catalog()})
+            return
+
         # État matériel groupé : rig+amp+wsjtx+rotor en UNE requête plutôt que 4
         # séparées. Le logbook pollait chacun individuellement à cadence rapide
         # (3-4s) — jusqu'à 4 connexions/cycle pour de petits payloads, un coût
@@ -5098,6 +5113,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 'sans adresse' % (cible['nom'] or cible['id'])}, 400)
                     return
                 host, port, offset = cible['host'], cible['port'], cible
+                proto = cible.get('proto', 'rotctld')
             else:
                 # Sans sélecteur : le rotor par défaut du parc (avec son
                 # décalage), ou l'ancien rotor unique. C'est ce chemin que
@@ -5110,6 +5126,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 'active-le dans CONFIG (mode expert, section ROTOR)'}, 400)
                     return
                 host, port = d['host'], d['port']
+                proto = d.get('proto', 'rotctld')
                 offset = d if d['offset_deg'] else None
             if self.path == '/rotor/point':
                 az = payload.get('azimuth')
@@ -5123,11 +5140,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     if az is None:
                         self._json({'ok': False, 'error': 'Azimut invalide'}, 400)
                         return
-                res = rotor.set_position(host, port, az, payload.get('elevation', 0))
+                res = rotor.set_position(host, port, az, payload.get('elevation', 0), proto)
                 if res.get('ok'):
-                    print(f"[ROTOR] Pointe {res['azimuth']} deg")
+                    print(f"[ROTOR] Pointe {res['azimuth']} deg ({proto})")
             else:
-                res = rotor.stop(host, port)
+                res = rotor.stop(host, port, proto)
             self._json(res, 200 if res.get('ok') else 502)
             return
 

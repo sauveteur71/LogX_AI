@@ -1401,26 +1401,49 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
           Pointe l'antenne d'un clic sur un spot ou sur la boussole : l'azimut calculé
           depuis ton locator est envoyé au rotor.<br>
-          Lance <b style="color:var(--accent2)">rotctld -m &lt;n°modèle&gt; -r &lt;port&gt; -T 0.0.0.0</b>
-          sur le PC relié au boîtier de commande (fourni avec Hamlib — modèles : <b>rotctl -l</b>).
+          Choisis ta <b>marque</b> : le protocole se règle tout seul. Deux voies —
+          <b style="color:var(--accent2)">GS-232 natif</b> (Yaesu, Kenpro, ou un serveur
+          TCP type PstRotator/microHam : LogX parle au boîtier directement), ou
+          <b style="color:var(--accent2)">Hamlib rotctld</b> (universel : lance
+          <b>rotctld -m &lt;n°&gt; -r &lt;port&gt; -T 0.0.0.0</b>, n° via <b>rotctl -l</b>) qui
+          couvre SPID, Pro.Sis.Tel, Hy-Gain, M2…
         </div>
         <div class="form-grid">
           <div class="form-group">
             <label>PILOTAGE ROTOR</label>
-            <select id="rotor_enabled" onchange="updateEnabledFieldsVisibility('rotor_enabled',['rotor_host','rotor_port'])">
+            <select id="rotor_enabled" onchange="updateEnabledFieldsVisibility('rotor_enabled',['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port'])">
               <option value="">Désactivé</option>
               <option value="1">Activé</option>
             </select>
-            <div class="input-note">Désactivé par défaut — aucun effet sans rotctld</div>
+            <div class="input-note">Désactivé par défaut</div>
           </div>
           <div class="form-group">
-            <label>ADRESSE ROTCTLD</label>
-            <input type="text" id="rotor_host" placeholder="127.0.0.1 (ou IP du poste rotor)">
-            <div class="input-note">IP du PC où tourne rotctld (peut être un autre poste du WiFi)</div>
+            <label>MARQUE</label>
+            <select id="rotor_brand" onchange="onRotorBrandChange()"></select>
+            <div class="input-note">Reconnais ton rotor : le protocole se règle seul</div>
           </div>
           <div class="form-group">
-            <label>PORT ROTCTLD</label>
+            <label>MODÈLE</label>
+            <select id="rotor_model" onchange="onRotorModelChange()"></select>
+            <div class="input-note" id="rotor_model_note"></div>
+          </div>
+          <div class="form-group">
+            <label>PROTOCOLE</label>
+            <select id="rotor_proto" onchange="onRotorProtoChange()">
+              <option value="rotctld">Hamlib rotctld (universel)</option>
+              <option value="gs232">GS-232 natif (TCP direct)</option>
+            </select>
+            <div class="input-note" id="rotor_proto_note"></div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE</label>
+            <input type="text" id="rotor_host" placeholder="127.0.0.1">
+            <div class="input-note" id="rotor_host_note">IP du PC où tourne rotctld (ou du serveur GS-232)</div>
+          </div>
+          <div class="form-group">
+            <label>PORT</label>
             <input type="number" id="rotor_port" placeholder="4533">
+            <div class="input-note" id="rotor_port_note">4533 pour rotctld · souvent 4001 pour un serveur GS-232 TCP</div>
           </div>
         </div>
       </div>
@@ -2309,8 +2332,11 @@ const CONFIG_HELP = {
   amp_civ_addr: "L'adresse CI-V de l'ampli (pour les modèles compatibles Icom) — vérifie dans le menu de l'ampli si besoin de la changer.",
 
   rotor_enabled: "Active le pilotage de ton rotor d'antenne (pointage automatique vers une station) depuis le logiciel.",
-  rotor_host: "Adresse réseau du contrôleur de rotor (souvent 127.0.0.1 si rotctld tourne sur le même PC).",
-  rotor_port: "Port réseau du contrôleur de rotor — 4533 par défaut pour rotctld.",
+  rotor_brand: "Marque de ton rotor. La choisir règle automatiquement le protocole conseillé et signale si le boîtier gère l'élévation (satellite/EME).",
+  rotor_model: "Modèle précis. « Az/El » = boîtier azimut + élévation (ex. Yaesu G-5500, SPID ROT2PROG) pour le suivi satellite.",
+  rotor_proto: "Protocole : GS-232 natif (LogX parle direct au boîtier Yaesu/Kenpro ou à un serveur TCP PstRotator/microHam), ou Hamlib rotctld (universel : SPID, Pro.Sis.Tel, Hy-Gain, M2…).",
+  rotor_host: "Adresse réseau : IP du PC où tourne rotctld, ou IP du boîtier/serveur GS-232 en TCP.",
+  rotor_port: "Port réseau — 4533 par défaut pour rotctld, souvent 4001 pour un serveur GS-232 en TCP.",
 
   voicekeyer_enabled: "Active le keyer vocal : le logiciel peut synthétiser et émettre un message phonie (CQ, échange...) automatiquement, sans micro.",
   voicekeyer_voice_id: "La voix de synthèse à utiliser (dépend des voix installées sur ton système Windows).",
@@ -3001,7 +3027,7 @@ async function init() {
   // Correctif M5 : refléter l'état Activé/Désactivé sur les champs dépendants
   // dès l'affichage initial (pas seulement au changement manuel du select).
   updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
-  updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
+  updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
@@ -5317,6 +5343,79 @@ const PARC_BANDES = ['1.8','3.5','7','10.1','14','18','21','24','28','50','70',
 const PARC_TYPES = ['', 'directive', 'omni', 'filaire', 'verticale', 'parabole'];
 const PARC_MARQUES_AMPLI = ['', 'elecraft', 'icom', 'spe'];
 
+// ── CATALOGUE ROTORS (miroir de logx_rotor.ROTOR_BRANDS) ─────────────────────
+// Marque -> protocole conseillé + modèles (el = azimut/élévation, satellite).
+// Statique, aucun numéro Hamlib codé en dur (ils changent de version en
+// version) : `el` décide l'affichage de l'élévation, `proto` guide le
+// branchement (GS-232 natif, ou rotctld universel).
+const ROTOR_CATALOG = [
+  {brand:'Yaesu', proto:'gs232', models:[
+    {model:'G-450 / G-550', el:false},{model:'G-800DXA / G-1000DXC', el:false},
+    {model:'G-2800DXC', el:false},{model:'G-5500 (Az + El)', el:true},
+    {model:'GS-232A / GS-232B (boîtier)', el:true}]},
+  {brand:'Kenpro', proto:'gs232', models:[
+    {model:'KR-2000 / KR-2400', el:false},{model:'KR-5400 / KR-5600 (Az + El)', el:true}]},
+  {brand:'Hy-Gain', proto:'rotctld', models:[
+    {model:'Ham-IV', el:false},{model:'T2X Tailtwister', el:false},{model:'DCU-1 (contrôleur)', el:false}]},
+  {brand:'SPID', proto:'rotctld', models:[
+    {model:'BIG-RAS/HR', el:false},{model:'ROT1PROG', el:false},{model:'ROT2PROG (Az + El)', el:true},{model:'RAU / RAK', el:false}]},
+  {brand:'Pro.Sis.Tel', proto:'rotctld', models:[
+    {model:'PST-2051D', el:false},{model:'PST-61', el:false},{model:'PST-641', el:false},{model:'Combo Az/El (Big/Small)', el:true}]},
+  {brand:'M2 Antenna Systems', proto:'rotctld', models:[
+    {model:'RC2800', el:false},{model:'RC2800PX (Az + El)', el:true}]},
+  {brand:'Alfa Radio', proto:'rotctld', models:[
+    {model:'AlfaSpid RAK', el:false},{model:'AlfaSpid RAS (Az + El)', el:true}]},
+  {brand:'Autre / générique', proto:'rotctld', models:[
+    {model:'Serveur GS-232 en TCP (PstRotator/microHam)', el:true},{model:'via Hamlib rotctld', el:false}]},
+];
+function _rotorBrand(name){ return ROTOR_CATALOG.find(b => b.brand === name); }
+function rotorModelEl(brand, model){
+  const b = _rotorBrand(brand); if(!b) return false;
+  const m = b.models.find(x => x.model === model); return !!(m && m.el);
+}
+
+// ── Rotor UNIQUE (popup 7) : marque -> modèles + protocole ───────────────────
+function fillRotorBrandSelect(){
+  const sel = document.getElementById('rotor_brand'); if(!sel) return;
+  sel.innerHTML = '<option value="">— choisir —</option>'
+    + ROTOR_CATALOG.map(b => `<option value="${b.brand}">${b.brand}</option>`).join('');
+}
+function fillRotorModelSelect(brand){
+  const sel = document.getElementById('rotor_model'); if(!sel) return;
+  const b = _rotorBrand(brand);
+  sel.innerHTML = '<option value="">—</option>'
+    + ((b && b.models) || []).map(m => `<option value="${m.model}">${m.model}${m.el ? ' · Az/El' : ''}</option>`).join('');
+}
+function onRotorBrandChange(){
+  const brand = document.getElementById('rotor_brand').value;
+  fillRotorModelSelect(brand);
+  const b = _rotorBrand(brand);
+  if(b){ const p = document.getElementById('rotor_proto'); if(p) p.value = b.proto; }
+  onRotorModelChange();
+  onRotorProtoChange();
+}
+function onRotorModelChange(){
+  const brand = document.getElementById('rotor_brand').value;
+  const model = document.getElementById('rotor_model').value;
+  const note = document.getElementById('rotor_model_note');
+  if(note) note.textContent = rotorModelEl(brand, model) ? 'Boîtier azimut + élévation (satellite/EME)' : '';
+}
+function onRotorProtoChange(){
+  const p = (document.getElementById('rotor_proto') || {}).value;
+  const pn = document.getElementById('rotor_proto_note');
+  const hn = document.getElementById('rotor_host_note');
+  const port = document.getElementById('rotor_port');
+  if(p === 'gs232'){
+    if(pn) pn.textContent = 'LogX parle au boîtier/serveur directement — pas besoin de rotctld';
+    if(hn) hn.textContent = 'IP du boîtier GS-232, ou du serveur PstRotator/microHam';
+    if(port && !port.value) port.placeholder = '4001';
+  } else {
+    if(pn) pn.textContent = 'Lance rotctld sur le PC relié au boîtier (rotctl -l pour le n°)';
+    if(hn) hn.textContent = 'IP du PC où tourne rotctld';
+    if(port) port.placeholder = '4533';
+  }
+}
+
 let antennesRows = [], rotorsRows = [], amplisRows = [];
 
 function _pOpt(v, sel, lbl){
@@ -5398,8 +5497,28 @@ function renderParcStation(){
         <label>NOM</label>
         <input type="text" data-parc="rot.nom" data-i="${i}" value="${escAttrParc(r.nom)}" placeholder="Pylône 1">
       </div>
+      <div class="form-group" style="flex:1;min-width:120px">
+        <label>MARQUE</label>
+        <select data-parc="rot.brand" data-i="${i}">
+          <option value="">—</option>
+          ${ROTOR_CATALOG.map(b => _pOpt(b.brand, r.brand || '', b.brand)).join('')}
+        </select>
+      </div>
       <div class="form-group" style="flex:1;min-width:130px">
-        <label>ADRESSE rotctld</label>
+        <label>MODÈLE</label>
+        <select data-parc="rot.model" data-i="${i}">
+          <option value="">—</option>
+          ${((_rotorBrand(r.brand) || {}).models || []).map(m => _pOpt(m.model, r.model || '', m.model + (m.el ? ' · Az/El' : ''))).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="max-width:100px">
+        <label>PROTOCOLE</label>
+        <select data-parc="rot.proto" data-i="${i}">
+          ${_pOpt('rotctld', r.proto || 'rotctld', 'rotctld')}${_pOpt('gs232', r.proto || 'rotctld', 'GS-232')}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:130px">
+        <label>ADRESSE</label>
         <input type="text" data-parc="rot.host" data-i="${i}" value="${escAttrParc(r.host)}" placeholder="192.168.1.20">
       </div>
       <div class="form-group" style="max-width:100px">
@@ -5472,8 +5591,18 @@ function escAttrParc(v){
 
 function onParcChange(e){
   readParcStation();
+  const dp = e.target.dataset.parc;
+  // Choisir la marque d'un rotor règle son protocole et vide son modèle, puis
+  // re-render pour peupler la liste des modèles de cette marque.
+  if(dp === 'rot.brand'){
+    const i = +e.target.dataset.i;
+    const b = _rotorBrand(rotorsRows[i].brand);
+    if(b){ rotorsRows[i].proto = b.proto; rotorsRows[i].model = ''; }
+    renderParcStation();
+    return;
+  }
   // Renommer un rotor doit rafraîchir les listes déroulantes des antennes.
-  if(/^(rot|amp)\.(nom)$/.test(e.target.dataset.parc)) renderParcStation();
+  if(/^(rot|amp)\.(nom)$/.test(dp)) renderParcStation();
 }
 
 function readParcStation(){
@@ -5518,7 +5647,7 @@ function _idLibre(prefixe, rows){
 }
 function addAntenne(){ readParcStation(); antennesRows.push({nom:'', bandes:[], type:'', rotor_id:'', ampli_id:''}); renderParcStation(); }
 function removeAntenne(i){ readParcStation(); antennesRows.splice(i,1); renderParcStation(); }
-function addRotor(){ readParcStation(); rotorsRows.push({id:_idLibre('rotor', rotorsRows), nom:'', enabled:true, host:'', port:4533, offset_deg:0}); renderParcStation(); }
+function addRotor(){ readParcStation(); rotorsRows.push({id:_idLibre('rotor', rotorsRows), nom:'', enabled:true, host:'', port:4533, proto:'rotctld', brand:'', model:'', offset_deg:0}); renderParcStation(); }
 function removeRotor(i){ readParcStation(); rotorsRows.splice(i,1); renderParcStation(); }
 function addAmpli(){ readParcStation(); amplisRows.push({id:_idLibre('ampli', amplisRows), nom:'', enabled:true, brand:'', port:''}); renderParcStation(); }
 function removeAmpli(i){ readParcStation(); amplisRows.splice(i,1); renderParcStation(); }
@@ -5718,6 +5847,9 @@ function saveConfig(silent = false, feedbackBtn = null) {
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
     rotor_host: document.getElementById('rotor_host').value.trim(),
     rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
+    rotor_proto: (document.getElementById('rotor_proto') || {}).value || 'rotctld',
+    rotor_brand: (document.getElementById('rotor_brand') || {}).value || '',
+    rotor_model: (document.getElementById('rotor_model') || {}).value || '',
     alert_dx_km: _numClamped('alert_dx_km', 1200),
     spotter_reliable_km: _numClamped('spotter_reliable_km', 600),
     alert_sound: document.getElementById('alert_sound').value !== '',
@@ -6440,6 +6572,16 @@ function applyFullConfigToForm(c) {
     if(c.rotor_enabled) document.getElementById('rotor_enabled').value = '1';
     if(c.rotor_host) document.getElementById('rotor_host').value = c.rotor_host;
     if(c.rotor_port) document.getElementById('rotor_port').value = c.rotor_port;
+    // Marque/modèle/protocole : peupler la liste des marques AVANT de poser la
+    // valeur (piège connu : poser .value sur un select pas encore rempli
+    // échoue en silence), puis les modèles de la marque, puis les valeurs.
+    fillRotorBrandSelect();
+    if(c.rotor_brand) document.getElementById('rotor_brand').value = c.rotor_brand;
+    fillRotorModelSelect(c.rotor_brand || '');
+    if(c.rotor_model) document.getElementById('rotor_model').value = c.rotor_model;
+    const _rp = document.getElementById('rotor_proto');
+    if(_rp) _rp.value = c.rotor_proto || (_rotorBrand(c.rotor_brand) || {}).proto || 'rotctld';
+    onRotorModelChange(); onRotorProtoChange();
     if(c.contest_start_date) document.getElementById('contest_start_date').value = c.contest_start_date;
     if(c.contest_end_date) document.getElementById('contest_end_date').value = c.contest_end_date;
     if(c.contest_end_utc) document.getElementById('contest_end_utc').value = c.contest_end_utc;
@@ -6539,7 +6681,7 @@ function applyFullConfigToForm(c) {
     // désactivant l'ampli/rotor/cloud sync laissait leurs champs enfants
     // pleinement éditables visuellement malgré le select sur Désactivé.
     updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
-    updateEnabledFieldsVisibility('rotor_enabled', ['rotor_host','rotor_port']);
+    updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
     updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
     updateEnabledFieldsVisibility('mqtt_enabled', ['mqtt_host','mqtt_port','mqtt_topic_prefix']);
     renderHub(); // Hub de catégories : badges après restauration/changement de profil
