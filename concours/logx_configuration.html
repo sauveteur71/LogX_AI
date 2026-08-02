@@ -5429,15 +5429,25 @@ function fillClusterPicker(){
     if(!d || !d.nodes) return;
     var byReg = {};
     d.nodes.forEach(function(n){ (byReg[n.region] = byReg[n.region] || []).push(n); });
-    var html = '<option value="">— nœud connu (ou saisis le tien ci-dessous) —</option>';
+    // Construit en DOM (createElement) plutôt qu'en innerHTML : les libellés de
+    // groupe viennent de DONNÉES serveur, pas de chrome d'interface — les poser
+    // en propriété .label évite qu'un scanner i18n statique prenne un gabarit
+    // « optgroup label="…" » pour une chaîne d'UI à traduire.
+    sel.textContent = '';
+    var ph = document.createElement('option');
+    ph.value = ''; ph.textContent = '— nœud connu (ou saisis le tien ci-dessous) —';
+    sel.appendChild(ph);
     Object.keys(byReg).forEach(function(reg){
-      html += '<optgroup label="' + reg + '">';
+      var og = document.createElement('optgroup');
+      og.label = reg;
       byReg[reg].forEach(function(n){
-        html += '<option value="' + n.host + '|' + n.port + '">' + n.label + ' — ' + n.host + ':' + n.port + '</option>';
+        var o = document.createElement('option');
+        o.value = n.host + '|' + n.port;
+        o.textContent = n.label + ' — ' + n.host + ':' + n.port;
+        og.appendChild(o);
       });
-      html += '</optgroup>';
+      sel.appendChild(og);
     });
-    sel.innerHTML = html;
     syncClusterPick();
   }).catch(function(){});
 }
