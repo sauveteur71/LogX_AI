@@ -5109,6 +5109,28 @@ function refreshWsjtx(){
 // FT8/FT4 récents) — notifiée UNE SEULE fois par indicatif/type via ce Set,
 // même principe anti-répétition que les autres alertes de l'appli.
 const _wsjtxAlerted = new Set();
+// ── Interrupteur voix (🔊/🔇) pour les alertes FT8. Pilote rc_tts, le MÊME flag
+// global que le bouton voix de la carte (window.rcTtsEnabled/rcSpeak dans
+// logx_statusbar.js) : l'activer ici fait aussi parler le coach sur la carte, et
+// inversement — un seul réglage « la station parle-t-elle ? » pour tout le poste.
+function syncTtsLogBtn(){
+  const b = document.getElementById('btnTtsLog');
+  if(!b) return;
+  const on = !!(window.rcTtsEnabled && window.rcTtsEnabled());
+  b.textContent = on ? '🔊' : '🔇';
+  b.style.color = on ? 'var(--accent2)' : 'var(--muted)';
+}
+function toggleTtsLog(){
+  let on = false;
+  try{ on = !(window.rcTtsEnabled && window.rcTtsEnabled()); localStorage.setItem('rc_tts', on ? '1' : '0'); }catch(e){}
+  syncTtsLogBtn();
+  // Confirmation PARLÉE au moment où l'on active (force=true, outrepasse le
+  // garde) : sans retour audible, impossible de savoir si une voix est
+  // seulement disponible sur ce poste.
+  if(on){ try{ if(window.rcSpeak) window.rcSpeak(trF('Lecture vocale activée'), true); }catch(e){} }
+  else { try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){} }
+}
+try{ syncTtsLogBtn(); }catch(e){}
 // Extrait de refreshWsjtx() — voir applyRigState() plus haut pour le pourquoi.
 function applyWsjtxState(d){
     const el = document.getElementById('wsjtxWidget');
@@ -5142,8 +5164,26 @@ function applyWsjtxState(d){
       if(_wsjtxAlerted.has(key)) continue;
       _wsjtxAlerted.add(key);
       const freqTxt = m.freq ? trF(' ({f} MHz)', {f: m.freq}) : '';
-      notify(trF('🆕 {call} décodé — {label}{freq}', {call: m.call, label: m.label, freq: freqTxt}));
+      const txt = trF('🆕 {call} décodé — {label}{freq}', {call: m.call, label: m.label, freq: freqTxt});
+      notify(txt);
+      // Voix mains-libres (#6) façon JTAlert : « nouveau pays entendu » dit à
+      // voix haute, casque de suivi, jamais sur l'air. Gardé par rc_tts (le
+      // bouton 🔊), donc muet par défaut. Le Set ci-dessus garantit une seule
+      // fois par indicatif : en FT8 la station réapparaît toutes les 15 s.
+      try{ if(window.rcSpeak) window.rcSpeak(txt); }catch(e){}
       try{ playBeep(1318, 110); }catch(e){}
+    }
+    // BESOIN LoTW en direct : entité déjà travaillée mais pas confirmée LoTW
+    // sur cette bande/mode. Distinct de « jamais contacté » ci-dessus (déjà
+    // dédupliqué côté serveur), son plus grave, pastille 📡.
+    for(const m of (d.lotw || [])){
+      const key = m.call + '|lotw';
+      if(_wsjtxAlerted.has(key)) continue;
+      _wsjtxAlerted.add(key);
+      const txt = trF('📡 {call} décodé — {label}', {call: m.call, label: m.label});
+      notify(txt);
+      try{ if(window.rcSpeak) window.rcSpeak(txt); }catch(e){}
+      try{ playBeep(1174, 100); }catch(e){}
     }
     appliquerSuiviCarres(d.carres);
 }
@@ -5337,12 +5377,16 @@ function appliquerSuiviCarres(carres){
     _carresAlertes.add(cle);
     if(!_pounceLocal.n1) continue;
     if(c.interet === 2){
-      notify(trF('🔲 NOUVEAU CARRÉ {grid} — {call} (jamais travaillé)',
-                 {grid: c.grid, call: c.call || ''}));
+      const txt = trF('🔲 NOUVEAU CARRÉ {grid} — {call} (jamais travaillé)',
+                      {grid: c.grid, call: c.call || ''});
+      notify(txt);
+      try{ if(window.rcSpeak) window.rcSpeak(txt); }catch(e){}
       try{ playBeep(1760, 150); }catch(e){}
     } else {
-      notify(trF('🔲 {grid} — {call} : carré neuf pour ce concours',
-                 {grid: c.grid, call: c.call || ''}));
+      const txt = trF('🔲 {grid} — {call} : carré neuf pour ce concours',
+                      {grid: c.grid, call: c.call || ''});
+      notify(txt);
+      try{ if(window.rcSpeak) window.rcSpeak(txt); }catch(e){}
       try{ playBeep(988, 90); }catch(e){}
     }
   }

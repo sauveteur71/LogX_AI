@@ -51,17 +51,36 @@ SUFFIX_WORDS = {
     'AM': 'aeronautical mobile', 'QRP': 'Q R P',
 }
 
+# Le « / » d'un indicatif se PRONONCE : « stroke » à la radio (le mot
+# international), « barre » en français. Un indicatif peut en porter DEUX
+# (préfixe ET suffixe : F/DL1UTY/P), d'où le découpage sur chaque « / » plutôt
+# qu'un seul partition() — l'ancienne version fondait préfixe et suffixe et,
+# comme elle filtrait sur isalnum(), faisait DISPARAÎTRE le « / » en silence.
+_STROKE = {'en': 'stroke', 'fr': 'barre'}
 
-def spell_callsign(call):
-    """'F4GLD/P' -> 'Foxtrot Four Golf Lima Delta portable'. '' si vide."""
+
+def spell_callsign(call, lang='en'):
+    """Indicatif épelé en alphabet OACI, « / » prononcé (« stroke »/« barre ») :
+    'F4GLD/P'    -> 'Foxtrot Four Golf Lima Delta stroke portable'
+    'F/DL1UTY/P' -> 'Foxtrot stroke Delta Lima One Uniform Tango Yankee stroke portable'
+    'DL/ON4DRT'  -> 'Delta Lima stroke Oscar November Four Delta Romeo Tango'
+    '' si vide."""
     call = str(call or '').upper().strip()
     if not call:
         return ''
-    base, _, suffix = call.partition('/')
-    words = [PHONETIC.get(c, c) for c in base if c.isalnum()]
-    if suffix:
-        words.append(SUFFIX_WORDS.get(suffix)
-                      or ' '.join(PHONETIC.get(c, c) for c in suffix if c.isalnum()))
+    stroke = _STROKE.get(lang, 'stroke')
+    segs = [s for s in call.split('/') if s]
+    words = []
+    for i, seg in enumerate(segs):
+        if i:
+            words.append(stroke)                       # chaque « / » est dit
+            # Un suffixe usuel en fin d'indicatif est dit comme un mot
+            # ('portable') plutôt qu'épelé ('Papa') — mais toujours APRÈS son
+            # « stroke », comme on l'entend sur l'air (« stroke portable »).
+            if i == len(segs) - 1 and seg in SUFFIX_WORDS:
+                words.append(SUFFIX_WORDS[seg])
+                continue
+        words.extend(PHONETIC.get(c, c) for c in seg if c.isalnum())
     return ' '.join(words)
 
 
@@ -250,8 +269,8 @@ def expand_voice_text(template, ctx):
     ctx = ctx or {}
     lang = message_lang(ctx)
     return (str(template or '')
-            .replace('{CALL}', spell_callsign(ctx.get('call', '')))
-            .replace('{MYCALL}', spell_callsign(ctx.get('mycall', '')))
+            .replace('{CALL}', spell_callsign(ctx.get('call', ''), lang))
+            .replace('{MYCALL}', spell_callsign(ctx.get('mycall', ''), lang))
             .replace('{RST_SENT}', spell_number(ctx.get('rst_sent', ''), lang))
             .replace('{RST_RCVD}', spell_number(ctx.get('rst_rcvd', ''), lang))
             .replace('{NR}', spell_number(ctx.get('nr', ''), lang))

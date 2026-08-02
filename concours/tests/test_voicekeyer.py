@@ -22,12 +22,34 @@ def test_spell_callsign_minuscules():
 
 
 def test_spell_callsign_suffixe_connu():
-    assert vk.spell_callsign('F4GLD/P') == 'Foxtrot Four Golf Lima Delta portable'
-    assert vk.spell_callsign('F4GLD/QRP') == 'Foxtrot Four Golf Lima Delta Q R P'
+    # Le « / » se dit maintenant « stroke » AVANT le mot du suffixe.
+    assert vk.spell_callsign('F4GLD/P') == 'Foxtrot Four Golf Lima Delta stroke portable'
+    assert vk.spell_callsign('F4GLD/QRP') == 'Foxtrot Four Golf Lima Delta stroke Q R P'
 
 
 def test_spell_callsign_suffixe_inconnu_epele():
-    assert vk.spell_callsign('F4GLD/5') == 'Foxtrot Four Golf Lima Delta Five'
+    assert vk.spell_callsign('F4GLD/5') == 'Foxtrot Four Golf Lima Delta stroke Five'
+
+
+def test_spell_callsign_prefixe_stroke():
+    # Préfixe DX : « DL/ON4DRT » -> le « / » se dit, aucun mot de suffixe.
+    assert vk.spell_callsign('DL/ON4DRT') == \
+        'Delta Lima stroke Oscar November Four Delta Romeo Tango'
+
+
+def test_spell_callsign_prefixe_ET_suffixe():
+    # DEUX « / » : préfixe portable. C'est le cas que l'ancienne version
+    # (partition sur un seul « / ») escamotait en silence.
+    assert vk.spell_callsign('F/DL1UTY/P') == \
+        'Foxtrot stroke Delta Lima One Uniform Tango Yankee stroke portable'
+
+
+def test_spell_callsign_stroke_francais():
+    # Selon la langue du message, « / » -> « barre » en français.
+    assert vk.spell_callsign('DL/ON4DRT', 'fr') == \
+        'Delta Lima barre Oscar November Four Delta Romeo Tango'
+    assert vk.spell_callsign('F4GLD/P', 'fr') == \
+        'Foxtrot Four Golf Lima Delta barre portable'
 
 
 def test_spell_callsign_vide():
