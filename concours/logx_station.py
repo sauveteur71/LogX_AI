@@ -103,6 +103,9 @@ def _depuis_legacy(cfg):
         rotors.append({'nom': 'Rotor', 'enabled': bool(cfg.get('rotor_enabled')),
                        'host': str(cfg.get('rotor_host') or '').strip(),
                        'port': cfg.get('rotor_port') or 4533,
+                       'proto': cfg.get('rotor_proto') or 'rotctld',
+                       'brand': cfg.get('rotor_brand') or '',
+                       'model': cfg.get('rotor_model') or '',
                        'offset_deg': 0})
 
     amplis = []
@@ -167,12 +170,21 @@ def charger(cfg):
             offset = float(r.get('offset_deg') or 0)
         except (TypeError, ValueError):
             offset = 0.0
+        proto = str(r.get('proto') or '').strip().lower()
+        if proto not in ('rotctld', 'gs232'):
+            proto = 'rotctld'
         rot.append({
             'id': str(r.get('id') or '').strip(),
             'nom': str(r.get('nom') or '').strip()[:40],
             'enabled': bool(r.get('enabled')),
             'host': str(r.get('host') or '').strip(),
             'port': port,
+            # Protocole : rotctld (Hamlib, universel) ou gs232 (natif TCP,
+            # Yaesu/Kenpro/PstRotator). La marque/le modèle sont informatifs —
+            # ils décident l'affichage de l'élévation et guident le branchement.
+            'proto': proto,
+            'brand': str(r.get('brand') or '').strip(),
+            'model': str(r.get('model') or '').strip(),
             # Décalage mécanique : un rotor dont le zéro n'est pas au nord.
             # Se règle une fois, s'oublie ensuite — mais sans lui, TOUT le
             # pointage automatique de ce pylône est faux du même angle.
@@ -294,11 +306,15 @@ def rotor_defaut(cfg, prefer_bandes=None):
     if r is not None:
         return {'enabled': bool(r['enabled'] and r['host']),
                 'host': r['host'], 'port': r['port'],
+                'proto': r.get('proto', 'rotctld'), 'brand': r.get('brand', ''),
+                'model': r.get('model', ''),
                 'offset_deg': r['offset_deg'], 'nom': r['nom'],
                 'id': r['id'], 'source': 'parc'}
     import logx_rotor
     leg = logx_rotor.rotor_settings(cfg)
     return {'enabled': leg['enabled'], 'host': leg['host'], 'port': leg['port'],
+            'proto': leg.get('proto', 'rotctld'), 'brand': leg.get('brand', ''),
+            'model': leg.get('model', ''),
             'offset_deg': 0.0, 'nom': 'Rotor', 'id': '', 'source': 'legacy'}
 
 

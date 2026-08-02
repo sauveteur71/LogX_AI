@@ -87,9 +87,9 @@ def test_le_pilotage_par_bande_ne_tourne_QUE_le_bon_pylone():
     import logx_rotor as R
     vus = []
     orig_set, orig_get = R.set_position, R.get_position
-    R.set_position = lambda host, port, az, el=0: (vus.append((host, round(az, 1)))
-                                                   or {'ok': True, 'azimuth': az})
-    R.get_position = lambda host, port: {'ok': True, 'azimuth': 0.0, 'elevation': 0.0}
+    R.set_position = lambda host, port, az, el=0, proto='rotctld': (
+        vus.append((host, round(az, 1))) or {'ok': True, 'azimuth': az})
+    R.get_position = lambda host, port, proto='rotctld': {'ok': True, 'azimuth': 0.0, 'elevation': 0.0}
     cfg = {'rotors': [{'id': 'p1', 'nom': 'P1', 'enabled': True, 'host': '10.0.0.1',
                        'port': 4533, 'offset_deg': 0},
                       {'id': 'p2', 'nom': 'P2', 'enabled': True, 'host': '10.0.0.2',
