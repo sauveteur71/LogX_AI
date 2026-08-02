@@ -965,9 +965,33 @@
       return;
     }
     if (e.target.id === 'rcsbUpdInstall'){
-      e.target.disabled = true;
-      e.target.textContent = 'redémarrage…';
-      fetch('/app/update_install', {method: 'POST'}).then(function(){ setTimeout(pollServerBackUp, 2500); });
+      var _ib = e.target;
+      _ib.disabled = true;
+      _ib.textContent = 'redémarrage…';
+      fetch('/app/update_install', {method: 'POST'})
+        .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return {ok: r.ok, j: j}; }); })
+        .then(function(res){
+          if (res.ok && res.j && res.j.restarting){
+            setTimeout(pollServerBackUp, 2500);      // le serveur se coupe puis revient
+            return;
+          }
+          // ÉCHEC D'INSTALLATION rendu VISIBLE : sans ça le bouton restait figé
+          // sur « redémarrage… » et l'opérateur croyait que rien ne se passait
+          // (cas réel : fichier non vérifié, téléchargement incomplet, ou lancé
+          // hors .exe en mode développement — apply_update_and_relaunch refuse).
+          _ib.disabled = false;
+          _ib.textContent = '🔁 installer et redémarrer';
+          var _msg = (res.j && res.j.error) || 'échec inconnu';
+          var _row = _ib.closest ? _ib.closest('.rcsb-upd-row') : null;
+          var _err = document.createElement('div');
+          _err.style.cssText = 'color:var(--red,#FF2D55);margin-top:6px;font-size:12px';
+          _err.textContent = rcTf('échec : {err}', {err: ('' + _msg).replace(/[<>&]/g, '')});
+          (_row || _ib.parentNode).appendChild(_err);
+        })
+        .catch(function(){
+          _ib.disabled = false;
+          _ib.textContent = '🔁 installer et redémarrer';
+        });
       return;
     }
     if (e.target.id === 'rcsbUpdLater'){

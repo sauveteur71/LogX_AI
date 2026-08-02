@@ -258,18 +258,25 @@ if __name__ == '__main__':
         import logx_cloudsync as cs
         import logx_storage as st
         import datetime as _dt
+        # SYNCHRO IMMÉDIATE AU DÉMARRAGE : quand un 2e poste s'ouvre, l'opérateur
+        # veut voir tout de suite les derniers QSO du 1er poste, pas attendre la
+        # première minuterie (jusqu'à `interval` minutes de log périmé). La 1re
+        # passe force donc `due` sans regarder l'intervalle. Sans risque : sync_now
+        # FUSIONNE (union par clé + tombstones), il n'écrase jamais le distant.
+        startup = True
         while True:
-            _t.sleep(60)
             try:
                 with h.config_lock:
                     cfg = dict(h.current_config)
                 s = cs.cloudsync_settings(cfg)
                 if not s['enabled']:
+                    startup = False
+                    _t.sleep(60)
                     continue
                 last = cs.status(cfg).get('last', {}).get('last')
                 due = True
                 interval_min = int(cfg.get('cloudsync_interval', 3) or 3)
-                if last:
+                if last and not startup:
                     try:
                         age = (utcnow()
                                - _dt.datetime.strptime(last, '%Y-%m-%d %H:%M')).total_seconds()
@@ -281,13 +288,52 @@ if __name__ == '__main__':
                         log_copy = list(st.shared_log)
                     r = cs.sync_now(cfg, log_copy)
                     if r.get('ok') and (r.get('pulled') or r.get('pushed')):
-                        print(f"[CLOUDSYNC] mode={r['mode']} pushed={r['pushed']} pulled={r['pulled']}")
+                        tag = ' (démarrage)' if startup else ''
+                        print(f"[CLOUDSYNC]{tag} mode={r['mode']} pushed={r['pushed']} pulled={r['pulled']}")
             except Exception as _e:
                 print(f"[CLOUDSYNC] {_e}")
+            startup = False
+            _t.sleep(60)
+
+    def _lan_sync_loop():
+        # SYNCHRO LAN DIRECTE (sans dossier partagé) : les postes se découvrent
+        # par beacon UDP et échangent leurs QSO en HTTP. INDÉPENDANT de Cloud
+        # Sync — les deux peuvent tourner ensemble (l'opérateur peut vouloir la
+        # découverte LAN ET un dossier partagé). Un pair mettra jusqu'à ~15-25 s
+        # à être découvert au premier démarrage (le temps d'un cycle de beacon).
+        import time as _t
+        import logx_http as h
+        import logx_lan_sync as lan
+        import logx_storage as st
+
+        def _get_log():
+            with st.log_lock:
+                return list(st.shared_log)
+
+        started = False
+        startup = True
+        while True:
+            try:
+                with h.config_lock:
+                    cfg = dict(h.current_config)
+                if str(cfg.get('lan_sync_enabled', '')) in ('1', 'true', 'True', 'on'):
+                    if not started:
+                        lan.start(lambda: dict(h.current_config), PORT)
+                        started = True
+                    r = lan.pull_and_merge(_get_log,
+                                           lambda q: h.add_qso_to_log(q, force=False)[0])
+                    if r.get('pulled'):
+                        tag = ' (démarrage)' if startup else ''
+                        print(f"[LAN-SYNC]{tag} pairs={r['peers']} tirés={r['pulled']}")
+            except Exception as _e:
+                print(f"[LAN-SYNC] {_e}")
+            startup = False
+            _t.sleep(12)
 
     threading.Thread(target=_scoreboard_loop, daemon=True).start()
     threading.Thread(target=_backup_loop, daemon=True).start()
     threading.Thread(target=_cloudsync_loop, daemon=True).start()
+    threading.Thread(target=_lan_sync_loop, daemon=True).start()
 
     # Import unique et préalable : sans cela, si l'import du pont WSJT-X échoue,
     # http_mod restait non défini et le bloc ADIF-net levait un NameError
