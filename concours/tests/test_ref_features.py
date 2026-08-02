@@ -185,7 +185,10 @@ def test_department_targets_lookup_callbook_en_direct(monkeypatch):
     # de fichier, même mock que tests/test_departments.py.
     monkeypatch.setattr(dep, 'load_france_geojson', lambda: FAKE_DEPT_GEOJSON)
     monkeypatch.setattr(dep, '_dept_polys', None)
-    monkeypatch.setattr(dep, '_dept_polys_last_try', 0.0)
+    # Valeur négative : time.monotonic() a une origine arbitraire selon la
+    # plateforme (voir tests/test_departments.py, même correctif) — 0.0 ne
+    # garantit PAS un écart > 300s sur un conteneur CI fraîchement démarré.
+    monkeypatch.setattr(dep, '_dept_polys_last_try', -1e6)
 
     def fake_lookup(call, cfg):
         assert call == 'F1MOZ'

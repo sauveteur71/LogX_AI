@@ -34,10 +34,17 @@ FAKE_DEPT_GEOJSON = json.dumps({
 def _mock_dept_geojson(monkeypatch):
     """Force _load_dept_polygons() à reparser FAKE_DEPT_GEOJSON plutôt que le
     cache réel (potentiellement déjà figé par un échec réseau précédent dans
-    le même process pytest) ou un vrai fetch réseau."""
+    le même process pytest) ou un vrai fetch réseau.
+
+    _dept_polys_last_try se compare à time.monotonic() (PAS l'epoch Unix) :
+    son origine est arbitraire selon la plateforme, souvent proche de 0 sur
+    un conteneur CI fraîchement démarré — y poser 0.0 laissait passer le
+    garde-fou de grâce (300s) puisque `now - 0.0` pouvait y être < 300,
+    ré-empêchant tout appel à load_france_geojson(). Une valeur négative
+    garantit un écart > 300 quelle que soit l'origine de l'horloge."""
     monkeypatch.setattr(dep, 'load_france_geojson', lambda: FAKE_DEPT_GEOJSON)
     monkeypatch.setattr(dep, '_dept_polys', None)
-    monkeypatch.setattr(dep, '_dept_polys_last_try', 0.0)
+    monkeypatch.setattr(dep, '_dept_polys_last_try', -1e6)
 
 
 def test_table_complete():
