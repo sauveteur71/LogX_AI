@@ -249,7 +249,13 @@
       + 'color:var(--muted,#7a86b6);font-size:18px;line-height:1">✕</button>';
     el.querySelector('button').onclick = function(){ el.remove(); };
     el.style.display = 'flex';
-    if (window.rcSpeak) window.rcSpeak(nudge.text);   // lecture vocale si activée (#6)
+    // Alerte réglable par type (#5) : un nudge « nouvelle cible » sonne comme un
+    // nouveau pays, un nudge de rythme comme le type « rate ». Chacun réglable
+    // (son + voix) dans CONFIG ; à défaut, repli sur la lecture auto globale.
+    var _nsig = String(nudge.sig || '');
+    var _ntype = _nsig.indexOf('target:') === 0 ? 'new_dxcc' : 'rate';
+    if (window.rcAlert) window.rcAlert(_ntype, nudge.text);
+    else if (window.rcSpeak) window.rcSpeak(nudge.text);
     clearTimeout(el._auto);
     el._auto = setTimeout(function(){ if (el && el.parentNode) el.remove(); }, 30000);
   }
@@ -298,6 +304,88 @@
       u.rate = 1.0; u.volume = 1.0;
       speechSynthesis.speak(u);
     } catch(e){}
+  };
+
+  // ── ALERTES : SON + VOIX RÉGLABLES PAR TYPE (#5) ───────────────────────────
+  // Chaque type d'alerte (nouveau pays, carré, besoin LoTW, rate…) peut être
+  // réglé indépendamment : un SON choisi (motif WebAudio, 100 % hors-ligne, pas
+  // de fichier) et/ou une ANNONCE VOCALE (« Nouveau pays détecté »). Réglages
+  // par poste dans localStorage rc_alerts. Exposé window.rcAlert pour toutes les
+  // pages ; les sites d'alerte (FT8, nudges) appellent rcAlert au lieu de bipper
+  // en dur, pour que le réglage vaille partout.
+  var RC_ALERT_TYPES = [
+    { id: 'new_dxcc', label: 'Nouveau pays (DXCC)',      voice: 'Nouveau pays détecté',        sound: 'carillon' },
+    { id: 'new_dept', label: 'Nouveau département',       voice: 'Nouveau département',          sound: 'montant' },
+    { id: 'new_grid', label: 'Nouveau carré',            voice: 'Nouveau carré',               sound: 'aigu' },
+    { id: 'lotw_need', label: 'Besoin LoTW',             voice: 'Besoin LoTW',                 sound: 'double' },
+    { id: 'mult',     label: 'Nouveau multiplicateur',   voice: 'Nouveau multiplicateur',      sound: 'grave' },
+    { id: 'rate',     label: 'Rythme (rate)',            voice: 'Attention au rythme',         sound: 'grave' },
+  ];
+  // Motifs : liste de notes [fréquence, durée ms, décalage ms (optionnel)].
+  var RC_ALERT_SOUNDS = {
+    aucun:    [],
+    aigu:     [[1318, 90]],
+    grave:    [[660, 130]],
+    double:   [[1174, 80], [1174, 80, 120]],
+    montant:  [[880, 90], [1175, 120, 110]],
+    carillon: [[988, 90], [1319, 90, 110], [1568, 150, 220]],
+    sirene:   [[700, 90], [1200, 100, 90], [700, 100, 190]],
+  };
+  var _rcAudio = null;
+  function _rcBeep(freq, dur){
+    try {
+      if (!_rcAudio) _rcAudio = new (window.AudioContext || window.webkitAudioContext)();
+      var ctx = _rcAudio, osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination); osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      g.gain.setValueAtTime(0.18, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur / 1000);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur / 1000 + 0.05);
+    } catch (e) {}
+  }
+  window.rcTone = function(name){
+    var pat = RC_ALERT_SOUNDS[name];
+    if (!pat || !pat.length) return;
+    pat.forEach(function(n){
+      var delay = n[2] || 0;
+      if (delay) setTimeout(function(){ _rcBeep(n[0], n[1]); }, delay);
+      else _rcBeep(n[0], n[1]);
+    });
+  };
+  function _rcAlertDefaults(){
+    var d = {};
+    RC_ALERT_TYPES.forEach(function(t){ d[t.id] = { voice: false, sound: t.sound }; });
+    return d;
+  }
+  function _rcAlertPrefs(){
+    var d = _rcAlertDefaults();
+    try {
+      var saved = JSON.parse(localStorage.getItem('rc_alerts') || '{}');
+      Object.keys(d).forEach(function(id){
+        if (saved[id]) {
+          if (typeof saved[id].voice === 'boolean') d[id].voice = saved[id].voice;
+          if (typeof saved[id].sound === 'string' && RC_ALERT_SOUNDS[saved[id].sound]) d[id].sound = saved[id].sound;
+        }
+      });
+    } catch (e) {}
+    return d;
+  }
+  // API pour l'écran CONFIG (liste des types, sons disponibles, prefs).
+  window.rcAlertTypes = function(){ return RC_ALERT_TYPES.map(function(t){ return { id: t.id, label: t.label }; }); };
+  window.rcAlertSounds = function(){ return Object.keys(RC_ALERT_SOUNDS); };
+  window.rcAlertPrefs = _rcAlertPrefs;
+  window.rcAlertVoiceFor = function(id){ var t = RC_ALERT_TYPES.filter(function(x){ return x.id === id; })[0]; return t ? t.voice : ''; };
+  // Déclenche une alerte : son (selon le type) + voix (si activée pour ce type,
+  // OU si la lecture auto globale 🔊 est active — le bouton global continue de
+  // tout lire, un type peut en plus forcer la voix même quand il est coupé).
+  window.rcAlert = function(id, voiceText){
+    var p = _rcAlertPrefs()[id];
+    if (!p) { p = { voice: false, sound: 'aigu' }; }
+    try { window.rcTone(p.sound); } catch (e) {}
+    var speak = p.voice || (window.rcTtsEnabled && window.rcTtsEnabled());
+    if (speak && window.rcSpeak) {
+      window.rcSpeak(voiceText || window.rcAlertVoiceFor(id), true);
+    }
   };
 
   bar.addEventListener('click', function(e){
