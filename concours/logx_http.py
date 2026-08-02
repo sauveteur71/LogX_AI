@@ -1538,6 +1538,15 @@ def _wsjtx_state_dict(cfg_snap):
             with log_lock:
                 log_copy = list(shared_log)
             st['missing'] = awards.spotted_new_ones(log_copy, spots_by_label, max_n=12)
+            # BESOIN LoTW en direct : une entité DÉJÀ travaillée mais pas encore
+            # confirmée par LoTW sur cette bande/mode reste un besoin pour le
+            # DXCC — critère explicite de l'utilisateur (voir besoin_lotw). Ce
+            # cas n'était alerté que sur les spots du cluster, jamais sur les
+            # décodages FT8/FT4 reçus ici. Dédupliqué contre st['missing'] : une
+            # station jamais travaillée y figure déjà, plus fortement.
+            st['lotw'] = awards.besoins_lotw_decodes(
+                decodes, exclure=[m.get('call') for m in st['missing']],
+                shared_log=log_copy, max_n=12)
             # LOCATOR TRACKER : les carrés entendus, neufs ou non. Le carré
             # vient du décodage lui-même (« CQ F4ABC JN18 ») et reste mémorisé
             # tant que la station est active — les messages suivants (-15,
@@ -1552,9 +1561,11 @@ def _wsjtx_state_dict(cfg_snap):
                 decodes, log_copy, scope_id=active_scope_id(cfg_snap))
         else:
             st['missing'] = []
+            st['lotw'] = []
             st['carres'] = []
     except Exception:
         st['missing'] = []
+        st['lotw'] = []
         st['carres'] = []
     return st
 

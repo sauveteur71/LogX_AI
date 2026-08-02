@@ -518,6 +518,34 @@ def besoins_lotw_spottes(spots, shared_log=None, max_n=20):
     return out
 
 
+def besoins_lotw_decodes(decodes, exclure=(), shared_log=None, max_n=12):
+    """Parmi les stations DÉCODÉES en direct (FT8/FT4), celles qui comblent un
+    créneau entité×bande×mode non confirmé LoTW — l'alerte « new one » façon
+    JTAlert, mais sur le critère FORT posé par l'utilisateur : pas « jamais
+    contacté » (déjà couvert par spotted_new_ones/st['missing']), mais « pas
+    encore confirmé LoTW », la seule confirmation qui compte pour le DXCC.
+
+    `exclure` : indicatifs déjà signalés autrement sur les mêmes décodages
+    (typiquement les 'call' de st['missing']). Une station JAMAIS travaillée est
+    aussi jamais confirmée LoTW : sans ce filtre elle sonnerait DEUX fois, une
+    fois « nouveau pays » et une fois « pas confirmé LoTW ». Le plus fort
+    (jamais travaillé) l'emporte, on retire donc ces indicatifs d'ici.
+
+    Réutilise besoins_lotw_spottes() : le calcul lourd (parcours du carnet +
+    confirmations) y est déjà fait une seule fois pour toute la liste.
+    """
+    spots = [{'call': d.get('call'), 'band': d.get('band'),
+              'mode': d.get('mode'), 'freq': d.get('freq_mhz')}
+             for d in (decodes or []) if d.get('call')]
+    if not spots:
+        return []
+    exclus = {str(c).upper().strip() for c in (exclure or ()) if c}
+    # On demande large (max_n + exclus) avant filtrage, pour ne pas se retrouver
+    # sous max_n uniquement parce que des entrées exclues ont mangé le quota.
+    brut = besoins_lotw_spottes(spots, shared_log, max_n=max_n + len(exclus))
+    return [o for o in brut if o.get('call') not in exclus][:max_n]
+
+
 # ─── CIBLES PROACTIVES (jamais travaillées à VIE, spottées maintenant) ───────
 
 def spotted_new_ones(shared_log, spots_by_label=None, max_n=8):

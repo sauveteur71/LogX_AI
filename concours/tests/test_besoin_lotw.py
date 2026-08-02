@@ -168,6 +168,35 @@ def test_une_liste_de_spots_vide_ne_leve_pas(sans_fichiers):
     assert aw.besoins_lotw_spottes(None, LOG) == []
 
 
+# ─── Besoin LoTW sur les DÉCODAGES FT8/FT4 en direct (alerte façon JTAlert) ───
+# Forme d'un décodage (logx_wsjtx.recent_decodes) : {call, band, freq_mhz, mode}.
+
+def _dec(call, band, mode, freq_mhz=0.0):
+    return {'call': call, 'band': band, 'mode': mode, 'freq_mhz': freq_mhz}
+
+
+def test_decodes_remonte_le_creneau_non_confirme(sans_fichiers):
+    sans_fichiers({'W1ABC|14|SSB': {'lotw': True}})
+    # JA1XYZ jamais confirmé LoTW -> doit remonter.
+    dec = [_dec('W1ABC', '14', 'SSB'), _dec('JA1XYZ', '14', 'FT8')]
+    out = aw.besoins_lotw_decodes(dec, shared_log=LOG)
+    assert [o['call'] for o in out] == ['JA1XYZ']
+
+
+def test_decodes_exclut_les_deja_signales_missing(sans_fichiers):
+    """Une station JAMAIS travaillée figure déjà dans st['missing'] : passée en
+    `exclure`, elle ne doit PAS ressortir ici (sinon double alerte)."""
+    sans_fichiers({})
+    dec = [_dec('JA1XYZ', '14', 'FT8')]
+    assert aw.besoins_lotw_decodes(dec, exclure=['JA1XYZ'], shared_log=LOG) == []
+
+
+def test_decodes_vide_ne_leve_pas(sans_fichiers):
+    sans_fichiers({})
+    assert aw.besoins_lotw_decodes([], shared_log=LOG) == []
+    assert aw.besoins_lotw_decodes(None, shared_log=LOG) == []
+
+
 # ─── Mode déduit de la fréquence (inspiré du manuel CC User, annexe C) ───────
 # DÉFAUT RÉEL CORRIGÉ. _mode_category() renvoyait DIGITAL pour tout mode
 # absent, vide ou inconnu. Or beaucoup de spots du cluster n'indiquent PAS le

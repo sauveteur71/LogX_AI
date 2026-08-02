@@ -273,7 +273,7 @@
     var same = pool.filter(function(v){ return (v.lang || '').toLowerCase().indexOf(lang) === 0; });
     return same[0] || pool[0] || null;
   }
-  var _RC_EMO = ['⚡','🌟','🎯','📡','🏆','📶','📋','🌍','🤖','🔊','🔇','✅','⚠️','❌','ℹ️','📴','🧠','⏱','⏳','🏁','💡','🔴','🟡','🌤','🇫🇷'];
+  var _RC_EMO = ['⚡','🌟','🎯','📡','🏆','📶','📋','🌍','🤖','🔊','🔇','✅','⚠️','❌','ℹ️','📴','🧠','⏱','⏳','🏁','💡','🔴','🟡','🌤','🇫🇷','🆕','🔲','🌐','▶','⏹'];
   function _rcShorten(text){
     var s = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
     for (var i = 0; i < _RC_EMO.length; i++){ s = s.split(_RC_EMO[i]).join(''); }
