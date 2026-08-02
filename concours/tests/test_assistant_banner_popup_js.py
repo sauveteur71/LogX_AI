@@ -65,7 +65,12 @@ _DOM_PREAMBLE = r"""
 function makeEl(id, initDisplay){
   var el = { id:id, innerHTML:'', value:'',
     classList:{ add:function(){}, remove:function(){}, toggle:function(){}, contains:function(){return false;} },
-    scrollIntoView:function(){} };
+    scrollIntoView:function(){},
+    // handleContestParam() cherche [data-analyze-rules] dans la bannière
+    // (voir escC/safeUrl plus bas) pour y attacher un vrai listener plutôt
+    // que d'interpoler dans un onclick="..." — jamais présent dans ce DOM
+    // minimal, donc toujours null : le code source teste déjà `if(aiLink)`.
+    querySelector:function(){ return null; } };
   var disp = initDisplay, bc = '';
   var style = {};
   Object.defineProperty(style, 'display', {
@@ -122,6 +127,13 @@ function refreshShiftOperatorSelect(){}
 function loadShifts(){}
 function renderHub(){}
 function alert(){}
+// escC/safeUrl : correctifs audit sécurité (XSS réfléchie ?contest=, lien
+// "règlement officiel"). Vrais dans le fichier source ; ici de simples repli
+// passe-plat suffisent — ce test vérifie la LOGIQUE de handleContestParam
+// (quelle popup s'ouvre, quel texte apparaît), pas l'échappement HTML lui-
+// même (couvert séparément, voir test_i18n_dialogues / lecture manuelle).
+function escC(v){ return String(v == null ? '' : v); }
+function safeUrl(u){ var s = String(u || ''); return /^https?:\/\//i.test(s) ? s : ''; }
 """
 
 

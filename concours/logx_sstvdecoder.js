@@ -633,6 +633,9 @@ class SstvAudioDecoder {
   }
 
   async start(deviceId){
+    // Garde de ré-entrance : libère une session déjà ouverte avant d'en
+    // recréer une nouvelle (double-clic, changement de périphérique).
+    if(this.ctx) this.stop();
     const contraintes = {audio: deviceId
       ? {deviceId: {exact: deviceId}, echoCancellation: false, noiseSuppression: false, autoGainControl: false}
       : {echoCancellation: false, noiseSuppression: false, autoGainControl: false}};

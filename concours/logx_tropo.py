@@ -70,6 +70,13 @@ def tropo_forecast(lat, lon):
      'trend'} ou {'ok': False, 'error'}."""
     if lat is None or lon is None:
         return {'ok': False, 'error': 'Locator station non défini'}
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (TypeError, ValueError):
+        return {'ok': False, 'error': 'Coordonnées station invalides'}
+    if not (math.isfinite(lat) and math.isfinite(lon)):
+        return {'ok': False, 'error': 'Coordonnées station invalides'}
     key = f'{lat:.2f},{lon:.2f}'
     if _cache['data'] and _cache['key'] == key and time.time() - _cache['ts'] < CACHE_S:
         return _cache['data']

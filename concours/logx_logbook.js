@@ -3439,7 +3439,6 @@ async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
   const rstSent = document.getElementById('inputRSTsent').value.trim() || '59';
   const rstRcvd = document.getElementById('inputRSTrcvd').value.trim() || '59';
-  const numSent = document.getElementById('inputNumSent').value.trim();
   const numRcvdRaw = document.getElementById('inputNumRcvd').value.trim();
   const numRcvd = (currentExchange.pad_r === true && numRcvdRaw)
     ? String(parseInt(numRcvdRaw, 10) || 0).padStart(3, '0')
@@ -6126,11 +6125,11 @@ function showLocAC(results){
       ? `<span style="color:var(--green);font-size:13px;font-weight:700">📋 LOG</span>`
       : `<span style="color:var(--muted);font-size:14px">🗂️</span>`;
     const dupTag  = dup ? `<span style="color:var(--red);font-size:14px;font-weight:800">DUPE</span>` : '';
-    const deptStr = item.dept ? `<span style="color:var(--yellow);font-size:14px;font-weight:700">dpt${item.dept}</span>` : '';
-    const locStr  = `<span style="color:var(--accent2);font-size:14px;font-weight:800">${item.locator}</span>`;
+    const deptStr = item.dept ? `<span style="color:var(--yellow);font-size:14px;font-weight:700">dpt${escHtml(item.dept)}</span>` : '';
+    const locStr  = `<span style="color:var(--accent2);font-size:14px;font-weight:800">${escHtml(item.locator)}</span>`;
     return `<div class="ac-item${dup?' dupe-item':''}" data-idx="${idx}" onmousedown="selectLocAC(${idx})">`
       + `<span style="font-size:16px">${flag}</span>`
-      + `<b style="font-size:19px;font-weight:900;min-width:110px;letter-spacing:1px;${dup?'color:var(--red)':'color:var(--green)'}">${item.call}</b>`
+      + `<b style="font-size:19px;font-weight:900;min-width:110px;letter-spacing:1px;${dup?'color:var(--red)':'color:var(--green)'}">${escHtml(item.call)}</b>`
       + `<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex:1">${locStr}${deptStr}${dupTag}</span>`
       + srcTag
       + `</div>`;
@@ -7317,13 +7316,13 @@ async function previewImportAdif(text){
       // Informatif seulement : ces QSO SONT importés (déjà comptés dans
       // "Nouveaux à importer"), juste signalés pour vérification.
       p.mode_warnings.forEach(w => {
-        rows.push(`<div class="shortcuts-row"><span style="color:var(--muted)">ℹ️ ${w}</span></div>`);
+        rows.push(`<div class="shortcuts-row"><span style="color:var(--muted)">ℹ️ ${escHtml(w)}</span></div>`);
       });
     }
     if(p.sample && p.sample.length){
       rows.push('<div class="shortcuts-row" style="margin-top:8px"><span style="color:var(--muted)">Aperçu (5 premiers nouveaux QSO) :</span></div>');
       p.sample.forEach(q => {
-        rows.push(`<div class="shortcuts-row"><span>${q.call} · ${q.band} MHz · ${q.mode}</span><span style="color:var(--muted)">${q.date} ${q.time}</span></div>`);
+        rows.push(`<div class="shortcuts-row"><span>${escHtml(q.call)} · ${escHtml(q.band)} MHz · ${escHtml(q.mode)}</span><span style="color:var(--muted)">${escHtml(q.date)} ${escHtml(q.time)}</span></div>`);
       });
     }
     inner.innerHTML = rows.join('');

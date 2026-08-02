@@ -40,7 +40,7 @@ PROGRAM_SPECS = {
               'ref_re': r'^[A-Z]{2,3}-\d{3,4}[A-Z]?$', 'min_qso': 2,
               'p2p': 'Light-to-Light', 'example': 'FRA-113'},
     'WCA': {'name': 'World Castles Award',      'sig': 'WCA',
-            'ref_re': r'^[A-Z]{1,3}-\d{5}$', 'min_qso': 50,
+            'ref_re': r'^[A-Z0-9]{1,4}-\d{4,5}$', 'min_qso': 50,
             'p2p': 'Castle-to-Castle', 'example': 'DL-00001'},
 }
 
@@ -67,9 +67,14 @@ def activation_state(shared_log, program, my_ref, now=None):
 
     # QSO de CETTE activation : ceux portant ma référence. (Les QSO d'un autre
     # concours / d'une autre activation présents dans le log commun ne comptent
-    # pas — on active FR-0123, pas le reste.)
-    entries = [q for q in (shared_log or [])
-               if normalize_ref(q.get('my_sig_info', '')) == my_ref]
+    # pas — on active FR-0123, pas le reste.) Sans référence configurée, il n'y
+    # a PAS d'activation en cours : ne pas confondre avec les QSO "hors
+    # activation" du log commun, dont my_sig_info est lui aussi vide —
+    # normalize_ref('') == normalize_ref('') les ferait sinon tous matcher.
+    entries = []
+    if my_ref:
+        entries = [q for q in (shared_log or [])
+                   if normalize_ref(q.get('my_sig_info', '')) == my_ref]
 
     calls, per_band, per_mode = set(), {}, {}
     p2p = []

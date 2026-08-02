@@ -38,6 +38,12 @@ TTL = 300          # s — reconstruction complète au plus toutes les 5 min
 MAX_SUGGEST = 20
 MASTER_SCP_FILE = 'master_scp.json'            # liste d'indicatifs MASTER.SCP importée
 CALL_HISTORY_FILE = 'call_history_n1mm.json'   # {concours: {indicatif: {...}}} importé
+# Un vrai MASTER.SCP/Call History pèse quelques dizaines de milliers de
+# lignes ; le corps HTTP est déjà plafonné à 32 Mo par do_POST (logx_http.py),
+# donc pas besoin d'un MAX_IMPORT_BYTES redondant — la faille non couverte
+# par ce plafond est le NOMBRE de lignes (32 Mo peuvent contenir des millions
+# de lignes très courtes), d'où cette borne dédiée.
+MAX_IMPORT_LINES = 200_000
 
 _index = {}        # CALL -> {'dept','locator','qso_count','last_date'}
 _built_at = 0.0
@@ -194,7 +200,9 @@ def parse_master_scp(text):
     indicatif est silencieusement écarté plutôt que de faire échouer tout
     l'import pour une poignée de lignes suspectes."""
     calls = set()
-    for line in str(text or '').splitlines():
+    for n, line in enumerate(str(text or '').splitlines()):
+        if n >= MAX_IMPORT_LINES:
+            break
         c = line.strip().upper()
         if not c or c.startswith('#') or c.startswith(';'):
             continue
@@ -369,6 +377,9 @@ def parse_n1mm_call_history(text, contest=None):
     out = {}
     errors = []
     for i, raw in enumerate(str(text or '').splitlines()):
+        if i >= MAX_IMPORT_LINES:
+            errors.append(f"Import interrompu au-delà de {MAX_IMPORT_LINES} lignes")
+            break
         line = raw.strip()
         if not line or line.startswith('#'):
             continue

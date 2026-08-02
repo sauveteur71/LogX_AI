@@ -20,10 +20,13 @@ la définition produite est toujours en français.
 """
 import base64
 import copy
+import ipaddress
 import json
 import os
 import re
+import socket
 import urllib.request
+from urllib.parse import urlparse
 
 from logx_rules import extract_document_text, DATE_RULE_PATTERN, calc_contest_date
 from logx_validate import validate_definition
@@ -32,6 +35,8 @@ from logx_utils import OPENAI_COMPATIBLE_ENDPOINTS
 MAX_RULES_CHARS = 40000        # garde-fou taille prompt en mode texte
 MAX_PDF_BYTES = 25 * 1024 * 1024
 MAX_PDF_PAGES = 90
+MAX_DOWNLOAD_BYTES = MAX_PDF_BYTES     # borne aussi les règlements HTML/texte, pas seulement les PDF
+_ALLOWED_URL_SCHEMES = ('http', 'https')
 
 # ─── SCHEMAS DES SORTIES FORCÉES ─────────────────────────────────────────────
 
@@ -250,12 +255,50 @@ def parse_ai_json(text):
     return json.loads(text[start:end + 1])
 
 # ─── TÉLÉCHARGEMENT DU DOCUMENT ──────────────────────────────────────────────
+# Anti-SSRF/LFI (audit sécurité) : l'URL de règlement est fournie par l'opérateur
+# (POST depuis le champ « 🤖 ANALYSER UN RÈGLEMENT »), donc potentiellement par
+# un tiers ayant obtenu le X-Auth-Token sur le LAN. Sans validation, urllib
+# accepte nativement file:// (lecture de fichiers locaux exfiltrés vers l'IA
+# tierce) ainsi que loopback/réseau privé/service de métadonnées cloud.
+
+def _is_safe_host(hostname):
+    """Refuse loopback / réseau privé / lien-local / réservé (défense SSRF de base)."""
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return False
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return False
+    return True
+
+def _validate_download_url(url):
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_URL_SCHEMES:
+        raise ValueError(f"Schéma d'URL non autorisé : {parsed.scheme or '(vide)'}")
+    if not parsed.hostname or not _is_safe_host(parsed.hostname):
+        raise ValueError("URL pointant vers un hôte local/privé refusée")
+
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Une redirection HTTP peut faire pointer une 1re URL publique (validée)
+    vers une adresse interne — urllib la suit par défaut SANS revalider. On
+    revalide donc l'hôte à CHAQUE saut."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _validate_download_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 def _download_bytes(url, timeout=20):
     from logx_utils import SSL_CTX
+    _validate_download_url(url)
+    opener = urllib.request.build_opener(
+        _SafeRedirectHandler, urllib.request.HTTPSHandler(context=SSL_CTX))
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
-        return resp.read()
+    with opener.open(req, timeout=timeout) as resp:
+        data = resp.read(MAX_DOWNLOAD_BYTES + 1)
+        if len(data) > MAX_DOWNLOAD_BYTES:
+            raise ValueError(f"Document trop volumineux (> {MAX_DOWNLOAD_BYTES} octets)")
+        return data
 
 def _pdf_page_count(pdf_bytes):
     try:

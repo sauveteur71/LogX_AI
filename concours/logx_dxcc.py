@@ -23,14 +23,24 @@ _loaded = False
 
 
 def _parse_alias(alias, base):
-    """'UA9(17)[30]' → clé 'UA9' + zones dérogatoires appliquées à base."""
+    """'UA9(17)[30]' → clé 'UA9' + zones/position/continent dérogatoires
+    appliqués à base. Formats gérés : (cq), [itu], <lat/lon>, {cont}."""
     country, cont, cq, itu, primary, lat, lon = base
     m_cq = re.search(r'\((\d+)\)', alias)
     m_itu = re.search(r'\[(\d+)\]', alias)
+    m_geo = re.search(r'<([\-\d.]+)/([\-\d.]+)>', alias)
+    m_cont = re.search(r'\{(\w+)\}', alias)
     if m_cq:
         cq = int(m_cq.group(1))
     if m_itu:
         itu = int(m_itu.group(1))
+    if m_geo:
+        try:
+            lat, lon = float(m_geo.group(1)), -float(m_geo.group(2))
+        except ValueError:
+            pass
+    if m_cont:
+        cont = m_cont.group(1)
     key = re.sub(r'[\(\[<{].*', '', alias).strip()
     return key, (country, cont, cq, itu, primary, lat, lon)
 
@@ -43,6 +53,7 @@ def load_cty(path=None):
         print(f"[DXCC] {path} absent — repli heuristique préfixes")
         _loaded = True
         return
+    new_prefixes, new_exact = {}, {}
     try:
         with open(path, encoding='utf-8', errors='replace') as f:
             content = f.read()
@@ -74,11 +85,22 @@ def load_cty(path=None):
                     continue
                 if alias.startswith('='):
                     key, val = _parse_alias(alias[1:], base)
-                    _EXACT[key.upper()] = val
+                    new_exact[key.upper()] = val
                 else:
                     key, val = _parse_alias(alias, base)
                     if key:
-                        _PREFIXES[key.upper()] = val
+                        new_prefixes[key.upper()] = val
+        # Bascule ATOMIQUE : une simple réaffectation de nom global est une
+        # opération indivisible sous le GIL (STORE_GLOBAL). Un thread lecteur
+        # concurrent qui fait `_PREFIXES.get(...)` voit soit l'ANCIENNE table
+        # complète, soit la NOUVELLE table complète — jamais un état vide ou
+        # partiel, contrairement à clear()+update() qui laisse une fenêtre
+        # entre les deux appels. Aucun autre module n'importe _PREFIXES/_EXACT
+        # par référence (vérifié par grep) : la réaffectation ne casse aucun
+        # alias externe.
+        global _PREFIXES, _EXACT
+        _PREFIXES = new_prefixes
+        _EXACT = new_exact
         print(f"[DXCC] {len(_PREFIXES)} prefixes + {len(_EXACT)} indicatifs exacts (cty.dat)")
     except Exception as e:
         print(f"[DXCC] Erreur de chargement {path}: {e}")
@@ -195,13 +217,13 @@ def update_cty_if_stale(max_age_days=CTY_MAX_AGE_DAYS, force=False):
             pass
         print(f"[DXCC] Ecriture cty.dat impossible: {e}")
         return False
-    # Rechargement à chaud (les dicts sont mutés en place, les imports
-    # par référence restent valides)
-    _PREFIXES.clear()
-    _EXACT.clear()
-    _lookup_cache.clear()
-    global _loaded
-    _loaded = False
+    # Rechargement à chaud : load_cty() reconstruit les tables dans des dicts
+    # locaux puis bascule _PREFIXES/_EXACT par réaffectation atomique — pas
+    # besoin de clear() préalable (qui viderait la table AVANT que la
+    # nouvelle soit prête) ni de remettre _loaded à False (un thread lecteur
+    # concurrent passant par lookup() déclencherait alors lui-même un second
+    # load_cty() réentrant sur les mêmes dicts pendant la fenêtre de mise à
+    # jour). load_cty() se suffit à lui-même.
     load_cty()
     print(f"[DXCC] cty.dat mis a jour"
           + (f" (l'ancien avait {age:.0f} j)" if age is not None else " (nouveau)"))

@@ -965,7 +965,7 @@ async function loadDxRecordForMap(){
       // initMap() a déjà dessiné les anneaux AVANT la réponse de ce fetch
       // (rec valait encore 0) : redessiner maintenant, sinon l'anneau
       // « ★ record » n'apparaît jamais au chargement de la page.
-      if(typeof drawRangeCircles === 'function' && typeof map !== 'undefined' && map){
+      if(leafletMap){
         drawRangeCircles();
       }
     }
@@ -1604,7 +1604,7 @@ async function refreshRankedStations(){
       .map(s=>({call:s.call, locator:s.locator, lat:s.lat, lon:s.lon,
                 priority:s.priority, done:s.already_done, freq:s.freq,
                 band:s.band, dist:s.dist_km, bearing:s.bearing, mult:s.new_mult}));
-    if(stns.length)updateMapStations(stns);
+    updateMapStations(stns);   // toujours appelé (même vide) : elle vide leafletStations/leafletLines
   }catch(e){/* serveur injoignable : carte inchangée */}
 }
 setInterval(refreshRankedStations, 60*1000);

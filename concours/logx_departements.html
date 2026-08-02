@@ -259,9 +259,9 @@ async function loadProgress(){
 
 function renderGrid(d){
   document.getElementById('deptGrid').innerHTML = (d.metro||[]).map(c =>
-    `<div class="dept-cell ${workedSet.has(c)?'worked':''}" title="${d.all[c]||''}">${c}</div>`).join('');
+    `<div class="dept-cell ${workedSet.has(c)?'worked':''}" title="${esc(d.all[c]||'')}">${esc(c)}</div>`).join('');
   document.getElementById('domGrid').innerHTML = (d.dom||[]).map(c =>
-    `<div class="dept-cell ${workedSet.has(c)?'worked':''}" title="${d.all[c]||''}">${c}</div>`).join('');
+    `<div class="dept-cell ${workedSet.has(c)?'worked':''}" title="${esc(d.all[c]||'')}">${esc(c)}</div>`).join('');
 }
 
 (function(){
@@ -419,7 +419,6 @@ async function renderScale(){
   const isFrance = scale === 'france';
   document.querySelector('.grid-panel').style.display = isFrance ? '' : 'none';
   document.getElementById('countriesWrap').style.display = isFrance ? 'none' : '';
-  const logo = document.querySelector('.logo');
   try{
     if(isFrance){
       if(worldLayer && leafletMap.hasLayer(worldLayer)) leafletMap.removeLayer(worldLayer);
@@ -435,7 +434,6 @@ async function renderScale(){
       leafletMap.dragging.disable(); leafletMap.scrollWheelZoom.disable();
       leafletMap.doubleClickZoom.disable(); leafletMap.boxZoom.disable();
       leafletMap.fitBounds(franceLayer.getBounds(), {padding:[10,10]});
-      if(logo) logo.innerHTML = 'Radio<span>Contest</span> AI — <span style="color:var(--green)">Départements REF</span>';
       loadProgress();
       loadTargets();
     } else {
@@ -457,8 +455,6 @@ async function renderScale(){
       } else {
         leafletMap.fitBounds(WORLD_BOUNDS);
       }
-      const label = scale === 'europe' ? 'Europe' : (scale === 'continent' ? mapContinent : 'Pays (DXCC)');
-      if(logo) logo.innerHTML = `Radio<span>Contest</span> AI — <span style="color:var(--green)">${esc(label)}</span>`;
       loadWorldProgress();
       loadCountries(document.getElementById('countriesWrap'));
     }

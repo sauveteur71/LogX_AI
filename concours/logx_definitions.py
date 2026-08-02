@@ -1080,6 +1080,41 @@ CONTEST_SCORING = {
     'CUSTOM':      {'type':'custom','unit':'a definir','mult':'custom','bands':'Au choix','modes':'Au choix'},
 }
 
+
+def get_scoring_info(contest_id):
+    """Résumé de scoring pour un concours, à utiliser par logx_prompts.py
+    (remplace CONTEST_SCORING.get(contest, CONTEST_SCORING['CUSTOM'])).
+
+    CONTEST_SCORING ci-dessus est une table LEGACY écrite à la main qui ne
+    couvre que 18 des 40 concours de CONTEST_DEFINITIONS — chaque concours
+    manquant retombait sur CONTEST_SCORING['CUSTOM'] ('a definir'/'custom'),
+    silencieusement transmis à l'IA comme si c'était la vraie règle. Chaque
+    entrée de CONTEST_DEFINITIONS porte pourtant déjà un dict 'scoring' à
+    jour : on le préfère désormais dès que CONTEST_SCORING ne connaît pas
+    l'id, au lieu de retomber sur CUSTOM.
+
+    logx_prompts.py n'utilise que les clés 'unit' et 'mult' du résultat :
+    ce sont donc les deux seules clés dont l'absence doit être couverte par
+    un repli explicite ici — le format réel des dicts 'scoring' de
+    CONTEST_DEFINITIONS n'étant pas garanti homogène (ex. CQ_WW_SSB y
+    expose 'multiplier', pas 'mult'), on lit ces clés telles quelles au
+    lieu de supposer une structure non vérifiée.
+    """
+    if contest_id in CONTEST_SCORING:
+        return CONTEST_SCORING[contest_id]
+    cdef = CONTEST_DEFINITIONS.get(contest_id) or {}
+    sc = cdef.get('scoring') or {}
+    if sc:
+        return {
+            'type': sc.get('type', 'custom'),
+            'unit': sc.get('unit', sc.get('note', 'voir règlement')),
+            'mult': sc.get('mult', sc.get('multiplier', 'voir règlement')),
+            'bands': sc.get('bands', ' '.join(cdef.get('bands', [])) or 'Au choix'),
+            'modes': sc.get('modes', ' '.join(cdef.get('modes', [])) or 'Au choix'),
+        }
+    return CONTEST_SCORING['CUSTOM']
+
+
 # ─── MODULE 3 : RÈGLEMENT PDF REF (Lecture automatique) ─────────────────────
 CONTEST_RULES_URLS = {
     'REF_RPH':       'https://concours.r-e-f.org/reglements/actuels/reg_rph_fr_20250312.pdf',

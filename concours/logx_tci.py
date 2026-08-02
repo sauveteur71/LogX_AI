@@ -27,6 +27,7 @@ ces usages (commandes texte courtes uniquement ; pas de flux audio/IQ ici).
 import base64
 import hashlib
 import os
+import select
 import socket
 import struct
 import threading
@@ -35,6 +36,8 @@ import time
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 50001
 _WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+MAX_FRAME_LEN = 1 << 20      # 1 Mo : très au-dessus de toute trame TCI légitime
+READ_IDLE_TIMEOUT_S = 30.0   # au-delà de ce silence, la connexion est jugée morte
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -47,6 +50,8 @@ class WebSocketClient:
     (le serveur ne masque jamais ses frames). Les commandes TCI tiennent dans
     une frame ; en réception, les frames de continuation sont recollées par
     sécurité (rafale d'initialisation notamment)."""
+
+    WRITE_TIMEOUT_S = 5.0
 
     def __init__(self, host, port, timeout=3.0):
         self.host = host
@@ -70,13 +75,15 @@ class WebSocketClient:
         if '101' not in resp.split('\r\n', 1)[0] or expected not in resp:
             first_line = resp.splitlines()[0] if resp else 'pas de réponse'
             raise ConnectionError(f'Handshake WebSocket refusé : {first_line}')
-        # Handshake terminé : lecture BLOQUANTE. TCI est un protocole push — au
-        # repos le serveur n'envoie plus rien, et le timeout de 3 s faisait alors
-        # lever socket.timeout au bout de 3 s d'inactivité, ce qui tuait le fil de
-        # lecture (état de fréquence figé). recv_message n'étant pas reprenable
-        # après un timeout survenu au milieu d'une frame, bloquer est plus sûr
-        # que « continue » ; une vraie déconnexion lève ConnectionError.
-        self._sock.settimeout(None)
+        # Handshake terminé : TCI est un protocole push — au repos le serveur
+        # n'envoie plus rien, donc le timeout de 3 s du handshake serait resté
+        # inadapté (socket.timeout au bout de 3 s d'inactivité, fil de lecture
+        # tué, état de fréquence figé). On borne plutôt le SILENCE à
+        # READ_IDLE_TIMEOUT_S : au-delà, _recv_exact lève ConnectionError (pas
+        # de perte du buffer déjà accumulé), le fil de lecture se termine
+        # proprement et _ensure_connected() peut reconnecter — au lieu de
+        # bloquer pour toujours sur un réseau coupé sans FIN/RST.
+        self._sock.settimeout(READ_IDLE_TIMEOUT_S)
 
     def _read_http_response(self):
         self._sock.settimeout(self.timeout)
@@ -106,11 +113,24 @@ class WebSocketClient:
             header += struct.pack('>Q', length)
         mask_key = os.urandom(4)
         masked = bytes(b ^ mask_key[i % 4] for i, b in enumerate(payload))
+        # Le socket est en lecture bloquante bornée (voir connect()) mais sans
+        # borne d'écriture explicite ici : sans select(), un pair mort sans
+        # FIN/RST ferait attendre sendall() jusqu'à READ_IDLE_TIMEOUT_S — ou
+        # indéfiniment si le timeout socket ne s'applique pas à l'écriture —
+        # et donc geler l'appelant (thread HTTP).
+        _, writable, _ = select.select([], [self._sock], [], self.WRITE_TIMEOUT_S)
+        if not writable:
+            raise TimeoutError('TCI : le pair ne répond plus (écriture bloquée)')
         self._sock.sendall(bytes(header) + mask_key + masked)
 
     def _recv_exact(self, n):
         while len(self._buf) < n:
-            chunk = self._sock.recv(4096)
+            try:
+                chunk = self._sock.recv(4096)
+            except socket.timeout:
+                raise ConnectionError(
+                    'TCI : aucune donnée reçue depuis %ds - connexion jugée morte'
+                    % READ_IDLE_TIMEOUT_S)
             if not chunk:
                 raise ConnectionError('Connexion WebSocket fermée par le serveur')
             self._buf += chunk
@@ -131,6 +151,9 @@ class WebSocketClient:
                 length = struct.unpack('>H', self._recv_exact(2))[0]
             elif length == 127:
                 length = struct.unpack('>Q', self._recv_exact(8))[0]
+            if length > MAX_FRAME_LEN:
+                raise ConnectionError('TCI : trame de %d octets refusée (> %d)'
+                                       % (length, MAX_FRAME_LEN))
             payload = self._recv_exact(length) if length else b''
             if opcode == 0x8:  # close
                 raise ConnectionError('Serveur TCI : fermeture de connexion')
@@ -147,6 +170,9 @@ class WebSocketClient:
         header = bytearray([0x80 | 0xA, 0x80 | len(payload)])
         mask_key = os.urandom(4)
         masked = bytes(b ^ mask_key[i % 4] for i, b in enumerate(payload))
+        _, writable, _ = select.select([], [self._sock], [], self.WRITE_TIMEOUT_S)
+        if not writable:
+            raise TimeoutError('TCI : le pair ne répond plus (pong bloqué)')
         self._sock.sendall(bytes(header) + mask_key + masked)
 
     def close(self):

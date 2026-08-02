@@ -242,7 +242,11 @@ def main(argv=None):
     if '--attendre' in argv:
         code, message = attendre(port=PORT)
     else:
-        code, message = decider(logx_singleton.probe(PORT), port=PORT)
+        # extra_hosts=[IP LAN] : même correction que logx_serveur.py — sinon
+        # le verdict SHARED ne teste jamais l'adresse réellement annoncée aux
+        # autres opérateurs du réseau (voir logx_singleton.probe docstring).
+        code, message = decider(
+            logx_singleton.probe(PORT, extra_hosts=[logx_singleton.detecter_ip_lan()]), port=PORT)
     if message:
         print(message)
     return code

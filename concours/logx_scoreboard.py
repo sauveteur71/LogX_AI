@@ -11,11 +11,9 @@ testable sans réseau ; seul le POST touche le réseau et dégrade proprement.
 import json
 import os
 import time
-import urllib.request
-import urllib.parse
 
 from logx_storage import active_scope_id, qso_scope_id, cfg_scope_id
-from logx_utils import utcnow
+from logx_utils import utcnow, post_url_form
 
 _STAMP_FILE = 'scoreboard_sync.json'
 
@@ -115,31 +113,32 @@ def push(cfg, shared_log):
     if not snap['qso']:
         return {'ok': False, 'error': 'Aucun QSO à publier'}
     xml = build_n1mm_xml(snap, cfg, s['class'])
-    try:
-        from logx_utils import SSL_CTX
-        ctx = SSL_CTX
-    except Exception:
-        ctx = None
-    try:
-        data = urllib.parse.urlencode({'xml': xml}).encode('utf-8')
-        req = urllib.request.Request(s['url'], data=data, headers={
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'LogXAI'})
-        with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
-            resp = r.read().decode('utf-8', 'replace')[:200]
-    except Exception as e:
-        return {'ok': False, 'error': f'Scoreboard injoignable : {e}'}
+    # post_url_form() soumet la requête au pool _FETCH_EXECUTOR et borne
+    # l'ATTENTE du résultat — urlopen(timeout=...) seul ne couvre pas la
+    # résolution DNS (getaddrinfo bloquant), qui gèlerait sinon ce thread
+    # pour de bon : le thread HTTP servant /scoreboard/push, ou pire,
+    # l'unique thread de fond _scoreboard_loop pour le reste de l'expédition
+    # (voir logx_utils.fetch_url pour le détail du piège).
+    status, resp = post_url_form(s['url'], {'xml': xml}, timeout=20,
+                                 headers={'User-Agent': 'LogXAI'})
+    if status is None:
+        return {'ok': False, 'error': 'Scoreboard injoignable'}
+    if status >= 400:
+        return {'ok': False,
+                'error': f'Scoreboard a répondu HTTP {status} : {(resp or "")[:200].strip()}'}
     _stamp(snap)
     return {'ok': True, 'score': snap['score'], 'qso': snap['qso'],
-            'mults': snap['mults'], 'response': resp.strip()}
+            'mults': snap['mults'], 'response': (resp or '')[:200].strip()}
 
 
 def _stamp(snap):
     try:
         data = {'last': utcnow().strftime('%Y-%m-%d %H:%M'),
                 'score': snap.get('score'), 'qso': snap.get('qso')}
-        with open(_STAMP_FILE, 'w', encoding='utf-8') as f:
+        tmp = _STAMP_FILE + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(data, f)
+        os.replace(tmp, _STAMP_FILE)
     except Exception:
         pass
 

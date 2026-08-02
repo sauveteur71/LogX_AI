@@ -301,7 +301,12 @@ def upload_eqsl(cfg, adif):
     except Exception as e:
         return {'ok': False, 'error': f'eQSL injoignable : {e}'}
     low = resp.lower()
-    if 'error' in low or 'bad' in low or 'incorrect' in low:
+    # Un succès peut légitimement contenir le mot "error" (ex. "0 record(s)
+    # had errors") — on ne rejette que sur des phrases d'échec SPÉCIFIQUES,
+    # pas sur des mots isolés qui apparaissent aussi dans les messages de succès.
+    failure_markers = ('password is incorrect', 'invalid eqsl user',
+                        'account is not activ', 'unable to process')
+    if any(m in low for m in failure_markers):
         return {'ok': False, 'service': 'eQSL',
                 'error': re.sub(r'<[^>]+>', ' ', resp)[:200].strip()}
     _stamp('eqsl_upload')
@@ -563,16 +568,24 @@ _STAMP_FILE = 'qsl_sync.json'
 
 
 def _stamp(action):
-    try:
-        data = {}
-        if os.path.exists(_STAMP_FILE):
-            with open(_STAMP_FILE, encoding='utf-8') as f:
-                data = json.load(f) or {}
-        data[action] = utcnow().strftime('%Y-%m-%d %H:%M')
-        with open(_STAMP_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f)
-    except Exception:
-        pass
+    with _lock:
+        try:
+            try:
+                from logx_storage import save_json_atomic
+            except Exception:
+                save_json_atomic = None
+            data = {}
+            if os.path.exists(_STAMP_FILE):
+                with open(_STAMP_FILE, encoding='utf-8') as f:
+                    data = json.load(f) or {}
+            data[action] = utcnow().strftime('%Y-%m-%d %H:%M')
+            if save_json_atomic:
+                save_json_atomic(_STAMP_FILE, data, compact=True)
+            else:
+                with open(_STAMP_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(data, f)
+        except Exception:
+            pass
 
 
 def qsl_status(cfg=None):

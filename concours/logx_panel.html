@@ -117,7 +117,7 @@ if(localStorage.getItem('rc_theme') === null){
 
       let hints = '';
       if(d.run_sp){
-        hints += `<div class="hint" style="border-color:${d.run_sp.mode==='RUN'?'var(--green)':'var(--accent2)'}"><b>${d.run_sp.mode==='CHANGE'?T('CHANGE DE BANDE'):d.run_sp.mode}</b> — ${esc(d.run_sp.reason||'')}</div>`;
+        hints += `<div class="hint" style="border-color:${d.run_sp.mode==='RUN'?'var(--green)':'var(--accent2)'}"><b>${d.run_sp.mode==='CHANGE'?T('CHANGE DE BANDE'):esc(d.run_sp.mode)}</b> — ${esc(d.run_sp.reason||'')}</div>`;
       }
       hints += (d.hints || []).slice(0,4).map(h => `<div class="hint">${esc(h.icon||'')} ${esc(h.text||'')}</div>`).join('');
 
@@ -165,7 +165,7 @@ if(localStorage.getItem('rc_theme') === null){
         ['RAYONS X', s.xray, 'var(--text)'],
         ['AURORE', s.aurora, 'var(--text)'],
       ];
-      const grid = items.map(([l,v,col]) => `<div class="item"><div class="lbl">${l}</div><div class="val" style="color:${col}">${v??'—'}</div></div>`).join('');
+      const grid = items.map(([l,v,col]) => `<div class="item"><div class="lbl">${l}</div><div class="val" style="color:${col}">${esc(v ?? '—')}</div></div>`).join('');
       const muf = d.muf && d.muf.muf;
       body.innerHTML = `<div class="grid">${grid}</div>`
         + `<div style="margin-top:6px">MUF : <b style="color:var(--accent2)">${muf ? muf+' MHz' : '—'}</b>`

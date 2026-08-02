@@ -79,7 +79,10 @@ if __name__ == '__main__':
     # l'ANCIEN processus répondait toujours, et les deux serveurs écrivaient
     # dans les mêmes fichiers de données sans exclusion mutuelle (chacun avec
     # son propre verrou en mémoire). Détail complet dans logx_singleton.py.
-    _instance = logx_singleton.probe(PORT)
+    # extra_hosts=[IP LAN] : la détection « port partagé sans risque » ne
+    # vérifie sinon que 127.0.0.1, jamais l'adresse réellement annoncée aux
+    # autres opérateurs sur le WiFi de l'expédition (voir docstring probe()).
+    _instance = logx_singleton.probe(PORT, extra_hosts=[logx_singleton.detecter_ip_lan()])
     if _instance['state'] == logx_singleton.LOGX:
         # Même fonction d'ouverture que le démarrage nominal (elle choisit
         # l'adresse locale la plus rapide) : l'utilisateur voulait voir LogX
@@ -321,7 +324,8 @@ if __name__ == '__main__':
                         lan.start(lambda: dict(h.current_config), PORT)
                         started = True
                     r = lan.pull_and_merge(_get_log,
-                                           lambda q: h.add_qso_to_log(q, force=False)[0])
+                                           lambda q: h.add_qso_to_log(q, force=False)[0],
+                                           token=lan._lan_token(cfg))
                     if r.get('pulled'):
                         tag = ' (démarrage)' if startup else ''
                         print(f"[LAN-SYNC]{tag} pairs={r['peers']} tirés={r['pulled']}")

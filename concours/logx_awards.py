@@ -632,7 +632,7 @@ WAC_CONTINENTS = ('AF', 'AS', 'EU', 'NA', 'OC', 'SA')
 # bandes 160 à 6 m, WARC comprises. Clés en MHz : c'est le format réellement
 # stocké dans le log (mesuré : '14', '7', '3.5', '144'...), pas en longueur
 # d'onde. Le 2 m et au-dessus n'entrent pas dans le Challenge.
-CHALLENGE_BANDS = ('1.8', '3.5', '7', '10', '14', '18', '21', '24', '28', '50')
+CHALLENGE_BANDS = ('1.8', '3.5', '7', '10.1', '14', '18', '21', '24', '28', '50')
 
 
 # Locators « par défaut » écrits par certains logiciels quand la case est

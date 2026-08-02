@@ -44,6 +44,20 @@ def list_ports():
         return []
 
 
+def _transceive(transport, data, terminator, timeout=1.0):
+    """Écrit `data` puis lit jusqu'à `terminator` en une transaction unique
+    quand le transport l'expose (SerialPort réel — voir sa méthode
+    transceive(), verrou tenu de bout en bout pour rester atomique face au
+    polling logbook concurrent). Repli sur write()+read_until() séparés pour
+    les transports qui n'implémentent que l'interface minimale (doubles de
+    test synchrones, sans thread concurrent donc sans risque)."""
+    fn = getattr(transport, 'transceive', None)
+    if fn is not None:
+        return fn(data, terminator, timeout=timeout)
+    transport.write(data)
+    return transport.read_until(terminator, timeout=timeout)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  CI-V (Icom / Xiegu) — trames binaires
 # ═══════════════════════════════════════════════════════════════════════════
@@ -139,10 +153,10 @@ class CivRadio:
 
     def _query(self, cmd, sub=None, data=b'', read_reply=True):
         frame = civ_build_frame(self.addr, cmd, sub, data)
-        self.t.write(frame)
         if not read_reply:
+            self.t.write(frame)
             return None
-        raw = self.t.read_until(CIV_END, timeout=1.0)
+        raw = _transceive(self.t, frame, CIV_END, timeout=1.0)
         return civ_parse_frame(raw)
 
     def get_freq(self):
@@ -436,10 +450,11 @@ class AsciiRadio:
         self.split_style = SPLIT_STYLE.get(model, 'ft01' if brand != 'kenwood' else 'fr_ft')
 
     def _cmd(self, cmd, read_reply=True):
-        self.t.write(cmd.encode('ascii'))
+        data = cmd.encode('ascii')
         if not read_reply:
+            self.t.write(data)
             return None
-        return self.t.read_until(b';', timeout=1.0).decode('ascii', errors='replace')
+        return _transceive(self.t, data, b';', timeout=1.0).decode('ascii', errors='replace')
 
     def get_state(self):
         reply = self._cmd('IF;')
@@ -496,7 +511,12 @@ class AsciiRadio:
     CW_BRANDS = ('kenwood', 'elecraft')
     # Le tampon KY accepte 24 caractères. On découpe plus court pour laisser
     # la radio respirer entre deux envois.
-    CW_CHUNK = 24
+    CW_CHUNK = 20
+    # Délai entre deux segments KY : laisse le temps à la radio de vider une
+    # partie du tampon avant l'arrivée du bloc suivant. Majoré par prudence
+    # pour couvrir aussi les vitesses lentes (~10-15 mpm, usage DX/pile-up),
+    # pas seulement le confort moyen.
+    CW_CHUNK_DELAY_S = 0.5
     # Jeu de caractères réellement manipulable. Tout le reste est écarté
     # plutôt qu'envoyé tel quel : un caractère refusé peut faire ignorer la
     # commande ENTIÈRE par la radio, donc perdre tout le message.
@@ -513,6 +533,8 @@ class AsciiRadio:
             return {'ok': False, 'error': 'Rien à manipuler (texte vide après filtrage)'}
         for i in range(0, len(propre), self.CW_CHUNK):
             self._cmd('KY %s;' % propre[i:i + self.CW_CHUNK], read_reply=False)
+            if i + self.CW_CHUNK < len(propre):
+                time.sleep(self.CW_CHUNK_DELAY_S)
         return {'ok': True, 'text': propre}
 
     def stop_cw(self):
@@ -559,12 +581,23 @@ class SerialPort:
                                      bytesize=8, parity='N', stopbits=1)
 
     def write(self, data):
+        """Écriture seule, sans attente de réponse (SET fire-and-forget,
+        ex. set_freq()/set_ptt() ASCII appelés avec read_reply=False)."""
         with self._lock:
             self._ser.reset_input_buffer()
             self._ser.write(data)
 
-    def read_until(self, terminator, timeout=1.0):
+    def transceive(self, data, terminator, timeout=1.0):
+        """Écrit `data` PUIS lit jusqu'à `terminator` sous UNE SEULE
+        acquisition du verrou d'instance : toute la transaction
+        requête/réponse est atomique (même correctif que `_io_lock` dans
+        logx_amp.py). Le serveur HTTP est multi-thread — polling logbook et
+        clics opérateur écrivent chacun sur le même port — donc sans cela un
+        thread pouvait voir sa réponse effacée par le reset_input_buffer()
+        d'un autre thread, ou lire la réponse destinée à une autre commande."""
         with self._lock:
+            self._ser.reset_input_buffer()
+            self._ser.write(data)
             self._ser.timeout = timeout
             return self._ser.read_until(terminator)
 
@@ -847,8 +880,7 @@ def autodetect(transport):
     certitude absolue pour Icom (l'adresse peut avoir été changée par
     l'utilisateur), signalé via 'certain': True/False."""
     try:
-        transport.write(b'ID;')
-        reply = transport.read_until(b';', timeout=0.8).decode('ascii', errors='replace')
+        reply = _transceive(transport, b'ID;', b';', timeout=0.8).decode('ascii', errors='replace')
     except Exception:
         reply = ''
     if reply.startswith('ID') and any(c.isdigit() for c in reply):
@@ -864,8 +896,7 @@ def autodetect(transport):
 
     for name, addr in CIV_ADDRESSES.items():
         try:
-            transport.write(civ_build_frame(addr, 0x19, sub=0x00))
-            raw = transport.read_until(CIV_END, timeout=0.5)
+            raw = _transceive(transport, civ_build_frame(addr, 0x19, sub=0x00), CIV_END, timeout=0.5)
         except Exception:
             continue
         parsed = civ_parse_frame(raw)

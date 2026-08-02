@@ -30,17 +30,15 @@ ADIF_BANDS = {
 
 
 def band_from_freq(freq):
-    """Fréquence (MHz ou kHz) → libellé de bande ADIF officiel, '' si hors de
-    toute bande reconnue. Repli utilisé quand le champ BAND est absent d'un
-    record ADIF mais FREQ est présent."""
+    """Fréquence ADIF (toujours en MHz, cf. spec ADIF §FREQ — seul appelant
+    réel : logx_qsl._band_from_record via l'alias _band_from_freq_adif) →
+    libellé de bande ADIF officiel, '' si hors de toute bande reconnue.
+    Repli utilisé quand le champ BAND est absent d'un record ADIF mais FREQ
+    est présent."""
     try:
-        v = float(str(freq).replace(',', '.'))
+        mhz = float(str(freq).replace(',', '.'))
     except (ValueError, TypeError):
         return ''
-    # Les bandes LF/MF officielles (2190m, 630m, 560m) sont sous 1 MHz : ne
-    # PAS appliquer la même heuristique kHz->MHz que pour le reste (v > 1000)
-    # sous peine de confondre 472 kHz avec 472 MHz.
-    mhz = v if v <= 30 else (v / 1000.0 if v > 1000 else v)
     for band, (lo, hi) in ADIF_BANDS.items():
         if lo <= mhz <= hi:
             return band
