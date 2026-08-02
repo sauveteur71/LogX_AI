@@ -5166,12 +5166,10 @@ function applyWsjtxState(d){
       const freqTxt = m.freq ? trF(' ({f} MHz)', {f: m.freq}) : '';
       const txt = trF('🆕 {call} décodé — {label}{freq}', {call: m.call, label: m.label, freq: freqTxt});
       notify(txt);
-      // Voix mains-libres (#6) façon JTAlert : « nouveau pays entendu » dit à
-      // voix haute, casque de suivi, jamais sur l'air. Gardé par rc_tts (le
-      // bouton 🔊), donc muet par défaut. Le Set ci-dessus garantit une seule
-      // fois par indicatif : en FT8 la station réapparaît toutes les 15 s.
-      try{ if(window.rcSpeak) window.rcSpeak(txt); }catch(e){}
-      try{ playBeep(1318, 110); }catch(e){}
+      // Alerte réglable par type (#5) : son choisi + voix selon le réglage du
+      // type (ou la lecture auto globale 🔊). Le Set ci-dessus garantit une
+      // seule fois par indicatif — en FT8 la station réapparaît toutes les 15 s.
+      try{ if(window.rcAlert) window.rcAlert(m.type === 'dept' ? 'new_dept' : 'new_dxcc', txt); }catch(e){}
     }
     // BESOIN LoTW en direct : entité déjà travaillée mais pas confirmée LoTW
     // sur cette bande/mode. Distinct de « jamais contacté » ci-dessus (déjà
@@ -5182,8 +5180,7 @@ function applyWsjtxState(d){
       _wsjtxAlerted.add(key);
       const txt = trF('📡 {call} décodé — {label}', {call: m.call, label: m.label});
       notify(txt);
-      try{ if(window.rcSpeak) window.rcSpeak(txt); }catch(e){}
-      try{ playBeep(1174, 100); }catch(e){}
+      try{ if(window.rcAlert) window.rcAlert('lotw_need', txt); }catch(e){}
     }
     appliquerSuiviCarres(d.carres);
 }
@@ -5380,14 +5377,12 @@ function appliquerSuiviCarres(carres){
       const txt = trF('🔲 NOUVEAU CARRÉ {grid} — {call} (jamais travaillé)',
                       {grid: c.grid, call: c.call || ''});
       notify(txt);
-      try{ if(window.rcSpeak) window.rcSpeak(txt); }catch(e){}
-      try{ playBeep(1760, 150); }catch(e){}
+      try{ if(window.rcAlert) window.rcAlert('new_grid', txt); }catch(e){}
     } else {
       const txt = trF('🔲 {grid} — {call} : carré neuf pour ce concours',
                       {grid: c.grid, call: c.call || ''});
       notify(txt);
-      try{ if(window.rcSpeak) window.rcSpeak(txt); }catch(e){}
-      try{ playBeep(988, 90); }catch(e){}
+      try{ if(window.rcAlert) window.rcAlert('mult', txt); }catch(e){}
     }
   }
 }

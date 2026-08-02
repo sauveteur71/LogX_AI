@@ -1769,6 +1769,16 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
 
       <div class="section">
+        <div class="section-title">🔊 SON &amp; VOIX PAR TYPE D'ALERTE</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Pour chaque type d'alerte, choisis un <b>son</b> distinct et/ou une <b>annonce vocale</b>
+          (« Nouveau pays détecté ! »). La voix d'un type activé parle même si la lecture
+          automatique globale 🔊 est coupée. Réglages propres à ce poste, enregistrés aussitôt.
+        </div>
+        <div id="alertTypesGrid"></div>
+      </div>
+
+      <div class="section">
         <div class="section-title">🔔 RÈGLES D'ALERTE PERSONNALISÉES</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           En plus du nouveau multiplicateur et de la mention ON4KST (toujours actifs) :
@@ -5510,6 +5520,57 @@ function refreshLanPeers(){
 // Rafraîchissement léger tant que la page config est ouverte (GET local, ~rien).
 setInterval(function(){ try{ refreshLanPeers(); }catch(e){} }, 6000);
 
+// ── Réglage SON + VOIX par type d'alerte (#5) ────────────────────────────────
+// Les données (types, sons, prefs) viennent de logx_statusbar.js (window.rcAlert*)
+// pour rester la SEULE source de vérité — la même que celle qui déclenche les
+// alertes. Prefs par poste dans localStorage rc_alerts, enregistrées à chaque
+// changement (comme le bouton 🔊 global).
+const ALERT_SOUND_LABELS = {
+  aucun: 'Aucun (silencieux)', aigu: 'Bip aigu', grave: 'Bip grave',
+  double: 'Double bip', montant: 'Deux tons montants',
+  carillon: 'Carillon (3 notes)', sirene: 'Sirène courte'
+};
+function buildAlertTypesGrid(){
+  const box = document.getElementById('alertTypesGrid');
+  if(!box || !window.rcAlertTypes) return;
+  const types = window.rcAlertTypes();
+  const sounds = window.rcAlertSounds();
+  const prefs = window.rcAlertPrefs();
+  box.innerHTML = types.map(function(t){
+    const p = prefs[t.id] || {voice:false, sound:'aigu'};
+    const opts = sounds.map(function(s){
+      return '<option value="'+s+'"'+(s===p.sound?' selected':'')+'>'+(ALERT_SOUND_LABELS[s]||s)+'</option>';
+    }).join('');
+    return '<div class="form-row" data-alert="'+t.id+'" style="align-items:center;gap:12px;margin-bottom:8px">'
+      + '<div style="flex:1;font-family:var(--font-mono);font-size:13px">'+t.label+'</div>'
+      + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">'
+      + '<input type="checkbox" data-alert-voice '+(p.voice?'checked':'')+' onchange="saveAlertTypes()"> voix</label>'
+      + '<select data-alert-sound onchange="saveAlertTypes()" style="width:190px">'+opts+'</select>'
+      + '<button type="button" class="btn btn-secondary" onclick="testAlertType(\''+t.id+'\')" title="Écouter">🔊</button>'
+      + '</div>';
+  }).join('');
+}
+function saveAlertTypes(){
+  const box = document.getElementById('alertTypesGrid');
+  if(!box) return;
+  const out = {};
+  box.querySelectorAll('[data-alert]').forEach(function(row){
+    out[row.dataset.alert] = {
+      voice: row.querySelector('[data-alert-voice]').checked,
+      sound: row.querySelector('[data-alert-sound]').value
+    };
+  });
+  try{ localStorage.setItem('rc_alerts', JSON.stringify(out)); }catch(e){}
+}
+function testAlertType(id){
+  const row = document.querySelector('[data-alert="'+id+'"]');
+  if(!row) return;
+  try{ if(window.rcTone) window.rcTone(row.querySelector('[data-alert-sound]').value); }catch(e){}
+  if(row.querySelector('[data-alert-voice]').checked && window.rcSpeak){
+    try{ window.rcSpeak((window.rcAlertVoiceFor && window.rcAlertVoiceFor(id)) || id, true); }catch(e){}
+  }
+}
+
 let antennesRows = [], rotorsRows = [], amplisRows = [];
 
 function _pOpt(v, sel, lbl){
@@ -6598,6 +6659,7 @@ function applyFullConfigToForm(c) {
     });
     fillClusterPicker();   // remplit le sélecteur de nœuds + aligne sur l'hôte chargé
     refreshLanPeers();     // postes détectés en synchro LAN directe
+    buildAlertTypesGrid(); // grille son+voix par type d'alerte (#5)
     transverterRows = Array.isArray(c.transverters) ? c.transverters.map(t => ({
       if: String(t.if || '144'), rf: String(t.rf || '1296'),
       enabled: t.enabled !== false,
