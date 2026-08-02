@@ -213,6 +213,12 @@ const ORG_CLASSES = {
 
 function orgClass(org){ return ORG_CLASSES[org] || 'org-ref'; }
 
+// Échappement HTML — même fonction que logx_propagation.html/logx_wall.html/
+// logx_mobile.html. Nécessaire ici car le flux RSS NG3K (DXpeditions) et le
+// scrape WA7BNM (onglet mondial) transitent jusqu'à innerHTML sans filtre.
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 async function loadYear(){
   currentTab = 'main';
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
@@ -339,28 +345,28 @@ function renderCalendar(){
         ? `<span style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);background:rgba(255,214,10,.1);border:1px solid rgba(255,214,10,.3);padding:1px 5px;border-radius:3px;margin-left:6px">${c.year}</span>`
         : '';
 
-      html += `<div class="contest-row ${rowClass}" onclick="showDetail('${c.id}')">
+      html += `<div class="contest-row ${rowClass}" onclick="showDetail('${esc(c.id)}')">
         <div class="cr-date">
           <div class="cr-date-main">${dateShort}${yearBadge}</div>
           <div class="cr-date-year">${c.year}</div>
           <div class="cr-date-countdown">${cd}</div>
         </div>
         <div class="cr-org">
-          <div class="org-badge ${orgClass(c.organizer)}">${c.organizer.split(' ')[0]}</div>
+          <div class="org-badge ${orgClass(c.organizer)}">${esc(c.organizer.split(' ')[0])}</div>
         </div>
         <div class="cr-info">
-          <div class="cr-name">${c.name} <span class="tag" style="background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.3)" title="Dates et règlement re-vérifiés automatiquement chaque année">✓ règlement suivi</span></div>
-          <div class="cr-exchange">${c.exchange || '—'}</div>
+          <div class="cr-name">${esc(c.name)} <span class="tag" style="background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.3)" title="Dates et règlement re-vérifiés automatiquement chaque année">✓ règlement suivi</span></div>
+          <div class="cr-exchange">${esc(c.exchange || '—')}</div>
           <div class="cr-tags">
-            ${c.bands.slice(0,4).map(b=>`<span class="tag tag-band">${b}MHz</span>`).join('')}
-            ${c.modes.slice(0,3).map(m=>`<span class="tag tag-mode">${m}</span>`).join('')}
-            ${c.log_format?`<span class="tag tag-log">${c.log_format}</span>`:''}
-            ${c.scoring&&c.scoring.unit?`<span class="tag tag-score">${c.scoring.unit.substring(0,20)}</span>`:''}
+            ${c.bands.slice(0,4).map(b=>`<span class="tag tag-band">${esc(b)}MHz</span>`).join('')}
+            ${c.modes.slice(0,3).map(m=>`<span class="tag tag-mode">${esc(m)}</span>`).join('')}
+            ${c.log_format?`<span class="tag tag-log">${esc(c.log_format)}</span>`:''}
+            ${c.scoring&&c.scoring.unit?`<span class="tag tag-score">${esc(c.scoring.unit.substring(0,20))}</span>`:''}
           </div>
         </div>
         <div class="cr-actions">
-          ${!isPastC?`<button class="cr-btn start" onclick="event.stopPropagation();startContest('${c.id}')">▶ DÉMARRER</button>`:''}
-          ${c.rules_url?`<a class="cr-btn" href="${c.rules_url}" target="_blank" onclick="event.stopPropagation()">📄 Règlement</a>`:''}
+          ${!isPastC?`<button class="cr-btn start" onclick="event.stopPropagation();startContest('${esc(c.id)}')">▶ DÉMARRER</button>`:''}
+          ${c.rules_url?`<a class="cr-btn" href="${esc(c.rules_url)}" target="_blank" onclick="event.stopPropagation()">📄 Règlement</a>`:''}
         </div>
       </div>`;
     });
@@ -379,8 +385,8 @@ function showDetail(id){
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
-        <div style="font-family:var(--font-mono);font-size:16px;color:var(--accent2);letter-spacing:2px">${c.name}</div>
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:4px">${c.organizer}</div>
+        <div style="font-family:var(--font-mono);font-size:16px;color:var(--accent2);letter-spacing:2px">${esc(c.name)}</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:4px">${esc(c.organizer)}</div>
       </div>
       <button onclick="document.getElementById('detailPanel').classList.remove('show')"
         style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px">✕</button>
@@ -388,40 +394,40 @@ function showDetail(id){
     <div class="detail-grid" style="margin-top:14px">
       <div class="detail-item">
         <div class="di-label">DATE ${currentYear}</div>
-        <div class="di-value accent">${c.date}</div>
+        <div class="di-value accent">${esc(c.date)}</div>
       </div>
       <div class="detail-item">
         <div class="di-label">ÉCHANGE</div>
-        <div class="di-value">${c.exchange||'—'}</div>
+        <div class="di-value">${esc(c.exchange||'—')}</div>
       </div>
       <div class="detail-item">
         <div class="di-label">SCORING</div>
-        <div class="di-value accent2">${s.unit||'—'}</div>
+        <div class="di-value accent2">${esc(s.unit||'—')}</div>
       </div>
       <div class="detail-item">
         <div class="di-label">MULTIPLICATEUR</div>
-        <div class="di-value">${s.multiplier||'aucun'}</div>
+        <div class="di-value">${esc(s.multiplier||'aucun')}</div>
       </div>
       <div class="detail-item">
         <div class="di-label">FORMAT LOG</div>
-        <div class="di-value">${c.log_format||'EDI'}</div>
+        <div class="di-value">${esc(c.log_format||'EDI')}</div>
       </div>
       <div class="detail-item">
         <div class="di-label">DÉLAI ENVOI</div>
-        <div class="di-value">${c.log_deadline||'—'}</div>
+        <div class="di-value">${esc(c.log_deadline||'—')}</div>
       </div>
       ${c.log_submit?`<div class="detail-item" style="grid-column:1/-1">
         <div class="di-label">SOUMISSION LOG</div>
-        <div class="di-value"><a href="${c.log_submit}" target="_blank" style="color:var(--accent2)">${c.log_submit}</a></div>
+        <div class="di-value"><a href="${esc(c.log_submit)}" target="_blank" style="color:var(--accent2)">${esc(c.log_submit)}</a></div>
       </div>`:''}
       ${c.notes?`<div class="detail-item" style="grid-column:1/-1;background:rgba(255,214,10,.05);border:1px solid rgba(255,214,10,.2)">
         <div class="di-label">NOTES</div>
-        <div class="di-value" style="color:var(--yellow)">${c.notes}</div>
+        <div class="di-value" style="color:var(--yellow)">${esc(c.notes)}</div>
       </div>`:''}
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="cr-btn start" style="padding:8px 20px;font-size:13px" onclick="startContest('${c.id}')">▶ DÉMARRER CE CONCOURS</button>
-      ${c.rules_url?`<a href="${c.rules_url}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:13px">📄 Règlement officiel</a>`:''}
+      <button class="cr-btn start" style="padding:8px 20px;font-size:13px" onclick="startContest('${esc(c.id)}')">▶ DÉMARRER CE CONCOURS</button>
+      ${c.rules_url?`<a href="${esc(c.rules_url)}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:13px">📄 Règlement officiel</a>`:''}
     </div>`;
   panel.classList.add('show');
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -521,16 +527,16 @@ function renderExternal(){
         <div class="month-header">📅 ${label} <span class="month-count">${n} concours</span></div>`;
       curKey = key;
     }
-    html += `<div class="contest-row upcoming" onclick="window.open('${c.url}','_blank')">
-      <div class="cr-date"><div class="cr-date-main" style="font-size:14px">${c.date_str||'—'}</div><div class="cr-date-year">${c.time_str||''}</div></div>
+    html += `<div class="contest-row upcoming" onclick="window.open('${esc(c.url)}','_blank')">
+      <div class="cr-date"><div class="cr-date-main" style="font-size:14px">${esc(c.date_str||'—')}</div><div class="cr-date-year">${esc(c.time_str||'')}</div></div>
       <div class="cr-org"><div class="org-badge org-cq" style="font-size:11px">WW</div></div>
       <div class="cr-info">
-        <div class="cr-name">${c.name} <span class="tag" style="background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)" title="Paramètres non vérifiés — à confirmer manuellement dans la config (lecture IA du règlement : Phase 3)">⚠ à confirmer</span></div>
-        <div class="cr-exchange" style="color:var(--accent2);font-size:12px">contestcalendar.com ref=${c.ref}</div>
+        <div class="cr-name">${esc(c.name)} <span class="tag" style="background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)" title="Paramètres non vérifiés — à confirmer manuellement dans la config (lecture IA du règlement : Phase 3)">⚠ à confirmer</span></div>
+        <div class="cr-exchange" style="color:var(--accent2);font-size:12px">contestcalendar.com ref=${esc(c.ref)}</div>
       </div>
       <div class="cr-actions">
-        <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${c.ref}')">▶ PRÉPARER</button>
-        <a class="cr-btn" href="${c.url}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
+        <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${esc(c.ref)}')">▶ PRÉPARER</button>
+        <a class="cr-btn" href="${esc(c.url)}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
       </div>
     </div>`;
   });
@@ -582,13 +588,13 @@ function renderDxpeditions(){
       : '';
     html += `<div class="contest-row upcoming">
       <div class="cr-date">
-        <div class="cr-date-main" style="font-size:13px">${e.dates || '—'}</div>
+        <div class="cr-date-main" style="font-size:13px">${esc(e.dates || '—')}</div>
       </div>
       <div class="cr-org"><div class="org-badge org-cq" style="font-size:11px">DX</div></div>
       <div class="cr-info">
-        <div class="cr-name">${e.callsign || '?'} — ${e.entity || '?'} ${newBadge}</div>
-        <div class="cr-exchange">QSL : ${e.qsl || '—'} ${e.source ? '· Source : ' + e.source : ''}</div>
-        ${e.info ? `<div class="cr-tags"><span class="tag tag-band" style="max-width:100%">${e.info}</span></div>` : ''}
+        <div class="cr-name">${esc(e.callsign || '?')} — ${esc(e.entity || '?')} ${newBadge}</div>
+        <div class="cr-exchange">QSL : ${esc(e.qsl || '—')} ${e.source ? '· Source : ' + esc(e.source) : ''}</div>
+        ${e.info ? `<div class="cr-tags"><span class="tag tag-band" style="max-width:100%">${esc(e.info)}</span></div>` : ''}
       </div>
     </div>`;
   });

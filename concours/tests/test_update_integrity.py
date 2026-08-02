@@ -1473,6 +1473,23 @@ def _fake_exes_chemin_accentue(tmp_path, dirname):
     return old, new
 
 
+def _marquer_telechargement_verifie(new_path):
+    """Simule ce que _do_download()/_do_download_via_network() posent APRÈS
+    une vérification SHA-256 réussie (voir apply_update_and_relaunch, défense
+    TOCTOU ajoutée par l'audit sécurité) : sans cet état, un fichier fabriqué
+    directement par le test — jamais passé par le téléchargement — est
+    désormais REFUSÉ à l'installation, comme n'importe quel fichier non
+    reconnu. Les tests qui exercent apply_update_and_relaunch() sur un
+    exécutable fabriqué à la main doivent donc d'abord déclarer, comme le
+    ferait un vrai téléchargement, que CE chemin précis a été vérifié."""
+    import hashlib as _hashlib
+    sha = _hashlib.sha256(new_path.read_bytes()).hexdigest()
+    with upd._lock:
+        upd._download['path'] = str(new_path)
+        upd._download['sha256'] = sha
+        upd._download['verified'] = True
+
+
 def test_bat_pur_ascii_et_chemins_via_environnement(monkeypatch, tmp_path):
     """Le test qui ÉCHOUE sans le correctif : le .bat généré ne doit contenir
     AUCUN octet non-ASCII (avant correctif : les chemins accentués y étaient
@@ -1482,6 +1499,7 @@ def test_bat_pur_ascii_et_chemins_via_environnement(monkeypatch, tmp_path):
     constantes DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP fournies si
     absentes, Popen intercepté (jamais de vrai cmd lancé ici)."""
     old, new = _fake_exes_chemin_accentue(tmp_path, 'Frédéric_Téléchargements')
+    _marquer_telechargement_verifie(new)
     monkeypatch.setattr(upd, 'is_frozen', lambda: True)
     monkeypatch.setattr(sys, 'executable', str(old))
     monkeypatch.setattr(sys, 'platform', 'win32')
@@ -1533,6 +1551,7 @@ def test_move_reel_via_cmd_detache_chemin_accentue(monkeypatch, tmp_path, dirnam
     Seul `start ""` est neutralisé (rem), au niveau octets, pour ne pas
     tenter de lancer le faux .exe en fin de script."""
     old, new = _fake_exes_chemin_accentue(tmp_path, dirname)
+    _marquer_telechargement_verifie(new)
     monkeypatch.setattr(upd, 'is_frozen', lambda: True)
     monkeypatch.setattr(sys, 'executable', str(old))
     real_popen = upd.subprocess.Popen

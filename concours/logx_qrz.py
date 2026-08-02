@@ -37,11 +37,20 @@ QRZ_TIMEOUT = 6  # recherche interactive (frappe d'indicatif) : pas de valeur "c
 
 
 def _authenticate(user, pw):
-    """Ouvre une session QRZ, retourne (key, error)."""
-    from logx_utils import fetch_url
+    """Ouvre une session QRZ, retourne (key, error).
+
+    fetch_url(log_url=False) : cette URL contient le mot de passe QRZ en clair
+    dans la query string — fetch_url() journalise normalement `url[:60]` en
+    cas d'échec réseau, ce qui pour un indicatif court (3-4 caractères,
+    courant en concours : K5D, N2S...) ferait apparaître les premiers
+    caractères du mot de passe sur la console. log_url=False supprime cette
+    journalisation pour CET appel précis, sans dupliquer fetch_url()
+    elle-même (borne DNS/timeout déjà correcte, partagée avec tout le reste
+    de l'app — voir logx_utils.fetch_url)."""
     import urllib.parse as up
+    from logx_utils import fetch_url
     url = f'{BASE}?username={up.quote(user)};password={up.quote(pw)};agent=LogXAI'
-    xml = fetch_url(url, timeout=QRZ_TIMEOUT)
+    xml = fetch_url(url, timeout=QRZ_TIMEOUT, log_url=False)
     if not xml:
         return '', 'QRZ injoignable'
     key = _tag(xml, 'Key')
@@ -122,17 +131,23 @@ def _enrich_calldb(call, grid, country):
     try:
         import json, os
         from logx_storage import save_json_atomic, calldb_lock
-        db = {}
-        if os.path.exists('calldb.json'):
-            with open('calldb.json', encoding='utf-8') as f:
-                db = json.load(f)
-        calls = db.setdefault('calls', {})
-        entry = calls.setdefault(call, {})
-        if not entry.get('locator'):
-            entry['locator'] = grid
-        if country and not entry.get('country'):
-            entry['country'] = country
-        save_json_atomic('calldb.json', db, lock=calldb_lock, compact=True)
+        # calldb_lock protège tout le cycle lecture-modification-écriture ici
+        # (pas seulement l'écriture) : deux lookups QRZ concurrents ne doivent
+        # pas pouvoir lire la même version du fichier avant qu'aucun n'écrive.
+        # save_json_atomic est appelée avec lock=None car calldb_lock (non
+        # réentrant) est déjà tenu par ce bloc.
+        with calldb_lock:
+            db = {}
+            if os.path.exists('calldb.json'):
+                with open('calldb.json', encoding='utf-8') as f:
+                    db = json.load(f)
+            calls = db.setdefault('calls', {})
+            entry = calls.setdefault(call, {})
+            if not entry.get('locator'):
+                entry['locator'] = grid
+            if country and not entry.get('country'):
+                entry['country'] = country
+            save_json_atomic('calldb.json', db, lock=None, compact=True)
     except Exception:
         pass
 

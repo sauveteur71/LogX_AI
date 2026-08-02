@@ -10,7 +10,7 @@ l'ordre et retourne la première réponse positive, avec `source` pour que le
 client sache d'où vient l'info (et adapte l'affichage : HamQTH/HamDB ne
 donnent jamais le nom de l'opérant, contrairement à QRZ).
 
-HamDB : API JSON publique sans clé (http://api.hamdb.org/v1/<call>/json/<app>),
+HamDB : API JSON publique sans clé (https://api.hamdb.org/v1/<call>/json/<app>),
 vérifiée en direct (W1AW -> fiche complète, F4GLD -> NOT_FOUND partout —
 confirme le périmètre USA uniquement documenté nulle part officiellement).
 """
@@ -53,7 +53,7 @@ def lookup_hamdb(call):
     call = (call or '').upper().strip()
     if not call:
         return {'ok': False, 'error': 'Indicatif vide'}
-    text = fetch_url(f'http://api.hamdb.org/v1/{call}/json/logxai', timeout=8)
+    text = fetch_url(f'https://api.hamdb.org/v1/{call}/json/logxai', timeout=8)
     if not text:
         return {'ok': False, 'error': 'HamDB injoignable'}
     try:

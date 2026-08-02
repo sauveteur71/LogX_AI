@@ -35,7 +35,7 @@ def test_tag_extraction():
 def test_lookup_ok(monkeypatch):
     _reset()
     calls = iter([AUTH_OK, LOOKUP_OK])
-    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15: next(calls))
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15, log_url=True: next(calls))
     r = qrz.lookup('F6KQJ', 'user', 'pw')
     assert r['ok'] and r['call'] == 'F6KQJ'
     assert r['name'] == 'Radio-Club GCEBP43'
@@ -45,7 +45,7 @@ def test_lookup_ok(monkeypatch):
 
 def test_auth_refusee(monkeypatch):
     _reset()
-    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15: AUTH_ERR)
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15, log_url=True: AUTH_ERR)
     r = qrz.lookup('F6KQJ', 'user', 'badpw')
     assert not r['ok'] and 'incorrect' in r['error']
 
@@ -53,7 +53,7 @@ def test_auth_refusee(monkeypatch):
 def test_indicatif_introuvable(monkeypatch):
     _reset()
     calls = iter([AUTH_OK, LOOKUP_NOTFOUND])
-    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15: next(calls))
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15, log_url=True: next(calls))
     r = qrz.lookup('ZZ9ZZZ', 'user', 'pw')
     assert not r['ok'] and 'introuvable' in r['error'].lower() or 'Not found' in r['error']
 
@@ -62,7 +62,7 @@ def test_cache_evite_double_requete(monkeypatch):
     _reset()
     n = {'c': 0}
     seq = iter([AUTH_OK, LOOKUP_OK])
-    def fake(url, timeout=15):
+    def fake(url, timeout=15, log_url=True):
         n['c'] += 1
         return next(seq)
     monkeypatch.setattr('logx_utils.fetch_url', fake)

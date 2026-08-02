@@ -135,6 +135,10 @@ class CwAudioDecoder {
   }
 
   async start(deviceId){
+    // Garde de ré-entrance : un second appel avant un stop() correspondant
+    // (double-clic, redémarrage sur changement de périphérique) libère
+    // d'abord toute session déjà ouverte au lieu d'écraser ses références.
+    if(this.ctx) this.stop();
     const constraints = {audio: deviceId ? {deviceId:{exact:deviceId}, echoCancellation:false, noiseSuppression:false, autoGainControl:false}
                                           : {echoCancellation:false, noiseSuppression:false, autoGainControl:false}};
     this.stream = await navigator.mediaDevices.getUserMedia(constraints);

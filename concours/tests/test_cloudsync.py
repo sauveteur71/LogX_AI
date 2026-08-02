@@ -157,12 +157,12 @@ def test_full_deux_syncs_concurrentes_ne_dupliquent_pas_en_mode_simple(tmp_path,
     barrier = threading.Barrier(2, timeout=2)
     real_read = cs._read_qsos
 
-    def read_avec_barriere(path):
+    def read_avec_barriere(path, secret=None):
         try:
             barrier.wait()
         except threading.BrokenBarrierError:
             pass
-        return real_read(path)
+        return real_read(path, secret)
 
     monkeypatch.setattr(cs, '_read_qsos', read_avec_barriere)
 

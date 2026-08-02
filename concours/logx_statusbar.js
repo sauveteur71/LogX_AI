@@ -772,12 +772,28 @@
   // CETTE version précise (rc_update_dismissed).
   let _updState = null;
 
+  // Échappement HTML générique (attributs ET texte) — nécessaire car
+  // release_url/latest/current viennent de /app/update_check, qui relaie
+  // les infos de release GitHub : une source externe au navigateur.
+  function escHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  // Ne renvoie une URL http(s) absolue que si elle est valide — bloque un
+  // éventuel schéma javascript:/data: glissé dans release_url.
+  function safeHref(url){
+    try{
+      const u = new URL(url, location.href);
+      return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : '#';
+    }catch(e){ return '#'; }
+  }
+
   function renderUpdateDD(){
     const dd = document.getElementById('rcsbUpdateDD');
     if (!dd || !_updState) return;
     const st = _updState;
     const dl = window._rcsbDownload || {status: 'idle', pct: 0};
-    const notes = (st.notes || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+    const notes = escHtml(st.notes || '');
     let actionHtml;
     if (dl.status === 'downloading'){
       actionHtml = `<div class="rcsb-upd-progress"><div class="rcsb-upd-progress-fill" style="width:${dl.pct}%"></div></div>
@@ -785,7 +801,7 @@
     } else if (dl.status === 'done'){
       actionHtml = `<div class="rcsb-upd-row"><button id="rcsbUpdInstall">🔁 installer et redémarrer</button></div>`;
     } else if (dl.status === 'error'){
-      actionHtml = `<div style="color:var(--red,#FF2D55);margin-top:6px">${rcTf('échec : {err}', {err: (dl.error||'').replace(/[<>&]/g,'')})}</div>
+      actionHtml = `<div style="color:var(--red,#FF2D55);margin-top:6px">${rcTf('échec : {err}', {err: escHtml(dl.error||'')})}</div>
         <div class="rcsb-upd-row"><button id="rcsbUpdDownload">réessayer</button></div>`;
     } else if (st.installable){
       actionHtml = `<div class="rcsb-upd-row">
@@ -793,11 +809,11 @@
         <button class="rcsb-upd-secondary" id="rcsbUpdLater">plus tard</button></div>`;
     } else {
       actionHtml = `<div class="rcsb-upd-row">
-        <a class="rcsb-upd-btn" href="${st.release_url || '#'}" target="_blank" rel="noopener">voir la release</a>
+        <a class="rcsb-upd-btn" href="${escHtml(safeHref(st.release_url || '#'))}" target="_blank" rel="noopener">voir la release</a>
         <button class="rcsb-upd-secondary" id="rcsbUpdLater">plus tard</button></div>`;
     }
-    dd.innerHTML = `<div class="rcsb-dd-title">LOGX AI ${st.latest}</div>
-      <div>version actuelle : ${st.current}</div>
+    dd.innerHTML = `<div class="rcsb-dd-title">LOGX AI ${escHtml(st.latest)}</div>
+      <div>version actuelle : ${escHtml(st.current)}</div>
       ${notes ? '<div class="rcsb-upd-notes">' + notes + '</div>' : ''}
       ${actionHtml}`;
   }

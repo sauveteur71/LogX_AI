@@ -17,6 +17,9 @@ import logx_dxcc as dxcc
 # World Wide Award (hamaward.cloud) : roster public des stations spéciales à
 # contacter — nécessaire à la brique 'wwa_sprint' (validity roster_check).
 import logx_wwa as wwa
+# Départements français (REF HF, brique 'dept_dxcc') : estimation au spot
+# (calldb.json / géographie du locator) et décompte réel sur le log loggué.
+import logx_departments as departments
 
 
 def get_continent(callsign):
@@ -185,6 +188,10 @@ def _mult_zone_dxcc(ctx, pts, result, scoring):
     dx_zone = ctx.get('dx_cq_zone')
     new_zone = dx_zone is not None and str(dx_zone) not in ctx['done_cq_zones']
     new_dxcc = (ctx['dx_country'] not in ctx['done_dxcc'])
+    # Comparé au MAXIMUM réellement atteignable par le barème CONFIGURÉ (pas
+    # aux valeurs par défaut 3/1 codées en dur — le concours peut déclarer
+    # d'autres points_dx/points_same_continent).
+    best = _max_rule_points(ctx.get('bricks', {}).get('points'), ctx, scoring)
     if new_zone or new_dxcc:
         result['new_mult'] = True
         result['mult_type'] = 'zone_cq' if new_zone else 'dxcc'
@@ -197,23 +204,32 @@ def _mult_zone_dxcc(ctx, pts, result, scoring):
             f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}) + "
             f"{label} → +{mult_value_est}pts estimés"
         )
-        result['priority'] = 1 if pts == 3 else 2
+        result['priority'] = 1 if pts == best and best > 0 else 2
     else:
         result['total_impact'] = pts
         result['explanation'] = f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}), pas de nouveau mult"
-        result['priority'] = 2 if pts == 3 else 3 if pts == 1 else 5
+        result['priority'] = 2 if pts == best and best > 0 else (5 if pts == 0 else 3)
+
+def _wpx_prefix(base):
+    """Préfixe façon WPX (ex. F6, DL1, ON4) — lettres puis 1er chiffre. Utilisée
+    à la fois pour peupler done_prefixes (QSO déjà loggués, build_ranked_spots)
+    et pour évaluer un candidat (_mult_prefix ci-dessous), afin que les deux
+    côtés de la comparaison partagent EXACTEMENT le même format."""
+    m = re.match(r'^([A-Z]{1,3}\d)', base or '')
+    return m.group(1) if m else (base or '')[:3]
 
 def _mult_prefix(ctx, pts, result, scoring):
-    # Extraire préfixe du DX (ex. F6, DL1, ON4) — suivi via done_dxcc (proxy)
-    pfx_match = re.match(r'^([A-Z]{1,3}\d)', ctx['dx_base'])
-    dx_pfx = pfx_match.group(1) if pfx_match else ctx['dx_base'][:3]
-    new_pfx = dx_pfx not in ctx['done_dxcc']
+    # Préfixe WPX du DX (ex. F6, DL1, ON4) — suivi via done_prefixes, un set
+    # dédié peuplé avec la MÊME extraction (done_dxcc ne contient que des
+    # codes d'entité DXCC courts comme 'F'/'DL', jamais un préfixe avec chiffre).
+    dx_pfx = _wpx_prefix(ctx['dx_base'])
+    new_pfx = dx_pfx not in ctx['done_prefixes']
     if new_pfx:
         result['new_mult'] = True
         result['mult_type'] = 'prefix'
         result['mult_value'] = 1
-        mult_val = (ctx['current_score_total'] // max(len(ctx['done_dxcc']), 1)
-                    if ctx['done_dxcc'] else pts * 10)
+        mult_val = (ctx['current_score_total'] // max(len(ctx['done_prefixes']), 1)
+                    if ctx['done_prefixes'] else pts * 10)
         result['total_impact'] = pts + mult_val
         result['explanation'] = f"{pts}pts + NOUVEAU PRÉFIXE {dx_pfx} → +{mult_val}pts estimés"
         result['priority'] = 1
@@ -226,46 +242,75 @@ def _mult_prefix(ctx, pts, result, scoring):
 
 def _mult_dept_dxcc(ctx, pts, result, scoring):
     is_french = PREDICATES['is_french'](ctx)
-    new_mult = ctx['dx_country'] not in ctx['done_dxcc']
+    if is_french:
+        # Le pays ('F') est constant pour toute station française : il ne peut
+        # PAS servir à détecter un nouveau multiplicateur ici. Le département
+        # exact n'est connu qu'à réception de l'échange (comme pour
+        # _mult_exchange_distinct) -- on utilise donc au stade du SPOT la
+        # MEILLEURE ESTIMATION disponible (ctx['dx_dept'], calldb.json /
+        # géographie du locator), jamais une valeur d'échange qui n'existe
+        # pas encore.
+        dept = ctx.get('dx_dept') or ''
+        done_depts = ctx.get('done_depts') or set()
+        new_mult = bool(dept) and dept not in done_depts
+        denom = len(done_depts)
+    else:
+        new_mult = ctx['dx_country'] not in ctx['done_dxcc']
+        denom = len(ctx['done_dxcc'])
     if new_mult:
         result['new_mult'] = True
         result['mult_type'] = 'dept_dxcc'
-        mult_val = (ctx['current_score_total'] // max(len(ctx['done_dxcc']), 1)
-                    if ctx['done_dxcc'] else pts * 5)
+        mult_val = (ctx['current_score_total'] // max(denom, 1)
+                    if denom else pts * 5)
         result['total_impact'] = pts + mult_val
         result['explanation'] = f"{pts}pts + NOUVEAU {'DEPT' if is_french else 'DXCC'} → +{mult_val}pts estimés"
         result['priority'] = 1
+    elif is_french and not (ctx.get('dx_dept') or ''):
+        # Département inconnaissable au stade du spot (pas de locator, pas
+        # d'entrée calldb) : rester neutre plutôt qu'afficher "mult connu"
+        # à tort.
+        result['total_impact'] = pts
+        result['explanation'] = f"{pts}pts (F, département inconnu avant contact)"
+        result['priority'] = 3
     else:
         result['total_impact'] = pts
         result['explanation'] = f"{pts}pts ({'F' if is_french else 'DX'}, mult connu)"
         result['priority'] = 3
 
 def _mult_na_section(ctx, pts, result, scoring):
-    # Sections/états nord-américains — suivi via done_dxcc (proxy 3 caractères)
-    section_new = ctx['dx_base'][:3] not in ctx['done_dxcc']
+    # Sections/états nord-américains — suivi via done_na_proxies, un set DÉDIÉ
+    # (proxy 3 premiers caractères de l'indicatif). done_dxcc ne contient que
+    # des clés d'entité DXCC courtes ('K','VE'...) et ne matchait jamais ce
+    # proxy : la condition était vraie pour presque tout indicatif W/VE.
+    proxy = ctx['dx_base'][:3]
+    section_new = proxy not in ctx.get('done_na_proxies', set())
     label = scoring.get('_section_label', 'SSB')
     if section_new:
         result['new_mult'] = True
         result['mult_type'] = 'section_na'
         result['mult_value'] = 1
         result['total_impact'] = pts * 2  # 1pt × mult ×2 puissance = 2 pts/QSO max
-        result['explanation'] = f"{pts}pt {label} × mult (NA valide W/VE)"
+        result['explanation'] = f"{pts}pt {label} × mult (probable section NA neuve — proxy indicatif)"
         result['priority'] = 1
     else:
         result['total_impact'] = pts
-        result['explanation'] = f"{pts}pt {label}, section déjà travaillée"
+        result['explanation'] = f"{pts}pt {label}, section probablement déjà travaillée"
         result['priority'] = 2
 
 def _mult_na_state(ctx, pts, result, scoring):
     # ARRL DX vu depuis l'Europe : multiplicateur = états US + provinces VE.
-    # L'état exact vient de l'échange (inconnu au stade du spot) → proxy préfixe.
-    state_new = ctx['dx_base'][:3] not in ctx['done_dxcc']
+    # L'état exact vient de l'échange (inconnu au stade du spot) → proxy
+    # préfixe, suivi via done_na_proxies (même set dédié que _mult_na_section :
+    # done_dxcc ne contient jamais ce proxy 3 caractères).
+    proxy = ctx['dx_base'][:3]
+    done_na = ctx.get('done_na_proxies') or set()
+    state_new = proxy not in done_na
     if state_new:
         result['new_mult'] = True
         result['mult_type'] = 'etat_province'
         result['mult_value'] = 1
-        mult_val = (ctx['current_score_total'] // max(len(ctx['done_dxcc']), 1)
-                    if ctx['done_dxcc'] else pts * 5)
+        mult_val = (ctx['current_score_total'] // max(len(done_na), 1)
+                    if done_na else pts * 5)
         result['total_impact'] = pts + mult_val
         result['explanation'] = f"{pts}pts + probable NOUVEL ÉTAT/PROVINCE → +{mult_val}pts estimés"
         result['priority'] = 1
@@ -443,11 +488,21 @@ def contest_geo_mode(contest_id):
     # locator, large_square, exchange_distinct, None -> français par défaut
     return 'dept'
 
+def _dept_estimate(dx_base, dx_locator):
+    """Département FR estimé au stade du SPOT, AVANT réception de l'échange :
+    réutilise les replis 2 (calldb.json) et 3 (géographie du locator) de
+    logx_departments.dept_for_qso — jamais son étape 1 (échange), indisponible
+    tant que le QSO n'a pas eu lieu. '' pour une station non française ou un
+    département introuvable par ces deux replis."""
+    calldb = departments._load_calldb()
+    return departments.dept_for_qso({'call': dx_base, 'locator': dx_locator or ''}, calldb)
+
 def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
                    done_calls_by_band, done_locators, done_large_squares,
                    done_cq_zones, done_dxcc, current_score_total,
                    band=None, dist_km=0, noaa=None, dxmaps=None, source='',
-                   mode='', done_today_by_band=None):
+                   mode='', done_today_by_band=None, done_prefixes=None,
+                   done_depts=None, done_na_proxies=None):
     """
     Calcule la VALEUR RÉELLE d'un QSO selon le règlement du concours.
     Retourne un dict avec points directs, impact multiplicateur, valeur totale estimée.
@@ -485,6 +540,12 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
         # on considère prudemment qu'aucun contact n'a encore été fait ce jour.
         is_already_done = band_norm in (done_today_by_band or {}).get(dx_base, set())
 
+    # Département FR estimé au spot : coûteux (calldb.json) et utile
+    # uniquement à la brique 'dept_dxcc' (REF HF) — calculé seulement quand
+    # ce multiplicateur est actif, pas pour chaque QSO de chaque concours.
+    mult_kind = bricks.get('multiplier', {}).get('kind') if isinstance(bricks.get('multiplier'), dict) else None
+    dx_dept = _dept_estimate(dx_base, dx_locator) if mult_kind == 'dept_dxcc' else ''
+
     # Contexte partagé par toutes les briques
     ctx = {
         'contest_id': contest_id,
@@ -498,6 +559,9 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
         'mode': mode,
         'done_locators': done_locators, 'done_large_squares': done_large_squares,
         'done_cq_zones': done_cq_zones, 'done_dxcc': done_dxcc,
+        'done_prefixes': done_prefixes or set(),
+        'done_depts': done_depts or set(), 'dx_dept': dx_dept,
+        'done_na_proxies': done_na_proxies or set(),
         'current_score_total': current_score_total,
         'bricks': bricks,  # accessible aux détecteurs (ex. seuils de priorité)
     }
@@ -641,7 +705,8 @@ def score_new_qso(qso):
 def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
                             done_calls_by_band, done_locators, done_large_squares,
                             done_cq_zones, done_dxcc, current_score,
-                            noaa=None, dxmaps=None, done_today_by_band=None):
+                            noaa=None, dxmaps=None, done_today_by_band=None,
+                            done_prefixes=None, done_depts=None, done_na_proxies=None):
     """
     Prend une liste de stations et les classe par valeur décroissante.
     stations_data = [{'call':str, 'locator':str, 'dist_km':int, 'band':str, ...}]
@@ -657,7 +722,8 @@ def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
             done_cq_zones, done_dxcc, current_score,
             s.get('band',''), s.get('dist_km', 0),
             noaa, dxmaps, s.get('source',''), s.get('mode',''),
-            done_today_by_band
+            done_today_by_band, done_prefixes=done_prefixes,
+            done_depts=done_depts, done_na_proxies=done_na_proxies
         )
         s['scoring'] = val
         s['value_total'] = val['total_impact']
@@ -810,7 +876,15 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     done_large_squares = set()
     done_cq_zones = set()
     done_dxcc = set()
+    # Sets dédiés — done_dxcc ne contient QUE des codes d'entité DXCC courts
+    # ('F','DL','K'...) et ne peut pas servir de proxy à ces trois univers
+    # distincts (préfixe WPX, département FR, proxy indicatif NA) sans faire
+    # matcher la comparaison sur presque tout candidat.
+    done_prefixes = set()      # préfixe WPX (CQ WPX) — cf. _mult_prefix
+    done_depts = set()         # département FR réel, échange connu (REF HF)
+    done_na_proxies = set()    # 3 premiers car. indicatif (Field Day/ARRL DX)
     current_score = 0
+    calldb = departments._load_calldb()
 
     def _mark_done(call, band, date=''):
         base = (call or '').split('/')[0].upper()
@@ -826,9 +900,19 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         if not base:
             return
         done_dxcc.add(dxcc.country_key(base))
+        done_prefixes.add(_wpx_prefix(base))
+        done_na_proxies.add(base[:3])
         z = dxcc.cq_zone(base)
         if z is not None:
             done_cq_zones.add(str(z))
+
+    def _mark_dept(q):
+        """Département FR réellement travaillé (échange connu ici, contrairement
+        au stade du spot) : calldb.dept_for_qso() gère déjà le repli
+        échange > calldb > locator et renvoie '' pour une station non française."""
+        d = departments.dept_for_qso(q, calldb)
+        if d:
+            done_depts.add(d)
 
     # Depuis logs EDI/ADIF (un fichier EDI = une bande = la clé band_label)
     for band_label, log_data in logs.items():
@@ -840,6 +924,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                 large = get_large_locator(loc)
                 if large: done_large_squares.add(large)
             _mark_country_zone(base)
+            _mark_dept(q)
             current_score += q.get('points', 0)
 
     # Depuis log partagé multi-op (band déjà présent par QSO)
@@ -851,6 +936,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
             large = get_large_locator(loc)
             if large: done_large_squares.add(large)
         _mark_country_zone(base)
+        _mark_dept(q)
         if q.get('cq_zone'): done_cq_zones.add(str(q['cq_zone']))
         current_score += q.get('points', 0)
 
@@ -972,7 +1058,9 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         all_stations, contest, my_call, my_locator,
         done_calls_by_band, done_locators, done_large_squares,
         done_cq_zones, done_dxcc, current_score,
-        noaa, dxmaps, done_today_by_band
+        noaa, dxmaps, done_today_by_band,
+        done_prefixes=done_prefixes, done_depts=done_depts,
+        done_na_proxies=done_na_proxies
     )
     cdef = CONTEST_DEFINITIONS.get(contest, {})
     meta = {

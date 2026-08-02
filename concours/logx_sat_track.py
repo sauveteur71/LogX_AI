@@ -119,6 +119,34 @@ def ecart_azimut(a, b):
     return min(d, 360.0 - d)
 
 
+def _los_en_cours(cache, nom, lat, lon, altitude_m=0):
+    """LOS du passage EN COURS si le satellite est déjà levé, sinon None.
+
+    `next_pass(singlepass=False)` calcule le PROCHAIN lever et le PROCHAIN
+    coucher indépendamment l'un de l'autre : si le satellite est déjà
+    au-dessus de l'horizon, le « prochain coucher » retourné est celui du
+    passage en cours, quelle que soit sa durée déjà écoulée. Une recherche
+    par décalage arrière fixe échouerait dès que ce décalage tombe encore
+    DANS le passage — exactement le cas d'un passage long (IO-117/GreenCube)
+    rejoint en retard. Repose sur les mêmes primitives privées que celles
+    utilisées par logx_sat_passes.passages() (`_corps`, `_observer`).
+    """
+    if not sp.HAS_EPHEM:
+        return None
+    sat = sp._corps(cache, nom)
+    if sat is None:
+        return None
+    try:
+        obs = sp._observer(lat, lon, altitude_m)
+        sat.compute(obs)
+        if float(sat.alt) <= 0:
+            return None  # pas encore levé : le prochain passage s'en charge
+        _, _, _, _, los, _ = obs.next_pass(sat, singlepass=False)
+        return los.datetime()
+    except (ValueError, TypeError):
+        return None
+
+
 def demarrer_suivi(nom_sat, cfg):
     """Démarre le suivi. (ok, message) — les refus sont SYNCHRONES : tout ce
     qui peut être vérifié avant de lancer le thread l'est ici, pour que
@@ -182,15 +210,18 @@ def demarrer_suivi(nom_sat, cfg):
     # (QO-100 : antenne fixe, un suivi n'y sert à rien), le forfait reste le
     # garde-fou qui rend l'antenne à l'opérateur.
     duree_max = DUREE_MAX_S
-    if not pos.get('visible'):
-        try:
-            import datetime
+    try:
+        import datetime
+        if pos.get('visible'):
+            los = _los_en_cours(cache, nom, lat, lon, alt_m)
+        else:
             los = datetime.datetime.strptime(p['los_utc'], '%Y-%m-%d %H:%M:%S')
+        if los is not None:
             duree_max = min(4 * 3600, max(
                 DUREE_MAX_S,
                 (los - utcnow()).total_seconds() + 600))
-        except (ValueError, KeyError, TypeError):
-            pass
+    except (ValueError, KeyError, TypeError):
+        pass
 
     import math
     global _track_thread, _stop_courant
@@ -368,6 +399,7 @@ def _boucle_suivi_corps(nom, host, port, lat, lon, alt_m, cache, stop_ev,
             else:
                 echecs += 1
                 if echecs >= ECHECS_ROTOR_MAX:
+                    rotor.stop(host, port)
                     _fin('erreur', 'Rotor injoignable (%d échecs consécutifs) '
                                    '— %s' % (echecs, r.get('error', '')))
                     return

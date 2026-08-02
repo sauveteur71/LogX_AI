@@ -330,7 +330,7 @@ def _fetch_signature(host, port, timeout, budget=_HTTP_BUDGET):
 
 
 def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5,
-          http_budget=_HTTP_BUDGET):
+          http_budget=_HTTP_BUDGET, extra_hosts=()):
     """Qui occupe le port ? Retourne {'state', 'version', 'detail'}.
 
     Deux tests dont AUCUN ne peut déclarer un port occupé à tort (un échec de
@@ -350,6 +350,12 @@ def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5,
     verdict SHARED (avertir, puis démarrer), réservé au cas mesuré comme sûr
     par _garde_l_adresse_sondee. Refuser reste la conduite quand le tiers
     détient réellement notre adresse (état OTHER).
+
+    extra_hosts -- adresses SUPPLÉMENTAIRES que LogX AI va annoncer (l'IP LAN
+    WiFi du poste, typiquement, voir detecter_ip_lan()) et qui doivent donc,
+    elles aussi, nous revenir pour que le verdict SHARED soit fiable : la
+    boucle locale seule ne le garantit pas, voir le cas <IP LAN> mesuré dans
+    _garde_l_adresse_sondee.
 
     Coût, borné dans TOUS les cas (aucun chemin ne peut attendre sans fin) :
       * port libre et connexions refusées vite : ~0 s ;
@@ -379,12 +385,34 @@ def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5,
         # que nous annonçons : si non, notre serveur répondra normalement et
         # l'arrêter serait un refus de démarrage injustifié.
         detail = '; '.join(x for x in (bind_err, http_err) if x)
-        if libre and _garde_l_adresse_sondee(host, port):
+        # dict.fromkeys plutôt qu'un tuple brut : déduplique host/extra_hosts
+        # (fréquent quand la détection LAN retombe sur 127.0.0.1) sans changer
+        # l'ordre, et évite de sonder deux fois la même adresse pour rien.
+        adresses = tuple(dict.fromkeys((host,) + tuple(h for h in extra_hosts if h)))
+        if libre and all(_garde_l_adresse_sondee(h, port) for h in adresses):
             return {'state': SHARED, 'version': None, 'detail': detail}
         return {'state': OTHER, 'version': None, 'detail': detail}
     except Exception as e:      # défensif : jamais bloquer le démarrage
         return {'state': FREE, 'version': None,
                 'detail': 'sonde impossible: %s' % e}
+
+
+def detecter_ip_lan():
+    """IP LAN réellement annoncée aux autres postes WiFi (même technique que
+    logx_serveur.py), factorisée ici pour que TOUT appelant de probe() --
+    y compris logx_instance.py -- puisse la passer en extra_hosts sans
+    dupliquer la logique. '127.0.0.1' en repli : dans ce cas extra_hosts
+    redevient un doublon du host par défaut, sans effet (voir dict.fromkeys
+    ci-dessus), pas une régression."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            return s.getsockname()[0]
+        finally:
+            s.close()
+    except Exception:
+        return '127.0.0.1'
 
 
 def sonde_sans_bind(port, host='127.0.0.1', timeout=1.5, budget=_HTTP_BUDGET):

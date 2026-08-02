@@ -49,6 +49,8 @@ anciennes versions du programme (glob sur logx_cloudsync_*) ne les lisent
 jamais, et ils ne comptent pas comme « autres installations » dans status().
 """
 import glob
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -66,6 +68,15 @@ TOMB_PREFIX = 'logx_cloudtomb_'
 # Même borne que logx_storage._MAX_DELETED_TOMBSTONES : les suppressions
 # individuelles sont rares, la liste persistée doit rester petite.
 _MAX_SYNC_TOMBSTONES = 2000
+# Plafonds défensifs contre un fichier logx_cloudsync_*/logx_cloudtomb_* forgé
+# ou anormal déposé par un tiers ayant accès en écriture au dossier partagé
+# (voir docstring « authentification de fichier » plus haut) : une réponse
+# légitime tient sur quelques centaines de QSO/tombstones, jamais des
+# millions — mitigation de dégât indépendante de la signature HMAC ci-dessous
+# (utile même contre un coéquipier légitime dont le poste est compromis et
+# qui connaît le secret).
+MAX_SYNC_QSOS_PER_FILE = 5000
+MAX_SYNC_FILE_BYTES = 5_000_000
 _INSTANCE_ID_FILE = '.cloudsync_instance_id'
 _STAMP_FILE = 'cloudsync_state.json'
 
@@ -87,6 +98,36 @@ _last_error = {'ts': 0, 'msg': '', 'folder': '', 'mode': ''}
 
 def _safe(s):
     return re.sub(r'[^A-Za-z0-9_.-]', '_', str(s or ''))[:24]
+
+
+def _canonical(data):
+    """Sérialisation stable (clés triées, séparateurs compacts) : produit les
+    mêmes octets des deux côtés du HMAC, quel que soit l'ordre d'origine."""
+    return json.dumps(data, sort_keys=True, separators=(',', ':')).encode('utf-8')
+
+
+def _sign(data, secret):
+    return hmac.new(secret.encode('utf-8'), _canonical(data), hashlib.sha256).hexdigest()
+
+
+def _verify_signed(raw, secret):
+    """Extrait la liste de données d'un contenu JSON {'data': [...], 'sig':
+    '<hmac>'} ou d'une liste brute (rétro-compat, fichiers écrits avant
+    l'ajout de la signature). Retourne None si le contenu doit être rejeté :
+    avec `secret` configuré, un fichier non signé ou dont la signature ne
+    correspond pas est REJETÉ (pas seulement toléré) — la taille seule ne
+    protège pas contre un fichier forgé au nom d'une autre installation,
+    seule la signature le fait."""
+    if isinstance(raw, dict) and 'data' in raw:
+        data, sig = raw.get('data'), raw.get('sig', '')
+        if secret and (not sig or not hmac.compare_digest(_sign(data, secret), sig)):
+            return None
+        return data if isinstance(data, list) else None
+    if isinstance(raw, list):
+        if secret:
+            return None  # secret configuré mais fichier legacy non signé
+        return raw
+    return None
 
 
 def _instance_id():
@@ -119,32 +160,61 @@ def cloudsync_settings(cfg):
         mode = 'off'
     call = cfg.get('callsign_contest') or cfg.get('callsign') or 'poste'
     base = f'{_safe(call)}_{_instance_id()}'
+    # Secret d'équipe optionnel (CONFIG, jamais transmis via le dossier cloud
+    # lui-même — communiqué hors-bande, comme un mot de passe d'équipe) : sans
+    # lui, la sync reste NON authentifiée (rétro-compatible), seuls les
+    # plafonds de taille/nombre s'appliquent.
+    secret = (cfg.get('cloudsync_secret') or '').strip()
     return {'folder': folder, 'mode': mode, 'enabled': mode != 'off' and bool(folder),
             'my_file': f'{SYNC_PREFIX}{base}.json',
-            'my_tomb': f'{TOMB_PREFIX}{base}.json'}
+            'my_tomb': f'{TOMB_PREFIX}{base}.json',
+            'secret': secret}
 
 
-def _read_qsos(path):
+def _read_qsos(path, secret=None):
+    """Contenu d'un fichier logx_cloudsync_*.json — [] si absent, illisible,
+    trop volumineux, ou non authentifié quand `secret` est configuré (voir
+    _verify_signed)."""
     try:
+        if os.path.getsize(path) > MAX_SYNC_FILE_BYTES:
+            return []
         with open(path, encoding='utf-8') as f:
-            data = json.load(f)
-        return data if isinstance(data, list) else []
+            raw = json.load(f)
     except Exception:
         return []
-
-
-def _read_tombstones(path):
-    """Liste des tombstones [{'id', 'key', 'ts'}, ...] d'un fichier
-    logx_cloudtomb_*.json — [] si absent/illisible (même tolérance que
-    _read_qsos : un fichier corrompu ne doit jamais faire échouer la sync)."""
-    try:
-        with open(path, encoding='utf-8') as f:
-            data = json.load(f)
-    except Exception:
-        return []
+    data = _verify_signed(raw, secret)
     if not isinstance(data, list):
         return []
+    return data[:MAX_SYNC_QSOS_PER_FILE]
+
+
+def _read_tombstones(path, secret=None):
+    """Liste des tombstones [{'id', 'key', 'ts'}, ...] d'un fichier
+    logx_cloudtomb_*.json — [] si absent/illisible/trop volumineux/non
+    authentifié (même tolérance que _read_qsos : un fichier corrompu ne doit
+    jamais faire échouer la sync, mais un fichier forgé au nom d'une autre
+    installation doit être rejeté dès qu'un secret est configuré)."""
+    try:
+        if os.path.getsize(path) > MAX_SYNC_FILE_BYTES:
+            return []
+        with open(path, encoding='utf-8') as f:
+            raw = json.load(f)
+    except Exception:
+        return []
+    data = _verify_signed(raw, secret)
+    if not isinstance(data, list):
+        return []
+    data = data[:MAX_SYNC_QSOS_PER_FILE]
     return [t for t in data if isinstance(t, dict) and t.get('id') is not None]
+
+
+def _write_signed(path, data, secret):
+    """Écrit `data` (liste de QSO ou de tombstones), signé HMAC-SHA256 si un
+    secret d'équipe est configuré ; format legacy (liste brute) inchangé sinon
+    — rétro-compatible avec les postes non encore mis à jour."""
+    from logx_storage import save_json_atomic
+    payload = {'data': data, 'sig': _sign(data, secret)} if secret else data
+    save_json_atomic(path, payload, compact=True)
 
 
 def _qso_key(q):
@@ -241,19 +311,20 @@ def _sync_now_locked(cfg, shared_log):
     my_path = os.path.join(s['folder'], s['my_file'])
     tomb_path = os.path.join(s['folder'], s['my_tomb'])
     local = list(shared_log or [])
+    secret = s.get('secret') or ''
 
     # Contenu du push PRÉCÉDENT, lu AVANT réécriture : c'est la seule trace
     # complète (id + clé call/band/mode/date/heure) d'un QSO supprimé
     # localement depuis le dernier cycle — le QSO n'est plus dans shared_log
     # et logx_storage.deleted_qsos n'en mémorise que l'id.
-    prev = _read_qsos(my_path)
+    prev = _read_qsos(my_path, secret)
 
     # ── PUSH : ce poste réécrit UNIQUEMENT son propre fichier, jamais celui
     # d'un autre — aucune concurrence possible entre deux postes qui
-    # synchroniseraient au même instant.
+    # synchroniseraient au même instant. Signé HMAC si un secret d'équipe est
+    # configuré (voir docstring du module et _write_signed).
     try:
-        from logx_storage import save_json_atomic
-        save_json_atomic(my_path, local, compact=True)
+        _write_signed(my_path, local, secret)
     except Exception as e:
         return {'ok': False, 'error': f"Écriture impossible : {e}"}
 
@@ -268,7 +339,7 @@ def _sync_now_locked(cfg, shared_log):
     # archive, changement de portée) passent par mark_hard_reset et ne doivent
     # JAMAIS se propager comme autant de suppressions chez les autres postes.
     import logx_storage as storage
-    tombs = _read_tombstones(tomb_path)
+    tombs = _read_tombstones(tomb_path, secret)
     tombs_dirty = False
     own_tomb_ids = {t.get('id') for t in tombs}
     mem_deleted = {d.get('id') for d in list(storage.deleted_qsos)} - {None}
@@ -294,7 +365,7 @@ def _sync_now_locked(cfg, shared_log):
         for tpath in glob.glob(os.path.join(s['folder'], TOMB_PREFIX + '*.json')):
             if os.path.abspath(tpath) == os.path.abspath(tomb_path):
                 continue
-            remote_tombs.extend(_read_tombstones(tpath))
+            remote_tombs.extend(_read_tombstones(tpath, secret))
         # Suppression locale UNIQUEMENT sur id ET clé identiques : deux postes
         # peuvent créer deux QSO différents à la même milliseconde (id =
         # int(time*1000)) — l'id seul supprimerait alors un QSO légitime.
@@ -359,7 +430,7 @@ def _sync_now_locked(cfg, shared_log):
             if os.path.abspath(path) == os.path.abspath(my_path):
                 continue
             sources += 1
-            for q in _read_qsos(path):
+            for q in _read_qsos(path, secret):
                 k = _qso_key(q)
                 if k in seen:
                     continue
@@ -393,8 +464,7 @@ def _sync_now_locked(cfg, shared_log):
         if len(tombs) > _MAX_SYNC_TOMBSTONES:
             tombs = tombs[-_MAX_SYNC_TOMBSTONES:]
         try:
-            from logx_storage import save_json_atomic
-            save_json_atomic(tomb_path, tombs, compact=True)
+            _write_signed(tomb_path, tombs, secret)
         except Exception:
             pass  # réessayé au prochain cycle, deleted_qsos couvre la session
 

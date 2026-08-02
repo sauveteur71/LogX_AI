@@ -20,12 +20,15 @@ import json
 import socket
 import threading
 import time
+import urllib.parse
 import urllib.request
 
 BEACON_PORT = 8073          # port UDP fixe de découverte LogX
 BEACON_INTERVAL_S = 15      # émission du beacon
 PEER_TTL_S = 60             # un pair muet depuis plus longtemps est oublié
 PULL_TIMEOUT_S = 4          # tirage HTTP d'un pair
+MAX_PULL_BYTES = 2_000_000  # borne dure sur la taille d'une réponse /log/lan/export
+MAX_QSOS_PER_PULL = 500     # borne dure sur le nb de QSO traités par pair et par cycle
 
 _peers = {}                 # ip -> {http_port, callsign, iid, last_seen}
 _peers_lock = threading.Lock()
@@ -48,19 +51,27 @@ def _lan_enabled(cfg):
     return str((cfg or {}).get('lan_sync_enabled', '')) in ('1', 'true', 'True', 'on', True)
 
 
+def _lan_token(cfg):
+    """Jeton partagé optionnel (config `lan_sync_token`) : si configuré, un
+    pair qui ne le présente pas est ignoré par note_beacon()."""
+    return str((cfg or {}).get('lan_sync_token', '') or '')
+
+
 def _my_beacon(cfg):
     return json.dumps({
         'logx': 1,
         'iid': _my_iid(),
         'http_port': _HTTP_PORT,
         'call': (cfg or {}).get('callsign_contest') or (cfg or {}).get('callsign') or '',
+        'token': _lan_token(cfg),
     }).encode('utf-8')
 
 
 # ─── REGISTRE DES PAIRS ──────────────────────────────────────────────────────
 
-def note_beacon(ip, raw):
-    """Enregistre un beacon reçu (ip = émetteur). Ignore le nôtre et le bruit.
+def note_beacon(ip, raw, expected_token=''):
+    """Enregistre un beacon reçu (ip = émetteur). Ignore le nôtre, le bruit, et
+    tout pair qui ne présente pas le jeton partagé attendu (si configuré).
     Séparé de la boucle réseau pour être testable sans socket."""
     try:
         d = json.loads(raw.decode('utf-8') if isinstance(raw, (bytes, bytearray)) else raw)
@@ -68,6 +79,8 @@ def note_beacon(ip, raw):
         return
     if not isinstance(d, dict) or d.get('logx') != 1:
         return
+    if expected_token and str(d.get('token') or '') != expected_token:
+        return                       # pair sans le jeton partagé configuré : ignoré
     iid = str(d.get('iid') or '')
     if not iid or iid == _my_iid():
         return                       # notre propre beacon (diffusion revient à nous)
@@ -75,6 +88,8 @@ def note_beacon(ip, raw):
         port = int(d.get('http_port') or 8080)
     except (TypeError, ValueError):
         port = 8080
+    if not (1 <= port <= 65535):
+        return
     with _peers_lock:
         _peers[ip] = {'http_port': port, 'callsign': str(d.get('call') or ''),
                       'iid': iid, 'last_seen': time.time()}
@@ -99,29 +114,59 @@ def _key(q):
 def _http_get_json(url, timeout):
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
-            return json.loads(r.read().decode('utf-8', 'replace'))
+            raw = r.read(MAX_PULL_BYTES + 1)
+            if len(raw) > MAX_PULL_BYTES:
+                return None            # réponse démesurée : rejetée plutôt que tronquée
+            return json.loads(raw.decode('utf-8', 'replace'))
     except Exception:
         return None
 
 
-def pull_and_merge(get_log, add_qso, timeout=PULL_TIMEOUT_S):
+def _valid_qso(q):
+    """Rejette ce qu'aucun /log/add légitime ne produirait, sans bloquer un
+    pair valide (validation de forme minimale, pas de déduplication ici)."""
+    if not isinstance(q, dict):
+        return False
+    call = q.get('call')
+    if not isinstance(call, str) or not (1 <= len(call) <= 20):
+        return False
+    for field in ('band', 'mode', 'date', 'time'):
+        v = q.get(field)
+        if not isinstance(v, str) or len(v) > 20:
+            return False
+    return True
+
+
+def pull_and_merge(get_log, add_qso, timeout=PULL_TIMEOUT_S, token=''):
     """Tire le log de chaque pair et fusionne les QSO NEUFS via add_qso.
 
     Pré-filtre par clé (call/bande/mode/date/heure) contre notre log AVANT
     d'appeler add_qso : évite de repayer le scoring + l'écriture disque pour un
     QSO qu'on a déjà (add_qso reste l'autorité de déduplication par portée).
+    Réponse bornée en taille (MAX_PULL_BYTES) et en nombre de QSO traités par
+    pair (MAX_QSOS_PER_PULL) : un pair malveillant ne peut infliger qu'un coût
+    borné par cycle, même s'il répond avec des dizaines de milliers d'entrées.
+
+    `token` : jeton d'équipe optionnel (voir _lan_token) — transmis en query
+    string au pair, qui le vérifie côté serveur avant de répondre (voir
+    logx_http.py /log/lan/export). Vide par défaut : rétro-compatible avec un
+    pair qui n'a pas encore configuré de jeton.
     Retourne {'peers', 'pulled'}."""
     peers_now = peers()
     if not peers_now:
         return {'peers': 0, 'pulled': 0}
     existing = set(_key(q) for q in (get_log() or []))
     pulled = 0
+    qs = ('?token=' + urllib.parse.quote(token, safe='')) if token else ''
     for p in peers_now:
-        data = _http_get_json('http://%s:%d/log/lan/export' % (p['ip'], p['http_port']), timeout)
-        if not data:
+        data = _http_get_json('http://%s:%d/log/lan/export%s' % (p['ip'], p['http_port'], qs), timeout)
+        if not isinstance(data, dict):
             continue
-        for q in (data.get('qsos') or []):
-            if not isinstance(q, dict):
+        raw_qsos = data.get('qsos')
+        if not isinstance(raw_qsos, list):
+            continue
+        for q in raw_qsos[:MAX_QSOS_PER_PULL]:
+            if not _valid_qso(q):
                 continue
             k = _key(q)
             if k in existing:
@@ -179,7 +224,7 @@ def _run():
         # Écoute (bornée par settimeout) — met à jour le registre des pairs
         try:
             raw, addr = sock.recvfrom(2048)
-            note_beacon(addr[0], raw)
+            note_beacon(addr[0], raw, expected_token=_lan_token(cfg))
         except socket.timeout:
             pass
         except Exception:

@@ -256,6 +256,13 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  // Repli i18n : logx_i18n.js n'expose que window.rcT/window.rcTf (jamais de
+  // globals T/Tf bruts) — même patron que logx_websdr.html/logx_chasse.html.
+  const T  = s    => (window.rcT  ? window.rcT(s)     : s);
+  const Tf = (s,p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+    let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+  })());
+
   $('selMode').value = mode;
   $('selMode').onchange = () => {
     mode = $('selMode').value;
@@ -492,9 +499,13 @@ if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-
     $('clock').textContent = d.toISOString().slice(11, 19) + ' UTC';
   }
 
-  horloge(); setInterval(horloge, 1000);
-  charger(); setInterval(charger, 15000);
-  lireRadio(); setInterval(lireRadio, 3000);
+  // Repli identique à logx_chasse.html : setInterval nu seulement si la barre
+  // de statut (donc rcPoll) n'est pas chargée.
+  const rcPollOr = window.rcPoll || ((fn, ms) => setInterval(fn, ms));
+
+  horloge(); setInterval(horloge, 1000);   // horloge : aucun appel réseau, coût négligeable
+  charger(); rcPollOr(charger, 15000);
+  lireRadio(); rcPollOr(lireRadio, 3000);
 })();
 </script>
 </body>

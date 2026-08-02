@@ -461,7 +461,11 @@ rules_cache = {}
 def fetch_contest_rules(contest_id):
     if contest_id in rules_cache:
         return rules_cache[contest_id]
-    url = CONTEST_RULES_URLS.get(contest_id)
+    cdef = CONTEST_DEFINITIONS.get(contest_id, {})
+    # Source primaire : rules_url déjà présent et à jour sur CHAQUE concours
+    # (40/40) — CONTEST_RULES_URLS n'est gardée qu'en repli de compatibilité
+    # pour un éventuel appelant externe qui la lirait directement.
+    url = cdef.get('rules_url') or CONTEST_RULES_URLS.get(contest_id)
     if not url:
         return None
     try:

@@ -14,6 +14,7 @@ import datetime
 import threading
 import time
 import socket
+from concurrent.futures import ThreadPoolExecutor
 
 import logx_rules as rules
 from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX,
@@ -655,11 +656,21 @@ _login_attempts = {}  # ip -> [timestamps des échecs récents]
 def _login_rate_limited(ip):
     """True si `ip` a déjà atteint la limite d'échecs récents — purge et
     lecture dans le MÊME verrou (jamais relâché entre les deux) pour éviter
-    qu'une rafale concurrente ne contourne la limite."""
+    qu'une rafale concurrente ne contourne la limite. Purge aussi, dans ce
+    même verrou, les AUTRES ip devenues inactives (dernier échec plus vieux
+    que la fenêtre) : sans ce balayage global, une ip qui échoue une fois
+    puis ne revient jamais laisserait son entrée en mémoire à vie — croissance
+    non bornée sur une exécution longue (expédition 15 jours)."""
     now = time.time()
     with _login_attempts_lock:
+        for other in [k for k, v in _login_attempts.items()
+                      if not v or now - v[-1] >= _LOGIN_ATTEMPT_WINDOW]:
+            del _login_attempts[other]
         attempts = [t for t in _login_attempts.get(ip, ()) if now - t < _LOGIN_ATTEMPT_WINDOW]
-        _login_attempts[ip] = attempts
+        if attempts:
+            _login_attempts[ip] = attempts
+        else:
+            _login_attempts.pop(ip, None)
         return len(attempts) >= _LOGIN_ATTEMPT_LIMIT
 
 def _record_login_failure(ip):
@@ -724,9 +735,15 @@ def _relay_rate_limited(ip):
     enregistre CET appel et renvoie False. Vérification + enregistrement dans
     le MÊME verrou (jamais relâché entre les deux), même précaution que
     _login_rate_limited contre une rafale concurrente qui contournerait la
-    limite."""
+    limite. Purge aussi, dans ce même verrou, les AUTRES ip devenues inactives
+    (dernier appel plus vieux que la fenêtre) — même principe que
+    _login_rate_limited : sans ce balayage global, une ip qui appelle une
+    fois puis ne revient jamais laisserait son entrée en mémoire à vie."""
     now = time.time()
     with _relay_attempts_lock:
+        for other in [k for k, v in _relay_attempts.items()
+                      if not v or now - v[-1] >= _RELAY_ATTEMPT_WINDOW]:
+            del _relay_attempts[other]
         attempts = [t for t in _relay_attempts.get(ip, ()) if now - t < _RELAY_ATTEMPT_WINDOW]
         if len(attempts) >= _RELAY_ATTEMPT_LIMIT:
             _relay_attempts[ip] = attempts
@@ -773,6 +790,16 @@ def _valid_since(since_raw, boot_raw, current_v):
 
 
 # ─── INSERTION D'UN QSO (dédup + persistance) ────────────────────────────────
+# Pool partagé (module-level) pour border le recalcul de score à 3 s dans
+# add_qso_to_log() — évite de créer/détruire un fil OS à CHAQUE QSO logué.
+# max_workers=4 (pas 1) : calc_qso_value()/logx_wwa.fetch_url() a son propre
+# timeout de 10s, plus long que le timeout=3 ci-dessous — avec un seul worker
+# partagé, une rafale de QSO logués coup sur coup (pile-up) ferait attendre
+# les QSO suivants derrière celui qui est lent. Plusieurs workers gardent le
+# partage du pool sans réintroduire ce couplage.
+_SCORE_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='score')
+
+
 def _tamponner_satellite(qso):
     """Reporte le satellite actif de CONFIG sur le QSO, s'il n'en porte pas.
 
@@ -805,8 +832,14 @@ def add_qso_to_log(qso, force=False):
     qso['server_time'] = _t.time()
     _tamponner_satellite(qso)
     now_utc = utcnow()
-    qso.setdefault('date', now_utc.strftime('%Y%m%d'))
-    qso.setdefault('time', now_utc.strftime('%H:%M'))
+    # setdefault() ne pose la valeur que si la clé est ABSENTE : une date/heure
+    # explicitement vide envoyée par le client (champ vidé côté formulaire)
+    # existait déjà comme clé et passait au travers, laissant un QSO sans
+    # date/heure valide (export Cabrillo/ADIF cassé pour ce QSO).
+    if not qso.get('date'):
+        qso['date'] = now_utc.strftime('%Y%m%d')
+    if not qso.get('time'):
+        qso['time'] = now_utc.strftime('%H:%M')
     key = (str(qso.get('call', '')).upper().strip(),
            str(qso.get('band', '')), str(qso.get('mode', '')).upper())
     # Portée du NOUVEAU QSO (contest+année, voir logx_storage.active_scope_id) —
@@ -816,17 +849,21 @@ def add_qso_to_log(qso, force=False):
     scope_id = qso_scope_id(qso)
     with config_lock:
         simple_mode = current_config.get('usage_mode') == 'simple'
+
+    def _find_dup():
+        return next((q for q in shared_log
+                     if (str(q.get('call', '')).upper().strip(),
+                         str(q.get('band', '')),
+                         str(q.get('mode', '')).upper()) == key
+                     and qso_scope_id(q) == scope_id), None)
+
     dup = None
     # LOGBOOK SIMPLE : recontacter la même station sur la même bande au fil
     # des années est normal (pas de règle "1 QSO/station/bande" hors concours)
     # — le blocage "doublon" n'a de sens que pendant un concours actif.
     if not simple_mode:
         with log_lock:
-            dup = next((q for q in shared_log
-                        if (str(q.get('call', '')).upper().strip(),
-                            str(q.get('band', '')),
-                            str(q.get('mode', '')).upper()) == key
-                        and qso_scope_id(q) == scope_id), None)
+            dup = _find_dup()
     if dup and not force:
         return False, {'duplicate': True, 'existing': {
             'id': dup.get('id'), 'date': dup.get('date'),
@@ -848,9 +885,7 @@ def add_qso_to_log(qso, force=False):
     # valeur envoyée par le client est conservée plutôt que de faire échouer
     # l'enregistrement du QSO.
     try:
-        from concurrent.futures import ThreadPoolExecutor
-        _score_ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix='score')
-        qso['points'] = _score_ex.submit(score_new_qso, qso).result(timeout=3)
+        qso['points'] = _SCORE_EXECUTOR.submit(score_new_qso, qso).result(timeout=3)
     except Exception as e:
         print(f"[SCORING] Recalcul points abandonné ({type(e).__name__}: {e}) "
               f"— valeur envoyée par le client conservée")
@@ -864,6 +899,17 @@ def add_qso_to_log(qso, force=False):
     # ce QSO. save_log_to_disk() reste HORS verrou (elle reprend log_lock elle-
     # même pour sa copie ; log_lock n'est pas réentrant, l'appeler ici deadlockerait).
     with log_lock:
+        # Re-vérification ATOMIQUE juste avant l'insertion : ferme la fenêtre
+        # TOCTOU ouverte par le relâchement du verrou pendant le scoring — sans
+        # elle, deux requêtes quasi simultanées pour le même call+bande+mode
+        # passent toutes les deux le contrôle de doublon ci-dessus (aucune n'a
+        # encore inséré son QSO au moment du contrôle de l'autre).
+        if not simple_mode and not force:
+            dup2 = _find_dup()
+            if dup2:
+                return False, {'duplicate': True, 'existing': {
+                    'id': dup2.get('id'), 'date': dup2.get('date'),
+                    'time': dup2.get('time'), 'operator': dup2.get('operator', '')}}
         # Id attribué ICI, dans le verrou qui couvre aussi l'insertion : c'est
         # la seule façon d'en garantir l'unicité (voir logx_storage
         # .reserve_qso_id_locked). L'id proposé par l'appelant est conservé
@@ -1804,6 +1850,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # n'apparaît jamais dans la réponse, seule la sortie du serveur ON4KST.
         # Paramètres optionnels : ?chat=2 (salon 144/432) &cmd=/show users (commande)
         if path == '/debug/test_on4kst':
+            # Comme /debug/errors ci-dessus : le drapeau debug autorise
+            # l'EXISTENCE de la route, mais l'accès à des données potentiellement
+            # privées (ici du contenu de chat ON4KST obtenu avec les identifiants
+            # stockés côté serveur) reste soumis au jeton de session.
+            if not self._require_auth():
+                return
             from urllib.parse import parse_qs, urlparse
             qs = parse_qs(urlparse(self.path).query)
             cfg_snap = self._cfg_snapshot()
@@ -1926,6 +1978,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             qs = parse_qs(urlparse(self.path).query)
             band = (qs.get('band', ['']) or [''])[0]
             peek = (qs.get('peek', ['']) or [''])[0] in ('1', 'true')
+            # Seul l'aperçu (peek) est sans effet de bord et reste ouvert au
+            # LAN ; la consommation réelle du compteur (allocate_next_serial)
+            # exige le jeton de session, comme toute autre mutation d'état
+            # côté serveur — sinon n'importe quel appareil du LAN peut brûler
+            # des numéros de série réels en boucle sans jamais loguer de QSO.
+            if not peek and not self._require_auth():
+                return
             # Portée du concours actif (cfg_scope_id, même règle que /log/list) :
             # sans elle, le max était calculé sur TOUT shared_log — le 1er QSO
             # d'un nouveau concours héritait du max d'un concours précédent
@@ -2007,6 +2066,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Test direct fetch DXSummit HF
         if path == '/debug/spots':
+            # Ces routes de diagnostic déclenchent des dizaines de vraies
+            # requêtes sortantes (jusqu'à ~90 s pour /debug/cluster) : le
+            # jeton de session écarte un appareil du LAN totalement étranger,
+            # et _relay_rate_limited (déjà utilisé pour /app/update_relay,
+            # voir plus haut) borne aussi un poste authentifié qui boucle.
+            if not self._require_auth():
+                return
+            if _relay_rate_limited(self.client_address[0]):
+                self._json({'error': 'Trop de requêtes /debug/* — réessaie dans une minute'}, 429)
+                return
             import urllib.request as _ur
             results = {}
             for band in ['14MHz','7MHz','21MHz']:
@@ -2038,6 +2107,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Diagnostic cluster final
         if path == '/debug/cluster':
+            # Même garde que /debug/spots ci-dessus : jusqu'à ~90 s de requêtes
+            # sortantes par appel (9 HTTP + 7 telnet), à border par le jeton de
+            # session ET la limite de fréquence, pas seulement par le drapeau
+            # debug global.
+            if not self._require_auth():
+                return
+            if _relay_rate_limited(self.client_address[0]):
+                self._json({'error': 'Trop de requêtes /debug/* — réessaie dans une minute'}, 429)
+                return
             results = {}
             hdrs = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64)','Accept':'application/json,*/*'}
 
@@ -3308,13 +3386,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not adapter or not adapter['nearby']:
                 self._json({'entries': [], 'status': (adapter['status']() if adapter else {'ready': False})})
                 return
-            lat_q, lon_q = (qs.get('lat') or [''])[0], (qs.get('lon') or [''])[0]
-            if lat_q and lon_q:
-                lat, lon = lat_q, lon_q
-            else:
+            # Converti en float (et validé fini) comme partout ailleurs dans ce
+            # fichier où des coordonnées de requête sont acceptées (/data/
+            # websdr/ecouter, /data/sat...) — lat_q/lon_q restaient des CHAÎNES
+            # brutes ici, ce qui cassait adapter['nearby'](lat, lon) (TypeError
+            # dans le calcul haversine) dès que le client les fournissait.
+            def _qf(name):
+                try:
+                    v = float((qs.get(name) or [''])[0])
+                except (TypeError, ValueError):
+                    return None
+                return v if math.isfinite(v) else None
+            lat, lon = _qf('lat'), _qf('lon')
+            if lat is None or lon is None:
                 cfg_snap = self._cfg_snapshot()
                 lat, lon = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
-            max_km = float((qs.get('max_km') or ['100'])[0])
+            max_km = _qf('max_km')
+            if max_km is None or max_km <= 0:
+                max_km = 100.0
             self._json({'entries': adapter['nearby'](lat, lon, max_km=max_km),
                         'status': adapter['status']()})
             return
@@ -3915,6 +4004,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'brands': rotor.catalog()})
             return
 
+        # SECRETS DE CONFIG (mots de passe / clés API / jetons) : servis SÉPARÉMENT
+        # du reste de la config, et seulement au client authentifié qui les demande
+        # explicitement — pour que le CLIENT n'ait plus besoin de les garder en
+        # clair dans localStorage['logx_config'] (audit sécurité) juste pour
+        # pré-remplir ces champs au rechargement de la page. Les champs NON
+        # secrets continuent d'être mis en cache localStorage comme avant (rapide,
+        # fonctionne hors-ligne) ; seuls ceux-ci transitent par cet endpoint,
+        # relu à chaque chargement de la page CONFIG.
+        if path == '/config/secrets':
+            if not self._require_auth():
+                return
+            cfg_snap = self._cfg_snapshot()
+            fields = ('api_key', 'clublog_api_key', 'clublog_password', 'eqsl_password',
+                      'lan_sync_token', 'lotw_password', 'on4kst_password', 'qrz_password',
+                      'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id')
+            self._json({f: cfg_snap.get(f, '') for f in fields})
+            return
+
         # Annuaire de nœuds DX cluster publics, pour le sélecteur CONFIG.
         if path == '/data/clusters':
             import logx_clusters as clusters
@@ -3923,17 +4030,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # SYNCHRO LAN DIRECTE : export du log pour qu'un poste PAIR le tire et
         # fusionne (logx_lan_sync). Servi UNIQUEMENT si la synchro LAN est activée
-        # — sinon un poste n'expose rien de plus qu'aujourd'hui. GET non protégé,
-        # comme /log/status : c'est le même modèle que l'écran multi-poste déjà
-        # ouvert à tout le réseau local.
+        # — sinon un poste n'expose rien de plus qu'aujourd'hui. GET non protégé
+        # PAR DÉFAUT, comme /log/status : même modèle que l'écran multi-poste déjà
+        # ouvert à tout le réseau local. Un jeton d'équipe optionnel
+        # (lan_sync_token, communiqué hors-bande entre postes) restreint cet accès
+        # quand il est configuré — voir logx_lan_sync._lan_token, qui l'ajoute déjà
+        # en ?token= sur le GET émis par pull_and_merge().
         if path == '/log/lan/export':
             cfg_snap = self._cfg_snapshot()
             if str(cfg_snap.get('lan_sync_enabled', '')) not in ('1', 'true', 'True', 'on'):
                 self._json({'enabled': False, 'qsos': []})
                 return
+            import logx_lan_sync as lan
+            expected = lan._lan_token(cfg_snap)
+            if expected:
+                import hmac as _hmac
+                from urllib.parse import parse_qs, urlparse as _uparse
+                got = (parse_qs(_uparse(self.path).query).get('token') or [''])[0]
+                if not _hmac.compare_digest(got, expected):
+                    self._json({'enabled': False, 'qsos': [], 'error': 'Jeton invalide'}, 403)
+                    return
             with log_lock:
                 qsos = list(shared_log)
-            import logx_lan_sync as lan
             self._json({'enabled': True, 'iid': lan._my_iid(),
                         'callsign': cfg_snap.get('callsign_contest') or cfg_snap.get('callsign') or '',
                         'qsos': qsos})
@@ -3997,16 +4115,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 qsos = _scope_filtered(shared_log, cfg_snap)
             call = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign')
                     or 'LOG').upper().replace('/', '-')
+            # Neutralise tout caractère qui pourrait casser l'en-tête
+            # Content-Disposition (CR/LF, guillemets — injection d'en-tête) :
+            # seuls les caractères légitimes d'un indicatif/id de concours
+            # (lettres/chiffres/tiret) sont conservés. `call` vient de
+            # /config/save (protégé par jeton) mais rien n'y contraint son
+            # format, et cette route d'export n'est elle-même pas protégée.
+            call = re.sub(r'[^A-Z0-9\-]', '', call) or 'LOG'
+            contest_id_safe = re.sub(r'[^A-Z0-9\-]', '', str(contest_id or 'ALL').upper()) or 'ALL'
             if path.endswith('cabrillo'):
                 from logx_storage import qtc_log, qtc_lock
                 cdef = CONTEST_DEFINITIONS.get(contest_id, {})
                 with qtc_lock:
                     qtc_series = _scope_filtered(qtc_log, cfg_snap)
                 body = export.build_cabrillo(qsos, cdef, cfg_snap, qtc_series).encode('utf-8')
-                fname = f"{call}_{contest_id or 'ALL'}.cbr"
+                fname = f"{call}_{contest_id_safe}.cbr"
             else:
                 body = export.build_adif(qsos, cfg_snap).encode('utf-8')
-                fname = f"{call}_{contest_id or 'ALL'}.adi"
+                fname = f"{call}_{contest_id_safe}.adi"
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
@@ -4891,18 +5017,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = {}
 
             if self.path == '/rig/qsy':
-                freq = payload.get('freq_hz') or 0
-                if not freq and payload.get('freq_khz'):
-                    freq = float(payload['freq_khz']) * 1000
-                if not freq:
-                    self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
+                try:
+                    freq = payload.get('freq_hz') or 0
+                    if not freq and payload.get('freq_khz'):
+                        freq = float(payload['freq_khz']) * 1000
+                    if not freq:
+                        self._json({'ok': False, 'error': 'Fréquence manquante'}, 400)
+                        return
+                    # La fréquence demandée est celle du trafic RÉEL (un spot à
+                    # 1296,200). La radio, elle, ne comprend que sa FI : sans cette
+                    # conversion inverse on lui demanderait 1296,200 MHz, hors de
+                    # sa couverture — refus, ou pire, déplacement silencieux en
+                    # bord de bande. Sans transverter configuré, freq est inchangée.
+                    freq_reelle = int(freq)
+                except (TypeError, ValueError):
+                    self._json({'ok': False, 'error': 'Fréquence invalide'}, 400)
                     return
-                # La fréquence demandée est celle du trafic RÉEL (un spot à
-                # 1296,200). La radio, elle, ne comprend que sa FI : sans cette
-                # conversion inverse on lui demanderait 1296,200 MHz, hors de
-                # sa couverture — refus, ou pire, déplacement silencieux en
-                # bord de bande. Sans transverter configuré, freq est inchangée.
-                freq_reelle = int(freq)
                 freq = transverter.fi_depuis_rf(freq_reelle, cfg_snap)
                 if native:
                     res = cat.set_freq(cfg_snap, int(freq), payload.get('mode'))
@@ -5476,21 +5606,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 dept = update.get('dept','').upper()
                 if call:
                     calldb_path = os.path.join(os.getcwd(), 'calldb.json')
-                    if os.path.exists(calldb_path):
-                        with open(calldb_path, 'r', encoding='utf-8') as f:
-                            db = json.load(f)
-                        entry = db.get('calls', {}).get(call, {})
-                        changed = False
-                        if locator and entry.get('locator') != locator:
-                            entry['locator'] = locator
-                            changed = True
-                        if dept and entry.get('dept') != dept:
-                            entry['dept'] = dept
-                            changed = True
-                        if changed:
-                            db['calls'][call] = entry
-                            save_json_atomic(calldb_path, db, lock=calldb_lock, compact=True)
-                            print(f"[DB] Mis à jour : {call} -> loc:{locator} dept:{dept}")
+                    # Lecture-modification-écriture sous calldb_lock EN ENTIER
+                    # (pas seulement l'écriture finale) : sinon deux requêtes
+                    # concurrentes (deux opérateurs qui corrigent deux indicatifs
+                    # différents au même moment) lisent le même état initial et
+                    # la seconde écriture écrase la modification de la première.
+                    with calldb_lock:
+                        if os.path.exists(calldb_path):
+                            with open(calldb_path, 'r', encoding='utf-8') as f:
+                                db = json.load(f)
+                            entry = db.get('calls', {}).get(call, {})
+                            changed = False
+                            if locator and entry.get('locator') != locator:
+                                entry['locator'] = locator
+                                changed = True
+                            if dept and entry.get('dept') != dept:
+                                entry['dept'] = dept
+                                changed = True
+                            if changed:
+                                db['calls'][call] = entry
+                                # lock déjà tenu ci-dessus (calldb_lock n'est pas
+                                # réentrant) : on n'en redemande pas un second à
+                                # save_json_atomic.
+                                save_json_atomic(calldb_path, db, lock=None, compact=True)
+                                print(f"[DB] Mis à jour : {call} -> loc:{locator} dept:{dept}")
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
@@ -5556,9 +5695,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             old_scope = qso_scope_id(q)
                             shared_log[i] = updated_qso
                             break
+                    if old_scope is None:
+                        # QSO déjà supprimé par un autre poste (course avec
+                        # /log/delete) entre le chargement côté client et
+                        # l'envoi de la correction : erreur explicite plutôt
+                        # qu'un ok:True qui masquerait la perte de la correction.
+                        self._json({'ok': False,
+                                    'error': f"QSO id={qso_id} introuvable (supprimé entre-temps ?)"}, 404)
+                        return
                     bump_log_version()
                     stamp_qso_version(updated_qso)   # voir /log/list?since=
-                    if old_scope is not None and qso_scope_id(updated_qso) != old_scope:
+                    if qso_scope_id(updated_qso) != old_scope:
                         mark_hard_reset()   # voir /log/list?since= : portée du QSO changée
                 save_log_to_disk()
                 print(f"[LOG] ~QSO corrige id={qso_id}")
@@ -5740,6 +5887,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     with log_lock:
                         scopes = sorted({qso_scope_id(q) for q in shared_log})
                         snapshot = list(shared_log)
+                        archived_ids = {q.get('id') for q in snapshot}
                     # QTC (WAE) : snapshot à part (verrou dédié qtc_lock) puis
                     # filtré PAR SCOPE comme les QSO — sinon le Cabrillo archivé
                     # ici n'a jamais de ligne "QTC:" (voir logx_export.build_cabrillo).
@@ -5754,7 +5902,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             archived_folders.append(r['name'])
                     archived = archive_current_log()   # + table SQLite (secours)
                     with log_lock:
-                        shared_log.clear()
+                        # Ne retire que les QSO effectivement archivés (par id) :
+                        # un QSO ajouté par /log/add pendant l'archivage (hors
+                        # verrou, I/O disque potentiellement lente) n'était pas
+                        # dans l'instantané et doit survivre au reset plutôt que
+                        # d'être effacé sans avoir jamais été sauvegardé.
+                        shared_log[:] = [q for q in shared_log if q.get('id') not in archived_ids]
                     bump_log_version()
                     mark_hard_reset()   # voir /log/list?since= : trop de QSO effacés pour des tombstones un par un
                     save_log_to_disk()
@@ -5785,6 +5938,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 scope_id = cfg_scope_id(cfg_snap)
                 with log_lock:
                     qs = [q for q in shared_log if qso_scope_id(q) == scope_id]
+                    archived_ids = {q.get('id') for q in qs}
                 # QTC (WAE) : mêmes séries que /log/export/cabrillo (scopées par
                 # contest+année) — sans ça, le Cabrillo archivé perd les lignes
                 # "QTC:" (voir logx_export.build_cabrillo).
@@ -5794,7 +5948,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 res = arch.archive_log(qs, cid or 'CONTEST', cfg_snap, qtc_series)
                 if res.get('ok') and payload.get('clear'):
                     with log_lock:
-                        keep = [q for q in shared_log if qso_scope_id(q) != scope_id]
+                        # Ne retire QUE les QSO effectivement archivés (par id),
+                        # jamais "tout ce qui matche encore la portée" : un QSO
+                        # ajouté par /log/add après l'instantané (même portée)
+                        # n'a pas été archivé et doit rester dans le log courant
+                        # plutôt que d'être perdu.
+                        keep = [q for q in shared_log if q.get('id') not in archived_ids]
                         shared_log[:] = keep
                     bump_log_version()
                     mark_hard_reset()   # voir /log/list?since= : effacement en masse, pas un tombstone par QSO

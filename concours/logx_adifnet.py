@@ -16,6 +16,7 @@ Deux sens, indépendants (mode off/listen/send/both) :
     (broadcast UDP) pour qu'un N1MM/DXLog voisin (ou tout autre outil à
     l'écoute) le voie apparaître en temps réel.
 """
+import re
 import socket
 import threading
 import datetime
@@ -24,6 +25,23 @@ from xml.sax.saxutils import escape as _xml_escape
 from logx_utils import utcnow
 
 DEFAULT_PORT = 12060
+
+# Indicatif valide : lettres/chiffres/'/' uniquement — même politique que
+# logx_import.py:_CALL_RE. Le port UDP <contactinfo> n'est pas authentifié
+# (n'importe quel appareil du LAN peut y écrire) : on rejette tout datagramme
+# dont le champ 'call' n'a pas la forme d'un indicatif.
+_CALL_RE = re.compile(r'^[A-Z0-9/]{2,15}$')
+
+
+def _clean_text(v, maxlen=64):
+    """Même politique d'assainissement que logx_import._clean_text : retire les
+    caractères de contrôle et les chevrons, tronque — appliqué ici aux champs
+    <contactinfo> reçus par UDP, qui sont tout aussi externes/non fiables
+    qu'un fichier ADIF importé."""
+    s = str(v or '')
+    s = ''.join(c for c in s if ord(c) >= 0x20 or c in '\t')
+    return s.replace('<', '').replace('>', '').strip()[:maxlen]
+
 
 status = {'listening': False, 'last_seen': 0, 'received_total': 0, 'sent_total': 0}
 _status_lock = threading.Lock()
@@ -93,15 +111,20 @@ def _parse_timestamp(ts):
 
 
 def qso_from_contactinfo(fields, cfg):
-    """Champs <contactinfo> bruts -> dict QSO prêt pour le log partagé.
+    """Champs <contactinfo> bruts -> dict QSO prêt pour le log partagé, ou None
+    si le champ 'call' n'a pas la forme d'un indicatif (défense contre un
+    datagramme UDP forgé — ce port n'est pas authentifié).
     Le concours (contest) reste celui configuré ICI (comme le pont WSJT-X) :
     le champ contestname du logger tiers est purement informatif, l'insertion
     doit rejoindre le concours actif de CETTE instance pour que le scoring
     (rules_db) s'applique correctement."""
     from logx_utils import locator_to_latlon, haversine
+    call = _clean_text(fields.get('call'), 15).upper()
+    if not _CALL_RE.match(call):
+        return None
     dt = _parse_timestamp(fields.get('timestamp', '')) or utcnow()
     my_loc = (cfg or {}).get('locator', '')
-    grid = (fields.get('gridsquare') or '').upper()
+    grid = _clean_text(fields.get('gridsquare'), 8).upper()
     dist = 0
     if grid:
         g6 = grid if len(grid) >= 6 else (grid + 'MM')[:6]
@@ -109,16 +132,16 @@ def qso_from_contactinfo(fields, cfg):
         if a[0] is not None and b[0] is not None:
             dist = haversine(a[0], a[1], b[0], b[1])
     return {
-        'call': (fields.get('call') or '').upper(),
+        'call': call,
         'band': _band_from_field(fields.get('band', '')),
-        'mode': (fields.get('mode') or '').upper(),
+        'mode': _clean_text(fields.get('mode'), 16).upper(),
         'date': dt.strftime('%Y%m%d'), 'time': dt.strftime('%H:%M'),
-        'rst_sent': fields.get('snt', ''), 'rst_rcvd': fields.get('rcv', ''),
+        'rst_sent': _clean_text(fields.get('snt'), 8), 'rst_rcvd': _clean_text(fields.get('rcv'), 8),
         'locator': grid, 'dist': dist, 'my_locator': my_loc,
         'contest': (cfg or {}).get('contest', ''),
-        'source': 'adifnet:' + (fields.get('app') or '?'),
-        'operator': fields.get('operator', ''),
-        'comment': fields.get('comment', ''),
+        'source': 'adifnet:' + (_clean_text(fields.get('app'), 32) or '?'),
+        'operator': _clean_text(fields.get('operator'), 32),
+        'comment': _clean_text(fields.get('comment'), 128),
     }
 
 
@@ -127,11 +150,12 @@ def build_contactinfo_xml(qso, cfg):
     """QSO (dict interne) -> XML <contactinfo> (mêmes tags que N1MM/DXLog)."""
     cfg = cfg or {}
     s = adifnet_settings(cfg)
-    date, time_ = qso.get('date', ''), qso.get('time', '')
+    date = str(qso.get('date', '')).replace('-', '')[:8]
+    time_ = str(qso.get('time', '')).replace(':', '')[:4]
     ts = ''
     if date and time_:
         try:
-            ts = datetime.datetime.strptime(date + time_, '%Y%m%d%H:%M').strftime('%Y-%m-%d %H:%M:%S')
+            ts = datetime.datetime.strptime(date + time_, '%Y%m%d%H%M').strftime('%Y-%m-%d %H:%M:%S')
         except ValueError:
             ts = ''
     values = {
@@ -183,6 +207,13 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
 
     def _run():
         import time
+        RATE_WINDOW = 1.0
+        RATE_MAX_PER_SOURCE = 20   # paquets/s max par source — un vrai N1MM en envoie quelques-uns/minute
+        GLOBAL_RATE_MAX = 100      # plafond agrégé, toutes sources confondues
+        PRUNE_EVERY = 60.0         # purge périodique de last_by_addr (évite une fuite mémoire sur 15 j)
+        last_by_addr = {}
+        global_bucket = []
+        last_prune = time.time()
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -194,11 +225,36 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
             return
         while True:
             try:
-                data, _ = sock.recvfrom(8192)
+                data, addr = sock.recvfrom(8192)
             except socket.timeout:
                 continue
             except Exception:
                 continue
+            now = time.time()
+
+            # Purge périodique : sans ça, last_by_addr grossit indéfiniment sur
+            # une expédition de 15 jours si de nombreuses IPs sources distinctes
+            # (légitimes ou usurpées — l'usurpation UDP intra-LAN ne demande pas
+            # de privilège particulier) sont vues au moins une fois.
+            if now - last_prune > PRUNE_EVERY:
+                last_by_addr = {k: v for k, v in last_by_addr.items()
+                                 if v and now - v[-1] < RATE_WINDOW}
+                last_prune = now
+
+            # Plafond agrégé : borne le coût total (scan log + scoring + écriture
+            # disque, tous sous log_lock partagé avec le serveur HTTP) même si de
+            # nombreuses sources distinctes restent chacune sous leur seuil.
+            global_bucket[:] = [t for t in global_bucket if now - t < RATE_WINDOW]
+            if len(global_bucket) >= GLOBAL_RATE_MAX:
+                continue
+
+            bucket = last_by_addr.setdefault(addr[0], [])
+            bucket[:] = [t for t in bucket if now - t < RATE_WINDOW]
+            if len(bucket) >= RATE_MAX_PER_SOURCE:
+                continue
+            bucket.append(now)
+            global_bucket.append(now)
+
             fields = parse_contactinfo(data.decode('utf-8', 'replace'))
             if not fields or not fields.get('call'):
                 continue
@@ -207,6 +263,8 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
                 status['last_seen'] = time.time()
             try:
                 qso = qso_from_contactinfo(fields, get_cfg() or {})
+                if qso is None:
+                    continue
                 res = add_qso(qso)
                 if res:
                     with _status_lock:

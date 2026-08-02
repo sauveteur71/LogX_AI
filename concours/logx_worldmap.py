@@ -108,7 +108,11 @@ def _load_features():
                 })
         except Exception:
             feats = []
-    _cache['features'] = feats
+    if feats:
+        _cache['features'] = feats   # ne mémorise (et ne fige) que le succès :
+                                      # un échec réseau transitoire ([]) ne
+                                      # doit jamais empêcher les appels
+                                      # suivants de retenter load_world_geojson()
     return feats
 
 

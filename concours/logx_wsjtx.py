@@ -77,6 +77,11 @@ class _Reader:
         n = self.u32()
         if n == 0xFFFFFFFF:
             return ''
+        if n > len(self.d) - self.i:
+            # Longueur annoncée au-delà de ce qui reste dans le datagramme :
+            # paquet tronqué/corrompu. Lever plutôt que de renvoyer une
+            # chaîne tronquée en silence et désaligner les champs suivants.
+            raise struct.error('utf8: longueur %d > donnees restantes' % n)
         s = self.d[self.i:self.i + n].decode('utf-8', 'replace')
         self.i += n
         return s

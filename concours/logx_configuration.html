@@ -1527,6 +1527,11 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <label>POSTES DÉTECTÉS</label>
             <div id="lanPeersBox" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:8px 0">—</div>
           </div>
+          <div class="form-group">
+            <label>JETON D'ÉQUIPE <span style="font-size:12px;color:var(--muted)">— optionnel</span></label>
+            <input type="text" id="lan_sync_token" placeholder="vide = ouvert à tout le réseau local" autocomplete="off">
+            <div class="input-note">Même valeur sur tous les postes de l'équipe (à se communiquer directement, jamais par ce dossier). Une fois réglé, seuls les postes qui le connaissent sont acceptés dans l'échange — utile sur un WiFi partagé avec des visiteurs.</div>
+          </div>
         </div>
       </div>
       <div class="section">
@@ -2434,6 +2439,7 @@ const CONFIG_HELP = {
 
   cloudsync_folder: "Le dossier local DÉJÀ synchronisé par un outil comme Synology Drive/OneDrive/Dropbox : c'est via ce dossier partagé que plusieurs postes échangent leurs QSO, sans service en ligne dédié. Choisis l'option « toujours conserver sur cet appareil » dans cet outil (pas de fichiers à la demande) pour que la synchro reste rapide.",
   lan_sync_enabled: "Synchro LAN directe : les postes LogX du même réseau se découvrent automatiquement (beacon UDP) et échangent leurs QSO en direct, sans dossier partagé. Indépendant du Cloud Sync — tu peux activer les deux. Aucune adresse à saisir ; un poste voisin apparaît en 15 à 25 secondes.",
+  lan_sync_token: "Optionnel. Sans lui, la synchro LAN accepte tout poste du réseau local qui se présente. Avec lui (même valeur sur tous les postes de l'équipe), seuls les postes qui le connaissent sont acceptés — utile sur un WiFi partagé (salle commune, visiteurs). À communiquer directement entre opérateurs, jamais par ce dossier.",
   cloudsync_mode: "FULL = ce poste envoie ET reçoit les QSO des autres postes ; PUSH = il envoie seulement (utile pour un poste isolé avec liaison intermittente) ; OFF = désactivé.",
   cloudsync_interval: "La fréquence (en minutes) à laquelle ce poste vérifie s'il y a de nouveaux QSO à échanger.",
   backup_folder: "Le dossier où les sauvegardes automatiques de ton log sont écrites — choisis un emplacement hors du dossier du logiciel (clé USB, cloud...).",
@@ -3045,6 +3051,55 @@ async function mergeExternalContests(){
   }catch(e){ console.warn('[UNIFIÉ] WA7BNM non disponible :', e); }
 }
 
+// ─── SECRETS DE CONFIG (audit sécurité) ──────────────────────────────────────
+// Ces champs ne sont JAMAIS écrits dans localStorage['logx_config'] (voir
+// saveConfig()) — ils vivent uniquement côté serveur (current_config) et sont
+// relus via GET /config/secrets (authentifié), pas via le cache local.
+// api_key exclu volontairement de cette liste PARTAGÉE avec le serveur : la
+// clé IA a son propre mécanisme dédié par fournisseur (logx_apikey_<provider>
+// dans localStorage, utilisé aussi par d'autres pages) — inchangé ici, hors
+// périmètre de ce correctif précis, mais bien exclue du blob logx_config par
+// la même liste (elle y figurait sous la clé 'api_key').
+const SECRET_CONFIG_FIELDS = ['api_key', 'clublog_api_key', 'clublog_password',
+  'eqsl_password', 'lan_sync_token', 'lotw_password', 'on4kst_password',
+  'qrz_password', 'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id'];
+
+// Ré-assainit un blob localStorage['logx_config'] écrit par une VERSION
+// ANTÉRIEURE du logiciel (avant ce correctif), qui pouvait encore contenir
+// des secrets en clair — sans ça, le simple fait de ne plus les y ÉCRIRE
+// laisserait ceux déjà présents sur le poste indéfiniment.
+function _redactStaleSecretsInLocalStorage(){
+  try{
+    const raw = localStorage.getItem('logx_config');
+    if(!raw) return;
+    const c = JSON.parse(raw);
+    let touched = false;
+    for(const f of SECRET_CONFIG_FIELDS){
+      if(f in c){ delete c[f]; touched = true; }
+    }
+    if(touched) localStorage.setItem('logx_config', JSON.stringify(c));
+  }catch(e){ /* JSON invalide : loadSavedConfig() le signalera déjà */ }
+}
+
+// Rapatrie les secrets depuis le serveur (authentifié) pour pré-remplir les
+// champs correspondants — le pendant de leur retrait de localStorage.
+// Appelée APRÈS loadSavedConfig()/loadFromServerConfig() : ne fait que
+// COMPLÉTER les champs secrets, jamais écraser le reste du formulaire déjà
+// posé. Best-effort : hors-ligne ou non authentifié, les champs restent
+// simplement vides comme avant ce correctif (l'opérateur les ressaisit).
+async function loadSecretsFromServer(){
+  try{
+    const res = await fetch('/config/secrets');
+    if(!res.ok) return;
+    const secrets = await res.json();
+    for(const f of SECRET_CONFIG_FIELDS){
+      const v = secrets[f];
+      const el = document.getElementById(f);
+      if(el && v) el.value = v;
+    }
+  }catch(e){ /* pas de réseau/serveur : champs laissés vides, comportement inchangé */ }
+}
+
 // ─── CHARGEMENT CONFIG ───────────────────────────────────────────────────────
 // Correctif H1 : l'ancienne applyConfigToForm() (~40 champs) utilisée par
 // loadProfile() a été retirée — la restauration complète est maintenant
@@ -3059,8 +3114,10 @@ async function init() {
   applyUiMode(); // Mode débutant/expert (avant tout rendu)
   buildContestGrid();
   onProviderChange(); // Initialise le select modèle (Anthropic par défaut)
+  _redactStaleSecretsInLocalStorage(); // avant lecture : purge un blob pré-correctif
   const hasLocal = loadSavedConfig();
   if (!hasLocal) await loadFromServerConfig();
+  loadSecretsFromServer(); // best-effort, ne bloque pas le reste de l'init (fire-and-forget)
   applyUsageMode(); // Sûr même si aucune config n'a encore été chargée (défaut 'contest')
   updateOpRowControls(); // État initial des boutons +/- opérateurs (au cas où aucune config n'a encore été restaurée)
   // Sélecteur unifié : enrichir avec la base serveur + WA7BNM puis re-render
@@ -3191,6 +3248,16 @@ function _updateActivationNearbyVisibility(){
   if (unavailable) unavailable.style.display = (spec && !spec.hasNearby) ? '' : 'none';
 }
 
+// Échappe une valeur pour un usage sûr à la fois comme argument d'une
+// fonction JS et dans un attribut HTML (onclick="...", onmousedown="...") :
+// JSON.stringify() produit un littéral JS valide (échappe guillemets/
+// antislashs), puis _vkEsc() échappe les guillemets doubles restants en
+// entités HTML pour qu'ils ne referment pas prématurément l'attribut.
+// e.code vient de la base d'activation externe (POTA/SOTA/WWFF/IOTA,
+// /activation_db/nearby et /activation_db/search) : contenu tiers non
+// maîtrisé, ne jamais l'interpoler brut dans un attribut HTML.
+function jsAttrArg(v){ return _vkEsc(JSON.stringify(String(v == null ? '' : v))); }
+
 async function loadNearbyActivationRefs(){
   const program = _activationProgram();
   const spec = ACTIVATION_DB_PROGRAMS[program];
@@ -3211,7 +3278,7 @@ async function loadNearbyActivationRefs(){
       return;
     }
     list.innerHTML = entries.map(e => `
-      <div onclick="pickActivationRef('${e.code}')" style="padding:7px 10px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px">
+      <div onclick="pickActivationRef(${jsAttrArg(e.code)})" style="padding:7px 10px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px">
         <span><b style="color:var(--accent2)">${_vkEsc(e.code)}</b> — ${spec.line(e)}</span>
         <span style="color:var(--muted);white-space:nowrap">${e.dist_km.toFixed(1)} km · ${e.cardinal}</span>
       </div>`).join('');
@@ -3248,7 +3315,7 @@ async function searchActivationRefs(program, query){
     if (!results.length) { hideActivationSuggestions(); return; }
     box.style.display = 'block';
     box.innerHTML = results.map(e => `
-      <div onmousedown="pickActivationRef('${e.code}')" style="padding:7px 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border)">
+      <div onmousedown="pickActivationRef(${jsAttrArg(e.code)})" style="padding:7px 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px;border-bottom:1px solid var(--border)">
         <b style="color:var(--accent2)">${_vkEsc(e.code)}</b> — ${spec.line(e)}
       </div>`).join('');
   }catch(e){ hideActivationSuggestions(); }
@@ -5186,19 +5253,24 @@ function buildSummary() {
   const flags = getActiveFlags();
   const props = getActiveProp();
 
+  // call/callContest/loc/city/power sont normalement saisis localement, mais
+  // peuvent aussi provenir d'une config PARTAGÉE restaurée (cloudsync/LAN
+  // sync) depuis un autre poste du réseau ; contest.name vient potentiellement
+  // du flux externe WA7BNM (mergeExternalContests()) — contenu tiers non
+  // maîtrisé. escC() neutralise tout HTML/JS avant insertion en innerHTML.
   document.getElementById('summaryBox').innerHTML = `
-    <div class="summary-row"><span class="summary-key">Indicatif</span><span class="summary-val accent">${call}</span></div>
-    <div class="summary-row"><span class="summary-key">Contest</span><span class="summary-val accent">${callContest}</span></div>
-    <div class="summary-row"><span class="summary-key">Locator</span><span class="summary-val accent2">${loc}</span></div>
-    <div class="summary-row"><span class="summary-key">QTH</span><span class="summary-val">${city}</span></div>
-    <div class="summary-row"><span class="summary-key">Puissance</span><span class="summary-val">${power}W</span></div>
-    <div class="summary-row"><span class="summary-key">Record DX</span><span class="summary-val green">${record} km</span></div>
-    <div class="summary-row"><span class="summary-key">Concours</span><span class="summary-val accent2">${contest ? contest.name : '— Non sélectionné'}</span></div>
-    <div class="summary-row"><span class="summary-key">Modes actifs</span><span class="summary-val">${modes.join(' · ') || '—'}</span></div>
-    <div class="summary-row"><span class="summary-key">Bandes actives</span><span class="summary-val">${bands.join(' · ') || '—'}</span></div>
-    <div class="summary-row"><span class="summary-key">Options</span><span class="summary-val">${flags.join(' · ') || '—'}</span></div>
-    <div class="summary-row"><span class="summary-key">Propagation</span><span class="summary-val">${props.join(' · ') || '—'}</span></div>
-    ${document.getElementById('spot_prefix_filter').value ? `<div class="summary-row"><span class="summary-key">Filtre spots</span><span class="summary-val accent2">${document.getElementById('spot_prefix_filter').value}</span></div>` : ''}
+    <div class="summary-row"><span class="summary-key">Indicatif</span><span class="summary-val accent">${escC(call)}</span></div>
+    <div class="summary-row"><span class="summary-key">Contest</span><span class="summary-val accent">${escC(callContest)}</span></div>
+    <div class="summary-row"><span class="summary-key">Locator</span><span class="summary-val accent2">${escC(loc)}</span></div>
+    <div class="summary-row"><span class="summary-key">QTH</span><span class="summary-val">${escC(city)}</span></div>
+    <div class="summary-row"><span class="summary-key">Puissance</span><span class="summary-val">${escC(power)}W</span></div>
+    <div class="summary-row"><span class="summary-key">Record DX</span><span class="summary-val green">${escC(record)} km</span></div>
+    <div class="summary-row"><span class="summary-key">Concours</span><span class="summary-val accent2">${contest ? escC(contest.name) : '— Non sélectionné'}</span></div>
+    <div class="summary-row"><span class="summary-key">Modes actifs</span><span class="summary-val">${modes.map(escC).join(' · ') || '—'}</span></div>
+    <div class="summary-row"><span class="summary-key">Bandes actives</span><span class="summary-val">${bands.map(escC).join(' · ') || '—'}</span></div>
+    <div class="summary-row"><span class="summary-key">Options</span><span class="summary-val">${flags.map(escC).join(' · ') || '—'}</span></div>
+    <div class="summary-row"><span class="summary-key">Propagation</span><span class="summary-val">${props.map(escC).join(' · ') || '—'}</span></div>
+    ${document.getElementById('spot_prefix_filter').value ? `<div class="summary-row"><span class="summary-key">Filtre spots</span><span class="summary-val accent2">${escC(document.getElementById('spot_prefix_filter').value)}</span></div>` : ''}
   `;
 
   generatePrompt(call, callContest, loc, city, power, record, contest, modes, bands, flags, props);
@@ -6006,6 +6078,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     backup_folder: document.getElementById('backup_folder').value.trim(),
     backup_interval: _numClamped('backup_interval', 15),
     lan_sync_enabled: document.getElementById('lan_sync_enabled').value,
+    lan_sync_token: document.getElementById('lan_sync_token').value.trim(),
     cloudsync_mode: document.getElementById('cloudsync_mode').value,
     cloudsync_folder: document.getElementById('cloudsync_folder').value.trim(),
     cloudsync_interval: _numClamped('cloudsync_interval', 3),
@@ -6126,7 +6199,18 @@ function saveConfig(silent = false, feedbackBtn = null) {
     api_key: apiKey,
     saved_at: new Date().toISOString(), // affiché par la barre de statut
   };
-  localStorage.setItem('logx_config', JSON.stringify(config));
+  // Audit sécurité : localStorage n'est PLUS le dépôt des secrets (mots de
+  // passe, clés API) — une copie EXPURGÉE de ces champs y est écrite (tout le
+  // reste continue d'y être mis en cache normalement, rapide, hors-ligne).
+  // Les secrets restent envoyés au serveur ci-dessous (POST /config/save,
+  // là où ils sont réellement nécessaires) et sont relus au chargement de la
+  // page via GET /config/secrets (voir loadSecretsFromServer()), qui exige le
+  // jeton d'authentification — au lieu d'être accessibles à toute lecture de
+  // localStorage (un XSS ailleurs dans l'appli, ou un accès physique au
+  // profil navigateur, ne suffit plus à tout exfiltrer d'un coup).
+  const localCopy = { ...config };
+  for (const f of SECRET_CONFIG_FIELDS) delete localCopy[f];
+  localStorage.setItem('logx_config', JSON.stringify(localCopy));
   // Pousser aussi au serveur : sinon logx_serveur.py travaille avec une config
   // périmée. Cette page est la SEULE à faire ce POST (la page CARTE le faisait
   // aussi, en silence à chaque chargement : un poste au localStorage périmé
@@ -6732,7 +6816,7 @@ function applyFullConfigToForm(c) {
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'cloudsync_mode','cloudsync_folder','cloudsync_interval',
      'rbn_enabled','clublog_live','expedition_mode',
-     'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled',
+     'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
      'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
@@ -7350,7 +7434,10 @@ function handleContestParam(){
   if (!contest){
     banner.style.display = 'block';
     banner.style.borderColor = 'rgba(255,214,10,.4)';
-    banner.innerHTML = `⚠️ <strong>Concours « ${id} » introuvable dans la liste.</strong><br>
+    // Défense en profondeur (id vient de location.search, entièrement
+    // contrôlé par quiconque forge le lien) : escC() neutralise tout HTML/JS,
+    // slice() borne la longueur affichée dans la bannière.
+    banner.innerHTML = `⚠️ <strong>Concours « ${escC(id).slice(0, 120)} » introuvable dans la liste.</strong><br>
       <span style="font-size:14px;color:var(--muted)">Si c'est un concours WA7BNM, le cache externe est peut-être vide — recharge le calendrier, ou choisis un concours ci-dessous.</span>`;
     return;
   }
@@ -7374,16 +7461,23 @@ function handleContestParam(){
   // les .cat-modal partagent le même z-index (9000) et #catmodal_identity
   // précède #catmodal_contest dans le DOM — ouverte sans fermer, la popup
   // Identité resterait cachée DERRIÈRE la popup Concours.
+  // contest.name/contest.rules peuvent venir du flux externe WA7BNM (contenu
+  // tiers non maîtrisé, cf. commentaire escC() plus haut dans ce fichier) :
+  // escC() les neutralise, safeUrl() bloque tout schéma autre que http/https
+  // pour le href, et le lien "fais-le lire par l'IA" passe désormais par des
+  // attributs data-* lus en JS plutôt que par interpolation dans une chaîne
+  // onclick="...('...')" — supprime tout risque de casser le contexte JS
+  // avec un guillemet présent dans contest.rules/contest.name.
   const checks = [
-    `✅ Concours sélectionné : <strong>${contest.name}</strong>`,
+    `✅ Concours sélectionné : <strong>${escC(contest.name)}</strong>`,
     stationOk
-      ? `✅ Station : <strong>${cfg.callsign}</strong> en <strong>${cfg.locator}</strong> (profil sauvegardé)`
+      ? `✅ Station : <strong>${escC(cfg.callsign)}</strong> en <strong>${escC(cfg.locator)}</strong> (profil sauvegardé)`
       : `⚠️ Station non configurée — <a href="#" onclick="closeCategoryPopup('contest');openCategoryPopup('identity');return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
     datesOk
       ? `✅ Dates calculées automatiquement : <strong>${document.getElementById('contest_start_date').value}</strong> → <strong>${document.getElementById('contest_end_date').value}</strong>`
       : `⚠️ Dates non calculables — saisis-les à l'étape 2 (encadré DATES DU CONCOURS)`,
     isExternal
-      ? `⚠️ Concours <strong>non vérifié</strong> (source WA7BNM) — contrôle bandes, modes et échange dans le <a href="${contest.rules}" target="_blank" style="color:var(--accent2)">règlement officiel</a>${contest.rules ? ` — ou <a href="#" onclick="analyzeRules('${contest.rules}','${(contest.name||'').replace(/'/g,'')}');return false" style="color:var(--green)">🤖 fais-le lire par l'IA</a>` : ''}`
+      ? `⚠️ Concours <strong>non vérifié</strong> (source WA7BNM) — contrôle bandes, modes et échange dans le <a href="${escC(safeUrl(contest.rules))}" target="_blank" rel="noopener noreferrer" style="color:var(--accent2)">règlement officiel</a>${safeUrl(contest.rules) ? ` — ou <a href="#" data-analyze-rules data-rules-url="${escC(contest.rules)}" data-rules-name="${escC(contest.name)}" style="color:var(--green)">🤖 fais-le lire par l'IA</a>` : ''}`
       : `✅ Bandes et modes du règlement appliqués (modifiables à l'étape 3)`,
   ];
 
@@ -7396,6 +7490,11 @@ function handleContestParam(){
       <button class="btn btn-secondary" style="padding:10px 18px" onclick="closeCategoryPopup('contest');openCategoryPopup('filters')">Vérifier bandes/modes →</button>
       <button class="btn btn-secondary" style="padding:10px 18px" onclick="document.getElementById('assistantBanner').style.display='none'">✕ Fermer l'assistant</button>
     </div>`;
+  const aiLink = banner.querySelector('[data-analyze-rules]');
+  if (aiLink) aiLink.addEventListener('click', e => {
+    e.preventDefault();
+    analyzeRules(aiLink.dataset.rulesUrl, aiLink.dataset.rulesName);
+  });
 }
 
 // Correctif B5 : init() n'est jamais attendue (fire-and-forget, pour ne pas

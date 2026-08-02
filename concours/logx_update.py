@@ -78,6 +78,7 @@ import hashlib
 import ipaddress
 import os
 import re
+import shlex
 import socket
 import sys
 import stat
@@ -1036,8 +1037,34 @@ def apply_update_and_relaunch(new_exe_path):
     if not os.path.exists(new_exe_path):
         return False, "Fichier téléchargé introuvable"
 
+    # Défense en profondeur contre le TOCTOU : le fichier vérifié peut rester
+    # posé un temps non borné dans user_data_dir()/update/ (dossier
+    # inscriptible par tout process du même compte) avant que l'opérateur ne
+    # clique "installer". On exige qu'il s'agisse EXACTEMENT du fichier que
+    # _do_download / _do_download_via_network ont marqué verified=True, et on
+    # re-hache juste avant de générer le script de remplacement pour détecter
+    # toute altération survenue depuis la vérification initiale.
+    with _lock:
+        expected_path = _download.get('path', '')
+        expected_sha = _download.get('sha256', '')
+        was_verified = bool(_download.get('verified'))
+    # normcase() en plus d'abspath() : sur Windows le système de fichiers est
+    # insensible à la casse (C:\... vs c:\...) et NTFS normalise les
+    # séparateurs — une comparaison abspath() seule pourrait rejeter à tort
+    # un chemin strictement identique mais formaté différemment par
+    # l'appelant (get_download_status() renvoie normalement la même chaîne,
+    # mais ne pas en dépendre implicitement ici).
+    same_path = (expected_path and
+                 os.path.normcase(os.path.abspath(new_exe_path)) ==
+                 os.path.normcase(os.path.abspath(expected_path)))
+    if not (was_verified and expected_sha and same_path):
+        return False, ("Fichier non reconnu comme provenant d'un téléchargement "
+                        "vérifié — installation refusée par sécurité.")
+    if not verify_file_sha256(new_exe_path, expected_sha):
+        return False, ("L'exécutable téléchargé a été modifié depuis sa "
+                        "vérification — installation refusée par sécurité.")
+
     current_exe = sys.executable
-    pid = os.getpid()
     update_dir = os.path.join(user_data_dir(), 'update')
     os.makedirs(update_dir, exist_ok=True)
 
@@ -1095,19 +1122,27 @@ echo Echec du remplacement - fermez LogXAI.exe puis relancez-le manuellement. > 
         )
     else:
         helper = os.path.join(update_dir, '_apply_update.sh')
+        # shlex.quote() (et non de simples guillemets doubles) : le texte du
+        # script est interpolé, et les guillemets doubles POSIX n'empêchent
+        # PAS l'expansion de variables ($VAR) ni la substitution de commande
+        # ($(...) / `...`) — un chemin forgé pourrait sinon exécuter du code
+        # arbitraire dans /bin/sh. Même protection de fond que côté Windows
+        # (variables d'environnement), adaptée au shell POSIX.
+        new_exe_q = shlex.quote(new_exe_path)
+        current_exe_q = shlex.quote(current_exe)
         script = f'''#!/bin/sh
 sleep 2
 i=0
-while ! mv -f "{new_exe_path}" "{current_exe}" 2>/dev/null; do
+while ! mv -f {new_exe_q} {current_exe_q} 2>/dev/null; do
   i=$((i+1))
   if [ "$i" -ge 30 ]; then
-    echo "Echec du remplacement - fermez LogXAI puis relancez-le manuellement." > "{current_exe}.update_failed.txt"
+    echo "Echec du remplacement - fermez LogXAI puis relancez-le manuellement." > {current_exe_q}.update_failed.txt
     exit 1
   fi
   sleep 1
 done
-chmod +x "{current_exe}"
-nohup "{current_exe}" >/dev/null 2>&1 &
+chmod +x {current_exe_q}
+nohup {current_exe_q} >/dev/null 2>&1 &
 rm -f "$0"
 '''
         with open(helper, 'w', encoding='utf-8') as f:

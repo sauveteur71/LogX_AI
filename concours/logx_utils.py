@@ -160,7 +160,7 @@ if hasattr(_ssl, 'VERIFY_X509_STRICT'):
 _FETCH_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix='fetch_url')
 
 
-def fetch_url(url, timeout=10):
+def fetch_url(url, timeout=10, log_url=True):
     """Requête HTTP(S) réellement bornée dans le temps.
 
     urlopen(timeout=...) ne couvre PAS la résolution DNS : socket.create_connection()
@@ -171,7 +171,13 @@ def fetch_url(url, timeout=10):
     threads et on borne l'ATTENTE du résultat avec .result(timeout=...) : si le
     thread ne revient pas à temps, l'appelant est débloqué immédiatement (le
     thread abandonné continue seul en arrière-plan jusqu'à sa propre fin, sans
-    jamais allonger le blocage perçu par l'appelant au-delà de la marge fixée)."""
+    jamais allonger le blocage perçu par l'appelant au-delà de la marge fixée).
+
+    log_url=False (audit sécurité) : quelques appelants (logx_qrz._authenticate)
+    portent un secret DANS l'URL elle-même (mot de passe en query string) — même
+    tronqué à 60 caractères, `url[:60]` peut exposer les premiers caractères du
+    mot de passe pour un indicatif court. Ces appelants passent log_url=False
+    pour ne jamais journalier l'URL, seulement le type d'échec."""
     def _do():
         req = urllib.request.Request(url, headers={
             'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
@@ -184,7 +190,10 @@ def fetch_url(url, timeout=10):
         fut = _FETCH_EXECUTOR.submit(_do)
         return fut.result(timeout=timeout + 3)
     except Exception as e:
-        print(f"  [FETCH] {url[:60]}... -> {e}")
+        if log_url:
+            print(f"  [FETCH] {url[:60]}... -> {e}")
+        else:
+            print(f"  [FETCH] (URL non journalisée — contient un secret) -> {type(e).__name__}")
         return None
 
 def fetch_url_binary(url, timeout=10):

@@ -147,7 +147,12 @@ SERVER_BOOT_ID = uuid.uuid4().hex
 # concours) passent par mark_hard_reset() plutôt que d'empiler un tombstone
 # par QSO effacé (potentiellement tout un concours d'un coup).
 deleted_qsos = []                  # [{'id': .., 'v': ..}, ...]
-_MAX_DELETED_TOMBSTONES = 2000
+# Bornée très large : un dict {id, v} pèse quelques dizaines d'octets, même
+# 200000 tombstones restent négligeables (quelques Mo) sur une session de 15
+# jours -- l'ancienne borne de 2000 pouvait être atteinte par des suppressions
+# répétées et violait alors l'invariant "un id supprimé n'est jamais recyclé"
+# documenté juste au-dessus.
+_MAX_DELETED_TOMBSTONES = 200_000
 hard_reset_version = 0             # un ?since= antérieur à cette version n'est plus fiable
 
 # ─── ID DE QSO : ALLOCATEUR UNIQUE ───────────────────────────────────────────
@@ -275,6 +280,10 @@ def mark_qso_deleted(qso_id):
     global deleted_qsos
     deleted_qsos.append({'id': qso_id, 'v': log_version})
     if len(deleted_qsos) > _MAX_DELETED_TOMBSTONES:
+        # Ne devrait jamais se produire en usage normal ; si ça arrive, le
+        # dire au lieu de recycler un id silencieusement.
+        print(f"[LOG] ATTENTION : {len(deleted_qsos)} tombstones de "
+              f"suppression -- des id supprimés redeviennent recyclables.")
         deleted_qsos = deleted_qsos[-_MAX_DELETED_TOMBSTONES:]
 
 
@@ -852,12 +861,14 @@ def archive_current_log():
         stamp = utcnow().isoformat()
         with _db_lock:
             conn = _db()
-            with conn:
-                conn.executemany(
-                    f"INSERT INTO qso_archive ({','.join(_CORE)}, extra, archived_at) "
-                    f"VALUES ({','.join('?' * (len(_CORE) + 2))})",
-                    [_row_from_qso(q) + (stamp,) for q in data])
-            conn.close()
+            try:
+                with conn:
+                    conn.executemany(
+                        f"INSERT INTO qso_archive ({','.join(_CORE)}, extra, archived_at) "
+                        f"VALUES ({','.join('?' * (len(_CORE) + 2))})",
+                        [_row_from_qso(q) + (stamp,) for q in data])
+            finally:
+                conn.close()
         print(f"[LOG] {len(data)} QSO archives avant reset")
         return len(data)
     except Exception as e:
@@ -902,11 +913,16 @@ def load_log_from_disk():
             save_log_to_disk()
     except Exception as e:
         print(f"[LOG] Impossible de charger le log : {e}")
-        # Base présente mais illisible : on interdit toute réécriture destructive
-        # jusqu'au prochain démarrage réussi (voir load_failed / save_log_to_disk).
-        if os.path.exists(DB_FILE):
+        # Base OU sauvegarde JSON déjà présente sur disque mais illisible
+        # (verrou transitoire antivirus / Synology Drive, JSON tronqué...) :
+        # dans les DEUX cas un historique existe et n'a pas pu être lu --
+        # on interdit toute réécriture destructive jusqu'au prochain démarrage
+        # réussi (voir load_failed / save_log_to_disk), plutôt que de repartir
+        # sur un shared_log vide qui écraserait cet historique.
+        if os.path.exists(DB_FILE) or os.path.exists('shared_log.json'):
             global load_failed
             load_failed = True
-            print(f"[LOG] ⚠ {DB_FILE} présent mais illisible — persistance "
-                  f"GELÉE pour protéger l'historique. Ferme les programmes qui "
-                  f"verrouillent le fichier (antivirus, sync) puis redémarre.")
+            print(f"[LOG] ⚠ données présentes sur disque mais illisibles — "
+                  f"persistance GELÉE pour protéger l'historique. Ferme les "
+                  f"programmes qui verrouillent le fichier (antivirus, sync) "
+                  f"puis redémarre.")

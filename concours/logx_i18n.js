@@ -5647,19 +5647,30 @@
   // seul endroit rend cette divergence impossible à reproduire — c'est elle qui
   // a produit d'abord le clignotement fr ⇄ langue cible des infobulles, puis
   // l'absence de traitement du préfixe emoji côté attributs.
+  // hasOwnProperty explicite : un dict est un objet littéral ordinaire, donc
+  // dict['constructor']/['toString']/['__proto__']/etc. renvoient toujours
+  // une valeur héritée d'Object.prototype (jamais undefined) même sur un
+  // dictionnaire vide — le test `dict[key] !== undefined` les prendrait à
+  // tort pour une traduction trouvée.
+  function ownTranslation(dict, key) {
+    return Object.prototype.hasOwnProperty.call(dict, key) ? dict[key] : undefined;
+  }
+
   function translateKey(dict, raw) {
     const key = raw.trim();
     if (!key) return null;
     // 1) correspondance directe
-    if (dict[key] !== undefined) return raw.replace(key, dict[key]);
+    const direct = ownTranslation(dict, key);
+    if (direct !== undefined) return raw.replace(key, direct);
     // 2) préfixe emoji/symbole (« 🗺️ CARTE IA », « 🔍 Rechercher… ») : on isole
     //    le cœur alphabétique et on ne traduit que lui, en gardant l'emoji.
     //    Évite de recopier l'emoji dans la clé ET dans les 7 traductions.
     const i = firstLetterIndex(key);
     if (i > 0) {
       const core = key.slice(i).trim();
-      if (dict[core] !== undefined) {
-        return raw.replace(key, key.slice(0, i) + dict[core]);
+      const viaCore = ownTranslation(dict, core);
+      if (viaCore !== undefined) {
+        return raw.replace(key, key.slice(0, i) + viaCore);
       }
     }
     return null;
@@ -5711,13 +5722,15 @@
     const raw = (TITLE_ORIG === null || TITLE_ORIG === undefined) ? '' : String(TITLE_ORIG);
     const key = raw.trim();
     let out = raw;                       // dict vide / clé absente → français
-    if (dict[key] !== undefined) {
-      out = dict[key];
+    const direct = ownTranslation(dict, key);
+    if (direct !== undefined) {
+      out = direct;
     } else {
       const i = raw.indexOf(TITLE_SEP);
       const suffix = i >= 0 ? raw.slice(i + TITLE_SEP.length).trim() : '';
-      if (suffix && dict[suffix] !== undefined) {
-        out = raw.slice(0, i + TITLE_SEP.length) + dict[suffix];
+      const viaSuffix = suffix ? ownTranslation(dict, suffix) : undefined;
+      if (viaSuffix !== undefined) {
+        out = raw.slice(0, i + TITLE_SEP.length) + viaSuffix;
       }
     }
     document.title = out;

@@ -8,6 +8,7 @@ import re
 import time
 import socket
 import threading
+import concurrent.futures as _cf
 
 from logx_utils import MODES_NUMERIQUES, fetch_url, is_digital_mode, locator_to_latlon, utcnow, as_naive_utc
 
@@ -153,31 +154,36 @@ def fetch_dxsummit(band_type='VHF', filter_digital=True):
         return []
     try:
         data = json.loads(content)
-        spots = []
-        items = data if isinstance(data, list) else data.get('spots', [])
-        for s in items:
-            freq = float(s.get('frequency', s.get('freq', 0)))
-            # L'API DXSummit renvoie la fréquence en kHz (ex: 144260.1) — nos
-            # bandes VHF/UHF sont toujours < 1000 en MHz, donc toute valeur
-            # au-dessus indique du kHz non converti.
-            if freq > 1000:
-                freq = freq / 1000
-            info = str(s.get('mode', s.get('info', ''))).upper()
-            if filter_digital and is_digital_mode(info):
-                continue
-            spots.append({
-                'spotter': s.get('de_call', s.get('spotter_callsign', s.get('spotter', ''))),
-                'dx':      s.get('dx_call', s.get('dx_callsign', s.get('dx', ''))),
-                'freq':    freq,
-                # Mode réel renvoyé par l'API (distinct de 'info' : requis par
-                # les barèmes scorés par mode, ex. WWA — voir logx_scoring.py).
-                'mode':    str(s.get('mode', '')).upper(),
-                'info':    s.get('info', s.get('comment', '')),
-                'time':    s.get('time', s.get('utc', '')),
-            })
-        return spots[:25]
-    except:
+    except (ValueError, TypeError):
         return []
+    spots = []
+    items = data if isinstance(data, list) else data.get('spots', [])
+    for s in items:
+        if not isinstance(s, dict):
+            continue
+        try:
+            freq = float(s.get('frequency', s.get('freq', 0)))
+        except (TypeError, ValueError):
+            continue
+        # L'API DXSummit renvoie la fréquence en kHz (ex: 144260.1) — nos
+        # bandes VHF/UHF sont toujours < 1000 en MHz, donc toute valeur
+        # au-dessus indique du kHz non converti.
+        if freq > 1000:
+            freq = freq / 1000
+        info = str(s.get('mode', s.get('info', ''))).upper()
+        if filter_digital and is_digital_mode(info):
+            continue
+        spots.append({
+            'spotter': s.get('de_call', s.get('spotter_callsign', s.get('spotter', ''))),
+            'dx':      s.get('dx_call', s.get('dx_callsign', s.get('dx', ''))),
+            'freq':    freq,
+            # Mode réel renvoyé par l'API (distinct de 'info' : requis par
+            # les barèmes scorés par mode, ex. WWA — voir logx_scoring.py).
+            'mode':    str(s.get('mode', '')).upper(),
+            'info':    s.get('info', s.get('comment', '')),
+            'time':    s.get('time', s.get('utc', '')),
+        })
+    return spots[:25]
 
 def fetch_dxsummit_hf(filter_digital=True):
     """Fetch spots HF depuis DXSummit via HTTP (HTTPS bloqué sur ce réseau)."""
@@ -192,38 +198,49 @@ def fetch_dxsummit_hf(filter_digital=True):
             continue
         try:
             data = json.loads(content)
-            items = data if isinstance(data, list) else data.get('spots', [])
-            for s in items:
-                freq = float(s.get('frequency', s.get('freq', 0)))
-                info = str(s.get('mode', s.get('info', ''))).upper()
-                if filter_digital and is_digital_mode(info):
-                    continue
-                # API DXSummit : dx_call = station DX, de_call = spotter
-                dx = s.get('dx_call', s.get('dx_callsign', s.get('dx', '')))
-                spotter = s.get('de_call', s.get('spotter_callsign', s.get('spotter', '')))
-                key = f"{dx}_{freq}"
-                if key in seen or not dx:
-                    continue
-                seen.add(key)
-                # DXSummit longitude : convention inversée (East = négatif) → inverser
-                raw_lat = s.get('dx_latitude')
-                raw_lon = s.get('dx_longitude')
-                spot_lat = float(raw_lat) if raw_lat is not None else None
-                spot_lon = -float(raw_lon) if raw_lon is not None else None
-                all_spots.append({
-                    'spotter': spotter,
-                    'dx':      dx,
-                    'freq':    freq,
-                    'mode':    str(s.get('mode', '')).upper(),
-                    'info':    str(s.get('info', s.get('comment', s.get('mode', '')))),
-                    'time':    str(s.get('time', s.get('utc', ''))),
-                    'lat':     spot_lat,
-                    'lon':     spot_lon,
-                    'country': s.get('dx_country', ''),
-                })
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             print(f"[DXSUMMIT-HF] parse error {band_mhz}: {e}")
             continue
+        items = data if isinstance(data, list) else data.get('spots', [])
+        for s in items:
+            if not isinstance(s, dict):
+                continue
+            try:
+                freq = float(s.get('frequency', s.get('freq', 0)))
+            except (TypeError, ValueError):
+                continue
+            info = str(s.get('mode', s.get('info', ''))).upper()
+            if filter_digital and is_digital_mode(info):
+                continue
+            # API DXSummit : dx_call = station DX, de_call = spotter
+            dx = s.get('dx_call', s.get('dx_callsign', s.get('dx', '')))
+            spotter = s.get('de_call', s.get('spotter_callsign', s.get('spotter', '')))
+            key = f"{dx}_{freq}"
+            if key in seen or not dx:
+                continue
+            seen.add(key)
+            # DXSummit longitude : convention inversée (East = négatif) → inverser
+            raw_lat = s.get('dx_latitude')
+            raw_lon = s.get('dx_longitude')
+            try:
+                spot_lat = float(raw_lat) if raw_lat is not None else None
+            except (TypeError, ValueError):
+                spot_lat = None
+            try:
+                spot_lon = -float(raw_lon) if raw_lon is not None else None
+            except (TypeError, ValueError):
+                spot_lon = None
+            all_spots.append({
+                'spotter': spotter,
+                'dx':      dx,
+                'freq':    freq,
+                'mode':    str(s.get('mode', '')).upper(),
+                'info':    str(s.get('info', s.get('comment', s.get('mode', '')))),
+                'time':    str(s.get('time', s.get('utc', ''))),
+                'lat':     spot_lat,
+                'lon':     spot_lon,
+                'country': s.get('dx_country', ''),
+            })
     print(f"[DXSUMMIT-HF] {len(all_spots)} spots HF (HTTP)")
     return all_spots[:80]
 
@@ -284,22 +301,36 @@ def fetch_dxwatch_hf(filter_digital=True):
                     data = json.loads(content)
                     items = data if isinstance(data, list) else data.get('s', data.get('spots', []))
                     for s in (items if isinstance(items, list) else []):
-                        freq_f = float(s[1]) if isinstance(s, list) and len(s) > 1 else float(s.get('fr', s.get('freq', 0)))
+                        try:
+                            if isinstance(s, list):
+                                if len(s) < 3:
+                                    continue
+                                freq_f = float(s[1])
+                                call = str(s[2]).upper()
+                                info = str(s[4]).strip() if len(s) > 4 else ''
+                                spotter = str(s[0]).upper()
+                                t = s[5] if len(s) > 5 else ''
+                            elif isinstance(s, dict):
+                                freq_f = float(s.get('fr', s.get('freq', 0)))
+                                call = str(s.get('dx', '')).upper()
+                                info = str(s.get('rm', '')).strip()
+                                spotter = str(s.get('de', '')).upper()
+                                t = s.get('ut', '')
+                            else:
+                                continue
+                        except (TypeError, ValueError, IndexError):
+                            continue
                         if not (1.8 <= freq_f <= 54.0):
                             continue
-                        call = (s[2] if isinstance(s, list) else s.get('dx', '')).upper()
-                        info = (s[4] if isinstance(s, list) and len(s) > 4 else s.get('rm', '')).strip()
                         if filter_digital and is_digital_mode(info):
                             continue
-                        spotter = (s[0] if isinstance(s, list) else s.get('de', '')).upper()
-                        t = (s[5] if isinstance(s, list) and len(s) > 5 else s.get('ut', ''))
                         key = f"{call}|{freq_f}"
                         if key not in seen:
                             seen.add(key)
                             spots.append({'spotter': spotter, 'dx': call, 'freq': freq_f, 'info': info, 'time': str(t)})
                     print(f"[DXWATCH-HF-JSON] {len(spots)} spots")
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[DXWATCH-HF-JSON] parse error: {e}")
         except Exception as e:
             print(f"[DXWATCH-HF-fallback] {e}")
 
@@ -433,52 +464,69 @@ def cluster_catalog():
     return [{'host': h, 'port': p, 'label': l, 'region': r}
             for (h, p, l, r) in DX_CLUSTER_CATALOG]
 
+# Pool partagé, même pattern que logx_rbn._EXECUTOR : borne aussi la
+# résolution DNS (getaddrinfo), que socket.settimeout() ne couvre PAS.
+# Les 3 fonctions telnet directes du module (fetch_telnet_cluster,
+# publish_self_spot, fetch_on4kst_raw) partagent ce pool.
+_TELNET_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=6, thread_name_prefix='telnet')
+
+
 def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, timeout=8):
     """Connexion telnet à un nœud DX Spider — récupère les derniers spots."""
     spots = []
     for host, port in DX_SPIDER_NODES:
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(timeout)
-            s.connect((host, port))
-            # Lire le prompt de bienvenue. Le timeout du socket (settimeout ci-
-            # dessus) borne CHAQUE recv() individuellement, pas la boucle : sans
-            # le recalculer à chaque tour sur la deadline réelle, un seul recv()
-            # qui ne reçoit rien peut à lui seul dépasser le budget de la phase
-            # (ex. 4s annoncées ici) et laisser filer jusqu'au timeout complet du
-            # socket (`timeout`, potentiellement le double ou plus).
-            buf = b''
-            deadline = time.time() + 4
-            while time.time() < deadline:
-                try:
-                    s.settimeout(max(0.05, deadline - time.time()))
-                    chunk = s.recv(1024)
-                    if not chunk:
+            def _dialog(host=host, port=port):
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(timeout)
+                s.connect((host, port))
+                # Lire le prompt de bienvenue. Le timeout du socket (settimeout
+                # ci-dessus) borne CHAQUE recv() individuellement, pas la boucle :
+                # sans le recalculer à chaque tour sur la deadline réelle, un seul
+                # recv() qui ne reçoit rien peut à lui seul dépasser le budget de
+                # la phase (ex. 4s annoncées ici) et laisser filer jusqu'au
+                # timeout complet du socket (`timeout`, potentiellement le double
+                # ou plus).
+                buf = b''
+                deadline = time.time() + 4
+                while time.time() < deadline:
+                    try:
+                        s.settimeout(max(0.05, deadline - time.time()))
+                        chunk = s.recv(1024)
+                        if not chunk:
+                            break
+                        buf += chunk
+                        if b'login' in buf.lower() or b'call' in buf.lower() or b'>' in buf:
+                            break
+                    except socket.timeout:
                         break
-                    buf += chunk
-                    if b'login' in buf.lower() or b'call' in buf.lower() or b'>' in buf:
+                # Envoyer l'indicatif
+                s.sendall((callsign + '\r\n').encode())
+                time.sleep(1.0)
+                # Demander les derniers spots HF
+                s.sendall(b'sh/dx/60\r\n')
+                # Lire la réponse (même correction de deadline que ci-dessus)
+                raw = b''
+                deadline = time.time() + timeout
+                while time.time() < deadline:
+                    try:
+                        s.settimeout(max(0.05, deadline - time.time()))
+                        chunk = s.recv(4096)
+                        if not chunk:
+                            break
+                        raw += chunk
+                    except socket.timeout:
                         break
-                except socket.timeout:
-                    break
-            # Envoyer l'indicatif
-            s.sendall((callsign + '\r\n').encode())
-            time.sleep(1.0)
-            # Demander les derniers spots HF
-            s.sendall(b'sh/dx/60\r\n')
-            # Lire la réponse (même correction de deadline que ci-dessus)
-            raw = b''
-            deadline = time.time() + timeout
-            while time.time() < deadline:
-                try:
-                    s.settimeout(max(0.05, deadline - time.time()))
-                    chunk = s.recv(4096)
-                    if not chunk:
-                        break
-                    raw += chunk
-                except socket.timeout:
-                    break
-            s.sendall(b'bye\r\n')
-            s.close()
+                s.sendall(b'bye\r\n')
+                s.close()
+                return raw
+
+            # s.connect() résout `host` via getaddrinfo() AVANT d'ouvrir la
+            # connexion — résolution DNS non couverte par settimeout(). On
+            # soumet tout le dialogue à l'executor partagé et on borne
+            # l'ATTENTE avec .result(timeout=...) : sur un DNS muet, le thread
+            # abandonné se termine seul en arrière-plan sans bloquer l'appelant.
+            raw = _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + 3)
 
             # Parser les spots DX Spider : "DX de SPOTTER:  FREQ   CALL   INFO  UTC"
             text = raw.decode('utf-8', errors='replace')
@@ -555,52 +603,60 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
         return {'ok': False, 'raw': '', 'error': 'Frequence invalide'}
     comment = (comment or '').replace('\r', ' ').replace('\n', ' ').strip()[:30]
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(timeout)
-        s.connect((host, int(port)))
+        def _dialog():
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(timeout)
+            s.connect((host, int(port)))  # <- désormais borné par le submit ci-dessous
 
-        def read_until(patterns, max_wait=5):
-            # Recalcule le timeout du socket à chaque recv() sur la deadline
-            # RÉELLEMENT restante — sinon un seul recv() peut, à lui seul,
-            # dépasser max_wait jusqu'au timeout du socket (settimeout(timeout)
-            # plus haut), qui peut être bien plus long.
-            buf = b''
-            deadline = time.time() + max_wait
-            while time.time() < deadline:
-                try:
-                    s.settimeout(max(0.05, deadline - time.time()))
-                    chunk = s.recv(4096)
-                    if not chunk:
+            def read_until(patterns, max_wait=5):
+                # Recalcule le timeout du socket à chaque recv() sur la deadline
+                # RÉELLEMENT restante — sinon un seul recv() peut, à lui seul,
+                # dépasser max_wait jusqu'au timeout du socket (settimeout(timeout)
+                # plus haut), qui peut être bien plus long.
+                buf = b''
+                deadline = time.time() + max_wait
+                while time.time() < deadline:
+                    try:
+                        s.settimeout(max(0.05, deadline - time.time()))
+                        chunk = s.recv(4096)
+                        if not chunk:
+                            break
+                        buf += chunk
+                        low = buf.lower()
+                        if patterns and any(p in low for p in patterns):
+                            break
+                    except socket.timeout:
                         break
-                    buf += chunk
-                    low = buf.lower()
-                    if patterns and any(p in low for p in patterns):
-                        break
-                except socket.timeout:
-                    break
-            return buf.decode('utf-8', errors='replace')
+                return buf.decode('utf-8', errors='replace')
 
-        # Prompt de login -> s'identifier (tolère name/QTH la 1re fois)
-        read_until([b'login', b'call', b'>'], max_wait=5)
-        s.sendall((login_call + '\r\n').encode())
-        time.sleep(1.0)
-        read_until([b'>'], max_wait=3)
-        # Commande de spot DX Spider
-        cmd = f'DX {freq_khz:.1f} {spot_call} {comment}'.strip()
-        s.sendall((cmd + '\r\n').encode())
-        echo = read_until([b'spot', b'sent', b'>'], max_wait=3)
-        # Confirmation POSITIVE : redemander les derniers spots et y chercher le
-        # nôtre (un succès ne peut PAS se déduire de la seule absence de refus).
-        try:
-            s.sendall(b'sh/dx/5\r\n')
-            echo += read_until([b'>'], max_wait=3)
-        except OSError:
-            pass
-        try:
-            s.sendall(b'bye\r\n')
-        except OSError:
-            pass
-        s.close()
+            # Prompt de login -> s'identifier (tolère name/QTH la 1re fois)
+            read_until([b'login', b'call', b'>'], max_wait=5)
+            s.sendall((login_call + '\r\n').encode())
+            time.sleep(1.0)
+            read_until([b'>'], max_wait=3)
+            # Commande de spot DX Spider
+            cmd = f'DX {freq_khz:.1f} {spot_call} {comment}'.strip()
+            s.sendall((cmd + '\r\n').encode())
+            echo = read_until([b'spot', b'sent', b'>'], max_wait=3)
+            # Confirmation POSITIVE : redemander les derniers spots et y chercher le
+            # nôtre (un succès ne peut PAS se déduire de la seule absence de refus).
+            try:
+                s.sendall(b'sh/dx/5\r\n')
+                echo += read_until([b'>'], max_wait=3)
+            except OSError:
+                pass
+            try:
+                s.sendall(b'bye\r\n')
+            except OSError:
+                pass
+            s.close()
+            return echo
+
+        # s.connect() résout `host` via getaddrinfo() AVANT d'ouvrir la
+        # connexion — résolution DNS non couverte par settimeout(). On
+        # soumet le dialogue complet à l'executor partagé et on borne
+        # l'ATTENTE avec .result(timeout=...).
+        echo = _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + 5)
         low = echo.lower()
         # Refus explicite — liste large, aussi peu dépendante de la langue que
         # possible (beaucoup de nœuds n'acceptent le spot que d'inscrits).
@@ -631,6 +687,13 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
 # connexion (sélection de salon, format des messages) sera affiné une fois
 # testé avec de vrais identifiants — d'où le mode diagnostic ci-dessous, qui
 # capture la réponse brute du serveur sans jamais exposer le mot de passe.
+def _sanitize_telnet_line(v):
+    """Une seule ligne telnet : retire tout \r ou \n embarqué pour empêcher
+    l'injection de commandes supplémentaires dans la session ON4KST (chat/
+    command exposés tels quels depuis /debug/test_on4kst)."""
+    return str(v or '').replace('\r', '').replace('\n', '').strip()
+
+
 def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, timeout=10,
                      chat=None, command=None, read_wait=6):
     """
@@ -644,10 +707,11 @@ def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, time
     password = (password or '').strip()
     if not callsign or not password:
         return {'ok': False, 'raw': '', 'error': 'Identifiant ou mot de passe ON4KST manquant'}
-    try:
+
+    def _dialog():
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(timeout)
-        s.connect((host, port))
+        s.connect((host, port))  # <- désormais borné par le submit ci-dessous
 
         def read_until(patterns, max_wait=6):
             # Même correction que publish_self_spot : recalcule le timeout du
@@ -682,12 +746,17 @@ def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, time
             return {'ok': False, 'raw': raw, 'error': 'Identifiants refusés par ON4KST'}
 
         if chat:
-            s.sendall((str(chat).strip() + '\r\n').encode())
-            raw += read_until([], max_wait=read_wait)
+            chat_line = _sanitize_telnet_line(chat)
+            if chat_line:
+                s.sendall((chat_line + '\r\n').encode())
+                raw += read_until([], max_wait=read_wait)
         if command:
             cmds = command if isinstance(command, (list, tuple)) else [command]
             for c in cmds:
-                s.sendall((c.strip() + '\r\n').encode())
+                c = _sanitize_telnet_line(c)
+                if not c:
+                    continue
+                s.sendall((c + '\r\n').encode())
                 raw += read_until([], max_wait=read_wait)
 
         try:
@@ -696,6 +765,12 @@ def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, time
         except Exception:
             pass
         return {'ok': True, 'raw': raw, 'error': None}
+
+    # s.connect() résout `host` via getaddrinfo() AVANT d'ouvrir la connexion
+    # — résolution DNS non couverte par settimeout(). On soumet le dialogue
+    # complet à l'executor partagé et on borne l'ATTENTE avec .result(timeout=...).
+    try:
+        return _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + read_wait + 5)
     except Exception as e:
         return {'ok': False, 'raw': '', 'error': str(e)}
 

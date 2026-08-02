@@ -111,15 +111,29 @@ GEOJSON_URL = ('https://raw.githubusercontent.com/gregoiredavid/france-geojson/'
 # série) : on retrouve alors le département par la GÉOGRAPHIE — le centre du
 # locator testé contre les polygones du GeoJSON. Réservé aux indicatifs
 # français (F/TM/TK... via cty.dat) pour ne pas verdir un voisin frontalier.
-_dept_polys = None   # [(code, [anneaux de (lon, lat)])], chargé une fois
+_dept_polys = None   # [(code, [anneaux de (lon, lat)])], mémorisé seulement
+                      # une fois le chargement RÉUSSI (fichier local ou
+                      # téléchargement) — un échec n'est jamais figé.
+_dept_polys_last_try = 0.0   # horodatage (monotonic) du dernier échec, pour
+                              # éviter de retenter un fetch bloquant à CHAQUE
+                              # QSO réenrichi tant que le réseau reste
+                              # indisponible.
 
 
 def _load_dept_polygons():
-    global _dept_polys
+    global _dept_polys, _dept_polys_last_try
     if _dept_polys is not None:
         return _dept_polys
     import json
-    _dept_polys = []
+    import time
+    now = time.monotonic()
+    if now - _dept_polys_last_try < 300:
+        # Échec récent (< 5 min) : pas de nouvelle tentative bloquante
+        # maintenant. Le prochain appel après le délai de grâce retentera
+        # normalement load_france_geojson().
+        return []
+    _dept_polys_last_try = now
+    polys = []
     raw = load_france_geojson()
     if raw:
         try:
@@ -132,10 +146,13 @@ def _load_dept_polygons():
                 elif geom.get('type') == 'MultiPolygon':
                     rings = [p[0] for p in geom['coordinates']]
                 if code and rings:
-                    _dept_polys.append((code, rings))
+                    polys.append((code, rings))
         except Exception:
-            _dept_polys = []
-    return _dept_polys
+            polys = []
+    if polys:
+        _dept_polys = polys   # ne mémorise (et ne fige) que le succès ; un
+                               # échec reste retenté après le délai de grâce
+    return polys
 
 
 def _point_in_ring(lon, lat, ring):

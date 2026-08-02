@@ -91,10 +91,11 @@ def _parse_groups_json(content):
 
 
 def _read_islands_cache():
-    """Contenu du cache islands.json sur disque, ou None s'il est absent ou
-    manifestement tronqué (même seuil que le téléchargement)."""
+    """Contenu du cache islands.json sur disque, ou None s'il est absent,
+    illisible (encodage corrompu) ou manifestement tronqué (même seuil que le
+    téléchargement)."""
     try:
-        with open(ISLANDS_FILE, encoding='utf-8') as f:
+        with open(ISLANDS_FILE, encoding='utf-8', errors='replace') as f:
             raw = f.read()
     except OSError:
         return None

@@ -174,6 +174,14 @@ def rotor_settings(cfg):
 
 # ─── rotctld (Hamlib) ────────────────────────────────────────────────────────
 
+_ROTCTLD_MAX_BUF = 4096  # une réponse rotctld légitime tient sur quelques
+                          # lignes très courtes ; au-delà, le serveur ne
+                          # répond pas comme prévu — mieux vaut échouer que de
+                          # laisser `buf` grossir tant qu'il reçoit des octets
+                          # avant le timeout TIMEOUT_S (même garde-fou que
+                          # _gs232_txrx pour l'autre transport).
+
+
 def _rotctld_command(host, port, cmd, expect_lines=1):
     """Envoie UNE commande rotctld et retourne ses lignes de réponse."""
     with _lock:
@@ -186,6 +194,8 @@ def _rotctld_command(host, port, cmd, expect_lines=1):
                 if lines and lines[-1].startswith('RPRT'):
                     break
                 if len(lines) >= expect_lines and not cmd.startswith(('P ', 'S')):
+                    break
+                if len(buf) >= _ROTCTLD_MAX_BUF:
                     break
                 chunk = s.recv(128)
                 if not chunk:
