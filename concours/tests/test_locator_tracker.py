@@ -169,12 +169,15 @@ def _js():
 
 def test_deux_sons_distincts_selon_l_interet():
     """Les deux cas n'appellent pas la même réaction : le double intérêt doit
-    s'entendre sans regarder l'écran."""
+    s'entendre sans regarder l'écran. Depuis #5 (alertes réglables par type),
+    le son n'est plus codé en dur ici mais choisi par TYPE : le carré neuf à vie
+    déclenche l'alerte 'new_grid', le carré neuf-concours l'alerte 'mult' — deux
+    types distincts, donc deux sons distincts (définis dans logx_statusbar.js)."""
     src = _js()
     bloc = src[src.index('function appliquerSuiviCarres'):]
     bloc = bloc[:bloc.index('\n}')]
-    assert bloc.count('playBeep(') == 2
-    assert 'playBeep(1760' in bloc and 'playBeep(988' in bloc
+    assert bloc.count('rcAlert(') == 2
+    assert "'new_grid'" in bloc and "'mult'" in bloc
 
 
 def test_une_seule_alerte_par_carre_et_par_bande():
