@@ -20,6 +20,7 @@ qui reproduit l'état CSS initial de la page (.cat-modal en display:none,
 #catmodal_contest reste en display:none et ces tests échouent."""
 import os
 import re
+import urllib.parse
 
 import pytest
 
@@ -57,6 +58,12 @@ _HANDLE_SRC = _extract_function(_HTML_SRC, 'handleContestParam')
 _GOSTEP_SRC = _extract_function(_HTML_SRC, 'goStep')
 _OPENCAT_SRC = _extract_function(_HTML_SRC, 'openCategoryPopup')
 _CLOSECAT_SRC = _extract_function(_HTML_SRC, 'closeCategoryPopup')
+# escC/safeUrl : correctifs audit sécurité (XSS réfléchie ?contest=). Extraits
+# eux aussi tel quel du fichier source (même mécanisme) — un simple stub
+# passe-plat rendrait ce module aveugle à toute régression de l'échappement
+# HTML réellement exécuté par handleContestParam(), voir _make_ctx() plus bas.
+_ESCC_SRC = _extract_function(_HTML_SRC, 'escC')
+_SAFEURL_SRC = _extract_function(_HTML_SRC, 'safeUrl')
 
 # ─── DOM minimal fidèle à l'état CSS initial de la page ──────────────────────
 # .cat-modal{display:none} (règle CSS) et #assistantBanner style="display:none"
@@ -127,13 +134,6 @@ function refreshShiftOperatorSelect(){}
 function loadShifts(){}
 function renderHub(){}
 function alert(){}
-// escC/safeUrl : correctifs audit sécurité (XSS réfléchie ?contest=, lien
-// "règlement officiel"). Vrais dans le fichier source ; ici de simples repli
-// passe-plat suffisent — ce test vérifie la LOGIQUE de handleContestParam
-// (quelle popup s'ouvre, quel texte apparaît), pas l'échappement HTML lui-
-// même (couvert séparément, voir test_i18n_dialogues / lecture manuelle).
-function escC(v){ return String(v == null ? '' : v); }
-function safeUrl(u){ var s = String(u || ''); return /^https?:\/\//i.test(s) ? s : ''; }
 """
 
 
@@ -153,6 +153,11 @@ def _make_ctx(search, station_cfg=None):
     ctx.eval(_OPENCAT_SRC)
     ctx.eval(_CLOSECAT_SRC)
     ctx.eval(_GOSTEP_SRC)
+    # escC/safeUrl RÉELS (extraits du fichier source, pas un stub) : ce test
+    # couvre donc aussi l'échappement HTML effectivement exécuté par
+    # handleContestParam(), pas seulement quelle popup s'ouvre.
+    ctx.eval(_ESCC_SRC)
+    ctx.eval(_SAFEURL_SRC)
     ctx.eval(_HANDLE_SRC)
     return ctx
 
@@ -201,6 +206,25 @@ def test_erreur_concours_introuvable_visible():
     assert ctx.eval("_els.catmodal_contest.style.display") == 'block', (
         "#catmodal_contest est resté masqué : l'erreur « Concours "
         "introuvable » est invisible pour l'utilisateur")
+
+
+def test_id_malicieux_dans_contest_param_est_echappe():
+    """Défense en profondeur documentée dans handleContestParam() : ?contest=
+    vient de location.search, entièrement contrôlé par quiconque forge le
+    lien (XSS réfléchie). escC() doit neutraliser tout HTML avant
+    interpolation dans innerHTML. Avec un stub passe-plat pour escC(), ce
+    test échouerait à détecter une régression réelle de l'échappement ; ici
+    escC() est la VRAIE fonction extraite du fichier source (voir _ESCC_SRC)."""
+    payload = '<img src=x onerror=alert(1)>'
+    ctx = _make_ctx('?contest=' + urllib.parse.quote(payload, safe=''))
+    ctx.eval("handleContestParam();")
+    banner = ctx.eval("_els.assistantBanner.innerHTML")
+    assert '<img' not in banner, (
+        "le HTML du paramètre ?contest= n'est pas échappé : injection "
+        "possible dans la bannière assistant")
+    assert '&lt;img' in banner, (
+        "escC() ne semble pas avoir échappé le payload (chaîne encodée "
+        "attendue absente) — vérifie que la vraie fonction est utilisée")
 
 
 def test_sans_parametre_contest_la_popup_reste_fermee():

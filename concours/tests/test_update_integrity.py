@@ -1497,7 +1497,12 @@ def test_bat_pur_ascii_et_chemins_via_environnement(monkeypatch, tmp_path):
     passer par l'environnement du processus cmd, jamais par le contenu du
     fichier. Exécutable partout (Linux CI compris) : branche Windows forcée,
     constantes DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP fournies si
-    absentes, Popen intercepté (jamais de vrai cmd lancé ici)."""
+    absentes, Popen intercepté (jamais de vrai cmd lancé ici).
+    Couvre aussi la fermeture du TOCTOU résiduel (script détaché re-hache
+    lui-même juste avant CHAQUE tentative de move) : le hash attendu doit
+    transiter par LOGX_UPDATE_SHA256 (même mécanisme %VAR%, jamais en dur
+    dans le texte du script), et le script doit bien invoquer certutil/
+    findstr DANS la boucle :retry."""
     old, new = _fake_exes_chemin_accentue(tmp_path, 'Frédéric_Téléchargements')
     _marquer_telechargement_verifie(new)
     monkeypatch.setattr(upd, 'is_frozen', lambda: True)
@@ -1531,6 +1536,21 @@ def test_bat_pur_ascii_et_chemins_via_environnement(monkeypatch, tmp_path):
     assert env is not None, 'aucun environnement transmis à cmd'
     assert env['LOGX_UPDATE_NEW'] == str(new)
     assert env['LOGX_UPDATE_CURRENT'] == str(old)
+    # Fermeture du TOCTOU résiduel : le hash attendu transite par %VAR%,
+    # jamais interpolé en dur dans le texte du script.
+    expected_sha = hashlib.sha256(b'NEW BINARY').hexdigest()
+    assert env['LOGX_UPDATE_SHA256'] == expected_sha
+    assert b'%LOGX_UPDATE_SHA256%' in data
+    assert expected_sha.encode() not in data, (
+        'le hash attendu est interpolé EN DUR dans le .bat au lieu de '
+        'transiter uniquement par variable d\'environnement')
+    assert b'certutil' in data.lower()
+    assert b'findstr' in data.lower()
+    # Le contrôle doit être DANS la boucle :retry (refait à chaque
+    # itération), pas seulement une fois avant elle.
+    retry_block = data.split(b':retry', 1)[1].split(b':launch', 1)[0]
+    assert b'certutil' in retry_block.lower()
+    assert b'findstr' in retry_block.lower()
 
 
 @pytest.mark.skipif(not sys.platform.startswith('win'),
@@ -1548,21 +1568,29 @@ def test_move_reel_via_cmd_detache_chemin_accentue(monkeypatch, tmp_path, dirnam
     creationflags que la production (DETACHED_PROCESS, sans console) et doit
     réussir le move — avant correctif, le contenu restait b'OLD BINARY'
     pendant que cmd épuisait ses 30 tentatives sur des chemins mojibakés.
-    Seul `start ""` est neutralisé (rem), au niveau octets, pour ne pas
-    tenter de lancer le faux .exe en fin de script."""
+    Seul le `start ""` de LANCEMENT final (celui qui exécuterait le faux
+    .exe) est neutralisé (rem), au niveau octets — PAS celui qui alloue une
+    console à certutil (`start "" /min /wait cmd /c ...`, voir le 1er piège
+    documenté dans apply_update_and_relaunch) : le neutraliser aussi
+    casserait la vérification de hash elle-même, puisque c'est ce `start`
+    précis qui permet à certutil d'écrire quoi que ce soit sous
+    DETACHED_PROCESS. Les deux lignes contiennent toutes deux `start ""`
+    mais seule celle du lancement est suivie de %LOGX_UPDATE_CURRENT%,
+    ce qui les distingue sans ambiguïté."""
     old, new = _fake_exes_chemin_accentue(tmp_path, dirname)
     _marquer_telechargement_verifie(new)
     monkeypatch.setattr(upd, 'is_frozen', lambda: True)
     monkeypatch.setattr(sys, 'executable', str(old))
     real_popen = upd.subprocess.Popen
+    launch_needle = b'start "" "%LOGX_UPDATE_CURRENT%"'
 
     def popen_start_neutralise(args, **kw):
         helper = args[-1]
         with open(helper, 'rb') as f:
             data = f.read()
-        assert b'start ""' in data
+        assert launch_needle in data
         with open(helper, 'wb') as f:
-            f.write(data.replace(b'start ""', b'rem __ ""'))
+            f.write(data.replace(launch_needle, b'rem __ "" "%LOGX_UPDATE_CURRENT%"'))
         return real_popen(args, **kw)
 
     monkeypatch.setattr(upd.subprocess, 'Popen', popen_start_neutralise)
@@ -1576,6 +1604,60 @@ def test_move_reel_via_cmd_detache_chemin_accentue(monkeypatch, tmp_path, dirnam
     assert old.read_bytes() == b'NEW BINARY', (
         'move /Y jamais abouti — chemins mojibakés dans le .bat ?')
     assert not new.exists(), 'le nouvel exécutable n a jamais été déplacé'
+
+
+@pytest.mark.skipif(not sys.platform.startswith('win'),
+                    reason='exécution réelle de cmd.exe (Windows uniquement)')
+def test_script_detache_rejette_fichier_altere_apres_generation(monkeypatch, tmp_path):
+    """Fermeture du TOCTOU résiduel (audit) : le script détaché re-hache
+    lui-même le fichier à CHAQUE tentative, juste avant le move — pas
+    seulement le re-hachage Python fait une fois par apply_update_and_
+    relaunch AVANT de générer le script. Ce test simule la fenêtre
+    d'exposition réelle (jusqu'à ~32 s entre le re-hachage Python et le
+    move effectif) : le contenu du fichier vérifié est modifié APRÈS que
+    le script a été généré et lancé, mais AVANT que sa boucle interne
+    n'ait fini d'attendre — reproduisant un process tiers du même compte
+    qui substituerait le binaire dans la fenêtre d'exposition. Avant ce
+    correctif, rien ne re-vérifiait le hash côté script : le move aurait
+    simplement déplacé puis lancé le contenu substitué. Après : le script
+    doit détecter le mismatch et s'arrêter SANS déplacer ni lancer."""
+    old, new = _fake_exes_chemin_accentue(tmp_path, 'Frédéric_Téléchargements')
+    _marquer_telechargement_verifie(new)
+    monkeypatch.setattr(upd, 'is_frozen', lambda: True)
+    monkeypatch.setattr(sys, 'executable', str(old))
+    real_popen = upd.subprocess.Popen
+    launch_needle = b'start "" "%LOGX_UPDATE_CURRENT%"'
+
+    def popen_neutralise_puis_altere(args, **kw):
+        helper = args[-1]
+        with open(helper, 'rb') as f:
+            data = f.read()
+        assert launch_needle in data
+        with open(helper, 'wb') as f:
+            f.write(data.replace(launch_needle, b'rem __ "" "%LOGX_UPDATE_CURRENT%"'))
+        result = real_popen(args, **kw)
+        # Substitution du contenu APRÈS génération/lancement du script mais
+        # AVANT qu'il n'ait pu terminer son "timeout /t 2" initial : imite
+        # un process tiers écrivant dans le dossier inscriptible par tout
+        # process du même compte, DANS la fenêtre d'exposition documentée.
+        new.write_bytes(b'EVIL BINARY REPLACED BY ATTACKER............')
+        return result
+
+    monkeypatch.setattr(upd.subprocess, 'Popen', popen_neutralise_puis_altere)
+    ok, err = upd.apply_update_and_relaunch(str(new))
+    assert ok, err
+    failed_marker = old.with_name(old.name + '.update_failed.txt')
+    deadline = time.time() + 40
+    while time.time() < deadline and old.read_bytes() == b'OLD BINARY' and not failed_marker.exists():
+        time.sleep(0.25)
+    # Le contenu original n'a JAMAIS dû être remplacé par le contenu altéré.
+    assert old.read_bytes() == b'OLD BINARY', (
+        'le fichier altéré après coup a été déplacé/lancé — le script '
+        'détaché ne re-vérifie pas le hash à chaque tentative')
+    assert failed_marker.exists(), (
+        'aucun marqueur .update_failed.txt écrit après le rejet du fichier altéré')
+    assert new.read_bytes() == b'EVIL BINARY REPLACED BY ATTACKER............', (
+        'le fichier altéré a été consommé (déplacé) au lieu d\'être laissé en place')
 
 
 # ═══ Défaut corrigé : pair d'une AUTRE plateforme/version proposé et téléchargé ═

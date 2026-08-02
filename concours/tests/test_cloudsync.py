@@ -464,3 +464,148 @@ def test_tombstone_persiste_bloque_encore_apres_redemarrage(tmp_path, monkeypatc
     r = cs.sync_now(cfg, list(httpmod.shared_log))
     assert r['ok'] and r['pulled'] == 0
     assert httpmod.shared_log == []
+
+
+# ── Anti-rejeu (saved_at signé + suivi local par-poste) ────────────────────
+# La signature HMAC ne couvrait que 'data' : elle protège contre la
+# FALSIFICATION (forger un contenu sans le secret) mais pas contre le REJEU
+# d'un ancien fichier légitimement signé (restauré depuis l'historique de
+# versions du dossier cloud, une sauvegarde, une copie de conflit
+# Synology/Dropbox...) — sig(data) reste valide indéfiniment, et un QSO
+# tombstoné pouvait ressusciter si le fichier rejoué est antérieur à sa
+# suppression. Chaque test réinitialise cs._seen_saved_at (cache mémoire du
+# suivi anti-rejeu) : sans ça, plusieurs tests de ce fichier utilisant le même
+# nom de fichier distant ('logx_cloudsync_G3XYZ_abcd1234.json', convention
+# reprise par toute la suite ci-dessus) partageraient un état résiduel d'un
+# test à l'autre — le même piège que la mémoire ci-dessus sur les fichiers
+# partagés dans concours/, ici côté cache PROCESS plutôt que fichier disque.
+def _seen_isole(monkeypatch):
+    monkeypatch.setattr(cs, '_seen_saved_at', {})
+
+
+def test_write_signed_inclut_saved_at_couvert_par_la_signature(tmp_path):
+    """saved_at doit être signé, pas seulement présent : le modifier sans
+    connaître le secret (donc sans recalculer 'sig') doit invalider le
+    fichier — sinon saved_at ne protégerait rien du tout contre un rejeu."""
+    path = tmp_path / 'f.json'
+    cs._write_signed(str(path), [QSO_A], 'secret-equipe')
+    raw = json.loads(path.read_text(encoding='utf-8'))
+    assert 'saved_at' in raw and isinstance(raw['saved_at'], (int, float))
+    assert 'sig' in raw and 'data' in raw
+
+    # Contenu intact, signature intacte : la vérification passe et rend le
+    # même saved_at que celui écrit.
+    data, saved_at = cs._verify_signed(raw, 'secret-equipe')
+    assert data == [QSO_A] and saved_at == raw['saved_at']
+
+    # saved_at modifié SANS recalculer 'sig' (exactement ce qu'un tiers sans
+    # le secret peut faire en remplaçant le fichier par une vieille copie
+    # signée AILLEURS, ou en trafiquant le champ à la main) -> rejeté.
+    triche = dict(raw)
+    triche['saved_at'] = raw['saved_at'] + 1000
+    data2, saved_at2 = cs._verify_signed(triche, 'secret-equipe')
+    assert data2 is None and saved_at2 is None
+
+
+def test_read_qsos_rejette_un_fichier_rejoue_anterieur_deja_connu(tmp_path, monkeypatch):
+    """Cœur du correctif : un fichier plus ANCIEN mais VALIDEMENT signé
+    (rejeu depuis l'historique du dossier cloud, une sauvegarde, une copie de
+    conflit...) doit être rejeté dès qu'une version plus récente du MÊME
+    fichier a déjà été lue — même si sa signature est parfaitement correcte
+    en elle-même."""
+    _seen_isole(monkeypatch)
+    secret = 'secret-equipe'
+    path = tmp_path / 'logx_cloudsync_G3XYZ_abcd1234.json'
+
+    monkeypatch.setattr(cs.time, 'time', lambda: 1_000.0)
+    cs._write_signed(str(path), [QSO_B], secret)
+    ancien_contenu = path.read_bytes()   # snapshot de la version ANCIENNE
+
+    assert cs._read_qsos(str(path), secret) == [QSO_B]   # lecture normale OK
+
+    monkeypatch.setattr(cs.time, 'time', lambda: 2_000.0)
+    cs._write_signed(str(path), [QSO_A, QSO_B], secret)
+    assert cs._read_qsos(str(path), secret) == [QSO_A, QSO_B]   # nouvelle version OK
+
+    # REJEU : le fichier redevient (octet pour octet) l'ancienne version,
+    # toujours signée correctement -> _verify_signed seul la validerait.
+    path.write_bytes(ancien_contenu)
+    assert cs._read_qsos(str(path), secret) == [], \
+        "un fichier rejoué (saved_at antérieur au dernier connu) a été accepté"
+
+
+def test_read_tombstones_rejette_un_fichier_rejoue(tmp_path, monkeypatch):
+    """Même protection côté fichier de tombstones : un rejeu qui « oublierait »
+    une suppression déjà connue doit être rejeté, pas traité comme un fichier
+    à jour amputé de son tombstone."""
+    _seen_isole(monkeypatch)
+    secret = 'secret-equipe'
+    path = tmp_path / 'logx_cloudtomb_G3XYZ_abcd1234.json'
+
+    monkeypatch.setattr(cs.time, 'time', lambda: 1_000.0)
+    cs._write_signed(str(path), [], secret)
+    vieux = path.read_bytes()
+    assert cs._read_tombstones(str(path), secret) == []
+
+    monkeypatch.setattr(cs.time, 'time', lambda: 2_000.0)
+    tomb = {'id': 1002, 'key': list(cs._qso_key(QSO_B)), 'ts': 2000.0}
+    cs._write_signed(str(path), [tomb], secret)
+    assert cs._read_tombstones(str(path), secret) == [tomb]
+
+    path.write_bytes(vieux)   # rejeu de la version SANS le tombstone
+    assert cs._read_tombstones(str(path), secret) == [], \
+        "un fichier de tombstones rejoué a été accepté malgré un saved_at antérieur"
+
+
+def test_full_rejeu_ne_ressuscite_pas_un_qso_supprime_par_un_autre_poste(tmp_path, monkeypatch):
+    """Scénario complet du défaut : le poste G3XYZ pousse un QSO, F4GLD le
+    récupère, G3XYZ le supprime et repousse un fichier vide (avec tombstone) —
+    F4GLD applique la suppression. Un tiers ayant accès en écriture au dossier
+    partagé (mais PAS le secret) restaure ensuite l'ANCIEN fichier de G3XYZ
+    (celui qui contenait encore le QSO) tel quel, octet pour octet — signature
+    toujours valide puisqu'il a réellement été signé par G3XYZ à l'époque.
+    Sans le correctif, ce fichier repasse pour « nouveau » au prochain cycle et
+    le QSO supprimé ressuscite silencieusement ; avec le correctif, son
+    saved_at est antérieur au dernier connu pour ce fichier -> rejeté."""
+    secret = 'secret-equipe'
+    _seen_isole(monkeypatch)
+    httpmod, storage = _isole_log_vivant(monkeypatch, [])
+    remote_path = tmp_path / 'logx_cloudsync_G3XYZ_abcd1234.json'
+    cfg = {'cloudsync_mode': 'full', 'cloudsync_folder': str(tmp_path),
+           'callsign_contest': 'F4GLD', 'cloudsync_secret': secret}
+    # date/time EXPLICITES (contrairement à QSO_B) : add_qso_to_log complète
+    # sinon date/time avec 'maintenant', ce qui changerait la clé de fusion
+    # de la copie locale par rapport à celle calculée ici pour le tombstone.
+    qso_remote = {'id': 1002, 'call': 'G3XYZ', 'band': '14', 'mode': 'CW',
+                  'date': '20260720', 'time': '11:00'}
+
+    # Cycle 1 (G3XYZ pousse le QSO) : F4GLD le récupère.
+    monkeypatch.setattr(cs.time, 'time', lambda: 1_000.0)
+    cs._write_signed(str(remote_path), [qso_remote], secret)
+    ancien_fichier = remote_path.read_bytes()   # snapshot AVANT suppression
+
+    r1 = cs.sync_now(cfg, list(httpmod.shared_log))
+    assert r1['ok'] and r1['pulled'] == 1
+    assert [q['id'] for q in httpmod.shared_log] == [1002]
+
+    # Cycle 2 (G3XYZ supprime le QSO et repousse fichier vide + tombstone) :
+    # F4GLD applique la suppression.
+    monkeypatch.setattr(cs.time, 'time', lambda: 2_000.0)
+    tomb_path = tmp_path / 'logx_cloudtomb_G3XYZ_abcd1234.json'
+    cs._write_signed(str(remote_path), [], secret)
+    cs._write_signed(str(tomb_path),
+                      [{'id': 1002, 'key': list(cs._qso_key(qso_remote)), 'ts': 2000.0}], secret)
+
+    r2 = cs.sync_now(cfg, list(httpmod.shared_log))
+    assert r2['ok'] and r2.get('removed') == 1
+    assert httpmod.shared_log == []
+
+    # ATTAQUE : rejeu de l'ANCIEN fichier de G3XYZ (celui du cycle 1), signé
+    # légitimement mais périmé — restauré tel quel dans le dossier partagé.
+    remote_path.write_bytes(ancien_fichier)
+
+    r3 = cs.sync_now(cfg, list(httpmod.shared_log))
+    assert r3['ok'] and r3['pulled'] == 0, \
+        f"QSO supprimé ressuscité par le rejeu d'un ancien fichier : {r3} / {httpmod.shared_log}"
+    assert httpmod.shared_log == [], \
+        f"QSO supprimé ressuscité par le rejeu d'un ancien fichier : {httpmod.shared_log}"

@@ -33,6 +33,7 @@ concours/scoreboard_sync.json
 concours/backup_state.json
 concours/cloudsync_state.json
 concours/.cloudsync_instance_id
+concours/cloudsync_seen.json
 concours/sota_summits.csv
 concours/pota_parks.csv
 concours/wwff_directory.csv

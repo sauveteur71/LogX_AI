@@ -20,13 +20,14 @@ la définition produite est toujours en français.
 """
 import base64
 import copy
+import http.client
 import ipaddress
 import json
 import os
 import re
 import socket
 import urllib.request
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from logx_rules import extract_document_text, DATE_RULE_PATTERN, calc_contest_date
 from logx_validate import validate_definition
@@ -260,18 +261,74 @@ def parse_ai_json(text):
 # un tiers ayant obtenu le X-Auth-Token sur le LAN. Sans validation, urllib
 # accepte nativement file:// (lecture de fichiers locaux exfiltrés vers l'IA
 # tierce) ainsi que loopback/réseau privé/service de métadonnées cloud.
+#
+# DNS rebinding (revue sécurité post-fusion) : valider hostname puis laisser
+# opener.open() se connecter par NOM ne suffit pas — http.client re-résout le
+# nom lui-même au moment de la connexion réelle, INDÉPENDAMMENT de la
+# résolution faite ici pour la validation. Un domaine à TTL DNS très court
+# peut répondre une IP publique au 1er lookup (validation) puis une IP privée/
+# loopback au 2e (connexion). On épingle donc la connexion réseau réelle à
+# l'IP déjà validée : _PinnedHTTPHandler/_PinnedHTTPSHandler (plus bas)
+# résolvent l'hôte de chaque requête UNE SEULE FOIS, valident CETTE IP, et
+# forcent http.client à s'y connecter — Host: header, SNI et vérification TLS
+# restent sur le nom de domaine d'origine, seule la connexion TCP est épinglée.
+
+_DNS_TIMEOUT = 5    # secondes — même marge que logx_utils.fetch_url
+
+_CGNAT_RANGE = ipaddress.ip_network('100.64.0.0/10')   # RFC 6598, Shared Address Space
+
+def _is_safe_ip(ip):
+    """Prédicats anti-SSRF appliqués à une IP déjà résolue — factorisé pour que
+    la validation d'hôte (_is_safe_host) et l'épinglage de connexion
+    (_resolve_safe_ip) appliquent EXACTEMENT les mêmes règles.
+
+    100.64.0.0/10 (Shared Address Space / CGNAT, RFC 6598, revue sécurité) :
+    ipaddress.IPv4Address.is_private EXCLUT explicitement cette plage (documenté
+    dans le module Python lui-même) — aucun des 5 prédicats classiques
+    (private/loopback/link_local/reserved/multicast) ne la couvre, elle
+    passerait donc la liste blanche sans ce test dédié."""
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+        return False
+    if isinstance(ip, ipaddress.IPv4Address) and ip in _CGNAT_RANGE:
+        return False
+    return True
+
+def _resolve_host_ips(hostname):
+    """Résolution DNS bornée dans le temps (revue sécurité). socket.getaddrinfo()
+    n'est PAS couvert par settimeout() — sur un DNS muet, l'appel peut rester
+    figé bien au-delà de toute marge prévue sans qu'aucun except ne s'applique
+    encore (même piège documenté dans logx_utils.fetch_url et logx_clusters).
+    On soumet donc l'appel au pool de threads partagé et on borne l'ATTENTE via
+    .result(timeout=...) : si le thread ne revient pas à temps, l'appelant est
+    débloqué immédiatement plutôt que de geler le thread HTTP de /rules/analyze."""
+    from logx_utils import _FETCH_EXECUTOR
+    try:
+        fut = _FETCH_EXECUTOR.submit(socket.getaddrinfo, hostname, None)
+        infos = fut.result(timeout=_DNS_TIMEOUT)
+    except Exception:
+        return []
+    return [ipaddress.ip_address(info[4][0]) for info in infos]
 
 def _is_safe_host(hostname):
-    """Refuse loopback / réseau privé / lien-local / réservé (défense SSRF de base)."""
-    try:
-        infos = socket.getaddrinfo(hostname, None)
-    except socket.gaierror:
-        return False
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            return False
-    return True
+    """Refuse loopback / réseau privé / lien-local / réservé / multicast / CGNAT
+    (défense SSRF de base, rejet précoce avec message clair). Ne ferme PAS à
+    elle seule la fenêtre de DNS rebinding — voir _resolve_safe_ip() pour la
+    connexion réseau réelle."""
+    ips = _resolve_host_ips(hostname)
+    return bool(ips) and all(_is_safe_ip(ip) for ip in ips)
+
+def _resolve_safe_ip(hostname):
+    """Résout `hostname` UNE SEULE FOIS, valide TOUTES les IP retenues (même
+    règle que _is_safe_host), et renvoie la 1re — pour que l'appelant épingle
+    la connexion réseau réelle à CETTE IP précise plutôt que de laisser
+    http.client re-résoudre le nom au moment de la connexion (DNS rebinding,
+    voir _PinnedHTTPHandler/_PinnedHTTPSHandler)."""
+    ips = _resolve_host_ips(hostname)
+    if not ips:
+        raise ValueError(f"Résolution DNS impossible : {hostname}")
+    if not all(_is_safe_ip(ip) for ip in ips):
+        raise ValueError("URL pointant vers un hôte local/privé refusée")
+    return str(ips[0])
 
 def _validate_download_url(url):
     parsed = urlparse(url)
@@ -283,16 +340,57 @@ def _validate_download_url(url):
 class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Une redirection HTTP peut faire pointer une 1re URL publique (validée)
     vers une adresse interne — urllib la suit par défaut SANS revalider. On
-    revalide donc l'hôte à CHAQUE saut."""
+    revalide donc l'hôte à CHAQUE saut (rejet précoce, message clair) ; la
+    fermeture de la fenêtre de DNS rebinding est assurée PLUS BAS par
+    _PinnedHTTPHandler/_PinnedHTTPSHandler, qui épinglent CHAQUE connexion
+    (initiale et redirigée, urllib repasse par eux à chaque saut) à l'IP
+    qu'ils viennent eux-mêmes de résoudre et valider."""
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         _validate_download_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+def _pinned_connection_class(base_cls, ip):
+    """Fabrique un connecteur http.client (HTTPConnection/HTTPSConnection) dont
+    la connexion TCP réelle vise l'IP déjà validée `ip`, au lieu de laisser
+    http.client re-résoudre self.host au moment de connect() (DNS rebinding).
+    Host: header, SNI et vérification TLS restent sur le nom de domaine
+    d'origine : seul `_create_connection` est remplacé, self.host n'est jamais
+    touché (HTTPSConnection.connect() utilise explicitement self.host pour
+    server_hostname, indépendamment de _create_connection)."""
+    def _factory(host, **kwargs):
+        conn = base_cls(host, **kwargs)
+        def _pinned_create_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+                                       source_address=None):
+            return socket.create_connection((ip, address[1]), timeout, source_address)
+        conn._create_connection = _pinned_create_connection
+        return conn
+    return _factory
+
+def _request_hostname(req):
+    """Extrait le nom d'hôte (sans port, sans crochets IPv6) d'une Request
+    urllib — req.host peut contenir ':port' ou '[::1]:port'."""
+    return urlsplit('//' + req.host).hostname
+
+class _PinnedHTTPHandler(urllib.request.HTTPHandler):
+    """Résout et valide l'hôte de CHAQUE requête (initiale et redirections)
+    puis épingle la connexion à l'IP obtenue — ferme la fenêtre de DNS
+    rebinding : la même résolution sert à la fois à la validation et à la
+    connexion, il n'y a plus de 2e lookup indépendant au moment de connect()."""
+    def http_open(self, req):
+        ip = _resolve_safe_ip(_request_hostname(req))
+        return self.do_open(_pinned_connection_class(http.client.HTTPConnection, ip), req)
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        ip = _resolve_safe_ip(_request_hostname(req))
+        return self.do_open(_pinned_connection_class(http.client.HTTPSConnection, ip),
+                             req, context=self._context)
 
 def _download_bytes(url, timeout=20):
     from logx_utils import SSL_CTX
     _validate_download_url(url)
     opener = urllib.request.build_opener(
-        _SafeRedirectHandler, urllib.request.HTTPSHandler(context=SSL_CTX))
+        _SafeRedirectHandler, _PinnedHTTPHandler(), _PinnedHTTPSHandler(context=SSL_CTX))
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     with opener.open(req, timeout=timeout) as resp:
         data = resp.read(MAX_DOWNLOAD_BYTES + 1)

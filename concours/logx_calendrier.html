@@ -219,6 +219,27 @@ function orgClass(org){ return ORG_CLASSES[org] || 'org-ref'; }
 function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// esc() protège le HTML mais PAS un argument JS À L'INTÉRIEUR d'un attribut
+// onclick="fn('${esc(x)}')" : le navigateur redécode les entités HTML de
+// l'attribut AVANT de compiler ce texte comme code JS du gestionnaire inline
+// — un guillemet simple brut dans la donnée (&#39; redécodé en ') casse la
+// chaîne JS malgré l'échappement HTML. c.id (identifiant de concours) est
+// totalement libre côté serveur (aucune restriction de caractères sur
+// /rules/save_definition). Même patron que logx_configuration.html.
+// id de concours / ref WA7BNM en argument de chaîne JS dans un onclick inline :
+// caractères sûrs seulement (liste blanche stricte).
+function jsId(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9_\-]/g,''); }
+// Valeur arbitraire (ex. URL) en argument de chaîne JS dans un onclick inline :
+// JSON.stringify() produit un littéral JS valide (échappe guillemets/
+// antislashs), puis on échappe les guillemets doubles restants en entités
+// HTML pour qu'ils ne referment pas prématurément l'attribut.
+function jsAttrArg(v){ return esc(JSON.stringify(String(v==null?'':v))); }
+// URL de règlement / soumission de log / lien externe : n'autoriser que
+// http/https (bloque javascript:, data:...). Même patron que
+// logx_configuration.html — safeUrl() d'abord pour neutraliser le schéma,
+// puis esc() sur le résultat pour l'attribut HTML.
+function safeUrl(u){ const s=String(u||''); return /^https?:\/\//i.test(s) ? s : ''; }
+
 async function loadYear(){
   currentTab = 'main';
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
@@ -345,7 +366,7 @@ function renderCalendar(){
         ? `<span style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);background:rgba(255,214,10,.1);border:1px solid rgba(255,214,10,.3);padding:1px 5px;border-radius:3px;margin-left:6px">${c.year}</span>`
         : '';
 
-      html += `<div class="contest-row ${rowClass}" onclick="showDetail('${esc(c.id)}')">
+      html += `<div class="contest-row ${rowClass}" onclick="showDetail('${jsId(c.id)}')">
         <div class="cr-date">
           <div class="cr-date-main">${dateShort}${yearBadge}</div>
           <div class="cr-date-year">${c.year}</div>
@@ -365,8 +386,8 @@ function renderCalendar(){
           </div>
         </div>
         <div class="cr-actions">
-          ${!isPastC?`<button class="cr-btn start" onclick="event.stopPropagation();startContest('${esc(c.id)}')">▶ DÉMARRER</button>`:''}
-          ${c.rules_url?`<a class="cr-btn" href="${esc(c.rules_url)}" target="_blank" onclick="event.stopPropagation()">📄 Règlement</a>`:''}
+          ${!isPastC?`<button class="cr-btn start" onclick="event.stopPropagation();startContest('${jsId(c.id)}')">▶ DÉMARRER</button>`:''}
+          ${c.rules_url?`<a class="cr-btn" href="${esc(safeUrl(c.rules_url))}" target="_blank" onclick="event.stopPropagation()">📄 Règlement</a>`:''}
         </div>
       </div>`;
     });
@@ -418,7 +439,7 @@ function showDetail(id){
       </div>
       ${c.log_submit?`<div class="detail-item" style="grid-column:1/-1">
         <div class="di-label">SOUMISSION LOG</div>
-        <div class="di-value"><a href="${esc(c.log_submit)}" target="_blank" style="color:var(--accent2)">${esc(c.log_submit)}</a></div>
+        <div class="di-value"><a href="${esc(safeUrl(c.log_submit))}" target="_blank" style="color:var(--accent2)">${esc(c.log_submit)}</a></div>
       </div>`:''}
       ${c.notes?`<div class="detail-item" style="grid-column:1/-1;background:rgba(255,214,10,.05);border:1px solid rgba(255,214,10,.2)">
         <div class="di-label">NOTES</div>
@@ -426,8 +447,8 @@ function showDetail(id){
       </div>`:''}
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="cr-btn start" style="padding:8px 20px;font-size:13px" onclick="startContest('${esc(c.id)}')">▶ DÉMARRER CE CONCOURS</button>
-      ${c.rules_url?`<a href="${esc(c.rules_url)}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:13px">📄 Règlement officiel</a>`:''}
+      <button class="cr-btn start" style="padding:8px 20px;font-size:13px" onclick="startContest('${jsId(c.id)}')">▶ DÉMARRER CE CONCOURS</button>
+      ${c.rules_url?`<a href="${esc(safeUrl(c.rules_url))}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:13px">📄 Règlement officiel</a>`:''}
     </div>`;
   panel.classList.add('show');
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -527,7 +548,7 @@ function renderExternal(){
         <div class="month-header">📅 ${label} <span class="month-count">${n} concours</span></div>`;
       curKey = key;
     }
-    html += `<div class="contest-row upcoming" onclick="window.open('${esc(c.url)}','_blank')">
+    html += `<div class="contest-row upcoming" onclick="window.open(${jsAttrArg(safeUrl(c.url))},'_blank')">
       <div class="cr-date"><div class="cr-date-main" style="font-size:14px">${esc(c.date_str||'—')}</div><div class="cr-date-year">${esc(c.time_str||'')}</div></div>
       <div class="cr-org"><div class="org-badge org-cq" style="font-size:11px">WW</div></div>
       <div class="cr-info">
@@ -535,8 +556,8 @@ function renderExternal(){
         <div class="cr-exchange" style="color:var(--accent2);font-size:12px">contestcalendar.com ref=${esc(c.ref)}</div>
       </div>
       <div class="cr-actions">
-        <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${esc(c.ref)}')">▶ PRÉPARER</button>
-        <a class="cr-btn" href="${esc(c.url)}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
+        <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${jsId(c.ref)}')">▶ PRÉPARER</button>
+        <a class="cr-btn" href="${esc(safeUrl(c.url))}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
       </div>
     </div>`;
   });
