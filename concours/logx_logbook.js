@@ -2276,7 +2276,7 @@ const VOICE_MACRO_DEFAULT = [
   {key:'B1', label:'CQ', text:'CQ Contest, {MYCALL}'},
   {key:'B2', label:'RÉPONSE', text:'{CALL}'},
   {key:'B3', label:'REPORT', text:'{RST_SENT}, {MYCALL}'},
-  {key:'B4', label:'MERCI', text:'Thank you, {MYCALL}'},
+  {key:'B4', label:'73 + MERCI', text:'{TNX}, {MYCALL}'},
 ];
 function getVoiceDynMacros(){ try{ const s=localStorage.getItem('logx_voice_macros'); return s?JSON.parse(s):VOICE_MACRO_DEFAULT; }catch(e){ return VOICE_MACRO_DEFAULT; } }
 function saveVoiceDynMacros(m){ localStorage.setItem('logx_voice_macros', JSON.stringify(m)); }
@@ -2327,7 +2327,7 @@ function editVoiceDynMacro(idx){
   const m = macros[idx];
   const newLabel = prompt(trF('Label pour {k} :', {k: m.key}), m.label);
   if(newLabel === null) return;
-  const newText = prompt(trT('Message ({CALL}=correspondant · {MYCALL}=toi · {RST_SENT}/{RST_RCVD}/{NR}) :'), m.text);
+  const newText = prompt(trT('Message ({CALL}=correspondant · {MYCALL}=toi · {RST_SENT}/{RST_RCVD}/{NR} en toutes lettres · {TNX}=73+merci selon le pays) :'), m.text);
   if(newText === null) return;
   macros[idx] = {...m, label:newLabel.trim()||m.label, text:newText.trim()||m.text};
   saveVoiceDynMacros(macros); renderVoiceDynPanel();

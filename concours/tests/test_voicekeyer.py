@@ -58,9 +58,96 @@ def test_expand_voice_text_call_et_mycall():
 
 
 def test_expand_voice_text_report_et_serie():
+    # Sans indicatif de correspondant -> anglais international, EN TOUTES LETTRES.
     ctx = {'rst_sent': '59', 'nr': '001'}
     out = vk.expand_voice_text('{RST_SENT} {NR}', ctx)
-    assert out == 'Five Nine Zero Zero One'
+    assert out == 'fifty-nine zero zero one'
+
+
+# ─── Nombres en toutes lettres (le cœur de la demande) ──────────────────────
+
+def test_number_to_words_anglais():
+    cas = {0: 'zero', 5: 'five', 15: 'fifteen', 20: 'twenty', 42: 'forty-two',
+           59: 'fifty-nine', 73: 'seventy-three', 100: 'one hundred',
+           599: 'five hundred ninety-nine', 2024: 'two thousand twenty-four'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'en') == mot, n
+
+
+def test_number_to_words_francais_cas_piegeux():
+    cas = {0: 'zéro', 16: 'seize', 21: 'vingt et un', 22: 'vingt-deux',
+           59: 'cinquante-neuf', 60: 'soixante', 61: 'soixante et un',
+           70: 'soixante-dix', 71: 'soixante et onze', 72: 'soixante-douze',
+           76: 'soixante-seize', 77: 'soixante-dix-sept', 80: 'quatre-vingts',
+           81: 'quatre-vingt-un', 90: 'quatre-vingt-dix', 91: 'quatre-vingt-onze',
+           99: 'quatre-vingt-dix-neuf', 73: 'soixante-treize', 100: 'cent',
+           200: 'deux cents', 201: 'deux cent un',
+           599: 'cinq cent quatre-vingt-dix-neuf', 1000: 'mille',
+           2024: 'deux mille vingt-quatre'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'fr') == mot, n
+
+
+def test_spell_number_zeros_de_tete_et_alphanumerique():
+    assert vk.spell_number('59', 'fr') == 'cinquante-neuf'
+    assert vk.spell_number('001', 'fr') == 'zéro zéro un'
+    assert vk.spell_number('042', 'fr') == 'zéro quarante-deux'
+    assert vk.spell_number('001', 'en') == 'zero zero one'
+    assert vk.spell_number('00', 'fr') == 'zéro zéro'
+    assert vk.spell_number('3A', 'en') == 'Three Alpha'   # non numérique -> phonétique
+    assert vk.spell_number('', 'fr') == ''
+
+
+# ─── Langue et remerciement dérivés de l'indicatif ──────────────────────────
+
+def _mock_country(monkeypatch, name):
+    import logx_dxcc as dxcc
+    monkeypatch.setattr(dxcc, 'lookup', lambda call: {'country': name} if call else None)
+
+
+def test_lang_for_call_france_vs_reste(monkeypatch):
+    _mock_country(monkeypatch, 'France')
+    assert vk.lang_for_call('F5ABC') == 'fr'
+    _mock_country(monkeypatch, 'Fed. Rep. of Germany')
+    assert vk.lang_for_call('DL1AA') == 'en'
+    _mock_country(monkeypatch, '')
+    assert vk.lang_for_call('X') == 'en'
+
+
+def test_thanks_word_par_pays(monkeypatch):
+    for pays, mot in [('France', 'merci'), ('Japan', 'arigato'),
+                      ('Fed. Rep. of Germany', 'danke'), ('Italy', 'grazie'),
+                      ('Spain', 'gracias'), ('Brazil', 'obrigado'),
+                      ('United States', 'thanks')]:
+        _mock_country(monkeypatch, pays)
+        assert vk.thanks_word('CALL') == mot, pays
+    _mock_country(monkeypatch, 'Mongolia')
+    assert vk.thanks_word('JT1X') == ''          # pas de mot dédié -> juste 73
+
+
+def test_closing_73_selon_indicatif(monkeypatch):
+    _mock_country(monkeypatch, 'France')
+    assert vk.closing_73({'call': 'F5ABC'}) == 'soixante-treize merci'
+    _mock_country(monkeypatch, 'Japan')
+    assert vk.closing_73({'call': 'JA1XYZ'}) == 'seventy-three arigato'
+    _mock_country(monkeypatch, 'Mongolia')
+    assert vk.closing_73({'call': 'JT1X'}) == 'seventy-three'   # 73 seul si pas de mot
+
+
+def test_expand_report_francais_pour_station_F(monkeypatch):
+    _mock_country(monkeypatch, 'France')
+    ctx = {'call': 'F5ABC', 'rst_sent': '59', 'mycall': 'F4GLD'}
+    out = vk.expand_voice_text('{CALL} {RST_SENT} {TNX}', ctx)
+    assert 'Foxtrot Five Alpha Bravo Charlie' in out    # indicatif phonétique international
+    assert 'cinquante-neuf' in out                       # report en français
+    assert out.endswith('soixante-treize merci')          # clôture 73 + merci
+
+
+def test_expand_report_anglais_pour_station_DL(monkeypatch):
+    _mock_country(monkeypatch, 'Fed. Rep. of Germany')
+    ctx = {'call': 'DL1AA', 'rst_sent': '59'}
+    out = vk.expand_voice_text('{RST_SENT} {TNX}', ctx)
+    assert 'fifty-nine' in out and out.endswith('seventy-three danke')
 
 
 def test_expand_voice_text_placeholders_manquants_deviennent_vides():

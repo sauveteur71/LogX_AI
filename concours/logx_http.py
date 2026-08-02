@@ -4992,7 +4992,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'nr': payload.get('nr', ''),
             }
             text = vk.expand_voice_text(template, ctx)
-            res = vk.send_voice_message(cfg_snap, text)
+            res = vk.send_voice_message(cfg_snap, text, lang=vk.message_lang(ctx))
             if res.get('ok'):
                 print(f"[RIG] Voix : {text[:60]}")
             self._json(res, 200 if res.get('ok') else 400)
