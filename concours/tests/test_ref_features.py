@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests du paquet REF : validateur de log, historique d'indicatifs (SCP),
 chasse aux départements, débrief."""
+import json
 import os
 import sys
 
@@ -10,6 +11,19 @@ os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logx_validator import validate_log
 from logx_callhistory import exchange_wants, suggest, build_index
 import logx_callhistory as ch
+
+# Rectangle simple (pas de vraie frontière) autour du centre réel de IN93RS —
+# comme FAKE_GEOJSON dans test_worldmap.py, pour ne JAMAIS dépendre du vrai
+# raw.githubusercontent.com dans un test (voir tests/test_departments.py pour
+# le même mock sur les autres locators).
+FAKE_DEPT_GEOJSON = json.dumps({
+    'type': 'FeatureCollection',
+    'features': [
+        {'type': 'Feature', 'properties': {'code': '40'},   # Landes (IN93RS)
+         'geometry': {'type': 'Polygon',
+                      'coordinates': [[[-1.5, 43.4], [0.1, 43.4], [0.1, 44.4], [-1.5, 44.4], [-1.5, 43.4]]]}},
+    ],
+})
 
 
 CFG_THF = {'contest': 'REF_QRP', 'contest_start_date': '2026-07-18',
@@ -165,6 +179,13 @@ def test_department_targets_lookup_callbook_en_direct(monkeypatch):
     monkeypatch.setattr(ch, '_index', {})
     monkeypatch.setattr(ch, '_built_at', 0.0)
     dep._live_fail_cache.clear()
+    # dept_from_locator() (appelé en interne par department_targets ci-dessous
+    # pour projeter IN93RS sur son département) dépend sinon d'un vrai fetch
+    # réseau vers raw.githubusercontent.com — voir FAKE_DEPT_GEOJSON en tête
+    # de fichier, même mock que tests/test_departments.py.
+    monkeypatch.setattr(dep, 'load_france_geojson', lambda: FAKE_DEPT_GEOJSON)
+    monkeypatch.setattr(dep, '_dept_polys', None)
+    monkeypatch.setattr(dep, '_dept_polys_last_try', 0.0)
 
     def fake_lookup(call, cfg):
         assert call == 'F1MOZ'
