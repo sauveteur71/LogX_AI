@@ -166,12 +166,17 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .toggle-grid{display:flex;flex-wrap:wrap;gap:8px}
 .toggle-btn{font-family:var(--font-mono);font-size:14px;padding:9px 16px;border-radius:8px;border:1px solid #2A3060;background:var(--bg3);color:#7A84B8;cursor:pointer;transition:all .15s;letter-spacing:1px;user-select:none}
 .toggle-btn:hover{border-color:var(--accent);color:var(--accent)}
-.toggle-btn.on{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
-.toggle-btn.on.mode-ssb{border-color:#FF5030;color:#FF5030;background:rgba(255,80,48,.08)}
-.toggle-btn.on.mode-cw{border-color:#FFD60A;color:#FFD60A;background:rgba(255,214,10,.08)}
-.toggle-btn.on.mode-digi{border-color:#BF5AF2;color:#BF5AF2;background:rgba(191,90,242,.08)}
-.toggle-btn.on.flag{border-color:#00FF88;color:#00FF88;background:rgba(0,255,136,.08)}
-.toggle-btn.on.prop{border-color:#FF2D55;color:#FF2D55;background:rgba(255,45,85,.08)}
+/* Sélectionné = PAVÉ PLEIN + coche + léger agrandissement (choix utilisateur :
+   le simple changement de couleur ne se voyait pas assez). Texte foncé sur
+   fond vif pour un contraste fort ; z-index pour passer au-dessus des voisins
+   quand il grossit. */
+.toggle-btn.on{border-color:var(--accent2);color:#08111f;background:var(--accent2);font-weight:700;transform:scale(1.07);box-shadow:0 3px 12px rgba(0,212,255,.4);position:relative;z-index:1}
+.toggle-btn.on::before{content:'\2713\00a0'}
+.toggle-btn.on.mode-ssb{border-color:#FF5030;color:#180400;background:#FF5030;box-shadow:0 3px 12px rgba(255,80,48,.42)}
+.toggle-btn.on.mode-cw{border-color:#FFD60A;color:#181400;background:#FFD60A;box-shadow:0 3px 12px rgba(255,214,10,.42)}
+.toggle-btn.on.mode-digi{border-color:#BF5AF2;color:#12001e;background:#BF5AF2;box-shadow:0 3px 12px rgba(191,90,242,.42)}
+.toggle-btn.on.flag{border-color:#00FF88;color:#00180d;background:#00FF88;box-shadow:0 3px 12px rgba(0,255,136,.42)}
+.toggle-btn.on.prop{border-color:#FF2D55;color:#18000a;background:#FF2D55;box-shadow:0 3px 12px rgba(255,45,85,.42)}
 
 .band-group{margin-bottom:12px}
 .band-group-title{font-size:14px;color:#7A84B8;letter-spacing:2px;font-family:var(--font-mono);margin-bottom:8px;font-weight:600}
