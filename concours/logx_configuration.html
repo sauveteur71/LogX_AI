@@ -2081,11 +2081,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
           <div class="form-group">
             <label>NŒUD CLUSTER (host : port)</label>
+            <select id="cluster_spot_pick" onchange="onClusterPick()" style="margin-bottom:6px">
+              <option value="">— nœud connu (ou saisis le tien ci-dessous) —</option>
+            </select>
             <div style="display:flex;gap:6px">
               <input type="text" id="cluster_spot_host" placeholder="dxc.ve7cc.net" value="dxc.ve7cc.net" style="flex:1">
               <input type="number" id="cluster_spot_port" placeholder="7300" value="7300" style="width:90px">
             </div>
-            <div class="input-note">VE7CC accepte le spot avec le seul indicatif. D'autres nœuds exigent une inscription.</div>
+            <div class="input-note">Choisis un nœud dans la liste, ou tape le tien. VE7CC accepte le spot avec le seul indicatif ; d'autres nœuds exigent une inscription.</div>
           </div>
           <div class="form-group">
             <label>ÉCRAN MURAL (grand écran)</label>
@@ -5416,6 +5419,45 @@ function onRotorProtoChange(){
   }
 }
 
+// ── ANNUAIRE DE NŒUDS DX CLUSTER (sélecteur, source serveur /data/clusters) ──
+// Remplit une liste groupée par région ; choisir un nœud remplit host+port. Le
+// champ texte reste libre — la liste n'est qu'un raccourci.
+function fillClusterPicker(){
+  var sel = document.getElementById('cluster_spot_pick');
+  if(!sel) return;
+  fetch('/data/clusters').then(r => r.ok ? r.json() : null).then(function(d){
+    if(!d || !d.nodes) return;
+    var byReg = {};
+    d.nodes.forEach(function(n){ (byReg[n.region] = byReg[n.region] || []).push(n); });
+    var html = '<option value="">— nœud connu (ou saisis le tien ci-dessous) —</option>';
+    Object.keys(byReg).forEach(function(reg){
+      html += '<optgroup label="' + reg + '">';
+      byReg[reg].forEach(function(n){
+        html += '<option value="' + n.host + '|' + n.port + '">' + n.label + ' — ' + n.host + ':' + n.port + '</option>';
+      });
+      html += '</optgroup>';
+    });
+    sel.innerHTML = html;
+    syncClusterPick();
+  }).catch(function(){});
+}
+function onClusterPick(){
+  var sel = document.getElementById('cluster_spot_pick');
+  if(!sel || !sel.value) return;
+  var parts = sel.value.split('|');
+  document.getElementById('cluster_spot_host').value = parts[0];
+  document.getElementById('cluster_spot_port').value = parts[1];
+}
+// Aligne la liste sur les champs (hôte perso non listé -> liste sur « — »).
+function syncClusterPick(){
+  var sel = document.getElementById('cluster_spot_pick');
+  if(!sel) return;
+  var key = (document.getElementById('cluster_spot_host') || {}).value + '|'
+          + (document.getElementById('cluster_spot_port') || {}).value;
+  sel.value = '';
+  for(var i = 0; i < sel.options.length; i++){ if(sel.options[i].value === key){ sel.value = key; break; } }
+}
+
 let antennesRows = [], rotorsRows = [], amplisRows = [];
 
 function _pOpt(v, sel, lbl){
@@ -6501,6 +6543,7 @@ function applyFullConfigToForm(c) {
      'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
+    fillClusterPicker();   // remplit le sélecteur de nœuds + aligne sur l'hôte chargé
     transverterRows = Array.isArray(c.transverters) ? c.transverters.map(t => ({
       if: String(t.if || '144'), rf: String(t.rf || '1296'),
       enabled: t.enabled !== false,

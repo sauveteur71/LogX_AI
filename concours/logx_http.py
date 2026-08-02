@@ -3915,6 +3915,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'brands': rotor.catalog()})
             return
 
+        # Annuaire de nœuds DX cluster publics, pour le sélecteur CONFIG.
+        if path == '/data/clusters':
+            import logx_clusters as clusters
+            self._json({'nodes': clusters.cluster_catalog()})
+            return
+
         # État matériel groupé : rig+amp+wsjtx+rotor en UNE requête plutôt que 4
         # séparées. Le logbook pollait chacun individuellement à cadence rapide
         # (3-4s) — jusqu'à 4 connexions/cycle pour de petits payloads, un coût

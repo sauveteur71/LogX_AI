@@ -401,6 +401,38 @@ DX_SPIDER_NODES = [
     ('dx.maritimecontestclub.ca', 7300),
 ]
 
+# ── ANNUAIRE DE NŒUDS PUBLICS (pour le sélecteur CONFIG) ─────────────────────
+# host, port, libellé, région. Le port VARIE d'un nœud à l'autre (7300, 7373,
+# 9000, 41112…) : ces valeurs viennent de l'annuaire ng3k.com/misc/cluster.html
+# (consulté le 02/08/2026), PAS de mémoire — inventer un port enverrait
+# l'opérateur sur un nœud mort. Le champ CONFIG reste libre : ceci n'est qu'une
+# liste de raccourcis pour éviter de taper l'adresse à la main.
+DX_CLUSTER_CATALOG = [
+    ('dxc.ve7cc.net',            7300,  'VE7CC (CC Cluster)',        'Amérique du Nord'),
+    ('w3lpl.net',                7373,  'W3LPL',                     'Amérique du Nord'),
+    ('k1ttt.net',                7373,  'K1TTT',                     'Amérique du Nord'),
+    ('dx.w1nr.net',              7373,  'W1NR',                      'Amérique du Nord'),
+    ('dxc.w4mya.us',             7373,  'W4MYA',                     'Amérique du Nord'),
+    ('k4zr.no-ip.org',           7300,  'K4ZR',                      'Amérique du Nord'),
+    ('dx.maritimecontestclub.ca', 7300, 'Maritime Contest Club',     'Amérique du Nord'),
+    ('cluster.f1led.fr',         7300,  'F1LED',                     'France'),
+    ('ea4ure.com',               7300,  'EA4URE (Madrid)',           'Europe'),
+    ('dxc.hamserve.uk',          7300,  'G1FEF (UK)',                'Europe'),
+    ('dxspider.co.uk',           7300,  'G6NHU (UK)',                'Europe'),
+    ('telnet.dxsummit.fi',       7300,  'DX Summit (OH8X)',          'Europe'),
+    ('cluster.dx.fi',            7300,  'OH cluster',                'Europe'),
+    ('pa1rbz.dyndns.org',        9000,  'PA1RBZ (NL)',               'Europe'),
+    ('s50clx.si',                41112, 'S50CLX (Slovénie)',         'Europe'),
+    ('9m2pju.hamradio.my',       7300,  '9M2PJU (Kuala Lumpur)',     'Asie / Océanie'),
+    ('zl2arn.ddns.net',          7300,  'ZL2ARN (Nouvelle-Zélande)', 'Asie / Océanie'),
+]
+
+
+def cluster_catalog():
+    """L'annuaire des nœuds, pour le sélecteur CONFIG (/data/clusters)."""
+    return [{'host': h, 'port': p, 'label': l, 'region': r}
+            for (h, p, l, r) in DX_CLUSTER_CATALOG]
+
 def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, timeout=8):
     """Connexion telnet à un nœud DX Spider — récupère les derniers spots."""
     spots = []
