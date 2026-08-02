@@ -3921,6 +3921,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'nodes': clusters.cluster_catalog()})
             return
 
+        # SYNCHRO LAN DIRECTE : export du log pour qu'un poste PAIR le tire et
+        # fusionne (logx_lan_sync). Servi UNIQUEMENT si la synchro LAN est activée
+        # — sinon un poste n'expose rien de plus qu'aujourd'hui. GET non protégé,
+        # comme /log/status : c'est le même modèle que l'écran multi-poste déjà
+        # ouvert à tout le réseau local.
+        if path == '/log/lan/export':
+            cfg_snap = self._cfg_snapshot()
+            if str(cfg_snap.get('lan_sync_enabled', '')) not in ('1', 'true', 'True', 'on'):
+                self._json({'enabled': False, 'qsos': []})
+                return
+            with log_lock:
+                qsos = list(shared_log)
+            import logx_lan_sync as lan
+            self._json({'enabled': True, 'iid': lan._my_iid(),
+                        'callsign': cfg_snap.get('callsign_contest') or cfg_snap.get('callsign') or '',
+                        'qsos': qsos})
+            return
+
+        # État de la synchro LAN (pairs découverts), pour l'UI CONFIG/statut.
+        if path == '/log/lan/peers':
+            import logx_lan_sync as lan
+            self._json({'peers': lan.peers()})
+            return
+
         # État matériel groupé : rig+amp+wsjtx+rotor en UNE requête plutôt que 4
         # séparées. Le logbook pollait chacun individuellement à cadence rapide
         # (3-4s) — jusqu'à 4 connexions/cycle pour de petits payloads, un coût

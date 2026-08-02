@@ -295,9 +295,45 @@ if __name__ == '__main__':
             startup = False
             _t.sleep(60)
 
+    def _lan_sync_loop():
+        # SYNCHRO LAN DIRECTE (sans dossier partagé) : les postes se découvrent
+        # par beacon UDP et échangent leurs QSO en HTTP. INDÉPENDANT de Cloud
+        # Sync — les deux peuvent tourner ensemble (l'opérateur peut vouloir la
+        # découverte LAN ET un dossier partagé). Un pair mettra jusqu'à ~15-25 s
+        # à être découvert au premier démarrage (le temps d'un cycle de beacon).
+        import time as _t
+        import logx_http as h
+        import logx_lan_sync as lan
+        import logx_storage as st
+
+        def _get_log():
+            with st.log_lock:
+                return list(st.shared_log)
+
+        started = False
+        startup = True
+        while True:
+            try:
+                with h.config_lock:
+                    cfg = dict(h.current_config)
+                if str(cfg.get('lan_sync_enabled', '')) in ('1', 'true', 'True', 'on'):
+                    if not started:
+                        lan.start(lambda: dict(h.current_config), PORT)
+                        started = True
+                    r = lan.pull_and_merge(_get_log,
+                                           lambda q: h.add_qso_to_log(q, force=False)[0])
+                    if r.get('pulled'):
+                        tag = ' (démarrage)' if startup else ''
+                        print(f"[LAN-SYNC]{tag} pairs={r['peers']} tirés={r['pulled']}")
+            except Exception as _e:
+                print(f"[LAN-SYNC] {_e}")
+            startup = False
+            _t.sleep(12)
+
     threading.Thread(target=_scoreboard_loop, daemon=True).start()
     threading.Thread(target=_backup_loop, daemon=True).start()
     threading.Thread(target=_cloudsync_loop, daemon=True).start()
+    threading.Thread(target=_lan_sync_loop, daemon=True).start()
 
     # Import unique et préalable : sans cela, si l'import du pont WSJT-X échoue,
     # http_mod restait non défini et le bloc ADIF-net levait un NameError

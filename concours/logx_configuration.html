@@ -1491,7 +1491,31 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
       <div class="section">
-        <div class="section-title">☁️ CLOUD SYNC (multi-poste, sans compte ni service en ligne)</div>
+        <div class="section-title">🔗 SYNCHRO LAN DIRECTE (postes sur le même WiFi, sans dossier partagé)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Les postes LogX du même réseau local se DÉCOUVRENT tout seuls et
+          échangent leurs QSO directement, sans passer par un dossier partagé.
+          C'est le plus simple quand plusieurs PC sont sur le même WiFi.
+          <b style="color:var(--accent2)">Indépendant du Cloud Sync ci-dessous</b> :
+          tu peux activer l'un, l'autre, ou les deux.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>SYNCHRO LAN</label>
+            <select id="lan_sync_enabled">
+              <option value="">Désactivée</option>
+              <option value="1">Activée — découverte + échange automatiques</option>
+            </select>
+            <div class="input-note">Un poste voisin apparaît en 15–25 s (le temps d'un cycle de découverte). Aucune adresse à saisir.</div>
+          </div>
+          <div class="form-group">
+            <label>POSTES DÉTECTÉS</label>
+            <div id="lanPeersBox" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:8px 0">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">☁️ CLOUD SYNC (multi-poste, via un dossier partagé Dropbox/Synology…)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Combine tes QSO avec un AUTRE poste (même expédition, poste de secours...)
           via un dossier déjà synchronisé (Synology Drive, Dropbox, OneDrive…) —
@@ -2384,6 +2408,7 @@ const CONFIG_HELP = {
   on4kst_password: "Ton mot de passe du chat ON4KST.",
 
   cloudsync_folder: "Le dossier local DÉJÀ synchronisé par un outil comme Synology Drive/OneDrive/Dropbox : c'est via ce dossier partagé que plusieurs postes échangent leurs QSO, sans service en ligne dédié. Choisis l'option « toujours conserver sur cet appareil » dans cet outil (pas de fichiers à la demande) pour que la synchro reste rapide.",
+  lan_sync_enabled: "Synchro LAN directe : les postes LogX du même réseau se découvrent automatiquement (beacon UDP) et échangent leurs QSO en direct, sans dossier partagé. Indépendant du Cloud Sync — tu peux activer les deux. Aucune adresse à saisir ; un poste voisin apparaît en 15 à 25 secondes.",
   cloudsync_mode: "FULL = ce poste envoie ET reçoit les QSO des autres postes ; PUSH = il envoie seulement (utile pour un poste isolé avec liaison intermittente) ; OFF = désactivé.",
   cloudsync_interval: "La fréquence (en minutes) à laquelle ce poste vérifie s'il y a de nouveaux QSO à échanger.",
   backup_folder: "Le dossier où les sauvegardes automatiques de ton log sont écrites — choisis un emplacement hors du dossier du logiciel (clé USB, cloud...).",
@@ -5468,6 +5493,23 @@ function syncClusterPick(){
   for(var i = 0; i < sel.options.length; i++){ if(sel.options[i].value === key){ sel.value = key; break; } }
 }
 
+// ── Postes détectés en synchro LAN directe (/log/lan/peers) ──────────────────
+function refreshLanPeers(){
+  var box = document.getElementById('lanPeersBox');
+  if(!box) return;
+  fetch('/log/lan/peers').then(r => r.ok ? r.json() : null).then(function(d){
+    var peers = (d && d.peers) || [];
+    if(!peers.length){ box.textContent = '— aucun poste détecté —'; return; }
+    box.innerHTML = peers.map(function(p){
+      var call = (p.callsign || '').replace(/[<>&]/g, '');
+      var ip = (p.ip || '').replace(/[<>&]/g, '');
+      return '🟢 <b style="color:var(--accent2)">' + (call || ip) + '</b> <span style="color:var(--muted)">' + ip + ':' + p.http_port + '</span>';
+    }).join('<br>');
+  }).catch(function(){});
+}
+// Rafraîchissement léger tant que la page config est ouverte (GET local, ~rien).
+setInterval(function(){ try{ refreshLanPeers(); }catch(e){} }, 6000);
+
 let antennesRows = [], rotorsRows = [], amplisRows = [];
 
 function _pOpt(v, sel, lbl){
@@ -5817,6 +5859,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     scoreboard_interval: _numClamped('scoreboard_interval', 5),
     backup_folder: document.getElementById('backup_folder').value.trim(),
     backup_interval: _numClamped('backup_interval', 15),
+    lan_sync_enabled: document.getElementById('lan_sync_enabled').value,
     cloudsync_mode: document.getElementById('cloudsync_mode').value,
     cloudsync_folder: document.getElementById('cloudsync_folder').value.trim(),
     cloudsync_interval: _numClamped('cloudsync_interval', 3),
@@ -6543,7 +6586,7 @@ function applyFullConfigToForm(c) {
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'cloudsync_mode','cloudsync_folder','cloudsync_interval',
      'rbn_enabled','clublog_live','expedition_mode',
-     'cluster_spot_enabled','cluster_spot_host','cluster_spot_port',
+     'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled',
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
      'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
@@ -6554,6 +6597,7 @@ function applyFullConfigToForm(c) {
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     fillClusterPicker();   // remplit le sélecteur de nœuds + aligne sur l'hôte chargé
+    refreshLanPeers();     // postes détectés en synchro LAN directe
     transverterRows = Array.isArray(c.transverters) ? c.transverters.map(t => ({
       if: String(t.if || '144'), rf: String(t.rf || '1296'),
       enabled: t.enabled !== false,
