@@ -258,18 +258,25 @@ if __name__ == '__main__':
         import logx_cloudsync as cs
         import logx_storage as st
         import datetime as _dt
+        # SYNCHRO IMMÉDIATE AU DÉMARRAGE : quand un 2e poste s'ouvre, l'opérateur
+        # veut voir tout de suite les derniers QSO du 1er poste, pas attendre la
+        # première minuterie (jusqu'à `interval` minutes de log périmé). La 1re
+        # passe force donc `due` sans regarder l'intervalle. Sans risque : sync_now
+        # FUSIONNE (union par clé + tombstones), il n'écrase jamais le distant.
+        startup = True
         while True:
-            _t.sleep(60)
             try:
                 with h.config_lock:
                     cfg = dict(h.current_config)
                 s = cs.cloudsync_settings(cfg)
                 if not s['enabled']:
+                    startup = False
+                    _t.sleep(60)
                     continue
                 last = cs.status(cfg).get('last', {}).get('last')
                 due = True
                 interval_min = int(cfg.get('cloudsync_interval', 3) or 3)
-                if last:
+                if last and not startup:
                     try:
                         age = (utcnow()
                                - _dt.datetime.strptime(last, '%Y-%m-%d %H:%M')).total_seconds()
@@ -281,9 +288,12 @@ if __name__ == '__main__':
                         log_copy = list(st.shared_log)
                     r = cs.sync_now(cfg, log_copy)
                     if r.get('ok') and (r.get('pulled') or r.get('pushed')):
-                        print(f"[CLOUDSYNC] mode={r['mode']} pushed={r['pushed']} pulled={r['pulled']}")
+                        tag = ' (démarrage)' if startup else ''
+                        print(f"[CLOUDSYNC]{tag} mode={r['mode']} pushed={r['pushed']} pulled={r['pulled']}")
             except Exception as _e:
                 print(f"[CLOUDSYNC] {_e}")
+            startup = False
+            _t.sleep(60)
 
     threading.Thread(target=_scoreboard_loop, daemon=True).start()
     threading.Thread(target=_backup_loop, daemon=True).start()
