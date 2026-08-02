@@ -47,6 +47,24 @@ mécanismes, tous deux confinés à ce module :
 Le préfixe des fichiers de tombstones est distinct de SYNC_PREFIX : les
 anciennes versions du programme (glob sur logx_cloudsync_*) ne les lisent
 jamais, et ils ne comptent pas comme « autres installations » dans status().
+
+Anti-REJEU (au-delà de l'anti-falsification de la signature HMAC) : signer
+uniquement 'data' protège contre un tiers SANS le secret d'équipe qui
+forgerait un contenu, mais pas contre le REJEU d'un fichier ANCIEN mais
+légitimement signé — un tiers ayant seulement un accès en ÉCRITURE au dossier
+partagé (pas le secret) peut restaurer une ancienne version déjà signée via
+l'historique de versions du dossier cloud, une sauvegarde, ou une copie de
+conflit Synology/Dropbox, et _verify_signed() la validerait sans broncher
+puisque sig(data) reste vrai indéfiniment. Des QSO supprimés (tombstonés)
+peuvent alors réapparaître silencieusement si le fichier rejoué est antérieur
+à leur suppression et que les tombstones correspondants ont depuis été purgés
+(_MAX_SYNC_TOMBSTONES). Parade à deux étages, tous deux dans ce module :
+  - la signature couvre maintenant 'saved_at' EN PLUS de 'data' (voir _sign) :
+    un rejeu ne peut plus se faire passer pour plus récent qu'il ne l'est
+    sans le secret ;
+  - un suivi LOCAL (jamais dans le dossier partagé, voir _SEEN_STATE_FILE)
+    mémorise par fichier distant le plus grand 'saved_at' déjà vu, et rejette
+    tout fichier dont l'horodatage recule (voir _check_replay).
 """
 import glob
 import hashlib
@@ -79,6 +97,10 @@ MAX_SYNC_QSOS_PER_FILE = 5000
 MAX_SYNC_FILE_BYTES = 5_000_000
 _INSTANCE_ID_FILE = '.cloudsync_instance_id'
 _STAMP_FILE = 'cloudsync_state.json'
+# Suivi anti-rejeu : fichier LOCAL (jamais dans le dossier cloud partagé —
+# voir _check_replay) mémorisant, par nom de fichier distant déjà lu, le plus
+# grand 'saved_at' rencontré.
+_SEEN_STATE_FILE = 'cloudsync_seen.json'
 
 # Dernier échec de synchro (mémoire process, jamais persisté sur disque —
 # comme le disjoncteur callbook) : la boucle de fond _cloudsync_loop
@@ -106,28 +128,51 @@ def _canonical(data):
     return json.dumps(data, sort_keys=True, separators=(',', ':')).encode('utf-8')
 
 
-def _sign(data, secret):
-    return hmac.new(secret.encode('utf-8'), _canonical(data), hashlib.sha256).hexdigest()
+def _sign(data, saved_at, secret):
+    """Signature HMAC-SHA256 couvrant 'data' ET 'saved_at' — pas seulement
+    'data' (voir le paragraphe anti-rejeu de la docstring du module) : un
+    fichier dont la signature ne porte que sur 'data' resterait valide pour
+    toujours, quel que soit son âge."""
+    return hmac.new(secret.encode('utf-8'),
+                     _canonical({'data': data, 'saved_at': saved_at}),
+                     hashlib.sha256).hexdigest()
 
 
 def _verify_signed(raw, secret):
-    """Extrait la liste de données d'un contenu JSON {'data': [...], 'sig':
-    '<hmac>'} ou d'une liste brute (rétro-compat, fichiers écrits avant
-    l'ajout de la signature). Retourne None si le contenu doit être rejeté :
-    avec `secret` configuré, un fichier non signé ou dont la signature ne
-    correspond pas est REJETÉ (pas seulement toléré) — la taille seule ne
-    protège pas contre un fichier forgé au nom d'une autre installation,
-    seule la signature le fait."""
+    """Extrait (liste_de_données, saved_at) d'un contenu JSON {'data': [...],
+    'saved_at': <epoch>, 'sig': '<hmac>'} ou d'une liste brute (rétro-compat,
+    fichiers écrits avant l'ajout de la signature). Retourne (None, None) si
+    le contenu doit être rejeté : avec `secret` configuré, un fichier non
+    signé ou dont la signature ne correspond pas est REJETÉ (pas seulement
+    toléré) — la taille seule ne protège pas contre un fichier forgé au nom
+    d'une autre installation, seule la signature le fait. Un fichier signé
+    par une version du programme antérieure à l'ajout de saved_at (signature
+    ne couvrant que 'data') est logé dans le même sac : sa signature ne
+    correspond plus, il est réécrit au push suivant du poste qui l'a produit
+    dès qu'il aura mis à jour.
+
+    saved_at est le second ingrédient anti-rejeu (voir docstring du module) :
+    la signature seule protège contre la FALSIFICATION (forger un contenu
+    sans connaître le secret) mais pas contre le REJEU d'un ancien fichier
+    légitimement signé — sig(data seul) resterait valide indéfiniment. En
+    couvrant aussi saved_at, la signature garantit qu'un rejeu ne peut pas se
+    faire passer pour plus récent qu'il ne l'est ; c'est _check_replay
+    (appelé par _read_qsos/_read_tombstones) qui exploite ce saved_at
+    AUTHENTIFIÉ pour rejeter un fichier dont l'horodatage recule par rapport
+    au dernier connu pour ce même fichier."""
     if isinstance(raw, dict) and 'data' in raw:
         data, sig = raw.get('data'), raw.get('sig', '')
-        if secret and (not sig or not hmac.compare_digest(_sign(data, secret), sig)):
-            return None
-        return data if isinstance(data, list) else None
+        saved_at = raw.get('saved_at')
+        if not isinstance(saved_at, (int, float)) or isinstance(saved_at, bool):
+            saved_at = None
+        if secret and (not sig or not hmac.compare_digest(_sign(data, saved_at, secret), sig)):
+            return None, None
+        return (data if isinstance(data, list) else None), saved_at
     if isinstance(raw, list):
         if secret:
-            return None  # secret configuré mais fichier legacy non signé
-        return raw
-    return None
+            return None, None  # secret configuré mais fichier legacy non signé
+        return raw, None
+    return None, None
 
 
 def _instance_id():
@@ -171,10 +216,72 @@ def cloudsync_settings(cfg):
             'secret': secret}
 
 
+# ── Anti-rejeu : état LOCAL, jamais dans le dossier cloud partagé ──────────
+# (sinon un tiers ayant l'accès en écriture au dossier partagé pourrait aussi
+# rejouer/effacer CET état, et se retrouver in fine à contrôler ce qu'il est
+# censé contrer). Même emplacement/esprit que _STAMP_FILE et
+# _INSTANCE_ID_FILE ci-dessus : un chemin relatif au répertoire de travail du
+# serveur, propre à CETTE machine, jamais synchronisé. Clé = nom de fichier
+# distant (logx_cloudsync_<indicatif>_<iid>.json ou logx_cloudtomb_*.json) —
+# ce nom encode déjà indicatif + id d'installation, donc identifie le poste
+# exactement comme le fait _safe()/base ailleurs dans ce module. Valeur = plus
+# grand 'saved_at' (epoch secondes) authentifié déjà lu pour ce fichier.
+_seen_lock = threading.Lock()
+_seen_saved_at = None  # chargé paresseusement depuis _SEEN_STATE_FILE
+
+
+def _load_seen():
+    global _seen_saved_at
+    if _seen_saved_at is not None:
+        return _seen_saved_at
+    data = {}
+    try:
+        if os.path.exists(_SEEN_STATE_FILE):
+            with open(_SEEN_STATE_FILE, encoding='utf-8') as f:
+                raw = json.load(f)
+            if isinstance(raw, dict):
+                data = {str(k): float(v) for k, v in raw.items()
+                        if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    except Exception:
+        data = {}
+    _seen_saved_at = data
+    return _seen_saved_at
+
+
+def _save_seen():
+    try:
+        with open(_SEEN_STATE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(_seen_saved_at or {}, f)
+    except Exception:
+        pass  # état advisoire — une écriture ratée dégrade la protection,
+              # jamais la sync elle-même (même tolérance que _stamp())
+
+
+def _check_replay(basename, saved_at):
+    """True si `saved_at` (authentifié par la signature — voir
+    _verify_signed) du fichier `basename` est ANTÉRIEUR au plus grand déjà vu
+    pour ce même fichier : c'est un REJEU (voir le paragraphe anti-rejeu de la
+    docstring du module) à rejeter. saved_at=None (fichier signé avant
+    l'ajout de ce champ, ou secret non configuré — voir _verify_signed) :
+    aucune protection authentifiée possible pour ce fichier, jamais considéré
+    comme un rejeu."""
+    if saved_at is None:
+        return False
+    with _seen_lock:
+        seen = _load_seen()
+        last = seen.get(basename)
+        if last is not None and saved_at < last:
+            return True
+        if last is None or saved_at > last:
+            seen[basename] = saved_at
+            _save_seen()
+        return False
+
+
 def _read_qsos(path, secret=None):
     """Contenu d'un fichier logx_cloudsync_*.json — [] si absent, illisible,
-    trop volumineux, ou non authentifié quand `secret` est configuré (voir
-    _verify_signed)."""
+    trop volumineux, non authentifié quand `secret` est configuré (voir
+    _verify_signed), ou REJOUÉ (voir _check_replay)."""
     try:
         if os.path.getsize(path) > MAX_SYNC_FILE_BYTES:
             return []
@@ -182,8 +289,10 @@ def _read_qsos(path, secret=None):
             raw = json.load(f)
     except Exception:
         return []
-    data = _verify_signed(raw, secret)
+    data, saved_at = _verify_signed(raw, secret)
     if not isinstance(data, list):
+        return []
+    if _check_replay(os.path.basename(path), saved_at):
         return []
     return data[:MAX_SYNC_QSOS_PER_FILE]
 
@@ -191,9 +300,10 @@ def _read_qsos(path, secret=None):
 def _read_tombstones(path, secret=None):
     """Liste des tombstones [{'id', 'key', 'ts'}, ...] d'un fichier
     logx_cloudtomb_*.json — [] si absent/illisible/trop volumineux/non
-    authentifié (même tolérance que _read_qsos : un fichier corrompu ne doit
-    jamais faire échouer la sync, mais un fichier forgé au nom d'une autre
-    installation doit être rejeté dès qu'un secret est configuré)."""
+    authentifié/rejoué (même tolérance et mêmes protections que _read_qsos :
+    un fichier corrompu ne doit jamais faire échouer la sync, mais un fichier
+    forgé OU rejoué au nom d'une autre installation doit être rejeté dès
+    qu'un secret est configuré)."""
     try:
         if os.path.getsize(path) > MAX_SYNC_FILE_BYTES:
             return []
@@ -201,8 +311,10 @@ def _read_tombstones(path, secret=None):
             raw = json.load(f)
     except Exception:
         return []
-    data = _verify_signed(raw, secret)
+    data, saved_at = _verify_signed(raw, secret)
     if not isinstance(data, list):
+        return []
+    if _check_replay(os.path.basename(path), saved_at):
         return []
     data = data[:MAX_SYNC_QSOS_PER_FILE]
     return [t for t in data if isinstance(t, dict) and t.get('id') is not None]
@@ -211,9 +323,19 @@ def _read_tombstones(path, secret=None):
 def _write_signed(path, data, secret):
     """Écrit `data` (liste de QSO ou de tombstones), signé HMAC-SHA256 si un
     secret d'équipe est configuré ; format legacy (liste brute) inchangé sinon
-    — rétro-compatible avec les postes non encore mis à jour."""
+    — rétro-compatible avec les postes non encore mis à jour. Le fichier signé
+    porte aussi 'saved_at' (horodatage epoch de CETTE écriture), couvert par
+    la signature (voir _sign) : c'est le prérequis de l'anti-rejeu (voir
+    docstring du module et _check_replay). saved_at n'est ajouté que dans le
+    cas signé : sans secret, rien n'authentifie de toute façon un horodatage —
+    un tiers pourrait le forger librement, l'ajouter serait un faux sentiment
+    de protection."""
     from logx_storage import save_json_atomic
-    payload = {'data': data, 'sig': _sign(data, secret)} if secret else data
+    if secret:
+        saved_at = time.time()
+        payload = {'data': data, 'saved_at': saved_at, 'sig': _sign(data, saved_at, secret)}
+    else:
+        payload = data
     save_json_atomic(path, payload, compact=True)
 
 

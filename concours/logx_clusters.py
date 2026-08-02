@@ -526,7 +526,12 @@ def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, ti
             # soumet tout le dialogue à l'executor partagé et on borne
             # l'ATTENTE avec .result(timeout=...) : sur un DNS muet, le thread
             # abandonné se termine seul en arrière-plan sans bloquer l'appelant.
-            raw = _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + 3)
+            # Le budget interne RÉEL de _dialog() est : connect (borné à
+            # `timeout`) + bienvenue (4s) + sleep (1s) + réponse (bornée à
+            # `timeout`) = 2×timeout + 5 (21s avec les valeurs par défaut).
+            # L'attente externe doit rester STRICTEMENT SUPÉRIEURE à ce
+            # budget, avec une marge d'au moins 3-5s.
+            raw = _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout * 2 + 10)
 
             # Parser les spots DX Spider : "DX de SPOTTER:  FREQ   CALL   INFO  UTC"
             text = raw.decode('utf-8', errors='replace')
@@ -655,8 +660,11 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
         # s.connect() résout `host` via getaddrinfo() AVANT d'ouvrir la
         # connexion — résolution DNS non couverte par settimeout(). On
         # soumet le dialogue complet à l'executor partagé et on borne
-        # l'ATTENTE avec .result(timeout=...).
-        echo = _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + 5)
+        # l'ATTENTE avec .result(timeout=...). Budget interne réel (hors
+        # connect, bornée à `timeout`) : read_until(5)+sleep(1)+
+        # read_until(3)+read_until(3)+read_until(3) = 15s ; timeout+5 y était
+        # tout juste égal (pas strictement supérieur) — marge portée à +7.
+        echo = _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + 7)
         low = echo.lower()
         # Refus explicite — liste large, aussi peu dépendante de la langue que
         # possible (beaucoup de nœuds n'acceptent le spot que d'inscrits).
@@ -769,8 +777,21 @@ def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, time
     # s.connect() résout `host` via getaddrinfo() AVANT d'ouvrir la connexion
     # — résolution DNS non couverte par settimeout(). On soumet le dialogue
     # complet à l'executor partagé et on borne l'ATTENTE avec .result(timeout=...).
+    #
+    # Budget interne RÉEL de _dialog(), calculé sur ce que CET appel envoie
+    # réellement (pas seulement le cas nu sans chat/commande) :
+    #   connect (borné à `timeout`)
+    #   + login FIXE : 3 × read_until(max_wait=6 par défaut) = 18s
+    #     (banner, prompt password, menu/erreur après password)
+    #   + N × read_wait, une lecture par envoi post-login : la sélection de
+    #     salon (`chat`, si fourni) PUIS chacune des commandes de `command`.
+    # timeout + read_wait + 5 ne couvrait que le cas SANS chat ni commande —
+    # fetch_on4kst_data() (chat + 2 commandes) dépassait largement ce budget.
+    _cmds = (list(command) if isinstance(command, (list, tuple)) else [command]) if command else []
+    _n_post_login_reads = (1 if chat else 0) + len(_cmds)
+    _external_timeout = timeout + 18 + _n_post_login_reads * read_wait + 5
     try:
-        return _TELNET_EXECUTOR.submit(_dialog).result(timeout=timeout + read_wait + 5)
+        return _TELNET_EXECUTOR.submit(_dialog).result(timeout=_external_timeout)
     except Exception as e:
         return {'ok': False, 'raw': '', 'error': str(e)}
 
@@ -1230,30 +1251,55 @@ def enrich_unknown_calls(done_calls, calldb_path):
     if not os.path.exists(calldb_path):
         return {}
     try:
+        # Lecture initiale HORS verrou : sert uniquement à présélectionner
+        # quels indicatifs valent un lookup réseau (jusqu'à 5 appels HamQTH
+        # bloquants ci-dessous) — ce n'est PAS la source de vérité pour la
+        # fusion finale, relue sous le verrou plus bas.
         with open(calldb_path, 'r', encoding='utf-8') as f:
             db = json.load(f)
         calls_db = db.get('calls', {})
-        enriched = {}
-        count = 0
+        candidates = []
         for call in list(done_calls.keys())[:5]:  # max 5 lookups par refresh
             base = call.split('/')[0].upper()
             if base not in calls_db or not calls_db[base].get('locator'):
-                result = lookup_hamqth(base)
-                if result and result.get('locator'):
+                candidates.append(base)
+
+        results = {}
+        for base in candidates:
+            result = lookup_hamqth(base)
+            if result and result.get('locator'):
+                results[base] = result
+
+        enriched = {}
+        if results:
+            # Lecture-modification-écriture sous calldb_lock EN ENTIER (pas
+            # seulement l'écriture finale) : deux enrichissements concurrents
+            # ne doivent pas lire le même état initial et perdre la
+            # modification de l'un des deux. On relit le fichier ICI, sous le
+            # verrou — APRÈS les lookups HamQTH réseau, qui restent hors
+            # verrou — plutôt que de réutiliser la lecture faite avant ces
+            # appels, qui aurait pu devenir périmée pendant les quelques
+            # secondes qu'ils prennent (même patron que /calldb/update,
+            # /calldb/lookup/ dans logx_http.py et _enrich_calldb dans
+            # logx_qrz.py).
+            with calldb_lock:
+                with open(calldb_path, 'r', encoding='utf-8') as f:
+                    db2 = json.load(f)
+                calls_db2 = db2.setdefault('calls', {})
+                for base, result in results.items():
                     # FUSION, jamais de remplacement total : une entrée locale
                     # peut déjà porter un 'dept' (REF) que HamQTH ignore.
-                    entry = calls_db.setdefault(base, {})
+                    entry = calls_db2.setdefault(base, {})
                     entry['locator'] = result['locator']
                     if result.get('country'):
                         entry['country'] = result['country']
                     if result.get('continent'):
                         entry['continent'] = result['continent']
                     enriched[base] = result
-                    count += 1
-        if count > 0:
-            db['calls'] = calls_db
-            save_json_atomic(calldb_path, db, lock=calldb_lock, compact=True)
-            print(f"[HAMQTH] {count} indicatifs enrichis dans calldb.json")
+                # lock déjà tenu ci-dessus (calldb_lock n'est pas réentrant) :
+                # on n'en redemande pas un second à save_json_atomic.
+                save_json_atomic(calldb_path, db2, lock=None, compact=True)
+            print(f"[HAMQTH] {len(enriched)} indicatifs enrichis dans calldb.json")
         return enriched
     except Exception as e:
         print(f"[HAMQTH] Erreur enrichissement: {e}")

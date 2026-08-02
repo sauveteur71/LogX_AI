@@ -2015,20 +2015,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if local.get('locator'):
                     self._json({'call': base, 'locator': local['locator'], 'dept': local.get('dept',''), 'source': 'local'})
                     return
-                # Sinon interroger HamQTH
+                # Sinon interroger HamQTH — cet appel réseau (potentiellement
+                # plusieurs secondes) reste HORS du verrou, pour ne pas
+                # bloquer les autres threads dessus.
                 result = lookup_hamqth(base)
                 if result and result.get('locator'):
                     # Persister dans calldb.json — FUSION, jamais de remplacement
                     # total (une entrée locale peut déjà porter un 'dept' REF
                     # que HamQTH ignore ; l'écraser cassait le tableau de chasse).
+                    # Lecture-modification-écriture sous calldb_lock EN ENTIER
+                    # (pas seulement l'écriture finale) : sinon deux lookups
+                    # concurrents (deux indicatifs différents en même temps)
+                    # lisent le même état initial et la seconde écriture écrase
+                    # la modification de la première. On relit le fichier ICI,
+                    # sous le verrou — après le lookup réseau — plutôt que de
+                    # réutiliser une lecture faite avant l'appel HamQTH, qui
+                    # aurait pu devenir périmée pendant les quelques secondes
+                    # de l'appel (même patron que /calldb/update et
+                    # _enrich_calldb dans logx_qrz.py).
                     if os.path.exists(calldb_path):
-                        with open(calldb_path, 'r', encoding='utf-8') as f:
-                            db2 = json.load(f)
-                        entry = db2.setdefault('calls', {}).setdefault(base, {})
-                        entry['locator'] = result['locator']
-                        if result.get('country'):
-                            entry['country'] = result['country']
-                        save_json_atomic(calldb_path, db2, lock=calldb_lock, compact=True)
+                        with calldb_lock:
+                            with open(calldb_path, 'r', encoding='utf-8') as f:
+                                db2 = json.load(f)
+                            entry = db2.setdefault('calls', {}).setdefault(base, {})
+                            entry['locator'] = result['locator']
+                            if result.get('country'):
+                                entry['country'] = result['country']
+                            # lock déjà tenu ci-dessus (calldb_lock n'est pas
+                            # réentrant) : on n'en redemande pas un second à
+                            # save_json_atomic.
+                            save_json_atomic(calldb_path, db2, lock=None, compact=True)
                     self._json({'call': base, 'locator': result['locator'], 'country': result.get('country',''), 'source': 'hamqth'})
                     return
                 self._json({'call': base, 'locator': '', 'source': 'none'})
@@ -4018,7 +4034,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cfg_snap = self._cfg_snapshot()
             fields = ('api_key', 'clublog_api_key', 'clublog_password', 'eqsl_password',
                       'lan_sync_token', 'lotw_password', 'on4kst_password', 'qrz_password',
-                      'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id')
+                      'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
+                      'cloudsync_secret')
             self._json({f: cfg_snap.get(f, '') for f in fields})
             return
 

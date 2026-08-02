@@ -15,16 +15,23 @@ from logx_departments import (dept_from_exchange, department_mult_count,
 # ne JAMAIS dépendre du vrai raw.githubusercontent.com dans un test (le fichier
 # local france_departements.geojson est gitignored, absent sur un checkout CI
 # frais : sans ce mock, dept_from_locator() y fait un vrai fetch réseau).
+#
+# Centres réels (logx_utils.locator_to_latlon) : JN15XC -> lon 3.958/lat
+# 45.104 ; JN25GO -> lon 4.542/lat 45.604 ; IN93RS -> lon -0.542/lat 43.771.
+# Les rectangles 43/69 doivent rester DISJOINTS (pas seulement adjacents) :
+# dept_from_locator() renvoie le code du PREMIER polygone qui matche dans la
+# boucle, donc un chevauchement ferait toujours gagner '43' au détriment de
+# '69' pour un point dans la zone commune, même si '69' serait correct.
 FAKE_DEPT_GEOJSON = json.dumps({
     'type': 'FeatureCollection',
     'features': [
-        {'type': 'Feature', 'properties': {'code': '43'},   # Haute-Loire (JN15XC)
+        {'type': 'Feature', 'properties': {'code': '43'},   # Haute-Loire (JN15XC, centre lon 3.958)
          'geometry': {'type': 'Polygon',
-                      'coordinates': [[[3.3, 44.6], [4.4, 44.6], [4.4, 45.5], [3.3, 45.5], [3.3, 44.6]]]}},
-        {'type': 'Feature', 'properties': {'code': '69'},   # Rhône (JN25GO)
+                      'coordinates': [[[3.3, 44.6], [4.2, 44.6], [4.2, 45.5], [3.3, 45.5], [3.3, 44.6]]]}},
+        {'type': 'Feature', 'properties': {'code': '69'},   # Rhône (JN25GO, centre lon 4.542)
          'geometry': {'type': 'Polygon',
-                      'coordinates': [[[4.2, 45.4], [5.0, 45.4], [5.0, 46.1], [4.2, 46.1], [4.2, 45.4]]]}},
-        {'type': 'Feature', 'properties': {'code': '40'},   # Landes (IN93RS)
+                      'coordinates': [[[4.3, 45.4], [5.0, 45.4], [5.0, 46.1], [4.3, 46.1], [4.3, 45.4]]]}},
+        {'type': 'Feature', 'properties': {'code': '40'},   # Landes (IN93RS, centre lon -0.542)
          'geometry': {'type': 'Polygon',
                       'coordinates': [[[-1.5, 43.4], [0.1, 43.4], [0.1, 44.4], [-1.5, 44.4], [-1.5, 43.4]]]}},
     ],
@@ -45,6 +52,32 @@ def _mock_dept_geojson(monkeypatch):
     monkeypatch.setattr(dep, 'load_france_geojson', lambda: FAKE_DEPT_GEOJSON)
     monkeypatch.setattr(dep, '_dept_polys', None)
     monkeypatch.setattr(dep, '_dept_polys_last_try', -1e6)
+
+
+def test_rectangles_fictifs_ne_se_chevauchent_pas():
+    """Garde-fou de non-régression sur FAKE_DEPT_GEOJSON lui-même :
+    dept_from_locator() renvoie le code du PREMIER polygone qui matche dans
+    la boucle (voir logx_departments.dept_from_locator) — si deux rectangles
+    fictifs se chevauchaient, un point dans la zone commune recevrait
+    toujours le même département, à tort pour l'autre (correctif : 43/69 se
+    chevauchaient auparavant sur lon[4.2,4.4]xlat[45.4,45.5])."""
+    features = json.loads(FAKE_DEPT_GEOJSON)['features']
+    boxes = []
+    for f in features:
+        coords = f['geometry']['coordinates'][0]
+        lons = [c[0] for c in coords]
+        lats = [c[1] for c in coords]
+        boxes.append((f['properties']['code'],
+                      min(lons), max(lons), min(lats), max(lats)))
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            code_a, a_lon0, a_lon1, a_lat0, a_lat1 = boxes[i]
+            code_b, b_lon0, b_lon1, b_lat0, b_lat1 = boxes[j]
+            lon_overlap = a_lon0 < b_lon1 and b_lon0 < a_lon1
+            lat_overlap = a_lat0 < b_lat1 and b_lat0 < a_lat1
+            assert not (lon_overlap and lat_overlap), (
+                "rectangles fictifs %s et %s se chevauchent dans "
+                "FAKE_DEPT_GEOJSON" % (code_a, code_b))
 
 
 def test_table_complete():

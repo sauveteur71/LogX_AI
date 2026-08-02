@@ -1108,7 +1108,7 @@ def get_scoring_info(contest_id):
         return {
             'type': sc.get('type', 'custom'),
             'unit': sc.get('unit', sc.get('note', 'voir règlement')),
-            'mult': sc.get('mult', sc.get('multiplier', 'voir règlement')),
+            'mult': sc.get('mult') or sc.get('multiplier') or 'voir règlement',
             'bands': sc.get('bands', ' '.join(cdef.get('bands', [])) or 'Au choix'),
             'modes': sc.get('modes', ' '.join(cdef.get('modes', [])) or 'Au choix'),
         }

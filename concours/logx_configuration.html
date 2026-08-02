@@ -1547,7 +1547,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div class="form-grid">
           <div class="form-group">
             <label>MODE</label>
-            <select id="cloudsync_mode" onchange="updateEnabledFieldsVisibility('cloudsync_mode',['cloudsync_folder','cloudsync_interval'],v=>v!=='')">
+            <select id="cloudsync_mode" onchange="updateEnabledFieldsVisibility('cloudsync_mode',['cloudsync_folder','cloudsync_interval','cloudsync_secret'],v=>v!=='')">
               <option value="">Désactivé</option>
               <option value="full">Synchronisation complète (lit + écrit)</option>
               <option value="push">Envoi seul (écrit, ne récupère rien)</option>
@@ -1564,6 +1564,11 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="form-group">
             <label>INTERVALLE (min)</label>
             <input type="number" id="cloudsync_interval" placeholder="3" min="1" max="60">
+          </div>
+          <div class="form-group">
+            <label>JETON D'ÉQUIPE <span style="font-size:12px;color:var(--muted)">— optionnel</span></label>
+            <input type="text" id="cloudsync_secret" placeholder="vide = fichiers non signés" autocomplete="off">
+            <div class="input-note">Même valeur sur tous les postes de l'équipe (à se communiquer directement, jamais par ce dossier partagé). Une fois réglé, les fichiers cloudsync sont signés et vérifiés (HMAC) — un tiers ayant accès au dossier partagé ne peut plus en falsifier le contenu sans connaître ce jeton.</div>
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
@@ -2442,6 +2447,7 @@ const CONFIG_HELP = {
   lan_sync_token: "Optionnel. Sans lui, la synchro LAN accepte tout poste du réseau local qui se présente. Avec lui (même valeur sur tous les postes de l'équipe), seuls les postes qui le connaissent sont acceptés — utile sur un WiFi partagé (salle commune, visiteurs). À communiquer directement entre opérateurs, jamais par ce dossier.",
   cloudsync_mode: "FULL = ce poste envoie ET reçoit les QSO des autres postes ; PUSH = il envoie seulement (utile pour un poste isolé avec liaison intermittente) ; OFF = désactivé.",
   cloudsync_interval: "La fréquence (en minutes) à laquelle ce poste vérifie s'il y a de nouveaux QSO à échanger.",
+  cloudsync_secret: "Optionnel. Sans lui, les fichiers cloudsync ne sont pas signés (rétro-compatible). Avec lui (même valeur sur tous les postes de l'équipe), chaque fichier déposé dans le dossier partagé est signé et vérifié (HMAC) — un tiers ayant accès à ce dossier (Dropbox/OneDrive/Synology partagé) ne peut plus en falsifier le contenu sans connaître ce jeton. À communiquer directement entre opérateurs, jamais par ce dossier.",
   backup_folder: "Le dossier où les sauvegardes automatiques de ton log sont écrites — choisis un emplacement hors du dossier du logiciel (clé USB, cloud...).",
   backup_interval: "La fréquence (en minutes) des sauvegardes automatiques.",
   scoreboard_enabled: "Active la publication automatique de ton score en direct sur un tableau de bord en ligne, visible par d'autres.",
@@ -3062,7 +3068,8 @@ async function mergeExternalContests(){
 // la même liste (elle y figurait sous la clé 'api_key').
 const SECRET_CONFIG_FIELDS = ['api_key', 'clublog_api_key', 'clublog_password',
   'eqsl_password', 'lan_sync_token', 'lotw_password', 'on4kst_password',
-  'qrz_password', 'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id'];
+  'qrz_password', 'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
+  'cloudsync_secret'];
 
 // Ré-assainit un blob localStorage['logx_config'] écrit par une VERSION
 // ANTÉRIEURE du logiciel (avant ce correctif), qui pouvait encore contenir
@@ -3087,15 +3094,24 @@ function _redactStaleSecretsInLocalStorage(){
 // COMPLÉTER les champs secrets, jamais écraser le reste du formulaire déjà
 // posé. Best-effort : hors-ligne ou non authentifié, les champs restent
 // simplement vides comme avant ce correctif (l'opérateur les ressaisit).
+// 'api_key' est délibérément SAUTÉ ici : le serveur n'a qu'UNE seule clé API
+// globale (current_config['api_key']) alors que le client gère PLUSIEURS
+// clés par fournisseur (logx_apikey_<provider> dans localStorage, déjà posée
+// dans #api_key par onProviderChange()/applyFullConfigToForm() avant l'appel
+// à cette fonction) — repeupler sans condition depuis le serveur écraserait
+// la bonne valeur par-fournisseur avec la mauvaise valeur globale.
 async function loadSecretsFromServer(){
   try{
     const res = await fetch('/config/secrets');
     if(!res.ok) return;
     const secrets = await res.json();
     for(const f of SECRET_CONFIG_FIELDS){
+      if(f === 'api_key') continue;
       const v = secrets[f];
       const el = document.getElementById(f);
-      if(el && v) el.value = v;
+      // « Complète, n'écrase jamais » : ne poser la valeur serveur que si le
+      // champ est encore vide (pas déjà rempli par un autre mécanisme).
+      if(el && v && !el.value) el.value = v;
     }
   }catch(e){ /* pas de réseau/serveur : champs laissés vides, comportement inchangé */ }
 }
@@ -3138,7 +3154,7 @@ async function init() {
   // dès l'affichage initial (pas seulement au changement manuel du select).
   updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
   updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
-  updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
+  updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
   _updateSotaSectionVisibility(); refreshSotaStatus(); // au cas où loadFromServerConfig() a été utilisé (pas de config locale)
@@ -4051,6 +4067,17 @@ function saveProfile(){
   // Capturer l'état courant du formulaire via saveConfig silencieux puis lire
   saveConfig(true);
   const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
+  // Audit sécurité : depuis le durcissement de saveConfig(), localStorage['logx_config']
+  // ne contient JAMAIS les champs de SECRET_CONFIG_FIELDS (copie 'localCopy' expurgée) —
+  // les relire ici les laisserait vides à vie dans le profil (régression du bug H1
+  // « chargement de profil incomplet », déjà corrigé une fois). Un PROFIL est un
+  // mécanisme différent : une sauvegarde complète de la config choisie par l'opérateur
+  // (pas un cache anti-perte-de-frappe entre visites) — les secrets y sont donc capturés
+  // EN CLAIR directement depuis le formulaire, pas depuis le blob localStorage expurgé.
+  for(const f of SECRET_CONFIG_FIELDS){
+    const el = document.getElementById(f);
+    if(el) cfg[f] = el.value;
+  }
   const profiles = getProfiles();
   profiles[name.trim()] = cfg;
   setProfiles(profiles);
@@ -6082,6 +6109,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     cloudsync_mode: document.getElementById('cloudsync_mode').value,
     cloudsync_folder: document.getElementById('cloudsync_folder').value.trim(),
     cloudsync_interval: _numClamped('cloudsync_interval', 3),
+    cloudsync_secret: document.getElementById('cloudsync_secret').value,
     rbn_enabled: document.getElementById('rbn_enabled').value,
     clublog_live: document.getElementById('clublog_live').value,
     expedition_mode: document.getElementById('expedition_mode').value,
@@ -6814,7 +6842,7 @@ function applyFullConfigToForm(c) {
      'qrzcq_callsign','qrzcq_api_key','hrdlog_callsign','hrdlog_code',
      'qrz_logbook_key','qrz_logbook_push','sota_client_id',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
-     'cloudsync_mode','cloudsync_folder','cloudsync_interval',
+     'cloudsync_mode','cloudsync_folder','cloudsync_interval','cloudsync_secret',
      'rbn_enabled','clublog_live','expedition_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
@@ -7010,7 +7038,7 @@ function applyFullConfigToForm(c) {
     // pleinement éditables visuellement malgré le select sur Désactivé.
     updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
     updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
-    updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval'], v => v !== '');
+    updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
     updateEnabledFieldsVisibility('mqtt_enabled', ['mqtt_host','mqtt_port','mqtt_topic_prefix']);
     renderHub(); // Hub de catégories : badges après restauration/changement de profil
 }

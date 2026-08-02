@@ -52,9 +52,27 @@ def _lan_enabled(cfg):
 
 
 def _lan_token(cfg):
-    """Jeton partagé optionnel (config `lan_sync_token`) : si configuré, un
-    pair qui ne le présente pas est ignoré par note_beacon()."""
+    """Jeton partagé optionnel (config `lan_sync_token`) : credential RÉEL,
+    présenté en ?token= sur GET /log/lan/export (voir logx_http.py) et vérifié
+    côté serveur par hmac.compare_digest. Ne JAMAIS le transmettre tel quel
+    sur le réseau — voir _discovery_proof() pour ce qui circule dans le
+    beacon UDP broadcast (non chiffré, lisible par quiconque sur le LAN)."""
     return str((cfg or {}).get('lan_sync_token', '') or '')
+
+
+def _discovery_proof(cfg):
+    """Dérivé du jeton d'équipe, mis dans le beacon UDP BROADCAST (donc lisible
+    par tout appareil du réseau — visiteur WiFi inclus) pour filtrer la liste
+    de pairs découverts. Volontairement DIFFÉRENT de _lan_token() : le jeton
+    réel ne doit jamais transiter en clair sur le réseau, seulement une
+    preuve de possession à sens unique (HMAC-SHA256, non inversible) — un
+    visiteur qui sniffe le beacon obtient cette preuve, pas le jeton, et ne
+    peut donc pas l'utiliser pour s'authentifier sur /log/lan/export."""
+    token = _lan_token(cfg)
+    if not token:
+        return ''
+    import hmac as _hmac
+    return _hmac.new(token.encode('utf-8'), b'logx-lan-discovery', 'sha256').hexdigest()
 
 
 def _my_beacon(cfg):
@@ -63,7 +81,7 @@ def _my_beacon(cfg):
         'iid': _my_iid(),
         'http_port': _HTTP_PORT,
         'call': (cfg or {}).get('callsign_contest') or (cfg or {}).get('callsign') or '',
-        'token': _lan_token(cfg),
+        'token': _discovery_proof(cfg),
     }).encode('utf-8')
 
 
@@ -224,7 +242,7 @@ def _run():
         # Écoute (bornée par settimeout) — met à jour le registre des pairs
         try:
             raw, addr = sock.recvfrom(2048)
-            note_beacon(addr[0], raw, expected_token=_lan_token(cfg))
+            note_beacon(addr[0], raw, expected_token=_discovery_proof(cfg))
         except socket.timeout:
             pass
         except Exception:

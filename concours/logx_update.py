@@ -1044,6 +1044,18 @@ def apply_update_and_relaunch(new_exe_path):
     # _do_download / _do_download_via_network ont marqué verified=True, et on
     # re-hache juste avant de générer le script de remplacement pour détecter
     # toute altération survenue depuis la vérification initiale.
+    #
+    # TOCTOU RÉSIDUEL (celui-ci ne suffit PAS à le fermer) : le script
+    # détaché généré plus bas attend 2 s puis retente jusqu'à 30 fois à 1 s
+    # d'intervalle avant de déplacer le fichier vers l'exécutable courant et
+    # de le lancer. Entre le re-hachage Python ci-dessus et l'exécution
+    # réelle du move, il reste donc jusqu'à ~32 s pendant lesquelles un autre
+    # process du même compte peut substituer le fichier à ce chemin
+    # prévisible — le re-hachage Python, fait une seule fois AVANT de générer
+    # le script, ne protège pas contre ça. D'où la seconde vérification,
+    # DANS le script détaché lui-même, refaite à CHAQUE itération de sa
+    # boucle de retente (pas seulement avant) : certutil/SHA256 côté Windows,
+    # sha256sum/shasum côté POSIX — voir plus bas.
     with _lock:
         expected_path = _download.get('path', '')
         expected_sha = _download.get('sha256', '')
@@ -1092,10 +1104,58 @@ def apply_update_and_relaunch(new_exe_path):
         # encoding='ascii' STRICT : si un caractère non-ASCII se glisse un
         # jour dans ce script, échec bruyant à l'écriture plutôt qu'une mise
         # à jour silencieusement morte.
+        #
+        # Fermeture du TOCTOU résiduel (voir commentaire plus haut) : le hash
+        # attendu transite lui aussi UNIQUEMENT par variable d'environnement
+        # (LOGX_UPDATE_SHA256, même mécanisme que LOGX_UPDATE_NEW/CURRENT) —
+        # jamais interpolé en dur dans le texte du script. certutil est
+        # présent nativement sur tout Windows 10/11 ; sa sortie est
+        # redirigée vers un fichier temporaire puis cherchée avec findstr
+        # /i /c:"..." (recherche de sous-chaîne insensible à la casse : pas
+        # besoin de parser finement les lignes d'en-tête/pied de certutil,
+        # le hash hex est sur sa propre ligne sans espace). Le contrôle est
+        # placé DANS la boucle :retry, donc refait à chaque itération — pas
+        # seulement avant elle — pour rattraper une substitution survenue
+        # entre deux tentatives. Si le hash ne correspond plus (fichier
+        # absent, tronqué, ou substitué), on saute directement à :giveup :
+        # même message d'échec que l'épuisement des 30 tentatives, et
+        # surtout ni move ni start.
+        #
+        # DEUX pièges réels (mesurés sur ce poste, exécution RÉELLE de bout
+        # en bout — voir tests) qui n'apparaissent qu'en dehors d'un mock :
+        #   1) certutil.exe n'écrit RIEN sur sa sortie redirigée quand le
+        #      process n'a AUCUNE console (le cas exact de cmd lancé en
+        #      DETACHED_PROCESS ci-dessous) — le fichier temporaire reste
+        #      vide et le hash "ne correspond jamais". Contournement :
+        #      `start "" /min /wait cmd /c "..."` alloue une console propre
+        #      (minimisée, jamais mise au premier plan) au SEUL sous-appel
+        #      certutil, sans changer les creationflags du cmd détaché
+        #      englobant.
+        #   2) certutil.exe ET findstr.exe (contrairement à move/del/start,
+        #      des commandes INTERNES à cmd, donc pleinement Unicode) sont
+        #      des .exe externes dont le décodage de LEURS PROPRES arguments
+        #      de ligne de commande passe par la page de code OEM active :
+        #      un chemin contenant un caractère hors de cp850/cp1252 (« Δ₿ »
+        #      — le cas de non-régression hors_pages_de_code) y devient
+        #      littéralement « ?? », et findstr échoue à OUVRIR le fichier
+        #      ("Impossible d'ouvrir ...") — pas un problème de contenu,
+        #      malgré tout le soin apporté à transmettre le chemin par
+        #      variable d'environnement. Contournement : résoudre le nom
+        #      court 8.3 (%%~sA, garanti pur ASCII quel que soit le nom
+        #      long) AVANT la boucle et ne plus jamais donner à certutil/
+        #      findstr que ce nom court — le hash recalculé sur le nom court
+        #      porte sur les mêmes octets que le fichier réel (c'est un
+        #      alias NTFS du même fichier, pas une copie).
         script = '''@echo off
 set count=0
 timeout /t 2 /nobreak >NUL
+for %%A in ("%LOGX_UPDATE_NEW%") do set LOGX_HASHCHK=%%~sA
 :retry
+if "%LOGX_UPDATE_SHA256%"=="" goto giveup
+if "%LOGX_HASHCHK%"=="" goto giveup
+start "" /min /wait cmd /c "certutil -hashfile ""%LOGX_HASHCHK%"" SHA256 > ""%LOGX_HASHCHK%.sha256check.tmp"" 2>NUL"
+findstr /i /c:"%LOGX_UPDATE_SHA256%" "%LOGX_HASHCHK%.sha256check.tmp" >NUL
+if errorlevel 1 goto giveup
 move /Y "%LOGX_UPDATE_NEW%" "%LOGX_UPDATE_CURRENT%" >NUL 2>&1
 if not errorlevel 1 goto launch
 set /a count+=1
@@ -1103,10 +1163,12 @@ if %count% GEQ 30 goto giveup
 timeout /t 1 /nobreak >NUL
 goto retry
 :launch
+del "%LOGX_HASHCHK%.sha256check.tmp" >NUL 2>&1
 start "" "%LOGX_UPDATE_CURRENT%"
 del "%~f0"
 goto :eof
 :giveup
+del "%LOGX_HASHCHK%.sha256check.tmp" >NUL 2>&1
 echo Echec du remplacement - fermez LogXAI.exe puis relancez-le manuellement. > "%LOGX_UPDATE_CURRENT%.update_failed.txt"
 '''
         with open(helper, 'w', encoding='ascii') as f:
@@ -1114,6 +1176,7 @@ echo Echec du remplacement - fermez LogXAI.exe puis relancez-le manuellement. > 
         env = os.environ.copy()
         env['LOGX_UPDATE_NEW'] = new_exe_path
         env['LOGX_UPDATE_CURRENT'] = current_exe
+        env['LOGX_UPDATE_SHA256'] = expected_sha
         subprocess.Popen(
             ['cmd', '/c', helper],
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
@@ -1128,12 +1191,45 @@ echo Echec du remplacement - fermez LogXAI.exe puis relancez-le manuellement. > 
         # ($(...) / `...`) — un chemin forgé pourrait sinon exécuter du code
         # arbitraire dans /bin/sh. Même protection de fond que côté Windows
         # (variables d'environnement), adaptée au shell POSIX.
+        #
+        # Fermeture du TOCTOU résiduel (voir commentaire plus haut, même
+        # motif que côté .bat) : le hash attendu est lui aussi interpolé via
+        # shlex.quote() — jamais en dur — exactement comme new_exe_q/
+        # current_exe_q. sha256sum (Linux) est préféré, shasum -a 256
+        # (macOS) en repli — la disponibilité est testée avec `command -v`,
+        # jamais supposée. Seul le premier champ de la sortie (le hash,
+        # avant l'espace séparateur du nom de fichier) est comparé, via
+        # `cut -d ' ' -f1`. Le contrôle est refait à CHAQUE itération de la
+        # boucle — pas seulement avant elle — pour rattraper une
+        # substitution survenue entre deux tentatives ; en cas de
+        # non-correspondance, sortie immédiate SANS mv ni relance, avec le
+        # même message d'échec que l'épuisement des 30 tentatives.
         new_exe_q = shlex.quote(new_exe_path)
         current_exe_q = shlex.quote(current_exe)
+        expected_sha_q = shlex.quote(expected_sha)
         script = f'''#!/bin/sh
 sleep 2
+if command -v sha256sum >/dev/null 2>&1; then
+  HASHCMD="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then
+  HASHCMD="shasum -a 256"
+else
+  HASHCMD=""
+fi
 i=0
-while ! mv -f {new_exe_q} {current_exe_q} 2>/dev/null; do
+while :; do
+  if [ -n "$HASHCMD" ]; then
+    actual=$($HASHCMD {new_exe_q} 2>/dev/null | cut -d ' ' -f1)
+  else
+    actual=""
+  fi
+  if [ "$actual" != {expected_sha_q} ]; then
+    echo "Echec du remplacement - fermez LogXAI puis relancez-le manuellement." > {current_exe_q}.update_failed.txt
+    exit 1
+  fi
+  if mv -f {new_exe_q} {current_exe_q} 2>/dev/null; then
+    break
+  fi
   i=$((i+1))
   if [ "$i" -ge 30 ]; then
     echo "Echec du remplacement - fermez LogXAI puis relancez-le manuellement." > {current_exe_q}.update_failed.txt

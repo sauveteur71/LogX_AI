@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import threading
+import urllib.error
 import urllib.request
 
 import pytest
@@ -276,6 +277,34 @@ def test_endpoint_nouveau_concours_repart_de_001(server):
         with httpmod.config_lock:
             httpmod.current_config.clear()
             httpmod.current_config.update(saved_cfg)
+
+
+def test_endpoint_sans_jeton_refuse_403_et_ne_consomme_rien(server):
+    """Correctif audit sécurité (logx_http.py:_require_auth) testé seulement
+    dans le sens positif jusqu'ici (_get() ci-dessus fournit toujours un
+    jeton valide) : une consommation réelle (hors ?peek=1) SANS jeton doit
+    être rejetée en 403 — pas seulement acceptée faute de test dans ce sens."""
+    _reset()
+    req = urllib.request.Request(server + '/log/next_serial?band=144')
+    try:
+        urllib.request.urlopen(req, timeout=5)
+        assert False, "la requête sans jeton aurait dû être rejetée (403)"
+    except urllib.error.HTTPError as e:
+        assert e.code == 403
+    # Rien n'a dû être consommé : le premier VRAI appel authentifié reste 001
+    assert _get(server, '/log/next_serial?band=144')['serial'] == '001'
+
+
+def test_endpoint_peek_sans_jeton_reste_accepte(server):
+    """Exception volontaire documentée dans logx_http.py : ?peek=1 est sans
+    effet de bord (aucune consommation du compteur) et reste donc ouvert au
+    LAN sans jeton de session, contrairement à l'allocation réelle testée
+    juste au-dessus."""
+    _reset()
+    req = urllib.request.Request(server + '/log/next_serial?band=144&peek=1')
+    with urllib.request.urlopen(req, timeout=5) as r:
+        res = json.loads(r.read().decode('utf-8'))
+    assert res['serial'] == '001'
 
 
 def test_endpoint_deux_postes_concurrents_pas_de_collision(server):

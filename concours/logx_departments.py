@@ -114,10 +114,18 @@ GEOJSON_URL = ('https://raw.githubusercontent.com/gregoiredavid/france-geojson/'
 _dept_polys = None   # [(code, [anneaux de (lon, lat)])], mémorisé seulement
                       # une fois le chargement RÉUSSI (fichier local ou
                       # téléchargement) — un échec n'est jamais figé.
-_dept_polys_last_try = 0.0   # horodatage (monotonic) du dernier échec, pour
-                              # éviter de retenter un fetch bloquant à CHAQUE
-                              # QSO réenrichi tant que le réseau reste
-                              # indisponible.
+_dept_polys_last_try = float('-inf')   # horodatage (monotonic) du dernier
+                              # échec, pour éviter de retenter un fetch
+                              # bloquant à CHAQUE QSO réenrichi tant que le
+                              # réseau reste indisponible. -inf (et non 0.0) :
+                              # time.monotonic() n'a pas l'epoch Unix pour
+                              # origine — sous Windows c'est le temps écoulé
+                              # depuis le démarrage du système, qui peut être
+                              # < 300 s juste après un redémarrage. Avec 0.0,
+                              # le tout premier appel dans les 5 min suivant
+                              # un redémarrage confondait « jamais essayé »
+                              # avec « échec récent » et sautait le premier
+                              # chargement en silence.
 
 
 def _load_dept_polygons():
