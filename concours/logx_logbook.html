@@ -56,9 +56,9 @@ body.day-mode .td-del:hover{color:var(--red)}
 /* Panneau saisie — mode jour */
 body.day-mode .field-label{color:var(--muted)}
 body.day-mode .bm-btn{border-color:var(--border);color:var(--muted)}
-body.day-mode .bm-btn.active{color:var(--accent2);background:rgba(0,96,160,.12);border-color:var(--accent2)}
+body.day-mode .bm-btn.active{color:#fff;background:var(--accent2);border-color:var(--accent2)}
 body.day-mode .op-btn{border-color:var(--border);color:var(--muted)}
-body.day-mode .op-btn.active{color:var(--accent);background:rgba(204,64,38,.12);border-color:var(--accent)}
+body.day-mode .op-btn.active{color:#fff;background:var(--accent);border-color:var(--accent)}
 body.day-mode .loc-hint{color:var(--green);background:rgba(0,112,48,.07);border-color:rgba(0,112,48,.25)}
 body.day-mode .last-qso-title{color:var(--muted)}
 body.day-mode .lqi-call{color:var(--green)}
@@ -222,7 +222,8 @@ body.sans-concours .compass-pts{display:none}
 .saisie-form{padding:8px 18px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 .op-select{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:0}
 .op-btn{font-family:var(--font-mono);font-size:16px;padding:7px 16px;border-radius:6px;border:1px solid #2A3060;background:var(--bg3);color:#8A94C8;cursor:pointer;transition:all .15s;letter-spacing:1px;font-weight:600}
-.op-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(255,80,48,.15);font-weight:700}
+.op-btn.active{border-color:var(--accent);color:#180400;background:var(--accent);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(255,80,48,.4);position:relative;z-index:1}
+.op-btn.active::before{content:'\2713\00a0'}
 
 .field-group{display:flex;flex-direction:column;gap:3px}
 .field-label{font-size:14px;color:#9AA4D8;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
@@ -277,7 +278,8 @@ body.sans-concours .compass-pts{display:none}
 
 /* BANDE / MODE */
 .bm-btn{font-family:var(--font-mono);font-size:16px;padding:6px 16px;border-radius:6px;border:1px solid #2A3060;background:var(--bg3);color:#8A94C8;cursor:pointer;transition:all .15s;font-weight:600}
-.bm-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.12);font-weight:700}
+.bm-btn.active{border-color:var(--accent2);color:#08111f;background:var(--accent2);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(0,212,255,.4);position:relative;z-index:1}
+.bm-btn.active::before{content:'\2713\00a0'}
 
 /* Sélecteur de BANDE et de MODE : un seul bouton (valeur courante) + popup de
    bascule — plutôt qu'une rangée de jusqu'à 17 boutons (1.8 MHz → 47 GHz) ou

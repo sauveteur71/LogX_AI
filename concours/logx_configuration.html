@@ -110,6 +110,16 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .ai-provider-name{font-size:13px;font-weight:700;color:var(--text)}
 .ai-provider-sub{font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
 .cat-modal-body{flex:1;overflow-y:auto;padding:20px 24px}
+/* Config à onglets (#4) : barre latérale de sections + décalage du popup. */
+.config-sidebar{display:none;position:fixed;top:6%;left:6%;bottom:6%;width:210px;z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow-y:auto;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+.config-sidebar-title{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);padding:8px 10px 10px}
+.config-sidebar-item{display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-size:12.5px;padding:8px 10px;border-radius:6px;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.config-sidebar-item:hover{background:var(--bg3)}
+.config-sidebar-item.active{background:var(--accent2);color:#08111f;font-weight:700}
+.config-sidebar-close{margin-top:auto;flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:9px;border-radius:6px;cursor:pointer}
+.config-sidebar-close:hover{border-color:var(--red);color:var(--red)}
+body.config-tabbed .cat-modal-box{left:calc(6% + 224px)}
+body.config-tabbed #catmodal_filters .cat-modal-box{left:calc(6% + 224px)}
 
 /* STEPS (ancien assistant par étapes — conservé masqué le temps de la
    migration complète vers le hub, cf. tâche "retirer l'ancien système") */
@@ -166,12 +176,17 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .toggle-grid{display:flex;flex-wrap:wrap;gap:8px}
 .toggle-btn{font-family:var(--font-mono);font-size:14px;padding:9px 16px;border-radius:8px;border:1px solid #2A3060;background:var(--bg3);color:#7A84B8;cursor:pointer;transition:all .15s;letter-spacing:1px;user-select:none}
 .toggle-btn:hover{border-color:var(--accent);color:var(--accent)}
-.toggle-btn.on{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
-.toggle-btn.on.mode-ssb{border-color:#FF5030;color:#FF5030;background:rgba(255,80,48,.08)}
-.toggle-btn.on.mode-cw{border-color:#FFD60A;color:#FFD60A;background:rgba(255,214,10,.08)}
-.toggle-btn.on.mode-digi{border-color:#BF5AF2;color:#BF5AF2;background:rgba(191,90,242,.08)}
-.toggle-btn.on.flag{border-color:#00FF88;color:#00FF88;background:rgba(0,255,136,.08)}
-.toggle-btn.on.prop{border-color:#FF2D55;color:#FF2D55;background:rgba(255,45,85,.08)}
+/* Sélectionné = PAVÉ PLEIN + coche + léger agrandissement (choix utilisateur :
+   le simple changement de couleur ne se voyait pas assez). Texte foncé sur
+   fond vif pour un contraste fort ; z-index pour passer au-dessus des voisins
+   quand il grossit. */
+.toggle-btn.on{border-color:var(--accent2);color:#08111f;background:var(--accent2);font-weight:700;transform:scale(1.07);box-shadow:0 3px 12px rgba(0,212,255,.4);position:relative;z-index:1}
+.toggle-btn.on::before{content:'\2713\00a0'}
+.toggle-btn.on.mode-ssb{border-color:#FF5030;color:#180400;background:#FF5030;box-shadow:0 3px 12px rgba(255,80,48,.42)}
+.toggle-btn.on.mode-cw{border-color:#FFD60A;color:#181400;background:#FFD60A;box-shadow:0 3px 12px rgba(255,214,10,.42)}
+.toggle-btn.on.mode-digi{border-color:#BF5AF2;color:#12001e;background:#BF5AF2;box-shadow:0 3px 12px rgba(191,90,242,.42)}
+.toggle-btn.on.flag{border-color:#00FF88;color:#00180d;background:#00FF88;box-shadow:0 3px 12px rgba(0,255,136,.42)}
+.toggle-btn.on.prop{border-color:#FF2D55;color:#18000a;background:#FF2D55;box-shadow:0 3px 12px rgba(255,45,85,.42)}
 
 .band-group{margin-bottom:12px}
 .band-group-title{font-size:14px;color:#7A84B8;letter-spacing:2px;font-family:var(--font-mono);margin-bottom:8px;font-weight:600}
@@ -4201,21 +4216,91 @@ function toggle(el) {
 // ─── HUB DE CATÉGORIES (refonte popup) ──────────────────────────────────────
 // Une popup statique par catégorie (voir CSS .cat-modal) : ouvrir/fermer ne
 // fait que basculer sa visibilité, aucun champ n'est déplacé à l'exécution.
+// ── CONFIG À ONGLETS (#4) ────────────────────────────────────────────────────
+// Les 15 sections restent des popups distincts (toute leur logique et la
+// sauvegarde inchangées) mais une BARRE LATÉRALE persistante permet de passer de
+// l'une à l'autre sans revenir au hub ni scroller. Tous les champs vivent en
+// permanence dans le DOM (les popups sont juste masqués) : changer de section ne
+// perd jamais une saisie, et Enregistrer lit toujours l'ensemble.
+const CONFIG_SECTIONS = [
+  ['identity','📛 1. Identité'], ['operators','🧑‍🤝‍🧑 2. Opérateurs'],
+  ['contest','🏆 3. Sélection'], ['filters','📅 4. Dates & bandes'],
+  ['radio','📻 5. Radio (CAT)'], ['amp','🔋 6. Amplificateur'],
+  ['rotor','🧭 7. Rotor'], ['network','☁️ 8. Multi-poste'],
+  ['backup','💾 9. Sauvegarde'], ['sources','📡 10. Propagation'],
+  ['alerts','🔔 11. Alertes'], ['qsl','📮 12. QSL & diplômes'],
+  ['scoreboard','🏆 13. Scoreboard'], ['expedition','🏝️ 14. Expédition'],
+  ['ai','🤖 15. Assistant IA']
+];
+function buildConfigSidebar(){
+  if(document.getElementById('configSidebar')) return;
+  const nav = document.createElement('div');
+  nav.id = 'configSidebar';
+  nav.className = 'config-sidebar';
+  nav.innerHTML = '<div class="config-sidebar-title">CONFIGURATION</div>'
+    + CONFIG_SECTIONS.map(function(s){
+        return '<button type="button" class="config-sidebar-item" data-cat="' + s[0]
+          + '" onclick="switchSection(\'' + s[0] + '\')">' + s[1] + '</button>';
+      }).join('')
+    + '<button type="button" class="config-sidebar-close" onclick="closeConfigPopup()">✕ Fermer</button>';
+  document.body.appendChild(nav);
+}
+function _currentOpenCat(){
+  for(const s of CONFIG_SECTIONS){
+    const m = document.getElementById('catmodal_' + s[0]);
+    if(m && m.style.display === 'block') return s[0];
+  }
+  return null;
+}
 function openCategoryPopup(cat){
+  // CŒUR d'abord : masquer la section ouverte, montrer la demandée. Fait AVANT
+  // la barre latérale pour qu'un environnement minimal (tests) où
+  // createElement/body n'existent pas ouvre quand même la bonne section.
+  try {
+    const cur = (typeof _currentOpenCat === 'function') ? _currentOpenCat() : null;
+    if(cur && cur !== cat){ const mo = document.getElementById('catmodal_' + cur); if(mo) mo.style.display = 'none'; }
+  } catch(e){}
   const modal = document.getElementById('catmodal_' + cat);
   if(modal) modal.style.display = 'block';
-  // Planning de roulement (voir plus bas) : liste ET options du <select>
-  // reconstruites à chaque ouverture — les créneaux vivent côté serveur,
-  // hors de l'état de config chargé/sauvegardé par ce popup.
+  try {
+    buildConfigSidebar();
+    document.body.classList.add('config-tabbed');
+    const nav = document.getElementById('configSidebar');
+    if(nav){
+      nav.style.display = 'flex';
+      nav.querySelectorAll('.config-sidebar-item').forEach(function(b){ b.classList.toggle('active', b.dataset.cat === cat); });
+    }
+  } catch(e){}
+  // Planning de roulement : liste ET options du <select> reconstruites à chaque
+  // ouverture — les créneaux vivent côté serveur, hors de l'état de config.
   if(cat === 'operators'){
     refreshShiftOperatorSelect();
     loadShifts();
   }
 }
+function switchSection(cat){ openCategoryPopup(cat); }
+function closeConfigPopup(){
+  try {
+    const cur = _currentOpenCat();
+    if(cur){ const m = document.getElementById('catmodal_' + cur); if(m) m.style.display = 'none'; }
+    const nav = document.getElementById('configSidebar');
+    if(nav) nav.style.display = 'none';
+    document.body.classList.remove('config-tabbed');
+  } catch(e){}
+  renderHub();
+}
 
 function closeCategoryPopup(cat){
+  // « Fermer » d'une section ferme tout le popup config (barre comprise) et
+  // revient au hub. Autonome + défensif : le cœur (masquer la section) marche
+  // même sans barre ni body (tests en DOM minimal).
   const modal = document.getElementById('catmodal_' + cat);
   if(modal) modal.style.display = 'none';
+  try {
+    const nav = document.getElementById('configSidebar');
+    if(nav) nav.style.display = 'none';
+    document.body.classList.remove('config-tabbed');
+  } catch(e){}
   renderHub();
 }
 
