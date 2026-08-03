@@ -20,7 +20,8 @@ import threading
 import time
 
 from logx_cat import (HAS_PYSERIAL, SerialPort, list_ports,
-                              civ_build_frame, civ_parse_frame, civ_is_ok, CIV_END)
+                              civ_build_frame, civ_parse_frame, civ_is_ok, CIV_END,
+                              CIV_CTRL_ADDR)
 
 _open_serial = SerialPort if HAS_PYSERIAL else None
 
@@ -156,12 +157,33 @@ class IcomAmp:
         frame = civ_build_frame(self.addr, cmd, sub)
         self.t.write(frame)
         raw = self.t.read_until(CIV_END, timeout=1.0)
-        return civ_parse_frame(raw)
+        parsed = civ_parse_frame(raw)
+        # Garde-fou de sens (même piège que CivRadio._query() dans
+        # logx_cat.py, corrigé en même temps) : une vraie réponse ampli->PC
+        # porte TO=E0(PC)/FROM=self.addr — sans ce contrôle, un écho de notre
+        # propre requête serait pris à tort pour une réponse de l'ampli.
+        # Garde-fou de COMMANDE (revue adversariale avant fusion) : sur un
+        # bus CI-V partagé, vérifie aussi que cmd/sub correspondent à CE
+        # qu'on vient d'envoyer — sinon la réponse à une AUTRE requête
+        # (même TO/FROM par convention) serait mal interprétée.
+        if (not parsed or parsed[0] != CIV_CTRL_ADDR or parsed[1] != self.addr
+                or parsed[2] != cmd or (sub is not None and parsed[3] != sub)):
+            return None
+        return parsed
 
     def _set(self, cmd, sub=None, data=b''):
         frame = civ_build_frame(self.addr, cmd, sub, data)
         self.t.write(frame)
         raw = self.t.read_until(CIV_END, timeout=1.0)
+        # civ_parse_frame() valide la structure complète (préambule/fin,
+        # longueur) avant qu'on ne regarde le sens — l'indexation brute
+        # raw[2]/raw[3] d'avant ne le faisait pas (trouvé en revue
+        # adversariale : une suite d'octets bruyante de la bonne longueur
+        # aurait pu passer). Un accusé Icom (FB/FA) n'échote PAS cmd/sub —
+        # inutile de les revérifier ici, contrairement à _get().
+        parsed = civ_parse_frame(raw)
+        if not parsed or parsed[0] != CIV_CTRL_ADDR or parsed[1] != self.addr:
+            return False
         return civ_is_ok(raw)
 
     @staticmethod

@@ -295,6 +295,73 @@ def test_icom_power_on_off():
     assert driver.power_off() == {'ok': True}
 
 
+# ─── Garde-fou de sens de trame CI-V (même bug/correctif que logx_cat.py,
+#     audit 03/08/2026) : un écho de notre propre requête ne doit jamais
+#     être pris pour une réponse de l'ampli ────────────────────────────────
+
+class EchoTransport:
+    def __init__(self):
+        self._pending = b''
+
+    def write(self, data):
+        self._pending = bytes(data)
+
+    def read_until(self, terminator, timeout=1.0):
+        r, self._pending = self._pending, b''
+        return r
+
+    def close(self):
+        pass
+
+
+def test_icom_amp_echo_boucle_ne_donne_jamais_ok():
+    driver = amp.IcomAmp(EchoTransport(), addr=0xAA)
+    st = driver.get_status()
+    assert st['ok'] is False
+    assert driver.set_operate(True)['ok'] is False
+
+
+class _FixedReply:
+    """Renvoie toujours la même trame brute, quelle que soit la requête —
+    pour construire des cas adversariaux précis (contrairement à
+    EchoTransport qui renvoie la requête elle-même)."""
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    def write(self, data):
+        pass
+
+    def read_until(self, terminator, timeout=1.0):
+        return self._raw
+
+    def close(self):
+        pass
+
+
+def test_icom_amp_set_rejette_accuse_bien_forme_mais_mauvais_sens():
+    """🚨 Trouvé en revue adversariale : le test d'écho ci-dessus ne prouve
+    RIEN sur le garde-fou de _set() (une requête échoée ne se termine
+    jamais par hasard en FB/FD). Ici la trame est BIEN FORMÉE et se termine
+    par un accusé positif valide (FB FD), mais TO/FROM sont inversés
+    (comme si l'ampli se répondait dans le mauvais sens) — le garde-fou
+    doit la rejeter malgré l'accusé valide."""
+    raw = bytes([0xFE, 0xFE, 0xAA, 0xE0, 0xFB, 0xFD])   # TO=0xAA(nous), FROM=0xE0 : inversé
+    driver = amp.IcomAmp(_FixedReply(raw), addr=0xAA)
+    assert driver.set_operate(True)['ok'] is False
+
+
+def test_icom_amp_set_rejette_accuse_sans_vrai_preambule():
+    """🚨 Trouvé en revue adversariale : _set() validait avant par indexation
+    brute (raw[2]/raw[3]) sans jamais vérifier le préambule FE FE ni le
+    terminateur FD — une suite d'octets qui aurait par coïncidence les bons
+    octets d'adresse aux bonnes positions ET se terminant en FB FD passait
+    donc comme un accusé valide, sans qu'aucune vraie trame CI-V n'existe."""
+    raw = bytes([0x00, 0x00, 0xE0, 0xAA, 0xFB, 0xFD])   # pas de préambule FE FE
+    driver = amp.IcomAmp(_FixedReply(raw), addr=0xAA)
+    assert driver.set_operate(True)['ok'] is False
+
+
 # ─── SpeAmp (boucle complète, ampli fictif) ──────────────────────────────────
 
 def test_spe_get_status():

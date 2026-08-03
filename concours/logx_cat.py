@@ -32,16 +32,171 @@ except ImportError:
 
 
 def list_ports():
-    """Ports série disponibles : [{'device': 'COM3', 'description': '...'}].
-    Liste vide si pyserial est absent ou si aucun port n'est détecté —
-    jamais d'exception (appelé depuis l'UI de configuration)."""
+    """Ports série disponibles : [{'device': 'COM3', 'description': '...',
+    'vid': 0x10C4, 'pid': 0xEA60, 'serial_number': '...', 'product': '...'}].
+    vid/pid/serial_number/product peuvent être None (port non-USB, ou champ
+    non exposé par la plateforme) — jamais d'exception (appelé depuis l'UI
+    de configuration, et depuis le pré-filtre passif marque/modèle : voir
+    guess_from_usb_signature())."""
     if not HAS_PYSERIAL:
         return []
     try:
-        return [{'device': p.device, 'description': p.description or ''}
+        return [{'device': p.device, 'description': p.description or '',
+                  'vid': p.vid, 'pid': p.pid,
+                  'serial_number': p.serial_number,
+                  'product': p.product}
                 for p in _list_ports.comports()]
     except Exception:
         return []
+
+
+# VID:PID de boîtiers d'interface radioamateur dédiés — PID réservé auprès
+# du fondeur de la puce par le fabricant, donc DISTINCTIF (contrairement aux
+# puces génériques FTDI/CP210x/CH340/PL2303 partagées par des centaines de
+# produits sans rapport). Sourcé des tables d'ID des pilotes Linux upstream
+# (ftdi_sio_ids.h, cp210x.c) — voir mémoire du chantier CAT plug-and-play
+# (03/08/2026). Liste non exhaustive, à compléter au fil des retours béta.
+KNOWN_INTERFACE_VIDPID = {
+    (0x0403, 0xEEE8): 'microHAM USB Interface (USB-KW)',
+    (0x0403, 0xEEE9): 'microHAM USB Interface (USB-YS)',
+    (0x0403, 0xEEEA): 'microHAM USB Interface (USB-Y6)',
+    (0x0403, 0xEEEB): 'microHAM USB Interface (USB-Y8)',
+    (0x0403, 0xEEEC): 'microHAM USB Interface (USB-IC)',
+    (0x0403, 0xEEED): 'microHAM USB Interface (USB-DB9)',
+    (0x0403, 0xEEEE): 'microHAM USB Interface (USB-RS232)',
+    (0x0403, 0xEEEF): 'microHAM USB Interface (USB-Y9)',
+    (0x10C4, 0x814A): 'West Mountain Radio RIGblaster Plug&Play',
+    (0x10C4, 0x814B): 'West Mountain Radio RIGtalk',
+    (0x2405, 0x0003): 'West Mountain Radio RIGblaster Advantage',
+}
+
+
+def guess_from_usb_signature(port):
+    """Devine marque/modèle/interface à partir du seul VID:PID/numéro de
+    série d'un port (`port` = un des dicts renvoyés par list_ports()) —
+    AUCUN octet CAT envoyé, donc AUCUN risque. Retourne un indice
+    ({'kind': 'interface'|'radio', ..., 'certain': False}) à proposer en
+    confirmation (ou à affiner par une sonde active), jamais à appliquer
+    tel quel — voir la mise en garde de l'audit 03/08/2026 : le VID:PID seul
+    ne suffit jamais à une identification certaine. Retourne None si rien
+    de reconnu.
+
+    Deux pistes distinctes :
+    1. Boîtier d'interface à PID dédié (microHAM, RIGblaster, RIGtalk) —
+       ne dit rien de la radio branchée derrière, juste « ce port est très
+       probablement un vrai lien CAT/PTT », utile pour savoir SUR QUEL port
+       lancer la sonde active plutôt que sur un port audio/PTT du même
+       boîtier (voir le piège documenté dans _friendly_open_error()).
+    2. Radio Icom à port USB natif — la puce (Silicon Labs CP210x, VID:PID
+       10C4:EA60) est générique et partagée par des centaines d'adaptateurs
+       sans rapport, MAIS Icom inscrit le nom exact du modèle dans le
+       numéro de série USB (confirmé : « IC-7300 03000000 »,
+       « IC-9700 13000000 A »/« ...B », le suffixe A/B distinguant le port
+       CAT du port audio). Rien de confirmé d'équivalent chez Yaesu/Kenwood/
+       Elecraft — pour ces marques, seule la sonde active (autodetect_scan)
+       reste fiable."""
+    vid, pid = port.get('vid'), port.get('pid')
+    serial_number = (port.get('serial_number') or '').strip()
+
+    if vid is not None and pid is not None:
+        label = KNOWN_INTERFACE_VIDPID.get((vid, pid))
+        if label:
+            return {'kind': 'interface', 'label': label, 'certain': False}
+
+    for model in CIV_ADDRESSES:
+        if model.startswith('IC-') and serial_number.startswith(model + ' '):
+            return {'kind': 'radio', 'brand': 'icom', 'model': model, 'certain': False}
+
+    return None
+
+
+# ─── Watcher de branchement (tâche de fond) ─────────────────────────────────
+#
+# Surveille les branchements/débranchements de port série SANS jamais
+# interroger le port lui-même (aucun octet CAT envoyé, aucun risque) — un
+# simple diff de list_ports() toutes les ~1.5s. Coût CPU négligeable, aucun
+# droit administrateur requis, aucune fenêtre Windows ni dépendance WMI
+# (comparé à WM_DEVICECHANGE/Win32_DeviceChangeEvent : gain de latence
+# imperceptible pour un humain qui vient de brancher un câble, au prix d'un
+# thread de message à superviser — voir mémoire du chantier CAT
+# plug-and-play, 03/08/2026). Chaque nouveau port reçoit un indice PASSIF
+# (guess_from_usb_signature) : jamais appliqué tout seul, juste proposé à
+# l'UI pour une confirmation en un clic — voir CLAUDE.md/mémoire pour le
+# choix assumé de ne jamais activer le pilotage sans ce clic.
+
+_watcher_lock = threading.Lock()
+_pending_detections = {}   # device -> {'device','description', + indice}
+_watcher_thread_started = False
+
+
+def get_pending_detections():
+    """Détections en attente de confirmation, les plus récentes en dernier.
+    Jamais vidé automatiquement par le watcher lui-même (sauf débranchement
+    du port) — c'est l'UI qui doit appeler dismiss_detection() une fois que
+    l'opérateur a confirmé ou décliné. Renvoie des COPIES (trouvé en revue
+    adversariale) : sinon le verrou protège la structure de
+    _pending_detections mais pas les dicts qu'on vient de sortir de son
+    verrou — un futur appelant qui les muterait en place créerait une
+    course avec _port_watcher_tick, sans qu'aucun verrou ne le protège."""
+    with _watcher_lock:
+        return [dict(v) for v in _pending_detections.values()]
+
+
+def dismiss_detection(device):
+    """Retire une détection en attente — sinon elle réapparaîtrait à
+    l'identique tant que le port reste branché et non configuré."""
+    with _watcher_lock:
+        _pending_detections.pop(device, None)
+
+
+def _port_watcher_tick(known_devices):
+    """Un tour de scan : renvoie le nouvel ensemble de devices connus. Séparé
+    de la boucle infinie pour rester testable directement (pas de thread ni
+    de sleep dans les tests). Le try/except couvre TOUT le corps (pas
+    seulement list_ports(), trouvé trop étroit en revue adversariale) : une
+    exception inattendue dans guess_from_usb_signature() ou la construction
+    du dict aurait sinon remonté jusqu'à port_watcher_loop() et tué
+    silencieusement le thread daemon pour le reste de la durée de vie du
+    serveur (potentiellement plusieurs jours lors d'une expédition)."""
+    try:
+        current_ports = list_ports()
+        current = {p['device']: p for p in current_ports}
+        current_devices = set(current)
+        for device in current_devices - known_devices:
+            guess = guess_from_usb_signature(current[device])
+            if guess:
+                with _watcher_lock:
+                    _pending_detections[device] = dict(
+                        guess, device=device, description=current[device].get('description') or '')
+        for device in known_devices - current_devices:
+            with _watcher_lock:
+                _pending_detections.pop(device, None)
+        return current_devices
+    except Exception:
+        return known_devices
+
+
+def port_watcher_loop(poll_interval=1.5):
+    """Boucle de fond (thread daemon, jamais appelée directement en test —
+    voir _port_watcher_tick). Ne s'arrête jamais ; toute exception de scan
+    est absorbée par _port_watcher_tick (liste inchangée, on réessaie au
+    tour suivant)."""
+    known = set()
+    while True:
+        known = _port_watcher_tick(known)
+        time.sleep(poll_interval)
+
+
+def start_port_watcher():
+    """Démarre le watcher une seule fois, quel que soit le nombre d'appels —
+    un endpoint qui l'invoquerait par erreur à chaque requête ne doit jamais
+    empiler des threads."""
+    global _watcher_thread_started
+    with _watcher_lock:
+        if _watcher_thread_started:
+            return
+        _watcher_thread_started = True
+    threading.Thread(target=port_watcher_loop, daemon=True).start()
 
 
 def _transceive(transport, data, terminator, timeout=1.0):
@@ -157,7 +312,27 @@ class CivRadio:
             self.t.write(frame)
             return None
         raw = _transceive(self.t, frame, CIV_END, timeout=1.0)
-        return civ_parse_frame(raw)
+        parsed = civ_parse_frame(raw)
+        # Garde-fou de sens : une VRAIE réponse radio->PC porte TO=E0(PC) et
+        # FROM=self.addr (la radio interrogée) — sans ce contrôle, un simple
+        # écho de notre propre requête (câble bouclé, port sans UART réelle
+        # derrière, appareil en écho local) est syntaxiquement bien formé et
+        # serait accepté à tort comme une vraie réponse (faux positif
+        # silencieux trouvé en audit 03/08/2026).
+        # Garde-fou de COMMANDE (trouvé en revue adversariale avant fusion,
+        # même jour) : les seules adresses TO/FROM ne suffisent PAS sur un
+        # bus CI-V partagé par plusieurs logiciels (LogX + WSJT-X + N1MM...
+        # via un séparateur CI-V) — TOUS utilisent par convention l'adresse
+        # contrôleur 0xE0, donc la réponse d'UN AUTRE logiciel à SA propre
+        # requête (ex. get_freq) a exactement les mêmes TO/FROM que la
+        # nôtre. Sans vérifier que cmd/sub correspondent à CE qu'on vient
+        # d'envoyer, get_ptt()/get_mode()/identify() pourraient lire les
+        # octets d'une réponse à une AUTRE commande (ex. de la fréquence
+        # BCD prise pour un booléen PTT).
+        if (not parsed or parsed[0] != CIV_CTRL_ADDR or parsed[1] != self.addr
+                or parsed[2] != cmd or (sub is not None and parsed[3] != sub)):
+            return None
+        return parsed
 
     def get_freq(self):
         parsed = self._query(0x03)
@@ -577,8 +752,33 @@ class SerialPort:
         if not HAS_PYSERIAL:
             raise RuntimeError("pyserial n'est pas installé")
         self._lock = threading.Lock()
-        self._ser = _pyserial.Serial(device, baudrate=baudrate, timeout=timeout,
-                                     bytesize=8, parity='N', stopbits=1)
+        # rts=False, dtr=False : par défaut pyserial/Windows lèvent RTS et
+        # DTR dès l'ouverture du port. Sur les interfaces qui câblent le PTT
+        # sur RTS/DTR plutôt que sur une commande logicielle (certains
+        # RigBlaster/microHAM), une simple ouverture de port (test de
+        # connexion, autodetect_scan) pourrait sinon déclencher l'émission
+        # (porteuse nue) sans qu'aucune trame CAT n'ait été envoyée — trouvé
+        # en audit 03/08/2026, jamais un problème observé faute d'y avoir
+        # pensé plus tôt.
+        # 🚨 pyserial (3.5, voir requirements.txt) n'accepte PAS rts=/dtr=
+        # comme arguments du CONSTRUCTEUR — seulement comme propriétés
+        # d'instance (SerialBase.__init__ lève ValueError sur tout kwarg
+        # inconnu). Un premier essai avec rts=/dtr= en kwargs cassait donc
+        # l'ouverture de TOUT port CAT natif (trouvé par revue adversariale
+        # avant fusion, jamais poussé). Construire fermé (port=None),
+        # poser les propriétés, PUIS ouvrir : _reconfigure_port() applique
+        # rts_state/dtr_state dès la configuration matérielle du port, sans
+        # aucune fenêtre où les lignes seraient hautes par défaut.
+        self._ser = _pyserial.Serial()
+        self._ser.port = device
+        self._ser.baudrate = baudrate
+        self._ser.timeout = timeout
+        self._ser.bytesize = 8
+        self._ser.parity = 'N'
+        self._ser.stopbits = 1
+        self._ser.rts = False
+        self._ser.dtr = False
+        self._ser.open()
 
     def write(self, data):
         """Écriture seule, sans attente de réponse (SET fire-and-forget,
@@ -929,7 +1129,14 @@ def autodetect(transport):
         except Exception:
             continue
         parsed = civ_parse_frame(raw)
-        if parsed:
+        # Même garde-fou de sens ET de commande que CivRadio._query() :
+        # TO=E0(PC), FROM=addr (la radio interrogée à CET essai précis),
+        # ET cmd=0x19/sub=0x00 (sinon la réponse d'un AUTRE logiciel à SA
+        # propre commande, sur un bus CI-V partagé, serait prise pour une
+        # identification réussie — trouvé en revue adversariale avant
+        # fusion, même piège que l'écho/bouclage déjà corrigé).
+        if (parsed and parsed[0] == CIV_CTRL_ADDR and parsed[1] == addr
+                and parsed[2] == 0x19 and parsed[3] == 0x00):
             return {'ok': True, 'protocol': 'civ', 'brand': 'icom', 'model': name,
                     'addr': addr, 'certain': False,
                     'note': "Adresse CI-V par défaut détectée — peut avoir été "

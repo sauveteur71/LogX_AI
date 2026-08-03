@@ -334,6 +334,17 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <script src="logx_statusbar.js"></script>
 <script src="logx_i18n.js"></script>
 
+<!-- Bandeau de détection de branchement radio/interface (plug-and-play) —
+     jamais d'application automatique, toujours une confirmation en un clic
+     (voir CLAUDE.md/mémoire du chantier CAT, audit 03/08/2026). -->
+<div id="catDetectionBanner" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9999;max-width:340px;background:var(--bg2);border:1px solid var(--accent);border-radius:10px;padding:14px 18px;backdrop-filter:blur(8px);box-shadow:0 4px 24px rgba(var(--accent-rgb),.25);font-family:var(--font-mono);font-size:13px">
+  <div id="catDetectionText" style="margin-bottom:10px;color:var(--text);line-height:1.5"></div>
+  <div style="display:flex;gap:8px">
+    <button type="button" onclick="applyCatDetection()" style="flex:1;background:#C9822E;color:#04222b;border:none;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:700;font-family:var(--font-mono)">Configurer</button>
+    <button type="button" onclick="dismissCatDetectionBanner()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;color:var(--muted);font-family:var(--font-mono)">Ignorer</button>
+  </div>
+</div>
+
 <div class="container">
 
   <!-- PROFILS STATION -->
@@ -3680,7 +3691,7 @@ async function refreshCatPorts(){
     const data = await res.json();
     const ports = data.ports || [];
     sel.innerHTML = ports.length
-      ? ports.map(p => `<option value="${p.device}">${p.device} — ${p.description||''}</option>`).join('')
+      ? ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
       : '<option value="">Aucun port détecté</option>';
     if (prev && ports.some(p => p.device === prev)) sel.value = prev;
   }catch(e){
@@ -3726,7 +3737,7 @@ async function refreshAmpPorts(){
     const data = await res.json();
     const ports = data.ports || [];
     sel.innerHTML = ports.length
-      ? ports.map(p => `<option value="${p.device}">${p.device} — ${p.description||''}</option>`).join('')
+      ? ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
       : '<option value="">Aucun port détecté</option>';
     if (prev && ports.some(p => p.device === prev)) sel.value = prev;
   }catch(e){
@@ -3963,6 +3974,88 @@ async function autodetectCat(){
     result.style.color = 'var(--red)';
   }
 }
+
+// ─── Détection de branchement (plug-and-play) ───────────────────────────
+// Le serveur surveille les branchements en tâche de fond (aucun octet CAT
+// envoyé — voir logx_cat.py:port_watcher_loop) et propose un indice passif
+// (VID:PID/numéro de série). On ne fait JAMAIS confiance à cet indice seul :
+// « Configurer » ouvre la popup radio et relance la sonde active existante
+// (autodetectCat(), déjà sûre — lecture seule) sur le port détecté, comme
+// si l'opérateur l'avait cliquée lui-même. Jamais d'activation automatique
+// du pilotage sans ce clic (voir CLAUDE.md, chantier CAT 03/08/2026).
+let _catDetectionShown = null;
+
+async function pollCatDetections(){
+  let data;
+  try{
+    const res = await fetch('/rig/pending_detections');
+    data = await res.json();
+  }catch(e){ return; }
+  const list = data.detections || [];
+  const banner = document.getElementById('catDetectionBanner');
+  if (!list.length){
+    banner.style.display = 'none';
+    _catDetectionShown = null;
+    return;
+  }
+  const d = list[list.length - 1];   // la plus récente
+  if (d.device === _catDetectionShown) return;   // déjà affichée, pas de clignotement
+  _catDetectionShown = d.device;
+  const label = d.kind === 'radio'
+    ? `${(d.brand || '').toUpperCase()} ${d.model || ''}`.trim()
+    : (d.label || 'Interface CAT');
+  document.getElementById('catDetectionText').textContent =
+    `📡 ${label} détecté sur ${d.device} — vérifier et activer le pilotage CAT ?`;
+  banner.dataset.device = d.device;
+  banner.style.display = 'block';
+}
+
+async function applyCatDetection(){
+  const banner = document.getElementById('catDetectionBanner');
+  const device = banner.dataset.device;
+  if (!device) return;
+  openCategoryPopup('radio');
+  await refreshCatPorts();
+  const portSel = document.getElementById('cat_port');
+  // 🚨 Trouvé en revue adversariale : si le port a disparu entre la
+  // détection et le clic (débranché, ou réénuméré sous un autre nom), NE
+  // PAS enchaîner sur autodetectCat() en silence — celui-ci sonderait
+  // alors l'ANCIEN port déjà sélectionné (repli de refreshCatPorts()) et
+  // pourrait afficher "✅ Détecté" pour une radio différente de celle que
+  // l'opérateur vient de brancher, sans qu'il s'en rende compte.
+  const option = portSel.querySelector(`option[value="${CSS.escape(device)}"]`);
+  dismissCatDetectionBanner();
+  if (!option){
+    const result = document.getElementById('catTestResult');
+    if (result){
+      result.textContent = `⚠️ ${device} n'est plus dans la liste des ports (débranché entre-temps ?) — choisis le port toi-même.`;
+      result.style.color = 'var(--yellow)';
+    }
+    return;
+  }
+  portSel.value = device;
+  await autodetectCat();
+}
+
+function dismissCatDetectionBanner(){
+  const banner = document.getElementById('catDetectionBanner');
+  const device = banner.dataset.device;
+  banner.style.display = 'none';
+  // _catDetectionShown n'est PAS remis à null ici (trouvé en revue
+  // adversariale) : POST /rig/dismiss_detection est fire-and-forget, donc
+  // un tour de pollCatDetections() qui tomberait dans la fenêtre avant que
+  // le serveur ait pris en compte le retrait ferait sinon réapparaître le
+  // bandeau une fraction de seconde. pollCatDetections() est seul à le
+  // remettre à null, seulement quand le serveur confirme la liste vide.
+  if (device){
+    fetch('/rig/dismiss_detection', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({device}),
+    }).catch(()=>{});
+  }
+}
+
+setInterval(function(){ try{ pollCatDetections(); }catch(e){} }, 2000);
 
 // Échappement HTML — c.name/c.org/c.date/c.rules/c.score peuvent venir du flux
 // externe WA7BNM (/data/external_contests, contenu tiers non maîtrisé) via

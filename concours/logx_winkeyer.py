@@ -69,9 +69,25 @@ class PortWinKeyer:
     def __init__(self, device, timeout=1.0):
         if not HAS_PYSERIAL:
             raise RuntimeError("pyserial n'est pas installé")
-        self._ser = _pyserial.Serial(
-            device, baudrate=BAUD, timeout=timeout,
-            bytesize=8, parity='N', stopbits=2)
+        # rts=False, dtr=False : évite de lever ces lignes par défaut à
+        # l'ouverture (voir logx_cat.py:SerialPort, même correctif) — sur
+        # certains câblages simplifiés, RTS/DTR sert de ligne de clé/PTT
+        # auxiliaire ; on ne veut jamais keyer au simple fait d'ouvrir le
+        # port (ouverture/fermeture répétée possible lors d'un test).
+        # pyserial n'accepte PAS rts=/dtr= comme arguments du constructeur
+        # (ValueError) — seulement comme propriétés d'instance à poser AVANT
+        # open() (voir logx_cat.py:SerialPort pour le détail, corrigé en
+        # même temps ici après une revue adversariale avant fusion).
+        self._ser = _pyserial.Serial()
+        self._ser.port = device
+        self._ser.baudrate = BAUD
+        self._ser.timeout = timeout
+        self._ser.bytesize = 8
+        self._ser.parity = 'N'
+        self._ser.stopbits = 2
+        self._ser.rts = False
+        self._ser.dtr = False
+        self._ser.open()
 
     def write(self, data):
         self._ser.write(bytes(data))

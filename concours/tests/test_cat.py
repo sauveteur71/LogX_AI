@@ -12,12 +12,19 @@ import logx_cat as cat
 
 # ─── DOUBLES DE TEST : radios fictives en mémoire ──────────────────────────
 
-def _swap_addr_for_test(frame, addr_from, addr_to):
-    """Aide de test : réémet une trame comme si elle venait de la radio
-    (adresses source/dest inversées par rapport à civ_build_frame)."""
+def _swap_addr_for_test(frame, addr_dest, addr_src):
+    """Aide de test : réémet une trame comme si elle venait de la radio —
+    TO=addr_dest (0xE0/PC) et FROM=addr_src (l'adresse de la radio), l'ordre
+    inverse de civ_build_frame() qui construit toujours TO=radio/FROM=E0.
+    Piège trouvé en audit 03/08/2026 : cet appel était fait avec les deux
+    arguments intervertis (TO=radio, FROM=E0, soit l'INVERSE du vrai format
+    CI-V) — resté invisible tant que rien ne validait le sens de la trame
+    côté production. Corrigé en même temps que le garde-fou dans
+    logx_cat.py/logx_amp.py, sinon ce double de test aurait fait échouer
+    tous les appels ci-dessous une fois le contrôle de sens ajouté."""
     if len(frame) < 4:
         return frame
-    return frame[:2] + bytes([addr_from, addr_to]) + frame[4:]
+    return frame[:2] + bytes([addr_dest, addr_src]) + frame[4:]
 
 
 class FakeCivRadio:
@@ -41,32 +48,32 @@ class FakeCivRadio:
         _, _, cmd, sub, payload = parsed
         if cmd == 0x03:  # get freq
             self._pending = _swap_addr_for_test(
-                cat.civ_build_frame(0xE0, 0x03, data=cat.civ_encode_freq(self.freq)), self.addr, 0xE0)
+                cat.civ_build_frame(0xE0, 0x03, data=cat.civ_encode_freq(self.freq)), 0xE0, self.addr)
         elif cmd == 0x05:  # set freq
             self.freq = cat.civ_decode_freq(payload[:5])
             self._pending = _swap_addr_for_test(
-                cat.civ_build_frame(0xE0, 0x05), self.addr, 0xE0)
+                cat.civ_build_frame(0xE0, 0x05), 0xE0, self.addr)
         elif cmd == 0x04:  # get mode
             self._pending = _swap_addr_for_test(
-                cat.civ_build_frame(0xE0, 0x04, data=bytes([self.mode_code])), self.addr, 0xE0)
+                cat.civ_build_frame(0xE0, 0x04, data=bytes([self.mode_code])), 0xE0, self.addr)
         elif cmd == 0x06:  # set mode
             self.mode_code = payload[0]
-            self._pending = _swap_addr_for_test(cat.civ_build_frame(0xE0, 0x06), self.addr, 0xE0)
+            self._pending = _swap_addr_for_test(cat.civ_build_frame(0xE0, 0x06), 0xE0, self.addr)
         elif cmd == 0x1C and sub == 0x00:
             if payload:
                 self.ptt = bool(payload[0])
                 self._pending = _swap_addr_for_test(
-                    cat.civ_build_frame(0xE0, 0x1C, sub=0x00), self.addr, 0xE0)
+                    cat.civ_build_frame(0xE0, 0x1C, sub=0x00), 0xE0, self.addr)
             else:
                 self._pending = _swap_addr_for_test(
                     cat.civ_build_frame(0xE0, 0x1C, sub=0x00, data=bytes([1 if self.ptt else 0])),
-                    self.addr, 0xE0)
+                    0xE0, self.addr)
         elif cmd == 0x15 and sub == 0x02:
             self._pending = _swap_addr_for_test(
-                cat.civ_build_frame(0xE0, 0x15, sub=0x02, data=bytes([0x01, 0x20])), self.addr, 0xE0)
+                cat.civ_build_frame(0xE0, 0x15, sub=0x02, data=bytes([0x01, 0x20])), 0xE0, self.addr)
         elif cmd == 0x19 and sub == 0x00:
             self._pending = _swap_addr_for_test(
-                cat.civ_build_frame(0xE0, 0x19, sub=0x00, data=bytes([self.addr])), self.addr, 0xE0)
+                cat.civ_build_frame(0xE0, 0x19, sub=0x00, data=bytes([self.addr])), 0xE0, self.addr)
         else:
             self._pending = b''
 
@@ -318,6 +325,100 @@ def test_autodetect_aucune_radio():
     assert not r['ok']
 
 
+# ─── Garde-fou de sens de trame CI-V (bug trouvé en audit 03/08/2026) ──────
+# Un câble en boucle, un port sans vraie UART derrière, ou un appareil en
+# écho local renvoie tel quel ce qu'on vient de lui envoyer : la trame est
+# syntaxiquement bien formée (préambule/fin corrects) mais ce n'est PAS une
+# réponse d'une radio. Avant le correctif, civ_parse_frame() ne validait pas
+# le sens (TO=E0/PC, FROM=adresse radio attendue) et un tel écho était
+# accepté comme un vrai succès — silencieusement.
+
+class EchoTransport:
+    """Renvoie exactement ce qu'on lui écrit — simule un câble en boucle ou
+    un port sans UART réelle derrière (audit 03/08/2026, cf. CLAUDE.md/mémoire
+    du chantier CAT plug-and-play)."""
+
+    def __init__(self):
+        self._pending = b''
+
+    def write(self, data):
+        self._pending = bytes(data)
+
+    def read_until(self, terminator, timeout=1.0):
+        r, self._pending = self._pending, b''
+        return r
+
+    def close(self):
+        pass
+
+
+def test_civ_radio_echo_boucle_ne_donne_jamais_ok():
+    """Écho de la requête elle-même sur get_freq/set_freq/set_mode/identify —
+    aucun ne doit rapporter ok:True, même si la trame est bien formée."""
+    echo = EchoTransport()
+    radio = cat.CivRadio(echo, cat.CIV_ADDRESSES['IC-7300'])
+    assert radio.get_freq()['ok'] is False
+    assert radio.set_freq(14250000)['ok'] is False
+    assert radio.set_mode('USB')['ok'] is False
+    assert radio.identify()['ok'] is False
+
+
+def test_autodetect_echo_boucle_ne_detecte_aucune_radio():
+    """Le repli CI-V de autodetect() ne doit jamais confondre un écho de sa
+    propre requête d'identification (adresse 0x19/00) avec une vraie radio."""
+    echo = EchoTransport()
+    r = cat.autodetect(echo)
+    assert r['ok'] is False
+
+
+# ─── RTS/DTR forcés bas à l'ouverture (bug trouvé en audit 03/08/2026) ─────
+# Par défaut pyserial/Windows lèvent RTS et DTR à l'ouverture du port ; sur
+# une interface qui câble le PTT dessus, un simple test de connexion pourrait
+# déclencher l'émission. SerialPort doit toujours les forcer bas à l'ouverture.
+
+def test_serial_port_force_rts_dtr_bas_a_ouverture(monkeypatch):
+    """🚨 Piège trouvé en revue adversariale avant fusion : le VRAI
+    pyserial.Serial() n'accepte PAS rts=/dtr= comme arguments du
+    CONSTRUCTEUR (ValueError « unexpected keyword arguments ») — seulement
+    comme propriétés d'instance à poser AVANT open(). Un premier double de
+    test acceptait n'importe quel kwarg (`__init__(self, device, **kwargs)`)
+    et masquait donc totalement cette contrainte réelle : le test passait
+    au vert alors que le vrai code cassait l'ouverture de TOUT port CAT
+    natif en production. Ce double-ci n'accepte AUCUN argument positionnel
+    au constructeur (comme le vrai `serial.Serial()`), pour retrouver cette
+    même erreur si jamais la production régresse vers l'ancien style."""
+    if not cat.HAS_PYSERIAL:
+        import pytest
+        pytest.skip("pyserial non installé dans cet environnement")
+
+    class _FakeUnderlyingSerial:
+        def __init__(self):   # aucun argument — comme le vrai serial.Serial()
+            self.port = None
+            self.baudrate = None
+            self.timeout = None
+            self.bytesize = None
+            self.parity = None
+            self.stopbits = None
+            self.rts = None
+            self.dtr = None
+            self.opened = False
+
+        def open(self):
+            self.opened = True
+
+        def close(self):
+            pass
+
+    fake = _FakeUnderlyingSerial()
+    monkeypatch.setattr(cat._pyserial, 'Serial', lambda: fake)
+    cat.SerialPort('COM99', baudrate=19200)
+    assert fake.port == 'COM99'
+    assert fake.baudrate == 19200
+    assert fake.rts is False
+    assert fake.dtr is False
+    assert fake.opened is True
+
+
 # ─── RigManager (multi-radio) ───────────────────────────────────────────────
 
 def test_rig_manager_multi_radio():
@@ -341,6 +442,184 @@ def test_rig_manager_multi_radio():
 def test_list_ports_ne_crashe_jamais():
     ports = cat.list_ports()
     assert isinstance(ports, list)
+
+
+# ─── Pré-filtre passif VID:PID/numéro de série (aucun octet CAT envoyé) ────
+
+def test_guess_usb_signature_microham():
+    port = {'vid': 0x0403, 'pid': 0xEEEC, 'serial_number': None, 'product': None}
+    r = cat.guess_from_usb_signature(port)
+    assert r == {'kind': 'interface', 'label': 'microHAM USB Interface (USB-IC)',
+                 'certain': False}
+
+
+def test_guess_usb_signature_icom_via_numero_de_serie():
+    port = {'vid': 0x10C4, 'pid': 0xEA60, 'serial_number': 'IC-7300 03000000', 'product': None}
+    r = cat.guess_from_usb_signature(port)
+    assert r == {'kind': 'radio', 'brand': 'icom', 'model': 'IC-7300', 'certain': False}
+
+
+def test_guess_usb_signature_icom_port_audio_suffixe():
+    port = {'vid': 0x10C4, 'pid': 0xEA60, 'serial_number': 'IC-9700 13000000 A', 'product': None}
+    r = cat.guess_from_usb_signature(port)
+    assert r == {'kind': 'radio', 'brand': 'icom', 'model': 'IC-9700', 'certain': False}
+
+
+def test_guess_usb_signature_puce_generique_seule_ne_devine_rien():
+    """VID:PID 10C4:EA60 seul (sans numéro de série exploitable) est partagé
+    par des centaines d'adaptateurs — ne doit jamais deviner à tort."""
+    port = {'vid': 0x10C4, 'pid': 0xEA60, 'serial_number': None, 'product': None}
+    assert cat.guess_from_usb_signature(port) is None
+
+
+def test_guess_usb_signature_port_non_usb():
+    port = {'vid': None, 'pid': None, 'serial_number': None, 'product': None}
+    assert cat.guess_from_usb_signature(port) is None
+
+
+# ─── Watcher de branchement (tick isolé, sans thread ni sleep) ─────────────
+
+def test_port_watcher_tick_detecte_nouveau_port_reconnu(monkeypatch):
+    cat._pending_detections.clear()
+    ports = [{'device': 'COM5', 'description': 'microHAM', 'vid': 0x0403,
+              'pid': 0xEEEC, 'serial_number': None, 'product': None}]
+    monkeypatch.setattr(cat, 'list_ports', lambda: ports)
+    known = cat._port_watcher_tick(set())
+    assert known == {'COM5'}
+    pending = cat.get_pending_detections()
+    assert len(pending) == 1
+    assert pending[0]['device'] == 'COM5'
+    assert pending[0]['kind'] == 'interface'
+    cat._pending_detections.clear()
+
+
+def test_port_watcher_tick_ignore_port_deja_connu(monkeypatch):
+    cat._pending_detections.clear()
+    ports = [{'device': 'COM5', 'description': '', 'vid': 0x0403,
+              'pid': 0xEEEC, 'serial_number': None, 'product': None}]
+    monkeypatch.setattr(cat, 'list_ports', lambda: ports)
+    known = cat._port_watcher_tick({'COM5'})   # déjà dans les connus
+    assert known == {'COM5'}
+    assert cat.get_pending_detections() == []
+
+
+def test_port_watcher_tick_debranchement_retire_la_detection(monkeypatch):
+    cat._pending_detections.clear()
+    monkeypatch.setattr(cat, 'list_ports', lambda: [
+        {'device': 'COM5', 'description': '', 'vid': 0x0403,
+         'pid': 0xEEEC, 'serial_number': None, 'product': None}])
+    known = cat._port_watcher_tick(set())
+    assert cat.get_pending_detections() != []
+
+    monkeypatch.setattr(cat, 'list_ports', lambda: [])   # débranché
+    known = cat._port_watcher_tick(known)
+    assert known == set()
+    assert cat.get_pending_detections() == []
+
+
+def test_port_watcher_tick_port_sans_indice_reconnu_pas_de_detection(monkeypatch):
+    cat._pending_detections.clear()
+    monkeypatch.setattr(cat, 'list_ports', lambda: [
+        {'device': 'COM6', 'description': 'Adaptateur générique', 'vid': 0x1A86,
+         'pid': 0x7523, 'serial_number': None, 'product': None}])   # CH340 générique
+    known = cat._port_watcher_tick(set())
+    assert known == {'COM6'}
+    assert cat.get_pending_detections() == []
+
+
+def test_dismiss_detection_retire_bien_la_bonne_entree(monkeypatch):
+    cat._pending_detections.clear()
+    monkeypatch.setattr(cat, 'list_ports', lambda: [
+        {'device': 'COM7', 'description': '', 'vid': 0x0403,
+         'pid': 0xEEEC, 'serial_number': None, 'product': None}])
+    cat._port_watcher_tick(set())
+    assert len(cat.get_pending_detections()) == 1
+    cat.dismiss_detection('COM7')
+    assert cat.get_pending_detections() == []
+
+
+def test_dismiss_detection_ne_reapparait_pas_tant_que_branche(monkeypatch):
+    """Cycle réel décrit par le docstring de dismiss_detection() : l'opérateur
+    clique « Ignorer », laisse l'interface branchée — un nouveau tour de
+    scan ne doit PAS la refaire réapparaître (elle reste dans known_devices,
+    ce n'est pas un nouveau branchement)."""
+    cat._pending_detections.clear()
+    ports = [{'device': 'COM7', 'description': '', 'vid': 0x0403,
+              'pid': 0xEEEC, 'serial_number': None, 'product': None}]
+    monkeypatch.setattr(cat, 'list_ports', lambda: ports)
+    known = cat._port_watcher_tick(set())
+    assert len(cat.get_pending_detections()) == 1
+    cat.dismiss_detection('COM7')
+
+    known = cat._port_watcher_tick(known)   # 2e tour, port TOUJOURS branché
+    assert known == {'COM7'}
+    assert cat.get_pending_detections() == []
+
+    known = cat._port_watcher_tick(known)   # 3e tour, rien ne change
+    assert cat.get_pending_detections() == []
+
+
+def test_guess_usb_signature_vid_sans_pid_ne_devine_rien():
+    port = {'vid': 0x0403, 'pid': None, 'serial_number': None, 'product': None}
+    assert cat.guess_from_usb_signature(port) is None
+
+
+def test_guess_usb_signature_pid_sans_vid_ne_devine_rien():
+    port = {'vid': None, 'pid': 0xEEEC, 'serial_number': None, 'product': None}
+    assert cat.guess_from_usb_signature(port) is None
+
+
+def test_guess_usb_signature_icom_suffixe_b_meme_resultat_que_a():
+    """Documente le comportement actuel (limitation connue, pas un bug) :
+    guess_from_usb_signature() ne distingue PAS le port CAT (souvent
+    suffixe A) du port audio (souvent suffixe B) d'une radio Icom double-port
+    comme l'IC-9700 — les deux donnent le même indice « radio détectée ».
+    La sonde active (autodetectCat, déjà sûre) reste seule responsable de
+    confirmer LEQUEL des deux répond vraiment au CAT."""
+    port_a = {'vid': 0x10C4, 'pid': 0xEA60, 'serial_number': 'IC-9700 13000000 A', 'product': None}
+    port_b = {'vid': 0x10C4, 'pid': 0xEA60, 'serial_number': 'IC-9700 13000000 B', 'product': None}
+    assert cat.guess_from_usb_signature(port_a) == cat.guess_from_usb_signature(port_b)
+
+
+def test_port_watcher_tick_exception_hors_list_ports_absorbee(monkeypatch):
+    """🚨 Trouvé en revue adversariale : le try/except ne couvrait QUE
+    list_ports(), pas guess_from_usb_signature() ni la construction du dict
+    qui suit — une exception inattendue là tuait le thread daemon pour de
+    bon, silencieusement, jusqu'au redémarrage du serveur."""
+    cat._pending_detections.clear()
+    monkeypatch.setattr(cat, 'list_ports', lambda: [
+        {'device': 'COM8', 'description': '', 'vid': 0x0403,
+         'pid': 0xEEEC, 'serial_number': None, 'product': None}])
+
+    def _boom(port):
+        raise RuntimeError('panne inattendue')
+
+    monkeypatch.setattr(cat, 'guess_from_usb_signature', _boom)
+    known = cat._port_watcher_tick(set())
+    assert known == set()   # exception absorbée -> liste connue inchangée
+    assert cat.get_pending_detections() == []
+
+
+def test_start_port_watcher_idempotent(monkeypatch):
+    """Plusieurs appels ne doivent jamais démarrer plusieurs threads."""
+    calls = []
+
+    class _FakeThread:
+        def __init__(self, target=None, daemon=None):
+            calls.append(target)
+        def start(self):
+            pass
+
+    original = cat._watcher_thread_started
+    cat._watcher_thread_started = False
+    monkeypatch.setattr(cat.threading, 'Thread', _FakeThread)
+    try:
+        cat.start_port_watcher()
+        cat.start_port_watcher()
+        cat.start_port_watcher()
+        assert len(calls) == 1
+    finally:
+        cat._watcher_thread_started = original
 
 
 # ─── Couche haut niveau pilotée par la config (cat_settings/get_state/
