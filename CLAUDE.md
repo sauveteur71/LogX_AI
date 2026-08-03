@@ -117,11 +117,48 @@ body.day-mode {             /* JOUR — thème prioritaire */
      préfixe décoratif, appelé à changer). Reflex à avoir : après toute
      conversion emoji→icône, greper les `tests/` pour l'emoji touché avant
      de considérer le lot fini.
-  3. **PAS FAIT** — icônes de bouton/badge dans `logx_configuration.html` et
-     `logx_logbook.html` (les deux plus gros fichiers, ~371 et ~90+ emoji
-     restants estimés) + tout le contenu généré en JS qui n'a pas déjà été
-     traité au fil du lot 2 (badges, tooltips, options de `<select>`) —
-     chantiers séparés, à faire à la demande.
+  3. **FAIT (03/08/2026, lot 3)** — `logx_configuration.html` (7664 lignes,
+     448→216 emoji, ~232 convertis) et `logx_logbook.html` (1655 lignes,
+     88→38 emoji, ~50 convertis). Fichiers trop gros pour un agent par
+     fichier : `logx_configuration.html` scindé en **9 plages de lignes
+     non-chevauchantes** (5 sur le HTML des popups, 4 sur le bloc `<script>`
+     découpées sur des frontières de fonction pour équilibrer le nombre
+     d'emoji par agent), `logx_logbook.html` traité par un seul agent (assez
+     petit). Chaque agent reçoit ses bornes de lignes exactes et l'ordre
+     explicite de ne modifier QUE sa plage même en voyant un emoji juste
+     avant/après.
+     🚨 **Piège majeur découvert par le lot lui-même (pas par l'audit)** :
+     un `<svg>` sans `width=`/`height=` explicite (ni règle CSS scopée) tombe
+     à sa taille intrinsèque par défaut du navigateur (~300px carré) —
+     confirmé en navigateur réel par un agent. Sur ~230 icônes ajoutées dans
+     `logx_configuration.html`, **~56 étaient concernées** (tous les agents
+     n'avaient pas pensé à sizer). Corrigé par un **filet de sécurité CSS**
+     ajouté une fois pour tout le fichier plutôt que de re-toucher chaque
+     site un par un : `svg:not([width]){width:15px;height:15px;flex-shrink:0;
+     vertical-align:-2px}` juste après la règle `.nav-ico svg{}` existante.
+     Sûr uniquement parce que TOUS les `<svg>` du fichier partagent le même
+     `viewBox="0 0 18 18"` (vérifié par recensement des `viewBox` distincts
+     avant d'appliquer un sélecteur aussi large) — à revérifier si un futur
+     graphique/carte fonctionnel utilisant un autre viewBox est ajouté sans
+     son propre `width=`. Réflexe pour toute suite : après un lot d'icônes,
+     recenser tous les `viewBox` du fichier ET vérifier qu'aucun `<svg>`
+     n'est dépourvu de `width=`/`height=`/style avant de clore le lot — ne
+     pas se fier aux rapports d'agents individuels sur ce point précis, deux
+     agents sur trois ne l'ont pas signalé alors que ça les concernait.
+     Autre incohérence trouvée en audit : un même message ("Choisis un
+     concours ci-dessus…") existe en HTML statique ET regénéré en JS
+     (`selectContest()`/`deselectContest()`) par DEUX agents différents
+     (plages différentes) — l'un a sciemment laissé l'emoji pour rester
+     cohérent avec l'autre chemin encore en emoji à ce moment-là, l'autre a
+     converti son propre chemin JS en icône sans le savoir. Résultat :
+     re-vérifier après coup tout message dupliqué HTML statique / JS
+     regénéré touché par des agents séparés. Un vrai bug de contraste latent
+     (`background:var(--accent2)` + `color:#hex` fixe sombre sans override
+     jour, motif déjà documenté ci-dessus) a aussi été trouvé — mais dans du
+     JS (`.style.cssText` d'une bulle de chat), donc invisible à l'audit
+     structuré précédent qui ne scannait que les blocs `<style>` : élargir
+     la recherche à tout le fichier texte, pas seulement le CSS, la
+     prochaine fois.
   4. **HORS SCOPE, décision assumée** : les drapeaux du sélecteur de LANGUE
      (🇫🇷🇬🇧🇩🇪…) restent en emoji — un drapeau identifie une langue
      instantanément, une icône monochrome générique ne le peut pas. Ne pas

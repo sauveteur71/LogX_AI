@@ -618,13 +618,32 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 #mobileBanner .mb-close{margin-left:auto;cursor:pointer;color:var(--muted);padding:4px 8px}
 @media (max-width:700px){ #mobileBanner:not(.dismissed){display:flex} }
 .app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
+/* Filet de sécurité : tout <svg> icône qui échapperait à la liste de
+   sélecteurs scopés ci-dessous (classe oubliée, futur ajout) tombe sinon à
+   sa taille intrinsèque par défaut (~300px). Spécificité plus faible que
+   toutes les règles scopées ci-dessous donc jamais prioritaire sur elles ;
+   ne s'applique qu'aux <svg> qui n'ont ni width= ni règle plus spécifique. */
+svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
+/* Icônes monochromes ajoutées (lot 3, conversion emoji) : chaque contexte est
+   scopé par sa propre classe/id (même convention que les autres pages déjà
+   converties, ex. logx_chasse.html .panel-title svg) — pas de règle svg{}
+   globale, pour ne jamais affecter #compassSvg/#hourChartSvg/.bandscope-wrap
+   svg qui ont leurs propres dimensions fonctionnelles. */
+.edit-title svg,.edit-save svg,.edit-cancel svg,.modal h2 svg,.shortcuts-title svg,
+.export-btn svg,.share-copy svg,.on4kst-reminder-title svg,.on4kst-reminder-post svg,
+.shortcut-offer-title svg,.shortcut-offer-yes svg,.panel-title svg,.submit-btn svg,
+.rate-title svg,.chat-toggle svg,#mobileBanner svg,#pointAntennaBtn svg,
+#freqRigBtn svg,.rig-label svg{width:15px;height:15px;flex-shrink:0;vertical-align:-3px}
+.net-version-warn svg,#netUpdatePathBtn svg,.sb-lbl svg,.macro-panel-title svg,
+#qsoRecPanel svg,.bandmap-head svg,.cw-header svg,.cw-btn svg,.rate-tab svg,
+#activationBar svg,#contestTimingBox svg{width:13px;height:13px;flex-shrink:0;vertical-align:-2px}
 </style>
 </head>
 <body>
 
 <!-- Bannière petit écran : proposer la saisie mobile dédiée (cf. CSS #mobileBanner) -->
 <div id="mobileBanner">
-  <span>📱 Sur téléphone ? <a href="/logx_mobile.html">Version mobile de saisie →</a></span>
+  <span><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1.5" width="8" height="15" rx="1.5"/><line x1="8" y1="14" x2="10" y2="14"/></svg></span> Sur téléphone ? <a href="/logx_mobile.html">Version mobile de saisie →</a></span>
   <span class="mb-close" onclick="this.parentElement.classList.add('dismissed');localStorage.setItem('logx_mobile_banner_off','1')">✕</span>
 </div>
 <script>
@@ -637,7 +656,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <div class="edit-overlay" id="editOverlay">
   <div class="edit-box">
     <div class="edit-title">
-      <span>✏️ CORRIGER LE QSO</span>
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l4 4L6 16l-4.5 1L2.5 12.5z"/><line x1="9.5" y1="4.5" x2="13.5" y2="8.5"/></svg> CORRIGER LE QSO</span>
       <span class="edit-close" onclick="closeEdit()">✕</span>
     </div>
     <input type="hidden" id="editId">
@@ -693,13 +712,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
           <img id="editQslScanThumb" style="max-height:70px;max-width:110px;border:1px solid var(--border);border-radius:6px;display:block">
         </a>
         <input type="file" id="editQslScanFile" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf" style="display:none" onchange="uploadQslScan()">
-        <button type="button" class="edit-cancel" style="padding:6px 12px;font-size:12px" onclick="document.getElementById('editQslScanFile').click()">📎 Choisir un scan…</button>
+        <button type="button" class="edit-cancel" style="padding:6px 12px;font-size:12px" onclick="document.getElementById('editQslScanFile').click()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9.5V5.5a3 3 0 0 1 6 0v7a2 2 0 0 1-4 0v-6a1 1 0 0 1 2 0v5.5"/></svg> Choisir un scan…</button>
         <span id="editQslScanStatus" style="font-size:12px;color:var(--muted)"></span>
       </div>
     </div>
     <div class="edit-btn-row">
       <button class="edit-cancel" onclick="closeEdit()">ANNULER</button>
-      <button class="edit-save" onclick="saveEdit()">✅ SAUVEGARDER</button>
+      <button class="edit-save" onclick="saveEdit()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> SAUVEGARDER</button>
     </div>
   </div>
 </div>
@@ -707,7 +726,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <!-- MODAL CONFIG -->
 <div class="modal-overlay" id="setupModal" style="display:none">
   <div class="modal">
-    <h2>⚡ LOGBOOK MULTI-OP</h2>
+    <h2><svg viewBox="0 0 18 18" fill="currentColor" stroke="none"><path d="M10 1L3 10h4l-1 7 8-10H10l1-6z"/></svg> LOGBOOK MULTI-OP</h2>
     <p>Configure ton poste avant de commencer la saisie.</p>
     <input type="text" id="setupCallsign" placeholder="F6KQJ/P" value="F6KQJ/P" style="text-transform:uppercase;font-size:16px;font-weight:700;color:var(--accent)">
     <div class="setup-loc-row">
@@ -735,7 +754,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
     <input type="hidden" id="setupContest" value="">
 
     <div id="contestTimingBox" style="display:none;background:rgba(var(--accent-rgb),.05);border:1px solid rgba(var(--accent-rgb),.2);border-radius:8px;padding:12px 14px;margin-bottom:10px;font-family:var(--font-mono);font-size:13px">
-      <div style="color:var(--accent2);letter-spacing:2px;font-size:12px;margin-bottom:8px">⏱ HORAIRE DU CONCOURS 2026</div>
+      <div style="color:var(--accent2);letter-spacing:2px;font-size:12px;margin-bottom:8px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><line x1="9" y1="9" x2="9" y2="5"/><line x1="9" y1="9" x2="12" y2="11"/></svg> HORAIRE DU CONCOURS 2026</div>
       <div style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px 10px;align-items:center">
         <span style="color:var(--muted);font-size:12px">DÉBUT UTC</span>
         <span id="ctStartUTC" style="color:var(--accent2);font-weight:700">—</span>
@@ -784,12 +803,12 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <div class="shortcuts-overlay" id="checklistOverlay" onclick="if(event.target===this)toggleChecklist()">
   <div class="shortcuts-box">
     <div class="shortcuts-title">
-      <span>✅ CHECKLIST AVANT CONCOURS</span>
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> CHECKLIST AVANT CONCOURS</span>
       <span class="shortcuts-close" onclick="toggleChecklist()">✕</span>
     </div>
     <div class="shortcuts-list" id="checklistInner"></div>
     <div style="margin-top:16px;text-align:center">
-      <button class="export-btn" onclick="showChecklist()" style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">🔄 RE-VÉRIFIER</button>
+      <button class="export-btn" onclick="showChecklist()" style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a6 6 0 0 1 10.5-4M15 9a6 6 0 0 1-10.5 4"/><polyline points="13,2 13.5,5 10.5,5"/><polyline points="5,16 4.5,13 7.5,13"/></svg> RE-VÉRIFIER</button>
     </div>
   </div>
 </div>
@@ -798,7 +817,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <div class="shortcuts-overlay" id="awardsOverlay" onclick="if(event.target===this)this.classList.remove('show')">
   <div class="shortcuts-box" style="width:860px;max-width:92vw">
     <div class="shortcuts-title">
-      <span>🏅 DIPLÔMES & QSL</span>
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="11.5" r="4.5"/><path d="M6.5 7.5L4 1.5M11.5 7.5L14 1.5"/><circle cx="9" cy="11.5" r="1.6" fill="currentColor" stroke="none"/></svg> DIPLÔMES & QSL</span>
       <span class="shortcuts-close" onclick="document.getElementById('awardsOverlay').classList.remove('show')">✕</span>
     </div>
     <div id="awardsInner" style="max-height:78vh;overflow-y:auto"></div>
@@ -809,7 +828,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <div class="shortcuts-overlay" id="qtcOverlay" onclick="if(event.target===this)closeQTCPanel()">
   <div class="shortcuts-box" style="width:640px;max-width:94vw">
     <div class="shortcuts-title">
-      <span>✉ QTC (WAE)</span>
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1.5"/><polyline points="2.5,5 9,10.5 15.5,5"/></svg> QTC (WAE)</span>
       <span class="shortcuts-close" onclick="closeQTCPanel()">✕</span>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
@@ -849,7 +868,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
     </div>
     <div id="qtcRows"></div>
     <div style="margin-top:14px;text-align:center">
-      <button class="export-btn" onclick="saveQTCSeries()" style="color:var(--green);border-color:rgba(0,255,136,.4)">💾 ENREGISTRER LA SÉRIE</button>
+      <button class="export-btn" onclick="saveQTCSeries()" style="color:var(--green);border-color:rgba(0,255,136,.4)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3 3v10a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-12a.5.5 0 0 1 .5-.5z"/><rect x="5.5" y="2.5" width="6" height="4"/><rect x="5" y="10" width="8" height="4.5"/></svg> ENREGISTRER LA SÉRIE</button>
     </div>
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
       <div style="font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:1px;margin-bottom:8px">SÉRIES ENREGISTRÉES</div>
@@ -862,12 +881,12 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <div class="shortcuts-overlay" id="validateOverlay" onclick="if(event.target===this)this.classList.remove('show')">
   <div class="shortcuts-box">
     <div class="shortcuts-title">
-      <span>🔍 VÉRIFICATION DU LOG</span>
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><line x1="12" y1="12" x2="16.5" y2="16.5"/></svg> VÉRIFICATION DU LOG</span>
       <span class="shortcuts-close" onclick="document.getElementById('validateOverlay').classList.remove('show')">✕</span>
     </div>
     <div class="shortcuts-list" id="validateInner" style="max-height:55vh;overflow-y:auto"></div>
     <div style="margin-top:16px;text-align:center">
-      <button class="export-btn" onclick="showValidation()" style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">🔄 RE-VÉRIFIER</button>
+      <button class="export-btn" onclick="showValidation()" style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a6 6 0 0 1 10.5-4M15 9a6 6 0 0 1-10.5 4"/><polyline points="13,2 13.5,5 10.5,5"/><polyline points="5,16 4.5,13 7.5,13"/></svg> RE-VÉRIFIER</button>
     </div>
   </div>
 </div>
@@ -876,14 +895,14 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <div class="shortcuts-overlay" id="importOverlay" onclick="if(event.target===this)closeImportOverlay()">
   <div class="shortcuts-box">
     <div class="shortcuts-title">
-      <span>📂 IMPORT ADIF</span>
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5a1 1 0 0 1 1-1h4l1.5 2H15a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg> IMPORT ADIF</span>
       <span class="shortcuts-close" onclick="closeImportOverlay()">✕</span>
     </div>
     <div class="shortcuts-list" id="importInner" style="max-height:55vh;overflow-y:auto"></div>
     <div style="margin-top:16px;text-align:center;display:flex;gap:10px;justify-content:center">
       <button class="export-btn" onclick="closeImportOverlay()">Annuler</button>
       <button class="export-btn" id="importConfirmBtn" onclick="confirmImportAdif()"
-        style="color:var(--green);border-color:rgba(0,255,136,.4)">✅ CONFIRMER L'IMPORT</button>
+        style="color:var(--green);border-color:rgba(0,255,136,.4)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> CONFIRMER L'IMPORT</button>
     </div>
   </div>
 </div>
@@ -892,7 +911,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <div class="shortcuts-overlay" id="shortcutsOverlay" onclick="if(event.target===this)toggleShortcutsHelp()">
   <div class="shortcuts-box">
     <div class="shortcuts-title">
-      <span>⌨️ RACCOURCIS CLAVIER</span>
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="4.5" width="15" height="9" rx="1.5"/><circle cx="4.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="7.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="10.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="13.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><line x1="4.5" y1="11.5" x2="13.5" y2="11.5"/></svg> RACCOURCIS CLAVIER</span>
       <span class="shortcuts-close" onclick="toggleShortcutsHelp()">✕</span>
     </div>
     <div class="shortcuts-list">
@@ -949,7 +968,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <div class="net-dot" id="netDot"></div>
   <span id="netStatus">Connexion au serveur...</span>
   <span style="margin-left:12px" title="Survole pour le détail par poste">Postes connectés : <span class="net-peers" id="netPeers">—</span></span>
-  <span style="margin-left:12px;color:var(--muted)" title="Version de CE poste — comparée à celle du serveur et des autres postes (voir badge d'alerte si écart)">Version : <span class="net-version" id="netVersion">—</span><span class="net-version-warn" id="netVersionWarn" title="">⚠️ versions différentes</span><button id="netUpdatePathBtn" type="button" onclick="findNetworkUpdatePath()" title="Ce poste tourne une version en retard : chercher une passerelle réseau (poste avec internet, chemin prioritaire) ou, à défaut, un pair ayant déjà une version vérifiée (secours) — jamais automatique, GitHub reste toujours la source authentique">🌐 màj réseau</button><span id="netUpdatePathResult"></span></span>
+  <span style="margin-left:12px;color:var(--muted)" title="Version de CE poste — comparée à celle du serveur et des autres postes (voir badge d'alerte si écart)">Version : <span class="net-version" id="netVersion">—</span><span class="net-version-warn" id="netVersionWarn" title=""><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5L16.5 15.5h-15z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.7" fill="currentColor" stroke="none"/></svg> versions différentes</span><button id="netUpdatePathBtn" type="button" onclick="findNetworkUpdatePath()" title="Ce poste tourne une version en retard : chercher une passerelle réseau (poste avec internet, chemin prioritaire) ou, à défaut, un pair ayant déjà une version vérifiée (secours) — jamais automatique, GitHub reste toujours la source authentique"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><line x1="2" y1="9" x2="16" y2="9"/><path d="M9 2c2.2 2 2.2 12 0 14M9 2c-2.2 2-2.2 12 0 14"/></svg> màj réseau</button><span id="netUpdatePathResult"></span></span>
   <span style="margin-left:12px;color:var(--muted)">Serveur : <span id="serverAddr" style="color:var(--accent2)">127.0.0.1:8080</span></span>
   <span id="backupTime" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;color:var(--muted)">Backup: —</span>
   <span id="weatherWidget" style="margin-left:12px;font-family:var(--font-mono);font-size:13px;display:none" title="Météo du point haut (sécurité matériel)"></span>
@@ -961,7 +980,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
     <span>Autres postes (même WiFi) :</span>
     <a class="share-link" id="shareLink" href="#" target="_blank"
        title="Adresse à ouvrir sur les autres PC et téléphones du réseau">…</a>
-    <button class="share-copy" onclick="copyShareLink()" title="Copier l'adresse pour l'envoyer aux autres opérateurs">📋 COPIER</button>
+    <button class="share-copy" onclick="copyShareLink()" title="Copier l'adresse pour l'envoyer aux autres opérateurs"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="9" height="11" rx="1.3"/><path d="M6.5 5.5h7a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-2"/></svg> COPIER</button>
   </span>
 </div>
 
@@ -974,7 +993,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <div class="sb-item"><div class="sb-lbl">QSO/HEURE · PROJECTION</div><div class="sb-val rc-i18n-live" id="sbRate" style="color:var(--purple);font-size:14px">— · —</div></div>
   <div class="sb-item"><div class="sb-lbl">DOUBLONS</div><div class="sb-val rc-i18n-live" id="sbDups" style="color:var(--red)">0</div></div>
   <div class="sb-item" id="sbCountdownItem" style="background:rgba(255,45,85,.05);border-left:2px solid var(--red)"><div class="sb-lbl" id="sbCountdownLbl">⏱ TEMPS RESTANT</div><div class="sb-val rc-i18n-live" id="sbCountdown" style="color:var(--red);font-size:15px;letter-spacing:1px">--:--:--</div></div>
-  <div class="sb-item" id="sbTimerItem"><div class="sb-lbl">⏲ DERNIER QSO</div><div class="sb-val rc-i18n-live" id="sbQsoTimer" style="color:var(--muted);font-size:15px">—</div></div>
+  <div class="sb-item" id="sbTimerItem"><div class="sb-lbl"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><line x1="9" y1="9" x2="9" y2="5"/><line x1="9" y1="9" x2="12" y2="11"/></svg> DERNIER QSO</div><div class="sb-val rc-i18n-live" id="sbQsoTimer" style="color:var(--muted);font-size:15px">—</div></div>
 </div>
 
 <!-- RÉCAP PAR BANDE -->
@@ -1001,10 +1020,10 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
 <!-- RAPPEL ON4KST -->
 <div class="on4kst-reminder" id="on4kstReminder">
-  <div class="on4kst-reminder-title">📡 PENSE À REPOSTER TON CQ</div>
+  <div class="on4kst-reminder-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> PENSE À REPOSTER TON CQ</div>
   <div class="on4kst-reminder-text">Reste visible sur ON4KST Chat — republie ta fréquence régulièrement pendant le concours.</div>
   <div class="on4kst-reminder-row">
-    <button class="on4kst-reminder-post" onclick="exportON4KST();hideON4KSTReminder()">📡 REPOSTER</button>
+    <button class="on4kst-reminder-post" onclick="exportON4KST();hideON4KSTReminder()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> REPOSTER</button>
     <button class="on4kst-reminder-dismiss" onclick="hideON4KSTReminder()">Plus tard</button>
   </div>
 </div>
@@ -1012,10 +1031,10 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <!-- RACCOURCI BUREAU (premier lancement de l'exécutable figé uniquement,
      voir logx_shortcut.py — jamais affiché en mode développeur) -->
 <div class="shortcut-offer" id="shortcutOffer">
-  <div class="shortcut-offer-title">🖥️ RACCOURCI SUR LE BUREAU ?</div>
+  <div class="shortcut-offer-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="14" height="9" rx="1.2"/><line x1="9" y1="12" x2="9" y2="15"/><line x1="5.5" y1="15" x2="12.5" y2="15"/></svg> RACCOURCI SUR LE BUREAU ?</div>
   <div class="shortcut-offer-text">Pour relancer LogX AI facilement la prochaine fois, sans retrouver l'exécutable.</div>
   <div class="shortcut-offer-row">
-    <button class="shortcut-offer-yes" onclick="createDesktopShortcut()">✅ Oui</button>
+    <button class="shortcut-offer-yes" onclick="createDesktopShortcut()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> Oui</button>
     <button class="shortcut-offer-no" onclick="dismissShortcutOffer()">Non merci</button>
   </div>
 </div>
@@ -1026,7 +1045,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   <!-- PANNEAU SAISIE -->
   <div class="saisie-panel">
     <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>⌨ SAISIE QSO</span>
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="4.5" width="15" height="9" rx="1.5"/><circle cx="4.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="7.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="10.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="13.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><line x1="4.5" y1="11.5" x2="13.5" y2="11.5"/></svg> SAISIE QSO</span>
       <button id="esmBtn" onclick="toggleEsm()" title="ESM : la touche Entrée enchaîne appel CQ → échange → log (comme N1MM) — détail complet dans l'aide (bouton ?)"
         style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer">ESM ○</button>
     </div>
@@ -1060,7 +1079,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <!-- Barre d'activation POTA/SOTA/IOTA/WWFF (visible en mode activation) -->
       <div id="activationBar" style="display:none;margin-bottom:10px;padding:8px 12px;border-radius:8px;background:var(--bg3);border:1px solid var(--accent);font-family:var(--font-mono)">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="color:var(--accent);font-weight:700">🏕️ <span id="actProg">POTA</span></span>
+          <span style="color:var(--accent);font-weight:700"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L2 15h14z"/><line x1="9" y1="3" x2="9" y2="15"/><line x1="6.5" y1="15" x2="9" y2="9.5"/><line x1="11.5" y1="15" x2="9" y2="9.5"/></svg> <span id="actProg">POTA</span></span>
           <span id="actRef" style="color:var(--text);font-weight:700;letter-spacing:1px">—</span>
           <span id="actProgress" style="color:var(--green);font-weight:700;font-size:17px">0/10</span>
           <span id="actValid" style="font-size:12px"></span>
@@ -1082,7 +1101,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
             oninput="onFreqInput()"
             onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
           <button type="button" id="freqRigBtn" class="bm-btn" title="Lire la fréquence de la radio (CAT)"
-            onclick="freqFromRig()" style="display:none;white-space:nowrap">📻 Radio</button>
+            onclick="freqFromRig()" style="display:none;white-space:nowrap"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="14" height="9" rx="1.3"/><line x1="4.5" y1="7" x2="8" y2="2"/><circle cx="6" cy="11.5" r="1.6"/><line x1="10" y1="10.5" x2="14" y2="10.5"/><line x1="10" y1="13" x2="13" y2="13"/></svg> Radio</button>
         </div>
       </div>
 
@@ -1204,13 +1223,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
             <span class="compass-pts"  id="compassPts">— pts</span>
           </div>
           <button class="point-antenna-btn" id="pointAntennaBtn" onclick="pointAntennaFromCompass()"
-                  style="display:none" title="Pointer l'antenne sur ce cap">🧭 POINTER</button>
+                  style="display:none" title="Pointer l'antenne sur ce cap"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><polygon points="9,4.5 11,9 9,13.5 7,9" fill="currentColor" stroke="none"/></svg> POINTER</button>
         </div>
       </div>
 
       <!-- DUP check -->
       <button class="submit-btn" id="submitBtn" onclick="submitQSO()">
-        ✅ ENREGISTRER LE QSO
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> ENREGISTRER LE QSO
       </button>
 
     </div>
@@ -1232,7 +1251,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <div class="rig-panel" id="rigPanel" style="display:none">
         <div class="rig-row">
           <span class="rig-dot" id="rigDot"></span>
-          <span class="rig-label">📻 RADIO</span>
+          <span class="rig-label"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="14" height="9" rx="1.3"/><line x1="4.5" y1="7" x2="8" y2="2"/><circle cx="6" cy="11.5" r="1.6"/><line x1="10" y1="10.5" x2="14" y2="10.5"/><line x1="10" y1="13" x2="13" y2="13"/></svg> RADIO</span>
           <span class="rig-freq" id="rigFreq">— kHz</span>
           <span class="rig-mode" id="rigMode">—</span>
           <button class="rig-stop" onclick="rigStopCW()" title="Stopper l'envoi CW en cours">■ STOP CW</button>
@@ -1243,7 +1262,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <div class="rig-panel" id="ampPanel" style="display:none">
         <div class="rig-row">
           <span class="rig-dot" id="ampDot"></span>
-          <span class="rig-label">🔋 AMPLI</span>
+          <span class="rig-label"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5.5" width="12.5" height="7" rx="1.3"/><rect x="15" y="7.5" width="1.8" height="3" fill="currentColor" stroke="none"/><rect x="4" y="7.2" width="3" height="3.6" fill="currentColor" stroke="none"/></svg> AMPLI</span>
           <span class="rig-freq" id="ampPower">— W</span>
           <span class="rig-mode" id="ampSwr">SWR —</span>
           <span class="rig-mode" id="ampFault" style="color:var(--red)"></span>
@@ -1264,7 +1283,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
            côté serveur (logx_awards.suivi_carres), portée concours ou à vie
            selon le mode. -->
       <div class="macro-panel" id="carresBox" style="display:none">
-        <div class="macro-panel-title" title="Carrés entendus en FT8/FT4 qui manquent : rouge = jamais travaillé à vie, jaune = neuf pour ce concours. Clic sur une ligne : WSJT-X prépare la réponse — c'est VOUS qui appuyez ensuite sur Enable TX.">🔲 CARRÉS ENTENDUS
+        <div class="macro-panel-title" title="Carrés entendus en FT8/FT4 qui manquent : rouge = jamais travaillé à vie, jaune = neuf pour ce concours. Clic sur une ligne : WSJT-X prépare la réponse — c'est VOUS qui appuyez ensuite sur Enable TX."><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg> CARRÉS ENTENDUS
           <!-- Coupe-circuit : visible dès qu'un appel a été armé. Il doit
                rester atteignable en un geste, sans chercher où cliquer. -->
           <button type="button" id="btnCouperWsjtx" onclick="couperEmissionWsjtx()"
@@ -1281,7 +1300,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
            quatre interrupteurs identiques laisserait croire qu'on peut « armer »
            le niveau 1, ou cumuler 3 et 4. -->
       <div class="macro-panel expert-only" id="pouncePanel" style="display:none">
-        <div class="macro-panel-title" title="Appel automatique en FT8/FT4 via WSJT-X">🎯 WAIT &amp; POUNCE
+        <div class="macro-panel-title" title="Appel automatique en FT8/FT4 via WSJT-X"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg> WAIT &amp; POUNCE
           <span id="pounceMinuterie" style="display:none;margin-left:auto;color:var(--green);font-weight:700"></span>
         </div>
 
@@ -1323,9 +1342,9 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
       <!-- KEYER VOCAL (phonie) : enregistre/rejoue des messages WAV -->
       <div class="macro-panel expert-only" id="voicePanel" style="display:none">
-        <div class="macro-panel-title">🎙 KEYER VOCAL — clic: jouer · ⏺: enregistrer</div>
+        <div class="macro-panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="1.5" width="5" height="9" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16.5"/><line x1="6" y1="16.5" x2="12" y2="16.5"/></svg> KEYER VOCAL — clic: jouer · ⏺: enregistrer</div>
         <div class="macro-btns" id="voiceBtns"></div>
-        <div class="macro-panel-title" style="margin-top:8px" title="Indicatif tapé + report épelés à la volée (synthèse vocale), émis par la radio (PTT auto) — pas de l'indicatif de CETTE station comme les macros CW">🤖 CALLBOT — clic: dire · double-clic: modifier</div>
+        <div class="macro-panel-title" style="margin-top:8px" title="Indicatif tapé + report épelés à la volée (synthèse vocale), émis par la radio (PTT auto) — pas de l'indicatif de CETTE station comme les macros CW"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="9" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> CALLBOT — clic: dire · double-clic: modifier</div>
         <div class="macro-btns" id="voiceDynBtns"></div>
         <div id="voiceDynResult" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px"></div>
       </div>
@@ -1347,7 +1366,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
            revérifier, contrôle du comité...) -->
       <div class="macro-panel expert-only" id="qsoRecPanel">
         <div class="macro-panel-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>🎙️ ENREGISTREUR QSO</span>
+          <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="1.5" width="5" height="9" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16.5"/><line x1="6" y1="16.5" x2="12" y2="16.5"/></svg> ENREGISTREUR QSO</span>
           <button id="qsoRecToggleBtn" onclick="toggleAudioRecorder()" title="Activer/désactiver l'enregistrement en tampon glissant" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px">○ désactivé</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
@@ -1356,7 +1375,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
           </select>
         </div>
         <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
-          <button onclick="chooseRecDir()" title="Choisir le dossier où enregistrer les clips (sinon : téléchargement)" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:4px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px">📁 Dossier…</button>
+          <button onclick="chooseRecDir()" title="Choisir le dossier où enregistrer les clips (sinon : téléchargement)" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:4px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5a1 1 0 0 1 1-1h4l1.5 2H15a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg> Dossier…</button>
           <span id="qsoRecDirLabel" style="font-size:11px;color:var(--muted)">téléchargement direct</span>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Tampon glissant ~2 min sur l'entrée choisie ; à chaque QSO loggué, les 20 dernières secondes sont sauvegardées (indicatif_bande_date_heure.wav).</div>
@@ -1421,13 +1440,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
   @media(max-width:1100px){.bandmap-panel{display:none}}
   </style>
   <div class="bandmap-panel" id="bandmapPanel">
-    <div class="bandmap-head">📻 BAND MAP <span id="bandmapBand">—</span><span id="so2rIndicateur" style="display:none;color:var(--yellow);font-size:11px;margin-left:6px" title="Radio en émission (Ctrl+Espace pour basculer)"></span>
+    <div class="bandmap-head"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="14" height="9" rx="1.3"/><line x1="4.5" y1="7" x2="8" y2="2"/><circle cx="6" cy="11.5" r="1.6"/><line x1="10" y1="10.5" x2="14" y2="10.5"/><line x1="10" y1="13" x2="13" y2="13"/></svg> BAND MAP <span id="bandmapBand">—</span><span id="so2rIndicateur" style="display:none;color:var(--yellow);font-size:11px;margin-left:6px" title="Radio en émission (Ctrl+Espace pour basculer)"></span>
       <button onclick="window.rcOpenPanel && window.rcOpenPanel('bandmap', {band: currentBand})" title="Détacher CE panneau Band Map dans une fenêtre séparée" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px;margin-left:auto">⇱</button>
-      <button onclick="toggleWaterfall()" id="waterfallToggleBtn" title="Vue chute d'eau : activité de la bande dans le temps (défilement, mêmes spots)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🌊</button>
-      <button onclick="popoutScope()" title="Détacher le bandscope graphique sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">📡</button>
-      <button onclick="bandmapNoter()" title="Noter la station entendue (indicatif tapé + fréquence radio) — Ctrl+Entrée. Ctrl+↑/↓ saute de spot en spot." style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">👂</button>
-      <button onclick="sEcouter()" title="S'écouter : ouvrir un récepteur WebSDR proche de chez toi sur la fréquence de la radio" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🔊</button>
-      <button onclick="toggleSpotFiltre()" id="spotFiltreBtn" title="Filtrer les spots affichés (continent du spotteur, besoins DXCC…)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px">🔎</button></div>
+      <button onclick="toggleWaterfall()" id="waterfallToggleBtn" title="Vue chute d'eau : activité de la bande dans le temps (défilement, mêmes spots)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></button>
+      <button onclick="popoutScope()" title="Détacher le bandscope graphique sur un 2e écran" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+      <button onclick="bandmapNoter()" title="Noter la station entendue (indicatif tapé + fréquence radio) — Ctrl+Entrée. Ctrl+↑/↓ saute de spot en spot." style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2.5a5 5 0 0 0-5 5c0 2 1 2.5 1 4a2 2 0 0 0 4 0"/><path d="M9.5 8.5a1.3 1.3 0 1 1 2 1.1"/></svg></button>
+      <button onclick="sEcouter()" title="S'écouter : ouvrir un récepteur WebSDR proche de chez toi sur la fréquence de la radio" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7v4h3l4 3.5v-11l-4 3.5z" fill="currentColor" stroke="none"/><path d="M12 6a5 5 0 0 1 0 6M14.3 4a8 8 0 0 1 0 10"/></svg></button>
+      <button onclick="toggleSpotFiltre()" id="spotFiltreBtn" title="Filtrer les spots affichés (continent du spotteur, besoins DXCC…)" style="background:none;border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:12px;padding:0 6px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><line x1="12" y1="12" x2="16.5" y2="16.5"/></svg></button></div>
     <!-- Filtre d'affichage. Le continent DU SPOTTEUR est le critère qui compte
          le plus : ce qu'un EU entend ressemble à ce que j'entends, ce qu'un JA
          entend, non. Pas de filtre « spotteur à moins de N km » : cty.dat donne
@@ -1545,13 +1564,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <div class="rate-overlay" id="rateOverlay" onclick="if(event.target===this)closeRatePanel()">
   <div class="rate-box">
     <div class="rate-hdr">
-      <span class="rate-title">📊 STATISTIQUES DU CONCOURS</span>
+      <span class="rate-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="15" x2="15" y2="15"/><line x1="5" y1="15" x2="5" y2="10"/><line x1="9" y1="15" x2="9" y2="6"/><line x1="13" y1="15" x2="13" y2="12"/></svg> STATISTIQUES DU CONCOURS</span>
       <span class="rate-close" onclick="closeRatePanel()">✕</span>
     </div>
     <div class="rate-tabs">
-      <button class="rate-tab active" onclick="switchRateTab('rate',this)">📈 TAUX QSO/HEURE</button>
-      <button class="rate-tab" onclick="switchRateTab('band',this)">📡 PAR BANDE</button>
-      <button class="rate-tab" onclick="switchRateTab('hour',this)">⏱ HEURE × BANDE</button>
+      <button class="rate-tab active" onclick="switchRateTab('rate',this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,13 7,8 10,11 16,4"/><polyline points="11,4 16,4 16,9"/></svg> TAUX QSO/HEURE</button>
+      <button class="rate-tab" onclick="switchRateTab('band',this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> PAR BANDE</button>
+      <button class="rate-tab" onclick="switchRateTab('hour',this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><line x1="9" y1="9" x2="9" y2="5"/><line x1="9" y1="9" x2="12" y2="11"/></svg> HEURE × BANDE</button>
     </div>
     <div id="rateTabRate" class="rate-chart-wrap"><canvas id="rateChart"></canvas></div>
     <div id="rateTabBand" style="display:none">
@@ -1574,7 +1593,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 <!-- DÉCODEUR CW — visible uniquement en mode CW (updateKeyerPanels) : un
      panneau décodeur permanent dans les autres modes est du bruit à l'écran. -->
 <div class="cw-panel" id="cwPanel" style="display:none">
-  <div class="cw-header" onclick="toggleCwPanel()">🔤 DÉCODEUR CW <span class="cw-wpm" id="cwWpmLabel"></span><span class="cw-header-toggle">▲</span></div>
+  <div class="cw-header" onclick="toggleCwPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="2.5" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="9" x2="9" y2="9"/><circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="14.5" y1="9" x2="16.5" y2="9"/></svg> DÉCODEUR CW <span class="cw-wpm" id="cwWpmLabel"></span><span class="cw-header-toggle">▲</span></div>
   <div class="cw-body" id="cwBody">
     <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC) et affiche le CW décodé. Fiable sur signal propre et pas trop rapide — pas un substitut à l'oreille en QRM/pileup serré.</div>
     <div class="cw-controls">
@@ -1586,7 +1605,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
     </div>
     <div class="cw-output" id="cwOutput"></div>
-    <button class="cw-btn" onclick="clearCwOutput()" style="align-self:flex-start">🗑 Effacer</button>
+    <button class="cw-btn" onclick="clearCwOutput()" style="align-self:flex-start"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg> Effacer</button>
   </div>
 </div>
 
@@ -1594,7 +1613,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
      majeurs. Jusqu'ici il fallait ouvrir N1MM à côté : le RTTY n'existait
      que comme étiquette de mode dans le log. -->
 <div class="cw-decoder" id="rttyDecoder" style="display:none">
-  <div class="cw-header" onclick="toggleRttyPanel()">📠 DÉCODEUR RTTY <span class="cw-wpm" id="rttyStatus"></span><span class="cw-header-toggle">▲</span></div>
+  <div class="cw-header" onclick="toggleRttyPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="13" height="8" rx="1.2"/><path d="M4.5 6.5V3a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v3.5"/><line x1="5.5" y1="10" x2="12.5" y2="10"/><line x1="5.5" y1="12.5" x2="10" y2="12.5"/></svg> DÉCODEUR RTTY <span class="cw-wpm" id="rttyStatus"></span><span class="cw-header-toggle">▲</span></div>
   <div class="cw-body" id="rttyBody">
     <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC). <b>Clique un indicatif décodé pour le mettre dans la saisie</b> — c'est ce qui fait la vitesse en RTTY. Décale-toi de moins de 50 Hz du signal : au-delà, le décodage se dégrade.</div>
     <div class="cw-controls">
@@ -1607,7 +1626,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
       <button class="cw-btn" id="rttyStartBtn" onclick="toggleRttyDecoder()">▶ Démarrer</button>
     </div>
     <div class="cw-output" id="rttyOutput" onclick="rttyClicTexte(event)"></div>
-    <button class="cw-btn" onclick="clearRttyOutput()" style="align-self:flex-start">🗑 Effacer</button>
+    <button class="cw-btn" onclick="clearRttyOutput()" style="align-self:flex-start"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg> Effacer</button>
   </div>
 </div>
 
@@ -1618,7 +1637,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
      mode SSTV (case à cocher dans CONFIG > MODES, puis sélecteur de mode du
      logbook — updateKeyerPanels). -->
 <div class="cw-panel" id="sstvPanel" style="display:none">
-  <div class="cw-header" onclick="toggleSstvPanel()">🖼 DÉCODEUR SSTV <span class="cw-wpm" id="sstvStatus"></span><span class="cw-header-toggle">▲</span></div>
+  <div class="cw-header" onclick="toggleSstvPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="14" height="12" rx="1.3"/><circle cx="6" cy="7" r="1.3" fill="currentColor" stroke="none"/><path d="M2 12.5l4-4 3.5 3.5 2.5-2.5 4 4"/></svg> DÉCODEUR SSTV <span class="cw-wpm" id="sstvStatus"></span><span class="cw-header-toggle">▲</span></div>
   <div class="cw-body" id="sstvBody">
     <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC). Détection automatique du mode par code VIS : Martin M1/M2, Scottie S1/S2/DX, Robot 36/72, PD50 à PD290 (ISS : PD120). L'image apparaît ligne par ligne pendant la réception.</div>
     <div class="cw-controls">
@@ -1626,8 +1645,8 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
     </div>
     <div class="cw-controls">
       <button class="cw-btn" id="sstvStartBtn" onclick="toggleSstvDecoder()">▶ Démarrer</button>
-      <button class="cw-btn" onclick="sstvSauverImage()" title="Télécharger l'image affichée en PNG">💾 PNG</button>
-      <button class="cw-btn" onclick="sstvEffacerImage()" title="Effacer l'image affichée">🗑</button>
+      <button class="cw-btn" onclick="sstvSauverImage()" title="Télécharger l'image affichée en PNG"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3 3v10a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-12a.5.5 0 0 1 .5-.5z"/><rect x="5.5" y="2.5" width="6" height="4"/><rect x="5" y="10" width="8" height="4.5"/></svg> PNG</button>
+      <button class="cw-btn" onclick="sstvEffacerImage()" title="Effacer l'image affichée"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg></button>
     </div>
     <canvas id="sstvCanvas" width="320" height="256"></canvas>
     <div class="cw-note" id="sstvInfo">En attente de signal…</div>
@@ -1636,7 +1655,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
 <!-- CHAT MULTI-OPÉRATEUR -->
 <div class="chat-panel" id="chatPanel">
-  <div class="chat-toggle" onclick="toggleChat()">💬 CHAT MULTI-OP <span id="chatUnread" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:12px;margin-left:6px">0</span></div>
+  <div class="chat-toggle" onclick="toggleChat()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h13v8h-8l-3 3v-3h-2z"/></svg> CHAT MULTI-OP <span id="chatUnread" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:12px;margin-left:6px">0</span></div>
   <!-- Vue PARTNER : saisie en direct des autres opérateurs (lecture seule).
        display:none par défaut, basculé par JS (renderPartnerTyping) — visible
        même panneau replié, dès qu'un autre poste tape un indicatif. -->
