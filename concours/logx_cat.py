@@ -850,24 +850,44 @@ def _friendly_open_error(port, exc):
 _open_serial = SerialPort if HAS_PYSERIAL else None
 
 
+def _parse_civ_addr(value):
+    """Adresse CI-V saisie (texte hexa, ex. "AA") -> int, ou None si absente/
+    invalide — jamais d'exception, sert de repli vers l'adresse usine."""
+    try:
+        if value:
+            return int(str(value), 16)
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
 def cat_settings(cfg):
     """Réglages du pilotage natif depuis la config CLIENT. `mode` distingue
     'native' (ce module) de 'rigctld' (logx_rig, inchangé) — une
     config existante sans les champs cat_* se comporte comme avant
-    (cat_enabled absent -> enabled=False, aucun effet sur le mode rigctld)."""
+    (cat_enabled absent -> enabled=False, aucun effet sur le mode rigctld).
+
+    `civ_addr` : adresse CI-V usine du MODÈLE choisi (CIV_ADDRESSES), sauf si
+    l'opérateur a rentré une adresse manuelle (`cat_civ_addr`, champ avancé) —
+    pratique courante en multi-poste/SO2R pour éviter les collisions sur le
+    bus CI-V. Sans repli manuel, une radio reconfigurée en Set mode restait
+    injoignable : LogX AI interrogeait toujours l'adresse usine du modèle."""
     cfg = cfg or {}
     brand = (cfg.get('cat_brand') or '').strip().lower()
     try:
         baudrate = int(cfg.get('cat_baudrate') or 0)
     except (TypeError, ValueError):
         baudrate = 0
+    model = (cfg.get('cat_model') or '').strip() or None
+    civ_addr = _parse_civ_addr(cfg.get('cat_civ_addr')) or CIV_ADDRESSES.get(model, 0x94)
     return {
         'enabled': bool(cfg.get('cat_enabled')),
         'mode': cfg.get('cat_mode') or 'native',
         'brand': brand,
-        'model': (cfg.get('cat_model') or '').strip() or None,
+        'model': model,
         'port': (cfg.get('cat_port') or '').strip(),
         'baudrate': baudrate or CAT_DEFAULT_BAUD.get(brand, 19200),
+        'civ_addr': civ_addr,
     }
 
 
@@ -880,7 +900,8 @@ _persistent_lock = threading.Lock()
 def _ensure_connected(settings):
     """Retourne (driver, erreur_ou_None). Ouvre le port au premier appel,
     réutilise la connexion tant que la config ne change pas."""
-    key = (settings['port'], settings['brand'], settings['model'], settings['baudrate'])
+    key = (settings['port'], settings['brand'], settings['model'], settings['baudrate'],
+           settings['civ_addr'])
     with _persistent_lock:
         entry = _persistent.get('default')
         if entry and entry['key'] == key:
@@ -901,8 +922,7 @@ def _ensure_connected(settings):
         except Exception as e:
             return None, _friendly_open_error(settings['port'], e)
         if settings['brand'] in ('icom', 'xiegu'):
-            addr = CIV_ADDRESSES.get(settings['model'], 0x94)
-            driver = CivRadio(transport, addr)
+            driver = CivRadio(transport, settings['civ_addr'])
         else:
             driver = AsciiRadio(transport, settings['brand'], settings['model'])
         _persistent['default'] = {'key': key, 'driver': driver, 'transport': transport}
@@ -1034,9 +1054,11 @@ def stop_cw(cfg):
         return {'ok': False, 'error': f'Radio injoignable ({e})'}
 
 
-def test_connection(brand, model, port, baudrate):
+def test_connection(brand, model, port, baudrate, civ_addr=None):
     """Test ÉPHÉMÈRE (bouton CONFIG) : ouvre, interroge, ferme — ne touche
-    jamais à la connexion persistante utilisée par le polling logbook."""
+    jamais à la connexion persistante utilisée par le polling logbook.
+    `civ_addr` (texte hexa, ex. "AA") : adresse CI-V manuelle si l'opérateur
+    l'a changée sur la radio — repli sur l'adresse usine du modèle sinon."""
     if not port:
         return {'ok': False, 'error': 'Port série manquant'}
     brand = (brand or '').strip().lower()
@@ -1046,7 +1068,7 @@ def test_connection(brand, model, port, baudrate):
         return {'ok': False, 'error': _friendly_open_error(port, e)}
     try:
         if brand in ('icom', 'xiegu'):
-            addr = CIV_ADDRESSES.get(model, 0x94)
+            addr = _parse_civ_addr(civ_addr) or CIV_ADDRESSES.get(model, 0x94)
             driver = CivRadio(transport, addr)
             f = driver.get_freq()
             if not f.get('ok'):
