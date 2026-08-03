@@ -615,6 +615,35 @@ class SerialPort:
 CAT_DEFAULT_BAUD = {'icom': 19200, 'xiegu': 19200, 'yaesu': 4800,
                     'kenwood': 9600, 'elecraft': 38400}
 
+
+def _friendly_open_error(port, exc):
+    """Traduit l'exception pyserial brute (message technique, souvent un
+    texte d'exception OS wrappé par pyserial — ex. « could not open port
+    'COM5': PermissionError(13, 'Access is denied.', ...) » sous Windows) en
+    cause probable côté opérateur, SANS jamais cacher le détail technique
+    d'origine (gardé entre parenthèses) : un beta-testeur peut avoir besoin
+    de le recopier tel quel pour un diagnostic plus poussé. Retour signalé
+    par un beta-testeur microHAM (02/08/2026) : le message brut ne dit ni
+    « le port est déjà pris » ni « le port n'existe pas », deux causes très
+    fréquentes avec une interface qui expose plusieurs ports COM virtuels
+    (microHAM Router, USB Device Router...)."""
+    msg = str(exc)
+    low = msg.lower()
+    if 'permissionerror' in low or 'access is denied' in low or 'permission denied' in low or 'errno 13' in low:
+        cause = (f"{port} est déjà utilisé par un autre logiciel (WSJT-X, un "
+                 "autre logbook, le microHAM Router/USB Device Router...) — "
+                 "ferme-le, ou si ton interface expose plusieurs ports COM "
+                 "(cas fréquent avec microHAM), choisis-en un autre.")
+    elif ('filenotfounderror' in low or 'cannot find the file' in low
+          or 'no such file' in low or 'errno 2' in low):
+        cause = (f"{port} n'existe pas ou n'est plus branché — vérifie le "
+                 "câble USB et que le pilote/routeur de l'interface (ex. "
+                 "microHAM Router) tourne bien, puis re-choisis le port dans "
+                 "la liste (elle a pu changer).")
+    else:
+        cause = f"Impossible d'ouvrir {port}."
+    return f"{cause} (détail technique : {msg})"
+
 # Point d'injection pour les tests : remplacer par un double qui ne touche
 # pas un vrai port série (voir tests/test_cat.py). Par défaut, le vrai
 # constructeur pyserial.
@@ -670,7 +699,7 @@ def _ensure_connected(settings):
         try:
             transport = _open_serial(settings['port'], baudrate=settings['baudrate'])
         except Exception as e:
-            return None, f"Impossible d'ouvrir {settings['port']} : {e}"
+            return None, _friendly_open_error(settings['port'], e)
         if settings['brand'] in ('icom', 'xiegu'):
             addr = CIV_ADDRESSES.get(settings['model'], 0x94)
             driver = CivRadio(transport, addr)
@@ -814,7 +843,7 @@ def test_connection(brand, model, port, baudrate):
     try:
         transport = _open_serial(port, baudrate=baudrate or CAT_DEFAULT_BAUD.get(brand, 19200))
     except Exception as e:
-        return {'ok': False, 'error': f"Impossible d'ouvrir {port} : {e}"}
+        return {'ok': False, 'error': _friendly_open_error(port, e)}
     try:
         if brand in ('icom', 'xiegu'):
             addr = CIV_ADDRESSES.get(model, 0x94)
@@ -908,3 +937,42 @@ def autodetect(transport):
 
     return {'ok': False, 'error': 'Aucune radio détectée automatiquement — '
                                   'choisis ta marque/modèle manuellement'}
+
+
+# Vitesses courantes essayées par autodetect_scan(), dans l'ordre — 19200 et
+# 9600 couvrent la grande majorité des postes récents (Icom USB, Kenwood,
+# Elecraft), les suivantes rattrapent les réglages d'usine plus anciens
+# (Yaesu 4800) ou les vitesses hautes de certains Icom (38400).
+_AUTODETECT_BAUDS = (19200, 9600, 4800, 38400)
+
+
+def autodetect_scan(port, bauds=None):
+    """Bouton CONFIG « auto-détecter » quand marque/modèle sont encore
+    inconnus (contrairement à test_connection(), qui les exige déjà) :
+    balaie plusieurs vitesses courantes sur `port` et tente autodetect() à
+    chacune, jusqu'à la première qui répond.
+
+    Usage ponctuel (clic bouton) seulement — jamais en tâche de fond : le
+    pire cas (rien ne répond, ex. mauvais port ou radio éteinte) peut
+    prendre jusqu'à ~50s (autodetect() balaie déjà 23 adresses CI-V par
+    vitesse essayée, ce module étant appelé une fois par vitesse)."""
+    if not port:
+        return {'ok': False, 'error': 'Port série manquant'}
+    tried = list(bauds or _AUTODETECT_BAUDS)
+    for baud in tried:
+        try:
+            transport = _open_serial(port, baudrate=baud)
+        except Exception as e:
+            return {'ok': False, 'error': _friendly_open_error(port, e)}
+        try:
+            result = autodetect(transport)
+        finally:
+            transport.close()
+        if result.get('ok'):
+            result['baudrate'] = baud
+            return result
+    return {'ok': False,
+            'error': f"Aucune radio détectée sur {port} (essayé "
+                     f"{', '.join(str(b) for b in tried)} bauds) — vérifie "
+                     "le câble/port, que la radio est allumée et le CAT "
+                     "activé, ou choisis marque/modèle/vitesse manuellement"}

@@ -1103,8 +1103,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <input type="number" id="cat_baudrate" placeholder="19200">
           </div>
         </div>
-        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="testCatConnection()">🔌 Tester / auto-détecter</button>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px;flex-wrap:wrap">
+          <button type="button" class="btn btn-secondary" onclick="testCatConnection()">🔌 Tester la connexion</button>
+          <button type="button" class="btn btn-secondary" onclick="autodetectCat()" title="Identifie automatiquement la marque et le modèle sur le port choisi, sans les sélectionner d'abord">🔍 Auto-détecter (marque+modèle inconnus)</button>
           <span id="catTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
 
@@ -2414,7 +2415,7 @@ const CONFIG_HELP = {
   cat_mode: "Choisis comment le logiciel parle à ta radio : NATIF (câble série direct, sans logiciel intermédiaire), TCI (protocole réseau moderne type SunSDR/ExpertSDR), RIGCTLD (passe par le standard Hamlib, compatible presque toutes les radios), ou FLRIG (autre pilote CAT réseau, courant sous Linux/fldigi).",
   cat_brand: "La marque de ta radio pour le mode NATIF (Icom, Yaesu, Kenwood, Elecraft...) — détermine le protocole exact utilisé.",
   cat_model: "Le modèle précis de ta radio, pour affiner l'adresse/le protocole (notamment important pour Icom en CI-V).",
-  cat_port: "Le port série (COM) où ta radio est reliée à l'ordinateur (ex. COM3 sous Windows). Visible dans le Gestionnaire de périphériques Windows.",
+  cat_port: "Le port série (COM) où ta radio est reliée à l'ordinateur (ex. COM3 sous Windows). Visible dans le Gestionnaire de périphériques Windows. Interface multi-radio (microHAM, 4O3A Signature...) : c'est le port COM VIRTUEL que le logiciel de l'interface (ex. microHAM Router / USB Device Router) crée pour LogX AI — il ne fonctionne que si ce logiciel tourne, avec la bonne radio sélectionnée dedans. Ce port peut être différent de celui utilisé par WSJT-X ou un autre logiciel, et il change parfois après un redémarrage : rafraîchis la liste si besoin.",
   cat_baudrate: "La vitesse de communication série (bauds) réglée sur ta radio elle-même — doit correspondre EXACTEMENT au réglage du menu de la radio.",
   rig_host: "Adresse réseau (souvent 127.0.0.1 si sur le même PC) du serveur rigctld qui pilote ta radio via Hamlib.",
   rig_port: "Port réseau de rigctld — 4532 par défaut.",
@@ -3884,6 +3885,56 @@ async function testCatConnection(){
       result.style.color = 'var(--green)';
     } else {
       result.textContent = `❌ ${r.error || 'Connexion impossible'}${tciHostEmpty ? ` (adresse TCI non renseignée — testé sur ${payload.host} par défaut)` : ''}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
+}
+
+// Retour beta-testeur microHAM (02/08/2026) : le bouton "Tester" exige déjà
+// marque+modèle choisis, donc n'auto-détecte jamais rien — il ne fait que
+// revérifier un choix déjà fait. Ce bouton-ci appelle autodetect_scan() côté
+// serveur (balaie plusieurs vitesses, interroge la radio elle-même) et
+// PEUPLE marque/modèle/vitesse sur succès, sans que l'opérateur ait besoin
+// de les connaître à l'avance.
+async function autodetectCat(){
+  const result = document.getElementById('catTestResult');
+  const portVal = document.getElementById('cat_port').value;
+  if (!portVal){
+    result.textContent = '⚠️ Choisis un port série d\'abord';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  result.textContent = '⏳ Auto-détection en cours (peut prendre jusqu\'à ~50 s, plusieurs vitesses testées)...';
+  result.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/rig/autodetect', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ port: portVal }),
+    });
+    const r = await res.json();
+    if (r.ok){
+      if (r.brand){
+        document.getElementById('cat_brand').value = r.brand;
+        updateCatModelOptions();
+      }
+      if (r.model && document.getElementById('cat_model').querySelector(`option[value="${r.model}"]`)) {
+        document.getElementById('cat_model').value = r.model;
+        updateCatAddrNoteForModel();
+      }
+      if (r.baudrate) document.getElementById('cat_baudrate').value = r.baudrate;
+      const label = r.model || (r.brand ? `${r.brand} (modèle non confirmé)` : 'radio');
+      if (r.certain){
+        result.textContent = `✅ Détecté : ${label} à ${r.baudrate} bauds`;
+        result.style.color = 'var(--green)';
+      } else {
+        result.textContent = `⚠️ Détecté probablement : ${label} à ${r.baudrate} bauds — ${r.note || 'vérifie que c\'est le bon modèle'}`;
+        result.style.color = 'var(--yellow)';
+      }
+    } else {
+      result.textContent = `❌ ${r.error || 'Aucune radio détectée'}`;
       result.style.color = 'var(--red)';
     }
   }catch(e){
