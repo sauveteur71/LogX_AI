@@ -287,6 +287,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .locator-hint.error{border-color:var(--red);color:var(--red)}
 .locator-hint.error span{color:var(--red)}
 .app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
+/* Filet de sécurité lot 3 icônes : tout <svg> icône inséré sans width/height
+   explicite (titre/bouton/badge) tombe sinon à sa taille intrinsèque par
+   défaut (~300px) — confirmé en navigateur réel. N'affecte jamais un <svg>
+   qui porte déjà width= (dimensionnement volontaire d'un agent), ni un futur
+   graphique/carte fonctionnel du moment qu'il porte lui aussi width=. */
+svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </style>
 </head>
 <body>
@@ -302,7 +308,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
              background:linear-gradient(135deg,#00FF88,var(--accent2));border:none;border-radius:7px;
              color:#0A0B18;padding:7px 14px;cursor:pointer;transition:opacity .15s"
       onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-      💾 SAUVEGARDER
+      <svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> SAUVEGARDER
     </button>
     <div class="version">v3.0 · <span class="live"><span class="live-dot"></span>PRÊT</span></div>
     <button id="uiModeToggle" onclick="toggleUiMode()" title="Mode débutant : masque les réglages avancés (IA, propagation, clusters, alertes)"
@@ -336,9 +342,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <select class="profiles-select" id="profileSelect">
       <option value="">— Sélectionner un profil —</option>
     </select>
-    <button class="profile-btn" onclick="loadProfile()">📂 Charger</button>
-    <button class="profile-btn save" onclick="saveProfile()">💾 Sauvegarder</button>
-    <button class="profile-btn del" onclick="deleteProfile()">🗑️ Supprimer</button>
+    <button class="profile-btn" onclick="loadProfile()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M1.5 4.5h5l1.5 2h8.5v8h-15z"/></svg> Charger</button>
+    <button class="profile-btn save" onclick="saveProfile()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Sauvegarder</button>
+    <button class="profile-btn del" onclick="deleteProfile()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6.5 5V3.3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V5"/><path d="M5 5.2l.8 9a1 1 0 0 0 1 .9h4.4a1 1 0 0 0 1-.9l.8-9"/><line x1="7.5" y1="7.7" x2="7.5" y2="12.3"/><line x1="10.5" y1="7.7" x2="10.5" y2="12.3"/></svg> Supprimer</button>
   </div>
 
   <!-- MODE D'UTILISATION : détermine si l'étape CONCOURS est nécessaire -->
@@ -356,19 +362,19 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
   <!-- HUB DE CATÉGORIES (refonte — remplace l'assistant par étapes ci-dessous) -->
   <div id="configHub">
     <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
-      <button class="btn btn-secondary" style="padding:7px 16px;font-size:12px" onclick="openSummaryPopup()">📊 Résumé ▸</button>
+      <button class="btn btn-secondary" style="padding:7px 16px;font-size:12px" onclick="openSummaryPopup()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="14.5" x2="4" y2="9"/><line x1="9" y1="14.5" x2="9" y2="4"/><line x1="14" y1="14.5" x2="14" y2="11"/></svg> Résumé ▸</button>
     </div>
     <div class="hub-sections">
     <div class="hub-section">
     <div class="hub-group-title">MA STATION</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_identity" onclick="openCategoryPopup('identity')">
-        <div class="hub-card-title">📛 1. Identité</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 15.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg> 1. Identité</div>
         <div class="hub-card-sub">Indicatif, locator, antennes...</div>
         <span class="hub-badge" id="hubbadge_identity"></span>
       </div>
       <div class="hub-card" id="hubcard_operators" onclick="openCategoryPopup('operators')">
-        <div class="hub-card-title">🧑‍🤝‍🧑 2. Opérateurs</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.3"/><circle cx="12.5" cy="5.5" r="2.3"/><path d="M2 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/><path d="M7.5 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/></svg> 2. Opérateurs</div>
         <div class="hub-card-sub">Multi-op, responsable log</div>
         <span class="hub-badge" id="hubbadge_operators"></span>
       </div>
@@ -379,12 +385,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="hub-group-title">CONCOURS</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_contest" onclick="openCategoryPopup('contest')">
-        <div class="hub-card-title">🏆 3. Sélection</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h7v4a3.5 3.5 0 0 1-7 0z"/><path d="M5.5 4h-2v1.5a2.5 2.5 0 0 0 2.3 2.5"/><path d="M12.5 4h2v1.5a2.5 2.5 0 0 1-2.3 2.5"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="6.5" y1="13" x2="11.5" y2="13"/></svg> 3. Sélection</div>
         <div class="hub-card-sub" id="hubsub_contest">Aucun concours choisi</div>
         <span class="hub-badge" id="hubbadge_contest"></span>
       </div>
       <div class="hub-card" id="hubcard_filters" onclick="openCategoryPopup('filters')">
-        <div class="hub-card-title">📅 4. Dates &amp; filtres</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> 4. Dates &amp; filtres</div>
         <div class="hub-card-sub">Dates, bandes, modes</div>
         <span class="hub-badge" id="hubbadge_filters"></span>
       </div>
@@ -395,17 +401,17 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="hub-group-title">MATÉRIEL</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_radio" onclick="openCategoryPopup('radio')">
-        <div class="hub-card-title">📻 5. Radio (CAT)</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="13" height="8.5" rx="1.3"/><line x1="5" y1="6.5" x2="8" y2="2"/><circle cx="12.3" cy="10.5" r="1.6"/><line x1="4" y1="13" x2="8.5" y2="13"/></svg> 5. Radio (CAT)</div>
         <div class="hub-card-sub">Natif / TCI / rigctld / flrig</div>
         <span class="hub-badge" id="hubbadge_radio"></span>
       </div>
       <div class="hub-card" id="hubcard_amp" onclick="openCategoryPopup('amp')">
-        <div class="hub-card-title">🔋 6. Amplificateur</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 6. Amplificateur</div>
         <div class="hub-card-sub">Pilotage ampli linéaire</div>
         <span class="hub-badge" id="hubbadge_amp"></span>
       </div>
       <div class="hub-card" id="hubcard_rotor" onclick="openCategoryPopup('rotor')">
-        <div class="hub-card-title">🧭 7. Rotor</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M11.5 6.5 9.8 9.8 6.5 11.5 8.2 8.2z" fill="currentColor" stroke="none"/></svg> 7. Rotor</div>
         <div class="hub-card-sub">Pointage d'antenne</div>
         <span class="hub-badge" id="hubbadge_rotor"></span>
       </div>
@@ -416,12 +422,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="hub-group-title">RÉSEAU &amp; SAUVEGARDE</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_network" onclick="openCategoryPopup('network')">
-        <div class="hub-card-title">☁️ 8. Multi-poste &amp; Cloud</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.5a2.7 2.7 0 0 0 0-5.4 4 4 0 0 0-7.6-1.3 3.2 3.2 0 0 0-2.4 3.1 2.6 2.6 0 0 0 2.5 3.6z"/></svg> 8. Multi-poste &amp; Cloud</div>
         <div class="hub-card-sub">Cloud Sync, réseau ADIF</div>
         <span class="hub-badge" id="hubbadge_network"></span>
       </div>
       <div class="hub-card" id="hubcard_backup" onclick="openCategoryPopup('backup')">
-        <div class="hub-card-title">💾 9. Sauvegarde auto</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> 9. Sauvegarde auto</div>
         <div class="hub-card-sub">Dossier, intervalle</div>
         <span class="hub-badge" id="hubbadge_backup"></span>
       </div>
@@ -432,12 +438,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="hub-group-title">PROPAGATION &amp; ALERTES</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_sources" onclick="openCategoryPopup('sources')">
-        <div class="hub-card-title">📡 10. Sources</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> 10. Sources</div>
         <div class="hub-card-sub">Cluster, RBN, ON4KST...</div>
         <span class="hub-badge" id="hubbadge_sources"></span>
       </div>
       <div class="hub-card" id="hubcard_alerts" onclick="openCategoryPopup('alerts')">
-        <div class="hub-card-title">🔔 11. Alertes</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.3c0 .9-.4 1.8-1.1 2.4l-.6.6h11.4l-.6-.6a3.3 3.3 0 0 1-1.1-2.4V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> 11. Alertes</div>
         <div class="hub-card-sub">DX, spotter, règles perso</div>
         <span class="hub-badge" id="hubbadge_alerts"></span>
       </div>
@@ -448,12 +454,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="hub-group-title">APRÈS LE CONCOURS</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_qsl" onclick="openCategoryPopup('qsl')">
-        <div class="hub-card-title">📮 12. QSL &amp; diplômes</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.8 4.6 9 9.5l6.2-4.9"/></svg> 12. QSL &amp; diplômes</div>
         <div class="hub-card-sub">QRZ, eQSL, LoTW, ClubLog...</div>
         <span class="hub-badge" id="hubbadge_qsl"></span>
       </div>
       <div class="hub-card" id="hubcard_scoreboard" onclick="openCategoryPopup('scoreboard')">
-        <div class="hub-card-title">🏆 13. Scoreboard &amp; soumission</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h7v4a3.5 3.5 0 0 1-7 0z"/><path d="M5.5 4h-2v1.5a2.5 2.5 0 0 0 2.3 2.5"/><path d="M12.5 4h2v1.5a2.5 2.5 0 0 1-2.3 2.5"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="6.5" y1="13" x2="11.5" y2="13"/></svg> 13. Scoreboard &amp; soumission</div>
         <div class="hub-card-sub">Score en direct, envoi du log</div>
         <span class="hub-badge" id="hubbadge_scoreboard"></span>
       </div>
@@ -464,12 +470,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     <div class="hub-group-title">SPÉCIAL</div>
     <div class="hub-grid">
       <div class="hub-card" id="hubcard_expedition" onclick="openCategoryPopup('expedition')">
-        <div class="hub-card-title">🏝️ 14. Expédition / Portable</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.7" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg> 14. Expédition / Portable</div>
         <div class="hub-card-sub">POTA, SOTA, IOTA, WWFF...</div>
         <span class="hub-badge" id="hubbadge_expedition"></span>
       </div>
       <div class="hub-card" id="hubcard_ai" onclick="openCategoryPopup('ai')">
-        <div class="hub-card-title">🤖 15. Assistant IA</div>
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> 15. Assistant IA</div>
         <div class="hub-card-sub">Fournisseur, clé API</div>
         <span class="hub-badge" id="hubbadge_ai"></span>
       </div>
@@ -478,7 +484,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
     </div>
 
     <div class="hub-launch-row">
-      <button class="btn btn-launch" style="padding:14px 32px;font-size:15px" onclick="launchApp()">🚀 TOUT EST BON — LOGGER</button>
+      <button class="btn btn-launch" style="padding:14px 32px;font-size:15px" onclick="launchApp()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> TOUT EST BON — LOGGER</button>
     </div>
   </div>
 
@@ -501,8 +507,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
      "📊 Résumé ▸" en tête du hub. -->
 <div class="cat-modal" id="catmodal_summary">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">📊 RÉSUMÉ DE LA SESSION</span>
-      <button class="cat-modal-close" onclick="closeSummaryPopup()">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="14.5" x2="4" y2="9"/><line x1="9" y1="14.5" x2="9" y2="4"/><line x1="14" y1="14.5" x2="14" y2="11"/></svg> RÉSUMÉ DE LA SESSION</span>
+      <button class="cat-modal-close" onclick="closeSummaryPopup()"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> Fermer</button></div>
     <div class="cat-modal-body">
       <div class="section">
         <div class="section-title">RÉCAPITULATIF DE LA SESSION</div>
@@ -512,13 +518,13 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         <div class="section-title">PROMPT SYSTÈME GÉNÉRÉ</div>
         <textarea id="generatedPrompt" readonly style="width:100%;height:180px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:12px;resize:vertical;outline:none;line-height:1.6"></textarea>
         <div class="btn-row" style="margin-top:8px;justify-content:flex-start">
-          <button class="btn btn-secondary" onclick="copyPrompt()">📋 COPIER LE PROMPT</button>
-          <button class="btn btn-secondary" onclick="saveConfig()">💾 SAUVEGARDER CONFIG</button>
+          <button class="btn btn-secondary" onclick="copyPrompt()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.3" width="10" height="13" rx="1.2"/><rect x="6.5" y="1.8" width="5" height="2.6" rx="0.6"/><line x1="6.3" y1="8" x2="11.7" y2="8"/><line x1="6.3" y1="11" x2="11.7" y2="11"/></svg> COPIER LE PROMPT</button>
+          <button class="btn btn-secondary" onclick="saveConfig()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> SAUVEGARDER CONFIG</button>
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn btn-launch" onclick="launchApp()">🚀 COMMENCER À LOGGER</button>
-        <button class="btn btn-secondary" onclick="launchApp('logx_carte.html')">🗺️ Ouvrir la carte IA</button>
+        <button class="btn btn-launch" onclick="launchApp()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> COMMENCER À LOGGER</button>
+        <button class="btn btn-secondary" onclick="launchApp('logx_carte.html')"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg> Ouvrir la carte IA</button>
       </div>
     </div>
   </div>
@@ -530,9 +536,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
      étapes) est rempli au fil de la migration, catégorie par catégorie. -->
 <div class="cat-modal" id="catmodal_identity">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">📛 1. IDENTITÉ DE LA STATION</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'identity')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('identity')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 15.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg> 1. IDENTITÉ DE LA STATION</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'identity')"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('identity')"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_identity">
       <div class="section">
         <div class="form-grid">
@@ -551,7 +557,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <div style="display:flex;gap:8px;align-items:stretch">
               <input type="text" id="locator" placeholder="JN15XC" maxlength="6" oninput="this.value=this.value.toUpperCase();updateLocatorHint()" style="flex:1">
               <button type="button" onclick="openLocatorMap()" title="Trouver le locator en cliquant sur une carte"
-                style="white-space:nowrap;background:var(--bg3);border:1px solid var(--accent2);color:var(--accent2);border-radius:6px;padding:0 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px">📍 Sur la carte</button>
+                style="white-space:nowrap;background:var(--bg3);border:1px solid var(--accent2);color:var(--accent2);border-radius:6px;padding:0 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg> Sur la carte</button>
             </div>
           </div>
           <div class="form-group">
@@ -598,10 +604,10 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="locator-hint" id="locatorHint" style="display:none">
-          <span id="locHintOk">📍 Locator <span id="locHintVal"></span> détecté — coordonnées calculées automatiquement</span>
-          <span id="locHintErr" style="display:none">⚠️ Locator invalide — format attendu : 2 lettres (A-R) + 2 chiffres + 2 lettres optionnelles (A-X), ex. JN15XC</span>
+          <span id="locHintOk"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg> Locator <span id="locHintVal"></span> détecté — coordonnées calculées automatiquement</span>
+          <span id="locHintErr" style="display:none"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M9 2.3 16.2 15H1.8z"/><line x1="9" y1="7" x2="9" y2="10.6"/><circle cx="9" cy="12.8" r="0.9" fill="currentColor" stroke="none"/></svg> Locator invalide — format attendu : 2 lettres (A-R) + 2 chiffres + 2 lettres optionnelles (A-X), ex. JN15XC</span>
         </div>
-        <div class="simple-note">💡 Mode simple : seuls les champs essentiels sont affichés.
+        <div class="simple-note"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.3a4.4 4.4 0 0 0-2.5 8c.5.4.8 1 .8 1.6v.3h3.4v-.3c0-.6.3-1.2.8-1.6A4.4 4.4 0 0 0 9 2.3z"/><line x1="7.3" y1="15.3" x2="10.7" y2="15.3"/></svg> Mode simple : seuls les champs essentiels sont affichés.
           Les champs d'export EDI (responsable log, section...) apparaissent en mode expert 🎚 —
           tu pourras les remplir avant d'envoyer ton log.</div>
       </div>
@@ -689,9 +695,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_operators">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">🧑‍🤝‍🧑 2. OPÉRATEURS</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'operators')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('operators')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.3"/><circle cx="12.5" cy="5.5" r="2.3"/><path d="M2 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/><path d="M7.5 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/></svg> 2. OPÉRATEURS</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'operators')"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('operators')"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_operators">
       <div class="section" id="opSection">
         <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
@@ -738,7 +744,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
            être au poste et quand. Outil informatif seulement (aucun verrou
            opérationnel), voir GET/POST /shifts/* dans logx_http.py. -->
       <div class="section" id="shiftsSection" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border)">
-        <div class="section-title">🕒 PLANNING (roulement des opérateurs)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.3"/><line x1="9" y1="9" x2="9" y2="5.3"/><line x1="9" y1="9" x2="11.6" y2="10.4"/></svg> PLANNING (roulement des opérateurs)</div>
         <div class="input-note" style="margin-bottom:12px">
           Qui est censé être au poste et à quelle heure — affiché sur l'écran mural. Purement informatif :
           aucun verrou, un opérateur peut toujours logguer en dehors de son créneau.
@@ -779,9 +785,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_contest">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">🏆 3. SÉLECTION DU CONCOURS</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'contest')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('contest')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h6v4a3 3 0 0 1-6 0V2z"/><path d="M6 3H3.5v1.5A2.5 2.5 0 0 0 6 7"/><path d="M12 3h2.5v1.5A2.5 2.5 0 0 1 12 7"/><line x1="9" y1="9" x2="9" y2="12"/><line x1="6" y1="15" x2="12" y2="15"/><line x1="9" y1="12" x2="9" y2="15"/></svg> 3. SÉLECTION DU CONCOURS</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'contest')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('contest')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_contest">
       <!-- ASSISTANT NOUVEAU CONCOURS (rempli par handleContestParam quand on
            arrive depuis le calendrier avec ?contest=ID) -->
@@ -798,7 +804,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
               onfocus="this.style.borderColor='var(--accent2)'"
               onblur="this.style.borderColor='var(--border)'">
             <span id="contestSearchClear" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
-              style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none">✕</span>
+              style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="14" height="14"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
           </div>
           <!-- Revenir à « pas de concours » : utile hors concours réel (activation,
                chasse DX...) — sans ce bouton, une fois un concours choisi il n'y
@@ -806,14 +812,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
                où participer ou non à un concours est un vrai choix ponctuel). -->
           <button type="button" class="btn btn-secondary" onclick="deselectContest()"
             title="Revenir à « sans concours » — utile en EXPÉDITION/PORTABLE quand tu ne participes pas (ou plus) à un concours"
-            style="white-space:nowrap;padding:0 16px">✕ Aucun concours</button>
+            style="white-space:nowrap;padding:0 16px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Aucun concours</button>
         </div>
         <div class="contest-grid" id="contestGrid"></div>
       </div>
 
       <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
       <div class="section">
-        <div class="section-title">🤖 ANALYSER UN RÈGLEMENT (IA)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> ANALYSER UN RÈGLEMENT (IA)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">
           Concours absent de la liste ? Donne l'URL de son règlement (PDF ou page web) : l'IA en extrait
           une définition complète (dates, bandes, modes, échange, scoring) <strong style="color:var(--text)">que tu relis et corriges
@@ -824,13 +830,13 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             style="flex:2;min-width:280px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
           <input type="text" id="aiRulesName" placeholder="Nom du concours (optionnel)"
             style="flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none">
-          <button class="btn btn-primary" id="aiAnalyzeBtn" onclick="analyzeRules()" style="padding:10px 18px">🤖 ANALYSER</button>
+          <button class="btn btn-primary" id="aiAnalyzeBtn" onclick="analyzeRules()" style="padding:10px 18px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> ANALYSER</button>
         </div>
         <div id="aiAnalyzeStatus" style="display:none;margin-top:10px;font-family:var(--font-mono);font-size:13px;color:var(--accent2)"></div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap">
           <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:1px">PARTAGE ENTRE STATIONS :</span>
-          <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="exportCustomContests()">📤 Exporter mes concours validés</button>
-          <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('importFile').click()">📥 Importer un fichier partagé</button>
+          <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="exportCustomContests()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5v3h13v-3"/><polyline points="6,7 9,4 12,7"/><line x1="9" y1="4" x2="9" y2="11.5"/></svg> Exporter mes concours validés</button>
+          <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('importFile').click()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5v3h13v-3"/><polyline points="6,8 9,11 12,8"/><line x1="9" y1="11" x2="9" y2="3.5"/></svg> Importer un fichier partagé</button>
           <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importCustomContests(this.files[0])">
           <span id="shareStatus" style="font-family:var(--font-mono);font-size:12px"></span>
         </div>
@@ -840,7 +846,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
            place (logx_callhistory.py) avec deux imports au format N1MM,
            plutôt que de créer un second système de suggestion en parallèle. -->
       <div class="section">
-        <div class="section-title">🗂️ BASES D'INDICATIFS EXTERNES (N1MM)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h4l1.5 2h7.5v7h-13v-9z"/></svg> BASES D'INDICATIFS EXTERNES (N1MM)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           Vient en complément de l'historique local (QSO déjà loggués + base REF/QRZ) pour l'autocomplétion
           indicatif (Super Check Partial) et le pré-remplissage de l'échange attendu.
@@ -853,7 +859,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             uniquement au check partial, pas au pré-remplissage.
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('scpFile').click()">📥 Importer MASTER.SCP</button>
+            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('scpFile').click()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5v3h13v-3"/><polyline points="6,8 9,11 12,8"/><line x1="9" y1="11" x2="9" y2="3.5"/></svg> Importer MASTER.SCP</button>
             <input type="file" id="scpFile" accept=".scp,.txt,text/plain" style="display:none" onchange="importMasterScp(this.files[0])">
             <span id="scpStatus" style="font-family:var(--font-mono);font-size:12px"></span>
           </div>
@@ -867,7 +873,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             sélectionné ci-dessus.
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('callHistoryFile').click()">📥 Importer un Call History</button>
+            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('callHistoryFile').click()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5v3h13v-3"/><polyline points="6,8 9,11 12,8"/><line x1="9" y1="11" x2="9" y2="3.5"/></svg> Importer un Call History</button>
             <input type="file" id="callHistoryFile" accept=".txt,.csv,text/plain,text/csv" style="display:none" onchange="importCallHistoryN1mm(this.files[0])">
             <span id="callHistoryStatus" style="font-family:var(--font-mono);font-size:12px"></span>
           </div>
@@ -878,16 +884,16 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_filters">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">📅 4. DATES &amp; BANDES/MODES</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'filters')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('filters')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> 4. DATES &amp; BANDES/MODES</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'filters')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('filters')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_filters">
       <div class="filters-cols">
         <div class="filters-col">
           <div class="section">
             <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
             <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
-              📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.
+              <svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Choisis un concours ci-dessus : ses dates se calculent automatiquement.
             </div>
             <div class="form-grid">
               <div class="form-group">
@@ -997,7 +1003,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
                 <span class="toggle-btn" data-key="band_sat" onclick="toggle(this)">Autres SAT</span>
               </div>
               <details class="sat-details">
-                <summary>🛰️ Satellite actif &amp; liens de suivi</summary>
+                <summary><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="4" height="4"/><rect x="1.5" y="6.5" width="4" height="5"/><rect x="12.5" y="6.5" width="4" height="5"/><line x1="10" y1="7" x2="13" y2="4"/><circle cx="13.5" cy="3.5" r="0.8" fill="currentColor" stroke="none"/></svg> Satellite actif &amp; liens de suivi</summary>
                 <div class="form-group" style="max-width:360px">
                   <label>SATELLITE ACTIF <span style="font-size:12px;color:var(--muted)">(repère informatif)</span></label>
                   <select id="active_satellite">
@@ -1027,7 +1033,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
                   <div class="input-note">Statut des satellites : <a href="https://www.amsat.org/status/" target="_blank" rel="noopener" style="color:var(--accent2)">AMSAT Live OSCAR Status</a></div>
                 </div>
                 <div class="input-note" style="margin-top:10px">
-                  🛰️ Suivi &amp; Doppler :
+                  <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><rect x="7" y="7" width="4" height="4"/><rect x="1.5" y="6.5" width="4" height="5"/><rect x="12.5" y="6.5" width="4" height="5"/><line x1="10" y1="7" x2="13" y2="4"/><circle cx="13.5" cy="3.5" r="0.8" fill="currentColor" stroke="none"/></svg> Suivi &amp; Doppler :
                   <a href="https://www.heavens-above.com/" target="_blank" rel="noopener" style="color:var(--accent2)">Heavens-Above</a> ·
                   <a href="https://www.n2yo.com/" target="_blank" rel="noopener" style="color:var(--accent2)">N2YO</a> ·
                   <a href="https://amsat.org/amateur-satellite-index/" target="_blank" rel="noopener" style="color:var(--accent2)">Index AMSAT</a> ·
@@ -1043,9 +1049,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_radio">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">📻 5. RADIO (PILOTAGE CAT)</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'radio')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('radio')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="13" height="8" rx="1.5"/><line x1="5" y1="7" x2="7.5" y2="2.5"/><circle cx="6" cy="11" r="1.6"/><line x1="10.5" y1="10" x2="14" y2="10"/><line x1="10.5" y1="12.5" x2="14" y2="12.5"/></svg> 5. RADIO (PILOTAGE CAT)</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'radio')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('radio')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_radio">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1053,7 +1059,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           suivis automatiquement, macros CW envoyées par le keyer de la radio.
         </div>
         <details style="margin-bottom:16px;border:1px dashed var(--border);border-radius:8px;padding:10px 14px">
-          <summary style="cursor:pointer;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:1px">📖 Quel mode choisir pour ma radio ?</summary>
+          <summary style="cursor:pointer;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:1px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M9 4.5c-1.3-1-3-1.5-6-1.5v9.5c3 0 4.7.5 6 1.5"/><path d="M9 4.5c1.3-1 3-1.5 6-1.5v9.5c-3 0-4.7.5-6 1.5V4.5z"/></svg> Quel mode choisir pour ma radio ?</summary>
           <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);line-height:1.8;margin-top:10px">
             <b style="color:var(--text)">NATIF</b> — deux familles de protocole codées en dur dans LogX AI, sans logiciel intermédiaire :<br>
             &nbsp;&nbsp;• <b>CI-V (Icom + Xiegu)</b> : <span id="catDocIcomCount">?</span> radios/récepteurs Icom + Xiegu listés ci-dessous (menu MODÈLE) —
@@ -1111,7 +1117,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="form-group">
             <label>PORT SÉRIE</label>
             <select id="cat_port"></select>
-            <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshCatPorts()">🔄 Rafraîchir la liste</button>
+            <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshCatPorts()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a6 6 0 0 1 10.5-4"/><polyline points="13.5,1.5 13.5,5 10,5"/><path d="M15 9a6 6 0 0 1-10.5 4"/><polyline points="4.5,16.5 4.5,13 8,13"/></svg> Rafraîchir la liste</button>
           </div>
           <div class="form-group">
             <label>VITESSE (bauds)</label>
@@ -1119,8 +1125,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px;flex-wrap:wrap">
-          <button type="button" class="btn btn-secondary" onclick="testCatConnection()">🔌 Tester la connexion</button>
-          <button type="button" class="btn btn-secondary" onclick="autodetectCat()" title="Identifie automatiquement la marque et le modèle sur le port choisi, sans les sélectionner d'abord">🔍 Auto-détecter (marque+modèle inconnus)</button>
+          <button type="button" class="btn btn-secondary" onclick="testCatConnection()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V3.5M12 8V3.5"/><path d="M4.5 8h9v2a4.5 4.5 0 0 1-9 0V8z"/><line x1="9" y1="14.5" x2="9" y2="16.5"/></svg> Tester la connexion</button>
+          <button type="button" class="btn btn-secondary" onclick="autodetectCat()" title="Identifie automatiquement la marque et le modèle sur le port choisi, sans les sélectionner d'abord"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5"/><line x1="11.8" y1="11.8" x2="16" y2="16"/></svg> Auto-détecter (marque+modèle inconnus)</button>
           <span id="catTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
 
@@ -1185,7 +1191,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
 
       <div class="section">
-        <div class="section-title">💻 WSJT-X · JTDX · MSHV (FT8/FT4 — auto-log)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="12" height="8" rx="1"/><line x1="1.5" y1="14.5" x2="16.5" y2="14.5"/><line x1="6.5" y1="11.5" x2="6" y2="14.5"/><line x1="11.5" y1="11.5" x2="12" y2="14.5"/></svg> WSJT-X · JTDX · MSHV (FT8/FT4 — auto-log)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
           Chaque QSO validé dans ton logiciel numérique arrive AUTOMATIQUEMENT
           dans le logbook (call, grille, bande, mode, rapports) — plus de
@@ -1215,7 +1221,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
 
       <div class="section">
-        <div class="section-title">🎙️ KEYER VOCAL (phonie — indicatif dit automatiquement)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16.5"/><line x1="6" y1="16.5" x2="12" y2="16.5"/></svg> KEYER VOCAL (phonie — indicatif dit automatiquement)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
           Équivalent phonie des macros CW : synthèse vocale hors-ligne (aucun réseau),
           indicatif épelé phonétiquement (Alpha, Bravo…) et reports dits chiffre par
@@ -1248,7 +1254,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="testVoiceKeyer()">🔊 Tester (indicatif fictif)</button>
+          <button type="button" class="btn btn-secondary" onclick="testVoiceKeyer()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5h3l4-3.5v10l-4-3.5h-3v-3z"/><path d="M12 6a4 4 0 0 1 0 6"/><path d="M14.2 4a7 7 0 0 1 0 10"/></svg> Tester (indicatif fictif)</button>
           <span id="voiceKeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
@@ -1259,7 +1265,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
            matériel : aucun logiciel ne route de l'audio à la place d'un
            relais. LogX AI lui DIT quoi commuter, par le protocole OTRSP. -->
       <div class="section">
-        <div class="section-title">🎚️ SO2R — DEUXIÈME RADIO</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5" y1="2" x2="5" y2="16"/><rect x="3" y="6" width="4" height="3" rx="1" fill="currentColor" stroke="none"/><line x1="13" y1="2" x2="13" y2="16"/><rect x="11" y="9" width="4" height="3" rx="1" fill="currentColor" stroke="none"/></svg> SO2R — DEUXIÈME RADIO</div>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           À remplir seulement si vous opérez avec <b style="color:var(--text)">deux radios</b>.
           Le QSY, les macros et le manipulateur visent alors la radio qui a l'émission ;
@@ -1316,7 +1322,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="testSo2r()">🔌 Tester le boîtier</button>
+          <button type="button" class="btn btn-secondary" onclick="testSo2r()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V3.5M12 8V3.5"/><path d="M4.5 8h9v2a4.5 4.5 0 0 1-9 0V8z"/><line x1="9" y1="14.5" x2="9" y2="16.5"/></svg> Tester le boîtier</button>
           <span id="so2rTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
@@ -1327,7 +1333,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
            reste préférable : son propre port, son propre processeur, donc une
            cadence indépendante du trafic CAT. -->
       <div class="section">
-        <div class="section-title">🎛️ MANIPULATEUR WINKEYER (K1EL)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="5" cy="6" r="2.2"/><line x1="5" y1="10" x2="5" y2="15"/><circle cx="13" cy="11" r="2.2"/><line x1="13" y1="3" x2="13" y2="7.8"/></svg> MANIPULATEUR WINKEYER (K1EL)</div>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           Boîtier de manipulation CW branché sur son propre port série. Activé, il prend
           la main sur l'envoi CW <b style="color:var(--text)">quelle que soit la marque de
@@ -1352,7 +1358,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="testWinKeyer()">🔌 Tester le WinKeyer</button>
+          <button type="button" class="btn btn-secondary" onclick="testWinKeyer()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V3.5M12 8V3.5"/><path d="M4.5 8h9v2a4.5 4.5 0 0 1-9 0V8z"/><line x1="9" y1="14.5" x2="9" y2="16.5"/></svg> Tester le WinKeyer</button>
           <span id="winkeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
@@ -1363,7 +1369,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
            loggué, le filtre du band map, le QSY et le fichier EDI sont faux
            au même moment — sans le moindre message d'erreur. -->
       <div class="section" id="transverterSection">
-        <div class="section-title">📡 TRANSVERTERS (hyperfréquences)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> TRANSVERTERS (hyperfréquences)</div>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           À déclarer seulement si vous trafiquez au-dessus de 1296 MHz par transverter.
           La radio affiche alors sa fréquence intermédiaire (FI) : LogX AI la convertit en
@@ -1382,9 +1388,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_amp">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">🔋 6. AMPLIFICATEUR HF</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'amp')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('amp')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1.5L4.5 10h4L8 16.5 13.5 8h-4z"/></svg> 6. AMPLIFICATEUR HF</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'amp')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('amp')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_amp">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1412,7 +1418,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="form-group">
             <label>PORT SÉRIE</label>
             <select id="amp_port"></select>
-            <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshAmpPorts()">🔄 Rafraîchir la liste</button>
+            <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshAmpPorts()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9a5.5 5.5 0 0 1 9.3-4"/><polyline points="12.5 2 12.8 5 9.8 5.3"/><path d="M14.5 9a5.5 5.5 0 0 1-9.3 4"/><polyline points="5.5 16 5.2 13 8.2 12.7"/></svg> Rafraîchir la liste</button>
           </div>
           <div class="form-group">
             <label>VITESSE (bauds)</label>
@@ -1425,7 +1431,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="testAmpConnection()">🔌 Tester la connexion</button>
+          <button type="button" class="btn btn-secondary" onclick="testAmpConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
           <span id="ampTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
@@ -1434,9 +1440,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_rotor">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">🧭 7. ROTOR D'ANTENNE</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'rotor')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('rotor')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M11 6 7.5 9 8.5 12 12 9z" fill="currentColor" stroke="none"/></svg> 7. ROTOR D'ANTENNE</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'rotor')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('rotor')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_rotor">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1493,12 +1499,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_network">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">☁️ 8. MULTI-POSTE &amp; CLOUD SYNC</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'network')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('network')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> 8. MULTI-POSTE &amp; CLOUD SYNC</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'network')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('network')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_network">
       <div class="section">
-        <div class="section-title">🌐 RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</div>
+        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c-2.5 2-2.5 11 0 13"/><path d="M9 2.5c2.5 2 2.5 11 0 13"/></svg> RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
           Interopérabilité temps réel avec N1MM Logger+ et DXLog.net via leur
           protocole de broadcast UDP <code>&lt;contactinfo&gt;</code> (format de facto
@@ -1532,7 +1538,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
       <div class="section">
-        <div class="section-title">🔗 SYNCHRO LAN DIRECTE (postes sur le même WiFi, sans dossier partagé)</div>
+        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="6" width="8" height="6" rx="3"/><rect x="8.5" y="6" width="8" height="6" rx="3"/></svg> SYNCHRO LAN DIRECTE (postes sur le même WiFi, sans dossier partagé)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Les postes LogX du même réseau local se DÉCOUVRENT tout seuls et
           échangent leurs QSO directement, sans passer par un dossier partagé.
@@ -1561,7 +1567,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
       <div class="section">
-        <div class="section-title">☁️ CLOUD SYNC (multi-poste, via un dossier partagé Dropbox/Synology…)</div>
+        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> CLOUD SYNC (multi-poste, via un dossier partagé Dropbox/Synology…)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Combine tes QSO avec un AUTRE poste (même expédition, poste de secours...)
           via un dossier déjà synchronisé (Synology Drive, Dropbox, OneDrive…) —
@@ -1598,12 +1604,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="cloudsyncNow()">☁️ SYNCHRONISER MAINTENANT</button>
+          <button type="button" class="btn btn-secondary" onclick="cloudsyncNow()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> SYNCHRONISER MAINTENANT</button>
           <span id="cloudsyncResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
       <div class="section">
-        <div class="section-title">📡 PUBLICATION MQTT (optionnelle)</div>
+        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> PUBLICATION MQTT (optionnelle)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Publie 3 informations simples vers un broker MQTT LOCAL (Mosquitto...)
           pour un tableau de bord externe (Node-RED, Home Assistant, overlay
@@ -1639,7 +1645,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
       <div class="section">
-        <div class="section-title">🔒 SÉCURITÉ D'ACCÈS</div>
+        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="10" height="7" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg> SÉCURITÉ D'ACCÈS</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Par défaut, TOUT appareil qui charge une page du logiciel sur ce réseau
           obtient automatiquement les droits d'écriture (ajout de QSO, changement
@@ -1664,8 +1670,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="setAccessPassword()">🔒 Définir / modifier</button>
-          <button type="button" class="btn btn-secondary" id="disableAccessPasswordBtn" onclick="disableAccessPassword()" style="display:none">🔓 Désactiver la protection</button>
+          <button type="button" class="btn btn-secondary" onclick="setAccessPassword()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="10" height="7" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg> Définir / modifier</button>
+          <button type="button" class="btn btn-secondary" id="disableAccessPasswordBtn" onclick="disableAccessPassword()" style="display:none"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="10" height="7" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 5.7-1.3"/></svg> Désactiver la protection</button>
           <span id="accessPasswordResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
@@ -1674,9 +1680,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_backup">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">💾 9. SAUVEGARDE AUTOMATIQUE</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'backup')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('backup')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> 9. SAUVEGARDE AUTOMATIQUE</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'backup')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('backup')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_backup">
       <div class="section">
         <div class="form-grid">
@@ -1684,7 +1690,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <label>DOSSIER DE SAUVEGARDE</label>
             <div class="input-with-btn">
               <input type="text" id="backup_folder" placeholder="C:\Users\...\SynologyDrive\logs" autocomplete="off">
-              <button type="button" class="folder-pick-btn" id="backupFolderPickBtn" onclick="pickBackupFolder()" title="Parcourir… (explorateur Windows)">📁</button>
+              <button type="button" class="folder-pick-btn" id="backupFolderPickBtn" onclick="pickBackupFolder()" title="Parcourir… (explorateur Windows)"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M1.5 4.5h5l1.5 2h8.5v8h-15z"/></svg></button>
             </div>
             <div class="input-note">Copie horodatée (.db + .json + ADIF) ; vide = désactivé</div>
             <span id="backupFolderPickResult" style="font-family:var(--font-mono);font-size:12px"></span>
@@ -1700,9 +1706,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_sources">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">📡 10. SOURCES DE SPOTS &amp; PROPAGATION</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'sources')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('sources')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> 10. SOURCES DE SPOTS &amp; PROPAGATION</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'sources')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('sources')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_sources">
       <div class="section">
         <div class="section-title">SOURCES DE SPOTS (CLUSTER)</div>
@@ -1773,9 +1779,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_alerts">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">🔔 11. ALERTES PERSONNALISÉES</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'alerts')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('alerts')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.5c0 1.5-.6 2.3-1.3 3h10.6c-.7-.7-1.3-1.5-1.3-3V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> 11. ALERTES PERSONNALISÉES</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'alerts')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('alerts')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_alerts">
       <div class="section">
         <div class="section-title">MODES DE PROPAGATION À SURVEILLER</div>
@@ -1838,14 +1844,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
 
       <div class="section">
-        <div class="section-title">🔊 SON &amp; VOIX PAR TYPE D'ALERTE</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7v4h3l4 3V4l-4 3z"/><path d="M12 6.5a3.2 3.2 0 0 1 0 5"/><path d="M14 4.5a6 6 0 0 1 0 9"/></svg> SON &amp; VOIX PAR TYPE D'ALERTE</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Pour chaque type d'alerte, choisis un <b>son</b> distinct et/ou une <b>annonce vocale</b>
           (« Nouveau pays détecté ! »). La voix d'un type activé parle même si la lecture
           automatique globale 🔊 est coupée. Réglages propres à ce poste, enregistrés aussitôt.
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-          <label for="alertBeepVolume" style="font-family:var(--font-mono);font-size:13px;color:var(--muted)">🔉 Volume des bips</label>
+          <label for="alertBeepVolume" style="font-family:var(--font-mono);font-size:13px;color:var(--muted)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7v4h3l4 3V4l-4 3z"/><path d="M12 6.5a3.2 3.2 0 0 1 0 5"/></svg> Volume des bips</label>
           <select id="alertBeepVolume" style="width:auto;min-width:140px" onchange="window.rcSetAlertVolume && window.rcSetAlertVolume(this.value)">
             <option value="faible">Faible</option>
             <option value="moyen">Moyen</option>
@@ -1856,7 +1862,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
 
       <div class="section">
-        <div class="section-title">🔔 RÈGLES D'ALERTE PERSONNALISÉES</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.5c0 1.5-.6 2.3-1.3 3h10.6c-.7-.7-1.3-1.5-1.3-3V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> RÈGLES D'ALERTE PERSONNALISÉES</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           En plus du nouveau multiplicateur et de la mention ON4KST (toujours actifs) :
           combine préfixe d'indicatif, continent, zone CQ, bande, statut travaillé et
@@ -1908,7 +1914,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="addAlertRule()">➕ AJOUTER LA RÈGLE</button>
+          <button type="button" class="btn btn-secondary" onclick="addAlertRule()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="9" y1="3" x2="9" y2="15"/><line x1="3" y1="9" x2="15" y2="9"/></svg> AJOUTER LA RÈGLE</button>
           <span id="ruleAddMsg" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
@@ -1917,12 +1923,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_qsl">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">📮 12. QSL &amp; DIPLÔMES</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'qsl')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('qsl')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.5 5l6.5 5.5L15.5 5"/></svg> 12. QSL &amp; DIPLÔMES</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'qsl')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('qsl')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_qsl">
       <div class="section">
-        <div class="section-title">🌐 COMPTE QRZ.com (fiches des correspondants)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c2.2 2 2.2 11 0 13"/><path d="M9 2.5c-2.2 2-2.2 11 0 13"/></svg> COMPTE QRZ.com (fiches des correspondants)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           À chaque indicatif saisi, affiche nom / QTH / locator / pays depuis QRZ.
           (Champs détaillés réservés aux comptes abonnés XML QRZ ; le pays reste
@@ -1942,7 +1948,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
         </div>
       </div>
       <div class="section">
-        <div class="section-title">📮 QSL &amp; DIPLÔMES (services en ligne)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.5 5l6.5 5.5L15.5 5"/></svg> QSL &amp; DIPLÔMES (services en ligne)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Publie ton log après un concours (eQSL, ClubLog) et récupère les
           confirmations (LoTW) pour suivre tes diplômes DXCC / départements
@@ -2015,7 +2021,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
                 <option value="">Désactivé</option>
                 <option value="1">Activé — insérer chaque QSO validé</option>
               </select>
-              <button type="button" class="btn btn-secondary" style="padding:9px 14px;font-size:12px;white-space:nowrap" onclick="testQrzLogbook()">🔌 Tester</button>
+              <button type="button" class="btn btn-secondary" style="padding:9px 14px;font-size:12px;white-space:nowrap" onclick="testQrzLogbook()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2.5v4M11.5 2.5v4"/><path d="M4.5 6.5h9v3a4.5 4.5 0 0 1-9 0z"/><line x1="9" y1="13.5" x2="9" y2="16"/></svg> Tester</button>
             </div>
             <div id="qrzLogbookTestResult" style="font-family:var(--font-mono);font-size:12px;margin-top:4px"></div>
             <div class="input-note">Insertion QSO par QSO (ACTION=INSERT) dès qu'un QSO est ajouté au log — nécessite la clé API ci-dessus</div>
@@ -2027,9 +2033,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_scoreboard">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">🏆 13. SCOREBOARD &amp; SOUMISSION</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'scoreboard')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('scoreboard')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h8v3a4 4 0 0 1-8 0z"/><path d="M5 4H3v1a3 3 0 0 0 3 3M13 4h2v1a3 3 0 0 1-3 3"/><line x1="9" y1="10" x2="9" y2="13"/><path d="M6 15.5h6M6.5 15.5C6.5 14 7 13 9 13s2.5 1 2.5 2.5"/></svg> 13. SCOREBOARD &amp; SOUMISSION</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'scoreboard')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('scoreboard')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
     <div class="cat-modal-body" id="catbody_scoreboard">
       <div class="section">
         <div class="section-title">SCOREBOARD EN DIRECT</div>
@@ -2066,12 +2072,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_expedition">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">🏝️ 14. EXPÉDITION / PORTABLE</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'expedition')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('expedition')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h10l-3 3 3 3H4"/></svg>14. EXPÉDITION / PORTABLE</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'expedition')"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="2.5" width="12" height="13" rx="1"/><path d="M5.5 2.5v4h5.5v-4"/><rect x="6" y="10" width="6" height="5.5"/></svg>Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('expedition')"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:4px"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg>Fermer</button></div>
     <div class="cat-modal-body" id="catbody_expedition">
       <div class="section">
-        <div class="section-title">🏕️ TRAFIC EN PORTABLE (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
+        <div class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M2 15 9 3l7 12z"/><line x1="9" y1="8" x2="9" y2="15"/></svg>TRAFIC EN PORTABLE (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Tu opères depuis une référence (parc, sommet, île, réserve, phare, château) :
           chaque QSO porte ta référence et compte pour valider la sortie. Le
@@ -2101,10 +2107,10 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div class="form-group" id="activationNearbyBlock" style="display:none;margin-top:12px">
-          <label>🗺️ <span id="activationNearbyLabel">RÉFÉRENCES</span> À PROXIMITÉ <span style="font-size:12px;color:var(--muted)">(depuis ton locator)</span></label>
+          <label><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg><span id="activationNearbyLabel">RÉFÉRENCES</span> À PROXIMITÉ <span style="font-size:12px;color:var(--muted)">(depuis ton locator)</span></label>
           <div id="activationNearbySearchRow">
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-              <button type="button" class="btn btn-secondary" style="padding:7px 14px;font-size:12px" onclick="loadNearbyActivationRefs()">🔍 Chercher autour de moi</button>
+              <button type="button" class="btn btn-secondary" style="padding:7px 14px;font-size:12px" onclick="loadNearbyActivationRefs()"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:4px"><circle cx="7.5" cy="7.5" r="5"/><line x1="11.3" y1="11.3" x2="16" y2="16"/></svg>Chercher autour de moi</button>
               <input type="number" id="activationNearbyMaxKm" value="60" min="5" max="500" style="width:70px" title="Rayon de recherche (km)">
               <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">km</span>
             </div>
@@ -2112,7 +2118,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             <div class="input-note">Calculé directement depuis la base déjà chargée côté serveur (pas de service tiers) — clique un résultat pour le mettre dans MA RÉFÉRENCE.</div>
           </div>
           <div id="activationNearbyUnavailable" style="display:none;font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:8px 0">
-            ⚠️ Non disponible pour ce programme : la base officielle ne fournit aucune coordonnée GPS par référence, impossible de calculer une distance.
+            <svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M9 2.2 16.3 15.5H1.7z"/><line x1="9" y1="7" x2="9" y2="11"/><circle cx="9" cy="13.2" r="0.9" fill="currentColor" stroke="none"/></svg>Non disponible pour ce programme : la base officielle ne fournit aucune coordonnée GPS par référence, impossible de calculer une distance.
             La recherche par nom reste disponible juste au-dessus, dans MA RÉFÉRENCE.
             <!-- WCA seul : la référence VALIDÉE dans MA RÉFÉRENCE est géocodée à la
                  demande (nom + localisation via Nominatim, cf. validateActivationRef côté JS
@@ -2123,7 +2129,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
       </div>
 
       <div class="section" id="sotaAutoSpotSection" style="display:none">
-        <div class="section-title">🏔️ AUTO-SPOT SOTA (SOTAwatch3)</div>
+        <div class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M1.5 15 7 6l2.2 3.2L12 5l4.5 10z"/></svg>AUTO-SPOT SOTA (SOTAwatch3)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Publie ta sortie directement sur SOTAwatch3, comme le bouton
           « Add Spot » du site officiel. Nécessite un clientId personnel,
@@ -2151,13 +2157,13 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
-          <button type="button" class="btn btn-secondary" style="padding:9px 16px;font-size:12px" onclick="connectSota()">🔐 Se connecter à SOTA</button>
+          <button type="button" class="btn btn-secondary" style="padding:9px 16px;font-size:12px" onclick="connectSota()"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="4" y="8" width="10" height="7.5" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg>Se connecter à SOTA</button>
           <span id="sotaAuthStatus" style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">Non connecté</span>
         </div>
       </div>
 
       <div class="section">
-        <div class="section-title">🏝️ MODE EXPÉDITION</div>
+        <div class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h10l-3 3 3 3H4"/></svg>MODE EXPÉDITION</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Plusieurs postes sur le même site (un par bande, voire trois par bande en
           CW/SSB/FT8) loggent dans le MÊME log commun : chaque poste ouvre le
@@ -2203,7 +2209,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           </div>
           <div class="form-group">
             <label>ÉCRAN MURAL (grand écran)</label>
-            <a href="logx_wall.html" target="_blank" class="btn btn-secondary" style="display:inline-block;padding:9px 16px;text-decoration:none;margin-top:2px">🖥️ OUVRIR L'ÉCRAN MURAL</a>
+            <a href="logx_wall.html" target="_blank" class="btn btn-secondary" style="display:inline-block;padding:9px 16px;text-decoration:none;margin-top:2px"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="2" y="3" width="14" height="9.5" rx="1"/><line x1="6.5" y1="15.5" x2="11.5" y2="15.5"/><line x1="9" y1="12.5" x2="9" y2="15.5"/></svg>OUVRIR L'ÉCRAN MURAL</a>
             <div class="input-note">Flux QSO temps réel · à afficher sur le projecteur (F11 = plein écran). Marche dans n'importe quel mode d'utilisation (concours, expédition, radioclub, ou même seul) — utile pour suivre les QSO depuis une autre pièce.</div>
           </div>
         </div>
@@ -2211,7 +2217,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <label>ÉCRAN MURAL — CHAMPS À AFFICHER</label>
           <div id="wallFields" style="display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:8px;font-family:var(--font-mono);font-size:14px">
             <label style="cursor:pointer"><input type="checkbox" id="wf_time" checked> Heure</label>
-            <label style="cursor:pointer"><input type="checkbox" id="wf_flag" checked> 🏴 Drapeau</label>
+            <label style="cursor:pointer"><input type="checkbox" id="wf_flag" checked> <svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h10l-3 3 3 3H4"/></svg>Drapeau</label>
             <label style="cursor:pointer"><input type="checkbox" id="wf_country" checked> Pays</label>
             <label style="cursor:pointer"><input type="checkbox" id="wf_name"> Prénom</label>
             <label style="cursor:pointer"><input type="checkbox" id="wf_band" checked> Bande</label>
@@ -2228,7 +2234,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="input-note">Objectif de QSO TOTAL pour la session/l'événement (ex. « en route vers 10 000 QSO ») — affiche une barre de progression sur l'écran mural. Distinct de l'objectif QSO/heure de la barre de statut. 0 = pas de barre affichée.</div>
         </div>
         <div class="form-group" style="margin-top:10px">
-          <label>📱 CONNECTER UN TÉLÉPHONE / TABLETTE</label>
+          <label><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="6" y="1.5" width="6" height="15" rx="1.3"/><line x1="8" y1="13.3" x2="10" y2="13.3"/></svg>CONNECTER UN TÉLÉPHONE / TABLETTE</label>
           <div id="lanUrls" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-top:6px;line-height:1.8">Recherche de l'adresse réseau…</div>
           <div class="input-note">Sur le même WiFi, ouvre cette adresse sur ton téléphone, puis « Ajouter à l'écran d'accueil » : l'appli s'installe et tourne en plein écran (PWA).</div>
         </div>
@@ -2238,9 +2244,9 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_ai">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">🤖 15. ASSISTANT IA</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'ai')">💾 Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('ai')">✕ Fermer</button></div>
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><rect x="4" y="6.5" width="10" height="7.5" rx="2"/><line x1="9" y1="2.5" x2="9" y2="6.5"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="1.5" y1="9" x2="4" y2="9"/><line x1="14" y1="9" x2="16.5" y2="9"/></svg>15. ASSISTANT IA</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'ai')"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="2.5" width="12" height="13" rx="1"/><path d="M5.5 2.5v4h5.5v-4"/><rect x="6" y="10" width="6" height="5.5"/></svg>Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('ai')"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:4px"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg>Fermer</button></div>
     <div class="cat-modal-body" id="catbody_ai">
       <div class="section">
         <div class="form-grid">
@@ -2292,7 +2298,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <div class="form-group">
             <label id="api_key_label">CLÉ API</label>
             <input type="password" id="api_key" placeholder="sk-ant-api03-...">
-            <div class="input-note">🔒 Stockée localement par fournisseur — jamais partagée</div>
+            <div class="input-note"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><rect x="4" y="8" width="10" height="7.5" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg>Stockée localement par fournisseur — jamais partagée</div>
           </div>
         </div>
       </div>
@@ -2305,22 +2311,22 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <div id="mapLocOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72)">
   <div style="position:absolute;inset:3%;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)">
     <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap">
-      <b style="color:var(--accent2);font-family:var(--font-mono)">📍 Locator sur la carte</b>
+      <b style="color:var(--accent2);font-family:var(--font-mono)"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg>Locator sur la carte</b>
       <input id="mapLocSearch" type="text" placeholder="Ville / adresse…" onkeydown="if(event.key==='Enter'){event.preventDefault();mapLocSearchGo();}"
         style="flex:1;min-width:150px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-family:var(--font)">
-      <button type="button" onclick="mapLocSearchGo()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer;font-family:var(--font-mono);font-size:12px">🔍 Chercher</button>
-      <button type="button" onclick="mapLocGeoloc()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer;font-family:var(--font-mono);font-size:12px">🛰️ Ma position</button>
+      <button type="button" onclick="mapLocSearchGo()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer;font-family:var(--font-mono);font-size:12px"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:3px"><circle cx="7.5" cy="7.5" r="5"/><line x1="11.3" y1="11.3" x2="16" y2="16"/></svg>Chercher</button>
+      <button type="button" onclick="mapLocGeoloc()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer;font-family:var(--font-mono);font-size:12px"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><rect x="6.5" y="6.5" width="5" height="5" rx="1"/><rect x="1" y="1" width="3" height="3" rx="0.5"/><rect x="14" y="14" width="3" height="3" rx="0.5"/><line x1="6.7" y1="6.7" x2="3.2" y2="3.2"/><line x1="11.3" y1="11.3" x2="14.8" y2="14.8"/><line x1="9" y1="6.5" x2="9" y2="3.5"/></svg>Ma position</button>
       <span style="margin-left:auto;font-family:var(--font-mono);color:var(--muted)">Locator : <b id="mapLocValue" style="color:var(--green);font-size:16px">—</b></span>
       <button type="button" id="mapLocUseBtn" onclick="mapLocUse()" disabled
-        style="background:var(--green);border:1px solid var(--green);color:#062;border-radius:6px;padding:7px 13px;cursor:pointer;font-weight:700;font-family:var(--font-mono);opacity:.5">✓ Utiliser</button>
-      <button type="button" onclick="closeLocatorMap()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer">✕</button>
+        style="background:var(--green);border:1px solid var(--green);color:#062;border-radius:6px;padding:7px 13px;cursor:pointer;font-weight:700;font-family:var(--font-mono);opacity:.5"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><polyline points="4,9.5 7.5,13 14.5,4.5"/></svg>Utiliser</button>
+      <button type="button" onclick="closeLocatorMap()" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 11px;cursor:pointer"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg></button>
     </div>
     <div id="mapLocTileError" style="display:none;background:rgba(255,214,10,.1);border-bottom:1px solid rgba(255,214,10,.4);color:var(--yellow);font-family:var(--font-mono);font-size:13px;padding:8px 14px">
-      ⚠️ Tuiles de carte indisponibles (openstreetmap.org bloqué ?) — la carte peut rester grise. Utilise la saisie manuelle du locator si besoin.
+      <svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M9 2.2 16.3 15.5H1.7z"/><line x1="9" y1="7" x2="9" y2="11"/><circle cx="9" cy="13.2" r="0.9" fill="currentColor" stroke="none"/></svg>Tuiles de carte indisponibles (openstreetmap.org bloqué ?) — la carte peut rester grise. Utilise la saisie manuelle du locator si besoin.
     </div>
     <div id="mapLocMap" style="flex:1;min-height:0;background:var(--bg3)"></div>
     <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid var(--border);flex-wrap:wrap">
-      <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">📏 Comparer à un locator distant :</span>
+      <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><rect x="1.5" y="6.5" width="15" height="5" rx="1"/><line x1="4.5" y1="6.5" x2="4.5" y2="8.5"/><line x1="7.5" y1="6.5" x2="7.5" y2="8.5"/><line x1="10.5" y1="6.5" x2="10.5" y2="8.5"/><line x1="13.5" y1="6.5" x2="13.5" y2="8.5"/></svg>Comparer à un locator distant :</span>
       <input id="mapLocTarget" type="text" placeholder="ex. JN18CR" maxlength="6" oninput="this.value=this.value.toUpperCase()"
         onkeydown="if(event.key==='Enter'){event.preventDefault();mapLocCompare();}"
         style="width:110px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 9px;font-family:var(--font-mono);text-transform:uppercase">
@@ -2351,21 +2357,21 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 <button type="button" id="assistantFab" onclick="toggleAssistant()"
   title="Assistant configuration : pose une question si un champ n'est pas clair"
   style="position:fixed;right:22px;bottom:22px;z-index:9998;width:54px;height:54px;border-radius:50%;
-  background:var(--accent2);border:none;color:#04222b;font-size:24px;cursor:pointer;
-  box-shadow:0 6px 20px rgba(0,0,0,.4)">🤖</button>
+  background:#C9822E;border:none;color:#04222b;font-size:24px;cursor:pointer;
+  box-shadow:0 6px 20px rgba(0,0,0,.4)"><svg width="24" height="24" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-6px"><rect x="4" y="6.5" width="10" height="7.5" rx="2"/><line x1="9" y1="2.5" x2="9" y2="6.5"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="1.5" y1="9" x2="4" y2="9"/><line x1="14" y1="9" x2="16.5" y2="9"/></svg></button>
 
 <div id="assistantPanel" style="display:none;position:fixed;right:22px;bottom:88px;z-index:9998;
   width:340px;max-height:70vh;background:var(--bg2);border:1px solid var(--border);border-radius:12px;
   display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5)">
   <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)">
-    <b style="color:var(--accent2);font-family:var(--font-mono);font-size:13px">🤖 ASSISTANT CONFIGURATION</b>
-    <button type="button" onclick="toggleAssistant()" style="margin-left:auto;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px">✕</button>
+    <b style="color:var(--accent2);font-family:var(--font-mono);font-size:13px"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="4" y="6.5" width="10" height="7.5" rx="2"/><line x1="9" y1="2.5" x2="9" y2="6.5"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="1.5" y1="9" x2="4" y2="9"/><line x1="14" y1="9" x2="16.5" y2="9"/></svg>ASSISTANT CONFIGURATION</b>
+    <button type="button" onclick="toggleAssistant()" style="margin-left:auto;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg></button>
   </div>
   <div id="assistantBody" style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px"></div>
   <div style="display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--border)">
     <input id="assistantInput" type="text" placeholder="Ta question…" onkeydown="if(event.key==='Enter'){event.preventDefault();askAssistant();}"
       style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-family:var(--font)">
-    <button type="button" onclick="askAssistant()" style="background:var(--accent2);border:none;color:#04222b;border-radius:6px;padding:0 12px;cursor:pointer;font-weight:700">➤</button>
+    <button type="button" onclick="askAssistant()" style="background:#C9822E;border:none;color:#04222b;border-radius:6px;padding:0 12px;cursor:pointer;font-weight:700">➤</button>
   </div>
 </div>
 
@@ -2586,7 +2592,7 @@ function addAssistantMsg(who, text){
   const body = document.getElementById('assistantBody');
   const div = document.createElement('div');
   div.style.cssText = who === 'user'
-    ? 'align-self:flex-end;background:var(--accent2);color:#04222b;border-radius:10px 10px 2px 10px;padding:8px 11px;max-width:85%;white-space:pre-wrap'
+    ? 'align-self:flex-end;background:#C9822E;color:#04222b;border-radius:10px 10px 2px 10px;padding:8px 11px;max-width:85%;white-space:pre-wrap'
     : 'align-self:flex-start;background:var(--bg3);color:var(--text);border-radius:10px 10px 10px 2px;padding:8px 11px;max-width:85%;white-space:pre-wrap;border:1px solid var(--border)';
   div.textContent = text;
   body.appendChild(div);
@@ -3339,7 +3345,7 @@ async function loadNearbyActivationRefs(){
     const r = await fetch(`/activation_db/nearby?program=${program}&max_km=${maxKm}`);
     const d = await r.json();
     if (!d.status || !d.status.ready){
-      list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">⏳ Chargement de la base (peut prendre jusqu\'à une minute la première fois)…</div>';
+      list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)"><svg style="width:12px;height:12px;vertical-align:-1px;margin-right:4px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><line x1="9" y1="9" x2="9" y2="5"/><line x1="9" y1="9" x2="12" y2="10.5"/></svg>Chargement de la base (peut prendre jusqu\'à une minute la première fois)…</div>';
       return;
     }
     const entries = d.entries || [];
@@ -3353,7 +3359,7 @@ async function loadNearbyActivationRefs(){
         <span style="color:var(--muted);white-space:nowrap">${e.dist_km.toFixed(1)} km · ${e.cardinal}</span>
       </div>`).join('');
   }catch(e){
-    list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--red)">❌ Recherche indisponible</div>';
+    list.innerHTML = '<div style="padding:8px 4px;font-family:var(--font-mono);font-size:12px;color:var(--red)"><svg style="width:12px;height:12px;vertical-align:-1px;margin-right:4px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg>Recherche indisponible</div>';
   }
 }
 
@@ -3378,7 +3384,7 @@ async function searchActivationRefs(program, query){
     const d = await r.json();
     if (!d.status || !d.status.ready){
       box.style.display = 'block';
-      box.innerHTML = '<div style="padding:8px 12px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">⏳ Chargement de la base (peut prendre jusqu\'à une minute la première fois)…</div>';
+      box.innerHTML = '<div style="padding:8px 12px;font-family:var(--font-mono);font-size:12px;color:var(--muted)"><svg style="width:12px;height:12px;vertical-align:-1px;margin-right:4px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><line x1="9" y1="9" x2="9" y2="5"/><line x1="9" y1="9" x2="12" y2="10.5"/></svg>Chargement de la base (peut prendre jusqu\'à une minute la première fois)…</div>';
       return;
     }
     const results = d.results || [];
@@ -3449,7 +3455,7 @@ function _renderWcaGeocodedInfo(entry){
     distTxt = ` — ${km} km · ${az}° (${_cardinalDir(az)}) depuis ta station`;
   }
   const mapUrl = `https://www.openstreetmap.org/?mlat=${entry.lat}&mlon=${entry.lon}#map=14/${entry.lat}/${entry.lon}`;
-  box.innerHTML = `📍 Position géocodée (Nominatim) : ${entry.lat.toFixed(4)}, ${entry.lon.toFixed(4)}` +
+  box.innerHTML = `<svg style="width:12px;height:12px;vertical-align:-1px;margin-right:4px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg>Position géocodée (Nominatim) : ${entry.lat.toFixed(4)}, ${entry.lon.toFixed(4)}` +
     `${distTxt} · <a href="${_vkEsc(mapUrl)}" target="_blank" rel="noopener">voir sur la carte</a>`;
 }
 
@@ -4012,11 +4018,11 @@ function buildContestGrid(filter = '') {
   // Badge de confiance : base serveur = dates/règlement re-vérifiés chaque année ;
   // custom = extrait du règlement par l'IA puis validé par relecture humaine
   const badge = c => c.external
-    ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(255,214,10,.12);color:#FFD60A;border:1px solid rgba(255,214,10,.35)" title="Concours du calendrier mondial WA7BNM — utilise 🤖 ANALYSER UN RÈGLEMENT pour le faire lire par l'IA">⚠ À CONFIRMER</span>`
+    ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(255,214,10,.12);color:#FFD60A;border:1px solid rgba(255,214,10,.35)" title="Concours du calendrier mondial WA7BNM — utilise 🤖 ANALYSER UN RÈGLEMENT pour le faire lire par l'IA"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="11"/><circle cx="9" cy="13.3" r="0.9" fill="currentColor" stroke="none"/></svg> À CONFIRMER</span>`
     : c._custom
-      ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(var(--accent-rgb),.1);color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine">🤖 IA + RELECTURE</span>`
+      ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(var(--accent-rgb),.1);color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> IA + RELECTURE</span>`
       : VERIFIED_IDS.has(c.id)
-        ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:#00FF88;border:1px solid rgba(0,255,136,.3)" title="Concours de la base serveur — dates et règlement re-vérifiés automatiquement chaque année">✓ RÈGLEMENT SUIVI</span>`
+        ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:#00FF88;border:1px solid rgba(0,255,136,.3)" title="Concours de la base serveur — dates et règlement re-vérifiés automatiquement chaque année"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> RÈGLEMENT SUIVI</span>`
         : '';
 
   grid.innerHTML = groupOrder.map(gname => {
@@ -4025,7 +4031,7 @@ function buildContestGrid(filter = '') {
     return `
       <div style="grid-column:1/-1;margin-top:12px;margin-bottom:6px">
         <div style="font-family:var(--font-mono);font-size:12px;color:${groupColors[gname]};letter-spacing:3px;border-bottom:1px solid ${groupColors[gname]}44;padding-bottom:5px">
-          ${gname === 'REF' ? '⭐ ' : ''}${gname.toUpperCase()} ${gname === 'REF' ? '— Calendrier 2026 officiel' : ''}
+          ${gname === 'REF' ? '<svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="currentColor" stroke="none"><path d="M9 1.5l2.2 4.9 5.3.6-4 3.6 1.1 5.3L9 13.2 4.4 15.9l1.1-5.3-4-3.6 5.3-.6z"/></svg> ' : ''}${gname.toUpperCase()} ${gname === 'REF' ? '— Calendrier 2026 officiel' : ''}
         </div>
       </div>
       ${cs.map(c => `
@@ -4033,9 +4039,9 @@ function buildContestGrid(filter = '') {
           <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} ${badge(c)}</div>
           <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
             <span>${escC(c.org)}</span>
-            ${safeUrl(c.rules) ? `<a href="${escC(safeUrl(c.rules))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)">📄 RÈGLEMENT</a>` : ''}
+            ${safeUrl(c.rules) ? `<a href="${escC(safeUrl(c.rules))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h5.5L13.5 5.5V15.5H5z"/><path d="M10.5 2.5V5.5H13.5"/><line x1="7" y1="9" x2="11.5" y2="9"/><line x1="7" y1="12" x2="11.5" y2="12"/></svg> RÈGLEMENT</a>` : ''}
           </div>
-          ${c.date ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px">📅 ${escC(c.date)}</div>` : ''}
+          ${c.date ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> ${escC(c.date)}</div>` : ''}
           <div class="contest-tags">
             ${c.bands.map(b=>`<span class="tag tag-band">${escC(b)}</span>`).join('')}
             ${c.modes.map(m=>`<span class="tag tag-mode">${escC(m)}</span>`).join('')}
@@ -4343,7 +4349,7 @@ function selectContest(id, _skipConfirm) {
     document.getElementById('contest_end_date').value   = dates.endDate;
     document.getElementById('contest_end_utc').value    = dates.endTime;
     state.datesAutoFor = id; // l'assistant sait que ces dates sont pour CE concours
-    if(banner) banner.innerHTML = `📅 <strong>${id}</strong> — Début : <strong>${dates.startDate}</strong> · Fin : <strong>${dates.endDate} ${dates.endTime} UTC</strong> — <span style="color:var(--muted)">Modifie manuellement si besoin</span>`;
+    if(banner) banner.innerHTML = `<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> <strong>${id}</strong> — Début : <strong>${dates.startDate}</strong> · Fin : <strong>${dates.endDate} ${dates.endTime} UTC</strong> — <span style="color:var(--muted)">Modifie manuellement si besoin</span>`;
   } else {
     // Ne pas laisser traîner les dates d'un AUTRE concours dans les champs
     if(state.datesAutoFor && state.datesAutoFor !== id){
@@ -4352,7 +4358,7 @@ function selectContest(id, _skipConfirm) {
       document.getElementById('contest_end_utc').value    = '';
     }
     state.datesAutoFor = null;
-    if(banner) banner.innerHTML = `📅 Dates pour <strong>${id}</strong> non calculables automatiquement — saisis-les manuellement.`;
+    if(banner) banner.innerHTML = `<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Dates pour <strong>${id}</strong> non calculables automatiquement — saisis-les manuellement.`;
   }
   // Auto-remplir l'URL de soumission du log depuis le règlement (si connue,
   // via SERVER_CONTEST_RULES/mergeServerContests → local.log_submit) — même
@@ -4397,7 +4403,7 @@ function deselectContest(){
     state.submitUrlAutoFor = null;
   }
   const banner = document.getElementById('contest_dates_auto');
-  if(banner) banner.innerHTML = '📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.';
+  if(banner) banner.innerHTML = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Choisis un concours ci-dessus : ses dates se calculent automatiquement.';
   refreshCallHistoryStatus();   // même correctif que selectContest() : ne pas laisser un compteur obsolète
   renderHub();
 }
@@ -4440,15 +4446,29 @@ function toggle(el) {
 // l'une à l'autre sans revenir au hub ni scroller. Tous les champs vivent en
 // permanence dans le DOM (les popups sont juste masqués) : changer de section ne
 // perd jamais une saisie, et Enregistrer lit toujours l'ensemble.
+const _ICO_IDENTITY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 15.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>';
+const _ICO_OPERATORS = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.3"/><circle cx="12.5" cy="5.5" r="2.3"/><path d="M2 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/><path d="M7.5 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/></svg>';
+const _ICO_TROPHY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h7v4a3.5 3.5 0 0 1-7 0z"/><path d="M5.5 4h-2v1.5a2.5 2.5 0 0 0 2.3 2.5"/><path d="M12.5 4h2v1.5a2.5 2.5 0 0 1-2.3 2.5"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="6.5" y1="13" x2="11.5" y2="13"/></svg>';
+const _ICO_CALENDAR = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg>';
+const _ICO_RADIO = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="13" height="8.5" rx="1.3"/><line x1="5" y1="6.5" x2="8" y2="2"/><circle cx="12.3" cy="10.5" r="1.6"/><line x1="4" y1="13" x2="8.5" y2="13"/></svg>';
+const _ICO_BATTERY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg>';
+const _ICO_COMPASS = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M11.5 6.5 9.8 9.8 6.5 11.5 8.2 8.2z" fill="currentColor" stroke="none"/></svg>';
+const _ICO_CLOUD = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.5a2.7 2.7 0 0 0 0-5.4 4 4 0 0 0-7.6-1.3 3.2 3.2 0 0 0-2.4 3.1 2.6 2.6 0 0 0 2.5 3.6z"/></svg>';
+const _ICO_FLOPPY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg>';
+const _ICO_DISH = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>';
+const _ICO_BELL = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.3c0 .9-.4 1.8-1.1 2.4l-.6.6h11.4l-.6-.6a3.3 3.3 0 0 1-1.1-2.4V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg>';
+const _ICO_ENVELOPE = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.8 4.6 9 9.5l6.2-4.9"/></svg>';
+const _ICO_GLOBE = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.7" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>';
+const _ICO_ROBOT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg>';
 const CONFIG_SECTIONS = [
-  ['identity','📛 1. Identité'], ['operators','🧑‍🤝‍🧑 2. Opérateurs'],
-  ['contest','🏆 3. Sélection'], ['filters','📅 4. Dates & bandes'],
-  ['radio','📻 5. Radio (CAT)'], ['amp','🔋 6. Amplificateur'],
-  ['rotor','🧭 7. Rotor'], ['network','☁️ 8. Multi-poste'],
-  ['backup','💾 9. Sauvegarde'], ['sources','📡 10. Propagation'],
-  ['alerts','🔔 11. Alertes'], ['qsl','📮 12. QSL & diplômes'],
-  ['scoreboard','🏆 13. Scoreboard'], ['expedition','🏝️ 14. Expédition'],
-  ['ai','🤖 15. Assistant IA']
+  ['identity',_ICO_IDENTITY+' 1. Identité'], ['operators',_ICO_OPERATORS+' 2. Opérateurs'],
+  ['contest',_ICO_TROPHY+' 3. Sélection'], ['filters',_ICO_CALENDAR+' 4. Dates &amp; bandes'],
+  ['radio',_ICO_RADIO+' 5. Radio (CAT)'], ['amp',_ICO_BATTERY+' 6. Amplificateur'],
+  ['rotor',_ICO_COMPASS+' 7. Rotor'], ['network',_ICO_CLOUD+' 8. Multi-poste'],
+  ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Propagation'],
+  ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
+  ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
+  ['ai',_ICO_ROBOT+' 15. Assistant IA']
 ];
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
@@ -4460,7 +4480,7 @@ function buildConfigSidebar(){
         return '<button type="button" class="config-sidebar-item" data-cat="' + s[0]
           + '" onclick="switchSection(\'' + s[0] + '\')">' + s[1] + '</button>';
       }).join('')
-    + '<button type="button" class="config-sidebar-close" onclick="closeConfigPopup()">✕ Fermer</button>';
+    + '<button type="button" class="config-sidebar-close" onclick="closeConfigPopup()"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> Fermer</button>';
   document.body.appendChild(nav);
 }
 function _currentOpenCat(){
@@ -4633,10 +4653,10 @@ function renderAlertRules(){
     if(r.comment_contains) bits.push('commentaire « ' + r.comment_contains + ' »');
     const on = r.enabled !== false;
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:13px">
-      <span class="toggle-btn${on?' on':''}" style="padding:4px 10px" onclick="toggleAlertRule('${r.id}')">${on?'✓ actif':'✕ coupé'}</span>
+      <span class="toggle-btn${on?' on':''}" style="padding:4px 10px" onclick="toggleAlertRule('${r.id}')">${on?'<svg viewBox="0 0 18 18" width="11" height="11" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> actif':'<svg viewBox="0 0 18 18" width="11" height="11" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> coupé'}</span>
       <b style="flex:1;color:var(--text)">${r.name}</b>
       <span style="color:var(--muted)">${bits.join(' · ') || 'tout spot'}</span>
-      <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="deleteAlertRule('${r.id}')">🗑</button>
+      <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="deleteAlertRule('${r.id}')"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="5" x2="15" y2="5"/><path d="M6.5 5V3.5h5V5"/><path d="M4.5 5 5.2 15h7.6L13.5 5"/><line x1="7.5" y1="7.5" x2="7.5" y2="12.5"/><line x1="10.5" y1="7.5" x2="10.5" y2="12.5"/></svg></button>
     </div>`;
   }).join('');
 }
@@ -5019,7 +5039,7 @@ function applyContestFilters(contestId) {
       const el = document.querySelector(`[data-key="${m}"]`);
       return el ? el.textContent.trim() : m;
     }).join(' · ') : '';
-    note.innerHTML = `✅ <strong>${name}</strong>`
+    note.innerHTML = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> <strong>${name}</strong>`
       + (bandKeys ? ` — Bandes autorisées par le règlement : ${bandNames}` : '')
       + (modeKeys ? `<br>Modes autorisés : ${modeNames}` : '')
       + `<br><small style="opacity:.8">Seules les bandes/modes du règlement sont affichés. Tu peux en désactiver certains si tu ne les utilises pas.</small>`;
@@ -5616,7 +5636,7 @@ function renderTransverters(){
         </div>
         <div class="form-group" style="max-width:60px">
           <label>&nbsp;</label>
-          <button type="button" class="btn btn-secondary" onclick="removeTransverter(${i})">✕</button>
+          <button type="button" class="btn btn-secondary" onclick="removeTransverter(${i})"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
         </div>
       </div>`).join('');
     box.querySelectorAll('[data-tvtr]').forEach(el => {
@@ -5821,7 +5841,7 @@ function refreshLanPeers(){
     box.innerHTML = peers.map(function(p){
       var call = (p.callsign || '').replace(/[<>&]/g, '');
       var ip = (p.ip || '').replace(/[<>&]/g, '');
-      return '🟢 <b style="color:var(--accent2)">' + (call || ip) + '</b> <span style="color:var(--muted)">' + ip + ':' + p.http_port + '</span>';
+      return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green)"></span> <b style="color:var(--accent2)">' + (call || ip) + '</b> <span style="color:var(--muted)">' + ip + ':' + p.http_port + '</span>';
     }).join('<br>');
   }).catch(function(){});
 }
@@ -5856,7 +5876,7 @@ function buildAlertTypesGrid(){
       + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">'
       + '<input type="checkbox" data-alert-voice '+(p.voice?'checked':'')+' onchange="saveAlertTypes()"> voix</label>'
       + '<select data-alert-sound onchange="saveAlertTypes()" style="width:190px">'+opts+'</select>'
-      + '<button type="button" class="btn btn-secondary" onclick="testAlertType(\''+t.id+'\')" title="Écouter">🔊</button>'
+      + '<button type="button" class="btn btn-secondary" onclick="testAlertType(\''+t.id+'\')" title="Écouter"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7v4h3l4 3V4L5 7H2z"/><path d="M12.5 6a4 4 0 0 1 0 6"/><path d="M14.7 4a7 7 0 0 1 0 10"/></svg></button>'
       + '</div>';
   }).join('');
 }
@@ -5927,7 +5947,7 @@ function renderParcStation(){
         </div>
         <div class="form-group" style="max-width:60px">
           <label>&nbsp;</label>
-          <button type="button" class="btn btn-secondary" onclick="removeAntenne(${i})">✕</button>
+          <button type="button" class="btn btn-secondary" onclick="removeAntenne(${i})"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
         </div>
       </div>
       <div style="margin-top:6px">
@@ -5996,7 +6016,7 @@ function renderParcStation(){
       </div>
       <div class="form-group" style="max-width:60px">
         <label>&nbsp;</label>
-        <button type="button" class="btn btn-secondary" onclick="removeRotor(${i})">✕</button>
+        <button type="button" class="btn btn-secondary" onclick="removeRotor(${i})"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
       </div>
     </div>`).join('');
   h += `<button type="button" class="btn btn-secondary" onclick="addRotor()">+ ROTOR</button>`;
@@ -6029,7 +6049,7 @@ function renderParcStation(){
       </div>
       <div class="form-group" style="max-width:60px">
         <label>&nbsp;</label>
-        <button type="button" class="btn btn-secondary" onclick="removeAmpli(${i})">✕</button>
+        <button type="button" class="btn btn-secondary" onclick="removeAmpli(${i})"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
       </div>
     </div>`).join('');
   h += `<button type="button" class="btn btn-secondary" onclick="addAmpli()">+ AMPLI</button>`;
@@ -6385,7 +6405,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     const btn = feedbackBtn || document.querySelector('button[onclick="quickSave()"]');
     if(btn){
       const orig = btn.innerHTML;
-      btn.innerHTML = '✅ ENREGISTRÉ';
+      btn.innerHTML = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ENREGISTRÉ';
       btn.style.background = 'var(--green)';
       setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,var(--accent2))'; }, 1500);
     }
@@ -6642,7 +6662,7 @@ async function loadShifts(){
     const noteTag = s.note ? ` — <span style="color:var(--muted)">${escC(s.note)}</span>` : '';
     return `<div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--font-mono);font-size:13px">
       <span style="flex:1">${dateTag}<strong>${escC(s.start)}–${escC(s.end)}</strong> · ${escC(s.call)}${nameTag}${modeTag}${noteTag}</span>
-      <button type="button" class="op-row-btn" onclick="deleteShift(${Number(s.id) || 0})" title="Supprimer ce créneau">✕</button>
+      <button type="button" class="op-row-btn" onclick="deleteShift(${Number(s.id) || 0})" title="Supprimer ce créneau"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>`;
   }).join('');
 }
@@ -6908,7 +6928,7 @@ async function loadLanUrls(){
     const d = await (await fetch('/data/lan_url')).json();
     if(d.urls && d.urls.length){
       el.innerHTML = d.urls.map(u =>
-        `<div>📶 <a href="${u}" target="_blank" style="color:var(--accent2);text-decoration:none">${u}</a></div>`).join('');
+        `<div><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="14" x2="4" y2="11"/><line x1="8" y1="14" x2="8" y2="8"/><line x1="12" y1="14" x2="12" y2="5"/><line x1="16" y1="14" x2="16" y2="2"/></svg> <a href="${u}" target="_blank" style="color:var(--accent2);text-decoration:none">${u}</a></div>`).join('');
     } else {
       el.textContent = 'Adresse réseau introuvable — sur le téléphone : http://<IP-du-PC>:' + (d.port||8080) + '/logx_logbook.html';
     }
@@ -7262,8 +7282,8 @@ async function exportCustomContests(){
     a.download = `logx_concours_${(data.exported_by||'partage').replace(/\W+/g,'')}_${new Date().toISOString().slice(0,10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
-    st.innerHTML = `<span style="color:var(--green)">✅ ${n} concours exportés — envoie le fichier aux autres stations.</span>`;
-  }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ ${e.message}</span>`; }
+    st.innerHTML = `<span style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${n} concours exportés — envoie le fichier aux autres stations.</span>`;
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> ${e.message}</span>`; }
 }
 
 async function importCustomContests(file){
@@ -7277,19 +7297,19 @@ async function importCustomContests(file){
       body: JSON.stringify(content),
     });
     const r = await res.json();
-    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)">❌ ${r.error}</span>`; return; }
+    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> ${r.error}</span>`; return; }
     const parts = [];
-    if (r.imported.length) parts.push(`✅ ${r.imported.length} importé(s) : ${r.imported.join(', ')}`);
-    if (r.updated.length) parts.push(`🔄 ${r.updated.length} mis à jour`);
-    if (r.skipped_builtin.length) parts.push(`⏭ ${r.skipped_builtin.length} déjà dans la base intégrée`);
+    if (r.imported.length) parts.push(`<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${r.imported.length} importé(s) : ${r.imported.join(', ')}`);
+    if (r.updated.length) parts.push(`<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M3.5 9a5.5 5.5 0 0 1 9.3-4"/><polyline points="12.5,2 12.8,5 9.8,5.3"/><path d="M14.5 9a5.5 5.5 0 0 1-9.3 4"/><polyline points="5.5,16 5.2,13 8.2,12.7"/></svg> ${r.updated.length} mis à jour`);
+    if (r.skipped_builtin.length) parts.push(`<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="4,4 10,9 4,14"/><line x1="14" y1="4" x2="14" y2="14"/></svg> ${r.skipped_builtin.length} déjà dans la base intégrée`);
     const nbErr = Object.keys(r.errors || {}).length;
-    if (nbErr) parts.push(`<span style="color:var(--red)">⛔ ${nbErr} refusé(s) à la validation (${Object.keys(r.errors).join(', ')})</span>`);
+    if (nbErr) parts.push(`<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px"><circle cx="9" cy="9" r="6.5"/><line x1="4.5" y1="13.5" x2="13.5" y2="4.5"/></svg> ${nbErr} refusé(s) à la validation (${Object.keys(r.errors).join(', ')})</span>`);
     st.innerHTML = parts.join(' · ') || 'Rien à importer.';
     if (r.imported.length || r.updated.length){
       await mergeServerContests();
       buildContestGrid('');
     }
-  }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ Fichier invalide : ${e.message}</span>`; }
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fichier invalide : ${e.message}</span>`; }
   document.getElementById('importFile').value = '';
 }
 
@@ -7307,11 +7327,11 @@ async function importMasterScp(file){
       body: JSON.stringify({text}),
     });
     const r = await res.json();
-    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)">❌ ${r.error}</span>`; return; }
-    st.innerHTML = `<span style="color:var(--green)">✅ ${r.imported} indicatif(s) lus, `
+    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> ${r.error}</span>`; return; }
+    st.innerHTML = `<span style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${r.imported} indicatif(s) lus, `
       + `${r.added} nouveau(x) — ${r.total} au total</span>`;
     refreshCallHistoryStatus();
-  }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ Fichier invalide : ${e.message}</span>`; }
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fichier invalide : ${e.message}</span>`; }
   document.getElementById('scpFile').value = '';
 }
 
@@ -7319,7 +7339,7 @@ async function importCallHistoryN1mm(file){
   const st = document.getElementById('callHistoryStatus');
   if (!file) return;
   if (!state.contest){
-    st.innerHTML = '<span style="color:var(--yellow)">⚠️ Choisis d\'abord un concours ci-dessus '
+    st.innerHTML = '<span style="color:var(--yellow)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.9" fill="currentColor" stroke="none"/></svg> Choisis d\'abord un concours ci-dessus '
       + '(le Call History lui est propre).</span>';
     document.getElementById('callHistoryFile').value = '';
     return;
@@ -7332,13 +7352,13 @@ async function importCallHistoryN1mm(file){
       body: JSON.stringify({text, contest: state.contest}),
     });
     const r = await res.json();
-    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)">❌ ${r.error}</span>`; return; }
-    let msg = `<span style="color:var(--green)">✅ ${r.imported} fiche(s) importée(s) pour `
+    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> ${r.error}</span>`; return; }
+    let msg = `<span style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${r.imported} fiche(s) importée(s) pour `
       + `${escC(state.contest)} — ${r.total_for_contest} au total</span>`;
     if (r.errors && r.errors.length) msg += ` · <span style="color:var(--yellow)">${r.errors.length} ligne(s) ignorée(s)</span>`;
     st.innerHTML = msg;
     refreshCallHistoryStatus();
-  }catch(e){ st.innerHTML = `<span style="color:var(--red)">❌ Fichier invalide : ${e.message}</span>`; }
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fichier invalide : ${e.message}</span>`; }
   document.getElementById('callHistoryFile').value = '';
 }
 
@@ -7398,14 +7418,14 @@ async function analyzeRules(url, name){
     });
     const data = await res.json();
     if (!data.ok){
-      status.innerHTML = `❌ <span style="color:var(--red)">${data.error || 'Analyse en échec'}</span>`;
+      status.innerHTML = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> <span style="color:var(--red)">${data.error || 'Analyse en échec'}</span>`;
       return;
     }
     status.textContent = `✅ Règlement lu (${data.text_chars} caractères via ${data.extractor}) — relis la proposition ci-dessous.`;
     _aiProposal = {...data, source_url: url, _contestAtLaunch: contestAtLaunch};
     openReviewModal(_aiProposal);
   }catch(e){
-    status.innerHTML = `❌ <span style="color:var(--red)">Serveur injoignable : ${e.message}</span>`;
+    status.innerHTML = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> <span style="color:var(--red)">Serveur injoignable : ${e.message}</span>`;
   }finally{
     btn.disabled = false;
   }
@@ -7413,8 +7433,8 @@ async function analyzeRules(url, name){
 
 function _revField(id, label, value, citation, placeholder=''){
   const cite = citation
-    ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px">📖 « ${String(citation).replace(/</g,'&lt;')} »</div>`
-    : `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);margin-top:3px">⚠ aucune citation source — vérifie dans le règlement</div>`;
+    ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M9 4.5c-1.3-1-3.2-1.3-5.5-1v10c2.3-.3 4.2 0 5.5 1 1.3-1 3.2-1.3 5.5-1v-10c-2.3-.3-4.2 0-5.5 1z"/><line x1="9" y1="4.5" x2="9" y2="14.5"/></svg> « ${String(citation).replace(/</g,'&lt;')} »</div>`
+    : `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);margin-top:3px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.9" fill="currentColor" stroke="none"/></svg> aucune citation source — vérifie dans le règlement</div>`;
   return `<div style="margin-bottom:12px">
     <label style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--muted)">${label}</label>
     <input type="text" id="rev_${id}" value="${String(value ?? '').replace(/"/g,'&quot;')}" placeholder="${placeholder}"
@@ -7427,18 +7447,18 @@ function _verificationBlock(v){
   if (!v) return '';
   const esc = s => String(s ?? '').replace(/</g, '&lt;');
   if (v.error){
-    return `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--yellow)">⚠ ${esc(v.error)} — la définition n'a eu qu'une seule passe, relis avec plus d'attention.</div>`;
+    return `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--yellow)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.9" fill="currentColor" stroke="none"/></svg> ${esc(v.error)} — la définition n'a eu qu'une seule passe, relis avec plus d'attention.</div>`;
   }
   const nOk = (v.answers || []).length - (v.issues || []).length;
   if (!(v.issues || []).length){
-    return `<div style="background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--green)">🔍 <strong>Passe de vérification : ${nOk}/${(v.answers||[]).length} points de contrôle conformes</strong> (restrictions participants, off-time, mults pondérés, QTC, échange, dates, deadline).</div>`;
+    return `<div style="background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><circle cx="8" cy="8" r="5"/><line x1="12" y1="12" x2="16" y2="16"/></svg> <strong>Passe de vérification : ${nOk}/${(v.answers||[]).length} points de contrôle conformes</strong> (restrictions participants, off-time, mults pondérés, QTC, échange, dates, deadline).</div>`;
   }
   const items = v.issues.map(i =>
     `<li style="margin-bottom:6px"><strong>${esc(i.question)}</strong><br>
      <span style="color:var(--text)">${esc(i.reponse)}</span>
      ${i.probleme ? `<br><span style="color:var(--red)">→ ${esc(i.probleme)}</span>` : ''}</li>`).join('');
   return `<div style="background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--accent-rgb),.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--accent2)">
-    🔍 <strong>Passe de vérification : ${v.issues.length} point(s) corrigé(s) ou à surveiller</strong>
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><circle cx="8" cy="8" r="5"/><line x1="12" y1="12" x2="16" y2="16"/></svg> <strong>Passe de vérification : ${v.issues.length} point(s) corrigé(s) ou à surveiller</strong>
     ${v.applied ? ' — <span style="color:var(--green)">corrections appliquées à la définition ci-dessous</span>' : ' — <span style="color:var(--yellow)">corrections NON appliquées, vérifie manuellement</span>'}
     <ul style="margin:8px 0 0 18px">${items}</ul>
   </div>`;
@@ -7454,7 +7474,7 @@ function openReviewModal(p){
   document.getElementById('reviewModalBody').innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
       <div>
-        <div style="font-family:var(--font-mono);font-size:15px;letter-spacing:2px;color:var(--accent2)">🤖 PROPOSITION IA — RELECTURE OBLIGATOIRE</div>
+        <div style="font-family:var(--font-mono);font-size:15px;letter-spacing:2px;color:var(--accent2)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-3px"><rect x="3.5" y="6.5" width="11" height="8" rx="1.5"/><line x1="9" y1="6.5" x2="9" y2="3.5"/><circle cx="9" cy="2.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="14.5" x2="6" y2="16"/><line x1="12" y1="14.5" x2="12" y2="16"/></svg> PROPOSITION IA — RELECTURE OBLIGATOIRE</div>
         <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:4px">
           Rien n'est enregistré tant que tu n'as pas validé. Confiance IA :
           <span style="color:${confColor};font-weight:700">${(p.confidence || '?').toUpperCase()}</span>
@@ -7462,12 +7482,12 @@ function openReviewModal(p){
         </div>
       </div>
       <button onclick="document.getElementById('reviewModal').style.display='none'"
-        style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px">✕</button>
+        style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:16px;height:16px;vertical-align:-3px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
 
-    ${verrs ? `<div style="background:rgba(255,45,85,.08);border:1px solid var(--red);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--red)"><strong>⛔ Erreurs de validation à corriger avant enregistrement :</strong><ul style="margin:6px 0 0 18px">${verrs}</ul></div>` : ''}
+    ${verrs ? `<div style="background:rgba(255,45,85,.08);border:1px solid var(--red);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--red)"><strong><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px"><circle cx="9" cy="9" r="6.5"/><line x1="4.5" y1="13.5" x2="13.5" y2="4.5"/></svg> Erreurs de validation à corriger avant enregistrement :</strong><ul style="margin:6px 0 0 18px">${verrs}</ul></div>` : ''}
     ${_verificationBlock(p.verification)}
-    ${warnings ? `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--yellow)"><strong>⚠ Signalé par l'IA :</strong><ul style="margin:6px 0 0 18px">${warnings}</ul></div>` : ''}
+    ${warnings ? `<div style="background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.4);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--yellow)"><strong><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.9" fill="currentColor" stroke="none"/></svg> Signalé par l'IA :</strong><ul style="margin:6px 0 0 18px">${warnings}</ul></div>` : ''}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">
       ${_revField('id', 'ID DU CONCOURS', p.suggested_id, null, 'WAEDC_CW')}
@@ -7483,19 +7503,19 @@ function openReviewModal(p){
       ${_revField('log_deadline', 'DEADLINE LOG', d.log_deadline, c.log_deadline)}
       ${_revField('log_submit', 'SOUMISSION LOG (URL/email)', d.log_submit, c.log_submit)}
     </div>
-    ${p.date_preview ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--green);margin-bottom:10px">📅 Prochaine occurrence calculée depuis la règle : <strong>${p.date_preview}</strong></div>` : ''}
+    ${p.date_preview ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--green);margin-bottom:10px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Prochaine occurrence calculée depuis la règle : <strong>${p.date_preview}</strong></div>` : ''}
     ${_revField('notes', 'NOTES / PARTICULARITÉS', d.notes, c.notes)}
 
     <div style="margin-bottom:12px">
       <label style="font-family:var(--font-mono);font-size:12px;letter-spacing:2px;color:var(--muted)">SCORING (JSON — type historique ou briques)</label>
       <textarea id="rev_scoring" style="width:100%;height:130px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:10px;outline:none;margin-top:3px;resize:vertical">${JSON.stringify(d.scoring || {}, null, 2).replace(/</g,'&lt;')}</textarea>
-      ${c.scoring ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px">📖 « ${String(c.scoring).replace(/</g,'&lt;')} »</div>` : ''}
+      ${c.scoring ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;border-left:2px solid var(--border);padding-left:8px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M9 4.5c-1.3-1-3.2-1.3-5.5-1v10c2.3-.3 4.2 0 5.5 1 1.3-1 3.2-1.3 5.5-1v-10c-2.3-.3-4.2 0-5.5 1z"/><line x1="9" y1="4.5" x2="9" y2="14.5"/></svg> « ${String(c.scoring).replace(/</g,'&lt;')} »</div>` : ''}
     </div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-      <button class="btn btn-launch" style="padding:11px 24px" onclick="saveReviewedDefinition()">✓ J'AI RELU — ENREGISTRER LE CONCOURS</button>
-      <button class="btn btn-secondary" style="padding:11px 18px" onclick="document.getElementById('reviewModal').style.display='none'">✕ Annuler</button>
-      ${p.source_url ? `<a class="btn btn-secondary" style="padding:11px 18px;text-decoration:none" href="${p.source_url}" target="_blank">📄 Ouvrir le règlement</a>` : ''}
+      <button class="btn btn-launch" style="padding:11px 24px" onclick="saveReviewedDefinition()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> J'AI RELU — ENREGISTRER LE CONCOURS</button>
+      <button class="btn btn-secondary" style="padding:11px 18px" onclick="document.getElementById('reviewModal').style.display='none'"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Annuler</button>
+      ${p.source_url ? `<a class="btn btn-secondary" style="padding:11px 18px;text-decoration:none" href="${p.source_url}" target="_blank"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M4.5 2.5h6l3 3v10h-9z"/><polyline points="10.5,2.5 10.5,5.5 13.5,5.5"/><line x1="6.5" y1="9.5" x2="11.5" y2="9.5"/><line x1="6.5" y1="12" x2="11.5" y2="12"/></svg> Ouvrir le règlement</a>` : ''}
     </div>
     <div id="reviewSaveStatus" style="margin-top:10px;font-family:var(--font-mono);font-size:13px"></div>`;
   document.getElementById('reviewModal').style.display = 'block';
@@ -7506,7 +7526,7 @@ async function saveReviewedDefinition(){
   const status = document.getElementById('reviewSaveStatus');
   let scoring;
   try{ scoring = JSON.parse(document.getElementById('rev_scoring').value); }
-  catch(e){ status.innerHTML = `<span style="color:var(--red)">⛔ Scoring : JSON invalide (${e.message})</span>`; return; }
+  catch(e){ status.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px"><circle cx="9" cy="9" r="6.5"/><line x1="4.5" y1="13.5" x2="13.5" y2="4.5"/></svg> Scoring : JSON invalide (${e.message})</span>`; return; }
 
   const definition = {
     name: g('name'), organizer: g('organizer'), date_rule: g('date_rule'),
@@ -7533,10 +7553,10 @@ async function saveReviewedDefinition(){
     const data = await res.json();
     if (!data.ok){
       const errs = (data.validation_errors || [data.error]).join('<br>· ');
-      status.innerHTML = `<span style="color:var(--red)">⛔ ${errs}</span>`;
+      status.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px"><circle cx="9" cy="9" r="6.5"/><line x1="4.5" y1="13.5" x2="13.5" y2="4.5"/></svg> ${errs}</span>`;
       return;
     }
-    status.innerHTML = `<span style="color:var(--green)">✅ ${data.message} — il apparaît maintenant dans la liste.</span>`;
+    status.innerHTML = `<span style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${data.message} — il apparaît maintenant dans la liste.</span>`;
     // Rafraîchir la grille et sélectionner le nouveau concours
     await mergeServerContests();
     buildContestGrid('');
@@ -7552,7 +7572,7 @@ async function saveReviewedDefinition(){
       if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
     }, 1200);
   }catch(e){
-    status.innerHTML = `<span style="color:var(--red)">⛔ Serveur : ${e.message}</span>`;
+    status.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px"><circle cx="9" cy="9" r="6.5"/><line x1="4.5" y1="13.5" x2="13.5" y2="4.5"/></svg> Serveur : ${e.message}</span>`;
   }
 }
 
@@ -7591,7 +7611,7 @@ function handleContestParam(){
     // Défense en profondeur (id vient de location.search, entièrement
     // contrôlé par quiconque forge le lien) : escC() neutralise tout HTML/JS,
     // slice() borne la longueur affichée dans la bannière.
-    banner.innerHTML = `⚠️ <strong>Concours « ${escC(id).slice(0, 120)} » introuvable dans la liste.</strong><br>
+    banner.innerHTML = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.9" fill="currentColor" stroke="none"/></svg> <strong>Concours « ${escC(id).slice(0, 120)} » introuvable dans la liste.</strong><br>
       <span style="font-size:14px;color:var(--muted)">Si c'est un concours WA7BNM, le cache externe est peut-être vide — recharge le calendrier, ou choisis un concours ci-dessous.</span>`;
     return;
   }
@@ -7622,27 +7642,29 @@ function handleContestParam(){
   // attributs data-* lus en JS plutôt que par interpolation dans une chaîne
   // onclick="...('...')" — supprime tout risque de casser le contexte JS
   // avec un guillemet présent dans contest.rules/contest.name.
+  const okIco = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg>';
+  const warnIco = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.9" fill="currentColor" stroke="none"/></svg>';
   const checks = [
-    `✅ Concours sélectionné : <strong>${escC(contest.name)}</strong>`,
+    `${okIco} Concours sélectionné : <strong>${escC(contest.name)}</strong>`,
     stationOk
-      ? `✅ Station : <strong>${escC(cfg.callsign)}</strong> en <strong>${escC(cfg.locator)}</strong> (profil sauvegardé)`
-      : `⚠️ Station non configurée — <a href="#" onclick="closeCategoryPopup('contest');openCategoryPopup('identity');return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
+      ? `${okIco} Station : <strong>${escC(cfg.callsign)}</strong> en <strong>${escC(cfg.locator)}</strong> (profil sauvegardé)`
+      : `${warnIco} Station non configurée — <a href="#" onclick="closeCategoryPopup('contest');openCategoryPopup('identity');return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
     datesOk
-      ? `✅ Dates calculées automatiquement : <strong>${document.getElementById('contest_start_date').value}</strong> → <strong>${document.getElementById('contest_end_date').value}</strong>`
-      : `⚠️ Dates non calculables — saisis-les à l'étape 2 (encadré DATES DU CONCOURS)`,
+      ? `${okIco} Dates calculées automatiquement : <strong>${document.getElementById('contest_start_date').value}</strong> → <strong>${document.getElementById('contest_end_date').value}</strong>`
+      : `${warnIco} Dates non calculables — saisis-les à l'étape 2 (encadré DATES DU CONCOURS)`,
     isExternal
-      ? `⚠️ Concours <strong>non vérifié</strong> (source WA7BNM) — contrôle bandes, modes et échange dans le <a href="${escC(safeUrl(contest.rules))}" target="_blank" rel="noopener noreferrer" style="color:var(--accent2)">règlement officiel</a>${safeUrl(contest.rules) ? ` — ou <a href="#" data-analyze-rules data-rules-url="${escC(contest.rules)}" data-rules-name="${escC(contest.name)}" style="color:var(--green)">🤖 fais-le lire par l'IA</a>` : ''}`
-      : `✅ Bandes et modes du règlement appliqués (modifiables à l'étape 3)`,
+      ? `${warnIco} Concours <strong>non vérifié</strong> (source WA7BNM) — contrôle bandes, modes et échange dans le <a href="${escC(safeUrl(contest.rules))}" target="_blank" rel="noopener noreferrer" style="color:var(--accent2)">règlement officiel</a>${safeUrl(contest.rules) ? ` — ou <a href="#" data-analyze-rules data-rules-url="${escC(contest.rules)}" data-rules-name="${escC(contest.name)}" style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><rect x="3.5" y="6.5" width="11" height="8" rx="1.5"/><line x1="9" y1="6.5" x2="9" y2="3.5"/><circle cx="9" cy="2.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="14.5" x2="6" y2="16"/><line x1="12" y1="14.5" x2="12" y2="16"/></svg> fais-le lire par l'IA</a>` : ''}`
+      : `${okIco} Bandes et modes du règlement appliqués (modifiables à l'étape 3)`,
   ];
 
   banner.style.display = 'block';
   banner.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:14px;letter-spacing:2px;color:var(--green);margin-bottom:10px">🧭 ASSISTANT NOUVEAU CONCOURS</div>
+    <div style="font-family:var(--font-mono);font-size:14px;letter-spacing:2px;color:var(--green);margin-bottom:10px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-3px"><circle cx="9" cy="9" r="6.5"/><polygon points="11,6 10,10 7,12 8,8" fill="currentColor" stroke="none"/></svg> ASSISTANT NOUVEAU CONCOURS</div>
     <div style="font-size:14px;line-height:2">${checks.join('<br>')}</div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
-      <button class="btn btn-launch" style="padding:10px 22px" onclick="launchApp()">🚀 TOUT EST BON — LOGGER</button>
+      <button class="btn btn-launch" style="padding:10px 22px" onclick="launchApp()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-3px"><path d="M9 2c2 1.5 3 4 3 7.5L9 12l-3-2.5C6 6 7 3.5 9 2z"/><path d="M6.5 9.5 4 11v3l2.5-1.5"/><path d="M11.5 9.5 14 11v3l-2.5-1.5"/><line x1="8" y1="13.5" x2="9" y2="16"/><line x1="10" y1="13.5" x2="9" y2="16"/></svg> TOUT EST BON — LOGGER</button>
       <button class="btn btn-secondary" style="padding:10px 18px" onclick="closeCategoryPopup('contest');openCategoryPopup('filters')">Vérifier bandes/modes →</button>
-      <button class="btn btn-secondary" style="padding:10px 18px" onclick="document.getElementById('assistantBanner').style.display='none'">✕ Fermer l'assistant</button>
+      <button class="btn btn-secondary" style="padding:10px 18px" onclick="document.getElementById('assistantBanner').style.display='none'"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer l'assistant</button>
     </div>`;
   const aiLink = banner.querySelector('[data-analyze-rules]');
   if (aiLink) aiLink.addEventListener('click', e => {
