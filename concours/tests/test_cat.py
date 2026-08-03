@@ -636,12 +636,52 @@ def test_cat_settings_lit_la_config():
                           'cat_brand': 'Yaesu', 'cat_model': 'FT-991A',
                           'cat_port': 'COM5', 'cat_baudrate': '38400'})
     assert s == {'enabled': True, 'mode': 'native', 'brand': 'yaesu',
-                'model': 'FT-991A', 'port': 'COM5', 'baudrate': 38400}
+                'model': 'FT-991A', 'port': 'COM5', 'baudrate': 38400,
+                'civ_addr': 0x94}   # modèle non-CI-V -> repli générique
 
 
 def test_cat_settings_baudrate_par_defaut_selon_marque():
     s = cat.cat_settings({'cat_brand': 'kenwood'})
     assert s['baudrate'] == cat.CAT_DEFAULT_BAUD['kenwood']
+
+
+# ─── Adresse CI-V manuelle (cat_civ_addr) — l'opérateur a changé l'adresse
+#     usine dans le menu SET de sa radio (multi-poste/SO2R) et doit pouvoir
+#     la corriger côté LogX AI, sans quoi la radio ne répond jamais ────────
+
+def test_cat_settings_civ_addr_repli_sur_modele():
+    """Sans champ manuel : reprend l'adresse usine du modèle choisi."""
+    s = cat.cat_settings({'cat_brand': 'icom', 'cat_model': 'IC-7300'})
+    assert s['civ_addr'] == cat.CIV_ADDRESSES['IC-7300']
+
+
+def test_cat_settings_civ_addr_repli_sur_modele_inconnu():
+    """Ni adresse manuelle ni modèle reconnu : repli générique 0x94."""
+    s = cat.cat_settings({'cat_brand': 'icom', 'cat_model': ''})
+    assert s['civ_addr'] == 0x94
+
+
+def test_cat_settings_civ_addr_manuelle_prioritaire():
+    """Radio reconfigurée en Set mode (ex. 0x58 au lieu de l'usine 0x94 pour
+    l'IC-7300) : l'adresse manuelle l'emporte sur celle du modèle."""
+    s = cat.cat_settings({'cat_brand': 'icom', 'cat_model': 'IC-7300',
+                          'cat_civ_addr': '58'})
+    assert s['civ_addr'] == 0x58
+    assert s['civ_addr'] != cat.CIV_ADDRESSES['IC-7300']
+
+
+def test_cat_settings_civ_addr_manuelle_invalide_ignoree():
+    """Texte non-hexadécimal : repli silencieux sur l'adresse du modèle,
+    jamais d'exception (champ texte libre côté UI)."""
+    s = cat.cat_settings({'cat_brand': 'icom', 'cat_model': 'IC-7300',
+                          'cat_civ_addr': 'pas-hexa'})
+    assert s['civ_addr'] == cat.CIV_ADDRESSES['IC-7300']
+
+
+def test_cat_settings_civ_addr_manuelle_vide_ignoree():
+    s = cat.cat_settings({'cat_brand': 'icom', 'cat_model': 'IC-7300',
+                          'cat_civ_addr': '  '})
+    assert s['civ_addr'] == cat.CIV_ADDRESSES['IC-7300']
 
 
 class _FakeFactory:
@@ -692,6 +732,55 @@ def test_get_state_natif_civ():
     _with_fake_serial(fake, run)
 
 
+def test_get_state_natif_civ_adresse_manuelle():
+    """Radio dont l'adresse CI-V usine (0x94 pour l'IC-7300) a été changée en
+    0x58 dans le menu SET — sans le champ cat_civ_addr, _ensure_connected
+    interrogerait 0x94 et la fausse radio (qui ne répond qu'à 0x58) resterait
+    muette. Preuve que l'adresse manuelle est bien celle utilisée sur le fil."""
+    fake = FakeCivRadio(0x58, freq=14195000, mode_code=cat.CIV_MODES['USB'])
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
+           'cat_model': 'IC-7300', 'cat_port': 'COM3', 'cat_civ_addr': '58'}
+
+    def run(factory):
+        st = cat.get_state(cfg)
+        assert st == {'ok': True, 'enabled': True, 'freq_hz': 14195000,
+                      'freq_khz': 14195.0, 'mode': 'USB'}
+
+    _with_fake_serial(fake, run)
+
+
+def test_get_state_natif_civ_sans_adresse_manuelle_reste_muette_sur_ancienne_adresse():
+    """Contre-épreuve du test précédent : sans cat_civ_addr, la radio qui a
+    changé d'adresse (0x58) ne répond pas à l'adresse usine (0x94)."""
+    fake = FakeCivRadio(0x58, freq=14195000)
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
+           'cat_model': 'IC-7300', 'cat_port': 'COM3'}   # pas de cat_civ_addr
+
+    def run(factory):
+        st = cat.get_state(cfg)
+        assert st['ok'] is False
+
+    _with_fake_serial(fake, run)
+
+
+def test_set_freq_natif_reconnecte_si_civ_addr_change():
+    """Le changement de la seule adresse manuelle (port/marque/modèle/vitesse
+    inchangés) doit lui aussi déclencher une reconnexion — sinon la connexion
+    persistante garderait l'ancienne adresse indéfiniment."""
+    fake = FakeCivRadio(0x58)
+    cfg_a = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
+             'cat_model': 'IC-7300', 'cat_port': 'COM3'}   # adresse usine 0x94
+    cfg_b = dict(cfg_a, cat_civ_addr='58')                 # même radio, adresse corrigée
+
+    def run(factory):
+        assert not cat.set_freq(cfg_a, 14250000)['ok']   # radio muette à 0x94
+        assert factory.calls == 1
+        assert cat.set_freq(cfg_b, 14250000)['ok']        # reconnecté à 0x58 -> répond
+        assert factory.calls == 2
+
+    _with_fake_serial(fake, run)
+
+
 def test_get_state_natif_ascii():
     fake = FakeAsciiRadio('kenwood', freq=7100000, mode='LSB')
     cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'kenwood',
@@ -727,7 +816,8 @@ def test_set_freq_pilotage_desactive():
 
 
 def test_ensure_connected_port_manquant():
-    driver, err = cat._ensure_connected({'port': '', 'brand': 'icom', 'model': 'IC-7300', 'baudrate': 19200})
+    driver, err = cat._ensure_connected({'port': '', 'brand': 'icom', 'model': 'IC-7300',
+                                         'baudrate': 19200, 'civ_addr': 0x94})
     assert driver is None and 'non configuré' in err
 
 
@@ -736,6 +826,28 @@ def test_test_connection_civ():
 
     def run(factory):
         r = cat.test_connection('icom', 'IC-9700', 'COM3', 19200)
+        assert r == {'ok': True, 'detected_model': 'IC-9700', 'freq_hz': 432175000}
+
+    _with_fake_serial(fake, run)
+
+
+def test_test_connection_civ_adresse_manuelle():
+    """Bouton CONFIG « Tester » avec une adresse CI-V manuelle (radio
+    reconfigurée) : doit interroger CETTE adresse, pas celle du modèle."""
+    fake = FakeCivRadio(0x58, freq=432175000)
+
+    def run(factory):
+        r = cat.test_connection('icom', 'IC-9700', 'COM3', 19200, civ_addr='58')
+        assert r == {'ok': True, 'detected_model': 'IC-9700', 'freq_hz': 432175000}
+
+    _with_fake_serial(fake, run)
+
+
+def test_test_connection_civ_sans_adresse_manuelle_repli_sur_modele():
+    fake = FakeCivRadio(cat.CIV_ADDRESSES['IC-9700'], freq=432175000)
+
+    def run(factory):
+        r = cat.test_connection('icom', 'IC-9700', 'COM3', 19200, civ_addr=None)
         assert r == {'ok': True, 'detected_model': 'IC-9700', 'freq_hz': 432175000}
 
     _with_fake_serial(fake, run)

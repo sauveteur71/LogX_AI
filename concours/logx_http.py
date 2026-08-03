@@ -4977,7 +4977,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             else:
                 import logx_cat as cat
                 res = cat.test_connection(payload.get('brand'), payload.get('model'),
-                                          payload.get('port'), payload.get('baudrate'))
+                                          payload.get('port'), payload.get('baudrate'),
+                                          payload.get('civ_addr'))
             self._json(res, 200 if res.get('ok') else 502)
             return
 

@@ -150,7 +150,7 @@ def test_le_refus_arrive_AVANT_l_ouverture_du_port(monkeypatch):
     C.disconnect_persistent()
     driver, err = C._ensure_connected({
         'enabled': True, 'mode': 'native', 'brand': 'yaesu',
-        'model': 'FT-857', 'port': 'COM9', 'baudrate': 4800,
+        'model': 'FT-857', 'port': 'COM9', 'baudrate': 4800, 'civ_addr': 0x94,
     })
     assert driver is None
     assert err and 'Hamlib' in err
@@ -169,7 +169,7 @@ def test_un_modele_pilotable_ouvre_bien_le_port(monkeypatch):
     C.disconnect_persistent()
     driver, err = C._ensure_connected({
         'enabled': True, 'mode': 'native', 'brand': 'yaesu',
-        'model': 'FT-991A', 'port': 'COM9', 'baudrate': 38400,
+        'model': 'FT-991A', 'port': 'COM9', 'baudrate': 38400, 'civ_addr': 0x94,
     })
     C.disconnect_persistent()
     assert err is None and driver is not None

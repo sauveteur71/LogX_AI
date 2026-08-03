@@ -1134,6 +1134,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
             <label>VITESSE (bauds)</label>
             <input type="number" id="cat_baudrate" placeholder="19200">
           </div>
+          <div class="form-group" id="catCivAddrField" style="display:none">
+            <label>ADRESSE CI-V (avancé)</label>
+            <input type="text" id="cat_civ_addr" placeholder="AA">
+            <div class="input-note">Laisse vide pour l'adresse usine du modèle — à remplir seulement si tu l'as changée dans le menu SET de la radio (multi-poste/SO2R).</div>
+          </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px;flex-wrap:wrap">
           <button type="button" class="btn btn-secondary" onclick="testCatConnection()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V3.5M12 8V3.5"/><path d="M4.5 8h9v2a4.5 4.5 0 0 1-9 0V8z"/><line x1="9" y1="14.5" x2="9" y2="16.5"/></svg> Tester la connexion</button>
@@ -2449,6 +2454,7 @@ const CONFIG_HELP = {
   cat_model: "Le modèle précis de ta radio, pour affiner l'adresse/le protocole (notamment important pour Icom en CI-V).",
   cat_port: "Le port série (COM) où ta radio est reliée à l'ordinateur (ex. COM3 sous Windows). Visible dans le Gestionnaire de périphériques Windows. Interface multi-radio (microHAM, 4O3A Signature...) : c'est le port COM VIRTUEL que le logiciel de l'interface (ex. microHAM Router / USB Device Router) crée pour LogX AI — il ne fonctionne que si ce logiciel tourne, avec la bonne radio sélectionnée dedans. Ce port peut être différent de celui utilisé par WSJT-X ou un autre logiciel, et il change parfois après un redémarrage : rafraîchis la liste si besoin.",
   cat_baudrate: "La vitesse de communication série (bauds) réglée sur ta radio elle-même — doit correspondre EXACTEMENT au réglage du menu de la radio.",
+  cat_civ_addr: "Adresse CI-V (Icom/Xiegu) — laisse vide pour utiliser l'adresse usine du modèle choisi. À remplir seulement si tu as changé cette adresse dans le menu SET de la radio (pratique courante en multi-poste/SO2R pour éviter les collisions sur le bus CI-V) : sans ça, LogX AI continue d'interroger l'ancienne adresse et la radio ne répond jamais.",
   rig_host: "Adresse réseau (souvent 127.0.0.1 si sur le même PC) du serveur rigctld qui pilote ta radio via Hamlib.",
   rig_port: "Port réseau de rigctld — 4532 par défaut.",
   tci_host: "Adresse réseau du serveur TCI (ex. ExpertSDR3) qui pilote ta radio — 127.0.0.1 si sur le même PC.",
@@ -3628,8 +3634,9 @@ function updateCatModelOptions(){
   }
   const note = document.getElementById('catAddrNote');
   const isCiv = (brand === 'icom' || brand === 'xiegu');
+  document.getElementById('catCivAddrField').style.display = isCiv ? '' : 'none';
   if (isCiv && models.length){
-    note.textContent = `Adresse CI-V usine : ${models[0][1]} (modifiable sur la radio si besoin)`;
+    note.textContent = `Adresse CI-V usine : ${models[0][1]} (modifiable sur la radio — indique la nouvelle adresse dans le champ « ADRESSE CI-V (avancé) » si besoin)`;
   } else {
     note.textContent = '';
   }
@@ -3670,7 +3677,7 @@ function updateCatAddrNoteForModel(){
   }
   const isCiv = (brand === 'icom' || brand === 'xiegu');
   if (!isCiv) { note.textContent = ''; return; }
-  note.textContent = entry ? `Adresse CI-V usine : ${entry[1]} (modifiable sur la radio si besoin)` : '';
+  note.textContent = entry ? `Adresse CI-V usine : ${entry[1]} (modifiable sur la radio — indique la nouvelle adresse dans le champ « ADRESSE CI-V (avancé) » si besoin)` : '';
 }
 document.addEventListener('DOMContentLoaded', () => {
   const modelSel = document.getElementById('cat_model');
@@ -3890,6 +3897,7 @@ async function testCatConnection(){
       model: document.getElementById('cat_model').value,
       port: document.getElementById('cat_port').value,
       baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || CAT_DEFAULT_BAUD[document.getElementById('cat_brand').value] || 19200,
+      civ_addr: document.getElementById('cat_civ_addr').value.trim() || undefined,
     };
     if (!payload.port){
       result.textContent = '⚠️ Choisis un port série d\'abord';
@@ -6386,6 +6394,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     cat_model: document.getElementById('cat_model').value,
     cat_port: document.getElementById('cat_port').value,
     cat_baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || 19200,
+    cat_civ_addr: document.getElementById('cat_civ_addr').value.trim(),
     tci_host: document.getElementById('tci_host').value.trim(),
     tci_port: parseInt(document.getElementById('tci_port').value, 10) || 50001,
     flrig_host: document.getElementById('flrig_host')?.value.trim() || '',
@@ -7085,7 +7094,7 @@ function applyFullConfigToForm(c) {
      'rbn_enabled','clublog_live','expedition_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
-     'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate',
+     'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate','cat_civ_addr',
      'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
      'cat2_enabled','cat2_brand','cat2_port','cat2_baudrate',
