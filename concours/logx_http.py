@@ -3984,6 +3984,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'ports': cat.list_ports()})
             return
 
+        # Détections de branchement en attente (watcher de fond, indice passif
+        # VID:PID/numéro de série — jamais appliqué sans confirmation en un
+        # clic côté UI). Pollé par CONFIG toutes les ~2s.
+        if path == '/rig/pending_detections':
+            import logx_cat as cat
+            self._json({'detections': cat.get_pending_detections()})
+            return
+
         # Rotor d'antenne (rotctld) : position courante — pollée par le logbook
         # La station physique : antennes, rotors, amplis, et ce qui sert sur
         # une bande donnée. Un seul appel, aucune I/O — les écrans (CONFIG,
@@ -4985,6 +4993,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_cat as cat
             res = cat.autodetect_scan(payload.get('port'))
             self._json(res, 200 if res.get('ok') else 502)
+            return
+
+        # Écarte une détection de branchement en attente (l'opérateur a
+        # cliqué "Configurer" ou "Ignorer" côté bandeau CONFIG) — sinon elle
+        # réapparaîtrait à l'identique tant que le port reste branché.
+        if self.path == '/rig/dismiss_detection':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            import logx_cat as cat
+            cat.dismiss_detection(payload.get('device'))
+            self._json({'ok': True})
             return
 
         # Test du WinKeyer : l'ouverture de session renvoie la version du

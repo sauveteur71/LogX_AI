@@ -339,6 +339,12 @@ if __name__ == '__main__':
     threading.Thread(target=_cloudsync_loop, daemon=True).start()
     threading.Thread(target=_lan_sync_loop, daemon=True).start()
 
+    # Watcher de branchement radio/interface CAT (plug-and-play) : diff léger
+    # de la liste des ports série toutes les ~1.5s, aucun octet CAT envoyé —
+    # voir logx_cat.py:port_watcher_loop et le chantier du 03/08/2026.
+    import logx_cat as _cat
+    _cat.start_port_watcher()
+
     # Import unique et préalable : sans cela, si l'import du pont WSJT-X échoue,
     # http_mod restait non défini et le bloc ADIF-net levait un NameError
     # (avalé) — l'écouteur réseau ADIF ne démarrait alors jamais.

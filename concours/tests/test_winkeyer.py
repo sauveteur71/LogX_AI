@@ -273,3 +273,38 @@ def test_le_winkeyer_passe_avant_les_backends_cat():
     assert 'logx_winkeyer' in bloc
     assert bloc.index('logx_winkeyer') < bloc.index('cat_settings'), \
         "le WinKeyer doit être consulté AVANT le dispatch CAT"
+
+
+# ─── RTS/DTR forcés bas à l'ouverture (bug trouvé/corrigé en revue
+#     adversariale 03/08/2026, même piège que logx_cat.py:SerialPort) ───────
+
+def test_port_winkeyer_force_rts_dtr_bas_a_ouverture(monkeypatch):
+    """pyserial.Serial() n'accepte PAS rts=/dtr= comme arguments du
+    constructeur (ValueError) — seulement comme propriétés d'instance posées
+    AVANT open(). Ce double n'accepte aucun argument positionnel au
+    constructeur (comme le vrai serial.Serial()), pour retrouver l'erreur si
+    la production régresse vers l'ancien style (kwargs)."""
+    if not wk.HAS_PYSERIAL:
+        import pytest
+        pytest.skip("pyserial non installé dans cet environnement")
+
+    class _FakeUnderlyingSerial:
+        def __init__(self):
+            self.port = None
+            self.rts = None
+            self.dtr = None
+            self.opened = False
+
+        def open(self):
+            self.opened = True
+
+        def close(self):
+            pass
+
+    fake = _FakeUnderlyingSerial()
+    monkeypatch.setattr(wk._pyserial, 'Serial', lambda: fake)
+    wk.PortWinKeyer('COM99')
+    assert fake.port == 'COM99'
+    assert fake.rts is False
+    assert fake.dtr is False
+    assert fake.opened is True

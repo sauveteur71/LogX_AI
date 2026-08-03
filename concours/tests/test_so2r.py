@@ -237,3 +237,38 @@ def test_le_bouton_tester_utilise_le_port_SAISI_pas_celui_enregistre():
     assert "payload.get('port')" in bloc, (
         'le port saisi dans la page doit primer sur celui de la config')
     assert "cfg_test['so2r_port']" in bloc
+
+
+# ─── RTS/DTR forcés bas à l'ouverture (bug trouvé/corrigé en revue
+#     adversariale 03/08/2026, même piège que logx_cat.py:SerialPort) ───────
+
+def test_port_otrsp_force_rts_dtr_bas_a_ouverture(monkeypatch):
+    """pyserial.Serial() n'accepte PAS rts=/dtr= comme arguments du
+    constructeur (ValueError) — seulement comme propriétés d'instance posées
+    AVANT open(). Ce double n'accepte aucun argument positionnel au
+    constructeur (comme le vrai serial.Serial()), pour retrouver l'erreur si
+    la production régresse vers l'ancien style (kwargs)."""
+    if not so2r.HAS_PYSERIAL:
+        import pytest
+        pytest.skip("pyserial non installé dans cet environnement")
+
+    class _FakeUnderlyingSerial:
+        def __init__(self):
+            self.port = None
+            self.rts = None
+            self.dtr = None
+            self.opened = False
+
+        def open(self):
+            self.opened = True
+
+        def close(self):
+            pass
+
+    fake = _FakeUnderlyingSerial()
+    monkeypatch.setattr(so2r._pyserial, 'Serial', lambda: fake)
+    so2r.PortOtrsp('COM99')
+    assert fake.port == 'COM99'
+    assert fake.rts is False
+    assert fake.dtr is False
+    assert fake.opened is True

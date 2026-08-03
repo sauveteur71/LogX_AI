@@ -61,8 +61,24 @@ class PortOtrsp:
     def __init__(self, device, timeout=1.0):
         if not HAS_PYSERIAL:
             raise RuntimeError("pyserial n'est pas installé")
-        self._ser = _pyserial.Serial(device, baudrate=BAUD, timeout=timeout,
-                                     bytesize=8, parity='N', stopbits=1)
+        # rts=False, dtr=False : évite de lever ces lignes par défaut à
+        # l'ouverture (voir logx_cat.py:SerialPort, même correctif) — le
+        # protocole OTRSP ne dépend pas de RTS/DTR, autant ne pas risquer de
+        # déclencher un relais d'antenne/PTT auxiliaire selon le câblage.
+        # pyserial n'accepte PAS rts=/dtr= comme arguments du constructeur
+        # (ValueError) — seulement comme propriétés d'instance à poser AVANT
+        # open() (voir logx_cat.py:SerialPort pour le détail, corrigé en
+        # même temps ici après une revue adversariale avant fusion).
+        self._ser = _pyserial.Serial()
+        self._ser.port = device
+        self._ser.baudrate = BAUD
+        self._ser.timeout = timeout
+        self._ser.bytesize = 8
+        self._ser.parity = 'N'
+        self._ser.stopbits = 1
+        self._ser.rts = False
+        self._ser.dtr = False
+        self._ser.open()
 
     def write(self, data):
         self._ser.write(bytes(data))
