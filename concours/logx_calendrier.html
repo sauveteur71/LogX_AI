@@ -116,6 +116,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 /* LOADING */
 .loading{text-align:center;padding:40px;font-family:var(--font-mono);color:var(--muted)}
 .app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
+.filter-btn svg,.year-tab svg,.cr-btn svg,.month-header svg,.alert-box svg{width:1em;height:1em;vertical-align:-2px;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -159,20 +160,20 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
   <div class="alert-box" id="alertBox"></div>
 
   <div class="year-tabs">
-    <button class="year-tab active" id="tabNext" onclick="loadYear()">⭐ REF / IARU / Internationaux</button>
-    <button class="year-tab" id="tabExt" onclick="loadExternal()">🌍 MONDIAL WA7BNM</button>
-    <button class="year-tab" id="tabDx" onclick="loadDxpeditions()">🏝️ DXPEDITIONS (NG3K)</button>
+    <button class="year-tab active" id="tabNext" onclick="loadYear()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2 L10.8 6.8 L16 7.2 L12 10.6 L13.2 16 L9 13 L4.8 16 L6 10.6 L2 7.2 L7.2 6.8 Z"/></svg> REF / IARU / Internationaux</button>
+    <button class="year-tab" id="tabExt" onclick="loadExternal()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c2.5 2 2.5 11 0 13"/><path d="M9 2.5c-2.5 2-2.5 11 0 13"/></svg> MONDIAL WA7BNM</button>
+    <button class="year-tab" id="tabDx" onclick="loadDxpeditions()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="2.5" x2="5" y2="15.5"/><path d="M5 3.5 L14 5.5 L5 8.5 Z"/></svg> DXPEDITIONS (NG3K)</button>
   </div>
 
   <div class="filters">
     <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
-    <button class="filter-btn" data-f="REF" onclick="setFilter(this)">⭐ REF</button>
-    <button class="filter-btn" data-f="IARU" onclick="setFilter(this)">🌍 IARU</button>
-    <button class="filter-btn" data-f="CQ" onclick="setFilter(this)">📡 CQ</button>
-    <button class="filter-btn" data-f="VHF" onclick="setFilter(this)">📶 VHF</button>
-    <button class="filter-btn" data-f="HF" onclick="setFilter(this)">🌐 HF</button>
-    <button class="filter-btn" data-f="upcoming" onclick="setFilter(this)">🔜 À VENIR (31 j)</button>
-    <button class="filter-btn" data-f="new" onclick="setFilter(this)" title="Onglet DXpeditions : n'affiche que les pays DXCC pas encore travaillés">🆕 NOUVEAU PAYS</button>
+    <button class="filter-btn" data-f="REF" onclick="setFilter(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2 L10.8 6.8 L16 7.2 L12 10.6 L13.2 16 L9 13 L4.8 16 L6 10.6 L2 7.2 L7.2 6.8 Z"/></svg> REF</button>
+    <button class="filter-btn" data-f="IARU" onclick="setFilter(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c2.5 2 2.5 11 0 13"/><path d="M9 2.5c-2.5 2-2.5 11 0 13"/></svg> IARU</button>
+    <button class="filter-btn" data-f="CQ" onclick="setFilter(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> CQ</button>
+    <button class="filter-btn" data-f="VHF" onclick="setFilter(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg> VHF</button>
+    <button class="filter-btn" data-f="HF" onclick="setFilter(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c2.5 2 2.5 11 0 13"/><path d="M9 2.5c-2.5 2-2.5 11 0 13"/></svg> HF</button>
+    <button class="filter-btn" data-f="upcoming" onclick="setFilter(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="9" y1="9" x2="9" y2="5"/><line x1="9" y1="9" x2="12" y2="10.5"/></svg> À VENIR (31 j)</button>
+    <button class="filter-btn" data-f="new" onclick="setFilter(this)" title="Onglet DXpeditions : n'affiche que les pays DXCC pas encore travaillés"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="9" y1="5.5" x2="9" y2="12.5"/><line x1="5.5" y1="9" x2="12.5" y2="9"/></svg> NOUVEAU PAYS</button>
   </div>
 
   <div id="calendarContent" class="loading">Chargement des dates...</div>
@@ -186,12 +187,12 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
     document.body.innerHTML = `
       <div style="position:fixed;inset:0;background:#07080F;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:'Courier New',monospace">
         <div style="text-align:center;max-width:600px;padding:40px">
-          <div style="font-size:60px;margin-bottom:20px">🚫</div>
+          <div style="margin-bottom:20px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:60px;height:60px;color:#FF2D55"><circle cx="9" cy="9" r="6.5"/><line x1="4.2" y1="13.8" x2="13.8" y2="4.2"/></svg></div>
           <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px">OUVERT EN FILE:// — IMPOSSIBLE</div>
           <div style="color:#E9ECF5;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord logx_serveur.py, puis accède via :</div>
           <a href="http://127.0.0.1:8080/logx_calendrier.html"
              style="display:inline-block;background:linear-gradient(135deg,#00FF88,#00D4FF);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
-            ▶ http://127.0.0.1:8080/logx_calendrier.html
+            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;vertical-align:-2px"><path d="M6 4 L14 9 L6 14 Z" fill="currentColor" stroke="none"/></svg> http://127.0.0.1:8080/logx_calendrier.html
           </a>
         </div>
       </div>`;
@@ -261,7 +262,7 @@ async function loadYear(){
 
     if(data.alerts && data.alerts.length){
       const box = document.getElementById('alertBox');
-      box.innerHTML = '⚠️ ALERTES RÈGLEMENTS :<br>' + data.alerts.join('<br>');
+      box.innerHTML = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 L16 15 L2 15 Z"/><line x1="9" y1="7" x2="9" y2="11"/><circle cx="9" cy="13" r="0.9" fill="currentColor" stroke="none"/></svg> ALERTES RÈGLEMENTS :<br>' + data.alerts.join('<br>');
       box.classList.add('show');
     }
 
@@ -350,7 +351,7 @@ function renderCalendar(){
 
     html += `<div class="month-group">
       <div class="month-header" style="${isPast?'opacity:.5':''}">
-        📅 ${monthName}
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> ${monthName}
         <span class="month-count">${contests.length} concours</span>
       </div>`;
 
@@ -387,8 +388,8 @@ function renderCalendar(){
           </div>
         </div>
         <div class="cr-actions">
-          ${!isPastC?`<button class="cr-btn start" onclick="event.stopPropagation();startContest('${jsId(c.id)}')">▶ DÉMARRER</button>`:''}
-          ${c.rules_url?`<a class="cr-btn" href="${esc(safeUrl(c.rules_url))}" target="_blank" onclick="event.stopPropagation()">📄 Règlement</a>`:''}
+          ${!isPastC?`<button class="cr-btn start" onclick="event.stopPropagation();startContest('${jsId(c.id)}')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4 L14 9 L6 14 Z" fill="currentColor" stroke="none"/></svg> DÉMARRER</button>`:''}
+          ${c.rules_url?`<a class="cr-btn" href="${esc(safeUrl(c.rules_url))}" target="_blank" onclick="event.stopPropagation()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h6l3 3v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1z"/><line x1="6.5" y1="9" x2="12.5" y2="9"/><line x1="6.5" y1="12" x2="11" y2="12"/></svg> Règlement</a>`:''}
         </div>
       </div>`;
     });
@@ -411,7 +412,7 @@ function showDetail(id){
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:4px">${esc(c.organizer)}</div>
       </div>
       <button onclick="document.getElementById('detailPanel').classList.remove('show')"
-        style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px">✕</button>
+        style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:15px;height:15px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="detail-grid" style="margin-top:14px">
       <div class="detail-item">
@@ -448,8 +449,8 @@ function showDetail(id){
       </div>`:''}
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="cr-btn start" style="padding:8px 20px;font-size:13px" onclick="startContest('${jsId(c.id)}')">▶ DÉMARRER CE CONCOURS</button>
-      ${c.rules_url?`<a href="${esc(safeUrl(c.rules_url))}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:13px">📄 Règlement officiel</a>`:''}
+      <button class="cr-btn start" style="padding:8px 20px;font-size:13px" onclick="startContest('${jsId(c.id)}')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4 L14 9 L6 14 Z" fill="currentColor" stroke="none"/></svg> DÉMARRER CE CONCOURS</button>
+      ${c.rules_url?`<a href="${esc(safeUrl(c.rules_url))}" target="_blank" class="cr-btn" style="padding:8px 20px;font-size:13px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h6l3 3v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1z"/><line x1="6.5" y1="9" x2="12.5" y2="9"/><line x1="6.5" y1="12" x2="11" y2="12"/></svg> Règlement officiel</a>`:''}
     </div>`;
   panel.classList.add('show');
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -546,7 +547,7 @@ function renderExternal(){
       const label = c._date ? `${MONTHS_FR[c._date.getMonth()].toUpperCase()} ${c._date.getFullYear()}` : 'AUTRE';
       const n = list.filter(x => (x._date ? `${x._date.getFullYear()}-${x._date.getMonth()}` : 'autre') === key).length;
       html += `<div class="month-group">
-        <div class="month-header">📅 ${label} <span class="month-count">${n} concours</span></div>`;
+        <div class="month-header"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> ${label} <span class="month-count">${n} concours</span></div>`;
       curKey = key;
     }
     html += `<div class="contest-row upcoming" onclick="window.open(${jsAttrArg(safeUrl(c.url))},'_blank')">
@@ -557,8 +558,8 @@ function renderExternal(){
         <div class="cr-exchange" style="color:var(--accent2);font-size:12px">contestcalendar.com ref=${esc(c.ref)}</div>
       </div>
       <div class="cr-actions">
-        <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${jsId(c.ref)}')">▶ PRÉPARER</button>
-        <a class="cr-btn" href="${esc(safeUrl(c.url))}" target="_blank" onclick="event.stopPropagation()">📄 Détails</a>
+        <button class="cr-btn start" onclick="event.stopPropagation();prepareExternal('${jsId(c.ref)}')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4 L14 9 L6 14 Z" fill="currentColor" stroke="none"/></svg> PRÉPARER</button>
+        <a class="cr-btn" href="${esc(safeUrl(c.url))}" target="_blank" onclick="event.stopPropagation()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h6l3 3v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1z"/><line x1="6.5" y1="9" x2="12.5" y2="9"/><line x1="6.5" y1="12" x2="11" y2="12"/></svg> Détails</a>
       </div>
     </div>`;
   });
@@ -601,7 +602,7 @@ function renderDxpeditions(){
     return;
   }
   let html = `<div class="month-group">
-    <div class="month-header">🏝️ EXPÉDITIONS ANNONCÉES <span class="month-count">${list.length}</span></div>`;
+    <div class="month-header"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="2.5" x2="5" y2="15.5"/><path d="M5 3.5 L14 5.5 L5 8.5 Z"/></svg> EXPÉDITIONS ANNONCÉES <span class="month-count">${list.length}</span></div>`;
   list.forEach(e => {
     const newBadge = e.worked === false
       ? `<span class="tag" style="background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.35)" title="Pays DXCC pas encore travaillé dans ce log">🆕 NOUVEAU PAYS</span>`
