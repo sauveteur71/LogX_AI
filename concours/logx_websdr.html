@@ -53,7 +53,8 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .container{flex:1;overflow-y:auto;padding:16px 26px 60px;max-width:1280px;margin:0 auto;width:100%}
 
 .bandeau{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
-.bandeau h1{font-family:var(--font-display);font-weight:900;font-size:17px;color:var(--accent2);letter-spacing:.25px}
+.bandeau h1{font-family:var(--font-display);font-weight:900;font-size:17px;color:var(--accent2);letter-spacing:.25px;display:inline-flex;align-items:center;gap:7px}
+.bandeau h1 svg{width:16px;height:16px;flex-shrink:0}
 .age{font-family:var(--font-mono);font-size:11.5px}
 .age.frais{color:var(--green)} .age.vieux{color:var(--yellow)} .age.perime{color:var(--red)} .age.inconnu{color:var(--muted)}
 .intro-courte{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:10px;max-width:920px}
@@ -61,6 +62,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .suggestion{background:rgba(0,255,136,.06);border:1px solid var(--green);border-radius:10px;
   padding:10px 14px;margin-bottom:12px;font-size:13.5px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .suggestion b{color:var(--green)}
+.suggestion svg{width:15px;height:15px;flex-shrink:0}
 
 #map{height:380px;border:1px solid var(--border);border-radius:12px;margin-bottom:14px}
 .map-off{padding:18px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12.5px}
@@ -88,7 +90,10 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .sdr-badge.plein{color:var(--yellow);border-color:var(--yellow);background:rgba(255,214,10,.08)}
 .sdr-badge.down{color:var(--red);border-color:var(--red);background:rgba(255,45,85,.08)}
 .sdr-meta{font-family:var(--font-mono);font-size:12px;color:var(--accent2);display:flex;gap:12px;flex-wrap:wrap}
+.sdr-meta span{display:inline-flex;align-items:center;gap:4px}
+.sdr-meta svg{width:12px;height:12px;flex-shrink:0}
 .sdr-note{font-size:11.5px;color:var(--muted);font-style:italic;line-height:1.35}
+.sdr-note svg{width:12px;height:12px;flex-shrink:0;vertical-align:-2px;margin-right:2px}
 .sdr-open{margin-top:2px;text-align:center;background:#C9822E;color:#04222b;font-weight:700;
   text-decoration:none;border-radius:6px;padding:8px;font-family:var(--font-mono);font-size:13px}
 .sdr-open:hover{filter:brightness(1.1)}
@@ -131,7 +136,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 <div class="container">
 
   <div class="bandeau">
-    <h1>📡 <span id="titreN" class="rc-i18n-live">…</span></h1>
+    <h1><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg><span id="titreN" class="rc-i18n-live">…</span></h1>
     <span class="age inconnu rc-i18n-live" id="ageJeu">…</span>
     <span class="result-count rc-i18n-live" id="resCount"></span>
   </div>
@@ -247,6 +252,19 @@ function initCarte(){
 
 const COULEURS = { up: '#00FF88', plein: '#FFD60A', down: '#FF2D55', inconnu: '#7A8199' };
 
+// ── Icônes SVG réutilisées dans les cartes/étiquettes générées en JS ────────
+const ICO_ANTENNE = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>';
+const ICO_SIGNAL = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg>';
+const ICO_USERS = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6" r="2.3"/><path d="M2.2 15.2v-.7a4.3 4.3 0 0 1 4.3-4.3 4.3 4.3 0 0 1 4.3 4.3v.7"/><circle cx="13.3" cy="6.6" r="1.9"/><path d="M11 8.9a3.6 3.6 0 0 1 5.8 2.9v.9"/></svg>';
+const ICO_DIST = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="9" x2="15.5" y2="9"/><line x1="2.5" y1="6" x2="2.5" y2="12"/><line x1="15.5" y1="6" x2="15.5" y2="12"/><line x1="6" y1="7.5" x2="6" y2="10.5"/><line x1="9" y1="7.5" x2="9" y2="10.5"/><line x1="12" y1="7.5" x2="12" y2="10.5"/></svg>';
+const ICO_HP = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7v4h2.5l4 3V4l-4 3H2.5z"/><path d="M12 6.3a3.5 3.5 0 0 1 0 5.4"/><path d="M14 4.5a6.3 6.3 0 0 1 0 9"/></svg>';
+
+// ── Point coloré de statut (garde le sens de la couleur, pas une icône plate) ──
+function pointStatut(couleur){
+  return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' +
+    couleur + ';margin-right:5px;vertical-align:middle"></span>';
+}
+
 function majCarte(liste){
   if (!carte || !couche) return;
   couche.clearLayers();
@@ -303,9 +321,9 @@ function render(){
   const fq = freqCourante();
   const cartes = liste.slice(0, PLAFOND_LISTE).map(s => {
     const et = etatDe(s);
-    const badge = et === 'up' ? '🟢 ' + T('en ligne')
-      : et === 'plein' ? '🟡 ' + T('complet')
-      : et === 'down' ? '🔴 ' + T('hors ligne') : '⚪ ' + T('non sondé');
+    const badge = et === 'up' ? pointStatut('var(--green)') + T('en ligne')
+      : et === 'plein' ? pointStatut('var(--yellow)') + T('complet')
+      : et === 'down' ? pointStatut('var(--red)') + T('hors ligne') : pointStatut('var(--muted)') + T('non sondé');
     const estFr = s.pays === 'FR' || / FRANCE|, France/i.test(s.nom + ' ' + (s.lieu || ''));
     return `
     <div class="sdr-card${estFr ? ' fr' : ''}">
@@ -317,11 +335,11 @@ function render(){
         <span class="sdr-badge ${et === 'inconnu' ? '' : et}">${badge}</span>
       </div>
       <div class="sdr-meta">
-        ${s.snr != null ? `<span>📶 SNR ${s.snr} dB</span>` : ''}
-        ${s.users_max != null ? `<span>👥 ${s.users}/${s.users_max}</span>` : ''}
-        ${s.dist_km != null ? `<span>📏 ${s.dist_km} km · ${s.azimut}°</span>` : ''}
+        ${s.snr != null ? `<span>${ICO_SIGNAL}<span>SNR ${s.snr} dB</span></span>` : ''}
+        ${s.users_max != null ? `<span>${ICO_USERS}<span>${s.users}/${s.users_max}</span></span>` : ''}
+        ${s.dist_km != null ? `<span>${ICO_DIST}<span>${s.dist_km} km · ${s.azimut}°</span></span>` : ''}
       </div>
-      ${s.antenne ? `<div class="sdr-note">📡 ${esc(s.antenne)}</div>` : ''}
+      ${s.antenne ? `<div class="sdr-note">${ICO_ANTENNE} ${esc(s.antenne)}</div>` : ''}
       ${s.note ? `<div class="sdr-note">${esc(s.note)}</div>` : ''}
       <a class="sdr-open" href="${esc(urlEcoute(s, fq.khz, fq.mode))}"
          target="_blank" rel="noopener noreferrer">▶ ${T('ÉCOUTER')}</a>
@@ -340,8 +358,8 @@ function majSuggestion(sug){
   if (!sug){ el.style.display = 'none'; return; }
   const fq = freqCourante();
   el.style.display = 'flex';
-  el.innerHTML = '🔊 ' + Tf("S'écouter : meilleur récepteur près de chez toi — {nom}",
-                            {nom: esc(sug.nom)})
+  el.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px">' + ICO_HP +
+    '<span>' + Tf("S'écouter : meilleur récepteur près de chez toi — {nom}", {nom: esc(sug.nom)}) + '</span></span>'
     + (sug.snr != null ? ` · SNR <b>${sug.snr} dB</b>` : '')
     + (sug.dist_km != null ? ` · ${sug.dist_km} km` : '')
     + ` <a class="sdr-open" style="margin:0;padding:6px 14px" href="${esc(urlEcoute(sug, fq.khz, fq.mode))}"

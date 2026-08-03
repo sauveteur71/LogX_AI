@@ -95,11 +95,34 @@ body.day-mode {             /* JOUR — thème prioritaire */
      `.app-nav a` aligne icône+texte sans CSS supplémentaire. Remplacement
      par script Python (substitution exacte `>{emoji} LABEL<` → icône+label),
      PAS par agent — le nav est identique partout, un seul passage suffit.
-  2. **PAS FAIT** — titres de section/panneau (repris du mockup à l'époque,
-     mais jamais appliqués aux pages réelles), icônes de bouton (🔌🔍💾…),
-     et tout le reste (badges, tooltips, contenu généré en JS, options de
-     `<select>`) — chantiers séparés, à faire à la demande.
-  3. **HORS SCOPE, décision assumée** : les drapeaux du sélecteur de LANGUE
+  2. **FAIT (03/08/2026, lot 2)** — titres de section/panneau et boutons/
+     étiquettes AUTONOMES sur les 13 pages hors CONFIG/LOGBOOK (13 agents en
+     parallèle, un par fichier, chacun avec le même corpus d'instructions +
+     icônes réutilisables). Piège central à respecter pour toute suite :
+     **avant de convertir un emoji généré en JS, vérifier s'il est assigné
+     via `.innerHTML =` (SVG rendu, OK) ou `.textContent =`/`.value =`
+     (le SVG s'afficherait en texte brut, un vrai bug visuel) — en cas de
+     doute ou si le MÊME libellé est réécrit par les deux chemins selon le
+     contexte (ex. un repli sans donnée en `textContent` et un chemin avec
+     donnée en `innerHTML`), laisser l'emoji partout plutôt que de créer un
+     rendu incohérent selon l'état.** Un point coloré de statut (🟢🟡🔴⚪,
+     état en ligne/dégradé/hors-ligne) devient un `<span>` rond stylé via
+     `var(--green)`/`var(--yellow)`/`var(--red)`/`var(--muted)`, PAS une
+     icône monochrome plate (perte du sens couleur). **Piège de test trouvé
+     après coup** : `tests/test_page_chasse_split.py` figeait le TITRE EXACT
+     avec préfixe emoji de 5 panneaux (`'🏞️ STATIONS POTA EN DIRECT'` etc.)
+     pour vérifier qu'ils n'avaient pas été supprimés en silence — la
+     conversion en icône a fait échouer ce test bien qu'aucune régression
+     réelle n'ait eu lieu. Corrigé en ne testant que le TEXTE (sans le
+     préfixe décoratif, appelé à changer). Reflex à avoir : après toute
+     conversion emoji→icône, greper les `tests/` pour l'emoji touché avant
+     de considérer le lot fini.
+  3. **PAS FAIT** — icônes de bouton/badge dans `logx_configuration.html` et
+     `logx_logbook.html` (les deux plus gros fichiers, ~371 et ~90+ emoji
+     restants estimés) + tout le contenu généré en JS qui n'a pas déjà été
+     traité au fil du lot 2 (badges, tooltips, options de `<select>`) —
+     chantiers séparés, à faire à la demande.
+  4. **HORS SCOPE, décision assumée** : les drapeaux du sélecteur de LANGUE
      (🇫🇷🇬🇧🇩🇪…) restent en emoji — un drapeau identifie une langue
      instantanément, une icône monochrome générique ne le peut pas. Ne pas
      les convertir même en poussant le chantier plus loin.

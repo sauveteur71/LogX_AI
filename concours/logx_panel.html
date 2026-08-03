@@ -38,6 +38,7 @@ header{display:flex;align-items:center;gap:16px;padding:9px 16px;background:line
 .band-chip{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 9px;font-size:12px}
 .band-chip.best{border-color:var(--green);color:var(--green)}
 .band-chip.closed{opacity:.4}
+.ic{width:14px;height:14px;vertical-align:-2px;flex-shrink:0}
 </style>
 </head>
 <body data-rc-no-lang-select>
@@ -100,11 +101,11 @@ if(localStorage.getItem('rc_theme') === null){
       let clockTxt = '—';
       if(c.status === 'en_cours'){
         const h = Math.floor(c.remaining_h || 0), m = Math.round(((c.remaining_h || 0) - h) * 60);
-        clockTxt = '⏱ ' + Tf('reste {h}h{m} ({pct}%)',
+        clockTxt = '<svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="6"/><line x1="9" y1="10" x2="9" y2="6.5"/><line x1="9" y1="10" x2="11.5" y2="11.5"/><line x1="7" y1="2" x2="11" y2="2"/></svg> ' + Tf('reste {h}h{m} ({pct}%)',
           {h: h, m: String(m).padStart(2,'0'), pct: c.pct_done || 0});
       } else if(c.status === 'avant')
-        clockTxt = '⏳ ' + Tf('départ dans {h} h', {h: c.starts_in_h});
-      else if(c.status === 'termine') clockTxt = '🏁 ' + T('terminé');
+        clockTxt = '<svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h8"/><path d="M5 16h8"/><path d="M5 2c0 4 3 4.5 4 5.5 1-1 4-1.5 4-5.5"/><path d="M5 16c0-4 3-4.5 4-5.5 1 1 4 1.5 4 5.5"/></svg> ' + Tf('départ dans {h} h', {h: c.starts_in_h});
+      else if(c.status === 'termine') clockTxt = '<svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h9l-2 3 2 3H4"/></svg> ' + T('terminé');
 
       let rate = '';
       if(c.status === 'en_cours'){
@@ -204,10 +205,10 @@ if(localStorage.getItem('rc_theme') === null){
     const toggle = `<div style="display:flex;gap:6px;margin-bottom:10px">
       <button data-wm="life" style="flex:1;font-family:inherit;font-size:12px;padding:5px;cursor:pointer;
         background:${_wmScope==='life'?'#C9822E':'var(--bg3)'};color:${_wmScope==='life'?'#180400':'var(--text)'};
-        border:1px solid var(--border);border-radius:6px">🗂 Vie entière</button>
+        border:1px solid var(--border);border-radius:6px"><svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="9" rx="1.2"/><path d="M2.5 6l1.5-3h10l1.5 3"/><line x1="7" y1="9.5" x2="11" y2="9.5"/></svg> Vie entière</button>
       <button data-wm="contest" style="flex:1;font-family:inherit;font-size:12px;padding:5px;cursor:pointer;
         background:${_wmScope==='contest'?'#C9822E':'var(--bg3)'};color:${_wmScope==='contest'?'#180400':'var(--text)'};
-        border:1px solid var(--border);border-radius:6px">🏁 Ce concours</button>
+        border:1px solid var(--border);border-radius:6px"><svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h9l-2 3 2 3H4"/></svg> Ce concours</button>
     </div>`;
     try{
       const url = _wmScope === 'contest' ? '/awards/matrix?scope=contest' : '/awards/matrix';
@@ -220,7 +221,11 @@ if(localStorage.getItem('rc_theme') === null){
           + '</div>';
         return;
       }
-      const catIcon = {CW:'📟', PHONE:'🎙️', DIGITAL:'💻'};
+      const catIcon = {
+        CW: '<svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="3" cy="9" r="1.1" fill="currentColor" stroke="none"/><line x1="7" y1="9" x2="11" y2="9"/><circle cx="15" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg>',
+        PHONE: '<svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="4" height="8" rx="2"/><path d="M4.5 9a4.5 4.5 0 0 0 9 0"/><line x1="9" y1="13.5" x2="9" y2="16"/><line x1="6.5" y1="16" x2="11.5" y2="16"/></svg>',
+        DIGITAL: '<svg class="ic" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="12" height="8" rx="1"/><line x1="1.5" y1="14.5" x2="16.5" y2="14.5"/><line x1="6" y1="11" x2="6" y2="14.5"/><line x1="12" y1="11" x2="12" y2="14.5"/></svg>'
+      };
       const cell = (c) => {
         if(!c || !c.qso) return `<td style="text-align:center;padding:4px 8px;color:var(--muted)">—</td>`;
         const conf = c.confirmed ? ` <span style="color:var(--green)">(${c.confirmed})</span>` : '';

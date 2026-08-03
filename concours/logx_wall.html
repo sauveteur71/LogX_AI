@@ -200,6 +200,11 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
   display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .wmap-head{font-family:var(--font-display);font-weight:900;font-size:18px;letter-spacing:.2px;color:var(--accent2);
   padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+/* Icône devant les 2 VRAIS titres (wstream-head/wmap-head, Fraunces) — les
+   étiquettes latérales .wbt/.wgoal-head restent volontairement en emoji, même
+   distinction que la police (voir chantier couleur). */
+.wtitle-ico{display:inline-flex;align-items:center;gap:6px}
+.wtitle-ico svg{width:15px;height:15px;flex-shrink:0}
 #wallMap{flex:1;min-height:0}
 /* Repli sans JS : si le CDN Leaflet est inaccessible (salle isolée du net),
    #wallMap reste sans enfant -> :empty matche et affiche ce message, sans
@@ -255,11 +260,11 @@ body.day-mode .leaflet-container{background:#D8E4F0!important}
        carte Leaflet de logx_carte.html : ni clic ni changement de vue,
        rendu passif rafraîchi automatiquement (voir script). -->
   <div class="wmap">
-    <div class="wmap-head"><span>🌍 CARTE DX — RAYONS QSO &amp; GREYLINE</span></div>
+    <div class="wmap-head"><span class="wtitle-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="7"/><line x1="2" y1="9" x2="16" y2="9"/><path d="M9 2c3 3 3 11 0 14"/><path d="M9 2c-3 3-3 11 0 14"/></svg>CARTE DX — RAYONS QSO &amp; GREYLINE</span></div>
     <div class="rc-i18n-live" id="wallMap"></div>
   </div>
   <div class="wstream">
-    <div class="wstream-head"><span>⚡ DERNIERS QSO — LOG COMMUN</span><span class="rc-i18n-live" id="wRate10"></span></div>
+    <div class="wstream-head"><span class="wtitle-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="10,1 4,10 8,10 7,17 14,7 10,7"/></svg>DERNIERS QSO — LOG COMMUN</span><span class="rc-i18n-live" id="wRate10"></span></div>
     <div id="wStream"><div style="padding:40px;text-align:center;color:var(--muted);font-family:var(--mono)">En attente de QSO…</div></div>
   </div>
   <div class="wside">

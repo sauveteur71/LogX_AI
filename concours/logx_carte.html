@@ -144,6 +144,7 @@ textarea::placeholder{color:var(--muted)}
 /* CONTEST BADGE */
 .contest-badge{padding:4px 10px;border-radius:5px;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;border:1px solid var(--border);color:var(--accent2);background:rgba(var(--accent-rgb),.06)}
 .app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
+.ico{width:13px;height:13px;vertical-align:-2px;margin-right:3px;flex-shrink:0}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -198,7 +199,7 @@ textarea::placeholder{color:var(--muted)}
   <div class="chat-panel">
     <div class="coach-panel" id="coachPanel" style="display:none">
       <div class="coach-head">
-        <span class="coach-title">🧠 COACH</span>
+        <span class="coach-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="5" y="5" width="8" height="8" rx="1.5"/><line x1="9" y1="1.5" x2="9" y2="5"/><line x1="9" y1="13" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="5" y2="9"/><line x1="13" y1="9" x2="16.5" y2="9"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/></svg>COACH</span>
         <span class="coach-clock" id="coachClock">—</span>
         <button type="button" onclick="window.rcOpenPanel && window.rcOpenPanel('coach')" title="Détacher le coach dans une fenêtre séparée" style="background:none;border:none;color:var(--muted,#8792B5);cursor:pointer;font-size:14px;margin-left:6px">⇱</button>
       </div>
@@ -207,7 +208,7 @@ textarea::placeholder{color:var(--muted)}
       <div class="coach-hints" id="coachHints"></div>
       <label class="coach-nudge-toggle" title="Une phrase d'action poussée en toast quand un événement mérite ton attention : entité/département rare jamais fait et spotté, rythme effondré, silence radio." style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted,#8792B5);margin-top:6px;cursor:pointer">
         <input type="checkbox" id="nudgeToggle" onchange="toggleNudges(this.checked)" style="cursor:pointer">
-        🤖 <span>Nudges en direct</span>
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="3.5" y="6" width="11" height="8" rx="2"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> <span>Nudges en direct</span>
       </label>
     </div>
     <div class="chat-msgs" id="chatMsgs">
@@ -218,22 +219,22 @@ textarea::placeholder{color:var(--muted)}
     </div>
     <div class="chat-input">
       <div class="quick-btns">
-        <button class="qbtn qbtn-coach" onclick="coachAdvice()">🧠 COACH</button>
-        <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points">🎓 DÉBRIEF</button>
+        <button class="qbtn qbtn-coach" onclick="coachAdvice()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="5" y="5" width="8" height="8" rx="1.5"/><line x1="9" y1="1.5" x2="9" y2="5"/><line x1="9" y1="13" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="5" y2="9"/><line x1="13" y1="9" x2="16.5" y2="9"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/></svg>COACH</button>
+        <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M1.5 6.5L9 3l7.5 3.5L9 10l-7.5-3.5z"/><path d="M5 8.2v3.3c0 1 1.8 2 4 2s4-1 4-2V8.2"/><line x1="16.5" y1="6.5" x2="16.5" y2="11"/></svg>DÉBRIEF</button>
         <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)">🔇</button>
-        <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider">🎯 CHASSE ASSISTÉE</button>
+        <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>CHASSE ASSISTÉE</button>
         <select id="skillSel" class="skill-sel" onchange="setSkill(this.value)" title="Niveau : adapte le ton et le niveau de détail des réponses de l'IA">
           <option value="debutant">🐣 Débutant</option>
           <option value="confirme">🎯 Confirmé</option>
           <option value="expert">🚀 Expert</option>
         </select>
-        <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.','resume')">📡 ANALYSER</button>
-        <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')">🏆 SCORE</button>
-        <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')">⚡ SPOTS</button>
-        <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?','prop')">📶 PROP</button>
-        <button class="qbtn" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position">🌍 OUVERTURES</button>
-        <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')">🎯 MULTS</button>
-        <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')">📋 RÉSUMÉ</button>
+        <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>ANALYSER</button>
+        <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>SCORE</button>
+        <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="10,1.5 4.5,10 8.5,10 7.5,16.5 13.5,8 9.5,8 10,1.5"/></svg>SPOTS</button>
+        <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?','prop')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg>PROP</button>
+        <button class="qbtn" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
+        <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
+        <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg>RÉSUMÉ</button>
       </div>
       <div class="input-row">
         <textarea id="userInput" placeholder="Envoie un message à l'agent..." rows="1"
@@ -251,14 +252,14 @@ textarea::placeholder{color:var(--muted)}
       <div id="gcControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
         <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
           <input type="checkbox" id="gcToggle" onchange="toggleGreatCircle()" style="accent-color:var(--accent2)">
-          <span style="color:var(--accent2);letter-spacing:1px">🎯 GREAT CIRCLE</span>
+          <span style="color:var(--accent2);letter-spacing:1px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>GREAT CIRCLE</span>
         </label>
       </div>
       <!-- Surcouche CARRÉS QRA travaillés (VUCC). Placée SOUS le bloc
            propagation : ce sont deux surcouches indépendantes, cumulables. -->
       <div id="carresControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:236px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span style="color:var(--accent2);letter-spacing:2px">🔲 CARRÉS QRA</span>
+          <span style="color:var(--accent2);letter-spacing:2px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="ico"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg>CARRÉS QRA</span>
           <label style="cursor:pointer;display:flex;align-items:center;gap:5px">
             <input type="checkbox" id="carresOn" onchange="loadCarres()" style="accent-color:var(--accent2)">
             <span style="color:var(--muted)">off</span>
@@ -288,7 +289,7 @@ textarea::placeholder{color:var(--muted)}
       <!-- Surcouche PROPAGATION 24 h (carte du monde colorée depuis le QTH) -->
       <div id="propControl" style="position:absolute;z-index:600;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:224px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span style="color:var(--accent2);letter-spacing:2px">🌍 PROPAGATION</span>
+          <span style="color:var(--accent2);letter-spacing:2px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>PROPAGATION</span>
           <label style="cursor:pointer;display:flex;align-items:center;gap:5px">
             <input type="checkbox" id="propToggle" onchange="togglePropMap()" style="accent-color:var(--accent2)">
             <span id="propToggleLbl" style="color:var(--muted)">off</span>
@@ -343,7 +344,7 @@ textarea::placeholder{color:var(--muted)}
     document.body.innerHTML = `
       <div style="position:fixed;inset:0;background:#07080F;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:'Courier New',monospace">
         <div style="text-align:center;max-width:600px;padding:40px">
-          <div style="font-size:60px;margin-bottom:20px">🚫</div>
+          <div style="margin-bottom:20px;color:#FF2D55"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:56px;height:56px"><circle cx="9" cy="9" r="7"/><line x1="4" y1="14" x2="14" y2="4"/></svg></div>
           <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px">OUVERT EN FILE:// — IMPOSSIBLE</div>
           <div style="color:#E9ECF5;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord logx_serveur.py, puis accède via :</div>
           <a href="http://127.0.0.1:8080/logx_carte.html"
@@ -1065,7 +1066,7 @@ function showThinking(){
   div.className='msg msg-agent';div.id='thinking';
   const lbl=document.createElement('div');lbl.className='msg-lbl';lbl.textContent='AGENT';
   const bub=document.createElement('div');bub.className='thinking';
-  bub.innerHTML=`<span style="color:var(--accent2)">⚙</span> Analyse en cours <span class="dot-a"><span>.</span><span>.</span><span>.</span></span>`;
+  bub.innerHTML=`<span style="color:var(--accent2)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico" style="margin-right:0"><line x1="2" y1="5" x2="16" y2="5"/><circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="9" x2="16" y2="9"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="13" x2="16" y2="13"/><circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/></svg></span> Analyse en cours <span class="dot-a"><span>.</span><span>.</span><span>.</span></span>`;
   div.appendChild(lbl);div.appendChild(bub);
   c.appendChild(div);c.scrollTop=c.scrollHeight;
 }
@@ -1538,11 +1539,11 @@ function renderCoach(){
   let clockTxt='';
   if(c.status==='en_cours'){
     const h=Math.floor(c.remaining_h),m=Math.round((c.remaining_h-h)*60);
-    clockTxt=`⏱ ${rcTf('reste {h}h{mm}',{h:h,mm:String(m).padStart(2,'0')})} <span class="cc-pct">(${c.pct_done}%)</span>`;
+    clockTxt=`<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="10" r="6.5"/><line x1="9" y1="10" x2="9" y2="6.5"/><line x1="9" y1="10" x2="12" y2="10"/><line x1="7" y1="1.5" x2="11" y2="1.5"/><line x1="9" y1="1.5" x2="9" y2="3.5"/></svg> ${rcTf('reste {h}h{mm}',{h:h,mm:String(m).padStart(2,'0')})} <span class="cc-pct">(${c.pct_done}%)</span>`;
   }else if(c.status==='avant'){
-    clockTxt=`⏳ ${rcTf('départ dans {h} h',{h:c.starts_in_h})}`;
+    clockTxt=`<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M4 2h10M4 16h10M4 2c0 4 3 5 5 6-2 1-5 2-5 6M14 2c0 4-3 5-5 6 2 1 5 2 5 6"/></svg> ${rcTf('départ dans {h} h',{h:c.starts_in_h})}`;
   }else if(c.status==='termine'){
-    clockTxt='🏁 '+rcT('terminé');
+    clockTxt='<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><line x1="3.5" y1="1.5" x2="3.5" y2="16.5"/><path d="M3.5 2.5h10l-2.5 3 2.5 3h-10z"/><line x1="6.2" y1="2.5" x2="6.2" y2="8.5"/><line x1="9" y1="2.5" x2="9" y2="8.5"/></svg> '+rcT('terminé');
   }else{
     clockTxt='— '+rcT('pas de concours actif');
   }
@@ -1571,7 +1572,7 @@ function renderCoach(){
   if(rs){
     const col=rs.mode==='RUN'?'var(--green)':rs.mode==='S&P'?'var(--accent2)':'var(--yellow)';
     hintsHtml+=`<div class="coach-hint" style="color:${col};font-weight:700">`+
-      `🎙 ${rs.mode==='CHANGE'?rcT('CHANGE DE BANDE'):rs.mode} — ${rs.reason}</div>`;
+      `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="6.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16"/><line x1="6" y1="16" x2="12" y2="16"/></svg>${rs.mode==='CHANGE'?rcT('CHANGE DE BANDE'):rs.mode} — ${rs.reason}</div>`;
   }
   // Prévision Es/aurora VHF (distincte du confirmé)
   (coachState.vhf_forecast||[]).forEach(f=>{

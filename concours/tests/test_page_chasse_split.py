@@ -39,18 +39,23 @@ PAGES_AVEC_NAV = [
     'logx_propagation.html', 'logx_websdr.html',
 ]
 
-# Titres exacts des cinq panneaux deplaces (accents et emojis compris).
+# Titres exacts des cinq panneaux deplaces (accents compris).
 # Libelles renommes le 30/07/2026 a la demande de l'utilisateur : « activateur »
 # et « activation » ont disparu des ecrans francais, au profit du vocabulaire
 # radioamateur (voir tests/test_vocabulaire_portable.py, qui verrouille aussi la
 # correspondance avec les cles de traduction). Les identifiants DOM ci-dessous
 # n'ont PAS bouge : ils ne sont jamais vus par l'operateur.
+#
+# Prefixe emoji retire le 03/08/2026 (chantier icones monochromes, cf.
+# CLAUDE.md) : chaque titre est desormais precede d'un <svg> plutot que d'un
+# caractere emoji. On verifie le TEXTE, qui n'a pas bouge, plutot que de figer
+# un prefixe decoratif appele a changer a nouveau.
 TITRES_DEPLACES = [
-    '\U0001F3DE️ STATIONS POTA EN DIRECT',
-    '\U0001F3D4️ STATIONS SOTA EN DIRECT',
-    '\U0001F333 STATIONS WWFF EN DIRECT',
-    '\U0001F3F0 CHÂTEAUX WCA/COTA — ANNONCÉS',
-    '\U0001F3AF CLUSTER — NEED LIST',
+    'STATIONS POTA EN DIRECT',
+    'STATIONS SOTA EN DIRECT',
+    'STATIONS WWFF EN DIRECT',
+    'CHÂTEAUX WCA/COTA — ANNONCÉS',
+    'CLUSTER — NEED LIST',
 ]
 
 # Identifiants DOM que le JS de ces panneaux manipule.
