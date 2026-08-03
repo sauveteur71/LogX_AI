@@ -371,6 +371,135 @@ def test_autodetect_echo_boucle_ne_detecte_aucune_radio():
     assert r['ok'] is False
 
 
+# ─── Relecture dans le budget de timeout face à une trame parasite ─────────
+# Bus CI-V partagé avec un autre logiciel (WSJT-X/N1MM+ via un séparateur) ou
+# notification "CI-V Transceive" restée activée sur la radio : une trame
+# bien formée et bien adressée, mais qui répond à une AUTRE commande, peut
+# arriver AVANT la vraie réponse à notre propre requête. Avant le correctif,
+# _query()/autodetect() ne lisaient qu'UNE trame par essai et concluaient
+# "radio muette" dès que cette trame ne correspondait pas — trouvé en revue
+# adversariale du chantier CAT plug-and-play (03/08/2026).
+
+class QueuedCivTransport:
+    """Sert une liste de trames PRÉ-CONSTRUITES, une par read_until() — peu
+    importe le contenu écrit (pas une vraie radio, juste le flux tel qu'il
+    arriverait sur un bus CI-V partagé). Chaque read_until() ne retourne
+    JAMAIS plus d'une trame à la fois même si plusieurs sont mises en
+    attente d'un coup, comme le ferait réellement pyserial en s'arrêtant au
+    premier terminateur rencontré."""
+
+    def __init__(self, frames):
+        self._queue = list(frames)
+
+    def write(self, data):
+        pass
+
+    def read_until(self, terminator, timeout=1.0):
+        if not self._queue:
+            return b''
+        return self._queue.pop(0)
+
+    def close(self):
+        pass
+
+
+def _reponse_civ(addr, cmd, sub=None, data=b''):
+    """Construit une trame de RÉPONSE radio->PC (TO=E0/PC, FROM=addr) —
+    l'inverse de civ_build_frame(), qui construit toujours des REQUÊTES
+    PC->radio (voir _swap_addr_for_test)."""
+    return _swap_addr_for_test(cat.civ_build_frame(0xE0, cmd, sub, data), 0xE0, addr)
+
+
+def test_query_civ_relit_apres_une_trame_parasite_meme_fenetre():
+    """Une trame parasite bien adressée mais d'une AUTRE commande (ici une
+    réponse PTT, comme si un autre logiciel venait d'interroger sa propre
+    commande sur le bus partagé) précède la vraie réponse de fréquence —
+    get_freq() doit relire au lieu d'abandonner après la première lecture."""
+    addr = cat.CIV_ADDRESSES['IC-7300']
+    parasite = _reponse_civ(addr, 0x1C, sub=0x00, data=bytes([0]))   # réponse PTT, pas freq
+    vraie_reponse = _reponse_civ(addr, 0x03, data=cat.civ_encode_freq(14074000))
+    transport = QueuedCivTransport([parasite, vraie_reponse])
+    radio = cat.CivRadio(transport, addr)
+    assert radio.get_freq() == {'ok': True, 'freq_hz': 14074000}
+
+
+def test_query_civ_relit_apres_plusieurs_trames_parasites():
+    """Deux trames parasites de suite (bus très bavard) avant la vraie
+    réponse — toutes doivent être absorbées dans le même budget de
+    timeout."""
+    addr = cat.CIV_ADDRESSES['IC-9700']
+    parasites = [_reponse_civ(addr, 0x1C, sub=0x00, data=bytes([1])),
+                 _reponse_civ(addr, 0x04, data=bytes([cat.CIV_MODES['USB']]))]
+    vraie_reponse = _reponse_civ(addr, 0x03, data=cat.civ_encode_freq(432175000))
+    transport = QueuedCivTransport(parasites + [vraie_reponse])
+    radio = cat.CivRadio(transport, addr)
+    assert radio.get_freq() == {'ok': True, 'freq_hz': 432175000}
+
+
+def test_query_civ_que_des_parasites_echoue_proprement():
+    """Si AUCUNE vraie réponse n'arrive jamais (que des trames parasites,
+    puis silence), la relecture doit tout de même finir par abandonner —
+    jamais de blocage, jamais de faux positif sur une trame parasite."""
+    addr = cat.CIV_ADDRESSES['IC-7300']
+    parasites = [_reponse_civ(addr, 0x1C, sub=0x00, data=bytes([0])),
+                 _reponse_civ(addr, 0x04, data=bytes([cat.CIV_MODES['CW']]))]
+    transport = QueuedCivTransport(parasites)   # pas de vraie réponse ensuite
+    radio = cat.CivRadio(transport, addr)
+    assert radio.get_freq()['ok'] is False
+
+
+def test_autodetect_civ_repli_relit_apres_trame_parasite():
+    """Même scénario que pour _query(), mais via le repli CI-V de
+    autodetect() : une trame parasite bien adressée à LA BONNE radio mais
+    d'une autre commande précède la vraie réponse d'identification (0x19)."""
+    addr = cat.CIV_ADDRESSES['IC-7300']
+    parasite = _reponse_civ(addr, 0x1C, sub=0x00, data=bytes([0]))
+    vraie_reponse = _reponse_civ(addr, 0x19, sub=0x00, data=bytes([addr]))
+
+    class BusPartage:
+        """Simule le bus CI-V partagé pour TOUTES les adresses essayées par
+        autodetect() : silence sur les mauvaises adresses (comme une vraie
+        radio qui ignore une requête qui ne lui est pas destinée), trame
+        parasite puis vraie réponse sur LA bonne adresse."""
+
+        def __init__(self):
+            self._queue = []
+
+        def write(self, data):
+            parsed = cat.civ_parse_frame(data)
+            if parsed and parsed[0] == addr:
+                self._queue = [parasite, vraie_reponse]
+            else:
+                self._queue = []
+
+        def read_until(self, terminator, timeout=1.0):
+            if not self._queue:
+                return b''
+            return self._queue.pop(0)
+
+        def close(self):
+            pass
+
+    r = cat.autodetect(BusPartage())
+    assert r['ok'] and r['protocol'] == 'civ' and r['model'] == 'IC-7300'
+
+
+def test_test_connection_civ_relit_apres_trame_parasite():
+    """test_connection() (bouton CONFIG) délègue à CivRadio.get_freq(), donc
+    hérite de la relecture — vérifié bout en bout via _open_serial substitué,
+    comme les autres tests de test_connection()."""
+    addr = cat.CIV_ADDRESSES['IC-9700']
+    parasite = _reponse_civ(addr, 0x1C, sub=0x00, data=bytes([0]))
+    vraie_reponse = _reponse_civ(addr, 0x03, data=cat.civ_encode_freq(432175000))
+    transport = QueuedCivTransport([parasite, vraie_reponse])
+
+    def run(factory):
+        r = cat.test_connection('icom', 'IC-9700', 'COM3', 19200)
+        assert r == {'ok': True, 'detected_model': 'IC-9700', 'freq_hz': 432175000}
+
+    _with_fake_serial(transport, run)
+
+
 # ─── RTS/DTR forcés bas à l'ouverture (bug trouvé en audit 03/08/2026) ─────
 # Par défaut pyserial/Windows lèvent RTS et DTR à l'ouverture du port ; sur
 # une interface qui câble le PTT dessus, un simple test de connexion pourrait

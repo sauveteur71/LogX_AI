@@ -1145,6 +1145,14 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           <button type="button" class="btn btn-secondary" onclick="autodetectCat()" title="Identifie automatiquement la marque et le modèle sur le port choisi, sans les sélectionner d'abord"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5"/><line x1="11.8" y1="11.8" x2="16" y2="16"/></svg> Auto-détecter (marque+modèle inconnus)</button>
           <span id="catTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);line-height:1.7;margin-top:10px;padding:8px 12px;background:rgba(255,214,10,.08);border:1px solid rgba(255,214,10,.35);border-radius:6px">
+          <svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="10.5"/><circle cx="9" cy="12.8" r="0.9" fill="currentColor" stroke="none"/></svg>
+          <b>Port CAT partagé avec un autre logiciel</b> (WSJT-X, N1MM+... via un séparateur CI-V) ?
+          Sur une radio <b>Icom/Xiegu</b>, désactive « <b>CI-V Transceive</b> » dans le menu Set de la radio si tu peux —
+          laissée activée, la radio répète sur le câble les échanges des AUTRES logiciels, que LogX AI doit alors
+          trier trame par trame. Un bus plus calme reste plus fiable qu'un bus bavard, même si LogX AI sait
+          maintenant ignorer les trames qui ne lui sont pas destinées.
+        </div>
 
         <!-- Mode TCI : transceivers SDR (SunSDR/ExpertSDR3 et compatibles), réseau WebSocket -->
         <div id="catTciFields" class="form-grid" style="display:none;margin-top:12px">
