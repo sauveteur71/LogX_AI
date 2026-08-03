@@ -80,9 +80,29 @@ body.day-mode {             /* JOUR — thème prioritaire */
 ## Icônes
 
 - Direction retenue : **monochrome** (tracés SVG `stroke="currentColor"`,
-  pas de police d'icônes tierce) plutôt que l'emoji actuel — à appliquer lors
-  de la généralisation aux autres pages. Pas encore fait sur les pages
-  pilotes (chantier distinct, plus gros : des centaines d'emoji à recenser).
+  pas de police d'icônes tierce) plutôt que l'emoji actuel.
+- **Recensement fait le 03/08/2026** : ~954 occurrences d'emoji sur les 15
+  pages (jusqu'à 460 dans `logx_configuration.html` seul) — bien plus que le
+  mockup ne le suggérait. Conversion totale hors de portée raisonnable en un
+  seul passage ; le chantier est scindé par ordre de valeur/risque :
+  1. **FAIT** — barre de navigation principale (`<nav class="app-nav">`,
+     identique sur les 10 pages qui la partagent) : les 9-10 liens
+     (CONFIG/LOGBOOK/CARTE IA/PROPAG/CHASSE/Cartes/CALENDRIER/WEBSDR/FOCUS,
+     + ÉCOLE CW sur `logx_cw.html`) sont passés à des SVG monochromes
+     (`<span class="nav-ico"><svg>…</svg></span>`), taille fixée par
+     `.app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}`
+     ajouté à chaque fichier. Le `display:flex;gap:7px` déjà présent sur
+     `.app-nav a` aligne icône+texte sans CSS supplémentaire. Remplacement
+     par script Python (substitution exacte `>{emoji} LABEL<` → icône+label),
+     PAS par agent — le nav est identique partout, un seul passage suffit.
+  2. **PAS FAIT** — titres de section/panneau (repris du mockup à l'époque,
+     mais jamais appliqués aux pages réelles), icônes de bouton (🔌🔍💾…),
+     et tout le reste (badges, tooltips, contenu généré en JS, options de
+     `<select>`) — chantiers séparés, à faire à la demande.
+  3. **HORS SCOPE, décision assumée** : les drapeaux du sélecteur de LANGUE
+     (🇫🇷🇬🇧🇩🇪…) restent en emoji — un drapeau identifie une langue
+     instantanément, une icône monochrome générique ne le peut pas. Ne pas
+     les convertir même en poussant le chantier plus loin.
 
 ## Effets
 
