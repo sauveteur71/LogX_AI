@@ -199,18 +199,45 @@ def start_port_watcher():
     threading.Thread(target=port_watcher_loop, daemon=True).start()
 
 
-def _transceive(transport, data, terminator, timeout=1.0):
+def _transceive(transport, data, terminator, timeout=1.0, accept=None):
     """Écrit `data` puis lit jusqu'à `terminator` en une transaction unique
     quand le transport l'expose (SerialPort réel — voir sa méthode
     transceive(), verrou tenu de bout en bout pour rester atomique face au
     polling logbook concurrent). Repli sur write()+read_until() séparés pour
     les transports qui n'implémentent que l'interface minimale (doubles de
-    test synchrones, sans thread concurrent donc sans risque)."""
+    test synchrones, sans thread concurrent donc sans risque).
+
+    `accept` (callable bytes -> bool), si fourni, fait relire une NOUVELLE
+    trame dans le MÊME budget `timeout` tant que celle lue est rejetée, au
+    lieu d'abandonner après une seule lecture — le budget restant est
+    décrémenté à chaque trame rejetée. Décisif sur un bus CI-V partagé avec
+    un autre logiciel (WSJT-X/N1MM via séparateur) ou si la radio a la
+    notification "CI-V Transceive" activée : une trame parasite (mal
+    adressée, ou d'une autre commande) qui tombe dans l'unique lecture d'un
+    essai ne doit pas faire conclure "radio muette" alors qu'elle répond
+    (trouvé en revue adversariale du chantier CAT plug-and-play, 03/08/2026).
+    On ne relit QUE si une trame COMPLÈTE (terminée par `terminator`) a été
+    reçue et rejetée — une lecture vide/tronquée signifie que rien n'est
+    arrivé dans le budget imparti à CET essai, retenter immédiatement
+    n'apporterait rien (et boucherait à chaud sur les doubles de test, dont
+    le read_until() ne bloque pas comme le vrai pyserial)."""
     fn = getattr(transport, 'transceive', None)
     if fn is not None:
-        return fn(data, terminator, timeout=timeout)
+        return fn(data, terminator, timeout=timeout, accept=accept)
     transport.write(data)
-    return transport.read_until(terminator, timeout=timeout)
+    if accept is None:
+        return transport.read_until(terminator, timeout=timeout)
+    deadline = time.monotonic() + timeout
+    remaining = timeout
+    while True:
+        frame = transport.read_until(terminator, timeout=max(remaining, 0))
+        if accept(frame):
+            return frame
+        if not frame.endswith(terminator):
+            return frame
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return frame
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -311,28 +338,41 @@ class CivRadio:
         if not read_reply:
             self.t.write(frame)
             return None
-        raw = _transceive(self.t, frame, CIV_END, timeout=1.0)
-        parsed = civ_parse_frame(raw)
-        # Garde-fou de sens : une VRAIE réponse radio->PC porte TO=E0(PC) et
-        # FROM=self.addr (la radio interrogée) — sans ce contrôle, un simple
-        # écho de notre propre requête (câble bouclé, port sans UART réelle
-        # derrière, appareil en écho local) est syntaxiquement bien formé et
-        # serait accepté à tort comme une vraie réponse (faux positif
-        # silencieux trouvé en audit 03/08/2026).
-        # Garde-fou de COMMANDE (trouvé en revue adversariale avant fusion,
-        # même jour) : les seules adresses TO/FROM ne suffisent PAS sur un
-        # bus CI-V partagé par plusieurs logiciels (LogX + WSJT-X + N1MM...
-        # via un séparateur CI-V) — TOUS utilisent par convention l'adresse
-        # contrôleur 0xE0, donc la réponse d'UN AUTRE logiciel à SA propre
-        # requête (ex. get_freq) a exactement les mêmes TO/FROM que la
-        # nôtre. Sans vérifier que cmd/sub correspondent à CE qu'on vient
-        # d'envoyer, get_ptt()/get_mode()/identify() pourraient lire les
-        # octets d'une réponse à une AUTRE commande (ex. de la fréquence
-        # BCD prise pour un booléen PTT).
-        if (not parsed or parsed[0] != CIV_CTRL_ADDR or parsed[1] != self.addr
-                or parsed[2] != cmd or (sub is not None and parsed[3] != sub)):
-            return None
-        return parsed
+
+        def _matches(raw):
+            parsed = civ_parse_frame(raw)
+            # Garde-fou de sens : une VRAIE réponse radio->PC porte TO=E0(PC)
+            # et FROM=self.addr (la radio interrogée) — sans ce contrôle, un
+            # simple écho de notre propre requête (câble bouclé, port sans
+            # UART réelle derrière, appareil en écho local) est
+            # syntaxiquement bien formé et serait accepté à tort comme une
+            # vraie réponse (faux positif silencieux trouvé en audit
+            # 03/08/2026).
+            # Garde-fou de COMMANDE (trouvé en revue adversariale avant
+            # fusion, même jour) : les seules adresses TO/FROM ne suffisent
+            # PAS sur un bus CI-V partagé par plusieurs logiciels (LogX +
+            # WSJT-X + N1MM... via un séparateur CI-V) — TOUS utilisent par
+            # convention l'adresse contrôleur 0xE0, donc la réponse d'UN
+            # AUTRE logiciel à SA propre requête (ex. get_freq) a exactement
+            # les mêmes TO/FROM que la nôtre. Sans vérifier que cmd/sub
+            # correspondent à CE qu'on vient d'envoyer, get_ptt()/
+            # get_mode()/identify() pourraient lire les octets d'une réponse
+            # à une AUTRE commande (ex. de la fréquence BCD prise pour un
+            # booléen PTT).
+            if (not parsed or parsed[0] != CIV_CTRL_ADDR or parsed[1] != self.addr
+                    or parsed[2] != cmd or (sub is not None and parsed[3] != sub)):
+                return None
+            return parsed
+
+        # accept= : une trame parasite qui échoue à _matches() (mauvaise
+        # adresse/commande — bus CI-V partagé, notification "CI-V
+        # Transceive" restée activée sur la radio) ne doit pas faire
+        # abandonner après une seule lecture : on relit dans le budget de
+        # timeout restant (voir _transceive() — trouvé en revue adversariale
+        # du chantier CAT plug-and-play, 03/08/2026).
+        raw = _transceive(self.t, frame, CIV_END, timeout=1.0,
+                           accept=lambda r: _matches(r) is not None)
+        return _matches(raw)
 
     def get_freq(self):
         parsed = self._query(0x03)
@@ -787,19 +827,38 @@ class SerialPort:
             self._ser.reset_input_buffer()
             self._ser.write(data)
 
-    def transceive(self, data, terminator, timeout=1.0):
+    def transceive(self, data, terminator, timeout=1.0, accept=None):
         """Écrit `data` PUIS lit jusqu'à `terminator` sous UNE SEULE
         acquisition du verrou d'instance : toute la transaction
         requête/réponse est atomique (même correctif que `_io_lock` dans
         logx_amp.py). Le serveur HTTP est multi-thread — polling logbook et
         clics opérateur écrivent chacun sur le même port — donc sans cela un
         thread pouvait voir sa réponse effacée par le reset_input_buffer()
-        d'un autre thread, ou lire la réponse destinée à une autre commande."""
+        d'un autre thread, ou lire la réponse destinée à une autre commande.
+
+        `accept` (callable bytes -> bool), si fourni, relit une nouvelle
+        trame dans le MÊME budget `timeout` — donc SANS relâcher le verrou,
+        sans quoi le budget de temps « restant » face à une trame parasite
+        n'aurait plus rien d'atomique — tant qu'une trame COMPLÈTE reçue est
+        rejetée (voir _transceive() pour le détail, notamment pourquoi une
+        lecture vide/tronquée arrête la boucle immédiatement plutôt que de
+        retenter)."""
+        accept = accept or (lambda frame: True)
         with self._lock:
             self._ser.reset_input_buffer()
             self._ser.write(data)
-            self._ser.timeout = timeout
-            return self._ser.read_until(terminator)
+            deadline = time.monotonic() + timeout
+            remaining = timeout
+            while True:
+                self._ser.timeout = max(remaining, 0)
+                frame = self._ser.read_until(terminator)
+                if accept(frame):
+                    return frame
+                if not frame.endswith(terminator):
+                    return frame
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return frame
 
     def close(self):
         try:
@@ -1124,19 +1183,27 @@ def autodetect(transport):
                     'note': 'K3/K3S/KX3/KX2 confondus — tester K3;/OM; pour affiner'}
 
     for name, addr in CIV_ADDRESSES.items():
+        def _matches(raw, addr=addr):
+            # Même garde-fou de sens ET de commande que CivRadio._query() :
+            # TO=E0(PC), FROM=addr (la radio interrogée à CET essai précis),
+            # ET cmd=0x19/sub=0x00 (sinon la réponse d'un AUTRE logiciel à SA
+            # propre commande, sur un bus CI-V partagé, serait prise pour une
+            # identification réussie — trouvé en revue adversariale avant
+            # fusion, même piège que l'écho/bouclage déjà corrigé).
+            parsed = civ_parse_frame(raw)
+            if (parsed and parsed[0] == CIV_CTRL_ADDR and parsed[1] == addr
+                    and parsed[2] == 0x19 and parsed[3] == 0x00):
+                return parsed
+            return None
         try:
-            raw = _transceive(transport, civ_build_frame(addr, 0x19, sub=0x00), CIV_END, timeout=0.5)
+            # accept= : une trame parasite (bus CI-V partagé, notification
+            # "CI-V Transceive") ne fait plus abandonner l'essai après une
+            # seule lecture — on relit dans le budget de timeout restant.
+            raw = _transceive(transport, civ_build_frame(addr, 0x19, sub=0x00), CIV_END,
+                               timeout=0.5, accept=lambda r: _matches(r) is not None)
         except Exception:
             continue
-        parsed = civ_parse_frame(raw)
-        # Même garde-fou de sens ET de commande que CivRadio._query() :
-        # TO=E0(PC), FROM=addr (la radio interrogée à CET essai précis),
-        # ET cmd=0x19/sub=0x00 (sinon la réponse d'un AUTRE logiciel à SA
-        # propre commande, sur un bus CI-V partagé, serait prise pour une
-        # identification réussie — trouvé en revue adversariale avant
-        # fusion, même piège que l'écho/bouclage déjà corrigé).
-        if (parsed and parsed[0] == CIV_CTRL_ADDR and parsed[1] == addr
-                and parsed[2] == 0x19 and parsed[3] == 0x00):
+        if _matches(raw):
             return {'ok': True, 'protocol': 'civ', 'brand': 'icom', 'model': name,
                     'addr': addr, 'certain': False,
                     'note': "Adresse CI-V par défaut détectée — peut avoir été "
