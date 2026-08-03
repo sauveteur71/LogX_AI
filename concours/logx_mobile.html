@@ -17,18 +17,19 @@
      >= 48px, pas de scroll horizontal, clavier adapté par champ.
      (Remplace l'ancien prototype « agent terrain » qui n'était ni une saisie
      ni adapté au téléphone — récupérable dans l'historique git.) */
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 
   :root {
-    --bg:#07080F; --bg2:#0D0E1A; --bg3:#13152A; --border:#2B2F4A;
-    --accent:#FF5030; --accent2:#00D4FF; --green:#00FF88; --red:#FF2D55;
+    --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#34363A;
+    --accent:#E8964A; --accent2:#E8964A; --accent-rgb:232,150,74; --green:#00FF88; --red:#FF2D55;
     --yellow:#FFD60A; --text:#E0E4FF; --muted:#8A94C8;
     --font-mono:'Share Tech Mono',monospace; --font-main:'Exo 2',sans-serif;
+    --font-display:'Fraunces',serif;
   }
   body.day-mode {
-    --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
-    --accent:#CC4026; --accent2:#0060A0; --green:#007030; --red:#CC0030;
-    --yellow:#7A5A00; --text:#0A0C20; --muted:#4A5170;
+    --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#D6D0BE;
+    --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31; --green:#007030; --red:#CC0030;
+    --yellow:#7A5A00; --text:#232320; --muted:#716C5E;
   }
 
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -121,8 +122,8 @@
 
   /* Derniers QSO du log PARTAGÉ (tous les postes, pas seulement ce téléphone) */
   .recent { display:flex; flex-direction:column; gap:6px; padding-bottom:20px; }
-  .recent-title { font-family:var(--font-mono); font-size:12px; color:var(--muted);
-    letter-spacing:2px; margin-top:4px; }
+  .recent-title { font-family:var(--font-display); font-weight:900; font-size:12px; color:var(--muted);
+    letter-spacing:.3px; margin-top:4px; }
   .rq {
     display:flex; align-items:center; gap:8px; background:var(--bg2);
     border:1px solid var(--border); border-left:3px solid var(--green);

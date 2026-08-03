@@ -22,23 +22,23 @@
   entraîne le geste complet — écouter ET taper — pas la seule reconnaissance.
 -->
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 :root{
-  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
-  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
   --yellow:#FFD60A;--text:#E9ECF5;--muted:#A9B0C8;
-  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
 }
 body.day-mode{
-  --bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
-  --accent:#CC4026;--accent2:#0060A0;--green:#007030;--red:#CC0030;
-  --yellow:#7A5A00;--text:#0A0C20;--muted:#4A5170;
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--text:#232320;--muted:#716C5E;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
-header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);
   padding:10px 24px;display:flex;align-items:center;justify-content:space-between}
-body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 .logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;line-height:0}
 .logo-badge img{height:20px;display:block}
 .logo-wrap{display:flex;align-items:center;gap:8px}
@@ -50,7 +50,7 @@ body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 .app-nav a.active{color:var(--accent);border-bottom:3px solid var(--accent);background:var(--bg3)}
 
 .wrap{max-width:820px;margin:0 auto;padding:22px 20px 70px}
-h1{font-family:var(--font-mono);font-size:19px;color:var(--accent2);letter-spacing:1px;margin-bottom:6px}
+h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-spacing:.3px;font-weight:900;margin-bottom:6px}
 .intro{color:var(--muted);font-size:13.5px;line-height:1.55;margin-bottom:18px}
 
 .reglages{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;

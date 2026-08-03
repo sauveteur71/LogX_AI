@@ -5,20 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LogX AI — Terrain</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 :root {
-  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
-  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
   --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
-  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
 }
 /* ─── MODE JOUR ─────────────────────────────────────────────────────────── */
 body.day-mode {
-  --bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
-  --accent:#CC4026;--accent2:#0060A0;--green:#007030;--red:#CC0030;
-  --yellow:#7A5A00;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--purple:#8040B0;--text:#232320;--muted:#716C5E;
 }
-body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 body.day-mode .bubble.msg-agent{color:var(--text)}
 body.day-mode .leaflet-container{background:#D8E4F0}
 body.day-mode .map-tooltip{background:rgba(255,255,255,.97);color:var(--text)}
@@ -26,7 +26,7 @@ body.day-mode .map-tooltip{background:rgba(255,255,255,.97);color:var(--text)}
 body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
 /* HEADER */
-header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .hdr-left{display:flex;align-items:center;gap:16px}
 .live-dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
@@ -73,7 +73,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .off-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#0a0e1e;background:var(--muted,#7a86b6);border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
 .msg-agent .bubble.action-card{border:1px solid var(--accent);border-left:4px solid var(--accent);background:rgba(255,214,10,.06)}
 .action-card button{cursor:pointer;font-family:var(--font-mono);font-size:13px;font-weight:700;border-radius:5px;padding:5px 14px;border:1px solid var(--border)}
-.action-card .act-yes{color:#0a0e1e;background:var(--accent);border-color:var(--accent)}
+.action-card .act-yes{color:#0a0e1e;background:#C9822E;border-color:#C9822E}
 .action-card .act-yes:disabled{opacity:.6;cursor:default}
 .action-card .act-no{color:var(--muted);background:transparent}
 .skill-sel{font-family:var(--font-mono);font-size:12px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px;cursor:pointer}
@@ -124,7 +124,7 @@ textarea::placeholder{color:var(--muted)}
 .map-panel{flex:1;display:flex;flex-direction:column;background:var(--bg);overflow:hidden;min-height:0}
 .map-container{flex:1;position:relative;overflow:hidden;min-height:0}
 #map{position:absolute;top:0;left:0;width:100%;height:100%;z-index:0}
-@keyframes rcPulse{0%,100%{box-shadow:0 0 18px #00D4FF,0 0 6px #fff;opacity:1}50%{box-shadow:0 0 30px #00D4FF,0 0 10px #fff;opacity:.7}}
+@keyframes rcPulse{0%,100%{box-shadow:0 0 18px #E8964A,0 0 6px #fff;opacity:1}50%{box-shadow:0 0 30px #E8964A,0 0 10px #fff;opacity:.7}}
 @keyframes spotPulse{0%{transform:translate(-50%,-50%) scale(1);opacity:0.6}100%{transform:translate(-50%,-50%) scale(2.5);opacity:0}}
 .leaflet-container{font-family:var(--font-mono)}
 .leaflet-control-attribution{font-size:11px;opacity:.5}
@@ -142,7 +142,7 @@ textarea::placeholder{color:var(--muted)}
 .tt-status{font-size:12px;letter-spacing:2px;text-align:center;margin-top:9px;padding:3px;border-radius:4px}
 
 /* CONTEST BADGE */
-.contest-badge{padding:4px 10px;border-radius:5px;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;border:1px solid var(--border);color:var(--accent2);background:rgba(0,212,255,.06)}
+.contest-badge{padding:4px 10px;border-radius:5px;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;border:1px solid var(--border);color:var(--accent2);background:rgba(var(--accent-rgb),.06)}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -346,7 +346,7 @@ textarea::placeholder{color:var(--muted)}
           <div style="color:#FF2D55;font-size:22px;font-weight:700;margin-bottom:16px">OUVERT EN FILE:// — IMPOSSIBLE</div>
           <div style="color:#E9ECF5;font-size:16px;line-height:2;margin-bottom:30px">Lance d'abord logx_serveur.py, puis accède via :</div>
           <a href="http://127.0.0.1:8080/logx_carte.html"
-             style="display:inline-block;background:linear-gradient(135deg,#00FF88,#00D4FF);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
+             style="display:inline-block;background:linear-gradient(135deg,#00FF88,#E8964A);color:#07080F;font-size:18px;font-weight:900;padding:16px 40px;border-radius:10px;text-decoration:none;letter-spacing:3px">
             ▶ http://127.0.0.1:8080/logx_carte.html
           </a>
         </div>
@@ -705,8 +705,8 @@ function drawMyPos(){
   const ll=locLL(cfg.locator);
   if(!ll) return;
   const html=`<div style="position:relative;width:0;height:0">
-    <div style="position:absolute;width:22px;height:22px;border-radius:50%;background:#00D4FF;border:3px solid #fff;box-shadow:0 0 18px #00D4FF,0 0 6px #fff;transform:translate(-50%,-50%);animation:rcPulse 2.5s infinite"></div>
-    <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:13px;font-weight:bold;color:#00D4FF;text-shadow:0 0 8px #00D4FF,0 0 2px #000;transform:translate(-50%,-220%)">${cfg.locator||''}</div>
+    <div style="position:absolute;width:22px;height:22px;border-radius:50%;background:#E8964A;border:3px solid #fff;box-shadow:0 0 18px #E8964A,0 0 6px #fff;transform:translate(-50%,-50%);animation:rcPulse 2.5s infinite"></div>
+    <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:13px;font-weight:bold;color:#E8964A;text-shadow:0 0 8px #E8964A,0 0 2px #000;transform:translate(-50%,-220%)">${cfg.locator||''}</div>
   </div>`;
   const icon=L.divIcon({html,className:'rc-my-icon',iconSize:[0,0],iconAnchor:[0,0]});
   leafletMyMarker=L.marker([ll.lat,ll.lon],{icon,zIndexOffset:2000,interactive:false}).addTo(leafletMap);

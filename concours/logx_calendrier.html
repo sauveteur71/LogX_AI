@@ -5,26 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LogX AI — Calendrier</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 :root {
-  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
-  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
   --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
-  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
 }
 /* Mode jour — même palette que les autres pages (suivi via rc_theme) */
 body.day-mode {
-  --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
-  --accent:#CC4026; --accent2:#0060A0; --green:#007030; --red:#CC0030;
-  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#4A5170;
+  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#D6D0BE;
+  --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31; --green:#007030; --red:#CC0030;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#232320; --muted:#716C5E;
 }
-body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 /* Page « app » : nav et statusbar fixes, seule la liste défile en interne */
 body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
 
-header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;align-items:center;line-height:0}
 .logo-badge img{height:20px;display:block}
 .logo-wrap{display:flex;align-items:center;gap:8px}
@@ -55,12 +55,12 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 /* YEAR TABS */
 .year-tabs{display:flex;gap:8px;margin-bottom:20px}
 .year-tab{font-family:var(--font-mono);font-size:14px;padding:8px 20px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
-.year-tab.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
+.year-tab.active{border-color:var(--accent2);color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
 
 /* FILTER */
 .filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
 .filter-btn{font-family:var(--font-mono);font-size:12px;padding:6px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
-.filter-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(0,212,255,.08)}
+.filter-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
 
 /* MONTH GROUPS */
 .month-group{margin-bottom:24px}
@@ -71,8 +71,8 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .contest-row{display:flex;align-items:stretch;gap:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden;transition:border-color .15s;cursor:pointer}
 .contest-row:hover{border-color:var(--accent2)}
 .contest-row.upcoming{border-left:3px solid var(--green)}
-.contest-row.today{border-left:3px solid var(--accent);background:rgba(255,80,48,.05);animation:glow 2s infinite}
-@keyframes glow{0%,100%{box-shadow:none}50%{box-shadow:0 0 20px rgba(255,80,48,.2)}}
+.contest-row.today{border-left:3px solid var(--accent);background:rgba(var(--accent-rgb),.05);animation:glow 2s infinite}
+@keyframes glow{0%,100%{box-shadow:none}50%{box-shadow:0 0 20px rgba(var(--accent-rgb),.2)}}
 .contest-row.past{opacity:.5;border-left:3px solid var(--muted)}
 
 .cr-date{width:120px;padding:12px 14px;background:var(--bg3);display:flex;flex-direction:column;justify-content:center;flex-shrink:0;border-right:1px solid var(--border)}
@@ -82,9 +82,9 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 
 .cr-org{width:70px;padding:12px 10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border-right:1px solid var(--border)}
 .org-badge{font-family:var(--font-mono);font-size:12px;font-weight:700;padding:3px 6px;border-radius:4px;letter-spacing:1px;text-align:center}
-.org-ref{background:rgba(0,212,255,.15);color:var(--accent2);border:1px solid rgba(0,212,255,.3)}
+.org-ref{background:rgba(var(--accent-rgb),.15);color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.3)}
 .org-iaru{background:rgba(191,90,242,.15);color:var(--purple);border:1px solid rgba(191,90,242,.3)}
-.org-cq{background:rgba(255,80,48,.15);color:var(--accent);border:1px solid rgba(255,80,48,.3)}
+.org-cq{background:rgba(var(--accent-rgb),.15);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.3)}
 .org-arrl{background:rgba(48,209,88,.15);color:var(--green);border:1px solid rgba(48,209,88,.3)}
 .org-sota{background:rgba(255,214,10,.15);color:var(--yellow);border:1px solid rgba(255,214,10,.3)}
 
@@ -93,15 +93,15 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .cr-exchange{font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:6px}
 .cr-tags{display:flex;flex-wrap:wrap;gap:4px}
 .tag{font-family:var(--font-mono);font-size:12px;padding:2px 6px;border-radius:3px;letter-spacing:1px}
-.tag-band{background:rgba(0,212,255,.1);color:var(--accent2);border:1px solid rgba(0,212,255,.2)}
-.tag-mode{background:rgba(255,80,48,.1);color:var(--accent);border:1px solid rgba(255,80,48,.2)}
+.tag-band{background:rgba(var(--accent-rgb),.1);color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.2)}
+.tag-mode{background:rgba(var(--accent-rgb),.1);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.2)}
 .tag-score{background:rgba(191,90,242,.1);color:var(--purple);border:1px solid rgba(191,90,242,.2)}
 .tag-log{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.2)}
 
 .cr-actions{width:120px;padding:12px;display:flex;flex-direction:column;gap:6px;justify-content:center;flex-shrink:0;border-left:1px solid var(--border)}
 .cr-btn{font-family:var(--font-mono);font-size:12px;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;text-align:center;text-decoration:none;display:block;letter-spacing:1px}
 .cr-btn:hover{border-color:var(--accent2);color:var(--accent2)}
-.cr-btn.start{background:linear-gradient(135deg,var(--accent),#FF9500);border:none;color:#0A0B18;font-weight:700}
+.cr-btn.start{background:linear-gradient(135deg,#C9822E,#FF9500);border:none;color:#0A0B18;font-weight:700}
 
 /* DETAIL PANEL */
 .detail-panel{background:var(--bg2);border:1px solid var(--accent2);border-radius:12px;padding:20px;margin-bottom:16px;display:none}
@@ -406,7 +406,7 @@ function showDetail(id){
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div>
-        <div style="font-family:var(--font-mono);font-size:16px;color:var(--accent2);letter-spacing:2px">${esc(c.name)}</div>
+        <div style="font-family:var(--font-display);font-weight:900;font-size:16px;color:var(--accent2);letter-spacing:.2px">${esc(c.name)}</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:4px">${esc(c.organizer)}</div>
       </div>
       <button onclick="document.getElementById('detailPanel').classList.remove('show')"
