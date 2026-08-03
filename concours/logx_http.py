@@ -4925,9 +4925,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             self._json({'ok': True, 'restarting': True})
             # Laisse le temps à la réponse HTTP de partir avant de couper le
-            # serveur — le script auxiliaire attend déjà la fin de CE
-            # processus pour remplacer l'exécutable et le relancer.
-            threading.Timer(1.0, lambda: os._exit(0)).start()
+            # serveur. Figé (PyInstaller) : le script auxiliaire attend déjà
+            # la fin de CE processus pour remplacer l'exécutable et le
+            # relancer — os._exit(0) suffit. Développement (python
+            # logx_serveur.py direct) : rien n'attend ce processus, il n'y a
+            # pas d'exécutable à remplacer — dev_mode_relaunch() relance
+            # lui-même le même script via os.execv().
+            if upd.is_frozen():
+                threading.Timer(1.0, lambda: os._exit(0)).start()
+            else:
+                threading.Timer(1.0, upd.dev_mode_relaunch).start()
             return
 
         # Radio CAT native/TCI/flrig : test éphémère depuis CONFIG (avant même de

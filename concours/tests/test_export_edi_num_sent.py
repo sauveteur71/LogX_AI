@@ -106,6 +106,7 @@ function prompt(){ return null; }
 var navigator = { userAgent:'test', mediaDevices: { enumerateDevices: function(){ return Promise.resolve([]); } }, clipboard:{} };
 var location = { protocol:'http:', hostname:'127.0.0.1', href:'http://127.0.0.1/', search:'', reload:function(){} };
 window.location = location;
+window.open = function(){ return null; };   // popup bloquée : remindSubmitLog() gère déjà ce cas (fallback texte)
 function Notification(){}
 Notification.permission = 'denied';
 Notification.requestPermission = function(){ return Promise.resolve('denied'); };

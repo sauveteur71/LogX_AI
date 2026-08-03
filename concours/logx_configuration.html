@@ -157,8 +157,16 @@ body.usage-simple .usage-contest-only{display:none}
 .form-group.field-disabled{opacity:.45}
 .form-group.field-disabled input,.form-group.field-disabled select{cursor:not-allowed}
 .form-group label{font-size:14px;color:#BCC8F0;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
-.section input,.section select{background:var(--bg3);border:1px solid #2A3060;border-radius:8px;color:#E8ECFF;font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
+.section input:not([type=checkbox]):not([type=radio]),.section select{background:var(--bg3);border:1px solid #2A3060;border-radius:8px;color:#E8ECFF;font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
 .section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
+/* Correctif : sans l'exclusion ci-dessus, .section input visait AUSSI les
+   case à cocher (type=checkbox est un <input>) — width:100% les étirait à
+   toute la largeur de leur conteneur flex (ex. la grille ALERTES
+   PERSONNALISÉES : jusqu'à ~1300px de zone cliquable invisible), repoussant
+   le libellé qui les suit (« voix ») loin à droite, sans lien visuel évident
+   avec sa case (retour utilisateur : « on ne sait pas trop ce qu'on coche »).
+   flex:none : au cas où un ancêtre flex leur ferait hériter flex-grow. */
+.section input[type=checkbox],.section input[type=radio]{width:auto;flex:none}
 .section select option{background:var(--bg3)}
 .input-note{font-size:13px;color:#9AA4D8;margin-top:3px;font-style:italic}
 /* Champ + bouton "parcourir" (ex. DOSSIER DE SAUVEGARDE) : l'input garde
@@ -179,10 +187,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 /* Sélectionné = PAVÉ PLEIN + coche + léger agrandissement (choix utilisateur :
    le simple changement de couleur ne se voyait pas assez). Texte foncé sur
    fond vif pour un contraste fort ; z-index pour passer au-dessus des voisins
-   quand il grossit. */
-.toggle-btn.on{border-color:var(--accent2);color:#08111f;background:var(--accent2);font-weight:700;transform:scale(1.07);box-shadow:0 3px 12px rgba(0,212,255,.4);position:relative;z-index:1}
+   quand il grossit. Couleur orange-red fixe (pas var(--accent2)) : en mode
+   jour --accent2 devient un bleu foncé (#0060A0) sur texte quasi noir —
+   illisible (retour utilisateur). Même teinte fixe que .mode-ssb ci-dessous,
+   qui n'a donc plus besoin de sa propre règle. */
+.toggle-btn.on{border-color:#FF5030;color:#180400;background:#FF5030;font-weight:700;transform:scale(1.07);box-shadow:0 3px 12px rgba(255,80,48,.42);position:relative;z-index:1}
 .toggle-btn.on::before{content:'\2713\00a0'}
-.toggle-btn.on.mode-ssb{border-color:#FF5030;color:#180400;background:#FF5030;box-shadow:0 3px 12px rgba(255,80,48,.42)}
 .toggle-btn.on.mode-cw{border-color:#FFD60A;color:#181400;background:#FFD60A;box-shadow:0 3px 12px rgba(255,214,10,.42)}
 .toggle-btn.on.mode-digi{border-color:#BF5AF2;color:#12001e;background:#BF5AF2;box-shadow:0 3px 12px rgba(191,90,242,.42)}
 .toggle-btn.on.flag{border-color:#00FF88;color:#00180d;background:#00FF88;box-shadow:0 3px 12px rgba(0,255,136,.42)}
@@ -1674,12 +1684,17 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 </div>
 <div class="cat-modal" id="catmodal_sources">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title">📡 10. SOURCES DE PROPAGATION</span>
+    <div class="cat-modal-head"><span class="cat-modal-title">📡 10. SOURCES DE SPOTS &amp; PROPAGATION</span>
       <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'sources')">💾 Enregistrer</button>
       <button class="cat-modal-close" onclick="closeCategoryPopup('sources')">✕ Fermer</button></div>
     <div class="cat-modal-body" id="catbody_sources">
       <div class="section">
-        <div class="section-title">SOURCES DE DONNÉES PROPAGATION</div>
+        <div class="section-title">SOURCES DE SPOTS (CLUSTER)</div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:12px">
+          Agrégateurs et clusters DX qui alimentent la liste de spots et la carte —
+          distincts des sources de PROPAGATION ci-dessous, qui donnent l'état du canal
+          (SFI/K, MUF, portée VOACAP) plutôt que des stations réellement entendues.
+        </div>
         <div class="toggle-grid">
           <span class="toggle-btn on" data-key="src_f5len" onclick="toggle(this)">Cluster F5LEN</span>
           <span class="toggle-btn on" data-key="src_dxsummit" onclick="toggle(this)">DXSummit</span>
@@ -1690,8 +1705,21 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           <span class="toggle-btn on" data-key="src_hamqth_spots" onclick="toggle(this)">HamQTH spots (VHF)</span>
           <span class="toggle-btn on" data-key="src_hamspirit" onclick="toggle(this)">HamSpirit (VHF)</span>
           <span class="toggle-btn on" data-key="src_telnet" onclick="toggle(this)">Telnet DX Spider (HF)</span>
-          <span class="toggle-btn" data-key="src_voacap" onclick="toggle(this)">VOACAP (HF)</span>
           <span class="toggle-btn on" data-key="src_on4kst" onclick="toggle(this)">ON4KST Chat</span>
+        </div>
+        <div class="input-note" style="margin-top:10px">
+          « Telnet DX Spider (HF) » interroge automatiquement, dans l'ordre, le premier
+          nœud qui répond parmi une liste de <b>8 clusters publics réputés</b> (VE7CC,
+          DX Summit/OH8X, OH cluster, Maritime Contest Club, W3LPL, K1TTT, F1LED,
+          EA4URE — annuaire vérifié <a href="https://ng3k.com/misc/cluster.html" target="_blank" rel="noopener">ng3k.com</a>,
+          même liste que le sélecteur « publier mon spot » ci-dessous). Pas de bascule
+          manuelle nécessaire : la redondance est automatique.
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">SOURCES DE PROPAGATION</div>
+        <div class="toggle-grid">
+          <span class="toggle-btn" data-key="src_voacap" onclick="toggle(this)">VOACAP (HF)</span>
           <span class="toggle-btn" data-key="src_pskreporter" onclick="toggle(this)">PSK Reporter</span>
           <span class="toggle-btn" data-key="src_solarcycle" onclick="toggle(this)">Cycle solaire</span>
           <span class="toggle-btn" data-key="src_noaa" onclick="toggle(this)">NOAA K-index</span>
@@ -1799,6 +1827,14 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
           Pour chaque type d'alerte, choisis un <b>son</b> distinct et/ou une <b>annonce vocale</b>
           (« Nouveau pays détecté ! »). La voix d'un type activé parle même si la lecture
           automatique globale 🔊 est coupée. Réglages propres à ce poste, enregistrés aussitôt.
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <label for="alertBeepVolume" style="font-family:var(--font-mono);font-size:13px;color:var(--muted)">🔉 Volume des bips</label>
+          <select id="alertBeepVolume" style="width:auto;min-width:140px" onchange="window.rcSetAlertVolume && window.rcSetAlertVolume(this.value)">
+            <option value="faible">Faible</option>
+            <option value="moyen">Moyen</option>
+            <option value="fort">Fort</option>
+          </select>
         </div>
         <div id="alertTypesGrid"></div>
       </div>
@@ -2626,6 +2662,7 @@ const state = {
   toggles: {},
   alertRules: [],
   datesAutoFor: null, // concours pour lequel les dates ont été auto-calculées
+  submitUrlAutoFor: null, // concours pour lequel submit_url a été auto-rempli
 };
 // Contest pour lequel applyContestFilters a déjà été appliqué (évite d'écraser
 // les choix manuels de l'utilisateur à chaque revisite de l'étape 3)
@@ -3018,6 +3055,7 @@ async function mergeServerContests(){
         // La date serveur est recalculée chaque année → plus fiable que celle en dur
         if (sc.date && sc.date !== '—') local.date = sc.date;
         if (sc.rules_url) local.rules = sc.rules_url;
+        if (sc.log_submit) local.log_submit = sc.log_submit;
         local._server_date = sc.date;         // "DD/MM/YYYY à HHhMM UTC"
         local._duration_h  = sc.duration_h;
         local._start_utc   = sc.start_utc;
@@ -3029,7 +3067,7 @@ async function mergeServerContests(){
           bands: (sc.bands || []).map(b => b + 'MHz'),
           modes: sc.modes || [],
           score: (sc.scoring && sc.scoring.unit) || '—',
-          color: '#00D4FF', rules: sc.rules_url || '',
+          color: '#00D4FF', rules: sc.rules_url || '', log_submit: sc.log_submit || '',
           group: (sc.organizer || '').includes('REF') ? 'REF' : 'International',
           _server_date: sc.date, _duration_h: sc.duration_h, _start_utc: sc.start_utc,
           _custom: !!sc.custom,
@@ -4250,6 +4288,22 @@ function selectContest(id, _skipConfirm) {
     state.datesAutoFor = null;
     if(banner) banner.innerHTML = `📅 Dates pour <strong>${id}</strong> non calculables automatiquement — saisis-les manuellement.`;
   }
+  // Auto-remplir l'URL de soumission du log depuis le règlement (si connue,
+  // via SERVER_CONTEST_RULES/mergeServerContests → local.log_submit) — même
+  // logique que les dates ci-dessus : écrasée à chaque changement de concours
+  // (l'opérateur vient d'accepter cette réinitialisation via la confirmation
+  // plus haut), corrigeable ensuite à la main si le règlement a changé ou est
+  // erroné. Sans ça le champ restait vide pour tout concours, même quand
+  // l'info est déjà connue côté serveur.
+  const submitUrlEl = document.getElementById('submit_url');
+  const selectedDef = CONTESTS.find(c => c.id === id);
+  if (selectedDef && selectedDef.log_submit){
+    submitUrlEl.value = selectedDef.log_submit;
+    state.submitUrlAutoFor = id;
+  } else if (state.submitUrlAutoFor && state.submitUrlAutoFor !== id){
+    submitUrlEl.value = '';
+    state.submitUrlAutoFor = null;
+  }
   // Correctif : le statut Call History (MASTER.SCP/Call History N1MM importés)
   // n'était rafraîchi qu'au chargement de la page et après un import —
   // changer de concours ici sans recharger la page laissait le compteur du
@@ -4272,6 +4326,10 @@ function deselectContest(){
   applyContestFilters(null);
   _filtersAppliedFor = null;
   state.datesAutoFor = null;
+  if(state.submitUrlAutoFor){
+    document.getElementById('submit_url').value = '';
+    state.submitUrlAutoFor = null;
+  }
   const banner = document.getElementById('contest_dates_auto');
   if(banner) banner.innerHTML = '📅 Choisis un concours ci-dessus : ses dates se calculent automatiquement.';
   refreshCallHistoryStatus();   // même correctif que selectContest() : ne pas laisser un compteur obsolète
@@ -5717,6 +5775,8 @@ const ALERT_SOUND_LABELS = {
 function buildAlertTypesGrid(){
   const box = document.getElementById('alertTypesGrid');
   if(!box || !window.rcAlertTypes) return;
+  const volSel = document.getElementById('alertBeepVolume');
+  if(volSel && window.rcAlertVolume) volSel.value = window.rcAlertVolume();
   const types = window.rcAlertTypes();
   const sounds = window.rcAlertSounds();
   const prefs = window.rcAlertPrefs();

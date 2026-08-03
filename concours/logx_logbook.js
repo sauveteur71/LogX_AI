@@ -5577,11 +5577,10 @@ function exportEDI(){
 
   // Rappel soumission
   setTimeout(()=>{
-    const submitUrl = ediCfg.submit_url || 'http://concours.r-e-f.org/tools/upload/thf.php';
-    const submitDeadline = ediCfg.submit_deadline || '';
-    const deadlineLine = submitDeadline ? trF('\nDélai : {d}', {d: submitDeadline}) : '';
-    notify(trF('📤 SOUMISSION DU LOG\n\nURL : {url}{deadline}\n\n⚠️ 1 fichier EDI PAR BANDE (144 MHz et 432 MHz séparés)',
-      {url: submitUrl, deadline: deadlineLine}));
+    remindSubmitLog(ediCfg, {
+      fallbackUrl: 'http://concours.r-e-f.org/tools/upload/thf.php',
+      extraNote: trF('⚠️ 1 fichier EDI PAR BANDE (144 MHz et 432 MHz séparés)'),
+    });
   }, bands.length * 500 + 300);
 }
 
@@ -5603,7 +5602,33 @@ function exportCabrillo(cfg, call){
   setTimeout(() => {
     notify(trF('📤 FICHIER CABRILLO GÉNÉRÉ\n\nConcours : {contest}\nQSOs : {n} — Score déclaré : {score} pts',
       {contest: nom, n: qsoLog.length, score: score}));
+    remindSubmitLog(cfg);
   }, 400);
+}
+
+// Rappel + ouverture directe de la page de soumission — auto-remplie en CONFIG
+// depuis le règlement du concours sélectionné (voir selectContest() côté
+// logx_configuration.html), corrigeable manuellement si besoin. Un clic en
+// moins qu'un simple rappel texte : le fichier vient d'être téléchargé, la
+// page de dépôt s'ouvre directement dans un nouvel onglet pour le déposer.
+function remindSubmitLog(cfg, opts){
+  opts = opts || {};
+  const submitUrl = (cfg && cfg.submit_url || '').trim() || opts.fallbackUrl || '';
+  const submitDeadline = (cfg && cfg.submit_deadline || '').trim();
+  if (!submitUrl){
+    notify(trF('📭 Aucune URL de soumission connue pour ce concours — pense à vérifier le règlement et à renseigner le champ en CONFIG (section SCOREBOARD & SOUMISSION).'));
+    return;
+  }
+  const deadlineLine = submitDeadline ? trF('\nDélai : {d}', {d: submitDeadline}) : '';
+  const extraLine = opts.extraNote ? ('\n\n' + opts.extraNote) : '';
+  notify(trF('📤 SOUMISSION DU LOG\n\nOuverture de la page de dépôt…{deadline}{extra}',
+    {deadline: deadlineLine, extra: extraLine}));
+  // Popup bloquée par le navigateur : window.open() renvoie null, on retombe
+  // sur le lien cliquable déjà donné dans la notification texte ci-dessus.
+  const w = window.open(submitUrl, '_blank', 'noopener');
+  if (!w){
+    notify(trF('⚠️ Le navigateur a bloqué l\'ouverture automatique — clique le lien : {url}', {url: submitUrl}));
+  }
 }
 
 // ─── EXPORT ADIF ─────────────────────────────────────────────────────────────
