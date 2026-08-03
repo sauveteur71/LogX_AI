@@ -4973,6 +4973,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res, 200 if res.get('ok') else 502)
             return
 
+        # Auto-détection CAT native : marque/modèle encore inconnus, on balaie
+        # les vitesses courantes sur le port et on tente autodetect() (retour
+        # microHAM 02/08/2026 — le bouton "Tester" existant exigeait déjà
+        # marque+modèle, donc n'auto-détectait jamais rien).
+        if self.path == '/rig/autodetect':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            import logx_cat as cat
+            res = cat.autodetect_scan(payload.get('port'))
+            self._json(res, 200 if res.get('ok') else 502)
+            return
+
         # Test du WinKeyer : l'ouverture de session renvoie la version du
         # micrologiciel, seule preuve qu'un manipulateur est bien au bout du
         # câble — un adaptateur USB sans rien derrière passerait sinon pour un
