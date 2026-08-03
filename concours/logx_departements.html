@@ -7,23 +7,23 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
 :root {
-  --bg:#07080F;--bg2:#0D0E1A;--bg3:#13152A;--border:#2B2F4A;
-  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--red:#FF2D55;
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
   --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
-  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
 }
 body.day-mode {
-  --bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
-  --accent:#CC4026;--accent2:#0060A0;--green:#007030;--red:#CC0030;
-  --yellow:#7A5A00;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--purple:#8040B0;--text:#232320;--muted:#716C5E;
 }
-body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
-header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;align-items:center;line-height:0}
 .logo-badge img{height:20px;display:block}
 .logo-wrap{display:flex;align-items:center;gap:8px}
@@ -38,7 +38,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .progress-count{font-family:var(--font-mono);font-size:26px;font-weight:800;color:var(--green)}
 .progress-total{font-family:var(--font-mono);font-size:15px;color:var(--muted)}
 .progress-bar{flex:1;min-width:200px;height:14px;background:var(--bg3);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--green),#00D4FF);transition:width .6s ease;border-radius:8px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--accent2));transition:width .6s ease;border-radius:8px}
 .progress-msg{font-family:var(--font-mono);font-size:13px;color:var(--muted);white-space:nowrap}
 .progress-dom{font-family:var(--font-mono);font-size:13px;color:var(--accent2)}
 
@@ -50,7 +50,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .map-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:14px;padding:30px}
 
 .grid-panel{width:330px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg2);padding:12px;overflow-y:auto}
-.grid-title{font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:2px;margin:8px 0}
+.grid-title{font-family:var(--font-display);font-size:13px;color:var(--accent2);letter-spacing:.2px;margin:8px 0;font-weight:900}
 .dept-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}
 .dept-cell{font-family:var(--font-mono);font-size:12px;text-align:center;padding:5px 1px;border-radius:4px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);transition:all .3s;cursor:default}
 .dept-cell.worked{background:rgba(0,255,136,.20);color:var(--green);border-color:var(--green);font-weight:700}

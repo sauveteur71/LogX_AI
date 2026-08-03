@@ -6,22 +6,23 @@
 <title>LogX AI — Bandscope (2e écran)</title>
 <link rel="icon" href="/logx_icon.svg">
 <style>
-:root{--bg:#05060C;--bg2:#0C0E1A;--bg3:#14172C;--border:#242844;
-  --accent:#FF5030;--accent2:#00D4FF;--green:#00FF88;--yellow:#FFD60A;
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root{--bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--yellow:#FFD60A;
   --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
-  --mono:'Share Tech Mono',monospace;}
-body.day-mode{--bg:#EEF0F8;--bg2:#FFFFFF;--bg3:#E0E4F4;--border:#C0C8E0;
-  --accent:#CC4026;--accent2:#0060A0;--green:#007030;--yellow:#7A5A00;
-  --red:#CC0030;--purple:#8040B0;--text:#0A0C20;--muted:#4A5170;}
-body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
+  --mono:'Share Tech Mono',monospace;--font-display:'Fraunces',serif;}
+body.day-mode{--bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--yellow:#7A5A00;
+  --red:#CC0030;--purple:#8040B0;--text:#232320;--muted:#716C5E;}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--text);font-family:var(--mono);display:flex;flex-direction:column;overflow:hidden}
-header{display:flex;align-items:center;gap:16px;padding:10px 20px;background:linear-gradient(90deg,#080A16,#12152C,#080A16);border-bottom:2px solid var(--border);flex-shrink:0}
-.title{font-size:22px;font-weight:800;color:var(--accent);letter-spacing:2px}
+header{display:flex;align-items:center;gap:16px;padding:10px 20px;background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:2px solid var(--border);flex-shrink:0}
+.title{font-size:22px;font-weight:900;font-family:var(--font-display);color:var(--accent);letter-spacing:.3px}
 .bandbtns{display:flex;gap:6px;flex-wrap:wrap}
 .bb{font-family:var(--mono);font-size:16px;padding:5px 12px;border-radius:6px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);cursor:pointer}
-.bb.active{background:rgba(255,80,48,.18);color:var(--accent);border-color:var(--accent);font-weight:700}
+.bb.active{background:rgba(var(--accent-rgb),.18);color:var(--accent);border-color:var(--accent);font-weight:700}
 .clock{margin-left:auto;font-size:20px;color:var(--muted)}
 .scopewrap{flex:1;padding:16px 22px;min-height:0;display:flex;flex-direction:column;gap:14px}
 #scope{width:100%;flex:1;min-height:0;background:var(--bg2);border:1px solid var(--border);border-radius:12px}

@@ -1,8 +1,9 @@
 # Directives de design — LogX AI
 
-Direction graphique verrouillée le 2026-08-03 (échange avec F4GLD). Point de
-départ pour toute page HTML de `concours/` — appliquée à `logx_configuration.html`
-et `logx_logbook.html` en pilote, à généraliser aux ~13 autres pages ensuite.
+Direction graphique verrouillée le 2026-08-03 (échange avec F4GLD), appliquée
+à TOUTES les pages HTML de `concours/` (pilote sur `logx_configuration.html`/
+`logx_logbook.html`, généralisée aux 13 autres le même jour). Reste à faire :
+la conversion emoji → icônes monochromes (chantier distinct, plus gros).
 
 ## Ce qu'on ne fait PAS
 
@@ -38,7 +39,22 @@ body.day-mode {             /* JOUR — thème prioritaire */
   `.toggle-btn.on`) : le cuivre "encre" du jour (#8B4F1F) est trop sombre pour
   porter du texte noir dessus. Utiliser une valeur FIXE et lumineuse
   (`#C9822E`), indépendante du thème — même raisonnement que l'ancien code
-  qui fixait déjà `#FF5030` pour cette même raison.
+  qui fixait déjà `#FF5030` pour cette même raison. **Piège trouvé après coup
+  (généralisation du 03/08/2026)** : ce cas ne se limite pas aux hex codés en
+  dur — une règle `background:var(--accent2)` (ou `--accent`) combinée à un
+  `color:` hex FIXE et sombre, SANS override `body.day-mode` qui change ce
+  texte, casse en mode jour (texte sombre sur fond cuivre-encre sombre). 6
+  occurrences de ce genre trouvées et corrigées APRÈS la première passe de
+  généralisation (`.config-sidebar-item.active`, `.shortcut-offer-yes`,
+  `.net-upd-gateway`, `.chat-input-row button`, `.act-yes`, `.sdr-open`) —
+  dont 2 dans les pages PILOTES elles-mêmes, invisibles tant qu'aucun grep
+  systématique n'avait été fait. Avant de considérer une page terminée,
+  chercher TOUTE règle `background:\s*var\(--accent2?\)` combinée à un
+  `color:#hex` dans le même bloc — pas seulement les anciens hex `#00D4FF`/
+  `#FF5030`. (Deux cas similaires, `.op-btn.active`/`.bm-btn.active` dans
+  `logx_logbook.html`, sont en réalité SAINS : ils ont un override
+  `body.day-mode .xxx.active{color:#fff}` qui flip le texte pour le jour —
+  vérifier l'absence d'un tel override avant de corriger.)
 - **Piège vérifié en le faisant** : certains hex identiques à l'ancien accent
   (`#00D4FF`/`#FF5030`) sont en réalité des DONNÉES de catégorisation sans
   rapport avec le thème — code couleur par GROUPE de concours (`groupColors`
