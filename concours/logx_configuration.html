@@ -5,18 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LogX AI — Configuration</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+/* ─── DIRECTION GRAPHITE & CUIVRE (2026-08) ─────────────────────────────────
+   Accent unique (cuivre) remplaçant l'ancien duo cyan/orange-red : --accent
+   et --accent2 pointent désormais sur LA MÊME teinte, en deux luminosités
+   (nuit = cuivre lumineux pour le glow, jour = cuivre encre pour la lisibilité
+   texte-sur-clair). --accent-rgb sert aux rgba() de fond/ombre. NE PAS
+   confondre avec les codes couleur PAR CONCOURS/GROUPE (groupColors plus bas
+   dans ce fichier) ni la légende carte par bande de logx_logbook.html : ce
+   sont des données de catégorisation indépendantes du thème, pas l'accent
+   visuel — elles gardent sciemment leurs anciennes teintes cyan/orange-red. */
 :root {
-  --bg:#07080F; --bg2:#0D0E1A; --bg3:#13152A; --border:#2B2F4A;
-  --accent:#FF5030; --accent2:#00D4FF; --green:#00FF88; --red:#FF2D55;
+  --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#34363A;
+  --accent:#E8964A; --accent2:#E8964A; --accent-rgb:232,150,74;
+  --green:#00FF88; --red:#FF2D55;
   --yellow:#FFD60A; --purple:#BF5AF2; --text:#E9ECF5; --muted:#A9B0C8;
   --font-mono:'Share Tech Mono',monospace; --font:'Exo 2',sans-serif;
+  --font-display:'Fraunces',serif;
 }
 /* ─── MODE JOUR ─────────────────────────────────────────────────────────── */
 body.day-mode {
-  --bg:#EEF0F8; --bg2:#FFFFFF; --bg3:#E0E4F4; --border:#C0C8E0;
-  --accent:#CC4026; --accent2:#0060A0; --green:#007030; --red:#CC0030;
-  --yellow:#7A5A00; --purple:#8040B0; --text:#0A0C20; --muted:#4A5170;
+  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#D6D0BE;
+  --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31;
+  --green:#007030; --red:#CC0030;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#232320; --muted:#716C5E;
 }
 body.day-mode header{background:linear-gradient(90deg,#DDE0EE,#EAEDF8,#DDE0EE)}
 body.day-mode .card{background:var(--bg2);border-color:var(--border)}
@@ -56,7 +68,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .profile-btn.del:hover{background:rgba(255,45,85,.1)}
 
 /* MODE D'UTILISATION */
-.usage-mode-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;background:linear-gradient(90deg,rgba(0,212,255,.08),rgba(255,80,48,.05));border:1px solid var(--accent2);border-radius:8px;padding:7px 14px;flex-wrap:wrap}
+.usage-mode-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;background:linear-gradient(90deg,rgba(var(--accent-rgb),.1),rgba(var(--accent-rgb),.03));border:1px solid var(--accent2);border-radius:8px;padding:7px 14px;flex-wrap:wrap}
 .usage-mode-lbl{font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:2px;white-space:nowrap;font-weight:700}
 .usage-mode-bar select{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:7px 10px;flex:1;min-width:280px;outline:none}
 .usage-mode-bar select:focus{border-color:var(--accent2)}
@@ -92,9 +104,9 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
 .cat-modal{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.72)}
 .cat-modal-box{position:absolute;inset:6% 8%;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .cat-modal-head{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
-.cat-modal-title{font-family:var(--font-mono);font-size:15px;letter-spacing:2px;color:var(--accent2);font-weight:700}
+.cat-modal-title{font-family:var(--font-display);font-size:19px;letter-spacing:.3px;color:var(--accent2);font-weight:900}
 .cat-modal-close{margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono)}
-.cat-modal-save{margin-left:auto;background:linear-gradient(135deg,#00FF88,#00D4FF);border:none;color:#0A0B18;font-weight:700;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono);transition:opacity .15s}
+.cat-modal-save{margin-left:auto;background:linear-gradient(135deg,#00FF88,var(--accent2));border:none;color:#0A0B18;font-weight:700;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono);transition:opacity .15s}
 .cat-modal-save:hover{opacity:.85}
 
 /* Sélecteur de fournisseur IA : grille responsive plutôt qu'une seule ligne
@@ -105,7 +117,7 @@ header{background:linear-gradient(90deg,#0A0B18,#131530,#0A0B18);border-bottom:1
   padding:14px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
   cursor:pointer;font-family:var(--font-mono);transition:border-color .15s,background .15s}
 .ai-provider-card input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
-.ai-provider-card.selected{border-color:var(--accent2);background:rgba(0,212,255,.08)}
+.ai-provider-card.selected{border-color:var(--accent2);background:rgba(var(--accent-rgb),.08)}
 .ai-provider-icon{font-size:22px;line-height:1}
 .ai-provider-name{font-size:13px;font-weight:700;color:var(--text)}
 .ai-provider-sub{font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
@@ -148,7 +160,7 @@ body.usage-simple .usage-contest-only{display:none}
 
 /* SECTION */
 .section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px}
-.section-title{font-family:var(--font-mono);font-size:14px;color:var(--accent2);letter-spacing:3px;margin-bottom:20px;display:flex;align-items:center;gap:8px;font-weight:700}
+.section-title{font-family:var(--font-display);font-size:17px;color:var(--accent2);letter-spacing:.3px;margin-bottom:20px;display:flex;align-items:center;gap:8px;font-weight:900}
 .section-title::before{content:'';display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--accent2)}
 
 /* FORM */
@@ -158,7 +170,7 @@ body.usage-simple .usage-contest-only{display:none}
 .form-group.field-disabled input,.form-group.field-disabled select{cursor:not-allowed}
 .form-group label{font-size:14px;color:#BCC8F0;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
 .section input:not([type=checkbox]):not([type=radio]),.section select{background:var(--bg3);border:1px solid #2A3060;border-radius:8px;color:#E8ECFF;font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
-.section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(0,212,255,.15)}
+.section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(var(--accent-rgb),.15)}
 /* Correctif : sans l'exclusion ci-dessus, .section input visait AUSSI les
    case à cocher (type=checkbox est un <input>) — width:100% les étirait à
    toute la largeur de leur conteneur flex (ex. la grille ALERTES
@@ -177,8 +189,8 @@ body.usage-simple .usage-contest-only{display:none}
 .folder-pick-btn:hover{border-color:var(--accent2);color:var(--accent2)}
 .folder-pick-btn:disabled{opacity:.5;cursor:not-allowed}
 /* Autofill : empêche Chrome/Edge d'injecter fond clair + texte sombre sur les champs pré-remplis par JS */
-input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{-webkit-text-fill-color:#E8ECFF !important;-webkit-box-shadow:0 0 0 1000px #13152A inset !important;caret-color:#E8ECFF;transition:background-color 9999s ease-in-out 0s}
-body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,body.day-mode input:-webkit-autofill:focus{-webkit-text-fill-color:#0A0C20 !important;-webkit-box-shadow:0 0 0 1000px #FFFFFF inset !important}
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{-webkit-text-fill-color:#E8ECFF !important;-webkit-box-shadow:0 0 0 1000px var(--bg3) inset !important;caret-color:#E8ECFF;transition:background-color 9999s ease-in-out 0s}
+body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,body.day-mode input:-webkit-autofill:focus{-webkit-text-fill-color:var(--text) !important;-webkit-box-shadow:0 0 0 1000px var(--bg3) inset !important}
 
 /* TOGGLE GRID */
 .toggle-grid{display:flex;flex-wrap:wrap;gap:8px}
@@ -187,11 +199,13 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 /* Sélectionné = PAVÉ PLEIN + coche + léger agrandissement (choix utilisateur :
    le simple changement de couleur ne se voyait pas assez). Texte foncé sur
    fond vif pour un contraste fort ; z-index pour passer au-dessus des voisins
-   quand il grossit. Couleur orange-red fixe (pas var(--accent2)) : en mode
-   jour --accent2 devient un bleu foncé (#0060A0) sur texte quasi noir —
-   illisible (retour utilisateur). Même teinte fixe que .mode-ssb ci-dessous,
-   qui n'a donc plus besoin de sa propre règle. */
-.toggle-btn.on{border-color:#FF5030;color:#180400;background:#FF5030;font-weight:700;transform:scale(1.07);box-shadow:0 3px 12px rgba(255,80,48,.42);position:relative;z-index:1}
+   quand il grossit. Cuivre VIF fixe (pas var(--accent2)) : en mode jour
+   --accent2 est un cuivre encre foncé pensé pour du TEXTE sur clair, pas pour
+   servir de FOND avec du texte sombre dessus — illisible dans ce sens-là
+   (même raison qui imposait déjà une teinte fixe ici avant le passage au
+   cuivre). Même teinte fixe que .mode-ssb ci-dessous, qui n'a donc plus
+   besoin de sa propre règle. */
+.toggle-btn.on{border-color:#C9822E;color:#180400;background:#C9822E;font-weight:700;transform:scale(1.07);box-shadow:0 3px 12px rgba(201,130,46,.42);position:relative;z-index:1}
 .toggle-btn.on::before{content:'\2713\00a0'}
 .toggle-btn.on.mode-cw{border-color:#FFD60A;color:#181400;background:#FFD60A;box-shadow:0 3px 12px rgba(255,214,10,.42)}
 .toggle-btn.on.mode-digi{border-color:#BF5AF2;color:#12001e;background:#BF5AF2;box-shadow:0 3px 12px rgba(191,90,242,.42)}
@@ -213,7 +227,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 #catbody_filters{display:block;padding:10px 20px}
 .filters-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
 #catbody_filters .section{padding:10px 14px;margin-bottom:8px}
-#catbody_filters .section-title{margin-bottom:8px;font-size:13px;letter-spacing:2px}
+#catbody_filters .section-title{margin-bottom:8px;font-size:15px;letter-spacing:.2px}
 #catbody_filters .toggle-grid{gap:5px}
 #catbody_filters .toggle-btn{padding:5px 9px;font-size:12.5px}
 #catbody_filters .band-group{margin-bottom:6px}
@@ -235,8 +249,8 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .contest-org{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;letter-spacing:1px}
 .contest-tags{display:flex;flex-wrap:wrap;gap:4px}
 .tag{font-family:var(--font-mono);font-size:12px;padding:3px 7px;border-radius:4px;letter-spacing:1px}
-.tag-band{background:rgba(0,212,255,.1);color:var(--accent2);border:1px solid rgba(0,212,255,.2)}
-.tag-mode{background:rgba(255,80,48,.1);color:var(--accent);border:1px solid rgba(255,80,48,.2)}
+.tag-band{background:rgba(var(--accent-rgb),.1);color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.2)}
+.tag-mode{background:rgba(var(--accent-rgb),.1);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.2)}
 .tag-score{background:rgba(191,90,242,.1);color:var(--purple);border:1px solid rgba(191,90,242,.2)}
 
 /* SUMMARY */
@@ -256,7 +270,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .btn-primary:hover{opacity:.85;transform:translateY(-1px)}
 .btn-secondary{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
 .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
-.btn-launch{background:linear-gradient(135deg,#00FF88,#00D4FF);color:#0A0B18;font-size:14px;padding:14px 32px}
+.btn-launch{background:linear-gradient(135deg,#00FF88,var(--accent2));color:#0A0B18;font-size:14px;padding:14px 32px}
 .btn-launch:hover{opacity:.9;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,255,136,.2)}
 .op-row-btn{font-family:var(--font-mono);font-size:12px;padding:6px 14px;border-radius:6px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);cursor:pointer;transition:all .15s}
 .op-row-btn:hover{border-color:var(--accent2);color:var(--accent2)}
@@ -284,7 +298,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
   <div style="display:flex;align-items:center;gap:8px">
     <button onclick="quickSave()" title="Sauvegarder la configuration"
       style="font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:1px;
-             background:linear-gradient(135deg,#00FF88,#00D4FF);border:none;border-radius:7px;
+             background:linear-gradient(135deg,#00FF88,var(--accent2));border:none;border-radius:7px;
              color:#0A0B18;padding:7px 14px;cursor:pointer;transition:opacity .15s"
       onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
       💾 SAUVEGARDER
@@ -892,7 +906,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
             </div>
           </div>
 
-          <div id="filterAutoNote" style="display:none;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
+          <div id="filterAutoNote" style="display:none;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
 
           <div class="section">
             <div class="section-title">MODES</div>
@@ -3999,7 +4013,7 @@ function buildContestGrid(filter = '') {
   const badge = c => c.external
     ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(255,214,10,.12);color:#FFD60A;border:1px solid rgba(255,214,10,.35)" title="Concours du calendrier mondial WA7BNM — utilise 🤖 ANALYSER UN RÈGLEMENT pour le faire lire par l'IA">⚠ À CONFIRMER</span>`
     : c._custom
-      ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,212,255,.1);color:#00D4FF;border:1px solid rgba(0,212,255,.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine">🤖 IA + RELECTURE</span>`
+      ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(var(--accent-rgb),.1);color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine">🤖 IA + RELECTURE</span>`
       : VERIFIED_IDS.has(c.id)
         ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:#00FF88;border:1px solid rgba(0,255,136,.3)" title="Concours de la base serveur — dates et règlement re-vérifiés automatiquement chaque année">✓ RÈGLEMENT SUIVI</span>`
         : '';
@@ -5274,11 +5288,11 @@ function mapLocCompare(){
 
   if(_mapLoc.targetMarker) _mapLoc.map.removeLayer(_mapLoc.targetMarker);
   if(_mapLoc.targetLine) _mapLoc.map.removeLayer(_mapLoc.targetLine);
-  _mapLoc.targetMarker = L.circleMarker([target.lat,target.lon], {radius:7, color:'#00D4FF',
-    fillColor:'#00D4FF', fillOpacity:.6, weight:2}).addTo(_mapLoc.map)
+  _mapLoc.targetMarker = L.circleMarker([target.lat,target.lon], {radius:7, color:'#E8964A',
+    fillColor:'#E8964A', fillOpacity:.6, weight:2}).addTo(_mapLoc.map)
     .bindTooltip(raw.toUpperCase(), {permanent:true, direction:'top'}).openTooltip();
   _mapLoc.targetLine = L.polyline([[ref.lat,ref.lon],[target.lat,target.lon]],
-    {color:'#00D4FF', weight:2, dashArray:'6,6', opacity:.8}).addTo(_mapLoc.map);
+    {color:'#E8964A', weight:2, dashArray:'6,6', opacity:.8}).addTo(_mapLoc.map);
   _mapLoc.map.fitBounds(L.latLngBounds([[ref.lat,ref.lon],[target.lat,target.lon]]).pad(0.3));
 }
 
@@ -6372,7 +6386,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
       const orig = btn.innerHTML;
       btn.innerHTML = '✅ ENREGISTRÉ';
       btn.style.background = 'var(--green)';
-      setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,#00D4FF)'; }, 1500);
+      setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,var(--accent2))'; }, 1500);
     }
   } else {
     alert(T('✅ Configuration sauvegardée !'));
@@ -7422,7 +7436,7 @@ function _verificationBlock(v){
     `<li style="margin-bottom:6px"><strong>${esc(i.question)}</strong><br>
      <span style="color:var(--text)">${esc(i.reponse)}</span>
      ${i.probleme ? `<br><span style="color:var(--red)">→ ${esc(i.probleme)}</span>` : ''}</li>`).join('');
-  return `<div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--accent2)">
+  return `<div style="background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--accent-rgb),.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--accent2)">
     🔍 <strong>Passe de vérification : ${v.issues.length} point(s) corrigé(s) ou à surveiller</strong>
     ${v.applied ? ' — <span style="color:var(--green)">corrections appliquées à la définition ci-dessous</span>' : ' — <span style="color:var(--yellow)">corrections NON appliquées, vérifie manuellement</span>'}
     <ul style="margin:8px 0 0 18px">${items}</ul>
