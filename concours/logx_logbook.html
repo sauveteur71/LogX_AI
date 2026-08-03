@@ -617,6 +617,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 #mobileBanner a{color:var(--accent2);font-weight:700}
 #mobileBanner .mb-close{margin-left:auto;cursor:pointer;color:var(--muted);padding:4px 8px}
 @media (max-width:700px){ #mobileBanner:not(.dismissed){display:flex} }
+.app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -926,15 +927,15 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 
 <!-- NAV -->
 <nav class="app-nav">
-  <a href="logx_configuration.html" onclick="intentionalNavigation=true">⚙ CONFIG</a>
-  <a href="logx_logbook.html" class="active" onclick="intentionalNavigation=true">📋 LOGBOOK</a>
-  <a href="logx_carte.html" onclick="intentionalNavigation=true">🗺️ CARTE IA</a>
-  <a href="logx_propagation.html" onclick="intentionalNavigation=true">📶 PROPAG</a>
-  <a href="logx_chasse.html" onclick="intentionalNavigation=true">🎯 CHASSE</a>
-  <a href="logx_departements.html" onclick="intentionalNavigation=true">🇫🇷 Cartes</a>
-  <a href="logx_calendrier.html" onclick="intentionalNavigation=true">📅 CALENDRIER</a>
-  <a href="logx_websdr.html" onclick="intentionalNavigation=true">📡 WEBSDR</a>
-  <a href="logx_focus.html" onclick="intentionalNavigation=true">🎯 FOCUS</a>
+  <a href="logx_configuration.html" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="16" y2="5"/><circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="9" x2="16" y2="9"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="13" x2="16" y2="13"/><circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/></svg></span>CONFIG</a>
+  <a href="logx_logbook.html" class="active" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg></span>LOGBOOK</a>
+  <a href="logx_carte.html" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>
+  <a href="logx_propagation.html" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
+  <a href="logx_chasse.html" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>CHASSE</a>
+  <a href="logx_departements.html" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>Cartes</a>
+  <a href="logx_calendrier.html" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
+  <a href="logx_websdr.html" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></span>WEBSDR</a>
+  <a href="logx_focus.html" onclick="intentionalNavigation=true"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>FOCUS</a>
   <div class="nav-spacer"></div>
   <div class="nav-info">
     OP : <span id="currentOp" style="color:var(--accent)">—</span>
