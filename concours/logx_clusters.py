@@ -424,12 +424,21 @@ def fetch_f5len_hf(filter_digital=True):
     return all_spots[:40]
 
 # ── DX SPIDER TELNET (cluster standard) ──────────────────────────────────────
-# Nœuds publics DX Spider — le premier qui répond est utilisé
+# Nœuds publics DX Spider — le premier qui répond est utilisé. Sous-ensemble
+# du catalogue vérifié DX_CLUSTER_CATALOG plus bas (8 des 17 nœuds, pas les
+# 17 : chaque essai raté coûte un timeout de connexion avant le suivant —
+# demande utilisateur du 02/08/2026 (« une vraie liste de cluster... les plus
+# utilisés réputés ») d'élargir au-delà des 4 nœuds nord-américains d'origine
+# sans pour autant allonger démesurément le pire cas de bascule).
 DX_SPIDER_NODES = [
     ('dxc.ve7cc.net',      7300),
     ('telnet.dxsummit.fi', 7300),
     ('cluster.dx.fi',      7300),
     ('dx.maritimecontestclub.ca', 7300),
+    ('w3lpl.net',          7373),
+    ('k1ttt.net',          7373),
+    ('cluster.f1led.fr',   7300),
+    ('ea4ure.com',         7300),
 ]
 
 # ── ANNUAIRE DE NŒUDS PUBLICS (pour le sélecteur CONFIG) ─────────────────────

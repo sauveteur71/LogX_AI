@@ -1023,6 +1023,23 @@ def _do_download_via_network_corps(mode, ips, tag, platform, expected_sha256,
 
 # ─── INSTALLATION (remplacement de l'exécutable + relance) ──────────────────
 
+def dev_mode_relaunch():
+    """Mode développement (python logx_serveur.py, pas l'exécutable PyInstaller
+    figé) : il n'y a pas d'exécutable à remplacer — le code source est déjà à
+    jour sur disque (édité/tiré directement). « Installer et redémarrer » se
+    réduit donc à relancer CE MÊME process Python, pour recharger les modules
+    (APP_VERSION notamment : une constante figée en mémoire au tout premier
+    import, jamais relue depuis logx_version.py tant que le process vit).
+
+    os.execv() REMPLACE l'image du process en place (même PID) plutôt que
+    d'en lancer un second : les sockets Python ont CLOEXEC par défaut depuis
+    la 3.4 (PEP 446), donc le socket d'écoute se ferme automatiquement
+    pendant l'exec — le port se libère proprement AVANT que le script
+    relancé ne tente son propre bind(), sans fenêtre de conflit ni script
+    auxiliaire détaché (contrairement au cas figé ci-dessous)."""
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
 def apply_update_and_relaunch(new_exe_path):
     """Lance un script auxiliaire détaché qui attend la fin du processus
     courant, remplace l'exécutable, puis le relance — puis retourne
@@ -1031,9 +1048,18 @@ def apply_update_and_relaunch(new_exe_path):
     Fonctionne à l'identique quelle que soit la provenance du fichier déjà
     vérifié (téléchargement direct, passerelle réseau ou pair-à-pair) — la
     vérification d'intégrité a déjà eu lieu en amont dans _do_download /
-    _do_download_via_network, jamais ici."""
+    _do_download_via_network, jamais ici.
+
+    Mode développement (not is_frozen()) : rien à faire ICI — pas de fichier
+    à déplacer ni de script auxiliaire à générer, le code source est déjà à
+    jour sur disque. Réussit sans effet de bord ; c'est l'APPELANT
+    (/app/update_install dans logx_http.py) qui, après ce retour réussi,
+    déclenche le vrai redémarrage via dev_mode_relaunch() — jamais ici,
+    pour ne jamais contourner ses propres vérifications (status/verified)
+    en amont ni risquer un os.execv() prématuré si cette fonction est un
+    jour appelée depuis un autre contexte (tests, script d'admin...)."""
     if not is_frozen():
-        return False, "Pas d'exécutable à remplacer en mode développement"
+        return True, ''
     if not os.path.exists(new_exe_path):
         return False, "Fichier téléchargé introuvable"
 

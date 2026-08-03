@@ -322,14 +322,31 @@
     { id: 'rate',     label: 'Rythme (rate)',            voice: 'Attention au rythme',         sound: 'grave' },
   ];
   // Motifs : liste de notes [fréquence, durée ms, décalage ms (optionnel)].
+  // Durées allongées (retour utilisateur : « les bips sonores sont un peu
+  // court ») — chaque note ~1.6x plus longue qu'à l'origine, décalages
+  // ajustés en proportion pour garder le rythme reconnaissable de chaque motif.
   var RC_ALERT_SOUNDS = {
     aucun:    [],
-    aigu:     [[1318, 90]],
-    grave:    [[660, 130]],
-    double:   [[1174, 80], [1174, 80, 120]],
-    montant:  [[880, 90], [1175, 120, 110]],
-    carillon: [[988, 90], [1319, 90, 110], [1568, 150, 220]],
-    sirene:   [[700, 90], [1200, 100, 90], [700, 100, 190]],
+    aigu:     [[1318, 150]],
+    grave:    [[660, 210]],
+    double:   [[1174, 130], [1174, 130, 190]],
+    montant:  [[880, 150], [1175, 190, 170]],
+    carillon: [[988, 150], [1319, 150, 170], [1568, 240, 340]],
+    sirene:   [[700, 150], [1200, 160, 140], [700, 160, 300]],
+  };
+  // Volume des bips (indépendant de la voix TTS) : réglable Faible/Moyen/Fort
+  // depuis CONFIG (section ALERTES PERSONNALISÉES), persisté client (comme
+  // rc_alerts) — chaque poste peut avoir un volume différent (casque vs
+  // haut-parleurs de salle en radioclub/expédition).
+  var RC_ALERT_VOLUME_GAIN = { faible: 0.08, moyen: 0.18, fort: 0.34 };
+  function _rcAlertVolumeLevel(){
+    var v = localStorage.getItem('rc_alert_volume');
+    return RC_ALERT_VOLUME_GAIN[v] ? v : 'moyen';
+  }
+  window.rcAlertVolume = _rcAlertVolumeLevel;
+  window.rcSetAlertVolume = function(level){
+    if (!RC_ALERT_VOLUME_GAIN[level]) return;
+    localStorage.setItem('rc_alert_volume', level);
   };
   var _rcAudio = null;
   function _rcBeep(freq, dur){
@@ -338,7 +355,7 @@
       var ctx = _rcAudio, osc = ctx.createOscillator(), g = ctx.createGain();
       osc.connect(g); g.connect(ctx.destination); osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, ctx.currentTime);
-      g.gain.setValueAtTime(0.18, ctx.currentTime);
+      g.gain.setValueAtTime(RC_ALERT_VOLUME_GAIN[_rcAlertVolumeLevel()], ctx.currentTime);
       g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur / 1000);
       osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur / 1000 + 0.05);
     } catch (e) {}
