@@ -27,8 +27,15 @@
   bande (jusqu'à 500 kHz de span), réutilisant le port série déjà ouvert
   pour le CAT — zéro matériel supplémentaire non plus, mais zéro limite de
   filtre audio. N'apparaît dans le sélecteur que si /rig/scope_available
-  répond available:true (CAT natif actif + modèle supporté). TCI (Flex/
-  SunSDR) reste un chantier séparé, pas encore fait.
+  répond available:true (CAT natif actif + modèle supporté).
+
+  SOURCE "TCI" (3e source, ajoutée après coup) : sur les SDR qui parlent le
+  protocole TCI (Expert Electronics SunSDR/ExpertSDR3 et compatibles — voir
+  logx_tci.py), un flux IQ BRUT jusqu'à 384 kHz de span, dont la FFT est
+  calculée CÔTÉ SERVEUR en pur Python (aucun scope pré-calculé côté radio,
+  contrairement au CI-V — voir logx_tci.tci_compute_fft_line). N'apparaît
+  dans le sélecteur que si /rig/tci_spectrum_available répond
+  available:true (pilotage CAT actif en mode TCI).
 -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
@@ -66,8 +73,9 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-si
   <span class="titre"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg>PANADAPTER</span>
   <select id="paSource" title="Source du spectre">
     <option value="audio">Audio (universel)</option>
-    <!-- Option "CI-V natif" ajoutée en JS seulement si /rig/scope_available
-         répond available:true — voir chargerSourceCiv(). -->
+    <!-- Options "CI-V natif" / "TCI" ajoutées en JS seulement si
+         /rig/scope_available / /rig/tci_spectrum_available répondent
+         available:true — voir chargerSourceCiv()/chargerSourceTci(). -->
   </select>
   <span id="paAudioControls" style="display:contents">
     <select id="paDevice"><option value="">— périphérique par défaut —</option></select>
@@ -91,6 +99,12 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-si
     <option value="250000">±125 kHz (span 250 kHz)</option>
     <option value="500000">±250 kHz (span 500 kHz)</option>
   </select>
+  <select id="paTciSpan" style="display:none" title="Fréquence d'échantillonnage du flux IQ TCI = largeur de bande totale affichée">
+    <option value="48000">48 kHz</option>
+    <option value="96000">96 kHz</option>
+    <option value="192000" selected>192 kHz</option>
+    <option value="384000">384 kHz</option>
+  </select>
   <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
   <span class="clock" id="clock">--:--:--</span>
 </header>
@@ -102,6 +116,7 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-si
 <footer>
   <span id="paFooterAudio">Écoute l'audio de réception (câble virtuel/interface radio, PAS le micro du PC) — largeur limitée au filtre audio du poste, pas un scope RF large bande.</span>
   <span id="paFooterCiv" style="display:none">Scope CI-V natif — lit directement le poste sur le port série déjà utilisé pour le CAT, aucun matériel supplémentaire. Le flux ne démarre que si l'écran SCOPE de la radio est actif (aucune commande CI-V "start" dédiée ne l'y force — limite du protocole, pas de ce logiciel).</span>
+  <span id="paFooterTci" style="display:none">Flux IQ brut TCI — FFT calculée côté serveur (pur Python, sans matériel supplémentaire). Coupe le flux IQ à l'arrêt/au changement de source pour ne pas consommer réseau/CPU pour rien.</span>
 </footer>
 <script src="logx_i18n.js"></script>
 <script src="logx_cwdecoder.js"></script>
@@ -197,10 +212,29 @@ if(localStorage.getItem('rc_theme') === null){
   }
   chargerSourceCiv();
 
+  // N'apparaît que si le pilotage CAT est actif en mode TCI (voir
+  // logx_tci.tci_spectrum_available) — sinon l'option resterait un bouton
+  // mort, pire qu'une option absente (même raisonnement que le CI-V).
+  async function chargerSourceTci(){
+    try{
+      const r = await fetch('/rig/tci_spectrum_available');
+      if(!r.ok) return;
+      const d = await r.json();
+      if(d && d.available){
+        const opt = document.createElement('option');
+        opt.value = 'tci';
+        opt.textContent = T('TCI (SunSDR/ExpertSDR3, large bande)');
+        document.getElementById('paSource').appendChild(opt);
+      }
+    }catch(e){}
+  }
+  chargerSourceTci();
+
   document.getElementById('paSource').onchange = function(){
     // Changer de source pendant que l'affichage tourne : on arrête proprement
-    // l'ancienne (ferme le flux micro OU le polling scope_line) plutôt que de
-    // laisser les deux tourner en parallèle sur les mêmes canvas.
+    // l'ancienne (ferme le flux micro OU le polling scope_line/tci_spectrum_
+    // line — arreterTci() coupe aussi le flux IQ côté serveur) plutôt que de
+    // laisser plusieurs pipelines tourner en parallèle sur les mêmes canvas.
     if(actif){
       arreter();
       actif = false;
@@ -208,10 +242,12 @@ if(localStorage.getItem('rc_theme') === null){
       document.getElementById('paStartBtn').classList.remove('on');
     }
     sourceMode = this.value;
-    document.getElementById('paAudioControls').style.display = sourceMode === 'civ' ? 'none' : 'contents';
+    document.getElementById('paAudioControls').style.display = sourceMode === 'audio' ? 'contents' : 'none';
     document.getElementById('paCivSpan').style.display = sourceMode === 'civ' ? '' : 'none';
-    document.getElementById('paFooterAudio').style.display = sourceMode === 'civ' ? 'none' : '';
+    document.getElementById('paTciSpan').style.display = sourceMode === 'tci' ? '' : 'none';
+    document.getElementById('paFooterAudio').style.display = sourceMode === 'audio' ? '' : 'none';
     document.getElementById('paFooterCiv').style.display = sourceMode === 'civ' ? '' : 'none';
+    document.getElementById('paFooterTci').style.display = sourceMode === 'tci' ? '' : 'none';
   };
 
   // ── Pipeline Web Audio : AnalyserNode, pas de backend ────────────────────
@@ -220,6 +256,9 @@ if(localStorage.getItem('rc_theme') === null){
 
   // ── Pipeline CI-V natif : polling serveur, pas d'AnalyserNode ────────────
   let civTimer = null, civLine = null;
+
+  // ── Pipeline TCI : polling serveur (FFT déjà calculée côté Python) ──────
+  let tciTimer = null, tciLine = null;
 
   function tailleCanvas(cv){
     // Un <canvas> a DEUX tailles indépendantes (CSS et son propre repère de
@@ -256,17 +295,21 @@ if(localStorage.getItem('rc_theme') === null){
   // Nombre de bins RÉELLEMENT à dessiner, quelle que soit la source : en
   // audio c'est un sous-ensemble de l'AnalyserNode (limité par paSpan) ; en
   // CI-V, `dataArray` contient déjà exactement les 475 pixels de la ligne
-  // reçue, donc TOUT le tableau est à afficher, pas de fenêtrage.
+  // reçue, donc TOUT le tableau est à afficher, pas de fenêtrage ; en TCI,
+  // `dataArray` contient déjà les TCI_FFT_SIZE=4096 valeurs 0-255 calculées
+  // côté serveur, même principe que CI-V (pas de fenêtrage côté JS).
   function nBinsActuel(){
-    if(sourceMode === 'civ') return dataArray ? dataArray.length : 0;
+    if(sourceMode === 'civ' || sourceMode === 'tci') return dataArray ? dataArray.length : 0;
     const maxHz = parseInt(document.getElementById('paSpan').value, 10) || 3000;
     return binsAffiches(maxHz);
   }
 
   // Graduations de l'axe fréquence, en labels déjà formatés — source AUDIO
-  // (échelle brute ou RF si SSB+case cochée) ou CI-V (vraie plage RF publiée
-  // par la radio elle-même, aucune convention à deviner contrairement au cas
-  // audio USB/LSB).
+  // (échelle brute ou RF si SSB+case cochée), CI-V ou TCI (vraie plage RF
+  // publiée/déduite par la radio elle-même, aucune convention à deviner
+  // contrairement au cas audio USB/LSB). TCI est TOUJOURS un flux IQ bande
+  // de base centré (pas de mode "fixed"/bord bas-haut comme le CI-V) : le
+  // centre est center_freq_hz, le span total est span_hz.
   function axeGraduations(nGrad){
     const labels = [];
     if(sourceMode === 'civ'){
@@ -281,6 +324,19 @@ if(localStorage.getItem('rc_theme') === null){
       } else {
         loHz = civLine.edge_lo_hz; hiHz = civLine.edge_hi_hz;
       }
+      for(let i=0;i<=nGrad;i++){
+        const hz = loHz + (hiHz - loHz) * i / nGrad;
+        labels.push((hz/1e6).toFixed(4));
+      }
+      return labels;
+    }
+    if(sourceMode === 'tci'){
+      if(!tciLine || !tciLine.ok){
+        for(let i=0;i<=nGrad;i++) labels.push('');
+        return labels;
+      }
+      const loHz = tciLine.center_freq_hz - tciLine.span_hz/2;
+      const hiHz = tciLine.center_freq_hz + tciLine.span_hz/2;
       for(let i=0;i<=nGrad;i++){
         const hz = loHz + (hiHz - loHz) * i / nGrad;
         labels.push((hz/1e6).toFixed(4));
@@ -473,14 +529,85 @@ if(localStorage.getItem('rc_theme') === null){
     cv.getContext('2d').clearRect(0, 0, w, h);
   }
 
+  // ── Démarrage TCI : configure le flux IQ (IQ_SAMPLERATE/DDS/IQ_START côté
+  // serveur) puis poll /rig/tci_spectrum_line toutes les ~500 ms — même
+  // rythme que le CI-V, la FFT est déjà calculée côté Python à chaque appel.
+  async function demarrerTci(){
+    const sampleRateHz = parseInt(document.getElementById('paTciSpan').value, 10) || 192000;
+    let cfgData;
+    try{
+      const cfgRes = await fetch('/rig/tci_spectrum_configure', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: true, sample_rate_hz: sampleRateHz})
+      });
+      cfgData = await cfgRes.json();
+    }catch(e){
+      throw new Error(T('Radio injoignable (configuration flux IQ TCI)'));
+    }
+    if(!cfgData || !cfgData.ok){
+      throw new Error((cfgData && cfgData.error) || T('Configuration du flux IQ TCI refusée'));
+    }
+    await pollTciLine();   // premier tirage immédiat, pas d'attente du premier intervalle
+    tciTimer = setInterval(pollTciLine, 500);
+  }
+
+  async function pollTciLine(){
+    try{
+      const r = await fetch('/rig/tci_spectrum_line');
+      if(!r.ok) return;
+      const d = await r.json();
+      if(!d || !d.ok){
+        tciLine = null; dataArray = null;
+        return;
+      }
+      tciLine = d;
+      if(Array.isArray(d.data) && d.data.length){
+        // Déjà en 0-255 côté serveur (logx_tci.tci_compute_fft_line) — pas
+        // de rescale ici, contrairement au CI-V (échelle Icom 0-160).
+        dataArray = Uint8Array.from(d.data);
+      } else {
+        dataArray = null;
+      }
+      dessinerSpectre();
+      dessinerWaterfall();
+      dessinerAxe();
+    }catch(e){}
+  }
+
+  function arreterTci(){
+    if(tciTimer) clearInterval(tciTimer);
+    tciTimer = null;
+    tciLine = null;
+    dataArray = null;
+    const cv = document.getElementById('specCanvas');
+    const {w, h} = tailleCanvas(cv);
+    cv.getContext('2d').clearRect(0, 0, w, h);
+    // Coupe le flux IQ côté serveur (IQ_STOP) — pas juste le polling côté
+    // client, sinon le flux continuerait à consommer réseau/CPU pour rien
+    // (jusqu'à 384 kHz en continu). Best-effort : ne bloque jamais l'arrêt
+    // de l'affichage sur un aller-retour réseau qui pourrait échouer.
+    // keepalive:true (revue adversariale) : arreter() est aussi appelée
+    // depuis beforeunload (fermeture d'onglet/navigation) — sans ce
+    // drapeau, le navigateur peut annuler la requête avant qu'elle
+    // n'atteigne le serveur dès que la page se décharge, laissant le flux
+    // IQ tourner indéfiniment côté serveur malgré le commentaire ci-dessus.
+    fetch('/rig/tci_spectrum_configure', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled: false}), keepalive: true
+    }).catch(()=>{});
+  }
+
   function demarrer(){
-    return sourceMode === 'civ' ? demarrerCiv() : demarrerAudio();
+    if(sourceMode === 'civ') return demarrerCiv();
+    if(sourceMode === 'tci') return demarrerTci();
+    return demarrerAudio();
   }
   function arreter(){
-    // Toujours null-safe des deux côtés (dataArray/timers/ctx déjà nuls) —
-    // appelée aussi au changement de source et à beforeunload, où l'un des
-    // deux pipelines n'a jamais tourné.
+    // Toujours null-safe des trois côtés (dataArray/timers/ctx déjà nuls) —
+    // appelée aussi au changement de source et à beforeunload, où au plus
+    // un seul des trois pipelines a jamais tourné.
     arreterCiv();
+    arreterTci();
     arreterAudio();
   }
 

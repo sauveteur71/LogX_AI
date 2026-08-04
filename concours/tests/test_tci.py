@@ -120,7 +120,8 @@ def test_websocketclient_recv_message_decode_une_frame_serveur():
     client.connect()
     t.join(timeout=2.0)
     server.send_text_frame('device:SunSDR2DX;ready;')
-    msg = client.recv_message()
+    is_binary, msg = client.recv_message()
+    assert is_binary is False
     assert msg == 'device:SunSDR2DX;ready;'
     client.close()
     server.close()
@@ -135,7 +136,8 @@ def test_websocketclient_repond_pong_a_un_ping():
     t.join(timeout=2.0)
     server.send_ping()
     server.send_text_frame('ready;')  # pour débloquer recv_message après le ping
-    msg = client.recv_message()
+    is_binary, msg = client.recv_message()
+    assert is_binary is False
     assert msg == 'ready;'
     assert server.recv_pong()
     client.close()
@@ -145,9 +147,12 @@ def test_websocketclient_repond_pong_a_un_ping():
 # ─── TciClient : état alimenté par un double WebSocket en mémoire ──────────
 
 class FakeWs:
-    """Double en mémoire : `to_deliver` est une file de messages que
+    """Double en mémoire : `to_deliver` est une file de messages TEXTE que
     recv_message() renvoie un par un (simule les notifications push du
-    serveur TCI) ; `sent` capture tout ce que le client a émis."""
+    serveur TCI) ; `sent` capture tout ce que le client a émis. Renvoie
+    (is_binary, payload) comme le vrai WebSocketClient depuis le correctif
+    binaire — is_binary=False pour tout ce que ce double sert (texte
+    uniquement, voir FakeWsBinary dans test_tci_spectrum.py pour le binaire)."""
 
     def __init__(self, to_deliver=None):
         self._queue = list(to_deliver or [])
@@ -162,11 +167,11 @@ class FakeWs:
 
     def recv_message(self):
         if self._queue:
-            return self._queue.pop(0)
+            return False, self._queue.pop(0)
         time.sleep(0.01)
         if self.closed:
             raise ConnectionError('fermé')
-        return ''
+        return False, ''
 
     def close(self):
         self.closed = True

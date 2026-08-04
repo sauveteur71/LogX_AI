@@ -4004,6 +4004,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(cat.scope_line(self._cfg_snapshot()))
             return
 
+        # Panadapter TCI (3e source, après audio universel et scope CI-V
+        # Icom) : disponible seulement en pilotage TCI actif (voir
+        # logx_tci.tci_spectrum_available) — appelé une fois au chargement de
+        # logx_panadapter.html pour savoir si l'option "TCI" doit apparaître
+        # dans le sélecteur de source.
+        if path == '/rig/tci_spectrum_available':
+            import logx_tci as tci
+            self._json(tci.tci_spectrum_available(self._cfg_snapshot()))
+            return
+
+        # Une ligne de spectre TCI déjà calculée côté serveur (FFT pure
+        # Python sur le flux IQ brut, échelle 0-255) — pollée par
+        # logx_panadapter.html quand la source TCI est active. ok=False
+        # (buffer pas encore plein, flux pas démarré...) reste un 200 :
+        # même convention que /rig/scope_line et /rig/state.
+        if path == '/rig/tci_spectrum_line':
+            import logx_tci as tci
+            self._json(tci.tci_spectrum_line(self._cfg_snapshot()))
+            return
+
         # Détections de branchement en attente (watcher de fond, indice passif
         # VID:PID/numéro de série — jamais appliqué sans confirmation en un
         # clic côté UI). Pollé par CONFIG toutes les ~2s.
@@ -5054,6 +5074,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             f'valeurs acceptées : {", ".join(str(s) for s in cat.CIV_SCOPE_SPANS_HZ)}'}, 400)
                 return
             res = cat.scope_configure(self._cfg_snapshot(), mode, span_hz)
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        # Panadapter TCI : démarre/arrête le flux IQ (IQ_SAMPLERATE + DDS +
+        # IQ_START, ou IQ_STOP) sur la connexion WebSocket TCI déjà ouverte
+        # pour le CAT — appelé quand l'opérateur choisit la source "TCI" du
+        # panadapter, change de fréquence d'échantillonnage, ou quand la
+        # page se ferme (enabled=false, pour ne pas laisser le flux IQ
+        # tourner pour rien).
+        if self.path == '/rig/tci_spectrum_configure':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            import logx_tci as tci
+            enabled = bool(payload.get('enabled'))
+            try:
+                sample_rate_hz = int(payload.get('sample_rate_hz')) if payload.get('sample_rate_hz') else None
+            except (TypeError, ValueError):
+                sample_rate_hz = None
+            # Le <select> de logx_panadapter.html ne propose que les 4
+            # valeurs valides — mais l'endpoint est appelable directement,
+            # et sans ce garde-fou une valeur hors spec passerait telle
+            # quelle jusqu'à tci_spectrum_configure() (qui la refuse aussi,
+            # mais un 400 explicite ici évite un aller-retour serveur inutile
+            # pour une erreur détectable sans toucher au réseau TCI).
+            if enabled and sample_rate_hz not in tci.TCI_IQ_SAMPLE_RATES_HZ:
+                self._json({'ok': False, 'error': "Fréquence d'échantillonnage IQ invalide "
+                            f"({sample_rate_hz}) — valeurs acceptées : "
+                            f"{', '.join(str(r) for r in tci.TCI_IQ_SAMPLE_RATES_HZ)}"}, 400)
+                return
+            res = tci.tci_spectrum_configure(self._cfg_snapshot(), enabled, sample_rate_hz)
             self._json(res, 200 if res.get('ok') else 400)
             return
 

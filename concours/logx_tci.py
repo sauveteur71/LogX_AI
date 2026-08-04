@@ -25,7 +25,10 @@ dans l'environnement du projet, et TCI ne justifie pas d'en ajouter une pour
 ces usages (commandes texte courtes uniquement ; pas de flux audio/IQ ici).
 """
 import base64
+import cmath
+import collections
 import hashlib
+import math
 import os
 import select
 import socket
@@ -38,6 +41,43 @@ DEFAULT_PORT = 50001
 _WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 MAX_FRAME_LEN = 1 << 20      # 1 Mo : très au-dessus de toute trame TCI légitime
 READ_IDLE_TIMEOUT_S = 30.0   # au-delà de ce silence, la connexion est jugée morte
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Flux IQ brut (frames WebSocket BINAIRES, struct Stream 64 octets d'en-tête)
+#  — voir le gros bloc de fonctions pures après _cw_escape() pour le parsing/
+#  décodage/FFT. Constantes du protocole regroupées ici avec le reste des
+#  constantes du module.
+# ═══════════════════════════════════════════════════════════════════════════
+
+TCI_STREAM_HEADER_LEN = 64   # 8 x uint32_t (32o) + reserv[8] uint32_t (32o)
+
+# enum StreamType (struct Stream.type)
+TCI_STREAM_TYPE_IQ = 0
+TCI_STREAM_TYPE_RX_AUDIO = 1
+TCI_STREAM_TYPE_TX_AUDIO = 2
+TCI_STREAM_TYPE_TX_CHRONO = 3
+TCI_STREAM_TYPE_LINEOUT = 4
+
+# enum SampleType (struct Stream.format)
+TCI_SAMPLE_FORMAT_INT16 = 0
+TCI_SAMPLE_FORMAT_INT24 = 1
+TCI_SAMPLE_FORMAT_INT32 = 2
+TCI_SAMPLE_FORMAT_FLOAT32 = 3
+
+# IQ_SAMPLERATE: n'accepte QUE ces 4 valeurs discrètes d'après la spec — pas
+# une plage arbitraire, contrairement à ce qu'on pourrait supposer par
+# analogie avec une carte son classique.
+TCI_IQ_SAMPLE_RATES_HZ = (48000, 96000, 192000, 384000)
+
+# Taille de FFT fixe (puissance de 2, pas besoin de gérer une taille variable
+# pour ce chantier) et plage dB de mise à l'échelle vers 0-255 — plage assez
+# large pour ne pas saturer un signal fort ni noyer un signal faible dans le
+# plancher de bruit (mêmes bornes que le AnalyserNode audio du panadapter,
+# voir logx_panadapter.html demarrerAudio()).
+TCI_FFT_SIZE = 4096
+TCI_FFT_DB_MIN = -100.0
+TCI_FFT_DB_MAX = -20.0
+_TCI_MAG_EPS = 1e-12   # évite log10(0) sur un bin exactement nul
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -138,10 +178,26 @@ class WebSocketClient:
         return data
 
     def recv_message(self):
-        """Retourne le texte d'UN message WebSocket complet (frames de
-        continuation recollées). Lève ConnectionError si le serveur ferme,
-        répond automatiquement aux pings (obligatoire pour rester connecté)."""
+        """Retourne (is_binary, payload) d'UN message WebSocket complet
+        (frames de continuation recollées) : payload est un `str` décodé
+        UTF-8 pour un message TEXTE (les commandes ASCII TCI), des `bytes`
+        bruts pour un message BINAIRE (un bloc `struct Stream` du flux IQ).
+        La distinction se fait sur l'OPCODE de la PREMIÈRE frame du message
+        (0x1=texte/0x2=binaire) — les frames de continuation suivantes
+        portent l'opcode 0x0 et héritent du type du message.
+
+        AVANT ce correctif, les frames BINAIRES (opcode 0x2) étaient
+        SILENCIEUSEMENT ignorées : ni ajoutées à `parts`, ni retournées —
+        la boucle `break`-ait quand même sur `fin`, produisant un message
+        texte vide plutôt que les données IQ (voir tests/test_tci_spectrum.py
+        pour un test qui aurait échoué sans ce correctif : le buffer IQ
+        resterait vide en permanence, aucune ligne de spectre ne serait
+        jamais calculable).
+
+        Lève ConnectionError si le serveur ferme, répond automatiquement
+        aux pings (obligatoire pour rester connecté)."""
         parts = []
+        msg_is_binary = False
         while True:
             header = self._recv_exact(2)
             fin = header[0] & 0x80
@@ -160,11 +216,17 @@ class WebSocketClient:
             if opcode == 0x9:  # ping -> pong obligatoire
                 self._send_pong(payload)
                 continue
-            if opcode in (0x1, 0x0):  # texte ou continuation
+            if opcode == 0x2:      # binaire, première frame du message
+                msg_is_binary = True
+                parts.append(payload)
+            elif opcode in (0x1, 0x0):  # texte, ou continuation (0x0 hérite du type déjà fixé)
                 parts.append(payload)
             if fin:
                 break
-        return b''.join(parts).decode('utf-8', errors='replace')
+        combined = b''.join(parts)
+        if msg_is_binary:
+            return True, combined
+        return False, combined.decode('utf-8', errors='replace')
 
     def _send_pong(self, payload):
         header = bytearray([0x80 | 0xA, 0x80 | len(payload)])
@@ -190,6 +252,167 @@ def _cw_escape(text):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  Flux IQ brut -> spectre : parsing du header binaire, décodage des 4
+#  formats d'échantillon, FFT radix-2 PURE PYTHON (aucune dépendance numpy,
+#  voir requirements.txt/CLAUDE.md), tout en fonctions PURES (aucune E/S) —
+#  même discipline que civ_parse_scope_packet/civ_reassemble_scope_line dans
+#  logx_cat.py, testées isolément dans tests/test_tci_spectrum.py.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Header C : 8 x uint32_t (32o) PUIS reserv[8] (uint32_t x 8 = 32o, ignoré)
+# = 64o au total, TOUT en little-endian — hypothèse de travail assumée mais
+# PAS vérifiée sur un vrai serveur TCI (l'app source ExpertSDR3 est un
+# logiciel Windows x86/x64, faute de matériel pour confirmer). '32x' saute
+# les 32 octets de reserv sans les inclure dans le résultat unpack.
+_TCI_STREAM_HEADER_STRUCT = '<8I32x'
+assert struct.calcsize(_TCI_STREAM_HEADER_STRUCT) == TCI_STREAM_HEADER_LEN
+
+
+def tci_parse_stream_header(payload):
+    """Décode le header 64 octets d'UN bloc `struct Stream` (début d'une
+    frame WebSocket binaire TCI). Retourne un dict {'receiver',
+    'sample_rate', 'format', 'codec', 'crc', 'length', 'type', 'channels'}
+    ou None si `payload` fait moins de 64 octets — trame malformée/tronquée,
+    jamais d'exception (même garantie que civ_parse_scope_packet)."""
+    if len(payload) < TCI_STREAM_HEADER_LEN:
+        return None
+    (receiver, sample_rate, fmt, codec, crc, length, stype, channels) = \
+        struct.unpack(_TCI_STREAM_HEADER_STRUCT, payload[:TCI_STREAM_HEADER_LEN])
+    return {'receiver': receiver, 'sample_rate': sample_rate, 'format': fmt,
+            'codec': codec, 'crc': crc, 'length': length, 'type': stype,
+            'channels': channels}
+
+
+def tci_decode_samples(fmt, raw):
+    """Décode `raw` (les octets après le header) selon `format` (SampleType)
+    en une liste de float normalisés dans [-1, 1] environ — INT16/24/32
+    signés little-endian, FLOAT32 déjà normalisé. Retourne None si `fmt` est
+    inconnu ou si `raw` n'est pas un multiple exact de la taille d'un
+    échantillon pour ce format (trame tronquée) — jamais d'exception."""
+    if fmt == TCI_SAMPLE_FORMAT_INT16:
+        n, size = len(raw) // 2, 2
+        if n * size != len(raw):
+            return None
+        return [v / 32768.0 for v in struct.unpack('<%dh' % n, raw[:n * size])]
+    if fmt == TCI_SAMPLE_FORMAT_INT24:
+        # Pas de type struct natif pour du 24 bits — décodage à la main,
+        # 3 octets little-endian par échantillon, signé sur 24 bits.
+        n, size = len(raw) // 3, 3
+        if n * size != len(raw):
+            return None
+        out = []
+        for i in range(n):
+            b0, b1, b2 = raw[i * 3], raw[i * 3 + 1], raw[i * 3 + 2]
+            v = b0 | (b1 << 8) | (b2 << 16)
+            if v & 0x800000:
+                v -= 0x1000000
+            out.append(v / 8388608.0)
+        return out
+    if fmt == TCI_SAMPLE_FORMAT_INT32:
+        n, size = len(raw) // 4, 4
+        if n * size != len(raw):
+            return None
+        return [v / 2147483648.0 for v in struct.unpack('<%di' % n, raw[:n * size])]
+    if fmt == TCI_SAMPLE_FORMAT_FLOAT32:
+        n, size = len(raw) // 4, 4
+        if n * size != len(raw):
+            return None
+        return list(struct.unpack('<%df' % n, raw[:n * size]))
+    return None
+
+
+def tci_iq_samples_from_values(values):
+    """Regroupe une liste de valeurs réelles décodées I,Q,I,Q,... (le cas
+    `channels == 1`, seul traité ici — voir limite documentée plus bas) en
+    échantillons complexes I+jQ. Une valeur orpheline en fin de liste
+    (nombre impair, trame tronquée en plein milieu d'une paire) est ignorée
+    plutôt que de deviner sa contrepartie."""
+    n = len(values) // 2
+    return [complex(values[2 * i], values[2 * i + 1]) for i in range(n)]
+
+
+def _fft_radix2(x):
+    """FFT Cooley-Tukey itérative in-place (algorithme standard, pas
+    d'invention ici — voir tests/test_tci_spectrum.py pour la preuve contre
+    un signal de référence connu). `x` : liste de `complex`, de longueur une
+    puissance de 2 (TCI_FFT_SIZE = 4096, jamais une autre taille dans ce
+    module). Même convention de signe que numpy.fft.fft
+    (X[k] = somme x[n] * exp(-2j*pi*k*n/N)) — c'est ce que suppose
+    tci_compute_fft_line() pour le recentrage fftshift-like."""
+    n = len(x)
+    if n <= 1:
+        return x
+    # Permutation par inversion de bits (bit-reversal) avant le papillon.
+    j = 0
+    for i in range(1, n):
+        bit = n >> 1
+        while j & bit:
+            j ^= bit
+            bit >>= 1
+        j ^= bit
+        if i < j:
+            x[i], x[j] = x[j], x[i]
+    length = 2
+    while length <= n:
+        wlen = cmath.exp(-2j * math.pi / length)
+        half = length // 2
+        for i in range(0, n, length):
+            w = 1 + 0j
+            for k in range(half):
+                u = x[i + k]
+                v = x[i + k + half] * w
+                x[i + k] = u + v
+                x[i + k + half] = u - v
+                w *= wlen
+        length <<= 1
+    return x
+
+
+def _hann_window(n):
+    """Fenêtre de Hann standard, longueur `n` — réduit les fuites spectrales
+    avant la FFT. n=1 est un cas dégénéré (jamais atteint avec
+    TCI_FFT_SIZE=4096) traité à part pour éviter une division par zéro."""
+    if n <= 1:
+        return [1.0] * n
+    return [0.5 - 0.5 * math.cos(2 * math.pi * i / (n - 1)) for i in range(n)]
+
+
+def tci_compute_fft_line(samples):
+    """Calcule UNE ligne de spectre (liste d'entiers 0-255, longueur
+    TCI_FFT_SIZE) à partir d'une liste d'échantillons IQ complexes déjà
+    prélevés dans le buffer circulaire — `samples` doit faire EXACTEMENT
+    TCI_FFT_SIZE éléments (l'appelant tranche le buffer, cette fonction ne
+    devine jamais une longueur). Retourne None si la longueur ne correspond
+    pas.
+
+    Pipeline : fenêtre de Hann -> FFT radix-2 -> recentrage type fftshift
+    (DC au centre, fréquences négatives à gauche/positives à droite — même
+    disposition qu'un panadapter bande de base IQ classique) -> magnitude en
+    dB -> mise à l'échelle linéaire de [TCI_FFT_DB_MIN, TCI_FFT_DB_MAX] vers
+    [0, 255], plafonnée aux deux bornes.
+
+    Échelle 0-255 calculée ICI côté PYTHON (pas côté JS comme pour le scope
+    CI-V, qui renvoie une échelle Icom 0-160 rescalée en JS) : choix
+    délibéré pour que logx_panadapter.html n'ait pas à connaître une
+    troisième convention d'échelle en plus d'audio/CI-V — TOUTES les sources
+    livrent déjà du 0-255 au JS, qui n'en sait rien de plus."""
+    if len(samples) != TCI_FFT_SIZE:
+        return None
+    window = _hann_window(TCI_FFT_SIZE)
+    windowed = [samples[i] * window[i] for i in range(TCI_FFT_SIZE)]
+    spectrum = _fft_radix2(windowed)
+    half = TCI_FFT_SIZE // 2
+    reordered = spectrum[half:] + spectrum[:half]   # fftshift : DC au centre
+    out = []
+    span = TCI_FFT_DB_MAX - TCI_FFT_DB_MIN
+    for c in reordered:
+        db = 20.0 * math.log10(abs(c) + _TCI_MAG_EPS)
+        scaled = (db - TCI_FFT_DB_MIN) / span * 255.0
+        out.append(int(round(max(0.0, min(255.0, scaled)))))
+    return out
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  Client TCI — lit en continu, maintient un cache d'état, envoie les commandes
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -207,6 +430,13 @@ class TciClient:
         self._lock = threading.Lock()
         self._reader = None
         self._stop = False
+        # Buffer circulaire d'échantillons IQ complexes récents (flux binaire
+        # IQ_STREAM) + métadonnées du dernier bloc — protégés par le MÊME
+        # `self._lock` que `self.state` : ce fil (_read_loop) écrit dedans en
+        # continu pendant qu'un thread HTTP (serveur multi-thread) peut le
+        # lire au même moment pour calculer une FFT (get_iq_spectrum_line).
+        self._iq_buffer = collections.deque(maxlen=TCI_FFT_SIZE)
+        self._iq_meta = {'sample_rate_hz': None, 'receiver': None, 'center_freq_hz': None}
 
     def connect_and_start(self):
         self.ws.connect()
@@ -222,13 +452,47 @@ class TciClient:
         buf = ''
         while not self._stop:
             try:
-                msg = self.ws.recv_message()
+                is_binary, payload = self.ws.recv_message()
             except Exception:
                 break
-            buf += msg
+            if is_binary:
+                # Chaque frame WS binaire porte DÉJÀ un struct Stream complet
+                # en un seul morceau (contrairement au texte, pas de
+                # découpage/recollage sur un séparateur nécessaire ici).
+                self._handle_binary_frame(payload)
+                continue
+            buf += payload
             while ';' in buf:
                 line, buf = buf.split(';', 1)
                 self._handle_line(line.strip())
+
+    def _handle_binary_frame(self, payload):
+        """Route une frame WS binaire vers le buffer IQ si c'est un bloc
+        IQ_STREAM (type==0) d'un seul canal — les autres types (audio RX/TX,
+        chrono, lineout) et le multi-canal (`channels>1`, multi-récepteur
+        multiplexé, ordre d'entrelacement non spécifié) sont HORS PÉRIMÈTRE
+        de ce chantier et simplement ignorés plutôt que mal interprétés."""
+        header = tci_parse_stream_header(payload)
+        if header is None:
+            return
+        if header['type'] != TCI_STREAM_TYPE_IQ or header['channels'] != 1:
+            return
+        body = payload[TCI_STREAM_HEADER_LEN:]
+        values = tci_decode_samples(header['format'], body)
+        if not values:
+            return
+        # `length` (échantillons réels annoncés par le header) fait foi pour
+        # le nombre de valeurs à utiliser, mais borné par ce qui a
+        # RÉELLEMENT été décodé — un header mensonger ou une frame tronquée
+        # en cours de transit ne doit jamais provoquer un IndexError.
+        n = max(0, min(header['length'], len(values)))
+        complexes = tci_iq_samples_from_values(values[:n])
+        if not complexes:
+            return
+        with self._lock:
+            self._iq_buffer.extend(complexes)
+            self._iq_meta['sample_rate_hz'] = header['sample_rate']
+            self._iq_meta['receiver'] = header['receiver']
 
     def _handle_line(self, line):
         if not line:
@@ -299,6 +563,67 @@ class TciClient:
 
     def enable_rx_sensors(self, interval_ms=200):
         self._send('rx_sensors_enable', 'true', interval_ms)
+
+    # ── Flux IQ (panadapter TCI) ────────────────────────────────────────────
+
+    def set_iq_samplerate(self, hz):
+        """IQ_SAMPLERATE : commande GLOBALE (pas d'argument récepteur),
+        contrairement à IQ_START/IQ_STOP/DDS. L'appelant (tci_spectrum_
+        configure) est responsable de vérifier `hz` contre
+        TCI_IQ_SAMPLE_RATES_HZ avant d'appeler — cette méthode se contente
+        d'envoyer, comme set_freq/set_mode envoient sans revalider.
+
+        Vide le buffer IQ AVANT d'envoyer la commande (revue adversariale) :
+        sans ça, un changement de débit en cours de flux laisse jusqu'à
+        TCI_FFT_SIZE-1 échantillons captés à l'ANCIEN débit dans le deque —
+        get_iq_spectrum_line() calculerait alors une FFT sur un buffer qui
+        mélange deux débits d'échantillonnage physiquement différents,
+        pendant que span_hz (déjà mis à jour au bloc binaire suivant)
+        annoncerait le NOUVEAU débit : un spectre qui ne correspond à aucun
+        débit réel jusqu'à ce que le buffer se soit intégralement renouvelé."""
+        with self._lock:
+            self._iq_buffer.clear()
+            self._iq_meta['sample_rate_hz'] = None
+        self._send('IQ_SAMPLERATE', int(hz))
+
+    def set_dds(self, freq_hz, receiver='0'):
+        """DDS : fréquence centrale du récepteur = centre du panadapter.
+        Mémorisée côté client (sous le même verrou que le buffer IQ) pour
+        que get_iq_spectrum_line() puisse renvoyer center_freq_hz sans
+        dépendre d'une notification retour du serveur — le protocole ne
+        documente pas d'écho de confirmation pour cette commande."""
+        with self._lock:
+            self._iq_meta['center_freq_hz'] = int(freq_hz)
+        self._send('DDS', receiver, int(freq_hz))
+
+    def start_iq(self, receiver='0'):
+        self._send('IQ_START', receiver)
+
+    def stop_iq(self, receiver='0'):
+        self._send('IQ_STOP', receiver)
+
+    def get_iq_spectrum_line(self):
+        """Calcule UNE ligne de spectre (FFT TCI_FFT_SIZE points) à partir
+        des derniers échantillons IQ reçus. `span_hz` vient du sample_rate
+        RÉELLEMENT vu dans le dernier header binaire reçu (source de
+        vérité : ce que le serveur dit streamer, pas ce qu'on a demandé via
+        IQ_SAMPLERATE) ; `center_freq_hz` vient du dernier set_dds() envoyé
+        par ce client (le protocole n'a pas de lecture retour dédiée)."""
+        with self._lock:
+            samples = list(self._iq_buffer)
+            sample_rate = self._iq_meta['sample_rate_hz']
+            center_hz = self._iq_meta['center_freq_hz']
+        if len(samples) < TCI_FFT_SIZE:
+            return {'ok': False, 'error': 'Buffer IQ pas encore plein (%d/%d échantillons) '
+                    '— le flux vient-il de démarrer ?' % (len(samples), TCI_FFT_SIZE)}
+        if not sample_rate:
+            return {'ok': False, 'error': "Aucun bloc IQ reçu du serveur TCI pour l'instant"}
+        if not center_hz:
+            return {'ok': False, 'error': 'Fréquence centrale IQ inconnue (DDS jamais envoyé)'}
+        data = tci_compute_fft_line(samples[-TCI_FFT_SIZE:])
+        if data is None:
+            return {'ok': False, 'error': 'Calcul de la FFT impossible'}
+        return {'ok': True, 'center_freq_hz': center_hz, 'span_hz': sample_rate, 'data': data}
 
     def close(self):
         self._stop = True
@@ -469,3 +794,84 @@ def test_connection(host, port):
         return {'ok': True, 'device': st['device'], 'freq_hz': st['freq_hz']}
     finally:
         client.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Panadapter TCI — 3e source (après audio universel et scope CI-V Icom) :
+#  même convention de nom (préfixe tci_spectrum_) que scope_civ_available/
+#  scope_configure/scope_line dans logx_cat.py, câblées côté HTTP dans
+#  logx_http.py sur /rig/tci_spectrum_*.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def tci_spectrum_available(cfg):
+    """available=True seulement si le pilotage radio est actif ET configuré
+    en mode 'tci' (cat_settings() de logx_cat — le mode TCI est un des 4
+    modes CAT existants, PAS un réglage séparé). Import de logx_cat fait ICI
+    (pas en tête de module) : logx_cat ne dépend pas de logx_tci aujourd'hui,
+    mais un import différé reste la garantie la moins fragile contre un futur
+    import circulaire si ça change."""
+    import logx_cat as cat
+    settings = cat.cat_settings(cfg)
+    if not settings['enabled']:
+        return {'available': False, 'reason': 'Pilotage CAT désactivé (CONFIG)'}
+    if settings['mode'] != 'tci':
+        return {'available': False,
+                'reason': 'Le spectre TCI nécessite le mode « TCI » (CONFIG > Radio CAT)'}
+    return {'available': True, 'reason': ''}
+
+
+def tci_spectrum_configure(cfg, enabled, sample_rate_hz=None):
+    """Démarre/arrête le flux IQ TCI (récepteur 0) sur LA CONNEXION
+    PERSISTANTE déjà ouverte pour le CAT TCI — pas de connexion séparée.
+
+    enabled=True : IQ_SAMPLERATE (valeur vérifiée contre
+    TCI_IQ_SAMPLE_RATES_HZ) puis DDS (fréquence VFO courante, déjà connue du
+    cache d'état alimenté en continu par le fil de lecture push) puis
+    IQ_START.
+    enabled=False : IQ_STOP — À FAIRE quand le panadapter change de source ou
+    se ferme, sinon le flux IQ continue à consommer réseau/CPU pour rien,
+    potentiellement à 384 kHz en continu."""
+    settings = tci_settings(cfg)
+    client, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    try:
+        if not enabled:
+            client.stop_iq()
+            return {'ok': True}
+        try:
+            rate = int(sample_rate_hz)
+        except (TypeError, ValueError):
+            rate = None
+        if rate not in TCI_IQ_SAMPLE_RATES_HZ:
+            return {'ok': False, 'error': f"Fréquence d'échantillonnage IQ invalide "
+                    f"({sample_rate_hz}) — valeurs acceptées : "
+                    f"{', '.join(str(r) for r in TCI_IQ_SAMPLE_RATES_HZ)}"}
+        st = client.get_state()
+        center_hz = st.get('freq_hz')
+        if not center_hz:
+            return {'ok': False, 'error': "Fréquence radio pas encore connue (aucun VFO reçu "
+                    "du serveur TCI) — impossible de centrer le flux IQ"}
+        client.set_iq_samplerate(rate)
+        client.set_dds(center_hz)
+        client.start_iq()
+        return {'ok': True}
+    except Exception as e:
+        disconnect_persistent()
+        return {'ok': False, 'error': f'Serveur TCI injoignable ({e})'}
+
+
+def tci_spectrum_line(cfg):
+    """Une ligne de spectre déjà calculée (FFT TCI_FFT_SIZE points, échelle
+    0-255) — pollée par logx_panadapter.html toutes les ~500 ms quand la
+    source TCI est active. ok=False (buffer pas encore plein, flux jamais
+    démarré...) reste un état de polling normal, pas une exception."""
+    settings = tci_settings(cfg)
+    client, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    try:
+        return client.get_iq_spectrum_line()
+    except Exception as e:
+        disconnect_persistent()
+        return {'ok': False, 'error': f'Serveur TCI injoignable ({e})'}
