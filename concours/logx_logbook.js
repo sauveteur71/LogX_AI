@@ -6553,7 +6553,22 @@ function toggleCwDecoder(){
       out.innerHTML = _cwOutText.replace(/(\S+)/g, '<span style="cursor:pointer" onclick="cwToCall(this.textContent)">$1</span>') || '—';
       out.scrollTop = out.scrollHeight;
     },
-    onLevel: (mag, threshold, wpm) => { if(wpm) wpmLabel.textContent = wpm + ' MPM'; },
+    onLevel: (mag, threshold, wpm) => {
+      if(wpm) wpmLabel.textContent = wpm + ' MPM';
+      // Vumètre de diagnostic : échelle visuelle = 3x le seuil courant, pour
+      // que le repère de seuil reste toujours visible même quand le bruit
+      // de fond fait dériver le seuil adaptatif. Sans ce retour visuel,
+      // "ça tourne mais ça ne décode rien" ne donnait AUCUN indice pour
+      // savoir si c'est le niveau, le device ou le ton qui cloche.
+      const fill = document.getElementById('cwMeterFill');
+      const thr = document.getElementById('cwMeterThreshold');
+      if(fill && thr){
+        const scale = threshold * 3 || 0.01;
+        fill.style.width = Math.min(100, (mag / scale) * 100) + '%';
+        fill.classList.toggle('on', mag > threshold);
+        thr.style.left = Math.min(100, (threshold / scale) * 100) + '%';
+      }
+    },
   });
   dec.start(deviceId || undefined).then(() => {
     _cwAudioDecoder = dec;

@@ -125,6 +125,7 @@ class CwAudioDecoder {
     this.freq = freq;
     this.onLevel = onLevel || (()=>{});
     this.decoder = new MorseTimingDecoder(onChar);
+    this.decoder.wpm = 0;   // 0 tant qu'aucune marque réelle n'a été mesurée — voir onLevel plus bas
     this.ctx = null; this.stream = null; this.source = null; this.proc = null;
     this.noiseFloor = 0.01;
     this.keyDown = false;
