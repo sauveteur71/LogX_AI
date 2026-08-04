@@ -3044,6 +3044,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'expeditions': dxp.fetch_dxpeditions(worked_names)})
             return
 
+        # Panneau CHASSE : mêmes annonces NG3K que /data/dxpeditions, mais
+        # annotées 'status' (active/upcoming) + fréquence live si repérées
+        # sur le cluster déjà agrégé pour le reste de l'appli (voir
+        # logx_dxpeditions.fetch_dxpeditions_chasse) — les terminées sont
+        # retirées, CHASSE montre ce qu'on peut encore travailler.
+        if path == '/data/dxpeditions_active':
+            import logx_dxpeditions as dxp
+            import logx_countries as co
+            cfg_snap = self._cfg_snapshot()
+            with log_lock:
+                log_copy = list(shared_log)
+            progress = co.countries_progress(log_copy, cfg_scope_id(cfg_snap))
+            worked_names = {x['country'] for grp in progress['by_continent'].values()
+                            for x in grp if x['worked']}
+            self._json({'expeditions': dxp.fetch_dxpeditions_chasse(
+                worked_names, _spots_from_caches())})
+            return
+
         # Balises NCDXF/IBP : quelle balise émet MAINTENANT sur chaque bande
         # (+ distance/azimut depuis le locator) — calcul pur, pas de réseau.
         if path == '/beacons/now':
