@@ -5238,11 +5238,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'nr': payload.get('nr', ''),
             }
             text = vk.expand_voice_text(template, ctx)
+            # segments : synthèse multi-voix (un moteur/une voix par langue
+            # rencontrée dans le message) — voir expand_voice_segments().
             # skip_ptt : réservé au bouton "Tester" de CONFIG (indicatif
             # fictif) — jamais envoyé par le déclenchement réel depuis le
             # logbook (logx_logbook.js), qui a besoin du PTT pour transmettre.
             res = vk.send_voice_message(cfg_snap, text, lang=vk.message_lang(ctx),
-                                        skip_ptt=bool(payload.get('skip_ptt')))
+                                        skip_ptt=bool(payload.get('skip_ptt')),
+                                        segments=vk.expand_voice_segments(template, ctx))
             if res.get('ok'):
                 print(f"[RIG] Voix : {text[:60]}")
             self._json(res, 200 if res.get('ok') else 400)
