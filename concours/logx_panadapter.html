@@ -16,12 +16,19 @@
   câble/interface déjà branché depuis la sortie audio de réception du poste
   vers l'entrée du PC, jamais le micro.
 
-  LIMITE ASSUMÉE, pas un bug : la largeur affichable est celle du FILTRE AUDIO
-  du poste (typiquement 2,4-3 kHz en SSB étroit, jusqu'à ~12-15 kHz si le poste
-  sort un audio large bande dédié) — pas les centaines de kHz d'un vrai scope
-  radio interne. C'est le compromis documenté dans l'étude : zéro matériel,
-  mais pas de vue "toute la bande". Pour ça, voir le scope CI-V natif (Icom)
-  ou TCI (Flex/SunSDR), deux chantiers séparés qui viennent APRÈS celui-ci.
+  LIMITE ASSUMÉE, pas un bug : la largeur affichable de la source AUDIO est
+  celle du FILTRE AUDIO du poste (typiquement 2,4-3 kHz en SSB étroit,
+  jusqu'à ~12-15 kHz si le poste sort un audio large bande dédié) — pas les
+  centaines de kHz d'un vrai scope radio interne.
+
+  SOURCE "CI-V natif" (ajoutée après coup, voir sélecteur #paSource) : sur
+  les Icom qui publient le scope waveform CI-V 0x27 (IC-7300/7610/9700/705/
+  7851 — voir MODELES_SCOPE_CIV dans logx_cat.py), un VRAI panadapter large
+  bande (jusqu'à 500 kHz de span), réutilisant le port série déjà ouvert
+  pour le CAT — zéro matériel supplémentaire non plus, mais zéro limite de
+  filtre audio. N'apparaît dans le sélecteur que si /rig/scope_available
+  répond available:true (CAT natif actif + modèle supporté). TCI (Flex/
+  SunSDR) reste un chantier séparé, pas encore fait.
 -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
@@ -57,16 +64,33 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-si
 <body data-rc-no-lang-select>
 <header>
   <span class="titre"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg>PANADAPTER</span>
-  <select id="paDevice"><option value="">— périphérique par défaut —</option></select>
-  <select id="paSpan" title="Largeur de bande affichée — limitée par le filtre audio du poste, pas un vrai scope RF">
-    <option value="3000">0–3 kHz (SSB/CW étroit)</option>
-    <option value="6000">0–6 kHz</option>
-    <option value="12000" selected>0–12 kHz</option>
-    <option value="24000">0–24 kHz (audio large bande)</option>
+  <select id="paSource" title="Source du spectre">
+    <option value="audio">Audio (universel)</option>
+    <!-- Option "CI-V natif" ajoutée en JS seulement si /rig/scope_available
+         répond available:true — voir chargerSourceCiv(). -->
   </select>
-  <label class="niveau" style="display:flex;align-items:center;gap:5px;cursor:pointer">
-    <input type="checkbox" id="paRfScale" title="Convertit l'axe en fréquence RF réelle à partir de la fréquence radio (fiable seulement en USB/LSB — CW/AM/FM affichent l'audio brut)">échelle RF (si SSB)
-  </label>
+  <span id="paAudioControls" style="display:contents">
+    <select id="paDevice"><option value="">— périphérique par défaut —</option></select>
+    <select id="paSpan" title="Largeur de bande affichée — limitée par le filtre audio du poste, pas un vrai scope RF">
+      <option value="3000">0–3 kHz (SSB/CW étroit)</option>
+      <option value="6000">0–6 kHz</option>
+      <option value="12000" selected>0–12 kHz</option>
+      <option value="24000">0–24 kHz (audio large bande)</option>
+    </select>
+    <label class="niveau" style="display:flex;align-items:center;gap:5px;cursor:pointer">
+      <input type="checkbox" id="paRfScale" title="Convertit l'axe en fréquence RF réelle à partir de la fréquence radio (fiable seulement en USB/LSB — CW/AM/FM affichent l'audio brut)">échelle RF (si SSB)
+    </label>
+  </span>
+  <select id="paCivSpan" style="display:none" title="Largeur de bande RF affichée par le scope CI-V (mode Center)">
+    <option value="2500">±1,25 kHz (span 2,5 kHz)</option>
+    <option value="5000">±2,5 kHz (span 5 kHz)</option>
+    <option value="10000">±5 kHz (span 10 kHz)</option>
+    <option value="25000" selected>±12,5 kHz (span 25 kHz)</option>
+    <option value="50000">±25 kHz (span 50 kHz)</option>
+    <option value="100000">±50 kHz (span 100 kHz)</option>
+    <option value="250000">±125 kHz (span 250 kHz)</option>
+    <option value="500000">±250 kHz (span 500 kHz)</option>
+  </select>
   <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
   <span class="clock" id="clock">--:--:--</span>
 </header>
@@ -76,7 +100,8 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-si
   <canvas id="waterCanvas"></canvas>
 </div>
 <footer>
-  <span>Écoute l'audio de réception (câble virtuel/interface radio, PAS le micro du PC) — largeur limitée au filtre audio du poste, pas un scope RF large bande.</span>
+  <span id="paFooterAudio">Écoute l'audio de réception (câble virtuel/interface radio, PAS le micro du PC) — largeur limitée au filtre audio du poste, pas un scope RF large bande.</span>
+  <span id="paFooterCiv" style="display:none">Scope CI-V natif — lit directement le poste sur le port série déjà utilisé pour le CAT, aucun matériel supplémentaire. Le flux ne démarre que si l'écran SCOPE de la radio est actif (aucune commande CI-V "start" dédiée ne l'y force — limite du protocole, pas de ce logiciel).</span>
 </footer>
 <script src="logx_i18n.js"></script>
 <script src="logx_cwdecoder.js"></script>
@@ -146,9 +171,55 @@ if(localStorage.getItem('rc_theme') === null){
   }
   pollRig(); setInterval(pollRig, 4000);
 
+  // ── Source du spectre : "audio" (AnalyserNode local) ou "civ" (scope CI-V
+  // natif de la radio, pollé côté serveur) ─────────────────────────────────
+  // Les deux chemins alimentent le MÊME `dataArray` (0-255) et les mêmes
+  // fonctions de dessin ci-dessous — dessinerSpectre()/dessinerWaterfall()
+  // ne savent pas d'où viennent les octets, seulement nBinsActuel().
+  let sourceMode = 'audio';
+  let actif = false;   // remplace l'ancien test "if(ctx)" : ctx reste null en mode CI-V
+
+  // N'apparaît que si la radio configurée le supporte réellement (CAT natif
+  // + modèle Icom listé dans MODELES_SCOPE_CIV côté serveur) — sinon
+  // l'option resterait un bouton mort, pire qu'une option absente.
+  async function chargerSourceCiv(){
+    try{
+      const r = await fetch('/rig/scope_available');
+      if(!r.ok) return;
+      const d = await r.json();
+      if(d && d.available){
+        const opt = document.createElement('option');
+        opt.value = 'civ';
+        opt.textContent = T('CI-V natif (Icom, large bande)');
+        document.getElementById('paSource').appendChild(opt);
+      }
+    }catch(e){}
+  }
+  chargerSourceCiv();
+
+  document.getElementById('paSource').onchange = function(){
+    // Changer de source pendant que l'affichage tourne : on arrête proprement
+    // l'ancienne (ferme le flux micro OU le polling scope_line) plutôt que de
+    // laisser les deux tourner en parallèle sur les mêmes canvas.
+    if(actif){
+      arreter();
+      actif = false;
+      document.getElementById('paStartBtn').textContent = '▶ Démarrer';
+      document.getElementById('paStartBtn').classList.remove('on');
+    }
+    sourceMode = this.value;
+    document.getElementById('paAudioControls').style.display = sourceMode === 'civ' ? 'none' : 'contents';
+    document.getElementById('paCivSpan').style.display = sourceMode === 'civ' ? '' : 'none';
+    document.getElementById('paFooterAudio').style.display = sourceMode === 'civ' ? 'none' : '';
+    document.getElementById('paFooterCiv').style.display = sourceMode === 'civ' ? '' : 'none';
+  };
+
   // ── Pipeline Web Audio : AnalyserNode, pas de backend ────────────────────
   let ctx = null, source = null, analyser = null, stream = null, raf = null;
   let dataArray = null;
+
+  // ── Pipeline CI-V natif : polling serveur, pas d'AnalyserNode ────────────
+  let civTimer = null, civLine = null;
 
   function tailleCanvas(cv){
     // Un <canvas> a DEUX tailles indépendantes (CSS et son propre repère de
@@ -182,20 +253,45 @@ if(localStorage.getItem('rc_theme') === null){
     return Math.max(1, Math.min(total, Math.round((maxHz / nyquist) * total)));
   }
 
-  function dessinerAxe(maxHz){
-    const cv = document.getElementById('axisCanvas');
-    const {w, h} = tailleCanvas(cv);
-    const g = cv.getContext('2d');
-    g.clearRect(0, 0, w, h);
-    g.font = (10 * (window.devicePixelRatio||1)) + 'px ' + getComputedStyle(document.body).fontFamily;
-    g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#8792B5';
-    g.textAlign = 'center';
+  // Nombre de bins RÉELLEMENT à dessiner, quelle que soit la source : en
+  // audio c'est un sous-ensemble de l'AnalyserNode (limité par paSpan) ; en
+  // CI-V, `dataArray` contient déjà exactement les 475 pixels de la ligne
+  // reçue, donc TOUT le tableau est à afficher, pas de fenêtrage.
+  function nBinsActuel(){
+    if(sourceMode === 'civ') return dataArray ? dataArray.length : 0;
+    const maxHz = parseInt(document.getElementById('paSpan').value, 10) || 3000;
+    return binsAffiches(maxHz);
+  }
+
+  // Graduations de l'axe fréquence, en labels déjà formatés — source AUDIO
+  // (échelle brute ou RF si SSB+case cochée) ou CI-V (vraie plage RF publiée
+  // par la radio elle-même, aucune convention à deviner contrairement au cas
+  // audio USB/LSB).
+  function axeGraduations(nGrad){
+    const labels = [];
+    if(sourceMode === 'civ'){
+      if(!civLine || !civLine.ok){
+        for(let i=0;i<=nGrad;i++) labels.push('');
+        return labels;
+      }
+      let loHz, hiHz;
+      if(civLine.mode === 'center'){
+        loHz = civLine.center_freq_hz - civLine.span_hz/2;
+        hiHz = civLine.center_freq_hz + civLine.span_hz/2;
+      } else {
+        loHz = civLine.edge_lo_hz; hiHz = civLine.edge_hi_hz;
+      }
+      for(let i=0;i<=nGrad;i++){
+        const hz = loHz + (hiHz - loHz) * i / nGrad;
+        labels.push((hz/1e6).toFixed(4));
+      }
+      return labels;
+    }
+    const maxHz = parseInt(document.getElementById('paSpan').value, 10) || 3000;
     const rfMode = document.getElementById('paRfScale').checked && rigFreqKhz > 0
                    && (rigMode === 'USB' || rigMode === 'LSB');
-    const nGrad = 6;
     for(let i = 0; i <= nGrad; i++){
       const hz = maxHz * i / nGrad;
-      const x = (i / nGrad) * w;
       let label;
       if(rfMode){
         // USB : le son grave correspond au bas de la porteuse -> RF = dial + audio.
@@ -208,16 +304,34 @@ if(localStorage.getItem('rc_theme') === null){
       } else {
         label = hz >= 1000 ? (hz/1000).toFixed(1) + 'k' : Math.round(hz);
       }
-      g.fillText(String(label), Math.max(14, Math.min(w-14, x)), h*0.75);
+      labels.push(label);
+    }
+    return labels;
+  }
+
+  function dessinerAxe(){
+    const cv = document.getElementById('axisCanvas');
+    const {w, h} = tailleCanvas(cv);
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, w, h);
+    g.font = (10 * (window.devicePixelRatio||1)) + 'px ' + getComputedStyle(document.body).fontFamily;
+    g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#8792B5';
+    g.textAlign = 'center';
+    const nGrad = 6;
+    const labels = axeGraduations(nGrad);
+    for(let i = 0; i <= nGrad; i++){
+      const x = (i / nGrad) * w;
+      g.fillText(String(labels[i]), Math.max(14, Math.min(w-14, x)), h*0.75);
     }
   }
 
-  function dessinerSpectre(maxHz){
+  function dessinerSpectre(){
     const cv = document.getElementById('specCanvas');
     const {w, h} = tailleCanvas(cv);
     const g = cv.getContext('2d');
     g.clearRect(0, 0, w, h);
-    const nBins = binsAffiches(maxHz);
+    const nBins = nBinsActuel();
+    if(nBins <= 0 || !dataArray) return;   // ex. CI-V hors plage : rien à tracer cette ligne
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#E8964A';
     g.beginPath();
     g.moveTo(0, h);
@@ -240,12 +354,13 @@ if(localStorage.getItem('rc_theme') === null){
   // tout l'historique à chaque frame (même principe que drawWaterfallRow()
   // dans logx_logbook.js, appliqué ici à un spectre FFT réel au lieu d'une
   // liste de spots).
-  function dessinerWaterfall(maxHz){
+  function dessinerWaterfall(){
+    const nBins = nBinsActuel();
+    if(nBins <= 0 || !dataArray) return;   // rien de nouveau cette ligne : on laisse l'historique tel quel
     const cv = document.getElementById('waterCanvas');
     const {w, h} = tailleCanvas(cv);
     const g = cv.getContext('2d');
     g.drawImage(cv, 0, 0, w, h, 0, 1, w, h - 1);
-    const nBins = binsAffiches(maxHz);
     const ligne = g.createImageData(w, 1);
     for(let x = 0; x < w; x++){
       const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
@@ -259,14 +374,13 @@ if(localStorage.getItem('rc_theme') === null){
   function boucle(){
     if(!analyser) return;
     analyser.getByteFrequencyData(dataArray);
-    const maxHz = parseInt(document.getElementById('paSpan').value, 10) || 3000;
-    dessinerSpectre(maxHz);
-    dessinerWaterfall(maxHz);
-    dessinerAxe(maxHz);
+    dessinerSpectre();
+    dessinerWaterfall();
+    dessinerAxe();
     raf = requestAnimationFrame(boucle);
   }
 
-  async function demarrer(){
+  async function demarrerAudio(){
     const deviceId = document.getElementById('paDevice').value;
     const constraints = {audio: deviceId
       ? {deviceId:{exact:deviceId}, echoCancellation:false, noiseSuppression:false, autoGainControl:false}
@@ -287,7 +401,7 @@ if(localStorage.getItem('rc_theme') === null){
     raf = requestAnimationFrame(boucle);
   }
 
-  function arreter(){
+  function arreterAudio(){
     if(raf) cancelAnimationFrame(raf);
     raf = null;
     try{ source && source.disconnect(); }catch(e){}
@@ -300,19 +414,91 @@ if(localStorage.getItem('rc_theme') === null){
     cv.getContext('2d').clearRect(0, 0, w, h);
   }
 
+  // ── Démarrage CI-V : configure le scope (27 14/27 15) puis poll
+  // /rig/scope_line toutes les ~500 ms — pas de RAF ici, le rythme est celui
+  // du polling réseau, pas celui de l'écran.
+  async function demarrerCiv(){
+    const spanHz = parseInt(document.getElementById('paCivSpan').value, 10) || 25000;
+    let cfgData;
+    try{
+      const cfgRes = await fetch('/rig/scope_configure', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: 'center', span_hz: spanHz})
+      });
+      cfgData = await cfgRes.json();
+    }catch(e){
+      throw new Error(T('Radio injoignable (configuration scope CI-V)'));
+    }
+    if(!cfgData || !cfgData.ok){
+      throw new Error((cfgData && cfgData.error) || T('Configuration du scope CI-V refusée'));
+    }
+    await pollCivLine();   // premier tirage immédiat, pas d'attente du premier intervalle
+    civTimer = setInterval(pollCivLine, 500);
+  }
+
+  async function pollCivLine(){
+    try{
+      const r = await fetch('/rig/scope_line');
+      if(!r.ok) return;
+      const d = await r.json();
+      if(!d || !d.ok){
+        civLine = null; dataArray = null;
+        return;
+      }
+      civLine = d;
+      if(Array.isArray(d.data) && d.data.length){
+        // Renormalise l'échelle Icom 0-160 vers 0-255 — l'échelle attendue
+        // par dessinerSpectre()/dessinerWaterfall(), calée sur celle que
+        // rend nativement AnalyserNode.getByteFrequencyData() côté audio.
+        // UNE seule échelle de rendu pour les deux sources, pas de variante.
+        const arr = new Uint8Array(d.data.length);
+        for(let i = 0; i < d.data.length; i++) arr[i] = Math.min(255, Math.round(d.data[i] * 255 / 160));
+        dataArray = arr;
+      } else {
+        dataArray = null;   // hors plage (out_of_range) ou ligne vide reçue
+      }
+      dessinerSpectre();
+      dessinerWaterfall();
+      dessinerAxe();
+    }catch(e){}
+  }
+
+  function arreterCiv(){
+    if(civTimer) clearInterval(civTimer);
+    civTimer = null;
+    civLine = null;
+    dataArray = null;
+    const cv = document.getElementById('specCanvas');
+    const {w, h} = tailleCanvas(cv);
+    cv.getContext('2d').clearRect(0, 0, w, h);
+  }
+
+  function demarrer(){
+    return sourceMode === 'civ' ? demarrerCiv() : demarrerAudio();
+  }
+  function arreter(){
+    // Toujours null-safe des deux côtés (dataArray/timers/ctx déjà nuls) —
+    // appelée aussi au changement de source et à beforeunload, où l'un des
+    // deux pipelines n'a jamais tourné.
+    arreterCiv();
+    arreterAudio();
+  }
+
   document.getElementById('paStartBtn').onclick = function(){
     const btn = this;
-    if(ctx){
+    if(actif){
       arreter();
+      actif = false;
       btn.textContent = '▶ Démarrer';
       btn.classList.remove('on');
       return;
     }
     demarrer().then(() => {
+      actif = true;
       btn.textContent = '■ Arrêter';
       btn.classList.add('on');
     }).catch(e => {
-      alert(T('Micro/entrée audio indisponible : ') + e.message);
+      alert(T('Source indisponible : ') + e.message);
     });
   };
 
