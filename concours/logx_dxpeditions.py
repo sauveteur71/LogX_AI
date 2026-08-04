@@ -196,9 +196,18 @@ def fetch_dxpeditions_chasse(worked_entities=None, spots_by_band=None, today=Non
     cluster, 'freq_khz'/'spot_band'. Les expéditions déjà TERMINÉES sont
     retirées (CHASSE montre ce qu'on peut encore travailler, pas
     l'historique — voir fetch_dxpeditions()/l'onglet CALENDRIER pour la
-    liste complète non filtrée). Triées : actives avec fréquence connue
-    d'abord, puis actives sans fréquence, puis à venir par date de début
-    croissante, puis le reste."""
+    liste complète non filtrée).
+
+    Tri (retour F4GLD 04/08/2026 : « si elle apparaît sur le cluster et que
+    le contact n'a pas été fait, la proposer en priorité ») :
+      0. active + repérée sur le cluster (freq_khz connu) + PAS encore
+         travaillée (worked is False, DXCC jamais confirmé dans ce log) —
+         c'est CE qu'on doit appeler maintenant, ça prime sur tout le reste ;
+      1. active + repérée sur le cluster, mais déjà travaillée (ou pays non
+         identifiable, worked is None) — sur l'air, mais rien à y gagner ;
+      2. active selon les dates NG3K, mais pas (encore) vue sur le cluster ;
+      3. à venir, triées par date de début croissante ;
+      4. le reste ('unknown', dates illisibles)."""
     expeditions = fetch_dxpeditions(worked_entities)
     aujourdhui = today or _aujourdhui_utc()
     out = []
@@ -227,12 +236,19 @@ def fetch_dxpeditions_chasse(worked_entities=None, spots_by_band=None, today=Non
         if e['status'] != 'ended':
             out.append(e)
 
-    ordre = {'active': 0, 'upcoming': 1, 'unknown': 2}
-
     def _cle_tri(e):
-        rang = ordre.get(e['status'], 3)
-        a_freq = 0 if e.get('freq_khz') else 1
-        return (rang, a_freq, e.get('starts') or '9999-99-99')
+        actif_spotte = e['status'] == 'active' and e.get('freq_khz')
+        if actif_spotte and e.get('worked') is False:
+            rang = 0    # sur l'air MAINTENANT + jamais travaillé : à appeler en priorité
+        elif actif_spotte:
+            rang = 1    # sur l'air, mais déjà travaillé (ou pays non identifiable)
+        elif e['status'] == 'active':
+            rang = 2    # active selon les dates NG3K, pas encore vue sur le cluster
+        elif e['status'] == 'upcoming':
+            rang = 3
+        else:
+            rang = 4
+        return (rang, e.get('starts') or '9999-99-99')
 
     out.sort(key=_cle_tri)
     return out
