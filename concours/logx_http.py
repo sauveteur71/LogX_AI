@@ -3535,7 +3535,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/config':
             cfg_snap = self._cfg_snapshot()
             safe = {k: cfg_snap.get(k, '') for k in (
-                'callsign', 'callsign_contest', 'locator', 'contest',
+                'callsign', 'callsign_contest', 'locator', 'contest', 'usage_mode',
                 'expedition_mode', 'clublog_live', 'cluster_spot_enabled',
                 'activation_program', 'my_activation_ref',
                 'city', 'altitude', 'ui_theme')}  # ni l'un ni l'autre n'est un secret
