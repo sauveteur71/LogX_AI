@@ -203,7 +203,8 @@ def test_voicekeyer_settings_personnalises():
     s = vk.voicekeyer_settings({'voicekeyer_enabled': True, 'voicekeyer_device': '3',
                                  'voicekeyer_voice_id': 'xyz', 'voicekeyer_rate': '150'})
     assert s == {'enabled': True, 'device': '3', 'voice_id': 'xyz', 'rate': 150,
-                 'ai': {'enabled': False, 'provider': 'elevenlabs', 'api_key': '', 'voice_id': ''}}
+                 'ai': {'enabled': False, 'provider': 'elevenlabs', 'api_key': '', 'voice_id': ''},
+                 'piper': {'enabled': False, 'exe': 'piper', 'model': ''}}
 
 
 def test_voicekeyer_settings_rate_invalide_retombe_sur_defaut():
@@ -527,7 +528,7 @@ def test_synthesize_to_wav_repli_local_silencieux_si_lia_echoue(monkeypatch, cap
     path = vk.synthesize_to_wav('CQ test', ai={'enabled': True, 'provider': 'elevenlabs',
                                                'api_key': 'sk-abc', 'voice_id': 'v1'})
     assert path and os.path.exists(path)
-    assert 'repli sur la voix locale' in capsys.readouterr().out
+    assert 'Voix IA indisponible' in capsys.readouterr().out
 
 
 def test_set_ptt_dispatch_rien_active(monkeypatch):
@@ -537,3 +538,104 @@ def test_set_ptt_dispatch_rien_active(monkeypatch):
     monkeypatch.setattr(rig, 'rig_settings', lambda cfg: {'enabled': False, 'host': '', 'port': 0})
     r = vk._set_ptt({}, True)
     assert not r['ok'] and 'désactivé' in r['error'].lower()
+
+
+# ─── voicekeyer_settings() : sous-dict 'piper' ────────────────────────────────
+
+def test_voicekeyer_settings_piper_par_defaut_desactive():
+    s = vk.voicekeyer_settings({'voicekeyer_enabled': True})
+    assert s['piper'] == {'enabled': False, 'exe': 'piper', 'model': ''}
+
+
+def test_voicekeyer_settings_piper_configure():
+    s = vk.voicekeyer_settings({
+        'voicekeyer_piper_enabled': True, 'voicekeyer_piper_exe': 'C:\\piper\\piper.exe',
+        'voicekeyer_piper_model': 'C:\\piper\\voices\\fr_FR-siwis-medium.onnx'})
+    assert s['piper'] == {'enabled': True, 'exe': 'C:\\piper\\piper.exe',
+                          'model': 'C:\\piper\\voices\\fr_FR-siwis-medium.onnx'}
+
+
+# ─── synthesize_to_wav_piper() : sous-processus, jamais d'exception ───────────
+# Jamais de vrai Piper installé dans ces tests : subprocess.run est monkeypatché.
+
+def test_synthesize_to_wav_piper_sans_modele_rend_none_sans_lancer_de_processus(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError('subprocess.run ne doit pas être appelé sans modèle configuré')
+    monkeypatch.setattr(vk.subprocess, 'run', boom)
+    assert vk.synthesize_to_wav_piper('CQ test', 'piper', '') is None
+
+
+def test_synthesize_to_wav_piper_succes(monkeypatch, tmp_path):
+    captured = {}
+    def fake_run(cmd, input=None, capture_output=None, timeout=None):
+        captured['cmd'] = cmd
+        captured['input'] = input
+        # Piper écrit le WAV à l'emplacement --output_file passé par la fonction.
+        out_path = cmd[cmd.index('--output_file') + 1]
+        with open(out_path, 'wb') as f:
+            f.write(b'RIFF....WAVEfmt ' + b'\x00' * 100)
+        class R: returncode = 0
+        return R()
+    monkeypatch.setattr(vk.subprocess, 'run', fake_run)
+
+    path = vk.synthesize_to_wav_piper('CQ Contest, F4GLD', 'piper', str(tmp_path / 'fr.onnx'))
+    assert path and os.path.exists(path)
+    assert captured['input'] == 'CQ Contest, F4GLD'.encode('utf-8')
+    assert '--model' in captured['cmd'] and str(tmp_path / 'fr.onnx') in captured['cmd']
+
+
+def test_synthesize_to_wav_piper_echec_retour_non_zero_rend_none(monkeypatch, tmp_path):
+    def fake_run(cmd, input=None, capture_output=None, timeout=None):
+        class R: returncode = 1
+        return R()
+    monkeypatch.setattr(vk.subprocess, 'run', fake_run)
+    assert vk.synthesize_to_wav_piper('CQ test', 'piper', str(tmp_path / 'fr.onnx')) is None
+
+
+def test_synthesize_to_wav_piper_executable_introuvable_rend_none(monkeypatch, tmp_path):
+    def fake_run(cmd, input=None, capture_output=None, timeout=None):
+        raise FileNotFoundError('piper introuvable')
+    monkeypatch.setattr(vk.subprocess, 'run', fake_run)
+    assert vk.synthesize_to_wav_piper('CQ test', 'piper', str(tmp_path / 'fr.onnx')) is None
+
+
+def test_synthesize_to_wav_piper_timeout_rend_none(monkeypatch, tmp_path):
+    def fake_run(cmd, input=None, capture_output=None, timeout=None):
+        raise vk.subprocess.TimeoutExpired(cmd, timeout)
+    monkeypatch.setattr(vk.subprocess, 'run', fake_run)
+    assert vk.synthesize_to_wav_piper('CQ test', 'piper', str(tmp_path / 'fr.onnx')) is None
+
+
+# ─── synthesize_to_wav() : Piper entre l'IA cloud et la voix locale ──────────
+
+def test_synthesize_to_wav_piper_desactive_ne_lappelle_pas(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError('synthesize_to_wav_piper ne doit pas être appelé si piper.enabled est faux')
+    monkeypatch.setattr(vk, 'synthesize_to_wav_piper', boom)
+    monkeypatch.setattr(vk, '_voice_id_for_lang', lambda engine, lang: None)
+    _install_fake_pyttsx3(monkeypatch)
+    path = vk.synthesize_to_wav('CQ test', piper={'enabled': False})
+    assert path and os.path.exists(path)
+
+
+def test_synthesize_to_wav_essaie_piper_apres_lia(monkeypatch, tmp_path):
+    def boom_ai(*a, **k):
+        raise AssertionError('ne doit pas être appelé : ai.enabled est faux ici')
+    monkeypatch.setattr(vk, 'synthesize_to_wav_ai', boom_ai)
+    fake_piper_wav = tmp_path / 'piper.wav'
+    fake_piper_wav.write_bytes(b'RIFF....WAVEfmt ' + b'\x00' * 100)
+    monkeypatch.setattr(vk, 'synthesize_to_wav_piper', lambda *a, **k: str(fake_piper_wav))
+    path = vk.synthesize_to_wav('CQ test', piper={'enabled': True, 'exe': 'piper', 'model': 'x.onnx'})
+    assert path == str(fake_piper_wav)
+
+
+def test_synthesize_to_wav_repli_local_silencieux_si_piper_echoue(monkeypatch, capsys):
+    """Même garantie que pour la voix IA cloud (voir
+    test_synthesize_to_wav_repli_local_silencieux_si_lia_echoue) : Piper mal
+    installé/configuré ne doit jamais empêcher le keyer vocal de fonctionner."""
+    monkeypatch.setattr(vk, 'synthesize_to_wav_piper', lambda *a, **k: None)
+    monkeypatch.setattr(vk, '_voice_id_for_lang', lambda engine, lang: None)
+    _install_fake_pyttsx3(monkeypatch)
+    path = vk.synthesize_to_wav('CQ test', piper={'enabled': True, 'exe': 'piper', 'model': 'x.onnx'})
+    assert path and os.path.exists(path)
+    assert 'Piper indisponible' in capsys.readouterr().out

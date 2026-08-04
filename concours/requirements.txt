@@ -12,6 +12,14 @@ pyserial>=3.5,<4
 # Keyer vocal TTS hors-ligne (logx_voicekeyer.py) — optionnel, Windows/SAPI5.
 pyttsx3>=2.90
 
+# Keyer vocal, voix Piper (logx_voicekeyer.py) — moteur neuronal local,
+# nettement plus naturel que SAPI5, SANS abonnement ni réseau à l'usage.
+# PAS une dépendance de ce projet : invoqué en sous-processus (comme
+# sounddevice s'appuie sur PortAudio), donc rien à ajouter ici. L'opérateur
+# installe `pip install piper-tts` (fournit la commande `piper`) et
+# télécharge un modèle de voix .onnx sur https://huggingface.co/rhasspy/piper-voices
+# une fois, puis renseigne le chemin du modèle en CONFIG (KEYER VOCAL).
+
 # Lecture audio du keyer vocal (logx_voicekeyer.py) — sans lui, la synthèse
 # fonctionne mais la liste des périphériques et la diffusion échouent.
 sounddevice>=0.4
