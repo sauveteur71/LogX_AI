@@ -250,29 +250,39 @@ def _ctx_avec_ecouteurs():
 
 def test_le_plafond_suit_la_mise_en_page_au_lieu_de_rester_fige():
     """LE défaut. Un plafond calculé une fois pour toutes devient faux dès que
-    la page finit de se construire ou que la fenêtre change de taille."""
+    la page finit de se construire ou que la fenêtre change de taille.
+
+    cwPanel a quitté le flottant pour .keyer-dock (bandeau plein largeur sous
+    .main, 04/08/2026 — voir test_maj_reserves_bas_ne_reserve_plus_pour_cwPanel
+    ci-dessous) : seul CHAT (bas-droite, sur .log-table-wrap) reste concerné
+    par _majReservesBas() désormais."""
     ctx = _make_ctx()
     ctx.eval("""
-    document.querySelector('.saisie-secondary')._mockHeight = 200;
-    document.getElementById('cwPanel').offsetHeight = 0;   // panneau fermé
+    document.querySelector('.log-table-wrap')._mockHeight = 200;
+    document.getElementById('chatPanel').offsetHeight = 0;   // panneau fermé
     _majReservesBas();
     """)
-    assert ctx.eval("document.querySelector('.saisie-secondary').style.maxHeight") == '200px'
+    assert ctx.eval("document.querySelector('.log-table-wrap').style.maxHeight") == '200px'
     # La fenêtre grandit : la zone peut occuper davantage. Sans recalcul, elle
     # resterait bridée à 200 px et laisserait une bande vide en dessous.
     ctx.eval("""
-    document.querySelector('.saisie-secondary')._mockHeight = 500;
+    document.querySelector('.log-table-wrap')._mockHeight = 500;
     _majReservesBas();
     """)
-    assert ctx.eval("document.querySelector('.saisie-secondary').style.maxHeight") == '500px', (
+    assert ctx.eval("document.querySelector('.log-table-wrap').style.maxHeight") == '500px', (
         'le plafond est reste fige sur la mesure precedente : c est exactement '
-        'ce qui produisait la bande vide sous le keyer vocal')
+        'ce qui produisait la bande vide sous le panneau de chat')
 
 
-def test_maj_reserves_bas_couvre_les_DEUX_zones():
-    """Les deux panneaux flottants (CHAT en bas-droite sur le tableau du log,
-    CW en bas-gauche sur la zone secondaire) doivent être traités ensemble :
-    n'en recalculer qu'un laisserait l'autre figé."""
+def test_maj_reserves_bas_ne_reserve_plus_pour_cwPanel():
+    """Garde-fou de régression, 04/08/2026 : cwPanel (et voicePanel) ont quitté
+    le flottant/la colonne étroite pour .keyer-dock, un bandeau plein largeur
+    sous .main qui pousse .main dans le flux normal au lieu de flotter
+    par-dessus — _reserveBottomSpace() (compensation d'un panneau flottant qui
+    recouvre du contenu scrollable) n'a donc plus de raison de s'appliquer à
+    cwPanel. S'il redevenait flottant un jour sans que ce garde-fou soit mis à
+    jour, .saisie-secondary redéborderait silencieusement (bug d'origine de ce
+    fichier) sans qu'aucun test ne le signale."""
     ctx = _make_ctx()
     ctx.eval("""
     document.querySelector('.saisie-secondary')._mockHeight = 300;
@@ -281,7 +291,8 @@ def test_maj_reserves_bas_couvre_les_DEUX_zones():
     document.getElementById('chatPanel').offsetHeight = 60;
     _majReservesBas();
     """)
-    assert ctx.eval("document.querySelector('.saisie-secondary').style.maxHeight") == '250px'
+    # jamais touché : plus de reservation pour cwPanel, donc pas de style.maxHeight posé.
+    assert ctx.eval("document.querySelector('.saisie-secondary').style.maxHeight") in (None, '', 'none')
     assert ctx.eval("document.querySelector('.log-table-wrap').style.maxHeight") == '340px'
 
 
