@@ -1278,16 +1278,16 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           </div>
         </div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin:14px 0 10px;line-height:1.7">
-          <b style="color:var(--accent2)">Voix IA (optionnel)</b> — rendu nettement plus naturel qu'une
-          voix Windows, mais nécessite internet et une clé API. Essayée en priorité si activée ;
-          en cas d'échec (réseau, clé, fournisseur), LogX AI retombe automatiquement sur la voix
-          locale hors-ligne ci-dessus, sans jamais bloquer le keyer vocal.
+          <b style="color:var(--accent2)">Voix IA cloud (optionnel)</b> — rendu très naturel, mais
+          nécessite internet ET un abonnement chez le fournisseur. Essayée en priorité si activée ;
+          en cas d'échec (réseau, clé, fournisseur), LogX AI retombe automatiquement sur Piper puis
+          la voix locale ci-dessous, sans jamais bloquer le keyer vocal.
         </div>
         <div class="form-grid">
           <div class="form-group">
-            <label>VOIX IA</label>
+            <label>VOIX IA CLOUD</label>
             <select id="voicekeyer_ai_enabled">
-              <option value="">Désactivée (voix locale uniquement)</option>
+              <option value="">Désactivée</option>
               <option value="1">Activée (ElevenLabs)</option>
             </select>
           </div>
@@ -1299,6 +1299,32 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
             <label>VOICE ID</label>
             <input type="text" id="voicekeyer_ai_voice_id" placeholder="ex. 21m00Tcm4TlvDq8ikWAM" autocomplete="off">
             <div class="input-note">Depuis ton tableau de bord ElevenLabs — chaque voix a un identifiant propre.</div>
+          </div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin:14px 0 10px;line-height:1.7">
+          <b style="color:var(--accent2)">Piper — voix neuronale locale (optionnel, recommandé)</b> —
+          rendu nettement plus naturel que la voix Windows ci-dessous, mais SANS abonnement ni
+          réseau à l'usage (100% hors-ligne, comme la voix locale). Installation une seule fois :
+          <code>pip install piper-tts</code> puis télécharger un modèle de voix (.onnx) sur
+          <a href="https://huggingface.co/rhasspy/piper-voices" target="_blank" rel="noopener">huggingface.co/rhasspy/piper-voices</a>.
+          Essayé après la voix IA cloud (si désactivée/en échec), avant la voix locale.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PIPER</label>
+            <select id="voicekeyer_piper_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>EXÉCUTABLE</label>
+            <input type="text" id="voicekeyer_piper_exe" placeholder="piper" autocomplete="off">
+            <div class="input-note">Nom/chemin de la commande <code>piper</code> — laisse "piper" si elle est sur le PATH.</div>
+          </div>
+          <div class="form-group">
+            <label>MODÈLE DE VOIX (.onnx)</label>
+            <input type="text" id="voicekeyer_piper_model" placeholder="C:\piper\voices\fr_FR-siwis-medium.onnx" autocomplete="off">
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px;flex-wrap:wrap">
@@ -2518,6 +2544,9 @@ const CONFIG_HELP = {
   voicekeyer_ai_enabled: "Essaie une voix IA cloud (plus naturelle qu'une voix Windows) AVANT la voix locale — nécessite internet et une clé API. Si le fournisseur est injoignable ou mal configuré, LogX AI retombe automatiquement et silencieusement sur la voix locale hors-ligne : le keyer vocal continue de fonctionner sans réseau.",
   voicekeyer_ai_api_key: "Clé API de ton compte chez le fournisseur choisi (ex. ElevenLabs). Stockée uniquement côté serveur, jamais dans le navigateur.",
   voicekeyer_ai_voice_id: "Identifiant de la voix chez le fournisseur (visible sur ton tableau de bord ElevenLabs — Voice ID).",
+  voicekeyer_piper_enabled: "Essaie Piper (moteur neuronal local, hors-ligne, sans abonnement) avant la voix Windows — rendu nettement plus naturel. Nécessite pip install piper-tts + un modèle de voix téléchargé une fois. Repli automatique et silencieux sur la voix Windows si Piper n'est pas installé/configuré.",
+  voicekeyer_piper_exe: "Nom ou chemin complet de la commande piper — laisse 'piper' si elle est accessible depuis le PATH système.",
+  voicekeyer_piper_model: "Chemin du fichier de voix .onnx téléchargé (ex. depuis huggingface.co/rhasspy/piper-voices) — un modèle par langue/voix.",
 
   wsjtx_enabled: "Active la réception automatique des QSO validés dans WSJT-X (FT8/FT4) : ils apparaissent dans ton log SANS ressaisie.",
   wsjtx_port: "Le port UDP sur lequel WSJT-X diffuse ses informations — doit correspondre au réglage « UDP Server » dans WSJT-X (Réglages → Rapports), généralement 2237.",
@@ -6499,6 +6528,9 @@ function saveConfig(silent = false, feedbackBtn = null) {
     voicekeyer_ai_provider: 'elevenlabs',
     voicekeyer_ai_api_key: document.getElementById('voicekeyer_ai_api_key')?.value.trim() || '',
     voicekeyer_ai_voice_id: document.getElementById('voicekeyer_ai_voice_id')?.value.trim() || '',
+    voicekeyer_piper_enabled: !!document.getElementById('voicekeyer_piper_enabled')?.value,
+    voicekeyer_piper_exe: document.getElementById('voicekeyer_piper_exe')?.value.trim() || '',
+    voicekeyer_piper_model: document.getElementById('voicekeyer_piper_model')?.value.trim() || '',
     cat2_enabled: document.getElementById('cat2_enabled')?.value || '',
     cat2_mode: 'native',
     cat2_brand: document.getElementById('cat2_brand')?.value || '',
@@ -7184,6 +7216,7 @@ function applyFullConfigToForm(c) {
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate','cat_civ_addr',
      'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
      'voicekeyer_ai_voice_id','voicekeyer_ai_api_key',
+     'voicekeyer_piper_exe','voicekeyer_piper_model',
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
      'cat2_enabled','cat2_brand','cat2_port','cat2_baudrate',
      'so2r_enabled','so2r_port','so2r_stereo',
@@ -7240,6 +7273,8 @@ function applyFullConfigToForm(c) {
     if(c.voicekeyer_enabled) document.getElementById('voicekeyer_enabled').value = '1';
     if(c.voicekeyer_ai_enabled && document.getElementById('voicekeyer_ai_enabled'))
       document.getElementById('voicekeyer_ai_enabled').value = '1';
+    if(c.voicekeyer_piper_enabled && document.getElementById('voicekeyer_piper_enabled'))
+      document.getElementById('voicekeyer_piper_enabled').value = '1';
     // Périphérique/voix TTS : <select> peuplés une fois au chargement de page
     // par loadVoiceKeyerDevices() (liste dépendante du matériel serveur) — on
     // ne fait que ré-appliquer la valeur sauvegardée sur les <option> déjà là.

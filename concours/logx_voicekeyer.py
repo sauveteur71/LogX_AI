@@ -12,13 +12,22 @@ du PC) ne fait ni insertion dynamique de l'indicatif ni émission radio. Ici :
      langue dérivée de l'indicatif du correspondant (« cinquante-neuf » pour une
      station F, « fifty-nine » sinon), et {TNX} clôt par « 73 » suivi d'un
      remerciement dans la langue du correspondant (merci / arigato / thanks…).
-  2. pyttsx3 (SAPI5 Windows, 100% hors-ligne, aucune clé/API réseau) le
-     synthétise en WAV temporaire — OU, si une voix IA cloud est activée en
-     CONFIG (ElevenLabs, plus naturelle), on l'essaie D'ABORD avec un cache
-     par texte exact, et on ne retombe sur pyttsx3 QUE si le fournisseur est
-     injoignable/mal configuré (voir synthesize_to_wav_ai). Un concours de
-     24-48h ne doit jamais dépendre d'internet pour dire un indicatif — la
-     voix IA est un essai, jamais un point de panne.
+  2. Synthèse en WAV temporaire, avec 3 moteurs possibles par ordre de
+     préférence (chacun optionnel, retombe silencieusement sur le suivant) :
+       a. Voix IA cloud (ElevenLabs) si activée en CONFIG — la plus naturelle,
+          mais nécessite un abonnement ET une connexion réseau (voir
+          synthesize_to_wav_ai) ;
+       b. Piper (rhasspy/piper) si activé — moteur NEURONAL 100% hors-ligne,
+          nettement plus naturel que SAPI5 et SANS abonnement (retour F4GLD
+          04/08/2026 : ElevenLabs jugé impayable, Piper choisi comme
+          alternative) — installé et invoqué en sous-processus, un modèle de
+          voix .onnx téléchargé une fois (voir synthesize_to_wav_piper) ;
+       c. pyttsx3 (SAPI5 Windows) en dernier recours — toujours disponible
+          sans rien installer, garantit que le keyer vocal fonctionne même si
+          aucun des deux moteurs ci-dessus n'est configuré/joignable.
+     Un concours de 24-48h ne doit jamais dépendre d'un service externe pour
+     dire un indicatif — chaque moteur au-dessus de SAPI5 est un essai,
+     jamais un point de panne.
   3. Le PTT est activé via CAT (natif/TCI/rigctld — même mécanisme déjà
      utilisé pour le CW), le WAV est joué vers le PÉRIPHÉRIQUE AUDIO CHOISI
      en CONFIG (câble virtuel/interface dédiée vers l'entrée micro de la
@@ -31,6 +40,7 @@ Aucune fonction ici ne lève d'exception vers l'appelant HTTP : tout retourne
 import hashlib
 import os
 import shutil
+import subprocess
 import tempfile
 import threading
 import urllib.parse
@@ -313,6 +323,16 @@ def voicekeyer_settings(cfg):
             'api_key': cfg.get('voicekeyer_ai_api_key', ''),
             'voice_id': cfg.get('voicekeyer_ai_voice_id', ''),
         },
+        # Piper (rhasspy/piper) : moteur neuronal LOCAL, hors-ligne, sans
+        # abonnement — voir synthesize_to_wav_piper(). 'exe' vide retombe sur
+        # 'piper' (nom de commande, suppose Piper sur le PATH) ; 'model' est
+        # le chemin d'un fichier de voix .onnx téléchargé une fois par
+        # l'opérateur (rhasspy/piper-voices sur Hugging Face).
+        'piper': {
+            'enabled': bool(cfg.get('voicekeyer_piper_enabled')),
+            'exe': cfg.get('voicekeyer_piper_exe') or 'piper',
+            'model': cfg.get('voicekeyer_piper_model', ''),
+        },
     }
 
 
@@ -432,6 +452,46 @@ def synthesize_to_wav_ai(text, provider, api_key, voice_id, timeout=_AI_TIMEOUT)
         return None
 
 
+# ─── PIPER (moteur neuronal local, hors-ligne, sans abonnement) ──────────────
+# https://github.com/rhasspy/piper — installé et invoqué à part (sous-processus,
+# comme sounddevice/pyttsx3 s'appuient sur PortAudio/SAPI5), PAS un paquet pip
+# de ce projet : l'opérateur installe `piper-tts` (fournit la commande `piper`)
+# et télécharge UNE FOIS un modèle de voix .onnx (rhasspy/piper-voices sur
+# Hugging Face) — indiqué en CONFIG. Choisi par F4GLD (04/08/2026) à la place
+# d'un fournisseur cloud payant (ElevenLabs) : rendu neuronal nettement plus
+# naturel que SAPI5, mais SANS abonnement ni dépendance réseau à l'usage.
+_PIPER_TIMEOUT = 15
+
+
+def synthesize_to_wav_piper(text, exe, model, timeout=_PIPER_TIMEOUT):
+    """Synthèse via Piper (sous-processus). Retourne le chemin d'un WAV
+    temporaire, ou None si indisponible pour quelque raison que ce soit
+    (exécutable introuvable, modèle non configuré, timeout, sortie vide) —
+    ne lève jamais. L'appelant retombe alors sur pyttsx3 (SAPI5)."""
+    exe = str(exe or '').strip() or 'piper'
+    model = str(model or '').strip()
+    if not model:
+        return None
+    fd, path = tempfile.mkstemp(suffix='.wav', prefix='rc_voice_piper_')
+    os.close(fd)
+    try:
+        result = subprocess.run(
+            [exe, '--model', model, '--output_file', path],
+            input=text.encode('utf-8'), capture_output=True, timeout=timeout)
+        if result.returncode != 0 or os.path.getsize(path) < 100:
+            os.remove(path)
+            return None
+        return path
+    except Exception:
+        # FileNotFoundError (exe absent du PATH), TimeoutExpired, modèle
+        # invalide (Piper écrit alors un WAV vide ou rien du tout)...
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return None
+
+
 # ─── SYNTHÈSE + LECTURE ───────────────────────────────────────────────────────
 def _voice_id_for_lang(engine, lang):
     """id d'une voix SAPI installée correspondant à la langue ('fr'/'en'), ou
@@ -451,17 +511,20 @@ def _voice_id_for_lang(engine, lang):
     return None
 
 
-def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None):
+def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None, piper=None):
     """Génère un WAV temporaire, ou None si aucune synthèse n'a produit de son
     exploitable. `lang` : préfère une voix de cette langue pour un rendu
     naturel ; le voice_id explicite (CONFIG) prime.
 
-    `ai` (dict optionnel, voir voicekeyer_settings()['ai']) : si activé et
-    configuré, ESSAIE d'abord la voix IA cloud (synthesize_to_wav_ai) —
-    silencieusement, avec repli automatique sur pyttsx3 local (100% hors
-    ligne, SAPI5/Windows) en cas d'échec quelconque. Omis/vide = comportement
-    inchangé (voix locale uniquement), pour ne rien casser des appelants
-    existants."""
+    Trois moteurs par ordre de préférence, chacun optionnel et silencieux à
+    l'échec (voir le docstring du module) :
+      1. `ai` (dict, voir voicekeyer_settings()['ai']) : voix IA cloud
+         (ElevenLabs) si activée et configurée ;
+      2. `piper` (dict, voir voicekeyer_settings()['piper']) : Piper, moteur
+         neuronal local hors-ligne, si activé et configuré ;
+      3. pyttsx3 (SAPI5/Windows) — toujours tenté en dernier recours.
+    Omis/vide = comportement inchangé (voix locale uniquement), pour ne rien
+    casser des appelants existants."""
     text = (text or '').strip()
     if not text:
         return None
@@ -471,7 +534,13 @@ def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None):
                                     ai.get('api_key', ''), ai.get('voice_id', ''))
         if path:
             return path
-        print('[VOICEKEYER] Voix IA indisponible, repli sur la voix locale')
+        print('[VOICEKEYER] Voix IA indisponible, repli sur Piper/voix locale')
+    piper = piper or {}
+    if piper.get('enabled'):
+        path = synthesize_to_wav_piper(text, piper.get('exe') or 'piper', piper.get('model', ''))
+        if path:
+            return path
+        print('[VOICEKEYER] Piper indisponible, repli sur la voix locale SAPI5')
     try:
         import pyttsx3
     except Exception:
@@ -555,11 +624,13 @@ def send_voice_message(cfg, text, lang='', skip_ptt=False):
     text = (text or '').strip()
     if not text:
         return {'ok': False, 'error': 'Message vide'}
-    path = synthesize_to_wav(text, settings['voice_id'], settings['rate'], lang, settings['ai'])
+    path = synthesize_to_wav(text, settings['voice_id'], settings['rate'], lang,
+                             settings['ai'], settings['piper'])
     if not path:
-        return {'ok': False, 'error': 'Synthèse vocale indisponible (voix IA et locale toutes deux en échec)'
-                                       if settings['ai']['enabled'] else
-                                       'Synthèse vocale indisponible (moteur TTS)'}
+        moteurs_essayes = ['IA'] * settings['ai']['enabled'] + ['Piper'] * settings['piper']['enabled']
+        return {'ok': False, 'error':
+                'Synthèse vocale indisponible (%s et voix locale tous en échec)' % '/'.join(moteurs_essayes)
+                if moteurs_essayes else 'Synthèse vocale indisponible (moteur TTS)'}
 
     # Le WAV de synthèse est temporaire : emettre_wav() le supprime lui-même
     # après émission (supprimer_apres), y compris si la lecture échoue.
