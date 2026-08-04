@@ -7,11 +7,18 @@ keyer de la radio en CW, voir copyMacro() dans logx_logbook.js).
 Le keyer vocal existant (WAV pré-enregistrés, rejoués sur les haut-parleurs
 du PC) ne fait ni insertion dynamique de l'indicatif ni émission radio. Ici :
   1. Le texte du message est développé : l'indicatif ({CALL}/{MYCALL}) est épelé
-     en alphabet phonétique INTERNATIONAL (OACI, compris de tous), le report et
-     les séries ({RST_SENT}/{RST_RCVD}/{NR}) sont dits EN TOUTES LETTRES dans la
-     langue dérivée de l'indicatif du correspondant (« cinquante-neuf » pour une
-     station F, « fifty-nine » sinon), et {TNX} clôt par « 73 » suivi d'un
-     remerciement dans la langue du correspondant (merci / arigato / thanks…).
+     en alphabet phonétique INTERNATIONAL (OACI, compris de tous, jamais
+     traduit — {DE}/« stroke » restent la seule exception « toujours en
+     anglais », voir spell_callsign), le report et les séries ({RST_SENT}/
+     {RST_RCVD}/{NR}) sont dits EN TOUTES LETTRES dans la langue dérivée du
+     PAYS de l'indicatif du correspondant (« cinquante-neuf » pour une
+     station F, « neunundfünfzig » pour DL/OE/HB9, « fifty-nine » sinon —
+     voir lang_for_call), {DE} adapte le connecteur (« de »/« von »/« from »)
+     et {TNX} clôt par « 73 » suivi d'un remerciement dans la langue du
+     correspondant (merci/arigato/danke/grazie/gracias/obrigado/dank u/
+     thanks — un pays reconnu pour son mot de remerciement mais sans encore
+     de système de nombres dédié, ex. Japon/Italie/Espagne/Portugal/Pays-Bas,
+     dit son « 73 » en anglais par défaut, voir _BELOW_1000_BY_LANG).
   2. Synthèse en WAV temporaire, avec 3 moteurs possibles par ordre de
      préférence (chacun optionnel, retombe silencieusement sur le suivant) :
        a. Voix IA cloud (ElevenLabs) si activée en CONFIG — la plus naturelle,
@@ -173,26 +180,68 @@ def _fr_below_1000(n):
     return s + (' ' + _fr_below_100(r) if r else '')
 
 
+# Allemand — implémenté en entier (demande explicite F4GLD 04/08/2026 : un
+# indicatif DL doit s'entendre en allemand, pas juste son mot de remerciement
+# de clôture comme avant). Unité-puis-dizaine inversées ("einundzwanzig" =
+# un-et-vingt) et mots composés SANS espace, comme à l'écrit/l'oral allemand.
+_DE_ONES = ['null', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben',
+            'acht', 'neun', 'zehn', 'elf', 'zwölf', 'dreizehn', 'vierzehn',
+            'fünfzehn', 'sechzehn', 'siebzehn', 'achtzehn', 'neunzehn']
+_DE_TENS = ['', '', 'zwanzig', 'dreißig', 'vierzig', 'fünfzig', 'sechzig',
+            'siebzig', 'achtzig', 'neunzig']
+
+
+def _de_below_100(n):
+    if n < 20:
+        return _DE_ONES[n]
+    t, u = divmod(n, 10)
+    if u == 0:
+        return _DE_TENS[t]
+    return ('ein' if u == 1 else _DE_ONES[u]) + 'und' + _DE_TENS[t]
+
+
+def _de_below_1000(n):
+    if n < 100:
+        return _de_below_100(n)
+    h, r = divmod(n, 100)
+    return ('ein' if h == 1 else _DE_ONES[h]) + 'hundert' + (_de_below_100(r) if r else '')
+
+
+# Une langue sans système de nombres écrit (ja/it/es/pt/nl — voir
+# _LANG_AND_THANKS_BY_COUNTRY) retombe sur l'anglais plutôt que de planter :
+# {TNX}/thanks_word() dit déjà le bon mot dans ces langues, seuls les
+# NOMBRES restent en anglais tant que leur système n'est pas écrit ici (même
+# schéma que fr/de, à ajouter au besoin).
+_BELOW_1000_BY_LANG = {'fr': _fr_below_1000, 'de': _de_below_1000}
+
+
 def number_to_words(n, lang='en'):
-    """Entier 0-9999 -> mots. lang 'fr' ou 'en' (défaut). Au-delà de 9999,
-    l'appelant retombe sur l'épellation chiffre par chiffre."""
+    """Entier 0-9999 -> mots. lang : 'fr'/'de' ont un système complet, tout
+    le reste (dont 'en') retombe sur l'anglais. Au-delà de 9999, l'appelant
+    retombe sur l'épellation chiffre par chiffre."""
     n = int(n)
-    below = _fr_below_1000 if lang == 'fr' else _en_below_1000
+    below = _BELOW_1000_BY_LANG.get(lang, _en_below_1000)
     if n < 1000:
         return below(n)
     th, r = divmod(n, 1000)
     if lang == 'fr':
         s = 'mille' if th == 1 else below(th) + ' mille'
+    elif lang == 'de':
+        s = ('ein' if th == 1 else below(th)) + 'tausend'
     else:
         s = below(th) + ' thousand'
-    return s + (' ' + below(r) if r else '')
+    return s + ((' ' if lang != 'de' else '') + below(r) if r else '')
+
+
+_ZERO_BY_LANG = {'fr': 'zéro', 'de': 'null'}
 
 
 def spell_number(s, lang='en'):
-    """Report/série EN TOUTES LETTRES : '59' -> 'cinquante-neuf'/'fifty-nine'.
-    Les zéros de tête d'une série paddée sont dits ('001' -> 'zéro zéro un',
-    '042' -> 'zéro quarante-deux'), convention concours. Une valeur non
-    purement numérique (zone/classe alphanumérique) retombe sur l'épellation."""
+    """Report/série EN TOUTES LETTRES : '59' -> 'cinquante-neuf'/'neunundfünfzig'
+    /'fifty-nine'. Les zéros de tête d'une série paddée sont dits ('001' ->
+    'zéro zéro un', '042' -> 'zéro quarante-deux'), convention concours. Une
+    valeur non purement numérique (zone/classe alphanumérique) retombe sur
+    l'épellation."""
     s = str(s or '').strip()
     if not s:
         return ''
@@ -200,7 +249,7 @@ def spell_number(s, lang='en'):
         return spell_digits(s)
     lead = len(s) - len(s.lstrip('0'))
     core = s.lstrip('0')
-    zero = 'zéro' if lang == 'fr' else 'zero'
+    zero = _ZERO_BY_LANG.get(lang, 'zero')
     parts = [zero] * lead
     if core:
         n = int(core)
@@ -210,23 +259,33 @@ def spell_number(s, lang='en'):
 
 # ─── LANGUE DÉRIVÉE DE L'INDICATIF + REMERCIEMENT DE CLÔTURE ──────────────────
 # Entités DXCC francophones (cty.dat) où le report se dit en français ; partout
-# ailleurs, anglais (langue internationale du trafic).
+# ailleurs, anglais (langue internationale du trafic) PAR DÉFAUT — sauf les
+# groupes ci-dessous, chacun associé à son code langue ET son mot de
+# remerciement ({TNX}) en un seul endroit (avant, ces deux informations
+# vivaient dans deux tables séparées mais alignées à la main — un oubli d'un
+# côté aurait pu les faire diverger en silence).
 _FRENCH_ENTITIES = ('france', 'corsica', 'guadeloupe', 'martinique', 'reunion',
                     'caledonia', 'polynesia', 'mayotte', 'wallis', 'miquelon',
                     'martin', 'barthelemy', 'kerguelen')
 
-# Remerciement de clôture ({TNX}) dans la langue du correspondant. Jeu volontai-
-# rement RESTREINT aux mots qu'une voix SAPI rend correctement (les exemples
-# demandés : merci / arigato / thanks, plus les voisins européens courants).
-_THANKS_BY_COUNTRY = (
-    (_FRENCH_ENTITIES, 'merci'),
-    (('japan',), 'arigato'),
-    (('germany', 'austria', 'switzerland'), 'danke'),
-    (('italy', 'sardinia'), 'grazie'),
-    (('spain', 'balearic', 'canary'), 'gracias'),
-    (('portugal', 'azores', 'madeira', 'brazil'), 'obrigado'),
-    (('netherlands',), 'dank u'),
+# (mots-clés pays en minuscules, code langue, mot de remerciement {TNX}).
+# Le mot de remerciement reste volontairement RESTREINT aux mots qu'une voix
+# SAPI rend correctement. Le système de NOMBRES complet n'existe que pour
+# fr/de (voir _BELOW_1000_BY_LANG) — les autres langues ici retombent sur les
+# nombres anglais (number_to_words), mais disent déjà le bon {TNX}/{DE}.
+_LANG_AND_THANKS_BY_COUNTRY = (
+    (_FRENCH_ENTITIES, 'fr', 'merci'),
+    (('japan',), 'ja', 'arigato'),
+    (('germany', 'austria', 'switzerland'), 'de', 'danke'),
+    (('italy', 'sardinia'), 'it', 'grazie'),
+    (('spain', 'balearic', 'canary'), 'es', 'gracias'),
+    (('portugal', 'azores', 'madeira', 'brazil'), 'pt', 'obrigado'),
+    (('netherlands',), 'nl', 'dank u'),
 )
+# thanks_word() est plus PRUDENT que lang_for_call() : un pays non identifié
+# retombe sur 'en' pour les NOMBRES (il faut bien dire quelque chose), mais ne
+# dit AUCUN mot de remerciement improvisé — seuls ces pays précis disent
+# « thanks » explicitement, le reste se tait plutôt que de présumer l'anglais.
 _ENGLISH_ENTITIES = ('united states', 'canada', 'england', 'scotland', 'wales',
                      'ireland', 'australia', 'new zealand', 'south africa')
 
@@ -240,10 +299,16 @@ def _country(call):
 
 
 def lang_for_call(call):
-    """'fr' si l'indicatif est une entité française, sinon 'en'. Gouverne la
-    langue des NOMBRES dits en toutes lettres."""
+    """Code langue à 2 lettres dérivé du PAYS de l'indicatif (fr/ja/de/it/es/
+    pt/nl si l'entité est reconnue dans _LANG_AND_THANKS_BY_COUNTRY, sinon
+    'en' — anglais, langue internationale du trafic, aussi le repli par
+    défaut pour un pays non identifié). Gouverne la langue des NOMBRES dits
+    en toutes lettres (voir number_to_words) et du connecteur {DE}."""
     c = _country(call).lower()
-    return 'fr' if any(k in c for k in _FRENCH_ENTITIES) else 'en'
+    for keys, lang, _ in _LANG_AND_THANKS_BY_COUNTRY:
+        if any(k in c for k in keys):
+            return lang
+    return 'en'
 
 
 def message_lang(ctx):
@@ -253,14 +318,23 @@ def message_lang(ctx):
 
 def thanks_word(call):
     """Mot de remerciement dans la langue du pays de l'indicatif — '' si aucun
-    mot dédié (on ne dira alors que « 73 »)."""
+    mot dédié NI anglais reconnu (pays non identifié : on ne dira alors que
+    « 73 », jamais un « thanks » présomptueux — voir _ENGLISH_ENTITIES)."""
     c = _country(call).lower()
     if not c:
         return ''
-    for keys, word in _THANKS_BY_COUNTRY:
+    for keys, _, word in _LANG_AND_THANKS_BY_COUNTRY:
         if any(k in c for k in keys):
             return word
     return 'thanks' if any(k in c for k in _ENGLISH_ENTITIES) else ''
+
+
+# Connecteur {DE} ("F4GLD DE W1AW" -> "... from W1AW"/"... de W1AW"/"...
+# von W1AW"...) : un mot par langue déjà couverte pour {TNX}, English par
+# défaut. À étendre au même rythme que _BELOW_1000_BY_LANG si besoin (ja/it/
+# es/pt/nl n'ont pour l'instant que leur mot de remerciement, pas encore de
+# connecteur ni de système de nombres dédiés).
+_DE_CONNECTOR_BY_LANG = {'fr': 'de', 'de': 'von'}
 
 
 def closing_73(ctx):
@@ -302,7 +376,7 @@ def expand_voice_text(template, ctx):
             .replace('{RST_SENT}', spell_number(ctx.get('rst_sent', ''), lang))
             .replace('{RST_RCVD}', spell_number(ctx.get('rst_rcvd', ''), lang))
             .replace('{NR}', spell_number(ctx.get('nr', ''), lang))
-            .replace('{DE}', 'de' if lang == 'fr' else 'from')
+            .replace('{DE}', _DE_CONNECTOR_BY_LANG.get(lang, 'from'))
             .replace('{TNX}', closing_73(ctx))
             .replace('{73}', spell_number('73', lang)))
 
@@ -500,10 +574,14 @@ def synthesize_to_wav_piper(text, exe, model, timeout=_PIPER_TIMEOUT):
 
 # ─── SYNTHÈSE + LECTURE ───────────────────────────────────────────────────────
 def _voice_id_for_lang(engine, lang):
-    """id d'une voix SAPI installée correspondant à la langue ('fr'/'en'), ou
-    None. Rend « cinquante-neuf, merci » naturel avec une VRAIE voix française."""
+    """id d'une voix SAPI installée correspondant à la langue (fr/en/de…), ou
+    None si aucune voix de cette langue n'est installée (repli sur la voix
+    par défaut du moteur — aucune erreur, juste moins naturel). Rend
+    « cinquante-neuf, merci »/« neunundfünfzig, danke » naturel avec une
+    VRAIE voix de la langue plutôt qu'une voix anglaise par défaut."""
     hints = {'fr': ('french', 'français', 'francais', 'fr-', 'fr_', 'fra'),
-             'en': ('english', 'en-', 'en_', 'enu', 'eng')}.get(lang or '', ())
+             'en': ('english', 'en-', 'en_', 'enu', 'eng'),
+             'de': ('german', 'deutsch', 'de-', 'de_', 'deu')}.get(lang or '', ())
     if not hints:
         return None
     try:

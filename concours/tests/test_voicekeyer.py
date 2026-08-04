@@ -110,6 +110,20 @@ def test_number_to_words_francais_cas_piegeux():
         assert vk.number_to_words(n, 'fr') == mot, n
 
 
+def test_number_to_words_allemand_cas_pieges():
+    """Retour F4GLD 04/08/2026 : un indicatif DL doit s'entendre en
+    allemand — unité-puis-dizaine inversées (« einundzwanzig »), mots
+    composés SANS espace (contrairement au français/anglais)."""
+    cas = {0: 'null', 1: 'eins', 12: 'zwölf', 16: 'sechzehn',
+           20: 'zwanzig', 21: 'einundzwanzig', 22: 'zweiundzwanzig',
+           59: 'neunundfünfzig', 73: 'dreiundsiebzig',
+           100: 'einhundert', 101: 'einhunderteins',
+           200: 'zweihundert', 599: 'fünfhundertneunundneunzig',
+           1000: 'eintausend', 2024: 'zweitausendvierundzwanzig'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'de') == mot, n
+
+
 def test_spell_number_zeros_de_tete_et_alphanumerique():
     assert vk.spell_number('59', 'fr') == 'cinquante-neuf'
     assert vk.spell_number('001', 'fr') == 'zéro zéro un'
@@ -118,6 +132,7 @@ def test_spell_number_zeros_de_tete_et_alphanumerique():
     assert vk.spell_number('00', 'fr') == 'zéro zéro'
     assert vk.spell_number('3A', 'en') == 'Three Alpha'   # non numérique -> phonétique
     assert vk.spell_number('', 'fr') == ''
+    assert vk.spell_number('059', 'de') == 'null neunundfünfzig'
 
 
 # ─── Langue et remerciement dérivés de l'indicatif ──────────────────────────
@@ -127,11 +142,17 @@ def _mock_country(monkeypatch, name):
     monkeypatch.setattr(dxcc, 'lookup', lambda call: {'country': name} if call else None)
 
 
-def test_lang_for_call_france_vs_reste(monkeypatch):
-    _mock_country(monkeypatch, 'France')
-    assert vk.lang_for_call('F5ABC') == 'fr'
-    _mock_country(monkeypatch, 'Fed. Rep. of Germany')
-    assert vk.lang_for_call('DL1AA') == 'en'
+def test_lang_for_call_par_pays(monkeypatch):
+    """lang_for_call() couvre désormais fr/ja/de/it/es/pt/nl (avec système de
+    nombres complet pour fr/de seulement — voir _BELOW_1000_BY_LANG), 'en'
+    en repli pour tout le reste, y compris un pays non identifié."""
+    cas = [('France', 'F5ABC', 'fr'), ('Fed. Rep. of Germany', 'DL1AA', 'de'),
+           ('Japan', 'JA1XYZ', 'ja'), ('Italy', 'IZ1ABC', 'it'),
+           ('Spain', 'EA1ABC', 'es'), ('Brazil', 'PY1ABC', 'pt'),
+           ('Netherlands', 'PA1ABC', 'nl'), ('United States', 'W1AW', 'en')]
+    for pays, call, attendu in cas:
+        _mock_country(monkeypatch, pays)
+        assert vk.lang_for_call(call) == attendu, pays
     _mock_country(monkeypatch, '')
     assert vk.lang_for_call('X') == 'en'
 
@@ -175,11 +196,15 @@ def test_expand_voice_text_mycall_suffixe_reste_en_stroke_meme_en_francais(monke
     assert out == 'Foxtrot Four Golf Lima Delta stroke portable'
 
 
-def test_expand_report_anglais_pour_station_DL(monkeypatch):
+def test_expand_report_allemand_pour_station_DL(monkeypatch):
+    """Retour F4GLD 04/08/2026 : un indicatif allemand doit s'entendre en
+    allemand (nombres ET connecteur), pas juste son mot de remerciement
+    comme avant l'ajout du système de nombres allemand."""
     _mock_country(monkeypatch, 'Fed. Rep. of Germany')
-    ctx = {'call': 'DL1AA', 'rst_sent': '59'}
-    out = vk.expand_voice_text('{RST_SENT} {TNX}', ctx)
-    assert 'fifty-nine' in out and out.endswith('seventy-three danke')
+    ctx = {'call': 'DL1AA', 'mycall': 'F4GLD', 'rst_sent': '59'}
+    out = vk.expand_voice_text('{CALL} {DE} {MYCALL}, {RST_SENT} {TNX}', ctx)
+    assert ' von ' in out
+    assert 'neunundfünfzig' in out and out.endswith('dreiundsiebzig danke')
 
 
 def test_expand_voice_text_placeholders_manquants_deviennent_vides():
@@ -195,6 +220,8 @@ def test_expand_voice_text_de_localise_selon_la_langue(monkeypatch):
     assert vk.expand_voice_text('{DE}', {'call': 'F5ABC'}) == 'de'
     _mock_country(monkeypatch, 'United States')
     assert vk.expand_voice_text('{DE}', {'call': 'W1AW'}) == 'from'
+    _mock_country(monkeypatch, 'Fed. Rep. of Germany')
+    assert vk.expand_voice_text('{DE}', {'call': 'DL1AA'}) == 'von'
     # Sans indicatif connu -> anglais international par défaut.
     assert vk.expand_voice_text('{DE}', {}) == 'from'
 
