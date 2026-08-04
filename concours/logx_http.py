@@ -2649,7 +2649,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # quand il est fourni (sinon on retombe sur la config serveur,
             # comme avant, pour les appels sans concours en cours de sélection).
             qp = parse_qs(urlparse(self.path).query)
-            contest = (qp.get('contest', [''])[0] or cfg_snap.get('contest', '')).strip().upper()
+            contest = (qp.get('contest', [''])[0] or cfg_snap.get('contest') or '').strip().upper()
             ch_count = callhistory.call_history_count(contest) if contest else 0
             self._json({'master_scp_count': scp_count, 'contest': contest,
                        'call_history_count': ch_count})
