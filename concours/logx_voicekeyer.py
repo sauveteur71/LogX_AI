@@ -287,6 +287,11 @@ def expand_voice_text(template, ctx):
       {CALL}/{MYCALL} -> alphabet phonétique INTERNATIONAL (compris de tous) ;
       {RST_SENT}/{RST_RCVD}/{NR} -> EN TOUTES LETTRES dans la langue dérivée de
         l'indicatif (F -> « cinquante-neuf », sinon « fifty-nine ») ;
+      {DE} -> « de »/« from » dans la même langue — contrairement à « stroke »
+        (toujours international, jamais traduit), c'est un mot de la PHRASE
+        elle-même, dit naturellement dans sa propre langue en phonie (retour
+        F4GLD 04/08/2026 : « de » figé en dur ne devenait jamais « from » même
+        quand le reste du message était en anglais) ;
       {TNX} -> « 73 » + remerciement dans la langue du correspondant ;
       {73} -> « soixante-treize »/« seventy-three »."""
     ctx = ctx or {}
@@ -297,6 +302,7 @@ def expand_voice_text(template, ctx):
             .replace('{RST_SENT}', spell_number(ctx.get('rst_sent', ''), lang))
             .replace('{RST_RCVD}', spell_number(ctx.get('rst_rcvd', ''), lang))
             .replace('{NR}', spell_number(ctx.get('nr', ''), lang))
+            .replace('{DE}', 'de' if lang == 'fr' else 'from')
             .replace('{TNX}', closing_73(ctx))
             .replace('{73}', spell_number('73', lang)))
 

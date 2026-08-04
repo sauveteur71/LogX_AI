@@ -3638,7 +3638,7 @@ async function testVoiceKeyer(){
     const testCallInput = document.getElementById('voiceKeyerTestCall');
     const testCall = (testCallInput && testCallInput.value.trim()) || 'F8TEST';
     const r = await fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({template: '{CALL} de {MYCALL}, {RST_SENT}',
+      body: JSON.stringify({template: '{CALL} {DE} {MYCALL}, {RST_SENT}',
         call: testCall, mycall: document.getElementById('callsign').value || 'F1TEST', rst_sent: '59',
         skip_ptt: true})});
     const d = await r.json();

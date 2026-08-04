@@ -187,6 +187,18 @@ def test_expand_voice_text_placeholders_manquants_deviennent_vides():
     assert out == 'CQ '
 
 
+def test_expand_voice_text_de_localise_selon_la_langue(monkeypatch):
+    """{DE} suit la langue du message ('de'/'from'), CONTRAIREMENT à
+    « stroke » (toujours international) — retour F4GLD 04/08/2026 : le
+    bouton Tester de CONFIG figeait « de » même en anglais."""
+    _mock_country(monkeypatch, 'France')
+    assert vk.expand_voice_text('{DE}', {'call': 'F5ABC'}) == 'de'
+    _mock_country(monkeypatch, 'United States')
+    assert vk.expand_voice_text('{DE}', {'call': 'W1AW'}) == 'from'
+    # Sans indicatif connu -> anglais international par défaut.
+    assert vk.expand_voice_text('{DE}', {}) == 'from'
+
+
 def test_voice_macros_default_ont_les_champs_attendus():
     for m in vk.VOICE_MACROS_DEFAULT:
         assert {'key', 'label', 'text'} <= set(m)
