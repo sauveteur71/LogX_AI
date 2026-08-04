@@ -13,7 +13,12 @@ du PC) ne fait ni insertion dynamique de l'indicatif ni émission radio. Ici :
      station F, « fifty-nine » sinon), et {TNX} clôt par « 73 » suivi d'un
      remerciement dans la langue du correspondant (merci / arigato / thanks…).
   2. pyttsx3 (SAPI5 Windows, 100% hors-ligne, aucune clé/API réseau) le
-     synthétise en WAV temporaire.
+     synthétise en WAV temporaire — OU, si une voix IA cloud est activée en
+     CONFIG (ElevenLabs, plus naturelle), on l'essaie D'ABORD avec un cache
+     par texte exact, et on ne retombe sur pyttsx3 QUE si le fournisseur est
+     injoignable/mal configuré (voir synthesize_to_wav_ai). Un concours de
+     24-48h ne doit jamais dépendre d'internet pour dire un indicatif — la
+     voix IA est un essai, jamais un point de panne.
   3. Le PTT est activé via CAT (natif/TCI/rigctld — même mécanisme déjà
      utilisé pour le CW), le WAV est joué vers le PÉRIPHÉRIQUE AUDIO CHOISI
      en CONFIG (câble virtuel/interface dédiée vers l'entrée micro de la
@@ -23,9 +28,12 @@ du PC) ne fait ni insertion dynamique de l'indicatif ni émission radio. Ici :
 Aucune fonction ici ne lève d'exception vers l'appelant HTTP : tout retourne
 {'ok': bool, 'error'?: str}, comme le reste des modules radio du projet.
 """
+import hashlib
 import os
+import shutil
 import tempfile
 import threading
+import urllib.parse
 import wave
 
 # Sérialise l'émission vocale : deux /rig/voice concurrents (double-clic macro,
@@ -290,6 +298,16 @@ def voicekeyer_settings(cfg):
         'device': cfg.get('voicekeyer_device', ''),
         'voice_id': cfg.get('voicekeyer_voice_id', ''),
         'rate': rate,
+        # Voix IA cloud (optionnelle) : voir synthesize_to_wav() / AI_PROVIDERS.
+        # Un provider vide retombe sur 'elevenlabs' — le seul supporté pour
+        # l'instant, mais le champ existe déjà pour ne pas migrer la config
+        # au jour où un 2e fournisseur est ajouté.
+        'ai': {
+            'enabled': bool(cfg.get('voicekeyer_ai_enabled')),
+            'provider': cfg.get('voicekeyer_ai_provider') or 'elevenlabs',
+            'api_key': cfg.get('voicekeyer_ai_api_key', ''),
+            'voice_id': cfg.get('voicekeyer_ai_voice_id', ''),
+        },
     }
 
 
@@ -324,6 +342,91 @@ def list_tts_voices():
         return []
 
 
+# ─── VOIX IA CLOUD (optionnelle) ──────────────────────────────────────────────
+# Rendu nettement plus naturel qu'une voix SAPI5 locale, mais dépend du réseau
+# et d'une clé API — ce que le keyer vocal a toujours explicitement évité
+# (« aucun réseau », voir l'en-tête de ce fichier), parce qu'un concours de
+# 24-48h ne doit jamais dépendre d'internet pour dire un indicatif. On ne
+# remplace donc PAS la voix locale : ceci est un ESSAI, avec repli automatique
+# et silencieux sur pyttsx3 si le fournisseur est injoignable, la clé absente/
+# invalide, ou le timeout dépassé (retour F4GLD 04/08/2026).
+#
+# Cache par texte EXACT (hash du triplet fournisseur/voix/texte) : un message
+# fixe (CQ, qui ne varie jamais dans le concours) ou une station déjà
+# travaillée ne refait jamais l'appel réseau ni son coût. Le cache n'est
+# jamais purgé (quelques dizaines de Ko par entrée, un contest ne produit pas
+# assez d'indicatifs DISTINCTS pour que ça pèse sur le disque).
+_AI_CACHE_DIR = 'voice_ai_cache'
+_AI_TIMEOUT = 10
+
+
+def _ai_cache_dir():
+    os.makedirs(_AI_CACHE_DIR, exist_ok=True)
+    return _AI_CACHE_DIR
+
+
+def _ai_cache_path(provider, voice_id, text):
+    key = f'{provider}|{voice_id}|{text}'.encode('utf-8')
+    return os.path.join(_ai_cache_dir(), hashlib.sha256(key).hexdigest() + '.wav')
+
+
+def _elevenlabs_pcm(api_key, voice_id, text, timeout):
+    """PCM 16 bits mono 24 kHz brut (pas de dépendance de décodage MP3/ffmpeg
+    à ajouter au projet), ou None si injoignable/clé invalide/erreur HTTP."""
+    import logx_utils as utils
+    vid = urllib.parse.quote(str(voice_id or '').strip(), safe='')
+    url = f'https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=pcm_24000'
+    status, data = utils.post_url_json_binary(
+        url, {'text': text, 'model_id': 'eleven_turbo_v2_5'}, timeout=timeout,
+        headers={'xi-api-key': api_key, 'Accept': 'audio/*'})
+    if status != 200 or not data:
+        return None
+    return data
+
+
+AI_PROVIDERS = {'elevenlabs': _elevenlabs_pcm}
+
+
+def _write_wav_from_pcm(path, pcm_bytes, sample_rate=24000):
+    tmp = path + '.tmp'
+    with wave.open(tmp, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)          # 16 bits
+        wf.setframerate(sample_rate)
+        wf.writeframes(pcm_bytes)
+    os.replace(tmp, path)           # publication atomique, même schéma que enregistrer_message()
+
+
+def synthesize_to_wav_ai(text, provider, api_key, voice_id, timeout=_AI_TIMEOUT):
+    """Synthèse via un fournisseur IA cloud, avec cache par texte exact.
+    Retourne TOUJOURS une COPIE jetable du fichier de cache (jamais le fichier
+    de cache lui-même) — l'appelant peut la supprimer après lecture sans
+    affecter les prochains appels. None si indisponible pour quelque raison
+    que ce soit (réseau, clé, timeout, provider inconnu) : ne lève jamais."""
+    if provider not in AI_PROVIDERS or not api_key or not str(voice_id or '').strip():
+        return None
+    cache_path = _ai_cache_path(provider, voice_id, text)
+    if not os.path.exists(cache_path):
+        try:
+            pcm = AI_PROVIDERS[provider](api_key, voice_id, text, timeout)
+            if not pcm:
+                return None
+            _write_wav_from_pcm(cache_path, pcm)
+        except Exception:
+            return None
+    fd, tmp_path = tempfile.mkstemp(suffix='.wav', prefix='rc_voice_ai_')
+    os.close(fd)
+    try:
+        shutil.copyfile(cache_path, tmp_path)
+        return tmp_path
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        return None
+
+
 # ─── SYNTHÈSE + LECTURE ───────────────────────────────────────────────────────
 def _voice_id_for_lang(engine, lang):
     """id d'une voix SAPI installée correspondant à la langue ('fr'/'en'), ou
@@ -343,14 +446,27 @@ def _voice_id_for_lang(engine, lang):
     return None
 
 
-def synthesize_to_wav(text, voice_id='', rate=175, lang=''):
-    """Génère un WAV temporaire via pyttsx3 (100% hors-ligne, SAPI5/Windows).
-    Retourne le chemin du fichier, ou None si le moteur TTS est indisponible
-    ou n'a produit aucun son exploitable. `lang` : préfère une voix de cette
-    langue pour un rendu naturel ; le voice_id explicite (CONFIG) prime."""
+def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None):
+    """Génère un WAV temporaire, ou None si aucune synthèse n'a produit de son
+    exploitable. `lang` : préfère une voix de cette langue pour un rendu
+    naturel ; le voice_id explicite (CONFIG) prime.
+
+    `ai` (dict optionnel, voir voicekeyer_settings()['ai']) : si activé et
+    configuré, ESSAIE d'abord la voix IA cloud (synthesize_to_wav_ai) —
+    silencieusement, avec repli automatique sur pyttsx3 local (100% hors
+    ligne, SAPI5/Windows) en cas d'échec quelconque. Omis/vide = comportement
+    inchangé (voix locale uniquement), pour ne rien casser des appelants
+    existants."""
     text = (text or '').strip()
     if not text:
         return None
+    ai = ai or {}
+    if ai.get('enabled'):
+        path = synthesize_to_wav_ai(text, ai.get('provider') or 'elevenlabs',
+                                    ai.get('api_key', ''), ai.get('voice_id', ''))
+        if path:
+            return path
+        print('[VOICEKEYER] Voix IA indisponible, repli sur la voix locale')
     try:
         import pyttsx3
     except Exception:
@@ -434,9 +550,11 @@ def send_voice_message(cfg, text, lang='', skip_ptt=False):
     text = (text or '').strip()
     if not text:
         return {'ok': False, 'error': 'Message vide'}
-    path = synthesize_to_wav(text, settings['voice_id'], settings['rate'], lang)
+    path = synthesize_to_wav(text, settings['voice_id'], settings['rate'], lang, settings['ai'])
     if not path:
-        return {'ok': False, 'error': 'Synthèse vocale indisponible (moteur TTS)'}
+        return {'ok': False, 'error': 'Synthèse vocale indisponible (voix IA et locale toutes deux en échec)'
+                                       if settings['ai']['enabled'] else
+                                       'Synthèse vocale indisponible (moteur TTS)'}
 
     # Le WAV de synthèse est temporaire : emettre_wav() le supprime lui-même
     # après émission (supprimer_apres), y compris si la lecture échoue.

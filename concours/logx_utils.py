@@ -247,6 +247,36 @@ def post_url_json(url, payload, timeout=10, headers=None):
         print(f"  [FETCH] POST {url[:60]}... -> {e}")
         return None, None
 
+def post_url_json_binary(url, payload, timeout=10, headers=None):
+    """Comme post_url_json(), mais pour une réponse BINAIRE (audio, image…) au
+    lieu de texte — décoder un flux audio comme de l'UTF-8 le corromprait.
+    Utilisé pour les API de synthèse vocale IA cloud (logx_voicekeyer),
+    même pool de threads partagé, même bornage DNS/attente.
+
+    Renvoie (status_http, octets_bruts) ; (None, None) si injoignable
+    (DNS/timeout/réseau). Sur une erreur HTTP (4xx/5xx), le corps est aussi
+    binaire ici — la plupart des API renvoient alors un message JSON, à
+    décoder par l'appelant s'il veut l'afficher."""
+    def _do():
+        data = json.dumps(payload).encode('utf-8')
+        hdrs = {'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'}
+        if headers:
+            hdrs.update(headers)
+        req = urllib.request.Request(url, data=data, headers=hdrs, method='POST')
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
+                return resp.status, resp.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read()
+
+    try:
+        fut = _FETCH_EXECUTOR.submit(_do)
+        return fut.result(timeout=timeout + 3)
+    except Exception as e:
+        print(f"  [FETCH] POST(bin) {url[:60]}... -> {e}")
+        return None, None
+
 def post_url_form(url, fields, timeout=10, headers=None):
     """Comme post_url_json(), mais en POST application/x-www-form-urlencoded —
     le format attendu par la plupart des API "legacy" du monde radioamateur

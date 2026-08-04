@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import logx_utils
 from logx_utils import (locator_to_latlon, haversine, bearing,
                                 cardinal, is_digital_mode, post_url_json,
-                                post_url_form)
+                                post_url_form, post_url_json_binary)
 
 
 # ─── locator_to_latlon ───────────────────────────────────────────────────────
@@ -239,6 +239,59 @@ def test_post_url_json_reseau_injoignable(monkeypatch):
     monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', boom)
 
     assert post_url_json('https://api.pota.app/spot/', {'a': 1}) == (None, None)
+
+
+# ─── post_url_json_binary ─────────────────────────────────────────────────────
+# Même pattern que post_url_json, mais la réponse ne doit JAMAIS passer par un
+# décodage texte — un flux audio (voix IA du keyer vocal, logx_voicekeyer)
+# n'est pas de l'UTF-8, le décoder le corromprait silencieusement.
+
+class _FakeBinResp:
+    def __init__(self, data, status=200):
+        self._data = data
+        self.status = status
+    def read(self):
+        return self._data
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+
+
+def test_post_url_json_binary_succes_rend_les_octets_bruts(monkeypatch):
+    captured = {}
+    payload_bin = bytes(range(256))   # inclut des octets invalides en UTF-8
+    def fake_urlopen(req, timeout=10, context=None):
+        captured['headers'] = {k.lower(): v for k, v in req.header_items()}
+        captured['body'] = _json.loads(req.data.decode('utf-8'))
+        return _FakeBinResp(payload_bin)
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', fake_urlopen)
+
+    status, data = post_url_json_binary('https://api.elevenlabs.io/v1/tts/voice1',
+        {'text': 'CQ Contest'}, headers={'xi-api-key': 'secret'})
+    assert status == 200
+    assert data == payload_bin
+    assert captured['headers']['xi-api-key'] == 'secret'
+    assert captured['body'] == {'text': 'CQ Contest'}
+
+
+def test_post_url_json_binary_erreur_http_remontee(monkeypatch):
+    def fake_urlopen(req, timeout=10, context=None):
+        raise urllib.error.HTTPError(req.full_url, 401, 'Unauthorized',
+                                     None, io.BytesIO(b'{"detail":"invalid_api_key"}'))
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', fake_urlopen)
+
+    status, data = post_url_json_binary('https://api.elevenlabs.io/v1/tts/voice1', {'text': 'x'})
+    assert status == 401
+    assert b'invalid_api_key' in data
+
+
+def test_post_url_json_binary_reseau_injoignable(monkeypatch):
+    def boom(req, timeout=10, context=None):
+        raise OSError('timeout')
+    monkeypatch.setattr(logx_utils.urllib.request, 'urlopen', boom)
+
+    assert post_url_json_binary('https://api.elevenlabs.io/v1/tts/voice1', {'text': 'x'}) == (None, None)
 
 
 # ─── post_url_form ────────────────────────────────────────────────────────────

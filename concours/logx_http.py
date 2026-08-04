@@ -4043,7 +4043,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             fields = ('api_key', 'clublog_api_key', 'clublog_password', 'eqsl_password',
                       'lan_sync_token', 'lotw_password', 'on4kst_password', 'qrz_password',
                       'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
-                      'cloudsync_secret')
+                      'cloudsync_secret', 'voicekeyer_ai_api_key')
             self._json({f: cfg_snap.get(f, '') for f in fields})
             return
 
