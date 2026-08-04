@@ -11,6 +11,51 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta21] - 2026-08-04
+
+*Le journal a repris après une pause aux betas 14 à 20 (bump de version
+seul, sans entrée détaillée) — voir l'historique git pour cette période.*
+
+### Ajouté
+
+- **📡 Panadapter**, en trois volets, chacun réutilisable seul :
+  - **Audio universel** : spectre + chute d'eau calculés depuis l'audio de
+    réception (câble/interface radio, jamais le micro), dans une fenêtre
+    détachée dédiée. Marche avec n'importe quel poste, zéro matériel
+    supplémentaire — limité à la largeur du filtre audio du poste.
+  - **Scope CI-V natif (Icom)** : sur IC-7300/7610/9700/705/7851, un vrai
+    panadapter large bande (jusqu'à 500 kHz de span) en réutilisant le port
+    série déjà ouvert pour le CAT — le poste calcule son spectre en interne
+    et le publie sur la même liaison.
+  - **TCI (Flex/SunSDR)** : le protocole TCI n'a pas de "spectre tout fait"
+    comme CI-V — LogX calcule sa propre FFT (écrite en pur Python, aucune
+    dépendance ajoutée) à partir du flux IQ brut du serveur TCI.
+- **🎙️ Keyer vocal : synthèse multi-voix.** Un correspondant DL, JA, etc.
+  faisait lire l'indicatif et le report ("fifty-nine") avec l'accent de la
+  voix locale choisie pour le message — le texte était déjà correct, seule
+  la voix ne l'était pas. Chaque segment de langue est désormais synthétisé
+  avec sa propre voix, jouée en séquence sous une seule prise de PTT.
+
+### Corrigé
+
+- **Le clic sur le tableau de bande ne faisait QSY qu'en fréquence, jamais
+  en mode** — la radio changeait de fréquence mais restait sur le mode déjà
+  affiché, y compris pour un spot CW pendant une saisie SSB.
+- **Décodeur CW : aucun retour si le signal n'atteignait pas le seuil de
+  détection.** Le pipeline de décodage lui-même n'avait pas de défaut
+  identifiable, mais rien n'indiquait si le niveau audio, le périphérique ou
+  le ton étaient en cause — ajout d'un vumètre de diagnostic (niveau reçu vs
+  seuil) directement dans le panneau.
+
+### Interne
+
+- Scope CI-V et panadapter TCI développés et vérifiés par un processus à
+  plusieurs passes indépendantes (implémentation puis relecture
+  adversariale séparée) : un bug bloquant a été trouvé sur le scope CI-V
+  avant fusion (une méthode utilisée par le nouveau code n'existait pas sur
+  la connexion série de production, invisible aux tests parce que leur
+  double de test l'exposait lui) — corrigé avant toute mise en ligne.
+
 ## [0.9-beta13] - 2026-07-31
 
 ### Ajouté
