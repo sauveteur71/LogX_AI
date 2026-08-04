@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Panadapter</title>
+<link rel="icon" href="/logx_icon.svg">
+<!--
+  PANADAPTER AUDIO — fenêtre détachable, 100% navigateur, ZÉRO backend.
+
+  ÉTUDE PRÉALABLE (voir mémoire chantier-etude-panadapter) : trois familles de
+  solutions existent (scope natif CI-V des Icom haut de gamme, TCI, SDR externe
+  + tap IF matériel, panadapter audio). Celle-ci est la SEULE qui marche sur
+  100% du parc radio sans aucun matériel supplémentaire — elle réutilise
+  exactement le même flux audio que le décodeur CW (logx_cwdecoder.js) :
+  câble/interface déjà branché depuis la sortie audio de réception du poste
+  vers l'entrée du PC, jamais le micro.
+
+  LIMITE ASSUMÉE, pas un bug : la largeur affichable est celle du FILTRE AUDIO
+  du poste (typiquement 2,4-3 kHz en SSB étroit, jusqu'à ~12-15 kHz si le poste
+  sort un audio large bande dédié) — pas les centaines de kHz d'un vrai scope
+  radio interne. C'est le compromis documenté dans l'étude : zéro matériel,
+  mais pas de vue "toute la bande". Pour ça, voir le scope CI-V natif (Icom)
+  ou TCI (Flex/SunSDR), deux chantiers séparés qui viennent APRÈS celui-ci.
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root{--bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--yellow:#FFD60A;
+  --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
+  --mono:'Share Tech Mono',monospace;--font-display:'Fraunces',serif;}
+body.day-mode{--bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--yellow:#7A5A00;
+  --red:#CC0030;--purple:#8040B0;--text:#232320;--muted:#716C5E;}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);display:flex;flex-direction:column;overflow:hidden}
+svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
+header{display:flex;align-items:center;gap:10px;padding:8px 14px;background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:2px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.titre{font-size:19px;font-family:var(--font-display);font-weight:900;color:var(--accent);letter-spacing:.2px;display:flex;align-items:center;gap:7px}
+.titre svg{width:19px;height:19px}
+select,button.pa-btn{background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);
+  font-family:var(--mono);font-size:12px;padding:5px 8px;cursor:pointer}
+button.pa-btn{color:var(--muted)}
+button.pa-btn.on{background:var(--green);border-color:var(--green);color:#001a08;font-weight:700}
+.niveau{font-size:11px;color:var(--muted);min-width:150px}
+.clock{margin-left:auto;font-size:12px;color:var(--muted)}
+.scopewrap{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 14px 6px;gap:2px}
+#specCanvas{width:100%;height:130px;flex-shrink:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px 8px 0 0;border-bottom:none}
+#axisCanvas{width:100%;height:18px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);border-right:1px solid var(--border)}
+#waterCanvas{width:100%;flex:1;min-height:0;background:#000;border:1px solid var(--border);border-radius:0 0 8px 8px;border-top:none}
+.empty-note{position:absolute;pointer-events:none}
+footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body data-rc-no-lang-select>
+<header>
+  <span class="titre"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg>PANADAPTER</span>
+  <select id="paDevice"><option value="">— périphérique par défaut —</option></select>
+  <select id="paSpan" title="Largeur de bande affichée — limitée par le filtre audio du poste, pas un vrai scope RF">
+    <option value="3000">0–3 kHz (SSB/CW étroit)</option>
+    <option value="6000">0–6 kHz</option>
+    <option value="12000" selected>0–12 kHz</option>
+    <option value="24000">0–24 kHz (audio large bande)</option>
+  </select>
+  <label class="niveau" style="display:flex;align-items:center;gap:5px;cursor:pointer">
+    <input type="checkbox" id="paRfScale" title="Convertit l'axe en fréquence RF réelle à partir de la fréquence radio (fiable seulement en USB/LSB — CW/AM/FM affichent l'audio brut)">échelle RF (si SSB)
+  </label>
+  <button class="pa-btn" id="paStartBtn">▶ Démarrer</button>
+  <span class="clock" id="clock">--:--:--</span>
+</header>
+<div class="scopewrap">
+  <canvas id="specCanvas"></canvas>
+  <canvas id="axisCanvas"></canvas>
+  <canvas id="waterCanvas"></canvas>
+</div>
+<footer>
+  <span>Écoute l'audio de réception (câble virtuel/interface radio, PAS le micro du PC) — largeur limitée au filtre audio du poste, pas un scope RF large bande.</span>
+</footer>
+<script src="logx_i18n.js"></script>
+<script src="logx_cwdecoder.js"></script>
+<script>
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+if(localStorage.getItem('rc_theme') === null){
+  fetch('/config').then(r=>r.ok?r.json():null).then(c=>{
+    if(c && c.ui_theme && localStorage.getItem('rc_theme') === null){
+      localStorage.setItem('rc_theme', c.ui_theme);
+      document.body.classList.toggle('day-mode', c.ui_theme === 'day');
+    }
+  }).catch(()=>{});
+}
+
+(function(){
+  const T = s => (window.rcT ? window.rcT(s) : s);
+  const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+    let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+  })());
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">'
+      + Tf('Ouvre via le serveur : {url}', {url: 'http://127.0.0.1:8080/logx_panadapter.html'}) + '</div>';
+    return;
+  }
+
+  function horloge(){
+    const d = new Date();
+    document.getElementById('clock').textContent =
+      String(d.getUTCHours()).padStart(2,'0') + ':' +
+      String(d.getUTCMinutes()).padStart(2,'0') + ':' +
+      String(d.getUTCSeconds()).padStart(2,'0') + ' UTC';
+  }
+  horloge(); setInterval(horloge, 1000);
+
+  // ── Périphérique audio ───────────────────────────────────────────────────
+  // Copie volontaire du principe de loadAudioInputDevices() (logx_logbook.js) :
+  // cette page est autonome (comme logx_bande.html/logx_scope.html), elle ne
+  // charge pas logx_logbook.js et ne peut donc pas réutiliser sa fonction
+  // directement. Demande la permission une fois pour peupler les libellés,
+  // referme aussitôt le flux temporaire (celui qui sert vraiment s'ouvre au
+  // clic sur Démarrer).
+  async function chargerPeripheriques(){
+    const sel = document.getElementById('paDevice');
+    try{
+      const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+      tmp.getTracks().forEach(t=>t.stop());
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(d=>d.kind==='audioinput');
+      sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+        + inputs.map(d=>`<option value="${d.deviceId}">${(d.label||'Entrée audio').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</option>`).join('');
+    }catch(e){
+      sel.innerHTML = '<option value="">Accès micro refusé</option>';
+    }
+  }
+  chargerPeripheriques();
+
+  // ── État radio (pour l'échelle RF optionnelle) ───────────────────────────
+  let rigFreqKhz = 0, rigMode = '';
+  async function pollRig(){
+    try{
+      const r = await fetch('/rig/state');
+      if(!r.ok) return;
+      const d = await r.json();
+      if(d && d.enabled){ rigFreqKhz = d.freq_khz || 0; rigMode = (d.mode || '').toUpperCase(); }
+      else { rigFreqKhz = 0; rigMode = ''; }
+    }catch(e){}
+  }
+  pollRig(); setInterval(pollRig, 4000);
+
+  // ── Pipeline Web Audio : AnalyserNode, pas de backend ────────────────────
+  let ctx = null, source = null, analyser = null, stream = null, raf = null;
+  let dataArray = null;
+
+  function tailleCanvas(cv){
+    // Un <canvas> a DEUX tailles indépendantes (CSS et son propre repère de
+    // dessin) — sans synchroniser explicitement la seconde sur la première,
+    // le tracé reste figé à la résolution par défaut (300x150) et s'étire en
+    // flou au lieu de remplir réellement l'espace CSS alloué.
+    const rect = cv.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    if(cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+    return {w: cv.width, h: cv.height};
+  }
+
+  // Dégradé "chaleur" calé sur la palette graphite&cuivre du reste de
+  // l'appli (voir CLAUDE.md) plutôt qu'un bleu/rouge SDR générique — fond
+  // sombre -> cuivre -> jaune pour les crêtes, cohérent avec --accent/--yellow.
+  function couleurNiveau(v){   // v : 0-255
+    const t = v / 255;
+    if(t < 0.5){
+      const k = t / 0.5;
+      return [Math.round(23 + k*209), Math.round(24 + k*126), Math.round(26 + k*20)];  // bg -> accent
+    }
+    const k = (t - 0.5) / 0.5;
+    return [Math.round(232 + k*23), Math.round(150 + k*64), Math.round(74 - k*20)];    // accent -> jaune
+  }
+
+  function binsAffiches(maxHz){
+    const nyquist = ctx.sampleRate / 2;
+    const total = analyser.frequencyBinCount;
+    return Math.max(1, Math.min(total, Math.round((maxHz / nyquist) * total)));
+  }
+
+  function dessinerAxe(maxHz){
+    const cv = document.getElementById('axisCanvas');
+    const {w, h} = tailleCanvas(cv);
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, w, h);
+    g.font = (10 * (window.devicePixelRatio||1)) + 'px ' + getComputedStyle(document.body).fontFamily;
+    g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#8792B5';
+    g.textAlign = 'center';
+    const rfMode = document.getElementById('paRfScale').checked && rigFreqKhz > 0
+                   && (rigMode === 'USB' || rigMode === 'LSB');
+    const nGrad = 6;
+    for(let i = 0; i <= nGrad; i++){
+      const hz = maxHz * i / nGrad;
+      const x = (i / nGrad) * w;
+      let label;
+      if(rfMode){
+        // USB : le son grave correspond au bas de la porteuse -> RF = dial + audio.
+        // LSB : inverse -> RF = dial - audio. En dehors de ces deux modes,
+        // l'axe reste en audio brut (voir titre du champ) : pas de convention
+        // fiable et unique pour CW/AM/FM sans connaître le décalage de ton
+        // configuré sur CHAQUE poste.
+        const rfKhz = rigMode === 'USB' ? (rigFreqKhz + hz/1000) : (rigFreqKhz - hz/1000);
+        label = (rfKhz/1000).toFixed(4);
+      } else {
+        label = hz >= 1000 ? (hz/1000).toFixed(1) + 'k' : Math.round(hz);
+      }
+      g.fillText(String(label), Math.max(14, Math.min(w-14, x)), h*0.75);
+    }
+  }
+
+  function dessinerSpectre(maxHz){
+    const cv = document.getElementById('specCanvas');
+    const {w, h} = tailleCanvas(cv);
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, w, h);
+    const nBins = binsAffiches(maxHz);
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#E8964A';
+    g.beginPath();
+    g.moveTo(0, h);
+    for(let x = 0; x < w; x++){
+      const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
+      const v = dataArray[bin] / 255;
+      g.lineTo(x, h - v * h);
+    }
+    g.lineTo(w, h);
+    g.closePath();
+    g.fillStyle = accent + '33';
+    g.fill();
+    g.strokeStyle = accent;
+    g.lineWidth = 1.4 * (window.devicePixelRatio||1);
+    g.stroke();
+  }
+
+  // Chute d'eau : on décale l'image entière d'une ligne vers le bas puis on
+  // peint la nouvelle ligne tout en haut — bien moins coûteux que redessiner
+  // tout l'historique à chaque frame (même principe que drawWaterfallRow()
+  // dans logx_logbook.js, appliqué ici à un spectre FFT réel au lieu d'une
+  // liste de spots).
+  function dessinerWaterfall(maxHz){
+    const cv = document.getElementById('waterCanvas');
+    const {w, h} = tailleCanvas(cv);
+    const g = cv.getContext('2d');
+    g.drawImage(cv, 0, 0, w, h, 0, 1, w, h - 1);
+    const nBins = binsAffiches(maxHz);
+    const ligne = g.createImageData(w, 1);
+    for(let x = 0; x < w; x++){
+      const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
+      const [r, gg, b] = couleurNiveau(dataArray[bin]);
+      const o = x * 4;
+      ligne.data[o] = r; ligne.data[o+1] = gg; ligne.data[o+2] = b; ligne.data[o+3] = 255;
+    }
+    g.putImageData(ligne, 0, 0);
+  }
+
+  function boucle(){
+    if(!analyser) return;
+    analyser.getByteFrequencyData(dataArray);
+    const maxHz = parseInt(document.getElementById('paSpan').value, 10) || 3000;
+    dessinerSpectre(maxHz);
+    dessinerWaterfall(maxHz);
+    dessinerAxe(maxHz);
+    raf = requestAnimationFrame(boucle);
+  }
+
+  async function demarrer(){
+    const deviceId = document.getElementById('paDevice').value;
+    const constraints = {audio: deviceId
+      ? {deviceId:{exact:deviceId}, echoCancellation:false, noiseSuppression:false, autoGainControl:false}
+      : {echoCancellation:false, noiseSuppression:false, autoGainControl:false}};
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    source = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 4096;               // résolution fine en bas de spectre, où vit le CW/SSB
+    analyser.smoothingTimeConstant = 0.55;  // lisse le scintillement sans noyer les crêtes
+    // Plage dB élargie par rapport au défaut (-100/-30) : un signal radio
+    // faible (câble virtuel, gain d'entrée bas) restait collé au plancher de
+    // l'échelle par défaut, écran en permanence quasi noir.
+    analyser.minDecibels = -100;
+    analyser.maxDecibels = -20;
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    source.connect(analyser);
+    raf = requestAnimationFrame(boucle);
+  }
+
+  function arreter(){
+    if(raf) cancelAnimationFrame(raf);
+    raf = null;
+    try{ source && source.disconnect(); }catch(e){}
+    try{ analyser && analyser.disconnect(); }catch(e){}
+    try{ stream && stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    try{ ctx && ctx.close(); }catch(e){}
+    ctx = null; analyser = null; stream = null; source = null;
+    const cv = document.getElementById('specCanvas');
+    const {w, h} = tailleCanvas(cv);
+    cv.getContext('2d').clearRect(0, 0, w, h);
+  }
+
+  document.getElementById('paStartBtn').onclick = function(){
+    const btn = this;
+    if(ctx){
+      arreter();
+      btn.textContent = '▶ Démarrer';
+      btn.classList.remove('on');
+      return;
+    }
+    demarrer().then(() => {
+      btn.textContent = '■ Arrêter';
+      btn.classList.add('on');
+    }).catch(e => {
+      alert(T('Micro/entrée audio indisponible : ') + e.message);
+    });
+  };
+
+  window.addEventListener('beforeunload', arreter);
+})();
+</script>
+</body>
+</html>
