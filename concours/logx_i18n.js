@@ -6263,6 +6263,46 @@
   for (const l of ['en','de','es','it','pt','nl','pl']) {
     if (T[l]) Object.assign(T[l], T_SAT_ROTOR_FIX[l]);
   }
+
+  // Titres de <optgroup> du sélecteur de périphérique KEYER VOCAL (CONFIG,
+  // 04/08/2026) — un <optgroup label> est un ATTRIBUT, pas un nœud texte, le
+  // moteur ne le voit que parce qu'il figure dans la liste 'title',
+  // 'placeholder', 'label', 'alt', 'aria-label' plus bas (voir
+  // tests/test_i18n_optgroup.py).
+  const T_VOICEKEYER_DEVICE_FIX = {
+    en: {
+      "Câbles virtuels / interfaces (recommandé)": "Virtual cables / interfaces (recommended)",
+      "Autres sorties (haut-parleurs, casque…)": "Other outputs (speakers, headset…)",
+    },
+    de: {
+      "Câbles virtuels / interfaces (recommandé)": "Virtuelle Kabel / Schnittstellen (empfohlen)",
+      "Autres sorties (haut-parleurs, casque…)": "Andere Ausgänge (Lautsprecher, Headset…)",
+    },
+    es: {
+      "Câbles virtuels / interfaces (recommandé)": "Cables virtuales / interfaces (recomendado)",
+      "Autres sorties (haut-parleurs, casque…)": "Otras salidas (altavoces, auriculares…)",
+    },
+    it: {
+      "Câbles virtuels / interfaces (recommandé)": "Cavi virtuali / interfacce (consigliato)",
+      "Autres sorties (haut-parleurs, casque…)": "Altre uscite (altoparlanti, cuffie…)",
+    },
+    pt: {
+      "Câbles virtuels / interfaces (recommandé)": "Cabos virtuais / interfaces (recomendado)",
+      "Autres sorties (haut-parleurs, casque…)": "Outras saídas (altifalantes, headset…)",
+    },
+    nl: {
+      "Câbles virtuels / interfaces (recommandé)": "Virtuele kabels / interfaces (aanbevolen)",
+      "Autres sorties (haut-parleurs, casque…)": "Andere uitgangen (luidsprekers, headset…)",
+    },
+    pl: {
+      "Câbles virtuels / interfaces (recommandé)": "Kable wirtualne / interfejsy (zalecane)",
+      "Autres sorties (haut-parleurs, casque…)": "Inne wyjścia (głośniki, słuchawki…)",
+    },
+  };
+  for (const l of ['en','de','es','it','pt','nl','pl']) {
+    if (T[l]) Object.assign(T[l], T_VOICEKEYER_DEVICE_FIX[l]);
+  }
+
   // Exposé pour re-traduire après un rendu dynamique
   window.rcTranslate = function () {
     const lang = getLang();

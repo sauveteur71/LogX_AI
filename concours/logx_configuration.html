@@ -3514,6 +3514,17 @@ async function loadDxRecord(){
   }
 }
 
+// Devine si un nom de périphérique audio ressemble à un câble virtuel/une
+// interface dédiée (ce qu'il FAUT choisir ici, voir le texte d'aide
+// au-dessus du sélecteur) plutôt qu'à une sortie physique (haut-parleurs/
+// casque, à éviter). Heuristique sur le NOM SEUL : PortAudio/sounddevice ne
+// distingue pas "virtuel" de "physique" autrement — jamais fiable à 100%,
+// donc on GROUPE plutôt qu'on ne masque (un setup atypique reste choisissable).
+function _vkIsLikelyVirtual(name){
+  const n = (name || '').toLowerCase();
+  return /vb-?audio|vb-?cable|\bcable\b|\bvac\b|virtual|voicemeeter|microham|signalink|rigblaster|digirig|\bvoicetronic\b/.test(n);
+}
+
 async function loadVoiceKeyerDevices(){
   const devSel = document.getElementById('voicekeyer_device');
   const voiceSel = document.getElementById('voicekeyer_voice_id');
@@ -3522,8 +3533,13 @@ async function loadVoiceKeyerDevices(){
     const r = await fetch('/voicekeyer/devices');
     if(!r.ok) throw new Error('http ' + r.status);
     const d = await r.json();
+    const devices = d.devices || [];
+    const virtuels = devices.filter(x => _vkIsLikelyVirtual(x.name));
+    const autres = devices.filter(x => !_vkIsLikelyVirtual(x.name));
+    const optHtml = x => `<option value="${x.index}">${_vkEsc(x.name)}</option>`;
     devSel.innerHTML = '<option value="">— périphérique par défaut —</option>'
-      + (d.devices || []).map(x => `<option value="${x.index}">${_vkEsc(x.name)}</option>`).join('');
+      + (virtuels.length ? `<optgroup label="Câbles virtuels / interfaces (recommandé)">${virtuels.map(optHtml).join('')}</optgroup>` : '')
+      + (autres.length ? `<optgroup label="Autres sorties (haut-parleurs, casque…)">${autres.map(optHtml).join('')}</optgroup>` : '');
     voiceSel.innerHTML = '<option value="">— voix par défaut —</option>'
       + (d.voices || []).map(x => `<option value="${_vkEsc(x.id)}">${_vkEsc(x.name)}${x.lang ? ' (' + _vkEsc(x.lang) + ')' : ''}</option>`).join('');
   }catch(e){
@@ -3551,12 +3567,18 @@ async function testVoiceKeyer(){
   await _lastConfigSavePromise;
   if(out){ out.textContent = '⏳ test en cours…'; out.style.color = 'var(--muted)'; }
   try{
+    // skip_ptt : ce bouton ne fait que PRÉVISUALISER le périphérique/la voix
+    // choisis (indicatif fictif F8TEST) — il ne doit jamais exiger que le
+    // pilotage radio soit déjà configuré, ni engager le PTT pour autant
+    // (retour F4GLD 04/08/2026 : le test échouait systématiquement tant que
+    // CAT n'était pas réglé, alors qu'on veut juste vérifier le son).
     const r = await fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({template: '{CALL} de {MYCALL}, {RST_SENT}',
-        call: 'F8TEST', mycall: document.getElementById('callsign').value || 'F1TEST', rst_sent: '59'})});
+        call: 'F8TEST', mycall: document.getElementById('callsign').value || 'F1TEST', rst_sent: '59',
+        skip_ptt: true})});
     const d = await r.json();
     if(out){
-      out.textContent = d.ok ? `✅ Envoyé : « ${d.text} »` : `❌ ${d.error}`;
+      out.textContent = d.ok ? `✅ Lu (sans PTT) : « ${d.text} »` : `❌ ${d.error}`;
       out.style.color = d.ok ? 'var(--green)' : 'var(--red)';
     }
   }catch(e){
@@ -4650,6 +4672,23 @@ function closeCategoryPopup(cat){
   } catch(e){}
   renderHub();
 }
+
+// Clic sur le FOND du popup (l'overlay .cat-modal lui-même, pas la boîte
+// .cat-modal-box à l'intérieur) = même effet que « Fermer » — pas
+// « Enregistrer » (retour F4GLD 04/08/2026 : cliquer à côté ne doit jamais
+// sauvegarder une config à moitié modifiée par accident). event.target===this
+// distingue un clic sur le fond (la cible EST l'overlay) d'un clic propagé
+// depuis un enfant (la boîte, un champ, un bouton).
+function bindCatModalBackdropClose(){
+  document.querySelectorAll('.cat-modal').forEach(function(m){
+    m.addEventListener('click', function(e){
+      if(e.target !== m) return;
+      if(m.id === 'catmodal_summary') closeSummaryPopup();
+      else closeConfigPopup();
+    });
+  });
+}
+bindCatModalBackdropClose();
 
 // Popup RÉSUMÉ (remplace l'ancien panel5/étape 5) : accessible à tout moment
 // depuis le lien "📊 Résumé ▸" en tête du hub, indépendamment des catégories.

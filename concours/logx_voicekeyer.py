@@ -421,10 +421,13 @@ def _set_ptt(cfg, on):
     return {'ok': False, 'error': 'Pilotage radio désactivé (CONFIG)'}
 
 
-def send_voice_message(cfg, text, lang=''):
+def send_voice_message(cfg, text, lang='', skip_ptt=False):
     """PTT ON -> synthèse + lecture -> PTT OFF, quel que soit le mode CAT
     actif. `lang` : préfère une voix SAPI de cette langue (voir expand_voice_text
-    / message_lang). Ne lève jamais : {'ok': bool, 'error'?: str}."""
+    / message_lang). `skip_ptt` : n'engage jamais le PTT — réservé au bouton
+    « Tester » de CONFIG (indicatif fictif), pour prévisualiser le périphérique/
+    la voix choisis SANS exiger que le pilotage radio soit déjà configuré (voir
+    emettre_wav). Ne lève jamais : {'ok': bool, 'error'?: str}."""
     settings = voicekeyer_settings(cfg)
     if not settings['enabled']:
         return {'ok': False, 'error': 'Keyer vocal désactivé (CONFIG)'}
@@ -438,14 +441,25 @@ def send_voice_message(cfg, text, lang=''):
     # Le WAV de synthèse est temporaire : emettre_wav() le supprime lui-même
     # après émission (supprimer_apres), y compris si la lecture échoue.
     return emettre_wav(cfg, path, settings['device'],
-                       supprimer_apres=True, extra={'text': text})
+                       supprimer_apres=True, extra={'text': text}, skip_ptt=skip_ptt)
 
 
-def emettre_wav(cfg, path, device, supprimer_apres=False, extra=None):
+def emettre_wav(cfg, path, device, supprimer_apres=False, extra=None, skip_ptt=False):
     """PTT ON → lecture du WAV → PTT OFF vérifié. Séquence commune à la voix de
     synthèse (callbot) et aux messages enregistrés par l'opérateur : c'est le
     relâchement du PTT qui doit être identique dans les deux cas, pas seulement
-    la lecture."""
+    la lecture.
+
+    `skip_ptt=True` : ne touche jamais au PTT (ni ON ni OFF) — utilisé
+    UNIQUEMENT par le test CONFIG (indicatif fictif « F8TEST »->
+    /rig/voice avec skip_ptt) pour permettre de prévisualiser le
+    périphérique audio/la voix choisis même sans pilotage radio configuré
+    (retour F4GLD 04/08/2026 : le test échouait systématiquement avec
+    « Pilotage radio désactivé » tant que CAT n'était pas réglé, alors que
+    l'opérateur voulait juste vérifier le son). En émission réelle
+    (send_voice_message() depuis le logbook, skip_ptt jamais positionné),
+    le PTT reste obligatoire — sans lui la radio ne transmet pas, jouer le
+    son quand même donnerait une fausse impression de message envoyé."""
     def _rm():
         if supprimer_apres:
             try:
@@ -455,10 +469,11 @@ def emettre_wav(cfg, path, device, supprimer_apres=False, extra=None):
 
     # Verrou : une seule émission vocale à la fois (voir _voice_lock).
     with _voice_lock:
-        ptt_on = _set_ptt(cfg, True)
-        if not ptt_on.get('ok'):
-            _rm()
-            return {'ok': False, 'error': f"PTT refusé : {ptt_on.get('error', '?')}"}
+        if not skip_ptt:
+            ptt_on = _set_ptt(cfg, True)
+            if not ptt_on.get('ok'):
+                _rm()
+                return {'ok': False, 'error': f"PTT refusé : {ptt_on.get('error', '?')}"}
         result = {'ok': True}
         result.update(extra or {})
         try:
@@ -466,17 +481,18 @@ def emettre_wav(cfg, path, device, supprimer_apres=False, extra=None):
         except Exception as e:
             result = {'ok': False, 'error': f'Lecture audio impossible : {e}'}
         finally:
-            # Relâchement du PTT VÉRIFIÉ, avec une seconde tentative : un échec
-            # silencieux laisserait la radio bloquée en émission continue
-            # (risque matériel pour l'ampli/le transceiver).
-            off = _set_ptt(cfg, False)
-            if not off.get('ok'):
+            if not skip_ptt:
+                # Relâchement du PTT VÉRIFIÉ, avec une seconde tentative : un
+                # échec silencieux laisserait la radio bloquée en émission
+                # continue (risque matériel pour l'ampli/le transceiver).
                 off = _set_ptt(cfg, False)
-            if not off.get('ok'):
-                result['ok'] = False
-                result['ptt_release_failed'] = True
-                result['error'] = ("⚠ ÉCHEC DU RELÂCHEMENT PTT — la radio peut "
-                                   "rester en émission ! " + str(off.get('error', '?')))
+                if not off.get('ok'):
+                    off = _set_ptt(cfg, False)
+                if not off.get('ok'):
+                    result['ok'] = False
+                    result['ptt_release_failed'] = True
+                    result['error'] = ("⚠ ÉCHEC DU RELÂCHEMENT PTT — la radio peut "
+                                       "rester en émission ! " + str(off.get('error', '?')))
             _rm()
         return result
 
