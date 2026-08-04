@@ -6,12 +6,31 @@ keyer de la radio en CW, voir copyMacro() dans logx_logbook.js).
 
 Le keyer vocal existant (WAV pré-enregistrés, rejoués sur les haut-parleurs
 du PC) ne fait ni insertion dynamique de l'indicatif ni émission radio. Ici :
-  1. Le texte du message est développé : l'indicatif ({CALL}/{MYCALL}) est épelé
-     en alphabet phonétique INTERNATIONAL (OACI, compris de tous), le report et
-     les séries ({RST_SENT}/{RST_RCVD}/{NR}) sont dits EN TOUTES LETTRES dans la
-     langue dérivée de l'indicatif du correspondant (« cinquante-neuf » pour une
-     station F, « fifty-nine » sinon), et {TNX} clôt par « 73 » suivi d'un
-     remerciement dans la langue du correspondant (merci / arigato / thanks…).
+  1. Le texte du message est développé : l'indicatif ({CALL}/{MYCALL}) est
+     épelé en alphabet phonétique INTERNATIONAL (OACI — Alpha/Bravo/…/Zero/
+     One/…/Nine, compris de tous, JAMAIS traduit, voir spell_callsign), le
+     report et les séries ({RST_SENT}/{RST_RCVD}/{NR}) sont dits EN TOUTES
+     LETTRES TOUJOURS EN ANGLAIS (« fifty-nine », jamais « cinquante-neuf »
+     — retour F4GLD 04/08/2026 : l'échange doit rester simple et sans
+     ambiguïté, quelle que soit la langue du correspondant), {DE} adapte le
+     connecteur (« de »/« von »/« da »/« van »/« kara »/« from ») et {TNX}
+     clôt par « 73 » suivi d'un remerciement DANS LA LANGUE du correspondant
+     (merci/arigato/danke/grazie/gracias/obrigado/dank u/thanks — cette
+     clôture de politesse n'est pas une donnée d'échange, elle reste
+     localisée ; fr/de/it/es/pt/nl/ja ont un système de nombres complet
+     dédié pour ce « 73 » de clôture, voir lang_for_call/number_to_words).
+
+     ATTENTION PRONONCIATION (retour F4GLD 04/08/2026, ex. « nine » se
+     prononce /naɪn/) : ceci reste du TEXTE BRUT envoyé à un SEUL moteur
+     TTS pour tout le message — pas de balisage par mot ("SSML") indiquant
+     à la voix de changer de langue au milieu de la phrase. Si le moteur
+     choisit une voix allemande/italienne/etc. (pour le « 73 » de clôture
+     par ex.), les mots ANGLAIS internationaux mélangés dans la MÊME phrase
+     (alphabet OACI, chiffres d'échange, « stroke ») risquent d'être lus
+     avec les règles de prononciation de CETTE langue, pas l'anglais
+     correct — limitation connue de pyttsx3/SAPI5 et Piper en usage simple
+     (texte -> audio), pas quelque chose qu'un correctif ici peut garantir
+     sans passer par du SSML par mot (hors périmètre actuel).
   2. Synthèse en WAV temporaire, avec 3 moteurs possibles par ordre de
      préférence (chacun optionnel, retombe silencieusement sur le suivant) :
        a. Voix IA cloud (ElevenLabs) si activée en CONFIG — la plus naturelle,
@@ -173,26 +192,254 @@ def _fr_below_1000(n):
     return s + (' ' + _fr_below_100(r) if r else '')
 
 
+# Allemand — implémenté en entier (demande explicite F4GLD 04/08/2026 : un
+# indicatif DL doit s'entendre en allemand, pas juste son mot de remerciement
+# de clôture comme avant). Unité-puis-dizaine inversées ("einundzwanzig" =
+# un-et-vingt) et mots composés SANS espace, comme à l'écrit/l'oral allemand.
+_DE_ONES = ['null', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben',
+            'acht', 'neun', 'zehn', 'elf', 'zwölf', 'dreizehn', 'vierzehn',
+            'fünfzehn', 'sechzehn', 'siebzehn', 'achtzehn', 'neunzehn']
+_DE_TENS = ['', '', 'zwanzig', 'dreißig', 'vierzig', 'fünfzig', 'sechzig',
+            'siebzig', 'achtzig', 'neunzig']
+
+
+def _de_below_100(n):
+    if n < 20:
+        return _DE_ONES[n]
+    t, u = divmod(n, 10)
+    if u == 0:
+        return _DE_TENS[t]
+    return ('ein' if u == 1 else _DE_ONES[u]) + 'und' + _DE_TENS[t]
+
+
+def _de_below_1000(n):
+    if n < 100:
+        return _de_below_100(n)
+    h, r = divmod(n, 100)
+    return ('ein' if h == 1 else _DE_ONES[h]) + 'hundert' + (_de_below_100(r) if r else '')
+
+
+# Italien — mots composés SANS espace comme l'allemand ; élision de la
+# voyelle finale de la dizaine devant 1/8 (ventuno, pas venti-uno ; ventotto,
+# pas venti-otto) et accent sur les combinaisons en 3 (ventitré).
+_IT_ONES = ['zero', 'uno', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette',
+            'otto', 'nove', 'dieci', 'undici', 'dodici', 'tredici', 'quattordici',
+            'quindici', 'sedici', 'diciassette', 'diciotto', 'diciannove']
+_IT_TENS = ['', '', 'venti', 'trenta', 'quaranta', 'cinquanta', 'sessanta',
+            'settanta', 'ottanta', 'novanta']
+
+
+def _it_below_100(n):
+    if n < 20:
+        return _IT_ONES[n]
+    t, u = divmod(n, 10)
+    tens = _IT_TENS[t]
+    if u == 0:
+        return tens
+    if u in (1, 8):
+        tens = tens[:-1]                              # élision : vent(i) + uno/otto
+    return tens + ('tré' if u == 3 else _IT_ONES[u])  # accent : ventitré
+
+
+def _it_below_1000(n):
+    if n < 100:
+        return _it_below_100(n)
+    h, r = divmod(n, 100)
+    prefix = 'cento' if h == 1 else _IT_ONES[h] + 'cento'
+    return prefix + (_it_below_100(r) if r else '')
+
+
+# Espagnol — CONTRAIREMENT à l'allemand/italien, les dizaines à partir de 30
+# gardent un « y » et des espaces ("cincuenta y nueve") ; seuls 16-29 sont
+# des mots fusionnés (dieciséis, veintiuno). « cien » (100 pile) devient
+# « ciento » dès qu'un reste suit (ciento uno). « quinientos »/« novecientos »
+# sont irréguliers (pas cinco-/nueve-cientos).
+_ES_ONES = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete',
+            'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince',
+            'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve']
+_ES_TWENTIES = ['veinte', 'veintiuno', 'veintidós', 'veintitrés', 'veinticuatro',
+                'veinticinco', 'veintiséis', 'veintisiete', 'veintiocho', 'veintinueve']
+_ES_TENS = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta',
+            'setenta', 'ochenta', 'noventa']
+_ES_HUNDREDS = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos',
+                'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos']
+
+
+def _es_below_100(n):
+    if n < 20:
+        return _ES_ONES[n]
+    if n < 30:
+        return _ES_TWENTIES[n - 20]
+    t, u = divmod(n, 10)
+    return _ES_TENS[t] if u == 0 else _ES_TENS[t] + ' y ' + _ES_ONES[u]
+
+
+def _es_below_1000(n):
+    if n < 100:
+        return _es_below_100(n)
+    h, r = divmod(n, 100)
+    if h == 1 and r == 0:
+        return 'cien'
+    return _ES_HUNDREDS[h] if r == 0 else _ES_HUNDREDS[h] + ' ' + _es_below_100(r)
+
+
+# Portugais — même famille que l'espagnol (« e » au lieu de « y »), mais
+# « cem » (100 pile) devient « cento » dès qu'un reste < 100 suit ; le
+# séparateur avec les milliers est « e » seulement si le reste est < 100
+# (mil cento e um, mais mil duzentos SANS « e »). Orthographe brésilienne
+# retenue pour 16/17/19 (dezesseis/dezessete/dezenove) — un seul dialecte
+# encodé, le regroupement pays ne distingue pas Portugal/Brésil.
+_PT_ONES = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete',
+            'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'catorze', 'quinze',
+            'dezesseis', 'dezessete', 'dezoito', 'dezenove']
+_PT_TENS = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta',
+            'setenta', 'oitenta', 'noventa']
+_PT_HUNDREDS = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos',
+                'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos']
+
+
+def _pt_below_100(n):
+    if n < 20:
+        return _PT_ONES[n]
+    t, u = divmod(n, 10)
+    return _PT_TENS[t] if u == 0 else _PT_TENS[t] + ' e ' + _PT_ONES[u]
+
+
+def _pt_below_1000(n):
+    if n < 100:
+        return _pt_below_100(n)
+    h, r = divmod(n, 100)
+    if h == 1 and r == 0:
+        return 'cem'
+    return _PT_HUNDREDS[h] if r == 0 else _PT_HUNDREDS[h] + ' e ' + _pt_below_100(r)
+
+
+# Néerlandais — même schéma que l'allemand (unité-puis-dizaine inversées,
+# mots composés SANS espace) : « negenenvijftig » = neuf-et-cinquante = 59.
+_NL_ONES = ['nul', 'een', 'twee', 'drie', 'vier', 'vijf', 'zes', 'zeven',
+            'acht', 'negen', 'tien', 'elf', 'twaalf', 'dertien', 'veertien',
+            'vijftien', 'zestien', 'zeventien', 'achttien', 'negentien']
+_NL_TENS = ['', '', 'twintig', 'dertig', 'veertig', 'vijftig', 'zestig',
+            'zeventig', 'tachtig', 'negentig']
+
+
+def _nl_below_100(n):
+    if n < 20:
+        return _NL_ONES[n]
+    t, u = divmod(n, 10)
+    if u == 0:
+        return _NL_TENS[t]
+    unit = 'een' if u == 1 else _NL_ONES[u]
+    # Tréma orthographique néerlandais : "tweeën-"/"drieën-", jamais "tweeen-"
+    # ("twee"/"drie" se terminent par une voyelle — sans le tréma sur le e du
+    # lien "en", trois voyelles se suivraient). Inutile pour les autres
+    # chiffres (vier/vijf/zes/zeven/acht/negen/een se terminent par une
+    # consonne, "en" simple suffit).
+    link = 'ën' if u in (2, 3) else 'en'
+    return unit + link + _NL_TENS[t]
+
+
+def _nl_below_1000(n):
+    if n < 100:
+        return _nl_below_100(n)
+    h, r = divmod(n, 100)
+    prefix = 'honderd' if h == 1 else _NL_ONES[h] + 'honderd'
+    return prefix + (_nl_below_100(r) if r else '')
+
+
+# Japonais (rōmaji — écriture latine, pas de kanji/kana : la synthèse vocale
+# lit du texte, pas des idéogrammes). Système multiplicatif base 10 avec
+# changements euphoniques IRRÉGULIERS aux centaines/milliers (san+hyaku ->
+# "sanbyaku", pas "sanhyaku" ; roku+hyaku -> "roppyaku" ; hachi+hyaku ->
+# "happyaku" ; san+sen -> "sanzen" ; hachi+sen -> "hassen") — encodés en
+# table plutôt que dérivés, plus sûr qu'une règle générale à exceptions.
+# ATTENTION PRONONCIATION (retour F4GLD 04/08/2026) : ceci ne sonnera
+# juste que si une VRAIE voix japonaise est installée — voir la note dans
+# le docstring du module et _voice_id_for_lang().
+_JA_ONES = ['zero', 'ichi', 'ni', 'san', 'yon', 'go', 'roku', 'nana', 'hachi', 'kyuu']
+_JA_TENS_PREFIX = {2: 'ni', 3: 'san', 4: 'yon', 5: 'go', 6: 'roku', 7: 'nana',
+                   8: 'hachi', 9: 'kyuu'}
+_JA_HUNDREDS_WORD = {1: 'hyaku', 2: 'nihyaku', 3: 'sanbyaku', 4: 'yonhyaku',
+                     5: 'gohyaku', 6: 'roppyaku', 7: 'nanahyaku', 8: 'happyaku',
+                     9: 'kyuuhyaku'}
+_JA_THOUSANDS_WORD = {1: 'sen', 2: 'nisen', 3: 'sanzen', 4: 'yonsen', 5: 'gosen',
+                      6: 'rokusen', 7: 'nanasen', 8: 'hassen', 9: 'kyuusen'}
+
+
+def _ja_below_100(n):
+    if n < 10:
+        return _JA_ONES[n]
+    t, u = divmod(n, 10)
+    tens = 'juu' if t == 1 else _JA_TENS_PREFIX[t] + 'juu'
+    return tens + (_JA_ONES[u] if u else '')
+
+
+def _ja_below_1000(n):
+    if n < 100:
+        return _ja_below_100(n)
+    h, r = divmod(n, 100)
+    return _JA_HUNDREDS_WORD[h] + (_ja_below_100(r) if r else '')
+
+
+# Une langue sans système de nombres écrit ici retombe sur l'anglais plutôt
+# que de planter : {TNX}/thanks_word() dit déjà le bon mot dans TOUTES les
+# langues de _LANG_AND_THANKS_BY_COUNTRY, seuls les NOMBRES d'une langue pas
+# encore ajoutée à ce dict retomberaient sur l'anglais (aucune pour l'instant
+# — fr/de/it/es/pt/nl/ja sont toutes couvertes, 04/08/2026).
+_BELOW_1000_BY_LANG = {'fr': _fr_below_1000, 'de': _de_below_1000,
+                       'it': _it_below_1000, 'es': _es_below_1000,
+                       'pt': _pt_below_1000, 'nl': _nl_below_1000,
+                       'ja': _ja_below_1000}
+
+# Mot des milliers (ex. « mille »/« tausend »/« mila »…) par langue, en
+# fonction du multiplicateur (1-9 — le contrat de number_to_words() s'arrête
+# à 9999). Le français/anglais/espagnol/portugais gardent un espace avant le
+# reste ; l'allemand/italien/néerlandais/japonais agglutinent SANS espace,
+# comme à l'écrit dans ces langues — _NO_SPACE_JOIN_LANGS encode lesquelles.
+_THOUSAND_WORD_BY_LANG = {
+    'fr': lambda th, below: 'mille' if th == 1 else below(th) + ' mille',
+    'de': lambda th, below: ('ein' if th == 1 else below(th)) + 'tausend',
+    'it': lambda th, below: 'mille' if th == 1 else below(th) + 'mila',
+    'es': lambda th, below: 'mil' if th == 1 else below(th) + ' mil',
+    'pt': lambda th, below: 'mil' if th == 1 else below(th) + ' mil',
+    'nl': lambda th, below: 'duizend' if th == 1 else below(th) + 'duizend',
+    'ja': lambda th, below: _JA_THOUSANDS_WORD[th],
+}
+_NO_SPACE_JOIN_LANGS = ('de', 'it', 'nl', 'ja')
+
+
 def number_to_words(n, lang='en'):
-    """Entier 0-9999 -> mots. lang 'fr' ou 'en' (défaut). Au-delà de 9999,
-    l'appelant retombe sur l'épellation chiffre par chiffre."""
+    """Entier 0-9999 -> mots. lang : fr/de/it/es/pt/nl/ja ont un système
+    complet, tout le reste (dont 'en') retombe sur l'anglais. Au-delà de
+    9999, l'appelant retombe sur l'épellation chiffre par chiffre."""
     n = int(n)
-    below = _fr_below_1000 if lang == 'fr' else _en_below_1000
+    below = _BELOW_1000_BY_LANG.get(lang, _en_below_1000)
     if n < 1000:
         return below(n)
     th, r = divmod(n, 1000)
-    if lang == 'fr':
-        s = 'mille' if th == 1 else below(th) + ' mille'
-    else:
-        s = below(th) + ' thousand'
-    return s + (' ' + below(r) if r else '')
+    thousand_word = _THOUSAND_WORD_BY_LANG.get(lang)
+    s = thousand_word(th, below) if thousand_word else below(th) + ' thousand'
+    if not r:
+        return s
+    # Portugais : « e » seulement si le reste est < 100 (mil cento e um, mais
+    # mil duzentos SANS « e ») — le seul cas où le séparateur dépend du reste,
+    # pas seulement de la langue.
+    if lang == 'pt':
+        return s + ((' e ' if r < 100 else ' ') + below(r))
+    sep = '' if lang in _NO_SPACE_JOIN_LANGS else ' '
+    return s + sep + below(r)
+
+
+_ZERO_BY_LANG = {'fr': 'zéro', 'de': 'null', 'it': 'zero', 'es': 'cero',
+                 'pt': 'zero', 'nl': 'nul', 'ja': 'zero'}
 
 
 def spell_number(s, lang='en'):
-    """Report/série EN TOUTES LETTRES : '59' -> 'cinquante-neuf'/'fifty-nine'.
-    Les zéros de tête d'une série paddée sont dits ('001' -> 'zéro zéro un',
-    '042' -> 'zéro quarante-deux'), convention concours. Une valeur non
-    purement numérique (zone/classe alphanumérique) retombe sur l'épellation."""
+    """Report/série EN TOUTES LETTRES : '59' -> 'cinquante-neuf'/'neunundfünfzig'
+    /'fifty-nine'. Les zéros de tête d'une série paddée sont dits ('001' ->
+    'zéro zéro un', '042' -> 'zéro quarante-deux'), convention concours. Une
+    valeur non purement numérique (zone/classe alphanumérique) retombe sur
+    l'épellation."""
     s = str(s or '').strip()
     if not s:
         return ''
@@ -200,7 +447,7 @@ def spell_number(s, lang='en'):
         return spell_digits(s)
     lead = len(s) - len(s.lstrip('0'))
     core = s.lstrip('0')
-    zero = 'zéro' if lang == 'fr' else 'zero'
+    zero = _ZERO_BY_LANG.get(lang, 'zero')
     parts = [zero] * lead
     if core:
         n = int(core)
@@ -210,23 +457,33 @@ def spell_number(s, lang='en'):
 
 # ─── LANGUE DÉRIVÉE DE L'INDICATIF + REMERCIEMENT DE CLÔTURE ──────────────────
 # Entités DXCC francophones (cty.dat) où le report se dit en français ; partout
-# ailleurs, anglais (langue internationale du trafic).
+# ailleurs, anglais (langue internationale du trafic) PAR DÉFAUT — sauf les
+# groupes ci-dessous, chacun associé à son code langue ET son mot de
+# remerciement ({TNX}) en un seul endroit (avant, ces deux informations
+# vivaient dans deux tables séparées mais alignées à la main — un oubli d'un
+# côté aurait pu les faire diverger en silence).
 _FRENCH_ENTITIES = ('france', 'corsica', 'guadeloupe', 'martinique', 'reunion',
                     'caledonia', 'polynesia', 'mayotte', 'wallis', 'miquelon',
                     'martin', 'barthelemy', 'kerguelen')
 
-# Remerciement de clôture ({TNX}) dans la langue du correspondant. Jeu volontai-
-# rement RESTREINT aux mots qu'une voix SAPI rend correctement (les exemples
-# demandés : merci / arigato / thanks, plus les voisins européens courants).
-_THANKS_BY_COUNTRY = (
-    (_FRENCH_ENTITIES, 'merci'),
-    (('japan',), 'arigato'),
-    (('germany', 'austria', 'switzerland'), 'danke'),
-    (('italy', 'sardinia'), 'grazie'),
-    (('spain', 'balearic', 'canary'), 'gracias'),
-    (('portugal', 'azores', 'madeira', 'brazil'), 'obrigado'),
-    (('netherlands',), 'dank u'),
+# (mots-clés pays en minuscules, code langue, mot de remerciement {TNX}).
+# Le mot de remerciement reste volontairement RESTREINT aux mots qu'une voix
+# SAPI rend correctement. Le système de NOMBRES complet n'existe que pour
+# fr/de (voir _BELOW_1000_BY_LANG) — les autres langues ici retombent sur les
+# nombres anglais (number_to_words), mais disent déjà le bon {TNX}/{DE}.
+_LANG_AND_THANKS_BY_COUNTRY = (
+    (_FRENCH_ENTITIES, 'fr', 'merci'),
+    (('japan',), 'ja', 'arigato'),
+    (('germany', 'austria', 'switzerland'), 'de', 'danke'),
+    (('italy', 'sardinia'), 'it', 'grazie'),
+    (('spain', 'balearic', 'canary'), 'es', 'gracias'),
+    (('portugal', 'azores', 'madeira', 'brazil'), 'pt', 'obrigado'),
+    (('netherlands',), 'nl', 'dank u'),
 )
+# thanks_word() est plus PRUDENT que lang_for_call() : un pays non identifié
+# retombe sur 'en' pour les NOMBRES (il faut bien dire quelque chose), mais ne
+# dit AUCUN mot de remerciement improvisé — seuls ces pays précis disent
+# « thanks » explicitement, le reste se tait plutôt que de présumer l'anglais.
 _ENGLISH_ENTITIES = ('united states', 'canada', 'england', 'scotland', 'wales',
                      'ireland', 'australia', 'new zealand', 'south africa')
 
@@ -240,10 +497,16 @@ def _country(call):
 
 
 def lang_for_call(call):
-    """'fr' si l'indicatif est une entité française, sinon 'en'. Gouverne la
-    langue des NOMBRES dits en toutes lettres."""
+    """Code langue à 2 lettres dérivé du PAYS de l'indicatif (fr/ja/de/it/es/
+    pt/nl si l'entité est reconnue dans _LANG_AND_THANKS_BY_COUNTRY, sinon
+    'en' — anglais, langue internationale du trafic, aussi le repli par
+    défaut pour un pays non identifié). Gouverne la langue des NOMBRES dits
+    en toutes lettres (voir number_to_words) et du connecteur {DE}."""
     c = _country(call).lower()
-    return 'fr' if any(k in c for k in _FRENCH_ENTITIES) else 'en'
+    for keys, lang, _ in _LANG_AND_THANKS_BY_COUNTRY:
+        if any(k in c for k in keys):
+            return lang
+    return 'en'
 
 
 def message_lang(ctx):
@@ -253,14 +516,25 @@ def message_lang(ctx):
 
 def thanks_word(call):
     """Mot de remerciement dans la langue du pays de l'indicatif — '' si aucun
-    mot dédié (on ne dira alors que « 73 »)."""
+    mot dédié NI anglais reconnu (pays non identifié : on ne dira alors que
+    « 73 », jamais un « thanks » présomptueux — voir _ENGLISH_ENTITIES)."""
     c = _country(call).lower()
     if not c:
         return ''
-    for keys, word in _THANKS_BY_COUNTRY:
+    for keys, _, word in _LANG_AND_THANKS_BY_COUNTRY:
         if any(k in c for k in keys):
             return word
     return 'thanks' if any(k in c for k in _ENGLISH_ENTITIES) else ''
+
+
+# Connecteur {DE} ("F4GLD DE W1AW" -> "... from W1AW"/"... de W1AW"/"...
+# von W1AW"...), English par défaut. 'ja' est un choix approximatif : le
+# japonais est une langue à POSTPOSITIONS (« kara » se dirait APRÈS le nom,
+# pas au même endroit qu'un « from » anglais) — restructurer toute la phrase
+# est hors de portée de ce simple remplacement de mot, mais un mot japonais
+# reste plus proche du sens qu'un « from » anglais laissé tel quel.
+_DE_CONNECTOR_BY_LANG = {'fr': 'de', 'de': 'von', 'it': 'da', 'es': 'de',
+                         'pt': 'de', 'nl': 'van', 'ja': 'kara'}
 
 
 def closing_73(ctx):
@@ -285,18 +559,30 @@ def expand_voice_text(template, ctx):
     """Développe les variables d'une macro vocale. ctx :
     {'call','mycall','rst_sent','rst_rcvd','nr'}.
       {CALL}/{MYCALL} -> alphabet phonétique INTERNATIONAL (compris de tous) ;
-      {RST_SENT}/{RST_RCVD}/{NR} -> EN TOUTES LETTRES dans la langue dérivée de
-        l'indicatif (F -> « cinquante-neuf », sinon « fifty-nine ») ;
-      {TNX} -> « 73 » + remerciement dans la langue du correspondant ;
-      {73} -> « soixante-treize »/« seventy-three »."""
+      {RST_SENT}/{RST_RCVD}/{NR} -> EN TOUTES LETTRES TOUJOURS EN ANGLAIS
+        (« fifty-nine », jamais « cinquante-neuf »/« neunundfünfzig »…),
+        quelle que soit la langue dérivée de l'indicatif — retour F4GLD
+        04/08/2026 : l'échange (le report/la série) doit rester simple et
+        sans ambiguïté, la convention terrain donne toujours ces chiffres
+        en anglais même entre deux stations de même langue ;
+      {DE} -> « de »/« from »/« von »… dans la langue dérivée — contrairement
+        à « stroke » (toujours international, jamais traduit), c'est un mot
+        de la PHRASE elle-même, dit naturellement dans sa propre langue en
+        phonie (retour F4GLD 04/08/2026 : « de » figé en dur ne devenait
+        jamais « from » même quand le reste du message était en anglais) ;
+      {TNX} -> « 73 » + remerciement dans la langue du correspondant (le
+        « 73 » de politesse en clôture n'est PAS un report d'échange, il
+        reste localisé — voir closing_73) ;
+      {73} -> idem, hors clôture ({TNX} l'inclut déjà)."""
     ctx = ctx or {}
     lang = message_lang(ctx)
     return (str(template or '')
             .replace('{CALL}', spell_callsign(ctx.get('call', '')))
             .replace('{MYCALL}', spell_callsign(ctx.get('mycall', '')))
-            .replace('{RST_SENT}', spell_number(ctx.get('rst_sent', ''), lang))
-            .replace('{RST_RCVD}', spell_number(ctx.get('rst_rcvd', ''), lang))
-            .replace('{NR}', spell_number(ctx.get('nr', ''), lang))
+            .replace('{RST_SENT}', spell_number(ctx.get('rst_sent', ''), 'en'))
+            .replace('{RST_RCVD}', spell_number(ctx.get('rst_rcvd', ''), 'en'))
+            .replace('{NR}', spell_number(ctx.get('nr', ''), 'en'))
+            .replace('{DE}', _DE_CONNECTOR_BY_LANG.get(lang, 'from'))
             .replace('{TNX}', closing_73(ctx))
             .replace('{73}', spell_number('73', lang)))
 
@@ -494,10 +780,19 @@ def synthesize_to_wav_piper(text, exe, model, timeout=_PIPER_TIMEOUT):
 
 # ─── SYNTHÈSE + LECTURE ───────────────────────────────────────────────────────
 def _voice_id_for_lang(engine, lang):
-    """id d'une voix SAPI installée correspondant à la langue ('fr'/'en'), ou
-    None. Rend « cinquante-neuf, merci » naturel avec une VRAIE voix française."""
+    """id d'une voix SAPI installée correspondant à la langue (fr/en/de…), ou
+    None si aucune voix de cette langue n'est installée (repli sur la voix
+    par défaut du moteur — aucune erreur, juste moins naturel). Rend
+    « cinquante-neuf, merci »/« neunundfünfzig, danke » naturel avec une
+    VRAIE voix de la langue plutôt qu'une voix anglaise par défaut."""
     hints = {'fr': ('french', 'français', 'francais', 'fr-', 'fr_', 'fra'),
-             'en': ('english', 'en-', 'en_', 'enu', 'eng')}.get(lang or '', ())
+             'en': ('english', 'en-', 'en_', 'enu', 'eng'),
+             'de': ('german', 'deutsch', 'de-', 'de_', 'deu'),
+             'it': ('italian', 'italiano', 'it-', 'it_', 'ita'),
+             'es': ('spanish', 'español', 'espanol', 'es-', 'es_', 'esp'),
+             'pt': ('portuguese', 'português', 'portugues', 'pt-', 'pt_', 'por'),
+             'nl': ('dutch', 'nederlands', 'nl-', 'nl_', 'nld'),
+             'ja': ('japanese', 'ja-', 'ja_', 'jpn')}.get(lang or '', ())
     if not hints:
         return None
     try:

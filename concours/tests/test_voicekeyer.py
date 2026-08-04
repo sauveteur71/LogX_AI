@@ -110,6 +110,93 @@ def test_number_to_words_francais_cas_piegeux():
         assert vk.number_to_words(n, 'fr') == mot, n
 
 
+def test_number_to_words_allemand_cas_pieges():
+    """Retour F4GLD 04/08/2026 : un indicatif DL doit s'entendre en
+    allemand — unité-puis-dizaine inversées (« einundzwanzig »), mots
+    composés SANS espace (contrairement au français/anglais)."""
+    cas = {0: 'null', 1: 'eins', 12: 'zwölf', 16: 'sechzehn',
+           20: 'zwanzig', 21: 'einundzwanzig', 22: 'zweiundzwanzig',
+           59: 'neunundfünfzig', 73: 'dreiundsiebzig',
+           100: 'einhundert', 101: 'einhunderteins',
+           200: 'zweihundert', 599: 'fünfhundertneunundneunzig',
+           1000: 'eintausend', 2024: 'zweitausendvierundzwanzig'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'de') == mot, n
+
+
+def test_number_to_words_italien_cas_pieges():
+    """Élision devant 1/8 (ventuno, ventotto — pas venti-uno) et accent sur
+    les combinaisons en 3 (ventitré) : les deux pièges classiques de
+    l'italien parlé/écrit."""
+    cas = {0: 'zero', 8: 'otto', 20: 'venti', 21: 'ventuno', 22: 'ventidue',
+           23: 'ventitré', 28: 'ventotto', 29: 'ventinove',
+           33: 'trentatré', 59: 'cinquantanove', 73: 'settantatré',
+           81: 'ottantuno', 88: 'ottantotto', 100: 'cento', 101: 'centouno',
+           200: 'duecento', 599: 'cinquecentonovantanove',
+           1000: 'mille', 2024: 'duemilaventiquattro'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'it') == mot, n
+
+
+def test_number_to_words_espagnol_cas_pieges():
+    """16-29 sont des mots fusionnés (dieciséis, veintiuno) ; 30+ garde « y »
+    et des espaces (cincuenta y nueve) — deux régimes différents dans la
+    même langue. « cien » pile, « ciento » dès qu'un reste suit."""
+    cas = {0: 'cero', 16: 'dieciséis', 20: 'veinte', 21: 'veintiuno',
+           23: 'veintitrés', 29: 'veintinueve', 30: 'treinta',
+           31: 'treinta y uno', 59: 'cincuenta y nueve', 73: 'setenta y tres',
+           99: 'noventa y nueve', 100: 'cien', 101: 'ciento uno',
+           200: 'doscientos', 500: 'quinientos', 599: 'quinientos noventa y nueve',
+           900: 'novecientos', 1000: 'mil', 2024: 'dos mil veinticuatro'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'es') == mot, n
+
+
+def test_number_to_words_portugais_cas_pieges():
+    """« e » de liaison partout (vinte e um, cinquenta e nove), mais
+    SEULEMENT si le reste après les milliers est < 100 (mil duzentos,
+    SANS « e » ; mil e um, AVEC) — la seule langue ici où le séparateur
+    dépend de la valeur, pas seulement de la langue."""
+    cas = {0: 'zero', 16: 'dezesseis', 20: 'vinte', 21: 'vinte e um',
+           59: 'cinquenta e nove', 73: 'setenta e três',
+           100: 'cem', 101: 'cento e um', 200: 'duzentos', 500: 'quinhentos',
+           599: 'quinhentos e noventa e nove', 900: 'novecentos',
+           1000: 'mil', 1001: 'mil e um', 1200: 'mil duzentos',
+           2024: 'dois mil e vinte e quatro'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'pt') == mot, n
+
+
+def test_number_to_words_neerlandais_cas_pieges():
+    """Unité-puis-dizaine inversées comme l'allemand ; tréma orthographique
+    obligatoire sur « tweeën-»/« drieën- » (2 et 3 se terminent par une
+    voyelle), absent pour tous les autres chiffres (vierentwintig, pas de
+    tréma car « vier » se termine par une consonne)."""
+    cas = {0: 'nul', 1: 'een', 20: 'twintig', 21: 'eenentwintig',
+           22: 'tweeëntwintig', 23: 'drieëntwintig', 24: 'vierentwintig',
+           59: 'negenenvijftig', 73: 'drieënzeventig',
+           100: 'honderd', 101: 'honderdeen', 200: 'tweehonderd',
+           599: 'vijfhonderdnegenennegentig', 1000: 'duizend',
+           2024: 'tweeduizendvierentwintig'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'nl') == mot, n
+
+
+def test_number_to_words_japonais_cas_pieges():
+    """Rōmaji (écriture latine) — changements euphoniques IRRÉGULIERS aux
+    centaines/milliers (san+hyaku -> sanbyaku, roku+hyaku -> roppyaku,
+    hachi+hyaku -> happyaku, hachi+sen -> hassen), pas une simple
+    concaténation mécanique."""
+    cas = {0: 'zero', 1: 'ichi', 10: 'juu', 11: 'juuichi', 19: 'juukyuu',
+           20: 'nijuu', 21: 'nijuuichi', 59: 'gojuukyuu', 73: 'nanajuusan',
+           100: 'hyaku', 101: 'hyakuichi', 200: 'nihyaku', 300: 'sanbyaku',
+           600: 'roppyaku', 800: 'happyaku',
+           599: 'gohyakukyuujuukyuu', 1000: 'sen', 2000: 'nisen',
+           3000: 'sanzen', 8000: 'hassen', 2024: 'nisennijuuyon'}
+    for n, mot in cas.items():
+        assert vk.number_to_words(n, 'ja') == mot, n
+
+
 def test_spell_number_zeros_de_tete_et_alphanumerique():
     assert vk.spell_number('59', 'fr') == 'cinquante-neuf'
     assert vk.spell_number('001', 'fr') == 'zéro zéro un'
@@ -118,6 +205,7 @@ def test_spell_number_zeros_de_tete_et_alphanumerique():
     assert vk.spell_number('00', 'fr') == 'zéro zéro'
     assert vk.spell_number('3A', 'en') == 'Three Alpha'   # non numérique -> phonétique
     assert vk.spell_number('', 'fr') == ''
+    assert vk.spell_number('059', 'de') == 'null neunundfünfzig'
 
 
 # ─── Langue et remerciement dérivés de l'indicatif ──────────────────────────
@@ -127,11 +215,17 @@ def _mock_country(monkeypatch, name):
     monkeypatch.setattr(dxcc, 'lookup', lambda call: {'country': name} if call else None)
 
 
-def test_lang_for_call_france_vs_reste(monkeypatch):
-    _mock_country(monkeypatch, 'France')
-    assert vk.lang_for_call('F5ABC') == 'fr'
-    _mock_country(monkeypatch, 'Fed. Rep. of Germany')
-    assert vk.lang_for_call('DL1AA') == 'en'
+def test_lang_for_call_par_pays(monkeypatch):
+    """lang_for_call() couvre désormais fr/ja/de/it/es/pt/nl (avec système de
+    nombres complet pour fr/de seulement — voir _BELOW_1000_BY_LANG), 'en'
+    en repli pour tout le reste, y compris un pays non identifié."""
+    cas = [('France', 'F5ABC', 'fr'), ('Fed. Rep. of Germany', 'DL1AA', 'de'),
+           ('Japan', 'JA1XYZ', 'ja'), ('Italy', 'IZ1ABC', 'it'),
+           ('Spain', 'EA1ABC', 'es'), ('Brazil', 'PY1ABC', 'pt'),
+           ('Netherlands', 'PA1ABC', 'nl'), ('United States', 'W1AW', 'en')]
+    for pays, call, attendu in cas:
+        _mock_country(monkeypatch, pays)
+        assert vk.lang_for_call(call) == attendu, pays
     _mock_country(monkeypatch, '')
     assert vk.lang_for_call('X') == 'en'
 
@@ -151,18 +245,23 @@ def test_closing_73_selon_indicatif(monkeypatch):
     _mock_country(monkeypatch, 'France')
     assert vk.closing_73({'call': 'F5ABC'}) == 'soixante-treize merci'
     _mock_country(monkeypatch, 'Japan')
-    assert vk.closing_73({'call': 'JA1XYZ'}) == 'seventy-three arigato'
+    assert vk.closing_73({'call': 'JA1XYZ'}) == 'nanajuusan arigato'
     _mock_country(monkeypatch, 'Mongolia')
     assert vk.closing_73({'call': 'JT1X'}) == 'seventy-three'   # 73 seul si pas de mot
 
 
-def test_expand_report_francais_pour_station_F(monkeypatch):
+def test_expand_report_reste_toujours_en_anglais_meme_pour_station_F(monkeypatch):
+    """Retour F4GLD 04/08/2026 : « pour les rapports 59 ou 58 ou 44, toujours
+    passer ces chiffres en anglais » — l'échange (RST_SENT/RST_RCVD/NR) ne
+    suit PLUS la langue du correspondant, contrairement à la clôture {TNX}
+    (73 + remerciement) qui reste localisée, elle."""
     _mock_country(monkeypatch, 'France')
     ctx = {'call': 'F5ABC', 'rst_sent': '59', 'mycall': 'F4GLD'}
     out = vk.expand_voice_text('{CALL} {RST_SENT} {TNX}', ctx)
     assert 'Foxtrot Five Alpha Bravo Charlie' in out    # indicatif phonétique international
-    assert 'cinquante-neuf' in out                       # report en français
-    assert out.endswith('soixante-treize merci')          # clôture 73 + merci
+    assert 'fifty-nine' in out                           # report TOUJOURS en anglais
+    assert 'cinquante-neuf' not in out
+    assert out.endswith('soixante-treize merci')          # clôture 73 + merci : reste localisée
 
 
 def test_expand_voice_text_mycall_suffixe_reste_en_stroke_meme_en_francais(monkeypatch):
@@ -175,16 +274,42 @@ def test_expand_voice_text_mycall_suffixe_reste_en_stroke_meme_en_francais(monke
     assert out == 'Foxtrot Four Golf Lima Delta stroke portable'
 
 
-def test_expand_report_anglais_pour_station_DL(monkeypatch):
+def test_expand_report_allemand_pour_station_DL(monkeypatch):
+    """Retour F4GLD 04/08/2026 : un indicatif allemand adapte le connecteur
+    ({DE} -> « von ») et la clôture (73 + danke), mais PAS le report
+    d'échange lui-même — { RST_SENT} reste « fifty-nine », jamais
+    « neunundfünfzig » (retour F4GLD suivant : les rapports restent
+    toujours en anglais, pour rester simples et sans ambiguïté)."""
     _mock_country(monkeypatch, 'Fed. Rep. of Germany')
-    ctx = {'call': 'DL1AA', 'rst_sent': '59'}
-    out = vk.expand_voice_text('{RST_SENT} {TNX}', ctx)
-    assert 'fifty-nine' in out and out.endswith('seventy-three danke')
+    ctx = {'call': 'DL1AA', 'mycall': 'F4GLD', 'rst_sent': '59'}
+    out = vk.expand_voice_text('{CALL} {DE} {MYCALL}, {RST_SENT} {TNX}', ctx)
+    assert ' von ' in out
+    assert 'fifty-nine' in out and 'neunundfünfzig' not in out
+    assert out.endswith('dreiundsiebzig danke')          # clôture 73 : reste localisée
 
 
 def test_expand_voice_text_placeholders_manquants_deviennent_vides():
     out = vk.expand_voice_text('CQ {MYCALL}', {})
     assert out == 'CQ '
+
+
+def test_expand_voice_text_de_localise_selon_la_langue(monkeypatch):
+    """{DE} suit la langue du message ('de'/'from'), CONTRAIREMENT à
+    « stroke » (toujours international) — retour F4GLD 04/08/2026 : le
+    bouton Tester de CONFIG figeait « de » même en anglais."""
+    _mock_country(monkeypatch, 'France')
+    assert vk.expand_voice_text('{DE}', {'call': 'F5ABC'}) == 'de'
+    _mock_country(monkeypatch, 'United States')
+    assert vk.expand_voice_text('{DE}', {'call': 'W1AW'}) == 'from'
+    _mock_country(monkeypatch, 'Fed. Rep. of Germany')
+    assert vk.expand_voice_text('{DE}', {'call': 'DL1AA'}) == 'von'
+    for pays, call, mot in [('Italy', 'IZ1ABC', 'da'), ('Spain', 'EA1ABC', 'de'),
+                             ('Brazil', 'PY1ABC', 'de'), ('Netherlands', 'PA1ABC', 'van'),
+                             ('Japan', 'JA1XYZ', 'kara')]:
+        _mock_country(monkeypatch, pays)
+        assert vk.expand_voice_text('{DE}', {'call': call}) == mot, pays
+    # Sans indicatif connu -> anglais international par défaut.
+    assert vk.expand_voice_text('{DE}', {}) == 'from'
 
 
 def test_voice_macros_default_ont_les_champs_attendus():
