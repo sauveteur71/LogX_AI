@@ -5238,7 +5238,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'nr': payload.get('nr', ''),
             }
             text = vk.expand_voice_text(template, ctx)
-            res = vk.send_voice_message(cfg_snap, text, lang=vk.message_lang(ctx))
+            # skip_ptt : réservé au bouton "Tester" de CONFIG (indicatif
+            # fictif) — jamais envoyé par le déclenchement réel depuis le
+            # logbook (logx_logbook.js), qui a besoin du PTT pour transmettre.
+            res = vk.send_voice_message(cfg_snap, text, lang=vk.message_lang(ctx),
+                                        skip_ptt=bool(payload.get('skip_ptt')))
             if res.get('ok'):
                 print(f"[RIG] Voix : {text[:60]}")
             self._json(res, 200 if res.get('ok') else 400)

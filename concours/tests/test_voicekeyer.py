@@ -266,6 +266,57 @@ def test_send_voice_message_erreur_lecture_relache_quand_meme_le_ptt(monkeypatch
     assert ptt_calls == [True, False]      # le PTT est bien relâché même après l'erreur
 
 
+# ─── skip_ptt : bouton "Tester" de CONFIG, prévisualisation sans radio ────────
+# Retour F4GLD 04/08/2026 : le test échouait systématiquement tant que le
+# pilotage CAT n'était pas configuré, alors que l'opérateur veut juste
+# vérifier le périphérique audio/la voix choisis.
+
+def test_send_voice_message_skip_ptt_fonctionne_sans_pilotage_configure(monkeypatch, tmp_path):
+    """Le PTT ne doit MEME PAS être tenté : _set_ptt ne doit jamais être
+    appelé, contrairement au chemin normal (test_send_voice_message_ptt_refuse
+    ci-dessus, qui échoue precisement quand _set_ptt échoue)."""
+    fake_wav = tmp_path / 'skip.wav'
+    fake_wav.write_bytes(b'RIFF....WAVEfmt ')
+    ptt_calls = []
+    played = []
+    monkeypatch.setattr(vk, 'synthesize_to_wav', lambda *a, **k: str(fake_wav))
+    monkeypatch.setattr(vk, '_set_ptt',
+        lambda cfg, on: ptt_calls.append(on) or (_ for _ in ()).throw(
+            AssertionError('_set_ptt ne doit jamais être appelé avec skip_ptt=True')))
+    monkeypatch.setattr(vk, 'play_wav', lambda path, device=None: played.append(path))
+    r = vk.send_voice_message({'voicekeyer_enabled': True}, 'CQ test', skip_ptt=True)
+    assert r['ok'] and r['text'] == 'CQ test'
+    assert ptt_calls == []                 # jamais appelé
+    assert played == [str(fake_wav)]
+    assert not fake_wav.exists()
+
+
+def test_send_voice_message_skip_ptt_par_defaut_faux():
+    """skip_ptt doit être opt-in explicite — le déclenchement réel depuis le
+    logbook (envoyer_message()/send_voice_message() sans l'argument) doit
+    conserver l'exigence PTT à l'identique, sinon un message pourrait
+    sembler "envoyé" sans que la radio ait réellement transmis."""
+    import inspect
+    sig = inspect.signature(vk.send_voice_message)
+    assert sig.parameters['skip_ptt'].default is False
+
+
+def test_send_voice_message_skip_ptt_erreur_lecture_pas_de_ptt_release(monkeypatch, tmp_path):
+    """Si la lecture échoue avec skip_ptt=True, aucune tentative de
+    relâchement PTT ne doit avoir lieu (rien n'a été engagé)."""
+    fake_wav = tmp_path / 'skip_err.wav'
+    fake_wav.write_bytes(b'RIFF....WAVEfmt ')
+    ptt_calls = []
+    monkeypatch.setattr(vk, 'synthesize_to_wav', lambda *a, **k: str(fake_wav))
+    monkeypatch.setattr(vk, '_set_ptt', lambda cfg, on: ptt_calls.append(on) or {'ok': True})
+    def boom(path, device=None):
+        raise RuntimeError('périphérique audio indisponible')
+    monkeypatch.setattr(vk, 'play_wav', boom)
+    r = vk.send_voice_message({'voicekeyer_enabled': True}, 'CQ test', skip_ptt=True)
+    assert not r['ok'] and 'Lecture audio' in r['error']
+    assert ptt_calls == []
+
+
 # ─── Dispatch PTT selon le mode CAT actif ─────────────────────────────────────
 
 def test_set_ptt_dispatch_natif(monkeypatch):

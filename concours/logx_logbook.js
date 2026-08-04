@@ -1822,9 +1822,9 @@ function renderVoicePanel(){
     const dur = voiceSlots[s.key];
     const has = dur !== undefined;
     const lbl = has ? `${s.label} <span style="color:var(--muted)">${dur}s</span>` : s.label;
-    return `<div style="display:flex;gap:4px;margin:3px 0">
-      <button class="macro-btn" style="flex:1;${has?'':'opacity:.5'}" onclick="voicePlay('${s.key}')" ${has?'':'disabled'}>▶ ${lbl}</button>
-      <button class="macro-btn" style="width:36px" onclick="voiceRecord('${s.key}')" id="rec_${s.key}" title="Enregistrer ${s.label}">⏺</button>
+    return `<div style="display:flex;gap:4px;margin:3px 0;width:100%;box-sizing:border-box">
+      <button class="macro-btn" style="flex:1;min-width:0;max-width:none;text-align:left;${has?'':'opacity:.5'}" onclick="voicePlay('${s.key}')" ${has?'':'disabled'}>▶ ${lbl}</button>
+      <button class="macro-btn" style="flex:0 0 36px;min-width:0;max-width:none" onclick="voiceRecord('${s.key}')" id="rec_${s.key}" title="Enregistrer ${s.label}">⏺</button>
     </div>`;
   }).join('');
 }
