@@ -326,11 +326,11 @@ body.sans-concours .compass-pts{display:none}
 .op-picker-popup .op-btn{width:100%;padding:6px 4px;text-align:center}
 
 /* ZONE SECONDAIRE (soapbox/macros/derniers QSO) — scroll indépendant, ne rogne jamais la saisie.
-   min-height:0 (et pas plus) : _reserveBottomSpace() réduit délibérément le max-height de cette
-   zone pour dégager le panneau CW flottant quand il est ouvert (voir son commentaire) — un
-   plancher plus haut que 0 forcerait un CHEVAUCHEMENT PLUS GRAND avec le panneau dans les cas où
-   la place naturelle est juste inférieure au plancher (vérifié empiriquement), au lieu de laisser
-   la zone se réduire exactement à ce qu'il faut pour ne jamais passer sous le panneau. */
+   KEYER VOCAL et DÉCODEUR CW n'y vivent plus (déplacés dans .keyer-dock, bandeau plein largeur
+   sous .main — demande F4GLD du 04/08/2026 : les deux étaient coincés dans cette colonne étroite
+   avec REMARQUES EDI/RADIO/AMPLI, forçant un scroll interne permanent même quand la fenêtre avait
+   de la place). min-height:0 reste nécessaire pour que cette zone se réduise correctement dans le
+   flex column parent (.saisie-panel). */
 .saisie-secondary{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 
 /* DERNIERS QSO — replié par défaut (voir toggleLastQso()), même schéma que REMARQUES EDI */
@@ -595,8 +595,38 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 .partner-ctx{color:var(--muted);font-size:11px;flex-shrink:0;white-space:nowrap}
 .partner-text{color:var(--text);font-weight:700;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* ─── BANDEAU BAS (CW + KEYER VOCAL) ───────────────────────────────────────
+   Plein largeur sous .main, plutôt que le CW en panneau flottant 300px
+   bas-gauche et le keyer vocal coincé dans .saisie-secondary (demande
+   F4GLD du 04/08/2026 : les deux prenaient toute la largeur DISPONIBLE
+   nulle part). CW et voice keyer restent mutuellement exclusifs par mode
+   (updateKeyerPanels) : un seul des deux est visible à la fois, le bandeau
+   se réduit donc naturellement à la hauteur de celui qui est affiché — le
+   plus gros cas (CW ouvert : en-tête + note + 2 lignes de réglages +
+   vumètre + sortie 110px fixe + bouton effacer) tient sous ~300px, d'où le
+   plafond fixe ci-dessous plutôt qu'un vh (le contenu ne dépend pas de la
+   hauteur de fenêtre, pas de raison que son plafond en dépende).
+   flex-shrink:1 + min-height:0 (pas flex-shrink:0) : le bandeau doit céder
+   la place en PREMIER quand la fenêtre est courte, jamais forcer .main
+   (et donc le formulaire de saisie) à passer sous la hauteur de la
+   fenêtre — un essai avec .main{min-height:…} pour "garantir" la place du
+   formulaire a été abandonné : sur cette page le bandeau d'en-tête change
+   de hauteur au fil de la session (rappels temporaires, alertes météo…),
+   et un plancher fixe sur .main a fini par pousser la PAGE ENTIÈRE au-delà
+   de 100vh — invisible et hors d'atteinte puisque body a overflow:hidden
+   (pire qu'une simple barre de défilement). Le filet de sécurité reste
+   .saisie-panel{overflow-y:auto} (déjà en place) : dans le pire des cas
+   (fenêtre très courte + bandeau ouvert), c'est CETTE colonne qui défile,
+   jamais toute la page. */
+.keyer-dock{flex-shrink:1;min-height:0;border-top:2px solid var(--border);background:var(--bg2);max-height:300px;overflow-y:auto}
 /* ─── DÉCODEUR CW ─── */
 .cw-panel{position:fixed;bottom:0;left:18px;width:300px;background:var(--bg2);border:1px solid var(--green);border-bottom:none;border-radius:8px 8px 0 0;font-family:var(--font-mono);z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.5)}
+/* #cwPanel sort du flottant pour intégrer .keyer-dock (voir plus haut) — la
+   règle .cw-panel ci-dessus reste utile telle quelle pour #sstvPanel, qui
+   lui continue de flotter (jamais visible en même temps que le CW, cf.
+   updateKeyerPanels, donc jamais de conflit de place avec le bandeau). Une
+   règle #id l'emporte naturellement sur .classe, pas besoin de !important. */
+#cwPanel{position:static;width:100%;border:none;border-radius:0;box-shadow:none;z-index:auto}
 .cw-header{display:flex;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,#0a3a1a,#0D2818);color:var(--green);font-size:13px;letter-spacing:1px;cursor:pointer;border-radius:8px 8px 0 0;user-select:none}
 .cw-header-toggle{margin-left:auto;transition:transform .2s}
 .cw-panel.open .cw-header-toggle{transform:rotate(180deg)}
@@ -1375,26 +1405,9 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div id="pounceJournal" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:4px;max-height:110px;overflow-y:auto"></div>
       </div>
 
-      <!-- KEYER VOCAL (phonie) : enregistre/rejoue des messages WAV -->
-      <div class="macro-panel expert-only" id="voicePanel" style="display:none">
-        <div class="macro-panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="1.5" width="5" height="9" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16.5"/><line x1="6" y1="16.5" x2="12" y2="16.5"/></svg> KEYER VOCAL — clic: jouer · ⏺: enregistrer</div>
-        <div class="macro-btns" id="voiceBtns"></div>
-        <div class="macro-panel-title" style="margin-top:8px" title="Indicatif tapé + report épelés à la volée (synthèse vocale), émis par la radio (PTT auto) — pas de l'indicatif de CETTE station comme les macros CW"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="9" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> CALLBOT — clic: dire · double-clic: modifier</div>
-        <div class="macro-btns" id="voiceDynBtns"></div>
-        <div id="voiceDynResult" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px"></div>
-      </div>
-
-      <!-- DÉCODEUR CW : PAS de panneau ici — un seul décodeur CW existe dans
-           l'appli, le panneau flottant #cwPanel (bas-gauche, voir plus bas
-           dans le fichier). Il y avait auparavant un second panneau compact
-           ici (#cwDecodePanel) avec sa propre implémentation Web Audio
-           dupliquée dans toggleCwDecoder() — les deux fonctions du même nom
-           se marchaient dessus en JS (la seconde écrasait silencieusement la
-           première), si bien que le bouton de CE panneau pilotait en réalité
-           les éléments DOM du panneau flottant sans jamais les mettre à jour.
-           Consolidé en un seul panneau (le flottant, plus complet : device/
-           fréquence/sortie/WPM) pour supprimer le bug ET libérer de la place
-           verticale dans cette colonne. -->
+      <!-- KEYER VOCAL et DÉCODEUR CW : déplacés dans .keyer-dock (bandeau
+           plein largeur sous .main, voir juste après la fermeture de .main
+           plus bas) — ne vivent plus dans cette colonne étroite. -->
 
       <!-- ENREGISTREUR AUDIO PAR QSO (tampon glissant ~2 min, coupe les 20
            dernières secondes à chaque QSO loggué — indicatif douteux à
@@ -1591,6 +1604,45 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
 </div>
 
+<!-- BANDEAU BAS : KEYER VOCAL + DÉCODEUR CW, plein largeur sous .main (voir
+     .keyer-dock) — mutuellement exclusifs par mode (updateKeyerPanels), un
+     seul des deux visible à la fois. -->
+<div class="keyer-dock" id="keyerDock">
+
+  <!-- KEYER VOCAL (phonie) : enregistre/rejoue des messages WAV -->
+  <div class="macro-panel expert-only" id="voicePanel" style="display:none">
+    <div class="macro-panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="1.5" width="5" height="9" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16.5"/><line x1="6" y1="16.5" x2="12" y2="16.5"/></svg> KEYER VOCAL — clic: jouer · ⏺: enregistrer</div>
+    <div class="macro-btns" id="voiceBtns"></div>
+    <div class="macro-panel-title" style="margin-top:8px" title="Indicatif tapé + report épelés à la volée (synthèse vocale), émis par la radio (PTT auto) — pas de l'indicatif de CETTE station comme les macros CW"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="9" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> CALLBOT — clic: dire · double-clic: modifier</div>
+    <div class="macro-btns" id="voiceDynBtns"></div>
+    <div id="voiceDynResult" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px"></div>
+  </div>
+
+  <!-- DÉCODEUR CW — visible uniquement en mode CW (updateKeyerPanels) : un
+       panneau décodeur permanent dans les autres modes est du bruit à l'écran. -->
+  <div class="cw-panel" id="cwPanel" style="display:none">
+    <div class="cw-header" onclick="toggleCwPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="2.5" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="9" x2="9" y2="9"/><circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="14.5" y1="9" x2="16.5" y2="9"/></svg> DÉCODEUR CW <span class="cw-wpm" id="cwWpmLabel"></span><span class="cw-header-toggle">▲</span></div>
+    <div class="cw-body" id="cwBody">
+      <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC) et affiche le CW décodé. Fiable sur signal propre et pas trop rapide — pas un substitut à l'oreille en QRM/pileup serré.</div>
+      <div class="cw-controls">
+        <select id="cwDevice"><option value="">— périphérique par défaut —</option></select>
+      </div>
+      <div class="cw-controls">
+        <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
+        <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="if(_cwAudioDecoder) _cwAudioDecoder.setFreq(parseInt(this.value,10)||650)">
+        <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
+      </div>
+      <div class="cw-meter" id="cwMeter" title="Niveau reçu (barre) vs seuil de détection (repère) — si la barre n'atteint jamais le repère, le signal est trop faible ou le mauvais périphérique/ton est sélectionné">
+        <div class="cw-meter-fill" id="cwMeterFill"></div>
+        <div class="cw-meter-threshold" id="cwMeterThreshold"></div>
+      </div>
+      <div class="cw-output" id="cwOutput"></div>
+      <button class="cw-btn" onclick="clearCwOutput()" style="align-self:flex-start"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg> Effacer</button>
+    </div>
+  </div>
+
+</div>
+
 <script src="logx_cwdecoder.js"></script>
 <script src="logx_rttydecoder.js"></script>
 <script src="logx_sstvdecoder.js"></script>
@@ -1623,29 +1675,6 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <tbody id="hourBody"></tbody>
       </table>
     </div>
-  </div>
-</div>
-
-<!-- DÉCODEUR CW — visible uniquement en mode CW (updateKeyerPanels) : un
-     panneau décodeur permanent dans les autres modes est du bruit à l'écran. -->
-<div class="cw-panel" id="cwPanel" style="display:none">
-  <div class="cw-header" onclick="toggleCwPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="2.5" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="9" x2="9" y2="9"/><circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="14.5" y1="9" x2="16.5" y2="9"/></svg> DÉCODEUR CW <span class="cw-wpm" id="cwWpmLabel"></span><span class="cw-header-toggle">▲</span></div>
-  <div class="cw-body" id="cwBody">
-    <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC) et affiche le CW décodé. Fiable sur signal propre et pas trop rapide — pas un substitut à l'oreille en QRM/pileup serré.</div>
-    <div class="cw-controls">
-      <select id="cwDevice"><option value="">— périphérique par défaut —</option></select>
-    </div>
-    <div class="cw-controls">
-      <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
-      <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="if(_cwAudioDecoder) _cwAudioDecoder.setFreq(parseInt(this.value,10)||650)">
-      <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
-    </div>
-    <div class="cw-meter" id="cwMeter" title="Niveau reçu (barre) vs seuil de détection (repère) — si la barre n'atteint jamais le repère, le signal est trop faible ou le mauvais périphérique/ton est sélectionné">
-      <div class="cw-meter-fill" id="cwMeterFill"></div>
-      <div class="cw-meter-threshold" id="cwMeterThreshold"></div>
-    </div>
-    <div class="cw-output" id="cwOutput"></div>
-    <button class="cw-btn" onclick="clearCwOutput()" style="align-self:flex-start"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg> Effacer</button>
   </div>
 </div>
 

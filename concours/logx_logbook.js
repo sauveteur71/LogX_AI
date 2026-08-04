@@ -1822,11 +1822,17 @@ async function voiceMigrerAnciens(){
 function renderVoicePanel(){
   const box = document.getElementById('voiceBtns');
   if(!box) return;
+  // flex:1 1 300px (pas width:100%) : chaque ligne PEUT s'étaler sur toute
+  // la largeur d'une colonne étroite (ancien emplacement, .saisie-secondary),
+  // mais dans .keyer-dock (bandeau plein largeur, 04/08/2026) plusieurs
+  // lignes se rangent maintenant côte à côte au lieu de s'empiler une par
+  // une — c'est tout l'intérêt du bandeau large : moins de hauteur prise
+  // pour le même nombre de messages.
   box.innerHTML = VOICE_SLOTS.map(s => {
     const dur = voiceSlots[s.key];
     const has = dur !== undefined;
     const lbl = has ? `${s.label} <span style="color:var(--muted)">${dur}s</span>` : s.label;
-    return `<div style="display:flex;gap:4px;margin:3px 0;width:100%;box-sizing:border-box">
+    return `<div style="display:flex;gap:4px;margin:3px 0;flex:1 1 300px;box-sizing:border-box">
       <button class="macro-btn" style="flex:1;min-width:0;max-width:none;text-align:left;${has?'':'opacity:.5'}" onclick="voicePlay('${s.key}')" ${has?'':'disabled'}>▶ ${lbl}</button>
       <button class="macro-btn" style="flex:0 0 36px;min-width:0;max-width:none" onclick="voiceRecord('${s.key}')" id="rec_${s.key}" title="Enregistrer ${s.label}">⏺</button>
     </div>`;
@@ -6440,26 +6446,25 @@ function _reserveBottomSpace(panel, scrollEl){
   scrollEl.style.maxHeight = Math.max(0, naturalHeight - panel.offsetHeight) + 'px';
 }
 
-// Recalcule les DEUX réserves d'espace. Le plafond posé par
-// _reserveBottomSpace() est une valeur ABSOLUE en pixels, mesurée à un
-// instant donné : elle devient fausse dès que la mise en page bouge.
+// Réserve l'espace du panneau CHAT (bas-droite, flottant sur .log-table-wrap
+// — le seul panneau encore flottant depuis que CW/keyer vocal ont leur propre
+// bandeau plein largeur .keyer-dock, 04/08/2026, qui n'a plus besoin de cette
+// mécanique : il pousse .main dans le flux normal, il ne flotte plus dessus).
+// Le plafond posé par _reserveBottomSpace() est une valeur ABSOLUE en pixels,
+// mesurée à un instant donné : elle devient fausse dès que la mise en page
+// bouge.
 //
-// DÉFAUT RÉEL, signalé par l'utilisateur puis reproduit à la mesure : les deux
-// appels ne se faisaient qu'au DOMContentLoaded, donc AVANT que init() (async :
-// config serveur, log, calldb) ait fini de peupler et d'afficher les panneaux.
-// Le plafond était calculé sur une mise en page transitoire, puis gardé tel
-// quel pour toute la session. Mesuré en fenêtre 1400 px, panneau CW flottant
-// FERMÉ (donc rien à réserver) : plafond figé à 257 px alors que la zone
-// pouvait en occuper 366 — d'où une BANDE VIDE de 109 px sous le keyer vocal,
-// et une barre de défilement sur une zone qui aurait tenu sans.
+// DÉFAUT RÉEL, signalé par l'utilisateur puis reproduit à la mesure : l'appel
+// ne se faisait qu'au DOMContentLoaded, donc AVANT que init() (async : config
+// serveur, log, calldb) ait fini de peupler et d'afficher les panneaux. Le
+// plafond était calculé sur une mise en page transitoire, puis gardé tel quel
+// pour toute la session.
 //
 // Et aucun recalcul au redimensionnement : agrandir la fenêtre ne rendait
 // jamais la hauteur gagnée.
 function _majReservesBas(){
   _reserveBottomSpace(document.getElementById('chatPanel'),
                       document.querySelector('.log-table-wrap'));
-  _reserveBottomSpace(document.getElementById('cwPanel'),
-                      document.querySelector('.saisie-secondary'));
 }
 
 function toggleChat(){
@@ -6480,9 +6485,12 @@ function toggleChat(){
 }
 
 // ─── DÉCODEUR CW ─────────────────────────────────────────────────────────────
-// Panneau flottant bas-gauche (symétrique du chat multi-op bas-droite) —
-// pipeline DSP dans logx_cwdecoder.js, ce fichier ne fait que le brancher
-// à l'UI (device picker, bouton start/stop, sortie texte défilante).
+// Vit dans .keyer-dock (bandeau plein largeur sous .main, voir logx_logbook.html)
+// depuis le 04/08/2026 — plus un panneau flottant, donc plus besoin de
+// _reserveBottomSpace() ici : .keyer-dock pousse .main dans le flux normal
+// au lieu de flotter par-dessus. pipeline DSP dans logx_cwdecoder.js, ce
+// fichier ne fait que le brancher à l'UI (device picker, bouton start/stop,
+// sortie texte défilante).
 let _cwAudioDecoder = null;
 let _cwDevicesLoaded = false;
 let _cwOutText = '';   // texte décodé cumulé (survit aux re-rendus) — voir toggleCwDecoder/clearCwOutput
@@ -6490,12 +6498,6 @@ let _cwOutText = '';   // texte décodé cumulé (survit aux re-rendus) — voir
 async function toggleCwPanel(){
   const panel = document.getElementById('cwPanel');
   panel.classList.toggle('open');
-  // Cible .saisie-secondary (le conteneur qui scrolle VRAIMENT — voir son
-  // commentaire CSS) et non .saisie-panel (le conteneur externe) : ce
-  // dernier n'a pas de hauteur propre au contenu (stretch flex depuis
-  // .main), lui ajouter un padding-bottom ne compense donc rien pour
-  // .saisie-secondary, qui a SA PROPRE zone de scroll indépendante.
-  _reserveBottomSpace(panel, document.querySelector('.saisie-secondary'));
   if(panel.classList.contains('open') && !_cwDevicesLoaded) await loadCwInputDevices();
 }
 
