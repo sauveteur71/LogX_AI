@@ -7429,6 +7429,12 @@ function popoutScope(){
     'rc_scope_' + b.replace(/\./g, '_'),
     'width=1100,height=560,menubar=no,toolbar=no,location=no');
 }
+function popoutPanadapter(){
+  // Fenêtre unique (nom fixe) : pas de sens d'en ouvrir deux, contrairement au
+  // bandscope par bande — une seule entrée audio est branchée sur le poste.
+  window.open('/logx_panadapter.html', 'rc_panadapter',
+    'width=900,height=560,menubar=no,toolbar=no,location=no');
+}
 function popoutWall(){
   window.open('/logx_wall.html', 'rc_wall',
     'width=1280,height=720,menubar=no,toolbar=no,location=no');
