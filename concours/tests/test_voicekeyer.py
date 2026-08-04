@@ -986,3 +986,102 @@ def test_emettre_wav_delegue_a_emettre_wav_multi(monkeypatch, tmp_path):
     monkeypatch.setattr(vk, 'play_wav', lambda path, device=None: played.append(path))
     r = vk.emettre_wav({}, str(fake_wav), None, supprimer_apres=True)
     assert r['ok'] and played == [str(fake_wav)] and not fake_wav.exists()
+
+
+# ─── _trim_silence_wav() : rogne le silence de tête/fin d'un clip TTS ────────
+# Corrige les 2 pauses parasites entourant {DE} en synthèse multi-segments
+# (chaque segment est un WAV séparé, joué à la suite — voir emettre_wav_multi
+# et le docstring de _trim_silence_wav) — retour F4GLD 04/08/2026.
+
+import wave as _wave_mod
+
+
+def _ecrire_wav(path, frames, framerate=16000, sampwidth=2, nchannels=1):
+    with _wave_mod.open(str(path), 'wb') as wf:
+        wf.setnchannels(nchannels)
+        wf.setsampwidth(sampwidth)
+        wf.setframerate(framerate)
+        wf.writeframes(frames)
+
+
+def _lire_wav_amplitudes(path):
+    import array
+    with _wave_mod.open(str(path), 'rb') as wf:
+        raw = wf.readframes(wf.getnframes())
+    a = array.array('h')
+    a.frombytes(raw)
+    return list(a)
+
+
+def test_trim_silence_wav_rogne_le_silence_de_tete_et_fin(tmp_path):
+    """500 échantillons de silence + 1000 de "son" (amplitude max) + 500 de
+    silence -> après rognage, quasi plus de silence de tête/fin (juste la
+    petite marge anti-clic), le son central reste intact."""
+    p = tmp_path / 'clip.wav'
+    silence = bytes(2 * 500)          # int16 = 0 -> silence
+    son = (30000).to_bytes(2, 'little', signed=True) * 1000
+    _ecrire_wav(p, silence + son + silence)
+    avant = _lire_wav_amplitudes(p)
+    assert len(avant) == 2000
+
+    vk._trim_silence_wav(p)
+    apres = _lire_wav_amplitudes(p)
+    assert len(apres) < len(avant), 'le silence aurait du etre rogne'
+    assert 30000 in apres, 'le son au centre ne doit jamais etre coupe'
+    # Marge de 25ms par defaut a 16000 Hz = 400 echantillons de chaque cote
+    # au maximum garde autour du son detecte -> largement moins que les 2000
+    # d'origine (2 x 500 de silence), mais le son central (1000) reste entier.
+    assert len(apres) < 2000
+    assert len(apres) >= 1000
+
+
+def test_trim_silence_wav_fichier_entierement_silencieux_ne_plante_pas(tmp_path):
+    p = tmp_path / 'silence.wav'
+    _ecrire_wav(p, bytes(2 * 1000))
+    taille_avant = p.stat().st_size
+    vk._trim_silence_wav(p)   # ne doit jamais lever
+    assert p.stat().st_size == taille_avant, 'rien a rogner : fichier inchange'
+
+
+def test_trim_silence_wav_fichier_illisible_ne_plante_pas(tmp_path):
+    p = tmp_path / 'pas_un_wav.wav'
+    p.write_bytes(b'ceci n est pas un wav valide')
+    vk._trim_silence_wav(p)   # ne doit jamais lever
+    assert p.read_bytes() == b'ceci n est pas un wav valide', 'fichier illisible : inchange'
+
+
+def test_trim_silence_wav_deja_sans_silence_ne_touche_a_rien(tmp_path):
+    """Signal qui commence et finit déjà par du son (pas de silence à
+    rogner) : le fichier ne doit pas être réécrit inutilement."""
+    p = tmp_path / 'plein.wav'
+    son = (30000).to_bytes(2, 'little', signed=True) * 200
+    _ecrire_wav(p, son)
+    avant = p.read_bytes()
+    vk._trim_silence_wav(p)
+    assert p.read_bytes() == avant
+
+
+def test_synthesize_to_wav_rogne_le_silence_pyttsx3(monkeypatch, tmp_path):
+    """synthesize_to_wav() (chemin pyttsx3) doit appeler _trim_silence_wav()
+    sur le fichier produit — garde-fou de câblage : facile d'ajouter un
+    nouveau moteur/retour sans reporter l'appel."""
+    appeles = []
+    monkeypatch.setattr(vk, '_trim_silence_wav', lambda path: appeles.append(path))
+
+    class _FakeEngine:
+        def setProperty(self, *a, **k): pass
+        def getProperty(self, *a, **k): return []
+        def save_to_file(self, text, path):
+            with open(path, 'wb') as f:
+                f.write(b'x' * 200)   # > 100 octets -> pas traite comme un echec SAPI5
+        def runAndWait(self): pass
+        def stop(self): pass
+
+    import types
+    fake_pyttsx3 = types.SimpleNamespace(init=lambda: _FakeEngine())
+    monkeypatch.setitem(sys.modules, 'pyttsx3', fake_pyttsx3)
+
+    path = vk.synthesize_to_wav('test', ai={'enabled': False}, piper={'enabled': False})
+    assert path is not None
+    assert appeles == [path]
+    os.remove(path)

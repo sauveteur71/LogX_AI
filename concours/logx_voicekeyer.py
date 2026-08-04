@@ -56,6 +56,7 @@ du PC) ne fait ni insertion dynamique de l'indicatif ni émission radio. Ici :
 Aucune fonction ici ne lève d'exception vers l'appelant HTTP : tout retourne
 {'ok': bool, 'error'?: str}, comme le reste des modules radio du projet.
 """
+import array
 import hashlib
 import os
 import re
@@ -887,6 +888,99 @@ def _voice_matches_lang(engine, voice_id, lang):
     return True
 
 
+def _trim_silence_wav(path, seuil_fraction=0.02, marge_ms=25):
+    """Rogne le silence en tête et en fin d'un WAV, EN PLACE — les moteurs TTS
+    (SAPI5/Piper/ElevenLabs) laissent chacun un blanc de tête/fin variable.
+    Invisible sur une synthèse ISOLÉE, mais send_voice_message(segments=...)
+    joue plusieurs clips l'un après l'autre (emettre_wav_multi) : ces blancs
+    s'additionnent à CHAQUE frontière de segment et s'entendent comme une
+    pause parasite entre deux mots pourtant censés s'enchaîner — ex. le
+    connecteur {DE}, isolé dans son propre segment de langue, entouré de
+    deux coupures audibles (retour F4GLD 04/08/2026).
+
+    seuil_fraction : fraction de l'amplitude MAX du fichier en-dessous de
+    laquelle un échantillon compte comme silence — un seuil ABSOLU ne
+    marcherait pas, le niveau de sortie varie d'un moteur/d'une voix à
+    l'autre. marge_ms : laissé de part et d'autre du son détecté pour ne
+    jamais couper l'attaque/la chute d'un mot (rogner à zéro ferait un clic
+    audible). Écriture sur un fichier temporaire puis remplacement
+    atomique (os.replace) : jamais de fichier tronqué/corrompu si l'écriture
+    est interrompue en cours de route. N'échoue jamais silencieusement côté
+    appelant : fichier illisible, compressé, ou entièrement silencieux ->
+    ne touche à rien (le WAV d'origine, non rogné, reste utilisable)."""
+    # str() : wave.open() (Python 3.13) n'accepte QUE str ou un objet fichier
+    # déjà ouvert — pas les chemins pathlib.Path (os.PathLike générique),
+    # contrairement à builtins.open(). Piégé par les tests (tmp_path / '...'
+    # est un Path) ; les appelants réels de ce module passent déjà des str
+    # (tempfile.mkstemp()), mais autant rester robuste aux deux.
+    path = str(path)
+    try:
+        with wave.open(path, 'rb') as wf:
+            n = wf.getnframes()
+            sampwidth = wf.getsampwidth()
+            nchannels = wf.getnchannels()
+            framerate = wf.getframerate()
+            comptype = wf.getcomptype()
+            raw = wf.readframes(n)
+    except (wave.Error, OSError, EOFError):
+        return
+    if comptype != 'NONE' or sampwidth not in (1, 2, 4) or n == 0 or nchannels < 1:
+        return   # PCM non compressé seulement — sinon on ne sait pas interpréter les octets
+
+    typecode = {1: 'b', 2: 'h', 4: 'i'}[sampwidth]
+    try:
+        samples = array.array(typecode)
+        samples.frombytes(raw)
+    except ValueError:
+        return   # taille incohérente (fichier tronqué) : on ne touche à rien
+    if not samples:
+        return
+    pic = max(abs(s) for s in samples)
+    if pic == 0:
+        return   # silence total : rien à rogner, rien à jouer de toute façon
+    seuil = max(1, int(pic * seuil_fraction))
+
+    # Un "sample" par canal ; on travaille par FRAME (tous canaux confondus)
+    # pour ne jamais couper au milieu d'une frame stéréo.
+    n_frames = len(samples) // nchannels
+
+    def frame_actif(i):
+        base = i * nchannels
+        return any(abs(samples[base + c]) >= seuil for c in range(nchannels))
+
+    debut = 0
+    while debut < n_frames and not frame_actif(debut):
+        debut += 1
+    fin = n_frames - 1
+    while fin > debut and not frame_actif(fin):
+        fin -= 1
+    if debut >= fin:
+        return   # rien d'exploitable détecté (silence quasi total) : on laisse tel quel
+
+    marge = int(framerate * marge_ms / 1000)
+    debut = max(0, debut - marge)
+    fin = min(n_frames - 1, fin + marge)
+    if debut == 0 and fin == n_frames - 1:
+        return   # déjà rien à rogner
+
+    trimmed = samples[debut * nchannels:(fin + 1) * nchannels]
+
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix='.wav', dir=os.path.dirname(path) or None)
+    os.close(tmp_fd)
+    try:
+        with wave.open(tmp_path, 'wb') as wf:
+            wf.setnchannels(nchannels)
+            wf.setsampwidth(sampwidth)
+            wf.setframerate(framerate)
+            wf.writeframes(trimmed.tobytes())
+        os.replace(tmp_path, path)
+    except OSError:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+
 def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None, piper=None):
     """Génère un WAV temporaire, ou None si aucune synthèse n'a produit de son
     exploitable. `lang` : voix à utiliser pour CE texte précis. Le voice_id
@@ -914,12 +1008,14 @@ def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None, piper=None)
         path = synthesize_to_wav_ai(text, ai.get('provider') or 'elevenlabs',
                                     ai.get('api_key', ''), ai.get('voice_id', ''))
         if path:
+            _trim_silence_wav(path)
             return path
         print('[VOICEKEYER] Voix IA indisponible, repli sur Piper/voix locale')
     piper = piper or {}
     if piper.get('enabled'):
         path = synthesize_to_wav_piper(text, piper.get('exe') or 'piper', piper.get('model', ''))
         if path:
+            _trim_silence_wav(path)
             return path
         print('[VOICEKEYER] Piper indisponible, repli sur la voix locale SAPI5')
     try:
@@ -945,6 +1041,7 @@ def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None, piper=None)
         if os.path.getsize(path) < 100:      # WAV vide = échec silencieux SAPI5
             os.remove(path)
             return None
+        _trim_silence_wav(path)
         return path
     except Exception:
         try:
