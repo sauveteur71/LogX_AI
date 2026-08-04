@@ -27,7 +27,7 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 - **Wait & Pounce** en FT8/FT4 : appel automatique sur ce que LogX sait déjà — entité jamais travaillée, entité non confirmée LoTW sur ce créneau bande × mode, carré neuf, nouveau multiplicateur. Quatre niveaux activables séparément, du simple signalement à l'appel sans personne devant la radio, avec durée maximale, plafonds et coupe-circuit.
 - Band map, bandscope, chute d'eau, **décodeur CW** ; clusters DX multi-sources, RBN, PSK Reporter, balises NCDXF/IBP.
 - **Panadapter** : spectre + chute d'eau depuis l'audio de réception (universel, zéro matériel), le scope CI-V natif des Icom (IC-7300/7610/9700/705/7851, large bande), ou le flux IQ d'un serveur TCI (Flex/SunSDR).
-- Callbook (QRZ/HamQTH/HamDB), historique d'indicatifs (Super Check Partial, MASTER.SCP, Call History N1MM), DXCC/pays.
+- Callbook (QRZ/HamQTH/HamDB), historique d'indicatifs (Super Check Partial, MASTER.SCP, fichiers d'historique par concours), DXCC/pays.
 - Programmes portables POTA/SOTA/IOTA/WWFF/WCA, chasse aux départements français, diplômes, satellites (`PROP_MODE=SAT` à l'export).
 - Export Cabrillo v3 / ADIF 3 / EDI, upload eQSL/ClubLog/LoTW, scoreboard en direct.
 - Annuaire WebSDR vivant (~880 récepteurs, carte cliquable, occupation et SNR en direct) : « s'écouter » depuis le band map, ou écouter un spot sur un récepteur proche du DX avant de l'appeler.
