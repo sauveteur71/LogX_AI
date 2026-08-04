@@ -1277,8 +1277,12 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
             <input type="number" id="voicekeyer_rate" placeholder="175" min="80" max="300">
           </div>
         </div>
-        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="testVoiceKeyer()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5h3l4-3.5v10l-4-3.5h-3v-3z"/><path d="M12 6a4 4 0 0 1 0 6"/><path d="M14.2 4a7 7 0 0 1 0 10"/></svg> Tester (indicatif fictif)</button>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px;flex-wrap:wrap">
+          <input type="text" id="voiceKeyerTestCall" placeholder="F8TEST" maxlength="12"
+            style="width:110px;text-transform:uppercase;font-family:var(--font-mono)"
+            autocomplete="off" autocapitalize="characters"
+            title="Indicatif à épeler pour le test (vide = F8TEST)">
+          <button type="button" class="btn btn-secondary" onclick="testVoiceKeyer()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5h3l4-3.5v10l-4-3.5h-3v-3z"/><path d="M12 6a4 4 0 0 1 0 6"/><path d="M14.2 4a7 7 0 0 1 0 10"/></svg> Tester</button>
           <span id="voiceKeyerTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
@@ -3568,13 +3572,18 @@ async function testVoiceKeyer(){
   if(out){ out.textContent = '⏳ test en cours…'; out.style.color = 'var(--muted)'; }
   try{
     // skip_ptt : ce bouton ne fait que PRÉVISUALISER le périphérique/la voix
-    // choisis (indicatif fictif F8TEST) — il ne doit jamais exiger que le
-    // pilotage radio soit déjà configuré, ni engager le PTT pour autant
-    // (retour F4GLD 04/08/2026 : le test échouait systématiquement tant que
-    // CAT n'était pas réglé, alors qu'on veut juste vérifier le son).
+    // choisis — il ne doit jamais exiger que le pilotage radio soit déjà
+    // configuré, ni engager le PTT pour autant (retour F4GLD 04/08/2026 :
+    // le test échouait systématiquement tant que CAT n'était pas réglé,
+    // alors qu'on veut juste vérifier le son). L'indicatif testé vient du
+    // champ à côté du bouton (retour F4GLD 04/08/2026 : pouvoir vérifier
+    // l'épellation phonétique sur SON PROPRE indicatif, pas juste F8TEST) —
+    // vide = F8TEST par défaut, comme avant.
+    const testCallInput = document.getElementById('voiceKeyerTestCall');
+    const testCall = (testCallInput && testCallInput.value.trim()) || 'F8TEST';
     const r = await fetch('/rig/voice', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({template: '{CALL} de {MYCALL}, {RST_SENT}',
-        call: 'F8TEST', mycall: document.getElementById('callsign').value || 'F1TEST', rst_sent: '59',
+        call: testCall, mycall: document.getElementById('callsign').value || 'F1TEST', rst_sent: '59',
         skip_ptt: true})});
     const d = await r.json();
     if(out){

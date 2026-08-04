@@ -145,6 +145,16 @@ body.sans-concours .compass-pts{display:none}
 /* CAP (bearing) dans la table */
 .td-cap{color:#7090C0;font-size:14px;white-space:nowrap}
 
+/* Callbook (pays/historique) + boussole côte à côte plutôt qu'empilés sur
+   toute la largeur : deux blocs pleine-largeur qui forçaient un scroll
+   pendant la saisie (retour F4GLD 04/08/2026). Chaque colonne se réduit
+   librement (min-width:0) — l'un ou l'autre peut rester vide (display:none
+   interne) sans casser la ligne. */
+.callbook-compass-row{display:flex;gap:10px;align-items:flex-start}
+.callbook-compass-col{flex:1;min-width:0}
+.callbook-compass-col .dxcc-badge{margin-top:0}
+.callbook-compass-col .compass-inline{margin-top:0;height:100%;box-sizing:border-box}
+
 /* COMPAS INLINE */
 .compass-inline{display:none;margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;align-items:center;gap:14px}
 .compass-inline.show{display:flex}
@@ -1134,13 +1144,10 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div id="callStatusBadge" style="display:none;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;padding:3px 10px;border-radius:4px;margin-top:4px;width:fit-content"></div>
         <div id="qrzInfo" style="display:none;font-family:var(--font-mono);font-size:13px;color:var(--accent2);margin-top:4px;line-height:1.5" title="Fiche callbook (QRZ / HamQTH / HamDB)"></div>
         <div class="cross-band-hint" id="crossBandHint"></div>
-        <div class="dxcc-badge" id="dxccBadge">
-          <span class="dxcc-flag" id="dxccFlag"></span>
-          <span class="dxcc-country" id="dxccCountry"></span>
-          <span class="dxcc-info" id="dxccInfo"></span>
-        </div>
-        <!-- « Déjà contacté » : historique station (tous concours) + nouveau à vie -->
-        <div id="prevQsos" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px"></div>
+        <!-- dxccBadge + prevQsos ont déménagé après LOCATOR (ligne combinée
+             avec la boussole, voir callbookCompassRow) — retour F4GLD
+             04/08/2026 : les deux blocs empilés forçaient un scroll pendant
+             la saisie. -->
         <!-- Widget Time of Day : jour/nuit chez toi vs chez le correspondant -->
         <div id="todWidget" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;gap:14px" title="Heure/jour-nuit approximés (heure solaire, pas de fuseau politique)"></div>
       </div>
@@ -1199,31 +1206,51 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           <div class="autocomplete-box" id="locAcBox" style="display:none"></div>
         </div>
         <div class="loc-hint" id="locHint"></div>
-        <!-- Compas inline -->
-        <div class="compass-inline" id="compassInline">
-          <div class="compass-svg-wrap">
-            <svg id="compassSvg" width="60" height="60" viewBox="0 0 60 60">
-              <circle cx="30" cy="30" r="28" fill="var(--bg2)" stroke="var(--border)" stroke-width="1.5"/>
-              <text x="30" y="9"  text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">N</text>
-              <text x="30" y="56" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">S</text>
-              <text x="56" y="33" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">E</text>
-              <text x="4"  y="33" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">O</text>
-              <!-- aiguille — pivote autour du centre (30,30) via transform -->
-              <g id="compassNeedle" transform="rotate(0,30,30)">
-                <polygon points="30,8 27,30 33,30" fill="var(--red)" opacity=".9"/>
-                <polygon points="30,52 27,30 33,30" fill="var(--accent2)" opacity=".7"/>
-              </g>
-              <circle cx="30" cy="30" r="3" fill="var(--text)"/>
-            </svg>
+      </div>
+
+      <!-- Callbook (pays/historique) + boussole côte à côte, une fois le
+           locator connu : deux blocs jusque-là empilés pleine largeur qui
+           forçaient un scroll pendant la saisie (retour F4GLD 04/08/2026,
+           capture d'écran). Chaque colonne se réduit librement et peut
+           rester vide (l'un ou l'autre pas encore rempli) sans casser la
+           ligne — voir .callbook-compass-row/.callbook-compass-col. -->
+      <div class="callbook-compass-row" id="callbookCompassRow">
+        <div class="callbook-compass-col">
+          <div class="dxcc-badge" id="dxccBadge">
+            <span class="dxcc-flag" id="dxccFlag"></span>
+            <span class="dxcc-country" id="dxccCountry"></span>
+            <span class="dxcc-info" id="dxccInfo"></span>
           </div>
-          <div class="compass-data">
-            <span class="compass-deg" id="compassDeg">—°</span>
-            <span class="compass-card" id="compassCard">—</span>
-            <span class="compass-dist" id="compassDist">— km</span>
-            <span class="compass-pts"  id="compassPts">— pts</span>
+          <!-- « Déjà contacté » : historique station (tous concours) + nouveau à vie -->
+          <div id="prevQsos" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px"></div>
+        </div>
+        <div class="callbook-compass-col">
+          <!-- Compas inline -->
+          <div class="compass-inline" id="compassInline">
+            <div class="compass-svg-wrap">
+              <svg id="compassSvg" width="60" height="60" viewBox="0 0 60 60">
+                <circle cx="30" cy="30" r="28" fill="var(--bg2)" stroke="var(--border)" stroke-width="1.5"/>
+                <text x="30" y="9"  text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">N</text>
+                <text x="30" y="56" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">S</text>
+                <text x="56" y="33" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">E</text>
+                <text x="4"  y="33" text-anchor="middle" font-size="10" font-family="monospace" fill="var(--muted)">O</text>
+                <!-- aiguille — pivote autour du centre (30,30) via transform -->
+                <g id="compassNeedle" transform="rotate(0,30,30)">
+                  <polygon points="30,8 27,30 33,30" fill="var(--red)" opacity=".9"/>
+                  <polygon points="30,52 27,30 33,30" fill="var(--accent2)" opacity=".7"/>
+                </g>
+                <circle cx="30" cy="30" r="3" fill="var(--text)"/>
+              </svg>
+            </div>
+            <div class="compass-data">
+              <span class="compass-deg" id="compassDeg">—°</span>
+              <span class="compass-card" id="compassCard">—</span>
+              <span class="compass-dist" id="compassDist">— km</span>
+              <span class="compass-pts"  id="compassPts">— pts</span>
+            </div>
+            <button class="point-antenna-btn" id="pointAntennaBtn" onclick="pointAntennaFromCompass()"
+                    style="display:none" title="Pointer l'antenne sur ce cap"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><polygon points="9,4.5 11,9 9,13.5 7,9" fill="currentColor" stroke="none"/></svg> POINTER</button>
           </div>
-          <button class="point-antenna-btn" id="pointAntennaBtn" onclick="pointAntennaFromCompass()"
-                  style="display:none" title="Pointer l'antenne sur ce cap"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><polygon points="9,4.5 11,9 9,13.5 7,9" fill="currentColor" stroke="none"/></svg> POINTER</button>
         </div>
       </div>
 
