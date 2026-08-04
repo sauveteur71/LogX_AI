@@ -27,7 +27,7 @@ Vous connaissez la situation : un logiciel pour le log de tous les jours, un aut
 ## Tour d'horizon
 
 ### La saisie la plus rapide possible
-Autocomplétion, fiche du correspondant qui apparaît toute seule (pays, drapeau, nom, historique de vos contacts avec lui), distance/cap/points calculés dès le locator tapé, alerte dorée « nouveau pays à vie », mode ESM où la touche Entrée enchaîne tout l'échange comme sur N1MM — et un décodeur CW intégré qui lit le morse au micro de votre PC, sans logiciel tiers.
+Autocomplétion, fiche du correspondant qui apparaît toute seule (pays, drapeau, nom, historique de vos contacts avec lui), distance/cap/points calculés dès le locator tapé, alerte dorée « nouveau pays à vie », mode ESM où la touche Entrée enchaîne tout l'échange sans jamais lâcher le clavier — et un décodeur CW intégré qui lit le morse au micro de votre PC, sans logiciel tiers.
 
 ### En concours, un vrai coéquipier
 Need list classée par valeur réelle en points, carte des priorités, coach de rythme (RUN ou Search & Pounce ?), bandmap avec QSY au clic, macros F1-F8, keyer vocal à PTT automatique qui épelle en alphabet OACI. Après l'épreuve : vérification complète du log, export au bon format automatiquement (EDI, Cabrillo ou ADIF) et score en direct sur le scoreboard en ligne.
