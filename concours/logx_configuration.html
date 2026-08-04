@@ -1277,6 +1277,30 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
             <input type="number" id="voicekeyer_rate" placeholder="175" min="80" max="300">
           </div>
         </div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin:14px 0 10px;line-height:1.7">
+          <b style="color:var(--accent2)">Voix IA (optionnel)</b> — rendu nettement plus naturel qu'une
+          voix Windows, mais nécessite internet et une clé API. Essayée en priorité si activée ;
+          en cas d'échec (réseau, clé, fournisseur), LogX AI retombe automatiquement sur la voix
+          locale hors-ligne ci-dessus, sans jamais bloquer le keyer vocal.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>VOIX IA</label>
+            <select id="voicekeyer_ai_enabled">
+              <option value="">Désactivée (voix locale uniquement)</option>
+              <option value="1">Activée (ElevenLabs)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>CLÉ API</label>
+            <input type="password" id="voicekeyer_ai_api_key" placeholder="clé ElevenLabs" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>VOICE ID</label>
+            <input type="text" id="voicekeyer_ai_voice_id" placeholder="ex. 21m00Tcm4TlvDq8ikWAM" autocomplete="off">
+            <div class="input-note">Depuis ton tableau de bord ElevenLabs — chaque voix a un identifiant propre.</div>
+          </div>
+        </div>
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px;flex-wrap:wrap">
           <input type="text" id="voiceKeyerTestCall" placeholder="F8TEST" maxlength="12"
             style="width:110px;text-transform:uppercase;font-family:var(--font-mono)"
@@ -2491,6 +2515,9 @@ const CONFIG_HELP = {
   voicekeyer_voice_id: "La voix de synthèse à utiliser (dépend des voix installées sur ton système Windows).",
   voicekeyer_rate: "La vitesse de la voix de synthèse (débit de parole).",
   voicekeyer_device: "Le périphérique audio de sortie à utiliser pour le keyer vocal — choisis une interface dédiée vers l'entrée micro de ta radio, JAMAIS tes haut-parleurs.",
+  voicekeyer_ai_enabled: "Essaie une voix IA cloud (plus naturelle qu'une voix Windows) AVANT la voix locale — nécessite internet et une clé API. Si le fournisseur est injoignable ou mal configuré, LogX AI retombe automatiquement et silencieusement sur la voix locale hors-ligne : le keyer vocal continue de fonctionner sans réseau.",
+  voicekeyer_ai_api_key: "Clé API de ton compte chez le fournisseur choisi (ex. ElevenLabs). Stockée uniquement côté serveur, jamais dans le navigateur.",
+  voicekeyer_ai_voice_id: "Identifiant de la voix chez le fournisseur (visible sur ton tableau de bord ElevenLabs — Voice ID).",
 
   wsjtx_enabled: "Active la réception automatique des QSO validés dans WSJT-X (FT8/FT4) : ils apparaissent dans ton log SANS ressaisie.",
   wsjtx_port: "Le port UDP sur lequel WSJT-X diffuse ses informations — doit correspondre au réglage « UDP Server » dans WSJT-X (Réglages → Rapports), généralement 2237.",
@@ -3158,7 +3185,7 @@ async function mergeExternalContests(){
 const SECRET_CONFIG_FIELDS = ['api_key', 'clublog_api_key', 'clublog_password',
   'eqsl_password', 'lan_sync_token', 'lotw_password', 'on4kst_password',
   'qrz_password', 'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
-  'cloudsync_secret'];
+  'cloudsync_secret', 'voicekeyer_ai_api_key'];
 
 // Ré-assainit un blob localStorage['logx_config'] écrit par une VERSION
 // ANTÉRIEURE du logiciel (avant ce correctif), qui pouvait encore contenir
@@ -6468,6 +6495,10 @@ function saveConfig(silent = false, feedbackBtn = null) {
     voicekeyer_device: document.getElementById('voicekeyer_device').value,
     voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
     voicekeyer_rate: _numClamped('voicekeyer_rate', 175),
+    voicekeyer_ai_enabled: !!document.getElementById('voicekeyer_ai_enabled')?.value,
+    voicekeyer_ai_provider: 'elevenlabs',
+    voicekeyer_ai_api_key: document.getElementById('voicekeyer_ai_api_key')?.value.trim() || '',
+    voicekeyer_ai_voice_id: document.getElementById('voicekeyer_ai_voice_id')?.value.trim() || '',
     cat2_enabled: document.getElementById('cat2_enabled')?.value || '',
     cat2_mode: 'native',
     cat2_brand: document.getElementById('cat2_brand')?.value || '',
@@ -7152,6 +7183,7 @@ function applyFullConfigToForm(c) {
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate','cat_civ_addr',
      'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
+     'voicekeyer_ai_voice_id','voicekeyer_ai_api_key',
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
      'cat2_enabled','cat2_brand','cat2_port','cat2_baudrate',
      'so2r_enabled','so2r_port','so2r_stereo',
@@ -7206,6 +7238,8 @@ function applyFullConfigToForm(c) {
     }
     updateCatModeVisibility();
     if(c.voicekeyer_enabled) document.getElementById('voicekeyer_enabled').value = '1';
+    if(c.voicekeyer_ai_enabled && document.getElementById('voicekeyer_ai_enabled'))
+      document.getElementById('voicekeyer_ai_enabled').value = '1';
     // Périphérique/voix TTS : <select> peuplés une fois au chargement de page
     // par loadVoiceKeyerDevices() (liste dépendante du matériel serveur) — on
     // ne fait que ré-appliquer la valeur sauvegardée sur les <option> déjà là.

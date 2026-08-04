@@ -192,7 +192,8 @@ def test_voicekeyer_settings_defaut():
 def test_voicekeyer_settings_personnalises():
     s = vk.voicekeyer_settings({'voicekeyer_enabled': True, 'voicekeyer_device': '3',
                                  'voicekeyer_voice_id': 'xyz', 'voicekeyer_rate': '150'})
-    assert s == {'enabled': True, 'device': '3', 'voice_id': 'xyz', 'rate': 150}
+    assert s == {'enabled': True, 'device': '3', 'voice_id': 'xyz', 'rate': 150,
+                 'ai': {'enabled': False, 'provider': 'elevenlabs', 'api_key': '', 'voice_id': ''}}
 
 
 def test_voicekeyer_settings_rate_invalide_retombe_sur_defaut():
@@ -354,6 +355,169 @@ def test_set_ptt_dispatch_rigctld(monkeypatch):
     monkeypatch.setattr(rig, 'set_ptt', lambda host, port, on: {'ok': True, 'via': 'rigctld', 'host': host})
     r = vk._set_ptt({}, True)
     assert r == {'ok': True, 'via': 'rigctld', 'host': 'h'}
+
+
+# ─── voicekeyer_settings() : sous-dict 'ai' ───────────────────────────────────
+
+def test_voicekeyer_settings_ai_par_defaut_desactivee():
+    s = vk.voicekeyer_settings({'voicekeyer_enabled': True})
+    assert s['ai'] == {'enabled': False, 'provider': 'elevenlabs', 'api_key': '', 'voice_id': ''}
+
+
+def test_voicekeyer_settings_ai_configuree():
+    s = vk.voicekeyer_settings({
+        'voicekeyer_ai_enabled': True, 'voicekeyer_ai_provider': 'elevenlabs',
+        'voicekeyer_ai_api_key': 'sk-abc', 'voicekeyer_ai_voice_id': 'v123'})
+    assert s['ai'] == {'enabled': True, 'provider': 'elevenlabs',
+                       'api_key': 'sk-abc', 'voice_id': 'v123'}
+
+
+# ─── synthesize_to_wav_ai() : dispatch fournisseur + cache ────────────────────
+# Jamais de vrai appel réseau ici : AI_PROVIDERS['elevenlabs'] est monkeypatché.
+# Le cache vit dans _AI_CACHE_DIR (relatif) — TOUJOURS redirigé vers tmp_path
+# dans ces tests (voir piege-tests-ecrivent-dans-le-depot en mémoire projet :
+# des tests qui écrivent dans concours/ sont un vrai bug, pas un détail).
+
+def test_synthesize_to_wav_ai_provider_inconnu_rend_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(vk, '_AI_CACHE_DIR', str(tmp_path / 'cache'))
+    assert vk.synthesize_to_wav_ai('CQ test', 'provider_bidon', 'sk-abc', 'v1') is None
+
+
+def test_synthesize_to_wav_ai_sans_cle_rend_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(vk, '_AI_CACHE_DIR', str(tmp_path / 'cache'))
+    assert vk.synthesize_to_wav_ai('CQ test', 'elevenlabs', '', 'v1') is None
+
+
+def test_synthesize_to_wav_ai_sans_voice_id_rend_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(vk, '_AI_CACHE_DIR', str(tmp_path / 'cache'))
+    assert vk.synthesize_to_wav_ai('CQ test', 'elevenlabs', 'sk-abc', '') is None
+
+
+def _fake_pcm(n_frames=4000):
+    # PCM 16 bits mono : n_frames * 2 octets, valeurs arbitraires mais non
+    # nulles pour que ce ne soit pas juste un silence.
+    return bytes((i % 200) for i in range(n_frames * 2))
+
+
+def test_synthesize_to_wav_ai_cache_miss_appelle_le_fournisseur_et_peuple_le_cache(monkeypatch, tmp_path):
+    monkeypatch.setattr(vk, '_AI_CACHE_DIR', str(tmp_path / 'cache'))
+    calls = []
+    def fake_provider(api_key, voice_id, text, timeout):
+        calls.append((api_key, voice_id, text))
+        return _fake_pcm()
+    monkeypatch.setitem(vk.AI_PROVIDERS, 'elevenlabs', fake_provider)
+
+    path = vk.synthesize_to_wav_ai('CQ Contest, F4GLD', 'elevenlabs', 'sk-abc', 'v1')
+    assert path and os.path.exists(path)
+    assert calls == [('sk-abc', 'v1', 'CQ Contest, F4GLD')]
+
+    cache_path = vk._ai_cache_path('elevenlabs', 'v1', 'CQ Contest, F4GLD')
+    assert os.path.exists(cache_path)
+    assert path != cache_path            # copie jetable, jamais le fichier de cache lui-même
+    import wave
+    with wave.open(path, 'rb') as wf:
+        assert wf.getnchannels() == 1 and wf.getframerate() == 24000
+
+
+def test_synthesize_to_wav_ai_cache_hit_ne_rappelle_jamais_le_fournisseur(monkeypatch, tmp_path):
+    monkeypatch.setattr(vk, '_AI_CACHE_DIR', str(tmp_path / 'cache'))
+    def boom(*a, **k):
+        raise AssertionError('le fournisseur ne doit pas être rappelé sur un cache hit')
+    monkeypatch.setitem(vk.AI_PROVIDERS, 'elevenlabs', boom)
+
+    cache_path = vk._ai_cache_path('elevenlabs', 'v1', 'CQ Contest, F4GLD')
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    vk._write_wav_from_pcm(cache_path, _fake_pcm())
+    cache_mtime = os.path.getmtime(cache_path)
+
+    path = vk.synthesize_to_wav_ai('CQ Contest, F4GLD', 'elevenlabs', 'sk-abc', 'v1')
+    assert path and path != cache_path
+    assert os.path.getmtime(cache_path) == cache_mtime   # jamais réécrit
+
+
+def test_synthesize_to_wav_ai_echec_fournisseur_rend_none_et_ne_cree_pas_le_cache(monkeypatch, tmp_path):
+    monkeypatch.setattr(vk, '_AI_CACHE_DIR', str(tmp_path / 'cache'))
+    monkeypatch.setitem(vk.AI_PROVIDERS, 'elevenlabs', lambda *a, **k: None)
+
+    path = vk.synthesize_to_wav_ai('CQ test', 'elevenlabs', 'sk-abc', 'v1')
+    assert path is None
+    assert not os.path.exists(vk._ai_cache_path('elevenlabs', 'v1', 'CQ test'))
+
+
+# ─── synthesize_to_wav() : priorité IA + repli local silencieux ───────────────
+# Un vrai pyttsx3/SAPI5 n'est PAS mocké ailleurs dans ce fichier (les tests
+# send_voice_message monkeypatchent synthesize_to_wav ENTIÈREMENT) — ici on a
+# besoin du VRAI corps de la fonction pour tester le dispatch IA -> local, donc
+# on injecte un faux module pyttsx3 dans sys.modules : rapide, silencieux,
+# fonctionne même sur une machine sans moteur SAPI5 installé (CI Linux/macOS).
+class _FakePyttsx3Engine:
+    def __init__(self):
+        self._voice = None
+        self._rate = None
+    def getProperty(self, name):
+        return [] if name == 'voices' else None
+    def setProperty(self, name, val):
+        pass
+    def save_to_file(self, text, path):
+        with open(path, 'wb') as f:
+            f.write(b'RIFF....WAVEfmt ' + b'\x00' * 100)   # > 100 octets : passe le controle anti-echec-silencieux
+    def runAndWait(self):
+        pass
+    def stop(self):
+        pass
+
+
+def _install_fake_pyttsx3(monkeypatch):
+    import sys as _sys
+    import types as _types
+    fake = _types.ModuleType('pyttsx3')
+    fake.init = lambda: _FakePyttsx3Engine()
+    monkeypatch.setitem(_sys.modules, 'pyttsx3', fake)
+
+
+def test_synthesize_to_wav_sans_ai_ne_touche_jamais_synthesize_to_wav_ai(monkeypatch):
+    """Comportement inchangé pour tout appelant existant qui n'a jamais
+    connu ce paramètre (contrat rétro-compatible)."""
+    def boom(*a, **k):
+        raise AssertionError('synthesize_to_wav_ai ne doit pas être appelé sans ai=')
+    monkeypatch.setattr(vk, 'synthesize_to_wav_ai', boom)
+    monkeypatch.setattr(vk, '_voice_id_for_lang', lambda engine, lang: None)
+    _install_fake_pyttsx3(monkeypatch)
+    path = vk.synthesize_to_wav('CQ test')     # pas de kwarg ai= du tout
+    assert path and os.path.exists(path)
+
+
+def test_synthesize_to_wav_ai_desactivee_ne_lappelle_pas(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError('synthesize_to_wav_ai ne doit pas être appelé si ai.enabled est faux')
+    monkeypatch.setattr(vk, 'synthesize_to_wav_ai', boom)
+    monkeypatch.setattr(vk, '_voice_id_for_lang', lambda engine, lang: None)
+    _install_fake_pyttsx3(monkeypatch)
+    path = vk.synthesize_to_wav('CQ test', ai={'enabled': False})
+    assert path and os.path.exists(path)
+
+
+def test_synthesize_to_wav_essaie_lia_en_priorite(monkeypatch, tmp_path):
+    fake_ai_wav = tmp_path / 'ai.wav'
+    fake_ai_wav.write_bytes(b'RIFF....WAVEfmt ' + b'\x00' * 100)
+    monkeypatch.setattr(vk, 'synthesize_to_wav_ai', lambda *a, **k: str(fake_ai_wav))
+    path = vk.synthesize_to_wav('CQ test', ai={'enabled': True, 'provider': 'elevenlabs',
+                                               'api_key': 'sk-abc', 'voice_id': 'v1'})
+    assert path == str(fake_ai_wav)
+
+
+def test_synthesize_to_wav_repli_local_silencieux_si_lia_echoue(monkeypatch, capsys):
+    """C'est LE point central de la fonctionnalité : un fournisseur IA
+    injoignable/mal configuré ne doit JAMAIS empêcher le keyer vocal de
+    fonctionner — le concours ne dépend jamais du réseau (retour F4GLD
+    04/08/2026)."""
+    monkeypatch.setattr(vk, 'synthesize_to_wav_ai', lambda *a, **k: None)
+    monkeypatch.setattr(vk, '_voice_id_for_lang', lambda engine, lang: None)
+    _install_fake_pyttsx3(monkeypatch)
+    path = vk.synthesize_to_wav('CQ test', ai={'enabled': True, 'provider': 'elevenlabs',
+                                               'api_key': 'sk-abc', 'voice_id': 'v1'})
+    assert path and os.path.exists(path)
+    assert 'repli sur la voix locale' in capsys.readouterr().out
 
 
 def test_set_ptt_dispatch_rien_active(monkeypatch):
