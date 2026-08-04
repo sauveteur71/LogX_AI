@@ -609,6 +609,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 .cw-btn{background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;padding:5px 10px;font-family:var(--font-mono);font-size:12px}
 .cw-btn.active{background:var(--green);border-color:var(--green);color:#001a08;font-weight:700}
 .cw-wpm{font-size:12px;color:var(--muted)}
+/* Vumètre niveau vs seuil : sans lui, "ça tourne mais ça ne décode rien"
+   était un mystère total (rien ne montrait si le signal atteignait le
+   seuil de détection, un mauvais périphérique, ou un ton mal réglé). */
+.cw-meter{position:relative;height:8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.cw-meter-fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--muted);transition:width .05s linear}
+.cw-meter-fill.on{background:var(--green)}
+.cw-meter-threshold{position:absolute;top:0;bottom:0;width:2px;background:var(--accent)}
 .rtty-call{color:var(--green);cursor:pointer;border-bottom:1px dotted var(--green);padding:0 1px}
   .rtty-call:hover{background:var(--green);color:var(--bg)}
   .cw-output{height:110px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:16px;letter-spacing:1px;color:var(--green);white-space:pre-wrap;word-break:break-word}
@@ -1630,6 +1637,10 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
       <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="if(_cwAudioDecoder) _cwAudioDecoder.setFreq(parseInt(this.value,10)||650)">
       <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
+    </div>
+    <div class="cw-meter" id="cwMeter" title="Niveau reçu (barre) vs seuil de détection (repère) — si la barre n'atteint jamais le repère, le signal est trop faible ou le mauvais périphérique/ton est sélectionné">
+      <div class="cw-meter-fill" id="cwMeterFill"></div>
+      <div class="cw-meter-threshold" id="cwMeterThreshold"></div>
     </div>
     <div class="cw-output" id="cwOutput"></div>
     <button class="cw-btn" onclick="clearCwOutput()" style="align-self:flex-start"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg> Effacer</button>
