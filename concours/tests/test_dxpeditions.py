@@ -244,6 +244,26 @@ def test_chasse_tri_actives_avec_frequence_dabord(monkeypatch):
     assert [e['entity'] for e in out] == ['Crete', 'Tuvalu', 'Aruba']
 
 
+def test_chasse_priorise_active_spottee_et_pas_encore_travaillee(monkeypatch):
+    """Retour F4GLD 04/08/2026 : « si elle apparaît sur le cluster et que le
+    contact n'a pas été fait, la proposer en priorité » — même active et
+    spottée, une entité DÉJÀ travaillée passe après une entité NEUVE."""
+    _reset_cache()
+    xml = _rss(
+        'Aug 1-15, 2026 -- Aruba -- P40AA -- QSL: LoTW',        # active+spottee, DEJA travaillee
+        'Aug 1-15, 2026 -- Crete -- SV9XYZ -- QSL: LoTW')       # active+spottee, JAMAIS travaillee
+    monkeypatch.setattr(logx_utils, 'fetch_url', lambda *a, **k: xml)
+    spots = {'HF': [{'dx': 'P40AA', 'freq': 14195.0}, {'dx': 'SV9XYZ', 'freq': 21295.0}]}
+    out = dxp.fetch_dxpeditions_chasse(
+        worked_entities={'Aruba'}, spots_by_band=spots, today=date(2026, 8, 5))
+    assert [e['entity'] for e in out] == ['Crete', 'Aruba'], (
+        'Crete (jamais travaillee, sur le cluster) doit passer AVANT '
+        'Aruba (deja travaillee), meme si Aruba a ete annoncee en premier '
+        'dans le flux NG3K')
+    assert out[0]['worked'] is False
+    assert out[1]['worked'] is True
+
+
 # ─── GET /data/dxpeditions_active (câblage HTTP, logx_http.py) ─────────────
 # Même harnais que tests/test_config_endpoint_usage_mode.py : vrai serveur
 # sur port éphémère, la logique elle-même est déjà couverte ci-dessus.
