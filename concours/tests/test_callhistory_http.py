@@ -179,6 +179,18 @@ def test_callhistory_status_contest_query_prime_sur_la_config(server, tmp_path, 
     assert res_avec['contest'] == 'CQ_WW_SSB' and res_avec['call_history_count'] == 1
 
 
+def test_callhistory_status_contest_none_dans_la_config_ne_plante_pas(server, tmp_path, monkeypatch):
+    """cfg_snap.get('contest', '') ne retombe sur '' que si la clé est
+    ABSENTE -- si current_config['contest'] vaut explicitement None (vu en
+    conditions réelles dans certains flux de config), l'ancien code
+    enchaînait .strip() sur None et plantait en 500 (AttributeError)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(httpmod, 'current_config', {'contest': None})
+    res = _get(server, '/callhistory/status')
+    assert res['contest'] == ''
+    assert res['call_history_count'] == 0
+
+
 # ─── /call/index : surclassé par le concours actif ─────────────────────────
 
 def test_call_index_surclasse_avec_le_concours_actif(server, tmp_path, monkeypatch):
