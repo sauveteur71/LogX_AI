@@ -44,12 +44,12 @@ def test_spell_callsign_prefixe_ET_suffixe():
         'Foxtrot stroke Delta Lima One Uniform Tango Yankee stroke portable'
 
 
-def test_spell_callsign_stroke_francais():
-    # Selon la langue du message, « / » -> « barre » en français.
-    assert vk.spell_callsign('DL/ON4DRT', 'fr') == \
-        'Delta Lima barre Oscar November Four Delta Romeo Tango'
-    assert vk.spell_callsign('F4GLD/P', 'fr') == \
-        'Foxtrot Four Golf Lima Delta barre portable'
+def test_spell_callsign_stroke_toujours_international_meme_pour_station_francaise():
+    # « stroke » est le mot international, jamais traduit en « barre » --
+    # même pour un indicatif français (retour F4GLD 04/08/2026 : entendu
+    # « barre » au lieu de « stroke » pour MYCALL=F4GLD/P, jamais ainsi en
+    # vrai sur l'air).
+    assert vk.spell_callsign('F4GLD/P') == 'Foxtrot Four Golf Lima Delta stroke portable'
 
 
 def test_spell_callsign_vide():
@@ -163,6 +163,16 @@ def test_expand_report_francais_pour_station_F(monkeypatch):
     assert 'Foxtrot Five Alpha Bravo Charlie' in out    # indicatif phonétique international
     assert 'cinquante-neuf' in out                       # report en français
     assert out.endswith('soixante-treize merci')          # clôture 73 + merci
+
+
+def test_expand_voice_text_mycall_suffixe_reste_en_stroke_meme_en_francais(monkeypatch):
+    """Reproduction exacte du bouton « Tester » de CONFIG (retour F4GLD
+    04/08/2026) : MYCALL=F4GLD/P dérive la langue française (F4GLD -> France)
+    pour les NOMBRES, mais le « / » doit rester « stroke » (mot international,
+    jamais traduit) même si le message entier est par ailleurs en français."""
+    _mock_country(monkeypatch, 'France')
+    out = vk.expand_voice_text('{MYCALL}', {'mycall': 'F4GLD/P'})
+    assert out == 'Foxtrot Four Golf Lima Delta stroke portable'
 
 
 def test_expand_report_anglais_pour_station_DL(monkeypatch):
