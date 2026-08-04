@@ -764,3 +764,225 @@ def test_synthesize_to_wav_repli_local_silencieux_si_piper_echoue(monkeypatch, c
     path = vk.synthesize_to_wav('CQ test', piper={'enabled': True, 'exe': 'piper', 'model': 'x.onnx'})
     assert path and os.path.exists(path)
     assert 'Piper indisponible' in capsys.readouterr().out
+
+
+# ─── expand_voice_segments() : synthèse MULTI-VOIX ────────────────────────────
+# Retour F4GLD 04/08/2026 : une voix française unique pour tout le message
+# lisait "fifty-nine" avec un accent français — la solution retenue est de
+# synthétiser chaque segment de langue différente séparément (voir
+# send_voice_message(segments=...)), donc de d'abord DÉCOUPER le message.
+
+def test_expand_voice_segments_indicatif_allemand_quatre_segments(monkeypatch):
+    """Reproduction exacte du cas signalé : {CALL} {DE} {MYCALL}, {RST_SENT}
+    {TNX} avec un correspondant allemand -> alternance anglais/allemand,
+    JAMAIS un seul segment fourre-tout."""
+    _mock_country(monkeypatch, 'Fed. Rep. of Germany')
+    segs = vk.expand_voice_segments('{CALL} {DE} {MYCALL}, {RST_SENT} {TNX}',
+                                    {'call': 'DL1AA', 'mycall': 'F4GLD', 'rst_sent': '59'})
+    assert segs == [
+        ('Delta Lima One Alpha Alpha ', 'en'),
+        ('von', 'de'),
+        (' Foxtrot Four Golf Lima Delta, fifty-nine ', 'en'),
+        ('dreiundsiebzig danke', 'de'),
+    ]
+
+
+def test_expand_voice_segments_sans_placeholder_un_seul_segment_anglais():
+    assert vk.expand_voice_segments('CQ Contest, F4GLD', {}) == \
+        [('CQ Contest, F4GLD', 'en')]
+
+
+def test_expand_voice_segments_fusionne_les_segments_adjacents_meme_langue(monkeypatch):
+    """{DE} et {TNX} sont tous les deux dans la langue dérivée et directement
+    accolés (aucun texte littéral entre les deux) : ils doivent former UN
+    SEUL segment, pas deux (évite un aller-retour de voix inutile pour
+    rien). Le texte littéral, lui, reste toujours 'en' (voir docstring de
+    expand_voice_segments) — un espace entre deux placeholders 'fr' casse
+    donc la fusion, ce n'est pas un bug."""
+    _mock_country(monkeypatch, 'France')
+    segs = vk.expand_voice_segments('{DE}{TNX}', {'call': 'F5ABC'})
+    assert len(segs) == 1 and segs[0][1] == 'fr'
+
+
+def test_expand_voice_segments_reponse_reste_un_seul_segment_anglais(monkeypatch):
+    """La macro RÉPONSE ('{CALL}') est déjà un seul segment 'en' que le
+    correspondant soit français ou non — {CALL} n'est jamais localisé."""
+    _mock_country(monkeypatch, 'France')
+    assert vk.expand_voice_segments('{CALL}', {'call': 'F5ABC'}) == \
+        [('Foxtrot Five Alpha Bravo Charlie', 'en')]
+
+
+# ─── _voice_matches_lang() / résolution de voix par segment ──────────────────
+
+class _FakeVoice:
+    def __init__(self, id_, name, languages=None):
+        self.id = id_
+        self.name = name
+        self.languages = languages or []
+
+
+class _FakeEngineMultiVoix:
+    """Moteur SAPI factice avec DEUX voix installées (française et
+    anglaise), pour vérifier que le bon segment reçoit la bonne voix —
+    sans dépendre d'un vrai moteur multilingue sur la machine de test."""
+    def __init__(self):
+        self._voice = None
+        self._voices = [
+            _FakeVoice('HKEY\\...\\FR-Hortense', 'Microsoft Hortense Desktop - French'),
+            _FakeVoice('HKEY\\...\\EN-Zira', 'Microsoft Zira Desktop - English (United States)'),
+        ]
+        self.saved_with_voice = []
+    def getProperty(self, name):
+        if name == 'voices':
+            return self._voices
+        return self._voice
+    def setProperty(self, name, val):
+        if name == 'voice':
+            self._voice = val
+    def save_to_file(self, text, path):
+        self.saved_with_voice.append((text, self._voice))
+        with open(path, 'wb') as f:
+            f.write(b'RIFF....WAVEfmt ' + b'\x00' * 100)
+    def runAndWait(self):
+        pass
+    def stop(self):
+        pass
+
+
+def _install_fake_pyttsx3_multivoix(monkeypatch):
+    import sys as _sys
+    import types as _types
+    engine = _FakeEngineMultiVoix()
+    fake = _types.ModuleType('pyttsx3')
+    fake.init = lambda: engine
+    monkeypatch.setitem(_sys.modules, 'pyttsx3', fake)
+    return engine
+
+
+def test_voice_matches_lang_vrai_si_la_voix_correspond():
+    engine = _FakeEngineMultiVoix()
+    assert vk._voice_matches_lang(engine, 'HKEY\\...\\FR-Hortense', 'fr') is True
+
+
+def test_voice_matches_lang_faux_si_la_voix_est_dune_autre_langue():
+    engine = _FakeEngineMultiVoix()
+    assert vk._voice_matches_lang(engine, 'HKEY\\...\\FR-Hortense', 'en') is False
+
+
+def test_voice_matches_lang_vrai_sans_langue_demandee():
+    engine = _FakeEngineMultiVoix()
+    assert vk._voice_matches_lang(engine, 'HKEY\\...\\FR-Hortense', '') is True
+
+
+def test_synthesize_to_wav_ignore_la_voix_config_si_elle_ne_correspond_pas_a_la_langue(monkeypatch):
+    """LE cœur du correctif : une voix française configurée en CONFIG ne
+    doit PAS servir à lire un segment 'en' quand une voix anglaise est
+    installée — retour F4GLD 04/08/2026 (« fifty-nine » lu à la française)."""
+    engine = _install_fake_pyttsx3_multivoix(monkeypatch)
+    vk.synthesize_to_wav('fifty-nine', voice_id='HKEY\\...\\FR-Hortense', lang='en')
+    assert engine.saved_with_voice[-1][1] == 'HKEY\\...\\EN-Zira'
+
+
+def test_synthesize_to_wav_utilise_la_voix_config_si_elle_correspond(monkeypatch):
+    engine = _install_fake_pyttsx3_multivoix(monkeypatch)
+    vk.synthesize_to_wav('von', voice_id='HKEY\\...\\FR-Hortense', lang='fr')
+    assert engine.saved_with_voice[-1][1] == 'HKEY\\...\\FR-Hortense'
+
+
+def test_synthesize_to_wav_repli_sur_voix_config_si_aucune_voix_ne_correspond_a_la_langue(monkeypatch):
+    """Aucune voix japonaise installée : mieux vaut la voix française
+    configurée (même mal assortie) qu'un silence complet."""
+    engine = _install_fake_pyttsx3_multivoix(monkeypatch)
+    vk.synthesize_to_wav('kara', voice_id='HKEY\\...\\FR-Hortense', lang='ja')
+    assert engine.saved_with_voice[-1][1] == 'HKEY\\...\\FR-Hortense'
+
+
+# ─── send_voice_message(segments=...) : synthèse + lecture MULTI-VOIX ────────
+
+def test_send_voice_message_segments_synthetise_et_joue_chaque_segment_dans_lordre(monkeypatch, tmp_path):
+    calls = []
+    def fake_synth(text, voice_id='', rate=175, lang='', ai=None, piper=None):
+        p = tmp_path / f'{lang}_{len(calls)}.wav'
+        p.write_bytes(b'RIFF....WAVEfmt ')
+        calls.append((text, lang))
+        return str(p)
+    played = []
+    ptt_calls = []
+    monkeypatch.setattr(vk, 'synthesize_to_wav', fake_synth)
+    monkeypatch.setattr(vk, '_set_ptt', lambda cfg, on: ptt_calls.append(on) or {'ok': True})
+    monkeypatch.setattr(vk, 'play_wav', lambda path, device=None: played.append(path))
+
+    segments = [('Delta Lima One Alpha Alpha ', 'en'), ('von', 'de'),
+               (' Foxtrot Four Golf Lima Delta, fifty-nine ', 'en'),
+               ('dreiundsiebzig danke', 'de')]
+    r = vk.send_voice_message({'voicekeyer_enabled': True}, 'texte complet affiché',
+                              segments=segments)
+    assert r['ok'] and r['text'] == 'texte complet affiché'
+    assert [lang for _, lang in calls] == ['en', 'de', 'en', 'de']
+    assert len(played) == 4                # un play_wav() par segment, dans l'ordre
+    assert ptt_calls == [True, False]       # UNE SEULE prise de PTT pour tout le message
+    for p in played:
+        assert not os.path.exists(p)        # tous les WAV temporaires nettoyés
+
+
+def test_send_voice_message_segments_echec_dun_segment_nettoie_les_precedents(monkeypatch, tmp_path):
+    """Si le 2e segment échoue, le WAV déjà synthétisé pour le 1er ne doit
+    pas traîner sur le disque."""
+    made = []
+    def fake_synth(text, voice_id='', rate=175, lang='', ai=None, piper=None):
+        if lang == 'de':
+            return None
+        p = tmp_path / f'seg_{len(made)}.wav'
+        p.write_bytes(b'RIFF....WAVEfmt ')
+        made.append(str(p))
+        return str(p)
+    monkeypatch.setattr(vk, 'synthesize_to_wav', fake_synth)
+
+    r = vk.send_voice_message({'voicekeyer_enabled': True}, 'texte',
+                              segments=[('abc', 'en'), ('von', 'de')])
+    assert not r['ok'] and 'indisponible' in r['error'].lower()
+    for p in made:
+        assert not os.path.exists(p)
+
+
+def test_send_voice_message_sans_segments_comportement_inchange(monkeypatch, tmp_path):
+    """Omettre `segments` (appelants existants, jamais mis à jour) doit
+    rester STRICTEMENT identique à avant ce correctif."""
+    fake_wav = tmp_path / 'single.wav'
+    fake_wav.write_bytes(b'RIFF....WAVEfmt ')
+    played = []
+    monkeypatch.setattr(vk, 'synthesize_to_wav', lambda *a, **k: str(fake_wav))
+    monkeypatch.setattr(vk, '_set_ptt', lambda cfg, on: {'ok': True})
+    monkeypatch.setattr(vk, 'play_wav', lambda path, device=None: played.append(path))
+    r = vk.send_voice_message({'voicekeyer_enabled': True}, 'CQ test')
+    assert r['ok'] and played == [str(fake_wav)]
+
+
+# ─── emettre_wav_multi() : lecture séquentielle sous un seul PTT ─────────────
+
+def test_emettre_wav_multi_joue_tout_sous_un_seul_ptt(monkeypatch, tmp_path):
+    a, b = tmp_path / 'a.wav', tmp_path / 'b.wav'
+    a.write_bytes(b'RIFF....WAVEfmt ')
+    b.write_bytes(b'RIFF....WAVEfmt ')
+    played = []
+    ptt_calls = []
+    monkeypatch.setattr(vk, '_set_ptt', lambda cfg, on: ptt_calls.append(on) or {'ok': True})
+    monkeypatch.setattr(vk, 'play_wav', lambda path, device=None: played.append(path))
+    r = vk.emettre_wav_multi({}, [str(a), str(b)], None, supprimer_apres=True)
+    assert r['ok']
+    assert played == [str(a), str(b)]
+    assert ptt_calls == [True, False]
+    assert not a.exists() and not b.exists()
+
+
+def test_emettre_wav_delegue_a_emettre_wav_multi(monkeypatch, tmp_path):
+    """emettre_wav() (1 seul fichier) doit rester identique à son ancien
+    comportement — non-régression après son refactor en fine couche
+    au-dessus de emettre_wav_multi()."""
+    fake_wav = tmp_path / 'x.wav'
+    fake_wav.write_bytes(b'RIFF....WAVEfmt ')
+    played = []
+    monkeypatch.setattr(vk, '_set_ptt', lambda cfg, on: {'ok': True})
+    monkeypatch.setattr(vk, 'play_wav', lambda path, device=None: played.append(path))
+    r = vk.emettre_wav({}, str(fake_wav), None, supprimer_apres=True)
+    assert r['ok'] and played == [str(fake_wav)] and not fake_wav.exists()

@@ -58,6 +58,7 @@ Aucune fonction ici ne lève d'exception vers l'appelant HTTP : tout retourne
 """
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -587,6 +588,55 @@ def expand_voice_text(template, ctx):
             .replace('{73}', spell_number('73', lang)))
 
 
+_PLACEHOLDER_RE = re.compile(r'\{[A-Z_0-9]+\}')
+
+
+def expand_voice_segments(template, ctx):
+    """Comme expand_voice_text(), mais rend une liste [(texte, langue), ...]
+    au lieu d'une chaîne unique — un segment par « zone de langue » du
+    message, pour la synthèse MULTI-VOIX (voir send_voice_message()).
+
+    Une voix SAPI/Piper UNIQUE pour tout le message lisait l'alphabet OACI/
+    « fifty-nine » (toujours censés être en anglais, voir expand_voice_text)
+    avec l'ACCENT de la voix locale choisie pour {DE}/{TNX} — retour F4GLD
+    04/08/2026, ex. « fifty-nine » prononcé à la française. Ici, le texte
+    littéral du template et {CALL}/{MYCALL}/{RST_SENT}/{RST_RCVD}/{NR}
+    restent TOUJOURS étiquetés 'en' (jargon international/donnée d'échange,
+    jamais concerné par la langue dérivée) ; seuls {DE}/{TNX}/{73} portent
+    la langue dérivée de l'indicatif. Les segments adjacents de même langue
+    sont fusionnés (évite des allers-retours de voix inutiles pour du texte
+    littéral collé à un segment anglais, ex. la virgule après {MYCALL})."""
+    ctx = ctx or {}
+    lang = message_lang(ctx)
+    values = {
+        '{CALL}': (spell_callsign(ctx.get('call', '')), 'en'),
+        '{MYCALL}': (spell_callsign(ctx.get('mycall', '')), 'en'),
+        '{RST_SENT}': (spell_number(ctx.get('rst_sent', ''), 'en'), 'en'),
+        '{RST_RCVD}': (spell_number(ctx.get('rst_rcvd', ''), 'en'), 'en'),
+        '{NR}': (spell_number(ctx.get('nr', ''), 'en'), 'en'),
+        '{DE}': (_DE_CONNECTOR_BY_LANG.get(lang, 'from'), lang),
+        '{TNX}': (closing_73(ctx), lang),
+        '{73}': (spell_number('73', lang), lang),
+    }
+    text = str(template or '')
+    raw = []
+    pos = 0
+    for m in _PLACEHOLDER_RE.finditer(text):
+        if m.start() > pos:
+            raw.append((text[pos:m.start()], 'en'))
+        raw.append(values.get(m.group(0), (m.group(0), 'en')))
+        pos = m.end()
+    if pos < len(text):
+        raw.append((text[pos:], 'en'))
+    merged = []
+    for t, l in raw:
+        if merged and merged[-1][1] == l:
+            merged[-1] = (merged[-1][0] + t, l)
+        else:
+            merged.append((t, l))
+    return merged
+
+
 # ─── RÉGLAGES ─────────────────────────────────────────────────────────────────
 def voicekeyer_settings(cfg):
     cfg = cfg or {}
@@ -779,20 +829,27 @@ def synthesize_to_wav_piper(text, exe, model, timeout=_PIPER_TIMEOUT):
 
 
 # ─── SYNTHÈSE + LECTURE ───────────────────────────────────────────────────────
+# Partagé par _voice_id_for_lang() (repli auto) ET _voice_matches_lang()
+# (la voix CONFIG convient-elle à CE segment ?) — voir synthesize_to_wav().
+_LANG_VOICE_HINTS = {
+    'fr': ('french', 'français', 'francais', 'fr-', 'fr_', 'fra'),
+    'en': ('english', 'en-', 'en_', 'enu', 'eng'),
+    'de': ('german', 'deutsch', 'de-', 'de_', 'deu'),
+    'it': ('italian', 'italiano', 'it-', 'it_', 'ita'),
+    'es': ('spanish', 'español', 'espanol', 'es-', 'es_', 'esp'),
+    'pt': ('portuguese', 'português', 'portugues', 'pt-', 'pt_', 'por'),
+    'nl': ('dutch', 'nederlands', 'nl-', 'nl_', 'nld'),
+    'ja': ('japanese', 'ja-', 'ja_', 'jpn'),
+}
+
+
 def _voice_id_for_lang(engine, lang):
     """id d'une voix SAPI installée correspondant à la langue (fr/en/de…), ou
     None si aucune voix de cette langue n'est installée (repli sur la voix
     par défaut du moteur — aucune erreur, juste moins naturel). Rend
     « cinquante-neuf, merci »/« neunundfünfzig, danke » naturel avec une
     VRAIE voix de la langue plutôt qu'une voix anglaise par défaut."""
-    hints = {'fr': ('french', 'français', 'francais', 'fr-', 'fr_', 'fra'),
-             'en': ('english', 'en-', 'en_', 'enu', 'eng'),
-             'de': ('german', 'deutsch', 'de-', 'de_', 'deu'),
-             'it': ('italian', 'italiano', 'it-', 'it_', 'ita'),
-             'es': ('spanish', 'español', 'espanol', 'es-', 'es_', 'esp'),
-             'pt': ('portuguese', 'português', 'portugues', 'pt-', 'pt_', 'por'),
-             'nl': ('dutch', 'nederlands', 'nl-', 'nl_', 'nld'),
-             'ja': ('japanese', 'ja-', 'ja_', 'jpn')}.get(lang or '', ())
+    hints = _LANG_VOICE_HINTS.get(lang or '', ())
     if not hints:
         return None
     try:
@@ -806,10 +863,39 @@ def _voice_id_for_lang(engine, lang):
     return None
 
 
+def _voice_matches_lang(engine, voice_id, lang):
+    """True si la voix CONFIG (`voice_id`) correspond déjà à `lang` — pour ne
+    PAS l'utiliser sur un segment d'une AUTRE langue (retour F4GLD
+    04/08/2026 : une voix française configurée en CONFIG lisait « fifty-nine »
+    avec un accent français, l'anglais international étant censé rester
+    prononcé correctement quel que soit le reste du message). Sans langue
+    demandée, ou langue sans indices connus, ou voix introuvable dans la
+    liste : on ne bloque pas, la voix configurée est acceptée telle quelle."""
+    if not lang:
+        return True
+    hints = _LANG_VOICE_HINTS.get(lang, ())
+    if not hints:
+        return True
+    try:
+        for v in engine.getProperty('voices'):
+            if str(v.id) == str(voice_id):
+                hay = (str(v.id) + ' ' + str(v.name) + ' '
+                       + ','.join(v.languages or [])).lower()
+                return any(h in hay for h in hints)
+    except Exception:
+        pass
+    return True
+
+
 def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None, piper=None):
     """Génère un WAV temporaire, ou None si aucune synthèse n'a produit de son
-    exploitable. `lang` : préfère une voix de cette langue pour un rendu
-    naturel ; le voice_id explicite (CONFIG) prime.
+    exploitable. `lang` : voix à utiliser pour CE texte précis. Le voice_id
+    explicite (CONFIG) prime SEULEMENT s'il correspond à `lang` (voir
+    _voice_matches_lang) — sinon une voix installée pour `lang` est
+    préférée automatiquement (retour F4GLD 04/08/2026 : une voix française
+    configurée ne doit jamais lire un segment anglais avec un accent
+    français ; voir send_voice_message(segments=...) pour la synthèse
+    multi-voix d'un même message).
 
     Trois moteurs par ordre de préférence, chacun optionnel et silencieux à
     l'échec (voir le docstring du module) :
@@ -845,7 +931,10 @@ def synthesize_to_wav(text, voice_id='', rate=175, lang='', ai=None, piper=None)
     try:
         engine = pyttsx3.init()
         try:
-            vid = voice_id or _voice_id_for_lang(engine, lang)
+            if voice_id and _voice_matches_lang(engine, voice_id, lang):
+                vid = voice_id
+            else:
+                vid = _voice_id_for_lang(engine, lang) or voice_id
             if vid:
                 engine.setProperty('voice', vid)
             engine.setProperty('rate', rate)
@@ -906,26 +995,64 @@ def _set_ptt(cfg, on):
     return {'ok': False, 'error': 'Pilotage radio désactivé (CONFIG)'}
 
 
-def send_voice_message(cfg, text, lang='', skip_ptt=False):
+def _synthese_indisponible_message(settings):
+    moteurs_essayes = ['IA'] * settings['ai']['enabled'] + ['Piper'] * settings['piper']['enabled']
+    if moteurs_essayes:
+        return 'Synthèse vocale indisponible (%s et voix locale tous en échec)' % '/'.join(moteurs_essayes)
+    return 'Synthèse vocale indisponible (moteur TTS)'
+
+
+def send_voice_message(cfg, text, lang='', skip_ptt=False, segments=None):
     """PTT ON -> synthèse + lecture -> PTT OFF, quel que soit le mode CAT
     actif. `lang` : préfère une voix SAPI de cette langue (voir expand_voice_text
     / message_lang). `skip_ptt` : n'engage jamais le PTT — réservé au bouton
     « Tester » de CONFIG (indicatif fictif), pour prévisualiser le périphérique/
     la voix choisis SANS exiger que le pilotage radio soit déjà configuré (voir
-    emettre_wav). Ne lève jamais : {'ok': bool, 'error'?: str}."""
+    emettre_wav).
+
+    `segments` (optionnel, liste [(texte, langue), ...] — voir
+    expand_voice_segments()) : si fourni, CHAQUE segment est synthétisé avec
+    sa PROPRE voix puis tous joués en séquence sous UNE SEULE prise de PTT —
+    évite qu'une voix unique (ex. française, choisie pour {DE}/{TNX}) lise
+    un mot anglais international (ex. « fifty-nine ») avec son accent
+    (retour F4GLD 04/08/2026). Omis/None = comportement inchangé (une seule
+    synthèse, `text`/`lang` à plat), pour ne rien casser des appelants
+    existants. Ne lève jamais : {'ok': bool, 'error'?: str}."""
     settings = voicekeyer_settings(cfg)
     if not settings['enabled']:
         return {'ok': False, 'error': 'Keyer vocal désactivé (CONFIG)'}
     text = (text or '').strip()
     if not text:
         return {'ok': False, 'error': 'Message vide'}
+
+    if segments:
+        paths = []
+        for seg_text, seg_lang in segments:
+            seg_text = (seg_text or '').strip()
+            if not seg_text:
+                continue
+            p = synthesize_to_wav(seg_text, settings['voice_id'], settings['rate'], seg_lang,
+                                  settings['ai'], settings['piper'])
+            if not p:
+                for existing in paths:
+                    try:
+                        os.remove(existing)
+                    except OSError:
+                        pass
+                return {'ok': False, 'error': _synthese_indisponible_message(settings)}
+            paths.append(p)
+        if not paths:
+            return {'ok': False, 'error': 'Message vide'}
+        # Les WAV de synthèse sont temporaires : emettre_wav_multi() les
+        # supprime lui-même après émission (supprimer_apres), y compris si
+        # la lecture échoue en cours de route.
+        return emettre_wav_multi(cfg, paths, settings['device'],
+                                 supprimer_apres=True, extra={'text': text}, skip_ptt=skip_ptt)
+
     path = synthesize_to_wav(text, settings['voice_id'], settings['rate'], lang,
                              settings['ai'], settings['piper'])
     if not path:
-        moteurs_essayes = ['IA'] * settings['ai']['enabled'] + ['Piper'] * settings['piper']['enabled']
-        return {'ok': False, 'error':
-                'Synthèse vocale indisponible (%s et voix locale tous en échec)' % '/'.join(moteurs_essayes)
-                if moteurs_essayes else 'Synthèse vocale indisponible (moteur TTS)'}
+        return {'ok': False, 'error': _synthese_indisponible_message(settings)}
 
     # Le WAV de synthèse est temporaire : emettre_wav() le supprime lui-même
     # après émission (supprimer_apres), y compris si la lecture échoue.
@@ -933,28 +1060,22 @@ def send_voice_message(cfg, text, lang='', skip_ptt=False):
                        supprimer_apres=True, extra={'text': text}, skip_ptt=skip_ptt)
 
 
-def emettre_wav(cfg, path, device, supprimer_apres=False, extra=None, skip_ptt=False):
-    """PTT ON → lecture du WAV → PTT OFF vérifié. Séquence commune à la voix de
-    synthèse (callbot) et aux messages enregistrés par l'opérateur : c'est le
-    relâchement du PTT qui doit être identique dans les deux cas, pas seulement
-    la lecture.
+def emettre_wav_multi(cfg, paths, device, supprimer_apres=False, extra=None, skip_ptt=False):
+    """Comme emettre_wav(), mais joue PLUSIEURS WAV en SÉQUENCE sous UNE
+    SEULE prise de PTT (voir send_voice_message(segments=...)) — chaque
+    segment peut avoir son propre débit d'échantillonnage/sa propre voix,
+    play_wav() lit celui du fichier à chaque appel, aucun ré-échantillonnage
+    ni concaténation binaire nécessaire.
 
-    `skip_ptt=True` : ne touche jamais au PTT (ni ON ni OFF) — utilisé
-    UNIQUEMENT par le test CONFIG (indicatif fictif « F8TEST »->
-    /rig/voice avec skip_ptt) pour permettre de prévisualiser le
-    périphérique audio/la voix choisis même sans pilotage radio configuré
-    (retour F4GLD 04/08/2026 : le test échouait systématiquement avec
-    « Pilotage radio désactivé » tant que CAT n'était pas réglé, alors que
-    l'opérateur voulait juste vérifier le son). En émission réelle
-    (send_voice_message() depuis le logbook, skip_ptt jamais positionné),
-    le PTT reste obligatoire — sans lui la radio ne transmet pas, jouer le
-    son quand même donnerait une fausse impression de message envoyé."""
+    `skip_ptt=True` : ne touche jamais au PTT (ni ON ni OFF) — voir
+    emettre_wav(). En émission réelle, le PTT reste obligatoire."""
     def _rm():
         if supprimer_apres:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+            for p in paths:
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
 
     # Verrou : une seule émission vocale à la fois (voir _voice_lock).
     with _voice_lock:
@@ -966,7 +1087,8 @@ def emettre_wav(cfg, path, device, supprimer_apres=False, extra=None, skip_ptt=F
         result = {'ok': True}
         result.update(extra or {})
         try:
-            play_wav(path, device)
+            for p in paths:
+                play_wav(p, device)
         except Exception as e:
             result = {'ok': False, 'error': f'Lecture audio impossible : {e}'}
         finally:
@@ -984,6 +1106,27 @@ def emettre_wav(cfg, path, device, supprimer_apres=False, extra=None, skip_ptt=F
                                        "rester en émission ! " + str(off.get('error', '?')))
             _rm()
         return result
+
+
+def emettre_wav(cfg, path, device, supprimer_apres=False, extra=None, skip_ptt=False):
+    """PTT ON → lecture du WAV → PTT OFF vérifié. Séquence commune à la voix de
+    synthèse (callbot) et aux messages enregistrés par l'opérateur : c'est le
+    relâchement du PTT qui doit être identique dans les deux cas, pas seulement
+    la lecture. Délègue à emettre_wav_multi() (un seul segment) — voir son
+    docstring et celui de send_voice_message(segments=...) pour la synthèse
+    multi-voix d'un même message.
+
+    `skip_ptt=True` : ne touche jamais au PTT (ni ON ni OFF) — utilisé
+    UNIQUEMENT par le test CONFIG (indicatif fictif « F8TEST »->
+    /rig/voice avec skip_ptt) pour permettre de prévisualiser le
+    périphérique audio/la voix choisis même sans pilotage radio configuré
+    (retour F4GLD 04/08/2026 : le test échouait systématiquement avec
+    « Pilotage radio désactivé » tant que CAT n'était pas réglé, alors que
+    l'opérateur voulait juste vérifier le son). En émission réelle
+    (send_voice_message() depuis le logbook, skip_ptt jamais positionné),
+    le PTT reste obligatoire — sans lui la radio ne transmet pas, jouer le
+    son quand même donnerait une fausse impression de message envoyé."""
+    return emettre_wav_multi(cfg, [path], device, supprimer_apres, extra, skip_ptt)
 
 
 # ─── MESSAGES ENREGISTRÉS PAR L'OPÉRATEUR (DVK) ─────────────────────────────

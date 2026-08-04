@@ -51,7 +51,7 @@ def _post(base, path, payload):
 
 def test_rig_voice_transmet_skip_ptt_au_module(server, monkeypatch):
     captured = {}
-    def fake_send(cfg, text, lang='', skip_ptt=False):
+    def fake_send(cfg, text, lang='', skip_ptt=False, segments=None):
         captured['skip_ptt'] = skip_ptt
         captured['text'] = text
         return {'ok': True, 'text': text}
@@ -70,7 +70,7 @@ def test_rig_voice_sans_skip_ptt_reste_false(server, monkeypatch):
     """Le déclenchement réel (logx_logbook.js) n'envoie jamais skip_ptt —
     absence de la clé doit se traduire par False, pas par une exception."""
     captured = {}
-    def fake_send(cfg, text, lang='', skip_ptt=False):
+    def fake_send(cfg, text, lang='', skip_ptt=False, segments=None):
         captured['skip_ptt'] = skip_ptt
         return {'ok': True, 'text': text}
     monkeypatch.setattr(vk, 'send_voice_message', fake_send)
