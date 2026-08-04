@@ -10,24 +10,27 @@ du PC) ne fait ni insertion dynamique de l'indicatif ni émission radio. Ici :
      épelé en alphabet phonétique INTERNATIONAL (OACI — Alpha/Bravo/…/Zero/
      One/…/Nine, compris de tous, JAMAIS traduit, voir spell_callsign), le
      report et les séries ({RST_SENT}/{RST_RCVD}/{NR}) sont dits EN TOUTES
-     LETTRES dans la langue dérivée du PAYS de l'indicatif du correspondant
-     (fr/de/it/es/pt/nl/ja ont un système de nombres complet, ex.
-     « cinquante-neuf »/« neunundfünfzig »/« gojuukyuu » pour 59 — voir
-     lang_for_call/number_to_words ; « fifty-nine » par défaut sinon), {DE}
-     adapte le connecteur (« de »/« von »/« da »/« van »/« kara »/« from »)
-     et {TNX} clôt par « 73 » suivi d'un remerciement dans la même langue
-     (merci/arigato/danke/grazie/gracias/obrigado/dank u/thanks).
+     LETTRES TOUJOURS EN ANGLAIS (« fifty-nine », jamais « cinquante-neuf »
+     — retour F4GLD 04/08/2026 : l'échange doit rester simple et sans
+     ambiguïté, quelle que soit la langue du correspondant), {DE} adapte le
+     connecteur (« de »/« von »/« da »/« van »/« kara »/« from ») et {TNX}
+     clôt par « 73 » suivi d'un remerciement DANS LA LANGUE du correspondant
+     (merci/arigato/danke/grazie/gracias/obrigado/dank u/thanks — cette
+     clôture de politesse n'est pas une donnée d'échange, elle reste
+     localisée ; fr/de/it/es/pt/nl/ja ont un système de nombres complet
+     dédié pour ce « 73 » de clôture, voir lang_for_call/number_to_words).
 
      ATTENTION PRONONCIATION (retour F4GLD 04/08/2026, ex. « nine » se
      prononce /naɪn/) : ceci reste du TEXTE BRUT envoyé à un SEUL moteur
      TTS pour tout le message — pas de balisage par mot ("SSML") indiquant
      à la voix de changer de langue au milieu de la phrase. Si le moteur
-     choisit une voix allemande/italienne/etc. pour la partie NOMBRES, les
-     mots ANGLAIS internationaux (alphabet OACI, « Nine », « stroke »)
-     risquent d'être lus avec les règles de prononciation de CETTE langue,
-     pas l'anglais correct — limitation connue de pyttsx3/SAPI5 et Piper en
-     usage simple (texte -> audio), pas quelque chose qu'un correctif ici
-     peut garantir sans passer par du SSML par mot (hors périmètre actuel).
+     choisit une voix allemande/italienne/etc. (pour le « 73 » de clôture
+     par ex.), les mots ANGLAIS internationaux mélangés dans la MÊME phrase
+     (alphabet OACI, chiffres d'échange, « stroke ») risquent d'être lus
+     avec les règles de prononciation de CETTE langue, pas l'anglais
+     correct — limitation connue de pyttsx3/SAPI5 et Piper en usage simple
+     (texte -> audio), pas quelque chose qu'un correctif ici peut garantir
+     sans passer par du SSML par mot (hors périmètre actuel).
   2. Synthèse en WAV temporaire, avec 3 moteurs possibles par ordre de
      préférence (chacun optionnel, retombe silencieusement sur le suivant) :
        a. Voix IA cloud (ElevenLabs) si activée en CONFIG — la plus naturelle,
@@ -556,23 +559,29 @@ def expand_voice_text(template, ctx):
     """Développe les variables d'une macro vocale. ctx :
     {'call','mycall','rst_sent','rst_rcvd','nr'}.
       {CALL}/{MYCALL} -> alphabet phonétique INTERNATIONAL (compris de tous) ;
-      {RST_SENT}/{RST_RCVD}/{NR} -> EN TOUTES LETTRES dans la langue dérivée de
-        l'indicatif (F -> « cinquante-neuf », sinon « fifty-nine ») ;
-      {DE} -> « de »/« from » dans la même langue — contrairement à « stroke »
-        (toujours international, jamais traduit), c'est un mot de la PHRASE
-        elle-même, dit naturellement dans sa propre langue en phonie (retour
-        F4GLD 04/08/2026 : « de » figé en dur ne devenait jamais « from » même
-        quand le reste du message était en anglais) ;
-      {TNX} -> « 73 » + remerciement dans la langue du correspondant ;
-      {73} -> « soixante-treize »/« seventy-three »."""
+      {RST_SENT}/{RST_RCVD}/{NR} -> EN TOUTES LETTRES TOUJOURS EN ANGLAIS
+        (« fifty-nine », jamais « cinquante-neuf »/« neunundfünfzig »…),
+        quelle que soit la langue dérivée de l'indicatif — retour F4GLD
+        04/08/2026 : l'échange (le report/la série) doit rester simple et
+        sans ambiguïté, la convention terrain donne toujours ces chiffres
+        en anglais même entre deux stations de même langue ;
+      {DE} -> « de »/« from »/« von »… dans la langue dérivée — contrairement
+        à « stroke » (toujours international, jamais traduit), c'est un mot
+        de la PHRASE elle-même, dit naturellement dans sa propre langue en
+        phonie (retour F4GLD 04/08/2026 : « de » figé en dur ne devenait
+        jamais « from » même quand le reste du message était en anglais) ;
+      {TNX} -> « 73 » + remerciement dans la langue du correspondant (le
+        « 73 » de politesse en clôture n'est PAS un report d'échange, il
+        reste localisé — voir closing_73) ;
+      {73} -> idem, hors clôture ({TNX} l'inclut déjà)."""
     ctx = ctx or {}
     lang = message_lang(ctx)
     return (str(template or '')
             .replace('{CALL}', spell_callsign(ctx.get('call', '')))
             .replace('{MYCALL}', spell_callsign(ctx.get('mycall', '')))
-            .replace('{RST_SENT}', spell_number(ctx.get('rst_sent', ''), lang))
-            .replace('{RST_RCVD}', spell_number(ctx.get('rst_rcvd', ''), lang))
-            .replace('{NR}', spell_number(ctx.get('nr', ''), lang))
+            .replace('{RST_SENT}', spell_number(ctx.get('rst_sent', ''), 'en'))
+            .replace('{RST_RCVD}', spell_number(ctx.get('rst_rcvd', ''), 'en'))
+            .replace('{NR}', spell_number(ctx.get('nr', ''), 'en'))
             .replace('{DE}', _DE_CONNECTOR_BY_LANG.get(lang, 'from'))
             .replace('{TNX}', closing_73(ctx))
             .replace('{73}', spell_number('73', lang)))

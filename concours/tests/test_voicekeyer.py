@@ -250,13 +250,18 @@ def test_closing_73_selon_indicatif(monkeypatch):
     assert vk.closing_73({'call': 'JT1X'}) == 'seventy-three'   # 73 seul si pas de mot
 
 
-def test_expand_report_francais_pour_station_F(monkeypatch):
+def test_expand_report_reste_toujours_en_anglais_meme_pour_station_F(monkeypatch):
+    """Retour F4GLD 04/08/2026 : « pour les rapports 59 ou 58 ou 44, toujours
+    passer ces chiffres en anglais » — l'échange (RST_SENT/RST_RCVD/NR) ne
+    suit PLUS la langue du correspondant, contrairement à la clôture {TNX}
+    (73 + remerciement) qui reste localisée, elle."""
     _mock_country(monkeypatch, 'France')
     ctx = {'call': 'F5ABC', 'rst_sent': '59', 'mycall': 'F4GLD'}
     out = vk.expand_voice_text('{CALL} {RST_SENT} {TNX}', ctx)
     assert 'Foxtrot Five Alpha Bravo Charlie' in out    # indicatif phonétique international
-    assert 'cinquante-neuf' in out                       # report en français
-    assert out.endswith('soixante-treize merci')          # clôture 73 + merci
+    assert 'fifty-nine' in out                           # report TOUJOURS en anglais
+    assert 'cinquante-neuf' not in out
+    assert out.endswith('soixante-treize merci')          # clôture 73 + merci : reste localisée
 
 
 def test_expand_voice_text_mycall_suffixe_reste_en_stroke_meme_en_francais(monkeypatch):
@@ -270,14 +275,17 @@ def test_expand_voice_text_mycall_suffixe_reste_en_stroke_meme_en_francais(monke
 
 
 def test_expand_report_allemand_pour_station_DL(monkeypatch):
-    """Retour F4GLD 04/08/2026 : un indicatif allemand doit s'entendre en
-    allemand (nombres ET connecteur), pas juste son mot de remerciement
-    comme avant l'ajout du système de nombres allemand."""
+    """Retour F4GLD 04/08/2026 : un indicatif allemand adapte le connecteur
+    ({DE} -> « von ») et la clôture (73 + danke), mais PAS le report
+    d'échange lui-même — { RST_SENT} reste « fifty-nine », jamais
+    « neunundfünfzig » (retour F4GLD suivant : les rapports restent
+    toujours en anglais, pour rester simples et sans ambiguïté)."""
     _mock_country(monkeypatch, 'Fed. Rep. of Germany')
     ctx = {'call': 'DL1AA', 'mycall': 'F4GLD', 'rst_sent': '59'}
     out = vk.expand_voice_text('{CALL} {DE} {MYCALL}, {RST_SENT} {TNX}', ctx)
     assert ' von ' in out
-    assert 'neunundfünfzig' in out and out.endswith('dreiundsiebzig danke')
+    assert 'fifty-nine' in out and 'neunundfünfzig' not in out
+    assert out.endswith('dreiundsiebzig danke')          # clôture 73 : reste localisée
 
 
 def test_expand_voice_text_placeholders_manquants_deviennent_vides():
