@@ -1400,7 +1400,8 @@ function bandmapSaut(sens){
     cible = _bmSpots.find(s => parseFloat(s.freq) < ici - 0.0002) || null;
   }
   if(!cible){ notify(sens > 0 ? 'dernier spot de la bande' : 'premier spot de la bande'); return; }
-  bandmapClick(String(cible.call || '').replace(/[^A-Za-z0-9/]/g, ''), parseFloat(cible.freq));
+  bandmapClick(String(cible.call || '').replace(/[^A-Za-z0-9/]/g, ''), parseFloat(cible.freq),
+              String(cible.mode || '').replace(/[^A-Za-z0-9/-]/g, ''));
 }
 
 // ─── FILTRE D'AFFICHAGE DES SPOTS ────────────────────────────────────────────
@@ -1597,7 +1598,7 @@ async function refreshBandMap(){
       const titreOreille = dxSitue
         ? trT('Écouter ce spot sur un récepteur WebSDR proche du DX')
         : trT('Position du DX inconnue — écouter cette fréquence sur un récepteur proche de chez toi');
-      rows.push(`<div class="${cls}" onclick="bandmapClick('${jsCall}',${f})" title="${escHtml(infoBulle)}">`
+      rows.push(`<div class="${cls}" onclick="bandmapClick('${jsCall}',${f},'${modeSpot}')" title="${escHtml(infoBulle)}">`
         + `<span class="bm-f">${f.toFixed(3)}</span>`
         + `<span class="bm-c" style="${style}">${s.local ? '👂' : (s.new_mult ? '★' : '')}${escHtml(s.call)}</span>`
         + `<span class="bm-ear${dxSitue ? '' : ' flou'}" onclick="event.stopPropagation();`
@@ -1634,8 +1635,9 @@ function drawBandscope(spots, rng, txMhz){
     const col = s.new_mult ? 'var(--green)' : (_BM_PCOL[s.priority] || 'var(--muted)');
     const op = s.already_done ? 0.35 : 1;
     const safeCall = String(s.call || '').replace(/[^A-Z0-9/]/gi, '');
+    const safeMode = String(s.mode || '').replace(/[^A-Za-z0-9/-]/g, '');
     g += `<rect class="bs-bar" x="${(x-1).toFixed(1)}" y="${(base-h).toFixed(1)}" width="2" height="${h.toFixed(1)}"`
-       + ` style="fill:${col}" opacity="${op}" onclick="bandmapClick('${safeCall}',${f})">`
+       + ` style="fill:${col}" opacity="${op}" onclick="bandmapClick('${safeCall}',${f},'${safeMode}')">`
        + `<title>${escHtml(s.call)} ${f.toFixed(3)}</title></rect>`;
   }
   if(txMhz && txMhz >= rng[0] && txMhz <= rng[1]){
@@ -1707,13 +1709,15 @@ function drawWaterfallRow(spots, rng){
   }
 }
 
-function bandmapClick(call, mhz){
+function bandmapClick(call, mhz, mode){
   const inp = document.getElementById('inputCall');
   if(inp){ inp.value = call; onCallInput(); inp.focus(); }
   const rig = (typeof rigState !== 'undefined') ? rigState : {};
   if(rig.enabled){
+    // Mode du SPOT cliqué, pas le mode de saisie courant de l'opérateur —
+    // sinon un clic sur un spot CW pendant une saisie SSB fait QSY en SSB.
     fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({freq_khz: Math.round(mhz*1000), mode: currentMode || undefined})
+      body: JSON.stringify({freq_khz: Math.round(mhz*1000), mode: mode || currentMode || undefined})
     }).catch(()=>{});
   }
 }

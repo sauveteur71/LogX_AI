@@ -160,12 +160,12 @@ if(localStorage.getItem('rc_theme') === null){
   // Reçoit des kHz. /rig/qsy ne lit QUE freq_hz ou freq_khz : la version
   // précédente envoyait {freq:...}, jamais relu côté serveur, et le clic sur
   // une épingle ne faisait donc rien du tout — même radio allumée.
-  async function qsy(khz){
+  async function qsy(khz, mode){
     const f = Number(khz);
     if(!f) return;
     try{
       await fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
-                               body: JSON.stringify({freq_khz: f})});
+                               body: JSON.stringify({freq_khz: f, mode: mode || undefined})});
     }catch(e){ /* radio non pilotée : le clic reste sans effet, sans erreur */ }
   }
 
@@ -181,7 +181,7 @@ if(localStorage.getItem('rc_theme') === null){
     // écriture qu'un opérateur lit d'un coup d'oeil. data-freq garde les kHz,
     // c'est ce que /rig/qsy attend.
     const mhz = (parseFloat(s.freq) || 0) / 1000;
-    return `<div class="${classes.join(' ')}" data-freq="${esc(s.freq||'')}">
+    return `<div class="${classes.join(' ')}" data-freq="${esc(s.freq||'')}" data-mode="${esc(s.mode||'')}">
       <span class="call">${s.new_mult && !s.already_done ? '★ ' : ''}${esc(s.call)}</span>
       <span class="freq">${mhz ? mhz.toFixed(3) : ''}</span>
       <span class="pays">${esc(s.dx_country || s.info || '')}</span>
@@ -243,11 +243,11 @@ if(localStorage.getItem('rc_theme') === null){
       const p = pct(smhz);
       if(p === null) continue;
       const cls = s.lotw_need_ici ? 'pin-besoin' : (s.lotw === true ? 'pin-lotw' : 'pin-autre');
-      bouts.push(`<div class="pin ${cls}" style="top:${p}%" data-freq="${esc(s.freq)}"
+      bouts.push(`<div class="pin ${cls}" style="top:${p}%" data-freq="${esc(s.freq)}" data-mode="${esc(s.mode||'')}"
                    title="${esc(s.call)} · ${smhz.toFixed(3)} MHz">${esc(s.call)}</div>`);
     }
     el.innerHTML = bouts.join('');
-    el.querySelectorAll('.pin').forEach(p => { p.onclick = () => qsy(p.dataset.freq); });
+    el.querySelectorAll('.pin').forEach(p => { p.onclick = () => qsy(p.dataset.freq, p.dataset.mode); });
   }
 
   async function tick(){
@@ -272,7 +272,7 @@ if(localStorage.getItem('rc_theme') === null){
       }
       liste.innerHTML = spots.map(ligne).join('');
       liste.querySelectorAll('.row').forEach(el => {
-        el.onclick = () => qsy(el.dataset.freq);
+        el.onclick = () => qsy(el.dataset.freq, el.dataset.mode);
       });
       dessinerRegle(spots);
     }catch(e){ /* serveur injoignable : on garde l'affichage précédent */ }
