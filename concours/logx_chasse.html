@@ -41,7 +41,11 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .container{max-width:1780px;margin:0 auto;padding:16px;flex:1;min-height:0;
   width:100%;display:flex;gap:16px;overflow:hidden}
 .hunt-main{flex:2;min-width:0;height:100%;display:grid;
-  grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:16px}
+  grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:16px}
+/* Panneau DXpeditions : pleine largeur sur sa propre ligne (3e rangée de la
+   grille) plutôt qu'une 5e cellule à côté d'une case vide — contenu plus
+   long par ligne (dates + indicatif + pays + QSL) qu'un simple spot POTA. */
+.hunt-main .panel.full-width{grid-column:1 / -1}
 .hunt-cluster{flex:1;min-width:380px;max-width:560px;height:100%;display:flex}
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
   padding:16px;margin:0;display:flex;flex-direction:column;min-height:0;
@@ -214,6 +218,14 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
     <div class="panel">
       <div class="panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="8.5" width="12" height="7" rx="0.5"/><rect x="3.5" y="4.5" width="2.2" height="4"/><rect x="7.9" y="4.5" width="2.2" height="4"/><rect x="12.3" y="4.5" width="2.2" height="4"/><rect x="7.7" y="11" width="2.6" height="4.5"/></svg> CHÂTEAUX WCA/COTA — ANNONCÉS <small id="wcaMeta"></small></div>
       <div id="wcaList" class="scroll-list"><div class="loading">…</div></div>
+    </div>
+
+    <!-- DXpeditions annoncées (flux NG3K ADXO) — statut actif/à venir déduit
+         des dates, fréquence live si l'indicatif est repéré sur le cluster
+         (voir logx_dxpeditions.fetch_dxpeditions_chasse côté serveur). -->
+    <div class="panel full-width">
+      <div class="panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a6.5 6.5 0 1 0 6.5 6.5"/><path d="M9 2.5v6.5l4.6 2.65"/><circle cx="15.5" cy="3.5" r="1.5" fill="currentColor" stroke="none"/></svg> EXPÉDITIONS DX — NG3K <small id="dxMeta"></small></div>
+      <div id="dxList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
   </div><!-- /hunt-main -->
@@ -534,11 +546,60 @@ async function loadWca(){
   }catch(e){}
 }
 
+// ─── DXPEDITIONS : annonces NG3K (ng3k.com/adxo.xml), statut actif/à venir
+// déduit des dates, fréquence live si l'indicatif est repéré sur le cluster
+// déjà agrégé côté serveur (voir logx_dxpeditions.fetch_dxpeditions_chasse —
+// demande F4GLD 04/08/2026, remplace ham365.net/Dxpeditions : données
+// tirées d'une API privée qui répond 500 hors session navigateur, pas
+// exploitable). Les expéditions déjà terminées sont déjà retirées côté
+// serveur — rien à filtrer ici.
+async function loadDxActive(){
+  try{
+    const r = await fetch('/data/dxpeditions_active');
+    const d = await r.json();
+    const meta = document.getElementById('dxMeta');
+    const el = document.getElementById('dxList');
+    const list = d.expeditions || [];
+    if(!list.length){
+      el.innerHTML = `<div class="loading">Aucune expédition annoncée pour l'instant.</div>`;
+      meta.textContent = '';
+      return;
+    }
+    const actives = list.filter(e => e.status === 'active').length;
+    meta.textContent = `${list.length} annoncée${list.length>1?'s':''} · ${actives} active${actives>1?'s':''}`;
+    // NG3K est un flux public en lecture seule, mais reste un contenu
+    // externe (texte libre saisi par des correspondants humains) : esc()
+    // sur chaque champ affiché, même règle que POTA/SOTA/WWFF plus haut.
+    el.innerHTML = list.slice(0, 40).map(e => {
+      const actif = e.status === 'active';
+      const badge = actif
+        ? `<span class="sr-mode" style="color:var(--green)">● ACTIVE</span>`
+        : `<span class="sr-mode" style="color:var(--yellow)">À VENIR</span>`;
+      const freq = e.freq_khz
+        ? `<span class="sr-qrg">${(e.freq_khz/1000).toFixed(3)} MHz${e.spot_band ? ' ('+esc(e.spot_band)+')' : ''}</span>`
+        : '';
+      const newBadge = e.worked === false
+        ? `<span class="sr-mode" style="color:var(--green)">🆕 nouveau pays</span>` : '';
+      return `<div class="spot-row sr-act">
+        <div class="sr-head">
+          <span class="sr-call">${esc(e.callsign || '?')}</span>
+          ${badge}
+          ${freq}
+          ${newBadge}
+        </div>
+        <div class="sr-place">${esc(e.entity || '?')} · ${esc(e.dates || '—')}</div>
+        ${e.qsl ? `<div class="sr-note">QSL : ${esc(e.qsl)}</div>` : ''}
+      </div>`;
+    }).join('');
+  }catch(e){}
+}
+
 loadSpots();
 loadPota();
 loadSota();
 loadWwff();
 loadWca();
+loadDxActive();
 // Rafraîchissements SUSPENDUS quand l'onglet est masqué (rcPoll, défini par
 // logx_statusbar.js). Depuis que chasse et propagation sont deux pages, un
 // opérateur garde naturellement les DEUX ouvertes à côté du log : sans ce
@@ -554,6 +615,7 @@ rcPollOr(loadPota, 2 * 60 * 1000);             // POTA : cache serveur 90 s
 rcPollOr(loadSota, 60 * 1000);                 // SOTA : cache serveur 60 s
 rcPollOr(loadWwff, 60 * 1000);                 // WWFF : cache serveur 60 s
 rcPollOr(loadWca, 5 * 60 * 1000);              // WCA : simple flux RSS de blog, cache serveur 15 min
+rcPollOr(loadDxActive, 2 * 60 * 1000);         // DXpeditions : annonces NG3K cache 1h, mais le statut actif/fréquence dépend du cluster (rafraîchi comme POTA)
 </script>
 </body>
 </html>
