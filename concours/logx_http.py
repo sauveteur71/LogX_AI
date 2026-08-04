@@ -3984,6 +3984,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'ports': cat.list_ports()})
             return
 
+        # Scope CI-V 0x27 (panadapter natif Icom, large bande, sans matériel
+        # supplémentaire) : disponible seulement en CAT natif sur un modèle
+        # qui publie effectivement ce flux (voir MODELES_SCOPE_CIV) — appelé
+        # une fois au chargement de logx_panadapter.html pour savoir si
+        # l'option "CI-V natif" doit apparaître dans le sélecteur de source.
+        if path == '/rig/scope_available':
+            import logx_cat as cat
+            self._json(cat.scope_civ_available(self._cfg_snapshot()))
+            return
+
+        # Une ligne de spectre scope CI-V déjà réassemblée (475 pixels,
+        # amplitude 0-160) — pollée par logx_panadapter.html quand la source
+        # CI-V est active. ok=False (radio muette, hors CAT natif, paquets
+        # incomplets...) reste un 200 : c'est un état de polling normal, pas
+        # une erreur serveur — même convention que /rig/state.
+        if path == '/rig/scope_line':
+            import logx_cat as cat
+            self._json(cat.scope_line(self._cfg_snapshot()))
+            return
+
         # Détections de branchement en attente (watcher de fond, indice passif
         # VID:PID/numéro de série — jamais appliqué sans confirmation en un
         # clic côté UI). Pollé par CONFIG toutes les ~2s.
@@ -5007,6 +5027,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_cat as cat
             cat.dismiss_detection(payload.get('device'))
             self._json({'ok': True})
+            return
+
+        # Scope CI-V 0x27 : configuration mode/span (27 14 puis 27 15) sur la
+        # connexion série déjà ouverte pour le CAT — appelé quand l'opérateur
+        # choisit la source "CI-V natif" ou change de span dans le panadapter.
+        if self.path == '/rig/scope_configure':
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            import logx_cat as cat
+            mode = str(payload.get('mode') or 'center').strip().lower()
+            try:
+                span_hz = int(payload.get('span_hz')) if payload.get('span_hz') else None
+            except (TypeError, ValueError):
+                span_hz = None
+            # Le <select> de logx_panadapter.html ne propose que les 8 spans
+            # valides (2.5 à 500 kHz, CIV_SCOPE_SPANS_HZ) — mais l'endpoint
+            # est appelable directement (pas seulement depuis cette page), et
+            # sans ce garde-fou un span hors spec serait encodé tel quel et
+            # envoyé à la radio dans la trame 27 15, comportement non
+            # documenté par la spec constructeur pour une valeur invalide.
+            if span_hz is not None and span_hz not in cat.CIV_SCOPE_SPANS_HZ:
+                self._json({'ok': False, 'error': f'Span scope invalide ({span_hz} Hz) — '
+                            f'valeurs acceptées : {", ".join(str(s) for s in cat.CIV_SCOPE_SPANS_HZ)}'}, 400)
+                return
+            res = cat.scope_configure(self._cfg_snapshot(), mode, span_hz)
+            self._json(res, 200 if res.get('ok') else 400)
             return
 
         # Test du WinKeyer : l'ouverture de session renvoie la version du

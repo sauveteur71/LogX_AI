@@ -311,9 +311,13 @@ def civ_parse_frame(frame):
     if not rest:
         return None
     cmd = rest[0]
-    # Les sous-commandes connues (14/15/1A/1C/19/25/26) ont un octet Sc ;
-    # les autres (00/01/03/04/05/06/0F) n'en ont pas.
-    has_sub = cmd in (0x14, 0x15, 0x19, 0x1A, 0x1C, 0x25, 0x26)
+    # Les sous-commandes connues (14/15/1A/1C/19/25/26/27) ont un octet Sc ;
+    # les autres (00/01/03/04/05/06/0F) n'en ont pas. 0x27 (scope) AJOUTÉ pour
+    # le chantier scope CI-V : sans lui, tout le sous-système 27 00 (waveform)
+    # comme 27 14/27 15 (config) serait mal parsé — l'octet de sous-commande
+    # resterait collé en tête de `data` au lieu d'être extrait à part (piège
+    # documenté par la spec du chantier, prérequis absolu).
+    has_sub = cmd in (0x14, 0x15, 0x19, 0x1A, 0x1C, 0x25, 0x26, 0x27)
     if has_sub and len(rest) >= 2:
         return addr_dest, addr_src, cmd, rest[1], rest[2:]
     return addr_dest, addr_src, cmd, None, rest[1:]
@@ -323,6 +327,170 @@ def civ_is_ok(frame):
     """FB FD = accusé positif, FA FD = échec (utilisé pour les commandes SET
     sans sous-commande, ex. 0F split)."""
     return frame[-2:] == b'\xFB\xFD' if len(frame) >= 2 else False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Scope CI-V 0x27 (panadapter natif Icom) — réutilise civ_encode_freq/
+#  civ_decode_freq (même BCD 5 octets) et civ_build_frame/civ_parse_frame
+#  ci-dessus, aucune duplication d'encodage.
+#
+#  Source : IC-7300MK2 CI-V Reference Guide + IC-705 CI-V Reference Guide
+#  (documentation constructeur officielle) — réimplémentation indépendante,
+#  PAS de code repris de wfview (GPL) ni d'aucun autre projet tiers.
+#
+#  Découpage en paquets DIVISION=11, cas PORT SÉRIE uniquement (le cas LAN/
+#  WLAN, division différente, n'est pas couvert — ce projet ne parle au poste
+#  qu'en série, comme le reste de logx_cat.py).
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Modèles Icom dont le CI-V publie effectivement un scope waveform (27 00) —
+# vérifié contre les deux guides CI-V listés ci-dessus. Sert de filtre côté
+# HTTP (/rig/scope_available) : n'proposer l'option "CI-V natif" du
+# panadapter que sur un modèle qui a une chance réelle de répondre, plutôt
+# que de laisser l'opérateur découvrir le silence radio après coup.
+MODELES_SCOPE_CIV = {'IC-7300', 'IC-7610', 'IC-9700', 'IC-705', 'IC-7851'}
+
+# Spans valides en mode Center/SCROLL-C (27 15), en Hz — la doc les exprime
+# en kHz (2.5/5/10/25/50/100/250/500) mais l'encodage BCD sur le fil est le
+# même que civ_encode_freq(), donc on travaille en Hz partout comme pour la
+# fréquence normale (pas de conversion kHz<->Hz à part).
+CIV_SCOPE_SPANS_HZ = (2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000)
+
+CIV_SCOPE_MODE_CODES = {'center': 0x00, 'fixed': 0x01}
+# 0x02 SCROLL-C et 0x03 SCROLL-F existent aussi côté RADIO->PC (le paquet 1
+# d'une ligne peut arriver avec un de ces deux codes si l'opérateur a changé
+# le mode scope sur la radio directement) — mais ce module ne les propose
+# PAS en écriture via configure_scope() : la doc IC-705 ne connaît que
+# Center/Fixed (00/01), et un mode Scroll mal choisi pour un poste qui ne le
+# supporte pas donnerait un refus silencieux plutôt qu'une erreur claire.
+CIV_SCOPE_MODE_NAMES_RX = {0x00: 'center', 0x01: 'fixed', 0x02: 'fixed', 0x03: 'fixed'}
+
+
+def civ_scope_configure_frames(addr_radio, mode, span_hz=None):
+    """Construit la/les trame(s) SET de configuration du scope : 27 14 (mode)
+    puis, si mode='center' ET un span est fourni, 27 15 (span). Fonction PURE
+    (aucune E/S) — l'appelant (CivRadio.configure_scope) écrit chaque trame
+    et attend son propre accusé, ce sont deux commandes CI-V distinctes."""
+    mode_code = CIV_SCOPE_MODE_CODES.get(mode)
+    if mode_code is None:
+        raise ValueError(f"mode scope inconnu pour la configuration : {mode!r}")
+    frames = [civ_build_frame(addr_radio, 0x27, sub=0x14, data=bytes([mode_code]))]
+    if mode == 'center' and span_hz:
+        # Un appel direct à /rig/scope_configure (hors du <select> de
+        # logx_panadapter.html, qui restreint déjà aux 8 bonnes valeurs)
+        # pourrait sinon envoyer une trame 27 15 avec un span hors spec —
+        # comportement radio non documenté, mieux vaut un refus explicite
+        # ici (revue adversariale avant fusion, CONFIRMED mineur).
+        if int(span_hz) not in CIV_SCOPE_SPANS_HZ:
+            raise ValueError(f"span scope invalide : {span_hz} Hz "
+                              f"(valeurs valides : {CIV_SCOPE_SPANS_HZ})")
+        frames.append(civ_build_frame(addr_radio, 0x27, sub=0x15, data=civ_encode_freq(int(span_hz))))
+    return frames
+
+
+def _civ_scope_bcd_order(byte):
+    """Décode l'octet ② 'order' (numéro de CE paquet) d'un paquet scope —
+    codé en BCD sur 1 SEUL octet (chaque nibble est un chiffre décimal),
+    PAS de l'hexadécimal brut : 0x11 vaut 11 décimal (le paquet n°11), pas
+    17. Retourne None si un des deux nibbles n'est pas un chiffre 0-9 —
+    trame corrompue, jamais d'exception ni de valeur devinée."""
+    hi, lo = byte >> 4, byte & 0x0F
+    if hi > 9 or lo > 9:
+        return None
+    return hi * 10 + lo
+
+
+def civ_parse_scope_packet(sub, data):
+    """Décode UN paquet de la famille scope waveform (27 00), déjà séparé en
+    (sub, data) par civ_parse_frame() — sub doit valoir 0x00 (waveform data ;
+    27 14/27 15 sont de la configuration, pas du waveform, et ne passent pas
+    par cette fonction). `data` commence par ①VFO/②order/③division communs
+    à TOUS les paquets ; le paquet n°1 (et lui seul) porte en plus ④mode/
+    ⑤fréquences/⑥hors-plage, les paquets 2-11 portent un chunk de waveform.
+
+    Retourne un dict {'order', 'division', ...} ou None si la trame est trop
+    courte / l'order illisible — jamais d'exception (même garantie que
+    civ_parse_frame)."""
+    if sub != 0x00 or len(data) < 3:
+        return None
+    # data[0] = ①VFO select/unselect, toujours 0x00 dans cette trame — pas de
+    # notion de second VFO côté scope (un seul flux par radio), ignoré ici.
+    order = _civ_scope_bcd_order(data[1])
+    division = _civ_scope_bcd_order(data[2])
+    if order is None or division is None:
+        return None
+    result = {'order': order, 'division': division}
+    if order == 1:
+        # Le SEUL paquet à porter ④⑤⑥ — 15 octets de corps au total.
+        if len(data) < 15:
+            return None
+        result['scope_mode'] = data[3]
+        # ⑤ : en Center, field1=fréquence CENTRALE et field2=span courant ;
+        # en Fixed/Scroll, field1=bord BAS et field2=bord HAUT — même
+        # encodage BCD 5 octets dans les deux cas (civ_decode_freq), seule
+        # l'INTERPRÉTATION change selon ④ (voir civ_reassemble_scope_line).
+        result['field1_hz'] = civ_decode_freq(data[4:9])
+        result['field2_hz'] = civ_decode_freq(data[9:14])
+        result['out_of_range'] = bool(data[14])
+    else:
+        # Paquets 2-10 : 53 octets de corps (50 de waveform après ①②③).
+        # Paquet 11 : 28 octets de corps (25 de waveform après ①②③), plus
+        # court — pas de longueur fixe à vérifier ici, la reconstruction
+        # (civ_reassemble_scope_line) contrôle la longueur totale (475).
+        result['waveform'] = bytes(data[3:])
+    return result
+
+
+def civ_reassemble_scope_line(packets):
+    """Reconstitue UNE ligne complète de spectre à partir d'une liste de
+    paquets déjà décodés par civ_parse_scope_packet() — dans un ordre
+    QUELCONQUE (reconstruction par le champ ②/order de chaque paquet, pas
+    par l'ordre d'arrivée/de la liste, même si en pratique le port série les
+    délivre dans l'ordre).
+
+    Retourne {'ok': True, 'mode': 'center'|'fixed', 'out_of_range': bool,
+    'data': [0-160 par pixel]} + ('center_freq_hz','span_hz') OU
+    ('edge_lo_hz','edge_hi_hz') selon le mode ; ou {'ok': False, 'error': str}
+    si le paquet 1 manque, si un paquet 2-11 manque (hors cas hors-plage), ou
+    si le total reconstruit ne fait pas 475 octets — JAMAIS d'exception sur
+    un jeu de paquets incomplet (bus CI-V, ligne interrompue par un QSY)."""
+    by_order = {}
+    for p in packets:
+        if p is not None:
+            by_order[p['order']] = p
+    pkt1 = by_order.get(1)
+    if pkt1 is None:
+        return {'ok': False, 'error': 'Paquet scope n°1 (fréquences/mode) manquant'}
+    scope_mode = pkt1.get('scope_mode')
+    mode_name = CIV_SCOPE_MODE_NAMES_RX.get(scope_mode)
+    if mode_name is None:
+        return {'ok': False, 'error': f'Mode scope reçu inconnu (0x{scope_mode:02X})'}
+    result = {'ok': True, 'mode': mode_name, 'out_of_range': bool(pkt1.get('out_of_range'))}
+    if scope_mode == 0x00:
+        result['center_freq_hz'] = pkt1['field1_hz']
+        result['span_hz'] = pkt1['field2_hz']
+    else:
+        result['edge_lo_hz'] = pkt1['field1_hz']
+        result['edge_hi_hz'] = pkt1['field2_hz']
+    if result['out_of_range']:
+        # Hors plage : la radio n'envoie AUCUN paquet de waveform (2 à 11) —
+        # le paquet 1 est alors le SEUL de toute la ligne. Ce n'est PAS une
+        # erreur de reconstruction, juste une ligne sans données à afficher.
+        result['data'] = []
+        return result
+    chunks = []
+    for order in range(2, 12):
+        pkt = by_order.get(order)
+        if pkt is None or 'waveform' not in pkt:
+            return {'ok': False, 'error': f'Paquet scope n°{order} manquant — ligne incomplète'}
+        chunks.append(pkt['waveform'])
+    waveform = b''.join(chunks)
+    # 9 paquets à 50 octets (2..10) + 1 paquet à 25 octets (11) = 475 pixels.
+    if len(waveform) != 475:
+        return {'ok': False, 'error': f'Waveform reconstruite de longueur inattendue '
+                f'({len(waveform)} octets, 475 attendus)'}
+    result['data'] = list(waveform)
+    return result
 
 
 class CivRadio:
@@ -426,6 +594,130 @@ class CivRadio:
         if not parsed:
             return {'ok': False}
         return {'ok': True, 'addr': parsed[4][0] if parsed[4] else self.addr}
+
+    def _civ_set_frame(self, frame):
+        """Écrit une trame SET déjà construite et vérifie l'accusé FB/FD —
+        même principe que AmpRadio._set() dans logx_amp.py (un accusé Icom
+        n'échote PAS cmd/sub, inutile de le revérifier comme le fait
+        _query() pour les réponses GET). `accept=` relit dans le budget de
+        timeout si une trame parasite bien adressée mais d'un AUTRE échange
+        traîne encore sur le bus (même raisonnement que _query(), voir
+        _transceive())."""
+        def _matches(raw):
+            parsed = civ_parse_frame(raw)
+            return parsed is not None and parsed[0] == CIV_CTRL_ADDR and parsed[1] == self.addr
+
+        raw = _transceive(self.t, frame, CIV_END, timeout=1.0, accept=_matches)
+        if not _matches(raw):
+            return False
+        return civ_is_ok(raw)
+
+    def configure_scope(self, mode, span_hz=None):
+        """Configure le scope CI-V : 27 14 (mode), puis 27 15 (span) si
+        mode='center' et qu'un span est fourni — DEUX commandes CI-V
+        distinctes, chacune avec son propre accusé, pas une trame combinée.
+        `mode` : 'center' ou 'fixed' (voir CIV_SCOPE_MODE_CODES ; l'IC-705 ne
+        connaît que ces deux-là, un poste qui ne supporte pas 'fixed'
+        répondra par un accusé négatif géré comme n'importe quel échec).
+        Les trames elles-mêmes viennent de civ_scope_configure_frames()
+        (fonction pure, testée isolément) — cette méthode ne fait que les
+        écrire et vérifier leur accusé, un seul endroit construit le binaire."""
+        try:
+            frames = civ_scope_configure_frames(self.addr, mode, span_hz)
+        except ValueError as e:
+            return {'ok': False, 'error': str(e)}
+        if not self._civ_set_frame(frames[0]):
+            return {'ok': False, 'error': 'Radio CI-V ne répond pas (27 14 mode scope)'}
+        if len(frames) > 1 and not self._civ_set_frame(frames[1]):
+            return {'ok': False, 'error': 'Radio CI-V ne répond pas (27 15 span scope)'}
+        return {'ok': True}
+
+    def read_scope_line(self, timeout=2.0):
+        """Écoute les trames 27 00 (scope waveform) qui arrivent sur le bus
+        CI-V pendant `timeout` secondes et reconstitue UNE ligne complète.
+
+        LIMITE CONNUE, documentée plutôt que devinée : aucune sous-commande
+        CI-V « start/stop streaming » du scope n'a été trouvée dans les
+        guides CI-V IC-7300MK2/IC-705 consultés — le flux 27 00 semble
+        poussé par la radio quand son écran SCOPE est actif (et/ou la
+        notification « CI-V Transceive » activée), pas déclenché par une
+        commande dédiée émise d'ici. Cette méthode se contente donc
+        d'ÉCOUTER ce qui arrive dans le budget de temps imparti, sans
+        jamais supposer qu'un "start" a été émis au préalable — si rien
+        n'arrive, l'erreur retournée nomme explicitement cette limite
+        plutôt que de laisser croire à une panne CAT générique.
+
+        Passe par `transport.transceive_listen()` quand le transport
+        l'expose (SerialPort réel — voir sa méthode dédiée : verrou
+        d'instance tenu sur TOUTE la fenêtre d'écoute, pas juste par
+        lecture individuelle). Une ligne de spectre enchaîne jusqu'à 11
+        lectures sur plusieurs secondes ; si chaque lecture prenait/
+        relâchait le verrou séparément (comme write()), un thread
+        concurrent (ex. /rig/state, pollé toutes les 4s par chaque page
+        ouverte) pourrait s'intercaler entre deux paquets et faire son
+        propre reset_input_buffer()+write() sur le même port, corrompant
+        la ligne en cours de réception — trouvé en revue avant fusion.
+        Repli sur write()-less read_until() en boucle pour les doubles de
+        test minimalistes (synchrones, sans thread concurrent donc sans
+        ce risque)."""
+        packets = []
+        seen_orders = set()
+        state = {'pkt1': None}
+
+        def _on_frame(raw):
+            parsed = civ_parse_frame(raw)
+            if not parsed:
+                return False
+            addr_dest, addr_src, cmd, sub, data = parsed
+            # Même garde-fou de sens ET de commande que _query()/_civ_set() :
+            # une ligne de spectre authentique part de LA radio interrogée
+            # (FROM=self.addr) vers le contrôleur (TO=E0) sur la commande
+            # scope — sinon un écho de notre propre trame, ou une trame d'un
+            # tout autre échange sur un bus CI-V partagé, serait pris à tort
+            # pour un morceau de spectre.
+            if addr_dest != CIV_CTRL_ADDR or addr_src != self.addr or cmd != 0x27:
+                return False
+            pkt = civ_parse_scope_packet(sub, data)
+            if pkt is None:
+                return False
+            order = pkt['order']
+            if order in seen_orders:
+                return False  # doublon (retransmission bus) : garder le premier
+            seen_orders.add(order)
+            packets.append(pkt)
+            if order == 1:
+                state['pkt1'] = pkt
+            pkt1 = state['pkt1']
+            if pkt1 is not None:
+                if pkt1.get('out_of_range'):
+                    return True  # paquet 1 seul suffit, hors plage — voir spec
+                if len(seen_orders) >= 11:
+                    return True  # les 11 paquets (1 + 2..11) sont tous arrivés
+            return False
+
+        listen = getattr(self.t, 'transceive_listen', None)
+        if listen is not None:
+            listen(CIV_END, timeout, _on_frame)
+        else:
+            deadline = time.monotonic() + timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                raw = self.t.read_until(CIV_END, timeout=remaining)
+                if not raw:
+                    # Rien reçu dans le budget restant de CET essai : sur un
+                    # double de test (read_until non bloquant) comme sur un
+                    # vrai port série arrivé à échéance, insister ne
+                    # changerait rien.
+                    break
+                if _on_frame(raw):
+                    break
+        if not packets:
+            return {'ok': False, 'error': "Aucune trame scope (27 00) reçue — vérifie que "
+                    "l'écran SCOPE de la radio est actif (le CI-V ne publie pas de commande "
+                    "« start » dédiée pour ce flux, voir limite documentée dans le code)"}
+        return civ_reassemble_scope_line(packets)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -860,6 +1152,41 @@ class SerialPort:
                 if remaining <= 0:
                     return frame
 
+    def transceive_listen(self, terminator, timeout, on_frame):
+        """Écoute PASSIVE (aucune écriture) de plusieurs trames consécutives
+        pendant `timeout` secondes, verrou d'instance tenu sur TOUTE la
+        fenêtre — pas relâché entre deux lectures — nécessaire pour le
+        scope CI-V (CivRadio.read_scope_line) qui enchaîne jusqu'à 11
+        lectures sur plusieurs secondes en partageant le même port série
+        que le reste du CAT (get_freq/set_freq, polling /rig/state toutes
+        les 4s par page ouverte). Sans verrou unique tenu de bout en bout,
+        un thread concurrent pourrait s'intercaler entre deux paquets et
+        faire son propre reset_input_buffer()+write() sur le port,
+        effaçant/corrompant la ligne de spectre en cours de réception —
+        même risque que celui déjà documenté sur transceive() ci-dessus,
+        juste étalé sur une fenêtre plus longue et sans écriture de notre
+        part entre les lectures.
+
+        `on_frame(frame)` est appelé pour CHAQUE trame complète reçue
+        (se terminant par `terminator`) ; doit retourner True pour arrêter
+        l'écoute plus tôt (ex. les 11 paquets scope attendus sont tous
+        arrivés ou la ligne est hors-plage), False pour continuer jusqu'à
+        épuisement du budget. Une lecture vide/tronquée (rien arrivé dans
+        le budget restant) arrête l'écoute immédiatement, comme pour
+        transceive()."""
+        with self._lock:
+            deadline = time.monotonic() + timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return
+                self._ser.timeout = max(remaining, 0)
+                frame = self._ser.read_until(terminator)
+                if not frame or not frame.endswith(terminator):
+                    return
+                if on_frame(frame):
+                    return
+
     def close(self):
         try:
             self._ser.close()
@@ -1108,6 +1435,76 @@ def stop_cw(cfg):
         return {'ok': False, 'error': 'Arrêt CW indisponible en CI-V'}
     try:
         return driver.stop_cw()
+    except Exception as e:
+        disconnect_persistent()
+        return {'ok': False, 'error': f'Radio injoignable ({e})'}
+
+
+def scope_civ_available(cfg):
+    """Le scope CI-V 0x27 n'existe que sur certains modèles Icom
+    (MODELES_SCOPE_CIV) ET seulement en pilotage NATIF (TCI/rigctld/flrig ne
+    donnent pas accès aux trames CI-V brutes, seulement à une fréquence/mode
+    déjà décodés) — sert /rig/scope_available, pour n'afficher l'option
+    "CI-V natif" du panadapter que quand elle a une chance réelle de
+    fonctionner plutôt que de laisser l'opérateur la découvrir muette."""
+    settings = cat_settings(cfg)
+    if not settings['enabled']:
+        return {'available': False, 'reason': 'Pilotage CAT natif désactivé (CONFIG)'}
+    if settings['mode'] != 'native':
+        return {'available': False,
+                'reason': 'Le scope CI-V nécessite le mode « natif » (pas TCI/rigctld/flrig)'}
+    model = settings['model']
+    if model not in MODELES_SCOPE_CIV:
+        return {'available': False,
+                'reason': f"Modèle « {model or '?'} » non supporté pour le scope CI-V "
+                          f"(supportés : {', '.join(sorted(MODELES_SCOPE_CIV))})"}
+    return {'available': True, 'reason': ''}
+
+
+def scope_configure(cfg, mode, span_hz=None):
+    """Configure le scope CI-V (mode Center/Fixed + span) sur la connexion
+    persistante déjà ouverte pour le CAT — pas de connexion série séparée."""
+    settings = cat_settings(cfg)
+    if not settings['enabled'] or settings['mode'] != 'native':
+        return {'ok': False, 'error': 'Pilotage natif non actif'}
+    if settings['model'] not in MODELES_SCOPE_CIV:
+        # Même filtre modèle que scope_civ_available() (utilisé pour
+        # masquer l'option côté UI) — répété ici pour un appel direct de
+        # l'endpoint : sinon un modèle Icom/Xiegu non listé (ex. IC-7100)
+        # passerait la garde `isinstance(driver, CivRadio)` ci-dessous et
+        # enverrait une trame 27 14 que la radio n'a aucune chance de
+        # comprendre, pour un message d'erreur générique moins clair.
+        return {'ok': False, 'error': f"Modèle « {settings['model'] or '?'} » non supporté "
+                f"pour le scope CI-V (supportés : {', '.join(sorted(MODELES_SCOPE_CIV))})"}
+    driver, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    if not isinstance(driver, CivRadio):
+        return {'ok': False, 'error': 'Scope CI-V réservé aux radios Icom/Xiegu (protocole CI-V)'}
+    try:
+        return driver.configure_scope(mode, span_hz)
+    except Exception as e:
+        disconnect_persistent()
+        return {'ok': False, 'error': f'Radio injoignable ({e})'}
+
+
+def scope_line(cfg, timeout=2.0):
+    """Lit/réassemble UNE ligne de spectre scope CI-V (budget de temps borné,
+    cohérent avec les autres timeouts CAT de ce module)."""
+    settings = cat_settings(cfg)
+    if not settings['enabled'] or settings['mode'] != 'native':
+        return {'ok': False, 'error': 'Pilotage natif non actif'}
+    if settings['model'] not in MODELES_SCOPE_CIV:
+        # Voir le commentaire équivalent dans scope_configure() ci-dessus.
+        return {'ok': False, 'error': f"Modèle « {settings['model'] or '?'} » non supporté "
+                f"pour le scope CI-V (supportés : {', '.join(sorted(MODELES_SCOPE_CIV))})"}
+    driver, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    if not isinstance(driver, CivRadio):
+        return {'ok': False, 'error': 'Scope CI-V réservé aux radios Icom/Xiegu (protocole CI-V)'}
+    try:
+        return driver.read_scope_line(timeout=timeout)
     except Exception as e:
         disconnect_persistent()
         return {'ok': False, 'error': f'Radio injoignable ({e})'}
