@@ -257,6 +257,12 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 
     <div class="panel">
       <div class="panel-title"><span class="panel-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M9 2.5c2.3 1.8 2.3 11.2 0 13"/><path d="M9 2.5c-2.3 1.8-2.3 11.2 0 13"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>VHF / SPORADIQUE-E</span></div>
+      <!-- Indice CALCULÉ depuis ton propre flux de spots (volume + portée +
+           diversité vs habituel), au-dessus de la tendance MONDIALE N0NBH
+           ci-dessous qui ne dit rien de ta position. Aucune prévision
+           physique n'existe pour l'Es (voir logx_es_opening.py) : c'est un
+           signal statistique, pas un modèle. -->
+      <div id="esOpeningPanel" style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)"><div class="loading">…</div></div>
       <div class="band-cond" id="vhfCond"><div class="loading">…</div></div>
     </div>
 
@@ -506,6 +512,30 @@ async function loadTropo(){
       + `gradient N : <b style="color:var(--text)">${d.gradient} N/km</b>${d.inversion?' · inversion 🔺':''}<br>${d.advice}`
       + (d.trend ? `<br><span style="color:var(--yellow)">↗ ${d.trend}</span>` : '')
       + `</div>`;
+  }catch(e){}
+}
+
+// ─── OUVERTURE VHF (indice statistique calculé depuis le flux de spots) ──────
+async function loadEsOpening(){
+  try{
+    const r = await fetch('/data/es_opening');
+    const d = await r.json();
+    const el = document.getElementById('esOpeningPanel');
+    const COL = {excellent:'var(--green)', bon:'var(--yellow)', moyen:'var(--muted)', faible:'var(--muted)'};
+    const BAND_LABEL = {'50':'6 m', '144':'2 m'};
+    const rows = ['50', '144'].map(b => {
+      const x = d[b];
+      if(!x || !x.ok) return '';
+      return `<div class="bc-row" title="${esc(x.reason||'')}">
+        <span class="bc-name">${BAND_LABEL[b]}</span>
+        <span style="color:${COL[x.level]||'var(--text)'};font-weight:${x.level==='excellent'?700:400}">
+          ${x.level==='excellent'?'⚡ ':''}${esc(x.title||'')}
+        </span></div>`;
+    }).join('');
+    el.innerHTML = rows
+      ? rows + `<div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px">`
+        + rcT('indice calculé depuis les spots reçus, pas une prévision') + `</div>`
+      : `<div class="loading">—</div>`;
   }catch(e){}
 }
 
@@ -901,6 +931,11 @@ propTask(refreshMufMap,   15 * 60 * 1000, ['hf']);         // carte MUF externe 
 propTask(loadOpenings,     5 * 60 * 1000, ['hf']);         // ouvertures par région : dépend du solaire (cache 15 min)
 propTask(loadTropo,       20 * 60 * 1000, ['vhf']);        // tropo : cache 20 min
 propTask(loadMeteors,     10 * 60 * 1000, ['vhf']);        // météores : calendrier lent
+// Ouverture VHF : 60 s, le rythme le plus rapide de la page — c'est le seul
+// but de l'indice (repérer un DÉBUT d'ouverture), un rythme plus lent le
+// raterait. Le serveur se protège lui-même (cache réseau 90 s, voir
+// logx_es_opening.FETCH_CACHE_S) donc un tic client en trop ne coûte rien.
+propTask(loadEsOpening,   60 * 1000,      ['vhf']);
 propTask(loadEme,          5 * 60 * 1000, ['vhf']);        // EME : position lunaire, évolue lentement
 // Satellites : 60 s. Plus lent serait faux PENDANT un passage — l'azimut d'un
 // LEO bouge de plusieurs degrés par minute — et plus rapide ne servirait à
