@@ -12,6 +12,7 @@ comme france_departements.geojson — re-téléchargé au 1er accès si absent).
 """
 import json
 import os
+import threading
 
 WORLD_GEOJSON_FILE = 'world_countries.geojson'
 WORLD_GEOJSON_URL = ('https://raw.githubusercontent.com/nvkelso/'
@@ -19,6 +20,7 @@ WORLD_GEOJSON_URL = ('https://raw.githubusercontent.com/nvkelso/'
                       'ne_110m_admin_0_countries.geojson')
 
 _cache = {'features': None, 'entity_feature': None}
+_dl_lock = threading.Lock()
 
 
 def load_world_geojson():
@@ -31,14 +33,22 @@ def load_world_geojson():
         except Exception:
             pass
     from logx_utils import fetch_url
-    data = fetch_url(WORLD_GEOJSON_URL, timeout=30)
-    if data and len(data) > 100000 and 'FeatureCollection' in data:
-        try:
-            with open(WORLD_GEOJSON_FILE, 'w', encoding='utf-8', newline='') as f:
-                f.write(data)
-        except Exception:
-            pass
-        return data
+    with _dl_lock:
+        # une autre requête a pu écrire le fichier pendant l'attente du verrou
+        if os.path.exists(WORLD_GEOJSON_FILE):
+            try:
+                with open(WORLD_GEOJSON_FILE, encoding='utf-8') as f:
+                    return f.read()
+            except Exception:
+                pass
+        data = fetch_url(WORLD_GEOJSON_URL, timeout=30)
+        if data and len(data) > 100000 and 'FeatureCollection' in data:
+            try:
+                with open(WORLD_GEOJSON_FILE, 'w', encoding='utf-8', newline='') as f:
+                    f.write(data)
+            except Exception:
+                pass
+            return data
     return ''
 
 

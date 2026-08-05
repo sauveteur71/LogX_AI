@@ -36,10 +36,15 @@ def archive_log(qsos, contest_id, cfg=None, qtc_series=None):
     cfg = cfg or {}
     now = utcnow()
     call = (cfg.get('callsign_contest') or cfg.get('callsign') or 'LOG').upper()
-    name = f"{_safe(contest_id or 'CONTEST')}_{now.strftime('%Y%m%d-%H%M')}"
+    name = f"{_safe(contest_id or 'CONTEST')}_{now.strftime('%Y%m%d-%H%M%S')}"
     folder = os.path.join(ARCHIVE_DIR, name)
+    i = 2
+    while os.path.isdir(folder):
+        folder = os.path.join(ARCHIVE_DIR, f"{name}-{i}")
+        i += 1
+    name = os.path.basename(folder)
     try:
-        os.makedirs(folder, exist_ok=True)
+        os.makedirs(folder)
     except Exception as e:
         return {'ok': False, 'error': f"Création du dossier impossible : {e}"}
 
@@ -119,10 +124,10 @@ def list_archives():
                     info['qso_count'] = len(json.load(f))
         except Exception:
             pass
-        m = re.match(r'(.+)_(\d{8})-(\d{4})$', name)
+        m = re.match(r'(.+)_(\d{8})-(\d{6})$', name)
         if m:
             info['contest'] = m.group(1)
-            info['date'] = f"{m.group(2)[:4]}-{m.group(2)[4:6]}-{m.group(2)[6:8]} {m.group(3)[:2]}:{m.group(3)[2:]}"
+            info['date'] = f"{m.group(2)[:4]}-{m.group(2)[4:6]}-{m.group(2)[6:8]} {m.group(3)[:2]}:{m.group(3)[2:4]}"
         out.append(info)
     out.sort(key=lambda a: a['name'], reverse=True)
     return out

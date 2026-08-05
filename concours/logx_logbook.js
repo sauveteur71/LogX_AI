@@ -695,12 +695,12 @@ function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX){
     if (!ok) return 0;
   }
 
-  // Points fixes "même grand carré" (IARU) — comme le moteur Python,
-  // deux locators absents comptent comme même carré
+  // Points fixes "même grand carré" (IARU)
   const ssp = bricks.same_square_points;
   if (ssp !== undefined && ssp !== null){
     const large = l => (l && l.length >= 4) ? l.slice(0,4).toUpperCase() : null;
-    if (large(myLocator) === large(locDX)){
+    const mySq = large(myLocator);
+    if (mySq !== null && mySq === large(locDX)){
       return (typeof ssp === 'object') ? (scoring[ssp.param] ?? ssp.default ?? 50) : ssp;
     }
   }
@@ -990,9 +990,10 @@ async function nextSerial(band){
   return String(serialByBand[band]).padStart(3,'0');
 }
 
-function isDup(call, band){
+function isDup(call, band, mode){
   return qsoLog.some(q=>
-    q.call.toUpperCase()===call.toUpperCase() && q.band===band
+    q.call.toUpperCase()===call.toUpperCase() && q.band===band &&
+    (!mode || q.mode===mode)
   );
 }
 
@@ -2863,7 +2864,8 @@ function updateClockAndCountdown(){
   const n = new Date();
   const utcStr = `${String(n.getUTCHours()).padStart(2,'0')}:${String(n.getUTCMinutes()).padStart(2,'0')}:${String(n.getUTCSeconds()).padStart(2,'0')}`;
   const localStr = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;
-  document.getElementById('clock').textContent = `${utcStr} UTC · ${localStr} local`;
+  const clockEl = document.getElementById('clock');
+  if(clockEl) clockEl.textContent = `${utcStr} UTC · ${localStr} local`;
 
   const cd  = document.getElementById('sbCountdown');
   const lbl = document.getElementById('sbCountdownLbl');
@@ -3295,7 +3297,7 @@ function onCallInput(){
   const dxccBadge = document.getElementById('dxccBadge');
   if(call.length >= 2){
     const dxcc = lookupDXCC(call);
-    const dup3 = usageMode !== 'simple' && isDup(call, currentBand);
+    const dup3 = usageMode !== 'simple' && isDup(call, currentBand, currentMode);
     if(dxcc){
       document.getElementById('dxccFlag').textContent = dxcc.flag;
       document.getElementById('dxccCountry').textContent = dxcc.c;
@@ -3310,7 +3312,7 @@ function onCallInput(){
   }
 
   // Dup check — hors concours (logbook simple), pas d'erreur "doublon"
-  const dup = usageMode !== 'simple' && isDup(call, currentBand);
+  const dup = usageMode !== 'simple' && isDup(call, currentBand, currentMode);
   const warn = document.getElementById('dupWarn');
   const input = document.getElementById('inputCall');
   if(dup && call.length >= 3){
@@ -3493,7 +3495,7 @@ async function submitQSO(){
 
   // Vérification doublon — hors concours (logbook simple), recontacter la
   // même station sur la même bande au fil des années est normal, pas une erreur.
-  if(usageMode !== 'simple' && isDup(call, currentBand)){
+  if(usageMode !== 'simple' && isDup(call, currentBand, currentMode)){
     if(!confirm(trF('⚠️ {call} est déjà dans le log sur {band} MHz.\nQuand même enregistrer ?', {call, band: currentBand}))) return;
   }
 
@@ -4722,7 +4724,7 @@ function updateBandRecap(){
       `<div class="brd-band">${lbl}</div>` +
       `<div class="brd-lbl">QSO · KM TOTAL · DX MAX</div>` +
       `<div class="brd-vals">${d.count} · ${Math.round(d.totalKm).toLocaleString()} km · <span class="brd-dx">${Math.round(d.maxKm)} km</span></div>` +
-      `<div class="brd-vals" style="color:var(--muted);font-size:12px">${d.bestCall} ${d.bestBear}</div>`;
+      `<div class="brd-vals" style="color:var(--muted);font-size:12px">${escHtml(d.bestCall)} ${escHtml(d.bestBear)}</div>`;
     inner.appendChild(div);
   });
   bar.style.display = 'block';
@@ -7783,7 +7785,7 @@ function initMap(){
     homeMarker = L.circleMarker([homeLL.lat, homeLL.lon],{
       radius:11, fillColor:'#FFD60A', color:'#000', weight:2,
       fillOpacity:1, zIndexOffset:1000,
-    }).bindPopup(`<b>${myCall}</b><br>📍 ${myLocator}<br>Station HOME`).addTo(qsoMap);
+    }).bindPopup(`<b>${escHtml(myCall)}</b><br>📍 ${escHtml(myLocator)}<br>Station HOME`).addTo(qsoMap);
   }
 }
 
@@ -7818,9 +7820,9 @@ function refreshMapLayers(){
       radius:8, fillColor:col, color:'#000', weight:1.5, fillOpacity:.9,
     }).bindPopup(
       `<div style="font-family:monospace;font-size:14px;line-height:1.7">` +
-      `<b style="font-size:15px">${q.call}</b><br>` +
-      `📍 ${q.locator}<br>` +
-      `📡 ${bandLabel} — ${q.mode}<br>` +
+      `<b style="font-size:15px">${escHtml(q.call)}</b><br>` +
+      `📍 ${escHtml(q.locator)}<br>` +
+      `📡 ${bandLabel} — ${escHtml(q.mode)}<br>` +
       `📏 ${q.dist||'?'} km — 🏆 ${q.points||0} pts` +
       `</div>`
     ).addTo(qsoMap);
@@ -8068,7 +8070,7 @@ function renderBandStats(){
     const b = q.band || currentBand || '?';
     if(!bands[b]) bands[b] = {qso:0, pts:0, mults:new Set()};
     bands[b].qso++;
-    bands[b].pts += (Number(q.pts)||1);
+    bands[b].pts += (Number(q.points)||0);
     if(q.locator) bands[b].mults.add(q.locator.toUpperCase().slice(0,4));
   });
   const rows = Object.entries(bands).sort((a,b)=>parseFloat(a[0])-parseFloat(b[0]));

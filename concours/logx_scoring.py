@@ -402,9 +402,13 @@ LEGACY_SCORING_PRESETS = {
         'validity_fail_explanation': 'Station {dx_base} hors W/VE — 0 pt ARRL DX',
         'multiplier': {'kind': 'na_state'},
     },
-    # ARRL Field Day : 1pt SSB (plancher), sections NA uniquement
+    # ARRL Field Day : 1pt SSB (plancher), 2pts CW/Digital, sections NA uniquement
     'fd_class': {
-        'points': [{'when': 'always', 'points': {'param': 'points_phone', 'default': 1}}],
+        'points': [
+            {'modes': ['CW'], 'points': {'param': 'points_cw', 'default': 2}},
+            {'modes': ['FT8', 'FT4', 'RTTY', 'PSK'], 'points': {'param': 'points_digital', 'default': 2}},
+            {'when': 'always', 'points': {'param': 'points_phone', 'default': 1}},
+        ],
         'validity': 'is_na',
         'validity_fail_explanation': 'Station {dx_base} hors NA — 0 pt ARRL FD',
         'multiplier': {'kind': 'na_section'},
@@ -595,7 +599,8 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
 
     # ── Brique points fixes "même grand carré" (IARU) ───────────────────────
     ssp = bricks.get('same_square_points')
-    if ssp is not None and get_large_locator(my_locator) == get_large_locator(dx_locator):
+    my_sq = get_large_locator(my_locator)
+    if ssp is not None and my_sq is not None and my_sq == get_large_locator(dx_locator):
         fixed = scoring.get(ssp.get('param'), ssp.get('default', 50)) if isinstance(ssp, dict) else ssp
         result['direct_pts'] = fixed
         result['total_impact'] = fixed

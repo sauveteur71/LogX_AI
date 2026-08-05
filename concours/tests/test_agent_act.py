@@ -27,7 +27,7 @@ import logx_http as h   # noqa: E402
 
 def test_rotor_valide():
     a = h.pending_action_from_tool({'tool': 'pointer_rotor', 'input': {'azimut': 45.4, 'cible': 'JA1XYZ'}})
-    assert a == {'type': 'rotor', 'azimut': 45, 'cible': 'JA1XYZ'}
+    assert a == {'type': 'rotor', 'azimut': 45, 'cible': 'JA1XYZ', 'bande': ''}
 
 
 def test_rotor_azimut_hors_bornes_refuse():
@@ -149,7 +149,7 @@ def test_agent_act_propose_une_action(serveur, monkeypatch):
             time.sleep(0.1)
         assert state['status'] == 'done'
         assert 'JA1XYZ' in state['reply']
-        assert state['action'] == {'type': 'rotor', 'azimut': 45, 'cible': 'JA1XYZ'}
+        assert state['action'] == {'type': 'rotor', 'azimut': 45, 'cible': 'JA1XYZ', 'bande': ''}
     finally:
         _restore_cfg(saved)
 

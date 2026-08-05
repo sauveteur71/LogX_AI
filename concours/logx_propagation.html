@@ -457,7 +457,7 @@ function renderBeacons(d){
   el.innerHTML = ((d && d.beacons)||[]).map(b => `
       <div class="bc-row">
         <span class="bc-name" style="width:52px">${b.band}</span>
-        <span style="color:var(--accent2);width:70px">${b.freq_khz.toFixed(3)}</span>
+        <span style="color:var(--accent2);width:70px">${(b.freq_khz/1000).toFixed(3)}</span>
         <span style="color:var(--text);font-weight:700;width:70px">${b.call}</span>
         <span style="color:var(--muted);flex:1">${b.qth}</span>
         ${b.bearing!=null ? `<span style="color:var(--accent)">${b.bearing}° ${b.cardinal}</span>` : ''}

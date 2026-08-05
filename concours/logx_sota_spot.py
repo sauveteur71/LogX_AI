@@ -86,6 +86,7 @@ PENDING_TTL = 600  # secondes de validité d'un couple state/code_verifier en at
 _tok_lock = threading.Lock()
 _tokens = {'access_token': '', 'refresh_token': '', 'expires_at': 0}
 _tokens_loaded = False
+_pending_lock = threading.Lock()
 _pending = {}   # state -> {'verifier': str, 'ts': float}
 
 
@@ -113,8 +114,9 @@ def _new_pkce_pair():
 
 def _purge_pending():
     now = time.time()
-    for k in [k for k, v in _pending.items() if now - v['ts'] > PENDING_TTL]:
-        _pending.pop(k, None)
+    with _pending_lock:
+        for k in [k for k, v in _pending.items() if now - v['ts'] > PENDING_TTL]:
+            _pending.pop(k, None)
 
 
 def build_authorize_url(cfg):
@@ -126,7 +128,8 @@ def build_authorize_url(cfg):
     _purge_pending()
     state = secrets.token_urlsafe(24)
     verifier, challenge = _new_pkce_pair()
-    _pending[state] = {'verifier': verifier, 'ts': time.time()}
+    with _pending_lock:
+        _pending[state] = {'verifier': verifier, 'ts': time.time()}
     params = {
         'client_id': settings['client_id'], 'redirect_uri': SOTA_REDIRECT_URI,
         'response_type': 'code',
@@ -184,7 +187,8 @@ def handle_oauth_callback(code, state, cfg):
     le code contre un jeton d'accès + rafraîchissement. (ok, message)."""
     _load_tokens()
     _purge_pending()
-    pending = _pending.pop(state, None)
+    with _pending_lock:
+        pending = _pending.pop(state, None)
     if not pending:
         return False, "Session d'authentification expirée ou invalide — relance depuis CONFIG."
     settings = sota_spot_settings(cfg)

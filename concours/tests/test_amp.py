@@ -53,6 +53,10 @@ class FakeKpaAmp:
         r, self._pending = self._pending, b''
         return r
 
+    def transceive(self, data, terminator, timeout=1.0, accept=None):
+        self.write(data)
+        return self.read_until(terminator, timeout=timeout)
+
     def close(self):
         pass
 
@@ -117,6 +121,10 @@ class FakeIcomAmp:
         r, self._pending = self._pending, b''
         return r
 
+    def transceive(self, data, terminator, timeout=1.0, accept=None):
+        self.write(data)
+        return self.read_until(terminator, timeout=timeout)
+
     def close(self):
         pass
 
@@ -171,6 +179,10 @@ class FakeSpeAmp:
     def read_until(self, terminator, timeout=1.0):
         r, self._pending = self._pending, b''
         return r
+
+    def transceive(self, data, terminator, timeout=1.0, accept=None):
+        self.write(data)
+        return self.read_until(terminator, timeout=timeout)
 
     def close(self):
         pass
@@ -310,6 +322,10 @@ class EchoTransport:
         r, self._pending = self._pending, b''
         return r
 
+    def transceive(self, data, terminator, timeout=1.0, accept=None):
+        self.write(data)
+        return self.read_until(terminator, timeout=timeout)
+
     def close(self):
         pass
 
@@ -334,6 +350,10 @@ class _FixedReply:
 
     def read_until(self, terminator, timeout=1.0):
         return self._raw
+
+    def transceive(self, data, terminator, timeout=1.0, accept=None):
+        self.write(data)
+        return self.read_until(terminator, timeout=timeout)
 
     def close(self):
         pass

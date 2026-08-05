@@ -27,12 +27,14 @@ Fonctionnalité DÉSACTIVÉE par défaut. Toute erreur réseau retourne un dict
 import re
 import socket
 import threading
+import concurrent.futures as _cf
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 4533        # rotctld ; un serveur GS-232 TCP est souvent en 4001
 TIMEOUT_S = 3.0            # un rotor peut être lent à répondre
 
 _lock = threading.Lock()   # rotctld/GS-232 sont séquentiels
+_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=2, thread_name_prefix='rotor_cat')
 
 
 # ─── CATALOGUE DES MARQUES ───────────────────────────────────────────────────
@@ -184,7 +186,7 @@ _ROTCTLD_MAX_BUF = 4096  # une réponse rotctld légitime tient sur quelques
 
 def _rotctld_command(host, port, cmd, expect_lines=1):
     """Envoie UNE commande rotctld et retourne ses lignes de réponse."""
-    with _lock:
+    def _do():
         with socket.create_connection((host, port), timeout=TIMEOUT_S) as s:
             s.settimeout(TIMEOUT_S)
             s.sendall((cmd + '\n').encode('ascii', errors='replace'))
@@ -202,6 +204,12 @@ def _rotctld_command(host, port, cmd, expect_lines=1):
                     break
                 buf = buf + chunk
             return [l.strip() for l in buf.decode('ascii', 'replace').splitlines() if l.strip()]
+    with _lock:
+        # create_connection() ne borne pas la résolution DNS (getaddrinfo) —
+        # un hôte LAN mal résolu bloquerait indéfiniment ce thread. Executor
+        # borné pour garantir un retour même si le thread reste coincé.
+        fut = _EXECUTOR.submit(_do)
+        return fut.result(timeout=TIMEOUT_S + 3)
 
 
 def _rprt_ok(lines):
@@ -257,7 +265,7 @@ def _gs232_parse(resp):
 
 
 def _gs232_txrx(host, port, cmd, want_reply):
-    with _lock:
+    def _do():
         with socket.create_connection((host, port), timeout=TIMEOUT_S) as s:
             s.settimeout(TIMEOUT_S)
             s.sendall((cmd + '\r').encode('ascii', errors='replace'))
@@ -270,6 +278,12 @@ def _gs232_txrx(host, port, cmd, want_reply):
                     break
                 buf = buf + chunk
             return buf.decode('ascii', 'replace')
+    with _lock:
+        # create_connection() ne borne pas la résolution DNS (getaddrinfo) —
+        # un hôte LAN mal résolu bloquerait indéfiniment ce thread. Executor
+        # borné pour garantir un retour même si le thread reste coincé.
+        fut = _EXECUTOR.submit(_do)
+        return fut.result(timeout=TIMEOUT_S + 3)
 
 
 def _gs232_get(host, port):

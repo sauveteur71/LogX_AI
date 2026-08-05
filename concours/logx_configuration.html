@@ -106,7 +106,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .cat-modal-head{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
 .cat-modal-title{font-family:var(--font-display);font-size:19px;letter-spacing:.3px;color:var(--accent2);font-weight:900}
 .cat-modal-close{margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono)}
-.cat-modal-save{margin-left:auto;background:linear-gradient(135deg,#00FF88,var(--accent2));border:none;color:#0A0B18;font-weight:700;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono);transition:opacity .15s}
+.cat-modal-save{margin-left:auto;background:linear-gradient(135deg,#00FF88,#C9822E);border:none;color:#0A0B18;font-weight:700;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono);transition:opacity .15s}
 .cat-modal-save:hover{opacity:.85}
 
 /* Sélecteur de fournisseur IA : grille responsive plutôt qu'une seule ligne
@@ -290,7 +290,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .btn-primary:hover{opacity:.85;transform:translateY(-1px)}
 .btn-secondary{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
 .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
-.btn-launch{background:linear-gradient(135deg,#00FF88,var(--accent2));color:#0A0B18;font-size:14px;padding:14px 32px}
+.btn-launch{background:linear-gradient(135deg,#00FF88,#C9822E);color:#0A0B18;font-size:14px;padding:14px 32px}
 .btn-launch:hover{opacity:.9;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,255,136,.2)}
 .op-row-btn{font-family:var(--font-mono);font-size:12px;padding:6px 14px;border-radius:6px;background:var(--bg3);color:var(--muted);border:1px solid var(--border);cursor:pointer;transition:all .15s}
 .op-row-btn:hover{border-color:var(--accent2);color:var(--accent2)}
@@ -325,7 +325,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div style="display:flex;align-items:center;gap:8px">
     <button onclick="quickSave()" title="Sauvegarder la configuration"
       style="font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:1px;
-             background:linear-gradient(135deg,#00FF88,var(--accent2));border:none;border-radius:7px;
+             background:linear-gradient(135deg,#00FF88,#C9822E);border:none;border-radius:7px;
              color:#0A0B18;padding:7px 14px;cursor:pointer;transition:opacity .15s"
       onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
       <svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> SAUVEGARDER
@@ -630,7 +630,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
               <option value="SOMB">SOMB — Single Op Multi-Band</option>
               <option value="SOSB">SOSB — Single Op Single Band</option>
               <option value="MOMB">MOMB — Multi Op Multi-Band</option>
-              <option value="MOSB">MOSB — Single Op Single Band</option>
+              <option value="MOSB">MOSB — Multi Op Single Band</option>
             </select>
             <div class="input-note">Champ PSect dans le fichier EDI</div>
           </div>
@@ -6649,7 +6649,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
       const orig = btn.innerHTML;
       btn.innerHTML = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ENREGISTRÉ';
       btn.style.background = 'var(--green)';
-      setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,var(--accent2))'; }, 1500);
+      setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,#C9822E)'; }, 1500);
     }
   } else {
     alert(T('✅ Configuration sauvegardée !'));
@@ -7725,8 +7725,8 @@ function openReviewModal(p){
         <div style="font-family:var(--font-mono);font-size:15px;letter-spacing:2px;color:var(--accent2)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-3px"><rect x="3.5" y="6.5" width="11" height="8" rx="1.5"/><line x1="9" y1="6.5" x2="9" y2="3.5"/><circle cx="9" cy="2.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="14.5" x2="6" y2="16"/><line x1="12" y1="14.5" x2="12" y2="16"/></svg> PROPOSITION IA — RELECTURE OBLIGATOIRE</div>
         <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:4px">
           Rien n'est enregistré tant que tu n'as pas validé. Confiance IA :
-          <span style="color:${confColor};font-weight:700">${(p.confidence || '?').toUpperCase()}</span>
-          · Extraction : ${p.extractor} (${p.text_chars} car.)
+          <span style="color:${confColor};font-weight:700">${String(p.confidence || '?').replace(/</g,'&lt;').toUpperCase()}</span>
+          · Extraction : ${String(p.extractor||'').replace(/</g,'&lt;')} (${p.text_chars} car.)
         </div>
       </div>
       <button onclick="document.getElementById('reviewModal').style.display='none'"
@@ -7800,7 +7800,7 @@ async function saveReviewedDefinition(){
     });
     const data = await res.json();
     if (!data.ok){
-      const errs = (data.validation_errors || [data.error]).join('<br>· ');
+      const errs = (data.validation_errors || [data.error]).map(e => String(e).replace(/</g,'&lt;')).join('<br>· ');
       status.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px"><circle cx="9" cy="9" r="6.5"/><line x1="4.5" y1="13.5" x2="13.5" y2="4.5"/></svg> ${errs}</span>`;
       return;
     }

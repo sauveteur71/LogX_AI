@@ -40,6 +40,7 @@ DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 50001
 _WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 MAX_FRAME_LEN = 1 << 20      # 1 Mo : très au-dessus de toute trame TCI légitime
+MAX_MESSAGE_LEN = 4 * MAX_FRAME_LEN  # borne cumulée toutes frames de continuation confondues
 READ_IDLE_TIMEOUT_S = 30.0   # au-delà de ce silence, la connexion est jugée morte
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -99,6 +100,7 @@ class WebSocketClient:
         self.timeout = timeout
         self._sock = None
         self._buf = b''
+        self._write_lock = threading.Lock()
 
     def connect(self, path='/'):
         self._sock = socket.create_connection((self.host, self.port), timeout=self.timeout)
@@ -158,10 +160,11 @@ class WebSocketClient:
         # FIN/RST ferait attendre sendall() jusqu'à READ_IDLE_TIMEOUT_S — ou
         # indéfiniment si le timeout socket ne s'applique pas à l'écriture —
         # et donc geler l'appelant (thread HTTP).
-        _, writable, _ = select.select([], [self._sock], [], self.WRITE_TIMEOUT_S)
-        if not writable:
-            raise TimeoutError('TCI : le pair ne répond plus (écriture bloquée)')
-        self._sock.sendall(bytes(header) + mask_key + masked)
+        with self._write_lock:
+            _, writable, _ = select.select([], [self._sock], [], self.WRITE_TIMEOUT_S)
+            if not writable:
+                raise TimeoutError('TCI : le pair ne répond plus (écriture bloquée)')
+            self._sock.sendall(bytes(header) + mask_key + masked)
 
     def _recv_exact(self, n):
         while len(self._buf) < n:
@@ -198,6 +201,7 @@ class WebSocketClient:
         aux pings (obligatoire pour rester connecté)."""
         parts = []
         msg_is_binary = False
+        total_len = 0
         while True:
             header = self._recv_exact(2)
             fin = header[0] & 0x80
@@ -210,6 +214,11 @@ class WebSocketClient:
             if length > MAX_FRAME_LEN:
                 raise ConnectionError('TCI : trame de %d octets refusée (> %d)'
                                        % (length, MAX_FRAME_LEN))
+            total_len += length
+            if total_len > MAX_MESSAGE_LEN:
+                raise ConnectionError(
+                    'TCI : message de %d octets refusé (cumulé sur plusieurs frames, > %d)'
+                    % (total_len, MAX_MESSAGE_LEN))
             payload = self._recv_exact(length) if length else b''
             if opcode == 0x8:  # close
                 raise ConnectionError('Serveur TCI : fermeture de connexion')
@@ -232,10 +241,11 @@ class WebSocketClient:
         header = bytearray([0x80 | 0xA, 0x80 | len(payload)])
         mask_key = os.urandom(4)
         masked = bytes(b ^ mask_key[i % 4] for i, b in enumerate(payload))
-        _, writable, _ = select.select([], [self._sock], [], self.WRITE_TIMEOUT_S)
-        if not writable:
-            raise TimeoutError('TCI : le pair ne répond plus (pong bloqué)')
-        self._sock.sendall(bytes(header) + mask_key + masked)
+        with self._write_lock:
+            _, writable, _ = select.select([], [self._sock], [], self.WRITE_TIMEOUT_S)
+            if not writable:
+                raise TimeoutError('TCI : le pair ne répond plus (pong bloqué)')
+            self._sock.sendall(bytes(header) + mask_key + masked)
 
     def close(self):
         try:

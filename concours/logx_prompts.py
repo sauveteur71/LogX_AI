@@ -407,8 +407,8 @@ IDENTITÉ DE LA STATION :
 {record_line}{eme_line}
 
 CONCOURS EN COURS : {contest}
-- Scoring : {scoring_info['unit']}
-- Multiplicateurs : {scoring_info['mult']}
+- Scoring : {sanitize_external_text(scoring_info['unit'])}
+- Multiplicateurs : {sanitize_external_text(scoring_info['mult'])}
 
 BANDES ACTIVES : {', '.join(active_bands) if active_bands else 'Toutes'}
 MODES AUTORISÉS : {', '.join(active_modes) if active_modes else 'Tous'}
@@ -794,12 +794,13 @@ def build_terrain_context(logs, spots_by_band, cfg):
         for s in spots[:20]:
             if isinstance(s, dict):
                 dx = s.get('dx','')
-                spotter = s.get('spotter','')
                 freq = s.get('freq','')
-                info = sanitize_external_text(s.get('info',''))
-                time_s = s.get('time','')
                 already = '✓FAIT' if dx.split('/')[0] in done_calls else ''
-                lines.append(f"  {spotter:12} → {dx:12} @ {freq} MHz {info} {time_s} {already}")
+                dx_disp = sanitize_external_text(dx, 20)
+                spotter = sanitize_external_text(s.get('spotter',''), 20)
+                info = sanitize_external_text(s.get('info',''))
+                time_s = sanitize_external_text(s.get('time',''), 10)
+                lines.append(f"  {spotter} → {dx_disp} @ {freq} MHz {info} {time_s} {already}")
             else:
                 row = ' | '.join(sanitize_external_text(c, 40) for c in s[:6])
                 for c in s:

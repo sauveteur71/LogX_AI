@@ -46,6 +46,7 @@ def _clean_text(v, maxlen=64):
 status = {'listening': False, 'last_seen': 0, 'received_total': 0, 'sent_total': 0}
 _status_lock = threading.Lock()
 _listener_started = False
+_listener_lock = threading.Lock()
 
 _CONTACTINFO_FIELDS = (
     'app', 'contestname', 'contestnr', 'timestamp', 'mycall', 'band',
@@ -201,9 +202,10 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
     """Démarre l'écouteur UDP en thread de fond (idempotent).
     get_cfg() -> config courante ; add_qso(qso_dict) -> insère dans le log."""
     global _listener_started
-    if _listener_started:
-        return
-    _listener_started = True
+    with _listener_lock:
+        if _listener_started:
+            return
+        _listener_started = True
 
     def _run():
         import time

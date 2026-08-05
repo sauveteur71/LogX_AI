@@ -72,6 +72,10 @@ import wave
 # le finally du premier terminé relâchait le PTT pendant que le second émettait.
 _voice_lock = threading.Lock()
 
+_ai_cache_lock = threading.Lock()  # protège le check-then-write du cache IA (voir synthesize_to_wav_ai)
+
+_dvk_lock = threading.Lock()
+
 # ─── ÉPELLATION PHONÉTIQUE (alphabet OACI) ───────────────────────────────────
 PHONETIC = {
     'A': 'Alpha', 'B': 'Bravo', 'C': 'Charlie', 'D': 'Delta', 'E': 'Echo',
@@ -768,14 +772,15 @@ def synthesize_to_wav_ai(text, provider, api_key, voice_id, timeout=_AI_TIMEOUT)
     if provider not in AI_PROVIDERS or not api_key or not str(voice_id or '').strip():
         return None
     cache_path = _ai_cache_path(provider, voice_id, text)
-    if not os.path.exists(cache_path):
-        try:
-            pcm = AI_PROVIDERS[provider](api_key, voice_id, text, timeout)
-            if not pcm:
+    with _ai_cache_lock:
+        if not os.path.exists(cache_path):
+            try:
+                pcm = AI_PROVIDERS[provider](api_key, voice_id, text, timeout)
+                if not pcm:
+                    return None
+                _write_wav_from_pcm(cache_path, pcm)
+            except Exception:
                 return None
-            _write_wav_from_pcm(cache_path, pcm)
-        except Exception:
-            return None
     fd, tmp_path = tempfile.mkstemp(suffix='.wav', prefix='rc_voice_ai_')
     os.close(fd)
     try:
@@ -1272,29 +1277,31 @@ def enregistrer_message(cle, donnees_wav):
         return {'ok': False, 'error': 'Message trop long (%d Mo max)'
                                       % (TAILLE_MAX // (1024 * 1024))}
     tmp = chemin + '.tmp'
-    try:
-        with open(tmp, 'wb') as f:
-            f.write(donnees_wav)
-        with wave.open(tmp, 'rb') as wf:          # contrôle de lisibilité
-            duree = wf.getnframes() / float(wf.getframerate() or 1)
-        os.replace(tmp, chemin)                    # publication atomique
-        return {'ok': True, 'slot': cle, 'seconds': round(duree, 2)}
-    except Exception as e:
+    with _dvk_lock:
         try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        return {'ok': False, 'error': 'WAV illisible : %s' % e}
+            with open(tmp, 'wb') as f:
+                f.write(donnees_wav)
+            with wave.open(tmp, 'rb') as wf:          # contrôle de lisibilité
+                duree = wf.getnframes() / float(wf.getframerate() or 1)
+            os.replace(tmp, chemin)                    # publication atomique
+            return {'ok': True, 'slot': cle, 'seconds': round(duree, 2)}
+        except Exception as e:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            return {'ok': False, 'error': 'WAV illisible : %s' % e}
 
 
 def supprimer_message(cle):
     chemin = chemin_emplacement(cle)
     if chemin is None:
         return {'ok': False, 'error': 'Emplacement inconnu'}
-    try:
-        os.remove(chemin)
-    except OSError:
-        pass
+    with _dvk_lock:
+        try:
+            os.remove(chemin)
+        except OSError:
+            pass
     return {'ok': True}
 
 

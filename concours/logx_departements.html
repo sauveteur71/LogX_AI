@@ -191,11 +191,12 @@ function deptStyle(feature){
 }
 
 // Même clé que logx_worldmap._load_features() côté serveur
-// (ISO_A3, puis ADM0_A3, puis NAME) — indispensable pour que le statut
-// travaillé/non renvoyé par /data/world_worked retombe sur la bonne feature.
+// (ADM0_A3, puis ISO_A3 sauf placeholder "-99", puis NAME) — indispensable
+// pour que le statut travaillé/non renvoyé par /data/world_worked retombe
+// sur la bonne feature.
 function worldFeatureId(f){
   const p = f.properties || {};
-  return p.ISO_A3 || p.ADM0_A3 || p.NAME;
+  return p.ADM0_A3 || (p.ISO_A3 !== '-99' ? p.ISO_A3 : null) || p.NAME;
 }
 
 function worldStyle(feature){

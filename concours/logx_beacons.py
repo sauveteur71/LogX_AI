@@ -54,7 +54,7 @@ def beacons_now(now=None):
         # Sur la bande b, au créneau `slot`, émet la balise (slot - b) mod 18
         idx = (slot - b) % len(BEACONS)
         call, loc, qth = BEACONS[idx]
-        out.append({'band': label, 'freq_khz': freq / 1000.0,
+        out.append({'band': label, 'freq_khz': freq,
                     'call': call, 'locator': loc, 'qth': qth,
                     'seconds_left': seconds_left})
     return out

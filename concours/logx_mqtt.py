@@ -25,6 +25,7 @@ Logbook/réseau ADIF dans add_qso_to_log() — fire-and-forget explicite, pas de
 confiance aveugle dans le comportement interne d'une lib tierce."""
 import json
 import threading
+import uuid
 
 try:
     import paho.mqtt.client as mqtt
@@ -34,6 +35,8 @@ except Exception:
     HAS_PAHO = False
 
 DEFAULT_PORT = 1883
+
+_INSTANCE_ID = uuid.uuid4().hex[:8]  # id unique par process — voir _ensure_client
 
 _client = None
 _client_target = None      # (host, port) actuellement connecté — voir _ensure_client
@@ -93,7 +96,7 @@ def _ensure_client(settings):
             _client = None
             _client_target = None
         try:
-            c = mqtt.Client(client_id='logx-ai', clean_session=True)
+            c = mqtt.Client(client_id=f'logx-ai-{_INSTANCE_ID}', clean_session=True)
             c.connect_async(target[0], target[1], keepalive=30)
             c.loop_start()
             _client = c

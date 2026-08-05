@@ -250,7 +250,7 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
         # ODX
         loc = str(e.get('locator', '')).strip().upper()
         if my_ll[0] is not None and len(loc) >= 4:
-            ll = locator_to_latlon((loc + 'MM')[:6])
+            ll = locator_to_latlon(loc[:6])
             if ll[0] is not None:
                 km = haversine(my_ll[0], my_ll[1], ll[0], ll[1])
                 if km > odx['km']:

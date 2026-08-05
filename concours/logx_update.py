@@ -541,13 +541,16 @@ def _local_interface_ips():
             return _self_ips_cache['ips']
     found = set()
     try:
-        for info in socket.getaddrinfo(socket.gethostname(), None):
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            infos = ex.submit(socket.getaddrinfo, socket.gethostname(), None).result(timeout=2)
+        for info in infos:
             try:
                 found.add(str(ipaddress.ip_address(str(info[4][0]))))
             except ValueError:
                 pass  # ex. IPv6 avec zone '%...' non parsable : ignoré
-    except OSError:
-        pass
+    except (OSError, concurrent.futures.TimeoutError):
+        pass  # résolveur muet/lent : le thread abandonné se termine seul en arrière-plan
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
