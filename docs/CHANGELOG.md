@@ -11,6 +11,36 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta22] - 2026-08-05
+
+### Ajouté
+
+- Décodeur CW accessible depuis le band map même hors mode CW (bouton dédié,
+  sans affecter les macros ni le keyer vocal).
+- Bandeau discret dans CHASSE rappelant que la chasse est secondaire pendant
+  une activation (mode expédition avec référence configurée).
+
+### Corrigé
+
+- **Passe de vérification pré-bêta complète** (revue exhaustive du dépôt,
+  30 lots domaine, chaque constat re-vérifié par un agent sceptique
+  indépendant) : 58 correctifs, dont 2 critiques.
+  - Pilotage ampli (KpaAmp/IcomAmp/SpeAmp) inopérant sur du vrai matériel
+    série (méthode manquante sur le transport).
+  - Faille XSS stockée via `/log/add` (indicatif non échappé dans le
+    panneau « meilleur DX »), exécutable chez tous les opérateurs connectés.
+  - Plusieurs risques sécurité (SSRF sur les règlements/URLs de log
+    configurables, fuite de clé API entre fournisseurs IA, injection de
+    prompt via données de cluster/concours personnalisé, traceback exposé
+    sans authentification).
+  - Plusieurs races/TOCTOU (config, QTC, cache GeoJSON, OAuth SOTA, cache
+    voix IA) et bugs de score (Field Day CW/Digital sous-évalué, bonus
+    "grand carré" IARU déclenché à tort).
+  - Résolutions DNS non bornées (CAT rig/rotor, mise à jour, upload QSL)
+    pouvant geler un thread indéfiniment en terrain/expédition.
+  - Horloge d'en-tête du logbook qui plantait en boucle au chargement de
+    page (trouvé en vérification navigateur, hors périmètre de l'audit).
+
 ## [0.9-beta21] - 2026-08-04
 
 *Le journal a repris après une pause aux betas 14 à 20 (bump de version
