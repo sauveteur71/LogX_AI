@@ -9,6 +9,12 @@ jsonschema>=4.20,<5
 # HAS_PYSERIAL, l'appli démarre sans si aucune radio série n'est pilotée.
 pyserial>=3.5,<4
 
+# Chiffrement au repos des identifiants stockés (logx_crypto.py) — mots de
+# passe cluster/QRZ/eQSL/LoTW, clés API. Optionnel : import protégé par
+# HAS_CRYPTOGRAPHY, les secrets restent en clair sans elle (comportement
+# historique) plutôt que de bloquer le démarrage.
+cryptography>=42,<47
+
 # Keyer vocal TTS hors-ligne (logx_voicekeyer.py) — optionnel, Windows/SAPI5.
 pyttsx3>=2.90,<3
 
