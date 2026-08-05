@@ -145,6 +145,22 @@ textarea::placeholder{color:var(--muted)}
 .contest-badge{padding:4px 10px;border-radius:5px;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;border:1px solid var(--border);color:var(--accent2);background:rgba(var(--accent-rgb),.06)}
 .app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
 .ico{width:13px;height:13px;vertical-align:-2px;margin-right:3px;flex-shrink:0}
+
+/* GLOBE 3D (bascule avec la carte 2D dans le même .map-container) */
+#globeCanvas.dragging{cursor:grabbing}
+.g-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-family:var(--font-mono);font-size:12px;color:var(--muted);box-shadow:0 8px 26px rgba(0,0,0,.35)}
+.g-controls .g-title{font-family:var(--font-display);font-weight:900;font-size:13px;color:var(--accent2);letter-spacing:.2px;margin-bottom:2px}
+.g-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;user-select:none}
+.g-toggle input{accent-color:var(--accent2);width:14px;height:14px;flex-shrink:0}
+.g-toggle span{color:var(--text)}
+.g-zoomrow{display:flex;gap:6px;margin-top:2px}
+.g-btn{flex:1;font-family:var(--font-mono);font-size:13px;font-weight:700;padding:6px 0;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;transition:all .15s}
+.g-btn:hover{border-color:var(--accent2);color:var(--accent2);box-shadow:0 0 12px rgba(var(--accent-rgb),.25)}
+.g-legend .g-title{font-family:var(--font-display);font-weight:900;font-size:12px;color:var(--accent2);margin-bottom:2px}
+.g-leg-row{display:flex;align-items:center;gap:7px}
+.g-leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.g-tooltip{padding:8px 11px;background:rgba(13,14,26,.97);white-space:nowrap}
+.g-tooltip b{color:var(--accent2)}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -167,6 +183,7 @@ textarea::placeholder{color:var(--muted)}
     </div>
     <div class="clock rc-i18n-live" id="clock">00:00:00 UTC</div>
     <button class="cfg-btn" id="mapModeBtn" onclick="cycleModeBtn()" title="Changer la vue de la carte">🗺️ EUROPE</button>
+    <button class="cfg-btn" id="dimToggleBtn" onclick="toggleMapDimension()" title="Basculer entre la carte 2D et le globe 3D">🌐 3D</button>
     <button class="cfg-btn" id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit" style="font-size:16px">☀️</button>
   </div>
 </header>
@@ -174,9 +191,7 @@ textarea::placeholder{color:var(--muted)}
 <nav class="app-nav">
   <a href="logx_configuration.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="16" y2="5"/><circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="9" x2="16" y2="9"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="13" x2="16" y2="13"/><circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/></svg></span>CONFIG</a>
   <a href="logx_logbook.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg></span>LOGBOOK</a>
-  <a href="logx_carte.html" class="active"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>
-  <a href="logx_carte3d.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.6" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg></span>GLOBE 3D</a>
-  <a href="logx_propagation.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
+  <a href="logx_carte.html" class="active"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>  <a href="logx_propagation.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
   <a href="logx_chasse.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>CHASSE</a>
   <a href="logx_departements.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>Cartes</a>
   <a href="logx_calendrier.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
@@ -250,6 +265,37 @@ textarea::placeholder{color:var(--muted)}
   <div class="map-panel">
     <div class="map-container">
       <div id="map"></div>
+
+      <!-- Globe 3D : bascule depuis le bouton "🌐 3D" du header, même
+           .map-container que la carte 2D (un seul onglet, jamais les deux
+           affichés ensemble — voir toggleMapDimension()). Projection
+           orthographique dessinée à la main sur <canvas>, aucune bibliothèque
+           tierce (three.js etc.) pour rester léger et local-first : le globe
+           n'a besoin que d'un cache disque déjà partagé avec logx_departements
+           (world_countries.geojson) et des mêmes endpoints spots/QTH que la
+           carte 2D. Sa boucle de rendu ne tourne QUE quand il est affiché. -->
+      <canvas id="globeCanvas" style="display:none;position:absolute;inset:0;width:100%;height:100%;cursor:grab;z-index:1" class=""></canvas>
+      <div class="g-panel g-note" id="geoNote" style="position:absolute;top:16px;left:16px;max-width:280px;color:var(--yellow);display:none;z-index:601">Continents indisponibles hors connexion (premier accès au serveur requis pour les mettre en cache).</div>
+      <div class="g-panel g-controls" id="globeControls" style="position:absolute;top:16px;right:16px;width:216px;display:none;flex-direction:column;gap:8px;z-index:601">
+        <div class="g-title">AFFICHAGE</div>
+        <label class="g-toggle"><input type="checkbox" id="tglCountries" checked onchange="g3dScheduleDraw()"><span>Pays travaillés</span></label>
+        <label class="g-toggle"><input type="checkbox" id="tglSpots" checked onchange="g3dScheduleDraw()"><span>Spots DX en direct</span></label>
+        <label class="g-toggle"><input type="checkbox" id="tglTerm" checked onchange="g3dScheduleDraw()"><span>Terminateur jour/nuit</span></label>
+        <label class="g-toggle"><input type="checkbox" id="tglRotate" onchange="g3dOnRotateToggle()"><span>Rotation automatique</span></label>
+        <div class="g-zoomrow">
+          <button class="g-btn" onclick="g3dZoomBy(1.25)" title="Zoomer">+</button>
+          <button class="g-btn" onclick="g3dZoomBy(0.8)" title="Dézoomer">−</button>
+          <button class="g-btn" onclick="g3dRecenterQTH()" title="Recentrer sur mon QTH">QTH</button>
+        </div>
+      </div>
+      <div class="g-panel g-legend" id="globeLegend" style="position:absolute;bottom:16px;left:16px;display:none;flex-direction:column;gap:5px;z-index:601">
+        <div class="g-title">LÉGENDE</div>
+        <div class="g-leg-row"><span class="g-leg-dot" style="background:var(--green)"></span>Pays DXCC travaillé</div>
+        <div class="g-leg-row"><span class="g-leg-dot" style="background:var(--accent2)"></span>Ma station (QTH)</div>
+        <div class="g-leg-row"><span class="g-leg-dot" style="background:#FFD60A"></span>Spot DX (couleur = bande)</div>
+      </div>
+      <div class="g-panel g-tooltip" id="g3dTooltip" style="position:absolute;pointer-events:none;display:none;z-index:602"></div>
+
       <!-- Cercles de distance « Great Circle » centrés sur le QTH (1000/2000/3000/4000 km) -->
       <div id="gcControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
         <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
@@ -1878,6 +1924,351 @@ function checkMentionAlerts(mentions){
     flashAlert(`💬 ON4KST — ${m.call} ${rcT('te mentionne :')} « ${m.text} »`, 'mention');
   });
 }
+
+// ─── GLOBE 3D (bascule avec la carte 2D — même onglet, jamais les deux à la
+// fois) ───────────────────────────────────────────────────────────────────
+// Projection orthographique dessinée à la main sur <canvas> (formule de
+// d3.geoOrthographic, aucune bibliothèque tierce). Réutilise cfg/locLL()/
+// QSO_BAND_COLORS déjà définis plus haut dans ce fichier plutôt que de les
+// dupliquer — c'est justement tout l'intérêt de fusionner les deux vues
+// dans la même page.
+const G3D_D2R = Math.PI/180;
+const g3dCanvas = document.getElementById('globeCanvas');
+const g3dCtx = g3dCanvas.getContext('2d');
+const g3dTooltip = document.getElementById('g3dTooltip');
+
+const g3dState = {
+  active: false, viewLon: -10, viewLat: 25, scale: 1,
+  dragging: false, lastX: 0, lastY: 0, autoRotate: false,
+  subLat: 0, subLon: 0, dataLoaded: false,
+};
+let g3dWorldFeatures = [];
+let g3dWorldWorked = {};
+let g3dSpots = [];
+let g3dHitTargets = [];
+let g3dNeedsDraw = true;
+
+function g3dWorldFeatureId(props){
+  return props.ADM0_A3 || (props.ISO_A3 !== '-99' ? props.ISO_A3 : null) || props.NAME;
+}
+
+async function g3dLoadWorldGeo(){
+  try{
+    const r = await fetch('/data/world_geojson');
+    if(!r.ok){ document.getElementById('geoNote').style.display='block'; return; }
+    const gj = await r.json();
+    g3dWorldFeatures = (gj.features||[]).map(f=>{
+      const geom = f.geometry || {};
+      let polys = [];
+      if(geom.type === 'Polygon') polys = [geom.coordinates];
+      else if(geom.type === 'MultiPolygon') polys = geom.coordinates;
+      const rings = polys.map(p => p[0]).filter(Boolean);
+      return { id: g3dWorldFeatureId(f.properties||{}), rings };
+    });
+  }catch(e){
+    document.getElementById('geoNote').style.display='block';
+  }
+  g3dNeedsDraw = true;
+}
+
+async function g3dLoadWorldWorked(){
+  try{
+    const r = await fetch('/data/world_worked');
+    if(!r.ok) return;
+    g3dWorldWorked = await r.json();
+  }catch(e){}
+  g3dNeedsDraw = true;
+}
+
+async function g3dLoadSpots(){
+  if(!g3dState.active || !document.getElementById('tglSpots').checked) return;
+  try{
+    const r = await fetch('/data/spots_ranked');
+    if(!r.ok) return;
+    const d = await r.json();
+    g3dSpots = (d.spots||[]).filter(s=>s.lat!=null && s.lon!=null);
+  }catch(e){}
+  g3dNeedsDraw = true;
+}
+
+function g3dProjectPoint(lat, lon, R, cx, cy){
+  const phi = lat*G3D_D2R, lambda = lon*G3D_D2R;
+  const phi0 = g3dState.viewLat*G3D_D2R, lambda0 = g3dState.viewLon*G3D_D2R;
+  const dl = lambda - lambda0;
+  const cosPhi = Math.cos(phi), sinPhi = Math.sin(phi);
+  const x = cosPhi*Math.sin(dl);
+  const y = Math.cos(phi0)*sinPhi - Math.sin(phi0)*cosPhi*Math.cos(dl);
+  const z = Math.sin(phi0)*sinPhi + Math.cos(phi0)*cosPhi*Math.cos(dl);
+  return { sx: cx + x*R, sy: cy - y*R, z, visible: z > -0.02 };
+}
+
+function g3dVisibleRuns(ring, R, cx, cy){
+  const runs = []; let cur = [];
+  for(const [lon, lat] of ring){
+    const p = g3dProjectPoint(lat, lon, R, cx, cy);
+    if(p.visible) cur.push(p); else if(cur.length){ runs.push(cur); cur = []; }
+  }
+  if(cur.length) runs.push(cur);
+  return runs;
+}
+
+function g3dUpdateSubsolar(){
+  const now = new Date();
+  const n = now.getTime()/86400000 + 2440587.5 - 2451545.0;
+  const L = (280.460 + 0.9856474*n) % 360;
+  const g = ((357.528 + 0.9856003*n) % 360) * G3D_D2R;
+  const lambda = (L + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * G3D_D2R;
+  const eps = (23.439 - 0.0000004*n) * G3D_D2R;
+  g3dState.subLat = Math.asin(Math.sin(eps)*Math.sin(lambda)) / G3D_D2R;
+  const utcHours = now.getUTCHours() + now.getUTCMinutes()/60 + now.getUTCSeconds()/3600;
+  g3dState.subLon = 180 - utcHours*15;
+}
+
+function g3dDraw(){
+  g3dNeedsDraw = false;
+  const w = g3dCanvas.width = g3dCanvas.clientWidth * devicePixelRatio;
+  const h = g3dCanvas.height = g3dCanvas.clientHeight * devicePixelRatio;
+  const cx = w/2, cy = h/2;
+  const R = Math.min(w,h) * 0.42 * g3dState.scale;
+  g3dCtx.clearRect(0,0,w,h);
+  g3dUpdateSubsolar();
+
+  const halo = g3dCtx.createRadialGradient(cx,cy,R*0.98,cx,cy,R*1.14);
+  halo.addColorStop(0, `rgba(${getComputedStyle(document.body).getPropertyValue('--accent-rgb')},.35)`);
+  halo.addColorStop(1, 'rgba(0,0,0,0)');
+  g3dCtx.fillStyle = halo;
+  g3dCtx.beginPath(); g3dCtx.arc(cx,cy,R*1.14,0,2*Math.PI); g3dCtx.fill();
+
+  const day = document.body.classList.contains('day-mode');
+  const oceanA = day ? '#C9D8E8' : '#0E2A44', oceanB = day ? '#8FA8C4' : '#050B16';
+  const grd = g3dCtx.createRadialGradient(cx-R*0.32, cy-R*0.32, R*0.08, cx, cy, R*1.02);
+  grd.addColorStop(0, oceanA); grd.addColorStop(1, oceanB);
+  g3dCtx.fillStyle = grd;
+  g3dCtx.beginPath(); g3dCtx.arc(cx,cy,R,0,2*Math.PI); g3dCtx.fill();
+
+  g3dCtx.save();
+  g3dCtx.beginPath(); g3dCtx.arc(cx,cy,R,0,2*Math.PI); g3dCtx.clip();
+  g3dCtx.strokeStyle = day ? 'rgba(20,30,45,.18)' : 'rgba(255,255,255,.10)';
+  g3dCtx.lineWidth = 1;
+  for(let lon=-180; lon<180; lon+=30){
+    g3dCtx.beginPath();
+    for(let lat=-90; lat<=90; lat+=3){
+      const p = g3dProjectPoint(lat, lon, R, cx, cy);
+      if(p.visible) g3dCtx.lineTo(p.sx, p.sy); else g3dCtx.moveTo(p.sx, p.sy);
+    }
+    g3dCtx.stroke();
+  }
+  for(let lat=-60; lat<=60; lat+=30){
+    g3dCtx.beginPath();
+    for(let lon=-180; lon<=180; lon+=3){
+      const p = g3dProjectPoint(lat, lon, R, cx, cy);
+      if(p.visible) g3dCtx.lineTo(p.sx, p.sy); else g3dCtx.moveTo(p.sx, p.sy);
+    }
+    g3dCtx.stroke();
+  }
+  g3dCtx.restore();
+
+  const showCountries = document.getElementById('tglCountries').checked;
+  if(showCountries && g3dWorldFeatures.length){
+    g3dCtx.save();
+    g3dCtx.beginPath(); g3dCtx.arc(cx,cy,R,0,2*Math.PI); g3dCtx.clip();
+    for(const feat of g3dWorldFeatures){
+      const info = g3dWorldWorked[feat.id];
+      const worked = !!(info && info.worked);
+      for(const ring of feat.rings){
+        const runs = g3dVisibleRuns(ring, R, cx, cy);
+        for(const run of runs){
+          if(run.length < 3) continue;
+          let illumSum = 0; for(const pt of run) illumSum += pt.z;
+          const avgZ = illumSum/run.length;
+          g3dCtx.beginPath();
+          g3dCtx.moveTo(run[0].sx, run[0].sy);
+          for(let i=1;i<run.length;i++) g3dCtx.lineTo(run[i].sx, run[i].sy);
+          g3dCtx.closePath();
+          if(worked){
+            g3dCtx.fillStyle = day ? `rgba(0,112,48,${0.55+avgZ*0.15})` : `rgba(0,255,136,${0.42+avgZ*0.15})`;
+            g3dCtx.strokeStyle = day ? 'rgba(0,80,30,.6)' : 'rgba(0,255,136,.55)';
+          } else {
+            g3dCtx.fillStyle = day ? `rgba(120,130,150,${0.28+avgZ*0.10})` : `rgba(60,70,95,${0.35+avgZ*0.12})`;
+            g3dCtx.strokeStyle = day ? 'rgba(90,100,120,.35)' : 'rgba(120,135,165,.30)';
+          }
+          g3dCtx.lineWidth = 0.6;
+          g3dCtx.fill(); g3dCtx.stroke();
+        }
+      }
+    }
+    g3dCtx.restore();
+  }
+
+  if(document.getElementById('tglTerm').checked){
+    g3dCtx.save();
+    g3dCtx.beginPath(); g3dCtx.arc(cx,cy,R,0,2*Math.PI); g3dCtx.clip();
+    g3dCtx.fillStyle = day ? 'rgba(20,20,35,.22)' : 'rgba(0,0,20,.42)';
+    g3dCtx.beginPath();
+    let started = false;
+    for(let lon=-180; lon<=180; lon+=2){
+      const H = (lon - g3dState.subLon)*G3D_D2R;
+      const decR = g3dState.subLat*G3D_D2R;
+      let lat;
+      if(Math.abs(Math.tan(decR)) < 1e-6){ lat = 0; }
+      else { lat = Math.atan(-Math.cos(H)/Math.tan(decR)) / G3D_D2R; }
+      const p = g3dProjectPoint(lat, lon, R, cx, cy);
+      if(p.visible){
+        if(!started){ g3dCtx.moveTo(p.sx,p.sy); started = true; } else { g3dCtx.lineTo(p.sx,p.sy); }
+      } else { started = false; }
+    }
+    const poleLat = g3dState.subLat >= 0 ? -90 : 90;
+    const pPole = g3dProjectPoint(poleLat, g3dState.viewLon, R, cx, cy);
+    if(pPole.visible) g3dCtx.lineTo(pPole.sx, pPole.sy);
+    g3dCtx.closePath();
+    g3dCtx.fill();
+    g3dCtx.restore();
+  }
+
+  g3dCtx.strokeStyle = day ? 'rgba(20,30,45,.4)' : 'rgba(200,220,255,.25)';
+  g3dCtx.lineWidth = 1.4;
+  g3dCtx.beginPath(); g3dCtx.arc(cx,cy,R,0,2*Math.PI); g3dCtx.stroke();
+
+  g3dHitTargets.length = 0;
+  if(document.getElementById('tglSpots').checked){
+    for(const s of g3dSpots){
+      const p = g3dProjectPoint(s.lat, s.lon, R, cx, cy);
+      if(!p.visible) continue;
+      const color = QSO_BAND_COLORS[s.band] || QSO_BAND_COLORS.default;
+      g3dCtx.beginPath();
+      g3dCtx.arc(p.sx, p.sy, s.new_mult ? 4.2 : 3, 0, 2*Math.PI);
+      g3dCtx.fillStyle = color;
+      g3dCtx.shadowColor = color; g3dCtx.shadowBlur = s.new_mult ? 10 : 4;
+      g3dCtx.fill();
+      g3dCtx.shadowBlur = 0;
+      if(s.new_mult){
+        g3dCtx.strokeStyle = '#FFD60A'; g3dCtx.lineWidth = 1.2;
+        g3dCtx.beginPath(); g3dCtx.arc(p.sx, p.sy, 7, 0, 2*Math.PI); g3dCtx.stroke();
+      }
+      g3dHitTargets.push({sx:p.sx, sy:p.sy, r:7, kind:'spot', data:s});
+    }
+  }
+
+  const myLL = cfg.locator ? locLL(cfg.locator) : null;
+  if(myLL){
+    const p = g3dProjectPoint(myLL.lat, myLL.lon, R, cx, cy);
+    if(p.visible){
+      g3dCtx.beginPath();
+      g3dCtx.arc(p.sx, p.sy, 5, 0, 2*Math.PI);
+      g3dCtx.fillStyle = getComputedStyle(document.body).getPropertyValue('--accent2');
+      g3dCtx.shadowColor = g3dCtx.fillStyle; g3dCtx.shadowBlur = 12;
+      g3dCtx.fill();
+      g3dCtx.shadowBlur = 0;
+      g3dCtx.strokeStyle = '#fff'; g3dCtx.lineWidth = 1.4;
+      g3dCtx.beginPath(); g3dCtx.arc(p.sx, p.sy, 8, 0, 2*Math.PI); g3dCtx.stroke();
+      g3dHitTargets.push({sx:p.sx, sy:p.sy, r:9, kind:'qth', data:null});
+    }
+  }
+}
+
+function g3dScheduleDraw(){ g3dNeedsDraw = true; }
+
+function g3dLoop(){
+  if(!g3dState.active) return;   // arrêtée dès qu'on repasse en 2D, pas de rAF pour rien
+  if(g3dState.autoRotate && !g3dState.dragging){
+    g3dState.viewLon = (g3dState.viewLon + 0.06) % 360;
+    g3dNeedsDraw = true;
+  }
+  if(g3dNeedsDraw) g3dDraw();
+  requestAnimationFrame(g3dLoop);
+}
+
+function g3dPointerDown(x, y){
+  g3dState.dragging = true; g3dState.lastX = x; g3dState.lastY = y;
+  g3dCanvas.classList.add('dragging');
+}
+function g3dPointerMove(x, y){
+  if(!g3dState.dragging){
+    const rect = g3dCanvas.getBoundingClientRect();
+    const px = (x - rect.left) * devicePixelRatio, py = (y - rect.top) * devicePixelRatio;
+    let hit = null;
+    for(const t of g3dHitTargets){
+      if(Math.hypot(t.sx-px, t.sy-py) <= t.r*devicePixelRatio){ hit = t; break; }
+    }
+    if(hit){
+      g3dTooltip.style.display = 'block';
+      g3dTooltip.style.left = (x - rect.left + 14) + 'px';
+      g3dTooltip.style.top = (y - rect.top + 10) + 'px';
+      g3dTooltip.innerHTML = hit.kind === 'qth' ? '<b>Mon QTH</b>' :
+        `<b>${hit.data.call||'—'}</b> · ${hit.data.band||'?'}m · ${hit.data.points||0} pts`
+        + (hit.data.new_mult ? ' · <span style="color:#FFD60A">nouveau mult.</span>' : '');
+    } else {
+      g3dTooltip.style.display = 'none';
+    }
+    return;
+  }
+  const dx = x - g3dState.lastX, dy = y - g3dState.lastY;
+  g3dState.viewLon = (g3dState.viewLon - dx*0.35 + 360) % 360;
+  g3dState.viewLat = Math.max(-85, Math.min(85, g3dState.viewLat + dy*0.35));
+  g3dState.lastX = x; g3dState.lastY = y;
+  g3dNeedsDraw = true;
+}
+function g3dPointerUp(){ g3dState.dragging = false; g3dCanvas.classList.remove('dragging'); }
+
+g3dCanvas.addEventListener('mousedown', e => g3dPointerDown(e.clientX, e.clientY));
+window.addEventListener('mousemove', e => { if(g3dState.active) g3dPointerMove(e.clientX, e.clientY); });
+window.addEventListener('mouseup', () => { if(g3dState.active) g3dPointerUp(); });
+g3dCanvas.addEventListener('touchstart', e => { const t=e.touches[0]; g3dPointerDown(t.clientX, t.clientY); }, {passive:true});
+g3dCanvas.addEventListener('touchmove', e => { const t=e.touches[0]; g3dPointerMove(t.clientX, t.clientY); e.preventDefault(); }, {passive:false});
+g3dCanvas.addEventListener('touchend', g3dPointerUp);
+g3dCanvas.addEventListener('wheel', e => {
+  if(!g3dState.active) return;
+  e.preventDefault();
+  g3dZoomBy(e.deltaY < 0 ? 1.1 : 0.9);
+}, {passive:false});
+
+function g3dZoomBy(f){
+  g3dState.scale = Math.max(0.55, Math.min(2.6, g3dState.scale*f));
+  g3dNeedsDraw = true;
+}
+function g3dRecenterQTH(){
+  const myLL = cfg.locator ? locLL(cfg.locator) : null;
+  if(myLL){ g3dState.viewLon = myLL.lon; g3dState.viewLat = myLL.lat; }
+  g3dState.scale = 1;
+  g3dNeedsDraw = true;
+}
+function g3dOnRotateToggle(){
+  g3dState.autoRotate = document.getElementById('tglRotate').checked;
+}
+
+// ─── Bascule 2D / 3D (un seul onglet, jamais les deux affichés) ────────────
+function toggleMapDimension(){
+  g3dState.active = !g3dState.active;
+  const btn = document.getElementById('dimToggleBtn');
+  const mapEl = document.getElementById('map');
+  const overlays2D = ['gcControl', 'carresControl', 'propControl'];
+  const overlays3D = ['globeControls', 'globeLegend'];
+
+  if(g3dState.active){
+    btn.textContent = '🗺️ 2D';
+    mapEl.style.display = 'none';
+    overlays2D.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+    g3dCanvas.style.display = 'block';
+    overlays3D.forEach(id => { document.getElementById(id).style.display = 'flex'; });
+    if(!g3dState.dataLoaded){
+      g3dState.dataLoaded = true;
+      g3dLoadWorldGeo();
+      g3dLoadWorldWorked();
+    }
+    g3dLoadSpots();
+    g3dNeedsDraw = true;
+    requestAnimationFrame(g3dLoop);
+  } else {
+    btn.textContent = '🌐 3D';
+    g3dCanvas.style.display = 'none';
+    overlays3D.forEach(id => { document.getElementById(id).style.display = 'none'; });
+    g3dTooltip.style.display = 'none';
+    mapEl.style.display = '';
+    overlays2D.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = ''; });
+    if(leafletMap) setTimeout(() => leafletMap.invalidateSize(), 50);
+  }
+}
+setInterval(() => { if(g3dState.active){ g3dLoadWorldWorked(); g3dLoadSpots(); } }, 90*1000);
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 loadConfig();
