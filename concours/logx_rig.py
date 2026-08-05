@@ -17,12 +17,14 @@ ou section "rig" de config.json. Toute erreur réseau retourne un dict
 """
 import socket
 import threading
+import concurrent.futures as _cf
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 4532
 TIMEOUT_S = 2.0
 
 _lock = threading.Lock()  # une commande CAT à la fois (rigctld est séquentiel)
+_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=2, thread_name_prefix='rig_cat')
 
 
 def rig_settings(cfg):
@@ -52,7 +54,7 @@ def _command(host, port, cmd):
     """Envoie UNE commande rigctld et retourne ses lignes de réponse.
     Le protocole répond soit des valeurs (une par ligne), soit 'RPRT n'
     (n=0 succès) pour les commandes de réglage."""
-    with _lock:
+    def _do():
         with socket.create_connection((host, port), timeout=TIMEOUT_S) as s:
             s.settimeout(TIMEOUT_S)
             s.sendall((cmd + '\n').encode('ascii', errors='replace'))
@@ -65,6 +67,12 @@ def _command(host, port, cmd):
                 if buf.endswith(b'\n') and _complete(cmd, buf):
                     break
             return [l.strip() for l in buf.decode('ascii', errors='replace').splitlines() if l.strip()]
+    with _lock:
+        # create_connection() ne borne pas la résolution DNS (getaddrinfo) —
+        # un hôte LAN mal résolu bloquerait indéfiniment ce thread. Executor
+        # borné pour garantir un retour même si le thread reste coincé.
+        fut = _EXECUTOR.submit(_do)
+        return fut.result(timeout=TIMEOUT_S + 3)
 
 
 def _complete(cmd, buf):

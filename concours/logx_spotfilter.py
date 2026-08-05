@@ -137,7 +137,7 @@ def _rejet(spot, r):
         # avant que lotw-user-activity.csv soit arrivé.
         if spot.get('lotw') is False:
             return 'seulement_lotw'
-    if r['seulement_besoins'] and not spot.get('lotw_need_ici'):
+    if r['seulement_besoins'] and spot.get('lotw_need_ici') is False:
         return 'seulement_besoins'
     return None
 

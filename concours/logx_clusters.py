@@ -757,6 +757,8 @@ def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, time
         after_login = read_until([b'choice', b'invalid', b'bad password'])
 
         raw = banner + pwd_prompt + after_login
+        if password in raw:
+            raw = raw.replace(password, '[MOT DE PASSE MASQUÉ]')
         login_failed = any(kw in raw.lower() for kw in ('invalid', 'incorrect', 'bad password', 'denied', 'refused'))
         if login_failed:
             s.close()

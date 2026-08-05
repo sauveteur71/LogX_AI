@@ -474,7 +474,7 @@ calldb_lock = threading.Lock()
 # ignore en revanche les séries sans 'entries' — impossible de reconstituer le
 # détail heure/indicatif/n° exigé par le format WAE-QTC a posteriori.
 qtc_log = []
-qtc_lock = threading.Lock()
+qtc_lock = threading.RLock()
 QTC_FILE = 'qtc_log.json'
 _qtc_next_id = 1   # prochain id de série à distribuer (voir next_qtc_id)
 

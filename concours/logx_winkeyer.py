@@ -171,6 +171,12 @@ def _ouvrir_locked(nom_port, wpm):
     try:
         _port.write(bytes([ADMIN, ADMIN_HOST_OPEN]))
         reponse = _port.read(1, timeout=2.0)
+        # Un octet d'état résiduel (MASQUE_ETAT) peut précéder la vraie
+        # réponse si le boîtier avait déjà quelque chose en attente.
+        essais = 0
+        while reponse and (reponse[0] & MASQUE_ETAT) == MASQUE_ETAT and essais < 4:
+            reponse = _port.read(1, timeout=0.5)
+            essais += 1
     except Exception as e:
         _fermer_locked()
         return 'WinKeyer injoignable sur %s (%s)' % (nom_port, e)

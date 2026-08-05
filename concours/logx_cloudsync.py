@@ -257,6 +257,15 @@ def _save_seen():
               # jamais la sync elle-même (même tolérance que _stamp())
 
 
+# Tolérance de dérive d'horloge distante (poste de DXpédition sans NTP — voir
+# logx_update.py) ou de saved_at non authentifié (secret d'équipe non
+# configuré, voir _verify_signed) : sans ça, UN SEUL saved_at anormalement
+# futur devient le plafond mémorisé À VIE dans cloudsync_seen.json et rejette
+# comme « rejeu » toutes les écritures légitimes suivantes de ce poste une
+# fois son horloge corrigée.
+_MAX_CLOCK_SKEW = 3600
+
+
 def _check_replay(basename, saved_at):
     """True si `saved_at` (authentifié par la signature — voir
     _verify_signed) du fichier `basename` est ANTÉRIEUR au plus grand déjà vu
@@ -264,7 +273,8 @@ def _check_replay(basename, saved_at):
     docstring du module) à rejeter. saved_at=None (fichier signé avant
     l'ajout de ce champ, ou secret non configuré — voir _verify_signed) :
     aucune protection authentifiée possible pour ce fichier, jamais considéré
-    comme un rejeu."""
+    comme un rejeu. Un saved_at anormalement futur (> _MAX_CLOCK_SKEW) n'est
+    jamais mémorisé comme nouveau plafond — voir _MAX_CLOCK_SKEW."""
     if saved_at is None:
         return False
     with _seen_lock:
@@ -272,7 +282,7 @@ def _check_replay(basename, saved_at):
         last = seen.get(basename)
         if last is not None and saved_at < last:
             return True
-        if last is None or saved_at > last:
+        if saved_at <= time.time() + _MAX_CLOCK_SKEW and (last is None or saved_at > last):
             seen[basename] = saved_at
             _save_seen()
         return False

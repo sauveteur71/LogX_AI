@@ -10,6 +10,7 @@ import re
 import datetime
 import ssl as _ssl
 import concurrent.futures as _cf
+import threading as _threading
 
 PORT = 8080
 CURRENT_YEAR = datetime.datetime.now().year
@@ -159,6 +160,29 @@ if hasattr(_ssl, 'VERIFY_X509_STRICT'):
 # créer un thread par appel (pas de fuite de threads en cas de dépassement).
 _FETCH_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix='fetch_url')
 
+_FETCH_LOCK = _threading.Lock()
+_FETCH_PENDING = 0
+
+def _submit_fetch(fn):
+    """Soumet au pool partagé ; si les 8 workers semblent tous bloqués
+    (DNS captif/muet), remplace le pool par un neuf au lieu de mettre en
+    file indéfiniment derrière des threads jamais revenus."""
+    global _FETCH_EXECUTOR, _FETCH_PENDING
+    with _FETCH_LOCK:
+        if _FETCH_PENDING >= 8:
+            _FETCH_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix='fetch_url')
+            _FETCH_PENDING = 0
+        _FETCH_PENDING += 1
+        executor = _FETCH_EXECUTOR
+    fut = executor.submit(fn)
+    fut.add_done_callback(lambda _f: _dec_fetch_pending())
+    return fut
+
+def _dec_fetch_pending():
+    global _FETCH_PENDING
+    with _FETCH_LOCK:
+        _FETCH_PENDING = max(0, _FETCH_PENDING - 1)
+
 
 def fetch_url(url, timeout=10, log_url=True):
     """Requête HTTP(S) réellement bornée dans le temps.
@@ -179,6 +203,8 @@ def fetch_url(url, timeout=10, log_url=True):
     mot de passe pour un indicatif court. Ces appelants passent log_url=False
     pour ne jamais journalier l'URL, seulement le type d'échec."""
     def _do():
+        if not url.lower().startswith(('http://', 'https://')):
+            raise ValueError('schéma non autorisé')
         req = urllib.request.Request(url, headers={
             'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
         })
@@ -187,7 +213,7 @@ def fetch_url(url, timeout=10, log_url=True):
             return resp.read().decode(charset, errors='replace')
 
     try:
-        fut = _FETCH_EXECUTOR.submit(_do)
+        fut = _submit_fetch(_do)
         return fut.result(timeout=timeout + 3)
     except Exception as e:
         if log_url:
@@ -201,6 +227,8 @@ def fetch_url_binary(url, timeout=10):
     les formats binaires (ex. classeur .ods de wcagroup.org), même bornage
     DNS/attente via le pool de threads partagé."""
     def _do():
+        if not url.lower().startswith(('http://', 'https://')):
+            raise ValueError('schéma non autorisé')
         req = urllib.request.Request(url, headers={
             'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
         })
@@ -208,7 +236,7 @@ def fetch_url_binary(url, timeout=10):
             return resp.read()
 
     try:
-        fut = _FETCH_EXECUTOR.submit(_do)
+        fut = _submit_fetch(_do)
         return fut.result(timeout=timeout + 3)
     except Exception as e:
         print(f"  [FETCH] {url[:60]}... -> {e}")
@@ -241,7 +269,7 @@ def post_url_json(url, payload, timeout=10, headers=None):
             return e.code, e.read().decode(charset, errors='replace')
 
     try:
-        fut = _FETCH_EXECUTOR.submit(_do)
+        fut = _submit_fetch(_do)
         return fut.result(timeout=timeout + 3)
     except Exception as e:
         print(f"  [FETCH] POST {url[:60]}... -> {e}")
@@ -271,7 +299,7 @@ def post_url_json_binary(url, payload, timeout=10, headers=None):
             return e.code, e.read()
 
     try:
-        fut = _FETCH_EXECUTOR.submit(_do)
+        fut = _submit_fetch(_do)
         return fut.result(timeout=timeout + 3)
     except Exception as e:
         print(f"  [FETCH] POST(bin) {url[:60]}... -> {e}")
@@ -300,7 +328,7 @@ def post_url_form(url, fields, timeout=10, headers=None):
             return e.code, e.read().decode(charset, errors='replace')
 
     try:
-        fut = _FETCH_EXECUTOR.submit(_do)
+        fut = _submit_fetch(_do)
         return fut.result(timeout=timeout + 3)
     except Exception as e:
         print(f"  [FETCH] POST {url[:60]}... -> {e}")

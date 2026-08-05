@@ -459,7 +459,6 @@
     el.textContent = band + ' MHz — ' + m + ':' + pad(s) + ' avant changement';
     el.style.color = remaining <= 60 ? 'var(--yellow,#FFD60A)' : 'var(--muted,#A9B0C8)';
   }
-  refreshRate();
   rcPoll(refreshRate, 60 * 1000);
 
   // ── Météo solaire (badge compact, toutes pages) ────────────────────────────
@@ -482,7 +481,6 @@
           : '';
       }).catch(function(){});
   }
-  refreshSolar();
   rcPoll(refreshSolar, 15 * 60 * 1000);        // aligné sur le cache serveur (15 min)
 
   // ── Balise NCDXF/IBP active maintenant (badge compact, toutes pages) ──────
@@ -521,7 +519,6 @@
           }).join(' · ')});
       }).catch(function(){});
   }
-  refreshBeacon();
   rcPoll(refreshBeacon, 5 * 1000);             // balises : changent toutes les 10 s
 
   // ── Foudre / orage au QTH (pastille d'alerte, toutes pages) ───────────────
@@ -645,7 +642,6 @@
         }
       }).catch(function(){ /* le serveur n'est pas indispensable pour la barre */ });
   }
-  refreshNetworkStatus();
   rcPoll(refreshNetworkStatus, 20 * 1000);
 
   // ── Thème jour/nuit GLOBAL (rc_theme, basculé sur config/carte/logbook) ───
@@ -1411,6 +1407,7 @@
     refreshUpdateCheck();
     refreshErrorsCheck();
     refreshStorm();   // après insert() : la pastille n'existe pas avant
+    refreshRate(); refreshSolar(); refreshBeacon(); refreshNetworkStatus();  // idem : éléments absents avant insert()
     // Purement local (aucune requête) : recalculé à chaque tick depuis
     // l'horloge et localStorage, donc juste à l'affichage même après un
     // passage en arrière-plan — pas la peine de les suspendre.

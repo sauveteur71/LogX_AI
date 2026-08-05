@@ -448,11 +448,8 @@ def extract_document_text(data_bytes, url=''):
 
 def download_rules_document(url, timeout=20):
     """Télécharge un règlement et retourne (texte, extracteur). Lève en cas d'échec."""
-    import urllib.request
-    from logx_utils import SSL_CTX
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
-        data = resp.read()
+    from logx_rules_ai import _download_bytes
+    data = _download_bytes(url, timeout=timeout)
     return extract_document_text(data, url)
 
 # Cache règlements en mémoire

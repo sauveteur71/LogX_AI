@@ -286,8 +286,10 @@ def _post(url, fields, files, timeout=60):
     req = urllib.request.Request(url, data=body, headers={
         'Content-Type': f'multipart/form-data; boundary={boundary}',
         'User-Agent': 'LogXAI'})
-    with urllib.request.urlopen(req, timeout=timeout, context=_ssl_ctx()) as r:
-        return r.read().decode('utf-8', 'replace')
+    def _do():
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_ctx()) as r:
+            return r.read().decode('utf-8', 'replace')
+    return _NET_EXECUTOR.submit(_do).result(timeout=timeout + 3)
 
 
 def upload_eqsl(cfg, adif):
@@ -344,9 +346,13 @@ def upload_qrzcq(cfg, adif):
                           'data': {'adif': adif}}).encode('utf-8')
     req = urllib.request.Request(QRZCQ_UPLOAD_URL, data=payload, headers={
         'Content-Type': 'application/json', 'User-Agent': 'LogXAI'})
-    try:
+    def _do():
         with urllib.request.urlopen(req, timeout=30, context=_ssl_ctx()) as r:
-            resp_text = r.read().decode('utf-8', 'replace')
+            return r.read().decode('utf-8', 'replace')
+    try:
+        resp_text = _NET_EXECUTOR.submit(_do).result(timeout=33)
+    except _cf.TimeoutError:
+        return {'ok': False, 'error': 'QRZCQ injoignable : délai dépassé'}
     except Exception as e:
         return {'ok': False, 'error': f'QRZCQ injoignable : {e}'}
     try:
@@ -416,7 +422,9 @@ def upload_hrdlog(cfg, qsos):
         ok_one = False
         for host in HRDLOG_HOSTS:
             try:
-                resp = _hrdlog_post_one(host, s['hrdlog_callsign'], s['hrdlog_code'], record)
+                resp = _NET_EXECUTOR.submit(
+                    _hrdlog_post_one, host, s['hrdlog_callsign'], s['hrdlog_code'], record
+                ).result(timeout=11)
             except Exception as e:
                 last_error = str(e)
                 continue

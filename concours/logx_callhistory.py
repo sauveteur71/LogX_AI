@@ -64,7 +64,7 @@ _LOC_RE = re.compile(r'^[A-R]{2}[0-9]{2}([A-X]{2})?$', re.I)
 # Un vrai indicatif contient TOUJOURS au moins un chiffre (préfixe + chiffre +
 # suffixe) — le lookahead écarte les mots ordinaires qu'un fichier tiers mal
 # formé pourrait faire passer pour un indicatif (ex. un commentaire sans '#').
-_CALL_TOKEN_RE = re.compile(r'^(?=.*\d)[A-Z0-9/]{2,15}$')
+_CALL_TOKEN_RE = re.compile(r'^(?=.*\d)(?=.*[A-Z])[A-Z0-9/]{2,15}$')
 
 
 def _norm_loc(loc):
@@ -100,11 +100,16 @@ def _feed(call, dept=None, locator=None, count=0, date=None):
 
 def _feed_qso(q):
     """Observation depuis un QSO réel : le locator reçu fait foi ; le
-    département vient de l'échange si le module départements le reconnaît."""
+    département vient de l'échange seulement si le concours de CE QSO
+    attend un département (même collision zone/série évitée que pour
+    parse_n1mm_call_history, voir dept_applicable)."""
     dept = None
     try:
         from logx_departments import dept_from_exchange
-        dept = dept_from_exchange(str(q.get('num_rcvd', '')))
+        from logx_definitions import CONTEST_DEFINITIONS
+        cdef = CONTEST_DEFINITIONS.get(str(q.get('contest', '')).strip().upper(), {})
+        if exchange_wants(cdef)['dept']:
+            dept = dept_from_exchange(str(q.get('num_rcvd', '')))
     except Exception:
         pass
     _feed(q.get('call'), dept=dept, locator=q.get('locator'),

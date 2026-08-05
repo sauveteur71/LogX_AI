@@ -35,5 +35,5 @@ self.addEventListener('fetch', e => {
       caches.open(CACHE).then(c => c.put(req, copy));
     }
     return res;
-  }).catch(() => caches.match(req).then(hit => hit || caches.match('/logx_logbook.html'))));
+  }).catch(() => caches.match(req).then(hit => hit || (req.mode === 'navigate' ? caches.match('/logx_logbook.html') : undefined))));
 });

@@ -71,8 +71,7 @@ class KpaAmp:
         self.t = transport
 
     def _cmd(self, name, data=''):
-        self.t.write(f'^{name}{data};'.encode('ascii'))
-        return self.t.read_until(b';', timeout=1.0).decode('ascii', errors='replace')
+        return self.t.transceive(f'^{name}{data};'.encode('ascii'), b';', timeout=1.0).decode('ascii', errors='replace')
 
     def _get(self, name):
         """Envoie le GET (nom seul) et retourne les données de la réponse, ou
@@ -155,8 +154,7 @@ class IcomAmp:
 
     def _get(self, cmd, sub=None):
         frame = civ_build_frame(self.addr, cmd, sub)
-        self.t.write(frame)
-        raw = self.t.read_until(CIV_END, timeout=1.0)
+        raw = self.t.transceive(frame, CIV_END, timeout=1.0)
         parsed = civ_parse_frame(raw)
         # Garde-fou de sens (même piège que CivRadio._query() dans
         # logx_cat.py, corrigé en même temps) : une vraie réponse ampli->PC
@@ -173,8 +171,7 @@ class IcomAmp:
 
     def _set(self, cmd, sub=None, data=b''):
         frame = civ_build_frame(self.addr, cmd, sub, data)
-        self.t.write(frame)
-        raw = self.t.read_until(CIV_END, timeout=1.0)
+        raw = self.t.transceive(frame, CIV_END, timeout=1.0)
         # civ_parse_frame() valide la structure complète (préambule/fin,
         # longueur) avant qu'on ne regarde le sens — l'indexation brute
         # raw[2]/raw[3] d'avant ne le faisait pas (trouvé en revue
@@ -327,8 +324,7 @@ class SpeAmp:
         self.t.write(spe_build_packet([SPE_CMD[n] for n in names]))
 
     def get_status(self):
-        self._send_keys('status')
-        raw = self.t.read_until(b'\n', timeout=1.0)
+        raw = self.t.transceive(spe_build_packet([SPE_CMD['status']]), b'\n', timeout=1.0)
         parsed = spe_parse_status(raw)
         if not parsed:
             return {'ok': False, 'error': 'Pas de réponse STATUS (SPE) — '

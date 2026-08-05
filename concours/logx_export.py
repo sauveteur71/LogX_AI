@@ -17,7 +17,8 @@ CABRILLO_FREQ = {
     '24048': '24G', '47088': '47G',
 }
 CABRILLO_MODE = {'SSB': 'PH', 'USB': 'PH', 'LSB': 'PH', 'FM': 'FM',
-                 'CW': 'CW', 'RTTY': 'RY', 'DIGI': 'DG', 'FT8': 'DG', 'FT4': 'DG'}
+                 'CW': 'CW', 'RTTY': 'RY', 'DIGI': 'DG', 'FT8': 'DG', 'FT4': 'DG',
+                 'FT2': 'DG', 'PSK': 'DG'}
 # CATEGORY-BAND : vocabulaire Cabrillo v3, en LONGUEUR D'ONDE et non en
 # fréquence — « 20M », pas « 14 ». Un log mono-bande déclaré ALL concourt dans
 # la mauvaise catégorie.
@@ -25,6 +26,7 @@ CABRILLO_CATEGORY_BAND = {
     '1.8': '160M', '3.5': '80M', '7': '40M', '10.1': '30M', '14': '20M',
     '18': '17M', '21': '15M', '24': '12M', '28': '10M', '50': '6M',
     '70': '4M', '144': '2M', '432': '70CM', '1296': '23CM',
+    '2320': '13CM', '3400': '9CM', '5760': '6CM', '10368': '3CM',
 }
 
 # Bande interne → bande ADIF

@@ -235,7 +235,7 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
     # Le modèle vient de la CONFIGURATION ; celui que passe l'appelant n'est
     # retenu que s'il appartient au fournisseur configuré (voir modele_effectif).
     ai_model = modele_effectif(provider, model, (cfg or {}).get('ai_model'))
-    api_key = (cfg or {}).get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+    api_key = (cfg or {}).get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
     if not api_key:
         raise RuntimeError('Clé API non configurée')
 
@@ -319,7 +319,7 @@ def call_llm_stream(cfg, system_prompt, messages, model=None, max_tokens=4096, o
     flux, pour ne pas dupliquer une 4e fois la sélection de fournisseur."""
     provider = (cfg or {}).get('api_provider', 'anthropic')
     ai_model = modele_effectif(provider, model, (cfg or {}).get('ai_model'))
-    api_key = (cfg or {}).get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+    api_key = (cfg or {}).get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
     if not api_key:
         raise RuntimeError('Clé API non configurée')
 
@@ -384,6 +384,7 @@ ACTION_TOOLS = [
             'properties': {
                 'azimut': {'type': 'number', 'description': 'azimut vrai en degrés (0-360)'},
                 'cible': {'type': 'string', 'description': 'libellé court (indicatif/région) pour la confirmation'},
+                'bande': {'type': 'string', 'description': "bande de la cible si connue (ex: '20m', '144MHz'), pour pointer l'antenne dédiée à cette bande (décalage mécanique compris)"},
             },
             'required': ['azimut', 'cible'],
         },
@@ -413,7 +414,7 @@ def call_llm_actions(cfg, system_prompt, messages, max_tokens=1024):
     jamais."""
     provider = (cfg or {}).get('api_provider', 'anthropic')
     ai_model = modele_effectif(provider, None, (cfg or {}).get('ai_model'))
-    api_key = (cfg or {}).get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+    api_key = (cfg or {}).get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
     if not api_key:
         raise RuntimeError('Clé API non configurée')
     if provider != 'anthropic':
@@ -454,7 +455,8 @@ def pending_action_from_tool(action):
             return None
         if not (0 <= az <= 360) or not math.isfinite(az):
             return None
-        return {'type': 'rotor', 'azimut': round(az), 'cible': str(inp.get('cible', ''))[:40]}
+        return {'type': 'rotor', 'azimut': round(az), 'cible': str(inp.get('cible', ''))[:40],
+                'bande': str(inp.get('bande', ''))[:16]}
     if tool == 'qsy_radio':
         try:
             khz = float(inp.get('freq_khz'))
@@ -522,6 +524,21 @@ config_lock = threading.Lock()
 # ─── CACHE DXMAPS POUR LE COACH (TTL 10 min) ─────────────────────────────────
 _coach_dxmaps_cache = None
 _coach_dxmaps_ts = 0
+_coach_dxmaps_lock = threading.Lock()
+
+def _refresh_coach_dxmaps_async():
+    global _coach_dxmaps_cache, _coach_dxmaps_ts
+    if not _coach_dxmaps_lock.acquire(blocking=False):
+        return
+    def _run():
+        global _coach_dxmaps_cache, _coach_dxmaps_ts
+        try:
+            _coach_dxmaps_cache = fetch_dxmaps_vhf()
+        except Exception:
+            _coach_dxmaps_cache = None
+        _coach_dxmaps_ts = time.time()
+        _coach_dxmaps_lock.release()
+    threading.Thread(target=_run, daemon=True).start()
 
 # ─── TOKEN D'AUTHENTIFICATION PARTAGÉ ────────────────────────────────────────
 # Priorité : config.json server.auth_token > fichier .auth_token > généré et
@@ -2199,7 +2216,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import traceback
                 tb = traceback.format_exc()
                 print(f"[DATA] ERREUR refresh : {e}\n{tb}")
-                self._json({'error': str(e), 'traceback': tb}, 500)
+                self._json({'error': str(e)}, 500)
             return
 
         # Chat multi-opérateur — récupérer les messages depuis un id donné
@@ -2335,13 +2352,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             cdef = CONTEST_DEFINITIONS.get(cfg_snapshot.get('contest', ''), {})
             bands = [str(b) for b in cdef.get('bands', [])]
             if bands and not any(b in coach.HF_BANDS for b in bands):
-                global _coach_dxmaps_cache, _coach_dxmaps_ts
                 if time.time() - _coach_dxmaps_ts > 600:
-                    try:
-                        _coach_dxmaps_cache = fetch_dxmaps_vhf()
-                    except Exception:
-                        _coach_dxmaps_cache = None
-                    _coach_dxmaps_ts = time.time()
+                    _refresh_coach_dxmaps_async()
                 dxmaps = _coach_dxmaps_cache
             # Densité de nouveaux mults sur le cluster (caches, pas de réseau)
             mult_count = None
@@ -2899,7 +2911,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/departments_worked':
             import logx_departments as dep
             cfg_snap = self._cfg_snapshot()
-            self._json(dep.departments_progress(shared_log, cfg_scope_id(cfg_snap)))
+            with log_lock:
+                log_copy = list(shared_log)
+            self._json(dep.departments_progress(log_copy, cfg_scope_id(cfg_snap)))
             return
 
         # Chasse aux départements : manquants + stations connues, croisés avec
@@ -3821,7 +3835,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_alerts as alerts
             cfg_snap = self._cfg_snapshot()
             ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
-            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15AA')
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
             # Toutes les correspondances (pas seulement les 40 affichées) : une
             # règle d'alerte doit pouvoir signaler un spot même hors du top
             # valeur affiché — les critères d'alerte ne sont pas ceux du score.
@@ -4644,7 +4658,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 imported, updated, skipped, errors = [], [], [], {}
                 for cid, entry in contests.items():
-                    cid = str(cid).upper()
+                    cid = re.sub(r'[^A-Z0-9_]', '', str(cid).upper())
+                    if not cid:
+                        continue
                     definition = entry.get('definition', entry) if isinstance(entry, dict) else None
                     errs = validate_definition(definition, cid)
                     if errs:
@@ -4696,7 +4712,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 with config_lock:
                     current_config = cfg
-                save_json_atomic(SERVER_CONFIG_FILE, cfg)
+                    save_json_atomic(SERVER_CONFIG_FILE, cfg)
                 # /log/list filtre désormais par portée (concours+année, voir
                 # active_scope_id) : changer de concours/mode d'usage change ce
                 # que CETTE portée désigne sans qu'aucun QSO n'ait bougé — sans
@@ -4773,7 +4789,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with config_lock:
                     current_config['ui_theme'] = theme
                     snap = dict(current_config)
-                save_json_atomic(SERVER_CONFIG_FILE, snap)
+                    save_json_atomic(SERVER_CONFIG_FILE, snap)
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
@@ -4876,7 +4892,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with config_lock:
                     current_config['spot_filter'] = propre
                     snap = dict(current_config)
-                save_json_atomic(SERVER_CONFIG_FILE, snap)
+                    save_json_atomic(SERVER_CONFIG_FILE, snap)
                 self._json({'ok': True, 'spot_filter': propre,
                             'actif': spotfilter.actif(propre)})
             except Exception as e:
@@ -5628,28 +5644,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # toujours répondre 0, cassant le plafond réglementaire de 10
                 # QTC par station.
                 scope_id = active_scope_id(cfg_snap)
-                already = qtc_count_for_call(call, scope_id)
-                if call and already + count > 10:
-                    self._json({'ok': False,
-                                'error': f"Max 10 QTC par station — déjà {already} "
-                                         f"avec {call}"}, 400)
-                    return
-                now_utc = utcnow()
-                entry = {'id': next_qtc_id(), 'call': call, 'count': count,
-                         'contest': cid, 'date': now_utc.strftime('%Y%m%d'),
-                         'time': now_utc.strftime('%H:%M'), 'direction': direction}
-                if payload.get('band'):
-                    entry['band'] = str(payload['band']).strip()
-                if payload.get('mode'):
-                    entry['mode'] = str(payload['mode']).upper().strip()
-                if payload.get('series_number'):
-                    try:
-                        entry['series_number'] = int(payload['series_number'])
-                    except (TypeError, ValueError):
-                        pass
-                if entries:
-                    entry['entries'] = entries
                 with qtc_lock:
+                    already = qtc_count_for_call(call, scope_id)
+                    if call and already + count > 10:
+                        self._json({'ok': False,
+                                    'error': f"Max 10 QTC par station — déjà {already} "
+                                             f"avec {call}"}, 400)
+                        return
+                    now_utc = utcnow()
+                    entry = {'id': next_qtc_id(), 'call': call, 'count': count,
+                             'contest': cid, 'date': now_utc.strftime('%Y%m%d'),
+                             'time': now_utc.strftime('%H:%M'), 'direction': direction}
+                    if payload.get('band'):
+                        entry['band'] = str(payload['band']).strip()
+                    if payload.get('mode'):
+                        entry['mode'] = str(payload['mode']).upper().strip()
+                    if payload.get('series_number'):
+                        try:
+                            entry['series_number'] = int(payload['series_number'])
+                        except (TypeError, ValueError):
+                            pass
+                    if entries:
+                        entry['entries'] = entries
                     qtc_log.append(entry)
                 save_qtc_to_disk()
                 print(f"[QTC] +{count} avec {call or '?'} ({direction})")
@@ -6166,7 +6182,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not call:
                     self._json({'error': 'Indicatif manquant'}, 400)
                     return
-                api_key = cfg_snap.get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+                provider = cfg_snap.get('api_provider', 'anthropic')
+                api_key = cfg_snap.get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
                 if not api_key:
                     self._json({'error': 'Clé API non configurée'}, 400)
                     return
@@ -6223,7 +6240,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "en une phrase.")
                 needs_context = payload.get('needs_context', True)
                 system_prompt = payload.get('system') or (build_system_prompt(cfg_snap) if cfg_snap else '')
-                api_key = cfg_snap.get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+                provider = cfg_snap.get('api_provider', 'anthropic')
+                api_key = cfg_snap.get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
                 if not api_key:
                     self._json({'error': 'Clé API non configurée'}, 400)
                     return
@@ -6280,7 +6298,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 provider = cfg_snap.get('api_provider', 'anthropic')
                 model = modele_effectif(provider, None, cfg_snap.get('ai_model'))
-                api_key = cfg_snap.get('api_key', '') or os.environ.get('ANTHROPIC_API_KEY', '')
+                api_key = cfg_snap.get('api_key', '') or (os.environ.get('ANTHROPIC_API_KEY', '') if provider == 'anthropic' else '')
                 if not api_key:
                     self._json({'error': 'Clé API non configurée'}, 400)
                     return
@@ -6397,7 +6415,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             provider = cfg_snap.get('api_provider', 'anthropic')
             ai_model = modele_effectif(provider, None, cfg_snap.get('ai_model'))
             api_key  = cfg_snap.get('api_key', '')
-            if not api_key:
+            if not api_key and provider == 'anthropic':
                 api_key = os.environ.get('ANTHROPIC_API_KEY', '')
             print(f"[API] Fournisseur={provider} Modele={ai_model}")
             try:
@@ -6824,7 +6842,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _client_authorized(self):
         tok = self.headers.get('X-RC-Token', '')
         if not tok:
-            m = re.search(r'(?:^|;\s*)rc_token=([0-9a-fA-F]+)', self.headers.get('Cookie', ''))
+            m = re.search(r'(?:^|;\s*)rc_token=([^;]+)', self.headers.get('Cookie', ''))
             if m:
                 tok = m.group(1)
         import secrets as _secrets
@@ -6968,6 +6986,11 @@ form.addEventListener('submit', async (e) => {{
         du serveur (ThreadingHTTPServer crée un thread par connexion, sans
         plafond)."""
         ip = self.client_address[0]
+        te = (self.headers.get('Transfer-Encoding') or '').strip().lower()
+        if te and te != 'identity':
+            self.close_connection = True
+            self._json({'ok': False, 'error': "Transfer-Encoding non supporté"}, 411)
+            return
         # Throttle AVANT même de lire le corps : le calcul qu'on protège
         # (PBKDF2) n'a pas encore eu lieu, autant rejeter au plus tôt.
         if _login_rate_limited(ip):

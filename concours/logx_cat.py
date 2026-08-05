@@ -1187,6 +1187,11 @@ class SerialPort:
                 if on_frame(frame):
                     return
 
+    def read_until(self, terminator, timeout=1.0):
+        with self._lock:
+            self._ser.timeout = timeout
+            return self._ser.read_until(terminator)
+
     def close(self):
         try:
             self._ser.close()

@@ -12,6 +12,7 @@ Ce module fournit :
   multiplicateur des concours REF « dept_dxcc », inconnaissable au spot).
 """
 import re
+import threading
 from logx_storage import qso_scope_id
 
 # Départements métropolitains 01-95 + Corse (2A/2B) + Île-de-France + DOM 971-976
@@ -104,6 +105,7 @@ DOM = ['971', '972', '973', '974', '975', '976']
 GEOJSON_FILE = 'france_departements.geojson'
 GEOJSON_URL = ('https://raw.githubusercontent.com/gregoiredavid/france-geojson/'
                'master/departements-version-simplifiee.geojson')
+_dl_lock = threading.Lock()
 
 
 # ─── LOCATOR → DÉPARTEMENT (point dans polygone) ─────────────────────────────
@@ -388,12 +390,20 @@ def load_france_geojson():
         except Exception:
             pass
     from logx_utils import fetch_url
-    data = fetch_url(GEOJSON_URL, timeout=30)
-    if data and len(data) > 100000 and 'FeatureCollection' in data:
-        try:
-            with open(GEOJSON_FILE, 'w', encoding='utf-8', newline='') as f:
-                f.write(data)
-        except Exception:
-            pass
-        return data
+    with _dl_lock:
+        # une autre requête a pu écrire le fichier pendant l'attente du verrou
+        if os.path.exists(GEOJSON_FILE):
+            try:
+                with open(GEOJSON_FILE, encoding='utf-8') as f:
+                    return f.read()
+            except Exception:
+                pass
+        data = fetch_url(GEOJSON_URL, timeout=30)
+        if data and len(data) > 100000 and 'FeatureCollection' in data:
+            try:
+                with open(GEOJSON_FILE, 'w', encoding='utf-8', newline='') as f:
+                    f.write(data)
+            except Exception:
+                pass
+            return data
     return ''

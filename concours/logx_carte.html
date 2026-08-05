@@ -807,7 +807,7 @@ function drawLoggedQSOs(){
   if(!myLL) return;
 
   let qsoLog = [];
-  try{ qsoLog = JSON.parse(localStorage.getItem('logx_qsolog')||'[]'); }catch(e){}
+  try{ qsoLog = JSON.parse(localStorage.getItem('rc_log_backup')||'[]'); }catch(e){}
   if(!qsoLog.length) return;
 
   // Dédupliquer par call+locator
@@ -831,7 +831,7 @@ function drawLoggedQSOs(){
 
     // Marqueur "tick vert"
     const html = `<div style="position:relative;width:0;height:0">
-      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:12px;font-weight:bold;color:${col};text-shadow:0 0 4px ${col};transform:translate(-50%,-24px)">${q.call}</div>
+      <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:12px;font-weight:bold;color:${col};text-shadow:0 0 4px ${col};transform:translate(-50%,-24px)">${escMap(q.call)}</div>
       <div style="position:absolute;width:12px;height:12px;border-radius:50%;background:${col};opacity:0.9;border:2px solid #fff;box-shadow:0 0 6px ${col};transform:translate(-50%,-50%)"></div>
     </div>`;
     const icon = L.divIcon({html, className:'rc-qso-icon', iconSize:[0,0], iconAnchor:[0,0]});
@@ -839,9 +839,9 @@ function drawLoggedQSOs(){
     const capDeg = bearingLL(myLL.lat,myLL.lon,pos.lat,pos.lon);
     mk.bindPopup(
       `<div style="font-family:monospace;font-size:14px;line-height:1.7">` +
-      `<b style="color:${col}">${q.call}</b> ✅<br>` +
-      `📍 ${q.locator}<br>` +
-      `📡 ${bandLabel} — ${q.mode}<br>` +
+      `<b style="color:${col}">${escMap(q.call)}</b> ✅<br>` +
+      `📍 ${escMap(q.locator)}<br>` +
+      `📡 ${bandLabel} — ${escMap(q.mode)}<br>` +
       `📏 ${q.dist||'?'} km${contestActif ? ` — 🏆 ${q.points||0} ${rcT('pts')}` : ''}<br>` +
       `🧭 ${rcT('Cap antenne :')} ${capDeg}° ${cardinalLL(capDeg)}` +
       `</div>`
@@ -892,6 +892,7 @@ const CQ_ZONES = [
 function locLL(loc){
   if(!loc||loc.length<6)return null;
   const l=loc.toUpperCase();
+  if(!/^[A-R]{2}[0-9]{2}[A-X]{2}/.test(l))return null;
   try{
     const lon=(l.charCodeAt(0)-65)*20-180+parseInt(l[2])*2+(l.charCodeAt(4)-65)*(2/24)+1/24;
     const lat=(l.charCodeAt(1)-65)*10-90+parseInt(l[3])+(l.charCodeAt(5)-65)*(1/24)+0.5/24;
@@ -1500,7 +1501,7 @@ async function execAction(action,card,yes,no){
     let r;
     if(action.type==='rotor'){
       const b={azimuth:action.azimut};
-      if(typeof currentBand!=='undefined'&&currentBand) b.bande=currentBand;
+      if(action.bande) b.bande=action.bande;
       r=await fetch('/rotor/point',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
     }else{
       const b={freq_khz:action.freq_khz}; if(action.mode) b.mode=action.mode;

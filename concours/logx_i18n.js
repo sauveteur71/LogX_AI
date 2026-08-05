@@ -6323,6 +6323,11 @@
   };
 
   // Comme rcT mais avec des placeholders {clé} remplacés par params.clé.
+  // AUCUN échappement HTML n'est appliqué aux valeurs de params : si le
+  // résultat est injecté via innerHTML (pas textContent) et qu'un paramètre
+  // vient d'une source externe (spot cluster, callbook, message d'erreur
+  // réseau...), l'appelant DOIT échapper la valeur avant de l'y passer
+  // (voir escHtml() dans logx_statusbar.js ou esc() dans logx_wall.html).
   window.rcTf = function (fr, params) {
     let s = window.rcT(fr);
     if (params) for (const k in params) s = s.split('{' + k + '}').join(params[k]);
