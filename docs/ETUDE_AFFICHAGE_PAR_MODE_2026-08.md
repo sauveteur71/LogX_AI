@@ -87,7 +87,14 @@ barre, déjà un principe établi sur ce projet), et c'est le contenu de la
 page CHASSE elle-même qui pourrait afficher un bandeau discret en mode
 expédition du type « vous activez actuellement [référence] — la chasse
 aux autres stations est secondaire pendant une activation », sans rien
-cacher. Pas de urgence à trancher seul : voir la question posée plus bas.
+cacher.
+
+**✅ IMPLÉMENTÉ (05/08/2026, `72ef73d`)** — bandeau discret retenu (option
+proposée ci-dessus), sans toucher au lien de nav. `verifierBandeauExpedition()`
+dans `logx_chasse.html` : affiché uniquement si `usage_mode==='expedition'`
+ET une activation est configurée (`activation_program`+`my_activation_ref`),
+avec le texte exact proposé plus haut. Se met aussi à jour si CONFIG est
+modifiée dans un autre onglet (event `storage`).
 
 ### 2. Décodeur CW/RTTY/SSTV — déjà bien fait, un point à vérifier
 
@@ -100,8 +107,15 @@ façon pas basculer sa saisie sur CW, le décodeur reste en pratique
 inatteignable pour le cas « exceptionnellement, je veux décoder du CW »
 que vous citiez — il faudrait alors un accès indépendant du mode de
 saisie (ex. depuis le menu DÉBUT/FIN, ou un raccourci dédié), plutôt que
-de dépendre d'un changement de mode de saisie. **Point à vérifier avant
-d'agir — voir la question posée plus bas.**
+de dépendre d'un changement de mode de saisie.
+
+**✅ CONFIRMÉ ET CORRIGÉ (05/08/2026, `72ef73d`)** — vérification faite :
+`renderModeButtons()` ne propose bien QUE les modes cochés dans CONFIG >
+MODES, donc le décodeur CW était réellement injoignable sans CW activé.
+Fix : bouton dédié `#cwForceBtn` dans la barre d'outils du band map
+(`toggleCwPanelForce()`, `logx_logbook.js`), qui force l'ouverture du
+panneau `#cwPanel` indépendamment du mode de saisie courant, sans toucher
+aux macros CW ni au keyer vocal (qui restent liés au vrai mode radio).
 
 ### 3. CONFIG — hub toujours identique quel que soit le mode
 
@@ -136,8 +150,8 @@ avant) · ➖ déjà masqué par défaut (mécanisme existant) · — non concer
 | Fonction | SIMPLE | CONCOURS | EXPÉDITION | RADIOCLUB | État actuel |
 |---|---|---|---|---|---|
 | Band map / spots cluster | ✅ | ✅ | ✅ | ✅ | conforme |
-| CHASSE (POTA/SOTA/WWFF/DXped.) | ✅ | ✅ | 🔸 *(proposé)* | ✅ | **écart §1** |
-| Décodeur CW/RTTY/SSTV | dépend du mode radio, pas du mode d'usage | | | | conforme, à vérifier §2 |
+| CHASSE (POTA/SOTA/WWFF/DXped.) | ✅ | ✅ | 🔸 *(bandeau)* | ✅ | **§1 corrigé** |
+| Décodeur CW/RTTY/SSTV | dépend du mode radio, pas du mode d'usage — accès forcé possible via `#cwForceBtn` | | | | **§2 corrigé** |
 | Macros CW / Keyer vocal | dépend du mode radio + bascule débutant/expert | | | | conforme |
 | Wait & Pounce (FT8/FT4) | dépend de WSJT-X connecté | | | | conforme |
 | QTC WAE | dépend du règlement (WAEDC) | | | | conforme |
@@ -149,14 +163,12 @@ avant) · ➖ déjà masqué par défaut (mécanisme existant) · — non concer
 | PANADAPTER, WEBSDR, FOCUS, CALENDRIER, CARTE IA, PROPAG | ✅ | ✅ | ✅ | ✅ | pages annexes, jamais gênantes en continu — pas de raison de filtrer |
 | École CW | ✅ | ✅ | ✅ | ✅ | entraînement, hors session — pas concerné |
 
-## Ce qui reste à décider avant d'implémenter quoi que ce soit
+## Statut
 
-Je n'ai touché à aucun code pour cette étude — c'est un rapport, pas une
-implémentation. Deux questions concrètes avant d'agir sur les 2 écarts
-trouvés :
-1. Pour CHASSE en mode EXPÉDITION : bandeau discret dans la page (proposé
-   ci-dessus), ou une autre idée (ex. re-ranger le lien de nav en dernier
-   sans le cacher) ?
-2. Pour le décodeur CW hors mode CW activé : faut-il vérifier/corriger
-   l'accès indépendant du mode de saisie (petit chantier), ou est-ce déjà
-   couvert autrement (bouton dédié que je n'aurais pas trouvé) ?
+Les 2 écarts trouvés (§1 et §2) sont implémentés et fusionnés sur `main`
+le 05/08/2026 (commit `72ef73d`, suite à la réponse F4GLD « oui les
+deux »). Détails d'implémentation et pièges rencontrés (CSS `display`
+dupliqué, test à regex exacte cassé par un changement légitime) :
+mémoire `chantier-cw-hors-mode-bandeau-expedition-2026-08`. Les points §3
+(CONFIG) et §4 (écran mural/multi-poste) restent volontairement non
+modifiés, comme recommandé plus haut.
