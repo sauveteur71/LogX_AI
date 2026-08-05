@@ -61,10 +61,21 @@ button.pa-btn.on{background:var(--green);border-color:var(--green);color:#001a08
 .niveau{font-size:11px;color:var(--muted);min-width:150px}
 .clock{margin-left:auto;font-size:12px;color:var(--muted)}
 .scopewrap{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 14px 6px;gap:2px}
-#specCanvas{width:100%;height:130px;flex-shrink:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px 8px 0 0;border-bottom:none}
+.spec-wrap{position:relative;flex-shrink:0}
+#specCanvas{width:100%;height:130px;flex-shrink:0;display:block;background:var(--bg2);border:1px solid var(--border);border-radius:8px 8px 0 0;border-bottom:none}
 #axisCanvas{width:100%;height:18px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);border-right:1px solid var(--border)}
 #waterCanvas{width:100%;flex:1;min-height:0;background:#000;border:1px solid var(--border);border-radius:0 0 8px 8px;border-top:none}
 .empty-note{position:absolute;pointer-events:none}
+/* Spots du cluster superposés au spectre, comme sur le band map (demande
+   F4GLD 04/08/2026) — voir plageHzActuelle()/dessinerSpotsOverlay(). Un
+   repère par spot dont la fréquence tombe dans la plage RF actuellement
+   affichée ; rien du tout si cette plage n'est pas calculable (ex. audio
+   sans échelle RF cochée : pas de fréquence absolue à quoi les rattacher). */
+.spot-overlay{position:absolute;top:0;left:0;right:0;height:100%;pointer-events:none;overflow:hidden}
+.spot-mark{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--c);pointer-events:auto;cursor:pointer}
+.spot-mark .lbl{position:absolute;top:2px;left:3px;font-size:9px;color:var(--c);white-space:nowrap;
+  text-shadow:0 0 3px var(--bg2),0 0 3px var(--bg2),0 0 3px var(--bg2)}
+.spot-mark:hover .lbl{font-weight:700;text-decoration:underline}
 footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 </style>
 </head>
@@ -109,7 +120,10 @@ footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-si
   <span class="clock" id="clock">--:--:--</span>
 </header>
 <div class="scopewrap">
-  <canvas id="specCanvas"></canvas>
+  <div class="spec-wrap">
+    <canvas id="specCanvas"></canvas>
+    <div class="spot-overlay" id="spotOverlay"></div>
+  </div>
   <canvas id="axisCanvas"></canvas>
   <canvas id="waterCanvas"></canvas>
 </div>
@@ -185,6 +199,10 @@ if(localStorage.getItem('rc_theme') === null){
     }catch(e){}
   }
   pollRig(); setInterval(pollRig, 4000);
+
+  // Spots du cluster (voir chargerSpotsCluster()/dessinerSpotsOverlay() plus
+  // bas) : indépendant de la source active, même cadence que le band map.
+  chargerSpotsCluster(); setInterval(chargerSpotsCluster, 15000);
 
   // ── Source du spectre : "audio" (AnalyserNode local) ou "civ" (scope CI-V
   // natif de la radio, pollé côté serveur) ─────────────────────────────────
@@ -304,6 +322,44 @@ if(localStorage.getItem('rc_theme') === null){
     return binsAffiches(maxHz);
   }
 
+  // Bornes RF RÉELLES (Hz) de l'axe actuellement affiché : hz0 = fréquence
+  // au pixel gauche, hzW = fréquence au pixel droit — PAS forcément hz0 <
+  // hzW (LSB inverse le sens, voir plus bas). null si aucune fréquence RF
+  // absolue n'est calculable dans le mode/état courant (CI-V/TCI pas
+  // encore connectés, ou audio SANS échelle RF cochée : l'axe reste alors
+  // en Hz audio relatifs, rien à quoi rattacher un spot). Factorisé hors de
+  // axeGraduations() : dessinerSpotsOverlay() (spots du cluster superposés
+  // au spectre, comme sur le band map — demande F4GLD 04/08/2026) a besoin
+  // de la MÊME conversion, pour que les repères tombent exactement sous
+  // les graduations qu'ils annotent.
+  function plageHzActuelle(){
+    if(sourceMode === 'civ'){
+      if(!civLine || !civLine.ok) return null;
+      if(civLine.mode === 'center'){
+        return {hz0: civLine.center_freq_hz - civLine.span_hz/2,
+                hzW: civLine.center_freq_hz + civLine.span_hz/2};
+      }
+      return {hz0: civLine.edge_lo_hz, hzW: civLine.edge_hi_hz};
+    }
+    if(sourceMode === 'tci'){
+      if(!tciLine || !tciLine.ok) return null;
+      return {hz0: tciLine.center_freq_hz - tciLine.span_hz/2,
+              hzW: tciLine.center_freq_hz + tciLine.span_hz/2};
+    }
+    const maxHz = parseInt(document.getElementById('paSpan').value, 10) || 3000;
+    const rfMode = document.getElementById('paRfScale').checked && rigFreqKhz > 0
+                   && (rigMode === 'USB' || rigMode === 'LSB');
+    if(!rfMode) return null;   // échelle audio brute : pas de fréquence RF absolue
+    // USB : le son grave correspond au bas de la porteuse -> RF = dial + audio,
+    // hz0=dial (audio=0) < hzW=dial+maxHz (audio=maxHz), axe croissant.
+    // LSB : inverse -> RF = dial - audio, hz0=dial > hzW=dial-maxHz : axe
+    // DÉCROISSANT de gauche à droite — voulu, pas un bug (le calcul de
+    // fraction dans dessinerSpotsOverlay() n'a pas besoin que hz0 < hzW).
+    const dialHz = rigFreqKhz * 1000;
+    return rigMode === 'USB' ? {hz0: dialHz, hzW: dialHz + maxHz}
+                              : {hz0: dialHz, hzW: dialHz - maxHz};
+  }
+
   // Graduations de l'axe fréquence, en labels déjà formatés — source AUDIO
   // (échelle brute ou RF si SSB+case cochée), CI-V ou TCI (vraie plage RF
   // publiée/déduite par la radio elle-même, aucune convention à deviner
@@ -312,33 +368,14 @@ if(localStorage.getItem('rc_theme') === null){
   // centre est center_freq_hz, le span total est span_hz.
   function axeGraduations(nGrad){
     const labels = [];
-    if(sourceMode === 'civ'){
-      if(!civLine || !civLine.ok){
+    if(sourceMode === 'civ' || sourceMode === 'tci'){
+      const plage = plageHzActuelle();
+      if(!plage){
         for(let i=0;i<=nGrad;i++) labels.push('');
         return labels;
       }
-      let loHz, hiHz;
-      if(civLine.mode === 'center'){
-        loHz = civLine.center_freq_hz - civLine.span_hz/2;
-        hiHz = civLine.center_freq_hz + civLine.span_hz/2;
-      } else {
-        loHz = civLine.edge_lo_hz; hiHz = civLine.edge_hi_hz;
-      }
       for(let i=0;i<=nGrad;i++){
-        const hz = loHz + (hiHz - loHz) * i / nGrad;
-        labels.push((hz/1e6).toFixed(4));
-      }
-      return labels;
-    }
-    if(sourceMode === 'tci'){
-      if(!tciLine || !tciLine.ok){
-        for(let i=0;i<=nGrad;i++) labels.push('');
-        return labels;
-      }
-      const loHz = tciLine.center_freq_hz - tciLine.span_hz/2;
-      const hiHz = tciLine.center_freq_hz + tciLine.span_hz/2;
-      for(let i=0;i<=nGrad;i++){
-        const hz = loHz + (hiHz - loHz) * i / nGrad;
+        const hz = plage.hz0 + (plage.hzW - plage.hz0) * i / nGrad;
         labels.push((hz/1e6).toFixed(4));
       }
       return labels;
@@ -379,6 +416,72 @@ if(localStorage.getItem('rc_theme') === null){
       const x = (i / nGrad) * w;
       g.fillText(String(labels[i]), Math.max(14, Math.min(w-14, x)), h*0.75);
     }
+  }
+
+  // ── Spots du cluster superposés au spectre (comme sur le band map) ────────
+  // Demande F4GLD 04/08/2026. Réutilise /data/spots_ranked (même source que
+  // le band map et CHASSE, freq en kHz), rafraîchi périodiquement — mais
+  // dessinerSpotsOverlay() elle-même est appelée à CHAQUE tick de rendu
+  // (comme dessinerAxe()), pour que les repères suivent un span/QSY changé
+  // à l'instant, sans attendre le prochain fetch réseau.
+  let spotsCluster = [];
+  async function chargerSpotsCluster(){
+    try{
+      const r = await fetch('/data/spots_ranked');
+      if(!r.ok) return;
+      const d = await r.json();
+      spotsCluster = d.spots || [];
+    }catch(e){}   // pas de réseau : on garde la dernière liste connue
+  }
+
+  function dessinerSpotsOverlay(){
+    const overlay = document.getElementById('spotOverlay');
+    if(!overlay) return;
+    overlay.innerHTML = '';
+    const plage = plageHzActuelle();
+    if(!plage || !spotsCluster.length) return;
+    const denom = plage.hzW - plage.hz0;
+    if(!denom) return;
+    const frag = document.createDocumentFragment();
+    for(const s of spotsCluster){
+      const freqHz = parseFloat(s.freq) * 1000;   // /data/spots_ranked : freq en kHz
+      if(!isFinite(freqHz)) continue;
+      const frac = (freqHz - plage.hz0) / denom;
+      if(frac < 0 || frac > 1) continue;
+      // Construits via le DOM (pas innerHTML+onclick) : call/mode viennent
+      // d'un flux cluster PUBLIC (n'importe qui peut poster un commentaire de
+      // spot) — textContent échappe tout seul, pas de risque d'injection à
+      // gérer manuellement, contrairement à un attribut onclick concaténé.
+      const mark = document.createElement('div');
+      mark.className = 'spot-mark';
+      mark.style.left = (frac * 100).toFixed(2) + '%';
+      mark.style.setProperty('--c', s.new_mult ? 'var(--green)' : 'var(--yellow)');
+      mark.title = `${s.call || '?'} — ${(freqHz/1e6).toFixed(4)} MHz${s.mode ? ' ' + s.mode : ''}`;
+      const lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = s.call || '?';
+      mark.appendChild(lbl);
+      mark.addEventListener('click', () => clicSpotOverlay(s.call, freqHz, s.mode));
+      frag.appendChild(mark);
+    }
+    overlay.appendChild(frag);
+  }
+
+  // QSY direct (même endpoint que bandmapClick() dans logx_logbook.js) +
+  // pré-remplissage de l'indicatif dans la page de saisie via BroadcastChannel
+  // ('logx_log', déjà utilisé par logx_logbook.js pour la synchro multi-
+  // onglet des QSO) : ce panneau est une fenêtre DÉTACHÉE (window.open), pas
+  // d'accès direct au DOM de l'opener sans dépendre de window.opener, qui
+  // peut être coupé (fenêtre rouverte, ouverture directe par URL...).
+  function clicSpotOverlay(call, freqHz, mode){
+    fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({freq_khz: Math.round(freqHz/1000), mode: mode || undefined})
+    }).catch(()=>{});
+    try{
+      const bc = new BroadcastChannel('logx_log');
+      bc.postMessage({type:'prefill_call', data:{call: call || ''}});
+      bc.close();
+    }catch(e){}
   }
 
   function dessinerSpectre(){
@@ -433,6 +536,7 @@ if(localStorage.getItem('rc_theme') === null){
     dessinerSpectre();
     dessinerWaterfall();
     dessinerAxe();
+    dessinerSpotsOverlay();
     raf = requestAnimationFrame(boucle);
   }
 
@@ -516,6 +620,7 @@ if(localStorage.getItem('rc_theme') === null){
       dessinerSpectre();
       dessinerWaterfall();
       dessinerAxe();
+      dessinerSpotsOverlay();
     }catch(e){}
   }
 
@@ -571,6 +676,7 @@ if(localStorage.getItem('rc_theme') === null){
       dessinerSpectre();
       dessinerWaterfall();
       dessinerAxe();
+      dessinerSpotsOverlay();
     }catch(e){}
   }
 

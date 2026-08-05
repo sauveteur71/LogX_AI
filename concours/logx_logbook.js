@@ -7644,6 +7644,17 @@ function initBroadcastChannel(){
         try{ renderLog(); }catch(e){}
         try{ updateStats(); }catch(e){}
       }
+    } else if(type === 'prefill_call'){
+      // Émis par logx_panadapter.html au clic sur un repère de spot superposé
+      // au spectre (fenêtre DÉTACHÉE, pas d'accès direct au DOM de cette page
+      // — le QSY lui-même est déjà fait côté panadapter, /rig/qsy, avant ce
+      // message ; ici on ne fait QUE remplir l'indicatif, même geste que
+      // bandmapClick()). Ignoré si la fenêtre panadapter tourne seule et que
+      // CETTE page n'a pas de champ de saisie affiché (impossible en usage
+      // normal, mais évite un throw silencieux si le DOM a changé entretemps.
+      const call = (data && data.call) || '';
+      const inp = document.getElementById('inputCall');
+      if(call && inp){ inp.value = call; onCallInput(); inp.focus(); }
     }
   };
 }
