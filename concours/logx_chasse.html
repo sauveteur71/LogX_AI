@@ -40,6 +40,17 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
    elle mérite la colonne entière. Vérifié à 1920×1080 et 1366×768. */
 .container{max-width:1780px;margin:0 auto;padding:16px;flex:1;min-height:0;
   width:100%;display:flex;gap:16px;overflow:hidden}
+/* Bandeau discret, PAS un masquage : en activation (mode EXPÉDITION avec
+   une référence configurée), la chasse aux AUTRES stations est secondaire
+   — on active, on ne chasse pas simultanément — mais reste utile pour le
+   park-to-park. Étude du 05/08/2026 (docs/ETUDE_AFFICHAGE_PAR_MODE_2026-08.md) :
+   rien de cette page n'est caché, juste ce rappel en une ligne. */
+.expedition-banner{display:none;flex-shrink:0;margin:10px 16px 0;padding:7px 14px;
+  background:rgba(var(--accent-rgb),.08);border:1px solid var(--accent2);border-radius:8px;
+  font-family:var(--font-mono);font-size:12px;color:var(--accent2);
+  align-items:center;gap:8px}
+.expedition-banner.show{display:flex}
+.expedition-banner svg{width:14px;height:14px;flex-shrink:0}
 .hunt-main{flex:2;min-width:0;height:100%;display:grid;
   grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:16px}
 /* Panneau DXpeditions : pleine largeur sur sa propre ligne (3e rangée de la
@@ -196,6 +207,11 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 <script src="logx_statusbar.js"></script>
 <script src="logx_i18n.js"></script>
 
+<div class="expedition-banner" id="expeditionBanner">
+  <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L2 15h14z"/><line x1="9" y1="3" x2="9" y2="15"/><line x1="6.5" y1="15" x2="9" y2="9.5"/><line x1="11.5" y1="15" x2="9" y2="9.5"/></svg>
+  <span id="expeditionBannerTxt"></span>
+</div>
+
 <div class="container">
 
   <div class="hunt-main">
@@ -272,6 +288,33 @@ const rcT = (s) => (window.rcT ? window.rcT(s) : s);
 // qui pilote la radio.
 function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Bandeau discret (PAS un masquage) en mode EXPÉDITION avec une activation
+// configurée — voir le commentaire CSS de .expedition-banner et
+// docs/ETUDE_AFFICHAGE_PAR_MODE_2026-08.md (F4GLD, 05/08/2026) : en pleine
+// activation, la chasse aux AUTRES stations est secondaire (park-to-park
+// mis à part), mais la page ne doit rien cacher pour autant.
+function verifierBandeauExpedition(){
+  let cfg = {};
+  try{ cfg = JSON.parse(localStorage.getItem('logx_config') || '{}'); }catch(e){}
+  const banner = document.getElementById('expeditionBanner');
+  if(!banner) return;
+  const prog = cfg.activation_program, ref = cfg.my_activation_ref;
+  if(cfg.usage_mode === 'expedition' && prog && ref){
+    const txt = document.getElementById('expeditionBannerTxt');
+    if(txt) txt.textContent = (window.rcTf ? window.rcTf(
+      "Vous activez actuellement {ref} — la chasse aux autres stations est secondaire pendant une activation.",
+      {ref: `${prog} ${ref}`}
+    ) : `Vous activez actuellement ${prog} ${ref} — la chasse aux autres stations est secondaire pendant une activation.`);
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+verifierBandeauExpedition();
+// La config peut changer dans un autre onglet (ex. CONFIG ouverte à côté) :
+// même mécanisme que renderBandButtons()/renderModeButtons() côté logbook.
+window.addEventListener('storage', e => { if(e.key === 'logx_config') verifierBandeauExpedition(); });
 // Indicatif réduit aux caractères valides pour un argument de chaîne JS (onclick).
 function jsCall(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9/]/g,''); }
 // Même règle pour la bande : esc() protège l'attribut HTML, pas la chaîne JS

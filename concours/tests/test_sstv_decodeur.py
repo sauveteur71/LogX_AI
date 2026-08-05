@@ -191,16 +191,19 @@ def _lire(chemin):
 
 def test_updateKeyerPanels_pilote_les_panneaux_cw_et_sstv():
     """updateKeyerPanels() doit décider de la visibilité des DEUX panneaux
-    décodeurs : cwPanel seulement en mode CW (avant, il restait affiché dans
-    tous les modes sauf RTTY), sstvPanel seulement en mode SSTV."""
+    décodeurs : cwPanel en mode CW (avant, il restait affiché dans tous les
+    modes sauf RTTY) — ou via le forçage manuel cwPanelForcedOpen (bouton
+    dédié du band map, F4GLD 05/08/2026 : accès exceptionnel au décodeur CW
+    même si CW n'est pas dans les modes activés) —, sstvPanel seulement en
+    mode SSTV."""
     src = _lire(LOGBOOK_JS)
     m = re.search(r'function\s+updateKeyerPanels\s*\([^)]*\)\s*\{(.*?)\n\}', src, re.S)
     assert m, 'updateKeyerPanels() introuvable'
     corps = m.group(1)
     assert 'sstvPanel' in corps
     assert 'cwPanel' in corps
-    assert re.search(r'cwDec\.style\.display\s*=\s*cw\s*\?', corps), \
-        'cwPanel doit suivre le mode CW, pas « tout sauf RTTY »'
+    assert re.search(r'cwDec\.style\.display\s*=\s*\(?\s*cw\b', corps), \
+        'cwPanel doit suivre le mode CW (éventuellement OR forçage manuel), pas « tout sauf RTTY »'
 
 
 def test_panneaux_decodeurs_masques_par_defaut_dans_le_html():

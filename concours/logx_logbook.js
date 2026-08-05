@@ -2404,6 +2404,16 @@ function cwToCall(w){
 }
 
 // ─── AFFICHAGE DES PANNEAUX SELON LE MODE ────────────────────────────────────
+// cwPanelForcedOpen : le bouton dédié du band map (voir toggleCwPanelForce())
+// permet d'ouvrir le décodeur CW même hors mode CW — sinon il est
+// INJOIGNABLE dès que "CW" n'est pas coché dans CONFIG > MODES : le
+// sélecteur de mode de la saisie ne PROPOSE alors même pas CW (voir
+// renderModeButtons(), qui ne liste que les modes activés), donc rien ne
+// peut jamais faire matcher /CW/i.test(mode) — retour F4GLD 05/08/2026,
+// exemple donné : « je peux vouloir décoder exceptionnellement du CW même
+// si CW n'est pas dans mes modes ».
+let cwPanelForcedOpen = false;
+
 function updateKeyerPanels(){
   const mode = (typeof rigState!=='undefined' && rigState.mode) || currentMode || '';
   const cw = /CW/i.test(mode);
@@ -2427,9 +2437,23 @@ function updateKeyerPanels(){
   // panneau CW permanent en SSB ou FT8 est du bruit à l'écran. Avant, le
   // panneau CW restait affiché dans tous les modes sauf RTTY.
   const cwDec = document.getElementById('cwPanel');
-  if(cwDec) cwDec.style.display = cw ? '' : 'none';
+  if(cwDec) cwDec.style.display = (cw || cwPanelForcedOpen) ? '' : 'none';
   const sstvDec = document.getElementById('sstvPanel');
   if(sstvDec) sstvDec.style.display = sstv ? '' : 'none';
+}
+
+// Bouton dédié du band map : ouvre/ferme le décodeur CW SANS toucher aux
+// macros F1-F8 ni au keyer vocal (contrairement à un vrai passage en mode
+// CW, qui les affecte aussi — voir le commentaire de cwPanelForcedOpen).
+// Bascule manuelle simple : reste ouvert tant qu'on ne reclique pas,
+// même si le mode de saisie change entretemps (l'opérateur a
+// explicitement demandé ce panneau, un changement de mode ailleurs ne
+// doit pas le refermer dans son dos).
+function toggleCwPanelForce(){
+  cwPanelForcedOpen = !cwPanelForcedOpen;
+  updateKeyerPanels();
+  const btn = document.getElementById('cwForceBtn');
+  if(btn) btn.style.color = cwPanelForcedOpen ? 'var(--green)' : 'var(--accent2)';
 }
 
 // ─── SO2R : bascule d'émission ───────────────────────────────────────────────
