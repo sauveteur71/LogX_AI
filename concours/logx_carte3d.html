@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Globe 3D</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root {
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
+}
+body.day-mode {
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--purple:#8040B0;--text:#232320;--muted:#716C5E;
+}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
+
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;align-items:center;line-height:0}
+.logo-badge img{height:20px;display:block}
+.logo-wrap{display:flex;align-items:center;gap:8px}
+.logo-suffix{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:1px}
+.hdr-right{display:flex;align-items:center;gap:14px}
+.hdr-stat{font-family:var(--font-mono);font-size:13px;color:var(--muted)}
+.hdr-stat b{color:var(--green);font-weight:700}
+.cfg-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
+.cfg-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0;overflow-x:auto}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+.app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
+
+.main{flex:1;position:relative;min-height:0;background:var(--bg)}
+#globeCanvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none}
+#globeCanvas.dragging{cursor:grabbing}
+
+.g-panel{
+  position:absolute;background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:11px 13px;font-family:var(--font-mono);font-size:12px;color:var(--muted);
+  box-shadow:0 8px 26px rgba(0,0,0,.35);
+}
+.g-controls{top:16px;right:16px;width:216px;display:flex;flex-direction:column;gap:8px}
+.g-controls .g-title{font-family:var(--font-display);font-weight:900;font-size:13px;color:var(--accent2);letter-spacing:.2px;margin-bottom:2px}
+.g-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;padding:3px 0;user-select:none}
+.g-toggle input{accent-color:var(--accent2);width:14px;height:14px;flex-shrink:0}
+.g-toggle span{color:var(--text)}
+.g-zoomrow{display:flex;gap:6px;margin-top:2px}
+.g-btn{flex:1;font-family:var(--font-mono);font-size:13px;font-weight:700;padding:6px 0;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;transition:all .15s}
+.g-btn:hover{border-color:var(--accent2);color:var(--accent2);box-shadow:0 0 12px rgba(var(--accent-rgb),.25)}
+.g-legend{bottom:16px;left:16px;display:flex;flex-direction:column;gap:5px}
+.g-legend .g-title{font-family:var(--font-display);font-weight:900;font-size:12px;color:var(--accent2);margin-bottom:2px}
+.g-leg-row{display:flex;align-items:center;gap:7px}
+.g-leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.g-note{top:16px;left:16px;max-width:280px;color:var(--yellow);display:none}
+.g-tooltip{
+  position:absolute;pointer-events:none;background:rgba(13,14,26,.97);border-radius:8px;
+  padding:8px 11px;font-family:var(--font-mono);font-size:12px;color:var(--text);
+  box-shadow:0 8px 24px rgba(0,0,0,.5);display:none;z-index:20;white-space:nowrap;
+}
+.g-tooltip b{color:var(--accent2)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
+    <span class="logo-suffix"> — <span style="color:var(--green)">Globe 3D</span></span>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-stat" id="hdrWorked">Pays travaillés : <b id="hdrWorkedN">—</b> / <span id="hdrWorkedTotal">—</span></div>
+    <button class="cfg-btn" id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit" style="font-size:16px">☀️</button>
+  </div>
+</header>
+
+<nav class="app-nav">
+  <a href="logx_configuration.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="16" y2="5"/><circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="9" x2="16" y2="9"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="13" x2="16" y2="13"/><circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/></svg></span>CONFIG</a>
+  <a href="logx_logbook.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg></span>LOGBOOK</a>
+  <a href="logx_carte.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>
+  <a href="logx_carte3d.html" class="active"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.6" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg></span>GLOBE 3D</a>
+  <a href="logx_propagation.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
+  <a href="logx_chasse.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>CHASSE</a>
+  <a href="logx_departements.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>Cartes</a>
+  <a href="logx_calendrier.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
+  <a href="logx_websdr.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></span>WEBSDR</a>
+  <a href="logx_focus.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>FOCUS</a>
+  <a href="javascript:void(0)" onclick="window.open('/logx_panadapter.html','rc_panadapter','width=900,height=560,menubar=no,toolbar=no,location=no')" title="Panadapter : spectre + chute d'eau (audio, CI-V Icom, ou flux TCI)"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg></span>PANADAPTER</a>
+</nav>
+<script src="logx_statusbar.js"></script>
+<script src="logx_i18n.js"></script>
+
+<div class="main">
+  <canvas id="globeCanvas"></canvas>
+
+  <div class="g-panel g-note" id="geoNote">Continents indisponibles hors connexion (premier accès au serveur requis pour les mettre en cache).</div>
+
+  <div class="g-panel g-controls">
+    <div class="g-title">AFFICHAGE</div>
+    <label class="g-toggle"><input type="checkbox" id="tglCountries" checked onchange="scheduleDraw()"><span>Pays travaillés</span></label>
+    <label class="g-toggle"><input type="checkbox" id="tglSpots" checked onchange="scheduleDraw()"><span>Spots DX en direct</span></label>
+    <label class="g-toggle"><input type="checkbox" id="tglTerm" checked onchange="scheduleDraw()"><span>Terminateur jour/nuit</span></label>
+    <label class="g-toggle"><input type="checkbox" id="tglRotate" onchange="onRotateToggle()"><span>Rotation automatique</span></label>
+    <div class="g-zoomrow">
+      <button class="g-btn" onclick="zoomBy(1.25)" title="Zoomer">+</button>
+      <button class="g-btn" onclick="zoomBy(0.8)" title="Dézoomer">−</button>
+      <button class="g-btn" onclick="recenterQTH()" title="Recentrer sur mon QTH">QTH</button>
+    </div>
+  </div>
+
+  <div class="g-panel g-legend">
+    <div class="g-title">LÉGENDE</div>
+    <div class="g-leg-row"><span class="g-leg-dot" style="background:var(--green)"></span>Pays DXCC travaillé</div>
+    <div class="g-leg-row"><span class="g-leg-dot" style="background:var(--accent2)"></span>Ma station (QTH)</div>
+    <div class="g-leg-row"><span class="g-leg-dot" style="background:#FFD60A"></span>Spot DX (couleur = bande)</div>
+  </div>
+
+  <div class="g-tooltip" id="gTooltip"></div>
+</div>
+
+<script>
+// ─── Globe 3D — projection orthographique dessinée à la main sur <canvas> ──
+// Aucune bibliothèque tierce (three.js etc.) : conforme au principe local-
+// first du logiciel (pas de gros asset à mettre en cache, fonctionne hors
+// connexion dès que /data/world_geojson a été téléchargé une 1re fois par
+// n'importe quelle page — même cache disque serveur que la carte 2D/
+// départements). Projection = même formule que d3.geoOrthographic
+// (cos(c) = sinφ0·sinφ + cosφ0·cosφ·cos(Δλ), visible si cos(c) > 0).
+const D2R = Math.PI/180;
+
+const canvas = document.getElementById('globeCanvas');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('gTooltip');
+
+const state = {
+  viewLon: -10, viewLat: 25, scale: 1,
+  dragging: false, lastX: 0, lastY: 0, moved: false,
+  autoRotate: false, subLat: 0, subLon: 0,
+};
+
+let worldFeatures = [];       // [{id, name, continent, rings:[[ [lat,lon], ... ], ...]}]
+let worldWorked = {};         // {feature_id: {name, continent, worked}}
+let mySpots = [];             // depuis /data/spots_ranked
+let myLL = null;              // {lat, lon} du QTH courant
+let needsDraw = true;
+
+function isDay(){ return document.body.classList.contains('day-mode'); }
+
+// ─── Thème (identique aux autres pages nav) ────────────────────────────────
+function toggleTheme(){
+  const day = document.body.classList.toggle('day-mode');
+  localStorage.setItem('rc_theme', day?'day':'night');
+  document.getElementById('themeToggle').textContent = day?'🌙':'☀️';
+  scheduleDraw();
+  fetch('/ui/theme', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({theme: day ? 'day' : 'night'})}).catch(()=>{});
+}
+(function applyTheme(){
+  if(localStorage.getItem('rc_theme')==='day'){
+    document.body.classList.add('day-mode');
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const t=document.getElementById('themeToggle');
+      if(t) t.textContent='🌙';
+    });
+  }
+})();
+
+// ─── Locator → lat/lon (même formule que logx_carte.html locLL() /
+// logx_utils.locator_to_latlon() côté Python — centre du carré 4/6 car.) ───
+function locLL(loc){
+  if(!loc || loc.length<4) return null;
+  const l = loc.toUpperCase();
+  if(!/^[A-R]{2}[0-9]{2}/.test(l)) return null;
+  try{
+    let lon = (l.charCodeAt(0)-65)*20-180 + parseInt(l[2])*2 + 1;
+    let lat = (l.charCodeAt(1)-65)*10-90 + parseInt(l[3]) + 0.5;
+    if(l.length>=6 && /^[A-X]{2}/.test(l.slice(4,6))){
+      lon += (l.charCodeAt(4)-65)*(2/24) - 1 + 1/24;
+      lat += (l.charCodeAt(5)-65)*(1/24) - 0.5 + 0.5/24;
+    }
+    return {lat, lon};
+  }catch{ return null; }
+}
+
+// ─── Même clé que logx_worldmap._load_features() côté serveur (voir
+// logx_departements.html worldFeatureId()) — indispensable pour que le
+// statut travaillé de /data/world_worked retombe sur la bonne feature.
+function worldFeatureId(props){
+  return props.ADM0_A3 || (props.ISO_A3 !== '-99' ? props.ISO_A3 : null) || props.NAME;
+}
+
+const QSO_BAND_COLORS = {
+  '1.8':'#FF2D55','3.5':'#FF6B35','7':'#FF9F0A','14':'#FFD60A',
+  '21':'#34C759','28':'#00C7BE','50':'#00D4FF','144':'#BF5AF2',
+  '432':'#FF8C00','1296':'#FF2D55','default':'#39FF14'
+};
+
+// ─── Chargement des données ─────────────────────────────────────────────────
+async function loadConfigAndQTH(){
+  try{
+    const r = await fetch('/config');
+    if(!r.ok) return;
+    const c = await r.json();
+    if(c.locator) myLL = locLL(c.locator);
+  }catch{}
+  scheduleDraw();
+}
+
+async function loadWorldGeo(){
+  try{
+    const r = await fetch('/data/world_geojson');
+    if(!r.ok){ document.getElementById('geoNote').style.display='block'; return; }
+    const gj = await r.json();
+    worldFeatures = (gj.features||[]).map(f=>{
+      const geom = f.geometry || {};
+      let polys = [];
+      if(geom.type === 'Polygon') polys = [geom.coordinates];
+      else if(geom.type === 'MultiPolygon') polys = geom.coordinates;
+      // rings = liste d'anneaux extérieurs uniquement (les trous ne changent
+      // rien au rendu simplifié à cette échelle 110m, même choix que
+      // logx_worldmap._point_in_geometry côté serveur)
+      const rings = polys.map(p => p[0]).filter(Boolean);
+      return { id: worldFeatureId(f.properties||{}), rings };
+    });
+  }catch{
+    document.getElementById('geoNote').style.display='block';
+  }
+  scheduleDraw();
+}
+
+async function loadWorldWorked(){
+  try{
+    const r = await fetch('/data/world_worked');
+    if(!r.ok) return;
+    worldWorked = await r.json();
+    const total = Object.keys(worldWorked).length;
+    const done = Object.values(worldWorked).filter(v=>v.worked).length;
+    document.getElementById('hdrWorkedN').textContent = done;
+    document.getElementById('hdrWorkedTotal').textContent = total || '—';
+  }catch{}
+  scheduleDraw();
+}
+
+async function loadSpots(){
+  if(!document.getElementById('tglSpots').checked){ return; }
+  try{
+    const r = await fetch('/data/spots_ranked');
+    if(!r.ok) return;
+    const d = await r.json();
+    mySpots = (d.spots||[]).filter(s=>s.lat!=null && s.lon!=null);
+  }catch{}
+  scheduleDraw();
+}
+
+// ─── Projection orthographique ──────────────────────────────────────────────
+function projectPoint(lat, lon, R, cx, cy){
+  const phi = lat*D2R, lambda = lon*D2R;
+  const phi0 = state.viewLat*D2R, lambda0 = state.viewLon*D2R;
+  const dl = lambda - lambda0;
+  const cosPhi = Math.cos(phi), sinPhi = Math.sin(phi);
+  const x = cosPhi*Math.sin(dl);
+  const y = Math.cos(phi0)*sinPhi - Math.sin(phi0)*cosPhi*Math.cos(dl);
+  const z = Math.sin(phi0)*sinPhi + Math.cos(phi0)*cosPhi*Math.cos(dl);
+  return { sx: cx + x*R, sy: cy - y*R, z, visible: z > -0.02 };
+}
+
+function illumination(lat, lon){
+  const phi = lat*D2R, lambda = lon*D2R;
+  const phiS = state.subLat*D2R, lambdaS = state.subLon*D2R;
+  return Math.sin(phiS)*Math.sin(phi) + Math.cos(phiS)*Math.cos(phi)*Math.cos(lambda-lambdaS);
+}
+
+// Découpe un anneau [ [lat,lon], ...] en segments de points VISIBLES
+// consécutifs (approximation légère de clipping contre l'horizon — sans
+// bibliothèque de géométrie sphérique, suffisant pour un rendu décoratif ;
+// seuls les très grands pays proches du limbe auront un bord un peu net).
+function visibleRuns(ring, R, cx, cy){
+  const runs = [];
+  let cur = [];
+  for(const [lon, lat] of ring){
+    const p = projectPoint(lat, lon, R, cx, cy);
+    if(p.visible){ cur.push(p); }
+    else if(cur.length){ runs.push(cur); cur = []; }
+  }
+  if(cur.length) runs.push(cur);
+  return runs;
+}
+
+// ─── Rendu ───────────────────────────────────────────────────────────────
+function updateSubsolar(){
+  // Point subsolaire : même algorithme (NOAA simplifié) que
+  // logx_carte.html solarDeclination()/drawGreyLine().
+  const now = new Date();
+  const n = now.getTime()/86400000 + 2440587.5 - 2451545.0;
+  const L = (280.460 + 0.9856474*n) % 360;
+  const g = ((357.528 + 0.9856003*n) % 360) * D2R;
+  const lambda = (L + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * D2R;
+  const eps = (23.439 - 0.0000004*n) * D2R;
+  state.subLat = Math.asin(Math.sin(eps)*Math.sin(lambda)) / D2R;
+  const utcHours = now.getUTCHours() + now.getUTCMinutes()/60 + now.getUTCSeconds()/3600;
+  state.subLon = 180 - utcHours*15;
+}
+
+function draw(){
+  needsDraw = false;
+  const w = canvas.width = canvas.clientWidth * devicePixelRatio;
+  const h = canvas.height = canvas.clientHeight * devicePixelRatio;
+  const cx = w/2, cy = h/2;
+  const R = Math.min(w,h) * 0.42 * state.scale;
+  ctx.clearRect(0,0,w,h);
+  updateSubsolar();
+
+  // Halo d'atmosphère (glow cuivre — CLAUDE.md : glow réservé aux éléments
+  // actifs/qui viennent de changer ; ici le globe se manipule en continu).
+  const halo = ctx.createRadialGradient(cx,cy,R*0.98,cx,cy,R*1.14);
+  halo.addColorStop(0, `rgba(${getComputedStyle(document.body).getPropertyValue('--accent-rgb')},.35)`);
+  halo.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(cx,cy,R*1.14,0,2*Math.PI); ctx.fill();
+
+  // Sphère (océan) — dégradé pour l'effet 3D éclairé depuis le coin haut-gauche
+  const day = isDay();
+  const oceanA = day ? '#C9D8E8' : '#0E2A44';
+  const oceanB = day ? '#8FA8C4' : '#050B16';
+  const grd = ctx.createRadialGradient(cx-R*0.32, cy-R*0.32, R*0.08, cx, cy, R*1.02);
+  grd.addColorStop(0, oceanA);
+  grd.addColorStop(1, oceanB);
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.fill();
+
+  // Graticule (méridiens/parallèles tous les 30°) — confirme visuellement
+  // qu'il s'agit d'un globe et pas d'un disque plat.
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.clip();
+  ctx.strokeStyle = day ? 'rgba(20,30,45,.18)' : 'rgba(255,255,255,.10)';
+  ctx.lineWidth = 1;
+  for(let lon=-180; lon<180; lon+=30){
+    ctx.beginPath();
+    for(let lat=-90; lat<=90; lat+=3){
+      const p = projectPoint(lat, lon, R, cx, cy);
+      if(p.visible) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy);
+    }
+    ctx.stroke();
+  }
+  for(let lat=-60; lat<=60; lat+=30){
+    ctx.beginPath();
+    for(let lon=-180; lon<=180; lon+=3){
+      const p = projectPoint(lat, lon, R, cx, cy);
+      if(p.visible) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Pays (remplis si travaillés) — teinte moyenne selon l'illumination
+  // moyenne des sommets visibles (approximation de l'ombre jour/nuit,
+  // pas un vrai éclairage par pixel).
+  const showCountries = document.getElementById('tglCountries').checked;
+  if(showCountries && worldFeatures.length){
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.clip();
+    for(const feat of worldFeatures){
+      const info = worldWorked[feat.id];
+      const worked = !!(info && info.worked);
+      for(const ring of feat.rings){
+        const runs = visibleRuns(ring, R, cx, cy);
+        for(const run of runs){
+          if(run.length < 3) continue;
+          let illumSum = 0;
+          for(const pt of run) illumSum += pt.z;
+          const avgZ = illumSum/run.length;   // proxy simple de lumière/ombre
+          ctx.beginPath();
+          ctx.moveTo(run[0].sx, run[0].sy);
+          for(let i=1;i<run.length;i++) ctx.lineTo(run[i].sx, run[i].sy);
+          ctx.closePath();
+          if(worked){
+            ctx.fillStyle = day
+              ? `rgba(0,112,48,${0.55+avgZ*0.15})`
+              : `rgba(0,255,136,${0.42+avgZ*0.15})`;
+            ctx.strokeStyle = day ? 'rgba(0,80,30,.6)' : 'rgba(0,255,136,.55)';
+          } else {
+            ctx.fillStyle = day
+              ? `rgba(120,130,150,${0.28+avgZ*0.10})`
+              : `rgba(60,70,95,${0.35+avgZ*0.12})`;
+            ctx.strokeStyle = day ? 'rgba(90,100,120,.35)' : 'rgba(120,135,165,.30)';
+          }
+          ctx.lineWidth = 0.6;
+          ctx.fill(); ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  // Terminateur jour/nuit (grand cercle, même méthode que la carte 2D)
+  if(document.getElementById('tglTerm').checked){
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.clip();
+    ctx.fillStyle = day ? 'rgba(20,20,35,.22)' : 'rgba(0,0,20,.42)';
+    ctx.beginPath();
+    let started = false;
+    for(let lon=-180; lon<=180; lon+=2){
+      const illum = illumination(0, lon); // juste pour repérer le côté nuit par colonne
+      // on trace le point d'illumination nulle sur chaque méridien (latitude
+      // du terminateur), formule identique à logx_carte.html drawGreyLine()
+      const H = (lon - state.subLon)*D2R;
+      const decR = state.subLat*D2R;
+      let lat;
+      if(Math.abs(Math.tan(decR)) < 1e-6){ lat = 0; }
+      else { lat = Math.atan(-Math.cos(H)/Math.tan(decR)) / D2R; }
+      const p = projectPoint(lat, lon, R, cx, cy);
+      if(p.visible){
+        if(!started){ ctx.moveTo(p.sx,p.sy); started = true; } else { ctx.lineTo(p.sx,p.sy); }
+      } else { started = false; }
+    }
+    // referme vers le pôle nuit pour obtenir un polygone plausible
+    const poleLat = state.subLat >= 0 ? -90 : 90;
+    const pPole = projectPoint(poleLat, state.viewLon, R, cx, cy);
+    if(pPole.visible) ctx.lineTo(pPole.sx, pPole.sy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Contour de l'horizon (limbe)
+  ctx.strokeStyle = day ? 'rgba(20,30,45,.4)' : 'rgba(200,220,255,.25)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.stroke();
+
+  // Spots DX en direct
+  hitTargets.length = 0;
+  if(document.getElementById('tglSpots').checked){
+    for(const s of mySpots){
+      const p = projectPoint(s.lat, s.lon, R, cx, cy);
+      if(!p.visible) continue;
+      const color = QSO_BAND_COLORS[s.band] || QSO_BAND_COLORS.default;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, s.new_mult ? 4.2 : 3, 0, 2*Math.PI);
+      ctx.fillStyle = color;
+      ctx.shadowColor = color; ctx.shadowBlur = s.new_mult ? 10 : 4;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      if(s.new_mult){
+        ctx.strokeStyle = '#FFD60A'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(p.sx, p.sy, 7, 0, 2*Math.PI); ctx.stroke();
+      }
+      hitTargets.push({sx:p.sx, sy:p.sy, r:7, kind:'spot', data:s});
+    }
+  }
+
+  // Ma station (QTH)
+  if(myLL){
+    const p = projectPoint(myLL.lat, myLL.lon, R, cx, cy);
+    if(p.visible){
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, 5, 0, 2*Math.PI);
+      ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--accent2');
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(p.sx, p.sy, 8, 0, 2*Math.PI); ctx.stroke();
+      hitTargets.push({sx:p.sx, sy:p.sy, r:9, kind:'qth', data:null});
+    }
+  }
+}
+
+let hitTargets = [];
+function scheduleDraw(){ needsDraw = true; }
+
+// ─── Boucle de rendu (arrêtée quand l'onglet n'est pas visible) ────────────
+function loop(){
+  if(state.autoRotate && !state.dragging){
+    state.viewLon = (state.viewLon + 0.06) % 360;
+    needsDraw = true;
+  }
+  if(needsDraw) draw();
+  requestAnimationFrame(loop);
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) needsDraw = true; });
+
+// ─── Interaction souris/tactile ────────────────────────────────────────────
+function pointerDown(x, y){
+  state.dragging = true; state.moved = false;
+  state.lastX = x; state.lastY = y;
+  canvas.classList.add('dragging');
+}
+function pointerMove(x, y){
+  if(!state.dragging){
+    // survol : tooltip sur spot/QTH le plus proche
+    const rect = canvas.getBoundingClientRect();
+    const px = (x - rect.left) * devicePixelRatio, py = (y - rect.top) * devicePixelRatio;
+    let hit = null;
+    for(const t of hitTargets){
+      const d = Math.hypot(t.sx-px, t.sy-py);
+      if(d <= t.r*devicePixelRatio){ hit = t; break; }
+    }
+    if(hit){
+      tooltip.style.display = 'block';
+      tooltip.style.left = (x - rect.left + 14) + 'px';
+      tooltip.style.top = (y - rect.top + 10) + 'px';
+      tooltip.innerHTML = hit.kind === 'qth' ? '<b>Mon QTH</b>' :
+        `<b>${hit.data.call||'—'}</b> · ${hit.data.band||'?'}m · ${hit.data.points||0} pts` +
+        (hit.data.new_mult ? ' · <span style="color:#FFD60A">nouveau mult.</span>' : '');
+    } else {
+      tooltip.style.display = 'none';
+    }
+    return;
+  }
+  const dx = x - state.lastX, dy = y - state.lastY;
+  if(Math.abs(dx) > 1 || Math.abs(dy) > 1) state.moved = true;
+  state.viewLon = (state.viewLon - dx*0.35 + 360) % 360;
+  state.viewLat = Math.max(-85, Math.min(85, state.viewLat + dy*0.35));
+  state.lastX = x; state.lastY = y;
+  needsDraw = true;
+}
+function pointerUp(){
+  state.dragging = false;
+  canvas.classList.remove('dragging');
+}
+
+canvas.addEventListener('mousedown', e => pointerDown(e.clientX, e.clientY));
+window.addEventListener('mousemove', e => pointerMove(e.clientX, e.clientY));
+window.addEventListener('mouseup', pointerUp);
+canvas.addEventListener('touchstart', e => { const t=e.touches[0]; pointerDown(t.clientX, t.clientY); }, {passive:true});
+canvas.addEventListener('touchmove', e => { const t=e.touches[0]; pointerMove(t.clientX, t.clientY); e.preventDefault(); }, {passive:false});
+canvas.addEventListener('touchend', pointerUp);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoomBy(e.deltaY < 0 ? 1.1 : 0.9);
+}, {passive:false});
+
+function zoomBy(f){
+  state.scale = Math.max(0.55, Math.min(2.6, state.scale*f));
+  needsDraw = true;
+}
+function recenterQTH(){
+  if(myLL){ state.viewLon = myLL.lon; state.viewLat = myLL.lat; }
+  state.scale = 1;
+  needsDraw = true;
+}
+function onRotateToggle(){
+  state.autoRotate = document.getElementById('tglRotate').checked;
+}
+
+window.addEventListener('resize', scheduleDraw);
+
+// ─── Démarrage ──────────────────────────────────────────────────────────────
+loadConfigAndQTH();
+loadWorldGeo();
+loadWorldWorked();
+loadSpots();
+setInterval(loadWorldWorked, 90*1000);
+setInterval(loadSpots, 60*1000);
+setInterval(scheduleDraw, 5*60*1000); // rafraîchit le terminateur jour/nuit
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
