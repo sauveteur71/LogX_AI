@@ -76,9 +76,19 @@ def _get_session(user, pw):
     return key, err
 
 
+def _photo_url(xml):
+    """URL de la photo du titulaire (balise <image>, réservée aux comptes QRZ
+    XML abonnés — absente sinon). Uniquement http(s) : une valeur d'un autre
+    schéma (ex. javascript:) serait injectée telle quelle dans un <img src>
+    côté client, mieux vaut ne jamais la transmettre plutôt que de compter
+    sur le navigateur pour l'ignorer."""
+    url = _tag(xml, 'image')
+    return url if url.startswith(('http://', 'https://')) else ''
+
+
 def lookup(call, user, pw):
     """Recherche un indicatif. Retourne {'ok', 'call', 'name', 'qth', 'state',
-    'country', 'grid', 'dxcc'} ou {'ok': False, 'error': ...}."""
+    'country', 'grid', 'dxcc', 'image'} ou {'ok': False, 'error': ...}."""
     call = (call or '').upper().strip()
     if not call:
         return {'ok': False, 'error': 'Indicatif vide'}
@@ -118,6 +128,7 @@ def lookup(call, user, pw):
         'qth': ', '.join(p for p in (city, state) if p),
         'state': state, 'country': _tag(xml, 'country'),
         'grid': grid, 'dxcc': _tag(xml, 'dxcc'),
+        'image': _photo_url(xml),
     }
     _lookup_cache[call] = {'ts': time.time(), 'data': data}
     _enrich_calldb(call, grid, data['country'])

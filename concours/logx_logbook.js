@@ -1187,16 +1187,18 @@ const CALLBOOK_SOURCE_LABEL = {hamqth: 'HamQTH', hamdb: 'HamDB'};  // QRZ = pas 
 
 function lookupQRZ(call){
   clearTimeout(_qrzTimer);
+  const row = document.getElementById('qrzInfoRow');
   const el = document.getElementById('qrzInfo');
-  if(!el) return;
-  if(!call || call.length < 3){ el.style.display = 'none'; return; }
+  const photo = document.getElementById('qrzPhoto');
+  if(!el || !row) return;
+  if(!call || call.length < 3){ row.style.display = 'none'; return; }
   const seq = ++_qrzSeq;
   _qrzTimer = setTimeout(async () => {
     try{
       const r = await fetch('/qrz/lookup?call=' + encodeURIComponent(call));
       if(!r.ok || seq !== _qrzSeq) return;
       const d = await r.json();
-      if(!d.ok){ el.style.display = 'none'; return; }
+      if(!d.ok){ row.style.display = 'none'; return; }
       // Données d'annuaires en ligne tiers (QRZ/HamQTH/HamDB) : origine Internet
       // hors du contrôle de l'utilisateur → échappées avant insertion en innerHTML
       // (un champ QTH contenant du HTML exécuterait sinon du script à la frappe).
@@ -1208,7 +1210,20 @@ function lookupQRZ(call){
       const sourceLabel = CALLBOOK_SOURCE_LABEL[d.source];
       if(sourceLabel) bits.push('· ' + escHtml(sourceLabel));
       el.innerHTML = bits.join(' · ');
-      el.style.display = bits.length ? 'block' : 'none';
+      // Photo (QRZ uniquement, comptes abonnés) : `.src` n'exécute jamais de
+      // script même sur une URL malveillante, mais on revérifie quand même le
+      // schéma ici — défense en profondeur, le serveur (logx_qrz.py) filtre déjà.
+      if(photo){
+        if(d.image && /^https?:\/\//i.test(d.image)){
+          photo.onerror = () => { photo.style.display = 'none'; };   // lien mort (ex. QRZ ayant retiré la fiche depuis)
+          photo.src = d.image;
+          photo.style.display = 'block';
+        } else {
+          photo.style.display = 'none';
+          photo.src = '';
+        }
+      }
+      row.style.display = (bits.length || (photo && photo.style.display === 'block')) ? 'flex' : 'none';
       // Pré-remplit le locator s'il est vide et que la source en connaît un
       const locInput = document.getElementById('inputLocator');
       if(locInput && !locInput.value && d.grid && d.grid.length >= 4){
@@ -3785,7 +3800,8 @@ function clearForm(){
   const _db = document.getElementById('dxccBadge'); if(_db) _db.style.display = 'none';
   const _pq = document.getElementById('prevQsos'); if(_pq) _pq.style.display = 'none';
   const _tod = document.getElementById('todWidget'); if(_tod) _tod.style.display = 'none';
-  const _qz = document.getElementById('qrzInfo'); if(_qz) _qz.style.display = 'none';
+  const _qz = document.getElementById('qrzInfoRow'); if(_qz) _qz.style.display = 'none';
+  const _qp = document.getElementById('qrzPhoto'); if(_qp){ _qp.style.display = 'none'; _qp.src = ''; }
   const _cs = document.getElementById('callStatusBadge'); if(_cs) _cs.style.display = 'none';
   hideCompassInline();
   if(currentExchange.auto_serial){

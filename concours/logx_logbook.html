@@ -1179,7 +1179,10 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
              prend aucune place et ne décale jamais le formulaire. -->
         <div id="bustedPastille" style="display:none"></div>
         <div id="callStatusBadge" style="display:none;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;padding:3px 10px;border-radius:4px;margin-top:4px;width:fit-content"></div>
-        <div id="qrzInfo" style="display:none;font-family:var(--font-mono);font-size:13px;color:var(--accent2);margin-top:4px;line-height:1.5" title="Fiche callbook (QRZ / HamQTH / HamDB)"></div>
+        <div id="qrzInfoRow" style="display:none;align-items:flex-start;gap:8px;margin-top:4px">
+          <img id="qrzPhoto" style="display:none;width:36px;height:36px;border-radius:5px;object-fit:cover;border:1px solid var(--border);flex-shrink:0" alt="">
+          <div id="qrzInfo" style="font-family:var(--font-mono);font-size:13px;color:var(--accent2);line-height:1.5" title="Fiche callbook (QRZ / HamQTH / HamDB)"></div>
+        </div>
         <div class="cross-band-hint" id="crossBandHint"></div>
         <!-- dxccBadge + prevQsos ont déménagé après LOCATOR (ligne combinée
              avec la boussole, voir callbookCompassRow) — retour F4GLD

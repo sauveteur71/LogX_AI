@@ -80,6 +80,16 @@ def test_cascade_qrz_en_tete_si_configure(monkeypatch):
     assert hamqth_called['n'] == 0  # jamais tenté : QRZ a déjà répondu
 
 
+def test_cascade_photo_qrz_transmise_telle_quelle(monkeypatch):
+    """La cascade ne filtre/transforme pas 'image' — logx_qrz.py a déjà validé
+    le schéma http(s) avant de le renvoyer (voir test_qrz.py)."""
+    _reset()
+    monkeypatch.setattr(qrz, 'lookup', lambda call, user, pw:
+                        {'ok': True, 'call': call, 'name': 'X', 'image': 'https://cdn-xml.qrz.com/z/f6kqj/f6kqj.jpg'})
+    r = callbook.lookup('F6KQJ', {'qrz_user': 'u', 'qrz_password': 'p'})
+    assert r['ok'] and r['image'] == 'https://cdn-xml.qrz.com/z/f6kqj/f6kqj.jpg'
+
+
 def test_cascade_repli_hamqth_si_qrz_non_configure(monkeypatch):
     _reset()
     monkeypatch.setattr(clusters, 'lookup_hamqth',

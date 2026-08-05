@@ -16,6 +16,16 @@ LOOKUP_OK = ('<QRZDatabase><Callsign><call>F6KQJ</call>'
              '<fname>Radio-Club</fname><name>GCEBP43</name>'
              '<addr2>Le Puy-en-Velay</addr2><state></state>'
              '<country>France</country><grid>JN15XC</grid><dxcc>227</dxcc>'
+             '<image>https://cdn-xml.qrz.com/z/f6kqj/f6kqj.jpg</image>'
+             '</Callsign><Session><Key>ABC123SESSION</Key></Session></QRZDatabase>')
+LOOKUP_SANS_PHOTO = ('<QRZDatabase><Callsign><call>F6KQJ</call>'
+             '<fname>Radio-Club</fname><name>GCEBP43</name>'
+             '<addr2>Le Puy-en-Velay</addr2><state></state>'
+             '<country>France</country><grid>JN15XC</grid><dxcc>227</dxcc>'
+             '</Callsign><Session><Key>ABC123SESSION</Key></Session></QRZDatabase>')
+LOOKUP_PHOTO_SCHEME_INVALIDE = ('<QRZDatabase><Callsign><call>F6KQJ</call>'
+             '<fname>Radio-Club</fname><name>GCEBP43</name>'
+             '<image>javascript:alert(1)</image>'
              '</Callsign><Session><Key>ABC123SESSION</Key></Session></QRZDatabase>')
 LOOKUP_NOTFOUND = ('<QRZDatabase><Session><Error>Not found: ZZ9ZZZ</Error>'
                    '</Session></QRZDatabase>')
@@ -41,6 +51,26 @@ def test_lookup_ok(monkeypatch):
     assert r['name'] == 'Radio-Club GCEBP43'
     assert r['qth'] == 'Le Puy-en-Velay' and r['grid'] == 'JN15XC'
     assert r['country'] == 'France'
+    assert r['image'] == 'https://cdn-xml.qrz.com/z/f6kqj/f6kqj.jpg'
+
+
+def test_lookup_sans_photo(monkeypatch):
+    _reset()
+    calls = iter([AUTH_OK, LOOKUP_SANS_PHOTO])
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15, log_url=True: next(calls))
+    r = qrz.lookup('F6KQJ', 'user', 'pw')
+    assert r['ok'] and r['image'] == ''
+
+
+def test_lookup_photo_schema_non_http_rejete(monkeypatch):
+    """Une balise <image> avec un schéma autre que http(s) (ex. javascript:)
+    n'est jamais renvoyée au client — elle serait injectée telle quelle dans
+    un <img src> côté logbook."""
+    _reset()
+    calls = iter([AUTH_OK, LOOKUP_PHOTO_SCHEME_INVALIDE])
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=15, log_url=True: next(calls))
+    r = qrz.lookup('F6KQJ', 'user', 'pw')
+    assert r['ok'] and r['image'] == ''
 
 
 def test_auth_refusee(monkeypatch):
