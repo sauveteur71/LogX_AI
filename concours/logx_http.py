@@ -16,6 +16,7 @@ import time
 import socket
 from concurrent.futures import ThreadPoolExecutor
 
+import logx_crypto
 import logx_rules as rules
 from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX,
                         modele_effectif,
@@ -513,10 +514,20 @@ def _load_saved_config():
             cfg = json.load(f)
         if isinstance(cfg, dict) and cfg:
             print(f"[CFG] Config restauree ({cfg.get('callsign','?')} / {cfg.get('contest','?')})")
-            return cfg
+            # Déchiffré UNE FOIS ici : current_config reste en clair en mémoire
+            # pour tout le reste de l'appli (aucun autre code ne doit savoir
+            # que les mots de passe/clés API sont chiffrés sur disque).
+            return logx_crypto.decrypt_config(cfg)
     except Exception:
         pass
     return {}
+
+def _save_config_to_disk(cfg):
+    """Seul point d'écriture de .server_config.json — les identifiants y sont
+    chiffrés au repos (logx_crypto.encrypt_config). Centralisé ici pour que
+    les endroits qui sauvegardent la config (/config/save, /ui/theme,
+    /data/spot_filter) ne puissent pas diverger sur ce point."""
+    save_json_atomic(SERVER_CONFIG_FILE, logx_crypto.encrypt_config(cfg))
 
 current_config = _load_saved_config()
 config_lock = threading.Lock()
@@ -4121,11 +4132,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._require_auth():
                 return
             cfg_snap = self._cfg_snapshot()
-            fields = ('api_key', 'clublog_api_key', 'clublog_password', 'eqsl_password',
-                      'lan_sync_token', 'lotw_password', 'on4kst_password', 'qrz_password',
-                      'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
-                      'cloudsync_secret', 'voicekeyer_ai_api_key')
-            self._json({f: cfg_snap.get(f, '') for f in fields})
+            # Même liste que logx_crypto.SECRET_FIELDS (chiffrement au repos) —
+            # une seule source de vérité, pour ne jamais diverger.
+            self._json({f: cfg_snap.get(f, '') for f in logx_crypto.SECRET_FIELDS})
             return
 
         # Annuaire de nœuds DX cluster publics, pour le sélecteur CONFIG.
@@ -4721,7 +4730,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 with config_lock:
                     current_config = cfg
-                    save_json_atomic(SERVER_CONFIG_FILE, cfg)
+                    _save_config_to_disk(cfg)
                 # /log/list filtre désormais par portée (concours+année, voir
                 # active_scope_id) : changer de concours/mode d'usage change ce
                 # que CETTE portée désigne sans qu'aucun QSO n'ait bougé — sans
@@ -4798,7 +4807,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with config_lock:
                     current_config['ui_theme'] = theme
                     snap = dict(current_config)
-                    save_json_atomic(SERVER_CONFIG_FILE, snap)
+                    _save_config_to_disk(snap)
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
@@ -4901,7 +4910,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with config_lock:
                     current_config['spot_filter'] = propre
                     snap = dict(current_config)
-                    save_json_atomic(SERVER_CONFIG_FILE, snap)
+                    _save_config_to_disk(snap)
                 self._json({'ok': True, 'spot_filter': propre,
                             'actif': spotfilter.actif(propre)})
             except Exception as e:
