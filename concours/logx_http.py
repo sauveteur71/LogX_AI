@@ -3127,6 +3127,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(met.ms_quality())
             return
 
+        # Indice d'ouverture VHF (Es et au-delà) — statistique sur le flux de
+        # spots déjà collecté (voir logx_es_opening.py), pas une prévision
+        # physique : {'50': {...}, '144': {...}}.
+        if path == '/data/es_opening':
+            import logx_es_opening as eso
+            cfg_snap = self._cfg_snapshot()
+            self._json(eso.opening_summary(cfg_snap.get('locator', '')))
+            return
+
         # « Écouter ce spot » / « s'écouter » depuis le logbook : UN récepteur,
         # choisi côté serveur (annuaire en cache, AUCUN réseau ici), l'URL déjà
         # réglée sur la fréquence. Avec lat/lon (position du DX spotté) le tri
