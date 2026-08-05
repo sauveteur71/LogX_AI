@@ -296,6 +296,16 @@ textarea::placeholder{color:var(--muted)}
       </div>
       <div class="g-panel g-tooltip" id="g3dTooltip" style="position:absolute;pointer-events:none;display:none;z-index:602"></div>
 
+      <!-- Grille Maidenhead : champs (2 lettres) toujours, carrés (4) à partir
+           du zoom 7, locator COMPLET (6, sous-carré) à partir du zoom 11 —
+           redessinée à chaque déplacement/zoom (drawMaidenGrid()), jamais au
+           chargement seul, sinon elle resterait fausse après un panoramique. -->
+      <div id="maidenControl" style="position:absolute;z-index:600;bottom:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
+        <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
+          <input type="checkbox" id="maidenOn" onchange="drawMaidenGrid()" style="accent-color:var(--accent2)">
+          <span style="color:var(--accent2);letter-spacing:1px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="ico"><rect x="2.5" y="2.5" width="13" height="13" rx="1"/><line x1="2.5" y1="7.17" x2="15.5" y2="7.17"/><line x1="2.5" y1="10.83" x2="15.5" y2="10.83"/><line x1="7.17" y1="2.5" x2="7.17" y2="15.5"/><line x1="10.83" y1="2.5" x2="10.83" y2="15.5"/></svg>GRILLE MAIDENHEAD</span>
+        </label>
+      </div>
       <!-- Cercles de distance « Great Circle » centrés sur le QTH (1000/2000/3000/4000 km) -->
       <div id="gcControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
         <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
@@ -639,6 +649,7 @@ function initMap(){
       maxZoom: 18
     }).addTo(leafletMap);
     leafletMap.on('click', hideTooltip);
+    leafletMap.on('moveend zoomend', drawMaidenGrid);
   } else {
     leafletMap.setView(v.center, v.zoom);
     const t = getTileConfig();
@@ -876,10 +887,13 @@ function drawLoggedQSOs(){
     }).addTo(leafletMap);
     leafletQSOLines.push(line);
 
-    // Marqueur "tick vert"
+    // Marqueur : couleur ET forme par bande (pas la couleur seule) — repère
+    // immédiat sans avoir à lire le popup, et lisible en daltonisme là où la
+    // couleur seule ne le serait pas.
+    const shapeSvg = bandShapeSvg(q.band, col);
     const html = `<div style="position:relative;width:0;height:0">
       <div style="position:absolute;white-space:nowrap;font-family:monospace;font-size:12px;font-weight:bold;color:${col};text-shadow:0 0 4px ${col};transform:translate(-50%,-24px)">${escMap(q.call)}</div>
-      <div style="position:absolute;width:12px;height:12px;border-radius:50%;background:${col};opacity:0.9;border:2px solid #fff;box-shadow:0 0 6px ${col};transform:translate(-50%,-50%)"></div>
+      <div style="position:absolute;width:16px;height:16px;filter:drop-shadow(0 0 4px ${col});transform:translate(-50%,-50%)">${shapeSvg}</div>
     </div>`;
     const icon = L.divIcon({html, className:'rc-qso-icon', iconSize:[0,0], iconAnchor:[0,0]});
     const mk = L.marker([pos.lat,pos.lon],{icon, zIndexOffset:300}).addTo(leafletMap);
@@ -896,6 +910,133 @@ function drawLoggedQSOs(){
     leafletQSOMarkers.push(mk);
   });
   console.log(`[MAP] ${leafletQSOMarkers.length} QSOs loggés affichés`);
+}
+
+// ─── FORME D'ÉPINGLE PAR BANDE ───────────────────────────────────────────────
+// La couleur seule (QSO_BAND_COLORS) ne suffit pas à distinguer les bandes en
+// un coup d'œil sur un log multi-bandes dense, et rien pour le daltonisme —
+// chaque bande reçoit AUSSI sa propre forme. Viewbox 18x18, mêmes coordonnées
+// que les icônes de nav (cf. CLAUDE.md), tracés à la main une fois pour
+// toutes plutôt que calculés en trigonométrie à chaque marqueur.
+const BAND_SHAPES = {
+  '1.8':  '<circle cx="9" cy="9" r="6" fill="C" stroke="#fff" stroke-width="1.5"/>',
+  '3.5':  '<rect x="3.5" y="3.5" width="11" height="11" fill="C" stroke="#fff" stroke-width="1.5"/>',
+  '7':    '<polygon points="9,2.5 15.5,14.5 2.5,14.5" fill="C" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>',
+  '14':   '<polygon points="9,2 16,9 9,16 2,9" fill="C" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>',
+  '21':   '<polygon points="9,2.5 15.18,6.99 12.82,14.26 5.18,14.26 2.82,6.99" fill="C" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>',
+  '28':   '<polygon points="9,2.5 14.63,5.75 14.63,12.25 9,15.5 3.37,12.25 3.37,5.75" fill="C" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>',
+  '50':   '<polygon points="9,1.5 10.88,6.41 16.13,6.68 12.04,9.99 13.41,15.07 9,12.2 4.59,15.07 5.96,9.99 1.87,6.68 7.12,6.41" fill="C" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/>',
+  '144':  '<polygon points="2.5,3.5 15.5,3.5 9,15.5" fill="C" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>',
+  '432':  '<polygon points="6.7,2 11.3,2 11.3,6.7 16,6.7 16,11.3 11.3,11.3 11.3,16 6.7,16 6.7,11.3 2,11.3 2,6.7 6.7,6.7" fill="C" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>',
+  '1296': '<polygon points="11.6,2.72 15.28,6.4 15.28,11.6 11.6,15.28 6.4,15.28 2.72,11.6 2.72,6.4 6.4,2.72" fill="C" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>',
+};
+function bandShapeSvg(band, color){
+  const shape = (BAND_SHAPES[band] || BAND_SHAPES['1.8']).replace(/C/g, color);
+  return `<svg viewBox="0 0 18 18" width="16" height="16">${shape}</svg>`;
+}
+
+// ─── GRILLE MAIDENHEAD ────────────────────────────────────────────────────────
+// Champs (2 lettres, 20°×10°) toujours visibles quand la case est cochée ;
+// carrés (4, 2°×1°) à partir du zoom 7 ; SOUS-CARRÉS (locator complet, 6
+// caractères — la vraie précision Maidenhead) seulement à partir du zoom 11,
+// et bornés à la zone visible + une marge d'une cellule : à ce niveau de zoom
+// la vue ne couvre de toute façon qu'une poignée de carrés, mais la borne dure
+// (MAIDEN_SUB_MAX_CELLS) évite un dessin explosif sur un très grand écran.
+const MAIDEN_LETTERS = 'ABCDEFGHIJKLMNOPQR';       // champ : 18 lettres (A-R)
+const MAIDEN_LETTERS_24 = 'ABCDEFGHIJKLMNOPQRSTUVWX'; // sous-carré : 24 lettres (A-X)
+const MAIDEN_SUB_MAX_CELLS = 30;
+let maidenGridLayer = null;
+
+function maidenFieldLabel(lat, lon){
+  const lonN = Math.min(17, Math.max(0, Math.floor((lon+180)/20)));
+  const latN = Math.min(17, Math.max(0, Math.floor((lat+90)/10)));
+  return MAIDEN_LETTERS[lonN] + MAIDEN_LETTERS[latN];
+}
+function maidenSquareLabel(lat, lon){
+  const field = maidenFieldLabel(lat, lon);
+  const lonSq = Math.floor((((lon+180) % 20) + 20) % 20 / 2);
+  const latSq = Math.floor((((lat+90) % 10) + 10) % 10 / 1);
+  return field + lonSq + latSq;
+}
+function maidenSubsquareLabel(lat, lon){
+  const sq = maidenSquareLabel(lat, lon);
+  const lonSub = Math.floor((((lon+180) % 2) + 2) % 2 / (2/24));
+  const latSub = Math.floor((((lat+90) % 1) + 1) % 1 / (1/24));
+  return sq + MAIDEN_LETTERS_24[Math.min(23,lonSub)].toLowerCase() + MAIDEN_LETTERS_24[Math.min(23,latSub)].toLowerCase();
+}
+function maidenLabelIcon(text, size){
+  return L.divIcon({
+    html:`<span style="color:var(--accent2);font-family:var(--font-mono);font-size:${size}px;font-weight:700;text-shadow:0 0 3px var(--bg),0 0 3px var(--bg)">${text}</span>`,
+    className:'maiden-label', iconSize:[0,0],
+  });
+}
+
+function drawMaidenGrid(){
+  if(maidenGridLayer){ maidenGridLayer.remove(); maidenGridLayer = null; }
+  if(!leafletMap) return;
+  const cb = document.getElementById('maidenOn');
+  if(!cb || !cb.checked) return;
+  const zoom = leafletMap.getZoom();
+  if(zoom < 3) return;
+  const bounds = leafletMap.getBounds();
+  const layer = L.layerGroup();
+
+  // Champs : 20° × 10°, sur toute la vue (peu de lignes, pas besoin de borner)
+  const fieldLine = {color:'rgba(232,150,74,.35)', weight:1, interactive:false};
+  const lonF0 = Math.floor((Math.max(-180,bounds.getWest())+180)/20)*20-180;
+  const lonF1 = Math.ceil((Math.min(180,bounds.getEast())+180)/20)*20-180;
+  const latF0 = Math.floor((Math.max(-90,bounds.getSouth())+90)/10)*10-90;
+  const latF1 = Math.ceil((Math.min(90,bounds.getNorth())+90)/10)*10-90;
+  for(let lon=lonF0; lon<=lonF1; lon+=20) layer.addLayer(L.polyline([[-90,lon],[90,lon]], fieldLine));
+  for(let lat=latF0; lat<=latF1; lat+=10) layer.addLayer(L.polyline([[lat,-180],[lat,180]], fieldLine));
+  for(let lon=lonF0; lon<lonF1; lon+=20){
+    for(let lat=latF0; lat<latF1; lat+=10){
+      layer.addLayer(L.marker([lat+9.2,lon+1], {icon:maidenLabelIcon(maidenFieldLabel(lat+0.1,lon+0.1),11), interactive:false}));
+    }
+  }
+
+  // Carrés : 2° × 1°, à partir du zoom 7, bornés à la vue + 1 cellule de marge
+  if(zoom >= 7){
+    const sqLine = {color:'rgba(232,150,74,.22)', weight:0.7, interactive:false};
+    const lon0 = Math.max(lonF0, Math.floor((bounds.getWest()+180)/2)*2-180-2);
+    const lon1 = Math.min(lonF1, Math.ceil((bounds.getEast()+180)/2)*2-180+2);
+    const lat0 = Math.max(latF0, Math.floor((bounds.getSouth()+90)/1)*1-90-1);
+    const lat1 = Math.min(latF1, Math.ceil((bounds.getNorth()+90)/1)*1-90+1);
+    for(let lon=lon0; lon<=lon1; lon+=2) layer.addLayer(L.polyline([[lat0,lon],[lat1,lon]], sqLine));
+    for(let lat=lat0; lat<=lat1; lat+=1) layer.addLayer(L.polyline([[lat,lon0],[lat,lon1]], sqLine));
+    if(zoom < 11){
+      for(let lon=lon0; lon<lon1; lon+=2){
+        for(let lat=lat0; lat<lat1; lat+=1){
+          layer.addLayer(L.marker([lat+0.8,lon+0.15], {icon:maidenLabelIcon(maidenSquareLabel(lat+0.05,lon+0.1),10), interactive:false}));
+        }
+      }
+    }
+  }
+
+  // Sous-carrés : locator COMPLET (6 caractères), à partir du zoom 11 —
+  // seulement quand on est vraiment zoomé, sinon la grille 24×24 par carré
+  // deviendrait illisible et coûteuse à dessiner.
+  if(zoom >= 11){
+    const subLonStep = 2/24, subLatStep = 1/24;
+    const lon0 = Math.max(lonF0, bounds.getWest()-subLonStep);
+    const lon1 = Math.min(lonF1, bounds.getEast()+subLonStep);
+    const lat0 = Math.max(latF0, bounds.getSouth()-subLatStep);
+    const lat1 = Math.min(latF1, bounds.getNorth()+subLatStep);
+    if((lon1-lon0)/subLonStep <= MAIDEN_SUB_MAX_CELLS && (lat1-lat0)/subLatStep <= MAIDEN_SUB_MAX_CELLS){
+      const subLine = {color:'rgba(232,150,74,.14)', weight:0.5, interactive:false};
+      for(let lon=lon0; lon<=lon1; lon+=subLonStep) layer.addLayer(L.polyline([[lat0,lon],[lat1,lon]], subLine));
+      for(let lat=lat0; lat<=lat1; lat+=subLatStep) layer.addLayer(L.polyline([[lat,lon0],[lat,lon1]], subLine));
+      for(let lon=lon0; lon<lon1; lon+=subLonStep){
+        for(let lat=lat0; lat<lat1; lat+=subLatStep){
+          layer.addLayer(L.marker([lat+subLatStep*0.5,lon+subLonStep*0.12],
+            {icon:maidenLabelIcon(maidenSubsquareLabel(lat+subLatStep*0.1,lon+subLonStep*0.1),9), interactive:false}));
+        }
+      }
+    }
+  }
+
+  layer.addTo(leafletMap);
+  maidenGridLayer = layer;
 }
 
 // ─── AFFICHAGE SPOTS CLUSTER SUR LA CARTE ────────────────────────────────────
