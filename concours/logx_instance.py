@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Que doit faire le lanceur (.bat) avant de demarrer le serveur ?
 
-BUG REEL CORRIGE ICI. LANCER_RADIOCONTEST.bat testait le port avec `curl` :
+BUG REEL CORRIGE ICI. LANCER_LOGX_AI.bat (alors LANCER_RADIOCONTEST.bat)
+testait le port avec `curl` :
 si QUELQUE CHOSE repondait sur 8080, il sautait directement a l'ouverture du
 navigateur sans jamais executer `python logx_serveur.py`. Or c'est
 logx_serveur.py qui porte la detection d'instance deja lancee
@@ -18,7 +19,7 @@ est « est-ce le bon serveur qui ecoute ? ».
 Le present module ne duplique aucune logique : il appelle la meme sonde que le
 serveur, et traduit son verdict en code de sortie pour le .bat.
 
-Codes de sortie (le .bat s'y branche, voir LANCER_RADIOCONTEST.bat) :
+Codes de sortie (le .bat s'y branche, voir LANCER_LOGX_AI.bat) :
    0  rien n'ecoute, ou un tiers partage le port sans nous prendre nos adresses
       -> le lanceur demarre le serveur normalement ;
   10  LogX AI repond deja, dans la MEME version que ce dossier

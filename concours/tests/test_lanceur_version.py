@@ -34,7 +34,7 @@ import logx_instance as LI       # noqa: E402
 import logx_singleton as S       # noqa: E402
 
 RACINE = os.path.dirname(CONCOURS)
-BAT = os.path.join(RACINE, 'LANCER_RADIOCONTEST.bat')
+BAT = os.path.join(RACINE, 'LANCER_LOGX_AI.bat')
 
 PORT_TEST = 8080
 
