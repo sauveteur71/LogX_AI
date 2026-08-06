@@ -77,12 +77,18 @@ def test_find_app_mode_browser_via_which(monkeypatch):
 
 
 def test_find_app_mode_browser_via_chemins_windows_connus(monkeypatch):
+    """CI tourne sous Linux : os.path.join('C:\\...', 'Microsoft\\Edge\\...')
+    n'y assemble PAS avec des antislashs comme sous Windows (POSIX ne les
+    traite pas comme séparateurs). `cible` est donc calculée avec le MÊME
+    os.path.join que le code testé plutôt qu'écrite en dur avec des
+    antislashs littéraux — sinon le test ne passe que sous Windows, trouvé
+    en CI (Linux), pas en local."""
     monkeypatch.setattr(boot.shutil, 'which', lambda nom: None)
     monkeypatch.setattr(boot.sys, 'platform', 'win32')
     monkeypatch.setenv('PROGRAMFILES', r'C:\Program Files')
     monkeypatch.setenv('PROGRAMFILES(X86)', r'C:\Program Files (x86)')
     monkeypatch.setenv('LOCALAPPDATA', r'C:\Users\test\AppData\Local')
-    cible = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+    cible = os.path.join(r'C:\Program Files (x86)', r'Microsoft\Edge\Application\msedge.exe')
     monkeypatch.setattr(boot.os.path, 'isfile', lambda p: p == cible)
 
     assert boot._find_app_mode_browser() == cible
