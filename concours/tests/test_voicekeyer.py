@@ -493,6 +493,20 @@ def test_set_ptt_dispatch_rigctld(monkeypatch):
     assert r == {'ok': True, 'via': 'rigctld', 'host': 'h'}
 
 
+# ─── set_ptt() : alias public, utilisé par le décodeur FT8 natif (/rig/ptt) ──
+
+def test_set_ptt_public_delegue_au_meme_dispatch(monkeypatch):
+    """set_ptt() (public, appelé par /rig/ptt dans logx_http.py — la radio ne
+    sait rien du protocole FT8, LogX AI doit commander le PTT lui-même
+    autour de la lecture) doit être un simple alias de _set_ptt, pas une
+    logique parallèle qui pourrait diverger."""
+    appels = []
+    monkeypatch.setattr(vk, '_set_ptt', lambda cfg, on: appels.append(on) or {'ok': True, 'on': on})
+    r = vk.set_ptt({'x': 1}, True)
+    assert r == {'ok': True, 'on': True}
+    assert appels == [True]
+
+
 # ─── voicekeyer_settings() : sous-dict 'ai' ───────────────────────────────────
 
 def test_voicekeyer_settings_ai_par_defaut_desactivee():

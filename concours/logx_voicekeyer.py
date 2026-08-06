@@ -1097,6 +1097,16 @@ def _set_ptt(cfg, on):
     return {'ok': False, 'error': 'Pilotage radio désactivé (CONFIG)'}
 
 
+def set_ptt(cfg, on):
+    """PTT explicite pour un appelant externe au keyer vocal (ex. le
+    décodeur FT8 natif, logx_ft8.html : la radio ignore tout du protocole
+    FT8, seul le ton audio compte, donc PTT doit être commandé autour de la
+    lecture, comme pour un micro externe). Simple alias public de _set_ptt :
+    même dispatch natif/TCI/flrig/rigctld, rien d'autre — évite d'exposer
+    (ou de dupliquer) un symbole préfixé _ hors de ce module."""
+    return _set_ptt(cfg, on)
+
+
 def _synthese_indisponible_message(settings):
     moteurs_essayes = ['IA'] * settings['ai']['enabled'] + ['Piper'] * settings['piper']['enabled']
     if moteurs_essayes:
