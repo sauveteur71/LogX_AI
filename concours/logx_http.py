@@ -5433,7 +5433,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if self.path == '/amp/test':
                 res = amp.test_connection(
                     payload.get('brand', ''), payload.get('port', ''),
-                    payload.get('baudrate') or 0, payload.get('civ_addr'))
+                    payload.get('baudrate') or 0, payload.get('civ_addr'),
+                    conn_mode=payload.get('conn_mode') or 'serial',
+                    host=payload.get('host', ''), net_port=payload.get('net_port') or None)
                 self._json(res, 200 if res.get('ok') else 400)
                 return
             cfg_snap = self._cfg_snapshot()

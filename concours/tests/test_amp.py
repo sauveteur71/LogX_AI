@@ -3,9 +3,14 @@
 trame pure (KPA ASCII, CI-V étendu, paquets SPE) + boucle complète contre des
 amplis FICTIFS en mémoire (aucun port série réel requis)."""
 import os
+import socket
 import sys
+import threading
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import pytest
 
 import logx_amp as amp
 import logx_cat as cat
@@ -417,14 +422,29 @@ def test_spe_set_band_inconnu():
 
 def test_amp_settings_defaut():
     s = amp.amp_settings({})
-    assert s == {'enabled': False, 'brand': '', 'port': '', 'baudrate': 9600, 'civ_addr': 0xAA}
+    assert s == {'enabled': False, 'brand': '', 'conn_mode': 'serial', 'port': '',
+                 'host': '', 'net_port': amp.AMP_DEFAULT_NET_PORT, 'baudrate': 9600, 'civ_addr': 0xAA}
 
 
 def test_amp_settings_personnalises():
     s = amp.amp_settings({'amp_enabled': True, 'amp_brand': 'ICOM', 'amp_port': 'COM9',
                           'amp_baudrate': '19200', 'amp_civ_addr': 'AA'})
-    assert s == {'enabled': True, 'brand': 'icom', 'port': 'COM9',
-                'baudrate': 19200, 'civ_addr': 0xAA}
+    assert s == {'enabled': True, 'brand': 'icom', 'conn_mode': 'serial', 'port': 'COM9',
+                'host': '', 'net_port': amp.AMP_DEFAULT_NET_PORT, 'baudrate': 19200, 'civ_addr': 0xAA}
+
+
+def test_amp_settings_reseau_kpa1500():
+    s = amp.amp_settings({'amp_brand': 'elecraft', 'amp_conn_mode': 'tcp',
+                          'amp_host': '192.168.1.50', 'amp_net_port': '1500'})
+    assert s['conn_mode'] == 'tcp' and s['host'] == '192.168.1.50' and s['net_port'] == 1500
+
+
+def test_amp_settings_conn_mode_invalide_retombe_sur_serie():
+    assert amp.amp_settings({'amp_conn_mode': 'bluetooth'})['conn_mode'] == 'serial'
+
+
+def test_amp_settings_net_port_absent_retombe_sur_1500():
+    assert amp.amp_settings({'amp_conn_mode': 'tcp'})['net_port'] == 1500
 
 
 def test_amp_settings_baudrate_par_defaut_selon_marque():
@@ -546,3 +566,270 @@ def test_test_connection_kpa_reussi():
         assert r['ok'] and r['status']['power_w'] == 50
 
     _with_fake_serial(fake, run)
+
+
+# ─── Transport réseau KPA1500 (TcpAmpPort/UdpAmpPort) ────────────────────────
+#
+# Contrairement aux tests ci-dessus (transport en mémoire), ceux qui suivent
+# ouvrent un VRAI socket loopback (127.0.0.1) : ils prouvent que TcpAmpPort/
+# UdpAmpPort parlent correctement au fil du protocole (bufferisation TCP,
+# terminateur, timeouts), pas seulement à un dict Python.
+
+class _KpaAsciiResponder:
+    """Cœur du protocole KPA ASCII, partagé par les serveurs de test TCP et
+    UDP — mêmes réponses que FakeKpaAmp, sur un vrai socket."""
+
+    def __init__(self, power_w=100, swr3='010', operate=True):
+        self.power_w = power_w
+        self.swr3 = swr3
+        self.operate = operate
+
+    def reply(self, cmd):
+        if cmd == '^WS;':
+            return f'^WS{self.power_w:03d} {self.swr3};'.encode()
+        if cmd == '^OS;':
+            return f'^OS{1 if self.operate else 0};'.encode()
+        if cmd.startswith('^OS'):
+            self.operate = cmd[3] == '1'
+            return f'^OS{1 if self.operate else 0};'.encode()
+        if cmd == '^FL;':
+            return b'^FL00;'
+        if cmd == '^TM;':
+            return b'^TM025;'
+        return b''
+
+
+def _free_port():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('127.0.0.1', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def _run_tcp_server(port, responder, stop_evt):
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(('127.0.0.1', port))
+    srv.listen(1)
+    srv.settimeout(0.2)
+    try:
+        while not stop_evt.is_set():
+            try:
+                conn, _addr = srv.accept()
+            except socket.timeout:
+                continue
+            conn.settimeout(0.5)
+            buf = b''
+            try:
+                while not stop_evt.is_set():
+                    try:
+                        chunk = conn.recv(256)
+                    except socket.timeout:
+                        continue
+                    if not chunk:
+                        break
+                    buf += chunk
+                    while b';' in buf:
+                        idx = buf.index(b';') + 1
+                        cmd, buf = buf[:idx], buf[idx:]
+                        conn.sendall(responder.reply(cmd.decode('ascii')))
+            finally:
+                conn.close()
+    finally:
+        srv.close()
+
+
+def _run_udp_server(port, responder, stop_evt):
+    srv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    srv.bind(('127.0.0.1', port))
+    srv.settimeout(0.2)
+    try:
+        while not stop_evt.is_set():
+            try:
+                data, addr = srv.recvfrom(256)
+            except socket.timeout:
+                continue
+            srv.sendto(responder.reply(data.decode('ascii')), addr)
+    finally:
+        srv.close()
+
+
+@pytest.fixture
+def tcp_kpa_server():
+    port = _free_port()
+    responder = _KpaAsciiResponder()
+    stop_evt = threading.Event()
+    th = threading.Thread(target=_run_tcp_server, args=(port, responder, stop_evt), daemon=True)
+    th.start()
+    time.sleep(0.05)
+    yield '127.0.0.1', port, responder
+    stop_evt.set()
+    th.join(timeout=1)
+
+
+@pytest.fixture
+def udp_kpa_server():
+    port = _free_port()
+    responder = _KpaAsciiResponder()
+    stop_evt = threading.Event()
+    th = threading.Thread(target=_run_udp_server, args=(port, responder, stop_evt), daemon=True)
+    th.start()
+    time.sleep(0.05)
+    yield '127.0.0.1', port, responder
+    stop_evt.set()
+    th.join(timeout=1)
+
+
+def test_tcp_amp_port_transceive(tcp_kpa_server):
+    host, port, _r = tcp_kpa_server
+    transport = amp.TcpAmpPort(host, port, timeout=2.0)
+    try:
+        assert transport.transceive(b'^WS;', b';', timeout=2.0) == b'^WS100 010;'
+    finally:
+        transport.close()
+
+
+def test_tcp_amp_port_kpa_boucle_complete_reelle(tcp_kpa_server):
+    """Boucle KpaAmp -> TcpAmpPort -> vrai socket loopback -> serveur de
+    test — même vérification que test_kpa_get_status mais sur un VRAI
+    transport réseau plutôt qu'un double en mémoire."""
+    host, port, _r = tcp_kpa_server
+    transport = amp.TcpAmpPort(host, port, timeout=2.0)
+    try:
+        driver = amp.KpaAmp(transport)
+        st = driver.get_status()
+        assert st['ok'] and st['power_w'] == 100 and st['swr'] == 1.0
+        assert driver.set_operate(False) == {'ok': True, 'operate': False}
+    finally:
+        transport.close()
+
+
+def test_udp_amp_port_transceive(udp_kpa_server):
+    host, port, _r = udp_kpa_server
+    transport = amp.UdpAmpPort(host, port, timeout=2.0)
+    try:
+        assert transport.transceive(b'^WS;', b';', timeout=2.0) == b'^WS100 010;'
+    finally:
+        transport.close()
+
+
+def _bare_tcp_transport(sock):
+    """Construit un TcpAmpPort sans passer par __init__ (pas de vrai
+    connect()) — pour tester _recv_until() directement sur les deux bouts
+    d'un socketpair, sans dépendre d'un serveur en tâche de fond."""
+    transport = amp.TcpAmpPort.__new__(amp.TcpAmpPort)
+    transport._lock = threading.Lock()
+    transport._sock = sock
+    transport._buf = b''
+    return transport
+
+
+def test_tcp_amp_port_reassemble_une_trame_arrivee_en_plusieurs_paquets():
+    """Le flux TCP n'a aucune notion de trame : une réponse peut arriver
+    fragmentée sur plusieurs recv(). _recv_until() doit accumuler jusqu'au
+    terminateur ';', pas supposer qu'un seul recv() suffit."""
+    server_sock, client_sock = socket.socketpair()
+    transport = _bare_tcp_transport(client_sock)
+    try:
+        def send_fragmente():
+            time.sleep(0.05)
+            server_sock.sendall(b'^WS100 ')
+            time.sleep(0.05)
+            server_sock.sendall(b'010;')
+        th = threading.Thread(target=send_fragmente, daemon=True)
+        th.start()
+        frame = transport.transceive(b'^WS;', b';', timeout=2.0)
+        assert frame == b'^WS100 010;'
+        th.join()
+    finally:
+        transport.close()
+        server_sock.close()
+
+
+def test_tcp_amp_port_conserve_le_surplus_pour_le_prochain_appel():
+    """Si deux réponses arrivent d'un coup dans le même paquet TCP, la 2e ne
+    doit pas être perdue — elle doit rester dans le tampon pour le PROCHAIN
+    appel (read_until), pas être écrasée par le _recv_until() de la 1re."""
+    server_sock, client_sock = socket.socketpair()
+    transport = _bare_tcp_transport(client_sock)
+    try:
+        server_sock.sendall(b'^WS100 010;^OS1;')
+        frame1 = transport.transceive(b'^WS;', b';', timeout=2.0)
+        assert frame1 == b'^WS100 010;'
+        frame2 = transport.read_until(b';', timeout=2.0)
+        assert frame2 == b'^OS1;'
+    finally:
+        transport.close()
+        server_sock.close()
+
+
+def test_ensure_connected_reseau_refuse_marque_non_elecraft():
+    settings = amp.amp_settings({'amp_enabled': True, 'amp_brand': 'icom',
+                                 'amp_conn_mode': 'tcp', 'amp_host': '127.0.0.1'})
+    driver, err = amp._ensure_connected(settings)
+    assert driver is None and 'KPA1500' in err
+    amp.disconnect_persistent()
+
+
+def test_ensure_connected_reseau_refuse_host_manquant():
+    settings = amp.amp_settings({'amp_enabled': True, 'amp_brand': 'elecraft', 'amp_conn_mode': 'tcp'})
+    driver, err = amp._ensure_connected(settings)
+    assert driver is None and 'hôte' in err.lower()
+    amp.disconnect_persistent()
+
+
+def test_get_state_kpa1500_reseau_tcp(tcp_kpa_server):
+    host, port, _r = tcp_kpa_server
+    cfg = {'amp_enabled': True, 'amp_brand': 'elecraft', 'amp_conn_mode': 'tcp',
+           'amp_host': host, 'amp_net_port': port}
+    try:
+        st = amp.get_state(cfg)
+        assert st['ok'] and st['power_w'] == 100
+        st2 = amp.get_state(cfg)   # connexion réutilisée, pas de nouveau connect()
+        assert st2['ok']
+    finally:
+        amp.disconnect_persistent()
+
+
+def test_get_state_kpa1500_reseau_udp(udp_kpa_server):
+    host, port, _r = udp_kpa_server
+    cfg = {'amp_enabled': True, 'amp_brand': 'elecraft', 'amp_conn_mode': 'udp',
+           'amp_host': host, 'amp_net_port': port}
+    try:
+        st = amp.get_state(cfg)
+        assert st['ok'] and st['power_w'] == 100
+    finally:
+        amp.disconnect_persistent()
+
+
+def test_set_operate_kpa1500_reseau_tcp(tcp_kpa_server):
+    host, port, _r = tcp_kpa_server
+    cfg = {'amp_enabled': True, 'amp_brand': 'elecraft', 'amp_conn_mode': 'tcp',
+           'amp_host': host, 'amp_net_port': port}
+    try:
+        assert amp.set_operate(cfg, False) == {'ok': True, 'operate': False}
+    finally:
+        amp.disconnect_persistent()
+
+
+def test_test_connection_reseau_marque_non_elecraft():
+    r = amp.test_connection('icom', '', 19200, conn_mode='tcp', host='127.0.0.1')
+    assert not r['ok'] and 'KPA1500' in r['error']
+
+
+def test_test_connection_reseau_host_manquant():
+    r = amp.test_connection('elecraft', '', 38400, conn_mode='tcp', host='')
+    assert not r['ok']
+
+
+def test_test_connection_kpa1500_reseau_tcp_reussi(tcp_kpa_server):
+    host, port, _r = tcp_kpa_server
+    r = amp.test_connection('elecraft', '', 38400, conn_mode='tcp', host=host, net_port=port)
+    assert r['ok'] and r['status']['power_w'] == 100
+
+
+def test_test_connection_kpa1500_reseau_udp_reussi(udp_kpa_server):
+    host, port, _r = udp_kpa_server
+    r = amp.test_connection('elecraft', '', 38400, conn_mode='udp', host=host, net_port=port)
+    assert r['ok'] and r['status']['power_w'] == 100

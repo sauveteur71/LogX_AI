@@ -1501,7 +1501,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div class="form-grid">
           <div class="form-group">
             <label>PILOTAGE AMPLI</label>
-            <select id="amp_enabled" onchange="updateEnabledFieldsVisibility('amp_enabled',['amp_brand','amp_port','amp_baudrate','amp_civ_addr'])">
+            <select id="amp_enabled" onchange="updateEnabledFieldsVisibility('amp_enabled',['amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port'])">
               <option value="">Désactivé</option>
               <option value="1">Activé</option>
             </select>
@@ -1514,14 +1514,32 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
               <option value="spe">SPE / Expert (1.3K-FA / 1.5K-FA / 2K-FA)</option>
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group" id="ampConnModeField" style="display:none">
+            <label>CONNEXION</label>
+            <select id="amp_conn_mode" onchange="updateAmpFieldsVisibility()">
+              <option value="serial">Port série (USB/RS-232)</option>
+              <option value="tcp">Réseau — TCP (port Ethernet natif KPA1500)</option>
+              <option value="udp">Réseau — UDP (port Ethernet natif KPA1500)</option>
+            </select>
+            <div class="input-note">Le KPA500 n'a pas de port Ethernet — réseau réservé au KPA1500.</div>
+          </div>
+          <div class="form-group" id="ampPortField">
             <label>PORT SÉRIE</label>
             <select id="amp_port"></select>
             <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshAmpPorts()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9a5.5 5.5 0 0 1 9.3-4"/><polyline points="12.5 2 12.8 5 9.8 5.3"/><path d="M14.5 9a5.5 5.5 0 0 1-9.3 4"/><polyline points="5.5 16 5.2 13 8.2 12.7"/></svg> Rafraîchir la liste</button>
           </div>
-          <div class="form-group">
+          <div class="form-group" id="ampBaudField">
             <label>VITESSE (bauds)</label>
             <input type="number" id="amp_baudrate" placeholder="9600 à 38400 selon marque">
+          </div>
+          <div class="form-group" id="ampHostField" style="display:none">
+            <label>ADRESSE IP / HÔTE</label>
+            <input type="text" id="amp_host" placeholder="192.168.1.50">
+          </div>
+          <div class="form-group" id="ampNetPortField" style="display:none">
+            <label>PORT RÉSEAU</label>
+            <input type="number" id="amp_net_port" placeholder="1500">
+            <div class="input-note">1500 par défaut (modifiable sur l'ampli via ^CP).</div>
           </div>
           <div class="form-group" id="ampCivAddrField" style="display:none">
             <label>ADRESSE CI-V</label>
@@ -2550,6 +2568,9 @@ const CONFIG_HELP = {
   amp_port: "Le port série (COM) où ton amplificateur est relié à l'ordinateur.",
   amp_baudrate: "La vitesse de communication série réglée sur ton amplificateur.",
   amp_civ_addr: "L'adresse CI-V de l'ampli (pour les modèles compatibles Icom) — vérifie dans le menu de l'ampli si besoin de la changer.",
+  amp_conn_mode: "Le KPA1500 (pas le KPA500) a un port Ethernet natif : tu peux le piloter en réseau (TCP ou UDP) au lieu du port série USB. Mêmes commandes, juste un autre chemin — utile si l'ampli est loin du PC ou déjà relié à ton réseau local.",
+  amp_host: "L'adresse IP du KPA1500 sur ton réseau (visible dans le menu de l'ampli ou sur ta box/routeur).",
+  amp_net_port: "Le port TCP/UDP du KPA1500 — 1500 par défaut, modifiable sur l'ampli via la commande ^CP si tu l'as changé.",
 
   rotor_enabled: "Active le pilotage de ton rotor d'antenne (pointage automatique vers une station) depuis le logiciel.",
   rotor_brand: "Marque de ton rotor. La choisir règle automatiquement le protocole conseillé et signale si le boîtier gère l'élévation (satellite/EME).",
@@ -3318,7 +3339,7 @@ async function init() {
   updateAmpFieldsVisibility(); refreshAmpPorts(); // Amplificateur HF
   // Correctif M5 : refléter l'état Activé/Désactivé sur les champs dépendants
   // dès l'affichage initial (pas seulement au changement manuel du select).
-  updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
+  updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port']);
   updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
@@ -3845,8 +3866,20 @@ function updateEnabledFieldsVisibility(toggleId, childIds, isEnabledFn){
 function updateAmpFieldsVisibility(){
   const brand = document.getElementById('amp_brand').value;
   document.getElementById('ampCivAddrField').style.display = brand === 'icom' ? '' : 'none';
+  // Réseau TCP/UDP : uniquement le KPA1500 (port Ethernet natif documenté) —
+  // Icom/SPE n'ont aucun accès réseau documenté, on les force en série.
+  const connSel = document.getElementById('amp_conn_mode');
+  document.getElementById('ampConnModeField').style.display = brand === 'elecraft' ? '' : 'none';
+  if (brand !== 'elecraft' && connSel.value !== 'serial') connSel.value = 'serial';
+  const isNetwork = brand === 'elecraft' && connSel.value !== 'serial';
+  document.getElementById('ampPortField').style.display = isNetwork ? 'none' : '';
+  document.getElementById('ampBaudField').style.display = isNetwork ? 'none' : '';
+  document.getElementById('ampHostField').style.display = isNetwork ? '' : 'none';
+  document.getElementById('ampNetPortField').style.display = isNetwork ? '' : 'none';
   const baud = document.getElementById('amp_baudrate');
   if (!baud.value) baud.value = AMP_DEFAULT_BAUD[brand] || 9600;
+  const netPort = document.getElementById('amp_net_port');
+  if (!netPort.value) netPort.value = 1500;
 }
 
 async function refreshAmpPorts(){
@@ -3871,8 +3904,16 @@ async function refreshAmpPorts(){
 async function testAmpConnection(){
   const result = document.getElementById('ampTestResult');
   const brand = document.getElementById('amp_brand').value;
+  const connMode = brand === 'elecraft' ? document.getElementById('amp_conn_mode').value : 'serial';
+  const isNetwork = connMode !== 'serial';
   const port = document.getElementById('amp_port').value;
-  if (!port){
+  const host = document.getElementById('amp_host').value.trim();
+  if (isNetwork && !host){
+    result.textContent = '⚠️ Renseigne l\'adresse IP/hôte du KPA1500 d\'abord';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  if (!isNetwork && !port){
     result.textContent = '⚠️ Choisis un port série d\'abord';
     result.style.color = 'var(--yellow)';
     return;
@@ -3883,6 +3924,8 @@ async function testAmpConnection(){
     brand, port,
     baudrate: parseInt(document.getElementById('amp_baudrate').value, 10) || AMP_DEFAULT_BAUD[brand] || 9600,
     civ_addr: document.getElementById('amp_civ_addr').value.trim() || undefined,
+    conn_mode: connMode, host,
+    net_port: parseInt(document.getElementById('amp_net_port').value, 10) || 1500,
   };
   try{
     const res = await fetch('/amp/test', {
@@ -6571,9 +6614,12 @@ function saveConfig(silent = false, feedbackBtn = null) {
       antennes: antennesRows, rotors: rotorsRows, amplis: amplisRows}; })(),
     amp_enabled: !!document.getElementById('amp_enabled').value,
     amp_brand: document.getElementById('amp_brand').value,
+    amp_conn_mode: document.getElementById('amp_conn_mode').value,
     amp_port: document.getElementById('amp_port').value,
     amp_baudrate: parseInt(document.getElementById('amp_baudrate').value, 10) || 0,
     amp_civ_addr: document.getElementById('amp_civ_addr').value.trim(),
+    amp_host: document.getElementById('amp_host').value.trim(),
+    amp_net_port: parseInt(document.getElementById('amp_net_port').value, 10) || 0,
     rotor_enabled: !!document.getElementById('rotor_enabled').value,
     rotor_host: document.getElementById('rotor_host').value.trim(),
     rotor_port: parseInt(document.getElementById('rotor_port').value, 10) || 4533,
@@ -7241,7 +7287,7 @@ function applyFullConfigToForm(c) {
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
      'cat2_enabled','cat2_brand','cat2_port','cat2_baudrate',
      'so2r_enabled','so2r_port','so2r_stereo',
-     'amp_brand','amp_port','amp_baudrate','amp_civ_addr'].forEach(k=>{
+     'amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     fillClusterPicker();   // remplit le sélecteur de nœuds + aligne sur l'hôte chargé
@@ -7430,7 +7476,7 @@ function applyFullConfigToForm(c) {
     // profil, qui appellent tous deux cette fonction) — sinon un profil
     // désactivant l'ampli/rotor/cloud sync laissait leurs champs enfants
     // pleinement éditables visuellement malgré le select sur Désactivé.
-    updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_port','amp_baudrate','amp_civ_addr']);
+    updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port']);
     updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
     updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
     updateEnabledFieldsVisibility('mqtt_enabled', ['mqtt_host','mqtt_port','mqtt_topic_prefix']);
