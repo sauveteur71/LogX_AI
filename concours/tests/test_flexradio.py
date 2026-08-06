@@ -97,6 +97,52 @@ def test_flexsocket_recolle_deux_lignes_recues_dans_un_seul_paquet():
     server.close()
 
 
+def test_connect_and_start_echoue_vite_si_pair_silencieux_apres_tcp():
+    """Correctif : un pair qui accepte la connexion TCP mais ne parle jamais
+    (pas de lignes V/H) doit faire échouer connect_and_start() en un temps
+    BORNÉ et COURT (proche du timeout de connexion), pas au bout de
+    READ_IDLE_TIMEOUT_S (30s, potentiellement ~2x ça en cumulant la lecture
+    de V puis de H) comme AVANT le correctif — sans quoi un thread HTTP
+    appelant restait bloqué bien plus longtemps que ce que CONNECT_TIMEOUT_S
+    laisse penser à la lecture du code."""
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('127.0.0.1', 0))
+    server.listen(1)
+    port = server.getsockname()[1]
+    accepted = []
+
+    def _accept_and_stay_silent():
+        try:
+            conn, _ = server.accept()
+            accepted.append(conn)
+            # N'envoie et ne lit jamais rien : pair TCP accepté puis muet.
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_accept_and_stay_silent, daemon=True)
+    t.start()
+    sock = flex.FlexSocket('127.0.0.1', port, timeout=0.3)
+    client = flex.FlexClient(sock)
+    t0 = time.time()
+    raised = None
+    try:
+        client.connect_and_start()
+    except Exception as e:
+        raised = e
+    elapsed = time.time() - t0
+    server.close()
+    for c in accepted:
+        try:
+            c.close()
+        except Exception:
+            pass
+    assert raised is not None
+    # Loin des ~30-80s d'avant le correctif (READ_IDLE_TIMEOUT_S posé trop
+    # tôt, avant même la lecture du handshake V/H) : borné proche du
+    # timeout de connexion (0.3s) utilisé ici.
+    assert elapsed < 3.0
+
+
 # ─── FlexClient : état alimenté par un double socket en mémoire ───────────
 
 class FakeSock:
@@ -110,6 +156,11 @@ class FakeSock:
         self.closed = False
 
     def connect(self):
+        pass
+
+    def mark_handshake_done(self):
+        # No-op côté double : le vrai FlexSocket bascule ici de timeout
+        # court -> READ_IDLE_TIMEOUT_S, sans objet sur un socket en mémoire.
         pass
 
     def send_line(self, text):
@@ -217,6 +268,46 @@ def test_get_state_sans_slice_connu_renvoie_freq_none():
     client.connect_and_start()
     st = client.get_state()
     assert st['freq_hz'] is None
+    client.close()
+
+
+def test_read_loop_survit_a_rf_frequency_non_finie():
+    """Correctif : une valeur RF_frequency non finie (ex. 'inf', qu'une radio
+    déraillée ou une trame corrompue pourrait envoyer) levait un
+    OverflowError dans round()/int() jamais attrapé par le `except
+    ValueError` d'origine — le fil de lecture mourait silencieusement
+    dessus. Vérifie que le fil SURVIT et continue à traiter la ligne
+    suivante."""
+    sock = _fake_sock(['V1.0.0.0', 'H6F4EC23D',
+                        'S6F4EC23D|slice 0 RF_frequency=inf mode=USB',
+                        'S6F4EC23D|slice 0 RF_frequency=14.195000 mode=USB'])
+    client = flex.FlexClient(sock)
+    client.connect_and_start()
+    assert _wait_until(lambda: client.get_state()['freq_hz'] == 14195000)
+    assert client._reader.is_alive()
+    client.close()
+
+
+def test_read_loop_survit_a_une_erreur_inattendue_dans_handle_line():
+    """Filet de sécurité GÉNÉRIQUE de _read_loop() (indépendant de la
+    correction ciblée RF_frequency ci-dessus) : même une erreur totalement
+    inattendue levée par _handle_line() ne doit tuer ni le fil de lecture,
+    ni empêcher le traitement des lignes suivantes — seule la ligne fautive
+    est perdue."""
+    sock = _fake_sock(['V1.0.0.0', 'H6F4EC23D', 'BOOM',
+                        'S6F4EC23D|slice 0 RF_frequency=14.195000 mode=USB'])
+    client = flex.FlexClient(sock)
+    orig_handle_line = client._handle_line
+
+    def _boom_once(line):
+        if line == 'BOOM':
+            raise RuntimeError('erreur inattendue simulée')
+        return orig_handle_line(line)
+
+    client._handle_line = _boom_once
+    client.connect_and_start()
+    assert _wait_until(lambda: client.get_state()['freq_hz'] == 14195000)
+    assert client._reader.is_alive()
     client.close()
 
 

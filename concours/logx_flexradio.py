@@ -70,6 +70,21 @@ MAX_LINE_LEN = 8192          # borne défensive : une ligne sans '\n' ne doit ja
 _EXECUTOR = _cf.ThreadPoolExecutor(max_workers=2, thread_name_prefix='flexradio_cat')
 
 
+def _close_late_socket(fut):
+    """Callback pour un socket.create_connection() qui finit par réussir
+    APRÈS que l'appelant de FlexSocket.connect() a déjà abandonné (timeout
+    écoulé côté appelant) — ferme ce socket devenu orphelin plutôt que de le
+    laisser fuir (personne d'autre n'y a de référence)."""
+    try:
+        sock = fut.result()
+    except Exception:
+        return
+    try:
+        sock.close()
+    except Exception:
+        pass
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Transport TCP texte minimal — lignes ASCII, pas de framing binaire
 #  (contrairement à TCI qui est du WebSocket, voir logx_tci.WebSocketClient)
@@ -92,11 +107,38 @@ class FlexSocket:
         def _do():
             return socket.create_connection((self.host, self.port), timeout=self.timeout)
         fut = _EXECUTOR.submit(_do)
-        self._sock = fut.result(timeout=self.timeout + 3)
-        # Handshake terminé une fois connect() revenu : au repos SmartSDR
-        # n'envoie plus rien tant qu'un abonnement 'sub' n'a pas été posé, ce
-        # timeout borne donc le SILENCE (pas juste le handshake initial),
-        # comme READ_IDLE_TIMEOUT_S dans logx_tci.WebSocketClient.connect().
+        try:
+            self._sock = fut.result(timeout=self.timeout + 3)
+        except _cf.TimeoutError:
+            # fut.result() a expiré côté appelant, mais _do() continue de
+            # tourner en arrière-plan dans l'executor et peut encore réussir
+            # (créer un socket) APRÈS coup — sans ce callback, ce socket-là
+            # ne serait jamais fermé (fuite de descripteur). fut.cancel() ne
+            # sert à rien ici (le thread tourne déjà) : on ferme le socket
+            # depuis le callback s'il finit par arriver, sans bloquer ce
+            # connect() qui a déjà échoué pour l'appelant.
+            fut.add_done_callback(_close_late_socket)
+            raise
+        # Handshake PAS encore terminé au retour de connect() (le commentaire
+        # précédent ici affirmait le contraire, à tort) : les deux lignes de
+        # bienvenue "V…"/"H…" restent à lire par
+        # FlexClient.connect_and_start(), qui appelle mark_handshake_done()
+        # une fois qu'elles sont effectivement reçues. On garde donc le
+        # timeout COURT de connexion (self.timeout) pendant cette lecture —
+        # un pair qui accepte le TCP mais reste ensuite muet est ainsi
+        # détecté en ~self.timeout, pas en ~READ_IDLE_TIMEOUT_S (30 s).
+        # Même distinction que logx_tci.WebSocketClient.connect(), qui
+        # applique self.timeout à la lecture de la réponse HTTP Upgrade puis
+        # READ_IDLE_TIMEOUT_S seulement après un "101 Switching Protocols"
+        # confirmé.
+        self._sock.settimeout(self.timeout)
+
+    def mark_handshake_done(self):
+        """À appeler UNE FOIS que les deux lignes V/H ont été effectivement
+        reçues (voir FlexClient.connect_and_start()) : bascule du timeout
+        court de connexion vers le timeout de silence prolongé — protocole
+        PUSH, la radio peut légitimement rester muette longtemps entre deux
+        messages 'S' une fois les abonnements posés (voir _subscribe())."""
         self._sock.settimeout(READ_IDLE_TIMEOUT_S)
 
     def send_line(self, text):
@@ -163,9 +205,16 @@ class FlexClient:
         self.sock.connect()
         # Les DEUX lignes de bienvenue (V puis H) DOIVENT être lues ici,
         # AVANT de démarrer le fil de lecture — sinon le fil et cette
-        # méthode se disputeraient les deux premières lignes du flux.
+        # méthode se disputeraient les deux premières lignes du flux. Le
+        # socket est encore au timeout COURT de connexion à ce stade (voir
+        # FlexSocket.connect()) : un pair qui accepte le TCP mais reste
+        # ensuite muet fait échouer recv_line() vite, pas au bout de
+        # READ_IDLE_TIMEOUT_S.
         self.sock.recv_line()          # "V<version>" — non exploité ici
         handle_line = self.sock.recv_line()   # "H<handle>"
+        # Handshake réellement confirmé ICI (pas au retour de sock.connect())
+        # : on peut désormais basculer sur le timeout de silence prolongé.
+        self.sock.mark_handshake_done()
         with self._lock:
             if handle_line[:1] == 'H':
                 self.state['handle'] = handle_line[1:].strip()
@@ -201,7 +250,19 @@ class FlexClient:
                 line = self.sock.recv_line()
             except Exception:
                 break
-            self._handle_line(line)
+            try:
+                self._handle_line(line)
+            except Exception:
+                # Une SEULE ligne de statut malformée ou inattendue ne doit
+                # jamais tuer tout le fil de lecture : sans ce try/except,
+                # reader.is_alive() passerait à False et _ensure_connected()
+                # forcerait une reconnexion complète et SYNCHRONE dans le
+                # thread HTTP appelant au prochain appel — potentiellement
+                # lente. On ignore la ligne fautive et on continue à lire
+                # les suivantes (même discipline que les `except Exception:
+                # pass` déjà utilisés ailleurs dans ce module, ex.
+                # FlexSocket.close()).
+                pass
 
     def _handle_line(self, line):
         if line[:1] == 'S':
@@ -234,8 +295,15 @@ class FlexClient:
                 if key == 'RF_frequency':
                     try:
                         # RF_frequency est en MHz (doc officielle) -> Hz entier.
+                        # OverflowError couvre round()/int() sur float('inf')
+                        # (une valeur non finie envoyée par une radio qui
+                        # déraille) — ValueError seul ne l'attrape PAS (il ne
+                        # couvre que le NaN et l'échec de float(value)) ; sans
+                        # OverflowError ici, une seule ligne de statut
+                        # malformée fait remonter une exception non catchée
+                        # jusqu'à _read_loop().
                         self.state['freq_hz'][slice_no] = int(round(float(value) * 1000000))
-                    except ValueError:
+                    except (ValueError, OverflowError, TypeError):
                         pass
                 elif key == 'mode':
                     self.state['mode'][slice_no] = value.upper()
@@ -283,8 +351,14 @@ def flexradio_settings(cfg):
     """Réglages FlexRadio depuis la config CLIENT — fonction PURE, jamais
     d'exception même sur un cfg vide ou None. Le choix du mode CAT ('native'
     / 'tci' / 'rigctld' / 'flrig' / 'flex') reste porté par cat_settings() de
-    logx_cat, ce module ne gère que enabled/host/port (même principe que
-    logx_tci.tci_settings/logx_flrig.flrig_settings)."""
+    logx_cat — même principe que logx_tci.tci_settings/logx_flrig.flrig_settings
+    pour host/port. EXCEPTION à ce principe pour 'enabled' : contrairement à
+    tci_settings/flrig_settings (qui n'ont PAS ce champ — l'activation y est
+    entièrement déléguée à cat_settings() via le choix du mode CAT),
+    flexradio_settings() introduit son PROPRE champ 'enabled'
+    (flexradio_enabled) pour que get_state()/set_ptt() puissent couper toute
+    E/S réseau tant qu'il n'est pas explicitement activé en CONFIG, avant
+    même de regarder quel mode CAT est sélectionné."""
     cfg = cfg or {}
     try:
         port = int(cfg.get('flexradio_port') or DEFAULT_PORT)
