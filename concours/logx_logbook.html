@@ -539,6 +539,27 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .brs-bar{height:100%;background:linear-gradient(90deg,var(--accent2),#00FF88);width:0%;transition:width .3s}
 .brs-status{font-size:12px;color:var(--muted);text-align:center;margin-bottom:12px}
 
+/* CONTRÔLE DE NET */
+.net-box{width:640px}
+.net-add-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;margin-bottom:10px}
+.net-add-row input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);
+  font-family:var(--font-mono);font-size:13px;padding:7px 9px;outline:none;width:100%;box-sizing:border-box}
+.net-list{display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow-y:auto;margin-bottom:12px}
+.net-row{display:grid;grid-template-columns:auto auto 1fr auto auto auto;gap:10px;align-items:center;
+  padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg3);
+  font-family:var(--font-mono);font-size:13px;cursor:grab}
+.net-row.current{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2)}
+.net-row.contacted{opacity:.55}
+.net-row .net-call{font-weight:700;color:var(--accent2)}
+.net-row .net-name{color:var(--muted);font-size:12px}
+.net-row .net-log-btn{background:none;border:1px solid var(--accent2);border-radius:5px;color:var(--accent2);
+  font-family:var(--font-mono);font-size:11px;padding:4px 9px;cursor:pointer;letter-spacing:.5px}
+.net-row .net-log-btn:hover{background:rgba(var(--accent-rgb),.12)}
+.net-row .net-del{cursor:pointer;color:var(--muted)}
+.net-row .net-del:hover{color:var(--red)}
+.net-empty{color:var(--muted);text-align:center;padding:14px;font-size:13px}
+.net-session-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;color:var(--muted)}
+
 /* BADGE PAYS DXCC */
 .dxcc-badge{display:none;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25);font-family:var(--font-mono);font-size:14px;margin-top:4px}
 .dxcc-flag{font-size:18px;line-height:1}
@@ -1089,6 +1110,33 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     <div class="flt-footer">
       <button class="export-btn" id="brsCancelBtn" onclick="closeBulkResolve()">FERMER</button>
       <button class="export-btn" id="brsStartBtn" onclick="startBulkResolve()" style="color:var(--green);border-color:rgba(0,255,136,.4)">LANCER</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTRÔLE DE NET -->
+<div class="shortcuts-overlay" id="netOverlay" onclick="if(event.target===this)closeNetControl()">
+  <div class="shortcuts-box net-box">
+    <div class="shortcuts-title">
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="4" r="2"/><circle cx="3.5" cy="14" r="2"/><circle cx="14.5" cy="14" r="2"/><path d="M9 6v3M9 9L4.5 12.3M9 9l4.5 3.3"/></svg> CONTRÔLE DE NET</span>
+      <span class="shortcuts-close" onclick="closeNetControl()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+    </div>
+    <div class="net-add-row">
+      <input type="text" id="netAddCall" placeholder="INDICATIF" style="text-transform:uppercase">
+      <input type="text" id="netAddName" placeholder="Nom / notes (optionnel)">
+      <button class="export-btn" onclick="netRosterAdd()">+ AJOUTER</button>
+    </div>
+    <div class="net-session-bar">
+      <span id="netSessionInfo">Session non démarrée</span>
+      <span>
+        <button class="export-btn" id="netStartBtn" onclick="netStartSession()">DÉMARRER LA SESSION</button>
+        <button class="export-btn" id="netEndBtn" onclick="netEndSession()" style="display:none;color:var(--red);border-color:rgba(255,45,85,.4)">TERMINER</button>
+      </span>
+    </div>
+    <div class="net-list" id="netList"></div>
+    <div class="flt-footer">
+      <div class="flt-count" id="netCount"></div>
+      <button class="export-btn" id="netLogAllBtn" onclick="netLogAllChecked()" style="color:var(--green);border-color:rgba(0,255,136,.4)">LOGGER TOUS LES COCHÉS</button>
     </div>
   </div>
 </div>
