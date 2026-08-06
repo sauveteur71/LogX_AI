@@ -447,6 +447,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div class="hub-card-sub">Pointage d'antenne</div>
         <span class="hub-badge" id="hubbadge_rotor"></span>
       </div>
+      <div class="hub-card" id="hubcard_relay" onclick="openCategoryPopup('relay')">
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg> 16. Station Control</div>
+        <div class="hub-card-sub">Commutation relais (antennes)</div>
+        <span class="hub-badge" id="hubbadge_relay"></span>
+      </div>
     </div>
     </div>
 
@@ -1614,6 +1619,91 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     </div>
   </div>
 </div>
+<div class="cat-modal" id="catmodal_relay">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg> 16. STATION CONTROL (RELAIS)</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'relay')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('relay')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_relay">
+      <div class="section">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Pilote une carte relais pour commuter des antennes ou accessoires — KMTronic/Denkovi/série
+          générique (même protocole d'octets), ou WebSwitch (Digital Loggers Web Power Switch) en
+          réseau. Bascule manuelle depuis la grille ci-dessous, ou automatique par bande radio.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PILOTAGE RELAIS</label>
+            <select id="relay_enabled" onchange="updateEnabledFieldsVisibility('relay_enabled',['relay_kind','relay_port','relay_baud','relay_host','relay_user','relay_password','relay_count'])">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">Désactivé par défaut</div>
+          </div>
+          <div class="form-group">
+            <label>TYPE DE CARTE</label>
+            <select id="relay_kind" onchange="updateRelayFieldsVisibility()">
+              <option value="kmtronic_serial">KMTronic / Denkovi / série générique</option>
+              <option value="webswitch">WebSwitch (Digital Loggers, réseau)</option>
+            </select>
+          </div>
+          <div class="form-group" id="relayPortField">
+            <label>PORT SÉRIE</label>
+            <select id="relay_port"></select>
+            <button type="button" class="btn btn-secondary" style="margin-top:6px;padding:6px 12px;font-size:11px" onclick="refreshRelayPorts()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9a5.5 5.5 0 0 1 9.3-4"/><polyline points="12.5 2 12.8 5 9.8 5.3"/><path d="M14.5 9a5.5 5.5 0 0 1-9.3 4"/><polyline points="5.5 16 5.2 13 8.2 12.7"/></svg> Rafraîchir la liste</button>
+          </div>
+          <div class="form-group" id="relayBaudField">
+            <label>VITESSE (bauds)</label>
+            <input type="number" id="relay_baud" placeholder="9600">
+          </div>
+          <div class="form-group" id="relayHostField" style="display:none">
+            <label>ADRESSE IP / HÔTE</label>
+            <input type="text" id="relay_host" placeholder="192.168.1.60">
+          </div>
+          <div class="form-group" id="relayUserField" style="display:none">
+            <label>UTILISATEUR</label>
+            <input type="text" id="relay_user" placeholder="admin">
+          </div>
+          <div class="form-group" id="relayPasswordField" style="display:none">
+            <label>MOT DE PASSE</label>
+            <input type="password" id="relay_password">
+          </div>
+          <div class="form-group">
+            <label>NOMBRE DE RELAIS</label>
+            <input type="number" id="relay_count" min="1" max="16" placeholder="4" onchange="renderRelayButtons()">
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testRelayConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
+          <span id="relayTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="7" rx="3.5"/><circle cx="12" cy="9.5" r="2.3" fill="currentColor" stroke="none"/></svg> BASCULE MANUELLE</div>
+        <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          Un clic active/coupe le relais et l'appelle immédiatement — état affiché purement visuel,
+          la carte n'a pas de lecture d'état individuel.
+        </div>
+        <div class="toggle-grid" id="relayButtonsGrid"></div>
+      </div>
+      <div class="section">
+        <div class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11"/><polyline points="10.5,5 14.5,9 10.5,13"/></svg> AUTO-PILOTAGE PAR BANDE</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>AUTO-PILOTAGE</label>
+            <select id="relay_auto_band">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">Bascule le relais mappé dès que la bande radio change</div>
+          </div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--muted);letter-spacing:1px;margin:10px 0 4px">BANDE → RELAIS (vide = pas de mapping)</div>
+        <div id="relayBandMapTable" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="cat-modal" id="catmodal_network">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> 8. MULTI-POSTE &amp; CLOUD SYNC</span>
@@ -2578,6 +2668,11 @@ const CONFIG_HELP = {
   rotor_proto: "Protocole : GS-232 natif (LogX parle direct au boîtier Yaesu/Kenpro ou à un serveur TCP PstRotator/microHam), ou Hamlib rotctld (universel : SPID, Pro.Sis.Tel, Hy-Gain, M2…).",
   rotor_host: "Adresse réseau : IP du PC où tourne rotctld, ou IP du boîtier/serveur GS-232 en TCP.",
   rotor_port: "Port réseau — 4533 par défaut pour rotctld, souvent 4001 pour un serveur GS-232 en TCP.",
+
+  relay_enabled: "Active le pilotage d'une carte relais (commutation d'antennes ou d'accessoires) depuis le logiciel.",
+  relay_kind: "KMTronic/Denkovi/série générique : même protocole d'octets, en USB/RS-232. WebSwitch (Digital Loggers) : boîtier réseau piloté en HTTP.",
+  relay_count: "Le nombre de relais que porte ta carte — détermine le nombre de boutons de la bascule manuelle et les numéros disponibles pour l'auto-pilotage.",
+  relay_auto_band: "Bascule automatiquement le relais mappé à la bande courante (table BANDE → RELAIS ci-dessous) dès que la radio change de bande.",
 
   voicekeyer_enabled: "Active le keyer vocal : le logiciel peut synthétiser et émettre un message phonie (CQ, échange...) automatiquement, sans micro.",
   voicekeyer_voice_id: "La voix de synthèse à utiliser (dépend des voix installées sur ton système Windows).",
@@ -4718,6 +4813,7 @@ const _ICO_FLOPPY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vert
 const _ICO_DISH = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>';
 const _ICO_BELL = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.3c0 .9-.4 1.8-1.1 2.4l-.6.6h11.4l-.6-.6a3.3 3.3 0 0 1-1.1-2.4V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg>';
 const _ICO_ENVELOPE = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.8 4.6 9 9.5l6.2-4.9"/></svg>';
+const _ICO_RELAY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg>';
 const _ICO_GLOBE = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.7" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>';
 const _ICO_ROBOT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg>';
 const CONFIG_SECTIONS = [
@@ -4728,7 +4824,7 @@ const CONFIG_SECTIONS = [
   ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Propagation'],
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
-  ['ai',_ICO_ROBOT+' 15. Assistant IA']
+  ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control']
 ];
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
@@ -6059,6 +6155,111 @@ function onRotorProtoChange(){
   }
 }
 
+// ── RELAIS (panneau Station Control, popup 16) : commutation d'antennes/accessoires ──
+function updateRelayFieldsVisibility(){
+  const kindEl = document.getElementById('relay_kind');
+  if(!kindEl) return;
+  const isWeb = kindEl.value === 'webswitch';
+  document.getElementById('relayPortField').style.display = isWeb ? 'none' : '';
+  document.getElementById('relayBaudField').style.display = isWeb ? 'none' : '';
+  document.getElementById('relayHostField').style.display = isWeb ? '' : 'none';
+  document.getElementById('relayUserField').style.display = isWeb ? '' : 'none';
+  document.getElementById('relayPasswordField').style.display = isWeb ? '' : 'none';
+}
+
+async function refreshRelayPorts(){
+  const sel = document.getElementById('relay_port');
+  // Même repli que refreshAmpPorts : le port peut être perdu si la liste
+  // arrive du serveur après la restauration de la config.
+  const prev = sel.value || (window._cfgRestauree || {}).relay_port || '';
+  sel.innerHTML = '<option value="">⏳ Recherche des ports...</option>';
+  try{
+    const res = await fetch('/rig/ports');
+    const data = await res.json();
+    const ports = data.ports || [];
+    sel.innerHTML = ports.length
+      ? ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
+      : '<option value="">Aucun port détecté</option>';
+    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+  }catch(e){
+    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+async function testRelayConnection(){
+  const result = document.getElementById('relayTestResult');
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/relay/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const r = await res.json();
+    if (r.ok){
+      result.textContent = '✅ Carte relais jointe';
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
+  }
+}
+
+// Grille de boutons manuels : état purement optimiste côté client (aucun
+// endpoint de lecture d'état individuel côté serveur pour l'instant) — un
+// bouton par relais, clic = bascule ON/OFF et appelle /relay/set.
+function renderRelayButtons(){
+  const box = document.getElementById('relayButtonsGrid');
+  if(!box) return;
+  const countEl = document.getElementById('relay_count');
+  const count = Math.min(Math.max(parseInt((countEl || {}).value, 10) || 4, 1), 16);
+  box.innerHTML = Array.from({length: count}, (_, i) => i + 1).map(n =>
+    `<button type="button" class="toggle-btn" data-relaynum="${n}" onclick="toggleRelayManual(${n}, this)">RELAIS ${n}</button>`
+  ).join('');
+}
+
+async function toggleRelayManual(num, btn){
+  const on = !btn.classList.contains('on');
+  btn.disabled = true;
+  try{
+    const res = await fetch('/relay/set', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({relay: num, on})});
+    const r = await res.json();
+    if (r.ok) btn.classList.toggle('on', on);
+    // Échec : on laisse l'état visuel tel quel plutôt que de mentir sur l'état réel.
+  }catch(e){
+    // Serveur injoignable — idem, pas de bascule visuelle non confirmée.
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// Table BANDE -> n° de relais (auto-pilotage) : une ligne par bande de
+// PARC_BANDES (même liste que le parc d'antennes) — vide = pas de mapping.
+function renderRelayBandMapRows(map){
+  const box = document.getElementById('relayBandMapTable');
+  if(!box) return;
+  map = map || {};
+  box.innerHTML = PARC_BANDES.map(b => `
+    <label style="font-family:var(--font-mono);font-size:11px;border:1px solid var(--border);
+      color:var(--muted);border-radius:4px;padding:3px 7px;cursor:default;display:inline-flex;
+      gap:5px;align-items:center">${b}<input type="number" min="1" max="16" data-relayband="${b}"
+      style="width:44px" value="${map[b] != null ? map[b] : ''}"></label>`).join('');
+}
+
+function readRelayBandMap(){
+  const box = document.getElementById('relayBandMapTable');
+  const map = {};
+  if(box){
+    box.querySelectorAll('[data-relayband]').forEach(el => {
+      const v = el.value.trim();
+      if(v) map[el.dataset.relayband] = parseInt(v, 10);
+    });
+  }
+  return map;
+}
+
 // ── ANNUAIRE DE NŒUDS DX CLUSTER (sélecteur, source serveur /data/clusters) ──
 // Remplit une liste groupée par région ; choisir un nœud remplit host+port. Le
 // champ texte reste libre — la liste n'est qu'un raccourci.
@@ -6626,6 +6827,16 @@ function saveConfig(silent = false, feedbackBtn = null) {
     rotor_proto: (document.getElementById('rotor_proto') || {}).value || 'rotctld',
     rotor_brand: (document.getElementById('rotor_brand') || {}).value || '',
     rotor_model: (document.getElementById('rotor_model') || {}).value || '',
+    relay_enabled: !!document.getElementById('relay_enabled').value,
+    relay_kind: document.getElementById('relay_kind').value,
+    relay_port: document.getElementById('relay_port').value,
+    relay_baud: parseInt(document.getElementById('relay_baud').value, 10) || 0,
+    relay_host: document.getElementById('relay_host').value.trim(),
+    relay_user: document.getElementById('relay_user').value.trim(),
+    relay_password: document.getElementById('relay_password').value,
+    relay_count: parseInt(document.getElementById('relay_count').value, 10) || 4,
+    relay_auto_band: !!document.getElementById('relay_auto_band').value,
+    relay_band_map: readRelayBandMap(),
     alert_dx_km: _numClamped('alert_dx_km', 1200),
     spotter_reliable_km: _numClamped('spotter_reliable_km', 600),
     alert_sound: document.getElementById('alert_sound').value !== '',
@@ -7287,7 +7498,8 @@ function applyFullConfigToForm(c) {
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
      'cat2_enabled','cat2_brand','cat2_port','cat2_baudrate',
      'so2r_enabled','so2r_port','so2r_stereo',
-     'amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port'].forEach(k=>{
+     'amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port',
+     'relay_kind','relay_port','relay_baud','relay_host','relay_user','relay_password','relay_count'].forEach(k=>{
       if(c[k]!==undefined && document.getElementById(k)) document.getElementById(k).value = c[k];
     });
     fillClusterPicker();   // remplit le sélecteur de nœuds + aligne sur l'hôte chargé
@@ -7378,6 +7590,11 @@ function applyFullConfigToForm(c) {
     const _rp = document.getElementById('rotor_proto');
     if(_rp) _rp.value = c.rotor_proto || (_rotorBrand(c.rotor_brand) || {}).proto || 'rotctld';
     onRotorModelChange(); onRotorProtoChange();
+    if(c.relay_enabled) document.getElementById('relay_enabled').value = '1';
+    if(c.relay_auto_band) document.getElementById('relay_auto_band').value = '1';
+    updateRelayFieldsVisibility();
+    renderRelayButtons();
+    renderRelayBandMapRows(c.relay_band_map && typeof c.relay_band_map === 'object' ? c.relay_band_map : {});
     if(c.contest_start_date) document.getElementById('contest_start_date').value = c.contest_start_date;
     if(c.contest_end_date) document.getElementById('contest_end_date').value = c.contest_end_date;
     if(c.contest_end_utc) document.getElementById('contest_end_utc').value = c.contest_end_utc;
