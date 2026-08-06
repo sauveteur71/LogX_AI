@@ -1016,7 +1016,10 @@ async function refreshQTC(){
     qtcEntries = d.entries || [];
     const btn = document.getElementById('qtcBtn');
     if(!btn) return;
-    btn.textContent = `✉ QTC : ${d.total || 0}`;
+    // Icône fixe dans le HTML (jamais réécrite ici) : ne toucher que le
+    // compteur, pour ne pas écraser le <svg> par du texte brut.
+    const countEl = document.getElementById('qtcCount');
+    if(countEl) countEl.textContent = d.total || 0;
     // Afficher le bouton pour les concours à QTC (WAE*) — sinon masqué
     const contest = (JSON.parse(localStorage.getItem('logx_config')||'{}').contest)||'';
     btn.style.display = /^WAEDC/i.test(contest) ? '' : 'none';

@@ -163,6 +163,55 @@ body.day-mode {             /* JOUR — thème prioritaire */
      (🇫🇷🇬🇧🇩🇪…) restent en emoji — un drapeau identifie une langue
      instantanément, une icône monochrome générique ne le peut pas. Ne pas
      les convertir même en poussant le chantier plus loin.
+  5. **FAIT (06/08/2026, lot 4 — les 14 derniers candidats sûrs)** : après
+     les lots 1-3, `logx_configuration.html` et `logx_logbook.html`
+     contenaient encore ~260 emoji (223 + 38) — mais un recensement fin
+     (pas juste un comptage brut) a montré que la quasi-totalité N'ÉTAIENT
+     PAS des icônes UI à convertir :
+     - ~112 étaient des FLÈCHES (→←↑↓) utilisées comme connecteurs de prose
+       ("Menu → Sous-menu → Option", "avant → après") — jamais des icônes
+       décoratives en tête de titre/bouton. Jamais dans le scope de ce
+       chantier, quel que soit le lot.
+     - Beaucoup d'autres étaient dans un `<option>`, un `placeholder="…"`,
+       un `title="…"` ou un `alert(...)` — positions qui **ne peuvent
+       techniquement pas** afficher de balisage SVG (rendu texte brut
+       forcé par le navigateur), pas une question de choix.
+     - La majorité du reste étaient des messages de statut construits en
+       JS et pausés via `.textContent = '✅ …'` / `` `❌ ${err}` `` — piège
+       déjà documenté au lot 2 (SVG dans `.textContent` = balisage affiché
+       tel quel) : laissés en emoji, comme convenu.
+     - Piège supplémentaire trouvé PENDANT ce lot (pas avant) : un candidat
+       a priori sûr (`✉ QTC : 0` dans `logx_logbook.html`) a été converti
+       en HTML, mais `refreshQTC()` (`logx_logbook.js`) réécrivait
+       `qtcBtn.textContent` à chaque rafraîchissement — effaçant le SVG en
+       silence dès le premier appel réseau. Détecté seulement en
+       vérification navigateur (le HTML seul semblait correct). Corrigé
+       en séparant l'icône fixe (jamais retouchée) d'un `<span
+       id="qtcCount">` dédié que `refreshQTC()` est seul à modifier — pas
+       en revenant à l'emoji, la structure permettait un vrai correctif.
+       **Réflexe pour toute suite** : avant de convertir un bouton dont le
+       LABEL contient une donnée variable (compteur, statut...), chercher
+       tous les `document.getElementById('<id>').textContent = ...` qui le
+       ciblent, pas seulement chercher l'emoji lui-même dans le fichier.
+     - Sur ~260 emoji bruts, seuls **14 étaient de vraies icônes UI
+       statiques convertibles sans risque** : 9 boutons de fermeture `✕`
+       (`.mb-close`/`.edit-close`/`.shortcuts-close`/`.rate-close` dans
+       `logx_logbook.html`, tous strictement statiques — vérifié qu'aucun
+       n'est jamais retouché par `.textContent`/`.innerHTML` en JS), le
+       bouton QTC ci-dessus, et 4 emoji en milieu de phrase dans des
+       `<div class="input-note">` statiques sans `id` dans
+       `logx_configuration.html` (🌟→étoile, ✅→coche, 2×⚠️→triangle
+       d'alerte). Les spans `.ai-provider-icon` (🤖💚🔵🇫🇷⚡🐋, un par
+       fournisseur IA) ont été délibérément laissés — même raisonnement
+       que les drapeaux de langue : ce sont des identifiants de MARQUE,
+       pas des icônes génériques (le 🇫🇷 y désigne un fournisseur français,
+       pas une langue).
+     **Conclusion pour tout lot futur** : ne plus compter les emoji bruts
+     restants comme une estimation de travail restant — la quasi-totalité
+     de ce qui reste après le lot 3 est soit hors de portée technique
+     (attribut/`<option>`/`alert()`), soit du texte dynamique JS à laisser
+     tel quel par politique établie, soit de la prose. Le vrai reliquat
+     converti est fini.
 
 ## Effets
 
