@@ -144,11 +144,34 @@ function ft8CostasScore(samples, startSample, baseFreqHz, sampleRate){
   return score;
 }
 
+// Affinage local autour d'un candidat grossier : +/-1 symbole en pas de
+// sps/8, +/- 1 pas grossier en fréquence par pas de 0.5 Hz. Factorisé hors
+// de ft8FindSync/ft8FindAllSync car les deux en ont besoin.
+function ft8RefineSync(samples, sampleRate, coarse, freqStepCoarse, freqMin, freqMax){
+  const sps = ft8SamplesPerSymbol(sampleRate);
+  const totalSpan = FT8_NN * sps;
+  const fineTimeStep = Math.max(1, Math.round(sps / 8));
+  let bestFine = coarse;
+  for(let dt = -sps; dt <= sps; dt += fineTimeStep){
+    const startSample = coarse.startSample + dt;
+    if(startSample < 0 || startSample + totalSpan > samples.length) continue;
+    for(let df = -freqStepCoarse; df <= freqStepCoarse; df += 0.5){
+      const f = coarse.baseFreqHz + df;
+      if(f < freqMin || f > freqMax) continue;
+      const score = ft8CostasScore(samples, startSample, f, sampleRate);
+      if(score > bestFine.score) bestFine = { startSample, baseFreqHz: f, score };
+    }
+  }
+  return bestFine;
+}
+
 // Recherche de synchro en 2 étapes : balayage grossier (pas entiers de
 // symbole en temps, demi-pas de ton en fréquence) sur toute la plage
 // candidate, puis affinage local autour du meilleur candidat (pas fins en
-// temps ET en fréquence, mais sur une toute petite plage). Retourne
-// {startSample, baseFreqHz, score} ou null si samples est trop court.
+// temps ET en fréquence, mais sur une toute petite plage). Retourne LE
+// SEUL meilleur candidat — {startSample, baseFreqHz, score} ou null si
+// samples est trop court. Pour un vrai passage FT8 (plusieurs dizaines de
+// signaux simultanés dans la même fenêtre de 15s), voir ft8FindAllSync().
 function ft8FindSync(samples, sampleRate, opts){
   opts = opts || {};
   const sps = ft8SamplesPerSymbol(sampleRate);
@@ -170,22 +193,49 @@ function ft8FindSync(samples, sampleRate, opts){
     }
   }
   if(best.score === -Infinity) return null;
+  return ft8RefineSync(samples, sampleRate, best, freqStepCoarse, freqMin, freqMax);
+}
 
-  // Affinage local : +/-1 symbole en pas de sps/8, +/- 1 pas grossier en
-  // fréquence par pas de 0.5 Hz.
-  const fineTimeStep = Math.max(1, Math.round(sps / 8));
-  let bestFine = best;
-  for(let dt = -sps; dt <= sps; dt += fineTimeStep){
-    const startSample = best.startSample + dt;
+// Recherche de TOUS les candidats de synchro plausibles dans la fenêtre —
+// une vraie bande FT8 porte des dizaines de signaux simultanés dans les
+// mêmes 15s, pas un seul. Même balayage grossier que ft8FindSync(), mais au
+// lieu de ne garder que le meilleur score, on garde les `maxCandidates`
+// meilleurs pics LOCAUX (suppression des non-maxima : deux candidats trop
+// proches en fréquence sont presque toujours le même signal détecté deux
+// fois, pas deux signaux distincts — voir minFreqSeparationHz, par défaut
+// la largeur d'un banc de 8 tons). Chaque survivant du balayage grossier
+// est ensuite affiné individuellement. Retourne un tableau (triable par
+// score), potentiellement vide si rien ne dépasse le bruit de fond.
+function ft8FindAllSync(samples, sampleRate, opts){
+  opts = opts || {};
+  const sps = ft8SamplesPerSymbol(sampleRate);
+  const totalSpan = FT8_NN * sps;
+  if(samples.length < totalSpan) return [];
+
+  const freqMin = opts.freqMin || 200;
+  const freqMax = opts.freqMax || 2900;
+  const freqStepCoarse = FT8_TONE_SPACING / 2;
+  const timeSlopSymbols = (opts.timeSlopSymbols === undefined) ? 6 : opts.timeSlopSymbols;
+  const maxCandidates = opts.maxCandidates || 30;
+  const minFreqSeparationHz = (opts.minFreqSeparationHz === undefined) ? 8 * FT8_TONE_SPACING : opts.minFreqSeparationHz;
+
+  const all = [];
+  for(let symOffset = -timeSlopSymbols; symOffset <= timeSlopSymbols; symOffset++){
+    const startSample = symOffset * sps;
     if(startSample < 0 || startSample + totalSpan > samples.length) continue;
-    for(let df = -freqStepCoarse; df <= freqStepCoarse; df += 0.5){
-      const f = best.baseFreqHz + df;
-      if(f < freqMin || f > freqMax) continue;
-      const score = ft8CostasScore(samples, startSample, f, sampleRate);
-      if(score > bestFine.score) bestFine = { startSample, baseFreqHz: f, score };
+    for(let f = freqMin; f <= freqMax; f += freqStepCoarse){
+      all.push({ startSample, baseFreqHz: f, score: ft8CostasScore(samples, startSample, f, sampleRate) });
     }
   }
-  return bestFine;
+  all.sort((a, b) => b.score - a.score);
+
+  const picked = [];
+  for(const cand of all){
+    if(picked.length >= maxCandidates) break;
+    if(picked.some(p => Math.abs(p.baseFreqHz - cand.baseFreqHz) < minFreqSeparationHz)) continue;
+    picked.push(cand);
+  }
+  return picked.map(c => ft8RefineSync(samples, sampleRate, c, freqStepCoarse, freqMin, freqMax));
 }
 
 // ─── Extraction des symboles de données (softbits) ───────────────────────
@@ -243,11 +293,35 @@ function ft8DecodeAudio(samples, sampleRate, hashTable, opts){
   return { text, freqHz: sync.baseFreqHz, syncScore: sync.score };
 }
 
+// Décode TOUS les signaux détectables dans la fenêtre (voir ft8FindAllSync)
+// — c'est la fonction que la page FT8 utilise réellement à chaque cycle de
+// 15s, ft8DecodeAudio() (un seul signal) n'étant conservée que pour sa
+// simplicité de test. La plupart des candidats du balayage grossier sont du
+// bruit qui ressemble un peu à une synchro Costas par hasard — ÉCHOUER le
+// LDPC/CRC pour un candidat donné est le cas normal, pas une erreur : on
+// l'ignore silencieusement et on passe au suivant. Dédoublonne par texte
+// décodé (un même signal fort peut produire deux pics voisins qui passent
+// tous les deux la suppression de non-maxima et redécodent le même message).
+function ft8DecodeAudioAll(samples, sampleRate, hashTable, opts){
+  const syncs = ft8FindAllSync(samples, sampleRate, opts);
+  const seen = new Set();
+  const results = [];
+  for(const sync of syncs){
+    const llr = ft8ExtractLlr(samples, sync, sampleRate, opts && opts.gain);
+    const text = ft8DecodeLlr(llr, hashTable, (opts && opts.maxIters) || 20);
+    if(!text || seen.has(text)) continue;
+    seen.add(text);
+    results.push({ text, freqHz: sync.baseFreqHz, syncScore: sync.score });
+  }
+  results.sort((a, b) => b.syncScore - a.syncScore);
+  return results;
+}
+
 if(typeof module !== 'undefined' && module.exports){
   module.exports = {
     FT8_DEFAULT_SAMPLE_RATE, FT8_DEFAULT_TONE0_HZ, FT8_GAUSSIAN_BT,
     ft8SamplesPerSymbol, ft8GaussianKernel, ft8SynthesizeGfsk,
     ft8GoertzelMag, ft8GoertzelToneBank, ft8CostasScore, ft8FindSync,
-    ft8ExtractLlr, ft8DecodeAudio,
+    ft8FindAllSync, ft8ExtractLlr, ft8DecodeAudio, ft8DecodeAudioAll,
   };
 }

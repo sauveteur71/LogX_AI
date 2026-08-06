@@ -139,3 +139,40 @@ def test_bruit_ecrasant_ne_renvoie_jamais_un_texte_faux(moteur):
         assert r.get('decoded') in (None, '')
     else:
         assert r['decoded'] == 'CQ K1JT FN20'
+
+
+# ─── Décodage multi-signaux (ft8FindAllSync/ft8DecodeAudioAll) ──────────────
+# Une vraie bande FT8 porte des dizaines de signaux simultanés dans la même
+# fenêtre de 15s — un décodeur qui n'en trouve qu'un seul par cycle serait de
+# peu d'utilité réelle en contest. Deux messages synthétisés à des
+# fréquences différentes, sommés dans le MÊME buffer (mélange additif, comme
+# deux stations reçues en même temps), doivent tous les deux ressortir.
+
+def test_deux_signaux_simultanes_sont_tous_les_deux_decodes(moteur):
+    r = json.loads(moteur.eval("""
+    JSON.stringify((function(){
+      var enc1 = ft8EncodeMessage('CQ K1JT FN20', null);
+      var enc2 = ft8EncodeMessage('K1JT K9AN EN50', null);
+      var w1 = ft8SynthesizeGfsk(enc1.symbols, {sampleRate: 12000, toneHz0: 800});
+      var w2 = ft8SynthesizeGfsk(enc2.symbols, {sampleRate: 12000, toneHz0: 2000});
+      var mix = new Float32Array(w1.length);
+      for(var i=0;i<mix.length;i++) mix[i] = w1[i] + w2[i];
+      var results = ft8DecodeAudioAll(mix, 12000, null, {});
+      return results.map(function(r){ return {text: r.text, freqHz: r.freqHz}; });
+    })())"""))
+    textes = [x['text'] for x in r]
+    assert 'CQ K1JT FN20' in textes, f'signal 1 manquant, decodes: {textes}'
+    assert 'K1JT K9AN EN50' in textes, f'signal 2 manquant, decodes: {textes}'
+
+
+def test_decode_all_ne_renvoie_jamais_de_doublon_de_texte(moteur):
+    """Deux pics locaux voisins du MÊME signal ne doivent pas ressortir comme
+    deux décodages distincts (dédoublonnage par texte, voir ft8DecodeAudioAll)."""
+    r = json.loads(moteur.eval("""
+    JSON.stringify((function(){
+      var enc = ft8EncodeMessage('CQ K1JT FN20', null);
+      var wave = ft8SynthesizeGfsk(enc.symbols, {sampleRate: 12000, toneHz0: 1500});
+      var results = ft8DecodeAudioAll(wave, 12000, null, {});
+      return results.map(function(r){ return r.text; });
+    })())"""))
+    assert r.count('CQ K1JT FN20') == 1
