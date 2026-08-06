@@ -1,21 +1,36 @@
 # -*- coding: utf-8 -*-
-"""Pilotage d'amplificateurs HF (natif, pyserial direct) — 3 protocoles
-constructeurs vérifiés contre leur documentation officielle :
+"""Pilotage d'amplificateurs HF (natif, pyserial direct + réseau TCP/UDP pour
+le KPA1500) — 3 protocoles constructeurs vérifiés contre leur documentation
+officielle :
 
   - Elecraft KPA500/KPA1500 : ASCII '^XX;' (KPA500 Programmer's Reference).
+    Le KPA1500 (pas le KPA500) expose EN PLUS un port Ethernet natif (RJ45,
+    aucun adaptateur tiers nécessaire) : un serveur TCP et un serveur UDP,
+    tous deux sur le port 1500 par défaut (modifiable via la commande ^CP),
+    qui acceptent EXACTEMENT le même jeu de commandes ASCII que le port
+    série — confirmé par la Programming Reference officielle (Rev 2.03,
+    Overview p.6) : "A TCP server at port 1500 accepts the same serial
+    command set." Serveur UDP ajouté en firmware 01.84 (canal indépendant du
+    TCP, un message envoyé = une commande = une réponse). Voir TcpAmpPort/
+    UdpAmpPort ci-dessous — même interface que SerialPort, donc AUCUN
+    changement requis dans KpaAmp elle-même pour piloter en réseau.
   - Icom IC-PW2/PW-1 : CI-V étendu (IC-PW2 CI-V Reference Guide) — réutilise
     l'encodage/décodage de trame CI-V de logx_cat.py (même FE FE.../FD).
+    Pas d'accès réseau documenté officiellement — port série uniquement.
   - SPE/Expert 1.3K-FA/1.5K-FA/2K-FA : paquets binaires SYN+CNT+DATA+CHK,
     commandes = codes touche clavier (SPE Application Programmer's Guide).
+    Pas d'accès réseau documenté officiellement — port série uniquement.
 
 Comme logx_cat.py : l'encodage/décodage de trame est séparé du
-transport série pour être testable sans matériel (transport injecté).
+transport (série OU réseau) pour être testable sans matériel (transport
+injecté).
 
 Recherche préalable (protocoles disponibles/écartés — ACOM non documenté
 officiellement, Ameritron/Yaesu VL-1000/Tokyo Hy-Power n'ont pas de protocole
 propre, juste du band-data BCD ou un suivi passif du CAT radio) : voir mémoire
 de session, pas dupliqué ici.
 """
+import socket
 import threading
 import time
 
@@ -24,6 +39,121 @@ from logx_cat import (HAS_PYSERIAL, SerialPort, list_ports,
                               CIV_CTRL_ADDR)
 
 _open_serial = SerialPort if HAS_PYSERIAL else None
+
+AMP_DEFAULT_NET_PORT = 1500  # KPA1500 : port TCP/UDP par défaut (^CP), voir doc officielle
+
+
+class TcpAmpPort:
+    """Transport réseau TCP vers le port Ethernet natif du KPA1500 — même
+    interface que SerialPort (write/transceive/read_until/close), donc
+    utilisable tel quel par KpaAmp. Le flux TCP n'a aucune notion de trame :
+    on accumule dans un tampon jusqu'à voir le terminateur ';', comme
+    SerialPort.read_until() le fait déjà côté série."""
+
+    def __init__(self, host, port=AMP_DEFAULT_NET_PORT, timeout=3.0):
+        self._lock = threading.Lock()
+        self._sock = socket.create_connection((host, port), timeout=timeout)
+        self._buf = b''
+
+    def _recv_until(self, terminator, timeout):
+        deadline = time.monotonic() + timeout
+        while terminator not in self._buf:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            self._sock.settimeout(max(remaining, 0.01))
+            try:
+                chunk = self._sock.recv(4096)
+            except (socket.timeout, OSError):
+                break
+            if not chunk:
+                break
+            self._buf += chunk
+        if terminator in self._buf:
+            idx = self._buf.index(terminator) + len(terminator)
+            frame, self._buf = self._buf[:idx], self._buf[idx:]
+            return frame
+        frame, self._buf = self._buf, b''
+        return frame
+
+    def write(self, data):
+        with self._lock:
+            self._sock.sendall(data)
+
+    def transceive(self, data, terminator, timeout=1.0, accept=None):
+        accept = accept or (lambda frame: True)
+        with self._lock:
+            self._sock.sendall(data)
+            deadline = time.monotonic() + timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                frame = self._recv_until(terminator, max(remaining, 0))
+                if accept(frame) or not frame.endswith(terminator):
+                    return frame
+                if time.monotonic() >= deadline:
+                    return frame
+
+    def read_until(self, terminator, timeout=1.0):
+        with self._lock:
+            return self._recv_until(terminator, timeout)
+
+    def close(self):
+        try:
+            self._sock.close()
+        except OSError:
+            pass
+
+
+class UdpAmpPort:
+    """Transport réseau UDP vers le KPA1500 (serveur UDP du firmware 01.84+,
+    même port que le TCP mais canal indépendant). Contrairement au TCP,
+    chaque recvfrom() renvoie déjà un datagramme complet — pas de
+    réassemblage par terminateur nécessaire, mais on borne quand même
+    l'attente par `timeout` comme les autres transports."""
+
+    def __init__(self, host, port=AMP_DEFAULT_NET_PORT, timeout=3.0):
+        self._lock = threading.Lock()
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.settimeout(timeout)
+        self._addr = (host, port)
+
+    def write(self, data):
+        with self._lock:
+            self._sock.sendto(data, self._addr)
+
+    def transceive(self, data, terminator, timeout=1.0, accept=None):
+        accept = accept or (lambda frame: True)
+        with self._lock:
+            self._sock.sendto(data, self._addr)
+            deadline = time.monotonic() + timeout
+            buf = b''
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return buf
+                self._sock.settimeout(max(remaining, 0.01))
+                try:
+                    chunk, _from = self._sock.recvfrom(4096)
+                except (socket.timeout, OSError):
+                    return buf
+                buf += chunk
+                if accept(buf) or buf.endswith(terminator):
+                    return buf
+
+    def read_until(self, terminator, timeout=1.0):
+        with self._lock:
+            self._sock.settimeout(timeout)
+            try:
+                chunk, _from = self._sock.recvfrom(4096)
+                return chunk
+            except (socket.timeout, OSError):
+                return b''
+
+    def close(self):
+        try:
+            self._sock.close()
+        except OSError:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -60,8 +190,11 @@ def kpa_parse_vi(data):
 
 class KpaAmp:
     """Elecraft KPA500/KPA1500 — voir KPA500 Programmer's Reference (Rev. A2).
-    Le KPA1500 partage le même jeu de commandes ASCII (en plus d'un accès
-    réseau TCP/UDP non couvert ici — port série uniquement pour l'instant)."""
+    Le KPA1500 partage le même jeu de commandes ASCII, que le transport soit
+    le port série (SerialPort) ou le port Ethernet natif du KPA1500
+    (TcpAmpPort/UdpAmpPort, voir docstring du module) — cette classe ne sait
+    même pas laquelle des trois est utilisée, tout le protocole '^XX;' est
+    identique quel que soit le transport."""
 
     # '^BN00;'..'^BN10;' — 160m à 6m (valeurs hors de cette table ignorées par l'ampli)
     BAND_CODES = {'160': '00', '80': '01', '60': '02', '40': '03', '30': '04',
@@ -381,7 +514,12 @@ AMP_DEFAULT_BAUD = {'elecraft': 38400, 'icom': 19200, 'spe': 9600}
 def amp_settings(cfg):
     """Réglages du pilotage d'ampli depuis la config CLIENT — absence des
     champs amp_* -> enabled=False, aucun effet si le chantier n'est pas
-    configuré (comme cat_settings())."""
+    configuré (comme cat_settings()).
+
+    `conn_mode` : 'serial' (par défaut, comportement historique inchangé —
+    une config existante sans amp_conn_mode reste en série) / 'tcp' / 'udp'.
+    Réseau réservé au KPA1500 (voir _ensure_connected) — Icom/SPE n'ont pas
+    d'accès réseau documenté."""
     cfg = cfg or {}
     brand = (cfg.get('amp_brand') or '').strip().lower()
     try:
@@ -394,10 +532,20 @@ def amp_settings(cfg):
             civ_addr = int(str(cfg['amp_civ_addr']), 16)
     except (TypeError, ValueError):
         civ_addr = 0xAA
+    conn_mode = (cfg.get('amp_conn_mode') or 'serial').strip().lower()
+    if conn_mode not in ('serial', 'tcp', 'udp'):
+        conn_mode = 'serial'
+    try:
+        net_port = int(cfg.get('amp_net_port') or 0) or AMP_DEFAULT_NET_PORT
+    except (TypeError, ValueError):
+        net_port = AMP_DEFAULT_NET_PORT
     return {
         'enabled': bool(cfg.get('amp_enabled')),
         'brand': brand,
+        'conn_mode': conn_mode,
         'port': (cfg.get('amp_port') or '').strip(),
+        'host': (cfg.get('amp_host') or '').strip(),
+        'net_port': net_port,
         'baudrate': baudrate or AMP_DEFAULT_BAUD.get(brand, 9600),
         'civ_addr': civ_addr,
     }
@@ -423,11 +571,20 @@ def _make_driver(brand, transport, civ_addr):
     return None
 
 
+_NET_TRANSPORTS = {'tcp': TcpAmpPort, 'udp': UdpAmpPort}
+
+
 def _ensure_connected(settings):
-    """Retourne (driver, erreur_ou_None). Ouvre le port au premier appel,
-    réutilise la connexion tant que la config ne change pas — même mécanisme
-    que logx_cat._ensure_connected()."""
-    key = (settings['port'], settings['brand'], settings['baudrate'], settings['civ_addr'])
+    """Retourne (driver, erreur_ou_None). Ouvre la connexion au premier
+    appel, la réutilise tant que la config ne change pas — même mécanisme
+    que logx_cat._ensure_connected(). Réseau (conn_mode 'tcp'/'udp') réservé
+    à l'Elecraft, seule marque avec un port Ethernet natif documenté."""
+    is_net = settings['conn_mode'] in _NET_TRANSPORTS
+    if is_net:
+        key = (settings['conn_mode'], settings['host'], settings['net_port'],
+               settings['brand'], settings['civ_addr'])
+    else:
+        key = ('serial', settings['port'], settings['brand'], settings['baudrate'], settings['civ_addr'])
     with _persistent_lock:
         entry = _persistent.get('default')
         if entry and entry['key'] == key:
@@ -435,14 +592,26 @@ def _ensure_connected(settings):
         if entry:
             entry['transport'].close()
             _persistent.pop('default', None)
-        if not settings['port']:
-            return None, 'Port série non configuré'
         if not settings['brand']:
             return None, "Marque d'ampli non configurée"
-        try:
-            transport = _open_serial(settings['port'], baudrate=settings['baudrate'])
-        except Exception as e:
-            return None, f"Impossible d'ouvrir {settings['port']} : {e}"
+        if is_net:
+            if settings['brand'] != 'elecraft':
+                return None, ("Le pilotage réseau n'est documenté que pour l'Elecraft "
+                               "KPA1500 (port Ethernet natif) — choisis le port série "
+                               "pour les autres marques")
+            if not settings['host']:
+                return None, 'Adresse IP/hôte du KPA1500 non configurée'
+            try:
+                transport = _NET_TRANSPORTS[settings['conn_mode']](settings['host'], settings['net_port'])
+            except Exception as e:
+                return None, f"Impossible de joindre {settings['host']}:{settings['net_port']} : {e}"
+        else:
+            if not settings['port']:
+                return None, 'Port série non configuré'
+            try:
+                transport = _open_serial(settings['port'], baudrate=settings['baudrate'])
+            except Exception as e:
+                return None, f"Impossible d'ouvrir {settings['port']} : {e}"
         driver = _make_driver(settings['brand'], transport, settings['civ_addr'])
         if driver is None:
             transport.close()
@@ -544,18 +713,33 @@ def power_toggle(cfg, on):
         return {'ok': False, 'error': f'Ampli injoignable ({e})'}
 
 
-def test_connection(brand, port, baudrate, civ_addr=None):
+def test_connection(brand, port, baudrate, civ_addr=None, conn_mode='serial', host='', net_port=None):
     """Test ÉPHÉMÈRE (bouton CONFIG) : ouvre, interroge le statut, ferme — ne
-    touche jamais à la connexion persistante utilisée par le polling logbook."""
-    if not port:
-        return {'ok': False, 'error': 'Port série manquant'}
+    touche jamais à la connexion persistante utilisée par le polling logbook.
+    `conn_mode`='tcp'/'udp' teste le port Ethernet natif du KPA1500 (voir
+    _ensure_connected) au lieu du port série."""
     brand = (brand or '').strip().lower()
     if not brand:
         return {'ok': False, 'error': "Marque d'ampli manquante"}
-    try:
-        transport = _open_serial(port, baudrate=baudrate or AMP_DEFAULT_BAUD.get(brand, 9600))
-    except Exception as e:
-        return {'ok': False, 'error': f"Impossible d'ouvrir {port} : {e}"}
+    conn_mode = (conn_mode or 'serial').strip().lower()
+    if conn_mode in _NET_TRANSPORTS:
+        if brand != 'elecraft':
+            return {'ok': False, 'error': "Le pilotage réseau n'est documenté que pour "
+                                          "l'Elecraft KPA1500 — choisis le port série pour les autres marques"}
+        if not host:
+            return {'ok': False, 'error': 'Adresse IP/hôte manquante'}
+        net_port = net_port or AMP_DEFAULT_NET_PORT
+        try:
+            transport = _NET_TRANSPORTS[conn_mode](host, net_port)
+        except Exception as e:
+            return {'ok': False, 'error': f"Impossible de joindre {host}:{net_port} : {e}"}
+    else:
+        if not port:
+            return {'ok': False, 'error': 'Port série manquant'}
+        try:
+            transport = _open_serial(port, baudrate=baudrate or AMP_DEFAULT_BAUD.get(brand, 9600))
+        except Exception as e:
+            return {'ok': False, 'error': f"Impossible d'ouvrir {port} : {e}"}
     try:
         driver = _make_driver(brand, transport, civ_addr or 0xAA)
         if driver is None:
