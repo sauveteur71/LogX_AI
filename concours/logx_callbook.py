@@ -167,3 +167,101 @@ def lookup(call, cfg, shared_log=None):
         _circuit['until'] = time.time() + CIRCUIT_COOLDOWN
         _circuit['fails'] = 0
     return result
+
+
+# ─── RE-RÉSOLUTION EN MASSE (locator/état, cty/QRZ/ClubLog) ──────────────────
+# OpsLog permet de re-résoudre en masse tout ou partie du log (cty/QRZ/
+# ClubLog). Rien de tel ici : le seul lookup existant est le callbook en
+# direct à la frappe (fonction lookup() ci-dessus), un QSO à la fois.
+#
+# Tourne en THREAD DE FOND (comme logx_update._download_thread) : un log de
+# plusieurs milliers de QSO peut représenter des centaines d'indicatifs
+# DISTINCTS, chacun une requête réseau (jusqu'à ~2s via la cascade QRZ->
+# HamQTH->HamDB) — synchrone dans un handler HTTP, ça timeout. Dédupliqué par
+# INDICATIF (pas par QSO) : 1000 QSO d'un même DXpédition ne doivent déclencher
+# qu'UN seul lookup, pas 1000.
+#
+# PAR DÉFAUT NON DESTRUCTIF : ne remplit que les locator/état VIDES. Un QSO
+# dont le correspondant a déménagé depuis n'est PAS silencieusement corrigé
+# sans le demander explicitement (overwrite=True) — la donnée d'origine,
+# saisie au moment du QSO, est présumée la bonne tant que rien ne prouve le
+# contraire.
+import threading as _threading
+
+_bulk_lock = _threading.Lock()
+_bulk_state = {'running': False, 'done': 0, 'total': 0, 'updated': 0,
+               'errors': 0, 'started_at': None, 'finished_at': None}
+
+
+def bulk_resolve_status():
+    with _bulk_lock:
+        return dict(_bulk_state)
+
+
+def bulk_resolve_start(get_cfg, ids=None, overwrite=False):
+    """Démarre la re-résolution en fond. Retourne (ok, message) — refus
+    SYNCHRONE si un lot est déjà en cours (même raison que demarrer_suivi()
+    dans logx_sat_track : l'opérateur doit voir tout de suite pourquoi rien
+    ne se passe, pas aller le déduire d'un état à relire)."""
+    with _bulk_lock:
+        if _bulk_state['running']:
+            return False, 'Une re-résolution est déjà en cours.'
+        _bulk_state.update(running=True, done=0, total=0, updated=0,
+                            errors=0, started_at=time.time(), finished_at=None)
+    t = _threading.Thread(target=_bulk_resolve_run, args=(get_cfg, ids, overwrite),
+                          daemon=True)
+    t.start()
+    return True, ''
+
+
+def _bulk_needs(q, overwrite):
+    return overwrite or not q.get('locator') or not q.get('state')
+
+
+def _bulk_resolve_run(get_cfg, ids, overwrite):
+    import logx_storage as storage
+    ids_set = set(ids) if ids is not None else None
+    with storage.log_lock:
+        snapshot = list(storage.shared_log)
+    targets = [q for q in snapshot
+               if (ids_set is None or q.get('id') in ids_set) and _bulk_needs(q, overwrite)]
+    calls = sorted({(q.get('call') or '').upper() for q in targets if q.get('call')})
+    with _bulk_lock:
+        _bulk_state['total'] = len(calls)
+
+    cfg = get_cfg()
+    results = {}
+    for call in calls:
+        results[call] = lookup(call, cfg, snapshot)
+        with _bulk_lock:
+            _bulk_state['done'] += 1
+
+    updated = 0
+    with storage.log_lock:
+        for q in storage.shared_log:
+            if ids_set is not None and q.get('id') not in ids_set:
+                continue
+            if not _bulk_needs(q, overwrite):
+                continue
+            r = results.get((q.get('call') or '').upper())
+            if not r or not r.get('ok'):
+                continue
+            changed = False
+            if r.get('grid') and (overwrite or not q.get('locator')):
+                q['locator'] = r['grid']
+                changed = True
+            if r.get('state') and (overwrite or not q.get('state')):
+                q['state'] = r['state']
+                changed = True
+            if changed:
+                updated += 1
+        if updated:
+            storage.bump_log_version()
+    if updated:
+        storage.save_log_to_disk()
+
+    with _bulk_lock:
+        _bulk_state.update(
+            running=False, updated=updated,
+            errors=sum(1 for r in results.values() if not r.get('ok')),
+            finished_at=time.time())
