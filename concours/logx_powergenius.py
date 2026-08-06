@@ -65,9 +65,15 @@ module :
 Comme logx_rotor.py : toute E/S réseau (y compris la résolution DNS/la
 connexion initiale, PAS bornée par socket.create_connection(timeout=...)
 seul, voir commentaire de _connect_bounded ci-dessous) passe par un
-ThreadPoolExecutor borné dans le temps. Transport injectable (paramètre
-`transport=` de _ensure_connected/test_connection) pour les tests, aucun
-vrai socket touché par tests/test_powergenius.py.
+ThreadPoolExecutor borné dans le temps. Deux points d'injection pour les
+tests : la variable de module `_open_transport` (remplacée globalement,
+comme dans logx_rotor.py/logx_amp.py) et le paramètre `transport=` de
+_ensure_connected()/test_connection() (factory ponctuelle, même motif que
+`open_serial=`/`urlopen=` dans logx_relay.py.test_connection()) — la
+majorité de tests/test_powergenius.py utilise plutôt un VRAI serveur TCP
+loopback (classe FakePgxl), motif légitime déjà établi dans ce dépôt
+(test_rotor.py/test_amp.py) ; un test dédié exerce en plus `transport=`
+pour prouver que ce point d'injection fonctionne réellement.
 """
 import concurrent.futures as _cf
 import socket
@@ -256,10 +262,22 @@ class PgxlPort:
 #  Réglages + connexion persistante (même schéma que logx_tci.py/logx_amp.py)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def settings(cfg):
+MIN_TIMEOUT_S = 1.0
+MAX_TIMEOUT_S = 10.0
+
+
+def pgxl_settings(cfg):
     """Réglages PowerGenius XL depuis la config CLIENT — absence des champs
     pgxl_* -> enabled=False, jamais d'exception même sur cfg vide/None
-    (même garantie que amp_settings()/tci_settings())."""
+    (même garantie que amp_settings()/tci_settings()).
+
+    `pgxl_timeout` est BORNÉ à [MIN_TIMEOUT_S, MAX_TIMEOUT_S] : contrairement
+    à amp_settings()/tci_settings()/rotor_settings() (timeout toujours une
+    constante fixe, jamais dérivée de la config client), ce module est le
+    seul à accepter un timeout venant de CONFIG — sans clamp, une valeur
+    erronée ou énorme (ex. 999999) bloquerait le thread HTTP appelant pendant
+    toute cette durée en tenant _persistent_lock, gelant au passage tout
+    autre appel concurrent."""
     cfg = cfg or {}
     try:
         port = int(cfg.get('pgxl_port') or DEFAULT_PORT)
@@ -269,6 +287,7 @@ def settings(cfg):
         timeout = float(cfg.get('pgxl_timeout') or CMD_TIMEOUT_S)
     except (TypeError, ValueError):
         timeout = CMD_TIMEOUT_S
+    timeout = max(MIN_TIMEOUT_S, min(timeout, MAX_TIMEOUT_S))
     return {
         'enabled': bool(cfg.get('pgxl_enabled')),
         'host': (cfg.get('pgxl_host') or '').strip(),
@@ -284,7 +303,12 @@ _io_lock = threading.Lock()   # sérialise les échanges commande/réponse (voir
 _open_transport = PgxlPort   # point d'injection pour les tests (double sans vrai socket)
 
 
-def _ensure_connected(st):
+def _ensure_connected(st, transport=None):
+    """`transport=` : factory ponctuelle injectable pour les tests, même
+    signature que `_open_transport` (callable(host, port, timeout) -> objet
+    transport) — court-circuite `_open_transport` quand fourni, sur le même
+    motif que `open_serial=`/`urlopen=` dans logx_relay.py.test_connection().
+    Par défaut (None), utilise la variable de module `_open_transport`."""
     key = (st['host'], st['port'])
     with _persistent_lock:
         entry = _persistent.get('default')
@@ -295,12 +319,13 @@ def _ensure_connected(st):
             _persistent.pop('default', None)
         if not st['host']:
             return None, 'Adresse IP/hôte du PowerGenius XL non configurée'
+        opener = transport or _open_transport
         try:
-            transport = _open_transport(st['host'], st['port'], st['timeout'])
+            conn = opener(st['host'], st['port'], st['timeout'])
         except Exception as e:
             return None, f"Impossible de joindre {st['host']}:{st['port']} : {e}"
-        _persistent['default'] = {'key': key, 'transport': transport}
-        return transport, None
+        _persistent['default'] = {'key': key, 'transport': conn}
+        return conn, None
 
 
 def disconnect_persistent():
@@ -319,9 +344,15 @@ def _status_to_state(parsed_status):
     pas confirmé (power_w reste toujours None, jamais deviné)."""
     state_raw = (parsed_status.get('state') or '').strip().upper()
     operate = None
-    if state_raw in ('OPERATE', 'OPER', 'ON'):
+    # Seules les valeurs LITTÉRALEMENT confirmées par la doc sont reconnues
+    # ('OPERATE'/'STANDBY', par analogie avec l'unique exemple vérifié —
+    # l'async "state=REBOOT") : il s'agit potentiellement d'un état lié à
+    # l'émission (TX enable), la prudence prime sur la couverture — tout
+    # alias deviné (OPER/ON/STBY/OFF) retombe volontairement dans l'état
+    # "inconnu" (operate=None) plutôt que d'être supposé équivalent.
+    if state_raw == 'OPERATE':
         operate = True
-    elif state_raw in ('STANDBY', 'STBY', 'OFF'):
+    elif state_raw == 'STANDBY':
         operate = False
     fwd_dbm = _to_float(parsed_status.get('fwd'))
     rl_db = _to_float(parsed_status.get('rl'))
@@ -346,7 +377,7 @@ def get_state(cfg):
     """État courant (mesureurs FWD/RL/DRV/ID/TEMP + état si présent) — forme
     unifiée {'enabled','ok','error'?, ...} comme get_state() de logx_amp.py.
     Envoie la commande "status" (lecture seule, confirmée par la doc)."""
-    st = settings(cfg)
+    st = pgxl_settings(cfg)
     if not st['enabled']:
         return {'enabled': False}
     transport, err = _ensure_connected(st)
@@ -378,7 +409,7 @@ def set_operate(cfg, on):
     Pin2Band, voir doc) ; en attendant une confirmation du protocole exact
     (retour terrain ou nouvelle doc 4O3A/FlexRadio), utilise le panneau
     avant du PGXL ou SmartSDR pour basculer standby/operate à la main."""
-    st = settings(cfg)
+    st = pgxl_settings(cfg)
     if not st['enabled']:
         return {'ok': False, 'error': 'Pilotage PowerGenius XL désactivé (CONFIG)'}
     return {'ok': False, 'error': (
@@ -389,11 +420,15 @@ def set_operate(cfg, on):
     )}
 
 
-def test_connection(host, port=None, timeout=None):
+def test_connection(host, port=None, timeout=None, transport=None):
     """Test ÉPHÉMÈRE (bouton CONFIG) : ouvre une connexion séparée (lit le
     prologue "V<a.b.c> ..."), envoie "status" (lecture seule, aucun effet de
     bord matériel), ferme — ne touche jamais à la connexion persistante
-    utilisée par le polling logbook."""
+    utilisée par le polling logbook.
+
+    `transport=` : factory ponctuelle injectable pour les tests, même motif
+    que dans _ensure_connected() ci-dessus — court-circuite `_open_transport`
+    quand fourni."""
     host = (host or '').strip()
     if not host:
         return {'ok': False, 'error': 'Adresse IP/hôte manquante'}
@@ -405,20 +440,21 @@ def test_connection(host, port=None, timeout=None):
         timeout = float(timeout or CMD_TIMEOUT_S)
     except (TypeError, ValueError):
         timeout = CMD_TIMEOUT_S
+    opener = transport or _open_transport
     try:
-        transport = _open_transport(host, port, timeout)
+        conn = opener(host, port, timeout)
     except Exception as e:
         return {'ok': False, 'error': f'Impossible de joindre {host}:{port} : {e}'}
     try:
-        if not transport.prologue.startswith('V'):
+        if not conn.prologue.startswith('V'):
             return {'ok': False, 'error': f"Prologue inattendu à la connexion "
-                                          f"(pas un PowerGenius XL ?) : {transport.prologue!r}"}
-        resp = transport.command('status', timeout=timeout)
+                                          f"(pas un PowerGenius XL ?) : {conn.prologue!r}"}
+        resp = conn.command('status', timeout=timeout)
         if not resp['ok']:
             return {'ok': False, 'error': f"Commande status refusée (code {resp['code']:#x})"}
-        return {'ok': True, 'firmware': transport.prologue,
+        return {'ok': True, 'firmware': conn.prologue,
                 'status': _status_to_state(pgxl_parse_status(resp['message']))}
     except Exception as e:
         return {'ok': False, 'error': f'PowerGenius XL injoignable ({e})'}
     finally:
-        transport.close()
+        conn.close()

@@ -92,6 +92,18 @@ def test_status_to_state_etat_inconnu():
     assert out['operate'] is None       # ni OPERATE ni STANDBY reconnu -> incertain, pas fabriqué
 
 
+def test_status_to_state_alias_devines_non_reconnus():
+    """Seules les valeurs LITTÉRALEMENT confirmées par la doc ('OPERATE'/
+    'STANDBY') sont reconnues — 'OPER'/'ON'/'STBY'/'OFF' sont des alias
+    DEVINÉS (jamais confirmés par la doc officielle) et doivent retomber
+    dans l'état incertain (operate=None), pas être traités comme des
+    synonymes : il s'agit potentiellement d'un état lié à l'émission (TX
+    enable), la prudence prime sur la couverture ici."""
+    for guess in ('OPER', 'ON', 'STBY', 'OFF'):
+        out = pgxl._status_to_state(pgxl.pgxl_parse_status(f'state={guess}'))
+        assert out['operate'] is None, f'alias {guess!r} ne doit pas être reconnu'
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Faux serveur TCP PowerGenius (prologue + trames C/R/S)
 # ═══════════════════════════════════════════════════════════════════════════
@@ -163,6 +175,24 @@ def _fresh():
     pgxl.disconnect_persistent()
 
 
+def test_pgxl_settings_borne_timeout_absurde():
+    """pgxl_timeout est le SEUL timeout de ce dépôt dérivé de la config
+    CLIENT (comparer à amp_settings()/tci_settings()/rotor_settings(), qui
+    utilisent tous une constante fixe) — sans clamp, une valeur erronée ou
+    énorme bloquerait le thread HTTP appelant pendant toute cette durée en
+    tenant _persistent_lock. Vérifie que les valeurs absurdes sont ramenées
+    dans [MIN_TIMEOUT_S, MAX_TIMEOUT_S]."""
+    s = pgxl.pgxl_settings({'pgxl_timeout': 999999})
+    assert s['timeout'] == pgxl.MAX_TIMEOUT_S
+    s = pgxl.pgxl_settings({'pgxl_timeout': -5})
+    assert s['timeout'] == pgxl.MIN_TIMEOUT_S
+    s = pgxl.pgxl_settings({'pgxl_timeout': 5})
+    assert s['timeout'] == 5.0
+    # valeur absente -> constante par défaut, déjà dans les bornes
+    s = pgxl.pgxl_settings({})
+    assert pgxl.MIN_TIMEOUT_S <= s['timeout'] <= pgxl.MAX_TIMEOUT_S
+
+
 def test_get_state_disabled():
     _fresh()
     assert pgxl.get_state({}) == {'enabled': False}
@@ -191,7 +221,7 @@ def test_get_state_host_manquant():
     _fresh()
     cfg = {'pgxl_enabled': True, 'pgxl_host': '', 'pgxl_port': 9008}
     st = pgxl.get_state(cfg)
-    assert st['ok'] is False and 'hôte' in st['error'].lower() or 'ip' in st['error'].lower()
+    assert (st['ok'] is False) and ('hôte' in st['error'].lower() or 'ip' in st['error'].lower())
 
 
 def test_get_state_injoignable():
@@ -271,6 +301,59 @@ def test_test_connection_ne_touche_pas_la_persistante():
     finally:
         _fresh()
         fake.close()
+
+
+class _FakeTransport:
+    """Faux transport MINIMAL (même interface que PgxlPort : .prologue,
+    .command(), .close()) — n'ouvre AUCUN socket, contrairement à FakePgxl
+    ci-dessus qui simule un vrai serveur TCP loopback. Sert uniquement à
+    prouver que le point d'injection transport= fonctionne réellement."""
+
+    def __init__(self, host, port, timeout):
+        self.host, self.port, self.timeout = host, port, timeout
+        self.prologue = 'V9.9.9 (faux transport, aucun socket)'
+        self.closed = False
+
+    def command(self, cmd_text, timeout=None):
+        assert cmd_text == 'status'
+        return {'kind': 'R', 'seq': 1, 'ok': True, 'code': 0,
+                'message': 'state=OPERATE fwd=12.3'}
+
+    def close(self):
+        self.closed = True
+
+
+def test_test_connection_injection_transport_court_circuite_open_transport():
+    """transport= doit court-circuiter _open_transport — aucun vrai socket
+    ouvert (192.0.2.1 est une adresse TEST-NET-1 non routable, RFC 5737 ;
+    si le code tentait malgré tout une vraie connexion, ce test échouerait
+    par timeout plutôt que de passer silencieusement)."""
+    calls = []
+
+    def factory(host, port, timeout):
+        calls.append((host, port, timeout))
+        return _FakeTransport(host, port, timeout)
+
+    r = pgxl.test_connection('192.0.2.1', 9008, timeout=2.0, transport=factory)
+    assert r['ok'] is True
+    assert r['firmware'].startswith('V9.9.9')
+    assert r['status']['operate'] is True
+    assert calls == [('192.0.2.1', 9008, 2.0)]
+
+
+def test_ensure_connected_injection_transport():
+    """Même point d'injection côté connexion persistante (_ensure_connected),
+    utilisée par get_state()/set_operate() via la variable de module
+    _open_transport normalement — ici on prouve que le paramètre transport=
+    lui-même fonctionne, sans passer par _open_transport."""
+    _fresh()
+    st = pgxl.pgxl_settings({'pgxl_enabled': True, 'pgxl_host': '192.0.2.1', 'pgxl_port': 9008})
+    conn, err = pgxl._ensure_connected(st, transport=_FakeTransport)
+    try:
+        assert err is None
+        assert conn.prologue.startswith('V9.9.9')
+    finally:
+        _fresh()
 
 
 def test_reponse_async_ignoree_en_attendant_notre_seq():
