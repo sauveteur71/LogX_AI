@@ -473,6 +473,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div class="hub-card-sub">Logiciels tiers au démarrage</div>
         <span class="hub-badge" id="hubbadge_autostart"></span>
       </div>
+      <div class="hub-card" id="hubcard_pgxl" onclick="openCategoryPopup('pgxl')">
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 18. PowerGenius XL</div>
+        <div class="hub-card-sub">Ampli 4O3A (réseau)</div>
+        <span class="hub-badge" id="hubbadge_pgxl"></span>
+      </div>
     </div>
     </div>
 
@@ -1135,6 +1140,9 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
               <option value="tci">TCI (postes SDR — SunSDR/ExpertSDR3 et compatibles)</option>
               <option value="rigctld">Hamlib rigctld (avancé — autres marques)</option>
               <option value="flrig">flrig (XML-RPC — fldigi/Linux)</option>
+              <option value="omnirig">OmniRig (composant COM Windows, avancé)</option>
+              <option value="flex">FlexRadio SmartSDR (réseau natif — lecture + PTT)</option>
+              <option value="icom_remote">Icom réseau IC-705/7610/905 (pas encore disponible)</option>
             </select>
           </div>
         </div>
@@ -1241,6 +1249,87 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           <div class="form-group">
             <label>PORT FLRIG</label>
             <input type="number" id="flrig_port" placeholder="12345">
+          </div>
+        </div>
+
+        <!-- Mode avancé : OmniRig (VE3NEA), composant COM Windows -->
+        <div id="catOmnirigFields" class="form-grid" style="display:none;margin-top:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+              OmniRig doit déjà tourner et être configuré (port série, marque/modèle) pour Rig1
+              et/ou Rig2 — LogX AI est un simple CLIENT COM, il ne remplace pas OmniRig, il s'y
+              connecte. <b style="color:var(--accent2)">Windows uniquement</b> (composant COM),
+              nécessite le paquet Python <code>pywin32</code>.
+            </div>
+          </div>
+          <div class="form-group">
+            <label>RIG OMNIRIG</label>
+            <select id="omnirig_rig_num">
+              <option value="1">Rig1</option>
+              <option value="2">Rig2</option>
+            </select>
+            <div class="input-note">Le numéro de radio configuré côté OmniRig (fenêtre OmniRig → onglet Rig1/Rig2).</div>
+          </div>
+        </div>
+
+        <!-- Mode avancé : FlexRadio SmartSDR, API réseau TCP native -->
+        <div id="catFlexFields" class="form-grid" style="display:none;margin-top:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
+              Connexion réseau directe à l'API TCP native SmartSDR (port 4992) — pas de logiciel
+              intermédiaire. <b style="color:var(--yellow)">Lecture fréquence/mode + PTT
+              uniquement</b> : le QSY et l'envoi CW ne sont pas pris en charge par ce mode (hors
+              périmètre du protocole exposé ici) — bascule en Hamlib rigctld si tu as besoin d'un
+              QSY piloté depuis LogX AI.
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE SMARTSDR</label>
+            <input type="text" id="flexradio_host" placeholder="127.0.0.1 (ou IP du poste FlexRadio)">
+            <div class="input-note">IP du poste/de la radio FlexRadio (peut être un autre poste du réseau)</div>
+          </div>
+          <div class="form-group">
+            <label>PORT SMARTSDR</label>
+            <input type="number" id="flexradio_port" placeholder="4992">
+          </div>
+        </div>
+
+        <!-- Mode avancé : Icom réseau (remote-internet, IC-705/7610/905...) -->
+        <div id="catIcomRemoteFields" class="form-grid" style="display:none;margin-top:12px">
+          <div class="form-group" style="grid-column:1/-1">
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--red);line-height:1.7;padding:8px 12px;background:rgba(255,56,56,.08);border:1px solid rgba(255,56,56,.35);border-radius:6px">
+              <b>Pas encore disponible.</b> Icom n'a jamais publié de documentation officielle pour
+              son protocole réseau (IC-705/IC-7610/IC-905...) — la rétro-ingénierie communautaire
+              (wfview/kappanhang) n'a pas permis de reconstituer de façon fiable la table utilisée
+              par l'authentification. Ce mode reste désactivé côté serveur quels que soient les
+              champs saisis ici (aucune connexion réseau n'est jamais tentée) — ils ne servent
+              qu'à préparer une future implémentation. Utilise le port série CI-V (mode Natif) en
+              attendant.
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE RADIO</label>
+            <input type="text" id="icomremote_host" placeholder="IP de la radio">
+          </div>
+          <div class="form-group">
+            <label>PORT CONTRÔLE</label>
+            <input type="number" id="icomremote_control_port" placeholder="50001">
+          </div>
+          <div class="form-group">
+            <label>PORT CI-V</label>
+            <input type="number" id="icomremote_civ_port" placeholder="50002">
+          </div>
+          <div class="form-group">
+            <label>ADRESSE CI-V</label>
+            <input type="text" id="icomremote_civ_addr" placeholder="AC (IC-705)">
+          </div>
+          <div class="form-group">
+            <label>UTILISATEUR</label>
+            <input type="text" id="icomremote_username" placeholder="identifiant configuré sur la radio">
+          </div>
+          <div class="form-group">
+            <label>MOT DE PASSE</label>
+            <input type="password" id="icomremote_password" placeholder="mot de passe configuré sur la radio">
           </div>
         </div>
       </div>
@@ -1723,6 +1812,55 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
         <div id="autostartList"></div>
         <button type="button" class="btn btn-secondary" onclick="addAutostartRow()" style="margin-top:6px"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="9" y1="3.5" x2="9" y2="14.5"/><line x1="3.5" y1="9" x2="14.5" y2="9"/></svg> Ajouter un programme</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_pgxl">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 18. POWERGENIUS XL (4O3A)</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'pgxl')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('pgxl')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_pgxl">
+      <div class="section">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Ampli PowerGenius XL (4O3A) en réseau natif (port TCP 4o3a/FlexRadio 9008) — mesureurs
+          FWD/RL/DRV/ID/TEMP en lecture seule, visibles dans l'écran matériel du logbook.
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);line-height:1.7;margin-bottom:14px;padding:8px 12px;background:rgba(255,214,10,.08);border:1px solid rgba(255,214,10,.35);border-radius:6px">
+          <b>Pas de bascule STANDBY/OPERATE à distance</b> : aucune commande fiable n'est confirmée
+          par la documentation officielle pour ce réglage (un ampli est un dispositif de
+          sécurité — mieux vaut refuser explicitement que deviner). Utilise le panneau avant du
+          PGXL ou SmartSDR pour basculer standby/operate ; le pilotage automatique par la radio
+          (LAN/CAT/CI-V/BCD/Pin2Band) reste géré côté PGXL lui-même, indépendamment de LogX AI.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PILOTAGE PGXL</label>
+            <select id="pgxl_enabled" onchange="updateEnabledFieldsVisibility('pgxl_enabled',['pgxl_host','pgxl_port','pgxl_timeout'])">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">Désactivé par défaut</div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE PGXL</label>
+            <input type="text" id="pgxl_host" placeholder="192.168.1.50">
+          </div>
+          <div class="form-group">
+            <label>PORT PGXL</label>
+            <input type="number" id="pgxl_port" placeholder="9008">
+          </div>
+          <div class="form-group">
+            <label>DÉLAI RÉSEAU (s)</label>
+            <input type="number" id="pgxl_timeout" placeholder="3" min="1" max="10" step="0.5">
+            <div class="input-note">Borné entre 1 et 10 s côté serveur — une valeur excessive gèlerait les autres commandes en attente.</div>
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testPgxlConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
+          <span id="pgxlTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -2663,7 +2801,7 @@ const CONFIG_HELP = {
   rbn_enabled: "Active le Reverse Beacon Network : un réseau mondial de récepteurs qui te signale automatiquement où et comment ton signal CW est entendu.",
 
   cat_enabled: "Active le pilotage direct de la radio (lecture fréquence/mode, bascule émission) depuis le logiciel.",
-  cat_mode: "Choisis comment le logiciel parle à ta radio : NATIF (câble série direct, sans logiciel intermédiaire), TCI (protocole réseau moderne type SunSDR/ExpertSDR), RIGCTLD (passe par le standard Hamlib, compatible presque toutes les radios), ou FLRIG (autre pilote CAT réseau, courant sous Linux/fldigi).",
+  cat_mode: "Choisis comment le logiciel parle à ta radio : NATIF (câble série direct, sans logiciel intermédiaire), TCI (protocole réseau moderne type SunSDR/ExpertSDR), RIGCTLD (passe par le standard Hamlib, compatible presque toutes les radios), FLRIG (autre pilote CAT réseau, courant sous Linux/fldigi), OMNIRIG (composant COM Windows, avancé — lecture/écriture complètes), FLEXRADIO (API réseau native SmartSDR — lecture + PTT seulement), ou ICOM RÉSEAU (IC-705/7610/905, pas encore disponible).",
   cat_brand: "La marque de ta radio pour le mode NATIF (Icom, Yaesu, Kenwood, Elecraft...) — détermine le protocole exact utilisé.",
   cat_model: "Le modèle précis de ta radio, pour affiner l'adresse/le protocole (notamment important pour Icom en CI-V).",
   cat_port: "Le port série (COM) où ta radio est reliée à l'ordinateur (ex. COM3 sous Windows). Visible dans le Gestionnaire de périphériques Windows. Interface multi-radio (microHAM, 4O3A Signature...) : c'est le port COM VIRTUEL que le logiciel de l'interface (ex. microHAM Router / USB Device Router) crée pour LogX AI — il ne fonctionne que si ce logiciel tourne, avec la bonne radio sélectionnée dedans. Ce port peut être différent de celui utilisé par WSJT-X ou un autre logiciel, et il change parfois après un redémarrage : rafraîchis la liste si besoin.",
@@ -2757,6 +2895,20 @@ const CONFIG_HELP = {
   scoreboard_interval: "La fréquence (en minutes) de mise à jour du scoreboard en ligne.",
 
   refresh_min: "La fréquence (en minutes) à laquelle le logiciel rafraîchit automatiquement les spots/la propagation en tâche de fond.",
+
+  omnirig_rig_num: "Le numéro de radio configuré côté OmniRig (Rig1 ou Rig2) — OmniRig doit déjà tourner et être réglé sur ce PC.",
+  flexradio_host: "Adresse réseau (IP) de la radio ou du poste FlexRadio qui expose l'API SmartSDR (port TCP natif, pas le serveur DAX/CAT virtuel).",
+  flexradio_port: "Port TCP de l'API SmartSDR — 4992 par défaut.",
+  icomremote_host: "IP de la radio Icom en réseau (IC-705/IC-7610/IC-905...) — ce mode n'est pas encore fonctionnel, voir la note dans la section RADIO.",
+  icomremote_control_port: "Port UDP du canal de contrôle Icom (pairing/authentification) — 50001 par défaut.",
+  icomremote_civ_port: "Port UDP du canal CI-V encapsulé Icom — 50002 par défaut.",
+  icomremote_civ_addr: "Adresse CI-V de la radio (menu Set → CI-V Address), en hexadécimal — ex. AC pour l'IC-705.",
+  icomremote_username: "Identifiant réseau configuré sur la radio (menu Set → Network → Access Control).",
+  icomremote_password: "Mot de passe réseau configuré sur la radio — stocké localement, jamais transmis (ce mode n'ouvre encore aucune connexion).",
+  pgxl_enabled: "Active la lecture des mesureurs (FWD/RL/DRV/ID/TEMP) du PowerGenius XL via son API réseau — pas de bascule standby/operate à distance (voir la note de cette section).",
+  pgxl_host: "Adresse IP du PowerGenius XL sur le réseau local.",
+  pgxl_port: "Port TCP de l'API réseau du PowerGenius XL — 9008 par défaut.",
+  pgxl_timeout: "Délai d'attente réseau (secondes) avant d'abandonner une commande — borné entre 1 et 10 s côté serveur.",
 };
 
 // Icône "?" ajoutée automatiquement à côté de chaque label dont le champ
@@ -3460,6 +3612,7 @@ async function init() {
   updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port']);
   updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
+  updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
   _updateSotaSectionVisibility(); refreshSotaStatus(); // au cas où loadFromServerConfig() a été utilisé (pas de config locale)
@@ -3864,6 +4017,9 @@ function updateCatModeVisibility(){
   document.getElementById('catTciFields').style.display = mode === 'tci' ? '' : 'none';
   document.getElementById('catRigctldFields').style.display = mode === 'rigctld' ? '' : 'none';
   document.getElementById('catFlrigFields').style.display = mode === 'flrig' ? '' : 'none';
+  document.getElementById('catOmnirigFields').style.display = mode === 'omnirig' ? '' : 'none';
+  document.getElementById('catFlexFields').style.display = mode === 'flex' ? '' : 'none';
+  document.getElementById('catIcomRemoteFields').style.display = mode === 'icom_remote' ? '' : 'none';
 }
 
 function updateCatModelOptions(){
@@ -4168,6 +4324,17 @@ async function testCatConnection(){
     payload = { mode: 'flrig',
       host: document.getElementById('flrig_host')?.value.trim() || '127.0.0.1',
       port: parseInt(document.getElementById('flrig_port')?.value, 10) || 12345 };
+  } else if (mode === 'omnirig'){
+    payload = { mode: 'omnirig',
+      rig_num: parseInt(document.getElementById('omnirig_rig_num')?.value, 10) || 1 };
+  } else if (mode === 'flex'){
+    payload = { mode: 'flex',
+      host: document.getElementById('flexradio_host')?.value.trim() || '127.0.0.1',
+      port: parseInt(document.getElementById('flexradio_port')?.value, 10) || 4992 };
+  } else if (mode === 'icom_remote'){
+    payload = { mode: 'icom_remote',
+      host: document.getElementById('icomremote_host')?.value.trim() || '',
+      port: parseInt(document.getElementById('icomremote_control_port')?.value, 10) || 50001 };
   } else {
     payload = {
       brand: document.getElementById('cat_brand').value,
@@ -4197,6 +4364,15 @@ async function testCatConnection(){
     } else if (r.ok && mode === 'flrig'){
       result.textContent = `✅ flrig joint (${payload.host}:${payload.port}) : ${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'}${r.mode ? ' — mode ' + r.mode : ''}`;
       result.style.color = 'var(--green)';
+    } else if (r.ok && mode === 'omnirig'){
+      result.textContent = `✅ OmniRig joint (Rig${payload.rig_num}) : ${r.device || 'appareil inconnu'} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'})`;
+      result.style.color = 'var(--green)';
+    } else if (r.ok && mode === 'flex'){
+      result.textContent = `✅ FlexRadio joint (${payload.host}:${payload.port}) : ${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'}${r.mode ? ' — mode ' + r.mode : ''}`;
+      result.style.color = 'var(--green)';
+    } else if (mode === 'icom_remote'){
+      result.textContent = `❌ ${r.error || 'Protocole non implémenté'}`;
+      result.style.color = 'var(--red)';
     } else if (r.ok){
       result.textContent = `✅ Radio détectée : ${r.detected_model || payload.model} (${r.freq_hz ? (r.freq_hz/1e6).toFixed(3)+' MHz' : 'fréquence non lue'})`;
       result.style.color = 'var(--green)';
@@ -4849,7 +5025,7 @@ const CONFIG_SECTIONS = [
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
   ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control'],
-  ['autostart',_ICO_PLAY+' 17. Auto-lancement']
+  ['autostart',_ICO_PLAY+' 17. Auto-lancement'], ['pgxl',_ICO_BATTERY+' 18. PowerGenius XL']
 ];
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
@@ -5007,6 +5183,8 @@ function _catStatus(cat){
       return val('relay_enabled') === '1' ? 'ok' : 'empty';
     case 'autostart':
       return autostartRows.length ? 'ok' : 'empty';
+    case 'pgxl':
+      return val('pgxl_enabled') === '1' ? 'ok' : 'empty';
     default:
       return 'empty';
   }
@@ -5017,7 +5195,7 @@ const _CAT_BADGE = { ok: '✅', warning: '⚠️', empty: '○' };
 function renderHub(){
   ['identity','operators','contest','filters','radio','amp','rotor','network',
    'backup','sources','alerts','qsl','scoreboard','expedition','ai',
-   'relay','autostart'].forEach(cat => {
+   'relay','autostart','pgxl'].forEach(cat => {
     const card = document.getElementById('hubcard_' + cat);
     const badge = document.getElementById('hubbadge_' + cat);
     if(!card || !badge) return;
@@ -6307,6 +6485,37 @@ async function testRelayConnection(){
   }
 }
 
+async function testPgxlConnection(){
+  const result = document.getElementById('pgxlTestResult');
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  const payload = {
+    host: document.getElementById('pgxl_host').value.trim(),
+    port: parseInt(document.getElementById('pgxl_port').value, 10) || 9008,
+    timeout: parseFloat(document.getElementById('pgxl_timeout').value) || 3.0,
+  };
+  if (!payload.host){
+    result.textContent = '⚠️ Adresse IP/hôte manquante';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  try{
+    const res = await fetch('/pgxl/test', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)});
+    const r = await res.json();
+    if (r.ok){
+      result.textContent = `✅ PowerGenius XL joint (${payload.host}:${payload.port})`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
+  }
+}
+
 // Grille de boutons manuels : état purement optimiste côté client (aucun
 // endpoint de lecture d'état individuel côté serveur pour l'instant) — un
 // bouton par relais, clic = bascule ON/OFF et appelle /relay/set.
@@ -6877,6 +7086,30 @@ function saveConfig(silent = false, feedbackBtn = null) {
     tci_port: parseInt(document.getElementById('tci_port').value, 10) || 50001,
     flrig_host: document.getElementById('flrig_host')?.value.trim() || '',
     flrig_port: parseInt(document.getElementById('flrig_port')?.value, 10) || 12345,
+    // omnirig_enabled/flexradio_enabled/icomremote_enabled : dérivés de
+    // cat_enabled+cat_mode plutôt qu'un interrupteur séparé dans l'UI (même
+    // motif que rig_enabled ci-dessus) — chaque module a son PROPRE champ
+    // 'enabled' en ceinture-et-bretelles (voir logx_omnirig.py/logx_flexradio.py/
+    // logx_icomremote.py), mais l'opérateur n'a qu'UN SEUL bouton à actionner.
+    omnirig_enabled: document.getElementById('cat_enabled').value === '1'
+                    && document.getElementById('cat_mode').value === 'omnirig',
+    omnirig_rig_num: parseInt(document.getElementById('omnirig_rig_num')?.value, 10) || 1,
+    flexradio_enabled: document.getElementById('cat_enabled').value === '1'
+                       && document.getElementById('cat_mode').value === 'flex',
+    flexradio_host: document.getElementById('flexradio_host')?.value.trim() || '',
+    flexradio_port: parseInt(document.getElementById('flexradio_port')?.value, 10) || 4992,
+    icomremote_enabled: document.getElementById('cat_enabled').value === '1'
+                        && document.getElementById('cat_mode').value === 'icom_remote',
+    icomremote_host: document.getElementById('icomremote_host')?.value.trim() || '',
+    icomremote_control_port: parseInt(document.getElementById('icomremote_control_port')?.value, 10) || 50001,
+    icomremote_civ_port: parseInt(document.getElementById('icomremote_civ_port')?.value, 10) || 50002,
+    icomremote_civ_addr: document.getElementById('icomremote_civ_addr')?.value.trim() || '',
+    icomremote_username: document.getElementById('icomremote_username')?.value.trim() || '',
+    icomremote_password: document.getElementById('icomremote_password')?.value || '',
+    pgxl_enabled: !!document.getElementById('pgxl_enabled')?.value,
+    pgxl_host: document.getElementById('pgxl_host')?.value.trim() || '',
+    pgxl_port: parseInt(document.getElementById('pgxl_port')?.value, 10) || 9008,
+    pgxl_timeout: parseFloat(document.getElementById('pgxl_timeout')?.value) || 3.0,
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
     wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
     adifnet_mode: document.getElementById('adifnet_mode').value,
@@ -7594,7 +7827,11 @@ function applyFullConfigToForm(c) {
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate','cat_civ_addr',
-     'tci_host','tci_port','flrig_host','flrig_port','voicekeyer_rate',
+     'tci_host','tci_port','flrig_host','flrig_port',
+     'omnirig_rig_num','flexradio_host','flexradio_port',
+     'icomremote_host','icomremote_control_port','icomremote_civ_port',
+     'icomremote_civ_addr','icomremote_username','icomremote_password',
+     'pgxl_host','pgxl_port','pgxl_timeout','voicekeyer_rate',
      'voicekeyer_ai_voice_id','voicekeyer_ai_api_key',
      'voicekeyer_piper_exe','voicekeyer_piper_model',
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
@@ -7701,6 +7938,7 @@ function applyFullConfigToForm(c) {
     updateRelayFieldsVisibility();
     renderRelayButtons();
     renderRelayBandMapRows(c.relay_band_map && typeof c.relay_band_map === 'object' ? c.relay_band_map : {});
+    if(c.pgxl_enabled && document.getElementById('pgxl_enabled')) document.getElementById('pgxl_enabled').value = '1';
     if(c.contest_start_date) document.getElementById('contest_start_date').value = c.contest_start_date;
     if(c.contest_end_date) document.getElementById('contest_end_date').value = c.contest_end_date;
     if(c.contest_end_utc) document.getElementById('contest_end_utc').value = c.contest_end_utc;
@@ -7803,6 +8041,7 @@ function applyFullConfigToForm(c) {
     updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
     updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
     updateEnabledFieldsVisibility('mqtt_enabled', ['mqtt_host','mqtt_port','mqtt_topic_prefix']);
+    updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
     renderHub(); // Hub de catégories : badges après restauration/changement de profil
 }
 
