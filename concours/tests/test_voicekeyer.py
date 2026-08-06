@@ -493,6 +493,33 @@ def test_set_ptt_dispatch_rigctld(monkeypatch):
     assert r == {'ok': True, 'via': 'rigctld', 'host': 'h'}
 
 
+def test_set_ptt_dispatch_omnirig(monkeypatch):
+    import logx_cat as cat
+    import logx_omnirig as omnirig
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'omnirig'})
+    monkeypatch.setattr(omnirig, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'omnirig', 'on': on})
+    r = vk._set_ptt({}, True)
+    assert r == {'ok': True, 'via': 'omnirig', 'on': True}
+
+
+def test_set_ptt_dispatch_flex(monkeypatch):
+    import logx_cat as cat
+    import logx_flexradio as flexradio
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'flex'})
+    monkeypatch.setattr(flexradio, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'flex', 'on': on})
+    r = vk._set_ptt({}, False)
+    assert r == {'ok': True, 'via': 'flex', 'on': False}
+
+
+def test_set_ptt_dispatch_icom_remote(monkeypatch):
+    import logx_cat as cat
+    import logx_icomremote as icomremote
+    monkeypatch.setattr(cat, 'cat_settings', lambda cfg: {'enabled': True, 'mode': 'icom_remote'})
+    monkeypatch.setattr(icomremote, 'set_ptt', lambda cfg, on: {'ok': True, 'via': 'icom_remote', 'on': on})
+    r = vk._set_ptt({}, True)
+    assert r == {'ok': True, 'via': 'icom_remote', 'on': True}
+
+
 # ─── set_ptt() : alias public, utilisé par le décodeur FT8 natif (/rig/ptt) ──
 
 def test_set_ptt_public_delegue_au_meme_dispatch(monkeypatch):

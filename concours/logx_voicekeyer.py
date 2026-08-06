@@ -1090,6 +1090,15 @@ def _set_ptt(cfg, on):
         import logx_flrig as flrig
         settings = flrig.flrig_settings(cfg)
         return flrig.set_ptt(settings['host'], settings['port'], on)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'omnirig':
+        import logx_omnirig as omnirig
+        return omnirig.set_ptt(cfg, on)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'flex':
+        import logx_flexradio as flexradio
+        return flexradio.set_ptt(cfg, on)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'icom_remote':
+        import logx_icomremote as icomremote
+        return icomremote.set_ptt(cfg, on)
     import logx_rig as rig
     rig_settings = rig.rig_settings(cfg)
     if rig_settings['enabled']:

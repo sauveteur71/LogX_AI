@@ -1474,6 +1474,15 @@ def _rig_state_dict_impl(cfg_snap):
         state = flrig.get_state(settings['host'], settings['port'])
         state['enabled'] = True
         return state
+    if cat_settings['enabled'] and cat_settings['mode'] == 'omnirig':
+        import logx_omnirig as omnirig
+        return omnirig.get_state(cfg_snap)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'flex':
+        import logx_flexradio as flexradio
+        return flexradio.get_state(cfg_snap)
+    if cat_settings['enabled'] and cat_settings['mode'] == 'icom_remote':
+        import logx_icomremote as icomremote
+        return icomremote.get_state(cfg_snap)
     import logx_rig as rig
     settings = rig.rig_settings(cfg_snap)
     if not settings['enabled']:
@@ -1486,6 +1495,14 @@ def _rig_state_dict_impl(cfg_snap):
 def _amp_state_dict(cfg_snap):
     import logx_amp as amp
     return amp.get_state(cfg_snap)
+
+
+def _pgxl_state_dict(cfg_snap):
+    """État du PowerGenius XL (4O3A) — module séparé de logx_amp.py (voir sa
+    docstring : protocole réseau propre, pas un 4e "brand" de _make_driver),
+    donc sa propre clé dans /hardware/state plutôt qu'un mélange avec 'amp'."""
+    import logx_powergenius as pgxl
+    return pgxl.get_state(cfg_snap)
 
 
 # ─── WAIT-AND-POUNCE : le câblage, niveaux 3 et 4 ────────────────────────────
@@ -4210,6 +4227,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'amp': _amp_state_dict(cfg_snap),
                 'wsjtx': _wsjtx_state_dict(cfg_snap),
                 'rotor': _rotor_state_dict(cfg_snap),
+                'pgxl': _pgxl_state_dict(cfg_snap),
             })
             return
 
@@ -5085,6 +5103,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except (TypeError, ValueError):
                     port = flrig.DEFAULT_PORT
                 res = flrig.test_connection(host, port)
+            elif payload.get('mode') == 'omnirig':
+                import logx_omnirig as omnirig
+                res = omnirig.test_connection(payload.get('rig_num') or 1)
+            elif payload.get('mode') == 'flex':
+                import logx_flexradio as flexradio
+                host = (payload.get('host') or '').strip() or flexradio.DEFAULT_HOST
+                try:
+                    port = int(payload.get('port') or flexradio.DEFAULT_PORT)
+                except (TypeError, ValueError):
+                    port = flexradio.DEFAULT_PORT
+                res = flexradio.test_connection(host, port)
+            elif payload.get('mode') == 'icom_remote':
+                import logx_icomremote as icomremote
+                host = (payload.get('host') or '').strip() or icomremote.DEFAULT_HOST
+                try:
+                    port = int(payload.get('port') or icomremote.DEFAULT_CONTROL_PORT)
+                except (TypeError, ValueError):
+                    port = icomremote.DEFAULT_CONTROL_PORT
+                res = icomremote.test_connection(host, port)
             else:
                 import logx_cat as cat
                 res = cat.test_connection(payload.get('brand'), payload.get('model'),
@@ -5230,12 +5267,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             native = cat_settings['enabled'] and cat_settings['mode'] == 'native'
             use_tci = cat_settings['enabled'] and cat_settings['mode'] == 'tci'
             use_flrig = cat_settings['enabled'] and cat_settings['mode'] == 'flrig'
+            use_omnirig = cat_settings['enabled'] and cat_settings['mode'] == 'omnirig'
+            use_flex = cat_settings['enabled'] and cat_settings['mode'] == 'flex'
+            use_icomremote = cat_settings['enabled'] and cat_settings['mode'] == 'icom_remote'
             if use_tci:
                 import logx_tci as tci
             if use_flrig:
                 import logx_flrig as flrig
                 flrig_settings = flrig.flrig_settings(cfg_snap)
-            if not native and not use_tci and not use_flrig:
+            if use_omnirig:
+                import logx_omnirig as omnirig
+            if use_flex:
+                import logx_flexradio as flexradio
+            if use_icomremote:
+                import logx_icomremote as icomremote
+            if not (native or use_tci or use_flrig or use_omnirig or use_flex or use_icomremote):
                 import logx_rig as rig
                 settings = rig.rig_settings(cfg_snap)
                 if not settings['enabled']:
@@ -5272,6 +5318,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 elif use_flrig:
                     res = flrig.set_freq(flrig_settings['host'], flrig_settings['port'],
                                         int(freq), payload.get('mode'))
+                elif use_omnirig:
+                    res = omnirig.set_freq(cfg_snap, int(freq), payload.get('mode'))
+                elif use_flex:
+                    # Hors périmètre volontaire de logx_flexradio.py (voir sa
+                    # docstring) : aucune commande "slice t"/"slice s" exposée.
+                    res = {'ok': False, 'error': 'QSY non pris en charge en mode "FlexRadio" — '
+                           'hors périmètre de ce module, bascule en mode "Hamlib rigctld" ou "TCI"'}
+                elif use_icomremote:
+                    res = icomremote.set_freq(cfg_snap, int(freq), payload.get('mode'))
                 else:
                     res = rig.set_freq(settings['host'], settings['port'], int(freq), payload.get('mode'))
                 if res.get('ok'):
@@ -5299,6 +5354,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # choix que le mode natif.
                 self._json({'ok': False, 'error': 'Envoi CW non disponible en mode "flrig" — '
                             'bascule en mode "Hamlib rigctld" ou "TCI" pour le keyer CW'}, 400)
+                return
+            elif use_omnirig or use_flex or use_icomremote:
+                # Aucun des 3 : pas de commande d'envoi de texte CW documentée/
+                # exposée par ces modules (OmniRig ne fait que Tx=PM_TX/PM_RX,
+                # FlexRadio est volontairement hors périmètre, Icom-remote est
+                # désactivé par conception) — même refus propre que flrig.
+                self._json({'ok': False, 'error': 'Envoi CW non disponible dans ce mode CAT — '
+                            'utilise un manipulateur WinKeyer, ou bascule en mode '
+                            '"Hamlib rigctld" ou "TCI" pour le keyer CW'}, 400)
                 return
             elif use_tci:
                 if self.path == '/rig/cw':
@@ -5466,6 +5530,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 res = amp.clear_fault(cfg_snap)
             else:
                 res = amp.power_toggle(cfg_snap, bool(payload.get('on')))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        # PowerGenius XL (4O3A) : test de connexion éphémère depuis CONFIG.
+        # Pas de route "operate" — set_operate() refuse toujours (voir
+        # logx_powergenius.py : aucune commande OPERATE/STANDBY confirmée par
+        # la doc officielle, un ampli est un dispositif de sécurité, mieux
+        # vaut refuser explicitement que deviner). Le pilotage standby/operate
+        # se fait au panneau avant du PGXL ou via SmartSDR en attendant.
+        if self.path == '/pgxl/test':
+            import logx_powergenius as pgxl
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            res = pgxl.test_connection(payload.get('host'), payload.get('port'),
+                                       payload.get('timeout'))
             self._json(res, 200 if res.get('ok') else 400)
             return
 
