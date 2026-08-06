@@ -29,6 +29,22 @@ from logx_qsl import _parse_adif_records, _band_from_record
 # l'affichage. Couvre les préfixes/suffixes /P, /MM, F/DL1AA, etc.
 _CALL_RE = re.compile(r'^[A-Z0-9/]{2,15}$')
 
+# Tags ADIF explicitement mappés vers un champ interne ci-dessous — tout le
+# reste d'un record (ex. MY_RIG, COMMENT, un tag propriétaire d'un autre
+# logiciel) est préservé tel quel dans extra_fields plutôt que perdu en
+# silence, pour un aller-retour import/export fidèle (voir editQSO/
+# buildAdifText côté client, qui lisent/écrivent le même extra_fields).
+_TAGS_MAPPES = {
+    'CALL', 'BAND', 'MODE', 'QSO_DATE', 'TIME_ON', 'TIME_OFF', 'RST_SENT',
+    'RST_RCVD', 'STX_STRING', 'STX', 'SRX_STRING', 'SRX', 'GRIDSQUARE',
+    'STATE', 'SAT_NAME', 'MY_GRIDSQUARE', 'OPERATOR', 'STATION_CALLSIGN',
+    'CONTEST_ID', 'MY_SIG', 'MY_SIG_INFO', 'SIG', 'SIG_INFO',
+    'ADIF_VER', 'PROGRAMID',
+    # FREQ n'est PAS mappé par ce parseur (pré-existant, hors scope de ce
+    # correctif) : exclu volontairement de cet ensemble pour qu'un FREQ
+    # importé atterrisse dans extra_fields plutôt que d'être perdu.
+}
+
 
 def _clean_text(v):
     """Nettoie un champ texte libre d'un ADIF externe : retire les caractères
@@ -113,6 +129,14 @@ def parse_adif_to_qsos(adif_text):
             'points': 0,     # un import historique n'est pas noté dans un concours actif
             'source': 'adif_import',
         })
+        # Tout tag du record qui n'est PAS explicitement mappé ci-dessus est
+        # préservé dans extra_fields plutôt que perdu en silence — même
+        # convention que l'éditeur de champs personnalisés côté client
+        # (logx_logbook.js:editQSO/buildAdifText).
+        extras = {k: _clean_text(v) for k, v in rec.items()
+                  if k not in _TAGS_MAPPES and _clean_text(v)}
+        if extras:
+            qsos[-1]['extra_fields'] = extras
     return qsos, errors
 
 
