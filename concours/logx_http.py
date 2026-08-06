@@ -5550,6 +5550,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res, 200 if res.get('ok') else 400)
             return
 
+        # Télémétrie : envoi immédiat d'un heartbeat (bouton "Tester" de
+        # CONFIG) — le champ saisi PRIME sur celui déjà enregistré, comme
+        # /winkeyer/test et /so2r/test, pour pouvoir tester avant de
+        # sauvegarder. Le payload envoyé (voir logx_telemetry.build_payload)
+        # est identique à celui du heartbeat quotidien réel.
+        if self.path == '/telemetry/test':
+            import logx_telemetry as tel
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            cfg_test = dict(self._cfg_snapshot())
+            cfg_test['telemetry_enabled'] = True
+            if payload.get('endpoint'):
+                cfg_test['telemetry_endpoint'] = payload['endpoint']
+            res = tel.send_heartbeat(cfg_test)
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
         # Panneau Station Control (relais WebSwitch/KMTronic/Denkovi/série
         # générique) : bascule manuelle d'un relais, test de connexion.
         # L'auto-pilotage par bande (relay.maybe_apply_band) est appelé côté

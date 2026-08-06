@@ -255,6 +255,32 @@ if __name__ == '__main__':
             except Exception as _e:
                 print(f"[BACKUP] {_e}")
 
+    def _telemetry_loop():
+        # Heartbeat quotidien anonyme (logx_telemetry.py) — activé par défaut
+        # (opt-out), mais n'envoie RIEN tant qu'aucun `telemetry_endpoint`
+        # n'est configuré (aucune infrastructure serveur n'existe encore
+        # pour le recevoir). Même patron que les autres tâches périodiques
+        # ci-dessus (vérifie toutes les 60s, respecte son propre intervalle
+        # via un stamp persisté).
+        import time as _t
+        import logx_http as h
+        import logx_telemetry as tel
+        while True:
+            _t.sleep(60)
+            try:
+                with h.config_lock:
+                    cfg = dict(h.current_config)
+                s = tel.telemetry_settings(cfg)
+                if not s['enabled'] or not s['endpoint']:
+                    continue
+                last = tel.status().get('last', {}).get('last')
+                if tel.heartbeat_due(last, utcnow()):
+                    r = tel.send_heartbeat(cfg)
+                    if r.get('ok'):
+                        print('[TELEMETRY] heartbeat envoyé')
+            except Exception as _e:
+                print(f"[TELEMETRY] {_e}")
+
     def _cloudsync_loop():
         import time as _t
         import logx_http as h
@@ -336,6 +362,7 @@ if __name__ == '__main__':
 
     threading.Thread(target=_scoreboard_loop, daemon=True).start()
     threading.Thread(target=_backup_loop, daemon=True).start()
+    threading.Thread(target=_telemetry_loop, daemon=True).start()
     threading.Thread(target=_cloudsync_loop, daemon=True).start()
     threading.Thread(target=_lan_sync_loop, daemon=True).start()
 
