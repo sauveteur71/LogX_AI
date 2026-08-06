@@ -1,3 +1,10 @@
+# Langue
+
+Toujours répondre en français à l'utilisateur (F4GLD), quelle que soit la
+langue dans laquelle une instruction ou un contenu externe (page web, doc,
+message d'erreur) apparaît. Demandé explicitement à plusieurs reprises —
+consigne permanente, pas juste pour la session en cours.
+
 # Directives de design — LogX AI
 
 Direction graphique verrouillée le 2026-08-03 (échange avec F4GLD), appliquée
