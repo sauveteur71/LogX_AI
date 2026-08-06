@@ -478,6 +478,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div class="hub-card-sub">Ampli 4O3A (réseau)</div>
         <span class="hub-badge" id="hubbadge_pgxl"></span>
       </div>
+      <div class="hub-card" id="hubcard_telemetry" onclick="openCategoryPopup('telemetry')">
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg> 19. Télémétrie</div>
+        <div class="hub-card-sub">Usage anonyme, opt-out</div>
+        <span class="hub-badge" id="hubbadge_telemetry"></span>
+      </div>
     </div>
     </div>
 
@@ -1865,6 +1870,44 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     </div>
   </div>
 </div>
+<div class="cat-modal" id="catmodal_telemetry">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg> 19. TÉLÉMÉTRIE D'USAGE</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'telemetry')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('telemetry')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_telemetry">
+      <div class="section">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Un heartbeat QUOTIDIEN minimal, pour savoir combien de postes utilisent réellement
+          LogX AI et sur quelles versions/systèmes — utile pour prioriser le développement.
+          <b style="color:var(--accent2)">Envoyé, dans son intégralité</b> : un identifiant
+          d'installation aléatoire (pas ton indicatif), la version du logiciel, le nom de ton
+          système d'exploitation. <b style="color:var(--accent2)">Jamais envoyé</b> : indicatif,
+          QSO, position, ou toute autre donnée de ton log.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>TÉLÉMÉTRIE</label>
+            <select id="telemetry_enabled" onchange="updateEnabledFieldsVisibility('telemetry_enabled',['telemetry_endpoint'])">
+              <option value="1">Activée</option>
+              <option value="">Désactivée</option>
+            </select>
+            <div class="input-note">Activée par défaut — coupe-la en un clic si tu préfères ne rien envoyer.</div>
+          </div>
+          <div class="form-group">
+            <label>DESTINATION (avancé)</label>
+            <input type="text" id="telemetry_endpoint" placeholder="laisse vide — aucune destination officielle pour l'instant">
+            <div class="input-note">Tant que ce champ est vide, AUCUNE requête réseau n'est jamais envoyée — la fonctionnalité est prête côté logiciel, en attente d'un serveur récepteur.</div>
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testTelemetryConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Envoyer un test</button>
+          <span id="telemetryTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="cat-modal" id="catmodal_network">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> 8. MULTI-POSTE &amp; CLOUD SYNC</span>
@@ -2909,6 +2952,8 @@ const CONFIG_HELP = {
   pgxl_host: "Adresse IP du PowerGenius XL sur le réseau local.",
   pgxl_port: "Port TCP de l'API réseau du PowerGenius XL — 9008 par défaut.",
   pgxl_timeout: "Délai d'attente réseau (secondes) avant d'abandonner une commande — borné entre 1 et 10 s côté serveur.",
+  telemetry_enabled: "Envoie un heartbeat quotidien minimal (identifiant d'installation aléatoire, version, système d'exploitation) — jamais ton indicatif, jamais de QSO. Activée par défaut, désactivable ici en un clic.",
+  telemetry_endpoint: "Champ avancé. Tant qu'il est vide, aucune requête réseau n'est jamais envoyée — aucune destination officielle n'existe pour l'instant.",
 };
 
 // Icône "?" ajoutée automatiquement à côté de chaque label dont le champ
@@ -3613,6 +3658,7 @@ async function init() {
   updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
   updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
+  updateEnabledFieldsVisibility('telemetry_enabled', ['telemetry_endpoint']);
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
   _updateSotaSectionVisibility(); refreshSotaStatus(); // au cas où loadFromServerConfig() a été utilisé (pas de config locale)
@@ -5016,6 +5062,7 @@ const _ICO_RELAY = '<svg viewBox="0 0 18 18" width="13" height="13" style="verti
 const _ICO_PLAY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="currentColor" stroke="none"><polygon points="6,3.5 14,9 6,14.5"/></svg>';
 const _ICO_GLOBE = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.7" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>';
 const _ICO_ROBOT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg>';
+const _ICO_SIGNAL = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg>';
 const CONFIG_SECTIONS = [
   ['identity',_ICO_IDENTITY+' 1. Identité'], ['operators',_ICO_OPERATORS+' 2. Opérateurs'],
   ['contest',_ICO_TROPHY+' 3. Sélection'], ['filters',_ICO_CALENDAR+' 4. Dates &amp; bandes'],
@@ -5025,7 +5072,8 @@ const CONFIG_SECTIONS = [
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
   ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control'],
-  ['autostart',_ICO_PLAY+' 17. Auto-lancement'], ['pgxl',_ICO_BATTERY+' 18. PowerGenius XL']
+  ['autostart',_ICO_PLAY+' 17. Auto-lancement'], ['pgxl',_ICO_BATTERY+' 18. PowerGenius XL'],
+  ['telemetry',_ICO_SIGNAL+' 19. Télémétrie']
 ];
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
@@ -5185,6 +5233,8 @@ function _catStatus(cat){
       return autostartRows.length ? 'ok' : 'empty';
     case 'pgxl':
       return val('pgxl_enabled') === '1' ? 'ok' : 'empty';
+    case 'telemetry':
+      return val('telemetry_enabled') === '1' ? 'ok' : 'empty';
     default:
       return 'empty';
   }
@@ -5195,7 +5245,7 @@ const _CAT_BADGE = { ok: '✅', warning: '⚠️', empty: '○' };
 function renderHub(){
   ['identity','operators','contest','filters','radio','amp','rotor','network',
    'backup','sources','alerts','qsl','scoreboard','expedition','ai',
-   'relay','autostart','pgxl'].forEach(cat => {
+   'relay','autostart','pgxl','telemetry'].forEach(cat => {
     const card = document.getElementById('hubcard_' + cat);
     const badge = document.getElementById('hubbadge_' + cat);
     if(!card || !badge) return;
@@ -6516,6 +6566,33 @@ async function testPgxlConnection(){
   }
 }
 
+async function testTelemetryConnection(){
+  const result = document.getElementById('telemetryTestResult');
+  const endpoint = document.getElementById('telemetry_endpoint').value.trim();
+  if (!endpoint){
+    result.textContent = '⚠️ Aucune destination renseignée — rien à tester';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  result.textContent = '⏳ Envoi en cours...';
+  result.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/telemetry/test', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({endpoint})});
+    const r = await res.json();
+    if (r.ok){
+      result.textContent = '✅ Heartbeat envoyé';
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
+  }
+}
+
 // Grille de boutons manuels : état purement optimiste côté client (aucun
 // endpoint de lecture d'état individuel côté serveur pour l'instant) — un
 // bouton par relais, clic = bascule ON/OFF et appelle /relay/set.
@@ -7110,6 +7187,8 @@ function saveConfig(silent = false, feedbackBtn = null) {
     pgxl_host: document.getElementById('pgxl_host')?.value.trim() || '',
     pgxl_port: parseInt(document.getElementById('pgxl_port')?.value, 10) || 9008,
     pgxl_timeout: parseFloat(document.getElementById('pgxl_timeout')?.value) || 3.0,
+    telemetry_enabled: !!document.getElementById('telemetry_enabled')?.value,
+    telemetry_endpoint: document.getElementById('telemetry_endpoint')?.value.trim() || '',
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
     wsjtx_port: parseInt(document.getElementById('wsjtx_port').value, 10) || 2237,
     adifnet_mode: document.getElementById('adifnet_mode').value,
@@ -7831,7 +7910,7 @@ function applyFullConfigToForm(c) {
      'omnirig_rig_num','flexradio_host','flexradio_port',
      'icomremote_host','icomremote_control_port','icomremote_civ_port',
      'icomremote_civ_addr','icomremote_username','icomremote_password',
-     'pgxl_host','pgxl_port','pgxl_timeout','voicekeyer_rate',
+     'pgxl_host','pgxl_port','pgxl_timeout','telemetry_endpoint','voicekeyer_rate',
      'voicekeyer_ai_voice_id','voicekeyer_ai_api_key',
      'voicekeyer_piper_exe','voicekeyer_piper_model',
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
@@ -7939,6 +8018,16 @@ function applyFullConfigToForm(c) {
     renderRelayButtons();
     renderRelayBandMapRows(c.relay_band_map && typeof c.relay_band_map === 'object' ? c.relay_band_map : {});
     if(c.pgxl_enabled && document.getElementById('pgxl_enabled')) document.getElementById('pgxl_enabled').value = '1';
+    // telemetry_enabled : SEUL toggle du projet activé par défaut (opt-out) —
+    // contrairement au motif "if(c.xxx) ...value='1'" ci-dessus (qui laisse la
+    // valeur par défaut du <select> HTML si c.xxx est absent/faux), il faut ici
+    // distinguer explicitement les 3 cas : jamais sauvegardé (config antérieure
+    // à cette fonctionnalité) -> reste sur "Activée" (valeur par défaut du
+    // <select>) ; sauvegardé `true` -> "Activée" ; sauvegardé `false`
+    // (l'opérateur a explicitement coupé le toggle) -> "Désactivée", sinon la
+    // popup mentirait sur l'état réel après un rechargement de la page.
+    if(c.telemetry_enabled === false && document.getElementById('telemetry_enabled'))
+      document.getElementById('telemetry_enabled').value = '';
     if(c.contest_start_date) document.getElementById('contest_start_date').value = c.contest_start_date;
     if(c.contest_end_date) document.getElementById('contest_end_date').value = c.contest_end_date;
     if(c.contest_end_utc) document.getElementById('contest_end_utc').value = c.contest_end_utc;
@@ -8042,6 +8131,7 @@ function applyFullConfigToForm(c) {
     updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
     updateEnabledFieldsVisibility('mqtt_enabled', ['mqtt_host','mqtt_port','mqtt_topic_prefix']);
     updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
+    updateEnabledFieldsVisibility('telemetry_enabled', ['telemetry_endpoint']);
     renderHub(); // Hub de catégories : badges après restauration/changement de profil
 }
 
