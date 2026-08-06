@@ -691,7 +691,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <!-- Bannière petit écran : proposer la saisie mobile dédiée (cf. CSS #mobileBanner) -->
 <div id="mobileBanner">
   <span><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1.5" width="8" height="15" rx="1.5"/><line x1="8" y1="14" x2="10" y2="14"/></svg></span> Sur téléphone ? <a href="/logx_mobile.html">Version mobile de saisie →</a></span>
-  <span class="mb-close" onclick="this.parentElement.classList.add('dismissed');localStorage.setItem('logx_mobile_banner_off','1')">✕</span>
+  <span class="mb-close" onclick="this.parentElement.classList.add('dismissed');localStorage.setItem('logx_mobile_banner_off','1')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
 </div>
 <script>
   if(localStorage.getItem('logx_mobile_banner_off') === '1'){
@@ -704,7 +704,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="edit-box">
     <div class="edit-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l4 4L6 16l-4.5 1L2.5 12.5z"/><line x1="9.5" y1="4.5" x2="13.5" y2="8.5"/></svg> CORRIGER LE QSO</span>
-      <span class="edit-close" onclick="closeEdit()">✕</span>
+      <span class="edit-close" onclick="closeEdit()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
     </div>
     <input type="hidden" id="editId">
     <div class="edit-grid">
@@ -851,7 +851,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> CHECKLIST AVANT CONCOURS</span>
-      <span class="shortcuts-close" onclick="toggleChecklist()">✕</span>
+      <span class="shortcuts-close" onclick="toggleChecklist()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
     </div>
     <div class="shortcuts-list" id="checklistInner"></div>
     <div style="margin-top:16px;text-align:center">
@@ -865,7 +865,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box" style="width:860px;max-width:92vw">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="11.5" r="4.5"/><path d="M6.5 7.5L4 1.5M11.5 7.5L14 1.5"/><circle cx="9" cy="11.5" r="1.6" fill="currentColor" stroke="none"/></svg> DIPLÔMES & QSL</span>
-      <span class="shortcuts-close" onclick="document.getElementById('awardsOverlay').classList.remove('show')">✕</span>
+      <span class="shortcuts-close" onclick="document.getElementById('awardsOverlay').classList.remove('show')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
     </div>
     <div id="awardsInner" style="max-height:78vh;overflow-y:auto"></div>
   </div>
@@ -876,7 +876,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box" style="width:640px;max-width:94vw">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1.5"/><polyline points="2.5,5 9,10.5 15.5,5"/></svg> QTC (WAE)</span>
-      <span class="shortcuts-close" onclick="closeQTCPanel()">✕</span>
+      <span class="shortcuts-close" onclick="closeQTCPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
       Une série QTC copie de 1 à 10 QSO déjà passés vers/depuis une autre station EU↔DX (règlement WAE : heure, indicatif et n° de chaque QSO rapporté — max 10 QTC cumulés émis+reçus avec une même station).
@@ -929,7 +929,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><line x1="12" y1="12" x2="16.5" y2="16.5"/></svg> VÉRIFICATION DU LOG</span>
-      <span class="shortcuts-close" onclick="document.getElementById('validateOverlay').classList.remove('show')">✕</span>
+      <span class="shortcuts-close" onclick="document.getElementById('validateOverlay').classList.remove('show')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
     </div>
     <div class="shortcuts-list" id="validateInner" style="max-height:55vh;overflow-y:auto"></div>
     <div style="margin-top:16px;text-align:center">
@@ -943,7 +943,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5a1 1 0 0 1 1-1h4l1.5 2H15a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg> IMPORT ADIF</span>
-      <span class="shortcuts-close" onclick="closeImportOverlay()">✕</span>
+      <span class="shortcuts-close" onclick="closeImportOverlay()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
     </div>
     <div class="shortcuts-list" id="importInner" style="max-height:55vh;overflow-y:auto"></div>
     <div style="margin-top:16px;text-align:center;display:flex;gap:10px;justify-content:center">
@@ -959,7 +959,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="4.5" width="15" height="9" rx="1.5"/><circle cx="4.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="7.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="10.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="13.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><line x1="4.5" y1="11.5" x2="13.5" y2="11.5"/></svg> RACCOURCIS CLAVIER</span>
-      <span class="shortcuts-close" onclick="toggleShortcutsHelp()">✕</span>
+      <span class="shortcuts-close" onclick="toggleShortcutsHelp()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
     </div>
     <div class="shortcuts-list">
       <div class="shortcuts-row"><span class="shortcuts-key">Entrée</span><span>Valider le QSO — depuis n'importe quel champ de saisie</span></div>
@@ -1554,7 +1554,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            boutons de moins sans rien perdre. -->
       <button class="map-toggle-btn" id="mapToggleBtn" onclick="toggleMapView()">🗺️ CARTE</button>
       <button class="export-btn" id="selfSpotBtn" onclick="selfSpot()" style="display:none;color:var(--accent);border-color:rgba(var(--accent-rgb),.5)" title="Publier mon indicatif + ma fréquence sur le cluster DX">📡 SELF-SPOT</button>
-      <button class="export-btn" id="qtcBtn" onclick="showQTCPanel()" style="display:none;color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)" title="WAE : saisir/consulter les séries QTC (1 pt émis + 1 pt reçu par QTC, max 10 cumulés par station)">✉ QTC : 0</button>
+      <button class="export-btn" id="qtcBtn" onclick="showQTCPanel()" style="display:none;color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)" title="WAE : saisir/consulter les séries QTC (1 pt émis + 1 pt reçu par QTC, max 10 cumulés par station)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1"/><polyline points="2.5,5 9,11 15.5,5"/></svg> QTC : <span id="qtcCount">0</span></button>
 
       <!-- ══ MENU DÉBUT / FIN ═════════════════════════════════════════════
            Un seul bouton pour tout ce qui encadre une session : préparation
@@ -1657,7 +1657,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="rate-box">
     <div class="rate-hdr">
       <span class="rate-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="15" x2="15" y2="15"/><line x1="5" y1="15" x2="5" y2="10"/><line x1="9" y1="15" x2="9" y2="6"/><line x1="13" y1="15" x2="13" y2="12"/></svg> STATISTIQUES DU CONCOURS</span>
-      <span class="rate-close" onclick="closeRatePanel()">✕</span>
+      <span class="rate-close" onclick="closeRatePanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
     </div>
     <div class="rate-tabs">
       <button class="rate-tab active" onclick="switchRateTab('rate',this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,13 7,8 10,11 16,4"/><polyline points="11,4 16,4 16,9"/></svg> TAUX QSO/HEURE</button>
