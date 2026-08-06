@@ -17,6 +17,8 @@ répertoire de travail reste concours/ comme aujourd'hui.
 import os
 import sys
 import shutil
+import subprocess
+import webbrowser
 
 
 def is_frozen():
@@ -159,6 +161,65 @@ def page_de_demarrage(dossier=None):
             else '/logx_configuration.html')
 
 
+# ─── Ouverture en mode « application » (sans barre d'adresse ni onglets) ─────
+# DEMANDE UTILISATEUR : au démarrage, le navigateur s'ouvrait dans un onglet
+# normal — barre d'adresse, onglets, barre de favoris tout en haut, comme
+# n'importe quelle page web. LogX AI est pourtant utilisé comme une appli de
+# bureau, pas comme un site qu'on navigue. La Fullscreen API du navigateur
+# (Element.requestFullscreen) ne peut PAS être déclenchée automatiquement au
+# chargement de la page — elle exige un geste utilisateur (clic), restriction
+# de sécurité commune à tous les navigateurs modernes, contournable seulement
+# depuis CE process Python (qui lance le navigateur, donc décide de SES
+# arguments de ligne de commande) : Chrome et Edge acceptent --app=URL, qui
+# ouvre une fenêtre "application" sans barre d'adresse/onglets/favoris — pas
+# un vrai kiosk (fenêtre normale, redimensionnable, alt-tab possible :
+# l'opérateur bascule souvent vers d'autres logiciels pendant un concours).
+def _find_app_mode_browser():
+    """Chrome ou Edge, si l'un des deux est installé — None sinon (repli sur
+    un onglet classique via webbrowser.open, voir open_browser_app_mode)."""
+    for nom in ('chrome', 'google-chrome', 'chromium', 'msedge', 'microsoft-edge'):
+        chemin = shutil.which(nom)
+        if chemin:
+            return chemin
+    candidats = []
+    if sys.platform == 'win32':
+        bases = [os.environ.get('PROGRAMFILES', r'C:\Program Files'),
+                 os.environ.get('PROGRAMFILES(X86)', r'C:\Program Files (x86)'),
+                 os.environ.get('LOCALAPPDATA', '')]
+        rels = [r'Google\Chrome\Application\chrome.exe',
+                r'Microsoft\Edge\Application\msedge.exe']
+        candidats = [os.path.join(b, r) for b in bases if b for r in rels]
+    elif sys.platform == 'darwin':
+        candidats = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+                     '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge']
+    for chemin in candidats:
+        if os.path.isfile(chemin):
+            return chemin
+    return None
+
+
+def open_browser_app_mode(url, find_browser=None):
+    """Ouvre `url` en mode application Chrome/Edge (--start-maximized
+    --app=url) si l'un des deux est installé, sinon retombe sur
+    webbrowser.open() (onglet classique du navigateur par défaut — Firefox et
+    les autres n'ont pas d'équivalent --app aussi universel). Ne lève jamais :
+    un échec de lancement (permissions, exécutable trouvé mais cassé) retombe
+    aussi sur webbrowser.open() plutôt que d'empêcher le démarrage.
+
+    `find_browser` (tests uniquement) : remplace _find_app_mode_browser, pour
+    ne dépendre d'aucune installation Chrome/Edge réelle sur la machine de
+    test/CI — même principe que l'injection de transport dans logx_cat.py."""
+    exe = (find_browser or _find_app_mode_browser)()
+    if exe:
+        try:
+            subprocess.Popen([exe, '--start-maximized', f'--app={url}'])
+            return True
+        except OSError:
+            pass   # exécutable trouvé mais illançable : repli silencieux
+    webbrowser.open(url)
+    return False
+
+
 def start_network_diagnosis(port, delay=1.5, then_open_browser=False):
     """Lance le diagnostic réseau en tâche de fond (laisse le serveur
     démarrer avant de le sonder). Si then_open_browser, ouvre le navigateur
@@ -174,8 +235,7 @@ def start_network_diagnosis(port, delay=1.5, then_open_browser=False):
             print(f"[RÉSEAU] {host} répond plus vite que l'autre adresse locale "
                   f"sur ce poste ({ms:.0f} ms) — utilisé de préférence.")
         if then_open_browser:
-            import webbrowser
-            webbrowser.open(f'http://{host}:{port}{page_de_demarrage()}')
+            open_browser_app_mode(f'http://{host}:{port}{page_de_demarrage()}')
 
     threading.Timer(delay, _run).start()
 
