@@ -229,7 +229,8 @@ function itemsMenuLogbook(format){
 
   const suivi = [['📊', 'STATS — rythme et répartition', 'showRatePanel'],
                  ['🏅', 'DIPLÔMES & QSL', 'showAwards'],
-                 ['🔎', 'FILTRE AVANCÉ', 'openFilterBuilder']];
+                 ['🔎', 'FILTRE AVANCÉ', 'openFilterBuilder'],
+                 ['🧬', 'RECHERCHE DE DOUBLONS', 'openDupFinder']];
   grp.push(['SUIVI', suivi]);
 
   const apres = [];
@@ -4659,6 +4660,107 @@ function fltRenderPresets(){
   ).join('') || '<span style="color:var(--muted);font-size:12px">Aucun préréglage enregistré</span>';
 }
 
+// ═══════════════════════ RECHERCHE DE DOUBLONS DÉDIÉE ═══════════════════
+// Distincte du surlignage en direct de renderLog() (dupCounts, juste call+
+// band) : ici l'opérateur choisit explicitement le critère (± jour, ± minute)
+// et peut nettoyer le log en lot, pas seulement repérer visuellement.
+let dupOptions = {sameDay:false, sameMinute:false};
+
+function dupKeyOf(q){
+  let k = (q.call||'').toUpperCase() + '|' + (q.band||'') + '|' + (q.mode||'').toUpperCase();
+  if(dupOptions.sameDay) k += '|' + (q.date||'');
+  // 'HH:MM' ou 'HH:MM:SS' selon la source (saisie manuelle vs import) — les 5
+  // premiers caractères couvrent les deux formats sans dépendre de la longueur.
+  if(dupOptions.sameMinute) k += '|' + String(q.time||'').slice(0,5);
+  return k;
+}
+
+function findDuplicateGroups(){
+  const map = new Map();
+  qsoLog.forEach(q=>{
+    const k = dupKeyOf(q);
+    if(!map.has(k)) map.set(k, []);
+    map.get(k).push(q);
+  });
+  // Le plus ANCIEN en tête de groupe : « garder le premier » doit garder le
+  // QSO originel, pas un doublon arrivé après coup par resynchro réseau.
+  return [...map.values()]
+    .filter(g => g.length > 1)
+    .map(g => g.slice().sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)))
+    .sort((a,b) => b.length - a.length);
+}
+
+function openDupFinder(){
+  document.getElementById('dupSameDay').checked = dupOptions.sameDay;
+  document.getElementById('dupSameMinute').checked = dupOptions.sameMinute;
+  renderDupResults();
+  document.getElementById('dupOverlay').classList.add('show');
+}
+
+function closeDupFinder(){
+  document.getElementById('dupOverlay').classList.remove('show');
+}
+
+function dupOptionsChanged(){
+  dupOptions.sameDay = document.getElementById('dupSameDay').checked;
+  dupOptions.sameMinute = document.getElementById('dupSameMinute').checked;
+  renderDupResults();
+}
+
+function renderDupResults(){
+  const wrap = document.getElementById('dupResults');
+  if(!wrap) return;
+  const groups = findDuplicateGroups();
+  if(!groups.length){
+    wrap.innerHTML = `<div style="color:var(--muted);text-align:center;padding:20px">${trT('Aucun doublon trouvé.')}</div>`;
+  } else {
+    wrap.innerHTML = groups.map(g => {
+      const extraIds = JSON.stringify(g.slice(1).map(q=>q.id));
+      const rows = g.map(q => `<div class="dup-row">
+        <span>${escHtml(q.date)} ${escHtml(q.time)}</span>
+        <span>${escHtml(q.call)}</span>
+        <span>${BAND_LABELS[q.band]||escHtml(q.band)}</span>
+        <span>${escHtml(q.mode)}</span>
+        <span>${escHtml(q.rst_sent)}/${escHtml(q.rst_rcvd)}</span>
+        <span class="dup-del" onclick="dupDeleteOne(${q.id})" title="Supprimer ce QSO">✕</span>
+      </div>`).join('');
+      return `<div class="dup-group">
+        <div class="dup-group-hdr">
+          <span>${escHtml(g[0].call)} · ${BAND_LABELS[g[0].band]||escHtml(g[0].band)} · ${escHtml(g[0].mode)} — ${g.length} occurrences</span>
+          <button class="flt-add-cond" onclick="dupDeleteMany(${extraIds})">GARDER LE 1ᵉʳ, SUPPRIMER LE RESTE</button>
+        </div>
+        ${rows}
+      </div>`;
+    }).join('');
+  }
+  const totalEnTrop = groups.reduce((s,g) => s + g.length - 1, 0);
+  document.getElementById('dupCount').textContent = groups.length
+    ? trF('{g} groupe(s), {n} QSO en trop', {g: groups.length, n: totalEnTrop})
+    : '';
+}
+
+async function dupDeleteOne(id){
+  if(!confirm(trT('Supprimer ce QSO ?'))) return;
+  await deleteQSOSilent(id);
+  renderLog();
+  updateStats();
+  renderDupResults();
+}
+
+async function dupDeleteMany(ids){
+  if(!ids.length) return;
+  if(!confirm(trF('Supprimer {n} QSO en double (le plus ancien de chaque groupe est conservé) ?', {n: ids.length}))) return;
+  for(const id of ids) await deleteQSOSilent(id);
+  renderLog();
+  updateStats();
+  renderDupResults();
+}
+
+function dupDeleteAllExceptFirst(){
+  const ids = findDuplicateGroups().flatMap(g => g.slice(1).map(q=>q.id));
+  dupDeleteMany(ids);
+}
+
 function renderLog(){
   const search = document.getElementById('logSearch').value.toUpperCase();
   const tbody = document.getElementById('logBody');
@@ -4930,15 +5032,23 @@ async function saveEdit(){
   updateStats();
 }
 
-async function deleteQSO(id){
-  if(!confirm(trT('Supprimer ce QSO ?'))) return;
+// Sans confirmation ni re-rendu : factorisée pour les suppressions en lot
+// (recherche de doublons) qui ne veulent qu'UNE confirmation pour tout le
+// lot, pas une par QSO, et qui rafraîchissent l'affichage une seule fois
+// après la dernière suppression plutôt qu'à chaque itération.
+async function deleteQSOSilent(id){
   qsoLog = qsoLog.filter(q=>q.id!==id);
   try{
     await fetch(`/log/delete/${id}`, {method:'DELETE'});
   }catch(e){}
+  bcBroadcast('delete', {id});
+}
+
+async function deleteQSO(id){
+  if(!confirm(trT('Supprimer ce QSO ?'))) return;
+  await deleteQSOSilent(id);
   renderLog();
   updateStats();
-  bcBroadcast('delete', {id});
 }
 
 async function undoLastQSO(){
