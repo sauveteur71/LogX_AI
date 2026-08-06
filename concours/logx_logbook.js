@@ -4377,20 +4377,30 @@ function editQSO(id){
   document.getElementById('editNumSent').value = q.num_sent||'';
   document.getElementById('editRSTrcvd').value = q.rst_rcvd||'';
   document.getElementById('editNumRcvd').value = q.num_rcvd||'';
-  // Peupler le select bande avec les bandes du concours
+  // Peupler le select bande avec les bandes du concours — PLUS celle du QSO
+  // si elle n'y est pas (QSO logué sous un autre concours actif, ou hors
+  // concours). Piège corrigé ici : un <select> a TOUJOURS une valeur dès
+  // qu'il a des <option> (le navigateur sélectionne la première par défaut
+  // si aucune n'a "selected") — `if(!editBandSel.value)` n'est donc jamais
+  // vrai et ce filet ne se déclenchait jamais, laissant la bande/le mode
+  // réels du QSO silencieusement remplacés par le premier choix de la
+  // liste (ex. un QSO FT8 affiché "SSB" en édition dès que le concours
+  // actif ne compte pas FT8 parmi ses modes). Corrigé en garantissant que
+  // l'option existe TOUJOURS, plutôt qu'en réparant après coup une valeur
+  // que le select a déjà mal choisie.
   const editBandSel = document.getElementById('editBand');
   const contestBands = CONTEST_BANDS[currentContest] || ALL_BANDS;
-  editBandSel.innerHTML = contestBands.map(b =>
+  const editBandOptions = (q.band && !contestBands.includes(q.band)) ? [...contestBands, q.band] : contestBands;
+  editBandSel.innerHTML = editBandOptions.map(b =>
     `<option value="${b}"${b===q.band?' selected':''}>${BAND_LABELS[b]||b+' MHz'}</option>`
   ).join('');
-  if(!editBandSel.value) editBandSel.value = q.band; // fallback si bande hors concours
-  // Peupler le select mode avec les modes du concours
+  // Peupler le select mode avec les modes du concours — même correctif.
   const editModeSel = document.getElementById('editMode');
   const contestModes = CONTEST_MODES[currentContest] || ['SSB','CW','FM','FT8','FT4','RTTY'];
-  editModeSel.innerHTML = contestModes.map(m =>
+  const editModeOptions = (q.mode && !contestModes.includes(q.mode)) ? [...contestModes, q.mode] : contestModes;
+  editModeSel.innerHTML = editModeOptions.map(m =>
     `<option value="${m}"${m===q.mode?' selected':''}>${m}</option>`
   ).join('');
-  if(!editModeSel.value) editModeSel.value = q.mode;
   document.getElementById('editLocator').value = q.locator||'';
   updateEditDistInfo(q.locator);
   document.getElementById('editLocator').addEventListener('input', function(){
