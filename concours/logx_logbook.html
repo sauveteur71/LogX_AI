@@ -474,6 +474,40 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .edit-cancel{background:#13152A;border:1px solid #2B2F4A;border-radius:7px;color:#4A5080;font-family:var(--font-mono);font-size:14px;padding:11px 20px;cursor:pointer;transition:all .15s}
 .edit-cancel:hover{border-color:#FF2D55;color:#FF2D55}
 
+/* CONSTRUCTEUR DE FILTRE AVANCÉ */
+.flt-box{width:700px}
+.flt-groups{display:flex;flex-direction:column;gap:10px;max-height:48vh;overflow-y:auto;margin-bottom:12px}
+.flt-group{border:1px solid var(--border);border-radius:9px;padding:10px;background:var(--bg3)}
+.flt-group-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.flt-group-lbl{font-size:11px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
+.flt-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:6px;align-items:center}
+.flt-row select,.flt-row input{background:var(--bg2);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:var(--font-mono);font-size:13px;padding:7px 9px;outline:none;width:100%;box-sizing:border-box}
+.flt-row select:focus,.flt-row input:focus{border-color:var(--accent2)}
+.flt-remove{cursor:pointer;color:var(--muted);font-size:16px;padding:0 4px;transition:color .15s;user-select:none}
+.flt-remove:hover{color:var(--red)}
+.flt-add-cond{background:none;border:1px dashed var(--border);border-radius:6px;color:var(--accent2);
+  font-family:var(--font-mono);font-size:12px;padding:5px 10px;cursor:pointer;letter-spacing:1px}
+.flt-add-cond:hover{border-color:var(--accent2)}
+.flt-or-sep{text-align:center;font-family:var(--font-mono);font-size:11px;color:var(--accent2);
+  letter-spacing:3px;font-weight:800}
+.flt-add-group{width:100%;background:none;border:1px dashed var(--accent2);border-radius:8px;
+  color:var(--accent2);font-family:var(--font-mono);font-size:12px;padding:8px;cursor:pointer;
+  letter-spacing:1px;margin-bottom:12px}
+.flt-add-group:hover{background:rgba(var(--accent-rgb),.08)}
+.flt-presets{border-top:1px solid var(--border);padding-top:12px;margin-bottom:12px}
+.flt-preset-row{display:flex;gap:8px;margin-bottom:8px}
+.flt-preset-row input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:var(--font-mono);font-size:13px;padding:7px 9px;outline:none}
+.flt-preset-list{display:flex;flex-wrap:wrap;gap:6px}
+.flt-preset-chip{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:14px;padding:4px 6px 4px 12px;font-family:var(--font-mono);font-size:12px;cursor:pointer}
+.flt-preset-chip:hover{border-color:var(--accent2)}
+.flt-preset-chip .flt-preset-del{color:var(--muted);padding:2px 6px}
+.flt-preset-chip .flt-preset-del:hover{color:var(--red)}
+.flt-footer{display:flex;gap:8px;justify-content:flex-end}
+.flt-count{font-size:12px;color:var(--muted);margin-right:auto;align-self:center;font-family:var(--font-mono)}
+
 /* BADGE PAYS DXCC */
 .dxcc-badge{display:none;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25);font-family:var(--font-mono);font-size:14px;margin-top:4px}
 .dxcc-flag{font-size:18px;line-height:1}
@@ -951,6 +985,32 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       <button class="export-btn" onclick="closeImportOverlay()">Annuler</button>
       <button class="export-btn" id="importConfirmBtn" onclick="confirmImportAdif()"
         style="color:var(--green);border-color:rgba(0,255,136,.4)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> CONFIRMER L'IMPORT</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONSTRUCTEUR DE FILTRE AVANCÉ -->
+<div class="shortcuts-overlay" id="filterOverlay" onclick="if(event.target===this)closeFilterBuilder()">
+  <div class="shortcuts-box flt-box">
+    <div class="shortcuts-title">
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,3 16,3 11,9.5 11,14 7,16 7,9.5"/></svg> FILTRE AVANCÉ</span>
+      <span class="shortcuts-close" onclick="closeFilterBuilder()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+    </div>
+    <div class="flt-groups" id="fltGroups"></div>
+    <button class="flt-add-group" onclick="fltAddGroup()">+ GROUPE (OU)</button>
+    <div class="flt-presets">
+      <div class="flt-group-lbl" style="margin-bottom:8px">PRÉRÉGLAGES</div>
+      <div class="flt-preset-row">
+        <input type="text" id="fltPresetName" placeholder="Nom du préréglage…">
+        <button class="export-btn" onclick="fltSavePreset()">ENREGISTRER</button>
+      </div>
+      <div class="flt-preset-list" id="fltPresetList"></div>
+    </div>
+    <div class="flt-footer">
+      <div class="flt-count" id="fltCount"></div>
+      <button class="export-btn" onclick="fltReset()">RÉINITIALISER</button>
+      <button class="export-btn" onclick="fltExportFiltered()" style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">EXPORTER ADIF (résultat)</button>
+      <button class="export-btn" onclick="fltApply()" style="color:var(--green);border-color:rgba(0,255,136,.4)">APPLIQUER</button>
     </div>
   </div>
 </div>
