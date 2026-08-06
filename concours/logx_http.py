@@ -1421,6 +1421,18 @@ def _rig_state_dict(cfg_snap):
                     cfg_snap, state['freq_khz'], state.get('mode', '')), daemon=True).start()
     except Exception:
         pass
+    # Auto-pilotage du commutateur d'antenne par relais (comme PstRotator) :
+    # bascule le relais mappé dès que la BANDE change — voir
+    # logx_relay.maybe_apply_band, qui déduplique en interne (ne rejoue pas
+    # la commutation à chaque poll ~3s tant que la bande ne change pas).
+    try:
+        if state.get('enabled') and state.get('ok') and state.get('freq_hz'):
+            import logx_relay as relay
+            band = transverter.bande_depuis_hz(state['freq_hz'])
+            if band:
+                relay.maybe_apply_band(cfg_snap, band)
+    except Exception:
+        pass
     return state
 
 
@@ -5454,6 +5466,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 res = amp.clear_fault(cfg_snap)
             else:
                 res = amp.power_toggle(cfg_snap, bool(payload.get('on')))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        # Panneau Station Control (relais WebSwitch/KMTronic/Denkovi/série
+        # générique) : bascule manuelle d'un relais, test de connexion.
+        # L'auto-pilotage par bande (relay.maybe_apply_band) est appelé côté
+        # polling (_rig_state_dict), pas via cette route.
+        if self.path in ('/relay/set', '/relay/test'):
+            import logx_relay as relay
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            cfg_snap = self._cfg_snapshot()
+            if self.path == '/relay/test':
+                res = relay.test_connection(cfg_snap)
+            else:
+                try:
+                    relay_num = int(payload.get('relay'))
+                except (TypeError, ValueError):
+                    self._json({'ok': False, 'error': 'Numéro de relais invalide'}, 400)
+                    return
+                res = relay.set_relay(cfg_snap, relay_num, bool(payload.get('on')))
             self._json(res, 200 if res.get('ok') else 400)
             return
 
