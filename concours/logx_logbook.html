@@ -508,6 +508,20 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .flt-footer{display:flex;gap:8px;justify-content:flex-end}
 .flt-count{font-size:12px;color:var(--muted);margin-right:auto;align-self:center;font-family:var(--font-mono)}
 
+/* RECHERCHE DE DOUBLONS DÉDIÉE */
+.dup-box{width:640px}
+.dup-opts{display:flex;gap:18px;margin-bottom:12px;font-size:13px;color:var(--text);align-items:center}
+.dup-opts label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.dup-results{display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:12px}
+.dup-group{border:1px solid var(--border);border-radius:9px;padding:10px;background:var(--bg3)}
+.dup-group-hdr{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;
+  font-family:var(--font-mono);font-size:13px;color:var(--accent2);font-weight:700}
+.dup-row{display:grid;grid-template-columns:1fr 1fr 0.6fr 0.6fr 0.8fr auto;gap:8px;align-items:center;
+  font-family:var(--font-mono);font-size:12px;color:var(--text);padding:4px 0;border-top:1px solid var(--border)}
+.dup-row:first-of-type{border-top:none}
+.dup-del{cursor:pointer;color:var(--muted);transition:color .15s;justify-self:end}
+.dup-del:hover{color:var(--red)}
+
 /* BADGE PAYS DXCC */
 .dxcc-badge{display:none;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25);font-family:var(--font-mono);font-size:14px;margin-top:4px}
 .dxcc-flag{font-size:18px;line-height:1}
@@ -1011,6 +1025,26 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       <button class="export-btn" onclick="fltReset()">RÉINITIALISER</button>
       <button class="export-btn" onclick="fltExportFiltered()" style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">EXPORTER ADIF (résultat)</button>
       <button class="export-btn" onclick="fltApply()" style="color:var(--green);border-color:rgba(0,255,136,.4)">APPLIQUER</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECHERCHE DE DOUBLONS DÉDIÉE -->
+<div class="shortcuts-overlay" id="dupOverlay" onclick="if(event.target===this)closeDupFinder()">
+  <div class="shortcuts-box dup-box">
+    <div class="shortcuts-title">
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="10" height="10" rx="1.5"/><path d="M6 12v2.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5V8A1.5 1.5 0 0 0 14 6.5h-2"/></svg> RECHERCHE DE DOUBLONS</span>
+      <span class="shortcuts-close" onclick="closeDupFinder()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+    </div>
+    <div class="dup-opts">
+      <span>Même indicatif + bande + mode, et :</span>
+      <label><input type="checkbox" id="dupSameDay" onchange="dupOptionsChanged()"> même jour</label>
+      <label><input type="checkbox" id="dupSameMinute" onchange="dupOptionsChanged()"> même minute</label>
+    </div>
+    <div class="dup-results" id="dupResults"></div>
+    <div class="flt-footer">
+      <div class="flt-count" id="dupCount"></div>
+      <button class="export-btn" onclick="dupDeleteAllExceptFirst()" style="color:var(--red);border-color:rgba(255,45,85,.4)">SUPPRIMER TOUS LES DOUBLONS</button>
     </div>
   </div>
 </div>
