@@ -67,9 +67,38 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 .cycle-bar{width:90px;height:6px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;overflow:hidden}
 .cycle-bar i{display:block;height:100%;width:0;background:var(--green);transition:width .2s linear}
 
-.wrap{max-width:1080px;margin:0 auto;padding:18px 20px 60px}
+.wrap{max-width:1600px;margin:0 auto;padding:18px 20px 60px}
 h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-spacing:.3px;font-weight:900;margin-bottom:6px}
-.intro{color:var(--muted);font-size:13px;line-height:1.55;margin-bottom:16px}
+.intro{color:var(--muted);font-size:13px;line-height:1.55;margin-bottom:16px;max-width:900px}
+
+/* ─── Mise en page 3 colonnes : activité de bande à gauche, réception/
+   émission au centre, contexte de l'appel sélectionné + log de session à
+   droite. La page centrale seule laissait presque tout l'écran vide sur un
+   moniteur large — ce contenu n'est pas décoratif, c'est ce qu'un opérateur
+   regarde EN PLUS du composeur pendant un run (qui appeler, qui je viens de
+   sélectionner, ce que j'ai déjà loggué). Colonne unique sous 1300px : pas
+   la place pour 3 colonnes sans les rendre illisibles. ─────────────────────*/
+.layout{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:16px;align-items:start}
+.center-col{min-width:0}
+@media (max-width:1300px){.layout{grid-template-columns:1fr}.side{position:static !important}}
+.side{position:sticky;top:12px;display:flex;flex-direction:column;gap:14px}
+.mini-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.mini-title{font-family:var(--font-display);font-size:12px;font-weight:900;color:var(--accent2);margin-bottom:8px;letter-spacing:.3px}
+.stat-row{display:flex;justify-content:space-between;gap:8px;font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:3px 0}
+.stat-row b{color:var(--text);font-weight:400}
+.cq-list{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.cq-item{display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:var(--font-mono);font-size:12px;
+  padding:6px 8px;border-radius:5px;background:var(--bg3);cursor:pointer;border:1px solid transparent}
+.cq-item:hover{border-color:var(--accent2)}
+.cq-item .call{color:var(--yellow);font-weight:700}
+.cq-item .meta{color:var(--muted);font-size:10.5px;white-space:nowrap}
+.vide-mini{color:var(--muted);font-size:11.5px;font-style:italic}
+.sel-empty{color:var(--muted);font-size:11.5px;font-style:italic}
+.sel-call{font-family:var(--font-mono);font-size:16px;color:var(--yellow);font-weight:700;letter-spacing:.5px;margin-bottom:6px}
+.session-log{max-height:260px;overflow-y:auto;font-family:var(--font-mono);font-size:11.5px}
+.session-log-row{display:flex;justify-content:space-between;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)}
+.session-log-row:last-child{border-bottom:none}
+.session-log-row .call{color:var(--green);font-weight:700}
 
 .panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px}
 .panel-title{font-family:var(--font-display);font-size:14px;font-weight:900;color:var(--accent2);margin-bottom:10px;letter-spacing:.2px}
@@ -151,43 +180,95 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
   <h1>Décodeur/émetteur FT8 natif</h1>
   <p class="intro">Décode et émet le FT8 directement ici, sans WSJT-X/JTDX/MSHV — voir <a href="logx_configuration.html" style="color:var(--accent2)">CONFIG</a> pour connecter un logiciel externe à la place. Rien ne part sur l'air sans un clic explicite : "Activer l'émission" arme seulement le bouton "Envoyer", il n'y a pas de séquenceur automatique.</p>
 
-  <div class="panel">
-    <div class="panel-title">Réception</div>
-    <div class="controles">
-      <label>PÉRIPHÉRIQUE D'ENTRÉE<select id="ft8Device"><option value="">— chargement… —</option></select></label>
-      <button id="rxStartBtn" onclick="toggleRx()">▶ Écouter</button>
-      <span id="rxStatus" class="tx-status">arrêté</span>
-    </div>
-    <div style="margin-top:12px">
-      <canvas id="waterCanvas"></canvas>
-      <canvas id="axisCanvas"></canvas>
-    </div>
-    <table class="decodes">
-      <thead><tr><th>UTC</th><th>Hz</th><th>Score</th><th>Message</th></tr></thead>
-      <tbody id="decodesBody"></tbody>
-    </table>
-    <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
-  </div>
+  <div class="layout">
 
-  <div class="panel">
-    <div class="panel-title">Émission</div>
-    <div class="controles">
-      <label>PÉRIPHÉRIQUE DE SORTIE<select id="ft8OutDevice"><option value="">— périphérique par défaut —</option></select></label>
-      <label>TON 0 (Hz)<input type="number" id="ft8Tone0" min="200" max="2800" step="50" value="1500"></label>
-      <label class="toggle-arm" id="armLabel">
-        <input type="checkbox" id="armTx" onchange="onArmChange()"> Activer l'émission
-      </label>
+    <!-- COLONNE GAUCHE : indicatifs entendus en CQ cette session — la
+         liste qu'un opérateur regarde en premier pour savoir QUI appeler,
+         plutôt que de fixer le tableau de décodages qui défile. Clic =
+         même action que cliquer la ligne de décodage correspondante. -->
+    <aside class="side" id="sideLeft">
+      <div class="mini-panel">
+        <div class="mini-title">CQ ENTENDUS</div>
+        <div class="cq-list" id="cqList"><div class="vide-mini">Aucun CQ pour l'instant.</div></div>
+      </div>
+      <div class="mini-panel">
+        <div class="mini-title">SESSION</div>
+        <div class="stat-row"><span>Décodages</span><b id="statDecodes">0</b></div>
+        <div class="stat-row"><span>Indicatifs uniques</span><b id="statUniques">0</b></div>
+        <div class="stat-row"><span>QSO loggués</span><b id="statQso">0</b></div>
+      </div>
+    </aside>
+
+    <!-- Un seul conteneur ici, pas deux .panel en enfants directs de
+         .layout : grid-template-columns n'a que 3 pistes (230px/1fr/280px),
+         un 4e enfant direct passerait à la ligne suivante (repartant en
+         piste 1, sous sideLeft) plutôt que de rejoindre la piste 3 — trouvé
+         en vérification navigateur (sideRight rendu à la même position x que
+         sideLeft), pas en relisant le CSS. -->
+    <div class="center-col">
+    <div class="panel">
+      <div class="panel-title">Réception</div>
+      <div class="controles">
+        <label>PÉRIPHÉRIQUE D'ENTRÉE<select id="ft8Device"><option value="">— chargement… —</option></select></label>
+        <button id="rxStartBtn" onclick="toggleRx()">▶ Écouter</button>
+        <span id="rxStatus" class="tx-status">arrêté</span>
+      </div>
+      <div style="margin-top:12px">
+        <canvas id="waterCanvas"></canvas>
+        <canvas id="axisCanvas"></canvas>
+      </div>
+      <table class="decodes">
+        <thead><tr><th>UTC</th><th>Hz</th><th>Score</th><th>Message</th></tr></thead>
+        <tbody id="decodesBody"></tbody>
+      </table>
+      <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
     </div>
-    <div class="composer">
-      <input type="text" id="txText" maxlength="35" placeholder="CQ F4GLD JN18" spellcheck="false" autocomplete="off">
-      <button id="sendBtn" class="danger" onclick="envoyerMessage()" disabled>▶ Envoyer</button>
-      <span class="tx-status" id="txStatus"></span>
+
+    <div class="panel">
+      <div class="panel-title">Émission</div>
+      <div class="controles">
+        <label>PÉRIPHÉRIQUE DE SORTIE<select id="ft8OutDevice"><option value="">— périphérique par défaut —</option></select></label>
+        <label>TON 0 (Hz)<input type="number" id="ft8Tone0" min="200" max="2800" step="50" value="1500"></label>
+        <label class="toggle-arm" id="armLabel">
+          <input type="checkbox" id="armTx" onchange="onArmChange()"> Activer l'émission
+        </label>
+      </div>
+      <div class="composer">
+        <input type="text" id="txText" maxlength="35" placeholder="CQ F4GLD JN18" spellcheck="false" autocomplete="off">
+        <button id="sendBtn" class="danger" onclick="envoyerMessage()" disabled>▶ Envoyer</button>
+        <span class="tx-status" id="txStatus"></span>
+      </div>
+      <div class="qso-prompt" id="qsoPrompt">
+        <span>QSO complété avec <b id="qsoPromptCall"></b> — l'ajouter au log ?</span>
+        <button onclick="confirmerLogQso()">✓ Ajouter au log</button>
+        <button class="sec" onclick="annulerLogQso()">Ignorer</button>
+      </div>
     </div>
-    <div class="qso-prompt" id="qsoPrompt">
-      <span>QSO complété avec <b id="qsoPromptCall"></b> — l'ajouter au log ?</span>
-      <button onclick="confirmerLogQso()">✓ Ajouter au log</button>
-      <button class="sec" onclick="annulerLogQso()">Ignorer</button>
     </div>
+
+    <!-- COLONNE DROITE : ma station (rappel — bande/fréquence viennent du
+         CAT, pas ressaisies), contexte du dernier décodage cliqué (distance/
+         cap calculés depuis le locator du message, mêmes formules que
+         logx_logbook.js — bearing()/locLL(), dupliquées ici : pas de fichier
+         JS commun entre logx_ft8.html et logx_logbook.html pour l'instant),
+         et le log des QSO de CETTE session (rien n'affichait de trace
+         persistante après le message de statut transitoire). -->
+    <aside class="side" id="sideRight">
+      <div class="mini-panel">
+        <div class="mini-title">MA STATION</div>
+        <div class="stat-row"><span>Indicatif</span><b id="myCallDisp">—</b></div>
+        <div class="stat-row"><span>Locator</span><b id="myGridDisp">—</b></div>
+        <div class="stat-row"><span>Bande / Fréq</span><b id="myBandFreqDisp">—</b></div>
+      </div>
+      <div class="mini-panel">
+        <div class="mini-title">APPEL SÉLECTIONNÉ</div>
+        <div id="selInfo"><div class="sel-empty">Clique un décodage pour voir sa distance/son cap.</div></div>
+      </div>
+      <div class="mini-panel">
+        <div class="mini-title">QSO DE CETTE SESSION</div>
+        <div class="session-log" id="sessionLog"><div class="vide-mini">Aucun QSO loggué pour l'instant.</div></div>
+      </div>
+    </aside>
   </div>
 </div>
 
@@ -230,9 +311,133 @@ if(localStorage.getItem('rc_theme') === null){
       const c = await r.json();
       myCall = (c.callsign_contest || c.callsign || '').toUpperCase();
       myGrid = (c.locator || '').toUpperCase();
+      document.getElementById('myCallDisp').textContent = myCall || '—';
+      document.getElementById('myGridDisp').textContent = myGrid || '—';
     }catch(e){}
   }
   chargerIdentite();
+
+  // ─── Géodésie (colonne droite) ────────────────────────────────────────────
+  // Même formule que locLL()/bearing() dans logx_logbook.js — dupliquée ici
+  // plutôt que partagée : aucun fichier JS commun entre logx_ft8.html et
+  // logx_logbook.html pour l'instant (page <script> isolée, voir jouerForme/
+  // pttOn plus bas dans ce même fichier, déjà dupliqués pour la même raison).
+  // Locator à 4 caractères accepté (correctif M8 côté Python,
+  // logx_utils.locator_to_latlon) : les messages FT8 n'en donnent jamais
+  // plus — on renvoie alors le CENTRE DU CARRÉ (+1° lon, +0,5° lat), pas un
+  // coin, sans quoi le point tombe systématiquement décalé au NE.
+  function gridVersLatLon(grid){
+    if(!grid) return null;
+    const g = grid.toUpperCase();
+    if(!/^[A-R]{2}[0-9]{2}([A-X]{2})?$/.test(g)) return null;
+    let lon = (g.charCodeAt(0)-65)*20 - 180 + parseInt(g[2],10)*2;
+    let lat = (g.charCodeAt(1)-65)*10 - 90 + parseInt(g[3],10);
+    if(g.length >= 6){
+      lon += (g.charCodeAt(4)-65)*(2/24) + 1/24;
+      lat += (g.charCodeAt(5)-65)*(1/24) + 0.5/24;
+    } else {
+      lon += 1.0; lat += 0.5;
+    }
+    return {lat, lon};
+  }
+  function distanceKm(a, b){
+    const R = 6371, dLat = (b.lat-a.lat)*Math.PI/180, dLon = (b.lon-a.lon)*Math.PI/180;
+    const s = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s)));
+  }
+  function capDeg(a, b){
+    const φ1=a.lat*Math.PI/180, φ2=b.lat*Math.PI/180, Δλ=(b.lon-a.lon)*Math.PI/180;
+    const y = Math.sin(Δλ)*Math.cos(φ2);
+    const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+    return Math.round((Math.atan2(y,x)*180/Math.PI + 360) % 360);
+  }
+  function cardinal(deg){
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+    return dirs[Math.round(deg/22.5) % 16];
+  }
+
+  // ─── Extraction indicatif/locator d'un message décodé ────────────────────
+  // Format standard FT8 : "CQ [DX] CALL [GRID]" ou "CALL_DEST CALL_SRC EXTRA"
+  // (EXTRA = grille, report +05/-10/R+05, RRR, RR73 ou 73). On n'a besoin ici
+  // que d'identifier LA STATION correspondante (pas moi) et sa grille si le
+  // message en contient une — pas un décodeur complet du protocole (déjà
+  // fait, voir logx_ft8_codec.js), juste assez pour afficher un contexte.
+  const RE_GRID = /^[A-R]{2}[0-9]{2}$/;
+  function extraireStation(text){
+    const parts = String(text).trim().split(/\s+/).filter(Boolean);
+    if(!parts.length) return {call:'', grid:''};
+    if(parts[0] === 'CQ'){
+      const dernier = parts[parts.length-1];
+      if(RE_GRID.test(dernier) && parts.length >= 3){
+        return {call: parts[parts.length-2], grid: dernier};
+      }
+      return {call: parts[parts.length-1], grid: ''};
+    }
+    // Sinon : la station qui a émis ce message est le 2e jeton par
+    // convention FT8 ("DESTINATAIRE SOURCE extra") — celle qui m'intéresse
+    // pour "qui je viens de sélectionner", que le destinataire soit moi ou non.
+    const call = parts.length >= 2 ? parts[1] : parts[0];
+    const dernier = parts[parts.length-1];
+    const grid = RE_GRID.test(dernier) ? dernier : '';
+    return {call, grid};
+  }
+
+  // ─── Colonne droite : appel sélectionné, station, CQ entendus, session ───
+  function afficherAppelSelectionne(text){
+    const {call, grid} = extraireStation(text);
+    const el = document.getElementById('selInfo');
+    if(!call){ el.innerHTML = '<div class="sel-empty">Message non standard.</div>'; return; }
+    let html = `<div class="sel-call">${escFt8(call)}</div>`;
+    if(grid){
+      html += `<div class="stat-row"><span>Grille</span><b>${escFt8(grid)}</b></div>`;
+      const moi = gridVersLatLon(myGrid), lui = gridVersLatLon(grid);
+      if(moi && lui){
+        const km = distanceKm(moi, lui), deg = capDeg(moi, lui);
+        html += `<div class="stat-row"><span>Distance</span><b>${km} km</b></div>`;
+        html += `<div class="stat-row"><span>Cap</span><b>${deg}° ${cardinal(deg)}</b></div>`;
+      } else if(!myGrid){
+        html += '<div class="vide-mini">Renseigne ton locator dans CONFIG pour voir la distance.</div>';
+      }
+    } else {
+      html += '<div class="vide-mini">Pas de grille dans ce message.</div>';
+    }
+    el.innerHTML = html;
+  }
+  function escFt8(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // CQ entendus cette session : Map indicatif -> {freqHz, heure}, la plus
+  // RÉCENTE écrase la précédente (une station peut CQ plusieurs cycles de
+  // suite, on ne veut que sa dernière position/heure connue).
+  const cqSeen = new Map();
+  const indicatifsUniques = new Set();
+  let compteurDecodages = 0;
+  function majStatsSession(){
+    document.getElementById('statDecodes').textContent = compteurDecodages;
+    document.getElementById('statUniques').textContent = indicatifsUniques.size;
+  }
+  function rendreCqList(){
+    const conteneur = document.getElementById('cqList');
+    if(!cqSeen.size){ conteneur.innerHTML = '<div class="vide-mini">Aucun CQ pour l\'instant.</div>'; return; }
+    // Les plus récents en premier — c'est ce qu'un opérateur veut répondre
+    // en priorité (une station qui n'a pas re-CQ depuis longtemps a peut-être
+    // déjà un correspondant).
+    const entrees = Array.from(cqSeen.entries()).sort((a,b) => b[1].ts - a[1].ts).slice(0, 40);
+    conteneur.innerHTML = entrees.map(([call, info]) => `
+      <div class="cq-item" data-call="${escFt8(call)}" title="Cliquer pour répondre">
+        <span class="call">${escFt8(call)}</span>
+        <span class="meta">${info.grid || ''} ${Math.round(info.freqHz)}Hz</span>
+      </div>`).join('');
+    conteneur.querySelectorAll('.cq-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const call = el.dataset.call;
+        const info = cqSeen.get(call);
+        proposerReponse(`CQ ${call}${info && info.grid ? ' ' + info.grid : ''}`);
+        afficherAppelSelectionne(`CQ ${call}${info && info.grid ? ' ' + info.grid : ''}`);
+      });
+    });
+  }
 
   // ─── État radio (bande courante, pour l'auto-log) ────────────────────────
   let rigFreqKhz = 0, rigMode = '';
@@ -250,8 +455,15 @@ if(localStorage.getItem('rc_theme') === null){
       const r = await fetch('/rig/state');
       if(!r.ok) return;
       const d = await r.json();
-      if(d && d.enabled){ rigFreqKhz = d.freq_khz || 0; rigMode = (d.mode || '').toUpperCase(); }
-      else { rigFreqKhz = 0; rigMode = ''; }
+      const disp = document.getElementById('myBandFreqDisp');
+      if(d && d.enabled){
+        rigFreqKhz = d.freq_khz || 0; rigMode = (d.mode || '').toUpperCase();
+        const b = bandeDepuisKhz(rigFreqKhz);
+        disp.textContent = (b ? b + 'm ' : '') + (rigFreqKhz ? (rigFreqKhz/1000).toFixed(3) + ' MHz' : '—');
+      } else {
+        rigFreqKhz = 0; rigMode = '';
+        disp.textContent = 'CAT désactivé';
+      }
     }catch(e){}
   }
   pollRig(); setInterval(pollRig, 4000);
@@ -398,10 +610,17 @@ if(localStorage.getItem('rc_theme') === null){
     const tdM = document.createElement('td'); tdM.textContent = text;   // textContent : jamais de HTML depuis un décodage radio
     tr.append(tdH, tdF, tdS, tdM);
     tr.title = 'Clic : proposer une réponse';
-    tr.addEventListener('click', () => proposerReponse(text));
+    tr.addEventListener('click', () => { proposerReponse(text); afficherAppelSelectionne(text); });
     const tbody = document.getElementById('decodesBody');
     tbody.insertBefore(tr, tbody.firstChild);
     while(tbody.children.length > 60) tbody.removeChild(tbody.lastChild);   // borne la liste, pas de fuite mémoire sur une longue session
+
+    // ─── Colonne gauche : compteurs + liste des CQ entendus ────────────────
+    compteurDecodages++;
+    const {call, grid} = extraireStation(text);
+    if(call) indicatifsUniques.add(call);
+    if(estCQ && call){ cqSeen.set(call, {freqHz, grid, ts: slotMs}); rendreCqList(); }
+    majStatsSession();
   }
 
   // Propose une réponse plausible à partir d'un décodage cliqué — TOUJOURS
@@ -622,10 +841,29 @@ if(localStorage.getItem('rc_theme') === null){
       const r = await fetch('/log/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(qso)});
       if(r.ok || r.status === 409){
         document.getElementById('txStatus').textContent = (r.status===409 ? 'Déjà loggué : ' : 'Loggué : ') + qsoEnAttente;
+        ajouterAuJournalSession(qsoEnAttente, qso.band, qso.time);
       }
     }catch(e){}
     annulerLogQso();
   };
+
+  // ─── Colonne droite : journal des QSO loggués DEPUIS CETTE PAGE (la
+  // confirmation transitoire de txStatus disparaît après quelques secondes —
+  // rien ne montrait avant ça de trace persistante de ce qui avait déjà été
+  // loggué pendant la session). Purement local à l'onglet, pas une relecture
+  // du log serveur : redémarrer la page vide cette liste, le VRAI log (lui)
+  // reste sur le serveur comme toujours.
+  let compteurQsoSession = 0;
+  function ajouterAuJournalSession(call, band, heure){
+    compteurQsoSession++;
+    document.getElementById('statQso').textContent = compteurQsoSession;
+    const conteneur = document.getElementById('sessionLog');
+    if(compteurQsoSession === 1) conteneur.innerHTML = '';
+    const ligne = document.createElement('div');
+    ligne.className = 'session-log-row';
+    ligne.innerHTML = `<span class="call">${escFt8(call)}</span><span>${escFt8(band || '?')}m · ${escFt8(heure)}</span>`;
+    conteneur.insertBefore(ligne, conteneur.firstChild);
+  }
 
   window.addEventListener('beforeunload', arreterRx);
 })();
