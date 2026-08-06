@@ -350,6 +350,16 @@ if __name__ == '__main__':
     # (avalé) — l'écouteur réseau ADIF ne démarrait alors jamais.
     import logx_http as http_mod
 
+    # Auto-lancement de logiciels tiers (WSJT-X, N1MM, un décodeur...) —
+    # EN THREAD DE FOND, jamais bloquant : un exécutable lent à scanner par
+    # l'antivirus ne doit jamais retarder l'ouverture de LogX lui-même.
+    try:
+        import logx_autostart as autostart
+        threading.Thread(target=lambda: autostart.lancer_tous(http_mod.current_config),
+                         daemon=True).start()
+    except Exception as _e:
+        print(f"[AUTOSTART] indisponible : {_e}")
+
     # Pont WSJT-X : écouteur UDP FT8/FT4 démarré si activé dans config.json
     # (ou plus tard à chaud dès qu'un /wsjtx/state le voit activé côté client).
     try:
