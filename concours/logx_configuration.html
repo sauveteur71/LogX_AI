@@ -468,6 +468,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div class="hub-card-sub">Dossier, intervalle</div>
         <span class="hub-badge" id="hubbadge_backup"></span>
       </div>
+      <div class="hub-card" id="hubcard_autostart" onclick="openCategoryPopup('autostart')">
+        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,3.5 14,9 6,14.5"/></svg> 17. Auto-lancement</div>
+        <div class="hub-card-sub">Logiciels tiers au démarrage</div>
+        <span class="hub-badge" id="hubbadge_autostart"></span>
+      </div>
     </div>
     </div>
 
@@ -1700,6 +1705,24 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
         <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--muted);letter-spacing:1px;margin:10px 0 4px">BANDE → RELAIS (vide = pas de mapping)</div>
         <div id="relayBandMapTable" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cat-modal" id="catmodal_autostart">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="currentColor" stroke="none"><polygon points="6,3.5 14,9 6,14.5"/></svg> 17. AUTO-LANCEMENT</span>
+      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'autostart')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
+      <button class="cat-modal-close" onclick="closeCategoryPopup('autostart')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+    <div class="cat-modal-body" id="catbody_autostart">
+      <div class="section">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Lance automatiquement des logiciels tiers (WSJT-X, N1MM, un décodeur…) au démarrage du
+          serveur LogX — un programme déjà ouvert n'est PAS relancé en double (détection au meilleur
+          effort). Chemins et arguments identiques à ce que tu taperais dans un raccourci Windows.
+        </div>
+        <div id="autostartList"></div>
+        <button type="button" class="btn btn-secondary" onclick="addAutostartRow()" style="margin-top:6px"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="9" y1="3.5" x2="9" y2="14.5"/><line x1="3.5" y1="9" x2="14.5" y2="9"/></svg> Ajouter un programme</button>
       </div>
     </div>
   </div>
@@ -4814,6 +4837,7 @@ const _ICO_DISH = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertic
 const _ICO_BELL = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.3c0 .9-.4 1.8-1.1 2.4l-.6.6h11.4l-.6-.6a3.3 3.3 0 0 1-1.1-2.4V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg>';
 const _ICO_ENVELOPE = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.8 4.6 9 9.5l6.2-4.9"/></svg>';
 const _ICO_RELAY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg>';
+const _ICO_PLAY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="currentColor" stroke="none"><polygon points="6,3.5 14,9 6,14.5"/></svg>';
 const _ICO_GLOBE = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.7" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>';
 const _ICO_ROBOT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg>';
 const CONFIG_SECTIONS = [
@@ -4824,7 +4848,8 @@ const CONFIG_SECTIONS = [
   ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Propagation'],
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
-  ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control']
+  ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control'],
+  ['autostart',_ICO_PLAY+' 17. Auto-lancement']
 ];
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
@@ -4978,6 +5003,10 @@ function _catStatus(cat){
       return getUsageMode() === 'expedition' ? (val('activation_program') ? 'ok' : 'warning') : 'empty';
     case 'ai':
       return val('api_key') ? 'ok' : 'empty';
+    case 'relay':
+      return val('relay_enabled') === '1' ? 'ok' : 'empty';
+    case 'autostart':
+      return autostartRows.length ? 'ok' : 'empty';
     default:
       return 'empty';
   }
@@ -4987,7 +5016,8 @@ const _CAT_BADGE = { ok: '✅', warning: '⚠️', empty: '○' };
 
 function renderHub(){
   ['identity','operators','contest','filters','radio','amp','rotor','network',
-   'backup','sources','alerts','qsl','scoreboard','expedition','ai'].forEach(cat => {
+   'backup','sources','alerts','qsl','scoreboard','expedition','ai',
+   'relay','autostart'].forEach(cat => {
     const card = document.getElementById('hubcard_' + cat);
     const badge = document.getElementById('hubbadge_' + cat);
     if(!card || !badge) return;
@@ -6057,6 +6087,77 @@ function checkTransverters(){
   warn.textContent = msg;
 }
 
+// ── AUTO-LANCEMENT DE LOGICIELS TIERS (#17) — même schéma que les
+// transverters ci-dessus (lignes vivant dans le DOM, lues à la sauvegarde).
+let autostartRows = [];
+
+function renderAutostart(){
+  const box = document.getElementById('autostartList');
+  if(!box) return;
+  if(!autostartRows.length){
+    box.innerHTML = '<div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:6px 0">'
+                  + 'Aucun programme configuré.</div>';
+    return;
+  }
+  box.innerHTML = autostartRows.map((p, i) => `
+    <div class="form-row" style="align-items:flex-end;gap:10px;margin-bottom:8px">
+      <div class="form-group" style="max-width:100px">
+        <label>ACTIF</label>
+        <select data-asr="enabled" data-i="${i}">
+          <option value="1"${p.enabled !== false ? ' selected' : ''}>Oui</option>
+          <option value="0"${p.enabled === false ? ' selected' : ''}>Non</option>
+        </select>
+      </div>
+      <div class="form-group" style="max-width:150px">
+        <label>NOM</label>
+        <input type="text" data-asr="name" data-i="${i}" value="${escC(p.name)}" placeholder="WSJT-X">
+      </div>
+      <div class="form-group" style="flex:2;min-width:220px">
+        <label>CHEMIN DE L'EXÉCUTABLE</label>
+        <input type="text" data-asr="path" data-i="${i}" value="${escC(p.path)}"
+               placeholder="C:\\Program Files\\WSJT-X\\wsjtx.exe">
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px">
+        <label>ARGUMENTS <span style="font-size:11px;color:var(--muted)">— optionnel</span></label>
+        <input type="text" data-asr="args" data-i="${i}" value="${escC(p.args)}">
+      </div>
+      <div class="form-group" style="max-width:60px">
+        <label>&nbsp;</label>
+        <button type="button" class="btn btn-secondary" onclick="removeAutostartRow(${i})"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('[data-asr]').forEach(el => {
+    el.addEventListener('change', readAutostart);
+  });
+}
+
+function addAutostartRow(){
+  autostartRows.push({name:'', path:'', args:'', enabled:true});
+  renderAutostart();
+}
+
+function removeAutostartRow(i){
+  autostartRows.splice(i, 1);
+  renderAutostart();
+}
+
+// Lit les champs ET met à jour l'état — appelée aussi par saveConfig().
+function readAutostart(){
+  const box = document.getElementById('autostartList');
+  if(box){
+    box.querySelectorAll('[data-asr]').forEach(el => {
+      const i = parseInt(el.dataset.i, 10);
+      if(!autostartRows[i]) return;
+      const champ = el.dataset.asr;
+      autostartRows[i][champ] = champ === 'enabled' ? el.value === '1' : el.value;
+    });
+  }
+  return autostartRows
+    .filter(p => p.path && p.path.trim())
+    .map(p => ({name: p.name || '', path: p.path.trim(), args: p.args || '',
+               enabled: p.enabled !== false}));
+}
+
 function addTransverter(){
   transverterRows.push({if: '144', rf: '1296', enabled: true, lo_mhz: null});
   renderTransverters();
@@ -6808,6 +6909,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     winkeyer_port: document.getElementById('winkeyer_port')?.value.trim() || '',
     winkeyer_wpm: _numClamped('winkeyer_wpm', 25),
     transverters: readTransverters(),
+    autostart_programs: readAutostart(),
     // Parc de la station. readParcStation() relit les champs à l'instant de la
     // sauvegarde — ne jamais sérialiser l'état mémoire sans cette relecture,
     // sinon une modification non encore validée par un « change » serait perdue.
@@ -7511,6 +7613,10 @@ function applyFullConfigToForm(c) {
       lo_mhz: (t.lo_mhz === undefined || t.lo_mhz === null) ? null : Number(t.lo_mhz)
     })) : [];
     renderTransverters();
+    autostartRows = Array.isArray(c.autostart_programs) ? c.autostart_programs.map(p => ({
+      name: p.name || '', path: p.path || '', args: p.args || '', enabled: p.enabled !== false
+    })) : [];
+    renderAutostart();
     // Parc de la station. Les listes absentes restent VIDES : le serveur
     // (logx_station.charger) reprend alors les anciens champs ant_hf/rotor_*/
     // amp_* tout seul. Fabriquer ici une reprise côté page la figerait dans la
