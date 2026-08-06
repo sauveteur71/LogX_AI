@@ -5297,6 +5297,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res, 200 if res.get('ok') else 502)
             return
 
+        # PTT explicite, sans passer par le keyer vocal (celui-ci enrobe
+        # systématiquement synthèse+lecture). Utilisé par le décodeur FT8
+        # natif (logx_ft8.html) : la radio ne sait rien du protocole FT8,
+        # seul le ton audio compte — LogX AI doit donc commander le PTT
+        # lui-même autour de la lecture, comme pour un micro externe.
+        if self.path == '/rig/ptt':
+            import logx_so2r as so2r
+            import logx_voicekeyer as vk
+            cfg_snap = so2r.config_radio_active(self._cfg_snapshot())
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            res = vk.set_ptt(cfg_snap, bool(payload.get('on')))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
         # Keyer vocal dynamique : indicatif/report épelés phonétiquement,
         # synthétisés (TTS hors-ligne) et émis par la radio (PTT via CAT
         # autour de la lecture, quel que soit le mode natif/TCI/rigctld/flrig).
