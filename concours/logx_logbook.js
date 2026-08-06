@@ -4909,8 +4909,47 @@ function editQSO(id){
   _renderEditQslScan(q.qsl_scan);
   const scanStatus = document.getElementById('editQslScanStatus');
   if(scanStatus) scanStatus.textContent = '';
+  // Champs ADIF personnalisés : {NOM: valeur} -> tableau de paires éditables
+  // (un objet ne préserve pas un ordre de saisie fiable une fois qu'on retire
+  // puis rajoute des clés, un tableau si).
+  editExtraFields = Object.entries(q.extra_fields || {}).map(([name, value]) => ({name, value}));
+  renderEditExtraFields();
   document.getElementById('editOverlay').classList.add('show');
   document.getElementById('editCall').focus();
+}
+
+// ─── CHAMPS ADIF PERSONNALISÉS ────────────────────────────────────────────
+// N'importe quel tag ADIF que LogX ne modélise pas nativement (ex. MY_RIG,
+// COMMENT, un champ propriétaire d'un autre logiciel) — stocké sous
+// q.extra_fields, qui part dans la colonne `extra` générique de logx_storage
+// (_row_from_qso sérialise déjà TOUTE clé hors de _CORE, aucun changement
+// serveur nécessaire) et ressort tel quel à l'export ADIF (buildAdifText).
+let editExtraFields = [];
+
+function renderEditExtraFields(){
+  const wrap = document.getElementById('editExtraFields');
+  if(!wrap) return;
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  wrap.innerHTML = editExtraFields.map((f, i) => `<div class="exf-row">
+    <input type="text" placeholder="NOM_CHAMP" value="${esc(f.name)}" oninput="updateEditExtraField(${i},'name',this.value)">
+    <input type="text" placeholder="valeur" value="${esc(f.value)}" oninput="updateEditExtraField(${i},'value',this.value)">
+    <span class="exf-del" onclick="removeEditExtraField(${i})" title="Retirer">✕</span>
+  </div>`).join('');
+}
+
+function addEditExtraField(){
+  editExtraFields.push({name:'', value:''});
+  renderEditExtraFields();
+}
+
+function removeEditExtraField(i){
+  editExtraFields.splice(i, 1);
+  renderEditExtraFields();
+}
+
+function updateEditExtraField(i, key, value){
+  editExtraFields[i][key] = value;
 }
 
 // ─── SCAN QSL PAPIER (upload multipart, attaché au QSO en cours d'édition) ───
@@ -5017,6 +5056,20 @@ async function saveEdit(){
     dist, points: pts,
     _edited: true,
   });
+
+  // Champs ADIF personnalisés : noms vides ignorés, normalisés en MAJUSCULES
+  // (convention ADIF) ; underscore/tiret/point tolérés (variantes courantes,
+  // ex. "MY.RIG" recopié d'un autre logiciel), le reste retiré pour rester un
+  // nom de tag ADIF valide. Objet supprimé plutôt que laissé vide : un QSO
+  // sans champ personnalisé ne doit pas trimballer `extra_fields:{}` pour
+  // toujours dans le log partagé.
+  const extraObj = {};
+  editExtraFields.forEach(f => {
+    const name = String(f.name||'').trim().toUpperCase().replace(/[^A-Z0-9_.-]/g, '');
+    if(name) extraObj[name] = f.value||'';
+  });
+  if(Object.keys(extraObj).length) q.extra_fields = extraObj;
+  else delete q.extra_fields;
 
   // Envoi au serveur
   try{
@@ -6243,6 +6296,10 @@ function adifField(name, value){
 // Construit le texte ADIF pour une liste de QSO donnée — factorisé pour être
 // réutilisé par l'export complet (exportADIF) et l'export filtré
 // (fltExportFiltered), sans dupliquer le corps du générateur.
+const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE','RST_SENT',
+  'RST_RCVD','STX_STRING','SRX_STRING','GRIDSQUARE','MY_GRIDSQUARE','STATION_CALLSIGN',
+  'OPERATOR','CONTEST_ID','ADIF_VER','PROGRAMID']);
+
 function buildAdifText(qsos){
   let adif = 'LogX AI — Export ADIF\n';
   adif += adifField('ADIF_VER', '3.1.4') + adifField('PROGRAMID', 'LogX AI') + '\n<EOH>\n\n';
@@ -6269,6 +6326,14 @@ function buildAdifText(qsos){
     adif += adifField('STATION_CALLSIGN', String(q.my_call || myCall || '').toUpperCase());
     adif += adifField('OPERATOR', q.operator);
     adif += adifField('CONTEST_ID', q.contest);
+    // Champs ADIF personnalisés (voir editQSO/extra_fields) — ADIF_STD_TAGS
+    // évite qu'un nom entré par erreur (ex. "CALL") ne duplique/contredise un
+    // tag déjà émis ci-dessus.
+    if(q.extra_fields){
+      Object.entries(q.extra_fields).forEach(([name, value]) => {
+        if(!ADIF_STD_TAGS.has(name)) adif += adifField(name, value);
+      });
+    }
     adif += '<EOR>\n';
   });
   return adif;
