@@ -2448,6 +2448,22 @@ function updateKeyerPanels(){
   if(voice) voice.style.display = (cw || rtty || sstv) ? 'none' : '';
   const dec = document.getElementById('rttyDecoder');
   if(dec) dec.style.display = rtty ? '' : 'none';
+  // Boutons macro + chargement paresseux des périphériques RX/TX au premier
+  // passage en RTTY — pas à toggleRttyPanel() (bascule collapse/expand du
+  // contenu, qui ne se déclenche pas forcément avant que l'opérateur veuille
+  // émettre) ni à un appel synchrone en fin de fichier : le panneau RTTY est
+  // placé APRÈS les <script> dans logx_logbook.html (rttyMacroBtns n'existe
+  // pas encore dans le DOM tant que le HTML qui le suit n'a pas fini de se
+  // parser) — trouvé en vérification navigateur (0 bouton rendu), pas en
+  // relisant le code. updateKeyerPanels() n'est appelée qu'après coup (poll
+  // d'état radio, changement de mode), donc toujours après un DOM complet.
+  if(rtty){
+    renderRttyMacroBtns();
+    if(!_rttyDevicesLoaded){
+      loadAudioInputDevices('rttyDevice').then(ok => { _rttyDevicesLoaded = ok; });
+      loadAudioOutputDevices('rttyOutDevice', true).then(ok => { _rttyOutDeviceLoaded = ok; });
+    }
+  }
   // Le panneau CW s'appelle cwPanel (pas cwDecoder) : viser le mauvais id
   // n'aurait leve AUCUNE erreur, le decodeur CW serait simplement reste
   // affiche en RTTY. Verifie contre le balisage.
@@ -2512,6 +2528,7 @@ async function so2rRafraichir(){
 // ─── DÉCODEUR RTTY ───────────────────────────────────────────────────────────
 let _rttyDecoder = null;
 let _rttyTexte = '';
+let _rttyDevicesLoaded = false;
 
 function toggleRttyPanel(){
   const b = document.getElementById('rttyBody');
@@ -2627,12 +2644,73 @@ function rttyClicTexte(ev){
   }
 }
 
+// ─── ÉMISSION RTTY ───────────────────────────────────────────────────────────
+// Macros fixes (pas d'éditeur comme les macros CW F1-F8 dans cette première
+// version) — {CALL}/{LOC}/{NR} réutilisent expandMacro() telle quelle, MÊME
+// convention que les macros CW ({CALL} = TA propre station, pas le
+// correspondant — voir le commentaire au-dessus de DEFAULT_MACROS).
+const RTTY_TX_MACROS = [
+  {key:'R1', label:'CQ',      text:'CQ TEST {CALL} {CALL} TEST'},
+  {key:'R2', label:'ÉCHANGE', text:'599 {NR}'},
+  {key:'R3', label:'TU',      text:'TU {CALL} TEST'},
+  {key:'R4', label:'AGN?',    text:'AGN?'},
+];
+let _rttyTxArmed = false;
+let _rttyOutDeviceLoaded = false;
+
+function rttyOnArmChange(){
+  _rttyTxArmed = document.getElementById('rttyArmTx').checked;
+  document.getElementById('rttySendBtn').disabled = !_rttyTxArmed;
+}
+
+function renderRttyMacroBtns(){
+  const btns = document.getElementById('rttyMacroBtns');
+  if(!btns) return;
+  btns.innerHTML = '';
+  RTTY_TX_MACROS.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'macro-btn';
+    btn.title = expandMacro(m.text);
+    btn.innerHTML = `<span class="mk">${m.key}</span><span class="mt">${m.label}</span>`;
+    btn.onclick = () => rttyEnvoyerTexte(expandMacro(m.text));
+    btns.appendChild(btn);
+  });
+}
+
+async function rttyEnvoyerLibre(){
+  const champ = document.getElementById('rttyTxText');
+  const texte = champ.value.trim();
+  if(!texte) return;
+  await rttyEnvoyerTexte(texte);
+}
+
+// `texte` arrive déjà développé (macro ou champ libre) — un seul point
+// d'émission pour les deux chemins, comme envoyerMessage() dans logx_ft8.html.
+async function rttyEnvoyerTexte(texte){
+  if(!_rttyTxArmed || !texte) return;
+  const statut = document.getElementById('rttyTxStatus');
+  const sendBtn = document.getElementById('rttySendBtn');
+  sendBtn.disabled = true;
+  if(statut){ statut.textContent = '🔊 ' + texte; statut.style.color = 'var(--accent2)'; }
+  const t = rttyTons();
+  const sampleRate = 44100;
+  const wave = rttyEncodeSamples(texte, {sampleRate, mark: t.mark, space: t.space});
+  const outId = document.getElementById('rttyOutDevice')?.value || '';
+  const res = await txAudioPtt(wave, sampleRate, outId);
+  sendBtn.disabled = !_rttyTxArmed;
+  if(statut){
+    statut.textContent = res.ok ? ('Émis : ' + texte) : ('❌ ' + res.error);
+    statut.style.color = res.ok ? 'var(--muted)' : 'var(--red)';
+  }
+}
+
 // ─── DÉCODEUR SSTV ───────────────────────────────────────────────────────────
 // Panneau flottant à droite du panneau CW — pipeline DSP dans
 // logx_sstvdecoder.js, ce fichier ne fait que le brancher à l'UI (device
 // picker, bouton start/stop, canvas construit ligne à ligne).
 let _sstvDecoder = null;
 let _sstvDevicesLoaded = false;
+let _sstvOutDeviceLoaded = false;
 let _sstvLignesRecues = 0;   // pour savoir si le canvas contient quelque chose à sauver
 
 async function toggleSstvPanel(){
@@ -2641,8 +2719,10 @@ async function toggleSstvPanel(){
   // Même mécanique que le panneau CW : réserver la place en bas de la zone
   // qui scrolle vraiment (voir le commentaire de _reserveBottomSpace).
   _reserveBottomSpace(panel, document.querySelector('.saisie-secondary'));
-  if(panel.classList.contains('open') && !_sstvDevicesLoaded){
-    _sstvDevicesLoaded = await loadAudioInputDevices('sstvDevice');
+  if(panel.classList.contains('open')){
+    remplirSstvModeSelect();
+    if(!_sstvDevicesLoaded) _sstvDevicesLoaded = await loadAudioInputDevices('sstvDevice');
+    if(!_sstvOutDeviceLoaded) _sstvOutDeviceLoaded = await loadAudioOutputDevices('sstvOutDevice', true);
   }
 }
 
@@ -2728,6 +2808,101 @@ function sstvEffacerImage(){
   if(statut) statut.textContent = '';
   const info = document.getElementById('sstvInfo');
   if(info) info.textContent = _sstvDecoder ? 'À l\'écoute — en attente d\'un en-tête VIS…' : 'En attente de signal…';
+}
+
+// ─── ÉMISSION SSTV ───────────────────────────────────────────────────────────
+// SSTV_MODES_PAR_NOM vient de logx_sstvdecoder.js (chargé avant ce fichier,
+// voir les <script src> de logx_logbook.html) — global navigateur, pas un
+// import : peuplé une fois au premier passage dans le mode SSTV.
+let _sstvTxArmed = false;
+let _sstvTxPixels = null;     // RGB entrelacé (3 octets/pixel), dimensions EXACTES du mode choisi
+let _sstvModeSelectRempli = false;
+
+function remplirSstvModeSelect(){
+  if(_sstvModeSelectRempli) return;
+  const sel = document.getElementById('sstvTxMode');
+  if(!sel || typeof SSTV_MODES_PAR_NOM === 'undefined') return;
+  sel.innerHTML = Object.keys(SSTV_MODES_PAR_NOM).map(cle => {
+    const m = SSTV_MODES_PAR_NOM[cle];
+    return `<option value="${cle}">${escHtml(m.nom)} (${m.largeur}×${m.hauteur})</option>`;
+  }).join('');
+  _sstvModeSelectRempli = true;
+}
+
+function sstvOnArmChange(){
+  _sstvTxArmed = document.getElementById('sstvArmTx').checked;
+  document.getElementById('sstvSendBtn').disabled = !_sstvTxArmed || !_sstvTxPixels;
+}
+
+// Charge le fichier choisi, l'étire aux dimensions EXACTES du mode (pas de
+// recadrage manuel dans cette version — comportement par défaut des
+// logiciels SSTV quand la source n'a pas déjà le bon ratio), et prépare le
+// tableau de pixels RGB attendu par sstvEncodeSamples().
+function sstvChargerImage(ev){
+  const fichier = ev.target.files && ev.target.files[0];
+  const statut = document.getElementById('sstvTxStatus');
+  if(!fichier) return;
+  const modeCle = document.getElementById('sstvTxMode').value;
+  const mode = SSTV_MODES_PAR_NOM[modeCle];
+  if(!mode) return;
+  const img = new Image();
+  const urlObjet = URL.createObjectURL(fichier);
+  img.onload = () => {
+    const canvas = document.getElementById('sstvTxCanvas');
+    canvas.width = mode.largeur;
+    canvas.height = mode.hauteur;
+    const ctx2d = canvas.getContext('2d');
+    ctx2d.drawImage(img, 0, 0, mode.largeur, mode.hauteur);
+    const donnees = ctx2d.getImageData(0, 0, mode.largeur, mode.hauteur).data;
+    const pixels = new Uint8Array(mode.largeur * mode.hauteur * 3);
+    for(let i = 0, j = 0; i < donnees.length; i += 4, j += 3){
+      pixels[j] = donnees[i]; pixels[j + 1] = donnees[i + 1]; pixels[j + 2] = donnees[i + 2];
+    }
+    _sstvTxPixels = pixels;
+    canvas.style.display = '';
+    URL.revokeObjectURL(urlObjet);
+    if(statut){ statut.textContent = 'Image prête (' + mode.nom + ', ' + mode.largeur + '×' + mode.hauteur + ')'; statut.style.color = 'var(--muted)'; }
+    document.getElementById('sstvSendBtn').disabled = !_sstvTxArmed;
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(urlObjet);
+    _sstvTxPixels = null;
+    document.getElementById('sstvSendBtn').disabled = true;
+    if(statut){ statut.textContent = '❌ Image illisible'; statut.style.color = 'var(--red)'; }
+  };
+  img.src = urlObjet;
+}
+
+// L'encodeur produit la forme d'onde COMPLÈTE d'un coup (pas de flux) — la
+// progression affichée est donc calculée sur le TEMPS ÉCOULÉ vs la durée
+// totale connue à l'avance (wave.length/sampleRate), pas sur un vrai suivi
+// d'avancement de l'encodage lui-même.
+async function sstvEnvoyerImage(){
+  if(!_sstvTxArmed || !_sstvTxPixels) return;
+  const modeCle = document.getElementById('sstvTxMode').value;
+  const mode = SSTV_MODES_PAR_NOM[modeCle];
+  if(!mode) return;
+  const statut = document.getElementById('sstvTxStatus');
+  const sendBtn = document.getElementById('sstvSendBtn');
+  sendBtn.disabled = true;
+  const sampleRate = 44100;
+  const wave = sstvEncodeSamples({mode: modeCle, pixels: _sstvTxPixels, sampleRate});
+  const dureeS = wave.length / sampleRate;
+  const debut = Date.now();
+  const minuteur = setInterval(() => {
+    if(!statut) return;
+    const ecoule = (Date.now() - debut) / 1000;
+    const pct = Math.min(100, Math.round(ecoule / dureeS * 100));
+    statut.textContent = mode.nom + ' — émission ' + pct + '% (' + Math.round(ecoule) + 's / ' + Math.round(dureeS) + 's)';
+  }, 1000);
+  const outId = document.getElementById('sstvOutDevice')?.value || '';
+  const res = await txAudioPtt(wave, sampleRate, outId);
+  clearInterval(minuteur);
+  sendBtn.disabled = !_sstvTxArmed;
+  if(statut){
+    statut.textContent = res.ok ? (mode.nom + ' émis (' + Math.round(dureeS) + 's)') : ('❌ ' + res.error);
+    statut.style.color = res.ok ? 'var(--muted)' : 'var(--red)';
+  }
 }
 // Au démarrage on demande au SERVEUR quels messages existent : ils n'ont
 // jamais été dans ce navigateur si l'opérateur les a enregistrés ailleurs.
@@ -6586,6 +6761,82 @@ async function loadAudioInputDevices(selectId, alreadyGranted){
   }
 }
 async function loadCwInputDevices(){ _cwDevicesLoaded = await loadAudioInputDevices('cwDevice'); }
+
+// Périphériques de SORTIE (émission RTTY/SSTV) : setSinkId (utilisé par
+// txAudioPtt() pour router la lecture vers CE périphérique précis) n'existe
+// que sur HTMLMediaElement, jamais directement sur AudioContext — d'où le
+// test de support explicite, comme dans logx_ft8.html. Les libellés ne sont
+// visibles qu'après une autorisation micro (même contrainte navigateur que
+// pour les entrées, y compris pour lister des SORTIES) : `alreadyGranted`
+// évite de redemander si l'appelant vient déjà d'obtenir la permission via
+// loadAudioInputDevices() pour le même panneau.
+async function loadAudioOutputDevices(selectId, alreadyGranted){
+  const sel = document.getElementById(selectId);
+  if(!sel) return false;
+  if(!HTMLMediaElement.prototype.setSinkId){
+    sel.innerHTML = '<option value="">Choix de sortie non supporté par ce navigateur</option>';
+    sel.disabled = true;
+    return false;
+  }
+  try{
+    if(!alreadyGranted){
+      const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+      tmp.getTracks().forEach(t=>t.stop());
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const outputs = devices.filter(d=>d.kind==='audiooutput');
+    sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+      + outputs.map(d=>`<option value="${d.deviceId}">${escHtml(d.label||'Sortie audio')}</option>`).join('');
+    return true;
+  }catch(e){
+    sel.innerHTML = '<option value="">Accès micro refusé</option>';
+    return false;
+  }
+}
+
+// ─── TX audio générique (RTTY/SSTV) : PTT ON -> lecture -> PTT OFF ──────────
+// Même modèle que logx_ft8.html (jouerForme+pttOn) — dupliqué ici plutôt que
+// partagé entre pages : logx_ft8.html est une page <script> isolée (IIFE),
+// aucun fichier JS commun entre les deux pour l'instant. PTT OFF dans un
+// `finally` : même si la lecture audio plante en cours de route, la radio ne
+// doit jamais rester bloquée en émission.
+async function txAudioPtt(wave, sampleRate, outDeviceId){
+  const pttOk = await fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({on:true})}).then(r=>r.json()).then(d=>!!d.ok).catch(()=>false);
+  if(!pttOk) return {ok:false, error:"PTT refusé — vérifie le pilotage radio (CONFIG)"};
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate});
+    const buf = ctx.createBuffer(1, wave.length, sampleRate);
+    buf.copyToChannel(wave, 0);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    if(outDeviceId && HTMLMediaElement.prototype.setSinkId){
+      // Route vers un périphérique de sortie précis : MediaStreamDestination
+      // + <audio> caché (setSinkId n'existe que sur HTMLMediaElement, pas
+      // directement sur AudioContext dans la plupart des navigateurs).
+      const dest = ctx.createMediaStreamDestination();
+      src.connect(dest);
+      const audioEl = new Audio();
+      audioEl.srcObject = dest.stream;
+      await audioEl.setSinkId(outDeviceId);
+      await audioEl.play();
+      src.start();
+      await new Promise(resolve => { src.onended = resolve; });
+      audioEl.pause();
+    } else {
+      src.connect(ctx.destination);
+      src.start();
+      await new Promise(resolve => { src.onended = resolve; });
+    }
+    try{ ctx.close(); }catch(e){}
+    return {ok:true};
+  }catch(e){
+    return {ok:false, error: e.message};
+  } finally {
+    fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({on:false})}).catch(()=>{});
+  }
+}
 
 function toggleCwDecoder(){
   const btn = document.getElementById('cwStartBtn');

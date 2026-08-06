@@ -630,7 +630,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 .cw-header{display:flex;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,#0a3a1a,#0D2818);color:var(--green);font-size:13px;letter-spacing:1px;cursor:pointer;border-radius:8px 8px 0 0;user-select:none}
 .cw-header-toggle{margin-left:auto;transition:transform .2s}
 .cw-panel.open .cw-header-toggle{transform:rotate(180deg)}
-.cw-body{display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg)}
+.cw-body{display:none;flex-direction:column;gap:8px;padding:10px;background:var(--bg);max-height:calc(100vh - 60px);overflow-y:auto}
 .cw-panel.open .cw-body{display:flex}
 .cw-note{font-size:11.5px;color:var(--muted);line-height:1.5}
 .cw-controls{display:flex;gap:6px;align-items:center}
@@ -655,6 +655,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
    image-rendering:pixelated évite le flou d'interpolation sur du 320×256. */
 #sstvPanel{width:352px}
 #sstvCanvas{width:100%;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:6px;display:block}
+#sstvTxCanvas{width:100%;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:6px;margin-top:6px}
 
 /* ─── BANNIÈRE MOBILE ─── Le logbook complet est pensé pour un écran large :
    sur téléphone, proposer la page de saisie mobile dédiée (logx_mobile.html)
@@ -1700,6 +1701,24 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     </div>
     <div class="cw-output" id="rttyOutput" onclick="rttyClicTexte(event)"></div>
     <button class="cw-btn" onclick="clearRttyOutput()" style="align-self:flex-start"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg> Effacer</button>
+    <!-- ÉMISSION RTTY : mêmes tonalités Mark/Shift que la réception, lues sur
+         le périphérique de SORTIE (pas le micro) via un câble/interface vers
+         l'entrée micro/DATA de la radio. Case « Activer l'émission » non
+         cochée par défaut — même garde-fou que la page FT8 native, rien ne
+         part sur l'air sans ce geste explicite. -->
+    <div class="cw-note" style="margin-top:6px">Émission : périphérique de SORTIE (pas le micro du PC) vers l'entrée micro/DATA de la radio.</div>
+    <div class="cw-controls">
+      <select id="rttyOutDevice"><option value="">— périphérique par défaut —</option></select>
+    </div>
+    <label class="cw-controls" style="cursor:pointer" title="Rien ne part sur l'air tant que cette case n'est pas cochée">
+      <input type="checkbox" id="rttyArmTx" onchange="rttyOnArmChange()"> Activer l'émission
+    </label>
+    <div class="macro-btns" id="rttyMacroBtns"></div>
+    <div class="cw-controls">
+      <input type="text" id="rttyTxText" maxlength="80" placeholder="Texte libre à émettre" spellcheck="false" autocomplete="off" style="flex:1">
+      <button class="cw-btn" id="rttySendBtn" onclick="rttyEnvoyerLibre()" disabled>▶ Envoyer</button>
+    </div>
+    <div class="cw-note" id="rttyTxStatus"></div>
   </div>
 </div>
 
@@ -1723,6 +1742,27 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     </div>
     <canvas id="sstvCanvas" width="320" height="256"></canvas>
     <div class="cw-note" id="sstvInfo">En attente de signal…</div>
+    <!-- ÉMISSION SSTV : image étirée aux dimensions EXACTES du mode choisi
+         (pas de recadrage manuel dans cette version) — comportement standard
+         des logiciels SSTV quand la source n'a pas déjà le bon ratio. Une
+         image PD120 prend ~2 min à émettre : le statut affiche une
+         progression en temps écoulé, pas de blocage silencieux de l'écran. -->
+    <div class="cw-note" style="margin-top:8px">Émission : choisis une image, un mode, puis Envoyer.</div>
+    <div class="cw-controls">
+      <select id="sstvTxMode"></select>
+      <input type="file" id="sstvTxFile" accept="image/*" onchange="sstvChargerImage(event)">
+    </div>
+    <canvas id="sstvTxCanvas" width="320" height="256" style="display:none"></canvas>
+    <div class="cw-controls">
+      <select id="sstvOutDevice"><option value="">— périphérique par défaut —</option></select>
+    </div>
+    <label class="cw-controls" style="cursor:pointer" title="Rien ne part sur l'air tant que cette case n'est pas cochée">
+      <input type="checkbox" id="sstvArmTx" onchange="sstvOnArmChange()"> Activer l'émission
+    </label>
+    <div class="cw-controls">
+      <button class="cw-btn" id="sstvSendBtn" onclick="sstvEnvoyerImage()" disabled><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,9 9,3 15,9"/><line x1="9" y1="3" x2="9" y2="14"/><path d="M3 14v1.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V14"/></svg> Envoyer l'image</button>
+    </div>
+    <div class="cw-note" id="sstvTxStatus"></div>
   </div>
 </div>
 
