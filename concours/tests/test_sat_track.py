@@ -471,7 +471,16 @@ def test_le_grand_tour_au_nord_est_SIGNALE(monkeypatch):
 
 def test_les_NaN_du_rotor_ne_partent_pas_dans_le_JSON(monkeypatch):
     """Constat C3. rotctld peut répondre « nan » ; float('nan') parse sans
-    erreur et casserait le client JSON. On ne publie que du fini."""
+    erreur et casserait le client JSON. On ne publie que du fini.
+
+    Ce test vise UNIQUEMENT le filtrage synchrone fait par demarrer_suivi()
+    avant de lancer le thread — pas le comportement de la boucle. `_boucle_
+    suivi` est donc neutralisée : sans ça, le vrai thread démarré par
+    demarrer_suivi() peut faire son premier tour (calculer la cible depuis
+    sp.position, 180.0 ici) et écraser rotor_az=None par cette valeur AVANT
+    que ce test relise l'état — une course gagnée localement (le thread n'a
+    pas eu le temps de tourner) mais perdue sur un runner CI plus chargé.
+    Constatée en CI le 06/08/2026 : assert (180.0 is None)."""
     import json
     _rotor(monkeypatch)
     monkeypatch.setattr(st.rotor, 'get_position',
@@ -483,6 +492,7 @@ def test_les_NaN_du_rotor_ne_partent_pas_dans_le_JSON(monkeypatch):
     monkeypatch.setattr(st.sp, 'position', lambda *a, **k: {
         'available': True, 'az': 180.0, 'el': 30.0, 'visible': True,
         'distance_km': 900.0, 'range_rate_ms': 0.0})
+    monkeypatch.setattr(st, '_boucle_suivi', lambda *a, **k: None)
     ok, msg = st.demarrer_suivi('FAUX-1', CFG)
     assert ok, msg
     etat = st.etat_suivi()
