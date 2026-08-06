@@ -228,7 +228,8 @@ function itemsMenuLogbook(format){
   grp.push(['AVANT LA SESSION', avant]);
 
   const suivi = [['📊', 'STATS — rythme et répartition', 'showRatePanel'],
-                 ['🏅', 'DIPLÔMES & QSL', 'showAwards']];
+                 ['🏅', 'DIPLÔMES & QSL', 'showAwards'],
+                 ['🔎', 'FILTRE AVANCÉ', 'openFilterBuilder']];
   grp.push(['SUIVI', suivi]);
 
   const apres = [];
@@ -510,6 +511,7 @@ const CS_DATA = [
 ];
 
 let currentFilter = 'all';
+let advancedFilter = null;  // {groups:[[{field,op,value},...],...]} — OU entre groupes, ET dans un groupe
 let qsoLog = [];       // log local (cache)
 let serialByBand = {}; // numéros de série par bande
 let refreshTimer = null;
@@ -4441,6 +4443,222 @@ function filterLog(){
   renderLog();
 }
 
+// ═══════════════════════ CONSTRUCTEUR DE FILTRE AVANCÉ ═══════════════════
+// Structure : {groups:[[{field,op,value}, ...], ...]} — OU entre groupes,
+// ET entre conditions d'un même groupe. Un groupe vide filtre "tout passe"
+// (neutre), pas "rien ne passe" — sinon ajouter un groupe vide bloquerait
+// tout le log avant même d'y mettre une condition.
+const FILTER_FIELDS = [
+  {key:'call', label:'Indicatif', type:'text'},
+  {key:'band', label:'Bande', type:'text'},
+  {key:'mode', label:'Mode', type:'text'},
+  {key:'freq', label:'Fréquence (MHz)', type:'num'},
+  {key:'rst_sent', label:'RST envoyé', type:'text'},
+  {key:'rst_rcvd', label:'RST reçu', type:'text'},
+  {key:'num_sent', label:'N° envoyé', type:'text'},
+  {key:'num_rcvd', label:'N° reçu', type:'text'},
+  {key:'date', label:'Date', type:'text'},
+  {key:'time', label:'Heure', type:'text'},
+  {key:'locator', label:'Locator', type:'text'},
+  {key:'dist', label:'Distance (km)', type:'num'},
+  {key:'points', label:'Points', type:'num'},
+  {key:'operator', label:'Opérateur', type:'text'},
+  {key:'contest', label:'Concours', type:'text'},
+  {key:'state', label:'État/région', type:'text'},
+  {key:'qsl_scan', label:'Scan QSL', type:'bool'},
+];
+const FILTER_OPS = {
+  text: [['contains','contient'], ['ncontains','ne contient pas'], ['eq','= exact'], ['neq','≠'], ['starts','commence par']],
+  num:  [['eq','='], ['neq','≠'], ['gt','>'], ['lt','<'], ['gte','≥'], ['lte','≤']],
+  bool: [['present','renseigné'], ['absent','vide']],
+};
+function fltFieldDef(key){ return FILTER_FIELDS.find(f=>f.key===key) || FILTER_FIELDS[0]; }
+
+function matchesFilterCondition(q, cond){
+  const def = fltFieldDef(cond.field);
+  const raw = q[cond.field];
+  if(def.type === 'bool'){
+    const has = !!raw;
+    return cond.op === 'present' ? has : !has;
+  }
+  if(def.type === 'num'){
+    const a = parseFloat(raw), b = parseFloat(cond.value);
+    if(isNaN(a) || isNaN(b)) return false;
+    switch(cond.op){
+      case 'eq': return a === b;
+      case 'neq': return a !== b;
+      case 'gt': return a > b;
+      case 'lt': return a < b;
+      case 'gte': return a >= b;
+      case 'lte': return a <= b;
+    }
+    return true;
+  }
+  const a = String(raw==null?'':raw).toUpperCase();
+  const b = String(cond.value==null?'':cond.value).toUpperCase();
+  switch(cond.op){
+    case 'contains': return a.includes(b);
+    case 'ncontains': return !a.includes(b);
+    case 'eq': return a === b;
+    case 'neq': return a !== b;
+    case 'starts': return a.startsWith(b);
+  }
+  return true;
+}
+
+function matchesAdvancedFilter(q, tree){
+  if(!tree || !Array.isArray(tree.groups) || !tree.groups.length) return true;
+  return tree.groups.some(group => !group.length || group.every(cond => matchesFilterCondition(q, cond)));
+}
+
+// État du CONSTRUCTEUR (édition en cours) — distinct de `advancedFilter`
+// (le filtre RÉELLEMENT appliqué au tableau) pour que l'aperçu du nombre de
+// résultats et l'export "résultat" reflètent ce qu'on est en train de
+// composer, sans affecter le tableau principal tant qu'on n'a pas cliqué
+// APPLIQUER.
+let fltBuilder = {groups: [[]]};
+
+function fltCurrentMatches(){
+  return qsoLog.filter(q => matchesAdvancedFilter(q, fltBuilder));
+}
+
+function openFilterBuilder(){
+  if(advancedFilter) fltBuilder = JSON.parse(JSON.stringify(advancedFilter));
+  if(!fltBuilder.groups || !fltBuilder.groups.length) fltBuilder = {groups:[[]]};
+  fltRenderGroups();
+  fltRenderPresets();
+  document.getElementById('filterOverlay').classList.add('show');
+}
+
+function closeFilterBuilder(){
+  document.getElementById('filterOverlay').classList.remove('show');
+}
+
+function fltAddGroup(){
+  fltBuilder.groups.push([]);
+  fltRenderGroups();
+}
+
+function fltAddCond(gi){
+  fltBuilder.groups[gi].push({field:'call', op:'contains', value:''});
+  fltRenderGroups();
+}
+
+function fltRemoveCond(gi, ci){
+  fltBuilder.groups[gi].splice(ci, 1);
+  if(!fltBuilder.groups[gi].length && fltBuilder.groups.length > 1) fltBuilder.groups.splice(gi, 1);
+  fltRenderGroups();
+}
+
+function fltUpdateCond(gi, ci, key, value){
+  const cond = fltBuilder.groups[gi][ci];
+  cond[key] = value;
+  if(key === 'field'){
+    // Changer de champ peut changer de type (texte/nombre/booléen) — l'opérateur
+    // choisi pour l'ancien type n'a pas forcément de sens pour le nouveau.
+    cond.op = FILTER_OPS[fltFieldDef(value).type][0][0];
+  }
+  fltRenderGroups();
+}
+
+function fltRenderGroups(){
+  const wrap = document.getElementById('fltGroups');
+  if(!wrap) return;
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let h = '';
+  fltBuilder.groups.forEach((group, gi) => {
+    if(gi) h += '<div class="flt-or-sep">— OU —</div>';
+    h += `<div class="flt-group">
+      <div class="flt-group-hdr"><span class="flt-group-lbl">GROUPE ${gi+1} (ET)</span></div>`;
+    group.forEach((cond, ci) => {
+      const def = fltFieldDef(cond.field);
+      const fieldOpts = FILTER_FIELDS.map(f =>
+        `<option value="${f.key}"${f.key===cond.field?' selected':''}>${esc(f.label)}</option>`).join('');
+      const opOpts = FILTER_OPS[def.type].map(([k,l]) =>
+        `<option value="${k}"${k===cond.op?' selected':''}>${esc(l)}</option>`).join('');
+      const valueInput = def.type === 'bool'
+        ? '<input type="text" value="—" disabled>'
+        : `<input type="text" value="${esc(cond.value)}" oninput="fltUpdateCond(${gi},${ci},'value',this.value)">`;
+      h += `<div class="flt-row">
+        <select onchange="fltUpdateCond(${gi},${ci},'field',this.value)">${fieldOpts}</select>
+        <select onchange="fltUpdateCond(${gi},${ci},'op',this.value)">${opOpts}</select>
+        ${valueInput}
+        <span class="flt-remove" onclick="fltRemoveCond(${gi},${ci})" title="Retirer">✕</span>
+      </div>`;
+    });
+    h += `<button class="flt-add-cond" onclick="fltAddCond(${gi})">+ CONDITION</button></div>`;
+  });
+  wrap.innerHTML = h;
+  const cnt = document.getElementById('fltCount');
+  if(cnt) cnt.textContent = `${fltCurrentMatches().length} QSO correspondent`;
+}
+
+function fltApply(){
+  advancedFilter = JSON.parse(JSON.stringify(fltBuilder));
+  closeFilterBuilder();
+  renderLog();
+}
+
+function fltReset(){
+  advancedFilter = null;
+  fltBuilder = {groups:[[]]};
+  fltRenderGroups();
+  renderLog();
+}
+
+function fltExportFiltered(){
+  const qsos = fltCurrentMatches().filter(isValidQSO);
+  if(!qsos.length){ alert(trF('Aucun QSO ne correspond au filtre courant.')); return; }
+  downloadAdifBlob(buildAdifText(qsos), 'filtre');
+}
+
+// ── Préréglages : par POSTE (localStorage), pas synchronisés réseau — un
+// filtre est une préférence d'analyse individuelle, pas un réglage station
+// partagé comme les règles d'alerte (voir logx_configuration.html:alertRules).
+const FLT_PRESETS_KEY = 'rc_filter_presets';
+function fltLoadPresets(){
+  try{ return JSON.parse(localStorage.getItem(FLT_PRESETS_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function fltSavePresets(list){
+  localStorage.setItem(FLT_PRESETS_KEY, JSON.stringify(list));
+}
+
+function fltSavePreset(){
+  const input = document.getElementById('fltPresetName');
+  const name = (input.value || '').trim();
+  if(!name) return;
+  const list = fltLoadPresets();
+  const preset = {id:'p'+Date.now(), name, tree: JSON.parse(JSON.stringify(fltBuilder))};
+  fltSavePresets(list.filter(p=>p.name!==name).concat([preset]));
+  input.value = '';
+  fltRenderPresets();
+}
+
+function fltLoadPreset(id){
+  const p = fltLoadPresets().find(p=>p.id===id);
+  if(!p) return;
+  fltBuilder = JSON.parse(JSON.stringify(p.tree));
+  fltRenderGroups();
+}
+
+function fltDeletePreset(id){
+  fltSavePresets(fltLoadPresets().filter(p=>p.id!==id));
+  fltRenderPresets();
+}
+
+function fltRenderPresets(){
+  const wrap = document.getElementById('fltPresetList');
+  if(!wrap) return;
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  wrap.innerHTML = fltLoadPresets().map(p =>
+    `<span class="flt-preset-chip"><span onclick="fltLoadPreset('${p.id}')">${esc(p.name)}</span>` +
+    `<span class="flt-preset-del" onclick="fltDeletePreset('${p.id}')" title="Supprimer">✕</span></span>`
+  ).join('') || '<span style="color:var(--muted);font-size:12px">Aucun préréglage enregistré</span>';
+}
+
 function renderLog(){
   const search = document.getElementById('logSearch').value.toUpperCase();
   const tbody = document.getElementById('logBody');
@@ -4451,6 +4669,7 @@ function renderLog(){
     if(currentFilter==='hf' && !['14','7','3.5','1.8','21','28'].includes(q.band)) return false;
     if(currentFilter==='mine' && q.operator!==myOp) return false;
     if(search && !(q.call||'').includes(search) && !(q.locator||'').includes(search)) return false;
+    if(advancedFilter && !matchesAdvancedFilter(q, advancedFilter)) return false;
     return true;
   });
 
@@ -4464,7 +4683,7 @@ function renderLog(){
 
   // Nouveau filtre/recherche => on repart de la fenêtre par défaut. Le même
   // filtre (ex. juste un nouveau QSO reçu) conserve la fenêtre déjà étendue.
-  const renderKey = currentFilter + '|' + search;
+  const renderKey = currentFilter + '|' + search + '|' + (advancedFilter ? JSON.stringify(advancedFilter) : '');
   if(renderKey !== _logRenderKey){
     logRenderLimit = LOG_RENDER_DEFAULT;
     _logRenderKey = renderKey;
@@ -5911,14 +6130,13 @@ function adifField(name, value){
   return v ? `<${name}:${v.length}>${v} ` : '';
 }
 
-function exportADIF(){
-  const validQSOs = qsoLog.filter(isValidQSO);
-  const skipped = qsoLog.length - validQSOs.length;
-  if(skipped && !confirm(trF('⚠️ {n} QSO incomplet(s) seront ignorés dans l\'export ADIF.\n\nContinuer ?', {n: skipped}))) return;
-
+// Construit le texte ADIF pour une liste de QSO donnée — factorisé pour être
+// réutilisé par l'export complet (exportADIF) et l'export filtré
+// (fltExportFiltered), sans dupliquer le corps du générateur.
+function buildAdifText(qsos){
   let adif = 'LogX AI — Export ADIF\n';
   adif += adifField('ADIF_VER', '3.1.4') + adifField('PROGRAMID', 'LogX AI') + '\n<EOH>\n\n';
-  validQSOs.forEach(q=>{
+  qsos.forEach(q=>{
     const date = String(q.date || '').replace(/-/g, '').slice(0, 8);
     const time = String(q.time || '').replace(/:/g, '').slice(0, 4).padEnd(4, '0');
     adif += adifField('CALL', String(q.call).toUpperCase());
@@ -5943,11 +6161,22 @@ function exportADIF(){
     adif += adifField('CONTEST_ID', q.contest);
     adif += '<EOR>\n';
   });
+  return adif;
+}
+
+function downloadAdifBlob(adif, suffix){
   const blob = new Blob([adif],{type:'text/plain'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${myCall.replace('/','_')}_log.adif`;
+  a.download = `${myCall.replace('/','_')}_${suffix}.adif`;
   a.click();
+}
+
+function exportADIF(){
+  const validQSOs = qsoLog.filter(isValidQSO);
+  const skipped = qsoLog.length - validQSOs.length;
+  if(skipped && !confirm(trF('⚠️ {n} QSO incomplet(s) seront ignorés dans l\'export ADIF.\n\nContinuer ?', {n: skipped}))) return;
+  downloadAdifBlob(buildAdifText(validQSOs), 'log');
 }
 
 function exportCSV(){
