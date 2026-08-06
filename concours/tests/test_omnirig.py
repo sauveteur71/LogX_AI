@@ -247,6 +247,84 @@ def test_status_label_connu_et_inconnu():
     assert 'illisible' in omnirig._status_label('pas un entier')
 
 
+# ─── auto-guérison de _com_call() après des timeouts consécutifs ──────────
+# Pas de vrai sleep ici : on remplace directement _EXECUTOR par un faux
+# executor dont .submit(...).result(...) lève TimeoutError immédiatement —
+# simule un worker COM bloqué pour de vrai (boîte de dialogue modale
+# OmniRig, port série gelé) sans attendre TIMEOUT_S + 2 secondes par appel.
+
+class _FakeFutureTimeout:
+    def result(self, timeout=None):
+        raise omnirig._cf.TimeoutError()
+
+
+class _FakeExecutorAlwaysTimeout:
+    def submit(self, func, *args, **kwargs):
+        return _FakeFutureTimeout()
+
+
+def test_com_call_sous_le_seuil_ne_remplace_pas_lexecutor(monkeypatch):
+    fake_executor = _FakeExecutorAlwaysTimeout()
+    monkeypatch.setattr(omnirig, '_EXECUTOR', fake_executor)
+    monkeypatch.setattr(omnirig, '_consecutive_timeouts', 0)
+
+    for i in range(omnirig._TIMEOUT_THRESHOLD - 1):
+        r = omnirig._com_call(1, lambda rig: {'ok': True})
+        assert r['ok'] is False
+        assert 'délai dépassé' in r['error']
+        assert omnirig._EXECUTOR is fake_executor  # pas encore remplacé
+        assert omnirig._consecutive_timeouts == i + 1
+
+
+def test_com_call_atteint_le_seuil_remplace_lexecutor_et_remet_le_compteur_a_zero(monkeypatch):
+    fake_executor = _FakeExecutorAlwaysTimeout()
+    monkeypatch.setattr(omnirig, '_EXECUTOR', fake_executor)
+    monkeypatch.setattr(omnirig, '_consecutive_timeouts', omnirig._TIMEOUT_THRESHOLD - 1)
+
+    r = omnirig._com_call(1, lambda rig: {'ok': True})
+    assert r['ok'] is False
+    assert 'exécuteur neuf' in r['error']
+    assert omnirig._EXECUTOR is not fake_executor  # remplacé
+    assert isinstance(omnirig._EXECUTOR, omnirig._cf.ThreadPoolExecutor)
+    assert omnirig._consecutive_timeouts == 0
+
+    # le nouvel executor doit être pleinement opérationnel pour l'appel suivant
+    fake = _FakeOmniRig(rig1=_FakeRig(status=omnirig.ST_ONLINE, freq=1234000))
+    _install_fake(monkeypatch, fake)
+    r2 = omnirig.get_state({'omnirig_enabled': True})
+    assert r2['ok'] is True
+    assert r2['freq_hz'] == 1234000
+
+
+def test_com_call_succes_isole_remet_le_compteur_a_zero(monkeypatch):
+    """Un timeout SOUS le seuil suivi d'un appel qui aboutit doit remettre le
+    compteur à zéro — pas de dérive lente vers un remplacement d'executor à
+    cause de timeouts isolés et non consécutifs."""
+    monkeypatch.setattr(omnirig, '_EXECUTOR', _FakeExecutorAlwaysTimeout())
+    monkeypatch.setattr(omnirig, '_consecutive_timeouts', 0)
+    omnirig._com_call(1, lambda rig: {'ok': True})
+    assert omnirig._consecutive_timeouts == 1
+
+    monkeypatch.setattr(omnirig, '_EXECUTOR',
+                         omnirig._cf.ThreadPoolExecutor(max_workers=1, thread_name_prefix='test_omnirig'))
+    fake = _FakeOmniRig(rig1=_FakeRig(status=omnirig.ST_ONLINE))
+    _install_fake(monkeypatch, fake)
+    r = omnirig.get_state({'omnirig_enabled': True})
+    assert r['ok'] is True
+    assert omnirig._consecutive_timeouts == 0
+
+
+def test_com_call_echec_propre_non_timeout_remet_aussi_le_compteur_a_zero(monkeypatch):
+    """Un rig hors ligne (échec 'propre', pas un timeout) prouve que le
+    worker répond : le compteur de timeouts consécutifs doit être remis à
+    zéro, pas seulement sur un succès complet ('ok': True)."""
+    monkeypatch.setattr(omnirig, '_consecutive_timeouts', omnirig._TIMEOUT_THRESHOLD - 1)
+    _install_fake(monkeypatch, _FakeOmniRig(rig1=_FakeRig(status=omnirig.ST_NOTRESPONDING)))
+    r = omnirig.get_state({'omnirig_enabled': True})
+    assert r['ok'] is False
+    assert omnirig._consecutive_timeouts == 0
+
+
 # ─── _do_com_call() : robustesse pythoncom absent (CI non-Windows) ─────────
 
 def test_do_com_call_fonctionne_sans_pythoncom_installe(monkeypatch):

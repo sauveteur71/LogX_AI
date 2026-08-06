@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Pilotage CAT via OmniRig (VE3NEA) — 5e backend CAT aux côtés de logx_cat
-(série natif), logx_tci (WebSocket), logx_rig (rigctld/Hamlib) et
-logx_flrig (XML-RPC).
+"""Pilotage CAT via OmniRig (VE3NEA) — backend candidat pour rejoindre
+logx_cat (série natif), logx_tci (WebSocket), logx_rig (rigctld/Hamlib) et
+logx_flrig (XML-RPC). PAS ENCORE câblé dans le dispatch HTTP/CONFIG à ce
+stade (aucun appel depuis logx_cat.py ni depuis le serveur HTTP) : ce module
+est autonome et testé isolément, le branchement dans le dispatch existant
+sera fait dans un commit séparé — ne pas supposer qu'un réglage
+`omnirig_enabled` dans CONFIG a un quelconque effet côté serveur avant ça.
 
 OmniRig est un composant COM Windows autonome, très répandu chez les
 utilisateurs de loggers de contest (il tourne déjà en tâche de fond chez
@@ -53,6 +57,7 @@ frais, ce qui reste bon marché puisqu'OmniRig est un serveur COM déjà
 démarré localement.
 """
 import concurrent.futures as _cf
+import threading as _threading
 
 try:
     import win32com.client as _win32com_client
@@ -126,6 +131,24 @@ _open_com = _default_dispatch if HAS_PYWIN32 else None
 
 _EXECUTOR = _cf.ThreadPoolExecutor(max_workers=1, thread_name_prefix='omnirig_cat')
 
+# ── auto-guérison de l'executor après des timeouts consécutifs ─────────────
+# Contrairement à un socket (settimeout() libère réellement le thread), un
+# appel COM bloqué (boîte de dialogue modale d'OmniRig, port série gelé côté
+# OmniRig) ne peut PAS être interrompu depuis l'extérieur : le worker reste
+# bloqué pour de vrai, indéfiniment. Avec 1 seul worker, UN SEUL blocage
+# épuise l'executor pour toujours — tous les appels suivants échoueraient
+# proprement mais le module deviendrait silencieusement inopérant jusqu'au
+# redémarrage du process. On garde donc un compteur de timeouts CONSÉCUTIFS
+# (protégé par _executor_lock, qui protège aussi l'accès à _EXECUTOR
+# lui-même) : au-delà du seuil, on abandonne le worker bloqué à son sort
+# (il finira par se terminer seul si l'appel COM revient un jour, ou restera
+# fantôme jusqu'à la fin du process — mais il ne bloque plus rien puisque
+# plus aucun nouvel appel ne lui est soumis) et on le remplace par un
+# ThreadPoolExecutor tout neuf.
+_executor_lock = _threading.Lock()
+_consecutive_timeouts = 0
+_TIMEOUT_THRESHOLD = 3
+
 
 def _norm_rig_num(value):
     try:
@@ -181,20 +204,51 @@ def _do_com_call(rig_num, func):
                 pass
 
 
+def _replace_executor_locked():
+    """Remplace `_EXECUTOR` par un ThreadPoolExecutor tout neuf. À appeler
+    UNIQUEMENT avec `_executor_lock` déjà tenu par l'appelant (pas de
+    verrouillage ici) — voir le commentaire au-dessus de `_executor_lock`
+    pour le raisonnement complet."""
+    global _EXECUTOR
+    _EXECUTOR = _cf.ThreadPoolExecutor(max_workers=1, thread_name_prefix='omnirig_cat')
+
+
 def _com_call(rig_num, func):
     """Borne dans le temps l'appel COM (même motif que
     logx_rotor._rotctld_command : ThreadPoolExecutor + .result(timeout=...))
     — un objet OmniRig qui ne répond plus (process figé, port série bloqué
     côté OmniRig lui-même) ne doit jamais geler le thread HTTP appelant.
     Executor à 1 seul worker : sérialise aussi les commandes entre elles,
-    pas besoin d'un verrou séparé en plus."""
+    pas besoin d'un verrou séparé en plus pour ça.
+
+    Auto-guérison : après `_TIMEOUT_THRESHOLD` timeouts CONSÉCUTIFS, le
+    worker est présumé bloqué pour de bon (pas juste lent) — l'executor est
+    remplacé pour que les appels suivants aient un worker frais. Le compteur
+    est remis à zéro dès qu'un appel revient sans timeout (succès OU échec
+    "propre" comme rig hors ligne : ça prouve que le worker répond)."""
+    global _consecutive_timeouts
+    with _executor_lock:
+        executor = _EXECUTOR
     try:
-        fut = _EXECUTOR.submit(_do_com_call, rig_num, func)
-        return fut.result(timeout=TIMEOUT_S + 2)
+        fut = executor.submit(_do_com_call, rig_num, func)
+        result = fut.result(timeout=TIMEOUT_S + 2)
+        with _executor_lock:
+            _consecutive_timeouts = 0
+        return result
     except _cf.TimeoutError:
+        with _executor_lock:
+            _consecutive_timeouts += 1
+            if _consecutive_timeouts >= _TIMEOUT_THRESHOLD:
+                _consecutive_timeouts = 0
+                _replace_executor_locked()
+                return {'ok': False, 'error': "OmniRig ne répond pas depuis plusieurs appels "
+                        "consécutifs — l'exécuteur précédent semble définitivement bloqué, "
+                        "nouvelle tentative avec un exécuteur neuf (réessaie dans un instant)"}
         return {'ok': False, 'error': "OmniRig ne répond pas (délai dépassé) — vérifie qu'OmniRig "
                 "est bien lancé et que le rig configuré répond"}
     except Exception as e:
+        with _executor_lock:
+            _consecutive_timeouts = 0
         return {'ok': False, 'error': f'OmniRig injoignable ({e})'}
 
 
@@ -222,7 +276,11 @@ def get_state(cfg):
 
 
 def set_freq(cfg, freq_hz, mode=None):
-    """QSY — même signature que logx_tci.set_freq/logx_flrig.set_freq."""
+    """QSY — retourne la même FORME de résultat ({'ok': ...}) que
+    logx_tci.set_freq/logx_flrig.set_freq, mais PAS la même signature d'appel
+    (logx_flrig.set_freq prend (host, port, freq_hz, mode=None) ; ici c'est
+    (cfg, freq_hz, mode=None), cfg étant le dict de config CLIENT comme pour
+    les autres fonctions de ce module)."""
     settings = omnirig_settings(cfg)
     if not settings['enabled']:
         return {'ok': False, 'error': 'Pilotage OmniRig désactivé (CONFIG)'}
