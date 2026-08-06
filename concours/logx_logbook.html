@@ -531,6 +531,14 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .exf-del{cursor:pointer;color:var(--muted);font-size:16px;transition:color .15s}
 .exf-del:hover{color:var(--red)}
 
+/* RE-RÉSOLUTION EN MASSE */
+.brs-opt{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;font-size:13px;color:var(--text)}
+.brs-opt label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.brs-bar-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:6px;height:10px;overflow:hidden;margin-bottom:8px;display:none}
+.brs-bar-wrap.show{display:block}
+.brs-bar{height:100%;background:linear-gradient(90deg,var(--accent2),#00FF88);width:0%;transition:width .3s}
+.brs-status{font-size:12px;color:var(--muted);text-align:center;margin-bottom:12px}
+
 /* BADGE PAYS DXCC */
 .dxcc-badge{display:none;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25);font-family:var(--font-mono);font-size:14px;margin-top:4px}
 .dxcc-flag{font-size:18px;line-height:1}
@@ -1059,6 +1067,28 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     <div class="flt-footer">
       <div class="flt-count" id="dupCount"></div>
       <button class="export-btn" onclick="dupDeleteAllExceptFirst()" style="color:var(--red);border-color:rgba(255,45,85,.4)">SUPPRIMER TOUS LES DOUBLONS</button>
+    </div>
+  </div>
+</div>
+
+<!-- RE-RÉSOLUTION EN MASSE (locator/état, callbook) -->
+<div class="shortcuts-overlay" id="bulkResolveOverlay" onclick="if(event.target===this)closeBulkResolve()">
+  <div class="shortcuts-box">
+    <div class="shortcuts-title">
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M9 5.5v4l2.5 1.5"/></svg> RE-RÉSOLUTION EN MASSE</span>
+      <span class="shortcuts-close" onclick="closeBulkResolve()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+    </div>
+    <div class="brs-opt">
+      <span style="color:var(--muted);font-size:12px">Recherche le locator/état (callbook QRZ→HamQTH→HamDB) des QSO ciblés.</span>
+      <label><input type="radio" name="brsScope" id="brsScopeAll" checked> Tout le log</label>
+      <label><input type="radio" name="brsScope" id="brsScopeFiltered"> Résultat du filtre avancé actif (<span id="brsFilteredCount">0</span> QSO)</label>
+      <label><input type="checkbox" id="brsOverwrite"> Écraser aussi les valeurs déjà renseignées</label>
+    </div>
+    <div class="brs-bar-wrap" id="brsBarWrap"><div class="brs-bar" id="brsBar"></div></div>
+    <div class="brs-status" id="brsStatus"></div>
+    <div class="flt-footer">
+      <button class="export-btn" id="brsCancelBtn" onclick="closeBulkResolve()">FERMER</button>
+      <button class="export-btn" id="brsStartBtn" onclick="startBulkResolve()" style="color:var(--green);border-color:rgba(0,255,136,.4)">LANCER</button>
     </div>
   </div>
 </div>

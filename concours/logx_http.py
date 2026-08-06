@@ -2471,6 +2471,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res)
             return
 
+        # Progression de la re-résolution en masse démarrée par
+        # /log/bulk_resolve/start — pollé par le client (voir logx_logbook.js).
+        if path == '/log/bulk_resolve/status':
+            import logx_callbook as callbook
+            self._json(callbook.bulk_resolve_status())
+            return
+
         # Statut d'un indicatif À LA FRAPPE : nouveau / doublon / nouveau_mult.
         # Réutilise le moteur de scoring (état reconstruit depuis shared_log).
         if path.startswith('/log/check'):
@@ -5948,6 +5955,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 save_log_to_disk()
                 print(f"[LOG] ~QSO corrige id={qso_id}")
                 self._json({'ok': True})
+            except Exception as e:
+                self._json({'error': str(e)}, 400)
+            return
+
+        # Démarre une re-résolution en masse (locator/état via cty/QRZ/
+        # ClubLog — cascade callbook déjà existante). `ids`: liste d'IDs
+        # QSO ciblés, ou absent/vide = tout le log. `overwrite`: écrase
+        # aussi les locator/état déjà renseignés (par défaut, ne comble que
+        # les vides — voir logx_callbook.bulk_resolve_start).
+        if self.path == '/log/bulk_resolve/start':
+            try:
+                import logx_callbook as callbook
+                payload = json.loads(body) if body else {}
+                ids = payload.get('ids')
+                ids = [int(i) for i in ids] if ids else None
+                overwrite = bool(payload.get('overwrite'))
+                ok, msg = callbook.bulk_resolve_start(
+                    self._cfg_snapshot, ids=ids, overwrite=overwrite)
+                self._json({'ok': ok, 'error': msg if not ok else ''})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return

@@ -227,3 +227,112 @@ def test_enrich_unknown_calls_preserve_le_dept_existant(monkeypatch, tmp_path):
     assert entry['dept'] == '43'          # PAS perdu
     assert entry['locator'] == 'JN15XC'   # bien ajouté
     assert entry['country'] == 'France'
+
+
+# ─── RE-RÉSOLUTION EN MASSE ─────────────────────────────────────────────────
+import logx_storage as storage
+
+
+def _reset_bulk():
+    callbook._bulk_state.update(running=False, done=0, total=0, updated=0,
+                                 errors=0, started_at=None, finished_at=None)
+
+
+def test_bulk_resolve_remplit_les_locators_vides(monkeypatch):
+    _reset_bulk()
+    log = [
+        {'id': 1, 'call': 'F4ABC', 'locator': '', 'state': ''},
+        {'id': 2, 'call': 'F4ABC', 'locator': '', 'state': ''},
+    ]
+    monkeypatch.setattr(storage, 'shared_log', log)
+    calls_recus = []
+    def fake_lookup(call, cfg, shared_log=None):
+        calls_recus.append(call)
+        return {'ok': True, 'grid': 'JN18XX', 'state': ''}
+    monkeypatch.setattr(callbook, 'lookup', fake_lookup)
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
+
+    callbook._bulk_resolve_run(lambda: {}, ids=None, overwrite=False)
+
+    assert log[0]['locator'] == 'JN18XX' and log[1]['locator'] == 'JN18XX'
+    # DÉDUPLIQUÉ par indicatif : 2 QSO du même call = UN seul appel réseau.
+    assert calls_recus == ['F4ABC']
+    st = callbook.bulk_resolve_status()
+    assert st['updated'] == 2 and st['errors'] == 0 and not st['running']
+
+
+def test_bulk_resolve_ne_touche_pas_un_locator_deja_rempli_sans_overwrite(monkeypatch):
+    _reset_bulk()
+    log = [{'id': 1, 'call': 'F4ABC', 'locator': 'JN99ZZ', 'state': ''}]
+    monkeypatch.setattr(storage, 'shared_log', log)
+    monkeypatch.setattr(callbook, 'lookup', lambda call, cfg, shared_log=None:
+                        {'ok': True, 'grid': 'JN18XX', 'state': ''})
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
+
+    callbook._bulk_resolve_run(lambda: {}, ids=None, overwrite=False)
+
+    # QSO déjà résolu (locator ET state ni l'un ni l'autre vide n'existe ici,
+    # mais locator seul suffit à le sortir de la cible par défaut) — un QSO
+    # avec un locator réel n'a pas besoin d'écraser (state vide n'entre pas
+    # en jeu tant que overwrite=False force le remplissage du champ manquant
+    # SANS toucher au locator déjà bon).
+    assert log[0]['locator'] == 'JN99ZZ'   # inchangé
+
+
+def test_bulk_resolve_overwrite_remplace_une_valeur_existante(monkeypatch):
+    _reset_bulk()
+    log = [{'id': 1, 'call': 'F4ABC', 'locator': 'JN99ZZ', 'state': ''}]
+    monkeypatch.setattr(storage, 'shared_log', log)
+    monkeypatch.setattr(callbook, 'lookup', lambda call, cfg, shared_log=None:
+                        {'ok': True, 'grid': 'JN18XX', 'state': ''})
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
+
+    callbook._bulk_resolve_run(lambda: {}, ids=None, overwrite=True)
+
+    assert log[0]['locator'] == 'JN18XX'   # écrasé, overwrite=True
+
+
+def test_bulk_resolve_filtre_par_ids(monkeypatch):
+    _reset_bulk()
+    log = [
+        {'id': 1, 'call': 'F4ABC', 'locator': '', 'state': ''},
+        {'id': 2, 'call': 'F4XYZ', 'locator': '', 'state': ''},
+    ]
+    monkeypatch.setattr(storage, 'shared_log', log)
+    monkeypatch.setattr(callbook, 'lookup', lambda call, cfg, shared_log=None:
+                        {'ok': True, 'grid': 'JN18XX', 'state': ''})
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
+
+    callbook._bulk_resolve_run(lambda: {}, ids=[1], overwrite=False)
+
+    assert log[0]['locator'] == 'JN18XX'   # ciblé
+    assert log[1]['locator'] == ''         # PAS dans la liste d'IDs, intact
+
+
+def test_bulk_resolve_start_refuse_si_deja_en_cours(monkeypatch):
+    _reset_bulk()
+    monkeypatch.setattr(storage, 'shared_log', [])
+    callbook._bulk_state['running'] = True
+    ok, msg = callbook.bulk_resolve_start(lambda: {})
+    assert not ok and 'cours' in msg
+    _reset_bulk()
+
+
+def test_bulk_resolve_echec_lookup_compte_en_erreur_sans_modifier(monkeypatch):
+    _reset_bulk()
+    log = [{'id': 1, 'call': 'F4ABC', 'locator': '', 'state': ''}]
+    monkeypatch.setattr(storage, 'shared_log', log)
+    monkeypatch.setattr(callbook, 'lookup', lambda call, cfg, shared_log=None:
+                        {'ok': False, 'error': 'introuvable'})
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
+
+    callbook._bulk_resolve_run(lambda: {}, ids=None, overwrite=False)
+
+    assert log[0]['locator'] == ''
+    st = callbook.bulk_resolve_status()
+    assert st['updated'] == 0 and st['errors'] == 1
