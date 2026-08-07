@@ -4044,8 +4044,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # Radio CAT (natif / TCI / rigctld / flrig) : état courant — pollé par le logbook
+        # SO2R : la vue de la config suit le FOCUS, sinon l'état affiché reste
+        # celui de la radio 1 même après bascule sur la radio 2 (Ctrl+Espace).
         if path == '/rig/state':
-            self._json(_rig_state_dict(self._cfg_snapshot()))
+            import logx_so2r as so2r
+            self._json(_rig_state_dict(so2r.config_radio_active(self._cfg_snapshot())))
             return
 
         # Band map Search & Pounce : les stations que l'opérateur a entendues
@@ -4057,6 +4060,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_so2r as so2r
             etat = so2r.focus()
             etat['configure'] = so2r.parametres(self._cfg_snapshot())['enabled']
+            etat['tx'] = so2r.tx_actif()
             self._json(etat)
             return
 
@@ -4091,7 +4095,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # l'option "CI-V natif" doit apparaître dans le sélecteur de source.
         if path == '/rig/scope_available':
             import logx_cat as cat
-            self._json(cat.scope_civ_available(self._cfg_snapshot()))
+            import logx_so2r as so2r
+            self._json(cat.scope_civ_available(so2r.config_radio_active(self._cfg_snapshot())))
             return
 
         # Une ligne de spectre scope CI-V déjà réassemblée (475 pixels,
@@ -4101,7 +4106,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # une erreur serveur — même convention que /rig/state.
         if path == '/rig/scope_line':
             import logx_cat as cat
-            self._json(cat.scope_line(self._cfg_snapshot()))
+            import logx_so2r as so2r
+            self._json(cat.scope_line(so2r.config_radio_active(self._cfg_snapshot())))
             return
 
         # Panadapter TCI (3e source, après audio universel et scope CI-V
@@ -4111,7 +4117,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # dans le sélecteur de source.
         if path == '/rig/tci_spectrum_available':
             import logx_tci as tci
-            self._json(tci.tci_spectrum_available(self._cfg_snapshot()))
+            import logx_so2r as so2r
+            self._json(tci.tci_spectrum_available(so2r.config_radio_active(self._cfg_snapshot())))
             return
 
         # Une ligne de spectre TCI déjà calculée côté serveur (FFT pure
@@ -4121,7 +4128,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # même convention que /rig/scope_line et /rig/state.
         if path == '/rig/tci_spectrum_line':
             import logx_tci as tci
-            self._json(tci.tci_spectrum_line(self._cfg_snapshot()))
+            import logx_so2r as so2r
+            self._json(tci.tci_spectrum_line(so2r.config_radio_active(self._cfg_snapshot())))
             return
 
         # Détections de branchement en attente (watcher de fond, indice passif
@@ -4233,7 +4241,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Les 4 endpoints individuels restent disponibles tels quels (utilisés
         # aussi par logx_propagation.html/logx_scope.html).
         if path == '/hardware/state':
-            cfg_snap = self._cfg_snapshot()
+            import logx_so2r as so2r
+            # SO2R : seule la clé 'rig' dépend du focus (cat_* est remappé) —
+            # amp/wsjtx/rotor/pgxl ne lisent pas ces clés, le remap est donc
+            # sans effet pour eux, inutile de dupliquer cfg_snapshot().
+            cfg_snap = so2r.config_radio_active(self._cfg_snapshot())
             self._json({
                 'rig': _rig_state_dict(cfg_snap),
                 'amp': _amp_state_dict(cfg_snap),
@@ -5293,7 +5305,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # que les quatre backends fonctionnent sans savoir qu'il y a deux
             # radios. Sans SO2R configuré, la config ressort inchangée.
             import logx_so2r as so2r
-            cfg_snap = so2r.config_radio_active(self._cfg_snapshot())
+            # radio_active lu UNE SEULE FOIS, avant de dériver cfg_snap : la
+            # même valeur sert au remap de config ET au verrou TX, pour éviter
+            # qu'une bascule de focus concurrente (Ctrl+Espace pendant cette
+            # requête) ne fasse correspondre le verrou à une radio différente
+            # de celle réellement pilotée (revue adversariale 07/08/2026).
+            radio_active = so2r.focus()['focus']
+            cfg_snap = so2r.config_radio_active(self._cfg_snapshot(), radio=radio_active)
+            # Verrou d'exclusivité TX (Phase 0 SO2R) : la manip CW démarre une
+            # émission fire-and-forget (WinKeyer/CAT natif tiennent leur propre
+            # buffer, cette requête HTTP revient avant la fin réelle) — sans ce
+            # verrou, rien n'empêche d'armer la radio 2 pendant que la radio 1
+            # émet encore. QSY n'émet rien, non concerné. STOP relâche TOUJOURS
+            # la radio qui détient réellement le verrou (pas celle qui a le
+            # focus AU MOMENT du stop — un changement de focus entre l'armement
+            # et le clic sur ■ STOP laisserait sinon le verrou d'origine
+            # orphelin, bug trouvé en revue adversariale 07/08/2026).
+            if self.path == '/rig/cw':
+                verrou = so2r.verrouiller_tx(radio_active)
+                if not verrou['ok']:
+                    self._json(verrou, 409)
+                    return
+            elif self.path == '/rig/stop':
+                so2r.deverrouiller_tx(so2r.tx_actif()['radio'])
+
+            def _reponse_cw(res, status):
+                # Le verrou TX n'a de sens que tant qu'une émission est
+                # RÉELLEMENT en cours -- un refus (port fermé, backend qui ne
+                # sait pas manipuler...) ne doit jamais laisser l'AUTRE radio
+                # bloquée pour rien jusqu'au timeout de 120s. N'est appelée
+                # QUE depuis les branches /rig/cw (radio_active y est déjà
+                # défini) -- bug trouvé en revue adversariale 07/08/2026 :
+                # AUCUN chemin d'échec de /rig/cw ne relâchait le verrou.
+                if not res.get('ok'):
+                    so2r.deverrouiller_tx(radio_active)
+                self._json(res, status)
+
             # WinKeyer AVANT tout backend CAT, et quel que soit le mode : c'est
             # tout son intérêt. Il a son propre port et son propre processeur,
             # donc une cadence qui ne dépend pas du trafic CAT — et il est la
@@ -5305,12 +5352,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if wk.parametres(cfg_snap)['enabled']:
                     if self.path == '/rig/stop':
                         res = wk.arreter(cfg_snap)
+                        self._json(res, 200 if res.get('ok') else 400)
                     else:
                         res = wk.envoyer(cfg_snap, (json.loads(body) if body else {}).get('text', ''))
                         if res.get('ok'):
                             print(f"[WK] CW -> {str(res.get('text',''))[:60]} "
                                   f"({res.get('wpm')} mots/min)")
-                    self._json(res, 200 if res.get('ok') else 400)
+                        _reponse_cw(res, 200 if res.get('ok') else 400)
                     return
             import logx_cat as cat
             cat_settings = cat.cat_settings(cfg_snap)
@@ -5335,8 +5383,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import logx_rig as rig
                 settings = rig.rig_settings(cfg_snap)
                 if not settings['enabled']:
-                    self._json({'ok': False, 'error': 'Radio CAT désactivée — '
-                                'active-la dans CONFIG (mode expert, section RADIO)'}, 400)
+                    erreur = {'ok': False, 'error': 'Radio CAT désactivée — '
+                              'active-la dans CONFIG (mode expert, section RADIO)'}
+                    if self.path == '/rig/cw':
+                        _reponse_cw(erreur, 400)
+                    else:
+                        self._json(erreur, 400)
                     return
             try:
                 payload = json.loads(body) if body else {}
@@ -5392,27 +5444,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # avec un message qui nomme la cause et la solution.
                 if self.path == '/rig/stop':
                     res = cat.stop_cw(cfg_snap)
+                    self._json(res, 200 if res.get('ok') else 400)
                 else:
                     res = cat.send_cw(cfg_snap, payload.get('text', ''))
                     if res.get('ok'):
                         print(f"[RIG] CW natif -> {str(res.get('text',''))[:60]}")
-                self._json(res, 200 if res.get('ok') else 400)
+                    _reponse_cw(res, 200 if res.get('ok') else 400)
                 return
             elif use_flrig:
                 # flrig n'expose pas de méthode XML-RPC générique d'envoi CW fiable
                 # sans montage DTR/RTS supplémentaire (voir logx_flrig.py) — même
                 # choix que le mode natif.
-                self._json({'ok': False, 'error': 'Envoi CW non disponible en mode "flrig" — '
-                            'bascule en mode "Hamlib rigctld" ou "TCI" pour le keyer CW'}, 400)
+                erreur = {'ok': False, 'error': 'Envoi CW non disponible en mode "flrig" — '
+                          'bascule en mode "Hamlib rigctld" ou "TCI" pour le keyer CW'}
+                if self.path == '/rig/cw':
+                    _reponse_cw(erreur, 400)
+                else:
+                    self._json(erreur, 400)
                 return
             elif use_omnirig or use_flex or use_icomremote:
                 # Aucun des 3 : pas de commande d'envoi de texte CW documentée/
                 # exposée par ces modules (OmniRig ne fait que Tx=PM_TX/PM_RX,
                 # FlexRadio est volontairement hors périmètre, Icom-remote est
                 # désactivé par conception) — même refus propre que flrig.
-                self._json({'ok': False, 'error': 'Envoi CW non disponible dans ce mode CAT — '
-                            'utilise un manipulateur WinKeyer, ou bascule en mode '
-                            '"Hamlib rigctld" ou "TCI" pour le keyer CW'}, 400)
+                erreur = {'ok': False, 'error': 'Envoi CW non disponible dans ce mode CAT — '
+                          'utilise un manipulateur WinKeyer, ou bascule en mode '
+                          '"Hamlib rigctld" ou "TCI" pour le keyer CW'}
+                if self.path == '/rig/cw':
+                    _reponse_cw(erreur, 400)
+                else:
+                    self._json(erreur, 400)
                 return
             elif use_tci:
                 if self.path == '/rig/cw':
@@ -5427,7 +5488,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     print(f"[RIG] CW: {str(payload.get('text',''))[:40]}")
             else:
                 res = rig.stop_morse(settings['host'], settings['port'])
-            self._json(res, 200 if res.get('ok') else 502)
+            if self.path == '/rig/cw':
+                _reponse_cw(res, 200 if res.get('ok') else 502)
+            else:
+                self._json(res, 200 if res.get('ok') else 502)
             return
 
         # PTT explicite, sans passer par le keyer vocal (celui-ci enrobe
@@ -5438,12 +5502,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == '/rig/ptt':
             import logx_so2r as so2r
             import logx_voicekeyer as vk
-            cfg_snap = so2r.config_radio_active(self._cfg_snapshot())
+            # radio_active lu UNE SEULE FOIS, avant cfg_snap : évite qu'une
+            # bascule de focus concurrente entre les deux lectures ne fasse
+            # correspondre le verrou TX à une radio différente de celle
+            # réellement pilotée (revue adversariale 07/08/2026).
+            radio_active = so2r.focus()['focus']
+            cfg_snap = so2r.config_radio_active(self._cfg_snapshot(), radio=radio_active)
             try:
                 payload = json.loads(body) if body else {}
             except Exception:
                 payload = {}
-            res = vk.set_ptt(cfg_snap, bool(payload.get('on')))
+            on = bool(payload.get('on'))
+            if on:
+                verrou = so2r.verrouiller_tx(radio_active)
+                if not verrou['ok']:
+                    self._json(verrou, 409)
+                    return
+            res = vk.set_ptt(cfg_snap, on)
+            if not on or not res.get('ok'):
+                # PTT relâché (demande normale), ou PTT ON refusé par la radio :
+                # dans les deux cas, le verrou pris pour CETTE radio doit retomber.
+                so2r.deverrouiller_tx(radio_active)
             self._json(res, 200 if res.get('ok') else 400)
             return
 
@@ -5520,7 +5599,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif self.path == '/voice/delete':
                 res = vk.supprimer_message(slot)
             else:
-                res = vk.envoyer_message(self._cfg_snapshot(), slot)
+                import logx_so2r as so2r
+                # Verrou TX (Phase 0 SO2R) : emettre_wav() est bloquant (PTT
+                # ON -> lecture -> PTT OFF), donc englobable directement --
+                # contrairement au CW WinKeyer/natif, fire-and-forget.
+                radio_active = so2r.focus()['focus']
+                verrou = so2r.verrouiller_tx(radio_active)
+                if not verrou['ok']:
+                    self._json(verrou, 409)
+                    return
+                try:
+                    # radio_active déjà lu ci-dessus, repassé explicitement :
+                    # évite une SECONDE lecture indépendante du focus (revue
+                    # adversariale 07/08/2026).
+                    res = vk.envoyer_message(
+                        so2r.config_radio_active(self._cfg_snapshot(), radio=radio_active), slot)
+                finally:
+                    so2r.deverrouiller_tx(radio_active)
                 if res.get('ok'):
                     print(f"[RIG] Message vocal {slot} emis")
             self._json(res, 200 if res.get('ok') else 400)
@@ -5528,7 +5623,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if self.path == '/rig/voice':
             import logx_voicekeyer as vk
-            cfg_snap = self._cfg_snapshot()
+            import logx_so2r as so2r
+            # radio_active lu UNE SEULE FOIS, avant cfg_snap : évite qu'une
+            # bascule de focus concurrente entre les deux lectures ne fasse
+            # correspondre le verrou TX à une radio différente de celle
+            # réellement pilotée (revue adversariale 07/08/2026).
+            radio_active = so2r.focus()['focus']
+            cfg_snap = so2r.config_radio_active(self._cfg_snapshot(), radio=radio_active)
             try:
                 payload = json.loads(body) if body else {}
             except Exception:
@@ -5545,9 +5646,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # skip_ptt : réservé au bouton "Tester" de CONFIG (indicatif
             # fictif) — jamais envoyé par le déclenchement réel depuis le
             # logbook (logx_logbook.js), qui a besoin du PTT pour transmettre.
-            res = vk.send_voice_message(cfg_snap, text, lang=vk.message_lang(ctx),
-                                        skip_ptt=bool(payload.get('skip_ptt')),
-                                        segments=vk.expand_voice_segments(template, ctx))
+            skip_ptt = bool(payload.get('skip_ptt'))
+            # Verrou TX (Phase 0 SO2R) : pas d'émission réelle si skip_ptt
+            # (bouton "Tester" de CONFIG, indicatif fictif) -- rien à verrouiller.
+            if not skip_ptt:
+                verrou = so2r.verrouiller_tx(radio_active)
+                if not verrou['ok']:
+                    self._json(verrou, 409)
+                    return
+            try:
+                res = vk.send_voice_message(cfg_snap, text, lang=vk.message_lang(ctx),
+                                            skip_ptt=skip_ptt,
+                                            segments=vk.expand_voice_segments(template, ctx))
+            finally:
+                if not skip_ptt:
+                    so2r.deverrouiller_tx(radio_active)
             if res.get('ok'):
                 print(f"[RIG] Voix : {text[:60]}")
             self._json(res, 200 if res.get('ok') else 400)

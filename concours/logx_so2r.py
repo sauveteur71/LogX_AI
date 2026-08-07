@@ -30,6 +30,7 @@ spécification du protocole et vérifiées octet par octet, mais le premier essa
 sur du matériel reste à faire.
 """
 import threading
+import time
 
 try:
     import serial as _pyserial
@@ -213,12 +214,21 @@ def cle_radio_active():
         return '' if _focus == 1 else '2'
 
 
-def config_radio_active(cfg):
+def config_radio_active(cfg, radio=None):
     """Vue de la config vue par la radio qui a le focus : les clés cat2_* sont
     présentées sous leur nom cat_*, pour que tout le pilotage existant
-    fonctionne sans savoir qu'il y a deux radios."""
+    fonctionne sans savoir qu'il y a deux radios.
+
+    `radio` (1 ou 2, optionnel) : force la radio plutôt que de relire le focus
+    courant. À utiliser quand l'appelant a DÉJÀ lu `so2r.focus()` une fois
+    pour une même requête HTTP (ex. pour armer le verrou TX) — repasser cette
+    même valeur ici évite une SECONDE lecture indépendante de l'état de focus
+    partagé, qui pourrait diverger de la première si un `/so2r/focus`
+    concurrent bascule entre les deux (trouvé en revue adversariale
+    07/08/2026 : le verrou TX pouvait alors protéger une radio différente de
+    celle réellement pilotée par cette config)."""
     cfg = dict(cfg or {})
-    suffixe = cle_radio_active()
+    suffixe = ('' if radio == 1 else '2') if radio in (1, 2) else cle_radio_active()
     if not suffixe:
         return cfg
     for cle in ('cat_enabled', 'cat_mode', 'cat_brand', 'cat_model',
@@ -226,13 +236,96 @@ def config_radio_active(cfg):
         source = cle.replace('cat_', 'cat%s_' % suffixe, 1)
         if source in cfg:
             cfg[cle] = cfg[source]
+    # OmniRig (Phase 1, MVP logiciel-seul) : quel numero de radio COTE
+    # OMNIRIG (Rig1/Rig2) -- la radio 1 s'appelle omnirig_rig_num, pas
+    # cat_omnirig_rig_num, donc hors de la boucle generique ci-dessus. Sans
+    # ce remap, la radio 2 en mode OmniRig piloterait le MEME Rig1/Rig2 que
+    # la radio 1 (voir docs/ETUDE_SO2R.md, question ouverte #1 -- corrige ici).
+    if 'cat2_omnirig_rig_num' in cfg:
+        cfg['omnirig_rig_num'] = cfg['cat2_omnirig_rig_num']
+    # 'omnirig_enabled' est un second interrupteur "ceinture-et-bretelles"
+    # verifie par logx_omnirig.omnirig_settings() INDEPENDAMMENT de cat_mode
+    # -- mais logx_configuration.html ne le calcule QUE depuis cat_enabled/
+    # cat_mode de la RADIO 1 (jamais cat2_*). Sans cette ligne, la radio 2 en
+    # OmniRig (le mode recommande par l'UI pour la radio 2, cat_mode est lui
+    # bien remappe ci-dessus) se voit refuser tout pilotage avec "Pilotage
+    # OmniRig desactive (CONFIG)" des que la radio 1 n'est pas elle-meme en
+    # OmniRig -- bug critique trouve en revue adversariale (07/08/2026).
+    cfg['omnirig_enabled'] = (cfg.get('cat_mode') == 'omnirig'
+                               and str(cfg.get('cat_enabled', '')).strip()
+                               not in ('', '0', 'False', 'false'))
     return cfg
+
+
+# ─── Verrou d'exclusivité TX ─────────────────────────────────────────────────
+# Le focus (ci-dessus) route le PILOTAGE vers la bonne radio, mais ne garantit
+# rien : rien n'empêchait jusqu'ici d'armer un ordre d'émission (PTT/CW/voix)
+# sur la radio 2 pendant que la radio 1 est encore en train d'émettre. Un log
+# avec deux porteuses actives en même temps est disqualifiable dans la plupart
+# des règlements de concours (ex. CQ WW : « Only one transmitted signal is
+# permitted at any time ») — ce verrou logiciel réduit CE risque précis,
+# équivalent du « First One Wins » de N1MM+. Il ne protège PAS le matériel
+# (désensibilisation/dégât récepteur voisin) : ça reste hors de portée
+# logicielle, voir docs/ETUDE_SO2R.md §2.
+#
+# TX_LOCK_TIMEOUT_S : un verrou "collé" (radio déconnectée en cours
+# d'émission, plantage du keyer, opérateur qui ne relâche jamais explicitement
+# via /rig/stop) doit se libérer tout seul plutôt que bloquer l'opérateur
+# indéfiniment sur l'autre radio. 2 minutes dépasse largement un message DVK
+# (plafonné à 10 Mo PCM16, ~2 min à 44,1 kHz) ou une manip CW normale ; valeur
+# de départ ajustable si l'usage réel montre qu'elle est mal calibrée.
+TX_LOCK_TIMEOUT_S = 120
+
+_tx_lock = threading.Lock()
+_tx_radio = None    # 1 ou 2 : quelle radio est censée émettre, None si aucune
+_tx_armee_a = 0.0    # time.monotonic() au moment de l'armement
+
+
+def verrouiller_tx(radio):
+    """Arme le verrou d'exclusivité TX pour `radio` (1 ou 2), à appeler AVANT
+    tout ordre d'émission (PTT ON, envoi CW, message vocal). Refuse si l'AUTRE
+    radio est déjà armée et le verrou n'a pas expiré.
+
+    Auto-nettoyant : un verrou périmé (TX_LOCK_TIMEOUT_S dépassé) est traité
+    comme libre, pas besoin d'un déblocage manuel après un incident."""
+    global _tx_radio, _tx_armee_a
+    with _tx_lock:
+        maintenant = time.monotonic()
+        if (_tx_radio is not None and _tx_radio != radio
+                and (maintenant - _tx_armee_a) < TX_LOCK_TIMEOUT_S):
+            return {'ok': False, 'error':
+                    'Radio %d deja en emission (verrou TX exclusif) -- '
+                    'attends la fin ou %.0fs' %
+                    (_tx_radio, TX_LOCK_TIMEOUT_S - (maintenant - _tx_armee_a))}
+        _tx_radio = radio
+        _tx_armee_a = maintenant
+        return {'ok': True}
+
+
+def deverrouiller_tx(radio):
+    """Lève le verrou si `radio` le détient encore — jamais celui d'une AUTRE
+    radio (un relâchement tardif/en échec de la radio 1 ne doit pas effacer un
+    verrou fraîchement pris par la radio 2)."""
+    global _tx_radio
+    with _tx_lock:
+        if _tx_radio == radio:
+            _tx_radio = None
+
+
+def tx_actif():
+    """État courant du verrou, pour diagnostic (/so2r/state) — lecture seule."""
+    with _tx_lock:
+        return {'radio': _tx_radio,
+                'depuis_s': round(time.monotonic() - _tx_armee_a, 1) if _tx_radio else 0}
 
 
 def reinitialiser():
     """Remet l'état à neuf — utilisé par les tests."""
-    global _focus, _ecoute
+    global _focus, _ecoute, _tx_radio, _tx_armee_a
     with _lock:
         _focus = 1
         _ecoute = 'RX1S'
         _fermer_locked()
+    with _tx_lock:
+        _tx_radio = None
+        _tx_armee_a = 0.0

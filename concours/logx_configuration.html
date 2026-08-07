@@ -1507,6 +1507,16 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
             </select>
           </div>
           <div class="form-group">
+            <label>MODE DE PILOTAGE</label>
+            <select id="cat2_mode" onchange="updateCat2ModeVisibility()">
+              <option value="native">Natif (série)</option>
+              <option value="omnirig">OmniRig (composant COM Windows)</option>
+            </select>
+            <div class="input-note">Le CAT natif série ne peut piloter qu'UNE radio à la fois par connexion — pas de blocage en OmniRig, la voie recommandée pour la radio 2 tant qu'aucun boîtier OTRSP n'impose le CAT natif dual.</div>
+          </div>
+        </div>
+        <div class="form-row" id="cat2NativeFields">
+          <div class="form-group">
             <label>MARQUE</label>
             <select id="cat2_brand">
               <option value="">—</option>
@@ -1524,6 +1534,16 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           <div class="form-group">
             <label>VITESSE (bauds)</label>
             <input type="number" id="cat2_baudrate" placeholder="19200">
+          </div>
+        </div>
+        <div class="form-row" id="cat2OmnirigFields" style="display:none">
+          <div class="form-group">
+            <label>RIG OMNIRIG</label>
+            <select id="cat2_omnirig_rig_num">
+              <option value="1">Rig1</option>
+              <option value="2">Rig2</option>
+            </select>
+            <div class="input-note">Le numéro de radio configuré côté OmniRig pour la RADIO 2 — différent de celui choisi pour la radio 1 ci-dessus (fenêtre OmniRig → onglet Rig1/Rig2).</div>
           </div>
         </div>
         <div class="form-row">
@@ -3739,6 +3759,7 @@ async function init() {
   handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
   renderParcStation(); // Parc antennes/rotors/amplis (vide si jamais configuré)
   updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
+  updateCat2ModeVisibility(); // Radio 2 (SO2R)
   loadVoiceKeyerDevices();
   loadDxRecord();
   updateAmpFieldsVisibility(); refreshAmpPorts(); // Amplificateur HF
@@ -4157,6 +4178,18 @@ function updateCatModeVisibility(){
   document.getElementById('catOmnirigFields').style.display = mode === 'omnirig' ? '' : 'none';
   document.getElementById('catFlexFields').style.display = mode === 'flex' ? '' : 'none';
   document.getElementById('catIcomRemoteFields').style.display = mode === 'icom_remote' ? '' : 'none';
+}
+
+// SO2R Phase 1 (MVP logiciel-seul) : le CAT natif série est un singleton --
+// basculer le focus vers la radio 2 FERME la connexion à la radio 1, donc
+// natif est inutilisable en usage SO2R réel (écoute simultanée des deux
+// radios). OmniRig n'a pas ce verrou (voir docs/ETUDE_SO2R.md §3) : seuls
+// ces deux modes sont proposés pour la radio 2, pas les 5 autres backends de
+// la radio 1 (TCI/rigctld/flrig/flex/icom_remote restent hors périmètre).
+function updateCat2ModeVisibility(){
+  const mode = document.getElementById('cat2_mode').value;
+  document.getElementById('cat2NativeFields').style.display = mode === 'omnirig' ? 'none' : '';
+  document.getElementById('cat2OmnirigFields').style.display = mode === 'omnirig' ? '' : 'none';
 }
 
 function updateCatModelOptions(){
@@ -7372,10 +7405,11 @@ function saveConfig(silent = false, feedbackBtn = null) {
     voicekeyer_piper_exe: document.getElementById('voicekeyer_piper_exe')?.value.trim() || '',
     voicekeyer_piper_model: document.getElementById('voicekeyer_piper_model')?.value.trim() || '',
     cat2_enabled: document.getElementById('cat2_enabled')?.value || '',
-    cat2_mode: 'native',
+    cat2_mode: document.getElementById('cat2_mode')?.value || 'native',
     cat2_brand: document.getElementById('cat2_brand')?.value || '',
     cat2_port: document.getElementById('cat2_port')?.value.trim() || '',
     cat2_baudrate: parseInt(document.getElementById('cat2_baudrate')?.value, 10) || 0,
+    cat2_omnirig_rig_num: parseInt(document.getElementById('cat2_omnirig_rig_num')?.value, 10) || 1,
     so2r_enabled: document.getElementById('so2r_enabled')?.value || '',
     so2r_port: document.getElementById('so2r_port')?.value.trim() || '',
     so2r_stereo: document.getElementById('so2r_stereo')?.value || '1',
@@ -8077,7 +8111,7 @@ function applyFullConfigToForm(c) {
      'voicekeyer_ai_voice_id','voicekeyer_ai_api_key',
      'voicekeyer_piper_exe','voicekeyer_piper_model',
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
-     'cat2_enabled','cat2_brand','cat2_port','cat2_baudrate',
+     'cat2_enabled','cat2_mode','cat2_brand','cat2_port','cat2_baudrate','cat2_omnirig_rig_num',
      'so2r_enabled','so2r_port','so2r_stereo',
      'amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port',
      'relay_kind','relay_port','relay_baud','relay_host','relay_user','relay_password','relay_count'].forEach(k=>{
@@ -8134,6 +8168,7 @@ function applyFullConfigToForm(c) {
       document.getElementById('cat_mode').value = 'rigctld';
     }
     updateCatModeVisibility();
+    updateCat2ModeVisibility();
     if(c.voicekeyer_enabled) document.getElementById('voicekeyer_enabled').value = '1';
     if(c.voicekeyer_ai_enabled && document.getElementById('voicekeyer_ai_enabled'))
       document.getElementById('voicekeyer_ai_enabled').value = '1';
