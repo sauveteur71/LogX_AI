@@ -5943,7 +5943,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Deux formes de payload acceptées :
         #  - simple (historique) : {call, count} — comptage seul, pas de détail
         #    exportable en Cabrillo.
-        #  - détaillée (voir logx_logbook.js:saveQTCSeries) : {call, direction,
+        #  - détaillée (voir logx_qtc.js:saveQTCSeries) : {call, direction,
         #    band, mode, series_number, entries:[{time,call,nr}, ...]} — le
         #    détail réglementaire WAE (1 à 10 QSO rapportés), repris tel quel
         #    par logx_export.build_cabrillo pour générer les lignes "QTC:".
