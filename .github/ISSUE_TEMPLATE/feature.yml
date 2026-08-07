@@ -1,0 +1,56 @@
+name: "💡 Proposer une idée"
+description: >-
+  Une fonctionnalité qui manque, un réglage qui gagnerait à exister, une
+  amélioration de confort ? Ce formulaire guidé suffit.
+title: "[Idée] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre le temps de proposer cette idée ! Trois questions
+        simples suffisent — tu pourras relire le texte final avant de
+        l'envoyer.
+
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Quel besoin, sur le terrain ou en session ?
+      description: >-
+        Le contexte concret qui te manque aujourd'hui (ex. « en SO2R je dois
+        rebrancher le casque à la main », « aucun moyen d'exporter le log en
+        CSV pour mon club »). Pas besoin de proposer une solution technique —
+        décrire le problème suffit.
+      placeholder: >-
+        Exemple : pendant un concours, je perds du temps à chercher où se
+        trouve tel réglage dans CONFIG...
+    validations:
+      required: true
+
+  - type: textarea
+    id: idee
+    attributes:
+      label: Ton idée (si tu en as une)
+      description: >-
+        Comment tu imagines que ça pourrait marcher — un bouton, un réglage,
+        un comportement automatique... Optionnel, l'important est le besoin
+        ci-dessus.
+      placeholder: >-
+        Exemple : un raccourci clavier qui bascule directement sur ce panneau...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contexte
+    attributes:
+      label: Dans quel contexte utilises-tu LogX AI ?
+      description: Aide à situer la demande (une idée « radioclub » n'a pas le même poids qu'une idée « trafic courant »).
+      options:
+        - Trafic courant (chasse DX, sans concours)
+        - Concours
+        - Expédition / portable
+        - Radio-club (plusieurs postes)
+        - Je ne sais pas / plusieurs cas
+    validations:
+      required: true
