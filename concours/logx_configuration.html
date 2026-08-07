@@ -136,6 +136,30 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .ai-provider-name{font-size:13px;font-weight:700;color:var(--text)}
 .ai-provider-sub{font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
 .cat-modal-body{flex:1;overflow-y:auto;padding:20px 24px}
+/* Écran d'accueil (première visite uniquement) : réutilise le même overlay
+   plein écran que les popups de catégorie (.cat-modal) pour rester cohérent
+   visuellement, mais SANS bouton de fermeture — répondre ou "passer"
+   explicitement, jamais un clic accidentel sur le fond qui referme sans
+   rien avoir choisi (contrairement aux popups .cat-modal normales). */
+.onb-box{max-width:640px;margin:8vh auto;position:relative;inset:auto}
+.onb-intro{font-family:var(--font-mono);font-size:13px;color:var(--muted);line-height:1.7;padding:0 24px 6px}
+.onb-q-title{font-family:var(--font-display);font-size:15px;font-weight:900;color:var(--text);margin:18px 24px 10px;letter-spacing:.2px}
+.onb-choices{display:grid;gap:8px;margin:0 24px}
+.onb-choices.onb-choices-2{grid-template-columns:1fr 1fr}
+.onb-choice{text-align:left;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;
+  cursor:pointer;font-family:var(--font-mono);color:var(--text);transition:border-color .15s,background .15s}
+.onb-choice:hover{border-color:var(--accent2)}
+.onb-choice.selected{border-color:var(--accent2);background:rgba(var(--accent-rgb),.1)}
+.onb-choice-label{font-size:13px;font-weight:700}
+.onb-choice-sub{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4}
+.onb-footer{display:flex;align-items:center;gap:14px;padding:18px 24px 22px}
+.onb-skip{margin-left:auto;background:transparent;border:none;color:var(--muted);font-family:var(--font-mono);
+  font-size:12px;cursor:pointer;text-decoration:underline}
+.onb-skip:hover{color:var(--text)}
+.onb-start{background:linear-gradient(135deg,#00FF88,#C9822E);border:none;color:#0A0B18;font-weight:700;
+  border-radius:6px;padding:10px 20px;cursor:pointer;font-family:var(--font-mono);font-size:13px;transition:opacity .15s}
+.onb-start:disabled{opacity:.35;cursor:not-allowed}
+.onb-start:not(:disabled):hover{opacity:.85}
 /* Config à onglets (#4) : barre latérale de sections + décalage du popup. */
 .config-sidebar{display:none;position:fixed;top:6%;left:6%;bottom:6%;width:210px;z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow-y:auto;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .config-sidebar-title{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);padding:8px 10px 10px}
@@ -399,6 +423,58 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     <button class="profile-btn" onclick="loadProfile()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M1.5 4.5h5l1.5 2h8.5v8h-15z"/></svg> Charger</button>
     <button class="profile-btn save" onclick="saveProfile()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Sauvegarder</button>
     <button class="profile-btn del" onclick="deleteProfile()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6.5 5V3.3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V5"/><path d="M5 5.2l.8 9a1 1 0 0 0 1 .9h4.4a1 1 0 0 0 1-.9l.8-9"/><line x1="7.5" y1="7.7" x2="7.5" y2="12.3"/><line x1="10.5" y1="7.7" x2="10.5" y2="12.3"/></svg> Supprimer</button>
+  </div>
+
+  <!-- ÉCRAN D'ACCUEIL — première visite uniquement (voir maybeShowOnboarding()).
+       Deux questions, pas plus : le niveau (débutant/expert — jusque-là deviné
+       en silence via "un indicatif est-il déjà configuré ?") et l'usage visé
+       (mappé sur le sélecteur MODE D'UTILISATION juste en dessous, pas une
+       question redondante — on répond une fois, LogX AI le reporte). Le
+       bouton 🎚 DÉBUTANT/EXPERT de l'en-tête reste modifiable ensuite à tout
+       moment : ceci ne pose que le POINT DE DÉPART. -->
+  <div class="cat-modal" id="onboardingOverlay" style="display:none">
+    <div class="cat-modal-box onb-box">
+      <div class="cat-modal-head">
+        <svg viewBox="0 0 18 18" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2 2 5.5 9 9l7-3.5z"/><path d="M4.5 7.5V12c0 1 2 2 4.5 2s4.5-1 4.5-2V7.5"/></svg>
+        <span class="cat-modal-title">Bienvenue sur LogX AI</span>
+      </div>
+      <div class="cat-modal-body" style="padding:18px 0">
+        <div class="onb-intro">Deux questions rapides pour démarrer avec le bon réglage —
+          rien n'est figé, tout se change ensuite dans CONFIG.</div>
+
+        <div class="onb-q-title">1. Tu connais déjà un logiciel de log ou de concours ?</div>
+        <div class="onb-choices onb-choices-2" id="onbExperienceChoices">
+          <button type="button" class="onb-choice" onclick="onbPick('experience','non')">
+            <div class="onb-choice-label">Non, c'est nouveau pour moi</div>
+            <div class="onb-choice-sub">Réglages avancés masqués au départ — rien de perdu, juste rangé</div>
+          </button>
+          <button type="button" class="onb-choice" onclick="onbPick('experience','oui')">
+            <div class="onb-choice-label">Oui (N1MM+, Win-Test, DXLog...)</div>
+            <div class="onb-choice-sub">Accès direct à tous les réglages, y compris avancés</div>
+          </button>
+        </div>
+
+        <div class="onb-q-title">2. Qu'est-ce qui t'amène ?</div>
+        <div class="onb-choices" id="onbUsageChoices">
+          <button type="button" class="onb-choice" onclick="onbPick('usage','simple')">
+            <div class="onb-choice-label">📋 Trafic courant — chasse DX, sans concours</div>
+          </button>
+          <button type="button" class="onb-choice" onclick="onbPick('usage','contest')">
+            <div class="onb-choice-label">🏆 Concours — règlement, échange, scoring</div>
+          </button>
+          <button type="button" class="onb-choice" onclick="onbPick('usage','expedition')">
+            <div class="onb-choice-label">📡 Expédition / portable — pile-up, multi-poste</div>
+          </button>
+          <button type="button" class="onb-choice" onclick="onbPick('usage','radioclub')">
+            <div class="onb-choice-label">🏛️ Radio-club — plusieurs postes, opérateurs qui se relaient</div>
+          </button>
+        </div>
+      </div>
+      <div class="onb-footer">
+        <button type="button" class="onb-start" id="onbStartBtn" disabled onclick="submitOnboarding()">Commencer</button>
+        <button type="button" class="onb-skip" onclick="skipOnboarding()">Passer, je choisirai moi-même</button>
+      </div>
+    </div>
   </div>
 
   <!-- MODE D'UTILISATION : détermine si l'étape CONCOURS est nécessaire -->
@@ -3746,6 +3822,7 @@ async function loadSecretsFromServer(){
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 async function init() {
+  await maybeShowOnboarding(); // écran d'accueil (première visite) — résout tout de suite sinon
   applyUiMode(); // Mode débutant/expert (avant tout rendu)
   buildContestGrid();
   onProviderChange(); // Initialise le select modèle (Anthropic par défaut)
@@ -7875,6 +7952,60 @@ function updatePosteRowControls(){
   if(addBtn) addBtn.style.display = posteRowCount >= POSTE_ROW_CAP ? 'none' : '';
   if(rmBtn)  rmBtn.style.display  = posteRowCount <= 0 ? 'none' : '';
   if(note)   note.textContent = posteRowCount ? `${posteRowCount} / ${POSTE_ROW_CAP} postes` : '';
+}
+
+// ─── ÉCRAN D'ACCUEIL (première visite) ───────────────────────────────────────
+// Rend explicite ce que getUiMode() devinait jusque-là en silence (voir plus
+// bas) : deux questions, une seule fois, jamais reposées ensuite — répondre
+// (ou "passer") pose rc_ui_mode, qui sert justement de signal "déjà vu" (pas
+// besoin d'un second indicateur dans localStorage rien que pour ça).
+const _onbState = {experience: null, usage: null};
+let _onbResolve = null;
+
+function onbPick(kind, value){
+  _onbState[kind] = value;
+  const groupId = kind === 'experience' ? 'onbExperienceChoices' : 'onbUsageChoices';
+  document.querySelectorAll('#' + groupId + ' .onb-choice').forEach(function(btn, i){
+    // L'ORDRE des boutons dans le DOM suit celui des onclick ci-dessus —
+    // comparer au texte serait fragile aux traductions futures, comparer à
+    // l'index d'apparition ne l'est pas puisqu'il est fixé par ce même HTML.
+    btn.classList.toggle('selected', btn.getAttribute('onclick') === `onbPick('${kind}','${value}')`);
+  });
+  const startBtn = document.getElementById('onbStartBtn');
+  if (startBtn) startBtn.disabled = !(_onbState.experience && _onbState.usage);
+}
+
+function _closeOnboarding(){
+  const overlay = document.getElementById('onboardingOverlay');
+  if (overlay) overlay.style.display = 'none';
+  if (typeof _onbResolve === 'function') { const r = _onbResolve; _onbResolve = null; r(); }
+}
+
+function submitOnboarding(){
+  if (!(_onbState.experience && _onbState.usage)) return;   // bouton désactivé sinon, filet de sécurité
+  localStorage.setItem('rc_ui_mode', _onbState.experience === 'oui' ? 'expert' : 'simple');
+  const sel = document.getElementById('usage_mode');
+  if (sel) { sel.value = _onbState.usage; onUsageModeChange(); }
+  _closeOnboarding();
+}
+
+// "Passer" : ferme sans RIEN choisir explicitement — getUiMode() retombe sur
+// son heuristique existante (silencieuse) plutôt que de forcer une valeur.
+function skipOnboarding(){
+  _closeOnboarding();
+}
+
+// Résout dès que l'écran est fermé (répondu ou passé) — ou immédiatement si
+// rc_ui_mode existe déjà (visite précédente, ou heuristique déjà tranchée par
+// un ancien passage sur cette page avant l'ajout de cet écran).
+function maybeShowOnboarding(){
+  return new Promise(function(resolve){
+    if (localStorage.getItem('rc_ui_mode')) { resolve(); return; }
+    const overlay = document.getElementById('onboardingOverlay');
+    if (!overlay) { resolve(); return; }
+    _onbResolve = resolve;
+    overlay.style.display = 'flex';
+  });
 }
 
 // ─── MODE DÉBUTANT / EXPERT ──────────────────────────────────────────────────
