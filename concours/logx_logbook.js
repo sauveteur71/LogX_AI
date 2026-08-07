@@ -224,7 +224,7 @@ function itemsMenuLogbook(format){
   const grp = [];
   const avant = [];
   if(concours) avant.push(['✅', 'CHECKLIST', 'showChecklist']);
-  avant.push(['📂', 'IMPORTER un log (ADIF/Cabrillo)', 'triggerImport']);
+  avant.push(['📂', 'IMPORTER un log (ADIF — N1MM+, Win-Test, DXLog, Log4OM, Cloudlog, LoTW...)', 'triggerImport']);
   grp.push(['AVANT LA SESSION', avant]);
 
   const suivi = [['📊', 'STATS — rythme et répartition', 'showRatePanel'],

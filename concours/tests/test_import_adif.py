@@ -75,6 +75,74 @@ def test_commit_import_retourne_les_qso_neufs_avec_id():
     assert len(errors) == 2
 
 
+# ─── Import depuis d'AUTRES logiciels de log (N1MM+/Win-Test/DXLog/Log4OM) ────
+# Objectif produit (07/08/2026) : abaisser le coût de changer de logiciel —
+# le frein réel n'est presque jamais la qualité de LogX AI, c'est la peur de
+# perdre son historique. Ces tests figent le comportement sur des exports
+# construits pour reproduire des conventions RÉELLES de ces logiciels (pas
+# des ADIF génériques déjà couverts plus haut).
+
+def test_import_mode_ph_win_test_normalise_en_ssb():
+    """"PH" (convention Cabrillo, reprise par certains exports Win-Test) doit
+    être compris comme un synonyme de SSB — sinon le QSO importé porte un
+    mode que le reste de l'appli (filtres bande/mode, scoring, export
+    Cabrillo/ADIF) ne reconnaît pas comme de la phonie."""
+    adif = ("<CALL:5>DL1AA<BAND:3>20m<MODE:2>PH<QSO_DATE:8>20260101"
+            "<TIME_ON:4>1200<EOR>")
+    qsos, errors = imp.parse_adif_to_qsos(adif)
+    assert not errors
+    assert qsos[0]['mode'] == 'SSB'
+
+
+def test_import_mode_ph_ne_declenche_plus_lavertissement_mode_inconnu():
+    """Corollaire du test précédent : une fois normalisé en SSB (mode ADIF
+    officiel), ce QSO ne doit plus remonter dans mode_warnings — "PH" n'est
+    plus un mode "inconnu", c'est un synonyme reconnu."""
+    adif = ("<CALL:5>DL1AA<BAND:3>20m<MODE:2>PH<QSO_DATE:8>20260101"
+            "<TIME_ON:4>1200<EOR>")
+    p = imp.preview_import(adif, existing_log=[])
+    assert p['mode_warnings'] == []
+
+
+def test_import_dxlog_sans_tag_band_derive_depuis_freq():
+    """DXLog.net (comme d'autres) peut exporter FREQ sans le tag BAND — déjà
+    géré par _band_from_record (partagé avec logx_qsl), verrouillé ici du
+    point de vue de l'import complet plutôt que de la seule fonction bande."""
+    adif = ("<CALL:5>K1ABC<FREQ:6>14.250<MODE:3>SSB<QSO_DATE:8>20260101"
+            "<TIME_ON:4>1500<EOR>")
+    qsos, errors = imp.parse_adif_to_qsos(adif)
+    assert not errors
+    assert qsos[0]['band'] == '14'
+
+
+def test_import_n1mm_tags_proprietaires_app_preserves_dans_extra_fields():
+    """N1MM+ (et d'autres) ajoutent des tags APP_<PROGRAMME>_* propriétaires
+    dans leurs exports ADIF — ni mappés vers un champ interne connu, ni
+    perdus : préservés dans extra_fields pour un aller-retour fidèle."""
+    adif = ("<CALL:4>W1AW<BAND:3>40m<MODE:2>CW<QSO_DATE:8>20260101"
+            "<TIME_ON:4>0800<APP_N1MM_EXCHANGE1:3>599<APP_N1MM_RUN1RUN2:1>1"
+            "<PROGRAMID:4>N1MM<EOR>")
+    qsos, errors = imp.parse_adif_to_qsos(adif)
+    assert not errors
+    extras = qsos[0].get('extra_fields', {})
+    assert extras.get('APP_N1MM_EXCHANGE1') == '599'
+    assert extras.get('APP_N1MM_RUN1RUN2') == '1'
+    # PROGRAMID est explicitement mappé (_TAGS_MAPPES) : jamais dupliqué
+    # dans extra_fields.
+    assert 'PROGRAMID' not in extras
+
+
+def test_import_log4om_stx_srx_numeriques_sans_les_variantes_string():
+    """Certains logiciels (dont Log4OM selon la config) exportent STX/SRX
+    (entiers) plutôt que STX_STRING/SRX_STRING (texte) — les deux doivent
+    être lus, pas seulement la variante _STRING déjà testée plus haut."""
+    adif = ("<CALL:5>F4ABC<BAND:2>2m<MODE:3>SSB<QSO_DATE:8>20260101"
+            "<TIME_ON:4>0900<STX:3>012<SRX:3>034<EOR>")
+    qsos, errors = imp.parse_adif_to_qsos(adif)
+    assert not errors
+    assert qsos[0]['num_sent'] == '012' and qsos[0]['num_rcvd'] == '034'
+
+
 def test_commit_import_exclut_les_doublons_deja_dans_le_log():
     existing = [{'call': 'F5XXX', 'band': '14', 'mode': 'CW',
                 'date': '20260711', 'time': '0815'}]

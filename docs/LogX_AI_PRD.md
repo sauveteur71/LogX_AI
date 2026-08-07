@@ -280,7 +280,7 @@ Widget Time of Day (arc lever/coucher), graphe de rythme QSO/heure sur la sessio
 ### EV-6 — Exigences open-source public **(P0 pour la diffusion)**
 
 #### EV-6.1 Licence & gouvernance — *P0 · S*
-Choisir et appliquer une licence (recommandation à trancher : **GPLv3** — cohérent avec l'écosystème ham libre Tucnak/qxsl/Cloudlog — ou **MIT/Apache-2.0** si on veut maximiser la réutilisation). Ajouter `LICENSE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, gabarits d'issue/PR (`.github/`).
+**Tranché (07/08/2026) : GPLv3** — cohérent avec l'écosystème ham libre Tucnak/qxsl/Cloudlog, fichier `LICENSE` ajouté à la racine. Reste à faire : `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, gabarits d'issue/PR (`.github/`).
 
 #### EV-6.2 Contrats de données publics versionnés — *P0 · S · `contest_schema.json`*
 Publier `contest_schema.json` et le schéma QSO comme **contrats stables** avec numéro de version et politique de migration. C'est la fondation de l'interop tierce.
@@ -401,7 +401,7 @@ Documenter les endpoints locaux (`/data/*`, `/log/*`, `/rules/*`, `/data/spots`�
 ---
 
 ## 13. Questions ouvertes (à trancher)
-- **Licence** : GPLv3 (aligné écosystème ham libre) vs Apache-2.0 (réutilisation maximale) ? → impacte EV-6.
+- ~~**Licence**~~ : tranché le 07/08/2026 → **GPLv3**, voir EV-6.1.
 - **Transport du cloud sync** : quel mécanisme self-hostable (fichier partagé Synology déjà en place ? WebDAV ? petit service Git ? endpoint HTTP simple) ?
 - **Refactor frontend** : jusqu'où aller (ES modules seuls vs micro-framework léger type Preact/Alpine) sans trahir « HTML/JS natif » ?
 - **Signature exécutable** : budget certificat Windows / notarisation Apple ?

@@ -29,6 +29,16 @@ from logx_qsl import _parse_adif_records, _band_from_record
 # l'affichage. Couvre les préfixes/suffixes /P, /MM, F/DL1AA, etc.
 _CALL_RE = re.compile(r'^[A-Z0-9/]{2,15}$')
 
+# Synonymes de mode qu'un export ADIF d'un AUTRE logiciel peut porter sans
+# que ce soit un mode ADIF 3.1.7 officiel — "PH" (phonie) est la convention
+# Cabrillo, reprise telle quelle par certains exports Win-Test ; le reste de
+# LogX AI (filtres bande/mode, scoring, logx_export.CABRILLO_MODE qui fait
+# le trajet INVERSE SSB/USB/LSB/FM->PH pour l'export) suppose un mode ADIF
+# canonique en interne — laisser "PH" tel quel romprait ce filtrage sans
+# qu'aucune erreur ne le signale. Volontairement minimal : seule une
+# correspondance non ambiguë et documentée, pas une déduction hasardeuse.
+_MODE_SYNONYMES = {'PH': 'SSB'}
+
 # Tags ADIF explicitement mappés vers un champ interne ci-dessous — tout le
 # reste d'un record (ex. MY_RIG, COMMENT, un tag propriétaire d'un autre
 # logiciel) est préservé tel quel dans extra_fields plutôt que perdu en
@@ -103,7 +113,9 @@ def parse_adif_to_qsos(adif_text):
         qsos.append({
             'call': call,
             'band': band,
-            'mode': _clean_text((rec.get('MODE') or 'SSB').upper()) or 'SSB',
+            'mode': _MODE_SYNONYMES.get(
+                _clean_text((rec.get('MODE') or 'SSB').upper()) or 'SSB',
+                _clean_text((rec.get('MODE') or 'SSB').upper()) or 'SSB'),
             'date': _clean_date(rec.get('QSO_DATE')),
             'time': _adif_time(rec),
             'rst_sent': _clean_text(rec.get('RST_SENT')),

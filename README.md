@@ -55,7 +55,7 @@ LogX AI est développé bénévolement, avec l'aide d'un copilote IA (Claude, An
 
 ## Licence
 
-À définir (discussion en cours — voir [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md), §13).
+[GNU GPLv3](LICENSE) — cohérent avec l'écosystème radioamateur libre (Tucnak, qxsl). Le code reste et restera librement redistribuable et modifiable ; toute version dérivée diffusée doit rester elle aussi sous GPLv3.
 
 ## Contact
 
