@@ -3700,11 +3700,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/network_status':
             import logx_callbook as callbook
             import logx_cloudsync as cs
+            import logx_mysql_sync as mysql
             from logx_clusters import solar_status
             self._json({
                 'callbook': callbook.circuit_status(),
                 'solar': solar_status(),
                 'cloudsync': cs.status(self._cfg_snapshot()),
+                'mysql_sync': mysql.status(self._cfg_snapshot()),
             })
             return
 
@@ -4634,6 +4636,44 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
                 self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Synchro MySQL manuelle immédiate (voir aussi le thread de fond
+        # périodique, _mysql_sync_loop dans logx_serveur.py). Même motif que
+        # /cloudsync/now : les valeurs saisies mais pas encore enregistrées
+        # priment sur la config sauvegardée.
+        if self.path == '/mysql/now':
+            try:
+                import logx_mysql_sync as mysql
+                try:
+                    payload = json.loads(body) if body else {}
+                except Exception:
+                    payload = {}
+                cfg_now = self._cfg_snapshot()
+                for k in ('mysql_mode', 'mysql_host', 'mysql_port', 'mysql_user',
+                         'mysql_password', 'mysql_database'):
+                    if k in payload:
+                        cfg_now[k] = payload[k]
+                with log_lock:
+                    log_copy = list(shared_log)
+                res = mysql.sync_now(cfg_now, log_copy)
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Test de connexion MySQL éphémère (bouton CONFIG) — connecte, crée
+        # le schéma si absent, ferme.
+        if self.path == '/mysql/test':
+            import logx_mysql_sync as mysql
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            res = mysql.test_connection(
+                payload.get('host'), payload.get('port'), payload.get('user'),
+                payload.get('password'), payload.get('database'))
+            self._json(res, 200 if res.get('ok') else 400)
             return
 
         # Import des confirmations QSL (LoTW) → marque les QSO « confirmé ».

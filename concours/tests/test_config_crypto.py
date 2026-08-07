@@ -201,3 +201,13 @@ def test_sans_cryptography_dechiffrer_valeur_chiffree_renvoie_vide(monkeypatch):
 def test_liste_des_champs_secrets_non_vide_et_sans_doublon():
     assert len(crypto.SECRET_FIELDS) > 0
     assert len(crypto.SECRET_FIELDS) == len(set(crypto.SECRET_FIELDS))
+
+
+def test_mysql_password_dans_secret_fields():
+    """Correctif revue adversariale (feat/mysql-sync-radioclub) : le mot de
+    passe MySQL était absent de SECRET_FIELDS, contrairement à TOUS les
+    autres mots de passe du projet (qrz_password, eqsl_password, ...) — il
+    restait donc stocké EN CLAIR dans la config chiffrée. Assertion dédiée
+    pour qu'un futur champ '*_password' oublié dans cette liste ne puisse
+    plus se reproduire silencieusement."""
+    assert 'mysql_password' in crypto.SECRET_FIELDS

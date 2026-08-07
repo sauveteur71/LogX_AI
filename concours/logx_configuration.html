@@ -2020,6 +2020,55 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
+        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9" cy="4.5" rx="6" ry="2.2"/><path d="M3 4.5v9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2v-9"/><path d="M3 9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2"/></svg> MYSQL PARTAGÉ (radio-club, quasi temps réel)</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Comme Cloud Sync ci-dessus, mais via une VRAIE base MySQL partagée plutôt
+          qu'un dossier de fichiers — synchronisation plus rapide (toutes les 30 s)
+          et sans les limites d'un dossier cloud. Pensé pour un radio-club (plusieurs
+          opérateurs, un log de concours partagé), mais fonctionne aussi bien pour
+          deux postes d'un même radioamateur. Nécessite le paquet Python optionnel
+          <code>pymysql</code> (voir requirements.txt) et un serveur MySQL/MariaDB
+          déjà en place (la table est créée automatiquement au premier essai).
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>MODE</label>
+            <select id="mysql_mode" onchange="updateEnabledFieldsVisibility('mysql_mode',['mysql_host','mysql_port','mysql_user','mysql_password','mysql_database'],v=>v!=='off')">
+              <option value="off">Désactivé</option>
+              <option value="full">Synchronisation complète (lit + écrit)</option>
+              <option value="push">Envoi seul (écrit, ne récupère rien)</option>
+            </select>
+            <div class="input-note">Désactivé par défaut</div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE DU SERVEUR</label>
+            <input type="text" id="mysql_host" placeholder="192.168.1.10" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>PORT</label>
+            <input type="number" id="mysql_port" placeholder="3306">
+          </div>
+          <div class="form-group">
+            <label>UTILISATEUR</label>
+            <input type="text" id="mysql_user" placeholder="logx" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>MOT DE PASSE</label>
+            <input type="password" id="mysql_password" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>BASE DE DONNÉES</label>
+            <input type="text" id="mysql_database" placeholder="logxclub" autocomplete="off">
+            <div class="input-note">Doit être IDENTIQUE sur tous les postes qui synchronisent ensemble — la table y est créée automatiquement.</div>
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testMysqlConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
+          <button type="button" class="btn btn-secondary" onclick="mysqlSyncNow()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9" cy="4.5" rx="6" ry="2.2"/><path d="M3 4.5v9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2v-9"/><path d="M3 9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2"/></svg> SYNCHRONISER MAINTENANT</button>
+          <span id="mysqlTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+      <div class="section">
         <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> PUBLICATION MQTT (optionnelle)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Publie 3 informations simples vers un broker MQTT LOCAL (Mosquitto...)
@@ -2932,6 +2981,11 @@ const CONFIG_HELP = {
   cloudsync_mode: "FULL = ce poste envoie ET reçoit les QSO des autres postes ; PUSH = il envoie seulement (utile pour un poste isolé avec liaison intermittente) ; OFF = désactivé.",
   cloudsync_interval: "La fréquence (en minutes) à laquelle ce poste vérifie s'il y a de nouveaux QSO à échanger.",
   cloudsync_secret: "Optionnel. Sans lui, les fichiers cloudsync ne sont pas signés (rétro-compatible). Avec lui (même valeur sur tous les postes de l'équipe), chaque fichier déposé dans le dossier partagé est signé et vérifié (HMAC) — un tiers ayant accès à ce dossier (Dropbox/OneDrive/Synology partagé) ne peut plus en falsifier le contenu sans connaître ce jeton. À communiquer directement entre opérateurs, jamais par ce dossier.",
+  mysql_mode: "« Synchronisation complète » lit ET écrit (chaque poste voit les QSO des autres) ; « Envoi seul » écrit sans rien récupérer (utile pour un poste isolé qui alimente la base sans avoir besoin des QSO des autres).",
+  mysql_host: "Adresse IP ou nom d'hôte du serveur MySQL/MariaDB partagé.",
+  mysql_port: "Port du serveur MySQL — 3306 par défaut.",
+  mysql_user: "Identifiant MySQL avec droits de lecture/écriture sur la base indiquée.",
+  mysql_database: "Nom de la base de données — doit être identique sur tous les postes qui synchronisent ensemble. La table y est créée automatiquement au premier essai.",
   backup_folder: "Le dossier où les sauvegardes automatiques de ton log sont écrites — choisis un emplacement hors du dossier du logiciel (clé USB, cloud...).",
   backup_interval: "La fréquence (en minutes) des sauvegardes automatiques.",
   scoreboard_enabled: "Active la publication automatique de ton score en direct sur un tableau de bord en ligne, visible par d'autres.",
@@ -3571,7 +3625,7 @@ async function mergeExternalContests(){
 const SECRET_CONFIG_FIELDS = ['api_key', 'clublog_api_key', 'clublog_password',
   'eqsl_password', 'lan_sync_token', 'lotw_password', 'on4kst_password',
   'qrz_password', 'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
-  'cloudsync_secret', 'voicekeyer_ai_api_key'];
+  'cloudsync_secret', 'voicekeyer_ai_api_key', 'mysql_password'];
 
 // Ré-assainit un blob localStorage['logx_config'] écrit par une VERSION
 // ANTÉRIEURE du logiciel (avant ce correctif), qui pouvait encore contenir
@@ -3657,6 +3711,7 @@ async function init() {
   updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port']);
   updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
+  updateEnabledFieldsVisibility('mysql_mode', ['mysql_host','mysql_port','mysql_user','mysql_password','mysql_database'], v => v !== 'off');
   updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
   updateEnabledFieldsVisibility('telemetry_enabled', ['telemetry_endpoint']);
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
@@ -5349,6 +5404,71 @@ async function cloudsyncNow(){
     const r = await res.json();
     if(r.ok){
       result.textContent = `✅ ${r.pushed} QSO envoyés · ${r.pulled} récupérés` + (r.sources ? ` (${r.sources} autre(s) poste(s))` : '');
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
+}
+
+function _mysqlFieldsFromForm(){
+  return {
+    host: document.getElementById('mysql_host').value.trim(),
+    port: parseInt(document.getElementById('mysql_port').value, 10) || 3306,
+    user: document.getElementById('mysql_user').value.trim(),
+    password: document.getElementById('mysql_password').value,
+    database: document.getElementById('mysql_database').value.trim(),
+  };
+}
+
+async function testMysqlConnection(){
+  const result = document.getElementById('mysqlTestResult');
+  const f = _mysqlFieldsFromForm();
+  if (!f.host || !f.database){
+    result.textContent = '⚠️ Adresse et base de données requises';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/mysql/test', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(f)});
+    const r = await res.json();
+    if (r.ok){
+      result.textContent = `✅ Connecté (${r.qso_count} QSO déjà partagés)`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = `❌ Serveur injoignable : ${e.message}`;
+    result.style.color = 'var(--red)';
+  }
+}
+
+async function mysqlSyncNow(){
+  const result = document.getElementById('mysqlTestResult');
+  result.textContent = '⏳ synchronisation en cours…';
+  result.style.color = 'var(--muted)';
+  try{
+    // Même motif que cloudsyncNow() (correctif M6) : les champs saisis mais
+    // pas encore enregistrés priment sur la config sauvegardée.
+    const f = _mysqlFieldsFromForm();
+    const res = await fetch('/mysql/now', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        mysql_mode: document.getElementById('mysql_mode').value,
+        mysql_host: f.host, mysql_port: f.port, mysql_user: f.user,
+        mysql_password: f.password, mysql_database: f.database,
+      })});
+    const r = await res.json();
+    if (r.ok){
+      result.textContent = `✅ ${r.pushed} QSO envoyés · ${r.pulled} récupérés`;
       result.style.color = 'var(--green)';
     } else {
       result.textContent = `❌ ${r.error || 'échec'}`;
@@ -7121,6 +7241,12 @@ function saveConfig(silent = false, feedbackBtn = null) {
     cloudsync_folder: document.getElementById('cloudsync_folder').value.trim(),
     cloudsync_interval: _numClamped('cloudsync_interval', 3),
     cloudsync_secret: document.getElementById('cloudsync_secret').value,
+    mysql_mode: document.getElementById('mysql_mode').value,
+    mysql_host: document.getElementById('mysql_host').value.trim(),
+    mysql_port: parseInt(document.getElementById('mysql_port').value, 10) || 3306,
+    mysql_user: document.getElementById('mysql_user').value.trim(),
+    mysql_password: document.getElementById('mysql_password').value,
+    mysql_database: document.getElementById('mysql_database').value.trim(),
     rbn_enabled: document.getElementById('rbn_enabled').value,
     clublog_live: document.getElementById('clublog_live').value,
     expedition_mode: document.getElementById('expedition_mode').value,
@@ -7902,6 +8028,7 @@ function applyFullConfigToForm(c) {
      'qrz_logbook_key','qrz_logbook_push','sota_client_id',
      'scoreboard_enabled','scoreboard_interval','backup_folder','backup_interval',
      'cloudsync_mode','cloudsync_folder','cloudsync_interval','cloudsync_secret',
+     'mysql_mode','mysql_host','mysql_port','mysql_user','mysql_password','mysql_database',
      'rbn_enabled','clublog_live','expedition_mode',
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
@@ -8129,6 +8256,7 @@ function applyFullConfigToForm(c) {
     updateEnabledFieldsVisibility('amp_enabled', ['amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port']);
     updateEnabledFieldsVisibility('rotor_enabled', ['rotor_brand','rotor_model','rotor_proto','rotor_host','rotor_port']);
     updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
+    updateEnabledFieldsVisibility('mysql_mode', ['mysql_host','mysql_port','mysql_user','mysql_password','mysql_database'], v => v !== 'off');
     updateEnabledFieldsVisibility('mqtt_enabled', ['mqtt_host','mqtt_port','mqtt_topic_prefix']);
     updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
     updateEnabledFieldsVisibility('telemetry_enabled', ['telemetry_endpoint']);
