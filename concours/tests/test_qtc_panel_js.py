@@ -19,6 +19,10 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+# EV-7 : showQTCPanel()/closeQTCPanel()/saveQTCSeries() ont été extraites
+# vers ce fichier -- doit être chargé AVANT logx_logbook.js, même convention
+# que tests/test_cw_panel_consolidation.py.
+QTC_JS_PATH = os.path.join(BASE, 'logx_qtc.js')
 
 # ─── DOM minimal (voir tests/test_logbook_render_window_reset.py pour la
 # version commentée/complète de ce Proxy — copie volontairement réduite ici
@@ -99,6 +103,8 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
+    with open(QTC_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     return ctx
