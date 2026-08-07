@@ -46,7 +46,15 @@ HTML = os.path.join(CONCOURS, 'logx_logbook.html')
 # fichier précis. Voir test_chaque_entree_du_menu_pointe_sur_une_fonction_REELLE.
 JS_EXTRAITS_EV7 = [os.path.join(CONCOURS, n) for n in (
     'logx_filter_builder.js', 'logx_dup_finder.js',
-    'logx_bulk_resolve.js', 'logx_net_control.js')]
+    'logx_bulk_resolve.js', 'logx_net_control.js',
+    'logx_rate_panel.js')]
+
+
+def _lire_tout():
+    """logx_logbook.js + tous les fichiers extraits par EV-7 -- une fonction
+    du menu peut désormais vivre dans n'importe lequel (même portée globale,
+    <script> classique, voir les en-têtes des fichiers extraits)."""
+    return _lire(JS) + '\n'.join(_lire(p) for p in JS_EXTRAITS_EV7)
 
 
 def _lire(p):
@@ -126,7 +134,7 @@ def test_AUCUNE_COMMANDE_N_A_DISPARU_du_logiciel(fn):
     """Épurer ne doit pas amputer : chaque commande retirée de la barre reste
     atteignable par le menu, et sa fonction existe toujours."""
     assert fn in _fonctions(concours=True), fn
-    assert 'function %s(' % fn in _lire(JS), fn
+    assert 'function %s(' % fn in _lire_tout(), fn
 
 
 def test_chaque_entree_du_menu_pointe_sur_une_fonction_REELLE():
@@ -134,7 +142,7 @@ def test_chaque_entree_du_menu_pointe_sur_une_fonction_REELLE():
     parfaitement dessiné qui ne fait rien. La fonction peut vivre dans
     logx_logbook.js OU dans l'un des fichiers extraits par EV-7 (même portée
     globale, voir JS_EXTRAITS_EV7 ci-dessus)."""
-    src = _lire(JS) + '\n'.join(_lire(p) for p in JS_EXTRAITS_EV7)
+    src = _lire_tout()
     for fn in _fonctions(concours=True):
         assert 'function %s(' % fn in src, fn
 
