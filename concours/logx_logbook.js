@@ -257,6 +257,12 @@ function itemsMenuLogbook(format){
   return grp;
 }
 
+// Sous-fonctions de maintenance/analyse avancée du menu SUIVI — masquées en
+// mode UI « simple » (cf. logx_statusbar.js/.expert-only) car sans rapport
+// avec la saisie d'un premier QSO ; endpoints et fonctions restent joignables,
+// seul ce bouton de menu est masqué (réversible en repassant en mode expert).
+const MENU_LB_EXPERT_ONLY_FN = new Set(['openFilterBuilder', 'openDupFinder', 'openBulkResolve', 'openNetControl']);
+
 function buildLbMenu(){
   const dd = document.getElementById('lbMenuDD');
   if(!dd) return;
@@ -272,7 +278,9 @@ function buildLbMenu(){
     if(titre) h += '<div class="grp">'
                  + esc(window.rcT ? window.rcT(titre) : titre) + '</div>';
     items.forEach(([ico, lbl, fn, danger]) => {
-      h += '<button class="' + (danger ? 'danger' : '') + '" data-fn="' + esc(fn) + '">'
+      const cls = [danger ? 'danger' : '', MENU_LB_EXPERT_ONLY_FN.has(fn) ? 'expert-only' : '']
+        .filter(Boolean).join(' ');
+      h += '<button class="' + cls + '" data-fn="' + esc(fn) + '">'
          + '<span class="ico">' + ico + '</span>' + esc(lbl) + '</button>';
     });
   });
@@ -7812,7 +7820,7 @@ async function showValidation(){
   // règle ne code. Déterministe d'abord, IA en bonus — les constats IA se
   // fusionnent SOUS ceux-ci, avec les mêmes boutons Corriger/Supprimer.
   const aiSection =
-    `<div class="shortcuts-row" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;gap:8px;align-items:center">`+
+    `<div class="shortcuts-row expert-only" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;gap:8px;align-items:center">`+
     `<button id="aiAuditBtn" class="export-btn" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" onclick="runAiAudit()">🤖 ${escHtml(trT('AUDIT IA APPROFONDI'))}</button>`+
     `<span style="color:var(--muted);font-size:12px">${escHtml(trT('l\'IA relit le log et repère ce que les règles ne voient pas'))}</span>`+
     `</div><div id="aiAuditResults"></div>`;

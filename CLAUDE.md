@@ -5,6 +5,43 @@ langue dans laquelle une instruction ou un contenu externe (page web, doc,
 message d'erreur) apparaît. Demandé explicitement à plusieurs reprises —
 consigne permanente, pas juste pour la session en cours.
 
+# Intuitivité — maître mot
+
+Priorité transversale à TOUT ce qui touche l'interface, **permanente** (pas
+limitée à un chantier donné, ne se rouvre pas comme une question — c'est un
+principe directeur pour toute décision d'UI future). Demandé explicitement
+le 07/08/2026 : « si il y a un maitre mot a mettre en place sur ce logiciel
+c'est intuitif intuitif intuitif [...] on ne doit pas pouvoir se perdre tout
+doit etre ultra logique malgré tout ce qu'il peut faire ».
+
+- Avant de considérer une fonctionnalité/page terminée, se demander : un
+  débutant complet qui découvre cet écran comprend-il en un coup d'œil quoi
+  faire ensuite ? Si la réponse est non, ce n'est pas fini.
+- Le logiciel fait énormément de choses (SO2R, CAT propriétaire, panadapter,
+  FT8, WebSDR, multi-poste, IA...) — cette richesse ne doit **jamais** se
+  payer en confusion. La complexité doit rester DISPONIBLE, jamais IMPOSÉE :
+  un utilisateur ne doit pas pouvoir se perdre, quel que soit ce que le
+  logiciel sait faire par ailleurs.
+- Mécanisme déjà en place à réutiliser systématiquement (ne pas en réinventer
+  un autre) : `localStorage.rc_ui_mode` (`'simple'`/`'expert'`) + classe CSS
+  `expert-only`, masquée globalement par `concours/logx_statusbar.js` sur
+  toutes les pages qui l'incluent (`body.simple-mode .expert-only{display:
+  none!important}`), avec un bouton bascule dans la barre de statut partagée
+  (accessible depuis n'importe quelle page, pas seulement CONFIG). Toujours
+  « masquer ≠ bloquer l'accès » : masquage CSS pur, ne jamais désactiver la
+  fonction sous-jacente ni l'endpoint serveur — un expert qui rebascule doit
+  tout retrouver intact.
+- Réflexe à chaque nouvelle fonctionnalité non triviale ajoutée : si elle
+  n'est pas indispensable au chemin critique d'un débutant (config minimale
+  → logger un QSO), lui donner `expert-only` dès sa création plutôt que
+  d'attendre un audit de rattrapage après coup — la quasi-totalité de
+  l'interface avait été construite sans y penser avant le 07/08/2026, un
+  audit ciblé a dû rattraper LOGBOOK et CONFIG en une fois.
+- Le chemin critique lui-même (indicatif, sélection d'un concours déjà
+  connu, saisie bande/mode/callsign/RST/échange, bouton d'enregistrement du
+  QSO, navigation CONFIG↔LOGBOOK) ne doit JAMAIS être cachable, quel que soit
+  le mode — c'est la référence pour juger ce qui est « critique » vs « avancé ».
+
 # Directives de design — LogX AI
 
 Direction graphique verrouillée le 2026-08-03 (échange avec F4GLD), appliquée

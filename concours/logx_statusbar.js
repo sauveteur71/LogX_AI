@@ -174,6 +174,10 @@
     <div class="rcsb-item" title="Version de LogX AI installée — à indiquer en cas de bug">
       🏷️ <span class="rcsb-val" id="rcsbVersion">—</span>
     </div>
+    <div class="rcsb-item" id="rcsbUiModeItem" style="cursor:pointer"
+         title="Mode débutant/expert : masque ou affiche les réglages avancés dans toute l'appli (même bascule que le bouton 🎚 de CONFIG) — clic pour changer">
+      🎚 <span class="rcsb-val" id="rcsbUiModeLabel">—</span>
+    </div>
     <div class="rcsb-item" id="rcsbReportItem" style="cursor:pointer"
          title="Ouvre une Issue GitHub pré-remplie (version + plateforme) pour signaler un problème">
       🐛 <span class="rcsb-val">signaler un problème</span>
@@ -671,11 +675,32 @@
   // ── Mode débutant/expert GLOBAL (choisi dans CONFIG via 🎚) ────────────────
   // Toutes les pages masquent leurs éléments .expert-only en mode simple ;
   // la page config gère son propre défaut, ici on applique juste le choix.
-  if (localStorage.getItem('rc_ui_mode') === 'simple'){
+  function uiModeIsSimple(){ return localStorage.getItem('rc_ui_mode') === 'simple'; }
+  if (uiModeIsSimple()){
     document.body.classList.add('simple-mode');
     const st = document.createElement('style');
     st.textContent = 'body.simple-mode .expert-only{display:none!important}';
     document.head.appendChild(st);
+  }
+
+  // Bouton 🎚 de la barre (toutes pages) : même bascule que celui de CONFIG,
+  // pour ne pas obliger un retour sur CONFIG rien que pour changer de mode.
+  // Le libellé reflète l'état RÉELLEMENT appliqué juste au-dessus (=== 'simple'),
+  // pas l'heuristique de première visite de getUiMode() (logx_configuration.html,
+  // qui regarde logx_config.callsign tant que rc_ui_mode n'est pas encore posé) :
+  // tant que rc_ui_mode est absent, rien n'est masqué ici, donc le bouton doit
+  // afficher EXPERT plutôt que dupliquer cette heuristique et risquer d'annoncer
+  // un mode débutant qui ne masque en réalité rien sur la page.
+  function refreshUiModeLabel(){
+    const lbl = document.getElementById('rcsbUiModeLabel');
+    if (lbl) lbl.textContent = uiModeIsSimple() ? 'DÉBUTANT' : 'EXPERT';
+  }
+  function toggleUiMode(){
+    localStorage.setItem('rc_ui_mode', uiModeIsSimple() ? 'expert' : 'simple');
+    // Reload plutôt que réappliquer à chaud : réapplique .expert-only de façon
+    // fiable, y compris sur les éléments injectés dynamiquement ailleurs dans
+    // l'appli, avec le même chemin qu'un chargement de page normal.
+    location.reload();
   }
 
   // Insertion : après la nav si présente, sinon après le header, sinon en tête de body
@@ -1067,6 +1092,7 @@
 
   bar.addEventListener('click', function(e){
     if (e.target.closest('#rcsbReportItem')) openReportIssue();
+    if (e.target.closest('#rcsbUiModeItem')) toggleUiMode();
   });
 
   bar.addEventListener('click', function(e){
@@ -1401,6 +1427,7 @@
   // ── Boot ───────────────────────────────────────────────────────────────────
   function boot(){
     insert();
+    refreshUiModeLabel();   // après insert() : le span n'existe pas avant
     refreshContest(); refreshCountdown(); refreshSave();
     loadContestNames();
     refreshRules();
