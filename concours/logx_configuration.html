@@ -33,6 +33,20 @@ body.day-mode {
 body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 body.day-mode .card{background:var(--bg2);border-color:var(--border)}
 body.day-mode input,body.day-mode select,body.day-mode textarea{background:var(--bg2);color:var(--text)}
+/* Piège de spécificité CSS (retour F4GLD, capture d'écran) : les 3 sélecteurs
+   ci-dessus (body.day-mode input, etc.) sont MOINS spécifiques que
+   « .section input:not([type=checkbox]):not([type=radio]) » plus bas
+   (chaque :not() compte comme une classe) — celui-ci l'emportait donc
+   toujours, laissant le texte des champs en #E8ECFF (quasi blanc, pensé pour
+   le fond sombre) sur le fond clair du mode jour, illisible. !important
+   tranche sans avoir à dupliquer les :not() ici — même motif déjà utilisé
+   juste plus bas pour l'autofill (ligne ~213). */
+body.day-mode .section input:not([type=checkbox]):not([type=radio]),
+body.day-mode .section select{color:var(--text) !important}
+body.day-mode .form-group label{color:var(--text) !important}
+body.day-mode .header-sub,body.day-mode .band-group-title{color:var(--muted) !important}
+body.day-mode .folder-pick-btn{color:var(--text) !important;border-color:var(--border) !important}
+body.day-mode .toggle-btn{color:var(--muted) !important;border-color:var(--border) !important}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 /* Page « app » : nav, statusbar et barre d'étapes restent visibles,
@@ -190,6 +204,13 @@ body.usage-simple .usage-contest-only{display:none}
 .form-group.field-disabled input,.form-group.field-disabled select{cursor:not-allowed}
 .form-group label{font-size:14px;color:#BCC8F0;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
 .section input:not([type=checkbox]):not([type=radio]),.section select{background:var(--bg3);border:1px solid #2A3060;border-radius:8px;color:#E8ECFF;font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
+/* Retour F4GLD (capture d'écran) : un placeholder-exemple (ex. "F8TEST" sur
+   le champ de test du keyer vocal) se confondait visuellement avec une VRAIE
+   valeur saisie — les navigateurs atténuent le placeholder par défaut, mais
+   pas assez pour qu'on distingue clairement l'un de l'autre ici. Couleur
+   explicitement plus sourde (var(--muted)) que le texte réellement saisi,
+   dans les deux thèmes. */
+.section input::placeholder{color:var(--muted);opacity:.75}
 .section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(var(--accent-rgb),.15)}
 /* Correctif : sans l'exclusion ci-dessus, .section input visait AUSSI les
    case à cocher (type=checkbox est un <input>) — width:100% les étirait à
