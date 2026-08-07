@@ -11,6 +11,36 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta25] - 2026-08-07
+
+### Ajouté
+
+- **SO2R (deuxième radio)** : fiabilisation complète du focus existant
+  (8 endpoints supplémentaires suivent désormais la bascule Ctrl+Espace —
+  état radio, panadapter, keyer vocal), verrou logiciel d'exclusivité TX
+  (empêche d'armer une émission sur une radio pendant que l'autre émet),
+  MVP OmniRig pour la radio 2 (le CAT natif série reste limité à une seule
+  connexion à la fois), périphérique de sortie vocal et second décodeur CW
+  propres à la radio 2 (tourne en parallèle du premier). Revue adversariale
+  avant fusion de la partie verrou/focus : 4 bugs critiques trouvés et
+  corrigés (verrou jamais relâché sur un échec, verrou orphelin après
+  bascule de focus, fenêtre de course entre deux lectures du focus,
+  garde-fou OmniRig non remappé pour la radio 2).
+- **Licence GPLv3** : le code de LogX AI est désormais sous licence libre
+  GPLv3.
+- **Import ADIF durci** pour les exports d'autres loggers (N1MM+, Win-Test,
+  DXLog.net, Log4OM) : convention de mode `PH`→SSB, tags propriétaires
+  `APP_*` préservés, déduction de bande depuis la fréquence quand absente.
+- **Fiche comparative** face à N1MM Logger+, Win-Test, DXLog.net et Log4OM
+  V2 (`docs/COMPARATIF_CONCURRENTS.md`) et contenu prêt à l'emploi pour un
+  groupe d'entraide groups.io.
+
+### Corrigé
+
+- La fiche comparative affirmait à tort l'absence de support SO2R — corrigé
+  pour refléter l'état réel (logiciel + protocole OTRSP, jamais testé sur
+  un vrai boîtier).
+
 ## [0.9-beta24] - 2026-08-07
 
 ### Ajouté
