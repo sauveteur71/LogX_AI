@@ -117,11 +117,14 @@ def test_la_section_CONFIG_porte_le_nouveau_nom():
 def test_LES_MESSAGES_QUI_CITENT_LA_SECTION_ONT_SUIVI():
     """Piège déjà rencontré sur ce projet : renommer un libellé et laisser des
     messages qui renvoient à l'ancien. L'opérateur cherche alors dans CONFIG un
-    menu qui n'existe plus, et conclut que le logiciel ment."""
-    for f in ('logx_sota_spot.py', 'logx_logbook.js'):
-        src = _lire(f)
-        assert 'EXPÉDITION/ACTIVATION' not in src, f
-        assert 'EXPÉDITION/PORTABLE' in src, f
+    menu qui n'existe plus, et conclut que le logiciel ment.
+
+    EV-7 : le message SOTA qui cite la section (dans selfSpotSota()) a été
+    extrait de logx_logbook.js vers logx_popout_selfspot.js."""
+    for f in ('logx_sota_spot.py', 'logx_logbook.js', 'logx_popout_selfspot.js'):
+        assert 'EXPÉDITION/ACTIVATION' not in _lire(f), f
+    for f in ('logx_sota_spot.py', 'logx_popout_selfspot.js'):
+        assert 'EXPÉDITION/PORTABLE' in _lire(f), f
 
 
 def test_le_mot_DESACTIVATION_n_a_pas_ete_emporte():
