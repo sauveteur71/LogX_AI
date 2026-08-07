@@ -18,8 +18,11 @@ mécanisme par rapport à Cloud Sync :
     l'absence de vraie transaction) ;
   - écriture atomique par ligne (INSERT ... ON DUPLICATE KEY UPDATE, clé =
     id du QSO, même identité de fusion que Cloud Sync — id = Date.now() côté
-    client, voir logx_storage.reserve_qso_id_locked) : deux postes qui
-    écrivent au même instant ne se marchent jamais dessus, MySQL le garantit ;
+    client, voir logx_storage.reserve_qso_id_locked) : MySQL garantit que
+    l'écriture d'UNE ligne reste atomique (jamais de ligne à moitié écrite
+    entre deux postes qui pushent au même instant) — mais PAS que deux postes
+    visent forcément des lignes DIFFÉRENTES pour deux QSO différents, voir la
+    limite assumée ci-dessous ;
   - une suppression se propage par une simple colonne `deleted_at` plutôt
     que des fichiers de tombstones séparés avec anti-résurrection.
 
@@ -28,12 +31,30 @@ du projet — voir requirements.txt) : import protégé par HAS_PYMYSQL, comme
 HAS_PYSERIAL/HAS_CRYPTOGRAPHY/HAS_PAHO ailleurs dans ce projet. Son absence
 ne doit jamais empêcher LogX AI de démarrer ni de fonctionner sans MySQL.
 
-Limite assumée : les horodatages `updated_at`/`deleted_at` sont posés côté
-CLIENT (time.time() du poste qui écrit), pas par MySQL (NOW() serveur) — une
-dérive d'horloge notable entre deux postes pourrait retarder la propagation
-d'une correction/suppression d'un cycle. Acceptable pour un radio-club sur le
-même réseau local (horloges généralement proches), documenté ici plutôt que
-"résolu" par une synchronisation d'horloge hors de portée de ce module."""
+Limites assumées :
+  - les horodatages `updated_at`/`deleted_at` sont posés côté CLIENT
+    (time.time() du poste qui écrit), pas par MySQL (NOW() serveur) — une
+    dérive d'horloge notable entre deux postes pourrait retarder la
+    propagation d'une correction/suppression d'un cycle. Acceptable pour un
+    radio-club sur le même réseau local (horloges généralement proches),
+    documenté ici plutôt que "résolu" par une synchronisation d'horloge hors
+    de portée de ce module ;
+  - même choix d'architecture que logx_cloudsync.py, qui a EXACTEMENT la
+    même limite et la documente tout aussi honnêtement plutôt que de
+    prétendre le contraire : l'id du QSO est posé par le CLIENT (Date.now()
+    en millisecondes) SANS aucun sel par poste ni coordination inter-poste —
+    logx_storage.reserve_qso_id_locked ne garantit l'unicité que LOCALEMENT,
+    par rapport au shared_log du poste qui écrit. Si deux postes PHYSIQUES
+    différents créent chacun un QSO à la MÊME milliseconde, ils produisent le
+    même id ; comme la table MySQL a id pour clé primaire, le second push
+    écrase silencieusement le premier (data=VALUES(data)) — deux QSO réels
+    distincts fusionnent alors en une seule ligne. Ce n'est PAS un cas où
+    MySQL protège quoi que ce soit : la garantie d'atomicité ci-dessus porte
+    sur l'écriture d'une ligne, pas sur le fait que deux QSO distincts
+    obtiennent des lignes distinctes. Probabilité très faible en usage
+    radio-club réel, non résolue ici — un changement de schéma d'id (salage
+    par poste) toucherait aussi logx_cloudsync.py et est hors de portée de
+    ce module."""
 import json
 import os
 import threading
@@ -57,9 +78,20 @@ DEFAULT_PORT = 3306
 # MySQL peut rester bloquée bien au-delà de tout timeout socket si le serveur
 # est injoignable via un chemin réseau anormal (DNS lent, pare-feu qui laisse
 # traîner la connexion) — toute la synchronisation tourne donc dans un thread
-# jetable dont on borne l'ATTENTE, jamais le socket lui-même.
+# jetable dont on borne l'ATTENTE (SYNC_TIMEOUT côté appelant). Ça ne suffit
+# PAS à soi seul : .result(timeout=SYNC_TIMEOUT) abandonne seulement l'ATTENTE
+# du thread appelant, il n'annule jamais le worker en cours — un gel réseau
+# SILENCIEUX survenant APRÈS l'établissement de la connexion (pare-feu qui
+# laisse traîner la connexion TCP sans la couper) bloquerait alors
+# cur.execute()/fetchall() indéfiniment, gardant _sync_serial_lock acquis
+# pour toujours. D'où SOCKET_TIMEOUT ci-dessous, passé à pymysql en
+# read_timeout/write_timeout : lui borne le SOCKET lui-même, pas seulement
+# l'attente de l'appelant. Fixé légèrement SOUS SYNC_TIMEOUT pour que le
+# socket lâche avant que l'appelant abandonne (sinon le worker resterait
+# bloqué plus longtemps que ce que sync_now() a déjà signalé comme échoué).
 SYNC_TIMEOUT = 12
 CONNECT_TIMEOUT = 5
+SOCKET_TIMEOUT = 10
 _SYNC_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=3, thread_name_prefix='mysqlsync')
 
 # Une seule synchronisation à la fois (même motif que _sync_serial_lock de
@@ -98,10 +130,15 @@ def mysql_settings(cfg):
 def _connect(s, connect_timeout=CONNECT_TIMEOUT):
     if not HAS_PYMYSQL:
         raise RuntimeError("pymysql n'est pas installé — pip install pymysql")
+    # read_timeout/write_timeout : sans eux pymysql laisse le socket sans
+    # AUCUNE limite après la connexion (None par défaut) — voir le
+    # commentaire sur SOCKET_TIMEOUT ci-dessus, un gel réseau après connexion
+    # bloquerait sinon cur.execute()/fetchall() indéfiniment.
     return _pymysql_mod.connect(
         host=s['host'], port=s['port'], user=s['user'], password=s['password'],
-        database=s['database'], connect_timeout=connect_timeout, autocommit=True,
-        charset='utf8mb4')
+        database=s['database'], connect_timeout=connect_timeout,
+        read_timeout=SOCKET_TIMEOUT, write_timeout=SOCKET_TIMEOUT,
+        autocommit=True, charset='utf8mb4')
 
 
 def _ensure_schema(conn):
@@ -222,9 +259,15 @@ def _sync_now_locked(cfg, shared_log):
         # ── PUSH : chaque QSO local, INSERT ... ON DUPLICATE KEY UPDATE sur
         # id — comme logx_cloudsync réécrit tout son fichier à chaque cycle
         # (le log d'un contest tient sur quelques milliers de lignes, pas
-        # besoin de suivi différentiel). deleted_at=NULL : un push ne
-        # ressuscite jamais un QSO marqué supprimé par un autre poste tant
-        # qu'il ne l'écrase pas explicitement (voir la clause WHERE).
+        # besoin de suivi différentiel). La clause UPDATE ne touche PAS
+        # deleted_at : ce poste garde encore ce QSO dans son shared_log local
+        # (il n'a peut-être pas encore pull la suppression faite par un autre
+        # poste), donc un push routinier ne doit jamais pouvoir écraser un
+        # tombstone posé entre-temps par quelqu'un d'autre — ça ressusciterait
+        # silencieusement une suppression et bloquerait sa propagation tant
+        # que CE poste garde le QSO en mémoire. Il n'existe aucune
+        # fonctionnalité de restauration d'un QSO supprimé ailleurs dans
+        # l'appli : rien ne dépend d'un push qui réinitialiserait deleted_at.
         pushed = 0
         if local:
             with conn.cursor() as cur:
@@ -236,7 +279,7 @@ def _sync_now_locked(cfg, shared_log):
                         f"INSERT INTO {TABLE} (id, data, updated_at, deleted_at, source) "
                         f"VALUES (%s, %s, %s, NULL, %s) "
                         f"ON DUPLICATE KEY UPDATE data=VALUES(data), updated_at=VALUES(updated_at), "
-                        f"deleted_at=NULL, source=VALUES(source)",
+                        f"source=VALUES(source)",
                         (int(qid), json.dumps(q), now, s['source']))
                     pushed += 1
 
@@ -275,13 +318,28 @@ def _sync_now_locked(cfg, shared_log):
             # Suppressions distantes d'abord (même ordre que logx_cloudsync :
             # une correction ET une suppression du même id dans le même cycle
             # doit gagner par la suppression, la plus sûre des deux).
+            # Appariement par (id, clé call+band+mode+date+heure) — jamais par
+            # id seul (même patron que logx_cloudsync._sync_now_locked /
+            # remote_pairs) : l'id est Date.now() côté client SANS coordination
+            # inter-poste (voir logx_storage.reserve_qso_id_locked, unicité
+            # locale seulement), donc deux postes différents peuvent produire
+            # le même id à la même milliseconde pour deux QSO distincts — une
+            # suppression appliquée par id seul supprimerait alors à tort le
+            # QSO LOCAL d'un poste qui n'a rien à voir. Une ligne dont le JSON
+            # est corrompu/illisible ne supprime rien (cohérent avec le
+            # traitement déjà tolérant des added_rows corrompues plus bas).
             if deleted_rows:
-                remote_deleted_ids = {int(r[0]) for r in deleted_rows}
+                remote_deleted_pairs = set()
+                for r in deleted_rows:
+                    try:
+                        remote_deleted_pairs.add((int(r[0]), _qso_key(json.loads(r[1]))))
+                    except Exception:
+                        continue
                 removed = []
                 with http.log_lock:
                     keep = []
                     for q in http.shared_log:
-                        if q.get('id') in remote_deleted_ids:
+                        if (q.get('id'), _qso_key(q)) in remote_deleted_pairs:
                             removed.append(q)
                         else:
                             keep.append(q)
