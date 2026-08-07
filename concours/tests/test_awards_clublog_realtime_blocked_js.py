@@ -22,6 +22,11 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+# EV-7 : showAwards() (et ses render* associés) a été extraite vers ce
+# fichier -- ajoutée par _real_source() UNIQUEMENT pour la révision courante
+# (rev=None). Au commit historique rejoué ci-dessous (1720e6b), showAwards()
+# vivait encore dans logx_logbook.js : ce fichier n'existait pas à l'époque.
+AWARDS_JS_PATH = os.path.join(BASE, 'logx_awards.js')
 
 # ─── DOM minimal (Proxy permissif, voir tests/test_logbook_render_window_reset.py
 # pour la version commentée de ce Proxy) ──────────────────────────────────────
@@ -98,12 +103,17 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 
 
 def _real_source(rev=None):
-    """Source réelle de logx_logbook.js : HEAD (fichier sur disque) par
-    défaut, ou `rev` pour rejouer le scénario tel qu'il était à ce commit
-    (ex. 1720e6b, avant ce fix — clublog_realtime_blocked jamais affiché)."""
+    """Source réelle de logx_logbook.js (+ logx_awards.js, où EV-7 a déplacé
+    showAwards) : HEAD (fichiers sur disque) par défaut, ou `rev` pour
+    rejouer le scénario tel qu'il était à ce commit (ex. 1720e6b, avant ce
+    fix — clublog_realtime_blocked jamais affiché ; à ce commit, showAwards()
+    vivait encore dans logx_logbook.js seul, logx_awards.js n'existait pas)."""
     if rev is None:
         with open(JS_PATH, encoding='utf-8') as f:
-            return f.read()
+            src = f.read()
+        with open(AWARDS_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        return src
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)
