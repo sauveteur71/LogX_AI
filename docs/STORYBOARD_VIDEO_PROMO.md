@@ -97,6 +97,12 @@ serveur TCI — sans matériel supplémentaire pour la version audio. »
 « À droite, le log en direct — recherche, filtres par bande, export en un
 clic. Le bouton CARTE bascule sur une carte de tous vos QSO de la session. »
 
+*(Optionnel : cliquer la loupe dans la barre de navigation, taper un mot-clé)*
+
+« Et si vous ne savez plus où se trouve un réglage précis — un simple mot
+tapé dans la recherche de la nav retrouve la bonne page et le bon passage,
+sans devoir connaître le logiciel par cœur. »
+
 ### 2d. Bandeau du bas — keyer
 
 *(Basculer en mode CW si possible, sinon montrer le keyer vocal en SSB)*
@@ -204,9 +210,10 @@ ne part sur l'air, tout reste dans le casque. »
 
 « Plusieurs postes du shack — PC, tablette, téléphone — rejoignent le même
 log en ouvrant une simple adresse WiFi, sans rien installer. Jusqu'à
-quarante opérateurs en mode radioclub. Et un écran mural à projeter : le
-flux des QSO en direct, visible depuis la salle pendant que les copains
-regardent. »
+quarante opérateurs en mode radioclub. Pour un radio-club avec ses propres
+serveurs, la synchronisation peut aussi passer par une base MySQL partagée,
+quasi temps réel. Et un écran mural à projeter : le flux des QSO en direct,
+visible depuis la salle pendant que les copains regardent. »
 
 ---
 
@@ -225,11 +232,16 @@ ClubLog, QRZCQ, HRDLog. »
 **Écran** : page de téléchargement GitHub, ou le README.
 
 « Un seul fichier à télécharger, aucune installation, aucun compte. Vos
-données restent chez vous. LogX AI est gratuit, développé par un
-radioamateur pour la communauté — et vos retours font le logiciel. »
+données restent chez vous. LogX AI est gratuit, sous licence libre GPLv3 —
+le code reste ouvert et le restera. Vous venez de N1MM+, Win-Test, DXLog ou
+Log4OM ? Votre historique s'importe en un clic, sans rien ressaisir.
+Développé par un radioamateur pour la communauté — et vos retours font le
+logiciel. »
 
 **Texte à l'écran (fin)** :
 - Téléchargement : lien GitHub / dernière release
+- Wiki / guide utilisateur : lien
+- Logiciel libre — GPLv3
 - 73 !
 
 ---
@@ -246,6 +258,7 @@ changé depuis :
 | Bandes | 17, de 1,8 MHz à 47 GHz |
 | Langues de l'interface | 8 |
 | Abonnement / compte / cloud obligatoire | 0 |
+| Licence | GPLv3 — code source ouvert |
 
 ---
 
