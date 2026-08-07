@@ -32,6 +32,9 @@ import logx_awards as aw   # noqa: E402
 PAGE = os.path.join(CONCOURS, 'logx_bande.html')
 JS = os.path.join(CONCOURS, 'logx_logbook.js')
 HTML = os.path.join(CONCOURS, 'logx_logbook.html')
+# EV-7 : popoutBandes() a été extraite vers ce fichier -- les tests qui
+# lisent son corps ci-dessous doivent le chercher ici, plus dans JS.
+POPOUT_SELFSPOT_JS = os.path.join(CONCOURS, 'logx_popout_selfspot.js')
 
 
 def _lire(p):
@@ -181,7 +184,7 @@ def test_le_point_d_entree_existe_et_appelle_la_fonction():
         'la version du logbook doit rester privilegiee : elle connait les '
         'bandes REELLEMENT visibles')
     assert 'logx_bande.html' in barre, 'repli hors logbook'
-    assert 'function popoutBandes(' in _lire(JS)
+    assert 'function popoutBandes(' in _lire(POPOUT_SELFSPOT_JS)
 
 
 @pytest.mark.parametrize('ecran', ['scope', 'mur', 'bandes'])
@@ -197,7 +200,7 @@ def test_les_bandes_viennent_de_la_VRAIE_variable():
     garde `typeof` retombait alors TOUJOURS sur une liste en dur, sans que
     rien ne le signale — l'opérateur aurait eu des fenêtres 1,8 MHz en
     concours THF."""
-    src = _lire(JS)
+    src = _lire(POPOUT_SELFSPOT_JS)
     bloc = src[src.index('function popoutBandes('):]
     bloc = bloc[:bloc.index('\n}')]
     assert '_currentVisibleBands' in bloc
@@ -207,7 +210,7 @@ def test_les_bandes_viennent_de_la_VRAIE_variable():
 
 
 def test_aucune_bande_active_le_DIT_au_lieu_d_ouvrir_au_hasard():
-    src = _lire(JS)
+    src = _lire(POPOUT_SELFSPOT_JS)
     bloc = src[src.index('function popoutBandes('):]
     bloc = bloc[:bloc.index('\n}')]
     assert 'notify(' in bloc
@@ -216,7 +219,7 @@ def test_aucune_bande_active_le_DIT_au_lieu_d_ouvrir_au_hasard():
 def test_les_fenetres_ne_se_superposent_pas():
     """Ouvertes au même endroit, elles seraient indiscernables — l'opérateur
     croirait que le bouton n'a ouvert qu'une fenêtre."""
-    src = _lire(JS)
+    src = _lire(POPOUT_SELFSPOT_JS)
     bloc = src[src.index('function popoutBandes('):]
     bloc = bloc[:bloc.index('\n}')]
     assert 'left=' in bloc and 'top=' in bloc
@@ -225,7 +228,7 @@ def test_les_fenetres_ne_se_superposent_pas():
 def test_chaque_bande_a_son_propre_nom_de_fenetre():
     """Un nom commun ferait que chaque ouverture RÉUTILISE la même fenêtre :
     on croirait que seule la dernière bande s'ouvre."""
-    src = _lire(JS)
+    src = _lire(POPOUT_SELFSPOT_JS)
     bloc = src[src.index('function popoutBandes('):]
     bloc = bloc[:bloc.index('\n}')]
     assert "'rc_bande_'" in bloc

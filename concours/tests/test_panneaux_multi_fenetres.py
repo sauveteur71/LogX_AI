@@ -40,6 +40,9 @@ if CONCOURS not in sys.path:
 
 STATUSBAR = os.path.join(CONCOURS, 'logx_statusbar.js')
 LOGBOOK_JS = os.path.join(CONCOURS, 'logx_logbook.js')
+# EV-7 : popoutScope() a été extraite vers ce fichier -- les 2 tests qui
+# lisent son corps ci-dessous doivent le chercher ici, plus dans LOGBOOK_JS.
+POPOUT_SELFSPOT_JS = os.path.join(CONCOURS, 'logx_popout_selfspot.js')
 
 
 def _lire(p):
@@ -237,7 +240,7 @@ def test_le_bandscope_a_UN_NOM_DE_FENETRE_PAR_BANDE():
     """popoutScope() utilisait « rc_scope » en dur : détacher le bandscope sur
     une 2e bande faisait changer de bande le premier au lieu d'en ouvrir un
     second. Surveiller 20 m et 2 m côte à côte était impossible."""
-    src = _lire(LOGBOOK_JS)
+    src = _lire(POPOUT_SELFSPOT_JS)
     bloc = src[src.index('function popoutScope('):]
     bloc = bloc[:bloc.index('\n}')]
     assert "'rc_scope'" not in bloc, 'nom de fenetre fixe : une seule fenetre possible'
@@ -245,7 +248,7 @@ def test_le_bandscope_a_UN_NOM_DE_FENETRE_PAR_BANDE():
 
 
 def test_le_bandscope_neutralise_le_point_des_bandes_decimales():
-    src = _lire(LOGBOOK_JS)
+    src = _lire(POPOUT_SELFSPOT_JS)
     bloc = src[src.index('function popoutScope('):]
     bloc = bloc[:bloc.index('\n}')]
     assert re.search(r"replace\(/\\\.\/g,\s*'_'\)", bloc), bloc
