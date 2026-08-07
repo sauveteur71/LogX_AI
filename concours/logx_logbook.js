@@ -2478,6 +2478,15 @@ function updateKeyerPanels(){
   // panneau CW restait affiché dans tous les modes sauf RTTY.
   const cwDec = document.getElementById('cwPanel');
   if(cwDec) cwDec.style.display = (cw || cwPanelForcedOpen) ? '' : 'none';
+  // Décodeur radio 2 (SO2R Phase 2) : même règle de visibilité que le
+  // décodeur radio 1, ET seulement si une radio 2 est déclarée — un second
+  // panneau CW sur une station mono-radio serait juste un bandeau vide.
+  const cwDec2 = document.getElementById('cwPanel2');
+  if(cwDec2){
+    let cat2Enabled = false;
+    try{ cat2Enabled = !!JSON.parse(localStorage.getItem('logx_config')||'{}').cat2_enabled; }catch(e){}
+    cwDec2.style.display = ((cw || cwPanelForcedOpen) && cat2Enabled) ? '' : 'none';
+  }
   const sstvDec = document.getElementById('sstvPanel');
   if(sstvDec) sstvDec.style.display = sstv ? '' : 'none';
 }
@@ -7455,6 +7464,23 @@ async function toggleCwPanel(){
   if(panel.classList.contains('open') && !_cwDevicesLoaded) await loadCwInputDevices();
 }
 
+// ─── DÉCODEUR CW — RADIO 2 (SO2R Phase 2) ────────────────────────────────────
+// Duplication volontaire plutôt qu'une boucle sur N radios (même convention
+// que cat_port/cat2_port) : CwAudioDecoder est déjà réentrante (une instance
+// = un AudioContext + un device d'entrée indépendant), donc les deux
+// décodeurs peuvent tourner EN MÊME TEMPS, sans lien avec le focus SO2R
+// serveur — c'est l'opérateur qui choisit quel périphérique physique
+// correspond à quelle radio, LogX AI ne peut pas le déduire.
+let _cwAudioDecoder2 = null;
+let _cwDevicesLoaded2 = false;
+let _cwOutText2 = '';
+
+async function toggleCwPanel2(){
+  const panel = document.getElementById('cwPanel2');
+  panel.classList.toggle('open');
+  if(panel.classList.contains('open') && !_cwDevicesLoaded2) await loadCwInputDevices2();
+}
+
 // Peuple un <select> d'entrées audio disponibles — générique, réutilisé par
 // le décodeur CW ET l'enregistreur audio par QSO (voir plus haut). Les
 // libellés des périphériques ne sont visibles qu'APRÈS une autorisation
@@ -7485,6 +7511,7 @@ async function loadAudioInputDevices(selectId, alreadyGranted){
   }
 }
 async function loadCwInputDevices(){ _cwDevicesLoaded = await loadAudioInputDevices('cwDevice'); }
+async function loadCwInputDevices2(){ _cwDevicesLoaded2 = await loadAudioInputDevices('cwDevice2'); }
 
 // Périphériques de SORTIE (émission RTTY/SSTV) : setSinkId (utilisé par
 // txAudioPtt() pour router la lecture vers CE périphérique précis) n'existe
@@ -7618,6 +7645,54 @@ function toggleCwDecoder(){
 function clearCwOutput(){
   _cwOutText = '';
   const out = document.getElementById('cwOutput');
+  if(out) out.textContent = '';
+}
+
+function toggleCwDecoder2(){
+  const btn = document.getElementById('cwStartBtn2');
+  if(_cwAudioDecoder2){
+    _cwAudioDecoder2.stop();
+    _cwAudioDecoder2 = null;
+    btn.textContent = '▶ Démarrer';
+    btn.classList.remove('active');
+    return;
+  }
+  const deviceId = document.getElementById('cwDevice2').value;
+  const freq = parseInt(document.getElementById('cwFreq2').value, 10) || 650;
+  const out = document.getElementById('cwOutput2');
+  const wpmLabel = document.getElementById('cwWpmLabel2');
+  _cwOutText2 = '';
+  const dec = new CwAudioDecoder({
+    freq,
+    onChar: ch => {
+      _cwOutText2 = (_cwOutText2 + ch).slice(-400);
+      out.innerHTML = _cwOutText2.replace(/(\S+)/g, '<span style="cursor:pointer" onclick="cwToCall(this.textContent)">$1</span>') || '—';
+      out.scrollTop = out.scrollHeight;
+    },
+    onLevel: (mag, threshold, wpm) => {
+      if(wpm) wpmLabel.textContent = wpm + ' MPM';
+      const fill = document.getElementById('cwMeterFill2');
+      const thr = document.getElementById('cwMeterThreshold2');
+      if(fill && thr){
+        const scale = threshold * 3 || 0.01;
+        fill.style.width = Math.min(100, (mag / scale) * 100) + '%';
+        fill.classList.toggle('on', mag > threshold);
+        thr.style.left = Math.min(100, (threshold / scale) * 100) + '%';
+      }
+    },
+  });
+  dec.start(deviceId || undefined).then(() => {
+    _cwAudioDecoder2 = dec;
+    btn.textContent = '■ Arrêter';
+    btn.classList.add('active');
+  }).catch(e => {
+    notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
+  });
+}
+
+function clearCwOutput2(){
+  _cwOutText2 = '';
+  const out = document.getElementById('cwOutput2');
   if(out) out.textContent = '';
 }
 

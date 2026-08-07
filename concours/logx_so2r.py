@@ -254,6 +254,14 @@ def config_radio_active(cfg, radio=None):
     cfg['omnirig_enabled'] = (cfg.get('cat_mode') == 'omnirig'
                                and str(cfg.get('cat_enabled', '')).strip()
                                not in ('', '0', 'False', 'false'))
+    # Keyer vocal (Phase 2 SO2R) : périphérique de sortie propre à la radio 2
+    # -- pas préfixé cat_ non plus (voicekeyer_device, pas cat_voicekeyer_device),
+    # donc hors de la boucle générique. play_wav(path, device_index) accepte
+    # déjà un device par appel ; sans ce remap, un message vocal émis alors
+    # que la radio 2 a le focus sortirait quand même par le périphérique de
+    # la radio 1.
+    if 'voicekeyer_device2' in cfg:
+        cfg['voicekeyer_device'] = cfg['voicekeyer_device2']
     return cfg
 
 

@@ -1548,6 +1548,13 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
         <div class="form-row">
           <div class="form-group">
+            <label>PÉRIPHÉRIQUE VOCAL RADIO 2</label>
+            <select id="voicekeyer_device2"><option value="">— même périphérique que la radio 1 —</option></select>
+            <div class="input-note">Le keyer vocal (CQ/report dits par synthèse) sort par CE périphérique quand la radio 2 a l'émission — laisse vide pour réutiliser celui de la radio 1 (rare avec deux radios distinctes, chacune sur sa propre interface audio).</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
             <label>BOÎTIER OTRSP</label>
             <select id="so2r_enabled">
               <option value="">Aucun</option>
@@ -4059,6 +4066,10 @@ function _vkIsLikelyVirtual(name){
 async function loadVoiceKeyerDevices(){
   const devSel = document.getElementById('voicekeyer_device');
   const voiceSel = document.getElementById('voicekeyer_voice_id');
+  // Radio 2 (SO2R, Phase 2) : optionnel — absent des pages qui n'ont pas cette
+  // section (aucune pour l'instant, mais ce champ pourrait un jour être omis
+  // en mode débutant, d'où le test null-safe comme les autres champs cat2_*).
+  const devSel2 = document.getElementById('voicekeyer_device2');
   if(!devSel || !voiceSel) return;
   try{
     const r = await fetch('/voicekeyer/devices');
@@ -4068,20 +4079,24 @@ async function loadVoiceKeyerDevices(){
     const virtuels = devices.filter(x => _vkIsLikelyVirtual(x.name));
     const autres = devices.filter(x => !_vkIsLikelyVirtual(x.name));
     const optHtml = x => `<option value="${x.index}">${_vkEsc(x.name)}</option>`;
-    devSel.innerHTML = '<option value="">— périphérique par défaut —</option>'
-      + (virtuels.length ? `<optgroup label="Câbles virtuels / interfaces (recommandé)">${virtuels.map(optHtml).join('')}</optgroup>` : '')
+    const optionsHtml = (virtuels.length ? `<optgroup label="Câbles virtuels / interfaces (recommandé)">${virtuels.map(optHtml).join('')}</optgroup>` : '')
       + (autres.length ? `<optgroup label="Autres sorties (haut-parleurs, casque…)">${autres.map(optHtml).join('')}</optgroup>` : '');
+    devSel.innerHTML = '<option value="">— périphérique par défaut —</option>' + optionsHtml;
     voiceSel.innerHTML = '<option value="">— voix par défaut —</option>'
       + (d.voices || []).map(x => `<option value="${_vkEsc(x.id)}">${_vkEsc(x.name)}${x.lang ? ' (' + _vkEsc(x.lang) + ')' : ''}</option>`).join('');
+    // Même parc de périphériques (un seul PC serveur) : pas de second appel réseau.
+    if(devSel2) devSel2.innerHTML = '<option value="">— même périphérique que la radio 1 —</option>' + optionsHtml;
   }catch(e){
     devSel.innerHTML = '<option value="">indisponible (sounddevice non installé ?)</option>';
     voiceSel.innerHTML = '<option value="">indisponible (pyttsx3 non installé ?)</option>';
+    if(devSel2) devSel2.innerHTML = '<option value="">indisponible (sounddevice non installé ?)</option>';
   }
   // Ré-applique les valeurs sauvegardées maintenant que les <option> existent
   try{
     const cfg = JSON.parse(localStorage.getItem('logx_config') || '{}');
     if(cfg.voicekeyer_device !== undefined) devSel.value = cfg.voicekeyer_device;
     if(cfg.voicekeyer_voice_id !== undefined) voiceSel.value = cfg.voicekeyer_voice_id;
+    if(devSel2 && cfg.voicekeyer_device2 !== undefined) devSel2.value = cfg.voicekeyer_device2;
   }catch(e){}
 }
 
@@ -7395,6 +7410,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     mqtt_topic_prefix: document.getElementById('mqtt_topic_prefix')?.value.trim() || 'logx',
     voicekeyer_enabled: !!document.getElementById('voicekeyer_enabled').value,
     voicekeyer_device: document.getElementById('voicekeyer_device').value,
+    voicekeyer_device2: document.getElementById('voicekeyer_device2')?.value || '',
     voicekeyer_voice_id: document.getElementById('voicekeyer_voice_id').value,
     voicekeyer_rate: _numClamped('voicekeyer_rate', 175),
     voicekeyer_ai_enabled: !!document.getElementById('voicekeyer_ai_enabled')?.value,
@@ -8184,6 +8200,10 @@ function applyFullConfigToForm(c) {
     if(c.voicekeyer_voice_id !== undefined){
       const voiceSel = document.getElementById('voicekeyer_voice_id');
       if(voiceSel) voiceSel.value = c.voicekeyer_voice_id;
+    }
+    if(c.voicekeyer_device2 !== undefined){
+      const devSel2 = document.getElementById('voicekeyer_device2');
+      if(devSel2) devSel2.value = c.voicekeyer_device2;
     }
     if(c.amp_enabled) document.getElementById('amp_enabled').value = '1';
     if (c.amp_brand) updateAmpFieldsVisibility();
