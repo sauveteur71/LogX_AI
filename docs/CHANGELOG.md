@@ -11,6 +11,33 @@ dernière disponible. La version affichée dans la barre de statut de
 l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
 qui doit être incrémentée à chaque tag poussé.
 
+## [0.9-beta24] - 2026-08-07
+
+### Ajouté
+
+- **Recherche plein-texte dans les pages** (`logx_search.py`/`.js`) : icône
+  loupe dans la nav, indexe les titres et le texte visible de 12 pages —
+  retrouver où une fonctionnalité (ex. SSTV) est mentionnée sans connaître
+  par cœur la page concernée. Clic sur un résultat : navigation + passage
+  mis en surbrillance sur la page cible.
+- **Synchronisation MySQL partagée** (`logx_mysql_sync.py`, #163) :
+  4ᵉ mécanisme de sync multi-poste (radio-club ou plusieurs postes d'un
+  même OM), quasi temps réel via une base MySQL fournie par l'utilisateur —
+  module optionnel (`pip install pymysql`), sans effet sur le reste de
+  l'appli en son absence. Revue adversariale avant fusion : 2 bugs
+  critiques de résurrection/perte silencieuse de QSO trouvés et corrigés.
+- **Wiki GitHub** (site de présentation) : guide utilisateur découpé en
+  pages navigables — https://github.com/sauveteur71/LogX_AI/wiki
+
+### Corrigé
+
+- Contraste illisible (texte quasi blanc) des champs de saisie en mode
+  jour sur la page CONFIGURATION, et confusion entre un exemple de
+  placeholder et une vraie valeur saisie.
+- L'assistant CONFIGURATION répondait à côté de la plaque sur des
+  questions sans correspondance réelle (recherche locale par sous-chaîne
+  au lieu de mot entier).
+
 ## [0.9-beta22] - 2026-08-05
 
 ### Ajouté
