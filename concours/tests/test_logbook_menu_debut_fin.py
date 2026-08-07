@@ -39,6 +39,14 @@ if CONCOURS not in sys.path:
 
 JS = os.path.join(CONCOURS, 'logx_logbook.js')
 HTML = os.path.join(CONCOURS, 'logx_logbook.html')
+# EV-7 : openFilterBuilder/openDupFinder/openBulkResolve/openNetControl ont
+# été extraites de logx_logbook.js vers ces fichiers (chargés en <script>
+# classique dans logx_logbook.html, portée globale partagée) -- une entrée
+# de menu qui les cible existe toujours réellement, juste plus dans CE
+# fichier précis. Voir test_chaque_entree_du_menu_pointe_sur_une_fonction_REELLE.
+JS_EXTRAITS_EV7 = [os.path.join(CONCOURS, n) for n in (
+    'logx_filter_builder.js', 'logx_dup_finder.js',
+    'logx_bulk_resolve.js', 'logx_net_control.js')]
 
 
 def _lire(p):
@@ -123,8 +131,10 @@ def test_AUCUNE_COMMANDE_N_A_DISPARU_du_logiciel(fn):
 
 def test_chaque_entree_du_menu_pointe_sur_une_fonction_REELLE():
     """Le menu appelle window[nom] : une faute de frappe donnerait un bouton
-    parfaitement dessiné qui ne fait rien."""
-    src = _lire(JS)
+    parfaitement dessiné qui ne fait rien. La fonction peut vivre dans
+    logx_logbook.js OU dans l'un des fichiers extraits par EV-7 (même portée
+    globale, voir JS_EXTRAITS_EV7 ci-dessus)."""
+    src = _lire(JS) + '\n'.join(_lire(p) for p in JS_EXTRAITS_EV7)
     for fn in _fonctions(concours=True):
         assert 'function %s(' % fn in src, fn
 
