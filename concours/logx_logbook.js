@@ -523,6 +523,78 @@ const CS_DATA = [
 
 let currentFilter = 'all';
 let advancedFilter = null;  // {groups:[[{field,op,value},...],...]} — OU entre groupes, ET dans un groupe
+
+// Moteur de correspondance du filtre avancé : reste ICI (pas dans
+// logx_filter_builder.js, qui n'a que l'UI du popup/les préréglages) parce
+// que renderLog() -- chemin critique, jamais déplacé -- en dépend
+// directement (voir plus bas). Le popup de CONSTRUCTION du filtre
+// (logx_filter_builder.js) l'utilise aussi, comme n'importe quelle fonction
+// globale (EV-7, docs/LogX_AI_PRD.md — trouvé en revue adversariale : le
+// sens inverse, avec le moteur dans logx_filter_builder.js, faisait
+// dépendre le rendu du log CŒUR d'un fichier "fonctionnalité optionnelle").
+const FILTER_FIELDS = [
+  {key:'call', label:'Indicatif', type:'text'},
+  {key:'band', label:'Bande', type:'text'},
+  {key:'mode', label:'Mode', type:'text'},
+  {key:'freq', label:'Fréquence (MHz)', type:'num'},
+  {key:'rst_sent', label:'RST envoyé', type:'text'},
+  {key:'rst_rcvd', label:'RST reçu', type:'text'},
+  {key:'num_sent', label:'N° envoyé', type:'text'},
+  {key:'num_rcvd', label:'N° reçu', type:'text'},
+  {key:'date', label:'Date', type:'text'},
+  {key:'time', label:'Heure', type:'text'},
+  {key:'locator', label:'Locator', type:'text'},
+  {key:'dist', label:'Distance (km)', type:'num'},
+  {key:'points', label:'Points', type:'num'},
+  {key:'operator', label:'Opérateur', type:'text'},
+  {key:'contest', label:'Concours', type:'text'},
+  {key:'state', label:'État/région', type:'text'},
+  {key:'qsl_scan', label:'Scan QSL', type:'bool'},
+];
+const FILTER_OPS = {
+  text: [['contains','contient'], ['ncontains','ne contient pas'], ['eq','= exact'], ['neq','≠'], ['starts','commence par']],
+  num:  [['eq','='], ['neq','≠'], ['gt','>'], ['lt','<'], ['gte','≥'], ['lte','≤']],
+  bool: [['present','renseigné'], ['absent','vide']],
+};
+function fltFieldDef(key){ return FILTER_FIELDS.find(f=>f.key===key) || FILTER_FIELDS[0]; }
+
+function matchesFilterCondition(q, cond){
+  const def = fltFieldDef(cond.field);
+  const raw = q[cond.field];
+  if(def.type === 'bool'){
+    const has = !!raw;
+    return cond.op === 'present' ? has : !has;
+  }
+  if(def.type === 'num'){
+    const a = parseFloat(raw), b = parseFloat(cond.value);
+    if(isNaN(a) || isNaN(b)) return false;
+    switch(cond.op){
+      case 'eq': return a === b;
+      case 'neq': return a !== b;
+      case 'gt': return a > b;
+      case 'lt': return a < b;
+      case 'gte': return a >= b;
+      case 'lte': return a <= b;
+    }
+    return true;
+  }
+  const a = String(raw==null?'':raw).toUpperCase();
+  const b = String(cond.value==null?'':cond.value).toUpperCase();
+  switch(cond.op){
+    case 'contains': return a.includes(b);
+    case 'ncontains': return !a.includes(b);
+    case 'eq': return a === b;
+    case 'neq': return a !== b;
+    case 'starts': return a.startsWith(b);
+  }
+  return true;
+}
+
+function matchesAdvancedFilter(q, tree){
+  if(!tree || !Array.isArray(tree.groups) || !tree.groups.length) return true;
+  return tree.groups.some(group => !group.length || group.every(cond => matchesFilterCondition(q, cond)));
+}
+
 let qsoLog = [];       // log local (cache)
 let serialByBand = {}; // numéros de série par bande
 let refreshTimer = null;
@@ -4463,640 +4535,11 @@ function filterLog(){
   renderLog();
 }
 
-// ═══════════════════════ CONSTRUCTEUR DE FILTRE AVANCÉ ═══════════════════
-// Structure : {groups:[[{field,op,value}, ...], ...]} — OU entre groupes,
-// ET entre conditions d'un même groupe. Un groupe vide filtre "tout passe"
-// (neutre), pas "rien ne passe" — sinon ajouter un groupe vide bloquerait
-// tout le log avant même d'y mettre une condition.
-const FILTER_FIELDS = [
-  {key:'call', label:'Indicatif', type:'text'},
-  {key:'band', label:'Bande', type:'text'},
-  {key:'mode', label:'Mode', type:'text'},
-  {key:'freq', label:'Fréquence (MHz)', type:'num'},
-  {key:'rst_sent', label:'RST envoyé', type:'text'},
-  {key:'rst_rcvd', label:'RST reçu', type:'text'},
-  {key:'num_sent', label:'N° envoyé', type:'text'},
-  {key:'num_rcvd', label:'N° reçu', type:'text'},
-  {key:'date', label:'Date', type:'text'},
-  {key:'time', label:'Heure', type:'text'},
-  {key:'locator', label:'Locator', type:'text'},
-  {key:'dist', label:'Distance (km)', type:'num'},
-  {key:'points', label:'Points', type:'num'},
-  {key:'operator', label:'Opérateur', type:'text'},
-  {key:'contest', label:'Concours', type:'text'},
-  {key:'state', label:'État/région', type:'text'},
-  {key:'qsl_scan', label:'Scan QSL', type:'bool'},
-];
-const FILTER_OPS = {
-  text: [['contains','contient'], ['ncontains','ne contient pas'], ['eq','= exact'], ['neq','≠'], ['starts','commence par']],
-  num:  [['eq','='], ['neq','≠'], ['gt','>'], ['lt','<'], ['gte','≥'], ['lte','≤']],
-  bool: [['present','renseigné'], ['absent','vide']],
-};
-function fltFieldDef(key){ return FILTER_FIELDS.find(f=>f.key===key) || FILTER_FIELDS[0]; }
-
-function matchesFilterCondition(q, cond){
-  const def = fltFieldDef(cond.field);
-  const raw = q[cond.field];
-  if(def.type === 'bool'){
-    const has = !!raw;
-    return cond.op === 'present' ? has : !has;
-  }
-  if(def.type === 'num'){
-    const a = parseFloat(raw), b = parseFloat(cond.value);
-    if(isNaN(a) || isNaN(b)) return false;
-    switch(cond.op){
-      case 'eq': return a === b;
-      case 'neq': return a !== b;
-      case 'gt': return a > b;
-      case 'lt': return a < b;
-      case 'gte': return a >= b;
-      case 'lte': return a <= b;
-    }
-    return true;
-  }
-  const a = String(raw==null?'':raw).toUpperCase();
-  const b = String(cond.value==null?'':cond.value).toUpperCase();
-  switch(cond.op){
-    case 'contains': return a.includes(b);
-    case 'ncontains': return !a.includes(b);
-    case 'eq': return a === b;
-    case 'neq': return a !== b;
-    case 'starts': return a.startsWith(b);
-  }
-  return true;
-}
-
-function matchesAdvancedFilter(q, tree){
-  if(!tree || !Array.isArray(tree.groups) || !tree.groups.length) return true;
-  return tree.groups.some(group => !group.length || group.every(cond => matchesFilterCondition(q, cond)));
-}
-
-// État du CONSTRUCTEUR (édition en cours) — distinct de `advancedFilter`
-// (le filtre RÉELLEMENT appliqué au tableau) pour que l'aperçu du nombre de
-// résultats et l'export "résultat" reflètent ce qu'on est en train de
-// composer, sans affecter le tableau principal tant qu'on n'a pas cliqué
-// APPLIQUER.
-let fltBuilder = {groups: [[]]};
-
-function fltCurrentMatches(){
-  return qsoLog.filter(q => matchesAdvancedFilter(q, fltBuilder));
-}
-
-function openFilterBuilder(){
-  if(advancedFilter) fltBuilder = JSON.parse(JSON.stringify(advancedFilter));
-  if(!fltBuilder.groups || !fltBuilder.groups.length) fltBuilder = {groups:[[]]};
-  fltRenderGroups();
-  fltRenderPresets();
-  document.getElementById('filterOverlay').classList.add('show');
-}
-
-function closeFilterBuilder(){
-  document.getElementById('filterOverlay').classList.remove('show');
-}
-
-function fltAddGroup(){
-  fltBuilder.groups.push([]);
-  fltRenderGroups();
-}
-
-function fltAddCond(gi){
-  fltBuilder.groups[gi].push({field:'call', op:'contains', value:''});
-  fltRenderGroups();
-}
-
-function fltRemoveCond(gi, ci){
-  fltBuilder.groups[gi].splice(ci, 1);
-  if(!fltBuilder.groups[gi].length && fltBuilder.groups.length > 1) fltBuilder.groups.splice(gi, 1);
-  fltRenderGroups();
-}
-
-function fltUpdateCond(gi, ci, key, value){
-  const cond = fltBuilder.groups[gi][ci];
-  cond[key] = value;
-  if(key === 'field'){
-    // Changer de champ peut changer de type (texte/nombre/booléen) — l'opérateur
-    // choisi pour l'ancien type n'a pas forcément de sens pour le nouveau.
-    cond.op = FILTER_OPS[fltFieldDef(value).type][0][0];
-  }
-  fltRenderGroups();
-}
-
-function fltRenderGroups(){
-  const wrap = document.getElementById('fltGroups');
-  if(!wrap) return;
-  const esc = s => String(s==null?'':s).replace(/[&<>"']/g,
-    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let h = '';
-  fltBuilder.groups.forEach((group, gi) => {
-    if(gi) h += '<div class="flt-or-sep">— OU —</div>';
-    h += `<div class="flt-group">
-      <div class="flt-group-hdr"><span class="flt-group-lbl">GROUPE ${gi+1} (ET)</span></div>`;
-    group.forEach((cond, ci) => {
-      const def = fltFieldDef(cond.field);
-      const fieldOpts = FILTER_FIELDS.map(f =>
-        `<option value="${f.key}"${f.key===cond.field?' selected':''}>${esc(f.label)}</option>`).join('');
-      const opOpts = FILTER_OPS[def.type].map(([k,l]) =>
-        `<option value="${k}"${k===cond.op?' selected':''}>${esc(l)}</option>`).join('');
-      const valueInput = def.type === 'bool'
-        ? '<input type="text" value="—" disabled>'
-        : `<input type="text" value="${esc(cond.value)}" oninput="fltUpdateCond(${gi},${ci},'value',this.value)">`;
-      h += `<div class="flt-row">
-        <select onchange="fltUpdateCond(${gi},${ci},'field',this.value)">${fieldOpts}</select>
-        <select onchange="fltUpdateCond(${gi},${ci},'op',this.value)">${opOpts}</select>
-        ${valueInput}
-        <span class="flt-remove" onclick="fltRemoveCond(${gi},${ci})" title="Retirer">✕</span>
-      </div>`;
-    });
-    h += `<button class="flt-add-cond" onclick="fltAddCond(${gi})">+ CONDITION</button></div>`;
-  });
-  wrap.innerHTML = h;
-  const cnt = document.getElementById('fltCount');
-  if(cnt) cnt.textContent = `${fltCurrentMatches().length} QSO correspondent`;
-}
-
-function fltApply(){
-  advancedFilter = JSON.parse(JSON.stringify(fltBuilder));
-  closeFilterBuilder();
-  renderLog();
-}
-
-function fltReset(){
-  advancedFilter = null;
-  fltBuilder = {groups:[[]]};
-  fltRenderGroups();
-  renderLog();
-}
-
-function fltExportFiltered(){
-  const qsos = fltCurrentMatches().filter(isValidQSO);
-  if(!qsos.length){ alert(trF('Aucun QSO ne correspond au filtre courant.')); return; }
-  downloadAdifBlob(buildAdifText(qsos), 'filtre');
-}
-
-// ── Préréglages : par POSTE (localStorage), pas synchronisés réseau — un
-// filtre est une préférence d'analyse individuelle, pas un réglage station
-// partagé comme les règles d'alerte (voir logx_configuration.html:alertRules).
-const FLT_PRESETS_KEY = 'rc_filter_presets';
-function fltLoadPresets(){
-  try{ return JSON.parse(localStorage.getItem(FLT_PRESETS_KEY) || '[]'); }
-  catch(e){ return []; }
-}
-function fltSavePresets(list){
-  localStorage.setItem(FLT_PRESETS_KEY, JSON.stringify(list));
-}
-
-function fltSavePreset(){
-  const input = document.getElementById('fltPresetName');
-  const name = (input.value || '').trim();
-  if(!name) return;
-  const list = fltLoadPresets();
-  const preset = {id:'p'+Date.now(), name, tree: JSON.parse(JSON.stringify(fltBuilder))};
-  fltSavePresets(list.filter(p=>p.name!==name).concat([preset]));
-  input.value = '';
-  fltRenderPresets();
-}
-
-function fltLoadPreset(id){
-  const p = fltLoadPresets().find(p=>p.id===id);
-  if(!p) return;
-  fltBuilder = JSON.parse(JSON.stringify(p.tree));
-  fltRenderGroups();
-}
-
-function fltDeletePreset(id){
-  fltSavePresets(fltLoadPresets().filter(p=>p.id!==id));
-  fltRenderPresets();
-}
-
-function fltRenderPresets(){
-  const wrap = document.getElementById('fltPresetList');
-  if(!wrap) return;
-  const esc = s => String(s==null?'':s).replace(/[&<>"']/g,
-    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  wrap.innerHTML = fltLoadPresets().map(p =>
-    `<span class="flt-preset-chip"><span onclick="fltLoadPreset('${p.id}')">${esc(p.name)}</span>` +
-    `<span class="flt-preset-del" onclick="fltDeletePreset('${p.id}')" title="Supprimer">✕</span></span>`
-  ).join('') || '<span style="color:var(--muted);font-size:12px">Aucun préréglage enregistré</span>';
-}
-
-// ═══════════════════════ RECHERCHE DE DOUBLONS DÉDIÉE ═══════════════════
-// Distincte du surlignage en direct de renderLog() (dupCounts, juste call+
-// band) : ici l'opérateur choisit explicitement le critère (± jour, ± minute)
-// et peut nettoyer le log en lot, pas seulement repérer visuellement.
-let dupOptions = {sameDay:false, sameMinute:false};
-
-function dupKeyOf(q){
-  let k = (q.call||'').toUpperCase() + '|' + (q.band||'') + '|' + (q.mode||'').toUpperCase();
-  if(dupOptions.sameDay) k += '|' + (q.date||'');
-  // 'HH:MM' ou 'HH:MM:SS' selon la source (saisie manuelle vs import) — les 5
-  // premiers caractères couvrent les deux formats sans dépendre de la longueur.
-  if(dupOptions.sameMinute) k += '|' + String(q.time||'').slice(0,5);
-  return k;
-}
-
-function findDuplicateGroups(){
-  const map = new Map();
-  qsoLog.forEach(q=>{
-    const k = dupKeyOf(q);
-    if(!map.has(k)) map.set(k, []);
-    map.get(k).push(q);
-  });
-  // Le plus ANCIEN en tête de groupe : « garder le premier » doit garder le
-  // QSO originel, pas un doublon arrivé après coup par resynchro réseau.
-  return [...map.values()]
-    .filter(g => g.length > 1)
-    .map(g => g.slice().sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)))
-    .sort((a,b) => b.length - a.length);
-}
-
-function openDupFinder(){
-  document.getElementById('dupSameDay').checked = dupOptions.sameDay;
-  document.getElementById('dupSameMinute').checked = dupOptions.sameMinute;
-  renderDupResults();
-  document.getElementById('dupOverlay').classList.add('show');
-}
-
-function closeDupFinder(){
-  document.getElementById('dupOverlay').classList.remove('show');
-}
-
-function dupOptionsChanged(){
-  dupOptions.sameDay = document.getElementById('dupSameDay').checked;
-  dupOptions.sameMinute = document.getElementById('dupSameMinute').checked;
-  renderDupResults();
-}
-
-function renderDupResults(){
-  const wrap = document.getElementById('dupResults');
-  if(!wrap) return;
-  const groups = findDuplicateGroups();
-  if(!groups.length){
-    wrap.innerHTML = `<div style="color:var(--muted);text-align:center;padding:20px">${trT('Aucun doublon trouvé.')}</div>`;
-  } else {
-    wrap.innerHTML = groups.map(g => {
-      const extraIds = JSON.stringify(g.slice(1).map(q=>q.id));
-      const rows = g.map(q => `<div class="dup-row">
-        <span>${escHtml(q.date)} ${escHtml(q.time)}</span>
-        <span>${escHtml(q.call)}</span>
-        <span>${BAND_LABELS[q.band]||escHtml(q.band)}</span>
-        <span>${escHtml(q.mode)}</span>
-        <span>${escHtml(q.rst_sent)}/${escHtml(q.rst_rcvd)}</span>
-        <span class="dup-del" onclick="dupDeleteOne(${q.id})" title="Supprimer ce QSO">✕</span>
-      </div>`).join('');
-      return `<div class="dup-group">
-        <div class="dup-group-hdr">
-          <span>${escHtml(g[0].call)} · ${BAND_LABELS[g[0].band]||escHtml(g[0].band)} · ${escHtml(g[0].mode)} — ${g.length} occurrences</span>
-          <button class="flt-add-cond" onclick="dupDeleteMany(${extraIds})">GARDER LE 1ᵉʳ, SUPPRIMER LE RESTE</button>
-        </div>
-        ${rows}
-      </div>`;
-    }).join('');
-  }
-  const totalEnTrop = groups.reduce((s,g) => s + g.length - 1, 0);
-  document.getElementById('dupCount').textContent = groups.length
-    ? trF('{g} groupe(s), {n} QSO en trop', {g: groups.length, n: totalEnTrop})
-    : '';
-}
-
-async function dupDeleteOne(id){
-  if(!confirm(trT('Supprimer ce QSO ?'))) return;
-  await deleteQSOSilent(id);
-  renderLog();
-  updateStats();
-  renderDupResults();
-}
-
-async function dupDeleteMany(ids){
-  if(!ids.length) return;
-  if(!confirm(trF('Supprimer {n} QSO en double (le plus ancien de chaque groupe est conservé) ?', {n: ids.length}))) return;
-  for(const id of ids) await deleteQSOSilent(id);
-  renderLog();
-  updateStats();
-  renderDupResults();
-}
-
-function dupDeleteAllExceptFirst(){
-  const ids = findDuplicateGroups().flatMap(g => g.slice(1).map(q=>q.id));
-  dupDeleteMany(ids);
-}
-
-// ═══════════════════════ RE-RÉSOLUTION EN MASSE ═══════════════════════════
-// Lance/suit le job de fond côté serveur (logx_callbook.bulk_resolve_start) :
-// une seule requête réseau par indicatif DISTINCT, jamais une par QSO — voir
-// le module serveur pour le détail. Le job continue même si cette popup est
-// fermée (bulkResolveRunning/_bulkResolvePoll ne sont que le reflet local de
-// l'état serveur, pas la source de vérité) — la rouvrir le retrouve.
-let bulkResolveRunning = false;
-let _bulkResolvePoll = null;
-
-async function openBulkResolve(){
-  const filteredCount = advancedFilter ? qsoLog.filter(q => matchesAdvancedFilter(q, advancedFilter)).length : 0;
-  document.getElementById('brsFilteredCount').textContent = filteredCount;
-  document.getElementById('brsScopeFiltered').disabled = !advancedFilter;
-  if(!advancedFilter) document.getElementById('brsScopeAll').checked = true;
-  // État par défaut "au repos" posé AVANT le fetch de statut, pas seulement
-  // dans sa branche de succès : sans ça, un fetch en échec (réseau, serveur
-  // pas encore redémarré après un déploiement) laissait la popup afficher un
-  // reliquat d'un run précédent au lieu de repartir propre — trouvé en
-  // vérification navigateur, pas en écrivant le code.
-  bulkResolveRunning = false;
-  document.getElementById('brsStartBtn').disabled = false;
-  document.getElementById('brsBarWrap').classList.remove('show');
-  document.getElementById('brsStatus').textContent = '';
-  document.getElementById('bulkResolveOverlay').classList.add('show');
-  try{
-    const st = await fetch('/log/bulk_resolve/status').then(r=>r.json());
-    if(st.running){
-      bulkResolveRunning = true;
-      document.getElementById('brsStartBtn').disabled = true;
-      document.getElementById('brsBarWrap').classList.add('show');
-      if(!_bulkResolvePoll) _bulkResolvePoll = setInterval(pollBulkResolve, 1000);
-      pollBulkResolve();
-    }
-  }catch(e){}
-}
-
-function closeBulkResolve(){
-  document.getElementById('bulkResolveOverlay').classList.remove('show');
-}
-
-async function startBulkResolve(){
-  const useFiltered = document.getElementById('brsScopeFiltered').checked && advancedFilter;
-  const overwrite = document.getElementById('brsOverwrite').checked;
-  const ids = useFiltered ? qsoLog.filter(q => matchesAdvancedFilter(q, advancedFilter)).map(q=>q.id) : null;
-  if(useFiltered && !ids.length){ notify('Aucun QSO dans le filtre actif.'); return; }
-  if(!confirm(trF('Lancer la re-résolution sur {n} ? Une requête réseau par indicatif distinct.',
-              {n: ids ? ids.length + ' QSO' : 'tout le log'}))) return;
-
-  document.getElementById('brsStartBtn').disabled = true;
-  bulkResolveRunning = true;
-  document.getElementById('brsBarWrap').classList.add('show');
-  document.getElementById('brsBar').style.width = '0%';
-  document.getElementById('brsStatus').textContent = 'Démarrage…';
-
-  let started;
-  try{
-    started = await fetch('/log/bulk_resolve/start', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ids, overwrite})}).then(r=>r.json());
-  }catch(e){
-    document.getElementById('brsStatus').textContent = 'Serveur injoignable.';
-    bulkResolveRunning = false;
-    document.getElementById('brsStartBtn').disabled = false;
-    return;
-  }
-  if(!started.ok){
-    document.getElementById('brsStatus').textContent = started.error || 'Échec du démarrage.';
-    bulkResolveRunning = false;
-    document.getElementById('brsStartBtn').disabled = false;
-    return;
-  }
-
-  if(!_bulkResolvePoll) _bulkResolvePoll = setInterval(pollBulkResolve, 1000);
-  pollBulkResolve();
-}
-
-async function pollBulkResolve(){
-  let st;
-  try{
-    st = await fetch('/log/bulk_resolve/status').then(r=>r.json());
-  }catch(e){ return; }
-  const pct = st.total ? Math.round(100 * st.done / st.total) : 0;
-  const bar = document.getElementById('brsBar');
-  if(bar) bar.style.width = pct + '%';
-  const statusEl = document.getElementById('brsStatus');
-  if(st.running){
-    if(statusEl) statusEl.textContent = trF('{d} / {t} indicatifs interrogés…', {d: st.done, t: st.total});
-  } else {
-    if(_bulkResolvePoll){ clearInterval(_bulkResolvePoll); _bulkResolvePoll = null; }
-    bulkResolveRunning = false;
-    const btn = document.getElementById('brsStartBtn');
-    if(btn) btn.disabled = false;
-    if(statusEl) statusEl.textContent = trF('Terminé — {u} QSO mis à jour, {e} indicatif(s) introuvable(s).',
-      {u: st.updated, e: st.errors});
-    fetchLog();   // recharge le log réel : locator/état mis à jour côté serveur
-  }
-}
-
-// ═══════════════════════ CONTRÔLE DE NET ══════════════════════════════════
-// Roster (liste des participants habituels) + session active (l'appel de ce
-// soir). Roster en localStorage — par poste, pas synchronisé réseau, comme
-// les préréglages de filtre (voir plus haut) : c'est la préférence de
-// l'opérateur qui anime le net, pas un réglage de station partagé.
-const NET_ROSTER_KEY = 'rc_net_roster';
-const NET_SESSION_KEY = 'rc_net_session';
-
-// Compteur monotone, PAS Date.now() seul : plusieurs ajouts dans la même
-// milliseconde (saisie rapide, script) recevaient sinon le même id — trouvé
-// en vérification navigateur (3 ajouts synchrones = 3 entrées avec un id
-// identique), pas en écrivant le code.
-let _netUidCounter = 0;
-function netUid(){ return Date.now() + '_' + (_netUidCounter++); }
-
-function netLoadRoster(){
-  try{ return JSON.parse(localStorage.getItem(NET_ROSTER_KEY) || '[]'); }
-  catch(e){ return []; }
-}
-function netSaveRoster(list){ localStorage.setItem(NET_ROSTER_KEY, JSON.stringify(list)); }
-
-function netLoadSession(){
-  try{ return JSON.parse(localStorage.getItem(NET_SESSION_KEY) || 'null'); }
-  catch(e){ return null; }
-}
-function netSaveSession(session){
-  if(session) localStorage.setItem(NET_SESSION_KEY, JSON.stringify(session));
-  else localStorage.removeItem(NET_SESSION_KEY);
-}
-
-function openNetControl(){
-  document.getElementById('netOverlay').classList.add('show');
-  netRenderList();
-}
-
-function closeNetControl(){
-  document.getElementById('netOverlay').classList.remove('show');
-}
-
-function netRosterAdd(){
-  const callInput = document.getElementById('netAddCall');
-  const nameInput = document.getElementById('netAddName');
-  const call = callInput.value.trim().toUpperCase();
-  if(!call) return;
-  const name = nameInput.value.trim();
-  const roster = netLoadRoster();
-  const id = 'n' + netUid();
-  roster.push({id, call, name});
-  netSaveRoster(roster);
-  // Un ajout en cours de session est un check-in tardif : la station rejoint
-  // l'appel EN COURS, pas seulement le roster pour la prochaine fois.
-  const session = netLoadSession();
-  if(session){
-    session.entries.push({id: 'e' + netUid(), call, name, checked: true, contacted: false});
-    netSaveSession(session);
-  }
-  callInput.value = ''; nameInput.value = '';
-  netRenderList();
-}
-
-function netRosterRemove(id){
-  netSaveRoster(netLoadRoster().filter(r => r.id !== id));
-  netRenderList();
-}
-
-function netStartSession(){
-  const roster = netLoadRoster();
-  if(!roster.length){ notify('Ajoute au moins une station au roster.'); return; }
-  const session = {
-    startedAt: Date.now(),
-    entries: roster.map(r => ({id: 'e' + r.id, call: r.call, name: r.name, checked: true, contacted: false})),
-  };
-  netSaveSession(session);
-  netRenderList();
-}
-
-function netEndSession(){
-  if(!confirm(trT('Terminer la session de net ? (le roster reste enregistré pour la prochaine fois)'))) return;
-  netSaveSession(null);
-  netRenderList();
-}
-
-function netToggleChecked(entryId){
-  const session = netLoadSession();
-  if(!session) return;
-  const e = session.entries.find(x => x.id === entryId);
-  if(e) e.checked = !e.checked;
-  netSaveSession(session);
-  netRenderList();
-}
-
-function netBuildQso(call){
-  return {
-    id: Date.now() + Math.floor(Math.random() * 1000),
-    date: nowDateUTC(), time: nowUTC(),
-    call, band: currentBand, mode: currentMode,
-    freq: (document.getElementById('inputFreq')?.value || '').trim(),
-    rst_sent: '59', num_sent: '',
-    rst_rcvd: '59', num_rcvd: '',
-    locator: '', dist: 0, points: 0,
-    operator: myOp, my_call: myCall, my_locator: myLocator,
-    contest: currentContest,
-  };
-}
-
-async function netLogQso(qso){
-  try{
-    const res = await fetch('/log/add', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(qso)});
-    if(res.ok){
-      qsoLog.push(qso);
-      bcBroadcast('add', qso);
-      return true;
-    }
-  }catch(e){}
-  return false;
-}
-
-async function netLogOne(entryId){
-  const session = netLoadSession();
-  if(!session) return;
-  const e = session.entries.find(x => x.id === entryId);
-  if(!e || e.contacted) return;
-  const qso = netBuildQso(e.call);
-  if(await netLogQso(qso)){
-    e.contacted = true;
-    e.qsoId = qso.id;
-    netSaveSession(session);
-    renderLog(); updateStats();
-    netRenderList();
-  }
-}
-
-async function netLogAllChecked(){
-  const session = netLoadSession();
-  if(!session) return;
-  const targets = session.entries.filter(e => e.checked && !e.contacted);
-  if(!targets.length){ notify('Aucune station cochée à logger.'); return; }
-  if(!confirm(trF('Logger {n} station(s) à {band} MHz / {mode} ?', {n: targets.length, band: currentBand, mode: currentMode}))) return;
-  for(const e of targets){
-    const qso = netBuildQso(e.call);
-    if(await netLogQso(qso)){
-      e.contacted = true;
-      e.qsoId = qso.id;
-    }
-  }
-  netSaveSession(session);
-  renderLog(); updateStats();
-  netRenderList();
-}
-
-// Glisser-déposer : réordonne le ROSTER (mode sans session) ou les entrées
-// de la SESSION active (mode session) — l'ordre pilote qui est "en attente"
-// ensuite (première ligne cochée non contactée).
-let _netDragId = null;
-function netDragStart(id){ _netDragId = id; }
-function netDragOver(ev){ ev.preventDefault(); }
-function netDrop(ev, targetId){
-  ev.preventDefault();
-  if(_netDragId == null || _netDragId === targetId) return;
-  const session = netLoadSession();
-  if(session){
-    const list = session.entries;
-    const from = list.findIndex(x => x.id === _netDragId);
-    const to = list.findIndex(x => x.id === targetId);
-    if(from < 0 || to < 0) return;
-    list.splice(to, 0, list.splice(from, 1)[0]);
-    netSaveSession(session);
-  } else {
-    const list = netLoadRoster();
-    const from = list.findIndex(x => x.id === _netDragId);
-    const to = list.findIndex(x => x.id === targetId);
-    if(from < 0 || to < 0) return;
-    list.splice(to, 0, list.splice(from, 1)[0]);
-    netSaveRoster(list);
-  }
-  _netDragId = null;
-  netRenderList();
-}
-
-function netRenderList(){
-  const wrap = document.getElementById('netList');
-  if(!wrap) return;
-  const esc = s => String(s==null?'':s).replace(/[&<>"']/g,
-    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const session = netLoadSession();
-  document.getElementById('netStartBtn').style.display = session ? 'none' : 'inline-block';
-  document.getElementById('netEndBtn').style.display = session ? 'inline-block' : 'none';
-  document.getElementById('netLogAllBtn').style.display = session ? 'inline-block' : 'none';
-  document.getElementById('netSessionInfo').textContent = session
-    ? trF('Session en cours — {c} contacté(s) / {t}', {
-        c: session.entries.filter(e=>e.contacted).length, t: session.entries.length})
-    : trT('Session non démarrée');
-
-  if(!session){
-    const roster = netLoadRoster();
-    document.getElementById('netCount').textContent = trF('{n} station(s) au roster', {n: roster.length});
-    wrap.innerHTML = roster.length ? roster.map(r => `
-      <div class="net-row" draggable="true" ondragstart="netDragStart('${r.id}')" ondragover="netDragOver(event)" ondrop="netDrop(event,'${r.id}')">
-        <span>⠿</span><span></span>
-        <span><span class="net-call">${esc(r.call)}</span>${r.name?` <span class="net-name">${esc(r.name)}</span>`:''}</span>
-        <span></span><span></span>
-        <span class="net-del" onclick="netRosterRemove('${r.id}')" title="Retirer du roster">✕</span>
-      </div>`).join('') : '<div class="net-empty">Roster vide — ajoute des stations ci-dessus.</div>';
-    return;
-  }
-
-  const currentId = (session.entries.find(e => e.checked && !e.contacted) || {}).id;
-  document.getElementById('netCount').textContent = trF('{n} station(s) dans la session', {n: session.entries.length});
-  wrap.innerHTML = session.entries.map(e => `
-    <div class="net-row${e.id===currentId?' current':''}${e.contacted?' contacted':''}" draggable="true"
-         ondragstart="netDragStart('${e.id}')" ondragover="netDragOver(event)" ondrop="netDrop(event,'${e.id}')">
-      <span>⠿</span>
-      <span><input type="checkbox" ${e.checked?'checked':''} ${e.contacted?'disabled':''} onchange="netToggleChecked('${e.id}')"></span>
-      <span><span class="net-call">${esc(e.call)}</span>${e.name?` <span class="net-name">${esc(e.name)}</span>`:''}</span>
-      <span class="net-name">${e.contacted?'✓ contacté':''}</span>
-      <span>${e.contacted?'':`<button class="net-log-btn" onclick="netLogOne('${e.id}')">LOGGER</button>`}</span>
-      <span></span>
-    </div>`).join('');
-}
+// Constructeur de filtre avancé, recherche de doublons dédiée, re-résolution
+// en masse et contrôle de net : extraits vers logx_filter_builder.js /
+// logx_dup_finder.js / logx_bulk_resolve.js / logx_net_control.js (EV-7,
+// docs/LogX_AI_PRD.md) — chargés en <script> classique dans
+// logx_logbook.html, portée globale partagée comme tout le JS de ce projet.
 
 function renderLog(){
   const search = document.getElementById('logSearch').value.toUpperCase();
