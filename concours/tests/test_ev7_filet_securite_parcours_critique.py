@@ -185,3 +185,109 @@ def test_parcours_critique_sans_config_prealable_ne_casse_pas(server):
     status, adi = _get_raw(base, '/log/export/adif')
     assert status == 200
     assert adi.count('<EOR>') == 0
+
+
+def test_correction_qso_via_modale_edition(server):
+    """Modale ÉDITION QSO (correction d'un indicatif mal saisi, chemin
+    critique au même titre que la saisie initiale -- voir CLAUDE.md,
+    "Intuitivité -- maître mot") : /log/update remplace le QSO en entier,
+    par son id. La correction doit se retrouver dans la liste ET dans un
+    nouvel export, jamais l'ancienne valeur."""
+    base = server
+    _post(base, '/config/save', CONFIG_MINIMALE)
+    qso = {'call': 'F5TYPO', 'band': '14', 'mode': 'SSB',
+           'date': '20260807', 'time': '14:30',
+           'rst_sent': '59', 'rst_rcvd': '59', 'contest': 'GOLDEN_PATH_TEST'}
+    status, res = _post(base, '/log/add', qso)
+    assert status == 200
+    status, lst = _get(base, '/log/list')
+    qso_id = lst['qsos'][0]['id']
+
+    corrige = dict(qso, id=qso_id, call='F5ABCD')
+    status, res = _post(base, '/log/update', corrige)
+    assert status == 200 and res == {'ok': True}
+
+    status, lst2 = _get(base, '/log/list')
+    assert [q['call'] for q in lst2['qsos']] == ['F5ABCD']
+
+    status, adi = _get_raw(base, '/log/export/adif')
+    assert '<call:6>F5ABCD' in adi
+    assert 'F5TYPO' not in adi   # l'ancienne valeur ne doit survivre nulle part
+
+    # QSO déjà supprimé par un autre poste entre-temps (course multi-op,
+    # scénario documenté dans le handler) : erreur explicite, pas un faux ok.
+    status, res = _post(base, '/log/update', dict(corrige, id=999999))
+    assert status == 404 and res['ok'] is False
+
+
+def test_logbook_simple_pas_de_regle_doublon(server):
+    """usage_mode='simple' (carnet de trafic courant, hors concours) :
+    recontacter la même station sur la même bande est normal, PAS un
+    doublon -- règle explicitement différente du mode concours (voir
+    add_qso_to_log). Aucun 'contest' posé sur les QSO, comme le fait
+    réellement un carnet simple."""
+    base = server
+    status, res = _post(base, '/config/save',
+                         {'callsign': 'F4GLD', 'usage_mode': 'simple'})
+    assert status == 200
+
+    qso = {'call': 'DL1AA', 'band': '14', 'mode': 'SSB',
+           'date': '20260807', 'time': '09:00',
+           'rst_sent': '59', 'rst_rcvd': '59'}
+    status, res = _post(base, '/log/add', qso)
+    assert status == 200 and res['duplicate'] is False
+
+    # Même station/bande/mode, un autre jour -- accepté sans force=true.
+    status, res = _post(base, '/log/add', dict(qso, date='20260808'))
+    assert status == 200 and res['duplicate'] is False
+
+    status, lst = _get(base, '/log/list')
+    assert len(lst['qsos']) == 2   # aucune portée concours -> rien filtré
+
+
+def test_import_adif_preview_puis_commit(server):
+    """Import d'un log existant (bouton "Importer ADIF" de CONFIG/LOGBOOK) :
+    preview = aperçu SANS écrire, commit = écriture réelle. Chemin
+    d'ingestion alternatif à la saisie manuelle, tout aussi critique pour
+    un opérateur qui rejoint LogX AI avec un log déjà commencé ailleurs.
+    usage_mode='simple' (carnet, pas concours) : les QSO importés ne
+    portent pas de 'contest' -- sous une portée concours active, ils
+    seraient filtrés hors de /log/list (comportement réel et voulu, voir
+    _scope_filtered/qso_scope_id)."""
+    base = server
+    _post(base, '/config/save', {'callsign': 'F4GLD', 'usage_mode': 'simple'})
+    adif = ("En-tête\n<adif_ver:5>3.1.4<programid:4>Test<EOH>\n"
+            "<CALL:5>DL1AA<BAND:2>2m<MODE:3>SSB<QSO_DATE:8>20260710"
+            "<TIME_ON:4>1230<RST_SENT:2>59<RST_RCVD:2>59<EOR>\n"
+            "<CALL:5>F5XXX<BAND:3>20m<MODE:2>CW<QSO_DATE:8>20260711"
+            "<TIME_ON:6>081500<RST_SENT:3>599<RST_RCVD:3>599<EOR>\n")
+
+    status, preview = _post(base, '/log/import_adif/preview', {'adif': adif})
+    assert status == 200
+    status, lst = _get(base, '/log/list')
+    assert lst['qsos'] == []   # preview = aperçu, AUCUNE écriture
+
+    status, res = _post(base, '/log/import_adif/commit', {'adif': adif})
+    assert status == 200
+    assert res['ok'] is True and res['imported'] == 2 and res['errors'] == []
+
+    status, lst2 = _get(base, '/log/list')
+    assert sorted(q['call'] for q in lst2['qsos']) == ['DL1AA', 'F5XXX']
+
+
+def test_multi_operateur_categorie_cabrillo(server):
+    """Session multi-opérateur (radioclub/expédition) : au moins 2 opérateurs
+    distincts sur le même log fait basculer la catégorie déclarée du
+    Cabrillo -- SINGLE-OP -> MULTI-OP. Comportement du barème, pas un détail
+    d'affichage : une régression ici fausse la déclaration du concours."""
+    base = server
+    _post(base, '/config/save', CONFIG_MINIMALE)
+    _post(base, '/log/add', {'call': 'F5ABC', 'band': '14', 'mode': 'SSB',
+                              'date': '20260807', 'time': '10:00',
+                              'contest': 'GOLDEN_PATH_TEST', 'operator': 'OP1'})
+    _post(base, '/log/add', {'call': 'G4ZZZ', 'band': '21', 'mode': 'CW',
+                              'date': '20260807', 'time': '11:00',
+                              'contest': 'GOLDEN_PATH_TEST', 'operator': 'OP2'})
+    status, cab = _get_raw(base, '/log/export/cabrillo')
+    assert status == 200
+    assert 'CATEGORY-OPERATOR: MULTI-OP' in cab
