@@ -1846,6 +1846,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split('?')[0]
 
+        # Recherche plein-texte dans les pages (widget de la nav, logx_search.js)
+        # — texte visible seulement (titres/contenu des pages HTML), rien de
+        # secret, pas de jeton requis (même logique que /network/info ci-dessous).
+        if path == '/search':
+            from urllib.parse import parse_qs, urlparse
+            import logx_search
+            q = parse_qs(urlparse(self.path).query).get('q', [''])[0]
+            self._json({'query': q, 'results': logx_search.search(q)})
+            return
+
         # Info réseau (IP locale pour les clients WiFi)
         if path == '/network/info':
             import socket as _sock
