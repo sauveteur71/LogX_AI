@@ -61,6 +61,14 @@ voir [CONTRIBUTING.md](CONTRIBUTING.md) (installation, tests, conventions) —
 toute contribution est soumise au [code de conduite](CODE_OF_CONDUCT.md) du
 projet.
 
+## API locale
+
+Le serveur local expose environ 220 endpoints HTTP (journal de trafic,
+configuration, cluster DX, propagation, pilotage radio...) documentés dans
+[docs/API.md](docs/API.md) — de quoi brancher un script ou un tableau de
+bord tiers dessus. Ce n'est pas un contrat versionné : voir la page pour le
+modèle de sécurité réel et les limites de garantie.
+
 ## Licence
 
 [GNU GPLv3](LICENSE) — cohérent avec l'écosystème radioamateur libre (Tucnak, qxsl). Le code reste et restera librement redistribuable et modifiable ; toute version dérivée diffusée doit rester elle aussi sous GPLv3.
