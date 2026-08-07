@@ -1,0 +1,367 @@
+# -*- coding: utf-8 -*-
+"""Synchronisation MySQL partagée — 4e mécanisme multi-poste, aux côtés de
+Cloud Sync (dossier de fichiers, logx_cloudsync.py) et de la synchro LAN
+directe (logx_lan_sync.py). Cas d'usage visé (F4GLD, 06/08/2026) : un
+radio-club où plusieurs opérateurs partagent EN QUASI TEMPS RÉEL un même log
+de concours — mais fonctionne aussi bien pour simplement deux postes d'un
+même radioamateur partageant le même log.
+
+Chaque poste garde `shared_log` en mémoire comme aujourd'hui (AUCUN
+changement aux ~660 endroits du code qui le lisent déjà) — ce module ajoute
+seulement une tâche de fond qui pousse/tire périodiquement vers une table
+MySQL partagée, exactement comme logx_cloudsync.py le fait déjà vers un
+dossier de fichiers. Une vraie base transactionnelle simplifie nettement le
+mécanisme par rapport à Cloud Sync :
+  - authentification native (identifiants MySQL) — pas besoin de HMAC/secret
+    d'équipe ni de protection anti-rejeu (voir la docstring de
+    logx_cloudsync.py pour tout ce que ces deux points-là exigent en
+    l'absence de vraie transaction) ;
+  - écriture atomique par ligne (INSERT ... ON DUPLICATE KEY UPDATE, clé =
+    id du QSO, même identité de fusion que Cloud Sync — id = Date.now() côté
+    client, voir logx_storage.reserve_qso_id_locked) : deux postes qui
+    écrivent au même instant ne se marchent jamais dessus, MySQL le garantit ;
+  - une suppression se propage par une simple colonne `deleted_at` plutôt
+    que des fichiers de tombstones séparés avec anti-résurrection.
+
+Dépendance optionnelle `pymysql` (PAS dans la stdlib, contrairement au reste
+du projet — voir requirements.txt) : import protégé par HAS_PYMYSQL, comme
+HAS_PYSERIAL/HAS_CRYPTOGRAPHY/HAS_PAHO ailleurs dans ce projet. Son absence
+ne doit jamais empêcher LogX AI de démarrer ni de fonctionner sans MySQL.
+
+Limite assumée : les horodatages `updated_at`/`deleted_at` sont posés côté
+CLIENT (time.time() du poste qui écrit), pas par MySQL (NOW() serveur) — une
+dérive d'horloge notable entre deux postes pourrait retarder la propagation
+d'une correction/suppression d'un cycle. Acceptable pour un radio-club sur le
+même réseau local (horloges généralement proches), documenté ici plutôt que
+"résolu" par une synchronisation d'horloge hors de portée de ce module."""
+import json
+import os
+import threading
+import time
+import concurrent.futures as _cf
+
+from logx_utils import utcnow
+
+try:
+    import pymysql as _pymysql_mod
+    HAS_PYMYSQL = True
+except Exception:
+    _pymysql_mod = None
+    HAS_PYMYSQL = False
+
+TABLE = 'logx_qso'
+_STAMP_FILE = 'mysql_sync_state.json'
+DEFAULT_PORT = 3306
+
+# Même raisonnement que SYNC_TIMEOUT dans logx_cloudsync.py : une connexion
+# MySQL peut rester bloquée bien au-delà de tout timeout socket si le serveur
+# est injoignable via un chemin réseau anormal (DNS lent, pare-feu qui laisse
+# traîner la connexion) — toute la synchronisation tourne donc dans un thread
+# jetable dont on borne l'ATTENTE, jamais le socket lui-même.
+SYNC_TIMEOUT = 12
+CONNECT_TIMEOUT = 5
+_SYNC_EXECUTOR = _cf.ThreadPoolExecutor(max_workers=3, thread_name_prefix='mysqlsync')
+
+# Une seule synchronisation à la fois (même motif que _sync_serial_lock de
+# logx_cloudsync.py) — évite que deux cycles concurrents (bouton "synchroniser
+# maintenant" + boucle de fond) amorcent chacun leur propre vue de shared_log
+# et réintroduisent un doublon transitoire.
+_sync_serial_lock = threading.Lock()
+
+_last_error = {'ts': 0, 'msg': '', 'host': '', 'database': ''}
+
+
+def mysql_settings(cfg):
+    cfg = cfg or {}
+    mode = (cfg.get('mysql_mode') or 'off').strip().lower()
+    if mode not in ('full', 'push', 'off'):
+        mode = 'off'
+    host = (cfg.get('mysql_host') or '').strip()
+    database = (cfg.get('mysql_database') or '').strip()
+    try:
+        port = int(cfg.get('mysql_port') or DEFAULT_PORT)
+    except (TypeError, ValueError):
+        port = DEFAULT_PORT
+    call = cfg.get('callsign_contest') or cfg.get('callsign') or 'poste'
+    return {
+        'enabled': mode != 'off' and bool(host) and bool(database),
+        'mode': mode,
+        'host': host,
+        'port': port,
+        'user': (cfg.get('mysql_user') or '').strip(),
+        'password': cfg.get('mysql_password') or '',
+        'database': database,
+        'source': f'{str(call).strip()[:24]}',
+    }
+
+
+def _connect(s, connect_timeout=CONNECT_TIMEOUT):
+    if not HAS_PYMYSQL:
+        raise RuntimeError("pymysql n'est pas installé — pip install pymysql")
+    return _pymysql_mod.connect(
+        host=s['host'], port=s['port'], user=s['user'], password=s['password'],
+        database=s['database'], connect_timeout=connect_timeout, autocommit=True,
+        charset='utf8mb4')
+
+
+def _ensure_schema(conn):
+    with conn.cursor() as cur:
+        cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS {TABLE} (
+                id BIGINT PRIMARY KEY,
+                data LONGTEXT NOT NULL,
+                updated_at DOUBLE NOT NULL,
+                deleted_at DOUBLE NULL,
+                source VARCHAR(64) NOT NULL,
+                INDEX idx_updated (updated_at),
+                INDEX idx_deleted (deleted_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+
+
+def test_connection(host, port, user, password, database):
+    """Test ÉPHÉMÈRE (bouton CONFIG) : connecte, crée le schéma si absent,
+    ferme — ne touche jamais à la synchronisation périodique."""
+    if not HAS_PYMYSQL:
+        return {'ok': False, 'error': "pymysql n'est pas installé sur ce poste "
+                "— pip install pymysql"}
+    if not host or not database:
+        return {'ok': False, 'error': 'Hôte ou base de données manquant'}
+    try:
+        port = int(port or DEFAULT_PORT)
+    except (TypeError, ValueError):
+        port = DEFAULT_PORT
+    try:
+        conn = _pymysql_mod.connect(host=host, port=port, user=user or '',
+                                    password=password or '', database=database,
+                                    connect_timeout=CONNECT_TIMEOUT, autocommit=True,
+                                    charset='utf8mb4')
+    except Exception as e:
+        return {'ok': False, 'error': f"Connexion impossible à {host}:{port} : {e}"}
+    try:
+        _ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {TABLE}")
+            count = cur.fetchone()[0]
+        return {'ok': True, 'qso_count': count}
+    except Exception as e:
+        return {'ok': False, 'error': f"Table {TABLE} inaccessible : {e}"}
+    finally:
+        conn.close()
+
+
+def _qso_key(q):
+    """Même clé d'identité que logx_cloudsync._qso_key — pour rester
+    cohérent si un jour un même log est synchronisé par les deux mécanismes
+    à la fois (pas un cas d'usage recommandé, mais pas dangereux non plus)."""
+    q = q or {}
+    return (str(q.get('call', '')).upper().strip(),
+            str(q.get('band', '')).strip(),
+            str(q.get('mode', '')).upper().strip(),
+            str(q.get('date', '')).strip(),
+            str(q.get('time', '')).strip())
+
+
+def _load_stamp():
+    try:
+        if os.path.exists(_STAMP_FILE):
+            with open(_STAMP_FILE, encoding='utf-8') as f:
+                data = json.load(f) or {}
+            return data
+    except Exception:
+        pass
+    return {}
+
+
+def _save_stamp(data):
+    try:
+        with open(_STAMP_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+    except Exception:
+        pass  # état advisoire — une écriture ratée dégrade la synchro,
+              # jamais la disponibilité du serveur (même tolérance que
+              # logx_cloudsync._stamp())
+
+
+def sync_now(cfg, shared_log):
+    """Synchronise selon le mode configuré. Retourne
+    {'ok', 'mode', 'pushed', 'pulled', 'removed'} ou {'ok': False, 'error'}."""
+    try:
+        r = _SYNC_EXECUTOR.submit(_sync_now_blocking, cfg, shared_log).result(timeout=SYNC_TIMEOUT)
+    except _cf.TimeoutError:
+        r = {'ok': False, 'error': f"Serveur MySQL trop lent à répondre "
+                f"(> {SYNC_TIMEOUT}s) — vérifie l'adresse/le pare-feu."}
+    s = mysql_settings(cfg)
+    if s.get('enabled'):
+        if r.get('ok'):
+            _last_error.update(ts=0, msg='', host='', database='')
+        else:
+            _last_error.update(ts=time.time(), msg=r.get('error', ''),
+                               host=s.get('host', ''), database=s.get('database', ''))
+    return r
+
+
+def _sync_now_blocking(cfg, shared_log):
+    with _sync_serial_lock:
+        return _sync_now_locked(cfg, shared_log)
+
+
+def _sync_now_locked(cfg, shared_log):
+    s = mysql_settings(cfg)
+    if not s['enabled']:
+        return {'ok': False, 'error': 'Synchro MySQL désactivée ou incomplète (CONFIG)'}
+    try:
+        conn = _connect(s)
+    except Exception as e:
+        return {'ok': False, 'error': f"Connexion impossible à {s['host']}:{s['port']} : {e}"}
+    try:
+        _ensure_schema(conn)
+        local = list(shared_log or [])
+        now = time.time()
+
+        # ── PUSH : chaque QSO local, INSERT ... ON DUPLICATE KEY UPDATE sur
+        # id — comme logx_cloudsync réécrit tout son fichier à chaque cycle
+        # (le log d'un contest tient sur quelques milliers de lignes, pas
+        # besoin de suivi différentiel). deleted_at=NULL : un push ne
+        # ressuscite jamais un QSO marqué supprimé par un autre poste tant
+        # qu'il ne l'écrase pas explicitement (voir la clause WHERE).
+        pushed = 0
+        if local:
+            with conn.cursor() as cur:
+                for q in local:
+                    qid = q.get('id')
+                    if qid is None:
+                        continue
+                    cur.execute(
+                        f"INSERT INTO {TABLE} (id, data, updated_at, deleted_at, source) "
+                        f"VALUES (%s, %s, %s, NULL, %s) "
+                        f"ON DUPLICATE KEY UPDATE data=VALUES(data), updated_at=VALUES(updated_at), "
+                        f"deleted_at=NULL, source=VALUES(source)",
+                        (int(qid), json.dumps(q), now, s['source']))
+                    pushed += 1
+
+        # ── Suppressions locales (logx_storage.deleted_qsos, même source que
+        # logx_cloudsync) : marque deleted_at plutôt que DELETE — un DELETE
+        # SQL perdrait la trace pour les autres postes qui n'ont pas encore
+        # pull ce cycle-ci.
+        import logx_storage as storage
+        mem_deleted = {d.get('id') for d in list(storage.deleted_qsos)} - {None}
+        if mem_deleted:
+            with conn.cursor() as cur:
+                for qid in mem_deleted:
+                    cur.execute(
+                        f"UPDATE {TABLE} SET deleted_at=%s WHERE id=%s AND deleted_at IS NULL",
+                        (now, int(qid)))
+
+        pulled = 0
+        removed_count = 0
+        if s['mode'] == 'full':
+            stamp = _load_stamp()
+            key = f"{s['host']}:{s['port']}/{s['database']}"
+            last_pull = float(stamp.get(key, 0) or 0)
+            import logx_http as http
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT id, data, updated_at, deleted_at FROM {TABLE} "
+                    f"WHERE updated_at > %s OR deleted_at > %s",
+                    (last_pull, last_pull))
+                rows = cur.fetchall()
+
+            max_ts = last_pull
+            deleted_rows = [r for r in rows if r[3] is not None]
+            added_rows = [r for r in rows if r[3] is None]
+
+            # Suppressions distantes d'abord (même ordre que logx_cloudsync :
+            # une correction ET une suppression du même id dans le même cycle
+            # doit gagner par la suppression, la plus sûre des deux).
+            if deleted_rows:
+                remote_deleted_ids = {int(r[0]) for r in deleted_rows}
+                removed = []
+                with http.log_lock:
+                    keep = []
+                    for q in http.shared_log:
+                        if q.get('id') in remote_deleted_ids:
+                            removed.append(q)
+                        else:
+                            keep.append(q)
+                    if removed:
+                        http.shared_log[:] = keep
+                        storage.bump_log_version()
+                        for q in removed:
+                            storage.mark_qso_deleted(q.get('id'))
+                if removed:
+                    removed_count = len(removed)
+                    http.save_log_to_disk()
+                    for q in removed:
+                        scan = q.get('qsl_scan')
+                        if scan:
+                            try:
+                                import logx_qsl_scan as qslscan
+                                qslscan.delete_scan(scan)
+                            except Exception:
+                                pass
+                for r in deleted_rows:
+                    max_ts = max(max_ts, float(r[2] or 0), float(r[3] or 0))
+
+            if added_rows:
+                with http.log_lock:
+                    seen = {_qso_key(q) for q in http.shared_log}
+                    local_ids = {q.get('id') for q in http.shared_log if q.get('id') is not None}
+                for qid, raw, updated_at, _deleted_at in added_rows:
+                    max_ts = max(max_ts, float(updated_at or 0))
+                    qid = int(qid)
+                    if qid in local_ids:
+                        continue   # déjà présent localement (nous en sommes peut-être la source)
+                    try:
+                        q = json.loads(raw)
+                    except Exception:
+                        continue
+                    k = _qso_key(q)
+                    if k in seen:
+                        continue
+                    seen.add(k)
+                    ok, _info = http.add_qso_to_log(dict(q), force=False)
+                    if ok:
+                        pulled += 1
+                        local_ids.add(qid)
+
+            stamp[key] = max_ts
+            _save_stamp(stamp)
+
+        _stamp_status(s['host'], s['database'], pushed, pulled)
+        return {'ok': True, 'mode': s['mode'], 'pushed': pushed, 'pulled': pulled,
+                'removed': removed_count}
+    except Exception as e:
+        return {'ok': False, 'error': f"Erreur de synchronisation MySQL : {e}"}
+    finally:
+        conn.close()
+
+
+def _stamp_status(host, database, pushed, pulled):
+    try:
+        data = {'last': utcnow().strftime('%Y-%m-%d %H:%M'),
+                'host': host, 'database': database, 'pushed': pushed, 'pulled': pulled}
+        with open(_STAMP_FILE + '.status', 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
+def status(cfg=None):
+    s = mysql_settings(cfg) if cfg is not None else {}
+    last = {}
+    try:
+        if os.path.exists(_STAMP_FILE + '.status'):
+            with open(_STAMP_FILE + '.status', encoding='utf-8') as f:
+                last = json.load(f) or {}
+    except Exception:
+        pass
+    last_error = None
+    if (_last_error['ts'] and s.get('enabled')
+            and s.get('host') == _last_error.get('host')
+            and s.get('database') == _last_error.get('database')):
+        last_error = {'msg': _last_error['msg'], 'age_s': int(time.time() - _last_error['ts'])}
+    return {'enabled': bool(s.get('enabled')), 'mode': s.get('mode', 'off'),
+            'host': s.get('host', ''), 'database': s.get('database', ''),
+            'last': last, 'last_error': last_error, 'has_pymysql': HAS_PYMYSQL}

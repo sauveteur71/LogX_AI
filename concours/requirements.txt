@@ -62,3 +62,10 @@ py_mini_racer>=0.6,<1
 # callback_api_version requis), non nécessaire pour l'usage simple fait ici.
 # Décommenter pour l'activer :
 # paho-mqtt>=1.6,<2
+
+# Synchronisation MySQL partagée multi-poste (logx_mysql_sync.py) : radio-club
+# ou plusieurs postes d'un même radioamateur partageant un log en quasi temps
+# réel. Désactivée par défaut, import protégé par HAS_PYMYSQL — le reste de
+# l'appli fonctionne à l'identique sans (Cloud Sync/LAN Sync restent
+# disponibles). Décommenter pour l'activer :
+# pymysql>=1.1,<2

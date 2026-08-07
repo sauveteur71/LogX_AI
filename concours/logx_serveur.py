@@ -324,6 +324,38 @@ if __name__ == '__main__':
             startup = False
             _t.sleep(60)
 
+    def _mysql_sync_loop():
+        # Même motif que _cloudsync_loop ci-dessus, transposé à une base
+        # MySQL partagée (logx_mysql_sync.py) — radio-club ou plusieurs
+        # postes d'un même radioamateur. SYNCHRO IMMÉDIATE au démarrage
+        # (même raison que Cloud Sync : voir son commentaire).
+        import time as _t
+        import logx_http as h
+        import logx_mysql_sync as mysql
+        import logx_storage as st
+        startup = True
+        while True:
+            try:
+                with h.config_lock:
+                    cfg = dict(h.current_config)
+                s = mysql.mysql_settings(cfg)
+                if not s['enabled']:
+                    startup = False
+                    _t.sleep(60)
+                    continue
+                with st.log_lock:
+                    log_copy = list(st.shared_log)
+                r = mysql.sync_now(cfg, log_copy)
+                if r.get('ok') and (r.get('pulled') or r.get('pushed')):
+                    tag = ' (démarrage)' if startup else ''
+                    print(f"[MYSQL-SYNC]{tag} mode={r['mode']} pushed={r['pushed']} pulled={r['pulled']}")
+                elif not r.get('ok'):
+                    print(f"[MYSQL-SYNC] {r.get('error')}")
+            except Exception as _e:
+                print(f"[MYSQL-SYNC] {_e}")
+            startup = False
+            _t.sleep(30)
+
     def _lan_sync_loop():
         # SYNCHRO LAN DIRECTE (sans dossier partagé) : les postes se découvrent
         # par beacon UDP et échangent leurs QSO en HTTP. INDÉPENDANT de Cloud
@@ -364,6 +396,7 @@ if __name__ == '__main__':
     threading.Thread(target=_backup_loop, daemon=True).start()
     threading.Thread(target=_telemetry_loop, daemon=True).start()
     threading.Thread(target=_cloudsync_loop, daemon=True).start()
+    threading.Thread(target=_mysql_sync_loop, daemon=True).start()
     threading.Thread(target=_lan_sync_loop, daemon=True).start()
 
     # Watcher de branchement radio/interface CAT (plug-and-play) : diff léger
