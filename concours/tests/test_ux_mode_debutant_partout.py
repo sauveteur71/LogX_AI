@@ -22,6 +22,10 @@ CONCOURS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATUSBAR_JS = os.path.join(CONCOURS_DIR, 'logx_statusbar.js')
 LOGBOOK_HTML = os.path.join(CONCOURS_DIR, 'logx_logbook.html')
 LOGBOOK_JS = os.path.join(CONCOURS_DIR, 'logx_logbook.js')
+# EV-7 : la section IA de la modale VALIDATION (showValidation(), avec son
+# expert-only) a été extraite vers ce fichier -- voir les 2 tests qui le
+# lisent ci-dessous.
+VERIF_PANEL_JS = os.path.join(CONCOURS_DIR, 'logx_verif_panel.js')
 CONFIG_HTML = os.path.join(CONCOURS_DIR, 'logx_configuration.html')
 
 
@@ -219,8 +223,11 @@ def test_logbookjs_itemsmenulogbook_forme_inchangee_pour_le_test_existant():
 def test_logbookjs_section_audit_ia_englobante_est_expert_only():
     """La classe expert-only doit être posée sur la <div class="shortcuts-row">
     ENGLOBANTE (bouton #aiAuditBtn + texte explicatif), pas sur le bouton
-    seul — sinon le texte resterait affiché sans bouton en mode débutant."""
-    src = _lire(LOGBOOK_JS)
+    seul — sinon le texte resterait affiché sans bouton en mode débutant.
+
+    EV-7 : showValidation() (et sa section IA) vit désormais dans
+    logx_verif_panel.js, plus dans logx_logbook.js."""
+    src = _lire(VERIF_PANEL_JS)
     assert '<div class="shortcuts-row expert-only"' in src
     i_div = src.index('<div class="shortcuts-row expert-only"')
     i_btn = src.index('id="aiAuditBtn"')
@@ -233,8 +240,11 @@ def test_logbookjs_section_audit_ia_englobante_est_expert_only():
 def test_logbookjs_controles_deterministes_validation_restent_visibles():
     """Les contrôles déterministes (comptage erreur/attention/info) au-dessus
     de la section IA ne doivent pas être masqués : seul l'ajout IA optionnel
-    doit disparaître en mode débutant."""
-    src = _lire(LOGBOOK_JS)
+    doit disparaître en mode débutant.
+
+    EV-7 : showValidation() (et sa section IA) vit désormais dans
+    logx_verif_panel.js, plus dans logx_logbook.js."""
+    src = _lire(VERIF_PANEL_JS)
     i_head = src.index("QSO analysés")
     i_ai = src.index('<div class="shortcuts-row expert-only"')
     bloc_head = src[i_head:i_ai]
