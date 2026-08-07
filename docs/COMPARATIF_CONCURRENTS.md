@@ -21,7 +21,7 @@ communauté aussi technique.*
 | Code source | Fermé | Fermé | Fermé | Fermé | **Ouvert (GPLv3)** |
 | Plateforme | Windows natif | Windows natif | Windows natif | Windows natif (Wine/émulation ailleurs, non officiel) | **Serveur local, n'importe quel navigateur** (Windows/macOS/Linux/tablette/téléphone) |
 | Multi-poste | Réseau LAN natif, très mature | Réseau LAN natif, très mature | Réseau LAN + UDP, très mature | Non (logbook mono-poste) | Réseau WiFi (aucune install sur les postes secondaires) + MySQL partagé |
-| SO2R / SO2V | Oui, natif et éprouvé | Oui, natif et éprouvé | Oui, très poussé (double clavier) | Non | Non (pas encore) |
+| SO2R / SO2V | Oui, natif et éprouvé | Oui, natif et éprouvé | Oui, très poussé (double clavier) | Non | Bascule clavier + protocole OTRSP, **non éprouvé sur boîtier réel** |
 | Concours suivis | Très large (des dizaines) | Très large, fort en Europe | 500+ | Non spécialisé concours | 41 nommés + calendrier mondial WA7BNM + **IA lit un règlement inconnu** |
 | Copilote IA / auto-config | Non | Non | Non | Non | **Oui** (need list par valeur réelle, coach rythme RUN/S&P, extraction de règlement) |
 | Propagation intégrée | Non (outils tiers) | Non (outils tiers) | Estimations basiques | Non | Solaire/MUF/tropo/Es/EME complet, sans quitter le logiciel |
@@ -33,9 +33,14 @@ communauté aussi technique.*
 
 Honnêteté d'abord — un contester sérieux le vérifiera en dix minutes :
 
-- **SO2R/SO2V** : N1MM+, Win-Test et surtout DXLog.net (double clavier,
-  scénarios d'interlock) ont des années d'affinage sur le pilotage à deux
-  radios. LogX AI n'a pas encore cette brique.
+- **SO2R/SO2V** : LogX AI sait déclarer une deuxième radio, basculer le
+  focus au clavier (Ctrl+Espace) ou via un boîtier OTRSP externe, et router
+  QSY/macros/manipulateur vers la radio active — mais N1MM+, Win-Test et
+  surtout DXLog.net (double clavier, scénarios d'interlock) ont des années
+  d'affinage en plus : écoute simultanée des deux radios en CAT natif,
+  second band map, dueling CQ automatique. Chez LogX AI, ces raffinements
+  restent à construire, et le dialogue OTRSP n'a encore jamais été testé
+  sur un vrai boîtier d'interlock.
 - **Décennies de règles de concours affinées** : chaque cas limite d'un
   concours régional obscur, chaque feuille de dupe adaptée à un barème
   inhabituel — ce niveau de détail se construit avec le temps et des

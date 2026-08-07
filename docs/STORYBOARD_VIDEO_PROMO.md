@@ -43,7 +43,8 @@ de cartes), puis ouvrir 2-3 popups en cliquant.
 « Tout commence ici, dans CONFIG. Un hub de catégories plutôt qu'un long
 formulaire : identité de la station, opérateurs, sélection du concours,
 radio, propagation... chaque carte ouvre un popup dédié, avec de l'aide
-contextuelle sur chaque champ — le petit **?** à côté de chaque réglage. »
+contextuelle sur chaque champ, accessible via le petit point
+d'interrogation à côté de chaque réglage. »
 
 *(Ouvrir la popup 3 — Sélection concours)*
 « 41 concours intégrés — REF, IARU, CQ WW, CQ WPX, ARRL DX, WAE... — plus
@@ -227,16 +228,17 @@ ClubLog, QRZCQ, HRDLog. »
 
 ---
 
-## 13. Clôture / appel à l'action (0:30)
+## 13. Clôture / appel à l'action (0:35)
 
-**Écran** : page de téléchargement GitHub, ou le README.
+**Écran** : le site de présentation (sauveteur71.github.io/LogX_AI).
 
 « Un seul fichier à télécharger, aucune installation, aucun compte. Vos
 données restent chez vous. LogX AI est gratuit, sous licence libre GPLv3 —
 le code reste ouvert et le restera. Vous venez de N1MM+, Win-Test, DXLog ou
-Log4OM ? Votre historique s'importe en un clic, sans rien ressaisir.
-Développé par un radioamateur pour la communauté — et vos retours font le
-logiciel. »
+Log4OM ? Votre historique s'importe en un clic, sans rien ressaisir. C'est
+un radioamateur qui l'a développé, avec l'aide d'un copilote IA pour
+l'assistance au code — mais c'est vous, sur le terrain, qui savez ce qui
+manque encore. Alors testez-le, et aidez-moi à l'améliorer. »
 
 **Texte à l'écran (fin)** :
 - Téléchargement : lien GitHub / dernière release

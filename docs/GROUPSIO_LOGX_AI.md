@@ -67,8 +67,9 @@ ci-dessous est prêt à copier-coller une fois le groupe créé.
 > en points et peut lire le règlement d'un concours inconnu pour proposer
 > sa configuration, la propagation (solaire/MUF/EME) intégrée sans quitter
 > le logiciel, et les bases POTA/SOTA/WWFF/IOTA en local. En face,
-> honnêtement : pas encore de SO2R, et moins d'années de terrain que ces
-> trois références.
+> honnêtement : le SO2R existe (bascule clavier + protocole OTRSP) mais
+> reste logiciel-seul et non testé sur un vrai boîtier d'interlock, et
+> moins d'années de terrain que ces trois références.
 >
 > Import ADIF depuis N1MM+/Win-Test/DXLog/Log4OM en un clic si vous voulez
 > essayer sans perdre votre historique.

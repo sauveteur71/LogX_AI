@@ -42,8 +42,8 @@ then open 2-3 popups by clicking.
 **Narration**:
 "It all starts here, in CONFIG. A hub of categories rather than one long
 form: station identity, operators, contest selection, radio, propagation...
-each card opens a dedicated popup, with contextual help on every field —
-the little **?** next to each setting."
+each card opens a dedicated popup, with contextual help on every field,
+available through the little question-mark icon next to each setting."
 
 *(Open popup 3 — Contest selection)*
 "41 contests built in — REF, IARU, CQ WW, CQ WPX, ARRL DX, WAE... — plus
@@ -227,16 +227,17 @@ TQSL, ClubLog, QRZCQ, HRDLog."
 
 ---
 
-## 13. Closing / call to action (0:30)
+## 13. Closing / call to action (0:35)
 
-**Screen**: GitHub download page, or the README.
+**Screen**: the presentation site (sauveteur71.github.io/LogX_AI).
 
 "A single file to download, no installation, no account. Your data stays
 on your machine. LogX AI is free, under the free GPLv3 license — the code
 stays open and will remain so. Coming from N1MM+, Win-Test, DXLog or
-Log4OM? Your history imports in one click, nothing to retype. Built by a
-ham radio operator for the community — and your feedback shapes the
-software."
+Log4OM? Your history imports in one click, nothing to retype. It's built
+by a ham radio operator, with the help of an AI copilot for the coding
+itself — but you, out in the field, know best what's still missing. So
+give it a try, and help me make it better."
 
 **On-screen text (end)**:
 - Download: GitHub link / latest release
