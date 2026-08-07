@@ -15,9 +15,13 @@
 // désormais être chargé EN PLUS de logx_logbook.js pour le scénario HEAD.
 //
 // Dépend de globals restés dans logx_logbook.js (portée globale partagée via
-// <script> classique, voir logx_logbook.html) : escHtml, fmtDate,
-// qslAction, qslLastSync (déclaré juste après ce bloc, avec le reste de la
-// synchro QSL — pas déplacé ici, autre fonctionnalité).
+// <script> classique, voir logx_logbook.html) : escHtml, fmtDate, notify,
+// trF, trT.
+//
+// qslLastSync()/qslAction() (8e incrément EV-7) ont rejoint ce fichier : elles
+// n'avaient qu'un seul consommateur, showAwards() ci-dessous — dépendance déjà
+// documentée dans une version antérieure de cet en-tête, refermée maintenant
+// que les deux vivent au même endroit.
 // ─── WORKED MATRIX (grille bande × CW/Phone/Digital) ─────────────────────────
 function renderWorkedMatrix(m){
   if(!m || !m.bands || !m.bands.length){
@@ -203,4 +207,43 @@ async function showAwards(){
       <div id="qslResult" style="margin-top:10px;color:var(--muted);font-size:12px">${qslLastSync(q)}</div>
       <div style="margin-top:8px;font-size:11px;color:var(--muted)">Identifiants des services : CONFIG → étape PROPAGATION → « QSL & DIPLÔMES ». Stockés côté serveur.</div>
     </div>`;
+}
+
+function qslLastSync(q){
+  const l = q.last || {};
+  const bits = [];
+  if(l.eqsl_upload) bits.push('eQSL envoyé le ' + l.eqsl_upload);
+  if(l.clublog_upload) bits.push('ClubLog envoyé le ' + l.clublog_upload);
+  if(l.qrzcq_upload) bits.push('QRZCQ envoyé le ' + l.qrzcq_upload);
+  if(l.hrdlog_upload) bits.push('HRDLog envoyé le ' + l.hrdlog_upload);
+  if(l.lotw) bits.push('LoTW synchro le ' + l.lotw);
+  return bits.length ? bits.join(' · ') : 'aucune synchro encore';
+}
+
+async function qslAction(kind, service, btn){
+  const out = document.getElementById('qslResult');
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳…';
+  if(out) out.textContent = trF(kind==='upload' ? 'Envoi vers {service} en cours…' : 'Synchro {service} en cours…', {service});
+  try{
+    const url = kind === 'upload' ? '/qsl/upload' : '/qsl/sync';
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({service})});
+    const d = await r.json();
+    if(d.ok){
+      if(kind==='upload' && service==='hrdlog') out.innerHTML =
+        `<span style="color:var(--green)">${trF('✅ {sent}/{total} QSO envoyés à HRDLog{failed}.',
+          {sent: d.sent, total: d.qso_count, failed: d.failed ? trF(' ({n} échoués)', {n: d.failed}) : ''})}</span>`;
+      else if(kind==='upload') out.innerHTML = `<span style="color:var(--green)">${trF('✅ {n} QSO envoyés à {service}.', {n: d.qso_count, service: d.service})}</span>`;
+      else out.innerHTML = `<span style="color:var(--green)">${trF('✅ {n} nouvelles confirmations ({total} au total).', {n: d.newly_added, total: d.total_confirmations})}</span>`;
+      notify(trF('✅ QSL {action}', {action: kind==='upload' ? trT('envoyé') : trT('synchronisé')}));
+      if(kind==='sync') setTimeout(showAwards, 800);   // rafraîchit les « confirmés »
+    }else{
+      out.innerHTML = `<span style="color:var(--red)">${trF('❌ {err}', {err: d.error || trT('échec')})}</span>`;
+    }
+  }catch(e){
+    out.innerHTML = `<span style="color:var(--red)">${trF('❌ {err}', {err: e.message})}</span>`;
+  }finally{
+    btn.disabled = false; btn.textContent = old;
+  }
 }

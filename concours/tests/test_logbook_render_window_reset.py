@@ -27,6 +27,11 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+# EV-7 : resetLog()/archiveLog() ont été extraites vers ce fichier -- ajouté
+# UNIQUEMENT pour la révision courante (rev=None). Au commit historique rejoué
+# ci-dessous (e68907d), les deux fonctions vivaient encore dans logx_logbook.js
+# : ce fichier n'existait pas à l'époque.
+OUTILS_JS_PATH = os.path.join(BASE, 'logx_outils_autonomes.js')
 
 # ─── DOM minimal ──────────────────────────────────────────────────────────────
 # logx_logbook.js est un script de page (pas un module) : il référence document/
@@ -107,11 +112,15 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 
 
 def _real_source(rev=None):
-    """Source réelle de logx_logbook.js : HEAD par défaut, ou `rev` (ex. le
+    """Source réelle de logx_logbook.js (+ logx_outils_autonomes.js, où EV-7 a
+    déplacé resetLog()/archiveLog()) : HEAD par défaut, ou `rev` (ex. le
     commit e68907d) pour rejouer le scénario tel qu'il était AVANT ce fix."""
     if rev is None:
         with open(JS_PATH, encoding='utf-8') as f:
-            return f.read()
+            src = f.read()
+        with open(OUTILS_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        return src
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)
