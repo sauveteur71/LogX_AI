@@ -855,7 +855,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <span id="editQslScanStatus" style="font-size:12px;color:var(--muted)"></span>
       </div>
     </div>
-    <div class="edit-field" style="grid-column:1/-1;margin-bottom:14px">
+    <div class="edit-field expert-only" style="grid-column:1/-1;margin-bottom:14px">
       <div class="edit-lbl">CHAMPS ADIF PERSONNALISÉS</div>
       <div id="editExtraFields" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
       <button type="button" class="flt-add-cond" style="margin-top:6px" onclick="addEditExtraField()">+ CHAMP</button>
@@ -1052,7 +1052,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 
 <!-- CONSTRUCTEUR DE FILTRE AVANCÉ -->
-<div class="shortcuts-overlay" id="filterOverlay" onclick="if(event.target===this)closeFilterBuilder()">
+<div class="shortcuts-overlay expert-only" id="filterOverlay" onclick="if(event.target===this)closeFilterBuilder()">
   <div class="shortcuts-box flt-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,3 16,3 11,9.5 11,14 7,16 7,9.5"/></svg> FILTRE AVANCÉ</span>
@@ -1078,7 +1078,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 
 <!-- RECHERCHE DE DOUBLONS DÉDIÉE -->
-<div class="shortcuts-overlay" id="dupOverlay" onclick="if(event.target===this)closeDupFinder()">
+<div class="shortcuts-overlay expert-only" id="dupOverlay" onclick="if(event.target===this)closeDupFinder()">
   <div class="shortcuts-box dup-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="10" height="10" rx="1.5"/><path d="M6 12v2.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5V8A1.5 1.5 0 0 0 14 6.5h-2"/></svg> RECHERCHE DE DOUBLONS</span>
@@ -1098,7 +1098,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 
 <!-- RE-RÉSOLUTION EN MASSE (locator/état, callbook) -->
-<div class="shortcuts-overlay" id="bulkResolveOverlay" onclick="if(event.target===this)closeBulkResolve()">
+<div class="shortcuts-overlay expert-only" id="bulkResolveOverlay" onclick="if(event.target===this)closeBulkResolve()">
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M9 5.5v4l2.5 1.5"/></svg> RE-RÉSOLUTION EN MASSE</span>
@@ -1120,7 +1120,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 
 <!-- CONTRÔLE DE NET -->
-<div class="shortcuts-overlay" id="netOverlay" onclick="if(event.target===this)closeNetControl()">
+<div class="shortcuts-overlay expert-only" id="netOverlay" onclick="if(event.target===this)closeNetControl()">
   <div class="shortcuts-box net-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="4" r="2"/><circle cx="3.5" cy="14" r="2"/><circle cx="14.5" cy="14" r="2"/><path d="M9 6v3M9 9L4.5 12.3M9 9l4.5 3.3"/></svg> CONTRÔLE DE NET</span>
@@ -1243,7 +1243,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 
 <!-- CLASSEMENT OPÉRATEURS (multi-op) -->
-<div class="op-stats-bar" id="opStatsBar">
+<div class="op-stats-bar expert-only" id="opStatsBar">
   <div id="opStatsInner" class="op-stats-inner"></div>
 </div>
 
@@ -1698,7 +1698,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
          entend, non. Pas de filtre « spotteur à moins de N km » : cty.dat donne
          la position du PAYS, W1AW et W6XX tombent au même point (voir
          logx_spotfilter.py). Appliqué CÔTÉ SERVEUR avant la coupe à 40. -->
-    <div class="bm-filtre" id="bmFiltre">
+    <div class="bm-filtre expert-only" id="bmFiltre">
       <div class="bm-fl">Continent du spotteur</div>
       <div class="bm-chips" id="bmChipsSpotter"></div>
       <div class="bm-fl">Continent de la station DX</div>
@@ -1843,7 +1843,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
        tourne en PARALLÈLE du décodeur radio 1, pas de bascule à faire pour
        écouter les deux à la fois. Visible seulement si une radio 2 est
        déclarée (updateKeyerPanels, cat2_enabled). -->
-  <div class="cw-panel" id="cwPanel2" style="display:none">
+  <div class="cw-panel expert-only" id="cwPanel2" style="display:none">
     <div class="cw-header" onclick="toggleCwPanel2()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="2.5" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="9" x2="9" y2="9"/><circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="14.5" y1="9" x2="16.5" y2="9"/></svg> DÉCODEUR CW — RADIO 2 <span class="cw-wpm" id="cwWpmLabel2"></span><span class="cw-header-toggle">▲</span></div>
     <div class="cw-body" id="cwBody2">
       <div class="cw-note">Deuxième entrée audio (radio 2), indépendante de la première — tourne en même temps si besoin d'écouter les deux radios simultanément.</div>

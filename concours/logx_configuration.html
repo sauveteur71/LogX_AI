@@ -545,7 +545,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div class="hub-card-sub">Pointage d'antenne</div>
         <span class="hub-badge" id="hubbadge_rotor"></span>
       </div>
-      <div class="hub-card" id="hubcard_relay" onclick="openCategoryPopup('relay')">
+      <div class="hub-card expert-only" id="hubcard_relay" onclick="openCategoryPopup('relay')">
         <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg> 16. Station Control</div>
         <div class="hub-card-sub">Commutation relais (antennes)</div>
         <span class="hub-badge" id="hubbadge_relay"></span>
@@ -566,17 +566,17 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div class="hub-card-sub">Dossier, intervalle</div>
         <span class="hub-badge" id="hubbadge_backup"></span>
       </div>
-      <div class="hub-card" id="hubcard_autostart" onclick="openCategoryPopup('autostart')">
+      <div class="hub-card expert-only" id="hubcard_autostart" onclick="openCategoryPopup('autostart')">
         <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,3.5 14,9 6,14.5"/></svg> 17. Auto-lancement</div>
         <div class="hub-card-sub">Logiciels tiers au démarrage</div>
         <span class="hub-badge" id="hubbadge_autostart"></span>
       </div>
-      <div class="hub-card" id="hubcard_pgxl" onclick="openCategoryPopup('pgxl')">
+      <div class="hub-card expert-only" id="hubcard_pgxl" onclick="openCategoryPopup('pgxl')">
         <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 18. PowerGenius XL</div>
         <div class="hub-card-sub">Ampli 4O3A (réseau)</div>
         <span class="hub-badge" id="hubbadge_pgxl"></span>
       </div>
-      <div class="hub-card" id="hubcard_telemetry" onclick="openCategoryPopup('telemetry')">
+      <div class="hub-card expert-only" id="hubcard_telemetry" onclick="openCategoryPopup('telemetry')">
         <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg> 19. Télémétrie</div>
         <div class="hub-card-sub">Usage anonyme, opt-out</div>
         <span class="hub-badge" id="hubbadge_telemetry"></span>
@@ -1276,7 +1276,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
             <label>VITESSE (bauds)</label>
             <input type="number" id="cat_baudrate" placeholder="19200">
           </div>
-          <div class="form-group" id="catCivAddrField" style="display:none">
+          <div class="form-group expert-only" id="catCivAddrField" style="display:none">
             <label>ADRESSE CI-V (avancé)</label>
             <input type="text" id="cat_civ_addr" placeholder="AA">
             <div class="input-note">Laisse vide pour l'adresse usine du modèle — à remplir seulement si tu l'as changée dans le menu SET de la radio (multi-poste/SO2R).</div>
@@ -1356,7 +1356,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
 
         <!-- Mode avancé : OmniRig (VE3NEA), composant COM Windows -->
-        <div id="catOmnirigFields" class="form-grid" style="display:none;margin-top:12px">
+        <div id="catOmnirigFields" class="form-grid expert-only" style="display:none;margin-top:12px">
           <div class="form-group" style="grid-column:1/-1">
             <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
               OmniRig doit déjà tourner et être configuré (port série, marque/modèle) pour Rig1
@@ -1376,7 +1376,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
 
         <!-- Mode avancé : FlexRadio SmartSDR, API réseau TCP native -->
-        <div id="catFlexFields" class="form-grid" style="display:none;margin-top:12px">
+        <div id="catFlexFields" class="form-grid expert-only" style="display:none;margin-top:12px">
           <div class="form-group" style="grid-column:1/-1">
             <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.7">
               Connexion réseau directe à l'API TCP native SmartSDR (port 4992) — pas de logiciel
@@ -1398,7 +1398,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
 
         <!-- Mode avancé : Icom réseau (remote-internet, IC-705/7610/905...) -->
-        <div id="catIcomRemoteFields" class="form-grid" style="display:none;margin-top:12px">
+        <div id="catIcomRemoteFields" class="form-grid expert-only" style="display:none;margin-top:12px">
           <div class="form-group" style="grid-column:1/-1">
             <div style="font-family:var(--font-mono);font-size:12px;color:var(--red);line-height:1.7;padding:8px 12px;background:rgba(255,56,56,.08);border:1px solid rgba(255,56,56,.35);border-radius:6px">
               <b>Pas encore disponible.</b> Icom n'a jamais publié de documentation officielle pour
@@ -1565,7 +1565,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            commutation réelle (émission, audio) se fait dans un boîtier
            matériel : aucun logiciel ne route de l'audio à la place d'un
            relais. LogX AI lui DIT quoi commuter, par le protocole OTRSP. -->
-      <div class="section">
+      <div class="section expert-only">
         <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5" y1="2" x2="5" y2="16"/><rect x="3" y="6" width="4" height="3" rx="1" fill="currentColor" stroke="none"/><line x1="13" y1="2" x2="13" y2="16"/><rect x="11" y="9" width="4" height="3" rx="1" fill="currentColor" stroke="none"/></svg> SO2R — DEUXIÈME RADIO</div>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           À remplir seulement si vous opérez avec <b style="color:var(--text)">deux radios</b>.
@@ -2144,7 +2144,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           <span id="cloudsyncResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
-      <div class="section">
+      <div class="section expert-only">
         <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9" cy="4.5" rx="6" ry="2.2"/><path d="M3 4.5v9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2v-9"/><path d="M3 9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2"/></svg> MYSQL PARTAGÉ (radio-club, quasi temps réel)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Comme Cloud Sync ci-dessus, mais via une VRAIE base MySQL partagée plutôt
@@ -2193,7 +2193,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           <span id="mysqlTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
-      <div class="section">
+      <div class="section expert-only">
         <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> PUBLICATION MQTT (optionnelle)</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Publie 3 informations simples vers un broker MQTT LOCAL (Mosquitto...)
