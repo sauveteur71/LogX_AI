@@ -254,6 +254,45 @@ def test_sans_cat2_omnirig_rig_num_le_remap_ne_touche_a_rien():
     assert vue['omnirig_rig_num'] == 1
 
 
+# ─── Phase 2 : périphérique vocal par radio ──────────────────────────────────
+# voicekeyer_device n'est pas préfixé cat_ non plus (comme omnirig_rig_num en
+# Phase 1) -- hors de la boucle de remap générique, vérifié à part.
+
+def test_radio_2_utilise_son_propre_peripherique_vocal():
+    so2r.basculer({'so2r_enabled': ''}, 2)
+    vue = so2r.config_radio_active({'voicekeyer_device': '3', 'voicekeyer_device2': '7'})
+    assert vue['voicekeyer_device'] == '7'
+
+
+def test_radio_1_garde_son_propre_peripherique_vocal():
+    assert so2r.cle_radio_active() == ''
+    vue = so2r.config_radio_active({'voicekeyer_device': '3', 'voicekeyer_device2': '7'})
+    assert vue['voicekeyer_device'] == '3'
+
+
+def test_sans_voicekeyer_device2_le_remap_ne_touche_a_rien():
+    """Radio 2 sans périphérique vocal propre déclaré : garde celui de la
+    radio 1 plutôt que de le vider -- comportement voulu, le champ CONFIG dit
+    explicitement 'même périphérique que la radio 1' quand vide."""
+    so2r.basculer({'so2r_enabled': ''}, 2)
+    vue = so2r.config_radio_active({'voicekeyer_device': '3'})
+    assert vue['voicekeyer_device'] == '3'
+
+
+# ─── Paramètre radio= explicite (ferme la fenêtre TOCTOU côté HTTP) ─────────
+
+def test_config_radio_active_avec_radio_explicite_ignore_le_focus_courant():
+    """Le paramètre radio= doit primer sur le focus courant -- c'est ce qui
+    permet à un appelant HTTP de capturer le focus UNE FOIS et de l'utiliser
+    à la fois pour le verrou TX et pour la config, sans seconde lecture."""
+    so2r.basculer({'so2r_enabled': ''}, 2)   # focus courant = 2
+    cfg = {'cat_port': 'COM3', 'cat2_port': 'COM4'}
+    assert so2r.config_radio_active(cfg, radio=1)['cat_port'] == 'COM3'
+    assert so2r.config_radio_active(cfg, radio=2)['cat_port'] == 'COM4'
+    # Sans radio= explicite, retombe sur le focus courant (comportement inchangé).
+    assert so2r.config_radio_active(cfg)['cat_port'] == 'COM4'
+
+
 def test_la_cle_de_suffixe_a_un_seul_endroit():
     """Si la correspondance radio -> suffixe était reconstruite ailleurs, une
     moitié du code piloterait la radio 1 pendant que l'autre piloterait la 2."""
