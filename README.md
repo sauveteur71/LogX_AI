@@ -45,13 +45,21 @@ Guide complet, dépannage et FAQ : [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILIS
 
 ## Statut du projet
 
-Version courante : **0.9-beta22** ([journal des modifications](docs/CHANGELOG.md)). Phases 0 à 4 livrées, Phase 5 (validation terrain) en cours. Roadmap détaillée et exigences à venir dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
+Version courante : **0.9-beta25** ([journal des modifications](docs/CHANGELOG.md)). Phases 0 à 4 livrées, Phase 5 (validation terrain) en cours. Roadmap détaillée et exigences à venir dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
 
 Le logiciel se met à jour tout seul : au lancement, il compare sa version à la dernière release et propose le téléchargement, dont il vérifie l'empreinte SHA-256 avant de remplacer quoi que ce soit.
 
 ## Soutenir le projet
 
 LogX AI est développé bénévolement, avec l'aide d'un copilote IA (Claude, Anthropic) pour l'assistance au développement — un coût récurrent pour le mainteneur. Si le logiciel vous rend service, un don via **[HelloAsso](LIEN_HELLOASSO_A_COMPLETER)** (au profit du radioclub) aide à couvrir cet abonnement et à faire vivre le projet. Aucune contrepartie, aucune fonctionnalité fermée derrière un paywall — le logiciel reste et restera gratuit.
+
+## Contribuer
+
+Un bug, une idée ? Les [gabarits d'issue](.github/ISSUE_TEMPLATE/) guident le
+signalement, aucune connaissance technique requise. Pour proposer du code,
+voir [CONTRIBUTING.md](CONTRIBUTING.md) (installation, tests, conventions) —
+toute contribution est soumise au [code de conduite](CODE_OF_CONDUCT.md) du
+projet.
 
 ## Licence
 

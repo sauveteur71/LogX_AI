@@ -79,6 +79,43 @@ def test_bug_yml_dropdown_os_couvre_les_plateformes_courantes():
     assert any('mac' in o.lower() for o in options)
 
 
+# ── feature.yml (formulaire de suggestion) ───────────────────────────────────
+# Même raisonnement que bug.yml ci-dessus : sans ce gabarit, blank_issues_
+# enabled:false (config.yml) empêchait TOUTE suggestion d'idée sur le dépôt —
+# seul un signalement de bug était possible.
+
+def test_feature_yml_champs_attendus_presents():
+    tpl = _load_yaml('ISSUE_TEMPLATE', 'feature.yml')
+    assert tpl['name']
+    assert tpl['description']
+    ids = {el['id'] for el in tpl['body'] if el['type'] != 'markdown'}
+    assert {'besoin', 'idee', 'contexte'} <= ids
+
+
+def test_feature_yml_types_et_ids_valides():
+    tpl = _load_yaml('ISSUE_TEMPLATE', 'feature.yml')
+    types_valides = {'markdown', 'input', 'textarea', 'dropdown', 'checkboxes'}
+    ids = []
+    for el in tpl['body']:
+        assert el['type'] in types_valides
+        if el['type'] == 'markdown':
+            assert 'value' in el['attributes']
+            continue
+        assert 'id' in el and 'label' in el['attributes']
+        ids.append(el['id'])
+    assert len(ids) == len(set(ids)), 'id de champ duplique dans feature.yml'
+
+
+def test_feature_yml_le_besoin_est_obligatoire_lidee_ne_lest_pas():
+    """Le BESOIN doit rester obligatoire (sinon une suggestion sans contexte
+    exploitable) ; l'IDÉE reste volontairement optionnelle (décrire un
+    problème sans solution toute faite est déjà une contribution utile)."""
+    tpl = _load_yaml('ISSUE_TEMPLATE', 'feature.yml')
+    par_id = {el['id']: el for el in tpl['body'] if el['type'] != 'markdown'}
+    assert par_id['besoin'].get('validations', {}).get('required') is True
+    assert par_id['idee'].get('validations', {}).get('required') is not True
+
+
 # ── config.yml (chooser d'issues) ────────────────────────────────────────────
 
 def test_config_yml_bloque_les_issues_vierges():
@@ -195,6 +232,7 @@ def test_check_yml_se_declenche_pour_bug_yml_et_build_release():
     fichiers_a_couvrir = [
         '.github/ISSUE_TEMPLATE/bug.yml',
         '.github/ISSUE_TEMPLATE/config.yml',
+        '.github/ISSUE_TEMPLATE/feature.yml',
         '.github/workflows/build-release.yml',
     ]
     for event in ('push', 'pull_request'):
