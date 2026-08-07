@@ -39,6 +39,13 @@ py_mini_racer = pytest.importorskip(
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 HTML_PATH = os.path.join(BASE, 'logx_logbook.html')
+# logx_logbook.js référence CwPanel (logx_cw_panel.js) via _cwPanel(suffix),
+# qui l'instancie PARESSEUSEMENT au premier appel (ex. toggleCwPanel()) --
+# jamais au simple chargement du script. On le charge quand même AVANT ici,
+# dans le même ordre que <script> dans logx_logbook.html : les tests
+# ci-dessous appellent réellement ces fonctions (toggleCwDecoder, etc.), donc
+# CwPanel doit être disponible au moment de l'appel, comme en usage normal.
+CW_PANEL_JS_PATH = os.path.join(BASE, 'logx_cw_panel.js')
 
 
 def _read(path):
@@ -171,6 +178,7 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
+    ctx.eval(_read(CW_PANEL_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
@@ -244,6 +252,7 @@ def _ctx_avec_ecouteurs():
     ctx.eval(_DOM_PREAMBLE)
     ctx.eval("window.__ecouteurs = [];"
              "window.addEventListener = function(ev){ window.__ecouteurs.push(ev); };")
+    ctx.eval(_read(CW_PANEL_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 

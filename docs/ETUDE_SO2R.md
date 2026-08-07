@@ -265,7 +265,10 @@ optionnelle (radio 1 dans une oreille, radio 2 dans l'autre).
   branchement config manque).
 - `concours/logx_cwdecoder.js` / `logx_logbook.js` : permettre une
   seconde instance de `CwAudioDecoder` (déjà réentrante) ciblant l'autre
-  radio, au lieu du singleton `_cwAudioDecoder` actuel.
+  radio, au lieu du singleton `_cwAudioDecoder` actuel *(fait, puis
+  refactoré : les deux instances vivent désormais dans la classe
+  `CwPanel` de `concours/logx_cw_panel.js`, pilote EV-7 — le nom
+  `_cwAudioDecoder` n'existe plus dans le code)*.
 - `concours/logx_panadapter.html` / `logx_http.py` : les endpoints
   scope/spectrum devront accepter un paramètre radio explicite si
   l'affichage simultané des deux spectres est visé — sinon rester

@@ -7462,32 +7462,56 @@ function toggleChat(){
 // au lieu de flotter par-dessus. pipeline DSP dans logx_cwdecoder.js, ce
 // fichier ne fait que le brancher à l'UI (device picker, bouton start/stop,
 // sortie texte défilante).
-let _cwAudioDecoder = null;
-let _cwDevicesLoaded = false;
-let _cwOutText = '';   // texte décodé cumulé (survit aux re-rendus) — voir toggleCwDecoder/clearCwOutput
-
-async function toggleCwPanel(){
-  const panel = document.getElementById('cwPanel');
-  panel.classList.toggle('open');
-  if(panel.classList.contains('open') && !_cwDevicesLoaded) await loadCwInputDevices();
+// Composant partagé radio 1 / radio 2 (SO2R Phase 2) : voir logx_cw_panel.js
+// (chargé avant ce fichier) pour ce qui était ~90 lignes dupliquées ligne à
+// ligne (même convention de duplication que cat_port/cat2_port ailleurs dans
+// le projet, ici remplacée par UNE classe paramétrée par le suffixe d'id DOM
+// — CwAudioDecoder reste réentrante, les deux décodeurs tournent toujours
+// indépendamment et simultanément si besoin).
+// Instanciation PARESSEUSE (pas au chargement du script) : de nombreux tests
+// (test_notify_dynamic_i18n.py, test_rph_weekend_fallback.py, etc.) évaluent
+// logx_logbook.js dans un moteur JS isolé, SANS logx_cw_panel.js — un
+// `new CwPanel()` immédiat ferait échouer leur simple chargement du script
+// (donc TOUTES leurs assertions, même sans aucun rapport avec le CW) avec
+// une ReferenceError. La vraie page HTML charge bien logx_cw_panel.js avant
+// logx_logbook.js, donc CwPanel est de toute façon déjà disponible au moment
+// où un opérateur clique réellement sur le panneau — la paresse ne change
+// rien en usage normal, elle protège seulement les harnais de test partiels.
+let _cwPanelInstances = null;
+function _cwPanel(suffix){
+  if(!_cwPanelInstances) _cwPanelInstances = { '': new CwPanel(''), '2': new CwPanel('2') };
+  return _cwPanelInstances[suffix];
 }
 
-// ─── DÉCODEUR CW — RADIO 2 (SO2R Phase 2) ────────────────────────────────────
-// Duplication volontaire plutôt qu'une boucle sur N radios (même convention
-// que cat_port/cat2_port) : CwAudioDecoder est déjà réentrante (une instance
-// = un AudioContext + un device d'entrée indépendant), donc les deux
-// décodeurs peuvent tourner EN MÊME TEMPS, sans lien avec le focus SO2R
-// serveur — c'est l'opérateur qui choisit quel périphérique physique
-// correspond à quelle radio, LogX AI ne peut pas le déduire.
-let _cwAudioDecoder2 = null;
-let _cwDevicesLoaded2 = false;
-let _cwOutText2 = '';
+// Wrappers globaux conservés tels quels (nom et arité inchangés) : le HTML
+// (onclick="toggleCwPanel()" etc.) et tests/test_cw_panel_consolidation.py
+// (qui vérifie qu'il n'existe qu'UNE SEULE déclaration de toggleCwDecoder)
+// n'ont besoin de rien savoir de CwPanel.
+function toggleCwPanel(){ return _cwPanel('').toggle(); }
+function toggleCwPanel2(){ return _cwPanel('2').toggle(); }
+function toggleCwDecoder(){ return _cwPanel('').toggleDecoder(); }
+function toggleCwDecoder2(){ return _cwPanel('2').toggleDecoder(); }
+function clearCwOutput(){ return _cwPanel('').clearOutput(); }
+function clearCwOutput2(){ return _cwPanel('2').clearOutput(); }
+function setCwFreq(freq){ _cwPanel('').setFreq(freq); }
+function setCwFreq2(freq){ _cwPanel('2').setFreq(freq); }
 
-async function toggleCwPanel2(){
-  const panel = document.getElementById('cwPanel2');
-  panel.classList.toggle('open');
-  if(panel.classList.contains('open') && !_cwDevicesLoaded2) await loadCwInputDevices2();
-}
+// _cwOutText/_cwOutText2 : accesseurs de compatibilité vers l'état interne de
+// CwPanel — tests/test_cw_panel_consolidation.py lit/écrit _cwOutText
+// directement (écrit avant ce refactor, sur le comportement de
+// clearCwOutput()) ; plutôt que de le réécrire pour un détail d'implémentation
+// sans rapport avec ce qu'il vérifie réellement, ces deux variables globales
+// historiques restent lisibles/inscriptibles et reflètent fidèlement
+// this.outText de chaque instance. Object.defineProperty() elle-même
+// n'instancie rien (la paresse de _cwPanel() est préservée).
+Object.defineProperty(window, '_cwOutText', {
+  get(){ return _cwPanel('').outText; },
+  set(v){ _cwPanel('').outText = v; },
+});
+Object.defineProperty(window, '_cwOutText2', {
+  get(){ return _cwPanel('2').outText; },
+  set(v){ _cwPanel('2').outText = v; },
+});
 
 // Peuple un <select> d'entrées audio disponibles — générique, réutilisé par
 // le décodeur CW ET l'enregistreur audio par QSO (voir plus haut). Les
@@ -7518,9 +7542,6 @@ async function loadAudioInputDevices(selectId, alreadyGranted){
     return false;
   }
 }
-async function loadCwInputDevices(){ _cwDevicesLoaded = await loadAudioInputDevices('cwDevice'); }
-async function loadCwInputDevices2(){ _cwDevicesLoaded2 = await loadAudioInputDevices('cwDevice2'); }
-
 // Périphériques de SORTIE (émission RTTY/SSTV) : setSinkId (utilisé par
 // txAudioPtt() pour router la lecture vers CE périphérique précis) n'existe
 // que sur HTMLMediaElement, jamais directement sur AudioContext — d'où le
@@ -7595,113 +7616,6 @@ async function txAudioPtt(wave, sampleRate, outDeviceId){
     fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({on:false})}).catch(()=>{});
   }
-}
-
-function toggleCwDecoder(){
-  const btn = document.getElementById('cwStartBtn');
-  if(_cwAudioDecoder){
-    _cwAudioDecoder.stop();
-    _cwAudioDecoder = null;
-    btn.textContent = '▶ Démarrer';
-    btn.classList.remove('active');
-    return;
-  }
-  const deviceId = document.getElementById('cwDevice').value;
-  const freq = parseInt(document.getElementById('cwFreq').value, 10) || 650;
-  const out = document.getElementById('cwOutput');
-  const wpmLabel = document.getElementById('cwWpmLabel');
-  _cwOutText = '';
-  const dec = new CwAudioDecoder({
-    freq,
-    onChar: ch => {
-      _cwOutText = (_cwOutText + ch).slice(-400);   // borne la mémoire sur une session longue
-      // Mots cliquables : reprend le comportement de l'ancien panneau compact
-      // (voir cwToCall) — clique un mot décodé pour le mettre dans l'indicatif.
-      out.innerHTML = _cwOutText.replace(/(\S+)/g, '<span style="cursor:pointer" onclick="cwToCall(this.textContent)">$1</span>') || '—';
-      out.scrollTop = out.scrollHeight;
-    },
-    onLevel: (mag, threshold, wpm) => {
-      if(wpm) wpmLabel.textContent = wpm + ' MPM';
-      // Vumètre de diagnostic : échelle visuelle = 3x le seuil courant, pour
-      // que le repère de seuil reste toujours visible même quand le bruit
-      // de fond fait dériver le seuil adaptatif. Sans ce retour visuel,
-      // "ça tourne mais ça ne décode rien" ne donnait AUCUN indice pour
-      // savoir si c'est le niveau, le device ou le ton qui cloche.
-      const fill = document.getElementById('cwMeterFill');
-      const thr = document.getElementById('cwMeterThreshold');
-      if(fill && thr){
-        const scale = threshold * 3 || 0.01;
-        fill.style.width = Math.min(100, (mag / scale) * 100) + '%';
-        fill.classList.toggle('on', mag > threshold);
-        thr.style.left = Math.min(100, (threshold / scale) * 100) + '%';
-      }
-    },
-  });
-  dec.start(deviceId || undefined).then(() => {
-    _cwAudioDecoder = dec;
-    btn.textContent = '■ Arrêter';
-    btn.classList.add('active');
-  }).catch(e => {
-    notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
-  });
-}
-
-// Vide la sortie décodée — remet aussi _cwOutText à zéro (sinon le prochain
-// caractère décodé re-rendrait tout l'ancien texte accumulé par-dessus le
-// champ visuellement vidé, puisque le texte cumulé vit dans cette variable,
-// pas dans le DOM).
-function clearCwOutput(){
-  _cwOutText = '';
-  const out = document.getElementById('cwOutput');
-  if(out) out.textContent = '';
-}
-
-function toggleCwDecoder2(){
-  const btn = document.getElementById('cwStartBtn2');
-  if(_cwAudioDecoder2){
-    _cwAudioDecoder2.stop();
-    _cwAudioDecoder2 = null;
-    btn.textContent = '▶ Démarrer';
-    btn.classList.remove('active');
-    return;
-  }
-  const deviceId = document.getElementById('cwDevice2').value;
-  const freq = parseInt(document.getElementById('cwFreq2').value, 10) || 650;
-  const out = document.getElementById('cwOutput2');
-  const wpmLabel = document.getElementById('cwWpmLabel2');
-  _cwOutText2 = '';
-  const dec = new CwAudioDecoder({
-    freq,
-    onChar: ch => {
-      _cwOutText2 = (_cwOutText2 + ch).slice(-400);
-      out.innerHTML = _cwOutText2.replace(/(\S+)/g, '<span style="cursor:pointer" onclick="cwToCall(this.textContent)">$1</span>') || '—';
-      out.scrollTop = out.scrollHeight;
-    },
-    onLevel: (mag, threshold, wpm) => {
-      if(wpm) wpmLabel.textContent = wpm + ' MPM';
-      const fill = document.getElementById('cwMeterFill2');
-      const thr = document.getElementById('cwMeterThreshold2');
-      if(fill && thr){
-        const scale = threshold * 3 || 0.01;
-        fill.style.width = Math.min(100, (mag / scale) * 100) + '%';
-        fill.classList.toggle('on', mag > threshold);
-        thr.style.left = Math.min(100, (threshold / scale) * 100) + '%';
-      }
-    },
-  });
-  dec.start(deviceId || undefined).then(() => {
-    _cwAudioDecoder2 = dec;
-    btn.textContent = '■ Arrêter';
-    btn.classList.add('active');
-  }).catch(e => {
-    notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
-  });
-}
-
-function clearCwOutput2(){
-  _cwOutText2 = '';
-  const out = document.getElementById('cwOutput2');
-  if(out) out.textContent = '';
 }
 
 // ─── TOGGLE JOUR/NUIT ────────────────────────────────────────────────────────

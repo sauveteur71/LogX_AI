@@ -1826,7 +1826,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
       <div class="cw-controls">
         <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
-        <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="if(_cwAudioDecoder) _cwAudioDecoder.setFreq(parseInt(this.value,10)||650)">
+        <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="setCwFreq(parseInt(this.value,10)||650)">
         <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
       </div>
       <div class="cw-meter" id="cwMeter" title="Niveau reçu (barre) vs seuil de détection (repère) — si la barre n'atteint jamais le repère, le signal est trop faible ou le mauvais périphérique/ton est sélectionné">
@@ -1852,7 +1852,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
       <div class="cw-controls">
         <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
-        <input type="number" id="cwFreq2" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="if(_cwAudioDecoder2) _cwAudioDecoder2.setFreq(parseInt(this.value,10)||650)">
+        <input type="number" id="cwFreq2" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="setCwFreq2(parseInt(this.value,10)||650)">
         <button class="cw-btn" id="cwStartBtn2" onclick="toggleCwDecoder2()">▶ Démarrer</button>
       </div>
       <div class="cw-meter" id="cwMeter2" title="Niveau reçu (barre) vs seuil de détection (repère) — si la barre n'atteint jamais le repère, le signal est trop faible ou le mauvais périphérique/ton est sélectionné">
@@ -1867,6 +1867,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 
 <script src="logx_cwdecoder.js"></script>
+<script src="logx_cw_panel.js"></script>
 <script src="logx_rttydecoder.js"></script>
 <script src="logx_sstvdecoder.js"></script>
 <script src="logx_logbook.js"></script>
