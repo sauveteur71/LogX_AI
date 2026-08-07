@@ -354,6 +354,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </nav>
 <script src="logx_statusbar.js"></script>
 <script src="logx_i18n.js"></script>
+<script src="logx_search.js"></script>
 
 <!-- Bandeau de détection de branchement radio/interface (plug-and-play) —
      jamais d'application automatique, toujours une confirmation en un clic
@@ -3045,13 +3046,27 @@ function addAssistantMsg(who, text){
 // Recherche mot-clé simple dans CONFIG_HELP : suffisant pour une base d'une
 // centaine d'entrées, sans dépendance externe. Retourne les meilleures
 // correspondances (champ trouvé dans le label OU dans le texte d'aide).
+//
+// Correctif (retour F4GLD, capture d'écran 07/08/2026) : « hay.includes(w) »
+// faisait un match de SOUS-CHAÎNE, pas de mot entier — "trouve" matchait
+// dans "retrouver", faisant remonter l'entrée « indicatif » comme réponse à
+// « où se trouve le module de décodage sstv », alors qu'AUCUNE entrée de
+// CONFIG_HELP ne parle de sstv (cette base ne couvre que les champs de
+// formulaire de LA page CONFIG, pas le reste du logiciel — pour "où est une
+// fonctionnalité dans l'appli", voir plutôt la loupe de recherche de la nav,
+// logx_search.js, qui couvre le contenu réel des pages). Passage à un match
+// par mot ENTIER (frontières \b) pour ne plus remonter de faux positifs.
+function _wholeWordIncludes(haystack, word){
+  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp('\\b' + esc + '\\b').test(haystack);
+}
 function _searchLocalHelp(query){
   const q = query.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const words = q.split(/\s+/).filter(w => w.length > 2);
   if (!words.length) return [];
   const scored = Object.entries(CONFIG_HELP).map(([id, text]) => {
     const hay = (id + ' ' + text).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const score = words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0);
+    const score = words.reduce((s, w) => s + (_wholeWordIncludes(hay, w) ? 1 : 0), 0);
     return { id, text, score };
   }).filter(x => x.score > 0);
   scored.sort((a, b) => b.score - a.score);
