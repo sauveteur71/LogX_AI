@@ -47,6 +47,12 @@ _BIND_SRC = _extract_function(_HTML_SRC, 'bindCatModalBackdropClose')
 _CURRENTOPENCAT_SRC = _extract_function(_HTML_SRC, '_currentOpenCat')
 _CLOSECONFIGPOPUP_SRC = _extract_function(_HTML_SRC, 'closeConfigPopup')
 _CLOSESUMMARY_SRC = _extract_function(_HTML_SRC, 'closeSummaryPopup')
+# closeConfigPopup() appelle désormais _confirmDiscardCatChanges() (avertir
+# avant de perdre des modifications non enregistrées) -- ses dépendances
+# doivent être extraites aussi, sinon ReferenceError au premier appel.
+_SNAPSHOTCATFORM_SRC = _extract_function(_HTML_SRC, '_snapshotCatForm')
+_CATHASUNSAVED_SRC = _extract_function(_HTML_SRC, '_catHasUnsavedChanges')
+_CONFIRMDISCARD_SRC = _extract_function(_HTML_SRC, '_confirmDiscardCatChanges')
 
 # ─── DOM minimal : des .cat-modal factices qui enregistrent leurs écouteurs
 # de clic et savent simuler un clic sur le FOND (target === l'overlay
@@ -108,6 +114,10 @@ function buildSummary(){ buildSummaryCalled++; }
 def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
+    ctx.eval("var _catFormSnapshots = {};")
+    ctx.eval(_SNAPSHOTCATFORM_SRC)
+    ctx.eval(_CATHASUNSAVED_SRC)
+    ctx.eval(_CONFIRMDISCARD_SRC)
     ctx.eval(_CURRENTOPENCAT_SRC)
     ctx.eval(_CLOSECONFIGPOPUP_SRC)
     ctx.eval(_CLOSESUMMARY_SRC)

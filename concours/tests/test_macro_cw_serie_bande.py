@@ -341,3 +341,75 @@ def test_pas_de_qso_director():
     """Interdiction absolue (nom d'un concurrent) — jamais dans le code."""
     with open(JS_PATH, encoding='utf-8') as f:
         assert 'QSO Director' not in f.read()
+
+
+# ─── esmSend() : CW manuel (sans CAT) ne doit JAMAIS partir en voix ──────────
+# Bug trouvé le 08/08/2026 pendant l'extraction EV-7 du bloc RADIO CAT :
+# esmSend() exigeait rigState.enabled pour router en CW, contrairement à
+# updateKeyerPanels() (juste à côté) qui se contente du repli
+# rigState.mode||currentMode SANS exiger .enabled -- un opérateur en CW
+# manuel (clé/manip externe, pas de CAT branché) voyait ESM jouer un message
+# VOCAL réel au lieu du CW attendu. Corrigé en alignant esmSend() sur le
+# même repli que updateKeyerPanels().
+
+def test_esm_en_cw_manuel_sans_cat_route_vers_le_keyer_pas_la_voix():
+    """rigState.enabled=false (pas de CAT) mais currentMode='CW' : ESM doit
+    quand même déclencher le keyer CW, jamais un message vocal audible."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    __initConcoursCW();
+    rigState.enabled = false; rigState.mode = '';   // pas de CAT branché
+    currentMode = 'CW';                              // mode saisi manuellement
+    var __appels = {copyMacro: [], voicePlay: []};
+    var _copyMacroReel = copyMacro, _voicePlayReel = voicePlay;
+    copyMacro = function(idx){ __appels.copyMacro.push(idx); };
+    voicePlay = function(slot){ __appels.voicePlay.push(slot); };
+    esmSend('exchange');
+    """)
+    appels = ctx.eval('JSON.stringify(__appels)')
+    import json
+    appels = json.loads(appels)
+    assert appels['copyMacro'] == [1], appels
+    assert appels['voicePlay'] == [], appels
+
+
+def test_esm_avec_cat_le_mode_radio_prime_sur_currentMode():
+    """CAT connecté, radio en SSB mais le sélecteur de mode de saisie
+    (currentMode) traîne encore sur CW (ex. juste après un changement de
+    bande) -- c'est rigState.mode (la radio) qui doit faire foi, jamais
+    currentMode quand le CAT est disponible."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    __initConcoursCW();
+    rigState.enabled = true; rigState.mode = 'SSB';
+    currentMode = 'CW';
+    var __appels = {copyMacro: [], voicePlay: []};
+    copyMacro = function(idx){ __appels.copyMacro.push(idx); };
+    voicePlay = function(slot){ __appels.voicePlay.push(slot); };
+    esmSend('exchange');
+    """)
+    appels = ctx.eval('JSON.stringify(__appels)')
+    import json
+    appels = json.loads(appels)
+    assert appels['copyMacro'] == [], appels
+    assert appels['voicePlay'] == ['V3'], appels
+
+
+def test_esm_en_ssb_sans_cat_route_toujours_vers_la_voix():
+    """Non-régression du cas sain : sans CAT et en SSB, ESM doit continuer à
+    utiliser le keyer vocal (rien à voir avec .enabled, tout avec le mode)."""
+    ctx = _make_ctx()
+    ctx.eval("""
+    __initConcoursCW();
+    rigState.enabled = false; rigState.mode = '';
+    currentMode = 'SSB';
+    var __appels = {copyMacro: [], voicePlay: []};
+    copyMacro = function(idx){ __appels.copyMacro.push(idx); };
+    voicePlay = function(slot){ __appels.voicePlay.push(slot); };
+    esmSend('exchange');
+    """)
+    appels = ctx.eval('JSON.stringify(__appels)')
+    import json
+    appels = json.loads(appels)
+    assert appels['copyMacro'] == [], appels
+    assert appels['voicePlay'] == ['V3'], appels

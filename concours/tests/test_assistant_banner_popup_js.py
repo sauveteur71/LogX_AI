@@ -64,6 +64,13 @@ _CLOSECAT_SRC = _extract_function(_HTML_SRC, 'closeCategoryPopup')
 # HTML réellement exécuté par handleContestParam(), voir _make_ctx() plus bas.
 _ESCC_SRC = _extract_function(_HTML_SRC, 'escC')
 _SAFEURL_SRC = _extract_function(_HTML_SRC, 'safeUrl')
+# openCategoryPopup()/closeCategoryPopup() appellent désormais
+# _snapshotCatForm()/_confirmDiscardCatChanges() (avertir avant de perdre des
+# modifications non enregistrées) -- dépendances extraites aussi, sinon
+# ReferenceError au premier appel.
+_SNAPSHOTCATFORM_SRC = _extract_function(_HTML_SRC, '_snapshotCatForm')
+_CATHASUNSAVED_SRC = _extract_function(_HTML_SRC, '_catHasUnsavedChanges')
+_CONFIRMDISCARD_SRC = _extract_function(_HTML_SRC, '_confirmDiscardCatChanges')
 
 # ─── DOM minimal fidèle à l'état CSS initial de la page ──────────────────────
 # .cat-modal{display:none} (règle CSS) et #assistantBanner style="display:none"
@@ -150,6 +157,10 @@ def _make_ctx(search, station_cfg=None):
     # Les VRAIS open/closeCategoryPopup sont injectés : le test vérifie le
     # comportement de bout en bout (la popup passe réellement en
     # display:block), pas seulement qu'un appel a eu lieu.
+    ctx.eval("var _catFormSnapshots = {};")
+    ctx.eval(_SNAPSHOTCATFORM_SRC)
+    ctx.eval(_CATHASUNSAVED_SRC)
+    ctx.eval(_CONFIRMDISCARD_SRC)
     ctx.eval(_OPENCAT_SRC)
     ctx.eval(_CLOSECAT_SRC)
     ctx.eval(_GOSTEP_SRC)

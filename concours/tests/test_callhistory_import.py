@@ -76,6 +76,33 @@ def test_import_master_scp_fichier_sans_indicatif_valide(tmp_path, monkeypatch):
     assert not os.path.isfile('master_scp.json')
 
 
+# ─── MASTER.SCP : récupération automatique depuis Internet ──────────────────
+# Jamais de vrai appel réseau ici -- logx_utils.fetch_url est mocké (import
+# local dans fetch_and_import_master_scp(), voir son commentaire "mockable
+# par les tests", même convention que logx_qrz_push.test_connection).
+
+def test_fetch_and_import_master_scp_succes(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    captured = {}
+    def fake_fetch_url(url, timeout=10, log_url=True):
+        captured['url'] = url
+        captured['timeout'] = timeout
+        return "F4GLD\nF5ABC\n"
+    monkeypatch.setattr('logx_utils.fetch_url', fake_fetch_url)
+    r = ch.fetch_and_import_master_scp()
+    assert r['ok'] and r['imported'] == 2 and r['total'] == 2
+    assert captured['url'] == ch.MASTER_SCP_URL
+    assert captured['timeout'] >= 10   # un fichier de ~350 Ko mérite plus que le défaut
+
+
+def test_fetch_and_import_master_scp_reseau_injoignable(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr('logx_utils.fetch_url', lambda url, timeout=10, log_url=True: None)
+    r = ch.fetch_and_import_master_scp()
+    assert r['ok'] is False and 'error' in r
+    assert not os.path.isfile('master_scp.json')
+
+
 def test_master_scp_alimente_build_index_sans_ecraser_calldb(tmp_path, monkeypatch):
     """MASTER.SCP est chargé en PREMIER (voir build_index) : un indicatif
     présent dans calldb.json avec un dept/locator ne doit JAMAIS les perdre

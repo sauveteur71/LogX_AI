@@ -57,10 +57,21 @@ function refreshRig(){
 function applyRigState(d){
     const panel = document.getElementById('rigPanel');
     const freqBtn = document.getElementById('freqRigBtn');
-    if(!d || !d.enabled){ rigState.enabled=false; if(panel) panel.style.display='none'; if(freqBtn) freqBtn.style.display='none'; return; }
+    if(!d || !d.enabled){
+      rigState.enabled=false; if(panel) panel.style.display='none'; if(freqBtn) freqBtn.style.display='none';
+      if(typeof updateFreqLockIcon==='function') updateFreqLockIcon();   // masque le cadenas : plus de CAT
+      return;
+    }
     rigState.enabled = true;
     if(panel) panel.style.display = 'block';
     if(freqBtn) freqBtn.style.display = '';
+    // Appelée ici, AVANT la branche d.ok/else : rigState.enabled vient de
+    // passer à true dans les DEUX cas (CAT activé en CONFIG, que rigctld
+    // réponde ou non -- get_state() peut renvoyer {enabled:true, ok:false}
+    // si le port existe mais que la radio ne répond pas). Un appel
+    // seulement dans le bloc d.ok laissait le cadenas périmé tant qu'aucun
+    // poll réussi n'arrivait (trouvé par la revue adversariale du 08/08/2026).
+    if(typeof updateFreqLockIcon==='function') updateFreqLockIcon();
     const dot = document.getElementById('rigDot');
     if(d.ok){
       rigState.mode = d.mode; rigState.freq_khz = d.freq_khz;
