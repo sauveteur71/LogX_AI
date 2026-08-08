@@ -114,3 +114,43 @@ def test_wall_state_expose_active_ops():
 def test_wall_state_active_ops_vide_si_log_vide():
     st = wall.wall_state([], {}, now=NOW)
     assert st['active_ops'] == []
+
+
+# ─── Résolution ID de créneau -> indicatif réel (revue adversariale du
+# 08/08/2026, même bug que LOGBOOK/export ADIF : les QSO stockent 'OP1',
+# jamais l'indicatif — l'écran mural est PUBLIC (projecteur/TV), il ne doit
+# jamais afficher l'ID brut) ────────────────────────────────────────────────
+
+def test_active_operators_resout_lid_de_creneau_en_indicatif_reel():
+    cfg = {'operators': [{'call': 'F4GLD', 'name': 'Olivier', 'modes': {}}]}
+    entries = [_entry('DL1AA', 'OP1', 2)]
+    active = wall._active_operators(entries, cfg, NOW)
+    assert len(active) == 1
+    assert active[0]['call'] == 'F4GLD'          # jamais 'OP1'
+    assert active[0]['name'] == 'Olivier'         # le lookup qualif. fonctionne désormais
+
+
+def test_active_operators_sans_config_garde_lid_brut_distinguable():
+    """Sans operators[] configuré : impossible de savoir qui est OP1/OP2, mais
+    il ne faut SURTOUT PAS les fusionner sous le même indicatif de station
+    (station_fallback=False) — sinon 2 opérateurs actifs deviendraient 1 seule
+    entrée, silencieusement."""
+    cfg = {'callsign': 'F6KQJ'}
+    entries = [_entry('DL1AA', 'OP1', 1), _entry('DL2BB', 'OP2', 2)]
+    active = wall._active_operators(entries, cfg, NOW)
+    assert {a['call'] for a in active} == {'OP1', 'OP2'}
+
+
+def test_wall_state_per_op_resout_lid_de_creneau_en_indicatif_reel():
+    cfg = {'operators': [{'call': 'F4GLD'}, {'call': 'F1ABC'}]}
+    log = [_entry('DL1AA', 'OP1', 1), _entry('DL2BB', 'OP2', 2), _entry('DL3CC', 'OP1', 3)]
+    st = wall.wall_state(log, cfg, now=NOW)
+    assert st['per_op'] == {'F4GLD': 2, 'F1ABC': 1}
+    assert st['recent'][0]['op'] == 'F4GLD'   # DL1AA, le plus récent (OP1 -> F4GLD)
+
+
+def test_wall_state_per_op_sans_config_ne_fusionne_pas_les_creneaux():
+    cfg = {'callsign': 'F6KQJ'}   # pas de operators[] : identités réelles inconnues
+    log = [_entry('DL1AA', 'OP1', 1), _entry('DL2BB', 'OP2', 2)]
+    st = wall.wall_state(log, cfg, now=NOW)
+    assert st['per_op'] == {'OP1': 1, 'OP2': 1}   # jamais {'F6KQJ': 2}

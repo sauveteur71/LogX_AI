@@ -23,6 +23,7 @@ import datetime
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as _xml_escape
 from logx_utils import utcnow
+from logx_export import resolve_operator_callsign
 
 DEFAULT_PORT = 12060
 
@@ -165,7 +166,10 @@ def build_contactinfo_xml(qso, cfg):
         'contestnr': '', 'timestamp': ts,
         'mycall': cfg.get('callsign_contest', ''),
         'band': qso.get('band', ''), 'rxfreq': '', 'txfreq': '',
-        'operator': qso.get('operator', ''), 'mode': qso.get('mode', ''),
+        # Jamais l'ID de créneau brut ('OP1') vers un poste N1MM/DXLog voisin —
+        # même bug que LOGBOOK/export ADIF, voir resolve_operator_callsign.
+        'operator': resolve_operator_callsign(qso.get('operator', ''), cfg),
+        'mode': qso.get('mode', ''),
         'call': qso.get('call', ''), 'gridsquare': qso.get('locator', ''),
         'snt': qso.get('rst_sent', ''), 'rcv': qso.get('rst_rcvd', ''),
         'comment': qso.get('comment', ''),

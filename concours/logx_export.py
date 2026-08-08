@@ -5,6 +5,8 @@ Fonctions PURES (testables) : build_cabrillo(qsos, cdef, cfg) et
 build_adif(qsos, cfg). Les en-têtes s'appuient sur la définition du concours
 (CONTEST_DEFINITIONS) et la config client (callsign, locator, opérateurs).
 """
+import re
+
 from logx_utils import utcnow
 
 # Bande interne (MHz, chaîne) → fréquence Cabrillo (kHz nominal en HF,
@@ -142,8 +144,15 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
     cfg = cfg or {}
     callsign = (cfg.get('callsign_contest') or cfg.get('callsign', '')).upper()
     claimed = sum(q.get('points', 0) or 0 for q in qsos)
-    operators = ' '.join(sorted({str(q.get('operator', '')).strip()
-                                 for q in qsos if q.get('operator')})) or callsign
+    # Créneaux BRUTS ('OP1', 'OP2'...) : sert uniquement à décider SINGLE-OP vs
+    # MULTI-OP — deux créneaux distincts restent deux opérateurs même sans
+    # config operators[] permettant de les résoudre en indicatifs réels (sans
+    # quoi, sans cette config, la résolution renverrait le même indicatif de
+    # station pour les deux et ferait dégénérer à tort en SINGLE-OP).
+    raw_ops = {str(q.get('operator', '')).strip() for q in qsos if q.get('operator')}
+    # Indicatifs RÉELS pour la ligne humaine OPERATORS: — jamais l'ID de
+    # créneau brut ('OP1') dans un fichier soumis à l'organisateur.
+    operators = ' '.join(sorted({resolve_operator_callsign(op, cfg) for op in raw_ops})) or callsign
 
     # Bandes et modes RÉELLEMENT présents dans le log : c'est ce qui détermine
     # la catégorie déclarée, pas ce qui était coché en config avant le concours.
@@ -169,7 +178,7 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
         'START-OF-LOG: 3.0',
         f"CONTEST: {cdef.get('cabrillo_name', cfg.get('contest', 'UNKNOWN'))}",
         f"CALLSIGN: {callsign}",
-        'CATEGORY-OPERATOR: ' + ('MULTI-OP' if len(operators.split()) > 1 else 'SINGLE-OP'),
+        'CATEGORY-OPERATOR: ' + ('MULTI-OP' if len(raw_ops) > 1 else 'SINGLE-OP'),
         f"CATEGORY-ASSISTED: {'ASSISTED' if assiste else 'NON-ASSISTED'}",
         f"CATEGORY-BAND: {cat_band}",
         f"CATEGORY-MODE: {cat_mode}",
@@ -209,6 +218,41 @@ def _adif_field(name, value):
     return f"<{name}:{len(value)}>{value}" if value else ''
 
 
+_OP_SLOT_RE = re.compile(r'^OP(\d+)$', re.IGNORECASE | re.ASCII)
+
+
+def resolve_operator_callsign(op_id, cfg, station_fallback=True):
+    """Indicatif réel d'un opérateur depuis son ID de créneau ('OP1', 'OP2'…)
+    — miroir de _resolveOperatorCallsign() côté JS (logx_logbook.js). Les
+    enregistrements QSO stockent l'ID brut (nécessaire aux stats par
+    opérateur/couleur côté client), jamais l'indicatif : à résoudre ici, à
+    l'export, pas à la source. Signalement F4GLD (08/08/2026) : un ADIF qui
+    exporte 'OP1' comme OPERATOR n'a de sens pour aucun logiciel tiers.
+
+    station_fallback : repli sur l'indicatif de la STATION si aucun opérateur
+    du créneau n'est configuré — adapté à un champ qui doit toujours porter
+    UNE identité (ADIF OPERATOR, Cabrillo OPERATORS:). Mettre à False pour un
+    usage de RÉPARTITION PAR OPÉRATEUR (écran mural) : y collapser plusieurs
+    créneaux distincts vers la même valeur fusionnerait à tort leurs comptes —
+    garder l'ID de créneau brut, encore distinguable, vaut mieux qu'un
+    doublon silencieux."""
+    raw = str(op_id or '').strip()
+    m = _OP_SLOT_RE.match(raw)
+    if not m:
+        return raw
+    operators = cfg.get('operators') or []
+    if not isinstance(operators, list):
+        operators = []
+    idx = int(m.group(1)) - 1
+    op = operators[idx] if 0 <= idx < len(operators) else {}
+    if not isinstance(op, dict):
+        op = {}
+    resolved = str(op.get('call') or op.get('callsign') or '').strip()
+    if resolved:
+        return resolved
+    return (cfg.get('callsign_contest') or cfg.get('callsign') or raw) if station_fallback else raw
+
+
 def build_adif(qsos, cfg=None):
     """Log partagé → ADIF 3 (texte). Le programme lisait déjà l'ADIF,
     il sait maintenant l'écrire."""
@@ -242,7 +286,16 @@ def build_adif(qsos, cfg=None):
             _adif_field('state', q.get('state', '')),
             _adif_field('my_gridsquare', q.get('my_locator', cfg.get('locator', ''))),
             _adif_field('contest_id', q.get('contest', '')),
-            _adif_field('operator', q.get('operator', '')),
+            # STATION_CALLSIGN (la station) et OPERATOR (la personne au clavier)
+            # sont deux champs ADIF distincts — jamais confondre les deux,
+            # jamais exporter l'ID de créneau brut ('OP1') comme OPERATOR.
+            # Indicatif utilisé AU MOMENT du QSO (q.my_call, ex. suffixe /P) en
+            # priorité — même repli que MY_GRIDSQUARE ci-dessus et que
+            # buildAdifText() côté JS (logx_logbook.js) — sinon un changement
+            # d'indicatif en cours de concours réétiquetterait rétroactivement
+            # tous les anciens QSO au prochain export serveur (backup/archive).
+            _adif_field('station_callsign', str(q.get('my_call') or callsign).upper()),
+            _adif_field('operator', resolve_operator_callsign(q.get('operator', ''), cfg)),
             _adif_field('distance', q.get('dist', '')),
             # SATELLITE : les DEUX champs sans lesquels LoTW crédite le QSO
             # comme un contact TERRESTRE ordinaire. PROP_MODE=SAT est ce qui le

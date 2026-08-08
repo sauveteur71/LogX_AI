@@ -114,6 +114,19 @@ def test_publish_qso_topic_et_payload(monkeypatch):
     assert body['call'] == 'F4GLD' and body['band'] == '14' and body['points'] == 3
 
 
+def test_publish_qso_resout_lid_de_creneau_en_indicatif_reel(monkeypatch):
+    """L'ID de créneau brut ('OP1') ne doit jamais partir vers un tableau de
+    bord tiers (Node-RED, Home Assistant, overlay de streaming...) — même bug
+    que LOGBOOK/export ADIF (signalement F4GLD 08/08/2026)."""
+    _reset(monkeypatch)
+    cfg = {'mqtt_enabled': True, 'mqtt_host': '127.0.0.1',
+           'operators': [{'call': 'F1ABC'}]}
+    lm.publish_qso(cfg, {'call': 'DL1AA', 'band': '14', 'operator': 'OP1'})
+    client = _FakeMqttClient.instances[-1]
+    body = json.loads(client.published[-1][1])
+    assert body['operator'] == 'F1ABC'
+
+
 def test_publish_score_topic_et_payload(monkeypatch):
     _reset(monkeypatch)
     cfg = {'mqtt_enabled': True, 'mqtt_host': '127.0.0.1'}

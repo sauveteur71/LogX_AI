@@ -702,14 +702,35 @@ def build_terrain_context(logs, spots_by_band, cfg):
         if not log_data.get('qsos'):
             lines.append("  (aucun QSO)")
 
-    # ── LOG PARTAGÉ MULTI-OP (logx_logbook.html) ──────────────────────────────────
+    # ── LOG LogX AI (logx_logbook.html) ───────────────────────────────────────
+    # shared_log est "partagé" au sens interne (mémoire commune entre les
+    # pages/onglets d'un même serveur, cf. logx_storage.py) — pas forcément au
+    # sens réseau/multi-opérateur. Étiqueter "MULTI-OPÉRATEUR" inconditionnellement
+    # dès que le log contient des QSO faisait halluciner au coach IA une fausse
+    # cause "Cloud Sync actif" pour un log simplement personnel et déjà ancien
+    # (signalement F4GLD 08/08/2026 : "pourquoi suis-je en log partagé, j'ai
+    # sélectionné logbook simple ?" — en réalité aucune synchro réseau n'était
+    # active, juste ~9800 QSO d'historique perso). Le libellé ne s'applique
+    # désormais que si le log contient VRAIMENT 2+ opérateurs distincts.
     if shared_log:
-        lines.append(f"\nLOG PARTAGÉ MULTI-OPÉRATEUR ({len(shared_log)} QSO) :")
+        # Un même opérateur physique peut apparaître sous DEUX formats selon la
+        # voie d'écriture du QSO (ID de créneau 'OP1' depuis LOGBOOK, indicatif
+        # réel depuis la page FT8 native/WSJT-X, casse libre depuis un import) —
+        # comparer les valeurs brutes ferait resurgir le même faux positif que
+        # le correctif ci-dessus vise à éliminer. On résout donc chaque valeur
+        # vers un indicatif réel (voir logx_export.resolve_operator_callsign)
+        # et on normalise la casse avant de compter les opérateurs distincts.
+        from logx_export import resolve_operator_callsign
+        distinct_ops = {resolve_operator_callsign(q.get('operator', ''), cfg).strip().upper()
+                        for q in shared_log if str(q.get('operator', '')).strip()}
+        distinct_ops.discard('')
+        label = 'LOG PARTAGÉ MULTI-OPÉRATEUR' if len(distinct_ops) >= 2 else 'LOG LOGX AI'
+        lines.append(f"\n{label} ({len(shared_log)} QSO) :")
         for q in shared_log[-30:]:  # 30 derniers
             base = q.get('call','').split('/')[0]
             lines.append(f"  {q.get('time','')} {q.get('call',''):12} {q.get('locator',''):6} "
                         f"{q.get('points',0):4}pts {q.get('band','')}MHz {q.get('mode','')} "
-                        f"[{q.get('operator','')}]")
+                        f"[{resolve_operator_callsign(q.get('operator', ''), cfg)}]")
             if base:
                 done_calls[base] = {
                     'locator': q.get('locator',''),

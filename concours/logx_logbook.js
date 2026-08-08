@@ -2884,10 +2884,7 @@ function setupDone(){
   document.getElementById('hdrStation').textContent = hdrParts.join(' · ');
   document.getElementById('hdrContest').textContent = cont || 'LOGBOOK';
   // Indicateur « OP : » — en single-op, montrer l'indicatif plutôt que « OP1 »
-  const opsCfg = stored.operators || [];
-  const opIdx = parseInt((op||'OP1').replace('OP',''), 10) - 1;
-  const opCall = (opsCfg[opIdx] && (opsCfg[opIdx].call || opsCfg[opIdx].callsign)) || call;
-  document.getElementById('currentOp').textContent = opCall || op;
+  document.getElementById('currentOp').textContent = _resolveOperatorCallsign(op || 'OP1') || op;
   document.getElementById('setupModal').style.display = 'none';
   // Recharger les dates de début/fin pour le countdown
   contestEndUTC   = getContestEndUTC();
@@ -3020,6 +3017,30 @@ setInterval(updateClockAndCountdown, 1000);
 updateClockAndCountdown();
 
 // ─── OPÉRATEUR / BANDE / MODE ────────────────────────────────────────────────
+// Résout un identifiant d'opérateur INTERNE ('OP1', 'OP2'...) vers son VRAI
+// indicatif (config operators[idx].call), repli sur l'indicatif de la
+// station. Idempotent : une valeur qui n'a pas la forme 'OPn' (déjà un
+// indicatif) est renvoyée telle quelle. UNIQUEMENT pour l'AFFICHAGE/EXPORT
+// (tableau, dernier QSO, classement multi-op, CSV, ADIF) — ne JAMAIS
+// utiliser en amont de opColorAttr() (qui a besoin de l'ID brut 'OPn' pour
+// calculer une teinte stable) ni pour la comparaison "mine"/le champ
+// `operator` réellement écrit sur le QSO (myOp reste l'ID interne partout
+// ailleurs — sélecteur d'opérateur, chat inter-postes). Corrige le signalement
+// F4GLD du 08/08/2026 : le tableau LOGBOOK affichait le libellé brut "OP1" au
+// lieu de l'indicatif réel, alors que le badge d'en-tête (#currentOp) le
+// résolvait déjà — cette fonction centralise la même logique pour tous les
+// autres points d'affichage/export qui en avaient besoin.
+function _resolveOperatorCallsign(opIdOrCall){
+  const raw = String(opIdOrCall || '').trim();
+  const m = /^OP(\d+)$/i.exec(raw);
+  if(!m) return raw;
+  let cfg = {};
+  try{ cfg = JSON.parse(localStorage.getItem('logx_config')||'{}'); }catch(e){}
+  const op = (cfg.operators || [])[parseInt(m[1], 10) - 1];
+  const resolved = op && String(op.call || op.callsign || '').trim();
+  return resolved || cfg.callsign_contest || cfg.callsign || myCall || raw;
+}
+
 // Opérateur courant : même schéma bouton+popup que BANDE/MODE (cf. plus bas)
 // plutôt qu'une rangée de jusqu'à 40 boutons (mode RADIOCLUB).
 function _setCurrentOpLabel(opVal){
@@ -3681,7 +3702,7 @@ async function submitQSO(){
       const err = await res.json();
       const ex = err.existing || {};
       const atPart = ex.time ? trF(' à {t}', {t: ex.time}) : '';
-      const byPart = ex.operator ? trF(' par {op}', {op: ex.operator}) : '';
+      const byPart = ex.operator ? trF(' par {op}', {op: _resolveOperatorCallsign(ex.operator)}) : '';
       if(confirm(trF('DOUBLON : {call} déjà contacté sur {band} MHz en {mode}{at}{by}.\n\nEnregistrer quand même ?',
                  {call: qso.call, band: qso.band, mode: qso.mode, at: atPart, by: byPart}))){
         const res2 = await fetch('/log/add', {
@@ -4383,7 +4404,7 @@ function renderLog(){
       <td class="td-loc">${escHtml(q.locator)||'—'}</td>
       <td style="color:${distColor};font-weight:700;font-size:15px">${q.dist?q.dist+' km':'—'}${cap!=='—'?' '+cap:''}</td>
       <td class="td-pts">${escHtml(q.points)||'—'}</td>
-      <td><span class="td-op ${opColor.cls}" style="${opColor.style}">${escHtml(q.operator)||'—'}</span></td>
+      <td><span class="td-op ${opColor.cls}" style="${opColor.style}">${escHtml(_resolveOperatorCallsign(q.operator))||'—'}</span></td>
       <td class="td-edit" onclick="editQSO(${q.id})" title="Corriger">✏️</td>
       <td class="td-del" onclick="deleteQSO(${q.id})" title="Supprimer">✕</td>
     </tr>`;
@@ -4398,7 +4419,7 @@ function updateLastQso(q){
     <span class="lqi-call">${escHtml(q.call)}</span>
     <span class="lqi-loc">${escHtml(q.locator)||'—'}</span>
     <span class="lqi-pts">${escHtml(q.points)||0} pts</span>
-    <span class="lqi-op">${escHtml(q.operator)}</span>
+    <span class="lqi-op">${escHtml(_resolveOperatorCallsign(q.operator))}</span>
   `;
   list.insertBefore(div, list.firstChild);
   if(list.children.length > 5) list.removeChild(list.lastChild);
@@ -4772,7 +4793,7 @@ function updateOpStats(){
     const opColor = opColorAttr(op);
     const isLeader = d.pts === topPts && topPts > 0;
     return `<div class="ops-item${isLeader?' leader':''}">`
-      + `<div class="ops-op ${opColor.cls}" style="border-radius:4px;display:inline-block;padding:1px 8px;${opColor.style}">${op}${isLeader?' 🏆':''}</div>`
+      + `<div class="ops-op ${opColor.cls}" style="border-radius:4px;display:inline-block;padding:1px 8px;${opColor.style}">${escHtml(_resolveOperatorCallsign(op))}${isLeader?' 🏆':''}</div>`
       + `<div class="ops-lbl">QSO · PTS</div>`
       + `<div class="ops-vals">${d.count} · ${d.pts.toLocaleString()}</div>`
       + `</div>`;
@@ -5359,7 +5380,7 @@ function buildAdifText(qsos){
     // Multi-op : sans STATION_CALLSIGN/OPERATOR le log n'est attribuable ni à
     // la station ni à l'opérateur qui a fait le QSO.
     adif += adifField('STATION_CALLSIGN', String(q.my_call || myCall || '').toUpperCase());
-    adif += adifField('OPERATOR', q.operator);
+    adif += adifField('OPERATOR', _resolveOperatorCallsign(q.operator));
     adif += adifField('CONTEST_ID', q.contest);
     // Champs ADIF personnalisés (voir editQSO/extra_fields) — ADIF_STD_TAGS
     // évite qu'un nom entré par erreur (ex. "CALL") ne duplique/contredise un
@@ -5392,7 +5413,7 @@ function exportADIF(){
 function exportCSV(){
   let csv = 'N°,Date,Heure,Indicatif,Bande,Mode,RST_env,N°_env,RST_recu,N°_recu,Locator,Distance_km,Points,Operateur\n';
   qsoLog.forEach((q,i)=>{
-    csv += `${i+1},${q.date},${q.time},${q.call},${q.band},${q.mode},${q.rst_sent},${q.num_sent},${q.rst_rcvd},${q.num_rcvd||''},${q.locator||''},${q.dist||0},${q.points||0},${q.operator}\n`;
+    csv += `${i+1},${q.date},${q.time},${q.call},${q.band},${q.mode},${q.rst_sent},${q.num_sent},${q.rst_rcvd},${q.num_rcvd||''},${q.locator||''},${q.dist||0},${q.points||0},${_resolveOperatorCallsign(q.operator)}\n`;
   });
   const blob = new Blob([csv],{type:'text/csv'});
   const a = document.createElement('a');

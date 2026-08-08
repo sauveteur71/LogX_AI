@@ -55,6 +55,78 @@ def test_adif_structure():
     assert '<contest_id:11>EU_HF_CHAMP' in adi
 
 
+def test_adif_station_callsign_et_operator_resolus():
+    """STATION_CALLSIGN (la station) doit toujours être présent, et OPERATOR
+    doit porter l'indicatif RÉEL de l'opérateur — jamais l'ID de créneau brut
+    'OP1'/'OP2' (signalement F4GLD 08/08/2026, même bug que côté JS
+    buildAdifText(), voir logx_logbook.js _resolveOperatorCallsign())."""
+    cfg = dict(CFG, operators=[{'call': 'F6KQJ'}, {'call': 'F1ABC'}])
+    adi = build_adif(QSOS, cfg)
+    records = [r for r in adi.split('<EOR>') if r.strip()]
+    assert len(records) == 2
+    assert '<station_callsign:5>F6KQJ' in records[0]
+    assert '<station_callsign:5>F6KQJ' in records[1]
+    assert '<operator:5>F6KQJ' in records[0]     # OP1 -> operators[0]
+    assert '<operator:5>F1ABC' in records[1]     # OP2 -> operators[1]
+    assert 'OP1' not in records[0] and 'OP2' not in records[1]
+
+
+def test_adif_operator_replie_sur_callsign_sans_config_operateurs():
+    """Sans liste operators[] (profil simple, un seul opérateur) : repli sur
+    l'indicatif de la station plutôt que d'exporter l'ID brut."""
+    adi = build_adif(QSOS, CFG)
+    records = [r for r in adi.split('<EOR>') if r.strip()]
+    assert '<operator:5>F6KQJ' in records[0]
+    assert '<operator:5>F6KQJ' in records[1]
+
+
+def test_adif_station_callsign_priorite_au_my_call_par_qso():
+    """STATION_CALLSIGN doit privilégier l'indicatif RÉELLEMENT utilisé au
+    moment du QSO (q.my_call, ex. suffixe /P) plutôt que l'indicatif courant
+    de la config — même repli que MY_GRIDSQUARE (q.my_locator) juste au-dessus
+    dans build_adif(), et même comportement que buildAdifText() côté JS
+    (logx_logbook.js). Sans ce repli, un changement d'indicatif en cours de
+    concours réétiquetterait rétroactivement tous les anciens QSO au prochain
+    export serveur (backup/archive/QSL)."""
+    qsos = [dict(QSOS[0], my_call='F6KQJ/P')]
+    adi = build_adif(qsos, CFG)
+    assert '<station_callsign:7>F6KQJ/P' in adi
+
+
+def test_adif_operator_vide_omet_le_champ_sans_planter():
+    """QSO sans champ operator (ex. réimporté depuis un ADIF externe sans
+    OPERATOR) : la balise OPERATOR est simplement omise, pas de crash ni de
+    repli fantaisiste sur l'indicatif de la station."""
+    qsos = [{k: v for k, v in QSOS[0].items() if k != 'operator'}]
+    adi = build_adif(qsos, CFG)
+    assert '<operator' not in adi.lower()
+
+
+def test_resolve_operator_callsign_robuste_a_une_config_operators_mal_typee():
+    """cfg['operators'] corrompu (pas une liste) ne doit jamais faire planter
+    l'export ADIF/Cabrillo — repli silencieux sur le comportement 'inconnu',
+    comme si operators[] était absent."""
+    from logx_export import resolve_operator_callsign
+    cfg = dict(CFG, operators='ABC')      # mal typé : chaîne au lieu de liste
+    assert resolve_operator_callsign('OP1', cfg) == 'F6KQJ'   # repli cfg.callsign
+    cfg2 = dict(CFG, operators=['pas un dict'])
+    assert resolve_operator_callsign('OP1', cfg2) == 'F6KQJ'
+
+
+def test_cabrillo_operators_resolus_et_category_operator_reste_multi_op():
+    """La ligne OPERATORS: doit porter les indicatifs RÉELS (jamais 'OP1'
+    brut), mais CATEGORY-OPERATOR doit rester basé sur les CRÉNEAUX distincts
+    bruts — sinon, sans config operators[] permettant de résoudre des
+    indicatifs différents, la résolution renverrait le même indicatif de
+    station pour OP1 et OP2 et ferait dégénérer à tort la déclaration en
+    SINGLE-OP alors que 2 opérateurs ont réellement logué."""
+    cfg = dict(CFG, operators=[{'call': 'F6KQJ'}, {'call': 'F1ABC'}])
+    cab = build_cabrillo(QSOS, {}, cfg)
+    assert 'OPERATORS: F1ABC F6KQJ' in cab
+    assert 'CATEGORY-OPERATOR: MULTI-OP' in cab
+    assert 'OP1' not in cab and 'OP2' not in cab
+
+
 def test_export_vide():
     assert build_cabrillo([], {}, CFG).rstrip().endswith('END-OF-LOG:')
     assert build_adif([], CFG).count('<EOR>') == 0
