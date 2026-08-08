@@ -3851,6 +3851,7 @@ function editQSO(id){
   document.getElementById('editNumSent').value = q.num_sent||'';
   document.getElementById('editRSTrcvd').value = q.rst_rcvd||'';
   document.getElementById('editNumRcvd').value = q.num_rcvd||'';
+  document.getElementById('editFreq').value = q.freq||'';
   // Peupler le select bande avec les bandes du concours — PLUS celle du QSO
   // si elle n'y est pas (QSO logué sous un autre concours actif, ou hors
   // concours). Piège corrigé ici : un <select> a TOUJOURS une valeur dès
@@ -3980,6 +3981,7 @@ async function saveEdit(){
       : document.getElementById('editNumRcvd').value.trim(),
     band: newBand,
     mode: document.getElementById('editMode').value,
+    freq: document.getElementById('editFreq').value.trim(),
     locator: newLoc,
     dist, points: pts,
     _edited: true,
