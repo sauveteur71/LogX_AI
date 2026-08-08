@@ -44,6 +44,12 @@ JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 # révision historique antérieure à l'extraction contient déjà tout dans
 # logx_logbook.js, le concaténer casserait (redéclaration de "let rigState").
 HARDWARE_JS_PATH = os.path.join(BASE, 'logx_hardware_cat.js')
+# EV-7 16e incrément : checkCallStatus()/lookupQRZ()/checkPrevQsos() (appelées
+# par la saisie de l'indicatif, exercée par __qso() ci-dessous) vivent
+# désormais dans logx_callbook.js, même principe que HARDWARE_JS_PATH -- sans
+# lui, ces fonctions sont indéfinies et le scénario __run() échoue en silence
+# (__done reste false, aucune exception ne remonte à pytest).
+CALLBOOK_JS_PATH = os.path.join(BASE, 'logx_callbook.js')
 
 # Commit juste AVANT ce correctif — sert à prouver que le scénario ci-dessous
 # échoue bien sur le code d'origine (sinon ce ne serait pas un test de
@@ -213,8 +219,10 @@ def _real_source(rev=None):
     if rev is None:
         with open(HARDWARE_JS_PATH, encoding='utf-8') as f:
             hw = f.read()
+        with open(CALLBOOK_JS_PATH, encoding='utf-8') as f:
+            cb = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
-            return hw + '\n' + f.read()
+            return hw + '\n' + cb + '\n' + f.read()
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)
