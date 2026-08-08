@@ -93,9 +93,21 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
    demande F4GLD 08/08/2026). .cat-modal-box reste en position:fixed pour
    ne PAS avoir à déplacer les ~2300 lignes de contenu de popup dans le
    DOM : seule sa position/apparence change, pas son emplacement dans le
-   fichier. */
+   fichier.
+   --config-panel-top (posée par _updateConfigPanelTop(), voir <script>) :
+   un top:6% fixe recouvrait header+nav+statusbar (~200px en flux normal à
+   1366×768, largement > 6% du viewport) — LOGBOOK et le reste de la nav en
+   devenaient inatteignables au clic, en violation directe de la règle
+   CLAUDE.md « chemin critique jamais cachable » (trouvé par la revue
+   adversariale du 08/08/2026, PAS par la vérification navigateur initiale
+   qui n'avait testé qu'un point tombant par hasard sur le seul lien
+   épargné). La hauteur réelle de la statusbar n'est pas fixe (contenu
+   injecté par logx_statusbar.js après un fetch async, peut passer sur 2
+   lignes sur fenêtre étroite) : mesurée en JS et tenue à jour par
+   ResizeObserver plutôt que devinée en CSS pur. Le repli 6% ne sert que le
+   temps très bref avant le premier appel JS. */
 .cat-modal{display:none}
-.cat-modal-box{display:flex;position:fixed;top:6%;left:calc(6% + 224px);right:6%;bottom:6%;z-index:9000;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+.cat-modal-box{display:flex;position:fixed;top:var(--config-panel-top,6%);left:calc(6% + 224px);right:6%;bottom:6%;min-width:300px;z-index:9000;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .cat-modal-head{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
 .cat-modal-title{font-family:var(--font-display);font-size:19px;letter-spacing:.3px;color:var(--accent2);font-weight:900}
 .cat-modal-save{margin-left:auto;background:linear-gradient(135deg,#00FF88,#C9822E);border:none;color:#0A0B18;font-weight:700;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono);transition:opacity .15s}
@@ -147,7 +159,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 /* Arborescence permanente (remplace le hub de cartes) : toujours montée et
    visible — plus jamais gated par une classe body (config-tabbed retirée,
    cf. buildConfigSidebar()/openCategoryPopup()). */
-.config-sidebar{display:flex;position:fixed;top:6%;left:6%;bottom:6%;width:210px;z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow-y:auto;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+.config-sidebar{display:flex;position:fixed;top:var(--config-panel-top,6%);left:6%;bottom:6%;width:210px;z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow-y:auto;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .config-sidebar-title{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);padding:8px 10px 10px}
 .config-sidebar-item{position:relative;display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-size:12.5px;padding:8px 26px 8px 10px;border-radius:6px;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .config-sidebar-item:hover{background:var(--bg3)}
@@ -166,20 +178,6 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .config-sidebar-launch{margin-top:auto;flex-shrink:0;background:linear-gradient(135deg,#00FF88,#C9822E);border:none;color:#0A0B18;font-weight:700;font-family:var(--font-mono);font-size:12.5px;padding:11px 9px;border-radius:6px;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:6px}
 .config-sidebar-launch:hover{opacity:.85}
 
-/* STEPS (ancien assistant par étapes — conservé masqué le temps de la
-   migration complète vers le hub, cf. tâche "retirer l'ancien système") */
-.steps{display:none;gap:0;margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
-.step{flex:1;padding:16px 10px;text-align:center;cursor:pointer;transition:all .2s;border-right:1px solid var(--border);font-family:var(--font-mono);font-size:14px;letter-spacing:1px;color:#6A74A8;position:relative}
-.step:last-child{border-right:none}
-.step.active{background:var(--bg3);color:var(--accent);border-bottom:3px solid var(--accent)}
-.step.done{color:var(--green)}
-.step-num{display:block;font-size:22px;font-weight:800;margin-bottom:4px}
-.step.done .step-num::after{content:'✓';font-size:14px}
-
-/* PANELS (ancien assistant par étapes — retiré de la vue, le contenu est
-   progressivement relocalisé dans les popups du hub ; section supprimée une
-   fois la migration terminée, cf. tâche "retirer l'ancien système") */
-.panel{display:none!important;animation:fadeIn .3s ease}
 /* Mode débutant : les réglages avancés sont masqués (bouton 🎚 dans l'en-tête) */
 body.simple-mode .expert-only{display:none!important}
 .simple-note{display:none;font-family:var(--font-mono);font-size:13px;color:var(--muted);border:1px dashed var(--border);border-radius:6px;padding:8px 12px;margin-top:10px;line-height:1.6}
@@ -189,7 +187,6 @@ body.simple-mode .simple-note{display:block}
 .usage-simple-only{display:none}
 body.usage-simple .usage-simple-only{display:block}
 body.usage-simple .usage-contest-only{display:none}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* SECTION */
 .section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px}
@@ -283,7 +280,10 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
    satellites + options) : une boîte plus haute que les autres, quitte à
    réduire un peu la marge autour, pour tenir sans scroll sur un écran
    courant plutôt que de continuer à rogner les espacements au pixel près. */
-#catmodal_filters .cat-modal-box{top:1%;bottom:1%}
+/* Plus d'override top:1% ici : le top est désormais dynamique (--config-panel-top),
+   commun à tous les panneaux — aucune marge "confortable" à rogner spécifiquement
+   pour ce popup plus dense, seul bottom reste réduit. */
+#catmodal_filters .cat-modal-box{bottom:1%}
 #catbody_filters{display:block;padding:10px 20px}
 .filters-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
 #catbody_filters .section{padding:10px 14px;margin-bottom:8px}
@@ -3652,6 +3652,38 @@ async function loadSecretsFromServer(){
 // rotor, WSJT-X, le réseau ADIF, le keyer vocal, scoreboard/backup/cloud
 // sync et les alertes personnalisées.
 
+// ─── POSITION DYNAMIQUE DU PANNEAU/ARBORESCENCE CONFIG ──────────────────────
+// .cat-modal-box/.config-sidebar (position:fixed) doivent démarrer SOUS
+// header+nav+statusbar, dont la hauteur combinée n'est PAS fixe (statusbar
+// injectée par logx_statusbar.js après un fetch async, flex-wrap:wrap donc
+// peut passer sur 2 lignes sur fenêtre étroite) — un top:X% en dur avait
+// laissé le panneau recouvrir la nav (dont LOGBOOK) et la statusbar aux
+// résolutions courantes, en violation de la règle CLAUDE.md « chemin
+// critique jamais cachable » (trouvé par la revue adversariale du
+// 08/08/2026, la vérification navigateur initiale n'avait testé qu'un point
+// tombant par hasard sur le seul lien de nav épargné). Mesurée en JS et
+// tenue à jour par ResizeObserver — pas seulement au chargement — puisque
+// le contenu de la statusbar peut changer de hauteur après coup.
+function _updateConfigPanelTop(){
+  const ref = document.getElementById('rcStatusBar') || document.querySelector('.app-nav');
+  if(!ref) return;
+  const bottom = ref.getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty('--config-panel-top', Math.max(bottom, 0) + 12 + 'px');
+}
+_updateConfigPanelTop();
+window.addEventListener('resize', _updateConfigPanelTop);
+if(typeof ResizeObserver !== 'undefined'){
+  const _configPanelTopObserver = new ResizeObserver(_updateConfigPanelTop);
+  const _navEl = document.querySelector('.app-nav');
+  const _statusBarEl = document.getElementById('rcStatusBar');
+  if(_navEl) _configPanelTopObserver.observe(_navEl);
+  if(_statusBarEl) _configPanelTopObserver.observe(_statusBarEl);
+  // La statusbar est injectée APRÈS le chargement de logx_statusbar.js, en
+  // principe déjà présente ici (script bloquant chargé avant ce bloc) —
+  // filet de sécurité si jamais l'ordre changeait un jour.
+  else document.addEventListener('DOMContentLoaded', _updateConfigPanelTop);
+}
+
 // ─── INIT ────────────────────────────────────────────────────────────────────
 async function init() {
   await maybeShowOnboarding(); // écran d'accueil (première visite) — résout tout de suite sinon
@@ -5213,6 +5245,15 @@ function openCategoryPopup(cat){
   // pas openCategoryPopup() lui-même).
   let _curAvantOuverture = null;
   try { _curAvantOuverture = (typeof _currentOpenCat === 'function') ? _currentOpenCat() : null; } catch(e){}
+  // Re-cliquer l'entrée DÉJÀ active de l'arborescence permanente est un geste
+  // courant (elle reste visible et cliquable en continu, contrairement à
+  // l'ancien hub caché derrière la popup une fois ouverte) : sans ce no-op
+  // explicite, le code plus bas retombait jusqu'à la ligne finale qui
+  // réécrit INCONDITIONNELLEMENT _catFormSnapshots[cat] avec l'état COURANT
+  // du formulaire -- effaçant silencieusement le marqueur de modifications
+  // non enregistrées, sans jamais solliciter confirm(), avant même de
+  // changer de section (trouvé par la revue adversariale du 08/08/2026).
+  if(_curAvantOuverture === cat) return true;
   if(_curAvantOuverture && _curAvantOuverture !== cat && !_confirmDiscardCatChanges(_curAvantOuverture)) return;
   // CŒUR d'abord : masquer la section ouverte, montrer la demandée. Fait AVANT
   // la barre latérale pour qu'un environnement minimal (tests) où
