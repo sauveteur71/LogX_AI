@@ -57,6 +57,13 @@ CALLBOOK_JS_PATH = os.path.join(BASE, 'logx_callbook.js')
 # ajouté PROACTIVEMENT cette fois (pas après un échec CI, cf. le correctif
 # précédent sur ce même fichier) en retraçant l'appel réel avant extraction.
 LOOKUP_JS_PATH = os.path.join(BASE, 'logx_lookup.js')
+# EV-7 19e incrément : esmMode/esmExchanged/esmHandleEnter()/esmSend() (le
+# scénario ci-dessous assigne esmMode/esmExchanged directement et appelle
+# esmHandleEnter() -- voir __initConcoursCW()/__qso() plus bas) vivent
+# désormais dans logx_esm_callbot.js, même principe que les 3 fichiers
+# précédents -- ajouté PROACTIVEMENT en retraçant l'appel réel avant
+# extraction, comme pour LOOKUP_JS_PATH.
+ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 
 # Commit juste AVANT ce correctif — sert à prouver que le scénario ci-dessous
 # échoue bien sur le code d'origine (sinon ce ne serait pas un test de
@@ -230,8 +237,10 @@ def _real_source(rev=None):
             cb = f.read()
         with open(LOOKUP_JS_PATH, encoding='utf-8') as f:
             lk = f.read()
+        with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
+            esm = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
-            return hw + '\n' + cb + '\n' + lk + '\n' + f.read()
+            return hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + f.read()
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)

@@ -31,6 +31,9 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+# EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 
 # ─── DOM minimal (identique à test_logbook_render_window_reset.py) ───────────
 # logx_logbook.js est un script de page (pas un module) : il référence document/
@@ -114,8 +117,10 @@ def _real_source(rev=None):
     """Source réelle de logx_logbook.js : HEAD par défaut, ou `rev` (ex. le
     commit f6bfabc) pour rejouer le scénario tel qu'il était sur ce commit."""
     if rev is None:
+        with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
+            src = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
-            return f.read()
+            return src + '\n' + f.read()
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)

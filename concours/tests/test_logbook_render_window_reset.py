@@ -32,6 +32,9 @@ JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 # ci-dessous (e68907d), les deux fonctions vivaient encore dans logx_logbook.js
 # : ce fichier n'existait pas à l'époque.
 OUTILS_JS_PATH = os.path.join(BASE, 'logx_outils_autonomes.js')
+# EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 
 # ─── DOM minimal ──────────────────────────────────────────────────────────────
 # logx_logbook.js est un script de page (pas un module) : il référence document/
@@ -116,8 +119,10 @@ def _real_source(rev=None):
     déplacé resetLog()/archiveLog()) : HEAD par défaut, ou `rev` (ex. le
     commit e68907d) pour rejouer le scénario tel qu'il était AVANT ce fix."""
     if rev is None:
-        with open(JS_PATH, encoding='utf-8') as f:
+        with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
             src = f.read()
+        with open(JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
         with open(OUTILS_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         return src

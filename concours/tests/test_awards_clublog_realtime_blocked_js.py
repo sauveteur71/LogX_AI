@@ -27,6 +27,9 @@ JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 # (rev=None). Au commit historique rejoué ci-dessous (1720e6b), showAwards()
 # vivait encore dans logx_logbook.js : ce fichier n'existait pas à l'époque.
 AWARDS_JS_PATH = os.path.join(BASE, 'logx_awards.js')
+# EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 
 # ─── DOM minimal (Proxy permissif, voir tests/test_logbook_render_window_reset.py
 # pour la version commentée de ce Proxy) ──────────────────────────────────────
@@ -109,8 +112,10 @@ def _real_source(rev=None):
     fix — clublog_realtime_blocked jamais affiché ; à ce commit, showAwards()
     vivait encore dans logx_logbook.js seul, logx_awards.js n'existait pas)."""
     if rev is None:
-        with open(JS_PATH, encoding='utf-8') as f:
+        with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
             src = f.read()
+        with open(JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
         with open(AWARDS_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         return src
