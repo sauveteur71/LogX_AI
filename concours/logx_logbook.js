@@ -4423,7 +4423,10 @@ function editQSO(id){
     updateEditDistInfo(this.value.toUpperCase());
     this.value = this.value.toUpperCase();
   });
-  _renderEditQslScan(q.qsl_scan);
+  // EV-7 phase 2 : premier pilote du bus d'événements (voir logx_scan_qsl.js
+  // pour le pourquoi). Le cœur ne connaît plus _renderEditQslScan() ; il
+  // notifie juste qu'un QSO vient de s'ouvrir en édition.
+  document.dispatchEvent(new CustomEvent('logx:qso-editing-opened', {detail: {qso: q}}));
   const scanStatus = document.getElementById('editQslScanStatus');
   if(scanStatus) scanStatus.textContent = '';
   // Champs ADIF personnalisés : {NOM: valeur} -> tableau de paires éditables
@@ -4467,56 +4470,6 @@ function removeEditExtraField(i){
 
 function updateEditExtraField(i, key, value){
   editExtraFields[i][key] = value;
-}
-
-// ─── SCAN QSL PAPIER (upload multipart, attaché au QSO en cours d'édition) ───
-function _renderEditQslScan(path){
-  const empty = document.getElementById('editQslScanEmpty');
-  const link = document.getElementById('editQslScanLink');
-  const thumb = document.getElementById('editQslScanThumb');
-  if(!empty || !link || !thumb) return;
-  if(path){
-    const url = '/' + path;
-    const isImg = /\.(jpe?g|png|gif|webp)$/i.test(path);
-    link.href = url;
-    thumb.src = isImg ? url : '/logx_icon.svg';   // repli : pas d'aperçu pour un PDF
-    thumb.title = isImg ? 'Voir le scan en grand' : 'Ouvrir le PDF';
-    link.style.display = 'inline-block';
-    empty.style.display = 'none';
-  } else {
-    link.style.display = 'none';
-    empty.style.display = 'inline';
-  }
-}
-
-async function uploadQslScan(){
-  const id = parseInt(document.getElementById('editId').value, 10);
-  const input = document.getElementById('editQslScanFile');
-  const status = document.getElementById('editQslScanStatus');
-  const file = input && input.files && input.files[0];
-  if(!file || !id) return;
-  if(status){ status.textContent = '⏳ envoi…'; status.style.color = 'var(--muted)'; }
-  try{
-    const fd = new FormData();
-    fd.append('qso_id', String(id));
-    fd.append('file', file);
-    // Pas de Content-Type manuel : le navigateur pose la frontière multipart lui-même.
-    const r = await fetch('/qsl_scan/upload', {method:'POST', body: fd});
-    const d = await r.json();
-    if(d.ok){
-      const q = qsoLog.find(x => x.id === id);
-      if(q) q.qsl_scan = d.qsl_scan;
-      _renderEditQslScan(d.qsl_scan);
-      if(status){ status.textContent = '✅ scan attaché'; status.style.color = 'var(--green)'; }
-      notify('✅ Scan QSL attaché');
-      renderLog();
-    } else {
-      if(status){ status.textContent = '❌ ' + (d.error || 'échec'); status.style.color = 'var(--red)'; }
-    }
-  }catch(e){
-    if(status){ status.textContent = '❌ serveur injoignable'; status.style.color = 'var(--red)'; }
-  }
-  input.value = '';
 }
 
 function updateEditDistInfo(loc){

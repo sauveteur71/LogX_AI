@@ -95,8 +95,13 @@ var document = {
   createElement: function(){ return ElProxy(); },
   querySelectorAll: function(){ return []; },
   querySelector: function(){ return ElProxy(); },
+  dispatchEvent: function(){ return true; },
   body: ElProxy(), documentElement: ElProxy(),
 };
+// EV-7 phase 2 : editQSO() emet un CustomEvent('logx:qso-editing-opened')
+// (voir logx_scan_qsl.js) -- ce stub minimal evite un ReferenceError, meme
+// convention que tests/test_pastille_orage_cache_froid.py.
+function CustomEvent(n, o){ this.type = n; this.detail = (o||{}).detail; }
 var window = this;
 window.addEventListener = function(){};
 window.removeEventListener = function(){};
