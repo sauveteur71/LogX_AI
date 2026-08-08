@@ -170,6 +170,11 @@ def test_le_panneau_est_bien_cable_dans_le_logbook():
         html = f.read()
     with open(os.path.join(CONCOURS, 'logx_logbook.js'), encoding='utf-8') as f:
         js = f.read()
+    # EV-7 : le panneau RTTY (rttyOutput/rttyStartBtn/rttyMark/rttyShift) a
+    # été extrait vers logx_rtty_panel.js -- cwPanel, lui, reste dans
+    # logx_logbook.js, inchangé.
+    with open(os.path.join(CONCOURS, 'logx_rtty_panel.js'), encoding='utf-8') as f:
+        js += f.read()
     assert 'id="rttyDecoder"' in html
     assert 'logx_rttydecoder.js' in html, 'le script du decodeur n est pas charge'
     for ident in ('rttyOutput', 'rttyStartBtn', 'rttyMark', 'rttyShift', 'cwPanel'):
@@ -194,10 +199,17 @@ def _est_indicatif(moteur_logbook, mot):
 @pytest.fixture(scope='module')
 def moteur_logbook():
     """Extrait la seule fonction de reconnaissance : le reste du logbook a
-    besoin d'un DOM complet."""
+    besoin d'un DOM complet.
+
+    EV-7 : rttyEstIndicatif() a été extraite vers logx_rtty_panel.js -- on la
+    cherche dans les deux fichiers (motif _lire_tout() déjà utilisé dans
+    test_logbook_menu_debut_fin.py/test_busted_call.py, adapté ici en local
+    pour ne concaténer que ce dont ce test a besoin)."""
     ctx = py_mini_racer.MiniRacer()
-    with open(os.path.join(CONCOURS, 'logx_logbook.js'), encoding='utf-8') as f:
-        src = f.read()
+    src = ''
+    for nom in ('logx_logbook.js', 'logx_rtty_panel.js'):
+        with open(os.path.join(CONCOURS, nom), encoding='utf-8') as f:
+            src += f.read()
     debut = src.index('function rttyEstIndicatif(')
     fin = src.index('\n}', debut) + 2
     ctx.eval(src[debut:fin])
