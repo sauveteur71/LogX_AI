@@ -50,7 +50,7 @@ JS_EXTRAITS_EV7 = [os.path.join(CONCOURS, n) for n in (
     'logx_rate_panel.js', 'logx_verif_panel.js',
     'logx_awards.js', 'logx_popout_selfspot.js',
     'logx_qtc.js', 'logx_import_adif.js',
-    'logx_outils_autonomes.js')]
+    'logx_outils_autonomes.js', 'logx_scan_qsl.js')]
 
 
 def _lire_tout():
