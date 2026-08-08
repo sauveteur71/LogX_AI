@@ -36,6 +36,14 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+# EV-7 phase 2 : rigState (lu par copyMacro()/esmSend(), tous deux exercés par
+# ce scénario) vit désormais dans logx_hardware_cat.js, chargé en <script>
+# classique AVANT logx_logbook.js dans logx_logbook.html (portée globale
+# partagée, même principe que JS_EXTRAITS_EV7 dans
+# test_logbook_menu_debut_fin.py). Seulement pour rev=None (HEAD) -- une
+# révision historique antérieure à l'extraction contient déjà tout dans
+# logx_logbook.js, le concaténer casserait (redéclaration de "let rigState").
+HARDWARE_JS_PATH = os.path.join(BASE, 'logx_hardware_cat.js')
 
 # Commit juste AVANT ce correctif — sert à prouver que le scénario ci-dessous
 # échoue bien sur le code d'origine (sinon ce ne serait pas un test de
@@ -203,8 +211,10 @@ def _real_source(rev=None):
     """Source réelle de logx_logbook.js : HEAD par défaut, ou `rev` pour
     rejouer le scénario tel qu'il était AVANT ce correctif."""
     if rev is None:
+        with open(HARDWARE_JS_PATH, encoding='utf-8') as f:
+            hw = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
-            return f.read()
+            return hw + '\n' + f.read()
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)

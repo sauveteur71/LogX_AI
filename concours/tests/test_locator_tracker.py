@@ -163,7 +163,8 @@ def test_liste_vide(carnet):
 # ─── Le câblage de l'alerte ──────────────────────────────────────────────────
 
 def _js():
-    with open(os.path.join(CONCOURS, 'logx_logbook.js'), encoding='utf-8') as f:
+    # EV-7 phase 2 : appliquerSuiviCarres() a rejoint logx_hardware_cat.js.
+    with open(os.path.join(CONCOURS, 'logx_hardware_cat.js'), encoding='utf-8') as f:
         return f.read()
 
 
