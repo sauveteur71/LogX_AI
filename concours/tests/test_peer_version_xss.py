@@ -136,6 +136,14 @@ JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 # extraite vers ce fichier -- doit être chargée AVANT logx_logbook.js, même
 # convention que tests/test_cw_panel_consolidation.py.
 VERIF_PANEL_JS_PATH = os.path.join(BASE, 'logx_verif_panel.js')
+# EV-7 17e incrément : showChecklist() lit callDB directement
+# (Object.keys(callDB).length) -- callDB vit désormais dans logx_lookup.js,
+# à charger AVANT logx_logbook.js comme VERIF_PANEL_JS_PATH. Sans lui,
+# ReferenceError: callDB is not defined (trouvé en lançant réellement ce
+# test après extraction, pas par grep préalable -- callDB n'apparaît nulle
+# part comme texte dans ce fichier, seul showChecklist() la lit en corps de
+# fonction).
+LOOKUP_JS_PATH = os.path.join(BASE, 'logx_lookup.js')
 
 # DOM minimal (Proxy permissif — voir tests/test_logbook_render_window_reset.py
 # pour la version commentée de ce Proxy).
@@ -228,6 +236,8 @@ def _checklist_html(peer_version, server_version='0.9-beta4'):
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
     with open(VERIF_PANEL_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(LOOKUP_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
