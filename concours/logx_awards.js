@@ -15,8 +15,11 @@
 // désormais être chargé EN PLUS de logx_logbook.js pour le scénario HEAD.
 //
 // Dépend de globals restés dans logx_logbook.js (portée globale partagée via
-// <script> classique, voir logx_logbook.html) : escHtml, fmtDate, notify,
-// trF, trT.
+// <script> classique, voir logx_logbook.html) : escHtml, notify, trF, trT.
+// fmtDate est extraite depuis le 16e incrément EV-7 (docs/LogX_AI_PRD.md)
+// vers logx_callbook.js -- même portée globale partagée, ordre de <script>
+// entre les deux fichiers extraits sans importance (fmtDate n'est jamais
+// appelée qu'à l'intérieur de corps de fonction ici).
 //
 // qslLastSync()/qslAction() (8e incrément EV-7) ont rejoint ce fichier : elles
 // n'avaient qu'un seul consommateur, showAwards() ci-dessous — dépendance déjà
