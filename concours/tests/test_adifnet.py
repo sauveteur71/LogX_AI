@@ -121,6 +121,19 @@ def test_build_contactinfo_xml_echappe_les_caracteres_speciaux():
     assert fields['comment'] == 'R&S <test>'
 
 
+def test_build_contactinfo_xml_resout_lid_de_creneau_en_indicatif_reel():
+    """L'ID de créneau brut ('OP1') ne doit jamais partir en UDP vers un poste
+    N1MM/DXLog voisin — celui-ci l'afficherait tel quel dans SA propre
+    interface, exactement le même bug que LOGBOOK/export ADIF (signalement
+    F4GLD 08/08/2026)."""
+    qso = {'call': 'F4GLD', 'band': '14', 'mode': 'SSB', 'operator': 'OP1'}
+    cfg = {'callsign_contest': 'F6KQJ', 'operators': [{'call': 'F1ABC'}]}
+    xml_text = adifnet.build_contactinfo_xml(qso, cfg)
+    fields = adifnet.parse_contactinfo(xml_text)
+    assert fields['operator'] == 'F1ABC'
+    assert 'OP1' not in xml_text
+
+
 # ─── émission (broadcast_qso) ────────────────────────────────────────────────
 def test_broadcast_qso_desactive_ne_transmet_rien(monkeypatch):
     called = {'n': 0}

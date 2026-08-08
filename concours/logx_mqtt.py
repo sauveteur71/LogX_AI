@@ -134,9 +134,16 @@ def publish_qso(cfg, qso):
     WSJT-X, réseau ADIF...), quelle que soit la source (voir add_qso_to_log
     dans logx_http.py, chemin commun à toutes les sources d'insertion)."""
     qso = qso or {}
-    _publish(cfg, 'qso', {k: qso.get(k) for k in (
+    payload = {k: qso.get(k) for k in (
         'call', 'band', 'mode', 'date', 'time', 'rst_sent', 'rst_rcvd',
-        'locator', 'points', 'contest', 'operator') if qso.get(k) is not None})
+        'locator', 'points', 'contest', 'operator') if qso.get(k) is not None}
+    if 'operator' in payload:
+        # Jamais l'ID de créneau brut ('OP1') vers un tableau de bord tiers
+        # (Node-RED, Home Assistant, overlay de streaming...) — même bug que
+        # LOGBOOK/export ADIF, voir logx_export.resolve_operator_callsign.
+        from logx_export import resolve_operator_callsign
+        payload['operator'] = resolve_operator_callsign(payload['operator'], cfg or {})
+    _publish(cfg, 'qso', payload)
 
 
 def publish_score(cfg, score, contest=''):

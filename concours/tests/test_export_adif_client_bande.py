@@ -262,12 +262,22 @@ def test_bande_intraduisible_omise_plutot_qu_inventee():
 
 def test_champs_indispensables_a_l_import():
     """Sans FREQ ni STATION_CALLSIGN/OPERATOR/CONTEST_ID/STX_SRX, un log
-    multi-op n'est pas attribuable et l'échange de concours est perdu."""
+    multi-op n'est pas attribuable et l'échange de concours est perdu.
+
+    OPERATOR : depuis le correctif du 08/08/2026 (signalement F4GLD — le
+    tableau LOGBOOK affichait le libellé brut « OP1 » au lieu de l'indicatif
+    réel), buildAdifText() résout l'ID opérateur interne via
+    _resolveOperatorCallsign() avant de l'écrire dans le champ ADIF — un ID
+    brut comme 'OP1' n'a jamais eu de sens pour TQSL/LoTW/ClubLog, qui
+    attendent un VRAI indicatif dans OPERATOR. Ce test n'a aucune config
+    operators[] en localStorage (DOM minimal), donc le résolveur retombe sur
+    l'indicatif de la station (myCall = 'F4GLD') — repli attendu et correct
+    pour un log single-op sans opérateurs[] déclarés."""
     qsos = [dict(_QSOS[2], freq='144.300')]
     adif = _exporter(qsos)
     assert _champs(adif, 'FREQ') == ['144.300']
     assert _champs(adif, 'STATION_CALLSIGN') == ['F4GLD']
-    assert _champs(adif, 'OPERATOR') == ['OP1']
+    assert _champs(adif, 'OPERATOR') == ['F4GLD']
     assert _champs(adif, 'CONTEST_ID') == ['REF_IARU_VHF']
     assert _champs(adif, 'STX_STRING') == ['003']
     assert _champs(adif, 'SRX_STRING') == ['021']

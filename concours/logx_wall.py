@@ -169,6 +169,7 @@ def _active_operators(entries, cfg, now, window_min=ACTIVE_OP_WINDOW_MIN):
     le badge SSB/CW/DIGI du mur — qualification absente de la config -> True
     par défaut (même convention que /shifts/add et collectConfig() côté
     client : jamais un opérateur silencieusement privé d'un mode)."""
+    from logx_export import resolve_operator_callsign
     operators_cfg = {str(o.get('call', '')).upper().strip(): o
                       for o in (cfg.get('operators') or []) if o.get('call')}
     last_seen = {}   # indicatif opérateur -> (dt le plus récent, bande, mode)
@@ -176,6 +177,9 @@ def _active_operators(entries, cfg, now, window_min=ACTIVE_OP_WINDOW_MIN):
         op = str(e.get('operator', '') or e.get('my_call', '') or '').strip()
         if not op:
             continue
+        # Écran mural PUBLIC (projecteur/TV pendant l'expédition) : jamais
+        # l'ID de créneau brut ('OP1') tel quel — voir resolve_operator_callsign.
+        op = resolve_operator_callsign(op, cfg, station_fallback=False)
         dt = _entry_dt(e)
         if not dt:
             continue
@@ -212,6 +216,7 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
     tout). Un contest_id explicite (non None) réactive le filtrage — par PORTÉE
     (contest+année, voir logx_storage.active_scope_id) : un QSO non tagué ne
     compte alors jamais pour un concours précis."""
+    from logx_export import resolve_operator_callsign
     cfg = cfg or {}
     now = now or utcnow()
     if contest_id:
@@ -233,7 +238,11 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
     for e in entries:
         b = str(e.get('band', '?'))
         m = str(e.get('mode', '?')).upper()
-        op = str(e.get('operator', '') or e.get('my_call', '') or '—')
+        op_raw = str(e.get('operator', '') or e.get('my_call', '') or '')
+        # Jamais l'ID de créneau brut ('OP1') sur l'écran public — voir
+        # resolve_operator_callsign (station_fallback=False : ne PAS
+        # fusionner silencieusement 2 créneaux distincts non configurés).
+        op = resolve_operator_callsign(op_raw, cfg, station_fallback=False) or '—'
         per_band[b] = per_band.get(b, 0) + 1
         per_mode[m] = per_mode.get(m, 0) + 1
         per_op[op] = per_op.get(op, 0) + 1
@@ -262,7 +271,8 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
         recents.append({
             'call': str(e.get('call', '')).upper(),
             'band': str(e.get('band', '')), 'mode': str(e.get('mode', '')).upper(),
-            'op': str(e.get('operator', '') or e.get('my_call', '') or ''),
+            'op': resolve_operator_callsign(
+                str(e.get('operator', '') or e.get('my_call', '') or ''), cfg, station_fallback=False),
             'time': e.get('time', ''), 'date': e.get('date', ''),
             'locator': e.get('locator', ''), 'points': e.get('points', 0) or 0,
             'freq': str(e.get('freq', '') or ''),
@@ -278,7 +288,8 @@ def wall_state(shared_log, cfg=None, contest_id=None, recent=25, now=None):
             recents.append({
                 'call': str(e.get('call', '')).upper(),
                 'band': str(e.get('band', '')), 'mode': str(e.get('mode', '')).upper(),
-                'op': str(e.get('operator', '') or ''), 'time': e.get('time', ''),
+                'op': resolve_operator_callsign(str(e.get('operator', '') or ''), cfg, station_fallback=False),
+                'time': e.get('time', ''),
                 'date': e.get('date', ''), 'locator': e.get('locator', ''),
                 'points': e.get('points', 0) or 0,
                 'freq': str(e.get('freq', '') or ''),
