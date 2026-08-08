@@ -129,7 +129,7 @@ def test_le_pilotage_par_bande_ne_tourne_QUE_le_bon_pylone():
 
 
 @pytest.mark.parametrize('page, fn', [
-    ('logx_logbook.js', 'pointAntennaFromCompass'),
+    ('logx_locator_reverse.js', 'pointAntennaFromCompass'),
     ('logx_chasse.html', 'pointTo'),
 ])
 def test_les_appelants_UI_transmettent_la_bande(page, fn):

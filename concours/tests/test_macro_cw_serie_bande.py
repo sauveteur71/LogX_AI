@@ -67,6 +67,12 @@ ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 # EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
 # logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
+# EV-7 21e incrément : clearForm()/onCallInput() (logx_logbook.js) appellent
+# hideCompassInline(), désormais dans logx_locator_reverse.js -- exercé par
+# le scénario submitQSO() complet de ce fichier (pas un appel top-level,
+# mais une vraie dépendance fonctionnelle de ce test précis). Sans lui,
+# ReferenceError silencieuse dans la chaîne de Promise de submitQSO().
+LOCATOR_REVERSE_JS_PATH = os.path.join(BASE, 'logx_locator_reverse.js')
 
 # Commit juste AVANT ce correctif — sert à prouver que le scénario ci-dessous
 # échoue bien sur le code d'origine (sinon ce ne serait pas un test de
@@ -244,8 +250,10 @@ def _real_source(rev=None):
             esm = f.read()
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
             vk = f.read()
+        with open(LOCATOR_REVERSE_JS_PATH, encoding='utf-8') as f:
+            lr = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
-            return hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + vk + '\n' + f.read()
+            return hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + vk + '\n' + lr + '\n' + f.read()
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)
