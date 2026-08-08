@@ -29,6 +29,9 @@ JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 # EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
+# EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
+# logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
+VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 
 # ─── DOM minimal (Proxy) — même modèle que test_partner_view_closed_panel.py ─
 _DOM_PREAMBLE = r"""
@@ -107,6 +110,8 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def _real_source():
     with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
         src = f.read()
+    with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
+        src += '\n' + f.read()
     with open(JS_PATH, encoding='utf-8') as f:
         return src + '\n' + f.read()
 
