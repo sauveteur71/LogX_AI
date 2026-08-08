@@ -144,6 +144,13 @@ VERIF_PANEL_JS_PATH = os.path.join(BASE, 'logx_verif_panel.js')
 # part comme texte dans ce fichier, seul showChecklist() la lit en corps de
 # fonction).
 LOOKUP_JS_PATH = os.path.join(BASE, 'logx_lookup.js')
+# EV-7 19e incrément : logx_logbook.js contient un appel TOP-LEVEL
+# renderVoiceDynPanel(); juste après le bloc CALLBOT/ESM extrait -- sûr
+# uniquement si logx_esm_callbot.js (qui définit cette fonction) est chargé
+# AVANT logx_logbook.js. Sans lui, ReferenceError au PARSE de logx_logbook.js
+# lui-même (avant même l'exécution d'un test), trouvé en lançant réellement
+# ce fichier après extraction.
+ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 
 # DOM minimal (Proxy permissif — voir tests/test_logbook_render_window_reset.py
 # pour la version commentée de ce Proxy).
@@ -238,6 +245,8 @@ def _checklist_html(peer_version, server_version='0.9-beta4'):
     with open(VERIF_PANEL_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(LOOKUP_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())

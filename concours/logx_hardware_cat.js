@@ -26,11 +26,12 @@
 // notify()/renderLog() pour tous les autres fichiers extraits par EV-7).
 //
 // Bug préexistant trouvé PENDANT cette investigation, SANS RAPPORT avec
-// l'extraction (ne pas confondre) : esmSend() (logx_logbook.js) utilise
-// rigState.enabled comme condition de routage CW/voix, contrairement à
-// updateKeyerPanels() juste à côté qui gère correctement le repli CW-sans-
-// CAT. Non corrigé ici (hors périmètre de cette extraction mécanique) --
-// signalé séparément à F4GLD.
+// l'extraction (ne pas confondre) : esmSend() (désormais dans
+// logx_esm_callbot.js, 19e incrément EV-7) utilisait rigState.enabled comme
+// condition de routage CW/voix, contrairement à updateKeyerPanels() juste à
+// côté qui gère correctement le repli CW-sans-CAT. DEPUIS CORRIGÉ (sur
+// demande explicite de F4GLD) : esmSend() utilise désormais rigState.mode,
+// voir le commentaire en tête de cette fonction dans logx_esm_callbot.js.
 //
 // Dépend de globals restés dans logx_logbook.js : notify(), fetch, trF/trT,
 // escHtml, currentMode, pickBand, currentBand, _currentVisibleBands,

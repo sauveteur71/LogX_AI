@@ -46,6 +46,9 @@ HTML_PATH = os.path.join(BASE, 'logx_logbook.html')
 # ci-dessous appellent réellement ces fonctions (toggleCwDecoder, etc.), donc
 # CwPanel doit être disponible au moment de l'appel, comme en usage normal.
 CW_PANEL_JS_PATH = os.path.join(BASE, 'logx_cw_panel.js')
+# EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 
 
 def _read(path):
@@ -179,6 +182,7 @@ def _make_ctx():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
     ctx.eval(_read(CW_PANEL_JS_PATH))
+    ctx.eval(_read(ESM_CALLBOT_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
@@ -253,6 +257,7 @@ def _ctx_avec_ecouteurs():
     ctx.eval("window.__ecouteurs = [];"
              "window.addEventListener = function(ev){ window.__ecouteurs.push(ev); };")
     ctx.eval(_read(CW_PANEL_JS_PATH))
+    ctx.eval(_read(ESM_CALLBOT_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 

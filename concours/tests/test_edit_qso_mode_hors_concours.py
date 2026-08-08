@@ -30,6 +30,9 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+# EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 
 # DOM minimal — copié de test_macro_cw_serie_bande.py (même besoin : un
 # Proxy générique pour n'importe quel élément DOM lu/écrit par le script).
@@ -139,6 +142,8 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def moteur():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
+    with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     return ctx

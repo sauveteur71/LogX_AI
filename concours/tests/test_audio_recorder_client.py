@@ -28,6 +28,13 @@ py_mini_racer = pytest.importorskip(
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 HTML_PATH = os.path.join(BASE, 'logx_logbook.html')
+# EV-7 19e incrément : logx_logbook.js contient un appel TOP-LEVEL
+# renderVoiceDynPanel(); (juste après le bloc CALLBOT/ESM extrait) -- sûr
+# uniquement si logx_esm_callbot.js (qui définit cette fonction) est chargé
+# AVANT logx_logbook.js. Sans lui, ReferenceError au PARSE de logx_logbook.js
+# lui-même, pour TOUT test qui évalue son texte complet -- pas seulement
+# ceux qui exercent ESM/callbot. Seulement pour rev=None (HEAD).
+ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 
 
 def _read(path):
@@ -222,7 +229,7 @@ def _real_source(rev=None):
     défaut, ou `rev` (ex. le commit d'origine 5a2c452) pour rejouer le
     scénario tel qu'il était AVANT ce correctif."""
     if rev is None:
-        return _read(JS_PATH)
+        return _read(ESM_CALLBOT_JS_PATH) + '\n' + _read(JS_PATH)
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)
