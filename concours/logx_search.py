@@ -54,7 +54,7 @@ _WS_RE = re.compile(r'\s+')
 # de retomber dans le fourre-tout "sans titre".
 _HEADING_RE = re.compile(
     r'<(div|span|h[1-6])\b[^>]*\bclass="[^"]*\b(?:section-title|panel-title|'
-    r'cat-modal-title|hub-card-title|hub-group-title|popup-title|edit-title|'
+    r'cat-modal-title|config-sidebar-title|popup-title|edit-title|'
     r'macro-panel-title|grid-title|mini-title|coach-title)\b[^"]*"[^>]*>'
     r'(.*?)</\1>',
     re.IGNORECASE | re.DOTALL,

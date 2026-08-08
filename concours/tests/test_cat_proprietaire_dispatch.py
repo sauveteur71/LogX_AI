@@ -232,12 +232,16 @@ def test_hardware_state_contient_la_cle_pgxl(server, monkeypatch):
     assert d['pgxl'] == {'enabled': False}
 
 
-# ─── Parité CONFIG_SECTIONS / renderHub() / _catStatus() ─────────────────────
+# ─── Parité CONFIG_SECTIONS / renderConfigTree() / _catStatus() ─────────────
 # Un bug identique (catégorie ajoutée à CONFIG_SECTIONS mais oubliée dans le
-# tableau codé en dur de renderHub(), badge du hub jamais mis à jour) a déjà
-# été trouvé et corrigé sur ce fichier pour la catégorie 'relay' — ce test
-# structurel (source-only, pas d'exécution JS) empêche la régression pour
-# TOUTE catégorie future, pas seulement 'pgxl' (ajoutée par ce commit).
+# tableau codé en dur de l'ancienne renderHub(), badge du hub jamais mis à
+# jour) a déjà été trouvé et corrigé sur ce fichier pour la catégorie 'relay'.
+# Depuis la refonte sidebar (08/08/2026), renderHub() a été renommée
+# renderConfigTree() et réécrite pour itérer CONFIG_SECTIONS DIRECTEMENT —
+# la 2e liste dupliquée (cause structurelle du bug) a disparu, donc la classe
+# de bug entière est désormais impossible plutôt que seulement détectée après
+# coup. Le test ci-dessous vérifie que cette itération directe n'a pas été
+# réintroduite en régression (une 2e liste codée en dur qui reviendrait).
 
 def _config_html_source():
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -252,26 +256,20 @@ def _config_sections_keys(src):
     return re.findall(r"\[\s*'([a-z_]+)'\s*,", m.group(1))
 
 
-def _render_hub_keys(src):
-    m = re.search(r'function renderHub\(\)\{\s*\[(.*?)\]\.forEach', src, re.S)
-    assert m, "Le tableau de catégories de renderHub() est introuvable"
-    return re.findall(r"'([a-z_]+)'", m.group(1))
-
-
 def _cat_status_keys(src):
     m = re.search(r'function _catStatus\(cat\)\{.*?switch\(cat\)\{(.*?)\n  \}\n\}', src, re.S)
     assert m, "_catStatus() introuvable"
     return re.findall(r"case '([a-z_]+)':", m.group(1))
 
 
-def test_config_sections_et_render_hub_listent_les_memes_categories():
+def test_render_config_tree_itere_config_sections_directement():
     src = _config_html_source()
-    sections = set(_config_sections_keys(src))
-    hub = set(_render_hub_keys(src))
-    assert sections == hub, (
-        f"CONFIG_SECTIONS et le tableau de renderHub() ont divergé — "
-        f"seulement dans CONFIG_SECTIONS: {sections - hub}, "
-        f"seulement dans renderHub(): {hub - sections}")
+    m = re.search(r'function renderConfigTree\(\)\{(.*?)\n\}', src, re.S)
+    assert m, "renderConfigTree() introuvable (ex-renderHub())"
+    assert 'CONFIG_SECTIONS.forEach' in m.group(1), (
+        "renderConfigTree() ne semble plus itérer CONFIG_SECTIONS directement "
+        "— une 2e liste dupliquée a peut-être été réintroduite (régression du "
+        "bug historique 'catégorie ajoutée mais badge jamais mis à jour')")
 
 
 def test_config_sections_ont_toutes_un_cas_dans_cat_status():
@@ -284,9 +282,10 @@ def test_config_sections_ont_toutes_un_cas_dans_cat_status():
 
 
 def test_pgxl_est_bien_present_partout():
-    """Cas concret motivant les 2 tests ci-dessus (revue adversariale du
-    06/08/2026) : 'pgxl' doit apparaître dans les 3 endroits."""
+    """Cas concret motivant les tests ci-dessus (revue adversariale du
+    06/08/2026) : 'pgxl' doit apparaître dans CONFIG_SECTIONS et avoir un
+    case dans _catStatus() (renderConfigTree() n'a plus de liste séparée où
+    pgxl pourrait manquer, cf. test au-dessus)."""
     src = _config_html_source()
     assert 'pgxl' in _config_sections_keys(src)
-    assert 'pgxl' in _render_hub_keys(src)
     assert 'pgxl' in _cat_status_keys(src)

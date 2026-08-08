@@ -88,40 +88,24 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .usage-mode-bar select:focus{border-color:var(--accent2)}
 .usage-mode-note{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 
-/* ─── HUB DE CATÉGORIES (refonte : remplace l'assistant linéaire par étapes) ─
-   Principes (docs/AUDIT_ET_REFONTE_CONFIGURATION.md §3) : cartes cliquables
-   groupées par thème, badge d'état par carte, une popup dédiée par catégorie,
-   validation à la fermeture de la popup plutôt qu'uniquement à la sauvegarde
-   globale. Les popups réutilisent les champs existants (mêmes id, mêmes
-   onchange) — seule leur position dans le DOM change. */
-/* Sections en grille (2 a 4 par ligne selon la largeur d'ecran) plutot
-   qu'empilees une par une : sur un ecran large, empiler 7 blocs pleine
-   largeur forcait un defilement vertical alors que la largeur restait
-   trois quarts vide (cf. retour utilisateur). */
-.hub-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:2px 24px;align-items:start}
-.hub-section{min-width:0}
-.hub-group-title{font-family:var(--font-mono);font-size:13px;letter-spacing:3px;color:var(--muted);margin:6px 0 6px;text-transform:uppercase}
-.hub-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.hub-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;cursor:pointer;transition:border-color .15s,transform .1s;position:relative;display:flex;flex-direction:column;gap:2px;min-height:48px}
-.hub-card:hover{border-color:var(--accent2);transform:translateY(-1px)}
-.hub-card-title{font-family:var(--font-mono);font-size:13px;color:var(--text);letter-spacing:.5px;display:flex;align-items:center;gap:6px}
-.hub-card-sub{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
-.hub-badge{position:absolute;top:9px;right:11px;font-size:13px;line-height:1}
-.hub-card.status-ok{border-left:3px solid var(--green)}
-.hub-card.status-warning{border-left:3px solid var(--yellow)}
-.hub-card.status-empty{border-left:3px solid var(--border)}
-.hub-launch-row{display:flex;justify-content:center;margin:10px 0 4px}
-
-/* Popup catégorie : même overlay plein écran que la sélection de locator sur
-   carte (mapLocOverlay), un par catégorie pour rester 100% statique (pas de
-   déplacement de nœuds DOM à l'exécution — cf. bug H5 du jscheck de session). */
-.cat-modal{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.72)}
-.cat-modal-box{position:absolute;inset:6% 8%;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+/* Arborescence permanente + panneau de contenu docké (refonte façon
+   OpsLog, remplace le hub de cartes + popup plein écran par catégorie —
+   demande F4GLD 08/08/2026). .cat-modal-box reste en position:fixed pour
+   ne PAS avoir à déplacer les ~2300 lignes de contenu de popup dans le
+   DOM : seule sa position/apparence change, pas son emplacement dans le
+   fichier. */
+.cat-modal{display:none}
+.cat-modal-box{display:flex;position:fixed;top:6%;left:calc(6% + 224px);right:6%;bottom:6%;z-index:9000;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .cat-modal-head{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
 .cat-modal-title{font-family:var(--font-display);font-size:19px;letter-spacing:.3px;color:var(--accent2);font-weight:900}
-.cat-modal-close{margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono)}
 .cat-modal-save{margin-left:auto;background:linear-gradient(135deg,#00FF88,#C9822E);border:none;color:#0A0B18;font-weight:700;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono);transition:opacity .15s}
 .cat-modal-save:hover{opacity:.85}
+
+/* Écran d'accueil (première visite) : SEUL élément à garder un vrai
+   backdrop plein écran — classe dédiée, ne partage plus .cat-modal (qui
+   n'est plus un overlay depuis la refonte sidebar) pour rester un modal
+   centré indépendant, cohérent avec bindOnboardingKeep ci-dessous. */
+.onboarding-overlay{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.72)}
 
 /* Sélecteur de fournisseur IA : grille responsive plutôt qu'une seule ligne
    flex-wrap — devenue illisible une fois passée de 3 à 6 fournisseurs (les
@@ -160,16 +144,27 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
   border-radius:6px;padding:10px 20px;cursor:pointer;font-family:var(--font-mono);font-size:13px;transition:opacity .15s}
 .onb-start:disabled{opacity:.35;cursor:not-allowed}
 .onb-start:not(:disabled):hover{opacity:.85}
-/* Config à onglets (#4) : barre latérale de sections + décalage du popup. */
-.config-sidebar{display:none;position:fixed;top:6%;left:6%;bottom:6%;width:210px;z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow-y:auto;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+/* Arborescence permanente (remplace le hub de cartes) : toujours montée et
+   visible — plus jamais gated par une classe body (config-tabbed retirée,
+   cf. buildConfigSidebar()/openCategoryPopup()). */
+.config-sidebar{display:flex;position:fixed;top:6%;left:6%;bottom:6%;width:210px;z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow-y:auto;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .config-sidebar-title{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);padding:8px 10px 10px}
-.config-sidebar-item{display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-size:12.5px;padding:8px 10px;border-radius:6px;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.config-sidebar-item{position:relative;display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-size:12.5px;padding:8px 26px 8px 10px;border-radius:6px;cursor:pointer;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .config-sidebar-item:hover{background:var(--bg3)}
 .config-sidebar-item.active{background:#C9822E;color:#08111f;font-weight:700}
-.config-sidebar-close{margin-top:auto;flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:9px;border-radius:6px;cursor:pointer}
-.config-sidebar-close:hover{border-color:var(--red);color:var(--red)}
-body.config-tabbed .cat-modal-box{left:calc(6% + 224px)}
-body.config-tabbed #catmodal_filters .cat-modal-box{left:calc(6% + 224px)}
+/* Point de statut par entrée (_catStatus()/_CAT_BADGE) : remplace le glyphe
+   emoji des anciennes cartes du hub par un point coloré — même motif que
+   les autres indicateurs de statut de l'appli (voir CLAUDE.md). */
+.tree-badge{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.tree-badge.status-ok{background:var(--green)}
+.tree-badge.status-warning{background:var(--yellow)}
+.tree-badge.status-empty{background:var(--border)}
+.config-sidebar-divider{border-top:1px solid var(--border);margin:6px 4px}
+/* Chemin critique (CLAUDE.md « Intuitivité ») : épinglé en bas de
+   l'arborescence, toujours visible quelle que soit la catégorie ouverte —
+   remplace l'ancien bouton centré en bas du hub, qui disparaissait avec lui. */
+.config-sidebar-launch{margin-top:auto;flex-shrink:0;background:linear-gradient(135deg,#00FF88,#C9822E);border:none;color:#0A0B18;font-weight:700;font-family:var(--font-mono);font-size:12.5px;padding:11px 9px;border-radius:6px;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.config-sidebar-launch:hover{opacity:.85}
 
 /* STEPS (ancien assistant par étapes — conservé masqué le temps de la
    migration complète vers le hub, cf. tâche "retirer l'ancien système") */
@@ -288,7 +283,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
    satellites + options) : une boîte plus haute que les autres, quitte à
    réduire un peu la marge autour, pour tenir sans scroll sur un écran
    courant plutôt que de continuer à rogner les espacements au pixel près. */
-#catmodal_filters .cat-modal-box{inset:1% 6%}
+#catmodal_filters .cat-modal-box{top:1%;bottom:1%}
 #catbody_filters{display:block;padding:10px 20px}
 .filters-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
 #catbody_filters .section{padding:10px 14px;margin-bottom:8px}
@@ -432,7 +427,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
        question redondante — on répond une fois, LogX AI le reporte). Le
        bouton 🎚 DÉBUTANT/EXPERT de l'en-tête reste modifiable ensuite à tout
        moment : ceci ne pose que le POINT DE DÉPART. -->
-  <div class="cat-modal" id="onboardingOverlay" style="display:none">
+  <div class="onboarding-overlay" id="onboardingOverlay" style="display:none">
     <div class="cat-modal-box onb-box">
       <div class="cat-modal-head">
         <svg viewBox="0 0 18 18" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2 2 5.5 9 9l7-3.5z"/><path d="M4.5 7.5V12c0 1 2 2 4.5 2s4.5-1 4.5-2V7.5"/></svg>
@@ -489,160 +484,12 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     <span class="usage-mode-note" id="usageModeNote"></span>
   </div>
 
-  <!-- HUB DE CATÉGORIES (refonte — remplace l'assistant par étapes ci-dessous) -->
-  <div id="configHub">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
-      <button class="btn btn-secondary" style="padding:7px 16px;font-size:12px" onclick="openSummaryPopup()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="14.5" x2="4" y2="9"/><line x1="9" y1="14.5" x2="9" y2="4"/><line x1="14" y1="14.5" x2="14" y2="11"/></svg> Résumé ▸</button>
-    </div>
-    <div class="hub-sections">
-    <div class="hub-section">
-    <div class="hub-group-title">MA STATION</div>
-    <div class="hub-grid">
-      <div class="hub-card" id="hubcard_identity" onclick="openCategoryPopup('identity')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 15.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg> 1. Identité</div>
-        <div class="hub-card-sub">Indicatif, locator, antennes...</div>
-        <span class="hub-badge" id="hubbadge_identity"></span>
-      </div>
-      <div class="hub-card" id="hubcard_operators" onclick="openCategoryPopup('operators')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.3"/><circle cx="12.5" cy="5.5" r="2.3"/><path d="M2 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/><path d="M7.5 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/></svg> 2. Opérateurs</div>
-        <div class="hub-card-sub">Multi-op, responsable log</div>
-        <span class="hub-badge" id="hubbadge_operators"></span>
-      </div>
-    </div>
-    </div>
-
-    <div class="hub-section">
-    <div class="hub-group-title">CONCOURS</div>
-    <div class="hub-grid">
-      <div class="hub-card" id="hubcard_contest" onclick="openCategoryPopup('contest')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h7v4a3.5 3.5 0 0 1-7 0z"/><path d="M5.5 4h-2v1.5a2.5 2.5 0 0 0 2.3 2.5"/><path d="M12.5 4h2v1.5a2.5 2.5 0 0 1-2.3 2.5"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="6.5" y1="13" x2="11.5" y2="13"/></svg> 3. Sélection</div>
-        <div class="hub-card-sub" id="hubsub_contest">Aucun concours choisi</div>
-        <span class="hub-badge" id="hubbadge_contest"></span>
-      </div>
-      <div class="hub-card" id="hubcard_filters" onclick="openCategoryPopup('filters')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> 4. Dates &amp; filtres</div>
-        <div class="hub-card-sub">Dates, bandes, modes</div>
-        <span class="hub-badge" id="hubbadge_filters"></span>
-      </div>
-    </div>
-    </div>
-
-    <div class="hub-section">
-    <div class="hub-group-title">MATÉRIEL</div>
-    <div class="hub-grid">
-      <div class="hub-card" id="hubcard_radio" onclick="openCategoryPopup('radio')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="13" height="8.5" rx="1.3"/><line x1="5" y1="6.5" x2="8" y2="2"/><circle cx="12.3" cy="10.5" r="1.6"/><line x1="4" y1="13" x2="8.5" y2="13"/></svg> 5. Radio (CAT)</div>
-        <div class="hub-card-sub">Natif / TCI / rigctld / flrig</div>
-        <span class="hub-badge" id="hubbadge_radio"></span>
-      </div>
-      <div class="hub-card" id="hubcard_amp" onclick="openCategoryPopup('amp')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 6. Amplificateur</div>
-        <div class="hub-card-sub">Pilotage ampli linéaire</div>
-        <span class="hub-badge" id="hubbadge_amp"></span>
-      </div>
-      <div class="hub-card" id="hubcard_rotor" onclick="openCategoryPopup('rotor')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M11.5 6.5 9.8 9.8 6.5 11.5 8.2 8.2z" fill="currentColor" stroke="none"/></svg> 7. Rotor</div>
-        <div class="hub-card-sub">Pointage d'antenne</div>
-        <span class="hub-badge" id="hubbadge_rotor"></span>
-      </div>
-      <div class="hub-card expert-only" id="hubcard_relay" onclick="openCategoryPopup('relay')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg> 16. Station Control</div>
-        <div class="hub-card-sub">Commutation relais (antennes)</div>
-        <span class="hub-badge" id="hubbadge_relay"></span>
-      </div>
-    </div>
-    </div>
-
-    <div class="hub-section">
-    <div class="hub-group-title">RÉSEAU &amp; SAUVEGARDE</div>
-    <div class="hub-grid">
-      <div class="hub-card" id="hubcard_network" onclick="openCategoryPopup('network')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.5a2.7 2.7 0 0 0 0-5.4 4 4 0 0 0-7.6-1.3 3.2 3.2 0 0 0-2.4 3.1 2.6 2.6 0 0 0 2.5 3.6z"/></svg> 8. Multi-poste &amp; Cloud</div>
-        <div class="hub-card-sub">Cloud Sync, réseau ADIF</div>
-        <span class="hub-badge" id="hubbadge_network"></span>
-      </div>
-      <div class="hub-card" id="hubcard_backup" onclick="openCategoryPopup('backup')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> 9. Sauvegarde auto</div>
-        <div class="hub-card-sub">Dossier, intervalle</div>
-        <span class="hub-badge" id="hubbadge_backup"></span>
-      </div>
-      <div class="hub-card expert-only" id="hubcard_autostart" onclick="openCategoryPopup('autostart')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,3.5 14,9 6,14.5"/></svg> 17. Auto-lancement</div>
-        <div class="hub-card-sub">Logiciels tiers au démarrage</div>
-        <span class="hub-badge" id="hubbadge_autostart"></span>
-      </div>
-      <div class="hub-card expert-only" id="hubcard_pgxl" onclick="openCategoryPopup('pgxl')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 18. PowerGenius XL</div>
-        <div class="hub-card-sub">Ampli 4O3A (réseau)</div>
-        <span class="hub-badge" id="hubbadge_pgxl"></span>
-      </div>
-      <div class="hub-card expert-only" id="hubcard_telemetry" onclick="openCategoryPopup('telemetry')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg> 19. Télémétrie</div>
-        <div class="hub-card-sub">Usage anonyme, opt-out</div>
-        <span class="hub-badge" id="hubbadge_telemetry"></span>
-      </div>
-    </div>
-    </div>
-
-    <div class="hub-section">
-    <div class="hub-group-title">PROPAGATION &amp; ALERTES</div>
-    <div class="hub-grid">
-      <div class="hub-card" id="hubcard_sources" onclick="openCategoryPopup('sources')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> 10. Sources</div>
-        <div class="hub-card-sub">Cluster, RBN, ON4KST...</div>
-        <span class="hub-badge" id="hubbadge_sources"></span>
-      </div>
-      <div class="hub-card" id="hubcard_alerts" onclick="openCategoryPopup('alerts')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.3c0 .9-.4 1.8-1.1 2.4l-.6.6h11.4l-.6-.6a3.3 3.3 0 0 1-1.1-2.4V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> 11. Alertes</div>
-        <div class="hub-card-sub">DX, spotter, règles perso</div>
-        <span class="hub-badge" id="hubbadge_alerts"></span>
-      </div>
-    </div>
-    </div>
-
-    <div class="hub-section">
-    <div class="hub-group-title">APRÈS LE CONCOURS</div>
-    <div class="hub-grid">
-      <div class="hub-card" id="hubcard_qsl" onclick="openCategoryPopup('qsl')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.8 4.6 9 9.5l6.2-4.9"/></svg> 12. QSL &amp; diplômes</div>
-        <div class="hub-card-sub">QRZ, eQSL, LoTW, ClubLog...</div>
-        <span class="hub-badge" id="hubbadge_qsl"></span>
-      </div>
-      <div class="hub-card" id="hubcard_scoreboard" onclick="openCategoryPopup('scoreboard')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h7v4a3.5 3.5 0 0 1-7 0z"/><path d="M5.5 4h-2v1.5a2.5 2.5 0 0 0 2.3 2.5"/><path d="M12.5 4h2v1.5a2.5 2.5 0 0 1-2.3 2.5"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="6.5" y1="13" x2="11.5" y2="13"/></svg> 13. Scoreboard &amp; soumission</div>
-        <div class="hub-card-sub">Score en direct, envoi du log</div>
-        <span class="hub-badge" id="hubbadge_scoreboard"></span>
-      </div>
-    </div>
-    </div>
-
-    <div class="hub-section">
-    <div class="hub-group-title">SPÉCIAL</div>
-    <div class="hub-grid">
-      <div class="hub-card" id="hubcard_expedition" onclick="openCategoryPopup('expedition')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.7" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg> 14. Expédition / Portable</div>
-        <div class="hub-card-sub">POTA, SOTA, IOTA, WWFF...</div>
-        <span class="hub-badge" id="hubbadge_expedition"></span>
-      </div>
-      <div class="hub-card" id="hubcard_ai" onclick="openCategoryPopup('ai')">
-        <div class="hub-card-title"><svg viewBox="0 0 18 18" width="13" height="13" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> 15. Assistant IA</div>
-        <div class="hub-card-sub">Fournisseur, clé API</div>
-        <span class="hub-badge" id="hubbadge_ai"></span>
-      </div>
-    </div>
-    </div>
-    </div>
-
-    <div class="hub-launch-row">
-      <button class="btn btn-launch" style="padding:14px 32px;font-size:15px" onclick="launchApp()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> TOUT EST BON — LOGGER</button>
-    </div>
-  </div>
-
-  <!-- L'ancien assistant par étapes (barre .steps + panels 1-5) a été retiré :
-       tout le contenu vit désormais dans le hub de catégories ci-dessus et ses
-       popups (voir plus bas). goStep()/state.step subsistent en interne comme
-       mécanisme de seuil de validation (_missingStationFields) et ne pilotent
-       plus aucun élément visible. -->
+  <!-- Le hub de cartes + les popups plein écran par catégorie ont été
+       remplacés par une arborescence permanente (#configSidebar, montée par
+       buildConfigSidebar()) + un panneau de contenu docké (voir plus bas,
+       les 19 blocs #catmodal_<cat> + #catmodal_summary n'ont pas bougé dans
+       le fichier, seule leur apparence/position CSS a changé — refonte
+       façon OpsLog, demande F4GLD 08/08/2026). -->
 
 </div>
 
@@ -657,13 +504,13 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   </div>
 </div>
 
-<!-- Popup RÉSUMÉ (remplace l'ancien panel5) : ouverte depuis le lien
-     "📊 Résumé ▸" en tête du hub. -->
+<!-- Popup RÉSUMÉ : 20e entrée de l'arborescence (CONFIG_SECTIONS), plus une
+     popup séparée depuis la refonte sidebar — voir openCategoryPopup(),
+     cas 'summary' (buildSummary()), comme les autres catégories. -->
 <div class="cat-modal" id="catmodal_summary">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="14.5" x2="4" y2="9"/><line x1="9" y1="14.5" x2="9" y2="4"/><line x1="14" y1="14.5" x2="14" y2="11"/></svg> RÉSUMÉ DE LA SESSION</span>
-      <button class="cat-modal-close" onclick="closeSummaryPopup()"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> Fermer</button></div>
-    <div class="cat-modal-body">
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="14.5" x2="4" y2="9"/><line x1="9" y1="14.5" x2="9" y2="4"/><line x1="14" y1="14.5" x2="14" y2="11"/></svg> RÉSUMÉ DE LA SESSION</span></div>
+    <div class="cat-modal-body" id="catbody_summary">
       <div class="section">
         <div class="section-title">RÉCAPITULATIF DE LA SESSION</div>
         <div class="summary-box" id="summaryBox"></div>
@@ -691,8 +538,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_identity">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 15.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg> 1. IDENTITÉ DE LA STATION</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'identity')"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('identity')"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_identity">
       <div class="section">
         <div class="form-grid">
@@ -850,8 +696,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_operators">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.3"/><circle cx="12.5" cy="5.5" r="2.3"/><path d="M2 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/><path d="M7.5 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/></svg> 2. OPÉRATEURS</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'operators')"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('operators')"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_operators">
       <div class="section" id="opSection">
         <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
@@ -940,8 +785,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_contest">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h6v4a3 3 0 0 1-6 0V2z"/><path d="M6 3H3.5v1.5A2.5 2.5 0 0 0 6 7"/><path d="M12 3h2.5v1.5A2.5 2.5 0 0 1 12 7"/><line x1="9" y1="9" x2="9" y2="12"/><line x1="6" y1="15" x2="12" y2="15"/><line x1="9" y1="12" x2="9" y2="15"/></svg> 3. SÉLECTION DU CONCOURS</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'contest')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('contest')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_contest">
       <!-- ASSISTANT NOUVEAU CONCOURS (rempli par handleContestParam quand on
            arrive depuis le calendrier avec ?contest=ID) -->
@@ -1040,8 +884,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_filters">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> 4. DATES &amp; BANDES/MODES</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'filters')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('filters')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_filters">
       <div class="filters-cols">
         <div class="filters-col">
@@ -1205,8 +1048,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_radio">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="13" height="8" rx="1.5"/><line x1="5" y1="7" x2="7.5" y2="2.5"/><circle cx="6" cy="11" r="1.6"/><line x1="10.5" y1="10" x2="14" y2="10"/><line x1="10.5" y1="12.5" x2="14" y2="12.5"/></svg> 5. RADIO (PILOTAGE CAT)</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'radio')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('radio')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_radio">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1722,8 +1564,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_amp">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1.5L4.5 10h4L8 16.5 13.5 8h-4z"/></svg> 6. AMPLIFICATEUR HF</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'amp')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('amp')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_amp">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1792,8 +1633,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_rotor">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M11 6 7.5 9 8.5 12 12 9z" fill="currentColor" stroke="none"/></svg> 7. ROTOR D'ANTENNE</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'rotor')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('rotor')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_rotor">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1851,8 +1691,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_relay">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg> 16. STATION CONTROL (RELAIS)</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'relay')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('relay')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_relay">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1936,8 +1775,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_autostart">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="currentColor" stroke="none"><polygon points="6,3.5 14,9 6,14.5"/></svg> 17. AUTO-LANCEMENT</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'autostart')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('autostart')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_autostart">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -1954,8 +1792,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_pgxl">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 18. POWERGENIUS XL (4O3A)</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'pgxl')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('pgxl')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_pgxl">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -2003,8 +1840,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_telemetry">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg> 19. TÉLÉMÉTRIE D'USAGE</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'telemetry')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('telemetry')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_telemetry">
       <div class="section">
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -2041,8 +1877,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_network">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> 8. MULTI-POSTE &amp; CLOUD SYNC</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'network')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('network')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_network">
       <div class="section">
         <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c-2.5 2-2.5 11 0 13"/><path d="M9 2.5c2.5 2 2.5 11 0 13"/></svg> RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</div>
@@ -2271,8 +2106,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_backup">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> 9. SAUVEGARDE AUTOMATIQUE</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'backup')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('backup')"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_backup">
       <div class="section">
         <div class="form-grid">
@@ -2297,8 +2131,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_sources">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> 10. SOURCES DE SPOTS &amp; PROPAGATION</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'sources')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('sources')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_sources">
       <div class="section">
         <div class="section-title">SOURCES DE SPOTS (CLUSTER)</div>
@@ -2370,8 +2203,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_alerts">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.5c0 1.5-.6 2.3-1.3 3h10.6c-.7-.7-1.3-1.5-1.3-3V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> 11. ALERTES PERSONNALISÉES</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'alerts')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('alerts')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_alerts">
       <div class="section">
         <div class="section-title">MODES DE PROPAGATION À SURVEILLER</div>
@@ -2514,8 +2346,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_qsl">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.5 5l6.5 5.5L15.5 5"/></svg> 12. QSL &amp; DIPLÔMES</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'qsl')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('qsl')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_qsl">
       <div class="section">
         <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c2.2 2 2.2 11 0 13"/><path d="M9 2.5c-2.2 2-2.2 11 0 13"/></svg> COMPTE QRZ.com (fiches des correspondants)</div>
@@ -2624,8 +2455,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_scoreboard">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h8v3a4 4 0 0 1-8 0z"/><path d="M5 4H3v1a3 3 0 0 0 3 3M13 4h2v1a3 3 0 0 1-3 3"/><line x1="9" y1="10" x2="9" y2="13"/><path d="M6 15.5h6M6.5 15.5C6.5 14 7 13 9 13s2.5 1 2.5 2.5"/></svg> 13. SCOREBOARD &amp; SOUMISSION</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'scoreboard')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('scoreboard')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_scoreboard">
       <div class="section">
         <div class="section-title">SCOREBOARD EN DIRECT</div>
@@ -2663,8 +2493,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_expedition">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h10l-3 3 3 3H4"/></svg>14. EXPÉDITION / PORTABLE</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'expedition')"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="2.5" width="12" height="13" rx="1"/><path d="M5.5 2.5v4h5.5v-4"/><rect x="6" y="10" width="6" height="5.5"/></svg>Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('expedition')"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:4px"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg>Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="2.5" width="12" height="13" rx="1"/><path d="M5.5 2.5v4h5.5v-4"/><rect x="6" y="10" width="6" height="5.5"/></svg>Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_expedition">
       <div class="section">
         <div class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M2 15 9 3l7 12z"/><line x1="9" y1="8" x2="9" y2="15"/></svg>TRAFIC EN PORTABLE (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
@@ -2835,8 +2664,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <div class="cat-modal" id="catmodal_ai">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><rect x="4" y="6.5" width="10" height="7.5" rx="2"/><line x1="9" y1="2.5" x2="9" y2="6.5"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="1.5" y1="9" x2="4" y2="9"/><line x1="14" y1="9" x2="16.5" y2="9"/></svg>15. ASSISTANT IA</span>
-      <button class="cat-modal-save" onclick="saveConfigAndClose(this, 'ai')"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="2.5" width="12" height="13" rx="1"/><path d="M5.5 2.5v4h5.5v-4"/><rect x="6" y="10" width="6" height="5.5"/></svg>Enregistrer</button>
-      <button class="cat-modal-close" onclick="closeCategoryPopup('ai')"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align:-2px;margin-right:4px"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg>Fermer</button></div>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="2.5" width="12" height="13" rx="1"/><path d="M5.5 2.5v4h5.5v-4"/><rect x="6" y="10" width="6" height="5.5"/></svg>Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_ai">
       <div class="section">
         <div class="form-grid">
@@ -3319,7 +3147,6 @@ setTimeout(initFieldHelp, 800);
 <script>
 // ─── STATE ───────────────────────────────────────────────────────────────────
 const state = {
-  step: 1,
   contest: null,
   toggles: {},
   alertRules: [],
@@ -3327,7 +3154,7 @@ const state = {
   submitUrlAutoFor: null, // concours pour lequel submit_url a été auto-rempli
 };
 // Contest pour lequel applyContestFilters a déjà été appliqué (évite d'écraser
-// les choix manuels de l'utilisateur à chaque revisite de l'étape 3)
+// les choix manuels de l'utilisateur à chaque réouverture du panneau FILTRES)
 let _filtersAppliedFor = null;
 
 // ─── CONTESTS DATA ───────────────────────────────────────────────────────────
@@ -3845,6 +3672,11 @@ async function init() {
     const card = document.getElementById('card_' + state.contest);
     if (card) card.classList.add('selected');
   }
+  // Panneau par défaut au chargement : plus de hub d'accueil depuis la
+  // refonte sidebar du 08/08/2026 — Identité est la 1re étape du chemin
+  // critique (indicatif), donc le point d'entrée le plus logique. Un
+  // deep-link ?contest=ID (juste après) prend le dessus si présent.
+  openCategoryPopup('identity');
   handleContestParam(); // Assistant : ?contest=ID depuis le calendrier
   renderParcStation(); // Parc antennes/rotors/amplis (vide si jamais configuré)
   updateCatModelOptions(); updateCatModeVisibility(); refreshCatPorts(); // Radio CAT native
@@ -3866,7 +3698,7 @@ async function init() {
   const sotaHint = document.getElementById('sotaRedirectUriHint');
   if (sotaHint) sotaHint.textContent = `http://localhost:${window.location.port || 8080}/sota/oauth/callback`;
   refreshAccessPasswordStatus(); // Mot de passe d'accès optionnel (section RÉSEAU)
-  renderHub(); // Hub de catégories : badges d'état initiaux
+  renderConfigTree(); // Arborescence de réglages : badges d'état initiaux
 }
 
 // ─── SOTA : recherche/validation de sommet contre la vraie base ─────────────
@@ -5202,7 +5034,7 @@ function selectContest(id, _skipConfirm) {
   // changer de concours ici sans recharger la page laissait le compteur du
   // PRÉCÉDENT concours affiché.
   refreshCallHistoryStatus();
-  renderHub();
+  renderConfigTree();
 }
 
 // Revenir à « pas de concours » — seul selectContest() existait, qui ne fait
@@ -5226,7 +5058,7 @@ function deselectContest(){
   const banner = document.getElementById('contest_dates_auto');
   if(banner) banner.innerHTML = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Choisis un concours ci-dessus : ses dates se calculent automatiquement.';
   refreshCallHistoryStatus();   // même correctif que selectContest() : ne pas laisser un compteur obsolète
-  renderHub();
+  renderConfigTree();
 }
 
 // Dates depuis la base serveur : parse "DD/MM/YYYY à HHhMM UTC" + durée
@@ -5255,16 +5087,15 @@ function serverContestDates(id){
 function toggle(el) {
   el.classList.toggle('on');
   state.toggles[el.dataset.key] = el.classList.contains('on');
-  renderHub();
+  renderConfigTree();
 }
 
-// ─── HUB DE CATÉGORIES (refonte popup) ──────────────────────────────────────
-// Une popup statique par catégorie (voir CSS .cat-modal) : ouvrir/fermer ne
-// fait que basculer sa visibilité, aucun champ n'est déplacé à l'exécution.
-// ── CONFIG À ONGLETS (#4) ────────────────────────────────────────────────────
-// Les 15 sections restent des popups distincts (toute leur logique et la
-// sauvegarde inchangées) mais une BARRE LATÉRALE persistante permet de passer de
-// l'une à l'autre sans revenir au hub ni scroller. Tous les champs vivent en
+// ─── ARBORESCENCE DE RÉGLAGES (refonte façon OpsLog, 08/08/2026) ────────────
+// Un panneau statique par catégorie (voir CSS .cat-modal-box) : changer de
+// section ne fait que basculer sa visibilité, aucun champ n'est déplacé à
+// l'exécution. Une arborescence PERMANENTE (#configSidebar) remplace le hub
+// de cartes + la popup plein écran par catégorie : un seul panneau visible à
+// la fois, plus de retour à un "hub" (qui n'existe plus). Tous les champs vivent en
 // permanence dans le DOM (les popups sont juste masqués) : changer de section ne
 // perd jamais une saisie, et Enregistrer lit toujours l'ensemble.
 const _ICO_IDENTITY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 15.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>';
@@ -5284,18 +5115,31 @@ const _ICO_PLAY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertic
 const _ICO_GLOBE = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="2.7" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>';
 const _ICO_ROBOT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg>';
 const _ICO_SIGNAL = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg>';
+const _ICO_SUMMARY = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="14.5" x2="4" y2="9"/><line x1="9" y1="14.5" x2="9" y2="4"/><line x1="14" y1="14.5" x2="14" y2="11"/></svg>';
+// Source UNIQUE des catégories (tree + badges + _catStatus()) : la
+// duplication d'une 2e liste (ancien tableau codé en dur de renderHub())
+// avait déjà causé un vrai bug (badge 'relay' jamais mis à jour, voir
+// test_config_sections_et_render_hub_listent_les_memes_categories) —
+// renderConfigTree() itère CE tableau directement, plus de 2e source.
 const CONFIG_SECTIONS = [
   ['identity',_ICO_IDENTITY+' 1. Identité'], ['operators',_ICO_OPERATORS+' 2. Opérateurs'],
-  ['contest',_ICO_TROPHY+' 3. Sélection'], ['filters',_ICO_CALENDAR+' 4. Dates &amp; bandes'],
+  ['contest',_ICO_TROPHY+' 3. Sélection'], ['filters',_ICO_CALENDAR+' 4. Dates, bandes &amp; modes'],
   ['radio',_ICO_RADIO+' 5. Radio (CAT)'], ['amp',_ICO_BATTERY+' 6. Amplificateur'],
-  ['rotor',_ICO_COMPASS+' 7. Rotor'], ['network',_ICO_CLOUD+' 8. Multi-poste'],
-  ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Propagation'],
+  ['rotor',_ICO_COMPASS+' 7. Rotor'], ['network',_ICO_CLOUD+' 8. Multi-poste &amp; Cloud'],
+  ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Sources'],
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
   ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control'],
   ['autostart',_ICO_PLAY+' 17. Auto-lancement'], ['pgxl',_ICO_BATTERY+' 18. PowerGenius XL'],
-  ['telemetry',_ICO_SIGNAL+' 19. Télémétrie']
+  ['telemetry',_ICO_SIGNAL+' 19. Télémétrie'], ['summary',_ICO_SUMMARY+' Résumé']
 ];
+// 4 catégories réservées au mode expert (CLAUDE.md « Intuitivité ») — même
+// liste que les anciennes .hub-card.expert-only, appliquée maintenant aux
+// entrées de l'arborescence elles-mêmes (l'ancien panneau flottant les
+// listait TOUTES sans filtre, lacune trouvée par l'investigation du
+// 08/08/2026 avant de coder cette refonte).
+const _EXPERT_ONLY_CATS = new Set(['relay', 'autostart', 'pgxl', 'telemetry']);
+
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
   const nav = document.createElement('div');
@@ -5303,10 +5147,16 @@ function buildConfigSidebar(){
   nav.className = 'config-sidebar';
   nav.innerHTML = '<div class="config-sidebar-title">CONFIGURATION</div>'
     + CONFIG_SECTIONS.map(function(s){
-        return '<button type="button" class="config-sidebar-item" data-cat="' + s[0]
-          + '" onclick="switchSection(\'' + s[0] + '\')">' + s[1] + '</button>';
+        const cat = s[0];
+        const divider = cat === 'summary' ? '<div class="config-sidebar-divider"></div>' : '';
+        const expertCls = _EXPERT_ONLY_CATS.has(cat) ? ' expert-only' : '';
+        return divider + '<button type="button" class="config-sidebar-item' + expertCls + '" data-cat="' + cat
+          + '" onclick="switchSection(\'' + cat + '\')">' + s[1]
+          + '<span class="tree-badge" id="treebadge_' + cat + '"></span></button>';
       }).join('')
-    + '<button type="button" class="config-sidebar-close" onclick="closeConfigPopup()"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> Fermer</button>';
+    // Chemin critique (CLAUDE.md) épinglé en bas, toujours visible quelle
+    // que soit la catégorie ouverte — remplace le bouton du hub disparu.
+    + '<button type="button" class="config-sidebar-launch" onclick="launchApp()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> LOGGER</button>';
   document.body.appendChild(nav);
 }
 function _currentOpenCat(){
@@ -5355,14 +5205,12 @@ function _confirmDiscardCatChanges(cat){
 }
 function openCategoryPopup(cat){
   // Avant de basculer : si la section actuellement ouverte a des
-  // modifications non enregistrées, avertir -- sinon changer d'onglet dans
-  // la barre latérale (switchSection()) ou chaîner deux appels
-  // closeCategoryPopup()+openCategoryPopup() dans un même onclick (ex. lien
-  // "complète l'étape 1", plus bas dans ce fichier) contournait totalement
-  // le garde de closeCategoryPopup() : ce dernier refuse bien de fermer SA
-  // section, mais rien n'empêchait alors openCategoryPopup() d'écraser
-  // cette même section resté ouverte, sans jamais redemander (trouvé par
-  // la revue adversariale du 08/08/2026).
+  // modifications non enregistrées, avertir -- que ce soit via un clic sur
+  // une autre entrée de l'arborescence (switchSection()) ou un appel direct
+  // (deep-link ?contest=ID, détection CAT auto...). Un refus annule TOUT le
+  // changement de section (trouvé par la revue adversariale du 08/08/2026 :
+  // avant, seul un ancien mécanisme de fermeture chaînée vérifiait ce garde,
+  // pas openCategoryPopup() lui-même).
   let _curAvantOuverture = null;
   try { _curAvantOuverture = (typeof _currentOpenCat === 'function') ? _currentOpenCat() : null; } catch(e){}
   if(_curAvantOuverture && _curAvantOuverture !== cat && !_confirmDiscardCatChanges(_curAvantOuverture)) return;
@@ -5377,12 +5225,8 @@ function openCategoryPopup(cat){
   if(modal) modal.style.display = 'block';
   try {
     buildConfigSidebar();
-    document.body.classList.add('config-tabbed');
     const nav = document.getElementById('configSidebar');
-    if(nav){
-      nav.style.display = 'flex';
-      nav.querySelectorAll('.config-sidebar-item').forEach(function(b){ b.classList.toggle('active', b.dataset.cat === cat); });
-    }
+    if(nav) nav.querySelectorAll('.config-sidebar-item').forEach(function(b){ b.classList.toggle('active', b.dataset.cat === cat); });
   } catch(e){}
   // Planning de roulement : liste ET options du <select> reconstruites à chaque
   // ouverture — les créneaux vivent côté serveur, hors de l'état de config.
@@ -5390,69 +5234,12 @@ function openCategoryPopup(cat){
     refreshShiftOperatorSelect();
     loadShifts();
   }
+  // Résumé : recalculé à chaque ouverture (recap texte + prompt système),
+  // comme l'ancien openSummaryPopup() avant la fusion dans l'arborescence.
+  if(cat === 'summary') buildSummary();
   _catFormSnapshots[cat] = _snapshotCatForm(cat);
 }
 function switchSection(cat){ openCategoryPopup(cat); }
-function closeConfigPopup(){
-  let cur = null;
-  try { cur = _currentOpenCat(); } catch(e){}
-  if(cur && !_confirmDiscardCatChanges(cur)) return;
-  try {
-    if(cur){ const m = document.getElementById('catmodal_' + cur); if(m) m.style.display = 'none'; }
-    const nav = document.getElementById('configSidebar');
-    if(nav) nav.style.display = 'none';
-    document.body.classList.remove('config-tabbed');
-  } catch(e){}
-  if(cur) delete _catFormSnapshots[cur];
-  renderHub();
-}
-
-function closeCategoryPopup(cat){
-  // « Fermer » d'une section ferme tout le popup config (barre comprise) et
-  // revient au hub. Autonome + défensif : le cœur (masquer la section) marche
-  // même sans barre ni body (tests en DOM minimal).
-  // Renvoie true/false (fermé ou refusé) -- utilisé par les onclick chaînés
-  // "closeCategoryPopup('x') && openCategoryPopup('y')" pour qu'un refus
-  // n'ouvre pas quand même la section cible (voir openCategoryPopup()).
-  if(!_confirmDiscardCatChanges(cat)) return false;
-  const modal = document.getElementById('catmodal_' + cat);
-  if(modal) modal.style.display = 'none';
-  try {
-    const nav = document.getElementById('configSidebar');
-    if(nav) nav.style.display = 'none';
-    document.body.classList.remove('config-tabbed');
-  } catch(e){}
-  delete _catFormSnapshots[cat];
-  renderHub();
-  return true;
-}
-
-// Clic sur le FOND du popup (l'overlay .cat-modal lui-même, pas la boîte
-// .cat-modal-box à l'intérieur) = même effet que « Fermer » — pas
-// « Enregistrer » (retour F4GLD 04/08/2026 : cliquer à côté ne doit jamais
-// sauvegarder une config à moitié modifiée par accident). event.target===this
-// distingue un clic sur le fond (la cible EST l'overlay) d'un clic propagé
-// depuis un enfant (la boîte, un champ, un bouton).
-function bindCatModalBackdropClose(){
-  document.querySelectorAll('.cat-modal').forEach(function(m){
-    m.addEventListener('click', function(e){
-      if(e.target !== m) return;
-      if(m.id === 'catmodal_summary') closeSummaryPopup();
-      else closeConfigPopup();
-    });
-  });
-}
-bindCatModalBackdropClose();
-
-// Popup RÉSUMÉ (remplace l'ancien panel5/étape 5) : accessible à tout moment
-// depuis le lien "📊 Résumé ▸" en tête du hub, indépendamment des catégories.
-function openSummaryPopup(){
-  buildSummary();
-  document.getElementById('catmodal_summary').style.display = 'block';
-}
-function closeSummaryPopup(){
-  document.getElementById('catmodal_summary').style.display = 'none';
-}
 
 // Statut d'une catégorie pour le badge de sa carte : 'ok' (✅), 'warning' (⚠️,
 // remplie mais invalide/incomplète), 'empty' (○, non configurée — souvent
@@ -5515,30 +5302,26 @@ function _catStatus(cat){
       return val('pgxl_enabled') === '1' ? 'ok' : 'empty';
     case 'telemetry':
       return val('telemetry_enabled') === '1' ? 'ok' : 'empty';
+    case 'summary':
+      return 'empty'; // recap pur, pas de champ propre — pas de statut pertinent
     default:
       return 'empty';
   }
 }
 
-const _CAT_BADGE = { ok: '✅', warning: '⚠️', empty: '○' };
+const _CAT_BADGE = { ok: 'status-ok', warning: 'status-warning', empty: 'status-empty' };
 
-function renderHub(){
-  ['identity','operators','contest','filters','radio','amp','rotor','network',
-   'backup','sources','alerts','qsl','scoreboard','expedition','ai',
-   'relay','autostart','pgxl','telemetry'].forEach(cat => {
-    const card = document.getElementById('hubcard_' + cat);
-    const badge = document.getElementById('hubbadge_' + cat);
-    if(!card || !badge) return;
-    const status = _catStatus(cat);
-    card.classList.remove('status-ok','status-warning','status-empty');
-    card.classList.add('status-' + status);
-    badge.textContent = _CAT_BADGE[status] || '';
+// Renommée depuis renderHub() (le hub de cartes a disparu avec la refonte
+// sidebar du 08/08/2026) : rafraîchit le point de statut de CHAQUE entrée de
+// l'arborescence. Itère CONFIG_SECTIONS directement, plus de liste dupliquée
+// à tenir synchronisée (voir commentaire sur CONFIG_SECTIONS).
+function renderConfigTree(){
+  CONFIG_SECTIONS.forEach(function(s){
+    const badge = document.getElementById('treebadge_' + s[0]);
+    if(!badge) return;
+    badge.classList.remove('status-ok','status-warning','status-empty');
+    badge.classList.add(_CAT_BADGE[_catStatus(s[0])] || 'status-empty');
   });
-  const sub = document.getElementById('hubsub_contest');
-  if(sub){
-    const c = CONTESTS.find(c => c.id === state.contest);
-    sub.textContent = c ? c.name : (_contestOptional() ? 'Non requis dans ce mode' : 'Aucun concours choisi');
-  }
 }
 
 // ─── RÈGLES D'ALERTE PERSONNALISÉES (évaluées côté serveur, logx_alerts.py) ─
@@ -6076,43 +5859,14 @@ function _warnMissingStation(missing){
   alert(T('⚠️ Configuration incomplète — merci de compléter avant de continuer :') + '\n\n- ' + missing.join('\n- '));
 }
 
-function goStep(n, _internal) {
-  // Mode débutant : l'étape 4 (PROPAGATION) est masquée → on saute par-dessus
-  // dans le sens du déplacement (3 → 5 en avançant, 5 → 3 en reculant).
-  if (getUiMode() === 'simple' && n === 4) n = (state.step < 4) ? 5 : 3;
-  // Mode d'utilisation LOGBOOK SIMPLE : pas de concours → l'étape 2 (CONCOURS)
-  // est masquée, on saute par-dessus dans le sens du déplacement.
-  if (getUsageMode() === 'simple' && n === 2) n = (state.step < 2) ? 3 : 1;
-  // Garde-fou H2 : on ne bloque que les sauts EN AVANT initiés par
-  // l'utilisateur (revenir en arrière pour corriger reste toujours possible).
-  // _internal=true : appel programmatique (repositionnement suite à un
-  // changement de mode, ou lien profond ?contest=ID) — ne doit jamais être
-  // bloqué par un garde-fou qui vise la navigation manuelle dans l'assistant.
-  if (!_internal && n > state.step) {
-    const missing = _missingStationFields(n);
-    if (missing.length) { _warnMissingStation(missing); return; }
-  }
-  state.step = n;
-  document.querySelectorAll('.step').forEach((s,i) => {
-    s.classList.remove('active');
-    if(i+1 < n) s.classList.add('done');
-    else s.classList.remove('done');
-    if(i+1 === n) s.classList.add('active');
-  });
-  document.querySelectorAll('.panel').forEach((p,i) => {
-    p.classList.remove('active');
-    if(i+1 === n) p.classList.add('active');
-  });
-  if(n === 5) buildSummary();
-  // N'appliquer les filtres par défaut du concours que la 1ère fois qu'on
-  // affiche l'étape 3 pour ce concours — sinon ça écrase les cases à cocher
-  // que l'utilisateur a déjà personnalisées (et non encore sauvegardées).
-  if(n === 3 && state.contest !== _filtersAppliedFor){
-    applyContestFilters(state.contest);
-    _filtersAppliedFor = state.contest;
-  }
-  window.scrollTo(0,0);
-}
+// goStep()/state.step (ancien assistant par étapes .step/.panel) retirés le
+// 08/08/2026 avec la refonte sidebar : plus aucun élément .step/.panel dans
+// le DOM depuis la migration hub/popups déjà ancienne, ces fonctions ne
+// pilotaient plus rien de visible (confirmé par investigation avant
+// suppression). Seul effet réel qui survivait via des appels internes
+// goStep(3,...) — réappliquer les filtres bande/mode du concours quand le
+// panneau FILTRES est affiché — est repris directement par les appelants
+// (voir applyUsageMode(), plus bas) via _currentOpenCat() === 'filters'.
 
 const LOCATOR_RE = /^[A-R]{2}[0-9]{2}([A-X]{2})?$/;
 function isValidLocator(loc){ return LOCATOR_RE.test((loc||'').toUpperCase().trim()); }
@@ -7384,12 +7138,12 @@ function quickSave() {
   saveConfig(true);
 }
 
-// Bouton "💾 Enregistrer" de chaque popup catégorie : sauvegarde ET ferme
-// (contrairement au bouton flottant d'en-tête quickSave(), qui ne ferme rien
-// puisqu'aucune popup n'est nécessairement ouverte).
-function saveConfigAndClose(btn, cat){
+// Bouton "💾 Enregistrer" de chaque panneau catégorie : sauvegarde et reste
+// ouvert (plus de hub où "revenir" depuis la refonte sidebar du 08/08/2026 —
+// changer de section se fait en cliquant une autre entrée de l'arborescence).
+// Feedback visuel "ENREGISTRÉ" géré par saveConfig() elle-même sur `btn`.
+function saveCategoryPanel(btn){
   saveConfig(true, btn);
-  closeCategoryPopup(cat);
 }
 
 let _lastConfigSavePromise = Promise.resolve();
@@ -8131,22 +7885,12 @@ function applyUiMode(){
     btn.textContent = simple ? '🎚 DÉBUTANT' : '🎚 EXPERT';
     btn.style.color = simple ? 'var(--green)' : 'var(--muted)';
   }
-  // Correctif H4 : ne pas masquer l'étape 4 (PROPAGATION) en mode débutant
-  // quand le mode d'utilisation EXPÉDITION/PORTABLE est actif — ses champs
-  // (expedition_mode, activation_program, my_activation_ref, clublog_live)
-  // n'existent que dans ce panneau et seraient sinon impossibles à atteindre
-  // sans deviner qu'il faut d'abord basculer en mode EXPERT (le sélecteur MODE
-  // D'UTILISATION propose pourtant toujours cette option).
-  const hideStep4 = simple && getUsageMode() !== 'expedition';
-  const step4 = document.getElementById('step4');
-  if (step4) step4.style.display = hideStep4 ? 'none' : '';
-  // Libellés des boutons qui encadrent l'étape sautée
-  const nextBtn = document.querySelector('#panel3 .btn-primary');
-  if (nextBtn) nextBtn.textContent = hideStep4 ? 'SUIVANT → RÉSUMÉ' : 'SUIVANT → PROPAGATION';
-  const backBtn = document.querySelector('#panel5 .btn-secondary[onclick="goStep(4)"]');
-  if (backBtn) backBtn.textContent = hideStep4 ? '← RETOUR (FILTRES)' : '← RETOUR';
-  // Si on est actuellement sur l'étape 4 en passant en simple → aller au résumé
-  if (hideStep4 && state.step === 4) goStep(5, true);
+  // Ancien correctif H4 (masquage de l'étape 4/PROPAGATION en mode débutant)
+  // retiré le 08/08/2026 : ciblait des éléments #step4/#panel3/#panel5 déjà
+  // absents du DOM depuis la migration hub/popups, et aucune des catégories
+  // concernées (sources/alerts/expedition) n'est expert-only aujourd'hui —
+  // elles sont déjà toujours visibles dans l'arborescence, quel que soit le
+  // mode débutant/expert.
 }
 
 function toggleUiMode(){
@@ -8190,39 +7934,21 @@ function applyUsageMode(){
     postesSection.style.display = radioclub ? '' : 'none';
     if (radioclub && posteRowCount === 0) ensurePosteRows(1);
   }
-  const step2 = document.getElementById('step2');
-  if (step2) step2.style.display = simple ? 'none' : '';
-  const nextBtn = document.getElementById('btnStep1Next');
-  if (nextBtn) nextBtn.textContent = simple ? 'SUIVANT → FILTRES' : 'SUIVANT → CONCOURS';
-  const backBtn = document.getElementById('btnStep3Back');
-  if (backBtn) backBtn.textContent = simple ? '← RETOUR (MA STATION)' : '← RETOUR';
   const note = document.getElementById('usageModeNote');
-  // Ce texte décrivait encore le parcours en étapes retiré depuis la migration
-  // vers le hub de cartes : il envoyait l'utilisateur vers une « étape
-  // CONCOURS » et une « étape FILTRES » qui n'existent plus. Même défaut que
-  // le guide récité par l'IA, corrigé au même titre — un texte affiché qui
-  // décrit une interface disparue est pire que pas de texte du tout.
   if (note) note.textContent = simple
-    ? '— carte 3. Sélection sans objet, bandes et modes librement réglables dans 4. Dates & filtres'
+    ? '— catégorie 3. Sélection sans objet, bandes et modes librement réglables dans 4. Dates, bandes & modes'
     : (mode === 'expedition'
         ? '— pense à activer la saisie simplifiée dans la section MODE EXPÉDITION ci-dessous'
         : (radioclub
             ? '— renseigne les postes radio et les opérateurs du club dans la catégorie OPÉRATEURS'
             : ''));
-  // Si on est actuellement sur l'étape CONCOURS en passant en simple → avancer
-  if (simple && state.step === 2) goStep(3, true);
-  // Ré-appliquer immédiatement les filtres bande/mode (sans attendre un
-  // changement d'étape) : basculer vers/depuis LOGBOOK SIMPLE doit se voir
-  // tout de suite si l'étape FILTRES est déjà affichée.
+  // Ré-appliquer immédiatement les filtres bande/mode (sans attendre que le
+  // panneau FILTRES soit rouvert) : basculer vers/depuis LOGBOOK SIMPLE doit
+  // se voir tout de suite si ce panneau est déjà affiché.
   _filtersAppliedFor = null;
-  if (state.step === 3) applyContestFilters(state.contest);
-  // Correctif H4 : la visibilité de l'étape 4 dépend À LA FOIS du mode UI et
-  // du mode d'utilisation (cf. applyUiMode()) — la recalculer ici aussi,
-  // sinon un usage_mode='expedition' restauré après coup (config/profil,
-  // lien calendrier) laisserait l'étape 4 masquée par le calcul déjà fait
-  // plus tôt par applyUiMode() avant que ce mode ne soit connu.
+  if (_currentOpenCat() === 'filters') applyContestFilters(state.contest);
   applyUiMode();
-  renderHub();
+  renderConfigTree();
 }
 
 function onUsageModeChange(){
@@ -8583,7 +8309,7 @@ function applyFullConfigToForm(c) {
     updateEnabledFieldsVisibility('mqtt_enabled', ['mqtt_host','mqtt_port','mqtt_topic_prefix']);
     updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
     updateEnabledFieldsVisibility('telemetry_enabled', ['telemetry_endpoint']);
-    renderHub(); // Hub de catégories : badges après restauration/changement de profil
+    renderConfigTree(); // Arborescence de réglages : badges après restauration/changement de profil
 }
 
 // Pré-remplissage depuis config.json (fallback si localStorage vide)
@@ -8990,7 +8716,7 @@ async function saveReviewedDefinition(){
   }
 }
 
-// ─── ASSISTANT "NOUVEAU CONCOURS" (3 étapes) ─────────────────────────────────
+// ─── ASSISTANT "NOUVEAU CONCOURS" ────────────────────────────────────────────
 // Arrivée depuis logx_calendrier.html avec ?contest=ID :
 //   1. le concours est sélectionné et ses bandes/modes/dates appliqués ;
 //   2. la bannière récapitule ce qui a été pré-rempli et ce qui reste à vérifier ;
@@ -9010,13 +8736,9 @@ function handleContestParam(){
     applyUsageMode();
   }
 
-  goStep(2, true);
-
-  // Depuis la migration hub/popups, #assistantBanner vit DANS la popup
-  // #catmodal_contest, masquée par défaut (.cat-modal{display:none}) — goStep
-  // ne bascule que l'ANCIEN assistant par étapes, conservé masqué. Sans
-  // ouverture explicite de la popup, tout ce qui suit (bannière récapitulative
-  // comme message « introuvable ») serait rempli mais invisible.
+  // #assistantBanner vit DANS le panneau catmodal_contest, masqué par défaut
+  // — sans ouverture explicite du panneau, tout ce qui suit (bannière
+  // récapitulative comme message « introuvable ») serait rempli mais invisible.
   openCategoryPopup('contest');
 
   if (!contest){
@@ -9041,14 +8763,13 @@ function handleContestParam(){
   const datesOk = state.datesAutoFor === id && !!document.getElementById('contest_start_date').value;
   const isExternal = !!contest.external;
 
-  // Les contrôles de la bannière ci-dessous ouvraient jadis les étapes de
-  // l'ancien assistant via goStep(1)/goStep(3) — mort depuis la migration
-  // hub/popups (plus aucun élément .step/.panel dans la page) : le clic ne
-  // produisait STRICTEMENT RIEN. Ils pointent désormais vers les popups du
-  // hub. Fermer #catmodal_contest AVANT d'ouvrir la cible est indispensable :
-  // les .cat-modal partagent le même z-index (9000) et #catmodal_identity
-  // précède #catmodal_contest dans le DOM — ouverte sans fermer, la popup
-  // Identité resterait cachée DERRIÈRE la popup Concours.
+  // Les contrôles de la bannière ci-dessous pointent vers les entrées de
+  // l'arborescence de réglages (openCategoryPopup() gère lui-même la
+  // fermeture de la section actuellement ouverte, garde de modifications non
+  // enregistrées comprise — plus besoin de fermer explicitement avant
+  // d'ouvrir la cible depuis la refonte sidebar du 08/08/2026, l'ancien
+  // risque d'empilement à z-index partagé a disparu avec le hub/popup
+  // plein écran).
   // contest.name/contest.rules peuvent venir du flux externe WA7BNM (contenu
   // tiers non maîtrisé, cf. commentaire escC() plus haut dans ce fichier) :
   // escC() les neutralise, safeUrl() bloque tout schéma autre que http/https
@@ -9062,7 +8783,7 @@ function handleContestParam(){
     `${okIco} Concours sélectionné : <strong>${escC(contest.name)}</strong>`,
     stationOk
       ? `${okIco} Station : <strong>${escC(cfg.callsign)}</strong> en <strong>${escC(cfg.locator)}</strong> (profil sauvegardé)`
-      : `${warnIco} Station non configurée — <a href="#" onclick="closeCategoryPopup('contest') && openCategoryPopup('identity');return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
+      : `${warnIco} Station non configurée — <a href="#" onclick="openCategoryPopup('identity');return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
     datesOk
       ? `${okIco} Dates calculées automatiquement : <strong>${document.getElementById('contest_start_date').value}</strong> → <strong>${document.getElementById('contest_end_date').value}</strong>`
       : `${warnIco} Dates non calculables — saisis-les à l'étape 2 (encadré DATES DU CONCOURS)`,
@@ -9077,7 +8798,7 @@ function handleContestParam(){
     <div style="font-size:14px;line-height:2">${checks.join('<br>')}</div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       <button class="btn btn-launch" style="padding:10px 22px" onclick="launchApp()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-3px"><path d="M9 2c2 1.5 3 4 3 7.5L9 12l-3-2.5C6 6 7 3.5 9 2z"/><path d="M6.5 9.5 4 11v3l2.5-1.5"/><path d="M11.5 9.5 14 11v3l-2.5-1.5"/><line x1="8" y1="13.5" x2="9" y2="16"/><line x1="10" y1="13.5" x2="9" y2="16"/></svg> TOUT EST BON — LOGGER</button>
-      <button class="btn btn-secondary" style="padding:10px 18px" onclick="closeCategoryPopup('contest') && openCategoryPopup('filters')">Vérifier bandes/modes →</button>
+      <button class="btn btn-secondary" style="padding:10px 18px" onclick="openCategoryPopup('filters')">Vérifier bandes/modes →</button>
       <button class="btn btn-secondary" style="padding:10px 18px" onclick="document.getElementById('assistantBanner').style.display='none'"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer l'assistant</button>
     </div>`;
   const aiLink = banner.querySelector('[data-analyze-rules]');

@@ -11,13 +11,13 @@ message d'erreur « Concours introuvable » l'est tout autant. Les boutons
 '▶ DÉMARRER CE CONCOURS' / '▶ PRÉPARER' du calendrier aboutissaient donc sur
 le hub sans aucun retour visuel.
 
-Ce module exécute le VRAI code de handleContestParam(), goStep() et
-openCategoryPopup() — extrait tel quel du fichier source par comptage
-d'accolades, pas retapé — dans un moteur JS réel (V8 via py_mini_racer, même
-technique que tests/test_config_html_sota_qrz_race.py), avec un DOM minimal
-qui reproduit l'état CSS initial de la page (.cat-modal en display:none,
-#assistantBanner en display:none inline). Sans le correctif, la popup
-#catmodal_contest reste en display:none et ces tests échouent."""
+Ce module exécute le VRAI code de handleContestParam() et openCategoryPopup()
+— extrait tel quel du fichier source par comptage d'accolades, pas retapé —
+dans un moteur JS réel (V8 via py_mini_racer, même technique que
+tests/test_config_html_sota_qrz_race.py), avec un DOM minimal qui reproduit
+l'état CSS initial de la page (.cat-modal en display:none, #assistantBanner
+en display:none inline). Sans le correctif, la popup #catmodal_contest reste
+en display:none et ces tests échouent."""
 import os
 import re
 import urllib.parse
@@ -55,22 +55,25 @@ with open(HTML_PATH, encoding='utf-8') as _f:
     _HTML_SRC = _f.read()
 
 _HANDLE_SRC = _extract_function(_HTML_SRC, 'handleContestParam')
-_GOSTEP_SRC = _extract_function(_HTML_SRC, 'goStep')
 _OPENCAT_SRC = _extract_function(_HTML_SRC, 'openCategoryPopup')
-_CLOSECAT_SRC = _extract_function(_HTML_SRC, 'closeCategoryPopup')
 # escC/safeUrl : correctifs audit sécurité (XSS réfléchie ?contest=). Extraits
 # eux aussi tel quel du fichier source (même mécanisme) — un simple stub
 # passe-plat rendrait ce module aveugle à toute régression de l'échappement
 # HTML réellement exécuté par handleContestParam(), voir _make_ctx() plus bas.
 _ESCC_SRC = _extract_function(_HTML_SRC, 'escC')
 _SAFEURL_SRC = _extract_function(_HTML_SRC, 'safeUrl')
-# openCategoryPopup()/closeCategoryPopup() appellent désormais
-# _snapshotCatForm()/_confirmDiscardCatChanges() (avertir avant de perdre des
-# modifications non enregistrées) -- dépendances extraites aussi, sinon
-# ReferenceError au premier appel.
+# openCategoryPopup() appelle désormais _snapshotCatForm()/
+# _confirmDiscardCatChanges() (avertir avant de perdre des modifications non
+# enregistrées) ET _currentOpenCat() (pour fermer la section précédente avant
+# d'ouvrir la cible, cf. refonte sidebar 08/08/2026 — un onclick ne chaîne
+# plus closeCategoryPopup()+openCategoryPopup(), openCategoryPopup() gère
+# tout seul) -- dépendances extraites aussi, sinon ReferenceError/comportement
+# tronqué (le typeof-guard de openCategoryPopup avalerait silencieusement
+# l'absence de _currentOpenCat, ce qui masquerait une vraie régression).
 _SNAPSHOTCATFORM_SRC = _extract_function(_HTML_SRC, '_snapshotCatForm')
 _CATHASUNSAVED_SRC = _extract_function(_HTML_SRC, '_catHasUnsavedChanges')
 _CONFIRMDISCARD_SRC = _extract_function(_HTML_SRC, '_confirmDiscardCatChanges')
+_CURRENTOPENCAT_SRC = _extract_function(_HTML_SRC, '_currentOpenCat')
 
 # ─── DOM minimal fidèle à l'état CSS initial de la page ──────────────────────
 # .cat-modal{display:none} (règle CSS) et #assistantBanner style="display:none"
@@ -125,9 +128,14 @@ function URLSearchParams(s){
 }
 URLSearchParams.prototype.get = function(k){ return (k in this._m) ? this._m[k] : null; };
 
-// État + dépendances de la page (stubs neutres)
-var state = { step: 1, contest: null, datesAutoFor: null, toggles: {} };
+// État + dépendances de la page (stubs neutres). CONFIG_SECTIONS réduit aux 3
+// catégories exercées par ces tests (identity/contest/filters) : suffisant
+// pour la VRAIE _currentOpenCat() injectée plus bas — pas besoin des ~15
+// constantes d'icône (_ICO_*) dont dépend le tableau complet du fichier
+// source, hors sujet ici.
+var state = { contest: null, datesAutoFor: null, toggles: {} };
 var CONTESTS = [{ id:'TEST_ID', name:'Test Contest', external:false, rules:'' }];
+var CONFIG_SECTIONS = [['identity'], ['contest'], ['filters']];
 var _filtersAppliedFor = null;
 function getUiMode(){ return 'expert'; }
 function getUsageMode(){ return 'contest'; }
@@ -139,7 +147,6 @@ function _missingStationFields(){ return []; }
 function _warnMissingStation(){}
 function refreshShiftOperatorSelect(){}
 function loadShifts(){}
-function renderHub(){}
 function alert(){}
 """
 
@@ -154,16 +161,16 @@ def _make_ctx(search, station_cfg=None):
         ctx.eval(
             "localStorage.getItem = function(k){"
             " return k === 'logx_config' ? %r : null; };" % station_cfg)
-    # Les VRAIS open/closeCategoryPopup sont injectés : le test vérifie le
+    # Le VRAI openCategoryPopup() est injecté : le test vérifie le
     # comportement de bout en bout (la popup passe réellement en
-    # display:block), pas seulement qu'un appel a eu lieu.
+    # display:block, ET la section précédente se referme réellement), pas
+    # seulement qu'un appel a eu lieu.
     ctx.eval("var _catFormSnapshots = {};")
     ctx.eval(_SNAPSHOTCATFORM_SRC)
     ctx.eval(_CATHASUNSAVED_SRC)
     ctx.eval(_CONFIRMDISCARD_SRC)
+    ctx.eval(_CURRENTOPENCAT_SRC)
     ctx.eval(_OPENCAT_SRC)
-    ctx.eval(_CLOSECAT_SRC)
-    ctx.eval(_GOSTEP_SRC)
     # escC/safeUrl RÉELS (extraits du fichier source, pas un stub) : ce test
     # couvre donc aussi l'échappement HTML effectivement exécuté par
     # handleContestParam(), pas seulement quelle popup s'ouvre.
@@ -248,14 +255,15 @@ def test_sans_parametre_contest_la_popup_reste_fermee():
     assert ctx.eval("_els.assistantBanner.style.display") == 'none'
 
 
-# ─── Boutons morts de la bannière (résidus goStep de l'ancien assistant) ─────
-# Les deux contrôles utilisateur de la bannière appelaient goStep(1)/goStep(3),
-# qui ne manipule que des éléments .step/.panel retirés à la migration
-# hub/popups : le clic ne produisait STRICTEMENT RIEN (ni popup, ni
-# navigation). Ces tests extraient le VRAI attribut onclick du HTML généré et
-# l'exécutent comme le ferait le navigateur — sans le correctif
-# (closeCategoryPopup('contest') + openCategoryPopup(cible)), la popup cible
-# reste en display:none et ils échouent.
+# ─── Contrôles de la bannière : ouvrent une AUTRE catégorie que CONCOURS ─────
+# Les deux contrôles utilisateur de la bannière appellent un simple
+# openCategoryPopup(cible) (depuis la refonte sidebar du 08/08/2026,
+# openCategoryPopup() ferme lui-même la section précédemment ouverte avec son
+# garde de modifications non enregistrées — plus besoin de chaîner
+# closeCategoryPopup()+openCategoryPopup() dans l'onclick comme avant). Ces
+# tests extraient le VRAI attribut onclick du HTML généré et l'exécutent
+# comme le ferait le navigateur — sans le correctif, la popup cible reste en
+# display:none ou #catmodal_contest reste ouverte derrière elle.
 
 def test_bouton_verifier_bandes_modes_ouvre_la_popup_filtres():
     """Station configurée : « Vérifier bandes/modes → » doit réellement ouvrir
@@ -270,17 +278,16 @@ def test_bouton_verifier_bandes_modes_ouvre_la_popup_filtres():
     ctx.eval("(function(){ %s })();" % onclick)
     assert ctx.eval("_els.catmodal_filters.style.display") == 'block', (
         "clic « Vérifier bandes/modes → » sans effet : la popup "
-        "#catmodal_filters n'est pas ouverte (résidu goStep(3) de l'ancien "
-        "assistant par étapes, qui ne pilote plus aucun élément)")
+        "#catmodal_filters n'est pas ouverte par openCategoryPopup('filters')")
     assert ctx.eval("_els.catmodal_contest.style.display") == 'none', (
-        "#catmodal_contest doit être refermée : à z-index égal, la popup "
-        "cible peut rester cachée derrière elle")
+        "#catmodal_contest doit être refermée par openCategoryPopup() lui-même "
+        "(via _currentOpenCat()) — sinon elle reste ouverte en même temps que "
+        "la cible")
 
 
 def test_lien_station_non_configuree_ouvre_la_popup_identite():
     """Station NON configurée : « complète l'étape 1 MA STATION » doit ouvrir
-    la popup #catmodal_identity — d'autant que #catmodal_identity précède
-    #catmodal_contest dans le DOM (sans fermeture, elle s'ouvrirait DERRIÈRE)."""
+    la popup #catmodal_identity ET refermer #catmodal_contest."""
     ctx = _make_ctx('?contest=TEST_ID')  # localStorage vide → station absente
     ctx.eval("handleContestParam();")
     banner = ctx.eval("_els.assistantBanner.innerHTML")
@@ -289,8 +296,7 @@ def test_lien_station_non_configuree_ouvre_la_popup_identite():
     ctx.eval("(function(){ %s })();" % onclick)
     assert ctx.eval("_els.catmodal_identity.style.display") == 'block', (
         "clic « complète l'étape 1 MA STATION » sans effet : la popup "
-        "#catmodal_identity n'est pas ouverte (résidu goStep(1) de l'ancien "
-        "assistant par étapes)")
+        "#catmodal_identity n'est pas ouverte par openCategoryPopup('identity')")
     assert ctx.eval("_els.catmodal_contest.style.display") == 'none', (
-        "#catmodal_contest doit être refermée, sinon elle recouvre "
-        "#catmodal_identity (même z-index, ordre DOM défavorable)")
+        "#catmodal_contest doit être refermée par openCategoryPopup() lui-même, "
+        "sinon elle reste ouverte en même temps que #catmodal_identity")
