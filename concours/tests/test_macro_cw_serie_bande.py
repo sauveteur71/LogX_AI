@@ -50,6 +50,13 @@ HARDWARE_JS_PATH = os.path.join(BASE, 'logx_hardware_cat.js')
 # lui, ces fonctions sont indéfinies et le scénario __run() échoue en silence
 # (__done reste false, aucune exception ne remonte à pytest).
 CALLBOOK_JS_PATH = os.path.join(BASE, 'logx_callbook.js')
+# EV-7 17e incrément : updateCallDB() (appelée par submitQSO() ligne
+# "if(loc) updateCallDB(call, loc, null);", exercée par __qso() ci-dessous
+# via son locator systématiquement renseigné) vit désormais dans
+# logx_lookup.js, même principe que HARDWARE_JS_PATH/CALLBOOK_JS_PATH --
+# ajouté PROACTIVEMENT cette fois (pas après un échec CI, cf. le correctif
+# précédent sur ce même fichier) en retraçant l'appel réel avant extraction.
+LOOKUP_JS_PATH = os.path.join(BASE, 'logx_lookup.js')
 
 # Commit juste AVANT ce correctif — sert à prouver que le scénario ci-dessous
 # échoue bien sur le code d'origine (sinon ce ne serait pas un test de
@@ -221,8 +228,10 @@ def _real_source(rev=None):
             hw = f.read()
         with open(CALLBOOK_JS_PATH, encoding='utf-8') as f:
             cb = f.read()
+        with open(LOOKUP_JS_PATH, encoding='utf-8') as f:
+            lk = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
-            return hw + '\n' + cb + '\n' + f.read()
+            return hw + '\n' + cb + '\n' + lk + '\n' + f.read()
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)

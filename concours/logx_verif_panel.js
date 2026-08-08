@@ -15,9 +15,12 @@
 // cet échappement.
 //
 // Dépend de globals restés dans logx_logbook.js (portée globale partagée via
-// <script> classique, voir logx_logbook.html) : callDB, escHtml, trT, trF,
-// qsoLog, editQSO, renderLog, updateStats, bcBroadcast, _lastServerVersion,
+// <script> classique, voir logx_logbook.html) : escHtml, trT, trF, qsoLog,
+// editQSO, renderLog, updateStats, bcBroadcast, _lastServerVersion,
 // _myVersion, _lastPeerList, _versionMismatches.
+// callDB est extraite depuis le 17e incrément EV-7 (docs/LogX_AI_PRD.md)
+// vers logx_lookup.js -- même portée globale partagée, lue ici en corps de
+// fonction uniquement, sans importance sur l'ordre relatif des <script>.
 function toggleChecklist(){
   document.getElementById('checklistOverlay').classList.toggle('show');
 }
