@@ -49,6 +49,9 @@ CW_PANEL_JS_PATH = os.path.join(BASE, 'logx_cw_panel.js')
 # EV-7 19e incrément : appel TOP-LEVEL renderVoiceDynPanel() dans
 # logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
 ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
+# EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
+# logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
+VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 
 
 def _read(path):
@@ -183,6 +186,7 @@ def _make_ctx():
     ctx.eval(_DOM_PREAMBLE)
     ctx.eval(_read(CW_PANEL_JS_PATH))
     ctx.eval(_read(ESM_CALLBOT_JS_PATH))
+    ctx.eval(_read(VOICE_KEYER_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
@@ -258,6 +262,7 @@ def _ctx_avec_ecouteurs():
              "window.addEventListener = function(ev){ window.__ecouteurs.push(ev); };")
     ctx.eval(_read(CW_PANEL_JS_PATH))
     ctx.eval(_read(ESM_CALLBOT_JS_PATH))
+    ctx.eval(_read(VOICE_KEYER_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
