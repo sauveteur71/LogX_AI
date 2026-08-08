@@ -996,7 +996,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            place (logx_callhistory.py) avec deux imports au format N1MM,
            plutôt que de créer un second système de suggestion en parallèle. -->
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h4l1.5 2h7.5v7h-13v-9z"/></svg> BASES D'INDICATIFS EXTERNES (N1MM)</div>
+        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h4l1.5 2h7.5v7h-13v-9z"/></svg> BASES D'INDICATIFS EXTERNES</div>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           Vient en complément de l'historique local (QSO déjà loggués + base REF/QRZ) pour l'autocomplétion
           indicatif (Super Check Partial) et le pré-remplissage de l'échange attendu.
@@ -1009,13 +1009,14 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
             uniquement au check partial, pas au pré-remplissage.
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('scpFile').click()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5v3h13v-3"/><polyline points="6,8 9,11 12,8"/><line x1="9" y1="11" x2="9" y2="3.5"/></svg> Importer MASTER.SCP</button>
+            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="updateMasterScpFromInternet()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M9 5v4l3 2"/></svg> Mettre à jour depuis Internet</button>
+            <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px" onclick="document.getElementById('scpFile').click()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5v3h13v-3"/><polyline points="6,8 9,11 12,8"/><line x1="9" y1="11" x2="9" y2="3.5"/></svg> Importer un fichier</button>
             <input type="file" id="scpFile" accept=".scp,.txt,text/plain" style="display:none" onchange="importMasterScp(this.files[0])">
             <span id="scpStatus" style="font-family:var(--font-mono);font-size:12px"></span>
           </div>
         </div>
         <div style="padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
-          <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">CALL HISTORY (format N1MM)</div>
+          <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">CALL HISTORY</div>
           <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
             Fichier texte propre à UN concours (colonnes Call/Name/Loc/Sect/Exch1/CqZone... documentées sur
             n1mmwp.hamdocs.com) — pré-remplit département/locator/nom/section/zone pour les indicatifs qu'il
@@ -5192,7 +5193,7 @@ function selectContest(id, _skipConfirm) {
     submitUrlEl.value = '';
     state.submitUrlAutoFor = null;
   }
-  // Correctif : le statut Call History (MASTER.SCP/Call History N1MM importés)
+  // Correctif : le statut Call History (MASTER.SCP/Call History importés)
   // n'était rafraîchi qu'au chargement de la page et après un import —
   // changer de concours ici sans recharger la page laissait le compteur du
   // PRÉCÉDENT concours affiché.
@@ -5311,13 +5312,62 @@ function _currentOpenCat(){
   }
   return null;
 }
+
+// ─── Avertir avant de perdre des modifications non enregistrées ─────────────
+// Photo des champs d'UNE section (catbody_<cat>) prise à l'ouverture ET à
+// chaque sauvegarde réussie (voir saveConfig()) — comparée à l'état courant
+// au moment de fermer. Ne remplace PAS la règle F4GLD du 04/08/2026 (fermer
+// ne sauvegarde jamais) : avertit seulement qu'on va PERDRE quelque chose,
+// laisse l'opérateur annuler la fermeture pour aller cliquer Enregistrer.
+let _catFormSnapshots = {};
+
+function _snapshotCatForm(cat){
+  const body = document.getElementById('catbody_' + cat);
+  if(!body) return null;
+  const vals = [];
+  body.querySelectorAll('input,select,textarea').forEach(el => {
+    // Groupe de boutons radio SANS id individuel (ex. choix du fournisseur
+    // IA, .catbody_ai : 6 <input type="radio" name="api_provider"> sans id)
+    // — suivi par `name`, seul l'état "checked" compte, sinon un changement
+    // de sélection passait inaperçu (trouvé par la revue adversariale du
+    // 08/08/2026 : changer de fournisseur IA puis Fermer ne prévenait pas).
+    if(el.type === 'radio' && !el.id){ if(el.name) vals.push('radio:' + el.name + ':' + el.checked); return; }
+    if(!el.id) return;
+    vals.push(el.id + ':' + ((el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value));
+  });
+  return vals.join('|');
+}
+
+function _catHasUnsavedChanges(cat){
+  if(!cat || _catFormSnapshots[cat] === undefined) return false;
+  return _snapshotCatForm(cat) !== _catFormSnapshots[cat];
+}
+
+// Message unique, réutilisé aux deux points de sortie (bouton Fermer d'une
+// section ET clic à côté du popup / bouton Fermer de la barre latérale).
+function _confirmDiscardCatChanges(cat){
+  if(!_catHasUnsavedChanges(cat)) return true;
+  return confirm(T('Des modifications de cette section n\'ont pas été enregistrées. Fermer quand même et les perdre ?'));
+}
 function openCategoryPopup(cat){
+  // Avant de basculer : si la section actuellement ouverte a des
+  // modifications non enregistrées, avertir -- sinon changer d'onglet dans
+  // la barre latérale (switchSection()) ou chaîner deux appels
+  // closeCategoryPopup()+openCategoryPopup() dans un même onclick (ex. lien
+  // "complète l'étape 1", plus bas dans ce fichier) contournait totalement
+  // le garde de closeCategoryPopup() : ce dernier refuse bien de fermer SA
+  // section, mais rien n'empêchait alors openCategoryPopup() d'écraser
+  // cette même section resté ouverte, sans jamais redemander (trouvé par
+  // la revue adversariale du 08/08/2026).
+  let _curAvantOuverture = null;
+  try { _curAvantOuverture = (typeof _currentOpenCat === 'function') ? _currentOpenCat() : null; } catch(e){}
+  if(_curAvantOuverture && _curAvantOuverture !== cat && !_confirmDiscardCatChanges(_curAvantOuverture)) return;
   // CŒUR d'abord : masquer la section ouverte, montrer la demandée. Fait AVANT
   // la barre latérale pour qu'un environnement minimal (tests) où
   // createElement/body n'existent pas ouvre quand même la bonne section.
   try {
-    const cur = (typeof _currentOpenCat === 'function') ? _currentOpenCat() : null;
-    if(cur && cur !== cat){ const mo = document.getElementById('catmodal_' + cur); if(mo) mo.style.display = 'none'; }
+    const cur = _curAvantOuverture;
+    if(cur && cur !== cat){ const mo = document.getElementById('catmodal_' + cur); if(mo) mo.style.display = 'none'; delete _catFormSnapshots[cur]; }
   } catch(e){}
   const modal = document.getElementById('catmodal_' + cat);
   if(modal) modal.style.display = 'block';
@@ -5336,16 +5386,20 @@ function openCategoryPopup(cat){
     refreshShiftOperatorSelect();
     loadShifts();
   }
+  _catFormSnapshots[cat] = _snapshotCatForm(cat);
 }
 function switchSection(cat){ openCategoryPopup(cat); }
 function closeConfigPopup(){
+  let cur = null;
+  try { cur = _currentOpenCat(); } catch(e){}
+  if(cur && !_confirmDiscardCatChanges(cur)) return;
   try {
-    const cur = _currentOpenCat();
     if(cur){ const m = document.getElementById('catmodal_' + cur); if(m) m.style.display = 'none'; }
     const nav = document.getElementById('configSidebar');
     if(nav) nav.style.display = 'none';
     document.body.classList.remove('config-tabbed');
   } catch(e){}
+  if(cur) delete _catFormSnapshots[cur];
   renderHub();
 }
 
@@ -5353,6 +5407,10 @@ function closeCategoryPopup(cat){
   // « Fermer » d'une section ferme tout le popup config (barre comprise) et
   // revient au hub. Autonome + défensif : le cœur (masquer la section) marche
   // même sans barre ni body (tests en DOM minimal).
+  // Renvoie true/false (fermé ou refusé) -- utilisé par les onclick chaînés
+  // "closeCategoryPopup('x') && openCategoryPopup('y')" pour qu'un refus
+  // n'ouvre pas quand même la section cible (voir openCategoryPopup()).
+  if(!_confirmDiscardCatChanges(cat)) return false;
   const modal = document.getElementById('catmodal_' + cat);
   if(modal) modal.style.display = 'none';
   try {
@@ -5360,7 +5418,9 @@ function closeCategoryPopup(cat){
     if(nav) nav.style.display = 'none';
     document.body.classList.remove('config-tabbed');
   } catch(e){}
+  delete _catFormSnapshots[cat];
   renderHub();
+  return true;
 }
 
 // Clic sur le FOND du popup (l'overlay .cat-modal lui-même, pas la boîte
@@ -6632,12 +6692,44 @@ function renderAutostart(){
       </div>
       <div class="form-group" style="max-width:60px">
         <label>&nbsp;</label>
+        <button type="button" class="btn btn-secondary" title="Lancer ce programme maintenant (sans attendre le prochain démarrage de LogX)" onclick="testAutostartRow(${i}, this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 3.5v11l9-5.5-9-5.5z"/></svg></button>
+      </div>
+      <div class="form-group" style="max-width:60px">
+        <label>&nbsp;</label>
         <button type="button" class="btn btn-secondary" onclick="removeAutostartRow(${i})"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
       </div>
+      <div id="autostartStatus${i}" style="font-family:var(--font-mono);font-size:12px;flex-basis:100%"></div>
     </div>`).join('');
   box.querySelectorAll('[data-asr]').forEach(el => {
     el.addEventListener('change', readAutostart);
   });
+}
+
+// Bouton ▶ par ligne : lance CE programme immédiatement (même fonction que
+// le démarrage auto du serveur, voir /autostart/launch), pour vérifier le
+// chemin/les arguments sans attendre de relancer LogX en entier.
+async function testAutostartRow(i, btn){
+  readAutostart();   // synchronise autostartRows avec les champs édités
+  const entree = autostartRows[i];
+  const st = document.getElementById('autostartStatus' + i);
+  if(!entree || !entree.path){
+    if(st){ st.textContent = '⚠️ Chemin vide'; st.style.color = 'var(--yellow)'; }
+    return;
+  }
+  if(st){ st.textContent = '⏳ Lancement…'; st.style.color = 'var(--muted)'; }
+  try{
+    const res = await fetch('/autostart/launch', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(entree),
+    });
+    const r = await res.json();
+    if(!st) return;
+    if(!r.ok){ st.textContent = `❌ ${r.error || 'échec'}`; st.style.color = 'var(--red)'; return; }
+    st.textContent = r.skipped ? 'ℹ️ Déjà lancé (ignoré)' : '✅ Lancé';
+    st.style.color = r.skipped ? 'var(--muted)' : 'var(--green)';
+  }catch(e){
+    if(st){ st.textContent = '❌ Serveur injoignable'; st.style.color = 'var(--red)'; }
+  }
 }
 
 function addAutostartRow(){
@@ -7599,6 +7691,11 @@ function saveConfig(silent = false, feedbackBtn = null) {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(config)
   }).catch(e=>console.warn('[CFG] serveur non joignable :', e));
+  // Optimiste (comme le feedback "ENREGISTRÉ" ci-dessous, avant même la
+  // réponse serveur) : la section actuellement ouverte n'a plus de
+  // modifications "non enregistrées" puisqu'on vient de les envoyer — sinon
+  // fermer juste après un Enregistrer redemanderait confirmation à tort.
+  try { const cur = _currentOpenCat(); if(cur) _catFormSnapshots[cur] = _snapshotCatForm(cur); } catch(e){}
   if(silent){
     // Feedback visuel sur le bouton effectivement cliqué (le bouton flottant
     // d'en-tête est masqué derrière l'overlay plein écran des popups — cf.
@@ -8631,6 +8728,23 @@ async function importMasterScp(file){
   document.getElementById('scpFile').value = '';
 }
 
+// Même fichier que le bouton d'import manuel ci-dessus, mais récupéré tout
+// seul depuis la source publique de référence (supercheckpartial.com) —
+// pas besoin de le télécharger et le sélectionner à la main.
+async function updateMasterScpFromInternet(){
+  const st = document.getElementById('scpStatus');
+  st.textContent = '⏳ Téléchargement depuis supercheckpartial.com...';
+  st.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/callhistory/update_scp', {method: 'POST'});
+    const r = await res.json();
+    if (!r.ok){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> ${r.error}</span>`; return; }
+    st.innerHTML = `<span style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${r.imported} indicatif(s) lus, `
+      + `${r.added} nouveau(x) — ${r.total} au total</span>`;
+    refreshCallHistoryStatus();
+  }catch(e){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Serveur injoignable : ${e.message}</span>`; }
+}
+
 async function importCallHistoryN1mm(file){
   const st = document.getElementById('callHistoryStatus');
   if (!file) return;
@@ -8944,7 +9058,7 @@ function handleContestParam(){
     `${okIco} Concours sélectionné : <strong>${escC(contest.name)}</strong>`,
     stationOk
       ? `${okIco} Station : <strong>${escC(cfg.callsign)}</strong> en <strong>${escC(cfg.locator)}</strong> (profil sauvegardé)`
-      : `${warnIco} Station non configurée — <a href="#" onclick="closeCategoryPopup('contest');openCategoryPopup('identity');return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
+      : `${warnIco} Station non configurée — <a href="#" onclick="closeCategoryPopup('contest') && openCategoryPopup('identity');return false" style="color:var(--accent2)">complète l'étape 1 MA STATION</a>`,
     datesOk
       ? `${okIco} Dates calculées automatiquement : <strong>${document.getElementById('contest_start_date').value}</strong> → <strong>${document.getElementById('contest_end_date').value}</strong>`
       : `${warnIco} Dates non calculables — saisis-les à l'étape 2 (encadré DATES DU CONCOURS)`,
@@ -8959,7 +9073,7 @@ function handleContestParam(){
     <div style="font-size:14px;line-height:2">${checks.join('<br>')}</div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       <button class="btn btn-launch" style="padding:10px 22px" onclick="launchApp()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-3px"><path d="M9 2c2 1.5 3 4 3 7.5L9 12l-3-2.5C6 6 7 3.5 9 2z"/><path d="M6.5 9.5 4 11v3l2.5-1.5"/><path d="M11.5 9.5 14 11v3l-2.5-1.5"/><line x1="8" y1="13.5" x2="9" y2="16"/><line x1="10" y1="13.5" x2="9" y2="16"/></svg> TOUT EST BON — LOGGER</button>
-      <button class="btn btn-secondary" style="padding:10px 18px" onclick="closeCategoryPopup('contest');openCategoryPopup('filters')">Vérifier bandes/modes →</button>
+      <button class="btn btn-secondary" style="padding:10px 18px" onclick="closeCategoryPopup('contest') && openCategoryPopup('filters')">Vérifier bandes/modes →</button>
       <button class="btn btn-secondary" style="padding:10px 18px" onclick="document.getElementById('assistantBanner').style.display='none'"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Fermer l'assistant</button>
     </div>`;
   const aiLink = banner.querySelector('[data-analyze-rules]');

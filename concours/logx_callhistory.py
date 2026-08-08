@@ -251,6 +251,26 @@ def import_master_scp(text):
     return {'ok': True, 'imported': len(new_calls), 'added': added, 'total': len(merged)}
 
 
+# Source publique de référence (celle-là même que N1MM+/Win-Test utilisent par
+# défaut) : un fichier stable, une seule URL, maintenue à jour par la
+# communauté — contrairement au Call History (propre à chaque concours,
+# distribué par l'organisateur à une URL différente à chaque fois, donc pas
+# de source unique automatisable ici, voir import_call_history_n1mm()).
+MASTER_SCP_URL = 'http://www.supercheckpartial.com/MASTER.SCP'
+
+
+def fetch_and_import_master_scp():
+    """Télécharge MASTER.SCP depuis la source publique de référence et
+    l'importe (voir import_master_scp) — bouton « Mettre à jour depuis
+    Internet », alternative à l'upload manuel pour qui n'a pas déjà le
+    fichier sous la main. Import local : mockable par les tests."""
+    from logx_utils import fetch_url
+    text = fetch_url(MASTER_SCP_URL, timeout=30)
+    if text is None:
+        return {'ok': False, 'error': 'supercheckpartial.com injoignable (réseau)'}
+    return import_master_scp(text)
+
+
 # ─── VÉRIFICATION N+1 (frappe légèrement fausse) ─────────────────────────────
 # Comme le "busted call check" des gros loggers de concours : une distance de
 # Damerau-Levenshtein de 1 entre l'indicatif tapé et un indicatif CONNU

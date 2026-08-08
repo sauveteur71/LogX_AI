@@ -6196,6 +6196,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'error': str(e)}, 500)
             return
 
+        # Alternative au bouton d'import manuel ci-dessus : télécharge
+        # MASTER.SCP depuis sa source publique de référence. Vrai appel
+        # réseau (contrairement à /callhistory/import_scp) -- borné via le
+        # pool partagé de fetch_url() (logx_utils.py), même motif que
+        # /qrz_logbook/test. Bloquant mais acceptable : ThreadingHTTPServer,
+        # un thread OS par connexion (voir fetch_url() pour le détail du
+        # bornage DNS/attente).
+        if self.path == '/callhistory/update_scp':
+            try:
+                import logx_callhistory as callhistory
+                res = callhistory.fetch_and_import_master_scp()
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
+        # Bouton « Lancer » par ligne du panneau AUTO-LANCEMENT (CONFIG) :
+        # lance UN programme immédiatement, sans attendre le prochain
+        # démarrage du serveur (logx_autostart.lancer_tous() ne s'exécute
+        # qu'une fois, au boot). Même fonction que le démarrage auto, juste
+        # déclenchée à la demande — pas une capacité nouvelle, seulement une
+        # version manuelle de ce qui se passe déjà sans confirmation à chaque
+        # lancement de LogX.
+        if self.path == '/autostart/launch':
+            try:
+                import logx_autostart
+                payload = json.loads(body) if body else {}
+                res = logx_autostart.lancer(payload)
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 500)
+            return
+
         # Import d'un fichier Call History (format N1MM) pour UN concours :
         # préremplit dept/locator/nom/section/zone de ce concours précis,
         # en plus (jamais à la place) des données propres à la station.

@@ -2255,7 +2255,15 @@ function toggleEsm(){
 }
 
 function esmSend(role){
-  const cw = (typeof rigState!=='undefined') && rigState.enabled && /CW/i.test(rigState.mode||currentMode);
+  // Même repli que updateKeyerPanels() juste plus bas : le mode réel du QSO
+  // (rigState.mode si le CAT est connecté, sinon currentMode) décide, JAMAIS
+  // rigState.enabled. Avant ce correctif, exiger .enabled faisait passer un
+  // opérateur en CW MANUEL (clé/manip externe, pas de CAT) par la voix — un
+  // message vocal réel joué au lieu du CW attendu, pas une simple dégradation
+  // d'affichage (trouvé le 08/08/2026 pendant l'extraction EV-7 du bloc
+  // RADIO CAT, corrigé séparément sur demande explicite de F4GLD).
+  const mode = (typeof rigState!=='undefined' && rigState.mode) || currentMode || '';
+  const cw = /CW/i.test(mode);
   if(cw){
     // Macros CW par convention : F1=CQ, F2=échange/report, F3=merci
     const idx = {cq:0, exchange:1, tu:2}[role] ?? 0;
@@ -3130,6 +3138,29 @@ function setFreqForBand(band){
   } else {
     el.value = BAND_FREQ[band] || '';
   }
+  updateFreqLockIcon();
+}
+
+// Cadenas visuel à côté du champ FRÉQUENCE : rend visible ce que le code sait
+// déjà en interne (dataset.userEdited) mais que rien à l'écran ne montrait —
+// fermé = suit la radio (CAT), ouvert = saisie manuelle, la radio n'écrase
+// plus tant que la bande ne change pas ou que le bouton Radio n'est pas
+// cliqué (freqFromRig()). Masqué si le CAT n'est pas connecté : pas de
+// notion de verrou sans radio à suivre.
+function updateFreqLockIcon(){
+  const icon = document.getElementById('freqLockIcon');
+  const el = document.getElementById('inputFreq');
+  if(!icon || !el) return;
+  const catOn = (typeof rigState !== 'undefined') && rigState && rigState.enabled;
+  if(!catOn){ icon.style.display = 'none'; return; }
+  icon.style.display = '';
+  if(el.dataset.userEdited){
+    icon.title = 'Fréquence saisie à la main — la radio ne l\'écrase plus (bouton Radio pour resynchroniser)';
+    icon.innerHTML = '<svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="10" height="7" rx="1.3"/><path d="M6 8V5.5a3 3 0 0 1 5.8-1"/></svg>';
+  } else {
+    icon.title = 'Fréquence suit la radio (CAT) en direct — tape pour reprendre la main';
+    icon.innerHTML = '<svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="10" height="7" rx="1.3"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg>';
+  }
 }
 
 // L'opérateur tape une fréquence → sélectionne automatiquement la bonne bande
@@ -3140,6 +3171,7 @@ function onFreqInput(){
   const el = document.getElementById('inputFreq');
   if(!el) return;
   el.dataset.userEdited = '1';   // saisie manuelle → le CAT ne doit plus écraser
+  updateFreqLockIcon();
   const b = bandFromFreq(el.value);
   if(b && b !== currentBand && _currentVisibleBands.includes(b)){
     currentBand = b;
@@ -3156,6 +3188,7 @@ function freqFromRig(){
     el.value = (rigState.freq_khz / 1000).toFixed(3);
     onFreqInput();
     delete el.dataset.userEdited;   // on suit à nouveau la radio en direct
+    updateFreqLockIcon();
   } else {
     notify('Radio non connectée (CAT) — saisis la fréquence à la main.');
   }

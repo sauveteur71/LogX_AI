@@ -102,6 +102,33 @@ def test_import_scp_fichier_vide_erreur(server, tmp_path, monkeypatch):
     assert status == 400 and res['ok'] is False
 
 
+# ─── /callhistory/update_scp (auto-fetch, jamais de vrai réseau ici) ────────
+# Le câblage HTTP est testé en mockant fetch_and_import_master_scp() --
+# le vrai réseau (fetch_url) est testé séparément, à la source, dans
+# test_callhistory_import.py.
+
+def test_update_scp_succes(server, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ch, 'fetch_and_import_master_scp',
+                         lambda: {'ok': True, 'imported': 3, 'added': 3, 'total': 3})
+    status, res = _post(server, '/callhistory/update_scp', {})
+    assert status == 200 and res == {'ok': True, 'imported': 3, 'added': 3, 'total': 3}
+
+
+def test_update_scp_reseau_injoignable(server, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(ch, 'fetch_and_import_master_scp',
+                         lambda: {'ok': False, 'error': 'supercheckpartial.com injoignable (réseau)'})
+    status, res = _post(server, '/callhistory/update_scp', {})
+    assert status == 400 and res['ok'] is False
+
+
+def test_update_scp_sans_token_refuse(server, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    status, res = _post(server, '/callhistory/update_scp', {}, token=False)
+    assert status == 403
+
+
 # ─── /callhistory/import_n1mm ───────────────────────────────────────────────
 
 def test_import_n1mm_utilise_le_concours_du_payload(server, tmp_path, monkeypatch):
