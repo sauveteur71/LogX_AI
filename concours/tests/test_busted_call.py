@@ -43,12 +43,21 @@ def _lire(nom):
         return f.read()
 
 
+def _lire_tout():
+    """logx_logbook.js + logx_busted_call.js (EV-7 13e incrément, le filet
+    anti-busted call a été extrait vers son propre fichier) -- même
+    convention que JS_EXTRAITS_EV7 dans test_logbook_menu_debut_fin.py.
+    Nécessaire pour les 3 assertions qui lisent la DÉFINITION des fonctions
+    (pas seulement leur site d'appel, resté dans logx_logbook.js)."""
+    return _lire('logx_logbook.js') + '\n' + _lire('logx_busted_call.js')
+
+
 # ─── LE FIL : le client appelle-t-il vraiment, et au bon moment ? ───────────
 
 def test_l_endpoint_call_near_a_ENFIN_un_appelant():
     """LE point de ce chantier. Sans cette assertion, tout le reste peut être
     vert avec la fonction toujours morte."""
-    js = _lire('logx_logbook.js')
+    js = _lire_tout()
     assert '/call/near?call=' in js, (
         "/call/near n'est appelé par AUCUN client — le filet est débranché")
 
@@ -79,7 +88,7 @@ def test_le_candidat_propose_suit_la_regle_a_deux_detentes():
     Règle retenue : un voisin déjà travaillé passe ; sinon, seulement s'il est
     le SEUL voisin connu — deux candidats jamais travaillés, c'est une
     devinette."""
-    js = _lire('logx_logbook.js')
+    js = _lire_tout()
     corps = js[js.find('async function verifierIndicatifApres('):]
     corps = corps[:corps.find('\nfunction afficherPastilleBusted')]
     assert 'c.qso_count > 0' in corps, 'le voisin travaillé doit primer'
@@ -89,7 +98,7 @@ def test_le_candidat_propose_suit_la_regle_a_deux_detentes():
 
 
 def test_la_pastille_s_efface_toute_seule():
-    js = _lire('logx_logbook.js')
+    js = _lire_tout()
     assert 'vieillirPastilleBusted()' in js
     assert 'restant: 2' in js, 'la pastille doit expirer au bout de 2 QSO'
 
