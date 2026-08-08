@@ -4847,7 +4847,10 @@ function drawHourChart(){
   const VW = 1000, VH = 40;
   const n = keys.length;
   const gap = 1;
-  const bw = Math.floor((VW - gap * (n - 1)) / n);
+  // Math.max(0.1, …) : au-delà d'~1000 tranches heure/date (log couvrant
+  // beaucoup de jours), la formule devient négative ou nulle — SVG rejette
+  // width<0 (erreur console en boucle, une par barre, valeur identique).
+  const bw = Math.max(0.1, Math.floor((VW - gap * (n - 1)) / n));
 
   let markup = '';
   let bestHour = '', bestCount = 0;
