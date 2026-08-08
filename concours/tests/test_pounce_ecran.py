@@ -25,7 +25,9 @@ if CONCOURS not in sys.path:
 
 import logx_pounce as p   # noqa: E402
 
-JS = os.path.join(CONCOURS, 'logx_logbook.js')
+# EV-7 phase 2 : tout le panneau Wait-and-Pounce a rejoint logx_hardware_cat.js
+# (bloc RADIO CAT/AMPLI/ROTOR/WSJT-X, extraction mécanique -- voir son en-tête).
+JS = os.path.join(CONCOURS, 'logx_hardware_cat.js')
 HTML = os.path.join(CONCOURS, 'logx_logbook.html')
 
 

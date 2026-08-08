@@ -123,7 +123,8 @@ def test_l_etat_transporte_le_nom_du_logiciel():
 
 
 def test_le_logbook_affiche_le_logiciel_reellement_connecte():
-    js = _lire('logx_logbook.js')
+    # EV-7 phase 2 : applyWsjtxState() a rejoint logx_hardware_cat.js.
+    js = _lire('logx_hardware_cat.js')
     assert 'd.soft' in js, (
         "le widget affichait « WSJT-X » quoi qu'il arrive : un opérateur sous "
         'JTDX ou MSHV ne pouvait pas savoir que sa liaison fonctionnait')
