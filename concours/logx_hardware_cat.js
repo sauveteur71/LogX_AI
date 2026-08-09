@@ -512,17 +512,32 @@ function refreshHardware(){
 // initial séparé, contrairement à l'ancien refreshRotor() qui utilisait
 // setInterval (sans appel immédiat).
 //
-// EV-7 : setTimeout(...,0) plutôt qu'un appel direct ici -- ce fichier est
-// chargé AVANT logx_logbook.js (comme tous les fichiers extraits EV-7), donc
-// adaptivePoll() n'existe pas encore au moment où ce script s'exécute (un
-// appel direct lève une ReferenceError, silencieuse au chargement de page :
-// le polling matériel ne démarre jamais, sans aucune erreur visible dans les
-// vérifications superficielles -- trouvé par la revue adversariale, confirmé
-// en reproduisant le scénario en navigateur réel avant de fusionner). Le
-// setTimeout retarde l'appel après l'exécution synchrone de TOUS les
-// <script> classiques de la page, adaptivePoll() est alors définie.
-setTimeout(function(){
+// EV-7 : ce fichier est chargé AVANT logx_logbook.js (comme tous les
+// fichiers extraits EV-7), donc adaptivePoll() n'existe pas encore au
+// moment où ce script s'exécute (un appel direct lève une ReferenceError).
+// setTimeout(fn,0) essayé initialement N'EST PAS une garantie mais une
+// course : si le parseur HTML rend la main à la boucle d'événements en
+// attendant qu'un <script src> restant (dont logx_logbook.js lui-même,
+// ~5000 lignes) finisse de charger depuis le réseau, le timer peut se
+// déclencher AVANT que adaptivePoll() ne soit définie -- ReferenceError
+// silencieuse au chargement, le polling matériel ne démarre jamais, sans
+// erreur visible dans les vérifications superficielles. Régression réelle
+// reproduite en navigateur (09/08/2026) : un correctif DOMContentLoaded
+// avait déjà été développé et validé le 08/08 (commit dc194d6) mais sur
+// une branche jamais fusionnée, perdue quand ce fichier a été régénéré par
+// une extraction EV-7 ultérieure qui repartait de l'ancien setTimeout(0).
+// DOMContentLoaded est garanti par la spec HTML de ne se déclencher qu'une
+// fois le document ENTIÈREMENT parsé (donc tous les <script> classiques
+// exécutés), quel que soit leur temps de récupération réseau -- élimine la
+// course structurellement plutôt que d'élargir un délai empirique. Repli
+// synchrone si le document est déjà chargé (readyState !== 'loading').
+function _demarrerAdaptivePollHardware(){
   adaptivePoll(refreshHardware, 3000, 20000,
     ()=>rigState.enabled || ampState.enabled || _wsjtxState.enabled || rotorState.enabled);
-}, 0);
+}
+if(document.readyState !== 'loading'){
+  _demarrerAdaptivePollHardware();
+} else {
+  document.addEventListener('DOMContentLoaded', _demarrerAdaptivePollHardware);
+}
 
