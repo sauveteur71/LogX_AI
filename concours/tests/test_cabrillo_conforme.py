@@ -186,7 +186,9 @@ def test_il_ne_reste_qu_un_seul_generateur_cabrillo():
     l'échange sans RST et n'appliquait pas le filtrage de portée. Deux
     générateurs pour un même fichier, c'est une divergence garantie : celui du
     navigateur doit rester supprimé."""
-    with open(os.path.join(CONCOURS, 'logx_logbook.js'), encoding='utf-8') as f:
+    # EV-7 25e incrément : exportCabrillo() a été extraite vers ce fichier --
+    # doit y être lue désormais, plus dans logx_logbook.js.
+    with open(os.path.join(CONCOURS, 'logx_export_edi.js'), encoding='utf-8') as f:
         js = f.read()
     debut = js.index('function exportCabrillo(')
     corps = js[debut:js.index('\n}', debut)]

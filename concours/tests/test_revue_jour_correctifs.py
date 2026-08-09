@@ -219,8 +219,13 @@ def test_le_verrou_dt_existe():
 @pytest.mark.parametrize('const', ['VHF_UHF_SHF_BANDS', 'BANDES_THF'])
 def test_le_50MHz_est_dans_les_listes_THF(const):
     """IARU_50MHZ et tout log 6 m donnaient « Aucun QSO VHF/UHF à exporter »
-    (aucun fichier) et des stats HF, faute du 50 MHz dans ces listes."""
-    src = _lire('logx_logbook.js')
+    (aucun fichier) et des stats HF, faute du 50 MHz dans ces listes.
+
+    EV-7 25e incrément : VHF_UHF_SHF_BANDS (locale à exportEDI()) a été
+    extraite vers logx_export_edi.js -- BANDES_THF reste dans
+    logx_logbook.js. On cherche dans les deux plutôt que de figer où vit
+    chaque constante, pour ne pas re-casser ce test au prochain incrément."""
+    src = _lire('logx_logbook.js') + '\n' + _lire('logx_export_edi.js')
     m = re.search(const + r"\s*=\s*\[([^\]]*)\]", src)
     assert m, '%s introuvable' % const
     bandes = [x.strip().strip("'\"") for x in m.group(1).split(',') if x.strip()]
