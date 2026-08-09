@@ -58,7 +58,8 @@ JS_EXTRAITS_EV7 = [os.path.join(CONCOURS, n) for n in (
     'logx_theme_shortcuts.js', 'logx_export_adif.js', 'logx_edit_qso.js',
     'logx_export_edi.js', 'logx_tx_audio.js', 'logx_bandmap_sp.js',
     'logx_soapbox.js', 'logx_cw_panel2_audio.js', 'logx_bandscope_waterfall.js',
-    'logx_macros.js', 'logx_filtre_spots.js', 'logx_shortcut_offer.js')]
+    'logx_macros.js', 'logx_filtre_spots.js', 'logx_shortcut_offer.js',
+    'logx_version_badge.js')]
 
 
 def _lire_tout():
