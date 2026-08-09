@@ -891,22 +891,10 @@ function calcDist(locDX){
 // ─── QSO TIMER ───────────────────────────────────────────────────────────────
 let lastQsoTime = null; // timestamp ms du dernier QSO validé
 
-function updateQsoTimer(){
-  const el = document.getElementById('sbQsoTimer');
-  if(!el) return;
-  if(!lastQsoTime || !qsoLog.length){
-    el.textContent = '—';
-    el.style.color = 'var(--muted)';
-    return;
-  }
-  const sec = Math.floor((Date.now() - lastQsoTime) / 1000);
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  el.textContent = m > 0 ? `${m}m ${s}s` : `${s}s`;
-  // Couleur selon l'urgence
-  el.style.color = m >= 5 ? 'var(--red)' : m >= 2 ? 'var(--yellow)' : 'var(--green)';
-}
-setInterval(updateQsoTimer, 1000);
+// QSO TIMER (updateQsoTimer) : extrait vers logx_outils_divers.js
+// (EV-7 phase 2, 36e increment, docs/LogX_AI_PRD.md) -- charge en <script>
+// classique dans logx_logbook.html, portee globale partagee. lastQsoTime
+// reste ICI (ecrite par submitQSO(), coeur).
 
 function nowUTC(){
   const n=new Date();
@@ -1496,39 +1484,10 @@ function toggleCwPanelForce(){
   if(btn) btn.style.color = cwPanelForcedOpen ? 'var(--green)' : 'var(--accent2)';
 }
 
-// ─── SO2R : bascule d'émission ───────────────────────────────────────────────
-// L'état vit CÔTÉ SERVEUR : le band map, la barre de statut et toute page
-// ouverte doivent voir la même radio en émission. Le tenir dans le navigateur
-// ferait diverger deux écrans du même poste.
-let _so2rFocus = 1;
-
-async function so2rBasculer(radio){
-  try{
-    const res = await fetch('/so2r/focus', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(radio ? {radio} : {})}).then(r => r.json());
-    if(res.focus){ _so2rFocus = res.focus; so2rAfficher(res); }
-    if(!res.ok) notify(trF('❌ SO2R : {err}', {err: res.error || 'échec'}));
-    else notify(trF('🎚 Émission → radio {n}', {n: res.focus}));
-  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
-}
-
-function so2rAfficher(etat){
-  const el = document.getElementById('so2rIndicateur');
-  if(!el) return;
-  // L'indicateur n'apparaît QUE si une seconde radio est déclarée : sur une
-  // station mono-radio, un voyant « RADIO 1 » permanent serait du bruit.
-  if(!etat || !etat.configure){ el.style.display = 'none'; return; }
-  el.style.display = '';
-  el.textContent = '🎚 TX R' + (etat.focus || 1) + (etat.ecoute ? ' · ' + etat.ecoute : '');
-}
-
-async function so2rRafraichir(){
-  try{
-    const etat = await fetch('/so2r/state').then(r => r.json());
-    if(etat && etat.focus){ _so2rFocus = etat.focus; }
-    so2rAfficher(etat);
-  }catch(e){ /* serveur injoignable : on garde le dernier état connu */ }
-}
+// SO2R : bascule d'emission (so2rBasculer/so2rAfficher/so2rRafraichir/
+// _so2rFocus) : extrait vers logx_outils_divers.js (EV-7 phase 2,
+// 36e increment, docs/LogX_AI_PRD.md) -- charge en <script> classique
+// dans logx_logbook.html, portee globale partagee.
 
 // PANNEAU DECODEUR + EMISSION RTTY : extrait vers logx_rtty_panel.js
 // (EV-7 phase 2, 15e increment, docs/LogX_AI_PRD.md) -- charge en
@@ -1544,15 +1503,9 @@ renderVoiceDynPanel();
 setTimeout(updateKeyerPanels, 300);
 initAudioRecorderPanel();
 
-// ─── SAUVEGARDE IMMÉDIATE (dossier cloud/NAS) ────────────────────────────────
-async function backupNow(){
-  try{
-    const r = await fetch('/backup/now', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
-    const d = await r.json();
-    if(d.ok) notify(trF('💾 Sauvegarde OK → {folder} ({n} fichiers)', {folder: d.folder, n: d.files.length}));
-    else notify(trF('❌ {err} — configure le dossier dans CONFIG', {err: d.error || trT('sauvegarde impossible')}));
-  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
-}
+// SAUVEGARDE IMMEDIATE (backupNow) : extraite vers logx_outils_divers.js
+// (EV-7 phase 2, 36e increment, docs/LogX_AI_PRD.md) -- charge en <script>
+// classique dans logx_logbook.html, portee globale partagee.
 
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 function setupDone(){
@@ -2442,19 +2395,10 @@ function clearForm(){
   }
 }
 
-// ─── AUDIO BIP CONFIRMATION QSO ──────────────────────────────────────────────
-let bipEnabled = (localStorage.getItem('rc_bip') !== 'off');
-(function initBipBtn(){
-  const btn = document.getElementById('bipToggle');
-  if(btn) btn.textContent = bipEnabled ? '🔔' : '🔕';
-})();
-
-function toggleBip(){
-  bipEnabled = !bipEnabled;
-  localStorage.setItem('rc_bip', bipEnabled ? 'on' : 'off');
-  const btn = document.getElementById('bipToggle');
-  if(btn) btn.textContent = bipEnabled ? '🔔' : '🔕';
-}
+// AUDIO BIP CONFIRMATION QSO (bipEnabled/initBipBtn/toggleBip) : extrait
+// vers logx_outils_divers.js (EV-7 phase 2, 36e increment,
+// docs/LogX_AI_PRD.md) -- charge en <script> classique dans
+// logx_logbook.html, portee globale partagee.
 
 // (playBeep défini plus haut — version unique avec _audioCtx réutilisé)
 
