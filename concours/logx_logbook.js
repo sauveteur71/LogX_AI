@@ -981,57 +981,9 @@ const _BM_RANGE = {
   '24048':[24000,24250], '47088':[47000,47200],
 };
 
-// ─── BAND MAP : SEARCH & POUNCE ──────────────────────────────────────────────
-// Les spots réellement affichés, dans l'ordre où ils le sont : c'est sur cette
-// liste que saute la navigation clavier, pour que « suivant » veuille dire la
-// ligne suivante À L'ÉCRAN et pas autre chose.
-let _bmSpots = [];
-
-// Noter la station en cours : l'indicatif tapé, à la fréquence où la radio est
-// posée. C'est LE geste du S&P — on entend quelqu'un, on le note, on continue
-// de balayer, on le rappellera plus tard.
-async function bandmapNoter(){
-  const inp = document.getElementById('inputCall');
-  const call = inp ? inp.value.trim().toUpperCase() : '';
-  const rig = (typeof rigState !== 'undefined') ? rigState : {};
-  if(!call){ notify('👂 Tape d\'abord l\'indicatif entendu'); return; }
-  if(!rig.enabled || !rig.freq_khz){
-    notify('👂 Fréquence radio inconnue — le pilotage CAT doit être actif');
-    return;
-  }
-  try{
-    const res = await fetch('/bandmap/add', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({call, freq_khz: rig.freq_khz, band: currentBand,
-                            mode: rig.mode || currentMode})}).then(r=>r.json());
-    if(res.ok){
-      notify(trF('👂 {call} noté sur {f} kHz', {call, f: Math.round(rig.freq_khz)}));
-      refreshBandMap();
-    } else notify(trF('❌ {err}', {err: res.error || 'refus'}));
-  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
-}
-
-// Saut de spot en spot au clavier, sans jamais viser à la souris. L'indicatif
-// est pré-rempli au passage : en S&P on arrive sur la station en sachant déjà
-// qui c'est, il ne reste qu'à confirmer et loguer.
-function bandmapSaut(sens){
-  if(!_bmSpots.length){ notify('band map vide sur cette bande'); return; }
-  const rig = (typeof rigState !== 'undefined') ? rigState : {};
-  const ici = (rig.enabled && rig.freq_khz) ? rig.freq_khz / 1000 : null;
-  let cible = null;
-  if(ici === null){
-    cible = _bmSpots[sens > 0 ? 0 : _bmSpots.length - 1];
-  } else if(sens < 0){
-    // _bmSpots est trié fréquence DÉCROISSANTE : « suivant vers le haut » est
-    // donc le dernier élément encore au-dessus de la fréquence courante.
-    const sup = _bmSpots.filter(s => parseFloat(s.freq) > ici + 0.0002);
-    cible = sup.length ? sup[sup.length - 1] : null;
-  } else {
-    cible = _bmSpots.find(s => parseFloat(s.freq) < ici - 0.0002) || null;
-  }
-  if(!cible){ notify(sens > 0 ? 'dernier spot de la bande' : 'premier spot de la bande'); return; }
-  bandmapClick(String(cible.call || '').replace(/[^A-Za-z0-9/]/g, ''), parseFloat(cible.freq),
-              String(cible.mode || '').replace(/[^A-Za-z0-9/-]/g, ''));
-}
+// ─── BAND MAP : SEARCH & POUNCE : extrait vers logx_bandmap_sp.js (EV-7
+// phase 2, 28e increment, docs/LogX_AI_PRD.md) -- charge en <script>
+// classique dans logx_logbook.html, portee globale partagee.
 
 // ─── FILTRE D'AFFICHAGE DES SPOTS ────────────────────────────────────────────
 // Le filtrage lui-même est fait CÔTÉ SERVEUR (logx_spotfilter.py), avant que
