@@ -5,9 +5,10 @@ Les boutons AFFICHENT « F1 »… « F8 » depuis toujours, mais seul le clic le
 déclenchait : la main devait quitter le clavier en plein run. C'est la
 fonction que N1MM, Win-Test et DXLog mettent en avant en premier.
 
-Ces tests EXÉCUTENT le vrai gestionnaire keydown extrait de logx_logbook.js
-dans un moteur V8, avec un DOM minimal. On ne cherche pas des motifs dans le
-source : on appuie sur les touches et on regarde ce qui part.
+Ces tests EXÉCUTENT le vrai gestionnaire keydown (désormais dans
+logx_theme_shortcuts.js, EV-7 22e incrément) dans un moteur V8, avec un DOM
+minimal. On ne cherche pas des motifs dans le source : on appuie sur les
+touches et on regarde ce qui part.
 
 Le point le plus important est `preventDefault` : dans un navigateur, **F5
 recharge la page**. Sans lui, appuyer sur la macro F5 en plein concours vide
@@ -21,14 +22,17 @@ import re
 import pytest
 
 CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-JS = os.path.join(CONCOURS, 'logx_logbook.js')
 HTML = os.path.join(CONCOURS, 'logx_logbook.html')
+# EV-7 22e incrément : le gestionnaire keydown (dont le bloc F1-F8 ci-dessous)
+# a été extrait vers ce fichier -- _source_js() doit désormais y lire le
+# bloc réel, plus dans logx_logbook.js.
+THEME_SHORTCUTS_JS = os.path.join(CONCOURS, 'logx_theme_shortcuts.js')
 
 py_mini_racer = pytest.importorskip('py_mini_racer')
 
 
 def _source_js():
-    with open(JS, encoding='utf-8') as f:
+    with open(THEME_SHORTCUTS_JS, encoding='utf-8') as f:
         return f.read()
 
 
