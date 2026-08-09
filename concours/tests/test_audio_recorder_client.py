@@ -38,6 +38,11 @@ ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 # EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
 # logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
+# EV-7 30e incrément : loadAudioInputDevices()/loadAudioOutputDevices() ont
+# été extraites vers logx_cw_panel2_audio.js -- startAudioRecorder() (resté
+# dans le coeur) les appelle, donc ce fichier doit être chargé AVANT
+# logx_logbook.js, dans le même ordre que <script> dans logx_logbook.html.
+CW_PANEL2_AUDIO_JS_PATH = os.path.join(BASE, 'logx_cw_panel2_audio.js')
 
 
 def _read(path):
@@ -52,6 +57,10 @@ def test_pas_de_qso_director():
 
 
 def test_briques_enregistreur_presentes_dans_le_js():
+    """EV-7 30e incrément : loadAudioInputDevices() vit désormais dans
+    logx_cw_panel2_audio.js (fichier chargé en <script> AVANT logx_logbook.js,
+    même portée globale) -- on cherche sur les deux fichiers pour ce marqueur
+    précis, les autres restent dans le coeur."""
     js = _read(JS_PATH)
     for marker in (
         'function startAudioRecorder', 'function stopAudioRecorder',
@@ -59,9 +68,9 @@ def test_briques_enregistreur_presentes_dans_le_js():
         'function _recStartSegment', 'function _recFinishCurrentSegment',
         'function _encodeWavFromBuffers', 'function _floatChannelsToWav',
         'function _recClipName', 'function _recSaveClip', 'function chooseRecDir',
-        'async function loadAudioInputDevices',
     ):
         assert marker in js, f'{marker!r} manquant dans logx_logbook.js'
+    assert 'async function loadAudioInputDevices' in _read(CW_PANEL2_AUDIO_JS_PATH)
 
 
 def test_pas_de_flux_continu_sans_decoupage_en_segments():
@@ -232,7 +241,8 @@ def _real_source(rev=None):
     défaut, ou `rev` (ex. le commit d'origine 5a2c452) pour rejouer le
     scénario tel qu'il était AVANT ce correctif."""
     if rev is None:
-        return _read(ESM_CALLBOT_JS_PATH) + '\n' + _read(VOICE_KEYER_JS_PATH) + '\n' + _read(JS_PATH)
+        return (_read(ESM_CALLBOT_JS_PATH) + '\n' + _read(VOICE_KEYER_JS_PATH) + '\n'
+                + _read(CW_PANEL2_AUDIO_JS_PATH) + '\n' + _read(JS_PATH))
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)

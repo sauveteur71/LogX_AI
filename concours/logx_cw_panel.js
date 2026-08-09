@@ -43,9 +43,10 @@ class CwPanel {
 
   async loadDevices(){
     // loadAudioInputDevices() est générique (aussi utilisée par l'enregistreur
-    // audio par QSO) — définie dans logx_logbook.js, chargé APRÈS ce fichier ;
-    // référencée ici seulement à l'exécution (pas au chargement du script),
-    // l'ordre des <script> n'a donc pas d'importance pour cet appel.
+    // audio par QSO) — définie dans logx_cw_panel2_audio.js (EV-7 30e
+    // increment, ex-logx_logbook.js), chargé APRÈS ce fichier ; référencée
+    // ici seulement à l'exécution (pas au chargement du script), l'ordre des
+    // <script> n'a donc pas d'importance pour cet appel.
     this.devicesLoaded = await loadAudioInputDevices('cwDevice' + this.suffix);
   }
 

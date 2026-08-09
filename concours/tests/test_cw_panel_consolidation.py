@@ -52,6 +52,12 @@ ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 # EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
 # logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
+# EV-7 30e incrément : toggleCwPanel()/toggleCwDecoder()/clearCwOutput()/
+# setCwFreq() (+ variantes '2') et _cwOutText/_cwOutText2 ont été extraites
+# vers logx_cw_panel2_audio.js -- les tests ci-dessous les appellent
+# réellement, donc ce fichier doit être chargé, dans le même ordre que
+# <script> dans logx_logbook.html (juste avant logx_logbook.js).
+CW_PANEL2_AUDIO_JS_PATH = os.path.join(BASE, 'logx_cw_panel2_audio.js')
 
 
 def _read(path):
@@ -67,8 +73,12 @@ def test_un_seul_toggleCwDecoder_declare():
     la première). Les commentaires `//` sont retirés avant comptage — le
     commentaire expliquant CE bug cite justement le motif littéral
     "function toggleCwDecoder(" à titre d'exemple, qui matcherait sinon à
-    tort comme une deuxième déclaration."""
-    src_sans_commentaires = re.sub(r'//[^\n]*', '', _read(JS_PATH))
+    tort comme une deuxième déclaration.
+    EV-7 30e incrément : toggleCwDecoder() vit désormais dans
+    logx_cw_panel2_audio.js -- on cherche sur les DEUX fichiers, sinon ce
+    garde-fou trouverait 0 occurrence et échouerait à tort."""
+    src_sans_commentaires = re.sub(
+        r'//[^\n]*', '', _read(JS_PATH) + '\n' + _read(CW_PANEL2_AUDIO_JS_PATH))
     occurrences = re.findall(r'function\s+toggleCwDecoder\s*\(', src_sans_commentaires)
     assert len(occurrences) == 1, (
         f"{len(occurrences)} déclarations de toggleCwDecoder trouvées — "
@@ -187,6 +197,7 @@ def _make_ctx():
     ctx.eval(_read(CW_PANEL_JS_PATH))
     ctx.eval(_read(ESM_CALLBOT_JS_PATH))
     ctx.eval(_read(VOICE_KEYER_JS_PATH))
+    ctx.eval(_read(CW_PANEL2_AUDIO_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
@@ -263,6 +274,7 @@ def _ctx_avec_ecouteurs():
     ctx.eval(_read(CW_PANEL_JS_PATH))
     ctx.eval(_read(ESM_CALLBOT_JS_PATH))
     ctx.eval(_read(VOICE_KEYER_JS_PATH))
+    ctx.eval(_read(CW_PANEL2_AUDIO_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
