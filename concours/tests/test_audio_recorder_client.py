@@ -43,6 +43,9 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 # dans le coeur) les appelle, donc ce fichier doit être chargé AVANT
 # logx_logbook.js, dans le même ordre que <script> dans logx_logbook.html.
 CW_PANEL2_AUDIO_JS_PATH = os.path.join(BASE, 'logx_cw_panel2_audio.js')
+# EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 
 
 def _read(path):
@@ -242,7 +245,8 @@ def _real_source(rev=None):
     scénario tel qu'il était AVANT ce correctif."""
     if rev is None:
         return (_read(ESM_CALLBOT_JS_PATH) + '\n' + _read(VOICE_KEYER_JS_PATH) + '\n'
-                + _read(CW_PANEL2_AUDIO_JS_PATH) + '\n' + _read(JS_PATH))
+                + _read(CW_PANEL2_AUDIO_JS_PATH) + '\n' + _read(FILTRE_SPOTS_JS_PATH) + '\n'
+                + _read(JS_PATH))
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)

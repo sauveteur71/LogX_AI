@@ -154,6 +154,9 @@ ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 # EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
 # logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
+# EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 
 # DOM minimal (Proxy permissif — voir tests/test_logbook_render_window_reset.py
 # pour la version commentée de ce Proxy).
@@ -252,6 +255,8 @@ def _checklist_html(peer_version, server_version='0.9-beta4'):
     with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())

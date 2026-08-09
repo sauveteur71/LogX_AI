@@ -46,6 +46,9 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 # directement ici) vivent désormais dans logx_export_adif.js -- à charger
 # AVANT logx_logbook.js, même convention.
 EXPORT_ADIF_JS_PATH = os.path.join(BASE, 'logx_export_adif.js')
+# EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 sys.path.insert(0, BASE)
 
 from logx_adif_enums import ADIF_BANDS          # noqa: E402  (table officielle)
@@ -183,6 +186,8 @@ def _source(rev=None):
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(EXPORT_ADIF_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()

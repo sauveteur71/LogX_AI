@@ -13,14 +13,17 @@
 //
 // Dépendances croisées EN CORPS DE FONCTION (sûres, direction
 // optionnel<->cœur déjà établie par la convention EV-7) :
-//   - bandmapNoter() appelle refreshBandMap() (cœur, resté dans
-//     logx_logbook.js) après un ajout réussi ;
+//   - bandmapNoter() appelle refreshBandMap() (EV-7 33e increment :
+//     extraite vers logx_filtre_spots.js, plus dans logx_logbook.js --
+//     ce fichier-ci charge AVANT logx_filtre_spots.js, mais sans risque
+//     car l'appel se produit en corps de fonction, jamais au chargement,
+//     motif déjà rencontré avec les MACROS F1-F8 au 32e increment) ;
 //   - bandmapSaut() appelle bandmapClick() (cœur, resté dans
 //     logx_logbook.js) ;
-//   - refreshBandMap() (cœur) écrit `_bmSpots = spots;` -- variable
-//     déclarée ici, lue par bandmapSaut() -- sûr car ce fichier charge
-//     TOUJOURS avant logx_logbook.js (portée globale partagée, pas de
-//     chargement conditionnel) ;
+//   - refreshBandMap() (désormais logx_filtre_spots.js) écrit
+//     `_bmSpots = spots;` -- variable déclarée ici, lue par bandmapSaut()
+//     -- sûr car ce fichier charge TOUJOURS avant logx_logbook.js (portée
+//     globale partagée, pas de chargement conditionnel) ;
 //   - logx_theme_shortcuts.js (déjà extrait) appelle bandmapSaut()/
 //     bandmapNoter() depuis son gestionnaire clavier global (Ctrl+↑/↓,
 //     Ctrl+Entrée) -- devient optionnel→optionnel après cette extraction.

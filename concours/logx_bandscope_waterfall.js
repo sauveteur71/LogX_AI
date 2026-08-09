@@ -7,18 +7,25 @@
 // Contient : drawBandscope(), toggleWaterfall()/_wfShown/_wfLastBand,
 // _cssVar(), drawWaterfallRow().
 //
-// Dependances croisees verifiees sures : refreshBandMap() (coeur, dans
-// son try{}) appelle drawBandscope()/drawWaterfallRow() en fin de
-// traitement -- fonction-corps, jamais top-level, sans risque d'ordre
-// puisque ce fichier charge AVANT logx_logbook.js. drawBandscope()/
+// Dependances croisees verifiees sures : refreshBandMap() appelle
+// drawBandscope()/drawWaterfallRow() en fin de traitement --
+// fonction-corps, jamais top-level, sans risque d'ordre. MAJ EV-7 33e
+// increment : refreshBandMap() a ete deplacee du coeur vers
+// logx_filtre_spots.js, qui charge APRES ce fichier dans
+// logx_logbook.html -- direction inhabituelle deja rencontree pour les
+// MACROS F1-F8 (32e increment) : sans risque tant que l'appel reste en
+// corps de fonction (jamais au chargement du script). drawBandscope()/
 // drawWaterfallRow() lisent en retour des constantes du coeur
 // (_BM_PCOL, _BM_CSSVAR, escHtml, currentBand) -- toujours en
 // fonction-corps (jamais au chargement du script), donc deja
 // disponibles au moment ou elles sont reellement appelees (apres
 // interaction/polling, jamais avant la fin du chargement de la page).
-// bandmapClick() (coeur, juste apres ce bloc dans le fichier d'origine)
-// N'A PAS ete deplacee : elle gere le clic sur un spot (QSY radio),
-// chemin different de la visualisation bandscope/waterfall.
+// bandmapClick() (coeur, definie dans logx_logbook.js) N'A PAS ete
+// deplacee : elle gere le clic sur un spot (QSY radio), chemin
+// different de la visualisation bandscope/waterfall. drawBandscope()
+// genere elle-meme un onclick="bandmapClick(...)" (attribut HTML,
+// jamais appele au chargement) -- deuxieme site de reference a
+// bandmapClick(), en plus de celui de logx_filtre_spots.js.
 
 // ─── BANDSCOPE : spectre d'activité de la bande (densité de spots) ────────────
 // Un « scope » sans SDR : chaque spot devient une barre placée à sa fréquence,
