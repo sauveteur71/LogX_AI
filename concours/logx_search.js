@@ -207,4 +207,14 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+
+  // Testable isolément (constat de la passe de vérification du 09/08/2026 :
+  // ce fichier n'avait aucun test, seul logx_search.py -- backend -- était
+  // couvert) -- même patron que logx_cwdecoder.js/logx_rttydecoder.js :
+  // no-op en navigateur réel (`module` n'existe pas), permet à
+  // tests/test_search_js.py d'exercer le VRAI findMatch()/highlightFromQuery()
+  // dans py_mini_racer plutôt que de les réimplémenter côté test.
+  if (typeof module !== 'undefined') {
+    module.exports = { esc, findMatch, highlightFromQuery };
+  }
 })();

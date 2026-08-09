@@ -434,6 +434,14 @@ Importe un fichier MASTER.SCP (Super Check Partial N1MM) dans l'index de suggest
 - **Réponse** : Résultat de callhistory.import_master_scp(text), code 200 si ok sinon 400
 - **Note** : Traitement 100% local (parsing texte), aucun appel réseau
 
+### POST `/callhistory/update_scp`
+
+Alternative réseau à l'import manuel ci-dessus : télécharge MASTER.SCP depuis sa source publique de référence et l'importe directement (pas de corps JSON à fournir).
+
+- **Paramètres** : aucun
+- **Réponse** : Résultat de callhistory.fetch_and_import_master_scp(), code 200 si ok sinon 400
+- **Note** : vrai appel réseau, borné via le pool partagé de fetch_url() (même motif que /qrz_logbook/test)
+
 ### POST `/callhistory/import_n1mm`
 
 Importe un fichier Call History au format N1MM pour préremplir dept/locator/nom/section/zone d'UN concours précis.
@@ -1989,6 +1997,13 @@ Marque la bannière de proposition de raccourci bureau comme refusée, sans rien
 
 - **Paramètres** : aucun
 - **Réponse** : {ok:true}
+
+### POST `/autostart/launch`
+
+Lance immédiatement UN programme du panneau AUTO-LANCEMENT (CONFIG), sans attendre le prochain démarrage du serveur — version manuelle de logx_autostart.lancer_tous() (qui ne s'exécute qu'une fois, au boot).
+
+- **Paramètres** : Corps JSON : {path, args?, name?, enabled?} (une entrée du panneau AUTO-LANCEMENT)
+- **Réponse** : Résultat de logx_autostart.lancer(payload), code 200 si ok sinon 400
 
 
 ## Recherche et fichiers statiques

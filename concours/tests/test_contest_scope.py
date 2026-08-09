@@ -164,6 +164,49 @@ def test_dedup_autorise_meme_concours_annee_suivante(monkeypatch):
     assert ok
 
 
+# ─── Dédup add_qso_to_log : concours à réinitialisation QUOTIDIENNE (WWA) ────
+# Correctif de la passe de vérification complète du 09/08/2026 : WWA_2027_JAN
+# (scoring.type='wwa_sprint', bricks['dupe_reset']=='daily', voir
+# logx_scoring.py) autorise 1 QSO/jour/bande/mode par station spéciale
+# (règlement §7) — même scope_id (contest+ANNÉE) pendant toute l'édition d'un
+# mois, donc l'ancienne comparaison (call, band, mode, scope_id) bloquait à
+# tort un recontact légitime un autre jour du même mois.
+
+def test_dedup_wwa_bloque_meme_jour(monkeypatch):
+    """Concours à dupe_reset='daily' : un recontact le MÊME jour reste un
+    vrai doublon (le correctif ne doit pas tout désactiver)."""
+    existing = _qso(contest='WWA_2027_JAN', date='20270105', time='10:00')
+    monkeypatch.setattr(http, 'shared_log', [existing])
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
+    ok, info = http.add_qso_to_log(_qso(contest='WWA_2027_JAN', date='20270105', time='14:00'))
+    assert not ok and info.get('duplicate')
+
+
+def test_dedup_wwa_autorise_jour_different_meme_scope(monkeypatch):
+    """Le bug lui-même : un recontact un AUTRE jour de la même édition
+    (même scope_id 'WWA_2027_JAN#2027') n'est plus refusé à tort."""
+    existing = _qso(contest='WWA_2027_JAN', date='20270105', time='10:00')
+    monkeypatch.setattr(http, 'shared_log', [existing])
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
+    ok, _info = http.add_qso_to_log(_qso(contest='WWA_2027_JAN', date='20270112', time='10:00'))
+    assert ok
+
+
+def test_dedup_hors_wwa_reste_bloque_meme_scope_jour_different(monkeypatch):
+    """Garde-fou de non-régression : un concours SANS dupe_reset='daily'
+    (REF_QRP) continue de bloquer un recontact sur un autre jour de la même
+    édition — le correctif ne doit s'appliquer QUE quand la brique est
+    vraiment déclarée, pas systématiquement dès qu'une date diffère."""
+    existing = _qso(date='20270718')
+    monkeypatch.setattr(http, 'shared_log', [existing])
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
+    ok, info = http.add_qso_to_log(_qso(date='20270719'))
+    assert not ok and info.get('duplicate')
+
+
 # ─── /log/list : le coeur du bug rapporté par l'utilisateur ─────────────────
 
 def test_scope_filtered_vierge_sur_nouveau_concours():

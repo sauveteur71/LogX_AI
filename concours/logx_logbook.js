@@ -2312,10 +2312,19 @@ async function submitQSO(){
       // dupe assumé pour l'arbitre...) — confirm() volontairement bloquant.
       const err = await res.json();
       const ex = err.existing || {};
+      // Correctif passe de vérification (09/08/2026) : pour un concours à
+      // réinitialisation quotidienne du doublon (WWA...), le serveur ne
+      // signale plus 409 que pour un contact du MÊME JOUR (voir _find_dup()
+      // dans logx_http.py) -- mais sans la date affichée ici, l'opérateur
+      // ne pouvait pas distinguer "doublon aujourd'hui" (vrai doublon) d'un
+      // vieux contact d'il y a des semaines, et pouvait renoncer à tort à
+      // un QSO en réalité valide. fmtDate() vient de logx_callbook.js
+      // (chargé avant ce fichier, portée globale partagée).
+      const datePart = ex.date ? trF(' le {d}', {d: fmtDate(ex.date)}) : '';
       const atPart = ex.time ? trF(' à {t}', {t: ex.time}) : '';
       const byPart = ex.operator ? trF(' par {op}', {op: _resolveOperatorCallsign(ex.operator)}) : '';
-      if(confirm(trF('DOUBLON : {call} déjà contacté sur {band} MHz en {mode}{at}{by}.\n\nEnregistrer quand même ?',
-                 {call: qso.call, band: qso.band, mode: qso.mode, at: atPart, by: byPart}))){
+      if(confirm(trF('DOUBLON : {call} déjà contacté sur {band} MHz en {mode}{date}{at}{by}.\n\nEnregistrer quand même ?',
+                 {call: qso.call, band: qso.band, mode: qso.mode, date: datePart, at: atPart, by: byPart}))){
         const res2 = await fetch('/log/add', {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({...qso, force:true})

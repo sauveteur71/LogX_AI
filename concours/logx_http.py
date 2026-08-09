@@ -32,7 +32,7 @@ from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   contest_actif,
                                   stamp_qso_version, mark_qso_deleted, mark_hard_reset,
                                   allocate_qso_ids_locked, reserve_qso_id_locked)
-from logx_scoring import build_scoring_context, score_new_qso
+from logx_scoring import build_scoring_context, score_new_qso, resolve_scoring_bricks
 import logx_transverter as transverter
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
@@ -877,13 +877,27 @@ def add_qso_to_log(qso, force=False):
     scope_id = qso_scope_id(qso)
     with config_lock:
         simple_mode = current_config.get('usage_mode') == 'simple'
+    # Concours à réinitialisation QUOTIDIENNE du doublon (bricks['dupe_reset']
+    # == 'daily', ex. WWA §7 : 1 QSO/jour/bande/mode) : le scope_id seul
+    # (contest+ANNÉE) ne suffit pas à distinguer un vrai doublon d'un
+    # recontact légitime un autre jour de la même édition — même piège que
+    # celui déjà résolu pour l'année (voir commentaire ci-dessus), mais à
+    # l'échelle du jour. calc_qso_value()/build_ranked_spots() le gèrent déjà
+    # côté classement des spots (via done_today_by_band) ; add_qso_to_log()
+    # ne le lisait pas du tout avant ce correctif (constat de la passe de
+    # vérification du 09/08/2026) — trouvé en relisant réellement le code,
+    # pas supposé depuis le nom de la brique.
+    _cdef = CONTEST_DEFINITIONS.get(qso.get('contest', ''), {})
+    _daily_dupe_reset = resolve_scoring_bricks(_cdef.get('scoring', {})).get('dupe_reset') == 'daily'
 
     def _find_dup():
         return next((q for q in shared_log
                      if (str(q.get('call', '')).upper().strip(),
                          str(q.get('band', '')),
                          str(q.get('mode', '')).upper()) == key
-                     and qso_scope_id(q) == scope_id), None)
+                     and qso_scope_id(q) == scope_id
+                     and (not _daily_dupe_reset
+                          or str(q.get('date', '')) == str(qso.get('date', '')))), None)
 
     dup = None
     # LOGBOOK SIMPLE : recontacter la même station sur la même bande au fil
