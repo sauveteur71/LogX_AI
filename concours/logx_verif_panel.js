@@ -17,7 +17,12 @@
 // Dépend de globals restés dans logx_logbook.js (portée globale partagée via
 // <script> classique, voir logx_logbook.html) : escHtml, trT, trF, qsoLog,
 // editQSO, renderLog, updateStats, bcBroadcast, _lastServerVersion,
-// _myVersion, _lastPeerList, _versionMismatches.
+// _myVersion, _lastPeerList.
+// _versionMismatches() a été extraite (EV-7 35e incrément) vers
+// logx_version_badge.js, chargé APRÈS ce fichier (voir l'ordre réel des
+// <script> dans logx_logbook.html) -- lue ici en corps de fonction
+// (showChecklist()) uniquement, sans importance sur l'ordre relatif des
+// <script>.
 // callDB est extraite depuis le 17e incrément EV-7 (docs/LogX_AI_PRD.md)
 // vers logx_lookup.js -- même portée globale partagée, lue ici en corps de
 // fonction uniquement, sans importance sur l'ordre relatif des <script>.
