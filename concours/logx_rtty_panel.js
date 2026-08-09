@@ -147,7 +147,10 @@ function rttyClicTexte(ev){
 // Macros fixes (pas d'éditeur comme les macros CW F1-F8 dans cette première
 // version) — {CALL}/{LOC}/{NR} réutilisent expandMacro() telle quelle, MÊME
 // convention que les macros CW ({CALL} = TA propre station, pas le
-// correspondant — voir le commentaire au-dessus de DEFAULT_MACROS).
+// correspondant — voir le commentaire au-dessus de DEFAULT_MACROS,
+// désormais dans logx_macros.js, EV-7 32e increment — motif
+// optionnel->optionnel, ce fichier (15e increment) charge AVANT
+// logx_macros.js (32e), gardé par typeof plus bas pour rester défensif).
 const RTTY_TX_MACROS = [
   {key:'R1', label:'CQ',      text:'CQ TEST {CALL} {CALL} TEST'},
   {key:'R2', label:'ÉCHANGE', text:'599 {NR}'},
@@ -166,12 +169,13 @@ function renderRttyMacroBtns(){
   const btns = document.getElementById('rttyMacroBtns');
   if(!btns) return;
   btns.innerHTML = '';
+  const expand = typeof expandMacro === 'function' ? expandMacro : (t => t);
   RTTY_TX_MACROS.forEach(m => {
     const btn = document.createElement('button');
     btn.className = 'macro-btn';
-    btn.title = expandMacro(m.text);
+    btn.title = expand(m.text);
     btn.innerHTML = `<span class="mk">${m.key}</span><span class="mt">${m.label}</span>`;
-    btn.onclick = () => rttyEnvoyerTexte(expandMacro(m.text));
+    btn.onclick = () => rttyEnvoyerTexte(expand(m.text));
     btns.appendChild(btn);
   });
 }

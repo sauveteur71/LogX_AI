@@ -10,10 +10,15 @@
 // esmExchanged -- lus/ecrits depuis logx_logbook.js (submitQSO()/
 // clearForm()) uniquement en corps de fonction.
 //
-// Depend de fonctions definies PLUS LOIN dans logx_logbook.js (copyMacro,
-// trT, trF, notify) et de rigState (logx_hardware_cat.js, deja extrait,
-// via typeof rigState!=='undefined') -- uniquement a l'interieur de corps
-// de fonction, jamais au chargement, motif deja eprouve.
+// Depend de fonctions definies PLUS LOIN dans logx_logbook.js (trT, trF,
+// notify) et de rigState (logx_hardware_cat.js, deja extrait, via
+// typeof rigState!=='undefined') -- uniquement a l'interieur de corps de
+// fonction, jamais au chargement, motif deja eprouve.
+//
+// EV-7 32e increment : copyMacro() a ete extraite vers logx_macros.js (deja
+// gardee par typeof copyMacro==='function' plus bas, motif conserve tel
+// quel -- ce fichier (19e increment) charge AVANT logx_macros.js (32e), mais
+// l'appel ne se produit qu'a l'interieur d'esmSend(), jamais au chargement.
 //
 // esmHandleEnter() est appelee depuis logx_lookup.js (onCallKeydown(),
 // 17e increment) et logx_logbook.js (handler keydown du champ indicatif,

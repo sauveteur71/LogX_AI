@@ -3474,68 +3474,14 @@ function drawHourChart(){
 // 29e increment, docs/LogX_AI_PRD.md) -- charge en <script> classique dans
 // logx_logbook.html, portee globale partagee.
 
-// ─── MACROS F1–F8 ────────────────────────────────────────────────────────────
-const DEFAULT_MACROS = [
-  {key:'F1', label:'CQ RPH',   text:'CQ RPH {CALL} {CALL}'},
-  {key:'F2', label:'ÉCHANGE',  text:'59 {NR} {LOC}'},
-  {key:'F3', label:'TU',       text:'TU {CALL} TEST'},
-  {key:'F4', label:'QSY 432?', text:'QSY 432.200?'},
-  {key:'F5', label:'LOCATOR',  text:'{LOC} {LOC}'},
-  {key:'F6', label:'?',        text:'{CALL}?'},
-  {key:'F7', label:'AGN?',     text:'AGN?'},
-  {key:'F8', label:'73',       text:'73 {CALL}'},
-];
-function getMacros(){ try{ const s=localStorage.getItem('logx_macros'); return s?JSON.parse(s):DEFAULT_MACROS; }catch(e){ return DEFAULT_MACROS; } }
-function saveMacros(m){ localStorage.setItem('logx_macros', JSON.stringify(m)); }
-// {NR} doit valoir EXACTEMENT le numéro qui sera loggué : la macro F2
-// (« 59 {NR} {LOC} ») part directement au keyer de la radio via copyMacro() →
-// POST /rig/cw, y compris automatiquement en mode ESM (esmSend('exchange')).
-// La seule source de vérité est donc le champ N° ENVOYÉ (#inputNumSent), tenu
-// à jour par updateSerialDisplay() à partir de serialByBand[bande] — le n° de
-// série est alloué PAR BANDE et par portée concours (nextSerial() →
-// /log/next_serial → logx_storage.allocate_next_serial), et c'est cette
-// valeur-là qui finit dans num_sent puis dans l'EDI/Cabrillo.
-//
-// L'ancien calcul, String(qsoLog.length+1), comptait TOUS les QSO de l'édition
-// toutes bandes confondues (et, en multi-poste, ceux loggués par les autres
-// opérateurs sur les autres bandes) : les deux formules ne coïncidaient que sur
-// un concours mono-bande sans trou. Dès le premier QSO d'une deuxième bande —
-// cas normal en IARU UHF/SHF, Marconi, Rallye des Points Hauts, CQ WPX… — la
-// radio envoyait sur l'air un numéro absent du log, et l'écart croissait à
-// chaque QSO ; le correspondant note un numéro introuvable au cross-check, les
-// deux QSO tombent, et l'opérateur n'a aucun recours (champ readOnly par
-// conception, cf. updateSerialDisplay). Le chemin VOCAL (sendVoiceDynMacro)
-// lisait déjà ce même champ : seul le chemin CW était resté sur le compteur global.
-function expandMacro(text){
-  const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
-  const call = cfg.callsign || myCall || '—';
-  const loc  = cfg.locator  || myLocator || '—';
-  const nrEl = document.getElementById('inputNumSent');
-  const nrField = nrEl ? String(nrEl.value || '').trim() : '';
-  // Repli si le champ n'est pas encore renseigné (panneau macros rendu avant
-  // le premier updateSerialDisplay()) : même formule que l'affichage, jamais
-  // un compteur global. Pour un échange non sériel (zone, dept, classe…) il
-  // n'y a rien à prédire : on laisse la valeur du champ telle quelle.
-  const nr = nrField || (currentExchange.auto_serial
-    ? String((serialByBand[currentBand] || 0) + 1).padStart(3,'0')
-    : '');
-  return text.replace(/{CALL}/g,call).replace(/{LOC}/g,loc).replace(/{NR}/g,nr);
-}
-function renderMacroPanel(){
-  const btns = document.getElementById('macroBtns');
-  if(!btns) return;
-  const macros = getMacros();
-  btns.innerHTML = '';
-  macros.forEach((m, idx) => {
-    const btn = document.createElement('button');
-    btn.className = 'macro-btn';
-    btn.title = expandMacro(m.text);
-    btn.innerHTML = `<span class="mk">${m.key}</span><span class="mt">${m.label}</span>`;
-    btn.onclick    = e => { e.stopPropagation(); copyMacro(idx); };
-    btn.ondblclick = e => { e.stopPropagation(); editMacro(idx); };
-    btns.appendChild(btn);
-  });
-}
+// MACROS F1-F8 (DEFAULT_MACROS, getMacros/saveMacros, expandMacro,
+// renderMacroPanel, copyMacro, editMacro) : extrait vers logx_macros.js
+// (EV-7 phase 2, 32e increment, docs/LogX_AI_PRD.md) -- charge en
+// <script> classique dans logx_logbook.html, portee globale partagee.
+// Extraction NON CONTIGUE : voir l'en-tete de logx_macros.js -- les
+// sections i18n et adaptivePoll() ci-dessous sont restees ici, dans le
+// coeur, a leur emplacement d'origine.
+
 // ─── i18n des messages dynamiques (notify() et fonctions similaires) ────────
 // window.rcT()/rcTf() (logx_i18n.js) ne traduisent qu'un texte source français
 // CONNU AU MOT PRÈS : un message déjà interpolé (`${...}`/concaténation, ex.
@@ -3575,29 +3521,10 @@ function notify(msg, ms){
   notify._tm = setTimeout(()=>t.classList.remove('show'), ms || Math.min(10000, 2500 + msg.length*35));
 }
 
-function copyMacro(idx){
-  const m = getMacros()[idx]; if(!m) return;
-  const txt = expandMacro(m.text);
-  // Radio en CW + pilotage actif → la macro part directement par le keyer
-  // de la radio ; sinon (SSB/RTTY, ou pas de CAT) on copie dans le presse-papier.
-  // EV-7 : rigState vit maintenant dans logx_hardware_cat.js -- garde requise
-  // (même motif que les 10 autres lectures de rigState hors de ce fichier).
-  if(typeof rigState !== 'undefined' && rigState.enabled && /CW/i.test(rigState.mode || currentMode)){
-    fetch('/rig/cw', {method:'POST', headers:{'Content-Type':'application/json'},
-                      body: JSON.stringify({text: txt})})
-      .then(r=>r.json()).then(d=>{
-        const toast = document.getElementById('macroToast');
-        if(toast){ toast.textContent = d.ok ? trF('📻 CW → {txt}', {txt})
-                                             : trF('❌ {err}', {err: d.error});
-          toast.className = 'macro-toast' + (d.ok ? '' : ' toast-err');
-          toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2200); }
-      }).catch(()=>{});
-    return;
-  }
-  navigator.clipboard.writeText(txt).catch(()=>{});
-  const toast = document.getElementById('macroToast');
-  if(toast){ toast.textContent = trF('📋 {txt}', {txt}); toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'), 2000); }
-}
+// copyMacro() : extrait vers logx_macros.js avec le reste des MACROS
+// F1-F8 (voir le pointeur plus haut) -- adaptivePoll() ci-dessous reste
+// dans le coeur, sans rapport avec les macros.
+
 
 // adaptivePoll() : polling adaptatif générique (cadence rapide si le
 // callback signale une activité, lente sinon). Reste ICI (pas dans
@@ -3613,16 +3540,9 @@ function adaptivePoll(fn, fastMs, slowMs, isActive){
   })();
 }
 
-function editMacro(idx){
-  const macros = getMacros();
-  const m = macros[idx];
-  const newLabel = prompt(trF('Label pour {k} :', {k: m.key}), m.label);
-  if(newLabel === null) return;
-  const newText = prompt(trT('Message ({CALL} {LOC} {NR}) :'), m.text);
-  if(newText === null) return;
-  macros[idx] = {...m, label:newLabel.trim()||m.label, text:newText.trim()||m.text};
-  saveMacros(macros); renderMacroPanel();
-}
+// editMacro() : extrait vers logx_macros.js avec le reste des MACROS
+// F1-F8 (voir le pointeur plus haut).
+
 
 // ─── EXPORTS EDI + CABRILLO : extrait vers logx_export_edi.js (EV-7 phase 2,
 // 25e increment, docs/LogX_AI_PRD.md) -- charge en <script> classique dans

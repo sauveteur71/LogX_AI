@@ -38,6 +38,15 @@
 // EV-7 28e increment : bandmapSaut()/bandmapNoter() ont ete extraites vers
 // logx_bandmap_sp.js -- la dependance ci-dessus est desormais
 // optionnel->optionnel (les deux fichiers chargent avant logx_logbook.js).
+//
+// EV-7 32e increment : getMacros()/copyMacro() ont ete extraites vers
+// logx_macros.js -- la dependance devient optionnel->optionnel, mais dans le
+// sens INHABITUEL (ce fichier, 22e increment, charge AVANT logx_macros.js,
+// 32e) : sans consequence puisque le corps de la fermeture keydown ne
+// resout ces symboles qu'au moment reel d'une frappe clavier, toujours apres
+// la fin du chargement de TOUS les <script> -- meme raisonnement que pour
+// bandmapSaut()/bandmapNoter() ci-dessus, juste applique a un fichier plus
+// tardif dans l'ordre de chargement.
 
 // ─── TOGGLE JOUR/NUIT ────────────────────────────────────────────────────────
 function toggleTheme(){
@@ -101,9 +110,11 @@ document.addEventListener('keydown', e => {
   if(/^F[1-8]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey){
     e.preventDefault();
     if(!isSetupDone || _modaleOuverte()) return;
-    const macros = getMacros();
-    const idx = macros.findIndex(m => m && m.key === e.key);
-    if(idx >= 0) copyMacro(idx);
+    if(typeof getMacros === 'function' && typeof copyMacro === 'function'){
+      const macros = getMacros();
+      const idx = macros.findIndex(m => m && m.key === e.key);
+      if(idx >= 0) copyMacro(idx);
+    }
     return;
   }
   // ─── Search & Pounce au clavier ───────────────────────────────────────────
