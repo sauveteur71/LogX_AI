@@ -349,14 +349,24 @@ class AcomPort:
         # juste "arrête de m'envoyer la télémétrie", pas une commande
         # Operate/Standby/Off -- une erreur ici (port déjà en défaut) est
         # donc ignorée, la fermeture du port reste la priorité.
-        try:
-            self._ser.write(CMD_DISABLE_TELEMETRY)
-        except Exception:
-            pass
-        try:
-            self._ser.close()
-        except Exception:
-            pass
+        #
+        # self._lock tenu ici comme dans send_command()/read_one_frame() --
+        # deuxième constat de la même revue adversariale : sans lui, un
+        # thread qui bascule Operate/Standby/Off (send_command(), sous
+        # verrou) pouvait voir son écriture s'entrelacer sur le fil RS-232
+        # avec celle-ci, envoyée depuis un autre thread qui ferme la
+        # connexion (ex. changement de port en CONFIG) -- un risque réel,
+        # pas seulement théorique, sur un ampli de plusieurs centaines à
+        # plusieurs milliers de watts.
+        with self._lock:
+            try:
+                self._ser.write(CMD_DISABLE_TELEMETRY)
+            except Exception:
+                pass
+            try:
+                self._ser.close()
+            except Exception:
+                pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════

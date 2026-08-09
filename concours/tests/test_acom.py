@@ -444,3 +444,47 @@ def test_acom_port_close_ignore_erreur_ecriture(monkeypatch):
     port = acom.AcomPort('COM99')
     port.close()   # ne doit lever aucune exception
     assert fake.closed is True
+
+
+def test_acom_port_close_et_send_command_sont_mutuellement_exclusifs(monkeypatch):
+    """2e constat de la même revue adversariale (09/08/2026) : close()
+    n'acquérait AUCUN verrou, contrairement à send_command()/read_one_frame()
+    -- son écriture de CMD_DISABLE_TELEMETRY pouvait donc s'entrelacer sur le
+    fil RS-232 avec celle d'un send_command() lancé depuis un autre thread
+    (ex. set_operate() en cours pendant qu'un changement de config en CONFIG
+    ferme la connexion persistante). Ce test lance close() dans un thread
+    séparé avec une écriture VOLONTAIREMENT lente, et prouve qu'un
+    send_command() concurrent attend bien la fin de close() avant d'écrire à
+    son tour -- il aurait échoué (ordre des évènements entrelacé) avant le
+    correctif de close()."""
+    if not acom.HAS_PYSERIAL:
+        import pytest
+        pytest.skip("pyserial non installé dans cet environnement")
+    import threading
+    import time
+
+    events = []
+    close_started = threading.Event()
+
+    class _SlowWriteSerial(_FakeUnderlyingSerial):
+        def write(self, data):
+            if data == acom.CMD_DISABLE_TELEMETRY:
+                events.append('close_write_start')
+                close_started.set()
+                time.sleep(0.15)
+                events.append('close_write_end')
+            else:
+                events.append('send_command_write')
+            super().write(data)
+
+    fake = _SlowWriteSerial()
+    monkeypatch.setattr(acom._pyserial, 'Serial', lambda: fake)
+    port = acom.AcomPort('COM99')
+
+    t = threading.Thread(target=port.close)
+    t.start()
+    assert close_started.wait(timeout=2.0), "close() n'a jamais démarré son écriture"
+    port.send_command(acom.CMD_OPERATE)   # doit attendre la fin de close()
+    t.join(timeout=2.0)
+
+    assert events == ['close_write_start', 'close_write_end', 'send_command_write'], events

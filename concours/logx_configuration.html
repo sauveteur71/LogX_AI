@@ -6246,11 +6246,18 @@ function mapLocCompare(){
 
   if(_mapLoc.targetMarker) _mapLoc.map.removeLayer(_mapLoc.targetMarker);
   if(_mapLoc.targetLine) _mapLoc.map.removeLayer(_mapLoc.targetLine);
-  _mapLoc.targetMarker = L.circleMarker([target.lat,target.lon], {radius:7, color:'#E8964A',
-    fillColor:'#E8964A', fillOpacity:.6, weight:2}).addTo(_mapLoc.map)
+  // Constat de la passe de vérification (09/08/2026) : '#E8964A' était la
+  // valeur --accent2 codée en dur (mode NUIT uniquement) -- cassait le
+  // contraste en mode jour (--accent2 vaut #8B4F1F). 'var(--accent2)' passé
+  // en chaîne fonctionne tel quel avec le rendu SVG de Leaflet (attribut de
+  // présentation stroke/fill, résolu via la cascade CSS comme n'importe
+  // quelle autre valeur var() sur un élément du DOM) -- même thème que le
+  // texte du résultat juste au-dessus (ligne 6244), qui l'utilisait déjà.
+  _mapLoc.targetMarker = L.circleMarker([target.lat,target.lon], {radius:7, color:'var(--accent2)',
+    fillColor:'var(--accent2)', fillOpacity:.6, weight:2}).addTo(_mapLoc.map)
     .bindTooltip(raw.toUpperCase(), {permanent:true, direction:'top'}).openTooltip();
   _mapLoc.targetLine = L.polyline([[ref.lat,ref.lon],[target.lat,target.lon]],
-    {color:'#E8964A', weight:2, dashArray:'6,6', opacity:.8}).addTo(_mapLoc.map);
+    {color:'var(--accent2)', weight:2, dashArray:'6,6', opacity:.8}).addTo(_mapLoc.map);
   _mapLoc.map.fitBounds(L.latLngBounds([[ref.lat,ref.lon],[target.lat,target.lon]]).pad(0.3));
 }
 
