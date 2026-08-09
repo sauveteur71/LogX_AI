@@ -3561,38 +3561,9 @@ function drawHourChart(){
   bar.style.display = 'block';
 }
 
-// ─── SOAPBOX PAR BANDE ───────────────────────────────────────────────────────
-const SOAPBOX_BANDS = ['144','432','1296'];
-function toggleSoapbox(){
-  const title  = document.getElementById('soapboxToggle');
-  const fields = document.getElementById('soapboxFields');
-  if(!title || !fields) return;
-  const collapsed = title.classList.toggle('collapsed');
-  fields.classList.toggle('hidden', collapsed);
-}
-function saveSoapbox(){
-  const data = {};
-  SOAPBOX_BANDS.forEach(b => {
-    const el = document.getElementById(`soap_${b}`);
-    if(el) data[b] = el.value;
-  });
-  localStorage.setItem('logx_soapbox', JSON.stringify(data));
-}
-function loadSoapbox(){
-  try{
-    const data = JSON.parse(localStorage.getItem('logx_soapbox')||'{}');
-    SOAPBOX_BANDS.forEach(b => {
-      const el = document.getElementById(`soap_${b}`);
-      if(el && data[b]) el.value = data[b];
-    });
-  }catch(e){}
-}
-function getSoapbox(band){
-  try{
-    const data = JSON.parse(localStorage.getItem('logx_soapbox')||'{}');
-    return (data[band]||'').trim();
-  }catch(e){ return ''; }
-}
+// ─── SOAPBOX PAR BANDE : extrait vers logx_soapbox.js (EV-7 phase 2,
+// 29e increment, docs/LogX_AI_PRD.md) -- charge en <script> classique dans
+// logx_logbook.html, portee globale partagee.
 
 // ─── MACROS F1–F8 ────────────────────────────────────────────────────────────
 const DEFAULT_MACROS = [

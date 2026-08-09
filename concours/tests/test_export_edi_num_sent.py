@@ -43,6 +43,10 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 # EV-7 25e incrément : exportEDI() (testée dans ce fichier) a été extraite
 # vers ce fichier -- doit être chargé AVANT logx_logbook.js, même convention.
 EXPORT_EDI_JS_PATH = os.path.join(BASE, 'logx_export_edi.js')
+# EV-7 29e incrément : exportEDI() appelle getSoapbox() en corps de
+# fonction -- getSoapbox() a été extraite vers ce fichier, sans quoi
+# l'appel lèverait un ReferenceError pendant l'exécution réelle du test.
+SOAPBOX_JS_PATH = os.path.join(BASE, 'logx_soapbox.js')
 sys.path.insert(0, BASE)
 
 import logx_storage as storage   # noqa: E402  (après sys.path)
@@ -150,6 +154,8 @@ def _real_source(rev=None):
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(EXPORT_EDI_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(SOAPBOX_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()
