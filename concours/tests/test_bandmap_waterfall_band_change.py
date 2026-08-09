@@ -28,6 +28,12 @@ ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 # EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
 # logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
+# EV-7 31e incrément : toggleWaterfall()/drawWaterfallRow()/_wfShown/
+# _wfLastBand ont été extraites vers logx_bandscope_waterfall.js -- ce
+# fichier appelle réellement ces fonctions, donc il doit être chargé, dans
+# le même ordre que <script> dans logx_logbook.html (juste avant
+# logx_logbook.js).
+BANDSCOPE_WATERFALL_JS_PATH = os.path.join(BASE, 'logx_bandscope_waterfall.js')
 
 # ─── DOM minimal (voir tests/test_logbook_render_window_reset.py pour la
 # version commentée) + faux canvas 2D : getContext('2d') renvoie un objet qui
@@ -129,6 +135,8 @@ def _real_source(rev=None):
         with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
             src = f.read()
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(BANDSCOPE_WATERFALL_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()
