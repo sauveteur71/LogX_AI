@@ -78,7 +78,7 @@ function applyRigState(d){
       rigState.mode = d.mode; rigState.freq_khz = d.freq_khz;
       document.getElementById('rigFreq').textContent = d.freq_khz.toFixed(1) + ' kHz';
       document.getElementById('rigMode').textContent = d.mode || '—';
-      if(dot) dot.classList.add('on');
+      if(dot){ dot.classList.add('on'); dot.title = 'Radio connectée'; }
       // Suivi automatique : la bande/le mode de saisie suivent la radio
       syncBandModeFromRig(d.freq_khz, d.mode);
       // La fréquence suit la radio en direct, SAUF si l'opérateur est en train de
@@ -90,7 +90,7 @@ function applyRigState(d){
     } else {
       document.getElementById('rigFreq').textContent = 'rigctld injoignable';
       document.getElementById('rigMode').textContent = '';
-      if(dot) dot.classList.remove('on');
+      if(dot){ dot.classList.remove('on'); dot.title = 'Radio injoignable (rigctld)'; }
     }
 }
 
@@ -146,7 +146,7 @@ function applyAmpState(d){
       const faultTxt = d.alarm_label || d.warning_label || d.fault_label
                       || (d.fault_code ? `Défaut ${d.fault_code}` : '');
       faultEl.textContent = faultTxt ? `⚠ ${faultTxt}` : '';
-      if(dot) dot.classList.add('on');
+      if(dot){ dot.classList.add('on'); dot.title = 'Amplificateur connecté'; }
       if(btn){
         btn.textContent = ampState.operate ? 'OPERATE' : 'STANDBY';
         btn.style.borderColor = ampState.operate ? 'var(--green)' : 'var(--red)';
@@ -156,7 +156,7 @@ function applyAmpState(d){
       powerEl.textContent = 'ampli injoignable';
       swrEl.textContent = '';
       faultEl.textContent = '';
-      if(dot) dot.classList.remove('on');
+      if(dot){ dot.classList.remove('on'); dot.title = 'Amplificateur injoignable'; }
     }
 }
 

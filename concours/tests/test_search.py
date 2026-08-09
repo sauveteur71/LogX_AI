@@ -113,6 +113,72 @@ def test_titre_avec_icone_svg_imbriquee_extrait_juste_le_texte(pages):
     assert '<svg' not in hit['title'] and '<span' not in hit['title']
 
 
+# ─── Correctifs audit trouvabilité/intuitivité (09/08/2026) ──────────────────
+# Constat : les requêtes en langage naturel ("comment exporter mon log")
+# donnaient 0 résultat alors que le mot-clé seul en donnait, "reglement"
+# (sans accent) donnait 0 résultat alors que "règlement" en donnait, et
+# search('FT8') faisait remonter 4 quasi-doublons du <nav> partagé avant la
+# vraie page logx_ft8.html. Les 3 tests ci-dessous couvrent ces correctifs.
+
+def test_recherche_multi_mots_langage_naturel_ordre_different(pages):
+    """L'ancien comportement comparait la requête ENTIÈRE comme une seule
+    sous-chaîne littérale : une requête dont les mots n'apparaissent pas
+    consécutivement et dans le même ordre que dans le texte source (ce qui
+    est la norme pour une question en langage naturel) ne matchait jamais,
+    même si chaque mot pris isolément était présent. Le nouveau comportement
+    tokénise par mot et score par nombre de mots présents - l'ordre des mots
+    dans la requête n'a plus à correspondre à celui du texte."""
+    results = logx_search.search('decodeur sstv active', base_dir=pages)
+    assert any(r['page'] == 'logx_configuration.html' and 'SSTV' in r['title']
+               for r in results)
+
+
+def test_recherche_insensible_aux_accents(tmp_path, monkeypatch):
+    """« reglement » (saisi sans accent, cas courant au clavier ou par
+    fatigue) doit retrouver une section dont le texte source contient
+    « règlement » - la comparaison se fait sur une version normalisée
+    (NFD, marques diacritiques retirées) des deux côtés, même principe que
+    _searchLocalHelp() côté JS (logx_configuration.html)."""
+    _write(tmp_path, 'logx_test_accents.html', '''
+        <div class="section-title">RÈGLEMENT DU CONCOURS</div>
+        <p>Consulte le règlement officiel avant de participer.</p>
+    ''')
+    monkeypatch.setattr(logx_search, 'SEARCHABLE_PAGES', ['logx_test_accents.html'])
+    results = logx_search.search('reglement', base_dir=str(tmp_path))
+    assert any('RÈGLEMENT' in r['title'] for r in results)
+
+
+def test_recherche_exclut_nav_et_trie_par_score_decroissant(tmp_path, monkeypatch):
+    """Le bloc <nav class="app-nav"> (identique sur presque toutes les
+    pages) ne doit jamais produire de résultat à lui seul - seules les
+    VRAIES sections de contenu apparaissent. Et à score égal ou différent,
+    les résultats doivent être triés par pertinence : un mot-clé présent
+    dans le TITRE de section (page_b) doit passer avant un mot-clé présent
+    seulement dans le corps (page_a) - reproduit le constat réel où
+    search('FT8') remontait des quasi-doublons de nav avant logx_ft8.html."""
+    _write(tmp_path, 'logx_page_a.html', '''
+        <nav class="app-nav">
+          <a href="logx_ft8.html">FT8</a>
+          <a href="logx_cw.html">CW</a>
+        </nav>
+        <div class="section-title">DIVERS</div>
+        <p>On parle un peu de FT8 dans cette section, en passant.</p>
+    ''')
+    _write(tmp_path, 'logx_page_b.html', '''
+        <nav class="app-nav">
+          <a href="logx_ft8.html">FT8</a>
+        </nav>
+        <div class="section-title">FT8 DECODEUR</div>
+        <p>Reglages du decodeur.</p>
+    ''')
+    monkeypatch.setattr(logx_search, 'SEARCHABLE_PAGES',
+                         ['logx_page_a.html', 'logx_page_b.html'])
+    results = logx_search.search('FT8', base_dir=str(tmp_path))
+    assert len(results) == 2
+    assert all(r['title'] in ('DIVERS', 'FT8 DECODEUR') for r in results)
+    assert results[0]['title'] == 'FT8 DECODEUR'
+
+
 # ─── Intégration : sur le vrai contenu de concours/*.html ────────────────────
 
 def test_recherche_reelle_sstv_trouve_au_moins_une_page_connue():
