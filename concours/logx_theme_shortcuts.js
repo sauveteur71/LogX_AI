@@ -26,14 +26,18 @@
 // (s'execute au chargement de CE fichier), mais il ne fait qu'ENREGISTRER
 // une fermeture (closure) -- addEventListener est une API navigateur, pas
 // un symbole EV-7. Le corps de la fermeture reference de nombreux globals du
-// coeur (isSetupDone, getMacros, copyMacro, bandmapSaut, bandmapNoter,
-// so2rBasculer, submitQSO, undoLastQSO) mais ne les RESOUT qu'au moment reel
-// d'une frappe clavier, bien apres que tous les <script> aient charge --
-// aucun risque d'ordre malgre l'enregistrement immediat.
+// coeur (isSetupDone, getMacros, copyMacro, so2rBasculer, submitQSO,
+// undoLastQSO) mais ne les RESOUT qu'au moment reel d'une frappe clavier,
+// bien apres que tous les <script> aient charge -- aucun risque d'ordre
+// malgre l'enregistrement immediat.
 //
 // Dependance optionnel->coeur (sens autorise, fonctions seulement) :
 // document.body, localStorage, fetch, isSetupDone, getMacros(), copyMacro(),
-// bandmapSaut(), bandmapNoter(), so2rBasculer(), submitQSO(), undoLastQSO().
+// so2rBasculer(), submitQSO(), undoLastQSO().
+//
+// EV-7 28e increment : bandmapSaut()/bandmapNoter() ont ete extraites vers
+// logx_bandmap_sp.js -- la dependance ci-dessus est desormais
+// optionnel->optionnel (les deux fichiers chargent avant logx_logbook.js).
 
 // ─── TOGGLE JOUR/NUIT ────────────────────────────────────────────────────────
 function toggleTheme(){

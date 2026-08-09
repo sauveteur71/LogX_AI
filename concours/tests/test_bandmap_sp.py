@@ -25,7 +25,9 @@ if CONCOURS not in sys.path:
 
 import logx_bandmap as bm  # noqa: E402
 
-JS = os.path.join(CONCOURS, 'logx_logbook.js')
+# EV-7 28e incrément : bandmapSaut()/bandmapNoter() ont été extraites vers
+# ce fichier -- doit être lu ici, plus dans logx_logbook.js.
+JS = os.path.join(CONCOURS, 'logx_bandmap_sp.js')
 
 
 @pytest.fixture(autouse=True)
