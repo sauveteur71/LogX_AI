@@ -1637,6 +1637,16 @@ function setupDone(){
   fetchLog();
 
   document.getElementById('inputCall').focus();
+
+  // Venu de CONFIG via « Importer un log existant » (retour utilisateur du
+  // 09/08/2026 : l'action était introuvable, cachée dans le menu DÉBUT/FIN
+  // replié) -- ouvre directement ce menu sur l'option d'import pour qu'un
+  // nouvel utilisateur n'ait pas à deviner où elle se trouve. Ne déclenche
+  // PAS triggerImport() directement : le sélecteur de fichier qu'il ouvre
+  // exige un geste utilisateur réel, qu'une navigation de page ne garantit
+  // pas de façon fiable selon les navigateurs -- le clic sur le bouton du
+  // menu, lui, en est un.
+  if(/[?&]action=import\b/.test(location.search)) toggleLbMenu();
 }
 
 // ─── CLOCK + COUNTDOWN ───────────────────────────────────────────────────────
