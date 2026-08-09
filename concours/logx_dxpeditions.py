@@ -171,29 +171,30 @@ def _match_spot_freq(callsign, spots_by_band):
     (dict {label_bande: [spots]}, voir logx_http._spots_from_caches — clés
     'dx'/'freq' en kHz, PAS 'call'/'freq' comme logx_clusters._normalize_spot :
     deux conventions différentes coexistent dans cette appli, à ne pas
-    confondre). Renvoie (freq_khz, label_bande) du premier spot trouvé, ou
-    (None, None). NG3K liste parfois un simple PRÉFIXE en attendant l'annonce
-    de l'indicatif exact (ex. '4K' pour l'Azerbaïdjan) — dans ce cas la
-    correspondance échoue silencieusement, ce qui est le comportement voulu
-    (mieux vaut ne pas afficher de fréquence que d'en afficher une fausse)."""
+    confondre). Renvoie (freq_khz, label_bande, mode) du premier spot trouvé,
+    ou (None, None, None). NG3K liste parfois un simple PRÉFIXE en attendant
+    l'annonce de l'indicatif exact (ex. '4K' pour l'Azerbaïdjan) — dans ce cas
+    la correspondance échoue silencieusement, ce qui est le comportement
+    voulu (mieux vaut ne pas afficher de fréquence que d'en afficher une
+    fausse)."""
     target = re.split(r'[,/ ]', (callsign or '').strip())[0].upper()
     if not target:
-        return None, None
+        return None, None, None
     for label, spots in (spots_by_band or {}).items():
         for sp in spots:
             if not isinstance(sp, dict):
                 continue
             dx = str(sp.get('dx', '') or '').upper().split('/')[0]
             if dx == target:
-                return sp.get('freq'), label
-    return None, None
+                return sp.get('freq'), label, str(sp.get('mode', '') or '').upper()
+    return None, None, None
 
 
 def fetch_dxpeditions_chasse(worked_entities=None, spots_by_band=None, today=None):
     """Comme fetch_dxpeditions(), pour le panneau CHASSE : chaque entrée
     reçoit en plus 'status' ('active'/'upcoming'/'unknown' — voir le
     commentaire au-dessus de _MOIS_EN) et, si trouvée en direct sur le
-    cluster, 'freq_khz'/'spot_band'. Les expéditions déjà TERMINÉES sont
+    cluster, 'freq_khz'/'spot_band'/'spot_mode'. Les expéditions déjà TERMINÉES sont
     retirées (CHASSE montre ce qu'on peut encore travailler, pas
     l'historique — voir fetch_dxpeditions()/l'onglet CALENDRIER pour la
     liste complète non filtrée).
@@ -227,11 +228,13 @@ def fetch_dxpeditions_chasse(worked_entities=None, spots_by_band=None, today=Non
         e['ends'] = fin.isoformat() if fin else None
         e['freq_khz'] = None
         e['spot_band'] = None
+        e['spot_mode'] = None
         if e['status'] != 'ended':
-            freq, band = _match_spot_freq(e.get('callsign', ''), spots_by_band)
+            freq, band, mode = _match_spot_freq(e.get('callsign', ''), spots_by_band)
             if freq:
                 e['freq_khz'] = freq
                 e['spot_band'] = band
+                e['spot_mode'] = mode or None
                 e['status'] = 'active'   # repéré sur le cluster = preuve directe, prime sur le calcul de dates
         if e['status'] != 'ended':
             out.append(e)

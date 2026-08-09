@@ -114,6 +114,12 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .filters{display:flex;gap:8px;margin-bottom:10px;flex-shrink:0}
 .filter-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
 .filter-btn.active{border-color:var(--accent2);color:var(--accent2)}
+/* Filtre bande CLUSTER — NEED LIST (retour F4GLD 09/08/2026) : puces
+   générées dynamiquement à partir des bandes RÉELLEMENT présentes dans les
+   spots du moment (pas une liste figée) — multi-sélection, TOUTES = reset. */
+.band-filters{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;flex-shrink:0}
+.band-chip{font-family:var(--font-mono);font-size:11px;padding:3px 9px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer}
+.band-chip.active{border-color:var(--accent2);color:var(--accent2);background:rgba(var(--accent-rgb),.12)}
 .qsy-btn{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:5px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.1);color:var(--accent);cursor:pointer;letter-spacing:1px;font-weight:700;flex-shrink:0}
 .qsy-btn:hover{background:#C9822E;color:#0A0B18}
 .point-btn{font-family:var(--font-mono);font-size:12px;padding:3px 9px;border-radius:5px;border:1px solid var(--purple);background:rgba(191,90,242,.12);color:var(--purple);cursor:pointer;letter-spacing:1px;font-weight:700;flex-shrink:0}
@@ -258,6 +264,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
         <button class="filter-btn" data-f="mult" onclick="setFilter(this)">📈 MULTS</button>
         <button class="filter-btn" data-f="new" onclick="setFilter(this)">SANS DUPES</button>
       </div>
+      <div id="bandFilters" class="band-filters"></div>
       <div id="spotList" class="scroll-list"><div class="loading">Les spots du dernier refresh apparaissent ici.<br>
         <small>Lance un refresh depuis la CARTE IA (📡 ANALYSER) ou attends la veille automatique.</small></div></div>
     </div>
@@ -274,6 +281,9 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 
 let spotsData = [];
 let filter = 'all';
+// Filtre bande CLUSTER — NEED LIST (retour F4GLD 09/08/2026) : vide = pas de
+// filtre (toutes les bandes), sinon multi-sélection des bandes à afficher.
+let selectedBands = new Set();
 // Renseigné par /data/spots_ranked (meta.contest_actif) : faux tant qu'aucun
 // concours n'est sélectionné, auquel cas on masque tout affichage de points.
 let contestActif = false;
@@ -378,6 +388,7 @@ async function loadSpots(){
     document.getElementById('spotsMeta').textContent = contestActif
       ? `${m.contest || ''} · ${m.current_score || 0} pts · ${m.nb_dxcc || 0} pays · ${spotsData.length} spots`
       : `${m.nb_dxcc || 0} pays · ${spotsData.length} spots`;
+    renderBandFilters();
     renderSpots();
     document.getElementById('lastRefresh').textContent =
       rcT('MàJ') + ' ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
@@ -391,13 +402,47 @@ function setFilter(el){
   renderSpots();
 }
 
+// Ordre HF/VHF/UHF croissant — même convention interne que _band_from_freq()
+// (logx_scoring.py) : un nombre MHz nominal en chaîne ('14', '3.5'...), PAS
+// un libellé 'Xm' (voir s.band dans renderSpots() : "${s.band} MHz"). Les
+// bandes hors de cette liste (ex. futur ajout) sont rejetées en fin de tri.
+const BAND_ORDER = ['1.8','3.5','7','10.1','14','18','21','24','28','50','144','432'];
+function renderBandFilters(){
+  const el = document.getElementById('bandFilters');
+  if(!el) return;
+  const bands = [...new Set(spotsData.map(s => s.band).filter(Boolean))]
+    .sort((a, b) => {
+      const ia = BAND_ORDER.indexOf(a), ib = BAND_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+  // Une bande sélectionnée qui a disparu des spots courants (refresh) ne doit
+  // pas rester "invisible mais toujours active" dans le filtre.
+  for(const b of [...selectedBands]) if(!bands.includes(b)) selectedBands.delete(b);
+  if(!bands.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<button type="button" class="band-chip' + (selectedBands.size ? '' : ' active')
+    + '" onclick="clearBandFilter()">' + rcT('TOUTES BANDES') + '</button>'
+    + bands.map(b => `<button type="button" class="band-chip ${selectedBands.has(b) ? 'active' : ''}"
+      onclick="toggleBandFilter('${jsBand(b)}')">${esc(b)}</button>`).join('');
+}
+function toggleBandFilter(b){
+  if(selectedBands.has(b)) selectedBands.delete(b); else selectedBands.add(b);
+  renderBandFilters();
+  renderSpots();
+}
+function clearBandFilter(){
+  selectedBands.clear();
+  renderBandFilters();
+  renderSpots();
+}
+
 function renderSpots(){
   let list = spotsData;
+  if(selectedBands.size) list = list.filter(s => selectedBands.has(s.band));
   if(filter === 'mult') list = list.filter(s => s.new_mult && !s.already_done);
   if(filter === 'new')  list = list.filter(s => !s.already_done);
   if(!list.length){
     document.getElementById('spotList').innerHTML =
-      '<div class="loading">Aucun spot' + (filter !== 'all' ? ' pour ce filtre' : '') +
+      '<div class="loading">Aucun spot' + (filter !== 'all' || selectedBands.size ? ' pour ce filtre' : '') +
       ' — lance un refresh depuis la CARTE IA (📡 ANALYSER).</div>';
     return;
   }
@@ -622,6 +667,7 @@ async function loadDxActive(){
       const freq = e.freq_khz
         ? `<span class="sr-qrg">${(e.freq_khz/1000).toFixed(3)} MHz${e.spot_band ? ' ('+esc(e.spot_band)+')' : ''}</span>`
         : '';
+      const mode = e.spot_mode ? `<span class="sr-mode">${esc(e.spot_mode)}</span>` : '';
       const newBadge = e.worked === false
         ? `<span class="sr-mode" style="color:var(--green)">🆕 nouveau pays</span>` : '';
       return `<div class="spot-row sr-act">
@@ -629,6 +675,7 @@ async function loadDxActive(){
           <span class="sr-call">${esc(e.callsign || '?')}</span>
           ${badge}
           ${freq}
+          ${mode}
           ${newBadge}
         </div>
         <div class="sr-place">${esc(e.entity || '?')} · ${esc(e.dates || '—')}</div>
