@@ -1129,11 +1129,11 @@ Détections de branchement radio en attente (watcher de fond, indice passif VID:
 
 ### GET `/hardware/state`
 
-État matériel groupé (radio+ampli+WSJT-X+rotor+PGXL) en une seule requête au lieu de 4-5 séparées ; en SO2R la clé 'rig' suit le focus.
+État matériel groupé (radio+ampli+WSJT-X+rotor+PGXL+ACOM) en une seule requête au lieu de 5-6 séparées ; en SO2R la clé 'rig' suit le focus.
 
 - **Paramètres** : aucun
-- **Réponse** : {'rig':{...},'amp':{...},'wsjtx':{...},'rotor':{...},'pgxl':{...}}
-- **Note** : regroupe /rig/state, /amp/state, /wsjtx/state, /rotor/state et l'état PowerGenius XL
+- **Réponse** : {'rig':{...},'amp':{...},'wsjtx':{...},'rotor':{...},'pgxl':{...},'acom':{...}}
+- **Note** : regroupe /rig/state, /amp/state, /wsjtx/state, /rotor/state et l'état PowerGenius XL/ACOM
 
 ### POST `/rig/connect_test`
 
@@ -1277,6 +1277,21 @@ Teste la connexion réseau à un amplificateur PowerGenius XL (4O3A).
 - **Paramètres** : JSON {host, port?, timeout?}
 - **Réponse** : résultat de logx_powergenius.test_connection(...)
 - **Note** : Pas de route operate/standby pour ce modèle : commande non confirmée par la doc officielle, refusée volontairement (pilotage au panneau avant ou via SmartSDR).
+
+### POST `/acom/test`
+
+Teste la connexion série à un amplificateur ACOM (500S/600S/700S/1200S/2020S).
+
+- **Paramètres** : JSON {port, model?, timeout?}
+- **Réponse** : résultat de logx_acom.test_connection(...) — inclut la télémétrie décodée si succès (statut, puissances, ROS, température, bande, ventilateur).
+- **Note** : doc communautaire, pas officielle ACOM — voir la docstring de logx_acom.py pour les sources exactes.
+
+### POST `/acom/operate`
+
+Bascule OPERATE/STANDBY/OFF sur l'ACOM — DIFFÉREMMENT de `/pgxl/test` ci-dessus, cette commande est confirmée par le code source réel (gestionnaires de bouton nommés explicitement).
+
+- **Paramètres** : JSON {mode} — `mode` ∈ {"operate", "standby", "off"}
+- **Réponse** : résultat de logx_acom.set_operate(...)
 
 
 ## Rotor d'antenne

@@ -264,7 +264,7 @@ def test_config_html_categories_avancees_sont_dans_expert_only_cats():
     m = re.search(r"const _EXPERT_ONLY_CATS = new Set\(\[(.*?)\]\)", src)
     assert m, "_EXPERT_ONLY_CATS introuvable dans logx_configuration.html"
     cats = set(re.findall(r"'(\w+)'", m.group(1)))
-    assert cats == {'relay', 'autostart', 'pgxl', 'telemetry'}
+    assert cats == {'relay', 'autostart', 'pgxl', 'telemetry', 'acom'}
 
 
 def test_config_html_cat_civ_addr_field_est_expert_only():

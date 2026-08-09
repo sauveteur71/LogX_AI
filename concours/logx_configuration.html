@@ -1882,6 +1882,72 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     </div>
   </div>
 </div>
+<div class="cat-modal" id="catmodal_acom">
+  <div class="cat-modal-box">
+    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 20. ACOM (série RS-232)</span>
+      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
+    <div class="cat-modal-body" id="catbody_acom">
+      <div class="section">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Ampli ACOM (500S/600S/700S/1200S/2020S) par son interface série de télécommande
+          (9600 bauds/8N1) — télémétrie (puissance, ROS, température, bande, ventilateur) et
+          bascule OPERATE/STANDBY/OFF.
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);line-height:1.7;margin-bottom:14px;padding:8px 12px;background:rgba(255,214,10,.08);border:1px solid rgba(255,214,10,.35);border-radius:6px">
+          <b>Documentation communautaire, pas officielle</b> : ACOM n'a jamais publié ce
+          protocole série. Ce module s'appuie sur le logiciel libre <i>ACOM Controller</i> de
+          Björn Ekelund (SM7IUN, MIT, code source réel et fonctionnel — voir la docstring de
+          logx_acom.py pour le détail des sources). Aucune commande de bande/fréquence n'existe
+          dans ce protocole (l'ampli suit lui-même le signal d'excitation) : QSY normal, rien à
+          régler ici. Les lignes RTS/DTR ne sont JAMAIS pilotées par LogX (elles commandent
+          l'alimentation physique de l'ampli sur ce modèle, pas un simple PTT) — utilise le
+          bouton façade pour allumer/éteindre l'ampli.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PILOTAGE ACOM</label>
+            <select id="acom_enabled" onchange="updateEnabledFieldsVisibility('acom_enabled',['acom_port','acom_model','acom_timeout'])">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">Désactivé par défaut</div>
+          </div>
+          <div class="form-group">
+            <label>PORT SÉRIE</label>
+            <select id="acom_port" onfocus="refreshAcomPorts()"></select>
+          </div>
+          <div class="form-group">
+            <label>MODÈLE</label>
+            <select id="acom_model">
+              <option value="">Inconnu (température non calibrée)</option>
+              <option value="500S">ACOM 500S</option>
+              <option value="600S">ACOM 600S</option>
+              <option value="700S">ACOM 700S</option>
+              <option value="1200S">ACOM 1200S</option>
+              <option value="2020S">ACOM 2020S</option>
+            </select>
+            <div class="input-note">Calibre uniquement l'affichage de température — sans effet sur les commandes.</div>
+          </div>
+          <div class="form-group">
+            <label>DÉLAI SÉRIE (s)</label>
+            <input type="number" id="acom_timeout" placeholder="3" min="1" max="10" step="0.5">
+            <div class="input-note">Borné entre 1 et 10 s côté serveur.</div>
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testAcomConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
+          <span id="acomTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:8px">
+          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('operate')">OPERATE</button>
+          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('standby')">STANDBY</button>
+          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('off')">OFF</button>
+          <span id="acomOperateResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="cat-modal" id="catmodal_network">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> 8. MULTI-POSTE &amp; CLOUD SYNC</span>
@@ -2972,6 +3038,9 @@ const CONFIG_HELP = {
   pgxl_host: "Adresse IP du PowerGenius XL sur le réseau local.",
   pgxl_port: "Port TCP de l'API réseau du PowerGenius XL — 9008 par défaut.",
   pgxl_timeout: "Délai d'attente réseau (secondes) avant d'abandonner une commande — borné entre 1 et 10 s côté serveur.",
+  acom_port: "Port série (COM) où est branché l'ACOM — utilise la liste détectée automatiquement.",
+  acom_model: "Modèle exact de l'ampli — sert uniquement à calibrer l'affichage de la température (offset propre à chaque modèle), aucun effet sur les commandes.",
+  acom_timeout: "Délai d'attente série (secondes) avant d'abandonner une commande — borné entre 1 et 10 s côté serveur.",
   telemetry_enabled: "Envoie un heartbeat quotidien minimal (identifiant d'installation aléatoire, version, système d'exploitation) — jamais ton indicatif, jamais de QSO. Activée par défaut, désactivable ici en un clic.",
   telemetry_endpoint: "Champ avancé. Tant qu'il est vide, aucune requête réseau n'est jamais envoyée — aucune destination officielle n'existe pour l'instant.",
 };
@@ -3731,6 +3800,7 @@ async function init() {
   updateEnabledFieldsVisibility('cloudsync_mode', ['cloudsync_folder','cloudsync_interval','cloudsync_secret'], v => v !== '');
   updateEnabledFieldsVisibility('mysql_mode', ['mysql_host','mysql_port','mysql_user','mysql_password','mysql_database'], v => v !== 'off');
   updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
+  updateEnabledFieldsVisibility('acom_enabled', ['acom_port','acom_model','acom_timeout']);
   updateEnabledFieldsVisibility('telemetry_enabled', ['telemetry_endpoint']);
   validateActivationRef(); // Si une référence est déjà enregistrée, la vérifier contre la base au chargement
   _updateActivationNearbyVisibility();
@@ -4253,6 +4323,82 @@ async function refreshCatPorts(){
     if (prev && ports.some(p => p.device === prev)) sel.value = prev;
   }catch(e){
     sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+// ─── ACOM (série RS-232) ──────────────────────────────────────────────────────
+async function refreshAcomPorts(){
+  // Même patron que refreshCatPorts()/refreshAmpPorts() (réplique voulue,
+  // pas de fonction générique factorisée dans ce dépôt pour l'instant) :
+  // repli sur le port déjà enregistré tant que la liste réseau n'est pas
+  // encore arrivée.
+  const sel = document.getElementById('acom_port');
+  const prev = sel.value || (window._cfgRestauree || {}).acom_port || '';
+  sel.innerHTML = '<option value="">⏳ Recherche des ports...</option>';
+  try{
+    const res = await fetch('/rig/ports');
+    const data = await res.json();
+    const ports = data.ports || [];
+    sel.innerHTML = ports.length
+      ? ports.map(p => `<option value="${escC(p.device)}">${escC(p.device)} — ${escC(p.description||'')}</option>`).join('')
+      : '<option value="">Aucun port détecté</option>';
+    if (prev && ports.some(p => p.device === prev)) sel.value = prev;
+  }catch(e){
+    sel.innerHTML = '<option value="">Serveur injoignable</option>';
+  }
+}
+
+async function testAcomConnection(){
+  const result = document.getElementById('acomTestResult');
+  const port = document.getElementById('acom_port').value;
+  if (!port){
+    result.textContent = '⚠️ Port série manquant';
+    result.style.color = 'var(--yellow)';
+    return;
+  }
+  result.textContent = '⏳ Test en cours...';
+  result.style.color = 'var(--muted)';
+  const payload = {
+    port,
+    model: document.getElementById('acom_model').value,
+    timeout: parseFloat(document.getElementById('acom_timeout').value) || 3.0,
+  };
+  try{
+    const res = await fetch('/acom/test', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)});
+    const r = await res.json();
+    if (r.ok){
+      const t = r.telemetry || {};
+      result.textContent = `✅ ACOM joint (${t.status || '?'}, ${t.power_w ?? '?'} W)`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
+  }
+}
+
+async function acomSetOperate(mode){
+  const result = document.getElementById('acomOperateResult');
+  result.textContent = '⏳...';
+  result.style.color = 'var(--muted)';
+  try{
+    const res = await fetch('/acom/operate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({mode})});
+    const r = await res.json();
+    if (r.ok){
+      result.textContent = `✅ ${mode.toUpperCase()}`;
+      result.style.color = 'var(--green)';
+    } else {
+      result.textContent = `❌ ${r.error || 'Échec'}`;
+      result.style.color = 'var(--red)';
+    }
+  }catch(e){
+    result.textContent = '❌ Serveur injoignable';
+    result.style.color = 'var(--red)';
   }
 }
 
@@ -5174,14 +5320,15 @@ const CONFIG_SECTIONS = [
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
   ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control'],
   ['autostart',_ICO_PLAY+' 17. Auto-lancement'], ['pgxl',_ICO_BATTERY+' 18. PowerGenius XL'],
-  ['telemetry',_ICO_SIGNAL+' 19. Télémétrie'], ['summary',_ICO_SUMMARY+' Résumé']
+  ['telemetry',_ICO_SIGNAL+' 19. Télémétrie'], ['acom',_ICO_BATTERY+' 20. ACOM'],
+  ['summary',_ICO_SUMMARY+' Résumé']
 ];
-// 4 catégories réservées au mode expert (CLAUDE.md « Intuitivité ») — même
+// 5 catégories réservées au mode expert (CLAUDE.md « Intuitivité ») — même
 // liste que les anciennes .hub-card.expert-only, appliquée maintenant aux
 // entrées de l'arborescence elles-mêmes (l'ancien panneau flottant les
 // listait TOUTES sans filtre, lacune trouvée par l'investigation du
 // 08/08/2026 avant de coder cette refonte).
-const _EXPERT_ONLY_CATS = new Set(['relay', 'autostart', 'pgxl', 'telemetry']);
+const _EXPERT_ONLY_CATS = new Set(['relay', 'autostart', 'pgxl', 'telemetry', 'acom']);
 
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
@@ -5358,6 +5505,8 @@ function _catStatus(cat){
       return autostartRows.length ? 'ok' : 'empty';
     case 'pgxl':
       return val('pgxl_enabled') === '1' ? 'ok' : 'empty';
+    case 'acom':
+      return val('acom_enabled') === '1' ? 'ok' : 'empty';
     case 'telemetry':
       return val('telemetry_enabled') === '1' ? 'ok' : 'empty';
     case 'summary':
@@ -7382,6 +7531,10 @@ function saveConfig(silent = false, feedbackBtn = null) {
     pgxl_host: document.getElementById('pgxl_host')?.value.trim() || '',
     pgxl_port: parseInt(document.getElementById('pgxl_port')?.value, 10) || 9008,
     pgxl_timeout: parseFloat(document.getElementById('pgxl_timeout')?.value) || 3.0,
+    acom_enabled: !!document.getElementById('acom_enabled')?.value,
+    acom_port: document.getElementById('acom_port')?.value || '',
+    acom_model: document.getElementById('acom_model')?.value || '',
+    acom_timeout: parseFloat(document.getElementById('acom_timeout')?.value) || 3.0,
     telemetry_enabled: !!document.getElementById('telemetry_enabled')?.value,
     telemetry_endpoint: document.getElementById('telemetry_endpoint')?.value.trim() || '',
     wsjtx_enabled: !!document.getElementById('wsjtx_enabled').value,
@@ -8139,7 +8292,8 @@ function applyFullConfigToForm(c) {
      'omnirig_rig_num','flexradio_host','flexradio_port',
      'icomremote_host','icomremote_control_port','icomremote_civ_port',
      'icomremote_civ_addr','icomremote_username','icomremote_password',
-     'pgxl_host','pgxl_port','pgxl_timeout','telemetry_endpoint','voicekeyer_rate',
+     'pgxl_host','pgxl_port','pgxl_timeout','acom_port','acom_model','acom_timeout',
+     'telemetry_endpoint','voicekeyer_rate',
      'voicekeyer_ai_voice_id','voicekeyer_ai_api_key',
      'voicekeyer_piper_exe','voicekeyer_piper_model',
      'winkeyer_enabled','winkeyer_port','winkeyer_wpm',
@@ -8252,6 +8406,7 @@ function applyFullConfigToForm(c) {
     renderRelayButtons();
     renderRelayBandMapRows(c.relay_band_map && typeof c.relay_band_map === 'object' ? c.relay_band_map : {});
     if(c.pgxl_enabled && document.getElementById('pgxl_enabled')) document.getElementById('pgxl_enabled').value = '1';
+    if(c.acom_enabled && document.getElementById('acom_enabled')) document.getElementById('acom_enabled').value = '1';
     // telemetry_enabled : SEUL toggle du projet activé par défaut (opt-out) —
     // contrairement au motif "if(c.xxx) ...value='1'" ci-dessus (qui laisse la
     // valeur par défaut du <select> HTML si c.xxx est absent/faux), il faut ici
