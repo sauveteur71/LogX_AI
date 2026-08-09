@@ -1505,6 +1505,14 @@ def _pgxl_state_dict(cfg_snap):
     return pgxl.get_state(cfg_snap)
 
 
+def _acom_state_dict(cfg_snap):
+    """État de l'ACOM (série RS-232) — même raisonnement que _pgxl_state_dict()
+    ci-dessus : module séparé de logx_amp.py (transport/protocole propres,
+    doc communautaire, voir logx_acom.py), sa propre clé dans /hardware/state."""
+    import logx_acom as acom
+    return acom.get_state(cfg_snap)
+
+
 # ─── WAIT-AND-POUNCE : le câblage, niveaux 3 et 4 ────────────────────────────
 # Ces deux fonctions sont appelées DEPUIS LE THREAD UDP de logx_wsjtx, pas
 # depuis un handler HTTP. C'est la seule façon de tenir le niveau 4 : « personne
@@ -4252,6 +4260,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'wsjtx': _wsjtx_state_dict(cfg_snap),
                 'rotor': _rotor_state_dict(cfg_snap),
                 'pgxl': _pgxl_state_dict(cfg_snap),
+                'acom': _acom_state_dict(cfg_snap),
             })
             return
 
@@ -5710,6 +5719,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = {}
             res = pgxl.test_connection(payload.get('host'), payload.get('port'),
                                        payload.get('timeout'))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        # ACOM (série RS-232) : test de connexion éphémère depuis CONFIG.
+        # Contrairement à /pgxl/test ci-dessus, une route "operate" EXISTE bien
+        # (voir logx_acom.py : Operate/Standby/Off sont 3 commandes confirmées,
+        # sémantique non ambiguë) — /acom/operate juste en dessous.
+        if self.path == '/acom/test':
+            import logx_acom as acom
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            res = acom.test_connection(payload.get('port'), payload.get('model'),
+                                       payload.get('timeout'))
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
+        if self.path == '/acom/operate':
+            import logx_acom as acom
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            cfg_snap = self._cfg_snapshot()
+            res = acom.set_operate(cfg_snap, payload.get('mode', ''))
             self._json(res, 200 if res.get('ok') else 400)
             return
 

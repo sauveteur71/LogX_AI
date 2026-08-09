@@ -770,9 +770,11 @@ Précisions honnêtes :
 - **KPA1500** : uniquement par le port série (son accès réseau propre n'est pas pris en charge).
 - **IC-PW2/PW-1** : adresse CI-V d'usine AA (champ **ADRESSE CI-V**, modifiable si vous l'avez changée sur l'ampli). Les valeurs de puissance/SWR sont volontairement affichées brutes : Icom ne publie pas l'échelle de conversion, et LogX n'invente rien.
 - **SPE** : le protocole constructeur simule des appuis sur le panneau avant ; il n'offre ni acquittement de défaut ni mise sous tension à distance (messages explicites dans l'interface).
-- Marques **non** prises en charge, faute de protocole documenté par le constructeur : ACOM, Ameritron, Yaesu VL-1000, Tokyo Hy-Power (ces amplis suivent la radio par band-data, pas par dialogue série).
+- Marques **non** prises en charge, faute de protocole documenté par le constructeur : Ameritron, Yaesu VL-1000, Tokyo Hy-Power (ces amplis suivent la radio par band-data, pas par dialogue série).
 
 Le bouton **🔌 Tester la connexion** répond « ✅ Ampli joint — xxx W, SWR x.x » (ou un message d'échec). Dans le logbook, le panneau **🔋 AMPLI** affiche pastille, puissance, SWR, l'éventuel défaut en rouge (« ⚠ … »), et un bouton **STANDBY**/**OPERATE** qui bascule l'état.
+
+**ACOM (500S/600S/700S/1200S/2020S) — popup séparé, doc communautaire :** ACOM n'a jamais publié son protocole série, donc ce n'est pas dans le tableau ci-dessus (protocoles constructeur vérifiés). Un module dédié existe quand même, dans son propre popup **⚡ 20. ACOM** (pas dans AMPLIFICATEUR HF), construit à partir du logiciel libre *ACOM Controller* de Björn Ekelund (SM7IUN) — code source réel et fonctionnel, utilisé en pratique par des OM sur leur propre ampli, mais une SEULE source malgré tout (voir la docstring de `logx_acom.py` pour le détail). LogX lit la télémétrie (puissance, ROS, température, bande, ventilateur, erreurs) et commande OPERATE/STANDBY/OFF (3 commandes confirmées sans ambiguïté). Aucune commande de bande/fréquence : l'ampli suit lui-même le signal d'excitation, rien à régler côté LogX. Les lignes RTS/DTR ne sont jamais pilotées par LogX (elles coupent/rallument physiquement l'ampli sur ce modèle) — utilise le bouton façade pour l'alimentation.
 
 ### 8.3 Rotor d'antenne
 
