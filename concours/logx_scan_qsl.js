@@ -37,6 +37,7 @@ function _renderEditQslScan(path){
     link.href = url;
     thumb.src = isImg ? url : '/logx_icon.svg';   // repli : pas d'aperçu pour un PDF
     thumb.title = isImg ? 'Voir le scan en grand' : 'Ouvrir le PDF';
+    thumb.alt = 'Scan de la carte QSL attachée';
     link.style.display = 'inline-block';
     empty.style.display = 'none';
   } else {

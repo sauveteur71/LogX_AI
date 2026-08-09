@@ -84,14 +84,25 @@ function toggleShortcutsHelp(){
 // en train d'éditer un QSO ou de relire le vérificateur, on ne veut surtout pas
 // qu'une touche de fonction parte en émission. Mêmes boîtes que celles que la
 // touche Échap referme, plus bas.
-function _modaleOuverte(){
+// Retourne l'élément DOM de la modale actuellement visible, ou null. Sert à la
+// fois à _modaleOuverte() (booléen) et au piège de focus Tab/Shift+Tab plus bas
+// (a besoin de l'élément lui-même pour lister ses champs focusables).
+function _elementModaleOuverte(){
   const setup = document.getElementById('setupModal');
-  if(setup && setup.style.display !== 'none' && setup.style.display !== '') return true;
-  return ['editOverlay', 'shortcutsOverlay', 'validateOverlay',
-          'awardsOverlay', 'importOverlay'].some(id => {
+  if(setup && setup.style.display !== 'none' && setup.style.display !== '') return setup;
+  const ids = ['editOverlay', 'shortcutsOverlay', 'validateOverlay',
+               'awardsOverlay', 'importOverlay', 'checklistOverlay',
+               'qtcOverlay', 'filterOverlay', 'dupOverlay', 'netOverlay',
+               'rateOverlay'];
+  for(const id of ids){
     const el = document.getElementById(id);
-    return el && el.classList.contains('show');
-  });
+    if(el && el.classList.contains('show')) return el;
+  }
+  return null;
+}
+
+function _modaleOuverte(){
+  return !!_elementModaleOuverte();
 }
 
 document.addEventListener('keydown', e => {
@@ -169,7 +180,42 @@ document.addEventListener('keydown', e => {
     if(awOverlay) awOverlay.classList.remove('show');
     const impOverlay = document.getElementById('importOverlay');
     if(impOverlay) impOverlay.classList.remove('show');
+    // Constats audit accessibilité 09/08/2026 : ces 6 panneaux n'avaient aucun
+    // moyen de fermeture au clavier (ni Échap, ni bouton focusable) -- on
+    // appelle leur fonction de fermeture dédiée quand elle existe (nettoyage
+    // associé : resetQTCFields, destruction du graphique du panneau taux...),
+    // sinon un simple classList.remove('show') (checklistOverlay).
+    if(document.getElementById('checklistOverlay')?.classList.contains('show')){
+      document.getElementById('checklistOverlay').classList.remove('show');
+    }
+    if(document.getElementById('qtcOverlay')?.classList.contains('show') && typeof closeQTCPanel === 'function') closeQTCPanel();
+    if(document.getElementById('filterOverlay')?.classList.contains('show') && typeof closeFilterBuilder === 'function') closeFilterBuilder();
+    if(document.getElementById('dupOverlay')?.classList.contains('show') && typeof closeDupFinder === 'function') closeDupFinder();
+    if(document.getElementById('netOverlay')?.classList.contains('show') && typeof closeNetControl === 'function') closeNetControl();
+    if(document.getElementById('rateOverlay')?.classList.contains('show') && typeof closeRatePanel === 'function') closeRatePanel();
     return;
+  }
+  // Tab / Shift+Tab : piège de focus générique dans la modale ouverte (audit
+  // accessibilité 09/08/2026 -- sans ça, tabuler depuis le dernier champ d'une
+  // modale ressort vers le contenu masqué derrière l'overlay). S'applique à
+  // TOUTE modale connue de _elementModaleOuverte(), pas seulement aux 6 ci-dessus.
+  if(e.key === 'Tab'){
+    const modal = _elementModaleOuverte();
+    if(modal){
+      const focusables = Array.from(modal.querySelectorAll(
+        'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+      )).filter(el => el.offsetParent !== null);
+      if(focusables.length){
+        const first = focusables[0], last = focusables[focusables.length - 1];
+        if(e.shiftKey && document.activeElement === first){
+          e.preventDefault();
+          last.focus();
+        } else if(!e.shiftKey && document.activeElement === last){
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
   }
   // ? : afficher/masquer l'aide des raccourcis (sauf pendant une saisie)
   if(e.key === '?' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)){
@@ -177,8 +223,12 @@ document.addEventListener('keydown', e => {
     toggleShortcutsHelp();
     return;
   }
-  // Ctrl+Z : annuler le dernier QSO
-  if((e.ctrlKey || e.metaKey) && e.key === 'z'){
+  // Ctrl+Z : annuler le dernier QSO -- exclu des champs de saisie (même
+  // filet que le raccourci '?' ci-dessus) : sans ça, un Ctrl+Z tapé dans un
+  // champ (RST, remarques...) en attendant l'undo natif du navigateur
+  // déclenchait à la place la suppression confirm() du dernier QSO, en
+  // pleine frappe de correction (audit accessibilité 09/08/2026).
+  if((e.ctrlKey || e.metaKey) && e.key === 'z' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)){
     e.preventDefault();
     undoLastQSO();
     return;
@@ -201,3 +251,37 @@ document.addEventListener('keydown', e => {
     }
   }
 });
+
+// Focus automatique à l'ouverture de toute modale connue de
+// _elementModaleOuverte() (sauf editOverlay, qui gère déjà son propre focus
+// dans editQSO() -- voir logx_edit_qso.js) : sans focus initial posé DANS la
+// modale, le piège Tab/Shift+Tab ci-dessus ne peut jamais s'activer, car
+// document.activeElement reste hors de la liste `focusables` calculée par le
+// piège (aucune des fonctions openXxx()/showXxx() existantes ne pose de
+// focus). Constat MAJEUR confirmé en navigateur réel par la revue
+// adversariale du 09/08/2026 -- corrigé une fois ici plutôt que de patcher
+// individuellement 10 fonctions d'ouverture réparties sur 8 fichiers.
+(function(){
+  const watchedIds = ['shortcutsOverlay', 'validateOverlay', 'awardsOverlay',
+                       'importOverlay', 'checklistOverlay', 'qtcOverlay',
+                       'filterOverlay', 'dupOverlay', 'netOverlay', 'rateOverlay'];
+  function focusFirstIn(el){
+    const f = el.querySelector(
+      'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+    );
+    if(f) f.focus();
+  }
+  function attachObserver(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    const mo = new MutationObserver(muts => {
+      for(const m of muts){
+        if(m.attributeName === 'class' && el.classList.contains('show')) focusFirstIn(el);
+      }
+    });
+    mo.observe(el, {attributes: true, attributeFilter: ['class']});
+  }
+  function attachAll(){ watchedIds.forEach(attachObserver); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attachAll);
+  else attachAll();
+})();

@@ -220,9 +220,14 @@ function renderAiFindings(findings, truncated){
 // Corriger un QSO signalé par le VÉRIFIER : ferme la fenêtre de vérification
 // et ouvre l'édition du QSO (l'utilisateur peut ensuite RE-VÉRIFIER).
 function fixFromValidation(id){
+  // Capturer le déclencheur AVANT de masquer validateOverlay : le retrait de
+  // display:flex sur son ancêtre blur() document.activeElement vers <body>
+  // de façon synchrone -- editQSO() le recevrait déjà perdu sinon (revue
+  // adversariale 09/08/2026, focus-restore de closeEdit() sinon un no-op).
+  const trigger = document.activeElement;
   const ov = document.getElementById('validateOverlay');
   if(ov) ov.classList.remove('show');
-  editQSO(id);
+  editQSO(id, trigger);
 }
 
 // Supprimer directement un QSO signalé, puis rafraîchir la liste des problèmes.

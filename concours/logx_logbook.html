@@ -22,7 +22,7 @@
    pour le raisonnement complet (accent unique, --accent-rgb, groupColors
    inchangé). */
 :root {
-  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#464950;
   --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;
   --green:#00FF88;--red:#FF2D55;
   --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
@@ -31,10 +31,10 @@
 }
 /* ─── MODE JOUR ─────────────────────────────────────────────────────────── */
 body.day-mode {
-  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#B8B096;
   --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;
   --green:#007030;--red:#CC0030;
-  --yellow:#7A5A00;--purple:#8040B0;--text:#232320;--muted:#716C5E;
+  --yellow:#7A5A00;--purple:#8040B0;--text:#232320;--muted:#665F55;
 }
 body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 body.day-mode .log-table tbody tr:nth-child(even){background:rgba(0,0,0,.04)}
@@ -243,6 +243,8 @@ body.sans-concours .compass-pts{display:none}
 
 .field-group{display:flex;flex-direction:column;gap:3px}
 .field-label{font-size:14px;color:#9AA4D8;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
+/* Visuellement masqué mais lu par les lecteurs d'écran -- audit accessibilité 09/08/2026 */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .field-input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:22px;padding:7px 14px;outline:none;transition:border-color .2s;width:100%;text-transform:uppercase;letter-spacing:2px;font-weight:700}
 .field-input:focus{border-color:var(--accent2);box-shadow:0 0 10px rgba(var(--accent-rgb),.15)}
 .field-input.error{border-color:var(--red)}
@@ -451,13 +453,13 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .edit-overlay.show{display:flex}
 .edit-box{background:var(--bg2);border:2px solid var(--accent2);border-radius:14px;padding:24px;width:520px;box-shadow:0 0 40px rgba(var(--accent-rgb),.2)}
 .edit-title{font-family:var(--font-display);font-size:17px;font-weight:900;color:var(--accent2);letter-spacing:.2px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
-.edit-close{cursor:pointer;color:#4A5080;font-size:20px;transition:color .15s}
+.edit-close{cursor:pointer;color:#4A5080;font-size:20px;transition:color .15s;background:none;border:none;padding:0;font-family:inherit;line-height:1}
 .edit-close:hover{color:#FF2D55}
 .shortcuts-overlay{position:fixed;inset:0;background:rgba(7,8,15,.92);display:none;align-items:center;justify-content:center;z-index:500}
 .shortcuts-overlay.show{display:flex}
 .shortcuts-box{background:var(--bg2);border:2px solid var(--accent2);border-radius:14px;padding:24px;width:480px;max-width:90vw;box-shadow:0 0 40px rgba(var(--accent-rgb),.2)}
 .shortcuts-title{font-family:var(--font-mono);font-size:14px;color:var(--accent2);letter-spacing:2px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
-.shortcuts-close{cursor:pointer;color:#4A5080;font-size:20px;transition:color .15s}
+.shortcuts-close{cursor:pointer;color:#4A5080;font-size:20px;transition:color .15s;background:none;border:none;padding:0;font-family:inherit;line-height:1}
 .shortcuts-close:hover{color:var(--red)}
 .shortcuts-list{display:flex;flex-direction:column;gap:10px}
 .shortcuts-row{display:flex;align-items:center;gap:14px;font-size:14px;color:var(--text)}
@@ -607,12 +609,13 @@ body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,1
 /* ── Sélecteur concours avec recherche ── */
 .cs-wrap{position:relative;margin-bottom:10px}
 .cs-trigger{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 36px 10px 13px;cursor:pointer;text-align:left;outline:none;transition:border-color .2s;display:flex;align-items:center;justify-content:space-between;box-sizing:border-box}
-.cs-trigger:hover,.cs-trigger.open{border-color:var(--accent2)}
+.cs-trigger:hover,.cs-trigger.open,.cs-trigger:focus-visible{border-color:var(--accent2)}
 .cs-arrow{color:var(--muted);transition:transform .2s;font-size:13px;flex-shrink:0;margin-left:6px}
 .cs-trigger.open .cs-arrow{transform:rotate(180deg)}
 .cs-panel{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg2);border:1px solid var(--accent2);border-radius:9px;z-index:2000;box-shadow:0 8px 32px rgba(0,0,0,.7);overflow:hidden;display:none}
 .cs-panel.open{display:block}
 .cs-search{width:100%;background:var(--bg3);border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 13px;outline:none;box-sizing:border-box}
+.cs-search:focus-visible{border-bottom-color:var(--accent2)}
 .cs-search::placeholder{color:var(--muted)}
 .cs-list{max-height:260px;overflow-y:auto}
 .cs-group{font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:2px;padding:7px 13px 3px;background:rgba(0,0,0,.3);border-top:1px solid var(--border)}
@@ -633,7 +636,7 @@ body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,1
 .rate-box{background:var(--bg2);border:1px solid var(--accent2);border-radius:14px;padding:22px 26px;width:880px;max-width:95vw;box-shadow:0 0 60px rgba(var(--accent-rgb),.15)}
 .rate-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .rate-title{font-family:var(--font-mono);font-size:14px;color:var(--accent2);letter-spacing:3px;font-weight:700}
-.rate-close{cursor:pointer;color:var(--muted);font-size:20px;transition:color .15s}
+.rate-close{cursor:pointer;color:var(--muted);font-size:20px;transition:color .15s;background:none;border:none;padding:0;font-family:inherit;line-height:1}
 .rate-close:hover{color:var(--red)}
 .rate-tabs{display:flex;gap:8px;margin-bottom:14px}
 .rate-tab{font-family:var(--font-mono);font-size:13px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px}
@@ -754,7 +757,7 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
    visible uniquement sous 700px de large. */
 #mobileBanner{display:none;background:linear-gradient(90deg,rgba(var(--accent-rgb),.15),rgba(0,255,136,.15));border-bottom:1px solid var(--accent2);padding:10px 14px;font-family:var(--font-mono);font-size:14px;align-items:center;gap:10px}
 #mobileBanner a{color:var(--accent2);font-weight:700}
-#mobileBanner .mb-close{margin-left:auto;cursor:pointer;color:var(--muted);padding:4px 8px}
+#mobileBanner .mb-close{margin-left:auto;cursor:pointer;color:var(--muted);padding:4px 8px;background:none;border:none;font-family:inherit;line-height:1}
 @media (max-width:700px){ #mobileBanner:not(.dismissed){display:flex} }
 .app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
 /* Filet de sécurité : tout <svg> icône qui échapperait à la liste de
@@ -776,6 +779,12 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 .net-version-warn svg,#netUpdatePathBtn svg,.sb-lbl svg,.macro-panel-title svg,
 #qsoRecPanel svg,.bandmap-head svg,.cw-header svg,.cw-btn svg,.rate-tab svg,
 #activationBar svg,#contestTimingBox svg{width:13px;height:13px;flex-shrink:0;vertical-align:-2px}
+
+/* Focus clavier visible générique -- audit accessibilité 09/08/2026 : seuls
+   les champs de saisie avaient un style :focus soigné, les boutons/liens
+   retombaient sur l'anneau par défaut du navigateur (incohérent avec le
+   thème graphite&cuivre). Purement additif, ne retire aucun style existant. */
+button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -783,7 +792,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 <!-- Bannière petit écran : proposer la saisie mobile dédiée (cf. CSS #mobileBanner) -->
 <div id="mobileBanner">
   <span><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1.5" width="8" height="15" rx="1.5"/><line x1="8" y1="14" x2="10" y2="14"/></svg></span> Sur téléphone ? <a href="/logx_mobile.html">Version mobile de saisie →</a></span>
-  <span class="mb-close" title="Fermer" onclick="this.parentElement.classList.add('dismissed');localStorage.setItem('logx_mobile_banner_off','1')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+  <button type="button" class="mb-close" title="Fermer" onclick="this.parentElement.classList.add('dismissed');localStorage.setItem('logx_mobile_banner_off','1')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
 </div>
 <script>
   if(localStorage.getItem('logx_mobile_banner_off') === '1'){
@@ -796,7 +805,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="edit-box">
     <div class="edit-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l4 4L6 16l-4.5 1L2.5 12.5z"/><line x1="9.5" y1="4.5" x2="13.5" y2="8.5"/></svg> CORRIGER LE QSO</span>
-      <span class="edit-close" title="Fermer" onclick="closeEdit()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="edit-close" title="Fermer" onclick="closeEdit()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <input type="hidden" id="editId">
     <div class="edit-grid">
@@ -952,7 +961,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> CHECKLIST AVANT CONCOURS</span>
-      <span class="shortcuts-close" title="Fermer" onclick="toggleChecklist()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="toggleChecklist()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="shortcuts-list" id="checklistInner"></div>
     <div style="margin-top:16px;text-align:center">
@@ -966,7 +975,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box" style="width:860px;max-width:92vw">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="11.5" r="4.5"/><path d="M6.5 7.5L4 1.5M11.5 7.5L14 1.5"/><circle cx="9" cy="11.5" r="1.6" fill="currentColor" stroke="none"/></svg> DIPLÔMES & QSL</span>
-      <span class="shortcuts-close" title="Fermer" onclick="document.getElementById('awardsOverlay').classList.remove('show')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="document.getElementById('awardsOverlay').classList.remove('show')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div id="awardsInner" style="max-height:78vh;overflow-y:auto"></div>
   </div>
@@ -977,7 +986,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box" style="width:640px;max-width:94vw">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1.5"/><polyline points="2.5,5 9,10.5 15.5,5"/></svg> QTC (WAE)</span>
-      <span class="shortcuts-close" title="Fermer" onclick="closeQTCPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="closeQTCPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
       Une série QTC copie de 1 à 10 QSO déjà passés vers/depuis une autre station EU↔DX (règlement WAE : heure, indicatif et n° de chaque QSO rapporté — max 10 QTC cumulés émis+reçus avec une même station).
@@ -1030,7 +1039,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><line x1="12" y1="12" x2="16.5" y2="16.5"/></svg> VÉRIFICATION DU LOG</span>
-      <span class="shortcuts-close" title="Fermer" onclick="document.getElementById('validateOverlay').classList.remove('show')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="document.getElementById('validateOverlay').classList.remove('show')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="shortcuts-list" id="validateInner" style="max-height:55vh;overflow-y:auto"></div>
     <div style="margin-top:16px;text-align:center">
@@ -1044,7 +1053,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5a1 1 0 0 1 1-1h4l1.5 2H15a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/></svg> IMPORT ADIF</span>
-      <span class="shortcuts-close" title="Fermer" onclick="closeImportOverlay()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="closeImportOverlay()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="shortcuts-list" id="importInner" style="max-height:55vh;overflow-y:auto"></div>
     <div style="margin-top:16px;text-align:center;display:flex;gap:10px;justify-content:center">
@@ -1060,7 +1069,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box flt-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,3 16,3 11,9.5 11,14 7,16 7,9.5"/></svg> FILTRE AVANCÉ</span>
-      <span class="shortcuts-close" title="Fermer" onclick="closeFilterBuilder()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="closeFilterBuilder()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="flt-groups" id="fltGroups"></div>
     <button class="flt-add-group" onclick="fltAddGroup()">+ GROUPE (OU)</button>
@@ -1086,7 +1095,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box dup-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="10" height="10" rx="1.5"/><path d="M6 12v2.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5V8A1.5 1.5 0 0 0 14 6.5h-2"/></svg> RECHERCHE DE DOUBLONS</span>
-      <span class="shortcuts-close" title="Fermer" onclick="closeDupFinder()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="closeDupFinder()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="dup-opts">
       <span>Même indicatif + bande + mode, et :</span>
@@ -1106,7 +1115,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M9 5.5v4l2.5 1.5"/></svg> RE-RÉSOLUTION EN MASSE</span>
-      <span class="shortcuts-close" title="Fermer" onclick="closeBulkResolve()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="closeBulkResolve()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="brs-opt">
       <span style="color:var(--muted);font-size:12px">Recherche le locator/état (callbook QRZ→HamQTH→HamDB) des QSO ciblés.</span>
@@ -1128,7 +1137,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box net-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="4" r="2"/><circle cx="3.5" cy="14" r="2"/><circle cx="14.5" cy="14" r="2"/><path d="M9 6v3M9 9L4.5 12.3M9 9l4.5 3.3"/></svg> CONTRÔLE DE NET</span>
-      <span class="shortcuts-close" title="Fermer" onclick="closeNetControl()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="closeNetControl()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="net-add-row">
       <input type="text" id="netAddCall" placeholder="INDICATIF" style="text-transform:uppercase">
@@ -1155,7 +1164,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="shortcuts-box">
     <div class="shortcuts-title">
       <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="4.5" width="15" height="9" rx="1.5"/><circle cx="4.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="7.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="10.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><circle cx="13.5" cy="8" r="0.6" fill="currentColor" stroke="none"/><line x1="4.5" y1="11.5" x2="13.5" y2="11.5"/></svg> RACCOURCIS CLAVIER</span>
-      <span class="shortcuts-close" title="Fermer" onclick="toggleShortcutsHelp()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="toggleShortcutsHelp()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="shortcuts-list">
       <div class="shortcuts-row"><span class="shortcuts-key">Entrée</span><span>Valider le QSO — depuis n'importe quel champ de saisie</span></div>
@@ -1259,7 +1268,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 
 <!-- MACRO TOAST -->
-<div class="macro-toast" id="macroToast"></div>
+<div class="macro-toast" id="macroToast" role="alert" aria-live="assertive"></div>
 
 <!-- RAPPEL ON4KST -->
 <div class="on4kst-reminder" id="on4kstReminder">
@@ -1299,7 +1308,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            MODE plus bas, pour gagner la place d'une ligne entière. -->
       <div class="field-row">
         <div class="field-group" style="position:relative">
-          <div class="field-label">OPÉRATEUR</div>
+          <label class="field-label" for="opCurrentBtn">OPÉRATEUR</label>
           <button type="button" class="op-current-btn" id="opCurrentBtn" onclick="toggleOpPicker()">
             <span id="opCurrentLabel">OP1</span>
             <span class="op-current-arrow">▼</span>
@@ -1310,7 +1319,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <!-- Bande : un bouton (bande courante) + popup pour en choisir une autre,
              plutôt qu'une rangée de boutons (illisible au-delà de 3-4 bandes). -->
         <div class="field-group" style="position:relative">
-          <div class="field-label">BANDE</div>
+          <label class="field-label" for="bandCurrentBtn">BANDE</label>
           <button type="button" class="band-current-btn" id="bandCurrentBtn" onclick="toggleBandPicker()">
             <span id="bandCurrentLabel">2m</span>
             <span class="band-current-arrow">▼</span>
@@ -1337,7 +1346,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
       <!-- Fréquence exacte (MHz) — saisie ou lue de la radio (CAT) -->
       <div class="field-group">
-        <div class="field-label">FRÉQUENCE <span style="color:var(--muted);font-weight:400">(MHz)</span></div>
+        <label class="field-label" for="inputFreq">FRÉQUENCE <span style="color:var(--muted);font-weight:400">(MHz)</span></label>
         <div class="field-wrap" style="display:flex;gap:6px;align-items:center">
           <input type="text" class="field-input" id="inputFreq" inputmode="decimal"
             placeholder="144.300" autocomplete="off" style="flex:1"
@@ -1352,7 +1361,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       <!-- Mode : un bouton (mode courant) + popup pour en choisir un autre,
            même schéma que le sélecteur de BANDE ci-dessus. -->
       <div class="field-group" style="position:relative">
-        <div class="field-label">MODE</div>
+        <label class="field-label" for="modeCurrentBtn">MODE</label>
         <button type="button" class="mode-current-btn" id="modeCurrentBtn" onclick="toggleModePicker()">
           <span id="modeCurrentLabel">SSB</span>
           <span class="mode-current-arrow">▼</span>
@@ -1362,15 +1371,15 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
       <!-- Indicatif -->
       <div class="field-group">
-        <div class="field-label">INDICATIF CORRESPONDANT</div>
+        <label class="field-label" for="inputCall">INDICATIF CORRESPONDANT</label>
         <div class="field-wrap">
-          <input type="text" class="field-input" id="inputCall"
+          <input type="text" class="field-input" id="inputCall" aria-required="true"
             oninput="onCallInput()" onkeydown="onCallKeydown(event)"
             onblur="setTimeout(hideAC,200)"
             autocomplete="off" autocapitalize="characters">
           <div class="autocomplete-box" id="acBox" style="display:none"></div>
         </div>
-        <div class="dup-warning" id="dupWarn">⚠️ DOUBLON — Ce correspondant est déjà dans le log !</div>
+        <div class="dup-warning" id="dupWarn" role="alert">⚠️ DOUBLON — Ce correspondant est déjà dans le log !</div>
         <!-- Filet anti-busted call : rempli APRÈS l'enregistrement d'un QSO,
              jamais pendant la frappe. Masqué au repos (display:none), il ne
              prend aucune place et ne décale jamais le formulaire. -->
@@ -1391,7 +1400,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
       <!-- Réf. correspondant (Park-to-Park / Summit-to-Summit) -->
       <div class="field-group" id="theirRefGroup" style="display:none">
-        <div class="field-label">RÉF. CORRESPONDANT <span style="color:var(--accent2)">(P2P / S2S)</span></div>
+        <label class="field-label" for="inputTheirRef">RÉF. CORRESPONDANT <span style="color:var(--accent2)">(P2P / S2S)</span></label>
         <input type="text" class="field-input" id="inputTheirRef" placeholder="si le correspondant active aussi (ex: DL-0042)"
           autocomplete="off" autocapitalize="characters" style="text-transform:uppercase"
           onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
@@ -1400,12 +1409,12 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       <!-- RST -->
       <div class="field-row">
         <div class="field-group">
-          <div class="field-label">RST ENVOYÉ</div>
+          <label class="field-label" for="inputRSTsent">RST ENVOYÉ</label>
           <input type="text" class="rs-field" id="inputRSTsent" value="59" maxlength="3" inputmode="numeric"
             onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
         </div>
         <div class="field-group">
-          <div class="field-label">RST REÇU</div>
+          <label class="field-label" for="inputRSTrcvd">RST REÇU</label>
           <input type="text" class="rs-field" id="inputRSTrcvd" value="59" maxlength="3" inputmode="numeric"
             onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
         </div>
@@ -1414,13 +1423,13 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       <!-- Numéros -->
       <div class="field-row" id="numFieldRow">
         <div class="field-group">
-          <div class="field-label">N° ENVOYÉ</div>
+          <label class="field-label" for="inputNumSent">N° ENVOYÉ</label>
           <input type="text" class="field-input" id="inputNumSent" placeholder="001" maxlength="4" inputmode="numeric"
             style="font-size:26px;font-weight:700;color:var(--accent);text-align:center"
             onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}">
         </div>
         <div class="field-group">
-          <div class="field-label">N° REÇU</div>
+          <label class="field-label" for="inputNumRcvd">N° REÇU</label>
           <input type="text" class="field-input" id="inputNumRcvd" maxlength="4" inputmode="numeric"
             style="font-size:26px;font-weight:700;color:var(--text);text-align:center"
             onkeydown="if(event.key==='Enter'){event.preventDefault();submitQSO();}"
@@ -1434,7 +1443,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
       <!-- Locator -->
       <div class="field-group" id="locatorGroup">
-        <div class="field-label">LOCATOR CORRESPONDANT</div>
+        <label class="field-label" for="inputLocator">LOCATOR CORRESPONDANT</label>
         <div style="position:relative">
           <input type="text" class="field-input" id="inputLocator" maxlength="6"
             oninput="onLocatorInput()" onkeydown="onLocatorKeydown(event)"
@@ -1503,7 +1512,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
       <!-- SOAPBOX PAR BANDE -->
       <div class="soapbox-panel" id="soapboxPanel">
-        <div class="soapbox-title collapsed" id="soapboxToggle" onclick="toggleSoapbox()">REMARQUES EDI (soapbox)</div>
+        <div class="soapbox-title collapsed" id="soapboxToggle" onclick="toggleSoapbox()" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">REMARQUES EDI (soapbox)</div>
         <div class="soapbox-fields hidden" id="soapboxFields">
           <div class="soapbox-row"><div class="soapbox-lbl">144 MHz</div><textarea class="soapbox-input" id="soap_144" rows="2" placeholder="Antenne, conditions, remarques 144 MHz…" oninput="saveSoapbox()"></textarea></div>
           <div class="soapbox-row"><div class="soapbox-lbl">432 MHz</div><textarea class="soapbox-input" id="soap_432" rows="2" placeholder="Antenne, conditions, remarques 432 MHz…" oninput="saveSoapbox()"></textarea></div>
@@ -1634,7 +1643,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            scroll interne propre à lastQsoList si un jour la liste s'agrandit,
            sans jamais affecter le reste de la colonne. -->
       <div class="last-qso">
-        <div class="last-qso-title collapsed" id="lastQsoToggle" onclick="toggleLastQso()">DERNIERS QSO SAISIS</div>
+        <div class="last-qso-title collapsed" id="lastQsoToggle" onclick="toggleLastQso()" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">DERNIERS QSO SAISIS</div>
         <div id="lastQsoList" class="hidden"></div>
       </div>
 
@@ -1786,7 +1795,8 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
             <th>DIST/CAP</th>
             <th class="th-pts">PTS</th>
             <th>OP</th>
-            <th></th>
+            <th><span class="sr-only">Corriger</span></th>
+            <th><span class="sr-only">Supprimer</span></th>
           </tr>
         </thead>
         <tbody id="logBody"></tbody>
@@ -1827,7 +1837,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <!-- DÉCODEUR CW — visible uniquement en mode CW (updateKeyerPanels) : un
        panneau décodeur permanent dans les autres modes est du bruit à l'écran. -->
   <div class="cw-panel" id="cwPanel" style="display:none">
-    <div class="cw-header" onclick="toggleCwPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="2.5" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="9" x2="9" y2="9"/><circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="14.5" y1="9" x2="16.5" y2="9"/></svg> DÉCODEUR CW <span class="cw-wpm" id="cwWpmLabel"></span><span class="cw-header-toggle">▲</span></div>
+    <div class="cw-header" onclick="toggleCwPanel()" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="2.5" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="9" x2="9" y2="9"/><circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="14.5" y1="9" x2="16.5" y2="9"/></svg> DÉCODEUR CW <span class="cw-wpm" id="cwWpmLabel"></span><span class="cw-header-toggle">▲</span></div>
     <div class="cw-body" id="cwBody">
       <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC) et affiche le CW décodé. Fiable sur signal propre et pas trop rapide — pas un substitut à l'oreille en QRM/pileup serré.</div>
       <div class="cw-controls">
@@ -1853,7 +1863,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
        écouter les deux à la fois. Visible seulement si une radio 2 est
        déclarée (updateKeyerPanels, cat2_enabled). -->
   <div class="cw-panel expert-only" id="cwPanel2" style="display:none">
-    <div class="cw-header" onclick="toggleCwPanel2()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="2.5" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="9" x2="9" y2="9"/><circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="14.5" y1="9" x2="16.5" y2="9"/></svg> DÉCODEUR CW — RADIO 2 <span class="cw-wpm" id="cwWpmLabel2"></span><span class="cw-header-toggle">▲</span></div>
+    <div class="cw-header" onclick="toggleCwPanel2()" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="2.5" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="9" x2="9" y2="9"/><circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"/><line x1="14.5" y1="9" x2="16.5" y2="9"/></svg> DÉCODEUR CW — RADIO 2 <span class="cw-wpm" id="cwWpmLabel2"></span><span class="cw-header-toggle">▲</span></div>
     <div class="cw-body" id="cwBody2">
       <div class="cw-note">Deuxième entrée audio (radio 2), indépendante de la première — tourne en même temps si besoin d'écouter les deux radios simultanément.</div>
       <div class="cw-controls">
@@ -1925,7 +1935,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
   <div class="rate-box">
     <div class="rate-hdr">
       <span class="rate-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="15" x2="15" y2="15"/><line x1="5" y1="15" x2="5" y2="10"/><line x1="9" y1="15" x2="9" y2="6"/><line x1="13" y1="15" x2="13" y2="12"/></svg> STATISTIQUES DU CONCOURS</span>
-      <span class="rate-close" title="Fermer" onclick="closeRatePanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
+      <button type="button" class="rate-close" title="Fermer" onclick="closeRatePanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
     </div>
     <div class="rate-tabs">
       <button class="rate-tab active" onclick="switchRateTab('rate',this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,13 7,8 10,11 16,4"/><polyline points="11,4 16,4 16,9"/></svg> TAUX QSO/HEURE</button>
@@ -1954,7 +1964,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
      majeurs. Jusqu'ici il fallait ouvrir N1MM à côté : le RTTY n'existait
      que comme étiquette de mode dans le log. -->
 <div class="cw-decoder" id="rttyDecoder" style="display:none">
-  <div class="cw-header" onclick="toggleRttyPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="13" height="8" rx="1.2"/><path d="M4.5 6.5V3a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v3.5"/><line x1="5.5" y1="10" x2="12.5" y2="10"/><line x1="5.5" y1="12.5" x2="10" y2="12.5"/></svg> DÉCODEUR RTTY <span class="cw-wpm" id="rttyStatus"></span><span class="cw-header-toggle">▲</span></div>
+  <div class="cw-header" onclick="toggleRttyPanel()" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="13" height="8" rx="1.2"/><path d="M4.5 6.5V3a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v3.5"/><line x1="5.5" y1="10" x2="12.5" y2="10"/><line x1="5.5" y1="12.5" x2="10" y2="12.5"/></svg> DÉCODEUR RTTY <span class="cw-wpm" id="rttyStatus"></span><span class="cw-header-toggle">▲</span></div>
   <div class="cw-body" id="rttyBody">
     <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC). <b>Clique un indicatif décodé pour le mettre dans la saisie</b> — c'est ce qui fait la vitesse en RTTY. Décale-toi de moins de 50 Hz du signal : au-delà, le décodage se dégrade.</div>
     <div class="cw-controls">
@@ -1996,7 +2006,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
      mode SSTV (case à cocher dans CONFIG > MODES, puis sélecteur de mode du
      logbook — updateKeyerPanels). -->
 <div class="cw-panel" id="sstvPanel" style="display:none">
-  <div class="cw-header" onclick="toggleSstvPanel()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="14" height="12" rx="1.3"/><circle cx="6" cy="7" r="1.3" fill="currentColor" stroke="none"/><path d="M2 12.5l4-4 3.5 3.5 2.5-2.5 4 4"/></svg> DÉCODEUR SSTV <span class="cw-wpm" id="sstvStatus"></span><span class="cw-header-toggle">▲</span></div>
+  <div class="cw-header" onclick="toggleSstvPanel()" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="14" height="12" rx="1.3"/><circle cx="6" cy="7" r="1.3" fill="currentColor" stroke="none"/><path d="M2 12.5l4-4 3.5 3.5 2.5-2.5 4 4"/></svg> DÉCODEUR SSTV <span class="cw-wpm" id="sstvStatus"></span><span class="cw-header-toggle">▲</span></div>
   <div class="cw-body" id="sstvBody">
     <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC). Détection automatique du mode par code VIS : Martin M1/M2, Scottie S1/S2/DX, Robot 36/72, PD50 à PD290 (ISS : PD120). L'image apparaît ligne par ligne pendant la réception.</div>
     <div class="cw-controls">
@@ -2035,7 +2045,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
 <!-- CHAT MULTI-OPÉRATEUR -->
 <div class="chat-panel" id="chatPanel">
-  <div class="chat-toggle" onclick="toggleChat()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h13v8h-8l-3 3v-3h-2z"/></svg> CHAT MULTI-OP <span id="chatUnread" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:12px;margin-left:6px">0</span></div>
+  <div class="chat-toggle" onclick="toggleChat()" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h13v8h-8l-3 3v-3h-2z"/></svg> CHAT MULTI-OP <span id="chatUnread" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:12px;margin-left:6px">0</span></div>
   <!-- Vue PARTNER : saisie en direct des autres opérateurs (lecture seule).
        display:none par défaut, basculé par JS (renderPartnerTyping) — visible
        même panneau replié, dès qu'un autre poste tape un indicatif. -->
