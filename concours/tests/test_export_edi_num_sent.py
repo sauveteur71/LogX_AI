@@ -40,6 +40,9 @@ ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 # EV-7 20e incrément : appel TOP-LEVEL voiceRefreshSlots() dans
 # logx_logbook.js -- même piège que renderVoiceDynPanel() (19e incrément).
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
+# EV-7 25e incrément : exportEDI() (testée dans ce fichier) a été extraite
+# vers ce fichier -- doit être chargé AVANT logx_logbook.js, même convention.
+EXPORT_EDI_JS_PATH = os.path.join(BASE, 'logx_export_edi.js')
 sys.path.insert(0, BASE)
 
 import logx_storage as storage   # noqa: E402  (après sys.path)
@@ -145,6 +148,8 @@ def _real_source(rev=None):
         with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
             src = f.read()
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(EXPORT_EDI_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()
@@ -329,4 +334,6 @@ def test_gabarit_reg1test_15_champs_mode_en_champ_4():
 def test_pas_de_qso_director():
     """Interdiction absolue (nom d'un concurrent) — jamais dans le code."""
     with open(JS_PATH, encoding='utf-8') as f:
+        assert 'QSO Director' not in f.read()
+    with open(EXPORT_EDI_JS_PATH, encoding='utf-8') as f:
         assert 'QSO Director' not in f.read()
