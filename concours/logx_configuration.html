@@ -16,7 +16,7 @@
    sont des données de catégorisation indépendantes du thème, pas l'accent
    visuel — elles gardent sciemment leurs anciennes teintes cyan/orange-red. */
 :root {
-  --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#34363A;
+  --bg:#17181A; --bg2:#1D1F22; --bg3:#25272B; --border:#464950;
   --accent:#E8964A; --accent2:#E8964A; --accent-rgb:232,150,74;
   --green:#00FF88; --red:#FF2D55;
   --yellow:#FFD60A; --purple:#BF5AF2; --text:#E9ECF5; --muted:#A9B0C8;
@@ -25,10 +25,10 @@
 }
 /* ─── MODE JOUR ─────────────────────────────────────────────────────────── */
 body.day-mode {
-  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#D6D0BE;
+  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#B8B096;
   --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31;
   --green:#007030; --red:#CC0030;
-  --yellow:#7A5A00; --purple:#8040B0; --text:#232320; --muted:#716C5E;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#232320; --muted:#665F55;
 }
 body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 body.day-mode .card{background:var(--bg2);border-color:var(--border)}
@@ -148,7 +148,8 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .onb-choice.selected{border-color:var(--accent2);background:rgba(var(--accent-rgb),.1)}
 .onb-choice-label{font-size:13px;font-weight:700}
 .onb-choice-sub{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4}
-.onb-footer{display:flex;align-items:center;gap:14px;padding:18px 24px 22px}
+.onb-footer{display:flex;align-items:center;gap:14px;padding:18px 24px 22px;flex-wrap:wrap}
+.onb-hint{width:100%;order:1;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 .onb-skip{margin-left:auto;background:transparent;border:none;color:var(--muted);font-family:var(--font-mono);
   font-size:12px;cursor:pointer;text-decoration:underline}
 .onb-skip:hover{color:var(--text)}
@@ -243,6 +244,10 @@ body.usage-simple .usage-contest-only{display:none}
    explicitement plus sourde (var(--muted)) que le texte réellement saisi,
    dans les deux thèmes. */
 .section input::placeholder{color:var(--muted);opacity:.75}
+/* Mode jour : l'opacité .75 ci-dessus, combinée au fond clair --bg2, fait
+   chuter le contraste sous le seuil AA -- gardée seulement en mode nuit où
+   la marge de contraste est large (audit accessibilité 09/08/2026). */
+body.day-mode .section input::placeholder{opacity:1}
 .section input:focus,.section select:focus{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(var(--accent-rgb),.15)}
 /* Correctif : sans l'exclusion ci-dessus, .section input visait AUSSI les
    case à cocher (type=checkbox est un <input>) — width:100% les étirait à
@@ -369,6 +374,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
    qui porte déjà width= (dimensionnement volontaire d'un agent), ni un futur
    graphique/carte fonctionnel du moment qu'il porte lui aussi width=. */
 svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
+
+/* Focus clavier visible générique -- audit accessibilité 09/08/2026 : seuls
+   les champs de saisie avaient un style :focus soigné, les boutons/liens
+   retombaient sur l'anneau par défaut du navigateur (incohérent avec le
+   thème graphite&cuivre). Purement additif, ne retire aucun style existant. */
+button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -447,7 +458,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
     <div class="cat-modal-box onb-box">
       <div class="cat-modal-head">
         <svg viewBox="0 0 18 18" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2 2 5.5 9 9l7-3.5z"/><path d="M4.5 7.5V12c0 1 2 2 4.5 2s4.5-1 4.5-2V7.5"/></svg>
-        <span class="cat-modal-title">Bienvenue sur LogX AI</span>
+        <h2 class="cat-modal-title">Bienvenue sur LogX AI</h2>
       </div>
       <div class="cat-modal-body" style="padding:18px 0">
         <div class="onb-intro">Deux questions rapides pour démarrer avec le bon réglage —
@@ -482,8 +493,9 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="onb-footer">
-        <button type="button" class="onb-start" id="onbStartBtn" disabled onclick="submitOnboarding()">Commencer</button>
+        <button type="button" class="onb-start" id="onbStartBtn" disabled aria-describedby="onbStartHint" onclick="submitOnboarding()">Commencer</button>
         <button type="button" class="onb-skip" onclick="skipOnboarding()">Passer, je choisirai moi-même</button>
+        <div class="onb-hint" id="onbStartHint">Répondez aux deux questions ci-dessus pour continuer.</div>
       </div>
     </div>
   </div>
@@ -525,14 +537,14 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
      cas 'summary' (buildSummary()), comme les autres catégories. -->
 <div class="cat-modal" id="catmodal_summary">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="14.5" x2="4" y2="9"/><line x1="9" y1="14.5" x2="9" y2="4"/><line x1="14" y1="14.5" x2="14" y2="11"/></svg> RÉSUMÉ DE LA SESSION</span></div>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="14.5" x2="4" y2="9"/><line x1="9" y1="14.5" x2="9" y2="4"/><line x1="14" y1="14.5" x2="14" y2="11"/></svg> RÉSUMÉ DE LA SESSION</h2></div>
     <div class="cat-modal-body" id="catbody_summary">
       <div class="section">
-        <div class="section-title">RÉCAPITULATIF DE LA SESSION</div>
+        <h3 class="section-title">RÉCAPITULATIF DE LA SESSION</h3>
         <div class="summary-box" id="summaryBox"></div>
       </div>
       <div class="section expert-only">
-        <div class="section-title">PROMPT SYSTÈME GÉNÉRÉ</div>
+        <h3 class="section-title">PROMPT SYSTÈME GÉNÉRÉ</h3>
         <textarea id="generatedPrompt" readonly style="width:100%;height:180px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:12px;resize:vertical;outline:none;line-height:1.6"></textarea>
         <div class="btn-row" style="margin-top:8px;justify-content:flex-start">
           <button class="btn btn-secondary" onclick="copyPrompt()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.3" width="10" height="13" rx="1.2"/><rect x="6.5" y="1.8" width="5" height="2.6" rx="0.6"/><line x1="6.3" y1="8" x2="11.7" y2="8"/><line x1="6.3" y1="11" x2="11.7" y2="11"/></svg> COPIER LE PROMPT</button>
@@ -553,7 +565,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
      étapes) est rempli au fil de la migration, catégorie par catégorie. -->
 <div class="cat-modal" id="catmodal_identity">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 15.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg> 1. IDENTITÉ DE LA STATION</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="3"/><path d="M3 15.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg> 1. IDENTITÉ DE LA STATION</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_identity">
       <div class="section">
@@ -628,7 +640,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           tu pourras les remplir avant d'envoyer ton log.</div>
       </div>
       <div class="section">
-        <div class="section-title">STATION RADIO</div>
+        <h3 class="section-title">STATION RADIO</h3>
         <div class="form-grid">
           <div class="form-group">
             <label>PUISSANCE (WATTS)</label>
@@ -681,12 +693,12 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            alimentent l'export EDI et servent de reprise automatique tant que
            ce tableau est vide. -->
       <div class="section">
-        <div class="section-title">PARC D'ANTENNES</div>
+        <h3 class="section-title">PARC D'ANTENNES</h3>
         <div id="parcStation"></div>
       </div>
 
       <div class="section">
-        <div class="section-title">ANTENNES — DESCRIPTION (export EDI)</div>
+        <h3 class="section-title">ANTENNES — DESCRIPTION (export EDI)</h3>
         <div class="form-grid">
           <div class="form-group">
             <label>HF</label>
@@ -711,11 +723,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_operators">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.3"/><circle cx="12.5" cy="5.5" r="2.3"/><path d="M2 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/><path d="M7.5 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/></svg> 2. OPÉRATEURS</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" width="15" height="15" style="vertical-align:-3px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.3"/><circle cx="12.5" cy="5.5" r="2.3"/><path d="M2 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/><path d="M7.5 15.5c0-2.8 2-4.7 4.5-4.7s4.5 1.9 4.5 4.7"/></svg> 2. OPÉRATEURS</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9L15 5.5V15.5H3z"/><rect x="5.5" y="2.5" width="5" height="4"/><rect x="5" y="10" width="8" height="5.5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_operators">
       <div class="section" id="opSection">
-        <div class="section-title" id="opSectionTitle">OPÉRATEURS</div>
+        <h3 class="section-title" id="opSectionTitle">OPÉRATEURS</h3>
         <div id="opSectionNote" style="font-family:var(--font-mono);font-size:14px;color:var(--muted);margin-bottom:16px;letter-spacing:1px">
           Leurs indicatifs apparaîtront sur les boutons OP dans le logbook
         </div>
@@ -759,7 +771,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            être au poste et quand. Outil informatif seulement (aucun verrou
            opérationnel), voir GET/POST /shifts/* dans logx_http.py. -->
       <div class="section" id="shiftsSection" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border)">
-        <div class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.3"/><line x1="9" y1="9" x2="9" y2="5.3"/><line x1="9" y1="9" x2="11.6" y2="10.4"/></svg> PLANNING (roulement des opérateurs)</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.3"/><line x1="9" y1="9" x2="9" y2="5.3"/><line x1="9" y1="9" x2="11.6" y2="10.4"/></svg> PLANNING (roulement des opérateurs)</h3>
         <div class="input-note" style="margin-bottom:12px">
           Qui est censé être au poste et à quelle heure — affiché sur l'écran mural. Purement informatif :
           aucun verrou, un opérateur peut toujours logguer en dehors de son créneau.
@@ -784,7 +796,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div id="shiftAddStatus" style="display:none;margin-top:10px;font-family:var(--font-mono);font-size:13px"></div>
       </div>
       <div class="section" id="postesSection" style="display:none;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)">
-        <div class="section-title">POSTES RADIO</div>
+        <h3 class="section-title">POSTES RADIO</h3>
         <div class="input-note" style="margin-bottom:12px">
           Les positions physiques du club (ex. HF1, VHF, Salle jeunes) — repère informatif affiché à la saisie QSO.
         </div>
@@ -800,7 +812,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_contest">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h6v4a3 3 0 0 1-6 0V2z"/><path d="M6 3H3.5v1.5A2.5 2.5 0 0 0 6 7"/><path d="M12 3h2.5v1.5A2.5 2.5 0 0 1 12 7"/><line x1="9" y1="9" x2="9" y2="12"/><line x1="6" y1="15" x2="12" y2="15"/><line x1="9" y1="12" x2="9" y2="15"/></svg> 3. SÉLECTION DU CONCOURS</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h6v4a3 3 0 0 1-6 0V2z"/><path d="M6 3H3.5v1.5A2.5 2.5 0 0 0 6 7"/><path d="M12 3h2.5v1.5A2.5 2.5 0 0 1 12 7"/><line x1="9" y1="9" x2="9" y2="12"/><line x1="6" y1="15" x2="12" y2="15"/><line x1="9" y1="12" x2="9" y2="15"/></svg> 3. SÉLECTION DU CONCOURS</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_contest">
       <!-- ASSISTANT NOUVEAU CONCOURS (rempli par handleContestParam quand on
@@ -833,7 +845,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
       <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> ANALYSER UN RÈGLEMENT (IA)</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> ANALYSER UN RÈGLEMENT (IA)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">
           Concours absent de la liste ? Donne l'URL de son règlement (PDF ou page web) : l'IA en extrait
           une définition complète (dates, bandes, modes, échange, scoring) <strong style="color:var(--text)">que tu relis et corriges
@@ -860,7 +872,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            place (logx_callhistory.py) avec deux imports au format N1MM,
            plutôt que de créer un second système de suggestion en parallèle. -->
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h4l1.5 2h7.5v7h-13v-9z"/></svg> BASES D'INDICATIFS EXTERNES</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h4l1.5 2h7.5v7h-13v-9z"/></svg> BASES D'INDICATIFS EXTERNES</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           Vient en complément de l'historique local (QSO déjà loggués + base REF/QRZ) pour l'autocomplétion
           indicatif (Super Check Partial) et le pré-remplissage de l'échange attendu.
@@ -899,13 +911,13 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_filters">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> 4. DATES &amp; BANDES/MODES</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> 4. DATES &amp; BANDES/MODES</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_filters">
       <div class="filters-cols">
         <div class="filters-col">
           <div class="section">
-            <div class="section-title">DATES DU CONCOURS (EXPORT EDI)</div>
+            <h3 class="section-title">DATES DU CONCOURS (EXPORT EDI)</h3>
             <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
               <svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Choisis un concours ci-dessus : ses dates se calculent automatiquement.
             </div>
@@ -930,7 +942,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           <div id="filterAutoNote" style="display:none;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--font-mono);font-size:13px;color:var(--accent2);letter-spacing:.5px"></div>
 
           <div class="section">
-            <div class="section-title">MODES</div>
+            <h3 class="section-title">MODES</h3>
             <div class="toggle-grid">
               <span class="toggle-btn mode-ssb on" data-key="mode_ssb" onclick="toggle(this)">SSB</span>
               <span class="toggle-btn mode-cw" data-key="mode_cw" onclick="toggle(this)">CW</span>
@@ -947,7 +959,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           </div>
 
           <div class="section">
-            <div class="section-title">OPTIONS SPÉCIALES</div>
+            <h3 class="section-title">OPTIONS SPÉCIALES</h3>
             <div class="toggle-grid">
               <span class="toggle-btn flag" data-key="flag_qrp" onclick="toggle(this)">QRP</span>
               <span class="toggle-btn flag" data-key="flag_iota" onclick="toggle(this)">IOTA</span>
@@ -965,7 +977,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
         <div class="filters-col">
           <div class="section" id="section_hf">
-            <div class="section-title">BANDES VLF / HF</div>
+            <h3 class="section-title">BANDES VLF / HF</h3>
             <div class="toggle-grid">
               <span class="toggle-btn" data-key="band_vlf" onclick="toggle(this)">VLF</span>
               <span class="toggle-btn" data-key="band_160m" onclick="toggle(this)">1.8 MHz <small style="opacity:.7">160m</small></span>
@@ -983,7 +995,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
           </div>
 
           <div class="section" id="section_vhf">
-            <div class="section-title">BANDES VHF / UHF / SHF</div>
+            <h3 class="section-title">BANDES VHF / UHF / SHF</h3>
             <div class="band-group">
               <div class="band-group-title">VHF</div>
               <div class="toggle-grid">
@@ -1063,7 +1075,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_radio">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="13" height="8" rx="1.5"/><line x1="5" y1="7" x2="7.5" y2="2.5"/><circle cx="6" cy="11" r="1.6"/><line x1="10.5" y1="10" x2="14" y2="10"/><line x1="10.5" y1="12.5" x2="14" y2="12.5"/></svg> 5. RADIO (PILOTAGE CAT)</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="13" height="8" rx="1.5"/><line x1="5" y1="7" x2="7.5" y2="2.5"/><circle cx="6" cy="11" r="1.6"/><line x1="10.5" y1="10" x2="14" y2="10"/><line x1="10.5" y1="12.5" x2="14" y2="12.5"/></svg> 5. RADIO (PILOTAGE CAT)</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h9l3 3v9H3V3z"/><path d="M5.5 3v4h6V3"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_radio">
       <div class="section">
@@ -1301,7 +1313,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
 
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="12" height="8" rx="1"/><line x1="1.5" y1="14.5" x2="16.5" y2="14.5"/><line x1="6.5" y1="11.5" x2="6" y2="14.5"/><line x1="11.5" y1="11.5" x2="12" y2="14.5"/></svg> WSJT-X · JTDX · MSHV (FT8/FT4 — auto-log)</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="12" height="8" rx="1"/><line x1="1.5" y1="14.5" x2="16.5" y2="14.5"/><line x1="6.5" y1="11.5" x2="6" y2="14.5"/><line x1="11.5" y1="11.5" x2="12" y2="14.5"/></svg> WSJT-X · JTDX · MSHV (FT8/FT4 — auto-log)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
           Chaque QSO validé dans ton logiciel numérique arrive AUTOMATIQUEMENT
           dans le logbook (call, grille, bande, mode, rapports) — plus de
@@ -1331,7 +1343,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
 
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16.5"/><line x1="6" y1="16.5" x2="12" y2="16.5"/></svg> KEYER VOCAL (phonie — indicatif dit automatiquement)</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M4 8.5a5 5 0 0 0 10 0"/><line x1="9" y1="13.5" x2="9" y2="16.5"/><line x1="6" y1="16.5" x2="12" y2="16.5"/></svg> KEYER VOCAL (phonie — indicatif dit automatiquement)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
           Équivalent phonie des macros CW : synthèse vocale hors-ligne (aucun réseau),
           indicatif épelé phonétiquement (Alpha, Bravo…) et reports dits chiffre par
@@ -1429,7 +1441,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            matériel : aucun logiciel ne route de l'audio à la place d'un
            relais. LogX AI lui DIT quoi commuter, par le protocole OTRSP. -->
       <div class="section expert-only">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5" y1="2" x2="5" y2="16"/><rect x="3" y="6" width="4" height="3" rx="1" fill="currentColor" stroke="none"/><line x1="13" y1="2" x2="13" y2="16"/><rect x="11" y="9" width="4" height="3" rx="1" fill="currentColor" stroke="none"/></svg> SO2R — DEUXIÈME RADIO</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5" y1="2" x2="5" y2="16"/><rect x="3" y="6" width="4" height="3" rx="1" fill="currentColor" stroke="none"/><line x1="13" y1="2" x2="13" y2="16"/><rect x="11" y="9" width="4" height="3" rx="1" fill="currentColor" stroke="none"/></svg> SO2R — DEUXIÈME RADIO</h3>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           À remplir seulement si vous opérez avec <b style="color:var(--text)">deux radios</b>.
           Le QSY, les macros et le manipulateur visent alors la radio qui a l'émission ;
@@ -1524,7 +1536,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            reste préférable : son propre port, son propre processeur, donc une
            cadence indépendante du trafic CAT. -->
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="5" cy="6" r="2.2"/><line x1="5" y1="10" x2="5" y2="15"/><circle cx="13" cy="11" r="2.2"/><line x1="13" y1="3" x2="13" y2="7.8"/></svg> MANIPULATEUR WINKEYER (K1EL)</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="5" cy="6" r="2.2"/><line x1="5" y1="10" x2="5" y2="15"/><circle cx="13" cy="11" r="2.2"/><line x1="13" y1="3" x2="13" y2="7.8"/></svg> MANIPULATEUR WINKEYER (K1EL)</h3>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           Boîtier de manipulation CW branché sur son propre port série. Activé, il prend
           la main sur l'envoi CW <b style="color:var(--text)">quelle que soit la marque de
@@ -1560,7 +1572,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
            loggué, le filtre du band map, le QSY et le fichier EDI sont faux
            au même moment — sans le moindre message d'erreur. -->
       <div class="section" id="transverterSection">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> TRANSVERTERS (hyperfréquences)</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> TRANSVERTERS (hyperfréquences)</h3>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           À déclarer seulement si vous trafiquez au-dessus de 1296 MHz par transverter.
           La radio affiche alors sa fréquence intermédiaire (FI) : LogX AI la convertit en
@@ -1579,7 +1591,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_amp">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1.5L4.5 10h4L8 16.5 13.5 8h-4z"/></svg> 6. AMPLIFICATEUR HF</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 1.5L4.5 10h4L8 16.5 13.5 8h-4z"/></svg> 6. AMPLIFICATEUR HF</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_amp">
       <div class="section">
@@ -1648,7 +1660,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_rotor">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M11 6 7.5 9 8.5 12 12 9z" fill="currentColor" stroke="none"/></svg> 7. ROTOR D'ANTENNE</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><path d="M11 6 7.5 9 8.5 12 12 9z" fill="currentColor" stroke="none"/></svg> 7. ROTOR D'ANTENNE</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_rotor">
       <div class="section">
@@ -1706,7 +1718,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_relay">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg> 16. STATION CONTROL (RELAIS)</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><circle cx="6" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/></svg> 16. STATION CONTROL (RELAIS)</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_relay">
       <div class="section">
@@ -1763,7 +1775,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="7" rx="3.5"/><circle cx="12" cy="9.5" r="2.3" fill="currentColor" stroke="none"/></svg> BASCULE MANUELLE</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="7" rx="3.5"/><circle cx="12" cy="9.5" r="2.3" fill="currentColor" stroke="none"/></svg> BASCULE MANUELLE</h3>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.6">
           Un clic active/coupe le relais et l'appelle immédiatement — état affiché purement visuel,
           la carte n'a pas de lecture d'état individuel.
@@ -1771,7 +1783,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         <div class="toggle-grid" id="relayButtonsGrid"></div>
       </div>
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11"/><polyline points="10.5,5 14.5,9 10.5,13"/></svg> AUTO-PILOTAGE PAR BANDE</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" width="14" height="14" style="flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9h11"/><polyline points="10.5,5 14.5,9 10.5,13"/></svg> AUTO-PILOTAGE PAR BANDE</h3>
         <div class="form-grid">
           <div class="form-group">
             <label>AUTO-PILOTAGE</label>
@@ -1790,7 +1802,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_autostart">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="currentColor" stroke="none"><polygon points="6,3.5 14,9 6,14.5"/></svg> 17. AUTO-LANCEMENT</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="currentColor" stroke="none"><polygon points="6,3.5 14,9 6,14.5"/></svg> 17. AUTO-LANCEMENT</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_autostart">
       <div class="section">
@@ -1807,7 +1819,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_pgxl">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 18. POWERGENIUS XL (4O3A)</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 18. POWERGENIUS XL (4O3A)</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_pgxl">
       <div class="section">
@@ -1855,7 +1867,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_telemetry">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg> 19. TÉLÉMÉTRIE D'USAGE</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg> 19. TÉLÉMÉTRIE D'USAGE</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_telemetry">
       <div class="section">
@@ -1892,7 +1904,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_acom">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 20. ACOM (série RS-232)</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 20. ACOM (série RS-232)</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_acom">
       <div class="section">
@@ -1958,11 +1970,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_network">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> 8. MULTI-POSTE &amp; CLOUD SYNC</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> 8. MULTI-POSTE &amp; CLOUD SYNC</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_network">
       <div class="section">
-        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c-2.5 2-2.5 11 0 13"/><path d="M9 2.5c2.5 2 2.5 11 0 13"/></svg> RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</div>
+        <h3 class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c-2.5 2-2.5 11 0 13"/><path d="M9 2.5c2.5 2 2.5 11 0 13"/></svg> RÉSEAU ADIF (N1MM / DXLog / loggers tiers)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
           Interopérabilité temps réel avec N1MM Logger+ et DXLog.net via leur
           protocole de broadcast UDP <code>&lt;contactinfo&gt;</code> (format de facto
@@ -1996,7 +2008,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="6" width="8" height="6" rx="3"/><rect x="8.5" y="6" width="8" height="6" rx="3"/></svg> SYNCHRO LAN DIRECTE (postes sur le même WiFi, sans dossier partagé)</div>
+        <h3 class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="6" width="8" height="6" rx="3"/><rect x="8.5" y="6" width="8" height="6" rx="3"/></svg> SYNCHRO LAN DIRECTE (postes sur le même WiFi, sans dossier partagé)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Les postes LogX du même réseau local se DÉCOUVRENT tout seuls et
           échangent leurs QSO directement, sans passer par un dossier partagé.
@@ -2025,7 +2037,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> CLOUD SYNC (multi-poste, via un dossier partagé Dropbox/Synology…)</div>
+        <h3 class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13.5h7.2a2.8 2.8 0 0 0 .3-5.58 3.8 3.8 0 0 0-7.3-1.3A3 3 0 0 0 5.5 13.5z"/></svg> CLOUD SYNC (multi-poste, via un dossier partagé Dropbox/Synology…)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Combine tes QSO avec un AUTRE poste (même expédition, poste de secours...)
           via un dossier déjà synchronisé (Synology Drive, Dropbox, OneDrive…) —
@@ -2067,7 +2079,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section expert-only">
-        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9" cy="4.5" rx="6" ry="2.2"/><path d="M3 4.5v9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2v-9"/><path d="M3 9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2"/></svg> MYSQL PARTAGÉ (radio-club, quasi temps réel)</div>
+        <h3 class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9" cy="4.5" rx="6" ry="2.2"/><path d="M3 4.5v9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2v-9"/><path d="M3 9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2"/></svg> MYSQL PARTAGÉ (radio-club, quasi temps réel)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Comme Cloud Sync ci-dessus, mais via une VRAIE base MySQL partagée plutôt
           qu'un dossier de fichiers — synchronisation plus rapide (toutes les 30 s)
@@ -2116,7 +2128,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section expert-only">
-        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> PUBLICATION MQTT (optionnelle)</div>
+        <h3 class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> PUBLICATION MQTT (optionnelle)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Publie 3 informations simples vers un broker MQTT LOCAL (Mosquitto...)
           pour un tableau de bord externe (Node-RED, Home Assistant, overlay
@@ -2152,7 +2164,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="10" height="7" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg> SÉCURITÉ D'ACCÈS</div>
+        <h3 class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="10" height="7" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg> SÉCURITÉ D'ACCÈS</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Par défaut, TOUT appareil qui charge une page du logiciel sur ce réseau
           obtient automatiquement les droits d'écriture (ajout de QSO, changement
@@ -2187,7 +2199,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_backup">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> 9. SAUVEGARDE AUTOMATIQUE</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> 9. SAUVEGARDE AUTOMATIQUE</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_backup">
       <div class="section">
@@ -2212,11 +2224,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_sources">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> 10. SOURCES DE SPOTS &amp; PROPAGATION</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> 10. SOURCES DE SPOTS &amp; PROPAGATION</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_sources">
       <div class="section">
-        <div class="section-title">SOURCES DE SPOTS (CLUSTER)</div>
+        <h3 class="section-title">SOURCES DE SPOTS (CLUSTER)</h3>
         <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:12px">
           Agrégateurs et clusters DX qui alimentent la liste de spots et la carte —
           distincts des sources de PROPAGATION ci-dessous, qui donnent l'état du canal
@@ -2244,7 +2256,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title">SOURCES DE PROPAGATION</div>
+        <h3 class="section-title">SOURCES DE PROPAGATION</h3>
         <div class="toggle-grid">
           <span class="toggle-btn" data-key="src_voacap" onclick="toggle(this)">VOACAP (HF)</span>
           <span class="toggle-btn" data-key="src_pskreporter" onclick="toggle(this)">PSK Reporter</span>
@@ -2253,7 +2265,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title">COMPTE ON4KST CHAT (optionnel)</div>
+        <h3 class="section-title">COMPTE ON4KST CHAT (optionnel)</h3>
         <div class="form-grid">
           <div class="form-group">
             <label>INDICATIF ON4KST</label>
@@ -2284,11 +2296,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_alerts">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.5c0 1.5-.6 2.3-1.3 3h10.6c-.7-.7-1.3-1.5-1.3-3V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> 11. ALERTES PERSONNALISÉES</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.5c0 1.5-.6 2.3-1.3 3h10.6c-.7-.7-1.3-1.5-1.3-3V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> 11. ALERTES PERSONNALISÉES</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_alerts">
       <div class="section">
-        <div class="section-title">MODES DE PROPAGATION À SURVEILLER</div>
+        <h3 class="section-title">MODES DE PROPAGATION À SURVEILLER</h3>
         <div class="toggle-grid">
           <span class="toggle-btn prop on" data-key="prop_tropo" onclick="toggle(this)">Troposphérique</span>
           <span class="toggle-btn prop on" data-key="prop_es" onclick="toggle(this)">Sporadique-E</span>
@@ -2301,7 +2313,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
 
       <div class="section">
-        <div class="section-title">PARAMÈTRES D'ALERTE</div>
+        <h3 class="section-title">PARAMÈTRES D'ALERTE</h3>
         <div class="form-grid">
           <div class="form-group">
             <label>DISTANCE ALERTE DX (KM) <span style="font-size:12px;color:var(--muted)">— repli</span></label>
@@ -2348,7 +2360,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
 
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7v4h3l4 3V4l-4 3z"/><path d="M12 6.5a3.2 3.2 0 0 1 0 5"/><path d="M14 4.5a6 6 0 0 1 0 9"/></svg> SON &amp; VOIX PAR TYPE D'ALERTE</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7v4h3l4 3V4l-4 3z"/><path d="M12 6.5a3.2 3.2 0 0 1 0 5"/><path d="M14 4.5a6 6 0 0 1 0 9"/></svg> SON &amp; VOIX PAR TYPE D'ALERTE</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Pour chaque type d'alerte, choisis un <b>son</b> distinct et/ou une <b>annonce vocale</b>
           (« Nouveau pays détecté ! »). La voix d'un type activé parle même si la lecture
@@ -2366,7 +2378,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
 
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.5c0 1.5-.6 2.3-1.3 3h10.6c-.7-.7-1.3-1.5-1.3-3V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> RÈGLES D'ALERTE PERSONNALISÉES</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a4 4 0 0 0-4 4v2.5c0 1.5-.6 2.3-1.3 3h10.6c-.7-.7-1.3-1.5-1.3-3V6.5a4 4 0 0 0-4-4z"/><path d="M7.3 14.5a1.8 1.8 0 0 0 3.4 0"/></svg> RÈGLES D'ALERTE PERSONNALISÉES</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           En plus du nouveau multiplicateur et de la mention ON4KST (toujours actifs) :
           combine préfixe d'indicatif, continent, zone CQ, bande, statut travaillé et
@@ -2427,11 +2439,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_qsl">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.5 5l6.5 5.5L15.5 5"/></svg> 12. QSL &amp; DIPLÔMES</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.5 5l6.5 5.5L15.5 5"/></svg> 12. QSL &amp; DIPLÔMES</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_qsl">
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c2.2 2 2.2 11 0 13"/><path d="M9 2.5c-2.2 2-2.2 11 0 13"/></svg> COMPTE QRZ.com (fiches des correspondants)</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/><path d="M9 2.5c2.2 2 2.2 11 0 13"/><path d="M9 2.5c-2.2 2-2.2 11 0 13"/></svg> COMPTE QRZ.com (fiches des correspondants)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           À chaque indicatif saisi, affiche nom / QTH / locator / pays depuis QRZ.
           (Champs détaillés réservés aux comptes abonnés XML QRZ ; le pays reste
@@ -2451,7 +2463,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.5 5l6.5 5.5L15.5 5"/></svg> QSL &amp; DIPLÔMES (services en ligne)</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.2"/><path d="M2.5 5l6.5 5.5L15.5 5"/></svg> QSL &amp; DIPLÔMES (services en ligne)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Publie ton log après un concours (eQSL, ClubLog) et récupère les
           confirmations (LoTW) pour suivre tes diplômes DXCC / départements
@@ -2532,7 +2544,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9.5V5.5a3 3 0 0 1 6 0v7a2 2 0 0 1-4 0v-6a1 1 0 0 1 2 0v5.5"/></svg> SCAN QSL PAPIER</div>
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9.5V5.5a3 3 0 0 1 6 0v7a2 2 0 0 1-4 0v-6a1 1 0 0 1 2 0v5.5"/></svg> SCAN QSL PAPIER</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);line-height:1.6">
           Rien à régler ici : depuis le LOGBOOK, double-clique un QSO pour ouvrir
           « CORRIGER LE QSO » puis « Choisir un scan… » pour attacher la photo/le
@@ -2546,11 +2558,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_scoreboard">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h8v3a4 4 0 0 1-8 0z"/><path d="M5 4H3v1a3 3 0 0 0 3 3M13 4h2v1a3 3 0 0 1-3 3"/><line x1="9" y1="10" x2="9" y2="13"/><path d="M6 15.5h6M6.5 15.5C6.5 14 7 13 9 13s2.5 1 2.5 2.5"/></svg> 13. SCOREBOARD &amp; SOUMISSION</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h8v3a4 4 0 0 1-8 0z"/><path d="M5 4H3v1a3 3 0 0 0 3 3M13 4h2v1a3 3 0 0 1-3 3"/><line x1="9" y1="10" x2="9" y2="13"/><path d="M6 15.5h6M6.5 15.5C6.5 14 7 13 9 13s2.5 1 2.5 2.5"/></svg> 13. SCOREBOARD &amp; SOUMISSION</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9.5L15 5v10.5H3z"/><path d="M6 2.5v4h5v-4"/><rect x="5.5" y="10" width="7" height="5"/></svg> Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_scoreboard">
       <div class="section">
-        <div class="section-title">SCOREBOARD EN DIRECT</div>
+        <h3 class="section-title">SCOREBOARD EN DIRECT</h3>
         <div class="form-grid">
           <div class="form-group">
             <label>SCOREBOARD EN DIRECT</label>
@@ -2567,7 +2579,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
         </div>
       </div>
       <div class="section">
-        <div class="section-title">SOUMISSION DU LOG</div>
+        <h3 class="section-title">SOUMISSION DU LOG</h3>
         <div class="form-grid">
           <div class="form-group">
             <label>URL SOUMISSION LOG</label>
@@ -2584,11 +2596,11 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_expedition">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h10l-3 3 3 3H4"/></svg>14. EXPÉDITION / PORTABLE</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h10l-3 3 3 3H4"/></svg>14. EXPÉDITION / PORTABLE</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="2.5" width="12" height="13" rx="1"/><path d="M5.5 2.5v4h5.5v-4"/><rect x="6" y="10" width="6" height="5.5"/></svg>Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_expedition">
       <div class="section">
-        <div class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M2 15 9 3l7 12z"/><line x1="9" y1="8" x2="9" y2="15"/></svg>TRAFIC EN PORTABLE (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</div>
+        <h3 class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M2 15 9 3l7 12z"/><line x1="9" y1="8" x2="9" y2="15"/></svg>TRAFIC EN PORTABLE (POTA / SOTA / IOTA / WWFF / ARLHS / WCA)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Tu opères depuis une référence (parc, sommet, île, réserve, phare, château) :
           chaque QSO porte ta référence et compte pour valider la sortie. Le
@@ -2640,7 +2652,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
 
       <div class="section" id="sotaAutoSpotSection" style="display:none">
-        <div class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M1.5 15 7 6l2.2 3.2L12 5l4.5 10z"/></svg>AUTO-SPOT SOTA (SOTAwatch3)</div>
+        <h3 class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M1.5 15 7 6l2.2 3.2L12 5l4.5 10z"/></svg>AUTO-SPOT SOTA (SOTAwatch3)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Publie ta sortie directement sur SOTAwatch3, comme le bouton
           « Add Spot » du site officiel. Nécessite un clientId personnel,
@@ -2674,7 +2686,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
       </div>
 
       <div class="section">
-        <div class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h10l-3 3 3 3H4"/></svg>MODE EXPÉDITION</div>
+        <h3 class="section-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><line x1="4" y1="2" x2="4" y2="16"/><path d="M4 3h10l-3 3 3 3H4"/></svg>MODE EXPÉDITION</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
           Plusieurs postes sur le même site (un par bande, voire trois par bande en
           CW/SSB/FT8) loggent dans le MÊME log commun : chaque poste ouvre le
@@ -2755,7 +2767,7 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 </div>
 <div class="cat-modal" id="catmodal_ai">
   <div class="cat-modal-box">
-    <div class="cat-modal-head"><span class="cat-modal-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><rect x="4" y="6.5" width="10" height="7.5" rx="2"/><line x1="9" y1="2.5" x2="9" y2="6.5"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="1.5" y1="9" x2="4" y2="9"/><line x1="14" y1="9" x2="16.5" y2="9"/></svg>15. ASSISTANT IA</span>
+    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><rect x="4" y="6.5" width="10" height="7.5" rx="2"/><line x1="9" y1="2.5" x2="9" y2="6.5"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="1.5" y1="9" x2="4" y2="9"/><line x1="14" y1="9" x2="16.5" y2="9"/></svg>15. ASSISTANT IA</h2>
       <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="2.5" width="12" height="13" rx="1"/><path d="M5.5 2.5v4h5.5v-4"/><rect x="6" y="10" width="6" height="5.5"/></svg>Enregistrer</button></div>
     <div class="cat-modal-body" id="catbody_ai">
       <div class="section">
@@ -5386,8 +5398,18 @@ const _EXPERT_ONLY_CATS = new Set(['relay', 'autostart', 'pgxl', 'telemetry', 'a
 
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
-  const nav = document.createElement('div');
+  // <nav> (pas <div>) : c'est le seul mécanisme de navigation entre les ~20
+  // catégories de réglages CONFIG, exactement comme <nav class="app-nav">
+  // en haut de page -- audit accessibilité 09/08/2026 (landmark manquant).
+  const nav = document.createElement('nav');
   nav.id = 'configSidebar';
+  // Propriété directe (pas setAttribute) : le faux DOM de
+  // tests/test_config_category_switch.py (makeFakeNav()) n'implémente pas
+  // setAttribute, qui y lèverait une TypeError. .ariaLabel est Baseline
+  // "widely available" (Chrome/Edge 123+, Firefox 119+, Safari 15.4+,
+  // 2023-2024) -- largement couvert par le Chrome/Edge réel que
+  // logx_bootstrap.py lance toujours (jamais un Chromium embarqué figé).
+  nav.ariaLabel = 'Catégories de configuration';
   nav.className = 'config-sidebar';
   nav.innerHTML = '<div class="config-sidebar-title">CONFIGURATION</div>'
     // Retour utilisateur (09/08/2026, voir commentaire CSS .config-sidebar-import) :
@@ -5620,7 +5642,7 @@ function renderAlertRules(){
       <span class="toggle-btn${on?' on':''}" style="padding:4px 10px" onclick="toggleAlertRule('${r.id}')">${on?'<svg viewBox="0 0 18 18" width="11" height="11" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> actif':'<svg viewBox="0 0 18 18" width="11" height="11" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> coupé'}</span>
       <b style="flex:1;color:var(--text)">${r.name}</b>
       <span style="color:var(--muted)">${bits.join(' · ') || 'tout spot'}</span>
-      <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="deleteAlertRule('${r.id}')"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="5" x2="15" y2="5"/><path d="M6.5 5V3.5h5V5"/><path d="M4.5 5 5.2 15h7.6L13.5 5"/><line x1="7.5" y1="7.5" x2="7.5" y2="12.5"/><line x1="10.5" y1="7.5" x2="10.5" y2="12.5"/></svg></button>
+      <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="deleteAlertRule('${r.id}')" title="Supprimer cette règle d'alerte"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="5" x2="15" y2="5"/><path d="M6.5 5V3.5h5V5"/><path d="M4.5 5 5.2 15h7.6L13.5 5"/><line x1="7.5" y1="7.5" x2="7.5" y2="12.5"/><line x1="10.5" y1="7.5" x2="10.5" y2="12.5"/></svg></button>
     </div>`;
   }).join('');
 }
@@ -8108,7 +8130,10 @@ function onbPick(kind, value){
     btn.classList.toggle('selected', btn.getAttribute('onclick') === `onbPick('${kind}','${value}')`);
   });
   const startBtn = document.getElementById('onbStartBtn');
-  if (startBtn) startBtn.disabled = !(_onbState.experience && _onbState.usage);
+  const ready = !!(_onbState.experience && _onbState.usage);
+  if (startBtn) startBtn.disabled = !ready;
+  const hint = document.getElementById('onbStartHint');
+  if (hint) hint.style.display = ready ? 'none' : '';
 }
 
 function _closeOnboarding(){

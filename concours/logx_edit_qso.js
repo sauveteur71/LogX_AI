@@ -32,9 +32,21 @@
 // résolution au moment de l'appel, pas au chargement).
 
 // ─── ÉDITION QSO ─────────────────────────────────────────────────────────────
-function editQSO(id){
+// Mémorise l'élément qui avait le focus au moment de l'ouverture de la modale
+// (ex. le bouton crayon de la ligne QSO) pour le lui rendre à la fermeture
+// (closeEdit()) — sans ça, un utilisateur clavier perd son repère de position
+// dans la page après Échap ou un clic sur la croix.
+let _editQsoTrigger = null;
+
+function editQSO(id, triggerEl){
   const q = qsoLog.find(x=>x.id===id);
   if(!q) return;
+  // triggerEl : repli explicite pour les appelants qui masquent leur propre
+  // overlay AVANT d'appeler editQSO() (ex. fixFromValidation()) -- à ce
+  // moment-là document.activeElement a déjà été blur() vers <body> par le
+  // navigateur (l'ancêtre focus devient display:none), donc le capturer ici
+  // serait trop tard. Revue adversariale 09/08/2026.
+  _editQsoTrigger = triggerEl || document.activeElement;
   document.getElementById('editId').value = id;
   document.getElementById('editCall').value = q.call||'';
   document.getElementById('editDate').value = q.date||'';
@@ -139,6 +151,8 @@ function updateEditDistInfo(loc){
 
 function closeEdit(){
   document.getElementById('editOverlay').classList.remove('show');
+  if(_editQsoTrigger && typeof _editQsoTrigger.focus === 'function') _editQsoTrigger.focus();
+  _editQsoTrigger = null;
 }
 
 async function saveEdit(){

@@ -39,13 +39,13 @@
 -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
-:root{--bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+:root{--bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#464950;
   --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--yellow:#FFD60A;
   --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
   --mono:'Share Tech Mono',monospace;--font-display:'Fraunces',serif;}
-body.day-mode{--bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+body.day-mode{--bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#B8B096;
   --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--yellow:#7A5A00;
-  --red:#CC0030;--purple:#8040B0;--text:#232320;--muted:#716C5E;}
+  --red:#CC0030;--purple:#8040B0;--text:#232320;--muted:#665F55;}
 body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -77,6 +77,12 @@ button.pa-btn.on{background:var(--green);border-color:var(--green);color:#001a08
   text-shadow:0 0 3px var(--bg2),0 0 3px var(--bg2),0 0 3px var(--bg2)}
 .spot-mark:hover .lbl{font-weight:700;text-decoration:underline}
 footer{flex-shrink:0;padding:5px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+
+/* Focus clavier visible générique -- audit accessibilité 09/08/2026 : seuls
+   les champs de saisie avaient un style :focus soigné, les boutons/liens
+   retombaient sur l'anneau par défaut du navigateur (incohérent avec le
+   thème graphite&cuivre). Purement additif, ne retire aucun style existant. */
+button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
 </style>
 </head>
 <body data-rc-no-lang-select>

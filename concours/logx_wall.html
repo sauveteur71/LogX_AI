@@ -11,13 +11,13 @@
    NE PAS confondre avec WALL_BAND_COLORS (plus bas dans ce fichier) : code
    couleur par BANDE pour la carte/légende, donnée de catégorisation
    indépendante du thème — garde sciemment ses teintes d'origine. */
-:root{--bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#34363A;
+:root{--bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#464950;
   --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--yellow:#FFD60A;
   --red:#FF2D55;--purple:#BF5AF2;--text:#EDF0FA;--muted:#8792B5;
   --mono:'Share Tech Mono',monospace;--sans:'Exo 2',sans-serif;--font-display:'Fraunces',serif;}
-body.day-mode{--bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#D6D0BE;
+body.day-mode{--bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#B8B096;
   --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--yellow:#7A5A00;
-  --red:#CC0030;--purple:#8040B0;--text:#232320;--muted:#716C5E;}
+  --red:#CC0030;--purple:#8040B0;--text:#232320;--muted:#665F55;}
 body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -216,6 +216,12 @@ header{display:flex;align-items:center;gap:24px;padding:14px 28px;
 .leaflet-container{font-family:var(--mono);background:var(--bg3)!important}
 body.day-mode .leaflet-container{background:#D8E4F0!important}
 .leaflet-control-attribution{font-size:10px;opacity:.45}
+
+/* Focus clavier visible générique -- audit accessibilité 09/08/2026 : seuls
+   les champs de saisie avaient un style :focus soigné, les boutons/liens
+   retombaient sur l'anneau par défaut du navigateur (incohérent avec le
+   thème graphite&cuivre). Purement additif, ne retire aucun style existant. */
+button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
 </style>
 <!-- Même bibliothèque/version que logx_carte.html (cohérence de rendu) —
      carte intégrée directement (pas d'iframe vers logx_carte.html : on évite
