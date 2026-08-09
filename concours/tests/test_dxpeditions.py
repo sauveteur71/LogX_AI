@@ -141,20 +141,20 @@ def test_parse_date_range_date_invalide_ne_leve_jamais():
 # ─── _match_spot_freq() ────────────────────────────────────────────────────
 
 def test_match_spot_freq_trouve():
-    spots = {'HF': [{'dx': 'SV9XYZ', 'freq': 14195.0}]}
-    freq, band = dxp._match_spot_freq('SV9XYZ', spots)
-    assert freq == 14195.0 and band == 'HF'
+    spots = {'HF': [{'dx': 'SV9XYZ', 'freq': 14195.0, 'mode': 'SSB'}]}
+    freq, band, mode = dxp._match_spot_freq('SV9XYZ', spots)
+    assert freq == 14195.0 and band == 'HF' and mode == 'SSB'
 
 
 def test_match_spot_freq_insensible_a_la_casse():
     spots = {'HF': [{'dx': 'sv9xyz', 'freq': 14195.0}]}
-    freq, band = dxp._match_spot_freq('SV9XYZ', spots)
+    freq, band, mode = dxp._match_spot_freq('SV9XYZ', spots)
     assert freq == 14195.0
 
 
 def test_match_spot_freq_ignore_le_suffixe_portable_du_spot():
     spots = {'HF': [{'dx': 'SV9XYZ/P', 'freq': 14195.0}]}
-    freq, band = dxp._match_spot_freq('SV9XYZ', spots)
+    freq, band, mode = dxp._match_spot_freq('SV9XYZ', spots)
     assert freq == 14195.0
 
 
@@ -163,22 +163,34 @@ def test_match_spot_freq_ne_matche_que_le_premier_indicatif_de_ng3k():
     ne matche que le premier segment, cas le plus courant (expédition mono-
     indicatif)."""
     spots = {'HF': [{'dx': 'SV9XYZ', 'freq': 14195.0}]}
-    freq, band = dxp._match_spot_freq('SV9XYZ, HB9EMP', spots)
+    freq, band, mode = dxp._match_spot_freq('SV9XYZ, HB9EMP', spots)
     assert freq == 14195.0
+
+
+def test_match_spot_freq_mode_absent_du_spot_donne_chaine_vide():
+    spots = {'HF': [{'dx': 'SV9XYZ', 'freq': 14195.0}]}
+    freq, band, mode = dxp._match_spot_freq('SV9XYZ', spots)
+    assert mode == ''
+
+
+def test_match_spot_freq_mode_normalise_en_majuscules():
+    spots = {'HF': [{'dx': 'SV9XYZ', 'freq': 14195.0, 'mode': 'ft8'}]}
+    freq, band, mode = dxp._match_spot_freq('SV9XYZ', spots)
+    assert mode == 'FT8'
 
 
 def test_match_spot_freq_aucune_correspondance():
     spots = {'HF': [{'dx': 'W1AW', 'freq': 14195.0}]}
-    assert dxp._match_spot_freq('SV9XYZ', spots) == (None, None)
+    assert dxp._match_spot_freq('SV9XYZ', spots) == (None, None, None)
 
 
 def test_match_spot_freq_indicatif_vide():
-    assert dxp._match_spot_freq('', {'HF': [{'dx': 'W1AW', 'freq': 14195.0}]}) == (None, None)
+    assert dxp._match_spot_freq('', {'HF': [{'dx': 'W1AW', 'freq': 14195.0}]}) == (None, None, None)
 
 
 def test_match_spot_freq_sans_spots():
-    assert dxp._match_spot_freq('SV9XYZ', None) == (None, None)
-    assert dxp._match_spot_freq('SV9XYZ', {}) == (None, None)
+    assert dxp._match_spot_freq('SV9XYZ', None) == (None, None, None)
+    assert dxp._match_spot_freq('SV9XYZ', {}) == (None, None, None)
 
 
 # ─── fetch_dxpeditions_chasse() ───────────────────────────────────────────
@@ -217,11 +229,23 @@ def test_chasse_spot_cluster_force_le_statut_actif_et_donne_la_frequence(monkeyp
     _reset_cache()
     xml = _rss('Aug 3-9, 2026 -- Tuvalu -- T2JK -- QSL: LoTW')
     monkeypatch.setattr(logx_utils, 'fetch_url', lambda *a, **k: xml)
-    spots = {'HF': [{'dx': 'T2JK', 'freq': 21295.0}]}
+    spots = {'HF': [{'dx': 'T2JK', 'freq': 21295.0, 'mode': 'CW'}]}
     out = dxp.fetch_dxpeditions_chasse(spots_by_band=spots, today=date(2026, 8, 1))
     assert out[0]['status'] == 'active'
     assert out[0]['freq_khz'] == 21295.0
     assert out[0]['spot_band'] == 'HF'
+    assert out[0]['spot_mode'] == 'CW'
+
+
+def test_chasse_spot_sans_mode_donne_spot_mode_none(monkeypatch):
+    """Un spot cluster sans champ mode (ou vide) ne doit pas afficher une
+    chaîne vide trompeuse -- None, pour que le front sache ne rien afficher."""
+    _reset_cache()
+    xml = _rss('Aug 3-9, 2026 -- Tuvalu -- T2JK -- QSL: LoTW')
+    monkeypatch.setattr(logx_utils, 'fetch_url', lambda *a, **k: xml)
+    spots = {'HF': [{'dx': 'T2JK', 'freq': 21295.0}]}
+    out = dxp.fetch_dxpeditions_chasse(spots_by_band=spots, today=date(2026, 8, 1))
+    assert out[0]['spot_mode'] is None
 
 
 def test_chasse_dates_illisibles_donne_unknown_pas_une_exception(monkeypatch):
@@ -282,7 +306,7 @@ def test_endpoint_dxpeditions_active(monkeypatch):
     def fake_chasse(worked_entities=None, spots_by_band=None, today=None):
         assert spots_by_band == {'HF': []}
         return [{'callsign': 'T2JK', 'entity': 'Tuvalu', 'status': 'active',
-                 'freq_khz': 21295.0, 'spot_band': 'HF'}]
+                 'freq_khz': 21295.0, 'spot_band': 'HF', 'spot_mode': 'FT8'}]
 
     import logx_dxpeditions
     monkeypatch.setattr(logx_dxpeditions, 'fetch_dxpeditions_chasse', fake_chasse)
@@ -302,3 +326,4 @@ def test_endpoint_dxpeditions_active(monkeypatch):
     assert status == 200
     assert body['expeditions'][0]['callsign'] == 'T2JK'
     assert body['expeditions'][0]['freq_khz'] == 21295.0
+    assert body['expeditions'][0]['spot_mode'] == 'FT8'
