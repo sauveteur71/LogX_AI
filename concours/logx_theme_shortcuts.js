@@ -25,19 +25,25 @@
 // document.addEventListener('keydown', ...) est lui-meme un appel TOP-LEVEL
 // (s'execute au chargement de CE fichier), mais il ne fait qu'ENREGISTRER
 // une fermeture (closure) -- addEventListener est une API navigateur, pas
-// un symbole EV-7. Le corps de la fermeture reference de nombreux globals du
-// coeur (isSetupDone, getMacros, copyMacro, so2rBasculer, submitQSO,
-// undoLastQSO) mais ne les RESOUT qu'au moment reel d'une frappe clavier,
-// bien apres que tous les <script> aient charge -- aucun risque d'ordre
-// malgre l'enregistrement immediat.
+// un symbole EV-7. Le corps de la fermeture reference de nombreux globals
+// (isSetupDone, getMacros, copyMacro, so2rBasculer, submitQSO, undoLastQSO)
+// mais ne les RESOUT qu'au moment reel d'une frappe clavier, bien apres que
+// tous les <script> aient charge -- aucun risque d'ordre malgre
+// l'enregistrement immediat.
 //
 // Dependance optionnel->coeur (sens autorise, fonctions seulement) :
 // document.body, localStorage, fetch, isSetupDone, getMacros(), copyMacro(),
-// so2rBasculer(), submitQSO(), undoLastQSO().
+// submitQSO(), undoLastQSO().
 //
 // EV-7 28e increment : bandmapSaut()/bandmapNoter() ont ete extraites vers
 // logx_bandmap_sp.js -- la dependance ci-dessus est desormais
 // optionnel->optionnel (les deux fichiers chargent avant logx_logbook.js).
+//
+// EV-7 36e increment : so2rBasculer() a ete extraite vers
+// logx_outils_divers.js -- direction inhabituelle deja rencontree (MACROS
+// 32e increment, FILTRE SPOTS 33e) : ce fichier charge AVANT
+// logx_outils_divers.js, mais l'appel reste en corps de fermeture (jamais
+// au chargement), donc sans risque.
 //
 // EV-7 32e increment : getMacros()/copyMacro() ont ete extraites vers
 // logx_macros.js -- la dependance devient optionnel->optionnel, mais dans le
