@@ -34,6 +34,11 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 # le même ordre que <script> dans logx_logbook.html (juste avant
 # logx_logbook.js).
 BANDSCOPE_WATERFALL_JS_PATH = os.path.join(BASE, 'logx_bandscope_waterfall.js')
+# EV-7 33e incrément : refreshBandMap()/drawWaterfallRow() (exercées par ce
+# fichier) -- refreshBandMap() a été extraite vers logx_filtre_spots.js ;
+# aussi appel TOP-LEVEL setInterval(refreshBandMap,...) dans logx_logbook.js
+# -- ReferenceError au parse sans ce fichier chargé avant.
+FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 
 # ─── DOM minimal (voir tests/test_logbook_render_window_reset.py pour la
 # version commentée) + faux canvas 2D : getContext('2d') renvoie un objet qui
@@ -137,6 +142,8 @@ def _real_source(rev=None):
         with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(BANDSCOPE_WATERFALL_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()

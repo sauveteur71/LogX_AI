@@ -58,6 +58,9 @@ VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 # réellement, donc ce fichier doit être chargé, dans le même ordre que
 # <script> dans logx_logbook.html (juste avant logx_logbook.js).
 CW_PANEL2_AUDIO_JS_PATH = os.path.join(BASE, 'logx_cw_panel2_audio.js')
+# EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 
 
 def _read(path):
@@ -198,6 +201,7 @@ def _make_ctx():
     ctx.eval(_read(ESM_CALLBOT_JS_PATH))
     ctx.eval(_read(VOICE_KEYER_JS_PATH))
     ctx.eval(_read(CW_PANEL2_AUDIO_JS_PATH))
+    ctx.eval(_read(FILTRE_SPOTS_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 
@@ -275,6 +279,7 @@ def _ctx_avec_ecouteurs():
     ctx.eval(_read(ESM_CALLBOT_JS_PATH))
     ctx.eval(_read(VOICE_KEYER_JS_PATH))
     ctx.eval(_read(CW_PANEL2_AUDIO_JS_PATH))
+    ctx.eval(_read(FILTRE_SPOTS_JS_PATH))
     ctx.eval(_read(JS_PATH))
     return ctx
 

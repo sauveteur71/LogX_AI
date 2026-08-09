@@ -47,6 +47,9 @@ EXPORT_EDI_JS_PATH = os.path.join(BASE, 'logx_export_edi.js')
 # fonction -- getSoapbox() a été extraite vers ce fichier, sans quoi
 # l'appel lèverait un ReferenceError pendant l'exécution réelle du test.
 SOAPBOX_JS_PATH = os.path.join(BASE, 'logx_soapbox.js')
+# EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 sys.path.insert(0, BASE)
 
 import logx_storage as storage   # noqa: E402  (après sys.path)
@@ -156,6 +159,8 @@ def _real_source(rev=None):
         with open(EXPORT_EDI_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(SOAPBOX_JS_PATH, encoding='utf-8') as f:
+            src += '\n' + f.read()
+        with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
             src += '\n' + f.read()
         with open(JS_PATH, encoding='utf-8') as f:
             return src + '\n' + f.read()

@@ -113,8 +113,11 @@ def test_freq_en_khz_est_bien_importee():
 def test_band_map_convertit_a_l_entree():
     """Le band map raisonne en MHz partout (_BM_RANGE, bandscope, chute d'eau,
     bandmapClick) : la conversion doit être unique et à l'entrée, sinon elle
-    finit par manquer à un endroit."""
-    src = _lire('logx_logbook.js')
+    finit par manquer à un endroit.
+
+    EV-7 33e incrément : refreshBandMap() (où vit cette conversion) a été
+    extraite vers logx_filtre_spots.js — plus dans logx_logbook.js."""
+    src = _lire('logx_filtre_spots.js')
     assert 'const clusterMhz = (d.spots || []).map(' in src
     assert '/ 1000' in src[src.index('const clusterMhz'):][:200]
     # Apres la conversion, plus AUCUNE lecture directe de d.spots : c'est ce

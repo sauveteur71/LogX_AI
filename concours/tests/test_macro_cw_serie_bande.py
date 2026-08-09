@@ -79,6 +79,9 @@ LOCATOR_REVERSE_JS_PATH = os.path.join(BASE, 'logx_locator_reverse.js')
 # fichiers précédents, ajouté ici car le scénario complet en dépend
 # directement (pas juste un appel top-level).
 MACROS_JS_PATH = os.path.join(BASE, 'logx_macros.js')
+# EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
+# logx_logbook.js -- ReferenceError au parse sans ce fichier chargé avant.
+FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 
 # Commit juste AVANT ce correctif — sert à prouver que le scénario ci-dessous
 # échoue bien sur le code d'origine (sinon ce ne serait pas un test de
@@ -260,8 +263,11 @@ def _real_source(rev=None):
             lr = f.read()
         with open(MACROS_JS_PATH, encoding='utf-8') as f:
             mc = f.read()
+        with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
+            fs = f.read()
         with open(JS_PATH, encoding='utf-8') as f:
-            return hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + vk + '\n' + lr + '\n' + mc + '\n' + f.read()
+            return (hw + '\n' + cb + '\n' + lk + '\n' + esm + '\n' + vk + '\n' + lr + '\n'
+                    + mc + '\n' + fs + '\n' + f.read())
     out = subprocess.run(
         ['git', 'show', f'{rev}:concours/logx_logbook.js'],
         cwd=BASE, capture_output=True, text=True, encoding='utf-8', check=True)

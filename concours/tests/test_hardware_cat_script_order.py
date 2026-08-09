@@ -37,6 +37,9 @@ JS_PATH = os.path.join(BASE, 'logx_logbook.js')
 # même de logx_logbook.js sans eux, avant que le test puisse commencer.
 ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
+# EV-7 33e incrément : appel TOP-LEVEL setInterval(refreshBandMap,...) dans
+# logx_logbook.js -- même piège, ReferenceError au parse sans ce fichier.
+FILTRE_SPOTS_JS_PATH = os.path.join(BASE, 'logx_filtre_spots.js')
 
 # DOM minimal — dérivé de test_edit_qso_mode_hors_concours.py (même besoin :
 # évaluer le VRAI logx_logbook.js en entier sans lever). Différences ici :
@@ -161,6 +164,8 @@ def moteur():
     with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
+        ctx.eval(f.read())
+    with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())
     with open(JS_PATH, encoding='utf-8') as f:
         ctx.eval(f.read())

@@ -31,7 +31,10 @@ if CONCOURS not in sys.path:
 
 import logx_spotfilter as sf   # noqa: E402
 
-JS = os.path.join(CONCOURS, 'logx_logbook.js')
+# EV-7 33e incrément : basculerContinent()/_SF_CONTINENTS (les deux seuls
+# symboles lus depuis JS ci-dessous, via _fonction_js()/_liste_continents_js())
+# ont été extraits vers logx_filtre_spots.js -- JS pointe désormais dessus.
+JS = os.path.join(CONCOURS, 'logx_filtre_spots.js')
 HTTP = os.path.join(CONCOURS, 'logx_http.py')
 
 
