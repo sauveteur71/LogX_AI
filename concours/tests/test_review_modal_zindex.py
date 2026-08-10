@@ -18,6 +18,12 @@ HTML_PATH = os.path.join(BASE, 'logx_configuration.html')
 
 with open(HTML_PATH, encoding='utf-8') as _f:
     _HTML_SRC = _f.read()
+# Script inline extrait vers logx_configuration.js (10/08/2026) -- concaténer
+# pour que les recherches ci-dessous continuent de le trouver.
+_JS_PATH = os.path.join(BASE, 'logx_configuration.js')
+if os.path.exists(_JS_PATH):
+    with open(_JS_PATH, encoding='utf-8') as _f:
+        _HTML_SRC += '\n' + _f.read()
 
 
 def _zindex_of(selector_pattern):

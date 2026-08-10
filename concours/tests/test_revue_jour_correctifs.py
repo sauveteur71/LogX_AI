@@ -28,7 +28,15 @@ from logx_utils import locator_to_latlon   # noqa: E402
 
 def _lire(nom):
     with open(os.path.join(CONCOURS, nom), encoding='utf-8') as f:
-        return f.read()
+        src = f.read()
+    # logx_configuration.html : script inline extrait vers
+    # logx_configuration.js (10/08/2026).
+    if nom == 'logx_configuration.html':
+        js_path = os.path.join(CONCOURS, 'logx_configuration.js')
+        if os.path.exists(js_path):
+            with open(js_path, encoding='utf-8') as f:
+                src += '\n' + f.read()
+    return src
 
 
 # ─── 1/6/7. Le rotor du parc est enfin JOIGNABLE (state, point, satellite) ──

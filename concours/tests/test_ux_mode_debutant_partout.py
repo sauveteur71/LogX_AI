@@ -31,7 +31,15 @@ CONFIG_HTML = os.path.join(CONCOURS_DIR, 'logx_configuration.html')
 
 def _lire(path):
     with open(path, encoding='utf-8') as f:
-        return f.read()
+        src = f.read()
+    # logx_configuration.html : script inline extrait vers
+    # logx_configuration.js (10/08/2026).
+    if path == CONFIG_HTML:
+        js_path = os.path.join(CONCOURS_DIR, 'logx_configuration.js')
+        if os.path.exists(js_path):
+            with open(js_path, encoding='utf-8') as f:
+                src += '\n' + f.read()
+    return src
 
 
 def _bloc_fonction(src, signature):

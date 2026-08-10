@@ -38,7 +38,13 @@ PLAFOND_ANNONCE = re.compile(r"jusqu'à\s+(\d+)\s+opérateur", re.IGNORECASE)
 
 def _source_html():
     with open(HTML, encoding='utf-8') as f:
-        return f.read()
+        src = f.read()
+    # Script inline extrait vers logx_configuration.js (10/08/2026).
+    js_path = os.path.join(BASE, 'logx_configuration.js')
+    if os.path.exists(js_path):
+        with open(js_path, encoding='utf-8') as f:
+            src += '\n' + f.read()
+    return src
 
 
 def _plafond_reel(src):
