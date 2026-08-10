@@ -4324,6 +4324,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'archives': arch.list_archives()})
             return
 
+        # "Score à battre" : meilleur QSO count / meilleur score déjà réalisés
+        # pour CE concours parmi les éditions archivées (?contest=<id>) --
+        # affiché à la sélection du concours en CONFIG.
+        if path.startswith('/log/archives/best'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_archive as arch
+            qp = parse_qs(urlparse(self.path).query)
+            contest_id = (qp.get('contest') or [''])[0].strip()
+            best = arch.best_for_contest(contest_id)
+            self._json(best or {'ok': False, 'error': 'Aucune édition archivée pour ce concours'})
+            return
+
         # QTC (WAE) : total et détail par station
         if path.startswith('/qtc/list'):
             from logx_storage import qtc_log, qtc_lock, qtc_total
@@ -6646,6 +6658,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:
                 self._json({'error': str(e)}, 400)
+            return
+
+        # Importer un VIEUX log de concours (ADIF ou Cabrillo, jamais loggué
+        # dans LogX AI) comme archive permanente -- alimente le "score à
+        # battre" (/log/archives/best) sans toucher au log actif. Payload :
+        # {format:'adif'|'cabrillo', text, contest, score?}. `score` est
+        # optionnel (Cabrillo : remplace CLAIMED-SCORE si fourni ; ADIF :
+        # seule source de score possible, l'ADIF n'en transporte pas).
+        if self.path == '/log/archives/import':
+            try:
+                payload = json.loads(body) if body else {}
+                import logx_archive as arch
+                text = payload.get('text', '')
+                fmt = payload.get('format', '')
+                contest_id = payload.get('contest', '')
+                score = payload.get('score')
+                manual_score = int(score) if score not in (None, '') else None
+                res = arch.import_external_log(text, fmt, contest_id,
+                                                 self._cfg_snapshot(), manual_score)
+                self._json(res, 200 if res.get('ok') else 400)
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
             return
 
         # Proxy IA universel (Anthropic / OpenAI / Gemini)

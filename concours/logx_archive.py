@@ -12,6 +12,7 @@ réinitialiser le log n'y touche plus jamais. Chaque archive contient :
 Le dossier `archives/` vit dans le répertoire de travail (le dossier de
 données utilisateur en mode application, cf. logx_bootstrap).
 """
+import datetime
 import os
 import json
 import re
@@ -24,17 +25,22 @@ def _safe(s):
     return re.sub(r'[^A-Za-z0-9_.-]', '_', str(s or ''))[:40]
 
 
-def archive_log(qsos, contest_id, cfg=None, qtc_series=None):
+def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None):
     """Écrit une archive permanente du log d'un concours. Retourne un dict
     {ok, folder, qso_count, files} ou {ok: False, error}.
     qtc_series : séries QTC (WAE, voir logx_storage.qtc_log) déjà filtrées par
     l'appelant sur LA MÊME portée que `qsos` — sans quoi le Cabrillo archivé
-    n'a aucune ligne "QTC:" (règlement WAE : la moitié des points possibles)."""
+    n'a aucune ligne "QTC:" (règlement WAE : la moitié des points possibles).
+    when : date à inscrire dans le nom du dossier (et donc dans `date`/l'année
+    retournés par list_archives()) — par défaut l'instant présent (archivage
+    normal, juste après un concours tenu en direct). import_external_log()
+    passe ici la VRAIE date du log importé, sans quoi une édition de 2019
+    importée aujourd'hui se ferait passer pour un record de cette année."""
     qsos = list(qsos or [])
     if not qsos:
         return {'ok': False, 'error': 'Aucun QSO à archiver pour ce concours'}
     cfg = cfg or {}
-    now = utcnow()
+    now = when or utcnow()
     call = (cfg.get('callsign_contest') or cfg.get('callsign') or 'LOG').upper()
     name = f"{_safe(contest_id or 'CONTEST')}_{now.strftime('%Y%m%d-%H%M%S')}"
     folder = os.path.join(ARCHIVE_DIR, name)
@@ -104,6 +110,138 @@ def _summary(qsos, contest_id, call, now):
     for b, n in sorted(by_band.items()):
         lines.append(f"  {b} MHz : {n} QSO")
     return '\n'.join(lines) + '\n'
+
+
+def best_for_contest(contest_id):
+    """Meilleur nombre de QSO et meilleur score déjà réalisés pour CE concours,
+    toutes éditions archivées confondues (pas forcément la même année pour les
+    deux records) -- "score à battre" affiché à la sélection du concours en
+    CONFIG. None si contest_id est vide ou qu'aucune archive ne correspond."""
+    if not contest_id:
+        return None
+    best_qso, best_qso_year = 0, None
+    best_points, best_points_year = 0, None
+    editions = 0
+    for info in list_archives():
+        if info.get('contest') != contest_id:
+            continue
+        logp = os.path.join(info['folder'], 'log.json')
+        if not os.path.exists(logp):
+            continue
+        try:
+            with open(logp, encoding='utf-8') as f:
+                qsos = json.load(f)
+        except Exception:
+            continue
+        editions += 1
+        points = sum(q.get('points', 0) or 0 for q in qsos)
+        year = (info.get('date') or '')[:4] or None
+        if len(qsos) > best_qso:
+            best_qso, best_qso_year = len(qsos), year
+        if points > best_points:
+            best_points, best_points_year = points, year
+    if editions == 0:
+        return None
+    return {'ok': True, 'contest': contest_id, 'editions': editions,
+            'best_qso': best_qso, 'best_qso_year': best_qso_year,
+            'best_points': best_points, 'best_points_year': best_points_year}
+
+
+_CABRILLO_FREQ_TO_BAND = {}  # rempli au 1er appel (voir _cabrillo_freq_to_band)
+
+
+def _cabrillo_freq_to_band(freq):
+    """Inverse de logx_export.CABRILLO_FREQ (fréquence Cabrillo → bande
+    interne). Import tardif pour éviter un cycle logx_export→logx_archive
+    (aucun des deux n'importe l'autre aujourd'hui, mais autant rester
+    prudent -- logx_export importe déjà pas mal de choses)."""
+    if not _CABRILLO_FREQ_TO_BAND:
+        from logx_export import CABRILLO_FREQ
+        _CABRILLO_FREQ_TO_BAND.update({v: k for k, v in CABRILLO_FREQ.items()})
+    return _CABRILLO_FREQ_TO_BAND.get(freq, freq)
+
+
+_CABRILLO_MODE_TO_INTERNAL = {'PH': 'SSB', 'CW': 'CW', 'RY': 'RTTY', 'DG': 'FT8', 'FM': 'FM'}
+
+
+def _parse_cabrillo(text):
+    """Parseur minimal de Cabrillo (lecture seule), symétrique de
+    logx_export.build_cabrillo() côté écriture : QSO: freq mode date time
+    mycall <échange envoyé> dxcall <échange reçu>. Les 4 premiers jetons
+    après "QSO:" sont à POSITION FIXE (norme Cabrillo v3) -- fiables. Le
+    reste (indicatif DX, détail de l'échange) est de longueur VARIABLE selon
+    le règlement (cabrillo_exchange) et volontairement IGNORÉ : ce parseur ne
+    sert qu'à alimenter archive_log() pour le "score à battre"
+    (best_for_contest() ne lit que le NOMBRE de QSO et leurs `points`, jamais
+    l'indicatif/l'échange d'une archive). Renvoie (qsos, claimed_score)."""
+    qsos = []
+    claimed = None
+    for line in (text or '').splitlines():
+        line = line.strip()
+        upper = line.upper()
+        if upper.startswith('CLAIMED-SCORE:'):
+            digits = re.sub(r'[^0-9]', '', line.split(':', 1)[1])
+            if digits:
+                claimed = int(digits)
+        elif upper.startswith('QSO:'):
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            freq, mode, date, time = parts[1], parts[2], parts[3], parts[4]
+            qsos.append({
+                'band': _cabrillo_freq_to_band(freq),
+                'mode': _CABRILLO_MODE_TO_INTERNAL.get(mode.upper(), mode.upper()),
+                'date': date.replace('-', ''), 'time': time,
+            })
+    return qsos, claimed
+
+
+def import_external_log(text, fmt, contest_id, cfg=None, manual_score=None):
+    """Importe un log EXTERNE (ADIF ou Cabrillo) d'une édition passée d'un
+    concours jamais logguée dans LogX AI, comme archive permanente -- pour
+    que best_for_contest() en tienne compte dans le "score à battre" (demande
+    F4GLD 10/08/2026 : « j'ai des logs de concours que je n'ai pas encore
+    importé en stock »). N'écrit QUE dans archives/, jamais dans le log
+    actif -- sans rapport avec /log/import_adif/* (qui fusionne dans la
+    session en cours).
+
+    fmt : 'adif' ou 'cabrillo'.
+    manual_score : impose le score total de cette édition. Obligatoire en
+    pratique pour l'ADIF (qui ne transporte pas de points par QSO côté LogX
+    AI) ; en Cabrillo, sert de correctif si CLAIMED-SCORE est absent ou
+    erroné -- sinon le CLAIMED-SCORE du fichier fait foi."""
+    contest_id = (contest_id or '').strip()
+    if not contest_id:
+        return {'ok': False, 'error': 'Concours non précisé'}
+    fmt = (fmt or '').strip().lower()
+    if fmt == 'adif':
+        from logx_import import parse_adif_to_qsos
+        qsos, _errors = parse_adif_to_qsos(text or '')
+        claimed = None
+    elif fmt == 'cabrillo':
+        qsos, claimed = _parse_cabrillo(text or '')
+    else:
+        return {'ok': False, 'error': f"Format non pris en charge : {fmt!r}"}
+    if not qsos:
+        return {'ok': False, 'error': 'Aucun QSO reconnu dans ce fichier'}
+
+    score = manual_score if manual_score is not None else (claimed or 0)
+    # best_for_contest() ne fait que SOMMER q['points'] par archive : le
+    # détail par-QSO du score réel de l'époque est perdu (ADIF n'en a jamais
+    # eu, Cabrillo ne donne qu'un total) -- tout le score connu est posé sur
+    # le premier QSO, les autres à 0, pour que la somme retombe juste.
+    qsos[0]['points'] = score
+    for q in qsos[1:]:
+        q.setdefault('points', 0)
+
+    dates = sorted({str(q.get('date', '')) for q in qsos if q.get('date')})
+    when = None
+    if dates:
+        try:
+            when = datetime.datetime.strptime(dates[0][:8], '%Y%m%d')
+        except ValueError:
+            when = None
+    return archive_log(qsos, contest_id, cfg or {}, when=when)
 
 
 def list_archives():

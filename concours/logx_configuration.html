@@ -874,6 +874,31 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             style="white-space:nowrap;padding:0 16px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Aucun concours</button>
         </div>
         <div class="contest-grid" id="contestGrid"></div>
+        <div id="contest_best_score" class="expert-only" style="display:none;font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-top:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)"></div>
+      </div>
+
+      <!-- Anciens logs (ADIF/Cabrillo) jamais logués dans LogX AI : les
+           importer comme ARCHIVE permanente alimente le "score à battre"
+           ci-dessus, sans toucher au log actif (voir logx_archive.
+           import_external_log()). Demande F4GLD 10/08/2026. -->
+      <div class="section expert-only">
+        <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5v3h13v-3"/><polyline points="6,8 9,11 12,8"/><line x1="9" y1="11" x2="9" y2="3.5"/></svg> IMPORTER D'ANCIENS LOGS (SCORE À BATTRE)</h3>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">
+          Un concours déjà disputé mais jamais loggué dans LogX AI (fichier ADIF ou Cabrillo) ? Importe-le comme
+          archive : il comptera dans le « score à battre » de son concours, sans toucher au log en cours.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="importOldLogFormat" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:9px 10px">
+            <option value="adif">ADIF (.adi)</option>
+            <option value="cabrillo">Cabrillo (.cbr/.log)</option>
+          </select>
+          <select id="importOldLogContest" style="flex:1;min-width:200px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:9px 10px"></select>
+          <input type="number" id="importOldLogScore" placeholder="Score (si connu)" title="Optionnel en Cabrillo (CLAIMED-SCORE du fichier sert de repli) — recommandé en ADIF (aucun score dans le fichier)"
+            style="width:150px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:9px 10px">
+          <button type="button" class="btn btn-secondary" style="padding:9px 14px;font-size:13px" onclick="document.getElementById('importOldLogFile').click()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5v3h13v-3"/><polyline points="6,8 9,11 12,8"/><line x1="9" y1="11" x2="9" y2="3.5"/></svg> Choisir un fichier</button>
+          <input type="file" id="importOldLogFile" accept=".adi,.adif,.cbr,.log,.txt" style="display:none" onchange="importOldLog(this.files[0])">
+          <span id="importOldLogStatus" style="font-family:var(--font-mono);font-size:12px"></span>
+        </div>
       </div>
 
       <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
@@ -3875,6 +3900,7 @@ async function init() {
   // Sélecteur unifié : enrichir avec la base serveur + WA7BNM puis re-render
   await Promise.all([mergeServerContests(), mergeExternalContests()]);
   buildContestGrid(document.getElementById('contestSearch').value || '');
+  populateImportContestSelect();
   // Re-marquer la carte du concours sauvegardé (le re-render l'a reconstruite)
   if (state.contest) {
     const card = document.getElementById('card_' + state.contest);
@@ -5319,7 +5345,50 @@ async function selectContest(id, _skipConfirm) {
   // changer de concours ici sans recharger la page laissait le compteur du
   // PRÉCÉDENT concours affiché.
   refreshCallHistoryStatus();
+  refreshContestBestScore(id);
   renderConfigTree();
+}
+
+// Liste déroulante du panneau d'import d'anciens logs -- reflète TOUJOURS
+// CONTESTS (y compris après mergeServerContests()/mergeExternalContests()),
+// distincte de la sélection state.contest : on peut vouloir archiver une
+// vieille édition d'un AUTRE concours que celui actuellement configuré.
+function populateImportContestSelect(){
+  const sel = document.getElementById('importOldLogContest');
+  if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = CONTESTS.slice().sort((a, b) => a.name.localeCompare(b.name))
+    .map(c => `<option value="${escC(c.id)}">${escC(c.name)}</option>`).join('');
+  if(prev && CONTESTS.some(c => c.id === prev)) sel.value = prev;
+  else if(state.contest) sel.value = state.contest;
+}
+
+async function importOldLog(file){
+  if(!file) return;
+  const statusEl = document.getElementById('importOldLogStatus');
+  const fmt = document.getElementById('importOldLogFormat').value;
+  const contest = document.getElementById('importOldLogContest').value;
+  const scoreEl = document.getElementById('importOldLogScore');
+  const fileInput = document.getElementById('importOldLogFile');
+  if(!contest){ statusEl.textContent = 'Choisis un concours.'; fileInput.value = ''; return; }
+  statusEl.textContent = 'Import en cours…';
+  try{
+    const text = await file.text();
+    const r = await (await fetch('/log/archives/import', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({format: fmt, text, contest, score: scoreEl.value || null})
+    })).json();
+    if(r.ok){
+      statusEl.textContent = `Importé : ${r.qso_count} QSO archivés pour ${escC(contest)}.`;
+      scoreEl.value = '';
+      if(state.contest === contest) refreshContestBestScore(contest);
+    } else {
+      statusEl.textContent = 'Erreur : ' + (r.error || 'import refusé');
+    }
+  }catch(e){
+    statusEl.textContent = 'Erreur réseau : ' + e.message;
+  }
+  fileInput.value = '';   // permet de réimporter le même fichier ensuite si besoin
 }
 
 // Revenir à « pas de concours » — seul selectContest() existait, qui ne fait
@@ -5343,6 +5412,7 @@ function deselectContest(){
   const banner = document.getElementById('contest_dates_auto');
   if(banner) banner.innerHTML = '<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Choisis un concours ci-dessus : ses dates se calculent automatiquement.';
   refreshCallHistoryStatus();   // même correctif que selectContest() : ne pas laisser un compteur obsolète
+  refreshContestBestScore(null);
   renderConfigTree();
 }
 
@@ -8959,6 +9029,29 @@ async function refreshCallHistoryStatus(){
   }catch(e){ /* hors ligne : silencieux, comme les autres statuts */ }
 }
 window.addEventListener('load', refreshCallHistoryStatus);
+
+// "Score à battre" : meilleur QSO count / meilleur score déjà réalisés pour
+// CE concours parmi les éditions archivées (archives/ permanentes, cf.
+// logx_archive.py) -- ne se déclenche qu'à la sélection d'un concours
+// (appelé depuis selectContest()/deselectContest() ci-dessous), jamais au
+// chargement de page seul (state.contest peut être vide).
+async function refreshContestBestScore(id){
+  const el = document.getElementById('contest_best_score');
+  if (!el) return;
+  if (!id) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  try{
+    const r = await (await fetch('/log/archives/best?contest=' + encodeURIComponent(id))).json();
+    if (!r || !r.ok) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    const qsoYear = r.best_qso_year ? ` (${r.best_qso_year})` : '';
+    const ptsYear = r.best_points_year ? ` (${r.best_points_year})` : '';
+    const edText = r.editions > 1 ? `${r.editions} éditions archivées` : '1 édition archivée';
+    el.innerHTML = `<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5v3M6 14.5h6M5 2.5h8l-.6 5.2a3.4 3.4 0 0 1-6.8 0L5 2.5z"/><path d="M5 4H2.8A1.3 1.3 0 0 0 2 6.3 3 3 0 0 0 5 9M13 4h2.2A1.3 1.3 0 0 1 16 6.3 3 3 0 0 1 13 9"/></svg> `
+      + `<strong>Score à battre</strong> pour ${escC(id)} (${edText}) — `
+      + `Meilleur nombre de QSO : <strong>${r.best_qso}</strong>${qsoYear} · `
+      + `Meilleur score : <strong>${r.best_points}</strong> pts${ptsYear}`;
+    el.style.display = 'block';
+  }catch(e){ el.style.display = 'none'; el.innerHTML = ''; }
+}
 
 async function analyzeRules(url, name){
   url  = url  || document.getElementById('aiRulesUrl').value.trim();
