@@ -2396,20 +2396,26 @@ function populateImportContestSelect(){
   const sel = document.getElementById('importOldLogContest');
   if(!sel) return;
   const prev = sel.value;
-  sel.innerHTML = CONTESTS.slice().sort((a, b) => a.name.localeCompare(b.name))
+  // Option de tête « Détection automatique » (demande F4GLD 10/08/2026 :
+  // « sans avoir à choisir le concours ») -- valeur vide, comprise par
+  // import_external_log() côté serveur comme « devine depuis le fichier »
+  // (guess_contest_id() sur la ligne CONTEST: Cabrillo ou le tag CONTEST_ID
+  // ADIF). La liste complète reste disponible pour le cas où le fichier ne
+  // porte pas ce champ, ou si la détection se trompe.
+  const options = CONTESTS.slice().sort((a, b) => a.name.localeCompare(b.name))
     .map(c => `<option value="${escC(c.id)}">${escC(c.name)}</option>`).join('');
-  if(prev && CONTESTS.some(c => c.id === prev)) sel.value = prev;
-  else if(state.contest) sel.value = state.contest;
+  sel.innerHTML = '<option value="">— Détection automatique —</option>' + options;
+  if(prev && (prev === '' || CONTESTS.some(c => c.id === prev))) sel.value = prev;
 }
 
 async function importOldLog(file){
   if(!file) return;
   const statusEl = document.getElementById('importOldLogStatus');
   const fmt = document.getElementById('importOldLogFormat').value;
-  const contest = document.getElementById('importOldLogContest').value;
+  const contestSel = document.getElementById('importOldLogContest');
+  const contest = contestSel.value;   // vide = laisser le serveur deviner
   const scoreEl = document.getElementById('importOldLogScore');
   const fileInput = document.getElementById('importOldLogFile');
-  if(!contest){ statusEl.textContent = 'Choisis un concours.'; fileInput.value = ''; return; }
   statusEl.textContent = 'Import en cours…';
   try{
     const text = await file.text();
@@ -2418,9 +2424,13 @@ async function importOldLog(file){
       body: JSON.stringify({format: fmt, text, contest, score: scoreEl.value || null})
     })).json();
     if(r.ok){
-      statusEl.textContent = `Importé : ${r.qso_count} QSO archivés pour ${escC(contest)}.`;
+      const detectedPart = r.detected ? ' (détecté automatiquement)' : '';
+      statusEl.textContent = `Importé pour ${escC(r.contest)}${detectedPart} : ${r.qso_count} QSO archivés.`;
       scoreEl.value = '';
-      if(state.contest === contest) refreshContestBestScore(contest);
+      if(state.contest === r.contest) refreshContestBestScore(r.contest);
+    } else if(r.needs_manual){
+      statusEl.textContent = 'Concours non détecté automatiquement — choisis-le dans la liste, puis réessaie.';
+      contestSel.focus();
     } else {
       statusEl.textContent = 'Erreur : ' + (r.error || 'import refusé');
     }
