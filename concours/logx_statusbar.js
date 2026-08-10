@@ -97,7 +97,7 @@
       #rcStatusBar a{color:inherit;text-decoration:none}
       #rcStatusBar a:hover{color:var(--accent2,#00D4FF)}
       @media (max-width:900px){ #rcStatusBar .rcsb-item{padding:4px 7px} }
-      #rcsbLayoutDD{position:absolute;top:100%;left:0;z-index:2000;min-width:260px;
+      #rcsbLayoutDD, #rcsbDisplayDD{position:absolute;top:100%;left:0;z-index:2000;min-width:260px;
         background:var(--bg2,#0D0E1A);border:1px solid var(--border,#2B2F4A);border-radius:0 0 8px 8px;
         box-shadow:0 8px 24px rgba(0,0,0,.5);padding:10px;font-size:13px;white-space:normal}
       #rcsbLayoutDD .rcsb-panel-row,#rcsbLayoutDD .rcsb-layout-row{display:flex;align-items:center;gap:6px;padding:4px 0}
@@ -110,7 +110,9 @@
         color:var(--text,#E9ECF5);border:1px solid var(--border,#2B2F4A);border-radius:4px;
         padding:4px 6px;width:100%}
       #rcsbLayoutDD hr{border:none;border-top:1px solid var(--border,#2B2F4A);margin:8px 0}
-      #rcsbLayoutDD .rcsb-dd-title{color:var(--muted,#A9B0C8);letter-spacing:1px;font-size:11px;margin-bottom:4px}
+      #rcsbLayoutDD .rcsb-dd-title,#rcsbDisplayDD .rcsb-dd-title{color:var(--muted,#A9B0C8);letter-spacing:1px;font-size:11px;margin-bottom:4px}
+      #rcsbDisplayDD label{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;color:var(--text,#E9ECF5)}
+      #rcsbDisplayDD input[type=checkbox]{cursor:pointer;accent-color:var(--accent2,#00D4FF)}
       #rcsbUpdateItem{display:none;cursor:pointer;position:relative;color:var(--yellow,#FFD60A);font-weight:700}
       #rcsbUpdateDD{position:absolute;top:100%;right:0;z-index:2000;min-width:280px;
         background:var(--bg2,#0D0E1A);border:1px solid var(--border,#2B2F4A);border-radius:0 0 8px 8px;
@@ -119,8 +121,13 @@
         font-size:12px;white-space:pre-wrap;margin:6px 0;border-top:1px solid var(--border,#2B2F4A);
         border-bottom:1px solid var(--border,#2B2F4A);padding:6px 0}
       #rcsbUpdateDD .rcsb-upd-row{display:flex;gap:6px;margin-top:8px}
+      /* Valeur FIXE (pas var(--accent)) : le cuivre nuit (#E8964A env.) est
+         trop clair pour porter du texte blanc (contraste mesuré 2,36:1, sous
+         le seuil AA 4,5:1) -- même raisonnement que --accent2 sur fond plein
+         documenté dans CLAUDE.md. #8B4F1F (le cuivre jour, plus profond)
+         donne 6,49:1 dans les deux thèmes. */
       #rcsbUpdateDD button, #rcsbUpdateDD a.rcsb-upd-btn{font-family:inherit;font-size:12px;
-        background:var(--accent,#FF5030);color:#fff;border:none;border-radius:4px;
+        background:#8B4F1F;color:#fff;border:none;border-radius:4px;
         padding:6px 10px;cursor:pointer;text-decoration:none;display:inline-block;text-align:center;flex:1}
       #rcsbUpdateDD button.rcsb-upd-secondary{background:var(--bg3,#14172C);color:var(--text,#E9ECF5);
         border:1px solid var(--border,#2B2F4A);flex:none}
@@ -134,10 +141,10 @@
     <div class="rcsb-item" title="Temps restant de l'épreuve (dates de l'étape CONCOURS)">
       ⏱ <span class="rcsb-val rc-i18n-live" id="rcsbTime">—</span>
     </div>
-    <div class="rcsb-item" title="Dernier backup automatique du log (toutes les 5 min sur la page Logbook)">
+    <div class="rcsb-item" id="rcsbSaveItem" title="Dernier backup automatique du log (toutes les 5 min sur la page Logbook)">
       💾 <span class="rcsb-val" id="rcsbSave">—</span>
     </div>
-    <div class="rcsb-item" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
+    <div class="rcsb-item" id="rcsbSolarItem" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
       <a href="logx_propagation.html">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
     </div>
     <div class="rcsb-item" id="rcsbBeaconItem" title="Balise NCDXF/IBP active maintenant sur 20m (réseau mondial de 18 balises, rotation de 10 s) — clic : les 5 bandes + panneau complet">
@@ -160,18 +167,23 @@
          title="Règle des 10 minutes (Multi-Single, CQ WW et concours similaires) : un changement de bande n'est autorisé qu'une fois toutes les 10 minutes. Décompte depuis le dernier changement de bande loggué.">
       🔄 <span class="rcsb-val rc-i18n-live" id="rcsbBandChange">—</span>
     </div>
-    <div class="rcsb-item" title="Dernière vérification automatique des règlements par le serveur">
+    <div class="rcsb-item" id="rcsbRulesItem" title="Dernière vérification automatique des règlements par le serveur">
       📄 <a href="logx_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>
     <div class="rcsb-item" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
       🗔 <span class="rcsb-val">DISPOSITION</span>
       <div id="rcsbLayoutDD" style="display:none"></div>
     </div>
+    <div class="rcsb-item" id="rcsbDisplayItem" style="cursor:pointer;position:relative"
+      title="Choisir les informations affichées dans cette barre">
+      ⚙ <span class="rcsb-val">AFFICHAGE</span>
+      <div id="rcsbDisplayDD" style="display:none"></div>
+    </div>
     <div class="rcsb-item" id="rcsbUpdateItem" title="Une nouvelle version de LogX AI est disponible">
       🆕 <span id="rcsbUpdateLabel">mise à jour</span>
       <div id="rcsbUpdateDD" style="display:none"></div>
     </div>
-    <div class="rcsb-item" title="Version de LogX AI installée — à indiquer en cas de bug">
+    <div class="rcsb-item" id="rcsbVersionItem" title="Version de LogX AI installée — à indiquer en cas de bug">
       🏷️ <span class="rcsb-val" id="rcsbVersion">—</span>
     </div>
     <div class="rcsb-item" id="rcsbUiModeItem" style="cursor:pointer"
@@ -190,6 +202,13 @@
   let _bandChangeFetchedAt = 0;
   function nudgesOn(){ try { return localStorage.getItem('rc_live_nudges') === '1'; } catch(e){ return false; } }
   function refreshRate(){
+    // Menu ⚙ AFFICHAGE (voir STATUSBAR_TOGGLES plus bas) : #rcsbRateItem
+    // compose la préférence utilisateur ET l'état concours — purement local
+    // (localStorage), pas besoin d'attendre la réponse réseau ci-dessous.
+    // Rejoué à chaque tic (60 s, cf. rcPoll) : la visibilité reste correcte
+    // même si le concours change dans un autre onglet sans qu'on recoche la
+    // case AFFICHAGE.
+    updateRateItemVisibility();
     // Nudges live (OFF par défaut) : on ne demande le calcul serveur que si
     // l'opérateur l'a activé — sinon `?nudges=1` absent, le serveur ne dépense
     // rien. Même poll partagé, aucune boucle réseau supplémentaire.
@@ -809,6 +828,17 @@
   // version plus récente existe ET que ce navigateur n'a pas déjà refusé
   // CETTE version précise (rc_update_dismissed).
   let _updState = null;
+  // Popup de MAJ auto-ouverte à l'ouverture de la page (pas seulement un
+  // badge discret) : sessionStorage, DISTINCT de rc_update_dismissed
+  // (localStorage, qui sert à « ne plus jamais proposer CETTE version »,
+  // persistant). rc_update_auto_shown sert à « déjà montrée une fois PENDANT
+  // CETTE SESSION DE NAVIGATION » (survit à une navigation entre pages de
+  // l'appli DANS LE MÊME ONGLET, contrairement à un simple flag en mémoire —
+  // piège trouvé en revue adversariale : un flag JS pur est réinitialisé à
+  // CHAQUE chargement de page, donc le popup ressurgissait à chaque clic de
+  // nav pendant un concours tant que la MAJ n'était pas explicitement
+  // refusée ; sessionStorage se vide seul à la fermeture de l'onglet, donc
+  // une VRAIE nouvelle session la reproposera normalement).
 
   // Échappement HTML générique (attributs ET texte) — nécessaire car
   // release_url/latest/current viennent de /app/update_check, qui relaie
@@ -890,6 +920,18 @@
         item.style.display = 'flex';
         document.getElementById('rcsbUpdateLabel').textContent = 'v' + d.latest + ' disponible';
         renderUpdateDD();
+        // Vrai popup à l'ouverture, une seule fois par SESSION DE NAVIGATION
+        // (voir commentaire de rc_update_auto_shown ci-dessus) — sans ce
+        // garde-fou, cette dropdown se rouvrirait TOUTE SEULE à chaque
+        // navigation entre pages, ou au tic suivant de refreshUpdateCheck()
+        // (30 min), même après une fermeture manuelle par l'utilisateur.
+        let alreadyShown = false;
+        try{ alreadyShown = sessionStorage.getItem('rc_update_auto_shown') === d.latest; }catch(e){}
+        if (!alreadyShown){
+          try{ sessionStorage.setItem('rc_update_auto_shown', d.latest); }catch(e){}
+          const dd = document.getElementById('rcsbUpdateDD');
+          if (dd) dd.style.display = 'block';
+        }
       } else {
         item.style.display = 'none';
       }
@@ -1147,6 +1189,103 @@
   document.addEventListener('click', function(e){
     const dd = document.getElementById('rcsbUpdateDD');
     const item = document.getElementById('rcsbUpdateItem');
+    if (dd && dd.style.display !== 'none' && item && !item.contains(e.target)) dd.style.display = 'none';
+  });
+
+  // ── Menu ⚙ AFFICHAGE : préférences PAR ITEM (plus fin que simple/expert) ──
+  // Registre UNIQUE (source de vérité) — évite une liste écrite deux fois qui
+  // diverge silencieusement (piège déjà rencontré sur ce projet). #rcsbContest
+  // et #rcsbTime (chemin critique) n'y figurent JAMAIS ; #rcsbStormItem/
+  // #rcsbNetworkItem/#rcsbBandChangeItem non plus (déjà conditionnels à une
+  // situation réelle, pas des indicateurs "de confort").
+  const STATUSBAR_TOGGLES = [
+    {id: 'rcsbSaveItem', label: 'Dernier backup', default: false},
+    {id: 'rcsbSolarItem', label: 'Météo solaire (SFI/K)', default: true},
+    {id: 'rcsbBeaconItem', label: 'Balise NCDXF/IBP', default: false},
+    {id: 'rcsbRateItem', label: 'QSO/heure (rate meter)', default: true},
+    {id: 'rcsbRulesItem', label: 'Dernière vérification des règlements', default: true},
+    {id: 'rcsbVersionItem', label: 'Version installée', default: false},
+  ];
+  function getStatusbarPrefs(){
+    try { return JSON.parse(localStorage.getItem('rc_statusbar_prefs') || '{}'); }
+    catch(e){ return {}; }
+  }
+  function setStatusbarPref(id, shown){
+    const prefs = getStatusbarPrefs();
+    prefs[id] = !!shown;
+    try { localStorage.setItem('rc_statusbar_prefs', JSON.stringify(prefs)); } catch(e){}
+  }
+  // Clé absente -> repli sur .default de l'entrée du registre (voir spec).
+  function statusbarPrefShown(id){
+    const t = STATUSBAR_TOGGLES.filter(function(x){ return x.id === id; })[0];
+    const def = t ? t.default : true;
+    const prefs = getStatusbarPrefs();
+    return (id in prefs) ? !!prefs[id] : def;
+  }
+  // #rcsbRateItem compose DEUX conditions INDÉPENDANTES : la préférence
+  // utilisateur (menu AFFICHAGE) ET le concours actif — un QSO/h n'a pas de
+  // sens hors concours, même case cochée. Condition calquée EXACTEMENT sur
+  // celle de refreshContest()/refreshCountdown() (~L718-745). Fonction
+  // PARTAGÉE entre applyStatusbarPrefs() (préférence changée) et refreshRate()
+  // (tic périodique, l'état concours peut avoir changé entre-temps) : source
+  // de vérité unique plutôt que dupliquer la composition aux deux endroits et
+  // risquer une divergence — c'est le piège de composition documenté dans la
+  // consigne de ce chantier.
+  function updateRateItemVisibility(){
+    const item = document.getElementById('rcsbRateItem');
+    if (!item) return;
+    const cfg = getConfig();
+    const noContest = cfg.usage_mode === 'simple' || !cfg.contest;
+    item.style.display = (statusbarPrefShown('rcsbRateItem') && !noContest) ? '' : 'none';
+  }
+  // Appelée UNE FOIS au boot (après insert()) ET à chaque changement de case
+  // à cocher — application immédiate, sans reload (contrairement à
+  // toggleUiMode() : ce mécanisme n'a besoin de réappliquer QUE ces quelques
+  // display, pas les classes expert-only sur toute la page).
+  function applyStatusbarPrefs(){
+    STATUSBAR_TOGGLES.forEach(function(t){
+      if (t.id === 'rcsbRateItem') return; // composition spéciale, voir updateRateItemVisibility()
+      const el = document.getElementById(t.id);
+      if (el) el.style.display = statusbarPrefShown(t.id) ? '' : 'none';
+    });
+    updateRateItemVisibility();
+  }
+
+  function renderDisplayDD(){
+    const dd = document.getElementById('rcsbDisplayDD');
+    if (!dd) return;
+    const rows = STATUSBAR_TOGGLES.map(function(t){
+      const checked = statusbarPrefShown(t.id) ? ' checked' : '';
+      return '<label><input type="checkbox" data-toggle="' + t.id + '"' + checked + '> '
+        + rcT(t.label) + '</label>';
+    }).join('');
+    dd.innerHTML = '<div class="rcsb-dd-title">' + rcT('AFFICHAGE') + '</div>' + rows;
+  }
+
+  // Ouverture/fermeture au clic : calque exact du patron #rcsbLayoutItem/
+  // #rcsbLayoutDD (bar.addEventListener('click', ...) + fermeture au clic
+  // extérieur ci-dessous). Délégation d'événement 'change' sur les
+  // checkboxes : pas de re-bind à chaque rendu, la dropdown est régénérée à
+  // chaque ouverture.
+  bar.addEventListener('click', function(e){
+    const displayItem = e.target.closest('#rcsbDisplayItem');
+    const dd = document.getElementById('rcsbDisplayDD');
+    if (displayItem && !e.target.closest('#rcsbDisplayDD')){
+      const willOpen = dd.style.display === 'none';
+      dd.style.display = willOpen ? 'block' : 'none';
+      if (willOpen) renderDisplayDD();
+      return;
+    }
+  });
+  bar.addEventListener('change', function(e){
+    const cb = e.target.closest('[data-toggle]');
+    if (!cb) return;
+    setStatusbarPref(cb.getAttribute('data-toggle'), cb.checked);
+    applyStatusbarPrefs();
+  });
+  document.addEventListener('click', function(e){
+    const dd = document.getElementById('rcsbDisplayDD');
+    const item = document.getElementById('rcsbDisplayItem');
     if (dd && dd.style.display !== 'none' && item && !item.contains(e.target)) dd.style.display = 'none';
   });
 
@@ -1424,10 +1563,45 @@
     if (dd && dd.style.display !== 'none' && item && !item.contains(e.target)) dd.style.display = 'none';
   });
 
+  // ── DISPOSITION et AFFICHAGE s'ouvrent aussi au SURVOL (en plus du clic,
+  // pas à sa place — clavier/tactile dépendent du clic existant ci-dessus).
+  // Fermeture différée (200 ms) annulée si la souris entre entre-temps dans
+  // la dropdown : sinon impossible de cliquer un bouton À L'INTÉRIEUR d'elle
+  // sans qu'elle se referme au passage de la souris entre l'item et la
+  // dropdown. Même mécanisme pour les 2 menus (piège trouvé en revue
+  // adversariale : le survol n'avait été câblé QUE sur DISPOSITION, deux
+  // menus visuellement jumeaux et adjacents avec des comportements
+  // différents — rupture d'intuitivité) : une seule fabrique au lieu de
+  // dupliquer le couple open/scheduleClose par item.
+  function _wireHoverDropdown(itemId, ddId, renderFn){
+    let closeTimer = null;
+    const item = bar.querySelector('#' + itemId);
+    const dd = bar.querySelector('#' + ddId);
+    if (!item || !dd) return;
+    function open(){
+      clearTimeout(closeTimer);
+      dd.style.display = 'block';
+      if (renderFn) renderFn();
+    }
+    function scheduleClose(){
+      clearTimeout(closeTimer);
+      closeTimer = setTimeout(function(){ dd.style.display = 'none'; }, 200);
+    }
+    // mouseenter/mouseleave ne bubblent pas : listeners posés directement sur
+    // les 2 éléments concernés (pas de délégation possible sur bar ici).
+    item.addEventListener('mouseenter', open);
+    item.addEventListener('mouseleave', scheduleClose);
+    dd.addEventListener('mouseenter', function(){ clearTimeout(closeTimer); });
+    dd.addEventListener('mouseleave', scheduleClose);
+  }
+  _wireHoverDropdown('rcsbLayoutItem', 'rcsbLayoutDD', renderLayoutDD);
+  _wireHoverDropdown('rcsbDisplayItem', 'rcsbDisplayDD', renderDisplayDD);
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   function boot(){
     insert();
     refreshUiModeLabel();   // après insert() : le span n'existe pas avant
+    applyStatusbarPrefs();  // idem : menu ⚙ AFFICHAGE, éléments absents avant insert()
     refreshContest(); refreshCountdown(); refreshSave();
     loadContestNames();
     refreshRules();
@@ -1445,8 +1619,11 @@
     rcPoll(refreshRules, 10 * 60 * 1000);
     rcPoll(refreshUpdateCheck, 30 * 60 * 1000);
     rcPoll(refreshErrorsCheck, 60 * 1000);
-    // Réagir aux sauvegardes faites dans un autre onglet
-    window.addEventListener('storage', () => { refreshContest(); refreshSave(); });
+    // Réagir aux sauvegardes faites dans un autre onglet -- updateRateItemVisibility()
+    // aussi : #rcsbRateItem dépend de cfg.contest, sinon il resterait masqué/affiché
+    // à tort jusqu'à 60s (prochain tic de refreshRate) après un changement de
+    // concours décidé depuis un autre poste/onglet (constat revue adversariale).
+    window.addEventListener('storage', () => { refreshContest(); refreshSave(); updateRateItemVisibility(); });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
