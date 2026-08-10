@@ -15,7 +15,9 @@ py_mini_racer = pytest.importorskip(
     'py_mini_racer', reason='py_mini_racer absent (voir requirements.txt) — test JS réel ignoré')
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HTML_PATH = os.path.join(BASE, 'logx_configuration.html')
+# Script inline extrait vers logx_configuration.js (10/08/2026, même jour que
+# l'ajout de refreshContestBestScore() -- jamais eu de version "inline").
+HTML_PATH = os.path.join(BASE, 'logx_configuration.js')
 
 with open(HTML_PATH, encoding='utf-8') as _f:
     _HTML_SRC = _f.read()
@@ -110,7 +112,6 @@ def test_avec_archives_affiche_qso_et_points():
 
 
 def test_requete_porte_bien_le_concours_en_query_param():
-    fetched_url = []
     ctx = _make_ctx("""function(url){
       __fetchedUrl = url;
       return Promise.resolve({ json: function(){ return Promise.resolve({ok:false}); } });

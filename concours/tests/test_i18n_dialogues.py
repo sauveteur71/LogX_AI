@@ -42,7 +42,16 @@ FICHIERS = ('logx_logbook.js', 'logx_configuration.html',
 
 def _lire(nom):
     with io.open(os.path.join(CONCOURS, nom), encoding='utf-8') as f:
-        return f.read()
+        src = f.read()
+    # logx_configuration.html : script inline extrait vers
+    # logx_configuration.js (10/08/2026) -- concaténer pour que les
+    # recherches ci-dessous (trF/trT, dialogues) continuent de le trouver.
+    if nom == 'logx_configuration.html':
+        js_path = os.path.join(CONCOURS, 'logx_configuration.js')
+        if os.path.exists(js_path):
+            with io.open(js_path, encoding='utf-8') as f:
+                src += '\n' + f.read()
+    return src
 
 
 @pytest.fixture(scope='module')

@@ -39,6 +39,18 @@ if CONCOURS not in sys.path:
 import logx_cat as C   # noqa: E402
 
 
+def _config_html_source():
+    """logx_configuration.html + son script inline (extrait vers
+    logx_configuration.js le 10/08/2026)."""
+    with open(os.path.join(CONCOURS, 'logx_configuration.html'), encoding='utf-8') as f:
+        src = f.read()
+    js_path = os.path.join(CONCOURS, 'logx_configuration.js')
+    if os.path.exists(js_path):
+        with open(js_path, encoding='utf-8') as f:
+            src += '\n' + f.read()
+    return src
+
+
 class FauxPort:
     """Poste muet : enregistre ce qu'on lui écrit, ne répond rien."""
 
@@ -181,9 +193,7 @@ def test_un_modele_pilotable_ouvre_bien_le_port(monkeypatch):
 def test_les_postes_refuses_sont_MARQUES_dans_la_page_config():
     """Un poste refusé côté serveur mais proposé sans mention côté page, c'est
     l'opérateur qui le découvre en concours."""
-    html = os.path.join(CONCOURS, 'logx_configuration.html')
-    with open(html, encoding='utf-8') as f:
-        src = f.read()
+    src = _config_html_source()
     bloc = src[src.index('const CAT_MODELS'):src.index('const CAT_DEFAULT_BAUD')]
     for modele in BINAIRES:
         i = bloc.index("'%s'" % modele)
@@ -191,10 +201,7 @@ def test_les_postes_refuses_sont_MARQUES_dans_la_page_config():
 
 
 def test_la_page_affiche_la_mention_a_l_ecran():
-    html = os.path.join(CONCOURS, 'logx_configuration.html')
-    with open(html, encoding='utf-8') as f:
-        src = f.read()
-    assert 'rigctld/Hamlib' in src
+    assert 'rigctld/Hamlib' in _config_html_source()
 
 
 # ─── La vitesse Yaesu : repli conservé, silence supprimé ─────────────────────
@@ -212,9 +219,7 @@ def test_mais_la_page_PREVIENT_pour_les_postes_reellement_pilotes():
     Hamlib). Les Yaesu qu'il gère sortent d'usine à 9600 ou 38400 : pré-remplir
     4800 les fait échouer sur un « pas de réponse » indiscernable d'un câble
     débranché. On ne devine pas la valeur — on dit où la lire."""
-    html = os.path.join(CONCOURS, 'logx_configuration.html')
-    with open(html, encoding='utf-8') as f:
-        src = f.read()
+    src = _config_html_source()
     assert 'CAT RATE' in src
     assert '38400' in src
 

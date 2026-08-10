@@ -42,6 +42,12 @@ def _extract_function(src, name):
 
 with open(HTML_PATH, encoding='utf-8') as _f:
     _HTML_SRC = _f.read()
+# Script inline extrait vers logx_configuration.js (10/08/2026) -- concaténer
+# pour que les extractions de fonctions ci-dessous continuent de les trouver.
+_JS_PATH = os.path.join(BASE, 'logx_configuration.js')
+if os.path.exists(_JS_PATH):
+    with open(_JS_PATH, encoding='utf-8') as _f:
+        _HTML_SRC += '\n' + _f.read()
 
 _MISSING_SRC = _extract_function(_HTML_SRC, '_missingStationFields')
 _BANNER_SRC = _extract_function(_HTML_SRC, '_showConfigValidationBanner')

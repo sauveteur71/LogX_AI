@@ -244,10 +244,15 @@ def test_hardware_state_contient_la_cle_pgxl(server, monkeypatch):
 # réintroduite en régression (une 2e liste codée en dur qui reviendrait).
 
 def _config_html_source():
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        'logx_configuration.html')
-    with open(path, encoding='utf-8') as f:
-        return f.read()
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(base, 'logx_configuration.html'), encoding='utf-8') as f:
+        src = f.read()
+    # Script inline extrait vers logx_configuration.js (10/08/2026).
+    js_path = os.path.join(base, 'logx_configuration.js')
+    if os.path.exists(js_path):
+        with open(js_path, encoding='utf-8') as f:
+            src += '\n' + f.read()
+    return src
 
 
 def _config_sections_keys(src):
