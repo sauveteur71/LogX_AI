@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """Règlements et calendrier : calcul des dates, mise à jour annuelle, cache règlements, concours externes WA7BNM."""
 
-import urllib.request
-import urllib.error
 import json
 import os
 import re
@@ -220,7 +218,7 @@ def calc_contest_date(date_rule, year=None):
 def get_next_contest_date(date_rule):
     """Retourne la prochaine occurrence d'un concours (cette année ou l'année prochaine si passé)"""
     if date_rule == 'permanent':
-        return f"Permanent", CURRENT_YEAR
+        return "Permanent", CURRENT_YEAR
 
     today = datetime.date.today()
 
@@ -260,9 +258,6 @@ def check_rules_update(contest_id):
         content = fetch_url(cdef['check_url'], timeout=8)
         if not content:
             return None
-
-        # Chercher des indices de mise à jour
-        current_year_str = str(CURRENT_YEAR)
 
         # Détecter UNIQUEMENT les années plausibles pour des règlements
         # L'année doit apparaître près d'un mot-clé de règlement

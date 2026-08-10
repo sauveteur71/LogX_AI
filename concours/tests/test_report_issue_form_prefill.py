@@ -27,7 +27,6 @@ ancêtre) pour prouver concrètement que l'incompatibilité se produisait
 bien à ce moment-là."""
 import json
 import os
-import re
 import subprocess
 import urllib.parse
 

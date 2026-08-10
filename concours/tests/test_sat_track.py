@@ -13,7 +13,6 @@ réellement vers la mécanique, pas un état intermédiaire.
 """
 import os
 import sys
-import threading
 import time
 
 import pytest
@@ -440,7 +439,7 @@ def test_l_arret_reveille_la_boucle_SANS_attendre_la_cadence(monkeypatch):
     une horloge : avec une cadence d'UNE HEURE, l'arrêt doit quand même être
     immédiat."""
     import threading as _th
-    rotor = _rotor(monkeypatch)
+    _rotor(monkeypatch)
     _ciel(monkeypatch, [(180, 30)] * 1000)
     ev = _th.Event()
     fini = _th.Event()

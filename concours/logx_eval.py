@@ -17,7 +17,6 @@ liste de contrôles {path, equals|contains|exists|matches}.
 Les chemins sont en notation pointée : 'scoring.bricks.validity'.
 """
 import argparse
-import json
 import os
 import sys
 

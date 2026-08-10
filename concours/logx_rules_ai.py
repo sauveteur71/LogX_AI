@@ -19,7 +19,6 @@ Les règlements peuvent être dans n'importe quelle langue (DE, EN, ES, JA, RU..
 la définition produite est toujours en français.
 """
 import base64
-import copy
 import http.client
 import ipaddress
 import json

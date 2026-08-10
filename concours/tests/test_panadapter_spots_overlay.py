@@ -12,7 +12,6 @@ recopiée, si la page change le test suit.
     aucune fréquence absolue n'est calculable.
   - dessinerSpotsOverlay() : place un repère par spot dont la fréquence tombe
     dans cette plage."""
-import json
 import os
 import sys
 

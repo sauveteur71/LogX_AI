@@ -25,7 +25,6 @@ le classement officiel reste calculé par la plateforme WWA elle-même.
 """
 import re
 import time
-import datetime
 
 from logx_utils import fetch_url
 

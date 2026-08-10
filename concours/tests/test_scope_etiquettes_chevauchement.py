@@ -46,7 +46,6 @@ def _source_js():
 
 def _tracer(spots, rng=(21.0, 21.45)):
     """Rend le SVG et retourne les étiquettes [(texte, x, y)]."""
-    import json
     ctx = py_mini_racer.MiniRacer()
     ctx.eval("""
         var _svg = {innerHTML: ''};

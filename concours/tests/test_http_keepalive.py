@@ -260,7 +260,7 @@ def test_login_429_arrive_et_ne_rejoue_pas_le_mot_de_passe(
         try:
             r = c.getresponse()
             corps_429 = r.read()
-            statut, connexion = r.status, (r.getheader('Connection') or '').lower()
+            statut = r.status
         except (OSError, http.client.HTTPException) as e:
             raise AssertionError(
                 'la reponse 429 doit ARRIVER. Ce test acceptait auparavant un '

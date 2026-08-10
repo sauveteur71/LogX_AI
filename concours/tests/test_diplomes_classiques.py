@@ -21,7 +21,6 @@ lui, l'écran afficherait 0/50 à un opérateur ayant travaillé les 50 états.
 import os
 import sys
 
-import pytest
 
 CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if CONCOURS not in sys.path:

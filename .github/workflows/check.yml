@@ -47,6 +47,14 @@ jobs:
         working-directory: concours
         run: python -m pytest -q
 
+      - name: Lint Python (ruff)
+        # Portee volontairement minimale (E9 = erreurs de syntaxe, F =
+        # pyflakes) -- voir concours/ruff.toml pour le detail et le
+        # raisonnement. Bloquant : le depot est propre sur ce socle
+        # depuis le 10/08/2026, une regression doit casser la CI.
+        working-directory: concours
+        run: ruff check .
+
       - name: Valider les definitions de concours
         working-directory: concours
         run: python logx_validate.py

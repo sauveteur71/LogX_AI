@@ -15,7 +15,7 @@ import datetime
 
 from logx_definitions import CONTEST_DEFINITIONS
 from logx_coach_i18n import t
-from logx_storage import qso_scope_id, active_scope_id, cfg_scope_id
+from logx_storage import qso_scope_id, cfg_scope_id
 from logx_utils import utcnow
 
 HF_BANDS = ('1.8', '3.5', '7', '14', '21', '28')

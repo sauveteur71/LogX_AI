@@ -225,7 +225,7 @@ def update_cty_if_stale(max_age_days=CTY_MAX_AGE_DAYS, force=False):
     # load_cty() réentrant sur les mêmes dicts pendant la fenêtre de mise à
     # jour). load_cty() se suffit à lui-même.
     load_cty()
-    print(f"[DXCC] cty.dat mis a jour"
+    print("[DXCC] cty.dat mis a jour"
           + (f" (l'ancien avait {age:.0f} j)" if age is not None else " (nouveau)"))
     return True
 

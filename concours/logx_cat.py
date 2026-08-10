@@ -974,8 +974,7 @@ class AsciiRadio:
         return parsed
 
     def set_freq(self, freq_hz):
-        reply = self._cmd(ascii_encode_freq_cmd('FA', freq_hz, self.brand),
-                          read_reply=False)
+        self._cmd(ascii_encode_freq_cmd('FA', freq_hz, self.brand), read_reply=False)
         return {'ok': True}
 
     def set_mode(self, mode, freq_hz=None):

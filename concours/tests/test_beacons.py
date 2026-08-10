@@ -47,7 +47,6 @@ def test_psk_parse_reception_reports():
               'senderCallsign="F6KQJ" frequency="14074000" mode="FT8" sNR="-8"/>'
               '</receptionReports>')
     import re
-    from logx_utils import locator_to_latlon
     attrs = re.findall(r'<receptionReport\s+([^>]+?)/?>', sample)
     assert len(attrs) == 1
     d = dict(re.findall(r'(\w+)="([^"]*)"', attrs[0]))

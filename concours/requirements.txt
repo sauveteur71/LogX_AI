@@ -48,6 +48,10 @@ PyYAML>=6,<7
 # Jamais importé par le code applicatif ; test ignoré (importorskip) si absent.
 py_mini_racer>=0.6,<1
 
+# Lint (CI seulement, cf. .github/workflows/check.yml et ruff.toml) — jamais
+# importé par le code applicatif ni par la suite pytest.
+ruff>=0.16,<1
+
 # ── Optionnels non installés par défaut ──────────────────────────────────────
 # Extraction PDF des règlements (logx_rules.py / logx_rules_ai.py) : cascade
 # fitz (pymupdf) -> pdfplumber -> pypdf, avec repli final sans dépendance.
