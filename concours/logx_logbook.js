@@ -2114,6 +2114,9 @@ function onCallInput(){
   document.getElementById('inputCall').value = call;
   broadcastTyping(call);   // vue PARTNER : le runner diffuse sa saisie en direct
   if(typeof clearExchWarn === 'function') clearExchWarn();   // indicatif retapé : avertissement zone périmé
+  // Reprendre la frappe rend obsolète un bandeau de confirmation doublon resté
+  // ouvert d'une tentative précédente (chantier 2, audit accessibilité).
+  if(typeof _cancelPendingDupConfirm === 'function') _cancelPendingDupConfirm();
 
   // Autocomplete
   if(call.length >= 2){
@@ -2216,6 +2219,42 @@ function focusNext(id){
   document.getElementById(id)?.select();
 }
 
+// ─── BANDEAU DE CONFIRMATION DOUBLON (non bloquant) ──────────────────────────
+// Remplace les dialogues confirm() natifs de submitQSO() (chantier 2, audit
+// accessibilité 09/08/2026). Un tel dialogue gèle toute la page tant qu'on ne
+// l'a pas fermé, et déplace le focus vers une boîte système hors du contrôle
+// de l'app — gênant en pleine cadence de saisie (pile-up). Ce bandeau reste
+// dans la page (le reste de l'UI reste utilisable), a de vrais <button>
+// (tabulables, activables au clavier), et ne force jamais le focus hors du
+// champ où l'opérateur se trouve : seul un clic ou une tabulation volontaire
+// de l'opérateur l'atteint.
+let _pendingDupConfirmResolve = null;
+
+function _confirmDupBanner(message){
+  _cancelPendingDupConfirm();   // un bandeau resté ouvert d'une tentative précédente ne doit pas s'empiler
+  return new Promise(resolve => {
+    _pendingDupConfirmResolve = resolve;
+    document.getElementById('dupConfirmMsg').textContent = message;
+    document.getElementById('dupConfirmBanner').classList.add('show');
+  });
+}
+
+function _resolveDupConfirm(result){
+  document.getElementById('dupConfirmBanner').classList.remove('show');
+  if(_pendingDupConfirmResolve){
+    const r = _pendingDupConfirmResolve;
+    _pendingDupConfirmResolve = null;
+    r(result);
+  }
+}
+
+// Appelé quand l'opérateur reprend la frappe (nouvel indicatif) sans avoir
+// répondu au bandeau -- évite qu'une confirmation devienne obsolète/orpheline
+// pendant qu'un autre QSO est en cours de saisie.
+function _cancelPendingDupConfirm(){
+  if(_pendingDupConfirmResolve) _resolveDupConfirm(false);
+}
+
 async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
   const rstSent = document.getElementById('inputRSTsent').value.trim() || '59';
@@ -2241,7 +2280,7 @@ async function submitQSO(){
   // Vérification doublon — hors concours (logbook simple), recontacter la
   // même station sur la même bande au fil des années est normal, pas une erreur.
   if(usageMode !== 'simple' && isDup(call, currentBand, currentMode)){
-    if(!confirm(trF('⚠️ {call} est déjà dans le log sur {band} MHz.\nQuand même enregistrer ?', {call, band: currentBand}))) return;
+    if(!(await _confirmDupBanner(trF('⚠️ {call} est déjà dans le log sur {band} MHz — enregistrer quand même ?', {call, band: currentBand})))) return;
   }
 
   // N° envoyé : auto-série (VHF) ou valeur du champ (FD classe, CQ WW zone, HF dept...)
@@ -2309,7 +2348,8 @@ async function submitQSO(){
       verifierIndicatifApres(qso);   // filet anti-busted call, APRÈS coup
     } else if(res.status === 409){
       // Doublon détecté par le serveur : l'opérateur décide (2e période,
-      // dupe assumé pour l'arbitre...) — confirm() volontairement bloquant.
+      // dupe assumé pour l'arbitre...) — bandeau non bloquant, pas de
+      // confirm() natif (chantier 2, audit accessibilité 09/08/2026).
       const err = await res.json();
       const ex = err.existing || {};
       // Correctif passe de vérification (09/08/2026) : pour un concours à
@@ -2323,7 +2363,7 @@ async function submitQSO(){
       const datePart = ex.date ? trF(' le {d}', {d: fmtDate(ex.date)}) : '';
       const atPart = ex.time ? trF(' à {t}', {t: ex.time}) : '';
       const byPart = ex.operator ? trF(' par {op}', {op: _resolveOperatorCallsign(ex.operator)}) : '';
-      if(confirm(trF('DOUBLON : {call} déjà contacté sur {band} MHz en {mode}{date}{at}{by}.\n\nEnregistrer quand même ?',
+      if(await _confirmDupBanner(trF('DOUBLON : {call} déjà contacté sur {band} MHz en {mode}{date}{at}{by} — enregistrer quand même ?',
                  {call: qso.call, band: qso.band, mode: qso.mode, date: datePart, at: atPart, by: byPart}))){
         const res2 = await fetch('/log/add', {
           method:'POST', headers:{'Content-Type':'application/json'},
@@ -2386,6 +2426,7 @@ function clearForm(){
   setFreqForBand(currentBand);   // ré-affiche la fréquence d'appel/CAT de la bande
   document.getElementById('locHint').style.display = 'none';
   document.getElementById('dupWarn').classList.remove('show');
+  document.getElementById('dupConfirmBanner').classList.remove('show');
   const _cbh = document.getElementById('crossBandHint'); if(_cbh) _cbh.classList.remove('show');
   const _db = document.getElementById('dxccBadge'); if(_db) _db.style.display = 'none';
   const _pq = document.getElementById('prevQsos'); if(_pq) _pq.style.display = 'none';

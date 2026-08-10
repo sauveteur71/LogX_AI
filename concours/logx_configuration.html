@@ -434,6 +434,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   </div>
 </div>
 
+<!-- Bandeau de validation à la sauvegarde (chantier 2, audit accessibilité
+     09/08/2026) : remplace l'alert() bloquant de _warnMissingStation() (et
+     les 3 alertes ClubLog/QRZ/SOTA de saveConfig()) par un bandeau non
+     bloquant, avec un vrai lien par champ manquant qui ouvre directement la
+     bonne catégorie de la sidebar -- même style que #catDetectionBanner
+     ci-dessus, coloré en rouge (erreur de validation, pas juste une info). -->
+<div id="configValidationBanner" role="alert" style="display:none;position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9999;max-width:480px;background:var(--bg2);border:1px solid var(--red);border-radius:10px;padding:14px 18px;backdrop-filter:blur(8px);box-shadow:0 4px 24px rgba(255,45,85,.25);font-family:var(--font-mono);font-size:13px">
+  <div style="color:var(--red);font-weight:700;margin-bottom:8px">⚠️ Configuration incomplète</div>
+  <ul id="configValidationList" style="margin:0 0 10px;padding-left:18px;color:var(--text);line-height:1.6"></ul>
+  <button type="button" onclick="_dismissConfigValidationBanner()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--muted);font-family:var(--font-mono);font-size:12px">Fermer</button>
+</div>
+
 <div class="container">
 
   <!-- PROFILS STATION -->
@@ -571,8 +583,8 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="section">
         <div class="form-grid">
           <div class="form-group">
-            <label>INDICATIF</label>
-            <input type="text" id="callsign" placeholder="F6KQJ" oninput="updateLocatorHint();autoFillCallsign(this.value)" style="text-transform:uppercase;font-size:18px;font-weight:700;color:var(--accent)">
+            <label for="callsign">INDICATIF <span style="font-size:12px;color:var(--red);font-weight:400">(obligatoire)</span></label>
+            <input type="text" id="callsign" aria-required="true" placeholder="F6KQJ" oninput="updateLocatorHint();autoFillCallsign(this.value)" style="text-transform:uppercase;font-size:18px;font-weight:700;color:var(--accent)">
             <div class="input-note usage-simple-only">Suffixes acceptés : /P, /M, /MM, /AM (ex. F4GLD/P), ou préfixe pays en /portable (ex. EA/F4GLD depuis l'Espagne)</div>
           </div>
           <div class="form-group usage-contest-only">
@@ -581,9 +593,9 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <div class="input-note">Auto-rempli depuis INDICATIF — modifier si /P ou club</div>
           </div>
           <div class="form-group">
-            <label>LOCATOR MAIDENHEAD</label>
+            <label for="locator">LOCATOR MAIDENHEAD <span style="font-size:12px;color:var(--red);font-weight:400">(obligatoire)</span></label>
             <div style="display:flex;gap:8px;align-items:stretch">
-              <input type="text" id="locator" placeholder="JN15XC" maxlength="6" oninput="this.value=this.value.toUpperCase();updateLocatorHint()" style="flex:1">
+              <input type="text" id="locator" aria-required="true" placeholder="JN15XC" maxlength="6" oninput="this.value=this.value.toUpperCase();updateLocatorHint()" style="flex:1">
               <button type="button" onclick="openLocatorMap()" title="Trouver le locator en cliquant sur une carte"
                 style="white-space:nowrap;background:var(--bg3);border:1px solid var(--accent2);color:var(--accent2);border-radius:6px;padding:0 12px;cursor:pointer;font-family:var(--font-mono);font-size:13px"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg> Sur la carte</button>
             </div>
@@ -6116,16 +6128,25 @@ function _numClamped(id, fallback){
 // Garde-fou H2 : liste ce qui manque pour atteindre l'étape `forStep` sans
 // perte silencieuse (indicatif/locator invalides ou concours non choisi
 // laissaient auparavant sauter directement à RÉSUMÉ → LOGGER sans avertissement).
+// Chaque entrée est {message, category} -- category est l'ID CONFIG_SECTIONS
+// de la carte à ouvrir (switchSection()), utilisé par le bandeau de
+// validation (chantier 2, audit accessibilité 09/08/2026) pour transformer
+// chaque ligne en lien cliquable direct vers le bon réglage. Les anciens
+// libellés référençaient une "étape" (assistant par étapes .step/.panel,
+// retiré le 08/08/2026 avec la refonte sidebar) -- remplacés par le nom de
+// la section réelle qui existe aujourd'hui.
 function _missingStationFields(forStep){
   const missing = [];
   if(forStep >= 2){
-    if(!document.getElementById('callsign').value.trim()) missing.push('INDICATIF (étape MA STATION)');
+    if(!document.getElementById('callsign').value.trim())
+      missing.push({message: 'INDICATIF (section Identité)', category: 'identity'});
     const loc = document.getElementById('locator').value.trim();
-    if(!loc || !isValidLocator(loc)) missing.push('LOCATOR MAIDENHEAD valide, ex. JN15XC (étape MA STATION)');
+    if(!loc || !isValidLocator(loc))
+      missing.push({message: 'LOCATOR MAIDENHEAD valide, ex. JN15XC (section Identité)', category: 'identity'});
   }
   if(forStep >= 3){
     if(!_contestOptional() && !state.contest){
-      missing.push('un CONCOURS sélectionné (étape CONCOURS)');
+      missing.push({message: 'un CONCOURS sélectionné (section Sélection du concours)', category: 'contest'});
     }
     // Correctif M2 : selectContest() pose des dates cohérentes à la sélection
     // d'un concours, mais rien n'empêchait ensuite une édition manuelle de
@@ -6134,21 +6155,55 @@ function _missingStationFields(forStep){
     const sd = document.getElementById('contest_start_date').value;
     const ed = document.getElementById('contest_end_date').value;
     if(sd && ed && ed < sd){
-      missing.push('DATE FIN doit être postérieure ou égale à DATE DÉBUT (étape CONCOURS)');
+      missing.push({message: 'DATE FIN doit être postérieure ou égale à DATE DÉBUT (section Dates, bandes & modes)', category: 'filters'});
     }
   }
   // Correctif M4 : aucune sauvegarde explicite ni lancement n'était bloqué
   // même avec zéro bande et zéro mode actifs à l'étape FILTRES — config
   // inexploitable acceptée en silence.
   if(forStep >= 4){
-    if(!document.querySelector('[data-key^="band_"].on')) missing.push('au moins une BANDE active (étape FILTRES)');
-    if(!document.querySelector('[data-key^="mode_"].on')) missing.push('au moins un MODE actif (étape FILTRES)');
+    if(!document.querySelector('[data-key^="band_"].on'))
+      missing.push({message: 'au moins une BANDE active (section Dates, bandes & modes)', category: 'filters'});
+    if(!document.querySelector('[data-key^="mode_"].on'))
+      missing.push({message: 'au moins un MODE actif (section Dates, bandes & modes)', category: 'filters'});
   }
   return missing;
 }
 
+// Bandeau de validation non bloquant (chantier 2, audit accessibilité
+// 09/08/2026) : remplace l'alert() natif qui gelait toute la page pour un
+// simple rappel de champs manquants -- chaque ligne devient un lien direct
+// vers la bonne section (switchSection()) au lieu d'obliger l'utilisateur à
+// mémoriser la liste et chercher lui-même dans l'arborescence. items :
+// [{message, category?}] -- category absente = ligne de texte simple (utilisé
+// par les alertes ClubLog/QRZ/SOTA plus bas, un seul item, pas de lien car le
+// message dit déjà où agir).
+function _showConfigValidationBanner(items){
+  const list = document.getElementById('configValidationList');
+  list.innerHTML = '';
+  items.forEach(item => {
+    const li = document.createElement('li');
+    if(item.category){
+      const a = document.createElement('a');
+      a.href = '#';
+      a.textContent = item.message;
+      a.style.color = 'var(--accent2)';
+      a.onclick = e => { e.preventDefault(); _dismissConfigValidationBanner(); switchSection(item.category); };
+      li.appendChild(a);
+    } else {
+      li.textContent = item.message;
+    }
+    list.appendChild(li);
+  });
+  document.getElementById('configValidationBanner').style.display = 'block';
+}
+
+function _dismissConfigValidationBanner(){
+  document.getElementById('configValidationBanner').style.display = 'none';
+}
+
 function _warnMissingStation(missing){
-  alert(T('⚠️ Configuration incomplète — merci de compléter avant de continuer :') + '\n\n- ' + missing.join('\n- '));
+  _showConfigValidationBanner(missing);
 }
 
 // goStep()/state.step (ancien assistant par étapes .step/.panel) retirés le
@@ -7463,14 +7518,14 @@ function saveConfig(silent = false, feedbackBtn = null) {
       const clubLogMissing = ['clublog_email','clublog_callsign','clublog_password','clublog_api_key']
         .some(id => !document.getElementById(id).value.trim());
       if(clubLogMissing){
-        alert(T('⚠️ Club Log Live Stream est activé mais les identifiants ClubLog ne sont pas tous renseignés (email, indicatif, mot de passe, clé API) — remplis-les dans la section QSL ou désactive le Live Stream.'));
+        _showConfigValidationBanner([{message: T('Club Log Live Stream est activé mais les identifiants ClubLog ne sont pas tous renseignés (email, indicatif, mot de passe, clé API) — section QSL'), category: 'qsl'}]);
         return false;
       }
     }
     // Même garde-fou que ci-dessus (B2), pour l'envoi auto QRZ Logbook.
     if(document.getElementById('qrz_logbook_push').value === '1'
        && !document.getElementById('qrz_logbook_key').value.trim()){
-      alert(T('⚠️ L\'envoi auto QRZ Logbook est activé mais la clé API QRZ Logbook est vide — renseigne-la dans la section QSL ou désactive l\'envoi auto.'));
+      _showConfigValidationBanner([{message: T("L'envoi auto QRZ Logbook est activé mais la clé API QRZ Logbook est vide — section QSL"), category: 'qsl'}]);
       return false;
     }
     // SOTA : la case d'approbation IA sans clientId n'a pas de sens (rien à
@@ -7479,7 +7534,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     // renseigner le clientId avant d'avoir fini la démarche d'approbation.
     if(document.getElementById('sota_ai_approval_ack')?.checked
        && !document.getElementById('sota_client_id').value.trim()){
-      alert(T('⚠️ La case d\'approbation SOTA est cochée mais aucun clientId n\'est renseigné — inutile sans clientId.'));
+      _showConfigValidationBanner([{message: T("La case d'approbation SOTA est cochée mais aucun clientId n'est renseigné — section Expédition"), category: 'expedition'}]);
       return false;
     }
   }

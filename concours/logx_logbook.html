@@ -269,6 +269,18 @@ body.sans-concours .compass-pts{display:none}
 
 /* DUPLEX CHECK */
 .dup-warning{background:rgba(255,45,85,.12);border:1px solid var(--red);border-radius:6px;padding:10px 14px;font-family:var(--font-mono);font-size:15px;color:var(--red);display:none;font-weight:700}
+.dup-confirm-banner{background:rgba(255,45,85,.12);border:1px solid var(--red);border-radius:6px;padding:10px 14px;font-family:var(--font-mono);font-size:14px;color:var(--red);display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
+.dup-confirm-banner.show{display:flex}
+.dup-confirm-banner span{font-weight:700;flex:1;min-width:180px}
+.dup-confirm-banner button{font-family:var(--font-mono);font-size:13px;font-weight:700;border-radius:5px;padding:6px 12px;cursor:pointer;border:1px solid var(--red)}
+/* Valeur FIXE (pas var(--red)) : le rouge nuit (#FF2D55) est trop clair pour
+   porter du texte blanc (contraste 3.65:1, sous le seuil AA 4.5:1) -- même
+   raisonnement que le cuivre jour pour --accent2, voir CLAUDE.md. #CC0030
+   (le rouge jour, plus profond) donne 5.8:1 dans les deux thèmes. */
+.dup-confirm-banner #dupConfirmYesBtn{background:#CC0030;color:#fff}
+.dup-confirm-banner #dupConfirmYesBtn:hover{opacity:.85}
+.dup-confirm-banner #dupConfirmNoBtn{background:transparent;color:var(--red)}
+.dup-confirm-banner #dupConfirmNoBtn:hover{background:rgba(255,45,85,.1)}
 /* Filet anti-busted call. DÉLIBÉRÉMENT plus discret que .dup-warning : c'est
    une SUGGESTION sur un QSO déjà enregistré, pas une alerte à traiter. Jaune,
    pas rouge, et jamais affiché pendant la frappe. */
@@ -1380,6 +1392,17 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <div class="autocomplete-box" id="acBox" style="display:none"></div>
         </div>
         <div class="dup-warning" id="dupWarn" role="alert">⚠️ DOUBLON — Ce correspondant est déjà dans le log !</div>
+        <!-- Bandeau de confirmation doublon (chantier 2, 10/08/2026) : remplace
+             les confirm() natifs bloquants (pré-vérification client ET réponse
+             serveur 409) par un bandeau inline avec de vrais boutons -- ne gèle
+             plus toute la page, reste accessible au clavier, ne vole pas le
+             focus du champ de saisie en cours (voir _confirmDupBanner() dans
+             logx_logbook.js). Masqué au repos. -->
+        <div class="dup-confirm-banner" id="dupConfirmBanner" role="alert">
+          <span id="dupConfirmMsg"></span>
+          <button type="button" id="dupConfirmYesBtn" onclick="_resolveDupConfirm(true)">Enregistrer quand même</button>
+          <button type="button" id="dupConfirmNoBtn" onclick="_resolveDupConfirm(false)">Annuler</button>
+        </div>
         <!-- Filet anti-busted call : rempli APRÈS l'enregistrement d'un QSO,
              jamais pendant la frappe. Masqué au repos (display:none), il ne
              prend aucune place et ne décale jamais le formulaire. -->
