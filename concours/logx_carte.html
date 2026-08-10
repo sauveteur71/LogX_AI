@@ -405,6 +405,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div class="tt-row"><span class="tt-lbl">CAP ANTENNE</span><span class="tt-val" id="ttCap" style="color:var(--accent)"></span></div>
   <div class="tt-row"><span class="tt-lbl">BANDE</span><span class="tt-val" id="ttBand"></span></div>
   <div class="tt-status" id="ttStatus"></div>
+  <!-- Vérification VOACAP à la demande (vrai moteur scientifique) sur CE
+       candidat précis -- l'heuristique rapide de la carte (ci-dessus) reste
+       le tri temps réel de tous les spots, VOACAP ne fait qu'approfondir un
+       seul candidat déjà repéré (calcul lourd, un seul à la fois côté
+       serveur). .map-tooltip a pointer-events:none (infobulle purement
+       informative) -- ce bouton doit reactiver pointer-events localement. -->
+  <button type="button" class="expert-only" id="ttVoacapBtn"
+          style="pointer-events:auto;width:100%;margin-top:8px;padding:5px;background:none;border:1px solid var(--accent2);border-radius:5px;color:var(--accent2);font-family:var(--font-mono);font-size:11px;letter-spacing:1px;cursor:pointer"
+          onclick="checkVoacapForSpot()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z"/></svg> VÉRIFIER VOACAP</button>
+  <div id="ttVoacap" style="pointer-events:auto"></div>
 </div>
 
 <script>
@@ -431,6 +441,7 @@ let cfg = {};
 let conversationHistory = [];
 let isWaiting = false;
 let mapStations = [];
+let lastTooltipSpot = null;  // candidat affiche dans #tooltip -- ancre pour checkVoacapForSpot()
 let systemPrompt = '';
 
 // Raccourcis i18n (fournis par logx_i18n.js ; repli = identité si absent).
@@ -820,6 +831,9 @@ function updateMapStations(stns){
 }
 
 function showTooltip(s,ev,color){
+  lastTooltipSpot=s;
+  document.getElementById('ttVoacap').innerHTML='';  // resultat d'un candidat precedent : ne pas le laisser affiche sur un nouveau
+  document.getElementById('tooltip').style.minWidth='';  // annule l'elargissement d'un precedent resultat VOACAP
   const myLL=locLL(cfg.locator||'JN00AA');
   const pos=locLL(s.locator);
   const dist=pos&&myLL?hav(myLL.lat,myLL.lon,pos.lat,pos.lon):s.dist||'?';
@@ -1832,6 +1846,63 @@ function renderCoach(){
 // Interrupteur « Nudges en direct » : la barre d'état (logx_statusbar.js) lit
 // rc_live_nudges à chaque poll /coach/state pour demander (ou non) le calcul.
 function toggleNudges(on){ try{ localStorage.setItem('rc_live_nudges', on?'1':'0'); }catch(e){} }
+
+// ─── VÉRIFICATION VOACAP À LA DEMANDE (candidat déjà repéré sur la carte) ────
+// Complément volontairement DISTINCT de l'heuristique rapide ci-dessus
+// (spots_ranked/logx_paths) : celle-ci reste seule responsable du tri temps
+// réel de tous les spots. VOACAP est un vrai calcul scientifique, lourd (un
+// seul a la fois cote serveur, cf. verrou dans logx_voacap.py) -- jamais
+// utilise pour noter des dizaines de candidats, seulement pour approfondir
+// LE candidat que l'operateur a deja choisi de regarder de pres.
+async function checkVoacapForSpot(){
+  const s=lastTooltipSpot;
+  const box=document.getElementById('ttVoacap');
+  if(!s||!box) return;
+  const dx=s.locator||s.call;
+  if(!dx){ box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">Ni locator ni indicatif</div>'; return; }
+  box.innerHTML='<div style="font-size:11px;color:var(--muted);margin-top:6px">⏳ Calcul VOACAP…</div>';
+  let data;
+  try{
+    const res=await fetch(`/data/voacap?dx=${encodeURIComponent(dx)}`);
+    data=await res.json();
+  }catch(e){
+    box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">❌ Serveur injoignable</div>';
+    return;
+  }
+  if(!data.ok){
+    box.innerHTML=`<div style="color:var(--red);font-size:11px;margin-top:6px">❌ ${data.error||'Échec du calcul'}</div>`;
+    return;
+  }
+  const relColor=(rel)=>{
+    if(rel==null) return 'var(--bg3)';
+    if(rel>=0.7) return 'var(--green)';
+    if(rel>=0.3) return 'var(--yellow)';
+    if(rel>0) return 'rgba(var(--accent-rgb),.35)';
+    return 'var(--bg3)';
+  };
+  const hours=data.hours||[], freqs=data.freqs_mhz||[];
+  let html=`<div style="font-size:10px;color:var(--muted);margin:6px 0 4px">${data.distance_km} km · SSN ${data.ssn}</div>`;
+  html+='<table style="border-collapse:collapse;font-family:var(--font-mono);font-size:9px">';
+  html+='<tr><td style="padding:1px 2px;color:var(--muted)">MHz</td>'+hours.map(h=>`<td style="padding:1px 2px;color:var(--muted)">${h.hour}</td>`).join('')+'</tr>';
+  freqs.forEach((f,fi)=>{
+    html+=`<tr><td style="padding:1px 2px">${f}</td>`;
+    hours.forEach(h=>{
+      const b=(h.bands||[])[fi]||{};
+      const title=b.rel!=null?`${Math.round(b.rel*100)}% · SNR ${b.snr_db!=null?b.snr_db+' dB':'?'}`:'pas de donnée';
+      html+=`<td title="${title}" style="padding:2px;text-align:center;background:${relColor(b.rel)}">`+(b.rel!=null?Math.round(b.rel*100):'·')+'</td>';
+    });
+    html+='</tr>';
+  });
+  html+='</table>';
+  box.innerHTML=html;
+  // Le tableau 24h deborde largement des 195px de largeur habituels de
+  // l'infobulle -- elargir et re-verifier la position (meme garde-fou que
+  // showTooltip() pour ne pas sortir de l'ecran a droite).
+  const tt=document.getElementById('tooltip');
+  tt.style.minWidth='480px';
+  const rect=tt.getBoundingClientRect();
+  if(rect.right>window.innerWidth) tt.style.left=Math.max(8,window.innerWidth-rect.width-8)+'px';
+}
 
 // ─── CARTE PILOTÉE PAR LE MOTEUR (spots classés structurés) ──────────────────
 // Remplace le re-parsing de la prose du LLM : priorités et positions fiables,
