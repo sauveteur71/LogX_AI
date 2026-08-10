@@ -18,7 +18,6 @@ QSB et plusieurs stations dans le filtre. Ça reste à éprouver sur l'air.
 """
 import json
 import os
-import sys
 
 import pytest
 

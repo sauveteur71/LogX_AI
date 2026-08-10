@@ -23,7 +23,6 @@ Ce fichier exécute le VRAI logx_logbook.js dans V8, comme
 tests/test_panneaux_multi_fenetres.py : on observe le menu réellement
 construit, pas une relecture du source.
 """
-import io
 import json
 import os
 import re

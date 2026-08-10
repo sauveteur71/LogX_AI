@@ -922,7 +922,7 @@ def load_log_from_disk():
         if os.path.exists(DB_FILE) or os.path.exists('shared_log.json'):
             global load_failed
             load_failed = True
-            print(f"[LOG] ⚠ données présentes sur disque mais illisibles — "
-                  f"persistance GELÉE pour protéger l'historique. Ferme les "
-                  f"programmes qui verrouillent le fichier (antivirus, sync) "
-                  f"puis redémarre.")
+            print("[LOG] ⚠ données présentes sur disque mais illisibles — "
+                  "persistance GELÉE pour protéger l'historique. Ferme les "
+                  "programmes qui verrouillent le fichier (antivirus, sync) "
+                  "puis redémarre.")

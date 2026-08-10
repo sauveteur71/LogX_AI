@@ -15,7 +15,6 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import logx_storage as storage
 import logx_http as http
 from logx_storage import qso_scope_id, active_scope_id, cfg_scope_id
 from logx_utils import utcnow

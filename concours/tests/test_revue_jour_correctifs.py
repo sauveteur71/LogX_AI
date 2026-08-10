@@ -8,8 +8,6 @@ backend rotor du jour était correct mais AUCUN appelant côté interface ne
 l'atteignait — le piège même que ces chantiers corrigeaient ailleurs. Ces
 tests figent chaque correctif.
 """
-import collections
-import math
 import os
 import re
 import sys

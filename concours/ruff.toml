@@ -1,0 +1,16 @@
+# Configuration ruff (lint Python) — chantier CI qualité, 10/08/2026.
+#
+# Portée volontairement MINIMALE : seulement les règles qui signalent une
+# vraie faute (E9 = erreurs de syntaxe, F = pyflakes — imports/variables
+# inutilisés, f-strings sans placeholder, etc.), pas de règles de style
+# (longueur de ligne, quotes, ordre des imports...) qui produiraient des
+# milliers de faux "problèmes" sur un dépôt jamais linté auparavant et
+# rendraient ce garde-fou ingérable. Élargir la sélection progressivement
+# si voulu, une fois ce socle stabilisé — pas tout activer d'un coup.
+[lint]
+select = ["E9", "F"]
+
+# F401 (import inutilisé) : les modules qui exposent volontairement des noms
+# pour un import ailleurs (ex. `from x import y  # noqa: F401` déjà annoté au
+# cas par cas dans le code) restent couverts normalement — aucune exception
+# globale nécessaire aujourd'hui, le dépôt est propre sur ce point (10/08/2026).

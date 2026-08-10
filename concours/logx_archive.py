@@ -91,7 +91,7 @@ def _summary(qsos, contest_id, call, now):
         score += q.get('points', 0) or 0
     dates = sorted({str(q.get('date', '')) for q in qsos if q.get('date')})
     lines = [
-        f"LogX AI — archive de concours",
+        "LogX AI — archive de concours",
         f"Concours   : {contest_id}",
         f"Station    : {call}",
         f"Archivé le : {now.strftime('%Y-%m-%d %H:%M')} UTC",

@@ -22,7 +22,6 @@ n'a pas à en décider — elle ignore quel fournisseur est réglé. Un appelant
 SERVEUR garde le droit de viser un palier (Haiku pour une tâche courte), mais
 seulement dans la famille du fournisseur configuré.
 """
-import json
 import os
 import sys
 

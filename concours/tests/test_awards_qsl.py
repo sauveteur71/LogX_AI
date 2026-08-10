@@ -2,7 +2,6 @@
 """Tests carnet permanent : diplômes (awards), historique station, parseur ADIF
 des confirmations QSL et fusion."""
 import datetime
-import json
 import os
 import sys
 

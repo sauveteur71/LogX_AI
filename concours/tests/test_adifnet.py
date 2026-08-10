@@ -136,7 +136,6 @@ def test_build_contactinfo_xml_resout_lid_de_creneau_en_indicatif_reel():
 
 # ─── émission (broadcast_qso) ────────────────────────────────────────────────
 def test_broadcast_qso_desactive_ne_transmet_rien(monkeypatch):
-    called = {'n': 0}
     monkeypatch.setattr(adifnet.socket, 'socket', lambda *a, **k: (_ for _ in ()).throw(AssertionError('ne doit pas etre appele')))
     r = adifnet.broadcast_qso({'call': 'F4GLD', 'band': '14', 'mode': 'SSB'}, {'adifnet_mode': 'off'})
     assert r is False

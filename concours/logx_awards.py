@@ -771,11 +771,10 @@ def award_summary(shared_log=None):
             pb['dxcc'].add(c)
 
     try:
-        from logx_departments import METRO, DOM, DEPARTMENTS
+        from logx_departments import METRO, DOM
         metro_missing = [d for d in METRO if d not in depts_w]
         dom_missing = [d for d in DOM if d not in depts_w]
     except Exception:
-        METRO, DOM, DEPARTMENTS = [], [], {}
         metro_missing, dom_missing = [], []
 
     return {

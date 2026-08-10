@@ -24,7 +24,6 @@ Ce module exécute le VRAI logx_logbook.js dans un moteur JS réel (V8 via
 py_mini_racer), DOM minimal et fetch stub -- même patron que
 tests/test_macro_cw_serie_bande.py (repris tel quel pour rester
 indépendant)."""
-import json
 import os
 
 import pytest

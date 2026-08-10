@@ -19,14 +19,12 @@ import os
 import re
 import sys
 
-import pytest
 
 CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if CONCOURS not in sys.path:
     sys.path.insert(0, CONCOURS)
 
 import logx_pounce as p    # noqa: E402
-import logx_wsjtx as w     # noqa: E402
 
 
 def _source(nom):

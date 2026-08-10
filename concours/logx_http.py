@@ -2346,7 +2346,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Calendrier avec prochaines dates calculées automatiquement
         if path.startswith('/data/calendar'):
             calendar_data = calc_all_dates()
-            today = datetime.date.today()
             result = []
             for cid, cdef in CONTEST_DEFINITIONS.items():
                 info = calendar_data.get(cid, {})

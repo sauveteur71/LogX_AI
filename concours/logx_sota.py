@@ -19,7 +19,6 @@ chargement, les fonctions de recherche renvoient 'ready': False plutôt que de
 bloquer une requête jusqu'à une minute le temps du tout premier téléchargement.
 """
 import csv
-import io
 import os
 import threading
 import time

@@ -10,9 +10,8 @@ testable sans réseau ; seul le POST touche le réseau et dégrade proprement.
 """
 import json
 import os
-import time
 
-from logx_storage import active_scope_id, qso_scope_id, cfg_scope_id
+from logx_storage import qso_scope_id, cfg_scope_id
 from logx_utils import utcnow, post_url_form
 
 _STAMP_FILE = 'scoreboard_sync.json'

@@ -29,13 +29,11 @@ def build_system_prompt(cfg):
     power    = cfg.get('power', '100')
     contest  = cfg.get('contest', 'CUSTOM')
     no_digi  = cfg.get('toggles', {}).get('flag_no_digi', False)
-    ssb_only = cfg.get('toggles', {}).get('mode_ssb', True) and not cfg.get('toggles', {}).get('mode_cw', False)
     portable = cfg.get('toggles', {}).get('flag_portable', False)
     qrp      = cfg.get('toggles', {}).get('flag_qrp', False)
     eme_flag = cfg.get('toggles', {}).get('flag_eme', False)
     alert_dx = cfg.get('alert_dx_km', 1200)
     spotter_ok = cfg.get('spotter_reliable_km', 600)
-    priority = cfg.get('priority_mode', 'distance')
 
     # Bandes actives
     active_bands = []
@@ -412,7 +410,7 @@ CONCOURS EN COURS : {contest}
 
 BANDES ACTIVES : {', '.join(active_bands) if active_bands else 'Toutes'}
 MODES AUTORISÉS : {', '.join(active_modes) if active_modes else 'Tous'}
-{f'⚠️ MODE PHONIE/CW UNIQUEMENT — Ignorer tous les spots FT8, FT4, JS8, WSPR, numériques' if no_digi else ''}
+{'⚠️ MODE PHONIE/CW UNIQUEMENT — Ignorer tous les spots FT8, FT4, JS8, WSPR, numériques' if no_digi else ''}
 
 PROPAGATION À SURVEILLER : {', '.join(active_prop) if active_prop else 'Standard'}
 

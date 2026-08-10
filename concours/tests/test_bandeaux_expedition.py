@@ -21,7 +21,6 @@ D'où la règle centralisée dans bandeauxRythmeMasques(), que ces tests
 verrouillent.
 """
 import os
-import re
 import sys
 
 import pytest

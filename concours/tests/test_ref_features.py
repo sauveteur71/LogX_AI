@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from logx_validator import validate_log
-from logx_callhistory import exchange_wants, suggest, build_index
+from logx_callhistory import exchange_wants, suggest
 import logx_callhistory as ch
 
 # Rectangle simple (pas de vraie frontière) autour du centre réel de IN93RS —

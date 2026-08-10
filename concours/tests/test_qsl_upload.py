@@ -299,7 +299,7 @@ def test_realtime_push_erreur_non_403_ne_declenche_pas_le_disjoncteur(monkeypatc
     cfg = _clublog_cfg('s4')
     r1 = qsl.realtime_push(cfg, QSO)
     assert r1['ok'] is False and not r1.get('blocked')
-    r2 = qsl.realtime_push(cfg, dict(QSO, call='G3XYZ'))
+    qsl.realtime_push(cfg, dict(QSO, call='G3XYZ'))
     assert calls['n'] == 2   # bien retenté (pas de disjoncteur sur une simple erreur serveur)
 
 

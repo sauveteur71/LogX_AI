@@ -110,8 +110,6 @@ def test_get_state_pywin32_absent_message_clair(monkeypatch):
 
 
 def test_get_state_exception_com_ne_remonte_jamais(monkeypatch):
-    fake = _FakeOmniRig(rig1=_FakeRig(status=omnirig.ST_ONLINE))
-
     class _Boom:
         def __getattr__(self, name):
             raise RuntimeError('objet COM invalide')

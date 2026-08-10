@@ -192,7 +192,7 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
         f"NAME: {cfg.get('op_name', '')}",
         f"EMAIL: {cfg.get('email', '')}",
         f"CLUB: {cfg.get('club', '')}",
-        f"CREATED-BY: LogX AI",
+        "CREATED-BY: LogX AI",
         f"SOAPBOX: Exporte le {utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
     ]
     for q in qsos:

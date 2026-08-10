@@ -34,8 +34,7 @@ import socket
 import threading
 import time
 
-from logx_cat import (HAS_PYSERIAL, SerialPort, list_ports,
-                              civ_build_frame, civ_parse_frame, civ_is_ok, CIV_END,
+from logx_cat import (HAS_PYSERIAL, SerialPort, civ_build_frame, civ_parse_frame, civ_is_ok, CIV_END,
                               CIV_CTRL_ADDR)
 
 _open_serial = SerialPort if HAS_PYSERIAL else None

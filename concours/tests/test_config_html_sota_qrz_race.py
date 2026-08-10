@@ -23,7 +23,6 @@ avec saveConfig()/_lastConfigSavePromise remplacés par un mock qui simule un
 "reçoit" la config), pour rendre la course reproductible de façon fiable
 plutôt que de dépendre du timing réel du réseau."""
 import os
-import re
 
 import pytest
 
