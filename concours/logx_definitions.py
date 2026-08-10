@@ -451,7 +451,7 @@ CONTEST_DEFINITIONS = {
         'bands': ['1.8','3.5','7','14','21','28','50'],
         'modes': ['SSB','CW','FT8','FT4','RTTY'],
         'exchange': '[N°TX][Classe] [Section] — ex: 2A CT | DX: 2A DX',
-        'cabrillo_name': 'ARRL-FIELD-DAY',
+        'cabrillo_name': 'ARRL-FD',
         'cabrillo_exchange': ['exch'],
         'scoring': {
             'type': 'fd_class',
@@ -505,7 +505,7 @@ CONTEST_DEFINITIONS = {
         'duration_h': 48, 'start_utc': '00:00',
         'bands': ['3.5','7','14','21','28'], 'modes': ['SSB'],
         'exchange': 'RS + N°serie (QTC : heure/indicatif/n°)',
-        'cabrillo_name': 'WAE-DC-SSB',
+        'cabrillo_name': 'DARC-WAEDC-SSB',
         'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'bricks': {
@@ -532,7 +532,7 @@ CONTEST_DEFINITIONS = {
         'duration_h': 48, 'start_utc': '00:00',
         'bands': ['3.5','7','14','21','28'], 'modes': ['RTTY'],
         'exchange': 'RST + N°serie (QTC entre continents différents)',
-        'cabrillo_name': 'WAE-DC-RTTY',
+        'cabrillo_name': 'DARC-WAEDC-RTTY',
         'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'bricks': {
@@ -768,7 +768,7 @@ CONTEST_DEFINITIONS = {
         'duration_h': 48, 'start_utc': '00:00',
         'bands': ['28'], 'modes': ['SSB','CW'],
         'exchange': 'RS(T) + état/province (W/VE) ou N°serie',
-        'cabrillo_name': 'ARRL-10-METER',
+        'cabrillo_name': 'ARRL-10',
         'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'bricks': {
@@ -793,7 +793,7 @@ CONTEST_DEFINITIONS = {
         'duration_h': 42, 'start_utc': '22:00',
         'bands': ['1.8'], 'modes': ['CW'],
         'exchange': 'RST (+ section ARRL pour W/VE)',
-        'cabrillo_name': 'ARRL-160-METER',
+        'cabrillo_name': 'ARRL-160',
         'cabrillo_exchange': ['rst', 'exch'],
         'scoring': {
             'bricks': {
