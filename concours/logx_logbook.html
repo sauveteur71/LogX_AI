@@ -993,6 +993,37 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   </div>
 </div>
 
+<!-- PROPAGATION VOACAP (vrai moteur scientifique point-à-point, pas
+     l'heuristique de la carte) -->
+<div class="shortcuts-overlay expert-only" id="voacapOverlay" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="shortcuts-box" style="width:720px;max-width:94vw">
+    <div class="shortcuts-title">
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z"/></svg> PROPAGATION VOACAP</span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="document.getElementById('voacapOverlay').classList.remove('show')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
+      <div style="display:flex;flex-direction:column;gap:4px;font-family:var(--font-mono);font-size:12px;color:var(--muted);flex:1;min-width:140px">
+        <label for="voacapDx">DX (locator ou indicatif)</label>
+        <input type="text" id="voacapDx" class="field-input" autocapitalize="characters" autocomplete="off">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">
+        <label for="voacapMode">Mode</label>
+        <select id="voacapMode" class="field-input" style="width:110px">
+          <option value="SSB">SSB</option>
+          <option value="CW">CW</option>
+          <option value="DIGITAL">Numérique</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;font-family:var(--font-mono);font-size:12px;color:var(--muted)">
+        <label for="voacapPower">Puissance (W)</label>
+        <input type="number" id="voacapPower" class="field-input" value="100" min="1" max="2000" style="width:90px">
+      </div>
+      <button type="button" class="export-btn" style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)" onclick="runVoacapCheck()">Calculer</button>
+    </div>
+    <div id="voacapInner" style="max-height:66vh;overflow-y:auto"></div>
+  </div>
+</div>
+
 <!-- CARTE QSL — designer imprimable minimal (export PNG/JPG) -->
 <style>
 .qsl-controls{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px}
@@ -1855,6 +1886,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <button class="export-btn" onclick="location.href='logx_configuration.html?openAssistant=1'"
               style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4);margin-left:8px"
               title="Poser une question à l'assistant IA (ouvre CONFIG)"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6.5" width="10" height="7.5" rx="2"/><line x1="9" y1="2.5" x2="9" y2="6.5"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="7" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="1.5" y1="9" x2="4" y2="9"/><line x1="14" y1="9" x2="16.5" y2="9"/></svg> AIDE</button>
+      <!-- Point d'entrée léger vers la prédiction VOACAP (vrai moteur
+           scientifique) sur l'indicatif en cours de saisie -- outil avancé,
+           jamais indispensable au chemin critique config→QSO→export. -->
+      <button class="export-btn expert-only" onclick="openVoacapPanel()"
+              style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4);margin-left:8px"
+              title="Prédiction de propagation VOACAP pour l'indicatif en cours"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z"/></svg> PROPAG.</button>
     </div>
 
     <div class="log-table-wrap" id="logTableWrap">

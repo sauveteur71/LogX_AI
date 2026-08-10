@@ -3648,6 +3648,47 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         'my': {'lat': my_ll[0], 'lon': my_ll[1]}, 'cells': cells})
             return
 
+        # Prédiction VOACAP point-à-point (vrai moteur scientifique, pas
+        # l'heuristique de logx_paths ci-dessus) : ?dx=<locator ou indicatif
+        # resoluble> obligatoire, ?mode=CW|SSB|DIGITAL et ?power=<watts>
+        # optionnels. Windows uniquement -- voacap_available() renvoie une
+        # erreur claire ailleurs plutot que de planter.
+        if path.startswith('/data/voacap'):
+            from urllib.parse import parse_qs, urlparse
+            import logx_voacap as voacap
+            qp = parse_qs(urlparse(self.path).query)
+            cfg_snap = self._cfg_snapshot()
+            my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
+            if my_ll[0] is None:
+                self._json({'ok': False, 'error': 'Locator station non défini'})
+                return
+            dx_input = (qp.get('dx') or [''])[0].strip()
+            if not dx_input:
+                self._json({'ok': False, 'error': 'Paramètre dx manquant (locator ou indicatif)'})
+                return
+            dx_ll = locator_to_latlon(dx_input)
+            if dx_ll[0] is None:
+                from logx_dxcc import lookup as dxcc_lookup
+                info = dxcc_lookup(dx_input) or {}
+                dx_ll = (info.get('lat'), info.get('lon'))
+            if dx_ll[0] is None:
+                self._json({'ok': False, 'error': f"Impossible de localiser « {dx_input} » (ni locator, ni indicatif reconnu)"})
+                return
+            mode = (qp.get('mode') or ['SSB'])[0].upper()
+            if mode not in voacap.REQUIRED_SNR_DB:
+                mode = 'SSB'
+            try:
+                power_w = float((qp.get('power') or ['100'])[0])
+            except ValueError:
+                power_w = 100.0
+            result = voacap.predict(
+                tx_lat=my_ll[0], tx_lon=my_ll[1], rx_lat=dx_ll[0], rx_lon=dx_ll[1],
+                mode=mode, power_w=power_w,
+                tx_label=cfg_snap.get('callsign', '') or 'TX', rx_label=dx_input,
+            )
+            self._json(result)
+            return
+
         # Écran mural d'expédition : agrégation du log commun en temps réel.
         # Config PUBLIQUE (whitelist stricte, AUCUN secret) — permet à chaque
         # poste d'expédition d'hériter du concours, de la station et du mode

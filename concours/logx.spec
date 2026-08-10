@@ -26,6 +26,17 @@ for ref in ('contest_schema.json', 'cty.dat', 'france_departements.geojson',
     if os.path.exists(ref):
         _datas.append((ref, '.'))
 
+# Moteur VOACAP (voacapl.exe + arbre de données itshfbc/) : un dossier
+# profond (coeffs/database/geocity/geonatio/geostate/antennas/areadata/
+# area_inv), pas juste quelques fichiers plats — glob() ne le couvrirait
+# pas récursivement, d'où Tree() plutôt qu'un ajout ligne par ligne comme
+# ci-dessus. Sans ceci, logx_voacap.voacap_available() renverrait False
+# dans l'exécutable distribué alors que tout fonctionne en mode développeur
+# (piège classique PyInstaller : les données hors .py/.html/.js du dépôt ne
+# sont jamais embarquées automatiquement).
+if os.path.isdir('voacap'):
+    _datas += Tree('voacap', prefix='voacap')
+
 # Modules importés paresseusement (dans des fonctions) que l'analyse statique
 # de PyInstaller peut manquer : on les déclare explicitement.
 _hidden = ['logx_' + m for m in (
