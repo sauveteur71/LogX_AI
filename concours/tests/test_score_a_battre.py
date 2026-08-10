@@ -45,6 +45,23 @@ ADIF_SAMPLE = (
     "<CALL:5>F5XYZ<BAND:3>20m<MODE:2>CW<QSO_DATE:8>20230115<TIME_ON:4>1245<EOR>\n"
 )
 
+ADIF_SAMPLE_AVEC_CONTEST_ID = (
+    "En-tête\n<adif_ver:5>3.1.4<programid:5>LogX<EOH>\n"
+    "<CALL:5>DL1AA<BAND:3>20m<MODE:2>CW<QSO_DATE:8>20230115<TIME_ON:4>1230"
+    "<CONTEST_ID:8>REF-160M<EOR>\n"
+    "<CALL:5>F5XYZ<BAND:3>20m<MODE:2>CW<QSO_DATE:8>20230115<TIME_ON:4>1245<EOR>\n"
+)
+
+# Sans ligne CONTEST: -- pour tester le cas "rien à détecter", distinct de
+# CABRILLO_SAMPLE (qui EN a une, "REF-160M", reconnue par guess_contest_id()).
+CABRILLO_SAMPLE_SANS_CONTEST = """START-OF-LOG: 3.0
+CALLSIGN: F6KQJ
+CATEGORY-OPERATOR: SINGLE-OP
+CLAIMED-SCORE: 348
+QSO: 14000 CW 2024-03-02 1200 F6KQJ       59 001            DL1ABC        59 012
+END-OF-LOG:
+"""
+
 
 def _qsos(n, points_each=1, date='20260801'):
     return [{'call': f'F{i}ABC', 'band': '14', 'mode': 'CW', 'date': date,
@@ -160,8 +177,9 @@ def test_endpoint_sans_parametre_contest(server, tmp_path, monkeypatch):
 # ─── _parse_cabrillo() : parseur minimal, lecture seule ─────────────────────
 
 def test_parse_cabrillo_extrait_score_et_qso():
-    qsos, claimed = arch._parse_cabrillo(CABRILLO_SAMPLE)
+    qsos, claimed, contest_name = arch._parse_cabrillo(CABRILLO_SAMPLE)
     assert claimed == 348
+    assert contest_name == 'REF-160M'
     assert len(qsos) == 3
     assert qsos[0]['band'] == '14' and qsos[0]['mode'] == 'CW'
     assert qsos[0]['date'] == '20240302' and qsos[0]['time'] == '1200'
@@ -170,12 +188,34 @@ def test_parse_cabrillo_extrait_score_et_qso():
 
 def test_parse_cabrillo_sans_claimed_score():
     text = "START-OF-LOG: 3.0\nQSO: 14000 CW 2024-03-02 1200 F6KQJ 59 001 DL1ABC 59 012\nEND-OF-LOG:\n"
-    qsos, claimed = arch._parse_cabrillo(text)
-    assert claimed is None and len(qsos) == 1
+    qsos, claimed, contest_name = arch._parse_cabrillo(text)
+    assert claimed is None and contest_name == '' and len(qsos) == 1
 
 
 def test_parse_cabrillo_texte_vide():
-    assert arch._parse_cabrillo('') == ([], None)
+    assert arch._parse_cabrillo('') == ([], None, '')
+
+
+# ─── guess_contest_id() : détection automatique depuis un nom brut ──────────
+
+def test_guess_contest_id_correspond_a_l_id_interne():
+    """REF_160M n'a pas de cabrillo_name distinct (voir build_cabrillo()) --
+    la ligne CONTEST: d'un Cabrillo LogX AI porte alors l'ID interne
+    lui-même, normalisé (underscore -> tiret)."""
+    assert arch.guess_contest_id('REF-160M') == 'REF_160M'
+    assert arch.guess_contest_id('ref_160m') == 'REF_160M'   # casse/séparateur indifférents
+
+
+def test_guess_contest_id_utilise_cabrillo_name_si_present():
+    """REF_CDF_HF_SSB a un cabrillo_name distinct ('CDF-HF-SSB') -- le nom
+    brut ne correspond PAS à l'ID interne normalisé, seul cabrillo_name."""
+    assert arch.guess_contest_id('CDF-HF-SSB') == 'REF_CDF_HF_SSB'
+
+
+def test_guess_contest_id_rien_ne_correspond():
+    assert arch.guess_contest_id('CONCOURS-INCONNU-XYZ') is None
+    assert arch.guess_contest_id('') is None
+    assert arch.guess_contest_id(None) is None
 
 
 # ─── import_external_log() : logique pure ───────────────────────────────────
@@ -215,10 +255,37 @@ def test_import_adif_avec_score_manuel(tmp_path, monkeypatch):
     assert arch.best_for_contest('REF_160M')['best_points'] == 150
 
 
-def test_import_sans_concours_refuse(tmp_path, monkeypatch):
+def test_import_sans_concours_ni_detection_refuse(tmp_path, monkeypatch):
+    """Aucun contest_id fourni ET rien à détecter dans le fichier (pas de
+    ligne CONTEST:) -- doit échouer explicitement (needs_manual), jamais
+    deviner au hasard."""
+    monkeypatch.chdir(tmp_path)
+    r = arch.import_external_log(CABRILLO_SAMPLE_SANS_CONTEST, 'cabrillo', '', CFG)
+    assert not r['ok'] and r['needs_manual'] is True and 'oncours' in r['error']
+
+
+def test_import_cabrillo_detecte_le_concours_automatiquement(tmp_path, monkeypatch):
+    """Demande F4GLD (10/08/2026) : « sans avoir à choisir le concours » --
+    contest_id omis, mais CABRILLO_SAMPLE porte "CONTEST: REF-160M"."""
     monkeypatch.chdir(tmp_path)
     r = arch.import_external_log(CABRILLO_SAMPLE, 'cabrillo', '', CFG)
-    assert not r['ok'] and 'oncours' in r['error']
+    assert r['ok'] and r['detected'] is True and r['contest'] == 'REF_160M'
+    assert arch.best_for_contest('REF_160M')['best_points'] == 348
+
+
+def test_import_adif_detecte_via_tag_contest_id(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    r = arch.import_external_log(ADIF_SAMPLE_AVEC_CONTEST_ID, 'adif', '', CFG, manual_score=42)
+    assert r['ok'] and r['detected'] is True and r['contest'] == 'REF_160M'
+
+
+def test_import_contest_id_fourni_explicitement_n_est_jamais_marque_detecte(tmp_path, monkeypatch):
+    """detected=True ne doit apparaître QUE quand contest_id était absent --
+    un choix manuel explicite (même sur un fichier qui aurait pu être deviné)
+    reste marqué comme tel, pas comme une détection automatique."""
+    monkeypatch.chdir(tmp_path)
+    r = arch.import_external_log(CABRILLO_SAMPLE, 'cabrillo', 'REF_160M', CFG)
+    assert r['ok'] and r['detected'] is False and r['contest'] == 'REF_160M'
 
 
 def test_import_format_inconnu_refuse(tmp_path, monkeypatch):
@@ -285,8 +352,15 @@ def test_endpoint_import_sans_token_refuse(server, tmp_path, monkeypatch):
     assert arch.list_archives() == []   # rien écrit
 
 
-def test_endpoint_import_sans_concours_400(server, tmp_path, monkeypatch):
+def test_endpoint_import_sans_concours_ni_detection_400(server, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    status, res = _post(server, '/log/archives/import',
+                         {'format': 'cabrillo', 'text': CABRILLO_SAMPLE_SANS_CONTEST, 'contest': ''})
+    assert status == 400 and res['ok'] is False and res['needs_manual'] is True
+
+
+def test_endpoint_import_detecte_automatiquement(server, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     status, res = _post(server, '/log/archives/import',
                          {'format': 'cabrillo', 'text': CABRILLO_SAMPLE, 'contest': ''})
-    assert status == 400 and res['ok'] is False
+    assert status == 200 and res['ok'] and res['detected'] is True and res['contest'] == 'REF_160M'
