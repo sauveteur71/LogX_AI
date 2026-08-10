@@ -65,7 +65,7 @@ def _ligne_qso(texte):
     ('CQ_WPX_SSB', 'CQ-WPX-SSB'), ('CQ_WPX_CW', 'CQ-WPX-CW'),
     ('ARRL_DX_SSB', 'ARRL-DX-SSB'), ('ARRL_DX_CW', 'ARRL-DX-CW'),
     ('ARRL_FD', 'ARRL-FIELD-DAY'),
-    ('REF_CDF_HF_SSB', 'CDF-HF-SSB'), ('REF_CDF_HF_CW', 'CDF-HF-CW'),
+    ('REF_CDF_HF_SSB', 'REF-SSB'), ('REF_CDF_HF_CW', 'REF-CW'),
 ])
 def test_le_nom_de_concours_est_celui_attendu_par_le_robot(contest, officiel):
     assert _entete(_construire(contest), 'CONTEST') == officiel
