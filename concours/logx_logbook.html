@@ -993,6 +993,60 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   </div>
 </div>
 
+<!-- CARTE QSL — designer imprimable minimal (export PNG/JPG) -->
+<style>
+.qsl-controls{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px}
+.qsl-field{display:flex;flex-direction:column;gap:4px;font-family:var(--font-mono);font-size:12px;color:var(--muted);flex:1;min-width:180px}
+.qsl-field label{letter-spacing:1px}
+.qsl-field input[type=text],.qsl-field select,.qsl-field textarea{
+  background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;
+  padding:6px 8px;font-family:var(--font-mono);font-size:13px;outline:none;resize:vertical}
+.qsl-field input[type=file]{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.qsl-preview{display:flex;justify-content:center;margin:10px 0}
+#qslCanvas{width:100%;max-width:600px;height:auto;border:1px solid var(--border);border-radius:6px;background:#F7F3EA}
+.qsl-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+</style>
+<div class="shortcuts-overlay" id="qslCardOverlay" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="shortcuts-box" style="width:680px;max-width:94vw">
+    <div class="shortcuts-title">
+      <span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="14" height="12" rx="1.3"/><path d="M2 5l7 5 7-5"/></svg> CARTE QSL</span>
+      <button type="button" class="shortcuts-close" title="Fermer" onclick="document.getElementById('qslCardOverlay').classList.remove('show')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
+    </div>
+    <div id="qslCardInner" style="max-height:78vh;overflow-y:auto">
+      <div class="qsl-controls">
+        <div class="qsl-field">
+          <label for="qslQsoSearch">QSO</label>
+          <input type="text" id="qslQsoSearch" placeholder="Rechercher un indicatif…" oninput="_qslFiltrerListeQso()">
+          <select id="qslQsoSelect" onchange="_qslRender()"></select>
+        </div>
+        <div class="qsl-field">
+          <label for="qslTemplateSelect">Gabarit</label>
+          <select id="qslTemplateSelect" onchange="_qslRender()">
+            <option value="classique">Classique</option>
+            <option value="epure">Épuré</option>
+          </select>
+        </div>
+        <div class="qsl-field">
+          <label for="qslBgFile">Image de fond (optionnel)</label>
+          <input type="file" id="qslBgFile" accept="image/*" onchange="_qslOnBgFileChange(event)">
+          <button type="button" class="export-btn" id="qslBgClearBtn" onclick="_qslClearBgImage()" style="display:none">Retirer l'image</button>
+        </div>
+        <div class="qsl-field" style="min-width:260px">
+          <label for="qslMessageInput">Message</label>
+          <textarea id="qslMessageInput" rows="2" oninput="_qslRender()">73 de {MYCALL} — merci pour ce QSO !</textarea>
+        </div>
+      </div>
+      <div class="qsl-preview">
+        <canvas id="qslCanvas" width="1500" height="1000"></canvas>
+      </div>
+      <div class="qsl-actions">
+        <button type="button" class="export-btn" onclick="downloadQslCard('png')">Télécharger PNG</button>
+        <button type="button" class="export-btn" onclick="downloadQslCard('jpg')">Télécharger JPG</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- QTC (WAE) : saisie détaillée + historique des séries émises/reçues -->
 <div class="shortcuts-overlay" id="qtcOverlay" onclick="if(event.target===this)closeQTCPanel()">
   <div class="shortcuts-box" style="width:640px;max-width:94vw">
@@ -1919,6 +1973,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_rate_panel.js"></script>
 <script src="logx_verif_panel.js"></script>
 <script src="logx_awards.js"></script>
+<script src="logx_qsl_card.js"></script>
 <script src="logx_popout_selfspot.js"></script>
 <script src="logx_qtc.js"></script>
 <script src="logx_import_adif.js"></script>

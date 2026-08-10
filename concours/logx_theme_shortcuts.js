@@ -93,7 +93,7 @@ function _elementModaleOuverte(){
   const ids = ['editOverlay', 'shortcutsOverlay', 'validateOverlay',
                'awardsOverlay', 'importOverlay', 'checklistOverlay',
                'qtcOverlay', 'filterOverlay', 'dupOverlay', 'netOverlay',
-               'rateOverlay'];
+               'rateOverlay', 'qslCardOverlay'];
   for(const id of ids){
     const el = document.getElementById(id);
     if(el && el.classList.contains('show')) return el;
@@ -193,6 +193,7 @@ document.addEventListener('keydown', e => {
     if(document.getElementById('dupOverlay')?.classList.contains('show') && typeof closeDupFinder === 'function') closeDupFinder();
     if(document.getElementById('netOverlay')?.classList.contains('show') && typeof closeNetControl === 'function') closeNetControl();
     if(document.getElementById('rateOverlay')?.classList.contains('show') && typeof closeRatePanel === 'function') closeRatePanel();
+    if(document.getElementById('qslCardOverlay')?.classList.contains('show')) document.getElementById('qslCardOverlay').classList.remove('show');
     return;
   }
   // Tab / Shift+Tab : piège de focus générique dans la modale ouverte (audit
@@ -264,7 +265,8 @@ document.addEventListener('keydown', e => {
 (function(){
   const watchedIds = ['shortcutsOverlay', 'validateOverlay', 'awardsOverlay',
                        'importOverlay', 'checklistOverlay', 'qtcOverlay',
-                       'filterOverlay', 'dupOverlay', 'netOverlay', 'rateOverlay'];
+                       'filterOverlay', 'dupOverlay', 'netOverlay', 'rateOverlay',
+                       'qslCardOverlay'];
   function focusFirstIn(el){
     const f = el.querySelector(
       'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
