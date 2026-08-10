@@ -1319,6 +1319,7 @@ def enrich_unknown_calls(done_calls, calldb_path):
 # ─── MODULE 5 : SOLEIL & IONOSPHÈRE (N0NBH hamqsl + MUF KC2G) ────────────────
 _solar_cache = {'data': None, 'ts': 0}
 _muf_cache = {'data': None, 'ts': 0}
+_ssn_cache = {'data': None, 'ts': 0}
 
 # Compteur d'échecs CONSÉCUTIFS de fetch_solar_data (remis à 0 dès qu'un fetch
 # réussit) — sert uniquement à solar_status() ci-dessous pour distinguer une
@@ -1419,6 +1420,70 @@ def fetch_muf(my_lat=None, my_lon=None):
         return _muf_cache['data']
 
 
+def sfi_to_ssn_fallback(sfi):
+    """Approximation SSN <- SFI (F10.7), utilisée UNIQUEMENT en repli quand
+    NOAA/SWPC est injoignable -- jamais comme source primaire (voir fetch_ssn()
+    ci-dessous). VOACAP veut le SSN MENSUEL LISSÉ (R12), pas le SFI journalier
+    que fetch_solar_data() récupère déjà : ce sont deux indices différents.
+    Formule officielle (sens SSN->SFI) : F10.7 = 63.74 + 0.727*SSN + 0.000895*SSN^2
+    (source : documentation VOACAP, https://www.voacap.com/2023/understanding/choosingssn.html).
+    Le sens inverse n'a pas de solution exacte simple -- repli LINÉAIRE communément
+    utilisé par la communauté VOACAP (dégrade aux forts SSN, >150 environ),
+    volontairement pas le polynôme complet inversé pour rester simple à ce
+    niveau de repli hors-ligne."""
+    try:
+        return max(0.0, (float(sfi) - 63.7) / 0.728)
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_ssn():
+    """SSN (Sunspot Number) MENSUEL LISSÉ (R12) -- source NOAA/SWPC, domaine
+    public, sans authentification : un enregistrement par mois avec SSN brut
+    ET lissé (smoothed_ssn) ET F10.7 correspondant. Nécessaire pour VOACAP
+    (voir logx_voacap.py), qui utilise cet indice-là, PAS le SFI journalier de
+    fetch_solar_data() ci-dessus (indices différents, malgré la formule de
+    conversion approximative dans sfi_to_ssn_fallback()).
+
+    Cache 24h (pas 15 min comme le solaire/MUF) : donnée à granularité
+    MENSUELLE, la rafraîchir toutes les 15 min serait un appel réseau inutile
+    à chaque poll -- seule une vraie nouvelle valeur mensuelle (ou une révision
+    d'un mois encore provisoire) justifie de re-télécharger.
+    """
+    if _ssn_cache['data'] and time.time() - _ssn_cache['ts'] < 86400:
+        return _ssn_cache['data']
+    raw = fetch_url('https://services.swpc.noaa.gov/json/solar-cycle/observed-solar-cycle-indices.json', timeout=15)
+    if not raw:
+        return _ssn_cache['data']
+    try:
+        records = json.loads(raw)
+        # Le(s) tout dernier(s) mois peu(ven)t avoir smoothed_ssn=None (valeur
+        # lissée pas encore stabilisée, jusqu'à 6 mois selon VOACAP) -- on
+        # remonte jusqu'au dernier mois qui a une vraie valeur lissée plutôt
+        # que d'échouer sur le mois le plus récent.
+        for rec in reversed(records):
+            smoothed = rec.get('smoothed_ssn')
+            # -1.0 est la valeur SENTINELLE NOAA pour "donnée absente" sur les
+            # très vieux enregistrements (avant l'ère F10.7) -- rencontrée en
+            # vérifiant le format réel de l'API, pas supposée.
+            if smoothed is not None and smoothed != -1 and smoothed != -1.0:
+                data = {
+                    'ssn_smoothed': round(float(smoothed), 1),
+                    'ssn_raw': rec.get('ssn'),
+                    'f107_smoothed': rec.get('smoothed_f10.7'),
+                    'month': rec.get('time-tag'),
+                    'source': 'NOAA/SWPC',
+                }
+                _ssn_cache['data'] = data
+                _ssn_cache['ts'] = time.time()
+                print(f"[SSN] {data['ssn_smoothed']} (mois {data['month']})")
+                return data
+        return _ssn_cache['data']
+    except (ValueError, KeyError, TypeError) as e:
+        print(f"[SSN] Erreur: {e}")
+        return _ssn_cache['data']
+
+
 # ─── Accès NON BLOQUANT au cache solaire/MUF ─────────────────────────────────
 # fetch_solar_data()/fetch_muf() ci-dessus font un appel réseau synchrone
 # (jusqu'à 15s chacune) dès que le cache de 15 min expire. Appelées en direct
@@ -1431,6 +1496,7 @@ def fetch_muf(my_lat=None, my_lon=None):
 # thread de fond détaché — jamais dans le thread de la requête HTTP.
 _solar_refresh_lock = threading.Lock()
 _muf_refresh_lock = threading.Lock()
+_ssn_refresh_lock = threading.Lock()
 
 
 def _refresh_solar_async():
@@ -1487,6 +1553,30 @@ def get_muf_cached(my_lat=None, my_lon=None):
     if stale:
         _refresh_muf_async(my_lat, my_lon)
     data = dict(_muf_cache['data']) if _muf_cache['data'] else {}
+    if data:
+        data['stale'] = stale
+    return data
+
+
+def _refresh_ssn_async():
+    if not _ssn_refresh_lock.acquire(blocking=False):
+        return
+    def _run():
+        try:
+            fetch_ssn()
+        finally:
+            _ssn_refresh_lock.release()
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def get_ssn_cached():
+    """Jamais bloquant — à utiliser depuis les handlers HTTP à la place de
+    fetch_ssn() (réservée aux appels de fond/tests). Seuil de péremption 24h,
+    cohérent avec le cache de fetch_ssn() lui-même (donnée mensuelle)."""
+    stale = not _ssn_cache['data'] or time.time() - _ssn_cache['ts'] >= 86400
+    if stale:
+        _refresh_ssn_async()
+    data = dict(_ssn_cache['data']) if _ssn_cache['data'] else {}
     if data:
         data['stale'] = stale
     return data
