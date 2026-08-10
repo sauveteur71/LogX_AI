@@ -248,6 +248,10 @@ function itemsMenuLogbook(format){
   }
   apres.push(['📥', 'Exporter ADIF', 'exportADIF']);
   apres.push(['📥', 'Exporter CSV', 'exportCSV']);
+  // Carte QSL papier : action légitime après avoir loggué des QSO même en
+  // usage simple/DXpédition (envoyer une carte QSL est une pratique courante,
+  // pas un outil de power-user) -- donc PAS dans MENU_LB_EXPERT_ONLY_FN.
+  apres.push(['🖼️', 'CARTE QSL — designer imprimable', 'showQslCardDesigner']);
   if(concours) apres.push(['📦', 'ARCHIVER ce concours', 'archiveLog']);
   apres.push(['💾', 'SAUVEGARDER maintenant', 'backupNow']);
   if(concours) apres.push(['📡', 'Message ON4KST', 'exportON4KST']);
