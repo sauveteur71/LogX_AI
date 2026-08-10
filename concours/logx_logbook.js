@@ -2255,6 +2255,22 @@ function _cancelPendingDupConfirm(){
   if(_pendingDupConfirmResolve) _resolveDupConfirm(false);
 }
 
+// Le locator correspondant est-il un champ OBLIGATOIRE (pas juste une donnée
+// utile) pour le concours actif ? Uniquement les barèmes qui calculent des
+// points à la distance (per_km -- km/km_x_locators/km_x_large_locator_squares,
+// et tout barème serveur custom qui s'appuie sur la même brique) : sans
+// locator, calcPoints() renvoie 0 pt de façon certaine, ce n'est donc pas une
+// simple perte de confort comme pour un concours à points fixes. Dérivé du
+// même barème serveur que calcPoints()/evalPointsFromDef() -- aucune liste
+// de concours à maintenir à part.
+function contestRequiresLocator(){
+  if(!currentContest) return false;
+  const def = contestScoringDefs[currentContest];
+  if(!def) return false;
+  const bricks = def.bricks || LEGACY_JS_BRICKS[def.type];
+  return !!(bricks && Array.isArray(bricks.points) && bricks.points.some(r => r.points === 'per_km'));
+}
+
 async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
   const rstSent = document.getElementById('inputRSTsent').value.trim() || '59';
@@ -2264,16 +2280,34 @@ async function submitQSO(){
     ? String(parseInt(numRcvdRaw, 10) || 0).padStart(3, '0')
     : numRcvdRaw;
   const loc     = document.getElementById('inputLocator').value.trim().toUpperCase();
+  const freq    = (document.getElementById('inputFreq')?.value || '').trim();
 
+  // Seuls deux champs sont réellement indispensables à TOUT QSO : l'indicatif
+  // et la fréquence (la bande en est déjà déduite automatiquement, voir
+  // onFreqInput()/bandFromFreq() -- rien à valider ici, currentBand est déjà
+  // à jour au moment de la soumission).
   if(!call){ notify('Indicatif manquant !'); return; }
+  if(!freq){
+    document.getElementById('inputFreq')?.focus();
+    notify('Fréquence manquante !');
+    return;
+  }
   if(loc && !validateLocator(loc)){
     document.getElementById('inputLocator').focus();
     notify('Locator invalide !\nFormat attendu : AA00AA  (ex: JN03QQ)');
     return;
   }
-  // Locator vide : simple avertissement, le QSO est quand même enregistré (0 pt).
-  // En mode expédition le locator est masqué : pas d'avertissement, on enchaîne.
+  // Locator vide : obligatoire pour les concours notés à la distance (sans
+  // lui, calcPoints() renvoie 0 pt à coup sûr -- pas question de laisser
+  // enregistrer un QSO qu'on sait déjà nul) ; simple avertissement sinon, le
+  // QSO est quand même enregistré (0 pt). En mode expédition le champ est
+  // masqué : pas d'avertissement, on enchaîne.
   if(!loc && !expeditionMode){
+    if(contestRequiresLocator()){
+      document.getElementById('inputLocator').focus();
+      notify('⚠️ Locator obligatoire pour ce concours (score calculé à la distance) !');
+      return;
+    }
     notify('⚠️ Locator non renseigné !\nLe QSO va être enregistré sans locator (0 pt).');
   }
 
@@ -2289,7 +2323,6 @@ async function submitQSO(){
   const dist = (loc && loc.length >= 6) ? calcDist(loc) : 0;
   const pts  = calcPoints(loc, currentBand, call, currentMode);
 
-  const freq = (document.getElementById('inputFreq')?.value || '').trim();
   const qso = {
     id: Date.now(),
     date: nowDateUTC(),
