@@ -160,6 +160,8 @@ async function showAwards(){
       <div style="font-family:var(--font-mono);font-size:13px;line-height:1.6">
         ${dip('🌐 WAZ (zones CQ)', a.waz)}
         ${manquants(a.waz, 'Zones manquantes')}
+        ${dip('📡 Zones ITU (RSGB)', a.waz_itu)}
+        ${manquants(a.waz_itu, 'Zones manquantes')}
         ${dip('🗺️ WAC (continents)', a.wac)}
         ${wasHtml}
         ${dip('📻 DXCC Challenge', a.dxcc_challenge, 'cases entité×bande')}

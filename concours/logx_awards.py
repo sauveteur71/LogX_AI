@@ -124,7 +124,7 @@ _calldb = None
 
 
 def _enrich(q):
-    """Ajoute dxcc_country / continent / cq_zone / dept à un QSO."""
+    """Ajoute dxcc_country / continent / cq_zone / itu_zone / dept à un QSO."""
     global _calldb
     call = str(q.get('call', '')).upper().strip()
     base = call.split('/')[0] if '/' in call else call
@@ -134,6 +134,11 @@ def _enrich(q):
         q['dxcc_country'] = info.get('country')
         q['continent'] = info.get('continent')
         q['cq_zone'] = info.get('cq_zone')
+        # Zone ITU (diplôme "ITU Zone Award", RSGB — 90 zones mondiales, à ne
+        # pas confondre avec les 40 zones CQ du WAZ). Même source (cty.dat via
+        # logx_dxcc.lookup()) que cq_zone juste au-dessus — déjà extraite mais
+        # jamais exploitée avant l'analyse concurrentielle du 10/08/2026.
+        q['itu_zone'] = info.get('itu_zone')
     except Exception:
         q.setdefault('dxcc_country', None)
     try:
@@ -624,6 +629,14 @@ US_STATES = (
 # WAZ (Worked All Zones, CQ) — 40 zones CQ, déduites de l'indicatif via cty.dat.
 WAZ_TOTAL = 40
 
+# ITU Zone Award (RSGB) — 90 zones ITU mondiales (à ne pas confondre avec les
+# 40 zones CQ du WAZ ci-dessus, un découpage différent du même monde), déduites
+# de l'indicatif via cty.dat (même source que cq_zone). Total vérifié via
+# recherche web le 10/08/2026 (analyse concurrentielle) — RSGB propose même des
+# classes intermédiaires (D=40, C=50, B=65, A=75, AA=90) mais LogX AI affiche
+# juste la progression brute sur les 90, comme pour le WAZ.
+ITU_TOTAL = 90
+
 # WAC (Worked All Continents, IARU) — 6 continents. L'Antarctique (AN) figure
 # dans cty.dat mais ne compte PAS pour le WAC : l'inclure ferait afficher 7/6.
 WAC_CONTINENTS = ('AF', 'AS', 'EU', 'NA', 'OC', 'SA')
@@ -696,6 +709,7 @@ def award_summary(shared_log=None):
     # le carré du locator déjà enregistré. Le WAS fait exception — l'état ne se
     # déduit de rien, il doit avoir été saisi ou importé (voir US_STATES).
     zones_w, zones_c = set(), set()
+    itu_w, itu_c = set(), set()
     conts_w, conts_c = set(), set()
     states_w, states_c = set(), set()
     fields_w, fields_c = set(), set()          # champs QRA (CQ DX Field)
@@ -731,6 +745,10 @@ def award_summary(shared_log=None):
             zones_w.add(str(q['cq_zone']))
             if is_conf:
                 zones_c.add(str(q['cq_zone']))
+        if q.get('itu_zone'):
+            itu_w.add(str(q['itu_zone']))
+            if is_conf:
+                itu_c.add(str(q['itu_zone']))
         st = str(q.get('state') or '').strip().upper()
         if st in US_STATES:
             states_w.add(st)
@@ -780,6 +798,9 @@ def award_summary(shared_log=None):
         'waz': _paire(zones_w, zones_c, WAZ_TOTAL,
                       sorted((str(z) for z in range(1, WAZ_TOTAL + 1)
                               if str(z) not in zones_w), key=int)),
+        'waz_itu': _paire(itu_w, itu_c, ITU_TOTAL,
+                           sorted((str(z) for z in range(1, ITU_TOTAL + 1)
+                                   if str(z) not in itu_w), key=int)),
         'wac': _paire(conts_w, conts_c, len(WAC_CONTINENTS),
                       [c for c in WAC_CONTINENTS if c not in conts_w]),
         'was': _paire(states_w, states_c, len(US_STATES),

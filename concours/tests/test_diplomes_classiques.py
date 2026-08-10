@@ -57,6 +57,28 @@ def test_waz_compte_les_zones_cq_deduites_de_l_indicatif(monkeypatch):
     assert len(a['waz']['missing']) == 40 - a['waz']['worked']
 
 
+def test_waz_itu_compte_les_zones_itu_deduites_de_l_indicatif(monkeypatch):
+    """Même principe que le WAZ (CQ), mais sur les 90 zones ITU (RSGB) --
+    découpage différent du monde, même source cty.dat (logx_dxcc.lookup()
+    remonte déjà itu_zone, ajout de l'analyse concurrentielle du 10/08/2026)."""
+    a = _resume([_qso('W1ABC'), _qso('JA1XYZ'), _qso('VK3ZZZ')], monkeypatch)
+    assert a['waz_itu']['total'] == 90
+    assert a['waz_itu']['worked'] >= 3
+    assert len(a['waz_itu']['missing']) == 90 - a['waz_itu']['worked']
+
+
+def test_waz_itu_et_waz_cq_restent_deux_champs_distincts(monkeypatch):
+    """Vérifié via logx_dxcc.lookup() directement (pas une supposition) :
+    W1ABC=zone CQ 5/ITU 8, JA1XYZ=CQ 25/ITU 45, VK3ZZZ=CQ 30/ITU 59 -- les
+    deux découpages ne coïncident jamais sur ces 3 indicatifs. Si un futur
+    refactor confondait accidentellement les deux champs (ex. réassigner
+    itu_zone = cq_zone), ce test doit le détecter."""
+    import logx_dxcc as dxcc
+    for call in ('W1ABC', 'JA1XYZ', 'VK3ZZZ'):
+        info = dxcc.lookup(call)
+        assert info['cq_zone'] != info['itu_zone'], call
+
+
 def test_wac_exclut_l_antarctique(monkeypatch):
     """cty.dat connaît le continent AN, mais le WAC se compte sur 6. L'inclure
     ferait afficher « 7/6 » — une régression qu'un total en dur ne montre pas."""
@@ -121,7 +143,7 @@ def test_le_confirme_se_compte_separement(monkeypatch):
     conf = {'W1ABC|14|SSB': {'lotw': True}}
     a = _resume([_qso('W1ABC', locator='FN42'), _qso('JA1XYZ', locator='PM95')],
                 monkeypatch, confirmations=conf)
-    for cle in ('waz', 'wac', 'dx_field', 'vucc', 'dxcc_challenge'):
+    for cle in ('waz', 'waz_itu', 'wac', 'dx_field', 'vucc', 'dxcc_challenge'):
         assert a[cle]['confirmed'] < a[cle]['worked'], cle
         assert a[cle]['confirmed'] >= 1, cle
 
