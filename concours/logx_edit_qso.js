@@ -234,7 +234,7 @@ async function deleteQSOSilent(id){
 }
 
 async function deleteQSO(id){
-  if(!confirm(trT('Supprimer ce QSO ?'))) return;
+  if(!(await _confirmDupBanner(trT('Supprimer ce QSO ?'), 'Supprimer', 'Annuler'))) return;
   await deleteQSOSilent(id);
   renderLog();
   updateStats();
@@ -243,7 +243,7 @@ async function deleteQSO(id){
 async function undoLastQSO(){
   if(!qsoLog.length){ notify('Aucun QSO à annuler !'); return; }
   const last = qsoLog[qsoLog.length-1];
-  if(!confirm(trF('Annuler le dernier QSO ?\n{call} — {band} MHz — {time}', {call: last.call, band: last.band, time: last.time}))) return;
+  if(!(await _confirmDupBanner(trF('Annuler le dernier QSO ?\n{call} — {band} MHz — {time}', {call: last.call, band: last.band, time: last.time}), 'Annuler le QSO', 'Garder le QSO'))) return;
   qsoLog = qsoLog.slice(0,-1);
   try{
     await fetch(`/log/delete/${last.id}`, {method:'DELETE'});

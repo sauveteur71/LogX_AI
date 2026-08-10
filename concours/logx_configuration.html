@@ -446,6 +446,27 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <button type="button" onclick="_dismissConfigValidationBanner()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--muted);font-family:var(--font-mono);font-size:12px">Fermer</button>
 </div>
 
+<!-- Toast non bloquant (chantier dialogues non bloquants, 10/08/2026) :
+     remplace les alert() natifs purement informatifs (succès, erreur simple,
+     rappel) qui gelaient toute la page -- même esprit que #macroToast dans
+     logx_logbook.js, propre à cette page (script inline, pas de portée JS
+     partagée entre les deux fichiers). -->
+<div id="configToast" role="status" aria-live="polite" style="display:none;position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;padding:10px 18px;font-family:var(--font-mono);font-size:14px;color:var(--accent2);z-index:9999;letter-spacing:1px;white-space:pre-line;max-width:420px;line-height:1.6"></div>
+
+<!-- Bandeau de confirmation non bloquant (même chantier) : remplace les
+     confirm() natifs. Un seul à la fois (comme le toast ci-dessus) --
+     _resolveConfigConfirm()/_cancelPendingConfigConfirm() suivent exactement
+     le patron de _confirmDupBanner()/_resolveDupConfirm() de
+     logx_logbook.js (voir tests/test_dup_confirm_banner.py), dupliqué ici
+     faute de portée JS partagée entre les deux pages. -->
+<div id="configConfirmBanner" role="alert" style="display:none;position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9999;max-width:480px;background:rgba(255,45,85,.12);border:1px solid var(--red);border-radius:10px;padding:14px 18px;backdrop-filter:blur(8px);box-shadow:0 4px 24px rgba(255,45,85,.25);font-family:var(--font-mono);font-size:13px;color:var(--red)">
+  <div id="configConfirmMsg" style="margin-bottom:10px;white-space:pre-line"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button type="button" id="configConfirmNoBtn" onclick="_resolveConfigConfirm(false)" style="background:transparent;color:var(--red);border:1px solid var(--red);border-radius:6px;padding:6px 12px;cursor:pointer;font-family:var(--font-mono);font-size:12px;font-weight:700">Annuler</button>
+    <button type="button" id="configConfirmYesBtn" onclick="_resolveConfigConfirm(true)" style="background:#CC0030;color:#fff;border:1px solid var(--red);border-radius:6px;padding:6px 12px;cursor:pointer;font-family:var(--font-mono);font-size:12px;font-weight:700">Confirmer</button>
+  </div>
+</div>
+
 <div class="container">
 
   <!-- PROFILS STATION -->
@@ -3965,7 +3986,7 @@ async function connectSota(){
   // démarrer avec un clientId périmé (course entre le fetch de sauvegarde
   // et l'ouverture de /sota/oauth/start).
   const clientId = document.getElementById('sota_client_id')?.value.trim();
-  if (!clientId){ alert(T('Renseigne d\'abord le clientId SOTA ci-dessus.')); return; }
+  if (!clientId){ _configToast(T('Renseigne d\'abord le clientId SOTA ci-dessus.')); return; }
   saveConfig(true);
   await _lastConfigSavePromise;
   window.open('/sota/oauth/start', 'sota_oauth',
@@ -4838,7 +4859,7 @@ async function applyCatDetection(){
   const banner = document.getElementById('catDetectionBanner');
   const device = banner.dataset.device;
   if (!device) return;
-  openCategoryPopup('radio');
+  await openCategoryPopup('radio');
   await refreshCatPorts();
   const portSel = document.getElementById('cat_port');
   // 🚨 Trouvé en revue adversariale : si le port a disparu entre la
@@ -5110,25 +5131,25 @@ function saveProfile(){
   setProfiles(profiles);
   refreshProfileSelect();
   document.getElementById('profileSelect').value = name.trim();
-  alert(Tf('✅ Profil « {n} » sauvegardé.', {n: name.trim()}));
+  _configToast(Tf('✅ Profil « {n} » sauvegardé.', {n: name.trim()}));
 }
 
 function loadProfile(){
   const sel = document.getElementById('profileSelect');
   const name = sel ? sel.value : '';
-  if(!name){ alert(T('Sélectionnez un profil à charger.')); return; }
+  if(!name){ _configToast(T('Sélectionnez un profil à charger.')); return; }
   const profiles = getProfiles();
   const cfg = profiles[name];
-  if(!cfg){ alert(Tf('Profil introuvable : {n}', {n: name})); return; }
+  if(!cfg){ _configToast(Tf('Profil introuvable : {n}', {n: name})); return; }
   applyFullConfigToForm(cfg);
-  alert(Tf('📂 Profil « {n} » chargé.', {n: name}));
+  _configToast(Tf('📂 Profil « {n} » chargé.', {n: name}));
 }
 
-function deleteProfile(){
+async function deleteProfile(){
   const sel = document.getElementById('profileSelect');
   const name = sel ? sel.value : '';
-  if(!name){ alert(T('Sélectionnez un profil à supprimer.')); return; }
-  if(!confirm(Tf('Supprimer le profil « {n} » ?', {n: name}))) return;
+  if(!name){ _configToast(T('Sélectionnez un profil à supprimer.')); return; }
+  if(!(await _confirmConfigBanner(Tf('Supprimer le profil « {n} » ?', {n: name}), 'Supprimer', 'Annuler'))) return;
   const profiles = getProfiles();
   delete profiles[name];
   setProfiles(profiles);
@@ -5233,7 +5254,7 @@ function calcContestDates(id){
   return { startDate, endDate, endTime };
 }
 
-function selectContest(id, _skipConfirm) {
+async function selectContest(id, _skipConfirm) {
   // Correctif H3 : re-cliquer la carte déjà sélectionnée ne changeait rien en
   // apparence mais réinitialisait quand même bandes/modes/dates en silence —
   // désormais un no-op franc. Changer POUR un autre concours alors qu'un
@@ -5248,7 +5269,7 @@ function selectContest(id, _skipConfirm) {
     const next = CONTESTS.find(c => c.id === id);
     const msg = `Changer pour « ${next ? next.name : id} » va réinitialiser bandes/modes/dates `
       + `selon ce règlement — tes personnalisations pour « ${prev ? prev.name : state.contest} » seront perdues.\n\nContinuer ?`;
-    if (!confirm(msg)) return;
+    if (!(await _confirmConfigBanner(msg, 'Changer de concours', 'Annuler'))) return;
   }
   state.contest = id;
   document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
@@ -5485,11 +5506,11 @@ function _catHasUnsavedChanges(cat){
 
 // Message unique, réutilisé aux deux points de sortie (bouton Fermer d'une
 // section ET clic à côté du popup / bouton Fermer de la barre latérale).
-function _confirmDiscardCatChanges(cat){
+async function _confirmDiscardCatChanges(cat){
   if(!_catHasUnsavedChanges(cat)) return true;
-  return confirm(T('Des modifications de cette section n\'ont pas été enregistrées. Fermer quand même et les perdre ?'));
+  return await _confirmConfigBanner(T('Des modifications de cette section n\'ont pas été enregistrées. Fermer quand même et les perdre ?'), 'Fermer sans enregistrer', 'Annuler');
 }
-function openCategoryPopup(cat){
+async function openCategoryPopup(cat){
   // Avant de basculer : si la section actuellement ouverte a des
   // modifications non enregistrées, avertir -- que ce soit via un clic sur
   // une autre entrée de l'arborescence (switchSection()) ou un appel direct
@@ -5508,7 +5529,7 @@ function openCategoryPopup(cat){
   // non enregistrées, sans jamais solliciter confirm(), avant même de
   // changer de section (trouvé par la revue adversariale du 08/08/2026).
   if(_curAvantOuverture === cat) return true;
-  if(_curAvantOuverture && _curAvantOuverture !== cat && !_confirmDiscardCatChanges(_curAvantOuverture)) return;
+  if(_curAvantOuverture && _curAvantOuverture !== cat && !(await _confirmDiscardCatChanges(_curAvantOuverture))) return;
   // CŒUR d'abord : masquer la section ouverte, montrer la demandée. Fait AVANT
   // la barre latérale pour qu'un environnement minimal (tests) où
   // createElement/body n'existent pas ouvre quand même la bonne section.
@@ -5859,7 +5880,7 @@ async function setAccessPassword(){
 }
 
 async function disableAccessPassword(){
-  if(!confirm("Désactiver la protection ? Tout appareil du réseau obtiendra de nouveau les droits d'écriture automatiquement.")) return;
+  if(!(await _confirmConfigBanner("Désactiver la protection ? Tout appareil du réseau obtiendra de nouveau les droits d'écriture automatiquement.", 'Désactiver', 'Annuler'))) return;
   const result = document.getElementById('accessPasswordResult');
   try{
     const res = await fetch('/auth/set_password', {
@@ -6206,6 +6227,46 @@ function _warnMissingStation(missing){
   _showConfigValidationBanner(missing);
 }
 
+// ─── TOAST + BANDEAU DE CONFIRMATION NON BLOQUANTS (chantier dialogues non
+// bloquants, 10/08/2026) : remplacent les alert()/confirm() natifs restants
+// de cette page (succès de sauvegarde, profils, géolocalisation, protection
+// réseau...) -- un dialogue natif gèle toute la page et déplace le focus
+// hors du contrôle de l'app. Même patron que logx_logbook.js
+// (_confirmDupBanner()/notify()), dupliqué ici faute de portée JS partagée.
+function _configToast(message, ms){
+  const t = document.getElementById('configToast');
+  t.textContent = message;
+  t.style.display = 'block';
+  clearTimeout(_configToast._tm);
+  _configToast._tm = setTimeout(() => { t.style.display = 'none'; }, ms || Math.min(10000, 2500 + String(message).length * 35));
+}
+
+let _pendingConfigConfirmResolve = null;
+
+function _confirmConfigBanner(message, yesLabel, noLabel){
+  _cancelPendingConfigConfirm();   // un bandeau resté ouvert d'une tentative précédente ne doit pas s'empiler
+  return new Promise(resolve => {
+    _pendingConfigConfirmResolve = resolve;
+    document.getElementById('configConfirmMsg').textContent = message;
+    document.getElementById('configConfirmYesBtn').textContent = yesLabel || 'Confirmer';
+    document.getElementById('configConfirmNoBtn').textContent = noLabel || 'Annuler';
+    document.getElementById('configConfirmBanner').style.display = 'block';
+  });
+}
+
+function _resolveConfigConfirm(result){
+  document.getElementById('configConfirmBanner').style.display = 'none';
+  if(_pendingConfigConfirmResolve){
+    const r = _pendingConfigConfirmResolve;
+    _pendingConfigConfirmResolve = null;
+    r(result);
+  }
+}
+
+function _cancelPendingConfigConfirm(){
+  if(_pendingConfigConfirmResolve) _resolveConfigConfirm(false);
+}
+
 // goStep()/state.step (ancien assistant par étapes .step/.panel) retirés le
 // 08/08/2026 avec la refonte sidebar : plus aucun élément .step/.panel dans
 // le DOM depuis la migration hub/popups déjà ancienne, ces fonctions ne
@@ -6300,7 +6361,7 @@ async function openLocatorMap(){
   document.getElementById('mapLocTileError').style.display = 'none';
   _mapLoc.tileErrorShown = false;
   try{ await _loadLeaflet(); }
-  catch(e){ ov.style.display='none'; alert(Tf('Carte indisponible : {err}.\nLa sélection sur carte nécessite une connexion Internet ; sinon, saisis le locator à la main.', {err: e.message})); return; }
+  catch(e){ ov.style.display='none'; _configToast(Tf('Carte indisponible : {err}.\nLa sélection sur carte nécessite une connexion Internet ; sinon, saisis le locator à la main.', {err: e.message})); return; }
 
   let start = [46.6, 2.5], zoom = 5;   // défaut : centre de la France
   const cll = locatorToLatLon(document.getElementById('locator').value);
@@ -6430,17 +6491,17 @@ async function mapLocSearchGo(){
       const lat = parseFloat(d[0].lat), lon = parseFloat(d[0].lon);
       _mapLoc.map.setView([lat,lon], 12);
       _mapLocSet(lat, lon, false);
-    } else { alert(T('Lieu introuvable.')); }
-  }catch(e){ alert(T('Recherche indisponible (connexion Internet requise).')); }
+    } else { _configToast(T('Lieu introuvable.')); }
+  }catch(e){ _configToast(T('Recherche indisponible (connexion Internet requise).')); }
 }
 
 function mapLocGeoloc(){
-  if(!navigator.geolocation){ alert(T('Géolocalisation non disponible sur cet appareil.')); return; }
+  if(!navigator.geolocation){ _configToast(T('Géolocalisation non disponible sur cet appareil.')); return; }
   navigator.geolocation.getCurrentPosition(p=>{
     const lat = p.coords.latitude, lon = p.coords.longitude;
     if(_mapLoc.map) _mapLoc.map.setView([lat,lon], 13);
     _mapLocSet(lat, lon, false);
-  }, ()=>alert(T('Position refusée ou indisponible.')), { enableHighAccuracy:true, timeout:8000 });
+  }, ()=>_configToast(T('Position refusée ou indisponible.')), { enableHighAccuracy:true, timeout:8000 });
 }
 
 async function _reverseGeocodeCity(lat, lon){
@@ -6572,7 +6633,7 @@ function copyPrompt() {
   const ta = document.getElementById('generatedPrompt');
   ta.select();
   document.execCommand('copy');
-  alert(T('Prompt copié dans le presse-papiers !'));
+  _configToast(T('Prompt copié dans le presse-papiers !'));
 }
 
 // ─── FOURNISSEUR IA ──────────────────────────────────────────────────────────
@@ -7825,7 +7886,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
       setTimeout(()=>{ btn.innerHTML = orig; btn.style.background = 'linear-gradient(135deg,#00FF88,#C9822E)'; }, 1500);
     }
   } else {
-    alert(T('✅ Configuration sauvegardée !'));
+    _configToast(T('✅ Configuration sauvegardée !'));
   }
   return true;
 }
@@ -7908,7 +7969,7 @@ function operatorRowFilled(i){
 // ensureOperatorRows() : celle-ci VIDE la grille avant de la reconstruire, ce
 // qui effacerait les lignes déjà remplies. Ici on ajoute ou on retire
 // seulement à la fin, les saisies existantes sont préservées.
-function setOperatorCount(valeur){
+async function setOperatorCount(valeur){
   const cap = opRowCap();
   let n = parseInt(valeur, 10);
   if(!isFinite(n)) n = opRowCount;              // saisie vide/absurde : on ne touche à rien
@@ -7922,9 +7983,10 @@ function setOperatorCount(valeur){
     for(let i = n + 1; i <= opRowCount; i++){
       if(operatorRowFilled(i)) perdues.push(`OP${i}`);
     }
-    if(perdues.length && !confirm(
+    if(perdues.length && !(await _confirmConfigBanner(
         `Réduire à ${n} opérateur(s) supprimera ${perdues.join(', ')}, `
-        + `qui ${perdues.length > 1 ? 'contiennent' : 'contient'} déjà une saisie.\n\nContinuer ?`)){
+        + `qui ${perdues.length > 1 ? 'contiennent' : 'contient'} déjà une saisie.\n\nContinuer ?`,
+        'Réduire', 'Annuler'))){
       syncOpCountInput();                       // remet le champ sur la valeur réelle
       return;
     }
@@ -8903,7 +8965,7 @@ async function analyzeRules(url, name){
   name = name || document.getElementById('aiRulesName').value.trim();
   const status = document.getElementById('aiAnalyzeStatus');
   const btn = document.getElementById('aiAnalyzeBtn');
-  if (!url){ alert(T('Indique l\'URL du règlement (PDF ou page web).')); return; }
+  if (!url){ _configToast(T('Indique l\'URL du règlement (PDF ou page web).')); return; }
   // Correctif M1 : mémorise le concours actif au lancement de l'analyse — si
   // l'utilisateur en choisit un autre pendant les 30-90s d'analyse IA,
   // saveReviewedDefinition() doit le savoir pour ne pas écraser silencieusement
@@ -9084,7 +9146,7 @@ async function saveReviewedDefinition(){
 //   1. le concours est sélectionné et ses bandes/modes/dates appliqués ;
 //   2. la bannière récapitule ce qui a été pré-rempli et ce qui reste à vérifier ;
 //   3. un clic sur LANCER sauvegarde et ouvre la carte IA.
-function handleContestParam(){
+async function handleContestParam(){
   const id = new URLSearchParams(location.search).get('contest');
   if (!id) return;
   const banner = document.getElementById('assistantBanner');
@@ -9102,7 +9164,7 @@ function handleContestParam(){
   // #assistantBanner vit DANS le panneau catmodal_contest, masqué par défaut
   // — sans ouverture explicite du panneau, tout ce qui suit (bannière
   // récapitulative comme message « introuvable ») serait rempli mais invisible.
-  openCategoryPopup('contest');
+  await openCategoryPopup('contest');
 
   if (!contest){
     banner.style.display = 'block';

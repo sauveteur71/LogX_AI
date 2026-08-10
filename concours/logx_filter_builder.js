@@ -115,7 +115,7 @@ function fltReset(){
 
 function fltExportFiltered(){
   const qsos = fltCurrentMatches().filter(isValidQSO);
-  if(!qsos.length){ alert(trF('Aucun QSO ne correspond au filtre courant.')); return; }
+  if(!qsos.length){ notify(trF('Aucun QSO ne correspond au filtre courant.')); return; }
   downloadAdifBlob(buildAdifText(qsos), 'filtre');
 }
 

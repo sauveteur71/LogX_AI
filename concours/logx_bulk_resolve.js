@@ -49,8 +49,8 @@ async function startBulkResolve(){
   const overwrite = document.getElementById('brsOverwrite').checked;
   const ids = useFiltered ? qsoLog.filter(q => matchesAdvancedFilter(q, advancedFilter)).map(q=>q.id) : null;
   if(useFiltered && !ids.length){ notify('Aucun QSO dans le filtre actif.'); return; }
-  if(!confirm(trF('Lancer la re-résolution sur {n} ? Une requête réseau par indicatif distinct.',
-              {n: ids ? ids.length + ' QSO' : 'tout le log'}))) return;
+  if(!(await _confirmDupBanner(trF('Lancer la re-résolution sur {n} ? Une requête réseau par indicatif distinct.',
+              {n: ids ? ids.length + ' QSO' : 'tout le log'}), 'Lancer', 'Annuler'))) return;
 
   document.getElementById('brsStartBtn').disabled = true;
   bulkResolveRunning = true;

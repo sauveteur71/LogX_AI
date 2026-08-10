@@ -269,9 +269,16 @@ body.sans-concours .compass-pts{display:none}
 
 /* DUPLEX CHECK */
 .dup-warning{background:rgba(255,45,85,.12);border:1px solid var(--red);border-radius:6px;padding:10px 14px;font-family:var(--font-mono);font-size:15px;color:var(--red);display:none;font-weight:700}
-.dup-confirm-banner{background:rgba(255,45,85,.12);border:1px solid var(--red);border-radius:6px;padding:10px 14px;font-family:var(--font-mono);font-size:14px;color:var(--red);display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
+/* position:fixed + z-index:9999 (chantier dialogues non bloquants, 10/08/2026) :
+   ce bandeau est désormais partagé par TOUTE la page (pas seulement le
+   doublon QSO d'origine, voir _confirmDupBanner() dans logx_logbook.js) --
+   plusieurs sites d'appel se déclenchent depuis un .shortcuts-overlay
+   (position:fixed;z-index:500), qui masquait le bandeau resté en flux
+   normal (le rendant invisible et incliquable, trouvé par revue
+   adversariale). Même patron que #configConfirmBanner (logx_configuration.html). */
+.dup-confirm-banner{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9999;max-width:480px;background:rgba(255,45,85,.12);backdrop-filter:blur(8px);border:1px solid var(--red);border-radius:10px;padding:14px 18px;font-family:var(--font-mono);font-size:14px;color:var(--red);display:none;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 4px 24px rgba(255,45,85,.25)}
 .dup-confirm-banner.show{display:flex}
-.dup-confirm-banner span{font-weight:700;flex:1;min-width:180px}
+.dup-confirm-banner span{font-weight:700;flex:1;min-width:180px;white-space:pre-line}
 .dup-confirm-banner button{font-family:var(--font-mono);font-size:13px;font-weight:700;border-radius:5px;padding:6px 12px;cursor:pointer;border:1px solid var(--red)}
 /* Valeur FIXE (pas var(--red)) : le rouge nuit (#FF2D55) est trop clair pour
    porter du texte blanc (contraste 3.65:1, sous le seuil AA 4.5:1) -- même

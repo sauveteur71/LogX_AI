@@ -370,8 +370,10 @@ async function armerPounce(){
   const duree = parseInt(document.getElementById('pounceDuree').value || '30', 10);
   // Le niveau 4 demande une confirmation explicite. Ce n'est pas de la
   // paperasse : c'est le seul moment où l'opérateur décide que sa station
-  // émettra en son nom sans qu'il la regarde.
-  if(n === 4 && !confirm(trF('La station va émettre sans personne devant elle pendant {d} minutes.\n\nElle s\'arrêtera toute seule à la fin. Confirmer ?', {d: duree}))) return;
+  // émettra en son nom sans qu'il la regarde. Bandeau non bloquant (chantier
+  // dialogues non bloquants, 10/08/2026) plutôt que confirm() natif -- voir
+  // _confirmDupBanner() dans logx_logbook.js (chargé avant ce fichier).
+  if(n === 4 && !(await _confirmDupBanner(trF('La station va émettre sans personne devant elle pendant {d} minutes.\n\nElle s\'arrêtera toute seule à la fin. Confirmer ?', {d: duree}), 'Armer quand même', 'Annuler'))) return;
   try{
     const d = await fetch('/pounce/armer', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({niveau: n, criteres, duree_min: duree})}).then(r=>r.json());

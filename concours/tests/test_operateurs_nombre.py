@@ -85,7 +85,9 @@ def test_reduire_le_nombre_demande_confirmation_si_saisie_existante():
     l'utilisateur doit etre prevenu — la veille d'un concours, perdre une
     saisie sans un mot serait la pire des surprises."""
     fn = _extraire('setOperatorCount', _source())
-    assert 'confirm(' in fn, (
+    # _confirmConfigBanner() (bandeau non bloquant, chantier dialogues non
+    # bloquants, 10/08/2026) a remplacé confirm() natif.
+    assert '_confirmConfigBanner(' in fn, (
         'setOperatorCount() supprime des lignes sans jamais demander '
         'confirmation')
     assert 'operatorRowFilled(' in fn, (

@@ -144,7 +144,11 @@ Blob = function(parts, opts){ this.parts = parts; };
 window.URL = { createObjectURL:function(b){ window.__files.push(b.parts.join('')); return 'blob:x'; },
                revokeObjectURL:function(){} };
 setTimeout = function(fn){ if(typeof fn === 'function') fn(); return 0; };
-confirm = function(){ return true; };   // on génère malgré les avertissements
+confirm = function(){ return true; };   // repli si jamais un confirm() natif réapparaît
+// exportEDI() appelle désormais _confirmDupBanner() (bandeau non bloquant,
+// chantier dialogues non bloquants, 10/08/2026) au lieu de confirm() natif --
+// stub direct plutôt que de simuler un clic, comme l'ancien confirm() natif.
+_confirmDupBanner = function(){ return Promise.resolve(true); };
 """
 
 

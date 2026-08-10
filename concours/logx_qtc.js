@@ -173,7 +173,7 @@ function renderQTCList(){
 }
 
 async function deleteQTCSeries(id){
-  if(!confirm(trT('Supprimer cette série QTC ?'))) return;
+  if(!(await _confirmDupBanner(trT('Supprimer cette série QTC ?'), 'Supprimer', 'Annuler'))) return;
   try{ await fetch(`/qtc/delete/${id}`, {method: 'DELETE'}); }catch(e){}
   await refreshQTC();
 }
