@@ -173,9 +173,12 @@ def _parse_cabrillo(text):
     le règlement (cabrillo_exchange) et volontairement IGNORÉ : ce parseur ne
     sert qu'à alimenter archive_log() pour le "score à battre"
     (best_for_contest() ne lit que le NOMBRE de QSO et leurs `points`, jamais
-    l'indicatif/l'échange d'une archive). Renvoie (qsos, claimed_score)."""
+    l'indicatif/l'échange d'une archive). Renvoie (qsos, claimed_score,
+    contest_name) -- contest_name : valeur brute de la ligne CONTEST: de
+    l'en-tête (ex. "CQ-WW-CW"), '' si absente, à passer à guess_contest_id()."""
     qsos = []
     claimed = None
+    contest_name = ''
     for line in (text or '').splitlines():
         line = line.strip()
         upper = line.upper()
@@ -183,6 +186,8 @@ def _parse_cabrillo(text):
             digits = re.sub(r'[^0-9]', '', line.split(':', 1)[1])
             if digits:
                 claimed = int(digits)
+        elif upper.startswith('CONTEST:'):
+            contest_name = line.split(':', 1)[1].strip()
         elif upper.startswith('QSO:'):
             parts = line.split()
             if len(parts) < 5:
@@ -193,10 +198,42 @@ def _parse_cabrillo(text):
                 'mode': _CABRILLO_MODE_TO_INTERNAL.get(mode.upper(), mode.upper()),
                 'date': date.replace('-', ''), 'time': time,
             })
-    return qsos, claimed
+    return qsos, claimed, contest_name
 
 
-def import_external_log(text, fmt, contest_id, cfg=None, manual_score=None):
+def _normalize_contest_key(s):
+    """Normalise un identifiant de concours pour comparaison entre
+    conventions de nommage différentes (espaces/underscores -> tiret, casse
+    ignorée) : 'REF 160M', 'ref_160m' et 'REF-160M' doivent tous se
+    reconnaître."""
+    return re.sub(r'[\s_]+', '-', str(s or '').strip().upper())
+
+
+def guess_contest_id(raw_name):
+    """Devine l'identifiant interne LogX AI d'un concours à partir d'un nom
+    brut lu dans un fichier externe (ligne CONTEST: d'un Cabrillo, tag
+    CONTEST_ID d'un ADIF) -- chaque logiciel a sa propre convention pour ce
+    champ, jamais garantie identique à l'identifiant interne. Comparaison
+    normalisée contre CONTEST_DEFINITIONS : soit la clé interne elle-même
+    (la grande majorité des concours n'ont pas de cabrillo_name distinct --
+    voir build_cabrillo(), qui retombe alors sur le nom interne), soit le
+    cabrillo_name explicite (une douzaine de concours dont le code officiel
+    diverge, ex. CQ-WW-CW). None si rien ne correspond -- l'appelant doit
+    alors demander une sélection manuelle, jamais deviner au hasard."""
+    key = _normalize_contest_key(raw_name)
+    if not key:
+        return None
+    from logx_definitions import CONTEST_DEFINITIONS
+    for cid, cdef in CONTEST_DEFINITIONS.items():
+        if _normalize_contest_key(cid) == key:
+            return cid
+        cab = (cdef or {}).get('cabrillo_name')
+        if cab and _normalize_contest_key(cab) == key:
+            return cid
+    return None
+
+
+def import_external_log(text, fmt, contest_id=None, cfg=None, manual_score=None):
     """Importe un log EXTERNE (ADIF ou Cabrillo) d'une édition passée d'un
     concours jamais logguée dans LogX AI, comme archive permanente -- pour
     que best_for_contest() en tienne compte dans le "score à battre" (demande
@@ -206,24 +243,38 @@ def import_external_log(text, fmt, contest_id, cfg=None, manual_score=None):
     session en cours).
 
     fmt : 'adif' ou 'cabrillo'.
+    contest_id : optionnel (demande F4GLD 10/08/2026 : « sans avoir à
+    choisir le concours »). Si absent/vide, tenté automatiquement depuis le
+    fichier lui-même (ligne CONTEST: d'un Cabrillo, tag CONTEST_ID d'un
+    ADIF) via guess_contest_id() -- jamais une déduction hasardeuse : sans
+    ce champ dans le fichier, ou si sa valeur ne correspond à aucun concours
+    connu, l'appel échoue explicitement (needs_manual=True) plutôt que
+    d'archiver sous un concours probablement faux.
     manual_score : impose le score total de cette édition. Obligatoire en
     pratique pour l'ADIF (qui ne transporte pas de points par QSO côté LogX
     AI) ; en Cabrillo, sert de correctif si CLAIMED-SCORE est absent ou
     erroné -- sinon le CLAIMED-SCORE du fichier fait foi."""
     contest_id = (contest_id or '').strip()
-    if not contest_id:
-        return {'ok': False, 'error': 'Concours non précisé'}
     fmt = (fmt or '').strip().lower()
+    detected = False
     if fmt == 'adif':
         from logx_import import parse_adif_to_qsos
         qsos, _errors = parse_adif_to_qsos(text or '')
         claimed = None
+        raw_contest_name = next((q.get('contest') for q in qsos if q.get('contest')), '')
     elif fmt == 'cabrillo':
-        qsos, claimed = _parse_cabrillo(text or '')
+        qsos, claimed, raw_contest_name = _parse_cabrillo(text or '')
     else:
         return {'ok': False, 'error': f"Format non pris en charge : {fmt!r}"}
     if not qsos:
         return {'ok': False, 'error': 'Aucun QSO reconnu dans ce fichier'}
+
+    if not contest_id:
+        guessed = guess_contest_id(raw_contest_name)
+        if not guessed:
+            return {'ok': False, 'needs_manual': True,
+                    'error': 'Concours non détecté automatiquement -- choisis-le dans la liste'}
+        contest_id, detected = guessed, True
 
     score = manual_score if manual_score is not None else (claimed or 0)
     # best_for_contest() ne fait que SOMMER q['points'] par archive : le
@@ -241,7 +292,11 @@ def import_external_log(text, fmt, contest_id, cfg=None, manual_score=None):
             when = datetime.datetime.strptime(dates[0][:8], '%Y%m%d')
         except ValueError:
             when = None
-    return archive_log(qsos, contest_id, cfg or {}, when=when)
+    res = archive_log(qsos, contest_id, cfg or {}, when=when)
+    if res.get('ok'):
+        res['contest'] = contest_id
+        res['detected'] = detected
+    return res
 
 
 def list_archives():
