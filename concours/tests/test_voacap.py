@@ -248,3 +248,30 @@ def test_predict_reel_avec_le_vrai_binaire():
     assert 5000 < result['distance_km'] < 6500
     assert len(result['hours']) == 24
     assert all(0 <= b['rel'] <= 1 for h in result['hours'] for b in h['bands'] if b['rel'] is not None)
+
+
+def test_predict_reel_arrondit_le_ssn_resolu_automatiquement():
+    # Piege vu en verification navigateur reelle : sans ssn= explicite,
+    # resolve_ssn() peut passer par sfi_to_ssn_fallback() (repli SFI, non
+    # arrondi) et faire fuiter un float a 14 decimales jusque dans le
+    # panneau LOGBOOK ("SSN 41.62087912087912"). Verifie ici sur le vrai
+    # chemin de resolution automatique, pas seulement avec ssn= fourni.
+    if not v.voacap_available():
+        import pytest
+        pytest.skip("voacapl.exe non disponible sur cette plateforme")
+    # get_ssn_cached()/get_solar_cached() sont volontairement non bloquants
+    # (rafraichissement en tache de fond) -- le cache est donc TOUJOURS
+    # froid au tout debut d'un process pytest isole. On force ici un
+    # remplissage synchrone (memes fonctions que le rafraichissement de
+    # fond utilise) pour rendre le test deterministe plutot que de le
+    # laisser se sauter silencieusement a chaque execution.
+    from logx_clusters import fetch_ssn, fetch_solar_data
+    fetch_ssn()
+    fetch_solar_data()
+    ssn = v.resolve_ssn()
+    if ssn is None:
+        import pytest
+        pytest.skip("aucune donnee solaire disponible (reseau indisponible)")
+    result = v.predict(tx_lat=48.85, tx_lon=2.35, rx_lat=40.71, rx_lon=-74.00, freqs_mhz=[14.0])
+    if result['ok']:
+        assert result['ssn'] == round(result['ssn'], 1)

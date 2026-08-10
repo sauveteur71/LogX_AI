@@ -261,6 +261,11 @@ def predict(tx_lat, tx_lon, rx_lat, rx_lon, month=None, year=None, ssn=None,
         ssn = resolve_ssn()
     if ssn is None:
         return {'ok': False, 'error': "Aucune donnee d'activite solaire disponible (NOAA/SWPC et repli SFI injoignables) : impossible de calculer une prediction VOACAP fiable."}
+    # sfi_to_ssn_fallback() ne renvoie pas une valeur arrondie (contrairement
+    # au SSN NOAA deja arrondi a 1 decimale dans fetch_ssn()) -- uniformise
+    # ici quelle que soit la source, plutot que de laisser fuiter un float
+    # a 14 decimales jusque dans l'affichage.
+    ssn = round(ssn, 1)
 
     dat_content = build_dat(
         tx_lat, tx_lon, rx_lat, rx_lon, month, year, ssn, freqs_mhz,
