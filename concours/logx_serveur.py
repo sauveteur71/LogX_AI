@@ -187,6 +187,44 @@ if __name__ == '__main__':
             print(f'[LoTW] {_e}')
     threading.Thread(target=_maj_lotw, daemon=True).start()
 
+    # Bases de références POTA/SOTA/WWFF/IOTA/WCA (parcs, sommets, refuges,
+    # groupes d'îles, châteaux) : même raison que cty.dat/TLE/LoTW ci-dessus
+    # -- sans ce prefetch, le téléchargement (jusqu'à 60s de timeout, cache
+    # 30 jours) ne démarrait qu'au tout premier appel de
+    # /activation_db/search, laissant "MA RÉFÉRENCE ACTIVÉE" sans
+    # autocomplétion pendant les toutes premières secondes d'un poste neuf.
+    # Correctif de l'analyse concurrentielle du 10/08/2026 (Wavelog peuple
+    # ces mêmes référentiels dès sa migration de mise à jour, "out of the
+    # box"). ensure_loading_started() démarre lui-même son propre thread de
+    # fond et ne bloque jamais l'appelant -- pas besoin de l'envelopper ici.
+    def _maj_activation_db():
+        try:
+            import logx_sota as sota
+            sota.ensure_loading_started()
+        except Exception as _e:
+            print(f'[SOTA] indisponible : {_e}')
+        try:
+            import logx_pota as pota
+            pota.parks_db.ensure_loading_started()
+        except Exception as _e:
+            print(f'[POTA] indisponible : {_e}')
+        try:
+            import logx_wwff as wwff
+            wwff.directory_db.ensure_loading_started()
+        except Exception as _e:
+            print(f'[WWFF] indisponible : {_e}')
+        try:
+            import logx_iota as iota
+            iota.groups_db.ensure_loading_started()
+        except Exception as _e:
+            print(f'[IOTA] indisponible : {_e}')
+        try:
+            import logx_wca as wca
+            wca.ensure_loading_started()
+        except Exception as _e:
+            print(f'[WCA] indisponible : {_e}')
+    _maj_activation_db()
+
     # Scoreboard en direct + sauvegarde cloud : deux threads de fond qui lisent
     # la config à chaud (activés/intervalles réglés dans CONFIG). Inactifs tant
     # que rien n'est configuré ; ne perturbent jamais le serveur en cas d'échec.
