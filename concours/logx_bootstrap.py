@@ -49,6 +49,16 @@ def user_data_dir():
 # Fichiers de référence à recopier au 1er lancement (lecture seule dans le
 # bundle → copie inscriptible : cty.dat est mis à jour, les autres servent tels
 # quels mais doivent être dans le cwd pour les open() relatifs).
+#
+# GARANTIE (analyse concurrentielle 10/08/2026, cf. pattern Log4OM "rapports
+# protégés") : custom_contests.json contient les concours PERSONNALISÉS de
+# l'opérateur -- une mise à jour ne doit JAMAIS les écraser. C'est le garde
+# `if not os.path.exists(dst)` ci-dessous qui l'assure : la copie n'a lieu
+# QU'AU tout premier lancement (dst absent). Une mise à jour qui embarque une
+# nouvelle version de référence de ces fichiers dans le bundle ne touchera
+# donc jamais un fichier déjà présent côté utilisateur -- ne jamais retirer
+# ce garde ni le remplacer par un écrasement inconditionnel. Verrouillé par
+# tests/test_bootstrap_seed_files_preservation.py.
 _SEED_FILES = ['cty.dat', 'contest_schema.json', 'france_departements.geojson',
                'custom_contests.json']
 
