@@ -74,6 +74,9 @@ button:disabled{opacity:.4;cursor:default}
   width:100%;max-width:420px;text-transform:uppercase;outline:none}
 #saisie:disabled{border-color:var(--border);opacity:.5}
 .aide{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:10px;letter-spacing:1px}
+.feedback{font-family:var(--font-mono);font-size:15px;font-weight:700;letter-spacing:1px;margin-top:10px;min-height:20px}
+.feedback.ok{color:var(--green)}
+.feedback.ko{color:var(--red)}
 .onde{height:6px;border-radius:3px;background:var(--border);margin:16px auto 0;max-width:420px;overflow:hidden}
 .onde i{display:block;height:100%;width:0;background:var(--accent2);transition:width .12s linear}
 
@@ -144,6 +147,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div class="piste">
     <div class="compteur rc-i18n-live" id="compteur">prêt</div>
     <input type="text" id="saisie" autocomplete="off" autocapitalize="characters" spellcheck="false" disabled>
+    <div id="feedback" class="feedback"></div>
     <div class="onde"><i id="onde"></i></div>
     <div class="aide rc-i18n-live" id="aide">Entrée = valider · Échap = réécouter</div>
   </div>
@@ -253,6 +257,8 @@ async function demarrer(){
   document.getElementById('btnStop').disabled = false;
   const s = document.getElementById('saisie');
   s.disabled = false; s.value = ''; s.focus();
+  const fb = document.getElementById('feedback');
+  fb.textContent = ''; fb.className = 'feedback';
   await passer();
 }
 
@@ -277,7 +283,23 @@ async function rejouer(){
 function valider(){
   if(!enCours) return;
   const s = document.getElementById('saisie');
-  reponses.push(s.value.trim());
+  const saisie = s.value.trim();
+  reponses.push(saisie);
+  // Feedback immédiat : comparaison stricte (insensible casse/espaces), pas
+  // de distance de Levenshtein ici -- la correction chiffrée détaillée reste
+  // le rôle du bilan de fin de série (/cw/corriger, logx_cw_ecole.py côté
+  // serveur). Volontairement plus simple : juste "bon / pas bon".
+  const attendu = (serie[idx] && serie[idx].call) || '';
+  const fb = document.getElementById('feedback');
+  if(saisie.toUpperCase() === attendu.toUpperCase()){
+    fb.textContent = '✅ ' + attendu;
+    fb.className = 'feedback ok';
+  } else {
+    // La correction s'affiche MÊME si le champ était vide : un opérateur qui
+    // n'a rien entendu doit aussi voir la bonne réponse.
+    fb.textContent = '❌ attendu : ' + attendu;
+    fb.className = 'feedback ko';
+  }
   s.value = '';
   idx++;
   passer();
