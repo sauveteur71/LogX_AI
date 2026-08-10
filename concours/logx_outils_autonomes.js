@@ -36,7 +36,7 @@ async function ecouterSpot(khz, lat, lon, mode, loc){
     const r = await fetch('/data/websdr/ecouter?' + p.toString());
     const d = await r.json();
     if(!d.ok || !d.url){
-      alert(trT('Aucun récepteur WebSDR en ligne assez près (rayon 1500 km).'));
+      notify(trT('Aucun récepteur WebSDR en ligne assez près (rayon 1500 km).'));
       return;
     }
     window.open(d.url, '_blank', 'noopener');
@@ -131,12 +131,21 @@ setInterval(refreshWeather, 10 * 60 * 1000);   // cache serveur 10 min
 // + résumé). Optionnellement, vide ensuite ce concours du log actif.
 async function archiveLog(){
   try{
-    const clear = confirm(trT('📦 ARCHIVER CE CONCOURS') + '\n\n' +
+    // Les deux boutons archivent (ce n'est PAS un "Annuler" au sens habituel) --
+    // seul le fait de vider ou non le log actif diffère, d'où des libellés qui
+    // décrivent chacun l'action réelle plutôt qu'un couple Confirmer/Annuler.
+    // Piège connu (revue adversariale, chantier dialogues non bloquants,
+    // 10/08/2026) : _confirmDupBanner() peut se résoudre à `false` SANS
+    // interaction (ex. l'opérateur retape un indicatif pendant que ce bandeau
+    // est ouvert, cf. _cancelPendingDupConfirm() dans logx_logbook.js) -- dans
+    // ce cas précis, contrairement à tous les autres appelants, l'archivage
+    // part quand même (sans vider). Pas de perte de données (le log actif
+    // n'est jamais vidé sans confirmation explicite), juste un archivage non
+    // sollicité si l'opérateur ignore ce bandeau pour retourner trafiquer.
+    const clear = await _confirmDupBanner(trT('📦 ARCHIVER CE CONCOURS') + '\n\n' +
       'Le log du concours actif va être conservé dans un dossier permanent\n' +
       '(log.json + Cabrillo + ADIF + résumé), qui restera même si tu changes\n' +
-      'de concours.\n\n' +
-      'OK  = archiver ET vider ce concours du log actif (repartir à neuf)\n' +
-      'Annuler = archiver SANS rien effacer');
+      'de concours.', 'Archiver et vider', 'Archiver sans effacer');
     const res = await fetch('/log/archive', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({clear: clear})
@@ -155,7 +164,7 @@ async function archiveLog(){
 
 async function resetLog(){
   const n = qsoLog.length;
-  if(!confirm(trF('⚠️ NOUVEAU LOG\n\nSupprime {n} QSO du log ACTIF.\nⓘ Ils sont d\'abord ARCHIVÉS dans un dossier permanent (par concours),\ndonc rien n\'est perdu — tu les retrouveras dans archives/.\n\nTape OK pour continuer.', {n}))) return;
+  if(!(await _confirmDupBanner(trF('⚠️ NOUVEAU LOG\n\nSupprime {n} QSO du log ACTIF.\nⓘ Ils sont d\'abord ARCHIVÉS dans un dossier permanent (par concours),\ndonc rien n\'est perdu — tu les retrouveras dans archives/.', {n}), 'Nouveau log', 'Annuler'))) return;
   const confirmation = prompt(trT('Tape RESET pour confirmer la suppression complète du log :'));
   if(confirmation !== 'RESET'){
     notify('Annulé — le log est inchangé.');

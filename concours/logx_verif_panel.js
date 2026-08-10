@@ -234,7 +234,7 @@ function fixFromValidation(id){
 async function delFromValidation(id){
   const q = qsoLog.find(x=>x.id===id);
   const label = q ? trF('\n{call} — {band} MHz — {time}', {call: q.call||'?', band: q.band||'?', time: q.time||''}) : '';
-  if(!confirm(trF('Supprimer ce QSO ?{label}', {label}))) return;
+  if(!(await _confirmDupBanner(trF('Supprimer ce QSO ?{label}', {label}), 'Supprimer', 'Annuler'))) return;
   qsoLog = qsoLog.filter(x=>x.id!==id);
   try{ await fetch(`/log/delete/${id}`, {method:'DELETE'}); }catch(e){}
   renderLog();

@@ -26,7 +26,8 @@
 // libelle ADIF officiel.
 //
 // Dependance optionnel->coeur (sens autorise, fonctions seulement) :
-// qsoLog, isValidQSO, myCall, myLocator, _resolveOperatorCallsign, confirm,
+// qsoLog, isValidQSO, myCall, myLocator, _resolveOperatorCallsign,
+// _confirmDupBanner (bandeau non bloquant, definie dans logx_logbook.js),
 // trF, notify.
 
 // ─── EXPORT ADIF ─────────────────────────────────────────────────────────────
@@ -123,10 +124,10 @@ function downloadAdifBlob(adif, suffix){
   a.click();
 }
 
-function exportADIF(){
+async function exportADIF(){
   const validQSOs = qsoLog.filter(isValidQSO);
   const skipped = qsoLog.length - validQSOs.length;
-  if(skipped && !confirm(trF('⚠️ {n} QSO incomplet(s) seront ignorés dans l\'export ADIF.\n\nContinuer ?', {n: skipped}))) return;
+  if(skipped && !(await _confirmDupBanner(trF('⚠️ {n} QSO incomplet(s) seront ignorés dans l\'export ADIF.\n\nContinuer ?', {n: skipped}), 'Continuer', 'Annuler'))) return;
   downloadAdifBlob(buildAdifText(validQSOs), 'log');
 }
 

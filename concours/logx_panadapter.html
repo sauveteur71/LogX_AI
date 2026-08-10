@@ -162,6 +162,38 @@ if(localStorage.getItem('rc_theme') === null){
     return;
   }
 
+  // ── Toast flottant auto-suffisant ───────────────────────────────────────────
+  // Remplace l'alert() bloquant du bouton Démarrer (source indisponible).
+  // Cette page est autonome (voir chargerPeripheriques() plus bas, même
+  // principe) : le toast injecte donc lui-même son DOM/CSS au premier appel,
+  // sans dépendre d'un élément HTML pré-existant dans la page.
+  let _paToastEl = null;
+  function _paToast(message, ms){
+    if(!_paToastEl){
+      const el = document.createElement('div');
+      el.id = 'paToast';
+      el.innerHTML = `
+        <style>
+          #paToast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);
+            max-width:min(480px,90vw);background:var(--bg2);color:var(--text);
+            border:1px solid var(--border);border-left:3px solid var(--red);
+            border-radius:8px;padding:10px 16px;font-family:var(--mono);
+            font-size:13px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.5);
+            z-index:99999;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+          #paToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+          #paToastMsg{white-space:pre-line}
+        </style>
+        <span id="paToastMsg" role="status" aria-live="polite"></span>`;
+      document.body.appendChild(el);
+      _paToastEl = el;
+    }
+    _paToastEl.querySelector('#paToastMsg').textContent = message;
+    _paToastEl.classList.add('show');
+    clearTimeout(_paToast._tm);
+    _paToast._tm = setTimeout(() => _paToastEl.classList.remove('show'),
+      ms || Math.min(9000, 3000 + String(message).length * 30));
+  }
+
   function horloge(){
     const d = new Date();
     document.getElementById('clock').textContent =
@@ -737,7 +769,7 @@ if(localStorage.getItem('rc_theme') === null){
       btn.textContent = '■ Arrêter';
       btn.classList.add('on');
     }).catch(e => {
-      alert(T('Source indisponible : ') + e.message);
+      _paToast(T('Source indisponible : ') + e.message);
     });
   };
 

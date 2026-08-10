@@ -82,8 +82,8 @@ async function selfSpot(){
   }
   if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
   const freq_khz = Math.round(mhz * 1000 * 10) / 10;   // MHz → kHz (commande DX Spider)
-  if(!confirm(trF('Publier ce spot sur le cluster DX ?\n\n{call}   {mhz} MHz   {mode}\n\n⚠️ Vérifie que l\'auto-spot est autorisé par le règlement du concours.',
-              {call: myCall, mhz: mhz.toFixed(3), mode: currentMode || ''}))) return;
+  if(!(await _confirmDupBanner(trF('Publier ce spot sur le cluster DX ?\n\n{call}   {mhz} MHz   {mode}\n\n⚠️ Vérifie que l\'auto-spot est autorisé par le règlement du concours.',
+              {call: myCall, mhz: mhz.toFixed(3), mode: currentMode || ''}), 'Publier', 'Annuler'))) return;
   const btn = document.getElementById('selfSpotBtn');
   const orig = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }
@@ -108,8 +108,8 @@ async function selfSpotPota(){
   }
   if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
   const freq_khz = Math.round(mhz * 1000 * 10) / 10;
-  if(!confirm(trF('Publier ce spot sur l\'API publique POTA (api.pota.app) ?\n\n{call}   {ref}   {mhz} MHz   {mode}\n\nVisible immédiatement par tous les chasseurs, sans authentification.',
-              {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3), mode: currentMode || ''}))) return;
+  if(!(await _confirmDupBanner(trF('Publier ce spot sur l\'API publique POTA (api.pota.app) ?\n\n{call}   {ref}   {mhz} MHz   {mode}\n\nVisible immédiatement par tous les chasseurs, sans authentification.',
+              {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3), mode: currentMode || ''}), 'Publier', 'Annuler'))) return;
   const btn = document.getElementById('actSpotBtn');
   const orig = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }
@@ -142,8 +142,8 @@ async function selfSpotSota(){
   }
   if(!isFinite(mhz) || mhz <= 0){ notify('Fréquence inconnue — saisis-la dans le champ FRÉQUENCE.'); return; }
   const freq_khz = Math.round(mhz * 1000 * 10) / 10;
-  if(!confirm(trF('Publier ce spot sur SOTAwatch3 ?\n\n{call}   {ref}   {mhz} MHz   {mode}\n\nNécessite une connexion SOTA configurée dans CONFIG → EXPÉDITION/PORTABLE.',
-              {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3), mode: currentMode || ''}))) return;
+  if(!(await _confirmDupBanner(trF('Publier ce spot sur SOTAwatch3 ?\n\n{call}   {ref}   {mhz} MHz   {mode}\n\nNécessite une connexion SOTA configurée dans CONFIG → EXPÉDITION/PORTABLE.',
+              {call: myCall, ref: myActivationRef, mhz: mhz.toFixed(3), mode: currentMode || ''}), 'Publier', 'Annuler'))) return;
   const btn = document.getElementById('actSpotBtn');
   const orig = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = '📡 …'; }

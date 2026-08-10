@@ -2234,11 +2234,20 @@ function focusNext(id){
 // de l'opérateur l'atteint.
 let _pendingDupConfirmResolve = null;
 
-function _confirmDupBanner(message){
+// yesLabel/noLabel : le bandeau est partagé par TOUTE la page logx_logbook.html
+// (dup_finder, edit_qso, qtc, verif_panel, net_control, popout_selfspot,
+// outils_autonomes, hardware_cat, export_adif, export_edi, bulk_resolve --
+// un seul bandeau visible à la fois, cf. _cancelPendingDupConfirm ci-dessous),
+// pas seulement le doublon QSO d'origine -- les libellés par défaut
+// reproduisent exactement le comportement historique pour ne rien changer au
+// seul appelant qui ne les précise pas (submitQSO()).
+function _confirmDupBanner(message, yesLabel, noLabel){
   _cancelPendingDupConfirm();   // un bandeau resté ouvert d'une tentative précédente ne doit pas s'empiler
   return new Promise(resolve => {
     _pendingDupConfirmResolve = resolve;
     document.getElementById('dupConfirmMsg').textContent = message;
+    document.getElementById('dupConfirmYesBtn').textContent = yesLabel || 'Enregistrer quand même';
+    document.getElementById('dupConfirmNoBtn').textContent = noLabel || 'Annuler';
     document.getElementById('dupConfirmBanner').classList.add('show');
   });
 }

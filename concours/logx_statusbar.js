@@ -77,6 +77,40 @@
   const rcTf = (s, p) => (window.rcTf ? window.rcTf(s, p)
     : String(s).replace(/\{(\w+)\}/g, (m, k) => (p && k in p) ? p[k] : m));
 
+  // ── Toast flottant auto-suffisant ───────────────────────────────────────────
+  // Remplace les alert() bloquants de ce fichier. Contrairement à notify()
+  // (logx_logbook.js), qui s'appuie sur un #macroToast déjà présent dans le
+  // HTML de LA page logbook, ce script tourne sur des pages très différentes
+  // (presque toutes) : le toast doit donc injecter lui-même son DOM/CSS au
+  // premier appel, sans rien supposer du HTML hôte — même esprit que
+  // notify()/macroToast, mais 100% autonome.
+  let _statusbarToastEl = null;
+  function _statusbarToast(message, ms){
+    if (!_statusbarToastEl){
+      const el = document.createElement('div');
+      el.id = 'rcsbToast';
+      el.innerHTML = `
+        <style>
+          #rcsbToast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);
+            max-width:min(480px,90vw);background:var(--bg2,#0D0E1A);color:var(--text,#E9ECF5);
+            border:1px solid var(--border,#2B2F4A);border-left:3px solid var(--accent,#FF5030);
+            border-radius:8px;padding:10px 16px;font-family:var(--font-mono,'Share Tech Mono',monospace);
+            font-size:13px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.5);
+            z-index:99999;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+          #rcsbToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+          #rcsbToastMsg{white-space:pre-line}
+        </style>
+        <span id="rcsbToastMsg" role="status" aria-live="polite"></span>`;
+      document.body.appendChild(el);
+      _statusbarToastEl = el;
+    }
+    _statusbarToastEl.querySelector('#rcsbToastMsg').textContent = message;
+    _statusbarToastEl.classList.add('show');
+    clearTimeout(_statusbarToast._tm);
+    _statusbarToast._tm = setTimeout(function(){ _statusbarToastEl.classList.remove('show'); },
+      ms || Math.min(9000, 3000 + String(message).length * 30));
+  }
+
   // ── Création du DOM ────────────────────────────────────────────────────────
   const bar = document.createElement('div');
   bar.id = 'rcStatusBar';
@@ -1124,7 +1158,7 @@
         return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
       }).join('&');
     }catch(err){
-      alert(rcT("Impossible de préparer le rapport de bug (caractère invalide dans le texte saisi).") + " "
+      _statusbarToast(rcT("Impossible de préparer le rapport de bug (caractère invalide dans le texte saisi).") + " "
           + rcTf('Ouvre directement une Issue sur {url}',
                  {url: 'https://github.com/' + repo + '/issues/new'}));
       return;
@@ -1399,7 +1433,7 @@
       return;
     }
     if (!bandes.length) {
-      alert(rcT("Aucune bande active : choisis un concours ou coche des bandes dans CONFIG"));
+      _statusbarToast(rcT("Aucune bande active : choisis un concours ou coche des bandes dans CONFIG"));
       return;
     }
     bandes.slice(0, 12).forEach(function(b, i){

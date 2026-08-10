@@ -88,6 +88,15 @@ function toggleShortcutsHelp(){
 // fois à _modaleOuverte() (booléen) et au piège de focus Tab/Shift+Tab plus bas
 // (a besoin de l'élément lui-même pour lister ses champs focusables).
 function _elementModaleOuverte(){
+  // Bandeau de confirmation non bloquant (chantier dialogues non bloquants,
+  // 10/08/2026) : vérifié EN PREMIER -- position:fixed;z-index:9999 (voir
+  // logx_logbook.html), il se dessine AU-DESSUS de toute autre modale de la
+  // liste ci-dessous (dont beaucoup l'appellent depuis leur propre overlay,
+  // z-index:500) -- sans cette priorité, le piège de focus Tab resterait
+  // confiné à l'overlay du dessous, rendant les boutons du bandeau
+  // inatteignables au clavier alors qu'ils sont visuellement au premier plan.
+  const dupBanner = document.getElementById('dupConfirmBanner');
+  if(dupBanner && dupBanner.classList.contains('show')) return dupBanner;
   const setup = document.getElementById('setupModal');
   if(setup && setup.style.display !== 'none' && setup.style.display !== '') return setup;
   const ids = ['editOverlay', 'shortcutsOverlay', 'validateOverlay',
@@ -166,6 +175,11 @@ document.addEventListener('keydown', e => {
   }
   // Escape : fermer le modal de setup
   if(e.key === 'Escape'){
+    // Bandeau de confirmation non bloquant (chantier dialogues non bloquants,
+    // 10/08/2026) : un confirm() natif se fermait déjà sur Échap (= refus) --
+    // même comportement ici, avant tout le reste (il est visuellement au
+    // premier plan, cf. priorité dans _elementModaleOuverte() plus haut).
+    if(typeof _cancelPendingDupConfirm === 'function') _cancelPendingDupConfirm();
     const modal = document.getElementById('setupModal');
     if(modal && modal.style.display !== 'none') modal.style.display = 'none';
     // La fenêtre d'édition de QSO s'appelle editOverlay et s'ouvre/ferme par
@@ -266,7 +280,7 @@ document.addEventListener('keydown', e => {
   const watchedIds = ['shortcutsOverlay', 'validateOverlay', 'awardsOverlay',
                        'importOverlay', 'checklistOverlay', 'qtcOverlay',
                        'filterOverlay', 'dupOverlay', 'netOverlay', 'rateOverlay',
-                       'qslCardOverlay'];
+                       'qslCardOverlay', 'dupConfirmBanner'];
   function focusFirstIn(el){
     const f = el.querySelector(
       'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'

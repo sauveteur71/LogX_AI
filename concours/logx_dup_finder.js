@@ -81,7 +81,7 @@ function renderDupResults(){
 }
 
 async function dupDeleteOne(id){
-  if(!confirm(trT('Supprimer ce QSO ?'))) return;
+  if(!(await _confirmDupBanner(trT('Supprimer ce QSO ?'), 'Supprimer', 'Annuler'))) return;
   await deleteQSOSilent(id);
   renderLog();
   updateStats();
@@ -90,7 +90,7 @@ async function dupDeleteOne(id){
 
 async function dupDeleteMany(ids){
   if(!ids.length) return;
-  if(!confirm(trF('Supprimer {n} QSO en double (le plus ancien de chaque groupe est conservé) ?', {n: ids.length}))) return;
+  if(!(await _confirmDupBanner(trF('Supprimer {n} QSO en double (le plus ancien de chaque groupe est conservé) ?', {n: ids.length}), 'Supprimer', 'Annuler'))) return;
   for(const id of ids) await deleteQSOSilent(id);
   renderLog();
   updateStats();

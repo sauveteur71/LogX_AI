@@ -40,7 +40,7 @@ function ediSerial(v){
   return /^\d+$/.test(s) ? s.padStart(3,'0') : s;
 }
 
-function exportEDI(){
+async function exportEDI(){
   // Validation avant export
   const warnings = [];
   const invalid = qsoLog.filter(q=>!isValidQSO(q));
@@ -54,7 +54,7 @@ function exportEDI(){
   const dups = countDupes(qsoLog);
   if(dups) warnings.push(trF('⚠️ {n} doublon(s) dans le log', {n: dups}));
   if(warnings.length){
-    if(!confirm(trF('VALIDATION LOG\n\n{warnings}\n\nGénérer quand même le fichier EDI ?', {warnings: warnings.join('\n')}))) return;
+    if(!(await _confirmDupBanner(trF('VALIDATION LOG\n\n{warnings}\n\nGénérer quand même le fichier EDI ?', {warnings: warnings.join('\n')}), 'Générer quand même', 'Annuler'))) return;
   }
 
   // Lire config depuis localStorage

@@ -55,7 +55,11 @@ def _source():
 
 def _extraire(nom, src):
     """Extrait `function <nom>(...){...}` par comptage d'accolades."""
-    m = re.search(r'function\s+' + re.escape(nom) + r'\s*\(', src)
+    # (?:async\s+)? : setOperatorCount() est devenue async (chantier dialogues
+    # non bloquants, 10/08/2026 -- _confirmConfigBanner() remplace confirm()
+    # natif) -- sans ce préfixe dans le match, m.start() pointerait après
+    # "async " et le snippet extrait contiendrait un await hors fonction async.
+    m = re.search(r'(?:async\s+)?function\s+' + re.escape(nom) + r'\s*\(', src)
     assert m, '%s() introuvable dans logx_configuration.html' % nom
     i = src.index('{', m.end() - 1)
     profondeur = 0
@@ -157,6 +161,10 @@ function syncOpCountInput(){}
 function getUsageMode(){ return 'contest'; }
 var __confirmations = [];
 function confirm(msg){ __confirmations.push(msg); return true; }
+// setOperatorCount() appelle désormais _confirmConfigBanner() (bandeau non
+// bloquant, chantier dialogues non bloquants, 10/08/2026) au lieu de confirm()
+// natif -- stub Promise, même compteur __confirmations que ci-dessus.
+function _confirmConfigBanner(msg){ __confirmations.push(msg); return Promise.resolve(true); }
 
 var opRowCount = 1;
 

@@ -34,7 +34,11 @@ HTML_PATH = os.path.join(BASE, 'logx_configuration.html')
 def _extract_function(src, name):
     """Extrait le texte complet `function <name>(){...}` par comptage
     d'accolades — le VRAI code du fichier, pas une réécriture."""
-    m = re.search(r'^function %s\(' % re.escape(name), src, re.M)
+    # (?:async\s+)? : plusieurs fonctions sont devenues async (chantier
+    # dialogues non bloquants, 10/08/2026 -- _confirmDupBanner()/
+    # _confirmConfigBanner() remplacent confirm() natif, ce qui nécessite
+    # await donc async).
+    m = re.search(r'^(?:async\s+)?function %s\(' % re.escape(name), src, re.M)
     assert m, 'fonction %s introuvable dans %s' % (name, HTML_PATH)
     depth = 0
     i = src.index('{', m.start())
@@ -101,7 +105,10 @@ var document = {
 var _catFormSnapshots = {};
 var _confirmResult = true;
 var _confirmCalls = 0;
-function confirm(msg){ _confirmCalls++; return _confirmResult; }
+// _confirmDiscardCatChanges() appelle désormais _confirmConfigBanner() (bandeau
+// non bloquant, chantier dialogues non bloquants, 10/08/2026) au lieu de
+// confirm() natif -- stub Promise plutôt que valeur synchrone.
+function _confirmConfigBanner(msg){ _confirmCalls++; return Promise.resolve(_confirmResult); }
 function T(s){ return s; }
 function buildSummary(){}
 function refreshShiftOperatorSelect(){}

@@ -202,6 +202,7 @@ def test_reproduction_bug_sur_e68907d_reset():
     assert extended > ctx.eval('LOG_RENDER_DEFAULT')  # fenêtre bien étendue au préalable
     ctx.eval("""
     confirm = function(){ return true; };
+    _confirmDupBanner = function(){ return Promise.resolve(true); };
     prompt = function(){ return 'RESET'; };
     fetch = function(){ return Promise.resolve({ ok:true, json:function(){ return Promise.resolve({folders:['x']}); } }); };
     resetLog();
@@ -215,6 +216,7 @@ def test_reproduction_bug_sur_e68907d_archive_clear():
     extended = _seed_big_log(ctx, 1000)
     ctx.eval("""
     confirm = function(){ return true; };
+    _confirmDupBanner = function(){ return Promise.resolve(true); };
     fetch = function(){ return Promise.resolve({ ok:true, json:function(){
       return Promise.resolve({ok:true, qso_count:1000, name:'x', cleared:true}); } }); };
     archiveLog();
@@ -245,6 +247,7 @@ def test_resetLog_reinitialise_la_fenetre_de_rendu():
     assert extended > default
     ctx.eval("""
     confirm = function(){ return true; };
+    _confirmDupBanner = function(){ return Promise.resolve(true); };
     prompt = function(){ return 'RESET'; };
     fetch = function(){ return Promise.resolve({ ok:true, json:function(){ return Promise.resolve({folders:['x']}); } }); };
     resetLog();
@@ -265,6 +268,7 @@ def test_archiveLog_clear_reinitialise_la_fenetre_de_rendu():
     assert extended > default
     ctx.eval("""
     confirm = function(){ return true; };
+    _confirmDupBanner = function(){ return Promise.resolve(true); };
     fetch = function(){ return Promise.resolve({ ok:true, json:function(){
       return Promise.resolve({ok:true, qso_count:1000, name:'x', cleared:true}); } }); };
     archiveLog();

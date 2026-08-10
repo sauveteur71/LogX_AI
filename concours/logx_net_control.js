@@ -76,8 +76,8 @@ function netStartSession(){
   netRenderList();
 }
 
-function netEndSession(){
-  if(!confirm(trT('Terminer la session de net ? (le roster reste enregistré pour la prochaine fois)'))) return;
+async function netEndSession(){
+  if(!(await _confirmDupBanner(trT('Terminer la session de net ? (le roster reste enregistré pour la prochaine fois)'), 'Terminer', 'Annuler'))) return;
   netSaveSession(null);
   netRenderList();
 }
@@ -138,7 +138,7 @@ async function netLogAllChecked(){
   if(!session) return;
   const targets = session.entries.filter(e => e.checked && !e.contacted);
   if(!targets.length){ notify('Aucune station cochée à logger.'); return; }
-  if(!confirm(trF('Logger {n} station(s) à {band} MHz / {mode} ?', {n: targets.length, band: currentBand, mode: currentMode}))) return;
+  if(!(await _confirmDupBanner(trF('Logger {n} station(s) à {band} MHz / {mode} ?', {n: targets.length, band: currentBand, mode: currentMode}), 'Logger', 'Annuler'))) return;
   for(const e of targets){
     const qso = netBuildQso(e.call);
     if(await netLogQso(qso)){

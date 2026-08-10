@@ -120,6 +120,35 @@
     box-shadow:0 8px 30px rgba(0,0,0,.5);
   }
 
+  /* Bandeau de confirmation DOUBLON — non bloquant, remplace l'ancien
+     confirm() natif. Même position/gabarit que .toast (jamais affichés en
+     même temps : le bandeau se ferme avant que submitQSO() ne montre son
+     propre toast de résultat) mais cibles tactiles >= 48px comme le reste
+     de la page (voir en-tête de ce bloc <style>). */
+  .dup-confirm-banner {
+    position:fixed; left:14px; right:14px; bottom:18px; z-index:110;
+    background:var(--bg2); border:1px solid var(--red); border-radius:10px;
+    padding:14px 16px; font-family:var(--font-mono); font-size:14px;
+    color:var(--red); display:none; flex-direction:column; gap:10px;
+    white-space:pre-line; box-shadow:0 8px 30px rgba(0,0,0,.5);
+  }
+  .dup-confirm-banner.show { display:flex; }
+  .dup-confirm-banner span { font-weight:700; }
+  .dup-confirm-banner .dup-confirm-actions { display:flex; gap:10px; }
+  .dup-confirm-banner button {
+    flex:1; font-family:var(--font-mono); font-size:14px; font-weight:700;
+    border-radius:8px; padding:12px 10px; cursor:pointer; border:1px solid var(--red);
+    min-height:48px;
+  }
+  /* Couleur fixe (pas var(--red), qui change entre nuit #FF2D55 et jour
+     #CC0030) : ce bouton porte un texte BLANC, il lui faut un fond
+     suffisamment sombre dans LES DEUX thèmes — même raisonnement que le
+     cuivre fixe documenté dans CLAUDE.md pour .toggle-btn.on. */
+  .dup-confirm-banner #dupConfirmYesBtn { background:#CC0030; color:#fff; }
+  .dup-confirm-banner #dupConfirmYesBtn:hover { opacity:.85; }
+  .dup-confirm-banner #dupConfirmNoBtn { background:transparent; color:var(--red); }
+  .dup-confirm-banner #dupConfirmNoBtn:hover { background:rgba(255,45,85,.1); }
+
   /* Derniers QSO du log PARTAGÉ (tous les postes, pas seulement ce téléphone) */
   .recent { display:flex; flex-direction:column; gap:6px; padding-bottom:20px; }
   .recent-title { font-family:var(--font-display); font-weight:900; font-size:12px; color:var(--muted);
@@ -243,6 +272,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 </main>
 
 <div class="toast" id="toast"></div>
+
+<div class="dup-confirm-banner" id="dupConfirmBanner" role="alert">
+  <span id="dupConfirmMsg"></span>
+  <div class="dup-confirm-actions">
+    <button type="button" id="dupConfirmYesBtn" onclick="_resolveDupConfirm(true)">Enregistrer quand même</button>
+    <button type="button" id="dupConfirmNoBtn" onclick="_resolveDupConfirm(false)">Annuler</button>
+  </div>
+</div>
 
 <script>
 // ─── Thème (propre à cet appareil, hérité du serveur au 1er accès) ───────────
@@ -645,7 +682,35 @@ async function submitQSO(){
   btn.disabled = false;
 }
 
-// Envoie un QSO (avec confirmation bloquante sur doublon 409) — retourne un
+// ─── Bandeau de confirmation DOUBLON (non bloquant) ──────────────────────────
+// Remplace le confirm() bloquant de trySendQso() par le petit bandeau HTML
+// ci-dessus. Même patron Promise<boolean> que _confirmDupBanner dans
+// logx_logbook.js, mais 100% autonome ici : DOM/CSS/JS propres à cette page,
+// aucune portée partagée avec le PC.
+let _pendingDupConfirmResolve = null;
+function _resolveDupConfirm(result){
+  document.getElementById('dupConfirmBanner').classList.remove('show');
+  if (_pendingDupConfirmResolve){
+    const r = _pendingDupConfirmResolve;
+    _pendingDupConfirmResolve = null;
+    r(result);
+  }
+}
+// Un bandeau resté ouvert d'une tentative précédente ne doit pas s'empiler
+// (ex. l'opérateur relance submitQSO() sans avoir répondu au premier).
+function _cancelPendingDupConfirm(){
+  if (_pendingDupConfirmResolve) _resolveDupConfirm(false);
+}
+function _confirmDupBanner(message){
+  _cancelPendingDupConfirm();
+  return new Promise(resolve => {
+    _pendingDupConfirmResolve = resolve;
+    document.getElementById('dupConfirmMsg').textContent = message;
+    document.getElementById('dupConfirmBanner').classList.add('show');
+  });
+}
+
+// Envoie un QSO (avec confirmation non bloquante sur doublon 409) — retourne un
 // objet {outcome, message?} :
 //  - 'ok' : enregistré.
 //  - 'declined' : doublon refusé par l'opérateur (pas une erreur).
@@ -671,10 +736,10 @@ async function trySendQso(qso){
   if (res.status === 409){
     const err = await res.json().catch(() => ({}));
     const ex = err.existing || {};
-    if (!confirm(Tf('DOUBLON : {call} déjà contacté sur {band} MHz{heure}.',
+    if (!(await _confirmDupBanner(Tf('DOUBLON : {call} déjà contacté sur {band} MHz{heure}.',
                  {call: qso.call, band: qso.band,
                   heure: ex.time ? Tf(' à {t}', {t: ex.time}) : ''})
-                 + '\n\n' + T('Enregistrer quand même ?'))){
+                 + '\n\n' + T('Enregistrer quand même ?')))){
       return {outcome: 'declined'};
     }
     try{

@@ -36,7 +36,10 @@ def _extract_function(src, name):
     d'accolades (les accolades présentes dans les template literals des
     fonctions ciblées sont toutes appariées — vérifié à la main) : on
     récupère le VRAI code du fichier, pas une réécriture."""
-    m = re.search(r'^function %s\(' % re.escape(name), src, re.M)
+    # (?:async\s+)? : handleContestParam()/openCategoryPopup() sont devenues
+    # async (chantier dialogues non bloquants, 10/08/2026 -- _confirmConfigBanner()
+    # remplace confirm() natif, ce qui nécessite await donc async).
+    m = re.search(r'^(?:async\s+)?function %s\(' % re.escape(name), src, re.M)
     assert m, 'fonction %s introuvable dans %s' % (name, HTML_PATH)
     depth = 0
     i = src.index('{', m.start())
