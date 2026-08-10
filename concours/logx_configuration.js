@@ -2556,7 +2556,12 @@ function buildConfigSidebar(){
   nav.innerHTML = '<div class="config-sidebar-title">CONFIGURATION</div>'
     // Retour utilisateur (09/08/2026, voir commentaire CSS .config-sidebar-import) :
     // action d'import placée en tête, avant même la 1re catégorie de réglages.
-    + '<button type="button" class="config-sidebar-import" onclick="launchApp(\'logx_logbook.html?action=import\')"'
+    // Ouvre directement le sélecteur de fichier ICI (10/08/2026, retour F4GLD :
+    // « ca devrait plutot ouvrir l'explorateur de fichier pour importer
+    // directement ») -- naviguait auparavant vers logx_logbook.html?action=import
+    // puis rouvrait le menu DÉBUT/FIN là-bas pour atteindre triggerImport() :
+    // un détour à deux clics pour ce qui peut être un seul.
+    + '<button type="button" class="config-sidebar-import" onclick="triggerConfigImportAdif()"'
       + ' title="Importer un fichier ADIF depuis un autre logiciel (N1MM+, Win-Test, DXLog, Log4OM, Cloudlog, LoTW...)">'
       + _ICO_IMPORT + ' Importer un log existant</button>'
     + '<div class="config-sidebar-divider"></div>'
@@ -2575,6 +2580,68 @@ function buildConfigSidebar(){
     + '<button type="button" class="config-sidebar-launch" onclick="launchApp()"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> LOGGER</button>';
   document.body.appendChild(nav);
 }
+
+// ─── Import ADIF direct depuis CONFIG (10/08/2026) ──────────────────────────
+// Même serveur (/log/import_adif/preview puis /commit) que triggerImport()/
+// previewImportAdif()/confirmImportAdif() dans logx_import_adif.js (LOGBOOK) --
+// mais sans jamais quitter CONFIG : aperçu et confirmation via l'infra
+// bandeau/toast déjà en place ici (_confirmConfigBanner()/_configToast(),
+// chantier dialogues non bloquants), pas la modale #importOverlay de LOGBOOK
+// (absente de cette page). Le sélecteur de fichier s'ouvre en réponse DIRECTE
+// au clic (aucune navigation entre les deux) : geste utilisateur valide dans
+// tous les navigateurs, contrairement à un site distinct qui tenterait de le
+// déclencher tout seul après un chargement de page.
+function triggerConfigImportAdif(){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.adi,.adif,.ADI,.ADIF';
+  inp.onchange = e => {
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => _previewConfigImportAdif(ev.target.result);
+    reader.readAsText(f, 'UTF-8');
+  };
+  inp.click();
+}
+
+async function _previewConfigImportAdif(text){
+  let p;
+  try{
+    const res = await fetch('/log/import_adif/preview', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({adif: text}),
+    });
+    p = await res.json();
+  }catch(e){
+    _configToast('Serveur injoignable : ' + e.message);
+    return;
+  }
+  if(!p.ok){
+    _configToast('Erreur : ' + (p.error || 'Fichier illisible'));
+    return;
+  }
+  if(p.new === 0){
+    _configToast(`Aucun nouveau QSO à importer (${p.duplicates} déjà dans le log).`);
+    return;
+  }
+  const errPart = (p.errors && p.errors.length) ? `, ${p.errors.length} ignorés` : '';
+  const msg = `${p.total_in_file} QSO dans le fichier — ${p.new} nouveaux, ${p.duplicates} déjà dans le log${errPart}.\n\nImporter les ${p.new} nouveaux QSO ?`;
+  if(!(await _confirmConfigBanner(msg, 'Importer', 'Annuler'))) return;
+  try{
+    const r2 = await (await fetch('/log/import_adif/commit', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({adif: text}),
+    })).json();
+    if(r2.ok){
+      const err2 = (r2.errors && r2.errors.length) ? `, ${r2.errors.length} ignorés` : '';
+      _configToast(`Import terminé : ${r2.imported} QSO importés${err2}.`);
+    } else {
+      _configToast('Import échoué : ' + (r2.error || 'erreur inconnue'));
+    }
+  }catch(e){
+    _configToast('Import échoué : ' + e.message);
+  }
+}
+
 function _currentOpenCat(){
   for(const s of CONFIG_SECTIONS){
     const m = document.getElementById('catmodal_' + s[0]);
