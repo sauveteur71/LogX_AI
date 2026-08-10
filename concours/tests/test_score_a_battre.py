@@ -207,9 +207,29 @@ def test_guess_contest_id_correspond_a_l_id_interne():
 
 
 def test_guess_contest_id_utilise_cabrillo_name_si_present():
-    """REF_CDF_HF_SSB a un cabrillo_name distinct ('CDF-HF-SSB') -- le nom
-    brut ne correspond PAS à l'ID interne normalisé, seul cabrillo_name."""
-    assert arch.guess_contest_id('CDF-HF-SSB') == 'REF_CDF_HF_SSB'
+    """REF_CDF_HF_SSB a un cabrillo_name distinct ('REF-SSB', le nom
+    officiel enregistré par le REF et le robot WA7BNM -- 'CDF-HF-SSB' était
+    une erreur, jamais le vrai identifiant Cabrillo malgré le nom d'affichage
+    "Championnat de France HF") -- le nom brut ne correspond PAS à l'ID
+    interne normalisé, seul cabrillo_name."""
+    assert arch.guess_contest_id('REF-SSB') == 'REF_CDF_HF_SSB'
+    assert arch.guess_contest_id('REF-CW') == 'REF_CDF_HF_CW'
+
+
+def test_guess_contest_id_reconnait_un_cabrillo_reel_crxlogbook():
+    """Cas réel rapporté par F4GLD (10/08/2026) : un .cbr exporté par
+    CrxLogbook (loggeur web tiers) pour le Championnat de France HF SSB
+    portait `CONTEST: REF-SSB` -- la détection échouait car cabrillo_name
+    valait alors 'CDF-HF-SSB' (voir test précédent). Non-régression."""
+    texte = (
+        "START-OF-LOG: 3.0\r\n"
+        "CONTEST: REF-SSB\r\n"
+        "CALLSIGN: F4GLD\r\n"
+        "QSO: 3756  PH 2021-02-27 0746 F4GLD         59  43     f8atm         59  81    \r\n"
+    )
+    qsos, claimed, contest_name = arch._parse_cabrillo(texte)
+    assert contest_name == 'REF-SSB'
+    assert arch.guess_contest_id(contest_name) == 'REF_CDF_HF_SSB'
 
 
 def test_guess_contest_id_rien_ne_correspond():
