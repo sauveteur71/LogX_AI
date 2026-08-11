@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — Mode numérique</title>
+<link rel="icon" href="/logx_icon.svg">
+<!--
+  ONGLET MODE NUMÉRIQUE (11/08/2026, remplace l'ancien onglet FT8 direct) --
+  hub qui liste les modes numériques disponibles, chacun s'ouvrant dans sa
+  PROPRE fenêtre de navigateur détachable (window.open, déplaçable sur un
+  second écran) plutôt qu'un panneau CSS dans la même fenêtre. Réutilise le
+  mécanisme déjà éprouvé de popoutPanadapter()/popoutScope() (voir
+  logx_popout_selfspot.js) : même patron window.open(url, nom,
+  'width=W,height=H,menubar=no,toolbar=no,location=no').
+
+  CW reste dans LOGBOOK (panneau flottant existant, inchangé) -- son
+  fonctionnement diffère trop d'un mode "cycle strict + décodage indépendant"
+  pour justifier une fenêtre séparée, et F4GLD a explicitement demandé de ne
+  pas y toucher.
+
+  Incrément A (cette page) : FT8 uniquement, déjà 100% autonome (ne charge
+  pas logx_logbook.js, aucun window.opener, enregistre ses QSO via
+  POST /log/add comme n'importe quel client serveur). RTTY et SSTV
+  rejoindront cette page dans un incrément séparé une fois extraits de
+  LOGBOOK vers leur propre page détachée (logx_rtty.html/logx_sstv.html).
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root {
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#464950;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
+}
+body.day-mode {
+  --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#B8B096;
+  --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31; --green:#007030; --red:#CC0030;
+  --yellow:#7A5A00; --purple:#8040B0; --text:#232320; --muted:#665F55;
+}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);display:flex;flex-direction:column;overflow:hidden}
+
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;align-items:center;line-height:0}
+.logo-badge img{height:20px;display:block}
+.logo-wrap{display:flex;align-items:center;gap:8px}
+.logo-suffix{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:1px}
+.app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0;overflow-x:auto}
+.app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.app-nav a:hover{color:var(--text);background:var(--bg3)}
+.app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+.app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
+svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
+
+.container{max-width:1100px;margin:0 auto;padding:24px;flex:1;overflow-y:auto;min-height:0;width:100%}
+h1{font-family:var(--font-display);font-size:22px;color:var(--accent2);letter-spacing:.3px;font-weight:900;margin-bottom:8px}
+.intro{color:var(--muted);font-size:13.5px;line-height:1.6;margin-bottom:24px;max-width:760px}
+.intro b{color:var(--text)}
+
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.mode-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.mode-card.ready{border-color:rgba(var(--accent-rgb),.4)}
+.mode-card.soon{opacity:.55}
+.mode-title{font-family:var(--font-display);font-size:16px;font-weight:900;color:var(--accent2);letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+.mode-title svg{width:18px;height:18px;flex-shrink:0}
+.mode-desc{font-size:12.5px;color:var(--muted);line-height:1.5;flex:1}
+.mode-badge{align-self:flex-start;font-family:var(--font-mono);font-size:10.5px;letter-spacing:1.5px;padding:2px 8px;border-radius:4px;background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+.mode-btn{font-family:var(--font-mono);font-size:12.5px;font-weight:700;letter-spacing:1px;border-radius:6px;padding:9px 14px;cursor:pointer;border:1px solid var(--accent2);background:rgba(var(--accent-rgb),.12);color:var(--accent2);text-align:center}
+.mode-btn:hover{background:var(--accent2);color:#0A0B18}
+.mode-btn:disabled{opacity:.4;cursor:default;background:var(--bg3);color:var(--muted);border-color:var(--border)}
+.mode-btn:disabled:hover{background:var(--bg3);color:var(--muted)}
+
+button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
+    <span class="logo-suffix"> — <span style="color:var(--accent)">MODE NUMÉRIQUE</span></span>
+  </div>
+</header>
+
+<nav class="app-nav">
+  <a href="logx_configuration.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="16" y2="5"/><circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="9" x2="16" y2="9"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><line x1="2" y1="13" x2="16" y2="13"/><circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/></svg></span>CONFIG</a>
+  <a href="logx_logbook.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg></span>LOGBOOK</a>
+  <a href="logx_carte.html" title="Tableau de bord temps réel : propagation, spots, analyse IA"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>
+  <a href="logx_propagation.html" title="Conditions de propagation HF : indices solaires, MUF, bandes ouvertes"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
+  <a href="logx_chasse.html" title="Spots DX en direct, expéditions annoncées, POTA/SOTA/WWFF"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>CHASSE</a>
+  <a href="logx_departements.html" title="Suivi du diplôme départements français (REF)"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>DÉPARTEMENTS</a>
+  <a href="logx_calendrier.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
+  <a href="logx_cw.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 11v-1a6 6 0 0 1 12 0v1"/><rect x="2" y="10.5" width="3.2" height="4.5" rx="1.4"/><rect x="12.8" y="10.5" width="3.2" height="4.5" rx="1.4"/></svg></span>ÉCOLE CW</a>
+  <a href="logx_modes_numeriques.html" class="active"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg></span>MODE NUMÉRIQUE</a>
+  <a href="logx_websdr.html" title="Écouter en direct via un récepteur SDR distant"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></span>WEBSDR</a>
+  <a href="logx_focus.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>FOCUS BANDE</a>
+  <a href="javascript:void(0)" onclick="window.open('/logx_panadapter.html','rc_panadapter','width=900,height=560,menubar=no,toolbar=no,location=no')" title="Panadapter : spectre + chute d'eau (audio, CI-V Icom, ou flux TCI)"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg></span>PANADAPTER</a>
+</nav>
+<script src="logx_statusbar.js"></script>
+<script src="logx_i18n.js"></script>
+<script src="logx_search.js"></script>
+
+<div class="container">
+  <h1>Modes numériques</h1>
+  <p class="intro">Chaque mode s'ouvre dans sa <b>propre fenêtre de navigateur</b>, déplaçable où tu veux — y compris sur un second écran — plutôt que dans un panneau coincé dans cette page. Le <b>CW</b> reste dans <a href="logx_logbook.html" style="color:var(--accent2)">LOGBOOK</a> (panneau flottant existant, inchangé).</p>
+
+  <div class="mode-grid">
+    <div class="mode-card ready">
+      <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg>FT8</div>
+      <div class="mode-desc">Décodeur/émetteur FT8 natif, 100% navigateur (codec + DSP maison, aucune dépendance à WSJT-X/JTDX/MSHV). Cycles de 15 s, waterfall, séquenceur manuel, log automatique.</div>
+      <span class="mode-badge">DISPONIBLE</span>
+      <button class="mode-btn" onclick="window.open('/logx_ft8.html','rc_ft8','width=1400,height=900,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
