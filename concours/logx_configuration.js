@@ -924,6 +924,26 @@ if(typeof ResizeObserver !== 'undefined'){
   else document.addEventListener('DOMContentLoaded', _updateConfigPanelTop);
 }
 
+// ─── FERMETURE PAR CLIC EXTÉRIEUR ────────────────────────────────────────────
+// Retour F4GLD (11/08/2026) : « je voudrais pouvoir fermer cette page par un
+// simple clic a l'exterieur du popup » -- #configSidebar et le .cat-modal-box
+// actif (position:fixed, marges 6%) laissent de l'arrière-plan visible et
+// cliquable autour d'eux. La cible réelle d'un clic dans cette marge n'est
+// PAS document.body : <div class="container"> (ancien conteneur de page,
+// position:static, toujours présent en enfant direct de body) le recouvre
+// entièrement -- vérifié en navigateur réel (elementFromPoint), pas supposé.
+// Toute autre zone -- nav, sidebar, panneau de catégorie, statusbar,
+// bannières, modale de révision, assistant flottant -- capte le clic sur
+// elle-même avant qu'il ne remonte, donc jamais confondue avec l'extérieur.
+// Revient au log exactement comme le bouton LOGGER (launchApp()) : même
+// sauvegarde préalable, même garde H2, pas de raccourci qui contourne la
+// validation existante.
+document.body.addEventListener('click', function(e){
+  const t = e.target;
+  const isBackground = t === document.body || (t.classList && t.classList.contains('container'));
+  if(isBackground && document.getElementById('configSidebar')) launchApp();
+});
+
 // ─── INIT ────────────────────────────────────────────────────────────────────
 async function init() {
   await maybeShowOnboarding(); // écran d'accueil (première visite) — résout tout de suite sinon
