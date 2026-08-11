@@ -1397,7 +1397,6 @@
     });
   }
   window.rcOpenPanel = function(id, geo){ return openPanel(id, geo); };
-  window.rcClosePanel = function(id){ closePanel(id); };
   // ── Écrans détachés (bandscope, mural, une fenêtre par bande) ────────────
   // Ces trois-là ne sont PAS des « panneaux » (logx_panel.html) mais des pages
   // à part entière. Ils vivaient sur des boutons de la barre d'outils du
@@ -1443,8 +1442,6 @@
         + ',menubar=no,toolbar=no,location=no');
     });
   }
-  window.rcOuvrirEcran = ouvrirEcran;
-
   // Le bouton du menu agit sur le TYPE : s'il y a cinq band maps ouverts,
   // « fermer » les ferme tous les cinq — sinon il en resterait quatre à
   // fermer une par une, alors que le bouton affiche « fermer (5) ».
@@ -1518,11 +1515,6 @@
     Object.keys(_openWindows).forEach(closePanel);
     renderLayoutDD();
   }
-  window.rcSaveLayout = saveLayout;
-  window.rcLoadLayout = loadLayout;
-  window.rcDeleteLayout = deleteLayout;
-  window.rcResetLayout = resetLayout;
-
   function renderLayoutDD(){
     const dd = document.getElementById('rcsbLayoutDD');
     if (!dd) return;

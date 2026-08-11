@@ -100,7 +100,3 @@ def is_wwa_station(callsign, contest_id):
     return base in roster_for_contest(contest_id)
 
 
-def station_country(callsign, contest_id):
-    """Pays déclaré pour cette station spéciale WWA, ou '' si inconnue."""
-    base = (callsign or '').split('/')[0].upper()
-    return roster_for_contest(contest_id).get(base, '')

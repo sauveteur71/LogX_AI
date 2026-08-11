@@ -555,9 +555,6 @@ class TciClient:
     def set_ptt(self, on, receiver='0', source='tci'):
         self._send('trx', receiver, 'true' if on else 'false', source)
 
-    def set_power(self, percent, transceiver='0'):
-        self._send('drive', transceiver, max(0, min(100, int(percent))))
-
     def send_cw_message(self, prefix, callsign, suffix, repeat=1, transceiver='0'):
         """cw_msg : conçu pour le contest (préfixe/indicatif/suffixe, indicatif
         éditable tant qu'il n'a pas fini d'être transmis) — meilleur choix que
@@ -570,9 +567,6 @@ class TciClient:
 
     def stop_cw(self):
         self._send('cw_macros_stop')
-
-    def enable_rx_sensors(self, interval_ms=200):
-        self._send('rx_sensors_enable', 'true', interval_ms)
 
     # ── Flux IQ (panadapter TCI) ────────────────────────────────────────────
 
