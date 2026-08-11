@@ -161,24 +161,29 @@ def test_les_codes_de_bascule_ne_produisent_pas_de_caractere(moteur):
     assert moteur.eval("rttyBaudotChar(27, {figs:false})") == ''
 
 
-def test_le_panneau_est_bien_cable_dans_le_logbook():
+def test_le_panneau_cw_reste_cable_dans_le_logbook():
     """Garde-fou : le panneau CW s'appelle cwPanel et non cwDecoder. Viser le
     mauvais identifiant n'aurait levé AUCUNE erreur — le décodeur CW serait
-    simplement resté affiché en RTTY."""
+    simplement resté affiché en RTTY. Le RTTY, lui, a été extrait vers sa
+    propre fenêtre détachée (logx_rtty.html, EV-7 phase 2 incrément B) --
+    testé séparément ci-dessous."""
     with open(os.path.join(CONCOURS, 'logx_logbook.html'), encoding='utf-8') as f:
         html = f.read()
     with open(os.path.join(CONCOURS, 'logx_logbook.js'), encoding='utf-8') as f:
         js = f.read()
-    # EV-7 : le panneau RTTY (rttyOutput/rttyStartBtn/rttyMark/rttyShift) a
-    # été extrait vers logx_rtty_panel.js -- cwPanel, lui, reste dans
-    # logx_logbook.js, inchangé.
-    with open(os.path.join(CONCOURS, 'logx_rtty_panel.js'), encoding='utf-8') as f:
-        js += f.read()
-    assert 'id="rttyDecoder"' in html
+    assert 'id="cwPanel"' in html, 'identifiant absent du balisage : cwPanel'
+    assert 'cwPanel' in js, 'identifiant jamais utilise cote JS : cwPanel'
+
+
+def test_le_panneau_rtty_est_bien_cable_dans_sa_fenetre_detachee():
+    """Même garde-fou que ci-dessus, côté RTTY : logx_rtty.html doit charger
+    le DSP et exposer les bons identifiants, sans dépendre de LOGBOOK."""
+    with open(os.path.join(CONCOURS, 'logx_rtty.html'), encoding='utf-8') as f:
+        html = f.read()
     assert 'logx_rttydecoder.js' in html, 'le script du decodeur n est pas charge'
-    for ident in ('rttyOutput', 'rttyStartBtn', 'rttyMark', 'rttyShift', 'cwPanel'):
+    for ident in ('rttyOutput', 'rttyStartBtn', 'rttyMark', 'rttyShift'):
         assert 'id="%s"' % ident in html, 'identifiant absent du balisage : ' + ident
-        assert ident in js, 'identifiant jamais utilise cote JS : ' + ident
+        assert ident in html, 'identifiant jamais utilise cote JS : ' + ident
 
 
 # ─── Clic-pour-loguer ────────────────────────────────────────────────────────
@@ -197,20 +202,16 @@ def _est_indicatif(moteur_logbook, mot):
 
 @pytest.fixture(scope='module')
 def moteur_logbook():
-    """Extrait la seule fonction de reconnaissance : le reste du logbook a
-    besoin d'un DOM complet.
-
-    EV-7 : rttyEstIndicatif() a été extraite vers logx_rtty_panel.js -- on la
-    cherche dans les deux fichiers (motif _lire_tout() déjà utilisé dans
-    test_logbook_menu_debut_fin.py/test_busted_call.py, adapté ici en local
-    pour ne concaténer que ce dont ce test a besoin)."""
+    """Extrait la seule fonction de reconnaissance depuis sa fenêtre détachée
+    (logx_rtty.html, EV-7 phase 2 incrément B -- auparavant logx_rtty_panel.js,
+    chargé dans logx_logbook.html). La fonction est en JS pur au milieu d'un
+    fichier HTML : une simple recherche de sous-chaîne suffit, comme pour les
+    fichiers .js purs (même motif que test_logbook_menu_debut_fin.py)."""
     ctx = py_mini_racer.MiniRacer()
-    src = ''
-    for nom in ('logx_logbook.js', 'logx_rtty_panel.js'):
-        with open(os.path.join(CONCOURS, nom), encoding='utf-8') as f:
-            src += f.read()
+    with open(os.path.join(CONCOURS, 'logx_rtty.html'), encoding='utf-8') as f:
+        src = f.read()
     debut = src.index('function rttyEstIndicatif(')
-    fin = src.index('\n}', debut) + 2
+    fin = src.index('\n  }', debut) + 4
     ctx.eval(src[debut:fin])
     return ctx
 

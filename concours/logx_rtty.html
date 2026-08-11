@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — RTTY</title>
+<link rel="icon" href="/logx_icon.svg">
+<!--
+  DÉCODEUR/ÉMETTEUR RTTY — fenêtre détachée (11/08/2026, EV-7 phase 2,
+  incrément B de docs/LogX_AI_PRD.md « modes numériques »). Auparavant un
+  panneau CSS position:fixed dans logx_logbook.html (logx_rtty_panel.js,
+  15e incrément EV-7) ; extrait vers sa propre page pour pouvoir être
+  déplacé sur un second écran comme FT8 (logx_ft8.html) — F4GLD ne pouvait
+  pas déplacer les décodeurs numériques hors de la fenêtre LOGBOOK.
+
+  Logique adaptée de logx_rtty_panel.js (réutilisé/déplacé ici, retiré de
+  logx_logbook.html) :
+  - toggleRttyPanel()/_reserveBottomSpace() supprimés : n'avaient de sens
+    que pour un panneau flottant collapse/expand DANS LOGBOOK, plus de
+    raison d'être dans une page dédiée en flux normal.
+  - notify()/trT()/trF()/escHtml() dupliqués localement (pas de fichier
+    commun pour l'instant, même choix déjà fait par logx_ft8.html) — notify()
+    utilise ici un toast local (#rttyToast) au lieu de #macroToast, qui
+    n'existe pas dans cette page.
+  - loadAudioInputDevices()/loadAudioOutputDevices() dupliquées depuis
+    logx_cw_panel2_audio.js (les 2 seules fonctions utiles, pas tout le
+    fichier qui contient une classe CW sans rapport).
+  - expandMacro() réécrite en version SIMPLIFIÉE : {CALL}/{LOC} résolus
+    depuis localStorage.logx_config (partagé entre toutes les fenêtres de
+    même origine, y compris cette fenêtre détachée) ; {NR} laissé VIDE, il
+    dépendait de currentExchange/serialByBand/#inputNumSent — état propre à
+    LOGBOOK, absent ici. Dégradation mineure assumée : l'opérateur tape le
+    numéro de série à la main si besoin.
+  - rttyClicTexte() n'écrit plus directement dans #inputCall (qui n'existe
+    pas dans cette page) : émet BroadcastChannel('logx_log') avec
+    {type:'prefill_call', data:{call}}, EXACTEMENT le message que
+    logx_panadapter.html envoie déjà et que logx_logbook.js::
+    initBroadcastChannel() sait déjà recevoir — aucun changement côté
+    LOGBOOK nécessaire pour ce pont.
+  - Chargement paresseux des périphériques (autrefois déclenché par
+    updateKeyerPanels() au passage en mode RTTY côté LOGBOOK) : déclenché
+    ici au DOMContentLoaded de la page, seule fois où c'est pertinent
+    puisque cette fenêtre n'affiche QUE le RTTY.
+
+  Page accessible UNIQUEMENT en fenêtre détachée depuis
+  logx_modes_numeriques.html : pas de <nav class="app-nav">, même
+  convention que les autres « miroirs d'affichage » détachés
+  (logx_panadapter.html, logx_scope.html, logx_wall.html, logx_bande.html,
+  logx_ft8.html).
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root{
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#464950;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
+}
+body.day-mode{
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#B8B096;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--text:#232320;--muted:#665F55;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);
+  padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
+.logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;line-height:0}
+.logo-badge img{height:20px;display:block}
+.logo-wrap{display:flex;align-items:center;gap:8px}
+.logo-suffix{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:1px}
+svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
+
+.wrap{max-width:640px;margin:0 auto;padding:18px 20px 60px}
+h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-spacing:.3px;font-weight:900;margin-bottom:6px}
+.intro{color:var(--muted);font-size:13px;line-height:1.55;margin-bottom:16px}
+
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
+.panel-title{font-family:var(--font-display);font-size:14px;font-weight:900;color:var(--accent2);letter-spacing:.2px}
+.note{font-size:11.5px;color:var(--muted);line-height:1.5}
+.controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.controls select{flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px}
+.controls input[type=number]{width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px}
+.controls input[type=text]{flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:13px;padding:6px 9px}
+.btn{background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;padding:6px 12px;font-family:var(--font-mono);font-size:12px}
+.btn:hover{border-color:var(--accent2)}
+.btn.active{background:var(--green);border-color:var(--green);color:#001a08;font-weight:700}
+.btn:disabled{opacity:.4;cursor:default}
+.status{font-size:12px;color:var(--muted)}
+.output{height:150px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:16px;letter-spacing:1px;color:var(--green);white-space:pre-wrap;word-break:break-word;font-family:var(--font-mono)}
+.rtty-call{color:var(--green);cursor:pointer;border-bottom:1px dotted var(--green);padding:0 1px}
+.rtty-call:hover{background:var(--green);color:var(--bg)}
+label.arm{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--muted)}
+label.arm input{width:15px;height:15px;accent-color:var(--red)}
+.macro-btns{display:flex;gap:5px;flex-wrap:wrap}
+.macro-btn{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 8px;cursor:pointer;text-align:left;min-width:76px;flex:1;max-width:110px}
+.macro-btn:hover{border-color:var(--accent2)}
+.macro-btn .mk{display:block;font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:1px;margin-bottom:2px}
+.macro-btn .mt{display:block;font-family:var(--font-mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+#rttyToast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;padding:9px 16px;font-family:var(--font-mono);font-size:12.5px;color:var(--text);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw;z-index:999}
+#rttyToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#rttyToast.toast-err{border-color:var(--red);color:var(--red)}
+#rttyToast.toast-warn{border-color:var(--yellow);color:var(--yellow)}
+
+button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
+    <span class="logo-suffix"> — <span style="color:var(--accent)">RTTY</span></span>
+  </div>
+</header>
+
+<script src="logx_i18n.js"></script>
+<script src="logx_rttydecoder.js"></script>
+<script src="logx_tx_audio.js"></script>
+
+<div class="wrap">
+  <h1>Décodeur/émetteur RTTY</h1>
+  <p class="intro">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC). <b>Clique un indicatif décodé pour le mettre dans la saisie de LOGBOOK</b> — c'est ce qui fait la vitesse en RTTY. Décale-toi de moins de 50&nbsp;Hz du signal : au-delà, le décodage se dégrade.</p>
+
+  <div class="panel">
+    <div class="panel-title">Réception</div>
+    <div class="controls">
+      <select id="rttyDevice"><option value="">— périphérique par défaut —</option></select>
+    </div>
+    <div class="controls">
+      <span style="color:var(--muted);font-size:12px">Mark / Shift (Hz)</span>
+      <input type="number" id="rttyMark" value="2125" min="500" max="3000" step="5" title="Fréquence du ton MARK" oninput="rttyAppliquerTons()">
+      <input type="number" id="rttyShift" value="170" min="80" max="1000" step="5" title="Écart mark/space — 170 Hz est le standard amateur" oninput="rttyAppliquerTons()">
+      <button class="btn" id="rttyStartBtn" onclick="toggleRttyDecoder()">▶ Démarrer</button>
+      <span class="status" id="rttyStatus"></span>
+    </div>
+    <div class="output" id="rttyOutput" onclick="rttyClicTexte(event)"></div>
+    <button class="btn" onclick="clearRttyOutput()" style="align-self:flex-start"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg> Effacer</button>
+  </div>
+
+  <!-- ÉMISSION RTTY : mêmes tonalités Mark/Shift que la réception, lues sur le
+       périphérique de SORTIE (pas le micro) via un câble/interface vers
+       l'entrée micro/DATA de la radio. Case « Activer l'émission » non
+       cochée par défaut — même garde-fou que la page FT8 native, rien ne
+       part sur l'air sans ce geste explicite. -->
+  <div class="panel">
+    <div class="panel-title">Émission</div>
+    <div class="note">Périphérique de SORTIE (pas le micro du PC) vers l'entrée micro/DATA de la radio.</div>
+    <div class="controls">
+      <select id="rttyOutDevice"><option value="">— périphérique par défaut —</option></select>
+    </div>
+    <label class="arm" title="Rien ne part sur l'air tant que cette case n'est pas cochée">
+      <input type="checkbox" id="rttyArmTx" onchange="rttyOnArmChange()"> Activer l'émission
+    </label>
+    <div class="macro-btns" id="rttyMacroBtns"></div>
+    <div class="controls">
+      <input type="text" id="rttyTxText" maxlength="80" placeholder="Texte libre à émettre" spellcheck="false" autocomplete="off">
+      <button class="btn" id="rttySendBtn" onclick="rttyEnvoyerLibre()" disabled>▶ Envoyer</button>
+    </div>
+    <div class="note" id="rttyTxStatus"></div>
+  </div>
+</div>
+
+<div id="rttyToast"></div>
+
+<script>
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+if(localStorage.getItem('rc_theme') === null){
+  fetch('/config').then(r=>r.ok?r.json():null).then(c=>{
+    if(c && c.ui_theme && localStorage.getItem('rc_theme') === null){
+      localStorage.setItem('rc_theme', c.ui_theme);
+      document.body.classList.toggle('day-mode', c.ui_theme === 'day');
+    }
+  }).catch(()=>{});
+}
+
+(function(){
+  if(location.protocol === 'file:'){
+    document.body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Ouvre via le serveur : http://127.0.0.1:8080/logx_rtty.html</div>';
+    return;
+  }
+
+  // ─── Utilitaires locaux (dupliqués, pas de fichier JS commun — même choix
+  //     que logx_ft8.html) ───────────────────────────────────────────────
+  function trT(fr){ return window.rcT ? window.rcT(fr) : fr; }
+  function trF(fr, params){
+    if (window.rcTf) return window.rcTf(fr, params);
+    let s = fr;
+    if (params) for (const k in params) s = s.split('{' + k + '}').join(params[k]);
+    return s;
+  }
+  function escHtml(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g,
+      c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function notify(msg, ms){
+    const t = document.getElementById('rttyToast');
+    if(!t){ alert(msg); return; }
+    msg = String(msg);
+    const isErr  = /❌|[Ee]rreur|[Ii]nvalide|manquant|[Ii]mpossible|injoignable/.test(msg);
+    const isWarn = /⚠|[Aa]nnulé/.test(msg);
+    t.textContent = trT(msg);
+    t.className = '';
+    if(isErr) t.classList.add('toast-err');
+    else if(isWarn) t.classList.add('toast-warn');
+    t.classList.add('show');
+    clearTimeout(notify._tm);
+    notify._tm = setTimeout(()=>t.classList.remove('show'), ms || Math.min(10000, 2500 + msg.length*35));
+  }
+
+  async function loadAudioInputDevices(selectId, alreadyGranted){
+    const sel = document.getElementById(selectId);
+    if(!sel) return false;
+    try{
+      if(!alreadyGranted){
+        const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+        tmp.getTracks().forEach(t=>t.stop());
+      }
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(d=>d.kind==='audioinput');
+      sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+        + inputs.map(d=>`<option value="${d.deviceId}">${escHtml(d.label||'Entrée audio')}</option>`).join('');
+      return true;
+    }catch(e){
+      sel.innerHTML = '<option value="">Accès micro refusé</option>';
+      return false;
+    }
+  }
+  async function loadAudioOutputDevices(selectId, alreadyGranted){
+    const sel = document.getElementById(selectId);
+    if(!sel) return false;
+    if(!HTMLMediaElement.prototype.setSinkId){
+      sel.innerHTML = '<option value="">Choix de sortie non supporté par ce navigateur</option>';
+      sel.disabled = true;
+      return false;
+    }
+    try{
+      if(!alreadyGranted){
+        const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+        tmp.getTracks().forEach(t=>t.stop());
+      }
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = devices.filter(d=>d.kind==='audiooutput');
+      sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+        + outputs.map(d=>`<option value="${d.deviceId}">${escHtml(d.label||'Sortie audio')}</option>`).join('');
+      return true;
+    }catch(e){
+      sel.innerHTML = '<option value="">Accès micro refusé</option>';
+      return false;
+    }
+  }
+
+  // Version SIMPLIFIÉE de expandMacro() (logx_macros.js) : {CALL}/{LOC}
+  // résolus depuis localStorage.logx_config (partagé cross-fenêtre même
+  // origine). {NR} dépend d'état propre à LOGBOOK (currentExchange,
+  // serialByBand, #inputNumSent) qui n'existe pas ici — laissé vide,
+  // dégradation mineure assumée (voir commentaire d'en-tête du fichier).
+  function expandMacro(text){
+    let cfg = {};
+    try{ cfg = JSON.parse(localStorage.getItem('logx_config') || '{}'); }catch(e){}
+    const call = cfg.callsign || '—';
+    const loc  = cfg.locator  || '—';
+    return text.replace(/{CALL}/g, call).replace(/{LOC}/g, loc).replace(/{NR}/g, '');
+  }
+
+  // ─── DÉCODEUR RTTY (adapté de logx_rtty_panel.js) ───────────────────────
+  let _rttyDecoder = null;
+  let _rttyTexte = '';
+
+  window.rttyTons = function rttyTons(){
+    const mark = parseInt(document.getElementById('rttyMark')?.value, 10) || 2125;
+    const shift = parseInt(document.getElementById('rttyShift')?.value, 10) || 170;
+    return {mark, space: mark + shift};
+  };
+
+  window.rttyAppliquerTons = function rttyAppliquerTons(){
+    const t = rttyTons();
+    if(_rttyDecoder) _rttyDecoder.setShift(t.mark, t.space);
+  };
+
+  window.toggleRttyDecoder = async function toggleRttyDecoder(){
+    const btn = document.getElementById('rttyStartBtn');
+    const etat = document.getElementById('rttyStatus');
+    if(_rttyDecoder){
+      _rttyDecoder.stop();
+      _rttyDecoder = null;
+      if(btn) btn.textContent = '▶ Démarrer';
+      if(etat) etat.textContent = '';
+      return;
+    }
+    const t = rttyTons();
+    _rttyDecoder = new RttyAudioDecoder({
+      mark: t.mark, space: t.space,
+      onChar: c => {
+        _rttyTexte += c;
+        if(_rttyTexte.length > 4000) _rttyTexte = _rttyTexte.slice(-3000);
+        rttyRender(_rttyTexte);
+      },
+    });
+    try{
+      await _rttyDecoder.start(document.getElementById('rttyDevice')?.value || '');
+      if(btn) btn.textContent = '■ Arrêter';
+      if(etat) etat.textContent = t.mark + '/' + t.space + ' Hz';
+    }catch(e){
+      _rttyDecoder = null;
+      notify(trF('❌ Micro indisponible : {err}', {err: e.message}));
+    }
+  };
+
+  window.clearRttyOutput = function clearRttyOutput(){
+    _rttyTexte = '';
+    rttyRender('');
+  };
+
+  function rttyEstIndicatif(mot){
+    const propre = String(mot || '').toUpperCase().replace(/[^A-Z0-9/]/g, '');
+    return (propre.length >= 3 && /[0-9]/.test(propre) && /[A-Z]/.test(propre))
+           ? propre : '';
+  }
+
+  function rttyRender(texte){
+    const out = document.getElementById('rttyOutput');
+    if(!out) return;
+    const frag = document.createDocumentFragment();
+    for(const jeton of String(texte).split(/(\s+)/)){
+      const call = rttyEstIndicatif(jeton);
+      if(call){
+        const el = document.createElement('span');
+        el.className = 'rtty-call';
+        el.dataset.call = call;
+        el.textContent = jeton;
+        el.title = 'Cliquer pour mettre ' + call + ' dans la saisie de LOGBOOK';
+        frag.appendChild(el);
+      } else {
+        frag.appendChild(document.createTextNode(jeton));
+      }
+    }
+    out.innerHTML = '';
+    out.appendChild(frag);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  // Fenêtre détachée : pas d'accès direct au DOM de LOGBOOK (#inputCall
+  // peut même ne pas exister si LOGBOOK n'est pas ouvert) — le pont est
+  // BroadcastChannel('logx_log'), déjà écouté par
+  // logx_logbook.js::initBroadcastChannel() (message identique à celui que
+  // logx_panadapter.html envoie déjà).
+  const _rttyLogChannel = window.BroadcastChannel ? new BroadcastChannel('logx_log') : null;
+  window.rttyClicTexte = function rttyClicTexte(ev){
+    const cible = ev.target && ev.target.closest ? ev.target.closest('.rtty-call') : null;
+    const call = cible && cible.dataset ? cible.dataset.call : '';
+    if(!call) return;
+    if(_rttyLogChannel) _rttyLogChannel.postMessage({type:'prefill_call', data:{call}});
+    notify(trF('{call} envoyé vers LOGBOOK', {call}), 1800);
+  };
+
+  // ─── ÉMISSION RTTY ───────────────────────────────────────────────────────
+  const RTTY_TX_MACROS = [
+    {key:'R1', label:'CQ',      text:'CQ TEST {CALL} {CALL} TEST'},
+    {key:'R2', label:'ÉCHANGE', text:'599 {NR}'},
+    {key:'R3', label:'TU',      text:'TU {CALL} TEST'},
+    {key:'R4', label:'AGN?',    text:'AGN?'},
+  ];
+  let _rttyTxArmed = false;
+
+  window.rttyOnArmChange = function rttyOnArmChange(){
+    _rttyTxArmed = document.getElementById('rttyArmTx').checked;
+    document.getElementById('rttySendBtn').disabled = !_rttyTxArmed;
+  };
+
+  function renderRttyMacroBtns(){
+    const btns = document.getElementById('rttyMacroBtns');
+    if(!btns) return;
+    btns.innerHTML = '';
+    RTTY_TX_MACROS.forEach(m => {
+      const btn = document.createElement('button');
+      btn.className = 'macro-btn';
+      btn.title = expandMacro(m.text);
+      btn.innerHTML = `<span class="mk">${m.key}</span><span class="mt">${m.label}</span>`;
+      btn.onclick = () => rttyEnvoyerTexte(expandMacro(m.text));
+      btns.appendChild(btn);
+    });
+  }
+
+  window.rttyEnvoyerLibre = async function rttyEnvoyerLibre(){
+    const champ = document.getElementById('rttyTxText');
+    const texte = champ.value.trim();
+    if(!texte) return;
+    await rttyEnvoyerTexte(texte);
+  };
+
+  async function rttyEnvoyerTexte(texte){
+    if(!_rttyTxArmed || !texte) return;
+    const statut = document.getElementById('rttyTxStatus');
+    const sendBtn = document.getElementById('rttySendBtn');
+    sendBtn.disabled = true;
+    if(statut){ statut.textContent = '🔊 ' + texte; statut.style.color = 'var(--accent2)'; }
+    const t = rttyTons();
+    const sampleRate = 44100;
+    const wave = rttyEncodeSamples(texte, {sampleRate, mark: t.mark, space: t.space});
+    const outId = document.getElementById('rttyOutDevice')?.value || '';
+    const res = await txAudioPtt(wave, sampleRate, outId);
+    sendBtn.disabled = !_rttyTxArmed;
+    if(statut){
+      statut.textContent = res.ok ? ('Émis : ' + texte) : ('❌ ' + res.error);
+      statut.style.color = res.ok ? 'var(--muted)' : 'var(--red)';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderRttyMacroBtns();
+    loadAudioInputDevices('rttyDevice');
+    loadAudioOutputDevices('rttyOutDevice', true);
+  });
+})();
+</script>
+
+</body>
+</html>
