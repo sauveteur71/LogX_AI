@@ -1650,6 +1650,7 @@ function updateClockAndCountdown(){
   const cd  = document.getElementById('sbCountdown');
   const lbl = document.getElementById('sbCountdownLbl');
   const box = document.getElementById('sbCountdownItem');
+  if(!cd) return;
 
   // ── Phase 1 : concours pas encore commencé ──────────────────────────────
   // Si contestStartUTC non dispo en localStorage, essayer CONTEST_SCHEDULE
