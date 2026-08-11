@@ -35,8 +35,20 @@ I18N = os.path.join(CONCOURS_DIR, 'logx_i18n.js')
 # d'autres : mobile/wall/scope/panel sont des vues autonomes sans nav).
 PAGES_AVEC_NAV = [
     'logx_calendrier.html', 'logx_carte.html', 'logx_chasse.html',
-    'logx_configuration.html', 'logx_departements.html', 'logx_logbook.html',
-    'logx_propagation.html', 'logx_websdr.html',
+    'logx_configuration.html', 'logx_cw.html', 'logx_departements.html',
+    'logx_logbook.html', 'logx_modes_numeriques.html', 'logx_propagation.html',
+    'logx_websdr.html',
+]
+
+# Ordre de nav fige le 11/08/2026 (reorg nav + fusion PROPAG/FOCUS BANDE) :
+# CONFIG, LOGBOOK, CHASSE, MODE NUMERIQUE, PROPAG, CARTE IA, ZONES TRAVAILLEES
+# (ex-DEPARTEMENTS), PANADAPTER (popout javascript:void(0)), CALENDRIER,
+# WEBSDR, ECOLE CW.
+ORDRE_NAV_ATTENDU = [
+    'logx_configuration.html', 'logx_logbook.html', 'logx_chasse.html',
+    'logx_modes_numeriques.html', 'logx_propagation.html', 'logx_carte.html',
+    'logx_departements.html', 'javascript:void(0)', 'logx_calendrier.html',
+    'logx_websdr.html', 'logx_cw.html',
 ]
 
 # Titres exacts des cinq panneaux deplaces (accents compris).
@@ -182,14 +194,15 @@ def test_la_nav_est_identique_partout():
             % (page_ref, page, reference, cibles))
 
 
-def test_chasse_est_juste_apres_propag():
-    """Place logique : l'etat de la propagation, puis qui contacter."""
+def test_ordre_de_nav_fige():
+    """Ordre complet fige (pas juste une adjacence isolee, plus robuste a un
+    futur reordonnancement) : voir ORDRE_NAV_ATTENDU."""
     for page in PAGES_AVEC_NAV:
         cibles = re.findall(r'<a href="([^"]+)"',
                             _nav(_lire(os.path.join(CONCOURS_DIR, page))))
-        i_prop = cibles.index('logx_propagation.html')
-        assert cibles[i_prop + 1] == 'logx_chasse.html', (
-            'ordre de nav inattendu dans ' + page)
+        assert cibles == ORDRE_NAV_ATTENDU, (
+            'ordre de nav inattendu dans %s :\n  attendu : %s\n  obtenu  : %s'
+            % (page, ORDRE_NAV_ATTENDU, cibles))
 
 
 def test_la_page_chasse_se_marque_active():
