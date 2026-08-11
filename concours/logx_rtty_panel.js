@@ -29,9 +29,20 @@ let _rttyDecoder = null;
 let _rttyTexte = '';
 let _rttyDevicesLoaded = false;
 
+// Corrigé (11/08/2026, retour F4GLD "rien ne se passe") : l'ancienne version
+// posait un style inline sur #rttyBody, toujours battu par la règle CSS
+// .cw-body{display:none} -- le panneau ne s'ouvrait donc jamais. Même
+// mécanique que toggleSstvPanel() (logx_sstv_panel.js) : #rttyDecoder porte
+// désormais la classe .cw-panel (voir logx_logbook.html), donc
+// .cw-panel.open .cw-body{display:flex} prend le relais correctement.
+// _reserveBottomSpace nécessaire ici pour la même raison que pour SSTV :
+// #rttyDecoder est en position:fixed (hors du flux de .keyer-dock), il doit
+// donc réserver sa place plutôt que de recouvrir la saisie en dessous.
 function toggleRttyPanel(){
-  const b = document.getElementById('rttyBody');
-  if(b) b.style.display = b.style.display === 'none' ? '' : 'none';
+  const panel = document.getElementById('rttyDecoder');
+  if(!panel) return;
+  panel.classList.toggle('open');
+  _reserveBottomSpace(panel, document.querySelector('.saisie-secondary'));
 }
 
 function rttyTons(){
