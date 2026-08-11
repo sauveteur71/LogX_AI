@@ -765,8 +765,13 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 /* Panneau SSTV : même famille visuelle et même emplacement que le panneau CW
    — les deux ne sont jamais visibles ensemble, chacun n'apparaît que dans SON
    mode (updateKeyerPanels). Le canvas garde le ratio du mode reçu ;
-   image-rendering:pixelated évite le flou d'interpolation sur du 320×256. */
-#sstvPanel{width:352px}
+   image-rendering:pixelated évite le flou d'interpolation sur du 320×256.
+   Largeur élargie de 352 à 520px (retour F4GLD 11/08/2026 : « le decodeur
+   sstv un peu petit ») -- canvas.width/height sont posés dynamiquement par
+   JS à la résolution NATIVE du mode reçu (logx_sstv_panel.js), la CSS
+   width:100% ci-dessous ne fait qu'agrandir l'affichage, sans changer la
+   résolution décodée. */
+#sstvPanel{width:520px}
 #sstvCanvas{width:100%;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:6px;display:block}
 #sstvTxCanvas{width:100%;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:6px;margin-top:6px}
 
