@@ -25,7 +25,7 @@ import unicodedata
 SEARCHABLE_PAGES = [
     'logx_configuration.html', 'logx_logbook.html', 'logx_chasse.html',
     'logx_departements.html', 'logx_calendrier.html', 'logx_ft8.html',
-    'logx_websdr.html', 'logx_focus.html', 'logx_carte.html',
+    'logx_websdr.html', 'logx_carte.html',
     'logx_propagation.html', 'logx_cw.html', 'logx_panadapter.html',
     'logx_modes_numeriques.html', 'logx_rtty.html',
 ]
@@ -38,7 +38,6 @@ PAGE_LABELS = {
     'logx_calendrier.html': 'CALENDRIER',
     'logx_ft8.html': 'FT8',
     'logx_websdr.html': 'WEBSDR',
-    'logx_focus.html': 'FOCUS',
     'logx_carte.html': 'CARTE IA',
     'logx_propagation.html': 'PROPAG',
     'logx_cw.html': 'ÉCOLE CW',

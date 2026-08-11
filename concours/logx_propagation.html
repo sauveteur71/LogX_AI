@@ -142,6 +142,106 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
    retombaient sur l'anneau par défaut du navigateur (incohérent avec le
    thème graphite&cuivre). Purement additif, ne retire aucun style existant. */
 button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+
+/* ═══ BANDE ACTUELLE (ex-FOCUS BANDE, fusionné dans PROPAG, EV-7 phase 2,
+   incrément B PR1, 2026-08-11) — porté depuis logx_focus.html (fenêtre
+   autonome supprimée). Scopé pour éviter toute collision avec le CSS déjà
+   présent ci-dessus dans cette page :
+   - focus.html avait un `body{font-family:var(--mono)}` global : ici
+     limité à `.focus-pane`, laissant les 3 autres onglets sur `var(--font)`.
+   - `header{}`/`select,button{}` étaient des sélecteurs bare-tag globaux :
+     renommés/scopés sous `.focus-topbar`.
+   - `var(--mono)` (nom de variable propre à focus.html) n'existe pas ici,
+     qui définit `--font-mono` : remplacé partout.
+   - `.call`/`.freq`/`.pays`/`.etiq`/`.mult`/`.fait`/`.corps` (noms courts
+     génériques) scopés sous `.ligne`/`.carte` par prudence, sans changer le
+     rendu (ils n'étaient déjà utilisés que dans ce contexte). */
+.focus-pane{font-family:var(--font-mono)}
+.focus-topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--bg2);
+  border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:12px}
+.focus-topbar .titre{font-size:15px;font-weight:800;color:var(--accent);letter-spacing:1px;
+  display:inline-flex;align-items:center;gap:6px}
+.focus-topbar .titre svg{width:15px;height:15px;flex-shrink:0}
+.focus-topbar .bande-en-cours{font-size:20px;font-weight:800;color:var(--accent2)}
+.focus-topbar .clock{margin-left:auto;font-size:12px;color:var(--muted)}
+.focus-topbar select,.focus-topbar button{font-family:var(--font-mono);font-size:12px;background:var(--bg3);
+  color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer}
+.focus-topbar select:hover,.focus-topbar button:hover{border-color:var(--accent2)}
+.focus-topbar .cat-suivi{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.focus-topbar .cat-suivi input{cursor:pointer}
+.focus-topbar .cat-etat{font-size:11px;padding:2px 6px;border-radius:4px;background:var(--bg3)}
+.focus-topbar .cat-on{color:var(--green);border:1px solid var(--green)}
+.focus-topbar .cat-off{color:var(--muted)}
+
+.classement{display:flex;gap:8px;padding:10px 12px;overflow-x:auto;background:var(--bg2);
+  border:1px solid var(--border);border-radius:10px;margin-bottom:12px}
+.bchip{min-width:132px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);
+  border-radius:9px;padding:7px 9px;cursor:pointer;transition:border-color .12s}
+.bchip:hover{border-color:var(--accent2)}
+.bchip.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.bchip.premier .bnom{color:var(--green)}
+.bchip.premier{border-color:var(--green)}
+.bchip.concours .bnom::after{content:'•';color:var(--accent2);font-size:11px;
+  vertical-align:super;margin-left:3px}
+.bchip:not(.concours) .bnom{opacity:.82}
+.bchip-tete{display:flex;align-items:baseline;gap:6px}
+.bnom{font-size:16px;font-weight:800}
+.bscore{margin-left:auto;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bbar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:5px 0 4px}
+.bbar > i{display:block;height:100%;border-radius:2px;background:var(--accent2)}
+.bchip.premier .bbar > i{background:var(--green)}
+.bpourquoi{font-size:10.5px;color:var(--muted);line-height:1.35}
+
+.grille{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));align-content:start}
+.carte{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  display:flex;flex-direction:column;min-height:150px;overflow:hidden}
+.carte.large{grid-column:span 2}
+@media(max-width:900px){.carte.large{grid-column:span 1}}
+.carte h2{font-family:var(--font-display);font-weight:900;font-size:12px;letter-spacing:.2px;color:var(--accent2);padding:8px 11px;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px}
+.carte h2 .compte{margin-left:auto;color:var(--muted);font-size:11px}
+.carte h2 svg{width:14px;height:14px;flex-shrink:0}
+.carte .corps{padding:7px 11px;overflow-y:auto;flex:1}
+.vide{padding:22px;text-align:center;color:var(--muted);font-size:12px}
+
+.ligne{display:grid;grid-template-columns:auto 74px 1fr auto;gap:8px;
+  align-items:baseline;padding:4px 2px;font-size:12.5px;
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.ligne .call{font-weight:800;letter-spacing:.5px}
+.ligne .freq{color:var(--accent2);font-variant-numeric:tabular-nums}
+.ligne .pays{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ligne .etiq{font-size:10.5px;padding:1px 5px;border-radius:4px;white-space:nowrap}
+.ligne .mult{background:rgba(0,255,136,.16);color:var(--green);font-weight:700}
+.ligne .fait{opacity:.38;text-decoration:line-through}
+.ligne.hb{border-left:3px solid var(--orange,#ffa726);padding-left:5px;
+  background:rgba(255,167,38,.05)}
+.ligne .etiq.hb{background:rgba(255,167,38,.18);color:var(--orange,#ffa726);font-weight:700}
+
+.reg{display:flex;justify-content:space-between;gap:8px;padding:4px 2px;
+  font-size:12.5px;border-bottom:1px solid rgba(255,255,255,.05)}
+.reg .sc{color:var(--accent2);font-variant-numeric:tabular-nums}
+.carres{display:flex;flex-wrap:wrap;gap:5px}
+.carre{background:var(--bg3);border:1px solid var(--border);border-radius:5px;
+  padding:2px 7px;font-size:12px}
+.cts{padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px}
+.cts .nom{font-weight:700}
+.cts .det{color:var(--muted);font-size:11px;margin-top:2px}
+
+.regle{position:relative;height:58px;margin:6px 2px 2px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.seg{position:absolute;top:0;bottom:16px}
+.seg-CW{background:rgba(255,214,10,.16)}
+.seg-DIGITAL{background:rgba(191,90,242,.16)}
+.seg-PHONE{background:rgba(0,212,255,.13)}
+.seg-lbl{position:absolute;top:2px;font-size:9px;color:var(--muted);letter-spacing:1px}
+.pin{position:absolute;top:20px;width:2px;bottom:16px;background:var(--accent)}
+.pin.m{background:var(--green)}
+.regle-ech{position:absolute;left:0;right:0;bottom:0;height:15px;
+  border-top:1px solid var(--border);font-size:9px;color:var(--muted)}
+.regle-ech span{position:absolute;transform:translateX(-50%);top:1px}
+
+.focus-pane footer{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);
+  font-size:11px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -173,8 +273,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_search.js"></script>
 
 <div class="prop-tabs" role="tablist" aria-label="Vues de la propagation">
+  <button type="button" role="tab" id="propTabBtn-focus" data-pane="focus"
+          aria-selected="true" aria-controls="propPane-focus"
+          title="Tout ce que le programme sait de la bande en cours : cluster, concours actifs, ouvertures, carrés à reprendre, suggestions"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg></span>BANDE ACTUELLE</button>
   <button type="button" role="tab" id="propTabBtn-hf" data-pane="hf"
-          aria-selected="true" aria-controls="propPane-hf"
+          aria-selected="false" aria-controls="propPane-hf"
           title="Soleil, MUF, ouvertures par région, conditions par bande, balises NCDXF/IBP"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>HF</button>
   <button type="button" role="tab" id="propTabBtn-vhf" data-pane="vhf"
           aria-selected="false" aria-controls="propPane-vhf"
@@ -188,8 +291,82 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 
   <div class="prop-main">
 
-   <div class="prop-pane" id="propPane-hf" data-pane="hf"
-        role="tabpanel" aria-labelledby="propTabBtn-hf">
+   <div class="prop-pane focus-pane" id="propPane-focus" data-pane="focus"
+        role="tabpanel" aria-labelledby="propTabBtn-focus">
+
+    <div class="focus-topbar">
+      <span class="titre"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>BANDE ACTUELLE</span>
+      <span class="bande-en-cours rc-i18n-live" id="bandeEnCours">—</span>
+      <label class="cat-suivi">
+        <input type="checkbox" id="suivreCat">
+        <span>suivre la radio (CAT)</span>
+        <span class="cat-etat rc-i18n-live" id="catEtat">—</span>
+      </label>
+      <select id="selMode" title="Mode : filtre les concours actifs affichés">
+        <option value="">tous modes</option>
+        <option value="CW">CW</option>
+        <option value="SSB">SSB</option>
+        <option value="FT8">FT8</option>
+        <option value="RTTY">RTTY</option>
+      </select>
+      <span class="clock rc-i18n-live" id="focusClock">--:--:--</span>
+    </div>
+
+    <!-- Le bandeau ne porte que des données recalculées à chaque passe : exclu de
+         la traduction pour ne pas relancer une passe complète toutes les 15 s. -->
+    <div class="classement rc-i18n-live" id="classement"></div>
+
+    <div class="grille">
+      <div class="carte large">
+        <h2><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>CLUSTER SUR CETTE BANDE<span class="compte rc-i18n-live" id="cSpots"></span></h2>
+        <div class="corps">
+          <div class="regle rc-i18n-live" id="regle"></div>
+          <div class="rc-i18n-live" id="spots"><div class="vide">Chargement…</div></div>
+        </div>
+      </div>
+
+      <div class="carte">
+        <h2><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a2 2 0 0 0 2 3.5"/><path d="M12 4h2.5a2 2 0 0 1-2 3.5"/><line x1="9" y1="10" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>CONCOURS ACTIFS MAINTENANT<span class="compte rc-i18n-live" id="cConcours"></span></h2>
+        <div class="corps rc-i18n-live" id="concours"><div class="vide">Chargement…</div></div>
+      </div>
+
+      <div class="carte">
+        <h2><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.5"/><polygon points="9,5.5 10.3,9 9,12.5 7.7,9" fill="currentColor" stroke="none"/></svg>OUVERTURES SUR CETTE BANDE<span class="compte rc-i18n-live" id="cRegions"></span></h2>
+        <div class="corps rc-i18n-live" id="regions"><div class="vide">Chargement…</div></div>
+      </div>
+
+      <div class="carte">
+        <!-- Titre honnête : il n'existe pas, côté serveur, de liste des carrés
+             « jamais faits » (le panneau CARRÉS ENTENDUS du logbook la construit
+             depuis les décodages WSJT-X, qui ne passent pas par ici). Ce qu'on
+             montre est ce que les données permettent VRAIMENT, et qui a du sens en
+             concours : un carré déjà dans le log sur une autre bande est une cible
+             immédiate sur celle-ci — la station existe et elle est à portée. -->
+        <h2><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3.5" y="3.5" width="11" height="11" rx="1.5"/></svg>CARRÉS À REPRENDRE SUR CETTE BANDE<span class="compte rc-i18n-live" id="cCarres"></span></h2>
+        <div class="corps rc-i18n-live" id="carres"><div class="vide">Chargement…</div></div>
+      </div>
+
+      <!-- Pays et départements JAMAIS travaillés à vie, parmi ce qui est spotté
+           maintenant sur cette bande. Pas le multiplicateur du concours en cours :
+           ce qui manque à la collection depuis toujours. -->
+      <div class="carte">
+        <h2><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="12" height="9" rx="2"/><line x1="9" y1="3" x2="9" y2="6"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg>SUGGESTIONS — JAMAIS TRAVAILLÉ<span class="compte rc-i18n-live" id="cSug"></span></h2>
+        <div class="corps rc-i18n-live" id="suggestions"><div class="vide">Chargement…</div></div>
+      </div>
+    </div>
+
+    <footer>
+      <span>bandes dans l'ordre des fréquences · clic = focus</span>
+      <span style="color:var(--green)">vert = la plus intéressante maintenant</span>
+      <span style="color:var(--accent2)">• = bande du concours</span>
+      <span class="etiq mult">multiplicateur neuf</span>
+      <span>barré = déjà travaillé</span>
+    </footer>
+
+   </div><!-- /propPane-focus -->
+
+   <div class="prop-pane" id="propPane-hf" data-pane="hf" hidden
+        role="tabpanel" aria-labelledby="propTabBtn-hf"
 
     <!-- OUVERTURES PAR RÉGION est SEUL au-dessus, hors de la maçonnerie :
          c'est un tableau de 5 colonnes, il ne tenait pas dans une colonne de
@@ -909,6 +1086,283 @@ function locatorToLatLon(loc){
   return { lat, lon };
 }
 
+// ─── BANDE ACTUELLE (ex-FOCUS BANDE) : porté depuis logx_focus.html, EV-7
+// phase 2 incrément B PR1, 2026-08-11. Encapsulé dans sa propre IIFE (état
+// local bande/mode/bandes), comme dans le fichier source, pour ne rien
+// exposer d'autre que les 2 fonctions dont le planificateur PROP_TASKS a
+// besoin (focusCharger/focusLireRadio, ci-dessous). Le contrôle du fichier
+// protocol: est déjà fait une fois en haut de cette page, pas la peine de
+// le refaire ici.
+(function(){
+  const params = new URLSearchParams(location.search);
+  let bande = (params.get('band') || localStorage.getItem('rc_focus_band') || '').trim();
+  let mode  = (params.get('mode') || localStorage.getItem('rc_focus_mode') || '').trim();
+  let bandes = [];
+
+  // Pas d'alias $ (contrairement au fichier source logx_focus.html) : cette
+  // page vise document.getElementById(...) partout, et
+  // test_propagation_onglets.py::test_chaque_chargeur_est_declare_dans_le_bon_onglet
+  // vérifie CE littéral pour croiser chaque chargeur avec l'onglet où il écrit
+  // réellement — un alias l'aurait rendu aveugle à ce nouvel onglet.
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // Repli i18n : logx_i18n.js n'expose que window.rcT/window.rcTf (jamais de
+  // globals T/Tf bruts) — même patron que logx_websdr.html/logx_chasse.html.
+  const T  = s    => (window.rcT  ? window.rcT(s)     : s);
+  const Tf = (s,p) => (window.rcTf ? window.rcTf(s, p) : (function(){
+    let o = s; for(const k in (p || {})) o = o.split('{' + k + '}').join(p[k]); return o;
+  })());
+
+  document.getElementById('selMode').value = mode;
+  document.getElementById('selMode').onchange = () => {
+    mode = document.getElementById('selMode').value;
+    localStorage.setItem('rc_focus_mode', mode);
+    focusCharger();
+  };
+
+  // ── Suivi de la radio ────────────────────────────────────────────────────
+  // La bande n'est PAS déduite d'une table en dur : on prend la bande connue
+  // la plus proche de la fréquence lue. C'est ce qui évite le piège du 432,
+  // dont le nom (432) n'est pas la borne basse (430) — une comparaison
+  // « fréquence ≥ nom de bande » y perd le segment CW.
+  function bandeDepuisFreq(khz){
+    if(!khz || !bandes.length) return '';
+    const mhz = khz / 1000;
+    let best = '', d = Infinity;
+    bandes.forEach(b => {
+      const v = parseFloat(b);
+      if(isNaN(v)) return;
+      const e = Math.abs(mhz - v);
+      if(e < d){ d = e; best = b; }
+    });
+    // Garde-fou : au-delà d'un écart déraisonnable, on préfère ne rien dire
+    // plutôt que d'afficher une bande fausse pendant tout un concours.
+    return (d <= Math.max(2, parseFloat(best) * 0.12)) ? best : '';
+  }
+
+  document.getElementById('suivreCat').checked = localStorage.getItem('rc_focus_cat') === '1';
+  document.getElementById('suivreCat').onchange = () => {
+    localStorage.setItem('rc_focus_cat', document.getElementById('suivreCat').checked ? '1' : '0');
+    if(document.getElementById('suivreCat').checked) focusLireRadio();
+  };
+
+  async function focusLireRadio(){
+    if(!document.getElementById('suivreCat').checked){ document.getElementById('catEtat').textContent = 'manuel';
+      document.getElementById('catEtat').className = 'cat-etat rc-i18n-live cat-off'; return; }
+    try{
+      const r = await fetch('/rig/state');
+      if(!r.ok) throw 0;
+      const d = await r.json();
+      if(!d.enabled){ document.getElementById('catEtat').textContent = 'CAT désactivé';
+        document.getElementById('catEtat').className = 'cat-etat rc-i18n-live cat-off'; return; }
+      if(!d.ok || !d.freq_khz){ document.getElementById('catEtat').textContent = 'radio muette';
+        document.getElementById('catEtat').className = 'cat-etat rc-i18n-live cat-off'; return; }
+      document.getElementById('catEtat').textContent = (d.freq_khz / 1000).toFixed(3) + ' MHz';
+      document.getElementById('catEtat').className = 'cat-etat rc-i18n-live cat-on';
+      const b = bandeDepuisFreq(d.freq_khz);
+      if(b && b !== bande){ bande = b; focusCharger(); }
+      if(d.mode && d.mode !== mode){ mode = d.mode; document.getElementById('selMode').value = mode; }
+    }catch(e){
+      document.getElementById('catEtat').textContent = 'serveur injoignable';
+      document.getElementById('catEtat').className = 'cat-etat rc-i18n-live cat-off';
+    }
+  }
+
+  // ── Rendu ────────────────────────────────────────────────────────────────
+  function rendreClassement(liste){
+    if(!liste.length){ document.getElementById('classement').innerHTML = ''; return; }
+    const max = Math.max(1, ...liste.map(c => c.score));
+    // ORDRE DES FRÉQUENCES, tel que le serveur l'envoie — surtout pas trié par
+    // score ici : un bandeau qui se réordonne toutes les 15 s fait changer les
+    // bandes de place sous le doigt. La recommandation reste visible par le
+    // liseré vert (`recommandee`) et par la barre de score.
+    document.getElementById('classement').innerHTML = liste.map(c => `
+      <div class="bchip ${c.band === bande ? 'active' : ''} ${c.recommandee ? 'premier' : ''}
+                  ${c.dans_concours ? 'concours' : ''}"
+           data-b="${esc(c.band)}"
+           title="${esc(c.pourquoi)}${c.dans_concours ? ' — bande du concours' : ''}${
+             c.recommandee ? ' — la plus intéressante en ce moment' : ''}${
+             c.warc ? ' — bande WARC : pas de concours dessus (convention IARU)' : ''}">
+        <div class="bchip-tete"><span class="bnom">${esc(c.band)}</span>
+          <span class="bscore">${Math.round(c.score)}</span></div>
+        <div class="bbar"><i style="width:${Math.round(100 * c.score / max)}%"></i></div>
+        <div class="bpourquoi">${esc(c.pourquoi)}</div>
+      </div>`).join('');
+    document.getElementById('classement').querySelectorAll('.bchip').forEach(el => {
+      el.onclick = () => {
+        bande = el.dataset.b;
+        localStorage.setItem('rc_focus_band', bande);
+        // Choisir une bande à la main coupe le suivi : sinon la radio
+        // reprendrait la main à la seconde suivante et le clic paraîtrait
+        // sans effet.
+        if(document.getElementById('suivreCat').checked){ document.getElementById('suivreCat').checked = false;
+          localStorage.setItem('rc_focus_cat', '0'); }
+        focusCharger();
+      };
+    });
+  }
+
+  function rendreSpots(spots){
+    document.getElementById('cSpots').textContent = spots.length ? spots.length + ' spots' : '';
+    if(!spots.length){
+      document.getElementById('spots').innerHTML = '<div class="vide">Aucun spot sur cette bande</div>';
+      return;
+    }
+    // `hors_bande` : le spot est hors des bandes amateur françaises. Il n'est
+    // pas masqué — une station de région 2 à 7,250 MHz est en règle chez elle,
+    // et l'entendre renseigne sur la propagation. Mais lui répondre ne l'est
+    // pas, et un clic sur la ligne commanderait le QSY sans un mot.
+    document.getElementById('spots').innerHTML = spots.map(s => `
+      <div class="ligne${s.hors_bande ? ' hb' : ''}">
+        <span class="call ${s.already_done ? 'fait' : ''}">${esc(s.call)}</span>
+        <span class="freq">${s.freq ? (s.freq / 1000).toFixed(3) : ''}</span>
+        <span class="pays" title="${esc(s.explanation || '')}">${esc(s.dx_country || s.info || '')}</span>
+        <span>${s.mode ? '<span class="etiq">' + esc(s.mode) + '</span> ' : ''}${
+          s.new_mult && !s.already_done ? '<span class="etiq mult">MULT</span>' : ''}${
+          s.hors_bande ? '<span class="etiq hb" title="Hors des bandes amateur françaises — écoute seulement">HORS BANDE</span>' : ''}</span>
+      </div>`).join('');
+  }
+
+  function rendreConcours(liste){
+    document.getElementById('cConcours').textContent = liste.length || '';
+    if(!liste.length){
+      document.getElementById('concours').innerHTML = '<div class="vide">Aucun concours en cours sur cette bande et ce mode</div>';
+      return;
+    }
+    document.getElementById('concours').innerHTML = liste.map(c => `
+      <div class="cts"><div class="nom">${esc(c.name)}</div>
+        <div class="det">reste ${esc(c.heures_restantes)} h${
+          c.exchange ? ' · échange : ' + esc(c.exchange) : ''}</div></div>`).join('');
+  }
+
+  function rendreRegions(regions){
+    const b = String(bande);
+    const ouvertes = (regions || []).filter(r =>
+      (r.open_bands || []).map(String).indexOf(b) >= 0 || String(r.best_band) === b);
+    document.getElementById('cRegions').textContent = ouvertes.length || '';
+    if(!ouvertes.length){
+      document.getElementById('regions').innerHTML = '<div class="vide">Aucune ouverture signalée sur cette bande</div>';
+      return;
+    }
+    // Le serveur chiffre l'ouverture POUR CETTE BANDE (score_bande) : afficher
+    // « · » dès que la bande n'est pas la meilleure de la région revenait à
+    // lister sept régions ouvertes sans dire à quel point.
+    ouvertes.sort((a, b2) => (b2.score_bande || 0) - (a.score_bande || 0));
+    document.getElementById('regions').innerHTML = ouvertes.map(r => `
+      <div class="reg"><span>${esc(r.region_name || r.region)}</span>
+        <span class="sc" title="${String(r.best_band) === b
+          ? 'meilleure bande vers cette région' : 'ouverte, mais une autre bande porte mieux'}"
+          >${Math.round(r.score_bande || 0)}</span>
+      </div>`).join('');
+  }
+
+  function rendreSuggestions(liste){
+    document.getElementById('cSug').textContent = liste.length || '';
+    if(!liste.length){
+      document.getElementById('suggestions').innerHTML =
+        '<div class="vide">Rien de neuf à vie sur cette bande pour l\'instant</div>';
+      return;
+    }
+    document.getElementById('suggestions').innerHTML = liste.map(s => `
+      <div class="cts"><div class="nom">${esc(s.call || '')}
+        <span class="etiq mult">${esc(s.country || s.dept || 'NEUF')}</span></div>
+        <div class="det">${esc(s.band || '')} MHz${s.freq ? ' · ' + esc(s.freq) : ''}${
+          s.reason ? ' · ' + esc(s.reason) : ''}</div></div>`).join('');
+  }
+
+  function rendreCarres(liste){
+    document.getElementById('cCarres').textContent = liste.length || '';
+    if(!liste.length){
+      document.getElementById('carres').innerHTML = '<div class="vide">Aucun carré à reprendre sur cette bande</div>';
+      return;
+    }
+    // Chaque carré dit sur QUELLES bandes il est déjà fait : c'est ce qui
+    // permet de juger s'il vaut le coup de le chercher sur celle-ci.
+    document.getElementById('carres').innerHTML = '<div class="carres">'
+      + liste.map(c => `<span class="carre" title="déjà fait sur ${
+          esc((c.bandes || []).join(', ') || '—')} MHz">${esc(c.square)}</span>`).join('')
+      + '</div>';
+  }
+
+  // Réglette : segments réglementaires + une épingle par spot. C'est le seul
+  // affichage qui montre les TROUS — l'endroit où appeler.
+  async function rendreRegle(spots){
+    const el = document.getElementById('regle');
+    if(!bande){ el.innerHTML = ''; return; }
+    let plage = null;
+    try{
+      const r = await fetch('/data/bande_segments?band=' + encodeURIComponent(bande));
+      if(r.ok) plage = await r.json();
+    }catch(e){ /* réglette absente ≠ page cassée */ }
+    if(!plage || !plage.segments || !plage.segments.length){ el.innerHTML = ''; return; }
+    const lo = plage.lo, hi = plage.hi, largeur = hi - lo;
+    if(!(largeur > 0)){ el.innerHTML = ''; return; }
+    const pct = mhz => Math.max(0, Math.min(100, 100 * (mhz - lo) / largeur));
+    let h = plage.segments.map(s => `
+      <div class="seg seg-${esc(s.cat)}" style="left:${pct(s.lo)}%;width:${pct(s.hi) - pct(s.lo)}%">
+        <span class="seg-lbl">${esc(s.cat)}</span></div>`).join('');
+    h += (spots || []).map(s => {
+      const mhz = (s.freq || 0) / 1000;
+      if(mhz < lo || mhz > hi) return '';
+      return `<div class="pin ${s.new_mult && !s.already_done ? 'm' : ''}"
+                   style="left:${pct(mhz)}%" title="${esc(s.call)} ${mhz.toFixed(3)}"></div>`;
+    }).join('');
+    h += '<div class="regle-ech">'
+      + [0, 0.25, 0.5, 0.75, 1].map(f =>
+          `<span style="left:${f * 100}%">${(lo + f * largeur).toFixed(3)}</span>`).join('')
+      + '</div>';
+    el.innerHTML = h;
+  }
+
+  // ── Chargement ───────────────────────────────────────────────────────────
+  let enCours = false;
+  async function focusCharger(){
+    if(enCours) return;            // une passe à la fois : la page peut être
+    enCours = true;                // rafraîchie par le minuteur ET par un clic
+    try{
+      const q = '?band=' + encodeURIComponent(bande) + '&mode=' + encodeURIComponent(mode);
+      const r = await fetch('/data/focus' + q);
+      if(!r.ok) throw 0;
+      const d = await r.json();
+      bandes = d.bandes || [];
+      if(!bande && d.classement && d.classement.length){
+        // Rien de choisi : on ouvre sur la bande que le classement recommande.
+        bande = d.classement[0].band;
+        localStorage.setItem('rc_focus_band', bande);
+      }
+      document.getElementById('bandeEnCours').textContent = bande ? bande + ' MHz' : '—';
+      document.title = 'LogX AI — ' + (bande ? Tf('Focus {b} MHz', {b: bande}) : T('Focus bande'));
+      rendreClassement(d.classement || []);
+      rendreSpots(d.spots || []);
+      rendreConcours(d.concours || []);
+      rendreRegions(d.regions || []);
+      rendreCarres(d.carres_manquants || []);
+      rendreSuggestions(d.suggestions || []);
+      rendreRegle(d.spots || []);
+    }catch(e){
+      document.getElementById('spots').innerHTML = '<div class="vide">Serveur injoignable — dernier affichage conservé</div>';
+    }finally{ enCours = false; }
+  }
+
+  // Horloge locale à l'onglet : enregistrée dans PROP_TASKS comme les autres
+  // (voir plus bas), plutôt qu'un setInterval indépendant — elle n'a de
+  // raison de tourner que quand #focusClock est visible, et
+  // test_aucun_minuteur_n_echappe_au_planificateur interdit tout setInterval
+  // hors du planificateur unique (propTick).
+  function focusHorloge(){
+    const d = new Date();
+    document.getElementById('focusClock').textContent = d.toISOString().slice(11, 19) + ' UTC';
+  }
+
+  // focusCharger()/focusLireRadio()/focusHorloge() ne s'auto-interrogent
+  // plus : le planificateur PROP_TASKS (ci-dessous) les appelle, seulement
+  // quand cet onglet est affiché — comme les autres chargeurs de cette page.
+  window.focusCharger = focusCharger;
+  window.focusLireRadio = focusLireRadio;
+  window.focusHorloge = focusHorloge;
+})();
+
 // ─── ONGLETS + PLANIFICATEUR DE RAFRAÎCHISSEMENT ─────────────────────────────
 // Découper la page en trois onglets ne sert à rien si les treize chargeurs
 // continuent tous de tourner : on aurait juste caché les panneaux, en payant
@@ -924,8 +1378,8 @@ function locatorToLatLon(loc){
 // recalculée à chaque tic depuis la date du DERNIER appel réussi : revenir
 // sur un onglet resservi rafraîchit immédiatement ce qui a expiré, et rien
 // d'autre.
-const PROP_PANES = ['hf', 'vhf', 'heard'];
-let propActivePane = 'hf';
+const PROP_PANES = ['focus', 'hf', 'vhf', 'heard'];
+let propActivePane = 'focus';
 const PROP_TASKS = [];
 
 // panes : onglets alimentés. loadPropagation en alimente DEUX (le solaire et
@@ -934,6 +1388,19 @@ const PROP_TASKS = [];
 function propTask(fn, ms, panes){
   PROP_TASKS.push({ fn: fn, ms: ms, panes: panes, last: 0, busy: false });
 }
+// BANDE ACTUELLE (ex-FOCUS BANDE) : mêmes cadences que la fenêtre autonome
+// d'origine — /data/focus toutes les 15 s (endpoint déjà consolidé, 6
+// jeux de données en un seul appel), /rig/state (suivi CAT) toutes les 3 s.
+// Références SANS le préfixe window. (bien que window.focusCharger etc.
+// soient ce qui est réellement assigné, plus haut) : un identifiant nu se
+// résout par la portée globale de toute façon (script classique, pas de
+// module), et test_propagation_onglets.py::_taches() analyse le texte
+// littéral de cet appel par regex — `window.focusCharger` y casse la
+// capture du nom (le point n'est pas un caractère de mot), rendant cette
+// tâche invisible aux tests de garde-fou sans lever la moindre erreur.
+propTask(focusCharger,   15 * 1000, ['focus']);
+propTask(focusLireRadio,  3 * 1000, ['focus']);
+propTask(focusHorloge,    1 * 1000, ['focus']);
 propTask(loadPropagation,  5 * 60 * 1000, ['hf', 'vhf']);  // solaire : lent (caches 15 min)
 propTask(refreshMufMap,   15 * 60 * 1000, ['hf']);         // carte MUF externe : jamais plus souvent, cf. commentaire ci-dessus
 propTask(loadOpenings,     5 * 60 * 1000, ['hf']);         // ouvertures par région : dépend du solaire (cache 15 min)
@@ -977,7 +1444,7 @@ function propTick(){
 }
 
 function propSelectPane(name){
-  if(PROP_PANES.indexOf(name) < 0) name = 'hf';
+  if(PROP_PANES.indexOf(name) < 0) name = 'focus';
   propActivePane = name;
   PROP_PANES.forEach(p => {
     const pane = document.getElementById('propPane-' + p);
@@ -1015,7 +1482,7 @@ window.addEventListener('hashchange', () => {
 
 let propInitialPane = null;
 try{ propInitialPane = localStorage.getItem('rc_prop_pane'); }catch(e){}
-propSelectPane(propPaneOfHash() || propInitialPane || 'hf');
+propSelectPane(propPaneOfHash() || propInitialPane || 'focus');
 // window.rcPoll (logx_statusbar.js) = même minuteur, mais suspendu quand
 // l'ONGLET DU NAVIGATEUR est masqué et rattrapé au retour. On l'utilise s'il
 // est là : les deux suspensions se cumulent alors naturellement (onglet
