@@ -267,7 +267,12 @@ def import_external_log(text, fmt, contest_id=None, cfg=None, manual_score=None)
     else:
         return {'ok': False, 'error': f"Format non pris en charge : {fmt!r}"}
     if not qsos:
-        return {'ok': False, 'error': 'Aucun QSO reconnu dans ce fichier'}
+        hint = ''
+        if fmt == 'adif' and re.search(r'(?im)^(START-OF-LOG:|CONTEST:)', text or ''):
+            hint = ' -- ce fichier ressemble a un Cabrillo, verifie le format selectionne'
+        elif fmt == 'cabrillo' and re.search(r'(?i)<eoh>|<adif_ver', text or ''):
+            hint = ' -- ce fichier ressemble a un ADIF, verifie le format selectionne'
+        return {'ok': False, 'error': 'Aucun QSO reconnu dans ce fichier' + hint}
 
     if not contest_id:
         guessed = guess_contest_id(raw_contest_name)

@@ -24,7 +24,10 @@ with open(HTML_PATH, encoding='utf-8') as _f:
 
 
 def _extract_function(src, name):
-    start = src.index(f'async function {name}(')
+    try:
+        start = src.index(f'async function {name}(')
+    except ValueError:
+        start = src.index(f'function {name}(')
     brace_open = src.index('{', start)
     depth = 0
     i = brace_open
@@ -41,6 +44,10 @@ def _extract_function(src, name):
 
 _REFRESH_SRC = _extract_function(_HTML_SRC, 'refreshContestBestScore')
 assert "fetch('/log/archives/best" in _REFRESH_SRC
+
+_GUESS_FORMAT_SRC = _extract_function(_HTML_SRC, '_guessImportFormat')
+_IMPORT_OLD_LOG_SRC = _extract_function(_HTML_SRC, 'importOldLog')
+assert "fetch('/log/archives/import" in _IMPORT_OLD_LOG_SRC
 
 _DOM_PREAMBLE = r"""
 var __store = {};
@@ -124,3 +131,90 @@ def test_requete_porte_bien_le_concours_en_query_param():
 
 def test_pas_de_qso_director():
     assert 'QSO Director' not in _HTML_SRC
+
+
+# ─── _guessImportFormat() / importOldLog() : bascule auto ADIF/Cabrillo ─────
+# Bug réel F4GLD (11/08/2026) : le sélecteur de format restait sur "ADIF" par
+# défaut même en choisissant un .cbr -- le fichier Cabrillo était alors
+# analysé comme de l'ADIF -> 0 QSO reconnu, un échec silencieux et peu clair.
+
+def _make_guess_ctx():
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval(_GUESS_FORMAT_SRC)
+    return ctx
+
+
+@pytest.mark.parametrize('filename,expected', [
+    ('log.adi', 'adif'), ('LOG.ADIF', 'adif'),
+    ('export.cbr', 'cabrillo'), ('EXPORT.CBR', 'cabrillo'),
+])
+def test_guess_format_extension_non_ambigue(filename, expected):
+    ctx = _make_guess_ctx()
+    ctx.eval(f"var r = _guessImportFormat({filename!r}, '');")
+    assert ctx.eval("r") == expected
+
+
+def test_guess_format_extension_ambigue_sniffe_le_contenu_cabrillo():
+    ctx = _make_guess_ctx()
+    ctx.eval("var r = _guessImportFormat('export.log', 'START-OF-LOG: 3.0\\nCONTEST: REF-SSB\\n');")
+    assert ctx.eval("r") == 'cabrillo'
+
+
+def test_guess_format_extension_ambigue_sniffe_le_contenu_adif():
+    ctx = _make_guess_ctx()
+    ctx.eval("var r = _guessImportFormat('export.txt', 'ADIF export\\n<eoh>\\n<call:4>F4GLD<eor>');")
+    assert ctx.eval("r") == 'adif'
+
+
+def test_guess_format_rien_de_fiable_rend_null():
+    ctx = _make_guess_ctx()
+    ctx.eval("var r = _guessImportFormat('export.txt', 'du texte quelconque');")
+    assert ctx.eval("r") is None
+
+
+def _make_import_ctx(fetch_impl, file_text):
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval(_DOM_PREAMBLE)
+    ctx.eval("var state = {contest: null};")
+    ctx.eval("function refreshContestBestScore(){}")
+    ctx.eval(f"var fetch = {fetch_impl};")
+    ctx.eval(_GUESS_FORMAT_SRC)
+    ctx.eval(_IMPORT_OLD_LOG_SRC)
+    ctx.eval(f"var __file = {{name: 'export.cbr', text: function(){{ return Promise.resolve({file_text!r}); }} }};")
+    return ctx
+
+
+def test_import_old_log_bascule_le_selecteur_sur_cabrillo_pour_un_cbr():
+    """Cœur du correctif : le select #importOldLogFormat, laissé sur sa
+    valeur par défaut 'adif', doit passer sur 'cabrillo' avant l'appel
+    réseau dès qu'un .cbr est choisi -- sans action manuelle."""
+    ctx = _make_import_ctx(
+        """function(url, opts){
+          __sentBody = JSON.parse(opts.body);
+          return Promise.resolve({ json: function(){ return Promise.resolve({ok:true, contest:'REF_CDF_HF_SSB', qso_count:444}); } });
+        }""",
+        'START-OF-LOG: 3.0\nCONTEST: REF-SSB\nQSO: 3756  PH 2021-02-27 0746 F4GLD 59 43 F8ATM 59 81\n')
+    ctx.eval("document.getElementById('importOldLogFormat').value = 'adif';")
+    ctx.eval("importOldLog(__file);")
+    _pump(ctx)
+    assert ctx.eval("document.getElementById('importOldLogFormat').value") == 'cabrillo'
+    assert ctx.eval("__sentBody.format") == 'cabrillo'
+    assert 'REF_CDF_HF_SSB' in ctx.eval("document.getElementById('importOldLogStatus').textContent")
+
+
+def test_import_old_log_ne_touche_pas_au_format_si_extension_ambigue_et_contenu_muet():
+    """Un .log/.txt sans signal de contenu fiable ne doit RIEN deviner à
+    l'aveugle -- le choix manuel de l'utilisateur reste celui qui compte."""
+    ctx = _make_import_ctx(
+        """function(url, opts){
+          __sentBody = JSON.parse(opts.body);
+          return Promise.resolve({ json: function(){ return Promise.resolve({ok:false, error:'Aucun QSO reconnu dans ce fichier'}); } });
+        }""",
+        'contenu ambigu sans marqueur')
+    ctx.eval("document.getElementById('importOldLogFile').value = '';")
+    ctx.eval("var __file2 = {name: 'export.log', text: function(){ return Promise.resolve('contenu ambigu sans marqueur'); }};")
+    ctx.eval("document.getElementById('importOldLogFormat').value = 'cabrillo';")
+    ctx.eval("importOldLog(__file2);")
+    _pump(ctx)
+    assert ctx.eval("document.getElementById('importOldLogFormat').value") == 'cabrillo'
+    assert ctx.eval("__sentBody.format") == 'cabrillo'
