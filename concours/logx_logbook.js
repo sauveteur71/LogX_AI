@@ -1434,24 +1434,9 @@ function updateKeyerPanels(){
   // En RTTY comme en SSTV, ni les macros CW ni le keyer vocal n'ont de sens :
   // c'est le décodeur qui prend la place.
   if(voice) voice.style.display = (cw || rtty || sstv) ? 'none' : '';
-  const dec = document.getElementById('rttyDecoder');
-  if(dec) dec.style.display = rtty ? '' : 'none';
-  // Boutons macro + chargement paresseux des périphériques RX/TX au premier
-  // passage en RTTY — pas à toggleRttyPanel() (bascule collapse/expand du
-  // contenu, qui ne se déclenche pas forcément avant que l'opérateur veuille
-  // émettre) ni à un appel synchrone en fin de fichier : le panneau RTTY est
-  // placé APRÈS les <script> dans logx_logbook.html (rttyMacroBtns n'existe
-  // pas encore dans le DOM tant que le HTML qui le suit n'a pas fini de se
-  // parser) — trouvé en vérification navigateur (0 bouton rendu), pas en
-  // relisant le code. updateKeyerPanels() n'est appelée qu'après coup (poll
-  // d'état radio, changement de mode), donc toujours après un DOM complet.
-  if(rtty){
-    renderRttyMacroBtns();
-    if(!_rttyDevicesLoaded){
-      loadAudioInputDevices('rttyDevice').then(ok => { _rttyDevicesLoaded = ok; });
-      loadAudioOutputDevices('rttyOutDevice', true).then(ok => { _rttyOutDeviceLoaded = ok; });
-    }
-  }
+  // Décodeur RTTY : extrait vers logx_rtty.html (fenêtre détachée, EV-7
+  // phase 2 incrément B) -- plus de panneau à afficher/masquer ici, `rtty`
+  // ne sert plus qu'à masquer voicePanel ci-dessus.
   // Le panneau CW s'appelle cwPanel (pas cwDecoder) : viser le mauvais id
   // n'aurait leve AUCUNE erreur, le decodeur CW serait simplement reste
   // affiche en RTTY. Verifie contre le balisage.
@@ -1494,8 +1479,9 @@ function toggleCwPanelForce(){
 // dans logx_logbook.html, portee globale partagee.
 
 // PANNEAU DECODEUR + EMISSION RTTY : extrait vers logx_rtty_panel.js
-// (EV-7 phase 2, 15e increment, docs/LogX_AI_PRD.md) -- charge en
-// <script> classique dans logx_logbook.html, portee globale partagee.
+// (EV-7 phase 2, 15e increment, docs/LogX_AI_PRD.md), puis vers sa PROPRE
+// fenetre detachee logx_rtty.html (EV-7 phase 2, increment B, 11/08/2026) --
+// plus aucun panneau/script RTTY dans logx_logbook.html.
 
 // PANNEAU DECODEUR SSTV : extrait vers logx_sstv_panel.js (EV-7 phase 2,
 // 14e increment, docs/LogX_AI_PRD.md) -- charge en <script> classique dans

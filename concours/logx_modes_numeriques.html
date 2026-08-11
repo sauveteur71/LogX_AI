@@ -19,11 +19,12 @@
   pour justifier une fenêtre séparée, et F4GLD a explicitement demandé de ne
   pas y toucher.
 
-  Incrément A (cette page) : FT8 uniquement, déjà 100% autonome (ne charge
-  pas logx_logbook.js, aucun window.opener, enregistre ses QSO via
-  POST /log/add comme n'importe quel client serveur). RTTY et SSTV
-  rejoindront cette page dans un incrément séparé une fois extraits de
-  LOGBOOK vers leur propre page détachée (logx_rtty.html/logx_sstv.html).
+  Incrément A : FT8, déjà 100% autonome (ne charge pas logx_logbook.js,
+  aucun window.opener, enregistre ses QSO via POST /log/add comme n'importe
+  quel client serveur). Incrément B : RTTY, extrait de LOGBOOK vers
+  logx_rtty.html (pont retour BroadcastChannel('logx_log') pour remplir
+  l'indicatif décodé dans LOGBOOK). SSTV rejoindra cette page dans un
+  incrément séparé (logx_sstv.html).
 -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
@@ -113,6 +114,12 @@ button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid v
       <div class="mode-desc">Décodeur/émetteur FT8 natif, 100% navigateur (codec + DSP maison, aucune dépendance à WSJT-X/JTDX/MSHV). Cycles de 15 s, waterfall, séquenceur manuel, log automatique.</div>
       <span class="mode-badge">DISPONIBLE</span>
       <button class="mode-btn" onclick="window.open('/logx_ft8.html','rc_ft8','width=1400,height=900,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
+    </div>
+    <div class="mode-card ready">
+      <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="6.5" width="13" height="8" rx="1.2"/><path d="M4.5 6.5V3a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v3.5"/><line x1="5.5" y1="10" x2="12.5" y2="10"/><line x1="5.5" y1="12.5" x2="10" y2="12.5"/></svg>RTTY</div>
+      <div class="mode-desc">Décodeur/émetteur RTTY (câble virtuel ou interface dédiée). Clic sur un indicatif décodé → rempli directement dans LOGBOOK. Cœur des concours CQ WW RTTY, WPX RTTY, WAE RTTY.</div>
+      <span class="mode-badge">DISPONIBLE</span>
+      <button class="mode-btn" onclick="window.open('/logx_rtty.html','rc_rtty','width=560,height=820,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
     </div>
   </div>
 </div>
