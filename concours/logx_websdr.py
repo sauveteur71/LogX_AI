@@ -550,10 +550,3 @@ def meilleur_recepteur(stations, pres_de=None, max_km=1500):
     else:
         candidats.sort(key=lambda x: (-x[1], x[0]))
     return candidats[0][2]
-
-
-def list_websdr():
-    """Compatibilité : l'ancien contrat (liste plate) sur les données neuves.
-    Conservée parce qu'un client ou un test peut encore l'appeler — elle rend
-    désormais la couche curée."""
-    return [dict(s) for s in stations_curees()]

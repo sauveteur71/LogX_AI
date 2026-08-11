@@ -3803,14 +3803,6 @@ function getActiveProp() {
   return props;
 }
 
-function getActiveSources() {
-  const srcs = [];
-  document.querySelectorAll('[data-key^="src_"].on').forEach(el => {
-    srcs.push(el.textContent.trim());
-  });
-  return srcs;
-}
-
 function buildSummary() {
   const call = document.getElementById('callsign').value || '—';
   const callContest = document.getElementById('callsign_contest').value || call;
