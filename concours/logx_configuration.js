@@ -2408,10 +2408,24 @@ function populateImportContestSelect(){
   if(prev && (prev === '' || CONTESTS.some(c => c.id === prev))) sel.value = prev;
 }
 
+function _guessImportFormat(filename, text){
+  // Devine le format depuis l'extension (fiable pour .adi/.adif/.cbr) puis,
+  // pour les extensions ambiguës (.log/.txt, utilisées par les deux formats
+  // selon le logiciel source), depuis le contenu -- jamais de bascule
+  // silencieuse si aucun signal fiable n'est trouvé (le choix manuel de
+  // l'utilisateur reste alors celui qui fait foi).
+  const ext = String(filename || '').toLowerCase().split('.').pop();
+  if(ext === 'adi' || ext === 'adif') return 'adif';
+  if(ext === 'cbr') return 'cabrillo';
+  if(/^(START-OF-LOG:|CONTEST:)/mi.test(text || '')) return 'cabrillo';
+  if(/<eoh>|<adif_ver/i.test(text || '')) return 'adif';
+  return null;
+}
+
 async function importOldLog(file){
   if(!file) return;
   const statusEl = document.getElementById('importOldLogStatus');
-  const fmt = document.getElementById('importOldLogFormat').value;
+  const formatEl = document.getElementById('importOldLogFormat');
   const contestSel = document.getElementById('importOldLogContest');
   const contest = contestSel.value;   // vide = laisser le serveur deviner
   const scoreEl = document.getElementById('importOldLogScore');
@@ -2419,6 +2433,14 @@ async function importOldLog(file){
   statusEl.textContent = 'Import en cours…';
   try{
     const text = await file.text();
+    // Bascule automatiquement le sélecteur ADIF/Cabrillo sur le format
+    // réel du fichier choisi -- rester sur le défaut "ADIF" pour un .cbr
+    // produisait un silencieux "Aucun QSO reconnu" (le fichier était bien
+    // lisible, juste analysé avec le mauvais parseur). Signalé par F4GLD
+    // avec un vrai export CrxLogbook (.cbr) le 11/08/2026.
+    const guessed = _guessImportFormat(file.name, text);
+    if(guessed) formatEl.value = guessed;
+    const fmt = formatEl.value;
     const r = await (await fetch('/log/archives/import', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({format: fmt, text, contest, score: scoreEl.value || null})
