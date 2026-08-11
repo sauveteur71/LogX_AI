@@ -748,15 +748,15 @@ if(localStorage.getItem('rc_theme') === null){
     const pb=Object.entries(d.per_band||{});
     const maxB=Math.max(1,...pb.map(([,n])=>n));
     document.getElementById('wBands').innerHTML=pb.map(([b,n])=>`
-      <div class="bar-row"><span class="bar-lbl">${bandLabel(b)}</span>
+      <div class="bar-row"><span class="bar-lbl">${esc(bandLabel(b))}</span>
         <span class="bar-wrap"><span class="bar-fill" style="width:${Math.round(100*n/maxB)}%"></span></span>
         <span class="bar-n">${n}</span></div>`).join('') || '<span style="color:var(--muted)">—</span>';
     setupAutoPager('wBands', 'wBandsPageLbl');   // après le innerHTML : mesure la hauteur réelle du nouveau contenu
 
     document.getElementById('wModes').innerHTML=Object.entries(d.per_mode||{})
-      .map(([m,n])=>`<span class="chip">${m} <b>${n}</b></span>`).join('') || '—';
+      .map(([m,n])=>`<span class="chip">${esc(m)} <b>${n}</b></span>`).join('') || '—';
     document.getElementById('wOps').innerHTML=Object.entries(d.per_op||{})
-      .filter(([o])=>o&&o!=='—').map(([o,n])=>`<span class="chip">${o} <b>${n}</b></span>`).join('') || '—';
+      .filter(([o])=>o&&o!=='—').map(([o,n])=>`<span class="chip">${esc(o)} <b>${n}</b></span>`).join('') || '—';
     setupAutoPager('wOps', 'wOpsPageLbl');
 
     // LOGBOOK SIMPLE : un seul opérateur possible (opRowCap()==1 côté CONFIG),

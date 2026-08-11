@@ -47,13 +47,35 @@ def deja_lance(chemin):
     return _deja_lance_unix(nom)
 
 
-def lancer(entree, deja_lance_fn=None, popen=None):
+def _chemin_local_valide(chemin, exists_fn):
+    """`chemin` doit désigner un exécutable DÉJÀ présent sur cette machine.
+
+    `autostart_programs` arrive tel quel depuis POST /config/save, qui
+    n'accepte QUE le cookie rc_token comme protection — distribué
+    automatiquement à tout appareil du LAN tant qu'aucun mot de passe d'accès
+    n'est configuré (comportement par défaut, voir la section « SÉCURITÉ
+    D'ACCÈS » de CONFIG). Sans ce garde-fou, un chemin UNC ou pointant vers un
+    exécutable non présent transformerait ce mécanisme d'auto-lancement en
+    exécution de code arbitraire au prochain démarrage du serveur — corrigé
+    ici en refusant tout chemin qui n'est pas un fichier LOCAL déjà sur le
+    disque : LogX AI ne peut plus que relancer un programme déjà installé,
+    jamais en atteindre un via le réseau."""
+    if chemin.startswith('\\\\') or chemin.startswith('//'):
+        return False   # chemin UNC : jamais autorisé, quoi qu'il désigne
+    return exists_fn(chemin)
+
+
+def lancer(entree, deja_lance_fn=None, popen=None, exists_fn=None):
     """Un seul programme. `entree` : {'path', 'args', 'name', 'enabled'}.
-    `deja_lance_fn`/`popen` injectables pour les tests (jamais de vrai
-    process lancé pendant la suite pytest)."""
+    `deja_lance_fn`/`popen`/`exists_fn` injectables pour les tests (jamais de
+    vrai process lancé pendant la suite pytest)."""
     chemin = str((entree or {}).get('path', '')).strip()
     if not chemin:
         return {'ok': False, 'error': 'Chemin vide'}
+    exists = exists_fn or os.path.isfile
+    if not _chemin_local_valide(chemin, exists):
+        return {'ok': False, 'error':
+                 'Chemin invalide ou introuvable sur cette machine (protection anti-execution-a-distance)'}
     check = deja_lance_fn or deja_lance
     if check(chemin):
         return {'ok': True, 'skipped': True}
@@ -73,7 +95,7 @@ def lancer(entree, deja_lance_fn=None, popen=None):
         return {'ok': False, 'error': str(e)}
 
 
-def lancer_tous(cfg, deja_lance_fn=None, popen=None):
+def lancer_tous(cfg, deja_lance_fn=None, popen=None, exists_fn=None):
     """Appelée UNE fois au démarrage — jamais d'exception vers l'appelant
     (chaque échec individuel est journalisé, pas remonté)."""
     entrees = (cfg or {}).get('autostart_programs') or []
@@ -82,7 +104,7 @@ def lancer_tous(cfg, deja_lance_fn=None, popen=None):
         if not isinstance(e, dict) or e.get('enabled') is False:
             continue
         try:
-            r = lancer(e, deja_lance_fn=deja_lance_fn, popen=popen)
+            r = lancer(e, deja_lance_fn=deja_lance_fn, popen=popen, exists_fn=exists_fn)
         except Exception as ex:
             r = {'ok': False, 'error': str(ex)}
         r['name'] = e.get('name') or os.path.basename(str(e.get('path', '')))

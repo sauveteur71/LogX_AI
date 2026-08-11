@@ -1316,6 +1316,7 @@ function locatorToLatLon(loc){
 
   // ── Chargement ───────────────────────────────────────────────────────────
   let enCours = false;
+  let focusChargeReussie = false;   // vrai dès le 1er chargement OK — voir le catch ci-dessous
   async function focusCharger(){
     if(enCours) return;            // une passe à la fois : la page peut être
     enCours = true;                // rafraîchie par le minuteur ET par un clic
@@ -1339,8 +1340,17 @@ function locatorToLatLon(loc){
       rendreCarres(d.carres_manquants || []);
       rendreSuggestions(d.suggestions || []);
       rendreRegle(d.spots || []);
+      focusChargeReussie = true;
     }catch(e){
-      document.getElementById('spots').innerHTML = '<div class="vide">Serveur injoignable — dernier affichage conservé</div>';
+      // N'écrase #spots QUE si AUCUN chargement n'a encore réussi : avant ce
+      // correctif, ce message qui prétend « dernier affichage conservé »
+      // écrasait justement ce dernier affichage à chaque coupure réseau
+      // transitoire (bug trouvé lors de l'audit du 11/08/2026) — #spots
+      // contient déjà un placeholder « Chargement… » à froid, donc un simple
+      // test sur son contenu DOM ne suffit pas à distinguer les deux cas.
+      if(!focusChargeReussie){
+        document.getElementById('spots').innerHTML = '<div class="vide">Serveur injoignable</div>';
+      }
     }finally{ enCours = false; }
   }
 

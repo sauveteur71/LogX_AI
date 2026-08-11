@@ -129,6 +129,7 @@ const CONFIG_HELP = {
   mqtt_port: "Port du broker MQTT — 1883 par défaut (sans chiffrement).",
   mqtt_topic_prefix: "Préfixe des topics publiés (défaut « logx ») : donne logx/qso, logx/rig/freq, logx/score.",
 
+  lan_access: "Autorise d'autres postes du même réseau (WiFi/LAN : multi-poste, radioclub, second écran, écran mural...) à joindre LogX AI. Désactivé par défaut : le logiciel n'écoute que sur cette machine (127.0.0.1), inatteignable même depuis un autre PC du même réseau. Nécessaire pour le mode multi-poste/radioclub et l'écran mural sur un autre appareil. Ne prend effet qu'au PROCHAIN démarrage du serveur (fermer et relancer LogX AI). Active ce réglage avant de définir un mot de passe d'accès ci-dessous, sinon rien d'autre que ce poste ne peut de toute façon se connecter.",
   access_password: "Mot de passe optionnel exigé avant d'accorder les droits d'écriture (ajout de QSO, configuration) à un appareil qui charge une page du logiciel. Laisse vide et clique « Désactiver » pour retirer la protection (comportement par défaut : accès automatique, adapté à un LAN de confiance). Circule en clair sur le réseau local (pas de HTTPS) — protège d'un accès non voulu, pas d'une écoute réseau active. Définir ou modifier ce mot de passe déconnecte immédiatement tous les appareils déjà connectés (jeton d'écriture régénéré) : reconnexion nécessaire partout, y compris sur ce poste (automatique).",
 
   ai_model: "Le modèle d'intelligence artificielle utilisé par le copilote (analyse de règlement, coach pendant le concours, cet assistant). Change de fournisseur si tu as une clé d'un autre service.",
@@ -5008,6 +5009,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     mqtt_host: document.getElementById('mqtt_host')?.value.trim() || '',
     mqtt_port: parseInt(document.getElementById('mqtt_port')?.value, 10) || 1883,
     mqtt_topic_prefix: document.getElementById('mqtt_topic_prefix')?.value.trim() || 'logx',
+    lan_access: !!document.getElementById('lan_access')?.value,
     voicekeyer_enabled: !!document.getElementById('voicekeyer_enabled').value,
     voicekeyer_device: document.getElementById('voicekeyer_device').value,
     voicekeyer_device2: document.getElementById('voicekeyer_device2')?.value || '',
@@ -5853,6 +5855,7 @@ function applyFullConfigToForm(c) {
     if(c.mqtt_port && document.getElementById('mqtt_port')) document.getElementById('mqtt_port').value = c.mqtt_port;
     if(c.mqtt_topic_prefix && document.getElementById('mqtt_topic_prefix'))
       document.getElementById('mqtt_topic_prefix').value = c.mqtt_topic_prefix;
+    if(c.lan_access && document.getElementById('lan_access')) document.getElementById('lan_access').value = '1';
     if(c.rotor_enabled) document.getElementById('rotor_enabled').value = '1';
     if(c.rotor_host) document.getElementById('rotor_host').value = c.rotor_host;
     if(c.rotor_port) document.getElementById('rotor_port').value = c.rotor_port;
