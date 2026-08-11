@@ -79,10 +79,27 @@ if __name__ == '__main__':
     # l'ANCIEN processus répondait toujours, et les deux serveurs écrivaient
     # dans les mêmes fichiers de données sans exclusion mutuelle (chacun avec
     # son propre verrou en mémoire). Détail complet dans logx_singleton.py.
+    # Hôte d'écoute : 127.0.0.1 par défaut (poste local uniquement) ; 0.0.0.0
+    # (toutes les interfaces, donc joignable par tout le LAN) seulement si
+    # l'opérateur a explicitement coché l'accès réseau en CONFIG > SÉCURITÉ
+    # D'ACCÈS (`lan_access`). Avant ce correctif, 0.0.0.0 était le SEUL
+    # comportement possible : /config/save (donc autostart_programs, voir
+    # logx_autostart.py) était atteignable par tout appareil du réseau tant
+    # qu'aucun mot de passe d'accès n'était configuré — l'état par défaut
+    # d'une installation neuve. logx_http est déjà entièrement importé (voir
+    # `from logx_http import Handler` plus haut) : current_config est donc
+    # déjà chargé ici, avant même le premier print de ce démarrage.
+    import logx_http as http_mod
+    bind_host = '0.0.0.0' if http_mod.current_config.get('lan_access') else '127.0.0.1'
+
     # extra_hosts=[IP LAN] : la détection « port partagé sans risque » ne
     # vérifie sinon que 127.0.0.1, jamais l'adresse réellement annoncée aux
     # autres opérateurs sur le WiFi de l'expédition (voir docstring probe()).
-    _instance = logx_singleton.probe(PORT, extra_hosts=[logx_singleton.detecter_ip_lan()])
+    # Sans objet si l'accès LAN est désactivé : notre serveur ne s'y liera
+    # de toute façon pas.
+    _instance = logx_singleton.probe(
+        PORT, bind_host=bind_host,
+        extra_hosts=[logx_singleton.detecter_ip_lan()] if bind_host == '0.0.0.0' else [])
     if _instance['state'] == logx_singleton.LOGX:
         # Même fonction d'ouverture que le démarrage nominal (elle choisit
         # l'adresse locale la plus rapide) : l'utilisateur voulait voir LogX
@@ -499,7 +516,7 @@ if __name__ == '__main__':
     # port déjà écouté au lieu de s'y greffer en silence — filet de sécurité
     # pour la course possible entre la sonde ci-dessus et ce bind.
     try:
-        server = logx_singleton.LogXHTTPServer((logx_singleton.BIND_HOST, PORT),
+        server = logx_singleton.LogXHTTPServer((bind_host, PORT),
                                                Handler)
     except OSError as _e:
         _abandonner(logx_singleton.message_bind_impossible(PORT, _e))
@@ -525,7 +542,11 @@ if __name__ == '__main__':
     print(f'  -> http://127.0.0.1:{PORT}/logx_calendrier.html')
     print(f'  -> http://127.0.0.1:{PORT}/logx_mobile.html (telephone)')
     print('=' * 60)
-    print(f'  Autres postes WiFi : http://{local_ip}:{PORT}/logx_logbook.html')
+    if bind_host == '0.0.0.0':
+        print(f'  Autres postes WiFi : http://{local_ip}:{PORT}/logx_logbook.html')
+    else:
+        print('  Accès réseau (autres postes WiFi/LAN) : DÉSACTIVÉ.')
+        print('  Active-le dans CONFIG > SÉCURITÉ D\'ACCÈS pour le multi-poste/radioclub.')
     print()
     print('  Ctrl+C pour arreter')
     print()

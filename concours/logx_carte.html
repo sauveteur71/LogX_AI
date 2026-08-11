@@ -1283,7 +1283,11 @@ function addMsg(role,text,type=''){
   div.appendChild(lbl);div.appendChild(bub);
   c.appendChild(div);
   c.scrollTop=c.scrollHeight;
-  parseScores(text);
+  // role==='agent' seulement : parseScores() lit la prose comme une source
+  // fiable (SCORE TOTAL/xxx km/xxx QSO) — appelé aussi sur role==='user'
+  // avant ce correctif, un opérateur qui tape « il y a un DX à 850 km »
+  // écrasait silencieusement MEILLEUR DX pendant tout le concours.
+  if(role==='agent') parseScores(text);
   // La carte est désormais pilotée par le JSON structuré du moteur
   // (/data/spots_ranked) — plus de re-parsing fragile de la prose de l'IA.
   refreshRankedStations();

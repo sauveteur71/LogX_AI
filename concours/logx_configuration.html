@@ -2223,9 +2223,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="section">
         <h3 class="section-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:3px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="10" height="7" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg> SÉCURITÉ D'ACCÈS</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-          Par défaut, TOUT appareil qui charge une page du logiciel sur ce réseau
-          obtient automatiquement les droits d'écriture (ajout de QSO, changement
-          de configuration...) — adapté à un poste/radioclub de confiance.
+          Par défaut, LogX AI n'est joignable QUE depuis ce poste — aucun autre
+          appareil du réseau ne peut le voir. Active « ACCÈS RÉSEAU (LAN) »
+          ci-dessous pour le multi-poste/radioclub/écran mural sur un autre
+          appareil. Une fois activé, TOUT appareil de ce réseau obtient
+          automatiquement les droits d'écriture (ajout de QSO, changement de
+          configuration...) — adapté à un poste/radioclub de confiance.
           Définis un mot de passe ici pour exiger une connexion explicite avant
           d'accorder ces droits (utile si le port est exposé plus largement :
           routeur 4G d'expédition, invités au radioclub...).<br>
@@ -2237,6 +2240,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           tous les autres appareils déjà connectés</b> (rechargement de page ou
           reconnexion via /auth/login nécessaire) — voulu : sinon un accès déjà
           obtenu avant la sortie resterait valide indéfiniment après.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>ACCÈS RÉSEAU (LAN)</label>
+            <select id="lan_access">
+              <option value="">Désactivé — ce poste uniquement</option>
+              <option value="1">Activé — multi-poste/radioclub</option>
+            </select>
+            <div class="input-note">Ne prend effet qu'au prochain démarrage du serveur (ferme et relance LogX AI après avoir enregistré).</div>
+          </div>
         </div>
         <div id="accessPasswordStatus" style="font-family:var(--font-mono);font-size:13px;margin-bottom:14px"></div>
         <div class="form-grid">
