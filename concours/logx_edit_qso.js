@@ -38,6 +38,14 @@
 // dans la page après Échap ou un clic sur la croix.
 let _editQsoTrigger = null;
 
+// Référence NOMMÉE et stable (pas une fonction anonyme recréée à chaque
+// appel d'editQSO()) : c'est ce qui permet à removeEventListener() de
+// retrouver et retirer l'écouteur précédent avant d'en poser un nouveau.
+function _onEditLocatorInput(){
+  updateEditDistInfo(this.value.toUpperCase());
+  this.value = this.value.toUpperCase();
+}
+
 function editQSO(id, triggerEl){
   const q = qsoLog.find(x=>x.id===id);
   if(!q) return;
@@ -71,21 +79,25 @@ function editQSO(id, triggerEl){
   const contestBands = CONTEST_BANDS[currentContest] || ALL_BANDS;
   const editBandOptions = (q.band && !contestBands.includes(q.band)) ? [...contestBands, q.band] : contestBands;
   editBandSel.innerHTML = editBandOptions.map(b =>
-    `<option value="${b}"${b===q.band?' selected':''}>${BAND_LABELS[b]||b+' MHz'}</option>`
+    `<option value="${escHtml(b)}"${b===q.band?' selected':''}>${escHtml(BAND_LABELS[b]||b+' MHz')}</option>`
   ).join('');
   // Peupler le select mode avec les modes du concours — même correctif.
   const editModeSel = document.getElementById('editMode');
   const contestModes = CONTEST_MODES[currentContest] || ['SSB','CW','FM','FT8','FT4','RTTY'];
   const editModeOptions = (q.mode && !contestModes.includes(q.mode)) ? [...contestModes, q.mode] : contestModes;
   editModeSel.innerHTML = editModeOptions.map(m =>
-    `<option value="${m}"${m===q.mode?' selected':''}>${m}</option>`
+    `<option value="${escHtml(m)}"${m===q.mode?' selected':''}>${escHtml(m)}</option>`
   ).join('');
   document.getElementById('editLocator').value = q.locator||'';
   updateEditDistInfo(q.locator);
-  document.getElementById('editLocator').addEventListener('input', function(){
-    updateEditDistInfo(this.value.toUpperCase());
-    this.value = this.value.toUpperCase();
-  });
+  // removeEventListener AVANT addEventListener (no-op au tout premier appel) :
+  // editQSO() peut être appelée des dizaines de fois par session (une par
+  // clic sur le crayon d'édition), et #editLocator est un <input> STATIQUE du
+  // HTML, jamais recréé -- sans ce retrait, chaque ouverture empilait un
+  // nouvel écouteur sur le même champ, déclenchant N exécutions de
+  // updateEditDistInfo() par frappe à la N-ième édition de la session.
+  document.getElementById('editLocator').removeEventListener('input', _onEditLocatorInput);
+  document.getElementById('editLocator').addEventListener('input', _onEditLocatorInput);
   // EV-7 phase 2 : premier pilote du bus d'événements (voir logx_scan_qsl.js
   // pour le pourquoi). Le cœur ne connaît plus _renderEditQslScan() ; il
   // notifie juste qu'un QSO vient de s'ouvrir en édition.

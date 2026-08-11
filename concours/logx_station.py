@@ -318,10 +318,6 @@ def rotor_defaut(cfg, prefer_bandes=None):
             'offset_deg': 0.0, 'nom': 'Rotor', 'id': '', 'source': 'legacy'}
 
 
-def ampli_par_id(station, ampli_id):
-    return _par_id((station or {}).get('amplis'), str(ampli_id or '').strip())
-
-
 def azimut_rotor(rotor, azimut_vrai):
     """L'azimut à ENVOYER au rotor, décalage mécanique compris.
 
