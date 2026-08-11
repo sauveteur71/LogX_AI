@@ -27,8 +27,10 @@
 // l'apres-chargement complet de la page (frappe utilisateur), sans
 // risque d'ordre malgre le sens de dependance optionnel->optionnel
 // inhabituel (fichier charge plus tot referencant un fichier charge
-// plus tard). Meme raisonnement pour logx_rtty_panel.js (expandMacro())
-// et logx_esm_callbot.js (copyMacro(), deja garde par typeof).
+// plus tard). Meme raisonnement pour logx_esm_callbot.js (copyMacro(),
+// deja garde par typeof). RTTY a sa PROPRE version simplifiee locale de
+// expandMacro() dans logx_rtty.html (fenetre detachee, EV-7 phase 2
+// increment B) -- plus une dependance a ce fichier.
 
 // ─── MACROS F1–F8 ────────────────────────────────────────────────────────────
 const DEFAULT_MACROS = [

@@ -6,11 +6,14 @@
 // Grep exhaustif fait AVANT extraction (candidat n°1 du 3e inventaire,
 // inventaire-ev7-3e-2026-08-09.md, le plus sûr des 3 inventaires cumulés) :
 // AUCUN appel top-level, AUCUNE dépendance du chemin critique. Les 2 SEULS
-// appelants sont logx_rtty_panel.js (rttyEnvoyerTexte) et
+// appelants historiques étaient logx_rtty_panel.js (rttyEnvoyerTexte) et
 // logx_sstv_panel.js (sstvEnvoyerImage), tous deux DÉJÀ des fichiers
 // optionnels extraits par EV-7 -- dépendance optionnel→optionnel, le sens
-// sûr établi par la convention EV-7. Aucun fichier de test ne référence
-// txAudioPtt directement.
+// sûr établi par la convention EV-7. RTTY a depuis rejoint sa propre
+// fenêtre détachée (logx_rtty.html, EV-7 phase 2 incrément B) qui charge
+// ce fichier directement -- même appel rttyEnvoyerTexte(), portée globale
+// partagée inchangée. Aucun fichier de test ne référence txAudioPtt
+// directement.
 
 // ─── TX audio générique (RTTY/SSTV) : PTT ON -> lecture -> PTT OFF ──────────
 // Même modèle que logx_ft8.html (jouerForme+pttOn) — dupliqué ici plutôt que
