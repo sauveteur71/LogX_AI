@@ -27,6 +27,7 @@ SEARCHABLE_PAGES = [
     'logx_departements.html', 'logx_calendrier.html', 'logx_ft8.html',
     'logx_websdr.html', 'logx_focus.html', 'logx_carte.html',
     'logx_propagation.html', 'logx_cw.html', 'logx_panadapter.html',
+    'logx_modes_numeriques.html',
 ]
 
 PAGE_LABELS = {
@@ -42,6 +43,7 @@ PAGE_LABELS = {
     'logx_propagation.html': 'PROPAG',
     'logx_cw.html': 'ÉCOLE CW',
     'logx_panadapter.html': 'PANADAPTER',
+    'logx_modes_numeriques.html': 'MODE NUMÉRIQUE',
 }
 
 # Limite ACCEPTÉE (audit trouvabilité/intuitivité, 09/08/2026) : ce module
