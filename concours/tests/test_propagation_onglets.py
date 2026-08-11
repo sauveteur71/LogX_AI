@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Page PROPAG : trois onglets (HF / VHF & EME / M'ENTEND-ON) et, surtout,
-suspension des rafraichissements des onglets masques.
+"""Page PROPAG : quatre onglets (BANDE ACTUELLE / HF / VHF & EME /
+M'ENTEND-ON) et, surtout, suspension des rafraichissements des onglets
+masques.
+
+BANDE ACTUELLE (ex-FOCUS BANDE, fusionne EV-7 phase 2 increment B PR1,
+2026-08-11) est l'onglet PAR DEFAUT -- c'est l'outil operationnel a garder
+ouvert en permanence en concours, les trois autres restent des dashboards de
+reference consultes ponctuellement.
 
 Pourquoi figer ca par des tests plutot que par une relecture :
 
@@ -34,7 +40,7 @@ CONCOURS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROPAG = os.path.join(CONCOURS_DIR, 'logx_propagation.html')
 I18N = os.path.join(CONCOURS_DIR, 'logx_i18n.js')
 
-ONGLETS = ('hf', 'vhf', 'heard')
+ONGLETS = ('focus', 'hf', 'vhf', 'heard')
 LANGUES = ('en', 'de', 'es', 'it', 'pt', 'nl', 'pl')
 
 # Chargeurs qui ne sont volontairement PAS des taches d'onglet.
@@ -134,9 +140,9 @@ def _taches(src):
                                  src)]
 
 
-# ── Les trois onglets existent et se partagent tous les panneaux ────────────
+# ── Les quatre onglets existent et se partagent tous les panneaux ───────────
 
-def test_les_trois_onglets_existent():
+def test_les_quatre_onglets_existent():
     src = _lire()
     for nom in ONGLETS:
         assert 'id="propTabBtn-%s"' % nom in src, 'bouton d\'onglet absent : ' + nom
@@ -144,14 +150,16 @@ def test_les_trois_onglets_existent():
 
 
 def test_les_libelles_des_onglets():
-    """Les trois questions distinctes que la page traite, dans cet ordre."""
+    """Les quatre questions distinctes que la page traite, dans cet ordre.
+    BANDE ACTUELLE (ex-FOCUS BANDE) est en tete : c'est l'onglet par defaut."""
     src = _lire()
     libelles = re.findall(r'<button type="button" role="tab".*?>(.*?)</button>',
                           src, flags=re.DOTALL)
-    assert len(libelles) == 3, libelles
-    assert 'HF' in libelles[0]
-    assert 'VHF' in libelles[1] and 'EME' in libelles[1]
-    assert "M'ENTEND-ON" in libelles[2]
+    assert len(libelles) == 4, libelles
+    assert 'BANDE ACTUELLE' in libelles[0]
+    assert 'HF' in libelles[1]
+    assert 'VHF' in libelles[2] and 'EME' in libelles[2]
+    assert "M'ENTEND-ON" in libelles[3]
 
 
 def test_un_seul_onglet_visible_au_chargement():
@@ -160,8 +168,8 @@ def test_un_seul_onglet_visible_au_chargement():
     src = _lire()
     caches = [nom for nom in ONGLETS
               if re.search(r'id="propPane-%s"[^>]*\bhidden\b' % nom, src)]
-    assert sorted(caches) == ['heard', 'vhf'], (
-        'onglets caches au chargement : %s (attendu : tous sauf HF)' % caches)
+    assert sorted(caches) == ['heard', 'hf', 'vhf'], (
+        'onglets caches au chargement : %s (attendu : tous sauf BANDE ACTUELLE)' % caches)
 
 
 def test_aucun_panneau_hors_des_onglets():
@@ -174,19 +182,23 @@ def test_aucun_panneau_hors_des_onglets():
 
 
 def test_repartition_des_panneaux():
-    """Repartition attendue : 5 / 6 / 2.
+    """Repartition attendue : 0 / 5 / 6 / 2.
 
     Le 13e panneau d'origine, la foudre, est devenu la pastille de la barre de
     statut. Le 6e de l'onglet VHF est le panneau SATELLITES (31/07/2026) :
     l'intitule de l'onglet annoncait deja « satellites » alors que rien ne les
     affichait — l'endpoint /data/sat existait sans aucun ecran pour le lire.
+    BANDE ACTUELLE (ex-FOCUS BANDE, fusion EV-7 phase 2 increment B PR1) est a
+    0 : son contenu (classement de bandes, cluster, concours actifs...) est
+    fait de cartes `.carte`, pas de `.panel` -- un style visuel distinct
+    heritee de l'ancienne page autonome, pas un onglet vide.
 
     Ce test n'est pas un compteur decoratif : il tombe des qu'un panneau est
     ajoute ou deplace, et oblige a verifier qu'il est bien DANS un onglet
     (sinon il resterait affiche en permanence, cf. test ci-dessus)."""
     panes = _panes(_lire())
     compte = {nom: _nb_panneaux(frag) for nom, frag in panes.items()}
-    assert compte == {'hf': 5, 'vhf': 6, 'heard': 2}, compte
+    assert compte == {'focus': 0, 'hf': 5, 'vhf': 6, 'heard': 2}, compte
 
 
 # ── Le coeur : les onglets masques ne rafraichissent plus ───────────────────
