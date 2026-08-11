@@ -7,8 +7,20 @@ et cliquable -- un clic qui atteint CE FOND (document.body ou <div
 class="container">, l'ancien conteneur de page toujours présent en enfant
 direct de body -- vérifié en navigateur réel via elementFromPoint() : la
 première hypothèse « document.body directement » était fausse, .container
-le recouvre entièrement) doit fermer CONFIG exactement comme le bouton
-LOGGER (launchApp()).
+le recouvre entièrement) doit fermer le panneau de catégorie ouvert.
+
+PRÉCISION F4GLD (11/08/2026, juste après le 1er déploiement) : « je veux
+pas directement repartir dans logbook je veux juste que le popup config se
+ferme! en restant sur l'onglet config » -- le geste appelé est donc
+closeCategoryPanel() (ferme sur place, ne navigue jamais), pas launchApp()
+(qui navigue vers logx_logbook.html, testé initialement puis corrigé).
+
+Ce module teste uniquement le CIBLAGE du clic (quel élément déclenche
+l'appel) -- la logique de closeCategoryPanel() elle-même (garde de
+modifications non enregistrées, masquage du bon panneau, désélection de la
+sidebar) est testée dans test_config_category_switch.py, qui possède déjà
+le DOM factice riche (catmodal_*/catbody_*) nécessaire pour l'exercer
+réellement plutôt que de la stubber.
 
 Exécute le VRAI code (extrait tel quel par recherche du bloc, même technique
 que tests/test_score_a_battre_js.py) dans un moteur JS réel (V8 via
@@ -32,10 +44,12 @@ _CLICK_OUTSIDE_SRC = re.search(
     _JS_SRC, re.S)
 assert _CLICK_OUTSIDE_SRC, "listener de fermeture par clic extérieur introuvable"
 _CLICK_OUTSIDE_SRC = _CLICK_OUTSIDE_SRC.group(0)
+assert 'closeCategoryPanel' in _CLICK_OUTSIDE_SRC, \
+    "le clic extérieur doit fermer sur place (closeCategoryPanel), pas naviguer (launchApp)"
 
 _DOM_PREAMBLE = r"""
-var _launchAppCalls = 0;
-function launchApp(){ _launchAppCalls++; }
+var _closeCalls = 0;
+function closeCategoryPanel(){ _closeCalls++; }
 var _sidebarPresent = true;
 var _bodyHandlers = [];
 var _bodyEl = {
@@ -61,13 +75,13 @@ def _make_ctx():
     return ctx
 
 
-def test_clic_sur_le_corps_de_page_ferme_config():
+def test_clic_sur_le_corps_de_page_ferme_le_panneau():
     ctx = _make_ctx()
     ctx.eval("_fireBodyClick(document.body);")
-    assert ctx.eval("_launchAppCalls") == 1
+    assert ctx.eval("_closeCalls") == 1
 
 
-def test_clic_sur_le_conteneur_de_fond_ferme_config():
+def test_clic_sur_le_conteneur_de_fond_ferme_le_panneau():
     """Cas RÉEL rencontré en navigateur : <div class="container"> (ancien
     conteneur de page, enfant direct de body) recouvre la marge visible
     autour de la sidebar/du panneau -- c'est LUI la cible du clic dans le
@@ -75,7 +89,7 @@ def test_clic_sur_le_conteneur_de_fond_ferme_config():
     ctx = _make_ctx()
     ctx.eval("var _containerEl = {classList: {contains: function(c){ return c === 'container'; }}};")
     ctx.eval("_fireBodyClick(_containerEl);")
-    assert ctx.eval("_launchAppCalls") == 1
+    assert ctx.eval("_closeCalls") == 1
 
 
 def test_clic_sur_un_element_a_l_interieur_ne_ferme_rien():
@@ -86,7 +100,7 @@ def test_clic_sur_un_element_a_l_interieur_ne_ferme_rien():
     ctx = _make_ctx()
     ctx.eval("var _sidebarButton = {classList: {contains: function(){ return false; }}};")
     ctx.eval("_fireBodyClick(_sidebarButton);")
-    assert ctx.eval("_launchAppCalls") == 0
+    assert ctx.eval("_closeCalls") == 0
 
 
 def test_clic_sur_un_element_sans_classlist_ne_plante_pas_et_ne_ferme_rien():
@@ -96,14 +110,14 @@ def test_clic_sur_un_element_sans_classlist_ne_plante_pas_et_ne_ferme_rien():
     ctx = _make_ctx()
     ctx.eval("var _plainEl = {};")
     ctx.eval("_fireBodyClick(_plainEl);")
-    assert ctx.eval("_launchAppCalls") == 0
+    assert ctx.eval("_closeCalls") == 0
 
 
 def test_sans_configsidebar_le_clic_exterieur_ne_fait_rien():
     """Filet de sécurité : si #configSidebar n'existe pas (page CONFIG pas
     encore construite, ou logx_configuration.js chargé ailleurs par erreur),
-    ne jamais naviguer sur un simple clic dans le vide."""
+    ne jamais agir sur un simple clic dans le vide."""
     ctx = _make_ctx()
     ctx.eval("_sidebarPresent = false;")
     ctx.eval("_fireBodyClick(document.body);")
-    assert ctx.eval("_launchAppCalls") == 0
+    assert ctx.eval("_closeCalls") == 0

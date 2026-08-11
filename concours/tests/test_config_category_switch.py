@@ -67,6 +67,7 @@ _CURRENTOPENCAT_SRC = _extract_function(_HTML_SRC, '_currentOpenCat')
 _SNAPSHOTCATFORM_SRC = _extract_function(_HTML_SRC, '_snapshotCatForm')
 _CATHASUNSAVED_SRC = _extract_function(_HTML_SRC, '_catHasUnsavedChanges')
 _CONFIRMDISCARD_SRC = _extract_function(_HTML_SRC, '_confirmDiscardCatChanges')
+_CLOSECATPANEL_SRC = _extract_function(_HTML_SRC, 'closeCategoryPanel')
 
 # ─── DOM minimal : 4 catégories factices (identity/contest/filters/summary),
 # chacune avec un panneau (.cat-modal_<cat>, style.display suivi) et un corps
@@ -92,6 +93,38 @@ var _inputsContest  = [];
 var _inputsFilters  = [];
 var _inputsSummary  = [];
 
+// Boutons factices de #configSidebar -- juste assez de classList (contains/
+// add/remove/toggle) pour que closeCategoryPanel() puisse désélectionner
+// l'entrée active sans planter, sur le MÊME motif que le vrai DOM
+// (nav.querySelectorAll('.config-sidebar-item').forEach(b => b.classList...)).
+function makeSidebarButton(cat, active){
+  var classes = ['config-sidebar-item'];
+  if(active) classes.push('active');
+  return {
+    dataset: {cat: cat},
+    classList: {
+      contains: function(c){ return classes.indexOf(c) !== -1; },
+      add: function(c){ if(classes.indexOf(c) === -1) classes.push(c); },
+      remove: function(c){ var i = classes.indexOf(c); if(i !== -1) classes.splice(i, 1); },
+      toggle: function(c, force){
+        var has = classes.indexOf(c) !== -1;
+        var want = (force === undefined) ? !has : force;
+        if(want && !has) classes.push(c);
+        if(!want && has) classes.splice(classes.indexOf(c), 1);
+      }
+    }
+  };
+}
+var _sidebarButtons = [
+  makeSidebarButton('identity', true),
+  makeSidebarButton('contest', false),
+];
+var _configSidebarEl = {
+  querySelectorAll: function(sel){
+    return (sel === '.config-sidebar-item') ? _sidebarButtons : [];
+  }
+};
+
 var _els = {
   catmodal_identity: makeModalEl('catmodal_identity', 'none'),
   catmodal_contest:  makeModalEl('catmodal_contest', 'none'),
@@ -101,6 +134,7 @@ var _els = {
   catbody_contest:   makeCatBody('catbody_contest', _inputsContest),
   catbody_filters:   makeCatBody('catbody_filters', _inputsFilters),
   catbody_summary:   makeCatBody('catbody_summary', _inputsSummary),
+  configSidebar:     _configSidebarEl,
 };
 
 var document = {
@@ -130,6 +164,7 @@ def _make_ctx():
     ctx.eval(_CONFIRMDISCARD_SRC)
     ctx.eval(_CURRENTOPENCAT_SRC)
     ctx.eval(_OPENCAT_SRC)
+    ctx.eval(_CLOSECATPANEL_SRC)
     return ctx
 
 
@@ -332,3 +367,60 @@ def test_rouvrir_la_meme_categorie_puis_changer_avertit_bien():
     assert ctx.eval("_els.catmodal_identity.style.display") == 'block', (
         "le refus doit laisser identity ouverte (comme tout refus de "
         "changement de section avec modifications non enregistrées)")
+
+
+# ─── closeCategoryPanel() : clic à côté du popup, reste sur CONFIG ──────────
+# Retour F4GLD (11/08/2026, précision juste après le 1er déploiement) : « je
+# veux pas directement repartir dans logbook je veux juste que le popup
+# config se ferme! en restant sur l'onglet config » -- ferme sur place
+# (masque le catmodal_<cat> ouvert, désélectionne la sidebar), ne navigue
+# JAMAIS, et ne sauvegarde JAMAIS (règle F4GLD du 04/08/2026 déjà documentée
+# au-dessus de _catFormSnapshots).
+
+def test_close_ferme_la_categorie_ouverte_et_deselectionne_la_sidebar():
+    ctx = _make_ctx()
+    ctx.eval("openCategoryPopup('identity');")
+    ctx.eval("closeCategoryPanel();")
+    assert ctx.eval("_els.catmodal_identity.style.display") == 'none'
+    assert ctx.eval("_currentOpenCat()") is None
+    assert ctx.eval("_sidebarButtons[0].classList.contains('active')") is False, (
+        "l'entrée 'identity' de la sidebar doit être désélectionnée à la fermeture")
+
+
+def test_close_sans_categorie_ouverte_est_un_no_op():
+    ctx = _make_ctx()
+    ctx.eval("closeCategoryPanel();")
+    assert ctx.eval("_confirmCalls") == 0
+    assert ctx.eval("_currentOpenCat()") is None
+
+
+def test_close_avec_modifications_non_enregistrees_et_refus_laisse_ouvert():
+    """Même garde que le changement de section (_confirmDiscardCatChanges) --
+    un refus doit laisser le panneau ouvert, pas le fermer quand même."""
+    ctx = _make_ctx()
+    ctx.eval("openCategoryPopup('identity');")
+    ctx.eval("_inputsIdentity[0].value = 'F4MODIFIE';")
+    ctx.eval("_confirmResult = false;")
+    ctx.eval("closeCategoryPanel();")
+    assert ctx.eval("_confirmCalls") == 1
+    assert ctx.eval("_els.catmodal_identity.style.display") == 'block', (
+        "un refus doit laisser identity OUVERTE")
+    assert ctx.eval("_currentOpenCat()") == 'identity'
+
+
+def test_close_avec_modifications_non_enregistrees_et_acceptation_ferme():
+    ctx = _make_ctx()
+    ctx.eval("openCategoryPopup('identity');")
+    ctx.eval("_inputsIdentity[0].value = 'F4MODIFIE';")
+    ctx.eval("_confirmResult = true;")
+    ctx.eval("closeCategoryPanel();")
+    assert ctx.eval("_confirmCalls") == 1
+    assert ctx.eval("_els.catmodal_identity.style.display") == 'none'
+    assert ctx.eval("_currentOpenCat()") is None
+
+
+def test_close_ne_navigue_jamais_et_ne_sauvegarde_jamais():
+    """Vérification directe du texte source : closeCategoryPanel() ne doit
+    contenir ni window.location, ni un appel à saveConfig()."""
+    assert 'window.location' not in _CLOSECATPANEL_SRC
+    assert 'saveConfig(' not in _CLOSECATPANEL_SRC

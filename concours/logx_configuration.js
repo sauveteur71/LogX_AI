@@ -935,13 +935,20 @@ if(typeof ResizeObserver !== 'undefined'){
 // Toute autre zone -- nav, sidebar, panneau de catégorie, statusbar,
 // bannières, modale de révision, assistant flottant -- capte le clic sur
 // elle-même avant qu'il ne remonte, donc jamais confondue avec l'extérieur.
-// Revient au log exactement comme le bouton LOGGER (launchApp()) : même
-// sauvegarde préalable, même garde H2, pas de raccourci qui contourne la
-// validation existante.
+// PRÉCISION F4GLD (11/08/2026, juste après le 1er déploiement) : « je veux
+// pas directement repartir dans logbook je veux juste que le popup config
+// se ferme! en restant sur l'onglet config » -- launchApp() (qui navigue
+// vers logx_logbook.html) était donc le mauvais geste. closeCategoryPanel()
+// ferme uniquement le panneau de catégorie ouvert (masque catmodal_<cat>,
+// désélectionne la sidebar) et reste sur CONFIG -- ne sauvegarde JAMAIS
+// (règle F4GLD du 04/08/2026 déjà posée dans _catFormSnapshots ci-dessous :
+// « fermer ne sauvegarde jamais »), donc réutilise le même garde de
+// modifications non enregistrées que le changement de section
+// (_confirmDiscardCatChanges) plutôt que d'inventer un 2e comportement.
 document.body.addEventListener('click', function(e){
   const t = e.target;
   const isBackground = t === document.body || (t.classList && t.classList.contains('container'));
-  if(isBackground && document.getElementById('configSidebar')) launchApp();
+  if(isBackground && document.getElementById('configSidebar')) closeCategoryPanel();
 });
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
@@ -2738,6 +2745,25 @@ async function _confirmDiscardCatChanges(cat){
   if(!_catHasUnsavedChanges(cat)) return true;
   return await _confirmConfigBanner(T('Des modifications de cette section n\'ont pas été enregistrées. Fermer quand même et les perdre ?'), 'Fermer sans enregistrer', 'Annuler');
 }
+
+// Ferme le panneau de catégorie actuellement ouvert SANS naviguer ailleurs et
+// SANS sauvegarder (règle F4GLD du 04/08/2026 : fermer ne sauvegarde jamais)
+// -- appelé par le clic à côté du popup (voir plus haut). Aucune catégorie
+// ne redevient "active" ensuite : l'arborescence reste visible, prête à
+// rouvrir n'importe quelle section, mais aucune n'est présélectionnée.
+async function closeCategoryPanel(){
+  const cur = _currentOpenCat();
+  if(!cur) return;
+  if(!(await _confirmDiscardCatChanges(cur))) return;
+  const mo = document.getElementById('catmodal_' + cur);
+  if(mo) mo.style.display = 'none';
+  delete _catFormSnapshots[cur];
+  try {
+    const nav = document.getElementById('configSidebar');
+    if(nav) nav.querySelectorAll('.config-sidebar-item').forEach(b => b.classList.remove('active'));
+  } catch(e){}
+}
+
 async function openCategoryPopup(cat){
   // Avant de basculer : si la section actuellement ouverte a des
   // modifications non enregistrées, avertir -- que ce soit via un clic sur
