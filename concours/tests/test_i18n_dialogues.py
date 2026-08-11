@@ -37,7 +37,7 @@ LANGUES = ('en', 'de', 'es', 'it', 'pt', 'nl', 'pl')
 
 # Les fichiers dont les dialogues devaient être repris.
 FICHIERS = ('logx_logbook.js', 'logx_configuration.html',
-            'logx_focus.html', 'logx_panel.html')
+            'logx_propagation.html', 'logx_panel.html')
 
 
 def _lire(nom):
@@ -188,8 +188,10 @@ def test_le_repli_fonctionne_sans_le_moteur():
 
 def test_le_titre_de_focus_passe_par_le_helper():
     """document.title n'est pas un nœud : translateTitle() ne lit que le titre
-    INITIAL, celui-ci lui échappait."""
-    src = _lire('logx_focus.html')
+    INITIAL, celui-ci lui échappait. FOCUS BANDE a été fusionné dans PROPAG
+    (EV-7 phase 2, incrément B PR1, 2026-08-11) -- même ligne JS, portée
+    telle quelle dans logx_propagation.html."""
+    src = _lire('logx_propagation.html')
     assert "document.title = 'LogX AI — ' + (bande ? Tf('Focus {b} MHz'" in src
 
 
