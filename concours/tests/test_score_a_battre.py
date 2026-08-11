@@ -275,6 +275,23 @@ def test_import_adif_avec_score_manuel(tmp_path, monkeypatch):
     assert arch.best_for_contest('REF_160M')['best_points'] == 150
 
 
+def test_import_cabrillo_analyse_comme_adif_indique_le_bon_format(tmp_path, monkeypatch):
+    """Bug réel F4GLD (11/08/2026) : format 'adif' choisi (par défaut du
+    sélecteur) sur un fichier Cabrillo -- 0 QSO ADIF trouvé, mais l'erreur
+    doit orienter vers le vrai problème plutôt qu'un "aucun QSO" muet."""
+    monkeypatch.chdir(tmp_path)
+    r = arch.import_external_log(CABRILLO_SAMPLE, 'adif', 'REF_160M', CFG)
+    assert not r['ok']
+    assert 'ressemble a un Cabrillo' in r['error']
+
+
+def test_import_adif_analyse_comme_cabrillo_indique_le_bon_format(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    r = arch.import_external_log(ADIF_SAMPLE, 'cabrillo', 'REF_160M', CFG)
+    assert not r['ok']
+    assert 'ressemble a un ADIF' in r['error']
+
+
 def test_import_sans_concours_ni_detection_refuse(tmp_path, monkeypatch):
     """Aucun contest_id fourni ET rien à détecter dans le fichier (pas de
     ligne CONTEST:) -- doit échouer explicitement (needs_manual), jamais
