@@ -28,7 +28,8 @@ def test_lancer_chemin_vide():
 def test_lancer_ok_construit_la_bonne_commande():
     _reset()
     r = autostart.lancer({'path': 'C:\\WSJT-X\\wsjtx.exe', 'args': '--rig=1'},
-                         deja_lance_fn=lambda p: False, popen=FakePopen)
+                         deja_lance_fn=lambda p: False, popen=FakePopen,
+                         exists_fn=lambda p: True)
     assert r['ok'] and not r.get('skipped')
     assert FakePopen.calls[0]['args'] == ['C:\\WSJT-X\\wsjtx.exe', '--rig=1']
 
@@ -36,14 +37,16 @@ def test_lancer_ok_construit_la_bonne_commande():
 def test_lancer_args_liste_directement_acceptee():
     _reset()
     r = autostart.lancer({'path': '/usr/bin/foo', 'args': ['--a', '--b c']},
-                         deja_lance_fn=lambda p: False, popen=FakePopen)
+                         deja_lance_fn=lambda p: False, popen=FakePopen,
+                         exists_fn=lambda p: True)
     assert r['ok']
     assert FakePopen.calls[0]['args'] == ['/usr/bin/foo', '--a', '--b c']
 
 
 def test_lancer_deja_lance_ne_relance_pas():
     _reset()
-    r = autostart.lancer({'path': 'wsjtx.exe'}, deja_lance_fn=lambda p: True, popen=FakePopen)
+    r = autostart.lancer({'path': 'wsjtx.exe'}, deja_lance_fn=lambda p: True,
+                         popen=FakePopen, exists_fn=lambda p: True)
     assert r['ok'] and r['skipped']
     assert not FakePopen.calls   # AUCUN nouveau process
 
@@ -51,8 +54,34 @@ def test_lancer_deja_lance_ne_relance_pas():
 def test_lancer_echec_popen_ne_leve_pas():
     def _raise(args, **kw):
         raise OSError('introuvable')
-    r = autostart.lancer({'path': 'x.exe'}, deja_lance_fn=lambda p: False, popen=_raise)
+    r = autostart.lancer({'path': 'x.exe'}, deja_lance_fn=lambda p: False,
+                         popen=_raise, exists_fn=lambda p: True)
     assert not r['ok'] and 'introuvable' in r['error']
+
+
+def test_lancer_chemin_inexistant_refuse_sans_lancer():
+    """Coeur du correctif de sécurité : un chemin qui n'existe pas déjà sur
+    cette machine ne doit JAMAIS être lancé, même si args/name sont valides —
+    protection contre un autostart_programs injecté via POST /config/save."""
+    _reset()
+    r = autostart.lancer({'path': 'C:\\introuvable\\payload.exe'},
+                         deja_lance_fn=lambda p: False, popen=FakePopen,
+                         exists_fn=lambda p: False)
+    assert not r['ok']
+    assert 'anti-execution' in r['error'] or 'introuvable' in r['error']
+    assert not FakePopen.calls
+
+
+def test_lancer_chemin_unc_refuse_meme_si_exists_fn_dit_vrai():
+    """Un chemin UNC ne doit jamais passer, quelle que soit la réponse
+    d'exists_fn : os.path.isfile() peut renvoyer True pour un partage réseau
+    déjà monté, ce qui ne le rend pas local/de confiance pour autant."""
+    _reset()
+    r = autostart.lancer({'path': '\\\\attaquant\\partage\\payload.exe'},
+                         deja_lance_fn=lambda p: False, popen=FakePopen,
+                         exists_fn=lambda p: True)
+    assert not r['ok']
+    assert not FakePopen.calls
 
 
 def test_lancer_tous_ignore_les_entrees_desactivees():
@@ -61,7 +90,8 @@ def test_lancer_tous_ignore_les_entrees_desactivees():
         {'path': 'a.exe', 'enabled': True, 'name': 'A'},
         {'path': 'b.exe', 'enabled': False, 'name': 'B'},
     ]}
-    res = autostart.lancer_tous(cfg, deja_lance_fn=lambda p: False, popen=FakePopen)
+    res = autostart.lancer_tous(cfg, deja_lance_fn=lambda p: False,
+                                popen=FakePopen, exists_fn=lambda p: True)
     assert len(res) == 1 and res[0]['name'] == 'A'
     assert len(FakePopen.calls) == 1
 
@@ -77,7 +107,8 @@ def test_lancer_tous_une_entree_en_echec_n_empeche_pas_les_suivantes():
         {'path': '', 'name': 'Vide'},               # échoue (chemin vide)
         {'path': 'ok.exe', 'name': 'OK'},
     ]}
-    res = autostart.lancer_tous(cfg, deja_lance_fn=lambda p: False, popen=FakePopen)
+    res = autostart.lancer_tous(cfg, deja_lance_fn=lambda p: False,
+                                popen=FakePopen, exists_fn=lambda p: True)
     assert len(res) == 2
     assert not res[0]['ok']
     assert res[1]['ok']

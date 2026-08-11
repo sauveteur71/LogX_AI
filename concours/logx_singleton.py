@@ -330,8 +330,15 @@ def _fetch_signature(host, port, timeout, budget=_HTTP_BUDGET):
 
 
 def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5,
-          http_budget=_HTTP_BUDGET, extra_hosts=()):
+          http_budget=_HTTP_BUDGET, extra_hosts=(), bind_host=BIND_HOST):
     """Qui occupe le port ? Retourne {'state', 'version', 'detail'}.
+
+    `bind_host` -- adresse que le VRAI serveur va demander (voir
+    logx_serveur.py) : par défaut BIND_HOST ('0.0.0.0'), mais l'appelant peut
+    passer '127.0.0.1' quand l'accès réseau (LAN) est désactivé en CONFIG --
+    le premier test de la sonde (_bind_test) doit alors porter sur la MÊME
+    adresse que le futur bind, sinon il prédirait un conflit sur une
+    interface que le serveur n'ouvrira jamais.
 
     Deux tests dont AUCUN ne peut déclarer un port occupé à tort (un échec de
     l'un ou l'autre conclut toujours « libre ») : le bind, instantané et
@@ -372,7 +379,7 @@ def probe(port, host='127.0.0.1', connect_timeout=0.35, http_timeout=1.5,
     une vraie collision.
     """
     try:
-        libre, bind_err = _bind_test(port)
+        libre, bind_err = _bind_test(port, host=bind_host)
         if libre:
             if not _port_accepts(host, port, connect_timeout):
                 return {'state': FREE, 'version': None, 'detail': ''}

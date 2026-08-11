@@ -96,7 +96,7 @@ function renderBandStats(){
   const totScore = rows.reduce((s,[,v])=>s+v.pts*v.mults.size,0);
   body.innerHTML = rows.map(([b,s])=>{
     const sc = s.pts*s.mults.size;
-    return `<tr><td>${b}m</td><td>${s.qso}</td><td>${s.pts}</td><td>${s.mults.size}</td><td>${sc}</td></tr>`;
+    return `<tr><td>${escHtml(b)}m</td><td>${s.qso}</td><td>${s.pts}</td><td>${s.mults.size}</td><td>${sc}</td></tr>`;
   }).join('') + (rows.length?`<tr><td>TOTAL</td><td>${totQso}</td><td>${totPts}</td><td>—</td><td>${totScore}</td></tr>`:'')
     || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:18px">Aucun QSO — saisis un indicatif dans le panneau SAISIE et appuie sur Entrée 🎙</td></tr>';
 }
@@ -114,10 +114,10 @@ function renderHourStats(){
     if(!rows[h]) rows[h]={};
     rows[h][b] = (rows[h][b]||0)+1;
   });
-  head.innerHTML = '<tr><th>HEURE</th>'+allBands.map(b=>`<th>${b}m</th>`).join('')+'<th>TOTAL</th></tr>';
+  head.innerHTML = '<tr><th>HEURE</th>'+allBands.map(b=>`<th>${escHtml(b)}m</th>`).join('')+'<th>TOTAL</th></tr>';
   const sorted = Object.entries(rows).sort((a,b)=>a[0].localeCompare(b[0]));
   body.innerHTML = sorted.map(([h,bs])=>{
     const tot = Object.values(bs).reduce((a,c)=>a+c,0);
-    return `<tr><td>${h}</td>${allBands.map(b=>`<td>${bs[b]||0}</td>`).join('')}<td>${tot}</td></tr>`;
+    return `<tr><td>${escHtml(h)}</td>${allBands.map(b=>`<td>${bs[b]||0}</td>`).join('')}<td>${tot}</td></tr>`;
   }).join('') || '<tr><td colspan="99" style="text-align:center;color:var(--muted);padding:18px">Aucun QSO</td></tr>';
 }
