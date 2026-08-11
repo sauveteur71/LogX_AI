@@ -175,7 +175,7 @@ En haut de page, vous retrouvez :
 - le bouton **💾 SAUVEGARDER** : enregistrement immédiat et « permissif » — il n'exige rien, vous pouvez sauvegarder une configuration à moitié remplie et y revenir plus tard. Un message **✅ ENREGISTRÉ** s'affiche brièvement en confirmation ;
 - le bouton **🎚 EXPERT** / **🎚 DÉBUTANT** : en mode débutant, les champs avancés sont masqués pour alléger l'écran. À la première visite, si aucun indicatif n'est encore configuré, la page démarre automatiquement en mode débutant ;
 - le bouton de thème **☀️** / **🌙** (jour/nuit), synchronisé entre tous les onglets ouverts du logiciel ;
-- la barre de navigation vers les autres pages : **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**, avec le nom du concours actif rappelé à droite.
+- la barre de navigation vers les autres pages : **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 ZONES TRAVAILLÉES**, **📅 CALENDRIER**, **📡 WEBSDR**, avec le nom du concours actif rappelé à droite.
 
 Juste en dessous, la barre **MODE D'UTILISATION** conditionne toute la suite : **📋 LOGBOOK SIMPLE** (chasse DX, trafic courant, sans concours), **🏆 CONCOURS** (le mode par défaut), **📡 EXPÉDITION / PORTABLE** (pile-up, multi-poste) ou **🏛️ RADIOCLUB** (plusieurs postes, jusqu'à 40 opérateurs). Une note contextuelle explique les conséquences du mode choisi. Deux effets à connaître : passer en EXPÉDITION pré-coche la saisie simplifiée, et passer en LOGBOOK SIMPLE décoche toutes les bandes et tous les modes (vous repartez d'une page blanche à régler librement à l'étape FILTRES). En modes SIMPLE et EXPÉDITION, le choix d'un concours est facultatif.
 
@@ -889,14 +889,14 @@ Tout le reste du logiciel fonctionne à l'identique sans le moindre câble : sai
 
 ## 9. Cartes, propagation, chasse, EME et écoute à distance
 
-Ce chapitre couvre les six pages qui vous font sortir du logbook : voir où sont les stations à contacter, savoir quelles bandes sont ouvertes et vers où, repérer les stations en portable et les spots qui valent des points, préparer un contact par rebond lunaire, écouter votre propre signal depuis un récepteur distant, et planifier vos concours et chasses aux DXpéditions. Les six pages partagent la même barre d'onglets (**⚙ CONFIG**, **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 Cartes**, **📅 CALENDRIER**, **📡 WEBSDR**) et le même thème jour/nuit, mémorisé d'une visite à l'autre.
+Ce chapitre couvre les six pages qui vous font sortir du logbook : voir où sont les stations à contacter, savoir quelles bandes sont ouvertes et vers où, repérer les stations en portable et les spots qui valent des points, préparer un contact par rebond lunaire, écouter votre propre signal depuis un récepteur distant, et planifier vos concours et chasses aux DXpéditions. Les six pages partagent la même barre d'onglets (**⚙ CONFIG**, **📋 LOGBOOK**, **🗺️ CARTE IA**, **📶 PROPAG**, **🎯 CHASSE**, **🇫🇷 ZONES TRAVAILLÉES**, **📅 CALENDRIER**, **📡 WEBSDR**) et le même thème jour/nuit, mémorisé d'une visite à l'autre.
 
 Deux pages voisines à ne pas confondre : **📶 PROPAG** répond à « quelles bandes sont ouvertes, et vers où ? » — on la consulte de temps en temps ; **🎯 CHASSE** répond à « qui est-ce que je contacte maintenant ? » — on la travaille en continu. C'est pourquoi les cinq panneaux de cibles (stations POTA/SOTA/WWFF, châteaux WCA, need list du cluster) vivent sur CHASSE et non sur PROPAG.
 
 | Page | À quoi elle sert |
 |---|---|
 | **🗺️ CARTE IA** | Carte tactique du concours : stations classées par priorité, anneaux de distance (dont votre record DX réel), ligne grise, chat avec le coach IA |
-| **🇫🇷 Cartes** | Tableaux de chasse géographiques : départements français à « verdir » et pays DXCC travaillés, avec les stations qui peuvent vous donner ce qui manque |
+| **🇫🇷 ZONES TRAVAILLÉES** | Tableaux de chasse géographiques : départements français à « verdir » et pays DXCC travaillés, avec les stations qui peuvent vous donner ce qui manque |
 | **📶 PROPAG** | Salle de veille : soleil et ionosphère, ouvertures par région, conditions par bande, balises, tropo, météores, EME, qui entend votre signal (PSK/RBN) |
 | **🎯 CHASSE** | Les cibles du moment : stations POTA/SOTA/WWFF en direct, châteaux WCA annoncés, et la need list du cluster valorisée pour votre concours |
 | **📡 WEBSDR** | Annuaire de récepteurs distants pilotables au navigateur, pour écouter ailleurs qu'à la maison |
@@ -939,7 +939,7 @@ Le panneau de gauche donne accès aux boutons rapides **🧠 COACH**, **🎓 DÉ
 
 Toutes les 10 minutes, une veille silencieuse tourne en arrière-plan : elle ne vous dérange (bulle « 🤖 VEILLE AUTO », alerte sonore, titre d'onglet clignotant « 🚨 ALERTE DX ! ») que si quelque chose d'urgent apparaît. Vous recevez aussi les alertes « 📈 NOUVEAU MULT spotté », vos règles personnalisées « 🔔 », et les mentions du chat ON4KST (« 💬 ON4KST — X te mentionne »).
 
-### 9.2 🇫🇷 Cartes — départements français et pays DXCC
+### 9.2 🇫🇷 ZONES TRAVAILLÉES — départements français et pays DXCC
 
 Cette page transforme votre log en tableau de chasse géographique : verdir les 96 départements français, ou les pays DXCC du monde entier — et surtout savoir **qui peut vous donner ce qui manque, maintenant**.
 

@@ -34,7 +34,7 @@ PAGE_LABELS = {
     'logx_configuration.html': 'CONFIGURATION',
     'logx_logbook.html': 'LOGBOOK',
     'logx_chasse.html': 'CHASSE',
-    'logx_departements.html': 'CARTES',
+    'logx_departements.html': 'ZONES TRAVAILLÉES',
     'logx_calendrier.html': 'CALENDRIER',
     'logx_ft8.html': 'FT8',
     'logx_websdr.html': 'WEBSDR',
