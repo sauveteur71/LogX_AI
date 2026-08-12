@@ -186,23 +186,22 @@ def search_groups(query, limit=25):
     q_upper = query.upper()
     from logx_activation_db import strip_accents
     q_folded = strip_accents(query).lower()
-    with groups_db._lock:
-        items = groups_db._state['list']
-        if not items:
-            return []
-        by_code_prefix = [it for it in items if it['code'].startswith(q_upper)]
-        if len(by_code_prefix) >= limit:
-            return by_code_prefix[:limit]
+    items = groups_db.items()
+    if not items:
+        return []
+    by_code_prefix = [it for it in items if it['code'].startswith(q_upper)]
+    if len(by_code_prefix) >= limit:
+        return by_code_prefix[:limit]
 
-        def matches(it):
-            if q_folded in strip_accents(it.get('name', '')).lower():
-                return True
-            return any(q_folded in strip_accents(n).lower() for n in it.get('island_names', []))
+    def matches(it):
+        if q_folded in strip_accents(it.get('name', '')).lower():
+            return True
+        return any(q_folded in strip_accents(n).lower() for n in it.get('island_names', []))
 
-        by_name = [it for it in items if matches(it)]
-        seen = {it['code'] for it in by_code_prefix}
-        merged = by_code_prefix + [it for it in by_name if it['code'] not in seen]
-        return merged[:limit]
+    by_name = [it for it in items if matches(it)]
+    seen = {it['code'] for it in by_code_prefix}
+    merged = by_code_prefix + [it for it in by_name if it['code'] not in seen]
+    return merged[:limit]
 
 
 # ─── SPOTS EN DIRECT (dérivés des commentaires de spots cluster) ────────────

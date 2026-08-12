@@ -128,7 +128,7 @@ async function showValidation(){
   // fusionnent SOUS ceux-ci, avec les mêmes boutons Corriger/Supprimer.
   const aiSection =
     `<div class="shortcuts-row expert-only" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;gap:8px;align-items:center">`+
-    `<button id="aiAuditBtn" class="export-btn" style="color:var(--accent2);border-color:rgba(0,212,255,.4)" onclick="runAiAudit()">🤖 ${escHtml(trT('AUDIT IA APPROFONDI'))}</button>`+
+    `<button id="aiAuditBtn" class="export-btn" style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)" onclick="runAiAudit()">🤖 ${escHtml(trT('AUDIT IA APPROFONDI'))}</button>`+
     `<span style="color:var(--muted);font-size:12px">${escHtml(trT('l\'IA relit le log et repère ce que les règles ne voient pas'))}</span>`+
     `</div><div id="aiAuditResults"></div>`;
   if(!(d.findings||[]).length){
@@ -162,7 +162,9 @@ async function showValidation(){
 // les constats IA — MÊME format {level,msg,id} — avec les boutons Corriger/
 // Supprimer déjà câblés. Hors-ligne / sans clé : message clair, jamais d'erreur
 // brutale (le VÉRIFIER déterministe, lui, a déjà fait son travail au-dessus).
+let _aiAuditRunId = 0;
 async function runAiAudit(){
+  const myRunId = ++_aiAuditRunId;
   const res = document.getElementById('aiAuditResults');
   const btn = document.getElementById('aiAuditBtn');
   if(!res) return;
@@ -175,14 +177,17 @@ async function runAiAudit(){
     if(!r.ok || !j.id) throw new Error(j.error || ('HTTP '+r.status));
     id = j.id;
   }catch(e){
+    if(myRunId !== _aiAuditRunId) return;
     res.innerHTML = `<div class="shortcuts-row"><span style="color:var(--yellow)">🤖 ${escHtml(trT('Audit IA indisponible'))} — ${escHtml(e.message)}</span></div>`;
     if(btn) btn.disabled = false;
     return;
   }
   const poll = async () => {
+    if(myRunId !== _aiAuditRunId) return;
     let s;
     try{ const r = await fetch('/log/audit/state?id='+encodeURIComponent(id)); s = await r.json(); }
-    catch(e){ setTimeout(poll, 2500); return; }
+    catch(e){ if(myRunId === _aiAuditRunId) setTimeout(poll, 2500); return; }
+    if(myRunId !== _aiAuditRunId) return;
     if(s.status === 'running'){ setTimeout(poll, 1500); return; }
     if(btn) btn.disabled = false;
     if(s.status === 'done') renderAiFindings(s.findings || [], !!s.truncated);

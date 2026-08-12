@@ -474,13 +474,6 @@ class SstvDecodeur {
     this.onFinImage(this._mode);
   }
 
-  // Abandonne l'image en cours (bouton stop, changement de fréquence…).
-  annuler(){
-    this._etat = 'leader';
-    this._leaderEch = 0;
-    this._mode = null;
-  }
-
   // État courant sous forme sérialisable — utilisé par les tests et l'UI.
   resume(){
     return {

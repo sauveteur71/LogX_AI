@@ -637,7 +637,7 @@ def repondre_a(call):
         sock, peer = _liaison['sock'], _liaison['peer']
         wid = d.get('wsjtx_id') or _liaison['wsjtx_id']
         schema = d.get('schema') or _liaison['schema']
-    if not sock or not peer:
+    if not liaison_prete():
         return {'ok': False,
                 'error': "Aucun message recu de WSJT-X : verifie le serveur UDP "
                          "dans Reglages -> Rapports"}
@@ -655,7 +655,7 @@ def couper_emission(auto_seulement=False):
     with _liaison_lock:
         sock, peer = _liaison['sock'], _liaison['peer']
         wid, schema = _liaison['wsjtx_id'], _liaison['schema']
-    if not sock or not peer:
+    if not liaison_prete():
         return {'ok': False, 'error': 'Aucune liaison WSJT-X'}
     try:
         sock.sendto(construire_halt_tx(wid, auto_seulement, schema), peer)

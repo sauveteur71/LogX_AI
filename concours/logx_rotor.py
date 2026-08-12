@@ -29,6 +29,8 @@ import socket
 import threading
 import concurrent.futures as _cf
 
+from logx_utils import _rprt_ok
+
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 4533        # rotctld ; un serveur GS-232 TCP est souvent en 4001
 TIMEOUT_S = 3.0            # un rotor peut être lent à répondre
@@ -210,10 +212,6 @@ def _rotctld_command(host, port, cmd, expect_lines=1):
         # borné pour garantir un retour même si le thread reste coincé.
         fut = _EXECUTOR.submit(_do)
         return fut.result(timeout=TIMEOUT_S + 3)
-
-
-def _rprt_ok(lines):
-    return bool(lines) and lines[-1].replace(' ', '') == 'RPRT0'
 
 
 def _rotctld_get(host, port):

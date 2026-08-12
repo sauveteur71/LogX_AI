@@ -132,15 +132,18 @@ function _renderNetworkUpdatePath(d){
   if(!resEl) return;
   if(d.gateways && d.gateways.length){
     const ip = d.gateways[0];
-    resEl.innerHTML = 'passerelle trouvée : ' + ip
-      + `<button class="net-upd-gateway" onclick="startNetworkUpdate('gateway','${ip}')">mettre à jour via cette passerelle</button>`;
+    resEl.innerHTML = 'passerelle trouvée : ' + escHtml(ip)
+      + `<button class="net-upd-gateway" data-mode="gateway" data-ip="${escHtml(ip)}">mettre à jour via cette passerelle</button>`;
   } else if(d.peers && d.peers.length){
     const ip = d.peers[0];
-    resEl.innerHTML = 'aucune passerelle — SECOURS, pair vérifié trouvé : ' + ip
-      + `<button class="net-upd-peer" onclick="startNetworkUpdate('peer','${ip}')">mettre à jour via ce pair (secours, vérifié)</button>`;
+    resEl.innerHTML = 'aucune passerelle — SECOURS, pair vérifié trouvé : ' + escHtml(ip)
+      + `<button class="net-upd-peer" data-mode="peer" data-ip="${escHtml(ip)}">mettre à jour via ce pair (secours, vérifié)</button>`;
   } else {
     resEl.textContent = 'aucune passerelle ni pair disponible sur le réseau pour le moment.';
+    return;
   }
+  const btn = resEl.querySelector('button[data-mode]');
+  if(btn) btn.addEventListener('click', () => startNetworkUpdate(btn.dataset.mode, btn.dataset.ip));
 }
 
 async function startNetworkUpdate(mode, ip){

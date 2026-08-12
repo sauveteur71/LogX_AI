@@ -34,6 +34,7 @@ async function remoteCallLookup(call){
     if(d.locator){
       callDB[call] = callDB[call] || {};
       callDB[call].locator = d.locator;
+      if(document.getElementById('inputLocator').value) return;
       applyCallData({locator: d.locator}, null, null);
       // Correction du label source → HamQTH
       const hint = document.getElementById('locHint');
@@ -46,7 +47,6 @@ async function remoteCallLookup(call){
 // ─── CACHE CLUSTER ────────────────────────────────────────────────────────────
 // callsign → { locator, freq, band, time, spotter, source }
 let clusterCache = {};
-let clusterLastRefresh = 0;
 let callLookupTimer = null;
 
 async function refreshCluster(){
@@ -73,7 +73,6 @@ async function refreshCluster(){
       });
     });
     clusterCache = cache;
-    clusterLastRefresh = Date.now();
     // Même réponse /log/status : on en profite pour rafraîchir le badge de
     // vérification de version multi-op (voir updateVersionStatus()) sans
     // ajouter un second cycle de polling dédié.

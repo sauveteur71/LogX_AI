@@ -131,7 +131,7 @@ def test_ON_NE_REECRIT_JAMAIS_UN_NOM_INCONNU():
 def test_un_nom_vide_n_est_pas_un_satellite():
     for vide in ('', '   ', None):
         assert sat.valider(vide)['ok'] is False
-        assert sat.est_satellite({'sat_name': vide}) is False
+        assert sat.champs_adif({'sat_name': vide}) == {}
 
 
 # ─── La liste embarquée ──────────────────────────────────────────────────────

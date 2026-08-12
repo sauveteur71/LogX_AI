@@ -116,10 +116,10 @@ function refreshWeather(){
     const el = document.getElementById('weatherWidget');
     if(!el || !d || !d.ok){ if(el) el.style.display='none'; return; }
     el.style.display = '';
-    el.innerHTML = `${d.icon} ${d.temp}°C · 💨 ${d.wind}` +
-      (d.gust >= d.wind + 10 ? `/${d.gust}` : '') + ` km/h` +
-      (d.precip > 0 ? ` · 🌧️ ${d.precip}mm` : '') +
-      (d.warn ? ` <b style="color:var(--red)">${d.warn}</b>` : '');
+    el.innerHTML = `${escHtml(d.icon)} ${escHtml(d.temp)}°C · 💨 ${escHtml(d.wind)}` +
+      (d.gust >= d.wind + 10 ? `/${escHtml(d.gust)}` : '') + ` km/h` +
+      (d.precip > 0 ? ` · 🌧️ ${escHtml(d.precip)}mm` : '') +
+      (d.warn ? ` <b style="color:var(--red)">${escHtml(d.warn)}</b>` : '');
     el.style.color = d.warn ? 'var(--red)' : 'var(--muted)';
   }).catch(()=>{});
 }

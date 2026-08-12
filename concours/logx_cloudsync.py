@@ -71,11 +71,10 @@ import hashlib
 import hmac
 import json
 import os
-import re
 import threading
 import time
 import concurrent.futures as _cf
-from logx_utils import utcnow
+from logx_utils import utcnow, safe_filename, qso_key
 
 SYNC_PREFIX = 'logx_cloudsync_'
 # Tombstones de suppression : préfixe VOLONTAIREMENT hors du motif
@@ -125,7 +124,7 @@ _last_error_lock = threading.Lock()
 
 
 def _safe(s):
-    return re.sub(r'[^A-Za-z0-9_.-]', '_', str(s or ''))[:24]
+    return safe_filename(s, 24)
 
 
 def _canonical(data):
@@ -356,16 +355,7 @@ def _write_signed(path, data, secret):
 
 
 def _qso_key(q):
-    """Clé d'identité d'un QSO pour la déduplication de fusion : indicatif +
-    bande + mode + date + heure. Indépendante du réglage usage_mode (la dédup
-    de add_qso_to_log est désactivée en mode 'simple', on ne peut donc pas s'y
-    fier ici sous peine de duplication géométrique à chaque cycle de sync)."""
-    q = q or {}
-    return (str(q.get('call', '')).upper().strip(),
-            str(q.get('band', '')).strip(),
-            str(q.get('mode', '')).upper().strip(),
-            str(q.get('date', '')).strip(),
-            str(q.get('time', '')).strip())
+    return qso_key(q)
 
 
 # Le dossier cible est choisi par l'utilisateur et peut être un point de montage

@@ -61,7 +61,7 @@ import threading
 import time
 import concurrent.futures as _cf
 
-from logx_utils import utcnow
+from logx_utils import utcnow, qso_key
 
 try:
     import pymysql as _pymysql_mod
@@ -188,15 +188,7 @@ def test_connection(host, port, user, password, database):
 
 
 def _qso_key(q):
-    """Même clé d'identité que logx_cloudsync._qso_key — pour rester
-    cohérent si un jour un même log est synchronisé par les deux mécanismes
-    à la fois (pas un cas d'usage recommandé, mais pas dangereux non plus)."""
-    q = q or {}
-    return (str(q.get('call', '')).upper().strip(),
-            str(q.get('band', '')).strip(),
-            str(q.get('mode', '')).upper().strip(),
-            str(q.get('date', '')).strip(),
-            str(q.get('time', '')).strip())
+    return qso_key(q)
 
 
 def _load_stamp():

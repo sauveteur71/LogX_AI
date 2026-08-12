@@ -58,7 +58,7 @@ async function previewImportAdif(text){
     });
     const p = await res.json();
     if(!p.ok){
-      inner.innerHTML = `<div class="shortcuts-row"><span>❌ ${p.error || 'Fichier illisible'}</span></div>`;
+      inner.innerHTML = `<div class="shortcuts-row"><span>❌ ${escHtml(p.error || 'Fichier illisible')}</span></div>`;
       return;
     }
     _pendingImportText = text;

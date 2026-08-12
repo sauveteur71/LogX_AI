@@ -706,5 +706,5 @@ def exchange_wants(cdef):
     stype = str(((cdef or {}).get('scoring', {}) or {}).get('type', ''))
     return {
         'dept': 'dept' in ex or stype == 'dept_dxcc',
-        'locator': 'locator' in ex or stype in ('km_x_locators', 'distance_km'),
+        'locator': 'locator' in ex or stype in ('km_x_locators', 'km_x_large_locator_squares'),
     }

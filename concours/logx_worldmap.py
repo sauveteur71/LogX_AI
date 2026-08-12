@@ -14,6 +14,8 @@ import json
 import os
 import threading
 
+from logx_utils import _point_in_ring
+
 WORLD_GEOJSON_FILE = 'world_countries.geojson'
 WORLD_GEOJSON_URL = ('https://raw.githubusercontent.com/nvkelso/'
                       'natural-earth-vector/master/geojson/'
@@ -50,23 +52,6 @@ def load_world_geojson():
                 pass
             return data
     return ''
-
-
-# ─── POINT DANS POLYGONE (ray casting standard) ──────────────────────────────
-
-def _point_in_ring(lon, lat, ring):
-    inside = False
-    n = len(ring)
-    j = n - 1
-    for i in range(n):
-        xi, yi = ring[i][0], ring[i][1]
-        xj, yj = ring[j][0], ring[j][1]
-        if (yi > lat) != (yj > lat):
-            x_at_lat = (xj - xi) * (lat - yi) / (yj - yi) + xi
-            if lon < x_at_lat:
-                inside = not inside
-        j = i
-    return inside
 
 
 def _point_in_geometry(lon, lat, geometry):

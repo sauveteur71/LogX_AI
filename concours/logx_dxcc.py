@@ -179,15 +179,6 @@ CTY_URL = 'https://www.country-files.com/cty/cty.dat'
 CTY_MAX_AGE_DAYS = 30
 
 
-def _cty_age_days(path=None):
-    """Âge du fichier en jours, None s'il n'existe pas."""
-    import time
-    path = path or CTY_FILE
-    if not os.path.exists(path):
-        return None
-    return (time.time() - os.path.getmtime(path)) / 86400
-
-
 def _looks_valid_cty(content):
     """Garde-fou avant de remplacer la base : jamais un fichier corrompu
     ou une page d'erreur à la place de cty.dat."""
@@ -203,10 +194,10 @@ def update_cty_if_stale(max_age_days=CTY_MAX_AGE_DAYS, force=False):
     (AD1C le met à jour plusieurs fois par mois avant les gros concours).
     Validation stricte avant remplacement, écriture atomique, rechargement
     à chaud. Sans réseau : conserve silencieusement le fichier actuel."""
-    age = _cty_age_days()
+    from logx_utils import age_days, fetch_url
+    age = age_days(CTY_FILE)
     if not force and age is not None and age < max_age_days:
         return False
-    from logx_utils import fetch_url
     data = fetch_url(CTY_URL, timeout=30)
     if not _looks_valid_cty(data or ''):
         if age is not None:

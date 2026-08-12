@@ -22,12 +22,7 @@ import time
 
 import logx_storage as storage
 from logx_qsl import _parse_adif_records, _band_from_record
-
-# Indicatif valide : lettres/chiffres/'/' uniquement. Rejette au passage tout
-# record dont le champ CALL contiendrait du HTML (ex. <img src=x onerror=...>)
-# — défense en profondeur au point d'ingestion, en plus de l'échappement à
-# l'affichage. Couvre les préfixes/suffixes /P, /MM, F/DL1AA, etc.
-_CALL_RE = re.compile(r'^[A-Z0-9/]{2,15}$')
+from logx_utils import CALL_RE as _CALL_RE, clean_text as _clean_text
 
 # Synonymes de mode qu'un export ADIF d'un AUTRE logiciel peut porter sans
 # que ce soit un mode ADIF 3.1.7 officiel — "PH" (phonie) est la convention
@@ -56,15 +51,6 @@ _TAGS_MAPPES = {
 }
 
 
-def _clean_text(v):
-    """Nettoie un champ texte libre d'un ADIF externe : retire les caractères
-    de contrôle et les chevrons (< >) pour qu'aucun fragment HTML ne soit
-    stocké dans le log partagé, puis rogné à une longueur raisonnable."""
-    s = str(v or '')
-    s = ''.join(c for c in s if ord(c) >= 0x20 or c in '\t')
-    return s.replace('<', '').replace('>', '').strip()[:64]
-
-
 def _clean_date(v):
     """QSO_DATE -> 8 chiffres (AAAAMMJJ) ou '' si absent/malformé : évite les
     dates tronquées qui corrompaient ensuite l'export Cabrillo/ADIF."""
@@ -75,7 +61,7 @@ def _clean_date(v):
 def _adif_time(rec):
     """'HHMM' depuis TIME_ON (HHMMSS ou HHMM)."""
     t = (rec.get('TIME_ON') or '').strip()
-    return (t + '0000')[:4] if t else '0000'
+    return t.zfill(4)[:4] if t else '0000'
 
 
 def _dedup_key(qso):

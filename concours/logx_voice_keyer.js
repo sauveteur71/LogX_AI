@@ -109,6 +109,7 @@ function renderVoicePanel(){
     return `<div style="display:flex;gap:4px;margin:3px 0;flex:1 1 300px;box-sizing:border-box">
       <button class="macro-btn" style="flex:1;min-width:0;max-width:none;text-align:left;${has?'':'opacity:.5'}" onclick="voicePlay('${s.key}')" ${has?'':'disabled'}>▶ ${lbl}</button>
       <button class="macro-btn" style="flex:0 0 36px;min-width:0;max-width:none" onclick="voiceRecord('${s.key}')" id="rec_${s.key}" title="Enregistrer ${s.label}">⏺</button>
+      ${has?`<button class="macro-btn" style="flex:0 0 36px;min-width:0;max-width:none" onclick="voiceDelete('${s.key}')" title="Effacer ${s.label}">🗑</button>`:''}
     </div>`;
   }).join('');
 }
@@ -173,5 +174,15 @@ async function voicePlay(key){
     const res = await fetch('/voice/play', {method:'POST', headers:{'Content-Type':'application/json'},
                                             body: JSON.stringify({slot: key})}).then(r=>r.json());
     if(!res.ok) notify(trF('❌ {err}', {err: res.error || 'émission impossible'}));
+  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+}
+
+async function voiceDelete(key){
+  if(voiceSlots[key] === undefined) return;
+  try{
+    const res = await fetch('/voice/delete', {method:'POST', headers:{'Content-Type':'application/json'},
+                                              body: JSON.stringify({slot: key})}).then(r=>r.json());
+    if(res.ok) await voiceRefreshSlots();
+    else       notify(trF('❌ {err}', {err: res.error || 'suppression refusée'}));
   }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
 }

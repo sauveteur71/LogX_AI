@@ -33,9 +33,6 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
-.nav-links{display:flex;gap:8px;padding:8px 24px;background:var(--bg);border-bottom:1px solid var(--border)}
-.nav-link{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-decoration:none;padding:4px 10px;border-radius:4px;border:1px solid var(--border);transition:all .15s;letter-spacing:1px}
-.nav-link:hover,.nav-link.active{border-color:var(--accent2);color:var(--accent2)}
 
 .container{max-width:1200px;margin:0 auto;padding:24px;flex:1;overflow-y:auto;min-height:0;width:100%}
 
@@ -251,7 +248,15 @@ function jsAttrArg(v){ return esc(JSON.stringify(String(v==null?'':v))); }
 // puis esc() sur le résultat pour l'attribut HTML.
 function safeUrl(u){ const s=String(u||''); return /^https?:\/\//i.test(s) ? s : ''; }
 
+// Jeton PARTAGÉ entre loadYear()/loadExternal()/loadDxpeditions() : les trois
+// onglets écrivent dans les MÊMES éléments DOM (#calendarContent, #statusYear,
+// #lastUpdate, #contestCount) — sans lui, changer d'onglet pendant qu'un fetch
+// de l'ancien est en vol pouvait laisser sa réponse tardive écraser l'onglet
+// déjà sélectionné.
+let _calGen = 0;
+
 async function loadYear(){
+  const _gen = ++_calGen;
   currentTab = 'main';
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tabNext')?.classList.add('active');
@@ -260,6 +265,7 @@ async function loadYear(){
   try{
     const res = await fetch('/data/calendar');
     const data = await res.json();
+    if(_gen!==_calGen) return;
     allContests = data.contests || [];
 
     document.getElementById('statusYear').textContent = 'Prochains concours';
@@ -277,6 +283,7 @@ async function loadYear(){
 
     renderCalendar();
   }catch(e){
+    if(_gen!==_calGen) return;
     document.getElementById('calendarContent').innerHTML =
       `<div class="loading" style="color:var(--red)">❌ Erreur : serveur non disponible<br><small>Lance logx_serveur.py d'abord</small></div>`;
   }
@@ -368,7 +375,6 @@ function renderCalendar(){
       const d = c._date;
       const isToday = d && d.toDateString() === TODAY.toDateString();
       const isPastC = d && d < TODAY && !isToday;
-      const isUpcoming = d && d > TODAY;
       const rowClass = isToday ? 'today' : isPastC ? 'past' : 'upcoming';
       const cd = countdown(d);
       const dateShort = d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}` : '—';
@@ -507,6 +513,7 @@ function extNextDate(c){
 }
 
 async function loadExternal(){
+  const _gen = ++_calGen;
   currentTab = 'ext';
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tabExt')?.classList.add('active');
@@ -514,6 +521,7 @@ async function loadExternal(){
   try{
     const res = await fetch(`/data/external_contests?year=${new Date().getFullYear()}`);
     const data = await res.json();
+    if(_gen!==_calGen) return;
     extContests = data.contests || [];
     document.getElementById('statusYear').textContent = `WA7BNM — ${extContests.length} concours mondiaux`;
     document.getElementById('lastUpdate').textContent = data.updated
@@ -527,6 +535,7 @@ async function loadExternal(){
     }
     renderExternal();
   }catch(e){
+    if(_gen!==_calGen) return;
     document.getElementById('calendarContent').innerHTML =
       `<div class="loading" style="color:var(--red)">❌ ${e.message}</div>`;
   }
@@ -579,6 +588,7 @@ function renderExternal(){
 let dxExpeditions = [];   // onglet DXPEDITIONS (NG3K)
 
 async function loadDxpeditions(){
+  const _gen = ++_calGen;
   currentTab = 'dx';
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tabDx')?.classList.add('active');
@@ -586,6 +596,7 @@ async function loadDxpeditions(){
   try{
     const res = await fetch('/data/dxpeditions');
     const data = await res.json();
+    if(_gen!==_calGen) return;
     dxExpeditions = data.expeditions || [];
     document.getElementById('statusYear').textContent = `NG3K ADXO — ${dxExpeditions.length} expéditions annoncées`;
     document.getElementById('lastUpdate').textContent = 'Flux RSS ng3k.com (cache 1h)';
@@ -597,6 +608,7 @@ async function loadDxpeditions(){
     }
     renderDxpeditions();
   }catch(e){
+    if(_gen!==_calGen) return;
     document.getElementById('calendarContent').innerHTML =
       `<div class="loading" style="color:var(--red)">❌ ${e.message}</div>`;
   }

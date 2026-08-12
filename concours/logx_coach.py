@@ -247,7 +247,7 @@ def _hf_bands_for_hour(hour_utc):
     return ['14', '21', '28']               # plein jour
 
 
-def band_plan(cdef, clock, dxmaps=None, now=None, lang='fr'):
+def band_plan(cdef, dxmaps=None, now=None, lang='fr'):
     """Bandes recommandées MAINTENANT, pondérées par le barème du concours.
     Retourne [{band, weight, reason}] trié par intérêt décroissant."""
     now = now or utcnow()
@@ -314,7 +314,7 @@ def _deadline_lisible(log_deadline, fin_utc, aujourdhui=None):
     if d is None:
         return brut
     txt = '%s %d %s' % (_JOURS_FR[d.weekday()], d.day, _MOIS_FR[d.month - 1])
-    jours = (d - (aujourdhui or datetime.date.today())).days
+    jours = (d - (aujourdhui or utcnow().date())).days
     if jours > 1:
         txt += ', dans %d jours' % jours
     elif jours == 1:
@@ -530,6 +530,13 @@ def build_coach_prompt(cdef, clock, stats, plan, hints):
     """Contexte compact pour un conseil stratégique narratif via /proxy/ai."""
     lines = ["CONSEIL STRATÉGIQUE DEMANDÉ — voici l'état exact du concours :", ""]
     lines.append(f"Concours : {clock.get('contest_name') or clock.get('contest_id') or '?'}")
+    scoring = (cdef or {}).get('scoring', {}) or {}
+    bricks = resolve_scoring_bricks(scoring)
+    mult = bricks.get('multiplier')
+    mult_kind = mult.get('kind') if isinstance(mult, dict) else None
+    lines.append(f"Barème : scoring '{scoring.get('type', '?')}'"
+                 + (f", multiplicateur '{mult_kind}'" if mult_kind
+                    else ", aucun multiplicateur"))
     if clock.get('status') == 'en_cours':
         lines.append(f"Temps : {clock['elapsed_h']:.1f} h faites, "
                      f"{clock['remaining_h']:.1f} h restantes ({clock['pct_done']}%)")
@@ -634,7 +641,8 @@ def build_debrief(cfg, shared_log, now=None):
         'departments': None,
     }
     # Départements travaillés (concours REF à mult département)
-    if ((cdef.get('scoring', {}) or {}).get('type', '')) == 'dept_dxcc':
+    from logx_scoring import contest_geo_mode
+    if contest_geo_mode(contest_id) == 'dept_dxcc':
         try:
             from logx_departments import department_mult_count
             depts = department_mult_count(shared_log, scope_id)
@@ -696,8 +704,8 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
         stats['qtc_total'] = qtc_total(scope_id)
     # Multiplicateur département (concours REF « dept_dxcc ») : compté depuis
     # les échanges reçus (le département n'est pas dans l'indicatif métropolitain).
-    scoring_type = (cdef.get('scoring', {}) or {}).get('type', '')
-    if scoring_type == 'dept_dxcc':
+    from logx_scoring import contest_geo_mode
+    if contest_geo_mode(contest_id) == 'dept_dxcc':
         from logx_departments import department_mult_count
         depts = department_mult_count(shared_log, scope_id)
         stats['departments'] = len(depts)
@@ -706,7 +714,7 @@ def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=N
     if ex_mults:
         stats['exchange_mults'] = ex_mults['mults']
         stats['score_with_mults'] = ex_mults['score_est']
-    plan = band_plan(cdef, clock, dxmaps, now, lang)
+    plan = band_plan(cdef, dxmaps, now, lang)
     hints = build_hints(cdef, clock, stats, plan, lang)
     run_sp = run_sp_recommendation(clock, stats, mult_spots_count, lang)
     vhf_forecast = es_aurora_forecast(cdef, dxmaps, k_index, now, lang)
@@ -760,7 +768,7 @@ def _off_nmults(stats):
     return 0
 
 
-def _off_score(clock, stats, lang):
+def _off_score(stats, lang):
     line = t(lang, 'off_score', qso=stats.get('qso_total', 0), score=stats.get('score', 0))
     if stats.get('score_with_mults') is not None:
         line += t(lang, 'off_score_m', score_m=stats['score_with_mults'], nmults=_off_nmults(stats))
@@ -779,7 +787,7 @@ def _off_rate(stats, lang):
     return line
 
 
-def answer_text(state, topic, cdef=None, lang='fr'):
+def answer_text(state, topic, lang='fr'):
     """Réponse TEXTE déterministe (ZÉRO LLM) à un sujet du chat, pour le repli
     HORS-LIGNE : quand l'IA est injoignable (expédition sans internet), les
     boutons rapides du chat répondent quand même via l'état DÉJÀ calculé par
@@ -796,7 +804,7 @@ def answer_text(state, topic, cdef=None, lang='fr'):
         return t(lang, 'off_spots_na')            # nécessite le réseau : honnête
 
     if topic == 'score':
-        return '\n'.join([_off_clock(clock, lang), _off_score(clock, stats, lang),
+        return '\n'.join([_off_clock(clock, lang), _off_score(stats, lang),
                           _off_rate(stats, lang)])
 
     if topic in ('prop', 'openings'):
@@ -823,7 +831,7 @@ def answer_text(state, topic, cdef=None, lang='fr'):
 
     if topic == 'resume':
         hints = (state or {}).get('hints') or []
-        lines = [_off_clock(clock, lang), _off_score(clock, stats, lang), _off_rate(stats, lang)]
+        lines = [_off_clock(clock, lang), _off_score(stats, lang), _off_rate(stats, lang)]
         if hints:
             lines.append('💡 ' + (hints[0].get('text') or ''))
         return '\n'.join(x for x in lines if x)

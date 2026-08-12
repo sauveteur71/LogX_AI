@@ -40,6 +40,7 @@ def test_pas_de_maj_si_fichier_recent():
     On force l'horodatage à maintenant — sinon le test dépendait de la date
     du dernier téléchargement réel et cassait dès J+1."""
     import os
+    from logx_utils import age_days
     os.utime(dxcc.CTY_FILE if hasattr(dxcc, 'CTY_FILE') else 'cty.dat', None)
-    assert dxcc._cty_age_days() < 1
+    assert age_days(dxcc.CTY_FILE) < 1
     assert dxcc.update_cty_if_stale(max_age_days=30) is False

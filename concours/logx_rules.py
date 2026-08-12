@@ -8,7 +8,7 @@ import datetime
 import threading
 import time
 
-from logx_utils import CURRENT_YEAR, fetch_url
+from logx_utils import CURRENT_YEAR, fetch_url, utcnow
 from logx_definitions import CONTEST_DEFINITIONS, CONTEST_RULES_URLS
 
 # ─── FICHIER DE CACHE DES RÈGLEMENTS ─────────────────────────────────────────
@@ -226,7 +226,7 @@ def get_next_contest_date(date_rule):
     if date_rule == 'permanent':
         return "Permanent", CURRENT_YEAR
 
-    today = datetime.date.today()
+    today = utcnow().date()
 
     # Essayer cette année d'abord
     date_this_year = calc_contest_date(date_rule, CURRENT_YEAR)
@@ -293,22 +293,10 @@ def check_rules_update(contest_id):
                         plausible_years.append(yi)
         latest_year = max(plausible_years) if plausible_years else CURRENT_YEAR
 
-        # Chercher les nouvelles dates sur la page
-        date_patterns = []
-        # Dates françaises DD/MM/YYYY
-        dates_fr = re.findall(r'\d{1,2}/\d{1,2}/20[2-3]\d', content)
-        date_patterns.extend(dates_fr)
-
-        # Chercher mention du concours
-        contest_name = cdef['name']
-        contest_found = contest_name.lower()[:10] in content.lower()
-
         return {
             'contest_id': contest_id,
             'check_url': cdef['check_url'],
             'latest_year_found': latest_year,
-            'dates_found': date_patterns[:5],
-            'contest_mentioned': contest_found,
             'rules_url': cdef.get('rules_url', ''),
             'checked_at': datetime.datetime.now().isoformat(),
         }

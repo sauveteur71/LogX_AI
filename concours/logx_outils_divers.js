@@ -54,13 +54,12 @@ setInterval(updateQsoTimer, 1000);
 // L'état vit CÔTÉ SERVEUR : le band map, la barre de statut et toute page
 // ouverte doivent voir la même radio en émission. Le tenir dans le navigateur
 // ferait diverger deux écrans du même poste.
-let _so2rFocus = 1;
 
 async function so2rBasculer(radio){
   try{
     const res = await fetch('/so2r/focus', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(radio ? {radio} : {})}).then(r => r.json());
-    if(res.focus){ _so2rFocus = res.focus; so2rAfficher(res); }
+    if(res.focus){ so2rAfficher(res); }
     if(!res.ok) notify(trF('❌ SO2R : {err}', {err: res.error || 'échec'}));
     else notify(trF('🎚 Émission → radio {n}', {n: res.focus}));
   }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
@@ -79,7 +78,6 @@ function so2rAfficher(etat){
 async function so2rRafraichir(){
   try{
     const etat = await fetch('/so2r/state').then(r => r.json());
-    if(etat && etat.focus){ _so2rFocus = etat.focus; }
     so2rAfficher(etat);
   }catch(e){ /* serveur injoignable : on garde le dernier état connu */ }
 }

@@ -67,7 +67,6 @@ except ImportError:
 
 OMNIRIG_PROGID = 'OmniRig.OmniRigX'
 TIMEOUT_S = 3.0
-RIG_NUMS = (1, 2)
 
 # ── enum RigParamX (bitmask) — voir docstring de module pour la source ──────
 PM_RX = 2097152

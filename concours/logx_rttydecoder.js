@@ -136,7 +136,6 @@ class RttyDemodulator {
   }
 
   texte(){ return this._texte; }
-  reset(){ this._texte = ''; this._etatRx = 'repos'; this.etat.figs = false; }
 }
 
 // Décodage d'un signal complet — utilisé par les tests, qui synthétisent un

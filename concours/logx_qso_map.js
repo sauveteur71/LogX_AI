@@ -16,7 +16,6 @@
 
 // ─── CARTE QSO (Leaflet) ──────────────────────────────────────────────────────
 let qsoMap = null;
-let homeMarker = null;
 let mapLayers = [];   // markers + polylines dynamiques
 
 const BAND_COLORS = {
@@ -47,7 +46,7 @@ function initMap(){
   }).addTo(qsoMap);
   // Marqueur station home
   if(homeLL){
-    homeMarker = L.circleMarker([homeLL.lat, homeLL.lon],{
+    L.circleMarker([homeLL.lat, homeLL.lon],{
       radius:11, fillColor:'#FFD60A', color:'#000', weight:2,
       fillOpacity:1, zIndexOffset:1000,
     }).bindPopup(`<b>${escHtml(myCall)}</b><br>📍 ${escHtml(myLocator)}<br>Station HOME`).addTo(qsoMap);

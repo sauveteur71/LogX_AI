@@ -721,6 +721,8 @@
       if (c && c.ui_theme && localStorage.getItem('rc_theme') === null){
         localStorage.setItem('rc_theme', c.ui_theme);
         applyTheme();
+        const t = document.getElementById('themeToggle');
+        if (t) t.textContent = c.ui_theme === 'day' ? '🌙' : '☀️';
       }
     }).catch(function(){});
   }
@@ -828,6 +830,7 @@
   }
 
   // ── Dernier check règlements + noms des concours ───────────────────────────
+  let _rulesLoaded = false;
   async function refreshRules(){
     const el = document.getElementById('rcsbRules');
     try{
@@ -844,7 +847,12 @@
         el.textContent += rcTf(' · ⚠️ {n} alerte(s)', {n: d.alerts.length});
         el.style.color = 'var(--yellow,#FFD60A)';
       }
-    }catch(e){ el.textContent = 'règlements : serveur ?'; }
+      _rulesLoaded = true;
+    }catch(e){
+      // Un accroc réseau transitoire n'efface plus un statut déjà valide —
+      // même correctif que la grille WebSDR (chantier #8).
+      if (!_rulesLoaded) el.textContent = 'règlements : serveur ?';
+    }
   }
 
   async function loadContestNames(){

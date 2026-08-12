@@ -50,7 +50,10 @@ from logx_version import APP_VERSION
 browser_spots_cache = []      # liste de dicts {spotter, dx, freq, info, time}
 browser_spots_lock  = threading.Lock()
 browser_spots_ts    = 0       # timestamp dernier push
-connected_peers = set()
+# {ip: last_seen epoch} — purgé comme peer_versions (voir
+# _prune_stale_connected_peers) pour que 'peers' ne croisse pas sans fin.
+connected_peers = {}
+connected_peers_lock = threading.Lock()
 # ─── VERSIONS DES POSTES CONNECTÉS (multi-op / DXpédition) ───────────────────
 # {ip: {'version': str, 'last_seen': float epoch}} — alimenté à chaque poll
 # /log/list (paramètre ?ver=, la version que CE poste croit faire tourner,
@@ -109,6 +112,18 @@ def _prune_stale_peer_versions():
         for ip in [ip for ip, info in peer_versions.items()
                    if info.get('last_seen', 0) < cutoff]:
             del peer_versions[ip]
+
+
+def _prune_stale_connected_peers():
+    """Purge connected_peers des IP muettes depuis plus de PEER_VERSION_TTL
+    secondes (même fenêtre que _prune_stale_peer_versions) — sinon 'peers'
+    (exposé par /network/info, /log/list, /log/status) ne fait que croître
+    sur une session longue, y compris pour les postes qui pollent sans
+    ?ver= (donc absents de peer_versions mais présents ici)."""
+    cutoff = time.time() - PEER_VERSION_TTL
+    with connected_peers_lock:
+        for ip in [ip for ip, ts in connected_peers.items() if ts < cutoff]:
+            del connected_peers[ip]
 
 
 def _known_peer_ips():
@@ -268,9 +283,10 @@ def call_llm(cfg, system_prompt, messages, model=None, max_tokens=4096):
         if system_prompt:
             payload['systemInstruction'] = {'parts': [{'text': system_prompt}]}
         url = (f'https://generativelanguage.googleapis.com/v1beta/models/'
-               f'{model_id}:generateContent?key={api_key}')
+               f'{model_id}:generateContent')
         req = urllib.request.Request(url, data=json.dumps(payload).encode(),
-                                     headers={'Content-Type': 'application/json'}, method='POST')
+                                     headers={'Content-Type': 'application/json',
+                                              'x-goog-api-key': api_key}, method='POST')
         with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
             d = json.loads(resp.read())
         return (d.get('candidates', [{}])[0].get('content', {})
@@ -539,7 +555,6 @@ _coach_dxmaps_ts = 0
 _coach_dxmaps_lock = threading.Lock()
 
 def _refresh_coach_dxmaps_async():
-    global _coach_dxmaps_cache, _coach_dxmaps_ts
     if not _coach_dxmaps_lock.acquire(blocking=False):
         return
     def _run():
@@ -577,6 +592,10 @@ def _load_auth_token():
     try:
         with open(AUTH_TOKEN_FILE, 'w', encoding='utf-8') as f:
             f.write(tok)
+        try:
+            os.chmod(AUTH_TOKEN_FILE, 0o600)
+        except Exception:
+            pass
     except Exception:
         pass
     return tok
@@ -602,6 +621,10 @@ def _rotate_auth_token():
     try:
         with open(AUTH_TOKEN_FILE, 'w', encoding='utf-8') as f:
             f.write(AUTH_TOKEN)
+        try:
+            os.chmod(AUTH_TOKEN_FILE, 0o600)
+        except Exception:
+            pass
     except Exception:
         pass
     return AUTH_TOKEN
@@ -682,6 +705,15 @@ _LOGIN_ATTEMPT_WINDOW = 60.0  # secondes
 _login_attempts_lock = threading.Lock()
 _login_attempts = {}  # ip -> [timestamps des échecs récents]
 
+def _purge_stale_ips(store, now, window):
+    """Retire de `store` (ip -> liste de timestamps) les IP dont le dernier
+    timestamp date de plus de `window` secondes — boucle de purge partagée par
+    _login_rate_limited et _relay_rate_limited (verrou déjà tenu par
+    l'appelant), qui gardent chacune leur propre logique de vérification/
+    enregistrement (check-only vs check-et-record)."""
+    for other in [k for k, v in store.items() if not v or now - v[-1] >= window]:
+        del store[other]
+
 def _login_rate_limited(ip):
     """True si `ip` a déjà atteint la limite d'échecs récents — purge et
     lecture dans le MÊME verrou (jamais relâché entre les deux) pour éviter
@@ -692,9 +724,7 @@ def _login_rate_limited(ip):
     non bornée sur une exécution longue (expédition 15 jours)."""
     now = time.time()
     with _login_attempts_lock:
-        for other in [k for k, v in _login_attempts.items()
-                      if not v or now - v[-1] >= _LOGIN_ATTEMPT_WINDOW]:
-            del _login_attempts[other]
+        _purge_stale_ips(_login_attempts, now, _LOGIN_ATTEMPT_WINDOW)
         attempts = [t for t in _login_attempts.get(ip, ()) if now - t < _LOGIN_ATTEMPT_WINDOW]
         if attempts:
             _login_attempts[ip] = attempts
@@ -831,9 +861,7 @@ def _relay_rate_limited(ip):
     fois puis ne revient jamais laisserait son entrée en mémoire à vie."""
     now = time.time()
     with _relay_attempts_lock:
-        for other in [k for k, v in _relay_attempts.items()
-                      if not v or now - v[-1] >= _RELAY_ATTEMPT_WINDOW]:
-            del _relay_attempts[other]
+        _purge_stale_ips(_relay_attempts, now, _RELAY_ATTEMPT_WINDOW)
         attempts = [t for t in _relay_attempts.get(ip, ()) if now - t < _RELAY_ATTEMPT_WINDOW]
         if len(attempts) >= _RELAY_ATTEMPT_LIMIT:
             _relay_attempts[ip] = attempts
@@ -1140,6 +1168,14 @@ def _active_typing():
     with typing_lock:
         return [dict(v) for v in typing_state.values()
                 if now - v.get('ts', 0) <= TYPING_STALE_S]
+
+def _prune_typing_state():
+    """Retire de typing_state les entrées périmées (verrou déjà tenu par
+    l'appelant), même filtre TTL que _active_typing — sans quoi un poste
+    éteint sans dernier POST vide y laisserait son entrée à vie."""
+    now = time.time()
+    for op in [k for k, v in typing_state.items() if now - v.get('ts', 0) > TYPING_STALE_S]:
+        del typing_state[op]
 
 # ─── REFRESH DONNÉES ─────────────────────────────────────────────────────────
 # Chaque source réseau est isolée dans sa fonction et lancée EN PARALLÈLE via
@@ -1638,7 +1674,7 @@ def _interet_pounce(call, band, mode, grid, cfg_snap):
     return interet
 
 
-def _pounce_sur_decodage(calls, msg):
+def _pounce_sur_decodage(calls, _msg):
     """Un décodage vient d'arriver : faut-il appeler ?
 
     Sortie IMMÉDIATE si aucune session n'est armée — ce chemin est traversé à
@@ -1802,7 +1838,8 @@ def _activation_db_adapter(program):
                 'nearby': sota.nearby_summits, 'status': sota.summits_status}
     if program == 'POTA':
         import logx_pota as pota
-        return {'search': pota.parks_db.search, 'lookup': pota.parks_db.get,
+        return {'search': lambda q: pota.parks_db.search(q, name_keys=('name', 'location')),
+                'lookup': pota.parks_db.get,
                 'nearby': pota.parks_db.nearby, 'status': pota.parks_db.status}
     if program == 'WWFF':
         import logx_wwff as wwff
@@ -1954,6 +1991,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 _s.close()
             except:
                 local_ip = '127.0.0.1'
+            _prune_stale_connected_peers()
             self._json({
                 'local_ip': local_ip,
                 'port': PORT,
@@ -2027,7 +2065,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Log partagé — liste tous les QSO
         if path == '/log/list':
             client_ip = self.client_address[0]
-            connected_peers.add(client_ip)
+            with connected_peers_lock:
+                connected_peers[client_ip] = time.time()
+            _prune_stale_connected_peers()
             # Version demandée par le client (?v=N, voir logx_storage.log_version) :
             # si elle correspond à la version actuelle, RIEN n'a changé depuis son
             # dernier appel → réponse minuscule au lieu de retransmettre tout le
@@ -2220,6 +2260,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # autre IP DHCP) ne doit pas laisser un badge "versions
             # différentes" fantôme permanent — voir _prune_stale_peer_versions.
             _prune_stale_peer_versions()
+            _prune_stale_connected_peers()
             with peer_versions_lock:
                 peer_list = [
                     {'ip': ip, 'version': info.get('version', ''), 'last_seen': info.get('last_seen', 0)}
@@ -2342,11 +2383,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     results[label] = f"ERREUR port {port}: {e}"
 
             # ── 3. Variables d'env proxy ──────────────────────────────────────
+            # Booléen seulement (pas la valeur) : une URL de proxy peut embarquer
+            # des identifiants (http://user:pass@host), exposés en clair sinon à
+            # tout poste authentifié du LAN.
             results['env_proxy'] = {
-                'HTTP_PROXY':  os.environ.get('HTTP_PROXY','—'),
-                'HTTPS_PROXY': os.environ.get('HTTPS_PROXY','—'),
-                'http_proxy':  os.environ.get('http_proxy','—'),
-                'https_proxy': os.environ.get('https_proxy','—'),
+                'HTTP_PROXY':  'défini' if os.environ.get('HTTP_PROXY') else 'non défini',
+                'HTTPS_PROXY': 'défini' if os.environ.get('HTTPS_PROXY') else 'non défini',
+                'http_proxy':  'défini' if os.environ.get('http_proxy') else 'non défini',
+                'https_proxy': 'défini' if os.environ.get('https_proxy') else 'non défini',
             }
             self._json(results)
             return
@@ -2586,8 +2630,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log_copy = list(shared_log)
             state = coach.build_coach_state(cfg_snap, log_copy, None,
                                             mult_spots_count=None, k_index=k_index, lang=lang)
-            cdef = CONTEST_DEFINITIONS.get(cfg_snap.get('contest', ''), {})
-            text = coach.answer_text(state, topic, cdef, lang)
+            text = coach.answer_text(state, topic, lang)
             self._json({'ok': bool(text), 'topic': topic, 'text': text})
             return
 
@@ -2708,7 +2751,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with log_lock:
                 log_copy = list(shared_log)
             h = awards.history(call, log_copy)
-            h['new_one'] = awards.new_one(call, band, '', log_copy)
+            h['new_one'] = awards.new_one(call, band, log_copy)
             # « Pas confirmé LoTW » n'est PAS la même question que « jamais
             # contacté » : un pays travaillé dix fois mais jamais confirmé par
             # LoTW ne compte toujours pas pour le DXCC. Calculé au grain
@@ -4574,6 +4617,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # plein milieu d'un gros fichier (ex. logx_logbook.js).
             self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self._security_headers()
             self._cors()
             self.end_headers()
             self.wfile.write(body)
@@ -4788,6 +4832,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # logx_winshell.py). Hors Windows : message de repli, le champ reste
         # utilisable en saisie manuelle.
         if self.path == '/backup/pick_folder':
+            if _relay_rate_limited(self.client_address[0]):
+                self._json({'error': 'Trop de requêtes /backup/pick_folder — réessaie dans une minute'}, 429)
+                return
             try:
                 payload = json.loads(body) if body else {}
             except Exception:
@@ -4936,7 +4983,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == '/rules/save_definition':
             try:
                 payload = json.loads(body)
-                cid = str(payload.get('id', '')).strip().upper()
+                cid = re.sub(r'[^A-Z0-9_]', '', str(payload.get('id', '')).strip().upper())
                 definition = payload.get('definition')
                 if not cid or not isinstance(definition, dict):
                     self._json({'ok': False, 'error': "champs 'id' et 'definition' requis"}, 400)
@@ -6332,6 +6379,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                    "(le planning reste informatif, pas un verrou).")
                 with shifts_lock:
                     operator_shifts.append(entry)
+                    if len(operator_shifts) > 500:
+                        operator_shifts.pop(0)
                 save_shifts_to_disk()
                 res = {'ok': True, 'shift': entry}
                 if warning:
@@ -6367,15 +6416,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     chat_seq += 1
                     entry = {
                         'id':   chat_seq,
-                        'op':   msg.get('op', 'OP?'),
-                        'call': msg.get('call', ''),
+                        'op':   str(msg.get('op', 'OP?') or 'OP?')[:20],
+                        'call': str(msg.get('call', '') or '')[:20],
                         'time': now,
                         'text': str(msg.get('text', ''))[:500],
                     }
                     chat_messages.append(entry)
                     if len(chat_messages) > 200:
                         chat_messages.pop(0)
-                self._json({'ok': True, 'id': chat_seq})
+                    entry_id = entry['id']
+                self._json({'ok': True, 'id': entry_id})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
@@ -6398,6 +6448,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                             'text': str(msg.get('text', '') or '')[:20],
                             'ts': time.time(),
                         }
+                        _prune_typing_state()
                 self._json({'ok': True})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
@@ -6726,7 +6777,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 confirmes = 0
                 try:
                     import logx_qsl as qsl
-                    total_conf, confirmes = qsl.merge_confirmations(
+                    _, confirmes = qsl.merge_confirmations(
                         qsl.parse_confirmations(adif, source='lotw'))
                 except Exception:
                     pass
@@ -7189,11 +7240,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     gem_payload = {'contents': gem_contents}
                     if system_prompt:
                         gem_payload['systemInstruction'] = {'parts': [{'text': system_prompt}]}
-                    url = f'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={api_key}'
+                    url = f'https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent'
                     req = urllib.request.Request(
                         url,
                         data=json.dumps(gem_payload).encode(),
-                        headers={'Content-Type': 'application/json'},
+                        headers={'Content-Type': 'application/json',
+                                 'x-goog-api-key': api_key},
                         method='POST'
                     )
                     with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
@@ -7338,6 +7390,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if compressed:
             self.send_header('Content-Encoding', 'gzip')
         self.send_header('Content-Length', str(len(body_bytes) if body_bytes else 0))
+        self._security_headers()
         self._cors()
         self.end_headers()
         if body_bytes:
@@ -7520,6 +7573,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 last_beat = now
             time.sleep(0.2)
+
+    def _security_headers(self):
+        # Anti-clickjacking : aucune page LogX AI ne doit pouvoir être
+        # embarquée dans un <iframe> d'une origine tierce. SAMEORIGIN/'self'
+        # laissent passer les iframes internes au logiciel (même origine,
+        # voir test_lightning_iframe_sandbox.py pour l'iframe externe déjà
+        # sandboxée séparément).
+        self.send_header('X-Frame-Options', 'SAMEORIGIN')
+        self.send_header('Content-Security-Policy', "frame-ancestors 'self'")
 
     def _cors(self):
         # CORS restreint aux origines locales attendues (le logiciel est servi

@@ -20,7 +20,7 @@ Aucune écriture : lecture seule, appelable à tout moment.
 """
 import re
 
-from logx_utils import locator_to_latlon, haversine
+from logx_utils import locator_to_latlon, haversine, _LOCATOR_RE
 
 # Indicatif de BASE : préfixe 1-3 alphanum + un chiffre + suffixe lettres.
 _BASE_CALL_RE = re.compile(r'^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,5}[A-Z]$')
@@ -28,7 +28,6 @@ _BASE_CALL_RE = re.compile(r'^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,5}[A-Z]$')
 _PREFIX_RE = re.compile(r'^[A-Z0-9]{1,4}$')
 # Suffixe portable (/P /M /MM /AM /QRP /A /LH ou /chiffre(s)).
 _PORT_SUFFIX_RE = re.compile(r'^(P|M|MM|AM|QRP|A|LH|[0-9]{1,2})$')
-LOC_RE = re.compile(r'^[A-R]{2}[0-9]{2}([A-X]{2}([0-9]{2})?)?$')
 
 
 def _plausible_call(call):
@@ -184,7 +183,7 @@ def validate_log(qsos, contest_id='', cfg=None):
             if not loc:
                 _f(findings, 'erreur', 'locator_manquant',
                    f"{call} : locator absent — le QSO ne rapportera aucun km", q, i)
-            elif not LOC_RE.match(loc):
+            elif not _LOCATOR_RE.match(loc):
                 _f(findings, 'erreur', 'locator_invalide',
                    f"{call} : locator « {loc} » invalide", q, i)
             elif my_lat is not None:
