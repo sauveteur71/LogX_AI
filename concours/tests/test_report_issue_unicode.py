@@ -105,6 +105,7 @@ function alert(msg){ lastAlert = msg; }
 var promptReturn = '';
 function prompt(msg, def){ return promptReturn; }
 var _updState = { current: '1.2.3', repo: 'octo/repo' };
+var _fastVersion = null;
 function fetch(){ return Promise.resolve({ ok:false }); }
 """
 
