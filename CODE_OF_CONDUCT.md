@@ -36,7 +36,7 @@ Ce code de conduite s'applique à la fois au sein des espaces du projet ainsi qu
 
 ## Application
 
-Les cas de comportements abusifs, harcelants ou tout autre comportement inacceptable peuvent être signalés aux mainteneur·euse·s du projet en ouvrant un [ticket confidentiel sur GitHub](https://github.com/sauveteur71/radioaamateur-program-Contest/issues/new/choose) (préciser qu'il s'agit d'un signalement de conduite) ou par message privé au mainteneur principal via son profil GitHub ([@sauveteur71](https://github.com/sauveteur71)). Toutes les plaintes seront examinées et feront l'objet d'une enquête rapide et équitable.
+Les cas de comportements abusifs, harcelants ou tout autre comportement inacceptable peuvent être signalés aux mainteneur·euse·s du projet en ouvrant un [ticket confidentiel sur GitHub](https://github.com/sauveteur71/LogX_AI/issues/new/choose) (préciser qu'il s'agit d'un signalement de conduite) ou par message privé au mainteneur principal via son profil GitHub ([@sauveteur71](https://github.com/sauveteur71)). Toutes les plaintes seront examinées et feront l'objet d'une enquête rapide et équitable.
 
 Tou·te·s les dirigeant·e·s de la communauté sont tenu·e·s de respecter la vie privée et la sécurité des personnes ayant signalé un incident.
 
