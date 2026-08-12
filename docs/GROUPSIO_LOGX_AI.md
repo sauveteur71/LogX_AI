@@ -47,7 +47,7 @@ ci-dessous est prêt à copier-coller une fois le groupe créé.
 > souvent plus vite qu'un aller-retour ici. Pour un bug, le plus utile est
 > le message exact + ce que vous faisiez juste avant.
 >
-> Le dépôt de code (gratuit, GPLv3) : https://github.com/sauveteur71/radioaamateur-program-Contest
+> Le dépôt de code (gratuit, GPLv3) : https://github.com/sauveteur71/LogX_AI
 >
 > 73 et bon trafic !
 
@@ -74,7 +74,7 @@ ci-dessous est prêt à copier-coller une fois le groupe créé.
 > Import ADIF depuis N1MM+/Win-Test/DXLog/Log4OM en un clic si vous voulez
 > essayer sans perdre votre historique.
 >
-> - Dépôt / téléchargement : https://github.com/sauveteur71/radioaamateur-program-Contest
+> - Dépôt / téléchargement : https://github.com/sauveteur71/LogX_AI
 > - Wiki / guide utilisateur : https://github.com/sauveteur71/LogX_AI/wiki
 >
 > Questions, retours, comparatifs avec votre logger habituel — tout est

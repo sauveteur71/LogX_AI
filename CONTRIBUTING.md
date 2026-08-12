@@ -17,8 +17,8 @@ pilotage matériel (chacune est optionnelle : l'appli démarre sans, avec la
 fonctionnalité correspondante simplement désactivée).
 
 ```bash
-git clone https://github.com/sauveteur71/radioaamateur-program-Contest.git
-cd radioaamateur-program-Contest/concours
+git clone https://github.com/sauveteur71/LogX_AI.git
+cd LogX_AI/concours
 python -m venv .venv
 .venv\Scripts\activate   # ou source .venv/bin/activate sur macOS/Linux
 pip install -r requirements.txt

@@ -116,7 +116,7 @@ Travaux déjà commités (branche `fix/audit-securite-robustesse-perf` et main) 
 - Spots POTA en direct via `api.pota.app` ; annuaire WebSDR nettoyé des stations hors service.
 
 ### 4.7 Infra dépôt existante
-- **Dépôt** : `github.com/sauveteur71/radioaamateur-program-Contest` (88 commits, Python 52,7 % / HTML 30,1 % / JS 16,9 %). Cœur applicatif dans `concours/` (**118 fichiers suivis**).
+- **Dépôt** : `github.com/sauveteur71/LogX_AI` (88 commits, Python 52,7 % / HTML 30,1 % / JS 16,9 %). Cœur applicatif dans `concours/` (**118 fichiers suivis**).
 - **CI déjà en place** : `.github/workflows/check.yml` — sur push/PR touchant `concours/**` : `pytest`, `logx_validate.py`, `logx_eval.py --mock`.
 - **Docs suivies** : `docs/GUIDE_UTILISATEUR.md`, `docs/LogX_AI_Presentation.docx`. **Pas de README racine** (voir EV-6.4).
 - **Hygiène secrets déjà correcte** : `.gitignore` exclut `clef API.txt`, `config.json`, `logx.db`, `calldb.json`, tokens et états de sync (voir R1 corrigé).
@@ -414,4 +414,4 @@ ADIF (format d'échange QSO) · Cabrillo (soumission contest HF) · EDI/REG1TEST
 ---
 
 *Documents liés : `Plan_Bataille_RadioContest_AI.md` (phases 0-5, git-ignoré), `Analyse_QSODirector_Roadmap.md` (analyse concurrentielle, git-ignoré), `docs/GUIDE_UTILISATEUR.md` (suivi dans le dépôt), `LogX_AI_Ressources_Techniques.md` (ressources & specs, 21/07/2026).*
-*Base vérifiée : dépôt `github.com/sauveteur71/radioaamateur-program-Contest` @ 88 commits, branche `feat/aide-config-websdr-guide`.*
+*Base vérifiée : dépôt `github.com/sauveteur71/LogX_AI` @ 88 commits, branche `feat/aide-config-websdr-guide`.*

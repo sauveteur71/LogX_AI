@@ -998,7 +998,7 @@
   // ── Signaler un problème : Issue GitHub pré-remplie (version + plateforme) ─
   // Repo lu depuis _updState.repo (source unique = logx_update.GITHUB_REPO) ;
   // ce repli codé en dur ne sert qu'avant le tout premier /app/update_check.
-  const REPORT_REPO_FALLBACK = 'sauveteur71/radioaamateur-program-Contest';
+  const REPORT_REPO_FALLBACK = 'sauveteur71/LogX_AI';
   // Fichier du formulaire GitHub Issue Forms (.github/ISSUE_TEMPLATE/bug.yml).
   // Les GitHub Issue Forms (YAML) ne se pré-remplissent QUE via
   // ?template=<fichier>&<id_du_champ>=<valeur> : le format historique des
