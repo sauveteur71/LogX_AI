@@ -110,6 +110,7 @@ function alert(msg){ lastAlert = msg; }
 var promptReturn = '';
 function prompt(msg, def){ return promptReturn; }
 var _updState = { current: '0.9-beta2', repo: 'octo/repo' };
+var _fastVersion = null;
 function fetch(){ return Promise.resolve({ ok:false }); }
 """
 
@@ -204,6 +205,35 @@ def test_titre_labels_et_repo_restent_corrects_apres_fix():
     assert params.get('title') == '[Bug] Le bouton export ADIF ne répond plus.'
     assert params.get('labels') == 'bug'
     assert params.get('version') == 'v0.9-beta2'
+
+
+# ─── Repli _fastVersion : cas de course où /app/update_check n'a pas encore
+# répondu quand l'opérateur clique sur "signaler un problème" ──────────────
+
+def test_repli_fastversion_si_updstate_pas_encore_resolu():
+    """_updState reste à null tant que /app/update_check (fetch async) n'a
+    pas répondu. Avant ce fix, la version tombait directement sur
+    'inconnue' dans ce cas. _fastVersion (rempli par /network/info, une
+    sonde plus légère) doit servir de repli intermédiaire."""
+    block = _extract_report_block(_current_src())
+    ctx = _make_ctx(block)
+    ctx.eval("_updState = null; _fastVersion = '0.9-beta27';")
+    url = _run(ctx, 'Le bouton export ADIF ne répond plus.')
+    params = _query_params(url)
+
+    assert params.get('version') == 'v0.9-beta27'
+
+
+def test_repli_inconnue_si_ni_updstate_ni_fastversion():
+    """Aucune des deux sondes n'a encore répondu : repli final 'inconnue',
+    comportement historique conservé."""
+    block = _extract_report_block(_current_src())
+    ctx = _make_ctx(block)
+    ctx.eval("_updState = null; _fastVersion = null;")
+    url = _run(ctx, 'Le bouton export ADIF ne répond plus.')
+    params = _query_params(url)
+
+    assert params.get('version') == 'vinconnue'
 
 
 # ─── detectOsFormOption() : doit renvoyer une option EXACTE de bug.yml ─────

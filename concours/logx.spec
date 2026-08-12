@@ -34,8 +34,14 @@ for ref in ('contest_schema.json', 'cty.dat', 'france_departements.geojson',
 # dans l'exécutable distribué alors que tout fonctionne en mode développeur
 # (piège classique PyInstaller : les données hors .py/.html/.js du dépôt ne
 # sont jamais embarquées automatiquement).
-if os.path.isdir('voacap'):
-    _datas += Tree('voacap', prefix='voacap')
+# Tree() renvoie des entrées à 3 champs (dest, src, typecode) — le format
+# TOC déjà traité, PAS le format brut (src, dest) attendu par Analysis(
+# datas=...). Les mélanger dans _datas casse Analysis() avec "too many
+# values to unpack" (trouvé au 1er build après l'ajout de VOACAP, tag
+# v0.9-beta27 : succès local du dépôt masqué tant qu'aucun build release
+# n'avait tourné depuis). Le TOC de Tree() doit être combiné avec a.datas
+# (même format 3-champs, déjà traité) APRÈS Analysis(), pas avant.
+_voacap_tree = Tree('voacap', prefix='voacap') if os.path.isdir('voacap') else []
 
 # Modules importés paresseusement (dans des fonctions) que l'analyse statique
 # de PyInstaller peut manquer : on les déclare explicitement.
@@ -66,7 +72,7 @@ a = Analysis(
 pyz = PYZ(a.pure)
 
 exe = EXE(
-    pyz, a.scripts, a.binaries, a.datas, [],
+    pyz, a.scripts, a.binaries, a.datas + _voacap_tree, [],
     name='LogXAI',
     debug=False,
     strip=False,
