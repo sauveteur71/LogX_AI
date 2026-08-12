@@ -1878,10 +1878,17 @@ function toggleNudges(on){ try{ localStorage.setItem('rc_live_nudges', on?'1':'0
 // seul a la fois cote serveur, cf. verrou dans logx_voacap.py) -- jamais
 // utilise pour noter des dizaines de candidats, seulement pour approfondir
 // LE candidat que l'operateur a deja choisi de regarder de pres.
+// Jeton de génération : un clic VÉRIFIER VOACAP pendant qu'une vérification
+// précédente est encore en vol (déplacement de souris vers un autre spot
+// entretemps) ne doit jamais laisser la réponse TARDIVE de l'ancien spot
+// écraser le tableau déjà affiché du nouveau.
+let _voacapCheckGen = 0;
+
 async function checkVoacapForSpot(){
   const s=lastTooltipSpot;
   const box=document.getElementById('ttVoacap');
   if(!s||!box) return;
+  const _gen = ++_voacapCheckGen;
   const dx=s.locator||s.call;
   if(!dx){ box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">Ni locator ni indicatif</div>'; return; }
   box.innerHTML='<div style="font-size:11px;color:var(--muted);margin-top:6px">⏳ Calcul VOACAP…</div>';
@@ -1890,9 +1897,10 @@ async function checkVoacapForSpot(){
     const res=await fetch(`/data/voacap?dx=${encodeURIComponent(dx)}`);
     data=await res.json();
   }catch(e){
-    box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">❌ Serveur injoignable</div>';
+    if(_gen===_voacapCheckGen) box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">❌ Serveur injoignable</div>';
     return;
   }
+  if(_gen!==_voacapCheckGen) return;   // un clic plus récent a déjà démarré : cette réponse est périmée
   if(!data.ok){
     box.innerHTML=`<div style="color:var(--red);font-size:11px;margin-top:6px">❌ ${escMap(data.error||'Échec du calcul')}</div>`;
     return;

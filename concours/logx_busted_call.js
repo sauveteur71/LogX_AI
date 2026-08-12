@@ -35,13 +35,20 @@
 // en cours). Aucun réseau, aucune IA, aucun coût. Ce code existait déjà,
 // testé, avec son endpoint — sans un seul appelant côté client.
 let _bcPastille = null;      // {id, propose, restant} du QSO en cours de doute
+// Jeton de génération : un 2e QSO loggué avant que la vérification /call/near
+// du 1er n'ait répondu déclenche une 2e verifierIndicatifApres() — sans ce
+// garde, la réponse TARDIVE du 1er QSO (déjà dépassé) pouvait écraser la
+// pastille du 2e, proposant de corriger le mauvais QSO.
+let _bcGen = 0;
 
 async function verifierIndicatifApres(qso){
+  const _gen = ++_bcGen;
   try{
     if(!qso || !qso.call) return;
     const r = await fetch('/call/near?call=' + encodeURIComponent(qso.call));
     if(!r.ok) return;
     const m = (await r.json()).matches || [];
+    if(_gen!==_bcGen) return;   // un QSO plus récent a déjà déclenché sa propre vérification
     if(!m.length) return;   // near_matches rend [] si l'indicatif est CONNU
     // QUEL candidat mérite d'interrompre l'opérateur ? Premier essai : « un
     // indicatif que j'ai déjà travaillé ». Vérification en navigateur sur le

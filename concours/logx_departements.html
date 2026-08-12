@@ -248,11 +248,20 @@ function applyWorkedToWorldMap(){
   if(worldLayer) worldLayer.setStyle(worldStyle);
 }
 
+// Jeton PARTAGÉ entre loadProgress() (échelle France) et loadWorldProgress()
+// (échelle Monde/continent) : les deux écrivent dans les MÊMES éléments DOM
+// (#pCount/#pTotal/#pFill/#pMsg/#pDom) — sans lui, basculer d'échelle
+// pendant qu'un fetch de l'ancienne est en vol pouvait laisser sa réponse
+// tardive écraser l'affichage de la nouvelle échelle déjà sélectionnée.
+let _progressGen = 0;
+
 async function loadProgress(){
+  const _gen = ++_progressGen;
   try{
     const r = await fetch('/data/departments_worked');
     if(!r.ok) return;
     const d = await r.json();
+    if(_gen!==_progressGen) return;
     workedSet = new Set(d.worked||[]);
     document.getElementById('pCount').textContent = d.metro_done;
     document.getElementById('pTotal').textContent = `/ ${d.metro_total}`;
@@ -476,10 +485,12 @@ async function renderScale(){
 }
 
 async function loadWorldProgress(){
+  const _gen = ++_progressGen;
   try{
     const r = await fetch('/data/world_worked');
     if(!r.ok) return;
     worldWorkedData = await r.json();
+    if(_gen!==_progressGen) return;
     applyWorkedToWorldMap();
     const scope = scopeContinent();
     const vals = Object.values(worldWorkedData).filter(c => !scope || c.continent === scope);

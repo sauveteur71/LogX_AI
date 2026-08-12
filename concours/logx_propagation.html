@@ -827,10 +827,19 @@ async function loadOpenings(){
 // dix minutes. Le calcul est local (PyEphem), seul le TLE vient du réseau, et
 // il est mis en cache pour tenir une expédition sans Internet.
 let satChoisi = '';
+// Jeton de génération : loadSat() est appelée depuis plusieurs sites
+// (changement de satellite, satTrackStart/Stop, minuteur de suivi accéléré)
+// — sans garde, une réponse tardive pouvait afficher les passages d'un
+// satellite déjà quitté. Ne protège QUE l'affichage (sel/el) : l'état de
+// suivi (_satTrackActif) et le minuteur du finally ci-dessous restent
+// volontairement inconditionnels (constats SAT-6/SAT-TRACK-5/C4/C1 déjà
+// corrigés — ne pas les faire dépendre de ce garde).
+let _loadSatGen = 0;
 
 async function loadSat(){
   const el = document.getElementById('satBody');
   const sel = document.getElementById('satSel');
+  const _gen = ++_loadSatGen;
   try{
     const r = await fetch('/data/sat' + (satChoisi ? '?sat=' + encodeURIComponent(satChoisi) : ''));
     const d = await r.json();
@@ -909,6 +918,7 @@ async function loadSat(){
           · ${Math.round(p.duree_s/60)} min</span></div>`;
     }).join('');
 
+    if(_gen!==_loadSatGen) return;   // un appel plus récent (autre satellite) a déjà démarré
     el.innerHTML = ligneAge
       + `<div style="margin:4px 0 6px">🛰 <b>${esc(d.sat)}</b> ${visBadge}${
           d.doppler_hz != null ? ` · ${rcT('Doppler')} ${d.doppler_hz} Hz @ ${d.freq_mhz} MHz` : ''}</div>`
@@ -1302,11 +1312,17 @@ function locatorToLatLon(loc){
   async function rendreRegle(spots){
     const el = document.getElementById('regle');
     if(!bande){ el.innerHTML = ''; return; }
+    // Capturée AVANT le fetch : `bande` (globale) peut changer pendant l'await
+    // (clic sur une autre bande) — sans cette capture, la réglette rendue en
+    // fin de fonction utilisait la bande DÉSORMAIS active plutôt que celle
+    // pour laquelle /data/bande_segments a réellement répondu.
+    const bandeDemandee = bande;
     let plage = null;
     try{
-      const r = await fetch('/data/bande_segments?band=' + encodeURIComponent(bande));
+      const r = await fetch('/data/bande_segments?band=' + encodeURIComponent(bandeDemandee));
       if(r.ok) plage = await r.json();
     }catch(e){ /* réglette absente ≠ page cassée */ }
+    if(bande !== bandeDemandee) return;   // bande changée entretemps : rendu obsolète
     if(!plage || !plage.segments || !plage.segments.length){ el.innerHTML = ''; return; }
     const lo = plage.lo, hi = plage.hi, largeur = hi - lo;
     if(!(largeur > 0)){ el.innerHTML = ''; return; }

@@ -137,15 +137,23 @@ function appliquerRetourFiltre(f){
   ligne.style.display = '';
 }
 
+// Jeton de génération : refreshBandMap() est appelée depuis plusieurs sites
+// (changement de bande, saisie fréquence, bandmapNoter()...) — sans garde,
+// une réponse réseau arrivée dans le désordre (2 appels rapprochés) pouvait
+// afficher les spots d'une bande déjà quittée.
+let _bandmapGen = 0;
+
 async function refreshBandMap(){
   const list = document.getElementById('bandmapList');
   if(!list) return;
+  const _gen = ++_bandmapGen;
   const bandEl = document.getElementById('bandmapBand');
   if(bandEl) bandEl.textContent = (currentBand || '—') + ' MHz';
   try{
     const r = await fetch('/data/spots_ranked');
     if(!r.ok) return;
     const d = await r.json();
+    if(_gen!==_bandmapGen) return;   // un appel plus récent a déjà démarré
     appliquerRetourFiltre(d.filtre);
     // Deuxième source : ce que l'opérateur a entendu LUI-MÊME en balayant.
     // Le S&P fait facilement la moitié des QSO d'un mono-opérateur, et une
@@ -155,6 +163,7 @@ async function refreshBandMap(){
       const rl = await fetch('/bandmap/local');
       if(rl.ok) locaux = (await rl.json()).spots || [];
     }catch(e){ /* le band map cluster reste utilisable sans les spots locaux */ }
+    if(_gen!==_bandmapGen) return;
     const rng = _BM_RANGE[String(currentBand)];
     const inBand = s => {
       if(!s.freq) return false;
