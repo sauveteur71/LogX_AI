@@ -71,7 +71,7 @@ def where_heard(my_call, timeout=9):
     my_call = (my_call or '').upper().strip()
     if not my_call:
         return {'ok': False, 'error': 'Indicatif station non défini'}
-    base = my_call.split('/')[0]
+    base = my_call.split('/')[0].replace('\r', ' ').replace('\n', ' ')
 
     with _lock:
         if (_cache['data'] and _cache['call'] == my_call

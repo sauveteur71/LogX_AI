@@ -83,7 +83,6 @@ async function exportEDI(){
   // Dates du concours
   const TDATE_START = (ediCfg.contest_start_date||'20260704').replace(/-/g,'');
   const TDATE_END   = (ediCfg.contest_end_date  ||'20260705').replace(/-/g,'');
-  const totalScore  = qsoLog.reduce((s,q)=>s+(q.points||0),0);
 
   // Le format vient du RÈGLEMENT du concours (voir formatDepot) et non plus
   // d'une liste d'identifiants tenue à la main, qui en oubliait dix-sept.

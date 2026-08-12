@@ -159,14 +159,11 @@ def main():
                 raw = f.read()
             if args.mock:
                 kwargs['url'] = 'mock://file'
-            elif raw[:5] == b'%PDF-':
+            else:
                 # Passer par le pipeline complet en écrivant l'URL fictive ?
                 # Non : donner le texte extrait (le PDF natif nécessite une URL) —
                 # sauf provider anthropic où on veut le PDF natif : analyze_rules
                 # accepte les bytes via _download_bytes seulement. On extrait.
-                text, _ = extract_document_text(raw, path)
-                kwargs['rules_text'] = text
-            else:
                 text, _ = extract_document_text(raw, path)
                 kwargs['rules_text'] = text
         else:

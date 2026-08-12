@@ -9,33 +9,9 @@ import time
 import socket
 import threading
 import concurrent.futures as _cf
+import urllib.parse
 
 from logx_utils import MODES_NUMERIQUES, fetch_url, is_digital_mode, locator_to_latlon, utcnow, as_naive_utc
-
-# ─── CORRESPONDANCE BANDES → CLUSTERS ────────────────────────────────────────
-CLUSTER_MAP = {
-    '144': [
-        'http://cluster.f5len.org/index.php?what=144',
-        'http://www.dxsummit.fi/api/v1/spots?include=VHF&limit=50',
-    ],
-    '432': [
-        'http://cluster.f5len.org/index.php?what=432',
-        'http://www.dxsummit.fi/api/v1/spots?include=432MHz&limit=50',
-    ],
-    '50':  ['http://cluster.f5len.org/index.php?what=50'],
-    '1296':['http://cluster.f5len.org/index.php?what=1296'],
-    'HF':  [
-        'http://www.dxsummit.fi/api/v1/spots?limit=100',
-        'http://dxwatch.com:8010/dxsd1/dxsd1.php?f=0',
-    ],
-}
-
-PROPAGATION_SOURCES = {
-    'Troposphérique':  'http://tropo.f5len.org/forecasts-for-europe/',
-    'Sporadique-E':    'http://www.dxmaps.com/spots/map.php',
-    'F2 (ionosphérique)': 'https://www.bandconditions.com/',
-    'NOAA K-index':    'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json',
-}
 
 # ─── FETCH CLUSTERS ──────────────────────────────────────────────────────────
 # ─── CACHE SPOTS GLOBAL (accessible par /log/status) ─────────────────────────
@@ -1002,6 +978,8 @@ def fetch_hamspirit_vhf(band_mhz=144, filter_digital=True):
 def fetch_dxmaps_spots_vhf(filter_digital=True):
     """DXMaps : spots VHF avec locators extraits de la carte de propagation."""
     spots = []
+    if filter_digital:
+        return spots
     try:
         # API JSON non officielle DXMaps (spots bruts avec QRA locator)
         content = fetch_url('https://www.dxmaps.com/spots/mapg.php?Lan=E&Frec=144&ML=M&Map=EU&noimage=1', timeout=10)
@@ -1282,12 +1260,12 @@ def fetch_3830_scores(contest_id, callsign):
         return None
 
 # ─── MODULE 5 : HAMQTH (Lookup indicatif inconnu) ───────────────────────────
-def lookup_hamqth(callsign, session_id=None):
+def lookup_hamqth(callsign):
     try:
         # HamQTH API libre (sans clé pour lookup basique). Timeout court : cet
         # appel est déclenché à CHAQUE frappe d'indicatif dans le logbook
         # (/calldb/lookup) — un budget "confort" de 8s s'y perçoit comme un gel.
-        url = f'https://www.hamqth.com/dxlite.php?q={callsign}'
+        url = f'https://www.hamqth.com/dxlite.php?q={urllib.parse.quote(callsign, safe="")}'
         content = fetch_url(url, timeout=4)
         if not content: return None
         # Parser XML simple

@@ -57,7 +57,7 @@ def validate_ref(program, ref):
     return bool(re.match(spec['ref_re'], normalize_ref(ref)))
 
 
-def activation_state(shared_log, program, my_ref, now=None):
+def activation_state(shared_log, program, my_ref):
     """Avancement d'une activation : total QSO, uniques, P2P, validité, par
     bande/mode, QSO restants pour valider."""
     program = (program or '').upper()

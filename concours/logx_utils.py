@@ -6,9 +6,12 @@ import urllib.error
 import urllib.parse
 import json
 import math
+import os
 import re
 import datetime
 import ssl as _ssl
+import tempfile
+import time
 import concurrent.futures as _cf
 import threading as _threading
 
@@ -470,5 +473,64 @@ def cardinal(deg):
     dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO']
     return dirs[round(deg/22.5) % 16]
 
+def _point_in_ring(lon, lat, ring):
+    """Ray casting classique."""
+    inside = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i][0], ring[i][1]
+        xj, yj = ring[j][0], ring[j][1]
+        if ((yi > lat) != (yj > lat)) and \
+                (lon < (xj - xi) * (lat - yi) / ((yj - yi) or 1e-12) + xi):
+            inside = not inside
+        j = i
+    return inside
+
 def is_digital_mode(text):
     return any(m in text.upper() for m in MODES_NUMERIQUES)
+
+CALL_RE = re.compile(r'^[A-Z0-9/]{2,15}$')
+
+def _spot_call_freq(sp):
+    if isinstance(sp, dict):
+        c = str(sp.get('dx') or sp.get('call') or '')
+        freq = sp.get('freq', '')
+    else:
+        c = str(sp[0]) if sp else ''
+        freq = sp[1] if len(sp) > 1 else ''
+    return c, freq
+
+def clean_text(v, maxlen=64):
+    s = str(v or '')
+    s = ''.join(c for c in s if ord(c) >= 0x20 or c in '\t')
+    return s.replace('<', '').replace('>', '').strip()[:maxlen]
+
+def safe_filename(s, maxlen=40):
+    return re.sub(r'[^A-Za-z0-9_.-]', '_', str(s or ''))[:maxlen]
+
+def _rprt_ok(lines):
+    return bool(lines) and lines[-1].replace(' ', '') in ('RPRT0',)
+
+def qso_key(q):
+    """Clé d'identité d'un QSO pour la déduplication de fusion : indicatif +
+    bande + mode + date + heure. Indépendante du réglage usage_mode (la dédup
+    de add_qso_to_log est désactivée en mode 'simple', on ne peut donc pas s'y
+    fier ici sous peine de duplication géométrique à chaque cycle de sync)."""
+    q = q or {}
+    return (str(q.get('call', '')).upper().strip(),
+            str(q.get('band', '')).strip(),
+            str(q.get('mode', '')).upper().strip(),
+            str(q.get('date', '')).strip(),
+            str(q.get('time', '')).strip())
+
+def age_days(path):
+    if not os.path.exists(path):
+        return None
+    return (time.time() - os.path.getmtime(path)) / 86400
+
+def atomic_write(path, content):
+    target_dir = os.path.dirname(os.path.abspath(path)) or '.'
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + '.', suffix='.tmp', dir=target_dir)
+    with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
+        f.write(content)
+    os.replace(tmp, path)

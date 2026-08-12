@@ -27,7 +27,6 @@ dangereuse. Le chiffre mesuré figure dans le test.
 """
 import os
 import threading
-import time
 
 LOTW_URL = 'https://lotw.arrl.org/lotw-user-activity.csv'
 LOTW_FILE = 'lotw_users.csv'
@@ -40,12 +39,6 @@ MAX_AGE_DAYS = 7
 _users = {}          # INDICATIF -> 'AAAA-MM-JJ' (dernier upload)
 _loaded = False
 _lock = threading.Lock()
-
-
-def _age_days(path=LOTW_FILE):
-    if not os.path.exists(path):
-        return None
-    return (time.time() - os.path.getmtime(path)) / 86400
 
 
 def _looks_valid(content):
@@ -153,7 +146,8 @@ def update_if_stale(max_age_days=MAX_AGE_DAYS, force=False):
     """Retélécharge la liste si le cache a plus de N jours. Retourne True si
     le fichier a été remplacé. Ne lève jamais : sans réseau, on garde ce
     qu'on a."""
-    age = _age_days()
+    from logx_utils import age_days
+    age = age_days(LOTW_FILE)
     if not force and age is not None and age < max_age_days:
         return False
     try:

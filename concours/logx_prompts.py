@@ -674,8 +674,6 @@ def build_terrain_context(logs, spots_by_band, cfg):
     alert_dx = int(cfg.get('alert_dx_km', 1200))
     spotter_ok = int(cfg.get('spotter_reliable_km', 600))
 
-    my_lat, my_lon = locator_to_latlon(loc)
-
     lines = [f"=== DONNÉES TERRAIN EN TEMPS RÉEL — {contest} ===\n"]
 
     # ── LOG EDI/ADIF distant ──────────────────────────────────────────────────

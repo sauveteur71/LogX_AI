@@ -48,13 +48,7 @@
 // enabled:false.
 let rigState = {enabled:false, mode:'', freq_khz:0};
 
-function refreshRig(){
-  return fetch('/rig/state').then(r=>r.ok?r.json():null).then(applyRigState).catch(()=>{});
-}
-
-// Extrait de refreshRig() pour être réutilisable depuis refreshHardware()
-// (poll groupé rig+amp+wsjtx+rotor en 1 requête, voir plus bas) — refreshRig()
-// elle-même reste utilisable telle quelle pour un rafraîchissement ponctuel.
+// Appelée depuis refreshHardware() (poll groupé rig+amp+wsjtx+rotor en 1 requête, voir plus bas).
 function applyRigState(d){
     const panel = document.getElementById('rigPanel');
     const freqBtn = document.getElementById('freqRigBtn');
@@ -135,6 +129,7 @@ function applyAmpState(d){
     const swrEl = document.getElementById('ampSwr');
     const faultEl = document.getElementById('ampFault');
     const btn = document.getElementById('ampOperateBtn');
+    const clearFaultBtn = document.getElementById('ampClearFaultBtn');
     if(d.ok){
       ampState.operate = !!d.operate;
       powerEl.textContent = (d.power_w != null) ? `${Math.round(d.power_w)} W`
@@ -146,6 +141,7 @@ function applyAmpState(d){
       const faultTxt = d.alarm_label || d.warning_label || d.fault_label
                       || (d.fault_code ? `Défaut ${d.fault_code}` : '');
       faultEl.textContent = faultTxt ? `⚠ ${faultTxt}` : '';
+      if(clearFaultBtn) clearFaultBtn.style.display = faultTxt ? '' : 'none';
       if(dot){ dot.classList.add('on'); dot.title = 'Amplificateur connecté'; dot.setAttribute('aria-label', 'Amplificateur connecté'); }
       if(btn){
         btn.textContent = ampState.operate ? 'OPERATE' : 'STANDBY';
@@ -156,6 +152,7 @@ function applyAmpState(d){
       powerEl.textContent = 'ampli injoignable';
       swrEl.textContent = '';
       faultEl.textContent = '';
+      if(clearFaultBtn) clearFaultBtn.style.display = 'none';
       if(dot){ dot.classList.remove('on'); dot.title = 'Amplificateur injoignable'; dot.setAttribute('aria-label', 'Amplificateur injoignable'); }
     }
 }
@@ -166,14 +163,15 @@ function toggleAmpOperate(){
     body: JSON.stringify({on: target})}).then(()=>refreshAmp()).catch(()=>{});
 }
 
+function ampClearFault(){
+  fetch('/amp/clear_fault', {method:'POST', headers:{'Content-Type':'application/json'},
+    body:'{}'}).then(()=>refreshAmp()).catch(()=>{});
+}
+
 // ─── ROTOR (rotctld) ─────────────────────────────────────────────────────────
 // Sonde l'état pour savoir si le pilotage est actif (affiche le bouton
 // « pointer » sous la boussole) ; le pointage réel se fait à la demande.
 let rotorState = {enabled:false};
-function refreshRotor(){
-  return fetch('/rotor/state').then(r=>r.ok?r.json():null).then(applyRotorState)
-    .catch(()=>{ rotorState.enabled = false; });
-}
 function applyRotorState(d){
   rotorState.enabled = !!(d && d.enabled);
 }
@@ -205,9 +203,6 @@ function horlogeHtml(h){
 }
 
 let _wsjtxState = {enabled:false};
-function refreshWsjtx(){
-  return fetch('/wsjtx/state').then(r=>r.ok?r.json():null).then(applyWsjtxState).catch(()=>{});
-}
 // Alerte « DXCC/département manquant » façon GridTracker (voir d.missing,
 // calculé côté serveur par logx_awards.spotted_new_ones sur les décodages
 // FT8/FT4 récents) — notifiée UNE SEULE fois par indicatif/type via ce Set,
@@ -235,7 +230,7 @@ function toggleTtsLog(){
   else { try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){} }
 }
 try{ syncTtsLogBtn(); }catch(e){}
-// Extrait de refreshWsjtx() — voir applyRigState() plus haut pour le pourquoi.
+// Appelée depuis refreshHardware() — voir applyRigState() plus haut pour le pourquoi.
 function applyWsjtxState(d){
     const el = document.getElementById('wsjtxWidget');
     _wsjtxState.enabled = !!(d && d.enabled);
@@ -499,8 +494,9 @@ function appliquerSuiviCarres(carres){
 // cadence + le rotor à 15s fixe, non adaptatif) : jusqu'à 4 connexions HTTP
 // par cycle pour de petits payloads, un coût non négligeable si un antivirus
 // (Web Shield ou équivalent) inspecte chaque connexion locale. /hardware/state
-// les groupe en 1 requête ; refreshRig/Amp/Wsjtx/Rotor restent disponibles
-// individuellement (ex. toggleAmpOperate rafraîchit juste l'ampli après un clic).
+// les groupe en 1 requête ; applyRigState/AmpState/WsjtxState/RotorState restent
+// appelables individuellement (ex. toggleAmpOperate rafraîchit juste l'ampli
+// via refreshAmp() après un clic).
 function refreshHardware(){
   return fetch('/hardware/state').then(r=>r.ok?r.json():null).then(d=>{
     if(!d) return;

@@ -138,12 +138,7 @@ body.sans-concours .compass-pts{display:none}
 .setup-loc-row{display:flex;gap:6px;align-items:center}
 .setup-loc-row input{flex:1}
 
-/* IMPORT BTN */
-.import-btn{font-family:var(--font-mono);font-size:12px;padding:6px 12px;border-radius:5px;border:1px solid rgba(255,214,10,.4);background:var(--bg3);color:var(--yellow);cursor:pointer;transition:all .15s}
-.import-btn:hover{border-color:var(--yellow)}
-
 /* CAP (bearing) dans la table */
-.td-cap{color:#7090C0;font-size:14px;white-space:nowrap}
 
 /* Callbook (pays/historique) + boussole côte à côte plutôt qu'empilés sur
    toute la largeur : deux blocs pleine-largeur qui forçaient un scroll
@@ -236,7 +231,6 @@ body.sans-concours .compass-pts{display:none}
 
 /* FORM DE SAISIE — zone prioritaire, jamais rognée */
 .saisie-form{padding:8px 18px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
-.op-select{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:0}
 .op-btn{font-family:var(--font-mono);font-size:16px;padding:7px 16px;border-radius:6px;border:1px solid #2A3060;background:var(--bg3);color:#8A94C8;cursor:pointer;transition:all .15s;letter-spacing:1px;font-weight:600}
 .op-btn.active{border-color:var(--accent);color:#180400;background:var(--accent);font-weight:700;transform:scale(1.06);box-shadow:0 3px 12px rgba(var(--accent-rgb),.4);position:relative;z-index:1}
 .op-btn.active::before{content:'\2713\00a0'}
@@ -252,7 +246,6 @@ body.sans-concours .compass-pts{display:none}
 .field-input.field-readonly{background:var(--bg2)!important;color:var(--muted)!important;cursor:not-allowed;opacity:.75}
 
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 
 /* RS FIELD */
 .rs-field{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--yellow);font-family:var(--font-mono);font-size:26px;padding:6px 12px;outline:none;width:100%;text-align:center;font-weight:700}
@@ -461,14 +454,10 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .ac-item:hover,.ac-item.selected{background:var(--bg3)}
 .ac-item:last-child{border-bottom:none}
 .ac-call{color:var(--green);font-size:19px;font-weight:900;min-width:110px;letter-spacing:1px}
-.ac-dept{color:var(--yellow);font-size:14px;font-weight:700;min-width:60px}
-.ac-dept-name{color:var(--text);font-size:14px;flex:1}
-.ac-loc{color:var(--accent2);font-size:14px;font-weight:800;letter-spacing:1px}
-.ac-match{background:var(--accent2);color:var(--bg2);border-radius:3px;padding:0 2px}
 .ac-item.dupe-item{background:rgba(255,45,85,.05)}
 .ac-item.dupe-item:hover,.ac-item.dupe-item.selected{background:rgba(255,45,85,.12)}
 .field-wrap{position:relative}
-.edit-overlay{position:fixed;inset:0;background:rgba(7,8,15,.92);display:flex;align-items:center;justify-content:center;z-index:500;display:none}
+.edit-overlay{position:fixed;inset:0;background:rgba(7,8,15,.92);align-items:center;justify-content:center;z-index:500;display:none}
 .edit-overlay.show{display:flex}
 .edit-box{background:var(--bg2);border:2px solid var(--accent2);border-radius:14px;padding:24px;width:520px;box-shadow:0 0 40px rgba(var(--accent-rgb),.2)}
 .edit-title{font-family:var(--font-display);font-size:17px;font-weight:900;color:var(--accent2);letter-spacing:.2px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
@@ -647,8 +636,6 @@ body.day-mode .dxcc-badge{background:rgba(0,96,160,.06);border-color:rgba(0,96,1
 .app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:6px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
-.app-nav .nav-spacer{flex:1}
-.app-nav .nav-info{font-family:var(--font-mono);font-size:13px;color:var(--muted);padding:0 16px;display:flex;align-items:center;gap:10px}
 /* ─── PANNEAU TAUX + STATS BANDE ─── */
 .rate-overlay{position:fixed;inset:0;background:rgba(7,8,15,.88);z-index:600;display:none;align-items:center;justify-content:center}
 .rate-overlay.show{display:flex}
@@ -673,11 +660,8 @@ body.day-mode .band-stats-table td:first-child{color:var(--accent2)}
 body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 /* ─── CHAT MULTI-OP ─── */
 .chat-panel{position:fixed;bottom:0;right:18px;width:300px;background:var(--bg2);border:1px solid var(--accent2);border-bottom:none;border-radius:8px 8px 0 0;font-family:var(--font-mono);z-index:500;box-shadow:0 -4px 20px rgba(0,0,0,.5)}
-.chat-header{display:flex;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,#0a2a3a,#0D1828);color:var(--accent2);font-size:13px;letter-spacing:1px;cursor:pointer;border-radius:8px 8px 0 0;user-select:none}
 .chat-toggle{margin-left:auto;transition:transform .2s}
 .chat-panel.open .chat-toggle{transform:rotate(180deg)}
-.chat-dot{width:11px;height:11px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);animation:chatblink 1s infinite}
-@keyframes chatblink{0%,100%{opacity:1}50%{opacity:.15}}
 .chat-body{display:none;height:300px;overflow-y:auto;padding:8px;background:var(--bg)}
 .chat-input-row{display:none;padding:8px;gap:6px;background:var(--bg2);border-top:1px solid var(--border)}
 .chat-panel.open .chat-body,.chat-panel.open .chat-input-row{display:flex}
@@ -1656,6 +1640,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <span class="rig-freq" id="ampPower">— W</span>
           <span class="rig-mode" id="ampSwr">SWR —</span>
           <span class="rig-mode" id="ampFault" style="color:var(--red)"></span>
+          <button class="rig-stop" id="ampClearFaultBtn" onclick="ampClearFault()" title="Acquitter le défaut ampli" style="display:none">Acquitter le défaut</button>
           <button class="rig-stop" id="ampOperateBtn" onclick="toggleAmpOperate()" title="Basculer standby/operate">STANDBY</button>
         </div>
       </div>
@@ -1904,7 +1889,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     </div>
 
     <div class="log-table-wrap" id="logTableWrap">
-      <table>
+      <table class="log-table">
         <thead>
           <tr>
             <th>#</th>

@@ -33,7 +33,7 @@ def server(monkeypatch):
     # tout le process — sans repli à vide, l'ordre d'exécution des autres
     # tests (déjà passés par le même endpoint) polluerait les assertions ici.
     monkeypatch.setattr(httpmod, 'peer_versions', {})
-    monkeypatch.setattr(httpmod, 'connected_peers', set())
+    monkeypatch.setattr(httpmod, 'connected_peers', {})
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), httpmod.Handler)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)

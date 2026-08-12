@@ -2255,12 +2255,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     const el = document.getElementById(id);
     if(el) el.addEventListener('input',()=>{ el.dataset.manual='1'; });
   });
-  // Afficher concours actif dans la nav
-  try{
-    const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
-    const el = document.getElementById('navContest');
-    if(el && cfg.contest) el.textContent = cfg.contest.replace(/_/g,' ');
-  }catch(e){}
   refreshProfileSelect();
 });
 
@@ -2381,7 +2375,7 @@ async function selectContest(id, _skipConfirm) {
     document.getElementById('contest_end_date').value   = dates.endDate;
     document.getElementById('contest_end_utc').value    = dates.endTime;
     state.datesAutoFor = id; // l'assistant sait que ces dates sont pour CE concours
-    if(banner) banner.innerHTML = `<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> <strong>${id}</strong> — Début : <strong>${dates.startDate}</strong> · Fin : <strong>${dates.endDate} ${dates.endTime} UTC</strong> — <span style="color:var(--muted)">Modifie manuellement si besoin</span>`;
+    if(banner) banner.innerHTML = `<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> <strong>${escC(id)}</strong> — Début : <strong>${dates.startDate}</strong> · Fin : <strong>${dates.endDate} ${dates.endTime} UTC</strong> — <span style="color:var(--muted)">Modifie manuellement si besoin</span>`;
   } else {
     // Ne pas laisser traîner les dates d'un AUTRE concours dans les champs
     if(state.datesAutoFor && state.datesAutoFor !== id){
@@ -2390,7 +2384,7 @@ async function selectContest(id, _skipConfirm) {
       document.getElementById('contest_end_utc').value    = '';
     }
     state.datesAutoFor = null;
-    if(banner) banner.innerHTML = `<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Dates pour <strong>${id}</strong> non calculables automatiquement — saisis-les manuellement.`;
+    if(banner) banner.innerHTML = `<svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Dates pour <strong>${escC(id)}</strong> non calculables automatiquement — saisis-les manuellement.`;
   }
   // Auto-remplir l'URL de soumission du log depuis le règlement (si connue,
   // via SERVER_CONTEST_RULES/mergeServerContests → local.log_submit) — même
@@ -5695,7 +5689,7 @@ async function loadLanUrls(){
     const d = await (await fetch('/data/lan_url')).json();
     if(d.urls && d.urls.length){
       el.innerHTML = d.urls.map(u =>
-        `<div><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="14" x2="4" y2="11"/><line x1="8" y1="14" x2="8" y2="8"/><line x1="12" y1="14" x2="12" y2="5"/><line x1="16" y1="14" x2="16" y2="2"/></svg> <a href="${u}" target="_blank" style="color:var(--accent2);text-decoration:none">${u}</a></div>`).join('');
+        `<div><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="14" x2="4" y2="11"/><line x1="8" y1="14" x2="8" y2="8"/><line x1="12" y1="14" x2="12" y2="5"/><line x1="16" y1="14" x2="16" y2="2"/></svg> <a href="${escC(safeUrl(u))}" target="_blank" style="color:var(--accent2);text-decoration:none">${u}</a></div>`).join('');
     } else {
       el.textContent = 'Adresse réseau introuvable — sur le téléphone : http://<IP-du-PC>:' + (d.port||8080) + '/logx_logbook.html';
     }
@@ -6365,7 +6359,7 @@ function openReviewModal(p){
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
       <button class="btn btn-launch" style="padding:11px 24px" onclick="saveReviewedDefinition()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> J'AI RELU — ENREGISTRER LE CONCOURS</button>
       <button class="btn btn-secondary" style="padding:11px 18px" onclick="document.getElementById('reviewModal').style.display='none'"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Annuler</button>
-      ${p.source_url ? `<a class="btn btn-secondary" style="padding:11px 18px;text-decoration:none" href="${p.source_url}" target="_blank"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M4.5 2.5h6l3 3v10h-9z"/><polyline points="10.5,2.5 10.5,5.5 13.5,5.5"/><line x1="6.5" y1="9.5" x2="11.5" y2="9.5"/><line x1="6.5" y1="12" x2="11.5" y2="12"/></svg> Ouvrir le règlement</a>` : ''}
+      ${p.source_url ? `<a class="btn btn-secondary" style="padding:11px 18px;text-decoration:none" href="${escC(safeUrl(p.source_url))}" target="_blank"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><path d="M4.5 2.5h6l3 3v10h-9z"/><polyline points="10.5,2.5 10.5,5.5 13.5,5.5"/><line x1="6.5" y1="9.5" x2="11.5" y2="9.5"/><line x1="6.5" y1="12" x2="11.5" y2="12"/></svg> Ouvrir le règlement</a>` : ''}
     </div>
     <div id="reviewSaveStatus" style="margin-top:10px;font-family:var(--font-mono);font-size:13px"></div>`;
   document.getElementById('reviewModal').style.display = 'block';

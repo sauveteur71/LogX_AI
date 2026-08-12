@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    LogX AI — Recherche plein-texte dans les pages (demande F4GLD 07/08/2026 :
    « je cherche sstv, je ne sais pas où c'est dans le logiciel »).
-   Injecte une icône loupe dans la nav (avant .nav-spacer) qui ouvre un panneau
+   Injecte une icône loupe dans la nav (en fin de liste) qui ouvre un panneau
    de résultats interrogeant GET /search?q=... (voir logx_search.py).
    Un clic sur un résultat ouvre la page ciblée avec ?rcq=<terme> ; CE MÊME
    script, chargé sur cette page ensuite, retrouve le premier passage
@@ -79,9 +79,7 @@
       '<div class="nav-search-results" id="navSearchResults">' +
       '<div class="nav-search-hint">' + esc(rcT('Tapez au moins 2 caractères')) + '</div></div></div>';
 
-    const spacer = nav.querySelector('.nav-spacer');
-    if (spacer) nav.insertBefore(wrap, spacer);
-    else nav.appendChild(wrap);
+    nav.appendChild(wrap);
 
     const btn = wrap.querySelector('#navSearchBtn');
     const panel = wrap.querySelector('#navSearchPanel');

@@ -91,10 +91,6 @@ def build_score_snapshot(shared_log, cfg, contest_id=None):
             'mults': mults, 'per_band': per_band}
 
 
-ADIF_MODE_CAT = {'CW': 'CW', 'SSB': 'PH', 'USB': 'PH', 'LSB': 'PH', 'FM': 'PH',
-                 'FT8': 'DG', 'FT4': 'DG', 'RTTY': 'DG'}
-
-
 def build_n1mm_xml(snapshot, cfg, klass='SO'):
     """XML « dynamic score » compatible contestonlinescore.com (format N1MM+)."""
     cfg = cfg or {}

@@ -21,9 +21,10 @@ affichée enverrait l'opérateur sur une fréquence vide, ce qui est pire que de
 ne rien afficher. Les spots expirés disparaissent d'eux-mêmes.
 """
 import json
-import os
 import threading
 import time
+
+from logx_storage import save_json_atomic
 
 FICHIER = 'bandmap_local.json'
 
@@ -70,18 +71,7 @@ def _charger_si_besoin():
 
 
 def _sauver_locked():
-    """Écriture atomique : un band map à moitié écrit au moment d'une coupure
-    serait relu comme un JSON invalide, donc perdu en entier."""
-    tmp = _chemin() + '.tmp'
-    try:
-        with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump(_spots, f, ensure_ascii=False)
-        os.replace(tmp, _chemin())
-    except OSError:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
+    save_json_atomic(_chemin(), _spots, compact=True)
 
 
 def _purger_locked(maintenant=None):

@@ -187,7 +187,7 @@ def _parse_out(content, freqs_mhz):
             toks = line.split()
             try:
                 hour = int(float(toks[0]))
-            except (ValueError, IndexError):
+            except ValueError:
                 i += 1
                 continue
             raw = {"MODE": None, "REL": None, "SNR": None}
