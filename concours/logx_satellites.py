@@ -122,7 +122,3 @@ def champs_adif(qso):
     if not nom:
         return {}
     return {'prop_mode': PROP_MODE_SAT, 'sat_name': nom}
-
-
-def est_satellite(qso):
-    return bool(champs_adif(qso))

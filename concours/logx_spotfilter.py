@@ -47,17 +47,6 @@ DEFAUTS = {
     'seulement_besoins': False,
 }
 
-# Libellés des critères, pour que l'écran puisse dire CE QUI a masqué et pas
-# seulement combien. Les clés sont celles de comptes['par_critere'].
-LIBELLES = {
-    'spotter_continents': 'continent du spotteur',
-    'dx_continents': 'continent de la station',
-    'masquer_deja_faits': 'déjà travaillés',
-    'seulement_lotw': 'non-utilisateurs LoTW',
-    'seulement_besoins': 'pas un besoin DXCC',
-}
-
-
 def reglages_valides(brut):
     """Normalise ce qui vient de la config (ou d'une requête) en réglages sûrs.
 

@@ -14,29 +14,14 @@ WCA (Castles) n'utilise PAS ce moteur : sa source est un classeur .ods
 même schéma (thread de fond, cache disque, statut) mais avec un parsing propre
 à son format.
 """
-import os
-import tempfile
 import threading
-import time
 import unicodedata
+
+from logx_utils import age_days, atomic_write
 
 
 def strip_accents(s):
     return ''.join(c for c in unicodedata.normalize('NFKD', s or '') if not unicodedata.combining(c))
-
-
-def age_days(path):
-    if not os.path.exists(path):
-        return None
-    return (time.time() - os.path.getmtime(path)) / 86400
-
-
-def atomic_write(path, content):
-    target_dir = os.path.dirname(os.path.abspath(path)) or '.'
-    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + '.', suffix='.tmp', dir=target_dir)
-    with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
-        f.write(content)
-    os.replace(tmp, path)
 
 
 class ActivationDatabase:
@@ -123,6 +108,11 @@ class ActivationDatabase:
         code = (code or '').strip().upper()
         with self._lock:
             return self._state['by_code'].get(code)
+
+    def items(self):
+        self.ensure_loading_started()
+        with self._lock:
+            return self._state['list']
 
     def search(self, query, limit=25, name_keys=('name', 'region')):
         self.ensure_loading_started()

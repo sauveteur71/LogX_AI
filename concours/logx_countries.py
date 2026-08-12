@@ -8,6 +8,7 @@ logx_flags). Modelé sur logx_departments.
 """
 import re
 from logx_storage import qso_scope_id
+from logx_utils import _spot_call_freq
 
 CONTINENT_NAMES = {
     'EU': 'Europe', 'NA': 'Amérique du Nord', 'SA': 'Amérique du Sud',
@@ -101,12 +102,7 @@ def country_targets(shared_log, contest_id='', spots_by_label=None):
     seen = set()
     for label, spots in (spots_by_label or {}).items():
         for sp in spots or []:
-            if isinstance(sp, dict):
-                c = str(sp.get('dx') or sp.get('call') or '')
-                freq = sp.get('freq', '')
-            else:
-                c = str(sp[0]) if sp else ''
-                freq = sp[1] if len(sp) > 1 else ''
+            c, freq = _spot_call_freq(sp)
             c = re.sub(r'[^A-Z0-9/]', '', c.strip().upper())   # anti-injection
             if len(c) < 3 or not dxcc.lookup(c):
                 continue

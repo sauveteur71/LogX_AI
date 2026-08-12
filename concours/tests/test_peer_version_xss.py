@@ -50,7 +50,7 @@ def server(monkeypatch):
     # process : repli à vide pour que l'ordre des autres tests ne pollue pas
     # les assertions (même isolation que tests/test_peer_versions_http.py).
     monkeypatch.setattr(httpmod, 'peer_versions', {})
-    monkeypatch.setattr(httpmod, 'connected_peers', set())
+    monkeypatch.setattr(httpmod, 'connected_peers', {})
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), httpmod.Handler)
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)

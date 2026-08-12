@@ -141,12 +141,20 @@ class UdpAmpPort:
 
     def read_until(self, terminator, timeout=1.0):
         with self._lock:
-            self._sock.settimeout(timeout)
-            try:
-                chunk, _from = self._sock.recvfrom(4096)
-                return chunk
-            except (socket.timeout, OSError):
-                return b''
+            deadline = time.monotonic() + timeout
+            buf = b''
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return buf
+                self._sock.settimeout(max(remaining, 0.01))
+                try:
+                    chunk, _from = self._sock.recvfrom(4096)
+                except (socket.timeout, OSError):
+                    return buf
+                buf += chunk
+                if buf.endswith(terminator):
+                    return buf
 
     def close(self):
         try:

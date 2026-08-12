@@ -21,7 +21,7 @@ import json
 import os
 import threading
 import time
-from logx_utils import utcnow
+from logx_utils import utcnow, _spot_call_freq
 
 TTL = 120
 _cache = {'qsos': None, 'at': 0.0}
@@ -34,7 +34,7 @@ CONFIRM_FILE = 'qsl_confirmations.json'
 
 def _dedup_key(q):
     return (str(q.get('call', '')).upper().strip(), str(q.get('band', '')),
-            str(q.get('mode', '')).upper(), str(q.get('date', '')),
+            str(q.get('mode', '')).upper().strip(), str(q.get('date', '')),
             str(q.get('time', '')))
 
 
@@ -85,11 +85,11 @@ def _read_qso_archive():
     return out
 
 
-def collect_all_qsos(shared_log=None, force=False):
+def collect_all_qsos(shared_log=None):
     """Tous les QSO de la station, dédupliqués, enrichis (pays/continent/dept).
     Caché TTL secondes ; invalidé par invalidate()."""
     with _lock:
-        if not force and _cache['qsos'] is not None and time.time() - _cache['at'] < TTL:
+        if _cache['qsos'] is not None and time.time() - _cache['at'] < TTL:
             base = _cache['qsos']
         else:
             raw = []
@@ -208,7 +208,7 @@ def history(call, shared_log=None, limit=15):
 
 # ─── DÉTECTION « NOUVEAU À VIE » (pays / département) ─────────────────────────
 
-def new_one(call, band='', mode='', shared_log=None):
+def new_one(call, band='', shared_log=None):
     """Un QSO avec `call` sur `band` apporterait-il un NOUVEAU pays ou
     département jamais contacté (à vie) ? Renvoie une liste de dicts
     {type, scope, label} — vide si rien de neuf."""
@@ -574,12 +574,7 @@ def spotted_new_ones(shared_log, spots_by_label=None, max_n=8):
     spotted = {}
     for label, spots in (spots_by_label or {}).items():
         for sp in spots or []:
-            if isinstance(sp, dict):
-                c = str(sp.get('dx') or sp.get('call') or '')
-                freq = sp.get('freq', '')
-            else:
-                c = str(sp[0]) if sp else ''
-                freq = sp[1] if len(sp) > 1 else ''
+            c, freq = _spot_call_freq(sp)
             c = c.strip().upper()
             base = c.split('/')[0] if '/' in c and len(c.split('/')[0]) >= 3 else c
             if len(base) >= 3 and base not in spotted:

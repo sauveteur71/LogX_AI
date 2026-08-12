@@ -50,11 +50,6 @@ BANDES_MHZ = {
     '47088': (47000.0, 47200.0),
 }
 
-# Bandes utilisables comme FI : celles qu'une radio du commerce couvre
-# réellement. Sert à valider la config, pas à brider la conversion.
-FI_POSSIBLES = ('50', '70', '144', '432')
-
-
 def _mhz(v):
     try:
         return float(str(v).replace(',', '.'))

@@ -794,7 +794,7 @@ def _ecrire_tout(data, version_now):
     _disk_pending = 0
 
 
-def _ecrire_delta(data, version_now, plan):
+def _ecrire_delta(version_now, plan):
     """N'écrit QUE les QSO ajoutés/corrigés/supprimés (une transaction, comme
     la réécriture complète : tout-ou-rien)."""
     global _disk_ids, _disk_version, _disk_pending
@@ -851,7 +851,7 @@ def save_log_to_disk():
             if plan is None:
                 _ecrire_tout(data, version_now)
             else:
-                _ecrire_delta(data, version_now, plan)
+                _ecrire_delta(version_now, plan)
     except Exception as e:
         # État du disque devenu incertain : la prochaine sauvegarde réécrit tout
         # plutôt que d'empiler un delta sur une base dont on ne sait plus rien.

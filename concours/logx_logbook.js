@@ -47,6 +47,7 @@ let myOp = 'OP1';
 let serverCallsign = '';
 let serverLocator = '';
 let serverContest = '';
+let serverCat2Enabled = false;
 
 // Lire le concours depuis la config sauvegardée (logx_configuration.html) ou défaut VHF
 (function initFromConfig(){
@@ -449,9 +450,10 @@ function nextRPHWeekendUTC(now){
 const CONTEST_SCHEDULE = {
   'REF_RPH':      (()=>{ const w = nextRPHWeekendUTC();
                           return {start:w.start.toISOString(), end:w.end.toISOString(), dur:'24h', email:'rph@r-e-f.org'}; })(),
-  'REF_CCD_JAN':  {start:'2026-01-03T13:00:00Z', end:'2026-01-03T17:00:00Z', dur:'4h',  email:'ccd@r-e-f.org'},
-  'REF_CDF_SSB':  {start:'2026-03-28T14:00:00Z', end:'2026-03-29T14:00:00Z', dur:'24h', email:'logs@r-e-f.org'},
-  'REF_CDF_CW':   {start:'2026-03-28T14:00:00Z', end:'2026-03-29T14:00:00Z', dur:'24h', email:'logs@r-e-f.org'},
+  'REF_CCD_JAN1': {start:'2026-01-03T13:00:00Z', end:'2026-01-03T17:00:00Z', dur:'4h',  email:'ccd@r-e-f.org'},
+  'REF_CCD_JAN2': {start:'2026-01-03T13:00:00Z', end:'2026-01-03T17:00:00Z', dur:'4h',  email:'ccd@r-e-f.org'},
+  'REF_CDF_HF_SSB': {start:'2026-03-28T14:00:00Z', end:'2026-03-29T14:00:00Z', dur:'24h', email:'logs@r-e-f.org'},
+  'REF_CDF_HF_CW':  {start:'2026-03-28T14:00:00Z', end:'2026-03-29T14:00:00Z', dur:'24h', email:'logs@r-e-f.org'},
   'REF_NAT_THF':  {start:'2026-03-07T06:00:00Z', end:'2026-03-08T06:00:00Z', dur:'24h', email:'thf@r-e-f.org'},
   'CQ_WW_SSB':    {start:'2026-10-24T00:00:00Z', end:'2026-10-26T00:00:00Z', dur:'48h', email:'logcheck@cqww.com'},
   'CQ_WW_CW':     {start:'2026-11-28T00:00:00Z', end:'2026-11-30T00:00:00Z', dur:'48h', email:'logcheck@cqww.com'},
@@ -459,13 +461,12 @@ const CONTEST_SCHEDULE = {
   'CQ_WPX_CW':    {start:'2026-05-30T00:00:00Z', end:'2026-06-01T00:00:00Z', dur:'48h', email:'wpxlog@cqww.com'},
   'ARRL_DX_SSB':  {start:'2026-02-21T00:00:00Z', end:'2026-02-23T00:00:00Z', dur:'48h', email:'contests@arrl.org'},
   'ARRL_DX_CW':   {start:'2026-03-07T00:00:00Z', end:'2026-03-09T00:00:00Z', dur:'48h', email:'contests@arrl.org'},
-  'IARU_TVA':     {start:'2026-05-09T06:00:00Z', end:'2026-05-10T06:00:00Z', dur:'24h', email:'vhf@iaru-r1.org'},
   'REF_IARU_TVA': {start:'2026-05-09T06:00:00Z', end:'2026-05-10T06:00:00Z', dur:'24h', email:'vhf@r-e-f.org'},
   'REF_IARU_50':  {start:'2026-05-09T06:00:00Z', end:'2026-05-10T06:00:00Z', dur:'24h', email:'vhf@r-e-f.org'},
   'REF_IARU_VHF': {start:'2026-07-04T06:00:00Z', end:'2026-07-05T06:00:00Z', dur:'24h', email:'vhf@r-e-f.org'},
   'REF_IARU_UHF': {start:'2026-07-04T06:00:00Z', end:'2026-07-05T06:00:00Z', dur:'24h', email:'uhf@r-e-f.org'},
   'REF_DDFM_50':  {start:'2026-06-20T06:00:00Z', end:'2026-06-20T10:00:00Z', dur:'4h',  email:'ddfm@r-e-f.org'},
-  'REF_F9NL':     {start:'2026-03-15T08:00:00Z', end:'2026-03-15T16:00:00Z', dur:'8h',  email:'logs@r-e-f.org'},
+  'F9NL':         {start:'2026-03-15T08:00:00Z', end:'2026-03-15T16:00:00Z', dur:'8h',  email:'logs@r-e-f.org'},
   'CUSTOM':       {start:'', end:'', dur:'', email:''},
 };
 
@@ -601,7 +602,6 @@ function matchesAdvancedFilter(q, tree){
 
 let qsoLog = [];       // log local (cache)
 let serialByBand = {}; // numéros de série par bande
-let refreshTimer = null;
 let isSetupDone = false;
 
 const OP_COLORS = {OP1:'op-1',OP2:'op-2',OP3:'op-3',OP4:'op-4',OP5:'op-5'};
@@ -1466,8 +1466,11 @@ function updateKeyerPanels(){
   // panneau CW sur une station mono-radio serait juste un bandeau vide.
   const cwDec2 = document.getElementById('cwPanel2');
   if(cwDec2){
-    let cat2Enabled = false;
-    try{ cat2Enabled = !!JSON.parse(localStorage.getItem('logx_config')||'{}').cat2_enabled; }catch(e){}
+    let stored = {};
+    try{ stored = JSON.parse(localStorage.getItem('logx_config')||'{}'); }catch(e){}
+    const cat2Enabled = stored.cat2_enabled !== undefined && stored.cat2_enabled !== ''
+      ? !!stored.cat2_enabled
+      : (typeof serverCat2Enabled !== 'undefined' ? serverCat2Enabled : false);
     cwDec2.style.display = ((cw || cwPanelForcedOpen) && cat2Enabled) ? '' : 'none';
   }
   const sstvDec = document.getElementById('sstvPanel');
@@ -1975,7 +1978,6 @@ const BANDS_THF = ['144','432','1296','2320','3400','5760','10368','24048','4708
 // exclues par accord international de tous les concours HF classiques
 // (CQ WW, ARRL FD...) — ne jamais les ajouter à cette constante partagée.
 const BANDS_HF  = ['1.8','3.5','7','14','21','28'];
-const BANDS_HF_WARC = ['1.8','3.5','7','10.1','14','18','21','24','28']; // + WARC (ex. World Wide Award)
 const ALL_BANDS = ['1.8','3.5','7','10.1','14','18','21','24','28','50','70','144','432','1296','2320','3400','5760','10368','24048','47088'];
 
 // Bandes autorisées par concours
@@ -2784,7 +2786,7 @@ function _rehydrateQsoLogFromLocalStorage(){
 function startRefresh(){
   _rehydrateQsoLogFromLocalStorage();
   fetchLog();
-  refreshTimer = setInterval(fetchLog, 5000); // refresh toutes les 5 secondes
+  setInterval(fetchLog, 5000); // refresh toutes les 5 secondes
   // Backup automatique toutes les 5 minutes
   backupLog(); // backup immédiat au démarrage
   setInterval(backupLog, 5 * 60 * 1000);
@@ -2933,7 +2935,7 @@ function renderLog(){
   const posOf = new Map();
   qsoLog.forEach((x, idx) => {
     posOf.set(x, idx + 1);
-    const k = (x.call||'') + '|' + (x.band||'');
+    const k = (x.call||'') + '|' + (x.band||'') + '|' + (x.mode||'');
     dupCounts.set(k, (dupCounts.get(k) || 0) + 1);
   });
 
@@ -2949,7 +2951,7 @@ function renderLog(){
     // même bande) est normal dans un log personnel — il n'y a pas de points à
     // perdre comme en concours. Barrer/griser la ligne dans ce cas n'indique
     // aucune erreur, ça rend juste illisible une vraie part de l'historique.
-    const isDupQ = usageMode !== 'simple' && (dupCounts.get((q.call||'') + '|' + (q.band||'')) || 0) > 1;
+    const isDupQ = usageMode !== 'simple' && (dupCounts.get((q.call||'') + '|' + (q.band||'') + '|' + (q.mode||'')) || 0) > 1;
     const incomplete = !isValidQSO(q);
     const distColor = q.dist>1000?'#FF5030':q.dist>500?'#FFD60A':q.dist>200?'#A0C0FF':'#506090';
     const _brg = (q.locator&&q.locator.length>=6) ? bearing(q.locator) : null;
@@ -3028,7 +3030,7 @@ function countDupes(log){
   const seen = new Set();
   let n = 0;
   for(const q of (log||[])){
-    const k = (q.call||'') + '|' + (q.band||'');
+    const k = (q.call||'') + '|' + (q.band||'') + '|' + (q.mode||'');
     if(seen.has(k)) n++; else seen.add(k);
   }
   return n;
@@ -3622,7 +3624,6 @@ function prefillSetupFromConfig(){
   // Pré-remplir indicatif et locator
   const callEl  = document.getElementById('setupCallsign');
   const locEl   = document.getElementById('setupLocator');
-  const contEl  = document.getElementById('setupContest');
   const opEl    = document.getElementById('setupOperator');
 
   // Callsign : localStorage (config perso) prioritaire sur le serveur
@@ -3654,8 +3655,8 @@ function prefillSetupFromConfig(){
     ops.forEach((op, i) => {
       const val = `OP${i+1}`;
       const call = op.call || op.callsign || '';
-      const lbl = call ? `${val} — ${call}${op.name?' ('+op.name+')':''}` : val;
-      opEl.innerHTML += `<option value="${val}">${lbl}</option>`;
+      const lbl = call ? `${escHtml(val)} — ${escHtml(call)}${op.name?' ('+escHtml(op.name)+')':''}` : escHtml(val);
+      opEl.innerHTML += `<option value="${escHtml(val)}">${lbl}</option>`;
     });
     // Boutons OP du formulaire : régénérés depuis la config (jusqu'à 40 en
     // mode RADIOCLUB, la grille flex existante wrap automatiquement) — un
@@ -3879,6 +3880,7 @@ async function loadServerConfig(){
     // Mode expédition : partagé par le serveur → s'applique à tous les postes,
     // même ceux dont le navigateur n'a jamais ouvert la page CONFIG.
     serverExpeditionMode = cfg.expedition_mode || '';
+    serverCat2Enabled = !!cfg.cat2_enabled;
     serverActivationProgram = cfg.activation_program || '';
     serverActivationRef = cfg.my_activation_ref || '';
     // Bouton SELF-SPOT : visible seulement si l'auto-spot est activé (config partagée)

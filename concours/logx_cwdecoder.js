@@ -97,8 +97,6 @@ class MorseTimingDecoder {
   flushIfIdle(idleMs){
     if(idleMs >= this.unitMs * 2) this._flushChar();
   }
-
-  reset(){ this.buffer=''; this.unitMs=80; this.wpm=15; this.recentMarks=new Array(12).fill(80); }
 }
 
 // ─── Détecteur Goertzel monofréquence ────────────────────────────────────────

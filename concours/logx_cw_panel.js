@@ -74,7 +74,17 @@ class CwPanel {
         this.outText = (this.outText + ch).slice(-400);   // borne la mémoire sur une session longue
         // Mots cliquables : reprend le comportement de l'ancien panneau compact
         // (voir cwToCall) — clique un mot décodé pour le mettre dans l'indicatif.
-        out.innerHTML = this.outText.replace(/(\S+)/g, '<span style="cursor:pointer" onclick="cwToCall(this.textContent)">$1</span>') || '—';
+        out.replaceChildren();
+        const words = this.outText.match(/\S+|\s+/g) || [];
+        for(const w of words){
+          if(/^\s+$/.test(w)){ out.appendChild(document.createTextNode(w)); continue; }
+          const span = document.createElement('span');
+          span.style.cursor = 'pointer';
+          span.textContent = w;
+          span.onclick = () => cwToCall(span.textContent);
+          out.appendChild(span);
+        }
+        if(!this.outText) out.textContent = '—';
         out.scrollTop = out.scrollHeight;
       },
       onLevel: (mag, threshold, wpm) => {

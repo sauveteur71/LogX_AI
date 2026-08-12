@@ -165,24 +165,10 @@ def _load_dept_polygons():
     return polys
 
 
-def _point_in_ring(lon, lat, ring):
-    """Ray casting classique."""
-    inside = False
-    j = len(ring) - 1
-    for i in range(len(ring)):
-        xi, yi = ring[i][0], ring[i][1]
-        xj, yj = ring[j][0], ring[j][1]
-        if ((yi > lat) != (yj > lat)) and \
-                (lon < (xj - xi) * (lat - yi) / ((yj - yi) or 1e-12) + xi):
-            inside = not inside
-        j = i
-    return inside
-
-
 def dept_from_locator(locator):
     """Locator Maidenhead → n° de département (centre du carré testé contre
     les polygones). '' si hors de France ou GeoJSON indisponible."""
-    from logx_utils import locator_to_latlon
+    from logx_utils import locator_to_latlon, _point_in_ring
     lat, lon = locator_to_latlon(locator or '')
     if lat is None:
         return ''
@@ -343,15 +329,11 @@ def department_targets(shared_log, contest_id='', spots_by_label=None, max_calls
             by_dept.setdefault(d, []).append((call, e['qso_count']))
 
     # Spots cluster actuels : indicatif -> {freq, band} (formats hétérogènes)
+    from logx_utils import _spot_call_freq
     spotted = {}
     for label, spots in (spots_by_label or {}).items():
         for sp in spots or []:
-            if isinstance(sp, dict):
-                c = str(sp.get('dx') or sp.get('call') or '')
-                freq = sp.get('freq', '')
-            else:
-                c = str(sp[0]) if sp else ''
-                freq = sp[1] if len(sp) > 1 else ''
+            c, freq = _spot_call_freq(sp)
             c = c.strip().upper()
             base = c.split('/')[0] if '/' in c and len(c.split('/')[0]) >= 3 else c
             if len(base) >= 3:

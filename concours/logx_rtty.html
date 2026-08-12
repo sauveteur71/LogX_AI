@@ -286,7 +286,7 @@ if(localStorage.getItem('rc_theme') === null){
     if(_rttyDecoder){
       _rttyDecoder.stop();
       _rttyDecoder = null;
-      if(btn) btn.textContent = '▶ Démarrer';
+      if(btn){ btn.textContent = '▶ Démarrer'; btn.classList.remove('active'); }
       if(etat) etat.textContent = '';
       return;
     }
@@ -301,7 +301,7 @@ if(localStorage.getItem('rc_theme') === null){
     });
     try{
       await _rttyDecoder.start(document.getElementById('rttyDevice')?.value || '');
-      if(btn) btn.textContent = '■ Arrêter';
+      if(btn){ btn.textContent = '■ Arrêter'; btn.classList.add('active'); }
       if(etat) etat.textContent = t.mark + '/' + t.space + ' Hz';
     }catch(e){
       _rttyDecoder = null;

@@ -69,7 +69,7 @@ PREFIX_INFO = {
     '5N': ('NG', 'Nigéria'), '5T': ('MR', 'Mauritanie'), '6W': ('SN', 'Sénégal'),
     'TR': ('GA', 'Gabon'), 'TU': ('CI', "Côte d'Ivoire"), '9G': ('GH', 'Ghana'),
     'ET': ('ET', 'Éthiopie'), '5Z': ('KE', 'Kenya'), '5H': ('TZ', 'Tanzanie'),
-    '3B8': ('MU', 'Maurice'), '5R': ('MG', 'Madagascar'), 'EA8_AF': ('IC', 'Canaries'),
+    '3B8': ('MU', 'Maurice'), '5R': ('MG', 'Madagascar'),
 }
 
 # Alias : certains country_key possibles -> clé PREFIX_INFO canonique

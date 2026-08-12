@@ -86,19 +86,22 @@ def _set_serial(port, baud, relay_num, on, open_serial=None):
             pass
 
 
-def _set_webswitch(host, user, password, relay_num, on, urlopen=None):
+def _webswitch_http(host, user, password, path, urlopen=None):
     opener = urlopen or urllib.request.urlopen
 
     def _do():
         auth = base64.b64encode(f'{user}:{password}'.encode()).decode()
-        url = f"http://{host}/outlet?{relay_num}={'ON' if on else 'OFF'}"
-        req = urllib.request.Request(url, headers={'Authorization': f'Basic {auth}'})
+        req = urllib.request.Request(f"http://{host}{path}", headers={'Authorization': f'Basic {auth}'})
         with opener(req, timeout=TIMEOUT_S) as resp:
             return getattr(resp, 'status', 200)
 
+    fut = _EXECUTOR.submit(_do)
+    return fut.result(timeout=TIMEOUT_S + 2)
+
+
+def _set_webswitch(host, user, password, relay_num, on, urlopen=None):
     try:
-        fut = _EXECUTOR.submit(_do)
-        status = fut.result(timeout=TIMEOUT_S + 2)
+        status = _webswitch_http(host, user, password, f"/outlet?{relay_num}={'ON' if on else 'OFF'}", urlopen=urlopen)
         return {'ok': True, 'status': status}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
@@ -126,16 +129,8 @@ def test_connection(cfg, open_serial=None, urlopen=None):
     if s['kind'] == 'webswitch':
         if not s['host']:
             return {'ok': False, 'error': 'Adresse WebSwitch non configurée'}
-        opener = urlopen or urllib.request.urlopen
-
-        def _do():
-            auth = base64.b64encode(f"{s['user']}:{s['password']}".encode()).decode()
-            req = urllib.request.Request(f"http://{s['host']}/", headers={'Authorization': f'Basic {auth}'})
-            with opener(req, timeout=TIMEOUT_S) as resp:
-                return getattr(resp, 'status', 200)
         try:
-            fut = _EXECUTOR.submit(_do)
-            fut.result(timeout=TIMEOUT_S + 2)
+            _webswitch_http(s['host'], s['user'], s['password'], '/', urlopen=urlopen)
             return {'ok': True}
         except Exception as e:
             return {'ok': False, 'error': str(e)}

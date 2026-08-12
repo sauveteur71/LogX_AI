@@ -25,7 +25,6 @@ horaires) n'est PAS dans cet état : logx_wall.html le récupère séparément
 via GET /shifts/list (logx_storage.shifts_sorted), rafraîchi à un rythme
 plus lent puisqu'il change rarement.
 """
-import datetime
 import json
 import os
 
@@ -146,12 +145,8 @@ def _vhf_active(cfg):
 
 
 def _entry_dt(e):
-    d = (e.get('date', '') or '').replace('-', '').strip()
-    t = (e.get('time', '') or '').replace(':', '').strip() or '0000'
-    try:
-        return datetime.datetime.strptime(f"{d}{t[:4]}", '%Y%m%d%H%M')
-    except (ValueError, TypeError):
-        return None
+    from logx_coach import _parse_dt as _coach_parse_dt
+    return _coach_parse_dt(e.get('date', ''), e.get('time', ''))
 
 
 # Fenêtre de récence pour considérer un opérateur "actuellement actif" sur le

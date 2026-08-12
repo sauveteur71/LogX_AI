@@ -19,6 +19,8 @@ import socket
 import threading
 import concurrent.futures as _cf
 
+from logx_utils import _rprt_ok
+
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 4532
 TIMEOUT_S = 2.0
@@ -85,10 +87,6 @@ def _complete(cmd, buf):
         return True
     expected = {'f': 1, 'm': 2}.get(cmd.split()[0], 1)
     return len(lines) >= expected
-
-
-def _rprt_ok(lines):
-    return bool(lines) and lines[-1].replace(' ', '') in ('RPRT0',)
 
 
 def get_state(host, port):

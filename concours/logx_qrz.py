@@ -102,7 +102,7 @@ def lookup(call, user, pw):
     key, err = _get_session(user, pw)
     if not key:
         return {'ok': False, 'error': err}
-    xml = fetch_url(f'{BASE}?s={key};callsign={call}', timeout=QRZ_TIMEOUT)
+    xml = fetch_url(f'{BASE}?s={key};callsign={call}', timeout=QRZ_TIMEOUT, log_url=False)
     if not xml:
         return {'ok': False, 'error': 'QRZ injoignable'}
     # Session expirée : ré-authentifier une fois
@@ -112,7 +112,7 @@ def lookup(call, user, pw):
         key, err = _get_session(user, pw)
         if not key:
             return {'ok': False, 'error': err}
-        xml = fetch_url(f'{BASE}?s={key};callsign={call}', timeout=QRZ_TIMEOUT) or ''
+        xml = fetch_url(f'{BASE}?s={key};callsign={call}', timeout=QRZ_TIMEOUT, log_url=False) or ''
 
     if '<Callsign>' not in xml:
         return {'ok': False, 'error': _tag(xml, 'Error') or 'Indicatif introuvable sur QRZ'}

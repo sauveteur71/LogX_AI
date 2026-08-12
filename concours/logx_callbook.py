@@ -15,6 +15,7 @@ vérifiée en direct (W1AW -> fiche complète, F4GLD -> NOT_FOUND partout —
 confirme le périmètre USA uniquement documenté nulle part officiellement).
 """
 import json
+import threading
 import time
 
 _cache = {}          # CALL -> {'ts', 'data'}
@@ -33,6 +34,8 @@ NEG_CACHE_TTL = 5 * 60  # un échec (introuvable/injoignable) se recache court :
 _circuit = {'fails': 0, 'until': 0}
 CIRCUIT_THRESHOLD = 3
 CIRCUIT_COOLDOWN = 90
+_lock = threading.Lock()  # protège _cache/_circuit, mutés depuis le thread HTTP
+                          # ET depuis _bulk_resolve_run() dans son propre thread
 
 
 def circuit_status():
@@ -110,18 +113,21 @@ def lookup(call, cfg, shared_log=None):
     if not call:
         return {'ok': False, 'error': 'Indicatif vide'}
 
-    hit = _cache.get(call)
-    if hit:
-        ttl = CACHE_TTL if hit['data'].get('ok') else NEG_CACHE_TTL
-        if time.time() - hit['ts'] < ttl:
-            return hit['data']
+    with _lock:
+        hit = _cache.get(call)
+        if hit:
+            ttl = CACHE_TTL if hit['data'].get('ok') else NEG_CACHE_TTL
+            if time.time() - hit['ts'] < ttl:
+                return hit['data']
 
-    now = time.time()
-    if now < _circuit['until']:
+        now = time.time()
+        circuit_open = now < _circuit['until']
+        wait = int(_circuit['until'] - now) if circuit_open else 0
+
+    if circuit_open:
         local = _previous_qso_hit(call, shared_log)
         if local:
             return local
-        wait = int(_circuit['until'] - now)
         return {'ok': False, 'error': f"Callbook en pause ({wait}s) : les services "
                 'ont été injoignables sur les derniers indicatifs (probablement '
                 'hors connexion) — nouvelle tentative automatique ensuite.'}
@@ -135,7 +141,8 @@ def lookup(call, cfg, shared_log=None):
         r = qrz.lookup(call, settings['user'], settings['pw'])
         if r.get('ok'):
             r['source'] = 'qrz'
-            _circuit['fails'] = 0
+            with _lock:
+                _circuit['fails'] = 0
             return r  # déjà mis en cache par qrz.py lui-même (24 h)
         errors.append(f"QRZ : {r.get('error', '?')}")
 
@@ -144,15 +151,17 @@ def lookup(call, cfg, shared_log=None):
         data = {'ok': True, 'call': call, 'name': '', 'qth': '', 'state': '',
                 'country': hq.get('country', ''), 'grid': hq.get('locator', '').upper(),
                 'dxcc': '', 'source': 'hamqth'}
-        _cache[call] = {'ts': time.time(), 'data': data}
-        _circuit['fails'] = 0
+        with _lock:
+            _cache[call] = {'ts': time.time(), 'data': data}
+            _circuit['fails'] = 0
         return data
     errors.append("HamQTH : indicatif introuvable ou service injoignable")
 
     hd = lookup_hamdb(call)
     if hd.get('ok'):
-        _cache[call] = {'ts': time.time(), 'data': hd}
-        _circuit['fails'] = 0
+        with _lock:
+            _cache[call] = {'ts': time.time(), 'data': hd}
+            _circuit['fails'] = 0
         return hd
     errors.append(f"HamDB : {hd.get('error', '?')}")
 
@@ -161,11 +170,12 @@ def lookup(call, cfg, shared_log=None):
         return local
 
     result = {'ok': False, 'error': ' · '.join(errors)}
-    _cache[call] = {'ts': time.time(), 'data': result}
-    _circuit['fails'] += 1
-    if _circuit['fails'] >= CIRCUIT_THRESHOLD:
-        _circuit['until'] = time.time() + CIRCUIT_COOLDOWN
-        _circuit['fails'] = 0
+    with _lock:
+        _cache[call] = {'ts': time.time(), 'data': result}
+        _circuit['fails'] += 1
+        if _circuit['fails'] >= CIRCUIT_THRESHOLD:
+            _circuit['until'] = time.time() + CIRCUIT_COOLDOWN
+            _circuit['fails'] = 0
     return result
 
 

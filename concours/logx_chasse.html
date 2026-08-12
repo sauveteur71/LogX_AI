@@ -312,9 +312,10 @@ function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
 // docs/ETUDE_AFFICHAGE_PAR_MODE_2026-08.md (F4GLD, 05/08/2026) : en pleine
 // activation, la chasse aux AUTRES stations est secondaire (park-to-park
 // mis à part), mais la page ne doit rien cacher pour autant.
-function verifierBandeauExpedition(){
+function verifierBandeauExpedition(serverCfg){
   let cfg = {};
   try{ cfg = JSON.parse(localStorage.getItem('logx_config') || '{}'); }catch(e){}
+  if(serverCfg) cfg = Object.assign(cfg, serverCfg);
   const banner = document.getElementById('expeditionBanner');
   if(!banner) return;
   const prog = cfg.activation_program, ref = cfg.my_activation_ref;
@@ -330,6 +331,7 @@ function verifierBandeauExpedition(){
   }
 }
 verifierBandeauExpedition();
+fetch('/config').then(r => r.ok ? r.json() : null).then(c => { if(c) verifierBandeauExpedition(c); }).catch(()=>{});
 // La config peut changer dans un autre onglet (ex. CONFIG ouverte à côté) :
 // même mécanisme que renderBandButtons()/renderModeButtons() côté logbook.
 window.addEventListener('storage', e => { if(e.key === 'logx_config') verifierBandeauExpedition(); });
@@ -349,6 +351,10 @@ fetch('/rotor/state').then(r => r.ok ? r.json() : null)
   .then(d => { rotorEnabled = !!(d && d.enabled); if(rotorEnabled) renderSpots(); })
   .catch(() => {});
 
+// Horodatage de la dernière confirmation QSY/rotor affichée dans #lastRefresh :
+// loadSpots() (poll 60s) ne doit pas l'écraser pendant sa fenêtre de 4s.
+let lastConfirmTs = 0;
+
 async function pointTo(az, call, band){
   try{
     const r = await fetch('/rotor/point', {
@@ -361,6 +367,7 @@ async function pointTo(az, call, band){
     const el = document.getElementById('lastRefresh');
     el.textContent = d.ok ? `🧭 ${rcT('Antenne')} → ${Math.round(az)}° ${rcT('vers')} ${call}` : `❌ ${d.error}`;
     el.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+    lastConfirmTs = Date.now();
     setTimeout(() => { el.style.color = ''; }, 4000);
   }catch(e){}
 }
@@ -375,6 +382,7 @@ async function qsyTo(freqKhz, call){
     const el = document.getElementById('lastRefresh');
     el.textContent = d.ok ? `📻 QSY ${freqKhz} kHz → ${call}` : `❌ ${d.error}`;
     el.style.color = d.ok ? 'var(--green)' : 'var(--red)';
+    lastConfirmTs = Date.now();
     setTimeout(() => { el.style.color = ''; }, 4000);
   }catch(e){}
 }
@@ -397,8 +405,10 @@ async function loadSpots(){
       : `${m.nb_dxcc || 0} pays · ${spotsData.length} spots`;
     renderBandFilters();
     renderSpots();
-    document.getElementById('lastRefresh').textContent =
-      rcT('MàJ') + ' ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+    if(Date.now() - lastConfirmTs > 4000){
+      document.getElementById('lastRefresh').textContent =
+        rcT('MàJ') + ' ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+    }
   }catch(e){ console.warn('spots', e); }
 }
 

@@ -15,7 +15,7 @@ import os
 import re
 import shutil
 import glob
-from logx_utils import utcnow
+from logx_utils import utcnow, safe_filename
 
 KEEP = 20                 # nombre de sauvegardes conservées
 
@@ -131,8 +131,7 @@ def run_backup(cfg, shared_log=None):
 
 
 def _safe(s):
-    import re
-    return re.sub(r'[^A-Za-z0-9_.-]', '_', str(s or ''))[:24]
+    return safe_filename(s, 24)
 
 
 def _load_json(path):

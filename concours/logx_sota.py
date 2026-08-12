@@ -19,7 +19,6 @@ chargement, les fonctions de recherche renvoient 'ready': False plutôt que de
 bloquer une requête jusqu'à une minute le temps du tout premier téléchargement.
 """
 import csv
-import os
 import threading
 import time
 import unicodedata
@@ -86,12 +85,6 @@ def fetch_sota_spots():
 
 # ─── BASE DES SOMMETS ─────────────────────────────────────────────────────────
 
-def _age_days(path):
-    if not os.path.exists(path):
-        return None
-    return (time.time() - os.path.getmtime(path)) / 86400
-
-
 def _looks_valid_csv(content):
     """Garde-fou avant d'écraser le cache : jamais un fichier tronqué ou une
     page d'erreur à la place du vrai export."""
@@ -150,8 +143,9 @@ def _load_from_disk_or_network():
     """Exécuté dans un thread séparé (jamais le thread HTTP) : charge le cache
     disque s'il est valide et pas trop vieux, sinon télécharge et écrit
     atomiquement, comme update_cty_if_stale() dans logx_dxcc.py."""
+    from logx_utils import age_days, atomic_write
     try:
-        age = _age_days(SUMMITS_FILE)
+        age = age_days(SUMMITS_FILE)
         content = None
         if age is not None and age < SUMMITS_MAX_AGE_DAYS:
             try:
@@ -165,12 +159,7 @@ def _load_from_disk_or_network():
             if _looks_valid_csv(downloaded or ''):
                 content = downloaded
                 try:
-                    import tempfile
-                    target_dir = os.path.dirname(os.path.abspath(SUMMITS_FILE)) or '.'
-                    fd, tmp = tempfile.mkstemp(prefix='sota_summits.', suffix='.tmp', dir=target_dir)
-                    with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
-                        f.write(content)
-                    os.replace(tmp, SUMMITS_FILE)
+                    atomic_write(SUMMITS_FILE, content)
                 except OSError as e:
                     print(f"[SOTA] Ecriture cache impossible (non bloquant): {e}")
             elif content is None:

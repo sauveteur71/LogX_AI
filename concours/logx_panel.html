@@ -206,7 +206,9 @@ if(localStorage.getItem('rc_theme') === null){
   // utile pendant l'épreuve pour voir d'un coup d'œil quelles cases restent
   // à couvrir DANS ce concours précis, plutôt que le total historique.
   let _wmScope = 'life';
+  let _wmGen = 0;
   async function tickWorkedMatrix(){
+    const _gen = ++_wmGen;
     const body = document.getElementById('panelBody');
     // "Ce concours" n'a de sens QUE si un concours réel est sélectionné
     // (mode d'usage != 'simple' ET un concours choisi) — sinon les 2
@@ -216,14 +218,17 @@ if(localStorage.getItem('rc_theme') === null){
     // contest_actif() côté serveur, rejouée ici car ce panneau détaché
     // n'a accès qu'à /config (liste blanche publique, voir logx_http.py).
     let contestActif = false;
+    let contestActifKnown = false;
     try{
       const rc = await fetch('/config');
       if(rc.ok){
         const c = await rc.json();
         contestActif = !!(c && c.usage_mode !== 'simple' && String(c.contest || '').trim());
+        contestActifKnown = true;
       }
     }catch(e){ /* serveur injoignable : pas de concours affiché, comportement inchangé */ }
-    if(!contestActif) _wmScope = 'life';
+    if(_gen!==_wmGen) return;
+    if(contestActifKnown && !contestActif) _wmScope = 'life';
     const toggle = !contestActif ? '' : `<div style="display:flex;gap:6px;margin-bottom:10px">
       <button data-wm="life" style="flex:1;font-family:inherit;font-size:12px;padding:5px;cursor:pointer;
         background:${_wmScope==='life'?'#C9822E':'var(--bg3)'};color:${_wmScope==='life'?'#180400':'var(--text)'};
@@ -235,8 +240,10 @@ if(localStorage.getItem('rc_theme') === null){
     try{
       const url = _wmScope === 'contest' ? '/awards/matrix?scope=contest' : '/awards/matrix';
       const r = await fetch(url);
+      if(_gen!==_wmGen) return;
       if(!r.ok) return;
       const m = await r.json();
+      if(_gen!==_wmGen) return;
       if(!m || !m.bands || !m.bands.length){
         body.innerHTML = toggle + '<div class="empty">'
           + (_wmScope==='contest' ? T("Aucun QSO dans le concours actif pour l'instant.") : T('Pas encore de QSO.'))

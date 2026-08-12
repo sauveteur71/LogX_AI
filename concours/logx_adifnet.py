@@ -16,32 +16,15 @@ Deux sens, indépendants (mode off/listen/send/both) :
     (broadcast UDP) pour qu'un N1MM/DXLog voisin (ou tout autre outil à
     l'écoute) le voie apparaître en temps réel.
 """
-import re
 import socket
 import threading
 import datetime
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as _xml_escape
-from logx_utils import utcnow
+from logx_utils import utcnow, CALL_RE as _CALL_RE, clean_text as _clean_text
 from logx_export import resolve_operator_callsign
 
 DEFAULT_PORT = 12060
-
-# Indicatif valide : lettres/chiffres/'/' uniquement — même politique que
-# logx_import.py:_CALL_RE. Le port UDP <contactinfo> n'est pas authentifié
-# (n'importe quel appareil du LAN peut y écrire) : on rejette tout datagramme
-# dont le champ 'call' n'a pas la forme d'un indicatif.
-_CALL_RE = re.compile(r'^[A-Z0-9/]{2,15}$')
-
-
-def _clean_text(v, maxlen=64):
-    """Même politique d'assainissement que logx_import._clean_text : retire les
-    caractères de contrôle et les chevrons, tronque — appliqué ici aux champs
-    <contactinfo> reçus par UDP, qui sont tout aussi externes/non fiables
-    qu'un fichier ADIF importé."""
-    s = str(v or '')
-    s = ''.join(c for c in s if ord(c) >= 0x20 or c in '\t')
-    return s.replace('<', '').replace('>', '').strip()[:maxlen]
 
 
 status = {'listening': False, 'last_seen': 0, 'received_total': 0, 'sent_total': 0}

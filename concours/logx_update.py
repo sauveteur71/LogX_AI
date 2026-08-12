@@ -236,27 +236,6 @@ def _fetch_latest_release():
     return releases[0] if releases else None
 
 
-def _fetch_release_by_tag(tag):
-    """Comme _fetch_latest_release mais pour un tag précis.
-
-    ACTUELLEMENT NON APPELÉE (vérifié par grep sur tout le dépôt, audit du
-    11/08/2026) : le chemin PASSERELLE (chemin B) réel est
-    resolve_relay_asset(), qui reconstruit l'URL de l'asset directement par
-    motif (`https://github.com/{repo}/releases/download/{tag}/{asset}`) sans
-    jamais interroger l'API GitHub par tag — cette fonction-ci n'était donc
-    PAS un maillon de ce chemin, contrairement à ce qu'affirmait l'ancienne
-    docstring. Conservée comme primitive de bas niveau (appel réseau réel,
-    jamais depuis le thread HTTP principal) au cas où un futur appelant en
-    aurait besoin — à retirer si elle reste sans appelant au prochain audit."""
-    url = RELEASE_BY_TAG_API.format(tag=urllib.parse.quote(tag, safe=''))
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)',
-        'Accept': 'application/vnd.github+json',
-    })
-    with urllib.request.urlopen(req, timeout=10, context=SSL_CTX) as resp:
-        return json.loads(resp.read().decode('utf-8', errors='replace'))
-
-
 def _build_result(data):
     tag = str(data.get('tag_name', '') or '').strip()
     latest = tag[1:] if tag[:1].lower() == 'v' else tag

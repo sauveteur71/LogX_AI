@@ -16,13 +16,13 @@ import datetime
 import os
 import json
 import re
-from logx_utils import utcnow
+from logx_utils import utcnow, safe_filename
 
 ARCHIVE_DIR = 'archives'
 
 
 def _safe(s):
-    return re.sub(r'[^A-Za-z0-9_.-]', '_', str(s or ''))[:40]
+    return safe_filename(s, 40)
 
 
 def archive_log(qsos, contest_id, cfg=None, qtc_series=None, when=None):
