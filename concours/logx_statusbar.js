@@ -862,6 +862,21 @@
   // version plus récente existe ET que ce navigateur n'a pas déjà refusé
   // CETTE version précise (rc_update_dismissed).
   let _updState = null;
+
+  // Repli RAPIDE pour la version, utilisé par openReportIssue() quand
+  // _updState n'a pas encore répondu (fenêtre de course au tout premier
+  // clic sur "signaler un problème" juste après le chargement de la page,
+  // avant que le fetch /app/update_check — plus lourd, comparaison GitHub
+  // incluse côté serveur — n'ait abouti). /network/info est LA sonde déjà
+  // conçue dans ce projet pour être rapide et disponible sans jeton (voir
+  // logx_singleton.py, PROBE_PATH — servie tout en haut de do_GET, ~0,36 s
+  // mesuré) : on la réutilise ici plutôt que d'en écrire une seconde.
+  let _fastVersion = null;
+  function refreshFastVersion(){
+    fetch('/network/info').then(r => r.ok ? r.json() : null).then(function(d){
+      if (d && d.app_version) _fastVersion = d.app_version;
+    }).catch(function(){});
+  }
   // Popup de MAJ auto-ouverte à l'ouverture de la page (pas seulement un
   // badge discret) : sessionStorage, DISTINCT de rc_update_dismissed
   // (localStorage, qui sert à « ne plus jamais proposer CETTE version »,
@@ -1111,7 +1126,7 @@
       rcT("Décris le problème rencontré (inclus dans l'issue GitHub, tu pourras la relire avant envoi) :"), '');
     if (description === null) return; // annulé
 
-    const version = (_updState && _updState.current) || 'inconnue';
+    const version = (_updState && _updState.current) || _fastVersion || 'inconnue';
     const repo = (_updState && _updState.repo) || REPORT_REPO_FALLBACK;
     const firstLine = description.split('\n')[0].trim();
     const title = firstLine ? ('[Bug] ' + truncateCodePoints(firstLine, 80)) : '[Bug] signalé depuis LogX AI';
@@ -1631,6 +1646,7 @@
     refreshContest(); refreshCountdown(); refreshSave();
     loadContestNames();
     refreshRules();
+    refreshFastVersion();  // avant refreshUpdateCheck() : plus léger, sert de repli rapide pour le bouton "signaler un problème"
     refreshUpdateCheck();
     refreshErrorsCheck();
     refreshStorm();   // après insert() : la pastille n'existe pas avant
