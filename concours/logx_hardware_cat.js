@@ -251,7 +251,8 @@ function applyWsjtxState(d){
       // widget affichait « WSJT-X » quoi qu'il arrive — un opérateur sous JTDX
       // ou MSHV ne pouvait pas savoir que sa liaison marchait.
       const soft = escHtml(d.soft || 'WSJT-X');
-      el.innerHTML = `💻 ${soft} <b style="color:var(--green)">●</b> ${d.dial_mhz||''} MHz ${d.mode||''} · ${d.logged_total||0} auto-loggés`
+      const modeTxt = escHtml(d.mode||'');
+      el.innerHTML = `💻 ${soft} <b style="color:var(--green)">●</b> ${d.dial_mhz||''} MHz ${modeTxt} · ${d.logged_total||0} auto-loggés`
                    + horlogeHtml(d.horloge);
       el.style.color = 'var(--muted)';
     } else {

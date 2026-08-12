@@ -3708,6 +3708,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # retirant systématiquement 'server' — le fichier brut, lui, est bloqué
         # au service statique (_NEVER_SERVE) pour ne jamais fuiter le jeton.
         if path == '/config.json':
+            # Repli documente juste au-dessus : plusieurs modules (logx_qrz,
+            # logx_qsl, logx_rig, logx_rotor, logx_wsjtx, logx_mqtt) y lisent
+            # des identifiants en clair quand ils ne sont pas (encore) dans la
+            # config en memoire -- ce n'est PAS un fichier public, contrairement
+            # a ce que cette route supposait avant ce correctif (aucune garde,
+            # a la difference de sa jumelle /config/secrets juste en dessous).
+            # _require_auth() n'exige pas un mot de passe REGLE : il exige un
+            # rc_token valide, distribue automatiquement des le premier GET
+            # d'une page .html tant qu'aucun mot de passe n'est configure --
+            # meme frontiere que toutes les autres routes sensibles, la page
+            # mobile (qui charge une .html avant ce fetch) n'est pas affectee.
+            if not self._require_auth():
+                return
             data = {}
             try:
                 with open('config.json', encoding='utf-8') as f:
@@ -4497,6 +4510,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Toutes les autres routes POST écrivent ou appellent l'IA : token exigé.
         if not self._require_auth():
             return
+        # CSRF via same-site-mais-port-different : SameSite=Strict n'empêche
+        # PAS un tiers colocalisé sur la même adresse IP (nue, sans domaine
+        # public) mais un port différent de recevoir le cookie rc_token — la
+        # notion de « site » de SameSite ignore le port. Sans ce garde-fou,
+        # une requête CORS « simple » (Content-Type text/plain, donc SANS
+        # préflight OPTIONS, donc jamais bloquée par _cors() qui ne fait
+        # qu'échoir des en-têtes sur la RÉPONSE) suffisait à déclencher
+        # AVEUGLÉMENT n'importe quelle route d'écriture protégée, y compris
+        # /auth/set_password. Exiger application/json force un préflight
+        # CORS pour tout appelant cross-origin : _cors() refuse alors la
+        # requête pour toute origine hors LAN/localhost, AVANT même que ce
+        # handler ne s'exécute.
+        #
+        # /qsl_scan/upload est exempté : multipart/form-data est un des TROIS
+        # content-types CORS « simples » (comme text/plain), donc cette garde
+        # ne peut pas le couvrir sans casser l'upload légitime — impact résiduel
+        # bien plus faible qu'un CSRF sur /auth/set_password ou /config/save
+        # (au pire, une image poussée à l'aveugle sur un QSO, sans lecture de
+        # la réponse possible par l'attaquant).
+        ctype = (self.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+        if self.path != '/qsl_scan/upload' and ctype != 'application/json':
+            self._json({'error': 'Content-Type application/json requis'}, 415)
+            return
         # Plafond de taille du corps : un client malveillant du LAN pouvait
         # envoyer plusieurs Go et faire gonfler la mémoire jusqu'au crash.
         # 32 Mo couvre largement un gros import ADIF ; au-delà on refuse.
@@ -4911,14 +4947,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # ce bump, un client dont le ?v= était déjà à jour recevrait
                 # 'unchanged' et garderait affiché l'ancien concours jusqu'au
                 # prochain vrai QSO ajouté.
-                bump_log_version()
                 # Idem pour la synchro différentielle (?since=) : aucun QSO
                 # n'a été ajouté/modifié/supprimé, seule la portée visible a
                 # changé — un delta ('_v' de chaque QSO inchangé) serait vide
                 # à tort et laisserait l'ancien concours affiché. mark_hard_reset()
                 # force un client avec un ?since= antérieur à repasser par la
                 # liste complète, recalculée sous la NOUVELLE portée.
-                mark_hard_reset()
+                # Les deux SOUS log_lock (et non plus hors de tout verrou) :
+                # log_version += 1 (logx_storage.py) est un compteur global
+                # non atomique (LOAD/ADD/STORE) — tous les AUTRES appelants de
+                # ce dépôt l'appellent déjà sous 'with log_lock:', convention
+                # documentée explicitement pour éviter cette course.
+                with log_lock:
+                    bump_log_version()
+                    mark_hard_reset()
                 print(f"[CFG] Config reçue : {cfg.get('callsign','')} / {cfg.get('locator','')} / {cfg.get('contest','')}")
                 self._json({'ok': True})
             except Exception as e:
@@ -6353,6 +6395,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 updated_qso = json.loads(body)
                 qso_id = updated_qso.get('id')
+                # Même correctif que add_qso_to_log (voir sa docstring) : ne
+                # JAMAIS faire confiance au champ 'points' envoyé par le
+                # client -- une correction manuelle (bande/locator changés en
+                # édition) doit recalculer le score au MÊME moteur, sinon
+                # /log/update devenait le seul chemin d'écriture du log où le
+                # client choisissait librement ses propres points. Même
+                # borne de 3s, même repli sur la valeur client en cas
+                # d'échec/dépassement (jamais bloquer une correction pour un
+                # souci de scoring réseau).
+                try:
+                    updated_qso['points'] = _SCORE_EXECUTOR.submit(score_new_qso, updated_qso).result(timeout=3)
+                except Exception as _e:
+                    print(f"[SCORING] Recalcul points (update) abandonné ({type(_e).__name__}: {_e}) "
+                          f"— valeur envoyée par le client conservée")
                 # bump_log_version()/stamp_qso_version() DANS le même verrou que la
                 # mutation (même risque de course que l'ajout/la suppression, voir
                 # add_qso_to_log). Portée AVANT/APRÈS (qso_scope_id : contest+année
@@ -7063,6 +7119,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         'clef api.txt', 'config.json', 'logx.db', 'shared_log.json',
         'qtc_log.json', 'cloudsync_state.json',
         'qsl_sync.json', 'scoreboard_sync.json', 'backup_state.json',
+        # Jetons OAuth SOTA (access_token/refresh_token) ecrits en clair par
+        # logx_sota_spot._save_tokens() -- sans point de tete, donc PAS deja
+        # couvert par la regle generale sur les fichiers/segments caches
+        # (voir plus bas) : quiconque atteint le serveur pouvait les lire par
+        # un simple GET et publier des spots SOTA au nom de l'operateur.
+        'sota_oauth_tokens.json',
     }
     # Le test par nom exact ne couvre pas les copies renommées (logx.db.bak,
     # shared_log.json.20260722.bak...) — on bloque aussi par suffixe.

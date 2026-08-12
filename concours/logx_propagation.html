@@ -950,7 +950,7 @@ async function satTrackStart(){
 }
 
 async function satTrackStop(){
-  try{ await fetch('/rotor/sat_track_stop', {method:'POST'}); }catch(e){}
+  try{ await fetch('/rotor/sat_track_stop', {method:'POST', headers: {'Content-Type': 'application/json'}}); }catch(e){}
   // La boucle s'arrête à son prochain tour (≤ 2 s) — on attend un peu avant
   // de relire, sinon l'état affiché dit encore « en cours ».
   setTimeout(loadSat, 2500);

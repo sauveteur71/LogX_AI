@@ -159,7 +159,8 @@ def test_demarrer_un_suivi_sans_rotor_configure_est_refuse_PROPREMENT(server):
 
 def test_arreter_un_suivi_inexistant_ne_leve_pas(server):
     req = urllib.request.Request(server + '/rotor/sat_track_stop', data=b'',
-                                 headers={'X-RC-Token': httpmod.AUTH_TOKEN})
+                                 headers={'X-RC-Token': httpmod.AUTH_TOKEN,
+                                          'Content-Type': 'application/json'})
     with urllib.request.urlopen(req, timeout=30) as r:
         d = json.loads(r.read().decode('utf-8'))
     assert d.get('ok') is True

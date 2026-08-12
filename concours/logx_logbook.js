@@ -1564,8 +1564,15 @@ function setupDone(){
   if(stored.postal && stored.postal.length>=2) hdrParts.push(`Dépt.${stored.postal.slice(0,2)}`);
   document.getElementById('hdrStation').textContent = hdrParts.join(' · ');
   document.getElementById('hdrContest').textContent = cont || 'LOGBOOK';
-  // Indicateur « OP : » — en single-op, montrer l'indicatif plutôt que « OP1 »
-  document.getElementById('currentOp').textContent = _resolveOperatorCallsign(op || 'OP1') || op;
+  // Indicateur « OP : » — en single-op, montrer l'indicatif plutôt que « OP1 ».
+  // #currentOp n'existe plus dans le HTML (retiré lors d'un refactor sans que
+  // ce site soit mis à jour) : cette assignation non gardée plantait ici en
+  // silence, coupant TOUT ce qui suit setupDone() -- startRefresh()/
+  // startON4KSTReminder()/startChat()/fetchLog() ne s'exécutaient jamais.
+  // _setCurrentOpLabel() ci-dessus a déjà le même garde-fou (if(cur) ...)
+  // pour ce même id, ce site l'avait juste oublié.
+  const curOpEl = document.getElementById('currentOp');
+  if(curOpEl) curOpEl.textContent = _resolveOperatorCallsign(op || 'OP1') || op;
   document.getElementById('setupModal').style.display = 'none';
   // Recharger les dates de début/fin pour le countdown
   contestEndUTC   = getContestEndUTC();

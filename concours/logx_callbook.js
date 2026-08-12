@@ -180,8 +180,8 @@ function checkPrevQsos(call){
                    (d.last ? ` · dernier ${fmtDate(d.last)}` : '') + '</div>');
         // Les 3 plus récents
         d.qsos.slice(0,3).forEach(q => {
-          parts.push(`<div style="opacity:.75">${fmtDate(q.date)} — ${q.band} MHz ${q.mode}` +
-                     `${q.contest ? ' · ' + q.contest.replace(/_/g,' ') : ''}` +
+          parts.push(`<div style="opacity:.75">${fmtDate(q.date)} — ${escHtml(q.band)} MHz ${escHtml(q.mode)}` +
+                     `${q.contest ? ' · ' + escHtml(q.contest.replace(/_/g,' ')) : ''}` +
                      `${q.confirmed ? ' ✅' : ''}</div>`);
         });
       } else if(!(d.new_one||[]).length){
