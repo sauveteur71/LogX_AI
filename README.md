@@ -8,6 +8,12 @@ Un copilote IA en temps réel recommande le prochain meilleur QSO, un moteur de 
 
 ---
 
+## Nouveau dans la 1.0
+
+- 📡 **VOACAP point-à-point** : vrai moteur de prévision de propagation entre votre station et n'importe quel point du globe, directement dans le carnet et sur la carte.
+- 🎙️ **FT8 et RTTY natifs dans le navigateur** : décodage/émission sans WSJT-X/JTDX/MSHV ni logiciel tiers, chacun dans sa propre fenêtre détachable.
+- 🖨️ **Designer de carte QSL imprimable**, export PNG/JPG en quelques clics.
+
 ## Pourquoi LogX AI
 
 La plupart des loggers de contest radioamateur imposent une liste figée de règlements codés en dur. LogX AI **lit le règlement** (PDF ou page web, en français ou en anglais), en extrait bandes/dates/échange/barème via une IA vérifiée par une passe adversariale, et reconfigure son moteur de score sans qu'une ligne de code ne soit écrite — la définition proposée reste **toujours soumise à relecture humaine** avant d'être activée.
@@ -47,7 +53,7 @@ Guide complet, dépannage et FAQ : [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILIS
 
 ## Statut du projet
 
-Version courante : **1.0** ([journal des modifications](docs/CHANGELOG.md)) — première version stable, après deux passages d'audit complets sur l'ensemble du dépôt (sécurité, fiabilité, qualité). Phases 0 à 4 livrées, Phase 5 (validation terrain) en cours. Roadmap détaillée et exigences à venir dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
+Version courante : **1.0**, la première version stable ([journal des modifications](docs/CHANGELOG.md)), couverte par plus de 9 000 tests automatiques. Roadmap détaillée dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
 
 Le logiciel se met à jour tout seul : au lancement, il compare sa version à la dernière release et propose le téléchargement, dont il vérifie l'empreinte SHA-256 avant de remplacer quoi que ce soit.
 
@@ -68,8 +74,7 @@ projet.
 Le serveur local expose environ 220 endpoints HTTP (journal de trafic,
 configuration, cluster DX, propagation, pilotage radio...) documentés dans
 [docs/API.md](docs/API.md) — de quoi brancher un script ou un tableau de
-bord tiers dessus. Ce n'est pas un contrat versionné : voir la page pour le
-modèle de sécurité réel et les limites de garantie.
+bord tiers dessus.
 
 ## Licence
 
