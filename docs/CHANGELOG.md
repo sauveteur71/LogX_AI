@@ -4,12 +4,83 @@ Toutes les évolutions notables de LogX AI sont documentées dans ce fichier.
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/). LogX AI
 n'a pas encore de politique de versionnage strictement [semver](https://semver.org/lang/fr/) —
-tant que le logiciel est en bêta, les tags `vX.Y-betaN`/`vX.Y-rcN` servent surtout
-à déclencher la construction des exécutables (voir
-`.github/workflows/build-release.yml`) et à comparer la version installée à la
-dernière disponible. La version affichée dans la barre de statut de
-l'application correspond à la constante `APP_VERSION` de `logx_version.py`,
-qui doit être incrémentée à chaque tag poussé.
+les tags `vX.Y`/`vX.Y-betaN`/`vX.Y-rcN` servent surtout à déclencher la
+construction des exécutables (voir `.github/workflows/build-release.yml`) et
+à comparer la version installée à la dernière disponible. La version
+affichée dans la barre de statut de l'application correspond à la constante
+`APP_VERSION` de `logx_version.py`, qui doit être incrémentée à chaque tag
+poussé.
+
+## [1.0] - 2026-08-12
+
+Première version stable, après ~5 semaines de bêta (beta1 à beta27) et deux
+passages d'audit complets sur l'ensemble du dépôt (sécurité, fiabilité,
+qualité). Le format ADIF/Cabrillo, le moteur de scoring et le protocole
+réseau multi-poste n'ont pas changé depuis la bêta — ce numéro marque la
+maturité du logiciel, pas une rupture de compatibilité.
+
+### Ajouté
+
+- **Designer de carte QSL imprimable** (export PNG/JPG) : dernière brique
+  concurrentielle manquante face aux loggers établis.
+- **VOACAP point-à-point** : vrai moteur de prévision NTIA/ITS (`voacapl`
+  natif embarqué), intégré à LOGBOOK et CARTE IA — plus une estimation
+  approximative.
+- **Barre de statut personnalisable** (survol, popup de mise à jour, menu
+  AFFICHAGE à cocher) et feedback immédiat dans l'École CW.
+- **Score à battre par concours** + import d'anciens logs ADIF/Cabrillo,
+  avec détection automatique du concours et du format à l'import.
+- **Onglet MODE NUMÉRIQUE** : FT8 et RTTY s'ouvrent chacun dans leur propre
+  fenêtre détachable (déplaçable sur un second écran), remplaçant l'ancien
+  panneau FT8 fixe dans LOGBOOK.
+- **Réorganisation de la navigation** : FOCUS BANDE fusionné dans PROPAG,
+  DEPARTEMENTS renommé ZONES TRAVAILLÉES (couvre désormais aussi les zones
+  hors France).
+- **Lint Python (ruff)** ajouté à l'intégration continue.
+- Concours personnalisé ARRL International EME Contest ; correction des
+  noms Cabrillo officiels REF-SSB/REF-CW, ARRL Field Day/10m/160m, WAE
+  SSB/RTTY.
+
+### Sécurité & fiabilité
+
+Deux passages d'audit indépendants sur l'intégralité du dépôt, avec
+vérification empirique (relecture du code réel, pas seulement des résumés
+d'audit) avant chaque correctif :
+
+- **RCE corrigée** via `autostart_programs` (exécution de programme
+  arbitraire depuis la configuration), plus plusieurs XSS stockées
+  (LOGBOOK, CARTE IA, CONFIG, décodeurs CW/RTTY, widgets météo) et une
+  faille CSRF sur les routes POST authentifiées par cookie seul.
+- **En-têtes anti-clickjacking** (`X-Frame-Options`, `Content-Security-Policy
+  frame-ancestors`) sur toutes les pages servies.
+- **Races et verrous manquants** corrigés sur une douzaine de sections
+  critiques (cache DXCC, synchronisation cloud, session Wait-and-Pounce,
+  cache spots cluster, callbook, chat multi-opérateur) et motif de "jeton
+  de génération" généralisé à 9 endroits pour empêcher une réponse réseau
+  tardive d'écraser un état plus récent affiché à l'écran.
+- **Perf réseau** : plusieurs appels bloquants (roster WWA, prévision tropo)
+  rendus non bloquants (cache lu immédiatement, rafraîchissement en tâche
+  de fond) — ils pouvaient auparavant geler le thread HTTP jusqu'à 10s.
+- **~200 correctifs mineurs** : code mort supprimé (vérifié par recherche
+  dans tout le dépôt avant suppression), échappement HTML manquant sur une
+  dizaine de sites, clés API déplacées des URL vers des en-têtes HTTP,
+  incohérences de dates UTC/heure locale, doublons de logique factorisés.
+- Build de release multi-OS (Windows/macOS/Linux) réparé après une
+  régression PyInstaller passée inaperçue pendant deux jours faute de
+  vérification par build réel.
+
+### Corrigé
+
+- Dialogues bloquants (`alert()`/`confirm()` natifs) éliminés du reste de
+  l'interface, remplacés par des bandeaux non bloquants cohérents avec le
+  reste du logiciel.
+- CONFIG : import ADIF ouvre directement le sélecteur de fichier, popup se
+  ferme sur clic extérieur sans naviguer ailleurs.
+- Panneau décodeur SSTV agrandi (352→520px) ; panneau RTTY : clic sans
+  effet et scroll de la colonne de saisie corrigés.
+- `TypeError` récurrent dans l'horloge de la barre de statut.
+- Version du programme intégrée automatiquement au message pré-rempli du
+  bouton « signaler un problème ».
 
 ## [0.9-beta25] - 2026-08-07
 
@@ -28,11 +99,11 @@ qui doit être incrémentée à chaque tag poussé.
   garde-fou OmniRig non remappé pour la radio 2).
 - **Licence GPLv3** : le code de LogX AI est désormais sous licence libre
   GPLv3.
-- **Import ADIF durci** pour les exports d'autres loggers (N1MM+, Win-Test,
-  DXLog.net, Log4OM) : convention de mode `PH`→SSB, tags propriétaires
-  `APP_*` préservés, déduction de bande depuis la fréquence quand absente.
-- **Fiche comparative** face à N1MM Logger+, Win-Test, DXLog.net et Log4OM
-  V2 (`docs/COMPARATIF_CONCURRENTS.md`) et contenu prêt à l'emploi pour un
+- **Import ADIF durci** pour les exports d'autres loggers de concours :
+  convention de mode `PH`→SSB, tags propriétaires `APP_*` préservés,
+  déduction de bande depuis la fréquence quand absente.
+- **Fiche comparative** face aux loggers de concours établis
+  (`docs/COMPARATIF_CONCURRENTS.md`) et contenu prêt à l'emploi pour un
   groupe d'entraide groups.io.
 
 ### Corrigé
@@ -583,9 +654,9 @@ bandes IARU R1 / France, et fiches de pilotage CAT) au lieu de le relire.
 
 ## [0.9-beta7] - 2026-07-27
 
-Version issue d'une **étude comparative** avec N1MM Logger+, DXLog.net, Tucnak,
-Win-Test et Wavelog (voir `docs/ETUDE_COMPARATIVE_2026-07.md`). Huit écarts y
-avaient été identifiés et vérifiés ; les huit sont traités ici. S'y ajoutent les
+Version issue d'une **étude comparative** avec les loggers de concours établis
+(voir `docs/ETUDE_COMPARATIVE_2026-07.md`). Huit écarts y avaient été
+identifiés et vérifiés ; les huit sont traités ici. S'y ajoutent les
 correctifs d'une passe d'audit, dont plusieurs pertes de données silencieuses.
 
 **Réserve importante, à lire avant de compter dessus** : le WinKeyer, la
@@ -596,11 +667,11 @@ essai sur un poste réel reste à faire. Le décodeur RTTY, lui, est vérifié d
 bout en bout par signal synthétique — sauf en pile-up réel.
 
 ### Ajouté
-- **Les macros se déclenchent aux touches F1 à F8.** Les boutons affichaient « F1 »… « F8 » depuis toujours, mais seul le clic les déclenchait : en run, la main devait quitter le clavier pour viser un bouton. C'est la fonction que N1MM, Win-Test et DXLog mettent en avant en premier. Actif même pendant la saisie — on tape l'indicatif, on envoie l'échange, on continue.
+- **Les macros se déclenchent aux touches F1 à F8.** Les boutons affichaient « F1 »… « F8 » depuis toujours, mais seul le clic les déclenchait : en run, la main devait quitter le clavier pour viser un bouton. Actif même pendant la saisie — on tape l'indicatif, on envoie l'échange, on continue.
 - **Manipulation CW en mode Natif** (commande `KY`) pour **Kenwood et Elecraft**. Le mode que la configuration recommande par défaut refusait auparavant tout envoi CW : un opérateur CW n'avait donc aucune manipulation.
 - **Manipulateur WinKeyer K1EL** sur son propre port série. Il prend la main sur l'envoi CW **quelle que soit la marque** — c'est la seule manipulation possible en Icom (le protocole CI-V ne publie aucune commande d'envoi de texte CW) et en Yaesu. Sa cadence ne dépend plus du trafic CAT.
 - **Support des transverters.** Au-dessus de 1296 MHz la radio affiche sa fréquence intermédiaire : sans table de conversion, la bande déduite, le QSO enregistré, le filtre du band map, le QSY et le fichier EDI étaient **tous faux au même moment, sans le moindre message**. Concerne directement le Rallye des Points Hauts, le National THF et le Challenge THF.
-- **Décodeur RTTY (Baudot/ITA2) dans le navigateur**, sans logiciel externe — N1MM s'appuie sur MMTTY, MMVARI ou Fldigi. Chaque indicatif décodé est **cliquable** et part dans la saisie : c'est ce geste qui fait la vitesse en RTTY.
+- **Décodeur RTTY (Baudot/ITA2) dans le navigateur**, sans logiciel externe. Chaque indicatif décodé est **cliquable** et part dans la saisie : c'est ce geste qui fait la vitesse en RTTY.
 - **Band map Search & Pounce** : les stations que vous entendez vous-même en balayant s'ajoutent à celles du cluster, avec un repère distinct. `Ctrl+Entrée` note la station en cours, `Ctrl+↑`/`Ctrl+↓` sautent de spot en spot (QSY et indicatif pré-remplis). Les notes vivent sur le serveur — partagées entre postes — et s'effacent au bout de 30 minutes, une station entendue il y a une heure ayant presque sûrement changé de fréquence.
 - **SO2R** : deuxième radio déclarable, bascule d'émission par `Ctrl+Espace`, pilotage d'un boîtier OTRSP (microHAM, YCCC, EA4TX). Le QSY, les macros et le manipulateur visent la radio qui a l'émission. Le « dueling CQ » automatique et le second band map ne sont **pas** faits.
 
@@ -727,7 +798,7 @@ ci-dessous.
 - Enregistreur audio par QSO (tampon glissant 2 min, clip 20 s attaché au log).
 - QTC (WAE) : saisie détaillée émis/reçu + export Cabrillo.
 - Multi-opérateur : compte à rebours de la règle des 10 minutes + vue Partner (saisie en direct).
-- Extension du check partiel (SCP) : import MASTER.SCP, vérification N+1, import Call History N1MM par concours.
+- Extension du check partiel (SCP) : import MASTER.SCP, vérification N+1, import de fichiers Call History par concours.
 - Worked Matrix : panneau détachable, adapté à chaque concours.
 - Mécanisme de mise à jour logicielle proposée automatiquement, sans perte de données.
 - Mot de passe d'accès optionnel avant remise du jeton d'écriture (rc_token).
@@ -761,7 +832,7 @@ depuis le premier commit ; voir `git log` pour le détail commit par commit.
 - 36 concours intégrés (REF, IARU R1, CQ WW/WPX, ARRL DX/FD, WAE, UBA, Russian DX, All Asian, Stew Perry, ARRL 10/160 m…) + 358 concours mondiaux préparables depuis le calendrier WA7BNM.
 - Coach stratégique IA par concours (Run vs Search & Pounce, plan de bande, ouvertures par région) + agent et coach multilingues (8 langues).
 - Carnet de log partagé multi-poste (SQLite), dédup des QSO, exports Cabrillo v3 / ADIF 3 / EDI-REG1TEST.
-- Carnet permanent : déjà-contacté, diplômes/QSL, band map (inspiré Log4OM/HRD), tableau de chasse départements avec carte de France qui se colore.
+- Carnet permanent : déjà-contacté, diplômes/QSL, band map, tableau de chasse départements avec carte de France qui se colore.
 - Callbook en cascade QRZ → HamQTH → HamDB, fiche du correspondant à la saisie, historique d'indicatifs Super Check Partial.
 - Base DXCC hors ligne (cty.dat), mise à jour automatique si elle a plus de 30 jours.
 - Page PROPAGATION : MUF réelle (ionosondes KC2G), indices solaires, grey-line, tropo/météores/avion, RBN, balises NCDXF/IBP, PSK Reporter, prévision Es/aurore VHF, carte de propagation mondiale 24 h.
@@ -775,7 +846,7 @@ depuis le premier commit ; voir `git log` pour le détail commit par commit.
 - Chasse aux DXpeditions (flux RSS public NG3K ADXO) + onglet Calendrier dédié.
 - Chasse aux départements français : lookup callbook en direct pour les indicatifs spottés jamais croisés ; coach avec suggestions proactives de pays/départements jamais travaillés.
 - Constructeur de règles d'alerte personnalisées ; Cloud Sync multi-poste via dossier synchronisé.
-- Réseau ADIF générique (interopérabilité UDP `<contactinfo>` avec N1MM/DXLog) ; QSO Upload unifié (QRZCQ, HRDLog, ClubLog, eQSL, LoTW).
+- Réseau ADIF générique (interopérabilité UDP `<contactinfo>` avec d'autres loggers) ; QSO Upload unifié (QRZCQ, HRDLog, ClubLog, eQSL, LoTW).
 - Modes d'utilisation (logbook simple / concours / expédition) + mode Radioclub (postes partagés, jusqu'à 40 opérateurs).
 - Carte multi-échelle (France / Europe / continent / monde), horloge UTC + heure locale partout.
 - Assistant de configuration guidé + annuaire de WebSDR distants.
