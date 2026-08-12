@@ -83,7 +83,14 @@ PREDICATES = {
     'same_country':        lambda c: c['dx_country'] == c['my_country'],
     'same_continent':      lambda c: c['dx_cont'] == c['my_cont'],
     'different_continent': lambda c: c['dx_cont'] != c['my_cont'],
-    'is_french':           lambda c: c['dx_base'].startswith('F') or c['dx_base'].startswith('TM'),
+    # country_key() (dxcc.py) renvoie le PRÉFIXE canonique de l'entité DXCC
+    # ('F' pour France, 'TK' pour Corsica — vérifié empiriquement), jamais le
+    # nom complet ('France'/'Corsica'). Un simple startswith('F') confondait
+    # à tort les DOM-TOM (FK/FM/FO/FP/FR/FS/FT/FW/FY — chacun sa PROPRE
+    # entité DXCC, cf. cty.dat) avec la France métropolitaine, et omettait
+    # TK (Corse). country_key('TM...') == 'F' (spéciales françaises déjà
+    # bien classées par ce biais, sans avoir besoin du startswith('TM') d'avant).
+    'is_french':           lambda c: c['dx_country'] in ('F', 'TK'),
     'is_na':               lambda c: bool(_NA_CALL_RE.match(c['dx_base'])),
     'na_w_ve':             lambda c: c['dx_base'].startswith(('W', 'K', 'N', 'VE', 'XE')),
     'is_asia':             lambda c: c['dx_cont'] == 'AS',   # All Asian DX...
@@ -748,16 +755,24 @@ def extract_dx_locator(dx_call, info, spotter_call=''):
     Accepte les grilles 6 et 4 caractères ('JN23' → 'JN23MM')."""
     text = (info or '').upper()
     cands = re.findall(r'[A-R]{2}\d{2}[A-X]{2}', text)
-    # Grilles 4 caractères non déjà couvertes par une 6-caractères
+    # Grilles 4 caractères non déjà couvertes par une 6-caractères — gardées
+    # TELLES QUELLES (pas de complément 'MM' : locator_to_latlon() sait déjà
+    # calculer le vrai centre d'un locator à 4 caractères — correctif M8. Le
+    # compléter ici forçait à tort son branchement 6-caractères, qui décale
+    # le point de ~3,8 km au NE du centre réel du carré).
     for m in re.findall(r'[A-R]{2}\d{2}', text):
         if not any(c.startswith(m) for c in cands):
-            cands.append(m + 'MM')
+            cands.append(m)
     if not cands:
         return ''
+    # Complément 'MM' appliqué UNIQUEMENT à la valeur renvoyée (format
+    # attendu par les appelants), jamais avant locator_to_latlon() — voir
+    # commentaire ci-dessus.
+    pad = lambda loc: loc if len(loc) >= 6 else loc + 'MM'
     dx_info = dxcc.lookup(dx_call)
     sp_info = dxcc.lookup(spotter_call) if spotter_call else None
     if not dx_info or dx_info.get('lat') is None:
-        return cands[0]  # pays inconnu : au moins un locator plausible
+        return pad(cands[0])  # pays inconnu : au moins un locator plausible
 
     best, best_d = '', None
     for loc in cands:
@@ -776,7 +791,7 @@ def extract_dx_locator(dx_call, info, spotter_call=''):
     # (3000 : les très grands pays — W, VK, UA9 — ont des côtes lointaines)
     if best_d is not None and best_d > 3000:
         return ''
-    return best
+    return pad(best) if best else best
 
 
 def _band_from_freq(freq):
@@ -786,10 +801,14 @@ def _band_from_freq(freq):
     except (ValueError, TypeError):
         return ''
     mhz = v / 1000.0 if v > 1000 else v
+    # (70, 71, '70') : manquait ici alors que la table jumelle _mhz_to_band()
+    # (logx_wsjtx.py) l'a déjà — sans elle, un spot/décodage 4m tombait dans
+    # le repli str(int(mhz)) au lieu de la clé '70' attendue par
+    # _MAX_PLAUSIBLE_KM et le reste du scoring par bande.
     for lo, hi, b in ((1.8, 2.0, '1.8'), (3.5, 4.0, '3.5'), (7.0, 7.3, '7'),
                       (10.1, 10.15, '10.1'), (14.0, 14.35, '14'), (18.0, 18.2, '18'),
                       (21.0, 21.45, '21'), (24.8, 25.0, '24'), (28.0, 29.7, '28'),
-                      (50, 54, '50'), (144, 148, '144'), (430, 440, '432')):
+                      (50, 54, '50'), (70, 71, '70'), (144, 148, '144'), (430, 440, '432')):
         if lo <= mhz <= hi:
             return b
     return ''
@@ -802,6 +821,11 @@ _DIGITAL_WINDOWS_KHZ = (
     (1840, 1846), (3568, 3576), (7071, 7078), (10131, 10140),
     (14071, 14081), (18095, 18109), (21071, 21081), (24911, 24920),
     (28071, 28081), (50310, 50325), (144170, 144182), (432170, 432178),
+    # Fenêtres d'appel FT4 dédiées (logx_awards._APPELS_NUMERIQUES_KHZ) trop
+    # éloignées de la fenêtre FT8 du même bande pour être déjà couvertes par
+    # la marge existante (40/15/10 m) — sans elles, un spot FT4 sur ces
+    # bandes n'était jamais reconnu comme numérique.
+    (7044, 7051), (21136, 21144), (28176, 28184),
 )
 
 def _is_digital_freq(freq):
@@ -1022,13 +1046,24 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
                 dist = 0
                 if dx_ll[0] and my_ll[0]:
                     dist = haversine(my_ll[0], my_ll[1], dx_ll[0], dx_ll[1])
-                dedup_key = (str(call_val).split('/')[0].upper(), str(band))
+                # fetch_f5len_hf() (seule source qui alimente ce lot au format
+                # liste de cellules brutes) ajoute désormais sa bande connue
+                # (14/21/28/7) en dernière position — sans ça, le lot générique
+                # 'HF' fait perdre la vraie bande pour toute dédup/barème par
+                # bande, contrairement au lot 'dict' juste au-dessus qui la
+                # redérive déjà via _band_from_freq(). Repli sur `band` (le
+                # label générique du lot) si la dernière cellule ne ressemble
+                # pas à une bande connue (ancien format, appelant tiers...).
+                band_eff = band
+                if band.upper() == 'HF' and s and re.fullmatch(r'\d+(\.\d+)?', str(s[-1]).strip()):
+                    band_eff = str(s[-1]).strip()
+                dedup_key = (str(call_val).split('/')[0].upper(), str(band_eff))
                 if dedup_key in seen_station_band:
                     continue
                 seen_station_band.add(dedup_key)
                 all_stations.append({
                     'call': call_val, 'locator': loc_val, 'dist_km': dist,
-                    'band': band, 'source': 'cluster',
+                    'band': band_eff, 'source': 'cluster',
                 })
 
     # Stations actives sur le chat ON4KST : candidates au même titre que les

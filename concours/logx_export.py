@@ -52,7 +52,10 @@ def _qso_datetime(qso):
     """(AAAAMMJJ, HHMM) à partir des champs du log partagé."""
     date = str(qso.get('date', '')).replace('-', '')[:8]
     time = str(qso.get('time', '')).replace(':', '')[:4]
-    return date or '19000101', (time or '0000').ljust(4, '0')
+    # zfill (PAS ljust) : '930' saisi doit devenir '0930', pas '9300' — ljust
+    # ajoute les zéros à droite, zfill les ajoute à gauche (même correctif
+    # que _cabrillo_qtc_lines() un peu plus bas dans ce fichier).
+    return date or '19000101', (time or '0000').zfill(4)
 
 
 # ─── CABRILLO ────────────────────────────────────────────────────────────────
@@ -143,7 +146,13 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
     cdef = cdef or {}
     cfg = cfg or {}
     callsign = (cfg.get('callsign_contest') or cfg.get('callsign', '')).upper()
-    claimed = sum(q.get('points', 0) or 0 for q in qsos)
+    # + points QTC (WAE) : cette fonction affirmait déjà dans sa propre
+    # docstring (voir _cabrillo_qtc_lines ci-dessus) qu'ils "restent comptés
+    # dans le score", mais CLAIMED-SCORE ne les ajoutait pas — comptage
+    # identique à logx_storage.qtc_total(), directement sur qtc_series (déjà
+    # filtrée sur la bonne portée par l'appelant). No-op hors WAE.
+    claimed = sum(q.get('points', 0) or 0 for q in qsos) \
+        + sum(s.get('count', 0) or 0 for s in (qtc_series or []))
     # Créneaux BRUTS ('OP1', 'OP2'...) : sert uniquement à décider SINGLE-OP vs
     # MULTI-OP — deux créneaux distincts restent deux opérateurs même sans
     # config operators[] permettant de les résoudre en indicatifs réels (sans

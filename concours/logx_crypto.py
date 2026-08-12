@@ -43,6 +43,7 @@ SECRET_FIELDS = (
     'lan_sync_token', 'lotw_password', 'on4kst_password', 'qrz_password',
     'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
     'cloudsync_secret', 'voicekeyer_ai_api_key', 'mysql_password',
+    'relay_password', 'icomremote_password',
 )
 
 _cache = {'key': None, 'warned_missing_lib': False}

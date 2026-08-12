@@ -771,6 +771,12 @@ function resetFieldsAfterSubmit(){
 // ─── Init ────────────────────────────────────────────────────────────────────
 fillSelects();
 loadConfig().then(pollWall);
+// loadConfig() n'était appelée qu'UNE FOIS au chargement, contrairement à
+// tick()/pollWall() ci-dessus — un changement d'indicatif/locator/concours
+// fait côté PC (CONFIG) pendant qu'une session mobile reste ouverte
+// continuait à journaliser avec des valeurs périmées jusqu'au rechargement
+// manuel de la page.
+setInterval(loadConfig, 5000);
 refreshSuggestedSerial();
 updateQueueBadge(loadOfflineQueue().length);   // file laissée par une session précédente
 </script>

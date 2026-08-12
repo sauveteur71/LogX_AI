@@ -583,7 +583,7 @@ async function loadPropagation(){
     // pour tout le monde, quelle que soit la position. Dit franchement, pour
     // qu'on ne les confonde pas avec le verdict ci-dessus, qui est le tien.
     const lignesN0NBH = Object.entries(s.bands || {}).map(([name, dn]) => {
-      const tag = v => `<span class="bc-tag bc-${(v||'').toLowerCase().replace('good','good').replace('fair','fair').replace('poor','poor')}">${v||'?'}</span>`;
+      const tag = v => `<span class="bc-tag bc-${(v||'').toLowerCase().replace('good','good').replace('fair','fair').replace('poor','poor')}">${esc(v||'?')}</span>`;
       return `<div class="bc-row"><span class="bc-name">${esc(name)}</span>
         ☀️${tag(dn.day)} 🌙${tag(dn.night)}</div>`;
     }).join('');
@@ -598,9 +598,10 @@ async function loadPropagation(){
       .filter(([k]) => k.includes('europe') || k.includes('aurora'))
       .map(([k, v]) => {
         const open = !/closed/i.test(v);
-        const label = k.replace('E-Skip/', 'Es ').replace('vhf-aurora/', 'Aurore ').replace(/_/g,' ');
+        const label = esc(k.replace('E-Skip/', 'Es ').replace('vhf-aurora/', 'Aurore ').replace(/_/g,' '));
+        const vEsc = esc(v);
         return `<div class="bc-row"><span class="bc-name" style="width:130px">${label}</span>
-          <span class="${open ? 'bc-open' : 'bc-closed'}">${open ? '⚡ ' + v : v}</span></div>`;
+          <span class="${open ? 'bc-open' : 'bc-closed'}">${open ? '⚡ ' + vEsc : vEsc}</span></div>`;
       }).join('') || '<div class="loading">—</div>';
 
     document.getElementById('lastRefresh').textContent =
@@ -992,19 +993,31 @@ async function loadEme(){
     const visBadge = moon.visible
       ? '<span style="color:var(--green)">● visible</span>'
       : '<span style="color:var(--muted)">○ sous l\'horizon</span>';
-    el.innerHTML = `
+    const statsHtml = `
       <div>🌗 ${rcT('Position :')} <b>Az ${moon.az}° / El ${moon.alt}°</b> ${visBadge}</div>
       <div>📏 ${rcT('Distance :')} ${Math.round(moon.distance_km).toLocaleString('fr-FR')} km · ${rcT('Phase :')} ${moon.phase_pct}%</div>
       <div>🌅 ${rcT('Lever :')} ${esc(moon.rise_utc || '—')} UTC &nbsp;·&nbsp; 🌇 ${rcT('Coucher :')} ${esc(moon.set_utc || '—')} UTC</div>
-      <div>📻 ${rcT('Doppler estimé :')} 144.1 MHz → <b>${d144.available ? d144.doppler_hz+' Hz' : '—'}</b> · 432.1 MHz → <b>${d432.available ? d432.doppler_hz+' Hz' : '—'}</b></div>
-      <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input id="emeDxLocator" placeholder="Locator correspondant (ex: FN31pr)" autocapitalize="characters"
-          style="text-transform:uppercase;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-family:var(--font-mono);width:180px"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();searchEmeWindow();}">
-        <button type="button" class="filter-btn" onclick="searchEmeWindow()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><circle cx="8" cy="8" r="5"/><line x1="12" y1="12" x2="16" y2="16"/></svg>${rcT('Fenêtre commune (48h)')}</button>
-      </div>
-      <div id="emeWindowResult" style="margin-top:6px;color:var(--muted)"></div>
-    `;
+      <div>📻 ${rcT('Doppler estimé :')} 144.1 MHz → <b>${d144.available ? d144.doppler_hz+' Hz' : '—'}</b> · 432.1 MHz → <b>${d432.available ? d432.doppler_hz+' Hz' : '—'}</b></div>`;
+    // Le rafraîchissement périodique (5 min, propTask loadEme) ne doit
+    // JAMAIS reconstruire le champ de recherche ni son résultat affiché —
+    // sans cette garde, il effaçait une saisie en cours ou un résultat déjà
+    // obtenu. On sépare donc les stats (toujours régénérées) du bloc
+    // recherche (construit UNE SEULE fois, à la 1re apparition).
+    const statsEl = document.getElementById('emeStats');
+    if(statsEl){
+      statsEl.innerHTML = statsHtml;
+    } else {
+      el.innerHTML = `
+        <div id="emeStats">${statsHtml}</div>
+        <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input id="emeDxLocator" placeholder="Locator correspondant (ex: FN31pr)" autocapitalize="characters"
+            style="text-transform:uppercase;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-family:var(--font-mono);width:180px"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();searchEmeWindow();}">
+          <button type="button" class="filter-btn" onclick="searchEmeWindow()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><circle cx="8" cy="8" r="5"/><line x1="12" y1="12" x2="16" y2="16"/></svg>${rcT('Fenêtre commune (48h)')}</button>
+        </div>
+        <div id="emeWindowResult" style="margin-top:6px;color:var(--muted)"></div>
+      `;
+    }
   }catch(e){
     el.innerHTML = `<div class="loading">Indisponible</div>`;
   }

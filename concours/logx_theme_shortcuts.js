@@ -102,7 +102,14 @@ function _elementModaleOuverte(){
   const ids = ['editOverlay', 'shortcutsOverlay', 'validateOverlay',
                'awardsOverlay', 'importOverlay', 'checklistOverlay',
                'qtcOverlay', 'filterOverlay', 'dupOverlay', 'netOverlay',
-               'rateOverlay', 'qslCardOverlay'];
+               'rateOverlay', 'qslCardOverlay',
+               // Manquaient à ce registre alors qu'ils utilisent le même
+               // mécanisme .classList.add('show') que les 12 ID ci-dessus
+               // (voacapOverlay : logx_logbook.js openVoacapPanel() ;
+               // bulkResolveOverlay : logx_bulk_resolve.js) — les macros F1-
+               // F8 (TX CW/vocal) restaient actives au clavier même quand
+               // ces panneaux étaient ouverts.
+               'voacapOverlay', 'bulkResolveOverlay'];
   for(const id of ids){
     const el = document.getElementById(id);
     if(el && el.classList.contains('show')) return el;

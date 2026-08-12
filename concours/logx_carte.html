@@ -881,6 +881,28 @@ const QSO_BAND_LABELS = {
   '50':'6m','144':'2m','432':'70cm','1296':'23cm'
 };
 
+// Source du log affiché par drawLoggedQSOs() : le SERVEUR en priorité
+// (_refreshLoggedQsoCache(), appelée au chargement puis toutes les 30s),
+// avec le backup localStorage écrit par LOGBOOK comme repli SEULEMENT si
+// aucun fetch serveur n'a encore réussi — avant ce correctif, la carte lisait
+// EXCLUSIVEMENT ce backup (écrit toutes les 5 min), vide ou périmé jusqu'à
+// 5 min tant que l'onglet LOGBOOK n'a jamais été ouvert sur ce poste.
+let _loggedQsoCache = null;
+async function _refreshLoggedQsoCache(){
+  try{
+    const r = await fetch('/log/list');
+    if(r.ok){
+      const d = await r.json();
+      if(d && Array.isArray(d.qsos)){ _loggedQsoCache = d.qsos; return; }
+    }
+  }catch(e){}
+  if(_loggedQsoCache === null){
+    try{ _loggedQsoCache = JSON.parse(localStorage.getItem('rc_log_backup')||'[]'); }catch(e2){ _loggedQsoCache = []; }
+  }
+}
+setInterval(() => _refreshLoggedQsoCache().then(drawLoggedQSOs), 30*1000);
+setTimeout(() => _refreshLoggedQsoCache().then(drawLoggedQSOs), 1500);
+
 function drawLoggedQSOs(){
   leafletQSOMarkers.forEach(l=>l.remove()); leafletQSOMarkers=[];
   leafletQSOLines.forEach(l=>l.remove());   leafletQSOLines=[];
@@ -888,8 +910,7 @@ function drawLoggedQSOs(){
   const myLL = locLL(cfg.locator);
   if(!myLL) return;
 
-  let qsoLog = [];
-  try{ qsoLog = JSON.parse(localStorage.getItem('rc_log_backup')||'[]'); }catch(e){}
+  const qsoLog = _loggedQsoCache || [];
   if(!qsoLog.length) return;
 
   // Dédupliquer par call+locator

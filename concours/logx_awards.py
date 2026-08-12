@@ -775,6 +775,11 @@ def award_summary(shared_log=None):
         metro_missing = [d for d in METRO if d not in depts_w]
         dom_missing = [d for d in DOM if d not in depts_w]
     except Exception:
+        # METRO/DOM sont aussi référencés plus bas (metro_total, dom_total...)
+        # HORS de ce try/except — sans ce repli ici, un échec de l'import
+        # levait un NameError garanti à la 1re utilisation suivante, malgré
+        # l'apparence de repli gracieux de ce bloc.
+        METRO, DOM = [], []
         metro_missing, dom_missing = [], []
 
     return {

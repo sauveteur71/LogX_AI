@@ -715,8 +715,8 @@ const LEGACY_JS_BRICKS = {
   prefix:                    {points:[{when:'different_continent', points:6},
                                       {when:'na_w_ve', points:2}, {points:1}]},
   power_state:               {points:[{points:{param:'points', default:3}}], validity:'is_na'},
-  fd_class:                  {points:[{modes:['CW'], points:2},
-                                      {modes:['FT8','FT4','RTTY','PSK'], points:2},
+  fd_class:                  {points:[{modes:['CW'], points:{param:'points_cw', default:2}},
+                                      {modes:['FT8','FT4','RTTY','PSK'], points:{param:'points_digital', default:2}},
                                       {points:{param:'points_phone', default:1}}], validity:'is_na'},
   dept_dxcc:                 {points:[{when:'is_french', points:1}, {points:3}]},
   summit_points:             {points:[{points:{param:'points', default:1}}]},
@@ -754,7 +754,13 @@ const BRICK_PREDICATES = {
   same_country:        x => x.dxCountry === x.myCountry,
   same_continent:      x => x.dxCont === x.myCont,
   different_continent: x => x.dxCont !== x.myCont,
-  is_french:           x => /^(F|TM)/.test(x.dxBase),
+  // CTY_PREFIX (logx_dxcc_lookup.js) distingue déjà France/DOM-TOM par
+  // préfixe (c:'France' pour F/TM, c:'Martinique' pour FM, etc.) — un simple
+  // /^F/ confondait les DOM-TOM avec la France métropolitaine (même bug que
+  // le miroir serveur, logx_scoring.py PREDICATES.is_french). TK (Corse)
+  // n'est pas dans cette table encore incomplète (voir finding dédié table
+  // DXCC client) : repli explicite sur le préfixe pour ce seul cas.
+  is_french:           x => x.dxCountry === 'France' || /^TK/.test(x.dxBase),
   is_na:               x => _NA_CALL_RE.test(x.dxBase),
   na_w_ve:             x => /^(W|K|N|VE|XE)/.test(x.dxBase),
   is_asia:             x => x.dxCont === 'AS',
@@ -763,7 +769,7 @@ const BRICK_PREDICATES = {
 
 // Évalue les points d'un QSO depuis un bloc scoring serveur.
 // Retourne un nombre, ou null si le bloc est inexploitable (→ repli local).
-function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX){
+function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX, myLoc){
   const bricks = scoring.bricks || LEGACY_JS_BRICKS[scoring.type];
   if (!bricks || !Array.isArray(bricks.points)) return null;
   const ctx = _brickCtx(callDX);
@@ -788,7 +794,7 @@ function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX){
   const ssp = bricks.same_square_points;
   if (ssp !== undefined && ssp !== null){
     const large = l => (l && l.length >= 4) ? l.slice(0,4).toUpperCase() : null;
-    const mySq = large(myLocator);
+    const mySq = large(myLoc || myLocator);
     if (mySq !== null && mySq === large(locDX)){
       return (typeof ssp === 'object') ? (scoring[ssp.param] ?? ssp.default ?? 50) : ssp;
     }
@@ -810,8 +816,14 @@ function evalPointsFromDef(scoring, callDX, band, mode, dist, locDX){
   return 0;
 }
 
-function calcPoints(locDX, band, callDX, mode){
-  const myLL = locLL(myLocator);
+// myLoc (optionnel) : locator à utiliser pour la distance/le calcul, au lieu
+// du global `myLocator` (position ACTUELLE de l'opérateur). Nécessaire pour
+// recalculer le score d'un QSO déjà loggué avec SA position d'origine
+// (q.my_locator) — sinon un rover/expédition qui change de locator en cours
+// de concours voit son score rétroactivement faussé pour tous ses anciens
+// QSO (voir updateStats()).
+function calcPoints(locDX, band, callDX, mode, myLoc){
+  const myLL = locLL(myLoc || myLocator);
   const dxLL = locDX ? locLL(locDX) : null;
   const dist = (myLL && dxLL) ? hav(myLL.lat,myLL.lon,dxLL.lat,dxLL.lon) : 0;
 
@@ -820,7 +832,7 @@ function calcPoints(locDX, band, callDX, mode){
   // pour les barèmes à distance
   const def = contestScoringDefs[currentContest];
   if (def){
-    const pts = evalPointsFromDef(def, callDX, band, mode, dist, locDX);
+    const pts = evalPointsFromDef(def, callDX, band, mode, dist, locDX, myLoc);
     if (pts !== null) return pts;
   }
 
@@ -832,15 +844,18 @@ function calcPoints(locDX, band, callDX, mode){
 
   // ── HF nord-américains : pts fixes par mode ───────────────────────────────
   if(['ARRL_FD','ARRL_DX_SSB','ARRL_DX_CW'].includes(c)){
-    // ARRL FD : SSB=1pt, CW=2pts, Digital=2pts
-    const m = (mode||'SSB').toUpperCase();
-    const qsoPts = m==='CW'?2 : (m==='FT8'||m==='FT4'||m==='RTTY'||m==='PSK')?2 : 1;
-    // Station hors NA = 0 pt
-    if(callDX){
-      const NA_PFX = /^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|KQ|KR|KS|KT|KU|KV|KW|KX|KY|KZ|NA|NB|NC|ND|NE|NF|NG|NH|NI|NJ|NK|NL|NM|NN|NO|NP|NQ|NR|NS|NT|NU|NV|NW|NX|NY|NZ|VE|VA|VO|VY)/i;
-      if(!NA_PFX.test(callDX)) return 0;
+    const NA_PFX = /^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|KQ|KR|KS|KT|KU|KV|KW|KX|KY|KZ|NA|NB|NC|ND|NE|NF|NG|NH|NI|NJ|NK|NL|NM|NN|NO|NP|NQ|NR|NS|NT|NU|NV|NW|NX|NY|NZ|VE|VA|VO|VY)/i;
+    // Station hors NA = 0 pt (les deux barèmes ci-dessous)
+    if(callDX && !NA_PFX.test(callDX)) return 0;
+    if(c === 'ARRL_FD'){
+      // ARRL FD : SSB=1pt, CW=2pts, Digital=2pts
+      const m = (mode||'SSB').toUpperCase();
+      return m==='CW'?2 : (m==='FT8'||m==='FT4'||m==='RTTY'||m==='PSK')?2 : 1;
     }
-    return qsoPts;
+    // ARRL DX (SSB/CW) : 3 points fixes par QSO, quel que soit le mode —
+    // contrairement à ARRL FD, groupée à tort avec ce même barème par mode
+    // avant ce correctif.
+    return 3;
   }
 
   // ── CQ WW : 0/1/3 pts selon continent ────────────────────────────────────
@@ -1536,6 +1551,19 @@ function setupDone(){
       stored.contest_end_date   = e.toISOString().slice(0,10);
       stored.contest_end_utc    = e.toISOString().slice(11,16);
     }
+    // Purge des secrets avant réécriture : setupDone() (LOGBOOK) ne charge
+    // pas logx_configuration.js, donc n'a pas accès à
+    // _redactStaleSecretsInLocalStorage()/SECRET_CONFIG_FIELDS — un secret
+    // en clair resté d'une VERSION ANTÉRIEURE du logiciel dans ce blob
+    // survivrait sinon indéfiniment à ce ré-enregistrement. Liste dupliquée
+    // volontairement (mêmes noms que SECRET_CONFIG_FIELDS dans
+    // logx_configuration.js) : à tenir synchronisée si un champ secret y
+    // est ajouté.
+    ['api_key', 'clublog_api_key', 'clublog_password', 'eqsl_password',
+     'lan_sync_token', 'lotw_password', 'on4kst_password', 'qrz_password',
+     'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
+     'cloudsync_secret', 'voicekeyer_ai_api_key', 'mysql_password',
+     'relay_password', 'icomremote_password'].forEach(f => delete stored[f]);
     localStorage.setItem('logx_config', JSON.stringify(stored));
   }catch(e2){}
 
@@ -2575,7 +2603,7 @@ async function runVoacapCheck(){
     return;
   }
   if(!data.ok){
-    inner.innerHTML = `<div class="shortcuts-row"><span style="color:var(--red)">❌ ${data.error||'Échec du calcul'}</span></div>`;
+    inner.innerHTML = `<div class="shortcuts-row"><span style="color:var(--red)">❌ ${escHtml(data.error||'Échec du calcul')}</span></div>`;
     return;
   }
   const relColor = (rel) => {
@@ -2685,27 +2713,39 @@ async function fetchLog(){
   }
 }
 
+let _syncingOfflineQueue = false;
 async function syncOfflineQueue(){
+  // Verrou de réentrance : fetchLog() rappelle syncOfflineQueue() toutes les
+  // 5s (setInterval) — si un /log/add prend plus de 5s à répondre, le tick
+  // suivant relisait la MÊME file (encore non purgée) et renvoyait les mêmes
+  // QSO en force:true (qui saute exprès la dédup côté serveur), les
+  // dupliquant.
+  if(_syncingOfflineQueue) return;
   let queue = [];
   try{ queue = JSON.parse(localStorage.getItem('rc_offline_queue')||'[]'); }catch(e){}
   if(!queue.length) return;
-  const synced = [];
-  for(const qso of queue){
-    try{
-      // force:true : ces QSO ont déjà été validés à la saisie (mode hors
-      // ligne) — le contrôle de doublon ne doit pas les faire disparaître.
-      const res = await fetch('/log/add', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({...qso, force:true})
-      });
-      if(res.ok) synced.push(qso.id);
-    }catch(e){ break; } // serveur encore inaccessible
-  }
-  if(synced.length){
-    const remaining = queue.filter(q => !synced.includes(q.id));
-    localStorage.setItem('rc_offline_queue', JSON.stringify(remaining));
-    console.log(`[SYNC] ${synced.length} QSO hors-ligne synchronisés`);
-    document.getElementById('netStatus').textContent = `Connecté — ${synced.length} QSO hors-ligne resynchronisés`;
+  _syncingOfflineQueue = true;
+  try{
+    const synced = [];
+    for(const qso of queue){
+      try{
+        // force:true : ces QSO ont déjà été validés à la saisie (mode hors
+        // ligne) — le contrôle de doublon ne doit pas les faire disparaître.
+        const res = await fetch('/log/add', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({...qso, force:true})
+        });
+        if(res.ok) synced.push(qso.id);
+      }catch(e){ break; } // serveur encore inaccessible
+    }
+    if(synced.length){
+      const remaining = queue.filter(q => !synced.includes(q.id));
+      localStorage.setItem('rc_offline_queue', JSON.stringify(remaining));
+      console.log(`[SYNC] ${synced.length} QSO hors-ligne synchronisés`);
+      document.getElementById('netStatus').textContent = `Connecté — ${synced.length} QSO hors-ligne resynchronisés`;
+    }
+  }finally{
+    _syncingOfflineQueue = false;
   }
 }
 
@@ -2719,7 +2759,30 @@ function backupLog(){
   if(el) el.textContent = `Backup: ${hhmm} UTC`;
 }
 
+// qsoLog reste [] tant que le 1er fetchLog() n'a pas abouti — si le réseau
+// est indisponible au chargement (coupure /P), un rechargement de page
+// faisait disparaître visuellement les QSO déjà loggués (pas de perte
+// réelle — ils restent dans localStorage — mais un LOGBOOK qui semble vide
+// pousse à ressaisir en double par panique). Repli : dernier backup complet
+// (rc_log_backup, toutes les 5 min) fusionné avec la file hors-ligne pas
+// encore synchronisée (rc_offline_queue, plus récente) — écrasé de toute
+// façon dès que fetchLog() aboutit.
+function _rehydrateQsoLogFromLocalStorage(){
+  try{
+    const backup = JSON.parse(localStorage.getItem('rc_log_backup')||'[]');
+    if(!Array.isArray(backup) || !backup.length) return;
+    let offline = [];
+    try{ offline = JSON.parse(localStorage.getItem('rc_offline_queue')||'[]'); }catch(e2){}
+    const byId = new Map(backup.map(q => [q.id, q]));
+    for(const q of (Array.isArray(offline) ? offline : [])) byId.set(q.id, q);
+    qsoLog = Array.from(byId.values());
+    resetLogRenderWindow();
+    renderLog();
+  }catch(e){}
+}
+
 function startRefresh(){
+  _rehydrateQsoLogFromLocalStorage();
   fetchLog();
   refreshTimer = setInterval(fetchLog, 5000); // refresh toutes les 5 secondes
   // Backup automatique toutes les 5 minutes
@@ -2978,7 +3041,11 @@ function updateStats(){
   let total = 0;
   qsoLog.forEach(q => {
     if(q.locator && q.locator.length >= 6){
-      total += calcPoints(q.locator, q.band, q.call, q.mode);
+      // q.my_locator (position réellement enregistrée AU MOMENT du QSO) —
+      // sans ce repli, un rover/expédition changeant de locator en cours de
+      // concours voyait tout son historique de score recalculé à tort avec
+      // la position ACTUELLE (myLocator global).
+      total += calcPoints(q.locator, q.band, q.call, q.mode, q.my_locator);
     } else if(q.points && q.points > 0){
       total += q.points; // fallback sur valeur stockée si pas de locator
     } else if(!isVHF){
@@ -3702,7 +3769,12 @@ function initBroadcastChannel(){
       // normal, mais évite un throw silencieux si le DOM a changé entretemps.
       const call = (data && data.call) || '';
       const inp = document.getElementById('inputCall');
-      if(call && inp){ inp.value = call; onCallInput(); inp.focus(); }
+      // N'écrase le champ QUE s'il n'est pas en train d'être utilisé — sinon
+      // un clic sur le panadapter pendant la frappe manuelle d'un indicatif
+      // effaçait silencieusement ce que l'opérateur était en train de taper.
+      if(call && inp && (document.activeElement !== inp || !inp.value)){
+        inp.value = call; onCallInput(); inp.focus();
+      }
     }
   };
 }
@@ -3713,6 +3785,13 @@ function bcBroadcast(type, data){
 // Re-rendre les boutons bande/mode quand la config change dans un autre onglet
 window.addEventListener('storage', e => {
   if(e.key === 'logx_config'){
+    // currentContest n'était JAMAIS réassignée ici (seulement à setupDone())
+    // : un changement de concours fait dans un AUTRE onglet ne mettait donc
+    // jamais à jour le picker bande/mode de ce LOGBOOK-ci.
+    try{
+      const cfg = JSON.parse(e.newValue || '{}');
+      if(cfg.contest) currentContest = cfg.contest;
+    }catch(e2){}
     renderBandButtons(currentContest);
     renderModeButtons(currentContest);
   }
@@ -3735,11 +3814,24 @@ window.addEventListener('beforeunload', e => {
     e.returnValue = '';
   }
 });
+// intentionalNavigation n'était JAMAIS mise à true nulle part : le garde-fou
+// ci-dessus affichait donc la confirmation "quitter la page ?" même pour un
+// clic sur un lien de la barre de nav (CONFIG/CARTE IA/...), une navigation
+// volontaire DANS l'appli — délégation sur .app-nav pour couvrir tous les
+// liens sans avoir à toucher chacun.
+document.addEventListener('click', e => {
+  if(e.target.closest('.app-nav a')) intentionalNavigation = true;
+});
 
 window.addEventListener('DOMContentLoaded', () => {
   init(); // charge calldb.json + config serveur + cluster, puis prefillSetupFromConfig()
   renderMacroPanel();
   loadSoapbox();
+  // so2rRafraichir() (logx_outils_divers.js) n'était appelée qu'après l'envoi
+  // d'un message vocal — jamais au chargement de la page : l'indicateur SO2R
+  // restait vide/périmé sur un poste déjà configuré tant qu'aucun message
+  // vocal n'avait encore été envoyé.
+  if(typeof so2rRafraichir === 'function') so2rRafraichir();
   initBroadcastChannel();
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible

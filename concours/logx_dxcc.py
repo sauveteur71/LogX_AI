@@ -12,6 +12,7 @@ Format d'une entrée cty.dat :
 """
 import os
 import re
+import threading
 
 CTY_FILE = 'cty.dat'
 
@@ -104,7 +105,8 @@ def load_cty(path=None):
         print(f"[DXCC] {len(_PREFIXES)} prefixes + {len(_EXACT)} indicatifs exacts (cty.dat)")
     except Exception as e:
         print(f"[DXCC] Erreur de chargement {path}: {e}")
-    _lookup_cache.clear()   # la table de préfixes a changé : cache obsolète
+    with _lookup_cache_lock:
+        _lookup_cache.clear()   # la table de préfixes a changé : cache obsolète
     _loaded = True
 
 
@@ -114,6 +116,13 @@ def load_cty(path=None):
 # indicatifs. Vidé au (re)chargement de cty.dat (voir load_cty / update_cty).
 _lookup_cache = {}
 _MISS = object()
+# lookup() (thread HTTP appelant) et load_cty() (thread de fond de mise à
+# jour cty.dat, voir update_cty_if_stale) accèdent tous deux à _lookup_cache
+# sans coordination avant ce verrou : un lookup() en vol pendant un clear()
+# pouvait réinsérer une entrée calculée depuis les ANCIENNES tables juste
+# après le vidage, la figeant dans le cache fraîchement vidé jusqu'au
+# prochain rechargement (jusqu'à 30 j, voir CTY_MAX_AGE_DAYS).
+_lookup_cache_lock = threading.Lock()
 
 
 def lookup(callsign):
@@ -125,12 +134,13 @@ def lookup(callsign):
     if not callsign:
         return None
     call = callsign.upper().strip()
-    cached = _lookup_cache.get(call, _MISS)
-    if cached is not _MISS:
-        return cached
-    r = _lookup_compute(call)
-    _lookup_cache[call] = r
-    return r
+    with _lookup_cache_lock:
+        cached = _lookup_cache.get(call, _MISS)
+        if cached is not _MISS:
+            return cached
+        r = _lookup_compute(call)
+        _lookup_cache[call] = r
+        return r
 
 
 def _lookup_compute(call):
@@ -225,6 +235,16 @@ def update_cty_if_stale(max_age_days=CTY_MAX_AGE_DAYS, force=False):
     # load_cty() réentrant sur les mêmes dicts pendant la fenêtre de mise à
     # jour). load_cty() se suffit à lui-même.
     load_cty()
+    # world_countries.geojson ne change pas, mais la correspondance
+    # préfixe->entité DXCC qu'il matérialise (entity_to_feature_id) dépend de
+    # cty.dat — sans invalider ce cache, la carte du monde gardait l'ancienne
+    # correspondance jusqu'au redémarrage du process, alors que c'est
+    # justement ce que ce module documente comme le déclencheur attendu.
+    try:
+        import logx_worldmap
+        logx_worldmap.invalidate_cache()
+    except Exception:
+        pass
     print("[DXCC] cty.dat mis a jour"
           + (f" (l'ancien avait {age:.0f} j)" if age is not None else " (nouveau)"))
     return True

@@ -27,26 +27,34 @@ function toggleSoapbox(){
   const collapsed = title.classList.toggle('collapsed');
   fields.classList.toggle('hidden', collapsed);
 }
+// Clé localStorage namespacée par concours actif (currentContest, déclarée
+// dans logx_logbook.js, chargé avant ce fichier mais dont l'appel de ces
+// fonctions n'intervient qu'après — voir en-tête ci-dessus) — sans ce
+// rattachement, un changement de concours en cours de session pouvait
+// réinjecter le texte SOAPBOX d'un concours précédent dans l'export EDI.
+function _soapboxKey(){
+  return 'logx_soapbox_' + (typeof currentContest !== 'undefined' && currentContest ? currentContest : 'default');
+}
 function saveSoapbox(){
   const data = {};
   SOAPBOX_BANDS.forEach(b => {
     const el = document.getElementById(`soap_${b}`);
     if(el) data[b] = el.value;
   });
-  localStorage.setItem('logx_soapbox', JSON.stringify(data));
+  localStorage.setItem(_soapboxKey(), JSON.stringify(data));
 }
 function loadSoapbox(){
   try{
-    const data = JSON.parse(localStorage.getItem('logx_soapbox')||'{}');
+    const data = JSON.parse(localStorage.getItem(_soapboxKey())||'{}');
     SOAPBOX_BANDS.forEach(b => {
       const el = document.getElementById(`soap_${b}`);
-      if(el && data[b]) el.value = data[b];
+      if(el) el.value = data[b] || '';
     });
   }catch(e){}
 }
 function getSoapbox(band){
   try{
-    const data = JSON.parse(localStorage.getItem('logx_soapbox')||'{}');
+    const data = JSON.parse(localStorage.getItem(_soapboxKey())||'{}');
     return (data[band]||'').trim();
   }catch(e){ return ''; }
 }

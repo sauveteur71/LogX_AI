@@ -15,7 +15,8 @@ import datetime
 
 from logx_definitions import CONTEST_DEFINITIONS
 from logx_coach_i18n import t
-from logx_storage import qso_scope_id, cfg_scope_id
+from logx_scoring import resolve_scoring_bricks
+from logx_storage import qso_scope_id, cfg_scope_id, qtc_total
 from logx_utils import utcnow
 
 HF_BANDS = ('1.8', '3.5', '7', '14', '21', '28')
@@ -142,7 +143,10 @@ def log_stats(shared_log, contest_id='', clock=None, now=None):
                if not contest_id or qso_scope_id(e) == contest_id]
     stats = {
         'qso_total': len(entries),
-        'score': sum(e.get('points', 0) or 0 for e in entries),
+        # + qtc_total() : les points QTC (WAE) vivent dans un journal séparé,
+        # jamais dans shared_log — sans ça, le score affiché au coach IA
+        # omettait systématiquement les points QTC. No-op hors WAE.
+        'score': sum(e.get('points', 0) or 0 for e in entries) + qtc_total(contest_id),
         'by_band': {},
         'qso_last_hour': 0,
         'qso_last_10min': 0,
@@ -410,8 +414,11 @@ def build_hints(cdef, clock, stats, plan, lang='fr'):
                           'text': t(lang, 'hint_best_band',
                                     band=best['band'], w=best['weight'])})
 
-    # Fin de course : chasse aux mults
-    bricks = (cdef.get('scoring', {}) or {}).get('bricks', {}) or {}
+    # Fin de course : chasse aux mults — resolve_scoring_bricks() retombe sur
+    # LEGACY_SCORING_PRESETS quand 'bricks' n'est pas déclaré explicitement
+    # (concours défini par 'type' seul) ; lire cdef['scoring']['bricks']
+    # directement laissait has_mult toujours False pour tout concours legacy.
+    bricks = resolve_scoring_bricks(cdef.get('scoring', {}) or {})
     has_mult = bool(bricks.get('multiplier')) or bool(bricks.get('mult_weight_by_band'))
     if remaining <= 2 and has_mult:
         hints.append({'level': 'action', 'icon': '🏁',
@@ -596,6 +603,11 @@ def build_debrief(cfg, shared_log, now=None):
                     pb['km'] += km
                     if km > pb['best_km']:
                         pb['best_km'], pb['best_call'] = km, str(e.get('call', ''))
+
+    # WAE : les points QTC (journal séparé, jamais dans shared_log) manquaient
+    # ici — sans eux, le débrief IA annonçait un score systématiquement sous-
+    # évalué pour ce type de concours. No-op hors WAE.
+    score += qtc_total(scope_id)
 
     # Silences > 30 min pendant le concours
     timeline.sort()
