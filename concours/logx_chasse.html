@@ -481,11 +481,21 @@ function ft8Strategy(call){
       pollStrat(j.id);
     }).catch(e=>setStratBody('❌ '+esc(e.message)));
 }
+// id de la DERNIÈRE analyse demandée : deux analyses lancées coup sur coup
+// (clic sur un 2e spot avant que la 1re n'ait fini) créent deux boucles
+// pollStrat() indépendantes — sans ce garde, celle de la 1re demande, plus
+// lente, pouvait afficher sa réponse APRÈS que le popup ait déjà changé de
+// titre pour la 2e, écrasant le bon résultat avec l'obsolète.
+let _stratActiveId = null;
+
 function pollStrat(id){
+  _stratActiveId = id;
   const tick=async()=>{
+    if(id!==_stratActiveId) return;   // une analyse plus récente a pris le relais
     let s;
     try{ const r=await fetch('/wsjtx/strategy/state?id='+encodeURIComponent(id)); s=await r.json(); }
     catch(e){ setTimeout(tick,2500); return; }
+    if(id!==_stratActiveId) return;
     if(s.status==='running'){ setTimeout(tick,1500); return; }
     if(s.status==='done') renderStrat(s);
     else if(s.status==='error') setStratBody('❌ '+esc(s.error||'échec'));

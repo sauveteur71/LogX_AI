@@ -24,6 +24,7 @@ score affiché ici est une ESTIMATION LOCALE pour prioriser vos contacts ;
 le classement officiel reste calculé par la plateforme WWA elle-même.
 """
 import re
+import threading
 import time
 
 from logx_utils import fetch_url
@@ -65,15 +66,11 @@ def _parse_teams_html(html):
     return roster
 
 
-def get_roster(edition_code, force_refresh=False):
-    """Roster {indicatif spécial: pays} pour ce code d'édition. Dégradation
-    propre : jamais d'exception — renvoie {} si injoignable sans cache, ou
-    le cache existant même expiré plutôt que de bloquer le scoring."""
-    if not edition_code:
-        return {}
+def _fetch_roster_blocking(edition_code):
+    """Le VRAI appel réseau (jusqu'à 10s, cf. fetch_url) — réservé au thread
+    de rafraîchissement de fond (_refresh_roster_async) ou aux appels de
+    test explicites, jamais à un handler HTTP."""
     entry = _cache.get(edition_code)
-    if not force_refresh and entry and (time.time() - entry['ts']) < CACHE_TTL:
-        return entry['roster']
     html = fetch_url(f'{TEAMS_URL}?sub_menu={edition_code}', timeout=10)
     if not html:
         return entry['roster'] if entry else {}   # repli sur le cache périmé si le réseau échoue
@@ -82,6 +79,55 @@ def get_roster(edition_code, force_refresh=False):
         _cache[edition_code] = {'ts': time.time(), 'roster': roster}
         return roster
     return entry['roster']   # page vide/inchangée : garder le dernier roster non-vide connu
+
+
+# ─── Accès NON BLOQUANT (pour is_wwa_station()/le moteur de scoring) ────────
+# get_roster() est appelée PAR SPOT/QSO depuis le moteur de scoring
+# (logx_scoring.PREDICATES) — accessible depuis /log/check (à chaque frappe),
+# /data/refresh, le coach... Contrairement à add_qso_to_log() (qui borne déjà
+# son propre appel à calc_qso_value() à 3s via _SCORE_EXECUTOR, voir
+# logx_http.py), ces autres chemins appelaient get_roster() en direct : sur
+# cache froid/périmé, un hamaward.cloud lent bloquait le thread HTTP jusqu'à
+# 10s. Même remède que get_weather_cached()/get_tropo_cached() : ne lire QUE
+# le cache existant ici, rafraîchissement réseau déclenché dans un thread de
+# fond détaché, un par edition_code (deux éditions ne doivent pas se bloquer
+# l'une l'autre).
+_refresh_locks = {}
+_refresh_locks_guard = threading.Lock()
+
+
+def _refresh_lock_for(edition_code):
+    with _refresh_locks_guard:
+        lock = _refresh_locks.get(edition_code)
+        if lock is None:
+            lock = threading.Lock()
+            _refresh_locks[edition_code] = lock
+        return lock
+
+
+def _refresh_roster_async(edition_code):
+    lock = _refresh_lock_for(edition_code)
+    if not lock.acquire(blocking=False):
+        return  # un rafraîchissement de CETTE édition est déjà en vol
+    def _run():
+        try:
+            _fetch_roster_blocking(edition_code)
+        finally:
+            lock.release()
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def get_roster(edition_code, force_refresh=False):
+    """Jamais bloquant — renvoie le cache existant (même périmé) et déclenche
+    un rafraîchissement en thread de fond si besoin ; {} tant que rien n'a
+    encore été chargé pour cette édition."""
+    if not edition_code:
+        return {}
+    entry = _cache.get(edition_code)
+    stale = force_refresh or not entry or (time.time() - entry['ts']) >= CACHE_TTL
+    if stale:
+        _refresh_roster_async(edition_code)
+    return entry['roster'] if entry else {}
 
 
 def roster_for_contest(contest_id):

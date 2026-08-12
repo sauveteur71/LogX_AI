@@ -223,15 +223,24 @@ if(localStorage.getItem('rc_theme') === null){
     svg.innerHTML=g;
   }
 
+  // Jeton de génération : incrémenté à CHAQUE appel de tick() (dont ceux
+  // déclenchés par un clic sur une autre bande). Si une réponse réseau
+  // arrive après qu'un tick PLUS RÉCENT a déjà démarré, elle est ignorée
+  // plutôt que d'écraser l'affichage de la bande désormais sélectionnée
+  // avec les données périmées de l'ancienne.
+  let _tickGen = 0;
+
   async function tick(){
+    const _gen = ++_tickGen;
     const _n = new Date();
     const _localStr = `${String(_n.getHours()).padStart(2,'0')}:${String(_n.getMinutes()).padStart(2,'0')}:${String(_n.getSeconds()).padStart(2,'0')}`;
     document.getElementById('clock').textContent = _n.toISOString().slice(11,19) + ' UTC · ' + _localStr + ' local';
     const rng=BM_RANGE[band]||[0,1];
-    try{ const rr=await fetch('/rig/state'); if(rr.ok){const rd=await rr.json(); rigMhz=(rd&&rd.enabled&&rd.freq_khz)?rd.freq_khz/1000:null;} }catch(e){}
+    try{ const rr=await fetch('/rig/state'); if(rr.ok){const rd=await rr.json(); if(_gen===_tickGen) rigMhz=(rd&&rd.enabled&&rd.freq_khz)?rd.freq_khz/1000:null;} }catch(e){}
     try{
       const r=await fetch('/data/spots_ranked'); if(!r.ok) return;
       const d=await r.json();
+      if(_gen!==_tickGen) return;   // un tick plus récent a déjà démarré : cette réponse est périmée
       // Le serveur envoie des kHz (freq_en_khz) et rng est en MHz : sans
       // cette conversion le filtre rejetait TOUS les spots et le scope
       // detache restait desesperement vide.
