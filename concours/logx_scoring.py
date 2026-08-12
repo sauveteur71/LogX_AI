@@ -5,7 +5,7 @@ import re
 
 from logx_definitions import CONTEST_DEFINITIONS
 from logx_utils import locator_to_latlon, haversine, bearing, cardinal, utcnow
-from logx_storage import shared_log, contest_actif
+from logx_storage import shared_log, contest_actif, cfg_scope_id, qso_scope_id
 
 # ─── MOTEUR DE SCORING UNIVERSEL ─────────────────────────────────────────────
 # Calcule la valeur réelle en points d'un contact selon le règlement actif
@@ -932,8 +932,15 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
             _mark_dept(q)
             current_score += q.get('points', 0)
 
-    # Depuis log partagé multi-op (band déjà présent par QSO)
-    for q in shared_log:
+    # Depuis log partagé multi-op (band déjà présent par QSO) — filtré par la
+    # portée active (concours+année, voir logx_storage.cfg_scope_id) : sans
+    # ce filtre, un QSO d'un AUTRE concours/année (log partagé jamais purgé
+    # entre deux éditions) marquait à tort une station "déjà travaillée" ou
+    # gonflait current_score avec des points hors de ce concours-ci.
+    _scope_id = cfg_scope_id(cfg)
+    _shared_scoped = shared_log if not _scope_id else [
+        q for q in shared_log if qso_scope_id(q) == _scope_id]
+    for q in _shared_scoped:
         base = _mark_done(q.get('call',''), q.get('band',''), q.get('date',''))
         loc = q.get('locator','')
         if loc:

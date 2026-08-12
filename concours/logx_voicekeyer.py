@@ -814,6 +814,18 @@ def synthesize_to_wav_piper(text, exe, model, timeout=_PIPER_TIMEOUT):
     model = str(model or '').strip()
     if not model:
         return None
+    # `exe` vient de voicekeyer_piper_exe, ecrit sans validation via
+    # POST /config/save (meme surface que autostart_programs, voir
+    # logx_autostart.py). Le defaut litteral 'piper' (resolu via PATH par
+    # subprocess, jamais un chemin attaquant-controle) reste autorise tel
+    # quel ; tout AUTRE chemin doit satisfaire la meme regle que
+    # logx_autostart._chemin_local_valide() -- fichier local DEJA present,
+    # jamais un chemin UNC -- pour ne pas rouvrir la meme RCE corrigee
+    # ailleurs pour autostart_programs.
+    if exe != 'piper':
+        import logx_autostart
+        if not logx_autostart._chemin_local_valide(exe, os.path.isfile):
+            return None
     fd, path = tempfile.mkstemp(suffix='.wav', prefix='rc_voice_piper_')
     os.close(fd)
     try:

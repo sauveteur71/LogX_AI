@@ -603,8 +603,14 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
     la publication (beaucoup de nœuds n'acceptent le spot que d'utilisateurs
     enregistrés — on remonte alors le refus). Ne lève jamais d'exception.
     Retourne {'ok', 'raw', 'error'}."""
-    login_call = (login_call or '').upper().strip()
-    spot_call = (spot_call or '').upper().strip()
+    # login_call/spot_call viennent de la config client (cluster_spot_login,
+    # callsign_contest, callsign -- ecrite sans validation via POST
+    # /config/save) et sont envoyes tels quels comme commandes texte sur la
+    # session telnet du cluster : un \r\n embarque y injecterait une commande
+    # cluster supplementaire. `comment` etait deja filtre ainsi juste plus
+    # bas -- login_call/spot_call ne l'etaient pas.
+    login_call = (login_call or '').upper().strip().replace('\r', ' ').replace('\n', ' ')
+    spot_call = (spot_call or '').upper().strip().replace('\r', ' ').replace('\n', ' ')
     if not login_call:
         return {'ok': False, 'raw': '', 'error': 'Indicatif (login cluster) manquant'}
     if not spot_call:
@@ -616,11 +622,25 @@ def publish_self_spot(host, port, login_call, spot_call, freq_khz,
     if freq_khz <= 0:
         return {'ok': False, 'raw': '', 'error': 'Frequence invalide'}
     comment = (comment or '').replace('\r', ' ').replace('\n', ' ').strip()[:30]
+    # host/port viennent aussi de la config client (cluster_spot_host/_port)
+    # sans aucune restriction avant ce correctif : un attaquant en possession
+    # du jeton de session pouvait faire ouvrir au serveur une connexion TCP
+    # brute vers N'IMPORTE QUELLE adresse/port interne (LAN, 127.0.0.1...) et
+    # y envoyer un texte partiellement controle -- meme classe de risque que
+    # le SSRF deja corrige ailleurs (voir logx_rules_ai._is_safe_host, meme
+    # garde reutilisee ici plutot que d'en ecrire une seconde version).
+    try:
+        import logx_rules_ai
+        if not logx_rules_ai._is_safe_host(str(host or '')):
+            return {'ok': False, 'raw': '', 'error':
+                     "Hôte du cluster invalide ou pointant vers un réseau privé/local"}
+    except Exception:
+        return {'ok': False, 'raw': '', 'error': 'Hôte du cluster invalide'}
     try:
         def _dialog():
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(timeout)
-            s.connect((host, int(port)))  # <- désormais borné par le submit ci-dessous
+            s.connect((host, int(port)))
 
             def read_until(patterns, max_wait=5):
                 # Recalcule le timeout du socket à chaque recv() sur la deadline

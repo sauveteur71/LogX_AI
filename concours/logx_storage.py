@@ -329,12 +329,23 @@ def qso_scope_id(qso):
     return f'{contest}#{year}' if year else contest
 
 
+_FALLBACK_YEAR = None   # voir active_scope_id() : figé au 1er appel, jamais recalculé
+
+
 def active_scope_id(cfg):
     """Portée du concours actuellement configuré, même format que
     qso_scope_id() — l'année vient de contest_start_date (ou de l'année UTC en
     cours si absente). '' si aucun concours n'est sélectionné : dans ce cas
     les filtres 'travaillé'/'portée' ne doivent RIEN restreindre (comportement
-    historique préservé quand la config est incomplète)."""
+    historique préservé quand la config est incomplète).
+
+    Le repli sur l'année UTC courante est figé au TOUT PREMIER appel de ce
+    process (_FALLBACK_YEAR), jamais recalculé à chaque appel : sinon, pour
+    tout concours sans contest_start_date renseigné, cette fonction changeait
+    de valeur pile au passage de minuit UTC le 31 décembre — les QSO déjà
+    loggués (scope 'concours#2026') disparaissaient silencieusement du
+    LOGBOOK filtré dès que la portée active recalculait 'concours#2027'."""
+    global _FALLBACK_YEAR
     cfg = cfg or {}
     contest = str(cfg.get('contest', '') or '').strip()
     if not contest:
@@ -342,7 +353,9 @@ def active_scope_id(cfg):
     start = str(cfg.get('contest_start_date', '') or '')
     year = start[:4] if len(start) >= 4 and start[:4].isdigit() else ''
     if not year:
-        year = str(utcnow().year)
+        if _FALLBACK_YEAR is None:
+            _FALLBACK_YEAR = str(utcnow().year)
+        year = _FALLBACK_YEAR
     return f'{contest}#{year}'
 
 

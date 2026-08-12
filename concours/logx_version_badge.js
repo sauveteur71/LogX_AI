@@ -183,7 +183,7 @@ function _pollNetworkUpdateStatus(){
 function installNetworkUpdate(){
   const resEl = document.getElementById('netUpdatePathResult');
   if(resEl) resEl.textContent = 'redémarrage…';
-  fetch('/app/update_install', {method: 'POST'})
+  fetch('/app/update_install', {method: 'POST', headers: {'Content-Type': 'application/json'}})
     .then(()=> setTimeout(_pollServerBackUpAfterNetworkUpdate, 2500));
 }
 

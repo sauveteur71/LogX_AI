@@ -1180,14 +1180,14 @@
       return;
     }
     if (e.target.id === 'rcsbUpdDownload'){
-      fetch('/app/update_download', {method: 'POST'}).then(function(){ pollDownload(); });
+      fetch('/app/update_download', {method: 'POST', headers: {'Content-Type': 'application/json'}}).then(function(){ pollDownload(); });
       return;
     }
     if (e.target.id === 'rcsbUpdInstall'){
       var _ib = e.target;
       _ib.disabled = true;
       _ib.textContent = 'redémarrage…';
-      fetch('/app/update_install', {method: 'POST'})
+      fetch('/app/update_install', {method: 'POST', headers: {'Content-Type': 'application/json'}})
         .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return {ok: r.ok, j: j}; }); })
         .then(function(res){
           if (res.ok && res.j && res.j.restarting){
