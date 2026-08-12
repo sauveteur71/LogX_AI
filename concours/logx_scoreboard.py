@@ -51,16 +51,31 @@ def build_score_snapshot(shared_log, cfg, contest_id=None):
         pb['qso'] += 1
         pb['points'] += pts
 
-    # Multiplicateurs selon le barème (départements REF ou locators VHF)
+    # Multiplicateurs selon le barème réel du concours (voir
+    # logx_scoring.contest_geo_mode, qui lit le multiplicateur EFFECTIF —
+    # briques explicites 'bricks' OU preset 'type' legacy). Avant ce
+    # correctif, seul le 'type' legacy était consulté : tout concours dont le
+    # barème est déclaré en 'bricks' (aucune clé 'type' de premier niveau)
+    # retombait TOUJOURS sur le comptage de locators VHF, y compris pour un
+    # multiplicateur DXCC/zone/préfixe (style CQ WW/WPX) — publié tel quel au
+    # tableau de bord externe.
     mults = 0
     try:
-        from logx_definitions import CONTEST_DEFINITIONS
-        cdef = CONTEST_DEFINITIONS.get(contest_id, {})
-        stype = (cdef.get('scoring', {}) or {}).get('type', '')
-        if stype == 'dept_dxcc':
+        from logx_scoring import contest_geo_mode
+        geo_mode = contest_geo_mode(contest_id)
+        if geo_mode == 'dept_dxcc':
             from logx_departments import department_mult_count
             mults = len(department_mult_count(shared_log, scope_id))
+        elif geo_mode == 'dxcc':
+            import logx_dxcc as dxcc
+            mults = len({dxcc.country_key(str(q.get('call', '')).split('/')[0].upper())
+                         for q in entries if q.get('call')})
         else:
+            # 'dept'/'other' (locator, large_square, na_state, na_section...) :
+            # repli existant sur le carré locator 4 caractères -- correct pour
+            # un multiplicateur locator/large_square, approximatif pour
+            # na_state/na_section (pas de champ état/section fiable dans le
+            # log partagé), inchangé par rapport au comportement précédent.
             mults = len({str(q.get('locator', ''))[:4] for q in entries
                          if q.get('locator') and len(str(q.get('locator'))) >= 4})
     except Exception:

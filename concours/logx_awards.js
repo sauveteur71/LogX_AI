@@ -48,7 +48,7 @@ function renderWorkedMatrix(m){
   };
   const rows = m.bands.map(b => {
     const g = m.grid[b] || {};
-    return `<tr><td style="padding:4px 8px;color:var(--muted)">${b} MHz</td>` +
+    return `<tr><td style="padding:4px 8px;color:var(--muted)">${escHtml(b)} MHz</td>` +
       m.categories.map(c => cell(g[c])).join('') + `</tr>`;
   }).join('');
   const totalsRow = `<tr style="border-top:1px solid var(--border)"><td style="padding:4px 8px;color:var(--muted)">Total</td>` +

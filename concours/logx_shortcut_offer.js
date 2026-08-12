@@ -47,7 +47,7 @@ function hideShortcutOffer(){
 async function createDesktopShortcut(){
   hideShortcutOffer();
   try{
-    const r = await fetch('/shortcut/create_desktop', {method:'POST'});
+    const r = await fetch('/shortcut/create_desktop', {method:'POST', headers: {'Content-Type': 'application/json'}});
     const d = await r.json();
     if(d.ok) notify(trF('🖥️ Raccourci créé sur le bureau : {path}', {path: d.path}));
     else notify(trF('❌ Raccourci bureau : {err}', {err: d.message || d.error || trT('échec')}));
@@ -58,5 +58,5 @@ async function createDesktopShortcut(){
 // jamais reproposer la bannière.
 function dismissShortcutOffer(){
   hideShortcutOffer();
-  fetch('/shortcut/dismiss', {method:'POST'}).catch(()=>{});
+  fetch('/shortcut/dismiss', {method:'POST', headers: {'Content-Type': 'application/json'}}).catch(()=>{});
 }

@@ -1724,7 +1724,7 @@ async function testQrzLogbook(){
   result.textContent = '⏳ Test en cours...';
   result.style.color = 'var(--muted)';
   try{
-    const res = await fetch('/qrz_logbook/test', {method: 'POST'});
+    const res = await fetch('/qrz_logbook/test', {method: 'POST', headers: {'Content-Type': 'application/json'}});
     const r = await res.json();
     if (r.ok){
       result.textContent = '✅ Clé QRZ Logbook valide';
@@ -2918,17 +2918,17 @@ function renderAlertRules(){
   }
   el.innerHTML = rules.map(r => {
     const bits = [];
-    if(r.call_prefix) bits.push('préfixe ' + r.call_prefix);
-    if(r.continent) bits.push(CONTINENT_LABEL[r.continent] || r.continent);
-    if(r.cq_zone) bits.push('zone CQ ' + r.cq_zone);
-    if(r.band) bits.push(r.band + ' MHz');
+    if(r.call_prefix) bits.push('préfixe ' + escC(r.call_prefix));
+    if(r.continent) bits.push(escC(CONTINENT_LABEL[r.continent] || r.continent));
+    if(r.cq_zone) bits.push('zone CQ ' + escC(r.cq_zone));
+    if(r.band) bits.push(escC(r.band) + ' MHz');
     if(r.status === 'new_mult') bits.push('nouveau mult');
     if(r.status === 'already_done') bits.push('déjà travaillé');
-    if(r.comment_contains) bits.push('commentaire « ' + r.comment_contains + ' »');
+    if(r.comment_contains) bits.push('commentaire « ' + escC(r.comment_contains) + ' »');
     const on = r.enabled !== false;
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:13px">
       <span class="toggle-btn${on?' on':''}" style="padding:4px 10px" onclick="toggleAlertRule('${r.id}')">${on?'<svg viewBox="0 0 18 18" width="11" height="11" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> actif':'<svg viewBox="0 0 18 18" width="11" height="11" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4.5" y1="4.5" x2="13.5" y2="13.5"/><line x1="13.5" y1="4.5" x2="4.5" y2="13.5"/></svg> coupé'}</span>
-      <b style="flex:1;color:var(--text)">${r.name}</b>
+      <b style="flex:1;color:var(--text)">${escC(r.name)}</b>
       <span style="color:var(--muted)">${bits.join(' · ') || 'tout spot'}</span>
       <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:11px" onclick="deleteAlertRule('${r.id}')" title="Supprimer cette règle d'alerte"><svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="5" x2="15" y2="5"/><path d="M6.5 5V3.5h5V5"/><path d="M4.5 5 5.2 15h7.6L13.5 5"/><line x1="7.5" y1="7.5" x2="7.5" y2="12.5"/><line x1="10.5" y1="7.5" x2="10.5" y2="12.5"/></svg></button>
     </div>`;
@@ -5426,7 +5426,7 @@ async function addShift(){
 
 async function deleteShift(id){
   try{
-    await fetch(`/shifts/delete/${id}`, {method: 'POST'});
+    await fetch(`/shifts/delete/${id}`, {method: 'POST', headers: {'Content-Type': 'application/json'}});
   }catch(e){
     console.warn('[SHIFTS] suppression impossible :', e);
   }
@@ -6140,7 +6140,7 @@ async function updateMasterScpFromInternet(){
   st.textContent = '⏳ Téléchargement depuis supercheckpartial.com...';
   st.style.color = 'var(--muted)';
   try{
-    const res = await fetch('/callhistory/update_scp', {method: 'POST'});
+    const res = await fetch('/callhistory/update_scp', {method: 'POST', headers: {'Content-Type': 'application/json'}});
     const r = await res.json();
     if (!r.ok){ st.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> ${r.error}</span>`; return; }
     st.innerHTML = `<span style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${r.imported} indicatif(s) lus, `
@@ -6340,7 +6340,7 @@ function openReviewModal(p){
       ${_revField('log_deadline', 'DEADLINE LOG', d.log_deadline, c.log_deadline)}
       ${_revField('log_submit', 'SOUMISSION LOG (URL/email)', d.log_submit, c.log_submit)}
     </div>
-    ${p.date_preview ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--green);margin-bottom:10px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Prochaine occurrence calculée depuis la règle : <strong>${p.date_preview}</strong></div>` : ''}
+    ${p.date_preview ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--green);margin-bottom:10px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Prochaine occurrence calculée depuis la règle : <strong>${escC(p.date_preview)}</strong></div>` : ''}
     ${_revField('notes', 'NOTES / PARTICULARITÉS', d.notes, c.notes)}
 
     <div style="margin-bottom:12px">

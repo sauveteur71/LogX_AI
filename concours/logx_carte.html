@@ -1840,7 +1840,7 @@ function renderCoach(){
     hintsHtml+=`<div class="coach-hint" style="color:${col}">${f.text}</div>`;
   });
   hintsHtml+=(coachState.hints||[]).slice(0,3).map(h=>
-    `<div class="coach-hint ch-${h.level}">${h.icon} ${h.text}</div>`).join('');
+    `<div class="coach-hint ch-${h.level}">${escMap(h.icon)} ${escMap(h.text)}</div>`).join('');
   document.getElementById('coachHints').innerHTML=hintsHtml;
   const _nt=document.getElementById('nudgeToggle');   // reflète l'état stocké (OFF par défaut)
   if(_nt)_nt.checked=(localStorage.getItem('rc_live_nudges')==='1');
@@ -1873,7 +1873,7 @@ async function checkVoacapForSpot(){
     return;
   }
   if(!data.ok){
-    box.innerHTML=`<div style="color:var(--red);font-size:11px;margin-top:6px">❌ ${data.error||'Échec du calcul'}</div>`;
+    box.innerHTML=`<div style="color:var(--red);font-size:11px;margin-top:6px">❌ ${escMap(data.error||'Échec du calcul')}</div>`;
     return;
   }
   const relColor=(rel)=>{
@@ -2463,7 +2463,7 @@ function g3dPointerMove(x, y){
       g3dTooltip.style.left = (x - rect.left + 14) + 'px';
       g3dTooltip.style.top = (y - rect.top + 10) + 'px';
       g3dTooltip.innerHTML = hit.kind === 'qth' ? '<b>Mon QTH</b>' :
-        `<b>${hit.data.call||'—'}</b> · ${hit.data.band||'?'}m · ${hit.data.points||0} pts`
+        `<b>${escMap(hit.data.call||'—')}</b> · ${escMap(hit.data.band||'?')}m · ${hit.data.points||0} pts`
         + (hit.data.new_mult ? ' · <span style="color:#FFD60A">nouveau mult.</span>' : '');
     } else {
       g3dTooltip.style.display = 'none';
