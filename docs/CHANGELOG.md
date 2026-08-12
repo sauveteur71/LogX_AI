@@ -13,11 +13,9 @@ poussé.
 
 ## [1.0] - 2026-08-12
 
-Première version stable, après ~5 semaines de bêta (beta1 à beta27) et deux
-passages d'audit complets sur l'ensemble du dépôt (sécurité, fiabilité,
-qualité). Le format ADIF/Cabrillo, le moteur de scoring et le protocole
-réseau multi-poste n'ont pas changé depuis la bêta — ce numéro marque la
-maturité du logiciel, pas une rupture de compatibilité.
+Première version stable de LogX AI. Le format ADIF/Cabrillo, le moteur de
+scoring et le protocole réseau multi-poste restent inchangés — ce numéro
+marque la maturité du logiciel, pas une rupture de compatibilité.
 
 ### Ajouté
 
