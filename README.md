@@ -26,10 +26,12 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 - Radio CAT via Hamlib/rigctld, TCI, pont WSJT-X ; pilotage ampli et rotor.
 - **Wait & Pounce** en FT8/FT4 : appel automatique sur ce que LogX sait déjà — entité jamais travaillée, entité non confirmée LoTW sur ce créneau bande × mode, carré neuf, nouveau multiplicateur. Quatre niveaux activables séparément, du simple signalement à l'appel sans personne devant la radio, avec durée maximale, plafonds et coupe-circuit.
 - Band map, bandscope, chute d'eau, **décodeur CW** ; clusters DX multi-sources, RBN, PSK Reporter, balises NCDXF/IBP.
+- **FT8 et RTTY natifs dans le navigateur** : décodage/émission sans WSJT-X/JTDX/MSHV ni logiciel tiers, chacun dans sa propre fenêtre détachable — clic sur un indicatif décodé pour le renvoyer directement dans le carnet.
 - **Panadapter** : spectre + chute d'eau depuis l'audio de réception (universel, zéro matériel), le scope CI-V natif des Icom (IC-7300/7610/9700/705/7851, large bande), ou le flux IQ d'un serveur TCI (Flex/SunSDR).
+- **VOACAP point-à-point** : vrai moteur de prévision de propagation (NTIA/ITS) entre votre station et n'importe quel point du globe, intégré au carnet et à la carte.
 - Callbook (QRZ/HamQTH/HamDB), historique d'indicatifs (Super Check Partial, MASTER.SCP, fichiers d'historique par concours), DXCC/pays.
 - Programmes portables POTA/SOTA/IOTA/WWFF/WCA, chasse aux départements français, diplômes, satellites (`PROP_MODE=SAT` à l'export).
-- Export Cabrillo v3 / ADIF 3 / EDI, upload eQSL/ClubLog/LoTW, scoreboard en direct.
+- Export Cabrillo v3 / ADIF 3 / EDI, upload eQSL/ClubLog/LoTW, scoreboard en direct, **designer de carte QSL imprimable** (export PNG/JPG).
 - Annuaire WebSDR vivant (~880 récepteurs, carte cliquable, occupation et SNR en direct) : « s'écouter » depuis le band map, ou écouter un spot sur un récepteur proche du DX avant de l'appeler.
 - Page CONFIGURATION en hub de catégories, avec une aide contextuelle rédigée pour chaque réglage.
 - **Mise à jour proposée automatiquement**, sans perte de données — et, sur le terrain, relayable par un poste voisin du réseau local quand un seul a Internet.
@@ -45,7 +47,7 @@ Guide complet, dépannage et FAQ : [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILIS
 
 ## Statut du projet
 
-Version courante : **0.9-beta25** ([journal des modifications](docs/CHANGELOG.md)). Phases 0 à 4 livrées, Phase 5 (validation terrain) en cours. Roadmap détaillée et exigences à venir dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
+Version courante : **1.0** ([journal des modifications](docs/CHANGELOG.md)) — première version stable, après deux passages d'audit complets sur l'ensemble du dépôt (sécurité, fiabilité, qualité). Phases 0 à 4 livrées, Phase 5 (validation terrain) en cours. Roadmap détaillée et exigences à venir dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
 
 Le logiciel se met à jour tout seul : au lancement, il compare sa version à la dernière release et propose le téléchargement, dont il vérifie l'empreinte SHA-256 avant de remplacer quoi que ce soit.
 
