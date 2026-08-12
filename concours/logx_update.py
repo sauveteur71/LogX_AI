@@ -94,7 +94,7 @@ from logx_utils import PORT, SSL_CTX
 from logx_version import APP_VERSION
 from logx_bootstrap import is_frozen, user_data_dir
 
-GITHUB_REPO = 'sauveteur71/radioaamateur-program-Contest'
+GITHUB_REPO = 'sauveteur71/LogX_AI'
 # /releases/latest (PAS utilisé ici) exclut par définition tout release
 # marqué "prerelease" — or CHAQUE release LogX AI l'est tant qu'on reste en
 # beta (v0.9-beta1...), ce qui le ferait toujours répondre 404. On prend donc
