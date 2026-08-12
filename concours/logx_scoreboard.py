@@ -11,7 +11,7 @@ testable sans réseau ; seul le POST touche le réseau et dégrade proprement.
 import json
 import os
 
-from logx_storage import qso_scope_id, cfg_scope_id
+from logx_storage import qso_scope_id, cfg_scope_id, qtc_total
 from logx_utils import utcnow, post_url_form
 
 _STAMP_FILE = 'scoreboard_sync.json'
@@ -50,6 +50,12 @@ def build_score_snapshot(shared_log, cfg, contest_id=None):
         pb = per_band.setdefault(b, {'qso': 0, 'points': 0})
         pb['qso'] += 1
         pb['points'] += pts
+    # WAE : le score = (points QSO + points QTC) × mults — les QTC vivent
+    # dans un journal séparé (qtc_log), jamais dans shared_log, donc jamais
+    # comptés par la boucle ci-dessus. Sans ceci, le score publié au tableau
+    # de bord externe omettait systématiquement les points QTC. No-op pour
+    # tout concours non-WAE (aucun QTC n'y est jamais journalisé).
+    score += qtc_total(scope_id)
 
     # Multiplicateurs selon le barème réel du concours (voir
     # logx_scoring.contest_geo_mode, qui lit le multiplicateur EFFECTIF —

@@ -20,6 +20,7 @@ Seuils classiques (N-unités/km) :
 Déterministe hormis l'appel météo ; cache 20 min ; dégrade sans réseau.
 """
 import math
+import threading
 import time
 from logx_utils import utcnow
 
@@ -142,3 +143,46 @@ def tropo_forecast(lat, lon):
         return data
     except Exception as e:
         return _cache['data'] or {'ok': False, 'error': f'Tropo illisible ({e})'}
+
+
+# ─── Accès NON BLOQUANT au cache (pour les handlers HTTP) ────────────────────
+# tropo_forecast() ci-dessus fait un appel réseau synchrone (jusqu'à ~15-18 s,
+# cf. fetch_url) dès que le cache de 20 min expire — appelé en direct depuis
+# /data/tropo, il gèlerait la connexion du client jusqu'à ~18 s toutes les
+# 20 min si open-meteo.com est lent ou injoignable, contrairement à
+# /data/weather juste au-dessus dans logx_http.py qui utilise déjà ce même
+# motif (get_weather_cached/_refresh_weather_async, logx_weather.py).
+_tropo_refresh_lock = threading.Lock()
+
+
+def _refresh_tropo_async(lat, lon):
+    if not _tropo_refresh_lock.acquire(blocking=False):
+        return  # un rafraîchissement est déjà en vol
+    def _run():
+        try:
+            tropo_forecast(lat, lon)
+        finally:
+            _tropo_refresh_lock.release()
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def get_tropo_cached(lat, lon):
+    """Jamais bloquant — à utiliser depuis les handlers HTTP à la place de
+    tropo_forecast() (réservée aux appels de fond/tests). Ne renvoie le
+    dernier cache que s'il correspond au MÊME point (lat/lon)."""
+    if lat is None or lon is None:
+        return {'ok': False, 'error': 'Locator station non défini'}
+    try:
+        lat_f, lon_f = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return {'ok': False, 'error': 'Coordonnées station invalides'}
+    key = f'{lat_f:.2f},{lon_f:.2f}'
+    same_point = bool(_cache['data']) and _cache['key'] == key
+    stale = not same_point or time.time() - _cache['ts'] >= CACHE_S
+    if stale:
+        _refresh_tropo_async(lat, lon)
+    if not same_point:
+        return {'ok': False, 'error': 'Prévision tropo en cours de récupération…', 'stale': True}
+    data = dict(_cache['data'])
+    data['stale'] = stale
+    return data

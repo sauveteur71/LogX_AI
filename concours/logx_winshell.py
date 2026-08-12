@@ -22,8 +22,17 @@ sauvegarde, CONFIG → SAUVEGARDE AUTOMATIQUE) et par /shortcut/create_desktop
 logx_shortcut.py) — toute nouvelle invocation PowerShell doit rejoindre ce
 module plutôt que d'en dupliquer une ailleurs.
 """
+import re
 import subprocess
 import sys
+
+# Un chemin UNC (\\hôte\partage) passé tel quel à Test-Path force Windows à
+# tenter une authentification SMB sortante vers cet hôte — vecteur connu de
+# fuite/relais NTLM (le hachage du compte local part vers un hôte arbitraire
+# choisi par le client HTTP, initial_dir venant directement du corps POST de
+# /backup/pick_folder). On n'accepte donc qu'un chemin LOCAL Windows
+# classique (lettre de lecteur), jamais un UNC.
+_LOCAL_DRIVE_PATH_RE = re.compile(r'^[A-Za-z]:[\\/]')
 
 # Le dialogue attend une action humaine : on borne quand même l'attente pour
 # ne jamais bloquer indéfiniment un thread HTTP si l'utilisateur abandonne
@@ -52,6 +61,12 @@ def pick_folder(title='Choisir un dossier', initial_dir=''):
                 'message': ("Le choix graphique du dossier n'est disponible "
                              "que sous Windows pour le moment. Vous pouvez "
                              "toujours taper le chemin manuellement.")}
+
+    # initial_dir vient du corps POST de /backup/pick_folder, donc contrôlé
+    # par le client : un chemin non local (UNC notamment) est ignoré plutôt
+    # que transmis au script PowerShell — voir _LOCAL_DRIVE_PATH_RE ci-dessus.
+    if initial_dir and not _LOCAL_DRIVE_PATH_RE.match(initial_dir):
+        initial_dir = ''
 
     ps_script = _build_pick_folder_script(title, initial_dir)
     try:

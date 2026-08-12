@@ -410,8 +410,18 @@ async function charger(){
     }catch(e){}
     render();
   }catch(e){
-    document.getElementById('sdrGrid').innerHTML =
-      '<div class="empty">' + T('Serveur injoignable.') + '</div>';
+    // Ne remplacer la grille que si c'est le TOUT PREMIER chargement (rien
+    // n'a jamais été affiché) — sinon une erreur transitoire du refresh
+    // périodique (5 min) écrasait un rendu déjà valide, sans aucune raison
+    // de perdre l'affichage pour un simple accroc réseau ponctuel.
+    if (!STATIONS.length){
+      document.getElementById('sdrGrid').innerHTML =
+        '<div class="empty">' + T('Serveur injoignable.') + '</div>';
+    } else {
+      const ageEl = document.getElementById('ageJeu');
+      ageEl.className = 'age perime rc-i18n-live';
+      ageEl.textContent = T('Serveur injoignable — dernier état conservé');
+    }
   }
 }
 

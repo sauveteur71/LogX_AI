@@ -254,6 +254,8 @@ def post_url_json(url, payload, timeout=10, headers=None):
     quel avec son corps — à distinguer d'une panne réseau côté appelant,
     plutôt que masqué en simple None comme le ferait un except trop large."""
     def _do():
+        if not url.lower().startswith(('http://', 'https://')):
+            raise ValueError('schéma non autorisé')
         data = json.dumps(payload).encode('utf-8')
         hdrs = {'Content-Type': 'application/json',
                 'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'}
@@ -286,6 +288,8 @@ def post_url_json_binary(url, payload, timeout=10, headers=None):
     binaire ici — la plupart des API renvoient alors un message JSON, à
     décoder par l'appelant s'il veut l'afficher."""
     def _do():
+        if not url.lower().startswith(('http://', 'https://')):
+            raise ValueError('schéma non autorisé')
         data = json.dumps(payload).encode('utf-8')
         hdrs = {'Content-Type': 'application/json',
                 'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'}
@@ -313,6 +317,8 @@ def post_url_form(url, fields, timeout=10, headers=None):
 
     Renvoie (status_http, texte_réponse) ; (None, None) si injoignable."""
     def _do():
+        if not url.lower().startswith(('http://', 'https://')):
+            raise ValueError('schéma non autorisé')
         data = urllib.parse.urlencode(fields).encode('utf-8')
         hdrs = {'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'Mozilla/5.0 (compatible; LogXAI/2.0)'}

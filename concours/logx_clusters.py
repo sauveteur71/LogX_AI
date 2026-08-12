@@ -40,6 +40,13 @@ PROPAGATION_SOURCES = {
 # ─── FETCH CLUSTERS ──────────────────────────────────────────────────────────
 # ─── CACHE SPOTS GLOBAL (accessible par /log/status) ─────────────────────────
 SPOTS_CACHE = {}   # band → [{ call, locator, freq, spotter, time, source }]
+# Plusieurs threads de refresh (_fetch_spots_*_src, un par bande, lancés en
+# parallèle via ThreadPoolExecutor dans logx_http) écrivent une clé chacun
+# PENDANT que /log/status peut sérialiser tout le dict en JSON dans un autre
+# thread — une insertion de clé pendant l'itération de json.dumps() lève
+# RuntimeError("dictionary changed size during iteration"). Ce verrou protège
+# les deux côtés (écriture ET lecture/copie avant sérialisation).
+SPOTS_CACHE_LOCK = threading.Lock()
 
 
 def freq_en_khz(freq, band=''):
@@ -419,7 +426,16 @@ def fetch_f5len_hf(filter_digital=True):
                 key = cells[0] + '|' + (cells[1] if len(cells)>1 else '')
                 if key not in seen:
                     seen.add(key)
-                    all_spots.append(cells)
+                    # `band` (boucle hf_bands ci-dessus, ex. 14/21/28/7) est
+                    # connu avec certitude ICI — les lots sont récupérés un
+                    # par un par bande via ?what={band}. Sans le propager, le
+                    # consommateur (build_ranked_spots, logx_scoring.py) ne
+                    # peut plus retrouver la vraie bande une fois ce lot
+                    # fusionné avec les autres sources HF dans le bucket
+                    # générique 'HF' — ajouté en DERNIÈRE position pour ne
+                    # rien décaler dans les index déjà lus par les
+                    # consommateurs existants (cells[0]=indicatif, etc.).
+                    all_spots.append(cells + [str(band)])
     print(f"[F5LEN-HF] {len(all_spots)} spots HF")
     return all_spots[:40]
 
@@ -509,8 +525,10 @@ def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, ti
                             break
                     except socket.timeout:
                         break
-                # Envoyer l'indicatif
-                s.sendall((callsign + '\r\n').encode())
+                # Envoyer l'indicatif (assaini : un \r/\n embarqué dans la
+                # config injecterait des commandes supplémentaires dans la
+                # session DX Spider, même risque que fetch_on4kst_raw).
+                s.sendall((_sanitize_telnet_line(callsign) + '\r\n').encode())
                 time.sleep(1.0)
                 # Demander les derniers spots HF
                 s.sendall(b'sh/dx/60\r\n')
@@ -770,9 +788,9 @@ def fetch_on4kst_raw(callsign, password, host='www.on4kst.org', port=23000, time
             return buf.decode('utf-8', errors='replace')
 
         banner = read_until([b'login'])
-        s.sendall((callsign.strip() + '\r\n').encode())
+        s.sendall((_sanitize_telnet_line(callsign) + '\r\n').encode())
         pwd_prompt = read_until([b'password'])
-        s.sendall((password + '\r\n').encode())
+        s.sendall((_sanitize_telnet_line(password) + '\r\n').encode())
         # Menu de sélection du salon (ou message d'erreur de login)
         after_login = read_until([b'choice', b'invalid', b'bad password'])
 
@@ -1120,11 +1138,16 @@ def fetch_log_edi(url, filter_digital=True):
     return {'qsos': qsos, 'score': score, 'total_qso': len(qsos)}
 
 def fetch_log_adif(url, filter_digital=True):
+    """'score' reste à 0 : ce point de log réseau (N1MM/Log4OM/HamRS) n'a pas
+    accès au barème du concours actif (pas de contexte de scoring ici) — les
+    QSO importés portent en revanche 'band'/'date' réels (voir ci-dessous),
+    indispensables à la dédup par bande côté appelant (logx_http._fetch_logs_src)."""
     if not url:
         return {'qsos': [], 'score': 0, 'total_qso': 0}
     content = fetch_url(url)
     if not content:
         return {'qsos': [], 'score': 0, 'total_qso': 0}
+    from logx_scoring import _band_from_freq
     qsos = []
     records = re.split(r'<EOR>', content, flags=re.IGNORECASE)
     for rec in records:
@@ -1132,15 +1155,25 @@ def fetch_log_adif(url, filter_digital=True):
         loc_m  = re.search(r'<GRIDSQUARE:\d+>([A-Z0-9]+)', rec, re.IGNORECASE)
         mode_m = re.search(r'<MODE:\d+>([^\s<]+)', rec, re.IGNORECASE)
         freq_m = re.search(r'<FREQ:\d+>([\d.]+)', rec, re.IGNORECASE)
+        date_m = re.search(r'<QSO_DATE:\d+>(\d{8})', rec, re.IGNORECASE)
+        time_m = re.search(r'<TIME_ON:\d+>(\d{4,6})', rec, re.IGNORECASE)
         if call_m:
             mode = mode_m.group(1).upper() if mode_m else 'SSB'
             if filter_digital and mode in MODES_NUMERIQUES:
                 continue
+            freq = freq_m.group(1) if freq_m else ''
+            # <BAND> ADIF ('20m') n'est pas la bande interne ('14') utilisée
+            # ailleurs dans ce projet pour la dédup — dérivée depuis <FREQ>,
+            # comme fait déjà pour le lot HF générique de fetch_f5len_hf().
+            band = _band_from_freq(freq) if freq else ''
             qsos.append({
                 'call': call_m.group(1),
                 'locator': loc_m.group(1) if loc_m else '',
                 'mode': mode,
-                'freq': freq_m.group(1) if freq_m else '',
+                'freq': freq,
+                'band': band,
+                'date': date_m.group(1) if date_m else '',
+                'time': time_m.group(1)[:4] if time_m else '',
                 'points': 0,
             })
     return {'qsos': qsos, 'score': 0, 'total_qso': len(qsos)}
@@ -1381,6 +1414,13 @@ def fetch_solar_data():
         'vhf': vhf,                        # {'E-Skip/europe': 'Band Closed', ...}
         'source': 'N0NBH hamqsl.com',
     }
+    # xml non vide mais TRONQUÉ (coupure réseau en cours de transfert) : les
+    # tag() ci-dessus renvoient alors '' en silence pour les champs coupés,
+    # produisant un enregistrement creux qui écrasait quand même un cache
+    # valide — `not xml` seul (ci-dessus) ne couvre pas ce cas.
+    if not data['sfi'] or not data['updated']:
+        _solar_fail_count['n'] += 1
+        return _solar_cache['data']
     _solar_cache['data'] = data
     _solar_cache['ts'] = time.time()
     _solar_fail_count['n'] = 0

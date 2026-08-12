@@ -5,6 +5,7 @@ import http.server
 import urllib.request
 import urllib.error
 import html
+import ipaddress
 import json
 import math
 import os
@@ -19,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 import logx_crypto
 import logx_rules as rules
 from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX,
-                        modele_effectif,
+                        modele_effectif, _FETCH_EXECUTOR,
                           OPENAI_COMPATIBLE_ENDPOINTS, utcnow)
 from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
@@ -36,7 +37,7 @@ from logx_scoring import build_scoring_context, score_new_qso, resolve_scoring_b
 import logx_transverter as transverter
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
-from logx_clusters import (SPOTS_CACHE, fetch_all_vhf_spots, fetch_cluster_f5len,
+from logx_clusters import (SPOTS_CACHE, SPOTS_CACHE_LOCK, fetch_all_vhf_spots, fetch_cluster_f5len,
                       fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster, fetch_dxwatch_hf,
                       fetch_dxheat, fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
                       fetch_noaa_kindex, fetch_dxmaps_vhf, fetch_3830_scores,
@@ -752,6 +753,67 @@ def _is_lan_ip(ip):
     appartient à un bloc privé RFC1918 ou à la boucle locale."""
     return bool(_LAN_IPV4_RE.match(ip or ''))
 
+def _strict_content_length(headers):
+    """Même validation stricte que do_POST (voir son commentaire détaillé) :
+    rejette un en-tête Content-Length illisible ou plusieurs valeurs
+    contradictoires plutôt que de silencieusement retomber sur 0 — un 0 par
+    défaut sur un corps réellement présent laisse ses octets non lus sur la
+    socket, qui contaminent alors la requête suivante (connexion
+    persistante désynchronisée). Réutilisée par _require_auth() et
+    _handle_auth_login_post(), qui avant ce correctif refaisaient chacun
+    leur propre `int(headers.get('Content-Length',0) or 0)` naïf.
+    Renvoie (length, ok) — ok=False signifie : refuser ET fermer la
+    connexion (self.close_connection = True) sans tenter de drainer."""
+    annonces = [str(v).strip() for v in (headers.get_all('Content-Length') or [])]
+    if any(not re.fullmatch(r'[0-9]+', v) for v in annonces) or len(set(annonces)) > 1:
+        return 0, False
+    return (int(annonces[0]) if annonces else 0), True
+
+def _is_loopback_or_private_host(host, dns_timeout=3):
+    """True si `host` (champ de config équipement — CAT/ampli/PowerGenius/
+    MySQL testé côté serveur, ex. /rig/connect_test, /amp/test, /pgxl/test,
+    /mysql/test) résout vers une adresse locale ou privée, jamais un hôte
+    Internet public.
+
+    Cet équipement est TOUJOURS sur le même poste ou le même LAN dans
+    l'usage réel de LogX AI — sans ce filtre, ces routes de "test de
+    connexion" laissaient un attaquant faire sonder par LE SERVEUR n'importe
+    quel hôte Internet de son choix (SSRF), le résultat (connecté / refusé /
+    timeout) étant reflété au client : exactement le primitif d'un scan de
+    port distant. Contrairement à _is_safe_host (logx_rules_ai.py, qui REJETTE
+    le privé/loopback pour un téléchargement de règlement censé viser
+    Internet), cette fonction fait l'INVERSE : n'ACCEPTER que le privé/
+    loopback, car c'est ici la cible légitime.
+
+    Résolution DNS bornée dans le temps (même motif que
+    logx_rules_ai._resolve_host_ips : socket.getaddrinfo() n'est pas couvert
+    par un timeout de socket, un DNS muet gèlerait sinon le thread HTTP)."""
+    host = (host or '').strip()
+    if not host:
+        return False
+    if host.lower() == 'localhost':
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+        return ip.is_private or ip.is_loopback or ip.is_link_local
+    except ValueError:
+        pass
+    try:
+        fut = _FETCH_EXECUTOR.submit(socket.getaddrinfo, host, None)
+        infos = fut.result(timeout=dns_timeout)
+    except Exception:
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False
+        if not (ip.is_private or ip.is_loopback or ip.is_link_local):
+            return False
+    return True
+
 _RELAY_ATTEMPT_LIMIT = 10
 _RELAY_ATTEMPT_WINDOW = 60.0  # secondes
 _relay_attempts_lock = threading.Lock()
@@ -1104,16 +1166,19 @@ def _fetch_logs_src(cfg, log_sw, no_digi):
 
 def _fetch_spots_vhf_src(band, no_digi, toggles):
     s = fetch_all_vhf_spots(band, filter_digital=no_digi, toggles=toggles)
-    SPOTS_CACHE[str(band)] = s
+    with SPOTS_CACHE_LOCK:
+        SPOTS_CACHE[str(band)] = s
     print(f"[DATA] {band} MHz: {len(s)} spots (multi-cluster)")
     return s
 
 def _fetch_spots_50_src(no_digi, toggles):
     if not toggles.get('src_f5len', True):
-        SPOTS_CACHE['50'] = []
+        with SPOTS_CACHE_LOCK:
+            SPOTS_CACHE['50'] = []
         return []
     s = fetch_cluster_f5len(50, filter_digital=no_digi)
-    SPOTS_CACHE['50'] = s
+    with SPOTS_CACHE_LOCK:
+        SPOTS_CACHE['50'] = s
     print(f"[DATA] 50 MHz: {len(s)} spots")
     return s
 
@@ -1159,7 +1224,8 @@ def _fetch_spots_hf_src(callsign, no_digi, toggles):
             s.append(sp)
     print(f"[DATA] HF: {len(s)} spots total (DXSummit:{len(s_summit)} F5LEN:{len(s_f5len)} "
           f"DXWatch:{len(s_dxwatch)} Telnet:{len(s_telnet)} DXHeat:{len(s_dxheat)} Browser:{len(s_browser)})")
-    SPOTS_CACHE['HF'] = s   # consommé par /data/spots_ranked sans re-fetch
+    with SPOTS_CACHE_LOCK:
+        SPOTS_CACHE['HF'] = s   # consommé par /data/spots_ranked sans re-fetch
     return s
 
 def _fetch_on4kst_src(cfg):
@@ -2160,10 +2226,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     for ip, info in peer_versions.items()
                 ]
             peer_list.sort(key=lambda p: p['ip'])
+            # Copie sous verrou avant sérialisation JSON : SPOTS_CACHE reçoit
+            # une nouvelle clé par thread de refresh pendant qu'un autre poste
+            # peut interroger /log/status au même instant — sans ce verrou,
+            # une insertion de clé pendant l'itération de json.dumps() lève
+            # RuntimeError("dictionary changed size during iteration").
+            with SPOTS_CACHE_LOCK:
+                spots_snapshot = dict(SPOTS_CACHE)
             self._json({
                 'peers':       len(connected_peers),
                 'qso_count':   len(shared_log),
-                'spots':       SPOTS_CACHE,
+                'spots':       spots_snapshot,
                 'app_version': APP_VERSION,
                 'peer_list':   peer_list,
             })
@@ -2556,6 +2629,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # concours récurrent une année précédente était signalé "doublon"
             # à tort, en désaccord avec la vraie détection de add_qso_to_log.
             scope_id = active_scope_id(cfg_snap)
+            # Concours à réinitialisation QUOTIDIENNE (bricks['dupe_reset']
+            # == 'daily', ex. WWA) : même garde que add_qso_to_log() — sans
+            # elle, un indicatif déjà travaillé un jour précédent de la même
+            # édition était signalé "doublon" à tort par cet indicateur à la
+            # frappe, en désaccord avec la vraie détection au moment du log.
+            _cdef_check = CONTEST_DEFINITIONS.get(cfg_snap.get('contest', ''), {})
+            _daily_dupe_reset = resolve_scoring_bricks(_cdef_check.get('scoring', {})).get('dupe_reset') == 'daily'
+            today_str = utcnow().strftime('%Y%m%d')
             # LOGBOOK SIMPLE : pas de règle "1 QSO/station/bande" hors concours.
             if cfg_snap.get('usage_mode') != 'simple':
                 with log_lock:
@@ -2564,6 +2645,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         and str(q.get('band', '')) == band
                         and (not mode or str(q.get('mode', '')).upper() == mode)
                         and qso_scope_id(q) == scope_id
+                        and (not _daily_dupe_reset or str(q.get('date', '')) == today_str)
                         for q in shared_log)
                 if dup:
                     self._json({'status': 'doublon'})
@@ -3196,7 +3278,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import logx_tropo as tropo
             cfg_snap = self._cfg_snapshot()
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
-            self._json(tropo.tropo_forecast(my_ll[0], my_ll[1]))
+            self._json(tropo.get_tropo_cached(my_ll[0], my_ll[1]))
             return
 
         # Calendrier météores (Meteor Scatter VHF) — déterministe, pas de réseau
@@ -5260,15 +5342,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = json.loads(body) if body else {}
             except Exception:
                 payload = {}
+            # Anti-SSRF (revue sécurité) : cet équipement (TCI/rigctld/flrig/
+            # FlexRadio/IC-remote) est toujours sur ce poste ou le LAN dans
+            # l'usage réel — sans ce filtre, `host` (config client) laissait
+            # sonder par CE SERVEUR n'importe quel hôte Internet de son choix.
+            # Voir _is_loopback_or_private_host ci-dessus.
+            _NOT_LAN_ERR = {'ok': False, 'error': "hôte non autorisé (doit être local/LAN)"}
             if payload.get('mode') == 'tci':
                 import logx_tci as tci
-                res = tci.test_connection(payload.get('host'), payload.get('port'))
+                host = (payload.get('host') or '').strip() or tci.DEFAULT_HOST
+                if not _is_loopback_or_private_host(host):
+                    self._json(_NOT_LAN_ERR, 400)
+                    return
+                res = tci.test_connection(host, payload.get('port'))
             elif payload.get('mode') == 'rigctld':
                 # Correctif H6 : jusqu'ici absent — le mode rigctld tombait dans
                 # le "else" natif ci-dessous, qui teste un port SÉRIE (jamais
                 # utilisé par rigctld, protocole réseau texte sur rig_host/rig_port).
                 import logx_rig as rig
                 host = (payload.get('host') or '').strip() or rig.DEFAULT_HOST
+                if not _is_loopback_or_private_host(host):
+                    self._json(_NOT_LAN_ERR, 400)
+                    return
                 try:
                     port = int(payload.get('port') or rig.DEFAULT_PORT)
                 except (TypeError, ValueError):
@@ -5277,6 +5372,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif payload.get('mode') == 'flrig':
                 import logx_flrig as flrig
                 host = (payload.get('host') or '').strip() or flrig.DEFAULT_HOST
+                if not _is_loopback_or_private_host(host):
+                    self._json(_NOT_LAN_ERR, 400)
+                    return
                 try:
                     port = int(payload.get('port') or flrig.DEFAULT_PORT)
                 except (TypeError, ValueError):
@@ -5288,6 +5386,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif payload.get('mode') == 'flex':
                 import logx_flexradio as flexradio
                 host = (payload.get('host') or '').strip() or flexradio.DEFAULT_HOST
+                if not _is_loopback_or_private_host(host):
+                    self._json(_NOT_LAN_ERR, 400)
+                    return
                 try:
                     port = int(payload.get('port') or flexradio.DEFAULT_PORT)
                 except (TypeError, ValueError):
@@ -5296,6 +5397,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif payload.get('mode') == 'icom_remote':
                 import logx_icomremote as icomremote
                 host = (payload.get('host') or '').strip() or icomremote.DEFAULT_HOST
+                if not _is_loopback_or_private_host(host):
+                    self._json(_NOT_LAN_ERR, 400)
+                    return
                 try:
                     port = int(payload.get('port') or icomremote.DEFAULT_CONTROL_PORT)
                 except (TypeError, ValueError):
@@ -5794,6 +5898,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 payload = {}
             if self.path == '/amp/test':
+                # Anti-SSRF (revue sécurité) : en mode réseau (tcp/udp,
+                # KPA1500 Ethernet), `host` vient du client — l'ampli est
+                # toujours sur ce poste ou le LAN dans l'usage réel, voir
+                # _is_loopback_or_private_host ci-dessus. Le mode série
+                # n'utilise jamais host, pas de vérification à y faire.
+                if (payload.get('conn_mode') or 'serial').strip().lower() in ('tcp', 'udp') \
+                        and not _is_loopback_or_private_host(payload.get('host', '')):
+                    self._json({'ok': False, 'error': "hôte non autorisé (doit être local/LAN)"}, 400)
+                    return
                 res = amp.test_connection(
                     payload.get('brand', ''), payload.get('port', ''),
                     payload.get('baudrate') or 0, payload.get('civ_addr'),
@@ -5825,6 +5938,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = json.loads(body) if body else {}
             except Exception:
                 payload = {}
+            # Anti-SSRF (revue sécurité) : le PowerGenius est toujours sur ce
+            # poste ou le LAN dans l'usage réel — voir
+            # _is_loopback_or_private_host ci-dessus. Le plafond de timeout
+            # est appliqué côté logx_powergenius.test_connection().
+            if not _is_loopback_or_private_host(payload.get('host', '')):
+                self._json({'ok': False, 'error': "hôte non autorisé (doit être local/LAN)"}, 400)
+                return
             res = pgxl.test_connection(payload.get('host'), payload.get('port'),
                                        payload.get('timeout'))
             self._json(res, 200 if res.get('ok') else 400)
@@ -7445,10 +7565,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # au serveur). Au-delà du plafond on ferme franchement — le RST est
         # alors acceptable, ce cas étant rare et déjà anormal.
         _DRAIN_MAX = 64 * 1024
-        try:
-            _len = int(self.headers.get('Content-Length', 0) or 0)
-        except (TypeError, ValueError):
+        # Transfer-Encoding: chunked (jamais décodé par BaseHTTPRequestHandler)
+        # rendait `_len` toujours à 0 sans jamais fermer ni drainer : les
+        # octets chunked restaient sur la socket et contaminaient la requête
+        # suivante — même désynchronisation que do_POST prévient déjà.
+        te = (self.headers.get('Transfer-Encoding') or '').strip().lower()
+        if te and te != 'identity':
+            self.close_connection = True
             _len = 0
+        else:
+            _len, _ok = _strict_content_length(self.headers)
+            if not _ok:
+                self.close_connection = True
+                _len = 0
         if 0 < _len <= _DRAIN_MAX:
             try:
                 self.rfile.read(_len)   # lu puis jeté : jamais analysé
@@ -7590,9 +7719,9 @@ form.addEventListener('submit', async (e) => {{
             # en clair. La lecture est BORNÉE au même plafond que le chemin
             # nominal : un corps annoncé au-delà relève du 413 juste en dessous,
             # qui lui ne peut pas être vidé et ferme donc franchement.
-            try:
-                _len = int(self.headers.get('Content-Length', 0) or 0)
-            except (TypeError, ValueError):
+            _len, _ok = _strict_content_length(self.headers)
+            if not _ok:
+                self.close_connection = True
                 _len = 0
             if 0 < _len <= 4096:
                 try:
@@ -7609,10 +7738,9 @@ form.addEventListener('submit', async (e) => {{
         # plafond — jamais de lecture partielle qui tronquerait silencieusement
         # un corps trop grand (un mot de passe tient largement dans 4096 octets).
         MAX_LOGIN_BODY = 4096
-        try:
-            length = int(self.headers.get('Content-Length', 0) or 0)
-        except (TypeError, ValueError):
-            length = 0
+        length, _ok = _strict_content_length(self.headers)
+        if not _ok:
+            length = -1   # longueur réelle indéterminable : forcer la fermeture ci-dessous
         if length < 0 or length > MAX_LOGIN_BODY:
             # Ce corps ne sera pas EXPLOITÉ — c'est justement son volume qu'on
             # refuse — mais il doit quand même être VIDÉ DE LA SOCKET, pour la

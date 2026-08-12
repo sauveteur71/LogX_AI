@@ -198,7 +198,9 @@ def test_rig_connect_test_mode_icom_remote_route_vers_le_bon_module(server, monk
 
 def test_pgxl_test_corps_de_requete_malforme_ne_plante_pas(server, monkeypatch):
     """JSON invalide dans le corps -> payload={} (comme les autres routes de
-    ce fichier) plutôt qu'une exception non gérée."""
+    ce fichier) plutôt qu'une exception non gérée. Depuis le garde anti-SSRF
+    (host vide n'est pas local/LAN), la requête est désormais rejetée AVANT
+    d'atteindre test_connection — jamais appelée, plus besoin de la simuler."""
     import logx_powergenius as pgxl
     captured = {}
     monkeypatch.setattr(pgxl, 'test_connection', lambda host, port, timeout:
@@ -210,7 +212,7 @@ def test_pgxl_test_corps_de_requete_malforme_ne_plante_pas(server, monkeypatch):
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(req, timeout=5)
     assert exc.value.code == 400
-    assert captured == {'host': None, 'port': None, 'timeout': None}
+    assert captured == {}
 
 
 def test_pgxl_test_ok_true_renvoie_200(server, monkeypatch):
