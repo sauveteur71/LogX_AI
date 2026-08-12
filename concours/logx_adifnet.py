@@ -212,6 +212,7 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
         _listener_started = True
 
     def _run():
+        global _listener_started
         import time
         RATE_WINDOW = 1.0
         RATE_MAX_PER_SOURCE = 20   # paquets/s max par source — un vrai N1MM en envoie quelques-uns/minute
@@ -228,6 +229,12 @@ def start_listener(get_cfg, add_qso, port=DEFAULT_PORT):
             print(f"[ADIFNET] Ecoute UDP sur le port {port}")
         except Exception as e:
             print(f"[ADIFNET] Impossible d'ecouter le port {port}: {e}")
+            # Bind raté : on relâche le drapeau (même correctif que
+            # logx_wsjtx.py) pour qu'une tentative ultérieure (port libéré
+            # entre-temps) puisse redémarrer l'écouteur — sinon plus JAMAIS,
+            # même si le port se libère, tant que le process tourne.
+            with _listener_lock:
+                _listener_started = False
             return
         while True:
             try:

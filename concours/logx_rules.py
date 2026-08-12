@@ -100,6 +100,12 @@ def refresh_external_contests():
     global EXTERNAL_CONTESTS_CACHE
     contests_this = fetch_wa7bnm_calendar(CURRENT_YEAR)
     contests_next = fetch_wa7bnm_calendar(CURRENT_YEAR + 1)
+    # Une réponse vide (réseau en panne, page tronquée) ne doit jamais
+    # écraser un cache déjà valide — fetch_wa7bnm_calendar() renvoie []
+    # justement dans ce cas, sans lever d'exception.
+    if not contests_this and not contests_next:
+        print("[EXT] Réponse vide/injoignable — cache existant conservé")
+        return
     data = {
         'year': CURRENT_YEAR,
         'updated': datetime.datetime.now().isoformat(),
@@ -235,10 +241,23 @@ def get_next_contest_date(date_rule):
     return date_next_year, CURRENT_YEAR + 1
 
 def calc_all_dates(year=None):
-    """Calcule les prochaines dates pour tous les concours"""
+    """Calcule les dates pour tous les concours.
+
+    year=None : prochaine occurrence de chaque concours (repli sur l'année
+    suivante si déjà passée cette année — voir get_next_contest_date).
+    year=<valeur> : date calculée POUR CETTE ANNÉE PRÉCISE (calc_contest_date),
+    sans le repli "prochaine occurrence" — c'est le comportement attendu par
+    run_annual_update(), qui appelle calc_all_dates(CURRENT_YEAR) PUIS
+    calc_all_dates(CURRENT_YEAR + 1) pour obtenir deux jeux de dates
+    RÉELLEMENT différents (avant ce correctif, `year` était ignoré et les
+    deux appels renvoyaient un résultat identique)."""
     dates = {}
     for cid, cdef in CONTEST_DEFINITIONS.items():
-        date_str, actual_year = get_next_contest_date(cdef.get('date_rule', 'permanent'))
+        date_rule = cdef.get('date_rule', 'permanent')
+        if year is None:
+            date_str, actual_year = get_next_contest_date(date_rule)
+        else:
+            date_str, actual_year = calc_contest_date(date_rule, year), year
         dates[cid] = {
             'name': cdef['name'],
             'date': date_str,

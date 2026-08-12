@@ -322,7 +322,12 @@ def list_archives():
                     info['qso_count'] = len(json.load(f))
         except Exception:
             pass
-        m = re.match(r'(.+)_(\d{8})-(\d{6})$', name)
+        # (?:-\d+)? : suffixe de désambiguïsation ajouté par archive_log() en
+        # cas de collision (2 imports du même concours à la même date de 1er
+        # QSO, ex. '..._20260810-000000-2') — sans lui, le regex exigeant une
+        # fin exacte en HHMMSS ($) ne matchait plus jamais, et l'archive
+        # perdait silencieusement son contest/date affichés.
+        m = re.match(r'(.+)_(\d{8})-(\d{6})(?:-\d+)?$', name)
         if m:
             info['contest'] = m.group(1)
             info['date'] = f"{m.group(2)[:4]}-{m.group(2)[4:6]}-{m.group(2)[6:8]} {m.group(3)[:2]}:{m.group(3)[2:4]}"

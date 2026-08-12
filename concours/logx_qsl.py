@@ -329,8 +329,8 @@ def upload_clublog(cfg, adif):
         return {'ok': False, 'error': f'ClubLog injoignable : {e}'}
     if resp.strip().startswith('OK') or 'accepted' in resp.lower():
         _stamp('clublog_upload')
-        return {'ok': True, 'service': 'ClubLog', 'response': resp[:200].strip()}
-    return {'ok': False, 'service': 'ClubLog', 'error': resp[:200].strip()}
+        return {'ok': True, 'service': 'ClubLog', 'response': re.sub(r'<[^>]+>', ' ', resp)[:200].strip()}
+    return {'ok': False, 'service': 'ClubLog', 'error': re.sub(r'<[^>]+>', ' ', resp)[:200].strip()}
 
 
 # ─── QRZCQ : upload du log (API JSON documentée, qrzcq.com/page/developers) ──
@@ -358,11 +358,12 @@ def upload_qrzcq(cfg, adif):
     try:
         resp = json.loads(resp_text)
     except ValueError:
-        return {'ok': False, 'service': 'QRZCQ', 'error': resp_text[:200].strip()}
+        return {'ok': False, 'service': 'QRZCQ', 'error': re.sub(r'<[^>]+>', ' ', resp_text)[:200].strip()}
     if str(resp.get('status', '')).upper() == 'OK':
         _stamp('qrzcq_upload')
         return {'ok': True, 'service': 'QRZCQ', 'response': resp.get('message', '')}
-    return {'ok': False, 'service': 'QRZCQ', 'error': resp.get('message') or resp_text[:200].strip()}
+    return {'ok': False, 'service': 'QRZCQ',
+           'error': resp.get('message') or re.sub(r'<[^>]+>', ' ', resp_text)[:200].strip()}
 
 
 # ─── HRDLog.net : upload du log ───────────────────────────────────────────────
@@ -438,7 +439,7 @@ def upload_hrdlog(cfg, qsos):
                 break
             err_m = _HRDLOG_ERROR_RE.search(resp)
             if err_m:
-                last_error = err_m.group(1).strip()
+                last_error = re.sub(r'<[^>]+>', ' ', err_m.group(1))[:200].strip()
             elif m:  # <insert>0</insert> sans <error> : rejet silencieux du serveur
                 last_error = "Rejeté par HRDLog — vérifie l'indicatif et le code d'upload"
             else:

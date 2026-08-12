@@ -116,6 +116,12 @@ _SEEN_STATE_FILE = 'cloudsync_seen.json'
 # resynchronisé) — la pastille rouge persistait alors qu'aucune tentative
 # n'avait échoué avec la config actuelle.
 _last_error = {'ts': 0, 'msg': '', 'folder': '', 'mode': ''}
+# Jusqu'à 3 sync_now_blocking concurrents sont explicitement autorisés (voir
+# _SYNC_EXECUTOR) : sans ce verrou, les 4 assignations ci-dessous n'étaient
+# PAS atomiques entre elles — deux sync_now() concurrentes (un échec, un
+# succès) pouvaient entrelacer leurs écritures et produire un _last_error
+# incohérent (ex. 'msg' d'un échec avec 'folder'/'mode' d'un autre run).
+_last_error_lock = threading.Lock()
 
 
 def _safe(s):
@@ -410,16 +416,17 @@ def sync_now(cfg, shared_log):
     # réseau à signaler — voir _last_error ci-dessus.
     s = cloudsync_settings(cfg)
     if s.get('enabled'):
-        if r.get('ok'):
-            _last_error['ts'] = 0
-            _last_error['msg'] = ''
-            _last_error['folder'] = ''
-            _last_error['mode'] = ''
-        else:
-            _last_error['ts'] = time.time()
-            _last_error['msg'] = r.get('error', '')
-            _last_error['folder'] = s.get('folder', '')
-            _last_error['mode'] = s.get('mode', '')
+        with _last_error_lock:
+            if r.get('ok'):
+                _last_error['ts'] = 0
+                _last_error['msg'] = ''
+                _last_error['folder'] = ''
+                _last_error['mode'] = ''
+            else:
+                _last_error['ts'] = time.time()
+                _last_error['msg'] = r.get('error', '')
+                _last_error['folder'] = s.get('folder', '')
+                _last_error['mode'] = s.get('mode', '')
     return r
 
 
@@ -711,10 +718,11 @@ def status(cfg=None):
     # immédiatement, sans attendre le prochain cycle de _cloudsync_loop —
     # évite l'état fantôme (voir commentaire sur _last_error ci-dessus).
     last_error = None
-    if (_last_error['ts'] and s.get('enabled')
-            and s.get('folder') == _last_error.get('folder')
-            and s.get('mode') == _last_error.get('mode')):
-        last_error = {'msg': _last_error['msg'], 'age_s': int(time.time() - _last_error['ts'])}
+    with _last_error_lock:
+        if (_last_error['ts'] and s.get('enabled')
+                and s.get('folder') == _last_error.get('folder')
+                and s.get('mode') == _last_error.get('mode')):
+            last_error = {'msg': _last_error['msg'], 'age_s': int(time.time() - _last_error['ts'])}
     return {'enabled': bool(s.get('enabled')), 'mode': s.get('mode', 'off'),
             'folder': s.get('folder', ''), 'last': last, 'other_installations': other_sources,
             'last_error': last_error}

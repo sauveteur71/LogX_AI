@@ -175,7 +175,7 @@ function checkPrevQsos(call){
       }
       if(d.count > 0){
         const conf = d.confirmed ? ` · <span style="color:var(--green)">${d.confirmed} confirmé${d.confirmed>1?'s':''}</span>` : '';
-        const bands = d.bands && d.bands.length ? ` sur ${d.bands.join('/')} MHz` : '';
+        const bands = d.bands && d.bands.length ? ` sur ${escHtml(d.bands.join('/'))} MHz` : '';
         parts.push(`<div><b style="color:var(--accent2)">${d.count} QSO</b>${bands}${conf}` +
                    (d.last ? ` · dernier ${fmtDate(d.last)}` : '') + '</div>');
         // Les 3 plus récents

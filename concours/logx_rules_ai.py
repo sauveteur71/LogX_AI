@@ -285,7 +285,18 @@ def _is_safe_ip(ip):
     ipaddress.IPv4Address.is_private EXCLUT explicitement cette plage (documenté
     dans le module Python lui-même) — aucun des 5 prédicats classiques
     (private/loopback/link_local/reserved/multicast) ne la couvre, elle
-    passerait donc la liste blanche sans ce test dédié."""
+    passerait donc la liste blanche sans ce test dédié.
+
+    Une IPv4 mappée en IPv6 (::ffff:100.64.x.x) contournait ce test : les 5
+    prédicats renvoient False dessus (vérifié empiriquement, aucun ne
+    reconnaît cette forme comme privée) ET isinstance(ip, IPv4Address) est
+    False (c'est une IPv6Address), donc le test CGNAT dédié ne s'exécutait
+    jamais non plus. On démappe systématiquement via ip.ipv4_mapped AVANT
+    d'appliquer les prédicats, pour qu'une IPv4 CGNAT/privée reste détectée
+    quelle que soit sa forme de représentation."""
+    mapped = getattr(ip, 'ipv4_mapped', None)
+    if mapped is not None:
+        ip = mapped
     if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
         return False
     if isinstance(ip, ipaddress.IPv4Address) and ip in _CGNAT_RANGE:

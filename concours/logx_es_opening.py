@@ -57,14 +57,19 @@ def _purge(band, now):
     _history[band] = [s for s in _history[band] if s['ts'] >= limite]
 
 
-def _collecter(band, my_lat, my_lon, now, fetch_fn):
+def _fusionner(band, my_lat, my_lon, now, spots):
     """Ajoute à l'historique les spots VUS MAINTENANT (un par couple
     indicatif+spotteur, pour ne pas compter deux fois le même événement si
     plusieurs sources cluster rapportent le même spot). N'écrase jamais les
     entrées d'un cycle précédent : la MÊME station spottée à nouveau au
     cycle suivant est un événement distinct (le trajet reste ouvert),
-    signal utile en soi plutôt qu'un doublon à filtrer."""
-    spots = fetch_fn(int(band), True, {}) or []
+    signal utile en soi plutôt qu'un doublon à filtrer.
+
+    Pur (pas d'appel réseau) : le fetch réseau est fait par l'appelant HORS
+    du verrou (voir opening_index) — un appel réseau synchrone À L'INTÉRIEUR
+    de `with _lock:` bloquait un opening_index() concurrent sur une AUTRE
+    bande pendant tout l'aller-retour réseau, alors que les deux bandes ont
+    un historique totalement indépendant."""
     vus = set()
     for s in spots:
         if not isinstance(s, dict):
@@ -155,20 +160,39 @@ def opening_index(band, my_locator='', now=None, fetch_fn=None):
     if my_locator:
         my_lat, my_lon = locator_to_latlon(my_locator)
 
+    # Réservation du créneau de fetch AVANT le fetch lui-même (sous verrou,
+    # rapide) : _last_fetch[band] est marquée à `now` tout de suite, pas
+    # après le retour du réseau — sinon deux threads voyant tous deux le
+    # cache périmé au même instant partiraient chacun sur leur propre fetch
+    # réseau redondant.
     with _lock:
-        if now - _last_fetch[band] >= FETCH_CACHE_S:
-            try:
-                _collecter(band, my_lat, my_lon, now, fetch_fn)  # purge aussi, en interne
-            except Exception as e:
-                print(f"[ES-OPENING] collecte {band} MHz échouée : {e}")
+        need_fetch = now - _last_fetch[band] >= FETCH_CACHE_S
+        if need_fetch:
             _last_fetch[band] = now
-        else:
-            # La collecte (et sa purge) est sautée la plupart des appels, à
-            # cause du cache réseau ci-dessus — sans cette ligne, une entrée
-            # trop vieille ne serait jamais retirée tant qu'un fetch frais ne
-            # se déclenche pas, ce qui peut prendre des heures en pratique.
+
+    if need_fetch:
+        # Appel réseau HORS du verrou — c'est tout l'objet du correctif : un
+        # opening_index() concurrent sur une AUTRE bande ne doit pas attendre
+        # cet aller-retour pour accéder à SON historique, indépendant.
+        try:
+            spots = fetch_fn(int(band), True, {}) or []
+        except Exception as e:
+            spots = None
+            print(f"[ES-OPENING] collecte {band} MHz échouée : {e}")
+        with _lock:
+            if spots is not None:
+                _fusionner(band, my_lat, my_lon, now, spots)  # purge aussi, en interne
+            else:
+                _purge(band, now)
+    else:
+        # La collecte (et sa purge) est sautée la plupart des appels, à
+        # cause du cache réseau ci-dessus — sans cette ligne, une entrée
+        # trop vieille ne serait jamais retirée tant qu'un fetch frais ne
+        # se déclenche pas, ce qui peut prendre des heures en pratique.
+        with _lock:
             _purge(band, now)
 
+    with _lock:
         fen_now = _fenetre(band, now, 0, FENETRE_MIN)
         fen_base = _fenetre(band, now, FENETRE_MIN, FENETRE_MIN + BASELINE_MIN)
 

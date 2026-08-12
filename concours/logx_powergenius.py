@@ -440,6 +440,11 @@ def test_connection(host, port=None, timeout=None, transport=None):
         timeout = float(timeout or CMD_TIMEOUT_S)
     except (TypeError, ValueError):
         timeout = CMD_TIMEOUT_S
+    # Plafond (revue sécurité) : `timeout` vient du client HTTP (bouton
+    # CONFIG) sans aucune borne haute jusqu'ici — un client pouvait faire
+    # tenir ouvert un thread serveur bien au-delà de toute latence réseau
+    # légitime. 30s couvre largement un pire cas de câble/réseau lent.
+    timeout = max(0.1, min(timeout, 30.0))
     opener = transport or _open_transport
     try:
         conn = opener(host, port, timeout)

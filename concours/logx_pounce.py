@@ -37,6 +37,7 @@ verrous ci-dessous répond à une de ces façons de mal finir :
   • JOURNAL DE TOUT CE QUI EST PARTI. Sans surveillance, c'est la seule façon
     de savoir après coup ce que la station a fait en votre nom.
 """
+import threading
 import time
 
 NIVEAU_SIGNALER = 1
@@ -123,18 +124,27 @@ class Session:
 
     def __init__(self, horloge=time.time):
         self._horloge = horloge
+        # RLock (pas Lock) : decider() appelle self.desarmer() et etat()
+        # appelle self.restant_s(), toutes deux verrouillées elles aussi —
+        # un Lock simple ferait deadlocker le thread qui les détient déjà.
+        # Sans ce verrou du tout, l'état ci-dessous est muté concurremment
+        # par le thread d'écoute UDP WSJT-X (decider/noter_appel/noter_qso,
+        # à chaque décodage) ET par les threads de requêtes HTTP
+        # (armer/desarmer/etat, depuis CONFIG) — fenêtre de course réelle.
+        self._lock = threading.RLock()
         self.reinitialiser()
 
     def reinitialiser(self):
-        self.active = False
-        self.niveau = NIVEAU_SIGNALER
-        self.reglages = reglages_valides({})
-        self.expire_a = 0.0
-        self.appel_en_cours = ''
-        self.appel_depuis = 0.0
-        self.appeles = {}          # indicatif -> nombre d'appels
-        self.journal = []          # tout ce qui est parti, dans l'ordre
-        self.motif_arret = ''
+        with self._lock:
+            self.active = False
+            self.niveau = NIVEAU_SIGNALER
+            self.reglages = reglages_valides({})
+            self.expire_a = 0.0
+            self.appel_en_cours = ''
+            self.appel_depuis = 0.0
+            self.appeles = {}          # indicatif -> nombre d'appels
+            self.journal = []          # tout ce qui est parti, dans l'ordre
+            self.motif_arret = ''
 
     # ── Armer / désarmer ────────────────────────────────────────────────────
     def armer(self, reglages):
@@ -148,30 +158,34 @@ class Session:
             # « appelle tout le monde ». On refuse plutôt que de deviner.
             return {'ok': False,
                     'error': 'Aucun critere coche : le logiciel appellerait tout le monde'}
-        maintenant = self._horloge()
-        self.active = True
-        self.niveau = r['niveau']
-        self.reglages = r
-        self.expire_a = maintenant + r['duree_min'] * 60
-        self.appel_en_cours = ''
-        self.appeles = {}
-        self.journal = []
-        self.motif_arret = ''
-        return {'ok': True, 'niveau': self.niveau,
-                'expire_dans_s': int(self.expire_a - maintenant)}
+        with self._lock:
+            maintenant = self._horloge()
+            self.active = True
+            self.niveau = r['niveau']
+            self.reglages = r
+            self.expire_a = maintenant + r['duree_min'] * 60
+            self.appel_en_cours = ''
+            self.appeles = {}
+            self.journal = []
+            self.motif_arret = ''
+            return {'ok': True, 'niveau': self.niveau,
+                    'expire_dans_s': int(self.expire_a - maintenant)}
 
     def desarmer(self, motif='arret manuel'):
-        etait = self.active
-        self.active = False
-        self.appel_en_cours = ''
-        self.motif_arret = motif
-        return {'ok': True, 'etait_active': etait, 'motif': motif}
+        with self._lock:
+            etait = self.active
+            self.active = False
+            self.appel_en_cours = ''
+            self.motif_arret = motif
+            return {'ok': True, 'etait_active': etait, 'motif': motif}
 
     def expiree(self):
-        return self.active and self._horloge() >= self.expire_a
+        with self._lock:
+            return self.active and self._horloge() >= self.expire_a
 
     def restant_s(self):
-        return max(0, int(self.expire_a - self._horloge())) if self.active else 0
+        with self._lock:
+            return max(0, int(self.expire_a - self._horloge())) if self.active else 0
 
     # ── La décision ─────────────────────────────────────────────────────────
     def decider(self, decodage, interet):
@@ -185,85 +199,89 @@ class Session:
         renseigné, y compris sur un refus : sans surveillance, c'est la seule
         trace de pourquoi la station n'a pas appelé un DX qu'on attendait.
         """
-        call = str((decodage or {}).get('call') or '').upper().strip()
-        if not self.active:
-            return {'appeler': False, 'motif': 'session inactive'}
-        if self.expiree():
-            self.desarmer('duree ecoulee')
-            return {'appeler': False, 'motif': 'duree ecoulee'}
-        if not call:
-            return {'appeler': False, 'motif': 'indicatif vide'}
-        r = self.reglages
-        if call in r['exclus']:
-            return {'appeler': False, 'motif': 'indicatif exclu'}
-        bande = str(decodage.get('band') or '').upper()
-        if r['bandes'] and bande not in r['bandes']:
-            return {'appeler': False, 'motif': 'bande %s hors selection' % bande}
-        mode = str(decodage.get('mode') or '').upper()
-        if r['modes'] and mode not in r['modes']:
-            return {'appeler': False, 'motif': 'mode %s hors selection' % mode}
+        with self._lock:
+            call = str((decodage or {}).get('call') or '').upper().strip()
+            if not self.active:
+                return {'appeler': False, 'motif': 'session inactive'}
+            if self.expiree():
+                self.desarmer('duree ecoulee')
+                return {'appeler': False, 'motif': 'duree ecoulee'}
+            if not call:
+                return {'appeler': False, 'motif': 'indicatif vide'}
+            r = self.reglages
+            if call in r['exclus']:
+                return {'appeler': False, 'motif': 'indicatif exclu'}
+            bande = str(decodage.get('band') or '').upper()
+            if r['bandes'] and bande not in r['bandes']:
+                return {'appeler': False, 'motif': 'bande %s hors selection' % bande}
+            mode = str(decodage.get('mode') or '').upper()
+            if r['modes'] and mode not in r['modes']:
+                return {'appeler': False, 'motif': 'mode %s hors selection' % mode}
 
-        # Un seul appel en vol. WSJT-X mène UN QSO à la fois : ré-armer à
-        # chaque décodage le ferait sauter de station en station sans en
-        # terminer aucune, et l'opérateur retrouverait dix QSO à moitié faits.
-        if self.appel_en_cours and self.appel_en_cours != call:
-            attente = self._horloge() - self.appel_depuis
-            if attente < CYCLES_AVANT_ABANDON * DUREE_CYCLE_S:
+            # Un seul appel en vol. WSJT-X mène UN QSO à la fois : ré-armer à
+            # chaque décodage le ferait sauter de station en station sans en
+            # terminer aucune, et l'opérateur retrouverait dix QSO à moitié faits.
+            if self.appel_en_cours and self.appel_en_cours != call:
+                attente = self._horloge() - self.appel_depuis
+                if attente < CYCLES_AVANT_ABANDON * DUREE_CYCLE_S:
+                    return {'appeler': False,
+                            'motif': 'appel de %s en cours' % self.appel_en_cours}
+                # Le QSO en cours n'aboutit pas : on libère et on continue.
+                self.appel_en_cours = ''
+
+            if self.appeles.get(call, 0) >= CYCLES_AVANT_ABANDON:
                 return {'appeler': False,
-                        'motif': 'appel de %s en cours' % self.appel_en_cours}
-            # Le QSO en cours n'aboutit pas : on libère et on continue.
-            self.appel_en_cours = ''
+                        'motif': '%s appele %d fois sans reponse' % (call, self.appeles[call])}
 
-        if self.appeles.get(call, 0) >= CYCLES_AVANT_ABANDON:
-            return {'appeler': False,
-                    'motif': '%s appele %d fois sans reponse' % (call, self.appeles[call])}
+            if len(self.journal) >= PLAFOND_APPELS:
+                recents = [j for j in self.journal
+                           if self._horloge() - j['t'] < FENETRE_PLAFOND_S]
+                if len(recents) >= PLAFOND_APPELS:
+                    self.desarmer('plafond d appels atteint')
+                    return {'appeler': False, 'motif': 'plafond d appels atteint'}
 
-        if len(self.journal) >= PLAFOND_APPELS:
-            recents = [j for j in self.journal
-                       if self._horloge() - j['t'] < FENETRE_PLAFOND_S]
-            if len(recents) >= PLAFOND_APPELS:
-                self.desarmer('plafond d appels atteint')
-                return {'appeler': False, 'motif': 'plafond d appels atteint'}
-
-        retenus = [c for c in r['criteres'] if (interet or {}).get(c)]
-        if not retenus:
-            return {'appeler': False, 'motif': 'aucun critere satisfait'}
-        return {'appeler': True, 'motif': MOTIFS[retenus[0]],
-                'criteres': retenus}
+            retenus = [c for c in r['criteres'] if (interet or {}).get(c)]
+            if not retenus:
+                return {'appeler': False, 'motif': 'aucun critere satisfait'}
+            return {'appeler': True, 'motif': MOTIFS[retenus[0]],
+                    'criteres': retenus}
 
     def noter_appel(self, call, motif=''):
         """Enregistre un appel RÉELLEMENT parti. À n'appeler qu'après l'envoi :
         journaliser un appel qui a échoué fausserait le plafond et l'historique
         que l'opérateur relira."""
-        c = str(call or '').upper().strip()
-        maintenant = self._horloge()
-        self.appel_en_cours = c
-        self.appel_depuis = maintenant
-        self.appeles[c] = self.appeles.get(c, 0) + 1
-        self.journal.append({'t': maintenant, 'call': c, 'motif': motif,
-                             'essai': self.appeles[c]})
-        return self.journal[-1]
+        with self._lock:
+            c = str(call or '').upper().strip()
+            maintenant = self._horloge()
+            self.appel_en_cours = c
+            self.appel_depuis = maintenant
+            self.appeles[c] = self.appeles.get(c, 0) + 1
+            self.journal.append({'t': maintenant, 'call': c, 'motif': motif,
+                                 'essai': self.appeles[c]})
+            return self.journal[-1]
 
     def noter_qso(self, call):
         """Un QSO a abouti : la station n'est plus « en cours » et ne sera plus
         rappelée, quel que soit son intérêt."""
-        c = str(call or '').upper().strip()
-        if self.appel_en_cours == c:
-            self.appel_en_cours = ''
-        self.appeles[c] = CYCLES_AVANT_ABANDON      # ne plus jamais rappeler
+        with self._lock:
+            c = str(call or '').upper().strip()
+            if self.appel_en_cours == c:
+                self.appel_en_cours = ''
+            self.appeles[c] = CYCLES_AVANT_ABANDON      # ne plus jamais rappeler
 
     def etat(self):
-        return {
-            'active': self.active,
-            'niveau': self.niveau,
-            'sans_personne': self.active and self.niveau == NIVEAU_SANS_PERSONNE,
-            'restant_s': self.restant_s(),
-            'appel_en_cours': self.appel_en_cours,
-            'appels': len(self.journal),
-            'motif_arret': self.motif_arret,
-            'journal': self.journal[-20:],
-            'reglages': self.reglages,
-        }
+        with self._lock:
+            return {
+                'active': self.active,
+                'niveau': self.niveau,
+                'sans_personne': self.active and self.niveau == NIVEAU_SANS_PERSONNE,
+                'restant_s': self.restant_s(),
+                'appel_en_cours': self.appel_en_cours,
+                'appels': len(self.journal),
+                'motif_arret': self.motif_arret,
+                'journal': self.journal[-20:],
+                'reglages': self.reglages,
+            }
 
 
 # Session unique du processus. Non persistée : un redémarrage la perd, et c'est

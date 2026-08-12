@@ -244,7 +244,7 @@ async function qslAction(kind, service, btn){
       notify(trF('✅ QSL {action}', {action: kind==='upload' ? trT('envoyé') : trT('synchronisé')}));
       if(kind==='sync') setTimeout(showAwards, 800);   // rafraîchit les « confirmés »
     }else{
-      out.innerHTML = `<span style="color:var(--red)">${trF('❌ {err}', {err: d.error || trT('échec')})}</span>`;
+      out.innerHTML = `<span style="color:var(--red)">${trF('❌ {err}', {err: escHtml(d.error || trT('échec'))})}</span>`;
     }
   }catch(e){
     out.innerHTML = `<span style="color:var(--red)">${trF('❌ {err}', {err: e.message})}</span>`;

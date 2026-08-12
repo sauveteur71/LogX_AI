@@ -837,7 +837,8 @@ async function mergeExternalContests(){
 const SECRET_CONFIG_FIELDS = ['api_key', 'clublog_api_key', 'clublog_password',
   'eqsl_password', 'lan_sync_token', 'lotw_password', 'on4kst_password',
   'qrz_password', 'qrzcq_api_key', 'hrdlog_code', 'qrz_logbook_key', 'sota_client_id',
-  'cloudsync_secret', 'voicekeyer_ai_api_key', 'mysql_password'];
+  'cloudsync_secret', 'voicekeyer_ai_api_key', 'mysql_password',
+  'relay_password', 'icomremote_password'];
 
 // Ré-assainit un blob localStorage['logx_config'] écrit par une VERSION
 // ANTÉRIEURE du logiciel (avant ce correctif), qui pouvait encore contenir
@@ -3930,6 +3931,11 @@ function getSelectedProvider() {
   return document.querySelector('input[name="api_provider"]:checked')?.value || 'anthropic';
 }
 
+// Fournisseur précédent : nécessaire pour savoir SOUS QUELLE CLÉ sauvegarder
+// prevKey ci-dessous (getSelectedProvider() renvoie déjà le NOUVEAU
+// fournisseur au moment où onProviderChange() s'exécute). null au tout
+// premier appel (restauration de config) : rien à sauvegarder, juste amorcer.
+let _lastAiProvider = null;
 function onProviderChange() {
   const p = getSelectedProvider();
   // Surligner la carte du fournisseur sélectionné (appelée aussi bien au
@@ -3938,8 +3944,14 @@ function onProviderChange() {
   document.querySelectorAll('.ai-provider-card').forEach(card => {
     card.classList.toggle('selected', card.dataset.provider === p);
   });
-  // Sauvegarder la clé courante avant de changer
+  // Sauvegarder la clé en cours de saisie pour le fournisseur qu'on QUITTE —
+  // avant ce correctif, prevKey était calculée mais jamais persistée nulle
+  // part : une clé API tapée mais pas encore sauvegardée disparaissait
+  // silencieusement en changeant de fournisseur.
   const prevKey = document.getElementById('api_key').value;
+  if(_lastAiProvider && _lastAiProvider !== p){
+    localStorage.setItem(`logx_apikey_${_lastAiProvider}`, prevKey);
+  }
   // Mettre à jour le select modèle
   const sel = document.getElementById('ai_model');
   sel.innerHTML = AI_MODELS[p].map(m => `<option value="${m.value}">${m.label}</option>`).join('');
@@ -3948,6 +3960,7 @@ function onProviderChange() {
   // Charger la clé du nouveau fournisseur
   const savedKey = localStorage.getItem(`logx_apikey_${p}`) || '';
   document.getElementById('api_key').value = savedKey;
+  _lastAiProvider = p;
 }
 
 // Le test ouvre une session avec le boîtier et lit la VERSION de son
@@ -6255,7 +6268,7 @@ async function analyzeRules(url, name){
     });
     const data = await res.json();
     if (!data.ok){
-      status.innerHTML = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> <span style="color:var(--red)">${data.error || 'Analyse en échec'}</span>`;
+      status.innerHTML = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> <span style="color:var(--red)">${escC(data.error || 'Analyse en échec')}</span>`;
       return;
     }
     status.textContent = `✅ Règlement lu (${data.text_chars} caractères via ${data.extractor}) — relis la proposition ci-dessous.`;
@@ -6393,7 +6406,7 @@ async function saveReviewedDefinition(){
       status.innerHTML = `<span style="color:var(--red)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;vertical-align:-2px"><circle cx="9" cy="9" r="6.5"/><line x1="4.5" y1="13.5" x2="13.5" y2="4.5"/></svg> ${errs}</span>`;
       return;
     }
-    status.innerHTML = `<span style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${data.message} — il apparaît maintenant dans la liste.</span>`;
+    status.innerHTML = `<span style="color:var(--green)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px"><polyline points="3,10 7,14 15,4"/></svg> ${escC(data.message)} — il apparaît maintenant dans la liste.</span>`;
     // Rafraîchir la grille et sélectionner le nouveau concours
     await mergeServerContests();
     buildContestGrid('');
