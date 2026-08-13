@@ -29,6 +29,8 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .logo-suffix{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:1px}
 .app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
 .app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
+/* Repli défensif (audit intuitivité 13/08/2026) : .expert-only est normalement injecté par logx_statusbar.js au chargement -- ce doublon statique évite un flash de contenu avancé si ce script est lent/bloqué, même filet que logx_configuration.html. */
+body.simple-mode .expert-only{display:none!important}
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
 
