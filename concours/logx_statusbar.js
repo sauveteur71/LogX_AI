@@ -204,7 +204,7 @@
     <div class="rcsb-item" id="rcsbRulesItem" title="Dernière vérification automatique des règlements par le serveur">
       📄 <a href="logx_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>
-    <div class="rcsb-item" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
+    <div class="rcsb-item expert-only" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
       🗔 <span class="rcsb-val">DISPOSITION</span>
       <div id="rcsbLayoutDD" style="display:none"></div>
     </div>
