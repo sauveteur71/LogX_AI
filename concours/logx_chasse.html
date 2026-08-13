@@ -99,6 +99,11 @@ body.simple-mode .expert-only{display:none!important}
 .sr-band{width:56px;color:var(--muted)}
 .sr-val{width:110px;text-align:right}
 .sr-mult-badge{font-size:12px;letter-spacing:1px;color:var(--green);border:1px solid rgba(0,255,136,.4);border-radius:3px;padding:1px 6px}
+/* Assistant pile-up/split (déterministe, 0 jeton) : annonce UP/DOWN/QSX
+   repérée dans le commentaire du spot par logx_clusters.parse_split_info,
+   affichée telle quelle — même gabarit que .sr-mult-badge mais en cuivre
+   (accent neutre, pas une couleur sémantique succès/erreur). */
+.sr-split-badge{font-size:12px;letter-spacing:1px;color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.4);border-radius:3px;padding:1px 6px;white-space:nowrap}
 .sr-cap{width:80px;color:var(--accent)}
 .sr-info{flex:1;min-width:0;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
@@ -486,6 +491,26 @@ function clearBandFilter(){
   renderSpots();
 }
 
+// Assistant pile-up/split déterministe (0 jeton) : s.split vient de
+// logx_clusters.parse_split_info (annonce UP/DOWN/QSX déjà repérée côté
+// serveur dans le commentaire du spot, voir /data/spots_ranked). QSX > UP/
+// DOWN > SPLIT nu, du plus précis au moins précis — l'opérateur veut la
+// fréquence exacte d'écoute si elle est connue, sinon au moins la direction.
+function splitBadge(s){
+  const sp = s.split;
+  if(!sp || !sp.split) return '';
+  if(sp.qsx_khz != null){
+    return `<span class="sr-split-badge" title="${rcT('Écoute (QSX) annoncée dans le commentaire du spot')}">QSX ${esc(sp.qsx_khz.toFixed(1).replace('.', ','))}</span>`;
+  }
+  if(sp.direction){
+    const arrow = sp.direction === 'up' ? '↑' : '↓';
+    const label = sp.direction === 'up' ? 'UP' : 'DOWN';
+    const off = sp.offset_khz != null ? ' ' + esc(sp.offset_khz) : '';
+    return `<span class="sr-split-badge" title="${rcT('Split annoncé dans le commentaire du spot')}">${arrow} ${label}${off}</span>`;
+  }
+  return `<span class="sr-split-badge" title="${rcT('Split annoncé dans le commentaire du spot')}">SPLIT</span>`;
+}
+
 function renderSpots(){
   let list = spotsData;
   if(selectedBands.size) list = list.filter(s => selectedBands.has(s.band));
@@ -508,6 +533,7 @@ function renderSpots(){
       <span class="sr-band">${esc(s.band)} MHz</span>
       <span class="sr-val">${s.already_done ? 'DÉJÀ FAIT' : (contestActif ? '+' + esc(s.value || s.points) + ' ' + rcT('pts') : rcT('NOUVEAU'))}</span>
       ${s.new_mult && !s.already_done ? '<span class="sr-mult-badge">📈 NOUVEAU MULT</span>' : ''}
+      ${splitBadge(s)}
       <span class="sr-cap">${s.bearing != null ? esc(s.bearing) + '° ' + esc(s.cardinal) : ''}</span>
       <span class="sr-info" title="${contestActif ? esc(s.explanation) : ''}">${s.dist_km ? esc(s.dist_km) + ' km' : ''}${contestActif && s.explanation ? (s.dist_km ? ' · ' : '') + esc(s.explanation) : ''}</span>
     </div>`).join('');

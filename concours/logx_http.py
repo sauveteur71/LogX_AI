@@ -43,7 +43,7 @@ from logx_clusters import (SPOTS_CACHE, SPOTS_CACHE_LOCK, fetch_all_vhf_spots, f
                       fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster, fetch_dxwatch_hf,
                       fetch_dxheat, fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
                       fetch_noaa_kindex, fetch_dxmaps_vhf, fetch_3830_scores,
-                      lookup_hamqth, enrich_unknown_calls, freq_en_khz)
+                      lookup_hamqth, enrich_unknown_calls, parse_split_info, freq_en_khz)
 from logx_version import APP_VERSION
 
 # ─── CACHE SPOTS CLUSTER ENVOYÉS PAR LE NAVIGATEUR ───────────────────────────
@@ -2630,6 +2630,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(coach.build_debrief(cfg_snap, log_copy))
             return
 
+        # Mémoire inter-concours : digest DÉTERMINISTE (0 jeton, aucun appel
+        # IA) des heures/bandes habituelles du concours ACTIF sur ses
+        # dernières éditions ARCHIVÉES (?contest=, filtre optionnel ?band=),
+        # et/ou -- si ?entity= est fourni (indicatif ou préfixe) -- sa
+        # distribution horaire historique toutes archives confondues.
+        # Réutilise list_archives()/log.json (logx_archive.py), aucun
+        # nouveau champ QSO stocké. Contrairement à /coach/debrief, ne lit
+        # jamais shared_log (le concours en cours n'est pas encore archivé).
+        if path == '/coach/memory':
+            import logx_coach as coach
+            from urllib.parse import parse_qs, urlparse
+            qp = parse_qs(urlparse(self.path).query)
+            contest_id = (qp.get('contest') or [''])[0].strip()
+            band = (qp.get('band') or [''])[0].strip()
+            entity = (qp.get('entity') or [''])[0].strip()
+            cfg_snap = self._cfg_snapshot()
+            self._json(coach.build_memory_digest(cfg_snap, contest_id=contest_id or None,
+                                                  band=band or None, entity=entity or None))
+            return
+
         # Réponse DÉTERMINISTE (zéro LLM) à un sujet du chat — repli HORS-LIGNE :
         # quand l'IA est injoignable (expédition sans internet), les boutons
         # rapides du chat basculent ici. Réutilise build_coach_state (aucune
@@ -4015,6 +4035,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # commande à la radio un QSY hors bande, sans un mot.
                     'hors_bande': _aw.hors_bande_france(_khz),
                     'time': s.get('time', ''), 'info': s.get('info', ''),
+                    # Même parsing split/QSX que /data/spots_ranked, pour la
+                    # cohérence entre les deux pages qui listent des spots —
+                    # voir logx_clusters.parse_split_info.
+                    'split': parse_split_info(s.get('info', ''), s.get('band', '')),
                     'spotter': s.get('spotter', ''),
                     'dist_km': s.get('dist_km', 0),
                     'dx_country': sc.get('dx_country', ''),
@@ -4125,6 +4149,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/spots_ranked':
             from logx_scoring import build_ranked_spots
             import logx_alerts as alerts
+            import logx_awards as awards
             cfg_snap = self._cfg_snapshot()
             ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
@@ -4141,22 +4166,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # écran ne pouvait le lire juste. Un seul point de conversion,
                 # ici, pour les six pages qui consomment cet endpoint —
                 # voir logx_clusters.freq_en_khz.
+                _khz = freq_en_khz(s.get('freq', ''), s.get('band', ''))
                 entry = {
                     'call': s.get('call', ''), 'band': s.get('band', ''),
-                    'freq': freq_en_khz(s.get('freq', ''), s.get('band', '')),
+                    'freq': _khz,
                     'locator': s.get('locator', ''),
                     'lat': s.get('lat'), 'lon': s.get('lon'),
                     'dist_km': s.get('dist_km', 0), 'time': s.get('time', ''),
                     'source': s.get('source', ''), 'info': s.get('info', ''),
+                    # Annonce split/QSX repérée dans le commentaire du spot
+                    # (déjà transmis ci-dessus via 'info', mais jamais parsé
+                    # jusqu'ici) — assistant pile-up déterministe, 0 jeton :
+                    # voir logx_clusters.parse_split_info.
+                    'split': parse_split_info(s.get('info', ''), s.get('band', '')),
                     # Qui a posté le spot : jusqu'ici la donnée existait dans
                     # le cache cluster mais mourait ici. C'est pourtant elle
                     # qui dit si la liaison annoncée ressemble à la mienne —
                     # un JA qui spotte une VK décrit un chemin JA-VK.
                     'spotter': s.get('spotter', ''),
                     # Mode annoncé par la source quand elle en a un (DXHeat,
-                    # DXSummit…) : le bouton « écouter ce spot » ouvre alors le
-                    # WebSDR dans la bonne modulation, pas en SSB par défaut.
-                    'mode': s.get('mode', ''),
+                    # DXSummit…), sinon DÉDUIT de la fréquence (même repli que
+                    # /data/focus, voir logx_awards.mode_depuis_frequence) : le
+                    # bouton « écouter ce spot » ouvre alors le WebSDR dans la
+                    # bonne modulation au lieu de retomber en SSB par défaut.
+                    'mode': s.get('mode') or awards.mode_depuis_frequence(_khz),
                     'points': sc.get('direct_pts', 0),
                     'new_mult': bool(sc.get('new_mult')),
                     'mult_type': sc.get('mult_type', ''),

@@ -3855,6 +3855,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // restait vide/périmé sur un poste déjà configuré tant qu'aucun message
   // vocal n'avait encore été envoyé.
   if(typeof so2rRafraichir === 'function') so2rRafraichir();
+  if(typeof initCallDictation === 'function') initCallDictation();   // dictée vocale #inputCall (logx_voice_dictation.js) : affiche #callMicBtn seulement si SpeechRecognition est dispo
   initBroadcastChannel();
   // Réserve dès le chargement l'espace occupé par les panneaux flottants
   // CHAT/CW (même repliés, ~36px) — cf. _reserveBottomSpace(). Le CW cible

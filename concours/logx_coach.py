@@ -680,6 +680,119 @@ def build_debrief(cfg, shared_log, now=None):
     return {'stats': stats, 'debrief_prompt': '\n'.join(lines)}
 
 
+# ─── MÉMOIRE INTER-CONCOURS ───────────────────────────────────────────────────
+
+def build_memory_digest(cfg, contest_id=None, band=None, entity=None, max_editions=5):
+    """Mémoire inter-concours DÉTERMINISTE (aucun appel IA, 0 jeton) : agrège
+    les archives déjà stockées (archives/<contest>_<timestamp>/log.json, voir
+    logx_archive.py) pour répondre à deux questions "à froid" sans rien
+    recalculer qui existe déjà ailleurs :
+
+    1) "à quelles heures UTC et sur quelles bandes ce concours tourne-t-il
+       habituellement bien, chez moi ?" -- sur les `max_editions` dernières
+       éditions ARCHIVÉES de `contest_id` (le concours ACTIF, encore dans
+       shared_log, n'est pas archivé tant qu'il n'est pas terminé -- voir
+       archive_log() -- donc hors de ce calcul, comme pour best_for_contest()
+       dont ce digest reprend le même filtre `info['contest']==contest_id`).
+
+    2) si `entity` est fourni (indicatif OU préfixe -- ex. 'FT8WW' ou 'FT',
+       dxcc_entity_key() accepte les deux, voir logx_dxcc.py), "à quelle
+       heure UTC cette entité DXCC s'ouvre-t-elle habituellement chez moi ?"
+       -- TOUTES archives confondues, quel que soit le concours : la
+       propagation n'a rien de spécifique à un règlement précis.
+
+    Bucketisé par HEURE UTC SEULE (0-23), pas par date exacte comme
+    build_debrief() (intra-concours) : c'est ce qui permet de sommer
+    plusieurs éditions/années sur le même axe. Parsing date/heure réutilisé
+    tel quel (_entry_dt/_parse_dt, ci-dessus).
+
+    Retourne {'ok': True, 'contest', 'editions', 'band', 'best_hours':
+    [['14h', 23], ...], 'per_band': {...}, 'entity', 'entity_query',
+    'entity_qso', 'entity_hours': [['06h', 4], ...]}, ou {'ok': False,
+    'error': ...} si ni `contest_id` ni `entity` n'apportent de données."""
+    import logx_archive as arch
+    cfg = cfg or {}
+    if contest_id is None:
+        contest_id = cfg.get('contest', '') if isinstance(cfg.get('contest'), str) else ''
+    contest_id = (contest_id or '').strip()
+    band = str(band).strip() if band else ''
+    entity_query = (entity or '').strip()
+
+    archives = arch.list_archives()
+
+    # ── 1) Digest du concours : heures/bandes habituelles sur ses dernières
+    #       éditions archivées (list_archives() est déjà trié récent -> ancien).
+    hour_counts = {}                       # heure UTC (0-23) -> n QSO
+    band_counts = {}                       # bande -> {'qso': n, 'editions': n}
+    editions_used = 0
+    if contest_id:
+        matching = [info for info in archives if info.get('contest') == contest_id]
+        for info in matching[:max(1, int(max_editions))]:
+            qsos = arch.load_archive_qsos(info['folder'])
+            if qsos is None:
+                continue
+            editions_used += 1
+            bands_seen = set()
+            for q in qsos:
+                b = str(q.get('band', '?'))
+                if band and b != band:
+                    continue
+                dt = _entry_dt(q)
+                if dt:
+                    hour_counts[dt.hour] = hour_counts.get(dt.hour, 0) + 1
+                pb = band_counts.setdefault(b, {'qso': 0, 'editions': 0})
+                pb['qso'] += 1
+                bands_seen.add(b)
+            for b in bands_seen:
+                band_counts[b]['editions'] += 1
+
+    # ── 2) Digest d'une entité DXCC ciblée, TOUTES archives confondues ──
+    entity_key = None
+    entity_hours = []
+    entity_qso = 0
+    if entity_query:
+        from logx_dxcc import dxcc_entity_key
+        entity_key = dxcc_entity_key(entity_query)
+        eh_counts = {}
+        for info in archives:
+            qsos = arch.load_archive_qsos(info['folder'])
+            if not qsos:
+                continue
+            for q in qsos:
+                if dxcc_entity_key(q.get('call', '')) != entity_key:
+                    continue
+                entity_qso += 1
+                dt = _entry_dt(q)
+                if dt:
+                    eh_counts[dt.hour] = eh_counts.get(dt.hour, 0) + 1
+        entity_hours = sorted(([f"{h:02d}h", n] for h, n in eh_counts.items()),
+                              key=lambda p: -p[1])[:5]
+
+    if not contest_id and not entity_query:
+        return {'ok': False, 'error': 'Aucun concours actif ni cible fournie'}
+    if contest_id and editions_used == 0 and not entity_query:
+        return {'ok': False, 'error': 'Aucune édition archivée pour ce concours'}
+
+    best_hours = sorted(([f"{h:02d}h", n] for h, n in hour_counts.items()),
+                        key=lambda p: -p[1])[:3]
+    per_band = {b: {'qso': v['qso'],
+                    'avg_per_edition': round(v['qso'] / v['editions'], 1) if v['editions'] else 0}
+               for b, v in band_counts.items()}
+
+    return {
+        'ok': True,
+        'contest': contest_id or None,
+        'editions': editions_used,
+        'band': band or None,
+        'best_hours': best_hours,
+        'per_band': per_band,
+        'entity': entity_key,
+        'entity_query': entity_query or None,
+        'entity_qso': entity_qso,
+        'entity_hours': entity_hours,
+    }
+
+
 # ─── POINT D'ENTRÉE ──────────────────────────────────────────────────────────
 
 def build_coach_state(cfg, shared_log, dxmaps=None, now=None, mult_spots_count=None,
