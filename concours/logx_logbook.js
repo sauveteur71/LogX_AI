@@ -709,7 +709,15 @@ const LEGACY_JS_BRICKS = {
   zone_country_per_band:     {points:[{when:'same_country', points:{param:'points_same_country', default:0}},
                                       {when:'same_continent', points:{param:'points_same_continent', default:1}},
                                       {points:{param:'points_dx', default:3}}]},
-  prefix_multiplier:         {points:[{when:'different_continent', points:{param:'points_dx', default:3}},
+  // CQ WPX (règlement cqwpx.com/rules.htm) : points DOUBLÉS sur les bandes
+  // basses 160/80/40 m (6/2/1 au lieu de 3/1/1) — miroir du fix serveur
+  // (logx_definitions.py CQ_WPX_SSB/CW.scoring.bricks). Repli hors-ligne
+  // uniquement : quand le serveur répond, calcPoints() utilise directement
+  // les bricks transmis par /data/calendar (voir evalPointsFromDef ci-dessous).
+  prefix_multiplier:         {points:[{bands:['1.8','3.5','7'], when:'different_continent', points:6},
+                                      {bands:['1.8','3.5','7'], when:'same_country', points:{param:'points_same_country', default:1}},
+                                      {bands:['1.8','3.5','7'], points:2},
+                                      {when:'different_continent', points:{param:'points_dx', default:3}},
                                       {when:'same_country', points:{param:'points_same_country', default:1}},
                                       {points:{param:'points_same_continent', default:1}}]},
   prefix:                    {points:[{when:'different_continent', points:6},

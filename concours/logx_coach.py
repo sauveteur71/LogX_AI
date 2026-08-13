@@ -25,9 +25,12 @@ HF_BANDS = ('1.8', '3.5', '7', '14', '21', '28')
 # ─── HORLOGE DU CONCOURS ─────────────────────────────────────────────────────
 
 def _parse_dt(date_str, time_str):
-    """'20260801'/'2026-08-01' + '1200'/'12:00' → datetime UTC naïf, None si invalide."""
-    d = (date_str or '').replace('-', '').strip()
-    t = (time_str or '').replace(':', '').strip() or '0000'
+    """'20260801'/'2026-08-01' + '1200'/'12:00' → datetime UTC naïf, None si invalide.
+    str() explicite avant les .replace() : une valeur non-str (ex. un entier
+    JSON posté sur /log/add) ne doit jamais lever d'exception ici, seulement
+    retourner None comme toute autre entrée malformée."""
+    d = str(date_str or '').replace('-', '').strip()
+    t = str(time_str or '').replace(':', '').strip() or '0000'
     try:
         return datetime.datetime.strptime(f"{d}{t[:4]}", '%Y%m%d%H%M')
     except (ValueError, TypeError):
@@ -699,7 +702,10 @@ def build_memory_digest(cfg, contest_id=None, band=None, entity=None, max_editio
        dxcc_entity_key() accepte les deux, voir logx_dxcc.py), "à quelle
        heure UTC cette entité DXCC s'ouvre-t-elle habituellement chez moi ?"
        -- TOUTES archives confondues, quel que soit le concours : la
-       propagation n'a rien de spécifique à un règlement précis.
+       propagation n'a rien de spécifique à un règlement précis. Une entrée
+       qui se réduit à '??' (bucket de repli "non résolu", ex. '/', '/P',
+       '/QRP') n'est PAS traitée comme une clé de matching valide -- 'entity'
+       ressort à None, sans agrégation (voir dxcc_entity_key()/country_key()).
 
     Bucketisé par HEURE UTC SEULE (0-23), pas par date exacte comme
     build_debrief() (intra-concours) : c'est ce qui permet de sommer
@@ -753,20 +759,31 @@ def build_memory_digest(cfg, contest_id=None, band=None, entity=None, max_editio
     if entity_query:
         from logx_dxcc import dxcc_entity_key
         entity_key = dxcc_entity_key(entity_query)
-        eh_counts = {}
-        for info in archives:
-            qsos = arch.load_archive_qsos(info['folder'])
-            if not qsos:
-                continue
-            for q in qsos:
-                if dxcc_entity_key(q.get('call', '')) != entity_key:
+        # '??' est le bucket de REPLI de dxcc_entity_key/country_key (entité non
+        # résolue), pas une clé de matching valide : une cible qui s'y réduit
+        # (ex. '/', '/P', '/QRP' -- premier composant vide après split('/'))
+        # matcherait sinon TOUS les QSO archivés dont l'indicatif est lui aussi
+        # vide/mal formé (call=''), sans rapport avec la cible demandée. On
+        # traite ce cas comme "non reconnu" : pas d'agrégation, entity=None
+        # (le front-end masque alors le bloc entité, comme si rien n'avait été
+        # tapé, plutôt que d'afficher un digest faux mais présenté comme fiable).
+        if entity_key == '??':
+            entity_key = None
+        else:
+            eh_counts = {}
+            for info in archives:
+                qsos = arch.load_archive_qsos(info['folder'])
+                if not qsos:
                     continue
-                entity_qso += 1
-                dt = _entry_dt(q)
-                if dt:
-                    eh_counts[dt.hour] = eh_counts.get(dt.hour, 0) + 1
-        entity_hours = sorted(([f"{h:02d}h", n] for h, n in eh_counts.items()),
-                              key=lambda p: -p[1])[:5]
+                for q in qsos:
+                    if dxcc_entity_key(q.get('call', '')) != entity_key:
+                        continue
+                    entity_qso += 1
+                    dt = _entry_dt(q)
+                    if dt:
+                        eh_counts[dt.hour] = eh_counts.get(dt.hour, 0) + 1
+            entity_hours = sorted(([f"{h:02d}h", n] for h, n in eh_counts.items()),
+                                  key=lambda p: -p[1])[:5]
 
     if not contest_id and not entity_query:
         return {'ok': False, 'error': 'Aucun concours actif ni cible fournie'}

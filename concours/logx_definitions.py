@@ -372,6 +372,26 @@ CONTEST_DEFINITIONS = {
             'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 1,
             'multiplier': 'préfixes_uniques tous_bandes_confondus',
             'unit': 'QSO_pts × préfixes_uniques',
+            # Règlement officiel (cqwpx.com/rules.htm) : points DOUBLÉS sur les
+            # bandes basses 160/80/40 m (6/2/1 au lieu de 3/1/1) — le type
+            # 'prefix_multiplier' seul (LEGACY_SCORING_PRESETS, logx_scoring.py)
+            # n'a aucun filtre par bande. Bricks explicites, même motif que
+            # ALL_ASIAN_CW/SSB ci-dessus (bandes basses bonifiées).
+            'bricks': {
+                'points': [
+                    {'bands': ['1.8', '3.5', '7'], 'when': 'different_continent', 'points': 6},
+                    {'bands': ['1.8', '3.5', '7'], 'when': 'same_country',
+                     'points': {'param': 'points_same_country', 'default': 1}},
+                    {'bands': ['1.8', '3.5', '7'], 'when': 'always', 'points': 2},
+                    {'when': 'different_continent',
+                     'points': {'param': 'points_dx', 'default': 3}},
+                    {'when': 'same_country',
+                     'points': {'param': 'points_same_country', 'default': 1}},
+                    {'when': 'always',
+                     'points': {'param': 'points_same_continent', 'default': 1}},
+                ],
+                'multiplier': {'kind': 'prefix'},
+            },
         },
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
         'log_submit': 'https://cqwpx.com/logcheck/',
@@ -394,6 +414,26 @@ CONTEST_DEFINITIONS = {
             'points_dx': 3, 'points_same_continent': 1, 'points_same_country': 1,
             'multiplier': 'préfixes_uniques tous_bandes_confondus',
             'unit': 'QSO_pts × préfixes_uniques',
+            # Règlement officiel (cqwpx.com/rules.htm) : points DOUBLÉS sur les
+            # bandes basses 160/80/40 m (6/2/1 au lieu de 3/1/1) — le type
+            # 'prefix_multiplier' seul (LEGACY_SCORING_PRESETS, logx_scoring.py)
+            # n'a aucun filtre par bande. Bricks explicites, même motif que
+            # ALL_ASIAN_CW/SSB ci-dessus (bandes basses bonifiées).
+            'bricks': {
+                'points': [
+                    {'bands': ['1.8', '3.5', '7'], 'when': 'different_continent', 'points': 6},
+                    {'bands': ['1.8', '3.5', '7'], 'when': 'same_country',
+                     'points': {'param': 'points_same_country', 'default': 1}},
+                    {'bands': ['1.8', '3.5', '7'], 'when': 'always', 'points': 2},
+                    {'when': 'different_continent',
+                     'points': {'param': 'points_dx', 'default': 3}},
+                    {'when': 'same_country',
+                     'points': {'param': 'points_same_country', 'default': 1}},
+                    {'when': 'always',
+                     'points': {'param': 'points_same_continent', 'default': 1}},
+                ],
+                'multiplier': {'kind': 'prefix'},
+            },
         },
         'log_format': 'CABRILLO', 'log_deadline': '7_days_after',
         'log_submit': 'https://cqwpx.com/logcheck/',

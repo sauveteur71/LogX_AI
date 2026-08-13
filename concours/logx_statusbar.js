@@ -111,6 +111,23 @@
       ms || Math.min(9000, 3000 + String(message).length * 30));
   }
 
+  // ── Ouverture de fenêtre détachée avec repli « popup bloquée » ─────────────
+  // window.open() renvoie null/undefined (jamais une exception) quand le
+  // navigateur bloque la popup — un simple clic sans repli laisse l'opérateur
+  // sans aucune explication. Centralisé ici (chargé sur toutes les pages)
+  // plutôt que redupliqué à chaque endroit qui ouvre PANADAPTER/une fenêtre
+  // détachée : voir logx_modes_numeriques.html, qui avait sa propre copie
+  // locale avant que ce repli n'existe ici.
+  window.ouvrirFenetreDetachee = function(url, nom, options){
+    const w = window.open(url, nom, options);
+    if (!w){
+      _statusbarToast(rcTf(
+        "Le navigateur a bloqué l'ouverture automatique — autorise les popups pour ce site, ou ouvre directement : {url}",
+        {url: url}));
+    }
+    return w;
+  };
+
   // ── Création du DOM ────────────────────────────────────────────────────────
   const bar = document.createElement('div');
   bar.id = 'rcStatusBar';
@@ -204,7 +221,7 @@
     <div class="rcsb-item" id="rcsbRulesItem" title="Dernière vérification automatique des règlements par le serveur">
       📄 <a href="logx_calendrier.html" id="rcsbRules">règlements : —</a>
     </div>
-    <div class="rcsb-item" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
+    <div class="rcsb-item expert-only" id="rcsbLayoutItem" style="cursor:pointer;position:relative" title="Panneaux détachables + dispositions nommées (comme un espace de travail à onglets, en fenêtres séparées)">
       🗔 <span class="rcsb-val">DISPOSITION</span>
       <div id="rcsbLayoutDD" style="display:none"></div>
     </div>

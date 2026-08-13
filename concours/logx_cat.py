@@ -998,7 +998,14 @@ class AsciiRadio:
         return {'ok': False, 'error': f'Lecture PTT non disponible pour {self.brand}'}
 
     def set_ptt(self, on):
-        self._cmd('TX;' if on else 'RX;', read_reply=False)
+        if self.brand == 'yaesu':
+            # Chez Yaesu, 'TX;' SANS chiffre est la forme de LECTURE (voir
+            # get_ptt() ci-dessus, qui attend TX0;/TX1;/TX2; en réponse) —
+            # pas un ordre d'émission. L'écriture exige le suffixe :
+            # TX1; = PTT engagé, TX0; = PTT relâché.
+            self._cmd('TX1;' if on else 'TX0;', read_reply=False)
+        else:
+            self._cmd('TX;' if on else 'RX;', read_reply=False)
         return {'ok': True}
 
     # ─── MANIPULATION CW ────────────────────────────────────────────────────

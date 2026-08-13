@@ -40,6 +40,12 @@ _lock = threading.Lock()
 # (qui est pure, dérivée de la config à chaque appel) : c'est un état
 # d'exécution, comme _circuit dans logx_callbook.py.
 _auto_state = {'last_band': None}
+# Protège le check-then-set de _auto_state['last_band'] dans maybe_apply_band()
+# — appelée depuis le thread de CHAQUE requête HTTP /rig/state ou /data/hw_state
+# (ThreadingHTTPServer) : sans verrou, deux pollers concurrents voyant tous les
+# deux l'ancienne bande déclencheraient chacun apply_band_relay(), doublant
+# l'usure mécanique du relais. Même motif que _freq_lock dans logx_mqtt.py.
+_auto_state_lock = threading.Lock()
 
 
 def relay_settings(cfg):
@@ -172,7 +178,8 @@ def maybe_apply_band(cfg, band, open_serial=None, urlopen=None):
     (_rig_state_dict) doit appeler, jamais apply_band_relay() directement,
     sous peine de rejouer la commutation à chaque poll (~3s) tant que
     l'opérateur reste sur la même bande."""
-    if band == _auto_state['last_band']:
-        return {'ok': True, 'skipped': True}
-    _auto_state['last_band'] = band
+    with _auto_state_lock:
+        if band == _auto_state['last_band']:
+            return {'ok': True, 'skipped': True}
+        _auto_state['last_band'] = band
     return apply_band_relay(cfg, band, open_serial=open_serial, urlopen=urlopen)
