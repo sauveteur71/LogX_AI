@@ -169,11 +169,24 @@ def pull_and_merge(get_log, add_qso, timeout=PULL_TIMEOUT_S, token=''):
     string au pair, qui le vérifie côté serveur avant de répondre (voir
     logx_http.py /log/lan/export). Vide par défaut : rétro-compatible avec un
     pair qui n'a pas encore configuré de jeton.
+
+    Filtre aussi tout QSO distant dont l'id figure dans logx_storage.deleted_qsos
+    (suppression locale via /log/delete) — sinon un QSO supprimé ici ressuscite
+    au cycle suivant depuis un pair qui l'a encore dans SON log, tant que ce
+    pair ne l'a pas supprimé aussi. Même filtre, même mémoire de SESSION que
+    logx_cloudsync/logx_mysql_sync pour ce problème identique ; pas de
+    tombstone persistant ici (suffisant : la boucle LAN ne tourne que tant
+    que le process est vivant).
     Retourne {'peers', 'pulled'}."""
     peers_now = peers()
     if not peers_now:
         return {'peers': 0, 'pulled': 0}
     existing = set(_key(q) for q in (get_log() or []))
+    try:
+        import logx_storage as storage
+        deleted_ids = {d.get('id') for d in list(storage.deleted_qsos)} - {None}
+    except Exception:
+        deleted_ids = set()
     pulled = 0
     qs = ('?token=' + urllib.parse.quote(token, safe='')) if token else ''
     for p in peers_now:
@@ -186,6 +199,9 @@ def pull_and_merge(get_log, add_qso, timeout=PULL_TIMEOUT_S, token=''):
         for q in raw_qsos[:MAX_QSOS_PER_PULL]:
             if not _valid_qso(q):
                 continue
+            qid = q.get('id')
+            if qid is not None and qid in deleted_ids:
+                continue                # supprimé localement : jamais ré-importé
             k = _key(q)
             if k in existing:
                 continue
