@@ -106,16 +106,28 @@ def parse_split_info(info, band=''):
     offset_khz = None
     m_up = re.search(r'\bUP(?![A-Z])\s*[:]?\s*(\d{1,4}(?:[.,]\d{1,3})?)?', txt)
     m_down = re.search(r'\b(?:DOWN|DN)(?![A-Z])\s*[:]?\s*(\d{1,4}(?:[.,]\d{1,3})?)?', txt)
+    has_split_word = re.search(r'\bSPLIT\b', txt) is not None
     m_dir = m_up or m_down
     if m_dir:
-        direction = 'up' if m_dir is m_up else 'down'
-        if m_dir.group(1):
-            try:
-                offset_khz = float(m_dir.group(1).replace(',', '.'))
-            except (TypeError, ValueError):
-                offset_khz = None
+        offset_raw = m_dir.group(1)
+        # SANS chiffre d'offset, "UP"/"DOWN"/"DN" seuls sont un jargon radio
+        # courant SANS RAPPORT avec un split (« SIGS UP », « COND'S UP AND
+        # DOWN » — propagation qui varie, pas une annonce de fréquence
+        # décalée) : on ne les accepte alors que combinés à SPLIT ailleurs
+        # dans le commentaire, ou seulement s'ils ouvrent le commentaire —
+        # la position où les spotteurs annoncent réellement un split par
+        # convention (« UP », « UP QRZ »...). Avec un chiffre ("UP2",
+        # "DOWN 5"), le signal est fort et accepté n'importe où.
+        debut = len(txt) - len(txt.lstrip())
+        est_en_tete = m_dir.start() == debut
+        if offset_raw or has_split_word or est_en_tete:
+            direction = 'up' if m_dir is m_up else 'down'
+            if offset_raw:
+                try:
+                    offset_khz = float(offset_raw.replace(',', '.'))
+                except (TypeError, ValueError):
+                    offset_khz = None
 
-    has_split_word = re.search(r'\bSPLIT\b', txt) is not None
     split = bool(has_split_word or qsx_khz is not None or direction is not None)
     return {'split': split, 'qsx_khz': qsx_khz, 'offset_khz': offset_khz, 'direction': direction}
 
