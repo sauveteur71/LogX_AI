@@ -22,6 +22,15 @@ body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(
 body.day-mode .bubble.msg-agent{color:var(--text)}
 body.day-mode .leaflet-container{background:#D8E4F0}
 body.day-mode .map-tooltip{background:rgba(255,255,255,.97);color:var(--text)}
+/* .off-badge (générique, hors-ligne) : fond var(--muted) + texte sombre fixe --
+   en nuit --muted est clair (contraste ok), en jour --muted devient brun foncé
+   (#665F55) et le texte sombre #0a0e1e tombe à ~3:1, sous le seuil WCAG AA.
+   :not(.basique-badge) exclu explicitement : ce variant a son propre fond/texte
+   fixes (#00D68A/#04140A, déjà lisibles dans les deux thèmes) -- sans ce
+   :not(), body.day-mode .off-badge (2 classes + 1 type) l'emporterait sur
+   .off-badge.basique-badge (2 classes) par spécificité et casserait SON
+   contraste. Vérif contraste pré-bêta 13/08/2026. */
+body.day-mode .off-badge:not(.basique-badge){color:var(--bg2)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
@@ -264,19 +273,19 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <option value="confirme">🎯 Confirmé</option>
           <option value="expert">🚀 Expert</option>
         </select>
-        <select id="aiTierSel" class="skill-sel" onchange="setAiTier(this.value)" title="Palier IA : Basique répond sans jamais appeler l'IA (SCORE/PROP/MULTS/RÉSUMÉ/SPOTS), Intermédiaire et Expert passent par l'IA comme aujourd'hui">
+        <select id="aiTierSel" class="skill-sel expert-only" onchange="setAiTier(this.value)" title="Palier IA : Basique répond sans jamais appeler l'IA (SCORE/PROP/OUVERTURES/MULTS/RÉSUMÉ/SPOTS/BILAN/DÉBRIEF/COORDINATION/MÉMOIRE), Intermédiaire et Expert passent par l'IA comme aujourd'hui">
           <option value="basique">🔌 Basique</option>
           <option value="intermediaire">⚡ Intermédiaire</option>
           <option value="expert">🧠 Expert</option>
         </select>
-        <button class="qbtn qbtn-group-sep" onclick="qs('Analyse les clusters et mon log maintenant.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>ANALYSER</button>
+        <button class="qbtn qbtn-group-sep" onclick="qs('Analyse les clusters et mon log maintenant.')" title="Analyse ouverte (toujours via l'IA, même en palier Basique) -- pour une réponse 0 jeton identique et instantanée, voir RÉSUMÉ"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>ANALYSER</button>
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>SCORE</button>
         <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="10,1.5 4.5,10 8.5,10 7.5,16.5 13.5,8 9.5,8 10,1.5"/></svg>SPOTS</button>
         <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?','prop')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg>PROP</button>
         <button class="qbtn expert-only" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
         <button class="qbtn expert-only" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
         <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg>RÉSUMÉ</button>
-        <button class="qbtn" onclick="qs('Fais-moi un bilan de mes diplômes : DXCC, WAZ, WAC, ce qui manque le plus.','performance')" title="Bilan des diplômes et de ce qui manque, sur toute la vie de la station"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>BILAN</button>
+        <button class="qbtn expert-only" onclick="qs('Fais-moi un bilan de mes diplômes : DXCC, WAZ, WAC, ce qui manque le plus.','performance')" title="Bilan des diplômes et de ce qui manque, sur toute la vie de la station"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>BILAN</button>
         <button class="qbtn expert-only" onclick="qs('Qui est actif sur quel poste en ce moment ?','coordbrief')" title="Coordination multi-poste : qui est actuellement au poste (bande/mode, depuis quand, combien de QSO) et le planning à venir -- radio-club, expédition à plusieurs opérateurs"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="5.5" cy="6" r="2.3"/><circle cx="12.5" cy="6" r="2.3"/><path d="M2 15.5c0-2.4 1.7-4.3 3.5-4.3s3.5 1.9 3.5 4.3"/><path d="M9 15.5c0-2.4 1.7-4.3 3.5-4.3s3.5 1.9 3.5 4.3"/></svg>COORDINATION</button>
         <button class="qbtn expert-only" onclick="checkVoacapTarget()" title="Tape un indicatif ou un pays dans le champ de message, puis clique ici : calcule la fenêtre d'ouverture VOACAP heure par heure et bande par bande vers cette cible (0 jeton, calcul scientifique)"><svg viewBox="0 0 18 18" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z"/></svg>FENÊTRE VOACAP</button>
       </div>
@@ -866,6 +875,11 @@ function updateMapStations(stns){
 function showTooltip(s,ev,color){
   lastTooltipSpot=s;
   document.getElementById('ttVoacap').innerHTML='';  // resultat d'un candidat precedent : ne pas le laisser affiche sur un nouveau
+  // Invalide aussi toute vérification VOACAP encore en vol pour l'ANCIEN spot
+  // (checkVoacapForSpot() n'incrémentait ce jeton qu'à son propre déclenchement,
+  // pas ici -- une réponse tardive du spot précédent pouvait alors s'afficher
+  // sous le tooltip d'un nouveau spot jamais interrogé, vérif pré-bêta 13/08/2026).
+  _voacapCheckGen++;
   document.getElementById('tooltip').style.minWidth='';  // annule l'elargissement d'un precedent resultat VOACAP
   const myLL=locLL(cfg.locator||'JN00AA');
   const pos=locLL(s.locator);
@@ -1369,10 +1383,20 @@ function syncSkillSel(){ const s=document.getElementById('skillSel'); if(s&&wind
 function aiTier(){ try{ return localStorage.getItem('rc_ai_tier') || 'expert'; }catch(e){ return 'expert'; } }
 function setAiTier(v){ try{ localStorage.setItem('rc_ai_tier', v); }catch(e){} }
 function syncAiTierSel(){ const s=document.getElementById('aiTierSel'); if(s) s.value=aiTier(); }
-// Boutons rapides répondables SANS IA via /coach/answer (voir logx_coach.answer_text)
-// + 'spots', répondu à part via /coach/state.hints (answer_text('spots') est un
-// cul-de-sac volontaire côté serveur -- toujours "hors-ligne, impossible de
-// vérifier" -- alors que /coach/state a déjà les multiplicateurs neufs).
+// Boutons rapides répondables SANS IA en palier Basique (voir basiqueAnswer()).
+// 5 d'entre eux passent réellement par /coach/answer côté serveur (voir
+// logx_coach.answer_text) : 'score','prop','openings','mults','resume'.
+// Les 5 autres ont chacun leur PROPRE fonction basique*Answer() et leur PROPRE
+// endpoint dédié, tous purement déterministes (aucun LLM) -- mise à jour de ce
+// commentaire, vérif pré-bêta 13/08/2026 :
+//  - 'spots'      -> basiqueSpotsAnswer()      -> /coach/state.hints (answer_text('spots')
+//                     est un cul-de-sac volontaire côté serveur -- toujours "hors-ligne,
+//                     impossible de vérifier" -- alors que /coach/state a déjà les
+//                     multiplicateurs neufs).
+//  - 'performance'-> basiquePerformanceAnswer() -> /awards/summary
+//  - 'debrief'    -> basiqueDebriefAnswer()     -> /coach/debrief
+//  - 'coordbrief' -> basiqueCoordBriefAnswer()  -> /data/wall (+ /shifts/list)
+//  - 'memoire'    -> basiqueMemoireAnswer()     -> /coach/memory
 const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots','performance','debrief','coordbrief','memoire'];
 
 function showThinking(){
@@ -1699,7 +1723,15 @@ async function _renderCoachAnswer(topic, bub, badgeEl){
   return false;
 }
 async function offlineFallback(topic, bub){
-  return _renderCoachAnswer(topic, bub, offlineBadge());
+  // Repli hors-ligne (échec IA en Intermédiaire/Expert) : route par la MÊME
+  // table de dispatch que le palier Basique (basiqueAnswer), badge '📴
+  // hors-ligne' au lieu de '⚡ 0 jeton' -- avant ce correctif, ce repli
+  // appelait _renderCoachAnswer() DIRECTEMENT, qui ne connaît que 5 des 10
+  // sujets basiques (score/prop/openings/mults/resume) : BILAN/DÉBRIEF/
+  // COORDINATION/MÉMOIRE, pourtant purement déterministes eux aussi, ne
+  // répondaient JAMAIS en repli malgré leurs données déjà calculées
+  // localement (vérif pré-bêta 13/08/2026).
+  return basiqueAnswer(topic, bub, offlineBadge());
 }
 function offlineBadge(){
   const s=document.createElement('span');s.className='off-badge';
@@ -1709,39 +1741,51 @@ function offlineBadge(){
 function basiqueBadge(){
   const s=document.createElement('span');s.className='off-badge basique-badge';
   s.textContent='⚡ '+rcT('0 jeton');
+  s.title=rcT('Réponse calculée localement, sans appel à l\'IA');
   return s;
+}
+// Finalise une bulle de réponse basique/hors-ligne : badge, texte, historique
+// (optionnel), défilement -- motif partagé par les 5 fonctions basique*Answer
+// ci-dessous (constat simplification, vérif pré-bêta 13/08/2026). Chaque
+// fonction garde son propre fetch et son propre cas « pas de données » ;
+// seule la finition de bulle, identique partout, est factorisée ici.
+function _finishBasiqueReply(bub, txt, badge, pushHistory){
+  if(!bub) bub=makeAgentBubble();
+  bub.classList.remove('streaming');
+  bub.textContent='';
+  bub.appendChild(badge||basiqueBadge());
+  bub.appendChild(document.createTextNode(txt));
+  if(pushHistory!==false){
+    conversationHistory.push({role:'assistant',content:txt});
+    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+  }
+  document.getElementById('chatMsgs').scrollTop=document.getElementById('chatMsgs').scrollHeight;
+  return true;
 }
 // 'spots' n'a pas de réponse déterministe via /coach/answer (answer_text()
 // y renvoie toujours "hors-ligne, impossible de vérifier", cf. logx_coach.py)
 // -- mais /coach/state calcule déjà les multiplicateurs neufs repérés sur le
 // cluster (spotted_new_ones(), déjà formatés en phrases dans state.hints) :
 // on les réutilise tels quels plutôt que de refaire l'appel IA.
-async function basiqueSpotsAnswer(bub){
+async function basiqueSpotsAnswer(bub, badge){
   try{
     const r=await fetch('/coach/state?lang='+encodeURIComponent(rcLang()));
     const st=await r.json();
     const actionHints=((st&&st.hints)||[]).filter(h=>h.level==='action'&&h.icon==='🎯');
-    if(!bub) bub=makeAgentBubble();
-    bub.classList.remove('streaming');
-    bub.textContent='';
-    bub.appendChild(basiqueBadge());
     const txt=actionHints.length
       ? actionHints.map(h=>'🎯 '+h.text).join('\n')
       : rcT('Aucun multiplicateur neuf repéré sur le cluster pour l\'instant.');
-    bub.appendChild(document.createTextNode(txt));
-    conversationHistory.push({role:'assistant',content:txt});
-    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
-    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
-    return true;
+    return _finishBasiqueReply(bub, txt, badge);
   }catch(e){ return false; }
 }
-async function basiqueAnswer(topic, bub){
-  if(topic==='spots') return basiqueSpotsAnswer(bub);
-  if(topic==='performance') return basiquePerformanceAnswer(bub);
-  if(topic==='debrief') return basiqueDebriefAnswer(bub);
-  if(topic==='coordbrief') return basiqueCoordBriefAnswer(bub);
-  if(topic==='memoire') return basiqueMemoireAnswer(bub);
-  return _renderCoachAnswer(topic, bub, basiqueBadge());
+async function basiqueAnswer(topic, bub, badgeEl){
+  const badge=badgeEl||basiqueBadge();
+  if(topic==='spots') return basiqueSpotsAnswer(bub, badge);
+  if(topic==='performance') return basiquePerformanceAnswer(bub, badge);
+  if(topic==='debrief') return basiqueDebriefAnswer(bub, badge);
+  if(topic==='coordbrief') return basiqueCoordBriefAnswer(bub, badge);
+  if(topic==='memoire') return basiqueMemoireAnswer(bub, badge);
+  return _renderCoachAnswer(topic, bub, badge);
 }
 // Débrief post-concours (refonte #8, 13/08/2026) : /coach/debrief calcule déjà
 // TOUT en déterministe (build_debrief(), logx_coach.py) -- score, QSO/km/ODX
@@ -1767,24 +1811,14 @@ function formatDebriefDigest(s){
   if((s.silences||[]).length) lines.push('Silences ≥30 min : '+s.silences.slice(0,5).map(x=>`${x.from}→${x.to} (${x.min}min)`).join(' · ')+'.');
   return lines.join('\n');
 }
-async function basiqueDebriefAnswer(bub){
+async function basiqueDebriefAnswer(bub, badge){
   try{
     const r=await fetch('/coach/debrief');
     const d=await r.json();
-    if(!bub) bub=makeAgentBubble();
-    bub.classList.remove('streaming');
-    bub.textContent='';
-    bub.appendChild(basiqueBadge());
     if(!d||!d.stats||!(d.stats.qso_total>0)){
-      bub.appendChild(document.createTextNode(rcT('Aucun QSO dans le log de ce concours — rien à débriefer pour l\'instant.')));
-    }else{
-      const txt=formatDebriefDigest(d.stats);
-      bub.appendChild(document.createTextNode(txt));
-      conversationHistory.push({role:'assistant',content:txt});
-      if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+      return _finishBasiqueReply(bub, rcT('Aucun QSO dans le log de ce concours — rien à débriefer pour l\'instant.'), badge, false);
     }
-    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
-    return true;
+    return _finishBasiqueReply(bub, formatDebriefDigest(d.stats), badge);
   }catch(e){ return false; }
 }
 // Bilan diplômes (#7 refonte, 13/08/2026) : /awards/summary est déjà calculé
@@ -1814,20 +1848,11 @@ function formatAwardsDigest(s){
   }
   return lines.join('\n');
 }
-async function basiquePerformanceAnswer(bub){
+async function basiquePerformanceAnswer(bub, badge){
   try{
     const r=await fetch('/awards/summary');
     const s=await r.json();
-    if(!bub) bub=makeAgentBubble();
-    bub.classList.remove('streaming');
-    bub.textContent='';
-    bub.appendChild(basiqueBadge());
-    const txt=formatAwardsDigest(s);
-    bub.appendChild(document.createTextNode(txt));
-    conversationHistory.push({role:'assistant',content:txt});
-    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
-    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
-    return true;
+    return _finishBasiqueReply(bub, formatAwardsDigest(s), badge);
   }catch(e){ return false; }
 }
 // Bornes {start,end} en UTC d'un créneau -- réplique exactement la convention
@@ -1889,7 +1914,7 @@ function formatCoordBriefDigest(activeOps, perOp, shifts){
   }
   return lines.join('\n');
 }
-async function basiqueCoordBriefAnswer(bub){
+async function basiqueCoordBriefAnswer(bub, badge){
   try{
     const r=await fetch('/data/wall');
     const d=await r.json();
@@ -1902,16 +1927,8 @@ async function basiqueCoordBriefAnswer(bub){
       const r2=await fetch('/shifts/list');
       if(r2.ok){ const d2=await r2.json(); shifts=Array.isArray(d2.shifts)?d2.shifts:[]; }
     }catch(e){}
-    if(!bub) bub=makeAgentBubble();
-    bub.classList.remove('streaming');
-    bub.textContent='';
-    bub.appendChild(basiqueBadge());
     const txt=formatCoordBriefDigest(activeOps, (d&&d.per_op)||{}, shifts);
-    bub.appendChild(document.createTextNode(txt));
-    conversationHistory.push({role:'assistant',content:txt});
-    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
-    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
-    return true;
+    return _finishBasiqueReply(bub, txt, badge);
   }catch(e){ return false; }
 }
 // Mémoire inter-concours (13/08/2026) : /coach/memory (build_memory_digest,
@@ -1946,27 +1963,17 @@ function formatMemoireDigest(s){
   }
   return lines.join('\n');
 }
-async function basiqueMemoireAnswer(bub){
+async function basiqueMemoireAnswer(bub, badge){
   try{
     const target=document.getElementById('userInput').value.trim();
     const url='/coach/memory?contest='+encodeURIComponent(cfg.contest||'')
       +(target?'&entity='+encodeURIComponent(target):'');
     const r=await fetch(url);
     const s=await r.json();
-    if(!bub) bub=makeAgentBubble();
-    bub.classList.remove('streaming');
-    bub.textContent='';
-    bub.appendChild(basiqueBadge());
     if(!s||s.ok===false){
-      bub.appendChild(document.createTextNode(rcT((s&&s.error)||'Aucune mémoire exploitable pour l\'instant.')));
-    }else{
-      const txt=formatMemoireDigest(s);
-      bub.appendChild(document.createTextNode(txt));
-      conversationHistory.push({role:'assistant',content:txt});
-      if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+      return _finishBasiqueReply(bub, rcT((s&&s.error)||'Aucune mémoire exploitable pour l\'instant.'), badge, false);
     }
-    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
-    return true;
+    return _finishBasiqueReply(bub, formatMemoireDigest(s), badge);
   }catch(e){ return false; }
 }
 // Bouton MÉMOIRE : le champ de message sert de cible OPTIONNELLE (indicatif
@@ -1977,7 +1984,13 @@ async function basiqueMemoireAnswer(bub){
 // send() (contexte IA, voir _memDigest) peuvent tous deux le relire sans
 // course -- le vidage n'intervient qu'ICI, après que tout ce qui en dépend
 // (basique OU IA, awaité par send()) a fini.
+// Garde isWaiting EN TÊTE (même garde qu'assistedHunt()) : sans elle, un clic
+// MÉMOIRE pendant une requête déjà en vol faisait quand même vider le champ
+// ci-dessous après un send() qui n'avait RIEN fait (garde `isWaiting` en tête
+// de send()) -- la cible tapée disparaissait silencieusement, sans réponse ni
+// message d'erreur (vérif pré-bêta 13/08/2026).
 async function memoireIA(){
+  if(isWaiting) return;
   const inp=document.getElementById('userInput');
   const target=inp.value.trim();
   const displayText='🧠 '+rcT('Mémoire inter-concours')+(target?` : ${target}`:'');

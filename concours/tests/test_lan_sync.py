@@ -116,3 +116,26 @@ def test_pull_and_merge_saute_ce_qu_on_a_deja(fake_peer):
 def test_pull_and_merge_sans_pair_ne_fait_rien():
     r = lan.pull_and_merge(lambda: [], lambda q: True)
     assert r == {'peers': 0, 'pulled': 0}
+
+
+def test_pull_and_merge_ne_ressuscite_pas_un_qso_supprime_localement(fake_peer, monkeypatch):
+    # DL1ABC porte l'id 1 chez le pair distant, et CE poste vient de le
+    # supprimer via /log/delete (donc il n'est plus dans get_log(), mais son
+    # id est resté sous tombstone dans logx_storage.deleted_qsos). Le pair ne
+    # le sait pas encore et le repropose au cycle suivant : il ne doit pas
+    # ressusciter.
+    _FakePeerHandler.QSOS = [
+        {'id': 1, 'call': 'DL1ABC', 'band': '20', 'mode': 'SSB',
+         'date': '20260101', 'time': '1200'},
+        {'id': 2, 'call': 'EA7XYZ', 'band': '40', 'mode': 'CW',
+         'date': '20260101', 'time': '1230'},
+    ]
+    import logx_storage as storage
+    monkeypatch.setattr(storage, 'deleted_qsos', [{'id': 1, 'v': 1}])
+    lan.note_beacon('127.0.0.1', _beacon('AUTRE', fake_peer))
+    ajoutes = []
+    r = lan.pull_and_merge(lambda: [], lambda q: (ajoutes.append(q) or True))
+    # Seul EA7XYZ (non supprimé) est tiré ; DL1ABC reste écarté malgré
+    # l'absence de doublon dans get_log().
+    assert r['pulled'] == 1
+    assert [q['call'] for q in ajoutes] == ['EA7XYZ']

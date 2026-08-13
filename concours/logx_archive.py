@@ -142,13 +142,8 @@ def best_for_contest(contest_id):
     for info in list_archives():
         if info.get('contest') != contest_id:
             continue
-        logp = os.path.join(info['folder'], 'log.json')
-        if not os.path.exists(logp):
-            continue
-        try:
-            with open(logp, encoding='utf-8') as f:
-                qsos = json.load(f)
-        except Exception:
+        qsos = load_archive_qsos(info['folder'])
+        if qsos is None:
             continue
         editions += 1
         points = sum(q.get('points', 0) or 0 for q in qsos)

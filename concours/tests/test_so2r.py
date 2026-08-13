@@ -462,7 +462,12 @@ def test_rig_cw_verrouille_avant_denvoyer():
     bloc = src[src.index("if self.path in ('/rig/qsy', '/rig/cw', '/rig/stop')"):]
     bloc = bloc[:2200]
     assert 'so2r.verrouiller_tx(radio_active)' in bloc
-    assert "so2r.deverrouiller_tx(so2r.tx_actif()['radio'])" in bloc
+    # radio_active est réécrit sur la radio VERROUILLÉE (so2r.tx_actif())
+    # avant ce point pour /rig/stop -- voir le correctif du 13/08/2026 : le
+    # déverrouillage ET cfg_snap (donc la commande matérielle d'arrêt plus
+    # bas) doivent cibler la MÊME radio, jamais une relue indépendamment
+    # (même motif que /rig/ptt ci-dessous, déjà sur radio_active).
+    assert "so2r.deverrouiller_tx(radio_active)" in bloc
 
 
 def test_rig_ptt_verrouille_avant_larmement():

@@ -1925,6 +1925,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # (sans quoi n'importe quel appareil du LAN pouvait effacer le carnet).
         if not self._require_auth():
             return
+        # Aucune route DELETE ci-dessous n'exploite de corps, mais s'il en est
+        # annoncé un (Content-Length non nul — ex. requests.delete(url, json=...)
+        # ou un futur appel JS avec body), il doit être VIDÉ DE LA SOCKET avant
+        # de dispatcher : sinon ses octets restent lus comme le DÉBUT de la
+        # requête suivante sur cette connexion persistante (keep-alive),
+        # désynchronisant le parsing HTTP/1.1 — même raisonnement que
+        # _require_auth (chemin d'échec) et do_POST appliquent déjà partout
+        # ailleurs. Plafond bas (64 Ko, comme le drain de _require_auth) : un
+        # DELETE n'a jamais légitimement besoin d'un gros corps.
+        te = (self.headers.get('Transfer-Encoding') or '').strip().lower()
+        if te and te != 'identity':
+            self.close_connection = True
+            self._json({'error': "Transfer-Encoding non supporté : "
+                                 "envoie un Content-Length"}, 411)
+            return
+        _len, _ok = _strict_content_length(self.headers)
+        if not _ok:
+            self.close_connection = True
+            self._json({'error': 'Content-Length invalide'}, 400)
+            return
+        _DRAIN_MAX = 64 * 1024
+        if _len > _DRAIN_MAX:
+            self.close_connection = True
+            self._json({'error': 'Corps de requête trop volumineux'}, 413)
+            return
+        if _len:
+            try:
+                self.rfile.read(_len)   # lu puis jeté : jamais analysé
+            except Exception:
+                self.close_connection = True
+                return
         if self.path.startswith('/log/delete/'):
             try:
                 qso_id = int(self.path.split('/')[-1])
@@ -5636,6 +5667,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # requête) ne fasse correspondre le verrou à une radio différente
             # de celle réellement pilotée (revue adversariale 07/08/2026).
             radio_active = so2r.focus()['focus']
+            if self.path == '/rig/stop':
+                # STOP cible le verrou TX, pas le focus au clic (13/08/2026).
+                radio_tx = so2r.tx_actif()['radio']
+                if radio_tx:
+                    radio_active = radio_tx
             cfg_snap = so2r.config_radio_active(self._cfg_snapshot(), radio=radio_active)
             # Verrou d'exclusivité TX (Phase 0 SO2R) : la manip CW démarre une
             # émission fire-and-forget (WinKeyer/CAT natif tiennent leur propre
@@ -5652,7 +5688,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self._json(verrou, 409)
                     return
             elif self.path == '/rig/stop':
-                so2r.deverrouiller_tx(so2r.tx_actif()['radio'])
+                so2r.deverrouiller_tx(radio_active)
+            # Pourquoi radio_active est réécrit plus haut pour /rig/stop (et pas
+            # seulement utilisé pour deverrouiller_tx) : cfg_snap dérivé de cette
+            # même valeur sert aussi à cat.stop_cw/tci.stop_cw/rig.stop_morse
+            # plus bas -- avant ce correctif, cfg_snap restait dérivé du focus
+            # COURANT (so2r.focus()) alors que le verrou logiciel ciblait déjà
+            # la radio verrouillée (so2r.tx_actif()) : un changement de focus
+            # entre l'armement d'une manip CW et le clic sur ■ STOP envoyait
+            # donc la commande matérielle d'arrêt vers l'AUTRE radio pendant que
+            # la radio émettrice réelle continuait à manipuler, alors que le
+            # logiciel affichait déjà "plus aucune radio en émission" (bug
+            # critique trouvé en revue adversariale 13/08/2026). Les deux
+            # (verrou logiciel ET commande matérielle) ciblent maintenant
+            # toujours la même radio, lue une seule fois.
 
             def _reponse_cw(res, status):
                 # Le verrou TX n'a de sens que tant qu'une émission est
