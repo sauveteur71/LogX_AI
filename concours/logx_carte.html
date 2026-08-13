@@ -75,7 +75,7 @@ body.simple-mode .expert-only{display:none!important}
 .msg-user{align-items:flex-end}
 .msg-agent{align-items:flex-start}
 .msg-lbl{font-size:12px;letter-spacing:2px;font-family:var(--font-mono);color:var(--muted);padding:0 3px}
-.bubble{max-width:360px;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.bubble{max-width:360px;padding:10px 14px;border-radius:12px;font-size:15px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .msg-user .bubble{background:linear-gradient(135deg,#1A2060,#0D1240);border:1px solid #2A3080;color:#C0C8FF;border-radius:12px 12px 2px 12px}
 .msg-agent .bubble{background:var(--bg3);border:1px solid var(--border);font-family:var(--font-mono);border-radius:12px 12px 12px 2px}
 .msg-agent .bubble.streaming::after{content:'▌';color:var(--accent2);animation:blink 1s infinite;margin-left:1px}
@@ -95,7 +95,7 @@ body.simple-mode .expert-only{display:none!important}
 .bubble.warn-config a:hover{color:var(--accent)}
 @keyframes autoAlertPulse{0%,100%{box-shadow:0 0 20px rgba(0,255,136,.18)}50%{box-shadow:0 0 32px rgba(0,255,136,.4)}}
 .msg-lbl.auto{color:var(--green)}
-.thinking{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px 12px 12px 2px;font-family:var(--font-mono);font-size:13px;color:var(--muted)}
+.thinking{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px 12px 12px 2px;font-family:var(--font-mono);font-size:14px;color:var(--muted)}
 .dot-a span{animation:blink 1.4s infinite both;font-size:16px}
 .dot-a span:nth-child(2){animation-delay:.2s}
 .dot-a span:nth-child(3){animation-delay:.4s}
@@ -115,12 +115,36 @@ body.simple-mode .expert-only{display:none!important}
    MULTS/RÉSUMÉ/BILAN/FENÊTRE VOACAP). Pas de redesign : juste une bordure
    verticale discrète posée sur le premier bouton du 2e groupe. */
 .qbtn-group-sep{border-left:1px solid var(--border);margin-left:4px;padding-left:9px}
+/* Menu déroulant « PLUS » (retour F4GLD 13/08/2026) : la barre de raccourcis
+   listait ~16 boutons à plat, prenant plusieurs rangées et grignotant la
+   hauteur dispo pour le texte du chat. COACH/ANALYSER + les 2 réglages restent
+   toujours visibles (chemin le plus fréquent) ; le reste part dans un panneau
+   FLOTTANT (position:absolute -- ne pousse jamais le contenu, contrairement à
+   un <details> qui aurait ouvert en repoussant la zone de saisie) au-dessus du
+   bouton, même famille visuelle que le menu DISPOSITION de logx_statusbar.js. */
+.qbtn-more-wrap{position:relative;display:inline-block}
+.qbtn-more-dd{position:absolute;bottom:100%;left:0;margin-bottom:6px;background:var(--bg2);
+  border:1px solid var(--border);border-radius:8px;padding:8px;box-shadow:0 8px 26px rgba(0,0,0,.4);
+  display:none;flex-wrap:wrap;gap:5px;width:360px;z-index:80}
+/* Carte détachée (retour F4GLD 13/08/2026) : .map-panel est flex:1 dans .main,
+   donc le masquer suffit à laisser .chat-panel (flex-shrink:0, largeur fixe)
+   prendre toute la largeur -- aucune règle supplémentaire nécessaire côté
+   .map-panel. */
+body.map-detached .map-panel{display:none}
+body.map-detached .chat-panel{width:100%}
+/* Fenêtre détachée elle-même (?panel=map) : l'inverse -- chat masqué, carte
+   pleine largeur. Un seul et même fichier sert les deux rôles (page normale
+   ET fenêtre détachée), donc le globe 3D/GREAT CIRCLE/CARRÉS QRA restent
+   TOUS pleinement fonctionnels dans la fenêtre détachée (aucune réécriture,
+   contrairement aux « panneaux » de logx_panel.html qui sont des rendus
+   simplifiés dédiés). */
+body.map-only-mode .chat-panel{display:none}
 
 /* ── Panneau coach stratégique ── */
-.coach-panel{border-bottom:1px solid var(--border);background:var(--bg2);padding:8px 12px;font-family:var(--font-mono);font-size:12px}
+.coach-panel{border-bottom:1px solid var(--border);background:var(--bg2);padding:8px 12px;font-family:var(--font-mono);font-size:13px}
 .coach-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.coach-title{color:var(--accent);font-weight:700;letter-spacing:2px;font-size:12px}
-.coach-clock{color:var(--text);font-size:13px}
+.coach-title{color:var(--accent);font-weight:700;letter-spacing:2px;font-size:13px}
+.coach-clock{color:var(--text);font-size:14px}
 .coach-clock .cc-pct{color:var(--accent2)}
 .coach-rate{color:var(--muted);margin-bottom:4px}
 .coach-rate b{color:var(--green);font-weight:700}
@@ -210,6 +234,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="clock rc-i18n-live" id="clock">00:00:00 UTC</div>
     <button class="cfg-btn" id="mapModeBtn" onclick="cycleModeBtn()" title="Changer la vue de la carte">🗺️ EUROPE</button>
     <button class="cfg-btn expert-only" id="dimToggleBtn" onclick="toggleMapDimension()" title="Basculer entre la carte 2D et le globe 3D">🌐 3D</button>
+    <button class="cfg-btn expert-only" id="detachMapBtn" onclick="detacherCarte()" title="Détacher la carte dans une fenêtre séparée (2e écran)">⇱ DÉTACHER</button>
     <button class="cfg-btn" id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit" style="font-size:16px">☀️</button>
   </div>
 </header>
@@ -264,10 +289,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="chat-input">
       <div class="quick-btns">
         <button class="qbtn qbtn-coach" onclick="coachAdvice()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="5" y="5" width="8" height="8" rx="1.5"/><line x1="9" y1="1.5" x2="9" y2="5"/><line x1="9" y1="13" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="5" y2="9"/><line x1="13" y1="9" x2="16.5" y2="9"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/></svg>COACH</button>
-        <button class="qbtn expert-only" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M1.5 6.5L9 3l7.5 3.5L9 10l-7.5-3.5z"/><path d="M5 8.2v3.3c0 1 1.8 2 4 2s4-1 4-2V8.2"/><line x1="16.5" y1="6.5" x2="16.5" y2="11"/></svg>DÉBRIEF</button>
-        <button class="qbtn expert-only" onclick="memoireIA()" title="Mémoire inter-concours : heures et bandes habituellement productives pour ce concours, d'après tes archives passées. Tape un indicatif ou un préfixe dans le champ de message avant de cliquer pour savoir à quelle heure UTC il s'ouvre habituellement chez toi."><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="9" cy="9" r="7"/><polyline points="9,4.5 9,9 12.5,11"/></svg>MÉMOIRE</button>
-        <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)"><span id="ttsIcon">🔇</span> SON</button>
-        <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>CHASSE ASSISTÉE</button>
+        <button class="qbtn qbtn-group-sep" onclick="qs('Analyse les clusters et mon log maintenant.')" title="Analyse ouverte (toujours via l'IA, même en palier Basique) -- pour une réponse 0 jeton identique et instantanée, voir RÉSUMÉ"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>ANALYSER</button>
         <select id="skillSel" class="skill-sel" onchange="setSkill(this.value)" title="Niveau : adapte le ton et le niveau de détail des réponses de l'IA">
           <option value="debutant">🐣 Débutant</option>
           <option value="confirme">🎯 Confirmé</option>
@@ -278,16 +300,30 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <option value="intermediaire">⚡ Intermédiaire</option>
           <option value="expert">🧠 Expert</option>
         </select>
-        <button class="qbtn qbtn-group-sep" onclick="qs('Analyse les clusters et mon log maintenant.')" title="Analyse ouverte (toujours via l'IA, même en palier Basique) -- pour une réponse 0 jeton identique et instantanée, voir RÉSUMÉ"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>ANALYSER</button>
-        <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>SCORE</button>
-        <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="10,1.5 4.5,10 8.5,10 7.5,16.5 13.5,8 9.5,8 10,1.5"/></svg>SPOTS</button>
-        <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?','prop')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg>PROP</button>
-        <button class="qbtn expert-only" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
-        <button class="qbtn expert-only" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
-        <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg>RÉSUMÉ</button>
-        <button class="qbtn expert-only" onclick="qs('Fais-moi un bilan de mes diplômes : DXCC, WAZ, WAC, ce qui manque le plus.','performance')" title="Bilan des diplômes et de ce qui manque, sur toute la vie de la station"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>BILAN</button>
-        <button class="qbtn expert-only" onclick="qs('Qui est actif sur quel poste en ce moment ?','coordbrief')" title="Coordination multi-poste : qui est actuellement au poste (bande/mode, depuis quand, combien de QSO) et le planning à venir -- radio-club, expédition à plusieurs opérateurs"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="5.5" cy="6" r="2.3"/><circle cx="12.5" cy="6" r="2.3"/><path d="M2 15.5c0-2.4 1.7-4.3 3.5-4.3s3.5 1.9 3.5 4.3"/><path d="M9 15.5c0-2.4 1.7-4.3 3.5-4.3s3.5 1.9 3.5 4.3"/></svg>COORDINATION</button>
-        <button class="qbtn expert-only" onclick="checkVoacapTarget()" title="Tape un indicatif ou un pays dans le champ de message, puis clique ici : calcule la fenêtre d'ouverture VOACAP heure par heure et bande par bande vers cette cible (0 jeton, calcul scientifique)"><svg viewBox="0 0 18 18" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z"/></svg>FENÊTRE VOACAP</button>
+        <!-- Menu PLUS (retour F4GLD 13/08/2026) : les questions rapides
+             déterministes + actions secondaires, jusque-là toutes à plat,
+             partent dans ce panneau flottant pour libérer la hauteur du chat.
+             Rien n'est retiré ni caché derrière expert-only ici -- seulement
+             regroupé ; chaque bouton garde sa propre classe expert-only
+             existante, qui continue de s'appliquer normalement à l'intérieur. -->
+        <div class="qbtn-more-wrap">
+          <button type="button" class="qbtn" id="qbtnMoreToggle" onclick="toggleQbtnMore()" aria-expanded="false">⋯ PLUS</button>
+          <div class="qbtn-more-dd" id="qbtnMoreDD">
+            <button class="qbtn expert-only" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M1.5 6.5L9 3l7.5 3.5L9 10l-7.5-3.5z"/><path d="M5 8.2v3.3c0 1 1.8 2 4 2s4-1 4-2V8.2"/><line x1="16.5" y1="6.5" x2="16.5" y2="11"/></svg>DÉBRIEF</button>
+            <button class="qbtn expert-only" onclick="memoireIA()" title="Mémoire inter-concours : heures et bandes habituellement productives pour ce concours, d'après tes archives passées. Tape un indicatif ou un préfixe dans le champ de message avant de cliquer pour savoir à quelle heure UTC il s'ouvre habituellement chez toi."><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="9" cy="9" r="7"/><polyline points="9,4.5 9,9 12.5,11"/></svg>MÉMOIRE</button>
+            <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)"><span id="ttsIcon">🔇</span> SON</button>
+            <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>CHASSE ASSISTÉE</button>
+            <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>SCORE</button>
+            <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="10,1.5 4.5,10 8.5,10 7.5,16.5 13.5,8 9.5,8 10,1.5"/></svg>SPOTS</button>
+            <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?','prop')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg>PROP</button>
+            <button class="qbtn expert-only" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
+            <button class="qbtn expert-only" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
+            <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg>RÉSUMÉ</button>
+            <button class="qbtn expert-only" onclick="qs('Fais-moi un bilan de mes diplômes : DXCC, WAZ, WAC, ce qui manque le plus.','performance')" title="Bilan des diplômes et de ce qui manque, sur toute la vie de la station"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>BILAN</button>
+            <button class="qbtn expert-only" onclick="qs('Qui est actif sur quel poste en ce moment ?','coordbrief')" title="Coordination multi-poste : qui est actuellement au poste (bande/mode, depuis quand, combien de QSO) et le planning à venir -- radio-club, expédition à plusieurs opérateurs"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="5.5" cy="6" r="2.3"/><circle cx="12.5" cy="6" r="2.3"/><path d="M2 15.5c0-2.4 1.7-4.3 3.5-4.3s3.5 1.9 3.5 4.3"/><path d="M9 15.5c0-2.4 1.7-4.3 3.5-4.3s3.5 1.9 3.5 4.3"/></svg>COORDINATION</button>
+            <button class="qbtn expert-only" onclick="checkVoacapTarget()" title="Tape un indicatif ou un pays dans le champ de message, puis clique ici : calcule la fenêtre d'ouverture VOACAP heure par heure et bande par bande vers cette cible (0 jeton, calcul scientifique)"><svg viewBox="0 0 18 18" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z"/></svg>FENÊTRE VOACAP</button>
+          </div>
+        </div>
       </div>
       <div class="input-row">
         <textarea id="userInput" placeholder="Envoie un message à l'agent..." rows="1"
@@ -478,6 +514,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   }
 })();
 
+// Fenêtre détachée « carte seule » (retour F4GLD 13/08/2026) : ?panel=map
+// masque le chat AVANT le premier rendu (pas d'attente DOMContentLoaded, pour
+// éviter un flash chat+carte avant bascule). Le reste de la page (carte,
+// polling, VOACAP, globe 3D...) tourne EXACTEMENT comme la page normale --
+// aucune logique dupliquée, contrairement aux « panneaux » de logx_panel.html
+// qui sont des rendus simplifiés dédiés. Voir detacherCarte() plus bas.
+const _mapOnlyMode = new URLSearchParams(location.search).get('panel') === 'map';
+if(_mapOnlyMode) document.body.classList.add('map-only-mode');
+
 // ─── CONFIG & STATE ──────────────────────────────────────────────────────────
 let cfg = {};
 let conversationHistory = [];
@@ -554,6 +599,81 @@ function cycleModeBtn(){
   const next = modes[(modes.indexOf(currentMapMode)+1)%modes.length];
   switchMapMode(next);
 }
+
+// ─── CARTE DÉTACHABLE (retour F4GLD 13/08/2026) ───────────────────────────────
+// Réutilise CE MÊME fichier comme fenêtre détachée (?panel=map, voir tout en
+// haut du script) plutôt que d'écrire un rendu de carte séparé : la carte
+// détachée a donc TOUJOURS exactement les mêmes fonctions que la carte
+// principale (GREAT CIRCLE, globe 3D, CARRÉS QRA, VOACAP...), aucun risque de
+// divergence entre les deux au fil des futures évolutions.
+let _carteDetachWin = null, _carteDetachPoll = null;
+function detacherCarte(){
+  if(_carteDetachWin && !_carteDetachWin.closed){ _carteDetachWin.focus(); return; }
+  const url = location.pathname + '?panel=map';
+  const opts = 'width=1280,height=820,menubar=no,toolbar=no,location=no';
+  _carteDetachWin = window.ouvrirFenetreDetachee
+    ? window.ouvrirFenetreDetachee(url, 'rc_carte_map', opts)
+    : window.open(url, 'rc_carte_map', opts);
+  if(!_carteDetachWin) return;   // popup bloquée : déjà signalé par ouvrirFenetreDetachee()
+  document.body.classList.add('map-detached');
+  const btn=document.getElementById('detachMapBtn');
+  if(btn){ btn.textContent='⇲ RÉINTÉGRER'; btn.title=rcT('Réintégrer la carte ici'); btn.onclick=reintegrerCarte; }
+  // Sondage plutôt qu'un événement : une fenêtre popup cross-window ne permet
+  // pas d'écouter directement sa fermeture (unload) depuis l'ouvreur -- même
+  // limite déjà documentée pour les panneaux détachables de logx_statusbar.js.
+  clearInterval(_carteDetachPoll);
+  _carteDetachPoll = setInterval(function(){
+    if(!_carteDetachWin || _carteDetachWin.closed) reintegrerCarte();
+  }, 1000);
+}
+function reintegrerCarte(){
+  clearInterval(_carteDetachPoll);
+  document.body.classList.remove('map-detached');
+  const btn=document.getElementById('detachMapBtn');
+  if(btn){ btn.textContent='⇱ DÉTACHER'; btn.title=rcT('Détacher la carte dans une fenêtre séparée (2e écran)'); btn.onclick=detacherCarte; }
+  if(_carteDetachWin && !_carteDetachWin.closed) _carteDetachWin.close();
+  _carteDetachWin = null;
+}
+// Dans la fenêtre détachée elle-même : le bouton DÉTACHER n'a pas de sens
+// (on y est déjà) -- masqué plutôt que de permettre un 3e niveau de fenêtre.
+if(_mapOnlyMode){
+  const _btn=document.getElementById('detachMapBtn');
+  if(_btn) _btn.style.display='none';
+}
+
+// ─── MENU « PLUS » (retour F4GLD 13/08/2026) ──────────────────────────────────
+// Panneau flottant (position:absolute, voir CSS .qbtn-more-dd) plutôt qu'un
+// <details> qui aurait repoussé la zone de saisie à chaque ouverture -- même
+// principe que le menu DISPOSITION de logx_statusbar.js (ouvre/ferme au clic,
+// se ferme au clic extérieur), rejoué ici en local car ce menu est propre à
+// cette page, pas partagé par la barre de statut.
+function toggleQbtnMore(){
+  const dd=document.getElementById('qbtnMoreDD');
+  const btn=document.getElementById('qbtnMoreToggle');
+  if(!dd||!btn) return;
+  const willOpen = dd.style.display !== 'flex';
+  dd.style.display = willOpen ? 'flex' : 'none';
+  btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+}
+document.addEventListener('click', function(e){
+  const dd=document.getElementById('qbtnMoreDD');
+  const toggle=document.getElementById('qbtnMoreToggle');
+  if(!dd || dd.style.display!=='flex') return;
+  if(dd.contains(e.target) || e.target===toggle) return;
+  dd.style.display='none';
+  if(toggle) toggle.setAttribute('aria-expanded','false');
+});
+// Un clic sur un bouton/select À L'INTÉRIEUR du menu ferme le menu APRÈS coup
+// (laisse d'abord son propre onclick agir) -- évite de devoir rouvrir PLUS à
+// chaque question rapide, sans devoir toucher au onclick de chacun des ~13
+// boutons déplacés dedans.
+(function(){
+  const dd=document.getElementById('qbtnMoreDD');
+  if(!dd) return;
+  dd.addEventListener('click', function(e){
+    if(e.target.closest('button')) setTimeout(function(){ dd.style.display='none'; const t=document.getElementById('qbtnMoreToggle'); if(t) t.setAttribute('aria-expanded','false'); }, 50);
+  });
+})();
 
 // ─── SURCOUCHE PROPAGATION 24 h (carte du monde colorée depuis le QTH) ────────
 let propLayer=null, propPlayTimer=null;
@@ -1343,6 +1463,55 @@ function addMsg(role,text,type=''){
   refreshRankedStations();
 }
 
+// ─── PERSISTANCE DU CHAT (retour F4GLD 13/08/2026) ────────────────────────────
+// Avant ce correctif, RIEN ne survivait à un changement de page : la moindre
+// navigation (même un aller-retour sur un autre onglet de l'appli) effaçait
+// tout l'historique, y compris le résultat d'une analyse qui venait de finir
+// (CHASSE ASSISTÉE, DÉBRIEF, BILAN... -- aucun mécanisme de sauvegarde
+// n'existait DU TOUT, CHASSE ASSISTÉE n'avait rien de spécial). Persisté via
+// conversationHistory (déjà la source de vérité pour le contexte IA
+// multi-tour) plutôt que le HTML brut des bulles : plus robuste (survit à un
+// changement de structure des bulles) et plus léger, au prix de perdre les
+// décorations (badges, icône 🔊) sur les messages restaurés -- acceptable
+// pour de l'historique, addMsg() les régénère normalement pour les NOUVEAUX
+// messages envoyés après la restauration.
+const CHAT_STORAGE_KEY = 'rc_carte_chat_v1';
+function saveChatState(){
+  try{ localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(conversationHistory.slice(-40))); }
+  catch(e){}
+}
+function restoreChatState(){
+  let saved;
+  try{ saved = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]'); }
+  catch(e){ return false; }
+  if(!Array.isArray(saved) || !saved.length) return false;
+  const c=document.getElementById('chatMsgs');
+  if(c) c.innerHTML='';   // retire le message d'accueil statique par défaut
+  saved.forEach(function(m){
+    if(!m || typeof m.content!=='string') return;
+    addMsg(m.role==='user' ? 'user' : 'agent', m.content);
+  });
+  conversationHistory = saved.slice();
+  return true;
+}
+// Sauvegarde automatique : un MutationObserver plutôt qu'un appel ajouté à
+// chaque site qui pousse dans conversationHistory (une dizaine de fonctions
+// séparées, dont certaines ajoutées par des agents différents dans la même
+// session -- exactement le genre d'endroit où un site oublié serait invisible
+// jusqu'à ce qu'un opérateur tombe dessus, comme ça vient d'arriver). Débattu
+// pour éviter d'écrire à chaque caractère streamé : la sauvegarde attend
+// 400 ms sans nouveau changement du DOM du chat.
+(function(){
+  const c=document.getElementById('chatMsgs');
+  if(!c) return;
+  let saveTimer=null;
+  const obs=new MutationObserver(function(){
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(saveChatState, 400);
+  });
+  obs.observe(c, {childList:true, subtree:true, characterData:true});
+})();
+
 // ─── LECTURE VOCALE HORS-LIGNE (#6) : le cœur rcSpeak est dans logx_statusbar.js
 // (partagé, voix locales). Ici : le toggle 🔊 et l'icône de rejeu par bulle. ──
 function addSpeakIcon(bub,text){
@@ -1539,7 +1708,7 @@ async function send(forcedText,displayText,topic){
   if(!text||isWaiting)return;
   addMsg('user',displayText!==undefined?displayText:text);
   if(forcedText===undefined){inp.value='';inp.style.height='auto';}
-  isWaiting=true;
+  isWaiting=true; _analysisCancelled=false;
   document.getElementById('sendBtn').disabled=true;
 
   // Palier Basique (refonte 13/08/2026) : pour les boutons rapides qui ont un
@@ -1643,6 +1812,11 @@ async function send(forcedText,displayText,topic){
     });
     const j=await res.json();
     if(!res.ok||!j.id)throw new Error(j.error||`HTTP ${res.status}`);
+    // Annulée (Échap) pendant que cette requête de lancement était en vol :
+    // isWaiting/UI ont déjà été remis à zéro par cancelPendingAnalysis(), ne
+    // pas relancer un streaming/thinking après coup pour une action qu'on a
+    // déjà indiquée comme annulée à l'opérateur.
+    if(_analysisCancelled) return;
     localStorage.setItem('rc_analyze',JSON.stringify({id:j.id,ts:Date.now()}));
     streamAnalyze(j.id, topic); // flux SSE token par token ; repli auto polling/hors-ligne
     return;
@@ -2005,6 +2179,43 @@ function freeTextOffline(bub,err){
     +rcT('Hors-ligne ? Je réponds aux boutons rapides (🏆 📶 🎯 📋 🌍), pas au texte libre — l\'analyse IA complète a besoin d\'internet.');
 }
 
+// Annulation clavier (Échap) : retour F4GLD 13/08/2026 — « je lance l'IA mais
+// je me rends compte que je me suis trompé de bouton, je voudrais annuler sa
+// recherche ». `_analysisCancelled` est vérifié à chaque point de reprise
+// asynchrone (callback SSE, tick de polling) plutôt que d'essayer d'ABORT le
+// fetch/EventSource en vol : le job continue éventuellement en tâche de fond
+// côté serveur (pas d'endpoint d'arrêt, voir /agent/analyze), mais son
+// résultat n'est plus affiché ni jamais repris au rechargement (localStorage
+// vidé) une fois annulé -- suffisant pour le besoin exprimé (se sortir d'un
+// mauvais clic), sans avoir à tuer un thread serveur.
+let _analysisCancelled=false;
+let _actPollTimer=null;
+function cancelPendingAnalysis(){
+  if(!isWaiting) return;
+  _analysisCancelled=true;
+  if(_analyzeES){try{_analyzeES.close();}catch(e){}_analyzeES=null;}
+  clearTimeout(_analyzePoll);
+  clearTimeout(_actPollTimer);
+  removeThinking();
+  localStorage.removeItem('rc_analyze');
+  // Retire la bulle déjà entamée par le streaming (vide ou partielle) --
+  // seule celle-ci porte .streaming, jamais une réponse déjà finalisée.
+  const c=document.getElementById('chatMsgs');
+  const streamingBub=c ? c.querySelector('.bubble.streaming') : null;
+  if(streamingBub){const row=streamingBub.closest('.msg');if(row)row.remove();}
+  // Retire la question associée de l'historique IA : jamais répondue, un tour
+  // utilisateur orphelin fausserait le contexte d'un futur multi-tour.
+  if(conversationHistory.length && conversationHistory[conversationHistory.length-1].role==='user'){
+    conversationHistory.pop();
+  }
+  addMsg('agent','✕ '+rcT('Analyse annulée.'));
+  isWaiting=false;
+  const b=document.getElementById('sendBtn'); if(b)b.disabled=false;
+}
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape' && isWaiting) cancelPendingAnalysis();
+});
+
 let _analyzeES=null;
 function streamAnalyze(id, topic){
   removeThinking();
@@ -2065,7 +2276,8 @@ function pollAnalyze(id, ensureThinking, bub, sentLen, topic){
     try{
       const r=await fetch('/agent/analyze/state?id='+encodeURIComponent(id));
       s=await r.json();
-    }catch(e){ _analyzePoll=setTimeout(tick,3000); return; }   // réseau : réessaie
+    }catch(e){ if(_analysisCancelled)return; _analyzePoll=setTimeout(tick,3000); return; }   // réseau : réessaie
+    if(_analysisCancelled) return;
     if(s.status==='running'){
       if(s.reply && s.reply.length>sentLen){   // révèle le partiel accumulé
         if(!bub){ removeThinking(); bub=makeAgentBubble(); bub.classList.add('streaming'); }
@@ -2114,7 +2326,7 @@ function qs(text,topic){send(text, rcT(text), topic);}
 async function assistedHunt(){
   if(isWaiting) return;
   addMsg('user', rcT('🎯 Chasse assistée : trouve-moi le meilleur spot'));
-  isWaiting=true; document.getElementById('sendBtn').disabled=true; showThinking();
+  isWaiting=true; _analysisCancelled=false; document.getElementById('sendBtn').disabled=true; showThinking();
   try{
     const _dir=rcAiDirectives();
     const _sys=(systemPrompt||'')+(_dir?'\n\n'+_dir:'');
@@ -2136,8 +2348,9 @@ function pollAct(id){
   const tick=async()=>{
     let s;
     try{ const r=await fetch('/agent/act/state?id='+encodeURIComponent(id)); s=await r.json(); }
-    catch(e){ setTimeout(tick,2500); return; }
-    if(s.status==='running'){ setTimeout(tick,1500); return; }
+    catch(e){ if(_analysisCancelled)return; _actPollTimer=setTimeout(tick,2500); return; }
+    if(_analysisCancelled) return;
+    if(s.status==='running'){ _actPollTimer=setTimeout(tick,1500); return; }
     removeThinking();
     if(s.status==='done'){
       const bub=makeAgentBubble(); finalizeAgentReply(bub, s.reply||rcT('Pas de réponse.'));
@@ -3014,6 +3227,7 @@ setInterval(() => { if(g3dState.active){ g3dLoadWorldWorked(); g3dLoadSpots(); }
 loadConfig();
 scheduleRefresh();
 scheduleAutoCheck();
+restoreChatState();   // ré-affiche le chat d'avant un changement de page/onglet (retour F4GLD 13/08/2026)
 resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
 syncTtsBtn();      // état initial du bouton 🔊 (#6)
 syncSkillSel();    // niveau IA courant dans le sélecteur (#21)
