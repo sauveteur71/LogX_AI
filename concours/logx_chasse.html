@@ -704,6 +704,15 @@ async function loadDxActive(){
         : e.worked_status === 'partial'
         ? `<span class="sr-mode" style="color:var(--yellow)" title="Déjà travaillé, mais pas sur toutes les bandes HF classiques (1.8 à 28 MHz)">◐ nouvelle bande</span>`
         : '';
+      // Fenêtre VOACAP à la demande (13/08/2026) : cette expédition n'a pas
+      // forcément été repérée sur le cluster -- pas de spot, donc pas de
+      // position toute prête comme sur CARTE IA (checkVoacapForSpot). On
+      // réutilise juste l'indicatif déjà connu de NG3K pour résoudre la
+      // position (même endpoint /data/voacap, résolution DXCC déjà en place
+      // côté serveur), sans rien ajouter côté backend.
+      const voacapBtn = e.callsign
+        ? `<button class="strat-btn" onclick="checkDxVoacap(this,'${jsCall(e.callsign)}')" title="${rcT("Meilleure fenêtre d'ouverture VOACAP vers cette expédition")}">🔭</button>`
+        : '';
       return `<div class="spot-row sr-act">
         <div class="sr-head">
           <span class="sr-call">${esc(e.callsign || '?')}</span>
@@ -711,12 +720,45 @@ async function loadDxActive(){
           ${freq}
           ${mode}
           ${newBadge}
+          ${voacapBtn}
         </div>
         <div class="sr-place">${esc(e.entity || '?')} · ${esc(e.dates || '—')}</div>
         ${e.qsl ? `<div class="sr-note">QSL : ${esc(e.qsl)}</div>` : ''}
+        ${voacapBtn ? `<div class="dx-voacap-box" style="display:none;font-size:10px;color:var(--muted);margin-top:2px"></div>` : ''}
       </div>`;
     }).join('');
   }catch(e){}
+}
+
+// Meilleure heure/bande (fiabilité VOACAP max) plutôt que le tableau 24h
+// complet de CARTE IA : une carte de liste n'a pas la largeur pour ça, et la
+// question pratique ici est "quand dois-je écouter/appeler", pas le détail
+// heure par heure.
+function bestVoacapWindowText(data){
+  let best = null;
+  (data.hours || []).forEach(h => {
+    (h.bands || []).forEach(b => {
+      if (b.rel != null && (!best || b.rel > best.rel)) best = { hour: h.hour, freq: b.freq_mhz, rel: b.rel };
+    });
+  });
+  if (!best || best.rel <= 0) return rcTf('Aucune fenêtre nette détectée ({dist} km, SSN {ssn}).', { dist: data.distance_km, ssn: data.ssn });
+  return rcTf('🔭 Meilleure fenêtre : {freq} MHz vers {hour}h UTC (fiabilité {pct}%) · {dist} km',
+    { freq: best.freq, hour: best.hour, pct: Math.round(best.rel * 100), dist: data.distance_km });
+}
+
+async function checkDxVoacap(btn, callsign){
+  const box = btn.closest('.spot-row').querySelector('.dx-voacap-box');
+  if (!box) return;
+  if (box.style.display === 'block') { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.textContent = '⏳ ' + rcT('Calcul VOACAP…');
+  try {
+    const r = await fetch(`/data/voacap?dx=${encodeURIComponent(callsign)}`);
+    const data = await r.json();
+    box.textContent = data.ok ? bestVoacapWindowText(data) : ('❌ ' + (data.error || rcT('Échec du calcul VOACAP')));
+  } catch (e) {
+    box.textContent = '❌ ' + rcT('Serveur injoignable');
+  }
 }
 
 loadSpots();
