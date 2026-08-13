@@ -87,15 +87,26 @@ h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-sp
 .btn:hover{border-color:var(--accent2)}
 .btn.active{background:var(--green);border-color:var(--green);color:#001a08;font-weight:700}
 .btn:disabled{opacity:.4;cursor:default}
+.btn.danger{border-color:var(--red);background:rgba(255,45,85,.12);color:var(--red)}
 .status{font-size:12px;color:var(--muted)}
 .output{height:150px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:16px;letter-spacing:1px;color:var(--green);white-space:pre-wrap;word-break:break-word;font-family:var(--font-mono)}
+.vide{color:var(--muted);font-size:12.5px;font-style:italic;padding:8px 2px}
 .rtty-call{color:var(--green);cursor:pointer;border-bottom:1px dotted var(--green);padding:0 1px}
 .rtty-call:hover{background:var(--green);color:var(--bg)}
-label.arm{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--muted)}
+/* Etat "arme" : meme mecanisme que .toggle-arm/.armed sur logx_ft8.html --
+   rien ne part sur l'air sans que la case soit cochee, mais rien ne le
+   signalait visuellement ici avant cet armement (audit intuitivite, constat
+   #3a). Le style de repos (bordure + fond neutres) est ajoute en meme temps
+   pour donner une base a l'etat "arme" -- avant, label.arm n'avait aucun
+   fond/bordure propres. */
+label.arm{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:7px 12px;background:var(--bg3);user-select:none}
 label.arm input{width:15px;height:15px;accent-color:var(--red)}
+label.arm.armed{border-color:var(--red);color:var(--red);background:rgba(255,45,85,.10)}
 .macro-btns{display:flex;gap:5px;flex-wrap:wrap}
 .macro-btn{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 8px;cursor:pointer;text-align:left;min-width:76px;flex:1;max-width:110px}
 .macro-btn:hover{border-color:var(--accent2)}
+.macro-btn:disabled{opacity:.4;cursor:default}
+.macro-btn:disabled:hover{border-color:var(--border)}
 .macro-btn .mk{display:block;font-family:var(--font-mono);font-size:12px;color:var(--accent2);letter-spacing:1px;margin-bottom:2px}
 .macro-btn .mt{display:block;font-family:var(--font-mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
@@ -137,6 +148,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <span class="status" id="rttyStatus"></span>
     </div>
     <div class="output" id="rttyOutput" onclick="rttyClicTexte(event)"></div>
+    <div class="vide" id="rttyOutputVide">Aucun texte décodé pour l'instant — clique "Démarrer" et attends de recevoir le signal RTTY.</div>
     <button class="btn" onclick="clearRttyOutput()" style="align-self:flex-start"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg> Effacer</button>
   </div>
 
@@ -147,17 +159,21 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
        part sur l'air sans ce geste explicite. -->
   <div class="panel">
     <div class="panel-title">Émission</div>
+    <!-- Garde-fou visible en permanence, sur le modèle exact de logx_ft8.html
+         (audit intuitivité, constat #3c) : avant, seule l'infobulle au survol
+         de la case "Activer l'émission" portait ce message. -->
+    <div class="note">Rien ne part sur l'air sans un clic explicite : « Activer l'émission » arme seulement le bouton « Envoyer » et les macros ci-dessous, il n'y a pas de séquenceur automatique.</div>
     <div class="note">Périphérique de SORTIE (pas le micro du PC) vers l'entrée micro/DATA de la radio.</div>
     <div class="controls">
       <select id="rttyOutDevice"><option value="">— périphérique par défaut —</option></select>
     </div>
-    <label class="arm" title="Rien ne part sur l'air tant que cette case n'est pas cochée">
+    <label class="arm" id="rttyArmLabel" title="Rien ne part sur l'air tant que cette case n'est pas cochée">
       <input type="checkbox" id="rttyArmTx" onchange="rttyOnArmChange()"> Activer l'émission
     </label>
     <div class="macro-btns" id="rttyMacroBtns"></div>
     <div class="controls">
       <input type="text" id="rttyTxText" maxlength="80" placeholder="Texte libre à émettre" spellcheck="false" autocomplete="off">
-      <button class="btn" id="rttySendBtn" onclick="rttyEnvoyerLibre()" disabled>▶ Envoyer</button>
+      <button class="btn danger" id="rttySendBtn" onclick="rttyEnvoyerLibre()" disabled>▶ Envoyer</button>
     </div>
     <div class="note" id="rttyTxStatus"></div>
   </div>
@@ -323,6 +339,12 @@ if(localStorage.getItem('rc_theme') === null){
   function rttyRender(texte){
     const out = document.getElementById('rttyOutput');
     if(!out) return;
+    // État vide, sur le modèle du panneau de décodage FT8 (#decodesVide) --
+    // audit intuitivité, constat #5 : avant, cette zone restait totalement
+    // blanche tant qu'aucun caractère n'avait été décodé, sans indiquer que
+    // c'était l'état ATTENDU (pas une panne).
+    const vide = document.getElementById('rttyOutputVide');
+    if(vide) vide.style.display = texte ? 'none' : '';
     const frag = document.createDocumentFragment();
     for(const jeton of String(texte).split(/(\s+)/)){
       const call = rttyEstIndicatif(jeton);
@@ -368,6 +390,13 @@ if(localStorage.getItem('rc_theme') === null){
   window.rttyOnArmChange = function rttyOnArmChange(){
     _rttyTxArmed = document.getElementById('rttyArmTx').checked;
     document.getElementById('rttySendBtn').disabled = !_rttyTxArmed;
+    // Etat visuel "arme" (meme mecanisme que .toggle-arm.armed sur
+    // logx_ft8.html) + boutons macro desactives tant que l'emission n'est pas
+    // armee (audit intuitivite, constats #3a et #4) : avant, les macros
+    // restaient cliquables et retournaient silencieusement sans rien faire.
+    const label = document.getElementById('rttyArmLabel');
+    if(label) label.classList.toggle('armed', _rttyTxArmed);
+    document.querySelectorAll('#rttyMacroBtns .macro-btn').forEach(b => { b.disabled = !_rttyTxArmed; });
   };
 
   function renderRttyMacroBtns(){
@@ -378,6 +407,7 @@ if(localStorage.getItem('rc_theme') === null){
       const btn = document.createElement('button');
       btn.className = 'macro-btn';
       btn.title = expandMacro(m.text);
+      btn.disabled = !_rttyTxArmed;
       btn.innerHTML = `<span class="mk">${m.key}</span><span class="mt">${m.label}</span>`;
       btn.onclick = () => rttyEnvoyerTexte(expandMacro(m.text));
       btns.appendChild(btn);
@@ -392,7 +422,14 @@ if(localStorage.getItem('rc_theme') === null){
   };
 
   async function rttyEnvoyerTexte(texte){
-    if(!_rttyTxArmed || !texte) return;
+    // Filet de sécurité derrière la désactivation HTML des boutons (constat
+    // #4) : explique POURQUOI rien ne se passe si ce chemin est atteint quand
+    // même (ex. clic programmatique), plutôt qu'un retour muet.
+    if(!_rttyTxArmed){
+      notify(trF('Active d\'abord « Activer l\'émission » pour utiliser les macros/envoyer en RTTY'));
+      return;
+    }
+    if(!texte) return;
     const statut = document.getElementById('rttyTxStatus');
     const sendBtn = document.getElementById('rttySendBtn');
     sendBtn.disabled = true;
