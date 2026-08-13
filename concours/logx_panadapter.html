@@ -58,6 +58,7 @@ select,button.pa-btn{background:var(--bg3);border:1px solid var(--border);border
   font-family:var(--mono);font-size:12px;padding:5px 8px;cursor:pointer}
 button.pa-btn{color:var(--muted)}
 button.pa-btn.on{background:var(--green);border-color:var(--green);color:#001a08;font-weight:700}
+body.day-mode button.pa-btn.on{color:#EFFFF3}
 .niveau{font-size:11px;color:var(--muted);min-width:150px}
 .clock{margin-left:auto;font-size:12px;color:var(--muted)}
 .scopewrap{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 14px 6px;gap:2px}
@@ -248,6 +249,14 @@ if(localStorage.getItem('rc_theme') === null){
   // ne savent pas d'où viennent les octets, seulement nBinsActuel().
   let sourceMode = 'audio';
   let actif = false;   // remplace l'ancien test "if(ctx)" : ctx reste null en mode CI-V
+  // Verrou anti-réentrance : demarrer() est asynchrone (getUserMedia, ou
+  // /rig/scope_configure, ou /rig/tci_spectrum_configure) et `actif` ne passe
+  // à true qu'APRÈS résolution — sans ce verrou, un second clic sur Démarrer
+  // (ou un changement de source) pendant l'attente relance un second pipeline
+  // en parallèle et laisse le premier orphelin (flux micro jamais coupé,
+  // timer jamais nettoyé, flux IQ TCI jamais arrêté côté serveur). Revue
+  // adversariale 13/08/2026.
+  let demarrageEnCours = false;
 
   // N'apparaît que si la radio configurée le supporte réellement (CAT natif
   // + modèle Icom listé dans MODELES_SCOPE_CIV côté serveur) — sinon
@@ -286,6 +295,15 @@ if(localStorage.getItem('rc_theme') === null){
   chargerSourceTci();
 
   document.getElementById('paSource').onchange = function(){
+    if(demarrageEnCours){
+      // Un démarrage est déjà en vol sur l'ancienne source (promesse pas
+      // encore résolue) : ignorer le changement plutôt que de laisser
+      // sourceMode diverger du pipeline réellement en train de démarrer
+      // (voir verrou demarrageEnCours) — l'utilisateur peut rechanger de
+      // source une fois le bouton réactivé.
+      this.value = sourceMode;
+      return;
+    }
     // Changer de source pendant que l'affichage tourne : on arrête proprement
     // l'ancienne (ferme le flux micro OU le polling scope_line/tci_spectrum_
     // line — arreterTci() coupe aussi le flux IQ côté serveur) plutôt que de
@@ -756,6 +774,7 @@ if(localStorage.getItem('rc_theme') === null){
 
   document.getElementById('paStartBtn').onclick = function(){
     const btn = this;
+    if(demarrageEnCours) return;   // ignore un second clic tant que le précédent démarrage n'est pas résolu
     if(actif){
       arreter();
       actif = false;
@@ -763,12 +782,17 @@ if(localStorage.getItem('rc_theme') === null){
       btn.classList.remove('on');
       return;
     }
+    demarrageEnCours = true;
+    btn.disabled = true;
     demarrer().then(() => {
       actif = true;
       btn.textContent = '■ Arrêter';
       btn.classList.add('on');
     }).catch(e => {
       _paToast(T('Source indisponible : ') + e.message);
+    }).finally(() => {
+      demarrageEnCours = false;
+      btn.disabled = false;
     });
   };
 
