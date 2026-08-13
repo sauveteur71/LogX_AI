@@ -600,7 +600,10 @@ def fetch_telnet_cluster(callsign='F4GLD', filter_digital=True, max_spots=60, ti
                 text, re.IGNORECASE
             )
             for spotter, freq_str, call, info, t in rows:
-                freq = float(freq_str)
+                try:
+                    freq = float(freq_str)
+                except (TypeError, ValueError):
+                    continue
                 if filter_digital and is_digital_mode(info):
                     continue
                 spots.append({
@@ -949,7 +952,10 @@ def fetch_dxwatch_vhf(filter_digital=True):
         for spotter, freq, call, info, t in rows:
             if filter_digital and is_digital_mode(info):
                 continue
-            freq_f = float(freq)
+            try:
+                freq_f = float(freq)
+            except (TypeError, ValueError):
+                continue
             # 144–146, 432–438, 1240–1300 MHz
             if not (144 <= freq_f <= 146 or 432 <= freq_f <= 438 or 1240 <= freq_f <= 1300):
                 continue
