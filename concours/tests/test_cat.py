@@ -95,9 +95,11 @@ class FakeAsciiRadio:
         self.id_code = id_code
         self.ptt = False
         self._pending = b''
+        self.sent = []
 
     def write(self, data):
         cmd = data.decode('ascii')
+        self.sent.append(cmd)
         if cmd == 'IF;':
             spec = cat._IF_FIELDS[self.brand]
             body = ['0'] * (spec[2] + 1)
@@ -120,6 +122,12 @@ class FakeAsciiRadio:
             self.ptt = True
             self._pending = b'TX0;' if self.brand != 'yaesu' else b''
         elif cmd == 'RX;':
+            self.ptt = False
+            self._pending = b''
+        elif cmd == 'TX1;':
+            self.ptt = True
+            self._pending = b''
+        elif cmd == 'TX0;':
             self.ptt = False
             self._pending = b''
         elif cmd in ('SM0;', 'SM;'):
@@ -269,6 +277,31 @@ def test_ascii_radio_ptt_elecraft_lecture_dediee():
     assert radio.get_ptt() == {'ok': True, 'ptt': False}
     fake.ptt = True
     assert radio.get_ptt() == {'ok': True, 'ptt': True}
+
+
+def test_ascii_radio_set_ptt_yaesu_forme_ecriture_avec_chiffre():
+    """Chez Yaesu, 'TX;' seul est la forme de LECTURE (voir get_ptt, qui
+    attend TX0;/TX1;/TX2; en réponse) — l'écriture doit envoyer TX1;/TX0;,
+    sinon la radio ne passe jamais réellement en émission."""
+    fake = FakeAsciiRadio('yaesu')
+    radio = cat.AsciiRadio(fake, 'yaesu')
+    assert radio.set_ptt(True)['ok']
+    assert fake.sent[-1] == 'TX1;'
+    assert fake.ptt is True
+    assert radio.set_ptt(False)['ok']
+    assert fake.sent[-1] == 'TX0;'
+    assert fake.ptt is False
+
+
+def test_ascii_radio_set_ptt_kenwood_elecraft_forme_sans_chiffre():
+    """Kenwood et Elecraft utilisent TX;/RX; sans suffixe — inchangé."""
+    for brand in ('kenwood', 'elecraft'):
+        fake = FakeAsciiRadio(brand)
+        radio = cat.AsciiRadio(fake, brand)
+        assert radio.set_ptt(True)['ok']
+        assert fake.sent[-1] == 'TX;'
+        assert radio.set_ptt(False)['ok']
+        assert fake.sent[-1] == 'RX;'
 
 
 def test_ascii_radio_ptt_kenwood_non_disponible():
