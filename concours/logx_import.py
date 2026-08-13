@@ -89,7 +89,13 @@ def parse_adif_to_qsos(adif_text):
         return [], [f"ADIF illisible : {e}"]
     for i, rec in enumerate(records):
         call = (rec.get('CALL') or '').upper().strip()
-        band = _band_from_record(rec)
+        # Assaini comme tout autre champ texte importé (voir rst_sent/locator/
+        # mode ci-dessous) : _band_from_record() peut renvoyer la valeur BRUTE
+        # du tag ADIF <BAND> telle quelle quand elle ne correspond à aucune
+        # bande connue (repli documenté dans _band_from_record) — sans
+        # clean_text, un octet de contrôle (retour à la ligne...) injecté dans
+        # ce tag survivrait jusqu'à l'export Cabrillo/ADIF.
+        band = _clean_text(_band_from_record(rec))
         if not call or not band:
             errors.append(f"Record {i + 1} ignoré (indicatif ou bande manquant/non reconnu)")
             continue
