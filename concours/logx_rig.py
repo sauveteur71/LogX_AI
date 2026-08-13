@@ -139,7 +139,9 @@ def send_morse(host, port, text):
 
 def stop_morse(host, port):
     try:
-        _command(host, port, '\\stop_morse')
+        lines = _command(host, port, '\\stop_morse')
+        if not _rprt_ok(lines):
+            return {'ok': False, 'error': f'Arrêt CW refusé par rigctld : {lines}'}
         return {'ok': True}
     except Exception as e:
         return {'ok': False, 'error': f'rigctld injoignable ({e})'}
