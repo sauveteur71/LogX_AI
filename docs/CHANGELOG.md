@@ -11,6 +11,18 @@ affichée dans la barre de statut de l'application correspond à la constante
 `APP_VERSION` de `logx_version.py`, qui doit être incrémentée à chaque tag
 poussé.
 
+## [1.1-beta2] - 2026-08-13
+
+### Corrigé
+
+- **i18n : fragments de phrase français résiduels** au milieu du texte
+  traduit, sur les pages MODE NUMÉRIQUE/CW (trouvé par F4GLD en testant la
+  1.1-beta1 en allemand). Cause : une phrase française contenant un lien ou
+  un mot en gras en plein milieu se scinde en plusieurs nœuds de texte côté
+  moteur i18n — les liens se traduisent (déjà connus), mais les fragments de
+  prose autour d'eux avaient été filtrés à tort comme "hors scope" par
+  l'audit précédent.
+
 ## [1.1-beta1] - 2026-08-13
 
 Première bêta post-1.0 : refonte majeure de CARTE IA et interface enfin
