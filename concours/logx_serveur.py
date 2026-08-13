@@ -50,6 +50,7 @@ from logx_utils import PORT, utcnow
 from logx_version import APP_VERSION
 from logx_storage import load_log_from_disk, load_qtc_from_disk, load_shifts_from_disk
 from logx_rules import load_rules_cache, load_external_contests, schedule_annual_check
+from logx_ref_bulletin import load_ref_bulletin
 from logx_http import Handler
 import logx_singleton
 
@@ -137,6 +138,7 @@ if __name__ == '__main__':
     load_shifts_from_disk()
     load_rules_cache()
     load_external_contests()
+    load_ref_bulletin()
 
     threading.Thread(target=schedule_annual_check, daemon=True).start()
 

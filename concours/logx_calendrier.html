@@ -110,6 +110,20 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .di-value.accent{color:var(--accent)}
 .di-value.accent2{color:var(--accent2)}
 
+/* BULLETIN REF */
+.ref-bulletin-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:20px}
+.ref-bulletin-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.ref-bulletin-title{font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--accent2);letter-spacing:.5px}
+.ref-bulletin-sub{display:block;font-size:12px;color:var(--muted);margin-top:4px;max-width:640px}
+.ref-bulletin-toggle{background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted);cursor:pointer;font-size:13px;padding:3px 9px;flex-shrink:0}
+.ref-bulletin-toggle:hover{border-color:var(--accent2);color:var(--accent2)}
+.ref-bulletin-body{font-family:var(--font-mono);font-size:13px;line-height:1.6;color:var(--text);white-space:pre-wrap;background:var(--bg3);border-radius:8px;padding:12px 14px;margin-top:10px;max-height:280px;overflow-y:auto}
+.ref-bulletin-body a{color:var(--accent2);text-decoration:underline}
+.ref-bulletin-panel.collapsed .ref-bulletin-body,.ref-bulletin-panel.collapsed .ref-bulletin-foot{display:none}
+.ref-bulletin-foot{display:flex;align-items:center;gap:10px;margin-top:8px;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.ref-bulletin-foot a{color:var(--muted)}
+.ref-bulletin-foot a:hover{color:var(--accent2)}
+
 /* LOADING */
 .loading{text-align:center;padding:40px;font-family:var(--font-mono);color:var(--muted)}
 .app-nav a svg,.nav-ico svg{width:15px;height:15px;flex-shrink:0}
@@ -164,6 +178,23 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   </div>
 
   <div class="alert-box" id="alertBox"></div>
+
+  <div class="ref-bulletin-panel" id="refBulletinPanel" style="display:none">
+    <div class="ref-bulletin-head">
+      <div>
+        <span class="ref-bulletin-title">🇫🇷 BULLETIN REF <span id="refBulletinWeek"></span></span>
+        <span class="ref-bulletin-sub">Soirées d'activité THF + concours DX du prochain week-end, tels que publiés par la commission des concours du REF</span>
+      </div>
+      <button class="ref-bulletin-toggle" id="refBulletinToggle" onclick="toggleRefBulletin()" title="Replier/déplier">▾</button>
+    </div>
+    <div class="ref-bulletin-body" id="refBulletinBody"></div>
+    <div class="ref-bulletin-foot">
+      <span id="refBulletinUpdated">—</span>
+      <span style="flex:1"></span>
+      <a href="https://f8ref.r-e-f.org/bulletins/bulref.pdf" target="_blank" rel="noopener noreferrer">Bulletin complet (PDF) ↗</a>
+      <button class="update-btn" style="margin-left:8px" onclick="refreshRefBulletin(this)" title="Forcer une nouvelle récupération du bulletin">🔄</button>
+    </div>
+  </div>
 
   <div class="year-tabs">
     <button class="year-tab active" id="tabNext" onclick="loadYear()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2 L10.8 6.8 L16 7.2 L12 10.6 L13.2 16 L9 13 L4.8 16 L6 10.6 L2 7.2 L7.2 6.8 Z"/></svg> REF / IARU / Internationaux</button>
@@ -646,8 +677,79 @@ function renderDxpeditions(){
   document.getElementById('calendarContent').innerHTML = html;
 }
 
+// ── Bulletin REF (rubrique concours hebdomadaire) ──────────────────────────
+// Texte brut échappé PUIS relinkifié (jamais l'inverse : un lien construit
+// APRÈS échappement éviterait de linkifier un "&amp;" présent dans une URL
+// réelle, ce qui casserait le href). safeUrl() n'autorise que http/https,
+// même garde que le reste de cette page.
+const REF_BULLETIN_URL_RE = /https?:\/\/[^\s<>"]+/g;
+function linkifyRefBulletin(text){
+  let out = '', last = 0, m;
+  REF_BULLETIN_URL_RE.lastIndex = 0;
+  while((m = REF_BULLETIN_URL_RE.exec(text))){
+    out += esc(text.slice(last, m.index));
+    const url = m[0].replace(/[.,;:)]+$/, '');       // ponctuation de fin de phrase exclue du lien
+    const trail = m[0].slice(url.length);
+    out += `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>${esc(trail)}`;
+    last = m.index + m[0].length;
+  }
+  out += esc(text.slice(last));
+  return out;
+}
+
+function applyRefBulletinCollapsed(){
+  let collapsed = false;
+  try{ collapsed = localStorage.getItem('rc_ref_bulletin_collapsed') === '1'; }catch(e){}
+  document.getElementById('refBulletinPanel').classList.toggle('collapsed', collapsed);
+  document.getElementById('refBulletinToggle').textContent = collapsed ? '▸' : '▾';
+}
+
+function toggleRefBulletin(){
+  const panel = document.getElementById('refBulletinPanel');
+  const collapsed = panel.classList.toggle('collapsed');
+  document.getElementById('refBulletinToggle').textContent = collapsed ? '▸' : '▾';
+  try{ localStorage.setItem('rc_ref_bulletin_collapsed', collapsed ? '1' : '0'); }catch(e){}
+}
+
+async function loadRefBulletin(){
+  try{
+    const res = await fetch('/data/ref_bulletin');
+    const data = await res.json();
+    // Pas encore de cache (tout premier lancement, rafraîchissement lancé en
+    // fond côté serveur) : le panneau reste masqué plutôt que d'afficher un
+    // bloc vide -- il apparaîtra au prochain chargement de la page une fois
+    // le fetch serveur terminé (quelques secondes).
+    if(!data.text) return;
+    document.getElementById('refBulletinWeek').textContent =
+      data.week ? `— Semaine ${data.week}/${data.year}` : '';
+    document.getElementById('refBulletinBody').innerHTML = linkifyRefBulletin(data.text);
+    document.getElementById('refBulletinUpdated').textContent = data.updated
+      ? 'Récupéré le ' + new Date(data.updated).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'})
+      : '';
+    document.getElementById('refBulletinPanel').style.display = 'block';
+    applyRefBulletinCollapsed();
+  }catch(e){
+    // Panneau optionnel : une erreur ici ne doit jamais empêcher le reste
+    // de la page (calendrier REF/WA7BNM/NG3K) de fonctionner.
+  }
+}
+
+async function refreshRefBulletin(btn){
+  const original = btn.textContent;
+  btn.textContent = '⏳';
+  btn.disabled = true;
+  try{
+    await fetch('/data/refresh_ref_bulletin');
+    setTimeout(async () => { await loadRefBulletin(); btn.textContent = original; btn.disabled = false; }, 3000);
+  }catch(e){
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+}
+
 // Init
 loadYear();
+loadRefBulletin();
 </script>
 </body>
 </html>

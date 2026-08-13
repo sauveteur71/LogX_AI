@@ -48,6 +48,7 @@ concours/lotw_users.csv
 concours/call_history_n1mm.json
 concours/sota_oauth_tokens.json
 concours/external_contests.json
+concours/ref_bulletin_cache.json
 
 # Documents personnels de préparation (pas le programme lui-même)
 .claude/launch.json

@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import logx_crypto
 import logx_rules as rules
+import logx_ref_bulletin as ref_bulletin
 from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CTX,
                         modele_effectif, _FETCH_EXECUTOR,
                           OPENAI_COMPATIBLE_ENDPOINTS, utcnow)
@@ -37,6 +38,7 @@ from logx_scoring import build_scoring_context, score_new_qso, resolve_scoring_b
 import logx_transverter as transverter
 from logx_prompts import build_system_prompt, build_terrain_context
 from logx_rules import calc_all_dates, run_annual_update, refresh_external_contests, fetch_contest_rules
+from logx_ref_bulletin import refresh_ref_bulletin, REF_BULLETIN_URL
 from logx_clusters import (SPOTS_CACHE, SPOTS_CACHE_LOCK, fetch_all_vhf_spots, fetch_cluster_f5len,
                       fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster, fetch_dxwatch_hf,
                       fetch_dxheat, fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
@@ -2458,6 +2460,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/refresh_external':
             threading.Thread(target=refresh_external_contests, daemon=True).start()
             self._json({'ok': True, 'message': 'Rafraîchissement WA7BNM lancé'})
+            return
+
+        # Bulletin hebdomadaire REF (rubrique "Commission des concours" :
+        # soirées d'activité THF + concours DX du week-end) — cache 7 jours,
+        # jamais de fetch synchrone dans cette requête (voir logx_ref_bulletin).
+        if path == '/data/ref_bulletin':
+            data = ref_bulletin.REF_BULLETIN_CACHE or {}
+            self._json({
+                'year': data.get('year'),
+                'week': data.get('week'),
+                'text': data.get('text', ''),
+                'source_url': data.get('source_url', REF_BULLETIN_URL),
+                'updated': data.get('updated', ''),
+            })
+            return
+
+        # Forcer refresh bulletin REF
+        if path == '/data/refresh_ref_bulletin':
+            threading.Thread(target=refresh_ref_bulletin, daemon=True).start()
+            self._json({'ok': True, 'message': 'Rafraîchissement bulletin REF lancé'})
             return
 
         # Calendrier avec prochaines dates calculées automatiquement
