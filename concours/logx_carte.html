@@ -189,7 +189,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     </div>
     <div class="clock rc-i18n-live" id="clock">00:00:00 UTC</div>
     <button class="cfg-btn" id="mapModeBtn" onclick="cycleModeBtn()" title="Changer la vue de la carte">🗺️ EUROPE</button>
-    <button class="cfg-btn" id="dimToggleBtn" onclick="toggleMapDimension()" title="Basculer entre la carte 2D et le globe 3D">🌐 3D</button>
+    <button class="cfg-btn expert-only" id="dimToggleBtn" onclick="toggleMapDimension()" title="Basculer entre la carte 2D et le globe 3D">🌐 3D</button>
     <button class="cfg-btn" id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit" style="font-size:16px">☀️</button>
   </div>
 </header>
@@ -230,7 +230,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="coach-rate" id="coachRate"></div>
       <div class="coach-bands" id="coachBands"></div>
       <div class="coach-hints" id="coachHints"></div>
-      <label class="coach-nudge-toggle" title="Une phrase d'action poussée en toast quand un événement mérite ton attention : entité/département rare jamais fait et spotté, rythme effondré, silence radio." style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted,#8792B5);margin-top:6px;cursor:pointer">
+      <label class="coach-nudge-toggle expert-only" title="Une phrase d'action poussée en toast quand un événement mérite ton attention : entité/département rare jamais fait et spotté, rythme effondré, silence radio." style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted,#8792B5);margin-top:6px;cursor:pointer">
         <input type="checkbox" id="nudgeToggle" onchange="toggleNudges(this.checked)" style="cursor:pointer">
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="3.5" y="6" width="11" height="8" rx="2"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> <span>Nudges en direct</span>
       </label>
@@ -244,7 +244,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="chat-input">
       <div class="quick-btns">
         <button class="qbtn qbtn-coach" onclick="coachAdvice()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="5" y="5" width="8" height="8" rx="1.5"/><line x1="9" y1="1.5" x2="9" y2="5"/><line x1="9" y1="13" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="5" y2="9"/><line x1="13" y1="9" x2="16.5" y2="9"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/></svg>COACH</button>
-        <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M1.5 6.5L9 3l7.5 3.5L9 10l-7.5-3.5z"/><path d="M5 8.2v3.3c0 1 1.8 2 4 2s4-1 4-2V8.2"/><line x1="16.5" y1="6.5" x2="16.5" y2="11"/></svg>DÉBRIEF</button>
+        <button class="qbtn expert-only" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M1.5 6.5L9 3l7.5 3.5L9 10l-7.5-3.5z"/><path d="M5 8.2v3.3c0 1 1.8 2 4 2s4-1 4-2V8.2"/><line x1="16.5" y1="6.5" x2="16.5" y2="11"/></svg>DÉBRIEF</button>
         <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)">🔇</button>
         <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>CHASSE ASSISTÉE</button>
         <select id="skillSel" class="skill-sel" onchange="setSkill(this.value)" title="Niveau : adapte le ton et le niveau de détail des réponses de l'IA">
@@ -256,8 +256,8 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>SCORE</button>
         <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="10,1.5 4.5,10 8.5,10 7.5,16.5 13.5,8 9.5,8 10,1.5"/></svg>SPOTS</button>
         <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?','prop')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg>PROP</button>
-        <button class="qbtn" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
-        <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
+        <button class="qbtn expert-only" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
+        <button class="qbtn expert-only" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
         <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg>RÉSUMÉ</button>
       </div>
       <div class="input-row">
@@ -283,7 +283,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            carte 2D. Sa boucle de rendu ne tourne QUE quand il est affiché. -->
       <canvas id="globeCanvas" style="display:none;position:absolute;inset:0;width:100%;height:100%;cursor:grab;z-index:1" class=""></canvas>
       <div class="g-panel g-note" id="geoNote" style="position:absolute;top:16px;left:16px;max-width:280px;color:var(--yellow);display:none;z-index:601">Continents indisponibles hors connexion (premier accès au serveur requis pour les mettre en cache).</div>
-      <div class="g-panel g-controls" id="globeControls" style="position:absolute;top:16px;right:16px;width:216px;display:none;flex-direction:column;gap:8px;z-index:601">
+      <div class="g-panel g-controls expert-only" id="globeControls" style="position:absolute;top:16px;right:16px;width:216px;display:none;flex-direction:column;gap:8px;z-index:601">
         <div class="g-title">AFFICHAGE</div>
         <label class="g-toggle"><input type="checkbox" id="tglCountries" checked onchange="g3dScheduleDraw()"><span>Pays travaillés</span></label>
         <label class="g-toggle"><input type="checkbox" id="tglSpots" checked onchange="g3dScheduleDraw()"><span>Spots DX en direct</span></label>
@@ -295,7 +295,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <button class="g-btn" onclick="g3dRecenterQTH()" title="Recentrer sur mon QTH">QTH</button>
         </div>
       </div>
-      <div class="g-panel g-legend" id="globeLegend" style="position:absolute;bottom:16px;left:16px;display:none;flex-direction:column;gap:5px;z-index:601">
+      <div class="g-panel g-legend expert-only" id="globeLegend" style="position:absolute;bottom:16px;left:16px;display:none;flex-direction:column;gap:5px;z-index:601">
         <div class="g-title">LÉGENDE</div>
         <div class="g-leg-row"><span class="g-leg-dot" style="background:var(--green)"></span>Pays DXCC travaillé</div>
         <div class="g-leg-row"><span class="g-leg-dot" style="background:var(--accent2)"></span>Ma station (QTH)</div>
@@ -307,22 +307,25 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            du zoom 7, locator COMPLET (6, sous-carré) à partir du zoom 11 —
            redessinée à chaque déplacement/zoom (drawMaidenGrid()), jamais au
            chargement seul, sinon elle resterait fausse après un panoramique. -->
-      <div id="maidenControl" style="position:absolute;z-index:600;bottom:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
+      <div id="maidenControl" class="expert-only" style="position:absolute;z-index:600;bottom:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
         <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
           <input type="checkbox" id="maidenOn" onchange="drawMaidenGrid()" style="accent-color:var(--accent2)">
           <span style="color:var(--accent2);letter-spacing:1px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="ico"><rect x="2.5" y="2.5" width="13" height="13" rx="1"/><line x1="2.5" y1="7.17" x2="15.5" y2="7.17"/><line x1="2.5" y1="10.83" x2="15.5" y2="10.83"/><line x1="7.17" y1="2.5" x2="7.17" y2="15.5"/><line x1="10.83" y1="2.5" x2="10.83" y2="15.5"/></svg>GRILLE MAIDENHEAD</span>
         </label>
       </div>
       <!-- Cercles de distance « Great Circle » centrés sur le QTH (1000/2000/3000/4000 km) -->
-      <div id="gcControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
+      <div id="gcControl" class="expert-only" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
         <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
           <input type="checkbox" id="gcToggle" onchange="toggleGreatCircle()" style="accent-color:var(--accent2)">
           <span style="color:var(--accent2);letter-spacing:1px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>GREAT CIRCLE</span>
         </label>
       </div>
-      <!-- Surcouche CARRÉS QRA travaillés (VUCC). Placée SOUS le bloc
-           propagation : ce sont deux surcouches indépendantes, cumulables. -->
-      <div id="carresControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:236px">
+      <!-- Surcouche CARRÉS QRA travaillés (VUCC). Empilée SOUS GREAT CIRCLE
+           (top décalé de sa hauteur + marge -- même point d'ancrage top/left
+           que #gcControl sinon, les deux panneaux se superposaient pixel
+           pour pixel et GREAT CIRCLE n'était jamais cliquable, audit
+           intuitivité 13/08/2026). -->
+      <div id="carresControl" class="expert-only" style="position:absolute;z-index:600;top:56px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:236px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span style="color:var(--accent2);letter-spacing:2px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="ico"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg>CARRÉS QRA</span>
           <label style="cursor:pointer;display:flex;align-items:center;gap:5px">
@@ -352,7 +355,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       </div>
 
       <!-- Surcouche PROPAGATION 24 h (carte du monde colorée depuis le QTH) -->
-      <div id="propControl" style="position:absolute;z-index:600;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:224px">
+      <div id="propControl" class="expert-only" style="position:absolute;z-index:600;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:224px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span style="color:var(--accent2);letter-spacing:2px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>PROPAGATION</span>
           <label style="cursor:pointer;display:flex;align-items:center;gap:5px">

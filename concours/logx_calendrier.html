@@ -258,6 +258,7 @@ let _calGen = 0;
 async function loadYear(){
   const _gen = ++_calGen;
   currentTab = 'main';
+  updateFilterVisibility();
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tabNext')?.classList.add('active');
   document.getElementById('calendarContent').innerHTML = '<div class="loading">Calcul des prochaines dates...</div>';
@@ -286,6 +287,27 @@ async function loadYear(){
     if(_gen!==_calGen) return;
     document.getElementById('calendarContent').innerHTML =
       `<div class="loading" style="color:var(--red)">❌ Erreur : serveur non disponible<br><small>Lance logx_serveur.py d'abord</small></div>`;
+  }
+}
+
+// Chaque onglet n'implémente qu'un sous-ensemble des filtres (voir
+// matchFilter()/renderExternal()/renderDxpeditions()) -- avant ce correctif,
+// les 8 boutons restaient TOUS affichés et cliquables sur les 3 onglets, un
+// filtre pouvait donc rester "actif" en apparence après un changement
+// d'onglet sans plus avoir le moindre effet (audit intuitivité 13/08/2026).
+const FILTERS_BY_TAB = {
+  main: ['all','REF','IARU','CQ','VHF','HF','upcoming'],
+  ext: ['all','upcoming'],
+  dx: ['all','new'],
+};
+function updateFilterVisibility(){
+  const allowed = FILTERS_BY_TAB[currentTab] || FILTERS_BY_TAB.main;
+  document.querySelectorAll('.filter-btn').forEach(b=>{
+    b.style.display = allowed.includes(b.dataset.f) ? '' : 'none';
+  });
+  if(!allowed.includes(currentFilter)){
+    currentFilter = 'all';
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active', b.dataset.f === 'all'));
   }
 }
 
@@ -515,6 +537,7 @@ function extNextDate(c){
 async function loadExternal(){
   const _gen = ++_calGen;
   currentTab = 'ext';
+  updateFilterVisibility();
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tabExt')?.classList.add('active');
   document.getElementById('calendarContent').innerHTML = '<div class="loading">⏳ Récupération WA7BNM...</div>';
@@ -590,6 +613,7 @@ let dxExpeditions = [];   // onglet DXPEDITIONS (NG3K)
 async function loadDxpeditions(){
   const _gen = ++_calGen;
   currentTab = 'dx';
+  updateFilterVisibility();
   document.querySelectorAll('.year-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tabDx')?.classList.add('active');
   document.getElementById('calendarContent').innerHTML = '<div class="loading">⏳ Récupération NG3K ADXO...</div>';

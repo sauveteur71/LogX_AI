@@ -5563,6 +5563,14 @@ function applyUiMode(){
     btn.textContent = simple ? '🎚 DÉBUTANT' : '🎚 EXPERT';
     btn.style.color = simple ? 'var(--green)' : 'var(--muted)';
   }
+  // Synchronise le libellé de la barre de statut PARTAGÉE (#rcsbUiModeLabel,
+  // posé par logx_statusbar.js) : ce bouton-ci n'appelle jamais location.reload()
+  // (CONFIG a son propre <style> statique pour .expert-only, ligne ~197 —
+  // pas besoin d'un rechargement pour que le masquage prenne), mais sans cette
+  // ligne le libellé de la barre de statut restait figé sur l'ancien mode,
+  // deux indicateurs adjacents en contradiction (audit intuitivité 13/08/2026).
+  const rcsbLbl = document.getElementById('rcsbUiModeLabel');
+  if (rcsbLbl) rcsbLbl.textContent = simple ? 'DÉBUTANT' : 'EXPERT';
   // Ancien correctif H4 (masquage de l'étape 4/PROPAGATION en mode débutant)
   // retiré le 08/08/2026 : ciblait des éléments #step4/#panel3/#panel5 déjà
   // absents du DOM depuis la migration hub/popups, et aucune des catégories

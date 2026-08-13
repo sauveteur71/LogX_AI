@@ -54,6 +54,9 @@ body.day-mode .td-mode{color:var(--purple)}
 body.day-mode .td-sent{color:var(--text)}
 body.day-mode .td-rcvd{color:var(--muted)}
 body.day-mode .td-loc{color:var(--accent2)}
+body.day-mode #editLocator{color:var(--accent2)}
+body.day-mode #editDistInfo{color:var(--green)}
+body.day-mode #editRSTrcvd,body.day-mode #editNumRcvd{color:var(--muted)}
 body.day-mode .td-pts{color:var(--accent)}
 body.day-mode .td-edit{color:var(--muted)}
 body.day-mode .td-edit:hover{color:var(--accent2)}
@@ -245,7 +248,8 @@ body.sans-concours .compass-pts{display:none}
 .field-input.ok{border-color:var(--green)}
 .field-input.field-readonly{background:var(--bg2)!important;color:var(--muted)!important;cursor:not-allowed;opacity:.75}
 
-.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-row{display:flex;gap:10px}
+.field-row>.field-group{flex:1;min-width:0}
 
 /* RS FIELD */
 .rs-field{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--yellow);font-family:var(--font-mono);font-size:26px;padding:6px 12px;outline:none;width:100%;text-align:center;font-weight:700}
@@ -474,14 +478,14 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 .shortcuts-key{font-family:var(--font-mono);font-weight:700;color:var(--accent);background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:3px 9px;min-width:64px;text-align:center;flex-shrink:0}
 .edit-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
 .edit-field{display:flex;flex-direction:column;gap:4px}
-.edit-lbl{font-size:12px;color:#4A6090;letter-spacing:2px;font-family:var(--font-mono)}
-.edit-input{background:#13152A;border:1px solid #2B2F4A;border-radius:6px;color:#E0E4FF;font-family:var(--font-mono);font-size:15px;padding:9px 11px;outline:none;width:100%;text-transform:uppercase;transition:border-color .2s}
+.edit-lbl{font-size:12px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono)}
+.edit-input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:15px;padding:9px 11px;outline:none;width:100%;text-transform:uppercase;transition:border-color .2s}
 .edit-input:focus{border-color:var(--accent2)}
-.edit-input.big{font-size:18px;font-weight:700;color:#00FF88;letter-spacing:2px}
+.edit-input.big{font-size:18px;font-weight:700;color:var(--green);letter-spacing:2px}
 .edit-btn-row{display:flex;gap:8px;justify-content:flex-end}
 .edit-save{background:linear-gradient(135deg,#00FF88,var(--accent2));border:none;border-radius:7px;color:#0A0B18;font-family:var(--font-mono);font-size:14px;font-weight:800;padding:11px 24px;cursor:pointer;letter-spacing:2px;transition:opacity .15s}
 .edit-save:hover{opacity:.85}
-.edit-cancel{background:#13152A;border:1px solid #2B2F4A;border-radius:7px;color:#4A5080;font-family:var(--font-mono);font-size:14px;padding:11px 20px;cursor:pointer;transition:all .15s}
+.edit-cancel{background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-family:var(--font-mono);font-size:14px;padding:11px 20px;cursor:pointer;transition:all .15s}
 .edit-cancel:hover{border-color:#FF2D55;color:#FF2D55}
 
 /* CONSTRUCTEUR DE FILTRE AVANCÉ */
@@ -534,7 +538,7 @@ tr.incomplete-entry td{background:rgba(255,214,10,.06);border-bottom-color:rgba(
 
 /* CHAMPS ADIF PERSONNALISÉS (édition QSO) */
 .exf-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;align-items:center}
-.exf-row input{background:#13152A;border:1px solid #2B2F4A;border-radius:6px;color:#E0E4FF;
+.exf-row input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);
   font-family:var(--font-mono);font-size:13px;padding:7px 9px;outline:none;width:100%;box-sizing:border-box}
 .exf-row input:first-child{text-transform:uppercase}
 .exf-row input:focus{border-color:var(--accent2)}
@@ -829,7 +833,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       </div>
       <div class="edit-field">
         <div class="edit-lbl">RST ENVOYÉ</div>
-        <input type="text" class="edit-input" id="editRSTsent" style="color:#FFD60A;font-size:18px;text-align:center">
+        <input type="text" class="edit-input" id="editRSTsent" style="color:var(--yellow);font-size:18px;text-align:center">
       </div>
       <div class="edit-field">
         <div class="edit-lbl">N° ENVOYÉ</div>
@@ -850,7 +854,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       </div>
       <div class="edit-field">
         <div class="edit-lbl">MODE</div>
-        <select class="edit-input" id="editMode" style="color:#E0A0FF;font-size:16px;text-align:center;background:#0a1628;border:1px solid #E0A0FF;border-radius:8px;padding:4px 8px;cursor:pointer"></select>
+        <select class="edit-input" id="editMode" style="color:var(--purple);font-size:16px;text-align:center;background:var(--bg3);border:1px solid var(--purple);border-radius:8px;padding:4px 8px;cursor:pointer"></select>
       </div>
       <div class="edit-field">
         <div class="edit-lbl">FRÉQUENCE <span style="color:var(--muted);font-weight:400">(MHz)</span></div>
