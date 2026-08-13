@@ -11,6 +11,50 @@ affichée dans la barre de statut de l'application correspond à la constante
 `APP_VERSION` de `logx_version.py`, qui doit être incrémentée à chaque tag
 poussé.
 
+## [1.1-beta1] - 2026-08-13
+
+Première bêta post-1.0 : refonte majeure de CARTE IA et interface enfin
+traduite en profondeur dans les 7 langues. Aucune rupture de format
+(ADIF/Cabrillo/réseau multi-poste inchangés).
+
+### Ajouté
+
+- **CARTE IA, refonte multi-phase** : paliers de coût IA Basique (0 jeton,
+  réponses déterministes)/Intermédiaire/Expert avec BILAN diplômes et
+  DÉBRIEF disponibles en palier Basique ; fenêtres VOACAP ciblées sur les
+  DXpéditions annoncées ; backlog complet (pile-up/split, coordination
+  radioclub, mémoire inter-concours, saisie vocale, repli de mode) ; carte
+  **détachable sur un second écran** (`?panel=map`, parité fonctionnelle
+  totale) ; menu **PLUS** regroupant les actions secondaires pour laisser
+  la place au texte du chat ; **chat persistant** entre changements
+  d'onglet ; **annulation d'une analyse en cours par la touche Échap** ;
+  sélecteurs NIVEAU (ton des réponses) et PALIER IA (coût) rendus
+  explicites (étiquettes visibles, infobulles, confirmation par toast).
+- **CHASSE/DXpéditions** : distinction pays jamais travaillé / partiellement
+  travaillé / toutes bandes confirmées.
+- **CALENDRIER** : nouveau panneau pour le bulletin hebdomadaire du REF.
+- **Lien GUIDE** (wiki) contextuel par écran, dans la barre de statut.
+- **Interface traduite en profondeur** : 414 chaînes d'interface jamais
+  traduites ajoutées dans les 7 langues (panneaux avancés de CARTE IA/
+  LOGBOOK/MOBILE — QTC, filtre avancé, recherche de doublons, contrôle de
+  net, keyer vocal, callbot, décodeurs CW/SSTV, carte QSL, checklist,
+  diplômes...), puis revue qualité par 7 relecteurs natifs indépendants
+  (29 corrections de sens, de registre et de cohérence terminologique).
+- Dépôt renommé en `LogX_AI` (toutes les références mises à jour).
+
+### Corrigé
+
+- **Vérification approfondie pré-bêta** : 37 correctifs (4 critiques, 21
+  modérés, 12 mineurs), dont un bug réel de score CQ WPX qui ne doublait
+  jamais les points sur les bandes basses (80/40/160 m), une injection
+  Cabrillo via le champ bande non assaini à l'import ADIF, et un bouton
+  STOP SO2R qui routait vers la mauvaise radio.
+- **Deux audits d'intuitivité complets** : 12 correctifs critiques puis 54
+  correctifs modérés/mineurs (perte de contexte de fenêtres détachées,
+  filtres inopérants selon l'onglet, échecs réseau silencieux...).
+- Version affichée par `LANCER_LOGX_AI.bat` (codée en dur, désynchronisée
+  de la version réelle).
+
 ## [1.0] - 2026-08-12
 
 Première version stable de LogX AI. Le format ADIF/Cabrillo, le moteur de
