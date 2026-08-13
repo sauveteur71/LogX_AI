@@ -364,7 +364,7 @@ DATE {CURRENT_YEAR} : {contest_date}
 BANDES : 1.8 / 3.5 / 7 / 14 / 21 / 28 MHz
 ÉCHANGE : RS(T) + N°série progressif
 SCORING : pts × préfixes uniques contactés (toutes bandes)
-  • 6pts DX (autre continent) / 2pts USA-Canada / 1pt Europe entre eux
+  • {scoring_def.get('points_dx', 3)}pts continent différent / {scoring_def.get('points_same_country', 1)}pt même pays / {scoring_def.get('points_same_continent', 1)}pt même continent (pays différent)
 LOG : CABRILLO — délai 5 jours — https://cqwpx.com/logsubmit.htm
 ═══════════════════════════════════════════════════════"""
 
@@ -533,7 +533,7 @@ AVANT de la recommander. Voici les règles de calcul par type :
 {'  5. Station même pays (0pt mais peut être mult si première fois)' if contest in ('CQ_WW_SSB','CQ_WW_CW') else ''}
 
 {'── TYPE : pts × préfixes uniques (CQ WPX) ───────────────────────' if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
-{'Valeur QSO = 6pts(DX) / 2pts(USA-Canada) / 1pt(Europe)' if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
+{('Valeur QSO = %spts(continent différent) / %spt(même pays) / %spt(même continent, pays différent)' % (scoring_def.get('points_dx', 3), scoring_def.get('points_same_country', 1), scoring_def.get('points_same_continent', 1))) if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
 {'Valeur mult = +1 nouveau préfixe (W1/DL1/F4/etc.) TOUTES BANDES' if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
 {'Prioriser : préfixes rares jamais vus + stations DX intercontinentales' if contest in ('CQ_WPX_SSB','CQ_WPX_CW') else ''}
 
