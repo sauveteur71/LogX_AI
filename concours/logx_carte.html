@@ -265,6 +265,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <button class="qbtn" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
         <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
         <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg>RÉSUMÉ</button>
+        <button class="qbtn" onclick="qs('Fais-moi un bilan de mes diplômes : DXCC, WAZ, WAC, ce qui manque le plus.','performance')" title="Bilan des diplômes et de ce qui manque, sur toute la vie de la station"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>BILAN</button>
       </div>
       <div class="input-row">
         <textarea id="userInput" placeholder="Envoie un message à l'agent..." rows="1"
@@ -1328,7 +1329,7 @@ function syncAiTierSel(){ const s=document.getElementById('aiTierSel'); if(s) s.
 // + 'spots', répondu à part via /coach/state.hints (answer_text('spots') est un
 // cul-de-sac volontaire côté serveur -- toujours "hors-ligne, impossible de
 // vérifier" -- alors que /coach/state a déjà les multiplicateurs neufs).
-const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots'];
+const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots','performance'];
 
 function showThinking(){
   const c=document.getElementById('chatMsgs');
@@ -1517,7 +1518,19 @@ async function send(forcedText,displayText,topic){
     // qu'enrichi (contexte préfixé), jamais remplacé : la consigne y survit.
     const _tier=aiTier();
     const _isLight=_tier==='intermediaire';
-    const _apiText=_isLight ? text+'\n\n(Réponds en 2-3 phrases maximum, va droit au but.)' : text;
+    // Bilan diplômes (#7 refonte, 13/08/2026) : le contexte terrain serveur
+    // (do_refresh) ne couvre que les ~30 derniers QSO, insuffisant pour une
+    // question "à vie" (DXCC/WAZ/WAC/départements) -- on enrichit le MESSAGE
+    // (jamais écrasé, voir note ci-dessus) avec le digest déterministe
+    // /awards/summary AVANT l'appel IA, en Intermédiaire comme en Expert.
+    let _perfDigest='';
+    if(topic==='performance'){
+      try{
+        const _r=await fetch('/awards/summary');
+        if(_r.ok) _perfDigest='\n\n[Statistiques à vie de la station]\n'+formatAwardsDigest(await _r.json());
+      }catch(e){}
+    }
+    const _apiText=(_isLight ? text+'\n\n(Réponds en 2-3 phrases maximum, va droit au but.)' : text)+_perfDigest;
     const body={
       max_tokens:_isLight?600:4096,
       message:_apiText,
@@ -1663,7 +1676,51 @@ async function basiqueSpotsAnswer(bub){
 }
 async function basiqueAnswer(topic, bub){
   if(topic==='spots') return basiqueSpotsAnswer(bub);
+  if(topic==='performance') return basiquePerformanceAnswer(bub);
   return _renderCoachAnswer(topic, bub, basiqueBadge());
+}
+// Bilan diplômes (#7 refonte, 13/08/2026) : /awards/summary est déjà calculé
+// SANS IA (DXCC/WAZ/ITU/WAC/WAS/VUCC/départements, à vie -- award_summary(),
+// déjà utilisé par la page Diplômes) -- même principe que basiqueSpotsAnswer :
+// une donnée déjà agrégée déterministe n'a besoin d'aucun appel IA pour être
+// LUE, seulement pour être commentée/analysée (ce que fait la version
+// Intermédiaire/Expert, voir enrichPerformanceContext() dans send()).
+function formatAwardsDigest(s){
+  const lines=[];
+  lines.push(`${s.qso_total} QSO à vie, ${s.confirmed_total} confirmé(s).`);
+  lines.push(`DXCC : ${s.dxcc.worked} travaillées, ${s.dxcc.confirmed} confirmées.`);
+  if(s.departments&&s.departments.metro_total)
+    lines.push(`Départements métropole : ${s.departments.metro_worked}/${s.departments.metro_total}`
+      +(s.departments.dom_worked?` (+ ${s.departments.dom_worked} DOM)`:'')+'.');
+  const diplome=(label,d)=>{
+    if(!d||!d.total) return;
+    let l=`${label} : ${d.worked}/${d.total}`;
+    if(d.missing&&d.missing.length) l+=` — manque : ${d.missing.slice(0,10).join(', ')}${d.missing.length>10?'…':''}`;
+    lines.push(l);
+  };
+  diplome('WAZ',s.waz); diplome('WAZ ITU',s.waz_itu); diplome('WAC',s.wac);
+  if(s.was_data) diplome('WAS',s.was);
+  if(s.per_band){
+    const top=Object.entries(s.per_band).sort((a,b)=>(b[1].qso||0)-(a[1].qso||0)).slice(0,6);
+    if(top.length) lines.push('Par bande (QSO/DXCC) : '+top.map(([b,v])=>`${b}MHz ${v.qso}/${v.dxcc}`).join(', ')+'.');
+  }
+  return lines.join('\n');
+}
+async function basiquePerformanceAnswer(bub){
+  try{
+    const r=await fetch('/awards/summary');
+    const s=await r.json();
+    if(!bub) bub=makeAgentBubble();
+    bub.classList.remove('streaming');
+    bub.textContent='';
+    bub.appendChild(basiqueBadge());
+    const txt=formatAwardsDigest(s);
+    bub.appendChild(document.createTextNode(txt));
+    conversationHistory.push({role:'assistant',content:txt});
+    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+    return true;
+  }catch(e){ return false; }
 }
 // Message quand l'IA échoue sur du texte LIBRE (non répondable hors-ligne).
 function freeTextOffline(bub,err){
