@@ -9743,6 +9743,78 @@
     if (T[l]) Object.assign(T[l], T_CARTE_POLISH_FIX[l]);
   }
 
+  // Fragments de phrase decoupes par un lien/gras en ligne (retour F4GLD
+  // 13/08/2026 : bout de francais brut au milieu d'une phrase allemande sur
+  // logx_modes_numeriques.html). Le moteur traduit chaque noeud texte du DOM
+  // independamment -- une phrase coupee par <a>/<b> se scinde en plusieurs
+  // noeuds, et les fragments de prose autour des liens (pas les liens
+  // eux-memes, deja couverts) avaient ete filtres a tort comme 'prose longue,
+  // hors scope' par l'audit precedent. Extraits en direct dans le navigateur
+  // (node.nodeValue.trim()) pour garantir un texte source caractere pour
+  // caractere identique a ce que le moteur cherchera reellement.
+  const T_FRAGMENTS_PHRASES_FIX = {
+    en: {
+      "(panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction": "(existing floating panel, unchanged); to practice Morse at your own pace, away from real traffic, head to",
+      "Décodeur/émetteur d'images SSTV. Reste un panneau intégré à": "SSTV image decoder/transmitter. Remains a panel built into",
+      ", comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.": ", like CW — no separate detached window for this mode (yet).",
+      "Les indicatifs viennent de": "Callsigns come from",
+      "index — ton log, tes archives, ta base — et l'échange est celui que": "index — your log, your archives, your database — and the exchange is whatever",
+      "concours demande. Tu t'entraînes sur ce que tu vas réellement entendre. Le morse est synthétisé dans le casque : rien ne part sur l'air, rien ne passe par Internet.": "contest requires. You train on what you'll actually hear. The Morse is synthesized in the headset: nothing goes out over the air, nothing goes through the Internet.",
+    },
+    de: {
+      "(panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction": "(bestehendes schwebendes Panel, unverändert); um in deinem eigenen Tempo Morsen zu üben, abseits des echten Verkehrs, geht es zu",
+      "Décodeur/émetteur d'images SSTV. Reste un panneau intégré à": "SSTV-Bilddecoder/-Sender. Bleibt ein Panel, integriert in",
+      ", comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.": ", wie CW — noch kein eigenes abgedocktes Fenster für diesen Modus.",
+      "Les indicatifs viennent de": "Die Rufzeichen kommen aus",
+      "index — ton log, tes archives, ta base — et l'échange est celui que": "Index — deinem Log, deinen Archiven, deiner Datenbank — und der Austausch ist der, den",
+      "concours demande. Tu t'entraînes sur ce que tu vas réellement entendre. Le morse est synthétisé dans le casque : rien ne part sur l'air, rien ne passe par Internet.": "Contest verlangt. Du trainierst mit dem, was du wirklich hören wirst. Das Morsen wird im Kopfhörer synthetisiert: Nichts geht auf Sendung, nichts läuft über das Internet.",
+    },
+    es: {
+      "(panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction": "(panel flotante existente, sin cambios); para practicar morse a tu ritmo, fuera del tráfico real, dirígete a",
+      "Décodeur/émetteur d'images SSTV. Reste un panneau intégré à": "Decodificador/emisor de imágenes SSTV. Sigue siendo un panel integrado en",
+      ", comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.": ", como el CW — todavía sin ventana independiente propia para este modo.",
+      "Les indicatifs viennent de": "Los indicativos vienen de",
+      "index — ton log, tes archives, ta base — et l'échange est celui que": "índice — tu log, tus archivos, tu base de datos — y el intercambio es el que",
+      "concours demande. Tu t'entraînes sur ce que tu vas réellement entendre. Le morse est synthétisé dans le casque : rien ne part sur l'air, rien ne passe par Internet.": "concurso exige. Te entrenas con lo que realmente vas a escuchar. El morse se sintetiza en los auriculares: nada sale al aire, nada pasa por Internet.",
+    },
+    it: {
+      "(panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction": "(pannello flottante esistente, invariato); per allenarti al morse al tuo ritmo, fuori dal traffico reale, vai su",
+      "Décodeur/émetteur d'images SSTV. Reste un panneau intégré à": "Decoder/trasmettitore di immagini SSTV. Resta un pannello integrato in",
+      ", comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.": ", come il CW — ancora nessuna finestra separata dedicata per questa modalità.",
+      "Les indicatifs viennent de": "I nominativi provengono dal",
+      "index — ton log, tes archives, ta base — et l'échange est celui que": "indice — il tuo log, i tuoi archivi, il tuo database — e lo scambio è quello che il",
+      "concours demande. Tu t'entraînes sur ce que tu vas réellement entendre. Le morse est synthétisé dans le casque : rien ne part sur l'air, rien ne passe par Internet.": "contest richiede. Ti alleni su ciò che sentirai davvero. Il morse viene sintetizzato in cuffia: niente va in onda, niente passa da Internet.",
+    },
+    pt: {
+      "(panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction": "(painel flutuante existente, inalterado); para praticares morse ao teu ritmo, fora do tráfego real, ruma a",
+      "Décodeur/émetteur d'images SSTV. Reste un panneau intégré à": "Descodificador/emissor de imagens SSTV. Continua a ser um painel integrado em",
+      ", comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.": ", tal como o CW — ainda sem janela destacada própria para este modo.",
+      "Les indicatifs viennent de": "Os indicativos vêm do",
+      "index — ton log, tes archives, ta base — et l'échange est celui que": "índice — o teu log, os teus arquivos, a tua base de dados — e a troca é aquela que o",
+      "concours demande. Tu t'entraînes sur ce que tu vas réellement entendre. Le morse est synthétisé dans le casque : rien ne part sur l'air, rien ne passe par Internet.": "concurso exige. Treinas com aquilo que vais realmente ouvir. O morse é sintetizado nos auscultadores: nada sai para o ar, nada passa pela Internet.",
+    },
+    nl: {
+      "(panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction": "(bestaand zwevend paneel, ongewijzigd); om in je eigen tempo morse te oefenen, buiten het echte verkeer om, ga naar",
+      "Décodeur/émetteur d'images SSTV. Reste un panneau intégré à": "SSTV-beelddecoder/-zender. Blijft een paneel dat is geïntegreerd in",
+      ", comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.": ", net als CW — nog geen apart losgekoppeld venster voor deze modus.",
+      "Les indicatifs viennent de": "Roepletters komen uit",
+      "index — ton log, tes archives, ta base — et l'échange est celui que": "index — jouw log, jouw archieven, jouw database — en de uitwisseling is wat",
+      "concours demande. Tu t'entraînes sur ce que tu vas réellement entendre. Le morse est synthétisé dans le casque : rien ne part sur l'air, rien ne passe par Internet.": "contest vereist. Je oefent met wat je echt gaat horen. De morse wordt gesynthetiseerd in de koptelefoon: er gaat niets de ether in, er gaat niets via internet.",
+    },
+    pl: {
+      "(panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction": "(istniejącym panelu pływającym, bez zmian); aby ćwiczyć alfabet Morse'a we własnym tempie, poza prawdziwym ruchem, przejdź do",
+      "Décodeur/émetteur d'images SSTV. Reste un panneau intégré à": "Dekoder/nadajnik obrazów SSTV. Pozostaje panelem zintegrowanym z",
+      ", comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.": ", podobnie jak CW — na razie bez osobnego odłączonego okna dla tego trybu.",
+      "Les indicatifs viennent de": "Znaki wywoławcze pochodzą z",
+      "index — ton log, tes archives, ta base — et l'échange est celui que": "indeksu — twojego logu, twoich archiwów, twojej bazy — a wymiana jest taka, jakiej wymagają",
+      "concours demande. Tu t'entraînes sur ce que tu vas réellement entendre. Le morse est synthétisé dans le casque : rien ne part sur l'air, rien ne passe par Internet.": "zawody. Trenujesz na tym, co naprawdę usłyszysz. Morse jest syntezowany w słuchawkach: nic nie ucieka w eter, nic nie przechodzi przez internet.",
+    },
+  };
+  for (const l of ['en','de','es','it','pt','nl','pl']) {
+    if (T[l]) Object.assign(T[l], T_FRAGMENTS_PHRASES_FIX[l]);
+  }
+
+
   // Exposé pour re-traduire après un rendu dynamique
   window.rcTranslate = function () {
     const lang = getLang();
