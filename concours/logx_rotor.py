@@ -231,7 +231,9 @@ def _rotctld_set(host, port, az, el):
 
 
 def _rotctld_stop(host, port):
-    _rotctld_command(host, port, 'S')
+    lines = _rotctld_command(host, port, 'S')
+    if not _rprt_ok(lines):
+        return {'ok': False, 'error': f'Refus rotctld : {lines}'}
     return {'ok': True}
 
 
