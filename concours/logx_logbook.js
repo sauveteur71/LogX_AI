@@ -2313,7 +2313,11 @@ async function submitQSO(){
   // et la fréquence (la bande en est déjà déduite automatiquement, voir
   // onFreqInput()/bandFromFreq() -- rien à valider ici, currentBand est déjà
   // à jour au moment de la soumission).
-  if(!call){ notify('Indicatif manquant !'); return; }
+  if(!call){
+    document.getElementById('inputCall')?.focus();
+    notify('Indicatif manquant !');
+    return;
+  }
   if(!freq){
     document.getElementById('inputFreq')?.focus();
     notify('Fréquence manquante !');
@@ -2980,7 +2984,7 @@ function renderLog(){
       <td class="td-loc">${escHtml(q.locator)||'—'}</td>
       <td style="color:${distColor};font-weight:700;font-size:15px">${q.dist?q.dist+' km':'—'}${cap!=='—'?' '+cap:''}</td>
       <td class="td-pts">${escHtml(q.points)||'—'}</td>
-      <td><span class="td-op ${opColor.cls}" style="${opColor.style}">${escHtml(_resolveOperatorCallsign(q.operator))||'—'}</span></td>
+      <td class="td-op-col"><span class="td-op ${opColor.cls}" style="${opColor.style}">${escHtml(_resolveOperatorCallsign(q.operator))||'—'}</span></td>
       <td class="td-edit" onclick="editQSO(${q.id})" title="Corriger">✏️</td>
       <td class="td-del" onclick="deleteQSO(${q.id})" title="Supprimer">✕</td>
     </tr>`;
@@ -3694,6 +3698,12 @@ function prefillSetupFromConfig(){
   if(peersInfo && isSingleOp){
     const wrap = peersInfo.closest('span'); if(wrap) wrap.style.display = 'none';
   }
+  // Colonne OP du tableau de QSO : même logique, un seul opérateur rend la
+  // colonne redondante (bruit visuel). Classe posée sur le conteneur du
+  // tableau plutôt que sur chaque <td> (régénérés à chaque renderLog()) —
+  // masquage CSS pur, cf. règle .single-op-mode .th-op-col/.td-op-col.
+  const logTableWrap = document.getElementById('logTableWrap');
+  if(logTableWrap) logTableWrap.classList.toggle('single-op-mode', isSingleOp);
   if(isSingleOp){
     myOp = 'OP1';
     const cur = document.getElementById('currentOp');

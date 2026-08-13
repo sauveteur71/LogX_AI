@@ -54,7 +54,9 @@
   .hdr-clock { margin-left:auto; font-family:var(--font-mono); font-size:13px;
     color:var(--accent2); letter-spacing:1px; text-align:right; }
   .theme-btn { background:none; border:1px solid var(--border); border-radius:8px;
-    font-size:16px; padding:6px 10px; cursor:pointer; color:var(--text); }
+    font-size:16px; padding:6px 10px; cursor:pointer; color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+    min-width:48px; min-height:48px; flex-shrink:0; }
 
   /* Bandeau stats (alimenté par /data/wall — léger, jamais le log complet) */
   .stats { display:flex; background:var(--bg2); border-bottom:1px solid var(--border); }
@@ -169,6 +171,7 @@
   .rq-call { color:var(--green); font-weight:700; letter-spacing:1px; }
   .rq-band { color:var(--accent2); }
   .rq-op { margin-left:auto; color:var(--muted); font-size:12px; }
+  .empty { padding:30px; text-align:center; color:var(--muted); font-size:13px; }
 
   .foot-link { text-align:center; padding:10px; font-family:var(--font-mono); font-size:12px; }
   .foot-link a { color:var(--muted); }
@@ -189,7 +192,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="hdr-sub" id="hdrSub">saisie mobile · log partagé</div>
   </div>
   <div class="hdr-clock rc-i18n-live" id="hdrClock">--:--<br>UTC</div>
-  <button type="button" class="theme-btn" id="themeBtn" onclick="toggleTheme()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:18px;height:18px;display:block"><circle cx="9" cy="9" r="3.2"/><line x1="9" y1="1.5" x2="9" y2="3.2"/><line x1="9" y1="14.8" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="3.2" y2="9"/><line x1="14.8" y1="9" x2="16.5" y2="9"/><line x1="3.6" y1="3.6" x2="4.8" y2="4.8"/><line x1="13.2" y1="13.2" x2="14.4" y2="14.4"/><line x1="3.6" y1="14.4" x2="4.8" y2="13.2"/><line x1="13.2" y1="4.8" x2="14.4" y2="3.6"/></svg></button>
+  <button type="button" class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Basculer jour/nuit" aria-label="Basculer jour/nuit"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:18px;height:18px;display:block"><circle cx="9" cy="9" r="3.2"/><line x1="9" y1="1.5" x2="9" y2="3.2"/><line x1="9" y1="14.8" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="3.2" y2="9"/><line x1="14.8" y1="9" x2="16.5" y2="9"/><line x1="3.6" y1="3.6" x2="4.8" y2="4.8"/><line x1="13.2" y1="13.2" x2="14.4" y2="14.4"/><line x1="3.6" y1="14.4" x2="4.8" y2="13.2"/><line x1="13.2" y1="4.8" x2="14.4" y2="3.6"/></svg></button>
 </header>
 
 <div class="stats">
@@ -451,11 +454,13 @@ async function pollWall(){
     document.getElementById('stOdx').textContent = (w.odx && w.odx.km) ? w.odx.km : '—';
     document.getElementById('stRate').textContent = w.rate_hour ?? '—';
     const list = document.getElementById('recentList');
-    list.innerHTML = (w.recent || []).slice(0, 12).map(q =>
+    const recent = w.recent || [];
+    list.innerHTML = recent.length ? recent.slice(0, 12).map(q =>
       `<div class="rq"><span class="rq-time">${esc(q.time)}</span>` +
       `<span class="rq-call">${esc(q.flag || '')} ${esc(q.call)}</span>` +
       `<span class="rq-band">${esc(q.band)}</span>` +
-      `<span class="rq-op">${esc(q.op)}</span></div>`).join('');
+      `<span class="rq-op">${esc(q.op)}</span></div>`).join('')
+      : '<div class="empty">Aucun QSO pour l\'instant</div>';
     document.getElementById('liveDot').style.background = 'var(--green)';
     syncOfflineQueue();   // réseau confirmé UP : tenter le renvoi de la file
   }catch(e){
