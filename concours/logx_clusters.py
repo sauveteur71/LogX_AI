@@ -63,6 +63,63 @@ def freq_en_khz(freq, band=''):
     return v if v > 1000 else v * 1000.0
 
 
+# ─── SPLIT/QSX — extraction best-effort du commentaire de spot ──────────────
+def parse_split_info(info, band=''):
+    """Repère une annonce split/QSX DANS LE TEXTE LIBRE d'un commentaire de
+    spot cluster (champ 'info', déjà transmis intact au client par
+    /data/spots_ranked et /data/focus — voir entry{} dans logx_http.py).
+
+    AUCUNE structure fiable n'existe côté protocole DX Spider/DXHeat/DXSummit
+    pour ça : seulement des conventions informelles tapées à la main par le
+    spotteur (« UP2 », « QSX 14195 »...). Motifs reconnus : « UP n », « DOWN n »
+    / « DN n » (offset en kHz, convention split constante), « QSX <freq> » /
+    « LSN <freq> » (fréquence d'écoute absolue — unité ambiguë comme pour le
+    champ 'freq' d'un spot, résolue avec la MÊME logique que freq_en_khz() ci-
+    dessus plutôt que d'inventer une 2e heuristique d'unité), « SPLIT » seul.
+    Best-effort assumé : un commentaire ambigu ou muet retombe sur
+    split=False plutôt que sur un faux positif — ne JAMAIS deviner au-delà de
+    ces motifs explicites.
+
+    `band` (ex. '14', optionnel) affine l'interprétation d'une fréquence QSX/
+    LSN ambiguë, exactement comme pour freq_en_khz().
+    """
+    txt = str(info or '').upper()
+    if not txt:
+        return {'split': False, 'qsx_khz': None, 'offset_khz': None, 'direction': None}
+
+    # QSX/LSN <fréquence> — fréquence d'écoute absolue.
+    qsx_khz = None
+    m_qsx = re.search(r'\b(?:QSX|LSN)\s*[:]?\s*(\d{1,6}(?:[.,]\d{1,3})?)', txt)
+    if m_qsx:
+        try:
+            qsx_khz = freq_en_khz(float(m_qsx.group(1).replace(',', '.')), band)
+        except (TypeError, ValueError):
+            qsx_khz = None
+
+    # UP/DOWN [n] — offset en kHz. Lookahead (?![A-Z]) après le mot-clé pour
+    # ne pas matcher à l'intérieur de UPDATE/UPLOAD/GROUP/SUPPORT (ces mots
+    # n'ont pas de frontière \b interne entre les deux lettres concernées,
+    # sauf UP au tout début d'un mot plus long comme UPDATE/UPLOAD — d'où ce
+    # garde-fou supplémentaire). "UP2"/"DN5" collés sans espace restent
+    # reconnus : le lookahead n'exclut que les LETTRES, pas les chiffres.
+    direction = None
+    offset_khz = None
+    m_up = re.search(r'\bUP(?![A-Z])\s*[:]?\s*(\d{1,4}(?:[.,]\d{1,3})?)?', txt)
+    m_down = re.search(r'\b(?:DOWN|DN)(?![A-Z])\s*[:]?\s*(\d{1,4}(?:[.,]\d{1,3})?)?', txt)
+    m_dir = m_up or m_down
+    if m_dir:
+        direction = 'up' if m_dir is m_up else 'down'
+        if m_dir.group(1):
+            try:
+                offset_khz = float(m_dir.group(1).replace(',', '.'))
+            except (TypeError, ValueError):
+                offset_khz = None
+
+    has_split_word = re.search(r'\bSPLIT\b', txt) is not None
+    split = bool(has_split_word or qsx_khz is not None or direction is not None)
+    return {'split': split, 'qsx_khz': qsx_khz, 'offset_khz': offset_khz, 'direction': direction}
+
+
 def _normalize_spot(call='', locator='', freq=0.0, spotter='', time_str='', info='', source=''):
     """Retourne un dict de spot normalisé avec coordonnées si locator disponible."""
     # Défense contre les None explicites (ex: champ JSON null) — le défaut de paramètre
