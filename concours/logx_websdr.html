@@ -165,24 +165,25 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div id="map"></div>
 
   <div class="filters">
-    <input type="text" id="fSearch" placeholder="Rechercher (nom, lieu, indicatif…)">
-    <select id="fType">
+    <input type="text" id="fSearch" placeholder="Rechercher (nom, lieu, indicatif…)"
+           title="Filtrer par nom, lieu, grid locator ou indicatif du récepteur">
+    <select id="fType" title="Filtrer par type de récepteur (KiwiSDR, WebSDR, OpenWebRX)">
       <option value="">Tous types</option>
       <option value="kiwi">KiwiSDR</option>
       <option value="websdr">WebSDR</option>
       <option value="openwebrx">OpenWebRX</option>
     </select>
-    <select id="fEtat">
+    <select id="fEtat" title="Filtrer par état du récepteur (en ligne, place libre…)">
       <option value="">Tous états</option>
       <option value="libre">En ligne, place libre</option>
       <option value="ligne">En ligne</option>
     </select>
-    <select id="fTri">
+    <select id="fTri" title="Trier la liste des récepteurs">
       <option value="dist">Tri : distance</option>
       <option value="snr">Tri : meilleur SNR</option>
       <option value="nom">Tri : nom</option>
     </select>
-    <label><input type="checkbox" id="fFrance"> 🇫🇷 <span>France d'abord</span></label>
+    <label title="Faire remonter les récepteurs français en tête de liste, sans masquer les autres"><input type="checkbox" id="fFrance"> 🇫🇷 <span>France d'abord</span></label>
   </div>
 
   <!-- Séparé de .filters à dessein : kHz/mode ne FILTRENT jamais la liste
@@ -192,8 +193,9 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
        des boutons ÉCOUTER de chaque récepteur (urlEcoute()). -->
   <div class="listen-presets" title="Préremplit la fréquence/le mode des boutons ÉCOUTER ci-dessous — ne filtre pas la liste des récepteurs">
     <span class="listen-presets-lbl">🎧 Fréquence d'écoute (pour les boutons ÉCOUTER, ne filtre pas la liste)</span>
-    <label>kHz <input type="number" id="fKhz" min="0" step="0.1" placeholder="14074"></label>
-    <select id="fMode">
+    <label>kHz <input type="number" id="fKhz" min="0" step="0.1" placeholder="14074"
+           title="Fréquence en kHz pré-remplie dans les boutons ÉCOUTER — ne filtre pas la liste"></label>
+    <select id="fMode" title="Mode radio pré-rempli dans les boutons ÉCOUTER (auto = déduit de la fréquence) — ne filtre pas la liste">
       <option value="">mode auto</option>
       <option>CW</option><option>SSB</option><option>USB</option>
       <option>LSB</option><option>AM</option><option>FM</option><option>FT8</option>
@@ -216,6 +218,11 @@ const Tf = (s, p) => (window.rcTf ? window.rcTf(s, p) : (function(){
 
 let STATIONS = [];
 let carte = null, couche = null;
+// Distingue « pas encore chargé » de « chargé mais zéro résultat » (constat
+// audit intuitivité 13/08/2026) : sdrEmpty ne doit annoncer « aucun
+// récepteur ne correspond à ces filtres » qu'APRÈS un premier chargement
+// réussi — avant, la grille affiche son propre placeholder de chargement.
+let PREMIER_CHARGEMENT_FAIT = false;
 
 // ── L'URL d'écoute, MIROIR de logx_websdr.url_ecoute côté serveur ───────────
 // Dupliquée ici parce qu'elle dépend du champ fréquence que l'utilisateur
@@ -342,7 +349,13 @@ function render(){
   const liste = filtrer();
   document.getElementById('resCount').textContent =
     Tf('{n} affichés / {t} récepteurs', {n: Math.min(liste.length, PLAFOND_LISTE), t: STATIONS.length});
-  document.getElementById('sdrEmpty').style.display = liste.length ? 'none' : 'block';
+  // Le message « aucun récepteur ne correspond à ces filtres » ne doit
+  // apparaître qu'APRÈS un premier chargement réussi — avant, c'est le
+  // placeholder de chargement de #sdrGrid qui est affiché, pas ce message
+  // (qui laisserait croire à un filtrage trop strict pendant que le
+  // serveur répond encore).
+  document.getElementById('sdrEmpty').style.display =
+    (PREMIER_CHARGEMENT_FAIT && !liste.length) ? 'block' : 'none';
   majCarte(liste);
   const fq = freqCourante();
   const cartes = liste.slice(0, PLAFOND_LISTE).map(s => {
@@ -413,6 +426,7 @@ async function charger(){
     const r = await fetch('/data/websdr');
     const d = await r.json();
     STATIONS = d.stations || [];
+    PREMIER_CHARGEMENT_FAIT = true;
     DERNIERE_SUGGESTION = d.suggestion || null;
     DERNIER_AGE = d.age || null;
     majAge(DERNIER_AGE);
@@ -445,6 +459,7 @@ async function charger(){
 for (const id of ['fSearch', 'fType', 'fEtat', 'fTri', 'fFrance', 'fKhz', 'fMode']){
   document.getElementById(id).addEventListener(
     id === 'fSearch' || id === 'fKhz' ? 'input' : 'change', () => {
+      if (!PREMIER_CHARGEMENT_FAIT) return;   // rien à filtrer avant le 1er chargement
       render();
       majSuggestion(DERNIERE_SUGGESTION);   // le lien S'ÉCOUTER suit la fréquence
     });
@@ -460,6 +475,13 @@ window.addEventListener('rc-lang', () => {
   majSuggestion(DERNIERE_SUGGESTION);
   majAge(DERNIER_AGE);
 });
+
+// État de chargement explicite dès le tout premier rendu (constat audit
+// intuitivité 13/08/2026) : sans lui, #sdrGrid restait vide en silence
+// pendant l'aller-retour réseau initial, indiscernable d'un vrai « aucun
+// résultat ». Remplacé par render() dès la fin du premier chargement.
+document.getElementById('sdrGrid').innerHTML =
+  '<div class="empty">⏳ ' + esc(T('Chargement des récepteurs…')) + '</div>';
 
 initCarte();
 charger();

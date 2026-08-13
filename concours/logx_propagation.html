@@ -365,7 +365,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
    </div><!-- /propPane-focus -->
 
    <div class="prop-pane" id="propPane-hf" data-pane="hf" hidden
-        role="tabpanel" aria-labelledby="propTabBtn-hf"
+        role="tabpanel" aria-labelledby="propTabBtn-hf">
 
     <!-- OUVERTURES PAR RÉGION est SEUL au-dessus, hors de la maçonnerie :
          c'est un tableau de 5 colonnes, il ne tenait pas dans une colonne de
@@ -528,6 +528,22 @@ const rcT = (s) => (window.rcT ? window.rcT(s) : s);
 function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// Qualificatifs bruts de la source N0NBH (hamqsl.com) : anglais non traduit
+// (Good/Fair/Poor pour les conditions par bande, Quiet/Unsettled/Active/...
+// pour geomagfield). "Quiet" → "Calme" reprend l'équivalence déjà établie
+// par logx_i18n.js (paire fr→en "Calme":"Quiet" utilisée ailleurs dans le
+// projet pour la même notion) ; les autres valeurs du même jeu N0NBH sont
+// traduites dans le même esprit pour ne pas laisser d'anglais brut isolé.
+const N0NBH_FR = {
+  'good': 'bonne', 'fair': 'moyenne', 'poor': 'faible', 'band closed': 'fermée',
+  'quiet': 'calme', 'unsettled': 'perturbé', 'active': 'active',
+  'minor storm': 'orage mineur', 'major storm': 'orage majeur', 'severe storm': 'orage sévère',
+};
+function trN0nbh(v){
+  const k = String(v || '').trim().toLowerCase();
+  return N0NBH_FR[k] || v;
+}
+
 // La MUF dit quelles bandes HF sont physiquement ouvertes en ce moment
 
 async function loadPropagation(){
@@ -539,16 +555,22 @@ async function loadPropagation(){
 
     document.getElementById('solarUpdated').textContent = s.updated || '';
     document.getElementById('solarGrid').innerHTML = [
-      ['SFI', s.sfi, 'flux solaire', s.sfi >= 120 ? 'var(--green)' : s.sfi >= 90 ? 'var(--yellow)' : 'var(--red)'],
-      ['INDEX K', s.k_index, s.k_index <= 2 ? 'stable' : s.k_index <= 4 ? 'agité' : 'orage !', s.k_index <= 2 ? 'var(--green)' : s.k_index <= 4 ? 'var(--yellow)' : 'var(--red)'],
-      ['INDEX A', s.a_index, 'géomagnétisme', s.a_index <= 15 ? 'var(--green)' : 'var(--yellow)'],
-      ['TACHES', s.sunspots, 'sunspots', 'var(--text)'],
-      ['RAYONS X', s.xray, 'éruptions', 'var(--text)'],
-      ['AURORE', s.aurora, s.geomag || '', 'var(--text)'],
-    ].map(([l, v, sub, col]) =>
-      `<div class="solar-item"><div class="si-lbl">${l}</div>
+      ['SFI', s.sfi, 'flux solaire', s.sfi >= 120 ? 'var(--green)' : s.sfi >= 90 ? 'var(--yellow)' : 'var(--red)',
+        rcT("SFI (Solar Flux Index) — indice de flux solaire à 10,7 cm : plus il est élevé, meilleure est la propagation HF.")],
+      ['INDEX K', s.k_index, s.k_index <= 2 ? 'stable' : s.k_index <= 4 ? 'agité' : 'orage !', s.k_index <= 2 ? 'var(--green)' : s.k_index <= 4 ? 'var(--yellow)' : 'var(--red)',
+        rcT("Index K — agitation géomagnétique à court terme (échelle 0-9) : plus il est bas, plus la propagation HF est stable.")],
+      ['INDEX A', s.a_index, 'géomagnétisme', s.a_index <= 15 ? 'var(--green)' : 'var(--yellow)',
+        rcT("Index A — moyenne de l'agitation géomagnétique sur 24 h : plus il est bas, plus l'ionosphère est calme.")],
+      ['TACHES', s.sunspots, 'sunspots', 'var(--text)',
+        rcT("Nombre de taches solaires — plus il est élevé, plus l'activité solaire (et souvent la propagation HF) est forte.")],
+      ['RAYONS X', s.xray, 'éruptions', 'var(--text)',
+        rcT("Classe des éruptions solaires en rayons X (ex : C, M, X) — une classe élevée peut provoquer un black-out radio HF (SID).")],
+      ['AURORE', s.aurora, trN0nbh(s.geomag) || '', 'var(--text)',
+        rcT("Activité aurorale — une valeur élevée dégrade la propagation HF aux hautes latitudes et peut ouvrir le VHF par aurore.")],
+    ].map(([l, v, sub, col, tip]) =>
+      `<div class="solar-item" title="${esc(tip)}"><div class="si-lbl">${l}</div>
        <div class="si-val" style="color:${col}">${v ?? '—'}</div>
-       <div class="si-sub">${sub}</div></div>`).join('');
+       <div class="si-sub">${esc(sub)}</div></div>`).join('');
 
     // MUF + verdict bande par bande
     const muf = d.muf && d.muf.muf;
@@ -583,7 +605,9 @@ async function loadPropagation(){
     // pour tout le monde, quelle que soit la position. Dit franchement, pour
     // qu'on ne les confonde pas avec le verdict ci-dessus, qui est le tien.
     const lignesN0NBH = Object.entries(s.bands || {}).map(([name, dn]) => {
-      const tag = v => `<span class="bc-tag bc-${(v||'').toLowerCase().replace('good','good').replace('fair','fair').replace('poor','poor')}">${esc(v||'?')}</span>`;
+      // Classe CSS (bc-good/bc-fair/bc-poor) sur la valeur BRUTE anglaise
+      // (mapping visuel existant) ; texte affiché traduit via trN0nbh().
+      const tag = v => `<span class="bc-tag bc-${(v||'').toLowerCase()}" title="${esc(rcT('Conditions de propagation N0NBH (mondiales, pas depuis ton QTH)'))}">${esc(trN0nbh(v) || '?')}</span>`;
       return `<div class="bc-row"><span class="bc-name">${esc(name)}</span>
         ☀️${tag(dn.day)} 🌙${tag(dn.night)}</div>`;
     }).join('');
