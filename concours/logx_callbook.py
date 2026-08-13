@@ -248,6 +248,7 @@ def _bulk_resolve_run(get_cfg, ids, overwrite):
 
     updated = 0
     with storage.log_lock:
+        changed_qsos = []
         for q in storage.shared_log:
             if ids_set is not None and q.get('id') not in ids_set:
                 continue
@@ -265,8 +266,17 @@ def _bulk_resolve_run(get_cfg, ids, overwrite):
                 changed = True
             if changed:
                 updated += 1
+                changed_qsos.append(q)
         if updated:
             storage.bump_log_version()
+            # stamp_qso_version() par QSO modifié, comme TOUS les autres chemins
+            # de mutation (voir /log/add, /log/update, /log/import_adif/commit
+            # dans logx_http.py) — sans ce timbre, save_log_to_disk() (qui se
+            # base sur '_v' pour décider quoi réécrire) ignore ces QSO alors que
+            # _disk_version est quand même avancé : la résolution en masse se
+            # croit persistée mais disparaît au prochain rechargement du log.
+            for q in changed_qsos:
+                storage.stamp_qso_version(q)
     if updated:
         storage.save_log_to_disk()
 
