@@ -4129,6 +4129,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/data/spots_ranked':
             from logx_scoring import build_ranked_spots
             import logx_alerts as alerts
+            import logx_awards as awards
             cfg_snap = self._cfg_snapshot()
             ranked, meta = build_ranked_spots({}, _spots_from_caches(), cfg_snap)
             my_ll = locator_to_latlon(cfg_snap.get('locator', '') or 'JN15XC')
@@ -4145,9 +4146,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # écran ne pouvait le lire juste. Un seul point de conversion,
                 # ici, pour les six pages qui consomment cet endpoint —
                 # voir logx_clusters.freq_en_khz.
+                _khz = freq_en_khz(s.get('freq', ''), s.get('band', ''))
                 entry = {
                     'call': s.get('call', ''), 'band': s.get('band', ''),
-                    'freq': freq_en_khz(s.get('freq', ''), s.get('band', '')),
+                    'freq': _khz,
                     'locator': s.get('locator', ''),
                     'lat': s.get('lat'), 'lon': s.get('lon'),
                     'dist_km': s.get('dist_km', 0), 'time': s.get('time', ''),
@@ -4163,9 +4165,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # un JA qui spotte une VK décrit un chemin JA-VK.
                     'spotter': s.get('spotter', ''),
                     # Mode annoncé par la source quand elle en a un (DXHeat,
-                    # DXSummit…) : le bouton « écouter ce spot » ouvre alors le
-                    # WebSDR dans la bonne modulation, pas en SSB par défaut.
-                    'mode': s.get('mode', ''),
+                    # DXSummit…), sinon DÉDUIT de la fréquence (même repli que
+                    # /data/focus, voir logx_awards.mode_depuis_frequence) : le
+                    # bouton « écouter ce spot » ouvre alors le WebSDR dans la
+                    # bonne modulation au lieu de retomber en SSB par défaut.
+                    'mode': s.get('mode') or awards.mode_depuis_frequence(_khz),
                     'points': sc.get('direct_pts', 0),
                     'new_mult': bool(sc.get('new_mult')),
                     'mult_type': sc.get('mult_type', ''),
