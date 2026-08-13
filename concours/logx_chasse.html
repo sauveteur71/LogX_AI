@@ -10,12 +10,14 @@
   --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#464950;
   --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
   --yellow:#FFD60A;--purple:#BF5AF2;--text:#E9ECF5;--muted:#A9B0C8;
+  --orange:#FF9500;
   --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
 }
 body.day-mode {
   --bg:#EDEAE0; --bg2:#F8F6EF; --bg3:#E3DED0; --border:#B8B096;
   --accent:#8B4F1F; --accent2:#8B4F1F; --accent-rgb:139,79,31; --green:#007030; --red:#CC0030;
   --yellow:#7A5A00; --purple:#8040B0; --text:#232320; --muted:#665F55;
+  --orange:#B35900;
 }
 body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -33,6 +35,14 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 body.simple-mode .expert-only{display:none!important}
 .app-nav a:hover{color:var(--text);background:var(--bg3)}
 .app-nav a.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg3)}
+/* Cadrage de page (audit intuitivité 13/08/2026, A1) : sans cette ligne,
+   l'explication du rôle de CHASSE face à PROPAG n'existait que dans le
+   title= du lien nav, invisible une fois arrivé sur la page. Bandeau fin et
+   flex-shrink:0 pour ne pas grignoter le budget de hauteur des 5 listes
+   (page sans scroll, voir commentaire .container plus bas). */
+.page-intro{flex-shrink:0;padding:7px 24px;background:var(--bg2);border-bottom:1px solid var(--border);
+  font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.5}
+.page-intro b{color:var(--accent2);font-weight:700}
 
 /* CHASSE = « qui contacter maintenant ». Cinq listes de cibles, JAMAIS de
    défilement de page : la fenêtre est découpée une fois pour toutes et c'est
@@ -113,6 +123,11 @@ body.simple-mode .expert-only{display:none!important}
 .sr-note{font-size:11px;line-height:1.3;color:var(--muted);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .loading{text-align:center;padding:30px;font-family:var(--font-mono);color:var(--muted)}
+/* Légende des points de priorité (audit intuitivité 13/08/2026, A3) : chaque
+   point n'avait qu'un title= individuel, pas d'échelle globale visible. */
+.prio-legend{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-bottom:8px;
+  font-family:var(--font-mono);font-size:10px;color:var(--muted);flex-shrink:0}
+.prio-legend b{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;margin-right:3px;flex-shrink:0}
 .filters{display:flex;gap:8px;margin-bottom:10px;flex-shrink:0}
 .filter-btn{font-family:var(--font-mono);font-size:12px;padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;letter-spacing:1px}
 .filter-btn.active{border-color:var(--accent2);color:var(--accent2)}
@@ -213,7 +228,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <a href="logx_modes_numeriques.html" title="Modes numériques en fenêtres détachables : FT8, RTTY, SSTV"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg></span>MODE NUMÉRIQUE</a>
   <a href="logx_propagation.html" title="Conditions de propagation HF : indices solaires, MUF, bandes ouvertes"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
   <a href="logx_carte.html" title="Tableau de bord temps réel : propagation, spots, analyse IA"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>
-  <a href="logx_departements.html" title="Suivi du diplôme départements français (REF)"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>ZONES TRAVAILLÉES</a>
+  <a href="logx_departements.html" title="Suivi du diplôme départements français (REF) et des pays DXCC"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>ZONES TRAVAILLÉES</a>
   <a href="javascript:void(0)" onclick="window.open('/logx_panadapter.html','rc_panadapter','width=900,height=560,menubar=no,toolbar=no,location=no')" title="Panadapter : spectre + chute d'eau (audio, CI-V Icom, ou flux TCI)"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg></span>PANADAPTER</a>
   <a href="logx_calendrier.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
   <a href="logx_websdr.html" title="Écouter en direct via un récepteur SDR distant"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></span>WEBSDR</a>
@@ -222,6 +237,8 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <script src="logx_statusbar.js"></script>
 <script src="logx_i18n.js"></script>
 <script src="logx_search.js"></script>
+
+<div class="page-intro"><b>CHASSE</b> = qui contacter maintenant — spots du cluster triés par intérêt pour ton concours, POTA/SOTA/WWFF/WCA en direct, DXpéditions annoncées. Pour les conditions de propagation (indices solaires, MUF, bandes ouvertes), c'est <b>PROPAG</b>.</div>
 
 <div class="expedition-banner" id="expeditionBanner">
   <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L2 15h14z"/><line x1="9" y1="3" x2="9" y2="15"/><line x1="6.5" y1="15" x2="9" y2="9.5"/><line x1="11.5" y1="15" x2="9" y2="9.5"/></svg>
@@ -233,22 +250,22 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <div class="hunt-main">
 
     <div class="panel">
-      <div class="panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><line x1="9" y1="11" x2="9" y2="16"/><line x1="4.5" y1="16" x2="13.5" y2="16"/></svg> STATIONS POTA EN DIRECT <small id="potaMeta"></small></div>
+      <div class="panel-title" title="Parks on the Air — programme d'activation de parcs naturels, chasse aux références de parcs actuellement en trafic"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><line x1="9" y1="11" x2="9" y2="16"/><line x1="4.5" y1="16" x2="13.5" y2="16"/></svg> STATIONS POTA EN DIRECT <small id="potaMeta"></small></div>
       <div id="potaList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,15 6.5,6 10,12"/><polyline points="8,15 12.5,5 16,15"/><line x1="2" y1="15" x2="16" y2="15"/></svg> STATIONS SOTA EN DIRECT <small id="sotaMeta"></small></div>
+      <div class="panel-title" title="Summits on the Air — programme d'activation de sommets en montagne, chasse aux références de sommets actuellement en trafic"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,15 6.5,6 10,12"/><polyline points="8,15 12.5,5 16,15"/><line x1="2" y1="15" x2="16" y2="15"/></svg> STATIONS SOTA EN DIRECT <small id="sotaMeta"></small></div>
       <div id="sotaList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,2 5,7.5 13,7.5"/><polyline points="9,5.5 4,12 14,12"/><line x1="9" y1="12" x2="9" y2="16"/></svg> STATIONS WWFF EN DIRECT <small id="wwffMeta"></small></div>
+      <div class="panel-title" title="World Wide Flora & Fauna — programme d'activation d'espaces naturels protégés, chasse aux références actuellement en trafic"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,2 5,7.5 13,7.5"/><polyline points="9,5.5 4,12 14,12"/><line x1="9" y1="12" x2="9" y2="16"/></svg> STATIONS WWFF EN DIRECT <small id="wwffMeta"></small></div>
       <div id="wwffList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
     <div class="panel">
-      <div class="panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="8.5" width="12" height="7" rx="0.5"/><rect x="3.5" y="4.5" width="2.2" height="4"/><rect x="7.9" y="4.5" width="2.2" height="4"/><rect x="12.3" y="4.5" width="2.2" height="4"/><rect x="7.7" y="11" width="2.6" height="4.5"/></svg> CHÂTEAUX WCA/COTA — ANNONCÉS <small id="wcaMeta"></small></div>
+      <div class="panel-title" title="World Castles Award / Castles On The Air — programme d'activation de châteaux et forteresses, activations annoncées à l'avance (pas des spots confirmés)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="8.5" width="12" height="7" rx="0.5"/><rect x="3.5" y="4.5" width="2.2" height="4"/><rect x="7.9" y="4.5" width="2.2" height="4"/><rect x="12.3" y="4.5" width="2.2" height="4"/><rect x="7.7" y="11" width="2.6" height="4.5"/></svg> CHÂTEAUX WCA/COTA — ANNONCÉS <small id="wcaMeta"></small></div>
       <div id="wcaList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
@@ -256,7 +273,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
          des dates, fréquence live si l'indicatif est repéré sur le cluster
          (voir logx_dxpeditions.fetch_dxpeditions_chasse côté serveur). -->
     <div class="panel full-width">
-      <div class="panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a6.5 6.5 0 1 0 6.5 6.5"/><path d="M9 2.5v6.5l4.6 2.65"/><circle cx="15.5" cy="3.5" r="1.5" fill="currentColor" stroke="none"/></svg> EXPÉDITIONS DX — NG3K <small id="dxMeta"></small></div>
+      <div class="panel-title" title="NG3K = ng3k.com/adxo.xml, la référence des annonces de DXpéditions (expéditions radioamateurs vers des pays/entités rares)"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5a6.5 6.5 0 1 0 6.5 6.5"/><path d="M9 2.5v6.5l4.6 2.65"/><circle cx="15.5" cy="3.5" r="1.5" fill="currentColor" stroke="none"/></svg> EXPÉDITIONS DX — NG3K <small id="dxMeta"></small></div>
       <div id="dxList" class="scroll-list"><div class="loading">…</div></div>
     </div>
 
@@ -265,8 +282,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <!-- CLUSTER NEED LIST : colonne droite, pleine hauteur, lecture complète -->
   <div class="hunt-cluster">
     <div class="panel">
-      <div class="panel-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg> CLUSTER — NEED LIST <small id="spotsMeta"></small>
+      <div class="panel-title" title="Spots du cluster DX filtrés et triés sur ce qu'il te manque encore comme multiplicateur pour ton concours"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg> CLUSTER — NEED LIST <small id="spotsMeta"></small>
         <button type="button" onclick="window.rcOpenPanel && window.rcOpenPanel('cluster')" title="Détacher ce panneau dans une fenêtre séparée" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px">⇱</button>
+      </div>
+      <div class="prio-legend" title="Échelle de priorité du point coloré sur chaque spot">
+        <span><b style="background:var(--green)"></b>max</span>
+        <span><b style="background:var(--red)"></b>haute</span>
+        <span><b style="background:var(--orange)"></b>moyenne</span>
+        <span><b style="background:var(--yellow)"></b>basse</span>
+        <span><b style="background:var(--muted)"></b>info</span>
+        <span><b style="background:var(--border)"></b>déjà fait</span>
       </div>
       <div class="filters">
         <button class="filter-btn active" data-f="all" onclick="setFilter(this)">TOUS</button>
@@ -389,7 +414,14 @@ async function qsyTo(freqKhz, call){
   }catch(e){}
 }
 
-const PRIO_COLORS = {1:'#00FF88',2:'#FF2D55',3:'#FF9500',4:'#FFD60A',5:'#8E8E93',6:'#3A3A3C'};
+// Valeurs = variables CSS de thème (pas de hex codé en dur, audit intuitivité
+// 13/08/2026 A4) : 1/2/4 correspondent exactement aux --green/--red/--yellow
+// existants, 3 réutilise un nouvel --orange dédié (aucune variable existante
+// ne correspondait), 5 (info seule) réutilise --muted et 6 (déjà fait, à
+// estomper) réutilise --border — tous les deux déjà pensés pour être neutres
+// et discrets dans les deux thèmes. Résolu par le navigateur au moment du
+// rendu, donc suit automatiquement la bascule jour/nuit.
+const PRIO_COLORS = {1:'var(--green)',2:'var(--red)',3:'var(--orange)',4:'var(--yellow)',5:'var(--muted)',6:'var(--border)'};
 
 // ─── CLUSTER NEED LIST : les spots triés par intérêt pour MON concours ───────
 async function loadSpots(){
@@ -467,7 +499,7 @@ function renderSpots(){
   }
   document.getElementById('spotList').innerHTML = list.map(s => `
     <div class="spot-row ${s.new_mult && !s.already_done ? 'sr-mult' : ''} ${s.already_done ? 'sr-done' : ''}">
-      <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || '#8E8E93'}" title="${rcT('priorité')} ${s.priority}"></span>
+      <span class="sr-prio" style="background:${PRIO_COLORS[s.priority] || 'var(--muted)'}" title="${rcT('priorité')} ${s.priority}"></span>
       ${rigEnabled && s.freq ? `<button class="qsy-btn" onclick="qsyTo(${Number(s.freq)||0},'${jsCall(s.call)}')" title="${rcT('Régler la radio sur')} ${esc(s.freq)} kHz">▶ QSY</button>` : ''}
       ${rotorEnabled && s.bearing != null ? `<button class="point-btn" onclick="pointTo(${Number(s.bearing)||0},'${jsCall(s.call)}','${jsBand(s.band)}')" title="${rcT("Pointer l'antenne sur")} ${Math.round(s.bearing)}°">🧭 ${Math.round(s.bearing)}°</button>` : ''}
       ${(s.mode && /ft8|ft4/i.test(s.mode)) ? `<button class="strat-btn" onclick="ft8Strategy('${jsCall(s.call)}')" title="${rcT('Stratégie pile-up FT8 : où et quand appeler')}">🧠</button>` : ''}
@@ -542,11 +574,11 @@ function closeStrat(){ const ov=document.getElementById('stratOverlay'); if(ov) 
 
 // ─── POTA : activateurs en direct (api.pota.app, via le serveur) ────────────
 async function loadPota(){
+  const meta = document.getElementById('potaMeta');
+  const el = document.getElementById('potaList');
   try{
     const r = await fetch('/data/pota_spots');
     const d = await r.json();
-    const meta = document.getElementById('potaMeta');
-    const el = document.getElementById('potaList');
     const spots = d.spots || [];
     if(!spots.length){
       el.innerHTML = `<div class="loading">Aucun trafic POTA signalé pour l'instant.</div>`;
@@ -567,16 +599,21 @@ async function loadPota(){
         <div class="sr-place" title="${esc(s.reference)}${s.park_name?' · '+esc(s.park_name):''}"><span class="sr-ref">${esc(s.reference)}</span>${s.park_name?' · '+esc(s.park_name):''}</div>
         ${s.comment?`<div class="sr-note" title="${esc(s.comment)}">${esc(s.comment)}</div>`:''}
       </div>`).join('');
-  }catch(e){}
+  }catch(e){
+    // Échec réseau réel (pas juste "aucun spot") : sans ce retour, le panneau
+    // restait bloqué sur "…" indéfiniment (audit intuitivité 13/08/2026, A5).
+    el.innerHTML = `<div class="loading">⚠ Impossible de charger — nouvel essai dans 2 min</div>`;
+    meta.textContent = '';
+  }
 }
 
 // ─── SOTA : activateurs en direct (api2.sota.org.uk, via le serveur) ────────
 async function loadSota(){
+  const meta = document.getElementById('sotaMeta');
+  const el = document.getElementById('sotaList');
   try{
     const r = await fetch('/data/sota_spots');
     const d = await r.json();
-    const meta = document.getElementById('sotaMeta');
-    const el = document.getElementById('sotaList');
     const spots = d.spots || [];
     if(!spots.length){
       el.innerHTML = `<div class="loading">Aucun trafic SOTA signalé pour l'instant.</div>`;
@@ -597,16 +634,19 @@ async function loadSota(){
         <div class="sr-place" title="${esc(s.reference)}${s.summit_name?' · '+esc(s.summit_name):''}"><span class="sr-ref">${esc(s.reference)}</span>${s.summit_name?' · '+esc(s.summit_name):''}${s.alt_m?' ('+esc(s.alt_m)+'m, '+esc(s.points)+'pts)':''}</div>
         ${s.comment?`<div class="sr-note" title="${esc(s.comment)}">${esc(s.comment)}</div>`:''}
       </div>`).join('');
-  }catch(e){}
+  }catch(e){
+    el.innerHTML = `<div class="loading">⚠ Impossible de charger — nouvel essai dans 1 min</div>`;
+    meta.textContent = '';
+  }
 }
 
 // ─── WWFF : activateurs en direct (spots.wwff.co, via le serveur) ───────────
 async function loadWwff(){
+  const meta = document.getElementById('wwffMeta');
+  const el = document.getElementById('wwffList');
   try{
     const r = await fetch('/data/wwff_spots');
     const d = await r.json();
-    const meta = document.getElementById('wwffMeta');
-    const el = document.getElementById('wwffList');
     const spots = d.spots || [];
     if(!spots.length){
       el.innerHTML = `<div class="loading">Aucun trafic WWFF signalé pour l'instant.</div>`;
@@ -627,7 +667,10 @@ async function loadWwff(){
         <div class="sr-place" title="${esc(s.reference)}${s.park_name?' · '+esc(s.park_name):''}"><span class="sr-ref">${esc(s.reference)}</span>${s.park_name?' · '+esc(s.park_name):''}</div>
         ${s.comment?`<div class="sr-note" title="${esc(s.comment)}">${esc(s.comment)}</div>`:''}
       </div>`).join('');
-  }catch(e){}
+  }catch(e){
+    el.innerHTML = `<div class="loading">⚠ Impossible de charger — nouvel essai dans 1 min</div>`;
+    meta.textContent = '';
+  }
 }
 
 // ─── WCA/COTA : activations ANNONCÉES à l'avance (flux RSS wcagroup.org) —
@@ -635,11 +678,11 @@ async function loadWwff(){
 // ce sont des opérateurs qui publient à l'avance leur intention d'activer un
 // château. Étiqueté différemment pour ne pas laisser croire à un spot réel.
 async function loadWca(){
+  const meta = document.getElementById('wcaMeta');
+  const el = document.getElementById('wcaList');
   try{
     const r = await fetch('/data/wca_planned');
     const d = await r.json();
-    const meta = document.getElementById('wcaMeta');
-    const el = document.getElementById('wcaList');
     const items = d.items || [];
     if(!items.length){
       el.innerHTML = `<div class="loading">Aucun trafic WCA/COTA annoncé pour l'instant.</div>`;
@@ -661,7 +704,10 @@ async function loadWca(){
              de défilement HORIZONTALE. Idem pour la 1re ligne ci-dessus. -->
         <div class="sr-info" style="width:100%;color:var(--muted);font-size:11px">${esc(String(it.description||'').slice(0,160))}</div>
       </div>`).join('');
-  }catch(e){}
+  }catch(e){
+    el.innerHTML = `<div class="loading">⚠ Impossible de charger — nouvel essai dans 5 min</div>`;
+    meta.textContent = '';
+  }
 }
 
 // ─── DXPEDITIONS : annonces NG3K (ng3k.com/adxo.xml), statut actif/à venir
@@ -672,11 +718,11 @@ async function loadWca(){
 // exploitable). Les expéditions déjà terminées sont déjà retirées côté
 // serveur — rien à filtrer ici.
 async function loadDxActive(){
+  const meta = document.getElementById('dxMeta');
+  const el = document.getElementById('dxList');
   try{
     const r = await fetch('/data/dxpeditions_active');
     const d = await r.json();
-    const meta = document.getElementById('dxMeta');
-    const el = document.getElementById('dxList');
     const list = d.expeditions || [];
     if(!list.length){
       el.innerHTML = `<div class="loading">Aucune expédition annoncée pour l'instant.</div>`;
@@ -729,7 +775,10 @@ async function loadDxActive(){
         ${voacapBtn ? `<div class="dx-voacap-box" style="display:none;font-size:10px;color:var(--muted);margin-top:2px"></div>` : ''}
       </div>`;
     }).join('');
-  }catch(e){}
+  }catch(e){
+    el.innerHTML = `<div class="loading">⚠ Impossible de charger — nouvel essai dans 2 min</div>`;
+    meta.textContent = '';
+  }
 }
 
 // Meilleure heure/bande (fiabilité VOACAP max) plutôt que le tableau 24h
