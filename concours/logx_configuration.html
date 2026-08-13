@@ -43,6 +43,13 @@ body.day-mode input,body.day-mode select,body.day-mode textarea{background:var(-
    juste plus bas pour l'autofill (ligne ~213). */
 body.day-mode .section input:not([type=checkbox]):not([type=radio]),
 body.day-mode .section select{color:var(--text) !important}
+/* L'INDICATIF (#callsign) porte un style inline color:var(--accent) pour
+   rester visuellement mis en avant (champ le plus important du chemin
+   critique) — la règle générique ci-dessus (classes .section/:not, donc
+   moins spécifique qu'un id) l'écrasait silencieusement en mode jour,
+   repassant le texte en var(--text) normal. Un id l'emporte sur des
+   classes même à !important égal : pas besoin de dupliquer les :not(). */
+body.day-mode #callsign{color:var(--accent) !important}
 body.day-mode .form-group label{color:var(--text) !important}
 body.day-mode .header-sub,body.day-mode .band-group-title{color:var(--muted) !important}
 body.day-mode .folder-pick-btn{color:var(--text) !important;border-color:var(--border) !important}
@@ -58,7 +65,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);padding:14px 30px;display:flex;align-items:center;justify-content:space-between}
 .logo-badge{background:#EEF0F8;border-radius:8px;padding:4px 10px;display:inline-flex;align-items:center;line-height:0}
 .logo-badge img{height:28px;display:block}
-.header-sub{font-family:var(--font-mono);font-size:14px;color:#7A84B8;letter-spacing:2px;margin-top:4px}
+.header-sub{font-family:var(--font-mono);font-size:14px;color:var(--muted);letter-spacing:2px;margin-top:4px}
 .version{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 .app-nav{display:flex;align-items:stretch;background:var(--bg2);border-bottom:2px solid var(--border);flex-shrink:0}
 .app-nav a{font-family:var(--font-mono);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--muted);text-decoration:none;padding:10px 22px;border-right:1px solid var(--border);display:flex;align-items:center;gap:7px;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px}
@@ -233,8 +240,8 @@ body.usage-simple .usage-contest-only{display:none}
 .form-group{display:flex;flex-direction:column;gap:6px}
 .form-group.field-disabled{opacity:.45}
 .form-group.field-disabled input,.form-group.field-disabled select{cursor:not-allowed}
-.form-group label{font-size:14px;color:#BCC8F0;letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
-.section input:not([type=checkbox]):not([type=radio]),.section select{background:var(--bg3);border:1px solid #2A3060;border-radius:8px;color:#E8ECFF;font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
+.form-group label{font-size:14px;color:var(--text);letter-spacing:1px;font-family:var(--font-mono);font-weight:600}
+.section input:not([type=checkbox]):not([type=radio]),.section select{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:16px;padding:11px 14px;outline:none;transition:border-color .2s;width:100%;letter-spacing:.5px}
 /* Retour F4GLD (capture d'écran) : un placeholder-exemple (ex. "F8TEST" sur
    le champ de test du keyer vocal) se confondait visuellement avec une VRAIE
    valeur saisie — les navigateurs atténuent le placeholder par défaut, mais
@@ -261,16 +268,16 @@ body.day-mode .section input::placeholder{opacity:1}
    .section input (width:100%) via flex:1, le bouton reste à taille fixe. */
 .input-with-btn{display:flex;gap:8px;align-items:stretch}
 .input-with-btn input{flex:1;min-width:0}
-.folder-pick-btn{flex-shrink:0;font-size:18px;padding:0 14px;border-radius:8px;border:1px solid #2A3060;background:var(--bg3);color:#BCC8F0;cursor:pointer;transition:all .15s}
+.folder-pick-btn{flex-shrink:0;font-size:18px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;transition:all .15s}
 .folder-pick-btn:hover{border-color:var(--accent2);color:var(--accent2)}
 .folder-pick-btn:disabled{opacity:.5;cursor:not-allowed}
 /* Autofill : empêche Chrome/Edge d'injecter fond clair + texte sombre sur les champs pré-remplis par JS */
-input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{-webkit-text-fill-color:#E8ECFF !important;-webkit-box-shadow:0 0 0 1000px var(--bg3) inset !important;caret-color:#E8ECFF;transition:background-color 9999s ease-in-out 0s}
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{-webkit-text-fill-color:var(--text) !important;-webkit-box-shadow:0 0 0 1000px var(--bg3) inset !important;caret-color:var(--text);transition:background-color 9999s ease-in-out 0s}
 body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,body.day-mode input:-webkit-autofill:focus{-webkit-text-fill-color:var(--text) !important;-webkit-box-shadow:0 0 0 1000px var(--bg3) inset !important}
 
 /* TOGGLE GRID */
 .toggle-grid{display:flex;flex-wrap:wrap;gap:8px}
-.toggle-btn{font-family:var(--font-mono);font-size:14px;padding:9px 16px;border-radius:8px;border:1px solid #2A3060;background:var(--bg3);color:#7A84B8;cursor:pointer;transition:all .15s;letter-spacing:1px;user-select:none}
+.toggle-btn{font-family:var(--font-mono);font-size:14px;padding:9px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:1px;user-select:none}
 .toggle-btn:hover{border-color:var(--accent);color:var(--accent)}
 /* Sélectionné = PAVÉ PLEIN + coche + léger agrandissement (choix utilisateur :
    le simple changement de couleur ne se voyait pas assez). Texte foncé sur
@@ -289,7 +296,7 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 .toggle-btn.on.prop{border-color:#FF2D55;color:#18000a;background:#FF2D55;box-shadow:0 3px 12px rgba(255,45,85,.42)}
 
 .band-group{margin-bottom:12px}
-.band-group-title{font-size:14px;color:#7A84B8;letter-spacing:2px;font-family:var(--font-mono);margin-bottom:8px;font-weight:600}
+.band-group-title{font-size:14px;color:var(--muted);letter-spacing:2px;font-family:var(--font-mono);margin-bottom:8px;font-weight:600}
 
 /* Popup DATES & BANDES/MODES : deux colonnes côte à côte + sections plus
    compactes pour tenir sans scroll malgré le volume (dates, modes, bandes
@@ -345,7 +352,12 @@ body.day-mode input:-webkit-autofill,body.day-mode input:-webkit-autofill:hover,
 /* BUTTONS */
 .btn-row{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
 .btn{font-family:var(--font-mono);font-size:14px;padding:13px 28px;border-radius:8px;border:none;cursor:pointer;letter-spacing:2px;transition:all .15s;font-weight:700}
-.btn-primary{background:linear-gradient(135deg,var(--accent),#FF9500);color:white}
+/* #FF9500 (orange générique) remplacé par #C9822E : même cuivre lumineux
+   FIXE déjà utilisé pour tous les autres dégradés de boutons remplis du
+   fichier (.btn-launch, .cat-modal-save, .config-sidebar-launch...) — pas
+   var(--accent2), qui pointe sur LA MÊME valeur que var(--accent) (direction
+   graphite & cuivre, CLAUDE.md) et aurait donné un dégradé plat sans effet. */
+.btn-primary{background:linear-gradient(135deg,var(--accent),#C9822E);color:white}
 .btn-primary:hover{opacity:.85;transform:translateY(-1px)}
 .btn-secondary{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
 .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
@@ -582,7 +594,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn btn-launch" onclick="launchApp()"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> COMMENCER À LOGGER</button>
+        <button class="btn btn-launch" onclick="launchApp()" title="Enregistre la configuration et passe au journal de contact"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.8c2.1 1.8 3.1 4.5 2.8 7.8L9 12.3 6.2 9.6C5.9 6.3 6.9 3.6 9 1.8z"/><circle cx="9" cy="6.7" r="1" fill="currentColor" stroke="none"/><path d="M6.2 9.6 4 11l.7 2.7M11.8 9.6 14 11l-.7 2.7"/><path d="M7.4 12.1 9 16.2l1.6-4.1"/></svg> COMMENCER À LOGGER</button>
         <button class="btn btn-secondary" onclick="launchApp('logx_carte.html')"><svg viewBox="0 0 18 18" width="14" height="14" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg> Ouvrir la carte IA</button>
       </div>
     </div>
@@ -859,7 +871,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
               style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
               onfocus="this.style.borderColor='var(--accent2)'"
               onblur="this.style.borderColor='var(--border)'">
-            <span id="contestSearchClear" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
+            <span id="contestSearchClear" title="Effacer la recherche" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
               style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="14" height="14"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
           </div>
           <!-- Revenir à « pas de concours » : utile hors concours réel (activation,
@@ -899,7 +911,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       </div>
 
       <!-- PHASE 3 : ANALYSE IA D'UN RÈGLEMENT -->
-      <div class="section">
+      <div class="section expert-only">
         <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> ANALYSER UN RÈGLEMENT (IA)</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">
           Concours absent de la liste ? Donne l'URL de son règlement (PDF ou page web) : l'IA en extrait
@@ -926,7 +938,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <!-- BASES D'INDICATIFS EXTERNES — étend le Super Check Partial déjà en
            place (logx_callhistory.py) avec deux imports au format N1MM,
            plutôt que de créer un second système de suggestion en parallèle. -->
-      <div class="section">
+      <div class="section expert-only">
         <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h4l1.5 2h7.5v7h-13v-9z"/></svg> BASES D'INDICATIFS EXTERNES</h3>
         <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           Vient en complément de l'historique local (QSO déjà loggués + base REF/QRZ) pour l'autocomplétion
@@ -1069,14 +1081,17 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
               </div>
             </div>
             <div class="band-group">
-              <div class="band-group-title">SHF</div>
-              <div class="toggle-grid">
-                <span class="toggle-btn" data-key="band_9cm" onclick="toggle(this)">3.4 GHz <small style="opacity:.7">9cm</small></span>
-                <span class="toggle-btn" data-key="band_6cm" onclick="toggle(this)">5.7 GHz <small style="opacity:.7">6cm</small></span>
-                <span class="toggle-btn" data-key="band_3cm" onclick="toggle(this)">10 GHz <small style="opacity:.7">3cm</small></span>
-                <span class="toggle-btn" data-key="band_6mm" onclick="toggle(this)">24 GHz <small style="opacity:.7">1.2cm</small></span>
-                <span class="toggle-btn" data-key="band_4mm" onclick="toggle(this)">47 GHz <small style="opacity:.7">6mm</small></span>
-              </div>
+              <details class="sat-details">
+                <summary><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> Bandes SHF (micro-ondes rares)</summary>
+                <div class="band-group-title">SHF</div>
+                <div class="toggle-grid">
+                  <span class="toggle-btn" data-key="band_9cm" onclick="toggle(this)">3.4 GHz <small style="opacity:.7">9cm</small></span>
+                  <span class="toggle-btn" data-key="band_6cm" onclick="toggle(this)">5.7 GHz <small style="opacity:.7">6cm</small></span>
+                  <span class="toggle-btn" data-key="band_3cm" onclick="toggle(this)">10 GHz <small style="opacity:.7">3cm</small></span>
+                  <span class="toggle-btn" data-key="band_6mm" onclick="toggle(this)">24 GHz <small style="opacity:.7">1.2cm</small></span>
+                  <span class="toggle-btn" data-key="band_4mm" onclick="toggle(this)">47 GHz <small style="opacity:.7">6mm</small></span>
+                </div>
+              </details>
             </div>
             <div class="band-group">
               <div class="toggle-grid">
@@ -1590,7 +1605,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            commande d'envoi de texte) et pour Yaesu. Sur les autres marques il
            reste préférable : son propre port, son propre processeur, donc une
            cadence indépendante du trafic CAT. -->
-      <div class="section">
+      <div class="section expert-only">
         <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="5" cy="6" r="2.2"/><line x1="5" y1="10" x2="5" y2="15"/><circle cx="13" cy="11" r="2.2"/><line x1="13" y1="3" x2="13" y2="7.8"/></svg> MANIPULATEUR WINKEYER (K1EL)</h3>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           Boîtier de manipulation CW branché sur son propre port série. Activé, il prend
@@ -1626,7 +1641,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            non la fréquence réelle. Sans cette table, la bande déduite, le QSO
            loggué, le filtre du band map, le QSY et le fichier EDI sont faux
            au même moment — sans le moindre message d'erreur. -->
-      <div class="section" id="transverterSection">
+      <div class="section expert-only" id="transverterSection">
         <h3 class="section-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg> TRANSVERTERS (hyperfréquences)</h3>
         <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.7">
           À déclarer seulement si vous trafiquez au-dessus de 1296 MHz par transverter.
