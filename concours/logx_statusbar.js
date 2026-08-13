@@ -111,6 +111,11 @@
       ms || Math.min(9000, 3000 + String(message).length * 30));
   }
 
+  // Exposé pour que d'autres pages (ex. logx_carte.html) puissent confirmer un
+  // changement de réglage sans dupliquer leur propre toast -- même esprit que
+  // ouvrirFenetreDetachee() ci-dessous, chargé sur toutes les pages.
+  window.rcToast = _statusbarToast;
+
   // ── Ouverture de fenêtre détachée avec repli « popup bloquée » ─────────────
   // window.open() renvoie null/undefined (jamais une exception) quand le
   // navigateur bloque la popup — un simple clic sans repli laisse l'opérateur
