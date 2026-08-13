@@ -173,3 +173,89 @@ def test_le_serveur_ne_lit_QUE_freq_hz_ou_freq_khz():
     bloc = bloc[:bloc.index('Fréquence manquante')]
     assert "payload.get('freq_hz')" in bloc and "payload.get('freq_khz')" in bloc
     assert "payload.get('freq')" not in bloc
+
+
+# ─── Repli de mode sur /data/spots_ranked ────────────────────────────────────
+# Le cluster n'annonce pas toujours le mode (cf. logx_awards.mode_depuis_
+# frequence). /data/focus avait déjà ce repli ; /data/spots_ranked — l'endpoint
+# PRINCIPAL, consommé par CHASSE/CARTE IA/le band map/le bouton « écouter ce
+# spot » — ne l'avait pas : un spot sans mode annoncé y restait '', et le
+# bouton WebSDR ouvrait alors la fréquence en SSB par défaut.
+
+def _lancer_serveur(monkeypatch, spots_by_band):
+    import http.server
+    import threading
+    import logx_http as httpmod
+
+    monkeypatch.setattr(httpmod, 'current_config',
+                         {'callsign': 'F4GLD', 'locator': 'JN15XC', 'contest': ''})
+    monkeypatch.setattr(httpmod, 'shared_log', [])
+    monkeypatch.setattr(httpmod, '_spots_from_caches', lambda: spots_by_band)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), httpmod.Handler)
+    port = srv.server_address[1]
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    return srv, t, f'http://127.0.0.1:{port}'
+
+
+def _arreter_serveur(srv, t):
+    srv.shutdown()
+    srv.server_close()
+    t.join(timeout=5)
+
+
+def test_spots_ranked_deduit_le_mode_quand_le_cluster_ne_l_annonce_pas(monkeypatch):
+    """Spot sans champ 'mode', mais sur la fréquence d'appel FT8 20 m
+    (14074 kHz, cf. logx_awards._APPELS_NUMERIQUES_KHZ) : le mode doit être
+    déduit, pas laissé vide."""
+    import json
+    import urllib.request
+
+    srv, t, base = _lancer_serveur(
+        monkeypatch, {'HF': [{'dx': 'W1AW', 'freq': 14074.0}]})
+    try:
+        with urllib.request.urlopen(base + '/data/spots_ranked', timeout=5) as r:
+            body = json.loads(r.read().decode('utf-8'))
+    finally:
+        _arreter_serveur(srv, t)
+
+    assert body['spots'], 'aucun spot renvoyé — le test ne vérifie rien'
+    s = body['spots'][0]
+    assert s['call'] == 'W1AW'
+    assert s['mode'] == 'DIGITAL', s
+
+
+def test_spots_ranked_deduit_CW_sur_le_bas_de_bande(monkeypatch):
+    """Même repli, sur un segment CW franc (14020 kHz) — pas seulement une
+    fréquence d'appel numérique."""
+    import json
+    import urllib.request
+
+    srv, t, base = _lancer_serveur(
+        monkeypatch, {'HF': [{'dx': 'W1AW', 'freq': 14020.0}]})
+    try:
+        with urllib.request.urlopen(base + '/data/spots_ranked', timeout=5) as r:
+            body = json.loads(r.read().decode('utf-8'))
+    finally:
+        _arreter_serveur(srv, t)
+
+    assert body['spots'], 'aucun spot renvoyé — le test ne vérifie rien'
+    assert body['spots'][0]['mode'] == 'CW', body['spots'][0]
+
+
+def test_spots_ranked_ne_supplante_pas_un_mode_deja_annonce(monkeypatch):
+    """Le repli est un COMPLÉMENT, jamais une correction : un mode explicite
+    de la source (même improbable pour cette fréquence) reste prioritaire."""
+    import json
+    import urllib.request
+
+    srv, t, base = _lancer_serveur(
+        monkeypatch, {'HF': [{'dx': 'W1AW', 'freq': 14074.0, 'mode': 'SSB'}]})
+    try:
+        with urllib.request.urlopen(base + '/data/spots_ranked', timeout=5) as r:
+            body = json.loads(r.read().decode('utf-8'))
+    finally:
+        _arreter_serveur(srv, t)
+
+    assert body['spots'], 'aucun spot renvoyé — le test ne vérifie rien'
+    assert body['spots'][0]['mode'] == 'SSB', body['spots'][0]
