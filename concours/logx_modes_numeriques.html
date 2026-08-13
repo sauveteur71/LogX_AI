@@ -23,8 +23,17 @@
   aucun window.opener, enregistre ses QSO via POST /log/add comme n'importe
   quel client serveur). Incrément B : RTTY, extrait de LOGBOOK vers
   logx_rtty.html (pont retour BroadcastChannel('logx_log') pour remplir
-  l'indicatif décodé dans LOGBOOK). SSTV rejoindra cette page dans un
-  incrément séparé (logx_sstv.html).
+  l'indicatif décodé dans LOGBOOK).
+
+  SSTV (audit intuitivité, constat #6, 13/08/2026) : l'infobulle de nav de ce
+  lien ("...FT8, RTTY, SSTV") promettait un mode que la grille ci-dessous ne
+  montrait pas -- SSTV vit réellement dans LOGBOOK (panneau existant,
+  logx_sstv_panel.js), sans rapport avec ce hub. Plutôt que de retirer SSTV
+  de l'infobulle (qui reste vraie : les TROIS modes sont bien accessibles
+  depuis LogX AI), une 3e carte a été ajoutée ici sur le même modèle que la
+  mention CW du paragraphe ci-dessus : elle explique où SSTV se trouve
+  réellement et y renvoie, plutôt que d'ouvrir une fenêtre détachée qui
+  n'existe pas encore (logx_sstv.html reste un incrément futur, pas fait).
 -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
@@ -77,6 +86,9 @@ h1{font-family:var(--font-display);font-size:22px;color:var(--accent2);letter-sp
 .mode-btn:disabled:hover{background:var(--bg3);color:var(--muted)}
 
 button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+
+#hubToast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;padding:9px 16px;font-family:var(--font-mono);font-size:12.5px;color:var(--text);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw;z-index:999}
+#hubToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -96,10 +108,10 @@ button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid v
   <a href="logx_propagation.html" title="Conditions de propagation HF : indices solaires, MUF, bandes ouvertes"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg></span>PROPAG</a>
   <a href="logx_carte.html" title="Tableau de bord temps réel : propagation, spots, analyse IA"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 16s5.5-5.8 5.5-9.5A5.5 5.5 0 0 0 3.5 6.5C3.5 10.2 9 16 9 16z"/><circle cx="9" cy="6.5" r="1.6" fill="currentColor" stroke="none"/></svg></span>CARTE IA</a>
   <a href="logx_departements.html" title="Suivi du diplôme départements français (REF) et des pays DXCC"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg></span>ZONES TRAVAILLÉES</a>
-  <a href="javascript:void(0)" onclick="window.open('/logx_panadapter.html','rc_panadapter','width=900,height=560,menubar=no,toolbar=no,location=no')" title="Panadapter : spectre + chute d'eau (audio, CI-V Icom, ou flux TCI)"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg></span>PANADAPTER</a>
+  <a href="javascript:void(0)" onclick="ouvrirFenetreDetachee('/logx_panadapter.html','rc_panadapter','width=900,height=560,menubar=no,toolbar=no,location=no')" title="Panadapter : spectre + chute d'eau (audio, CI-V Icom, ou flux TCI)"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="15.5" x2="2.5" y2="10"/><line x1="6" y1="15.5" x2="6" y2="4"/><line x1="9.5" y1="15.5" x2="9.5" y2="7.5"/><line x1="13" y1="15.5" x2="13" y2="2.5"/><line x1="16" y1="15.5" x2="16" y2="9"/></svg></span>PANADAPTER</a>
   <a href="logx_calendrier.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg></span>CALENDRIER</a>
   <a href="logx_websdr.html" title="Écouter en direct via un récepteur SDR distant"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg></span>WEBSDR</a>
-  <a href="logx_cw.html"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 11v-1a6 6 0 0 1 12 0v1"/><rect x="2" y="10.5" width="3.2" height="4.5" rx="1.4"/><rect x="12.8" y="10.5" width="3.2" height="4.5" rx="1.4"/></svg></span>ÉCOLE CW</a>
+  <a href="logx_cw.html" title="Entraînement au morse avec tes propres indicatifs — rien ne part sur l'air"><span class="nav-ico"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 11v-1a6 6 0 0 1 12 0v1"/><rect x="2" y="10.5" width="3.2" height="4.5" rx="1.4"/><rect x="12.8" y="10.5" width="3.2" height="4.5" rx="1.4"/></svg></span>ÉCOLE CW</a>
 </nav>
 <script src="logx_statusbar.js"></script>
 <script src="logx_i18n.js"></script>
@@ -107,23 +119,53 @@ button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid v
 
 <div class="container">
   <h1>Modes numériques</h1>
-  <p class="intro">Chaque mode s'ouvre dans sa <b>propre fenêtre de navigateur</b>, déplaçable où tu veux — y compris sur un second écran — plutôt que dans un panneau coincé dans cette page. Le <b>CW</b> reste dans <a href="logx_logbook.html" style="color:var(--accent2)">LOGBOOK</a> (panneau flottant existant, inchangé).</p>
+  <p class="intro">Chaque mode s'ouvre dans sa <b>propre fenêtre de navigateur</b>, déplaçable où tu veux — y compris sur un second écran — plutôt que dans un panneau coincé dans cette page. Le <b>CW</b> reste dans <a href="logx_logbook.html" style="color:var(--accent2)">LOGBOOK</a> (panneau flottant existant, inchangé) ; pour t'entraîner au morse à ton rythme, hors trafic réel, direction <a href="logx_cw.html" style="color:var(--accent2)">ÉCOLE CW</a>.</p>
 
   <div class="mode-grid">
     <div class="mode-card ready">
       <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c1.5-6 3-6 4.5 0s3 6 4.5 0 3-6 4.5 0"/></svg>FT8</div>
       <div class="mode-desc">Décodeur/émetteur FT8 natif, 100% navigateur (codec + DSP maison, aucune dépendance à WSJT-X/JTDX/MSHV). Cycles de 15 s, waterfall, séquenceur manuel, log automatique.</div>
       <span class="mode-badge">DISPONIBLE</span>
-      <button class="mode-btn" onclick="window.open('/logx_ft8.html','rc_ft8','width=1400,height=900,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
+      <button class="mode-btn" onclick="ouvrirFenetreDetachee('/logx_ft8.html','rc_ft8','width=1400,height=900,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
     </div>
     <div class="mode-card ready">
       <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="6.5" width="13" height="8" rx="1.2"/><path d="M4.5 6.5V3a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v3.5"/><line x1="5.5" y1="10" x2="12.5" y2="10"/><line x1="5.5" y1="12.5" x2="10" y2="12.5"/></svg>RTTY</div>
       <div class="mode-desc">Décodeur/émetteur RTTY (câble virtuel ou interface dédiée). Clic sur un indicatif décodé → rempli directement dans LOGBOOK. Cœur des concours CQ WW RTTY, WPX RTTY, WAE RTTY.</div>
       <span class="mode-badge">DISPONIBLE</span>
-      <button class="mode-btn" onclick="window.open('/logx_rtty.html','rc_rtty','width=560,height=820,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
+      <button class="mode-btn" onclick="ouvrirFenetreDetachee('/logx_rtty.html','rc_rtty','width=560,height=820,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
+    </div>
+    <div class="mode-card ready">
+      <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="14" height="12" rx="1.5"/><circle cx="6.5" cy="7" r="1.3" fill="currentColor" stroke="none"/><path d="M2.5 13.5l4-4 3 3 3-3.5 4.5 4.5"/></svg>SSTV</div>
+      <div class="mode-desc">Décodeur/émetteur d'images SSTV. Reste un panneau intégré à <b>LOGBOOK</b>, comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.</div>
+      <span class="mode-badge">DANS LOGBOOK</span>
+      <button class="mode-btn" onclick="location.href='logx_logbook.html'">Ouvrir dans LOGBOOK</button>
     </div>
   </div>
 </div>
+
+<div id="hubToast"></div>
+
+<script>
+// Repli si window.open() est bloqué par le navigateur (popup bloquée) --
+// même raisonnement que logx_export_edi.js::soumettreLog() : window.open()
+// renvoie null/undefined dans ce cas, jamais une exception, donc un simple
+// clic silencieux sans repli laisse l'opérateur sans aucune explication.
+function notifyHub(msg){
+  const t = document.getElementById('hubToast');
+  if(!t){ alert(msg); return; }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(notifyHub._tm);
+  notifyHub._tm = setTimeout(() => t.classList.remove('show'), 6000);
+}
+function ouvrirFenetreDetachee(url, nom, options){
+  const w = window.open(url, nom, options);
+  if(!w){
+    notifyHub('Le navigateur a bloqué l\'ouverture automatique — autorise les popups pour ce site, ou ouvre directement : ' + url);
+  }
+  return w;
+}
+</script>
 
 </body>
 </html>
