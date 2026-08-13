@@ -179,7 +179,7 @@
       💾 <span class="rcsb-val" id="rcsbSave">—</span>
     </div>
     <div class="rcsb-item" id="rcsbSolarItem" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
-      <a href="logx_propagation.html">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
+      <a href="logx_propagation.html#solarPanel">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
     </div>
     <div class="rcsb-item" id="rcsbBeaconItem" title="Balise NCDXF/IBP active maintenant sur 20m (réseau mondial de 18 balises, rotation de 10 s) — clic : les 5 bandes + panneau complet">
       <a href="logx_propagation.html#beaconPanel">📻 <span class="rcsb-val" id="rcsbBeacon">—</span></a>
@@ -223,6 +223,10 @@
     <div class="rcsb-item" id="rcsbUiModeItem" style="cursor:pointer"
          title="Mode débutant/expert : masque ou affiche les réglages avancés dans toute l'appli (même bascule que le bouton 🎚 de CONFIG) — clic pour changer">
       🎚 <span class="rcsb-val" id="rcsbUiModeLabel">—</span>
+    </div>
+    <div class="rcsb-item" id="rcsbGuideItem" style="display:none">
+      <a id="rcsbGuideLink" href="#" target="_blank" rel="noopener noreferrer"
+         title="Ouvre la page du guide qui correspond à cet écran (wiki, dans le navigateur)">📖 <span class="rcsb-val">GUIDE</span></a>
     </div>
     <div class="rcsb-item" id="rcsbReportItem" style="cursor:pointer"
          title="Ouvre une Issue GitHub pré-remplie (version + plateforme) pour signaler un problème">
@@ -995,6 +999,40 @@
     }).catch(function(){});
   }
 
+  // ── Lien "📖 GUIDE" : chaque page renvoie vers la page du wiki qui la
+  // documente (guide découpé par thème, voir CLAUDE.md/wiki Home.md « Par où
+  // commencer ? »). Purement local (nom de fichier -> page wiki), pas de
+  // requête réseau tant qu'on ne clique pas. Une page absente de cette table
+  // (fenêtres détachées annexes : scope, panel, mobile...) n'affiche
+  // simplement pas l'item, plutôt que de renvoyer vers une page sans rapport.
+  const GUIDE_WIKI_BASE = 'https://github.com/sauveteur71/LogX_AI/wiki/';
+  const GUIDE_LINKS = {
+    'logx_configuration.html': 'Configuration',
+    'logx_logbook.html': 'Logbook-quotidien',
+    'logx_chasse.html': 'Cartes-Propagation-Chasse',
+    'logx_modes_numeriques.html': 'Modes-Numeriques',
+    'logx_propagation.html': 'Cartes-Propagation-Chasse',
+    'logx_carte.html': 'Cartes-Propagation-Chasse',
+    'logx_departements.html': 'Cartes-Propagation-Chasse',
+    'logx_calendrier.html': 'Cartes-Propagation-Chasse',
+    'logx_websdr.html': 'Cartes-Propagation-Chasse',
+    'logx_bande.html': 'Cartes-Propagation-Chasse',
+    'logx_wall.html': 'Multi-poste-Expedition-Radioclub'
+    // logx_ft8.html/logx_rtty.html/logx_panadapter.html/logx_scope.html : fenêtres
+    // détachées SANS statusbar par convention (voir logx_ft8.html) -- cet item n'y
+    // apparaît donc jamais, quelle que soit cette table.
+  };
+  function refreshGuideLink(){
+    const item = document.getElementById('rcsbGuideItem');
+    const link = document.getElementById('rcsbGuideLink');
+    if (!item || !link) return;
+    const page = (location.pathname.split('/').pop() || '').toLowerCase();
+    const wikiPage = GUIDE_LINKS[page];
+    if (!wikiPage){ item.style.display = 'none'; return; }
+    link.href = GUIDE_WIKI_BASE + wikiPage;
+    item.style.display = 'flex';
+  }
+
   // ── Signaler un problème : Issue GitHub pré-remplie (version + plateforme) ─
   // Repo lu depuis _updState.repo (source unique = logx_update.GITHUB_REPO) ;
   // ce repli codé en dur ne sert qu'avant le tout premier /app/update_check.
@@ -1650,6 +1688,7 @@
   function boot(){
     insert();
     refreshUiModeLabel();   // après insert() : le span n'existe pas avant
+    refreshGuideLink();     // idem, purement local
     applyStatusbarPrefs();  // idem : menu ⚙ AFFICHAGE, éléments absents avant insert()
     refreshContest(); refreshCountdown(); refreshSave();
     loadContestNames();

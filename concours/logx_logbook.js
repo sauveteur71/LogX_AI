@@ -2945,6 +2945,18 @@ function renderLog(){
   const visible = reversed.slice(0, logRenderLimit);
   renderLogMoreBar(reversed.length - visible.length);
 
+  if(!visible.length){
+    // Log réellement vide (rien saisi) vs. filtre/recherche qui ne retourne
+    // rien : deux causes différentes, deux messages différents (audit
+    // intuitivité 13/08/2026 — un tableau blanc sans explication ressemble
+    // à une page cassée, surtout pour un débutant qui vient de démarrer).
+    const emptyMsg = qsoLog.length === 0
+      ? 'Aucun QSO enregistré — remplis le formulaire ci-dessus et clique ENREGISTRER LE QSO.'
+      : 'Aucun QSO ne correspond à ce filtre ou cette recherche.';
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--muted);font-family:var(--font-mono)">${emptyMsg}</td></tr>`;
+    return;
+  }
+
   tbody.innerHTML = visible.map((q,i)=>{
     const opColor = opColorAttr(q.operator);
     // LOGBOOK SIMPLE : retravailler un correspondant déjà eu (même indicatif +

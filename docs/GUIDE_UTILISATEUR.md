@@ -706,17 +706,33 @@ Le bouton **🎓 DÉBRIEF** (page carte) analyse le concours écoulé. La partie
 
 LogX AI peut dialoguer avec votre transceiver, votre amplificateur, votre rotor et WSJT-X : la fréquence et le mode se remplissent tout seuls, un clic sur un spot cale la radio dessus, vos macros CW partent au manipulateur de la radio et vos QSO FT8 entrent dans le log sans ressaisie. Tout cela reste **optionnel et désactivé par défaut** : sans aucun câble, l'intégralité du reste du logiciel (saisie, vérification, score, cartes, cluster, IA…) fonctionne normalement — voir la dernière section de ce chapitre.
 
-### 8.1 Pilotage CAT de la radio : trois modes au choix
+### 8.1 Pilotage CAT de la radio : sept modes au choix
 
-Ouvrez la configuration, popup **📻 5. RADIO (PILOTAGE CAT)**. Passez d'abord **PILOTAGE RADIO** de Désactivé à Activé, puis choisissez le **MODE DE PILOTAGE**. Un bloc dépliable **📖 Quel mode choisir pour ma radio ?** résume les trois possibilités directement dans la page, avec le nombre de modèles couverts.
+Ouvrez la configuration, popup **📻 5. RADIO (PILOTAGE CAT)**. Passez d'abord **PILOTAGE RADIO** de Désactivé à Activé, puis choisissez le **MODE DE PILOTAGE**. Un bloc dépliable **📖 Quel mode choisir pour ma radio ?** résume les principales possibilités directement dans la page, avec le nombre de modèles couverts. Le menu propose **sept** modes : les quatre premiers couvrent l'immense majorité des installations et sont détaillés ci-dessous ; les trois derniers répondent à des cas plus spécifiques (SO2R, FlexRadio, ou une piste pas encore ouverte).
 
 | Mode (libellé exact du menu) | Pour qui ? | Logiciel externe requis | Lecture fréquence/mode + QSY | Envoi CW |
 |---|---|---|---|---|
 | **Natif (recommandé — pas de logiciel externe)** | Icom, Yaesu, Kenwood, Elecraft, Xiegu reliés par un câble série/USB | Aucun | Oui | **Non** |
-| **TCI (postes SDR — SunSDR/ExpertSDR3 et compatibles)** | SunSDR2 DX/PRO/QRP, MB1, ColibriDDC/NANO et tout logiciel compatible TCI (ExpertSDR2/3, Log4OM, RUMlogNG, JTDX/WSJT-X « improved », SDC…) | ExpertSDR3 (ou équivalent) avec son serveur TCI activé | Oui (+ PTT et S-mètre) | Oui |
-| **Hamlib rigctld (avancé — autres marques)** | Tout le reste : Ten-Tec, FlexRadio, anciens modèles, toute radio non listée en natif (Hamlib gère plus de 200 modèles) | rigctld (Hamlib) | Oui | Oui |
+| **TCI (postes SDR — SunSDR/ExpertSDR3 et compatibles)** | SunSDR2 DX/PRO/QRP, MB1, ColibriDDC/NANO et tout logiciel compatible TCI (ExpertSDR2/3, Log4OM, RUMlogNG, JTDX/WSJT-X « improved », SDC…) | ExpertSDR3 (ou équivalent) avec son serveur TCI activé | Oui (+ PTT, S-mètre et flux I/Q pour le panadapter, section 8.5) | Oui |
+| **Hamlib rigctld (avancé — autres marques)** | Tout le reste : Ten-Tec, anciens modèles, toute radio non listée en natif (Hamlib gère plus de 200 modèles) | rigctld (Hamlib) | Oui | Oui |
+| **flrig (XML-RPC — fldigi/Linux)** | Alternative à rigctld très répandue chez les utilisateurs fldigi/Linux, souvent plus réactive que Hamlib sur certains transceivers | flrig, avec son serveur XML-RPC activé (Config → Xcvr Setup → XML-RPC Server, port 12345 par défaut) | Oui | **Non** (flrig n'expose pas de commande CW fiable en XML-RPC) |
 
-Le PTT, lui, est disponible dans les **trois** modes — c'est ce qu'utilise le keyer vocal (section 8.5).
+Le PTT est disponible dans **tous les modes actifs** (y compris flrig) — c'est ce qu'utilise le keyer vocal (section 8.7).
+
+#### Comment choisir en un coup d'œil
+
+- **Une radio Icom, Yaesu, Kenwood, Elecraft ou Xiegu reliée par un câble USB/série** → **Natif**. C'est le choix par défaut : zéro logiciel externe, zéro configuration ailleurs.
+- **Un poste SDR SunSDR2/MB1/Colibri ou tout logiciel compatible TCI** → **TCI**. C'est aussi le seul mode qui alimente le panadapter en flux I/Q large bande (section 8.5).
+- **Une radio absente des listes natives** (Ten-Tec, matériel ancien, un modèle Yaesu/Kenwood/Elecraft trop récent ou trop rare pour être dans la liste) → **Hamlib rigctld**. C'est aussi le repli obligé pour les Yaesu à CAT binaire (FT-817/818/857/897, voir plus bas) et pour qui a besoin de l'envoi CW sans passer par TCI.
+- **Vous êtes déjà sous fldigi/Linux avec flrig configuré pour d'autres logiciels** → **flrig**, pour ne pas dupliquer la configuration CAT.
+- **Deuxième radio en SO2R** → **OmniRig** (section 8.4) : le CAT natif série ne peut piloter qu'une radio à la fois par connexion, OmniRig n'a pas cette limite.
+- **FlexRadio** → **SmartSDR (réseau natif)**, en sachant que ce mode ne fait que lire fréquence/mode/PTT (pas de QSY piloté ni d'envoi CW depuis LogX AI — basculez en Hamlib rigctld si vous en avez besoin).
+
+#### Trois autres entrées du menu, pour des cas plus spécifiques
+
+- **OmniRig (composant COM Windows, avancé)** : LogX AI se connecte en simple client à un OmniRig déjà lancé et configuré (Rig1/Rig2) — pratique si OmniRig tourne déjà chez vous pour un autre logiciel. Windows uniquement (nécessite le paquet Python `pywin32`).
+- **FlexRadio SmartSDR (réseau natif — lecture + PTT)** : connexion directe à l'API TCP native SmartSDR (port 4992), sans logiciel intermédiaire. Lecture fréquence/mode + PTT uniquement.
+- **Icom réseau IC-705/7610/905 (pas encore disponible)** : visible dans le menu pour préparer une future implémentation, mais **désactivé côté serveur quels que soient les champs saisis** — aucune connexion réseau n'est jamais tentée. Icom n'a jamais publié de documentation officielle pour ce protocole propriétaire (RS-BA1 et successeurs), et la rétro-ingénierie communautaire (wfview, kappanhang) n'a pas permis de reconstituer de façon fiable la table utilisée par l'authentification. En attendant, utilisez le port série CI-V (mode Natif) sur ces mêmes radios.
 
 #### Mode natif : marques et modèles pris en charge
 
@@ -726,18 +742,42 @@ Aucun logiciel tiers : LogX parle directement à la radio sur le port série. Ch
 |---|---|---|
 | **Icom (CI-V)** | IC-705, IC-706MKIIG, IC-7000, IC-7100, IC-718, IC-7200, IC-7300, IC-7410, IC-746, IC-746PRO, IC-756, IC-756PRO, IC-756PROII, IC-756PROIII, IC-7600, IC-7610, IC-7700, IC-7800, IC-7851, IC-905, IC-910H, IC-9100, IC-9700, plus les récepteurs IC-R75 et IC-R8600 | 19200 bauds |
 | **Xiegu (CI-V compatible Icom)** | G90, G106, X6100, X5105 | 19200 bauds |
-| **Yaesu (CAT)** | FT-817, FT-818, FT-857, FT-891, FT-897, FT-991, FT-991A, FTDX10, FTDX101D, FTDX101MP | 4800 bauds |
+| **Yaesu (CAT)** | FT-891, FT-991, FT-991A, FTDX10, FTDX101D, FTDX101MP ; **+ FT-817, FT-818, FT-857, FT-897 marqués « — via rigctld/Hamlib »** (voir ci-dessous) | 4800 bauds |
 | **Kenwood (PC Control)** | TS-480, TS-570, TS-2000, TS-590S, TS-590SG, TS-890S, TS-990S | 9600 bauds |
 | **Elecraft (K3/KX)** | K2, K3, K3S, KX2, KX3, K4 | 38400 bauds |
 
 À savoir :
 
-- Pour Icom et Xiegu, le modèle sert surtout à prérégler l'adresse CI-V d'usine (IC-7300 = 94, IC-705 = A4…) ; la note « Adresse CI-V usine : XX (modifiable sur la radio si besoin) » s'affiche. Un Icom ou Xiegu **absent de la liste** fonctionne quand même : indiquez simplement son adresse CI-V.
+- Pour Icom et Xiegu, le modèle sert surtout à prérégler l'**adresse CI-V d'usine** ; la note « Adresse CI-V usine : XX (modifiable sur la radio si besoin) » s'affiche. Un Icom ou Xiegu **absent de la liste** fonctionne quand même : indiquez simplement son adresse CI-V. Table complète des adresses d'usine (modifiables sur la radio en Set mode) :
+
+  | Modèle | Adresse | Modèle | Adresse | Modèle | Adresse |
+  |---|---|---|---|---|---|
+  | IC-705 | A4 | IC-7700 | 74 | IC-756PRO | 5C |
+  | IC-7300 | 94 | IC-7800 | 6A | IC-756PROII | 64 |
+  | IC-7100 | 88 | IC-7851 | 8E | IC-756PROIII | 6E |
+  | IC-7200 | 76 | IC-9100 | 7C | IC-910H | 60 |
+  | IC-7410 | 80 | IC-9700 | A2 | IC-R75 | 5A |
+  | IC-7600 | 7A | IC-905 | AC | IC-R8600 | 96 |
+  | IC-7610 | 98 | IC-706MKIIG | 58 | Xiegu G90/G106/X5105 | 70 |
+  | | | IC-7000 | 70 | Xiegu X6100 | A4 |
+  | | | IC-718 | 5E | | |
+  | | | IC-746 / IC-746PRO | 56 / 66 | | |
+  | | | IC-756 | 50 | | |
+
 - Un Yaesu/Kenwood/Elecraft récent absent de la liste fonctionne généralement aussi (même famille de commandes).
+- **FT-817/818/857/897 restent dans la liste Yaesu mais ne répondent PAS en mode natif** : ces quatre modèles parlent un CAT binaire à trames de longueur fixe (famille « ancienne » Yaesu), pas le CAT ASCII (`FA;`/`MD;`…) que le pilotage natif sait parler aux autres Yaesu. LogX AI le dit dans le libellé du menu (« — via rigctld/Hamlib ») plutôt que de les retirer silencieusement : choisissez le mode **Hamlib rigctld**, qui les pilote correctement.
 - **PORT SÉRIE** : la liste des ports COM détectés se met à jour avec **🔄 Rafraîchir la liste**. **VITESSE (bauds)** est préremplie selon la marque (tableau ci-dessus) — gardez la valeur réglée dans le menu de votre radio.
 - **🔌 Tester / auto-détecter** : test éphémère qui ouvre le port, interroge la radio et le referme, sans toucher la connexion en cours. En cas de succès sur Yaesu/Kenwood/Elecraft, le modèle est identifié : « ✅ Radio détectée : FT-991A (14.074 MHz) ». En cas d'échec sur Icom : « Radio muette à cette adresse — vérifie modèle/adresse CI-V/port/vitesse ».
 - La connexion se rouvre toute seule si vous changez la configuration ou si le câble USB est débranché puis rebranché.
 - **Limite réelle du mode natif** : pas d'envoi CW. Le message est explicite : « Envoi CW non disponible en mode "Natif" — bascule en mode "Hamlib rigctld" ou "TCI" pour le keyer CW ».
+
+#### Auto-détection : comment LogX devine votre interface
+
+Avant même d'envoyer le moindre octet CAT, LogX AI regarde la signature USB (VID:PID) de chaque port série détecté pour vous orienter — un indice affiché en confirmation, jamais appliqué à l'aveugle :
+
+- **Boîtiers d'interface reconnus par leur identifiant USB dédié** (donc fiable, contrairement aux puces génériques FTDI/CP210x partagées par des centaines de produits sans rapport) : les interfaces **microHAM** (USB-KW, USB-YS, USB-Y6, USB-Y8, USB-IC, USB-DB9, USB-RS232, USB-Y9), ainsi que les **West Mountain Radio RIGblaster Plug&Play**, **RIGtalk** et **RIGblaster Advantage**. LogX AI indique alors « ce port est très probablement un vrai lien CAT/PTT », utile pour savoir sur quel port lancer le test plutôt que sur un port audio du même boîtier.
+- **Radios Icom à port USB natif** (IC-705, IC-7300, IC-9700…) : la puce elle-même est générique (Silicon Labs CP210x), mais Icom inscrit le nom exact du modèle dans le numéro de série USB (« IC-7300 03000000 », « IC-9700 13000000 A »/« …B », le suffixe A/B distinguant le port CAT du port audio) — LogX AI le lit et propose directement la bonne marque/modèle.
+- Rien d'équivalent n'est documenté chez Yaesu/Kenwood/Elecraft pour l'instant : sur ces marques, seul le test actif (**🔌 Tester / auto-détecter**, qui interroge réellement la radio) identifie le modèle.
 
 #### Mode TCI (postes SDR)
 
@@ -747,13 +787,32 @@ Pas de port série ni de programme à installer : LogX se connecte en réseau au
 
 Hamlib est un logiciel libre qui pilote plus de 200 modèles. Sur le PC relié à la radio, lancez `rigctld -m <n°modèle> -r <port COM> -T 0.0.0.0` (le numéro de modèle s'obtient avec `rigctl -l`), puis renseignez **ADRESSE RIGCTLD** et **PORT RIGCTLD** (4532 par défaut). rigctld peut tourner sur un **autre poste du réseau local** que celui qui affiche LogX. Ce mode donne aussi accès à l'envoi CW via le manipulateur interne de la radio.
 
+#### Mode flrig (XML-RPC)
+
+Alternative à rigctld répandue chez les utilisateurs fldigi/Linux, parfois plus réactive que Hamlib sur certains transceivers. Activez le serveur XML-RPC dans flrig (**Config → Xcvr Setup → XML-RPC Server**, port 12345 par défaut), puis renseignez **ADRESSE FLRIG** et **PORT FLRIG** dans LogX AI. Comme pour rigctld, flrig peut tourner sur un autre poste du réseau. **Pas d'envoi CW dans ce mode** : flrig n'expose pas de méthode générique fiable pour manipuler du texte au clavier via son serveur XML-RPC — basculez en TCI ou rigctld si vous avez besoin du keyer CW.
+
+#### Dépannage CAT : les messages d'erreur les plus courants
+
+Les messages d'échec de connexion série ne se contentent jamais d'un code Windows brut : LogX AI traduit la cause probable, tout en gardant le détail technique d'origine entre parenthèses (utile si vous devez le recopier pour un diagnostic plus poussé).
+
+| Message affiché | Cause la plus probable | À faire |
+|---|---|---|
+| « *ce port* est déjà utilisé par un autre logiciel (WSJT-X, un autre logbook, le microHAM Router/USB Device Router…) » | Un port série ne peut être ouvert que par **un seul programme à la fois**. C'est de loin la cause la plus fréquente avec une interface qui expose plusieurs ports COM virtuels (microHAM notamment). | Fermez l'autre logiciel, ou choisissez un autre port COM virtuel si votre interface en propose plusieurs. |
+| « *ce port* n'existe pas ou n'est plus branché » | Câble USB débranché, port qui a changé de numéro après un redémarrage, ou pilote/routeur de l'interface pas encore lancé. | Vérifiez le câble, relancez le routeur de l'interface (microHAM Router…), puis rafraîchissez la liste des ports (🔄) — le numéro a pu changer. |
+| « Radio muette à cette adresse — vérifie modèle/adresse CI-V/port/vitesse » (Icom) | Mauvaise adresse CI-V, mauvais port, ou vitesse (bauds) différente de celle réglée sur la radio. | Vérifiez le menu CI-V de la radio (adresse ET vitesse), et que « Transceive CI-V » ne perturbe pas un bus partagé avec un autre logiciel. |
+| « Envoi CW non disponible en mode "Natif" » | Limite du protocole natif Icom/Yaesu/Kenwood/Elecraft tel qu'implémenté — pas un bug. | Basculez en Hamlib rigctld ou TCI pour le keyer CW. |
+
+**Interface microHAM (microKEYER, MK2R+, StationMaster…) qui ne se connecte pas ?** Un guide dédié existe : [`docs/GUIDE_CAT_MICROHAM.md`](GUIDE_CAT_MICROHAM.md) — il détaille pourquoi microHAM Router doit tourner avant LogX AI, comment retrouver le bon port COM virtuel, et le cas particulier des Yaesu à CAT binaire (FT-817/818/857/897/847/100, qui doivent passer par Hamlib rigctld même derrière microHAM).
+
+**Bus CI-V partagé entre plusieurs logiciels** (LogX AI + WSJT-X + un autre logger, via un séparateur CI-V) : tous utilisent par convention l'adresse contrôleur `0xE0`, donc la réponse d'un logiciel peut être lue par un autre si la notification « CI-V Transceive » de la radio est activée sans séparateur adapté — une trame parasite reçue à ce moment-là est filtrée silencieusement plutôt que de faire planter la lecture.
+
 #### Ce que le pilotage débloque dans le logbook
 
 - **Panneau 📻 RADIO** (visible uniquement si le pilotage est activé) : pastille de connexion, fréquence en kHz, mode, et bouton **■ STOP CW** pour interrompre immédiatement un message CW en cours.
 - **Suivi en direct** : quand vous changez de bande sur la radio, la bande de saisie bascule automatiquement. Le champ FRÉQUENCE suit la radio, **sauf** si vous l'éditez à la main (split, fréquence annoncée) — votre saisie n'est jamais écrasée. Le bouton **📻 Radio** à côté du champ (« Lire la fréquence de la radio (CAT) ») recolle la fréquence de la radio et réactive le suivi.
 - **QSY d'un clic** : dans le band map et le bandscope, cliquer un spot remplit l'indicatif **et** cale la radio sur la fréquence du spot. Le band map affiche aussi un marqueur « ▶ xx.xxx (radio) » à votre fréquence courante.
 - **Macros CW** (panneau **MACROS — clic: copier · double-clic: modifier**) : 8 macros par défaut (« CQ RPH », « ÉCHANGE », « TU », « QSY 432? », « LOCATOR », « ? », « AGN? », « 73 »), avec variables {CALL} (votre propre indicatif ici), {LOC} et {NR} remplacées à la volée. Si la radio est en CW et le CAT actif, le texte part directement au manipulateur de la radio (toast « 📻 CW → … ») ; sinon il est copié dans le presse-papier (« 📋 … »). Les macros se déclenchent **au clavier** (touches F1 à F8) comme au clic. Le clavier fonctionne aussi pendant que vous tapez dans un champ : on saisit l'indicatif, on envoie l'échange par F2, on continue de taper sans quitter le clavier. Les touches sont neutralisées tant que la fenêtre de démarrage n'est pas validée, et pendant qu'une fenêtre est ouverte (édition d'un QSO, vérificateur, diplômes) — pour qu'une touche de fonction ne parte jamais en émission au mauvais moment. Le double-clic sur un bouton reste le moyen de modifier une macro, et de lui réaffecter une autre touche : le clavier suit ce qui est écrit sur le bouton.
-- **ESM** (« Enter Sends Message », bouton **ESM**) : la touche Entrée enchaîne CQ → échange → mise au log, « à la N1MM ». En CW, la convention est F1 = CQ, F2 = échange, F3 = merci ; en phonie, ce sont les messages vocaux V1/V3/V4 (section 8.5).
+- **ESM** (« Enter Sends Message », bouton **ESM**) : la touche Entrée enchaîne CQ → échange → mise au log, « à la N1MM ». En CW, la convention est F1 = CQ, F2 = échange, F3 = merci ; en phonie, ce sont les messages vocaux V1/V3/V4 (section 8.7).
 
 ### 8.2 Amplificateurs HF
 
@@ -761,14 +820,14 @@ LogX surveille et commande trois familles d'amplis, chacune vérifiée contre la
 
 | **MARQUE** (libellé du menu) | LogX lit | LogX commande | Vitesse par défaut |
 |---|---|---|---|
-| **Elecraft (KPA500 / KPA1500)** | Puissance (W), SWR, standby/operate, code défaut, température | Standby↔Operate, acquittement de défaut, changement de bande direct, extinction **et rallumage** à distance | 38400 bauds |
+| **Elecraft (KPA500 / KPA1500)** | Puissance (W), SWR, standby/operate, code défaut, température | Standby↔Operate, acquittement de défaut, changement de bande direct, extinction **et rallumage** à distance | 38400 bauds (série) |
 | **Icom (IC-PW2 / PW-1, CI-V)** | Puissance et SWR **en valeurs brutes 0–255** (échelle constructeur, affichées « (brut) »), protection (Température, ALC, Puissance, Bande, Alimentation), standby/operate, statut TX | Standby↔Operate, bande directe 1.8–50 MHz, acquittement de défaut, marche/arrêt à distance | 19200 bauds |
 | **SPE / Expert (1.3K-FA / 1.5K-FA / 2K-FA)** | 19 informations : operate, TX, entrée, bande, puissance (W), SWR ATU et antenne, tension/courant du PA, 3 températures, avertissements et alarmes en français (« SWR hors limites », « Surchauffe excessive »…) | Standby↔Operate, bande (pas à pas, géré automatiquement) | 9600 bauds |
 
 Précisions honnêtes :
 
-- **KPA1500** : port série OU réseau — le menu **CONNEXION** du popup propose aussi « Réseau — TCP » et « Réseau — UDP » (port Ethernet natif du KPA1500, port 1500 par défaut, même jeu de commandes qu'en série), avec des champs IP/port dédiés.
-- **IC-PW2/PW-1** : adresse CI-V d'usine AA (champ **ADRESSE CI-V**, modifiable si vous l'avez changée sur l'ampli). Les valeurs de puissance/SWR sont volontairement affichées brutes : Icom ne publie pas l'échelle de conversion, et LogX n'invente rien.
+- **KPA1500** : port série OU réseau — le menu **CONNEXION** du popup propose aussi « Réseau — TCP » et « Réseau — UDP » (port Ethernet natif du KPA1500, port 1500 par défaut, même jeu de commandes qu'en série), avec des champs IP/port dédiés. Le **KPA500** n'a pas de port Ethernet : port série uniquement.
+- **IC-PW2/PW-1** : adresse CI-V d'usine AA (champ **ADRESSE CI-V**, modifiable si vous l'avez changée sur l'ampli). Les valeurs de puissance/SWR sont volontairement affichées brutes : Icom ne publie pas l'échelle de conversion, et LogX n'invente rien. Port série uniquement, pas d'accès réseau documenté.
 - **SPE** : le protocole constructeur simule des appuis sur le panneau avant ; il n'offre ni acquittement de défaut ni mise sous tension à distance (messages explicites dans l'interface).
 - Marques **non** prises en charge, faute de protocole documenté par le constructeur : Ameritron, Yaesu VL-1000, Tokyo Hy-Power (ces amplis suivent la radio par band-data, pas par dialogue série).
 
@@ -778,17 +837,49 @@ Le bouton **🔌 Tester la connexion** répond « ✅ Ampli joint — xxx W, SWR
 
 ### 8.3 Rotor d'antenne
 
-Le rotor pointe l'antenne d'un clic, sans ressaisir d'azimut. LogX passe par **rotctld**, le compagnon de Hamlib pour rotors (« rotctld est au rotor ce que rigctld est à la radio »). Dans le popup **🧭 7. ROTOR D'ANTENNE** : lancez `rotctld -m <n°modèle> -r <port> -T 0.0.0.0` sur le PC relié au boîtier de commande (liste des modèles : `rotctl -l`), puis renseignez **ADRESSE ROTCTLD** et **PORT ROTCTLD** (4533 par défaut) — là aussi, un autre poste du réseau convient.
+Le rotor pointe l'antenne d'un clic, sans ressaisir d'azimut. Dans le popup **🧭 7. ROTOR D'ANTENNE**, choisissez d'abord **MARQUE** puis **MODÈLE** dans le catalogue proposé (Yaesu, Kenpro, Hy-Gain, SPID, Pro.Sis.Tel, M2, Alfa Radio…) — le champ **PROTOCOLE** se règle alors automatiquement selon le boîtier reconnu, avec deux options possibles :
 
-Dans le logbook, dès que vous saisissez le locator du correspondant, la boussole affiche cap, cardinal, distance et points ; si le rotor est piloté, un bouton **pointer** apparaît et envoie le cap affiché (« 🧭 Antenne pointée sur xxx° »). L'azimut est borné 0–360°, l'élévation 0–90°. Désactivé par défaut — aucun effet sans rotctld.
+- **Hamlib rotctld (universel)** : le compagnon de Hamlib pour rotors (« rotctld est au rotor ce que rigctld est à la radio »), qui pilote la quasi-totalité des marques. Lancez `rotctld -m <n°modèle> -r <port> -T 0.0.0.0` sur le PC relié au boîtier de commande (liste des modèles : `rotctl -l`), puis renseignez **ADRESSE** et **PORT** (4533 par défaut).
+- **GS-232 natif (TCP direct)** : LogX AI parle directement le protocole GS-232 (boîtiers Yaesu GS-232A/B, Kenpro, et ce que PstRotator, microHam et la plupart des boîtiers modernes exposent en réseau) sans passer par rotctld — juste une connexion TCP directe vers le boîtier. Renseignez **ADRESSE** et **PORT** (souvent 4001 pour un serveur GS-232 en réseau, comme PstRotator).
 
-### 8.4 Auto-log WSJT-X (FT8/FT4) : plus de ressaisie
+Là aussi, le serveur (rotctld ou le boîtier réseau) peut tourner sur un **autre poste du réseau local**. Le catalogue indique aussi, par modèle, s'il gère l'**élévation** (Az+El, utile en satellite/EME) — LogX AI envoie alors la commande adaptée (`W` plutôt que `M`).
+
+Dans le logbook, dès que vous saisissez le locator du correspondant, la boussole affiche cap, cardinal, distance et points ; si le rotor est piloté, un bouton **pointer** apparaît et envoie le cap affiché (« 🧭 Antenne pointée sur xxx° »). L'azimut est borné 0–360°, l'élévation 0–90°. Désactivé par défaut — aucun effet sans rotctld ou boîtier GS-232 configuré.
+
+### 8.4 SO2R : deuxième radio
+
+Le SO2R (Single Operator 2 Radios) consiste à appeler CQ sur une bande pendant qu'on cherche des multiplicateurs sur l'autre — ce qui sépare un score honorable d'un score de podium en HF mono-opérateur. C'est un réglage **avancé** (visible seulement en mode Expert).
+
+**Ce que LogX AI fait, et ce qu'il ne fait pas.** La commutation réelle — quelle radio émet, ce qu'on entend dans quelle oreille, où part le manipulateur — se fait dans un **boîtier matériel** (microHAM MK2R, YCCC SO2R Box, EA4TX ARS…) : aucun logiciel ne peut router de l'audio ou une porteuse à la place d'un relais. Ce que LogX AI fait, c'est **dire** au boîtier quoi commuter, par le protocole OTRSP que tous ces boîtiers comprennent.
+
+Configuration, section **SO2R — DEUXIÈME RADIO** :
+
+- **RADIO 2** : Désactivée/Activée.
+- **MODE DE PILOTAGE** de la radio 2 : **Natif (série)** (marque/port/vitesse, mêmes marques que la radio 1) ou **OmniRig** — le mode conseillé ici, puisque le CAT natif série ne peut piloter qu'une radio à la fois par connexion, alors qu'OmniRig gère Rig1 et Rig2 sans ce blocage.
+- **PÉRIPHÉRIQUE VOCAL RADIO 2** (optionnel) : le keyer vocal peut sortir sur un périphérique audio différent pour la radio 2 ; laissez vide pour réutiliser celui de la radio 1.
+- **BOÎTIER OTRSP** : Aucun/Connecté, avec **PORT DU BOÎTIER** (ex. COM9) et **ÉCOUTE** — Stéréo (une oreille sur chaque radio, le mode de travail habituel en SO2R) ou Mono (l'écoute suit l'émission). Un bouton **Tester le boîtier** envoie une commande inoffensive pour vérifier que le câble répond.
+
+**La bascule se fait au clavier, par Ctrl+Espace**, depuis le logbook — le QSY, les macros CW et le keyer vocal visent alors la radio qui a l'émission. Un indicateur apparaît sur le band map quand une radio est en train d'émettre. L'état de focus est partagé côté serveur : toutes les pages ouvertes (et donc tous les postes, en multi-opérateur) voient la même radio active.
+
+**Un garde-fou tourne en fond, même sans boîtier configuré** : un verrou logiciel empêche d'armer un ordre d'émission (PTT, CW, message vocal) sur une radio pendant que l'autre émet déjà — la plupart des règlements de concours (CQ WW compris) interdisent deux porteuses simultanées. Le verrou se libère tout seul au bout de 2 minutes s'il reste « collé » (radio débranchée en cours d'émission, plantage du keyer) plutôt que de bloquer l'opérateur indéfiniment sur l'autre radio.
+
+**Ce que ce lot ne fait pas encore**, à ne pas croire acquis : pas de « dueling CQ » automatique, pas de scénarios de commutation avancés (mémoires du boîtier), pas de second band map à l'écran. Le SO2R pose les fondations utilisables ; le reste suppose du temps d'antenne pour être réglé correctement.
+
+### 8.5 Panadapter : spectre et chute d'eau
+
+Le panadapter (**🖥️ PANADAPTER** dans la barre de navigation, ou le bouton dédié du band map) ouvre une fenêtre détachable avec spectre et chute d'eau — utile pour voir l'activité autour de sa fréquence sans matériel SDR dédié. Trois sources possibles, sélectionnables dans le panadapter lui-même (**SOURCE**) selon ce que votre installation permet :
+
+- **Audio (universel)** : fonctionne sur **100 % du parc radio**, sans aucun matériel supplémentaire — réutilise exactement le même flux audio que le décodeur CW (section 8.8, câble/interface déjà branché depuis la sortie audio de réception du poste, jamais le micro). Limite assumée, pas un bug : la largeur affichable est celle du filtre audio du poste (typiquement 2,4-3 kHz en SSB étroit, jusqu'à ~12-15 kHz si le poste sort un audio large bande dédié) — pas les centaines de kHz d'un vrai scope radio interne.
+- **CI-V natif (Icom, large bande)** : sur les Icom qui publient le scope waveform CI-V (**IC-7300, IC-7610, IC-9700, IC-705, IC-7851**), un vrai panadapter large bande jusqu'à **500 kHz de span**, qui réutilise le port série déjà ouvert pour le CAT — zéro matériel supplémentaire, zéro limite de filtre audio. N'apparaît dans le sélecteur que si le pilotage CAT natif est actif sur un de ces modèles. Le flux ne démarre que si l'écran SCOPE de la radio est actif (aucune commande CI-V « start » dédiée ne l'y force — limite du protocole, pas de LogX AI).
+- **TCI** : sur les SDR qui parlent TCI (section 8.1), un flux I/Q brut jusqu'à **384 kHz de span**, dont la FFT est calculée côté serveur. N'apparaît dans le sélecteur que si le pilotage CAT est actif en mode TCI.
+
+### 8.6 Auto-log WSJT-X (FT8/FT4) : plus de ressaisie
 
 Chaque QSO que vous validez dans WSJT-X entre automatiquement dans le logbook, avec la même vérification de doublons et le même calcul de score qu'une saisie manuelle. Dans la section **💻 WSJT-X (FT8/FT4 — auto-log)** de la configuration, activez **AUTO-LOG WSJT-X** et vérifiez le **PORT UDP WSJT-X** (2237). Côté WSJT-X : Réglages → Rapports → UDP Server = l'IP du PC qui fait tourner LogX, port 2237.
 
 Sont repris automatiquement : indicatif, grille (complétée pour le calcul de distance), bande — y compris les bandes WARC 30/17/12 m, correctement identifiées —, mode, rapports envoyé/reçu et heure. Le logbook affiche un widget d'état : **💻 WSJT-X ●** en vert avec la fréquence, le mode et le compteur de QSO auto-loggés quand WSJT-X donne signe de vie (moins de 30 s), **💻 WSJT-X ○ en attente (port 2237)** sinon. Chaque QSO auto-loggé recharge la table et joue un bip.
 
-### 8.5 Keyer vocal : votre indicatif dit automatiquement, 100 % hors-ligne
+### 8.7 Keyer vocal : votre indicatif dit automatiquement, 100 % hors-ligne
 
 En phonie, le keyer vocal épargne votre voix : il annonce l'indicatif du correspondant et le report à votre place, en passant la radio en émission tout seul. La synthèse vocale utilise les voix Windows installées sur le PC — **aucune connexion Internet, aucune clé API**.
 
@@ -801,17 +892,17 @@ Configuration, section **🎙️ KEYER VOCAL (phonie — indicatif dit automatiq
 - **VOIX** : les voix Windows installées. **VITESSE (mots/min)** : 175 par défaut (80–300).
 - **🔊 Tester (indicatif fictif)** : joue un exemple avec F8TEST.
 
-À l'émission, LogX enclenche le PTT via le CAT (les trois modes conviennent), joue le message, puis relâche le PTT — relâchement **vérifié** avec seconde tentative ; en cas d'échec vous êtes prévenu : « ⚠ ÉCHEC DU RELÂCHEMENT PTT — la radio peut rester en émission ! ». Deux messages ne peuvent jamais se chevaucher.
+À l'émission, LogX enclenche le PTT via le CAT (tout mode actif convient, y compris flrig, OmniRig et FlexRadio — voir section 8.1), joue le message, puis relâche le PTT — relâchement **vérifié** avec seconde tentative ; en cas d'échec vous êtes prévenu : « ⚠ ÉCHEC DU RELÂCHEMENT PTT — la radio peut rester en émission ! ». Deux messages ne peuvent jamais se chevaucher.
 
 Dans le logbook (quand le mode n'est pas CW), le panneau **🎙 KEYER VOCAL — clic: jouer · ⏺: enregistrer** propose 4 messages enregistrés à votre micro (V1 « CQ », V2 « RÉPONSE », V3 « REPORT », V4 « MERCI » — conservés dans le navigateur), et le **🤖 CALLBOT — clic: dire · double-clic: modifier** 4 macros dynamiques : B1 « CQ Contest, {MYCALL} », B2 « {CALL} », B3 « {RST_SENT}, {MYCALL} », B4 « Thank you, {MYCALL} ». **Attention à la convention** : dans le CALLBOT, {CALL} désigne le correspondant en cours de saisie — à l'inverse des macros CW, où {CALL} est votre propre indicatif.
 
-### 8.6 Décodeur CW : lire le morse sans logiciel tiers
+### 8.8 Décodeur CW : lire le morse sans logiciel tiers
 
 Le panneau **🔤 DÉCODEUR CW** transcrit en texte le CW reçu, entièrement dans le navigateur — rien à installer. Il écoute l'**audio de réception de la radio** : « Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC) et affiche le CW décodé. Fiable sur signal propre et pas trop rapide — pas un substitut à l'oreille en QRM/pileup serré. »
 
 Mode d'emploi : ouvrez le panneau (en bas à gauche du logbook), choisissez le périphérique d'**entrée** audio (les noms des périphériques n'apparaissent qu'après avoir autorisé le micro dans le navigateur), ajustez au besoin **Ton (Hz)** (650 par défaut, réglable 300–1200, même en cours de décodage), puis **▶ Démarrer**. Le texte défile dans la zone ; **■ Arrêter** stoppe l'écoute, **🗑 Effacer** vide la zone. La vitesse est estimée automatiquement et affichée en direct dans l'en-tête (« xx MPM », plage 4–60 mots/min) ; lettres, chiffres, ponctuation et prosigns (<AR>, <SK>, <BK>…) sont reconnus.
 
-### 8.7 🛰️ Satellites : les deux champs sans lesquels vos QSO ne comptent pas
+### 8.9 🛰️ Satellites : les deux champs sans lesquels vos QSO ne comptent pas
 
 Si vous trafiquez par satellite, un point est **impératif** : renseignez le satellite dans **CONFIG > 🛰️ Satellite actif**. Ce n'est plus un simple repère informatif — c'est de lui que LogX tire les deux champs ADIF que LoTW exige :
 
@@ -832,7 +923,7 @@ Un QSO qui porte déjà un satellite — importé depuis un ADIF ou saisi sur un
 
 > **Ce que LogX ne fait pas encore** : la prédiction de passage (AOS/LOS, azimut, élévation) et le suivi automatique du rotor. Pour cela, la page CONFIG renvoie vers Heavens-Above, N2YO et Gpredict.
 
-### 8.8 🎯 WAIT & POUNCE — appeler automatiquement en FT8/FT4
+### 8.10 🎯 WAIT & POUNCE — appeler automatiquement en FT8/FT4
 
 Le panneau **🎯 WAIT & POUNCE** n'apparaît que si la liaison WSJT-X est active (CONFIG > WSJT-X). Il propose quatre niveaux, **activables séparément**, et il faut bien comprendre qu'ils ne sont pas de même nature.
 
@@ -876,7 +967,7 @@ Pendant une session, l'écran affiche la **minuterie qui décompte**, le bouton 
 
 > **Ce que LogX ne fait jamais.** Il ne fabrique aucun signal radio. Il envoie à WSJT-X le même message qu'un double-clic sur une ligne de décodage ; c'est WSJT-X qui décide de ce qui part sur l'air, selon ses propres réglages. Le niveau 4 reste une décision d'opérateur : votre station émet sous votre indicatif et sous votre responsabilité.
 
-### 8.9 Et sans aucun matériel ?
+### 8.11 Et sans aucun matériel ?
 
 Tout le reste du logiciel fonctionne à l'identique sans le moindre câble : saisie et vérification des QSO, score, cartes, cluster et spots, statistiques, assistants IA. Les fonctions matérielles se dégradent proprement :
 
@@ -1360,8 +1451,8 @@ LogX AI est conçu pour rester utilisable même sans aucune connexion Internet �
 
 ---
 
-*Dernière mise à jour : 25 juillet 2026 — nouvelle page **🎯 CHASSE** : les cinq panneaux de cibles (stations POTA/SOTA/WWFF, châteaux WCA, need list du cluster) ont quitté la page PROPAG. Chapitre 9 : entrée CHASSE ajoutée aux deux listes d'onglets, nouvelle section §9.5, panneaux retirés de la section PROPAG (WEBSDR et CALENDRIER renumérotés §9.6 et §9.7), et chapitre 10 corrigé (les stations en direct sont sur CHASSE).*
+*Dernière mise à jour : 13 août 2026 — chapitre 8 (Piloter sa radio) approfondi, en particulier le pilotage CAT (§8.1) : table complète des sept modes (ajout flrig/OmniRig/FlexRadio/Icom réseau), table complète des adresses CI-V d'usine par modèle Icom/Xiegu, explication de l'auto-détection USB (VID:PID des interfaces reconnues, astuce du numéro de série Icom), nouvelle sous-section « Dépannage CAT » avec les messages d'erreur courants et leur cause, renvoi vers `GUIDE_CAT_MICROHAM.md`. Rotor (§8.3) : ajout du mode GS-232 natif, absent jusqu'ici. Deux nouvelles sections insérées, SO2R (§8.4) et Panadapter (§8.5), avec renumérotation de §8.4-8.9 en §8.6-8.11.*
 
-*Mise à jour précédente : 25 juillet 2026 — ajout au chapitre Dépannage : le bandeau « FILES »/liste de requêtes réseau qui inquiète certains utilisateurs est en fait l'onglet Réseau des outils de développement du navigateur (F12), pas un composant de LogX AI.*
+*Mise à jour précédente : 25 juillet 2026 — nouvelle page **🎯 CHASSE** : les cinq panneaux de cibles (stations POTA/SOTA/WWFF, châteaux WCA, need list du cluster) ont quitté la page PROPAG. Chapitre 9 : entrée CHASSE ajoutée aux deux listes d'onglets, nouvelle section §9.5, panneaux retirés de la section PROPAG (WEBSDR et CALENDRIER renumérotés §9.6 et §9.7), et chapitre 10 corrigé (les stations en direct sont sur CHASSE).*
 
 *Mise à jour antérieure : 22 juillet 2026 — refonte complète du guide : nouveau plan en 15 chapitres reflétant l'état actuel du logiciel (4 modes d'utilisation dont RADIOCLUB, menus déroulants opérateur/bande/mode, ESM, décodeur CW, panneau EME, ouvertures par région, sorties portables POTA/SOTA/WWFF/IOTA/WCA avec bases embarquées, chasse aux DXpéditions, écran mural utilisable dans tous les modes, 6 fournisseurs IA, chat multi-op).*

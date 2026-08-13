@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LogX AI — Départements (REF)</title>
+<title>LogX AI — Zones travaillées</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -92,7 +92,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 <header>
   <div class="logo-wrap">
     <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
-    <span class="logo-suffix"> — <span style="color:var(--green)">Départements REF</span></span>
+    <span class="logo-suffix"> — <span style="color:var(--green)">Zones travaillées</span></span>
   </div>
   <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted)" id="contestName">—</div>
 </header>
@@ -259,7 +259,7 @@ async function loadProgress(){
   const _gen = ++_progressGen;
   try{
     const r = await fetch('/data/departments_worked');
-    if(!r.ok) return;
+    if(!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     if(_gen!==_progressGen) return;
     workedSet = new Set(d.worked||[]);
@@ -274,7 +274,14 @@ async function loadProgress(){
       : `${pct}% · encore ${restants} département${restants>1?'s':''} pour verdir la France 🇫🇷`;
     renderGrid(d);
     applyWorkedToMap();
-  }catch(e){}
+  }catch(e){
+    if(_gen!==_progressGen) return;
+    // Échec réseau : ne jamais laisser les valeurs par défaut (0 / 96) --
+    // indiscernable d'une vraie remise à zéro pour un opérateur qui a déjà
+    // loggé des QSO (audit intuitivité 13/08/2026).
+    document.getElementById('pCount').textContent = '—';
+    document.getElementById('pMsg').textContent = '⚠ Impossible de charger la progression — nouvel essai dans 15 s';
+  }
 }
 
 function renderGrid(d){
@@ -488,7 +495,7 @@ async function loadWorldProgress(){
   const _gen = ++_progressGen;
   try{
     const r = await fetch('/data/world_worked');
-    if(!r.ok) return;
+    if(!r.ok) throw new Error('HTTP ' + r.status);
     worldWorkedData = await r.json();
     if(_gen!==_progressGen) return;
     applyWorkedToWorldMap();
@@ -502,7 +509,11 @@ async function loadWorldProgress(){
     document.getElementById('pFill').style.width = pct + '%';
     document.getElementById('pMsg').textContent = `${done} pays contactés (${pct}%)`;
     document.getElementById('pDom').textContent = '';
-  }catch(e){}
+  }catch(e){
+    if(_gen!==_progressGen) return;
+    document.getElementById('pCount').textContent = '—';
+    document.getElementById('pMsg').textContent = '⚠ Impossible de charger la progression — nouvel essai dans 15 s';
+  }
 }
 
 // ─── DÉMARRAGE ────────────────────────────────────────────────────────────

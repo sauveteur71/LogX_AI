@@ -69,6 +69,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .msg-agent .bubble{background:var(--bg3);border:1px solid var(--border);font-family:var(--font-mono);border-radius:12px 12px 12px 2px}
 .msg-agent .bubble.streaming::after{content:'▌';color:var(--accent2);animation:blink 1s infinite;margin-left:1px}
 .off-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#0a0e1e;background:var(--muted,#7a86b6);border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
+.off-badge.basique-badge{background:#00D68A;color:#04140A}
 .msg-agent .bubble.action-card{border:1px solid var(--accent);border-left:4px solid var(--accent);background:rgba(255,214,10,.06)}
 .action-card button{cursor:pointer;font-family:var(--font-mono);font-size:13px;font-weight:700;border-radius:5px;padding:5px 14px;border:1px solid var(--border)}
 .action-card .act-yes{color:#0a0e1e;background:#C9822E;border-color:#C9822E}
@@ -189,7 +190,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     </div>
     <div class="clock rc-i18n-live" id="clock">00:00:00 UTC</div>
     <button class="cfg-btn" id="mapModeBtn" onclick="cycleModeBtn()" title="Changer la vue de la carte">🗺️ EUROPE</button>
-    <button class="cfg-btn" id="dimToggleBtn" onclick="toggleMapDimension()" title="Basculer entre la carte 2D et le globe 3D">🌐 3D</button>
+    <button class="cfg-btn expert-only" id="dimToggleBtn" onclick="toggleMapDimension()" title="Basculer entre la carte 2D et le globe 3D">🌐 3D</button>
     <button class="cfg-btn" id="themeToggle" onclick="toggleTheme()" title="Basculer jour/nuit" style="font-size:16px">☀️</button>
   </div>
 </header>
@@ -230,7 +231,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="coach-rate" id="coachRate"></div>
       <div class="coach-bands" id="coachBands"></div>
       <div class="coach-hints" id="coachHints"></div>
-      <label class="coach-nudge-toggle" title="Une phrase d'action poussée en toast quand un événement mérite ton attention : entité/département rare jamais fait et spotté, rythme effondré, silence radio." style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted,#8792B5);margin-top:6px;cursor:pointer">
+      <label class="coach-nudge-toggle expert-only" title="Une phrase d'action poussée en toast quand un événement mérite ton attention : entité/département rare jamais fait et spotté, rythme effondré, silence radio." style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted,#8792B5);margin-top:6px;cursor:pointer">
         <input type="checkbox" id="nudgeToggle" onchange="toggleNudges(this.checked)" style="cursor:pointer">
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="3.5" y="6" width="11" height="8" rx="2"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> <span>Nudges en direct</span>
       </label>
@@ -244,7 +245,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="chat-input">
       <div class="quick-btns">
         <button class="qbtn qbtn-coach" onclick="coachAdvice()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="5" y="5" width="8" height="8" rx="1.5"/><line x1="9" y1="1.5" x2="9" y2="5"/><line x1="9" y1="13" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="5" y2="9"/><line x1="13" y1="9" x2="16.5" y2="9"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/></svg>COACH</button>
-        <button class="qbtn" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M1.5 6.5L9 3l7.5 3.5L9 10l-7.5-3.5z"/><path d="M5 8.2v3.3c0 1 1.8 2 4 2s4-1 4-2V8.2"/><line x1="16.5" y1="6.5" x2="16.5" y2="11"/></svg>DÉBRIEF</button>
+        <button class="qbtn expert-only" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M1.5 6.5L9 3l7.5 3.5L9 10l-7.5-3.5z"/><path d="M5 8.2v3.3c0 1 1.8 2 4 2s4-1 4-2V8.2"/><line x1="16.5" y1="6.5" x2="16.5" y2="11"/></svg>DÉBRIEF</button>
         <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)">🔇</button>
         <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>CHASSE ASSISTÉE</button>
         <select id="skillSel" class="skill-sel" onchange="setSkill(this.value)" title="Niveau : adapte le ton et le niveau de détail des réponses de l'IA">
@@ -252,13 +253,19 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <option value="confirme">🎯 Confirmé</option>
           <option value="expert">🚀 Expert</option>
         </select>
+        <select id="aiTierSel" class="skill-sel" onchange="setAiTier(this.value)" title="Palier IA : Basique répond sans jamais appeler l'IA (SCORE/PROP/MULTS/RÉSUMÉ/SPOTS), Intermédiaire et Expert passent par l'IA comme aujourd'hui">
+          <option value="basique">🔌 Basique</option>
+          <option value="intermediaire">⚡ Intermédiaire</option>
+          <option value="expert">🧠 Expert</option>
+        </select>
         <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>ANALYSER</button>
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>SCORE</button>
         <button class="qbtn" onclick="qs('Suis-je spoté sur les clusters ?','spots')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="10,1.5 4.5,10 8.5,10 7.5,16.5 13.5,8 9.5,8 10,1.5"/></svg>SPOTS</button>
         <button class="qbtn" onclick="qs('Conditions de propagation actuelles ?','prop')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><polyline points="2,11 5,11 7,5 9,15 11,7 13,12 16,9"/></svg>PROP</button>
-        <button class="qbtn" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
-        <button class="qbtn" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
+        <button class="qbtn expert-only" onclick="qs('Quelles sont mes probabilités d\'ouverture par bande vers chaque région (Europe, Amérique du Nord, Japon...) depuis mon QTH, et vers quelle région pointer maintenant ?','openings')" title="Estime les ouvertures par bande vers chaque grande région depuis ta position"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>OUVERTURES</button>
+        <button class="qbtn expert-only" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
         <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg>RÉSUMÉ</button>
+        <button class="qbtn" onclick="qs('Fais-moi un bilan de mes diplômes : DXCC, WAZ, WAC, ce qui manque le plus.','performance')" title="Bilan des diplômes et de ce qui manque, sur toute la vie de la station"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>BILAN</button>
       </div>
       <div class="input-row">
         <textarea id="userInput" placeholder="Envoie un message à l'agent..." rows="1"
@@ -283,7 +290,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            carte 2D. Sa boucle de rendu ne tourne QUE quand il est affiché. -->
       <canvas id="globeCanvas" style="display:none;position:absolute;inset:0;width:100%;height:100%;cursor:grab;z-index:1" class=""></canvas>
       <div class="g-panel g-note" id="geoNote" style="position:absolute;top:16px;left:16px;max-width:280px;color:var(--yellow);display:none;z-index:601">Continents indisponibles hors connexion (premier accès au serveur requis pour les mettre en cache).</div>
-      <div class="g-panel g-controls" id="globeControls" style="position:absolute;top:16px;right:16px;width:216px;display:none;flex-direction:column;gap:8px;z-index:601">
+      <div class="g-panel g-controls expert-only" id="globeControls" style="position:absolute;top:16px;right:16px;width:216px;display:none;flex-direction:column;gap:8px;z-index:601">
         <div class="g-title">AFFICHAGE</div>
         <label class="g-toggle"><input type="checkbox" id="tglCountries" checked onchange="g3dScheduleDraw()"><span>Pays travaillés</span></label>
         <label class="g-toggle"><input type="checkbox" id="tglSpots" checked onchange="g3dScheduleDraw()"><span>Spots DX en direct</span></label>
@@ -295,7 +302,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <button class="g-btn" onclick="g3dRecenterQTH()" title="Recentrer sur mon QTH">QTH</button>
         </div>
       </div>
-      <div class="g-panel g-legend" id="globeLegend" style="position:absolute;bottom:16px;left:16px;display:none;flex-direction:column;gap:5px;z-index:601">
+      <div class="g-panel g-legend expert-only" id="globeLegend" style="position:absolute;bottom:16px;left:16px;display:none;flex-direction:column;gap:5px;z-index:601">
         <div class="g-title">LÉGENDE</div>
         <div class="g-leg-row"><span class="g-leg-dot" style="background:var(--green)"></span>Pays DXCC travaillé</div>
         <div class="g-leg-row"><span class="g-leg-dot" style="background:var(--accent2)"></span>Ma station (QTH)</div>
@@ -307,22 +314,25 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
            du zoom 7, locator COMPLET (6, sous-carré) à partir du zoom 11 —
            redessinée à chaque déplacement/zoom (drawMaidenGrid()), jamais au
            chargement seul, sinon elle resterait fausse après un panoramique. -->
-      <div id="maidenControl" style="position:absolute;z-index:600;bottom:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
+      <div id="maidenControl" class="expert-only" style="position:absolute;z-index:600;bottom:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
         <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
           <input type="checkbox" id="maidenOn" onchange="drawMaidenGrid()" style="accent-color:var(--accent2)">
           <span style="color:var(--accent2);letter-spacing:1px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="ico"><rect x="2.5" y="2.5" width="13" height="13" rx="1"/><line x1="2.5" y1="7.17" x2="15.5" y2="7.17"/><line x1="2.5" y1="10.83" x2="15.5" y2="10.83"/><line x1="7.17" y1="2.5" x2="7.17" y2="15.5"/><line x1="10.83" y1="2.5" x2="10.83" y2="15.5"/></svg>GRILLE MAIDENHEAD</span>
         </label>
       </div>
       <!-- Cercles de distance « Great Circle » centrés sur le QTH (1000/2000/3000/4000 km) -->
-      <div id="gcControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
+      <div id="gcControl" class="expert-only" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45)">
         <label style="cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
           <input type="checkbox" id="gcToggle" onchange="toggleGreatCircle()" style="accent-color:var(--accent2)">
           <span style="color:var(--accent2);letter-spacing:1px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>GREAT CIRCLE</span>
         </label>
       </div>
-      <!-- Surcouche CARRÉS QRA travaillés (VUCC). Placée SOUS le bloc
-           propagation : ce sont deux surcouches indépendantes, cumulables. -->
-      <div id="carresControl" style="position:absolute;z-index:600;top:10px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:236px">
+      <!-- Surcouche CARRÉS QRA travaillés (VUCC). Empilée SOUS GREAT CIRCLE
+           (top décalé de sa hauteur + marge -- même point d'ancrage top/left
+           que #gcControl sinon, les deux panneaux se superposaient pixel
+           pour pixel et GREAT CIRCLE n'était jamais cliquable, audit
+           intuitivité 13/08/2026). -->
+      <div id="carresControl" class="expert-only" style="position:absolute;z-index:600;top:56px;left:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:236px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span style="color:var(--accent2);letter-spacing:2px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" class="ico"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/><rect x="10" y="10" width="5.5" height="5.5" rx="1"/></svg>CARRÉS QRA</span>
           <label style="cursor:pointer;display:flex;align-items:center;gap:5px">
@@ -352,7 +362,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       </div>
 
       <!-- Surcouche PROPAGATION 24 h (carte du monde colorée depuis le QTH) -->
-      <div id="propControl" style="position:absolute;z-index:600;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:224px">
+      <div id="propControl" class="expert-only" style="position:absolute;z-index:600;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-family:var(--font-mono);font-size:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);width:224px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span style="color:var(--accent2);letter-spacing:2px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" class="ico"><circle cx="9" cy="9" r="6.5"/><ellipse cx="9" cy="9" rx="3" ry="6.5"/><line x1="2.5" y1="9" x2="15.5" y2="9"/></svg>PROPAGATION</span>
           <label style="cursor:pointer;display:flex;align-items:center;gap:5px">
@@ -1310,6 +1320,20 @@ function toggleTts(){
 function setSkill(v){ try{ localStorage.setItem('rc_skill', v); }catch(e){} }
 function syncSkillSel(){ const s=document.getElementById('skillSel'); if(s&&window.rcSkill) s.value=window.rcSkill(); }
 
+// Palier IA (refonte 13/08/2026) : stocké dans rc_ai_tier, local à cette page
+// (contrairement à rc_skill, qui influence juste le TON de l'IA partout, ce
+// réglage change le CHEMIN D'EXÉCUTION -- avec ou sans appel IA -- donc reste
+// propre à la carte pour l'instant). Défaut 'expert' : comportement actuel
+// inchangé tant que l'opérateur n'a jamais touché au réglage.
+function aiTier(){ try{ return localStorage.getItem('rc_ai_tier') || 'expert'; }catch(e){ return 'expert'; } }
+function setAiTier(v){ try{ localStorage.setItem('rc_ai_tier', v); }catch(e){} }
+function syncAiTierSel(){ const s=document.getElementById('aiTierSel'); if(s) s.value=aiTier(); }
+// Boutons rapides répondables SANS IA via /coach/answer (voir logx_coach.answer_text)
+// + 'spots', répondu à part via /coach/state.hints (answer_text('spots') est un
+// cul-de-sac volontaire côté serveur -- toujours "hors-ligne, impossible de
+// vérifier" -- alors que /coach/state a déjà les multiplicateurs neufs).
+const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots','performance'];
+
 function showThinking(){
   const c=document.getElementById('chatMsgs');
   const div=document.createElement('div');
@@ -1452,6 +1476,21 @@ async function send(forcedText,displayText,topic){
   if(forcedText===undefined){inp.value='';inp.style.height='auto';}
   isWaiting=true;
   document.getElementById('sendBtn').disabled=true;
+
+  // Palier Basique (refonte 13/08/2026) : pour les boutons rapides qui ont un
+  // équivalent déterministe, l'IA n'est même pas TENTÉE -- réponse immédiate,
+  // 0 appel réseau vers un fournisseur IA. Le texte libre (topic absent)
+  // continue de passer par l'IA normalement : aucun équivalent déterministe
+  // pour une question ouverte.
+  if(aiTier()==='basique' && topic && AI_TIER_BASIQUE_TOPICS.includes(topic)){
+    const ok=await basiqueAnswer(topic);
+    isWaiting=false;
+    document.getElementById('sendBtn').disabled=false;
+    if(ok) return;
+    // Coach lui-même injoignable (serveur local éteint ?) : repli sur le
+    // chemin normal plutôt que de laisser l'opérateur sans réponse.
+  }
+
   showThinking();
 
   try{
@@ -1466,17 +1505,46 @@ async function send(forcedText,displayText,topic){
     // choix de la page CONFIG et partait tel quel à OpenAI, Mistral, xAI,
     // DeepSeek ou Gemini — échec à chaque message. Le serveur décide seul
     // (voir logx_utils.modele_effectif).
+    // Palier Intermédiaire (Phase 2, refonte 13/08/2026) : moins de jetons de
+    // sortie et pas d'historique multi-tour -- chaque question repart de zéro
+    // plutôt que de faire grossir le prompt de 20 messages à chaque tour.
+    // Le contexte terrain (spots/log) et le prompt système restent ceux
+    // calculés côté serveur (do_refresh()/build_system_prompt()) : les réduire
+    // à leur tour demande une vraie réduction serveur, phase suivante.
+    //
+    // La consigne de concision est accrochée au MESSAGE (pas au system prompt) :
+    // dès que needs_context est vrai (le cas pour la plupart des questions
+    // Intermédiaire -- spots/prop/score...), le serveur régénère et ÉCRASE le
+    // system prompt reçu du client (logx_http.py, /agent/analyze, data['system_prompt']
+    // depuis do_refresh()) -- une consigne posée côté system serait donc perdue
+    // silencieusement dans ce cas précis. Le message utilisateur, lui, n'est
+    // qu'enrichi (contexte préfixé), jamais remplacé : la consigne y survit.
+    const _tier=aiTier();
+    const _isLight=_tier==='intermediaire';
+    // Bilan diplômes (#7 refonte, 13/08/2026) : le contexte terrain serveur
+    // (do_refresh) ne couvre que les ~30 derniers QSO, insuffisant pour une
+    // question "à vie" (DXCC/WAZ/WAC/départements) -- on enrichit le MESSAGE
+    // (jamais écrasé, voir note ci-dessus) avec le digest déterministe
+    // /awards/summary AVANT l'appel IA, en Intermédiaire comme en Expert.
+    let _perfDigest='';
+    if(topic==='performance'){
+      try{
+        const _r=await fetch('/awards/summary');
+        if(_r.ok) _perfDigest='\n\n[Statistiques à vie de la station]\n'+formatAwardsDigest(await _r.json());
+      }catch(e){}
+    }
+    const _apiText=(_isLight ? text+'\n\n(Réponds en 2-3 phrases maximum, va droit au but.)' : text)+_perfDigest;
     const body={
-      max_tokens:4096,
-      message:text,
+      max_tokens:_isLight?600:4096,
+      message:_apiText,
       needs_context:isAnalysis,
-      history:conversationHistory.slice(-20),
+      history:_isLight?[]:conversationHistory.slice(-20),
     };
     // Compat serveur : l'historique passe par 'messages' (le message du jour
     // est ajouté côté serveur via 'message').
     body.messages=body.history;
     delete body.history;
-    conversationHistory.push({role:'user',content:text});
+    conversationHistory.push({role:'user',content:_apiText});
 
     // L'agent répond dans la langue choisie (directive ajoutée au prompt système).
     const _dir=rcAiDirectives();
@@ -1548,7 +1616,11 @@ function finalizeAgentReply(bub,reply){
 // coach — 100 % déterministe, aucun LLM — répond aux boutons rapides via
 // /coach/answer. Renvoie true s'il a répondu. Le texte libre n'est PAS
 // répondable hors-ligne (topic absent) → false, l'appelant montre l'erreur.
-async function offlineFallback(topic, bub){
+// Fabrique commune : interroge /coach/answer (déterministe, sans LLM) et rend
+// la réponse dans une bulle avec le badge fourni. Deux appelants, deux raisons
+// différentes d'y passer : offlineFallback() (repli APRÈS un échec IA) et
+// basiqueAnswer() (palier Basique, direct -- l'IA n'est même pas tentée).
+async function _renderCoachAnswer(topic, bub, badgeEl){
   if(!topic) return false;
   try{
     const r=await fetch('/coach/answer?topic='+encodeURIComponent(topic)+'&lang='+encodeURIComponent(rcLang()));
@@ -1557,7 +1629,7 @@ async function offlineFallback(topic, bub){
       if(!bub) bub=makeAgentBubble();
       bub.classList.remove('streaming');
       bub.textContent='';
-      bub.appendChild(offlineBadge());
+      bub.appendChild(badgeEl);
       bub.appendChild(document.createTextNode(j.text));
       conversationHistory.push({role:'assistant',content:j.text});
       if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
@@ -1568,10 +1640,90 @@ async function offlineFallback(topic, bub){
   }catch(e){/* le serveur LOCAL lui-même est injoignable : rien à faire */}
   return false;
 }
+async function offlineFallback(topic, bub){
+  return _renderCoachAnswer(topic, bub, offlineBadge());
+}
 function offlineBadge(){
   const s=document.createElement('span');s.className='off-badge';
   s.textContent='📴 '+rcT('hors-ligne');
   return s;
+}
+function basiqueBadge(){
+  const s=document.createElement('span');s.className='off-badge basique-badge';
+  s.textContent='⚡ '+rcT('0 jeton');
+  return s;
+}
+// 'spots' n'a pas de réponse déterministe via /coach/answer (answer_text()
+// y renvoie toujours "hors-ligne, impossible de vérifier", cf. logx_coach.py)
+// -- mais /coach/state calcule déjà les multiplicateurs neufs repérés sur le
+// cluster (spotted_new_ones(), déjà formatés en phrases dans state.hints) :
+// on les réutilise tels quels plutôt que de refaire l'appel IA.
+async function basiqueSpotsAnswer(bub){
+  try{
+    const r=await fetch('/coach/state?lang='+encodeURIComponent(rcLang()));
+    const st=await r.json();
+    const actionHints=((st&&st.hints)||[]).filter(h=>h.level==='action'&&h.icon==='🎯');
+    if(!bub) bub=makeAgentBubble();
+    bub.classList.remove('streaming');
+    bub.textContent='';
+    bub.appendChild(basiqueBadge());
+    const txt=actionHints.length
+      ? actionHints.map(h=>'🎯 '+h.text).join('\n')
+      : rcT('Aucun multiplicateur neuf repéré sur le cluster pour l\'instant.');
+    bub.appendChild(document.createTextNode(txt));
+    conversationHistory.push({role:'assistant',content:txt});
+    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+    return true;
+  }catch(e){ return false; }
+}
+async function basiqueAnswer(topic, bub){
+  if(topic==='spots') return basiqueSpotsAnswer(bub);
+  if(topic==='performance') return basiquePerformanceAnswer(bub);
+  return _renderCoachAnswer(topic, bub, basiqueBadge());
+}
+// Bilan diplômes (#7 refonte, 13/08/2026) : /awards/summary est déjà calculé
+// SANS IA (DXCC/WAZ/ITU/WAC/WAS/VUCC/départements, à vie -- award_summary(),
+// déjà utilisé par la page Diplômes) -- même principe que basiqueSpotsAnswer :
+// une donnée déjà agrégée déterministe n'a besoin d'aucun appel IA pour être
+// LUE, seulement pour être commentée/analysée (ce que fait la version
+// Intermédiaire/Expert, voir enrichPerformanceContext() dans send()).
+function formatAwardsDigest(s){
+  const lines=[];
+  lines.push(`${s.qso_total} QSO à vie, ${s.confirmed_total} confirmé(s).`);
+  lines.push(`DXCC : ${s.dxcc.worked} travaillées, ${s.dxcc.confirmed} confirmées.`);
+  if(s.departments&&s.departments.metro_total)
+    lines.push(`Départements métropole : ${s.departments.metro_worked}/${s.departments.metro_total}`
+      +(s.departments.dom_worked?` (+ ${s.departments.dom_worked} DOM)`:'')+'.');
+  const diplome=(label,d)=>{
+    if(!d||!d.total) return;
+    let l=`${label} : ${d.worked}/${d.total}`;
+    if(d.missing&&d.missing.length) l+=` — manque : ${d.missing.slice(0,10).join(', ')}${d.missing.length>10?'…':''}`;
+    lines.push(l);
+  };
+  diplome('WAZ',s.waz); diplome('WAZ ITU',s.waz_itu); diplome('WAC',s.wac);
+  if(s.was_data) diplome('WAS',s.was);
+  if(s.per_band){
+    const top=Object.entries(s.per_band).sort((a,b)=>(b[1].qso||0)-(a[1].qso||0)).slice(0,6);
+    if(top.length) lines.push('Par bande (QSO/DXCC) : '+top.map(([b,v])=>`${b}MHz ${v.qso}/${v.dxcc}`).join(', ')+'.');
+  }
+  return lines.join('\n');
+}
+async function basiquePerformanceAnswer(bub){
+  try{
+    const r=await fetch('/awards/summary');
+    const s=await r.json();
+    if(!bub) bub=makeAgentBubble();
+    bub.classList.remove('streaming');
+    bub.textContent='';
+    bub.appendChild(basiqueBadge());
+    const txt=formatAwardsDigest(s);
+    bub.appendChild(document.createTextNode(txt));
+    conversationHistory.push({role:'assistant',content:txt});
+    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+    return true;
+  }catch(e){ return false; }
 }
 // Message quand l'IA échoue sur du texte LIBRE (non répondable hors-ligne).
 function freeTextOffline(bub,err){
@@ -2543,6 +2695,7 @@ scheduleAutoCheck();
 resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
 syncTtsBtn();      // état initial du bouton 🔊 (#6)
 syncSkillSel();    // niveau IA courant dans le sélecteur (#21)
+syncAiTierSel();   // palier IA courant dans le sélecteur (refonte 13/08/2026)
 </script>
 </body>
 </html>
