@@ -1371,7 +1371,7 @@ function syncAiTierSel(){ const s=document.getElementById('aiTierSel'); if(s) s.
 // + 'spots', répondu à part via /coach/state.hints (answer_text('spots') est un
 // cul-de-sac volontaire côté serveur -- toujours "hors-ligne, impossible de
 // vérifier" -- alors que /coach/state a déjà les multiplicateurs neufs).
-const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots','performance'];
+const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots','performance','debrief'];
 
 function showThinking(){
   const c=document.getElementById('chatMsgs');
@@ -1719,7 +1719,52 @@ async function basiqueSpotsAnswer(bub){
 async function basiqueAnswer(topic, bub){
   if(topic==='spots') return basiqueSpotsAnswer(bub);
   if(topic==='performance') return basiquePerformanceAnswer(bub);
+  if(topic==='debrief') return basiqueDebriefAnswer(bub);
   return _renderCoachAnswer(topic, bub, basiqueBadge());
+}
+// Débrief post-concours (refonte #8, 13/08/2026) : /coach/debrief calcule déjà
+// TOUT en déterministe (build_debrief(), logx_coach.py) -- score, QSO/km/ODX
+// par bande, meilleures/pires heures, silences -- justement pour nourrir le
+// prompt IA existant (debriefIA()). Avant ce correctif, DÉBRIEF appelait
+// systématiquement l'IA même en palier Basique (aucun topic passé à send()),
+// contrairement à SCORE/PROP/SPOTS/BILAN qui, eux, coupaient déjà l'appel.
+function formatDebriefDigest(s){
+  const lines=[];
+  lines.push(`${s.contest_name||s.contest||'Concours'} : ${s.qso_total} QSO, ${s.score} pts (${s.status||'?'}).`);
+  const bands=Object.entries(s.per_band||{}).sort((a,b)=>(b[1].qso||0)-(a[1].qso||0));
+  if(bands.length){
+    lines.push('Par bande : '+bands.map(([b,v])=>{
+      let seg=`${b}MHz ${v.qso} QSO`;
+      if(v.locators) seg+=`, ${v.locators} carrés`;
+      if(v.best_km) seg+=`, ODX ${Math.round(v.best_km)}km (${v.best_call})`;
+      return seg;
+    }).join(' · ')+'.');
+  }
+  if(s.departments!=null) lines.push(`Départements travaillés : ${s.departments}.`);
+  if((s.best_hours||[]).length) lines.push('Meilleures heures : '+s.best_hours.map(([h,n])=>`${h} (${n})`).join(', ')+'.');
+  if((s.worst_hours||[]).length) lines.push('Heures creuses : '+s.worst_hours.map(([h,n])=>`${h} (${n})`).join(', ')+'.');
+  if((s.silences||[]).length) lines.push('Silences ≥30 min : '+s.silences.slice(0,5).map(x=>`${x.from}→${x.to} (${x.min}min)`).join(' · ')+'.');
+  return lines.join('\n');
+}
+async function basiqueDebriefAnswer(bub){
+  try{
+    const r=await fetch('/coach/debrief');
+    const d=await r.json();
+    if(!bub) bub=makeAgentBubble();
+    bub.classList.remove('streaming');
+    bub.textContent='';
+    bub.appendChild(basiqueBadge());
+    if(!d||!d.stats||!(d.stats.qso_total>0)){
+      bub.appendChild(document.createTextNode(rcT('Aucun QSO dans le log de ce concours — rien à débriefer pour l\'instant.')));
+    }else{
+      const txt=formatDebriefDigest(d.stats);
+      bub.appendChild(document.createTextNode(txt));
+      conversationHistory.push({role:'assistant',content:txt});
+      if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+    }
+    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+    return true;
+  }catch(e){ return false; }
 }
 // Bilan diplômes (#7 refonte, 13/08/2026) : /awards/summary est déjà calculé
 // SANS IA (DXCC/WAZ/ITU/WAC/WAS/VUCC/départements, à vie -- award_summary(),
@@ -2185,7 +2230,7 @@ async function debriefIA(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
     if(d&&d.debrief_prompt&&(d.stats||{}).qso_total>0){
-      send(d.debrief_prompt,rcT('🎓 Débrief post-concours demandé (déroulé transmis)'));
+      send(d.debrief_prompt,rcT('🎓 Débrief post-concours demandé (déroulé transmis)'),'debrief');
     }else{
       addMsg('agent','ℹ️ '+rcT('Aucun QSO dans le log de ce concours — rien à débriefer pour l\'instant.'));
     }
