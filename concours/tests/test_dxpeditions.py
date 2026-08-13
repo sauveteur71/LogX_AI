@@ -92,6 +92,56 @@ def test_fetch_dxpeditions_reseau_indisponible_retombe_sur_dernier_connu(monkeyp
     assert dxp.fetch_dxpeditions() == [{'callsign': 'X'}]
 
 
+# ─── worked_status : nuance "jamais / partiel / toutes bandes" (13/08/2026) ─
+# Demande F4GLD : distinguer un pays jamais travaillé d'un pays travaillé
+# mais pas sur toutes les bandes HF, dans le MÊME badge (pas de ligne en plus).
+
+def test_worked_status_new_pays_jamais_travaille():
+    assert dxp._worked_status('Tuvalu', {'crete'}, None) == 'new'
+
+
+def test_worked_status_full_sans_detail_bandes():
+    # worked_bands non fourni : repli sur le comportement d'avant cette
+    # nuance -- jamais 'partial' sans données de bande, pour ne pas afficher
+    # une information qu'on ne peut pas garantir.
+    assert dxp._worked_status('Tuvalu', {'tuvalu'}, None) == 'full'
+
+
+def test_worked_status_partial_bandes_manquantes():
+    worked_bands = {'tuvalu': {'14', '21'}}   # 4 bandes HF manquantes sur 6
+    assert dxp._worked_status('Tuvalu', {'tuvalu'}, worked_bands) == 'partial'
+
+
+def test_worked_status_full_toutes_bandes_hf():
+    worked_bands = {'tuvalu': {'1.8', '3.5', '7', '14', '21', '28'}}
+    assert dxp._worked_status('Tuvalu', {'tuvalu'}, worked_bands) == 'full'
+
+
+def test_worked_status_none_sans_donnees():
+    assert dxp._worked_status('Tuvalu', None, None) is None
+    assert dxp._worked_status('', {'tuvalu'}, None) is None
+
+
+def test_fetch_dxpeditions_worked_status_integration(monkeypatch):
+    _reset_cache()
+    xml = _rss('Aug 3-9, 2026 -- Tuvalu -- T2JK -- QSL: LoTW',
+                'Jul 4-23, 2026 -- Crete -- SV9 -- QSL: LoTW')
+    monkeypatch.setattr(logx_utils, 'fetch_url', lambda *a, **k: xml)
+    out = dxp.fetch_dxpeditions({'Crete'}, {'Crete': {'14'}})
+    by_entity = {e['entity']: e for e in out}
+    assert by_entity['Tuvalu']['worked_status'] == 'new'
+    assert by_entity['Crete']['worked_status'] == 'partial'
+
+
+def test_fetch_dxpeditions_sans_worked_bands_reste_retrocompatible(monkeypatch):
+    _reset_cache()
+    xml = _rss('Aug 3-9, 2026 -- Tuvalu -- T2JK -- QSL: LoTW')
+    monkeypatch.setattr(logx_utils, 'fetch_url', lambda *a, **k: xml)
+    out = dxp.fetch_dxpeditions({'Tuvalu'})   # pas de worked_bands
+    assert out[0]['worked'] is True            # champ historique inchangé
+    assert out[0]['worked_status'] == 'full'   # repli honnête, jamais 'partial' sans données
+
+
 def test_fetch_dxpeditions_xml_invalide_ne_leve_jamais(monkeypatch):
     _reset_cache()
     monkeypatch.setattr(logx_utils, 'fetch_url', lambda *a, **k: 'pas du xml')
@@ -303,7 +353,7 @@ def test_endpoint_dxpeditions_active(monkeypatch):
     monkeypatch.setattr(httpmod, 'shared_log', [])
     monkeypatch.setattr(httpmod, '_spots_from_caches', lambda: {'HF': []})
 
-    def fake_chasse(worked_entities=None, spots_by_band=None, today=None):
+    def fake_chasse(worked_entities=None, spots_by_band=None, today=None, worked_bands=None):
         assert spots_by_band == {'HF': []}
         return [{'callsign': 'T2JK', 'entity': 'Tuvalu', 'status': 'active',
                  'freq_khz': 21295.0, 'spot_band': 'HF', 'spot_mode': 'FT8'}]

@@ -48,6 +48,22 @@ def _worked_pairs(shared_log, contest_id=''):
     return pairs
 
 
+def worked_bands_by_country(shared_log, contest_id=''):
+    """{ nom_pays_affiché: {bandes travaillées} } -- même résolution clé DXCC
+    -> nom affiché que countries_progress()/country_targets(), pour comparer
+    aux entités DXpeditions (indexées par nom NG3K, ex. 'Crete', 'Tuvalu').
+    Sert à distinguer, pour un pays déjà travaillé, s'il l'est sur TOUTES les
+    bandes HF classiques ou seulement certaines (demande F4GLD 13/08/2026 :
+    « déjà contacté mais pas sur toutes les bandes, sans surcharger »)."""
+    import logx_flags as flags
+    out = {}
+    for key, band in _worked_pairs(shared_log, contest_id):
+        fc = flags.flag_for_prefix(key)
+        name = fc['country'] or key
+        out.setdefault(name, set()).add(band)
+    return out
+
+
 def countries_progress(shared_log, contest_id=''):
     """Pays DXCC contactés vs total, groupés par continent (pour la grille).
     { worked:[prefixes], total, done, by_continent:{EU:[{prefix,country,flag,

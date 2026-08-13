@@ -695,8 +695,15 @@ async function loadDxActive(){
         ? `<span class="sr-qrg">${(e.freq_khz/1000).toFixed(3)} MHz${e.spot_band ? ' ('+esc(e.spot_band)+')' : ''}</span>`
         : '';
       const mode = e.spot_mode ? `<span class="sr-mode">${esc(e.spot_mode)}</span>` : '';
-      const newBadge = e.worked === false
-        ? `<span class="sr-mode" style="color:var(--green)">🆕 nouveau pays</span>` : '';
+      // Même nuance à trois états que l'onglet DXPEDITIONS du calendrier
+      // (demande F4GLD 13/08/2026) : 'new' = jamais travaillé, 'partial' =
+      // travaillé mais pas sur toutes les bandes HF classiques -- même
+      // emplacement de badge, pas de ligne en plus.
+      const newBadge = e.worked_status === 'new'
+        ? `<span class="sr-mode" style="color:var(--green)">🆕 nouveau pays</span>`
+        : e.worked_status === 'partial'
+        ? `<span class="sr-mode" style="color:var(--yellow)" title="Déjà travaillé, mais pas sur toutes les bandes HF classiques (1.8 à 28 MHz)">◐ nouvelle bande</span>`
+        : '';
       return `<div class="spot-row sr-act">
         <div class="sr-head">
           <span class="sr-call">${esc(e.callsign || '?')}</span>
