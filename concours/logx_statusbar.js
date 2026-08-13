@@ -179,7 +179,7 @@
       💾 <span class="rcsb-val" id="rcsbSave">—</span>
     </div>
     <div class="rcsb-item" id="rcsbSolarItem" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
-      <a href="logx_propagation.html">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
+      <a href="logx_propagation.html#solarPanel">☀️ <span class="rcsb-val" id="rcsbSolar">—</span></a>
     </div>
     <div class="rcsb-item" id="rcsbBeaconItem" title="Balise NCDXF/IBP active maintenant sur 20m (réseau mondial de 18 balises, rotation de 10 s) — clic : les 5 bandes + panneau complet">
       <a href="logx_propagation.html#beaconPanel">📻 <span class="rcsb-val" id="rcsbBeacon">—</span></a>

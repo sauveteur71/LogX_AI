@@ -101,6 +101,13 @@
   }
   .submit-btn:active { opacity:.8; }
   .submit-btn:disabled { opacity:.4; }
+  /* Texte #04140A (quasi-noir) pensé pour le dégradé NUIT (vert/cuivre vifs).
+     En jour, --green et --accent2 deviennent tous les deux sombres (piège
+     "remplissage plein + texte sombre sans override jour" déjà documenté
+     dans CLAUDE.md) : contraste mesuré 2.92-3.03:1, sous le seuil AA 4.5:1,
+     sur le bouton le plus important de la page (audit intuitivité 13/08/2026,
+     saisie QSO sur le terrain POTA/SOTA en plein jour). */
+  body.day-mode .submit-btn { color:#fff; }
 
   /* File d'attente hors-ligne : QSO saisis pendant une coupure réseau, en
      attente de renvoi automatique (voir syncOfflineQueue()) — jamais perdus

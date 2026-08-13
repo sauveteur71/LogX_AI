@@ -74,6 +74,14 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .filters input[type=text]{flex:1;min-width:180px}
 .filters input[type=number]{width:100px}
 .filters label{font-family:var(--font-mono);font-size:12px;color:var(--muted);display:flex;gap:5px;align-items:center}
+.listen-presets{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding:8px 12px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px}
+.listen-presets-lbl{font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:.5px}
+.listen-presets select,.listen-presets input{background:var(--bg3);border:1px solid var(--border);color:var(--text);
+  font-family:var(--font-mono);font-size:13px;padding:6px 10px;border-radius:6px;outline:none}
+.listen-presets select:focus,.listen-presets input:focus{border-color:var(--accent2)}
+.listen-presets input[type=number]{width:100px}
+.listen-presets label{font-family:var(--font-mono);font-size:12px;color:var(--muted);display:flex;gap:5px;align-items:center}
 .result-count{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
 
 .sdr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
@@ -175,6 +183,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <option value="nom">Tri : nom</option>
     </select>
     <label><input type="checkbox" id="fFrance"> 🇫🇷 <span>France d'abord</span></label>
+  </div>
+
+  <!-- Séparé de .filters à dessein : kHz/mode ne FILTRENT jamais la liste
+       (vérifié en direct, audit intuitivité 13/08/2026 -- se faisaient
+       auparavant passer pour deux filtres de plus, sans le moindre effet
+       sur les résultats). Leur vrai rôle : préremplir la fréquence/le mode
+       des boutons ÉCOUTER de chaque récepteur (urlEcoute()). -->
+  <div class="listen-presets" title="Préremplit la fréquence/le mode des boutons ÉCOUTER ci-dessous — ne filtre pas la liste des récepteurs">
+    <span class="listen-presets-lbl">🎧 Fréquence d'écoute (pour les boutons ÉCOUTER, ne filtre pas la liste)</span>
     <label>kHz <input type="number" id="fKhz" min="0" step="0.1" placeholder="14074"></label>
     <select id="fMode">
       <option value="">mode auto</option>
