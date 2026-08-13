@@ -121,7 +121,11 @@ def _cabrillo_qtc_lines(qtc_series, callsign):
         partner = str(s.get('call', '')).upper().strip()
         direction = s.get('direction', 'sent')
         band = str(s.get('band', '')).strip()
-        freq = CABRILLO_FREQ.get(band, str(s.get('freq', '')).strip() or band or '?')
+        # Jamais la valeur BRUTE de band en repli (voir build_cabrillo un peu
+        # plus bas) : une bande non reconnue tombe sur '?', comme CABRILLO_MODE
+        # tombe déjà sur 'PH' — 'freq' explicite reste un repli légitime, ce
+        # n'est pas le champ à risque ici.
+        freq = CABRILLO_FREQ.get(band, str(s.get('freq', '')).strip() or '?')
         mode = CABRILLO_MODE.get(str(s.get('mode', 'CW')).upper().strip(), 'CW')
         date, time = _qso_datetime(s)
         date_fmt = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
@@ -206,7 +210,14 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
     ]
     for q in qsos:
         band = _norm_band(q)
-        freq = CABRILLO_FREQ.get(band, band or '?')
+        # Jamais la valeur BRUTE de band en repli : une bande importée hors
+        # table (voir CABRILLO_FREQ) tombe sur '?', exactement comme
+        # CABRILLO_MODE tombe déjà sur 'PH' — band non assainie pourrait sinon
+        # injecter un saut de ligne (donc une fausse ligne 'QSO:') dans le
+        # Cabrillo exporté. Défense en profondeur : logx_import assainit déjà
+        # band à l'import, mais une autre source (saisie manuelle, sync
+        # multi-poste) pourrait ne pas passer par ce chemin.
+        freq = CABRILLO_FREQ.get(band, '?')
         mode = CABRILLO_MODE.get(_norm_mode(q), 'PH')
         date, time = _qso_datetime(q)
         date_fmt = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
