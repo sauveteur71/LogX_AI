@@ -3258,7 +3258,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             progress = co.countries_progress(log_copy, cfg_scope_id(cfg_snap))
             worked_names = {x['country'] for grp in progress['by_continent'].values()
                             for x in grp if x['worked']}
-            self._json({'expeditions': dxp.fetch_dxpeditions(worked_names)})
+            worked_bands = co.worked_bands_by_country(log_copy, cfg_scope_id(cfg_snap))
+            self._json({'expeditions': dxp.fetch_dxpeditions(worked_names, worked_bands)})
             return
 
         # Panneau CHASSE : mêmes annonces NG3K que /data/dxpeditions, mais
@@ -3275,8 +3276,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             progress = co.countries_progress(log_copy, cfg_scope_id(cfg_snap))
             worked_names = {x['country'] for grp in progress['by_continent'].values()
                             for x in grp if x['worked']}
+            worked_bands = co.worked_bands_by_country(log_copy, cfg_scope_id(cfg_snap))
             self._json({'expeditions': dxp.fetch_dxpeditions_chasse(
-                worked_names, _spots_from_caches())})
+                worked_names, _spots_from_caches(), worked_bands=worked_bands)})
             return
 
         # Balises NCDXF/IBP : quelle balise émet MAINTENANT sur chaque bande

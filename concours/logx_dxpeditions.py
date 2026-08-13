@@ -77,7 +77,35 @@ def _fetch_raw():
     return expeditions
 
 
-def fetch_dxpeditions(worked_entities=None):
+# Bandes HF "classiques" utilisées comme référence pour juger un pays
+# "complètement" travaillé -- même jeu que logx_coach.HF_BANDS et le filtre
+# HF de logx_calendrier.html (1.8 à 28 MHz, DXCC par bande façon CQ WW/ARRL
+# DX). Dupliqué ici plutôt qu'importé pour ne pas faire dépendre ce module
+# (lecture seule, réseau) du module coach (état de session) -- même
+# raisonnement que le import local de fetch_url ci-dessous.
+_HF_BANDS_REF = {'1.8', '3.5', '7', '14', '21', '28'}
+
+
+def _worked_status(entity_name, worked_lower, worked_bands_lower):
+    """'new' (jamais travaillé), 'partial' (travaillé mais pas sur toutes
+    les bandes HF classiques), 'full' (toutes ces bandes déjà faites), ou
+    None si aucune donnée fournie ou nom NG3K non reconnu. `worked_bands_lower`
+    est optionnel : sans lui, un pays déjà travaillé reste 'full' (repli sur
+    le comportement d'avant cette nuance, jamais plus alarmant)."""
+    name = (entity_name or '').strip().lower()
+    if not name or worked_lower is None:
+        return None
+    if name not in worked_lower:
+        return 'new'
+    if not worked_bands_lower:
+        return 'full'
+    bands = worked_bands_lower.get(name)
+    if not bands:
+        return 'full'
+    return 'partial' if (_HF_BANDS_REF - bands) else 'full'
+
+
+def fetch_dxpeditions(worked_entities=None, worked_bands=None):
     """DXpeditions annoncées (actives + à venir), dans l'ordre du flux
     source. `worked_entities` (optionnel) : ensemble de noms de pays DXCC
     déjà travaillés (mêmes libellés que logx_dxcc, ex. via
@@ -85,17 +113,28 @@ def fetch_dxpeditions(worked_entities=None):
     si fourni, chaque entrée est annotée 'worked': True/False/None (None =
     correspondance de nom non trouvée, le libellé NG3K ne colle pas
     exactement à celui de cty.dat — pas assez fiable pour trancher).
+    `worked_bands` (optionnel) : { nom_pays: {bandes} }, typiquement
+    logx_countries.worked_bands_by_country() — si fourni EN PLUS de
+    worked_entities, chaque entrée reçoit aussi 'worked_status':
+    'new'/'partial'/'full'/None (voir _worked_status), pour distinguer un
+    pays jamais travaillé d'un pays travaillé mais pas sur toutes les
+    bandes -- demande F4GLD 13/08/2026, sans ajouter de ligne à l'affichage.
     Cache 1h ; en cas d'échec réseau, renvoie le dernier résultat connu
     plutôt qu'une liste vide (dégrade proprement, comme logx_pota.py)."""
     expeditions = _fetch_raw()
     if worked_entities is None:
         return expeditions
     worked_lower = {str(w).strip().lower() for w in worked_entities}
+    worked_bands_lower = None
+    if worked_bands:
+        worked_bands_lower = {str(k).strip().lower(): {str(b) for b in v}
+                               for k, v in worked_bands.items()}
     out = []
     for exp in expeditions:
         e = dict(exp)
         name = (exp.get('entity') or '').strip().lower()
         e['worked'] = (name in worked_lower) if name else None
+        e['worked_status'] = _worked_status(exp.get('entity'), worked_lower, worked_bands_lower)
         out.append(e)
     return out
 
@@ -190,11 +229,12 @@ def _match_spot_freq(callsign, spots_by_band):
     return None, None, None
 
 
-def fetch_dxpeditions_chasse(worked_entities=None, spots_by_band=None, today=None):
+def fetch_dxpeditions_chasse(worked_entities=None, spots_by_band=None, today=None, worked_bands=None):
     """Comme fetch_dxpeditions(), pour le panneau CHASSE : chaque entrée
     reçoit en plus 'status' ('active'/'upcoming'/'unknown' — voir le
-    commentaire au-dessus de _MOIS_EN) et, si trouvée en direct sur le
-    cluster, 'freq_khz'/'spot_band'/'spot_mode'. Les expéditions déjà TERMINÉES sont
+    commentaire au-dessus de _MOIS_EN), 'worked_status' (voir
+    fetch_dxpeditions()) et, si trouvée en direct sur le cluster,
+    'freq_khz'/'spot_band'/'spot_mode'. Les expéditions déjà TERMINÉES sont
     retirées (CHASSE montre ce qu'on peut encore travailler, pas
     l'historique — voir fetch_dxpeditions()/l'onglet CALENDRIER pour la
     liste complète non filtrée).
@@ -209,7 +249,7 @@ def fetch_dxpeditions_chasse(worked_entities=None, spots_by_band=None, today=Non
       2. active selon les dates NG3K, mais pas (encore) vue sur le cluster ;
       3. à venir, triées par date de début croissante ;
       4. le reste ('unknown', dates illisibles)."""
-    expeditions = fetch_dxpeditions(worked_entities)
+    expeditions = fetch_dxpeditions(worked_entities, worked_bands)
     aujourdhui = today or _aujourdhui_utc()
     out = []
     for exp in expeditions:

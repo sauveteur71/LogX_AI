@@ -431,6 +431,23 @@ def test_countries_progress_et_targets():
     assert all(s['prefix'] not in p['worked'] for s in t['spotted'])   # jamais un pays déjà fait
 
 
+def test_worked_bands_by_country():
+    import logx_countries as co
+    log = [
+        {'call': 'F4GLD', 'contest': 'CQ_WW_SSB', 'band': '14'},
+        {'call': 'F4GLD', 'contest': 'CQ_WW_SSB', 'band': '21'},
+        {'call': 'DL1AA', 'contest': 'CQ_WW_SSB', 'band': '14'},
+    ]
+    wb = co.worked_bands_by_country(log, 'CQ_WW_SSB')
+    # Résolution prefix -> nom affiché : même mécanisme que countries_progress(),
+    # jamais un nom "France"/"Germany" codé en dur ici.
+    p = co.countries_progress(log, 'CQ_WW_SSB')
+    fr_name = next(c['country'] for c in p['by_continent']['EU'] if c['prefix'] == 'F')
+    dl_name = next(c['country'] for c in p['by_continent']['EU'] if c['prefix'] == 'DL')
+    assert wb[fr_name] == {'14', '21'}
+    assert wb[dl_name] == {'14'}
+
+
 def test_cluster_spot_settings():
     import logx_clusters as cl
     s = cl.cluster_spot_settings({'callsign_contest': 'F6KQJ'})

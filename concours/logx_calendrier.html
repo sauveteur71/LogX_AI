@@ -616,7 +616,7 @@ async function loadDxpeditions(){
 
 function renderDxpeditions(){
   let list = dxExpeditions;
-  if(currentFilter === 'new') list = list.filter(e => e.worked === false);
+  if(currentFilter === 'new') list = list.filter(e => e.worked_status === 'new');
   if(!list.length){
     document.getElementById('calendarContent').innerHTML =
       '<div class="loading">Aucune expédition pour ce filtre</div>';
@@ -625,10 +625,16 @@ function renderDxpeditions(){
   let html = `<div class="month-group">
     <div class="month-header"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="2.5" x2="5" y2="15.5"/><path d="M5 3.5 L14 5.5 L5 8.5 Z"/></svg> EXPÉDITIONS ANNONCÉES <span class="month-count">${list.length}</span></div>`;
   list.forEach(e => {
-    const newBadge = e.worked === false
+    // Trois états dans le MÊME badge (demande F4GLD 13/08/2026 : indiquer
+    // "travaillé mais pas sur toutes les bandes" sans surcharger l'écran) :
+    // 'new' = jamais travaillé, 'partial' = travaillé mais bandes HF
+    // manquantes (1.8-28 MHz), 'full' = toutes ces bandes déjà faites.
+    const newBadge = e.worked_status === 'new'
       ? `<span class="tag" style="background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.35)" title="Pays DXCC pas encore travaillé dans ce log">🆕 NOUVEAU PAYS</span>`
-      : e.worked === true
-      ? `<span class="tag" style="background:rgba(169,176,200,.1);color:var(--muted);border:1px solid var(--border)" title="Pays DXCC déjà travaillé">✓ déjà travaillé</span>`
+      : e.worked_status === 'partial'
+      ? `<span class="tag" style="background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.35)" title="Pays déjà travaillé, mais pas encore sur toutes les bandes HF classiques (1.8 à 28 MHz)">◐ NOUVELLE BANDE POSSIBLE</span>`
+      : e.worked_status === 'full'
+      ? `<span class="tag" style="background:rgba(169,176,200,.1);color:var(--muted);border:1px solid var(--border)" title="Pays DXCC déjà travaillé sur toutes les bandes HF classiques">✓ déjà travaillé</span>`
       : '';
     html += `<div class="contest-row upcoming">
       <div class="cr-date">
