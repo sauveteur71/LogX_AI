@@ -256,6 +256,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="quick-btns">
         <button class="qbtn qbtn-coach" onclick="coachAdvice()"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="5" y="5" width="8" height="8" rx="1.5"/><line x1="9" y1="1.5" x2="9" y2="5"/><line x1="9" y1="13" x2="9" y2="16.5"/><line x1="1.5" y1="9" x2="5" y2="9"/><line x1="13" y1="9" x2="16.5" y2="9"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/></svg>COACH</button>
         <button class="qbtn expert-only" onclick="debriefIA()" title="Analyse du concours écoulé : points forts, axes d'amélioration, ce qui a coûté des points"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M1.5 6.5L9 3l7.5 3.5L9 10l-7.5-3.5z"/><path d="M5 8.2v3.3c0 1 1.8 2 4 2s4-1 4-2V8.2"/><line x1="16.5" y1="6.5" x2="16.5" y2="11"/></svg>DÉBRIEF</button>
+        <button class="qbtn expert-only" onclick="memoireIA()" title="Mémoire inter-concours : heures et bandes habituellement productives pour ce concours, d'après tes archives passées. Tape un indicatif ou un préfixe dans le champ de message avant de cliquer pour savoir à quelle heure UTC il s'ouvre habituellement chez toi."><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="9" cy="9" r="7"/><polyline points="9,4.5 9,9 12.5,11"/></svg>MÉMOIRE</button>
         <button class="qbtn" id="ttsBtn" onclick="toggleTts()" title="Lecture vocale HORS-LIGNE des alertes et conseils, vers le casque (voix locales, jamais la radio)"><span id="ttsIcon">🔇</span> SON</button>
         <button class="qbtn" onclick="assistedHunt()" title="L'agent cherche le meilleur spot et propose de pointer l'antenne ou de t'y amener en fréquence — un clic pour valider"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>CHASSE ASSISTÉE</button>
         <select id="skillSel" class="skill-sel" onchange="setSkill(this.value)" title="Niveau : adapte le ton et le niveau de détail des réponses de l'IA">
@@ -1371,7 +1372,7 @@ function syncAiTierSel(){ const s=document.getElementById('aiTierSel'); if(s) s.
 // + 'spots', répondu à part via /coach/state.hints (answer_text('spots') est un
 // cul-de-sac volontaire côté serveur -- toujours "hors-ligne, impossible de
 // vérifier" -- alors que /coach/state a déjà les multiplicateurs neufs).
-const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots','performance','debrief'];
+const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots','performance','debrief','memoire'];
 
 function showThinking(){
   const c=document.getElementById('chatMsgs');
@@ -1572,7 +1573,24 @@ async function send(forcedText,displayText,topic){
         if(_r.ok) _perfDigest='\n\n[Statistiques à vie de la station]\n'+formatAwardsDigest(await _r.json());
       }catch(e){}
     }
-    const _apiText=(_isLight ? text+'\n\n(Réponds en 2-3 phrases maximum, va droit au but.)' : text)+_perfDigest;
+    // Mémoire inter-concours (13/08/2026) : même principe que _perfDigest --
+    // le digest déterministe /coach/memory (archives passées) est injecté
+    // dans le MESSAGE avant l'appel IA, qui n'en fait plus que le commentaire
+    // narratif. `target` relit le champ de message : memoireIA() ne le vide
+    // qu'APRÈS avoir attendu la fin complète de send() (voir memoireIA()).
+    let _memDigest='';
+    if(topic==='memoire'){
+      try{
+        const _target=document.getElementById('userInput').value.trim();
+        const _r=await fetch('/coach/memory?contest='+encodeURIComponent(cfg.contest||'')
+          +(_target?'&entity='+encodeURIComponent(_target):''));
+        if(_r.ok){
+          const _s=await _r.json();
+          if(_s&&_s.ok!==false) _memDigest='\n\n[Mémoire inter-concours (déterministe, archives)]\n'+formatMemoireDigest(_s);
+        }
+      }catch(e){}
+    }
+    const _apiText=(_isLight ? text+'\n\n(Réponds en 2-3 phrases maximum, va droit au but.)' : text)+_perfDigest+_memDigest;
     const body={
       max_tokens:_isLight?600:4096,
       message:_apiText,
@@ -1720,6 +1738,7 @@ async function basiqueAnswer(topic, bub){
   if(topic==='spots') return basiqueSpotsAnswer(bub);
   if(topic==='performance') return basiquePerformanceAnswer(bub);
   if(topic==='debrief') return basiqueDebriefAnswer(bub);
+  if(topic==='memoire') return basiqueMemoireAnswer(bub);
   return _renderCoachAnswer(topic, bub, basiqueBadge());
 }
 // Débrief post-concours (refonte #8, 13/08/2026) : /coach/debrief calcule déjà
@@ -1808,6 +1827,77 @@ async function basiquePerformanceAnswer(bub){
     const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
     return true;
   }catch(e){ return false; }
+}
+// Mémoire inter-concours (13/08/2026) : /coach/memory (build_memory_digest,
+// logx_coach.py) agrège les ARCHIVES déjà stockées -- aucun nouveau calcul
+// ici, uniquement du formatage, même principe que formatDebriefDigest/
+// formatAwardsDigest ci-dessus.
+function formatMemoireDigest(s){
+  const lines=[];
+  if(s.contest){
+    lines.push(`${s.contest} : mémoire sur ${s.editions} édition${s.editions>1?'s':''} archivée${s.editions>1?'s':''}`
+      +(s.band?` (bande ${s.band})`:'')+'.');
+    if((s.best_hours||[]).length){
+      lines.push('Heures habituellement les plus productives (UTC) : '
+        +s.best_hours.map(([h,n])=>`${h} (${n} QSO)`).join(', ')+'.');
+    }
+    const bands=Object.entries(s.per_band||{}).sort((a,b)=>(b[1].qso||0)-(a[1].qso||0));
+    if(bands.length){
+      lines.push('Par bande (cumul, moyenne/édition) : '
+        +bands.map(([b,v])=>`${b}MHz ${v.qso} QSO (~${v.avg_per_edition}/édition)`).join(' · ')+'.');
+    }
+  }
+  if(s.entity){
+    if(!s.entity_qso){
+      lines.push(`${s.entity_query} : aucun QSO archivé avec cette entité (${s.entity}) pour l'instant.`);
+    }else{
+      lines.push(`${s.entity_query} (${s.entity}) : ${s.entity_qso} QSO archivés au total, s'ouvre habituellement vers `
+        +s.entity_hours.map(([h,n])=>`${h} (${n})`).join(', ')+' UTC chez toi.');
+    }
+  }
+  if(!lines.length){
+    lines.push(`Pas encore de mémoire exploitable pour ce concours -- archive au moins une édition pour que la prédiction s'active.`);
+  }
+  return lines.join('\n');
+}
+async function basiqueMemoireAnswer(bub){
+  try{
+    const target=document.getElementById('userInput').value.trim();
+    const url='/coach/memory?contest='+encodeURIComponent(cfg.contest||'')
+      +(target?'&entity='+encodeURIComponent(target):'');
+    const r=await fetch(url);
+    const s=await r.json();
+    if(!bub) bub=makeAgentBubble();
+    bub.classList.remove('streaming');
+    bub.textContent='';
+    bub.appendChild(basiqueBadge());
+    if(!s||s.ok===false){
+      bub.appendChild(document.createTextNode(rcT((s&&s.error)||'Aucune mémoire exploitable pour l\'instant.')));
+    }else{
+      const txt=formatMemoireDigest(s);
+      bub.appendChild(document.createTextNode(txt));
+      conversationHistory.push({role:'assistant',content:txt});
+      if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+    }
+    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+    return true;
+  }catch(e){ return false; }
+}
+// Bouton MÉMOIRE : le champ de message sert de cible OPTIONNELLE (indicatif
+// ou préfixe), même convention que checkVoacapTarget() (FENÊTRE VOACAP) --
+// laissé volontairement INTACT ici (ni lu-et-vidé, ni retouché) : send() ne
+// vide le champ que si aucun forcedText n'est fourni (voir send() plus haut),
+// donc basiqueMemoireAnswer() ci-dessus et le bloc topic==='memoire' de
+// send() (contexte IA, voir _memDigest) peuvent tous deux le relire sans
+// course -- le vidage n'intervient qu'ICI, après que tout ce qui en dépend
+// (basique OU IA, awaité par send()) a fini.
+async function memoireIA(){
+  const inp=document.getElementById('userInput');
+  const target=inp.value.trim();
+  const displayText='🧠 '+rcT('Mémoire inter-concours')+(target?` : ${target}`:'');
+  await send('Que dit ma mémoire inter-concours (heures/bandes habituelles pour ce concours, '
+    +'et heure d\'ouverture habituelle de la cible indiquée le cas échéant) ?', displayText, 'memoire');
+  inp.value='';inp.style.height='auto';
 }
 // Message quand l'IA échoue sur du texte LIBRE (non répondable hors-ligne).
 function freeTextOffline(bub,err){

@@ -112,6 +112,23 @@ def _summary(qsos, contest_id, call, now):
     return '\n'.join(lines) + '\n'
 
 
+def load_archive_qsos(folder):
+    """QSO bruts d'une archive (log.json d'un dossier retourné par
+    list_archives()), ou None si absent/illisible -- même pattern de lecture
+    que celui déjà écrit en ligne dans best_for_contest(), factorisé ici pour
+    build_memory_digest() (logx_coach.py) qui doit le faire deux fois par
+    appel (digest du concours + digest d'une entité DXCC sur TOUTES les
+    archives)."""
+    logp = os.path.join(folder, 'log.json')
+    if not os.path.exists(logp):
+        return None
+    try:
+        with open(logp, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def best_for_contest(contest_id):
     """Meilleur nombre de QSO et meilleur score déjà réalisés pour CE concours,
     toutes éditions archivées confondues (pas forcément la même année pour les
