@@ -266,6 +266,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <button class="qbtn expert-only" onclick="qs('Quels multiplicateurs me manquent encore ?','mults')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><circle cx="9" cy="9" r="5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><line x1="9" y1="1" x2="9" y2="3"/><line x1="9" y1="15" x2="9" y2="17"/><line x1="1" y1="9" x2="3" y2="9"/><line x1="15" y1="9" x2="17" y2="9"/></svg>MULTS</button>
         <button class="qbtn" onclick="qs('Résumé complet de la session.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><line x1="3" y1="4" x2="15" y2="4"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="14" x2="11" y2="14"/></svg>RÉSUMÉ</button>
         <button class="qbtn" onclick="qs('Fais-moi un bilan de mes diplômes : DXCC, WAZ, WAC, ce qui manque le plus.','performance')" title="Bilan des diplômes et de ce qui manque, sur toute la vie de la station"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>BILAN</button>
+        <button class="qbtn expert-only" onclick="checkVoacapTarget()" title="Tape un indicatif ou un pays dans le champ de message, puis clique ici : calcule la fenêtre d'ouverture VOACAP heure par heure et bande par bande vers cette cible (0 jeton, calcul scientifique)"><svg viewBox="0 0 18 18" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z"/></svg>FENÊTRE VOACAP</button>
       </div>
       <div class="input-row">
         <textarea id="userInput" placeholder="Envoie un message à l'agent..." rows="1"
@@ -2005,27 +2006,11 @@ function toggleNudges(on){ try{ localStorage.setItem('rc_live_nudges', on?'1':'0
 // écraser le tableau déjà affiché du nouveau.
 let _voacapCheckGen = 0;
 
-async function checkVoacapForSpot(){
-  const s=lastTooltipSpot;
-  const box=document.getElementById('ttVoacap');
-  if(!s||!box) return;
-  const _gen = ++_voacapCheckGen;
-  const dx=s.locator||s.call;
-  if(!dx){ box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">Ni locator ni indicatif</div>'; return; }
-  box.innerHTML='<div style="font-size:11px;color:var(--muted);margin-top:6px">⏳ Calcul VOACAP…</div>';
-  let data;
-  try{
-    const res=await fetch(`/data/voacap?dx=${encodeURIComponent(dx)}`);
-    data=await res.json();
-  }catch(e){
-    if(_gen===_voacapCheckGen) box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">❌ Serveur injoignable</div>';
-    return;
-  }
-  if(_gen!==_voacapCheckGen) return;   // un clic plus récent a déjà démarré : cette réponse est périmée
-  if(!data.ok){
-    box.innerHTML=`<div style="color:var(--red);font-size:11px;margin-top:6px">❌ ${escMap(data.error||'Échec du calcul')}</div>`;
-    return;
-  }
+// Tableau 24h x bandes commun aux deux usages VOACAP de la page : le spot
+// déjà repéré sur la carte (checkVoacapForSpot, infobulle) ET la cible libre
+// tapée par l'opérateur (checkVoacapTarget, DXpédition pas encore spottée).
+// Un seul rendu à maintenir plutôt que deux tableaux qui divergent avec le temps.
+function voacapTableHtml(data){
   const relColor=(rel)=>{
     if(rel==null) return 'var(--bg3)';
     if(rel>=0.7) return 'var(--green)';
@@ -2047,7 +2032,31 @@ async function checkVoacapForSpot(){
     html+='</tr>';
   });
   html+='</table>';
-  box.innerHTML=html;
+  return html;
+}
+
+async function checkVoacapForSpot(){
+  const s=lastTooltipSpot;
+  const box=document.getElementById('ttVoacap');
+  if(!s||!box) return;
+  const _gen = ++_voacapCheckGen;
+  const dx=s.locator||s.call;
+  if(!dx){ box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">Ni locator ni indicatif</div>'; return; }
+  box.innerHTML='<div style="font-size:11px;color:var(--muted);margin-top:6px">⏳ Calcul VOACAP…</div>';
+  let data;
+  try{
+    const res=await fetch(`/data/voacap?dx=${encodeURIComponent(dx)}`);
+    data=await res.json();
+  }catch(e){
+    if(_gen===_voacapCheckGen) box.innerHTML='<div style="color:var(--red);font-size:11px;margin-top:6px">❌ Serveur injoignable</div>';
+    return;
+  }
+  if(_gen!==_voacapCheckGen) return;   // un clic plus récent a déjà démarré : cette réponse est périmée
+  if(!data.ok){
+    box.innerHTML=`<div style="color:var(--red);font-size:11px;margin-top:6px">❌ ${escMap(data.error||'Échec du calcul')}</div>`;
+    return;
+  }
+  box.innerHTML=voacapTableHtml(data);
   // Le tableau 24h deborde largement des 195px de largeur habituels de
   // l'infobulle -- elargir et re-verifier la position (meme garde-fou que
   // showTooltip() pour ne pas sortir de l'ecran a droite).
@@ -2055,6 +2064,44 @@ async function checkVoacapForSpot(){
   tt.style.minWidth='480px';
   const rect=tt.getBoundingClientRect();
   if(rect.right>window.innerWidth) tt.style.left=Math.max(8,window.innerWidth-rect.width-8)+'px';
+}
+
+// Fenêtre VOACAP vers une cible LIBRE (indicatif ou pays), typiquement une
+// DXpédition pas encore spottée sur le cluster -- donc sans position déjà
+// connue comme pour checkVoacapForSpot() ci-dessus. Réutilise le champ de
+// message existant plutôt que d'ajouter un nouveau champ de saisie : moins
+// de UI à apprendre, l'opérateur tape déjà dans cette zone pour tout le reste.
+// Calcul scientifique déterministe (VOACAP), jamais l'IA -- 0 jeton quel que
+// soit le palier réglé, comme les autres réponses "0 jeton" de cette page.
+async function checkVoacapTarget(forcedDx){
+  const inp=document.getElementById('userInput');
+  const dx=(forcedDx!==undefined?forcedDx:inp.value.trim());
+  if(!dx){
+    addMsg('agent','🔭 '+rcT('Tape un indicatif ou un pays cible dans le champ de message, puis reclique sur FENÊTRE.'));
+    return;
+  }
+  addMsg('user', forcedDx!==undefined?`🔭 ${rcT('Fenêtre VOACAP')} : ${dx}`:dx);
+  if(forcedDx===undefined){inp.value='';inp.style.height='auto';}
+  const bub=makeAgentBubble();
+  bub.appendChild(basiqueBadge());
+  bub.appendChild(document.createTextNode('⏳ '+rcT('Calcul VOACAP…')));
+  const c=document.getElementById('chatMsgs');
+  try{
+    const res=await fetch(`/data/voacap?dx=${encodeURIComponent(dx)}`);
+    const data=await res.json();
+    bub.textContent='';
+    bub.appendChild(basiqueBadge());
+    if(!data.ok){
+      bub.appendChild(document.createTextNode('❌ '+(data.error||rcT('Échec du calcul VOACAP'))));
+    }else{
+      bub.insertAdjacentHTML('beforeend', voacapTableHtml(data));
+    }
+  }catch(e){
+    bub.textContent='';
+    bub.appendChild(basiqueBadge());
+    bub.appendChild(document.createTextNode('❌ '+rcT('Serveur injoignable')));
+  }
+  c.scrollTop=c.scrollHeight;
 }
 
 // ─── CARTE PILOTÉE PAR LE MOTEUR (spots classés structurés) ──────────────────
