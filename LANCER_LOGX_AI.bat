@@ -2,15 +2,24 @@
 title LogX AI — Lanceur
 color 0A
 
+:: Dossier du .bat (fonctionne peu importe ou le zip est extrait)
+set "DOSSIER=%~dp0concours"
+
+:: Version affichee dans la banniere : lue depuis concours/logx_version.py
+:: (APP_VERSION), pour ne jamais desynchroniser ce texte de la vraie version
+:: -- avant cette correction elle etait codee en dur et figee a "v3.0" alors
+:: que le logiciel etait en 1.0. Si Python n'est pas encore installe a ce
+:: stade, la commande echoue silencieusement (2>nul) et on retombe sur "?".
+set "APPVER="
+for /f "delims=" %%v in ('python -c "import sys; sys.path.insert(0, r'%DOSSIER%'); from logx_version import APP_VERSION; print(APP_VERSION)" 2^>nul') do set "APPVER=%%v"
+if not defined APPVER set "APPVER=?"
+
 echo.
 echo  ================================================
-echo    LogX AI v3.0
+echo    LogX AI v%APPVER%
 echo    Logiciel de concours radioamateur
 echo  ================================================
 echo.
-
-:: Dossier du .bat (fonctionne peu importe ou le zip est extrait)
-set "DOSSIER=%~dp0concours"
 
 :: Verifier si Python est installe
 python --version >nul 2>&1
