@@ -665,21 +665,28 @@ if(_mapOnlyMode){
 // principe que le menu DISPOSITION de logx_statusbar.js (ouvre/ferme au clic,
 // se ferme au clic extérieur), rejoué ici en local car ce menu est propre à
 // cette page, pas partagé par la barre de statut.
+// Fermeture factorisée (revue adversariale 13/08/2026 : dupliquée 3x avant) --
+// réutilisée par le toggle, le clic extérieur et le clic intérieur ci-dessous.
+function closeQbtnMore(){
+  const dd=document.getElementById('qbtnMoreDD');
+  const btn=document.getElementById('qbtnMoreToggle');
+  if(dd) dd.style.display='none';
+  if(btn) btn.setAttribute('aria-expanded','false');
+}
 function toggleQbtnMore(){
   const dd=document.getElementById('qbtnMoreDD');
   const btn=document.getElementById('qbtnMoreToggle');
   if(!dd||!btn) return;
-  const willOpen = dd.style.display !== 'flex';
-  dd.style.display = willOpen ? 'flex' : 'none';
-  btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  if(dd.style.display==='flex'){ closeQbtnMore(); return; }
+  dd.style.display='flex';
+  btn.setAttribute('aria-expanded','true');
 }
 document.addEventListener('click', function(e){
   const dd=document.getElementById('qbtnMoreDD');
   const toggle=document.getElementById('qbtnMoreToggle');
   if(!dd || dd.style.display!=='flex') return;
   if(dd.contains(e.target) || e.target===toggle) return;
-  dd.style.display='none';
-  if(toggle) toggle.setAttribute('aria-expanded','false');
+  closeQbtnMore();
 });
 // Un clic sur un bouton/select À L'INTÉRIEUR du menu ferme le menu APRÈS coup
 // (laisse d'abord son propre onclick agir) -- évite de devoir rouvrir PLUS à
@@ -689,7 +696,7 @@ document.addEventListener('click', function(e){
   const dd=document.getElementById('qbtnMoreDD');
   if(!dd) return;
   dd.addEventListener('click', function(e){
-    if(e.target.closest('button')) setTimeout(function(){ dd.style.display='none'; const t=document.getElementById('qbtnMoreToggle'); if(t) t.setAttribute('aria-expanded','false'); }, 50);
+    if(e.target.closest('button')) setTimeout(closeQbtnMore, 50);
   });
 })();
 
@@ -1520,6 +1527,13 @@ function restoreChatState(){
 // pour éviter d'écrire à chaque caractère streamé : la sauvegarde attend
 // 400 ms sans nouveau changement du DOM du chat.
 (function(){
+  // Fenêtre détachée (?panel=map) exclue : son panneau de chat est masqué en
+  // CSS mais restait actif en JS, ce qui faisait écrire main et popup sur la
+  // MÊME clé localStorage sans coordination -- la sauvegarde différée (400ms)
+  // du popup, figée à l'ouverture, pouvait écraser après coup un message plus
+  // récent envoyé entre-temps dans la fenêtre principale (revue adversariale
+  // 13/08/2026, constat critique).
+  if(_mapOnlyMode) return;
   const c=document.getElementById('chatMsgs');
   if(!c) return;
   let saveTimer=null;
@@ -1860,6 +1874,11 @@ async function send(forcedText,displayText,topic){
     return;
 
   }catch(err){
+    // Annulée (Échap) avant que l'échec réseau n'arrive : ne pas afficher une
+    // réponse/repli après coup pour une action déjà indiquée comme annulée à
+    // l'opérateur (même garde que le chemin succès ci-dessus -- revue
+    // adversariale 13/08/2026).
+    if(_analysisCancelled) return;
     removeThinking();
     // Serveur/IA injoignable : si c'est un bouton rapide, le coach déterministe
     // répond quand même (repli hors-ligne). Sinon, message d'erreur habituel.
@@ -2375,6 +2394,10 @@ async function assistedHunt(){
     if(!r.ok||!j.id) throw new Error(j.error||('HTTP '+r.status));
     pollAct(j.id);
   }catch(err){
+    // Même garde que send() : une annulation Échap pendant que la requête de
+    // lancement était en vol ne doit pas produire une réponse après coup
+    // (revue adversariale 13/08/2026).
+    if(_analysisCancelled) return;
     removeThinking();
     const bub=makeAgentBubble();
     if(!(await offlineFallback('spots',bub))) bub.textContent='❌ '+err.message;
@@ -3265,8 +3288,12 @@ setInterval(() => { if(g3dState.active){ g3dLoadWorldWorked(); g3dLoadSpots(); }
 loadConfig();
 scheduleRefresh();
 scheduleAutoCheck();
-restoreChatState();   // ré-affiche le chat d'avant un changement de page/onglet (retour F4GLD 13/08/2026)
-resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
+if(!_mapOnlyMode){
+  // Fenêtre détachée exclue (constat critique ci-dessus) : son panneau de
+  // chat n'est de toute façon jamais visible ni interactif.
+  restoreChatState();   // ré-affiche le chat d'avant un changement de page/onglet (retour F4GLD 13/08/2026)
+  resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
+}
 syncTtsBtn();      // état initial du bouton 🔊 (#6)
 syncSkillSel();    // niveau IA courant dans le sélecteur (#21)
 syncAiTierSel();   // palier IA courant dans le sélecteur (refonte 13/08/2026)
