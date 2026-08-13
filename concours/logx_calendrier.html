@@ -691,6 +691,12 @@ function renderDxpeditions(){
       : e.worked_status === 'full'
       ? `<span class="tag" style="background:rgba(169,176,200,.1);color:var(--muted);border:1px solid var(--border)" title="Pays DXCC déjà travaillé sur toutes les bandes HF classiques">✓ déjà travaillé</span>`
       : '';
+    // Fenêtre VOACAP à la demande (13/08/2026), même principe que la liste
+    // CHASSE (logx_chasse.html) : indicatif NG3K déjà connu, aucune position
+    // de spot requise (résolution DXCC déjà en place côté /data/voacap).
+    const voacapBtn = e.callsign
+      ? `<button class="tag" style="cursor:pointer;border:1px solid var(--accent2);color:var(--accent2);background:transparent" onclick="checkDxVoacap(this,'${jsCall(e.callsign)}')" title="${rcT("Meilleure fenêtre d'ouverture VOACAP vers cette expédition")}">🔭 VOACAP</button>`
+      : '';
     html += `<div class="contest-row upcoming">
       <div class="cr-date">
         <div class="cr-date-main" style="font-size:13px">${esc(e.dates || '—')}</div>
@@ -700,11 +706,44 @@ function renderDxpeditions(){
         <div class="cr-name">${esc(e.callsign || '?')} — ${esc(e.entity || '?')} ${newBadge}</div>
         <div class="cr-exchange">QSL : ${esc(e.qsl || '—')} ${e.source ? '· Source : ' + esc(e.source) : ''}</div>
         ${e.info ? `<div class="cr-tags"><span class="tag tag-band" style="max-width:100%">${esc(e.info)}</span></div>` : ''}
+        ${voacapBtn ? `<div class="cr-tags" style="margin-top:4px">${voacapBtn}</div>` : ''}
+        ${voacapBtn ? `<div class="dx-voacap-box" style="display:none;font-size:11px;color:var(--muted);margin-top:4px"></div>` : ''}
       </div>
     </div>`;
   });
   html += '</div>';
   document.getElementById('calendarContent').innerHTML = html;
+}
+
+function jsCall(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9/]/g,''); }
+
+// Meilleure heure/bande plutôt que le tableau 24h complet de CARTE IA : une
+// ligne de liste n'a pas la largeur pour ça (même choix que logx_chasse.html).
+function bestVoacapWindowText(data){
+  let best = null;
+  (data.hours || []).forEach(h => {
+    (h.bands || []).forEach(b => {
+      if (b.rel != null && (!best || b.rel > best.rel)) best = { hour: h.hour, freq: b.freq_mhz, rel: b.rel };
+    });
+  });
+  if (!best || best.rel <= 0) return rcTf('Aucune fenêtre nette détectée ({dist} km, SSN {ssn}).', { dist: data.distance_km, ssn: data.ssn });
+  return rcTf('🔭 Meilleure fenêtre : {freq} MHz vers {hour}h UTC (fiabilité {pct}%) · {dist} km',
+    { freq: best.freq, hour: best.hour, pct: Math.round(best.rel * 100), dist: data.distance_km });
+}
+
+async function checkDxVoacap(btn, callsign){
+  const box = btn.closest('.cr-info').querySelector('.dx-voacap-box');
+  if (!box) return;
+  if (box.style.display === 'block') { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.textContent = '⏳ ' + rcT('Calcul VOACAP…');
+  try {
+    const r = await fetch(`/data/voacap?dx=${encodeURIComponent(callsign)}`);
+    const data = await r.json();
+    box.textContent = data.ok ? bestVoacapWindowText(data) : ('❌ ' + (data.error || rcT('Échec du calcul VOACAP')));
+  } catch (e) {
+    box.textContent = '❌ ' + rcT('Serveur injoignable');
+  }
 }
 
 // ── Bulletin REF (rubrique concours hebdomadaire) ──────────────────────────
