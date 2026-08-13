@@ -45,7 +45,7 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 
 ## Démarrage rapide
 
-1. Télécharger l'exécutable de la [dernière release](../../releases/latest) (`LogXAI-vX.Y.exe` pour Windows, `-macos`/`-linux` pour les autres OS) ou lancer `python logx_serveur.py` depuis `concours/` (Python 3).
+1. Télécharger l'exécutable de la [dernière release](../../releases/latest) (`LogXAI-vX.Y.exe` pour Windows, `-macos`/`-linux` pour les autres OS) ou lancer `python logx_serveur.py` depuis `concours/` (Python 3). *Windows peut afficher « Windows a protégé votre PC » au premier lancement (exécutable non signé, avertissement normal) : cliquer sur « Informations complémentaires » puis « Exécuter quand même ».*
 2. **Première utilisation** : le navigateur s'ouvre sur `http://127.0.0.1:8080/logx_configuration.html`. Renseigner l'indicatif, puis les catégories utiles (station, concours, radio, propagation) — 3 clics suffisent pour un concours déjà connu.
 3. **Ensuite** : le logiciel ouvre directement le carnet, `http://127.0.0.1:8080/logx_logbook.html`. La configuration reste accessible depuis la barre de statut, mais elle ne s'impose plus à chaque démarrage.
 
