@@ -69,6 +69,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .msg-agent .bubble{background:var(--bg3);border:1px solid var(--border);font-family:var(--font-mono);border-radius:12px 12px 12px 2px}
 .msg-agent .bubble.streaming::after{content:'▌';color:var(--accent2);animation:blink 1s infinite;margin-left:1px}
 .off-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#0a0e1e;background:var(--muted,#7a86b6);border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
+.off-badge.basique-badge{background:#00D68A;color:#04140A}
 .msg-agent .bubble.action-card{border:1px solid var(--accent);border-left:4px solid var(--accent);background:rgba(255,214,10,.06)}
 .action-card button{cursor:pointer;font-family:var(--font-mono);font-size:13px;font-weight:700;border-radius:5px;padding:5px 14px;border:1px solid var(--border)}
 .action-card .act-yes{color:#0a0e1e;background:#C9822E;border-color:#C9822E}
@@ -251,6 +252,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <option value="debutant">🐣 Débutant</option>
           <option value="confirme">🎯 Confirmé</option>
           <option value="expert">🚀 Expert</option>
+        </select>
+        <select id="aiTierSel" class="skill-sel" onchange="setAiTier(this.value)" title="Palier IA : Basique répond sans jamais appeler l'IA (SCORE/PROP/MULTS/RÉSUMÉ/SPOTS), Intermédiaire et Expert passent par l'IA comme aujourd'hui">
+          <option value="basique">🔌 Basique</option>
+          <option value="intermediaire">⚡ Intermédiaire</option>
+          <option value="expert">🧠 Expert</option>
         </select>
         <button class="qbtn" onclick="qs('Analyse les clusters et mon log maintenant.','resume')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="ico"><path d="M3 12a6 6 0 0 1 12 0"/><line x1="9" y1="12" x2="9" y2="16"/><line x1="9" y1="9" x2="9" y2="6"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/></svg>ANALYSER</button>
         <button class="qbtn" onclick="qs('Quel est mon score actuel et ma progression ?','score')"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>SCORE</button>
@@ -1310,6 +1316,20 @@ function toggleTts(){
 function setSkill(v){ try{ localStorage.setItem('rc_skill', v); }catch(e){} }
 function syncSkillSel(){ const s=document.getElementById('skillSel'); if(s&&window.rcSkill) s.value=window.rcSkill(); }
 
+// Palier IA (refonte 13/08/2026) : stocké dans rc_ai_tier, local à cette page
+// (contrairement à rc_skill, qui influence juste le TON de l'IA partout, ce
+// réglage change le CHEMIN D'EXÉCUTION -- avec ou sans appel IA -- donc reste
+// propre à la carte pour l'instant). Défaut 'expert' : comportement actuel
+// inchangé tant que l'opérateur n'a jamais touché au réglage.
+function aiTier(){ try{ return localStorage.getItem('rc_ai_tier') || 'expert'; }catch(e){ return 'expert'; } }
+function setAiTier(v){ try{ localStorage.setItem('rc_ai_tier', v); }catch(e){} }
+function syncAiTierSel(){ const s=document.getElementById('aiTierSel'); if(s) s.value=aiTier(); }
+// Boutons rapides répondables SANS IA via /coach/answer (voir logx_coach.answer_text)
+// + 'spots', répondu à part via /coach/state.hints (answer_text('spots') est un
+// cul-de-sac volontaire côté serveur -- toujours "hors-ligne, impossible de
+// vérifier" -- alors que /coach/state a déjà les multiplicateurs neufs).
+const AI_TIER_BASIQUE_TOPICS = ['score','prop','openings','mults','resume','spots'];
+
 function showThinking(){
   const c=document.getElementById('chatMsgs');
   const div=document.createElement('div');
@@ -1452,6 +1472,21 @@ async function send(forcedText,displayText,topic){
   if(forcedText===undefined){inp.value='';inp.style.height='auto';}
   isWaiting=true;
   document.getElementById('sendBtn').disabled=true;
+
+  // Palier Basique (refonte 13/08/2026) : pour les boutons rapides qui ont un
+  // équivalent déterministe, l'IA n'est même pas TENTÉE -- réponse immédiate,
+  // 0 appel réseau vers un fournisseur IA. Le texte libre (topic absent)
+  // continue de passer par l'IA normalement : aucun équivalent déterministe
+  // pour une question ouverte.
+  if(aiTier()==='basique' && topic && AI_TIER_BASIQUE_TOPICS.includes(topic)){
+    const ok=await basiqueAnswer(topic);
+    isWaiting=false;
+    document.getElementById('sendBtn').disabled=false;
+    if(ok) return;
+    // Coach lui-même injoignable (serveur local éteint ?) : repli sur le
+    // chemin normal plutôt que de laisser l'opérateur sans réponse.
+  }
+
   showThinking();
 
   try{
@@ -1548,7 +1583,11 @@ function finalizeAgentReply(bub,reply){
 // coach — 100 % déterministe, aucun LLM — répond aux boutons rapides via
 // /coach/answer. Renvoie true s'il a répondu. Le texte libre n'est PAS
 // répondable hors-ligne (topic absent) → false, l'appelant montre l'erreur.
-async function offlineFallback(topic, bub){
+// Fabrique commune : interroge /coach/answer (déterministe, sans LLM) et rend
+// la réponse dans une bulle avec le badge fourni. Deux appelants, deux raisons
+// différentes d'y passer : offlineFallback() (repli APRÈS un échec IA) et
+// basiqueAnswer() (palier Basique, direct -- l'IA n'est même pas tentée).
+async function _renderCoachAnswer(topic, bub, badgeEl){
   if(!topic) return false;
   try{
     const r=await fetch('/coach/answer?topic='+encodeURIComponent(topic)+'&lang='+encodeURIComponent(rcLang()));
@@ -1557,7 +1596,7 @@ async function offlineFallback(topic, bub){
       if(!bub) bub=makeAgentBubble();
       bub.classList.remove('streaming');
       bub.textContent='';
-      bub.appendChild(offlineBadge());
+      bub.appendChild(badgeEl);
       bub.appendChild(document.createTextNode(j.text));
       conversationHistory.push({role:'assistant',content:j.text});
       if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
@@ -1568,10 +1607,46 @@ async function offlineFallback(topic, bub){
   }catch(e){/* le serveur LOCAL lui-même est injoignable : rien à faire */}
   return false;
 }
+async function offlineFallback(topic, bub){
+  return _renderCoachAnswer(topic, bub, offlineBadge());
+}
 function offlineBadge(){
   const s=document.createElement('span');s.className='off-badge';
   s.textContent='📴 '+rcT('hors-ligne');
   return s;
+}
+function basiqueBadge(){
+  const s=document.createElement('span');s.className='off-badge basique-badge';
+  s.textContent='⚡ '+rcT('0 jeton');
+  return s;
+}
+// 'spots' n'a pas de réponse déterministe via /coach/answer (answer_text()
+// y renvoie toujours "hors-ligne, impossible de vérifier", cf. logx_coach.py)
+// -- mais /coach/state calcule déjà les multiplicateurs neufs repérés sur le
+// cluster (spotted_new_ones(), déjà formatés en phrases dans state.hints) :
+// on les réutilise tels quels plutôt que de refaire l'appel IA.
+async function basiqueSpotsAnswer(bub){
+  try{
+    const r=await fetch('/coach/state?lang='+encodeURIComponent(rcLang()));
+    const st=await r.json();
+    const actionHints=((st&&st.hints)||[]).filter(h=>h.level==='action'&&h.icon==='🎯');
+    if(!bub) bub=makeAgentBubble();
+    bub.classList.remove('streaming');
+    bub.textContent='';
+    bub.appendChild(basiqueBadge());
+    const txt=actionHints.length
+      ? actionHints.map(h=>'🎯 '+h.text).join('\n')
+      : rcT('Aucun multiplicateur neuf repéré sur le cluster pour l\'instant.');
+    bub.appendChild(document.createTextNode(txt));
+    conversationHistory.push({role:'assistant',content:txt});
+    if(conversationHistory.length>60)conversationHistory=conversationHistory.slice(-60);
+    const c=document.getElementById('chatMsgs');c.scrollTop=c.scrollHeight;
+    return true;
+  }catch(e){ return false; }
+}
+async function basiqueAnswer(topic, bub){
+  if(topic==='spots') return basiqueSpotsAnswer(bub);
+  return _renderCoachAnswer(topic, bub, basiqueBadge());
 }
 // Message quand l'IA échoue sur du texte LIBRE (non répondable hors-ligne).
 function freeTextOffline(bub,err){
@@ -2543,6 +2618,7 @@ scheduleAutoCheck();
 resumeAnalyze();   // reprend une analyse lancée avant un changement d'onglet
 syncTtsBtn();      // état initial du bouton 🔊 (#6)
 syncSkillSel();    // niveau IA courant dans le sélecteur (#21)
+syncAiTierSel();   // palier IA courant dans le sélecteur (refonte 13/08/2026)
 </script>
 </body>
 </html>
