@@ -43,7 +43,7 @@ from logx_clusters import (SPOTS_CACHE, SPOTS_CACHE_LOCK, fetch_all_vhf_spots, f
                       fetch_dxsummit_hf, fetch_f5len_hf, fetch_telnet_cluster, fetch_dxwatch_hf,
                       fetch_dxheat, fetch_on4kst_data, fetch_on4kst_raw, fetch_log_edi, fetch_log_adif,
                       fetch_noaa_kindex, fetch_dxmaps_vhf, fetch_3830_scores,
-                      lookup_hamqth, enrich_unknown_calls, freq_en_khz)
+                      lookup_hamqth, enrich_unknown_calls, parse_split_info, freq_en_khz)
 from logx_version import APP_VERSION
 
 # ─── CACHE SPOTS CLUSTER ENVOYÉS PAR LE NAVIGATEUR ───────────────────────────
@@ -4015,6 +4015,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     # commande à la radio un QSY hors bande, sans un mot.
                     'hors_bande': _aw.hors_bande_france(_khz),
                     'time': s.get('time', ''), 'info': s.get('info', ''),
+                    # Même parsing split/QSX que /data/spots_ranked, pour la
+                    # cohérence entre les deux pages qui listent des spots —
+                    # voir logx_clusters.parse_split_info.
+                    'split': parse_split_info(s.get('info', ''), s.get('band', '')),
                     'spotter': s.get('spotter', ''),
                     'dist_km': s.get('dist_km', 0),
                     'dx_country': sc.get('dx_country', ''),
@@ -4148,6 +4152,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'lat': s.get('lat'), 'lon': s.get('lon'),
                     'dist_km': s.get('dist_km', 0), 'time': s.get('time', ''),
                     'source': s.get('source', ''), 'info': s.get('info', ''),
+                    # Annonce split/QSX repérée dans le commentaire du spot
+                    # (déjà transmis ci-dessus via 'info', mais jamais parsé
+                    # jusqu'ici) — assistant pile-up déterministe, 0 jeton :
+                    # voir logx_clusters.parse_split_info.
+                    'split': parse_split_info(s.get('info', ''), s.get('band', '')),
                     # Qui a posté le spot : jusqu'ici la donnée existait dans
                     # le cache cluster mais mourait ici. C'est pourtant elle
                     # qui dit si la liaison annoncée ressemble à la mienne —
