@@ -718,9 +718,14 @@ def test_placeholder_technique_a_prefixe_non_lettre_reste_intact():
     logx_configuration.html (« 127.0.0.1 (ou IP du poste radio) »,
     « 14,21 (vide = toutes) »). Aucun de leurs cœurs n'est dans T, donc ils
     doivent rester strictement intacts : ce test se déclenchera si une future
-    entrée de dictionnaire vient à en traduire un morceau par accident."""
+    entrée de dictionnaire vient à en traduire un morceau par accident.
+    Le 3e exemple (« 9600 à 38400 selon marque ») a été retiré le 13/08/2026 :
+    l'audit i18n exhaustif de cette date l'a légitimement traduit (c'était un
+    vrai manque, le placeholder amp_baudrate de logx_configuration.html),
+    invalidant son usage ici comme témoin « jamais traduit » — remplacé par
+    une valeur synthétique garantie hors du dictionnaire."""
     for valeur in ['127.0.0.1 (ou IP du poste radio)', '14,21 (vide = toutes)',
-                   '9600 à 38400 selon marque']:
+                   '42 valeur technique de test (jamais dans T)']:
         ctx = _page_avec_placeholder('de', valeur)
         for _ in range(3):
             ctx.eval("window.rcTranslate();")
