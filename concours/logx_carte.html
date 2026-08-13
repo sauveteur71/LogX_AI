@@ -1501,17 +1501,34 @@ async function send(forcedText,displayText,topic){
     // choix de la page CONFIG et partait tel quel à OpenAI, Mistral, xAI,
     // DeepSeek ou Gemini — échec à chaque message. Le serveur décide seul
     // (voir logx_utils.modele_effectif).
+    // Palier Intermédiaire (Phase 2, refonte 13/08/2026) : moins de jetons de
+    // sortie et pas d'historique multi-tour -- chaque question repart de zéro
+    // plutôt que de faire grossir le prompt de 20 messages à chaque tour.
+    // Le contexte terrain (spots/log) et le prompt système restent ceux
+    // calculés côté serveur (do_refresh()/build_system_prompt()) : les réduire
+    // à leur tour demande une vraie réduction serveur, phase suivante.
+    //
+    // La consigne de concision est accrochée au MESSAGE (pas au system prompt) :
+    // dès que needs_context est vrai (le cas pour la plupart des questions
+    // Intermédiaire -- spots/prop/score...), le serveur régénère et ÉCRASE le
+    // system prompt reçu du client (logx_http.py, /agent/analyze, data['system_prompt']
+    // depuis do_refresh()) -- une consigne posée côté system serait donc perdue
+    // silencieusement dans ce cas précis. Le message utilisateur, lui, n'est
+    // qu'enrichi (contexte préfixé), jamais remplacé : la consigne y survit.
+    const _tier=aiTier();
+    const _isLight=_tier==='intermediaire';
+    const _apiText=_isLight ? text+'\n\n(Réponds en 2-3 phrases maximum, va droit au but.)' : text;
     const body={
-      max_tokens:4096,
-      message:text,
+      max_tokens:_isLight?600:4096,
+      message:_apiText,
       needs_context:isAnalysis,
-      history:conversationHistory.slice(-20),
+      history:_isLight?[]:conversationHistory.slice(-20),
     };
     // Compat serveur : l'historique passe par 'messages' (le message du jour
     // est ajouté côté serveur via 'message').
     body.messages=body.history;
     delete body.history;
-    conversationHistory.push({role:'user',content:text});
+    conversationHistory.push({role:'user',content:_apiText});
 
     // L'agent répond dans la langue choisie (directive ajoutée au prompt système).
     const _dir=rcAiDirectives();
