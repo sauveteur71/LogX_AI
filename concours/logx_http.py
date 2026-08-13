@@ -2630,6 +2630,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(coach.build_debrief(cfg_snap, log_copy))
             return
 
+        # Mémoire inter-concours : digest DÉTERMINISTE (0 jeton, aucun appel
+        # IA) des heures/bandes habituelles du concours ACTIF sur ses
+        # dernières éditions ARCHIVÉES (?contest=, filtre optionnel ?band=),
+        # et/ou -- si ?entity= est fourni (indicatif ou préfixe) -- sa
+        # distribution horaire historique toutes archives confondues.
+        # Réutilise list_archives()/log.json (logx_archive.py), aucun
+        # nouveau champ QSO stocké. Contrairement à /coach/debrief, ne lit
+        # jamais shared_log (le concours en cours n'est pas encore archivé).
+        if path == '/coach/memory':
+            import logx_coach as coach
+            from urllib.parse import parse_qs, urlparse
+            qp = parse_qs(urlparse(self.path).query)
+            contest_id = (qp.get('contest') or [''])[0].strip()
+            band = (qp.get('band') or [''])[0].strip()
+            entity = (qp.get('entity') or [''])[0].strip()
+            cfg_snap = self._cfg_snapshot()
+            self._json(coach.build_memory_digest(cfg_snap, contest_id=contest_id or None,
+                                                  band=band or None, entity=entity or None))
+            return
+
         # Réponse DÉTERMINISTE (zéro LLM) à un sujet du chat — repli HORS-LIGNE :
         # quand l'IA est injoignable (expédition sans internet), les boutons
         # rapides du chat basculent ici. Réutilise build_coach_state (aucune
