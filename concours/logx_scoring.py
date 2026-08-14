@@ -66,9 +66,16 @@ def get_propagation_boost(dist_km, band_norm, noaa, dxmaps):
 #  historiques ('type': 'km', ...) sont convertis via LEGACY_SCORING_PRESETS.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Indicatifs nord-américains (W/K/N/VE...) — utilisé par Field Day et ARRL DX
+# Indicatifs nord-américains (W/K/N/VE...) — utilisé par Field Day et ARRL DX.
+# Exclusion explicite de KH6 (Hawaii) et KL7 (Alaska) : le règlement ARRL DX
+# (§2.3) les traite comme des stations DX, PAS W/VE (« Hawaii (KH6), Alaska
+# (KL7)... stations participate as DX stations ») — sans elle, tout indicatif
+# K matchait via l'alternative "K" seule (les branches KA|KB|...|KZ étaient de
+# toute façon mortes, "K" seul suffisant à faire matcher re.match) et un QSO
+# avec KH6/KL7 était validé à tort comme W/VE (3 pts + mult état/province) au
+# lieu d'être un contact DX↔DX invalide (0 pt).
 _NA_CALL_RE = re.compile(
-    r'^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|'
+    r'^(?!KH6|KL7)(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|'
     r'WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|'
     r'WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|'
     r'KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|'
@@ -91,8 +98,30 @@ PREDICATES = {
     # TK (Corse). country_key('TM...') == 'F' (spéciales françaises déjà
     # bien classées par ce biais, sans avoir besoin du startswith('TM') d'avant).
     'is_french':           lambda c: c['dx_country'] in ('F', 'TK'),
+    # Métropole + Corse + DOM/TOM — chacun sa propre entité DXCC dans cty.dat,
+    # liste vérifiée EMPIRIQUEMENT via dxcc.list_entities() sur le cty.dat
+    # chargé (F/TK + FG Guadeloupe, FM Martinique, FJ St-Barthélemy, FS
+    # St-Martin, FP St-Pierre-et-Miquelon, FY Guyane, FO Polynésie, FK
+    # Nouvelle-Calédonie, FW Wallis-et-Futuna, FH Mayotte, FR Réunion — les
+    # TAAF/FT (Amsterdam/Crozet/Glorioso/Juan de Nova/Kerguelen/Tromelin)
+    # utilisent un format de préfixe composé 'FT/x' distinct, couvert par le
+    # startswith('FT/') séparé). Le règlement REF (§2a) les définit
+    # explicitement comme stations françaises pour le barème de points, à la
+    # différence de 'is_french' ci-dessus qui reste volontairement étroit
+    # (métropole/Corse) car utilisé ailleurs pour le ROUTAGE du multiplicateur
+    # département vs DXCC (_mult_dept_dxcc) où un DOM/TOM n'a pas de
+    # département métropolitain et doit continuer à compter comme un DXCC.
+    'is_french_all':       lambda c: c['dx_country'] in ('F', 'TK', 'FG', 'FM', 'FJ', 'FS', 'FP', 'FY', 'FO', 'FK', 'FW', 'FH', 'FR') or str(c['dx_country']).startswith('FT/'),
+    'my_is_french_all':    lambda c: c['my_country'] in ('F', 'TK', 'FG', 'FM', 'FJ', 'FS', 'FP', 'FY', 'FO', 'FK', 'FW', 'FH', 'FR') or str(c['my_country']).startswith('FT/'),
+    'is_maritime_mobile':  lambda c: c.get('dx_maritime_mobile', False),
     'is_na':               lambda c: bool(_NA_CALL_RE.match(c['dx_base'])),
-    'na_w_ve':             lambda c: c['dx_base'].startswith(('W', 'K', 'N', 'VE', 'XE')),
+    # Exception NA↔NA (CQ WW : « different countries within NA count 2 points » ;
+    # CQ WPX : 4/2 pts au lieu de 2/1) — les DEUX stations doivent être en
+    # Amérique du Nord, pas seulement le DX : l'ancienne version ne testait que
+    # dx_base, donc un F contactant un W matchait déjà à tort (le F n'est
+    # jamais NA). Réutilise _NA_CALL_RE (déjà purgée de KH6/KL7 ci-dessus) pour
+    # les deux côtés plutôt qu'une 2e liste de préfixes à maintenir en double.
+    'na_w_ve':             lambda c: bool(_NA_CALL_RE.match(c['dx_base'])) and bool(_NA_CALL_RE.match(c['my_base'])),
     'is_asia':             lambda c: c['dx_cont'] == 'AS',   # All Asian DX...
     'is_eu':               lambda c: c['dx_cont'] == 'EU',
 }
@@ -125,7 +154,12 @@ def _eval_points(rules, ctx, scoring):
       'prefix_in': ['ON','OO'] — ex. UBA : 10 pts pour une station belge ;
       'modes': ['CW'] — ex. ARRL 10m : CW=4 pts. Une règle filtrée par mode est
       SAUTÉE quand le mode est inconnu (spots cluster) : mettre la valeur
-      plancher dans la règle suivante sans filtre."""
+      plancher dans la règle suivante sans filtre.
+      'when': 'nom_predicat' (cas courant) OU ['pred_a','pred_b',...] — liste
+      de prédicats nommés combinés en ET logique (ex. REF Coupe du REF :
+      ['my_is_french_all','is_french_all','same_continent'] = moi ET le DX
+      sont français ET même continent). Ajouté pour composer des règles à
+      plusieurs conditions sans dupliquer un prédicat par combinaison."""
     for rule in rules or []:
         bands = rule.get('bands')
         if bands and ctx['band_norm'] not in bands:
@@ -136,8 +170,12 @@ def _eval_points(rules, ctx, scoring):
         modes = rule.get('modes')
         if modes and (ctx.get('mode') or '').upper() not in [m.upper() for m in modes]:
             continue
-        pred = PREDICATES.get(rule.get('when', 'always'), PREDICATES['always'])
-        if pred(ctx):
+        when = rule.get('when', 'always')
+        if isinstance(when, (list, tuple)):
+            matched = all(PREDICATES.get(w, PREDICATES['always'])(ctx) for w in when)
+        else:
+            matched = PREDICATES.get(when, PREDICATES['always'])(ctx)
+        if matched:
             return _points_value(rule, ctx, scoring)
     return 0
 
@@ -189,12 +227,21 @@ def _mult_large_square(ctx, pts, result, scoring):
         result['priority'] = 2 if ctx['dist_km'] > 400 else 3
 
 def _mult_zone_dxcc(ctx, pts, result, scoring):
-    nb_mults = len(ctx['done_cq_zones']) + len(ctx['done_dxcc'])
+    # Multiplicateurs suivis PAR BANDE (dict band->set, cf. build_ranked_spots)
+    # — CQ WW/ARRL DX/REF exigent tous un décompte par bande ('a multiplier of
+    # one for each different CQ Zone/country contacted on each band' — même
+    # zone/pays déjà travaillé sur une AUTRE bande reste un multiplicateur
+    # neuf ici. Seul le multiplicateur préfixe WPX (_mult_prefix, done_prefixes)
+    # reste global toutes bandes confondues, le règlement WPX le dit explicitement.
+    band = ctx['band_norm']
+    band_zones = ctx['done_cq_zones'].get(band, set())
+    band_dxcc = ctx['done_dxcc'].get(band, set())
+    nb_mults = len(band_zones) + len(band_dxcc)
     # Zone CQ réelle depuis la base cty.dat (le bug historique comparait
     # l'INDICATIF au set des zones — toujours vrai). None si indicatif inconnu.
     dx_zone = ctx.get('dx_cq_zone')
-    new_zone = dx_zone is not None and str(dx_zone) not in ctx['done_cq_zones']
-    new_dxcc = (ctx['dx_country'] not in ctx['done_dxcc'])
+    new_zone = dx_zone is not None and str(dx_zone) not in band_zones
+    new_dxcc = (ctx['dx_country'] not in band_dxcc)
     # Comparé au MAXIMUM réellement atteignable par le barème CONFIGURÉ (pas
     # aux valeurs par défaut 3/1 codées en dur — le concours peut déclarer
     # d'autres points_dx/points_same_continent).
@@ -216,6 +263,34 @@ def _mult_zone_dxcc(ctx, pts, result, scoring):
         result['total_impact'] = pts
         result['explanation'] = f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}), pas de nouveau mult"
         result['priority'] = 2 if pts == best and best > 0 else (5 if pts == 0 else 3)
+
+def _mult_dxcc_only(ctx, pts, result, scoring):
+    """Multiplicateur = pays DXCC uniquement, PAR BANDE — sans zone CQ,
+    contrairement à _mult_zone_dxcc (CQ WW). Le règlement WAE ('the multiplier
+    is the number of countries defined in the WAE Country List... worked per
+    band') ne définit qu'un multiplicateur pays ; WAEDC_SSB/RTTY réutilisaient
+    à tort _mult_zone_dxcc (conçu et documenté pour CQ WW), qui comptait aussi
+    les zones CQ et surestimait le nombre de multiplicateurs disponibles."""
+    band = ctx['band_norm']
+    band_dxcc = ctx['done_dxcc'].get(band, set())
+    new_dxcc = ctx['dx_country'] not in band_dxcc
+    best = _max_rule_points(ctx.get('bricks', {}).get('points'), ctx, scoring)
+    if new_dxcc:
+        result['new_mult'] = True
+        result['mult_type'] = 'dxcc'
+        result['mult_value'] = 1
+        mult_value_est = ctx['current_score_total'] // max(len(band_dxcc), 1)
+        result['total_impact'] = pts + mult_value_est
+        result['explanation'] = (
+            f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}) + "
+            f"NOUVEAU DXCC → +{mult_value_est}pts estimés"
+        )
+        result['priority'] = 1 if pts == best and best > 0 else 2
+    else:
+        result['total_impact'] = pts
+        result['explanation'] = f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}), pas de nouveau mult"
+        result['priority'] = 2 if pts == best and best > 0 else (5 if pts == 0 else 3)
+
 
 def _wpx_prefix(base):
     """Préfixe façon WPX (ex. F6, DL1, ON4) — lettres puis 1er chiffre. Utilisée
@@ -248,6 +323,10 @@ def _mult_prefix(ctx, pts, result, scoring):
         result['priority'] = 2 if pts == best and best > 0 else 3
 
 def _mult_dept_dxcc(ctx, pts, result, scoring):
+    # Suivi PAR BANDE (cf. _mult_zone_dxcc) : le REF CDF HF (§7) exige lui
+    # aussi un décompte de multiplicateur par bande, pas un total toutes
+    # bandes confondues.
+    band = ctx['band_norm']
     is_french = PREDICATES['is_french'](ctx)
     if is_french:
         # Le pays ('F') est constant pour toute station française : il ne peut
@@ -258,12 +337,13 @@ def _mult_dept_dxcc(ctx, pts, result, scoring):
         # géographie du locator), jamais une valeur d'échange qui n'existe
         # pas encore.
         dept = ctx.get('dx_dept') or ''
-        done_depts = ctx.get('done_depts') or set()
+        done_depts = ctx.get('done_depts', {}).get(band, set())
         new_mult = bool(dept) and dept not in done_depts
         denom = len(done_depts)
     else:
-        new_mult = ctx['dx_country'] not in ctx['done_dxcc']
-        denom = len(ctx['done_dxcc'])
+        band_dxcc = ctx.get('done_dxcc', {}).get(band, set())
+        new_mult = ctx['dx_country'] not in band_dxcc
+        denom = len(band_dxcc)
     if new_mult:
         result['new_mult'] = True
         result['mult_type'] = 'dept_dxcc'
@@ -285,12 +365,14 @@ def _mult_dept_dxcc(ctx, pts, result, scoring):
         result['priority'] = 3
 
 def _mult_na_section(ctx, pts, result, scoring):
-    # Sections/états nord-américains — suivi via done_na_proxies, un set DÉDIÉ
-    # (proxy 3 premiers caractères de l'indicatif). done_dxcc ne contient que
-    # des clés d'entité DXCC courtes ('K','VE'...) et ne matchait jamais ce
-    # proxy : la condition était vraie pour presque tout indicatif W/VE.
+    # Sections/états nord-américains — suivi via done_na_proxies, un dict PAR
+    # BANDE (proxy 3 premiers caractères de l'indicatif -> set de bandes,
+    # cf. _mult_zone_dxcc). done_dxcc ne contient que des clés d'entité DXCC
+    # courtes ('K','VE'...) et ne matchait jamais ce proxy : la condition était
+    # vraie pour presque tout indicatif W/VE.
     proxy = ctx['dx_base'][:3]
-    section_new = proxy not in ctx.get('done_na_proxies', set())
+    band = ctx['band_norm']
+    section_new = proxy not in ctx.get('done_na_proxies', {}).get(band, set())
     label = scoring.get('_section_label', 'SSB')
     if section_new:
         result['new_mult'] = True
@@ -305,12 +387,13 @@ def _mult_na_section(ctx, pts, result, scoring):
         result['priority'] = 2
 
 def _mult_na_state(ctx, pts, result, scoring):
-    # ARRL DX vu depuis l'Europe : multiplicateur = états US + provinces VE.
-    # L'état exact vient de l'échange (inconnu au stade du spot) → proxy
-    # préfixe, suivi via done_na_proxies (même set dédié que _mult_na_section :
-    # done_dxcc ne contient jamais ce proxy 3 caractères).
+    # ARRL DX vu depuis l'Europe : multiplicateur = états US + provinces VE,
+    # PAR BANDE (cf. _mult_zone_dxcc). L'état exact vient de l'échange (inconnu
+    # au stade du spot) → proxy préfixe, suivi via done_na_proxies (même dict
+    # dédié que _mult_na_section : done_dxcc ne contient jamais ce proxy
+    # 3 caractères).
     proxy = ctx['dx_base'][:3]
-    done_na = ctx.get('done_na_proxies') or set()
+    done_na = ctx.get('done_na_proxies', {}).get(ctx['band_norm'], set())
     state_new = proxy not in done_na
     if state_new:
         result['new_mult'] = True
@@ -341,6 +424,7 @@ MULT_EVALUATORS = {
     'locator':      _mult_locator,
     'large_square': _mult_large_square,
     'zone_dxcc':    _mult_zone_dxcc,
+    'dxcc_only':    _mult_dxcc_only,
     'prefix':       _mult_prefix,
     'dept_dxcc':    _mult_dept_dxcc,
     'na_section':   _mult_na_section,
@@ -379,6 +463,11 @@ LEGACY_SCORING_PRESETS = {
     'zone_country_per_band': {
         'points': [
             {'when': 'same_country',   'points': {'param': 'points_same_country',   'default': 0}},
+            # Règlement CQ WW : « Contacts between stations in different
+            # countries within the North American boundaries count two (2)
+            # points » — avant la règle "même continent" générique (1 pt),
+            # sinon jamais atteinte (NA↔NA matche déjà 'same_continent').
+            {'when': 'na_w_ve',        'points': 2},
             {'when': 'same_continent', 'points': {'param': 'points_same_continent', 'default': 1}},
             {'when': 'always',         'points': {'param': 'points_dx',             'default': 3}},
         ],
@@ -492,7 +581,7 @@ def contest_geo_mode(contest_id):
     kind = mult.get('kind', '') if isinstance(mult, dict) else ''
     if kind == 'dept_dxcc':
         return 'dept_dxcc'
-    if kind in ('zone_dxcc', 'prefix'):
+    if kind in ('zone_dxcc', 'prefix', 'dxcc_only'):
         return 'dxcc'
     if kind in ('na_state', 'na_section'):
         return 'other'
@@ -566,13 +655,21 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
         'my_country': dxcc.country_key(my_base) if my_base else 'F',
         'dx_cont': get_continent(dx_base), 'my_cont': get_continent(my_base),
         'dx_cq_zone': dxcc.cq_zone(dx_base),
+        # REF Coupe du REF (§6) : 3 pts fixes pour une station maritime mobile
+        # — détecté sur le suffixe '/MM' de l'indicatif BRUT (dx_call, pas
+        # dx_base qui l'a déjà retiré au même titre que /P ou /QRP).
+        'dx_maritime_mobile': bool(dx_call) and dx_call.strip().upper().endswith('/MM'),
         'dist_km': dist_km, 'band_norm': band_norm, 'source': source,
         'mode': mode,
         'done_locators': done_locators, 'done_large_squares': done_large_squares,
-        'done_cq_zones': done_cq_zones, 'done_dxcc': done_dxcc,
+        # Multiplicateurs géographiques suivis PAR BANDE (dict band->set) —
+        # cf. commentaire détaillé dans _mult_zone_dxcc. done_prefixes reste
+        # SEUL global (règlement WPX explicite : préfixe compté 'regardless
+        # of the band').
+        'done_cq_zones': done_cq_zones or {}, 'done_dxcc': done_dxcc or {},
         'done_prefixes': done_prefixes or set(),
-        'done_depts': done_depts or set(), 'dx_dept': dx_dept,
-        'done_na_proxies': done_na_proxies or set(),
+        'done_depts': done_depts or {}, 'dx_dept': dx_dept,
+        'done_na_proxies': done_na_proxies or {},
         'current_score_total': current_score_total,
         'bricks': bricks,  # accessible aux détecteurs (ex. seuils de priorité)
     }
@@ -707,7 +804,7 @@ def score_new_qso(qso):
                if (my_ll[0] is not None and dx_ll[0] is not None) else 0)
     result = calc_qso_value(
         contest_id, dx_call, dx_locator, my_call, my_locator,
-        {}, set(), set(), set(), set(), 0,
+        {}, set(), set(), {}, {}, 0,
         band=qso.get('band', ''), dist_km=dist_km,
         source=qso.get('source', '') or '', mode=qso.get('mode', '') or '',
     )
@@ -903,15 +1000,24 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     _today_utc = utcnow().strftime('%Y%m%d')
     done_locators = set()
     done_large_squares = set()
-    done_cq_zones = set()
-    done_dxcc = set()
-    # Sets dédiés — done_dxcc ne contient QUE des codes d'entité DXCC courts
-    # ('F','DL','K'...) et ne peut pas servir de proxy à ces trois univers
-    # distincts (préfixe WPX, département FR, proxy indicatif NA) sans faire
+    # Multiplicateurs géographiques suivis PAR BANDE (dict band_norm -> set) :
+    # CQ WW/ARRL DX/REF exigent tous un décompte de multiplicateur par bande
+    # ('a multiplier of one for each different CQ Zone/country contacted on
+    # EACH BAND') — même zone/pays/département déjà travaillé sur une AUTRE
+    # bande reste un multiplicateur neuf. Avant ce correctif, ces 4 étaient de
+    # simples sets globaux (contrairement à done_calls_by_band juste
+    # au-dessus) et un contact réellement neuf sur la bande active pouvait à
+    # tort être annoncé "pas de nouveau mult".
+    done_cq_zones = {}
+    done_dxcc = {}
+    # done_dxcc/done_cq_zones ne contiennent QUE des codes d'entité DXCC courts
+    # ('F','DL','K'...) et ne peuvent pas servir de proxy à ces deux autres
+    # univers distincts (département FR, proxy indicatif NA) sans faire
     # matcher la comparaison sur presque tout candidat.
-    done_prefixes = set()      # préfixe WPX (CQ WPX) — cf. _mult_prefix
-    done_depts = set()         # département FR réel, échange connu (REF HF)
-    done_na_proxies = set()    # 3 premiers car. indicatif (Field Day/ARRL DX)
+    done_prefixes = set()      # préfixe WPX (CQ WPX) — GLOBAL toutes bandes
+                                # confondues (règlement WPX explicite), cf. _mult_prefix
+    done_depts = {}            # département FR réel, échange connu (REF HF) — PAR BANDE
+    done_na_proxies = {}       # 3 premiers car. indicatif (Field Day/ARRL DX) — PAR BANDE
     current_score = 0
     calldb = departments._load_calldb()
 
@@ -922,38 +1028,46 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
             done_calls_by_band.setdefault(base, set()).add(band_norm)
             if str(date or '').strip() == _today_utc:
                 done_today_by_band.setdefault(base, set()).add(band_norm)
-        return base
+        # Retourne aussi band_norm (même normalisation que ci-dessus) pour que
+        # les appelants marquent les multiplicateurs géographiques (par bande,
+        # cf. _mark_country_zone/_mark_dept) avec EXACTEMENT la même clé de
+        # bande que done_calls_by_band, sans recalculer la normalisation à
+        # chaque site d'appel.
+        return base, band_norm
 
-    def _mark_country_zone(base):
-        """Pays et zone CQ travaillés — via la base cty.dat hors ligne."""
+    def _mark_country_zone(base, band):
+        """Pays et zone CQ travaillés — via la base cty.dat hors ligne.
+        Suivi PAR BANDE (band_norm, déjà calculé par l'appelant) sauf
+        done_prefixes qui reste global (règle WPX explicite)."""
         if not base:
             return
-        done_dxcc.add(dxcc.country_key(base))
+        done_dxcc.setdefault(band, set()).add(dxcc.country_key(base))
         done_prefixes.add(_wpx_prefix(base))
-        done_na_proxies.add(base[:3])
+        done_na_proxies.setdefault(band, set()).add(base[:3])
         z = dxcc.cq_zone(base)
         if z is not None:
-            done_cq_zones.add(str(z))
+            done_cq_zones.setdefault(band, set()).add(str(z))
 
-    def _mark_dept(q):
+    def _mark_dept(q, band):
         """Département FR réellement travaillé (échange connu ici, contrairement
         au stade du spot) : calldb.dept_for_qso() gère déjà le repli
-        échange > calldb > locator et renvoie '' pour une station non française."""
+        échange > calldb > locator et renvoie '' pour une station non française.
+        Suivi PAR BANDE, comme _mark_country_zone."""
         d = departments.dept_for_qso(q, calldb)
         if d:
-            done_depts.add(d)
+            done_depts.setdefault(band, set()).add(d)
 
     # Depuis logs EDI/ADIF (un fichier EDI = une bande = la clé band_label)
     for band_label, log_data in logs.items():
         for q in log_data.get('qsos', []):
-            base = _mark_done(q.get('call',''), band_label, q.get('date',''))
+            base, band_norm = _mark_done(q.get('call',''), band_label, q.get('date',''))
             loc = q.get('locator','')
             if loc:
                 done_locators.add(loc)
                 large = get_large_locator(loc)
                 if large: done_large_squares.add(large)
-            _mark_country_zone(base)
-            _mark_dept(q)
+            _mark_country_zone(base, band_norm)
+            _mark_dept(q, band_norm)
             current_score += q.get('points', 0)
 
     # Depuis log partagé multi-op (band déjà présent par QSO) — filtré par la
@@ -965,15 +1079,16 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     _shared_scoped = shared_log if not _scope_id else [
         q for q in shared_log if qso_scope_id(q) == _scope_id]
     for q in _shared_scoped:
-        base = _mark_done(q.get('call',''), q.get('band',''), q.get('date',''))
+        base, band_norm = _mark_done(q.get('call',''), q.get('band',''), q.get('date',''))
         loc = q.get('locator','')
         if loc:
             done_locators.add(loc)
             large = get_large_locator(loc)
             if large: done_large_squares.add(large)
-        _mark_country_zone(base)
-        _mark_dept(q)
-        if q.get('cq_zone'): done_cq_zones.add(str(q['cq_zone']))
+        _mark_country_zone(base, band_norm)
+        _mark_dept(q, band_norm)
+        if q.get('cq_zone'):
+            done_cq_zones.setdefault(band_norm, set()).add(str(q['cq_zone']))
         current_score += q.get('points', 0)
 
     # Collecter tous les spots — dédupliqué par (indicatif, bande réelle) :
@@ -1125,7 +1240,11 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         'nb_qso_bands': sum(len(b) for b in done_calls_by_band.values()),
         'nb_locators': len(done_locators),
         'nb_large_squares': len(done_large_squares),
-        'nb_dxcc': len(done_dxcc),
+        # done_dxcc est maintenant un dict band->set (multiplicateur par
+        # bande, voir _mult_zone_dxcc) : nb_dxcc reste le nombre de pays
+        # DISTINCTS toutes bandes confondues (indicateur global affiché à
+        # l'opérateur), pas le nombre de bandes actives.
+        'nb_dxcc': len(set().union(*done_dxcc.values())) if done_dxcc else 0,
         'spots_total': total_before,
         'spots_dropped': dropped,
         'contest_bands': [str(b) for b in (cdef.get('bands') or [])],

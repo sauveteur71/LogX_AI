@@ -107,7 +107,9 @@ CONTEST_DEFINITIONS = {
         'name': 'REF 160m — Trophée F8EX',
         'organizer': 'REF',
         'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
-        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_ref160_fr_20250312.pdf',
+        # Lien republié par le REF (l'ancienne URL datée 20250312 renvoie 404
+        # depuis — vérifié le 14/08/2026) sous un nouveau nom de fichier daté.
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_ref160_fr_20260421.pdf',
         'date_rule': 'third_saturday_november_17h',
         'duration_h': 7, 'start_utc': '17:00',
         'bands': ['1.8'],
@@ -120,7 +122,9 @@ CONTEST_DEFINITIONS = {
         'name': 'Championnat de France HF Téléphonie',
         'organizer': 'REF',
         'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
-        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_cdfhf_fr_20251117.pdf',
+        # Lien republié par le REF (l'ancienne URL datée 20251117 renvoie 404
+        # depuis — vérifié le 14/08/2026) sous un nouveau nom de fichier daté.
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_cdfhf_fr_20260513.pdf',
         'date_rule': 'third_saturday_february',
         'duration_h': 36, 'start_utc': '06:00',
         'bands': ['3.5','7','14','21','28'],
@@ -128,14 +132,40 @@ CONTEST_DEFINITIONS = {
         'exchange': 'RS + N°serie + dept',
         'cabrillo_name': 'REF-SSB',
         'cabrillo_exchange': ['rst', 'exch'],
-        'scoring': {'type':'dept_dxcc','multiplier':'depts+DXCC','unit':'pts × depts+DXCC'},
+        # Barème réel du règlement REF §6 (vérifié 14/08/2026, remplace un
+        # ancien barème binaire 1/3 pts sans rapport avec le texte officiel) :
+        # station FRANÇAISE (dont DOM/TOM, §2a) contactant une française
+        # même/autre continent = 6/15 pts, contactant une étrangère = 1/2 pts ;
+        # station ÉTRANGÈRE contactant une française = 1/3 pts ; station
+        # maritime mobile (indicatif/MM) = 3 pts fixes quel que soit le sens.
+        # 'is_french_all'/'my_is_french_all' incluent les DOM/TOM (contrairement
+        # à 'is_french', réservé au routage dept-vs-DXCC du multiplicateur —
+        # cf. logx_scoring.py PREDICATES).
+        'scoring': {
+            'type': 'dept_dxcc', 'multiplier': 'depts+DXCC', 'unit': 'pts × depts+DXCC (barème REF §6)',
+            'bricks': {
+                'points': [
+                    {'when': 'is_maritime_mobile', 'points': 3},
+                    {'when': ['my_is_french_all', 'is_french_all', 'same_continent'], 'points': 6},
+                    {'when': ['my_is_french_all', 'is_french_all', 'different_continent'], 'points': 15},
+                    {'when': ['my_is_french_all', 'same_continent'], 'points': 1},
+                    {'when': ['my_is_french_all', 'different_continent'], 'points': 2},
+                    {'when': ['is_french_all', 'same_continent'], 'points': 1},
+                    {'when': ['is_french_all', 'different_continent'], 'points': 3},
+                    {'when': 'always', 'points': 0},
+                ],
+                'multiplier': {'kind': 'dept_dxcc'},
+            },
+        },
         'log_format': 'CABRILLO',
     },
     'REF_CDF_HF_CW': {
         'name': 'Championnat de France HF Télégraphie',
         'organizer': 'REF',
         'check_url': 'https://concours.r-e-f.org/calendrier/calendrier.php',
-        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_cdfhf_fr_20251117.pdf',
+        # Lien republié par le REF (l'ancienne URL datée 20251117 renvoie 404
+        # depuis — vérifié le 14/08/2026) sous un nouveau nom de fichier daté.
+        'rules_url': 'https://concours.r-e-f.org/reglements/actuels/reg_cdfhf_fr_20260513.pdf',
         'date_rule': 'fourth_saturday_january',
         'duration_h': 36, 'start_utc': '06:00',
         'bands': ['3.5','7','14','21','28'],
@@ -143,7 +173,24 @@ CONTEST_DEFINITIONS = {
         'exchange': 'RST + N°serie + dept',
         'cabrillo_name': 'REF-CW',
         'cabrillo_exchange': ['rst', 'exch'],
-        'scoring': {'type':'dept_dxcc','multiplier':'depts+DXCC','unit':'pts × depts+DXCC'},
+        # Même barème que REF_CDF_HF_SSB ci-dessus (règlement REF §6, identique
+        # pour la CW et la phonie — seule la date/l'échange RS vs RST diffère).
+        'scoring': {
+            'type': 'dept_dxcc', 'multiplier': 'depts+DXCC', 'unit': 'pts × depts+DXCC (barème REF §6)',
+            'bricks': {
+                'points': [
+                    {'when': 'is_maritime_mobile', 'points': 3},
+                    {'when': ['my_is_french_all', 'is_french_all', 'same_continent'], 'points': 6},
+                    {'when': ['my_is_french_all', 'is_french_all', 'different_continent'], 'points': 15},
+                    {'when': ['my_is_french_all', 'same_continent'], 'points': 1},
+                    {'when': ['my_is_french_all', 'different_continent'], 'points': 2},
+                    {'when': ['is_french_all', 'same_continent'], 'points': 1},
+                    {'when': ['is_french_all', 'different_continent'], 'points': 3},
+                    {'when': 'always', 'points': 0},
+                ],
+                'multiplier': {'kind': 'dept_dxcc'},
+            },
+        },
         'log_format': 'CABRILLO',
     },
 
@@ -382,11 +429,18 @@ CONTEST_DEFINITIONS = {
                     {'bands': ['1.8', '3.5', '7'], 'when': 'different_continent', 'points': 6},
                     {'bands': ['1.8', '3.5', '7'], 'when': 'same_country',
                      'points': {'param': 'points_same_country', 'default': 1}},
+                    # Règlement WPX : NA↔NA (ex. W travaillant VE) = 4 pts sur
+                    # les bandes basses, au lieu des 2 pts génériques —
+                    # AVANT la règle 'always' générique, sinon jamais atteinte.
+                    {'bands': ['1.8', '3.5', '7'], 'when': 'na_w_ve', 'points': 4},
                     {'bands': ['1.8', '3.5', '7'], 'when': 'always', 'points': 2},
                     {'when': 'different_continent',
                      'points': {'param': 'points_dx', 'default': 3}},
                     {'when': 'same_country',
                      'points': {'param': 'points_same_country', 'default': 1}},
+                    # Même exception NA↔NA que ci-dessus, bandes hautes : 2 pts
+                    # au lieu du 1 pt générique "même continent".
+                    {'when': 'na_w_ve', 'points': 2},
                     {'when': 'always',
                      'points': {'param': 'points_same_continent', 'default': 1}},
                 ],
@@ -424,11 +478,18 @@ CONTEST_DEFINITIONS = {
                     {'bands': ['1.8', '3.5', '7'], 'when': 'different_continent', 'points': 6},
                     {'bands': ['1.8', '3.5', '7'], 'when': 'same_country',
                      'points': {'param': 'points_same_country', 'default': 1}},
+                    # Règlement WPX : NA↔NA (ex. W travaillant VE) = 4 pts sur
+                    # les bandes basses, au lieu des 2 pts génériques —
+                    # AVANT la règle 'always' générique, sinon jamais atteinte.
+                    {'bands': ['1.8', '3.5', '7'], 'when': 'na_w_ve', 'points': 4},
                     {'bands': ['1.8', '3.5', '7'], 'when': 'always', 'points': 2},
                     {'when': 'different_continent',
                      'points': {'param': 'points_dx', 'default': 3}},
                     {'when': 'same_country',
                      'points': {'param': 'points_same_country', 'default': 1}},
+                    # Même exception NA↔NA que ci-dessus, bandes hautes : 2 pts
+                    # au lieu du 1 pt générique "même continent".
+                    {'when': 'na_w_ve', 'points': 2},
                     {'when': 'always',
                      'points': {'param': 'points_same_continent', 'default': 1}},
                 ],
@@ -550,7 +611,11 @@ CONTEST_DEFINITIONS = {
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':1}],
-                'multiplier': {'kind':'zone_dxcc'},
+                # WAE ne compte QU'un multiplicateur pays ('the multiplier is
+                # the number of countries... worked per band'), pas de zone CQ
+                # — contrairement à 'zone_dxcc' (conçu pour CQ WW), qui
+                # surestimait le nombre de multiplicateurs disponibles.
+                'multiplier': {'kind':'dxcc_only'},
                 'validity': 'different_continent',
                 'validity_fail_explanation': 'Station {dx_base} en Europe — QSO non valable en WAE (EU↔DX uniquement)',
                 'mult_weight_by_band': {'3.5':4, '7':3, '14':2, '21':2, '28':2},
@@ -577,7 +642,9 @@ CONTEST_DEFINITIONS = {
         'scoring': {
             'bricks': {
                 'points': [{'when':'always','points':1}],
-                'multiplier': {'kind':'zone_dxcc'},
+                # Cf. commentaire WAEDC_SSB ci-dessus : WAE ne compte qu'un
+                # multiplicateur pays, pas de zone CQ.
+                'multiplier': {'kind':'dxcc_only'},
                 'mult_weight_by_band': {'3.5':4, '7':3, '14':2, '21':2, '28':2},
             },
             'unit': '(QSOs + QTCs) × mults pondérés par bande',
@@ -1110,8 +1177,14 @@ CONTEST_SCORING = {
         'notes':'ITU R1: pas de TX <1810kHz en 160m. Auto-spotting interdit en SO.',
         'url':'https://cqww.com/rules.htm',
     },
-    'CQ_WPX_SSB': {'type':'prefix','unit':'pts x prefixes uniques','mult':'prefixes','bands':'HF','modes':'SSB'},
-    'CQ_WPX_CW':  {'type':'prefix','unit':'pts x prefixes uniques','mult':'prefixes','bands':'HF','modes':'CW'},
+    # Texte pour le contexte IA — tenu à jour manuellement, synchronisé avec le
+    # barème réel (cdef['scoring']['bricks'] de CQ_WPX_SSB/CW plus haut dans ce
+    # fichier) : ancienne description "pts x préfixes uniques" ne mentionnait
+    # ni le doublement bas-de-bande ni l'exception NA↔NA, sans effet sur le
+    # calcul réel du score (toujours fait par les bricks), seulement sur le
+    # texte explicatif fourni au copilote IA.
+    'CQ_WPX_SSB': {'type':'prefix','unit':'bandes basses(160/80/40m): 6pts DX / 4pts NA-NA / 2pts même pays ; bandes hautes: 3pts DX / 2pts NA-NA / 1pt même pays','mult':'préfixes uniques (toutes bandes confondues)','bands':'HF','modes':'SSB'},
+    'CQ_WPX_CW':  {'type':'prefix','unit':'bandes basses(160/80/40m): 6pts DX / 4pts NA-NA / 2pts même pays ; bandes hautes: 3pts DX / 2pts NA-NA / 1pt même pays','mult':'préfixes uniques (toutes bandes confondues)','bands':'HF','modes':'CW'},
     'ARRL_DX_SSB':{'type':'power','unit':'3pts x etats/provinces US-Canada','mult':'states','bands':'HF','modes':'SSB'},
     'ARRL_DX_CW': {'type':'power','unit':'3pts x etats/provinces US-Canada','mult':'states','bands':'HF','modes':'CW'},
     'ARRL_FD':    {'type':'fd_class','unit':'QSO_pts × mult_puissance + bonus','mult':'puissance ×1/×2/×5','bands':'HF+50MHz','modes':'SSB/CW/Digital'},
