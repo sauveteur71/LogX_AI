@@ -744,17 +744,35 @@ for _brand in list(ASCII_MODES):
 # 'ft01'    : FT0;/FT1; (anciens Yaesu, Elecraft)
 # 'ft23'    : FT2;/FT3; (FT-991/FTDX10/FTDX101 récents)
 # 'fr_ft'   : Kenwood — split automatique dès que FR != FT, pas de commande dédiée
+# DÉFAUT DE DONNÉE CORRIGÉ ICI : le FT-991 (sans « A ») est un modèle réel de
+# BRAND_BY_MODEL, mais était ABSENT d'ici — il retombait donc sur le repli
+# générique 'ft01' (FT0;/FT1;), alors que son propre CAT Operation Reference
+# Book (vérifié, pas seulement celui du 991A) documente la commande FT
+# (« FUNCTION TX ») avec exactement les mêmes valeurs P1=2/3 que le FT-991A ;
+# FT0;/FT1; n'existe pas sur ce poste. Sans impact utilisateur AUJOURD'HUI —
+# self.split_style est calculé plus bas mais aucune méthode de ce fichier ne
+# l'utilise encore pour émettre une commande split — corrigé pour que la
+# donnée soit juste le jour où cette fonctionnalité sera câblée.
 SPLIT_STYLE = {
-    'FT-991A': 'ft23', 'FTDX10': 'ft23', 'FT-891': 'ft01',
+    'FT-991': 'ft23', 'FT-991A': 'ft23', 'FTDX10': 'ft23', 'FT-891': 'ft01',
     'FTDX101D': 'ft23', 'FTDX101MP': 'ft23',
     'TS-2000': 'fr_ft', 'TS-590S': 'fr_ft', 'TS-890S': 'fr_ft', 'TS-990S': 'fr_ft',
     'K3': 'ft01', 'K3S': 'ft01', 'KX3': 'ft01', 'KX2': 'ft01', 'K4': 'ft01',
 }
 
 # Codes ID -> modèle (Yaesu/Kenwood ; Elecraft répond toujours 017, non listé ici)
+#
+# DÉFAUT RÉEL QUE ÇA CORRIGE : les codes Yaesu sont ici à 3 chiffres
+# ('570', '670'...) alors que la radio répond réellement sur 4 chiffres avec
+# un zéro de tête — vérifié dans les CAT Operation Reference Books officiels
+# du FT-991 (« ID  P1  0570: FT-991 ») et du FT-991A (« ID  P1  0670:
+# FT-991A »). `identify()`/`autodetect()` extraient déjà les chiffres bruts de
+# la trame (donc '0570', jamais '570') : la table ne matchait jamais aucun
+# poste Yaesu réel. Les codes Kenwood (3 chiffres, sans zéro de tête
+# supplémentaire — ex. TS-2000 = 019) restent inchangés.
 ASCII_ID_TABLE = {
-    '135': 'FT-891', '570': 'FT-991', '670': 'FT-991A',
-    '761': 'FTDX10', '681': 'FTDX101D', '682': 'FTDX101MP',
+    '0135': 'FT-891', '0570': 'FT-991', '0670': 'FT-991A',
+    '0761': 'FTDX10', '0681': 'FTDX101D', '0682': 'FTDX101MP',
     '019': 'TS-2000', '021': 'TS-590S', '023': 'TS-590SG',
     '022': 'TS-990S', '024': 'TS-890S',
 }
@@ -816,7 +834,16 @@ BRAND_BY_MODEL = {
 # (scan/CTCSS/sous-mode) sans affecter ces positions de tête.
 _IF_FIELDS = {
     # brand: (freq_start, freq_len, mode_pos, min_len)
-    'yaesu':    (2, 9, 18, 19),   # mem(2) freq(9) offset(5) rit(1) xit(1) mode
+    #
+    # DÉFAUT RÉEL QUE ÇA CORRIGE (vérifié contre le « FT-991A/FT-991 CAT
+    # Operation Reference Book » officiel, table IF p.10) : le canal mémoire
+    # Yaesu (P1) fait 3 chiffres (« 001-117 »), pas 2 — freq_start valait 2,
+    # décalant la lecture de la fréquence d'un chiffre vers la gauche (le
+    # dernier chiffre du canal mémoire pris pour le premier de la fréquence,
+    # et le vrai dernier chiffre de fréquence perdu). mode_pos=18 restait
+    # juste par ailleurs (compensation accidentelle dans l'ancien commentaire,
+    # qui comptait mem(2)+offset(5) au lieu de mem(3)+offset(4) — même total).
+    'yaesu':    (3, 9, 18, 19),   # mem(3) freq(9) clarif(4) rit(1) xit(1) mode
     'kenwood':  (0, 11, 26, 27),  # freq(11) espaces(5) offset(5) rit(1) xit(1) mem(2) tx(1) mode
     'elecraft': (0, 11, 27, 28),  # freq(11) filler(5) offset(5) rit(1) xit(1) filler(1) mem(2) tx(1) mode
 }
@@ -941,6 +968,14 @@ def ascii_encode_mode_cmd(mode, brand, vfo_suffix='', freq_hz=None):
     code = ASCII_MODES.get(brand + '_rev', {}).get(nom)
     if code is None:
         return None
+    # DÉFAUT RÉEL : chez Yaesu, MD prend un P1 obligatoire (« 0 » = MAIN RX,
+    # voir table MD du CAT Operation Reference Book, « MD0C; » = DATA-USB) —
+    # sans lui la radio reçoit « MDC; », une trame qu'elle rejette en silence
+    # (le mode ne change jamais, sans erreur ni exception côté logiciel).
+    # Kenwood/Elecraft n'ont PAS ce paramètre (« MD2; » suffit) : le suffixe
+    # ne doit être ajouté que pour Yaesu.
+    if brand == 'yaesu' and not vfo_suffix:
+        vfo_suffix = '0'
     return f'MD{vfo_suffix}{code};'
 
 

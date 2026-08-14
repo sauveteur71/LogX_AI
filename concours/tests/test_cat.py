@@ -88,7 +88,7 @@ class FakeCivRadio:
 class FakeAsciiRadio:
     """Simule une radio Yaesu/Kenwood/Elecraft ASCII."""
 
-    def __init__(self, brand, freq=14074000, mode='CW', id_code='670'):
+    def __init__(self, brand, freq=14074000, mode='CW', id_code='0670'):
         self.brand = brand
         self.freq = freq
         self.mode = mode
@@ -113,7 +113,10 @@ class FakeAsciiRadio:
             self.freq = int(cmd[2:-1])
             self._pending = b''
         elif cmd.startswith('MD'):
-            code = cmd[2:-1]
+            # Yaesu pose un P1 (VFO) obligatoire avant le code mode ('MD03;'
+            # = VFO principal + CW) ; Kenwood/Elecraft n'ont que le code
+            # ('MD3;') — voir ascii_encode_mode_cmd().
+            code = cmd[3:-1] if self.brand == 'yaesu' else cmd[2:-1]
             self.mode = cat.ASCII_MODES.get(self.brand, {}).get(code, self.mode)
             self._pending = b''
         elif cmd == 'TQ;':
@@ -224,7 +227,10 @@ def test_civ_radio_mauvaise_adresse_pas_de_reponse():
 # ─── Trames IF ASCII (Yaesu / Kenwood / Elecraft) ──────────────────────────
 
 def test_ascii_parse_if_yaesu():
-    f = 'IF' + '00' + '014074000' + '+0000' + '0' + '0' + '3' + '0' + ';'
+    """Trame IF Yaesu réelle : canal mémoire (P1) sur 3 chiffres, pas 2 —
+    vérifié contre les CAT Operation Reference Books officiels FT-991/991A
+    (table IF, P1 '001-117')."""
+    f = 'IF' + '001' + '014074000' + '0000' + '0' + '0' + '3' + '0' + ';'
     assert cat.ascii_parse_if(f, 'yaesu') == {'freq_hz': 14074000, 'mode': 'CW'}
 
 
@@ -321,16 +327,16 @@ def test_ascii_radio_smeter():
 
 
 def test_ascii_radio_identify():
-    fake = FakeAsciiRadio('yaesu', id_code='670')
+    fake = FakeAsciiRadio('yaesu', id_code='0670')
     radio = cat.AsciiRadio(fake, 'yaesu')
     ident = radio.identify()
-    assert ident == {'ok': True, 'code': '670', 'model': 'FT-991A'}
+    assert ident == {'ok': True, 'code': '0670', 'model': 'FT-991A'}
 
 
 # ─── Détection automatique ──────────────────────────────────────────────────
 
 def test_autodetect_ascii_certain():
-    fake = FakeAsciiRadio('yaesu', id_code='670')
+    fake = FakeAsciiRadio('yaesu', id_code='0670')
     r = cat.autodetect(fake)
     assert r == {'ok': True, 'protocol': 'ascii', 'brand': 'yaesu',
                  'model': 'FT-991A', 'certain': True}
@@ -1016,7 +1022,7 @@ def test_test_connection_civ_sans_adresse_manuelle_repli_sur_modele():
 
 
 def test_test_connection_ascii():
-    fake = FakeAsciiRadio('yaesu', freq=14074000, id_code='670')
+    fake = FakeAsciiRadio('yaesu', freq=14074000, id_code='0670')
 
     def run(factory):
         r = cat.test_connection('yaesu', 'FT-991A', 'COM5', 4800)
