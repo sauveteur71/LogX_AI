@@ -714,17 +714,20 @@ def test_retour_au_francais_pour_un_prefixe_emoji():
 
 def test_placeholder_technique_a_prefixe_non_lettre_reste_intact():
     """Garde-fou du cas n°2 : il déclenche sur TOUT préfixe non-lettre, pas
-    seulement sur un emoji — y compris les placeholders techniques de
-    logx_configuration.html (« 127.0.0.1 (ou IP du poste radio) »,
-    « 14,21 (vide = toutes) »). Aucun de leurs cœurs n'est dans T, donc ils
-    doivent rester strictement intacts : ce test se déclenchera si une future
-    entrée de dictionnaire vient à en traduire un morceau par accident.
-    Le 3e exemple (« 9600 à 38400 selon marque ») a été retiré le 13/08/2026 :
-    l'audit i18n exhaustif de cette date l'a légitimement traduit (c'était un
-    vrai manque, le placeholder amp_baudrate de logx_configuration.html),
-    invalidant son usage ici comme témoin « jamais traduit » — remplacé par
-    une valeur synthétique garantie hors du dictionnaire."""
-    for valeur in ['127.0.0.1 (ou IP du poste radio)', '14,21 (vide = toutes)',
+    seulement sur un emoji. Aucun cœur de ces 3 valeurs synthétiques n'est
+    dans T, donc elles doivent rester strictement intactes : ce test se
+    déclenchera si une future entrée de dictionnaire vient à en traduire un
+    morceau par accident.
+    Historique des témoins invalidés par un audit i18n qui les a ENSUITE
+    légitimement traduits (recyclés comme placeholders réels sur
+    logx_configuration.html) : « 9600 à 38400 selon marque » (amp_baudrate,
+    13/08/2026), « 127.0.0.1 (ou IP du poste radio) » et « 14,21 (vide =
+    toutes) » (audit statique global 18 pages, 14/08/2026). Ne PAS reprendre
+    de vrai texte de l'app comme témoin ici : utiliser uniquement des valeurs
+    synthétiques inventées pour ce test, garanties de ne jamais apparaître
+    ailleurs dans le dictionnaire."""
+    for valeur in ['127.0.0.1 (ou IP hypothétique de test, jamais dans T)',
+                   '14,21 (plage hypothétique de test, jamais dans T)',
                    '42 valeur technique de test (jamais dans T)']:
         ctx = _page_avec_placeholder('de', valeur)
         for _ in range(3):
