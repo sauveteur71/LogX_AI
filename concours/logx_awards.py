@@ -610,9 +610,12 @@ def spotted_new_ones(shared_log, spots_by_label=None, max_n=8):
 
 # WAS (Worked All States, ARRL) — les 50 états. Le district de Columbia n'en
 # fait PAS partie : le WAS se compte sur 50, DC est rattaché au Maryland pour
-# ce diplôme. Un état ne se déduit JAMAIS de l'indicatif (un W6 peut habiter
-# n'importe où depuis la fin du découpage géographique des préfixes) : il vient
-# du champ ADIF STATE, de l'annuaire, ou d'une confirmation LoTW.
+# ce diplôme (règle 3 du règlement officiel, https://www.arrl.org/was : « The
+# District of Columbia may be counted for Maryland. » — vérifié le 14/08/2026,
+# remappage appliqué juste avant le comptage, voir award_summary() ci-dessous).
+# Un état ne se déduit JAMAIS de l'indicatif (un W6 peut habiter n'importe où
+# depuis la fin du découpage géographique des préfixes) : il vient du champ
+# ADIF STATE, de l'annuaire, ou d'une confirmation LoTW.
 US_STATES = (
     'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
     'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
@@ -745,6 +748,13 @@ def award_summary(shared_log=None):
             if is_conf:
                 itu_c.add(str(q['itu_zone']))
         st = str(q.get('state') or '').strip().upper()
+        # Règle 3 du règlement WAS (vérifiée sur https://www.arrl.org/was le
+        # 14/08/2026) : « The District of Columbia may be counted for
+        # Maryland. » DC n'a pas de case WAS à lui — avant ce remappage, un
+        # QSO state='DC' n'était crédité NULLE PART (ni DC, absent de
+        # US_STATES à dessein, ni MD, qui exigeait un état saisi 'MD').
+        if st == 'DC':
+            st = 'MD'
         if st in US_STATES:
             states_w.add(st)
             if is_conf:
@@ -777,11 +787,31 @@ def award_summary(shared_log=None):
         METRO, DOM = [], []
         metro_missing, dom_missing = [], []
 
+    # DXCC : même patron _paire()/total/missing que WAZ/WAC/WAS ci-dessous
+    # (audit de conformité du 14/08/2026 — le DXCC était le seul diplôme
+    # « classique » de cette famille sans total ni liste des manquants,
+    # contrairement à WAZ qui liste ses zones manquantes ou WAS ses états
+    # manquants). list_entities() donne la même liste d'entités (clé
+    # 'country') que celle posée sur chaque QSO par _enrich() via
+    # logx_dxcc.lookup() -- source identique, pas de resaisie de table.
+    try:
+        import logx_dxcc as dxcc
+        dxcc_all = sorted({e['country'] for e in dxcc.list_entities()
+                            if e.get('country')})
+        dxcc_total = len(dxcc_all)
+        dxcc_missing = [c for c in dxcc_all if c not in countries_w]
+    except Exception:
+        dxcc_total, dxcc_missing = None, None
+
     return {
         'qso_total': len(qsos),
         'confirmed_total': total_conf,
         'has_confirmations': bool(conf),
-        'dxcc': {'worked': len(countries_w), 'confirmed': len(countries_c)},
+        # Liste plafonnée à 40 comme 'departments' ci-dessous (~340 entités
+        # DXCC au total : une liste complète des manquantes serait illisible
+        # dans le panneau et pèserait inutilement sur la réponse JSON).
+        'dxcc': _paire(countries_w, countries_c, dxcc_total,
+                       dxcc_missing[:40] if dxcc_missing is not None else None),
         'departments': {
             'metro_worked': len([d for d in depts_w if d in METRO]),
             'metro_total': len(METRO),

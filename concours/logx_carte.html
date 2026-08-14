@@ -2061,7 +2061,16 @@ async function basiqueDebriefAnswer(bub, badge){
 function formatAwardsDigest(s){
   const lines=[];
   lines.push(`${s.qso_total} QSO à vie, ${s.confirmed_total} confirmé(s).`);
-  lines.push(`DXCC : ${s.dxcc.worked} travaillées, ${s.dxcc.confirmed} confirmées.`);
+  // Le DXCC expose désormais total/missing comme WAZ/WAC/WAS ci-dessous
+  // (audit de conformité du 14/08/2026) -- repli sur l'ancien format sans
+  // total si logx_dxcc.list_entities() n'a pas pu être chargé côté serveur.
+  if(s.dxcc.total){
+    let l=`DXCC : ${s.dxcc.worked}/${s.dxcc.total} travaillées, ${s.dxcc.confirmed} confirmées.`;
+    if(s.dxcc.missing&&s.dxcc.missing.length) l+=` Manque : ${s.dxcc.missing.slice(0,10).join(', ')}${s.dxcc.missing.length>10?'…':''}.`;
+    lines.push(l);
+  }else{
+    lines.push(`DXCC : ${s.dxcc.worked} travaillées, ${s.dxcc.confirmed} confirmées.`);
+  }
   if(s.departments&&s.departments.metro_total)
     lines.push(`Départements métropole : ${s.departments.metro_worked}/${s.departments.metro_total}`
       +(s.departments.dom_worked?` (+ ${s.departments.dom_worked} DOM)`:'')+'.');

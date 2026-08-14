@@ -165,12 +165,26 @@ def test_was_compte_les_etats_quand_ils_sont_la(monkeypatch):
     assert 'MA' not in a['was']['missing'] and 'CA' in a['was']['missing']
 
 
-def test_le_district_de_columbia_ne_compte_pas(monkeypatch):
-    """Le WAS se compte sur 50 états ; DC est rattaché au Maryland. Le compter
-    ferait afficher 51/50."""
+def test_le_district_de_columbia_compte_pour_le_maryland(monkeypatch):
+    """Le WAS se compte sur 50 états ; DC n'a pas de case à lui (le compter à
+    part ferait afficher 51/50) MAIS règle 3 du règlement officiel ARRL
+    (https://www.arrl.org/was, vérifié le 14/08/2026) : « The District of
+    Columbia may be counted for Maryland. » Un QSO state='DC' doit donc
+    créditer le Maryland — CORRECTIF : avant, il n'était crédité NULLE PART
+    (ce test codait ce bug comme s'il était le comportement voulu)."""
     assert 'DC' not in aw.US_STATES and len(aw.US_STATES) == 50
     a = _resume([_qso('W3ABC', state='DC')], monkeypatch)
-    assert a['was']['worked'] == 0
+    assert a['was']['worked'] == 1
+    assert 'MD' not in a['was']['missing']
+
+
+def test_dc_et_maryland_direct_ne_comptent_qu_une_seule_case(monkeypatch):
+    """Un contact avec DC et un contact 'direct' avec le Maryland visent la
+    même case WAS (règle 3) : les deux ensemble ne doivent compter qu'une
+    fois, pas deux."""
+    a = _resume([_qso('W3ABC', state='DC'), _qso('K3XYZ', state='MD')],
+                monkeypatch)
+    assert a['was']['worked'] == 1
 
 
 def test_une_valeur_d_etat_absurde_est_ignoree(monkeypatch):
