@@ -57,8 +57,10 @@ def _check_scoring(sc, props):
         else:
             for i, rule in enumerate(rules):
                 when = rule.get('when', 'always')
-                if when not in PREDICATES:
-                    errs.append(f"bricks.points[{i}].when '{when}' inconnu du moteur "
+                when_list = when if isinstance(when, (list, tuple)) else [when]
+                unknown = [w for w in when_list if w not in PREDICATES]
+                if unknown:
+                    errs.append(f"bricks.points[{i}].when {unknown} inconnu du moteur "
                                 f"(connus : {sorted(PREDICATES)})")
                 v = rule.get('points')
                 ok = (isinstance(v, (int, float)) or v == 'per_km'
