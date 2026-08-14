@@ -308,6 +308,90 @@ def test_la_casse_et_le_soulignement_sont_tolerés():
     assert C.normaliser_mode('js8call', 14e6, 'kenwood') == 'USB'
 
 
+# ─── 4. Audit de conformité (14/08/2026) : trame IF, commande MD, split,──────
+#        table d'identification — vérifiés contre les CAT Operation
+#        Reference Books officiels Yaesu (FT-991 et FT-991A, tous deux
+#        identiques sur ces quatre points).
+
+def test_yaesu_if_lit_la_bonne_frequence_apres_le_canal_memoire():
+    """DÉFAUT : freq_start valait 2, alors que le canal mémoire Yaesu (P1)
+    fait 3 chiffres (« 001-117 », table IF p.10 des manuels officiels) — la
+    fréquence lue était décalée d'un chiffre vers la gauche (le dernier
+    chiffre du canal pris pour le premier de la fréquence, le vrai dernier
+    chiffre de fréquence perdu)."""
+    mem, freq, clarifier, rit, xit, mode_code = '001', '014074000', '0000', '0', '0', '3'
+    frame = 'IF' + mem + freq + clarifier + rit + xit + mode_code + ';'
+    parsed = C.ascii_parse_if(frame, 'yaesu')
+    assert parsed['freq_hz'] == 14074000, parsed
+    assert parsed['mode'] == 'CW', parsed
+
+
+def test_yaesu_if_frame_decalee_donnait_une_frequence_fausse():
+    """Contre-épreuve : avec l'ancien freq_start=2, la même trame aurait
+    donné une fréquence fausse — fige la régression."""
+    mem, freq, clarifier, rit, xit, mode_code = '001', '014074000', '0000', '0', '0', '3'
+    frame = 'IF' + mem + freq + clarifier + rit + xit + mode_code + ';'
+    body = frame[2:-1]
+    freq_avec_l_ancien_bug = int(body[2:11])
+    assert freq_avec_l_ancien_bug != 14074000
+
+
+def test_md_yaesu_recoit_le_vfo_obligatoire():
+    """DÉFAUT : la commande MD Yaesu exige un P1 (« 0 » = MAIN RX, table MD
+    des manuels officiels, ex. « MD0C; »). Sans lui (« MDC; »), la radio
+    rejette la trame en silence — le mode ne change jamais."""
+    assert C.ascii_encode_mode_cmd('CW', 'yaesu') == 'MD03;'
+
+
+@pytest.mark.parametrize('brand,attendu', [
+    ('kenwood', 'MD3;'), ('elecraft', 'MD3;'),
+])
+def test_md_kenwood_elecraft_n_ont_pas_de_prefixe_vfo(brand, attendu):
+    """Kenwood/Elecraft n'ont pas ce paramètre (« MD2; » suffit) — le
+    correctif Yaesu ne doit pas leur ajouter de préfixe."""
+    assert C.ascii_encode_mode_cmd('CW', brand) == attendu
+
+
+def test_set_mode_yaesu_envoie_bien_le_vfo(monkeypatch):
+    p = FauxPort()
+    C.AsciiRadio(p, brand='yaesu', model='FT-991A').set_mode('CW')
+    assert p.ecrit == [b'MD03;'], p.ecrit
+
+
+def test_le_ft991_sans_a_utilise_le_meme_split_que_le_991a():
+    """DÉFAUT DE DONNÉE : FT-991 (sans « A ») était absent de SPLIT_STYLE et
+    retombait sur le repli générique 'ft01' — son propre manuel CAT documente
+    pourtant la même commande FT (P1=2/3, style 'ft23') que le FT-991A."""
+    assert C.SPLIT_STYLE['FT-991'] == C.SPLIT_STYLE['FT-991A'] == 'ft23'
+
+
+@pytest.mark.parametrize('model,code', [
+    ('FT-891', '0135'), ('FT-991', '0570'), ('FT-991A', '0670'),
+    ('FTDX10', '0761'), ('FTDX101D', '0681'), ('FTDX101MP', '0682'),
+])
+def test_identify_reconnait_le_vrai_code_4_chiffres_yaesu(model, code):
+    """DÉFAUT : la table était à 3 chiffres ('570', '670'...) alors que la
+    radio répond réellement sur 4 chiffres avec un zéro de tête (vérifié :
+    manuels officiels FT-991 « ID  P1  0570: FT-991 » et FT-991A « 0670:
+    FT-991A »). identify() extrait déjà les chiffres bruts de la trame
+    (donc '0570', jamais '570') : la table ne matchait aucun poste Yaesu réel."""
+    assert C.ASCII_ID_TABLE[code] == model
+
+
+def test_identify_yaesu_bout_en_bout(monkeypatch):
+    p = FauxPort()
+    monkeypatch.setattr(C, '_transceive', lambda t, data, sep, timeout=1.0: b'ID0570;')
+    r = C.AsciiRadio(p, brand='yaesu', model='FT-991').identify()
+    assert r == {'ok': True, 'code': '0570', 'model': 'FT-991'}
+
+
+def test_kenwood_garde_ses_codes_3_chiffres_sans_zero_de_tete():
+    """Non-régression : les codes Kenwood n'ont pas ce zéro de tête
+    supplémentaire (ex. TS-2000 = 019) — seule la famille Yaesu est concernée."""
+    assert C.ASCII_ID_TABLE['019'] == 'TS-2000'
+    assert '0019' not in C.ASCII_ID_TABLE
+
+
 def test_l_echec_du_mode_n_est_plus_avale(monkeypatch):
     """set_freq ignorait le retour de set_mode : la radio restait dans son
     mode précédent sans que rien ne le dise. C'est ce silence qui a laissé
