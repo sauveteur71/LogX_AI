@@ -159,20 +159,48 @@
                 "additionalProperties": false,
                 "properties": {
                   "when": {
-                    "type": "string",
-                    "enum": [
-                      "always",
-                      "same_country",
-                      "same_continent",
-                      "different_continent",
-                      "is_french",
-                      "is_na",
-                      "na_w_ve",
-                      "is_asia",
-                      "is_eu"
-                    ],
                     "default": "always",
-                    "description": "Prédicat sur la relation ma station ↔ station DX (scoring.py:PREDICATES)."
+                    "description": "Prédicat sur la relation ma station ↔ station DX (scoring.py:PREDICATES), ou liste de prédicats combinés en ET (ex. ['my_is_french_all','same_continent']).",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "always",
+                          "same_country",
+                          "same_continent",
+                          "different_continent",
+                          "is_french",
+                          "is_french_all",
+                          "my_is_french_all",
+                          "is_maritime_mobile",
+                          "is_na",
+                          "na_w_ve",
+                          "is_asia",
+                          "is_eu"
+                        ]
+                      },
+                      {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "always",
+                            "same_country",
+                            "same_continent",
+                            "different_continent",
+                            "is_french",
+                            "is_french_all",
+                            "my_is_french_all",
+                            "is_maritime_mobile",
+                            "is_na",
+                            "na_w_ve",
+                            "is_asia",
+                            "is_eu"
+                          ]
+                        }
+                      }
+                    ]
                   },
                   "bands": {
                     "type": "array",
@@ -243,6 +271,7 @@
                         "locator",
                         "large_square",
                         "zone_dxcc",
+                        "dxcc_only",
                         "prefix",
                         "dept_dxcc",
                         "na_section",
