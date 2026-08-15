@@ -38,10 +38,32 @@ const MORSE_TABLE = {
 class MorseTimingDecoder {
   constructor(onChar){
     this.onChar = onChar || (()=>{});
-    this.unitMs = 80;                    // ~15 mots/min au départ, s'adapte ensuite
-    this.recentMarks = new Array(12).fill(80);  // fenêtre glissante, sert à estimer le point
+    // Hypothèse de départ AVANT toute vraie marque mesurée -- déterminante
+    // pour la classification point/trait des tout premiers symboles, tant
+    // que la fenêtre glissante (recentMarks) n'a pas encore été purgée des
+    // valeurs de remplissage par de vraies marques (voir _adaptUnit). Choisie
+    // à 45ms (~27 MPM) et PAS à 80ms (~15 MPM, ancienne valeur) : le seuil de
+    // classification point/trait est 2x l'unité (pushEdge ci-dessous), donc
+    // un trait (3x l'unité réelle) n'est classé correctement QUE si
+    // 3*unitRéel > 2*unitMs -- avec l'ancien défaut de 80ms, ça échouait dès
+    // que le débit réel dépassait ~22 MPM (2*80/3 ≈ 53ms -> ~22 MPM), ratant
+    // TOUTE la plage 25-35 MPM typique d'un concours : chaque trait du début
+    // de message était décodé comme un point jusqu'à ce qu'un point réel plus
+    // court apparaisse dans la fenêtre et fasse redescendre l'estimation --
+    // ce qui pouvait prendre plusieurs lettres. Confirmé par le calcul :
+    // seuil valide en un seul réglage pour couvrir 15-35 MPM (point correct
+    // <=> unitMs > unitRéel/2 ; trait correct <=> unitMs < 1.5*unitRéel) =
+    // intervalle (40ms, 51ms) -- 45ms est au centre et couvre en fait ~13 à
+    // ~40 MPM. Symptôme observé côté utilisateur : décodage incohérent en
+    // DÉBUT de session même sur un signal fort, car ce n'est pas un problème
+    // de niveau/seuil mais de classification temporelle pure. Vérifié
+    // empiriquement (tests/test_cwdecoder.py::test_demarrage_a_froid_vitesse_
+    // concours) : avec l'ancien défaut, 'CQ TEST' à 35 MPM décodait
+    // 'HQ TEST' -- 1re lettre fausse dès le premier caractère.
+    this.unitMs = 45;
+    this.recentMarks = new Array(12).fill(45);  // fenêtre glissante, sert à estimer le point
     this.buffer = '';                    // points/traits accumulés du caractère en cours
-    this.wpm = 15;
+    this.wpm = 27;
   }
 
   // Réestime l'unité de temps (durée d'un point) via le MINIMUM d'une fenêtre

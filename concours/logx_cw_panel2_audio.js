@@ -65,6 +65,10 @@ function clearCwOutput(){ return _cwPanel('').clearOutput(); }
 function clearCwOutput2(){ return _cwPanel('2').clearOutput(); }
 function setCwFreq(freq){ _cwPanel('').setFreq(freq); }
 function setCwFreq2(freq){ _cwPanel('2').setFreq(freq); }
+// Aide au choix du périphérique (voir CwPanel.testDevice() dans
+// logx_cw_panel.js) : appelée par onchange sur #cwDevice/#cwDevice2.
+function cwTestDevice(){ return _cwPanel('').testDevice(); }
+function cwTestDevice2(){ return _cwPanel('2').testDevice(); }
 
 // _cwOutText/_cwOutText2 : accesseurs de compatibilité vers l'état interne de
 // CwPanel — tests/test_cw_panel_consolidation.py lit/écrit _cwOutText

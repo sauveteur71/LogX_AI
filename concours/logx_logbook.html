@@ -748,6 +748,14 @@ body.day-mode .rate-box{background:#FFFFFF;border-color:var(--accent2)}
 .cw-btn{background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;padding:5px 10px;font-family:var(--font-mono);font-size:12px}
 .cw-btn.active{background:var(--green);border-color:var(--green);color:#001a08;font-weight:700}
 .cw-wpm{font-size:12px;color:var(--muted)}
+/* Statut du test rapide de périphérique (testDevice(), déclenché au choix
+   dans #cwDevice/#cwDevice2) : vide tant qu'aucun test n'a tourné, neutre
+   pendant le test, vert/rouge une fois le résultat connu -- même code
+   couleur sémantique que le reste de l'appli (succès/erreur), pas l'accent
+   cuivre qui n'a pas ce sens-là. */
+.cw-device-test{font-size:11px;color:var(--muted);min-height:13px}
+.cw-device-test.good{color:var(--green)}
+.cw-device-test.bad{color:var(--red)}
 /* Vumètre niveau vs seuil : sans lui, "ça tourne mais ça ne décode rien"
    était un mystère total (rien ne montrait si le signal atteignait le
    seuil de détection, un mauvais périphérique, ou un ton mal réglé). */
@@ -1972,13 +1980,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="cw-body" id="cwBody">
       <div class="cw-note">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC) et affiche le CW décodé. Fiable sur signal propre et pas trop rapide — pas un substitut à l'oreille en QRM/pileup serré.</div>
       <div class="cw-controls">
-        <select id="cwDevice"><option value="">— périphérique par défaut —</option></select>
+        <select id="cwDevice" onchange="cwTestDevice()" title="Change de périphérique -> teste automatiquement pendant quelques secondes s'il capte bien l'audio de la radio"><option value="">— périphérique par défaut —</option></select>
       </div>
       <div class="cw-controls">
         <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
         <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="setCwFreq(parseInt(this.value,10)||650)">
         <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
       </div>
+      <div class="cw-device-test" id="cwDeviceTestStatus"></div>
       <div class="cw-meter" id="cwMeter" title="Niveau reçu (barre) vs seuil de détection (repère) — si la barre n'atteint jamais le repère, le signal est trop faible ou le mauvais périphérique/ton est sélectionné">
         <div class="cw-meter-fill" id="cwMeterFill"></div>
         <div class="cw-meter-threshold" id="cwMeterThreshold"></div>
@@ -1998,13 +2007,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="cw-body" id="cwBody2">
       <div class="cw-note">Deuxième entrée audio (radio 2), indépendante de la première — tourne en même temps si besoin d'écouter les deux radios simultanément.</div>
       <div class="cw-controls">
-        <select id="cwDevice2"><option value="">— périphérique par défaut —</option></select>
+        <select id="cwDevice2" onchange="cwTestDevice2()" title="Change de périphérique -> teste automatiquement pendant quelques secondes s'il capte bien l'audio de la radio"><option value="">— périphérique par défaut —</option></select>
       </div>
       <div class="cw-controls">
         <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
         <input type="number" id="cwFreq2" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="setCwFreq2(parseInt(this.value,10)||650)">
         <button class="cw-btn" id="cwStartBtn2" onclick="toggleCwDecoder2()">▶ Démarrer</button>
       </div>
+      <div class="cw-device-test" id="cwDeviceTestStatus2"></div>
       <div class="cw-meter" id="cwMeter2" title="Niveau reçu (barre) vs seuil de détection (repère) — si la barre n'atteint jamais le repère, le signal est trop faible ou le mauvais périphérique/ton est sélectionné">
         <div class="cw-meter-fill" id="cwMeterFill2"></div>
         <div class="cw-meter-threshold" id="cwMeterThreshold2"></div>
