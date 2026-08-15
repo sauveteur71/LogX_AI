@@ -263,16 +263,20 @@ def test_logbookjs_controles_deterministes_validation_restent_visibles():
 
 def test_config_html_categories_avancees_sont_dans_expert_only_cats():
     """Depuis la refonte sidebar (08/08/2026), le hub de cartes a disparu —
-    les 4 catégories avancées sont désormais marquées expert-only via
-    _EXPERT_ONLY_CATS, lu par buildConfigSidebar() pour poser la classe sur
-    chaque entrée de l'arborescence (générée en JS, donc pas de littéral
-    class="...expert-only" à chercher dans le HTML statique comme avant —
-    on vérifie directement la source unique de vérité)."""
+    les catégories avancées sont marquées expert-only via _EXPERT_ONLY_CATS,
+    lu par buildConfigSidebar() pour poser la classe sur chaque entrée de
+    l'arborescence (générée en JS, donc pas de littéral class="...expert-only"
+    à chercher dans le HTML statique comme avant — on vérifie directement la
+    source unique de vérité). PowerGenius XL/ACOM fusionnés dans la catégorie
+    'amp' le 15/08/2026 (rejet du schéma 6b/6c par F4GLD) : ce ne sont plus
+    des catégories CONFIG_SECTIONS séparées, donc plus listées ici — leur
+    masquage expert passe désormais par class="section expert-only" posée
+    directement sur #ampPgxlFields/#ampAcomFields dans le HTML."""
     src = _lire(CONFIG_HTML)
     m = re.search(r"const _EXPERT_ONLY_CATS = new Set\(\[(.*?)\]\)", src)
     assert m, "_EXPERT_ONLY_CATS introuvable dans logx_configuration.html"
     cats = set(re.findall(r"'(\w+)'", m.group(1)))
-    assert cats == {'relay', 'autostart', 'pgxl', 'telemetry', 'acom'}
+    assert cats == {'relay', 'autostart', 'telemetry'}
 
 
 def test_config_html_cat_civ_addr_field_est_expert_only():

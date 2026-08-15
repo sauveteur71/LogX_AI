@@ -1729,7 +1729,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           (câble USB/RS-232 dédié à l'ampli).
         </div>
         <div class="form-grid">
-          <div class="form-group">
+          <div class="form-group" id="ampEnabledField">
             <label>PILOTAGE AMPLI</label>
             <select id="amp_enabled" onchange="updateEnabledFieldsVisibility('amp_enabled',['amp_brand','amp_conn_mode','amp_port','amp_baudrate','amp_civ_addr','amp_host','amp_net_port'])">
               <option value="">Désactivé</option>
@@ -1738,10 +1738,19 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           </div>
           <div class="form-group">
             <label>MARQUE</label>
+            <!-- PowerGenius XL et ACOM vivaient dans 2 popups séparées (18/20,
+                 puis 6b/6c) -- retour F4GLD (15/08/2026) : "il faut reussir a
+                 tout mettre en 6". Rejoints ici comme options du même
+                 sélecteur MARQUE ; leurs champs propres (PILOTAGE PGXL/ACOM
+                 dédié, pas de connexion série/TCP générique) restent
+                 conditionnels via updateAmpFieldsVisibility(), même patron
+                 que les champs Elecraft/Icom/SPE déjà présents. -->
             <select id="amp_brand" onchange="updateAmpFieldsVisibility()">
               <option value="elecraft">Elecraft (KPA500 / KPA1500)</option>
               <option value="icom">Icom (IC-PW2 / PW-1, CI-V)</option>
               <option value="spe">SPE / Expert (1.3K-FA / 1.5K-FA / 2K-FA)</option>
+              <option value="pgxl">PowerGenius XL (4O3A, réseau)</option>
+              <option value="acom">ACOM (série RS-232)</option>
             </select>
           </div>
           <div class="form-group" id="ampConnModeField" style="display:none">
@@ -1777,9 +1786,111 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <div class="input-note">Adresse usine IC-PW2/PW-1 : AA (modifiable sur l'ampli si besoin)</div>
           </div>
         </div>
-        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+        <div class="btn-row" id="ampTestRow" style="justify-content:flex-start;margin-top:4px">
           <button type="button" class="btn btn-secondary" onclick="testAmpConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
           <span id="ampTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+
+      <!-- ─── POWERGENIUS XL (4O3A) — visible seulement si MARQUE = pgxl ─── -->
+      <div class="section expert-only" id="ampPgxlFields" style="display:none">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Ampli PowerGenius XL (4O3A) en réseau natif (port TCP 4o3a/FlexRadio 9008) — mesureurs
+          FWD/RL/DRV/ID/TEMP en lecture seule, visibles dans l'écran matériel du logbook.
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);line-height:1.7;margin-bottom:14px;padding:8px 12px;background:rgba(255,214,10,.08);border:1px solid rgba(255,214,10,.35);border-radius:6px">
+          <b>Pas de bascule STANDBY/OPERATE à distance</b> : aucune commande fiable n'est confirmée
+          par la documentation officielle pour ce réglage (un ampli est un dispositif de
+          sécurité — mieux vaut refuser explicitement que deviner). Utilise le panneau avant du
+          PGXL ou SmartSDR pour basculer standby/operate ; le pilotage automatique par la radio
+          (LAN/CAT/CI-V/BCD/Pin2Band) reste géré côté PGXL lui-même, indépendamment de LogX AI.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PILOTAGE PGXL</label>
+            <select id="pgxl_enabled" onchange="updateEnabledFieldsVisibility('pgxl_enabled',['pgxl_host','pgxl_port','pgxl_timeout'])">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">Désactivé par défaut</div>
+          </div>
+          <div class="form-group">
+            <label>ADRESSE PGXL</label>
+            <input type="text" id="pgxl_host" placeholder="192.168.1.50">
+          </div>
+          <div class="form-group">
+            <label>PORT PGXL</label>
+            <input type="number" id="pgxl_port" placeholder="9008">
+          </div>
+          <div class="form-group">
+            <label>DÉLAI RÉSEAU (s)</label>
+            <input type="number" id="pgxl_timeout" placeholder="3" min="1" max="10" step="0.5">
+            <div class="input-note">Borné entre 1 et 10 s côté serveur — une valeur excessive gèlerait les autres commandes en attente.</div>
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testPgxlConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
+          <span id="pgxlTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+      </div>
+
+      <!-- ─── ACOM (série RS-232) — visible seulement si MARQUE = acom ─── -->
+      <div class="section expert-only" id="ampAcomFields" style="display:none">
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
+          Ampli ACOM (500S/600S/700S/1200S/2020S) par son interface série de télécommande
+          (9600 bauds/8N1) — télémétrie (puissance, ROS, température, bande, ventilateur) et
+          bascule OPERATE/STANDBY/OFF.
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);line-height:1.7;margin-bottom:14px;padding:8px 12px;background:rgba(255,214,10,.08);border:1px solid rgba(255,214,10,.35);border-radius:6px">
+          <b>Documentation communautaire, pas officielle</b> : ACOM n'a jamais publié ce
+          protocole série. Ce module s'appuie sur le logiciel libre <i>ACOM Controller</i> de
+          Björn Ekelund (SM7IUN, MIT, code source réel et fonctionnel — voir la docstring de
+          logx_acom.py pour le détail des sources). Aucune commande de bande/fréquence n'existe
+          dans ce protocole (l'ampli suit lui-même le signal d'excitation) : QSY normal, rien à
+          régler ici. Les lignes RTS/DTR ne sont JAMAIS pilotées par LogX (elles commandent
+          l'alimentation physique de l'ampli sur ce modèle, pas un simple PTT) — utilise le
+          bouton façade pour allumer/éteindre l'ampli.
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>PILOTAGE ACOM</label>
+            <select id="acom_enabled" onchange="updateEnabledFieldsVisibility('acom_enabled',['acom_port','acom_model','acom_timeout'])">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">Désactivé par défaut</div>
+          </div>
+          <div class="form-group">
+            <label>PORT SÉRIE</label>
+            <select id="acom_port" onfocus="refreshAcomPorts()"></select>
+          </div>
+          <div class="form-group">
+            <label>MODÈLE</label>
+            <select id="acom_model">
+              <option value="">Inconnu (température non calibrée)</option>
+              <option value="500S">ACOM 500S</option>
+              <option value="600S">ACOM 600S</option>
+              <option value="700S">ACOM 700S</option>
+              <option value="1200S">ACOM 1200S</option>
+              <option value="2020S">ACOM 2020S</option>
+            </select>
+            <div class="input-note">Calibre uniquement l'affichage de température — sans effet sur les commandes.</div>
+          </div>
+          <div class="form-group">
+            <label>DÉLAI SÉRIE (s)</label>
+            <input type="number" id="acom_timeout" placeholder="3" min="1" max="10" step="0.5">
+            <div class="input-note">Borné entre 1 et 10 s côté serveur.</div>
+          </div>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
+          <button type="button" class="btn btn-secondary" onclick="testAcomConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
+          <span id="acomTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
+        </div>
+        <div class="btn-row" style="justify-content:flex-start;margin-top:8px">
+          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('operate')">OPERATE</button>
+          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('standby')">STANDBY</button>
+          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('off')">OFF</button>
+          <span id="acomOperateResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
     </div>
@@ -1944,54 +2055,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     </div>
   </div>
 </div>
-<div class="cat-modal" id="catmodal_pgxl">
-  <div class="cat-modal-box">
-    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 6b. AMPLIFICATEUR — POWERGENIUS XL (4O3A)</h2>
-      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
-    <div class="cat-modal-body" id="catbody_pgxl">
-      <div class="section">
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-          Ampli PowerGenius XL (4O3A) en réseau natif (port TCP 4o3a/FlexRadio 9008) — mesureurs
-          FWD/RL/DRV/ID/TEMP en lecture seule, visibles dans l'écran matériel du logbook.
-        </div>
-        <div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);line-height:1.7;margin-bottom:14px;padding:8px 12px;background:rgba(255,214,10,.08);border:1px solid rgba(255,214,10,.35);border-radius:6px">
-          <b>Pas de bascule STANDBY/OPERATE à distance</b> : aucune commande fiable n'est confirmée
-          par la documentation officielle pour ce réglage (un ampli est un dispositif de
-          sécurité — mieux vaut refuser explicitement que deviner). Utilise le panneau avant du
-          PGXL ou SmartSDR pour basculer standby/operate ; le pilotage automatique par la radio
-          (LAN/CAT/CI-V/BCD/Pin2Band) reste géré côté PGXL lui-même, indépendamment de LogX AI.
-        </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>PILOTAGE PGXL</label>
-            <select id="pgxl_enabled" onchange="updateEnabledFieldsVisibility('pgxl_enabled',['pgxl_host','pgxl_port','pgxl_timeout'])">
-              <option value="">Désactivé</option>
-              <option value="1">Activé</option>
-            </select>
-            <div class="input-note">Désactivé par défaut</div>
-          </div>
-          <div class="form-group">
-            <label>ADRESSE PGXL</label>
-            <input type="text" id="pgxl_host" placeholder="192.168.1.50">
-          </div>
-          <div class="form-group">
-            <label>PORT PGXL</label>
-            <input type="number" id="pgxl_port" placeholder="9008">
-          </div>
-          <div class="form-group">
-            <label>DÉLAI RÉSEAU (s)</label>
-            <input type="number" id="pgxl_timeout" placeholder="3" min="1" max="10" step="0.5">
-            <div class="input-note">Borné entre 1 et 10 s côté serveur — une valeur excessive gèlerait les autres commandes en attente.</div>
-          </div>
-        </div>
-        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="testPgxlConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
-          <span id="pgxlTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 <div class="cat-modal" id="catmodal_telemetry">
   <div class="cat-modal-box">
     <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="9" y2="15"/><circle cx="9" cy="5" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 8a5 5 0 0 1 7 0"/><path d="M3 5.5a8.5 8.5 0 0 1 12 0"/></svg> 18. TÉLÉMÉTRIE D'USAGE</h2>
@@ -2024,72 +2087,6 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
           <button type="button" class="btn btn-secondary" onclick="testTelemetryConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Envoyer un test</button>
           <span id="telemetryTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="cat-modal" id="catmodal_acom">
-  <div class="cat-modal-box">
-    <div class="cat-modal-head"><h2 class="cat-modal-title"><svg width="15" height="15" style="vertical-align:-3px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="11" height="8" rx="1.3"/><line x1="13.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="13.5" y1="10.5" x2="15.5" y2="10.5"/><path d="M9.2 6.8 6.5 10.2h2.2L7.5 12.8l3.6-3.7H8.9z" fill="currentColor" stroke="none"/></svg> 6c. AMPLIFICATEUR — ACOM (série RS-232)</h2>
-      <button class="cat-modal-save" onclick="saveCategoryPanel(this)"><svg width="14" height="14" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3.5 3.5v9.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z"/><path d="M5.5 2.5v4h5v-4"/><rect x="4.5" y="10" width="9" height="5"/></svg> Enregistrer</button></div>
-    <div class="cat-modal-body" id="catbody_acom">
-      <div class="section">
-        <div style="font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">
-          Ampli ACOM (500S/600S/700S/1200S/2020S) par son interface série de télécommande
-          (9600 bauds/8N1) — télémétrie (puissance, ROS, température, bande, ventilateur) et
-          bascule OPERATE/STANDBY/OFF.
-        </div>
-        <div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);line-height:1.7;margin-bottom:14px;padding:8px 12px;background:rgba(255,214,10,.08);border:1px solid rgba(255,214,10,.35);border-radius:6px">
-          <b>Documentation communautaire, pas officielle</b> : ACOM n'a jamais publié ce
-          protocole série. Ce module s'appuie sur le logiciel libre <i>ACOM Controller</i> de
-          Björn Ekelund (SM7IUN, MIT, code source réel et fonctionnel — voir la docstring de
-          logx_acom.py pour le détail des sources). Aucune commande de bande/fréquence n'existe
-          dans ce protocole (l'ampli suit lui-même le signal d'excitation) : QSY normal, rien à
-          régler ici. Les lignes RTS/DTR ne sont JAMAIS pilotées par LogX (elles commandent
-          l'alimentation physique de l'ampli sur ce modèle, pas un simple PTT) — utilise le
-          bouton façade pour allumer/éteindre l'ampli.
-        </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>PILOTAGE ACOM</label>
-            <select id="acom_enabled" onchange="updateEnabledFieldsVisibility('acom_enabled',['acom_port','acom_model','acom_timeout'])">
-              <option value="">Désactivé</option>
-              <option value="1">Activé</option>
-            </select>
-            <div class="input-note">Désactivé par défaut</div>
-          </div>
-          <div class="form-group">
-            <label>PORT SÉRIE</label>
-            <select id="acom_port" onfocus="refreshAcomPorts()"></select>
-          </div>
-          <div class="form-group">
-            <label>MODÈLE</label>
-            <select id="acom_model">
-              <option value="">Inconnu (température non calibrée)</option>
-              <option value="500S">ACOM 500S</option>
-              <option value="600S">ACOM 600S</option>
-              <option value="700S">ACOM 700S</option>
-              <option value="1200S">ACOM 1200S</option>
-              <option value="2020S">ACOM 2020S</option>
-            </select>
-            <div class="input-note">Calibre uniquement l'affichage de température — sans effet sur les commandes.</div>
-          </div>
-          <div class="form-group">
-            <label>DÉLAI SÉRIE (s)</label>
-            <input type="number" id="acom_timeout" placeholder="3" min="1" max="10" step="0.5">
-            <div class="input-note">Borné entre 1 et 10 s côté serveur.</div>
-          </div>
-        </div>
-        <div class="btn-row" style="justify-content:flex-start;margin-top:4px">
-          <button type="button" class="btn btn-secondary" onclick="testAcomConnection()"><svg width="13" height="13" style="vertical-align:-2px;margin-right:2px" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><path d="M4 6h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z"/><line x1="9" y1="14" x2="9" y2="17"/></svg> Tester la connexion</button>
-          <span id="acomTestResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
-        </div>
-        <div class="btn-row" style="justify-content:flex-start;margin-top:8px">
-          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('operate')">OPERATE</button>
-          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('standby')">STANDBY</button>
-          <button type="button" class="btn btn-secondary" onclick="acomSetOperate('off')">OFF</button>
-          <span id="acomOperateResult" style="font-family:var(--font-mono);font-size:12px;margin-left:10px"></span>
         </div>
       </div>
     </div>
