@@ -61,6 +61,9 @@ const CONFIG_HELP = {
   cat_port: "Le port série (COM) où ta radio est reliée à l'ordinateur (ex. COM3 sous Windows). Visible dans le Gestionnaire de périphériques Windows. Interface multi-radio (microHAM, 4O3A Signature...) : c'est le port COM VIRTUEL que le logiciel de l'interface (ex. microHAM Router / USB Device Router) crée pour LogX AI — il ne fonctionne que si ce logiciel tourne, avec la bonne radio sélectionnée dedans. Ce port peut être différent de celui utilisé par WSJT-X ou un autre logiciel, et il change parfois après un redémarrage : rafraîchis la liste si besoin.",
   cat_baudrate: "La vitesse de communication série (bauds) réglée sur ta radio elle-même — doit correspondre EXACTEMENT au réglage du menu de la radio.",
   cat_civ_addr: "Adresse CI-V (Icom/Xiegu) — laisse vide pour utiliser l'adresse usine du modèle choisi. À remplir seulement si tu as changé cette adresse dans le menu SET de la radio (pratique courante en multi-poste/SO2R pour éviter les collisions sur le bus CI-V) : sans ça, LogX AI continue d'interroger l'ancienne adresse et la radio ne répond jamais.",
+  cat_power_auto_enabled: "Réduit automatiquement la puissance radio quand tu choisis un mode numérique (FT8/FT4/RTTY/PSK...) dans LOGBOOK — protection du final, ces modes émettent à 100% du temps contrairement à la phonie/CW. Pilotage Natif Yaesu/Kenwood/Elecraft uniquement (Icom/CI-V pas encore couvert — voir la note sous ce réglage). Désactivé par défaut : n'active rien tant que tu ne l'as pas choisi.",
+  cat_power_phone_w: "Puissance (en watts) poussée vers la radio en phonie (SSB) et en CW. Laisse vide pour ne jamais toucher à la puissance en dehors des modes numériques.",
+  cat_power_digital_w: "Puissance (en watts) poussée vers la radio dès que tu choisis un mode numérique (FT8/FT4/RTTY/PSK...) dans LOGBOOK — typiquement inférieure à la puissance phonie/CW pour protéger le final. Laisse vide pour désactiver la réduction automatique.",
   rig_host: "Adresse réseau (souvent 127.0.0.1 si sur le même PC) du serveur rigctld qui pilote ta radio via Hamlib.",
   rig_port: "Port réseau de rigctld — 4532 par défaut.",
   tci_host: "Adresse réseau du serveur TCI (ex. ExpertSDR3) qui pilote ta radio — 127.0.0.1 si sur le même PC.",
@@ -5076,6 +5079,14 @@ function saveConfig(silent = false, feedbackBtn = null) {
     cat_port: document.getElementById('cat_port').value,
     cat_baudrate: parseInt(document.getElementById('cat_baudrate').value, 10) || 19200,
     cat_civ_addr: document.getElementById('cat_civ_addr').value.trim(),
+    // Puissance TX auto par mode (protection du final en numérique) — voir
+    // cat.set_power() (logx_cat.py) et _qsyVersRadio() (logx_logbook.js).
+    // Chaînes vides (pas 0) quand le champ est laissé vide : 0 W serait une
+    // valeur explicite (couper l'émission), alors que le but est "ne rien
+    // pousser" — logx_logbook.js distingue les deux (repli sûr en JS).
+    cat_power_auto_enabled: !!document.getElementById('cat_power_auto_enabled')?.value,
+    cat_power_phone_w: document.getElementById('cat_power_phone_w')?.value.trim() || '',
+    cat_power_digital_w: document.getElementById('cat_power_digital_w')?.value.trim() || '',
     tci_host: document.getElementById('tci_host').value.trim(),
     tci_port: parseInt(document.getElementById('tci_port').value, 10) || 50001,
     flrig_host: document.getElementById('flrig_host')?.value.trim() || '',
@@ -5874,6 +5885,7 @@ function applyFullConfigToForm(c) {
      'cluster_spot_enabled','cluster_spot_host','cluster_spot_port','lan_sync_enabled','lan_sync_token',
      'activation_program','my_activation_ref','wall_qso_goal',
      'cat_mode','cat_brand','cat_model','cat_port','cat_baudrate','cat_civ_addr',
+     'cat_power_phone_w','cat_power_digital_w',
      'tci_host','tci_port','flrig_host','flrig_port',
      'omnirig_rig_num','flexradio_host','flexradio_port',
      'icomremote_host','icomremote_control_port','icomremote_civ_port',
@@ -5938,6 +5950,8 @@ function applyFullConfigToForm(c) {
     if(c.rig_host) document.getElementById('rig_host').value = c.rig_host;
     if(c.rig_port) document.getElementById('rig_port').value = c.rig_port;
     if(c.cat_enabled) document.getElementById('cat_enabled').value = '1';
+    if(c.cat_power_auto_enabled && document.getElementById('cat_power_auto_enabled'))
+      document.getElementById('cat_power_auto_enabled').value = '1';
     // Migration : config antérieure au pilotage natif (rig_enabled=true,
     // cat_mode jamais défini) -> reste en rigctld, PAS de bascule silencieuse
     // vers le natif (qui n'a ni port ni marque configurés chez ces utilisateurs).

@@ -1229,3 +1229,116 @@ def test_autodetect_scan_retente_apres_acces_refuse_transitoire():
     finally:
         cat._open_serial = original_open
         cat._retry_sleep = original_sleep
+
+
+# ─── Puissance TX automatique par mode (protection du final en numérique) ────
+# Yaesu/Kenwood/Elecraft (commande ASCII PC) uniquement : Icom/CI-V est
+# refusé explicitement (14 0A règle un niveau relatif 0-100%, pas des watts).
+
+def test_ascii_set_power_formate_pc_trois_chiffres():
+    fake = FakeAsciiRadio('kenwood')
+    driver = cat.AsciiRadio(fake, 'kenwood', 'TS-590SG')
+    r = driver.set_power(100)
+    assert r == {'ok': True, 'watts': 100}
+    assert fake.sent[-1] == 'PC100;'
+
+
+def test_ascii_set_power_zero_pad_sous_100():
+    fake = FakeAsciiRadio('yaesu')
+    driver = cat.AsciiRadio(fake, 'yaesu', 'FT-991A')
+    r = driver.set_power(50)
+    assert r == {'ok': True, 'watts': 50}
+    assert fake.sent[-1] == 'PC050;'
+
+
+def test_ascii_set_power_arrondit_un_flottant():
+    fake = FakeAsciiRadio('elecraft')
+    driver = cat.AsciiRadio(fake, 'elecraft', 'K3S')
+    r = driver.set_power(12.6)
+    assert r == {'ok': True, 'watts': 13}
+    assert fake.sent[-1] == 'PC013;'
+
+
+def test_ascii_set_power_hors_plage_refuse():
+    fake = FakeAsciiRadio('kenwood')
+    driver = cat.AsciiRadio(fake, 'kenwood', 'TS-590SG')
+    r = driver.set_power(1500)
+    assert r['ok'] is False
+    assert fake.sent == []   # rien envoyé sur le fil
+
+
+def test_ascii_set_power_valeur_invalide_refuse():
+    fake = FakeAsciiRadio('kenwood')
+    driver = cat.AsciiRadio(fake, 'kenwood', 'TS-590SG')
+    r = driver.set_power('pas-un-nombre')
+    assert r['ok'] is False
+    assert fake.sent == []
+
+
+def test_set_power_module_natif_desactive():
+    assert cat.set_power({}, 100)['ok'] is False
+    assert cat.set_power({'cat_enabled': True, 'cat_mode': 'rigctld'}, 100)['ok'] is False
+
+
+def test_set_power_module_hors_plage_refuse_avant_toute_connexion():
+    """Une valeur aberrante (ex. saisie CONFIG fautive) est rejetée AVANT
+    l'ouverture du port -- jamais de trame envoyée pour une puissance hors
+    plage, quel que soit le modèle."""
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'kenwood',
+           'cat_model': 'TS-590SG', 'cat_port': 'COM5'}
+    original_open = cat._open_serial
+
+    def _echoue_si_appele(port, baudrate=19200):
+        raise AssertionError('le port ne doit pas être ouvert pour une puissance hors plage')
+
+    cat._open_serial = _echoue_si_appele
+    try:
+        r = cat.set_power(cfg, 5000)
+        assert r['ok'] is False
+        assert '0-500' in r['error'] or 'plage' in r['error']
+        r2 = cat.set_power(cfg, -10)
+        assert r2['ok'] is False
+    finally:
+        cat._open_serial = original_open
+
+
+def test_set_power_module_kenwood_ok():
+    fake = FakeAsciiRadio('kenwood')
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'kenwood',
+           'cat_model': 'TS-590SG', 'cat_port': 'COM5'}
+
+    def run(factory):
+        r = cat.set_power(cfg, 75)
+        assert r == {'ok': True, 'watts': 75}
+        assert fake.sent[-1] == 'PC075;'
+
+    _with_fake_serial(fake, run)
+
+
+def test_set_power_module_icom_refuse_explicitement():
+    """Icom/CI-V n'a pas de commande fiable en watts absolus (14 0A = niveau
+    relatif 0-100%) -- refus explicite plutôt qu'une conversion devinée qui
+    risquerait d'envoyer une puissance fausse sur l'air."""
+    fake = FakeCivRadio(cat.CIV_ADDRESSES['IC-7300'])
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
+           'cat_model': 'IC-7300', 'cat_port': 'COM3'}
+
+    def run(factory):
+        r = cat.set_power(cfg, 50)
+        assert r['ok'] is False
+        assert 'CI-V' in r['error'] or 'relatif' in r['error'].lower()
+
+    _with_fake_serial(fake, run)
+
+
+def test_set_power_module_xiegu_refuse_comme_icom():
+    """Xiegu émule le CI-V Icom (même driver CivRadio) -- même refus."""
+    fake = FakeCivRadio(0x70)
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'xiegu',
+           'cat_civ_addr': '70', 'cat_port': 'COM3'}
+
+    def run(factory):
+        r = cat.set_power(cfg, 20)
+        assert r['ok'] is False
+
+    _with_fake_serial(fake, run)

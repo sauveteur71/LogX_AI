@@ -125,6 +125,45 @@ def test_rig_qsy_mode_flex_refuse_proprement_sans_appeler_set_freq(server, monke
     assert 'FlexRadio' in d['error']
 
 
+def test_rig_set_power_mode_natif_appelle_cat_set_power(server, monkeypatch):
+    import logx_cat as cat
+    monkeypatch.setattr(httpmod, 'current_config', _cfg(cat_mode='native'))
+    captured = {}
+    monkeypatch.setattr(cat, 'set_power', lambda cfg, watts:
+                        captured.update(watts=watts) or {'ok': True, 'watts': int(watts)})
+    status, d = _post(server, '/rig/set_power', {'watts': 50})
+    assert status == 200 and d == {'ok': True, 'watts': 50}
+    assert captured['watts'] == 50
+
+
+def test_rig_set_power_refus_icom_remonte_400(server, monkeypatch):
+    """cat.set_power() refuse déjà Icom en interne (voir tests/test_cat.py) --
+    ce test vérifie seulement que le refus remonte bien en 400 côté HTTP,
+    pas la logique de refus elle-même."""
+    import logx_cat as cat
+    monkeypatch.setattr(httpmod, 'current_config', _cfg(cat_mode='native', cat_brand='icom'))
+    monkeypatch.setattr(cat, 'set_power', lambda cfg, watts:
+                        {'ok': False, 'error': 'Réglage de puissance indisponible en CI-V'})
+    status, d = _post(server, '/rig/set_power', {'watts': 50})
+    assert status == 400
+    assert d['ok'] is False
+    assert 'CI-V' in d['error']
+
+
+def test_rig_set_power_watts_manquant_400(server, monkeypatch):
+    monkeypatch.setattr(httpmod, 'current_config', _cfg(cat_mode='native'))
+    status, d = _post(server, '/rig/set_power', {})
+    assert status == 400
+    assert d['ok'] is False
+
+
+def test_rig_set_power_watts_non_numerique_400(server, monkeypatch):
+    monkeypatch.setattr(httpmod, 'current_config', _cfg(cat_mode='native'))
+    status, d = _post(server, '/rig/set_power', {'watts': 'beaucoup'})
+    assert status == 400
+    assert d['ok'] is False
+
+
 def test_rig_qsy_mode_omnirig_appelle_set_freq_avec_les_bons_arguments(server, monkeypatch):
     monkeypatch.setattr(httpmod, 'current_config', _cfg(cat_mode='omnirig'))
     import logx_omnirig as omnirig
