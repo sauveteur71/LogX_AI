@@ -1901,6 +1901,7 @@ async function send(forcedText,displayText,topic){
     const bub=makeAgentBubble();
     if(!(await offlineFallback(topic,bub))){
       bub.textContent=`❌ ${err.message}\n\n${rcT('Vérifie que logx_serveur.py tourne et que ta clé API est configurée.')}`;
+      reportAiFailure(err.message, text);
     }
     isWaiting=false;
     document.getElementById('sendBtn').disabled=false;
@@ -2250,6 +2251,31 @@ function freeTextOffline(bub,err){
   bub.classList.remove('streaming');
   bub.textContent='❌ '+(err||rcT('analyse échouée'))+'\n\n'
     +rcT('Hors-ligne ? Je réponds aux boutons rapides (🏆 📶 🎯 📋 🌍), pas au texte libre — l\'analyse IA complète a besoin d\'internet.');
+  // Échec terminal (le repli hors-ligne n'a lui-même pas pu répondre) --
+  // proposer directement de signaler, plutôt que compter sur l'opérateur
+  // pour penser au bouton "🐛 signaler un problème" de la barre. Seul point
+  // d'accroche : SSE 'failed' ET pollAnalyze status==='error' passent tous
+  // les deux par cette fonction pour leur dernier recours d'affichage.
+  reportAiFailure(err);
+}
+
+// Retour F4GLD (15/08/2026) : bandeau non bloquant de rapport de bug
+// automatique quand une requête n'aboutit pas. rcShowReportBanner (défini
+// dans logx_statusbar.js, partagé par toutes les pages) reste optionnel --
+// une page qui ne l'aurait pas encore chargé continue de fonctionner
+// normalement, juste sans la proposition de signalement.
+function reportAiFailure(errMessage, userText){
+  if (typeof window.rcShowReportBanner !== 'function') return;
+  const lignes = [
+    'Contexte détecté automatiquement — CARTE IA (analyse IA).',
+    '',
+    'Erreur : ' + (errMessage || '(inconnue)'),
+  ];
+  if (userText) lignes.push('', 'Question posée : ' + userText);
+  lignes.push('', rcT('Description libre (modifie/complète si besoin) :'), '');
+  window.rcShowReportBanner(
+    rcT("La requête à l'assistant IA n'a pas abouti."),
+    lignes.join('\n'));
 }
 
 // Annulation clavier (Échap) : retour F4GLD 13/08/2026 — « je lance l'IA mais
