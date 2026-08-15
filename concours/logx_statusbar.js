@@ -116,6 +116,74 @@
   // ouvrirFenetreDetachee() ci-dessous, chargé sur toutes les pages.
   window.rcToast = _statusbarToast;
 
+  // ── Bandeau non bloquant "signaler un échec" ────────────────────────────────
+  // Retour F4GLD (15/08/2026) : quand une requête de l'opérateur échoue (appel
+  // IA dans CARTE IA, commande CAT refusée...), proposer directement de la
+  // signaler plutôt que de compter sur lui pour penser au bouton "🐛 signaler
+  // un problème" de la barre. Toujours un CLIC EXPLICITE pour ouvrir/valider
+  // le rapport (openReportIssue plus bas, jamais d'envoi silencieux vers
+  // GitHub) -- ce bandeau ne fait qu'accélérer l'accès au même formulaire
+  // pré-rempli, avec en plus le contexte de l'échec déjà rédigé. Auto-injecté
+  // comme _statusbarToastEl ci-dessus, mais persistant (pas d'auto-hide après
+  // quelques secondes : le temps de lire ET de décider) et avec un bouton.
+  let _reportBannerEl = null;
+  let _reportBannerTm = null;
+  function hideReportBanner(){
+    if (_reportBannerEl) _reportBannerEl.classList.remove('show');
+    clearTimeout(_reportBannerTm);
+  }
+  function showReportBanner(message, prefillDescription){
+    if (!_reportBannerEl){
+      const el = document.createElement('div');
+      el.id = 'rcsbReportBanner';
+      el.innerHTML = `
+        <style>
+          #rcsbReportBanner{position:fixed;right:16px;bottom:16px;max-width:min(360px,90vw);
+            background:var(--bg2,#0D0E1A);color:var(--text,#E9ECF5);
+            border:1px solid var(--border,#2B2F4A);border-left:3px solid var(--red,#FF2D55);
+            border-radius:8px;padding:12px 14px;font-family:var(--font-mono,'Share Tech Mono',monospace);
+            font-size:13px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.5);
+            z-index:99999;opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .2s,transform .2s}
+          #rcsbReportBanner.show{opacity:1;pointer-events:auto;transform:translateY(0)}
+          #rcsbReportBannerMsg{white-space:pre-line;margin-bottom:10px}
+          #rcsbReportBanner .rcsb-rb-row{display:flex;gap:8px;justify-content:flex-end}
+          #rcsbReportBanner button{font-family:inherit;font-size:12px;letter-spacing:1px;
+            padding:6px 12px;border-radius:6px;cursor:pointer;border:1px solid var(--border,#2B2F4A);
+            background:var(--bg3,#161726);color:var(--muted,#9AA0C0)}
+          #rcsbReportBanner button.rcsb-rb-signal{border-color:var(--red,#FF2D55);color:var(--red,#FF2D55)}
+          #rcsbReportBanner button:hover{filter:brightness(1.2)}
+        </style>
+        <div id="rcsbReportBannerMsg" role="status" aria-live="polite"></div>
+        <div class="rcsb-rb-row">
+          <button type="button" id="rcsbReportBannerDismiss">${rcT('Ignorer')}</button>
+          <button type="button" id="rcsbReportBannerSignal" class="rcsb-rb-signal">🐛 ${rcT('Signaler')}</button>
+        </div>`;
+      document.body.appendChild(el);
+      _reportBannerEl = el;
+      el.querySelector('#rcsbReportBannerDismiss').addEventListener('click', hideReportBanner);
+      el.querySelector('#rcsbReportBannerSignal').addEventListener('click', function(){
+        // Appelé SYNCHRONE depuis ce clic (pas après un .then()) : le
+        // window.open() de openReportIssue() reste dans le geste utilisateur
+        // d'origine, sinon le navigateur bloquerait la popup (voir commentaire
+        // sur refreshErrorsCheck() plus bas, même contrainte).
+        const prefill = _reportBannerEl._prefill || '';
+        hideReportBanner();
+        openReportIssue(prefill);
+      });
+    }
+    _reportBannerEl.querySelector('#rcsbReportBannerMsg').textContent = message;
+    _reportBannerEl._prefill = prefillDescription || '';
+    _reportBannerEl.classList.add('show');
+    clearTimeout(_reportBannerTm);
+    // Contrairement au toast (auto-hide en quelques secondes), ce bandeau est
+    // actionnable -- délai généreux pour laisser le temps de lire ET décider,
+    // pas juste "prendre connaissance" -- mais pas éternel non plus, pour ne
+    // pas laisser un bandeau d'une vieille erreur traîner toute la session.
+    _reportBannerTm = setTimeout(hideReportBanner, 30000);
+  }
+  // Exposé pour CARTE IA / logx_hardware_cat.js -- même esprit que rcToast.
+  window.rcShowReportBanner = showReportBanner;
+
   // ── Ouverture de fenêtre détachée avec repli « popup bloquée » ─────────────
   // window.open() renvoie null/undefined (jamais une exception) quand le
   // navigateur bloque la popup — un simple clic sans repli laisse l'opérateur
@@ -1189,10 +1257,21 @@
     return e.ts + ' (thread ' + e.thread + ')\n' + e.type + ': ' + msg + '\n' + tail;
   }
 
-  function openReportIssue(){
-    const description = prompt(
-      rcT("Décris le problème rencontré (inclus dans l'issue GitHub, tu pourras la relire avant envoi) :"), '');
-    if (description === null) return; // annulé
+  // prefillDescription (optionnel) : contexte d'échec déjà rédigé par
+  // l'appelant (showReportBanner() ci-dessus, depuis un clic "Signaler" sur
+  // le bandeau non bloquant) -- saute le prompt() dans ce cas, l'opérateur
+  // relira/éditera le texte directement sur la page GitHub avant de
+  // vraiment créer l'issue (le prompt() natif reste la seule étape de
+  // relecture pour le bouton MANUEL de la barre, appelé sans argument).
+  function openReportIssue(prefillDescription){
+    let description;
+    if (typeof prefillDescription === 'string' && prefillDescription.trim()){
+      description = prefillDescription;
+    } else {
+      description = prompt(
+        rcT("Décris le problème rencontré (inclus dans l'issue GitHub, tu pourras la relire avant envoi) :"), '');
+      if (description === null) return; // annulé
+    }
 
     const version = (_updState && _updState.current) || _fastVersion || 'inconnue';
     const repo = (_updState && _updState.repo) || REPORT_REPO_FALLBACK;
