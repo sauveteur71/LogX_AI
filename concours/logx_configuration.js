@@ -111,7 +111,7 @@ const CONFIG_HELP = {
   voicekeyer_enabled: "Active le keyer vocal : le logiciel peut synthétiser et émettre un message phonie (CQ, échange...) automatiquement, sans micro.",
   voicekeyer_voice_id: "La voix de synthèse à utiliser (dépend des voix installées sur ton système Windows).",
   voicekeyer_rate: "La vitesse de la voix de synthèse (débit de parole).",
-  voicekeyer_device: "Le périphérique audio de sortie à utiliser pour le keyer vocal — choisis une interface dédiée vers l'entrée micro de ta radio, JAMAIS tes haut-parleurs.",
+  voicekeyer_device: "Le périphérique audio de sortie à utiliser pour le keyer vocal — choisis une interface dédiée vers l'entrée micro de ta radio, JAMAIS tes haut-parleurs. Beaucoup de postes récents (IC-7300 et bien d'autres) ont une carte son USB intégrée : elle apparaît dans la liste sous le nom donné par Windows, souvent « USB Audio CODEC » ou « USB Audio Device » — c'est ce périphérique-là qu'il faut choisir, regroupé ici avec les interfaces recommandées.",
   voicekeyer_ai_enabled: "Essaie une voix IA cloud (plus naturelle qu'une voix Windows) AVANT la voix locale — nécessite internet et une clé API. Si le fournisseur est injoignable ou mal configuré, LogX AI retombe automatiquement et silencieusement sur la voix locale hors-ligne : le keyer vocal continue de fonctionner sans réseau.",
   voicekeyer_ai_api_key: "Clé API de ton compte chez le fournisseur choisi (ex. ElevenLabs). Stockée uniquement côté serveur, jamais dans le navigateur.",
   voicekeyer_ai_voice_id: "Identifiant de la voix chez le fournisseur (visible sur ton tableau de bord ElevenLabs — Voice ID).",
@@ -907,9 +907,19 @@ async function loadSecretsFromServer(){
 // tenue à jour par ResizeObserver — pas seulement au chargement — puisque
 // le contenu de la statusbar peut changer de hauteur après coup.
 function _updateConfigPanelTop(){
-  const ref = document.getElementById('rcStatusBar') || document.querySelector('.app-nav');
-  if(!ref) return;
-  const bottom = ref.getBoundingClientRect().bottom;
+  // DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « le menu configuration
+  // cache le mode d'utilisateur ») : .usage-mode-bar (le sélecteur MODE
+  // D'UTILISATION) est en flux normal juste SOUS header+nav+statusbar, mais
+  // n'était PAS pris en compte ici — le panneau/l'arborescence (position:
+  // fixed, z-index 9000/9500) démarrait donc juste après la statusbar et
+  // RECOUVRAIT visuellement la barre MODE D'UTILISATION, exactement le même
+  // symptôme que le bug nav/statusbar déjà corrigé le 08/08/2026 (voir
+  // commentaire au-dessus), mais pour un élément ajouté après coup et jamais
+  // intégré à ce calcul.
+  const refs = [document.getElementById('rcStatusBar'), document.querySelector('.app-nav'),
+                document.querySelector('.usage-mode-bar')].filter(Boolean);
+  if(!refs.length) return;
+  const bottom = Math.max(...refs.map(function(el){ return el.getBoundingClientRect().bottom; }));
   document.documentElement.style.setProperty('--config-panel-top', Math.max(bottom, 0) + 12 + 'px');
 }
 _updateConfigPanelTop();
@@ -918,7 +928,9 @@ if(typeof ResizeObserver !== 'undefined'){
   const _configPanelTopObserver = new ResizeObserver(_updateConfigPanelTop);
   const _navEl = document.querySelector('.app-nav');
   const _statusBarEl = document.getElementById('rcStatusBar');
+  const _usageModeBarEl = document.querySelector('.usage-mode-bar');
   if(_navEl) _configPanelTopObserver.observe(_navEl);
+  if(_usageModeBarEl) _configPanelTopObserver.observe(_usageModeBarEl);
   if(_statusBarEl) _configPanelTopObserver.observe(_statusBarEl);
   // La statusbar est injectée APRÈS le chargement de logx_statusbar.js, en
   // principe déjà présente ici (script bloquant chargé avant ce bloc) —
@@ -1275,9 +1287,17 @@ async function loadDxRecord(){
 // casque, à éviter). Heuristique sur le NOM SEUL : PortAudio/sounddevice ne
 // distingue pas "virtuel" de "physique" autrement — jamais fiable à 100%,
 // donc on GROUPE plutôt qu'on ne masque (un setup atypique reste choisissable).
+// DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « je n'ai pas trouvé usb audio
+// codec pour le keyer vocal ») : beaucoup de postes récents (IC-7300 et bien
+// d'autres) embarquent une carte son USB reconnue par Windows sous le nom
+// générique du pilote standard USB Audio Class ("USB Audio CODEC"/"USB Audio
+// Device"), pas sous le nom du poste — ce nom ne correspondait à AUCUN motif
+// reconnu ici, donc retombait dans "Autres sorties (haut-parleurs, casque…)"
+// au lieu d'être groupé avec les interfaces recommandées, alors que c'est
+// exactement l'usage prévu (audio USB du poste = interface dédiée).
 function _vkIsLikelyVirtual(name){
   const n = (name || '').toLowerCase();
-  return /vb-?audio|vb-?cable|\bcable\b|\bvac\b|virtual|voicemeeter|microham|signalink|rigblaster|digirig|\bvoicetronic\b/.test(n);
+  return /vb-?audio|vb-?cable|\bcable\b|\bvac\b|virtual|voicemeeter|microham|signalink|rigblaster|digirig|\bvoicetronic\b|usb audio/.test(n);
 }
 
 async function loadVoiceKeyerDevices(){
@@ -2047,6 +2067,27 @@ function buildContestGrid(filter = '') {
     'Autre': '#8E8E93',
   };
 
+  // Badge TYPE DE CONCOURS (courte durée / cumulatif) : retour F4GLD
+  // (14/08/2026), « lorsque je sélectionne un concours il serait cool que ça
+  // apparaisse directement à côté ». Dérivé du texte déjà écrit à la main par
+  // les mainteneurs (nom + description de barème), qui utilise déjà ce
+  // vocabulaire de façon cohérente pour les entrées REF concernées (ex.
+  // "Concours de Courte Durée (Mars)", "Cumulatif annuel — pts/km...") —
+  // pas de seuil de durée recalculé nous-mêmes, qui serait faux pour les
+  // entrées sans _duration_h fiable au premier rendu (avant fusion serveur).
+  // Silencieux (aucun badge) si le texte ne mentionne ni l'un ni l'autre —
+  // mieux vaut se taire qu'afficher un type deviné et potentiellement faux.
+  const typeBadge = c => {
+    const texte = ((c.name || '') + ' ' + (c.score || '')).toLowerCase();
+    if (texte.includes('cumulatif')) {
+      return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours cumulatif : les QSO se comptent sur plusieurs sessions/toute l'année, pas une seule manche">CUMULATIF</span>`;
+    }
+    if (texte.includes('courte durée') || texte.includes('courte duree')) {
+      return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours de courte durée : une seule manche de quelques heures">COURTE DURÉE</span>`;
+    }
+    return '';
+  };
+
   // Badge de confiance : base serveur = dates/règlement re-vérifiés chaque année ;
   // custom = extrait du règlement par l'IA puis validé par relecture humaine
   const badge = c => c.external
@@ -2068,7 +2109,7 @@ function buildContestGrid(filter = '') {
       </div>
       ${cs.map(c => `
         <div class="contest-card" id="card_${escC(c.id)}" data-id="${escC(c.id)}" onclick="selectContest('${jsId(c.id)}')" style="border-left:3px solid ${escC(c.color)}44">
-          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} ${badge(c)}</div>
+          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} <span style="display:flex;gap:5px;flex-shrink:0">${typeBadge(c)}${badge(c)}</span></div>
           <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
             <span>${escC(c.org)}</span>
             ${safeUrl(c.rules) ? `<a href="${escC(safeUrl(c.rules))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h5.5L13.5 5.5V15.5H5z"/><path d="M10.5 2.5V5.5H13.5"/><line x1="7" y1="9" x2="11.5" y2="9"/><line x1="7" y1="12" x2="11.5" y2="12"/></svg> RÈGLEMENT</a>` : ''}
@@ -2363,6 +2404,8 @@ async function selectContest(id, _skipConfirm) {
   document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
   const card = document.getElementById('card_'+id);
   if(card) card.classList.add('selected');
+  const ediSection = document.getElementById('ediDatesSection');
+  if(ediSection) ediSection.style.display = 'block';
   // Auto-appliquer les bandes/modes du concours dès la sélection
   applyContestFilters(id);
   _filtersAppliedFor = id;
@@ -2493,6 +2536,8 @@ function deselectContest(){
   if(!state.contest) return;
   state.contest = null;
   document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
+  const ediSection = document.getElementById('ediDatesSection');
+  if(ediSection) ediSection.style.display = 'none';
   // Ne PAS réinitialiser les bandes/modes déjà cochés (contrairement au
   // passage en LOGBOOK SIMPLE) : l'utilisateur reprend juste la main
   // librement à l'étape FILTRES, sans perdre sa sélection en cours.
@@ -2573,17 +2618,26 @@ const _ICO_IMPORT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vert
 // avait déjà causé un vrai bug (badge 'relay' jamais mis à jour, voir
 // test_config_sections_et_render_hub_listent_les_memes_categories) —
 // renderConfigTree() itère CE tableau directement, plus de 2e source.
+// Retour F4GLD (14/08/2026) : PowerGenius XL (4O3A) et ACOM sont des
+// amplificateurs comme ceux de la section 6 (Elecraft/Icom/SPE) mais
+// vivaient isolés en positions 18/20, loin de "6. Amplificateur" et sans
+// rien à l'écran pour signaler le lien. Déplacés juste après 'amp' et
+// numérotés 6b/6c (plutôt que renumérotés 7/8, ce qui aurait décalé TOUTES
+// les catégories suivantes) — la parenté avec la section 6 est immédiate,
+// aucune autre entrée ne change de numéro.
 const CONFIG_SECTIONS = [
   ['identity',_ICO_IDENTITY+' 1. Identité'], ['operators',_ICO_OPERATORS+' 2. Opérateurs'],
   ['contest',_ICO_TROPHY+' 3. Sélection du concours'], ['filters',_ICO_CALENDAR+' 4. Dates, bandes &amp; modes'],
   ['radio',_ICO_RADIO+' 5. Radio (CAT)'], ['amp',_ICO_BATTERY+' 6. Amplificateur'],
+  ['pgxl',_ICO_BATTERY+' 6b. Amplificateur — PowerGenius XL'],
+  ['acom',_ICO_BATTERY+' 6c. Amplificateur — ACOM'],
   ['rotor',_ICO_COMPASS+' 7. Rotor'], ['network',_ICO_CLOUD+' 8. Multi-poste &amp; Cloud'],
   ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Sources de spots &amp; propagation'],
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
   ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control (relais)'],
-  ['autostart',_ICO_PLAY+' 17. Auto-lancement'], ['pgxl',_ICO_BATTERY+' 18. PowerGenius XL'],
-  ['telemetry',_ICO_SIGNAL+' 19. Télémétrie'], ['acom',_ICO_BATTERY+' 20. ACOM'],
+  ['autostart',_ICO_PLAY+' 17. Auto-lancement'],
+  ['telemetry',_ICO_SIGNAL+' 18. Télémétrie'],
   ['summary',_ICO_SUMMARY+' Résumé']
 ];
 // 5 catégories réservées au mode expert (CLAUDE.md « Intuitivité ») — même

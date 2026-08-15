@@ -1983,8 +1983,8 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <select id="cwDevice" onchange="cwTestDevice()" title="Change de périphérique -> teste automatiquement pendant quelques secondes s'il capte bien l'audio de la radio"><option value="">— périphérique par défaut —</option></select>
       </div>
       <div class="cw-controls">
-        <span style="color:var(--muted);font-size:12px">Ton (Hz)</span>
-        <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Fréquence du ton CW à écouter" oninput="setCwFreq(parseInt(this.value,10)||650)">
+        <span style="color:var(--muted);font-size:12px" title="La tonalité AUDIO du CW en réception (pas la fréquence radio, réglée plus haut/ailleurs) — celle qu'on entend dans le haut-parleur/casque. Doit correspondre au ton (pitch/BFO) réglé sur ta radio, généralement 600-700 Hz par défaut.">Ton CW à l'écoute (Hz, PAS la fréquence radio)</span>
+        <input type="number" id="cwFreq" value="650" min="300" max="1200" title="Tonalité AUDIO du CW à écouter en Hz (300-1200) — doit correspondre au ton réglé sur ta radio (souvent 600-700 Hz par défaut), sans rapport avec la fréquence radio en MHz." oninput="setCwFreq(parseInt(this.value,10)||650)">
         <button class="cw-btn" id="cwStartBtn" onclick="toggleCwDecoder()">▶ Démarrer</button>
       </div>
       <div class="cw-device-test" id="cwDeviceTestStatus"></div>
