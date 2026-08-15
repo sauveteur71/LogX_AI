@@ -281,6 +281,88 @@ CONTEST_DEFINITIONS = {
     },
 
     # ════════════════════════════════════════════════════════════
+    # IARU HF WORLD CHAMPIONSHIP (worldwide HF — administré par l'ARRL pour
+    # l'IARU, sans rapport avec les concours IARU-R1 VHF/UHF ci-dessus)
+    # ════════════════════════════════════════════════════════════
+    'IARU_HF_WC': {
+        # Ajouté le 15/08/2026 suite à un audit de conformité (concours
+        # majeur manquant). Vérifié contre le règlement officiel PDF
+        # "IARU HF World Championship Rules" Version 1.21
+        # (contests.arrl.org/ContestRules/IARU-HF-Rules.pdf) — PAS contre la
+        # description approximative de l'audit, qui suggérait un barème
+        # 20/10/1 pts inventé sans source : le vrai barème officiel (§5.1)
+        # est 1/1/1/3/5 pts selon la zone ITU/continent (voir 'scoring' plus
+        # bas). Écart documenté dans le rapport de vérification de ce chantier.
+        'name': 'IARU HF World Championship',
+        'organizer': 'ARRL / IARU',
+        'check_url': 'https://www.arrl.org/iaru-hf-world-championship',
+        'rules_url': 'https://contests.arrl.org/ContestRules/IARU-HF-Rules.pdf',
+        # Règlement §"Contest Period" : "Second full weekend in July...
+        # Begins 1200 UTC Saturday and runs through 1159 UTC Sunday."
+        'date_rule': 'second_full_weekend_july_12h',
+        'duration_h': 24, 'start_utc': '12:00',
+        # Règlement §"Bands and Modes" : "Use only the 1.8, 3.5, 7, 14, 21,
+        # and 28 MHz bands." — pas de WARC (60/30/17/12m), comme la plupart
+        # des concours HF classiques de cette base.
+        'bands': ['1.8', '3.5', '7', '14', '21', '28'],
+        'modes': ['SSB', 'CW'],
+        # Règlement §4 "Contest Exchange" : RS(T) + zone ITU pour la plupart
+        # des stations ; les stations HQ de société IARU envoient le SIGLE de
+        # leur société à la place de la zone (ex. W1AW envoie "ARRL"), le
+        # secrétariat international NU1AW envoie "IARU", et les membres du
+        # Conseil d'Administration/Comités Exécutifs régionaux envoient
+        # "AC"/"R1"/"R2"/"R3".
+        'exchange': "RS(T) + zone ITU (stations HQ société IARU : RS(T) + sigle société, "
+                    "ex. 'ARRL'/'REF' ; officiels IARU : RS(T) + AC/R1/R2/R3)",
+        'cabrillo_name': 'IARU-HF',
+        'cabrillo_exchange': ['rst', 'exch'],
+        'scoring': {
+            'bricks': {
+                'points': [
+                    # Règlement §5.1.1 + §5.1.3 : même zone ITU (même ou
+                    # autre continent) = 1 point. Un seul prédicat
+                    # 'same_itu_zone' couvre les deux règles (voir
+                    # commentaire sur le prédicat, logx_scoring.py).
+                    {'when': 'same_itu_zone', 'points': 1},
+                    # §5.1.4 : même continent, zone ITU différente = 3 pts.
+                    {'when': 'same_continent', 'points': 3},
+                    # §5.1.5 : continent ET zone ITU différents = 5 pts.
+                    {'when': 'always', 'points': 5},
+                ],
+                'multiplier': {'kind': 'itu_zone'},
+            },
+            'unit': 'pts (zone ITU) × zones ITU travaillées par bande',
+            'note': "Barème officiel §5.1 : même zone ITU = 1 pt, même continent/zone "
+                    "différente = 3 pts, continent+zone différents = 5 pts. Règlement §5.1.2 : "
+                    "un contact avec une station HQ de société IARU ou un officiel IARU "
+                    "(AC/R1/R2/R3) vaut TOUJOURS 1 pt fixe, quels que soient zone/continent — "
+                    "NON modélisé ici (nécessiterait un roster mondial des indicatifs HQ/"
+                    "officiels de ~160 sociétés membres, absent de ce logiciel, à la manière du "
+                    "roster WWA dédié dans logx_wwa.py). Approximation documentée : un contact "
+                    "HQ/officiel situé dans une AUTRE zone ITU sera ici surcoté (3 ou 5 pts au "
+                    "lieu de 1) — écart rare (une poignée de stations HQ par pays) plutôt "
+                    "qu'une hypothèse inventée sur des points non vérifiés. Multiplicateur "
+                    "§5.2.1 : zones ITU travaillées par bande + stations HQ (par bande) + max 4 "
+                    "officiels (AC/R1/R2/R3) par bande — seule la partie zone ITU est comptée "
+                    "ici (même limite de roster que ci-dessus) : le multiplicateur affiché est "
+                    "donc un PLANCHER, jamais surestimé.",
+        },
+        'log_format': 'CABRILLO',
+        # Règlement §9.1 : "Logs are due SEVEN (7) days after the event".
+        'log_deadline': '7_days_after',
+        'log_submit': 'https://contest-log-submission.arrl.org',
+        'categories': 'SO/SOU (QRP/LP/HP, Mixed/CW-Only/Phone-Only) | MS (Mixed, HP) | M2 (Mixed, LP)',
+        # Règlement §6.4 : "Multioperator, Single Transmitter stations must
+        # remain on a band and mode for at least 10 minutes before changing
+        # bands or modes." — même règle que CQ WW/CQ WPX (band_change_rule_min).
+        'band_change_rule_min': 10,
+        'notes': 'Self-spotting interdit (règlement, Prohibited Conduct §PROH.4). '
+                 "Catégorie SO/SOU : QRP=5W, LP=100W, HP=1500W (ou max légal si inférieur). "
+                 'Concours simultané phonie+CW (Mixed-Mode le plus courant) — entrée '
+                 'CW-Only/Phone-Only également possible, même weekend.',
+    },
+
+    # ════════════════════════════════════════════════════════════
     # CQ WORLD WIDE
     # ════════════════════════════════════════════════════════════
     'CQ_WW_SSB': {

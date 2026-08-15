@@ -124,6 +124,15 @@ PREDICATES = {
     'na_w_ve':             lambda c: bool(_NA_CALL_RE.match(c['dx_base'])) and bool(_NA_CALL_RE.match(c['my_base'])),
     'is_asia':             lambda c: c['dx_cont'] == 'AS',   # All Asian DX...
     'is_eu':               lambda c: c['dx_cont'] == 'EU',
+    # IARU HF World Championship (règles §5.1.1/5.1.3, contests.arrl.org/
+    # ContestRules/IARU-HF-Rules.pdf, vérifié 15/08/2026) : « contacts within
+    # your own ITU zone » ET « contacts with a station in the same ITU zone
+    # but on a different continent » comptent TOUS DEUX 1 point — un seul
+    # prédicat suffit (comparaison de zone, indépendante du continent) car
+    # les deux règles du barème officiel donnent la même valeur.
+    'same_itu_zone':       lambda c: c.get('dx_itu_zone') is not None
+                                      and c.get('my_itu_zone') is not None
+                                      and c['dx_itu_zone'] == c['my_itu_zone'],
 }
 
 def _check_validity(validity, ctx):
@@ -292,6 +301,50 @@ def _mult_dxcc_only(ctx, pts, result, scoring):
         result['priority'] = 2 if pts == best and best > 0 else (5 if pts == 0 else 3)
 
 
+def _mult_itu_zone(ctx, pts, result, scoring):
+    """Multiplicateur = zones ITU travaillées PAR BANDE (IARU HF World
+    Championship, règle §5.2.1 : « the total number of ITU zones worked on
+    each band »). Distinct de _mult_zone_dxcc (CQ WW : zones CQ + pays DXCC)
+    et de _mult_dxcc_only (WAE : pays uniquement) — l'IARU HF ne compte NI
+    zone CQ NI pays DXCC comme multiplicateur, seulement la zone ITU (75
+    zones, découpage différent des 40 zones CQ).
+
+    Approximation documentée (voir logx_definitions.CONTEST_DEFINITIONS
+    ['IARU_HF_WC']) : le règlement (§5.2.1) ajoute aussi les stations HQ de
+    société IARU et jusqu'à 4 officiels (AC/R1/R2/R3) comme multiplicateurs
+    PAR BANDE, en plus des zones ITU — non modélisé ici faute de roster
+    mondial des indicatifs HQ/officiels dans ce logiciel (même limite que le
+    1 pt fixe HQ/officiel du barème, cf. commentaire sur 'IARU_HF_WC').
+    Résultat : approximation BIDIRECTIONNELLE, pas un simple plancher —
+    ce logiciel SOUS-compte les mults HQ/officiels (jamais crédités comme
+    tels, faute de roster), mais peut aussi rarement SURESTIMER en comptant
+    un contact HQ/officiel comme nouvelle zone ITU normale si sa vraie zone
+    n'a jamais été travaillée par ailleurs (§5.2.2 : un HQ/officiel ne doit
+    JAMAIS compter comme mult de zone). Cas rare (quelques dizaines
+    d'indicatifs HQ/officiels dans le monde) — corrigible plus tard si un
+    roster HQ est ajouté (cf. logx_wwa.py pour le patron déjà utilisé)."""
+    band = ctx['band_norm']
+    band_zones = ctx.get('done_itu_zones', {}).get(band, set())
+    itu_zone = ctx.get('dx_itu_zone')
+    new_zone = itu_zone is not None and str(itu_zone) not in band_zones
+    best = _max_rule_points(ctx.get('bricks', {}).get('points'), ctx, scoring)
+    if new_zone:
+        result['new_mult'] = True
+        result['mult_type'] = 'zone_itu'
+        result['mult_value'] = 1
+        mult_value_est = ctx['current_score_total'] // max(len(band_zones), 1)
+        result['total_impact'] = pts + mult_value_est
+        result['explanation'] = (
+            f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}) + "
+            f"NOUVELLE ZONE ITU {itu_zone} → +{mult_value_est}pts estimés"
+        )
+        result['priority'] = 1 if pts == best and best > 0 else 2
+    else:
+        result['total_impact'] = pts
+        result['explanation'] = f"{pts}pts ({ctx['my_cont']}→{ctx['dx_cont']}), pas de nouveau mult"
+        result['priority'] = 2 if pts == best and best > 0 else (5 if pts == 0 else 3)
+
+
 def _wpx_prefix(base):
     """Préfixe façon WPX (ex. F6, DL1, ON4) — lettres puis 1er chiffre. Utilisée
     à la fois pour peupler done_prefixes (QSO déjà loggués, build_ranked_spots)
@@ -425,6 +478,7 @@ MULT_EVALUATORS = {
     'large_square': _mult_large_square,
     'zone_dxcc':    _mult_zone_dxcc,
     'dxcc_only':    _mult_dxcc_only,
+    'itu_zone':     _mult_itu_zone,
     'prefix':       _mult_prefix,
     'dept_dxcc':    _mult_dept_dxcc,
     'na_section':   _mult_na_section,
@@ -581,7 +635,7 @@ def contest_geo_mode(contest_id):
     kind = mult.get('kind', '') if isinstance(mult, dict) else ''
     if kind == 'dept_dxcc':
         return 'dept_dxcc'
-    if kind in ('zone_dxcc', 'prefix', 'dxcc_only'):
+    if kind in ('zone_dxcc', 'prefix', 'dxcc_only', 'itu_zone'):
         return 'dxcc'
     if kind in ('na_state', 'na_section'):
         return 'other'
@@ -602,7 +656,7 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
                    done_cq_zones, done_dxcc, current_score_total,
                    band=None, dist_km=0, noaa=None, dxmaps=None, source='',
                    mode='', done_today_by_band=None, done_prefixes=None,
-                   done_depts=None, done_na_proxies=None):
+                   done_depts=None, done_na_proxies=None, done_itu_zones=None):
     """
     Calcule la VALEUR RÉELLE d'un QSO selon le règlement du concours.
     Retourne un dict avec points directs, impact multiplicateur, valeur totale estimée.
@@ -655,6 +709,13 @@ def calc_qso_value(contest_id, dx_call, dx_locator, my_call, my_locator,
         'my_country': dxcc.country_key(my_base) if my_base else 'F',
         'dx_cont': get_continent(dx_base), 'my_cont': get_continent(my_base),
         'dx_cq_zone': dxcc.cq_zone(dx_base),
+        # Zone ITU (distincte de la zone CQ ci-dessus) — utilisée uniquement
+        # par le multiplicateur IARU HF World Championship (_mult_itu_zone),
+        # calculée pour toutes les briques sans coût significatif (simple
+        # lookup cty.dat déjà chargé, pas de requête réseau).
+        'dx_itu_zone': dxcc.itu_zone(dx_base),
+        'my_itu_zone': dxcc.itu_zone(my_base) if my_base else None,
+        'done_itu_zones': done_itu_zones or {},
         # REF Coupe du REF (§6) : 3 pts fixes pour une station maritime mobile
         # — détecté sur le suffixe '/MM' de l'indicatif BRUT (dx_call, pas
         # dx_base qui l'a déjà retiré au même titre que /P ou /QRP).
@@ -815,7 +876,8 @@ def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
                             done_calls_by_band, done_locators, done_large_squares,
                             done_cq_zones, done_dxcc, current_score,
                             noaa=None, dxmaps=None, done_today_by_band=None,
-                            done_prefixes=None, done_depts=None, done_na_proxies=None):
+                            done_prefixes=None, done_depts=None, done_na_proxies=None,
+                            done_itu_zones=None):
     """
     Prend une liste de stations et les classe par valeur décroissante.
     stations_data = [{'call':str, 'locator':str, 'dist_km':int, 'band':str, ...}]
@@ -832,7 +894,8 @@ def rank_stations_by_value(stations_data, contest_id, my_call, my_locator,
             s.get('band',''), s.get('dist_km', 0),
             noaa, dxmaps, s.get('source',''), s.get('mode',''),
             done_today_by_band, done_prefixes=done_prefixes,
-            done_depts=done_depts, done_na_proxies=done_na_proxies
+            done_depts=done_depts, done_na_proxies=done_na_proxies,
+            done_itu_zones=done_itu_zones
         )
         s['scoring'] = val
         s['value_total'] = val['total_impact']
@@ -1010,6 +1073,10 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
     # tort être annoncé "pas de nouveau mult".
     done_cq_zones = {}
     done_dxcc = {}
+    # Zones ITU travaillées PAR BANDE (IARU HF World Championship uniquement,
+    # cf. _mult_itu_zone) — univers distinct de done_cq_zones (zone CQ) et
+    # done_dxcc (entité DXCC) : l'IARU HF ne compte ni l'une ni l'autre.
+    done_itu_zones = {}
     # done_dxcc/done_cq_zones ne contiennent QUE des codes d'entité DXCC courts
     # ('F','DL','K'...) et ne peuvent pas servir de proxy à ces deux autres
     # univers distincts (département FR, proxy indicatif NA) sans faire
@@ -1047,6 +1114,9 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         z = dxcc.cq_zone(base)
         if z is not None:
             done_cq_zones.setdefault(band, set()).add(str(z))
+        iz = dxcc.itu_zone(base)
+        if iz is not None:
+            done_itu_zones.setdefault(band, set()).add(str(iz))
 
     def _mark_dept(q, band):
         """Département FR réellement travaillé (échange connu ici, contrairement
@@ -1222,7 +1292,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         done_cq_zones, done_dxcc, current_score,
         noaa, dxmaps, done_today_by_band,
         done_prefixes=done_prefixes, done_depts=done_depts,
-        done_na_proxies=done_na_proxies
+        done_na_proxies=done_na_proxies, done_itu_zones=done_itu_zones
     )
     cdef = CONTEST_DEFINITIONS.get(contest, {})
     meta = {
