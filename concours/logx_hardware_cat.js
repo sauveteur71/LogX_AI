@@ -53,8 +53,20 @@ function applyRigState(d){
     const panel = document.getElementById('rigPanel');
     const freqBtn = document.getElementById('freqRigBtn');
     if(!d || !d.enabled){
-      rigState.enabled=false; if(panel) panel.style.display='none'; if(freqBtn) freqBtn.style.display='none';
+      // rigState.mode remis à vide ICI (pas seulement .enabled) : updateKeyerPanels()
+      // (logx_logbook.js) et esmSend() (logx_esm_callbot.js) priorisent tous deux
+      // rigState.mode sur currentMode dès qu'il est NON VIDE, SANS vérifier
+      // rigState.enabled (choix délibéré, voir le commentaire d'esmSend() -- un
+      // opérateur en CW manuel sans CAT doit quand même être détecté via
+      // currentMode). Sans cette remise à zéro, désactiver le CAT (ou le
+      // débrancher durablement) laissait le DERNIER mode radio connu (ex. « USB »)
+      // bloqué indéfiniment en priorité sur le sélecteur du carnet -- le panneau
+      // décodeur CW pouvait alors rester caché alors que l'opérateur était bien en
+      // CW (currentMode), sans CAT pour le contredire.
+      rigState.enabled=false; rigState.mode='';
+      if(panel) panel.style.display='none'; if(freqBtn) freqBtn.style.display='none';
       if(typeof updateFreqLockIcon==='function') updateFreqLockIcon();   // masque le cadenas : plus de CAT
+      if(typeof updateKeyerPanels==='function') updateKeyerPanels();     // reflète tout de suite le repli sur currentMode
       return;
     }
     rigState.enabled = true;
@@ -88,6 +100,25 @@ function applyRigState(d){
     }
 }
 
+// Vocabulaire CAT (LSB/USB/CW-R/RTTY-R/FSK/RTTY-LSB — cf. CIV_MODES,
+// MODE_RTTY_PAR_MARQUE dans logx_cat.py) → vocabulaire du sélecteur MODE de
+// LOGBOOK (SSB/CW/FM/RTTY/...). Simple reflet INVERSE de tables déjà écrites
+// et commentées côté serveur (normaliser_mode()/CIV_MODES/
+// MODE_RTTY_PAR_MARQUE) — pas une nouvelle table de plan de bande inventée
+// ici. LSB et USB sont tous deux de la « SSB » pour le carnet (la radio
+// choisit elle-même le bon côté selon la bande, le carnet n'a qu'UN mode
+// phonie) ; CW-R/RTTY-R restent CW/RTTY (le "reverse" ne change pas ce qui
+// est loggé). AM et les DATA-USB/DATA (numérique générique, ambigu entre
+// FT8/FT4/PSK/RTTY selon la marque et le routage audio réel) ne sont
+// délibérément PAS mappés : mieux vaut ne rien synchroniser que deviner un
+// mode numérique faux — le carnet garde alors le dernier mode choisi à la
+// main, comme avant ce correctif.
+function _rigModeVersLog(rigMode){
+  const m = {LSB:'SSB', USB:'SSB', 'CW-R':'CW', 'RTTY-R':'RTTY',
+             'RTTY-LSB':'RTTY', FSK:'RTTY'};
+  return m[rigMode] || rigMode;   // CW/FM/RTTY passent déjà tels quels
+}
+
 function syncBandModeFromRig(freqKhz, mode){
   // Fréquence radio → bande interne (bornes larges pour les segments contest)
   const mhz = freqKhz / 1000;
@@ -96,10 +127,23 @@ function syncBandModeFromRig(freqKhz, mode){
   for(const [lo,hi,b] of BANDS){
     if(mhz>=lo && mhz<=hi){
       if(typeof currentBand!=='undefined' && currentBand!==b && _currentVisibleBands.includes(b)){
-        pickBand(b);
+        pickBand(b, {fromRig: true});
       }
       break;
     }
+  }
+  // DÉFAUT RÉEL trouvé lors du diagnostic du bug remonté par F4GLD (IC-7300,
+  // 15/08/2026) : malgré son nom, cette fonction ne synchronisait QUE la
+  // bande. Basculer la radio de SSB à CW à la main sur l'APPAREIL (pas dans
+  // LOGBOOK) ne mettait donc jamais à jour le sélecteur MODE, qui restait
+  // figé sur son dernier choix — alors que ce même poll lit déjà `mode` dans
+  // `d` (voir applyRigState() ci-dessus) et l'affiche dans le widget #rigMode
+  // brut, sans jamais le répercuter dans le sélecteur du carnet.
+  const logMode = _rigModeVersLog(mode);
+  if(logMode && typeof currentMode !== 'undefined' && currentMode !== logMode
+     && typeof pickMode === 'function' && typeof _currentVisibleModes !== 'undefined'
+     && _currentVisibleModes.includes(logMode)){
+    pickMode(logMode, {fromRig: true});
   }
 }
 

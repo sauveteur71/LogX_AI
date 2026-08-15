@@ -1834,13 +1834,46 @@ document.addEventListener('click', e => {
   });
 });
 
-function pickBand(band){
+// DÉFAUT RÉEL, remonté par F4GLD (IC-7300 en CAT natif, 15/08/2026) : choisir
+// une bande/un mode dans CES sélecteurs manuels ne pilotait JAMAIS la radio —
+// seul un clic sur un spot du band map le faisait (bandmapClick() plus haut,
+// via /rig/qsy). Le carnet changeait bien de bande/mode pour le SCORING/LOG,
+// mais la radio elle-même restait où elle était. `opts.fromRig` distingue les
+// DEUX appelants de pickBand()/pickMode() : un clic humain (pousse vers la
+// radio) contre un rappel de syncBandModeFromRig() (logx_hardware_cat.js, la
+// radio vient de nous dire où ELLE est déjà — repousser une commande QSY à ce
+// moment-là créerait une boucle poll->QSY->poll inutile, voire nuisible si un
+// autre logiciel pilote la même radio sur le bus CI-V).
+function _qsyVersRadio(){
+  const rig = (typeof rigState !== 'undefined') ? rigState : {};
+  if(!rig.enabled) return;
+  // Fréquence : celle déjà affichée dans le champ FRÉQUENCE (fréquence radio en
+  // direct, saisie manuelle, ou valeur par défaut de la bande posée par
+  // setFreqForBand() juste avant cet appel) — jamais une fréquence "magique"
+  // par mode : la clause de repli du bug remonté ("elle devrait au moins
+  // changer de mode") dit explicitement que changer le MODE sans déplacer la
+  // fréquence est un correctif valable, alors qu'inventer une fréquence
+  // d'appel par mode et par bande relève du plan de bande (variable selon
+  // règlement/région) — hors de portée sûre d'un simple correctif CAT.
+  const fEl = document.getElementById('inputFreq');
+  const mhz = fEl ? parseFloat(fEl.value) : NaN;
+  const freqKhz = (isFinite(mhz) && mhz > 0) ? Math.round(mhz * 1000)
+                : (BAND_FREQ[currentBand] ? Math.round(parseFloat(BAND_FREQ[currentBand]) * 1000) : 0);
+  if(!freqKhz) return;
+  fetch('/rig/qsy', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({freq_khz: freqKhz, mode: currentMode})
+  }).catch(()=>{});
+}
+
+function pickBand(band, opts){
+  opts = opts || {};
   currentBand = band;
   _setCurrentBandLabel(band);
   hideBandPicker();
   setFreqForBand(currentBand);
   updateSerialDisplay();
   if(typeof refreshBandMap === 'function') refreshBandMap();  // spots de la nouvelle bande
+  if(!opts.fromRig) _qsyVersRadio();   // choix manuel -> pilote la radio (voir commentaire ci-dessus)
   document.getElementById('inputCall').focus();
 }
 
@@ -1864,10 +1897,36 @@ function hideModePicker(){
   if(popup) popup.style.display = 'none';
 }
 
-function pickMode(mode){
+function pickMode(mode, opts){
+  opts = opts || {};
   currentMode = mode;
   _setCurrentModeLabel(mode);
   hideModePicker();
+  if(!opts.fromRig){
+    _qsyVersRadio();   // choix manuel -> pilote la radio (voir commentaire au-dessus de pickBand)
+    // Mise à jour OPTIMISTE de rigState.mode, ICI et pas dans _qsyVersRadio()
+    // (pickBand() aussi appelle _qsyVersRadio(), pour une bande seule -- y
+    // remettre rigState.mode à currentMode à CE moment-là écraserait à tort
+    // un mode radio réel encore inconnu/différent lors d'un simple
+    // changement de bande, sans intention de mode de l'opérateur : régression
+    // trouvée par tests/test_macro_cw_serie_bande.py, qui force rigState.mode
+    // indépendamment de currentMode pour simuler une radio déjà en CW).
+    // updateKeyerPanels() (panneau décodeur CW) et esmSend() (routage
+    // CW/vocal de l'ESM, logx_esm_callbot.js) priorisent tous deux
+    // rigState.mode sur currentMode dès qu'il est NON VIDE -- sans cette
+    // ligne, choisir CW ici laisserait le panneau décodeur CW calé sur
+    // l'ANCIEN mode radio (ex. USB) pendant tout le délai jusqu'au prochain
+    // sondage matériel (adaptivePoll, jusqu'à ~3-4 s) : exactement le
+    // symptôme « je suis en CW dans LOGBOOK mais le décodeur CW n'apparaît
+    // plus » remonté par F4GLD (15/08/2026, lié au même bug que ce
+    // correctif -- le mode manuel ne pilotait jamais la radio, donc
+    // rigState.mode restait bloqué sur le vrai mode radio, resté inchangé
+    // lui aussi). Le prochain sondage confirmera (ou corrigera, si la
+    // commande a échoué) cette valeur.
+    rigState.mode = mode;
+  }
+  // Appelée APRÈS la mise à jour optimiste ci-dessus (quand elle a lieu) :
+  // lire rigState.mode AVANT l'aurait rouvert le même symptôme.
   if(typeof updateKeyerPanels==='function') updateKeyerPanels();  // keyer vocal/CW
   document.getElementById('inputCall').focus();
 }
@@ -2084,6 +2143,12 @@ const MODE_TOGGLE_KEY = {
   'PSK':  'mode_rtty',  // WWA — rattaché à RTTY (même famille "DIGI" au règlement)
 };
 
+// Modes actuellement autorisés (concours + toggles) — utilisé par
+// syncBandModeFromRig() (logx_hardware_cat.js) pour valider une bascule
+// automatique de mode déclenchée par un changement fait SUR la radio, même
+// principe que _currentVisibleBands pour les bandes.
+let _currentVisibleModes = [];
+
 function renderModeButtons(contest){
   const allModes = CONTEST_MODES[contest] || ['SSB','CW','FM','FT8'];
   // Modes affichés = modes explicitement activés par l'utilisateur en config,
@@ -2099,6 +2164,7 @@ function renderModeButtons(contest){
     ? ['SSB','CW','FM','FT8','FT4','RTTY','SSTV'].filter(m => toggles[MODE_TOGGLE_KEY[m]] === true)
     : allModes;
   const finalModes = modes.length > 0 ? modes : allModes; // sécurité: tout afficher si rien de coché
+  _currentVisibleModes = finalModes;
   const popup = document.getElementById('modePickerPopup');
   if(popup){
     popup.innerHTML = finalModes.map((m,i)=>
