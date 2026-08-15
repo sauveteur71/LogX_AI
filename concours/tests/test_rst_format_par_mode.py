@@ -20,6 +20,10 @@ py_mini_racer = pytest.importorskip(
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JS_PATH = os.path.join(BASE, 'logx_logbook.js')
+# pickMode() appelle désormais _qsyVersRadio() (synchro CAT bidirectionnelle,
+# PR #81) qui lit/écrit rigState — défini dans ce fichier, doit être chargé
+# AVANT logx_logbook.js, même convention que les autres dépendances ci-dessous.
+HARDWARE_CAT_JS_PATH = os.path.join(BASE, 'logx_hardware_cat.js')
 ESM_CALLBOT_JS_PATH = os.path.join(BASE, 'logx_esm_callbot.js')
 VOICE_KEYER_JS_PATH = os.path.join(BASE, 'logx_voice_keyer.js')
 EDIT_QSO_JS_PATH = os.path.join(BASE, 'logx_edit_qso.js')
@@ -126,16 +130,21 @@ var L = new Proxy({}, { get:function(){ return function(){ return new Proxy({}, 
 def moteur():
     ctx = py_mini_racer.MiniRacer()
     ctx.eval(_DOM_PREAMBLE)
-    with open(ESM_CALLBOT_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(VOICE_KEYER_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(EDIT_QSO_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(FILTRE_SPOTS_JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
-    with open(JS_PATH, encoding='utf-8') as f:
-        ctx.eval(f.read())
+    # Concaténés puis évalués EN UN SEUL appel (pas un ctx.eval() par
+    # fichier) : logx_hardware_cat.js appelle adaptivePoll() au chargement
+    # (top-level, hors DOMContentLoaded ici puisque document.readyState est
+    # indéfini dans ce DOM minimal) -- adaptivePoll() n'est définie que plus
+    # bas dans logx_logbook.js. Un seul script concaténé fait remonter
+    # (hoisting) TOUTES les déclarations function avant l'exécution de la
+    # première instruction top-level, donc adaptivePoll existe déjà quand
+    # hardware_cat.js s'exécute -- même technique que
+    # test_cat_manual_bandmode_qsy.py.
+    parts = []
+    for path in (HARDWARE_CAT_JS_PATH, ESM_CALLBOT_JS_PATH, VOICE_KEYER_JS_PATH,
+                 EDIT_QSO_JS_PATH, FILTRE_SPOTS_JS_PATH, JS_PATH):
+        with open(path, encoding='utf-8') as f:
+            parts.append(f.read())
+    ctx.eval('\n'.join(parts))
     return ctx
 
 
