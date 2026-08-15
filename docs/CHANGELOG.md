@@ -11,6 +11,28 @@ affichée dans la barre de statut de l'application correspond à la constante
 `APP_VERSION` de `logx_version.py`, qui doit être incrémentée à chaque tag
 poussé.
 
+## [1.1-beta4] - 2026-08-15
+
+### Ajouté
+
+- **CAT natif — alignement avec Hamlib 4.7.2** (pris comme référence) : flag
+  DATA CI-V (Icom/Xiegu) armé automatiquement en mode numérique, manipulation
+  CW Kenwood/Elecraft pilotée par interrogation active du tampon radio (au
+  lieu d'un délai fixe pouvant déborder à vitesse concours), connexion
+  Kenwood/Elecraft plus robuste aux trames spontanées (AI0), lecture du mode
+  Yaesu par requête dédiée plutôt que par une position fragile dans la trame
+  IF, et prise en charge de l'IC-905 au-dessus de 5,85 GHz.
+- **rigctld (Hamlib)** : connexion TCP persistante et reconnexion
+  automatique et transparente en cas de coupure, au lieu de rouvrir une
+  connexion à chaque commande.
+- **CARTE IA** : dictée vocale disponible aussi pour poser une question au
+  chat (déjà présente pour le champ indicatif).
+- **CONFIG, section 5. RADIO (CAT)** : propose directement les postes déjà
+  déclarés dans le parc RADIOS au lieu de ressaisir marque/modèle.
+- **Bandeau de rapport de bug automatique** : une requête IA qui échoue
+  déclenche désormais une proposition de rapport pré-rempli, sans action de
+  l'utilisateur.
+
 ## [1.1-beta3] - 2026-08-15
 
 ### Ajouté
