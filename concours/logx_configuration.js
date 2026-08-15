@@ -4264,6 +4264,11 @@ const PARC_BANDES = ['1.8','3.5','7','10.1','14','18','21','24','28','50','70',
                      '144','432','1296','2320','3400','5760','10368','24048','47088'];
 const PARC_TYPES = ['', 'directive', 'omni', 'filaire', 'verticale', 'parabole'];
 const PARC_MARQUES_AMPLI = ['', 'elecraft', 'icom', 'spe'];
+// Parc RADIOS : un INVENTAIRE (marque/modèle + association aux antennes), pas
+// un pilotage CAT actif — celui-ci reste porté par les blocs RADIO 1 (cat_*)
+// et RADIO 2/SO2R (cat2_*) plus haut dans cette même page. Voir la note
+// d'en-tête de logx_station.py (14/08/2026) pour le raisonnement complet.
+const PARC_MARQUES_RADIO = ['', 'icom', 'yaesu', 'kenwood', 'elecraft', 'xiegu', 'flex', 'autre'];
 
 // ── CATALOGUE ROTORS (miroir de logx_rotor.ROTOR_BRANDS) ─────────────────────
 // Marque -> protocole conseillé + modèles (el = azimut/élévation, satellite).
@@ -4620,7 +4625,7 @@ function testAlertType(id){
   }
 }
 
-let antennesRows = [], rotorsRows = [], amplisRows = [];
+let antennesRows = [], rotorsRows = [], amplisRows = [], radiosRows = [];
 
 function _pOpt(v, sel, lbl){
   return `<option value="${v}"${String(sel) === String(v) ? ' selected' : ''}>${lbl || v || '—'}</option>`;
@@ -4635,9 +4640,13 @@ function renderParcStation(){
   const ampOpts = ['<option value="">— aucun —</option>'].concat(
     amplisRows.map((m, i) => `<option value="${escAttrParc(m.id || ('ampli' + (i+1)))}">`
       + `${escAttrParc(m.nom || ('Ampli ' + (i+1)))}</option>`)).join('');
+  const radOpts = ['<option value="">— aucune —</option>'].concat(
+    radiosRows.map((d, i) => `<option value="${escAttrParc(d.id || ('radio' + (i+1)))}">`
+      + `${escAttrParc(d.nom || ('Radio ' + (i+1)))}</option>`)).join('');
 
   let h = '<div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:12px">'
-        + "Une ligne par antenne. Coche ses bandes, et dis-lui quel rotor la tourne et quel ampli la précède. "
+        + "Une ligne par antenne. Coche ses bandes, et dis-lui quel rotor la tourne, quel ampli la précède "
+        + "et quelle radio du parc y est reliée (plusieurs antennes peuvent partager la même radio). "
         + "Une antenne fixe se déclare sans rotor : rien ne tournera pour elle."
         + '</div>';
 
@@ -4663,6 +4672,10 @@ function renderParcStation(){
         <div class="form-group" style="max-width:150px">
           <label>AMPLI</label>
           <select data-parc="ant.ampli_id" data-i="${i}">${ampOpts}</select>
+        </div>
+        <div class="form-group" style="max-width:150px">
+          <label>RADIO</label>
+          <select data-parc="ant.radio_id" data-i="${i}">${radOpts}</select>
         </div>
         <div class="form-group" style="max-width:60px">
           <label>&nbsp;</label>
@@ -4773,15 +4786,53 @@ function renderParcStation(){
     </div>`).join('');
   h += `<button type="button" class="btn btn-secondary" onclick="addAmpli()">+ AMPLI</button>`;
 
+  // ── Radios (inventaire) ──
+  h += '<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);margin:18px 0 8px;border-top:1px solid var(--border);padding-top:12px">RADIOS (PARC)</div>';
+  h += '<div style="font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.6">'
+     + 'Inventaire des postes de la station, à associer aux antennes ci-dessus. '
+     + 'Le pilotage CAT actif (QSY, macros CW) reste réglé plus haut dans RADIO (CAT) et SO2R — '
+     + 'une entrée ici n\'est reliée à rien tant que tu ne l\'as pas choisie sur une antenne.</div>';
+  h += radiosRows.map((d, i) => `
+    <div class="form-row" style="align-items:flex-end;gap:10px;margin-bottom:8px">
+      <div class="form-group" style="max-width:80px">
+        <label>ACTIF</label>
+        <select data-parc="rad.enabled" data-i="${i}">
+          ${_pOpt('1', d.enabled ? '1' : '0', 'Oui')}${_pOpt('0', d.enabled ? '1' : '0', 'Non')}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px">
+        <label>NOM</label>
+        <input type="text" data-parc="rad.nom" data-i="${i}" value="${escAttrParc(d.nom)}" placeholder="IC-7300 shack">
+      </div>
+      <div class="form-group" style="max-width:130px">
+        <label>MARQUE</label>
+        <select data-parc="rad.brand" data-i="${i}">
+          ${PARC_MARQUES_RADIO.map(b => _pOpt(b, d.brand, b || '—')).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:120px">
+        <label>MODÈLE</label>
+        <input type="text" data-parc="rad.model" data-i="${i}" value="${escAttrParc(d.model)}" placeholder="IC-7300">
+      </div>
+      <div class="form-group" style="max-width:60px">
+        <label>&nbsp;</label>
+        <button type="button" class="btn btn-secondary" onclick="removeRadio(${i})" title="Supprimer cette radio"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
+      </div>
+    </div>`).join('');
+  h += `<button type="button" class="btn btn-secondary" onclick="addRadio()">+ RADIO</button>`;
+
   box.innerHTML = h;
-  // Les <select> de rotor/ampli sont posés APRÈS coup : leur valeur ne peut pas
-  // l'être dans le HTML tant que les options n'existent pas — c'est exactement
-  // le défaut qui faisait perdre la radio choisie dans la carte CAT.
+  // Les <select> de rotor/ampli/radio sont posés APRÈS coup : leur valeur ne
+  // peut pas l'être dans le HTML tant que les options n'existent pas — c'est
+  // exactement le défaut qui faisait perdre la radio choisie dans la carte CAT.
   box.querySelectorAll('[data-parc="ant.rotor_id"]').forEach(el => {
     el.value = antennesRows[+el.dataset.i].rotor_id || '';
   });
   box.querySelectorAll('[data-parc="ant.ampli_id"]').forEach(el => {
     el.value = antennesRows[+el.dataset.i].ampli_id || '';
+  });
+  box.querySelectorAll('[data-parc="ant.radio_id"]').forEach(el => {
+    el.value = antennesRows[+el.dataset.i].radio_id || '';
   });
   box.querySelectorAll('[data-parc]').forEach(el => {
     el.addEventListener('change', onParcChange);
@@ -4805,8 +4856,8 @@ function onParcChange(e){
     renderParcStation();
     return;
   }
-  // Renommer un rotor doit rafraîchir les listes déroulantes des antennes.
-  if(/^(rot|amp)\.(nom)$/.test(dp)) renderParcStation();
+  // Renommer un rotor/ampli/radio doit rafraîchir les listes déroulantes des antennes.
+  if(/^(rot|amp|rad)\.(nom)$/.test(dp)) renderParcStation();
 }
 
 function readParcStation(){
@@ -4815,7 +4866,8 @@ function readParcStation(){
   box.querySelectorAll('[data-parc]').forEach(el => {
     const [quoi, champ] = el.dataset.parc.split('.');
     const i = +el.dataset.i;
-    const cible = quoi === 'ant' ? antennesRows[i] : quoi === 'rot' ? rotorsRows[i] : amplisRows[i];
+    const cible = quoi === 'ant' ? antennesRows[i] : quoi === 'rot' ? rotorsRows[i]
+                : quoi === 'rad' ? radiosRows[i] : amplisRows[i];
     if(!cible) return;
     if(champ === 'bande'){
       const b = el.dataset.b;
@@ -4849,12 +4901,17 @@ function _idLibre(prefixe, rows){
   while(pris.has(prefixe + n)) n++;
   return prefixe + n;
 }
-function addAntenne(){ readParcStation(); antennesRows.push({nom:'', bandes:[], type:'', rotor_id:'', ampli_id:''}); renderParcStation(); }
+function addAntenne(){ readParcStation(); antennesRows.push({nom:'', bandes:[], type:'', rotor_id:'', ampli_id:'', radio_id:''}); renderParcStation(); }
 function removeAntenne(i){ readParcStation(); antennesRows.splice(i,1); renderParcStation(); }
 function addRotor(){ readParcStation(); rotorsRows.push({id:_idLibre('rotor', rotorsRows), nom:'', enabled:true, host:'', port:4533, proto:'rotctld', brand:'', model:'', offset_deg:0}); renderParcStation(); }
 function removeRotor(i){ readParcStation(); rotorsRows.splice(i,1); renderParcStation(); }
 function addAmpli(){ readParcStation(); amplisRows.push({id:_idLibre('ampli', amplisRows), nom:'', enabled:true, brand:'', port:''}); renderParcStation(); }
 function removeAmpli(i){ readParcStation(); amplisRows.splice(i,1); renderParcStation(); }
+// Parc RADIOS : inventaire seulement (voir commentaire au-dessus de
+// PARC_MARQUES_RADIO) — aucun champ port/baudrate, pour ne jamais laisser
+// croire qu'ajouter une entrée ici pilote une connexion CAT.
+function addRadio(){ readParcStation(); radiosRows.push({id:_idLibre('radio', radiosRows), nom:'', enabled:true, brand:'', model:''}); renderParcStation(); }
+function removeRadio(i){ readParcStation(); radiosRows.splice(i,1); renderParcStation(); }
 
 function quickSave() {
   // Sauvegarde silencieuse + feedback visuel sur le bouton
@@ -5093,7 +5150,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     // sauvegarde — ne jamais sérialiser l'état mémoire sans cette relecture,
     // sinon une modification non encore validée par un « change » serait perdue.
     ...(function(){ readParcStation(); return {
-      antennes: antennesRows, rotors: rotorsRows, amplis: amplisRows}; })(),
+      antennes: antennesRows, rotors: rotorsRows, amplis: amplisRows, radios: radiosRows}; })(),
     amp_enabled: !!document.getElementById('amp_enabled').value,
     amp_brand: document.getElementById('amp_brand').value,
     amp_conn_mode: document.getElementById('amp_conn_mode').value,
@@ -5852,13 +5909,19 @@ function applyFullConfigToForm(c) {
     // revenir en arrière.
     antennesRows = Array.isArray(c.antennes) ? c.antennes.map(a => ({
       id: a.id || '', nom: a.nom || '', bandes: Array.isArray(a.bandes) ? a.bandes.slice() : [],
-      type: a.type || '', rotor_id: a.rotor_id || '', ampli_id: a.ampli_id || ''})) : [];
+      type: a.type || '', rotor_id: a.rotor_id || '', ampli_id: a.ampli_id || '',
+      radio_id: a.radio_id || ''})) : [];
     rotorsRows = Array.isArray(c.rotors) ? c.rotors.map(r => ({
       id: r.id || '', nom: r.nom || '', enabled: r.enabled !== false,
       host: r.host || '', port: r.port || 4533, offset_deg: r.offset_deg || 0})) : [];
     amplisRows = Array.isArray(c.amplis) ? c.amplis.map(m => ({
       id: m.id || '', nom: m.nom || '', enabled: m.enabled !== false,
       brand: m.brand || '', port: m.port || ''})) : [];
+    // Parc RADIOS (inventaire, 14/08/2026) : pas de reprise legacy comme les
+    // antennes/rotors/amplis — aucune ancienne config n'en avait plusieurs.
+    radiosRows = Array.isArray(c.radios) ? c.radios.map(d => ({
+      id: d.id || '', nom: d.nom || '', enabled: d.enabled !== false,
+      brand: d.brand || '', model: d.model || ''})) : [];
     renderParcStation();
     if(document.getElementById('sota_ai_approval_ack'))
       document.getElementById('sota_ai_approval_ack').checked = c.sota_ai_approval_ack === '1';

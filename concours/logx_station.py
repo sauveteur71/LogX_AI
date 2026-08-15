@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""La station physique : PLUSIEURS antennes, plusieurs rotors, plusieurs amplis.
+"""La station physique : PLUSIEURS antennes, plusieurs rotors, plusieurs amplis,
+plusieurs radios (inventaire).
 
 POURQUOI CE MODULE (demande de F4GLD, 01/08/2026). Le logiciel supposait
 partout « une seule » : quatre champs texte descriptifs (ant_hf, ant_144,
@@ -8,22 +9,41 @@ station sérieuse en a plusieurs — l'exemple donné : trois pylônes, trois
 antennes différentes, trois rotors, à commander séparément.
 
 LE MODÈLE RETENU (choisi par l'opérateur) : une liste d'ANTENNES, chacune
-pouvant désigner SON rotor et SON ampli. C'est la structure réelle d'une
-station à plusieurs pylônes — l'antenne est ce que l'opérateur choisit, le
-rotor et l'ampli en découlent. Les rotors et amplis restent des listes à part :
-un rotor qu'aucune antenne ne réclame reste pilotable à la main, et deux
-antennes peuvent partager un même ampli (cas courant : un seul ampli commuté).
+pouvant désigner SON rotor, SON ampli et SA radio. C'est la structure réelle
+d'une station à plusieurs pylônes — l'antenne est ce que l'opérateur choisit,
+le rotor/l'ampli/la radio en découlent. Les rotors, amplis et radios restent
+des listes à part : un rotor qu'aucune antenne ne réclame reste pilotable à
+la main, et deux antennes peuvent partager un même ampli ou une même radio
+(cas courant : un seul ampli commuté, ou une radio HF partagée entre une
+antenne fixe et une directive sur la même bande).
 
 CONSÉQUENCE DE PILOTAGE, également choisie par l'opérateur : un clic sur un
 spot ne fait tourner QUE le rotor de l'antenne active sur la bande courante.
 Les autres pylônes ne bougent pas — indispensable en multi-opérateur, où un
 second opérateur travaille une autre bande sur un autre pylône.
 
+RADIOS — PORTÉE ASSUMÉE (demande de F4GLD, 14/08/2026 : « je devrai pouvoir
+mettre plusieurs poste et l'associer à une ou plusieurs antenne »). La liste
+`radios` ci-dessous est un INVENTAIRE (comme les amplis) : nom/marque/modèle,
+association aux antennes — PAS un pilotage CAT actif. Le pilotage CAT réel
+(QSY, macros CW, suivi bande/mode bidirectionnel avec LOGBOOK, PR #81 du
+15/08/2026) reste porté par les DEUX blocs historiques `cat_*` (radio
+principale) et `cat2_*` (SO2R, expert-only) ailleurs dans la config — toute
+la plomberie serveur (logx_cat.py, endpoint /rig/qsy) et client (rigState/
+rigState2, _qsyVersRadio(), syncBandModeFromRig()) suppose 1 ou 2 radios
+pilotées et n'est PAS généralisée à N radios par ce chantier : le risque de
+casser ce pilotage tout juste corrigé dépassait la valeur d'un 3e QSY temps
+réel. Une radio du parc peut donc exister sans jamais être commandée par
+LogX AI — exactement comme une antenne fixe existe sans rotor.
+
 RIEN N'EST PERDU DES CONFIGURATIONS EXISTANTES : `charger()` reconstruit ces
 listes depuis les anciens champs quand elles sont absentes (voir `_depuis_legacy`),
 et l'ancien vocabulaire continue d'être servi pour les écrans qui n'ont pas
 encore migré. Une configuration jamais touchée doit continuer de marcher à
 l'identique — c'est la règle de ce dépôt pour tout changement de schéma.
+`radios` n'a PAS d'équivalent legacy (aucun ancien champ ne décrivait
+plusieurs radios) : une config absente de cette clé obtient simplement une
+liste vide, sans reconstruction.
 """
 import math
 import re
@@ -130,7 +150,7 @@ def _depuis_legacy(cfg):
 
 
 def charger(cfg):
-    """Les trois listes normalisées, quelle que soit l'ancienneté de la config."""
+    """Les quatre listes normalisées, quelle que soit l'ancienneté de la config."""
     cfg = cfg or {}
     antennes = cfg.get('antennes')
     rotors = cfg.get('rotors')
@@ -141,6 +161,10 @@ def charger(cfg):
         antennes = antennes if isinstance(antennes, list) else l_ant
         rotors = rotors if isinstance(rotors, list) else l_rot
         amplis = amplis if isinstance(amplis, list) else l_amp
+    # Pas de reprise « legacy » pour les radios : aucun ancien champ ne
+    # décrivait plusieurs postes, donc rien à migrer — juste une liste vide.
+    radios = cfg.get('radios')
+    radios = radios if isinstance(radios, list) else []
 
     ant = []
     for a in antennes:
@@ -154,6 +178,7 @@ def charger(cfg):
                      if str(a.get('type') or '').strip().lower() in TYPES_ANTENNE else ''),
             'rotor_id': str(a.get('rotor_id') or '').strip(),
             'ampli_id': str(a.get('ampli_id') or '').strip(),
+            'radio_id': str(a.get('radio_id') or '').strip(),
             'gain_dbi': a.get('gain_dbi'),
             'hauteur_m': a.get('hauteur_m'),
             'note': str(a.get('note') or '')[:120],
@@ -207,9 +232,26 @@ def charger(cfg):
             'baudrate': baud,
             'civ_addr': str(m.get('civ_addr') or '').strip(),
         })
+    rad = []
+    for d in radios:
+        if not isinstance(d, dict):
+            continue
+        # INVENTAIRE seulement (voir note d'en-tête du module) : pas de champ
+        # port/baudrate ici, pour ne jamais laisser croire qu'une entrée de
+        # ce parc pilote réellement quoi que ce soit — c'est le rôle exclusif
+        # de cat_*/cat2_* ailleurs dans la config.
+        rad.append({
+            'id': str(d.get('id') or '').strip(),
+            'nom': str(d.get('nom') or '').strip()[:40],
+            'enabled': bool(d.get('enabled')),
+            'brand': str(d.get('brand') or '').strip().lower(),
+            'model': str(d.get('model') or '').strip()[:40],
+            'note': str(d.get('note') or '')[:120],
+        })
     return {'antennes': _ids_uniques(ant, 'ant'),
             'rotors': _ids_uniques(rot, 'rotor'),
-            'amplis': _ids_uniques(amp, 'ampli')}
+            'amplis': _ids_uniques(amp, 'ampli'),
+            'radios': _ids_uniques(rad, 'radio')}
 
 
 # ─── QUI SERT SUR CETTE BANDE ? ─────────────────────────────────────────────
@@ -268,6 +310,21 @@ def ampli_pour_bande(station, bande, choix=None):
 
 def rotor_par_id(station, rotor_id):
     return _par_id((station or {}).get('rotors'), str(rotor_id or '').strip())
+
+
+def radio_par_id(station, radio_id):
+    return _par_id((station or {}).get('radios'), str(radio_id or '').strip())
+
+
+def radio_pour_bande(station, bande, choix=None):
+    """La radio DU PARC associée à l'antenne active sur cette bande —
+    information d'inventaire seulement (voir note d'en-tête du module), ne
+    déclenche aucune connexion CAT. Rend None si l'antenne n'a pas de
+    radio_id ou si aucune antenne ne couvre la bande."""
+    a = antenne_active(station, bande, choix)
+    if not a or not a['radio_id']:
+        return None
+    return radio_par_id(station, a['radio_id'])
 
 
 def _premier_rotor_actif(station):
@@ -346,16 +403,20 @@ def resume(station):
     sans_bande = [a['nom'] for a in st.get('antennes', []) if not a['bandes']]
     orphelines = [a['nom'] for a in st.get('antennes', [])
                   if a['rotor_id'] and not rotor_par_id(st, a['rotor_id'])]
+    radio_orphelines = [a['nom'] for a in st.get('antennes', [])
+                        if a.get('radio_id') and not radio_par_id(st, a['radio_id'])]
     couvertes = sorted({b for a in st.get('antennes', []) for b in a['bandes']},
                        key=lambda b: BANDES.index(b))
     return {
         'nb_antennes': len(st.get('antennes', [])),
         'nb_rotors': len(st.get('rotors', [])),
         'nb_amplis': len(st.get('amplis', [])),
+        'nb_radios': len(st.get('radios', [])),
         'bandes_couvertes': couvertes,
-        # Deux incohérences qu'il vaut mieux dire que laisser découvrir le jour
-        # du concours : une antenne sans bande ne sera jamais choisie, et un
-        # rotor_id qui ne pointe sur rien ne fera jamais tourner quoi que ce soit.
+        # Incohérences qu'il vaut mieux dire que laisser découvrir le jour du
+        # concours : une antenne sans bande ne sera jamais choisie, et un
+        # rotor_id/radio_id qui ne pointe sur rien ne désignera jamais rien.
         'antennes_sans_bande': sans_bande,
         'antennes_a_rotor_introuvable': orphelines,
+        'antennes_a_radio_introuvable': radio_orphelines,
     }
