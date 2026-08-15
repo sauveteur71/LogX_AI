@@ -231,16 +231,19 @@ def _make_sidebar_ctx():
     return ctx
 
 
-def test_build_config_sidebar_genere_20_entrees():
+def test_build_config_sidebar_genere_19_entrees():
     ctx = _make_sidebar_ctx()
     cats = json.loads(ctx.eval(
         "JSON.stringify(document.getElementById('configSidebar')"
         ".querySelectorAll('.config-sidebar-item').map(function(b){return b.dataset.cat;}))"))
-    assert len(cats) == 21, "buildConfigSidebar() n'a pas généré les 21 entrées attendues (20 catégories + résumé)"
+    # 18 catégories + résumé. PowerGenius XL/ACOM fusionnés dans 'amp' le
+    # 15/08/2026 (rejet du schéma 6b/6c par F4GLD) : ne sont plus des
+    # entrées de sidebar séparées, d'où 19 au lieu des 21 précédentes.
+    assert len(cats) == 19, "buildConfigSidebar() n'a pas généré les 19 entrées attendues (18 catégories + résumé)"
     assert cats[-1] == 'summary', "'summary' doit être la dernière entrée (après le séparateur)"
 
 
-def test_build_config_sidebar_marque_exactement_les_5_categories_expert_only():
+def test_build_config_sidebar_marque_exactement_les_3_categories_expert_only():
     """Reproduit précisément le scénario de régression cité par la revue
     (une faute de frappe dans _EXPERT_ONLY_CATS.has() ferait échouer CE
     test, alors qu'aucun test existant avant ce correctif ne l'aurait vu)."""
@@ -250,7 +253,7 @@ def test_build_config_sidebar_marque_exactement_les_5_categories_expert_only():
         ".querySelectorAll('.config-sidebar-item')"
         ".filter(function(b){return b._expertOnly;})"
         ".map(function(b){return b.dataset.cat;}))")))
-    assert flagged == {'relay', 'autostart', 'pgxl', 'telemetry', 'acom'}, (
+    assert flagged == {'relay', 'autostart', 'telemetry'}, (
         f"catégories marquées expert-only dans le HTML RÉELLEMENT généré : {flagged}")
 
 

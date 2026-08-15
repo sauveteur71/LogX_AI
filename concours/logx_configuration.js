@@ -1638,13 +1638,38 @@ function updateEnabledFieldsVisibility(toggleId, childIds, isEnabledFn){
   });
 }
 
+// PowerGenius XL et ACOM (retour F4GLD 15/08/2026 : "il faut reussir a tout
+// mettre en 6") : marques dont le pilotage ne ressemble PAS aux 3 autres
+// (pas de port série/TCP générique amp_port/amp_host, mais leurs PROPRES
+// champs dédiés pgxl_*/acom_*, chacun avec son propre PILOTAGE X — hérité
+// tel quel de leurs anciennes popups séparées). Ce sélecteur MARQUE reste
+// donc la seule chose commune ; le reste du panneau bascule entièrement
+// entre 2 univers de champs distincts selon la marque choisie.
+const AMP_BRANDS_DEDIEES = ['pgxl', 'acom'];
+
 function updateAmpFieldsVisibility(){
   const brand = document.getElementById('amp_brand').value;
-  document.getElementById('ampCivAddrField').style.display = brand === 'icom' ? '' : 'none';
+  const dediee = AMP_BRANDS_DEDIEES.includes(brand);
+  // PGXL/ACOM ont leur PROPRE "PILOTAGE X" (pgxl_enabled/acom_enabled) --
+  // le "PILOTAGE AMPLI" générique (amp_enabled) n'a alors plus de sens et
+  // masquerait sinon les champs port/hôte génériques SANS rien montrer à
+  // la place tant qu'il reste sur "Désactivé".
+  document.getElementById('ampEnabledField').style.display = dediee ? 'none' : '';
+  document.getElementById('ampConnModeField').style.display = (!dediee && brand === 'elecraft') ? '' : 'none';
+  document.getElementById('ampCivAddrField').style.display = (!dediee && brand === 'icom') ? '' : 'none';
+  document.getElementById('ampTestRow').style.display = dediee ? 'none' : '';
+  document.getElementById('ampPgxlFields').style.display = brand === 'pgxl' ? '' : 'none';
+  document.getElementById('ampAcomFields').style.display = brand === 'acom' ? '' : 'none';
+  if (dediee){
+    document.getElementById('ampPortField').style.display = 'none';
+    document.getElementById('ampBaudField').style.display = 'none';
+    document.getElementById('ampHostField').style.display = 'none';
+    document.getElementById('ampNetPortField').style.display = 'none';
+    return;
+  }
   // Réseau TCP/UDP : uniquement le KPA1500 (port Ethernet natif documenté) —
   // Icom/SPE n'ont aucun accès réseau documenté, on les force en série.
   const connSel = document.getElementById('amp_conn_mode');
-  document.getElementById('ampConnModeField').style.display = brand === 'elecraft' ? '' : 'none';
   if (brand !== 'elecraft' && connSel.value !== 'serial') connSel.value = 'serial';
   const isNetwork = brand === 'elecraft' && connSel.value !== 'serial';
   document.getElementById('ampPortField').style.display = isNetwork ? 'none' : '';
@@ -2623,17 +2648,16 @@ const _ICO_IMPORT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vert
 // renderConfigTree() itère CE tableau directement, plus de 2e source.
 // Retour F4GLD (14/08/2026) : PowerGenius XL (4O3A) et ACOM sont des
 // amplificateurs comme ceux de la section 6 (Elecraft/Icom/SPE) mais
-// vivaient isolés en positions 18/20, loin de "6. Amplificateur" et sans
-// rien à l'écran pour signaler le lien. Déplacés juste après 'amp' et
-// numérotés 6b/6c (plutôt que renumérotés 7/8, ce qui aurait décalé TOUTES
-// les catégories suivantes) — la parenté avec la section 6 est immédiate,
-// aucune autre entrée ne change de numéro.
+// vivaient isolés en positions 18/20, loin de "6. Amplificateur". Un 1er
+// essai en sous-entrées "6b."/"6c." adjacentes a été explicitement rejeté
+// ("je ne veux pas de 6b et 6c il faut reussir a tout mettre en 6") : ce ne
+// sont plus des catégories CONFIG_SECTIONS séparées, leurs champs sont
+// fusionnés à l'intérieur même de #catmodal_amp (voir amp_brand='pgxl'/
+// 'acom' et updateAmpFieldsVisibility() dans logx_configuration.js).
 const CONFIG_SECTIONS = [
   ['identity',_ICO_IDENTITY+' 1. Identité'], ['operators',_ICO_OPERATORS+' 2. Opérateurs'],
   ['contest',_ICO_TROPHY+' 3. Sélection du concours'], ['filters',_ICO_CALENDAR+' 4. Dates, bandes &amp; modes'],
   ['radio',_ICO_RADIO+' 5. Radio (CAT)'], ['amp',_ICO_BATTERY+' 6. Amplificateur'],
-  ['pgxl',_ICO_BATTERY+' 6b. Amplificateur — PowerGenius XL'],
-  ['acom',_ICO_BATTERY+' 6c. Amplificateur — ACOM'],
   ['rotor',_ICO_COMPASS+' 7. Rotor'], ['network',_ICO_CLOUD+' 8. Multi-poste &amp; Cloud'],
   ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Sources de spots &amp; propagation'],
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
@@ -2648,7 +2672,7 @@ const CONFIG_SECTIONS = [
 // entrées de l'arborescence elles-mêmes (l'ancien panneau flottant les
 // listait TOUTES sans filtre, lacune trouvée par l'investigation du
 // 08/08/2026 avant de coder cette refonte).
-const _EXPERT_ONLY_CATS = new Set(['relay', 'autostart', 'pgxl', 'telemetry', 'acom']);
+const _EXPERT_ONLY_CATS = new Set(['relay', 'autostart', 'telemetry']);
 
 function buildConfigSidebar(){
   if(document.getElementById('configSidebar')) return;
@@ -2891,7 +2915,11 @@ function _catStatus(cat){
     case 'radio':
       return val('cat_enabled') === '1' ? 'ok' : 'empty';
     case 'amp':
-      return val('amp_enabled') === '1' ? 'ok' : 'empty';
+      // PGXL/ACOM (fusionnés dans cette même catégorie, 15/08/2026) ont
+      // chacun leur PROPRE pilotage (pgxl_enabled/acom_enabled), distinct
+      // de amp_enabled -- statut "ok" si N'IMPORTE LEQUEL des 3 chemins
+      // (générique + les 2 dédiés) est actif.
+      return (val('amp_enabled') === '1' || val('pgxl_enabled') === '1' || val('acom_enabled') === '1') ? 'ok' : 'empty';
     case 'rotor':
       return val('rotor_enabled') === '1' ? 'ok' : 'empty';
     case 'network':
@@ -2921,10 +2949,6 @@ function _catStatus(cat){
       return val('relay_enabled') === '1' ? 'ok' : 'empty';
     case 'autostart':
       return autostartRows.length ? 'ok' : 'empty';
-    case 'pgxl':
-      return val('pgxl_enabled') === '1' ? 'ok' : 'empty';
-    case 'acom':
-      return val('acom_enabled') === '1' ? 'ok' : 'empty';
     case 'telemetry':
       return val('telemetry_enabled') === '1' ? 'ok' : 'empty';
     case 'summary':
@@ -6014,6 +6038,15 @@ function applyFullConfigToForm(c) {
     renderRelayBandMapRows(c.relay_band_map && typeof c.relay_band_map === 'object' ? c.relay_band_map : {});
     if(c.pgxl_enabled && document.getElementById('pgxl_enabled')) document.getElementById('pgxl_enabled').value = '1';
     if(c.acom_enabled && document.getElementById('acom_enabled')) document.getElementById('acom_enabled').value = '1';
+    // Rétrocompatibilité (fusion PGXL/ACOM dans la section 6, 15/08/2026) :
+    // un opérateur qui avait déjà l'un des deux ACTIVÉ (config antérieure à
+    // cette fusion, où PGXL/ACOM étaient des catégories à part, indépendantes
+    // du sélecteur MARQUE) doit retrouver son réglage directement visible au
+    // rechargement, pas caché derrière un MARQUE resté sur son ancienne
+    // valeur (souvent la valeur par défaut "elecraft", jamais choisie).
+    if (c.pgxl_enabled === '1' || c.pgxl_enabled === true) document.getElementById('amp_brand').value = 'pgxl';
+    else if (c.acom_enabled === '1' || c.acom_enabled === true) document.getElementById('amp_brand').value = 'acom';
+    updateAmpFieldsVisibility();   // ré-applique la visibilité : le MARQUE a pu changer juste au-dessus
     // telemetry_enabled : SEUL toggle du projet activé par défaut (opt-out) —
     // contrairement au motif "if(c.xxx) ...value='1'" ci-dessus (qui laisse la
     // valeur par défaut du <select> HTML si c.xxx est absent/faux), il faut ici
