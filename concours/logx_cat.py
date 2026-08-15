@@ -273,19 +273,36 @@ CIV_ADDRESSES = {
     'XIEGU-G90': 0x70, 'XIEGU-G106': 0x70, 'XIEGU-X6100': 0xA4, 'XIEGU-X5105': 0x70,
 }
 
+# IC-905 uniquement : au-dessus de ce seuil (modules optionnels 6/10 GHz), la
+# fréquence dépasse ce qu'un BCD 5 octets peut représenter (9 999 999 999 Hz)
+# — voir civ_encode_freq(). Seuil et bascule repris de Hamlib (icom.c,
+# RIG_IS_IC905). Aucun autre modèle de CIV_ADDRESSES ne s'en approche (le
+# plus haut, IC-9700, plafonne à 1,3 GHz).
+IC905_SEUIL_6_OCTETS_HZ = 5_850_000_000
 
-def civ_encode_freq(freq_hz):
-    """5 octets BCD poids faible en premier. Vérifié contre l'exemple de
-    référence 145 000 000 Hz -> 00 00 00 45 01 (round-trip testé)."""
-    s = str(int(freq_hz)).rjust(10, '0')
-    pairs = [s[0:2], s[2:4], s[4:6], s[6:8], s[8:10]]
+
+def civ_encode_freq(freq_hz, nb_octets=5):
+    """N octets BCD poids faible en premier (5 par défaut). Vérifié contre
+    l'exemple de référence 145 000 000 Hz -> 00 00 00 45 01 (round-trip
+    testé) pour le cas 5 octets.
+
+    `nb_octets=6` : IC-905 au-dessus de 5,85 GHz — ses modules optionnels
+    6/10 GHz dépassent 9 999 999 999 Hz, la limite représentable sur 5
+    octets BCD (10 chiffres). Hamlib bascule sur 6 octets dans ce cas précis
+    (icom.c, test RIG_IS_IC905) ; voir CivRadio.set_freq()/_nb_octets_freq()
+    plus bas, seul appelant qui passe autre chose que la valeur par défaut."""
+    digits = nb_octets * 2
+    s = str(int(freq_hz)).rjust(digits, '0')
+    pairs = [s[i:i + 2] for i in range(0, digits, 2)]
     return bytes(int(p, 16) for p in reversed(pairs))
 
 
-def civ_decode_freq(data5):
-    """Inverse de civ_encode_freq."""
-    hexstr = ''.join(f'{b:02x}' for b in data5)
-    pairs = [hexstr[i:i + 2] for i in range(0, 10, 2)]
+def civ_decode_freq(data):
+    """Inverse de civ_encode_freq — s'adapte au nombre d'octets REÇUS (5 ou
+    6, voir civ_encode_freq) plutôt que d'en imposer un fixe."""
+    hexstr = ''.join(f'{b:02x}' for b in data)
+    n = len(data) * 2
+    pairs = [hexstr[i:i + 2] for i in range(0, n, 2)]
     return int(''.join(reversed(pairs)))
 
 
@@ -497,9 +514,10 @@ class CivRadio:
     """Pilote Icom CI-V — encode les requêtes, décode les réponses. Ne fait
     AUCUNE E/S : `transport` est injecté (SerialPort réel ou double de test)."""
 
-    def __init__(self, transport, addr_radio):
+    def __init__(self, transport, addr_radio, model=None):
         self.t = transport
         self.addr = addr_radio
+        self.model = model
 
     def _query(self, cmd, sub=None, data=b'', read_reply=True):
         frame = civ_build_frame(self.addr, cmd, sub, data)
@@ -546,10 +564,16 @@ class CivRadio:
         parsed = self._query(0x03)
         if not parsed or len(parsed[4]) < 5:
             return {'ok': False, 'error': 'Pas de réponse fréquence (CI-V)'}
-        return {'ok': True, 'freq_hz': civ_decode_freq(parsed[4][:5])}
+        # IC-905 au-dessus de 5,85 GHz : la radio répond sur 6 octets BCD au
+        # lieu de 5 (voir IC905_SEUIL_6_OCTETS_HZ). On se base sur la
+        # longueur RÉELLE de la trame reçue, pas sur un seuil de fréquence
+        # supposé côté logiciel — la radio sait ce qu'elle envoie.
+        nb = 6 if (self.model == 'IC-905' and len(parsed[4]) >= 6) else 5
+        return {'ok': True, 'freq_hz': civ_decode_freq(parsed[4][:nb])}
 
     def set_freq(self, freq_hz):
-        parsed = self._query(0x05, data=civ_encode_freq(freq_hz))
+        nb = 6 if (self.model == 'IC-905' and freq_hz > IC905_SEUIL_6_OCTETS_HZ) else 5
+        parsed = self._query(0x05, data=civ_encode_freq(freq_hz, nb))
         ok = parsed is not None
         return {'ok': ok} if ok else {'ok': False, 'error': 'Radio CI-V ne répond pas'}
 
@@ -566,7 +590,25 @@ class CivRadio:
         if code is None:
             return {'ok': False, 'error': f"Mode CI-V inconnu : {mode}"}
         parsed = self._query(0x06, data=bytes([code]))
-        return {'ok': parsed is not None}
+        ok = parsed is not None
+        if ok:
+            # Sous-commande CI-V 1A 06 : arme/désarme le flag DATA du poste,
+            # EN PLUS du mode de base ci-dessus — mirror de Hamlib (icom.c),
+            # qui l'envoie systématiquement pour les modes PKTUSB/PKTLSB/
+            # PKTFM/PKTAM. Sans lui, l'entrée DATA/USB reste traitée comme
+            # une entrée micro classique sur le réglage usine de plusieurs
+            # modèles (compresseur vocal actif, filtrage bande étroite) —
+            # l'audio FT8/FT4/PSK peut ressortir déformé même si le câblage
+            # DATA est correct. Toujours envoyé (1 ou 0), y compris en
+            # quittant un mode numérique, pour ne jamais laisser le flag
+            # « collé » après un retour à un mode phonie/CW.
+            # Fire-and-forget (read_reply=False) : best-effort — un poste à
+            # émulation CI-V partielle (Xiegu) qui ne répond pas à cette
+            # sous-commande ne doit pas faire échouer un changement de mode
+            # déjà acquis via 06 ci-dessus.
+            self._query(0x1A, sub=0x06, data=bytes([1 if _mode_est_numerique(mode) else 0]),
+                        read_reply=False)
+        return {'ok': ok}
 
     def get_ptt(self):
         parsed = self._query(0x1C, sub=0x00)
@@ -933,10 +975,18 @@ MODES_NUMERIQUES = frozenset((
 MODES_PHONIE = frozenset(('SSB', 'PHONE', 'PHONIE', 'VOICE'))
 # Nom du créneau numérique par marque. Yaesu a un mode DATA-USB dédié ; sur les
 # autres, l'usage est de rester en USB et de router l'audio par la prise DATA —
-# c'est ce que fait tout le monde, et ça ne peut pas mal tourner.
+# c'est ce que fait tout le monde, et ça ne peut pas mal tourner. Icom reste
+# donc lui aussi en USB ici, mais CivRadio.set_mode() envoie EN PLUS la
+# sous-commande CI-V 1A 06 (voir plus bas) pour armer le flag DATA du poste —
+# une bascule interne (compresseur micro/filtrage coupés) distincte du
+# routage audio, que ce mécanisme-ci ne couvre pas.
 MODE_NUMERIQUE_PAR_MARQUE = {'yaesu': 'DATA-USB'}
 # RTTY : trois noms pour la même chose selon la marque.
 MODE_RTTY_PAR_MARQUE = {'yaesu': 'RTTY-LSB', 'kenwood': 'FSK', 'elecraft': 'DATA'}
+
+
+def _mode_est_numerique(mode):
+    return str(mode or '').upper().strip().replace('_', '-') in MODES_NUMERIQUES
 
 
 def normaliser_mode(mode, freq_hz=None, brand=None):
@@ -990,6 +1040,20 @@ class AsciiRadio:
         self.brand = brand
         self.model = model
         self.split_style = SPLIT_STYLE.get(model, 'ft01' if brand != 'kenwood' else 'fr_ft')
+        if brand in ('kenwood', 'elecraft'):
+            # AI0 (Auto Information OFF) à l'ouverture de connexion — mirror
+            # de kenwood_open() dans Hamlib (rigs/kenwood/kenwood.c), motif
+            # documenté par Hamlib lui-même : le poste peut émettre des
+            # trames spontanées non sollicitées (changement de fréquence au
+            # bouton, etc.) quand AI est actif. Notre _cmd() ne fait qu'un
+            # aller-retour écriture puis lecture-jusqu'à-';' — une trame
+            # spontanée intercalée désynchroniserait la lecture suivante
+            # (réponse à la MAUVAISE commande prise pour la bonne). Pas de
+            # restauration de l'état AI précédent à la fermeture : à la
+            # différence du flag DATA (CivRadio.set_mode ci-dessus), laisser
+            # AI désactivé après déconnexion est un état sûr, jamais une
+            # donnée radio faussée.
+            self._cmd('AI0;', read_reply=False)
 
     def _cmd(self, cmd, read_reply=True):
         data = cmd.encode('ascii')
@@ -1005,6 +1069,22 @@ class AsciiRadio:
         parsed = ascii_parse_if(reply, self.brand)
         if not parsed:
             return {'ok': False, 'error': f'Trame IF illisible : {reply!r}'}
+        if self.brand == 'yaesu':
+            # La position du champ mode dans IF; est FRAGILE chez Yaesu (voir
+            # le commentaire sur _IF_FIELDS — jamais vérifiée sur matériel
+            # réel, et Hamlib documente lui-même des trames IF; de longueur
+            # anormale sur FT-991). MD0; est une requête DÉDIÉE au mode du
+            # VFO principal, immune à ce problème de position — mirror de
+            # newcat_get_mode() (Hamlib, rigs/yaesu/newcat.c). Best-effort :
+            # si elle échoue, on garde le mode (ou l'absence de mode) déjà
+            # lu depuis IF; plutôt que de faire échouer tout get_state().
+            md = self._cmd('MD0;')
+            if md:
+                s = md.strip().rstrip(';')
+                if s.startswith('MD') and len(s) >= 4:
+                    mode = ASCII_MODES.get('yaesu', {}).get(s[3])
+                    if mode:
+                        parsed['mode'] = mode
         parsed['ok'] = True
         return parsed
 
@@ -1080,10 +1160,31 @@ class AsciiRadio:
         if not propre:
             return {'ok': False, 'error': 'Rien à manipuler (texte vide après filtrage)'}
         for i in range(0, len(propre), self.CW_CHUNK):
+            if i > 0:
+                self._attendre_tampon_ky_libre()
             self._cmd('KY %s;' % propre[i:i + self.CW_CHUNK], read_reply=False)
-            if i + self.CW_CHUNK < len(propre):
-                time.sleep(self.CW_CHUNK_DELAY_S)
         return {'ok': True, 'text': propre}
+
+    def _attendre_tampon_ky_libre(self, timeout=5.0):
+        """Interroge KY; et attend que le tampon du keyer soit libre avant
+        d'envoyer le prochain segment — mirror de kenwood_send_morse()
+        (Hamlib, rigs/kenwood/kenwood.c), qui interroge activement plutôt que
+        d'attendre un délai fixe. Remplace l'ancien CW_CHUNK_DELAY_S=0.5s :
+        à vitesse contest (~30 mpm), manipuler 20 caractères prend 6-8s,
+        largement au-dessus de ce délai fixe — le tampon pouvait déborder en
+        silence sur un message long. KY0 = tampon libre, KY2 = tampon libre
+        mais TX toujours en cours (les deux autorisent l'envoi du segment
+        suivant) ; KY1 = tampon plein, on réessaie."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            reply = self._cmd('KY;')
+            if reply and (reply.startswith('KY0') or reply.startswith('KY2')):
+                return
+            time.sleep(0.05)
+        # Repli : le poste ne répond pas à KY; (modèle plus ancien, trame
+        # perdue) — on retombe sur l'ancien délai fixe plutôt que de bloquer
+        # indéfiniment ou d'envoyer le segment suivant trop tôt à l'aveugle.
+        time.sleep(self.CW_CHUNK_DELAY_S)
 
     def stop_cw(self):
         """Vide le tampon du keyer. `KY0;` est la forme reconnue par Kenwood
@@ -1449,7 +1550,7 @@ def _ensure_connected(settings):
         except Exception as e:
             return None, _friendly_open_error(settings['port'], e)
         if settings['brand'] in ('icom', 'xiegu'):
-            driver = CivRadio(transport, settings['civ_addr'])
+            driver = CivRadio(transport, settings['civ_addr'], settings['model'])
         else:
             driver = AsciiRadio(transport, settings['brand'], settings['model'])
         _persistent['default'] = {'key': key, 'driver': driver, 'transport': transport}
@@ -1715,7 +1816,7 @@ def test_connection(brand, model, port, baudrate, civ_addr=None):
     try:
         if brand in ('icom', 'xiegu'):
             addr = _parse_civ_addr(civ_addr) or CIV_ADDRESSES.get(model, 0x94)
-            driver = CivRadio(transport, addr)
+            driver = CivRadio(transport, addr, model)
             f = driver.get_freq()
             if not f.get('ok'):
                 return {'ok': False, 'error': 'Radio muette à cette adresse — '
@@ -1745,7 +1846,7 @@ class RigManager:
 
     def add(self, radio_id, transport, protocol, brand=None, model=None, addr=None):
         if protocol == 'civ':
-            driver = CivRadio(transport, addr)
+            driver = CivRadio(transport, addr, model)
         else:
             driver = AsciiRadio(transport, brand, model)
         with self._lock:
