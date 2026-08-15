@@ -195,6 +195,45 @@ def test_adaptunit_redescend_des_qu_un_vrai_point_arrive(moteur):
     assert unit_after_dot < unit_after_dashes
 
 
+# ─── Démarrage à froid (constructeur, sans override manuel de unitMs) ───────
+# Contrairement aux tests ci-dessus qui posent unitMs/recentMarks à la main
+# (donc masquent toute mauvaise hypothèse de DÉPART), ceux-ci exercent le
+# `new MorseTimingDecoder(cb)` réel, tel qu'utilisé par CwAudioDecoder à
+# chaque clic sur "Démarrer" -- pour vérifier l'hypothèse initiale (~27 MPM,
+# voir commentaire du constructeur) plutôt que de la contourner.
+
+@pytest.mark.parametrize('texte,wpm', [
+    ('OM DE F4GLD', 28),   # 1re lettre = trait pur (OM commence par --- ), vitesse concours
+    ('MOTO', 32),          # que des traits/points mélangés, vitesse rapide
+    ('CQ TEST', 35),       # borne haute de la plage concours réaliste
+    ('PARIS', 15),         # borne basse de la plage concours réaliste
+])
+def test_demarrage_a_froid_vitesse_concours(moteur, texte, wpm):
+    """Bug réel trouvé en lecture de code (constructeur MorseTimingDecoder,
+    lignes 39-63 du fichier source) : l'ancienne hypothèse de départ (80ms,
+    ~15 MPM) plaçait le seuil point/trait à 160ms -- un trait envoyé à plus
+    de ~22 MPM (durée < 160ms) était alors classé par erreur comme un point
+    tant qu'aucun point réel plus court n'était apparu pour corriger la
+    fenêtre glissante. Résultat concret : les premières lettres d'un message
+    envoyé à une vitesse concours normale (25-35 MPM) pouvaient être décodées
+    n'importe comment dès le début de CHAQUE session d'écoute -- indépendant
+    du niveau du signal, ce qui correspond au symptôme "décodage inefficace
+    même avec un signal fort". Ce test utilise le vrai constructeur (pas de
+    unitMs/recentMarks posés à la main) pour vérifier le comportement à
+    froid tel que rencontré en usage réel."""
+    unit_ms = 1200.0 / wpm
+    decode = moteur.eval(f"""
+    (function(){{
+      var out = '';
+      var dec = new MorseTimingDecoder(function(ch){{ out += ch; }});
+      morseEncodeEdges({texte!r}, {unit_ms}).forEach(function(e){{ dec.pushEdge(e[0], e[1]); }});
+      dec.flushIfIdle({unit_ms}*10);
+      return out;
+    }})()
+    """)
+    assert decode == texte
+
+
 # ─── goertzelMagnitude() : discrimination fréquentielle pure ────────────────
 
 def test_goertzel_discrimine_la_frequence_cible(moteur):
