@@ -2059,6 +2059,27 @@ function buildContestGrid(filter = '') {
     'Autre': '#8E8E93',
   };
 
+  // Badge TYPE DE CONCOURS (courte durée / cumulatif) : retour F4GLD
+  // (14/08/2026), « lorsque je sélectionne un concours il serait cool que ça
+  // apparaisse directement à côté ». Dérivé du texte déjà écrit à la main par
+  // les mainteneurs (nom + description de barème), qui utilise déjà ce
+  // vocabulaire de façon cohérente pour les entrées REF concernées (ex.
+  // "Concours de Courte Durée (Mars)", "Cumulatif annuel — pts/km...") —
+  // pas de seuil de durée recalculé nous-mêmes, qui serait faux pour les
+  // entrées sans _duration_h fiable au premier rendu (avant fusion serveur).
+  // Silencieux (aucun badge) si le texte ne mentionne ni l'un ni l'autre —
+  // mieux vaut se taire qu'afficher un type deviné et potentiellement faux.
+  const typeBadge = c => {
+    const texte = ((c.name || '') + ' ' + (c.score || '')).toLowerCase();
+    if (texte.includes('cumulatif')) {
+      return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours cumulatif : les QSO se comptent sur plusieurs sessions/toute l'année, pas une seule manche">CUMULATIF</span>`;
+    }
+    if (texte.includes('courte durée') || texte.includes('courte duree')) {
+      return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours de courte durée : une seule manche de quelques heures">COURTE DURÉE</span>`;
+    }
+    return '';
+  };
+
   // Badge de confiance : base serveur = dates/règlement re-vérifiés chaque année ;
   // custom = extrait du règlement par l'IA puis validé par relecture humaine
   const badge = c => c.external
@@ -2080,7 +2101,7 @@ function buildContestGrid(filter = '') {
       </div>
       ${cs.map(c => `
         <div class="contest-card" id="card_${escC(c.id)}" data-id="${escC(c.id)}" onclick="selectContest('${jsId(c.id)}')" style="border-left:3px solid ${escC(c.color)}44">
-          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} ${badge(c)}</div>
+          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} <span style="display:flex;gap:5px;flex-shrink:0">${typeBadge(c)}${badge(c)}</span></div>
           <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
             <span>${escC(c.org)}</span>
             ${safeUrl(c.rules) ? `<a href="${escC(safeUrl(c.rules))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h5.5L13.5 5.5V15.5H5z"/><path d="M10.5 2.5V5.5H13.5"/><line x1="7" y1="9" x2="11.5" y2="9"/><line x1="7" y1="12" x2="11.5" y2="12"/></svg> RÈGLEMENT</a>` : ''}
