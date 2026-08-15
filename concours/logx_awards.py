@@ -610,7 +610,13 @@ def spotted_new_ones(shared_log, spots_by_label=None, max_n=8):
 
 # WAS (Worked All States, ARRL) — les 50 états. Le district de Columbia n'en
 # fait PAS partie : le WAS se compte sur 50, DC est rattaché au Maryland pour
-# ce diplôme. Un état ne se déduit JAMAIS de l'indicatif (un W6 peut habiter
+# ce diplôme — règle ARRL vérifiée sur arrl.org/was (WAS Rules/Fees, section 3,
+# 15/08/2026) : « The District of Columbia may be counted for Maryland. »
+# Le remappage state='DC' -> 'MD' se fait juste avant le comptage ci-dessous
+# (voir la boucle sur qsos dans award_summary) — SANS lui, un QSO avec DC
+# n'était crédité NULLE PART (ni DC, absent de US_STATES, ni MD) : bug réel
+# trouvé par l'audit de conformité du 15/08/2026, corrigé ici.
+# Un état ne se déduit JAMAIS de l'indicatif (un W6 peut habiter
 # n'importe où depuis la fin du découpage géographique des préfixes) : il vient
 # du champ ADIF STATE, de l'annuaire, ou d'une confirmation LoTW.
 US_STATES = (
@@ -745,6 +751,8 @@ def award_summary(shared_log=None):
             if is_conf:
                 itu_c.add(str(q['itu_zone']))
         st = str(q.get('state') or '').strip().upper()
+        if st == 'DC':
+            st = 'MD'   # DC n'a pas de slot WAS propre, voir commentaire US_STATES
         if st in US_STATES:
             states_w.add(st)
             if is_conf:
@@ -777,11 +785,29 @@ def award_summary(shared_log=None):
         METRO, DOM = [], []
         metro_missing, dom_missing = [], []
 
+    # DXCC (pays) — même patron _paire()/total/missing que WAZ/WAZ ITU/WAC/WAS
+    # ci-dessous, pour que le panneau Diplômes affiche la même forme partout
+    # (avant ce correctif, le DXCC était le seul diplôme sans total ni liste
+    # des manquants — constat de l'audit de conformité du 15/08/2026). La
+    # liste complète des entités DXCC vient de logx_dxcc.list_entities(),
+    # déjà utilisée pour la « chasse aux pays » des concours internationaux —
+    # même source cty.dat que dxcc_country ci-dessus, donc les noms se
+    # recoupent exactement avec countries_w/countries_c. Tronqué à 40 comme
+    # les départements manquants juste au-dessus : avec ~340 entités, une
+    # liste complète des manquants serait illisible dans le panneau.
+    try:
+        import logx_dxcc as dxcc
+        all_dxcc = {e['country'] for e in dxcc.list_entities() if e.get('country')}
+    except Exception:
+        all_dxcc = set()
+    dxcc_total = len(all_dxcc) or None
+    dxcc_missing = sorted(all_dxcc - countries_w)[:40] if all_dxcc else None
+
     return {
         'qso_total': len(qsos),
         'confirmed_total': total_conf,
         'has_confirmations': bool(conf),
-        'dxcc': {'worked': len(countries_w), 'confirmed': len(countries_c)},
+        'dxcc': _paire(countries_w, countries_c, dxcc_total, dxcc_missing),
         'departments': {
             'metro_worked': len([d for d in depts_w if d in METRO]),
             'metro_total': len(METRO),

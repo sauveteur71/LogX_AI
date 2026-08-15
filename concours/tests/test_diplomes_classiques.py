@@ -134,6 +134,23 @@ def test_un_locator_trop_court_ne_fabrique_pas_de_carre(monkeypatch):
     assert a['dx_field']['worked'] == 0
 
 
+def test_dxcc_expose_total_et_manquants_comme_les_autres_diplomes(monkeypatch):
+    """Constat de l'audit de conformité du 15/08/2026 : le DXCC était le seul
+    diplôme classique à ne renvoyer que worked/confirmed, sans 'total' ni
+    'missing' -- contrairement au WAZ (zones manquantes), au WAC (continents
+    manquants) et au WAS (états manquants). Même patron _paire() appliqué ici,
+    sur la liste d'entités de logx_dxcc.list_entities() (même source cty.dat
+    que dxcc_country, donc les noms se recoupent exactement)."""
+    a = _resume([_qso('W1ABC'), _qso('JA1XYZ'), _qso('VK3ZZZ')], monkeypatch)
+    assert a['dxcc']['worked'] == 3
+    assert a['dxcc']['total'] is not None and a['dxcc']['total'] > 300
+    assert isinstance(a['dxcc']['missing'], list) and a['dxcc']['missing']
+    import logx_dxcc as dxcc
+    for call in ('W1ABC', 'JA1XYZ', 'VK3ZZZ'):
+        pays = dxcc.lookup(call)['country']
+        assert pays not in a['dxcc']['missing'], 'deja travaillee, pas manquante'
+
+
 # ─── Confirmé vs travaillé ───────────────────────────────────────────────────
 
 def test_le_confirme_se_compte_separement(monkeypatch):
@@ -165,12 +182,28 @@ def test_was_compte_les_etats_quand_ils_sont_la(monkeypatch):
     assert 'MA' not in a['was']['missing'] and 'CA' in a['was']['missing']
 
 
-def test_le_district_de_columbia_ne_compte_pas(monkeypatch):
-    """Le WAS se compte sur 50 états ; DC est rattaché au Maryland. Le compter
-    ferait afficher 51/50."""
+def test_le_district_de_columbia_compte_pour_le_maryland(monkeypatch):
+    """Le WAS se compte sur 50 états ; DC n'a pas de slot propre. Règle ARRL
+    WAS vérifiée sur arrl.org/was (WAS Rules/Fees, section 3, 15/08/2026) :
+    « The District of Columbia may be counted for Maryland. »
+
+    AVANT ce correctif, le test encodait le comportement BUGUÉ comme s'il
+    était voulu : un QSO state='DC' n'était crédité NULLE PART (ni DC, absent
+    de US_STATES, ni MD) -- bug réel trouvé par l'audit de conformité du
+    15/08/2026, pas seulement « DC ne compte pas double »."""
     assert 'DC' not in aw.US_STATES and len(aw.US_STATES) == 50
     a = _resume([_qso('W3ABC', state='DC')], monkeypatch)
-    assert a['was']['worked'] == 0
+    assert a['was']['worked'] == 1, 'DC doit crediter le Maryland'
+    assert 'MD' not in a['was']['missing']
+
+
+def test_dc_et_md_partagent_le_meme_slot_jamais_51_sur_50(monkeypatch):
+    """Un contact avec DC et un autre avec MD créditent le MÊME état -- le
+    compteur doit rester a 1/50, jamais 2/50 ni 51/50 au total du diplome."""
+    a = _resume([_qso('W3ABC', state='DC'), _qso('W3DEF', state='MD')],
+                monkeypatch)
+    assert a['was']['worked'] == 1
+    assert a['was']['total'] == 50
 
 
 def test_une_valeur_d_etat_absurde_est_ignoree(monkeypatch):

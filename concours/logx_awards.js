@@ -178,7 +178,9 @@ async function showAwards(){
     <div style="font-family:var(--font-mono);font-size:13px;line-height:1.6">
       <div style="color:var(--accent2);letter-spacing:1px;margin:6px 0">📊 CARNET PERMANENT — ${a.qso_total} QSO à vie</div>
       ${confNote}
-      ${row('🌍 DXCC (pays)', `${a.dxcc.worked} travaillés · <span style="color:var(--green)">${a.dxcc.confirmed} confirmés</span>`)}
+      ${row('🌍 DXCC (pays)', `${a.dxcc.worked}${a.dxcc.total?`/${a.dxcc.total}`:''} travaillés · <span style="color:var(--green)">${a.dxcc.confirmed} confirmés</span>`)}
+      ${a.dxcc.total ? bar(a.dxcc.worked, a.dxcc.total) : ''}
+      ${a.dxcc.missing && a.dxcc.missing.length ? `<div style="margin-top:4px;font-size:12px;color:var(--muted)">Entités DXCC manquantes : ${a.dxcc.missing.join(', ')}${a.dxcc.missing.length>=40?'…':''}</div>` : ''}
       ${row('🇫🇷 Départements métropole', `${dep.metro_worked}/${dep.metro_total} · <span style="color:var(--green)">${dep.metro_confirmed||0} conf.</span>`)}
       ${bar(dep.metro_worked, dep.metro_total)}
       ${dep.dom_worked ? row('🏝️ Outre-mer', dep.dom_worked) : ''}
