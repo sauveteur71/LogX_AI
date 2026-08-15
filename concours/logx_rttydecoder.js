@@ -22,10 +22,21 @@ const RTTY_LTRS = [
   'T', 'Z', 'L', 'W', 'H', 'Y', 'P', 'Q',
   'O', 'B', 'G', null, 'M', 'X', 'V', null,
 ];
+// Audit de conformité (14/08/2026) : la table FIGS ci-dessous mélangeait par
+// endroits les valeurs ITA2 INTERNATIONALES avec la variante USTTY déclarée
+// ci-dessus. Vérifié contre plusieurs tables USTTY primaires (dont la table
+// hexadécimale de G. Smith, « Teletypewriter Communication Codes », 2001,
+// dont les indices 0x00-0x1F correspondent exactement à l'indexation de ce
+// tableau) : en USTTY, BELL et apostrophe sont ÉCHANGÉS par rapport à l'ITA2
+// international (BELL en S, apostrophe en J — pas l'inverse), et Z vaut '"'
+// (guillemet) et non '+' (qui est la valeur ITA2 internationale). L'index 30
+// (V) avait été signalé par l'audit comme devant valoir '=' au lieu de ';' —
+// vérification faite, ';' EST la valeur USTTY correcte ('=' est la valeur
+// ITA2 internationale) : ce point du signalement était erroné, non corrigé.
 const RTTY_FIGS = [
-  '\0', '3', '\n', '-', ' ', "'", '8', '7',
-  '\r', '$', '4', "\x07", ',', '!', ':', '(',
-  '5', '+', ')', '2', '#', '6', '0', '1',
+  '\0', '3', '\n', '-', ' ', '\x07', '8', '7',
+  '\r', '$', '4', "'", ',', '!', ':', '(',
+  '5', '"', ')', '2', '#', '6', '0', '1',
   '9', '?', '&', null, '.', '/', ';', null,
 ];
 const CODE_FIGS = 27;   // 11011

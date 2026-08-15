@@ -142,14 +142,52 @@ def test_categorie_bande_ALL_si_plusieurs_bandes():
     assert _entete(txt, 'CATEGORY-BAND') == 'ALL'
 
 
+@pytest.mark.parametrize('band,attendu', [
+    # Vérifié contre la spec officielle WWROF (cabrillo-v3-header, section
+    # CATEGORY-BAND) : au-delà de 432 (bare — jamais « 70CM »), les bandes
+    # micro-ondes portent un désignateur en GHz, jamais un libellé façon ADIF
+    # (« 23CM »). 24048/47088 (24G/47G) : concours THF REF (REF_NAT_THF,
+    # REF_F8TD, REF_IARU_UHF) qui montent jusqu'à 47 GHz.
+    ('432', '432'), ('1296', '1.2G'), ('2320', '2.3G'), ('3400', '3.4G'),
+    ('5760', '5.7G'), ('10368', '10G'), ('24048', '24G'), ('47088', '47G'),
+])
+def test_categorie_bande_micro_ondes_format_officiel(band, attendu):
+    txt = _construire('CQ_WW_SSB', [_qso(band=band)])
+    assert _entete(txt, 'CATEGORY-BAND') == attendu
+
+
 @pytest.mark.parametrize('modes,attendu', [
     (['SSB'], 'SSB'), (['CW'], 'CW'), (['SSB', 'CW'], 'MIXED'),
+    (['FM'], 'FM'),
 ])
 def test_categorie_mode_suit_le_log_reel(modes, attendu):
     """La catégorie doit refléter ce qui a été RÉELLEMENT trafiqué, pas ce
-    qui était coché en config avant le concours."""
+    qui était coché en config avant le concours. FM est une valeur
+    CATEGORY-MODE Cabrillo à part entière (CW/DIGI/FM/RTTY/SSB/MIXED) : un
+    log 100% FM ne doit pas retomber sur MIXED."""
     txt = _construire('CQ_WW_SSB', [_qso(mode=m) for m in modes])
     assert _entete(txt, 'CATEGORY-MODE') == attendu
+
+
+# ─── LOCATION : requis pour l'IARU-HF et « tous les concours ARRL et CQ »
+# (spec WWROF, section LOCATION) — DX pour toute station hors USA/Canada,
+# jamais modélisé pour les concours REF/DARC ────────────────────────────────
+
+@pytest.mark.parametrize('contest', [
+    'CQ_WW_SSB', 'CQ_WW_CW', 'CQ_WPX_SSB', 'CQ_WPX_CW',
+    'ARRL_DX_SSB', 'ARRL_DX_CW', 'ARRL_FD', 'ARRL_10M', 'ARRL_160M',
+])
+def test_location_dx_sur_les_concours_arrl_et_cq(contest):
+    assert _entete(_construire(contest), 'LOCATION') == 'DX'
+
+
+@pytest.mark.parametrize('contest', ['REF_CDF_HF_SSB', 'REF_CDF_HF_CW',
+                                     'WAEDC_SSB', 'WAEDC_RTTY'])
+def test_location_absente_hors_arrl_cq(contest):
+    """REF (France) et WAEDC (DARC) : la spec ne les cite pas parmi les
+    concours exigeant LOCATION — LogX AI ne modélise d'ailleurs aucune
+    section ARRL, rien de fiable à y mettre."""
+    assert _entete(_construire(contest), 'LOCATION') is None
 
 
 def test_assisted_declare_selon_l_usage_reel_du_cluster():

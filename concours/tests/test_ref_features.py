@@ -365,6 +365,36 @@ def test_activation_state():
     assert st2['valid'] is True and st2['needed'] == 0
 
 
+def test_activation_pota_seuil_journee_utc_unique():
+    """POTA exige 10 QSO valides dans une SEULE journée calendaire UTC (règle
+    officielle docs.pota.app/docs/rules.html : « a minimum of 10 QSOs from a
+    park ... within a single UTC day (Zulu day) »), pas un cumul sur
+    plusieurs sorties. 5 QSO le 17/07 + 5 QSO le 18/07 = 10 au total mais
+    aucun jour seul n'atteint 10 -> activation NON validée (c'est le bug que
+    ce test attrape : avant le correctif, activation_state() sommait tout le
+    log sans regarder le jour et rendait 'valid': True)."""
+    import logx_activation as act
+    log = (
+        [{'call': f'F1AA{i}', 'band': '14', 'mode': 'SSB',
+          'my_sig_info': 'FR-0123', 'date': '20260717'} for i in range(5)]
+        + [{'call': f'F1BB{i}', 'band': '14', 'mode': 'SSB',
+            'my_sig_info': 'FR-0123', 'date': '20260718'} for i in range(5)]
+    )
+    st = act.activation_state(log, 'POTA', 'FR-0123')
+    assert st['qso_total'] == 5  # seul le jour du dernier QSO (18/07) compte
+    assert st['valid'] is False and st['needed'] == 5
+    # Si les 10 QSO du même jour sont réunis, l'activation devient valide.
+    log_meme_jour = [dict(q, date='20260718') for q in log]
+    st_ok = act.activation_state(log_meme_jour, 'POTA', 'FR-0123')
+    assert st_ok['qso_total'] == 10 and st_ok['valid'] is True
+    # WWFF : cumul MULTI-JOURS intentionnel (wwff.co/rules-faq : « you do NOT
+    # need to achieve 44 QSOs in a single day ... you can combine multiple
+    # visits ») — ne doit PAS être filtré par jour comme POTA.
+    log_wwff = [dict(q, my_sig_info='FFF-0123') for q in log]
+    st_wwff = act.activation_state(log_wwff, 'WWFF', 'FFF-0123')
+    assert st_wwff['qso_total'] == 10  # les 2 jours cumulés, pas juste le dernier
+
+
 def test_activation_arlhs_wca():
     """ARLHS (phares) et WCA (châteaux) — formats et seuils vérifiés contre
     les règles officielles (arlhs.com : 2 QSO/phare ; wcagroup.org : 50 QSO

@@ -79,7 +79,11 @@ const ADIF_STD_TAGS = new Set(['CALL','QSO_DATE','TIME_ON','BAND','FREQ','MODE',
 
 function buildAdifText(qsos){
   let adif = 'LogX AI — Export ADIF\n';
-  adif += adifField('ADIF_VER', '3.1.4') + adifField('PROGRAMID', 'LogX AI') + '\n<EOH>\n\n';
+  // ADIF_VER : 3.1.7, version stable actuellement publiée sur adif.org
+  // (« Released ADIF Version 3.1.7 », 2026-03-22) — jumeau de la même
+  // correction côté serveur (logx_export.build_adif), même table ADIF_BAND
+  // ci-dessus déjà alignée sur cette version.
+  adif += adifField('ADIF_VER', '3.1.7') + adifField('PROGRAMID', 'LogX AI') + '\n<EOH>\n\n';
   qsos.forEach(q=>{
     const date = String(q.date || '').replace(/-/g, '').slice(0, 8);
     const time = String(q.time || '').replace(/:/g, '').slice(0, 4).padEnd(4, '0');

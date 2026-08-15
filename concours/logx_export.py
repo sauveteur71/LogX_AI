@@ -24,11 +24,23 @@ CABRILLO_MODE = {'SSB': 'PH', 'USB': 'PH', 'LSB': 'PH', 'FM': 'FM',
 # CATEGORY-BAND : vocabulaire Cabrillo v3, en LONGUEUR D'ONDE et non en
 # fréquence — « 20M », pas « 14 ». Un log mono-bande déclaré ALL concourt dans
 # la mauvaise catégorie.
+# Valeurs vérifiées contre la spec officielle WWROF (successeur ARRL du
+# format Cabrillo v3, https://wwrof.org/cabrillo/cabrillo-v3-header/,
+# section CATEGORY-BAND) : au-delà de 432 (bare, PAS « 70CM »), les bandes
+# micro-ondes utilisent un désignateur EN GHz — « 1.2G »/« 2.3G »/« 3.4G »/
+# « 5.7G »/« 10G »/« 24G »/« 47G » — jamais un libellé « xxCM » façon ADIF.
+# Un constat d'audit avait signalé « 24048 »/« 47088 » (contests THF REF
+# jusqu'à 47 GHz, voir logx_definitions REF_NAT_THF/REF_F8TD/REF_IARU_UHF)
+# absents de la table : ajoutés ici. Un fil ARRL-Contesting confirme aussi
+# que les anciens libellés 119G/142G ont été corrigés en 122G/134G — LogX AI
+# n'exporte jamais ces deux bandes (au-delà de 47 GHz), gardé pour mémoire
+# seulement dans ce commentaire, pas dans la table.
 CABRILLO_CATEGORY_BAND = {
     '1.8': '160M', '3.5': '80M', '7': '40M', '10.1': '30M', '14': '20M',
     '18': '17M', '21': '15M', '24': '12M', '28': '10M', '50': '6M',
-    '70': '4M', '144': '2M', '432': '70CM', '1296': '23CM',
-    '2320': '13CM', '3400': '9CM', '5760': '6CM', '10368': '3CM',
+    '70': '4M', '144': '2M', '432': '432', '1296': '1.2G',
+    '2320': '2.3G', '3400': '3.4G', '5760': '5.7G', '10368': '10G',
+    '24048': '24G', '47088': '47G',
 }
 
 # Bande interne → bande ADIF
@@ -176,6 +188,12 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
         cat_mode = 'CW'
     elif modes == {'PH'}:
         cat_mode = 'SSB'
+    elif modes == {'FM'}:
+        # FM est une valeur CATEGORY-MODE à part entière dans la spec Cabrillo
+        # v3 (CW/DIGI/FM/RTTY/SSB/MIXED) — un log 100% FM (ex. concours THF en
+        # FM) retombait sur MIXED faute d'être testé, alors qu'aucun autre
+        # mode n'était présent.
+        cat_mode = 'FM'
     elif modes == {'RY'} or modes == {'DG'}:
         cat_mode = 'RTTY' if modes == {'RY'} else 'DIGI'
     else:
@@ -186,6 +204,7 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
     # donc l'état réel de la config plutôt qu'une valeur figée.
     assiste = any(str(cfg.get(k, '')).strip() not in ('', '0', 'False', 'false')
                   for k in ('cluster_spot_enabled', 'rbn_enabled'))
+    cabrillo_name = str(cdef.get('cabrillo_name', ''))
 
     lines = [
         'START-OF-LOG: 3.0',
@@ -202,12 +221,26 @@ def build_cabrillo(qsos, cdef=None, cfg=None, qtc_series=None):
         f"CLAIMED-SCORE: {claimed}",
         f"OPERATORS: {operators}",
         f"GRID-LOCATOR: {cfg.get('locator', '')}",
+    ]
+    # LOCATION : la spec WWROF (section LOCATION) le dit REQUIS pour l'IARU-HF
+    # et « tous les concours ARRL et CQ », avec deux valeurs possibles : la
+    # section ARRL (stations US/VE) ou « DX » (stations étrangères). LogX AI
+    # ne modélise aucune section ARRL (logiciel français, pensé pour un
+    # indicatif F) : DX est donc toujours la valeur correcte pour les
+    # concours dont le nom Cabrillo officiel commence par CQ- ou ARRL-.
+    # L'audit à l'origine de ce correctif ne visait que l'« ARRL DX » ; la
+    # spec est en réalité plus large (aussi CQ WW/WPX) — portée élargie en
+    # conséquence. Absent pour REF/WAEDC (concours REF français ou DARC, non
+    # concernés par la LOCATION ARRL/CQ).
+    if cabrillo_name.startswith(('CQ-', 'ARRL-')):
+        lines.append('LOCATION: DX')
+    lines.extend([
         f"NAME: {cfg.get('op_name', '')}",
         f"EMAIL: {cfg.get('email', '')}",
         f"CLUB: {cfg.get('club', '')}",
         "CREATED-BY: LogX AI",
         f"SOAPBOX: Exporte le {utcnow().strftime('%Y-%m-%d %H:%M')} UTC",
-    ]
+    ])
     for q in qsos:
         band = _norm_band(q)
         # Jamais la valeur BRUTE de band en repli : une bande importée hors
@@ -278,8 +311,12 @@ def build_adif(qsos, cfg=None):
     il sait maintenant l'écrire."""
     cfg = cfg or {}
     callsign = (cfg.get('callsign_contest') or cfg.get('callsign', '')).upper()
+    # ADIF_VER : '3.1.4' était codé en dur alors que le reste du logiciel
+    # (logx_adif_enums, logx_import, doc) cible déjà la 3.1.7 — vérifié
+    # comme version stable actuellement publiée sur adif.org (« Released
+    # ADIF Version 3.1.7 », mise à jour 2026-03-22, aucune 3.1.8 publiée).
     header = (f"Log LogX AI — {callsign}\n"
-              + _adif_field('adif_ver', '3.1.4')
+              + _adif_field('adif_ver', '3.1.7')
               + _adif_field('programid', 'LogX AI')
               + '<EOH>\n')
     import logx_satellites as sat
