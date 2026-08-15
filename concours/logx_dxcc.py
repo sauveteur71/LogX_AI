@@ -296,6 +296,15 @@ def cq_zone(callsign):
     return r['cq_zone'] if r else None
 
 
+def itu_zone(callsign):
+    """Zone ITU (distincte de la zone CQ — ex. France = ITU 27 / CQ 14) —
+    nécessaire au multiplicateur de l'IARU HF World Championship, qui compte
+    les zones ITU travaillées par bande et non les zones CQ (contrairement à
+    CQ WW/ARRL DX). Même repli que cq_zone : None si indicatif inconnu."""
+    r = lookup(callsign)
+    return r['itu_zone'] if r else None
+
+
 def verifier_zone_cq(callsign, valeur_recue):
     """Compare la zone CQ SAISIE à celle attendue de cty.dat pour cet indicatif —
     garde-fou contre le multiplicateur FANTÔME (une zone bustée compte comme mult,

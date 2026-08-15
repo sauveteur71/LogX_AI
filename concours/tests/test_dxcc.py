@@ -22,6 +22,14 @@ def test_lookup_barres_et_suffixes():
     assert dxcc.lookup('F/ON4ABC')['country'] == 'France'  # préfixe hôte
 
 
+def test_itu_zone():
+    """Zone ITU distincte de la zone CQ (ex. France = ITU 27 / CQ 14) —
+    utilisée par le multiplicateur IARU HF World Championship."""
+    assert dxcc.itu_zone('F6KQJ') == 27
+    assert dxcc.itu_zone('W1AW') == 8
+    assert dxcc.itu_zone('QQ9ZZZ') is None  # indicatif inconnu
+
+
 def test_country_key_repli():
     """Indicatif inconnu → repli 2 caractères (ancien comportement)."""
     assert dxcc.country_key('QQ9ZZZ') == 'QQ'
