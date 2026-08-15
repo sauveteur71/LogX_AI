@@ -11,6 +11,53 @@ affichée dans la barre de statut de l'application correspond à la constante
 `APP_VERSION` de `logx_version.py`, qui doit être incrémentée à chaque tag
 poussé.
 
+## [1.1-beta3] - 2026-08-15
+
+### Ajouté
+
+- **CONFIG, sélection du concours** : vue "concours à venir" par défaut
+  (quelques concours triés par date avec compte à rebours) au lieu de la
+  grille complète des 330+ concours REF/international/WA7BNM/perso, jugée
+  trop encombrante — la grille complète reste accessible en un clic ou via
+  la recherche. Le concours déjà configuré reste toujours visible même hors
+  de cette fenêtre.
+- **CONFIG, amplificateur** : PowerGenius XL et ACOM sont désormais des
+  marques du sélecteur unique "6. Amplificateur" (au lieu de catégories
+  séparées) — un seul endroit pour tout piloter, quelle que soit la marque.
+- **Parc RADIOS** : plusieurs postes radio en inventaire, associables aux
+  antennes du parc, sur le même principe que les rotors/amplis existants.
+- **Puissance TX automatique par mode** en émission numérique (FT8/FT4/RTTY),
+  protection de l'étage final contre un excès de puissance en cycle continu.
+- **Fenêtre détachée SSTV** (réception + émission), sur le modèle des
+  fenêtres RTTY/FT8 déjà détachables.
+- Définition du concours **IARU HF World Championship** (manquante jusque-là).
+
+### Corrigé
+
+- **CAT bidirectionnel** : un changement de bande/mode fait directement sur
+  la radio (IC-7300 notamment) ne se répercutait pas dans LOGBOOK.
+- Port série signalé « déjà utilisé » même après redémarrage du serveur.
+- Décodeur CW peu fiable à vitesse concours (>22 MPM) + nouvel outil de test
+  du périphérique audio pour bien choisir sa source.
+- Waterfall FT8 qui se figeait après un certain temps + clic sur le
+  waterfall pour caler directement le ton d'émission.
+- 6 bugs de scoring trouvés par un audit de conformité aux règlements
+  officiels (REF Coupe du REF, multiplicateurs par bande, WAE, ARRL DX
+  KH6/KL7, NA W/VE).
+- 4 bugs CAT Yaesu trouvés par un audit croisé avec les manuels officiels
+  FT-991/FT-991A (trame IF, commande MD, split, table d'identification).
+- 3 bugs ADIF/Cabrillo (catégorie bande micro-ondes, catégorie mode FM,
+  version ADIF) trouvés par le même audit de conformité.
+- 2 bugs VOACAP/propagation (format de l'indice K NOAA, seuils SNR requis).
+- POTA : le seuil de 10 QSO doit être atteint en un seul jour UTC (les
+  QSO répartis sur plusieurs jours ne comptaient pas correctement).
+- Diplôme WAS : le District de Columbia crédite désormais le Maryland,
+  conformément au règlement ARRL.
+- Table de code RTTY FIGS (USTTY vs ITA2, 3 erreurs de transposition).
+- i18n : environ 1000 clés de traduction manquantes rattrapées sur les 18
+  pages du logiciel (audit statique + fichiers JS générés dynamiquement).
+- 8 retours d'usage terrain F4GLD sur CONFIG/LOGBOOK (détails divers).
+
 ## [1.1-beta2] - 2026-08-13
 
 ### Corrigé
