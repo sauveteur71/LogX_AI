@@ -345,6 +345,22 @@ function applyWsjtxState(d){
 // toutes les 15 secondes, un son à chaque cycle rendrait le poste inutilisable.
 const _carresAlertes = new Set();
 
+// Notifie l'échec d'une commande CAT/WSJT-X ET propose de le signaler
+// (retour F4GLD 15/08/2026) -- factorisé pour ne pas dupliquer le même
+// bandeau à chaque site d'appel de ce fichier (armerReponse/armerPounce/
+// couperEmissionWsjtx...). rcShowReportBanner (logx_statusbar.js, chargé
+// sur cette page) reste optionnel : sans lui, seule la notification usuelle
+// s'affiche, comme avant ce changement.
+function notifierEchecCat(contexte, errMsg){
+  notify(trF('❌ {err}', {err: errMsg || 'refus'}));
+  if (typeof window.rcShowReportBanner !== 'function') return;
+  window.rcShowReportBanner(
+    trF('La commande « {c} » a été refusée.', {c: contexte}),
+    'Contexte détecté automatiquement — ' + contexte + ' (CAT).\n\n'
+      + 'Erreur : ' + (errMsg || '(inconnue)') + '\n\n'
+      + trT('Description libre (modifie/complète si besoin) :') + '\n');
+}
+
 // ─── WAIT-AND-POUNCE NIVEAU 2 : armer le coup ────────────────────────────────
 // LogX demande à WSJT-X de PRÉPARER la réponse — indicatif rempli, décalage
 // audio calé — exactement comme un double-clic sur la ligne du waterfall.
@@ -364,9 +380,9 @@ async function armerReponse(call){
     } else {
       // Chaque refus dit POURQUOI : « rien ne se passe » après un clic est le
       // retour le plus décourageant qui soit.
-      notify(trF('❌ {err}', {err: d.error || 'refus'}));
+      notifierEchecCat('armer une réponse WSJT-X', d.error);
     }
-  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+  }catch(e){ notifierEchecCat('armer une réponse WSJT-X', e.message); }
 }
 
 // ─── WAIT-AND-POUNCE : l'écran des quatre niveaux ────────────────────────────
@@ -417,10 +433,10 @@ async function armerPounce(){
   try{
     const d = await fetch('/pounce/armer', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({niveau: n, criteres, duree_min: duree})}).then(r=>r.json());
-    notify(d.ok ? trF('🎯 Appel automatique armé pour {d} min', {d: duree})
-                : trF('❌ {err}', {err: d.error || 'refus'}));
+    if(d.ok) notify(trF('🎯 Appel automatique armé pour {d} min', {d: duree}));
+    else notifierEchecCat('armer l\'appel automatique (Wait-and-Pounce)', d.error);
     refreshPounce();
-  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+  }catch(e){ notifierEchecCat('armer l\'appel automatique (Wait-and-Pounce)', e.message); }
 }
 
 async function desarmerPounce(){
@@ -484,8 +500,9 @@ async function couperEmissionWsjtx(){
   try{
     const d = await fetch('/wsjtx/couper', {method:'POST',
       headers:{'Content-Type':'application/json'}, body: '{}'}).then(r=>r.json());
-    notify(d.ok ? '⏹ Émission coupée' : trF('❌ {err}', {err: d.error || 'refus'}));
-  }catch(e){ notify(trF('❌ {err}', {err: e.message})); }
+    if(d.ok) notify('⏹ Émission coupée');
+    else notifierEchecCat('couper l\'émission WSJT-X', d.error);
+  }catch(e){ notifierEchecCat('couper l\'émission WSJT-X', e.message); }
 }
 
 function appliquerSuiviCarres(carres){
