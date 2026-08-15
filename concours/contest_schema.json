@@ -176,7 +176,8 @@
                           "is_na",
                           "na_w_ve",
                           "is_asia",
-                          "is_eu"
+                          "is_eu",
+                          "same_itu_zone"
                         ]
                       },
                       {
@@ -196,7 +197,8 @@
                             "is_na",
                             "na_w_ve",
                             "is_asia",
-                            "is_eu"
+                            "is_eu",
+                            "same_itu_zone"
                           ]
                         }
                       }
@@ -276,7 +278,8 @@
                         "dept_dxcc",
                         "na_section",
                         "na_state",
-                        "exchange_distinct"
+                        "exchange_distinct",
+                        "itu_zone"
                       ]
                     }
                   }

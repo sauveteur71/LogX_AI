@@ -11,17 +11,20 @@ from logx_scoring import calc_qso_value, extract_dx_locator, score_new_qso
 
 
 def score(contest, dx, band, dist_km=0, dx_loc='', done_calls=None,
-          done_dxcc=None, done_zones=None, my_call='F6KQJ', my_loc='JN15XC'):
+          done_dxcc=None, done_zones=None, my_call='F6KQJ', my_loc='JN15XC',
+          done_itu_zones=None):
     """Appel simplifié : état de log vide par défaut.
     done_calls : {indicatif: {bandes}} — structure du moteur.
     done_dxcc/done_zones : {bande: {valeurs}} — multiplicateurs suivis PAR
     BANDE depuis le correctif du 14/08/2026 (CQ WW/ARRL DX/REF exigent un
     décompte par bande, cf. logx_scoring._mult_zone_dxcc). done_dxcc : clés
     pays cty.dat ('K', 'DL'...) par bande ; done_zones : zones CQ (str) par
-    bande."""
+    bande. done_itu_zones : zones ITU (str) par bande — IARU HF World
+    Championship uniquement (logx_scoring._mult_itu_zone)."""
     return calc_qso_value(contest, dx, dx_loc, my_call, my_loc,
                           done_calls or {}, set(), set(), done_zones or {},
-                          done_dxcc or {}, 0, band=band, dist_km=dist_km)
+                          done_dxcc or {}, 0, band=band, dist_km=dist_km,
+                          done_itu_zones=done_itu_zones)
 
 
 # ─── REF Rallye des Points Hauts : 1 pt/km, sans multiplicateur ──────────────
@@ -243,6 +246,49 @@ def test_cqwpx_na_vers_na_bande_basse():
 def test_cqwpx_na_vers_na_bande_haute():
     r = score('CQ_WPX_SSB', 'W1AW', '14', my_call='VE3ABC')
     assert r['direct_pts'] == 2
+
+
+# ─── IARU HF World Championship : barème §5.1 (1/3/5 pts selon zone ITU/
+# continent) + multiplicateur §5.2.1 (zones ITU par bande) — ajouté 15/08/2026,
+# vérifié contre contests.arrl.org/ContestRules/IARU-HF-Rules.pdf v1.21.
+# my_call par défaut (F6KQJ) = zone ITU 27 (France). ─────────────────────────
+
+def test_iaru_hf_meme_zone_itu_un_point():
+    """Réglement §5.1.1 : contact dans SA PROPRE zone ITU = 1 pt.
+    ON4XYZ (Belgique) est aussi en zone ITU 27, comme F6KQJ."""
+    r = score('IARU_HF_WC', 'ON4XYZ', '14')
+    assert r['direct_pts'] == 1
+
+
+def test_iaru_hf_meme_continent_zone_differente_trois_points():
+    """§5.1.4 : même continent (EU), zone ITU différente. DL1ABC = zone ITU
+    28, différente de la zone 27 de F6KQJ (moi, my_call par défaut)."""
+    r = score('IARU_HF_WC', 'DL1ABC', '14')
+    assert r['direct_pts'] == 3
+
+
+def test_iaru_hf_autre_continent_cinq_points():
+    """§5.1.5 : continent ET zone ITU différents. W1AW (NA, zone ITU 8)."""
+    r = score('IARU_HF_WC', 'W1AW', '14')
+    assert r['direct_pts'] == 5
+
+
+def test_iaru_hf_mult_nouvelle_zone_itu():
+    r = score('IARU_HF_WC', 'W1AW', '14')
+    assert r['new_mult']
+    assert r['mult_type'] == 'zone_itu'
+
+
+def test_iaru_hf_mult_zone_itu_deja_connue_meme_bande():
+    r = score('IARU_HF_WC', 'W1AW', '14', done_itu_zones={'14': {'8'}})
+    assert not r['new_mult']
+
+
+def test_iaru_hf_mult_zone_itu_compte_par_bande():
+    """Zone ITU 8 déjà travaillée en 21 MHz mais pas en 14 MHz : nouveau mult
+    sur 14 MHz malgré tout (multiplicateur PAR BANDE, règlement §5.2.1)."""
+    r = score('IARU_HF_WC', 'W1AW', '14', done_itu_zones={'21': {'8'}})
+    assert r['new_mult']
 
 
 # ─── Cohérence générale du moteur ────────────────────────────────────────────
