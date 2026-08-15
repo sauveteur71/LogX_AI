@@ -31,11 +31,13 @@ class FakeCivRadio:
     """Simule une radio Icom : répond aux requêtes CI-V envoyées via write(),
     la réponse est récupérée par read_until()."""
 
-    def __init__(self, addr, freq=14074000, mode_code=0x03):
+    def __init__(self, addr, freq=14074000, mode_code=0x03, freq_bytes=5):
         self.addr = addr
         self.freq = freq
         self.mode_code = mode_code
         self.ptt = False
+        self.freq_bytes = freq_bytes   # 6 pour simuler l'IC-905 au-delà de 5,85 GHz
+        self.data_flag = None          # dernier état écrit via 1A 06 (None = jamais envoyé)
         self._pending = b''
 
     def write(self, data):
@@ -48,11 +50,17 @@ class FakeCivRadio:
         _, _, cmd, sub, payload = parsed
         if cmd == 0x03:  # get freq
             self._pending = _swap_addr_for_test(
-                cat.civ_build_frame(0xE0, 0x03, data=cat.civ_encode_freq(self.freq)), 0xE0, self.addr)
+                cat.civ_build_frame(0xE0, 0x03,
+                                     data=cat.civ_encode_freq(self.freq, self.freq_bytes)),
+                0xE0, self.addr)
         elif cmd == 0x05:  # set freq
-            self.freq = cat.civ_decode_freq(payload[:5])
+            self.freq = cat.civ_decode_freq(payload)
             self._pending = _swap_addr_for_test(
                 cat.civ_build_frame(0xE0, 0x05), 0xE0, self.addr)
+        elif cmd == 0x1A and sub == 0x06:  # flag DATA (fire-and-forget, jamais lu)
+            if payload:
+                self.data_flag = bool(payload[0])
+            self._pending = b''
         elif cmd == 0x04:  # get mode
             self._pending = _swap_addr_for_test(
                 cat.civ_build_frame(0xE0, 0x04, data=bytes([self.mode_code])), 0xE0, self.addr)
@@ -112,6 +120,11 @@ class FakeAsciiRadio:
         elif cmd.startswith('FA'):
             self.freq = int(cmd[2:-1])
             self._pending = b''
+        elif cmd == 'MD0;' and self.brand == 'yaesu':
+            # Requête MD DÉDIÉE (P1 seul, pas de code mode) -- voir
+            # AsciiRadio.get_state(), finding #4 Hamlib. Répond MD0<code>;.
+            reply_code = cat.ASCII_MODES.get('yaesu_rev', {}).get(self.mode, '3')
+            self._pending = f'MD0{reply_code};'.encode('ascii')
         elif cmd.startswith('MD'):
             # Yaesu pose un P1 (VFO) obligatoire avant le code mode ('MD03;'
             # = VFO principal + CW) ; Kenwood/Elecraft n'ont que le code
@@ -1264,7 +1277,9 @@ def test_ascii_set_power_hors_plage_refuse():
     driver = cat.AsciiRadio(fake, 'kenwood', 'TS-590SG')
     r = driver.set_power(1500)
     assert r['ok'] is False
-    assert fake.sent == []   # rien envoyé sur le fil
+    # AI0; part à la connexion (voir __init__) -- rien de plus, en
+    # particulier aucune commande PC, n'est envoyé pour une valeur refusée.
+    assert fake.sent == ['AI0;']
 
 
 def test_ascii_set_power_valeur_invalide_refuse():
@@ -1272,7 +1287,7 @@ def test_ascii_set_power_valeur_invalide_refuse():
     driver = cat.AsciiRadio(fake, 'kenwood', 'TS-590SG')
     r = driver.set_power('pas-un-nombre')
     assert r['ok'] is False
-    assert fake.sent == []
+    assert fake.sent == ['AI0;']
 
 
 def test_set_power_module_natif_desactive():
@@ -1342,3 +1357,193 @@ def test_set_power_module_xiegu_refuse_comme_icom():
         assert r['ok'] is False
 
     _with_fake_serial(fake, run)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Alignement Hamlib 4.7.2 (14/08/2026) — 5 constats de la comparaison avec
+#  le pilote de référence (rigs/icom/icom.c, rigs/kenwood/kenwood.c,
+#  rigs/yaesu/newcat.c), autorisée explicitement par F4GLD.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── 1. Icom CI-V : flag DATA (1A 06) en plus du mode de base ──────────────
+
+def test_civ_radio_set_mode_numerique_arme_le_flag_data():
+    """Mirror de Hamlib (icom.c) : les modes PKTUSB/PKTLSB/PKTFM/PKTAM
+    envoient TOUJOURS la sous-commande 1A 06 en plus du mode de base -- sans
+    elle, l'entrée DATA/USB reste traitée comme une entrée micro classique
+    sur le réglage usine (compresseur actif, filtrage bande étroite)."""
+    fake = FakeCivRadio(0x94)
+    radio = cat.CivRadio(fake, 0x94)
+    assert radio.set_mode('FT8')['ok']
+    assert fake.data_flag is True
+
+
+def test_civ_radio_set_mode_phonie_desarme_le_flag_data():
+    """Symétrique : repasser en SSB/CW doit explicitement redescendre le
+    flag à 0, pour ne jamais le laisser « collé » après un mode numérique."""
+    fake = FakeCivRadio(0x94)
+    radio = cat.CivRadio(fake, 0x94)
+    assert radio.set_mode('FT8')['ok']
+    assert fake.data_flag is True
+    assert radio.set_mode('CW')['ok']
+    assert fake.data_flag is False
+
+
+def test_civ_radio_set_mode_rtty_n_arme_pas_le_flag_data():
+    """RTTY a son propre code CI-V dédié (0x04/0x08) -- ce n'est PAS un mode
+    « numérique via USB » au sens de MODES_NUMERIQUES, le flag ne doit donc
+    pas s'armer pour lui."""
+    fake = FakeCivRadio(0x94)
+    radio = cat.CivRadio(fake, 0x94)
+    assert radio.set_mode('RTTY')['ok']
+    assert fake.data_flag is False
+
+
+# ─── 2. Kenwood/Elecraft : interrogation KY; du tampon (voir test_cw_natif.py
+#        pour le détail des segments) ───────────────────────────────────────
+
+# ─── 3. Kenwood/Elecraft : AI0; à la connexion ─────────────────────────────
+
+def test_kenwood_elecraft_envoient_ai0_a_la_connexion():
+    """Mirror de kenwood_open() (Hamlib) : désactive l'Auto Information pour
+    qu'une trame spontanée ne désynchronise pas notre lecture
+    écriture-puis-lecture (_cmd() ne fait qu'un aller-retour, sans défense
+    contre une trame non sollicitée intercalée)."""
+    for brand in ('kenwood', 'elecraft'):
+        fake = FakeAsciiRadio(brand)
+        cat.AsciiRadio(fake, brand)
+        assert fake.sent == ['AI0;'], (brand, fake.sent)
+
+
+def test_yaesu_n_envoie_rien_a_la_connexion():
+    """Yaesu n'a pas cette commande dans son vocabulaire CAT -- aucune
+    trame ne doit partir avant le premier appel explicite."""
+    fake = FakeAsciiRadio('yaesu')
+    cat.AsciiRadio(fake, 'yaesu')
+    assert fake.sent == []
+
+
+# ─── 4. Yaesu : mode lu via MD0; dédiée, pas via la position fragile de IF; ─
+
+def test_yaesu_mode_vient_de_md0_pas_de_la_position_if_fragile():
+    """La position du champ mode dans IF; est fragile chez Yaesu (voir
+    _IF_FIELDS -- jamais vérifiée sur matériel réel, Hamlib documente des
+    trames IF; de longueur anormale sur FT-991). MD0; (requête dédiée) doit
+    l'emporter -- ce double renvoie un mode DIFFÉRENT sur IF; (délibérément
+    faux) et sur MD0; (correct) pour le prouver."""
+
+    class FakeIFDivergente:
+        def __init__(self):
+            self.sent = []
+            self._pending = b''
+
+        def write(self, data):
+            cmd = data.decode('ascii')
+            self.sent.append(cmd)
+            if cmd == 'IF;':
+                spec = cat._IF_FIELDS['yaesu']
+                body = ['0'] * (spec[2] + 1)
+                freq_s = str(14074000).rjust(spec[1], '0')
+                for i, c in enumerate(freq_s):
+                    body[spec[0] + i] = c
+                body[spec[2]] = '3'   # code 'CW' -- volontairement FAUX
+                self._pending = ('IF' + ''.join(body) + ';').encode('ascii')
+            elif cmd == 'MD0;':
+                self._pending = b'MD02;'   # code 'USB' -- la vraie valeur
+            else:
+                self._pending = b''
+
+        def read_until(self, terminator, timeout=1.0):
+            r, self._pending = self._pending, b''
+            return r
+
+        def close(self):
+            pass
+
+    fake = FakeIFDivergente()
+    radio = cat.AsciiRadio(fake, 'yaesu')
+    st = radio.get_state()
+    assert st['ok'] and st['mode'] == 'USB', st
+
+
+def test_yaesu_get_state_sans_reponse_md0_garde_le_mode_de_if():
+    """Best-effort : si MD0; n'aboutit pas (silence, modèle qui l'ignore),
+    on garde le mode déjà lu depuis IF; plutôt que de perdre l'information."""
+
+    class FakeSansMD0:
+        """Répond à IF; comme un vrai FT-991A, mais reste MUET sur MD0;
+        (modèle plus ancien qui n'a pas cette requête)."""
+
+        def __init__(self):
+            self._pending = b''
+
+        def write(self, data):
+            cmd = data.decode('ascii')
+            if cmd == 'IF;':
+                spec = cat._IF_FIELDS['yaesu']
+                body = ['0'] * (spec[2] + 1)
+                freq_s = str(14074000).rjust(spec[1], '0')
+                for i, c in enumerate(freq_s):
+                    body[spec[0] + i] = c
+                body[spec[2]] = '3'   # code 'CW'
+                self._pending = ('IF' + ''.join(body) + ';').encode('ascii')
+            else:
+                self._pending = b''
+
+        def read_until(self, terminator, timeout=1.0):
+            r, self._pending = self._pending, b''
+            return r
+
+        def close(self):
+            pass
+
+    radio = cat.AsciiRadio(FakeSansMD0(), 'yaesu')
+    st = radio.get_state()
+    assert st['ok'] and st['mode'] == 'CW'
+
+
+# ─── 5. IC-905 : BCD 6 octets au-dessus de 5,85 GHz ────────────────────────
+
+def test_civ_encode_decode_freq_6_octets_roundtrip():
+    for f in (5_850_000_001, 6_000_000_000, 10_450_000_000):
+        assert cat.civ_decode_freq(cat.civ_encode_freq(f, nb_octets=6)) == f
+
+
+def test_civ_encode_freq_5_octets_ne_suffit_pas_au_dela_de_10_ghz():
+    """5 octets BCD = 10 chiffres max (9 999 999 999 Hz) -- documente la
+    limite qui justifie le passage à 6 octets pour l'IC-905."""
+    f = 10_450_000_000
+    assert cat.civ_decode_freq(cat.civ_encode_freq(f)) != f
+
+
+def test_civ_radio_ic905_set_freq_bascule_6_octets_au_dela_du_seuil():
+    fake = FakeCivRadio(0xAC)
+    radio = cat.CivRadio(fake, 0xAC, model='IC-905')
+    assert radio.set_freq(10_450_000_000)['ok']
+    assert fake.freq == 10_450_000_000
+
+
+def test_civ_radio_ic905_reste_en_5_octets_sous_le_seuil():
+    """2 m/70 cm/23 cm/13 cm/6 cm (largement sous 5,85 GHz) ne doivent
+    JAMAIS changer de comportement -- seuls les modules optionnels 6/10 GHz
+    sont concernés."""
+    fake = FakeCivRadio(0xAC)
+    radio = cat.CivRadio(fake, 0xAC, model='IC-905')
+    assert radio.set_freq(432175000)['ok']
+    assert fake.freq == 432175000
+
+
+def test_civ_radio_ic905_get_freq_lit_6_octets():
+    fake = FakeCivRadio(0xAC, freq=10_450_000_000, freq_bytes=6)
+    radio = cat.CivRadio(fake, 0xAC, model='IC-905')
+    assert radio.get_freq() == {'ok': True, 'freq_hz': 10_450_000_000}
+
+
+def test_civ_radio_autre_modele_ic9700_ne_bascule_jamais_en_6_octets():
+    """Le modèle le plus haut hors IC-905 (IC-9700, 1,3 GHz) doit garder le
+    comportement 5 octets, même si l'appelant lui passait un `model=` --
+    seul le nom EXACT 'IC-905' déclenche le changement."""
+    fake = FakeCivRadio(cat.CIV_ADDRESSES['IC-9700'])
+    radio = cat.CivRadio(fake, cat.CIV_ADDRESSES['IC-9700'], model='IC-9700')
+    assert radio.set_freq(1_296_000_000)['ok']
+    assert fake.freq == 1_296_000_000
