@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LogX AI — SSTV</title>
+<link rel="icon" href="/logx_icon.svg">
+<!--
+  DÉCODEUR/ÉMETTEUR SSTV — fenêtre détachée (15/08/2026, suite directe de
+  logx_rtty.html/logx_ft8.html, EV-7 phase 2 « modes numériques »). Demande
+  F4GLD explicite : une fenêtre détachable pour la SSTV comme pour RTTY/FT8.
+
+  DIFFÉRENCE DÉLIBÉRÉE avec le patron RTTY : logx_rtty.html avait DUPLIQUÉ sa
+  logique localement parce qu'au moment de son extraction, le panneau SSTV --
+  pardon, RTTY -- avait été RETIRÉ de logx_logbook.html (logx_rtty_panel.js
+  n'existe même plus). Ici ce n'est PAS le cas : F4GLD veut le panneau SSTV
+  TOUJOURS intégré à LOGBOOK (inchangé, visible seulement en mode SSTV,
+  piloté par updateKeyerPanels()) EN PLUS de cette fenêtre détachée. Comme
+  logx_sstv_panel.js est déjà un module de glue UI autonome (7 variables
+  d'état privées, 7 points d'entrée onclick/onchange, aucune dépendance à
+  logx_logbook.js -- voir son propre en-tête), il est réutilisé TEL QUEL ici
+  via <script src>, PAS dupliqué : les deux pages partagent le même fichier,
+  seuls les gabarits HTML/CSS autour diffèrent. Ne jamais forker ce fichier.
+
+  Pour que logx_sstv_panel.js (chargé en <script> classique, portée globale
+  partagée, comme dans LOGBOOK) trouve ses dépendances, cette page fournit en
+  haut de son propre <script> les mêmes utilitaires que logx_logbook.js lui
+  fournit d'habitude : notify()/trT()/trF()/escHtml() (dupliqués localement,
+  même choix que logx_rtty.html/logx_ft8.html -- pas de fichier commun) et
+  loadAudioInputDevices()/loadAudioOutputDevices() (dupliquées depuis
+  logx_cw_panel2_audio.js, copie identique à celle de logx_rtty.html).
+  logx_sstvdecoder.js (pipeline DSP) et logx_tx_audio.js (txAudioPtt, PTT)
+  sont chargés à l'identique de LOGBOOK.
+
+  toggleSstvPanel() (collapse/expand + _reserveBottomSpace, utile seulement
+  pour un panneau flottant DANS LOGBOOK) n'est PAS appelée ici : cette page
+  affiche le panneau en flux normal, toujours ouvert. Son équivalent --
+  remplir le sélecteur de mode TX et charger les périphériques audio -- est
+  fait une seule fois au DOMContentLoaded, exactement comme logx_rtty.html
+  le fait pour ses propres macros/périphériques.
+
+  Cette fenêtre n'a pas de lien de retour vers LOGBOOK (pas d'indicatif à
+  extraire d'une image SSTV comme le fait rttyClicTexte() pour du texte) --
+  pas de pont BroadcastChannel nécessaire ici.
+
+  Page accessible UNIQUEMENT en fenêtre détachée depuis
+  logx_modes_numeriques.html : pas de <nav class="app-nav">, même convention
+  que les autres « miroirs d'affichage » détachés (logx_rtty.html,
+  logx_ft8.html, logx_panadapter.html, logx_scope.html, logx_wall.html,
+  logx_bande.html).
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
+:root{
+  --bg:#17181A;--bg2:#1D1F22;--bg3:#25272B;--border:#464950;
+  --accent:#E8964A;--accent2:#E8964A;--accent-rgb:232,150,74;--green:#00FF88;--red:#FF2D55;
+  --yellow:#FFD60A;--text:#E9ECF5;--muted:#A9B0C8;
+  --font-mono:'Share Tech Mono',monospace;--font:'Exo 2',sans-serif;--font-display:'Fraunces',serif;
+}
+body.day-mode{
+  --bg:#EDEAE0;--bg2:#F8F6EF;--bg3:#E3DED0;--border:#B8B096;
+  --accent:#8B4F1F;--accent2:#8B4F1F;--accent-rgb:139,79,31;--green:#007030;--red:#CC0030;
+  --yellow:#7A5A00;--text:#232320;--muted:#665F55;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-bottom:1px solid var(--border);
+  padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+body.day-mode header{background:linear-gradient(90deg,var(--bg3),var(--bg2),var(--bg3))}
+.logo-badge{background:#EEF0F8;border-radius:8px;padding:3px 8px;display:inline-flex;line-height:0}
+.logo-badge img{height:20px;display:block}
+.logo-wrap{display:flex;align-items:center;gap:8px}
+.logo-suffix{font-family:var(--font-mono);font-size:18px;color:var(--accent);letter-spacing:1px}
+svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
+
+.wrap{max-width:640px;margin:0 auto;padding:18px 20px 60px}
+h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-spacing:.3px;font-weight:900;margin-bottom:6px}
+.intro{color:var(--muted);font-size:13px;line-height:1.55;margin-bottom:16px}
+
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
+.panel-title{font-family:var(--font-display);font-size:14px;font-weight:900;color:var(--accent2);letter-spacing:.2px}
+.note{font-size:11.5px;color:var(--muted);line-height:1.5}
+.controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.controls select{flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px}
+.controls input[type=file]{flex:1;min-width:160px;font-size:11.5px;color:var(--muted)}
+.btn{background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;padding:6px 12px;font-family:var(--font-mono);font-size:12px;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{border-color:var(--accent2)}
+.btn.active{background:var(--green);border-color:var(--green);color:#001a08;font-weight:700}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.danger{border-color:var(--red);background:rgba(255,45,85,.12);color:var(--red)}
+.status{font-size:12px;color:var(--muted)}
+
+#sstvCanvas{width:100%;max-width:480px;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:6px;display:block}
+#sstvTxCanvas{width:100%;max-width:480px;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:6px}
+
+/* Etat "arme" : meme mecanisme visuel que .toggle-arm/.armed sur
+   logx_ft8.html/logx_rtty.html -- mais ici purement en CSS (:has), pas de
+   classList.toggle() ajoute : sstvOnArmChange() vit dans logx_sstv_panel.js,
+   PARTAGE avec LOGBOOK, on ne le modifie pas pour un besoin propre a cette
+   page (voir commentaire d'en-tete). Navigateurs sans :has() (rares) :
+   degradation gracieuse, juste pas de surbrillance -- rien de fonctionnel
+   n'en depend. */
+label.arm{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:7px 12px;background:var(--bg3);user-select:none}
+label.arm input{width:15px;height:15px;accent-color:var(--red)}
+label.arm:has(input:checked){border-color:var(--red);color:var(--red);background:rgba(255,45,85,.10)}
+
+#sstvToast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;padding:9px 16px;font-family:var(--font-mono);font-size:12.5px;color:var(--text);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw;z-index:999}
+#sstvToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#sstvToast.toast-err{border-color:var(--red);color:var(--red)}
+#sstvToast.toast-warn{border-color:var(--yellow);color:var(--yellow)}
+
+button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-badge"><img src="/logx_logo.png" alt="LogX AI"></div>
+    <span class="logo-suffix"> — <span style="color:var(--accent)">SSTV</span></span>
+  </div>
+</header>
+
+<script src="logx_i18n.js"></script>
+<script src="logx_sstvdecoder.js"></script>
+<script src="logx_tx_audio.js"></script>
+
+<div class="wrap">
+  <h1>Décodeur/émetteur SSTV</h1>
+  <p class="intro">Écoute l'audio de réception (câble virtuel ou interface dédiée depuis la radio, PAS le micro du PC). Détection automatique du mode par code VIS : Martin M1/M2, Scottie S1/S2/DX, Robot 36/72, PD50 à PD290 (ISS : PD120). L'image se construit ligne par ligne pendant la réception.</p>
+
+  <div class="panel">
+    <div class="panel-title">Réception</div>
+    <div class="controls">
+      <select id="sstvDevice"><option value="">— périphérique par défaut —</option></select>
+    </div>
+    <div class="controls">
+      <button class="btn" id="sstvStartBtn" onclick="toggleSstvDecoder()">▶ Démarrer</button>
+      <button class="btn" onclick="sstvSauverImage()" title="Télécharger l'image affichée en PNG"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3 3v10a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-12a.5.5 0 0 1 .5-.5z"/><rect x="5.5" y="2.5" width="6" height="4"/><rect x="5" y="10" width="8" height="4.5"/></svg> PNG</button>
+      <button class="btn" onclick="sstvEffacerImage()" title="Effacer l'image affichée"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg></button>
+      <span class="status" id="sstvStatus"></span>
+    </div>
+    <canvas id="sstvCanvas" width="320" height="256"></canvas>
+    <div class="note" id="sstvInfo">En attente de signal…</div>
+  </div>
+
+  <!-- ÉMISSION SSTV : image étirée aux dimensions EXACTES du mode choisi,
+       même comportement/case "Activer l'émission" non cochée par défaut que
+       les autres modes détachables (rien ne part sur l'air sans ce geste
+       explicite -- sstvOnArmChange(), logx_sstv_panel.js, partagé). -->
+  <div class="panel">
+    <div class="panel-title">Émission</div>
+    <div class="note">Rien ne part sur l'air sans un clic explicite : « Activer l'émission » arme seulement le bouton « Envoyer l'image ».</div>
+    <div class="note">Image étirée aux dimensions exactes du mode choisi (pas de recadrage manuel) — périphérique de SORTIE (pas le micro du PC) vers l'entrée micro/DATA de la radio. Une image PD120 prend ~2 min à émettre.</div>
+    <div class="controls">
+      <select id="sstvTxMode"></select>
+      <input type="file" id="sstvTxFile" accept="image/*" onchange="sstvChargerImage(event)">
+    </div>
+    <canvas id="sstvTxCanvas" width="320" height="256" style="display:none"></canvas>
+    <div class="controls">
+      <select id="sstvOutDevice"><option value="">— périphérique par défaut —</option></select>
+    </div>
+    <label class="arm" id="sstvArmLabel" title="Rien ne part sur l'air tant que cette case n'est pas cochée">
+      <input type="checkbox" id="sstvArmTx" onchange="sstvOnArmChange()"> Activer l'émission
+    </label>
+    <div class="controls">
+      <button class="btn danger" id="sstvSendBtn" onclick="sstvEnvoyerImage()" disabled><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,9 9,3 15,9"/><line x1="9" y1="3" x2="9" y2="14"/><path d="M3 14v1.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V14"/></svg> Envoyer l'image</button>
+    </div>
+    <div class="note" id="sstvTxStatus"></div>
+  </div>
+</div>
+
+<div id="sstvToast"></div>
+
+<script>
+if(localStorage.getItem('rc_theme') === 'day') document.body.classList.add('day-mode');
+if(localStorage.getItem('rc_theme') === null){
+  fetch('/config').then(r=>r.ok?r.json():null).then(c=>{
+    if(c && c.ui_theme && localStorage.getItem('rc_theme') === null){
+      localStorage.setItem('rc_theme', c.ui_theme);
+      document.body.classList.toggle('day-mode', c.ui_theme === 'day');
+    }
+  }).catch(()=>{});
+}
+
+if(location.protocol === 'file:'){
+  document.body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Ouvre via le serveur : http://127.0.0.1:8080/logx_sstv.html</div>';
+}
+
+// ─── Utilitaires locaux (dupliqués, pas de fichier JS commun — même choix
+//     que logx_rtty.html/logx_ft8.html). Déclarés en portée GLOBALE (pas
+//     dans une IIFE) : logx_sstv_panel.js, chargé plus bas en <script src>
+//     classique, doit pouvoir les appeler comme il le fait déjà pour les
+//     équivalents de logx_logbook.js. ─────────────────────────────────────
+function trT(fr){ return window.rcT ? window.rcT(fr) : fr; }
+function trF(fr, params){
+  if (window.rcTf) return window.rcTf(fr, params);
+  let s = fr;
+  if (params) for (const k in params) s = s.split('{' + k + '}').join(params[k]);
+  return s;
+}
+function escHtml(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function notify(msg, ms){
+  const t = document.getElementById('sstvToast');
+  if(!t){ alert(msg); return; }
+  msg = String(msg);
+  const isErr  = /❌|[Ee]rreur|[Ii]nvalide|manquant|[Ii]mpossible|injoignable/.test(msg);
+  const isWarn = /⚠|[Aa]nnulé/.test(msg);
+  t.textContent = trT(msg);
+  t.className = '';
+  if(isErr) t.classList.add('toast-err');
+  else if(isWarn) t.classList.add('toast-warn');
+  t.classList.add('show');
+  clearTimeout(notify._tm);
+  notify._tm = setTimeout(()=>t.classList.remove('show'), ms || Math.min(10000, 2500 + msg.length*35));
+}
+
+async function loadAudioInputDevices(selectId, alreadyGranted){
+  const sel = document.getElementById(selectId);
+  if(!sel) return false;
+  try{
+    if(!alreadyGranted){
+      const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+      tmp.getTracks().forEach(t=>t.stop());
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices.filter(d=>d.kind==='audioinput');
+    sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+      + inputs.map(d=>`<option value="${d.deviceId}">${escHtml(d.label||'Entrée audio')}</option>`).join('');
+    return true;
+  }catch(e){
+    sel.innerHTML = '<option value="">Accès micro refusé</option>';
+    return false;
+  }
+}
+async function loadAudioOutputDevices(selectId, alreadyGranted){
+  const sel = document.getElementById(selectId);
+  if(!sel) return false;
+  if(!HTMLMediaElement.prototype.setSinkId){
+    sel.innerHTML = '<option value="">Choix de sortie non supporté par ce navigateur</option>';
+    sel.disabled = true;
+    return false;
+  }
+  try{
+    if(!alreadyGranted){
+      const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+      tmp.getTracks().forEach(t=>t.stop());
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const outputs = devices.filter(d=>d.kind==='audiooutput');
+    sel.innerHTML = '<option value="">— périphérique par défaut —</option>'
+      + outputs.map(d=>`<option value="${d.deviceId}">${escHtml(d.label||'Sortie audio')}</option>`).join('');
+    return true;
+  }catch(e){
+    sel.innerHTML = '<option value="">Accès micro refusé</option>';
+    return false;
+  }
+}
+</script>
+
+<!-- Module de glue UI PARTAGÉ avec logx_logbook.html — voir le commentaire
+     d'en-tête de la page. Ne pas dupliquer ce fichier ; toute correction de
+     bug SSTV se fait ICI et profite aux deux fenêtres. -->
+<script src="logx_sstv_panel.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Équivalent non-collapsible de ce que toggleSstvPanel() fait dans
+  // LOGBOOK à l'ouverture du panneau (remplir le sélecteur de mode TX,
+  // charger les périphériques) — pertinent une seule fois ici puisque
+  // cette fenêtre n'affiche QUE la SSTV.
+  if(typeof remplirSstvModeSelect === 'function') remplirSstvModeSelect();
+  loadAudioInputDevices('sstvDevice');
+  loadAudioOutputDevices('sstvOutDevice', true);
+});
+</script>
+
+</body>
+</html>
