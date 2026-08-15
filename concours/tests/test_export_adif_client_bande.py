@@ -310,7 +310,10 @@ def test_structure_adif_preservee():
     """En-tête + un <EOR> par QSO + champs vides omis (pas de <X:0>)."""
     adif = _exporter()
     assert '<EOH>' in adif
-    assert adif.index('<ADIF_VER:5>3.1.4') < adif.index('<EOH>')
+    # ADIF_VER corrigé en 3.1.7 (version stable adif.org, 2026-03-22) — était
+    # codé en dur en 3.1.4, en retard sur le reste du logiciel (logx_adif_enums,
+    # logx_import) déjà aligné sur la 3.1.7.
+    assert adif.index('<ADIF_VER:5>3.1.7') < adif.index('<EOH>')
     assert adif.count('<EOR>') == len(_QSOS)
     assert ':0>' not in adif
     # QSO sans locator ni n° reçu : les champs correspondants sont absents.
