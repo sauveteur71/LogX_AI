@@ -49,6 +49,17 @@ def normalize_ref(ref):
     return (ref or '').strip().upper().replace(' ', '')
 
 
+def _same_utc_day(entries):
+    """Ne garde que les QSO du jour UTC le plus RÉCENT parmi `entries` (champ
+    ADIF 'date', format YYYYMMDD -> comparaison lexicographique valide). Sans
+    champ 'date' (log sans horodatage, ou tests), toutes les entrées valent
+    la même chaîne vide et rien n'est filtré : rétro-compatible."""
+    if not entries:
+        return entries
+    today = max(str(q.get('date', '')) for q in entries)
+    return [q for q in entries if str(q.get('date', '')) == today]
+
+
 def validate_ref(program, ref):
     """La référence respecte-t-elle le format du programme ?"""
     spec = PROGRAM_SPECS.get((program or '').upper())
@@ -75,6 +86,21 @@ def activation_state(shared_log, program, my_ref):
     if my_ref:
         entries = [q for q in (shared_log or [])
                    if normalize_ref(q.get('my_sig_info', '')) == my_ref]
+
+    # POTA : le seuil de 10 QSO doit être atteint en une SEULE journée
+    # calendaire UTC, pas cumulé sur plusieurs sorties sur le terrain — règle
+    # officielle vérifiée sur docs.pota.app/docs/rules.html (14/08/2026) :
+    # « a minimum of 10 QSOs from a park ... within a single UTC day (Zulu
+    # day) ». On ne garde donc que les QSO du jour UTC le plus récent parmi
+    # ceux de cette activation. À l'inverse, WWFF autorise explicitement le
+    # cumul multi-activations vers son seuil de 44 QSO — vérifié sur
+    # wwff.co/rules-faq/how-to-activate-a-wwff-reference/ : « you do NOT need
+    # to achieve 44 QSOs in a single day ... you can combine multiple
+    # visits » — donc PAS de filtrage par jour pour WWFF (ni les autres
+    # programmes, dont aucune règle officielle trouvée n'exige une fenêtre
+    # d'une journée unique).
+    if program == 'POTA':
+        entries = _same_utc_day(entries)
 
     calls, per_band, per_mode = set(), {}, {}
     p2p = []
