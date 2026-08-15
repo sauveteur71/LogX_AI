@@ -1064,3 +1064,168 @@ def test_test_connection_ne_touche_pas_la_connexion_persistante():
     finally:
         cat._open_serial = original
         cat.disconnect_persistent()
+
+
+# ─── Retente à l'ouverture d'un port « déjà utilisé » ────────────────────────
+#
+# Reproduction du bug réel (F4GLD, 15/08/2026) : « com4 déjà utilisé alors que
+# j'ai redémarré le serveur ! ». Il n'existe aucun verrou applicatif LogX AI
+# qui expliquerait ça (_persistent est un dict en mémoire de process, vide à
+# chaque nouveau lancement) — mais pyserial peut lever un PermissionError
+# transitoire au tout premier essai après un vrai redémarrage, le temps que
+# le pilote USB-série relâche le port au niveau matériel. Voir
+# _open_serial_retry() dans logx_cat.py.
+
+def test_ensure_connected_retente_apres_acces_refuse_transitoire():
+    """2 échecs "port occupé" puis succès : _ensure_connected doit absorber
+    les échecs transitoires sans jamais les remonter à l'appelant."""
+    fake = FakeCivRadio(cat.CIV_ADDRESSES['IC-7300'], freq=14195000,
+                        mode_code=cat.CIV_MODES['USB'])
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
+           'cat_model': 'IC-7300', 'cat_port': 'COM4'}
+
+    class _FailsTwice:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, port, baudrate=19200):
+            self.calls += 1
+            if self.calls <= 2:
+                raise PermissionError(13, 'Access is denied.', port)
+            return fake
+
+    original_open = cat._open_serial
+    original_sleep = cat._retry_sleep
+    factory = _FailsTwice()
+    cat._open_serial = factory
+    cat._retry_sleep = lambda s: None   # pas de vraie attente en test
+    try:
+        st = cat.get_state(cfg)
+        assert st == {'ok': True, 'enabled': True, 'freq_hz': 14195000,
+                      'freq_khz': 14195.0, 'mode': 'USB'}
+        assert factory.calls == 3
+    finally:
+        cat._open_serial = original_open
+        cat._retry_sleep = original_sleep
+        cat.disconnect_persistent()
+
+
+def test_ensure_connected_abandonne_apres_echec_persistant():
+    """Le port reste réellement pris au-delà du budget de retries : l'échec
+    doit toujours remonter (pas de boucle infinie), avec le message enrichi
+    qui évoque explicitement un redémarrage récent de LogX AI."""
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
+           'cat_model': 'IC-7300', 'cat_port': 'COM4'}
+
+    class _AlwaysBusy:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, port, baudrate=19200):
+            self.calls += 1
+            raise PermissionError(13, 'Access is denied.', port)
+
+    original_open = cat._open_serial
+    original_sleep = cat._retry_sleep
+    factory = _AlwaysBusy()
+    cat._open_serial = factory
+    cat._retry_sleep = lambda s: None
+    try:
+        st = cat.get_state(cfg)
+        assert st['ok'] is False
+        assert 'vient tout juste de se fermer' in st['error']
+        assert factory.calls == 1 + len(cat._OPEN_RETRY_DELAYS)
+    finally:
+        cat._open_serial = original_open
+        cat._retry_sleep = original_sleep
+        cat.disconnect_persistent()
+
+
+def test_ensure_connected_ne_retente_pas_si_port_introuvable():
+    """Un port absent/débranché (FileNotFoundError) ne doit JAMAIS retenter —
+    retenter ne changerait rien et ne ferait que retarder un diagnostic déjà
+    exploitable ("le port n'existe pas", pas "il est occupé")."""
+    cfg = {'cat_enabled': True, 'cat_mode': 'native', 'cat_brand': 'icom',
+           'cat_model': 'IC-7300', 'cat_port': 'COM4'}
+
+    class _NotFound:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, port, baudrate=19200):
+            self.calls += 1
+            raise FileNotFoundError(2, 'The system cannot find the file specified.', port)
+
+    def _boom(_s):
+        raise AssertionError('ne doit jamais dormir sur une erreur non-transitoire')
+
+    original_open = cat._open_serial
+    original_sleep = cat._retry_sleep
+    factory = _NotFound()
+    cat._open_serial = factory
+    cat._retry_sleep = _boom
+    try:
+        st = cat.get_state(cfg)
+        assert st['ok'] is False
+        assert "n'existe pas" in st['error']
+        assert factory.calls == 1
+    finally:
+        cat._open_serial = original_open
+        cat._retry_sleep = original_sleep
+        cat.disconnect_persistent()
+
+
+def test_test_connection_retente_apres_acces_refuse_transitoire():
+    """Même comportement de retry côté bouton CONFIG « Tester »."""
+    fake = FakeCivRadio(cat.CIV_ADDRESSES['IC-9700'], freq=432175000)
+
+    class _FailsOnce:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, port, baudrate=19200):
+            self.calls += 1
+            if self.calls == 1:
+                raise PermissionError(13, 'Access is denied.', port)
+            return fake
+
+    original_open = cat._open_serial
+    original_sleep = cat._retry_sleep
+    factory = _FailsOnce()
+    cat._open_serial = factory
+    cat._retry_sleep = lambda s: None
+    try:
+        r = cat.test_connection('icom', 'IC-9700', 'COM3', 19200)
+        assert r == {'ok': True, 'detected_model': 'IC-9700', 'freq_hz': 432175000}
+        assert factory.calls == 2
+    finally:
+        cat._open_serial = original_open
+        cat._retry_sleep = original_sleep
+
+
+def test_autodetect_scan_retente_apres_acces_refuse_transitoire():
+    """Même comportement de retry côté bouton CONFIG « auto-détecter »."""
+    fake = FakeAsciiRadio('yaesu', freq=14074000, id_code='0670')
+
+    class _FailsOnce:
+        def __init__(self):
+            self.calls = 0
+
+        def __call__(self, port, baudrate=19200):
+            self.calls += 1
+            if self.calls == 1:
+                raise PermissionError(13, 'Access is denied.', port)
+            return fake
+
+    original_open = cat._open_serial
+    original_sleep = cat._retry_sleep
+    factory = _FailsOnce()
+    cat._open_serial = factory
+    cat._retry_sleep = lambda s: None
+    try:
+        r = cat.autodetect_scan('COM5', bauds=(19200,))
+        assert r['ok'] and r['model'] == 'FT-991A'
+        assert factory.calls == 2
+    finally:
+        cat._open_serial = original_open
+        cat._retry_sleep = original_sleep

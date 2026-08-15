@@ -1258,14 +1258,27 @@ def _friendly_open_error(port, exc):
     par un beta-testeur microHAM (02/08/2026) : le message brut ne dit ni
     « le port est déjà pris » ni « le port n'existe pas », deux causes très
     fréquentes avec une interface qui expose plusieurs ports COM virtuels
-    (microHAM Router, USB Device Router...)."""
+    (microHAM Router, USB Device Router...).
+
+    Ce message n'apparaît qu'APRÈS l'échec des nouvelles tentatives de
+    _open_serial_retry() (voir sa docstring) : un simple redémarrage de
+    LogX AI, même la seconde d'avant, a déjà été absorbé silencieusement à
+    ce stade — donc le préciser ici n'aurait été qu'un faux espoir dans la
+    majorité des cas réels. Mentionné quand même en dernier recours (retour
+    F4GLD, 15/08/2026 : « COM4 déjà utilisé alors que j'ai redémarré le
+    serveur ! ») pour le cas plus rare où le pilote USB met plus d'1,4 s à
+    relâcher le port."""
     msg = str(exc)
     low = msg.lower()
     if 'permissionerror' in low or 'access is denied' in low or 'permission denied' in low or 'errno 13' in low:
-        cause = (f"{port} est déjà utilisé par un autre logiciel (WSJT-X, un "
-                 "autre logbook, le microHAM Router/USB Device Router...) — "
-                 "ferme-le, ou si ton interface expose plusieurs ports COM "
-                 "(cas fréquent avec microHAM), choisis-en un autre.")
+        cause = (f"{port} est déjà utilisé — par un autre logiciel (WSJT-X, "
+                 "un autre logbook, le microHAM Router/USB Device Router...), "
+                 "ou par une instance de LogX AI qui vient tout juste de se "
+                 "fermer et dont le pilote USB n'a pas encore fini de "
+                 "relâcher le port (rare, réessaie dans quelques secondes). "
+                 "Si le problème persiste : ferme le logiciel en question, "
+                 "ou si ton interface expose plusieurs ports COM (cas "
+                 "fréquent avec microHAM), choisis-en un autre.")
     elif ('filenotfounderror' in low or 'cannot find the file' in low
           or 'no such file' in low or 'errno 2' in low):
         cause = (f"{port} n'existe pas ou n'est plus branché — vérifie le "
@@ -1280,6 +1293,68 @@ def _friendly_open_error(port, exc):
 # pas un vrai port série (voir tests/test_cat.py). Par défaut, le vrai
 # constructeur pyserial.
 _open_serial = SerialPort if HAS_PYSERIAL else None
+
+# Point d'injection pour les tests (même esprit que _open_serial ci-dessus) :
+# remplacer par un no-op pour ne pas ralentir la suite pytest des délais
+# réels ci-dessous. Par défaut, le vrai time.sleep.
+_retry_sleep = time.sleep
+
+# Délais (secondes) entre tentatives d'ouverture quand pyserial signale un
+# port "déjà utilisé" — voir _open_serial_retry(). ~1,4 s de budget total
+# dans le pire cas, du même ordre que d'autres budgets déjà acceptés ailleurs
+# dans l'appli (ex. _HTTP_BUDGET dans logx_singleton.py).
+_OPEN_RETRY_DELAYS = (0.2, 0.4, 0.8)
+
+
+def _looks_like_transient_busy(exc):
+    """Le port est-il signalé PRIS (par opposition à absent/débranché, ou à
+    une autre cause) ? Seul ce cas mérite une nouvelle tentative — voir
+    _open_serial_retry(). Même classification que _friendly_open_error(),
+    dupliquée à dessein : les deux fonctions répondent à des questions
+    différentes (« dois-je réessayer ? » vs « quel message afficher ? ») et
+    coupler l'une à l'autre les rendrait plus difficiles à faire évoluer
+    séparément."""
+    low = str(exc).lower()
+    return ('permissionerror' in low or 'access is denied' in low
+            or 'permission denied' in low or 'errno 13' in low)
+
+
+def _open_serial_retry(port, baudrate):
+    """Ouvre `port` via _open_serial(), en retentant BRIÈVEMENT si l'échec
+    ressemble à un port "déjà utilisé" (voir _looks_like_transient_busy) —
+    jamais sur un port absent/introuvable, où retenter ne changerait rien et
+    ne ferait que retarder un message d'erreur déjà exploitable.
+
+    BUG RÉEL CORRIGÉ ICI (rapporté par F4GLD : « COM4 déjà utilisé alors que
+    j'ai redémarré le serveur ! »). Il n'existe AUCUN verrou applicatif côté
+    LogX AI qui pourrait expliquer ça : `_persistent` (ci-dessus) est un
+    simple dict en mémoire de PROCESS, vide par construction à chaque
+    nouveau lancement — un vrai redémarrage (process tué puis relancé, ou le
+    bouton "installer et redémarrer" de la MAJ résiliente) ne peut pas
+    laisser un verrou LogX AI fantôme derrière lui. La cause est plus bas
+    niveau : sur certains adaptateurs USB-série (FTDI/CP210x/CH340...), le
+    PILOTE Windows peut mettre jusqu'à quelques centaines de ms — voire un
+    peu plus — à relâcher le port au niveau matériel après la fin du process
+    qui le tenait, même si ce process a déjà complètement disparu au sens de
+    l'OS. Le tout premier essai d'ouverture du nouveau process (à l'ouverture
+    de CONFIG, ou au premier /rig/state polling) tombait alors sur
+    PermissionError sans jamais réessayer, alors qu'un essai quelques
+    centaines de ms plus tard aurait réussi. Sans retry, `_ensure_connected`
+    ne mémorise d'ailleurs même pas l'échec (pas d'entrée `_persistent`) —
+    l'appel SUIVANT (polling à 4s) aurait fini par réussir tout seul, mais
+    seulement après avoir déjà affiché une erreur trompeuse à l'opérateur."""
+    delays = (0,) + _OPEN_RETRY_DELAYS
+    last_exc = None
+    for delay in delays:
+        if delay:
+            _retry_sleep(delay)
+        try:
+            return _open_serial(port, baudrate=baudrate)
+        except Exception as e:
+            last_exc = e
+            if not _looks_like_transient_busy(e):
+                raise
+    raise last_exc
 
 
 def _parse_civ_addr(value):
@@ -1350,7 +1425,7 @@ def _ensure_connected(settings):
         if refus:
             return None, refus
         try:
-            transport = _open_serial(settings['port'], baudrate=settings['baudrate'])
+            transport = _open_serial_retry(settings['port'], settings['baudrate'])
         except Exception as e:
             return None, _friendly_open_error(settings['port'], e)
         if settings['brand'] in ('icom', 'xiegu'):
@@ -1565,7 +1640,7 @@ def test_connection(brand, model, port, baudrate, civ_addr=None):
         return {'ok': False, 'error': 'Port série manquant'}
     brand = (brand or '').strip().lower()
     try:
-        transport = _open_serial(port, baudrate=baudrate or CAT_DEFAULT_BAUD.get(brand, 19200))
+        transport = _open_serial_retry(port, baudrate or CAT_DEFAULT_BAUD.get(brand, 19200))
     except Exception as e:
         return {'ok': False, 'error': _friendly_open_error(port, e)}
     try:
@@ -1700,7 +1775,7 @@ def autodetect_scan(port, bauds=None):
     tried = list(bauds or _AUTODETECT_BAUDS)
     for baud in tried:
         try:
-            transport = _open_serial(port, baudrate=baud)
+            transport = _open_serial_retry(port, baud)
         except Exception as e:
             return {'ok': False, 'error': _friendly_open_error(port, e)}
         try:
