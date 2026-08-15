@@ -315,8 +315,14 @@ def _mult_itu_zone(ctx, pts, result, scoring):
     PAR BANDE, en plus des zones ITU — non modélisé ici faute de roster
     mondial des indicatifs HQ/officiels dans ce logiciel (même limite que le
     1 pt fixe HQ/officiel du barème, cf. commentaire sur 'IARU_HF_WC').
-    Résultat : ce multiplicateur est un plancher (jamais surestimé), jamais
-    gonflé à tort."""
+    Résultat : approximation BIDIRECTIONNELLE, pas un simple plancher —
+    ce logiciel SOUS-compte les mults HQ/officiels (jamais crédités comme
+    tels, faute de roster), mais peut aussi rarement SURESTIMER en comptant
+    un contact HQ/officiel comme nouvelle zone ITU normale si sa vraie zone
+    n'a jamais été travaillée par ailleurs (§5.2.2 : un HQ/officiel ne doit
+    JAMAIS compter comme mult de zone). Cas rare (quelques dizaines
+    d'indicatifs HQ/officiels dans le monde) — corrigible plus tard si un
+    roster HQ est ajouté (cf. logx_wwa.py pour le patron déjà utilisé)."""
     band = ctx['band_norm']
     band_zones = ctx.get('done_itu_zones', {}).get(band, set())
     itu_zone = ctx.get('dx_itu_zone')
