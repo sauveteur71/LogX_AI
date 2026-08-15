@@ -25,15 +25,13 @@
   logx_rtty.html (pont retour BroadcastChannel('logx_log') pour remplir
   l'indicatif décodé dans LOGBOOK).
 
-  SSTV (audit intuitivité, constat #6, 13/08/2026) : l'infobulle de nav de ce
-  lien ("...FT8, RTTY, SSTV") promettait un mode que la grille ci-dessous ne
-  montrait pas -- SSTV vit réellement dans LOGBOOK (panneau existant,
-  logx_sstv_panel.js), sans rapport avec ce hub. Plutôt que de retirer SSTV
-  de l'infobulle (qui reste vraie : les TROIS modes sont bien accessibles
-  depuis LogX AI), une 3e carte a été ajoutée ici sur le même modèle que la
-  mention CW du paragraphe ci-dessus : elle explique où SSTV se trouve
-  réellement et y renvoie, plutôt que d'ouvrir une fenêtre détachée qui
-  n'existe pas encore (logx_sstv.html reste un incrément futur, pas fait).
+  Incrément C (15/08/2026, demande F4GLD) : SSTV, fenêtre détachée
+  logx_sstv.html. Contrairement à RTTY, le panneau SSTV RESTE en plus intégré
+  à LOGBOOK (inchangé, logx_sstv_panel.js toujours piloté par
+  updateKeyerPanels() en mode SSTV) -- logx_sstv.html réutilise le MÊME
+  fichier logx_sstv_panel.js en <script src> partagé, pas une copie, pour
+  éviter toute divergence entre les deux fenêtres (voir l'en-tête de
+  logx_sstv.html pour le détail du partage).
 -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
@@ -136,9 +134,9 @@ button:focus-visible,.mode-btn:focus-visible,a:focus-visible{outline:2px solid v
     </div>
     <div class="mode-card ready">
       <div class="mode-title"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="14" height="12" rx="1.5"/><circle cx="6.5" cy="7" r="1.3" fill="currentColor" stroke="none"/><path d="M2.5 13.5l4-4 3 3 3-3.5 4.5 4.5"/></svg>SSTV</div>
-      <div class="mode-desc">Décodeur/émetteur d'images SSTV. Reste un panneau intégré à <b>LOGBOOK</b>, comme le CW — pas (encore) de fenêtre détachée séparée pour ce mode.</div>
-      <span class="mode-badge">DANS LOGBOOK</span>
-      <button class="mode-btn" onclick="location.href='logx_logbook.html'">Ouvrir dans LOGBOOK</button>
+      <div class="mode-desc">Décodeur/émetteur d'images SSTV. Détection automatique du mode (Martin, Scottie, Robot, PD — ISS incluse). Reste aussi disponible en panneau intégré dans <b>LOGBOOK</b>.</div>
+      <span class="mode-badge">DISPONIBLE</span>
+      <button class="mode-btn" onclick="ouvrirFenetreDetachee('/logx_sstv.html','rc_sstv','width=680,height=920,menubar=no,toolbar=no,location=no')">Ouvrir en fenêtre détachée</button>
     </div>
   </div>
 </div>
