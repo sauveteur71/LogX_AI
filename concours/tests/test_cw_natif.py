@@ -25,7 +25,10 @@ import logx_cat as cat  # noqa: E402
 
 
 class FauxTransport:
-    """Note tout ce qui part vers la radio."""
+    """Note tout ce qui part vers la radio. Répond KY0; (tampon toujours
+    libre) à une requête KY; -- fait avancer send_cw() sur un message multi-
+    segments sans attendre le repli 5 s de _attendre_tampon_ky_libre()
+    (voir chantier Hamlib 14/08/2026)."""
 
     def __init__(self):
         self.ecrits = []
@@ -34,6 +37,8 @@ class FauxTransport:
         self.ecrits.append(data.decode('ascii'))
 
     def read_until(self, sep, timeout=1.0):
+        if self.ecrits and self.ecrits[-1] == 'KY;':
+            return b'KY0;'
         return b';'
 
     def commandes(self):
@@ -42,7 +47,13 @@ class FauxTransport:
 
 def _radio(brand):
     t = FauxTransport()
-    return cat.AsciiRadio(t, brand), t
+    r = cat.AsciiRadio(t, brand)
+    # Kenwood/Elecraft envoient AI0; à la connexion (voir chantier Hamlib
+    # 14/08/2026, __init__) -- hors sujet ici (manipulation CW), on la
+    # purge pour ne pas polluer les assertions t.ecrits/t.commandes() de
+    # chaque test de ce fichier.
+    t.ecrits.clear()
+    return r, t
 
 
 # ─── Envoi ───────────────────────────────────────────────────────────────────
@@ -109,10 +120,27 @@ def test_un_message_long_est_decoupe_a_la_taille_du_tampon():
     texte = 'A' * 60
     res = r.send_cw(texte)
     assert res['ok']
-    envois = [c for c in t.commandes().split(';') if c]
+    # 'KY' seul (sans texte) = l'interrogation KY; entre deux segments (voir
+    # _attendre_tampon_ky_libre) -- pas un segment de texte, on l'écarte.
+    envois = [c for c in t.commandes().split(';') if c and c != 'KY']
     assert len(envois) == 3
     assert all(len(c) - len('KY ') <= cat.AsciiRadio.CW_CHUNK for c in envois)
     assert ''.join(c[len('KY '):] for c in envois) == texte
+
+
+def test_le_segment_suivant_attend_que_le_tampon_soit_libre(monkeypatch):
+    """La radio a dit KY1; (tampon plein) une fois avant de libérer : le
+    pilote doit réessayer plutôt que d'envoyer le segment suivant trop tôt
+    ou d'abandonner."""
+    r, t = _radio('kenwood')
+    reponses = iter([b'KY1;', b'KY0;'])
+    monkeypatch.setattr(cat, '_transceive',
+                        lambda transport, data, sep, timeout=1.0: next(reponses))
+    sleeps = []
+    monkeypatch.setattr(cat.time, 'sleep', lambda s: sleeps.append(s))
+    res = r.send_cw('A' * 25)   # 2 segments (20 + 5)
+    assert res['ok']
+    assert 0.05 in sleeps   # au moins un ré-essai après KY1;
 
 
 def test_les_caracteres_de_service_du_trafic_passent():

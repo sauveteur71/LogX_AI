@@ -113,8 +113,11 @@ def test_le_pilote_utilise_bien_la_marque():
 
 def test_et_le_kenwood_n_a_pas_ete_casse_au_passage():
     p = FauxPort()
+    # AI0; part à la connexion (voir chantier Hamlib 14/08/2026) avant la
+    # commande FA -- non lié au sujet de ce test (le formatage FA), gardé
+    # tel quel plutôt que de re-questionner le correctif.
     C.AsciiRadio(p, brand='kenwood', model='TS-590SG').set_freq(14074000)
-    assert p.ecrit == [b'FA00014074000;'], p.ecrit
+    assert p.ecrit == [b'AI0;', b'FA00014074000;'], p.ecrit
 
 
 # ─── 2. Les postes au CAT binaire ────────────────────────────────────────────
