@@ -5900,6 +5900,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(res, 200 if res.get('ok') else 400)
             return
 
+        # Puissance TX auto par mode (protection du final en numérique 100%
+        # cycle de service — CONFIG > RADIO, désactivé par défaut). Appelée
+        # par LOGBOOK au même moment que /rig/qsy, quand l'opérateur choisit
+        # un mode (voir _qsyVersRadio(), logx_logbook.js). Ne couvre QUE le
+        # pilotage natif Yaesu/Kenwood/Elecraft — cat.set_power() refuse
+        # explicitement Icom/CI-V (commande de puissance en NIVEAU RELATIF,
+        # pas en watts, voir son docstring) plutôt que de deviner une
+        # conversion non vérifiée. Les autres modes CAT (TCI/rigctld/flrig/
+        # OmniRig/FlexRadio/Icom réseau) n'ont pas de commande de puissance
+        # câblée ici : hors du périmètre vérifié de ce chantier.
+        if self.path == '/rig/set_power':
+            import logx_so2r as so2r
+            import logx_cat as cat
+            radio_active = so2r.focus()['focus']
+            cfg_snap = so2r.config_radio_active(self._cfg_snapshot(), radio=radio_active)
+            try:
+                payload = json.loads(body) if body else {}
+            except Exception:
+                payload = {}
+            try:
+                watts = float(payload.get('watts'))
+            except (TypeError, ValueError):
+                self._json({'ok': False, 'error': 'Puissance manquante ou invalide'}, 400)
+                return
+            res = cat.set_power(cfg_snap, watts)
+            if res.get('ok'):
+                print(f"[RIG] Puissance -> {res.get('watts')} W")
+            self._json(res, 200 if res.get('ok') else 400)
+            return
+
         # Keyer vocal dynamique : indicatif/report épelés phonétiquement,
         # synthétisés (TTS hors-ligne) et émis par la radio (PTT via CAT
         # autour de la lecture, quel que soit le mode natif/TCI/rigctld/flrig).

@@ -1241,6 +1241,39 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           maintenant ignorer les trames qui ne lui sont pas destinées.
         </div>
 
+        <!-- Puissance TX automatique par mode : protection du final en numérique
+             (FT8/FT4/RTTY... à 100% de cycle de service, souvent recommandé par le
+             constructeur en dessous de la puissance max phonie/CW). Désactivé par
+             défaut (aucun changement de comportement existant sans que l'opérateur
+             l'ait explicitement coché) et expert-only (pas indispensable au chemin critique). -->
+        <div class="form-grid expert-only" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>PUISSANCE TX AUTOMATIQUE PAR MODE</label>
+            <select id="cat_power_auto_enabled">
+              <option value="">Désactivé</option>
+              <option value="1">Activé</option>
+            </select>
+            <div class="input-note">
+              Réduit automatiquement la puissance radio en mode numérique (FT8/FT4/RTTY/PSK...) —
+              beaucoup de constructeurs le recommandent, ces modes émettent à 100% du temps
+              (contrairement à la phonie/CW) et sollicitent davantage le final de puissance.
+              Disponible uniquement en pilotage <b>Natif</b>, marques <b>Yaesu/Kenwood/Elecraft</b>
+              (commande ASCII « PC ») — pas encore pour <b>Icom/CI-V</b> : sa commande de puissance
+              règle un niveau relatif (0-100%), pas des watts absolus, une conversion non vérifiée
+              risquerait d'envoyer une puissance fausse sur l'air. Laisse les deux champs vides pour
+              ne rien changer (aucune puissance n'est poussée si l'un des deux manque).
+            </div>
+          </div>
+          <div class="form-group">
+            <label>PUISSANCE PHONIE/CW (W)</label>
+            <input type="number" id="cat_power_phone_w" min="0" max="500" placeholder="ex. 100">
+          </div>
+          <div class="form-group">
+            <label>PUISSANCE NUMÉRIQUE (W)</label>
+            <input type="number" id="cat_power_digital_w" min="0" max="500" placeholder="ex. 50">
+          </div>
+        </div>
+
         <!-- Mode TCI : transceivers SDR (SunSDR/ExpertSDR3 et compatibles), réseau WebSocket -->
         <div id="catTciFields" class="form-grid" style="display:none;margin-top:12px">
           <div class="form-group" style="grid-column:1/-1">

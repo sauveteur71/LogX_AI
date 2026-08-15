@@ -1111,6 +1111,26 @@ class AsciiRadio:
         model = ASCII_ID_TABLE.get(code)
         return {'ok': True, 'code': code, 'model': model}
 
+    def set_power(self, watts):
+        """Règle la puissance d'émission en watts — commande `PC`, quasi
+        identique sur les trois marques ASCII (vérifiée contre les fiches
+        constructeur : Kenwood « PC Control Command Reference Guide », Yaesu
+        « CAT Operation Reference Book » — 3 chiffres, watts entiers, ex.
+        `PC100;` = 100 W, `PC050;` = 50 W). Fire-and-forget comme set_freq/
+        set_ptt : aucune de ces trois marques n'accuse cette commande par une
+        trame dédiée, la radio écrête silencieusement toute valeur au-delà de
+        sa propre puissance max matérielle (K3 = 100 W, TS-890S = 500 W...) —
+        ce n'est PAS un défaut de ce pilote, borner par modèle demanderait une
+        table de puissances max par référence, non tenue à jour ici."""
+        try:
+            w = int(round(float(watts)))
+        except (TypeError, ValueError):
+            return {'ok': False, 'error': f'Puissance invalide : {watts!r}'}
+        if not (0 <= w <= 999):
+            return {'ok': False, 'error': f'Puissance hors plage (0-999 W) : {w}'}
+        self._cmd(f'PC{w:03d};', read_reply=False)
+        return {'ok': True, 'watts': w}
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Transport série (pyserial réel)
@@ -1513,6 +1533,55 @@ def set_ptt(cfg, on):
         return {'ok': False, 'error': err}
     try:
         return driver.set_ptt(bool(on))
+    except Exception as e:
+        disconnect_persistent()
+        return {'ok': False, 'error': f'Radio injoignable ({e})'}
+
+
+# Plafond de sécurité pour la puissance TX auto par mode (CONFIG > RADIO,
+# désactivé par défaut — voir set_power() ci-dessous). Reprend le plafond
+# HAREC le plus large (500 W, valable en dessous de 28 MHz — voir la fiche
+# réglementation du skill radioamateur) : ce module ignore la bande courante,
+# donc ne peut pas appliquer le plafond plus bas des bandes 28-30 MHz (250 W)
+# ou VHF/UHF (120 W) — il protège seulement contre une saisie CONFIG
+# aberrante (ex. 5000 W tapé par erreur), pas contre un dépassement
+# réglementaire par bande, hors de portée de ce correctif.
+PUISSANCE_MAX_W = 500
+
+
+def set_power(cfg, watts):
+    """Règle la puissance d'émission natif, par mode (protection du final en
+    numérique 100% cycle de service — réglage CONFIG > RADIO, désactivé par
+    défaut). Même signature d'erreur que send_cw() ci-dessous.
+
+    Icom/Xiegu (CI-V) n'est PAS couvert : la seule commande CI-V de puissance
+    (`14 0A`, voir cat-icom-civ.md du skill radioamateur) règle un NIVEAU
+    RELATIF 0-100% (trame BCD 0000-0255), pas des watts absolus — la
+    correspondance watts↔niveau dépend du plafond « RF POWER » réglé dans le
+    menu SET de CHAQUE radio (souvent personnalisé, parfois volontairement
+    abaissé pour du QRP). Deviner cette correspondance risquerait d'envoyer
+    une puissance FAUSSE sur l'air — à l'exact opposé du but recherché
+    (protéger le final). Refus explicite, comme send_cw() pour Icom."""
+    settings = cat_settings(cfg)
+    if not settings['enabled'] or settings['mode'] != 'native':
+        return {'ok': False, 'error': 'Pilotage natif non actif'}
+    try:
+        w = int(round(float(watts)))
+    except (TypeError, ValueError):
+        return {'ok': False, 'error': f'Puissance invalide : {watts!r}'}
+    if w < 0 or w > PUISSANCE_MAX_W:
+        return {'ok': False, 'error': f'Puissance hors plage (0-{PUISSANCE_MAX_W} W) : {w}'}
+    driver, err = _ensure_connected(settings)
+    if err:
+        return {'ok': False, 'error': err}
+    if not hasattr(driver, 'set_power'):
+        return {'ok': False,
+                'error': "Réglage de puissance indisponible en CI-V (Icom/Xiegu) : la commande "
+                         "CI-V de puissance (14 0A) règle un NIVEAU RELATIF (0-100%), pas des "
+                         "watts absolus — pas de conversion fiable sans risque d'erreur. "
+                         "Disponible pour Yaesu/Kenwood/Elecraft."}
+    try:
+        return driver.set_power(w)
     except Exception as e:
         disconnect_persistent()
         return {'ok': False, 'error': f'Radio injoignable ({e})'}
