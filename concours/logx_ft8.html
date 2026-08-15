@@ -119,8 +119,8 @@ button.danger.on{background:var(--red);border-color:var(--red);color:#2a0008}
 .toggle-arm input{width:15px;height:15px;accent-color:var(--red)}
 .toggle-arm.armed{border-color:var(--red);color:var(--red);background:rgba(255,45,85,.10)}
 
-canvas#waterCanvas{width:100%;height:110px;display:block;background:#000;border:1px solid var(--border);border-radius:6px}
-canvas#axisCanvas{width:100%;height:16px;display:block;background:var(--bg3);border-left:1px solid var(--border);border-right:1px solid var(--border)}
+canvas#waterCanvas{width:100%;height:110px;display:block;background:#000;border:1px solid var(--border);border-radius:6px;cursor:crosshair}
+canvas#axisCanvas{width:100%;height:16px;display:block;background:var(--bg3);border-left:1px solid var(--border);border-right:1px solid var(--border);cursor:crosshair}
 
 table.decodes{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12.5px;margin-top:10px}
 table.decodes th{text-align:left;color:var(--muted);font-weight:400;letter-spacing:1px;font-size:10.5px;
@@ -208,8 +208,8 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <span id="rxStatus" class="tx-status">arrêté</span>
       </div>
       <div style="margin-top:12px">
-        <canvas id="waterCanvas"></canvas>
-        <canvas id="axisCanvas"></canvas>
+        <canvas id="waterCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
+        <canvas id="axisCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
       </div>
       <table class="decodes">
         <thead><tr><th>UTC</th><th>Hz</th><th>Score</th><th>Message</th></tr></thead>
@@ -514,29 +514,52 @@ if(localStorage.getItem('rc_theme') === null){
   // (Goertzel sur les échantillons bruts) — donne un retour visuel continu
   // sans avoir à en tirer les 15s complètes à chaque frame.
   let analyser = null, dataArray = null, raf = null;
+  // Largeur de l'axe audio affiché par le waterfall — 0 à 3000 Hz sur toute
+  // la largeur du canvas (voir boucle de dessin ci-dessous ET dessinerAxe()).
+  // Constante partagée : sert aussi à hzDepuisClic() pour le clic-pour-caler,
+  // le mapping pixel -> Hz doit rester STRICTEMENT le même des deux côtés.
+  const WF_MAX_HZ = 3000;
   function boucleWaterfall(){
     if(!analyser) return;
-    analyser.getByteFrequencyData(dataArray);
-    const cv = document.getElementById('waterCanvas');
-    const {w, h} = tailleCanvas(cv);
-    const g = cv.getContext('2d');
-    g.drawImage(cv, 0, 0, w, h, 0, 1, w, h - 1);
-    const nyquist = ctx.sampleRate / 2;
-    const maxHz = 3000;
-    const nBins = Math.max(1, Math.min(dataArray.length, Math.round((maxHz/nyquist) * dataArray.length)));
-    const ligne = g.createImageData(w, 1);
-    for(let x = 0; x < w; x++){
-      const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
-      const v = dataArray[bin] / 255;
-      const o = x * 4;
-      // dégradé graphite -> cuivre -> jaune, cohérent avec le panadapter
-      let r,gg,b;
-      if(v < 0.5){ const k=v/0.5; r=23+k*209; gg=24+k*126; b=26+k*20; }
-      else { const k=(v-0.5)/0.5; r=232+k*23; gg=150+k*64; b=74-k*20; }
-      ligne.data[o]=r; ligne.data[o+1]=gg; ligne.data[o+2]=b; ligne.data[o+3]=255;
+    // Piège corrigé (gel régulier signalé par F4GLD) : cette fonction se
+    // reprogrammait elle-même via `raf = requestAnimationFrame(boucleWaterfall)`
+    // en TOUTE DERNIÈRE ligne, sans aucun filet — la moindre exception
+    // pendant le dessin (contexte 2D momentanément indisponible, canvas de
+    // taille 0 pendant une resize/un changement d'onglet, getImageData qui
+    // échoue...) remontait alors NON INTERCEPTÉE et interrompait la chaîne
+    // rAF pour de bon : le waterfall se figeait silencieusement, sans erreur
+    // visible pour l'utilisateur, jusqu'au prochain clic sur "Écouter". Le
+    // pipeline de décodage réel (verifierCycle, sur son propre setInterval)
+    // n'est PAS concerné par ce bug — seul l'affichage cosmétique gelait,
+    // ce qui correspond exactement au symptôme rapporté ("le rendu s'arrête
+    // de défiler"). Le try/catch ci-dessous garantit que la reprogrammation
+    // du rAF a TOUJOURS lieu, même si une frame de dessin échoue — la
+    // fonction fautive n'a pas pu être isolée avec certitude (aucune trace
+    // d'erreur disponible), donc ce filet sert aussi de relance défensive.
+    try{
+      analyser.getByteFrequencyData(dataArray);
+      const cv = document.getElementById('waterCanvas');
+      const {w, h} = tailleCanvas(cv);
+      const g = cv.getContext('2d');
+      g.drawImage(cv, 0, 0, w, h, 0, 1, w, h - 1);
+      const nyquist = ctx.sampleRate / 2;
+      const nBins = Math.max(1, Math.min(dataArray.length, Math.round((WF_MAX_HZ/nyquist) * dataArray.length)));
+      const ligne = g.createImageData(w, 1);
+      for(let x = 0; x < w; x++){
+        const bin = Math.min(nBins - 1, Math.floor((x / w) * nBins));
+        const v = dataArray[bin] / 255;
+        const o = x * 4;
+        // dégradé graphite -> cuivre -> jaune, cohérent avec le panadapter
+        let r,gg,b;
+        if(v < 0.5){ const k=v/0.5; r=23+k*209; gg=24+k*126; b=26+k*20; }
+        else { const k=(v-0.5)/0.5; r=232+k*23; gg=150+k*64; b=74-k*20; }
+        ligne.data[o]=r; ligne.data[o+1]=gg; ligne.data[o+2]=b; ligne.data[o+3]=255;
+      }
+      g.putImageData(ligne, 0, 0);
+      dessinerAxe();
+    }catch(e){
+      console.error('[FT8] rendu waterfall en échec sur cette frame (ignorée, la boucle continue) :', e);
     }
-    g.putImageData(ligne, 0, 0);
-    dessinerAxe();
     raf = requestAnimationFrame(boucleWaterfall);
   }
   function dessinerAxe(){
@@ -548,10 +571,45 @@ if(localStorage.getItem('rc_theme') === null){
     g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#A9B0C8';
     g.textAlign = 'center';
     for(let i=0;i<=6;i++){
-      const hz = 3000 * i / 6;
+      const hz = WF_MAX_HZ * i / 6;
       g.fillText(hz>=1000?(hz/1000).toFixed(1)+'k':Math.round(hz), (i/6)*w, h*0.75);
     }
+    // Repère du ton TX actuel (#ft8Tone0) — retour visuel immédiat après un
+    // clic sur le waterfall (voir clicWaterfall()), même logique que le
+    // repère ▼ de fréquence radio sur le bandscope (logx_bandscope_waterfall.js).
+    const champTon = document.getElementById('ft8Tone0');
+    const tonHz = champTon ? parseFloat(champTon.value) : NaN;
+    if(isFinite(tonHz)){
+      const x = Math.max(0, Math.min(w, (tonHz / WF_MAX_HZ) * w));
+      g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#E8964A';
+      g.lineWidth = 1.5 * (window.devicePixelRatio || 1);
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke();
+    }
   }
+
+  // ─── Clic-pour-caler : cliquer sur le waterfall (ou sa règle de fréquences)
+  // règle directement le ton TX (#ft8Tone0, "TON 0 (Hz)") sur la fréquence
+  // pointée, sans avoir à ressaisir la valeur au clavier. Réutilise le MÊME
+  // champ que la saisie manuelle existante — pas de nouveau mécanisme, pas
+  // de nouvel appel serveur : #ft8Tone0 est déjà lu par envoyerMessage() au
+  // moment de l'émission. Mapping pixel -> Hz identique à dessinerAxe()
+  // (WF_MAX_HZ sur toute la largeur du canvas).
+  function hzDepuisClic(evt, cv){
+    const rect = cv.getBoundingClientRect();
+    const relX = rect.width > 0 ? (evt.clientX - rect.left) / rect.width : 0;
+    return Math.round(Math.max(0, Math.min(1, relX)) * WF_MAX_HZ);
+  }
+  function clicWaterfall(evt){
+    const champ = document.getElementById('ft8Tone0');
+    if(!champ) return;
+    const hz = hzDepuisClic(evt, evt.currentTarget);
+    const min = parseInt(champ.min, 10) || 0, max = parseInt(champ.max, 10) || WF_MAX_HZ;
+    champ.value = Math.max(min, Math.min(max, hz));
+    champ.dispatchEvent(new Event('change'));
+    dessinerAxe();   // repère mis à jour tout de suite, même si Écouter est arrêté
+  }
+  document.getElementById('waterCanvas').addEventListener('click', clicWaterfall);
+  document.getElementById('axisCanvas').addEventListener('click', clicWaterfall);
 
   function pousserEchantillons(chunk){
     if(bufStartMs === 0) bufStartMs = Date.now() - (chunk.length/sr*1000);
