@@ -155,6 +155,21 @@ def test_la_table_lettres_est_conforme_a_ITA2(moteur):
         assert moteur.eval('RTTY_LTRS[%d]' % code) == car
 
 
+def test_la_table_figs_est_conforme_a_ustty(moteur):
+    """Audit de conformité (14/08/2026) : la table FIGS avait BELL et
+    apostrophe échangés entre S (code 5) et J (code 11), et Z (code 17)
+    portait la valeur ITA2 internationale ('+') au lieu de la valeur USTTY
+    ('"') -- vérifié contre la table hexadécimale de G. Smith (« Teletypewriter
+    Communication Codes », 2001), dont les indices correspondent exactement à
+    ceux de RTTY_FIGS. L'audit signalait aussi le code 30 (V) comme devant
+    valoir '=' : vérification faite, ';' EST la valeur USTTY correcte -- '='
+    est la valeur ITA2 internationale, non celle du trafic amateur -- donc
+    volontairement PAS changée ici."""
+    attendu = {5: '\x07', 11: "'", 17: '"', 30: ';'}
+    for code, car in attendu.items():
+        assert moteur.eval('RTTY_FIGS[%d]' % code) == car
+
+
 def test_les_codes_de_bascule_ne_produisent_pas_de_caractere(moteur):
     """LTRS et FIGS pilotent l'état, ils ne s'écrivent pas."""
     assert moteur.eval("rttyBaudotChar(31, {figs:true})") == ''
