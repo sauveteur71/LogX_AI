@@ -1235,15 +1235,21 @@ def fetch_log_adif(url, filter_digital=True):
 # ─── MODULE 1 : NOAA K-INDEX (Géomagnétisme / Aurore) ───────────────────────
 def fetch_noaa_kindex():
     try:
-        content = fetch_url('http://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', timeout=8)
+        content = fetch_url('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', timeout=8)
         if not content: return None
         data = json.loads(content)
-        # Dernière valeur : [datetime, K-index]
-        recent = [d for d in data if len(d) >= 2][-3:]
+        # Format verifie en direct le 14/08/2026 : NOAA a abandonne l'ancien
+        # tableau [[time_tag, Kp], ...] (avec une ligne d'en-tete textuelle en
+        # position 0) au profit d'une liste d'objets
+        # {"time_tag":"...","Kp":<float>,"a_running":<int>,"station_count":<int>}.
+        # L'ancien parsing (entry[1]) levait KeyError sur un dict -- avale par
+        # le except interne ci-dessous -- et renvoyait TOUJOURS k_values=[],
+        # cassant silencieusement l'alerte aurore.
+        recent = [d for d in data if isinstance(d, dict) and 'Kp' in d][-3:]
         k_values = []
         for entry in recent:
             try:
-                k_values.append(float(entry[1]))
+                k_values.append(float(entry['Kp']))
             except: pass
         if not k_values: return None
         k_current = k_values[-1]
