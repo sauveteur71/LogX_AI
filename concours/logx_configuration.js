@@ -1450,6 +1450,58 @@ function updateCat2ModeVisibility(){
   document.getElementById('cat2OmnirigFields').style.display = mode === 'omnirig' ? '' : 'none';
 }
 
+// ─── SUGGESTIONS "POSTES DU PARC" DANS LA SECTION 5. RADIO (CAT) ──────────────
+// Retour F4GLD : proposer les postes déjà déclarés en 1. IDENTITÉ (parc
+// RADIOS, PR #86) plutôt que de forcer une nouvelle saisie manuelle marque/
+// modèle en section CAT. Marque : correspondance directe pour les 5 marques
+// pilotables en CAT natif (mêmes clés que CAT_MODELS/cat_brand ci-dessus) ;
+// FlexRadio/Autre du parc n'ont pas d'équivalent CAT natif série -- affichés
+// mais non cliquables (le pilotage FlexRadio passe par cat_mode==='flex',
+// pas par une marque du natif série), avec l'explication en title=.
+const CAT_NATIVE_BRANDS = new Set(['icom', 'yaesu', 'kenwood', 'elecraft', 'xiegu']);
+
+function renderCatRadioSuggestions(){
+  const declared = radiosRows.filter(r => r.nom || r.brand || r.model);
+  const chip = (r, target) => {
+    const label = escC(r.nom || r.model || r.brand || '(poste sans nom)');
+    if (!CAT_NATIVE_BRANDS.has(r.brand)){
+      const raison = r.brand === 'flex'
+        ? 'FlexRadio se pilote via le mode « FlexRadio SmartSDR » ci-dessus, pas le CAT natif série'
+        : 'Marque non reconnue par le pilotage CAT natif — choisis les champs manuellement';
+      return `<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;padding:6px 12px;font-size:12px" title="${escC(raison)}">${label}</span>`;
+    }
+    return `<button type="button" class="btn btn-secondary" style="padding:6px 12px;font-size:12px" onclick="applyRadioFromParc('${jsId(r.id)}','${target}')" title="Préremplir marque/modèle/vitesse depuis ce poste">${label}</button>`;
+  };
+  const box = target => declared.length
+    ? `<div class="input-note" style="margin-bottom:6px">Postes déclarés dans l'identité station :</div>
+       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${declared.map(r => chip(r, target)).join('')}</div>`
+    : `<div class="input-note" style="margin-bottom:10px">Aucun poste déclaré pour l'instant — <a href="#" onclick="switchSection('identity');return false" style="color:var(--accent2)">renseigne-les en 1. IDENTITÉ</a> (parc RADIOS) pour les retrouver ici.</div>`;
+  const el1 = document.getElementById('catRadioSuggestions');
+  if (el1) el1.innerHTML = box('cat');
+  const el2 = document.getElementById('cat2RadioSuggestions');
+  if (el2) el2.innerHTML = box('cat2');
+}
+
+function applyRadioFromParc(radioId, target){
+  const r = radiosRows.find(x => x.id === radioId);
+  if (!r || !CAT_NATIVE_BRANDS.has(r.brand)) return;
+  if (target === 'cat2'){
+    document.getElementById('cat2_brand').value = r.brand;
+    const baud2 = document.getElementById('cat2_baudrate');
+    if (!baud2.value) baud2.value = CAT_DEFAULT_BAUD[r.brand] || 19200;
+    return;
+  }
+  document.getElementById('cat_brand').value = r.brand;
+  updateCatModelOptions(); // reconstruit cat_model pour la marque + pose la vitesse par défaut
+  const modelSel = document.getElementById('cat_model');
+  const norm = s => String(s || '').toLowerCase().replace(/[\s\-_]/g, '');
+  const wanted = norm(r.model);
+  if (wanted){
+    const match = Array.from(modelSel.options).find(o => norm(o.value) === wanted);
+    if (match) modelSel.value = match.value;
+  }
+}
+
 function updateCatModelOptions(){
   const brand = document.getElementById('cat_brand').value;
   const sel = document.getElementById('cat_model');
@@ -3004,6 +3056,9 @@ async function openCategoryPopup(cat){
   // Résumé : recalculé à chaque ouverture (recap texte + prompt système),
   // comme l'ancien openSummaryPopup() avant la fusion dans l'arborescence.
   if(cat === 'summary') buildSummary();
+  // Suggestions "parc RADIOS" : rafraîchies à chaque ouverture (le parc a pu
+  // changer depuis la dernière visite de cette section, sans repasser par init()).
+  if(cat === 'radio') renderCatRadioSuggestions();
   _catFormSnapshots[cat] = _snapshotCatForm(cat);
 }
 function switchSection(cat){ openCategoryPopup(cat); }
