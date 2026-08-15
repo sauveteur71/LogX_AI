@@ -29,6 +29,8 @@ class CwPanel {
     this.decoder = null;
     this.devicesLoaded = false;
     this.outText = '';   // texte décodé cumulé (survit aux re-rendus) — voir toggleDecoder()/clearOutput()
+    this.testDecoder = null;   // décodeur du test rapide de périphérique — voir testDevice()
+    this.testTimer = null;
   }
 
   el(baseId){
@@ -54,7 +56,28 @@ class CwPanel {
     if(this.decoder) this.decoder.setFreq(freq);
   }
 
+  // Vumètre partagé par le décodage réel (toggleDecoder) ET le test rapide de
+  // périphérique (testDevice) — même rendu dans les deux cas, l'opérateur voit
+  // exactement ce qu'il verra une fois le décodage démarré pour de vrai.
+  _updateMeter(mag, threshold){
+    const fill = this.el('cwMeterFill');
+    const thr = this.el('cwMeterThreshold');
+    if(!fill || !thr) return;
+    // Échelle visuelle = 3x le seuil courant, pour que le repère de seuil
+    // reste toujours visible même quand le bruit de fond fait dériver le
+    // seuil adaptatif.
+    const scale = threshold * 3 || 0.01;
+    fill.style.width = Math.min(100, (mag / scale) * 100) + '%';
+    fill.classList.toggle('on', mag > threshold);
+    thr.style.left = Math.min(100, (threshold / scale) * 100) + '%';
+  }
+
   toggleDecoder(){
+    // Un décodage réel qui démarre prend la main sur le vumètre — annule
+    // d'abord tout test de périphérique en cours (sinon deux flux
+    // getUserMedia concurrents sur la même entrée, l'un des deux navigateurs
+    // testés refusant carrément le second).
+    this._stopTest();
     const btn = this.el('cwStartBtn');
     if(this.decoder){
       this.decoder.stop();
@@ -89,17 +112,7 @@ class CwPanel {
       },
       onLevel: (mag, threshold, wpm) => {
         if(wpm) wpmLabel.textContent = wpm + ' MPM';
-        // Vumètre de diagnostic : échelle visuelle = 3x le seuil courant, pour
-        // que le repère de seuil reste toujours visible même quand le bruit de
-        // fond fait dériver le seuil adaptatif.
-        const fill = this.el('cwMeterFill');
-        const thr = this.el('cwMeterThreshold');
-        if(fill && thr){
-          const scale = threshold * 3 || 0.01;
-          fill.style.width = Math.min(100, (mag / scale) * 100) + '%';
-          fill.classList.toggle('on', mag > threshold);
-          thr.style.left = Math.min(100, (threshold / scale) * 100) + '%';
-        }
+        this._updateMeter(mag, threshold);
       },
     });
     dec.start(deviceId || undefined).then(() => {
@@ -119,5 +132,69 @@ class CwPanel {
     this.outText = '';
     const out = this.el('cwOutput');
     if(out) out.textContent = '';
+  }
+
+  // ─── Test rapide du périphérique choisi (avant de lancer le décodage) ─────
+  // Répond à la demande « aider le choix du périphérique par défaut » : la
+  // liste de #cwDevice ne donne que des noms système, aucun moyen de savoir
+  // LEQUEL reçoit vraiment l'audio radio avant de cliquer Démarrer. Déclenché
+  // par onchange sur #cwDevice/#cwDevice2 (voir logx_logbook.html) : ouvre le
+  // même pipeline Goertzel que le décodage réel (au ton #cwFreq déjà réglé),
+  // pendant quelques secondes, et réutilise le vumètre déjà existant pour un
+  // retour immédiat — sans passer par le bouton Démarrer, donc sans polluer
+  // la sortie texte ni le compteur MPM d'une vraie session d'écoute.
+  async testDevice(){
+    this._stopTest();
+    // Un décodage réel est déjà en cours : le vumètre lui appartient déjà, ne
+    // pas lui couper l'herbe sous le pied avec un second flux audio.
+    if(this.decoder) return;
+    const status = this.el('cwDeviceTestStatus');
+    const deviceId = this.el('cwDevice').value;
+    const freq = parseInt(this.el('cwFreq').value, 10) || 650;
+    if(status){ status.textContent = 'Test du périphérique… parle ou émets un ton pendant quelques secondes'; status.className = 'cw-device-test'; }
+    let sawSignal = false;
+    // Jeton de course : dec.start() est async (getUserMedia attend
+    // l'autorisation navigateur), donc un second appel à testDevice()/
+    // toggleDecoder() peut très bien démarrer et se terminer AVANT que ce
+    // premier appel-ci ne résolve (changement rapide de périphérique dans la
+    // liste). Comparer ce jeton à this._testToken au retour de l'attente
+    // suffit à détecter qu'on est devenu périmé, sans dépendre de l'état
+    // (nullité) d'un flux tiers qui pourrait entre-temps avoir été relancé.
+    const token = (this._testToken = (this._testToken || 0) + 1);
+    const dec = new CwAudioDecoder({
+      freq,
+      onChar: () => {},   // le texte décodé pendant le test ne sert à rien, seul le niveau importe
+      onLevel: (mag, threshold) => {
+        if(mag > threshold) sawSignal = true;
+        this._updateMeter(mag, threshold);
+      },
+    });
+    try{
+      await dec.start(deviceId || undefined);
+    }catch(e){
+      if(token === this._testToken && status){ status.textContent = 'Micro indisponible : ' + e.message; status.className = 'cw-device-test bad'; }
+      return;
+    }
+    if(token !== this._testToken || this.decoder){ dec.stop(); return; }
+    this.testDecoder = dec;
+    this.testTimer = setTimeout(() => {
+      this._stopTest();
+      if(status){
+        status.textContent = sawSignal
+          ? 'Signal détecté sur ce périphérique — prêt à démarrer.'
+          : 'Aucun signal détecté — vérifie le périphérique et le ton (Hz) choisis.';
+        status.className = 'cw-device-test ' + (sawSignal ? 'good' : 'bad');
+      }
+    }, 4000);
+  }
+
+  _stopTest(){
+    // Invalide aussi tout appel testDevice() encore en attente de
+    // getUserMedia (voir le jeton dans testDevice()) — sans ça, un test
+    // lancé juste avant un clic sur Démarrer pourrait résoudre APRÈS coup et
+    // prendre la main sur le vumètre d'une vraie session déjà en cours.
+    this._testToken = (this._testToken || 0) + 1;
+    if(this.testTimer){ clearTimeout(this.testTimer); this.testTimer = null; }
+    if(this.testDecoder){ this.testDecoder.stop(); this.testDecoder = null; }
   }
 }
