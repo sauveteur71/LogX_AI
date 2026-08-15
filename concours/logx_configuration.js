@@ -2375,6 +2375,8 @@ async function selectContest(id, _skipConfirm) {
   document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
   const card = document.getElementById('card_'+id);
   if(card) card.classList.add('selected');
+  const ediSection = document.getElementById('ediDatesSection');
+  if(ediSection) ediSection.style.display = 'block';
   // Auto-appliquer les bandes/modes du concours dès la sélection
   applyContestFilters(id);
   _filtersAppliedFor = id;
@@ -2505,6 +2507,8 @@ function deselectContest(){
   if(!state.contest) return;
   state.contest = null;
   document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
+  const ediSection = document.getElementById('ediDatesSection');
+  if(ediSection) ediSection.style.display = 'none';
   // Ne PAS réinitialiser les bandes/modes déjà cochés (contrairement au
   // passage en LOGBOOK SIMPLE) : l'utilisateur reprend juste la main
   // librement à l'étape FILTRES, sans perdre sa sélection en cours.

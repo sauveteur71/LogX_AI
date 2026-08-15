@@ -212,6 +212,10 @@ body.usage-simple .usage-contest-only{display:none}
 
 /* SECTION */
 .section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:16px}
+/* Masquée par défaut tant qu'aucun concours n'est sélectionné (étape 3) —
+   affichée par selectContest()/deselectContest() dans logx_configuration.js.
+   Signalé par F4GLD (14/08/2026) : rien à exporter en EDI sans concours actif. */
+#ediDatesSection{display:none}
 .section-title{font-family:var(--font-display);font-size:17px;color:var(--accent2);letter-spacing:.3px;margin-bottom:20px;display:flex;align-items:center;gap:8px;font-weight:900}
 .section-title::before{content:'';display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--accent2)}
 
@@ -983,7 +987,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="cat-modal-body" id="catbody_filters">
       <div class="filters-cols">
         <div class="filters-col">
-          <div class="section">
+          <!-- Masquée (pas supprimée) tant qu'aucun concours n'est sélectionné
+               à l'étape 3 : rien à exporter en EDI sans concours actif —
+               signalé par F4GLD (14/08/2026). Bascule : _toggleEdiDatesSection()
+               dans logx_configuration.js, appelée par selectContest()/
+               deselectContest() et au chargement initial de la page. -->
+          <div class="section" id="ediDatesSection">
             <h3 class="section-title">DATES DU CONCOURS (EXPORT EDI)</h3>
             <div id="contest_dates_auto" style="font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-bottom:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
               <svg viewBox="0 0 18 18" width="13" height="13" style="vertical-align:-2px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> Choisis un concours ci-dessus : ses dates se calculent automatiquement.
