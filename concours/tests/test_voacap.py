@@ -158,6 +158,20 @@ def test_parse_out_valeurs_rel_snr_correctes():
     assert bands[28.0]['snr_db'] == -55.0
 
 
+def test_parse_out_extrait_mufday_et_sdbw():
+    # MUFday et "S DBW" sont deja presentes dans la sortie reelle de
+    # voacapl.exe (voir _REAL_OUT_EXCERPT) mais n'etaient jusqu'ici jamais
+    # recherchees par le parseur -- verifie qu'elles le sont desormais, et
+    # que "S DBW" (signal) n'est pas confondue avec "N DBW" (bruit), qui
+    # partage le meme suffixe "DBW".
+    hours = v._parse_out(_REAL_OUT_EXCERPT, _FREQS)
+    bands = {b['freq_mhz']: b for b in hours[0]['bands']}
+    assert bands[3.5]['muf_day'] == 0.50
+    assert bands[28.0]['muf_day'] == 0.03
+    assert bands[3.5]['sdbw'] == -156.0
+    assert bands[28.0]['sdbw'] == -230.0
+
+
 def test_parse_out_mode_avec_espace_interne_pas_decale():
     # Piege reel : "4 E" (4 sauts, couche E) contient un espace interne.
     # Un split() naif le casse en 2 tokens et decale TOUTES les colonnes
