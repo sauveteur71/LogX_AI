@@ -1454,9 +1454,20 @@ function updateKeyerPanels(){
   const macro=document.getElementById('macroPanel');
   const voice=document.getElementById('voicePanel');
   if(macro) macro.style.display = cw ? '' : 'none';
+  // DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « j'ai désactivé tout le
+  // keyer vocal mais il apparaît tout de même dans logbook ») : cette
+  // condition ne regardait QUE le mode courant, jamais le réglage CONFIG
+  // « KEYER VOCAL » (#voicekeyer_enabled) — le panneau réapparaissait donc
+  // en SSB/FM même désactivé. Même patron de lecture que cat2_enabled
+  // juste plus bas (localStorage.logx_config).
+  let voicekeyerEnabled = true;
+  try{
+    const stored = JSON.parse(localStorage.getItem('logx_config')||'{}');
+    voicekeyerEnabled = !!stored.voicekeyer_enabled;
+  }catch(e){}
   // En RTTY comme en SSTV, ni les macros CW ni le keyer vocal n'ont de sens :
   // c'est le décodeur qui prend la place.
-  if(voice) voice.style.display = (cw || rtty || sstv) ? 'none' : '';
+  if(voice) voice.style.display = (voicekeyerEnabled && !cw && !rtty && !sstv) ? '' : 'none';
   // Décodeur RTTY : extrait vers logx_rtty.html (fenêtre détachée, EV-7
   // phase 2 incrément B) -- plus de panneau à afficher/masquer ici, `rtty`
   // ne sert plus qu'à masquer voicePanel ci-dessus.
@@ -1897,11 +1908,32 @@ function hideModePicker(){
   if(popup) popup.style.display = 'none';
 }
 
+// RST vs RS : en CW/RTTY/numérique le rapport officiel est à 3 chiffres
+// (R + S + TONALITÉ, ex. « 599 ») ; en phonie (SSB/FM/AM) il n'a que 2
+// chiffres (R + S, ex. « 59 ») — la tonalité n'a pas de sens sur une voix.
+// Signalé par F4GLD (14/08/2026) : le champ restait figé sur « 59 » quel
+// que soit le mode choisi.
+const RST_MODES_3_CHIFFRES = ['CW', 'RTTY', 'FSK', 'FT8', 'FT4', 'PSK', 'PSK31',
+  'JS8', 'MSK144', 'Q65', 'JT65', 'DIGITAL', 'DATA'];
+function _rstParDefaut(mode){
+  return RST_MODES_3_CHIFFRES.includes((mode || '').toUpperCase()) ? '599' : '59';
+}
+// N'écrase QUE si le champ contient encore une valeur par défaut non
+// modifiée (« 59 » ou « 599 ») — jamais un rapport déjà saisi par l'opérateur.
+function _adapterRSTAuMode(mode){
+  const defaut = _rstParDefaut(mode);
+  ['inputRSTsent', 'inputRSTrcvd'].forEach(function(id){
+    const el = document.getElementById(id);
+    if(el && (el.value === '59' || el.value === '599')) el.value = defaut;
+  });
+}
+
 function pickMode(mode, opts){
   opts = opts || {};
   currentMode = mode;
   _setCurrentModeLabel(mode);
   hideModePicker();
+  _adapterRSTAuMode(mode);
   if(!opts.fromRig){
     _qsyVersRadio();   // choix manuel -> pilote la radio (voir commentaire au-dessus de pickBand)
     // Mise à jour OPTIMISTE de rigState.mode, ICI et pas dans _qsyVersRadio()
@@ -2173,6 +2205,7 @@ function renderModeButtons(contest){
   }
   currentMode = finalModes[0];
   _setCurrentModeLabel(currentMode);
+  _adapterRSTAuMode(currentMode);
   // Le mode initial vient d'être choisi : ajuster tout de suite les panneaux
   // (décodeurs CW/SSTV, keyer). Sans cet appel, l'état par défaut du HTML
   // resterait affiché jusqu'au premier changement de mode ou retour CAT.
@@ -2374,8 +2407,8 @@ function contestRequiresLocator(){
 
 async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
-  const rstSent = document.getElementById('inputRSTsent').value.trim() || '59';
-  const rstRcvd = document.getElementById('inputRSTrcvd').value.trim() || '59';
+  const rstSent = document.getElementById('inputRSTsent').value.trim() || _rstParDefaut(currentMode);
+  const rstRcvd = document.getElementById('inputRSTrcvd').value.trim() || _rstParDefaut(currentMode);
   const numRcvdRaw = document.getElementById('inputNumRcvd').value.trim();
   const numRcvd = (currentExchange.pad_r === true && numRcvdRaw)
     ? String(parseInt(numRcvdRaw, 10) || 0).padStart(3, '0')
@@ -2556,8 +2589,8 @@ function clearForm(){
   document.getElementById('inputCall').classList.remove('ok','error');
   if(typeof clearExchWarn === 'function') clearExchWarn();   // nouveau QSO : avertissement zone effacé
   broadcastTyping('');   // vue PARTNER : champ vidé → l'affichage distant se vide aussitôt
-  document.getElementById('inputRSTsent').value = '59';
-  document.getElementById('inputRSTrcvd').value = '59';
+  document.getElementById('inputRSTsent').value = _rstParDefaut(currentMode);
+  document.getElementById('inputRSTrcvd').value = _rstParDefaut(currentMode);
   document.getElementById('inputNumRcvd').value = '';
   document.getElementById('inputLocator').value = '';
   const _tr = document.getElementById('inputTheirRef'); if(_tr) _tr.value = '';

@@ -111,7 +111,7 @@ const CONFIG_HELP = {
   voicekeyer_enabled: "Active le keyer vocal : le logiciel peut synthétiser et émettre un message phonie (CQ, échange...) automatiquement, sans micro.",
   voicekeyer_voice_id: "La voix de synthèse à utiliser (dépend des voix installées sur ton système Windows).",
   voicekeyer_rate: "La vitesse de la voix de synthèse (débit de parole).",
-  voicekeyer_device: "Le périphérique audio de sortie à utiliser pour le keyer vocal — choisis une interface dédiée vers l'entrée micro de ta radio, JAMAIS tes haut-parleurs.",
+  voicekeyer_device: "Le périphérique audio de sortie à utiliser pour le keyer vocal — choisis une interface dédiée vers l'entrée micro de ta radio, JAMAIS tes haut-parleurs. Beaucoup de postes récents (IC-7300 et bien d'autres) ont une carte son USB intégrée : elle apparaît dans la liste sous le nom donné par Windows, souvent « USB Audio CODEC » ou « USB Audio Device » — c'est ce périphérique-là qu'il faut choisir, regroupé ici avec les interfaces recommandées.",
   voicekeyer_ai_enabled: "Essaie une voix IA cloud (plus naturelle qu'une voix Windows) AVANT la voix locale — nécessite internet et une clé API. Si le fournisseur est injoignable ou mal configuré, LogX AI retombe automatiquement et silencieusement sur la voix locale hors-ligne : le keyer vocal continue de fonctionner sans réseau.",
   voicekeyer_ai_api_key: "Clé API de ton compte chez le fournisseur choisi (ex. ElevenLabs). Stockée uniquement côté serveur, jamais dans le navigateur.",
   voicekeyer_ai_voice_id: "Identifiant de la voix chez le fournisseur (visible sur ton tableau de bord ElevenLabs — Voice ID).",
@@ -907,9 +907,19 @@ async function loadSecretsFromServer(){
 // tenue à jour par ResizeObserver — pas seulement au chargement — puisque
 // le contenu de la statusbar peut changer de hauteur après coup.
 function _updateConfigPanelTop(){
-  const ref = document.getElementById('rcStatusBar') || document.querySelector('.app-nav');
-  if(!ref) return;
-  const bottom = ref.getBoundingClientRect().bottom;
+  // DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « le menu configuration
+  // cache le mode d'utilisateur ») : .usage-mode-bar (le sélecteur MODE
+  // D'UTILISATION) est en flux normal juste SOUS header+nav+statusbar, mais
+  // n'était PAS pris en compte ici — le panneau/l'arborescence (position:
+  // fixed, z-index 9000/9500) démarrait donc juste après la statusbar et
+  // RECOUVRAIT visuellement la barre MODE D'UTILISATION, exactement le même
+  // symptôme que le bug nav/statusbar déjà corrigé le 08/08/2026 (voir
+  // commentaire au-dessus), mais pour un élément ajouté après coup et jamais
+  // intégré à ce calcul.
+  const refs = [document.getElementById('rcStatusBar'), document.querySelector('.app-nav'),
+                document.querySelector('.usage-mode-bar')].filter(Boolean);
+  if(!refs.length) return;
+  const bottom = Math.max(...refs.map(function(el){ return el.getBoundingClientRect().bottom; }));
   document.documentElement.style.setProperty('--config-panel-top', Math.max(bottom, 0) + 12 + 'px');
 }
 _updateConfigPanelTop();
@@ -918,7 +928,9 @@ if(typeof ResizeObserver !== 'undefined'){
   const _configPanelTopObserver = new ResizeObserver(_updateConfigPanelTop);
   const _navEl = document.querySelector('.app-nav');
   const _statusBarEl = document.getElementById('rcStatusBar');
+  const _usageModeBarEl = document.querySelector('.usage-mode-bar');
   if(_navEl) _configPanelTopObserver.observe(_navEl);
+  if(_usageModeBarEl) _configPanelTopObserver.observe(_usageModeBarEl);
   if(_statusBarEl) _configPanelTopObserver.observe(_statusBarEl);
   // La statusbar est injectée APRÈS le chargement de logx_statusbar.js, en
   // principe déjà présente ici (script bloquant chargé avant ce bloc) —
@@ -1275,9 +1287,17 @@ async function loadDxRecord(){
 // casque, à éviter). Heuristique sur le NOM SEUL : PortAudio/sounddevice ne
 // distingue pas "virtuel" de "physique" autrement — jamais fiable à 100%,
 // donc on GROUPE plutôt qu'on ne masque (un setup atypique reste choisissable).
+// DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « je n'ai pas trouvé usb audio
+// codec pour le keyer vocal ») : beaucoup de postes récents (IC-7300 et bien
+// d'autres) embarquent une carte son USB reconnue par Windows sous le nom
+// générique du pilote standard USB Audio Class ("USB Audio CODEC"/"USB Audio
+// Device"), pas sous le nom du poste — ce nom ne correspondait à AUCUN motif
+// reconnu ici, donc retombait dans "Autres sorties (haut-parleurs, casque…)"
+// au lieu d'être groupé avec les interfaces recommandées, alors que c'est
+// exactement l'usage prévu (audio USB du poste = interface dédiée).
 function _vkIsLikelyVirtual(name){
   const n = (name || '').toLowerCase();
-  return /vb-?audio|vb-?cable|\bcable\b|\bvac\b|virtual|voicemeeter|microham|signalink|rigblaster|digirig|\bvoicetronic\b/.test(n);
+  return /vb-?audio|vb-?cable|\bcable\b|\bvac\b|virtual|voicemeeter|microham|signalink|rigblaster|digirig|\bvoicetronic\b|usb audio/.test(n);
 }
 
 async function loadVoiceKeyerDevices(){
@@ -2047,6 +2067,27 @@ function buildContestGrid(filter = '') {
     'Autre': '#8E8E93',
   };
 
+  // Badge TYPE DE CONCOURS (courte durée / cumulatif) : retour F4GLD
+  // (14/08/2026), « lorsque je sélectionne un concours il serait cool que ça
+  // apparaisse directement à côté ». Dérivé du texte déjà écrit à la main par
+  // les mainteneurs (nom + description de barème), qui utilise déjà ce
+  // vocabulaire de façon cohérente pour les entrées REF concernées (ex.
+  // "Concours de Courte Durée (Mars)", "Cumulatif annuel — pts/km...") —
+  // pas de seuil de durée recalculé nous-mêmes, qui serait faux pour les
+  // entrées sans _duration_h fiable au premier rendu (avant fusion serveur).
+  // Silencieux (aucun badge) si le texte ne mentionne ni l'un ni l'autre —
+  // mieux vaut se taire qu'afficher un type deviné et potentiellement faux.
+  const typeBadge = c => {
+    const texte = ((c.name || '') + ' ' + (c.score || '')).toLowerCase();
+    if (texte.includes('cumulatif')) {
+      return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours cumulatif : les QSO se comptent sur plusieurs sessions/toute l'année, pas une seule manche">CUMULATIF</span>`;
+    }
+    if (texte.includes('courte durée') || texte.includes('courte duree')) {
+      return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours de courte durée : une seule manche de quelques heures">COURTE DURÉE</span>`;
+    }
+    return '';
+  };
+
   // Badge de confiance : base serveur = dates/règlement re-vérifiés chaque année ;
   // custom = extrait du règlement par l'IA puis validé par relecture humaine
   const badge = c => c.external
@@ -2068,7 +2109,7 @@ function buildContestGrid(filter = '') {
       </div>
       ${cs.map(c => `
         <div class="contest-card" id="card_${escC(c.id)}" data-id="${escC(c.id)}" onclick="selectContest('${jsId(c.id)}')" style="border-left:3px solid ${escC(c.color)}44">
-          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} ${badge(c)}</div>
+          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} <span style="display:flex;gap:5px;flex-shrink:0">${typeBadge(c)}${badge(c)}</span></div>
           <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
             <span>${escC(c.org)}</span>
             ${safeUrl(c.rules) ? `<a href="${escC(safeUrl(c.rules))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h5.5L13.5 5.5V15.5H5z"/><path d="M10.5 2.5V5.5H13.5"/><line x1="7" y1="9" x2="11.5" y2="9"/><line x1="7" y1="12" x2="11.5" y2="12"/></svg> RÈGLEMENT</a>` : ''}
@@ -2363,6 +2404,8 @@ async function selectContest(id, _skipConfirm) {
   document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
   const card = document.getElementById('card_'+id);
   if(card) card.classList.add('selected');
+  const ediSection = document.getElementById('ediDatesSection');
+  if(ediSection) ediSection.style.display = 'block';
   // Auto-appliquer les bandes/modes du concours dès la sélection
   applyContestFilters(id);
   _filtersAppliedFor = id;
@@ -2493,6 +2536,8 @@ function deselectContest(){
   if(!state.contest) return;
   state.contest = null;
   document.querySelectorAll('.contest-card').forEach(c => c.classList.remove('selected'));
+  const ediSection = document.getElementById('ediDatesSection');
+  if(ediSection) ediSection.style.display = 'none';
   // Ne PAS réinitialiser les bandes/modes déjà cochés (contrairement au
   // passage en LOGBOOK SIMPLE) : l'utilisateur reprend juste la main
   // librement à l'étape FILTRES, sans perdre sa sélection en cours.
@@ -2573,17 +2618,26 @@ const _ICO_IMPORT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vert
 // avait déjà causé un vrai bug (badge 'relay' jamais mis à jour, voir
 // test_config_sections_et_render_hub_listent_les_memes_categories) —
 // renderConfigTree() itère CE tableau directement, plus de 2e source.
+// Retour F4GLD (14/08/2026) : PowerGenius XL (4O3A) et ACOM sont des
+// amplificateurs comme ceux de la section 6 (Elecraft/Icom/SPE) mais
+// vivaient isolés en positions 18/20, loin de "6. Amplificateur" et sans
+// rien à l'écran pour signaler le lien. Déplacés juste après 'amp' et
+// numérotés 6b/6c (plutôt que renumérotés 7/8, ce qui aurait décalé TOUTES
+// les catégories suivantes) — la parenté avec la section 6 est immédiate,
+// aucune autre entrée ne change de numéro.
 const CONFIG_SECTIONS = [
   ['identity',_ICO_IDENTITY+' 1. Identité'], ['operators',_ICO_OPERATORS+' 2. Opérateurs'],
   ['contest',_ICO_TROPHY+' 3. Sélection du concours'], ['filters',_ICO_CALENDAR+' 4. Dates, bandes &amp; modes'],
   ['radio',_ICO_RADIO+' 5. Radio (CAT)'], ['amp',_ICO_BATTERY+' 6. Amplificateur'],
+  ['pgxl',_ICO_BATTERY+' 6b. Amplificateur — PowerGenius XL'],
+  ['acom',_ICO_BATTERY+' 6c. Amplificateur — ACOM'],
   ['rotor',_ICO_COMPASS+' 7. Rotor'], ['network',_ICO_CLOUD+' 8. Multi-poste &amp; Cloud'],
   ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Sources de spots &amp; propagation'],
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
   ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control (relais)'],
-  ['autostart',_ICO_PLAY+' 17. Auto-lancement'], ['pgxl',_ICO_BATTERY+' 18. PowerGenius XL'],
-  ['telemetry',_ICO_SIGNAL+' 19. Télémétrie'], ['acom',_ICO_BATTERY+' 20. ACOM'],
+  ['autostart',_ICO_PLAY+' 17. Auto-lancement'],
+  ['telemetry',_ICO_SIGNAL+' 18. Télémétrie'],
   ['summary',_ICO_SUMMARY+' Résumé']
 ];
 // 5 catégories réservées au mode expert (CLAUDE.md « Intuitivité ») — même
@@ -4210,6 +4264,11 @@ const PARC_BANDES = ['1.8','3.5','7','10.1','14','18','21','24','28','50','70',
                      '144','432','1296','2320','3400','5760','10368','24048','47088'];
 const PARC_TYPES = ['', 'directive', 'omni', 'filaire', 'verticale', 'parabole'];
 const PARC_MARQUES_AMPLI = ['', 'elecraft', 'icom', 'spe'];
+// Parc RADIOS : un INVENTAIRE (marque/modèle + association aux antennes), pas
+// un pilotage CAT actif — celui-ci reste porté par les blocs RADIO 1 (cat_*)
+// et RADIO 2/SO2R (cat2_*) plus haut dans cette même page. Voir la note
+// d'en-tête de logx_station.py (14/08/2026) pour le raisonnement complet.
+const PARC_MARQUES_RADIO = ['', 'icom', 'yaesu', 'kenwood', 'elecraft', 'xiegu', 'flex', 'autre'];
 
 // ── CATALOGUE ROTORS (miroir de logx_rotor.ROTOR_BRANDS) ─────────────────────
 // Marque -> protocole conseillé + modèles (el = azimut/élévation, satellite).
@@ -4566,7 +4625,7 @@ function testAlertType(id){
   }
 }
 
-let antennesRows = [], rotorsRows = [], amplisRows = [];
+let antennesRows = [], rotorsRows = [], amplisRows = [], radiosRows = [];
 
 function _pOpt(v, sel, lbl){
   return `<option value="${v}"${String(sel) === String(v) ? ' selected' : ''}>${lbl || v || '—'}</option>`;
@@ -4581,9 +4640,13 @@ function renderParcStation(){
   const ampOpts = ['<option value="">— aucun —</option>'].concat(
     amplisRows.map((m, i) => `<option value="${escAttrParc(m.id || ('ampli' + (i+1)))}">`
       + `${escAttrParc(m.nom || ('Ampli ' + (i+1)))}</option>`)).join('');
+  const radOpts = ['<option value="">— aucune —</option>'].concat(
+    radiosRows.map((d, i) => `<option value="${escAttrParc(d.id || ('radio' + (i+1)))}">`
+      + `${escAttrParc(d.nom || ('Radio ' + (i+1)))}</option>`)).join('');
 
   let h = '<div style="font-family:var(--font-mono);font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:12px">'
-        + "Une ligne par antenne. Coche ses bandes, et dis-lui quel rotor la tourne et quel ampli la précède. "
+        + "Une ligne par antenne. Coche ses bandes, et dis-lui quel rotor la tourne, quel ampli la précède "
+        + "et quelle radio du parc y est reliée (plusieurs antennes peuvent partager la même radio). "
         + "Une antenne fixe se déclare sans rotor : rien ne tournera pour elle."
         + '</div>';
 
@@ -4609,6 +4672,10 @@ function renderParcStation(){
         <div class="form-group" style="max-width:150px">
           <label>AMPLI</label>
           <select data-parc="ant.ampli_id" data-i="${i}">${ampOpts}</select>
+        </div>
+        <div class="form-group" style="max-width:150px">
+          <label>RADIO</label>
+          <select data-parc="ant.radio_id" data-i="${i}">${radOpts}</select>
         </div>
         <div class="form-group" style="max-width:60px">
           <label>&nbsp;</label>
@@ -4719,15 +4786,53 @@ function renderParcStation(){
     </div>`).join('');
   h += `<button type="button" class="btn btn-secondary" onclick="addAmpli()">+ AMPLI</button>`;
 
+  // ── Radios (inventaire) ──
+  h += '<div style="font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);margin:18px 0 8px;border-top:1px solid var(--border);padding-top:12px">RADIOS (PARC)</div>';
+  h += '<div style="font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.6">'
+     + 'Inventaire des postes de la station, à associer aux antennes ci-dessus. '
+     + 'Le pilotage CAT actif (QSY, macros CW) reste réglé plus haut dans RADIO (CAT) et SO2R — '
+     + 'une entrée ici n\'est reliée à rien tant que tu ne l\'as pas choisie sur une antenne.</div>';
+  h += radiosRows.map((d, i) => `
+    <div class="form-row" style="align-items:flex-end;gap:10px;margin-bottom:8px">
+      <div class="form-group" style="max-width:80px">
+        <label>ACTIF</label>
+        <select data-parc="rad.enabled" data-i="${i}">
+          ${_pOpt('1', d.enabled ? '1' : '0', 'Oui')}${_pOpt('0', d.enabled ? '1' : '0', 'Non')}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:140px">
+        <label>NOM</label>
+        <input type="text" data-parc="rad.nom" data-i="${i}" value="${escAttrParc(d.nom)}" placeholder="IC-7300 shack">
+      </div>
+      <div class="form-group" style="max-width:130px">
+        <label>MARQUE</label>
+        <select data-parc="rad.brand" data-i="${i}">
+          ${PARC_MARQUES_RADIO.map(b => _pOpt(b, d.brand, b || '—')).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:120px">
+        <label>MODÈLE</label>
+        <input type="text" data-parc="rad.model" data-i="${i}" value="${escAttrParc(d.model)}" placeholder="IC-7300">
+      </div>
+      <div class="form-group" style="max-width:60px">
+        <label>&nbsp;</label>
+        <button type="button" class="btn btn-secondary" onclick="removeRadio(${i})" title="Supprimer cette radio"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></button>
+      </div>
+    </div>`).join('');
+  h += `<button type="button" class="btn btn-secondary" onclick="addRadio()">+ RADIO</button>`;
+
   box.innerHTML = h;
-  // Les <select> de rotor/ampli sont posés APRÈS coup : leur valeur ne peut pas
-  // l'être dans le HTML tant que les options n'existent pas — c'est exactement
-  // le défaut qui faisait perdre la radio choisie dans la carte CAT.
+  // Les <select> de rotor/ampli/radio sont posés APRÈS coup : leur valeur ne
+  // peut pas l'être dans le HTML tant que les options n'existent pas — c'est
+  // exactement le défaut qui faisait perdre la radio choisie dans la carte CAT.
   box.querySelectorAll('[data-parc="ant.rotor_id"]').forEach(el => {
     el.value = antennesRows[+el.dataset.i].rotor_id || '';
   });
   box.querySelectorAll('[data-parc="ant.ampli_id"]').forEach(el => {
     el.value = antennesRows[+el.dataset.i].ampli_id || '';
+  });
+  box.querySelectorAll('[data-parc="ant.radio_id"]').forEach(el => {
+    el.value = antennesRows[+el.dataset.i].radio_id || '';
   });
   box.querySelectorAll('[data-parc]').forEach(el => {
     el.addEventListener('change', onParcChange);
@@ -4751,8 +4856,8 @@ function onParcChange(e){
     renderParcStation();
     return;
   }
-  // Renommer un rotor doit rafraîchir les listes déroulantes des antennes.
-  if(/^(rot|amp)\.(nom)$/.test(dp)) renderParcStation();
+  // Renommer un rotor/ampli/radio doit rafraîchir les listes déroulantes des antennes.
+  if(/^(rot|amp|rad)\.(nom)$/.test(dp)) renderParcStation();
 }
 
 function readParcStation(){
@@ -4761,7 +4866,8 @@ function readParcStation(){
   box.querySelectorAll('[data-parc]').forEach(el => {
     const [quoi, champ] = el.dataset.parc.split('.');
     const i = +el.dataset.i;
-    const cible = quoi === 'ant' ? antennesRows[i] : quoi === 'rot' ? rotorsRows[i] : amplisRows[i];
+    const cible = quoi === 'ant' ? antennesRows[i] : quoi === 'rot' ? rotorsRows[i]
+                : quoi === 'rad' ? radiosRows[i] : amplisRows[i];
     if(!cible) return;
     if(champ === 'bande'){
       const b = el.dataset.b;
@@ -4795,12 +4901,17 @@ function _idLibre(prefixe, rows){
   while(pris.has(prefixe + n)) n++;
   return prefixe + n;
 }
-function addAntenne(){ readParcStation(); antennesRows.push({nom:'', bandes:[], type:'', rotor_id:'', ampli_id:''}); renderParcStation(); }
+function addAntenne(){ readParcStation(); antennesRows.push({nom:'', bandes:[], type:'', rotor_id:'', ampli_id:'', radio_id:''}); renderParcStation(); }
 function removeAntenne(i){ readParcStation(); antennesRows.splice(i,1); renderParcStation(); }
 function addRotor(){ readParcStation(); rotorsRows.push({id:_idLibre('rotor', rotorsRows), nom:'', enabled:true, host:'', port:4533, proto:'rotctld', brand:'', model:'', offset_deg:0}); renderParcStation(); }
 function removeRotor(i){ readParcStation(); rotorsRows.splice(i,1); renderParcStation(); }
 function addAmpli(){ readParcStation(); amplisRows.push({id:_idLibre('ampli', amplisRows), nom:'', enabled:true, brand:'', port:''}); renderParcStation(); }
 function removeAmpli(i){ readParcStation(); amplisRows.splice(i,1); renderParcStation(); }
+// Parc RADIOS : inventaire seulement (voir commentaire au-dessus de
+// PARC_MARQUES_RADIO) — aucun champ port/baudrate, pour ne jamais laisser
+// croire qu'ajouter une entrée ici pilote une connexion CAT.
+function addRadio(){ readParcStation(); radiosRows.push({id:_idLibre('radio', radiosRows), nom:'', enabled:true, brand:'', model:''}); renderParcStation(); }
+function removeRadio(i){ readParcStation(); radiosRows.splice(i,1); renderParcStation(); }
 
 function quickSave() {
   // Sauvegarde silencieuse + feedback visuel sur le bouton
@@ -5039,7 +5150,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     // sauvegarde — ne jamais sérialiser l'état mémoire sans cette relecture,
     // sinon une modification non encore validée par un « change » serait perdue.
     ...(function(){ readParcStation(); return {
-      antennes: antennesRows, rotors: rotorsRows, amplis: amplisRows}; })(),
+      antennes: antennesRows, rotors: rotorsRows, amplis: amplisRows, radios: radiosRows}; })(),
     amp_enabled: !!document.getElementById('amp_enabled').value,
     amp_brand: document.getElementById('amp_brand').value,
     amp_conn_mode: document.getElementById('amp_conn_mode').value,
@@ -5798,13 +5909,19 @@ function applyFullConfigToForm(c) {
     // revenir en arrière.
     antennesRows = Array.isArray(c.antennes) ? c.antennes.map(a => ({
       id: a.id || '', nom: a.nom || '', bandes: Array.isArray(a.bandes) ? a.bandes.slice() : [],
-      type: a.type || '', rotor_id: a.rotor_id || '', ampli_id: a.ampli_id || ''})) : [];
+      type: a.type || '', rotor_id: a.rotor_id || '', ampli_id: a.ampli_id || '',
+      radio_id: a.radio_id || ''})) : [];
     rotorsRows = Array.isArray(c.rotors) ? c.rotors.map(r => ({
       id: r.id || '', nom: r.nom || '', enabled: r.enabled !== false,
       host: r.host || '', port: r.port || 4533, offset_deg: r.offset_deg || 0})) : [];
     amplisRows = Array.isArray(c.amplis) ? c.amplis.map(m => ({
       id: m.id || '', nom: m.nom || '', enabled: m.enabled !== false,
       brand: m.brand || '', port: m.port || ''})) : [];
+    // Parc RADIOS (inventaire, 14/08/2026) : pas de reprise legacy comme les
+    // antennes/rotors/amplis — aucune ancienne config n'en avait plusieurs.
+    radiosRows = Array.isArray(c.radios) ? c.radios.map(d => ({
+      id: d.id || '', nom: d.nom || '', enabled: d.enabled !== false,
+      brand: d.brand || '', model: d.model || ''})) : [];
     renderParcStation();
     if(document.getElementById('sota_ai_approval_ack'))
       document.getElementById('sota_ai_approval_ack').checked = c.sota_ai_approval_ack === '1';
