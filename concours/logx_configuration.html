@@ -1229,6 +1229,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 
         <!-- Mode natif : Icom CI-V / Yaesu / Kenwood / Elecraft directement en pyserial -->
         <div id="catNativeFields" class="form-grid">
+          <!-- Suggestions depuis le parc RADIOS de 1. IDENTITÉ (PR #86) : évite
+               de ressaisir marque/modèle si le poste y est déjà déclaré.
+               Rempli par renderCatRadioSuggestions(), rafraîchi à chaque
+               ouverture de cette section (openCategoryPopup(cat==='radio')). -->
+          <div class="form-group" style="grid-column:1/-1" id="catRadioSuggestions"></div>
           <div class="form-group">
             <label>MARQUE</label>
             <select id="cat_brand" onchange="updateCatModelOptions()">
@@ -1602,6 +1607,9 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           </div>
         </div>
         <div class="form-row" id="cat2NativeFields">
+          <!-- Mêmes suggestions "parc RADIOS" que la radio 1 ci-dessus, ciblant
+               cat2_brand/cat2_baudrate (pas de champ modèle pour la radio 2). -->
+          <div class="form-group" style="flex-basis:100%" id="cat2RadioSuggestions"></div>
           <div class="form-group">
             <label>MARQUE</label>
             <select id="cat2_brand">
