@@ -287,23 +287,28 @@ def test_i18n_message_file_de_chasse_est_bien_la_cle_du_dictionnaire():
             'dictionnaire %s : %r' % (lang, message))
 
 
-def test_i18n_langue_retombe_sur_le_navigateur_en_file():
-    """Les 7 traductions ci-dessus sont INATTEIGNABLES sans ce repli.
+def test_i18n_langue_anticipe_le_navigateur_partout():
+    """Les 7 traductions ci-dessus sont INATTEIGNABLES sans ce repli — et
+    jusqu'au 15/08/2026, il etait CONFINE a l'origine file://.
 
     La langue choisie par l'operateur est rangee dans localStorage sous
     `rc_lang`, et localStorage est CLOISONNE PAR ORIGINE : `file://` est une
     origine distincte de `http://127.0.0.1:8080`. Une page ouverte par
     double-clic ne peut donc PAS lire ce choix — `rc_lang` y vaut toujours
-    null, et un getLang() ecrit `localStorage.getItem('rc_lang') || 'fr'`
-    renvoie 'fr' quoi qu'il arrive : l'ecran « ouvre cette page via le
-    serveur » reste en francais meme avec l'application reglee en allemand,
-    et les 7 traductions ne servent jamais. Le seul signal disponible dans
-    cette origine est la langue du navigateur.
+    null. Mais meme en http:// (le cas NORMAL, CONFIG au tout premier
+    lancement), l'ancien code retombait TOUJOURS sur 'fr' en l'absence de
+    choix explicite, quelle que soit la langue de l'OS/navigateur — genant
+    pour un poste installe hors de France (demande explicite F4GLD,
+    15/08/2026 : « le programme peut etre installe sur un pc en angleterre
+    ou ailleurs »). getLang() anticipe desormais la langue du navigateur
+    PARTOUT (file:// et http://) tant qu'aucun choix explicite n'a ete fait
+    — le selecteur de langue (injectSelector()) reste disponible pour
+    corriger ce choix a tout moment, ce repli n'est jamais bloquant.
 
     Verifie en navigateur reel (Chrome, file:///…/logx_chasse.html, rc_lang
     absent) : navigateur allemand -> « Öffne diese Seite über den Server: … »,
-    navigateur russe -> francais, et en http:// avec navigateur allemand ->
-    francais (le repli reste bien confine a file://)."""
+    navigateur russe -> francais, ET desormais en http:// avec navigateur
+    allemand -> allemand aussi (plus de repli force sur le francais)."""
     src = _lire(I18N)
     # Corps de getLang() SEUL : le negatif (?!\n  function ) empeche la capture
     # de deborder sur les fonctions suivantes — sans lui, un getLang() ecrit
@@ -313,23 +318,22 @@ def test_i18n_langue_retombe_sur_le_navigateur_en_file():
                       r'((?:(?!\n  function )[\s\S])*?)\n  \}', src)
     assert corps, 'getLang() introuvable (ou reduit a une seule ligne)'
     corps = corps.group(1)
-    assert "location.protocol === 'file:'" in corps and 'typeof location' in corps, (
-        "getLang() ne traite pas le cas file:// : la langue de l'application "
-        "n'y est PAS lisible (autre origine de stockage), l'ecran d'erreur "
-        'restera en francais dans les 7 langues')
+    # Plus de branchement conditionnel sur file:// : browserLang() doit etre
+    # le repli UNIVERSEL des que rc_lang est absent, pas reserve a une origine.
+    assert 'location.protocol' not in corps, (
+        "getLang() ne doit plus reserver le repli navigateur a file:// -- "
+        'il doit s appliquer aussi en http:// (tout premier lancement, sur '
+        'un poste dont l OS/navigateur n est pas en francais)')
+    assert 'if (saved) return saved;' in corps, (
+        'un choix deja fait (rc_lang) doit toujours primer sur la detection')
+    assert corps.strip().endswith('return browserLang();'), (
+        "le repli, une fois rc_lang absent, doit etre INCONDITIONNELLEMENT "
+        "browserLang() -- pas de retour sur 'fr' en dur avant lui")
     # Le repli doit venir de la langue du NAVIGATEUR, pas d'une constante.
     repli = re.search(r'\n  function browserLang\(\)\s*\{(.*?)\n  \}', src, re.S)
     assert repli, 'browserLang() introuvable'
     assert 'navigator' in repli.group(1) and '.languages' in repli.group(1), (
-        'le repli file:// doit lire la langue du navigateur')
-    # …et rester CONFINE a file:// : en http, l'absence de choix veut dire
-    # « pas encore choisi » et doit continuer de donner le francais.
-    assert re.search(r"location\.protocol === 'file:'\)\s*\{\s*\n"
-                     r"\s*return browserLang\(\);\s*\n"
-                     r"\s*\}\s*\n"
-                     r"\s*return 'fr';", corps), (
-        'le repli navigateur doit etre reserve a file:// (sinon il change la '
-        "langue par defaut de toute l'application au premier lancement)")
+        'le repli doit lire la langue du navigateur')
 
 
 # ── Mise en page : aucun defilement vertical possible par construction ─────

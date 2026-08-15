@@ -5591,27 +5591,21 @@
     let saved = null;
     try { saved = localStorage.getItem('rc_lang'); } catch (e) {}
     if (saved) return saved;
-    // Page ouverte par DOUBLE-CLIC (file://) : c'est une ORIGINE DE STOCKAGE
-    // distincte de http://127.0.0.1:8080, donc `rc_lang` y vaut TOUJOURS null
-    // — le choix de langue fait dans l'application n'y est structurellement
-    // pas lisible, et aucune API ne permet de le lire depuis là. Sans ce
-    // repli, l'écran « Ouvre cette page via le serveur : … » (seul contenu
-    // qu'une page file:// affiche encore, cf. logx_chasse.html /
-    // logx_propagation.html) restait TOUJOURS en français et ses traductions
-    // étaient du code mort. Le meilleur signal disponible dans cette origine
-    // est la langue du navigateur.
-    // Volontairement limité à file:// : en http, l'absence de `rc_lang` est un
-    // vrai « pas encore choisi », et basculer l'application entière dans la
-    // langue du navigateur au premier lancement serait un autre changement.
-    // `typeof` et non `location` nu : ce fichier est aussi exécuté HORS
-    // navigateur par la suite de tests (V8 nu via py_mini_racer, cf.
-    // tests/test_i18n_dynamic_retranslation.py), où ni `location` ni
-    // `navigator` n'existent — une référence nue y lèverait une
-    // ReferenceError qui tuerait tout le moteur de traduction.
-    if (typeof location !== 'undefined' && location.protocol === 'file:') {
-      return browserLang();
-    }
-    return 'fr';
+    // Aucun choix explicite encore fait (tout premier lancement, stockage
+    // inaccessible — page file://, ou tests hors navigateur) : on anticipe
+    // avec la langue du NAVIGATEUR/OS plutôt que de figer sur le français —
+    // le logiciel peut être installé sur un poste dont l'OS/navigateur est
+    // en anglais, allemand... (demandé par F4GLD le 15/08/2026, pour que
+    // l'écran de démarrage CONFIG ne s'ouvre pas systématiquement en
+    // français sur un poste étranger). Le sélecteur de langue
+    // (injectSelector()) reste disponible pour corriger ce choix à tout
+    // moment — ce repli automatique n'est jamais bloquant.
+    // browserLang() est elle-même défensive (typeof navigator !== 'undefined'
+    // en interne, retombe sur 'fr' si absent ou non reconnu) : rien à
+    // protéger ici, y compris pour la suite de tests qui exécute ce fichier
+    // en V8 nu (py_mini_racer, cf. tests/test_i18n_dynamic_retranslation.py),
+    // où ni `location` ni `navigator` n'existent.
+    return browserLang();
   }
 
   // Sauvegarde des textes français d'origine pour pouvoir revenir en arrière.
