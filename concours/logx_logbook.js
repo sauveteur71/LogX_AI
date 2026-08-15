@@ -1454,9 +1454,20 @@ function updateKeyerPanels(){
   const macro=document.getElementById('macroPanel');
   const voice=document.getElementById('voicePanel');
   if(macro) macro.style.display = cw ? '' : 'none';
+  // DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « j'ai désactivé tout le
+  // keyer vocal mais il apparaît tout de même dans logbook ») : cette
+  // condition ne regardait QUE le mode courant, jamais le réglage CONFIG
+  // « KEYER VOCAL » (#voicekeyer_enabled) — le panneau réapparaissait donc
+  // en SSB/FM même désactivé. Même patron de lecture que cat2_enabled
+  // juste plus bas (localStorage.logx_config).
+  let voicekeyerEnabled = true;
+  try{
+    const stored = JSON.parse(localStorage.getItem('logx_config')||'{}');
+    voicekeyerEnabled = !!stored.voicekeyer_enabled;
+  }catch(e){}
   // En RTTY comme en SSTV, ni les macros CW ni le keyer vocal n'ont de sens :
   // c'est le décodeur qui prend la place.
-  if(voice) voice.style.display = (cw || rtty || sstv) ? 'none' : '';
+  if(voice) voice.style.display = (voicekeyerEnabled && !cw && !rtty && !sstv) ? '' : 'none';
   // Décodeur RTTY : extrait vers logx_rtty.html (fenêtre détachée, EV-7
   // phase 2 incrément B) -- plus de panneau à afficher/masquer ici, `rtty`
   // ne sert plus qu'à masquer voicePanel ci-dessus.
