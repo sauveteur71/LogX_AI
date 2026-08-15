@@ -111,7 +111,7 @@ const CONFIG_HELP = {
   voicekeyer_enabled: "Active le keyer vocal : le logiciel peut synthétiser et émettre un message phonie (CQ, échange...) automatiquement, sans micro.",
   voicekeyer_voice_id: "La voix de synthèse à utiliser (dépend des voix installées sur ton système Windows).",
   voicekeyer_rate: "La vitesse de la voix de synthèse (débit de parole).",
-  voicekeyer_device: "Le périphérique audio de sortie à utiliser pour le keyer vocal — choisis une interface dédiée vers l'entrée micro de ta radio, JAMAIS tes haut-parleurs.",
+  voicekeyer_device: "Le périphérique audio de sortie à utiliser pour le keyer vocal — choisis une interface dédiée vers l'entrée micro de ta radio, JAMAIS tes haut-parleurs. Beaucoup de postes récents (IC-7300 et bien d'autres) ont une carte son USB intégrée : elle apparaît dans la liste sous le nom donné par Windows, souvent « USB Audio CODEC » ou « USB Audio Device » — c'est ce périphérique-là qu'il faut choisir, regroupé ici avec les interfaces recommandées.",
   voicekeyer_ai_enabled: "Essaie une voix IA cloud (plus naturelle qu'une voix Windows) AVANT la voix locale — nécessite internet et une clé API. Si le fournisseur est injoignable ou mal configuré, LogX AI retombe automatiquement et silencieusement sur la voix locale hors-ligne : le keyer vocal continue de fonctionner sans réseau.",
   voicekeyer_ai_api_key: "Clé API de ton compte chez le fournisseur choisi (ex. ElevenLabs). Stockée uniquement côté serveur, jamais dans le navigateur.",
   voicekeyer_ai_voice_id: "Identifiant de la voix chez le fournisseur (visible sur ton tableau de bord ElevenLabs — Voice ID).",
@@ -1287,9 +1287,17 @@ async function loadDxRecord(){
 // casque, à éviter). Heuristique sur le NOM SEUL : PortAudio/sounddevice ne
 // distingue pas "virtuel" de "physique" autrement — jamais fiable à 100%,
 // donc on GROUPE plutôt qu'on ne masque (un setup atypique reste choisissable).
+// DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « je n'ai pas trouvé usb audio
+// codec pour le keyer vocal ») : beaucoup de postes récents (IC-7300 et bien
+// d'autres) embarquent une carte son USB reconnue par Windows sous le nom
+// générique du pilote standard USB Audio Class ("USB Audio CODEC"/"USB Audio
+// Device"), pas sous le nom du poste — ce nom ne correspondait à AUCUN motif
+// reconnu ici, donc retombait dans "Autres sorties (haut-parleurs, casque…)"
+// au lieu d'être groupé avec les interfaces recommandées, alors que c'est
+// exactement l'usage prévu (audio USB du poste = interface dédiée).
 function _vkIsLikelyVirtual(name){
   const n = (name || '').toLowerCase();
-  return /vb-?audio|vb-?cable|\bcable\b|\bvac\b|virtual|voicemeeter|microham|signalink|rigblaster|digirig|\bvoicetronic\b/.test(n);
+  return /vb-?audio|vb-?cable|\bcable\b|\bvac\b|virtual|voicemeeter|microham|signalink|rigblaster|digirig|\bvoicetronic\b|usb audio/.test(n);
 }
 
 async function loadVoiceKeyerDevices(){
