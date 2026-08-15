@@ -124,6 +124,28 @@ def test_vis_et_timing_de_chaque_mode(moteur, mode):
     assert r['mae'] is not None and r['mae'] < 15, 'MAE %s : %s' % (mode, r['mae'])
 
 
+def test_le_timing_pd160_est_conforme_a_la_spec_n7cxi(moteur):
+    """Audit de conformité (14/08/2026) : signalait la constante de balayage
+    PD160 comme transposée (0.195584 -> 0.195854 attendu). Vérification faite
+    contre 3 recoupements indépendants -- la table N7CXI/liste des modes SSTV
+    (sstv-handbook.com), la constante PIXEL de pySSTV multipliée par la
+    largeur de l'image (0.382 ms/px * 512 px = 195.584 ms), et la cohérence
+    avec la durée totale de transmission publiée (~161 s) -- 0.195584 EST la
+    valeur correcte, pas 0.195854. Rien n'a donc été changé dans le fichier ;
+    ce test verrouille la valeur vérifiée contre une future régression dans
+    un sens comme dans l'autre."""
+    assert moteur.eval("SSTV_MODES_PAR_NOM['PD160'].scan") == pytest.approx(0.195584)
+    # Les autres constantes de balayage PD, vérifiées au passage (même
+    # formule PIXEL * largeur), pour s'assurer qu'aucune autre n'est
+    # transposée dans le même bloc.
+    attendu = {
+        'PD50': 0.09152, 'PD90': 0.17024, 'PD120': 0.1216,
+        'PD180': 0.18304, 'PD240': 0.24448, 'PD290': 0.2288,
+    }
+    for mode, scan in attendu.items():
+        assert moteur.eval("SSTV_MODES_PAR_NOM['%s'].scan" % mode) == pytest.approx(scan)
+
+
 # ─── Aller-retour complet ────────────────────────────────────────────────────
 
 @pytest.mark.parametrize('mode', ['M1', 'S1', 'R36', 'PD90'])
