@@ -885,12 +885,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <div style="flex:1;position:relative">
             <input type="text" id="contestSearch"
               placeholder="🔍  Rechercher : Field Day, VHF, RPH, CQ WW…"
-              oninput="buildContestGrid(this.value)"
+              oninput="onContestSearchInput(this.value)"
               autocomplete="off"
               style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:11px 40px 11px 14px;outline:none;transition:border-color .2s"
               onfocus="this.style.borderColor='var(--accent2)'"
               onblur="this.style.borderColor='var(--border)'">
-            <span id="contestSearchClear" title="Effacer la recherche" onclick="document.getElementById('contestSearch').value='';buildContestGrid('');document.getElementById('contestSearch').focus()"
+            <span id="contestSearchClear" title="Effacer la recherche" onclick="document.getElementById('contestSearch').value='';onContestSearchInput('');document.getElementById('contestSearch').focus()"
               style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted);font-size:16px;display:none"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="14" height="14"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg></span>
           </div>
           <!-- Revenir à « pas de concours » : utile hors concours réel (activation,
@@ -900,6 +900,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <button type="button" class="btn btn-secondary" onclick="deselectContest()"
             title="Revenir à « sans concours » — utile en EXPÉDITION/PORTABLE quand tu ne participes pas (ou plus) à un concours"
             style="white-space:nowrap;padding:0 16px"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg> Aucun concours</button>
+        </div>
+        <!-- Bascule vue compacte "à venir" (défaut) <-> grille complète — retour
+             F4GLD (15/08/2026) : la grille complète (46+ REF/international/perso)
+             prend trop de place par défaut. Un seul des 2 liens visible à la fois,
+             piloté par _contestViewMode (voir _updateContestViewBar() en JS). -->
+        <div style="display:flex;justify-content:flex-end;margin:-6px 0 10px;font-family:var(--font-mono);font-size:12px;letter-spacing:.5px">
+          <a href="#" id="contestShowAllLink" onclick="showAllContests();return false" style="color:var(--accent2);text-decoration:none">Voir tous les concours →</a>
+          <a href="#" id="contestShowUpcomingLink" onclick="showUpcomingContests();return false" style="display:none;color:var(--accent2);text-decoration:none">← Revenir aux concours à venir</a>
         </div>
         <div class="contest-grid" id="contestGrid"></div>
         <div id="contest_best_score" class="expert-only" style="display:none;font-family:var(--font-mono);font-size:14px;color:var(--accent2);margin-top:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)"></div>

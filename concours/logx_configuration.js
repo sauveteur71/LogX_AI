@@ -972,7 +972,7 @@ document.body.addEventListener('click', function(e){
 async function init() {
   await maybeShowOnboarding(); // écran d'accueil (première visite) — résout tout de suite sinon
   applyUiMode(); // Mode débutant/expert (avant tout rendu)
-  buildContestGrid();
+  buildContestQuickView(); // vue "concours à venir" par défaut (retour F4GLD 15/08/2026)
   onProviderChange(); // Initialise le select modèle (Anthropic par défaut)
   _redactStaleSecretsInLocalStorage(); // avant lecture : purge un blob pré-correctif
   const hasLocal = loadSavedConfig();
@@ -982,9 +982,12 @@ async function init() {
   updateOpRowControls(); // État initial des boutons +/- opérateurs (au cas où aucune config n'a encore été restaurée)
   // Sélecteur unifié : enrichir avec la base serveur + WA7BNM puis re-render
   await Promise.all([mergeServerContests(), mergeExternalContests()]);
-  buildContestGrid(document.getElementById('contestSearch').value || '');
+  const _initSearch = document.getElementById('contestSearch').value || '';
+  if (_initSearch) buildContestGrid(_initSearch); else buildContestQuickView();
   populateImportContestSelect();
-  // Re-marquer la carte du concours sauvegardé (le re-render l'a reconstruite)
+  // Re-marquer la carte du concours sauvegardé (redondant avec le
+  // _remarkSelectedContestCard() interne au re-render juste au-dessus, mais
+  // inoffensif à garder — filet de sécurité si l'ordre change un jour).
   if (state.contest) {
     const card = document.getElementById('card_' + state.contest);
     if (card) card.classList.add('selected');
@@ -2054,7 +2057,103 @@ function safeUrl(u){ const s=String(u||''); return /^https?:\/\//i.test(s) ? s :
 // id de concours pour un argument de chaîne JS (onclick) : caractères sûrs seulement.
 function jsId(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9_\-]/g,''); }
 
+// Badge TYPE DE CONCOURS (courte durée / cumulatif) : retour F4GLD
+// (14/08/2026), « lorsque je sélectionne un concours il serait cool que ça
+// apparaisse directement à côté ». Dérivé du texte déjà écrit à la main par
+// les mainteneurs (nom + description de barème), qui utilise déjà ce
+// vocabulaire de façon cohérente pour les entrées REF concernées (ex.
+// "Concours de Courte Durée (Mars)", "Cumulatif annuel — pts/km...") —
+// pas de seuil de durée recalculé nous-mêmes, qui serait faux pour les
+// entrées sans _duration_h fiable au premier rendu (avant fusion serveur).
+// Silencieux (aucun badge) si le texte ne mentionne ni l'un ni l'autre —
+// mieux vaut se taire qu'afficher un type deviné et potentiellement faux.
+// Hoistée hors de buildContestGrid() (15/08/2026) pour être réutilisable par
+// buildContestQuickView() (vue "concours à venir") sans dupliquer la logique.
+function _contestTypeBadge(c) {
+  const texte = ((c.name || '') + ' ' + (c.score || '')).toLowerCase();
+  if (texte.includes('cumulatif')) {
+    return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours cumulatif : les QSO se comptent sur plusieurs sessions/toute l'année, pas une seule manche">CUMULATIF</span>`;
+  }
+  if (texte.includes('courte durée') || texte.includes('courte duree')) {
+    return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours de courte durée : une seule manche de quelques heures">COURTE DURÉE</span>`;
+  }
+  return '';
+}
+
+// Badge de confiance : base serveur = dates/règlement re-vérifiés chaque année ;
+// custom = extrait du règlement par l'IA puis validé par relecture humaine.
+// Hoistée hors de buildContestGrid() pour la même raison que ci-dessus.
+function _contestTrustBadge(c) {
+  return c.external
+    ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(255,214,10,.12);color:#FFD60A;border:1px solid rgba(255,214,10,.35)" title="Concours du calendrier mondial WA7BNM — utilise 🤖 ANALYSER UN RÈGLEMENT pour le faire lire par l'IA"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="11"/><circle cx="9" cy="13.3" r="0.9" fill="currentColor" stroke="none"/></svg> À CONFIRMER</span>`
+    : c._custom
+      ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(var(--accent-rgb),.1);color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> IA + RELECTURE</span>`
+      : VERIFIED_IDS.has(c.id)
+        ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:#00FF88;border:1px solid rgba(0,255,136,.3)" title="Concours de la base serveur — dates et règlement re-vérifiés automatiquement chaque année"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> RÈGLEMENT SUIVI</span>`
+        : '';
+}
+
+// Compte à rebours court ("DANS 3 J"/"DEMAIN"/"AUJOURD'HUI"/"EN COURS") pour
+// la vue "concours à venir" — même esprit que countdown() dans
+// logx_calendrier.html, mais local (pas besoin de dupliquer tout le fichier
+// pour une seule fonction). startMs = null quand aucune date n'est connue
+// (ex. concours épinglé car déjà sélectionné mais date non calculable).
+function _joursAvant(startMs) {
+  if (startMs == null) return '';
+  const days = Math.ceil((startMs - Date.now()) / 86400000);
+  if (days < 0) return 'EN COURS';
+  if (days === 0) return "AUJOURD'HUI";
+  if (days === 1) return 'DEMAIN';
+  return `DANS ${days} J`;
+}
+
+// Carte de concours — gabarit partagé par buildContestGrid() (grille complète)
+// et buildContestQuickView() (concours à venir). startMs (optionnel) affiche
+// un compte à rebours ; absent dans la grille complète (pas nécessaire, la
+// date brute c.date suffit là où l'utilisateur parcourt/cherche).
+function _contestCardHtml(c, startMs) {
+  const countdown = startMs !== undefined ? _joursAvant(startMs) : '';
+  return `
+    <div class="contest-card" id="card_${escC(c.id)}" data-id="${escC(c.id)}" onclick="selectContest('${jsId(c.id)}')" style="border-left:3px solid ${escC(c.color)}44">
+      <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} <span style="display:flex;gap:5px;flex-shrink:0">${_contestTypeBadge(c)}${_contestTrustBadge(c)}</span></div>
+      <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
+        <span>${escC(c.org)}</span>
+        ${safeUrl(c.rules) ? `<a href="${escC(safeUrl(c.rules))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h5.5L13.5 5.5V15.5H5z"/><path d="M10.5 2.5V5.5H13.5"/><line x1="7" y1="9" x2="11.5" y2="9"/><line x1="7" y1="12" x2="11.5" y2="12"/></svg> RÈGLEMENT</a>` : ''}
+      </div>
+      ${c.date || countdown ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> ${escC(c.date)}${c.date && countdown ? ' · ' : ''}${escC(countdown)}</div>` : ''}
+      <div class="contest-tags">
+        ${c.bands.map(b=>`<span class="tag tag-band">${escC(b)}</span>`).join('')}
+        ${c.modes.map(m=>`<span class="tag tag-mode">${escC(m)}</span>`).join('')}
+        <span class="tag tag-score">${escC(c.score)}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Mode d'affichage courant de la section 3 — 'quick' (concours à venir,
+// défaut) ou 'all' (grille complète/recherche). Piloté par les fonctions
+// showAllContests()/showUpcomingContests()/onContestSearchInput() ci-dessous.
+let _contestViewMode = 'quick';
+
+function _updateContestViewBar() {
+  const showAll = document.getElementById('contestShowAllLink');
+  const showUp = document.getElementById('contestShowUpcomingLink');
+  if (showAll) showAll.style.display = _contestViewMode === 'quick' ? '' : 'none';
+  if (showUp) showUp.style.display = _contestViewMode === 'all' ? '' : 'none';
+}
+
+// Ré-applique la classe .selected sur la carte du concours actif après un
+// (re)rendu de grille — même geste que le re-marquage fait une fois dans
+// init() (nécessaire ici aussi car buildContestGrid()/buildContestQuickView()
+// ne connaissent pas l'état "sélectionné" au moment de générer leur HTML).
+function _remarkSelectedContestCard() {
+  if (!state.contest) return;
+  const card = document.getElementById('card_' + state.contest);
+  if (card) card.classList.add('selected');
+}
+
 function buildContestGrid(filter = '') {
+  _contestViewMode = 'all';
   const grid = document.getElementById('contestGrid');
   const q = filter.toLowerCase().trim();
 
@@ -2083,6 +2182,7 @@ function buildContestGrid(filter = '') {
 
   if (!visible.length) {
     grid.innerHTML = `<div style="grid-column:1/-1;padding:24px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:14px">Aucun concours pour « ${filter} »</div>`;
+    _updateContestViewBar();
     return;
   }
 
@@ -2095,37 +2195,6 @@ function buildContestGrid(filter = '') {
     'Autre': '#8E8E93',
   };
 
-  // Badge TYPE DE CONCOURS (courte durée / cumulatif) : retour F4GLD
-  // (14/08/2026), « lorsque je sélectionne un concours il serait cool que ça
-  // apparaisse directement à côté ». Dérivé du texte déjà écrit à la main par
-  // les mainteneurs (nom + description de barème), qui utilise déjà ce
-  // vocabulaire de façon cohérente pour les entrées REF concernées (ex.
-  // "Concours de Courte Durée (Mars)", "Cumulatif annuel — pts/km...") —
-  // pas de seuil de durée recalculé nous-mêmes, qui serait faux pour les
-  // entrées sans _duration_h fiable au premier rendu (avant fusion serveur).
-  // Silencieux (aucun badge) si le texte ne mentionne ni l'un ni l'autre —
-  // mieux vaut se taire qu'afficher un type deviné et potentiellement faux.
-  const typeBadge = c => {
-    const texte = ((c.name || '') + ' ' + (c.score || '')).toLowerCase();
-    if (texte.includes('cumulatif')) {
-      return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours cumulatif : les QSO se comptent sur plusieurs sessions/toute l'année, pas une seule manche">CUMULATIF</span>`;
-    }
-    if (texte.includes('courte durée') || texte.includes('courte duree')) {
-      return `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(142,142,147,.12);color:var(--muted);border:1px solid rgba(142,142,147,.3)" title="Concours de courte durée : une seule manche de quelques heures">COURTE DURÉE</span>`;
-    }
-    return '';
-  };
-
-  // Badge de confiance : base serveur = dates/règlement re-vérifiés chaque année ;
-  // custom = extrait du règlement par l'IA puis validé par relecture humaine
-  const badge = c => c.external
-    ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(255,214,10,.12);color:#FFD60A;border:1px solid rgba(255,214,10,.35)" title="Concours du calendrier mondial WA7BNM — utilise 🤖 ANALYSER UN RÈGLEMENT pour le faire lire par l'IA"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 16 15H2z"/><line x1="9" y1="7" x2="9" y2="11"/><circle cx="9" cy="13.3" r="0.9" fill="currentColor" stroke="none"/></svg> À CONFIRMER</span>`
-    : c._custom
-      ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(var(--accent-rgb),.1);color:var(--accent2);border:1px solid rgba(var(--accent-rgb),.3)" title="Définition extraite du règlement par l'IA puis validée par relecture humaine"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6" width="11" height="8" rx="1.5"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2.2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> IA + RELECTURE</span>`
-      : VERIFIED_IDS.has(c.id)
-        ? `<span style="font-family:var(--font-mono);font-size:11px;letter-spacing:1px;padding:2px 6px;border-radius:3px;background:rgba(0,255,136,.1);color:#00FF88;border:1px solid rgba(0,255,136,.3)" title="Concours de la base serveur — dates et règlement re-vérifiés automatiquement chaque année"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 7,14 15,4"/></svg> RÈGLEMENT SUIVI</span>`
-        : '';
-
   grid.innerHTML = groupOrder.map(gname => {
     const cs = groups[gname];
     if (!cs || !cs.length) return '';
@@ -2135,23 +2204,74 @@ function buildContestGrid(filter = '') {
           ${gname === 'REF' ? '<svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="currentColor" stroke="none"><path d="M9 1.5l2.2 4.9 5.3.6-4 3.6 1.1 5.3L9 13.2 4.4 15.9l1.1-5.3-4-3.6 5.3-.6z"/></svg> ' : ''}${gname.toUpperCase()} ${gname === 'REF' ? '— Calendrier 2026 officiel' : ''}
         </div>
       </div>
-      ${cs.map(c => `
-        <div class="contest-card" id="card_${escC(c.id)}" data-id="${escC(c.id)}" onclick="selectContest('${jsId(c.id)}')" style="border-left:3px solid ${escC(c.color)}44">
-          <div class="contest-name" style="display:flex;justify-content:space-between;align-items:center;gap:6px">${escC(c.name)} <span style="display:flex;gap:5px;flex-shrink:0">${typeBadge(c)}${badge(c)}</span></div>
-          <div class="contest-org" style="display:flex;justify-content:space-between;align-items:center">
-            <span>${escC(c.org)}</span>
-            ${safeUrl(c.rules) ? `<a href="${escC(safeUrl(c.rules))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);letter-spacing:1px;font-family:var(--font-mono)"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h5.5L13.5 5.5V15.5H5z"/><path d="M10.5 2.5V5.5H13.5"/><line x1="7" y1="9" x2="11.5" y2="9"/><line x1="7" y1="12" x2="11.5" y2="12"/></svg> RÈGLEMENT</a>` : ''}
-          </div>
-          ${c.date ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);letter-spacing:1px;margin-bottom:7px"><svg viewBox="0 0 18 18" width="12" height="12" style="vertical-align:-1px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="13" height="11.5" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="1.5" x2="6" y2="4.5"/><line x1="12" y1="1.5" x2="12" y2="4.5"/></svg> ${escC(c.date)}</div>` : ''}
-          <div class="contest-tags">
-            ${c.bands.map(b=>`<span class="tag tag-band">${escC(b)}</span>`).join('')}
-            ${c.modes.map(m=>`<span class="tag tag-mode">${escC(m)}</span>`).join('')}
-            <span class="tag tag-score">${escC(c.score)}</span>
-          </div>
-        </div>
-      `).join('')}
+      ${cs.map(c => _contestCardHtml(c)).join('')}
     `;
   }).join('');
+  _remarkSelectedContestCard();
+  _updateContestViewBar();
+}
+
+// Vue par défaut de la section 3 (retour F4GLD 15/08/2026 : la grille
+// complète de 46+ concours REF/international/perso prenait trop de place
+// d'entrée). N'affiche que les quelques concours "règlement suivi" (base
+// serveur, PAS le calendrier brut WA7BNM ni l'entrée CUSTOM générique — ces
+// deux-là n'ont pas de date fiable ou pas de barème réel) dont la prochaine
+// occurrence est déjà passée/à venir, triés par date croissante — même
+// source de dates que selectContest() (calcContestDates || serverContestDates)
+// pour rester cohérent avec ce qui s'affichera une fois le concours choisi.
+// Le concours déjà sélectionné (état restauré) est toujours épinglé en tête,
+// même hors de cette fenêtre, pour ne jamais faire disparaître un réglage
+// existant derrière un filtre de date.
+function buildContestQuickView() {
+  _contestViewMode = 'quick';
+  const grid = document.getElementById('contestGrid');
+  const clr = document.getElementById('contestSearchClear');
+  if (clr) clr.style.display = 'none';
+
+  const cutoff = Date.now() - 2 * 24 * 3600 * 1000; // même grâce que le filtre "À VENIR" de logx_calendrier.html
+  const picks = [];
+  CONTESTS.forEach(c => {
+    if (c.external || c.id === 'CUSTOM') return;
+    const dates = calcContestDates(c.id) || serverContestDates(c.id);
+    if (!dates) return;
+    const startMs = Date.parse(dates.startDate + 'T00:00:00Z');
+    if (isNaN(startMs) || startMs < cutoff) return;
+    picks.push({ c, startMs });
+  });
+  picks.sort((a, b) => a.startMs - b.startMs);
+  const top = picks.slice(0, 6);
+
+  if (state.contest && !top.some(p => p.c.id === state.contest)) {
+    const cur = CONTESTS.find(c => c.id === state.contest);
+    if (cur) top.unshift({ c: cur, startMs: undefined });
+  }
+
+  if (!top.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:24px;text-align:center;font-family:var(--font-mono);color:var(--muted);font-size:14px">Aucun concours à venir détecté pour l'instant — <a href="#" onclick="showAllContests();return false" style="color:var(--accent2)">parcourir tous les concours</a>.</div>`;
+  } else {
+    grid.innerHTML = `
+      <div style="grid-column:1/-1;margin-bottom:6px;font-family:var(--font-mono);font-size:12px;color:var(--muted);letter-spacing:3px;border-bottom:1px solid var(--border);padding-bottom:5px">CONCOURS À VENIR</div>
+      ${top.map(p => _contestCardHtml(p.c, p.startMs)).join('')}
+    `;
+  }
+  _remarkSelectedContestCard();
+  _updateContestViewBar();
+}
+
+function showAllContests() {
+  buildContestGrid(document.getElementById('contestSearch').value || '');
+}
+
+function showUpcomingContests() {
+  const search = document.getElementById('contestSearch');
+  if (search) search.value = '';
+  buildContestQuickView();
+}
+
+// Taper dans la recherche implique de vouloir parcourir tout le catalogue —
+// bascule automatiquement en grille complète, comme avant cette refonte.
+function onContestSearchInput(v) {
+  buildContestGrid(v);
 }
 
 // ─── AUTO-REMPLISSAGE INDICATIF ───────────────────────────────────────────────
