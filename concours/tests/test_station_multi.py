@@ -208,6 +208,57 @@ def test_le_resume_liste_les_bandes_couvertes_dans_l_ordre():
     assert (r['nb_antennes'], r['nb_rotors'], r['nb_amplis']) == (4, 3, 1)
 
 
+# ─── Le parc de radios (inventaire, pas de pilotage CAT — 14/08/2026) ──────
+
+def test_une_config_sans_radios_obtient_une_liste_vide_sans_migration():
+    """Aucun ancien champ ne décrivait plusieurs radios : rien à reconstruire,
+    juste une liste vide — contrairement à antennes/rotors/amplis."""
+    st = S.charger({'ant_hf': 'Vertical 10m'})
+    assert st['radios'] == []
+
+
+def test_plusieurs_radios_associees_a_des_antennes():
+    """Demande de F4GLD (14/08/2026) : plusieurs postes, chacun associé à une
+    ou plusieurs antennes. Deux antennes peuvent partager LA MÊME radio."""
+    cfg = {
+        'antennes': [
+            {'id': 'yagi20', 'nom': 'Yagi 20m', 'bandes': ['14'], 'radio_id': 'shack'},
+            {'id': 'vert80', 'nom': 'Vertical 80m', 'bandes': ['3.5'], 'radio_id': 'shack'},
+            {'id': 'yagi144', 'nom': 'Yagi 144', 'bandes': ['144'], 'radio_id': 'vhf'},
+        ],
+        'rotors': [], 'amplis': [],
+        'radios': [
+            {'id': 'shack', 'nom': 'IC-7300 principal', 'enabled': True,
+             'brand': 'icom', 'model': 'IC-7300'},
+            {'id': 'vhf', 'nom': 'FT-991A VHF', 'enabled': True,
+             'brand': 'yaesu', 'model': 'FT-991A'},
+        ],
+    }
+    st = S.charger(cfg)
+    assert len(st['radios']) == 2
+    assert S.radio_pour_bande(st, '14')['nom'] == 'IC-7300 principal'
+    assert S.radio_pour_bande(st, '3.5')['nom'] == 'IC-7300 principal'
+    assert S.radio_pour_bande(st, '144')['nom'] == 'FT-991A VHF'
+    assert S.radio_pour_bande(st, '432') is None   # aucune antenne sur cette bande
+
+
+def test_une_antenne_sans_radio_id_ne_designe_rien():
+    """Une antenne fixe sans radio associée reste valide — l'inventaire radio
+    est optionnel, jamais requis."""
+    st = S.charger({'antennes': [{'nom': 'Dipôle', 'bandes': ['7']}],
+                    'rotors': [], 'amplis': [], 'radios': []})
+    assert S.radio_pour_bande(st, '7') is None
+
+
+def test_le_resume_signale_une_radio_introuvable():
+    st = S.charger({'antennes': [
+        {'nom': 'Radio fantôme', 'bandes': ['14'], 'radio_id': 'nexistepas'}],
+        'rotors': [], 'amplis': [], 'radios': []})
+    r = S.resume(st)
+    assert r['antennes_a_radio_introuvable'] == ['Radio fantôme']
+    assert r['nb_radios'] == 0
+
+
 def test_les_bandes_du_module_suivent_celles_du_logbook():
     """Deux listes de bandes tenues en double divergent — et une antenne
     deviendrait invisible sur sa bande sans le moindre message. Même piège que
