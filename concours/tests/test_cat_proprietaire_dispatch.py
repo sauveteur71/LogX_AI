@@ -327,11 +327,16 @@ def test_config_sections_ont_toutes_un_cas_dans_cat_status():
         f"Catégorie(s) sans case dans _catStatus() (badge jamais calculé) : {manquantes}")
 
 
-def test_pgxl_est_bien_present_partout():
-    """Cas concret motivant les tests ci-dessus (revue adversariale du
-    06/08/2026) : 'pgxl' doit apparaître dans CONFIG_SECTIONS et avoir un
-    case dans _catStatus() (renderConfigTree() n'a plus de liste séparée où
-    pgxl pourrait manquer, cf. test au-dessus)."""
+def test_pgxl_acom_fusionnes_dans_amp_pas_de_categorie_separee():
+    """Retour F4GLD (15/08/2026) : 'pgxl'/'acom' ne sont plus des catégories
+    CONFIG_SECTIONS à part (rejet explicite du schéma 6b/6c) — leurs champs
+    sont fusionnés à l'intérieur de la catégorie unique 'amp'. Le case
+    _catStatus('amp') doit couvrir les 3 chemins d'activation possibles
+    (amp_enabled générique + pgxl_enabled + acom_enabled dédiés)."""
     src = _config_html_source()
-    assert 'pgxl' in _config_sections_keys(src)
-    assert 'pgxl' in _cat_status_keys(src)
+    assert 'pgxl' not in _config_sections_keys(src)
+    assert 'acom' not in _config_sections_keys(src)
+    assert 'amp' in _cat_status_keys(src)
+    m = re.search(r"case 'amp':(.*?)case '", src, re.S)
+    assert m, "case 'amp' introuvable dans _catStatus()"
+    assert 'pgxl_enabled' in m.group(1) and 'acom_enabled' in m.group(1)
