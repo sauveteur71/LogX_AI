@@ -2589,17 +2589,26 @@ const _ICO_IMPORT = '<svg viewBox="0 0 18 18" width="13" height="13" style="vert
 // avait déjà causé un vrai bug (badge 'relay' jamais mis à jour, voir
 // test_config_sections_et_render_hub_listent_les_memes_categories) —
 // renderConfigTree() itère CE tableau directement, plus de 2e source.
+// Retour F4GLD (14/08/2026) : PowerGenius XL (4O3A) et ACOM sont des
+// amplificateurs comme ceux de la section 6 (Elecraft/Icom/SPE) mais
+// vivaient isolés en positions 18/20, loin de "6. Amplificateur" et sans
+// rien à l'écran pour signaler le lien. Déplacés juste après 'amp' et
+// numérotés 6b/6c (plutôt que renumérotés 7/8, ce qui aurait décalé TOUTES
+// les catégories suivantes) — la parenté avec la section 6 est immédiate,
+// aucune autre entrée ne change de numéro.
 const CONFIG_SECTIONS = [
   ['identity',_ICO_IDENTITY+' 1. Identité'], ['operators',_ICO_OPERATORS+' 2. Opérateurs'],
   ['contest',_ICO_TROPHY+' 3. Sélection du concours'], ['filters',_ICO_CALENDAR+' 4. Dates, bandes &amp; modes'],
   ['radio',_ICO_RADIO+' 5. Radio (CAT)'], ['amp',_ICO_BATTERY+' 6. Amplificateur'],
+  ['pgxl',_ICO_BATTERY+' 6b. Amplificateur — PowerGenius XL'],
+  ['acom',_ICO_BATTERY+' 6c. Amplificateur — ACOM'],
   ['rotor',_ICO_COMPASS+' 7. Rotor'], ['network',_ICO_CLOUD+' 8. Multi-poste &amp; Cloud'],
   ['backup',_ICO_FLOPPY+' 9. Sauvegarde'], ['sources',_ICO_DISH+' 10. Sources de spots &amp; propagation'],
   ['alerts',_ICO_BELL+' 11. Alertes'], ['qsl',_ICO_ENVELOPE+' 12. QSL &amp; diplômes'],
   ['scoreboard',_ICO_TROPHY+' 13. Scoreboard'], ['expedition',_ICO_GLOBE+' 14. Expédition'],
   ['ai',_ICO_ROBOT+' 15. Assistant IA'], ['relay',_ICO_RELAY+' 16. Station Control (relais)'],
-  ['autostart',_ICO_PLAY+' 17. Auto-lancement'], ['pgxl',_ICO_BATTERY+' 18. PowerGenius XL'],
-  ['telemetry',_ICO_SIGNAL+' 19. Télémétrie'], ['acom',_ICO_BATTERY+' 20. ACOM'],
+  ['autostart',_ICO_PLAY+' 17. Auto-lancement'],
+  ['telemetry',_ICO_SIGNAL+' 18. Télémétrie'],
   ['summary',_ICO_SUMMARY+' Résumé']
 ];
 // 5 catégories réservées au mode expert (CLAUDE.md « Intuitivité ») — même
