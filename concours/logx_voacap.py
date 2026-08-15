@@ -56,10 +56,33 @@ _RUN_DIR = os.path.join(_ITSHFBC, 'run')
 _lock = threading.Lock()
 
 # Seuil de SNR requis par mode -- VOACAP ne connaît pas nativement les modes
-# amateurs, seulement un SNR requis générique. Choix volontairement PRUDENT
-# (pas les -21 dB de décodage FT8 en conditions extrêmes) pour rester une
-# estimation comparative de bande/heure utile, pas une promesse de décodage.
-REQUIRED_SNR_DB = {'CW': 6.0, 'SSB': 24.0, 'DIGITAL': 10.0}
+# amateurs, seulement un REQ.SNR generique (carte SYSTEM, en dB-Hz) compare
+# a son propre SNR predit pour calculer le REL% affiche. Valeurs CW/SSB
+# reverifiees le 15/08/2026 contre TROIS pages officielles voacap.com (les
+# anciennes, CW=6/SSB=24, etaient nettement sous-evaluees et gonflaient
+# artificiellement le REL% affiche a l'operateur) :
+#   - https://www.voacap.com/2023/understanding/rel.html : "As a rule of
+#     thumb ... for CW the REQ.SNR can be, say, 19/24 and for SSB, 45."
+#   - https://www.voacap.com/2023/understanding/10mistakes.html : "a common
+#     start value for CW is 19/24, 40 for SSB" -- confirme la fourchette
+#     19-24 pour CW, mais donne 40 (pas 45) pour SSB.
+#   - https://voacap.blogspot.com/2018/04/minor-changes-in-reqsnr-values-and-new.html
+#     (blog officiel VOACAP) : formule REQ.SNR[dB-Hz] = SNR[dB] +
+#     10*log10(BW), table de seuils K1JT (2500 Hz) -> CW = -15 dB -> 19
+#     dB-Hz (concorde), SSB = 10 dB -> 44 dB-Hz -- l'auteur juge lui-meme
+#     ce +10 dB "trop pessimiste" pour SSB et evoque 38 dB-Hz (5 dB/2100 Hz)
+#     comme alternative plus proche des pratiques etablies, SANS l'adopter
+#     officiellement.
+# CW=19 est donc solidement corrobore par les 3 sources (borne basse de
+# 19/24). Pour SSB, les valeurs officielles vont de 40 a 45 (jamais 38 --
+# ce chiffre, propose par l'audit, vient d'une hypothese perso non retenue
+# du blog, pas de la doc). Retenu : 45, regle du pouce de la page
+# specifiquement dediee au calcul du REL% (rel.html, la plus directement
+# pertinente pour ce bug).
+# DIGITAL reste volontairement PRUDENT (pas les -21 dB de decodage FT8 en
+# conditions extremes -- non concerne par cet audit) pour rester une
+# estimation comparative de bande/heure utile, pas une promesse de decodage.
+REQUIRED_SNR_DB = {'CW': 19.0, 'SSB': 45.0, 'DIGITAL': 10.0}
 
 # 80/40/30/20/17/15/12/10m -- 8 des 11 emplacements FREQUENCY disponibles.
 HAM_BANDS_MHZ = [3.5, 7.0, 10.1, 14.0, 18.1, 21.0, 24.9, 28.0]
@@ -190,7 +213,13 @@ def _parse_out(content, freqs_mhz):
             except ValueError:
                 i += 1
                 continue
-            raw = {"MODE": None, "REL": None, "SNR": None}
+            # MUFday et "S DBW" (signal recu median, dBW) sont deja presentes
+            # dans la sortie brute de voacapl.exe (voir _REAL_OUT_EXCERPT dans
+            # tests/test_voacap.py) mais n'etaient jusqu'ici jamais recherchees
+            # -- silencieusement perdues. "S DBW" (avec l'espace interne) est
+            # distinguee de "N DBW" (bruit, non extrait ici, hors demande) en
+            # matchant le suffixe complet plutot que le seul mot "DBW".
+            raw = {"MODE": None, "REL": None, "SNR": None, "MUFday": None, "S DBW": None}
             j = i + 1
             while j < len(lines) and j < i + 25:
                 bline = lines[j].rstrip("\r").rstrip()
@@ -206,6 +235,8 @@ def _parse_out(content, freqs_mhz):
             block['REL'] = _row_tokens(raw['REL'], n) if raw['REL'] else None
             block['SNR'] = _row_tokens(raw['SNR'], n) if raw['SNR'] else None
             block['MODE'] = _row_tokens_by_span(raw['MODE'], spans, n) if raw['MODE'] and spans else None
+            block['MUFday'] = _row_tokens(raw['MUFday'], n) if raw['MUFday'] else None
+            block['SDBW'] = _row_tokens(raw['S DBW'], n) if raw['S DBW'] else None
 
             bands = []
             for k, f in enumerate(freqs_mhz):
@@ -224,6 +255,11 @@ def _parse_out(content, freqs_mhz):
                     'rel': _get(block['REL'], float),
                     'snr_db': _get(block['SNR'], float),
                     'mode': _get(block['MODE'], str),
+                    # Fraction (0-1) des jours du mois ou la MUF atteint/depasse
+                    # cette frequence -- pas une reliabilite de circuit (REL).
+                    'muf_day': _get(block['MUFday'], float),
+                    # Puissance de signal recue mediane predite, en dBW.
+                    'sdbw': _get(block['SDBW'], float),
                 })
             hours.append({'hour': hour, 'bands': bands})
             i = j
