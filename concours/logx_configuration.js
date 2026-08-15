@@ -907,9 +907,19 @@ async function loadSecretsFromServer(){
 // tenue à jour par ResizeObserver — pas seulement au chargement — puisque
 // le contenu de la statusbar peut changer de hauteur après coup.
 function _updateConfigPanelTop(){
-  const ref = document.getElementById('rcStatusBar') || document.querySelector('.app-nav');
-  if(!ref) return;
-  const bottom = ref.getBoundingClientRect().bottom;
+  // DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « le menu configuration
+  // cache le mode d'utilisateur ») : .usage-mode-bar (le sélecteur MODE
+  // D'UTILISATION) est en flux normal juste SOUS header+nav+statusbar, mais
+  // n'était PAS pris en compte ici — le panneau/l'arborescence (position:
+  // fixed, z-index 9000/9500) démarrait donc juste après la statusbar et
+  // RECOUVRAIT visuellement la barre MODE D'UTILISATION, exactement le même
+  // symptôme que le bug nav/statusbar déjà corrigé le 08/08/2026 (voir
+  // commentaire au-dessus), mais pour un élément ajouté après coup et jamais
+  // intégré à ce calcul.
+  const refs = [document.getElementById('rcStatusBar'), document.querySelector('.app-nav'),
+                document.querySelector('.usage-mode-bar')].filter(Boolean);
+  if(!refs.length) return;
+  const bottom = Math.max(...refs.map(function(el){ return el.getBoundingClientRect().bottom; }));
   document.documentElement.style.setProperty('--config-panel-top', Math.max(bottom, 0) + 12 + 'px');
 }
 _updateConfigPanelTop();
@@ -918,7 +928,9 @@ if(typeof ResizeObserver !== 'undefined'){
   const _configPanelTopObserver = new ResizeObserver(_updateConfigPanelTop);
   const _navEl = document.querySelector('.app-nav');
   const _statusBarEl = document.getElementById('rcStatusBar');
+  const _usageModeBarEl = document.querySelector('.usage-mode-bar');
   if(_navEl) _configPanelTopObserver.observe(_navEl);
+  if(_usageModeBarEl) _configPanelTopObserver.observe(_usageModeBarEl);
   if(_statusBarEl) _configPanelTopObserver.observe(_statusBarEl);
   // La statusbar est injectée APRÈS le chargement de logx_statusbar.js, en
   // principe déjà présente ici (script bloquant chargé avant ce bloc) —
