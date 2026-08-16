@@ -2636,11 +2636,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <div class="form-group">
             <label>LoTW — IDENTIFIANT</label>
             <input type="text" id="lotw_user" placeholder="ton indicatif LoTW" style="text-transform:uppercase" autocomplete="off">
-            <div class="input-note">Import des confirmations (pas d'upload : garde TQSL pour publier)</div>
+            <div class="input-note">Import des confirmations (identifiant du site web LoTW — pour l'upload signé, voir Station Location TQSL ci-dessous)</div>
           </div>
           <div class="form-group">
             <label>LoTW — MOT DE PASSE</label>
             <input type="password" id="lotw_password" placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label>LoTW — STATION LOCATION (TQSL)</label>
+            <input type="text" id="lotw_station_location" placeholder="nom exact déclaré dans TQSL" autocomplete="off">
+            <div class="input-note">Active l'envoi automatique et signé vers LoTW (bouton ⬆ LoTW du LOGBOOK, sans ouvrir TQSL manuellement) — nécessite TrustedQSL installé (arrl.org/tqsl-download) avec au moins une Station Location déjà créée. Le nom doit correspondre EXACTEMENT à celui choisi dans TQSL ; le certificat lui-même reste entièrement dans TQSL, jamais vu par LogX AI.</div>
           </div>
           <div class="form-group">
             <label>ClubLog — EMAIL</label>
