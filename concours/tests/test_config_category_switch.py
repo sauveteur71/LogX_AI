@@ -142,6 +142,12 @@ var document = {
   querySelectorAll: function(){ return []; }
 };
 
+// closeCategoryPanel() navigue désormais vers LOGBOOK (revirement du
+// 16/08/2026, voir son commentaire dans logx_configuration.js) -- stub
+// minimal juste assez riche pour capturer la destination sans qu'un vrai
+// changement de page n'ait de sens dans ce moteur JS isolé.
+var window = { location: { href: '' } };
+
 var _catFormSnapshots = {};
 var _confirmResult = true;
 var _confirmCalls = 0;
@@ -372,58 +378,62 @@ def test_rouvrir_la_meme_categorie_puis_changer_avertit_bien():
         "changement de section avec modifications non enregistrées)")
 
 
-# ─── closeCategoryPanel() : clic à côté du popup, reste sur CONFIG ──────────
-# Retour F4GLD (11/08/2026, précision juste après le 1er déploiement) : « je
-# veux pas directement repartir dans logbook je veux juste que le popup
-# config se ferme! en restant sur l'onglet config » -- ferme sur place
-# (masque le catmodal_<cat> ouvert, désélectionne la sidebar), ne navigue
-# JAMAIS, et ne sauvegarde JAMAIS (règle F4GLD du 04/08/2026 déjà documentée
-# au-dessus de _catFormSnapshots).
+# ─── closeCategoryPanel() : clic à côté / ✕ / Échap, direction LOGBOOK ──────
+# REVIREMENT ASSUMÉ (16/08/2026, avec l'agrandissement du panneau en pleine
+# page) : « dès que c'est fermé on doit revenir directement sur logbook » --
+# closeCategoryPanel() naviguait AUPARAVANT sur place (retour F4GLD du
+# 11/08/2026 : « je veux pas directement repartir dans logbook »), elle
+# navigue maintenant vers logx_logbook.html, comme launchApp(). Seule règle
+# qui SURVIT aux deux versions : « fermer ne sauvegarde jamais » (règle
+# F4GLD du 04/08/2026 déjà documentée au-dessus de _catFormSnapshots) --
+# c'est ce qui la distingue encore de launchApp() malgré la même destination.
 
-def test_close_ferme_la_categorie_ouverte_et_deselectionne_la_sidebar():
+def test_close_navigue_vers_logbook():
     ctx = _make_ctx()
     ctx.eval("openCategoryPopup('identity');")
     ctx.eval("closeCategoryPanel();")
-    assert ctx.eval("_els.catmodal_identity.style.display") == 'none'
-    assert ctx.eval("_currentOpenCat()") is None
-    assert ctx.eval("_sidebarButtons[0].classList.contains('active')") is False, (
-        "l'entrée 'identity' de la sidebar doit être désélectionnée à la fermeture")
+    assert ctx.eval("window.location.href") == 'logx_logbook.html'
 
 
-def test_close_sans_categorie_ouverte_est_un_no_op():
+def test_close_sans_categorie_ouverte_navigue_quand_meme():
+    """Plus un no-op depuis le revirement du 16/08/2026 : les 4 déclencheurs
+    (clic à côté, ✕, Échap, LOGGER) doivent tous mener à LOGBOOK, qu'une
+    catégorie soit ouverte ou non -- en pratique une catégorie est toujours
+    ouverte par défaut (openCategoryPopup('identity') dans init()), mais rien
+    ne doit dépendre de cet état pour se comporter correctement."""
     ctx = _make_ctx()
     ctx.eval("closeCategoryPanel();")
-    assert ctx.eval("_confirmCalls") == 0
-    assert ctx.eval("_currentOpenCat()") is None
+    assert ctx.eval("_confirmCalls") == 0, "rien à confirmer sans modification en cours"
+    assert ctx.eval("window.location.href") == 'logx_logbook.html'
 
 
-def test_close_avec_modifications_non_enregistrees_et_refus_laisse_ouvert():
+def test_close_avec_modifications_non_enregistrees_et_refus_ne_navigue_pas():
     """Même garde que le changement de section (_confirmDiscardCatChanges) --
-    un refus doit laisser le panneau ouvert, pas le fermer quand même."""
+    un refus doit annuler la navigation, pas naviguer quand même."""
     ctx = _make_ctx()
     ctx.eval("openCategoryPopup('identity');")
     ctx.eval("_inputsIdentity[0].value = 'F4MODIFIE';")
     ctx.eval("_confirmResult = false;")
     ctx.eval("closeCategoryPanel();")
     assert ctx.eval("_confirmCalls") == 1
-    assert ctx.eval("_els.catmodal_identity.style.display") == 'block', (
-        "un refus doit laisser identity OUVERTE")
-    assert ctx.eval("_currentOpenCat()") == 'identity'
+    assert ctx.eval("window.location.href") == '', "un refus ne doit déclencher aucune navigation"
+    assert ctx.eval("_currentOpenCat()") == 'identity', "un refus doit laisser identity ouverte"
 
 
-def test_close_avec_modifications_non_enregistrees_et_acceptation_ferme():
+def test_close_avec_modifications_non_enregistrees_et_acceptation_navigue():
     ctx = _make_ctx()
     ctx.eval("openCategoryPopup('identity');")
     ctx.eval("_inputsIdentity[0].value = 'F4MODIFIE';")
     ctx.eval("_confirmResult = true;")
     ctx.eval("closeCategoryPanel();")
     assert ctx.eval("_confirmCalls") == 1
-    assert ctx.eval("_els.catmodal_identity.style.display") == 'none'
-    assert ctx.eval("_currentOpenCat()") is None
+    assert ctx.eval("window.location.href") == 'logx_logbook.html'
 
 
-def test_close_ne_navigue_jamais_et_ne_sauvegarde_jamais():
-    """Vérification directe du texte source : closeCategoryPanel() ne doit
-    contenir ni window.location, ni un appel à saveConfig()."""
-    assert 'window.location' not in _CLOSECATPANEL_SRC
+def test_close_navigue_mais_ne_sauvegarde_jamais():
+    """Vérification directe du texte source : closeCategoryPanel() doit
+    naviguer (contrairement à sa version du 11/08/2026) mais ne doit
+    toujours contenir aucun appel à saveConfig() -- c'est cette dernière
+    règle, pas l'absence de navigation, qui la distingue de launchApp()."""
+    assert 'window.location' in _CLOSECATPANEL_SRC
     assert 'saveConfig(' not in _CLOSECATPANEL_SRC

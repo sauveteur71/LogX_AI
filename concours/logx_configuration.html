@@ -109,14 +109,33 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
    épargné). La hauteur réelle de la statusbar n'est pas fixe (contenu
    injecté par logx_statusbar.js après un fetch async, peut passer sur 2
    lignes sur fenêtre étroite) : mesurée en JS et tenue à jour par
-   ResizeObserver plutôt que devinée en CSS pur. Le repli 6% ne sert que le
-   temps très bref avant le premier appel JS. */
+   ResizeObserver plutôt que devinée en CSS pur. Le repli 2% ne sert que le
+   temps très bref avant le premier appel JS.
+   Marges 6%→2% (demande F4GLD 16/08/2026, « je souhaite que le panneau
+   configuration prenne toute la page hauteur et largeur pour plus de
+   lisibilité ») : gardées non nulles à dessein, pas 0 — le fond qui reste
+   visible sur cette fine bordure est ce qui permet le « clic à côté »
+   (voir closeCategoryPanel(), même demande) de fermer le panneau ; un
+   panneau strictement bord-à-bord n'aurait plus aucun arrière-plan
+   cliquable pour ce geste. */
 .cat-modal{display:none}
-.cat-modal-box{display:flex;position:fixed;top:var(--config-panel-top,6%);left:calc(6% + 224px);right:6%;bottom:6%;min-width:300px;z-index:9000;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+.cat-modal-box{display:flex;position:fixed;top:var(--config-panel-top,2%);left:calc(2% + 224px);right:2%;bottom:2%;min-width:300px;z-index:9000;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .cat-modal-head{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
 .cat-modal-title{font-family:var(--font-display);font-size:19px;letter-spacing:.3px;color:var(--accent2);font-weight:900}
 .cat-modal-save{margin-left:auto;background:linear-gradient(135deg,#00FF88,#C9822E);border:none;color:#0A0B18;font-weight:700;border-radius:6px;padding:7px 12px;cursor:pointer;font-family:var(--font-mono);transition:opacity .15s}
 .cat-modal-save:hover{opacity:.85}
+/* Bouton ✕ global (un seul, pas dupliqué dans les ~19 .cat-modal-head) —
+   toujours à la même place, quelle que soit la catégorie ouverte. z-index
+   au-dessus de la sidebar (9500) ET du panneau (9000) : doit rester
+   cliquable en toutes circonstances. calc() plutôt que transform+margin-top
+   pour le décalage vertical -- un `transform` sur cet élément fixed s'est
+   avéré ne PAS suivre les mises à jour ultérieures de --config-panel-top
+   dans certains cas observés en vérification navigateur (un clone strictement
+   identique sans transform, lui, suivait correctement), alors que calc()
+   n'a montré aucun souci équivalent. */
+.config-close-btn{position:fixed;top:calc(var(--config-panel-top,2%) - 17px);right:2%;width:34px;height:34px;border-radius:50%;z-index:9600;background:var(--bg2);border:1px solid var(--border);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.config-close-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.config-close-btn svg{width:15px;height:15px}
 
 /* Écran d'accueil (première visite) : SEUL élément à garder un vrai
    backdrop plein écran — classe dédiée, ne partage plus .cat-modal (qui
@@ -165,7 +184,7 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 /* Arborescence permanente (remplace le hub de cartes) : toujours montée et
    visible — plus jamais gated par une classe body (config-tabbed retirée,
    cf. buildConfigSidebar()/openCategoryPopup()). */
-.config-sidebar{display:flex;position:fixed;top:var(--config-panel-top,6%);left:6%;bottom:6%;width:210px;z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow:hidden;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
+.config-sidebar{display:flex;position:fixed;top:var(--config-panel-top,2%);left:2%;bottom:2%;width:210px;z-index:9500;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-direction:column;overflow:hidden;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .config-sidebar-title{font-family:var(--font-mono);font-size:11px;letter-spacing:2px;color:var(--muted);padding:8px 10px 10px;flex-shrink:0}
 /* Retour utilisateur (09/08/2026, « je ne peux pas fermer le popup config ») :
    avant cette règle, TOUT le panneau (titre+import+arborescence+LOGGER)
@@ -479,6 +498,13 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <button type="button" id="configConfirmYesBtn" onclick="_resolveConfigConfirm(true)" style="background:#CC0030;color:#fff;border:1px solid var(--red);border-radius:6px;padding:6px 12px;cursor:pointer;font-family:var(--font-mono);font-size:12px;font-weight:700">Confirmer</button>
   </div>
 </div>
+
+<!-- Fermeture du panneau CONFIG (clic à côté / Échap font le même appel,
+     voir logx_configuration.js) — un seul bouton, pas un par catégorie. -->
+<button type="button" class="config-close-btn" onclick="closeCategoryPanel()"
+  title="Fermer et revenir au LOGBOOK (Échap)" aria-label="Fermer et revenir au LOGBOOK">
+  <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="4" x2="14" y2="14"/><line x1="14" y1="4" x2="4" y2="14"/></svg>
+</button>
 
 <div class="container">
 
