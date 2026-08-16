@@ -26,6 +26,7 @@ Base des parcs : https://pota.app/all_parks_ext.csv, l'export CSV complet
 code ou par nom — via le moteur générique logx_activation_db.py."""
 import csv
 import json
+import re
 import time
 
 from logx_activation_db import ActivationDatabase
@@ -141,6 +142,34 @@ def post_spot(activator, reference, freq_khz, mode, spotter='', comment=''):
     if status >= 400:
         return {'ok': False, 'error': f'POTA a refusé le spot (HTTP {status}) : {(text or "")[:200].strip()}'}
     return {'ok': True, 'response': (text or '')[:200].strip()}
+
+
+# ─── EXPORT ADIF (prêt à téléverser) ──────────────────────────────────────────
+# POTA n'expose aucune API publique DOCUMENTÉE pour l'upload de log (contraire
+# à LoTW/tqsl, cf. logx_qsl.py) — seule voie officielle : dépôt manuel du
+# fichier ADIF sur la page « My Log Uploads » de pota.app (ou par e-mail).
+# Décision F4GLD (16/08/2026) après vérification que même les logiciels
+# concurrents ne font PAS d'upload automatique : ne pas reproduire l'auth
+# non-officielle par mot de passe de compte (bibliothèque tierce trouvée,
+# v0.1.0, très jeune) — on retire toute la friction qui PEUT l'être sans
+# stocker d'identifiant : bon format ADIF (déjà géré par build_adif, qui
+# émet MY_SIG/MY_SIG_INFO par QSO) + bon NOM de fichier.
+
+def export_filename(callsign, park_ref, qsos):
+    """Nom de fichier EXACT attendu par l'auto-uploader « My Log Uploads » de
+    pota.app : callsign@parkRef-activationDate.adi — format et exemple
+    officiel (KA8H@US-1515-20201127.adi) vérifiés sur
+    docs.pota.app/docs/activator_reference/submitting_logs.html (16/08/2026).
+
+    La date vient du QSO le plus RÉCENT du lot ; en usage normal ce lot est
+    déjà réduit à un seul jour UTC par logx_activation.activation_qsos()
+    (règle POTA), donc tous les QSO partagent la même date de toute façon."""
+    call = re.sub(r'[^A-Z0-9\-]', '', (callsign or '').upper()) or 'LOG'
+    ref = re.sub(r'[^A-Z0-9\-]', '', (park_ref or '').upper()) or 'PARK'
+    dates = sorted({str(q.get('date', '')).replace('-', '')[:8]
+                     for q in (qsos or []) if q.get('date')})
+    date = dates[-1] if dates else ''
+    return f'{call}@{ref}-{date}.adi' if date else f'{call}@{ref}.adi'
 
 
 # ─── BASE DES PARCS ───────────────────────────────────────────────────────────

@@ -182,3 +182,34 @@ def test_post_spot_frequence_arrondie_sans_bruit_flottant(monkeypatch):
     assert str(bruit_ieee754) == '21444.052489233058'  # le bug, si on l'avait laissé
     pota.post_spot('F4GLD', 'FR-0123', bruit_ieee754, 'SSB')
     assert captured['payload']['frequency'] == '21444.1'
+
+
+# ─── export_filename (export ADIF prêt à téléverser) ─────────────────────────
+# Format vérifié contre l'exemple officiel de docs.pota.app/docs/
+# activator_reference/submitting_logs.html : KA8H@US-1515-20201127.adi
+
+def test_export_filename_format_nominal():
+    qsos = [{'date': '20260816'}, {'date': '20260816'}]
+    assert pota.export_filename('F4GLD', 'FR-0123', qsos) == 'F4GLD@FR-0123-20260816.adi'
+
+
+def test_export_filename_indicatif_et_ref_normalises():
+    """Minuscules, espaces ou suffixe /P dans l'indicatif : tout ce qui
+    n'est pas lettre/chiffre/tiret est retiré (le fichier doit rester un nom
+    de fichier valide sur tout OS, et matcher le format attendu par POTA)."""
+    qsos = [{'date': '20260816'}]
+    assert pota.export_filename('f4gld/p', 'fr-0123', qsos) == 'F4GLDP@FR-0123-20260816.adi'
+
+
+def test_export_filename_prend_la_date_la_plus_recente():
+    """En usage normal, activation_qsos() a déjà réduit le lot à un seul jour
+    UTC pour POTA — mais si jamais plusieurs dates cohabitent (ex. appel
+    direct sans passer par ce filtre), on prend la plus récente plutôt que de
+    planter ou de prendre la première rencontrée."""
+    qsos = [{'date': '20260814'}, {'date': '20260816'}, {'date': '20260815'}]
+    assert pota.export_filename('F4GLD', 'FR-0123', qsos) == 'F4GLD@FR-0123-20260816.adi'
+
+
+def test_export_filename_sans_date_ni_qso_ne_plante_pas():
+    assert pota.export_filename('F4GLD', 'FR-0123', []) == 'F4GLD@FR-0123.adi'
+    assert pota.export_filename('', '', []) == 'LOG@PARK.adi'
