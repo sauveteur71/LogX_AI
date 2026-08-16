@@ -1603,6 +1603,10 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           </div>
           <!-- « Déjà contacté » : historique station (tous concours) + nouveau à vie -->
           <div id="prevQsos" style="display:none;font-family:var(--font-mono);font-size:12px;margin-top:4px;line-height:1.5;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px"></div>
+          <!-- Mini-grille bande×mode LoTW de l'entité en cours de saisie -- vue
+               d'ensemble en un coup d'œil, remplie par checkPrevQsos() (même
+               requête /call/history que #prevQsos, aucun appel réseau de plus). -->
+          <div id="lotwGrid" style="display:none;font-family:var(--font-mono);margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:6px 9px"></div>
         </div>
         <div class="callbook-compass-col">
           <!-- Compas inline -->

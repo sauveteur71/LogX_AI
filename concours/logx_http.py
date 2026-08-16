@@ -2830,6 +2830,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # LoTW ne compte toujours pas pour le DXCC. Calculé au grain
             # entité × bande × mode, celui auquel se décide un appel.
             h['lotw_need'] = awards.besoin_lotw(call, band, mode, log_copy)
+            # Vue d'ensemble bande×mode de l'entité (même endpoint, déjà
+            # interrogé à chaque frappe d'indicatif -- pas de requête réseau
+            # supplémentaire) : complète lotw_need (un seul créneau) par la
+            # progression complète.
+            h['lotw_grid'] = awards.lotw_grid(call, log_copy)
             # État US / province canadienne. En ADIF, STATE porte la
             # « subdivision administrative primaire » : c'est le même champ des
             # deux côtés de la frontière (MA, TX… mais aussi ON, QC, BC). Seul
