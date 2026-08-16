@@ -2,22 +2,25 @@
 """Synchronisation QSL — upload des logs et import des confirmations.
 
 Ferme la boucle QSL, comme Log4OM / HRD :
-  - UPLOAD du log (ADIF) vers eQSL et ClubLog après un concours.
+  - UPLOAD du log (ADIF) vers eQSL, ClubLog, QRZCQ, HRDLog après un concours.
+  - UPLOAD signé vers LoTW (upload_lotw) via le binaire tqsl (TrustedQSL,
+    ARRL) en pilotage silencieux — seule voie officielle pour publier vers
+    LoTW, la signature exige le certificat de la station, que ce module ne
+    voit ni ne manipule jamais directement.
   - IMPORT des confirmations depuis LoTW (rapport ADIF, login/mot de passe —
-    pas besoin de TQSL pour DESCENDRE les confirmations) → marque chaque QSO
+    ne nécessite PAS TQSL, requête HTTP simple) → marque chaque QSO
     « confirmé » dans qsl_confirmations.json, exploité par logx_awards.
 
 Tous les identifiants viennent de la config (côté serveur, jamais renvoyés au
 client — comme QRZ/ON4KST). Chaque fonction réseau retourne un dict
 {'ok': bool, ...} et n'échoue jamais par exception.
-
-LoTW UPLOAD n'est pas géré ici (il exige la signature TQSL avec le certificat
-de la station) ; on descend seulement les confirmations. eQSL/ClubLog upload
-suffisent à publier le log.
 """
 import json
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import time
 import threading
 import urllib.request
@@ -63,6 +66,7 @@ def qsl_settings(cfg):
         'clublog_api_key': (cfg.get('clublog_api_key') or '').strip(),
         'lotw_user': (cfg.get('lotw_user') or '').strip().upper(),
         'lotw_password': cfg.get('lotw_password') or '',
+        'lotw_station_location': (cfg.get('lotw_station_location') or '').strip(),
         'qrzcq_callsign': (cfg.get('qrzcq_callsign') or '').strip().upper(),
         'qrzcq_api_key': (cfg.get('qrzcq_api_key') or '').strip(),
         'hrdlog_callsign': (cfg.get('hrdlog_callsign') or '').strip().upper(),
@@ -80,6 +84,14 @@ def qsl_settings(cfg):
     s['clublog_enabled'] = bool(s['clublog_email'] and s['clublog_callsign']
                                 and s['clublog_password'] and s['clublog_api_key'])
     s['lotw_enabled'] = bool(s['lotw_user'] and s['lotw_password'])
+    # Capacité DISTINCTE de lotw_enabled ci-dessus (téléchargement des
+    # confirmations, simple requête HTTP) : l'upload exige tqsl, jamais
+    # l'identifiant/mot de passe web LoTW. Ne vérifie QUE la config (nom de
+    # Station Location renseigné) — pas la présence réelle du binaire tqsl,
+    # cohérent avec eqsl_enabled/clublog_enabled ci-dessus qui ne vérifient
+    # pas non plus la joignabilité réelle du service ; upload_lotw() fait
+    # cette vérification à l'appel, où l'information est fraîche.
+    s['lotw_upload_enabled'] = bool(s['lotw_station_location'])
     s['qrzcq_enabled'] = bool(s['qrzcq_callsign'] and s['qrzcq_api_key'])
     s['hrdlog_enabled'] = bool(s['hrdlog_callsign'] and s['hrdlog_code'])
     return s
@@ -262,6 +274,135 @@ def sync_lotw(cfg, since=None):
     _stamp('lotw')
     return {'ok': True, 'service': 'LoTW', 'confirmed_downloaded': len(conf),
             'newly_added': added, 'total_confirmations': total}
+
+
+# ─── LoTW : upload signé (tqsl, pilotage silencieux) ─────────────────────────
+# Flags vérifiés le 16/08/2026 contre la doc officielle ARRL (lotw.arrl.org/
+# lotw-help/cmdline, www.arrl.org/command-1, changelog TQSL) et le guide
+# développeur officiel (arrl.org/files/file/LoTW_Developer/DeveloperIntro.pdf)
+# pour la déduplication — PAS une reconstruction de mémoire générale.
+
+# Codes de sortie tqsl (source unique mais officielle et interne cohérente :
+# lotw.arrl.org/lotw-help/cmdline). 0 et 9 sont des succès : 9 = doublons/
+# QSO hors-plage ignorés, comportement VOULU par -a compliant (voir
+# upload_lotw ci-dessous), pas un échec partiel à signaler comme tel.
+TQSL_EXIT_MESSAGES = {
+    1: 'Annulé (ne devrait pas survenir en pilotage silencieux)',
+    2: 'Rejeté par LoTW',
+    3: 'Réponse inattendue du serveur TQSL',
+    4: 'Erreur TQSL',
+    5: 'Erreur TQSLlib',
+    6: "Impossible d'ouvrir le fichier ADIF",
+    7: "Impossible d'écrire le fichier de sortie",
+    10: 'Erreur de syntaxe de commande tqsl (signale ce bug à LogX AI)',
+    11: 'LoTW injoignable (réseau)',
+}
+TQSL_EXIT_NOTHING_TO_SEND = 8   # tous les QSO étaient déjà signés (doublons)
+
+
+def _find_tqsl_binary():
+    """Localise le binaire tqsl (TrustedQSL) — UNIQUEMENT via le PATH
+    (shutil.which). Aucun chemin d'installation par OS n'est codé en dur :
+    la doc officielle ARRL ne fixe aucun chemin garanti par plateforme
+    (Windows : dossier choisi par l'installeur MSI ; macOS : dossier choisi
+    par l'opérateur en glissant le .app ; Linux : aucun paquet officiel,
+    compilé depuis les sources) — un chemin deviné pourrait manquer une
+    install pourtant valide, ou pire, pointer vers un binaire sans rapport
+    portant le même nom. `shutil.which` gère déjà lui-même le suffixe .exe
+    sous Windows."""
+    return shutil.which('tqsl')
+
+
+def _run_tqsl(args, timeout=90):
+    """Exécute tqsl. Isolé dans sa propre fonction pour être substitué par
+    un double de test — jamais invoquer le vrai binaire en test (signerait
+    et enverrait pour de vrai vers le serveur LoTW réel de l'ARRL)."""
+    return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+
+
+def upload_lotw(cfg, qsos):
+    """Signe et télécharge le log vers LoTW via tqsl, en mode silencieux
+    (aucune fenêtre TQSL, aucun dialogue). Nécessite TQSL installé avec au
+    moins une Station Location déjà configurée par l'opérateur DANS
+    l'application TQSL elle-même — le certificat de station est un secret
+    cryptographique que ce code ne doit ni voir ni manipuler ; le seul lien
+    est le NOM de cette Station Location (`lotw_station_location`, CONFIG →
+    QSL), qui doit correspondre EXACTEMENT à celui déclaré dans TQSL.
+
+    Flags choisis (voir tableau de vérification en tête de section) :
+      -d            pas de dialogue de plage de dates (bloquerait le mode
+                    silencieux)
+      -a compliant  signe les QSO valides, ignore SILENCIEUSEMENT les
+                    doublons/hors-plage — le choix le plus sûr pour un envoi
+                    automatique répété (jamais 'all', déconseillé par l'ARRL
+                    lui-même — alourdit inutilement le serveur LoTW ; jamais
+                    'ask', qui ouvrirait un dialogue et bloquerait -x)
+      -u            signe ET téléverse directement vers LoTW en une seule
+                    commande, sans fichier .tq8 intermédiaire à gérer
+      -l "<nom>"    Station Location à utiliser
+      -x            mode silencieux (aucune fenêtre)
+    Volontairement PAS de -o (fichier de sortie local) : avec -u, l'upload
+    est fait par tqsl lui-même — un éventuel .tq8 local ne servirait à rien
+    ici, et la doc officielle ne précise pas clairement l'interaction exacte
+    entre -o et -u (non vérifié, sujet évité en ne l'utilisant pas).
+
+    Déduplication : tqsl tient sa PROPRE base de doublons, mais LOCALE À LA
+    MACHINE qui l'exécute (confirmé par le guide développeur officiel ARRL)
+    — un même indicatif signé depuis plusieurs postes (SO2R, multi-poste)
+    n'est pas dédoublonné entre eux par tqsl seul. _stamp('lotw_upload')
+    trace quand même la dernière date d'envoi côté LogX AI, en complément
+    (pas en remplacement) de -a compliant."""
+    s = qsl_settings(cfg)
+    if not s['lotw_upload_enabled']:
+        return {'ok': False, 'error': 'Upload LoTW non configuré (CONFIG → QSL : '
+                                       'Station Location TQSL manquante)'}
+    qsos = qsos or []
+    if not qsos:
+        return {'ok': False, 'error': 'Aucun QSO à envoyer'}
+
+    tqsl_path = _find_tqsl_binary()
+    if not tqsl_path:
+        return {'ok': False, 'error': "Binaire tqsl introuvable dans le PATH — installe "
+                                       "TrustedQSL (arrl.org/tqsl-download) et vérifie qu'il "
+                                       "est accessible depuis un terminal"}
+
+    import logx_export as export
+    adif = export.build_adif(qsos, cfg)
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.adi', delete=False,
+                                          encoding='utf-8') as f:
+            f.write(adif)
+            adif_path = f.name
+    except OSError as e:
+        return {'ok': False, 'error': f'Impossible de préparer le fichier ADIF : {e}'}
+
+    args = [tqsl_path, '-d', '-a', 'compliant', '-u', '-l', s['lotw_station_location'], '-x', adif_path]
+    try:
+        proc = _run_tqsl(args)
+    except subprocess.TimeoutExpired:
+        return {'ok': False, 'error': 'tqsl ne répond pas (délai dépassé) — un certificat '
+                                       'protégé par mot de passe et bloqué sur une invite '
+                                       'cachée est la cause la plus probable'}
+    except Exception as e:
+        return {'ok': False, 'error': f'Impossible de lancer tqsl : {e}'}
+    finally:
+        try:
+            os.remove(adif_path)
+        except OSError:
+            pass
+
+    code = proc.returncode
+    if code in (0, 9):
+        _stamp('lotw_upload')
+        note = ' (doublons/QSO hors-plage ignorés par tqsl)' if code == 9 else ''
+        return {'ok': True, 'service': 'LoTW', 'qso_count': len(qsos), 'note': note}
+    if code == TQSL_EXIT_NOTHING_TO_SEND:
+        return {'ok': False, 'nothing_to_send': True,
+                'error': 'Rien à envoyer : ces QSO étaient déjà signés pour LoTW (doublons)'}
+    msg = TQSL_EXIT_MESSAGES.get(code, f'tqsl a retourné le code {code}')
+    detail = (proc.stderr or '').strip()
+    return {'ok': False, 'service': 'LoTW',
+            'error': f'{msg}{" : " + detail[:200] if detail else ""}'}
 
 
 # ─── eQSL / ClubLog : upload du log ──────────────────────────────────────────
@@ -477,14 +618,18 @@ _ADIF_UPLOAD_HANDLERS = {
 def upload_log(cfg, service, qsos):
     """Dispatch générique : construit l'ADIF une seule fois pour les services
     qui uploadent un fichier complet ; HRDLog reçoit la liste de QSO brute
-    (son API est unitaire, voir upload_hrdlog)."""
+    (son API est unitaire, voir upload_hrdlog) ; LoTW aussi (upload_lotw
+    construit son propre ADIF et pilote tqsl, un fichier local temporaire,
+    pas un POST HTTP — rien de commun avec les handlers du dict ci-dessus)."""
     service = (service or '').lower()
     if service == 'hrdlog':
         return upload_hrdlog(cfg, qsos)
+    if service == 'lotw':
+        return upload_lotw(cfg, qsos)
     handler = _ADIF_UPLOAD_HANDLERS.get(service)
     if not handler:
         return {'ok': False, 'error': f"Service inconnu ({service}) — attendu : "
-                                      f"{', '.join(list(_ADIF_UPLOAD_HANDLERS) + ['hrdlog'])}"}
+                                      f"{', '.join(list(_ADIF_UPLOAD_HANDLERS) + ['hrdlog', 'lotw'])}"}
     import logx_export as export
     adif = export.build_adif(qsos, cfg)
     return handler(cfg, adif)
@@ -620,6 +765,7 @@ def qsl_status(cfg=None):
         'eqsl': bool(s.get('eqsl_enabled')),
         'clublog': bool(s.get('clublog_enabled')),
         'lotw': bool(s.get('lotw_enabled')),
+        'lotw_upload': bool(s.get('lotw_upload_enabled')),
         'qrzcq': bool(s.get('qrzcq_enabled')),
         'hrdlog': bool(s.get('hrdlog_enabled')),
         'last': stamps,

@@ -143,7 +143,8 @@ const CONFIG_HELP = {
   eqsl_user: "Ton identifiant eQSL.cc, pour envoyer/recevoir tes confirmations de QSO électroniques.",
   eqsl_password: "Ton mot de passe eQSL.cc.",
   lotw_user: "Ton identifiant ARRL Logbook of the World (LoTW), pour synchroniser tes confirmations DXCC.",
-  lotw_password: "Ton mot de passe LoTW (ou mot de passe de certificat TQSL selon ta configuration).",
+  lotw_password: "Ton mot de passe du site web LoTW (lotw.arrl.org) — sert uniquement à TÉLÉCHARGER tes confirmations, jamais à l'upload signé (voir Station Location TQSL ci-dessous, qui ne dépend pas de ce mot de passe).",
+  lotw_station_location: "Le nom EXACT d'une Station Location déjà créée dans l'application TQSL (Trusted QSL, arrl.org/tqsl-download) — active l'envoi automatique et signé de ton log vers LoTW sans avoir à ouvrir TQSL toi-même. Le certificat de la station reste entièrement dans TQSL : LogX AI ne le voit jamais, seul ce nom lui est nécessaire pour savoir lequel utiliser.",
   clublog_callsign: "L'indicatif enregistré sur ton compte ClubLog.org, pour l'upload automatique de ton log.",
   clublog_email: "L'email associé à ton compte ClubLog.org.",
   clublog_password: "Un « Application Password » ClubLog — PAS ton mot de passe principal du site : génère-le sur clublog.org → Settings → App Passwords (ClubLog le recommande explicitement pour tout logiciel tiers comme celui-ci, il ne donne pas accès au site web et ignore la double authentification).",
@@ -5212,6 +5213,7 @@ function saveConfig(silent = false, feedbackBtn = null) {
     eqsl_password: document.getElementById('eqsl_password').value,
     lotw_user: document.getElementById('lotw_user').value.trim(),
     lotw_password: document.getElementById('lotw_password').value,
+    lotw_station_location: document.getElementById('lotw_station_location').value.trim(),
     clublog_email: document.getElementById('clublog_email').value.trim(),
     clublog_callsign: document.getElementById('clublog_callsign').value.trim(),
     clublog_password: document.getElementById('clublog_password').value,
@@ -6073,7 +6075,7 @@ function applyFullConfigToForm(c) {
     if(c.on4kst_password) document.getElementById('on4kst_password').value = c.on4kst_password;
     if(c.qrz_user) document.getElementById('qrz_user').value = c.qrz_user;
     if(c.qrz_password) document.getElementById('qrz_password').value = c.qrz_password;
-    ['usage_mode','eqsl_user','eqsl_password','lotw_user','lotw_password','clublog_email',
+    ['usage_mode','eqsl_user','eqsl_password','lotw_user','lotw_password','lotw_station_location','clublog_email',
      'clublog_callsign','clublog_password','clublog_api_key',
      'qrzcq_callsign','qrzcq_api_key','hrdlog_callsign','hrdlog_code',
      'qrz_logbook_key','qrz_logbook_push','sota_client_id',
