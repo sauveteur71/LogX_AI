@@ -134,7 +134,7 @@ function checkPrevQsos(call){
   clearTimeout(_prevTimer);
   const el = document.getElementById('prevQsos');
   if(!el) return;
-  if(!call || call.length < 3){ el.style.display = 'none'; return; }
+  if(!call || call.length < 3){ el.style.display = 'none'; renderLotwGrid(null); return; }
   const seq = ++_prevSeq;
   _prevTimer = setTimeout(async () => {
     try{
@@ -143,6 +143,7 @@ function checkPrevQsos(call){
                             `&mode=${encodeURIComponent(currentMode || '')}`);
       if(!r.ok || seq !== _prevSeq) return;
       const d = await r.json();
+      renderLotwGrid(d.lotw_grid);
       const parts = [];
       // Alerte « nouveau à vie » (pays / département jamais contacté)
       (d.new_one || []).forEach(n => {
@@ -189,8 +190,42 @@ function checkPrevQsos(call){
       }
       el.innerHTML = parts.join('');
       el.style.display = parts.length ? 'block' : 'none';
-    }catch(e){ el.style.display = 'none'; }
+    }catch(e){ el.style.display = 'none'; renderLotwGrid(null); }
   }, 350);
+}
+
+// Mini-grille bande×mode LoTW (logx_awards.lotw_grid) : vue d'ensemble en un
+// coup d'œil de l'entité en cours de saisie, complément visuel à l'alerte
+// texte 📻/📛 ci-dessus (qui ne porte que sur LE créneau bande/mode courant).
+// Bandes/modes/statuts viennent tous d'un jeu fixe côté serveur (jamais de
+// texte libre d'annuaire tiers ici) -- pas d'échappement nécessaire.
+const LOTW_GRID_MODE_LABEL = {CW: 'CW', PHONE: 'PH', DIGITAL: 'DG'};
+const LOTW_GRID_STATUS_COLOR = {confirmed: 'var(--green)', worked: 'var(--accent2)', none: 'transparent'};
+const LOTW_GRID_STATUS_LABEL = {confirmed: 'confirmé LoTW', worked: 'travaillé, pas confirmé LoTW', none: 'jamais travaillé'};
+
+function renderLotwGrid(g){
+  const wrap = document.getElementById('lotwGrid');
+  if(!wrap) return;
+  if(!g || !g.active){ wrap.style.display = 'none'; return; }
+  const modes = g.modes || [];
+  let html = `<div style="font-size:9px;color:var(--muted);letter-spacing:.5px;margin-bottom:3px">${escHtml(g.country || '')}</div>`;
+  html += '<div style="display:flex;gap:2px;margin-left:32px">' +
+    modes.map(m => `<span style="display:inline-block;width:16px;font-size:9px;color:var(--muted);text-align:center">${LOTW_GRID_MODE_LABEL[m] || m}</span>`).join('') +
+    '</div>';
+  (g.bands || []).forEach(b => {
+    const row = g.grid && g.grid[b] ? g.grid[b] : {};
+    html += '<div style="display:flex;align-items:center;gap:2px">' +
+      `<span style="display:inline-block;width:30px;font-size:9px;color:var(--muted);text-align:right;margin-right:2px">${b}</span>` +
+      modes.map(m => {
+        const st = row[m] || 'none';
+        const bg = LOTW_GRID_STATUS_COLOR[st] || 'transparent';
+        const bd = st === 'none' ? '1px solid var(--border)' : '1px solid transparent';
+        return `<span title="${b} MHz ${LOTW_GRID_MODE_LABEL[m] || m} : ${LOTW_GRID_STATUS_LABEL[st] || st}" ` +
+               `style="display:inline-block;width:16px;height:12px;background:${bg};border:${bd};border-radius:2px"></span>`;
+      }).join('') + '</div>';
+  });
+  wrap.innerHTML = html;
+  wrap.style.display = 'block';
 }
 
 function fmtDate(d){

@@ -251,3 +251,67 @@ def test_une_frequence_inexploitable_ne_leve_pas(valeur):
 def test_hors_de_toute_bande_amateur_on_ne_devine_pas():
     """Mieux vaut ne rien conclure que d'inventer un créneau."""
     assert aw.mode_depuis_frequence(12.000) == ''
+
+
+# ─── lotw_grid : vue d'ensemble bande×mode (complément visuel à besoin_lotw) ─
+# Même moteur (_creneaux_confirmes_lotw), même critère LoTW-et-rien-d'autre —
+# ces tests couvrent surtout ce que besoin_lotw() seul ne montre pas : la
+# grille COMPLÈTE (10 bandes × 3 modes) en un seul appel.
+
+def test_indicatif_trop_court_ou_inconnu_rend_inactif(sans_fichiers):
+    sans_fichiers({})
+    assert aw.lotw_grid('', LOG) == {'active': False}
+    assert aw.lotw_grid('XX', LOG) == {'active': False}
+
+
+def test_grille_active_a_la_bonne_forme(sans_fichiers):
+    sans_fichiers({})
+    g = aw.lotw_grid('W1ABC', LOG)
+    assert g['active'] is True
+    assert g['country']
+    assert g['bands'] == list(aw.CHALLENGE_BANDS)
+    assert g['modes'] == ['CW', 'PHONE', 'DIGITAL']
+    assert set(g['grid'].keys()) == set(aw.CHALLENGE_BANDS)
+    assert set(g['grid']['14'].keys()) == {'CW', 'PHONE', 'DIGITAL'}
+
+
+def test_creneau_confirme_lotw_est_marque_confirmed(sans_fichiers):
+    sans_fichiers({'W1ABC|14|SSB': {'lotw': True}})
+    g = aw.lotw_grid('W1ABC', LOG)
+    assert g['grid']['14']['PHONE'] == 'confirmed'
+
+
+def test_creneau_travaille_non_confirme_est_marque_worked(sans_fichiers):
+    """W1ABC a un QSO en 7 MHz CW (LOG) mais aucune confirmation LoTW dessus."""
+    sans_fichiers({})
+    g = aw.lotw_grid('W1ABC', LOG)
+    assert g['grid']['7']['CW'] == 'worked'
+
+
+def test_creneau_jamais_travaille_est_marque_none(sans_fichiers):
+    sans_fichiers({})
+    g = aw.lotw_grid('W1ABC', LOG)
+    assert g['grid']['28']['DIGITAL'] == 'none'
+
+
+def test_eqsl_seul_ne_suffit_pas_a_marquer_confirmed(sans_fichiers):
+    """Même piège que besoin_lotw() : une confirmation eQSL/carte/ClubLog ne
+    doit JAMAIS colorer une case en 'confirmed' — seul LoTW compte."""
+    sans_fichiers({'W1ABC|14|SSB': {'eqsl': True, 'clublog': True}})
+    g = aw.lotw_grid('W1ABC', LOG)
+    assert g['grid']['14']['PHONE'] == 'worked'
+
+
+def test_les_modes_numeriques_partagent_la_meme_case(sans_fichiers):
+    """FT8 (JA1XYZ, LOG) doit se refléter dans la case DIGITAL, pas une case
+    par mode numérique distincte."""
+    sans_fichiers({})
+    g = aw.lotw_grid('JA1XYZ', LOG)
+    assert g['grid']['14']['DIGITAL'] == 'worked'
+
+
+def test_confirmation_sur_une_autre_entite_ne_deteint_pas(sans_fichiers):
+    """La grille de W1ABC ne doit rien montrer de confirmé pour JA1XYZ."""
+    sans_fichiers({'JA1XYZ|14|FT8': {'lotw': True}})
+    g = aw.lotw_grid('W1ABC', LOG)
+    assert g['grid']['14']['DIGITAL'] == 'none'

@@ -331,6 +331,59 @@ def besoin_lotw(call, band='', mode='', shared_log=None):
             'label': label}
 
 
+def lotw_grid(call, shared_log=None):
+    """Grille bande × mode (CW/PHONE/DIGITAL) de progression LoTW pour
+    l'entité DXCC de `call` -- vue d'ensemble en un coup d'œil, complément
+    visuel à besoin_lotw() ci-dessus (qui ne répond que pour UN SEUL créneau
+    bande/mode à la fois, celui en cours de saisie). Même critère que
+    besoin_lotw() : CONFIRMÉ signifie confirmé PAR LoTW précisément, pas
+    simplement travaillé ni confirmé par un autre biais (eQSL, papier).
+
+    Retourne {'active': False} si l'indicatif ne résout à aucune entité DXCC
+    connue. Sinon {'active': True, 'country', 'bands', 'modes',
+    'grid': {bande: {mode: statut}}} où statut vaut 'confirmed' (LoTW),
+    'worked' (loggé mais pas confirmé LoTW) ou 'none' (jamais travaillé sur
+    ce créneau). Bandes = CHALLENGE_BANDS (les 10 bandes du DXCC Challenge,
+    même référence que le reste de ce fichier), pas la totalité des bandes
+    gérées par LogX AI -- au-delà de 6 m, aucun diplôme DXCC ne s'applique."""
+    call = str(call or '').upper().strip()
+    if len(call) < 3:
+        return {'active': False}
+    base = call.split('/')[0] if '/' in call else call
+    try:
+        import logx_dxcc as dxcc
+        pays = (dxcc.lookup(base) or {}).get('country')
+    except Exception:
+        pays = None
+    if not pays:
+        return {'active': False}
+
+    qsos = collect_all_qsos(shared_log)
+    conf = _load_confirmations()
+    confirmed = _creneaux_confirmes_lotw(qsos, conf)
+    # « Travaillé » : même clé (entité, bande, catégorie de mode) que
+    # `confirmed` ci-dessus, mais sans filtrer sur la source de confirmation
+    # -- tout QSO logué avec cette entité y contribue, confirmé ou non.
+    worked = {(q.get('dxcc_country'), str(q.get('band', '')), _mode_category(q.get('mode')))
+              for q in qsos if q.get('dxcc_country')}
+
+    modes = ('CW', 'PHONE', 'DIGITAL')
+    grille = {}
+    for b in CHALLENGE_BANDS:
+        grille[b] = {}
+        for m in modes:
+            creneau = (pays, b, m)
+            if creneau in confirmed:
+                grille[b][m] = 'confirmed'
+            elif creneau in worked:
+                grille[b][m] = 'worked'
+            else:
+                grille[b][m] = 'none'
+
+    return {'active': True, 'country': pays, 'bands': list(CHALLENGE_BANDS),
+            'modes': list(modes), 'grid': grille}
+
+
 def carres_travailles(shared_log=None, bande=''):
     """Carrés QRA (4 caractères) travaillés, pour la carte VUCC.
 
