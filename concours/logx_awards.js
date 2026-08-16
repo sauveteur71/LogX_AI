@@ -209,6 +209,7 @@ async function showAwards(){
         <button class="export-btn" onclick="qslAction('upload','clublog',this)" ${q.clublog?'':'disabled title="Configure ClubLog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ ClubLog</button>
         <button class="export-btn" onclick="qslAction('upload','qrzcq',this)" ${q.qrzcq?'':'disabled title="Configure QRZCQ dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ QRZCQ</button>
         <button class="export-btn" onclick="qslAction('upload','hrdlog',this)" ${q.hrdlog?'':'disabled title="Configure HRDLog dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ HRDLog</button>
+        <button class="export-btn" onclick="qslAction('upload','lotw',this)" ${q.lotw_upload?'':'disabled title="Configure la Station Location TQSL dans CONFIG"'} style="color:var(--accent2);border-color:rgba(var(--accent-rgb),.4)">⬆ LoTW</button>
         <button class="export-btn" onclick="qslAction('sync','lotw',this)" ${q.lotw?'':'disabled title="Configure LoTW dans CONFIG"'} style="color:var(--green);border-color:rgba(0,255,136,.4)">⬇ Confirmations LoTW</button>
       </div>
       <div id="qslResult" style="margin-top:10px;color:var(--muted);font-size:12px">${qslLastSync(q)}</div>
@@ -223,6 +224,7 @@ function qslLastSync(q){
   if(l.clublog_upload) bits.push('ClubLog envoyé le ' + l.clublog_upload);
   if(l.qrzcq_upload) bits.push('QRZCQ envoyé le ' + l.qrzcq_upload);
   if(l.hrdlog_upload) bits.push('HRDLog envoyé le ' + l.hrdlog_upload);
+  if(l.lotw_upload) bits.push('LoTW envoyé le ' + l.lotw_upload);
   if(l.lotw) bits.push('LoTW synchro le ' + l.lotw);
   return bits.length ? bits.join(' · ') : 'aucune synchro encore';
 }
@@ -241,10 +243,14 @@ async function qslAction(kind, service, btn){
       if(kind==='upload' && service==='hrdlog') out.innerHTML =
         `<span style="color:var(--green)">${trF('✅ {sent}/{total} QSO envoyés à HRDLog{failed}.',
           {sent: d.sent, total: d.qso_count, failed: d.failed ? trF(' ({n} échoués)', {n: d.failed}) : ''})}</span>`;
-      else if(kind==='upload') out.innerHTML = `<span style="color:var(--green)">${trF('✅ {n} QSO envoyés à {service}.', {n: d.qso_count, service: d.service})}</span>`;
+      else if(kind==='upload') out.innerHTML = `<span style="color:var(--green)">${trF('✅ {n} QSO envoyés à {service}{note}.', {n: d.qso_count, service: d.service, note: d.note ? escHtml(d.note) : ''})}</span>`;
       else out.innerHTML = `<span style="color:var(--green)">${trF('✅ {n} nouvelles confirmations ({total} au total).', {n: d.newly_added, total: d.total_confirmations})}</span>`;
       notify(trF('✅ QSL {action}', {action: kind==='upload' ? trT('envoyé') : trT('synchronisé')}));
       if(kind==='sync') setTimeout(()=>{ const ov = document.getElementById('awardsOverlay'); if(ov && ov.classList.contains('show')) showAwards(); }, 800);   // rafraîchit les « confirmés »
+    }else if(d.nothing_to_send){
+      // Cas neutre (tqsl -a compliant a tout ignoré comme doublon) : pas une
+      // vraie erreur, l'opérateur n'a juste rien de nouveau à publier.
+      out.innerHTML = `<span style="color:var(--muted)">${trF('ℹ️ {msg}', {msg: escHtml(d.error)})}</span>`;
     }else{
       out.innerHTML = `<span style="color:var(--red)">${trF('❌ {err}', {err: escHtml(d.error || trT('échec'))})}</span>`;
     }

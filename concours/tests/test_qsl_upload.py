@@ -175,6 +175,123 @@ def test_hrdlog_insert_zero_sans_balise_error_est_bien_un_echec(monkeypatch):
     assert r['ok'] is False and r['sent'] == 0 and r['failed'] == 1
 
 
+# ─── LoTW : upload signé (tqsl, pilotage silencieux) ────────────────────────
+# jamais invoquer le vrai binaire tqsl dans ces tests (signerait/enverrait
+# pour de vrai vers le serveur LoTW réel de l'ARRL) -- _find_tqsl_binary()
+# et _run_tqsl() sont substitués systématiquement.
+
+LOTW_UPLOAD_CFG = {'lotw_station_location': 'CQWW Portable'}
+
+
+def _fake_proc(returncode, stderr=''):
+    import subprocess as _sp
+    return _sp.CompletedProcess(args=[], returncode=returncode, stdout='', stderr=stderr)
+
+
+def test_lotw_upload_non_configure():
+    r = qsl.upload_lotw({}, [QSO])
+    assert not r['ok'] and 'non configuré' in r['error']
+
+
+def test_lotw_upload_aucun_qso(monkeypatch):
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/usr/bin/tqsl')
+    r = qsl.upload_lotw(LOTW_UPLOAD_CFG, [])
+    assert not r['ok'] and 'Aucun QSO' in r['error']
+
+
+def test_lotw_upload_tqsl_introuvable(monkeypatch):
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: None)
+    r = qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO])
+    assert not r['ok'] and 'introuvable' in r['error']
+
+
+def test_lotw_upload_ok(monkeypatch):
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/usr/bin/tqsl')
+    monkeypatch.setattr(qsl, '_run_tqsl', lambda args, timeout=90: _fake_proc(0))
+    r = qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO, dict(QSO, call='G3XYZ')])
+    assert r['ok'] and r['service'] == 'LoTW' and r['qso_count'] == 2
+    assert r['note'] == ''
+
+
+def test_lotw_upload_succes_partiel_doublons_ignores(monkeypatch):
+    """Code 9 = -a compliant a ignoré des doublons/QSO hors-plage -- un
+    succès (voulu), pas un échec partiel à signaler comme tel."""
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/usr/bin/tqsl')
+    monkeypatch.setattr(qsl, '_run_tqsl', lambda args, timeout=90: _fake_proc(9))
+    r = qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO])
+    assert r['ok'] and 'ignor' in r['note']
+
+
+def test_lotw_upload_rien_a_envoyer(monkeypatch):
+    """Code 8 = tous les QSO étaient déjà signés (doublons) -- un état
+    neutre/informatif, pas une vraie erreur bloquante."""
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/usr/bin/tqsl')
+    monkeypatch.setattr(qsl, '_run_tqsl', lambda args, timeout=90: _fake_proc(8))
+    r = qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO])
+    assert not r['ok'] and r['nothing_to_send'] is True
+
+
+def test_lotw_upload_echec_code_connu_avec_detail_stderr(monkeypatch):
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/usr/bin/tqsl')
+    monkeypatch.setattr(qsl, '_run_tqsl', lambda args, timeout=90: _fake_proc(2, stderr='QSO rejected: bad callsign'))
+    r = qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO])
+    assert not r['ok'] and r['service'] == 'LoTW'
+    assert 'Rejeté par LoTW' in r['error'] and 'bad callsign' in r['error']
+
+
+def test_lotw_upload_code_inconnu_repli_generique(monkeypatch):
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/usr/bin/tqsl')
+    monkeypatch.setattr(qsl, '_run_tqsl', lambda args, timeout=90: _fake_proc(99))
+    r = qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO])
+    assert not r['ok'] and '99' in r['error']
+
+
+def test_lotw_upload_timeout(monkeypatch):
+    import subprocess as _sp
+    def boom(args, timeout=90):
+        raise _sp.TimeoutExpired(cmd=args, timeout=timeout)
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/usr/bin/tqsl')
+    monkeypatch.setattr(qsl, '_run_tqsl', boom)
+    r = qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO])
+    assert not r['ok'] and 'délai' in r['error']
+
+
+def test_lotw_upload_commande_respecte_les_flags_verifies(monkeypatch):
+    """Fige les flags vérifiés le 16/08/2026 contre la doc officielle ARRL
+    (lotw.arrl.org/lotw-help/cmdline, www.arrl.org/command-1) -- toute
+    dérive future (ajout/suppression/réordonnancement non intentionnel)
+    doit être un choix explicite, pas un accident."""
+    captured = {}
+    def fake_run(args, timeout=90):
+        captured['args'] = args
+        return _fake_proc(0)
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/opt/tqsl/tqsl')
+    monkeypatch.setattr(qsl, '_run_tqsl', fake_run)
+    qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO])
+    args = captured['args']
+    assert args[0] == '/opt/tqsl/tqsl'
+    assert '-d' in args
+    assert args[args.index('-a') + 1] == 'compliant'
+    assert '-u' in args
+    assert args[args.index('-l') + 1] == 'CQWW Portable'
+    assert '-x' in args
+    assert '-o' not in args   # voir docstring upload_lotw : jamais utilisé
+    assert args[-1].endswith('.adi')   # fichier ADIF, argument positionnel final
+
+
+def test_lotw_upload_supprime_le_fichier_adif_temporaire(monkeypatch):
+    captured = {}
+    def fake_run(args, timeout=90):
+        captured['adif_path'] = args[-1]
+        assert os.path.exists(args[-1]), "le fichier ADIF doit exister PENDANT l'appel tqsl"
+        return _fake_proc(0)
+    monkeypatch.setattr(qsl, '_find_tqsl_binary', lambda: '/usr/bin/tqsl')
+    monkeypatch.setattr(qsl, '_run_tqsl', fake_run)
+    qsl.upload_lotw(LOTW_UPLOAD_CFG, [QSO])
+    assert not os.path.exists(captured['adif_path']), (
+        'le fichier ADIF temporaire doit être supprimé après usage')
+
+
 # ─── Dispatch unifié ────────────────────────────────────────────────────────
 
 def test_upload_log_service_inconnu():
@@ -202,6 +319,19 @@ def test_upload_log_dispatch_hrdlog_recoit_les_qso_bruts(monkeypatch):
     assert r['ok'] and captured['qsos'] == [QSO]
 
 
+def test_upload_log_dispatch_lotw_recoit_les_qso_bruts(monkeypatch):
+    """Comme hrdlog : LoTW construit son propre ADIF (fichier temporaire
+    pour tqsl), le dispatch générique ne doit PAS lui en construire un en
+    plus (voir commentaire de upload_log)."""
+    captured = {}
+    def fake_lotw(cfg, qsos):
+        captured['qsos'] = qsos
+        return {'ok': True, 'service': 'LoTW', 'qso_count': len(qsos)}
+    monkeypatch.setattr(qsl, 'upload_lotw', fake_lotw)
+    r = qsl.upload_log({}, 'lotw', [QSO])
+    assert r['ok'] and captured['qsos'] == [QSO]
+
+
 # ─── Réglages ───────────────────────────────────────────────────────────────
 
 def test_qsl_settings_qrzcq_hrdlog():
@@ -211,9 +341,31 @@ def test_qsl_settings_qrzcq_hrdlog():
     assert s['hrdlog_enabled'] and s['hrdlog_callsign'] == 'F6KQJ'
 
 
+def test_qsl_settings_lotw_upload():
+    assert qsl.qsl_settings({})['lotw_upload_enabled'] is False
+    s = qsl.qsl_settings({'lotw_station_location': ' CQWW Portable '})
+    assert s['lotw_upload_enabled'] is True
+    assert s['lotw_station_location'] == 'CQWW Portable'
+
+
+def test_qsl_settings_lotw_upload_distinct_de_lotw_download():
+    """lotw_enabled (téléchargement, identifiant+mot de passe web) et
+    lotw_upload_enabled (upload, Station Location TQSL) sont deux capacités
+    INDÉPENDANTES -- l'une peut être active sans l'autre."""
+    s = qsl.qsl_settings({'lotw_user': 'F4GLD', 'lotw_password': 'x'})
+    assert s['lotw_enabled'] is True and s['lotw_upload_enabled'] is False
+    s2 = qsl.qsl_settings({'lotw_station_location': 'Home'})
+    assert s2['lotw_enabled'] is False and s2['lotw_upload_enabled'] is True
+
+
 def test_qsl_status_expose_qrzcq_hrdlog():
     st = qsl.qsl_status(QRZCQ_CFG)
     assert st['qrzcq'] is True and st['hrdlog'] is False
+
+
+def test_qsl_status_expose_lotw_upload():
+    assert qsl.qsl_status(LOTW_UPLOAD_CFG)['lotw_upload'] is True
+    assert qsl.qsl_status({})['lotw_upload'] is False
 
 
 # ─── Club Log Live Stream (realtime.php) ─────────────────────────────────────
