@@ -956,17 +956,35 @@ if(typeof ResizeObserver !== 'undefined'){
 // PRÉCISION F4GLD (11/08/2026, juste après le 1er déploiement) : « je veux
 // pas directement repartir dans logbook je veux juste que le popup config
 // se ferme! en restant sur l'onglet config » -- launchApp() (qui navigue
-// vers logx_logbook.html) était donc le mauvais geste. closeCategoryPanel()
-// ferme uniquement le panneau de catégorie ouvert (masque catmodal_<cat>,
-// désélectionne la sidebar) et reste sur CONFIG -- ne sauvegarde JAMAIS
-// (règle F4GLD du 04/08/2026 déjà posée dans _catFormSnapshots ci-dessous :
-// « fermer ne sauvegarde jamais »), donc réutilise le même garde de
-// modifications non enregistrées que le changement de section
-// (_confirmDiscardCatChanges) plutôt que d'inventer un 2e comportement.
+// vers logx_logbook.html) était donc le mauvais geste à l'époque.
+// REVIREMENT ASSUMÉ (16/08/2026, même demande que l'agrandissement du
+// panneau en pleine page ci-dessus) : « dès que c'est fermé on doit revenir
+// directement sur logbook, idem pour [le bouton] logger » -- closeCategoryPanel()
+// navigue maintenant vers logx_logbook.html, comme launchApp(), et pour la
+// MÊME raison qu'à l'époque le contraire était demandé : c'est la volonté
+// explicite de l'utilisateur, pas une régression. Seule règle qui SURVIT aux
+// deux versions : « fermer ne sauvegarde jamais » (04/08/2026, déjà posée
+// dans _catFormSnapshots ci-dessous) -- closeCategoryPanel() continue donc à
+// ne JAMAIS appeler saveConfig(), contrairement à launchApp(). Le garde de
+// modifications non enregistrées (_confirmDiscardCatChanges, même mécanisme
+// que le changement de section) reste réutilisé tel quel : la question
+// « perdrait-on une saisie ? » ne dépend pas de la destination finale.
+async function closeCategoryPanel(){
+  const cur = _currentOpenCat();
+  if(cur && !(await _confirmDiscardCatChanges(cur))) return;
+  window.location.href = 'logx_logbook.html';
+}
+
 document.body.addEventListener('click', function(e){
   const t = e.target;
   const isBackground = t === document.body || (t.classList && t.classList.contains('container'));
   if(isBackground && document.getElementById('configSidebar')) closeCategoryPanel();
+});
+
+// Échap : même geste que le clic à côté / le bouton ✕ (voir plus haut) --
+// pas de gestionnaire Escape concurrent ailleurs dans ce fichier (vérifié).
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && document.getElementById('configSidebar')) closeCategoryPanel();
 });
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
@@ -2996,23 +3014,10 @@ async function _confirmDiscardCatChanges(cat){
   return await _confirmConfigBanner(T('Des modifications de cette section n\'ont pas été enregistrées. Fermer quand même et les perdre ?'), 'Fermer sans enregistrer', 'Annuler');
 }
 
-// Ferme le panneau de catégorie actuellement ouvert SANS naviguer ailleurs et
-// SANS sauvegarder (règle F4GLD du 04/08/2026 : fermer ne sauvegarde jamais)
-// -- appelé par le clic à côté du popup (voir plus haut). Aucune catégorie
-// ne redevient "active" ensuite : l'arborescence reste visible, prête à
-// rouvrir n'importe quelle section, mais aucune n'est présélectionnée.
-async function closeCategoryPanel(){
-  const cur = _currentOpenCat();
-  if(!cur) return;
-  if(!(await _confirmDiscardCatChanges(cur))) return;
-  const mo = document.getElementById('catmodal_' + cur);
-  if(mo) mo.style.display = 'none';
-  delete _catFormSnapshots[cur];
-  try {
-    const nav = document.getElementById('configSidebar');
-    if(nav) nav.querySelectorAll('.config-sidebar-item').forEach(b => b.classList.remove('active'));
-  } catch(e){}
-}
+// closeCategoryPanel() elle-même est définie plus haut (près du listener de
+// clic à côté / Échap qui l'appelle tous les deux) -- pas ici, pour garder
+// les 3 déclencheurs (clic à côté, Échap, bouton ✕) à côté du code qu'ils
+// partagent plutôt que de les séparer de ~2000 lignes.
 
 async function openCategoryPopup(cat){
   // Avant de basculer : si la section actuellement ouverte a des
@@ -5834,6 +5839,18 @@ function onbPick(kind, value){
 function _closeOnboarding(){
   const overlay = document.getElementById('onboardingOverlay');
   if (overlay) overlay.style.display = 'none';
+  // BUG TROUVÉ EN VÉRIFICATION NAVIGATEUR (16/08/2026, chantier agrandissement
+  // du panneau CONFIG) : --config-panel-top est calculée une 1re fois AVANT
+  // que cet écran ne se ferme, alors que .profiles-bar/.usage-mode-bar (en
+  // flux normal, juste sous header+nav+statusbar) peuvent ne pas encore avoir
+  // leur position/hauteur définitive tant que l'overlay plein écran est
+  // affiché par-dessus -- et rien ne redéclenche _updateConfigPanelTop()
+  // ensuite (son ResizeObserver ne surveille QUE .app-nav, jamais informé par
+  // la fermeture de CET écran). Avec les marges 6% d'avant cette valeur trop
+  // haute passait presque inaperçue ; avec les marges 2% (panneau censé
+  // remplir la page), un top resté périmé écrase quasi toute la hauteur
+  // utile. Recalculée ICI, au seul moment où elle peut avoir changé.
+  if (typeof _updateConfigPanelTop === 'function') _updateConfigPanelTop();
   if (typeof _onbResolve === 'function') { const r = _onbResolve; _onbResolve = null; r(); }
 }
 

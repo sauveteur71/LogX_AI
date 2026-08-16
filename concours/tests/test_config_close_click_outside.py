@@ -2,25 +2,32 @@
 """Fermeture du panneau CONFIG par un clic en dehors -- retour F4GLD
 (11/08/2026) : « je voudrais pouvoir fermer cette page par un simple clic
 a l'exterieur du popup ». #configSidebar et le .cat-modal-box actif sont en
-position:fixed avec des marges de 6% qui laissent de l'arrière-plan visible
-et cliquable -- un clic qui atteint CE FOND (document.body ou <div
-class="container">, l'ancien conteneur de page toujours présent en enfant
-direct de body -- vérifié en navigateur réel via elementFromPoint() : la
-première hypothèse « document.body directement » était fausse, .container
-le recouvre entièrement) doit fermer le panneau de catégorie ouvert.
+position:fixed avec des marges (2% depuis le 16/08/2026, 6% avant -- voir
+plus bas) qui laissent de l'arrière-plan visible et cliquable -- un clic qui
+atteint CE FOND (document.body ou <div class="container">, l'ancien
+conteneur de page toujours présent en enfant direct de body -- vérifié en
+navigateur réel via elementFromPoint() : la première hypothèse « document.body
+directement » était fausse, .container le recouvre entièrement) doit fermer
+le panneau de catégorie ouvert.
 
-PRÉCISION F4GLD (11/08/2026, juste après le 1er déploiement) : « je veux
-pas directement repartir dans logbook je veux juste que le popup config se
-ferme! en restant sur l'onglet config » -- le geste appelé est donc
-closeCategoryPanel() (ferme sur place, ne navigue jamais), pas launchApp()
-(qui navigue vers logx_logbook.html, testé initialement puis corrigé).
+HISTORIQUE DU GESTE APPELÉ (closeCategoryPanel(), dans les deux cas -- seul
+CE QU'ELLE FAIT a changé, jamais le déclencheur testé ici) :
+- PRÉCISION F4GLD (11/08/2026, juste après le 1er déploiement) : « je veux
+  pas directement repartir dans logbook je veux juste que le popup config se
+  ferme! en restant sur l'onglet config » -- closeCategoryPanel() fermait
+  alors sur place, sans jamais naviguer.
+- REVIREMENT ASSUMÉ (16/08/2026, avec l'agrandissement du panneau en pleine
+  page) : « dès que c'est fermé on doit revenir directement sur logbook » --
+  closeCategoryPanel() navigue désormais vers logx_logbook.html (voir
+  tests/test_config_category_switch.py pour la version à jour de sa propre
+  logique interne).
 
 Ce module teste uniquement le CIBLAGE du clic (quel élément déclenche
 l'appel) -- la logique de closeCategoryPanel() elle-même (garde de
-modifications non enregistrées, masquage du bon panneau, désélection de la
-sidebar) est testée dans test_config_category_switch.py, qui possède déjà
-le DOM factice riche (catmodal_*/catbody_*) nécessaire pour l'exercer
-réellement plutôt que de la stubber.
+modifications non enregistrées, destination de la navigation) est testée
+dans test_config_category_switch.py, qui possède déjà le DOM factice riche
+(catmodal_*/catbody_*) nécessaire pour l'exercer réellement plutôt que de la
+stubber.
 
 Exécute le VRAI code (extrait tel quel par recherche du bloc, même technique
 que tests/test_score_a_battre_js.py) dans un moteur JS réel (V8 via
