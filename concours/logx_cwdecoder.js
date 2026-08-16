@@ -8,7 +8,10 @@
 // Principe (pipeline DSP standard, rien d'exotique) :
 //  1. Goertzel monofréquence calé sur le ton CW (bien plus robuste qu'une
 //     détection d'enveloppe large bande : rejette la voix/le bruit hors bande)
-//  2. Seuil ADAPTATIF (plancher de bruit suivi en continu) -> signal ON/OFF
+//  2. Seuil ADAPTATIF (AGC : plancher de bruit ET pic de signal suivis en
+//     continu, seuil RELATIF entre les deux -- invariant à l'amplitude
+//     réelle du signal capté, pas calibré sur une seule échelle fixe) ->
+//     signal ON/OFF
 //  3. Durées des impulsions/espaces -> classification point/trait/espace par
 //     rapport à une unité de temps elle-même adaptative (poursuit la vitesse)
 //  4. Table Morse -> caractères
@@ -99,6 +102,17 @@ class MorseTimingDecoder {
 
   pushEdge(isMark, durationMs){
     if(isMark){
+      // Rejette les impulsions ON trop courtes pour être un vrai point --
+      // même seuil que fldigi (cw_noise_spike_threshold = dot_length/2,
+      // cw.cxx). Un blip de bruit HF (crachement statique, QRM bref) classé
+      // comme marque ferait sinon s'effondrer immédiatement le MINIMUM de la
+      // fenêtre glissante dans _adaptUnit() (protection anti-dérive, voir
+      // plus haut) -- l'estimation de vitesse s'écroule en cascade et
+      // corrompt la classification de tout ce qui suit. Ignorée comme si
+      // l'émetteur n'avait rien envoyé : ni caractère, ni ajustement
+      // d'unité (contrairement à un point/trait réel, elle n'existe nulle
+      // part dans le résultat).
+      if(durationMs < this.unitMs * 0.5) return;
       // Point vs trait : seuil à 2x l'unité courante (point=1, trait=3 -> le
       // milieu naturel est à 2).
       this.buffer += (durationMs < this.unitMs * 2) ? '.' : '-';
@@ -106,9 +120,30 @@ class MorseTimingDecoder {
     } else {
       // Espace : intra-caractère (<2u) ignoré, inter-caractère (2-6u) ferme
       // la lettre, inter-mot (>6u) ferme la lettre ET émet un espace.
+      // Rapproché de 6u à 5u puis REVERT à 6u (15/08/2026, chantier AGC/CW
+      // réel) : fldigi est plus permissif (4u) mais un essai concret a
+      // montré que 5u casse la reconnaissance à vitesse LENTE en début de
+      // message (test_demarrage_a_froid_vitesse_concours, 15 MPM) -- unitMs
+      // met plusieurs lettres à converger depuis son hypothèse de départ
+      // (45ms) vers la vraie valeur (80ms à 15 MPM), et un espace
+      // inter-lettre RÉEL évalué contre ce unitMs encore bas franchissait le
+      // seuil de 5u par erreur. Piste écartée : à confiance/priorité les
+      // plus faibles du diagnostic (texte parfois collé, jamais un échec
+      // total), pas assez de marge pour la corriger sans mieux comprendre
+      // l'interaction avec la convergence à froid -- gardé pour une suite
+      // éventuelle plutôt que de risquer une régression vérifiée.
       if(durationMs >= this.unitMs * 2){
+        const hadChar = !!this.buffer;
         this._flushChar();
-        if(durationMs >= this.unitMs * 6) this.onChar(' ');
+        // hadChar : un espace-mot n'a de sens qu'APRÈS un caractère réel.
+        // Sans cette garde, le silence initial avant la TOUTE PREMIÈRE
+        // marque d'une session (mesuré contre l'hypothèse de départ encore
+        // basse de unitMs, voir constructeur) peut à lui seul dépasser le
+        // seuil inter-mot et produire un espace parasite EN TÊTE de sortie,
+        // avant tout texte. Trouvé en testant le pipeline CwAudioDecoder de
+        // bout en bout (15/08/2026) -- jamais exercé avant ce chantier
+        // (CwAudioDecoder n'avait aucun test propre jusque-là).
+        if(hadChar && durationMs >= this.unitMs * 6) this.onChar(' ');
       }
     }
   }
@@ -147,7 +182,24 @@ class CwAudioDecoder {
     this.decoder = new MorseTimingDecoder(onChar);
     this.decoder.wpm = 0;   // 0 tant qu'aucune marque réelle n'a été mesurée — voir onLevel plus bas
     this.ctx = null; this.stream = null; this.source = null; this.proc = null;
-    this.noiseFloor = 0.01;
+    // Bootstrap volontairement TRÈS bas (pas 0.01 comme dans une version
+    // intermédiaire de ce correctif, 15/08/2026) : un plancher de bruit ET
+    // un pic de signal démarrés haut créent un écart fantôme (span) qui met
+    // plusieurs SECONDES à se résorber (agcPeak décroît volontairement très
+    // lentement, ~0,1%/bloc, pour ne pas "oublier" le pic entre deux marques
+    // d'un même message) -- juste après avoir cliqué "Démarrer", exactement
+    // la fenêtre où l'opérateur s'attend à une détection immédiate d'un
+    // signal faible. Vérifié empiriquement (voir tests/test_cwdecoder.py) :
+    // un bootstrap à 0.01 laissait encore passer ce symptôme. Un signal fort
+    // continue de faire monter agcPeak en 1-2 blocs (attaque rapide,
+    // 0.7/0.3) : rien à perdre en réactivité avec un départ bas. Un
+    // éventuel bruit ambiant réel plus élevé que ce bootstrap ferait
+    // remonter noiseFloor par la branche lente (voir _onBlock()) en
+    // quelques dizaines de blocs -- et toute fausse marque transitoire
+    // pendant cette (brève) mise à niveau est de toute façon absorbée par
+    // le rejet des impulsions courtes de MorseTimingDecoder.pushEdge().
+    this.noiseFloor = 0.001;
+    this.agcPeak = 0.001;
     this.keyDown = false;
     this.edgeStartMs = 0;
     this.lastSampleMs = 0;
@@ -193,7 +245,27 @@ class CwAudioDecoder {
     // étant du bruit, sinon le décodeur devient sourd à un CW soutenu).
     if(mag < this.noiseFloor) this.noiseFloor = this.noiseFloor*0.98 + mag*0.02;
     else this.noiseFloor = this.noiseFloor*0.999 + mag*0.001;
-    const threshold = this.noiseFloor * 2.8 + 0.003;
+    // Pic de signal (AGC) : attaque rapide (suit vite une marque qui monte),
+    // relâchement lent (ne redescend pas entre deux marques d'un même
+    // message) -- SYMÉTRIQUE au plancher de bruit ci-dessus. mirror de
+    // agc_peak dans fldigi (rigs/.../cw_rtty/cw.cxx, w1hkj/fldigi).
+    if(mag > this.agcPeak) this.agcPeak = this.agcPeak*0.7 + mag*0.3;
+    else this.agcPeak = this.agcPeak*0.999 + mag*0.001;
+    // Seuil RELATIF (entre bruit et pic de signal), plus un petit facteur
+    // multiplicatif sur le bruit pour éviter le crépitement quand tout est
+    // silencieux (agcPeak ~= noiseFloor). AVANT : seuil en ÉCHELLE ABSOLUE
+    // (`noiseFloor*2.8 + 0.003`, ce `+0.003` dominant dès que noiseFloor est
+    // petit) -- calibré empiriquement contre les tons de test SYNTHÉTIQUES
+    // (amplitude 1.0 = magnitude Goertzel ~0.5). Un signal RADIO réel capté
+    // via carte son/interface plafonne très souvent bien plus bas (surtout
+    // avec autoGainControl:false, volontaire ci-dessus) et pouvait ne
+    // JAMAIS dépasser ce plancher absolu -- décodage totalement silencieux
+    // quel que soit le réglage de vitesse/fréquence. Symptôme réel rapporté
+    // sur IC-7300 (15/08/2026), déjà signalé une fois le 04/08/2026 sans
+    // que cette logique n'ait alors été corrigée. Un seuil RELATIF au pic
+    // observé est invariant à l'échelle du signal d'entrée, comme fldigi.
+    const span = Math.max(this.agcPeak - this.noiseFloor, 0);
+    const threshold = this.noiseFloor * 2.0 + span * 0.35;
     const isOn = mag > threshold;
     this.onLevel(mag, threshold, this.decoder.wpm);
 
