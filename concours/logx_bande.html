@@ -26,6 +26,16 @@
   /data/spots_ranked (déjà servi depuis les caches du serveur, sans appel
   extérieur) et filtre SA bande. Dix fenêtres ne font donc pas dix connexions
   au cluster.
+
+  MARQUEUR VFO (position du poste sur la réglette) : contrairement aux spots,
+  /hardware/state interroge la VRAIE radio (CAT natif/rigctld/TCI/flrig) à
+  CHAQUE appel, sans mise en cache serveur -- une fenêtre par bande qui le
+  sonderait à cadence rapide multiplierait les requêtes CAT par le nombre de
+  fenêtres ouvertes, avec un risque réel de contention sur un port série
+  partagé (un seul poste ne répond qu'à une commande à la fois). Le marqueur
+  est donc rafraîchi sur le MÊME cycle que les spots (15 s), pas un intervalle
+  séparé plus rapide -- une fenêtre de SURVEILLANCE (voir plus haut) n'a pas
+  besoin d'un suivi VFO à la seconde près.
 -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,900&display=swap');
@@ -63,6 +73,17 @@ header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:line
 .pin-lotw{background:var(--green);color:#04120a}
 body.day-mode .pin-lotw{color:#eef7e9}
 .pin-autre{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+/* Marqueur VFO : position du poste, PAS un spot -- volontairement distinct
+   des .pin (triangle sur le bord GAUCHE de la réglette, pointant vers
+   l'intérieur, alors que les .pin sont des étiquettes sur le bord droit).
+   pointer-events:none : ne doit jamais intercepter un clic destiné à un
+   repère de fréquence ou un spot juste en dessous. */
+.vfo{position:absolute;left:0;top:0;width:0;height:0;margin-top:-5px;
+     border-top:5px solid transparent;border-bottom:5px solid transparent;
+     border-left:9px solid var(--accent2);pointer-events:none;z-index:2}
+.legende-vfo{display:inline-block;width:0;height:0;margin-right:2px;
+     border-top:4px solid transparent;border-bottom:4px solid transparent;
+     border-left:7px solid var(--accent2);vertical-align:middle}
 .liste-col{flex:1;overflow-y:auto;min-width:0}
 .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
 .row{display:grid;grid-template-columns:auto 82px 1fr auto;gap:8px;align-items:baseline;
@@ -111,6 +132,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <span>clic = QSY</span>
   <span class="lotw tag">LoTW</span>
   <span class="besoin tag">besoin DXCC</span>
+  <span id="legendeVfo" style="display:none"><span class="legende-vfo"></span>ton poste</span>
 </footer>
 <!-- Moteur de traduction. Cette page ne le chargeait PAS : elle restait
      intégralement en français quelle que soit la langue choisie, y compris son
@@ -202,6 +224,10 @@ if(localStorage.getItem('rc_theme') === null){
   // déduit de la fréquence : une réglette et une alerte ne peuvent donc jamais
   // désigner des segments différents.
   let _plage = null;   // {lo, hi, segments:[...]}
+  // Fréquence du poste en kHz (null si CAT non piloté/injoignable, voir
+  // tick() -- alimentée par /hardware/state, PAS par un flux séparé, voir
+  // le commentaire d'en-tête du fichier sur la cadence partagée).
+  let _vfoKhz = null;
 
   async function chargerPlage(){
     try{
@@ -253,12 +279,42 @@ if(localStorage.getItem('rc_theme') === null){
       bouts.push(`<div class="pin ${cls}" style="top:${p}%" data-freq="${esc(s.freq)}" data-mode="${esc(s.mode||'')}"
                    title="${esc(s.call)} · ${smhz.toFixed(3)} MHz">${esc(s.call)}</div>`);
     }
+    // Marqueur VFO : uniquement si le poste est piloté ET que sa fréquence
+    // tombe DANS la plage de CETTE fenêtre (pct() rend null hors plage) --
+    // l'opérateur peut être sur une autre bande que celle affichée ici, dans
+    // ce cas aucun marqueur ne doit apparaître plutôt qu'une position fausse.
+    const legende = document.getElementById('legendeVfo');
+    if(_vfoKhz){
+      const vfoMhz = _vfoKhz / 1000;
+      const p = pct(vfoMhz);
+      if(p !== null){
+        bouts.push(`<div class="vfo" style="top:${p}%" title="${Tf('{f} MHz — ton poste', {f: vfoMhz.toFixed(3)})}"></div>`);
+      }
+      if(legende) legende.style.display = (p !== null) ? '' : 'none';
+    } else if(legende){
+      legende.style.display = 'none';
+    }
     el.innerHTML = bouts.join('');
     el.querySelectorAll('.pin').forEach(p => { p.onclick = () => qsy(p.dataset.freq, p.dataset.mode); });
   }
 
+  // Position du poste sur la réglette -- voir le commentaire d'en-tête du
+  // fichier : sondée sur le MÊME cycle que les spots (tick(), 15 s), pas un
+  // intervalle séparé plus rapide, pour ne pas multiplier les requêtes CAT
+  // réelles (/hardware/state n'est pas mis en cache côté serveur, contrairement
+  // à /data/spots_ranked) par le nombre de fenêtres bande ouvertes.
+  async function pollVfo(){
+    try{
+      const r = await fetch('/hardware/state');
+      if(!r.ok) return;
+      const d = await r.json();
+      _vfoKhz = (d.rig && d.rig.enabled && d.rig.freq_khz > 0) ? d.rig.freq_khz : null;
+    }catch(e){ /* CAT non piloté ou serveur injoignable : pas de marqueur, le reste de la fenêtre reste utilisable */ }
+  }
+
   async function tick(){
     horloge();
+    await pollVfo();
     try{
       const r = await fetch('/data/spots_ranked');
       if(!r.ok) return;
