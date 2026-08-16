@@ -844,6 +844,33 @@ const SECRET_CONFIG_FIELDS = ['api_key', 'clublog_api_key', 'clublog_password',
   'cloudsync_secret', 'voicekeyer_ai_api_key', 'mysql_password',
   'relay_password', 'icomremote_password'];
 
+// Retour F4GLD (16/08/2026, capture d'écran QSL & DIPLÔMES) : « difficile de
+// voir ce qui a été rempli ou pas ». Un point coloré à côté du label (même
+// motif que .tree-badge de l'arborescence) plutôt que de compter sur le
+// contraste dots-masqués/texte-placeholder — vrai pour type="password" ET
+// pour les champs type="text" (clé API ClubLog/QRZCQ, code HRDLog...), qui
+// n'ont eux aucun masquage visuel du tout. Basé sur .value au moment de
+// l'appel, quelle que soit la SOURCE qui l'a posé (serveur, profil, saisie
+// manuelle) : c'est délibérément la même question que « ce champ a-t-il une
+// valeur ? », pas une 2e vérité qui pourrait diverger de ce qui est
+// réellement envoyé à /config/save.
+function _refreshSecretDot(field){
+  const el = document.getElementById(field);
+  const dot = document.getElementById(field + '_dot');
+  if(dot) dot.classList.toggle('set', !!(el && el.value));
+}
+function _refreshAllSecretDots(){
+  SECRET_CONFIG_FIELDS.forEach(_refreshSecretDot);
+}
+// Mise à jour live à la frappe (efface le mot de passe -> le point doit
+// redevenir neutre immédiatement, pas seulement au prochain rechargement).
+document.addEventListener('DOMContentLoaded', function(){
+  SECRET_CONFIG_FIELDS.forEach(function(f){
+    const el = document.getElementById(f);
+    if(el) el.addEventListener('input', function(){ _refreshSecretDot(f); });
+  });
+});
+
 // Ré-assainit un blob localStorage['logx_config'] écrit par une VERSION
 // ANTÉRIEURE du logiciel (avant ce correctif), qui pouvait encore contenir
 // des secrets en clair — sans ça, le simple fait de ne plus les y ÉCRIRE
@@ -887,6 +914,7 @@ async function loadSecretsFromServer(){
       if(el && v && !el.value) el.value = v;
     }
   }catch(e){ /* pas de réseau/serveur : champs laissés vides, comportement inchangé */ }
+  _refreshAllSecretDots();
 }
 
 // ─── CHARGEMENT CONFIG ───────────────────────────────────────────────────────
@@ -6357,6 +6385,7 @@ function applyFullConfigToForm(c) {
     updateEnabledFieldsVisibility('pgxl_enabled', ['pgxl_host','pgxl_port','pgxl_timeout']);
     updateEnabledFieldsVisibility('telemetry_enabled', ['telemetry_endpoint']);
     renderConfigTree(); // Arborescence de réglages : badges après restauration/changement de profil
+    _refreshAllSecretDots(); // Points configuré/vide (17 champs) : à jour après chargement/changement de profil
 }
 
 // Pré-remplissage depuis config.json (fallback si localStorage vide)
