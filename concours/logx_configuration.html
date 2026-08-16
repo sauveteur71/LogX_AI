@@ -185,6 +185,16 @@ header{background:linear-gradient(90deg,var(--bg),var(--bg2),var(--bg));border-b
 .tree-badge.status-ok{background:var(--green)}
 .tree-badge.status-warning{background:var(--yellow)}
 .tree-badge.status-empty{background:var(--border)}
+/* Retour F4GLD (16/08/2026, capture d'écran QSL & DIPLÔMES) : « difficile
+   de voir ce qui a été rempli ou pas » -- les mots de passe (points masqués)
+   et certaines clés API (texte brut mais visuellement proche d'un
+   placeholder gris) ne se distinguent pas assez d'un champ vide au premier
+   coup d'œil. Même motif que .tree-badge (point coloré), en ligne à côté du
+   label plutôt qu'en position absolue : _refreshAllSecretDots() (voir JS)
+   le pose sur les 17 champs de SECRET_CONFIG_FIELDS, qu'ils soient
+   type="password" ou type="text". */
+.secret-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:6px;vertical-align:middle;background:var(--border)}
+.secret-dot.set{background:var(--green)}
 .config-sidebar-divider{border-top:1px solid var(--border);margin:6px 4px}
 /* Retour utilisateur (09/08/2026) : des gens ne trouvaient pas où importer
    un log existant (ADIF) -- l'action vivait UNIQUEMENT dans un menu replié
@@ -1446,7 +1456,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="text" id="icomremote_username" placeholder="identifiant configuré sur la radio">
           </div>
           <div class="form-group">
-            <label>MOT DE PASSE</label>
+            <label>MOT DE PASSE <span class="secret-dot" id="icomremote_password_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="icomremote_password" placeholder="mot de passe configuré sur la radio">
           </div>
         </div>
@@ -1530,7 +1540,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             </select>
           </div>
           <div class="form-group">
-            <label>CLÉ API</label>
+            <label>CLÉ API <span class="secret-dot" id="voicekeyer_ai_api_key_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="voicekeyer_ai_api_key" placeholder="clé ElevenLabs" autocomplete="off">
           </div>
           <div class="form-group">
@@ -2015,7 +2025,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="text" id="relay_user" placeholder="admin">
           </div>
           <div class="form-group" id="relayPasswordField" style="display:none">
-            <label>MOT DE PASSE</label>
+            <label>MOT DE PASSE <span class="secret-dot" id="relay_password_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="relay_password">
           </div>
           <div class="form-group">
@@ -2170,7 +2180,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <div id="lanPeersBox" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:8px 0">—</div>
           </div>
           <div class="form-group">
-            <label>JETON D'ÉQUIPE <span style="font-size:12px;color:var(--muted)">— optionnel</span></label>
+            <label>JETON D'ÉQUIPE <span style="font-size:12px;color:var(--muted)">— optionnel</span> <span class="secret-dot" id="lan_sync_token_dot" title="Renseigné ou non"></span></label>
             <input type="text" id="lan_sync_token" placeholder="vide = ouvert à tout le réseau local" autocomplete="off">
             <div class="input-note">Même valeur sur tous les postes de l'équipe (à se communiquer directement, jamais par ce dossier). Une fois réglé, seuls les postes qui le connaissent sont acceptés dans l'échange — utile sur un WiFi partagé avec des visiteurs.</div>
           </div>
@@ -2208,7 +2218,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="number" id="cloudsync_interval" placeholder="3" min="1" max="60">
           </div>
           <div class="form-group">
-            <label>JETON D'ÉQUIPE <span style="font-size:12px;color:var(--muted)">— optionnel</span></label>
+            <label>JETON D'ÉQUIPE <span style="font-size:12px;color:var(--muted)">— optionnel</span> <span class="secret-dot" id="cloudsync_secret_dot" title="Renseigné ou non"></span></label>
             <input type="text" id="cloudsync_secret" placeholder="vide = fichiers non signés" autocomplete="off">
             <div class="input-note">Même valeur sur tous les postes de l'équipe (à se communiquer directement, jamais par ce dossier partagé). Une fois réglé, les fichiers cloudsync sont signés et vérifiés (HMAC) — un tiers ayant accès au dossier partagé ne peut plus en falsifier le contenu sans connaître ce jeton.</div>
           </div>
@@ -2252,7 +2262,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="text" id="mysql_user" placeholder="logx" autocomplete="off">
           </div>
           <div class="form-group">
-            <label>MOT DE PASSE</label>
+            <label>MOT DE PASSE <span class="secret-dot" id="mysql_password_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="mysql_password" autocomplete="off">
           </div>
           <div class="form-group">
@@ -2426,7 +2436,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <div class="input-note">Ton indicatif d'identification sur le chat ON4KST</div>
           </div>
           <div class="form-group">
-            <label>MOT DE PASSE ON4KST</label>
+            <label>MOT DE PASSE ON4KST <span class="secret-dot" id="on4kst_password_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="on4kst_password" placeholder="••••••••" autocomplete="new-password">
             <div class="input-note">Stocké en local uniquement — jamais transmis à l'IA</div>
           </div>
@@ -2609,7 +2619,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <div class="input-note">Ton login QRZ.com (souvent ton indicatif)</div>
           </div>
           <div class="form-group">
-            <label>MOT DE PASSE QRZ</label>
+            <label>MOT DE PASSE QRZ <span class="secret-dot" id="qrz_password_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="qrz_password" placeholder="••••••••" autocomplete="new-password">
             <div class="input-note">Stocké côté serveur uniquement — jamais renvoyé au navigateur ni à l'IA</div>
           </div>
@@ -2630,7 +2640,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <div class="input-note">Envoi du log (upload ADIF)</div>
           </div>
           <div class="form-group">
-            <label>eQSL — MOT DE PASSE</label>
+            <label>eQSL — MOT DE PASSE <span class="secret-dot" id="eqsl_password_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="eqsl_password" placeholder="••••••••" autocomplete="new-password">
           </div>
           <div class="form-group">
@@ -2639,7 +2649,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <div class="input-note">Import des confirmations (identifiant du site web LoTW — pour l'upload signé, voir Station Location TQSL ci-dessous)</div>
           </div>
           <div class="form-group">
-            <label>LoTW — MOT DE PASSE</label>
+            <label>LoTW — MOT DE PASSE <span class="secret-dot" id="lotw_password_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="lotw_password" placeholder="••••••••" autocomplete="new-password">
           </div>
           <div class="form-group">
@@ -2656,11 +2666,11 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="text" id="clublog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
           </div>
           <div class="form-group">
-            <label>ClubLog — MOT DE PASSE</label>
+            <label>ClubLog — MOT DE PASSE <span class="secret-dot" id="clublog_password_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="clublog_password" placeholder="••••••••" autocomplete="new-password">
           </div>
           <div class="form-group">
-            <label>ClubLog — CLÉ API</label>
+            <label>ClubLog — CLÉ API <span class="secret-dot" id="clublog_api_key_dot" title="Renseigné ou non"></span></label>
             <input type="text" id="clublog_api_key" placeholder="clé API ClubLog" autocomplete="off">
             <div class="input-note">Obtenue sur clublog.org (Settings → API keys)</div>
           </div>
@@ -2669,7 +2679,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="text" id="qrzcq_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
           </div>
           <div class="form-group">
-            <label>QRZCQ — CLÉ API</label>
+            <label>QRZCQ — CLÉ API <span class="secret-dot" id="qrzcq_api_key_dot" title="Renseigné ou non"></span></label>
             <input type="text" id="qrzcq_api_key" placeholder="clé API QRZCQ" autocomplete="off">
             <div class="input-note">Obtenue sur qrzcq.com (Mon compte → Développeurs)</div>
           </div>
@@ -2678,12 +2688,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <input type="text" id="hrdlog_callsign" placeholder="indicatif" style="text-transform:uppercase" autocomplete="off">
           </div>
           <div class="form-group">
-            <label>HRDLog — CODE D'UPLOAD</label>
+            <label>HRDLog — CODE D'UPLOAD <span class="secret-dot" id="hrdlog_code_dot" title="Renseigné ou non"></span></label>
             <input type="text" id="hrdlog_code" placeholder="code d'upload HRDLog" autocomplete="off">
             <div class="input-note">Obtenu sur hrdlog.net (réglages du compte) — envoi QSO par QSO, peut être lent sur un gros log</div>
           </div>
           <div class="form-group">
-            <label>QRZ LOGBOOK — CLÉ API</label>
+            <label>QRZ LOGBOOK — CLÉ API <span class="secret-dot" id="qrz_logbook_key_dot" title="Renseigné ou non"></span></label>
             <input type="text" id="qrz_logbook_key" placeholder="clé API QRZ Logbook" autocomplete="off">
             <div class="input-note">Nécessite un abonnement QRZ XML actif (qrz.com → Mon compte → Logbook Data → API Key)</div>
           </div>
@@ -2826,7 +2836,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         </div>
         <div class="form-grid">
           <div class="form-group">
-            <label>CLIENT ID SOTA</label>
+            <label>CLIENT ID SOTA <span class="secret-dot" id="sota_client_id_dot" title="Renseigné ou non"></span></label>
             <input type="text" id="sota_client_id" placeholder="fourni par l'équipe SOTA" autocomplete="off">
             <div class="input-note">Vide = fonctionnalité inactive. Redirect URI à communiquer à l'équipe SOTA : <code id="sotaRedirectUriHint">http://localhost:8080/sota/oauth/callback</code></div>
           </div>
@@ -2976,7 +2986,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <select id="ai_model" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:10px 12px;outline:none;width:100%"></select>
           </div>
           <div class="form-group">
-            <label id="api_key_label">CLÉ API</label>
+            <label id="api_key_label">CLÉ API <span class="secret-dot" id="api_key_dot" title="Renseigné ou non"></span></label>
             <input type="password" id="api_key" placeholder="sk-ant-api03-...">
             <div class="input-note"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><rect x="4" y="8" width="10" height="7.5" rx="1.5"/><path d="M6 8V5.5a3 3 0 0 1 6 0V8"/></svg>Stockée localement par fournisseur — jamais partagée</div>
           </div>
