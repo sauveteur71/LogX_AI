@@ -204,6 +204,46 @@ def test_micro_indisponible_affiche_un_message_d_erreur():
     assert 'Permission refusée' in status
 
 
+# ─── Ouverture du panneau : test automatique du périphérique déjà affiché ───
+# Avant ce correctif (15/08/2026), testDevice() n'était déclenché QUE par le
+# onchange du sélecteur -- un opérateur qui ouvre le panneau, voit une liste
+# déjà remplie et clique directement sur Démarrer SANS jamais toucher au
+# sélecteur ne recevait donc AUCUNE validation avant de lancer une session :
+# un mauvais périphérique par défaut (micro intégré du PC au lieu de
+# l'interface radio) donnait un silence total, indiscernable d'un bug DSP.
+
+def test_ouverture_du_panneau_teste_automatiquement_le_peripherique():
+    ctx = _make_ctx()
+    assert ctx.eval("__cwDecoderInstances.length") == 0
+    ctx.eval("toggleCwPanel();")   # ouverture -- pas de await, comme testDevice() lui-même
+    assert ctx.eval("__cwDecoderInstances.length") == 1, (
+        "l'ouverture du panneau doit déclencher un test de périphérique automatique")
+    assert ctx.eval(f"{_last_decoder(ctx)}.started") is True
+    assert 'Test du périphérique' in ctx.eval("document.getElementById('cwDeviceTestStatus').textContent")
+
+
+def test_ouverture_du_panneau_radio2_teste_le_bon_selecteur():
+    ctx = _make_ctx()
+    ctx.eval("toggleCwPanel2();")
+    assert ctx.eval("__cwDecoderInstances.length") == 1
+    # Le statut de la RADIO 2 est renseigné, celui de la radio 1 reste vierge.
+    assert 'Test du périphérique' in ctx.eval("document.getElementById('cwDeviceTestStatus2').textContent")
+    assert ctx.eval("document.getElementById('cwDeviceTestStatus').textContent") == ''
+
+
+def test_ouverture_du_panneau_pendant_un_decodage_reel_ne_lance_pas_de_second_test():
+    """testDevice() refuse déjà d'ouvrir un second flux si un décodage réel
+    tourne (voir plus bas) -- vérifie que le déclenchement automatique à
+    l'ouverture respecte la même règle."""
+    ctx = _make_ctx()
+    ctx.eval("toggleCwDecoder();")   # démarre un vrai décodage (radio 1)
+    assert ctx.eval("__cwDecoderInstances.length") == 1
+    ctx.eval("_cwPanelInstances[''].devicesLoaded = false;")   # force le chemin "première ouverture"
+    ctx.eval("toggleCwPanel();")
+    assert ctx.eval("__cwDecoderInstances.length") == 1, (
+        "aucun second flux ne doit s'ouvrir tant qu'un décodage réel tourne déjà")
+
+
 # ─── Radio 2 : instance indépendante (SO2R Phase 2) ─────────────────────────
 
 def test_cwtestdevice2_est_independant_de_la_radio_1():
