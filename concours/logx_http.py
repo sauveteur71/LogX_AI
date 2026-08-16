@@ -3291,6 +3291,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(st)
             return
 
+        # Export ADIF de l'activation POTA en cours, prêt à téléverser sur
+        # pota.app — placé ici (avec /activation/state) plutôt qu'avec les
+        # autres exports plus bas dans ce fichier : même source (cfg
+        # activation_program/my_activation_ref) et même filtrage QSO
+        # (logx_activation.activation_qsos), pas la portée contest+année des
+        # exports Cabrillo/ADIF génériques. Pas d'upload automatique : POTA
+        # n'a pas d'API publique documentée pour ça (voir logx_pota.py) — ce
+        # qu'on peut faire sans identifiant stocké, c'est le bon format ET le
+        # bon NOM de fichier pour que le dépôt manuel sur pota.app soit immédiat.
+        if path == '/pota/export_adif':
+            import logx_activation as act
+            import logx_export as export
+            import logx_pota as pota
+            cfg_snap = self._cfg_snapshot()
+            program = cfg_snap.get('activation_program', '')
+            my_ref = cfg_snap.get('my_activation_ref', '')
+            if program.upper() != 'POTA' or not my_ref:
+                self._json({'error': 'Aucun parc POTA en cours de trafic'}, 400)
+                return
+            with log_lock:
+                qsos = act.activation_qsos(list(shared_log), program, my_ref)
+            if not qsos:
+                self._json({'error': "Aucun QSO enregistré pour ce parc"}, 400)
+                return
+            callsign = (cfg_snap.get('callsign_contest') or cfg_snap.get('callsign') or 'LOG').upper()
+            body = export.build_adif(qsos, cfg_snap).encode('utf-8')
+            fname = pota.export_filename(callsign, my_ref, qsos)
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         # Mode de chasse géo du concours : 'dept' | 'dept_dxcc' | 'dxcc' | 'other'
         # -> l'onglet bascule entre chasse aux DÉPARTEMENTS et chasse aux PAYS.
         if path == '/contest/geo_mode':

@@ -68,13 +68,14 @@ def validate_ref(program, ref):
     return bool(re.match(spec['ref_re'], normalize_ref(ref)))
 
 
-def activation_state(shared_log, program, my_ref):
-    """Avancement d'une activation : total QSO, uniques, P2P, validité, par
-    bande/mode, QSO restants pour valider."""
+def activation_qsos(shared_log, program, my_ref):
+    """QSO appartenant à CETTE activation (ceux portant ma référence, filtrés
+    à la fenêtre officielle du programme) — factorisé hors de activation_state()
+    pour être réutilisé tel quel par l'export ADIF prêt-à-téléverser (même
+    ensemble de QSO que celui qui fait foi pour la validité de l'activation,
+    jamais une 2e définition divergente)."""
     program = (program or '').upper()
     my_ref = normalize_ref(my_ref)
-    spec = PROGRAM_SPECS.get(program, {})
-    min_qso = spec.get('min_qso', 10)
 
     # QSO de CETTE activation : ceux portant ma référence. (Les QSO d'un autre
     # concours / d'une autre activation présents dans le log commun ne comptent
@@ -101,6 +102,19 @@ def activation_state(shared_log, program, my_ref):
     # d'une journée unique).
     if program == 'POTA':
         entries = _same_utc_day(entries)
+
+    return entries
+
+
+def activation_state(shared_log, program, my_ref):
+    """Avancement d'une activation : total QSO, uniques, P2P, validité, par
+    bande/mode, QSO restants pour valider."""
+    program = (program or '').upper()
+    my_ref = normalize_ref(my_ref)
+    spec = PROGRAM_SPECS.get(program, {})
+    min_qso = spec.get('min_qso', 10)
+
+    entries = activation_qsos(shared_log, program, my_ref)
 
     calls, per_band, per_mode = set(), {}, {}
     p2p = []
