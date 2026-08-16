@@ -344,3 +344,85 @@ def test_la_reglette_reste_affichee_quand_la_bande_est_vide():
     bloc = src[src.index("if(!spots.length){"):]
     bloc = bloc[:bloc.index('return;')]
     assert 'dessinerRegle' in bloc
+
+
+# ─── Marqueur VFO (position du poste sur la réglette) ───────────────────────
+# Bandmap multi-bandes (2e des 5 évolutions approuvées par F4GLD, 15/08/2026,
+# suite à la comparaison concurrentielle) : ces fenêtres par bande (déjà
+# multi-instance, une par bande, voir tests plus haut) avaient une réglette
+# mais aucun marqueur de la fréquence du poste — contrairement au bandmap
+# intégré au LOGBOOK. Ajouter ce marqueur ICI plutôt que de rendre le bandmap
+# intégré multi-instance : celui-ci est mono-instance par construction
+# (currentBand y sert AUSSI à la bande de saisie du QSO, un découplage plus
+# risqué), alors que ces fenêtres étaient déjà prêtes pour ça.
+
+def test_le_marqueur_vfo_ne_sonde_pas_plus_vite_que_les_spots():
+    """/hardware/state interroge la VRAIE radio à CHAQUE appel (pas de cache
+    serveur, contrairement à /data/spots_ranked) -- un intervalle séparé plus
+    rapide multiplierait les requêtes CAT par le nombre de fenêtres bande
+    ouvertes, avec un risque de contention sur un port série partagé. Le
+    marqueur doit donc être sondé DANS tick() (cycle 15s des spots), jamais
+    via son propre setInterval."""
+    src = _lire(PAGE)
+    assert 'async function pollVfo(' in src
+    assert "fetch('/hardware/state')" in src
+    bloc_tick = src[src.index('async function tick('):]
+    bloc_tick = bloc_tick[:bloc_tick.index('\n  }')]
+    assert 'await pollVfo();' in bloc_tick, (
+        'pollVfo() doit etre appelee DEPUIS tick(), sur le meme cycle que les spots')
+    assert 'setInterval(pollVfo' not in src, (
+        'pollVfo() ne doit jamais avoir son propre intervalle -- '
+        'multiplierait les requetes CAT reelles par fenetre ouverte')
+
+
+def test_le_marqueur_vfo_respecte_letat_enabled_du_rig():
+    """Un poste non piloté (CAT désactivé/injoignable) ne doit jamais laisser
+    une ancienne fréquence affichée comme si le poste y était encore -- voir
+    d.rig.enabled, même garde que applyRigState() dans logx_hardware_cat.js."""
+    src = _lire(PAGE)
+    bloc = src[src.index('async function pollVfo('):]
+    bloc = bloc[:bloc.index('\n  }')]
+    assert 'd.rig' in bloc and '.enabled' in bloc
+    assert '_vfoKhz = ' in bloc
+
+
+def test_le_marqueur_vfo_reutilise_pct_donc_disparait_hors_bande():
+    """Si le poste est sur une AUTRE bande que celle de cette fenêtre, aucun
+    marqueur ne doit apparaître plutôt qu'une position fausse -- pct() rend
+    déjà null hors plage (voir plus haut), le marqueur doit s'appuyer dessus
+    plutôt que réimplémenter son propre calcul de position."""
+    src = _lire(PAGE)
+    bloc = src[src.index('function dessinerRegle('):]
+    bloc = bloc[:bloc.index('\n  }')]
+    assert "class=\"vfo\"" in bloc
+    # Le marqueur doit passer par pct(vfoMhz), pas par un calcul indépendant.
+    assert 'pct(vfoMhz)' in bloc
+
+
+def test_le_marqueur_vfo_nintercepte_aucun_clic():
+    """.vfo est superposé à la réglette (ticks/segments/pins) : sans
+    pointer-events:none, il pourrait intercepter un clic destiné à une
+    épingle de spot juste en dessous et rendre le QSY silencieusement
+    inopérant -- même famille de piège que le clic QSY déjà corrigé une
+    fois sur cette page (voir test_LE_CLIC_QSY_ENVOIE_UN_CHAMP_QUE_LE_
+    SERVEUR_LIT dans test_freq_unite_spots.py)."""
+    src = _lire(PAGE)
+    bloc = src[src.index('.vfo{'):]
+    bloc = bloc[:bloc.index('}') + 1]
+    assert 'pointer-events:none' in bloc
+
+
+def test_la_legende_du_marqueur_vfo_existe_et_reste_masquee_par_defaut():
+    """Un triangle sans légende échoue le test « on ne doit jamais se
+    perdre » (intuitivité, CLAUDE.md) : un opérateur qui ouvre cette fenêtre
+    pour la première fois doit comprendre ce que désigne le marqueur sans
+    avoir à survoler. Masquée par défaut (display:none) : pas de légende
+    pour un marqueur qui ne s'affichera jamais si le CAT n'est pas piloté."""
+    src = _lire(PAGE)
+    assert 'id="legendeVfo"' in src
+    assert 'legendeVfo' in src[src.index('<footer>'):src.index('</footer>')]
+    # La balise <span id="legendeVfo" ...> complète, du id jusqu'au > qui la
+    # ferme -- fenêtre fixe en caractères trop fragile si l'attribut bouge.
+    debut = src.index('<span id="legendeVfo"')
+    balise = src[debut:src.index('>', debut) + 1]
+    assert 'display:none' in balise
