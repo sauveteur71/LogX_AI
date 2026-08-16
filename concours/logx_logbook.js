@@ -365,6 +365,7 @@ const ACT_MIN = {POTA:10, SOTA:4, IOTA:1, WWFF:44, ARLHS:2, WCA:50};
 let activationProgram = '';
 let myActivationRef = '';
 let activationTimer = null;
+let lastActQsoTotal = 0;
 
 function applyActivationMode(program, ref){
   activationProgram = (program||'').toUpperCase();
@@ -387,6 +388,10 @@ function applyActivationMode(program, ref){
     // avec certitude pour ces deux-là.
     const sb = document.getElementById('actSpotBtn');
     if(sb) sb.style.display = (activationProgram === 'POTA' || activationProgram === 'SOTA') ? '' : 'none';
+    // Export ADIF prêt-à-téléverser : POTA seulement (pas d'équivalent
+    // documenté pour SOTA/IOTA/WWFF côté LogX AI pour l'instant).
+    const eb = document.getElementById('actExportBtn');
+    if(eb) eb.style.display = (activationProgram === 'POTA') ? '' : 'none';
     refreshActivation();
     if(!activationTimer) activationTimer = setInterval(refreshActivation, 15000);
   } else if(activationTimer){
@@ -400,6 +405,7 @@ async function refreshActivation(){
     const r = await fetch('/activation/state'); if(!r.ok) return;
     const d = await r.json();
     if(!d.active) return;
+    lastActQsoTotal = d.qso_total || 0;
     const pr = document.getElementById('actProgress');
     if(pr) pr.textContent = `${d.qso_total}/${d.min_qso}`;
     const fill = document.getElementById('actFill');
@@ -413,6 +419,23 @@ async function refreshActivation(){
     const r2 = document.getElementById('actRef');
     if(r2) r2.style.color = d.valid_ref ? 'var(--text)' : 'var(--red)';
   }catch(e){}
+}
+
+// Export ADIF de l'activation POTA en cours, prêt à glisser-déposer sur la
+// page « My Log Uploads » de pota.app. Pas d'upload automatique : POTA
+// n'a pas d'API publique documentée pour ça (contrairement à LoTW/tqsl,
+// cf. logx_awards.js) — ce bouton retire toute la friction qui PEUT
+// l'être sans stocker d'identifiant de compte POTA : bon format ADIF, bon
+// nom de fichier, et la page d'upload s'ouvre toute seule dans un nouvel
+// onglet pour qu'il ne reste qu'à y glisser le fichier téléchargé.
+function exportPotaAdif(){
+  if(activationProgram !== 'POTA' || !myActivationRef) return;
+  if(!lastActQsoTotal){
+    notify('Aucun QSO enregistré pour ce parc : logue au moins un contact avant d’exporter.');
+    return;
+  }
+  window.location.href = '/pota/export_adif';
+  window.open('https://pota.app/#/user/logs', '_blank', 'noopener');
 }
 
 // Calcule dynamiquement le prochain week-end RPH (1er samedi de juillet 14h UTC

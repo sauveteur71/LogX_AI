@@ -415,6 +415,31 @@ def test_activation_arlhs_wca():
     assert st_wca['min_qso'] == 50 and st_wca['needed'] == 49 and st_wca['valid'] is False
 
 
+def test_activation_qsos_meme_ensemble_que_activation_state():
+    """activation_qsos() (factorisé pour l'export ADIF prêt-à-téléverser, cf.
+    logx_pota.export_filename/logx_http /pota/export_adif) doit rendre
+    EXACTEMENT le sous-ensemble sur lequel activation_state() calcule ses
+    stats — jamais une 2e définition divergente de « les QSO de cette
+    activation ». Réutilise le même scénario multi-jours que le test du
+    seuil POTA ci-dessus (seul le dernier jour UTC doit sortir)."""
+    import logx_activation as act
+    log = (
+        [{'call': f'F1AA{i}', 'band': '14', 'mode': 'SSB',
+          'my_sig_info': 'FR-0123', 'date': '20260717'} for i in range(5)]
+        + [{'call': f'F1BB{i}', 'band': '14', 'mode': 'SSB',
+            'my_sig_info': 'FR-0123', 'date': '20260718'} for i in range(5)]
+        + [{'call': 'HB9XX', 'band': '14', 'mode': 'SSB', 'my_sig_info': 'FR-9999',
+            'date': '20260718'}]  # autre activation : ne doit apparaître dans aucun des deux
+    )
+    qsos = act.activation_qsos(log, 'POTA', 'FR-0123')
+    assert len(qsos) == 5
+    assert all(q['date'] == '20260718' for q in qsos)
+    assert all(q['my_sig_info'] == 'FR-0123' for q in qsos)
+    # activation_state() doit compter exactement ce même lot.
+    st = act.activation_state(log, 'POTA', 'FR-0123')
+    assert st['qso_total'] == len(qsos)
+
+
 def test_contest_geo_mode():
     from logx_scoring import contest_geo_mode
     assert contest_geo_mode('REF_RPH') == 'dept'          # VHF français

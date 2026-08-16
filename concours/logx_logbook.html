@@ -1448,6 +1448,8 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <span id="actP2P" style="margin-left:auto;color:var(--accent2);font-size:12px"></span>
           <button type="button" id="actSpotBtn" onclick="selfSpotActivation()" style="display:none;padding:2px 8px;border-radius:4px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-family:var(--font-mono);font-size:12px;cursor:pointer"
             title="Publier ce spot (POTA : api.pota.app, sans authentification — SOTA : SOTAwatch3, nécessite une connexion SOTA SSO configurée dans CONFIG)">📡 SE SPOTTER</button>
+          <button type="button" id="actExportBtn" onclick="exportPotaAdif()" style="display:none;padding:2px 8px;border-radius:4px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-family:var(--font-mono);font-size:12px;cursor:pointer"
+            title="Télécharge l'ADIF de ce parc, au format ET au nom de fichier attendus par pota.app, puis ouvre la page de dépôt (pota.app n'a pas d'upload automatique officiel)">⬇ EXPORTER POUR POTA</button>
         </div>
         <div style="height:6px;background:var(--bg2);border-radius:4px;overflow:hidden;margin-top:6px">
           <div id="actFill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--accent2));transition:width .5s"></div>
