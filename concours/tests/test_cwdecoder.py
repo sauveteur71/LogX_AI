@@ -70,6 +70,50 @@ def moteur():
       dec.flushIfIdle(unitMs*10);
       return out;
     }
+
+    // ─── Pipeline audio complet (CwAudioDecoder._onBlock), sans navigateur ──
+    // performance.now() n'existe pas en V8 nu (py_mini_racer) -- stub piloté
+    // à la main pour un temps simulé déterministe entre les blocs.
+    var performance = { _t: 0, now: function(){ return this._t; } };
+    function __advanceTime(ms){ performance._t += ms; }
+
+    // CwAudioDecoder.start() exige getUserMedia/AudioContext (absents ici) ;
+    // _onBlock() ne lit que this.ctx.sampleRate -- un objet minimal suffit,
+    // pas besoin de passer par start() pour exercer le pipeline DSP réel.
+    function makeAudioDecoder(freq, onChar, onLevel){
+      var dec = new CwAudioDecoder({freq: freq, onChar: onChar, onLevel: onLevel || function(){}});
+      dec.ctx = {sampleRate: 44100};
+      dec.edgeStartMs = 0;
+      return dec;
+    }
+
+    // Fréquence calée EXACTEMENT sur un bin Goertzel pour sampleRate=44100,
+    // blockSize=512 (k=8 -> 689,0625 Hz) -- élimine la fuite spectrale d'un
+    // léger désalignement de bin (le vrai ton CW à 650 Hz n'y échappe pas
+    // non plus, mais ce n'est pas ce que ces tests-ci cherchent à mesurer) :
+    // sans ça, la magnitude Goertzel d'un ton FAIBLE s'écarte trop de
+    // l'estimation théorique amplitude/2 pour choisir une marge de seuil
+    // fiable. Sert UNIQUEMENT aux tests qui comparent une amplitude précise
+    // à un seuil (AGC) ; les autres pipelines audio de ce fichier restent à
+    // 650 Hz (fréquence réelle par défaut de l'UI).
+    var BIN_FREQ = 8 * 44100 / 512;
+
+    // Pousse `durationMs` de ton (amplitude=0 -> silence) dans _onBlock(),
+    // en avançant l'horloge simulée d'un bloc à chaque itération -- même
+    // granularité que le vrai pipeline (blockSize/sampleRate).
+    function feedTone(dec, amplitude, freq, durationMs){
+      var sr = dec.ctx.sampleRate, blockSize = dec.blockSize;
+      var blockMs = blockSize / sr * 1000;
+      var nBlocks = Math.max(1, Math.round(durationMs / blockMs));
+      for(var b=0; b<nBlocks; b++){
+        var samples = new Float64Array(blockSize);
+        if(amplitude > 0){
+          for(var i=0;i<blockSize;i++) samples[i] = amplitude * Math.sin(2*Math.PI*freq*i/sr);
+        }
+        __advanceTime(blockMs);
+        dec._onBlock(samples);
+      }
+    }
     """)
     return ctx
 
@@ -266,6 +310,140 @@ def test_goertzel_silence_donne_magnitude_quasi_nulle(moteur):
     })()
     """)
     assert mag < 1e-9
+
+
+# ─── CwAudioDecoder._onBlock() : pipeline Goertzel + seuil AGC + timing ─────
+# AVANT ce chantier (15/08/2026), CwAudioDecoder n'était exercé par AUCUN
+# test -- seuls MorseTimingDecoder et goertzelMagnitude l'étaient séparément
+# (voir le docstring en tête de fichier). Diagnostic réel (échec total du
+# décodage sur IC-7300) : le seuil de détection était en ÉCHELLE ABSOLUE
+# (`noiseFloor*2.8 + 0.003`), calibré empiriquement contre des tons de test
+# synthétiques à AMPLITUDE MAXIMALE (1.0, magnitude Goertzel ~0.5) -- un
+# signal radio réel capté via carte son/interface plafonne très souvent
+# bien plus bas et pouvait ne JAMAIS dépasser ce plancher absolu. Corrigé
+# par un seuil RELATIF (AGC : pic de signal suivi, seuil proportionnel à
+# l'écart bruit/pic observé -- mirror de fldigi, cw.cxx).
+
+def test_signal_faible_realiste_est_decode_malgre_un_ancien_seuil_trop_haut(moteur):
+    """Amplitude 0.004 (magnitude Goertzel ~0.002) : nettement sous l'ancien
+    plancher absolu (~0.003 dès que le bruit de fond est propre) -- ce test
+    aurait échoué (silence total, buf vide) avec l'ancien seuil. Le nouveau
+    seuil relatif doit décoder ce signal comme n'importe quel autre."""
+    out = moteur.eval("""
+    (function(){
+      var out = '';
+      var dec = makeAudioDecoder(BIN_FREQ, function(ch){ out += ch; });
+      var unitMs = 80;   // 15 MPM, vitesse prudente pour laisser l'AGC s'établir
+      // 'E' = un point, précédé d'un peu de silence pour amorcer noiseFloor/agcPeak.
+      feedTone(dec, 0, BIN_FREQ, unitMs*4);
+      feedTone(dec, 0.004, BIN_FREQ, unitMs);
+      feedTone(dec, 0, BIN_FREQ, unitMs*10);   // assez de silence pour clore le caractère
+      return out;
+    })()
+    """)
+    assert out == 'E', f"signal faible non décodé (buf={out!r}) -- seuil encore trop haut"
+
+
+def test_silence_pur_ne_declenche_jamais_de_fausse_marque(moteur):
+    """Garde-fou symétrique : un seuil relatif trop permissif ferait crépiter
+    le décodeur sur du silence pur (bruit numérique quasi nul ici) -- aucun
+    caractère ne doit jamais en sortir."""
+    out = moteur.eval("""
+    (function(){
+      var out = '';
+      var dec = makeAudioDecoder(650, function(ch){ out += ch; });
+      feedTone(dec, 0, 650, 3000);   // 3s de silence pur
+      return out;
+    })()
+    """)
+    assert out == ''
+
+
+def test_un_signal_plus_fort_reste_decode_apres_le_passage_au_seuil_relatif(moteur):
+    """Non-régression à l'AUTRE bout de l'échelle : un signal fort (amplitude
+    proche de celle des anciens tons de test) doit continuer à être décodé
+    correctement -- le passage au seuil relatif ne doit pas casser le cas
+    qui marchait déjà."""
+    out = moteur.eval("""
+    (function(){
+      var out = '';
+      var dec = makeAudioDecoder(650, function(ch){ out += ch; });
+      var unitMs = 60;   // 20 MPM
+      feedTone(dec, 0, 650, unitMs*4);
+      feedTone(dec, 0.8, 650, unitMs);        // point
+      feedTone(dec, 0, 650, unitMs);          // espace intra-caractère
+      feedTone(dec, 0.8, 650, unitMs*3);      // trait
+      feedTone(dec, 0, 650, unitMs*10);
+      return out;
+    })()
+    """)
+    assert out == 'A'   # .- = A
+
+
+# ─── Rejet des impulsions de bruit courtes (pushEdge) ───────────────────────
+
+def test_une_impulsion_de_bruit_courte_est_ignoree_sans_corrompre_le_caractere(moteur):
+    """Un blip de bruit HF (crachement statique, QRM bref) plus court que la
+    moitié de l'unité courante ne doit produire NI caractère parasite NI
+    perturbation de la classification -- 'E' (un point) doit rester 'E' même
+    précédé d'un micro-blip largement sous le seuil de rejet."""
+    out = moteur.eval("""
+    JSON.stringify((function(){
+      var dec = new MorseTimingDecoder(function(ch){ out += ch; });
+      var out = '';
+      dec.onChar = function(ch){ out += ch; };
+      dec.unitMs = 60; dec.recentMarks = new Array(12).fill(60);
+      dec.pushEdge(true, 5);      // blip de bruit : 5ms << 0.5*60=30ms -> rejeté
+      dec.pushEdge(false, 5);
+      dec.pushEdge(true, 60);     // vrai point
+      dec.pushEdge(false, 180);
+      dec.flushIfIdle(1000);
+      return {texte: out, unitMs: dec.unitMs};
+    })())
+    """)
+    result = json.loads(out)
+    assert result['texte'] == 'E'
+    assert result['unitMs'] == 60, (
+        f"le blip de bruit a modifié unitMs ({result['unitMs']}, attendu 60) -- "
+        "il n'aurait dû avoir AUCUN effet sur l'estimation de vitesse")
+
+
+def test_une_rafale_de_bruit_ne_fait_pas_deriver_lestimation_de_vitesse(moteur):
+    """Preuve directe du mécanisme de corruption décrit dans le diagnostic :
+    une série de blips de bruit courts, si elle n'était PAS rejetée, ferait
+    immédiatement chuter le minimum de la fenêtre glissante (_adaptUnit) et
+    corromprait tout décodage suivant. Après rejet, l'unité doit rester
+    inchangée malgré 10 blips consécutifs."""
+    unit_final = moteur.eval("""
+    (function(){
+      var dec = new MorseTimingDecoder(function(){});
+      dec.unitMs = 60; dec.recentMarks = new Array(12).fill(60);
+      for(var i=0;i<10;i++){ dec.pushEdge(true, 3); dec.pushEdge(false, 3); }
+      return dec.unitMs;
+    })()
+    """)
+    assert unit_final == 60, (
+        f"l'unité a dérivé ({unit_final}ms, départ 60ms) sous une rafale de "
+        "bruit qui aurait dû être intégralement rejetée")
+
+
+def test_un_point_authentique_juste_au_dessus_du_seuil_de_rejet_reste_valide(moteur):
+    """Non-régression : un point réel un peu court (fist rapide/irrégulier)
+    mais AU-DESSUS du seuil de rejet (0.5u) doit continuer à être décodé
+    normalement -- le rejet ne doit viser QUE les impulsions implausiblement
+    courtes, pas resserrer la classification point/trait existante."""
+    out = moteur.eval("""
+    (function(){
+      var out = '';
+      var dec = new MorseTimingDecoder(function(ch){ out += ch; });
+      dec.unitMs = 60; dec.recentMarks = new Array(12).fill(60);
+      dec.pushEdge(true, 60 * 0.6);   // > 0.5u (30ms) -> pas rejeté ; < 2u -> point
+      dec.pushEdge(false, 180);
+      dec.flushIfIdle(1000);
+      return out;
+    })()
+    """)
+    assert out == 'E'
 
 
 # ─── Table Morse : sanité de base ───────────────────────────────────────────

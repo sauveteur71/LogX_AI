@@ -40,7 +40,23 @@ class CwPanel {
   async toggle(){
     const panel = this.el('cwPanel');
     panel.classList.toggle('open');
-    if(panel.classList.contains('open') && !this.devicesLoaded) await this.loadDevices();
+    if(panel.classList.contains('open') && !this.devicesLoaded){
+      await this.loadDevices();
+      // Test automatique du périphérique DÉJÀ sélectionné, dès la toute
+      // première ouverture du panneau -- jusque-là déclenché uniquement par
+      // le onchange du sélecteur (voir testDevice() plus bas). Un opérateur
+      // qui ouvre le panneau, voit une liste déjà remplie et clique
+      // directement sur Démarrer SANS jamais toucher au sélecteur ne
+      // recevait donc AUCUNE validation avant de lancer une session : un
+      // mauvais périphérique par défaut (micro intégré du PC au lieu de
+      // l'interface radio) et un vrai bug de seuil DSP produisaient alors
+      // EXACTEMENT le même symptôme (silence total), indiscernables l'un de
+      // l'autre. Pas de await : testDevice() est un test de fond de 4s, le
+      // panneau doit s'ouvrir immédiatement (même comportement que le
+      // onchange existant, qui ne peut de toute façon pas être attendu).
+      // testDevice() gère déjà lui-même le cas où un décodage réel tourne.
+      this.testDevice();
+    }
   }
 
   async loadDevices(){
