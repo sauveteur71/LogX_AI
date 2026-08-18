@@ -571,11 +571,42 @@ class CivRadio:
         nb = 6 if (self.model == 'IC-905' and len(parsed[4]) >= 6) else 5
         return {'ok': True, 'freq_hz': civ_decode_freq(parsed[4][:nb])}
 
+    def _civ_set(self, cmd, sub=None, data=b''):
+        """Envoie une commande SET et attend l'ACCUSÉ du poste.
+
+        ═══ Bug corrigé le 18/08/2026, signalé en trafic réel par F4GLD ═══
+        Les trois commandes SET (05 fréquence, 06 mode, 1C 00 PTT) passaient
+        par _query(), qui exige que la réponse RÉÉCHOTE cmd/sub. C'est le bon
+        contrôle pour une LECTURE (la radio renvoie bien `04 <mode>` quand on
+        demande le mode), mais un poste Icom n'accuse JAMAIS une écriture de
+        cette façon : il répond `FE FE E0 <addr> FB FD` (FB = OK) ou
+        `... FA FD` (FA = NG), sans cmd ni sub.
+        Source : manuel « CI-V Reference » Icom (fait foi) — « Réponses du
+        poste : FB (= OK/ack) ou FA (= NG/erreur) », réponse OK typique
+        `FE FE E0 94 FB FD`.
+
+        Conséquence : _query() rendait None sur TOUTES les écritures, donc
+        set_freq/set_mode/set_ptt rendaient {'ok': False} ALORS QUE LA RADIO
+        AVAIT EXÉCUTÉ LA COMMANDE. Symptôme rapporté : « PTT refusé » affiché
+        pendant que le poste passait bel et bien en émission.
+
+        Pourquoi 43 tests verts ne l'ont pas vu : le simulateur FakeCivRadio
+        (tests/test_cat.py) répondait aux écritures en renvoyant la commande,
+        c'est-à-dire exactement ce que _query() attendait. Il avait été écrit
+        pour correspondre au CODE, pas au PROTOCOLE. Rendu conforme, il fait
+        tomber 11 tests d'un coup — c'est ce qui a permis d'établir ce bug.
+
+        civ_is_ok() et _civ_set_frame() existaient déjà et faisaient le bon
+        contrôle : seul configure_scope() les utilisait."""
+        if not self._civ_set_frame(civ_build_frame(self.addr, cmd, sub, data)):
+            return {'ok': False,
+                    'error': 'Radio CI-V : pas d\'accusé de réception (FB) sur la commande '
+                             f'{cmd:02X}' + (f' {sub:02X}' if sub is not None else '')}
+        return {'ok': True}
+
     def set_freq(self, freq_hz):
         nb = 6 if (self.model == 'IC-905' and freq_hz > IC905_SEUIL_6_OCTETS_HZ) else 5
-        parsed = self._query(0x05, data=civ_encode_freq(freq_hz, nb))
-        ok = parsed is not None
-        return {'ok': ok} if ok else {'ok': False, 'error': 'Radio CI-V ne répond pas'}
+        return self._civ_set(0x05, data=civ_encode_freq(freq_hz, nb))
 
     def get_mode(self):
         parsed = self._query(0x04)
@@ -589,8 +620,8 @@ class CivRadio:
         code = CIV_MODES.get(normaliser_mode(mode, freq_hz, 'icom'))
         if code is None:
             return {'ok': False, 'error': f"Mode CI-V inconnu : {mode}"}
-        parsed = self._query(0x06, data=bytes([code]))
-        ok = parsed is not None
+        res = self._civ_set(0x06, data=bytes([code]))   # accusé FB, pas un écho — voir _civ_set
+        ok = res['ok']
         if ok:
             # Sous-commande CI-V 1A 06 : arme/désarme le flag DATA du poste,
             # EN PLUS du mode de base ci-dessus — mirror de Hamlib (icom.c),
@@ -608,7 +639,7 @@ class CivRadio:
             # déjà acquis via 06 ci-dessus.
             self._query(0x1A, sub=0x06, data=bytes([1 if _mode_est_numerique(mode) else 0]),
                         read_reply=False)
-        return {'ok': ok}
+        return res
 
     def get_ptt(self):
         parsed = self._query(0x1C, sub=0x00)
@@ -617,8 +648,11 @@ class CivRadio:
         return {'ok': True, 'ptt': bool(parsed[4][0])}
 
     def set_ptt(self, on):
-        parsed = self._query(0x1C, sub=0x00, data=bytes([1 if on else 0]))
-        return {'ok': parsed is not None}
+        # 1C 00 00 = RX, 1C 00 01 = TX (manuel « CI-V Reference » Icom).
+        # Accusé FB/FA comme toute écriture — voir _civ_set. C'est CETTE
+        # commande qui affichait « PTT refusé » alors que le poste passait
+        # bien en émission (F4GLD, 18/08/2026).
+        return self._civ_set(0x1C, sub=0x00, data=bytes([1 if on else 0]))
 
     def get_smeter(self):
         """Échelle brute Icom 0000-0255 (non linéaire, propre au constructeur —

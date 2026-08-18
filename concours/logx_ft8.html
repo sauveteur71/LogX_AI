@@ -629,7 +629,13 @@ if(localStorage.getItem('rc_theme') === null){
 
       analyser.getByteFrequencyData(dataArray);
       const g = cv.getContext('2d');
-      g.drawImage(cv, 0, 0, w, h, 0, 1, w, h - 1);
+      // Rectangle SOURCE de hauteur h-1, pas h : sinon l'image entière est
+      // COMPRESSÉE dans une zone d'un pixel plus courte à chaque ligne, au
+      // lieu d'être simplement décalée vers le bas. Défaut préexistant,
+      // trouvé en revue le 18/08/2026 — la cascade se tassait donc
+      // progressivement, ce qui contribuait au « pas vraiment clair » signalé
+      // par F4GLD au moins autant que la résolution FFT.
+      g.drawImage(cv, 0, 0, w, h - 1, 0, 1, w, h - 1);
       const nyquist = ctx.sampleRate / 2;
       const nBins = Math.max(1, Math.min(dataArray.length, Math.round((WF_MAX_HZ/nyquist) * dataArray.length)));
       const ligne = g.createImageData(w, 1);
@@ -747,9 +753,19 @@ if(localStorage.getItem('rc_theme') === null){
     // créneau-là (le décodage de la fenêtre en cours peut échouer), mais on
     // retrouve un alignement correct pour tous les suivants — au lieu de
     // sombrer une fois pour toutes.
+    // Correction dans LES DEUX SENS (constat de revue, 18/08/2026) : le test
+    // ne portait que sur `derive > DERIVE_MAX_MS`, donc uniquement sur un
+    // modèle EN RETARD sur l'horloge. Le cas inverse existe pourtant — une
+    // carte son dont l'horloge avance légèrement sur celle du système (les
+    // deux quartz sont indépendants et dérivent l'un par rapport à l'autre),
+    // ou un recul de l'horloge système (correction NTP, changement d'heure
+    // manuel). Il recréait EXACTEMENT la panne définitive signalée par F4GLD,
+    // dans l'autre sens, et sans jamais se corriger. Math.abs, tout
+    // simplement : le sens de la dérive n'a aucune importance, seule compte
+    // sa correction.
     const finModelisee = bufStartMs + (audioBuf.length / sr) * 1000;
     const derive = Date.now() - finModelisee;
-    if(derive > DERIVE_MAX_MS){
+    if(Math.abs(derive) > DERIVE_MAX_MS){
       bufStartMs += derive;
       derivesCumulees++;
     }
@@ -782,8 +798,15 @@ if(localStorage.getItem('rc_theme') === null){
   // signal proprement dit dure 12,64 s (79 symboles à 6,25 baud — Franke,
   // Somerville & Taylor, « The FT4 and FT8 Communication Protocols », QEX
   // juillet-août 2020), ce qui ne laisse que 2,36 s de battement dans le
-  // créneau. Le guide utilisateur de WSJT-X demande pour cette raison que
-  // l'horloge du PC soit à ±2 s de l'UTC.
+  // créneau. D'où l'exigence d'une horloge PC tenue à l'heure UTC par NTP,
+  // avec une tolérance de l'ordre de LA SECONDE.
+  //
+  // CORRECTION DE SOURCE (18/08/2026) : ce commentaire, celui de
+  // logx_ft8_dsp.js et le texte AFFICHÉ à l'opérateur annonçaient tous
+  // « ±2 s selon le guide utilisateur de WSJT-X ». Attribution fausse,
+  // trouvée en revue : la tolérance de référence pour les modes WSJT-X est
+  // d'environ 1 s, pas 2. Une valeur écrite de mémoire et habillée d'une
+  // source est pire qu'une valeur sans source — elle ne se rediscute plus.
   //
   // Or la page AFFICHAIT une horloge UTC en en-tête… qui n'est que l'horloge
   // du PC reformatée. Elle ne prouve donc rien : un opérateur dont le PC
@@ -806,9 +829,30 @@ if(localStorage.getItem('rc_theme') === null){
     return (debutFenetreMs + (startSample / sr) * 1000 - slotMs) / 1000;
   }
 
-  // Seuil d'alerte volontairement placé SOUS le ±2 s du guide WSJT-X : à 2 s
-  // on ne décode déjà plus, prévenir à ce moment-là serait prévenir trop tard.
-  const DT_ALERTE_S = 1.5;
+  // Seuil d'alerte — RAMENÉ DE 1,5 s À 0,6 s le 18/08/2026, parce qu'à 1,5 s
+  // le bandeau ne pouvait PHYSIQUEMENT jamais s'afficher.
+  //
+  // La démonstration tient en une ligne : DT = (startSample - centerSample)/sr,
+  // et startSample ne peut sortir de centerSample ± 7 symboles (6 au balayage
+  // grossier de ft8FindAllSync, 1 de plus à l'affinage de ft8RefineSync), soit
+  // ±1,12 s. Donc |médiane| < 1,12 s TOUJOURS, et la condition
+  // « Math.abs(med) >= 1.5 » n'était jamais vraie : bandeau et coloration
+  // rouge de la colonne DT étaient du code mort.
+  //
+  // Faute d'autant plus bête que la plage [-1,00 ; +1,00 s] avait été MESURÉE
+  // avant d'écrire ce seuil. Le test qui semblait couvrir le sujet injectait
+  // dtRecents = [3.1, 2.9, ...] à la main — des valeurs que la chaîne réelle
+  // ne peut pas produire : il testait medianeDt() en vase clos, pas la
+  // fonctionnalité livrée. Un test qui ne peut pas échouer pour la bonne
+  // raison ne prouve rien.
+  //
+  // 0,6 s : franchement sous la borne de mesure (1,12 s) pour rester
+  // atteignable, et franchement au-dessus des DT normaux d'un réseau FT8 sain
+  // (les stations bien réglées se tiennent à quelques dixièmes). Élargir la
+  // recherche temporelle aurait été l'autre option — écartée : mesuré à
+  // ×1,46 de temps de décodage, sur un thread principal qui bloque déjà, donc
+  // le remède aggraverait la panne n°4 que cette même page vient de corriger.
+  const DT_ALERTE_S = 0.6;
   let dtRecents = [];
 
   function medianeDt(){
@@ -826,12 +870,27 @@ if(localStorage.getItem('rc_theme') === null){
       el.style.display = 'none';
       return;
     }
-    const sens = med > 0 ? 'en RETARD' : 'en AVANCE';
+    // SENS CORRIGÉ le 18/08/2026 — il était INVERSÉ, et c'est la pire faute
+    // possible ici : le bandeau envoyait l'opérateur régler son horloge dans
+    // le mauvais sens, doublant l'erreur au lieu de la supprimer.
+    //
+    // La géométrie, posément. Le PC ouvre son créneau quand SON horloge
+    // atteint T. Si le PC AVANCE de δ sur l'UTC, il ouvre donc son créneau à
+    // l'instant vrai T-δ, soit TROP TÔT ; les correspondants, eux, émettent à
+    // l'instant vrai T. Leur signal arrive δ APRÈS l'ouverture de notre
+    // fenêtre : startSample plus grand, donc DT POSITIF.
+    //   DT > 0  =>  ce PC est EN AVANCE
+    //   DT < 0  =>  ce PC est EN RETARD
+    // Le test test_un_pc_en_avance_voit_toutes_les_stations_en_retard le
+    // vérifiait DÉJÀ (PC en avance de 3 s -> DT = +3) : le code et son propre
+    // test se contredisaient, personne n'avait confronté les deux.
+    const sens = med > 0 ? 'en AVANCE' : 'en RETARD';
     el.textContent = "⚠ L'horloge de ce PC semble " + sens + ' d\'environ '
       + Math.abs(med).toFixed(1) + ' s sur l\'UTC : les ' + dtRecents.length
       + ' dernières stations reçues sont toutes décalées du même côté. En FT8 '
-      + 'au-delà de ±2 s plus rien ne se décode et tes émissions tombent hors '
-      + 'du créneau des autres. Active la synchronisation automatique de '
+      + "l'horloge doit rester à l'heure UTC à la seconde près (NTP) : au-delà "
+      + 'plus rien ne se décode et tes émissions tombent hors du créneau des '
+      + 'autres. Active la synchronisation automatique de '
       + "l'heure Windows (Paramètres > Heure et langue > Synchroniser), ou "
       + 'installe NetTime.';
     el.style.display = '';
@@ -844,6 +903,53 @@ if(localStorage.getItem('rc_theme') === null){
   // doit le DIRE.
   let creneauxSansFenetre = 0;
 
+  // ─── « Il y a du signal, et pourtant rien ne se décode » ─────────────────
+  //
+  // C'est LA panne que la mesure de DT ne peut pas diagnostiquer, et c'est
+  // pourtant la plus fréquente : si l'horloge du PC dérive au-delà de ce que
+  // la recherche de synchro tolère (~1 s), plus AUCUNE station ne se décode.
+  // Or sans décodage, il n'y a pas de DT, donc pas de médiane, donc pas de
+  // bandeau : le diagnostic s'éteint exactement quand on en a besoin. Défaut
+  // relevé en revue le 18/08/2026 — la fonctionnalité était muette dans son
+  // propre cas d'usage.
+  //
+  // On mesure donc l'ÉNERGIE du créneau. De l'audio bien présent + zéro
+  // décodage sur plusieurs créneaux d'affilée, c'est le symptôme. Le seuil
+  // RMS distingue « la carte son capte quelque chose » de « entrée muette » —
+  // il ne prétend pas mesurer un rapport signal/bruit, juste écarter le
+  // silence numérique et le souffle très faible.
+  const RMS_SILENCE = 0.003;         // sous ce niveau, l'entrée est considérée muette
+  const CRENEAUX_AVANT_ALERTE = 4;   // 1 minute de FT8 sans le moindre décodage
+  let creneauxSansDecodage = 0;
+
+  function surveillerSilenceAnormal(echantillons, nbDecodes){
+    const el = document.getElementById('horlogeAlerte');
+    if(nbDecodes > 0){
+      creneauxSansDecodage = 0;
+      return;   // majAlerteHorloge gère l'affichage quand on décode
+    }
+    let somme = 0;
+    // Un échantillon sur 16 : l'ordre de grandeur du RMS suffit largement, et
+    // cette boucle tourne sur le thread principal comme le reste.
+    for(let i = 0; i < echantillons.length; i += 16) somme += echantillons[i] * echantillons[i];
+    const rms = Math.sqrt(somme / Math.max(1, echantillons.length / 16));
+    if(rms < RMS_SILENCE){
+      creneauxSansDecodage = 0;   // entrée muette : c'est un problème de câblage, pas d'horloge
+      return;
+    }
+    creneauxSansDecodage++;
+    if(creneauxSansDecodage < CRENEAUX_AVANT_ALERTE || !el) return;
+    el.textContent = "⚠ Du signal est bien reçu, mais RIEN ne se décode depuis "
+      + creneauxSansDecodage + ' créneaux. La cause la plus fréquente est '
+      + "l'HEURE DU PC : en FT8 tout est calé sur des créneaux de 15 s, et "
+      + "au-delà d'environ une seconde d'écart avec l'UTC plus rien ne "
+      + "s'aligne. Vérifie la synchronisation automatique de l'heure Windows "
+      + '(Paramètres > Heure et langue > Synchroniser), ou installe NetTime. '
+      + 'Autres pistes : mauvaise bande, ou entrée audio branchée sur le '
+      + 'mauvais périphérique.';
+    el.style.display = '';
+  }
+
   function verifierCycle(){
     if(!rxActif) return;
     const now = Date.now();
@@ -854,6 +960,8 @@ if(localStorage.getItem('rc_theme') === null){
       const fenetre = extraireFenetre(slotTermine);
       if(fenetre){
         creneauxSansFenetre = 0;
+        const st = document.getElementById('rxStatus');
+        if(st && st.textContent.startsWith('audio incomplet')) st.textContent = 'écoute en cours…';
         // centerSample : position, dans la fenêtre, d'une station à DT nul.
         // SANS ce paramètre la recherche partait du début de la fenêtre, soit
         // 1,5 s trop tôt, et n'acceptait en pratique qu'un DT compris entre
@@ -869,6 +977,7 @@ if(localStorage.getItem('rc_theme') === null){
           ajouterDecodage(slotTermine, r.text, r.freqHz, r.syncScore, dt);
         }
         if(results.length) majAlerteHorloge();
+        surveillerSilenceAnormal(fenetre.samples, results.length);
       } else {
         creneauxSansFenetre++;
         if(creneauxSansFenetre >= 2){
@@ -990,7 +1099,13 @@ if(localStorage.getItem('rc_theme') === null){
     analyser.minDecibels = -100; analyser.maxDecibels = -20;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
     derniereLigneMs = 0;
-    derivesCumulees = 0; creneauxSansFenetre = 0;
+    // Tous les compteurs de diagnostic repartent de zéro à chaque « Écouter » :
+    // sinon un bandeau ou un message hérité de la session précédente reste
+    // affiché alors qu'il ne décrit plus rien (constat de revue 18/08/2026).
+    derivesCumulees = 0; creneauxSansFenetre = 0; creneauxSansDecodage = 0;
+    dtRecents = [];
+    const bandeauHorloge = document.getElementById('horlogeAlerte');
+    if(bandeauHorloge) bandeauHorloge.style.display = 'none';
     source.connect(analyser);
     raf = requestAnimationFrame(boucleWaterfall);
 
@@ -1066,9 +1181,18 @@ if(localStorage.getItem('rc_theme') === null){
   // relâchement inutile (radio jamais passée en émission) est sans effet ;
   // un relâchement manquant ne l'est pas.
   //
-  // Rend {ok, atteint, verrou} au lieu d'un booléen, pour que l'appelant
-  // puisse distinguer « refusé sans avoir touché la radio » de « on ne sait
-  // pas ».
+  // Rend {ok, atteint, verrou, nonEngage} au lieu d'un booléen, pour que
+  // l'appelant puisse distinguer « refusé sans avoir touché la radio » de
+  // « on ne sait pas ».
+  //
+  // `nonEngage` (ajouté le 18/08/2026 après revue) : le serveur affirme
+  // qu'AUCUN pilote n'a été appelé — pilotage radio non configuré, ou verrou
+  // TX refusé avant tout envoi. La radio n'a alors PAS pu être mise en
+  // émission par nous, et insister serait absurde. Sans cette distinction,
+  // n'importe quel opérateur sans pilotage radio (cas courant : PTT par VOX
+  // ou par le micro) voyait l'alarme rouge « LA RADIO EST PEUT-ÊTRE ENCORE
+  // EN ÉMISSION » à chaque tentative d'émission. Une alarme qui crie pour
+  // rien finit par ne plus être lue.
   let pttDemande = false;      // une demande d'émission est partie, sans relâchement confirmé
   let chienDeGardePtt = null;
 
@@ -1091,11 +1215,12 @@ if(localStorage.getItem('rc_theme') === null){
       const r = await fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({on})});
       const d = await r.json();
-      return {ok: !!d.ok, atteint: true, verrou: r.status === 409};
+      return {ok: !!d.ok, atteint: true, verrou: r.status === 409,
+              nonEngage: !!d.non_engage};
     }catch(e){
       // La requête n'a PAS abouti côté navigateur. Elle a pu être reçue quand
       // même : on ne peut rien conclure sur l'état réel de la radio.
-      return {ok: false, atteint: false, verrou: false};
+      return {ok: false, atteint: false, verrou: false, nonEngage: false};
     }
   }
 
@@ -1109,6 +1234,16 @@ if(localStorage.getItem('rc_theme') === null){
     for(let i = 0; i < tentatives; i++){
       const r = await pttOn(false);
       if(r.ok){
+        pttDemande = false;
+        majBoutonStop();
+        alarmePtt('');
+        return true;
+      }
+      // Le serveur affirme qu'aucun pilote n'a été appelé : la radio n'a
+      // jamais pu être mise en émission PAR NOUS. Insister ne changerait rien
+      // et l'alarme rouge serait mensongère (voir pttOn). On sort proprement,
+      // en état « pas d'émission en cours ».
+      if(r.nonEngage){
         pttDemande = false;
         majBoutonStop();
         alarmePtt('');
@@ -1135,6 +1270,7 @@ if(localStorage.getItem('rc_theme') === null){
     chienDeGardePtt = setTimeout(() => {
       if(!pttDemande) return;
       console.warn('[FT8] chien de garde PTT : relâchement forcé après 20 s');
+      couperAudioTx();   // l'audio d'abord, comme dans stopEmission
       relacherPtt();
     }, 20000);
   }
@@ -1143,11 +1279,34 @@ if(localStorage.getItem('rc_theme') === null){
     chienDeGardePtt = null;
   }
 
+  // ─── Coupure de l'AUDIO d'émission ───────────────────────────────────────
+  //
+  // Constat de revue (18/08/2026) : STOP, Échap et le chien de garde
+  // relâchaient le PTT… et laissaient la forme d'onde continuer à être jouée
+  // dans la carte son, donc à être injectée dans l'entrée modulation de la
+  // radio. L'écran annonçait « Émission coupée — retour à l'écoute » pendant
+  // que le signal continuait. Sur un poste piloté en VOX, cela SUFFIT à
+  // remettre le poste en émission tout seul juste après notre PTT OFF : le
+  // bouton de coupure pouvait donc ne rien couper du tout.
+  //
+  // On garde une prise sur la source audio en cours pour pouvoir l'arrêter.
+  let sourceTxEnCours = null;
+
+  function couperAudioTx(){
+    if(!sourceTxEnCours) return;
+    try{ sourceTxEnCours.stop(); }catch(e){}   // déjà terminée : stop() lève, sans conséquence
+    sourceTxEnCours = null;
+  }
+
   window.stopEmission = async function(){
     desarmerChienDeGarde();
     const statusEl = document.getElementById('txStatus');
     statusEl.textContent = 'Coupure demandée…';
     statusEl.className = 'tx-status wait';
+    // L'audio D'ABORD : c'est lui qui module le poste. Couper le PTT en
+    // laissant le son partir n'arrête rien sur une station en VOX, et laisse
+    // de toute façon une porteuse modulée sur un poste encore en émission.
+    couperAudioTx();
     const ok = await relacherPtt(6);
     statusEl.textContent = ok ? 'Émission coupée — retour à l\'écoute' : 'Coupure NON confirmée';
     statusEl.className = 'tx-status';
@@ -1177,6 +1336,11 @@ if(localStorage.getItem('rc_theme') === null){
     buf.copyToChannel(wave, 0);
     const src = txCtx.createBufferSource();
     src.buffer = buf;
+    // Prise sur la source en cours, pour que STOP/Échap/chien de garde
+    // puissent réellement couper le son (voir couperAudioTx). src.stop()
+    // déclenche onended, donc l'attente ci-dessous se résout normalement :
+    // le finally d'envoyerMessage() s'exécute et relâche le PTT.
+    sourceTxEnCours = src;
     if(outId && HTMLMediaElement.prototype.setSinkId){
       // Route vers un périphérique de sortie précis : MediaStreamDestination
       // + <audio> caché (setSinkId n'existe que sur HTMLMediaElement, pas
@@ -1195,6 +1359,7 @@ if(localStorage.getItem('rc_theme') === null){
       src.start();
       await new Promise(resolve => { src.onended = resolve; });
     }
+    sourceTxEnCours = null;
     try{ txCtx.close(); }catch(e){}
   }
 
@@ -1224,16 +1389,30 @@ if(localStorage.getItem('rc_theme') === null){
 
     statusEl.textContent = 'PTT…';
     statusEl.className = 'tx-status emit';
+    // Mémorisé AVANT la demande : si une émission précédente n'a jamais été
+    // relâchée, un refus sur CELLE-CI ne doit pas effacer cet état (voir plus
+    // bas). pttOn(true) va poser pttDemande = true quoi qu'il arrive.
+    const emissionAnterieureNonRelachee = pttDemande;
     armerChienDeGarde();
     const ptt = await pttOn(true);
     if(!ptt.ok){
-      // Verrou SO2R (409) : la radio n'a PAS été passée en émission, le
-      // serveur a refusé AVANT d'appeler set_ptt. C'est le SEUL cas où sortir
-      // sans relâcher est correct.
-      if(ptt.verrou){
+      // Verrou SO2R (409), ou pilotage radio absent (non_engage) : dans les
+      // deux cas le serveur a refusé AVANT d'appeler le moindre pilote, donc
+      // la radio n'a PAS été passée en émission par nous. Ce sont les seuls
+      // cas où sortir sans relâcher est correct.
+      //
+      // Nuance ajoutée après revue (18/08/2026) : on ne remet pttDemande à
+      // false que si AUCUNE émission antérieure n'est restée non relâchée.
+      // Sinon un refus de verrou — événement sans aucun rapport — effacerait
+      // l'état de sûreté d'une émission précédente encore en l'air, et ferait
+      // disparaître le bouton STOP au pire moment.
+      if(ptt.verrou || ptt.nonEngage){
         desarmerChienDeGarde();
-        pttDemande = false; majBoutonStop();
-        statusEl.textContent = 'Autre radio déjà en émission (verrou SO2R)';
+        if(!emissionAnterieureNonRelachee){ pttDemande = false; majBoutonStop(); }
+        statusEl.textContent = ptt.verrou
+          ? 'Autre radio déjà en émission (verrou SO2R)'
+          : 'Pas de pilotage radio configuré : passe en émission au micro ou en VOX, '
+            + 'ou configure le CAT dans CONFIG';
       } else {
         // Tous les autres cas : la radio PEUT être en émission (voir le
         // commentaire de pttOn). On relâche avant toute chose, puis
