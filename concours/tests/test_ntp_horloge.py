@@ -324,7 +324,12 @@ def test_l_intro_ne_promet_plus_l_absence_d_envoi_par_clic():
     src = _lire_ft8()
     intro = src[src.index('class="intro"'):src.index('</p>', src.index('class="intro"'))]
     assert 'double-clic' in intro.lower(), "l'intro doit mentionner le double-clic"
-    assert 'séquenceur' in intro, 'la garantie « pas de séquenceur » doit rester'
+    # La garantie « pas de séquenceur » a cessé d'être vraie le 18/08/2026 :
+    # le séquenceur existe. L'intro doit maintenant DIRE qu'il existe et à
+    # quelles conditions il émet — un texte d'interface qui ment sur la sûreté
+    # d'émission est pire que pas de texte du tout.
+    assert 'pas de séquenceur' not in intro.lower()
+    assert 'séquenceur' in intro.lower(), "l'intro doit décrire le séquenceur"
 
 
 # ─── Le guide de réglage du poste ───────────────────────────────────────────

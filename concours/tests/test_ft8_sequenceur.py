@@ -77,21 +77,34 @@ def _ctx(niveau='sequenceur', arme=True):
         if(id === 'txStatus') return __status;
         return null;   // seqEtat/seqStopBtn absents : majPanneauSeq doit tenir
       }};
-      function envoyerMessage(){ __envois.push(__txText.value); }
+      // envoyerMessage rend une PROMESSE dans le vrai code (il attend le
+      // créneau). Le bouchon la résout tout de suite, mais garde la forme :
+      // seqEmettre s'appuie dessus pour libérer le verrou `enVol`.
+      function envoyerMessage(){ __envois.push(__txText.value); return Promise.resolve(); }
+      var generationTx = 0;
+      function annulerEmissionsProgrammees(){ generationTx++; }
+      function setInterval(){ return 0; }
+      function clearInterval(){}
       function offrirLogQso(call, infos){ __logs.push({call: call, infos: infos || {}}); }
       function gridVersLatLon(g){ return g ? {lat: 45, lon: 5} : null; }
       function distanceKm(){ return 1350; }
       var window = {};
     """ % (MOI, GRILLE, 'true' if arme else 'false', niveau))
     src_js = src
-    for nom in ('niveauSeq', 'seqArreter', 'majPanneauSeq', 'seqDemarrer',
-                'seqExaminerCreneau', 'seqLoguer'):
+    for nom in ('niveauSeq', 'seqArreter', 'majPanneauSeq', 'seqEmettre',
+                'seqArreterApresEmission', 'seqDemarrer',
+                'seqExaminerCreneau', 'seqLoguer', 'estIndicatif',
+                'cibleDepuisMessage'):
         ctx.eval(_fonction(src_js, nom))
     ctx.eval(re.search(r'const NIVEAUX_SEQ = \[[^\]]*\];', src_js).group(0)
              .replace('const', 'var', 1))
     ctx.eval(re.search(r'const SEQ_RELANCES_DEFAUT = \d+;', src_js).group(0)
              .replace('const', 'var', 1))
     ctx.eval(_fonction(src_js, 'relancesMax'))
+    ctx.eval(re.search(r'const RE_INDICATIF = [^;]+;', src_js).group(0)
+             .replace('const', 'var', 1))
+    ctx.eval(re.search(r'const JETONS_NON_INDICATIF = new Set\(\[.*?\]\);',
+                       src_js, re.S).group(0).replace('const', 'var', 1))
     ctx.eval('var seq = null;')
     return ctx
 
@@ -120,8 +133,11 @@ def test_le_qso_s_enchaine_et_se_loggue_tout_seul():
     _creneau(ctx, ['%s %s KN04' % (MOI, CIBLE)])          # il répond, grille
     assert _etat(ctx)['envois'][-1] == 'YT2DZB F4GLD -10'
 
+    # « R-10 » et non « RRR » : la séquence FT8 standard accuse ET renvoie le
+    # report. Répondre RRR sautait l'étape Tx3, si bien qu'aucun report n'était
+    # jamais émis — alors que le carnet enregistrait rst_sent = « -10 ».
     _creneau(ctx, ['%s %s R-12' % (MOI, CIBLE)])          # il accuse notre report
-    assert _etat(ctx)['envois'][-1] == 'YT2DZB F4GLD RRR'
+    assert _etat(ctx)['envois'][-1] == 'YT2DZB F4GLD R-10'
 
     _creneau(ctx, ['%s %s RR73' % (MOI, CIBLE)])          # il conclut
     e = _etat(ctx)
@@ -462,3 +478,119 @@ def test_la_duree_de_la_sequence_est_affichee():
     les lignes du tableau."""
     corps = _fonction(_lire(), 'majPanneauSeq')
     assert 'debutMs' in corps and 'min' in corps
+
+
+# ─── Constats de la revue adversariale du 18/08/2026 ────────────────────────
+
+def test_un_cq_directionnel_ne_donne_jamais_le_modificateur_pour_cible():
+    """« CQ DX YT2DZB KN04 » donnait la cible « DX » : la station appelait
+    indéfiniment un correspondant qui n'existe pas, et AUCUNE condition
+    d'arrêt ne pouvait se déclencher puisque « DX » ne répond jamais.
+    Mesuré en navigateur par la revue."""
+    ctx = _ctx()
+    for msg, attendu in [('CQ DX YT2DZB KN04', 'YT2DZB'),
+                         ('CQ POTA YT2DZB KN04', 'YT2DZB'),
+                         ('CQ TEST YT2DZB KN04', 'YT2DZB'),
+                         ('CQ YT2DZB KN04', 'YT2DZB')]:
+        assert ctx.eval("cibleDepuisMessage(%r)" % msg) == attendu, msg
+
+
+def test_un_message_entre_tiers_ne_donne_aucune_cible():
+    """Un double-clic sur « ON4FHM SQ8LSB 73 » faisait émettre EN BOUCLE un
+    message signé de l'indicatif de quelqu'un d'autre."""
+    ctx = _ctx()
+    assert ctx.eval("cibleDepuisMessage('ON4FHM SQ8LSB 73')") == ''
+    assert ctx.eval("cibleDepuisMessage('TA3KJ SP6FME JO90')") == ''
+
+
+def test_un_message_qui_nous_est_adresse_donne_l_emetteur():
+    ctx = _ctx()
+    assert ctx.eval("cibleDepuisMessage('%s %s KN04')" % (MOI, CIBLE)) == CIBLE
+
+
+def test_les_indicatifs_portables_sont_acceptes():
+    ctx = _ctx()
+    for c in ('F/ON4ABC', 'ON4ABC/P', 'YT2DZB'):
+        assert ctx.eval("estIndicatif(%r)" % c) is True, c
+    for t in ('CQ', 'DX', 'TEST', 'POTA', 'QRZ', 'DE', 'RR73'):
+        assert ctx.eval("estIndicatif(%r)" % t) is False, t
+
+
+def test_il_n_emet_pas_par_dessus_sa_propre_emission():
+    """Il relançait à CHAQUE créneau : 86 % de rapport cyclique, aucun créneau
+    d'écoute, donc il ne pouvait PAS entendre sa cible — et sans plafond, la
+    séquence ne pouvait jamais se terminer. En FT8 on émet un créneau sur deux."""
+    ctx = _ctx()
+    ctx.eval("seqDemarrer('%s', 'APPEL');" % CIBLE)
+    ctx.eval('seq.enVol = true;')          # émission en cours
+    avant = len(_etat(ctx)['envois'])
+    _creneau(ctx, ['CQ SV5BYP KM46'])
+    assert len(_etat(ctx)['envois']) == avant, 'aucune émission par-dessus la nôtre'
+
+
+def test_la_sequence_s_arrete_apres_le_73_final():
+    """Après RR73 reçu et QSO loggué, l'étape restait '73' et la relance
+    réémettait « 73 » à chaque créneau, indéfiniment : « jusqu'à confirmation »
+    devenait « pour toujours », alors que la confirmation venait d'arriver."""
+    ctx = _ctx()
+    ctx.eval("seqDemarrer('%s', 'APPEL');" % CIBLE)
+    _creneau(ctx, ['%s %s RR73' % (MOI, CIBLE)])
+    e = _etat(ctx)
+    assert e['envois'][-1] == 'YT2DZB F4GLD 73'
+    assert e['etape'] in ('73', 'fini'), e['etape']
+    # Le créneau suivant ne doit plus rien produire.
+    apres = len(e['envois'])
+    ctx.eval('if(seq) seq.enVol = false;')
+    _creneau(ctx, ['CQ SV5BYP KM46'])
+    assert len(_etat(ctx)['envois']) == apres, 'plus aucune émission après le 73'
+
+
+def test_l_intro_ne_nie_plus_l_existence_du_sequenceur():
+    """Elle affirmait encore « il n'y a pas de séquenceur automatique : un
+    message part par action, jamais de QSO déroulé tout seul ». Un texte
+    d'interface qui ment sur la sûreté d'émission est pire que pas de texte."""
+    src = _lire()
+    intro = src[src.index('class="intro"'):src.index('</p>', src.index('class="intro"'))]
+    assert 'pas de séquenceur automatique' not in intro
+    assert 'SÉQUENCEUR' in intro
+
+
+def test_le_jeton_d_annulation_existe_et_est_verifie_apres_l_attente():
+    """LE constat critique : envoyerMessage ne testait txArmed qu'AVANT son
+    attente de créneau. Mesuré en navigateur : PTT ON 10,7 s APRÈS l'ordre
+    d'arrêt, écran affichant « Émission coupée »."""
+    corps = _fonction(_lire(), 'envoyerMessage')
+    assert 'const maGeneration = generationTx' in corps
+    i_attente = corps.index('prochain - Date.now()')
+    i_controle = corps.index('maGeneration !== generationTx')
+    assert i_attente < i_controle, "le contrôle doit venir APRÈS l'attente"
+    assert '!txArmed' in corps[i_controle:i_controle + 120]
+
+
+def test_tous_les_arrets_annulent_les_emissions_programmees():
+    src = _lire()
+    for nom in ('seqArreter', 'stopEmission', 'onArmChange', 'arreterRx'):
+        assert 'annulerEmissionsProgrammees' in _fonction(src, nom), nom
+
+
+def test_echap_agit_aussi_pendant_l_attente_du_creneau():
+    """Il était verrouillé sur pttDemande : inopérant pendant toute l'attente
+    du créneau et entre deux relances, c'est-à-dire la majorité du temps."""
+    src = _lire()
+    i = src.index("e.key === 'Escape'")
+    bloc = src[i:i + 200]
+    assert 'emissionProgrammee' in bloc and 'seq' in bloc
+
+
+def test_le_bouton_stop_est_visible_pendant_l_attente():
+    """Pendant l'attente, pttDemande vaut false : le bouton disparaissait alors
+    qu'il y avait justement quelque chose à annuler."""
+    assert 'emissionProgrammee' in _fonction(_lire(), 'majBoutonStop')
+
+
+def test_le_bandeau_de_log_ne_se_rouvre_pas_apres_un_log_automatique():
+    """Il se rouvrait pour le MÊME QSO avec les reports et la grille vidés :
+    un clic de l'opérateur écrasait la version complète par une version pauvre."""
+    corps = _fonction(_lire(), 'envoyerMessage')
+    i = corps.index("parts[2] === '73'")
+    assert '!seq' in corps[i - 120:i], 'la réouverture doit être exclue en mode séquencé'
