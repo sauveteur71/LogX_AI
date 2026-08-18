@@ -137,6 +137,18 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 .tx-status{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
 .tx-status.wait{color:var(--yellow)}
 .tx-status.emit{color:var(--red);font-weight:700}
+/* Alarme PTT : volontairement la seule chose criarde de la page. Fond plein
+   rouge + texte blanc FIXES (pas de token de thème) — l'information « la
+   radio est peut-être encore en émission » doit rester lisible à l'identique
+   de jour comme de nuit, c'est le seul cas de la page qui le justifie. */
+/* Avertissement d'horloge : jaune (on peut encore trafiquer, mal) et non
+   rouge (émission en cours) — deux niveaux de gravité distincts, deux
+   couleurs distinctes. Couleurs fixes : lisible de jour comme de nuit. */
+.horloge-alerte{margin:0 0 14px;padding:10px 12px;border-radius:6px;
+  background:#8A6100;color:#fff;font-weight:600;font-size:13px;line-height:1.5}
+.ptt-alarme{margin-top:10px;padding:10px 12px;border-radius:6px;
+  background:#B3261E;color:#fff;font-weight:700;font-size:13px;line-height:1.45}
+#ft8StopBtn{background:#B3261E;color:#fff;border-color:#B3261E}
 
 .qso-prompt{display:none;background:rgba(var(--accent-rgb),.12);border:1px solid var(--accent2);border-radius:8px;
   padding:10px 14px;margin-top:10px;font-family:var(--font-mono);font-size:12.5px;gap:12px;align-items:center;flex-wrap:wrap}
@@ -174,6 +186,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   <h1>Décodeur/émetteur FT8 natif</h1>
   <p class="intro">Décode et émet le FT8 directement ici, sans WSJT-X/JTDX/MSHV — voir <a href="logx_configuration.html" style="color:var(--accent2)">CONFIG</a> pour connecter un logiciel externe à la place. Rien ne part sur l'air sans un clic explicite : "Activer l'émission" arme seulement le bouton "Envoyer", il n'y a pas de séquenceur automatique.</p>
 
+  <!-- Alerte d'horloge — remplie par majAlerteHorloge() à partir du DT MÉDIAN
+       des stations reçues. Placée tout en haut, avant les panneaux : quand
+       elle s'affiche, c'est la seule chose qui compte sur cette page, tout le
+       reste (waterfall, tableau vide) n'en est que la conséquence. -->
+  <div class="horloge-alerte" id="horlogeAlerte" style="display:none" role="alert"></div>
+
   <div class="layout">
 
     <!-- COLONNE GAUCHE : indicatifs entendus en CQ cette session — la
@@ -206,13 +224,16 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <label>PÉRIPHÉRIQUE D'ENTRÉE<select id="ft8Device"><option value="">— chargement… —</option></select></label>
         <button id="rxStartBtn" onclick="toggleRx()">▶ Écouter</button>
         <span id="rxStatus" class="tx-status">arrêté</span>
+        <span id="rxDiag" class="tx-status expert-only"></span>
       </div>
       <div style="margin-top:12px">
         <canvas id="waterCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
         <canvas id="axisCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
       </div>
       <table class="decodes">
-        <thead><tr><th>UTC</th><th>Hz</th><th>Score</th><th>Message</th></tr></thead>
+        <thead><tr><th>UTC</th><th>Hz</th>
+          <th title="Décalage temporel de la station reçue par rapport au créneau de 15 s. Proche de 0 = horloges d'accord. Si TOUTES les stations sont décalées du même côté, c'est l'horloge de CE PC qui est fausse.">DT</th>
+          <th>Score</th><th>Message</th></tr></thead>
         <tbody id="decodesBody"></tbody>
       </table>
       <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
@@ -230,8 +251,20 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="composer">
         <input type="text" id="txText" maxlength="35" placeholder="CQ F4GLD JN18" spellcheck="false" autocomplete="off">
         <button id="sendBtn" class="danger" onclick="envoyerMessage()" disabled>▶ Envoyer</button>
+        <!-- COUPURE D'ÉMISSION — jamais expert-only, jamais désactivée par le
+             mode débutant, jamais conditionnée à l'état du pilotage radio :
+             même principe que le STOP CW du LOGBOOK. Un opérateur qui voit sa
+             radio rester en émission doit avoir un bouton sous la main, pas
+             une case à cocher à retrouver. Apparaît dès qu'une demande de PTT
+             est partie (voir majBoutonStop). -->
+        <button id="ft8StopBtn" class="danger" onclick="stopEmission()"
+                style="display:none" title="Repasser la radio en écoute (Échap)">■ STOP ÉMISSION</button>
         <span class="tx-status" id="txStatus"></span>
       </div>
+      <!-- Alarme de dernier recours : affichée UNIQUEMENT quand le relâchement
+           du PTT a échoué malgré les réessais. À ce stade le logiciel ne peut
+           plus rien : il doit le DIRE, pas laisser croire que tout va bien. -->
+      <div class="ptt-alarme" id="pttAlarme" style="display:none" role="alert"></div>
       <div class="qso-prompt" id="qsoPrompt">
         <span>QSO complété avec <b id="qsoPromptCall"></b> — l'ajouter au log ?</span>
         <button onclick="confirmerLogQso()">✓ Ajouter au log</button>
@@ -500,6 +533,10 @@ if(localStorage.getItem('rc_theme') === null){
   let lastProcessedSlot = 0;
   let cycleTimer = null;
   let rxActif = false;
+  // Nombre de resynchronisations de l'horloge du tampon audio depuis le
+  // démarrage — voir pousserEchantillons(). Non nul = la machine n'arrive pas
+  // à suivre, information utile pour diagnostiquer une absence de décodage.
+  let derivesCumulees = 0;
 
   function tailleCanvas(cv){
     const rect = cv.getBoundingClientRect();
@@ -514,6 +551,7 @@ if(localStorage.getItem('rc_theme') === null){
   // (Goertzel sur les échantillons bruts) — donne un retour visuel continu
   // sans avoir à en tirer les 15s complètes à chaque frame.
   let analyser = null, dataArray = null, raf = null;
+  let derniereLigneMs = 0;   // cadence de défilement du waterfall (voir boucleWaterfall)
   // Largeur de l'axe audio affiché par le waterfall — 0 à 3000 Hz sur toute
   // la largeur du canvas (voir boucle de dessin ci-dessous ET dessinerAxe()).
   // Constante partagée : sert aussi à hzDepuisClic() pour le clic-pour-caler,
@@ -537,9 +575,36 @@ if(localStorage.getItem('rc_theme') === null){
     // fonction fautive n'a pas pu être isolée avec certitude (aucune trace
     // d'erreur disponible), donc ce filet sert aussi de relance défensive.
     try{
-      analyser.getByteFrequencyData(dataArray);
       const cv = document.getElementById('waterCanvas');
       const {w, h} = tailleCanvas(cv);
+      // ─── Cadence de défilement : UNE ligne par tranche de temps, pas une
+      // ligne par frame ───────────────────────────────────────────────────
+      //
+      // Le défilement était piloté par requestAnimationFrame, donc ~60 lignes
+      // par seconde : sur une hauteur de canvas de ~300 px (device pixels),
+      // toute la fenêtre visible ne couvrait que 5 s environ. Or une
+      // transmission FT8 dure 12,64 s (79 symboles à 6,25 baud — Franke,
+      // Somerville & Taylor, « The FT4 and FT8 Communication Protocols »,
+      // QEX juillet/août 2020) : aucun signal ne tenait jamais entièrement à
+      // l'écran, d'où l'aspect de traînées verticales sans structure signalé
+      // par F4GLD (« il n'est pas vraiment clair »). Pire, la vitesse dépendait
+      // de la charge de la machine — deux postes n'affichaient pas la même
+      // chose.
+      //
+      // Désormais la hauteur du canvas représente UN cycle FT8 complet de
+      // 15 s, comme la cascade de WSJT-X : une transmission occupe ~84 % de
+      // la hauteur et se lit d'un coup d'œil. rAF reste le moteur (rendu
+      // fluide, mise en veille automatique par le navigateur quand l'onglet
+      // est caché), mais on ne pousse une ligne qu'à échéance.
+      const maintenant = performance.now();
+      const periodeLigne = 15000 / Math.max(1, h);
+      if(maintenant - derniereLigneMs < periodeLigne){
+        raf = requestAnimationFrame(boucleWaterfall);
+        return;
+      }
+      derniereLigneMs = maintenant;
+
+      analyser.getByteFrequencyData(dataArray);
       const g = cv.getContext('2d');
       g.drawImage(cv, 0, 0, w, h, 0, 1, w, h - 1);
       const nyquist = ctx.sampleRate / 2;
@@ -611,6 +676,10 @@ if(localStorage.getItem('rc_theme') === null){
   document.getElementById('waterCanvas').addEventListener('click', clicWaterfall);
   document.getElementById('axisCanvas').addEventListener('click', clicWaterfall);
 
+  // Écart toléré entre l'horodatage MODÉLISÉ du tampon et l'horloge réelle,
+  // avant resynchronisation. Voir le long commentaire ci-dessous.
+  const DERIVE_MAX_MS = 400;
+
   function pousserEchantillons(chunk){
     if(bufStartMs === 0) bufStartMs = Date.now() - (chunk.length/sr*1000);
     const merged = new Float32Array(audioBuf.length + chunk.length);
@@ -622,15 +691,135 @@ if(localStorage.getItem('rc_theme') === null){
       audioBuf = audioBuf.slice(drop);
       bufStartMs += (drop/sr)*1000;
     }
+
+    // ─── Resynchronisation sur l'horloge réelle ────────────────────────────
+    //
+    // Bug constaté en trafic réel par F4GLD le 18/08/2026 : « une fois
+    // détectées les deux premières stations, il ne me propose pas d'autres
+    // stations entendues, sauf si je recharge la page — et là il en trouve 1
+    // ou 2 de plus, mais pas plus ». Symptôme définitif, guéri seulement par
+    // un rechargement : c'est la signature d'un état qui dérive dans un sens
+    // et ne revient jamais.
+    //
+    // bufStartMs était une horloge PUREMENT MODÉLISÉE : posée une fois au
+    // premier échantillon, puis avancée uniquement au prorata des échantillons
+    // JETÉS. Elle suppose donc que tout échantillon produit par la carte son
+    // arrive bien dans le tampon. Or ScriptProcessorNode s'exécute sur le
+    // thread principal : quand celui-ci est occupé, le navigateur SAUTE des
+    // blocs, silencieusement. Et ce qui occupe le thread principal ici, c'est
+    // précisément ft8DecodeAudioAll(), lancé de façon synchrone à chaque fin
+    // de créneau de 15 s.
+    //
+    // Chaque bloc perdu fait prendre du retard au modèle sur l'horloge réelle,
+    // et ce retard ne se rattrape JAMAIS (rien ne le corrige). extraireFenetre
+    // borne sa fin à audioBuf.length ; passé ~2,7 s de retard cumulé, la
+    // fenêtre extraite tombe sous le seuil de 14 s et la fonction rend null —
+    // pour tous les créneaux suivants, définitivement. D'où « plus rien après
+    // les deux premiers », et d'où la guérison par rechargement (bufStartMs
+    // repart de Date.now(), le temps que la dérive se reconstitue : « 1 ou 2
+    // de plus »).
+    //
+    // Correctif : l'horloge du tampon est REPRISE sur l'horloge réelle dès que
+    // l'écart dépasse le seuil. On perd la continuité d'échantillonnage sur ce
+    // créneau-là (le décodage de la fenêtre en cours peut échouer), mais on
+    // retrouve un alignement correct pour tous les suivants — au lieu de
+    // sombrer une fois pour toutes.
+    const finModelisee = bufStartMs + (audioBuf.length / sr) * 1000;
+    const derive = Date.now() - finModelisee;
+    if(derive > DERIVE_MAX_MS){
+      bufStartMs += derive;
+      derivesCumulees++;
+    }
   }
 
+  // Rend {samples, debutMs} : l'instant réel du PREMIER échantillon extrait est
+  // indispensable au calcul du DT (voir calculerDt). Il ne vaut pas toujours
+  // slotStartMs - marge, puisque startIdx est borné à 0 quand le tampon ne
+  // remonte pas assez loin — le déduire au lieu de le mesurer donnerait un DT
+  // faux précisément dans les premières secondes d'écoute.
   function extraireFenetre(slotStartMs){
-    const marge = 1000;
+    // Marge portée de 1000 à 1500 ms le 18/08/2026 : depuis que la recherche
+    // de synchro est CENTRÉE sur le créneau (opts.centerSample), elle explore
+    // ±6 symboles soit ±0,96 s, poussés à ~±1,12 s par ft8RefineSync. Avec
+    // une marge de 1 s, une station à DT = -1,1 s commençait AVANT le début
+    // de la fenêtre : la plage de recherche débordait de ce qu'on lui donnait
+    // à analyser. 1,5 s englobe toute la plage des deux côtés.
+    const marge = 1500;
     const startIdx = Math.max(0, Math.round((slotStartMs - marge - bufStartMs)/1000*sr));
     const endIdx = Math.min(audioBuf.length, Math.round((slotStartMs + 15000 + marge - bufStartMs)/1000*sr));
     if(endIdx - startIdx < 14 * sr) return null;   // pas encore assez de données couvrant ce créneau
-    return audioBuf.slice(startIdx, endIdx);
+    return {samples: audioBuf.slice(startIdx, endIdx),
+            debutMs: bufStartMs + (startIdx / sr) * 1000};
   }
+
+  // ─── DT : l'horloge du PC vérifiée par les stations reçues ────────────────
+  //
+  // Question posée par F4GLD le 18/08/2026, et elle est fondée : en FT8 tout
+  // est calé sur des créneaux de 15 s alignés sur 00/15/30/45 s UTC. Le
+  // signal proprement dit dure 12,64 s (79 symboles à 6,25 baud — Franke,
+  // Somerville & Taylor, « The FT4 and FT8 Communication Protocols », QEX
+  // juillet-août 2020), ce qui ne laisse que 2,36 s de battement dans le
+  // créneau. Le guide utilisateur de WSJT-X demande pour cette raison que
+  // l'horloge du PC soit à ±2 s de l'UTC.
+  //
+  // Or la page AFFICHAIT une horloge UTC en en-tête… qui n'est que l'horloge
+  // du PC reformatée. Elle ne prouve donc rien : un opérateur dont le PC
+  // dérive de 5 s voit une horloge d'apparence normale et ne décode rien,
+  // sans le moindre indice sur la cause. C'est exactement le genre de panne
+  // muette qu'on s'interdit ailleurs dans ce logiciel.
+  //
+  // La mesure n'a besoin d'AUCUN service tiers ni d'aucun accès réseau : les
+  // stations reçues sont elles-mêmes la référence. Le décodeur connaît la
+  // position exacte du motif de synchro Costas dans la fenêtre analysée
+  // (startSample) ; l'écart entre cette position et le début théorique du
+  // créneau EST le DT. Le temps de propagation est négligeable à cette
+  // échelle (~67 ms pour 20 000 km à la vitesse de la lumière).
+  //
+  // Une station isolée peut avoir un DT non nul parce que SON horloge dérive.
+  // Mais si TOUTES les stations reçues affichent le même décalage, c'est la
+  // nôtre qui est fausse — d'où la MÉDIANE sur les dernières stations reçues,
+  // insensible à une station isolée mal réglée.
+  function calculerDt(debutFenetreMs, startSample, slotMs){
+    return (debutFenetreMs + (startSample / sr) * 1000 - slotMs) / 1000;
+  }
+
+  // Seuil d'alerte volontairement placé SOUS le ±2 s du guide WSJT-X : à 2 s
+  // on ne décode déjà plus, prévenir à ce moment-là serait prévenir trop tard.
+  const DT_ALERTE_S = 1.5;
+  let dtRecents = [];
+
+  function medianeDt(){
+    if(dtRecents.length < 3) return null;   // trop peu de stations pour conclure
+    const t = dtRecents.slice().sort((a, b) => a - b);
+    const m = Math.floor(t.length / 2);
+    return t.length % 2 ? t[m] : (t[m - 1] + t[m]) / 2;
+  }
+
+  function majAlerteHorloge(){
+    const el = document.getElementById('horlogeAlerte');
+    if(!el) return;
+    const med = medianeDt();
+    if(med === null || Math.abs(med) < DT_ALERTE_S){
+      el.style.display = 'none';
+      return;
+    }
+    const sens = med > 0 ? 'en RETARD' : 'en AVANCE';
+    el.textContent = "⚠ L'horloge de ce PC semble " + sens + ' d\'environ '
+      + Math.abs(med).toFixed(1) + ' s sur l\'UTC : les ' + dtRecents.length
+      + ' dernières stations reçues sont toutes décalées du même côté. En FT8 '
+      + 'au-delà de ±2 s plus rien ne se décode et tes émissions tombent hors '
+      + 'du créneau des autres. Active la synchronisation automatique de '
+      + "l'heure Windows (Paramètres > Heure et langue > Synchroniser), ou "
+      + 'installe NetTime.';
+    el.style.display = '';
+  }
+
+  // Créneaux consécutifs pour lesquels aucune fenêtre exploitable n'a pu être
+  // extraite. Avant le 18/08/2026, ce cas était traité en silence : la page
+  // affichait « écoute en cours… », le waterfall défilait, et plus une seule
+  // ligne n'arrivait — sans le moindre indice. Un décodeur qui ne décode plus
+  // doit le DIRE.
+  let creneauxSansFenetre = 0;
 
   function verifierCycle(){
     if(!rxActif) return;
@@ -641,13 +830,45 @@ if(localStorage.getItem('rc_theme') === null){
       lastProcessedSlot = slotTermine;
       const fenetre = extraireFenetre(slotTermine);
       if(fenetre){
-        const results = ft8DecodeAudioAll(fenetre, sr, hashTable, {});
-        for(const r of results) ajouterDecodage(slotTermine, r.text, r.freqHz, r.syncScore);
+        creneauxSansFenetre = 0;
+        // centerSample : position, dans la fenêtre, d'une station à DT nul.
+        // SANS ce paramètre la recherche partait du début de la fenêtre, soit
+        // 1,5 s trop tôt, et n'acceptait en pratique qu'un DT compris entre
+        // -1,00 s et +0,12 s (voir le pavé de ft8FindSync). Un PC en retard
+        // de 200 ms sur l'UTC ne décodait déjà presque plus rien.
+        const results = ft8DecodeAudioAll(fenetre.samples, sr, hashTable, {
+          centerSample: ((slotTermine - fenetre.debutMs) / 1000) * sr,
+        });
+        for(const r of results){
+          const dt = calculerDt(fenetre.debutMs, r.startSample, slotTermine);
+          dtRecents.push(dt);
+          if(dtRecents.length > 12) dtRecents.shift();   // médiane glissante
+          ajouterDecodage(slotTermine, r.text, r.freqHz, r.syncScore, dt);
+        }
+        if(results.length) majAlerteHorloge();
+      } else {
+        creneauxSansFenetre++;
+        if(creneauxSansFenetre >= 2){
+          const st = document.getElementById('rxStatus');
+          if(st) st.textContent = 'audio incomplet sur ' + creneauxSansFenetre
+            + ' créneaux — décodage en attente de resynchronisation';
+        }
       }
+      majDiagnosticRx();
     }
   }
 
-  function ajouterDecodage(slotMs, text, freqHz, score){
+  // Diagnostic discret, mais présent : sans lui, une capture audio qui décroche
+  // ressemble exactement à une bande vide.
+  function majDiagnosticRx(){
+    const el = document.getElementById('rxDiag');
+    if(!el) return;
+    el.textContent = derivesCumulees
+      ? derivesCumulees + ' resynchro. audio depuis le démarrage'
+      : '';
+  }
+
+  function ajouterDecodage(slotMs, text, freqHz, score, dt){
     document.getElementById('decodesVide').style.display = 'none';
     const d = new Date(slotMs);
     const heure = String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':'+String(d.getUTCSeconds()).padStart(2,'0');
@@ -659,8 +880,14 @@ if(localStorage.getItem('rc_theme') === null){
     const tdH = document.createElement('td'); tdH.textContent = heure;
     const tdF = document.createElement('td'); tdF.textContent = Math.round(freqHz);
     const tdS = document.createElement('td'); tdS.textContent = score.toFixed(0);
+    // DT — décalage temporel de CETTE station par rapport au créneau. Colonne
+    // standard de WSJT-X, et le seul moyen de voir d'un coup d'œil si c'est
+    // l'horloge d'en face ou la sienne qui dérive (voir calculerDt).
+    const tdDt = document.createElement('td');
+    tdDt.textContent = (typeof dt === 'number') ? (dt >= 0 ? '+' : '') + dt.toFixed(1) : '';
+    if(typeof dt === 'number' && Math.abs(dt) >= DT_ALERTE_S) tdDt.style.color = 'var(--red)';
     const tdM = document.createElement('td'); tdM.textContent = text;   // textContent : jamais de HTML depuis un décodage radio
-    tr.append(tdH, tdF, tdS, tdM);
+    tr.append(tdH, tdF, tdDt, tdS, tdM);
     tr.title = 'Clic : proposer une réponse';
     tr.addEventListener('click', () => { proposerReponse(text); afficherAppelSelectionne(text); });
     const tbody = document.getElementById('decodesBody');
@@ -724,10 +951,23 @@ if(localStorage.getItem('rc_theme') === null){
     proc.connect(sink); sink.connect(ctx.destination);
 
     analyser = ctx.createAnalyser();
-    analyser.fftSize = 4096;
-    analyser.smoothingTimeConstant = 0.5;
+    // Résolution : les tons FT8 sont espacés de 6,25 Hz (79 symboles à
+    // 6,25 baud, Franke/Somerville/Taylor, QEX juillet-août 2020). Avec
+    // fftSize=4096 sur une carte son à 48 kHz, un bin couvrait 48000/4096 =
+    // 11,7 Hz — soit près de DEUX tons FT8 dans le même pixel : impossible de
+    // distinguer quoi que ce soit, tout se fondait en traînées. 32768 (le
+    // maximum autorisé par la spécification Web Audio pour fftSize) descend à
+    // 1,46 Hz par bin, largement sous l'espacement des tons.
+    analyser.fftSize = 32768;
+    // 0 et non 0,5 : chaque ligne du waterfall représente maintenant une
+    // TRANCHE DE TEMPS distincte (voir boucleWaterfall). Un lissage temporel
+    // mélangerait les lignes entre elles et rendrait flou ce qu'on vient
+    // justement de rendre net.
+    analyser.smoothingTimeConstant = 0;
     analyser.minDecibels = -100; analyser.maxDecibels = -20;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
+    derniereLigneMs = 0;
+    derivesCumulees = 0; creneauxSansFenetre = 0;
     source.connect(analyser);
     raf = requestAnimationFrame(boucleWaterfall);
 
@@ -774,14 +1014,138 @@ if(localStorage.getItem('rc_theme') === null){
     document.getElementById('armLabel').classList.toggle('armed', txArmed);
   };
 
+  // ─── PTT : le seul endroit de la page où un échec est DANGEREUX ──────────
+  //
+  // Bug constaté en trafic réel par F4GLD le 18/08/2026 : « je suis passé en
+  // émission mais l'émetteur reste bloqué en émission et ne repasse pas en
+  // écoute », avec « PTT refusé » affiché à l'écran. Les deux à la fois, ce
+  // n'est pas contradictoire — c'est la cause :
+  //
+  //   const pttOk = await pttOn(true);
+  //   if(!pttOk){ statusEl.textContent = 'PTT refusé…'; return; }   ← SORTIE
+  //
+  // pttOn() rendait `false` dans TROIS situations très différentes, traitées
+  // ici comme une seule :
+  //   1. verrou TX SO2R déjà pris (HTTP 409) → la radio n'a PAS été passée en
+  //      émission, sortir est correct ;
+  //   2. /rig/ptt a répondu ok:false → le serveur a bien APPELÉ set_ptt sur la
+  //      radio avant de conclure à l'échec (logx_http.py : `res =
+  //      vk.set_ptt(cfg_snap, on)` puis test de res['ok']). Selon le point de
+  //      défaillance, la radio peut déjà être en émission ;
+  //   3. fetch a levé (catch) → la requête peut très bien avoir ATTEINT le
+  //      serveur, qui a passé la radio en émission ; seule la réponse s'est
+  //      perdue. Le logiciel n'en sait rien.
+  //
+  // Dans les cas 2 et 3, sortir sans jamais redemander PTT OFF laisse la
+  // radio en émission continue — infraction pure et simple, et risque pour
+  // l'étage final. La règle est donc : DÈS QU'UNE DEMANDE D'ÉMISSION EST
+  // PARTIE, on se doit un relâchement, quoi qu'ait répondu le serveur. Un
+  // relâchement inutile (radio jamais passée en émission) est sans effet ;
+  // un relâchement manquant ne l'est pas.
+  //
+  // Rend {ok, atteint, verrou} au lieu d'un booléen, pour que l'appelant
+  // puisse distinguer « refusé sans avoir touché la radio » de « on ne sait
+  // pas ».
+  let pttDemande = false;      // une demande d'émission est partie, sans relâchement confirmé
+  let chienDeGardePtt = null;
+
+  function majBoutonStop(){
+    const b = document.getElementById('ft8StopBtn');
+    if(b) b.style.display = pttDemande ? '' : 'none';
+  }
+
+  function alarmePtt(msg){
+    const el = document.getElementById('pttAlarme');
+    if(!el) return;
+    if(!msg){ el.style.display = 'none'; el.textContent = ''; return; }
+    el.textContent = msg;
+    el.style.display = '';
+  }
+
   async function pttOn(on){
+    if(on){ pttDemande = true; majBoutonStop(); }
     try{
       const r = await fetch('/rig/ptt', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({on})});
       const d = await r.json();
-      return !!d.ok;
-    }catch(e){ return false; }
+      return {ok: !!d.ok, atteint: true, verrou: r.status === 409};
+    }catch(e){
+      // La requête n'a PAS abouti côté navigateur. Elle a pu être reçue quand
+      // même : on ne peut rien conclure sur l'état réel de la radio.
+      return {ok: false, atteint: false, verrou: false};
+    }
   }
+
+  // Relâche le PTT et INSISTE. C'est la seule opération de cette page qu'on ne
+  // peut pas se permettre de tenter une seule fois : un aléa réseau ponctuel
+  // (serveur en train de redémarrer, port série momentanément occupé par une
+  // autre commande CAT) laisserait sinon la radio en émission. Réessais
+  // espacés progressivement, puis alarme visible si rien n'y fait.
+  async function relacherPtt(tentatives){
+    tentatives = tentatives || 4;
+    for(let i = 0; i < tentatives; i++){
+      const r = await pttOn(false);
+      if(r.ok){
+        pttDemande = false;
+        majBoutonStop();
+        alarmePtt('');
+        return true;
+      }
+      await new Promise(res => setTimeout(res, 300 * (i + 1)));
+    }
+    majBoutonStop();
+    alarmePtt("⚠ LA RADIO EST PEUT-ÊTRE ENCORE EN ÉMISSION : le logiciel n'a pas "
+            + "réussi à relâcher le PTT après plusieurs tentatives. Coupe "
+            + "manuellement (PTT du micro, ou alimentation du poste), puis "
+            + 'vérifie le pilotage radio dans CONFIG.');
+    return false;
+  }
+
+  // Chien de garde : une transmission FT8 dure 79 symboles à 6,25 baud, soit
+  // 12,64 s (Franke, Somerville & Taylor, « The FT4 and FT8 Communication
+  // Protocols », QEX juillet/août 2020). Au-delà de 20 s le PTT n'a plus
+  // aucune raison d'être maintenu — quoi qu'il soit arrivé au code d'émission
+  // (exception non prévue, onglet mis en veille par le navigateur pendant la
+  // lecture audio, promesse jamais résolue), on relâche.
+  function armerChienDeGarde(){
+    if(chienDeGardePtt) clearTimeout(chienDeGardePtt);
+    chienDeGardePtt = setTimeout(() => {
+      if(!pttDemande) return;
+      console.warn('[FT8] chien de garde PTT : relâchement forcé après 20 s');
+      relacherPtt();
+    }, 20000);
+  }
+  function desarmerChienDeGarde(){
+    if(chienDeGardePtt) clearTimeout(chienDeGardePtt);
+    chienDeGardePtt = null;
+  }
+
+  window.stopEmission = async function(){
+    desarmerChienDeGarde();
+    const statusEl = document.getElementById('txStatus');
+    statusEl.textContent = 'Coupure demandée…';
+    statusEl.className = 'tx-status wait';
+    const ok = await relacherPtt(6);
+    statusEl.textContent = ok ? 'Émission coupée — retour à l\'écoute' : 'Coupure NON confirmée';
+    statusEl.className = 'tx-status';
+  };
+
+  // Échap coupe l'émission — même geste que dans LOGBOOK pour le CW. Actif
+  // sur toute la page, y compris quand le focus est dans le champ de message.
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape' && pttDemande){ e.preventDefault(); window.stopEmission(); }
+  });
+
+  // Fermer la fenêtre pendant une émission ne doit pas laisser la radio en
+  // l'air. sendBeacon part même quand la page se démonte, contrairement à un
+  // fetch() classique qui serait annulé.
+  window.addEventListener('pagehide', () => {
+    if(!pttDemande) return;
+    try{
+      navigator.sendBeacon('/rig/ptt',
+        new Blob([JSON.stringify({on:false})], {type:'application/json'}));
+    }catch(e){}
+  });
 
   async function jouerForme(wave, sampleRate){
     const outId = document.getElementById('ft8OutDevice').value;
@@ -837,9 +1201,26 @@ if(localStorage.getItem('rc_theme') === null){
 
     statusEl.textContent = 'PTT…';
     statusEl.className = 'tx-status emit';
-    const pttOk = await pttOn(true);
-    if(!pttOk){
-      statusEl.textContent = 'PTT refusé — vérifie le pilotage radio (CONFIG)';
+    armerChienDeGarde();
+    const ptt = await pttOn(true);
+    if(!ptt.ok){
+      // Verrou SO2R (409) : la radio n'a PAS été passée en émission, le
+      // serveur a refusé AVANT d'appeler set_ptt. C'est le SEUL cas où sortir
+      // sans relâcher est correct.
+      if(ptt.verrou){
+        desarmerChienDeGarde();
+        pttDemande = false; majBoutonStop();
+        statusEl.textContent = 'Autre radio déjà en émission (verrou SO2R)';
+      } else {
+        // Tous les autres cas : la radio PEUT être en émission (voir le
+        // commentaire de pttOn). On relâche avant toute chose, puis
+        // seulement on explique.
+        const relache = await relacherPtt();
+        desarmerChienDeGarde();
+        statusEl.textContent = relache
+          ? 'PTT refusé — radio remise en écoute. Vérifie le pilotage radio (CONFIG)'
+          : 'PTT refusé ET relâchement non confirmé — voir l\'alerte ci-dessous';
+      }
       statusEl.className = 'tx-status';
       sendBtn.disabled = !txArmed;
       return;
@@ -850,8 +1231,12 @@ if(localStorage.getItem('rc_theme') === null){
       statusEl.textContent = '🔊 ' + text;
       await jouerForme(wave, 12000);
     } finally {
-      await pttOn(false);
-      statusEl.textContent = 'Émis : ' + text;
+      // relacherPtt() et non pttOn(false) : un unique appel qui échoue laissait
+      // la radio en émission sans que personne ne le sache.
+      const relache = await relacherPtt();
+      desarmerChienDeGarde();
+      statusEl.textContent = relache ? 'Émis : ' + text
+                                     : 'Émis, mais RELÂCHEMENT NON CONFIRMÉ — voir l\'alerte';
       statusEl.className = 'tx-status';
       sendBtn.disabled = !txArmed;
     }

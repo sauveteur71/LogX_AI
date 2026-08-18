@@ -172,6 +172,29 @@ function ft8RefineSync(samples, sampleRate, coarse, freqStepCoarse, freqMin, fre
 // SEUL meilleur candidat — {startSample, baseFreqHz, score} ou null si
 // samples est trop court. Pour un vrai passage FT8 (plusieurs dizaines de
 // signaux simultanés dans la même fenêtre de 15s), voir ft8FindAllSync().
+// ─── Centrage de la recherche temporelle ───────────────────────────────────
+//
+// opts.centerSample : position, DANS LA FENÊTRE FOURNIE, où se trouverait le
+// début d'un signal émis par une station PARFAITEMENT synchronisée. Le
+// balayage grossier explore alors centerSample ± timeSlopSymbols symboles,
+// c'est-à-dire un intervalle SYMÉTRIQUE autour du DT nul.
+//
+// Bug corrigé le 18/08/2026 (trouvé en écrivant le test du DT, pas par
+// lecture) : la recherche partait de 0, donc du DÉBUT DE LA FENÊTRE. Or la
+// page fournit une fenêtre qui commence 1 s AVANT le créneau (marge de
+// extraireFenetre) : une station à DT=0 se trouve donc à 1 s = 6,25 symboles
+// du début, alors que le balayage ne montait qu'à 6 symboles (0,96 s), et
+// ft8RefineSync n'ajoutait qu'un symbole de plus (1,12 s au total). La plage
+// de DT réellement acceptée était [-1,00 s ; +0,12 s] : quasiment aucune
+// tolérance du côté positif, là où le guide utilisateur de WSJT-X demande
+// ±2 s. Concrètement, un PC en retard de seulement 200 ms sur l'UTC ne
+// décodait presque plus rien — beaucoup de signaux visibles sur la cascade,
+// deux ou trois décodages, puis plus rien. C'est le symptôme rapporté par
+// F4GLD le 18/08/2026.
+//
+// Par défaut 0 : le comportement historique est conservé pour les appelants
+// qui fournissent une fenêtre déjà calée sur le début du signal (c'est le cas
+// de tous les tests de synthèse/décodage, où le signal commence à 0).
 function ft8FindSync(samples, sampleRate, opts){
   opts = opts || {};
   const sps = ft8SamplesPerSymbol(sampleRate);
@@ -182,10 +205,11 @@ function ft8FindSync(samples, sampleRate, opts){
   const freqMax = opts.freqMax || 2900;
   const freqStepCoarse = FT8_TONE_SPACING / 2;
   const timeSlopSymbols = (opts.timeSlopSymbols === undefined) ? 6 : opts.timeSlopSymbols;
+  const centerSample = Math.round(opts.centerSample || 0);   // voir le pavé ci-dessus
 
   let best = { startSample: 0, baseFreqHz: freqMin, score: -Infinity };
   for(let symOffset = -timeSlopSymbols; symOffset <= timeSlopSymbols; symOffset++){
-    const startSample = symOffset * sps;
+    const startSample = centerSample + symOffset * sps;
     if(startSample < 0 || startSample + totalSpan > samples.length) continue;
     for(let f = freqMin; f <= freqMax; f += freqStepCoarse){
       const score = ft8CostasScore(samples, startSample, f, sampleRate);
@@ -218,10 +242,11 @@ function ft8FindAllSync(samples, sampleRate, opts){
   const timeSlopSymbols = (opts.timeSlopSymbols === undefined) ? 6 : opts.timeSlopSymbols;
   const maxCandidates = opts.maxCandidates || 30;
   const minFreqSeparationHz = (opts.minFreqSeparationHz === undefined) ? 8 * FT8_TONE_SPACING : opts.minFreqSeparationHz;
+  const centerSample = Math.round(opts.centerSample || 0);   // voir ft8FindSync
 
   const all = [];
   for(let symOffset = -timeSlopSymbols; symOffset <= timeSlopSymbols; symOffset++){
-    const startSample = symOffset * sps;
+    const startSample = centerSample + symOffset * sps;
     if(startSample < 0 || startSample + totalSpan > samples.length) continue;
     for(let f = freqMin; f <= freqMax; f += freqStepCoarse){
       all.push({ startSample, baseFreqHz: f, score: ft8CostasScore(samples, startSample, f, sampleRate) });
@@ -290,7 +315,8 @@ function ft8DecodeAudio(samples, sampleRate, hashTable, opts){
   const llr = ft8ExtractLlr(samples, sync, sampleRate, opts && opts.gain);
   const text = ft8DecodeLlr(llr, hashTable, (opts && opts.maxIters) || 20);
   if(!text) return null;
-  return { text, freqHz: sync.baseFreqHz, syncScore: sync.score };
+  return { text, freqHz: sync.baseFreqHz, syncScore: sync.score,
+           startSample: sync.startSample };
 }
 
 // Décode TOUS les signaux détectables dans la fenêtre (voir ft8FindAllSync)
@@ -311,7 +337,13 @@ function ft8DecodeAudioAll(samples, sampleRate, hashTable, opts){
     const text = ft8DecodeLlr(llr, hashTable, (opts && opts.maxIters) || 20);
     if(!text || seen.has(text)) continue;
     seen.add(text);
-    results.push({ text, freqHz: sync.baseFreqHz, syncScore: sync.score });
+    // startSample = position EXACTE du motif de synchro Costas dans la
+    // fenêtre analysée. Remonté à l'appelant parce que c'est de là que se
+    // déduit le DT (décalage temporel du signal reçu) : sans lui, la page
+    // n'a aucun moyen de savoir si l'horloge du PC est juste. Voir
+    // logx_ft8.html, calculerDt().
+    results.push({ text, freqHz: sync.baseFreqHz, syncScore: sync.score,
+                   startSample: sync.startSample });
   }
   results.sort((a, b) => b.syncScore - a.syncScore);
   return results;
