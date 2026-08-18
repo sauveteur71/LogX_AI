@@ -230,6 +230,53 @@ def test_les_frequences_audio_sont_conservees(ctx, fenetre):
             '%s : %.0f Hz au lieu de %d Hz' % (msg, par_texte[msg], ton))
 
 
+# ─── 3bis. LA SENSIBILITÉ — la seule question qui pouvait tout annuler ──────
+
+def test_la_decimation_ne_coute_aucune_sensibilite_au_seuil(ctx):
+    """FT8 sert à travailler des stations À LA LIMITE : une accélération qui
+    rendrait le décodeur plus sourd serait une régression déguisée.
+
+    Les autres tests de ce fichier n'essaient qu'un rapport signal/bruit
+    confortable — ils ne prouvent donc rien sur ce point. Une première mesure
+    de contrôle décodait d'ailleurs 8/8 des deux côtés à tous les niveaux
+    essayés : elle ne disait rien, faute d'avoir atteint le seuil du décodeur.
+
+    On balaie ici JUSQU'À L'ÉCHEC FRANC, et on compare là où ça compte.
+    Mesure de référence (8 tirages de bruit reproductibles par point) :
+
+        bruit    sans décim.   avec décim.
+          12         8/8           8/8
+          16         3/8           4/8      <- la zone de transition
+          24         0/8           0/8
+
+    Total 35/64 contre 36/64. Un cas d'écart sur 64, en faveur de la
+    décimation : ce n'est PAS une amélioration démontrable — l'écart tient dans
+    le bruit d'échantillonnage — mais c'est une réfutation nette de la crainte
+    inverse. Physiquement, le filtre anti-repliement retire du bruit hors
+    bande, donc un très léger avantage n'aurait rien de surprenant.
+
+    Le seuil est volontairement LARGE (pas plus de 2 décodages perdus au
+    total) : ce test protège contre une régression franche de sensibilité, pas
+    contre une fluctuation d'un tirage."""
+    perdus = 0
+    for bruit in (12.0, 16.0, 20.0):
+        for graine in range(1, 7):
+            ctx.eval('var S = fabriquerFenetre(%s, %d, %s, %s, %g, %d, 0);'
+                     % (json.dumps([MESSAGES[0]]), SR_CARTE, json.dumps([TONS[0]]),
+                        json.dumps([DT_VRAIS[0]]), bruit, graine))
+            sans = _decoder(ctx, 'S', SR_CARTE)
+            avec = _decoder(ctx, 'ft8Decimer(S, %d).samples' % SR_CARTE,
+                            'ft8Decimer(S, %d).sampleRate' % SR_CARTE)
+            a = MESSAGES[0] in {r['texte'] for r in sans}
+            b = MESSAGES[0] in {r['texte'] for r in avec}
+            if a and not b:
+                perdus += 1
+    assert perdus <= 2, (
+        '%d décodages perdus par la décimation dans la zone de seuil — '
+        'ce serait une régression de sensibilité, pas une optimisation'
+        % perdus)
+
+
 # ─── 4. Le gain est réel ────────────────────────────────────────────────────
 
 def test_le_decodage_est_nettement_plus_rapide(ctx, fenetre):
