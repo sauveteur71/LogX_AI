@@ -160,6 +160,11 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 @keyframes attirer{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px rgba(var(--accent-rgb),.75)}}
 .toggle-arm.attention{animation:attirer .5s ease-in-out 3}
 @media (prefers-reduced-motion: reduce){.toggle-arm.attention{animation:none;outline:2px solid var(--accent)}}
+.seq-niveau{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);
+  font-family:var(--font-mono);letter-spacing:.4px}
+.seq-niveau select{font-size:11.5px;padding:3px 6px}
+.seq-etat{font-family:var(--font-mono);font-size:11.5px;color:var(--accent2);font-weight:700}
+#seqStopBtn{background:#8A6100;color:#fff;border-color:#8A6100}
 .ptt-alarme{margin-top:10px;padding:10px 12px;border-radius:6px;
   background:#B3261E;color:#fff;font-weight:700;font-size:13px;line-height:1.45}
 #ft8StopBtn{background:#B3261E;color:#fff;border-color:#B3261E}
@@ -346,6 +351,22 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
              est partie (voir majBoutonStop). -->
         <button id="ft8StopBtn" class="danger" onclick="stopEmission()"
                 style="display:none" title="Repasser la radio en écoute (Échap)">■ STOP ÉMISSION</button>
+        <!-- SÉQUENCEUR — la commande est ICI, contre le bouton Envoyer, parce
+             que c'est le même geste : décider ce qui part sur l'air. La mettre
+             dans CONFIG obligerait à changer de page pour couper une émission
+             automatique. Jamais expert-only : le niveau par défaut est
+             'manuel', donc rien ne change pour qui n'y touche pas, mais celui
+             qui l'a activé doit pouvoir l'arrêter sans rien chercher. -->
+        <label class="seq-niveau" title="Manuel : un double-clic = un message. Assisté : la réponse est préparée, tu l'envoies. Séquenceur : le QSO s'enchaîne et se loggue tout seul.">SÉQUENCEUR
+          <select id="seqNiveau" onchange="changerNiveauSeq(this)">
+            <option value="manuel">Manuel</option>
+            <option value="assiste">Assisté</option>
+            <option value="sequenceur">Automatique</option>
+          </select>
+        </label>
+        <span class="seq-etat" id="seqEtat"></span>
+        <button id="seqStopBtn" class="danger" onclick="seqStop()" style="display:none"
+                title="Arrêter la séquence en cours (le QSO n'est pas loggué)">■ STOP SÉQUENCE</button>
         <span class="tx-status" id="txStatus"></span>
       </div>
       <!-- Alarme de dernier recours : affichée UNIQUEMENT quand le relâchement
@@ -430,6 +451,15 @@ if(localStorage.getItem('rc_theme') === null){
     }catch(e){}
   }
   chargerIdentite();
+
+  // Le niveau du séquenceur survit au rechargement — sinon un opérateur qui
+  // l'a activé le retrouverait sur « Manuel » sans comprendre pourquoi plus
+  // rien ne s'enchaîne. En revanche AUCUNE séquence ne reprend : recharger la
+  // page arrête toute émission automatique, et c'est voulu.
+  (function(){
+    const sel = document.getElementById('seqNiveau');
+    if(sel) sel.value = niveauSeq();
+  })();
 
   // ─── Géodésie (colonne droite) ────────────────────────────────────────────
   // Même formule que locLL()/bearing() dans logx_logbook.js — dupliquée ici
@@ -575,6 +605,15 @@ if(localStorage.getItem('rc_theme') === null){
   function repondreEtEnvoyer(text){
     proposerReponse(text);
     afficherAppelSelectionne(text);
+    // Niveau « séquenceur » : le double-clic ne lance plus un message isolé
+    // mais TOUTE la séquence. seqDemarrer refuse et explique si l'émission
+    // n'est pas armée — on lui laisse la main dans ce cas.
+    const parts = String(text).trim().split(/\s+/);
+    const cible = parts[0] === 'CQ' ? parts[1] : parts[1];
+    if(cible && niveauSeq() === 'sequenceur'){
+      if(seqDemarrer(cible, document.getElementById('txText').value)) return;
+      if(!txArmed) return;   // seqDemarrer a déjà expliqué
+    }
     const statusEl = document.getElementById('txStatus');
     if(!txArmed){
       statusEl.textContent = "Réponse préparée — coche « Activer l'émission » pour "
@@ -1178,6 +1217,7 @@ if(localStorage.getItem('rc_theme') === null){
           ajouterDecodage(slotTermine, r.text, r.freqHz, r.syncScore, dt);
         }
         if(results.length) majAlerteHorloge();
+        seqExaminerCreneau(results.map(r => r.text));
         surveillerSilenceAnormal(fenetre.samples, results.length);
       } else {
         creneauxSansFenetre++;
@@ -1248,15 +1288,24 @@ if(localStorage.getItem('rc_theme') === null){
     if(myCall && parts[0] === myCall){
       const de = parts[1] || '';
       const extra = parts.slice(2).join(' ');
-      if(/^[A-R]{2}[0-9]{2}$/.test(extra)){
-        document.getElementById('txText').value = `${de} ${myCall} -10`.toUpperCase();
-      } else if(/^R?[+-]\d{1,2}$/.test(extra)){
-        document.getElementById('txText').value = `${de} ${myCall} RRR`.toUpperCase();
-      } else if(extra === 'RRR' || extra === 'RR73'){
+      // ORDRE CRITIQUE — les jetons de protocole AVANT le locator.
+      // « RR73 » est à la fois un message FT8 standard ET un locator
+      // Maidenhead parfaitement valide : R et R sont dans [A-R], 7 et 3 sont
+      // des chiffres. Testé après la regex de locator, il était donc pris
+      // pour une grille, et on répondait « -10 » à une station qui venait de
+      // conclure — le QSO n'était jamais loggué et on la relançait dans le
+      // vide. Défaut PRÉEXISTANT, trouvé le 18/08/2026 par un test du
+      // séquenceur, pas par lecture : les deux chemins (manuel et séquencé)
+      // partagent le même arbre, ils partageaient donc le même bug.
+      if(extra === 'RRR' || extra === 'RR73'){
         document.getElementById('txText').value = `${de} ${myCall} 73`.toUpperCase();
         offrirLogQso(de);
       } else if(extra === '73'){
         offrirLogQso(de);
+      } else if(/^[A-R]{2}[0-9]{2}$/.test(extra)){
+        document.getElementById('txText').value = `${de} ${myCall} -10`.toUpperCase();
+      } else if(/^R?[+-]\d{1,2}$/.test(extra)){
+        document.getElementById('txText').value = `${de} ${myCall} RRR`.toUpperCase();
       } else {
         document.getElementById('txText').value = `${de} ${myCall} ${myGrid}`.trim().toUpperCase();
       }
@@ -1316,6 +1365,9 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   function arreterRx(){
+    // Sans décodage, le séquenceur ne verrait plus ni les réponses ni le
+    // moment d'abandonner : il continuerait d'émettre à l'aveugle.
+    if(typeof seqArreter === 'function') seqArreter('écoute arrêtée');
     rxActif = false;
     if(cycleTimer) clearInterval(cycleTimer);
     cycleTimer = null;
@@ -1350,6 +1402,8 @@ if(localStorage.getItem('rc_theme') === null){
   let txArmed = false;
   window.onArmChange = function(){
     txArmed = document.getElementById('armTx').checked;
+    // Décocher l'armement est un ordre d'arrêt aussi net que le bouton STOP.
+    if(!txArmed && typeof seqArreter === 'function') seqArreter('émission désarmée');
     document.getElementById('sendBtn').disabled = !txArmed;
     document.getElementById('armLabel').classList.toggle('armed', txArmed);
   };
@@ -1505,6 +1559,10 @@ if(localStorage.getItem('rc_theme') === null){
     const statusEl = document.getElementById('txStatus');
     statusEl.textContent = 'Coupure demandée…';
     statusEl.className = 'tx-status wait';
+    // Le séquenceur EN PREMIER : sinon il replanifierait une émission au
+    // créneau suivant, et le bouton STOP n'aurait coupé que le message en
+    // cours. « Arrêter » doit vouloir dire arrêter.
+    seqArreter('arrêt demandé');
     // L'audio D'ABORD : c'est lui qui module le poste. Couper le PTT en
     // laissant le son partir n'arrête rien sur une station en VOX, et laisse
     // de toute façon une porteuse modulée sur un poste encore en émission.
@@ -1651,6 +1709,182 @@ if(localStorage.getItem('rc_theme') === null){
       offrirLogQso(parts[0]);
     }
   };
+
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  SÉQUENCEUR FT8
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Demandé par F4GLD le 18/08/2026 : « pourquoi les appels ne se relancent
+  // pas automatiquement jusqu'à obtention d'une réponse de la station que
+  // j'ai décidé de contacter, et validation automatique du contact ? ».
+  //
+  // C'est LA fonction où une erreur fait émettre la station toute seule
+  // pendant que l'opérateur regarde ailleurs. Trois principes, dans l'ordre :
+  //
+  //   1. Rien ne démarre sans geste explicite. Le séquenceur ne s'arme qu'au
+  //      niveau choisi ET avec « Activer l'émission » coché — les deux.
+  //   2. Tout s'arrête, tout de suite. Échap, STOP ÉMISSION, décochage de
+  //      l'armement, arrêt de l'écoute : chacun coupe le séquenceur.
+  //   3. Il abandonne TOUT SEUL. Nombre de relances borné, et arrêt immédiat
+  //      si la station visée répond à quelqu'un d'autre. Une station qui
+  //      appelle dans le vide vingt minutes parce que l'opérateur est parti
+  //      faire un café, c'est précisément ce qu'on ne veut pas.
+  //
+  // Trois niveaux, comme le Wait-and-Pounce que F4GLD avait déjà cadré ainsi
+  // (30/07/2026) — la complexité reste DISPONIBLE, jamais imposée :
+  //   'manuel'     : comportement d'origine, un double-clic = un message.
+  //   'assiste'    : la réponse suivante est PRÉPARÉE à chaque décodage, mais
+  //                  c'est toi qui l'envoies. Aucune émission automatique.
+  //   'sequenceur' : enchaîne le QSO et loggue. Émission automatique.
+  const NIVEAUX_SEQ = ['manuel', 'assiste', 'sequenceur'];
+  const SEQ_MAX_RELANCES = 3;
+
+  function niveauSeq(){
+    try{
+      const v = localStorage.getItem('logx_ft8_sequenceur');
+      return NIVEAUX_SEQ.includes(v) ? v : 'manuel';
+    }catch(e){ return 'manuel'; }
+  }
+
+  // État courant. `cible` est l'indicatif visé ; tout ce qui ne le concerne
+  // pas est ignoré, y compris les appels d'AUTRES stations vers nous — on ne
+  // mène qu'un QSO à la fois, comme un opérateur.
+  let seq = null;
+
+  function seqArreter(raison){
+    if(!seq) return;
+    const cible = seq.cible;
+    seq = null;
+    majPanneauSeq();
+    const st = document.getElementById('txStatus');
+    if(st && raison){
+      st.textContent = 'Séquenceur arrêté (' + cible + ') : ' + raison;
+      st.className = 'tx-status';
+    }
+  }
+
+  function majPanneauSeq(){
+    const p = document.getElementById('seqEtat');
+    const b = document.getElementById('seqStopBtn');
+    if(!p) return;
+    if(!seq){ p.textContent = ''; if(b) b.style.display = 'none'; return; }
+    p.textContent = seq.cible + ' · ' + seq.etape
+      + (seq.relances ? ' · relance ' + seq.relances + '/' + seq.maxRelances : '');
+    if(b) b.style.display = '';
+  }
+
+  // Démarre une séquence. Rend false et DIT pourquoi si les conditions ne sont
+  // pas réunies : un séquenceur qui ne démarre pas en silence est pire qu'un
+  // séquenceur absent.
+  function seqDemarrer(cible, texteInitial){
+    const st = document.getElementById('txStatus');
+    if(niveauSeq() !== 'sequenceur') return false;
+    if(!txArmed){
+      st.textContent = 'Séquenceur : coche « Activer l’émission » pour qu’il puisse émettre';
+      st.className = 'tx-status wait';
+      return false;
+    }
+    if(!myCall){
+      st.textContent = 'Séquenceur : renseigne ton indicatif dans CONFIG';
+      st.className = 'tx-status wait';
+      return false;
+    }
+    seq = {cible: cible, etape: 'appel', relances: 0,
+           maxRelances: SEQ_MAX_RELANCES};
+    majPanneauSeq();
+    document.getElementById('txText').value = texteInitial;
+    envoyerMessage();
+    return true;
+  }
+
+  // Appelée une fois par créneau, avec TOUS les décodages de ce créneau.
+  // Raisonner sur le créneau entier plutôt que décodage par décodage permet de
+  // voir que la cible répond à quelqu'un d'autre AVANT de lui renvoyer un
+  // message par-dessus.
+  function seqExaminerCreneau(messages){
+    if(!seq) return;
+    if(niveauSeq() !== 'sequenceur'){ seqArreter('niveau changé'); return; }
+    if(!txArmed){ seqArreter('émission désarmée'); return; }
+
+    let pourNous = null;
+    let cibleOccupee = false;
+    for(const m of messages){
+      const p = String(m).trim().split(/\s+/);
+      if(p.length < 2) continue;
+      if(p[0] === myCall && p[1] === seq.cible) pourNous = p;
+      // La cible parle à quelqu'un d'autre : elle nous a doublés. Insister
+      // reviendrait à brouiller un QSO en cours.
+      else if(p[1] === seq.cible && p[0] !== myCall && p[0] !== 'CQ') cibleOccupee = true;
+    }
+
+    if(pourNous){
+      seq.relances = 0;
+      const extra = pourNous.slice(2).join(' ');
+      // ORDRE CRITIQUE — les jetons de protocole AVANT le locator.
+      // « RR73 » est à la fois un message FT8 standard ET un locator
+      // Maidenhead parfaitement valide : R et R sont dans [A-R], 7 et 3 sont
+      // des chiffres. Testé après la regex de locator, il était donc pris
+      // pour une grille, et on répondait « -10 » à une station qui venait de
+      // conclure — le QSO n'était jamais loggué et on la relançait dans le
+      // vide. Défaut PRÉEXISTANT, trouvé le 18/08/2026 par un test du
+      // séquenceur, pas par lecture : les deux chemins (manuel et séquencé)
+      // partagent le même arbre, ils partageaient donc le même bug.
+      // MÊME arbre de décision que proposerReponse(), volontairement : un QSO
+      // mené à la main et un QSO séquencé doivent produire exactement les
+      // mêmes messages. Une divergence ici serait invisible et pénible à
+      // diagnostiquer.
+      if(extra === 'RRR' || extra === 'RR73'){
+        seq.etape = '73';
+        document.getElementById('txText').value = (seq.cible + ' ' + myCall + ' 73').toUpperCase();
+        seqLoguer(seq.cible);
+      } else if(extra === '73'){
+        // Il nous dit 73 : le QSO est complet, il ne reste rien à émettre.
+        seqLoguer(seq.cible);
+        seqArreter('QSO complet');
+        return;
+      } else if(/^[A-R]{2}[0-9]{2}$/.test(extra)){
+        seq.etape = 'report';
+        document.getElementById('txText').value = (seq.cible + ' ' + myCall + ' -10').toUpperCase();
+      } else if(/^R?[+-]\d{1,2}$/.test(extra)){
+        seq.etape = 'accusé';
+        document.getElementById('txText').value = (seq.cible + ' ' + myCall + ' RRR').toUpperCase();
+      } else {
+        seq.etape = 'appel';
+        document.getElementById('txText').value = (seq.cible + ' ' + myCall + ' ' + myGrid).trim().toUpperCase();
+      }
+      majPanneauSeq();
+      envoyerMessage();
+      return;
+    }
+
+    if(cibleOccupee){ seqArreter('la station répond à quelqu’un d’autre'); return; }
+
+    // Personne ne nous a répondu sur ce créneau : on relance, dans la limite.
+    seq.relances++;
+    if(seq.relances > seq.maxRelances){
+      seqArreter('pas de réponse après ' + seq.maxRelances + ' relances');
+      return;
+    }
+    majPanneauSeq();
+    envoyerMessage();   // le champ contient toujours le dernier message
+  }
+
+  // Log automatique — c'est la « validation automatique du contact » demandée.
+  // Passe par le MÊME chemin que le bouton manuel : offrirLogQso() remplit le
+  // bandeau (l'opérateur VOIT ce qui a été loggué), confirmerLogQso() envoie.
+  // Rien de parallèle, donc rien qui puisse diverger.
+  function seqLoguer(call){
+    offrirLogQso(call);
+    if(typeof window.confirmerLogQso === 'function') window.confirmerLogQso();
+  }
+
+  window.changerNiveauSeq = function(sel){
+    try{ localStorage.setItem('logx_ft8_sequenceur', sel.value); }catch(e){}
+    if(sel.value !== 'sequenceur') seqArreter('niveau changé');
+    majPanneauSeq();
+  };
+  window.seqStop = function(){ seqArreter('arrêt demandé'); };
 
   // ─── Log du QSO (même schéma que logx_wsjtx.py::qso_from_logged) ────────
   let qsoEnAttente = null;
