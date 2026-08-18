@@ -364,6 +364,13 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <option value="sequenceur">Automatique</option>
           </select>
         </label>
+        <label class="seq-niveau" title="Nombre de relances sans réponse avant abandon. « Jusqu’à confirmation » ne s’arrête que sur ordre, ou si la station répond à quelqu’un d’autre.">RELANCES
+          <select id="seqRelances" onchange="changerRelances(this)">
+            <option value="0">Jusqu’à confirmation</option>
+            <option value="3">3 puis abandon</option>
+            <option value="10">10 puis abandon</option>
+          </select>
+        </label>
         <span class="seq-etat" id="seqEtat"></span>
         <button id="seqStopBtn" class="danger" onclick="seqStop()" style="display:none"
                 title="Arrêter la séquence en cours (le QSO n'est pas loggué)">■ STOP SÉQUENCE</button>
@@ -459,6 +466,8 @@ if(localStorage.getItem('rc_theme') === null){
   (function(){
     const sel = document.getElementById('seqNiveau');
     if(sel) sel.value = niveauSeq();
+    const rel = document.getElementById('seqRelances');
+    if(rel) rel.value = String(relancesMax());
   })();
 
   // ─── Géodésie (colonne droite) ────────────────────────────────────────────
@@ -1738,7 +1747,30 @@ if(localStorage.getItem('rc_theme') === null){
   //                  c'est toi qui l'envoies. Aucune émission automatique.
   //   'sequenceur' : enchaîne le QSO et loggue. Émission automatique.
   const NIVEAUX_SEQ = ['manuel', 'assiste', 'sequenceur'];
-  const SEQ_MAX_RELANCES = 3;
+
+  // Nombre de relances avant abandon. 0 = ILLIMITÉ, « jusqu'à confirmation du
+  // contact » — c'est le réglage demandé explicitement par F4GLD le
+  // 18/08/2026, après que je lui aie proposé un plafond à 3 : « relance
+  // automatique jusqu'à confirmation du contact ». C'est sa décision
+  // d'opérateur, et c'est lui le titulaire de la station.
+  //
+  // Ce que le plafond ne protégeait PAS, et qui reste donc en place, inchangé :
+  //   - les cinq chemins d'arrêt (STOP, Échap, désarmement, arrêt d'écoute,
+  //     changement de niveau) ;
+  //   - l'abandon automatique quand la station visée répond à quelqu'un
+  //     d'autre — le seul cas où insister brouillerait un QSO en cours.
+  // Ce qu'il apportait en plus : l'arrêt quand la station a simplement
+  // disparu. Sans lui, l'affichage devient le garde-fou : le panneau montre
+  // en permanence le compteur de relances ET le temps écoulé, pour qu'une
+  // séquence qui s'éternise se voie au premier coup d'œil.
+  const SEQ_RELANCES_DEFAUT = 0;   // 0 = jusqu'à confirmation
+
+  function relancesMax(){
+    try{
+      const v = parseInt(localStorage.getItem('logx_ft8_relances'), 10);
+      return Number.isFinite(v) && v >= 0 ? v : SEQ_RELANCES_DEFAUT;
+    }catch(e){ return SEQ_RELANCES_DEFAUT; }
+  }
 
   function niveauSeq(){
     try{
@@ -1769,8 +1801,15 @@ if(localStorage.getItem('rc_theme') === null){
     const b = document.getElementById('seqStopBtn');
     if(!p) return;
     if(!seq){ p.textContent = ''; if(b) b.style.display = 'none'; return; }
+    const min = Math.floor((Date.now() - (seq.debutMs || Date.now())) / 60000);
     p.textContent = seq.cible + ' · ' + seq.etape
-      + (seq.relances ? ' · relance ' + seq.relances + '/' + seq.maxRelances : '');
+      + (seq.relances
+          ? ' · relance ' + seq.relances + (seq.maxRelances > 0 ? '/' + seq.maxRelances : '')
+          : '')
+      // Le temps écoulé n'apparaît qu'au bout d'une minute, et devient LE
+      // signal quand les relances sont illimitées : une séquence qui dure
+      // doit se voir sans avoir à compter les lignes du tableau.
+      + (min >= 1 ? ' · ' + min + ' min' : '');
     if(b) b.style.display = '';
   }
 
@@ -1791,7 +1830,9 @@ if(localStorage.getItem('rc_theme') === null){
       return false;
     }
     seq = {cible: cible, etape: 'appel', relances: 0,
-           maxRelances: SEQ_MAX_RELANCES};
+           maxRelances: relancesMax(), debutMs: Date.now(),
+           // Renseignés au fil du QSO pour que le log automatique soit COMPLET
+           grille: '', rstRecu: '', rstEnvoye: ''};
     majPanneauSeq();
     document.getElementById('txText').value = texteInitial;
     envoyerMessage();
@@ -1804,6 +1845,7 @@ if(localStorage.getItem('rc_theme') === null){
   // message par-dessus.
   function seqExaminerCreneau(messages){
     if(!seq) return;
+    majPanneauSeq();   // rafraîchit le compteur de durée même sans changement d'état
     if(niveauSeq() !== 'sequenceur'){ seqArreter('niveau changé'); return; }
     if(!txArmed){ seqArreter('émission désarmée'); return; }
 
@@ -1845,9 +1887,13 @@ if(localStorage.getItem('rc_theme') === null){
         return;
       } else if(/^[A-R]{2}[0-9]{2}$/.test(extra)){
         seq.etape = 'report';
+        seq.grille = extra;                      // sa grille, pour le log
+        seq.rstEnvoye = '-10';
         document.getElementById('txText').value = (seq.cible + ' ' + myCall + ' -10').toUpperCase();
       } else if(/^R?[+-]\d{1,2}$/.test(extra)){
         seq.etape = 'accusé';
+        seq.rstRecu = extra.replace(/^R/, '');   // « R-12 » -> « -12 »
+        if(!seq.rstEnvoye) seq.rstEnvoye = '-10';
         document.getElementById('txText').value = (seq.cible + ' ' + myCall + ' RRR').toUpperCase();
       } else {
         seq.etape = 'appel';
@@ -1862,7 +1908,9 @@ if(localStorage.getItem('rc_theme') === null){
 
     // Personne ne nous a répondu sur ce créneau : on relance, dans la limite.
     seq.relances++;
-    if(seq.relances > seq.maxRelances){
+    // maxRelances === 0 : on relance jusqu'à confirmation du contact, sans
+    // plafond. Les autres conditions d'arrêt restent toutes actives.
+    if(seq.maxRelances > 0 && seq.relances > seq.maxRelances){
       seqArreter('pas de réponse après ' + seq.maxRelances + ' relances');
       return;
     }
@@ -1875,7 +1923,17 @@ if(localStorage.getItem('rc_theme') === null){
   // bandeau (l'opérateur VOIT ce qui a été loggué), confirmerLogQso() envoie.
   // Rien de parallèle, donc rien qui puisse diverger.
   function seqLoguer(call){
-    offrirLogQso(call);
+    const infos = {rst_sent: (seq && seq.rstEnvoye) || '',
+                   rst_rcvd: (seq && seq.rstRecu) || '',
+                   locator: (seq && seq.grille) || '', dist: 0};
+    // Distance calculée ici plutôt que côté serveur : la page a déjà les deux
+    // locators et les fonctions qui vont avec (gridVersLatLon/distanceKm), et
+    // le carnet attend un nombre.
+    if(infos.locator && myGrid){
+      const moi = gridVersLatLon(myGrid), lui = gridVersLatLon(infos.locator);
+      if(moi && lui) infos.dist = distanceKm(moi, lui);
+    }
+    offrirLogQso(call, infos);
     if(typeof window.confirmerLogQso === 'function') window.confirmerLogQso();
   }
 
@@ -1884,17 +1942,32 @@ if(localStorage.getItem('rc_theme') === null){
     if(sel.value !== 'sequenceur') seqArreter('niveau changé');
     majPanneauSeq();
   };
+  window.changerRelances = function(sel){
+    try{ localStorage.setItem('logx_ft8_relances', sel.value); }catch(e){}
+    // Prend effet sur la séquence EN COURS : passer à « 3 » pour couper une
+    // séquence qui s'éternise doit agir tout de suite, pas au QSO suivant.
+    if(seq) seq.maxRelances = relancesMax();
+    majPanneauSeq();
+  };
   window.seqStop = function(){ seqArreter('arrêt demandé'); };
 
   // ─── Log du QSO (même schéma que logx_wsjtx.py::qso_from_logged) ────────
   let qsoEnAttente = null;
-  function offrirLogQso(call){
+  // Ce qu'on SAIT du QSO au moment de le logger. Un log AUTOMATIQUE ne doit
+  // pas être un log APPAUVRI : le séquenceur a vu passer la grille et les deux
+  // reports, les jeter reviendrait à archiver machinalement des lignes vides.
+  // C'est la perte d'information que le lot 2 vient de corriger ailleurs
+  // (nom/QTH/commentaire jetés à l'enregistrement) — même faute, autre endroit.
+  let qsoInfos = {};
+  function offrirLogQso(call, infos){
+    qsoInfos = infos || {};
     qsoEnAttente = call;
     document.getElementById('qsoPromptCall').textContent = call;
     document.getElementById('qsoPrompt').style.display = 'flex';
   }
   window.annulerLogQso = function(){
     qsoEnAttente = null;
+    qsoInfos = {};
     document.getElementById('qsoPrompt').style.display = 'none';
   };
   window.confirmerLogQso = async function(){
@@ -1907,8 +1980,10 @@ if(localStorage.getItem('rc_theme') === null){
       mode: 'FT8',
       date: now.toISOString().slice(0,10).replace(/-/g,''),
       time: String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0'),
-      rst_sent: '', rst_rcvd: '',
-      locator: '', dist: 0,
+      // Reports et grille quand on les connaît (chemin séquenceur), vides
+      // sinon (chemin manuel, où rien n'est mémorisé d'un créneau à l'autre).
+      rst_sent: qsoInfos.rst_sent || '', rst_rcvd: qsoInfos.rst_rcvd || '',
+      locator: qsoInfos.locator || '', dist: qsoInfos.dist || 0,
       my_call: myCall, my_locator: myGrid,
       operator: myCall, source: 'ft8_natif',
     };

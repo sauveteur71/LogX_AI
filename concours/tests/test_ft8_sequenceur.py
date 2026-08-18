@@ -63,9 +63,14 @@ def _ctx(niveau='sequenceur', arme=True):
       var myCall = '%s', myGrid = '%s';
       var txArmed = %s;
       var __niveau = '%s';
+      var __relances = '0';   // 0 = jusqu'à confirmation, le défaut
       var localStorage = {
-        getItem: function(){ return __niveau; },
-        setItem: function(k, v){ __niveau = v; },
+        getItem: function(k){
+          return k === 'logx_ft8_relances' ? __relances : __niveau;
+        },
+        setItem: function(k, v){
+          if(k === 'logx_ft8_relances') __relances = v; else __niveau = v;
+        },
       };
       var document = { getElementById: function(id){
         if(id === 'txText') return __txText;
@@ -84,8 +89,9 @@ def _ctx(niveau='sequenceur', arme=True):
         ctx.eval(_fonction(src_js, nom))
     ctx.eval(re.search(r'const NIVEAUX_SEQ = \[[^\]]*\];', src_js).group(0)
              .replace('const', 'var', 1))
-    ctx.eval(re.search(r'const SEQ_MAX_RELANCES = \d+;', src_js).group(0)
+    ctx.eval(re.search(r'const SEQ_RELANCES_DEFAUT = \d+;', src_js).group(0)
              .replace('const', 'var', 1))
+    ctx.eval(_fonction(src_js, 'relancesMax'))
     ctx.eval('var seq = null;')
     return ctx
 
@@ -143,8 +149,9 @@ def test_il_abandonne_apres_le_nombre_de_relances_prevu():
     appelle dans le vide pendant que l'opérateur est parti faire un café,
     c'est exactement ce qu'on veut empêcher."""
     ctx = _ctx()
+    ctx.eval("__relances = '3';")   # plafond explicitement demandé
     ctx.eval("seqDemarrer('%s', 'APPEL');" % CIBLE)
-    maxi = ctx.eval('SEQ_MAX_RELANCES')
+    maxi = 3
     for _ in range(maxi + 1):
         _creneau(ctx, ['CQ SV5BYP KM46'])   # du trafic, mais rien pour nous
     e = _etat(ctx)
@@ -391,3 +398,67 @@ def test_le_chemin_manuel_loggue_toujours_sans_infos():
     assert 'qsoInfos = infos || {}' in src
     corps = _fonction(src, 'proposerReponse')
     assert 'offrirLogQso(de)' in corps, 'appel à un seul argument conservé'
+
+
+# ─── « Relance automatique jusqu'à confirmation du contact » ────────────────
+
+def test_par_defaut_il_relance_sans_plafond():
+    """Demandé explicitement par F4GLD le 18/08/2026, après que j'aie proposé
+    un plafond à 3 : « relance automatique jusqu'à confirmation du contact ».
+    C'est sa décision d'opérateur — il est le titulaire de la station.
+
+    Ce test vérifie qu'aucun plafond caché ne subsiste : 25 créneaux sans
+    réponse, et la séquence tient toujours."""
+    ctx = _ctx()
+    ctx.eval("seqDemarrer('%s', 'APPEL');" % CIBLE)
+    for _ in range(25):
+        _creneau(ctx, ['CQ SV5BYP KM46'])
+    e = _etat(ctx)
+    assert e['actif'] is True, 'aucun abandon ne doit survenir sans plafond'
+    assert e['relances'] == 25
+
+
+def test_meme_sans_plafond_il_abandonne_si_la_cible_repond_a_un_autre():
+    """LE garde-fou qui reste, et le seul qui compte vraiment : insister sur
+    une station déjà en QSO brouillerait ce QSO. Il est indépendant du
+    plafond de relances."""
+    ctx = _ctx()
+    ctx.eval("seqDemarrer('%s', 'APPEL');" % CIBLE)
+    for _ in range(8):
+        _creneau(ctx, ['CQ SV5BYP KM46'])
+    assert _etat(ctx)['actif'] is True
+    _creneau(ctx, ['ON4FHM %s -05' % CIBLE])
+    assert _etat(ctx)['actif'] is False
+
+
+def test_meme_sans_plafond_tous_les_arrets_manuels_fonctionnent():
+    """Sans plafond, les ordres d'arrêt deviennent le seul recours : ils
+    doivent marcher après un grand nombre de relances comme au premier
+    créneau."""
+    ctx = _ctx()
+    ctx.eval("seqDemarrer('%s', 'APPEL');" % CIBLE)
+    for _ in range(30):
+        _creneau(ctx, ['CQ SV5BYP KM46'])
+    ctx.eval('txArmed = false;')
+    avant = len(_etat(ctx)['envois'])
+    _creneau(ctx, ['CQ SV5BYP KM46'])
+    e = _etat(ctx)
+    assert e['actif'] is False
+    assert len(e['envois']) == avant
+
+
+def test_le_plafond_reste_disponible_pour_qui_le_veut():
+    """« Jusqu'à confirmation » est le défaut, pas une obligation : le réglage
+    reste offert, et prend effet sur la séquence EN COURS."""
+    src = _lire()
+    assert 'id="seqRelances"' in src
+    corps = _fonction(src, 'changerRelances')
+    assert 'seq.maxRelances = relancesMax()' in corps,         'changer le réglage doit agir tout de suite, pas au QSO suivant'
+
+
+def test_la_duree_de_la_sequence_est_affichee():
+    """Sans plafond, l'affichage devient le garde-fou : une séquence qui
+    s'éternise doit se voir au premier coup d'œil, pas se déduire en comptant
+    les lignes du tableau."""
+    corps = _fonction(_lire(), 'majPanneauSeq')
+    assert 'debutMs' in corps and 'min' in corps
