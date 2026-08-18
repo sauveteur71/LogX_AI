@@ -263,11 +263,18 @@ def test_concours_absent_du_serveur_retombe_sur_legacy():
 
 # ─── Traduction MHz/mode brut → clé toggle (le coeur du correctif) ───────────
 
-def test_wwa_traduit_bien_ft2_et_psk_vers_mode_ft8_et_mode_rtty():
+def test_wwa_traduit_bien_ft2_et_psk_vers_leur_case_de_configuration():
     """Reproduction du bug constaté par l'audit : CONTEST_FILTERS n'avait
     jamais prévu de clé pour FT2/PSK (WWA). Ici, la traduction passe par
-    MODE_TOGGLE_KEY (FT2→mode_ft8, PSK→mode_rtty) donc le bug ne peut plus se
-    reproduire, quel que soit le concours ajouté côté serveur."""
+    MODE_TOGGLE_KEY donc le bug ne peut plus se reproduire, quel que soit le
+    concours ajouté côté serveur.
+
+    FT2 n'a pas de case en configuration : il reste rattaché à mode_ft8.
+    PSK, lui, EN A UNE (mode_psk) et pointe dessus depuis le 18/08/2026 —
+    auparavant il était rattaché à mode_rtty, si bien que sélectionner le WWA
+    faisait décocher la case PSK alors que son règlement §5 autorise ce mode.
+    C'est le sens de l'assertion ci-dessous : chaque mode du règlement débloque
+    SA case, aucune n'est perdue en route."""
     ctx = _make_ctx()
     ctx.eval("""
     SERVER_CONTEST_RULES['WWA_TEST'] = {
@@ -276,7 +283,8 @@ def test_wwa_traduit_bien_ft2_et_psk_vers_mode_ft8_et_mode_rtty():
     };
     """)
     result = _js(ctx, "_resolveContestFilters('WWA_TEST')")
-    assert set(result['modes']) == {'mode_ssb', 'mode_cw', 'mode_ft8', 'mode_ft4', 'mode_rtty'}
+    assert set(result['modes']) == {'mode_ssb', 'mode_cw', 'mode_ft8', 'mode_ft4',
+                                    'mode_rtty', 'mode_psk'}
     assert set(result['bands']) == {'band_80m', 'band_40m', 'band_30m', 'band_20m',
                                      'band_17m', 'band_15m', 'band_12m', 'band_10m'}
 

@@ -341,6 +341,18 @@ def build_adif(qsos, cfg=None):
             # État US : porté par l'ADIF pour que le WAS reste calculable après
             # un export/réimport, ou dans le logiciel du correspondant.
             _adif_field('state', q.get('state', '')),
+            # Nom, QTH et commentaire — le contenu d'un carnet de TRAFIC
+            # COURANT, par opposition à un log de concours. Ils étaient jetés
+            # à la saisie ; maintenant qu'ils sont capturés (nom/QTH depuis
+            # l'annuaire, commentaire saisi), ils doivent AUSSI ressortir :
+            # stockés mais absents de l'export, ils n'auraient tenu qu'à
+            # moitié la promesse « même si vous abandonnez LogX AI, votre log
+            # reste exploitable ».
+            # Noms de champs ADIF 3.1.x standard (adif.org) : NAME, QTH,
+            # COMMENT — donc relus tels quels par tout autre logiciel.
+            _adif_field('name', q.get('name', '')),
+            _adif_field('qth', q.get('qth', '')),
+            _adif_field('comment', q.get('comment', '')),
             _adif_field('my_gridsquare', q.get('my_locator', cfg.get('locator', ''))),
             _adif_field('contest_id', q.get('contest', '')),
             # STATION_CALLSIGN (la station) et OPERATOR (la personne au clavier)

@@ -127,6 +127,13 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   </div>
 </header>
 
+<!-- Mode DÉBUTANT/EXPERT : cette page détachée n'a pas de barre de statut
+     (logx_statusbar.js), seul endroit où la règle « body.simple-mode
+     .expert-only » était injectée — sans ce socle, marquer un élément
+     expert-only ici ne masquerait rien. Chargé AVANT les scripts qui
+     construisent l'interface, et placé dans <body> pour que la classe soit
+     posée avant le parsing du contenu (pas de flash de réglage avancé). -->
+<script src="logx_uimode.js"></script>
 <script src="logx_i18n.js"></script>
 <script src="logx_rttydecoder.js"></script>
 <script src="logx_tx_audio.js"></script>
@@ -141,6 +148,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <select id="rttyDevice"><option value="">— périphérique par défaut —</option></select>
     </div>
     <div class="controls">
+      <!-- NE PAS marquer expert-only (essayé puis retiré le 18/08/2026) :
+           2125/170 Hz est bien le standard RTTY amateur HF, mais ce sont les
+           SEULS contrôles de calage de la page — ni cascade, ni AFC. Un poste
+           réglé autrement (option 1275/1615 Hz des Icom, chaîne AFSK centrée
+           1500 Hz façon fldigi, câble audio repris d'une station déjà réglée
+           par un ancien du club) ne décode alors RIEN, et le débutant n'a plus
+           un seul réglage à l'écran pour s'en sortir. Aggravant : cette page
+           détachée n'a pas de barre de statut, donc pas de bouton pour
+           rebasculer en expert sans la quitter. -->
       <span style="color:var(--muted);font-size:12px">Mark / Shift (Hz)</span>
       <input type="number" id="rttyMark" value="2125" min="500" max="3000" step="5" title="Fréquence du ton MARK" oninput="rttyAppliquerTons()">
       <input type="number" id="rttyShift" value="170" min="80" max="1000" step="5" title="Écart mark/space — 170 Hz est le standard amateur" oninput="rttyAppliquerTons()">

@@ -240,15 +240,20 @@ def test_panneaux_decodeurs_masques_par_defaut_dans_le_html():
 
 
 def test_le_mode_sstv_est_declare_partout():
-    """Le mode SSTV doit exister dans les trois endroits qui se répondent :
-    la case de la page CONFIG (mode_sstv), la table MODE_TOGGLE_KEY du
-    logbook, et la liste des modes proposables du sélecteur — en oublier un
-    rendrait le décodeur inaccessible sans qu'aucune erreur n'apparaisse."""
+    """Le mode SSTV doit exister dans les deux endroits qui se répondent : la
+    case de la page CONFIG (mode_sstv) et la table MODE_TOGGLE_KEY du logbook
+    — en oublier un rendrait le décodeur inaccessible sans qu'aucune erreur
+    n'apparaisse.
+
+    Ce test vérifiait aussi une 3e liste littérale ('RTTY','SSTV'] dans
+    renderModeButtons). Elle n'existe plus depuis le 18/08/2026 : les modes
+    proposables sont désormais DÉRIVÉS de MODE_TOGGLE_KEY, précisément pour
+    qu'un mode déclaré ici ne puisse plus manquer là-bas — c'est ce qui était
+    arrivé à JS8/PSK/AM/D-STAR. La couverture est reprise par
+    test_lot2_carnet_generaliste.py, qui exécute le vrai renderModeButtons."""
     assert 'data-key="mode_sstv"' in _lire(CONFIG_HTML)
     src = _lire(LOGBOOK_JS)
     assert re.search(r"'SSTV':\s*'mode_sstv'", src)
-    assert re.search(r"'RTTY','SSTV'\]", src), \
-        'SSTV absent de la liste des modes du sélecteur (renderModeButtons)'
 
 
 # ─── Conversions couleur ─────────────────────────────────────────────────────

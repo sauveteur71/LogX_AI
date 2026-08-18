@@ -1588,6 +1588,20 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <div class="loc-hint" id="locHint"></div>
       </div>
 
+      <!-- Commentaire libre — PAS expert-only, délibérément.
+           C'est le champ du trafic COURANT par excellence (« antenne filaire »,
+           « premier QSO en CW », « QSL directe promise ») : ce qu'on relit six
+           mois plus tard. Le masquer en mode débutant reviendrait à le réserver
+           aux experts, alors que c'est justement l'opérateur qui débute qui a le
+           plus envie de noter ses premiers contacts.
+           En concours il reste vide et ne coûte rien : la saisie se fait au
+           clavier sur les champs précédents, on ne passe jamais ici. -->
+      <div class="field-group" id="commentGroup">
+        <label class="field-label" for="inputComment">COMMENTAIRE</label>
+        <input type="text" class="field-input" id="inputComment" maxlength="120"
+          placeholder="Antenne, conditions, remarque…" autocomplete="off">
+      </div>
+
       <!-- Callbook (pays/historique) + boussole côte à côte, une fois le
            locator connu : deux blocs jusque-là empilés pleine largeur qui
            forçaient un scroll pendant la saisie (retour F4GLD 04/08/2026,
