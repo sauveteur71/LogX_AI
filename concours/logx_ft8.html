@@ -1316,6 +1316,9 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   function arreterRx(){
+    // Arrêter l'écoute, c'est quitter le trafic : une émission programmée n'a
+    // plus lieu d'être.
+    annulerEmissionsProgrammees();
     rxActif = false;
     if(cycleTimer) clearInterval(cycleTimer);
     cycleTimer = null;
@@ -1350,6 +1353,9 @@ if(localStorage.getItem('rc_theme') === null){
   let txArmed = false;
   window.onArmChange = function(){
     txArmed = document.getElementById('armTx').checked;
+    // Décocher « Activer l'émission » est un ordre d'arrêt aussi net que le
+    // bouton STOP : ce qui est programmé ne doit plus partir.
+    if(!txArmed) annulerEmissionsProgrammees();
     document.getElementById('sendBtn').disabled = !txArmed;
     document.getElementById('armLabel').classList.toggle('armed', txArmed);
   };
@@ -1396,11 +1402,42 @@ if(localStorage.getItem('rc_theme') === null){
   // EN ÉMISSION » à chaque tentative d'émission. Une alarme qui crie pour
   // rien finit par ne plus être lue.
   let pttDemande = false;      // une demande d'émission est partie, sans relâchement confirmé
+
+  // ─── ANNULER UNE ÉMISSION DÉJÀ PROGRAMMÉE ────────────────────────────────
+  //
+  // envoyerMessage() aligne l'émission sur le prochain créneau UTC de 15 s : il
+  // peut donc s'écouler jusqu'à 16 s entre le clic sur « Envoyer » et le PTT.
+  // Pendant tout ce temps, il ne testait txArmed qu'UNE FOIS, AVANT l'attente.
+  //
+  // Mesuré en navigateur le 18/08/2026, horodaté :
+  //     15:38:45  clic Envoyer  -> « Programmé pour 15:39:00 UTC… »
+  //     15:38:49  ordre d'arrêt
+  //     15:38:55  écran : « Émission coupée — retour à l'écoute »
+  //     15:39:00  PTT ON        <- la radio passe en émission
+  //     15:39:12  PTT OFF          12,9 s d'émission, 10,7 s APRÈS l'arrêt
+  //
+  // Ni STOP ÉMISSION ni Échap ne pouvaient l'empêcher : stopEmission() coupait
+  // un audio pas encore joué et relâchait un PTT pas encore demandé, pendant
+  // que la promesse d'attente continuait tranquillement son chemin. L'écran
+  // affirmait le contraire de ce que faisait la radio.
+  //
+  // Le compteur ci-dessous est le SEUL mécanisme qui atteint une émission
+  // encore en attente : envoyerMessage() capture sa valeur avant l'attente et
+  // la revérifie après. Tout ordre d'arrêt l'incrémente, donc toute émission
+  // programmée avant cet ordre se reconnaît périmée et renonce.
+  let generationTx = 0;
+  function annulerEmissionsProgrammees(){ generationTx++; }
+
+  // Vrai entre la programmation et le départ effectif de l'émission.
+  let emissionProgrammee = false;
   let chienDeGardePtt = null;
 
   function majBoutonStop(){
     const b = document.getElementById('ft8StopBtn');
-    if(b) b.style.display = pttDemande ? '' : 'none';
+    // pttDemande OU emissionProgrammee : pendant l'attente du créneau le PTT
+    // n'est pas encore engagé, mais il y a bel et bien quelque chose à
+    // annuler. Le bouton disparaissait justement au moment où il servait.
+    if(b) b.style.display = (pttDemande || emissionProgrammee) ? '' : 'none';
   }
 
   function alarmePtt(msg){
@@ -1501,6 +1538,10 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   window.stopEmission = async function(){
+    // EN PREMIER : une émission déjà programmée doit renoncer. Sans cela le
+    // bouton ne coupait que ce qui était déjà en cours — c'est-à-dire rien,
+    // pendant l'attente du créneau.
+    annulerEmissionsProgrammees();
     desarmerChienDeGarde();
     const statusEl = document.getElementById('txStatus');
     statusEl.textContent = 'Coupure demandée…';
@@ -1517,7 +1558,12 @@ if(localStorage.getItem('rc_theme') === null){
   // Échap coupe l'émission — même geste que dans LOGBOOK pour le CW. Actif
   // sur toute la page, y compris quand le focus est dans le champ de message.
   document.addEventListener('keydown', (e) => {
-    if(e.key === 'Escape' && pttDemande){ e.preventDefault(); window.stopEmission(); }
+    // Échap était verrouillé sur pttDemande : inopérant pendant toute
+    // l'attente du créneau, c'est-à-dire la fenêtre où l'opérateur a
+    // justement le temps de se raviser.
+    if(e.key === 'Escape' && (pttDemande || emissionProgrammee)){
+      e.preventDefault(); window.stopEmission();
+    }
   });
 
   // Fermer la fenêtre pendant une émission ne doit pas laisser la radio en
@@ -1587,7 +1633,19 @@ if(localStorage.getItem('rc_theme') === null){
     if(prochain - now < 1000) prochain += 15000;   // pas assez de marge pour préparer PTT+lecture
     statusEl.textContent = `Programmé pour ${new Date(prochain).toISOString().slice(11,19)} UTC…`;
     statusEl.className = 'tx-status wait';
+    // Le bouton de coupure doit être atteignable pendant toute l'attente.
+    emissionProgrammee = true; majBoutonStop();
+    const maGeneration = generationTx;
     await new Promise(resolve => setTimeout(resolve, prochain - Date.now()));
+    emissionProgrammee = false; majBoutonStop();
+    // LE contrôle qui manquait. Jusqu'à 16 s ont pu s'écouler, pendant
+    // lesquelles l'opérateur a pu couper — ou désarmer l'émission.
+    if(maGeneration !== generationTx || !txArmed){
+      statusEl.textContent = 'Émission annulée avant le créneau';
+      statusEl.className = 'tx-status';
+      sendBtn.disabled = !txArmed;
+      return;
+    }
 
     statusEl.textContent = 'PTT…';
     statusEl.className = 'tx-status emit';
