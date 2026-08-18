@@ -1470,8 +1470,21 @@ if(localStorage.getItem('rc_theme') === null){
   window.onArmChange = function(){
     txArmed = document.getElementById('armTx').checked;
     // Décocher « Activer l'émission » est un ordre d'arrêt aussi net que le
-    // bouton STOP : ce qui est programmé ne doit plus partir.
-    if(!txArmed) annulerEmissionsProgrammees();
+    // bouton STOP : ce qui est programmé ne doit plus partir, ET la séquence
+    // doit mourir TOUT DE SUITE.
+    //
+    // Se contenter de faire vieillir le jeton laissait la séquence vivre
+    // jusqu'à ce qu'un examen de créneau ou un préavis la ramasse. Dans les 2
+    // secondes du préavis, c'était envoyerMessage qui rendait false et l'arrêt
+    // passait par 'emission-refusee' — « la trame n'est pas partie, voir le
+    // message ci-dessus » — qui ne nomme ni la case décochée ni où la
+    // retrouver. Le message dédié, ajouté la veille précisément pour la
+    // nommer, ne s'affichait donc pas au moment où l'opérateur décoche le plus
+    // souvent : juste avant le créneau.
+    if(!txArmed){
+      seqArreter('emission-desarmee');
+      annulerEmissionsProgrammees();
+    }
     majBoutonEnvoyer();
     document.getElementById('armLabel').classList.toggle('armed', txArmed);
   };
@@ -1766,6 +1779,9 @@ if(localStorage.getItem('rc_theme') === null){
   // analysé — la page entière serait morte, sans le moindre message à
   // l'écran. Attrapé par test_bloc_script_entier_s_evalue_jusqu_au_bout, qui
   // existe exactement pour ça.
+  // Dernier motif de refus du PTT ('non_engage', 'verrou', ou '') — lu par le
+  // séquenceur pour choisir une raison d'arrêt qui nomme la vraie cause.
+  let dernierRefusPtt = '';
   let dernierAppelEnvoye = '';
   // `texte` EXPLICITE (séquenceur) ou absent (chemin manuel : on relit le
   // champ de saisie, comportement inchangé). Le séquenceur ne doit JAMAIS
@@ -1816,6 +1832,7 @@ if(localStorage.getItem('rc_theme') === null){
                ? texte : document.getElementById('txText').value;
     const text = String(brut).trim().toUpperCase();
     if(!text) return false;
+    dernierRefusPtt = '';
     const enc = ft8EncodeMessage(text, hashTable);
     if(!enc){
       document.getElementById('txStatus').textContent = 'Message invalide, non encodable en FT8';
@@ -1878,6 +1895,10 @@ if(localStorage.getItem('rc_theme') === null){
       // l'état de sûreté d'une émission précédente encore en l'air, et ferait
       // disparaître le bouton STOP au pire moment.
       if(ptt.verrou || ptt.nonEngage){
+        // Mémorisé pour que le séquenceur puisse afficher la BONNE raison :
+        // sans cela il ne voit qu'un `false` et renvoie vers un message qui,
+        // dans ce cas précis, conseille l'impossible.
+        dernierRefusPtt = ptt.nonEngage ? 'non_engage' : 'verrou';
         desarmerChienDeGarde();
         if(!emissionAnterieureNonRelachee){ pttDemande = false; majBoutonStop(); }
         statusEl.textContent = ptt.verrou
@@ -2064,6 +2085,28 @@ if(localStorage.getItem('rc_theme') === null){
   // revérification de generationTx/txArmed DANS envoyerMessage() ferme le reste.
   const SEQ_PREAVIS_MS = 2000;
 
+  // ─── PLAFOND DE DURÉE — indépendant du plafond de RELANCES ──────────────
+  //
+  // « Sans limite (jusqu'au contact) » est le réglage LIVRÉ, et c'est un choix
+  // légitime : une station peut mettre plusieurs minutes à répondre. Mais 0
+  // est falsy, donc TOUTES les gardes écrites « seq.maxRelances && … » étaient
+  // mortes avec ce réglage. Mesuré : 479 trames automatiques en 4 h, séquence
+  // toujours vivante, étape figée sur TX1.
+  //
+  // Une station qui émet seule pendant des heures sans que le QSO avance n'est
+  // pas ce que l'opérateur a demandé en choisissant « jusqu'au contact » : il a
+  // accepté d'ATTENDRE, pas d'émettre indéfiniment dans le vide. On sépare donc
+  // les deux notions — nombre de relances (réglable, 0 = illimité, on n'y
+  // touche pas) et DURÉE TOTALE de la séquence, qui existe toujours.
+  //
+  // Valeur DÉRIVÉE du fichier lui-même, pas écrite de mémoire : le pavé
+  // « CONSÉQUENCE ASSUMÉE » plus bas établit qu'un échange coûte 4 créneaux,
+  // soit 60 s ; un QSO nominal fait 5 messages, soit 5 minutes. 15 minutes
+  // laissent donc la place à trois QSO nominaux complets — largement de quoi
+  // encaisser du QSB et des répétitions — tout en garantissant qu'une séquence
+  // oubliée s'arrête d'elle-même.
+  const SEQ_DUREE_MAX_MS = 15 * 60 * 1000;
+
   // Report par défaut. VALEUR À SOURCER côté mesure : le décodeur du dépôt
   // (ft8DecodeAudioAll, logx_ft8_dsp.js) ne rend AUCUNE estimation de rapport
   // signal/bruit — seulement un score de synchronisation Costas, qui n'est pas
@@ -2094,6 +2137,19 @@ if(localStorage.getItem('rc_theme') === null){
   //   TX4  <cible> <moi> RRR          à réception de son R<report>
   //   TX5  <cible> <moi> 73           à réception de RRR ou RR73
   //   73 reçu : QSO fini, ne rien réémettre.
+  // RANG des étapes. Le compteur de relances ne doit repartir de zéro que si
+  // le QSO AVANCE — pas s'il change. Une régression (elle renvoie sa grille
+  // alors qu'on en était au RRR) fait bien changer l'étape, et remettait donc
+  // le compteur à zéro : une station qui ALTERNE deux messages sans faire
+  // progresser le QSO défaisait ainsi complètement le plafond réglé par
+  // l'opérateur. Mesuré : 35 trames émises avec un plafond réglé à 3, l'écran
+  // affichant en permanence « relances 0 / 3 ».
+  //
+  // C'est le même défaut que celui corrigé la veille (« le plafond n'est
+  // JAMAIS atteint »), simplement déplacé du cas « elle répète » au cas « elle
+  // alterne ». Comparer des RANGS, et non des égalités, ferme les deux.
+  const SEQ_RANG = {TX1: 1, TX2: 2, TX3: 3, TX4: 4, TX5: 5};
+
   const SEQ_ETAPES = {
     TX1: 'appel — ma grille',
     TX2: 'report envoyé',
@@ -2107,7 +2163,6 @@ if(localStorage.getItem('rc_theme') === null){
     'emission-desarmee': "Séquence arrêtée : « Activer l'émission » a été décoché.",
     'ecoute-arretee': "Séquence arrêtée : l'écoute a été coupée.",
     'stop-emission': 'Séquence arrêtée : coupure d\'émission (Échap / STOP).',
-    'conditions-perdues': 'Séquence arrêtée juste avant le créneau : conditions plus réunies.',
     'cible-en-qso-avec-un-tiers': 'Abandon : la station appelée répond à quelqu\'un d\'autre.',
     'plafond': 'Abandon : plafond de relances atteint sans réponse.',
     '73-recu': '73 reçu — QSO terminé.',
@@ -2115,6 +2170,12 @@ if(localStorage.getItem('rc_theme') === null){
     '73-recu-incomplet': '73 reçu — QSO loggué, mais SANS report : complète la fiche dans LOGBOOK.',
     'qso-termine-incomplet': 'QSO loggué, mais SANS report échangé : complète la fiche dans LOGBOOK.',
     'remplacement': 'Séquence remplacée par une autre station.',
+    'duree-max': 'Séquence arrêtée : trop longue sans aboutir (plafond de '
+               + '15 minutes). La station ne répond pas comme attendu — '
+               + 'réessaie plus tard ou change de station.',
+    'pas-de-pilotage-radio': "Séquence arrêtée : aucun pilotage radio n'est "
+               + 'configuré. Va le régler dans CONFIG (étape RADIO) — sans lui, '
+               + "le logiciel ne peut pas mettre ta radio en émission.",
     'sans-progres': 'Abandon : la station répond, mais le QSO n\'avance pas '
                   + '(message non exploitable répété).',
     'emission-refusee': "Séquence arrêtée : la trame n'est pas partie — "
@@ -2370,7 +2431,24 @@ if(localStorage.getItem('rc_theme') === null){
         // annulation pendant l'attente du créneau. Continuer reviendrait à
         // relancer dans le vide en affichant « QSO avec F4ABC · relances 6 »
         // pendant que la radio n'a jamais émis une seule fois.
-        if(emis !== true){ seqArreter('emission-refusee'); return; }
+        if(emis !== true){
+          // Raison la plus PRÉCISE dont on dispose. 'emission-refusee' renvoie
+          // à « voir le message d'émission ci-dessus » ; or dans le cas le plus
+          // fréquent — aucun pilotage radio configuré — ce message conseille de
+          // passer en VOX, ce que le code ne permet pas : envoyerMessage sort
+          // avant la synthèse de la forme d'onde, donc rien n'est jamais joué
+          // dans la carte son. Renvoyer l'opérateur vers un conseil qui ne peut
+          // pas marcher, c'est le faire tourner en rond.
+          //
+          // À TRANCHER PAR F4GLD (hors de ce lot, chemin d'ÉMISSION) : faut-il
+          // que le VOX fonctionne réellement, c'est-à-dire jouer la forme
+          // d'onde sans commander de PTT ? C'est un usage courant en FT8, et
+          // c'est ce que le message promet aujourd'hui. Cela change le moment
+          // où la radio peut passer en émission : ça ne se décide pas sans lui.
+          seqArreter(dernierRefusPtt === 'non_engage'
+                     ? 'pas-de-pilotage-radio' : 'emission-refusee');
+          return;
+        }
 
         if(!fin) return;
         const complet = seqLoguer(seq);
@@ -2496,12 +2574,30 @@ if(localStorage.getItem('rc_theme') === null){
       return null;
     }
 
-    // « Activer l'émission » n'est pas cochée : REFUSER TOUT DE SUITE. Créer
-    // la séquence affichait « QSO avec F4ABC » — l'opérateur croyait son QSO
-    // lancé — puis, 12 s plus tard, la mort silencieuse au préavis avec une
-    // phrase qui ne nommait ni la case, ni où la trouver. Le chemin manuel
-    // traite ce cas depuis toujours : on lui emprunte son traitement exact,
-    // message ET mise en évidence de la case.
+    // UNE SEULE séquence à la fois, UNE SEULE émission en vol. Sans cette
+    // garde, un double-clic produisait DEUX formes d'onde simultanées dans le
+    // même créneau, sur la même fréquence : un brouillage causé par sa propre
+    // station, invisible pour celui qui le provoque.
+    //
+    // CETTE GARDE PASSE EN PREMIER, avant tout refus. Placée après le contrôle
+    // de « Activer l'émission », elle était court-circuitée : un double-clic
+    // sur une AUTRE station, case décochée, sortait de seqDemarrer sans avoir
+    // arrêté la séquence en cours. L'écran affirmait « rien ne peut partir »,
+    // et recocher la case relançait l'émission vers la station que l'opérateur
+    // venait précisément d'abandonner — sans que son indicatif ait jamais été
+    // affiché. Mesuré : 3 trames vers l'ancienne cible après le double-clic
+    // sur la nouvelle.
+    if(seq){
+      if(seq.cible === call) return seq;      // 2e clic d'un double-clic : ignorer
+      seqArreter('remplacement');
+    }
+
+    // « Activer l'émission » n'est pas cochée : REFUSER. Créer la séquence
+    // affichait « QSO avec F4ABC » — l'opérateur croyait son QSO lancé — puis,
+    // 12 s plus tard, la mort silencieuse au préavis avec une phrase qui ne
+    // nommait ni la case, ni où la trouver. Le chemin manuel traite ce cas
+    // depuis toujours : on lui emprunte son traitement exact, message ET mise
+    // en évidence de la case.
     if(!txArmed){
       const el = document.getElementById('seqEtat');
       if(el){
@@ -2518,15 +2614,6 @@ if(localStorage.getItem('rc_theme') === null){
       return null;
     }
 
-    // UNE SEULE séquence à la fois, UNE SEULE émission en vol. Sans cette
-    // garde, un double-clic produisait DEUX formes d'onde simultanées dans le
-    // même créneau, sur la même fréquence : un brouillage causé par sa propre
-    // station, invisible pour celui qui le provoque.
-    if(seq){
-      if(seq.cible === call) return seq;      // 2e clic d'un double-clic : ignorer
-      seqArreter('remplacement');
-    }
-
     const plafond = (infos.maxRelances === undefined || infos.maxRelances === null)
                   ? seqMaxRelancesDefaut : infos.maxRelances;
     seq = {
@@ -2538,6 +2625,9 @@ if(localStorage.getItem('rc_theme') === null){
       slotEmis: null,
       slotsOccupes: [],
       slotAttendu: -1,
+      // Étape la plus avancée jamais atteinte. Sert de repère de progrès : voir
+      // seqExaminerCreneau. Initialisé au rang de TX1, l'étape de départ.
+      rangMax: SEQ_RANG.TX1,
       parite: parite,
       grille: grille,
       snrCible: snr,
@@ -2556,6 +2646,13 @@ if(localStorage.getItem('rc_theme') === null){
     //    l'émission ou l'écoute sans arrêter la séquence la ferait repartir au
     //    créneau suivant, ce qui revient à ignorer l'ordre donné.
     if(!seq) return;
+    // Plafond de DURÉE : le seul qui s'applique quel que soit le réglage de
+    // relances. Contrôlé ici, c'est-à-dire au plus tard juste avant de décider
+    // de réémettre.
+    if(Date.now() - seq.debutMs > SEQ_DUREE_MAX_MS){
+      seqArreter('duree-max');
+      return;
+    }
     if(seqNiveau !== 'sequenceur'){ seqArreter('niveau'); return; }
     if(!txArmed){ seqArreter('emission-desarmee'); return; }
     if(!rxActif){ seqArreter('ecoute-arretee'); return; }
@@ -2596,7 +2693,24 @@ if(localStorage.getItem('rc_theme') === null){
       // zéro à chaque créneau : le plafond réglé par l'opérateur n'était
       // JAMAIS atteint et l'émission ne s'arrêtait jamais. Mesuré : 19
       // émissions en 10 minutes, identiques, avec un plafond réglé à 3.
-      if(etape !== etapeAvant){
+      // AVANCE PLUS LOIN QUE JAMAIS — pas « change », et pas non plus
+      // « avance depuis la dernière fois ».
+      //
+      // Mesuré, et c'est ce qui a fait rejeter les deux formulations plus
+      // simples : une station qui ALTERNE deux messages (sa grille, puis un
+      // R-report, puis sa grille…) fait réellement AVANCER le QSO une fois sur
+      // deux. Comparer à l'étape précédente remettait donc le compteur à zéro
+      // un coup sur deux, et le plafond réglé par l'opérateur n'était jamais
+      // atteint : 10 trames en 10 minutes avec un plafond de 3, et la séquence
+      // toujours vivante. Comparer à l'étape la PLUS AVANCÉE atteinte ferme le
+      // cas : revenir en arrière puis re-atteindre un point déjà visité n'est
+      // pas un progrès, c'est un cycle.
+      //
+      // Un QSO normal avance de façon monotone (TX1→TX2→TX3→TX4→TX5) : chaque
+      // étape bat le record, le compteur repart bien de zéro à chaque fois.
+      const rang = SEQ_RANG[etape] || 0;
+      if(rang > seq.rangMax){
+        seq.rangMax = rang;
         seq.relances = 0;
       } else if(seq.maxRelances && seq.relances >= seq.maxRelances){
         seqArreter('sans-progres');

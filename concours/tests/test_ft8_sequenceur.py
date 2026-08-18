@@ -492,6 +492,13 @@ var generationTx = 0;
 var __emissions = [];    // TOUTES les demandes, annulées comprises
 var __enVol = null;
 
+// Dernier motif de refus du PTT. Vit HORS de la région SEQ dans le fichier
+// réel (c'est de l'état d'émission, pas de la machine à états), donc le socle
+// doit le fournir : le séquenceur le lit pour choisir entre la raison générique
+// 'emission-refusee' et la raison dédiée 'pas-de-pilotage-radio'. Sans lui,
+// la région levait une ReferenceError et n'arrêtait plus rien.
+var dernierRefusPtt = '';
+
 function annulerEmissionsProgrammees(){
   generationTx++;
   if(__enVol){ __enVol.annulee = true; __enVol.finMs = NOW; __enVol = null; }
@@ -566,6 +573,16 @@ function envoyerMessage(texte){
 // doubler l'émission du séquenceur — le bouton restait cliquable pendant toute
 // la séquence, et deux formes d'onde FT8 partaient alors sur la même
 // fréquence, dans le même créneau.
+// Reproduit la SEULE décision de onArmChange qui concerne la séquence — la
+// fonction elle-même vit hors de la région SEQ. Le test structurel
+// test_decocher_l_armement_arrete_et_nomme_la_case tient l'autre bout : il
+// vérifie que la page fait bien ce geste-là, pour que ce mannequin ne puisse
+// pas valider une sémantique que le produit n'a pas.
+function onArmChangeSimule(){
+  if(!txArmed){ seqArreter('emission-desarmee'); annulerEmissionsProgrammees(); }
+  majBoutonEnvoyer();
+}
+
 function majBoutonEnvoyer(){
   var b = document.getElementById('sendBtn');
   b.disabled = !txArmed || !!seq;
@@ -699,6 +716,11 @@ function __etat(){
     parties: __emissions.filter(function(e){ return e.debutMs !== null && !e.annulee; }),
     journal: __journal,
     offreEnAttente: __offreEnAttente,
+    // LE MESSAGE RÉELLEMENT AFFICHÉ. Sans lui, aucun test ne pouvait vérifier
+    // POURQUOI une séquence s'arrête : les six gestes d'arrêt étaient
+    // interchangeables aux yeux du banc, et les trois raisons distinctes
+    // ajoutées pour nommer la cause n'étaient contraintes par rien.
+    seqEtat: document.getElementById('seqEtat').textContent,
     envoyerDesactive: !!document.getElementById('sendBtn').disabled,
     champVerrouille: !!document.getElementById('txText').readOnly,
     examens: __examens,
@@ -1773,6 +1795,261 @@ def test_un_tiers_qui_nous_appelle_ne_fait_pas_avancer_le_qso(banc):
     assert journal[0]['call'] == CIBLE
     assert journal[0]['infos']['locator'] != 'JO31', (
         'la grille du TIERS a été loggée à la place de celle de la cible')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# §4ter. DEUXIÈME REVUE ADVERSARIALE (19/08/2026)
+#
+# La revue a attaqué les correctifs de la première, et en a trouvé plusieurs
+# qui déplaçaient le défaut au lieu de le fermer. Ces tests-là comptent double :
+# ils protègent une correction DE correction.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── Le plafond de relances, défait par une station qui ALTERNE ─────────────
+
+@pytest.mark.parametrize('alternance', [
+    ('JN18', 'R-12'),      # sa grille, puis un R-report  (TX2 <-> TX4)
+    ('JN18', '-12'),       # sa grille, puis un report nu (TX2 <-> TX3)
+    ('R-12', 'JN18'),      # l'ordre inverse : on commence par régresser
+])
+def test_un_correspondant_qui_alterne_deux_messages_n_echappe_pas_au_plafond(
+        banc, alternance):
+    """Une station qui ALTERNE deux messages fait réellement AVANCER le QSO une
+    fois sur deux. Deux formulations plus simples du « progrès » ont donc été
+    essayées et MESURÉES insuffisantes avant d'arriver à celle-ci :
+
+      « l'étape CHANGE »          — une régression est un changement : le
+                                    compteur repartait de zéro à chaque recul.
+      « l'étape AVANCE depuis la
+        dernière fois »           — l'alternance avance une fois sur deux, donc
+                                    remet le compteur à zéro une fois sur deux.
+                                    Mesuré : 10 trames en 10 min avec un
+                                    plafond de 3, séquence toujours vivante.
+
+    Ce qui ferme le cas, c'est de comparer à l'étape la PLUS AVANCÉE jamais
+    atteinte : re-atteindre un point déjà visité n'est pas un progrès, c'est un
+    cycle. Mesuré après correction : 5 à 6 trames, puis abandon.
+
+    LE SCÉNARIO EST DÉCOUVERT, PAS ÉCRIT EN DUR. Première version de ce test :
+    j'alternais un message tous les 15 s. Ça ne reproduisait RIEN — à la cadence
+    réelle (un échange toutes les 60 s) la machine relit toujours la même phase
+    du scénario et se retrouve à voir un message RÉPÉTÉ, pas alterné. Le test
+    passait donc avec ET sans correctif. On découvre d'abord les créneaux où la
+    machine attend une réponse, puis on alterne SUR CEUX-LÀ."""
+    a, b = alternance
+    # 1re passe : où la machine attend-elle réellement une réponse ?
+    reco = banc(correspondant=_correspondant(muette=True))
+    reco.js('NOW = 2000;')
+    reco.demarrer(slotEntendu=0)
+    reco.avancer(600000)
+    attendus = [c + SLOT_MS for c in reco.creneaux_emis()]
+    assert len(attendus) >= 4, 'pas assez de créneaux pour alterner'
+
+    # 2e passe : alterner sur ces créneaux-là.
+    scenario = {str(sl): ['%s %s %s' % (MOI, CIBLE, a if i % 2 else b)]
+                for i, sl in enumerate(attendus)}
+    bc = banc(correspondant=_correspondant(muette=True), scenario=scenario)
+    bc.js('NOW = 2000;')
+    bc.demarrer(slotEntendu=0, maxRelances=3)
+    # 10 minutes SEULEMENT : franchement sous le plafond de DURÉE (15 min),
+    # sans quoi ce test passerait grâce à lui et non grâce au plafond de
+    # relances qu'il prétend vérifier.
+    bc.avancer(600000)
+    et = bc.etat()
+    assert et['seq'] is None, (
+        'plafond réglé à 3, et la séquence tourne encore après 10 minutes : '
+        '%d trames émises, écran = %r' % (len(et['parties']), et['seqEtat']))
+    assert len(et['parties']) <= 8, (
+        'plafond réglé à 3 et %d trames parties : %r'
+        % (len(et['parties']), bc.emissions_parties()))
+    assert 'avance pas' in et['seqEtat'], (
+        "l'arrêt doit dire que le QSO n'avance pas : %r" % et['seqEtat'])
+
+
+def test_un_qso_qui_avance_normalement_remet_bien_le_compteur_a_zero(banc):
+    """Contre-épreuve du test précédent. Exiger « le compteur ne repart jamais
+    à zéro » serait satisfait en ne le remettant JAMAIS à zéro — et un QSO
+    normal, mais lent, serait alors abandonné à tort. Le QSO nominal doit
+    aboutir avec un plafond serré."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js('NOW = 700;')
+    b.demarrer(slotEntendu=0, maxRelances=2)
+    b.avancer(400000)
+    assert b.etat()['journal'], (
+        "un QSO nominal a été abandonné alors qu'il avançait : %r"
+        % (b.etat()['seqEtat'],))
+
+
+# ── Le plafond de DURÉE, seul garde-fou du réglage LIVRÉ ───────────────────
+
+def test_le_reglage_livre_sans_limite_a_quand_meme_un_plafond_de_duree(banc):
+    """« Sans limite (jusqu'au contact) » est le réglage PAR DÉFAUT, et 0 est
+    falsy : toutes les gardes écrites « seq.maxRelances && … » étaient donc
+    mortes pour l'immense majorité des opérateurs, qui ne changent pas ce
+    réglage. Mesuré avant correction : 479 trames automatiques en 4 h, séquence
+    toujours vivante, étape figée sur TX1.
+
+    « Jusqu'au contact » veut dire que l'opérateur accepte d'ATTENDRE, pas
+    d'émettre indéfiniment dans le vide."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)            # AUCUN maxRelances : le réglage livré
+    assert b.etat()['seq']['maxRelances'] == 0, 'le test doit jouer le défaut livré'
+    b.avancer(4 * 3600 * 1000)           # 4 heures de temps virtuel
+    et = b.etat()
+    assert et['seq'] is None, (
+        'séquence toujours vivante après 4 h avec le réglage livré : %d trames'
+        % len(et['parties']))
+    assert 'minutes' in et['seqEtat'] or 'longue' in et['seqEtat'], (
+        "l'arrêt doit dire que c'est le plafond de DURÉE : %r" % et['seqEtat'])
+
+
+def test_le_plafond_de_duree_ne_coupe_pas_un_qso_normal(banc):
+    """Contre-épreuve : un QSO nominal dure quelques minutes à la cadence de
+    cette page. Le plafond ne doit jamais le rattraper."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js('NOW = 700;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    assert b.etat()['journal'], 'le plafond de durée a coupé un QSO normal'
+
+
+# ── Décocher « Activer l'émission » ne doit pas laisser une séquence vivante ─
+
+def test_double_clic_sur_une_autre_station_abandonne_toujours_l_ancienne(banc):
+    """RÉGRESSION INTRODUITE par le correctif « refuser sans armement » : placé
+    AVANT la garde de remplacement, il faisait sortir seqDemarrer sans arrêter
+    la séquence en cours.
+
+    Conséquence mesurée : l'opérateur décoche la case, double-clique une AUTRE
+    station, l'écran affirme « rien ne peut partir » — puis recocher la case
+    relance l'émission vers la station qu'il venait d'abandonner, dont
+    l'indicatif n'a jamais été affiché. 3 trames vers l'ancienne cible."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)                       # séquence vers F4ABC
+    b.avancer(5000)
+    # txArmed baissé SANS passer par onArmChange : on teste ici le contrat
+    # propre de seqDemarrer — « aucun refus ne doit laisser une séquence
+    # orpheline » — et non le câblage du décochage, qui a son propre test.
+    #
+    # Piège trouvé en contre-épreuve : la première version passait par
+    # onArmChangeSimule(), qui arrête déjà la séquence. Le test était donc vert
+    # même en neutralisant la garde de remplacement qu'il visait : il vérifiait
+    # le correctif du voisin.
+    b.js('txArmed = false;')
+    b.demarrer(cible='DL1XYZ', slotEntendu=0)       # double-clic sur une autre
+    assert b.etat()['seq'] is None, (
+        'la séquence vers %s a survécu au double-clic sur une autre station'
+        % CIBLE)
+    b.js('txArmed = true;')
+    b.avancer(400000)
+    vers_ancienne = [t for t in b.emissions_parties() if t.startswith(CIBLE + ' ')]
+    assert not vers_ancienne, (
+        'des trames sont parties vers la station ABANDONNÉE après recochage : %r'
+        % vers_ancienne)
+
+
+def test_aucun_refus_de_demarrage_ne_precede_la_garde_de_remplacement():
+    """La garde « une seule séquence à la fois » doit passer AVANT tout refus.
+
+    Placée après le contrôle de « Activer l'émission », elle était
+    court-circuitée : seqDemarrer sortait sans avoir arrêté la séquence en
+    cours, qui restait vivante et invisible. C'est une propriété d'ORDRE, donc
+    on la teste comme telle — un test de comportement ne peut plus l'atteindre
+    depuis que le décochage arrête lui-même la séquence, et un test qui ne peut
+    plus échouer ne protège rien.
+
+    Commentaires dépouillés : les pavés d'explication citent les deux."""
+    corps = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'seqDemarrer'))
+    i_garde = corps.index("seqArreter('remplacement')")
+    for refus in ('if(!txArmed)', 'return null'):
+        i = corps.index(refus)
+        if refus == 'return null' and i < corps.index('estIndicatif'):
+            continue
+    # Tous les refus qui rendent null APRÈS la validation d'entrée doivent être
+    # postérieurs à la garde. Les deux refus d'entrée légitimes (indicatif
+    # invalide, mode manuel) précèdent volontairement : ils n'ont pas encore
+    # regardé `seq`, et refuser un appel malformé ne doit rien casser.
+    i_txarmed = corps.index('if(!txArmed)')
+    assert i_garde < i_txarmed, (
+        "le refus « Activer l'émission » précède la garde de remplacement : "
+        'un double-clic sur une autre station laisserait la séquence courante '
+        'vivante et invisible')
+
+
+def test_decocher_l_armement_arrete_et_nomme_la_case():
+    """Le décochage doit être un ordre d'arrêt IMMÉDIAT, pas une condition que
+    le prochain examen de créneau finira par remarquer.
+
+    Sans cela, dans les 2 secondes du préavis — c'est-à-dire au moment où un
+    opérateur décoche le plus souvent, juste avant que ça parte — c'était
+    envoyerMessage qui rendait false, et l'arrêt passait par la raison
+    générique « la trame n'est pas partie, voir le message ci-dessus », qui ne
+    nomme ni la case ni où la retrouver. Le message dédié, ajouté la veille
+    précisément pour la nommer, ne s'affichait donc pas.
+
+    Commentaires dépouillés : le pavé qui explique ce câblage cite seqArreter."""
+    corps = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'onArmChange'))
+    assert 'seqArreter' in corps, (
+        'onArmChange doit arrêter la séquence, pas seulement faire vieillir le '
+        'jeton et attendre que quelqu\'un remarque')
+
+
+# ── Une raison d'arrêt qui envoie dans un mur ──────────────────────────────
+
+def test_sans_pilotage_radio_la_raison_ne_renvoie_pas_a_un_conseil_impossible(banc):
+    """Sans CAT configuré, envoyerMessage sort AVANT la synthèse de la forme
+    d'onde : rien n'est jamais joué dans la carte son. Le message d'émission
+    conseille pourtant « passe en émission au micro ou en VOX » — un conseil
+    que le code ne permet pas de suivre.
+
+    Le séquenceur s'arrêtait sur « la trame n'est pas partie — voir le message
+    d'émission ci-dessus », c'est-à-dire en renvoyant vers ce conseil. On tourne
+    en rond. La raison doit nommer la vraie cause et la page où la corriger.
+
+    (La question de fond — faut-il faire réellement fonctionner le VOX ? — est
+    un changement du chemin d'ÉMISSION, laissé à la décision de F4GLD.)"""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.js("dernierRefusPtt = 'non_engage';"
+         'envoyerMessage = function(){ return Promise.resolve(false); };')
+    b.demarrer(slotEntendu=0)
+    b.avancer(120000)
+    et = b.etat()
+    assert et['seq'] is None
+    assert 'CONFIG' in et['seqEtat'], (
+        "la raison doit dire OÙ corriger : %r" % et['seqEtat'])
+    assert 'ci-dessus' not in et['seqEtat'], (
+        'la raison renvoie encore vers le message qui conseille l\'impossible : '
+        '%r' % et['seqEtat'])
+
+
+# ── La table des raisons ne doit contenir que des raisons vivantes ─────────
+
+def test_aucune_raison_declaree_n_est_morte():
+    """Une raison déclarée mais jamais appelée laisse croire qu'un chemin
+    d'arrêt existe encore. Un futur lecteur peut réintroduire l'appel en
+    croyant compléter la table — et défaire le correctif qui l'avait
+    précisément scindée en trois raisons distinctes.
+
+    Le ternaire `seqArreter(complet ? 'a' : 'b')` est pris en compte : la
+    regex cherche toute chaîne quotée dans un appel à seqArreter."""
+    src = _sans_commentaires(_lire(FT8_HTML))
+    i = src.index('const SEQ_RAISONS')
+    bloc = src[i:src.index('\n  };', i)]
+    declarees = set(re.findall(r"^\s*'([a-z0-9-]+)':", bloc, re.M))
+    appelees = set(re.findall(r"seqArreter\(\s*'([a-z0-9-]+)'", src))
+    appelees |= set(re.findall(r"\?\s*'([a-z0-9-]+)'\s*:\s*'([a-z0-9-]+)'", src)
+                    and [x for pair in re.findall(
+                        r"\?\s*'([a-z0-9-]+)'\s*:\s*'([a-z0-9-]+)'", src)
+                        for x in pair])
+    mortes = declarees - appelees
+    assert not mortes, 'raisons déclarées et jamais appelées : %r' % sorted(mortes)
+    inconnues = appelees - declarees - {'test'}
+    assert not inconnues, (
+        'raisons appelées mais absentes de la table (l\'écran n\'affichera '
+        'rien) : %r' % sorted(inconnues))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
