@@ -349,6 +349,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
             <button class="qbtn expert-only" onclick="qs('Fais-moi un bilan de mes diplômes : DXCC, WAZ, WAC, ce qui manque le plus.','performance')" title="Bilan des diplômes et de ce qui manque, sur toute la vie de la station"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><path d="M6 3h6v4a3 3 0 0 1-6 0V3z"/><path d="M6 4H3.5a1 1 0 0 0-1 1.2c.3 1.6 1.4 2.6 3 2.9"/><path d="M12 4h2.5a1 1 0 0 1 1 1.2c-.3 1.6-1.4 2.6-3 2.9"/><line x1="9" y1="10.5" x2="9" y2="13"/><line x1="6" y1="15.5" x2="12" y2="15.5"/><line x1="9" y1="13" x2="9" y2="15.5"/></svg>BILAN</button>
             <button class="qbtn expert-only" onclick="qs('Qui est actif sur quel poste en ce moment ?','coordbrief')" title="Coordination multi-poste : qui est actuellement au poste (bande/mode, depuis quand, combien de QSO) et le planning à venir -- radio-club, expédition à plusieurs opérateurs"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="5.5" cy="6" r="2.3"/><circle cx="12.5" cy="6" r="2.3"/><path d="M2 15.5c0-2.4 1.7-4.3 3.5-4.3s3.5 1.9 3.5 4.3"/><path d="M9 15.5c0-2.4 1.7-4.3 3.5-4.3s3.5 1.9 3.5 4.3"/></svg>COORDINATION</button>
             <button class="qbtn expert-only" onclick="checkVoacapTarget()" title="Tape un indicatif ou un pays dans le champ de message, puis clique ici : calcule la fenêtre d'ouverture VOACAP heure par heure et bande par bande vers cette cible (0 jeton, calcul scientifique)"><svg viewBox="0 0 18 18" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><circle cx="9" cy="9" r="7"/><path d="M2 9h14M9 2c2 2 3 4.5 3 7s-1 5-3 7c-2-2-3-4.5-3-7s1-5 3-7z"/></svg>FENÊTRE VOACAP</button>
+            <button class="qbtn expert-only" onclick="planVoacapExpedition()" title="Tape un indicatif ou un pays dans le champ de message, puis clique ici : compare VOACAP sur les 12 prochains mois pour choisir la meilleure saison avant de réserver une expédition (0 jeton, calcul scientifique)"><svg viewBox="0 0 18 18" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="2.5" y="4" width="13" height="11" rx="1.5"/><line x1="2.5" y1="7.5" x2="15.5" y2="7.5"/><line x1="6" y1="2" x2="6" y2="5"/><line x1="12" y1="2" x2="12" y2="5"/></svg>PLANIFIER EXPÉ</button>
           </div>
         </div>
       </div>
@@ -2728,6 +2729,92 @@ async function checkVoacapTarget(forcedDx){
     bub.appendChild(basiqueBadge());
     bub.appendChild(document.createTextNode('❌ '+rcT('Serveur injoignable')));
   }
+  c.scrollTop=c.scrollHeight;
+}
+
+// ─── PLANIFICATION DXPÉDITION (12 mois, backlog CARTE IA #119) ─────────────
+// Contrairement à checkVoacapTarget() ci-dessus (calcul ponctuel "maintenant"),
+// compare le MÊME point-à-point sur les 12 prochains mois -- typiquement pour
+// choisir la meilleure saison avant de réserver une expédition, pas pour
+// suivre un pile-up en direct. Réutilise /data/voacap (mêmes garde-fous : SSN
+// manquant, station distante introuvable) avec month/year en plus, calcul
+// scientifique déterministe -- 0 jeton quel que soit le palier réglé.
+const MONTH_NAMES_SHORT=['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+
+function bestSlotOfMonth(data){
+  let best=null;
+  (data.hours||[]).forEach(h=>{
+    (h.bands||[]).forEach(b=>{
+      if(b.rel!=null && (!best || b.rel>best.rel)) best={rel:b.rel, freq:b.freq_mhz, hour:h.hour};
+    });
+  });
+  return best;
+}
+
+function voacapExpeditionTableHtml(results){
+  const relColor=(rel)=>{
+    if(rel==null) return 'var(--bg3)';
+    if(rel>=0.7) return 'var(--green)';
+    if(rel>=0.3) return 'var(--yellow)';
+    return 'rgba(var(--accent-rgb),.35)';
+  };
+  const okOne=results.find(r=>r.data.ok);
+  if(!okOne){
+    return `<div style="color:var(--red);font-size:11px;margin-top:6px">❌ ${escMap((results[0]||{}).data.error||rcT('Échec du calcul'))}</div>`;
+  }
+  let html=`<div style="font-size:10px;color:var(--muted);margin:6px 0 4px">${okOne.data.distance_km} km · ${rcT('meilleur créneau par mois, sur 12 mois')}</div>`;
+  html+='<table style="border-collapse:collapse;font-family:var(--font-mono);font-size:10px">';
+  html+=`<tr><td style="padding:1px 4px;color:var(--muted)">${rcT('MOIS')}</td><td style="padding:1px 4px;color:var(--muted)">${rcT('BANDE')}</td><td style="padding:1px 4px;color:var(--muted)">UTC</td><td style="padding:1px 4px;color:var(--muted)">REL%</td></tr>`;
+  results.forEach(r=>{
+    const label=MONTH_NAMES_SHORT[r.month-1]+' '+r.year;
+    const best=r.data.ok?bestSlotOfMonth(r.data):null;
+    html+=`<tr><td style="padding:2px 4px">${label}</td>`;
+    if(best){
+      html+=`<td style="padding:2px 4px">${best.freq} MHz</td><td style="padding:2px 4px">${best.hour}h</td>`
+          +`<td style="padding:2px 4px;text-align:center;background:${relColor(best.rel)}">${Math.round(best.rel*100)}</td>`;
+    }else{
+      html+=`<td colspan="3" style="padding:2px 4px;color:var(--muted)">${rcT('pas de donnée')}</td>`;
+    }
+    html+='</tr>';
+  });
+  html+='</table>';
+  html+=`<div style="font-size:9px;color:var(--muted);margin-top:4px">${rcT('Meilleur créneau = plus haute fiabilité (REL%) toutes bandes/heures confondues, ce mois-là.')}</div>`;
+  return html;
+}
+
+async function planVoacapExpedition(forcedDx){
+  const inp=document.getElementById('userInput');
+  const dx=(forcedDx!==undefined?forcedDx:inp.value.trim());
+  if(!dx){
+    addMsg('agent','📅 '+rcT('Tape un indicatif ou un pays cible dans le champ de message, puis reclique sur PLANIFIER EXPÉ.'));
+    return;
+  }
+  addMsg('user', forcedDx!==undefined?`📅 ${rcT('Planification expédition')} : ${dx}`:dx);
+  if(forcedDx===undefined){inp.value='';inp.style.height='auto';}
+  const bub=makeAgentBubble();
+  bub.appendChild(basiqueBadge());
+  bub.appendChild(document.createTextNode('⏳ '+rcT('Calcul VOACAP sur 12 mois…')));
+  const c=document.getElementById('chatMsgs');
+  c.scrollTop=c.scrollHeight;
+
+  const now=new Date();
+  const months=[];
+  for(let i=0;i<12;i++){
+    const d=new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()+i, 1));
+    months.push({month:d.getUTCMonth()+1, year:d.getUTCFullYear()});
+  }
+  const results=[];
+  for(const m of months){
+    try{
+      const res=await fetch(`/data/voacap?dx=${encodeURIComponent(dx)}&month=${m.month}&year=${m.year}`);
+      results.push(Object.assign({}, m, {data:await res.json()}));
+    }catch(e){
+      results.push(Object.assign({}, m, {data:{ok:false, error:rcT('Serveur injoignable')}}));
+    }
+  }
+  bub.textContent='';
+  bub.appendChild(basiqueBadge());
+  bub.insertAdjacentHTML('beforeend', voacapExpeditionTableHtml(results));
   c.scrollTop=c.scrollHeight;
 }
 
