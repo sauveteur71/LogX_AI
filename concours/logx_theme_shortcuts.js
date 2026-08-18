@@ -180,8 +180,19 @@ document.addEventListener('keydown', e => {
     if(isSetupDone) submitQSO();
     return;
   }
-  // Escape : fermer le modal de setup
+  // Escape : arrêt CW d'urgence, puis fermeture des panneaux
   if(e.key === 'Escape'){
+    // PRIORITÉ ABSOLUE, avant toute fermeture de panneau : couper une émission
+    // CW en cours. C'est le geste réflexe du contesteur, et jusqu'ici il
+    // n'était branché sur RIEN — le seul moyen d'arrêter était un bouton
+    // enfermé dans #rigPanel, donc invisible pour un opérateur WinKeyer sans
+    // CAT (le WinKeyer est pourtant routé indépendamment du CAT côté serveur).
+    // On ne fait PAS return : Échap doit garder tous ses autres effets.
+    // Conditionné par cwEmissionPossible() plutôt qu'inconditionnel, pour ne
+    // pas émettre une requête réseau à chaque Échap sur une station sans
+    // manipulation CW.
+    if(typeof cwEmissionPossible === 'function' && cwEmissionPossible()
+       && typeof rigStopCW === 'function') rigStopCW();
     // Bandeau de confirmation non bloquant (chantier dialogues non bloquants,
     // 10/08/2026) : un confirm() natif se fermait déjà sur Échap (= refus) --
     // même comportement ici, avant tout le reste (il est visuellement au
