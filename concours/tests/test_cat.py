@@ -29,16 +29,40 @@ def _swap_addr_for_test(frame, addr_dest, addr_src):
 
 class FakeCivRadio:
     """Simule une radio Icom : répond aux requêtes CI-V envoyées via write(),
-    la réponse est récupérée par read_until()."""
+    la réponse est récupérée par read_until().
 
-    def __init__(self, addr, freq=14074000, mode_code=0x03, freq_bytes=5):
+    ACCUSÉS DE RÉCEPTION — corrigé le 18/08/2026, et c'est CE simulateur qui
+    masquait le bug, pas le code testé. Il répondait aux commandes SET (05
+    fréquence, 06 mode, 1C 00 PTT) en RENVOYANT LA COMMANDE, ce qu'aucun poste
+    Icom ne fait. Un vrai poste répond `FE FE E0 <addr> FB FD` (FB = OK, FA =
+    NG) — source : manuel « CI-V Reference » Icom, et fiche de référence CI-V
+    (« Réponses du poste : FB (= OK/ack) ou FA (= NG/erreur) », « Réponse OK
+    typique : FE FE E0 94 FB FD »).
+
+    Le simulateur avait donc été écrit pour correspondre au CODE, pas au
+    PROTOCOLE : les tests étaient verts alors qu'en trafic réel set_ptt(),
+    set_freq() et set_mode() rendaient TOUTES {'ok': False}, la radio ayant
+    pourtant exécuté la commande. Symptôme constaté par F4GLD le 18/08/2026 :
+    « PTT refusé » à l'écran ET le poste qui passe bien en émission.
+
+    `refuse` permet de simuler un refus réel du poste (FA) — il n'existait
+    aucun moyen de le tester avant."""
+
+    def __init__(self, addr, freq=14074000, mode_code=0x03, freq_bytes=5, refuse=False):
         self.addr = addr
         self.freq = freq
         self.mode_code = mode_code
         self.ptt = False
         self.freq_bytes = freq_bytes   # 6 pour simuler l'IC-905 au-delà de 5,85 GHz
         self.data_flag = None          # dernier état écrit via 1A 06 (None = jamais envoyé)
+        self.refuse = refuse           # le poste répond FA (NG) au lieu de FB (OK)
         self._pending = b''
+
+    def _accuse(self):
+        """Trame d'accusé telle qu'un vrai poste l'envoie : FE FE E0 <addr>
+        FB FD (OK) ou ... FA FD (NG). Ni cmd ni sub ne sont rééchotés."""
+        return bytes([0xFE, 0xFE, 0xE0, self.addr,
+                      0xFA if self.refuse else 0xFB, 0xFD])
 
     def write(self, data):
         parsed = cat.civ_parse_frame(data)
@@ -54,9 +78,9 @@ class FakeCivRadio:
                                      data=cat.civ_encode_freq(self.freq, self.freq_bytes)),
                 0xE0, self.addr)
         elif cmd == 0x05:  # set freq
-            self.freq = cat.civ_decode_freq(payload)
-            self._pending = _swap_addr_for_test(
-                cat.civ_build_frame(0xE0, 0x05), 0xE0, self.addr)
+            if not self.refuse:
+                self.freq = cat.civ_decode_freq(payload)
+            self._pending = self._accuse()
         elif cmd == 0x1A and sub == 0x06:  # flag DATA (fire-and-forget, jamais lu)
             if payload:
                 self.data_flag = bool(payload[0])
@@ -65,13 +89,14 @@ class FakeCivRadio:
             self._pending = _swap_addr_for_test(
                 cat.civ_build_frame(0xE0, 0x04, data=bytes([self.mode_code])), 0xE0, self.addr)
         elif cmd == 0x06:  # set mode
-            self.mode_code = payload[0]
-            self._pending = _swap_addr_for_test(cat.civ_build_frame(0xE0, 0x06), 0xE0, self.addr)
+            if not self.refuse:
+                self.mode_code = payload[0]
+            self._pending = self._accuse()
         elif cmd == 0x1C and sub == 0x00:
             if payload:
-                self.ptt = bool(payload[0])
-                self._pending = _swap_addr_for_test(
-                    cat.civ_build_frame(0xE0, 0x1C, sub=0x00), 0xE0, self.addr)
+                if not self.refuse:
+                    self.ptt = bool(payload[0])
+                self._pending = self._accuse()
             else:
                 self._pending = _swap_addr_for_test(
                     cat.civ_build_frame(0xE0, 0x1C, sub=0x00, data=bytes([1 if self.ptt else 0])),
