@@ -6,7 +6,11 @@ est fondée : en FT8 tout est calé sur des créneaux de 15 s alignés sur
 00/15/30/45 s UTC, et le signal lui-même n'occupe que 12,64 s du créneau
 (79 symboles à 6,25 baud — Franke, Somerville & Taylor, « The FT4 and FT8
 Communication Protocols », QEX juillet-août 2020). Le guide utilisateur de
-WSJT-X demande pour cette raison une horloge à ±2 s de l'UTC.
+la tenue d'heure attendue est de l'ordre de LA SECONDE (horloge PC
+synchronisée NTP sur l'UTC). Une première rédaction de ce fichier annonçait
+« ±2 s selon le guide utilisateur de WSJT-X » : attribution fausse, corrigée
+le 18/08/2026 en revue. Une valeur écrite de mémoire et habillée d'une
+source est pire qu'une valeur sans source — elle ne se rediscute plus.
 
 Or la page FT8 affichait une horloge UTC en en-tête qui n'est QUE l'horloge
 du PC reformatée : elle ne vérifie rien. Un opérateur dont le PC dérive de
@@ -209,12 +213,78 @@ def test_le_bandeau_d_alerte_horloge_existe_et_part_masque():
 
 
 def test_le_seuil_d_alerte_reste_sous_les_deux_secondes():
-    """Prévenir à ±2 s serait prévenir quand plus rien ne décode déjà. Le
-    seuil doit rester strictement en dessous pour être utile."""
+    """Le seuil doit être ATTEIGNABLE, ce qui est une contrainte plus dure
+    qu'il n'y paraît : DT = (startSample - centerSample)/sr, et startSample ne
+    peut sortir de centerSample ± 7 symboles (6 au balayage grossier, 1 de
+    plus à l'affinage), soit ±1,12 s. Un seuil au-dessus de cette borne rend
+    le bandeau et la coloration rouge PHYSIQUEMENT inaccessibles — c'était le
+    cas avec 1,5 s, du code mort livré le 18/08/2026 et corrigé le jour même
+    après revue."""
     src = _lire(FT8_HTML)
     m = re.search(r'const DT_ALERTE_S\s*=\s*([\d.]+)', src)
     assert m, 'DT_ALERTE_S introuvable'
-    assert 0 < float(m.group(1)) < 2.0
+    seuil = float(m.group(1))
+    # 1,12 s = borne dure du DT mesurable (7 symboles de 0,160 s).
+    assert 0 < seuil < 1.12, (
+        f'seuil {seuil} s inatteignable : le DT est borné à ±1,12 s par la '
+        'plage de recherche de ft8FindAllSync/ft8RefineSync')
+
+
+def _ctx_bandeau(dts):
+    """Exécute le VRAI majAlerteHorloge() avec une liste de DT donnée, et rend
+    le texte affiché à l'opérateur."""
+    src = _lire(FT8_HTML)
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval("""
+      var __el = {textContent: '', style: {display: 'none'}};
+      var document = { getElementById: function(id){
+        return id === 'horlogeAlerte' ? __el : null; } };
+      var dtRecents = [];
+    """)
+    ctx.eval(re.search(r'const DT_ALERTE_S\s*=\s*[\d.]+;', src).group(0)
+             .replace('const', 'var', 1))
+    ctx.eval(_extraire_fonction(src, 'medianeDt'))
+    ctx.eval(_extraire_fonction(src, 'majAlerteHorloge'))
+    ctx.eval('dtRecents = ' + json.dumps(dts) + ';')
+    ctx.eval('majAlerteHorloge();')
+    return {'texte': ctx.eval('__el.textContent'),
+            'visible': ctx.eval("__el.style.display") != 'none'}
+
+
+def test_un_pc_en_avance_est_annonce_EN_AVANCE():
+    """LE test qui manquait. Le bandeau annonçait « en RETARD » pour un DT
+    positif, alors qu'un DT positif signifie un PC EN AVANCE — l'opérateur
+    était envoyé régler son horloge dans le mauvais sens, doublant l'erreur.
+
+    Le fichier contenait DÉJÀ, quelques lignes plus haut,
+    test_un_pc_en_avance_voit_toutes_les_stations_en_retard qui établit que
+    PC en avance => DT positif. Le code et son propre test se contredisaient ;
+    personne n'avait confronté les deux. C'est ce test-ci qui les relie."""
+    r = _ctx_bandeau([0.9, 0.85, 0.95, 0.9])
+    assert r['visible']
+    assert 'en AVANCE' in r['texte'], r['texte']
+    assert 'en RETARD' not in r['texte']
+
+
+def test_un_pc_en_retard_est_annonce_EN_RETARD():
+    r = _ctx_bandeau([-0.9, -0.85, -0.95, -0.9])
+    assert r['visible']
+    assert 'en RETARD' in r['texte'], r['texte']
+    assert 'en AVANCE' not in r['texte']
+
+
+def test_le_bandeau_se_declenche_bien_dans_la_plage_mesurable():
+    """Le seuil doit être franchissable par des valeurs que la chaîne réelle
+    peut produire (|DT| <= 1,12 s). Avec l'ancien seuil de 1,5 s, ce test
+    échouait : le bandeau était du code mort."""
+    assert _ctx_bandeau([0.8, 0.75, 0.85])['visible'], \
+        'un décalage de 0,8 s doit déclencher le bandeau'
+
+
+def test_le_bandeau_reste_muet_sur_un_reseau_sain():
+    """Des DT de quelques dixièmes sont normaux entre stations bien réglées :
+    le bandeau ne doit pas crier pour ça, sinon il ne sera plus lu."""
+    assert not _ctx_bandeau([0.1, -0.2, 0.05, 0.15])['visible']
 
 
 def test_l_alerte_ne_conseille_aucun_service_tiers_obligatoire():
