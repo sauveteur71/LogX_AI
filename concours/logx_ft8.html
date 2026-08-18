@@ -926,8 +926,14 @@ if(localStorage.getItem('rc_theme') === null){
   // Mais si TOUTES les stations reçues affichent le même décalage, c'est la
   // nôtre qui est fausse — d'où la MÉDIANE sur les dernières stations reçues,
   // insensible à une station isolée mal réglée.
-  function calculerDt(debutFenetreMs, startSample, slotMs){
-    return (debutFenetreMs + (startSample / sr) * 1000 - slotMs) / 1000;
+  // `cadence` EXPLICITE : depuis la décimation, startSample n'est plus exprimé
+  // dans la cadence de la carte son mais dans celle, réduite, à laquelle le
+  // décodage a réellement travaillé. Prendre `sr` par défaut donnerait un DT
+  // faux d'un facteur 4 — et silencieusement juste avant la décimation, ce qui
+  // est le pire cas : un paramètre optionnel qui marche par accident.
+  function calculerDt(debutFenetreMs, startSample, slotMs, cadence){
+    const s = cadence || sr;
+    return (debutFenetreMs + (startSample / s) * 1000 - slotMs) / 1000;
   }
 
   // Seuil d'alerte — RAMENÉ DE 1,5 s À 0,6 s le 18/08/2026, parce qu'à 1,5 s
@@ -1168,11 +1174,36 @@ if(localStorage.getItem('rc_theme') === null){
         // 1,5 s trop tôt, et n'acceptait en pratique qu'un DT compris entre
         // -1,00 s et +0,12 s (voir le pavé de ft8FindSync). Un PC en retard
         // de 200 ms sur l'UTC ne décodait déjà presque plus rien.
-        const results = ft8DecodeAudioAll(fenetre.samples, sr, hashTable, {
-          centerSample: ((slotTermine - fenetre.debutMs) / 1000) * sr,
+        // DÉCIMATION AVANT DÉCODAGE. Le signal FT8 tient sous 3 kHz ; la carte
+        // son livre à 48 kHz. Décoder à la cadence d'entrée faisait travailler
+        // le banc de Goertzel et la recherche de synchro sur quatre fois plus
+        // d'échantillons que nécessaire, pour exactement la même information.
+        //
+        // Ce n'était pas qu'une question de lenteur. L'appel ci-dessous est
+        // SYNCHRONE sur le thread principal : pendant toute sa durée, ni la
+        // cascade ne se redessine, ni le ScriptProcessorNode qui collecte
+        // l'audio ne s'exécute. Les blocs sautés font dériver l'horloge du
+        // tampon, que pousserEchantillons doit alors reprendre — d'où le
+        // compteur « N resynchro. audio » qui grimpait sans fin. Le décodage
+        // se sabotait lui-même : plus il durait, plus il perdait d'audio.
+        //
+        // Mesuré sur une fenêtre de 16,5 s à 48 kHz contenant 3 stations
+        // (bruit reproductible, meilleure de 3 passes, sous le V8 de
+        // py_mini_racer — pas un navigateur, donc c'est le RAPPORT qui compte,
+        // pas la valeur absolue) : 8219 ms -> 2156 ms, soit x3,8. Les 3
+        // messages sont décodés dans les deux cas, avec des DT identiques au
+        // centième près. Voir tests/test_ft8_decimation.py.
+        const dec = ft8Decimer(fenetre.samples, sr);
+        const results = ft8DecodeAudioAll(dec.samples, dec.sampleRate, hashTable, {
+          centerSample: ((slotTermine - fenetre.debutMs) / 1000) * dec.sampleRate,
         });
         for(const r of results){
-          const dt = calculerDt(fenetre.debutMs, r.startSample, slotTermine);
+          // startSample est exprimé dans la cadence DÉCIMÉE : c'est celle-là
+          // qu'il faut pour retomber sur des secondes. Réutiliser `sr` ici
+          // diviserait le DT par le facteur de décimation, sans que rien ne le
+          // signale — le bandeau d'horloge deviendrait muet.
+          const dt = calculerDt(fenetre.debutMs, r.startSample, slotTermine,
+                                dec.sampleRate);
           dtRecents.push(dt);
           if(dtRecents.length > 12) dtRecents.shift();   // médiane glissante
           ajouterDecodage(slotTermine, r.text, r.freqHz, r.syncScore, dt);
