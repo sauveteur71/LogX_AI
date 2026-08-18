@@ -1115,7 +1115,19 @@ def _set_ptt(cfg, on):
     rig_settings = rig.rig_settings(cfg)
     if rig_settings['enabled']:
         return rig.set_ptt(rig_settings['host'], rig_settings['port'], on)
-    return {'ok': False, 'error': 'Pilotage radio désactivé (CONFIG)'}
+    # `non_engage` : AUCUN pilote n'a été appelé, donc la radio n'a PAS pu être
+    # mise en émission par nous. C'est très différent d'un pilote qui a parlé
+    # au poste et dont on ignore le résultat.
+    #
+    # Sans cette distinction, la page FT8 traitait ce refus comme un « on ne
+    # sait pas » : elle enchaînait 4 tentatives de relâchement, toutes en échec
+    # pour la même raison, puis affichait « LA RADIO EST PEUT-ÊTRE ENCORE EN
+    # ÉMISSION — coupe manuellement ». Une alarme rouge inquiétante, affichée
+    # systématiquement à quiconque n'a simplement pas configuré de pilotage
+    # radio (constat de revue, 18/08/2026). Une alarme qui crie pour rien finit
+    # par ne plus être lue — c'est ainsi qu'on rate la vraie.
+    return {'ok': False, 'non_engage': True,
+            'error': 'Pilotage radio désactivé (CONFIG)'}
 
 
 def set_ptt(cfg, on):
