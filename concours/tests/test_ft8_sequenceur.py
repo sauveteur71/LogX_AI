@@ -73,7 +73,9 @@ def _ctx(niveau='sequenceur', arme=True):
         return null;   // seqEtat/seqStopBtn absents : majPanneauSeq doit tenir
       }};
       function envoyerMessage(){ __envois.push(__txText.value); }
-      function offrirLogQso(call){ __logs.push(call); }
+      function offrirLogQso(call, infos){ __logs.push({call: call, infos: infos || {}}); }
+      function gridVersLatLon(g){ return g ? {lat: 45, lon: 5} : null; }
+      function distanceKm(){ return 1350; }
       var window = {};
     """ % (MOI, GRILLE, 'true' if arme else 'false', niveau))
     src_js = src
@@ -118,7 +120,7 @@ def test_le_qso_s_enchaine_et_se_loggue_tout_seul():
     _creneau(ctx, ['%s %s RR73' % (MOI, CIBLE)])          # il conclut
     e = _etat(ctx)
     assert e['envois'][-1] == 'YT2DZB F4GLD 73'
-    assert e['logs'] == [CIBLE], 'le QSO doit être loggué automatiquement'
+    assert [x['call'] for x in e['logs']] == [CIBLE], 'le QSO doit être loggué automatiquement'
 
 
 def test_un_73_recu_termine_et_loggue_sans_reemettre():
@@ -129,7 +131,7 @@ def test_un_73_recu_termine_et_loggue_sans_reemettre():
     avant = len(_etat(ctx)['envois'])
     _creneau(ctx, ['%s %s 73' % (MOI, CIBLE)])
     e = _etat(ctx)
-    assert e['logs'] == [CIBLE]
+    assert [x['call'] for x in e['logs']] == [CIBLE]
     assert e['actif'] is False, 'la séquence doit être terminée'
     assert len(e['envois']) == avant, 'aucune émission supplémentaire'
 
@@ -336,7 +338,7 @@ def test_rr73_est_traite_comme_un_message_pas_comme_un_locator():
     _creneau(ctx, ['%s %s RR73' % (MOI, CIBLE)])
     e = _etat(ctx)
     assert e['envois'][-1] == 'YT2DZB F4GLD 73', e['envois']
-    assert e['logs'] == [CIBLE], 'le QSO doit être loggué'
+    assert [x['call'] for x in e['logs']] == [CIBLE], 'le QSO doit être loggué'
 
 
 def test_le_chemin_manuel_a_le_meme_ordre_de_decision():
@@ -348,3 +350,44 @@ def test_le_chemin_manuel_a_le_meme_ordre_de_decision():
     i_locator = corps.index('[A-R]{2}[0-9]{2}')
     assert i_jeton < i_locator, \
         'les jetons de protocole doivent être testés AVANT la regex de locator'
+
+
+# ─── Un log AUTOMATIQUE ne doit pas être un log APPAUVRI ────────────────────
+
+def test_le_log_automatique_emporte_les_reports_et_la_grille():
+    """F4GLD a tranché « log automatique ! ». Raison de plus pour que le QSO
+    archivé soit COMPLET : personne ne relira une ligne enregistrée toute
+    seule pour y remettre à la main ce que le logiciel avait sous les yeux.
+
+    C'est la même faute que le lot 2 vient de corriger ailleurs (nom et QTH
+    reçus de l'annuaire, affichés, puis jetés à l'enregistrement)."""
+    ctx = _ctx()
+    ctx.eval("seqDemarrer('%s', 'APPEL');" % CIBLE)
+    _creneau(ctx, ['%s %s KN04' % (MOI, CIBLE)])      # sa grille
+    _creneau(ctx, ['%s %s R-12' % (MOI, CIBLE)])      # son report
+    _creneau(ctx, ['%s %s RR73' % (MOI, CIBLE)])      # il conclut
+    infos = _etat(ctx)['logs'][-1]['infos']
+    assert infos['locator'] == 'KN04', infos
+    assert infos['rst_rcvd'] == '-12', infos
+    assert infos['rst_sent'] == '-10', infos
+    assert infos['dist'] > 0, 'la distance doit être calculée depuis les deux locators'
+
+
+def test_le_R_du_report_recu_est_retire():
+    """« R-12 » est un accusé de réception PLUS un report : le carnet attend le
+    report seul, pas le préfixe de protocole."""
+    ctx = _ctx()
+    ctx.eval("seqDemarrer('%s', 'APPEL');" % CIBLE)
+    _creneau(ctx, ['%s %s R-05' % (MOI, CIBLE)])
+    _creneau(ctx, ['%s %s 73' % (MOI, CIBLE)])
+    assert _etat(ctx)['logs'][-1]['infos']['rst_rcvd'] == '-05'
+
+
+def test_le_chemin_manuel_loggue_toujours_sans_infos():
+    """offrirLogQso() garde un second argument OPTIONNEL : le chemin manuel
+    l'appelle sans, et ne doit pas casser pour autant."""
+    src = _lire()
+    assert 'function offrirLogQso(call, infos)' in src
+    assert 'qsoInfos = infos || {}' in src
+    corps = _fonction(src, 'proposerReponse')
+    assert 'offrirLogQso(de)' in corps, 'appel à un seul argument conservé'
