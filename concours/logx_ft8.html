@@ -1528,13 +1528,24 @@ if(localStorage.getItem('rc_theme') === null){
   // remettre le poste en émission tout seul juste après notre PTT OFF : le
   // bouton de coupure pouvait donc ne rien couper du tout.
   //
-  // On garde une prise sur la source audio en cours pour pouvoir l'arrêter.
-  let sourceTxEnCours = null;
+  // Prises sur les sources audio VIVANTES. Un ENSEMBLE, pas une variable
+  // unique : deux émissions peuvent se retrouver programmées sur le même
+  // créneau (deux double-clics à quelques secondes d'intervalle), et la
+  // seconde écrasait la prise sur la première. couperAudioTx() n'arrêtait
+  // alors que la dernière onde — l'autre continuait de moduler le poste
+  // jusqu'à sa fin naturelle, mesurée à 11,6 s APRÈS l'ordre d'arrêt, pendant
+  // que l'écran affichait « Émission coupée — retour à l'écoute ».
+  // Sur un poste piloté en VOX, cette onde résiduelle le remet en émission
+  // juste après le relâchement du PTT.
+  const sourcesTxVivantes = new Set();
 
   function couperAudioTx(){
-    if(!sourceTxEnCours) return;
-    try{ sourceTxEnCours.stop(); }catch(e){}   // déjà terminée : stop() lève, sans conséquence
-    sourceTxEnCours = null;
+    // Copie avant parcours : stop() déclenche onended, qui retire l'élément
+    // de l'ensemble — muter pendant l'itération est une mauvaise idée.
+    for(const src of Array.from(sourcesTxVivantes)){
+      try{ src.stop(); }catch(e){}   // déjà terminée : stop() lève, sans conséquence
+    }
+    sourcesTxVivantes.clear();
   }
 
   window.stopEmission = async function(){
@@ -1588,7 +1599,7 @@ if(localStorage.getItem('rc_theme') === null){
     // puissent réellement couper le son (voir couperAudioTx). src.stop()
     // déclenche onended, donc l'attente ci-dessous se résout normalement :
     // le finally d'envoyerMessage() s'exécute et relâche le PTT.
-    sourceTxEnCours = src;
+    sourcesTxVivantes.add(src);
     if(outId && HTMLMediaElement.prototype.setSinkId){
       // Route vers un périphérique de sortie précis : MediaStreamDestination
       // + <audio> caché (setSinkId n'existe que sur HTMLMediaElement, pas
@@ -1607,13 +1618,33 @@ if(localStorage.getItem('rc_theme') === null){
       src.start();
       await new Promise(resolve => { src.onended = resolve; });
     }
-    sourceTxEnCours = null;
+    sourcesTxVivantes.delete(src);
     try{ txCtx.close(); }catch(e){}
   }
 
   let dernierAppelEnvoye = '';
   window.envoyerMessage = async function(){
     if(!txArmed) return;
+    // GARDE DE RÉ-ENTRANCE. repondreEtEnvoyer() (double-clic) appelle cette
+    // fonction DIRECTEMENT, sans passer par le bouton : sendBtn.disabled ne
+    // protégeait donc rien. Deux double-clics dans la même fenêtre de 15 s
+    // programmaient DEUX émissions sur le MÊME créneau — deux PTT, deux ondes
+    // FT8 simultanées dans la carte son.
+    //
+    // On teste emissionProgrammee SEUL, pas pttDemande : ce dernier peut
+    // rester à true après un relâchement non confirmé (voir l'alarme de
+    // relacherPtt), et le prendre en compte interdirait toute émission
+    // ultérieure — ce que le code prévoit explicitement de permettre, voir
+    // emissionAnterieureNonRelachee plus bas.
+    //
+    // Et on le DIT : un refus silencieux laisserait l'opérateur cliquer sans
+    // comprendre pourquoi rien ne change.
+    if(emissionProgrammee){
+      const st = document.getElementById('txStatus');
+      st.textContent = 'Une émission est déjà programmée — coupe-la d\'abord (STOP ou Échap)';
+      st.className = 'tx-status wait';
+      return;
+    }
     const text = document.getElementById('txText').value.trim().toUpperCase();
     if(!text) return;
     const enc = ft8EncodeMessage(text, hashTable);

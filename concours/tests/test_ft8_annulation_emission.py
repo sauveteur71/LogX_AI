@@ -162,3 +162,54 @@ def test_le_message_d_annulation_est_explicite():
     corps = _fonction(_lire(), 'envoyerMessage')
     i = corps.index('maGeneration !== generationTx')
     assert 'annulée' in corps[i:i + 400].lower()
+
+
+# ─── Ré-entrance et coupure de TOUTES les ondes ─────────────────────────────
+# Deux constats critiques confirmés par la revue adversariale du 18/08/2026.
+# Ils sont ANTÉRIEURS à ce correctif, mais ils démentaient précisément la
+# promesse d'écran qu'il renforce (« Émission coupée — retour à l'écoute »).
+
+def test_envoyer_message_refuse_une_seconde_emission_programmee():
+    """repondreEtEnvoyer() (double-clic) appelle envoyerMessage DIRECTEMENT :
+    sendBtn.disabled ne protégeait rien. Deux double-clics dans la même
+    fenêtre de 15 s programmaient DEUX émissions sur le MÊME créneau — deux
+    PTT et deux ondes FT8 simultanées. Mesuré : la seconde onde modulait
+    encore 11,6 s après l'ordre d'arrêt, l'écran affichant le contraire."""
+    corps = _fonction(_lire(), 'envoyerMessage')
+    i_garde = corps.index('if(emissionProgrammee)')
+    i_prog = corps.index('emissionProgrammee = true')
+    assert i_garde < i_prog, 'la garde doit précéder la programmation'
+    # Et elle doit le DIRE : un refus silencieux laisse cliquer sans comprendre.
+    assert 'txStatus' in corps[i_garde:i_prog]
+
+
+def test_la_garde_ne_bloque_pas_sur_un_ptt_non_relache():
+    """Nuance relevée par le vérificateur : pttDemande peut rester à true
+    après un relâchement non confirmé. L'inclure dans la garde interdirait
+    toute émission ultérieure — alors que le code prévoit explicitement de la
+    permettre (emissionAnterieureNonRelachee)."""
+    corps = _fonction(_lire(), 'envoyerMessage')
+    i = corps.index('if(emissionProgrammee)')
+    assert 'pttDemande' not in corps[i:i + 80]
+    assert 'emissionAnterieureNonRelachee' in corps, \
+        'le chemin qui autorise une émission après un PTT non relâché doit rester'
+
+
+def test_couper_audio_arrete_toutes_les_ondes_vivantes():
+    """La prise était UNIQUE et écrasée par la seconde onde : couperAudioTx()
+    n'arrêtait que la dernière. Un ensemble, parcouru intégralement."""
+    src = _lire()
+    assert 'sourceTxEnCours' not in src, 'la prise unique ne doit plus exister'
+    corps = _fonction(src, 'couperAudioTx')
+    assert 'for(' in corps and 'sourcesTxVivantes' in corps
+    assert 'Array.from' in corps, \
+        'copier avant de parcourir : stop() retire l\'élément via onended'
+
+
+def test_chaque_onde_est_enregistree_puis_retiree():
+    """Une onde jamais retirée de l'ensemble ferait grossir la collection à
+    chaque émission, et couperAudioTx() appellerait stop() sur des sources
+    mortes à l'infini."""
+    corps = _fonction(_lire(), 'jouerForme')
+    assert 'sourcesTxVivantes.add(src)' in corps
+    assert 'sourcesTxVivantes.delete(src)' in corps
