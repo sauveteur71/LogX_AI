@@ -3921,9 +3921,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 power_w = float((qp.get('power') or ['100'])[0])
             except ValueError:
                 power_w = 100.0
+            # month/year optionnels (planification DXpédition, CARTE IA #119) :
+            # voacap.predict() les accepte déjà, seul cet endpoint les ignorait
+            # -- sans eux, repli sur "maintenant" comme avant ce correctif.
+            # Deux try/except INDÉPENDANTS : une valeur non numérique sur l'un
+            # ne doit jamais invalider l'autre s'il est syntaxiquement correct.
+            month = year = None
+            try:
+                month = int(qp['month'][0]) if qp.get('month') else None
+            except ValueError:
+                pass
+            try:
+                year = int(qp['year'][0]) if qp.get('year') else None
+            except ValueError:
+                pass
             result = voacap.predict(
                 tx_lat=my_ll[0], tx_lon=my_ll[1], rx_lat=dx_ll[0], rx_lon=dx_ll[1],
-                mode=mode, power_w=power_w,
+                mode=mode, power_w=power_w, month=month, year=year,
                 tx_label=cfg_snap.get('callsign', '') or 'TX', rx_label=dx_input,
             )
             self._json(result)
