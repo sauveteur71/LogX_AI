@@ -1763,6 +1763,15 @@ function updateAmpFieldsVisibility(){
   document.getElementById('ampPgxlFields').style.display = brand === 'pgxl' ? '' : 'none';
   document.getElementById('ampAcomFields').style.display = brand === 'acom' ? '' : 'none';
   if (dediee){
+    // ...et il faut aussi le REMETTRE À "Désactivé", pas seulement le masquer :
+    // le champ caché gardait sa valeur, donc /config/save enregistrait
+    // amp_enabled=true avec amp_brand='pgxl'/'acom'. Côté serveur,
+    // _make_driver() (logx_amp.py) ne connaît que elecraft/icom/spe et
+    // répondait "Marque d'ampli inconnue : pgxl" en boucle — un ampli signalé
+    // injoignable en permanence alors qu'il est piloté correctement par son
+    // propre bloc PGXL/ACOM. Ce qui est affiché et ce qui est enregistré
+    // doivent dire la même chose.
+    document.getElementById('amp_enabled').value = '';
     document.getElementById('ampPortField').style.display = 'none';
     document.getElementById('ampBaudField').style.display = 'none';
     document.getElementById('ampHostField').style.display = 'none';
@@ -3533,19 +3542,24 @@ const BAND_TOGGLE_KEY = {
 };
 
 // Correspondance mode serveur → clé toggle — copie exacte de MODE_TOGGLE_KEY
-// (logx_logbook.js, ~ligne 2362), y compris les rattachements WWA FT2→FT8 et
-// PSK→RTTY déjà en place (règlement WWA §5, même famille "DIGI").
+// (logx_logbook.js), y compris le rattachement WWA FT2→FT8 (règlement §5, même
+// famille "DIGI", aucune case dédiée). PSK, lui, a bien SA case (mode_psk) : il
+// était rattaché à mode_rtty jusqu'au 18/08/2026, ce qui faisait DÉCOCHER la
+// case PSK dès qu'on sélectionnait le WWA — dont le §5 autorise pourtant PSK.
 const MODE_TOGGLE_KEY = {
-  'SSB':  'mode_ssb',
-  'CW':   'mode_cw',
-  'FM':   'mode_fm',
-  'FT8':  'mode_ft8',
-  'FT4':  'mode_ft4',
-  'RTTY': 'mode_rtty',
-  'SSTV': 'mode_sstv',  // mode d'activité (dimanches SSTV, ISS) — jamais imposé par un concours
-  'DIGI': 'mode_ft8',
-  'FT2':  'mode_ft8',   // WWA (règlement §5) — pas de toggle dédié, rattaché à FT8
-  'PSK':  'mode_rtty',  // WWA — rattaché à RTTY (même famille "DIGI" au règlement)
+  'SSB':   'mode_ssb',
+  'AM':    'mode_am',
+  'CW':    'mode_cw',
+  'FM':    'mode_fm',
+  'DSTAR': 'mode_dstar',  // libellé ADIF ; la case de configuration dit "D-STAR"
+  'FT8':   'mode_ft8',
+  'FT4':   'mode_ft4',
+  'JS8':   'mode_js8',
+  'RTTY':  'mode_rtty',
+  'PSK':   'mode_psk',
+  'SSTV':  'mode_sstv',   // mode d'activité (dimanches SSTV, ISS) — jamais imposé par un concours
+  'DIGI':  'mode_ft8',    // code générique de règlement, aucune case dédiée
+  'FT2':   'mode_ft8',    // WWA (règlement §5) — pas de case dédiée, rattaché à FT8
 };
 
 // Résout les clés toggle bandes/modes autorisées pour un concours :
