@@ -245,6 +245,35 @@ def test_une_horloge_mesuree_saine_disculpe_l_horloge():
     assert 'est juste' in bloc, "le texte doit DISCULPER l'horloge quand elle est bonne"
 
 
+def test_le_bandeau_de_silence_s_efface_quand_le_decodage_repart():
+    """Constaté par F4GLD sur capture le 18/08/2026 : 9 stations décodées dans
+    le tableau, et au-dessus un bandeau affirmant « RIEN ne se décode depuis 4
+    créneaux ». Le bandeau se posait mais n'avait aucun chemin de retour.
+
+    C'est exactement le défaut que la revue adversariale avait relevé sur le
+    message « audio incomplet sur N créneaux » — réintroduit à l'identique en
+    écrivant ce bandeau-ci. D'où ce test : un état d'alerte doit TOUJOURS
+    pouvoir revenir à la normale."""
+    src = _lire_ft8()
+    bloc = src[src.index('function surveillerSilenceAnormal'):]
+    bloc = bloc[:bloc.index('\n  }')]
+    debut = bloc[:bloc.index('creneauxSansDecodage++')]
+    assert "display = 'none'" in debut, \
+        'le retour au décodage doit effacer le bandeau de silence'
+
+
+def test_les_deux_bandeaux_ne_s_effacent_pas_l_un_l_autre():
+    """Le bandeau de silence et celui de décalage d'horloge partagent le même
+    élément. Effacer sans discernement ferait disparaître une alerte d'horloge
+    légitime au premier créneau décodé."""
+    src = _lire_ft8()
+    assert src.count('dataset.origine') >= 4, \
+        "chaque bandeau doit marquer son origine pour n'effacer que le sien"
+    bloc = src[src.index('function surveillerSilenceAnormal'):]
+    bloc = bloc[:bloc.index('\n  }')]
+    assert "origine === 'silence'" in bloc
+
+
 def test_la_mesure_est_mise_en_cache():
     """Une horloge ne dérive pas en une minute : interroger un serveur public
     à chaque créneau de 15 s serait un abus, et le pool NTP répond alors par un

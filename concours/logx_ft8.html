@@ -1010,6 +1010,7 @@ if(localStorage.getItem('rc_theme') === null){
     // Formulation PRUDENTE tant que l'horloge n'a pas été mesurée : on
     // constate un décalage, on ne désigne pas encore de coupable.
     const sens = med > 0 ? 'en AVANCE' : 'en RETARD';
+    el.dataset.origine = 'horloge';
     el.textContent = '⚠ Les ' + dtRecents.length + ' dernières stations reçues '
       + 'sont toutes décalées du même côté (' + (med > 0 ? '+' : '')
       + med.toFixed(1) + ' s). Soit l\'horloge de ce PC est ' + sens + ", soit "
@@ -1031,7 +1032,8 @@ if(localStorage.getItem('rc_theme') === null){
       // évite d'envoyer l'opérateur régler une horloge qui n'a rien à se
       // reprocher — exactement l'erreur que j'ai faite le 18/08/2026 avant de
       // mesurer.
-      el.textContent = '⚠ Les stations reçues sont décalées de '
+      el.dataset.origine = 'horloge';
+    el.textContent = '⚠ Les stations reçues sont décalées de '
         + (med > 0 ? '+' : '') + med.toFixed(1) + " s, mais l'horloge de ce PC "
         + 'est juste (mesurée à ' + (ecart >= 0 ? '+' : '') + ecart.toFixed(3)
         + ' s de l\'UTC via ' + mesure.serveur + '). Le décalage vient donc de '
@@ -1043,6 +1045,7 @@ if(localStorage.getItem('rc_theme') === null){
     }
     // MESURÉ : l'horloge est bien fausse. Là, on peut être affirmatif.
     const sensMesure = ecart > 0 ? 'en RETARD' : 'en AVANCE';
+    el.dataset.origine = 'horloge';
     el.textContent = "⚠ L'horloge de ce PC est " + sensMesure + ' de '
       + Math.abs(ecart).toFixed(1) + " s sur l'UTC (mesuré via " + mesure.serveur
       + '). En FT8 tout est calé sur des créneaux de 15 s : au-delà d\'environ '
@@ -1082,7 +1085,25 @@ if(localStorage.getItem('rc_theme') === null){
     const el = document.getElementById('horlogeAlerte');
     if(nbDecodes > 0){
       creneauxSansDecodage = 0;
-      return;   // majAlerteHorloge gère l'affichage quand on décode
+      // ET ON EFFACE. Sans cette ligne, le bandeau « rien ne se décode »
+      // restait affiché ALORS QUE le tableau se remplissait — constaté par
+      // F4GLD sur capture le 18/08/2026 : 9 décodages à l'écran, et au-dessus
+      // un bandeau affirmant le contraire.
+      //
+      // C'est exactement le défaut que la revue avait relevé sur le message
+      // « audio incomplet sur N créneaux » (jamais effacé au retour à la
+      // normale), et je l'ai réintroduit à l'identique en écrivant ce
+      // bandeau-ci. Un état d'alerte doit TOUJOURS avoir son chemin de
+      // retour : c'est la règle, pas le cas particulier.
+      //
+      // On ne touche qu'au message de silence : si majAlerteHorloge a écrit
+      // le sien (décalage d'horloge), il doit survivre — d'où le marqueur.
+      if(el && el.dataset.origine === 'silence'){
+        el.style.display = 'none';
+        el.textContent = '';
+        delete el.dataset.origine;
+      }
+      return;
     }
     let somme = 0;
     // Un échantillon sur 16 : l'ordre de grandeur du RMS suffit largement, et
@@ -1095,6 +1116,7 @@ if(localStorage.getItem('rc_theme') === null){
     }
     creneauxSansDecodage++;
     if(creneauxSansDecodage < CRENEAUX_AVANT_ALERTE || !el) return;
+    el.dataset.origine = 'silence';
     el.textContent = "⚠ Du signal est bien reçu, mais RIEN ne se décode depuis "
       + creneauxSansDecodage + ' créneaux. La cause la plus fréquente est '
       + "l'HEURE DU PC : en FT8 tout est calé sur des créneaux de 15 s, et "

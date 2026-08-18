@@ -236,7 +236,9 @@ def _ctx_bandeau(dts):
     src = _lire(FT8_HTML)
     ctx = py_mini_racer.MiniRacer()
     ctx.eval("""
-      var __el = {textContent: '', style: {display: 'none'}};
+      // dataset : les deux bandeaux (silence / horloge) partagent cet élément
+      // et marquent leur origine pour n'effacer que le leur.
+      var __el = {textContent: '', style: {display: 'none'}, dataset: {}};
       var document = { getElementById: function(id){
         return id === 'horlogeAlerte' ? __el : null; } };
       var dtRecents = [];
