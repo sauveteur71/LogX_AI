@@ -1477,6 +1477,13 @@ function updateKeyerPanels(){
   const macro=document.getElementById('macroPanel');
   const voice=document.getElementById('voicePanel');
   if(macro) macro.style.display = cw ? '' : 'none';
+  // Bouton d'ARRÊT CW : rafraîchi ICI, et pas seulement au sondage matériel.
+  // updateKeyerPanels() est appelée à chaque changement de mode (sélecteur du
+  // carnet comme suivi de la radio) ; sans cet appel, passer en CW laissait le
+  // bouton caché jusqu'au prochain /hardware/state — jusqu'à 3 secondes
+  // pendant lesquelles rien ne permet de couper une émission. Mesuré en
+  // vérification navigateur (18/08/2026), pas supposé.
+  if(typeof updateCwStopBtn === 'function') updateCwStopBtn();
   // DÉFAUT RÉEL CORRIGÉ ICI (F4GLD, 14/08/2026 : « j'ai désactivé tout le
   // keyer vocal mais il apparaît tout de même dans logbook ») : cette
   // condition ne regardait QUE le mode courant, jamais le réglage CONFIG
@@ -2463,6 +2470,23 @@ function contestRequiresLocator(){
   return !!(bricks && Array.isArray(bricks.points) && bricks.points.some(r => r.points === 'per_km'));
 }
 
+// Aligne l'id du QSO local sur celui que le SERVEUR a réellement attribué.
+// L'id proposé par le client (Date.now()) n'est qu'une suggestion : en cas de
+// collision, reserve_qso_id_locked() (logx_http.py) en choisit un autre et,
+// jusqu'à ce correctif, ne le disait pas. Le carnet client repartait alors avec
+// un id qui n'existait nulle part côté serveur.
+//
+// Tolérant par conception : une réponse illisible, sans champ `id`, ou un
+// serveur plus ancien laissent simplement l'id proposé en place — c'est le
+// comportement d'avant, jamais une exception qui ferait échouer l'enregistrement
+// d'un QSO déjà accepté par le serveur.
+async function _adopterIdServeur(res, qso){
+  try{
+    const d = await res.json();
+    if(d && d.id !== undefined && d.id !== null) qso.id = d.id;
+  }catch(e){ /* réponse non JSON : on garde l'id proposé, comme avant */ }
+}
+
 async function submitQSO(){
   const call = document.getElementById('inputCall').value.trim().toUpperCase();
   const rstSent = document.getElementById('inputRSTsent').value.trim() || _rstParDefaut(currentMode);
@@ -2560,6 +2584,17 @@ async function submitQSO(){
       body: JSON.stringify(qso)
     });
     if(res.ok){
+      // Adopter l'id RÉELLEMENT attribué par le serveur AVANT le push : l'id
+      // proposé ici (Date.now()) peut entrer en collision avec un QSO déjà
+      // présent — typiquement juste après un import ADIF, dont les id sont
+      // alloués en série à partir de l'horloge. reserve_qso_id_locked()
+      // (logx_http.py) le remplace alors sans rien dire.
+      // Sans cette ligne, le carnet client gardait un id fantôme : la fusion
+      // delta de /log/list (indexById plus bas) ajoutait le QSO une SECONDE
+      // fois, et undoLastQSO() (logx_edit_qso.js) envoyait
+      // /log/delete/<id périmé> — supprimant un QSO du carnet historique
+      // pendant que le QSO à annuler restait en place.
+      await _adopterIdServeur(res, qso);
       qsoLog.push(qso);
       bcBroadcast('add', qso);
       lastQsoTime = Date.now();
@@ -2599,6 +2634,10 @@ async function submitQSO(){
           body: JSON.stringify({...qso, force:true})
         });
         if(res2.ok){
+          // Même adoption d'id que sur le chemin nominal ci-dessus : un doublon
+          // forcé est un QSO comme un autre côté serveur, il passe par la même
+          // réservation d'id et court donc exactement le même risque.
+          await _adopterIdServeur(res2, qso);
           qsoLog.push(qso); bcBroadcast('add', qso); lastQsoTime = Date.now();
           captureQsoAudioClip(qso).catch(e => console.warn('[REC]', e));
           clearForm(); document.getElementById('inputCall').focus();
@@ -2906,7 +2945,22 @@ async function syncOfflineQueue(){
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({...qso, force:true})
         });
-        if(res.ok) synced.push(qso.id);
+        if(res.ok){
+          // Réaligner la copie du carnet local sur l'id réellement attribué.
+          // La resynchronisation hors ligne est le cas le plus exposé à la
+          // collision : tous les QSO de la file partent d'affilée, donc à
+          // quelques millisecondes les uns des autres. Sans ça, le carnet
+          // affiché gardait des id que le serveur n'a jamais retenus — et
+          // « annuler » visait à côté (revue adversariale du lot, 18/08/2026).
+          const d = await res.json().catch(() => null);
+          if(d && d.id != null && d.id !== qso.id){
+            const local = qsoLog.find(q => q.id === qso.id);
+            if(local){ local.id = d.id; bcBroadcast('add', local); }
+          }
+          // synced garde l'id LOCAL : il sert à filtrer la file d'attente
+          // ci-dessous, qui est indexée sur les id d'origine.
+          synced.push(qso.id);
+        }
       }catch(e){ break; } // serveur encore inaccessible
     }
     if(synced.length){

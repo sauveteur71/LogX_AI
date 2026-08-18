@@ -1665,7 +1665,20 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
           <span class="rig-label"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="14" height="9" rx="1.3"/><line x1="4.5" y1="7" x2="8" y2="2"/><circle cx="6" cy="11.5" r="1.6"/><line x1="10" y1="10.5" x2="14" y2="10.5"/><line x1="10" y1="13" x2="13" y2="13"/></svg> RADIO</span>
           <span class="rig-freq" id="rigFreq">— kHz</span>
           <span class="rig-mode" id="rigMode">—</span>
-          <button class="rig-stop" onclick="rigStopCW()" title="Stopper l'envoi CW en cours">■ STOP CW</button>
+        </div>
+      </div>
+
+      <!-- ARRÊT CW — conteneur PROPRE, hors de #rigPanel et JAMAIS expert-only.
+           Le WinKeyer est routé indépendamment du CAT côté serveur (/rig/stop,
+           logx_http.py) : tant que ce bouton vivait dans #rigPanel (masqué sans
+           CAT), un opérateur WinKeyer sans CAT n'avait AUCUN moyen de couper une
+           émission en cours — ni ce bouton, ni Échap qui n'était branché sur
+           rien. Visibilité pilotée par updateCwStopBtn() (logx_hardware_cat.js)
+           dès qu'une émission CW est possible, par CAT ou par WinKeyer. -->
+      <div class="rig-panel" id="cwStopPanel" style="display:none">
+        <div class="rig-row">
+          <span class="rig-label">CW</span>
+          <button class="rig-stop" onclick="rigStopCW()" title="Stopper l'envoi CW en cours (Échap)">■ STOP CW</button>
         </div>
       </div>
 

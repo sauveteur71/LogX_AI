@@ -123,6 +123,39 @@ class LogXHTTPServer(http.server.ThreadingHTTPServer):
     test d'occupation doit reproduire à l'identique."""
     allow_reuse_address = not WINDOWS
 
+    def handle_error(self, request, client_address):
+        """Journalise une exception non rattrapée dans un handler.
+
+        SANS cette surcharge, une exception levée dans do_GET/do_POST était
+        AVALÉE : socketserver la rattrape à l'intérieur de
+        process_request_thread(), donc elle n'atteint jamais les crochets posés
+        par logx_errorlog.install() (sys.excepthook et threading.excepthook, qui
+        ne voient que les exceptions qui REMONTENT jusqu'au sommet d'un thread).
+        Résultat : rien dans errors.log, rien dans /debug/errors, donc un
+        rapport de bogue vide — pendant que l'opérateur, lui, voyait une simple
+        connexion coupée qu'il attribuait à son réseau.
+
+        La classe de base se contente d'imprimer la trace sur stderr, invisible
+        quand le serveur tourne en fenêtre minimisée (cas nominal :
+        LANCER_LOGX_AI.bat le démarre minimisé). On journalise d'abord, puis on
+        délègue pour ne rien retirer du comportement d'origine."""
+        try:
+            import sys
+            import threading
+            import logx_errorlog
+            import logx_http
+            # Filtre identique à celui de _journaliser_et_500 : une coupure de
+            # liaison n'est pas un bogue serveur. Sans lui, le tampon de 50
+            # entrées de /debug/errors se remplissait de déconnexions normales
+            # et évinçait la vraie panne du rapport de bogue, qui ne joint que
+            # la dernière entrée. (Revue adversariale du lot, 18/08/2026.)
+            if not logx_http._est_incident_reseau(sys.exc_info()[1]):
+                logx_errorlog._record(*sys.exc_info(),
+                                      thread_name=threading.current_thread().name)
+        except Exception:
+            pass   # un bug du journal ne doit jamais masquer l'erreur d'origine
+        super().handle_error(request, client_address)
+
 
 # ─── A) DÉTECTION AVANT LE BIND ──────────────────────────────────────────────
 
