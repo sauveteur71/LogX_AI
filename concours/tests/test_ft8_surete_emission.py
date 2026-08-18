@@ -189,11 +189,24 @@ def test_la_source_audio_est_bien_memorisee_pour_pouvoir_etre_coupee():
     """couperAudioTx() ne peut rien arrêter si jouerForme() ne lui laisse pas
     de prise sur la source en cours."""
     corps = _extraire_fonction(_lire(FT8_HTML), 'jouerForme')
-    assert 'sourceTxEnCours = src' in corps
+    # Renommé le 18/08/2026 : la prise UNIQUE est devenue un ENSEMBLE. Une
+    # seule variable était écrasée par une seconde émission programmée sur le
+    # même créneau, et couperAudioTx() n abordait alors que la dernière onde.
+    assert 'sourcesTxVivantes.add(src)' in corps
 
 
 def test_echap_est_bien_cable_sur_la_coupure():
     """Même geste que le STOP CW du LOGBOOK : la revue de sûreté exige un
-    raccourci, pas seulement un bouton."""
+    raccourci, pas seulement un bouton.
+
+    L'expression cherchait « key === 'Escape' » suivi de stopEmission sur la
+    MÊME ligne (ou à 200 caractères). Elle figeait donc l'écriture de la
+    condition : la réécrire en sortie anticipée (« if(e.key !== 'Escape')
+    return; »), ce qu'a imposé l'ajout d'un troisième état à surveiller, la
+    faisait rougir sans la moindre régression. On vérifie maintenant que la
+    touche et la coupure vivent dans le MÊME gestionnaire, quelle que soit la
+    forme du test."""
     src = _lire(FT8_HTML)
-    assert re.search(r"key\s*===\s*'Escape'[^\n]*stopEmission|Escape[\s\S]{0,200}stopEmission", src)
+    i = src.index("addEventListener('keydown'")
+    zone = src[i:i + 700]
+    assert 'Escape' in zone and 'stopEmission' in zone

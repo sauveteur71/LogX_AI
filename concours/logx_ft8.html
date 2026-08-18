@@ -1393,6 +1393,9 @@ if(localStorage.getItem('rc_theme') === null){
   }
 
   function arreterRx(){
+    // Arrêter l'écoute, c'est quitter le trafic : une émission programmée n'a
+    // plus lieu d'être.
+    annulerEmissionsProgrammees();
     rxActif = false;
     if(cycleTimer) clearInterval(cycleTimer);
     cycleTimer = null;
@@ -1427,6 +1430,9 @@ if(localStorage.getItem('rc_theme') === null){
   let txArmed = false;
   window.onArmChange = function(){
     txArmed = document.getElementById('armTx').checked;
+    // Décocher « Activer l'émission » est un ordre d'arrêt aussi net que le
+    // bouton STOP : ce qui est programmé ne doit plus partir.
+    if(!txArmed) annulerEmissionsProgrammees();
     document.getElementById('sendBtn').disabled = !txArmed;
     document.getElementById('armLabel').classList.toggle('armed', txArmed);
   };
@@ -1473,11 +1479,42 @@ if(localStorage.getItem('rc_theme') === null){
   // EN ÉMISSION » à chaque tentative d'émission. Une alarme qui crie pour
   // rien finit par ne plus être lue.
   let pttDemande = false;      // une demande d'émission est partie, sans relâchement confirmé
+
+  // ─── ANNULER UNE ÉMISSION DÉJÀ PROGRAMMÉE ────────────────────────────────
+  //
+  // envoyerMessage() aligne l'émission sur le prochain créneau UTC de 15 s : il
+  // peut donc s'écouler jusqu'à 16 s entre le clic sur « Envoyer » et le PTT.
+  // Pendant tout ce temps, il ne testait txArmed qu'UNE FOIS, AVANT l'attente.
+  //
+  // Mesuré en navigateur le 18/08/2026, horodaté :
+  //     15:38:45  clic Envoyer  -> « Programmé pour 15:39:00 UTC… »
+  //     15:38:49  ordre d'arrêt
+  //     15:38:55  écran : « Émission coupée — retour à l'écoute »
+  //     15:39:00  PTT ON        <- la radio passe en émission
+  //     15:39:12  PTT OFF          12,9 s d'émission, 10,7 s APRÈS l'arrêt
+  //
+  // Ni STOP ÉMISSION ni Échap ne pouvaient l'empêcher : stopEmission() coupait
+  // un audio pas encore joué et relâchait un PTT pas encore demandé, pendant
+  // que la promesse d'attente continuait tranquillement son chemin. L'écran
+  // affirmait le contraire de ce que faisait la radio.
+  //
+  // Le compteur ci-dessous est le SEUL mécanisme qui atteint une émission
+  // encore en attente : envoyerMessage() capture sa valeur avant l'attente et
+  // la revérifie après. Tout ordre d'arrêt l'incrémente, donc toute émission
+  // programmée avant cet ordre se reconnaît périmée et renonce.
+  let generationTx = 0;
+  function annulerEmissionsProgrammees(){ generationTx++; }
+
+  // Vrai entre la programmation et le départ effectif de l'émission.
+  let emissionProgrammee = false;
   let chienDeGardePtt = null;
 
   function majBoutonStop(){
     const b = document.getElementById('ft8StopBtn');
-    if(b) b.style.display = pttDemande ? '' : 'none';
+    // pttDemande OU emissionProgrammee : pendant l'attente du créneau le PTT
+    // n'est pas encore engagé, mais il y a bel et bien quelque chose à
+    // annuler. Le bouton disparaissait justement au moment où il servait.
+    if(b) b.style.display = (pttDemande || emissionProgrammee) ? '' : 'none';
   }
 
   function alarmePtt(msg){
@@ -1568,16 +1605,31 @@ if(localStorage.getItem('rc_theme') === null){
   // remettre le poste en émission tout seul juste après notre PTT OFF : le
   // bouton de coupure pouvait donc ne rien couper du tout.
   //
-  // On garde une prise sur la source audio en cours pour pouvoir l'arrêter.
-  let sourceTxEnCours = null;
+  // Prises sur les sources audio VIVANTES. Un ENSEMBLE, pas une variable
+  // unique : deux émissions peuvent se retrouver programmées sur le même
+  // créneau (deux double-clics à quelques secondes d'intervalle), et la
+  // seconde écrasait la prise sur la première. couperAudioTx() n'arrêtait
+  // alors que la dernière onde — l'autre continuait de moduler le poste
+  // jusqu'à sa fin naturelle, mesurée à 11,6 s APRÈS l'ordre d'arrêt, pendant
+  // que l'écran affichait « Émission coupée — retour à l'écoute ».
+  // Sur un poste piloté en VOX, cette onde résiduelle le remet en émission
+  // juste après le relâchement du PTT.
+  const sourcesTxVivantes = new Set();
 
   function couperAudioTx(){
-    if(!sourceTxEnCours) return;
-    try{ sourceTxEnCours.stop(); }catch(e){}   // déjà terminée : stop() lève, sans conséquence
-    sourceTxEnCours = null;
+    // Copie avant parcours : stop() déclenche onended, qui retire l'élément
+    // de l'ensemble — muter pendant l'itération est une mauvaise idée.
+    for(const src of Array.from(sourcesTxVivantes)){
+      try{ src.stop(); }catch(e){}   // déjà terminée : stop() lève, sans conséquence
+    }
+    sourcesTxVivantes.clear();
   }
 
   window.stopEmission = async function(){
+    // EN PREMIER : une émission déjà programmée doit renoncer. Sans cela le
+    // bouton ne coupait que ce qui était déjà en cours — c'est-à-dire rien,
+    // pendant l'attente du créneau.
+    annulerEmissionsProgrammees();
     desarmerChienDeGarde();
     // Une émission déjà PROGRAMMÉE (en attente de sa frontière de créneau)
     // n'est pas en cours : ni le PTT ni l'audio ne la retiennent, seul le
@@ -1606,7 +1658,14 @@ if(localStorage.getItem('rc_theme') === null){
   // c'est même le moment où un opérateur appuie le plus souvent.
   document.addEventListener('keydown', (e) => {
     if(e.key !== 'Escape') return;
-    if(!pttDemande && !seq) return;
+    // TROIS états où Échap doit agir, et ils ne se recouvrent pas :
+    //   pttDemande        — le PTT est engagé, la trame est sur l'air
+    //   emissionProgrammee— une trame attend son créneau (jusqu'à 16 s)
+    //   seq               — une séquence est en cours, même entre deux trames
+    // Verrouiller sur un seul laisse un trou : c'est exactement ce que
+    // corrigeait le correctif d'annulation, et le séquenceur en ajoute un
+    // troisième par-dessus.
+    if(!pttDemande && !emissionProgrammee && !seq) return;
     e.preventDefault();
     window.stopEmission();
   });
@@ -1633,7 +1692,7 @@ if(localStorage.getItem('rc_theme') === null){
     // puissent réellement couper le son (voir couperAudioTx). src.stop()
     // déclenche onended, donc l'attente ci-dessous se résout normalement :
     // le finally d'envoyerMessage() s'exécute et relâche le PTT.
-    sourceTxEnCours = src;
+    sourcesTxVivantes.add(src);
     if(outId && HTMLMediaElement.prototype.setSinkId){
       // Route vers un périphérique de sortie précis : MediaStreamDestination
       // + <audio> caché (setSinkId n'existe que sur HTMLMediaElement, pas
@@ -1652,29 +1711,22 @@ if(localStorage.getItem('rc_theme') === null){
       src.start();
       await new Promise(resolve => { src.onended = resolve; });
     }
-    sourceTxEnCours = null;
+    sourcesTxVivantes.delete(src);
     try{ txCtx.close(); }catch(e){}
   }
 
-  // ─── Jeton d'annulation des émissions PROGRAMMÉES ────────────────────────
+  // Le jeton d'annulation des émissions programmées (generationTx /
+  // annulerEmissionsProgrammees) est déclaré plus haut, avec le reste de
+  // l'état d'émission — il est arrivé par le correctif de sûreté extrait de
+  // cette branche et fusionné seul. Le séquenceur s'en sert tel quel.
   //
-  // envoyerMessage() n'émet pas tout de suite : il attend la frontière du
-  // prochain créneau de 15 s (jusqu'à ~14 s d'attente). Pendant cette
-  // attente, la demande n'était surveillée par RIEN : ni Échap, ni STOP, ni
-  // un décochage de « Activer l'émission » ne pouvaient l'empêcher de partir.
-  // Le seul moyen d'annuler une attente déjà engagée dans un setTimeout, c'est
-  // de faire vieillir un jeton que la continuation revérifie à son réveil.
-  //
-  // POURQUOI un compteur et pas un booléen « annulé » : un booléen partagé par
-  // toutes les invocations d'émission a déjà été un défaut confirmé ici. Un
-  // compteur donne à CHAQUE demande sa propre identité (maGeneration), donc
-  // une annulation ne peut jamais tuer la mauvaise émission — ni laisser
-  // vivre celle qu'on visait.
-  let generationTx = 0;
-  function annulerEmissionsProgrammees(){
-    generationTx++;
-  }
-
+  // Il a existé ICI une seconde déclaration `let generationTx`, introduite
+  // avant l'extraction, que la fusion a laissée en double. Un `let` déclaré
+  // deux fois dans la même portée n'est pas une redondance inoffensive :
+  // c'est une erreur de SYNTAXE, qui empêche le bloc <script> ENTIER d'être
+  // analysé — la page entière serait morte, sans le moindre message à
+  // l'écran. Attrapé par test_bloc_script_entier_s_evalue_jusqu_au_bout, qui
+  // existe exactement pour ça.
   let dernierAppelEnvoye = '';
   // `texte` EXPLICITE (séquenceur) ou absent (chemin manuel : on relit le
   // champ de saisie, comportement inchangé). Le séquenceur ne doit JAMAIS
@@ -1683,6 +1735,27 @@ if(localStorage.getItem('rc_theme') === null){
   // n'importe quoi — signé de l'indicatif d'autrui dans le second cas.
   window.envoyerMessage = async function(texte){
     if(!txArmed) return;
+    // GARDE DE RÉ-ENTRANCE. repondreEtEnvoyer() (double-clic) appelle cette
+    // fonction DIRECTEMENT, sans passer par le bouton : sendBtn.disabled ne
+    // protégeait donc rien. Deux double-clics dans la même fenêtre de 15 s
+    // programmaient DEUX émissions sur le MÊME créneau — deux PTT, deux ondes
+    // FT8 simultanées dans la carte son. Le séquenceur passe par ici aussi :
+    // la garde le couvre donc du même geste.
+    //
+    // On teste emissionProgrammee SEUL, pas pttDemande : ce dernier peut
+    // rester à true après un relâchement non confirmé (voir l'alarme de
+    // relacherPtt), et le prendre en compte interdirait toute émission
+    // ultérieure — ce que le code prévoit explicitement de permettre, voir
+    // emissionAnterieureNonRelachee plus bas.
+    //
+    // Et on le DIT : un refus silencieux laisserait l'opérateur cliquer sans
+    // comprendre pourquoi rien ne change.
+    if(emissionProgrammee){
+      const st = document.getElementById('txStatus');
+      st.textContent = 'Une émission est déjà programmée — coupe-la d\'abord (STOP ou Échap)';
+      st.className = 'tx-status wait';
+      return;
+    }
     const brut = (texte !== undefined && texte !== null)
                ? texte : document.getElementById('txText').value;
     const text = String(brut).trim().toUpperCase();
@@ -1705,7 +1778,12 @@ if(localStorage.getItem('rc_theme') === null){
     if(prochain - now < 1000) prochain += 15000;   // pas assez de marge pour préparer PTT+lecture
     statusEl.textContent = `Programmé pour ${new Date(prochain).toISOString().slice(11,19)} UTC…`;
     statusEl.className = 'tx-status wait';
+    // Le bouton de coupure doit être atteignable pendant toute l'attente :
+    // pendant ces ~15 s le PTT n'est pas encore engagé, mais il y a bel et
+    // bien quelque chose à annuler.
+    emissionProgrammee = true; majBoutonStop();
     await new Promise(resolve => setTimeout(resolve, prochain - Date.now()));
+    emissionProgrammee = false; majBoutonStop();
 
     // REVÉRIFICATION APRÈS L'ATTENTE — la seule ligne qui empêche une trame
     // annulée de partir. Les deux contrôles comptent, et pour des raisons
