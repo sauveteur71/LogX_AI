@@ -99,10 +99,17 @@ function expandMacro(text){
   const nr = nrField || (currentExchange.auto_serial
     ? String((serialByBand[currentBand] || 0) + 1).padStart(3,'0')
     : '');
-  // {HISCALL} AVANT {CALL} : l'inverse ferait que le {CALL} de « {HISCALL} »
-  // serait substitué en premier, laissant un « HIS<ton indicatif> » sur l'air.
-  return text.replace(/{HISCALL}/g,his)
-             .replace(/{CALL}/g,call).replace(/{LOC}/g,loc).replace(/{NR}/g,nr);
+  // {HISCALL} en DERNIER, et la justification initiale était fausse : /{CALL}/
+  // ne peut PAS s'accrocher à l'intérieur de « {HISCALL} » (il faudrait une
+  // accolade ouvrante juste avant « CALL », or il y a « S »). Les deux ordres
+  // sont donc équivalents sur ce point — mais un seul est sûr sur un autre :
+  // substituer {HISCALL} en premier réinjecte dans le texte une valeur venue
+  // de la SAISIE, qui repasse ensuite sous les trois substitutions suivantes.
+  // Un indicatif contenant « {LOC} » (collé depuis un spot de cluster, champ
+  // mal rempli) serait alors ré-interprété. On ne re-substitue jamais une
+  // valeur d'origine externe. (Revue adversariale du lot, 18/08/2026.)
+  return text.replace(/{CALL}/g,call).replace(/{LOC}/g,loc).replace(/{NR}/g,nr)
+             .replace(/{HISCALL}/g,his);
 }
 function renderMacroPanel(){
   const btns = document.getElementById('macroBtns');

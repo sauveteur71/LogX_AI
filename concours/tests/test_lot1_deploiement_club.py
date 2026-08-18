@@ -186,6 +186,44 @@ def test_jeton_non_ascii_refuse_proprement_sans_planter():
     assert h.Handler._client_authorized(faux_ok) is True
 
 
+def test_corps_lu_est_reinitialise_a_chaque_requete():
+    """Défaut trouvé par la revue adversariale : l'instance du handler est
+    REUTILISEE pour toutes les requêtes d'une connexion persistante
+    (BaseHTTPRequestHandler.handle boucle sur handle_one_request). Un marqueur
+    posé par un premier POST restait vrai pour les suivants — une route qui
+    lèverait avant d'avoir lu son corps n'était alors plus drainée, et ses
+    octets contaminaient la requête SUIVANTE."""
+    import inspect
+    src = inspect.getsource(h.Handler.do_POST)
+    assert '_corps_lu = False' in src, \
+        'do_POST doit réinitialiser _corps_lu (état par requête, pas par connexion)'
+
+
+def test_incident_reseau_nest_pas_journalise_comme_un_bogue():
+    """Défaut trouvé par la revue : sans filtre, une déconnexion client normale
+    (changement de page pendant le transfert d'un gros carnet, antivirus qui
+    coupe) était écrite dans errors.log ET dans le tampon de /debug/errors.
+    Or formatLastErrorForReport() ne joint que la DERNIÈRE entrée : la
+    déconnexion chassait la vraie panne du rapport de bogue — l'inverse exact
+    du but de ce filet."""
+    assert h._est_incident_reseau(ConnectionResetError()) is True
+    assert h._est_incident_reseau(BrokenPipeError()) is True
+    assert h._est_incident_reseau(ConnectionAbortedError()) is True
+    assert h._est_incident_reseau(TimeoutError()) is True
+    # Un vrai bogue doit continuer d'être journalisé.
+    assert h._est_incident_reseau(RuntimeError('vrai bogue')) is False
+    assert h._est_incident_reseau(ValueError('vrai bogue')) is False
+    assert h._est_incident_reseau(None) is False
+
+
+def test_winkeyer_sans_port_nest_pas_annonce_actif():
+    """Sans port, envoyer() échoue de toute façon côté serveur : annoncer
+    « actif » ferait router les macros vers une clé injoignable au lieu de les
+    copier dans le presse-papier — le repli serait perdu."""
+    assert h._winkeyer_state_dict({'winkeyer_enabled': '1', 'winkeyer_port': ''})['enabled'] is False
+    assert h._winkeyer_state_dict({'winkeyer_enabled': '1', 'winkeyer_port': 'COM9'})['enabled'] is True
+
+
 def test_winkeyer_state_dict_ne_fait_aucune_io_serie(monkeypatch):
     """Garde-fou de performance : /hardware/state est sondé toutes les
     quelques secondes. On ne renvoie QUE le drapeau de configuration —

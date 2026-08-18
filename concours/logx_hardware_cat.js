@@ -167,15 +167,29 @@ function rigStopCW(){
 // émetteur sans coupure atteignable.
 let winkeyerState = {enabled:false};
 
-// Émission CW possible ? — CAT actif OU WinKeyer actif. Le mode vient de la
-// radio quand le CAT le donne (rigState.mode non vide), sinon du sélecteur du
-// carnet : même priorité que updateKeyerPanels()/esmSend(), pour qu'un
-// opérateur en CW sans CAT soit détecté.
+// Une manipulation CW est-elle PILOTABLE ? — CAT actif OU WinKeyer actif,
+// SANS condition de mode. C'est le critère de l'ARRÊT.
+//
+// Distinction essentielle, et corrigée après coup (revue adversariale du lot,
+// 18/08/2026) : un message CW déjà parti continue de se vider du tampon du
+// manipulateur même si l'opérateur change de mode entre-temps. Conditionner le
+// coupe-circuit au mode courant faisait donc DISPARAÎTRE le bouton et
+// désarmer Échap pendant qu'une émission était en cours — précisément le trou
+// que ce lot voulait fermer. POST /rig/stop est inoffensif quand rien n'émet :
+// c'est le prix, dérisoire, d'un coupe-circuit toujours disponible.
+function cwPiloteDisponible(){
+  return !!((typeof rigState !== 'undefined' && rigState.enabled) || winkeyerState.enabled);
+}
+
+// Faut-il ROUTER une macro vers la clé plutôt que le presse-papier ? — là,
+// le mode compte : en SSB une macro se copie, elle ne se manipule pas.
+// Le mode vient de la radio quand le CAT le donne (rigState.mode non vide),
+// sinon du sélecteur du carnet : même priorité que updateKeyerPanels()/
+// esmSend(), pour qu'un opérateur en CW sans CAT soit détecté.
 function cwEmissionPossible(){
   const mode = (typeof rigState !== 'undefined' && rigState.mode)
     || (typeof currentMode !== 'undefined' ? currentMode : '');
-  const pilote = (typeof rigState !== 'undefined' && rigState.enabled) || winkeyerState.enabled;
-  return !!pilote && /CW/i.test(mode || '');
+  return cwPiloteDisponible() && /CW/i.test(mode || '');
 }
 
 // Appelée depuis refreshHardware(). Le bouton STOP CW vit dans son propre
@@ -188,7 +202,10 @@ function applyWinkeyerState(d){
 
 function updateCwStopBtn(){
   const panel = document.getElementById('cwStopPanel');
-  if(panel) panel.style.display = cwEmissionPossible() ? 'block' : 'none';
+  // cwPiloteDisponible() et NON cwEmissionPossible() : voir la distinction
+  // ci-dessus. Le coupe-circuit reste offert tant qu'une manipulation est
+  // pilotable, même si le sélecteur de mode a bougé depuis l'envoi.
+  if(panel) panel.style.display = cwPiloteDisponible() ? 'block' : 'none';
 }
 
 // ─── AMPLIFICATEUR HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) ──────

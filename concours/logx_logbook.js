@@ -2945,7 +2945,22 @@ async function syncOfflineQueue(){
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({...qso, force:true})
         });
-        if(res.ok) synced.push(qso.id);
+        if(res.ok){
+          // Réaligner la copie du carnet local sur l'id réellement attribué.
+          // La resynchronisation hors ligne est le cas le plus exposé à la
+          // collision : tous les QSO de la file partent d'affilée, donc à
+          // quelques millisecondes les uns des autres. Sans ça, le carnet
+          // affiché gardait des id que le serveur n'a jamais retenus — et
+          // « annuler » visait à côté (revue adversariale du lot, 18/08/2026).
+          const d = await res.json().catch(() => null);
+          if(d && d.id != null && d.id !== qso.id){
+            const local = qsoLog.find(q => q.id === qso.id);
+            if(local){ local.id = d.id; bcBroadcast('add', local); }
+          }
+          // synced garde l'id LOCAL : il sert à filtrer la file d'attente
+          // ci-dessous, qui est indexée sur les id d'origine.
+          synced.push(qso.id);
+        }
       }catch(e){ break; } // serveur encore inaccessible
     }
     if(synced.length){

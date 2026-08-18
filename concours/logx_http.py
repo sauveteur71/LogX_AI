@@ -1639,6 +1639,30 @@ def _acom_state_dict(cfg_snap):
     return acom.get_state(cfg_snap)
 
 
+def _est_incident_reseau(exc):
+    """Cette exception est-elle une simple coupure de liaison, et non un bogue ?
+
+    Un client qui change de page pendant le transfert d'un gros carnet, un
+    antivirus qui coupe une connexion en plein fichier, une socket qui expire :
+    ce sont des évènements NORMAUX côté serveur, pas des défauts à signaler.
+
+    Sans ce filtre, le filet d'erreurs se retournait contre son propre but :
+    formatLastErrorForReport() (logx_statusbar.js) ne joint au signalement que
+    la DERNIÈRE entrée du journal. Une déconnexion survenant après la vraie
+    panne chassait donc celle-ci du rapport, et le journal se remplissait de
+    bruit — l'exact inverse de ce que ce filet cherche à obtenir.
+    (Défaut trouvé par la revue adversariale du lot, 18/08/2026.)
+
+    ConnectionError couvre déjà ConnectionReset/Aborted/Refused et
+    BrokenPipeError (sous-classes en Python 3) ; TimeoutError et OSError avec
+    WinError 10053/10054 complètent pour Windows."""
+    if isinstance(exc, (ConnectionError, TimeoutError)):
+        return True
+    # ConnectionResetError sous un autre habillage (certaines piles Windows
+    # remontent un OSError nu) : on se fie au code d'erreur, pas au type.
+    return isinstance(exc, OSError) and getattr(exc, 'winerror', None) in (10053, 10054)
+
+
 def _winkeyer_state_dict(cfg_snap):
     """Le WinKeyer est-il ACTIVÉ en configuration ? — pas son état de liaison.
 
@@ -1656,7 +1680,13 @@ def _winkeyer_state_dict(cfg_snap):
     Ouvrir le port pour tester la liaison ici coûterait un aller-retour série à
     chaque sondage et ferait exactement ce que le reste du fichier évite."""
     import logx_winkeyer as wk
-    return {'enabled': wk.parametres(cfg_snap)['enabled']}
+    p = wk.parametres(cfg_snap)
+    # `enabled` ET `port` : sans port renseigné, envoyer() échoue de toute façon
+    # côté serveur. Annoncer « actif » au client lui ferait router ses macros
+    # vers une clé injoignable au lieu de les copier dans le presse-papier —
+    # le repli serait perdu et la macro ne partirait nulle part (revue
+    # adversariale du lot, 18/08/2026). Toujours aucune I/O série ici.
+    return {'enabled': bool(p['enabled'] and p['port'])}
 
 
 # ─── WAIT-AND-POUNCE : le câblage, niveaux 3 et 4 ────────────────────────────
@@ -2046,8 +2076,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import sys
             import threading
             import logx_errorlog
-            logx_errorlog._record(*sys.exc_info(),
-                                  thread_name=threading.current_thread().name)
+            if not _est_incident_reseau(sys.exc_info()[1]):
+                logx_errorlog._record(*sys.exc_info(),
+                                      thread_name=threading.current_thread().name)
         except Exception:
             pass
         # Vider le corps AVANT de répondre, sinon le 500 n'arrive jamais.
@@ -4874,6 +4905,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # « mieux » n'est pas « toutes » : les routes restantes tuaient la
         # requête en silence — et en POST c'est un enregistrement de QSO ou une
         # mise à jour de configuration qui disparaît sans un mot.
+        #
+        # RÉINITIALISATION PAR REQUÊTE, indispensable : BaseHTTPRequestHandler
+        # réutilise LA MÊME instance pour toutes les requêtes d'une connexion
+        # persistante (handle() boucle sur handle_one_request() tant que
+        # close_connection est faux). Sans cette ligne, le marqueur posé par un
+        # premier POST restait vrai pour tous les suivants : une route qui
+        # lèverait AVANT d'avoir lu son corps ne serait alors plus drainée, et
+        # ses octets seraient lus comme la requête SUIVANTE — la
+        # désynchronisation même que ce filet est censé prévenir.
+        # (Trouvé par la revue adversariale du lot, 18/08/2026.)
+        self._corps_lu = False
         try:
             return self._do_POST_impl()
         except Exception:
@@ -4951,11 +4993,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.close_connection = True
             self._json({'error': 'Corps de requête trop volumineux'}, 413)
             return
-        body = self.rfile.read(length)
-        # Marqueur pour _journaliser_et_500() : le corps est consommé, il ne
-        # doit SURTOUT pas être relu si une route lève plus bas (une seconde
-        # lecture bloquerait jusqu'au délai d'expiration de la socket).
+        # Marqueur posé AVANT la lecture, pas après : il signale l'INTENTION de
+        # consommer. Si rfile.read() lui-même lève (client parti en plein envoi),
+        # une partie des octets a déjà quitté la socket — les relire dans
+        # _journaliser_et_500() bloquerait jusqu'au délai d'expiration en
+        # attendant des octets qui n'arriveront jamais.
         self._corps_lu = True
+        body = self.rfile.read(length)
 
         # Réception spots cluster depuis le navigateur (HTTPS bloqué côté serveur).
         # NB : cette route vivait dans do_GET avec un test "method == 'POST'"
@@ -8164,6 +8208,14 @@ form.addEventListener('submit', async (e) => {{
                 self.close_connection = True
             self._json({'ok': False, 'error': 'Corps de requête trop volumineux'}, 413)
             return
+        # Même marqueur que dans _do_POST_impl : cette route est traitée AVANT
+        # le chemin nominal de lecture du corps (aiguillage en tête de
+        # _do_POST_impl) et lit rfile pour son propre compte. Sans lui,
+        # _journaliser_et_500() relirait un corps déjà consommé si la
+        # vérification du mot de passe levait — et bloquerait le fil jusqu'au
+        # délai d'expiration de 30 s, sur une route NON authentifiée qui plus
+        # est. (Revue adversariale du lot, 18/08/2026.)
+        self._corps_lu = True
         body = self.rfile.read(length) if length else b''
         try:
             payload = json.loads(body) if body else {}

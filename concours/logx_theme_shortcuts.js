@@ -191,7 +191,12 @@ document.addEventListener('keydown', e => {
     // Conditionné par cwEmissionPossible() plutôt qu'inconditionnel, pour ne
     // pas émettre une requête réseau à chaque Échap sur une station sans
     // manipulation CW.
-    if(typeof cwEmissionPossible === 'function' && cwEmissionPossible()
+    // cwPiloteDisponible() et NON cwEmissionPossible() : un message parti
+    // continue de se vider du tampon du manipulateur même après un changement
+    // de mode. Conditionner Échap au mode COURANT désarmait le coupe-circuit
+    // en pleine émission (revue adversariale du lot, 18/08/2026). Échap étant
+    // invisible, l'offrir large ne coûte rien à l'interface.
+    if(typeof cwPiloteDisponible === 'function' && cwPiloteDisponible()
        && typeof rigStopCW === 'function') rigStopCW();
     // Bandeau de confirmation non bloquant (chantier dialogues non bloquants,
     // 10/08/2026) : un confirm() natif se fermait déjà sur Échap (= refus) --

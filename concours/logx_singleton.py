@@ -143,8 +143,15 @@ class LogXHTTPServer(http.server.ThreadingHTTPServer):
             import sys
             import threading
             import logx_errorlog
-            logx_errorlog._record(*sys.exc_info(),
-                                  thread_name=threading.current_thread().name)
+            import logx_http
+            # Filtre identique à celui de _journaliser_et_500 : une coupure de
+            # liaison n'est pas un bogue serveur. Sans lui, le tampon de 50
+            # entrées de /debug/errors se remplissait de déconnexions normales
+            # et évinçait la vraie panne du rapport de bogue, qui ne joint que
+            # la dernière entrée. (Revue adversariale du lot, 18/08/2026.)
+            if not logx_http._est_incident_reseau(sys.exc_info()[1]):
+                logx_errorlog._record(*sys.exc_info(),
+                                      thread_name=threading.current_thread().name)
         except Exception:
             pass   # un bug du journal ne doit jamais masquer l'erreur d'origine
         super().handle_error(request, client_address)

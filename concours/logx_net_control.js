@@ -110,6 +110,13 @@ async function netLogQso(qso){
     const res = await fetch('/log/add', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(qso)});
     if(res.ok){
+      // Adopter l'id attribué par le serveur AVANT le push, comme sur les deux
+      // chemins de logx_logbook.js. Ce site avait été manqué au premier
+      // passage (revue adversariale du lot, 18/08/2026) : le contrôle de net
+      // est le cas le PLUS exposé, puisque netLogAllChecked() enregistre tout
+      // un lot d'un coup — donc plusieurs QSO à la même milliseconde, ce qui
+      // est exactement la condition de collision d'id.
+      if(typeof _adopterIdServeur === 'function') await _adopterIdServeur(res, qso);
       qsoLog.push(qso);
       bcBroadcast('add', qso);
       return true;
