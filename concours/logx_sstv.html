@@ -121,6 +121,13 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
   </div>
 </header>
 
+<!-- Mode DÉBUTANT/EXPERT : cette page détachée n'a pas de barre de statut
+     (logx_statusbar.js), seul endroit où la règle « body.simple-mode
+     .expert-only » était injectée — sans ce socle, marquer un élément
+     expert-only ici ne masquerait rien. Chargé AVANT les scripts qui
+     construisent l'interface, et placé dans <body> pour que la classe soit
+     posée avant le parsing du contenu (pas de flash de réglage avancé). -->
+<script src="logx_uimode.js"></script>
 <script src="logx_i18n.js"></script>
 <script src="logx_sstvdecoder.js"></script>
 <script src="logx_tx_audio.js"></script>
@@ -137,7 +144,13 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
     <div class="controls">
       <button class="btn" id="sstvStartBtn" onclick="toggleSstvDecoder()">▶ Démarrer</button>
       <button class="btn" onclick="sstvSauverImage()" title="Télécharger l'image affichée en PNG"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h9l3 3v10a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-12a.5.5 0 0 1 .5-.5z"/><rect x="5.5" y="2.5" width="6" height="4"/><rect x="5" y="10" width="8" height="4.5"/></svg> PNG</button>
-      <button class="btn" onclick="sstvEffacerImage()" title="Effacer l'image affichée"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg></button>
+      <!-- expert-only : nettoyage MANUEL du canvas. Une nouvelle réception
+           efface déjà l'image précédente toute seule (onDebutImage() redonne
+           width/height puis remplit en noir, logx_sstv_panel.js) — un
+           débutant n'a donc jamais besoin de ce bouton pour recevoir l'image
+           suivante ni pour émettre. Seul contrôle de la page dont l'étiquette
+           est une icône nue, en plus. -->
+      <button class="btn expert-only" onclick="sstvEffacerImage()" title="Effacer l'image affichée"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="5" x2="14.5" y2="5"/><path d="M6 5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V5"/><path d="M5 5l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><line x1="9" y1="7.5" x2="9" y2="12.5"/></svg></button>
       <span class="status" id="sstvStatus"></span>
     </div>
     <canvas id="sstvCanvas" width="320" height="256"></canvas>

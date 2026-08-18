@@ -40,6 +40,31 @@ let _qrzTimer = null, _qrzSeq = 0;
 let _stateAnnuaire = null;
 const CALLBOOK_SOURCE_LABEL = {hamqth: 'HamQTH', hamdb: 'HamDB'};  // QRZ = pas de tag (source par défaut)
 
+// Dernière fiche d'annuaire reçue, CONSERVÉE pour l'enregistrement du QSO.
+// Jusqu'ici, nom et QTH étaient récupérés, affichés à la frappe… puis JETÉS :
+// seuls le locator et l'état US survivaient à l'enregistrement. Un opérateur
+// qui relit son carnet six mois plus tard n'avait donc plus aucune trace de
+// QUI il avait contacté — alors que l'information avait bel et bien transité.
+//
+// L'indicatif est mémorisé AVEC la fiche, et revérifié à l'enregistrement :
+// sans ça, une fiche encore affichée pour un indicatif abandonné (l'opérateur
+// efface et retape) serait attachée au mauvais QSO. Même raison d'être que le
+// jeton _qrzSeq qui protège déjà l'AFFICHAGE des réponses tardives.
+let _callbookCourant = null;
+
+// Lue par submitQSO() (logx_logbook.js). Rend {} si la fiche mémorisée ne
+// correspond pas à l'indicatif en cours d'enregistrement — jamais une donnée
+// approximative : mieux vaut un champ vide qu'un nom faux dans le carnet.
+function callbookPourQso(call){
+  const c = String(call || '').trim().toUpperCase();
+  if(!_callbookCourant || !c || _callbookCourant.call !== c) return {};
+  const out = {};
+  if(_callbookCourant.name) out.name = _callbookCourant.name;
+  if(_callbookCourant.qth) out.qth = _callbookCourant.qth;
+  if(_callbookCourant.country) out.country = _callbookCourant.country;
+  return out;
+}
+
 function lookupQRZ(call){
   clearTimeout(_qrzTimer);
   const row = document.getElementById('qrzInfoRow');
@@ -54,6 +79,15 @@ function lookupQRZ(call){
       if(!r.ok || seq !== _qrzSeq) return;
       const d = await r.json();
       if(!d.ok){ row.style.display = 'none'; return; }
+      // Mémoriser AVANT l'affichage : ce sont les mêmes données, mais elles
+      // doivent désormais survivre à l'enregistrement (voir _callbookCourant).
+      // On garde les valeurs BRUTES, non échappées : l'échappement ci-dessous
+      // ne concerne que l'injection en innerHTML. Le carnet, lui, stocke du
+      // texte — et l'export ADIF ré-échappe selon ses propres règles.
+      _callbookCourant = {
+        call: String(call || '').trim().toUpperCase(),
+        name: d.name || '', qth: d.qth || '', country: d.country || '',
+      };
       // Données d'annuaires en ligne tiers (QRZ/HamQTH/HamDB) : origine Internet
       // hors du contrôle de l'utilisateur → échappées avant insertion en innerHTML
       // (un champ QTH contenant du HTML exécuterait sinon du script à la frappe).

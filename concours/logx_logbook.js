@@ -2227,17 +2227,30 @@ function renderBandButtons(contest){
 }
 
 // Correspondance mode affiché → clé toggle configuration
+//
+// Chaque mode qui a SA case en configuration pointe sur SA propre clé. Les
+// rattachements (plusieurs modes → une seule clé) ne concernent que les codes
+// de règlement SANS case dédiée : DIGI et FT2. C'est la règle à suivre pour
+// tout ajout — un rattachement sur une clé qui existe par ailleurs rend la
+// case correspondante inopérante, exactement le défaut corrigé le 18/08/2026
+// pour JS8 / PSK / AM / D-STAR (4 cases présentes en configuration depuis
+// l'origine, mais absentes d'ici : les cocher ne produisait aucun bouton, et
+// PSK rattaché à mode_rtty faisait en plus décocher la case PSK au WWA alors
+// que son règlement §5 autorise explicitement ce mode).
 const MODE_TOGGLE_KEY = {
-  'SSB':  'mode_ssb',
-  'CW':   'mode_cw',
-  'FM':   'mode_fm',
-  'FT8':  'mode_ft8',
-  'FT4':  'mode_ft4',
-  'RTTY': 'mode_rtty',
-  'SSTV': 'mode_sstv',  // active aussi le panneau décodeur SSTV (updateKeyerPanels)
-  'DIGI': 'mode_ft8',
-  'FT2':  'mode_ft8',   // WWA (règlement §5) — pas de toggle dédié, rattaché à FT8
-  'PSK':  'mode_rtty',  // WWA — rattaché à RTTY (même famille "DIGI" au règlement)
+  'SSB':   'mode_ssb',
+  'AM':    'mode_am',
+  'CW':    'mode_cw',
+  'FM':    'mode_fm',
+  'DSTAR': 'mode_dstar',  // libellé ADIF ; la case de configuration dit "D-STAR"
+  'FT8':   'mode_ft8',
+  'FT4':   'mode_ft4',
+  'JS8':   'mode_js8',
+  'RTTY':  'mode_rtty',
+  'PSK':   'mode_psk',
+  'SSTV':  'mode_sstv',   // active aussi le panneau décodeur SSTV (updateKeyerPanels)
+  'DIGI':  'mode_ft8',    // code générique de règlement, aucune case dédiée
+  'FT2':   'mode_ft8',    // WWA (règlement §5) — pas de case dédiée, rattaché à FT8
 };
 
 // Modes actuellement autorisés (concours + toggles) — utilisé par
@@ -2255,10 +2268,18 @@ function renderModeButtons(contest){
   try{ cfgLocal = JSON.parse(localStorage.getItem('logx_config')||'{}'); }catch(e){}
   const toggles = cfgLocal.toggles || {};
   const hasModeTgls = Object.keys(toggles).some(k => k.startsWith('mode_'));
-  // SSTV n'apparaît QUE si la case est cochée en config : aucun concours ne
-  // le propose par défaut, c'est un mode d'activité (dimanches SSTV, ISS).
+  // SSTV, AM, JS8, PSK et D-STAR n'apparaissent QUE si leur case est cochée en
+  // configuration : aucun concours ne les propose par défaut, ce sont des modes
+  // d'activité (dimanches SSTV/ISS, AM en trafic courant, D-STAR en relais).
+  // Liste dérivée de MODE_TOGGLE_KEY, dont on écarte les codes de règlement
+  // sans case dédiée (DIGI, FT2) qui feraient double emploi avec FT8 — ainsi
+  // un mode ajouté à la table plus haut apparaît ici sans autre modification,
+  // au lieu de rester invisible faute d'avoir pensé à cette 2e liste.
+  const SANS_CASE_DEDIEE = ['DIGI', 'FT2'];
   const modes = hasModeTgls
-    ? ['SSB','CW','FM','FT8','FT4','RTTY','SSTV'].filter(m => toggles[MODE_TOGGLE_KEY[m]] === true)
+    ? Object.keys(MODE_TOGGLE_KEY)
+        .filter(m => !SANS_CASE_DEDIEE.includes(m))
+        .filter(m => toggles[MODE_TOGGLE_KEY[m]] === true)
     : allModes;
   const finalModes = modes.length > 0 ? modes : allModes; // sécurité: tout afficher si rien de coché
   _currentVisibleModes = finalModes;
@@ -2554,6 +2575,19 @@ async function submitQSO(){
     operator: myOp,
     my_call: myCall, my_locator: myLocator,
     contest: currentContest,
+    // Commentaire libre : le seul de ces trois champs que l'annuaire ne peut
+    // pas deviner. C'est ce qu'on relit six mois plus tard (« antenne
+    // filaire », « premier QSO en CW », « QSL directe promise »).
+    comment: (document.getElementById('inputComment')?.value || '').trim(),
+    // Nom et QTH de l'annuaire : ils étaient récupérés, affichés à la frappe,
+    // puis JETÉS ici même. callbookPourQso() les rend UNIQUEMENT s'ils
+    // concernent l'indicatif effectivement enregistré (l'opérateur a pu
+    // effacer et retaper depuis la consultation).
+    // Aucun changement serveur n'est nécessaire : logx_storage range tout
+    // champ hors colonnes structurées dans `extra` (voir son commentaire
+    // ligne 34). L'export ADIF, lui, a fallu l'étendre — sans quoi la donnée
+    // aurait été stockée mais absente du fichier remis à l'opérateur.
+    ...(typeof callbookPourQso === 'function' ? callbookPourQso(call) : {}),
   };
 
   // État US (diplôme WAS) : repris de l'annuaire UNIQUEMENT s'il concerne bien
@@ -2690,6 +2724,10 @@ function clearForm(){
   document.getElementById('inputRSTrcvd').value = _rstParDefaut(currentMode);
   document.getElementById('inputNumRcvd').value = '';
   document.getElementById('inputLocator').value = '';
+  // Commentaire vidé comme les autres champs propres au QSO : le laisser
+  // traînerait la remarque du contact précédent sur le suivant — pire qu'un
+  // champ vide, puisque l'opérateur ne la relirait pas avant d'enregistrer.
+  const _cm = document.getElementById('inputComment'); if(_cm) _cm.value = '';
   const _tr = document.getElementById('inputTheirRef'); if(_tr) _tr.value = '';
   setFreqForBand(currentBand);   // ré-affiche la fréquence d'appel/CAT de la bande
   document.getElementById('locHint').style.display = 'none';

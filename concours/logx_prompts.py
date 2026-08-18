@@ -62,9 +62,13 @@ def build_system_prompt(cfg):
 
     # Modes actifs
     active_modes = []
+    # Une entrée par case "MODES" de la page CONFIG — en oublier une revient à
+    # cacher à l'IA un mode que l'opérateur pratique (SSTV, PSK et D-STAR
+    # manquaient jusqu'au 18/08/2026, alors que leurs cases existaient).
     mode_map = {
         'mode_ssb':'SSB','mode_cw':'CW','mode_ft8':'FT8','mode_ft4':'FT4',
         'mode_rtty':'RTTY','mode_am':'AM','mode_fm':'FM','mode_js8':'JS8',
+        'mode_psk':'PSK','mode_sstv':'SSTV','mode_dstar':'D-STAR',
     }
     for key, label in mode_map.items():
         if toggles.get(key, False):

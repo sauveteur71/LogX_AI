@@ -178,6 +178,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
      autres "miroirs d'affichage" détachés (logx_panadapter.html, logx_scope.html,
      logx_wall.html, logx_bande.html) -- inutile dans une petite fenêtre popup
      dont on ne peut de toute façon pas vraiment naviguer ailleurs. -->
+<!-- Mode DÉBUTANT/EXPERT : cette page détachée n'inclut PAS logx_statusbar.js
+     (pas de barre de statut ici, par conception) — or c'était le seul endroit
+     où la règle « body.simple-mode .expert-only » était injectée. Sans ce
+     socle, marquer un élément .expert-only ci-dessous ne masquerait rien.
+     Inclus AVANT les scripts qui rendent l'interface. -->
+<script src="logx_uimode.js"></script>
 <script src="logx_i18n.js"></script>
 <script src="logx_ft8_codec.js"></script>
 <script src="logx_ft8_dsp.js"></script>
@@ -206,7 +212,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="mini-panel">
         <div class="mini-title">SESSION</div>
         <div class="stat-row"><span>Décodages</span><b id="statDecodes">0</b></div>
-        <div class="stat-row"><span>Indicatifs uniques</span><b id="statUniques">0</b></div>
+        <!-- expert-only : statistique pure, aucune action n'en dépend. Le
+             compteur « Décodages » juste au-dessus suffit déjà à confirmer à
+             un débutant que la réception fonctionne ; il reste visible, tout
+             comme « QSO loggués ». majStatsSession() continue de remplir ce
+             compteur (masquage CSS seul), un expert le retrouve intact. -->
+        <div class="stat-row expert-only"><span>Indicatifs uniques</span><b id="statUniques">0</b></div>
         <div class="stat-row"><span>QSO loggués</span><b id="statQso">0</b></div>
       </div>
     </aside>
@@ -243,6 +254,18 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="panel-title">Émission</div>
       <div class="controles">
         <label>PÉRIPHÉRIQUE DE SORTIE<select id="ft8OutDevice"><option value="">— périphérique par défaut —</option></select></label>
+        <!-- NE PAS marquer expert-only (essayé puis retiré le 18/08/2026) :
+             la cascade et sa règle de fréquences INVITENT au clic pour caler
+             le ton (curseur crosshair + infobulle), et clicWaterfall() écrit
+             directement dans ce champ. Masquer l'affichage chiffré tout en
+             laissant le geste actif rend la fréquence d'émission modifiable
+             par accident sans aucun retour : un clic près du bord gauche la
+             met à 200 Hz, hors de la passe-bande d'un transceiver — on émet
+             et personne n'entend. Le repère graphique ne compense pas : il
+             n'est tracé que par boucleWaterfall()/clicWaterfall(), donc pas
+             du tout tant que la réception n'a pas démarré. « Masquer ≠
+             bloquer » suppose que l'élément masqué ne soit pas actionnable
+             par un geste resté visible ; ici il l'est. -->
         <label>TON 0 (Hz)<input type="number" id="ft8Tone0" min="200" max="2800" step="50" value="1500"></label>
         <label class="toggle-arm" id="armLabel">
           <input type="checkbox" id="armTx" onchange="onArmChange()"> Activer l'émission
