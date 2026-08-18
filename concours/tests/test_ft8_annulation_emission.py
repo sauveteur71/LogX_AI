@@ -106,14 +106,27 @@ def test_le_controle_precede_toute_prise_de_ptt():
 
 @pytest.mark.parametrize('chemin', ['stopEmission', 'onArmChange', 'arreterRx'])
 def test_chaque_chemin_d_arret_annule_les_emissions_programmees(chemin):
-    assert 'annulerEmissionsProgrammees' in _fonction(_lire(), chemin), chemin
+    """Commentaires DÉPOUILLÉS : chacune de ces trois fonctions porte un pavé
+    qui EXPLIQUE pourquoi elle doit faire vieillir le jeton, et ce pavé cite
+    forcément annulerEmissionsProgrammees. Sans dépouillement, on pouvait
+    supprimer l'appel réel — le seul geste qui empêche une trame déjà
+    programmée de partir — sans que ce test bouge d'un pouce.
+
+    C'est exactement ce qu'a démontré la revue adversariale sur le test frère
+    du séquenceur (mutation en `if(false)`, 47 tests verts)."""
+    corps = _sans_commentaires(_fonction(_lire(), chemin))
+    assert 'annulerEmissionsProgrammees' in corps, chemin
 
 
 def test_stop_annule_avant_de_couper_l_audio():
     """L'annulation doit être le PREMIER geste : couper l'audio et relâcher le
     PTT ne sert à rien tant que l'émission n'est pas encore partie, et c'est
-    précisément ce cas que le bouton ne traitait pas."""
-    corps = _fonction(_lire(), 'stopEmission')
+    précisément ce cas que le bouton ne traitait pas.
+
+    Comparer des positions dans du texte NON dépouillé était doublement
+    fragile : un commentaire mentionnant l'un des deux noms suffisait à
+    inverser l'ordre mesuré, sans que l'ordre du CODE ait changé."""
+    corps = _sans_commentaires(_fonction(_lire(), 'stopEmission'))
     assert corps.index('annulerEmissionsProgrammees') < corps.index('couperAudioTx')
 
 
@@ -121,8 +134,10 @@ def test_stop_annule_avant_de_couper_l_audio():
 
 def test_le_bouton_de_coupure_est_visible_pendant_l_attente():
     """Il était piloté par le seul pttDemande, donc masqué exactement pendant
-    la fenêtre où il aurait servi."""
-    assert 'emissionProgrammee' in _fonction(_lire(), 'majBoutonStop')
+    la fenêtre où il aurait servi. Commentaires dépouillés, même raison que
+    ci-dessus."""
+    assert 'emissionProgrammee' in _sans_commentaires(
+        _fonction(_lire(), 'majBoutonStop'))
 
 
 def test_echap_agit_dans_les_trois_etats_ou_quelque_chose_peut_partir():
