@@ -588,7 +588,12 @@ if(localStorage.getItem('rc_theme') === null){
         proposerReponse(messageCq());
         afficherAppelSelectionne(messageCq());
       });
-      el.addEventListener('dblclick', () => repondreEtEnvoyer(messageCq()));
+      el.addEventListener('dblclick', () => {
+        // On transmet le CRÉNEAU où ce CQ a été entendu : c'est lui qui donne
+        // la parité de la station, donc celle que NOUS devons éviter.
+        const info = cqSeen.get(el.dataset.call);
+        repondreEtEnvoyer(messageCq(), info ? info.ts : undefined);
+      });
     });
   }
 
@@ -607,7 +612,7 @@ if(localStorage.getItem('rc_theme') === null){
   // Le silence serait ici le vrai défaut : un opérateur qui double-clique sans
   // avoir armé verrait le champ se remplir et rien partir, sans savoir
   // pourquoi. On le dit.
-  function repondreEtEnvoyer(text){
+  function repondreEtEnvoyer(text, slotEntendu){
     // MODE D'ENVOI autre que « manuel » : le double-clic ne prépare plus un
     // message isolé, il désigne une STATION à contacter. La cible est
     // extraite par seqCibleDepuisDecodage(), jamais recopiée du message :
@@ -617,7 +622,8 @@ if(localStorage.getItem('rc_theme') === null){
       afficherAppelSelectionne(text);
       const cible = seqCibleDepuisDecodage(text);
       if(cible){
-        seqDemarrer(cible, {grille: extraireStation(text).grid, message: text});
+        seqDemarrer(cible, {grille: extraireStation(text).grid, message: text,
+                            slotEntendu: slotEntendu});
         return;
       }
       // AUCUNE cible appelable, et on NE RETOMBE PAS sur le chemin manuel :
@@ -1300,7 +1306,7 @@ if(localStorage.getItem('rc_theme') === null){
     tr.append(tdH, tdF, tdDt, tdS, tdM);
     tr.title = 'Clic : préparer la réponse — Double-clic : préparer ET envoyer';
     tr.addEventListener('click', () => { proposerReponse(text); afficherAppelSelectionne(text); });
-    tr.addEventListener('dblclick', () => repondreEtEnvoyer(text));
+    tr.addEventListener('dblclick', () => repondreEtEnvoyer(text, slotMs));
     const tbody = document.getElementById('decodesBody');
     tbody.insertBefore(tr, tbody.firstChild);
     while(tbody.children.length > 60) tbody.removeChild(tbody.lastChild);   // borne la liste, pas de fuite mémoire sur une longue session
@@ -1319,7 +1325,10 @@ if(localStorage.getItem('rc_theme') === null){
     const parts = text.split(' ');
     if(parts[0] === 'CQ'){
       const call = parts[parts.length - 1].match(/^[A-Z0-9/]+$/) ? parts[1] : parts[1];
-      document.getElementById('txText').value = `${parts[1]} ${myCall} ${myGrid}`.trim().toUpperCase();
+      // Même troncature que le séquenceur : le chemin manuel a exactement le
+      // même défaut, et il émet le contenu de ce champ tel quel.
+      document.getElementById('txText').value =
+        `${parts[1]} ${myCall} ${String(myGrid || '').slice(0, 4)}`.trim().toUpperCase();
       return;
     }
     if(myCall && parts[0] === myCall){
@@ -1394,7 +1403,17 @@ if(localStorage.getItem('rc_theme') === null){
 
   function arreterRx(){
     // Arrêter l'écoute, c'est quitter le trafic : une émission programmée n'a
-    // plus lieu d'être.
+    // plus lieu d'être, et une séquence en cours non plus.
+    //
+    // seqArreter DOIT être appelé ICI et pas ailleurs. La garde équivalente
+    // de seqExaminerCreneau est INATTEIGNABLE une fois l'écoute coupée :
+    // seqExaminerCreneau n'est appelée que par verifierCycle, qui sort dès sa
+    // première ligne sur !rxActif — et le clearInterval ci-dessous supprime
+    // jusqu'au timer qui l'aurait rappelée. Résultat mesuré avant correction :
+    // la séquence survivait à « ■ Arrêter », l'écran continuait d'afficher
+    // « QSO avec F4ABC », et relancer l'écoute deux minutes plus tard remettait
+    // la station en émission sans un geste de l'opérateur.
+    seqArreter('ecoute-arretee');
     annulerEmissionsProgrammees();
     rxActif = false;
     if(cycleTimer) clearInterval(cycleTimer);
@@ -1428,12 +1447,32 @@ if(localStorage.getItem('rc_theme') === null){
 
   // ─── TX : arme/désarme, synthèse GFSK, PTT, lecture, log ─────────────────
   let txArmed = false;
+  // UN SEUL endroit décide si « Envoyer » est cliquable. Il l'était pendant
+  // toute une séquence : un clic (geste banal — on vient de cliquer une ligne
+  // de décodage) programmait une SECONDE émission sur le même créneau que
+  // celle du séquenceur. Deux ondes superposées sur la même fréquence, un
+  // brouillage causé par sa propre station et invisible depuis celle-ci.
+  function majBoutonEnvoyer(){
+    const b = document.getElementById('sendBtn');
+    if(!b) return;
+    b.disabled = !txArmed || !!seq;
+    b.title = seq ? 'Le séquenceur pilote l\'émission — STOP SÉQUENCE pour reprendre la main'
+                  : '';
+    const champ = document.getElementById('txText');
+    // Le champ devient un AFFICHAGE pendant la séquence : le séquenceur le
+    // réécrit à chaque étape, y taper donnerait l'illusion de décider.
+    if(champ){
+      champ.readOnly = !!seq;
+      champ.title = seq ? 'Piloté par le séquenceur' : '';
+    }
+  }
+
   window.onArmChange = function(){
     txArmed = document.getElementById('armTx').checked;
     // Décocher « Activer l'émission » est un ordre d'arrêt aussi net que le
     // bouton STOP : ce qui est programmé ne doit plus partir.
     if(!txArmed) annulerEmissionsProgrammees();
-    document.getElementById('sendBtn').disabled = !txArmed;
+    majBoutonEnvoyer();
     document.getElementById('armLabel').classList.toggle('armed', txArmed);
   };
 
@@ -1733,8 +1772,13 @@ if(localStorage.getItem('rc_theme') === null){
   // émettre le contenu du champ : c'est par là qu'un clic simple pendant une
   // séquence, ou un double-clic sur un message entre TIERS, faisait partir
   // n'importe quoi — signé de l'indicatif d'autrui dans le second cas.
+  // REND `true` si et seulement si une trame est RÉELLEMENT partie, `false`
+  // sinon. Sans cette valeur, le séquenceur ne pouvait pas distinguer « émis »
+  // de « refusé » : il comptait une relance et reprogrammait dans le vide,
+  // indéfiniment, pendant que le message d'erreur partait dans un autre
+  // élément de la page que celui qu'il regarde.
   window.envoyerMessage = async function(texte){
-    if(!txArmed) return;
+    if(!txArmed) return false;
     // GARDE DE RÉ-ENTRANCE. repondreEtEnvoyer() (double-clic) appelle cette
     // fonction DIRECTEMENT, sans passer par le bouton : sendBtn.disabled ne
     // protégeait donc rien. Deux double-clics dans la même fenêtre de 15 s
@@ -1754,17 +1798,29 @@ if(localStorage.getItem('rc_theme') === null){
       const st = document.getElementById('txStatus');
       st.textContent = 'Une émission est déjà programmée — coupe-la d\'abord (STOP ou Échap)';
       st.className = 'tx-status wait';
-      return;
+      return false;
+    }
+    // Une seule source d'émission à la fois. Le séquenceur passe TOUJOURS son
+    // texte explicitement ; une demande sans texte vient donc forcément d'un
+    // geste manuel, et pendant une séquence elle doublerait l'émission en
+    // cours. Le bouton est déjà neutralisé — ceci est la garde côté machine,
+    // qui tient même si l'interface change.
+    if(seq && texte === undefined){
+      const st = document.getElementById('txStatus');
+      st.textContent = 'Le séquenceur pilote l\'émission — STOP SÉQUENCE pour '
+                     + 'reprendre la main';
+      st.className = 'tx-status wait';
+      return false;
     }
     const brut = (texte !== undefined && texte !== null)
                ? texte : document.getElementById('txText').value;
     const text = String(brut).trim().toUpperCase();
-    if(!text) return;
+    if(!text) return false;
     const enc = ft8EncodeMessage(text, hashTable);
     if(!enc){
       document.getElementById('txStatus').textContent = 'Message invalide, non encodable en FT8';
       document.getElementById('txStatus').className = 'tx-status';
-      return;
+      return false;
     }
     const sendBtn = document.getElementById('sendBtn');
     sendBtn.disabled = true;
@@ -1798,8 +1854,8 @@ if(localStorage.getItem('rc_theme') === null){
     if(maGeneration !== generationTx || !txArmed){
       statusEl.textContent = 'Émission annulée avant le créneau';
       statusEl.className = 'tx-status';
-      sendBtn.disabled = !txArmed;
-      return;
+      majBoutonEnvoyer();
+      return false;
     }
 
     statusEl.textContent = 'PTT…';
@@ -1839,8 +1895,8 @@ if(localStorage.getItem('rc_theme') === null){
           : 'PTT refusé ET relâchement non confirmé — voir l\'alerte ci-dessous';
       }
       statusEl.className = 'tx-status';
-      sendBtn.disabled = !txArmed;
-      return;
+      majBoutonEnvoyer();
+      return false;
     }
     try{
       const tone0 = parseInt(document.getElementById('ft8Tone0').value, 10) || 1500;
@@ -1855,14 +1911,31 @@ if(localStorage.getItem('rc_theme') === null){
       statusEl.textContent = relache ? 'Émis : ' + text
                                      : 'Émis, mais RELÂCHEMENT NON CONFIRMÉ — voir l\'alerte';
       statusEl.className = 'tx-status';
-      sendBtn.disabled = !txArmed;
+      majBoutonEnvoyer();
     }
 
-    const parts = text.split(' ');
-    if(parts[2] === '73' || parts[2] === 'RRR' || parts[2] === 'RR73'){
-      dernierAppelEnvoye = parts[0];
-      offrirLogQso(parts[0]);
+    // ─── Offre de log — CHEMIN MANUEL SEULEMENT ────────────────────────────
+    //
+    // `texte === undefined` distingue exactement les deux chemins : le
+    // séquenceur passe toujours son texte, le bouton « Envoyer » et le
+    // double-clic manuel n'en passent jamais.
+    //
+    // Sans cette condition, le séquenceur ouvrait le bandeau « QSO complété —
+    // l'ajouter au log ? » dès son RRR, EN PLEIN QSO, avec des reports VIDES
+    // (offrirLogQso appelé sans son second argument). Un opérateur qui le
+    // validait écrivait une fiche sans report ; le log complet du séquenceur
+    // arrivait ensuite et se faisait rejeter en 409 « déjà loggué ». La
+    // mauvaise fiche restait, la bonne était perdue — l'exact contraire de
+    // « log automatique et COMPLET ». Une troisième offre partait même APRÈS
+    // l'arrêt de la séquence et restait affichée indéfiniment.
+    if(texte === undefined && !seq){
+      const parts = text.split(' ');
+      if(parts[2] === '73' || parts[2] === 'RRR' || parts[2] === 'RR73'){
+        dernierAppelEnvoye = parts[0];
+        offrirLogQso(parts[0]);
+      }
     }
+    return true;
   };
 
   // ─── Log du QSO (même schéma que logx_wsjtx.py::qso_from_logged) ────────
@@ -2042,6 +2115,16 @@ if(localStorage.getItem('rc_theme') === null){
     '73-recu-incomplet': '73 reçu — QSO loggué, mais SANS report : complète la fiche dans LOGBOOK.',
     'qso-termine-incomplet': 'QSO loggué, mais SANS report échangé : complète la fiche dans LOGBOOK.',
     'remplacement': 'Séquence remplacée par une autre station.',
+    'sans-progres': 'Abandon : la station répond, mais le QSO n\'avance pas '
+                  + '(message non exploitable répété).',
+    'emission-refusee': "Séquence arrêtée : la trame n'est pas partie — "
+                      + "voir le message d'émission juste au-dessus.",
+    'emission-desarmee-preavis': "Séquence arrêtée juste avant le créneau : "
+                      + "« Activer l'émission » a été décoché.",
+    'ecoute-arretee-preavis': "Séquence arrêtée juste avant le créneau : "
+                      + "l'écoute a été coupée.",
+    'niveau-preavis': "Séquence arrêtée juste avant le créneau : le mode "
+                      + "d'envoi a changé.",
   };
 
   // ─── État de la séquence ─────────────────────────────────────────────────
@@ -2125,6 +2208,16 @@ if(localStorage.getItem('rc_theme') === null){
   // sur un message entre TIERS l'émettait verbatim, signé de l'indicatif
   // d'autrui), ni du champ de saisie (un clic simple pendant une séquence le
   // réécrivait, et la relance émettait ce contenu).
+  // Le carré à 4 caractères, seule forme que le message FT8 standard sait
+  // transporter. Le locator de CONFIG en fait 6 (champ maxlength=6,
+  // placeholder « JN15XC ») : le passer tel quel faisait partir un message
+  // SANS grille, sans le moindre avertissement, et l'affichage montrait
+  // pourtant la grille complète. La précision à 6 caractères reste utilisée
+  // partout où elle a un sens (calcul de distance, log).
+  function seqGrille4(){
+    return String(myGrid || '').slice(0, 4);
+  }
+
   function seqTexte(etat, etape){
     const tete = etat.cible + ' ' + myCall + ' ';
     if(etape === 'TX2') return tete + seqRst(etat.snrCible);
@@ -2133,7 +2226,7 @@ if(localStorage.getItem('rc_theme') === null){
     if(etape === 'TX5') return tete + '73';
     // TX1 : notre grille — ou notre report si le locator n'est pas renseigné
     // dans CONFIG, un Tx1 sans rien après l'indicatif n'existant pas en FT8.
-    return tete + (myGrid || seqRst(etat.snrCible));
+    return tete + (seqGrille4() || seqRst(etat.snrCible));
   }
 
   // ─── Lecture d'un créneau ────────────────────────────────────────────────
@@ -2185,8 +2278,16 @@ if(localStorage.getItem('rc_theme') === null){
       if(extra.length > String(etat.grille || '').length) etat.grille = extra;
       return 'TX2';
     }
+    // Réponse SANS rien après les deux indicatifs (« F4GLD F4ABC ») : c'est un
+    // message standard parfaitement valide du protocole, et protocolairement
+    // c'est une RÉPONSE À NOTRE APPEL. On enchaîne donc sur le report, comme
+    // pour une grille reçue. On ne le fait QUE depuis TX1 : plus loin dans le
+    // QSO, revenir au report serait reculer.
+    if(!extra) return (etat.etape === 'TX1' || !etat.etape) ? 'TX2' : etat.etape;
+
     // Message reçu mais non reconnu : on répète ce qu'on devait déjà envoyer
-    // plutôt que d'inventer une étape.
+    // plutôt que d'inventer une étape. Le compteur de non-progression
+    // (seqExaminerCreneau) garantit qu'on ne le fera pas indéfiniment.
     return etat.etape || 'TX1';
   }
 
@@ -2244,27 +2345,42 @@ if(localStorage.getItem('rc_theme') === null){
       // REVÉRIFICATION COMPLÈTE au dernier moment. C'est ici que se rattrapent
       // tous les gestes d'arrêt faits pendant l'attente du créneau.
       if(!seq || seq.jeton !== monJeton) return;
-      if(seqNiveau !== 'sequenceur' || !txArmed || !rxActif){
-        seqArreter('conditions-perdues');
-        return;
-      }
+      // Trois conditions, trois raisons DISTINCTES. Les agréger produisait
+      // « conditions plus réunies », une phrase qui ne nomme ni ce qui manque
+      // ni où le retrouver — alors que le code sait laquelle a échoué.
+      if(seqNiveau !== 'sequenceur'){ seqArreter('niveau-preavis'); return; }
+      if(!txArmed){ seqArreter('emission-desarmee-preavis'); return; }
+      if(!rxActif){ seqArreter('ecoute-arretee-preavis'); return; }
       seq.slotEmis = creneau;
       seq.slotsOccupes.push(creneau);
       while(seq.slotsOccupes.length > 4) seq.slotsOccupes.shift();
+      // REPLI seulement : dans le cas nominal la parité est déjà fixée à la
+      // création, depuis le créneau où la cible a été entendue. Ce cas ne
+      // reste que pour un démarrage sans créneau connu — où figer la parité
+      // sur notre première émission vaut mieux que de ne jamais la figer.
       if(seq.parite === null) seq.parite = Math.floor(creneau / SEQ_SLOT_MS) % 2;
       seqMajUI();
-      const apres = function(){
+      const apres = function(emis){
         // Continuation asynchrone : elle DOIT revérifier son jeton, sinon un
         // .then() resté en vol logue ou arrête la séquence suivante.
-        if(!fin) return;
         if(!seq || seq.jeton !== monJeton) return;
+
+        // RIEN N'EST PARTI. envoyerMessage rend false quand elle a refusé :
+        // message non encodable, verrou SO2R, aucun pilotage radio, ou
+        // annulation pendant l'attente du créneau. Continuer reviendrait à
+        // relancer dans le vide en affichant « QSO avec F4ABC · relances 6 »
+        // pendant que la radio n'a jamais émis une seule fois.
+        if(emis !== true){ seqArreter('emission-refusee'); return; }
+
+        if(!fin) return;
         const complet = seqLoguer(seq);
         seqArreter(complet ? 'qso-termine' : 'qso-termine-incomplet');
       };
       // On LAISSE PARTIR le 73 avant d'arrêter : couper le dernier message en
       // plein vol laisserait le QSO incomplet en face et donnerait à
       // l'opérateur d'en face l'impression d'un abandon.
-      Promise.resolve(envoyerMessage(texte)).then(apres, apres);
+      Promise.resolve(envoyerMessage(texte))
+             .then(apres, function(){ apres(false); });
     }, Math.max(0, creneau - SEQ_PREAVIS_MS - maintenant));
     seqMajUI();
   }
@@ -2333,6 +2449,28 @@ if(localStorage.getItem('rc_theme') === null){
     const snr = (typeof infos.snr === 'number' && isFinite(infos.snr))
               ? infos.snr : SEQ_RST_DEFAUT;
 
+    // ─── PARITÉ : la seule chose qui rende un QSO possible ─────────────────
+    //
+    // En FT8 une station émet toujours sur la même moitié du cycle de 30 s
+    // (case « Tx even/1st » de WSJT-X). Deux stations sur la MÊME parité
+    // n'entendent jamais rien l'une de l'autre : chacune émet pendant que
+    // l'autre émet.
+    //
+    // La version précédente laissait la parité à null et la figeait sur le
+    // premier créneau libre venu. Une fois sur deux — selon l'instant du
+    // double-clic, donc au hasard — ce créneau tombait sur la parité de la
+    // station appelée. Mesuré : sur 30 instants de double-clic répartis sur
+    // deux créneaux, 15 donnaient notre première émission dans SES créneaux,
+    // et ces 15 cas ne produisaient AUCUN QSO en 300 s, contre 1 QSO pour les
+    // 15 autres. Pire, le plafond de relances valant 0 (illimité) par défaut,
+    // la station répétait indéfiniment PAR-DESSUS celle qu'elle appelait.
+    //
+    // Le créneau où on l'a entendue donne sa parité. La nôtre est l'autre.
+    const parite = (typeof infos.slotEntendu === 'number'
+                    && isFinite(infos.slotEntendu))
+                 ? 1 - (Math.floor(infos.slotEntendu / SEQ_SLOT_MS) % 2)
+                 : null;
+
     if(seqNiveau === 'assiste'){
       // ASSISTÉ : on prépare le message JUSTE, on n'émet jamais. Aucune
       // séquence n'est créée — ce niveau ne doit posséder aucun état capable
@@ -2358,6 +2496,28 @@ if(localStorage.getItem('rc_theme') === null){
       return null;
     }
 
+    // « Activer l'émission » n'est pas cochée : REFUSER TOUT DE SUITE. Créer
+    // la séquence affichait « QSO avec F4ABC » — l'opérateur croyait son QSO
+    // lancé — puis, 12 s plus tard, la mort silencieuse au préavis avec une
+    // phrase qui ne nommait ni la case, ni où la trouver. Le chemin manuel
+    // traite ce cas depuis toujours : on lui emprunte son traitement exact,
+    // message ET mise en évidence de la case.
+    if(!txArmed){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = "Coche « Activer l'émission » pour qu'un double-clic "
+                       + 'lance le QSO — rien ne peut partir tant que cette '
+                       + "case n'est pas cochée.";
+        el.className = 'tx-status wait';
+      }
+      const lbl = document.getElementById('armLabel');
+      if(lbl){
+        lbl.classList.add('attention');
+        setTimeout(() => lbl.classList.remove('attention'), 2500);
+      }
+      return null;
+    }
+
     // UNE SEULE séquence à la fois, UNE SEULE émission en vol. Sans cette
     // garde, un double-clic produisait DEUX formes d'onde simultanées dans le
     // même créneau, sur la même fréquence : un brouillage causé par sa propre
@@ -2378,7 +2538,7 @@ if(localStorage.getItem('rc_theme') === null){
       slotEmis: null,
       slotsOccupes: [],
       slotAttendu: -1,
-      parite: null,
+      parite: parite,
       grille: grille,
       snrCible: snr,
       rstRecu: '',
@@ -2417,8 +2577,8 @@ if(localStorage.getItem('rc_theme') === null){
     if(lu.action === 'tiers'){ seqArreter('cible-en-qso-avec-un-tiers'); return; }
 
     if(lu.action === 'reponse'){
-      seq.relances = 0;                         // elle a répondu : on repart de zéro
       if(typeof lu.snr === 'number' && isFinite(lu.snr)) seq.snrCible = lu.snr;
+      const etapeAvant = seq.etape;
       const etape = seqSuite(seq, lu.extra);
       if(etape === 'FIN'){
         // « Réception d'un 73 : QSO fini, ne rien réémettre. » Même politique
@@ -2427,6 +2587,22 @@ if(localStorage.getItem('rc_theme') === null){
         const complet = seqLoguer(seq);
         seqArreter(complet ? '73-recu' : '73-recu-incomplet');
         return;
+      }
+      // LE COMPTEUR NE REPART DE ZÉRO QUE SI LA MACHINE AVANCE.
+      //
+      // Il était remis à zéro dès qu'un message nous était adressé, AVANT même
+      // de savoir s'il faisait progresser le QSO. Une station qui répète un
+      // message que nous ne savons pas exploiter remettait donc le compteur à
+      // zéro à chaque créneau : le plafond réglé par l'opérateur n'était
+      // JAMAIS atteint et l'émission ne s'arrêtait jamais. Mesuré : 19
+      // émissions en 10 minutes, identiques, avec un plafond réglé à 3.
+      if(etape !== etapeAvant){
+        seq.relances = 0;
+      } else if(seq.maxRelances && seq.relances >= seq.maxRelances){
+        seqArreter('sans-progres');
+        return;
+      } else {
+        seq.relances++;
       }
       seqProgrammer(seq, etape);
       return;
@@ -2447,6 +2623,7 @@ if(localStorage.getItem('rc_theme') === null){
     if(relancesEl) relancesEl.style.display = (seqNiveau === 'manuel') ? 'none' : '';
     const stopBtn = document.getElementById('seqStopBtn');
     if(stopBtn) stopBtn.style.display = seq ? '' : 'none';
+    majBoutonEnvoyer();
     const etatEl = document.getElementById('seqEtat');
     if(!etatEl) return;
     if(seq){

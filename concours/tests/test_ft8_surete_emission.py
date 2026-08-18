@@ -22,7 +22,6 @@ aucune réécriture de la logique dans le test.
 """
 import json
 import os
-import re
 
 import pytest
 

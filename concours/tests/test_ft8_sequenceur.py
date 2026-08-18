@@ -204,8 +204,21 @@ de référence — elles ne sautent pas aux yeux à la lecture du brief :
      a déjà été écrasé par le créneau suivant, et le créneau que nous occupions
      est compté comme un silence de la cible. Garder l'ENSEMBLE des créneaux
      occupés récemment (trois ou quatre suffisent, purgés au fil de l'eau).
-     C'est test_creneau_occupe_par_notre_emission_ne_compte_pas_de_relance qui
-     tombe si on l'oublie.
+
+     RECTIFICATION (revue adversariale du 18/08/2026). Cet en-tête affirmait
+     que test_creneau_occupe_par_notre_emission_ne_compte_pas_de_relance tombe
+     si on l'oublie. C'EST FAUX à la cadence actuelle, et vérifié par mutation :
+     remplacer l'ensemble par le scalaire (`seq.slotEmis === slotExamine`)
+     laisse les tests verts. La raison est que l'écrasement du scalaire arrive
+     TOUJOURS après l'examen du créneau qu'il désignait, tant qu'un échange
+     coûte 4 créneaux.
+     L'ensemble reste donc une MARGE DE SÛRETÉ en prévision d'un décodage plus
+     précoce (voir le § « conséquence dérangeante »), pas une propriété testée
+     aujourd'hui. Le jour où l'on décodera plus tôt, le scalaire redeviendra
+     faux — et il n'y aura toujours aucun test pour le dire. Une affirmation
+     vérifiable et fausse dans la documentation d'un banc est exactement le
+     mode d'échec des deux tentatives précédentes : on la corrige plutôt que
+     de la laisser rassurer.
 
   2. PROGRAMMER AU PLUS TARD, ET REVÉRIFIER JUSTE AVANT. Appeler envoyerMessage
      dès la décision met la trame en attente 14 s à l'avance, sous la seule
@@ -314,6 +327,26 @@ SNR_NOUS_CHEZ_ELLE = -7       # ce qu'ELLE nous envoie    -> rst_rcvd '-07'
 def _lire(chemin):
     with open(chemin, encoding='utf-8') as f:
         return f.read()
+
+
+def _sans_commentaires(js):
+    """Retire les commentaires JS AVANT toute analyse du code.
+
+    Défaut confirmé par la revue adversariale du 18/08/2026, et reproduit :
+    test_jeton_de_generation_existe_dans_envoyer_message cherchait
+    « generationTx » dans le texte BRUT de la fonction. Le pavé de commentaire
+    qui EXPLIQUE la revérification cite les deux identifiants et se trouve, lui
+    aussi, après l'attente du créneau. On pouvait donc remplacer la seule ligne
+    de contrôle réelle — celle qui empêche une trame annulée de partir — par
+    « if(false) » sans qu'aucun des 47 tests ne bouge.
+
+    Un test dont la mission est d'interdire une fiction ne doit jamais pouvoir
+    être satisfait par de la prose.
+
+    Le `(?<!:)` évite d'amputer « https:// » à l'intérieur d'une chaîne.
+    """
+    js = re.sub(r'/\*[\s\S]*?\*/', '', js)
+    return re.sub(r'(?<!:)//[^\n]*', '', js)
 
 
 def _extraire_region_sequenceur(src):
@@ -451,9 +484,10 @@ function __fmtRst(snr){
 // successives n'ont pas vu.
 //
 // generationTx : jeton d'annulation, capturé AVANT l'attente du créneau et
-// revérifié APRÈS. ATTENTION : ce jeton N'EXISTE PAS dans logx_ft8.html
-// aujourd'hui (écart (a) de l'en-tête) — le banc code ici la sémantique que
-// l'étape 2 doit installer dans le vrai fichier.
+// revérifié APRÈS. Il EXISTE désormais dans logx_ft8.html — il en a été
+// extrait et fusionné seul (correctif de sûreté d'émission), puis remonté
+// ici. L'écart (a) de l'en-tête est donc résorbé : le banc ne code plus une
+// sémantique à venir, il reproduit celle du fichier.
 var generationTx = 0;
 var __emissions = [];    // TOUTES les demandes, annulées comprises
 var __enVol = null;
@@ -463,15 +497,24 @@ function annulerEmissionsProgrammees(){
   if(__enVol){ __enVol.annulee = true; __enVol.finMs = NOW; __enVol = null; }
 }
 
+// REND `true` si une trame est RÉELLEMENT partie, `false` sinon — contrat de
+// la vraie fonction depuis la correction du constat « une émission jamais
+// partie était comptée comme émise ». Le banc DOIT rendre la même chose : un
+// socle qui rend toujours undefined ferait croire au séquenceur que rien ne
+// part jamais, et ce banc validerait alors une machine qui s'arrête tout le
+// temps.
 function envoyerMessage(texte){
-  // logx_ft8.html:1570 — rien ne part tant que l'émission n'est pas armée.
-  if(!txArmed) return Promise.resolve();
+  // logx_ft8.html — rien ne part tant que l'émission n'est pas armée.
+  if(!txArmed) return Promise.resolve(false);
+  // Une seule source d'émission à la fois : pendant une séquence, une demande
+  // SANS texte explicite vient d'un geste manuel et doublerait l'émission.
+  if(seq && texte === undefined) return Promise.resolve(false);
   // Contrat étape 2 (écart (b)) : texte EXPLICITE si fourni, repli sur le
   // champ de saisie pour le chemin MANUEL seulement.
   var brut = (texte !== undefined && texte !== null)
            ? texte : document.getElementById('txText').value;
   var text = String(brut).trim().toUpperCase();
-  if(!text) return Promise.resolve();
+  if(!text) return Promise.resolve(false);
 
   var maGeneration = generationTx;
   var now = Date.now();
@@ -489,15 +532,45 @@ function envoyerMessage(texte){
       // créneau laisse partir la trame quand même — constaté en validant ce
       // banc : 700 ms de FT8 tronqué sont bel et bien passés sur l'air avant
       // que le séquenceur ne s'en aperçoive au créneau suivant.
-      if(maGeneration !== generationTx || !txArmed){ em.annulee = true; return res(); }
+      if(maGeneration !== generationTx || !txArmed){ em.annulee = true; return res(false); }
       em.debutMs = NOW;
       __enVol = em;
       setTimeout(function(){
-        if(em.annulee) return res();
-        em.finMs = NOW; __enVol = null; res();
+        if(em.annulee) return res(false);
+        em.finMs = NOW; __enVol = null;
+        // ─── QUEUE DE LA VRAIE FONCTION ─────────────────────────────────
+        // Elle manquait au socle, et c'est ce trou qui a rendu TROIS
+        // constats invisibles : la vraie envoyerMessage ouvre le bandeau
+        // « QSO complété — l'ajouter au log ? » dès qu'un message se termine
+        // par 73/RRR/RR73, SANS report. Sur le chemin du séquenceur, cela
+        // proposait une fiche VIDE en plein QSO, et une fiche validée par
+        // erreur faisait ensuite rejeter le log complet en 409.
+        // La condition reproduite ici est celle du fichier : chemin MANUEL
+        // seulement (texte non fourni, aucune séquence en cours).
+        if(texte === undefined && !seq){
+          var parts = text.split(' ');
+          if(parts[2] === '73' || parts[2] === 'RRR' || parts[2] === 'RR73'){
+            offrirLogQso(parts[0]);
+          }
+        }
+        res(true);
       }, __DUREE_TRAME_MS__);
     }, prochain - Date.now());
   });
+}
+
+// ─── Neutralisation du couple champ + bouton pendant une séquence ─────────
+// Vit HORS de la région SEQ dans le fichier réel (c'est du câblage d'écran,
+// pas de la machine à états), donc le socle doit le fournir. On MÉMORISE ce
+// qu'il décide, pour que le banc puisse vérifier qu'un clic manuel ne peut pas
+// doubler l'émission du séquenceur — le bouton restait cliquable pendant toute
+// la séquence, et deux formes d'onde FT8 partaient alors sur la même
+// fréquence, dans le même créneau.
+function majBoutonEnvoyer(){
+  var b = document.getElementById('sendBtn');
+  b.disabled = !txArmed || !!seq;
+  var champ = document.getElementById('txText');
+  champ.readOnly = !!seq;
 }
 
 // ─── Log — offrirLogQso(call, infos) puis confirmerLogQso() ───────────────
@@ -531,6 +604,20 @@ var __corr = null;
 
 function __messageCorrespondant(slot){
   if(!__corr || __corr.muette) return null;
+  // PARITÉ. Une station FT8 émet toujours sur la même moitié du cycle de 30 s
+  // (case « Tx even/1st » de WSJT-X) : c'est ce qui garantit qu'elle ÉCOUTE
+  // pendant que son correspondant émet.
+  //
+  // Le correspondant du banc répondait au créneau suivant le nôtre QUEL QUE
+  // SOIT ce créneau — une station qui écoute et parle en même temps. C'est ce
+  // qui a rendu invisible le défaut le plus grave du séquenceur : émettre
+  // dans les créneaux de la station appelée, une fois sur deux, au hasard de
+  // l'instant du double-clic. Avec `parite` renseignée, elle n'émet QUE dans
+  // ses créneaux ; si nous émettons dans les mêmes, elle ne nous entend
+  // jamais et nous ne l'entendons jamais — et le QSO n'a simplement pas lieu.
+  if(__corr.parite === 0 || __corr.parite === 1){
+    if((Math.floor(slot / 15000) % 2) !== __corr.parite) return null;
+  }
   // Qu'avons-nous émis dans le créneau précédent ? Elle ne peut répondre
   // qu'à ça — elle n'entend rien pendant qu'elle émet, exactement comme nous.
   var precedent = null;
@@ -571,6 +658,13 @@ function __planifierExamens(jusqua){
     __dernierPlanifie = t;
     (function(instant){
       setTimeout(function(){
+        // FIDÉLITÉ : verifierCycle() commence par `if(!rxActif) return;`, et
+        // arreterRx() supprime en plus le timer. Sans cette ligne, le banc
+        // appelait seqExaminerCreneau même écoute coupée — donc il validait
+        // la garde `if(!rxActif) seqArreter(...)` qui s'y trouve, ALORS QUE
+        // LA PAGE NE PEUT JAMAIS L'ATTEINDRE. Un banc qui teste du code mort
+        // donne une assurance strictement négative.
+        if(!rxActif) return;
         var slotTermine = Math.floor(NOW / 15000) * 15000 - 15000;
         var bruts = (__scenario[slotTermine] || []).slice();
         var duCorr = __messageCorrespondant(slotTermine);
@@ -605,6 +699,8 @@ function __etat(){
     parties: __emissions.filter(function(e){ return e.debutMs !== null && !e.annulee; }),
     journal: __journal,
     offreEnAttente: __offreEnAttente,
+    envoyerDesactive: !!document.getElementById('sendBtn').disabled,
+    champVerrouille: !!document.getElementById('txText').readOnly,
     examens: __examens,
     erreurs: __erreursExamen,
     champTx: document.getElementById('txText').value
@@ -961,6 +1057,80 @@ def test_reponse_pendant_que_nous_emettions_au_creneau_precedent(banc):
         "Messages émis : %r" % (slot_ecoute, y + 700, y, b2.emissions_parties()))
 
 
+def test_tout_message_emis_survit_a_l_aller_retour_du_codec(banc):
+    """LE garde-fou qui aurait attrapé le défaut du locator à 6 caractères.
+
+    Un message peut être « valide » au sens où il s'encode, tout en perdant en
+    silence un champ que l'émetteur croit transmettre. Mesuré sur le codec du
+    dépôt (logx_ft8_codec.js), aller-retour ft8EncodeMessage → ft8DecodeSymbols :
+
+        « F4ABC F4GLD JN18CX »  ->  « F4ABC F4GLD »      grille PERDUE
+        « F4ABC F4GLD JN18 »    ->  « F4ABC F4GLD JN18 » intacte
+
+    Vérifier la longueur de la grille ne suffirait pas : n'importe quel futur
+    champ ajouté à un message aurait le même problème sans que rien ne le dise.
+    On fait donc passer CHAQUE message réellement émis par le codec réel, et on
+    exige qu'il revienne à l'identique. Ce que l'écran affiche doit être ce que
+    l'air porte."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js("myGrid = 'JN18CX';")           # le cas NOMINAL de CONFIG (maxlength=6)
+    b.js('NOW = 700;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    messages = b.emissions_parties()
+    assert messages, 'aucune émission : le test ne prouverait rien'
+
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval(_lire(os.path.join(CONCOURS, 'logx_ft8_codec.js')))
+    for msg in messages:
+        rendu = ctx.eval('''(function(){
+          var HT = ft8CreateHashTable();
+          var e = ft8EncodeMessage(%s, HT);
+          if(!e) return 'NON ENCODABLE';
+          return ft8DecodeSymbols(e.symbols, HT);
+        })()''' % json.dumps(msg))
+        assert rendu == msg, (
+            'ce que nous émettons n\'est pas ce qui arrive en face :\n'
+            '  émis    : %r\n  reçu    : %r' % (msg, rendu))
+
+
+def test_socle_fidele_au_contrat_de_envoyer_message():
+    """Le socle RÉIMPLÉMENTE envoyerMessage. Chaque écart silencieux entre les
+    deux rend un défaut structurellement invisible — c'est ainsi que TROIS
+    constats de la revue du 18/08/2026 ont échappé à 47 tests verts : le socle
+    ne reproduisait pas la queue de la vraie fonction, celle qui ouvre le
+    bandeau de log manuel.
+
+    Ce test amarre les points de contrat que le socle copie. Il ne compare pas
+    les implémentations — il vérifie que les DÉCISIONS existent des deux
+    côtés."""
+    envoyer = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'envoyerMessage'))
+
+    # 1. Elle REND ce qu'elle a fait. Sans valeur de retour, le séquenceur ne
+    #    peut pas distinguer « émis » de « refusé » et relance dans le vide.
+    assert re.search(r'return\s+false', envoyer), (
+        'envoyerMessage doit rendre false sur ses sorties de refus')
+    assert re.search(r'return\s+true', envoyer), (
+        'envoyerMessage doit rendre true quand la trame est réellement partie')
+
+    # 2. Une seule source d'émission à la fois.
+    assert re.search(r'seq\s*&&\s*texte\s*===\s*undefined', envoyer), (
+        "une demande manuelle pendant une séquence doit être refusée : c'est "
+        'la garde côté machine contre deux ondes dans le même créneau')
+
+    # 3. L'offre de log automatique appartient au chemin MANUEL.
+    i_offre = envoyer.index('offrirLogQso')
+    zone = envoyer[max(0, i_offre - 300):i_offre]
+    assert 'texte === undefined' in zone and '!seq' in zone, (
+        "l'offre de log doit être réservée au chemin manuel — le séquenceur "
+        'logue lui-même, avec les reports réellement échangés')
+
+    # 4. Le bouton d'envoi suit l'existence d'une séquence.
+    maj = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'majBoutonEnvoyer'))
+    assert re.search(r'!txArmed\s*\|\|\s*!!seq', maj), (
+        'majBoutonEnvoyer doit neutraliser le bouton pendant une séquence')
+
+
 def test_creneau_occupe_par_notre_emission_ne_compte_pas_de_relance(banc):
     """L'autre moitié du même raisonnement, et le seul cas où sauter l'examen
     est légitime : un créneau que NOTRE trame occupait n'a rien pu nous
@@ -1184,16 +1354,30 @@ def test_aucune_reponse_relance_sans_plafond_et_compteur_qui_avance(banc):
 
 
 def test_plafond_regle_a_3_abandonne_apres_3_relances(banc):
+    """ÉGALITÉ, pas inégalité (revue adversariale du 18/08/2026).
+
+    Ce test disait « au plus 4 émissions ». Une machine qui SUR-COMPTE les
+    relances — en comptant chaque créneau d'écoute intermédiaire, et pas
+    seulement celui où la réponse était attendue — épuise un plafond de 3 après
+    UNE seule vraie tentative : elle satisfait donc « au plus 4 » en n'émettant
+    que 2 fois. Mutation vérifiée : supprimer la garde `slotExamine <
+    seq.slotAttendu` laissait les tests verts.
+
+    Exactement 4 : un appel, puis trois relances."""
     b = banc(correspondant=_correspondant(muette=True))
     b.js('NOW = 2000;')
-    b.demarrer(maxRelances=3)
+    b.demarrer(slotEntendu=0, maxRelances=3)
     b.avancer(900000)
 
     et = b.etat()
     assert et['seq'] is None, "le plafond de 3 relances n'a pas arrêté la séquence"
     parties = b.emissions_parties()
-    assert len(parties) <= 4, \
-        'plus d\'émissions que le plafond ne l\'autorise (1 appel + 3 relances) : %r' % (parties,)
+    assert len(parties) == 4, (
+        '%d émissions au lieu de 4 exactement (1 appel + 3 relances). Moins '
+        'signifie que les relances sont SUR-COMPTÉES : un plafond réglé est '
+        "alors atteint sans qu'aucune vraie tentative n'ait échoué. Plus "
+        'signifie que le plafond ne borne rien. Émissions : %r'
+        % (len(parties), parties))
     assert not et['journal'], 'aucun QSO ne doit être loggué après un abandon'
 
 
@@ -1245,13 +1429,369 @@ def test_abandon_tiers_atteignable_meme_examine_pendant_notre_emission(banc):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# §4bis. LES CONSTATS DE LA REVUE ADVERSARIALE DU 18/08/2026
+#
+# Chacun de ces tests ROUGIT sur le code d'avant correction — vérifié un par
+# un en remettant le défaut. Un test ajouté après coup qui passe du premier
+# coup ne prouve rien : il décrit le code au lieu de le contraindre.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── CRITIQUE — la parité d'émission n'était pas dérivée de la cible ────────
+
+@pytest.mark.parametrize('depart', [700, 2000, 4000, 6000, 8000, 10000, 12000,
+                                    14000, 15700, 17000, 19000, 21000, 23000,
+                                    25000, 27000, 29000])
+def test_notre_parite_est_toujours_l_inverse_de_celle_de_la_cible(banc, depart):
+    """LE défaut le plus grave trouvé par la revue.
+
+    En FT8 une station émet toujours sur la même moitié du cycle de 30 s. Deux
+    stations sur la MÊME parité ne s'entendent jamais : chacune émet pendant
+    que l'autre émet. La parité restait à null et se figeait sur le premier
+    créneau libre venu — donc, selon l'instant du double-clic, une fois sur
+    deux sur la parité de la station appelée. Aucun QSO n'était alors possible,
+    et le plafond de relances valant 0 par défaut, la station répétait
+    indéfiniment PAR-DESSUS celle qu'elle appelait.
+
+    16 instants de départ répartis sur deux créneaux : AUCUN ne doit produire
+    une émission dans les créneaux de la cible."""
+    slot_entendu = 0                     # elle a été entendue dans le créneau 0
+    parite_cible = (slot_entendu // SLOT_MS) % 2
+    b = banc(correspondant=dict(_correspondant(muette=True), parite=parite_cible))
+    b.js('NOW = %d;' % depart)
+    b.demarrer(slotEntendu=slot_entendu)
+    b.avancer(300000)
+
+    notres = [(c // SLOT_MS) % 2 for c in b.creneaux_emis()]
+    assert notres, 'aucune émission : le test ne prouverait rien'
+    assert parite_cible not in notres, (
+        'départ à %d : %d de nos %d émissions tombent dans les créneaux de la '
+        'cible (parité %d). Elle ne peut pas nous entendre, nous ne pouvons pas '
+        "l'entendre, et nous la brouillons."
+        % (depart, notres.count(parite_cible), len(notres), parite_cible))
+
+
+def test_le_qso_aboutit_avec_une_station_a_parite_fixe(banc):
+    """Contre-épreuve du test précédent : sur la BONNE parité, le QSO doit
+    aller au bout. Sans elle, « ne jamais émettre sur sa parité » serait
+    satisfait en n'émettant jamais du tout."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js('NOW = 700;')
+    b.demarrer(slotEntendu=0)            # créneau 0 → parité 0 → la nôtre est 1
+    b.avancer(400000)
+    et = b.etat()
+    assert et['journal'], 'aucun QSO loggué avec une station à parité fixe'
+    assert et['journal'][0]['infos']['rst_sent']
+    assert et['journal'][0]['infos']['rst_rcvd']
+
+
+def test_sans_creneau_connu_la_parite_reste_decidee_a_la_premiere_emission(banc):
+    """Repli assumé : un démarrage sans créneau d'écoute (appel programmatique)
+    ne peut pas deviner la parité de la cible. On la fige alors sur notre
+    première émission — imparfait, mais stable, et c'est le comportement
+    d'avant. Ce test existe pour que ce repli reste un CHOIX documenté et non
+    une régression silencieuse."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer()                         # aucun slotEntendu
+    b.avancer(120000)
+    parites = {(c // SLOT_MS) % 2 for c in b.creneaux_emis()}
+    assert len(parites) == 1, 'la parité doit rester STABLE une fois figée : %r' % parites
+
+
+# ── CRITIQUE — « couper l'écoute » n'arrêtait pas la séquence ──────────────
+
+def test_arreter_rx_appelle_bien_seqarreter():
+    """Le seul endroit qui VOIE la coupure d'écoute.
+
+    La garde équivalente de seqExaminerCreneau est du CODE MORT :
+    seqExaminerCreneau n'est appelée que par verifierCycle, qui sort dès sa
+    première ligne sur !rxActif, et arreterRx supprime jusqu'au timer qui
+    l'aurait rappelée. Mesuré avant correction : la séquence survivait à
+    « ■ Arrêter », l'écran affichait toujours « QSO avec F4ABC », et relancer
+    l'écoute deux minutes plus tard remettait la station en émission sans un
+    geste de l'opérateur.
+
+    Commentaires dépouillés : le pavé qui EXPLIQUE ce câblage cite seqArreter,
+    et sans dépouillement ce test serait satisfait par de la prose."""
+    corps = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'arreterRx'))
+    assert 'seqArreter' in corps, (
+        "arreterRx() ne coupe pas la séquence. La garde de seqExaminerCreneau "
+        "ne peut pas la remplacer : elle est inatteignable écoute coupée.")
+
+
+def test_la_garde_de_seqexaminercreneau_ne_suffit_pas_seule(banc):
+    """Contre-preuve, pour que le test précédent ne passe jamais pour de
+    mauvaises raisons : si l'on se contente de baisser rxActif — c'est-à-dire
+    si arreterRx ne faisait QUE cela — la séquence reste vivante. C'est
+    exactement ce que faisait la page, et ce que le banc ne pouvait pas voir
+    tant que son ordonnanceur ignorait rxActif."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(20000)
+    b.js('rxActif = false;')             # SANS seqArreter : le défaut d'origine
+    b.avancer(200000)
+    assert b.etat()['seq'] is not None, (
+        'Si ce test tombe, la garde de seqExaminerCreneau est devenue '
+        "atteignable — et alors test_arreter_rx_appelle_bien_seqarreter n'est "
+        'plus le seul filet. Revoir les deux ensemble.')
+
+
+def test_reprendre_l_ecoute_ne_relance_aucune_emission(banc):
+    """Après un arrêt d'écoute correct, relancer l'écoute ne doit RIEN
+    réémettre. Avant correction, demarrerRx remettait lastProcessedSlot à 0 et
+    le premier examen relançait : la station se remettait à émettre toute
+    seule, plusieurs minutes après que l'opérateur avait tout coupé."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(20000)
+    b.js("seqArreter('ecoute-arretee'); annulerEmissionsProgrammees(); rxActif = false;")
+    b.avancer(140000)
+    avant = len(b.etat()['parties'])
+    b.js('rxActif = true;')
+    b.avancer(300000)
+    assert len(b.etat()['parties']) == avant, (
+        "reprendre l'écoute a relancé des émissions : %r"
+        % b.emissions_parties()[avant:])
+
+
+# ── CRITIQUE — le bouton « Envoyer » restait actif pendant la séquence ─────
+
+def test_le_bouton_envoyer_est_neutralise_pendant_la_sequence(banc):
+    """Deux formes d'onde FT8 simultanées, sur la même fréquence, dans le même
+    créneau : un brouillage causé par sa propre station et invisible depuis
+    celle-ci. Le bouton restait cliquable parce que sa seule condition était
+    !txArmed, et qu'aucune fonction du séquenceur n'y touchait."""
+    b = banc(correspondant=_correspondant())
+    b.js('NOW = 2000;')
+    assert b.etat()['envoyerDesactive'] is False, 'au repos, le bouton doit servir'
+    b.demarrer(slotEntendu=0)
+    et = b.etat()
+    assert et['envoyerDesactive'] is True, 'le bouton reste cliquable pendant la séquence'
+    assert et['champVerrouille'] is True, 'le champ reste modifiable pendant la séquence'
+    b.js("seqArreter('bouton');")
+    assert b.etat()['envoyerDesactive'] is False, 'le bouton doit revenir après STOP'
+
+
+def test_un_envoi_manuel_pendant_la_sequence_ne_double_pas_l_emission(banc):
+    """Ceinture côté MACHINE : même si le bouton réapparaissait, une demande
+    d'émission SANS texte explicite (le seul geste manuel possible) ne doit
+    rien produire pendant une séquence."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(5000)
+    b.js('document.getElementById("txText").value = "POUBELLE";')
+    b.js('envoyerMessage();')            # clic « Envoyer » — sans argument
+    b.avancer(120000)
+    creneaux = b.creneaux_emis()
+    assert len(creneaux) == len(set(creneaux)), (
+        'deux émissions dans le même créneau : %r' % creneaux)
+    assert 'POUBELLE' not in ' '.join(b.emissions_parties())
+
+
+# ── CRITIQUE — message sans grille : émission sans fin, plafond inopérant ──
+
+def test_une_reponse_sans_grille_fait_avancer_le_qso(banc):
+    """« F4GLD F4ABC » — message standard SANS grille — est une forme
+    parfaitement valide du protocole, et c'est même ce que LogX AI émettait
+    lui-même dès que le locator de CONFIG dépassait 4 caractères : deux postes
+    LogX AI se bloquaient donc mutuellement. seqSuite ne le reconnaissait pas
+    et répétait le Tx1 indéfiniment. Protocolairement, c'est une RÉPONSE À
+    NOTRE APPEL : on enchaîne sur le report."""
+    x = 30000
+    b = banc(correspondant=_correspondant(muette=True),
+             scenario={str(x): ['%s %s' % (MOI, CIBLE)]})
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(200000)
+    suffixes = b.suffixes_emis()
+    assert any(re.match(r'^[+-]\d{2}$', s) for s in suffixes), (
+        'le QSO n\'a pas avancé jusqu\'au report : %r' % suffixes)
+
+
+def test_un_correspondant_qui_repete_sans_faire_avancer_finit_par_etre_abandonne(banc):
+    """Le plafond réglé par l'opérateur doit TOUJOURS finir par s'appliquer.
+
+    Il était remis à zéro dès qu'un message nous était adressé, AVANT même de
+    savoir s'il faisait progresser le QSO : une station qui répète un message
+    inexploitable remettait le compteur à zéro à chaque créneau, et l'émission
+    ne s'arrêtait jamais. Mesuré avant correction : 19 émissions en 10 minutes
+    avec un plafond réglé à 3."""
+    scenario = {}
+    for k in range(2, 40):
+        scenario[str(k * SLOT_MS)] = ['%s %s RUBBISH' % (MOI, CIBLE)]
+    b = banc(correspondant=_correspondant(muette=True), scenario=scenario)
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0, maxRelances=3)
+    b.avancer(600000)
+    assert b.etat()['seq'] is None, (
+        'la séquence tourne encore après 10 minutes malgré un plafond de 3 : '
+        '%d émissions' % len(b.etat()['parties']))
+
+
+# ── MAJEUR — une émission jamais partie était comptée comme émise ──────────
+
+def test_une_emission_refusee_arrete_la_sequence_au_lieu_de_relancer(banc):
+    """envoyerMessage sort sans rien émettre dans quatre cas réels : message
+    non encodable, annulation pendant l'attente, verrou SO2R, aucun pilotage
+    radio. Elle ne rendait rien : le séquenceur croyait avoir émis, sautait
+    l'examen du créneau, comptait une relance et reprogrammait. Mesuré avant
+    correction : 0 émission réelle en 400 s, « relances 6 » à l'écran, et rien
+    nulle part pour dire que la radio n'avait jamais émis."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    # Refus permanent, fidèle à la sortie « verrou SO2R / non_engage ».
+    b.js('envoyerMessage = function(){ return Promise.resolve(false); };')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    assert b.etat()['seq'] is None, (
+        'la séquence relance dans le vide alors que rien ne part sur l\'air')
+
+
+def test_une_emission_qui_leve_arrete_aussi_la_sequence(banc):
+    """Une promesse REJETÉE ne doit pas être confondue avec un envoi réussi :
+    la continuation d'erreur recevait le motif du rejet, jamais `false`."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.js('envoyerMessage = function(){ return Promise.reject(new Error("radio")); };')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    assert b.etat()['seq'] is None
+
+
+# ── MAJEUR — la queue de envoyerMessage rouvrait le log manuel sans report ──
+
+def test_un_qso_sequence_ne_produit_qu_une_offre_de_log_avec_ses_reports(banc):
+    """Le séquenceur passe par envoyerMessage comme le chemin manuel. Sa queue
+    ouvrait « QSO complété — l'ajouter au log ? » dès le RRR, EN PLEIN QSO,
+    avec des reports VIDES. Un opérateur qui validait écrivait une fiche sans
+    report ; le log complet du séquenceur arrivait ensuite et se faisait
+    rejeter en 409 « déjà loggué ». La mauvaise fiche restait, la bonne était
+    perdue — l'exact contraire de « log automatique et COMPLET ». Une
+    troisième offre partait même APRÈS l'arrêt de la séquence et restait
+    affichée indéfiniment."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js('NOW = 700;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    et = b.etat()
+    assert len(et['journal']) == 1, (
+        '%d entrées au journal pour UN QSO : %r' % (len(et['journal']), et['journal']))
+    infos = et['journal'][0]['infos'] or {}
+    assert infos.get('rst_sent') and infos.get('rst_rcvd'), (
+        'fiche loggée SANS report échangé : %r' % infos)
+    assert et['offreEnAttente'] is None, (
+        'une offre de log est restée affichée après la fin de la séquence : %r'
+        % (et['offreEnAttente'],))
+
+
+# ── MAJEUR — locator 6 caractères : la grille partait vide, en silence ─────
+
+def test_le_tx1_ne_porte_que_le_carre_a_quatre_caracteres(banc):
+    """Le champ locator de CONFIG est maxlength=6 avec le placeholder
+    « JN15XC » : 6 caractères est le cas NOMINAL, pas un cas tordu. Le message
+    FT8 standard ne transporte que le carré à 4 caractères ; passer 6
+    caractères faisait partir le message SANS grille, en silence, alors que le
+    champ d'émission affichait pourtant la grille complète.
+
+    Conséquence en chaîne : notre carré n'arrivait jamais chez le
+    correspondant, et le message émis était précisément celui qui met un autre
+    poste LogX AI en boucle infinie (constat de la réponse sans grille)."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js("myGrid = 'JN18CX';")
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(60000)
+    suffixes = b.suffixes_emis()
+    assert suffixes and suffixes[0] == 'JN18', (
+        'le Tx1 doit porter JN18, il porte %r' % (suffixes[0] if suffixes else None))
+
+
+# ── MODÉRÉ — démarrage sans « Activer l'émission » ────────────────────────
+
+def test_sans_armement_le_sequenceur_refuse_et_nomme_la_case(banc):
+    """L'écran annonçait « QSO avec F4ABC » — l'opérateur croyait son QSO
+    lancé — puis, 12 s plus tard, mourait sur « conditions plus réunies », une
+    phrase qui ne nomme ni la case, ni où la trouver. Le chemin manuel traite
+    ce cas depuis toujours en nommant la case ET en la faisant clignoter."""
+    b = banc(correspondant=_correspondant())
+    b.js('NOW = 2000;')
+    b.js('txArmed = false;')
+    assert b.demarrer(slotEntendu=0) is None, 'aucune séquence ne doit être créée'
+    assert b.etat()['seq'] is None
+    b.avancer(120000)
+    assert not b.etat()['parties'], 'rien ne doit partir sans armement'
+
+
+# ── MODÉRÉ — le filtre de source n'était tenu par aucun test ──────────────
+
+def test_un_tiers_qui_nous_appelle_ne_fait_pas_avancer_le_qso(banc):
+    """En FT8 il est courant que plusieurs stations nous appellent pendant un
+    QSO. La ligne qui écarte les messages dont la source n'est pas la cible
+    est la SEULE chose qui empêche de prendre l'appel de DL1XYZ pour la
+    réponse de F4ABC — et de loguer F4ABC avec la grille et le report d'une
+    autre station. Elle pouvait disparaître sans qu'un seul test rougisse
+    (vérifié : mutation en `if(false)`, 47 tests verts).
+
+    ÉCRIT EN DEUX TEMPS, après contre-épreuve. Une première version vérifiait
+    qu'aucun message ne partait vers DL1XYZ et que le journal ne portait pas sa
+    grille : elle restait VERTE avec le filtre muté en `if(false)`. Elle ne
+    prouvait rien — la cible du séquenceur ne change pas, donc aucun message ne
+    part jamais vers le tiers, et un QSO qui n'aboutit pas ne logue rien. Le
+    dégât réel est ailleurs : l'ÉTAPE AVANCE sur le message d'un tiers, et
+    c'est la grille du tiers qui finit dans notre fiche.
+    """
+    scenario = {}
+    for k in range(2, 20):
+        scenario[str(k * SLOT_MS)] = ['%s DL1XYZ JO31' % MOI,
+                                      '%s DL1XYZ -05' % MOI]
+
+    # 1. Cible MUETTE : nous devons rester au Tx1 (notre grille) quoi que les
+    #    tiers racontent. Si le filtre saute, « JO31 » est lu comme sa réponse
+    #    et nous passons au report — visible dans le suffixe émis.
+    b = banc(correspondant=_correspondant(muette=True), scenario=scenario)
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(300000)
+    suffixes = b.suffixes_emis()
+    assert suffixes, 'aucune émission : le test ne prouverait rien'
+    assert set(suffixes) == {MA_GRILLE}, (
+        "l'étape a avancé sur le message d'un TIERS : suffixes émis %r" % suffixes)
+    for texte in b.emissions_parties():
+        assert 'DL1XYZ' not in texte, 'message émis vers un tiers : %r' % texte
+
+    # 2. Cible qui RÉPOND : le QSO aboutit, et la fiche doit porter SA grille,
+    #    jamais celle du tiers.
+    b2 = banc(correspondant=dict(_correspondant(), parite=0), scenario=scenario)
+    b2.js('NOW = 700;')
+    b2.demarrer(slotEntendu=0)
+    b2.avancer(400000)
+    journal = b2.etat()['journal']
+    assert journal, 'le QSO avec la cible aurait dû aboutir'
+    assert journal[0]['call'] == CIBLE
+    assert journal[0]['infos']['locator'] != 'JO31', (
+        'la grille du TIERS a été loggée à la place de celle de la cible')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # §5. ARRÊTS — chacun doit VRAIMENT couper
 # ═══════════════════════════════════════════════════════════════════════════
 
 _GESTES_D_ARRET = [
     ('bouton STOP SÉQUENCE', "seqArreter('bouton');"),
     ("décochage de l'armement", 'txArmed = false;'),
-    ("arrêt de l'écoute", 'rxActif = false;'),
+    # Le geste reproduit ce que fait arreterRx() dans la page — et l'ORDRE
+    # compte : seqArreter AVANT de baisser rxActif. Poser `rxActif = false`
+    # tout seul laissait la séquence VIVANTE, parce que la garde équivalente
+    # de seqExaminerCreneau est inatteignable une fois l'écoute coupée
+    # (verifierCycle sort dessus, et le timer est supprimé). Ce test le
+    # démontrait dès que le banc a cessé d'ignorer rxActif ; c'est
+    # test_arreter_rx_appelle_bien_seqarreter qui tient l'autre bout, en
+    # vérifiant que la page fait bien ces deux gestes-là.
+    ("arrêt de l'écoute",
+     "seqArreter('ecoute-arretee'); annulerEmissionsProgrammees(); rxActif = false;"),
     ('retour au niveau manuel', "seqNiveau = 'manuel';"),
     ('passage en niveau assisté', "seqNiveau = 'assiste';"),
     # Échap et STOP ÉMISSION passent par la chaîne de sûreté existante
@@ -1424,11 +1964,37 @@ def test_message_emis_jamais_repris_verbatim_d_un_decodage(banc):
 def test_champ_de_saisie_reecrit_ne_change_pas_ce_qui_part(banc):
     """Défaut confirmé : un clic simple pendant une séquence réécrivait le champ
     de message, et la relance émettait ce contenu. Le champ est un AFFICHAGE
-    d'information ; la source de vérité est l'état de séquence."""
+    d'information ; la source de vérité est l'état de séquence.
+
+    RÉÉCRIT après la revue adversariale du 18/08/2026. La réécriture était
+    faite à t=35000, un instant où seqProgrammer réécrit le champ de toute
+    façon avant le départ : un séquenceur qui relirait le champ AU MOMENT
+    D'ÉMETTRE — c'est-à-dire le défaut historique lui-même — passait le test.
+    Reproduit : en remplaçant envoyerMessage(texte) par
+    envoyerMessage(document.getElementById('txText').value), les 47 tests
+    restaient verts.
+
+    La fenêtre dangereuse est APRÈS le préavis et AVANT le départ. On ne la
+    fige pas en dur : on DÉCOUVRE d'abord les créneaux réellement occupés, puis
+    on réécrit à (créneau visé − 500 ms). Un instant écrit en dur redeviendrait
+    faux à la première modification de cadence — c'est précisément ce qui est
+    arrivé."""
+    # 1re passe : à quels créneaux la machine émet-elle réellement ?
+    reco = banc(correspondant=_correspondant(muette=True))
+    reco.js('NOW = 2000;')
+    reco.demarrer()
+    reco.avancer(200000)
+    creneaux = reco.creneaux_emis()
+    assert len(creneaux) >= 3, 'pas assez d\'émissions pour viser une fenêtre'
+    vise = creneaux[2]
+
+    # 2e passe : on réécrit le champ 500 ms AVANT le départ de cette trame,
+    # donc après le préavis qui l'a programmée. Aucune réécriture légitime du
+    # champ ne peut plus effacer notre poubelle avant l'émission.
     b = banc(correspondant=_correspondant(muette=True))
     b.js('NOW = 2000;')
     b.demarrer()
-    b.avancer(35000)
+    b.avancer(vise - 500)
     b.js('document.getElementById("txText").value = "N\'IMPORTE QUOI";')
     b.avancer(300000)
 
@@ -1436,6 +2002,19 @@ def test_champ_de_saisie_reecrit_ne_change_pas_ce_qui_part(banc):
     assert "N'IMPORTE QUOI" not in parties, \
         'le contenu réécrit du champ de saisie est parti sur l\'air : %r' % (parties,)
     assert all(p.startswith(f'{CIBLE} {MOI} ') for p in parties), parties
+
+
+def test_le_sequenceur_passe_son_texte_explicitement(banc):
+    """L'autre bout du test précédent, en STRUCTURE : la région du séquenceur
+    doit appeler envoyerMessage avec un argument. C'est ce qui rend le champ de
+    saisie incapable d'influencer ce qui part."""
+    region = _sans_commentaires(_extraire_region_sequenceur(_lire(FT8_HTML)))
+    assert re.search(r'envoyerMessage\(\s*texte\s*\)', region), (
+        "seqProgrammer doit passer son texte EXPLICITEMENT à envoyerMessage ; "
+        'relire le champ de saisie au moment d\'émettre est le défaut '
+        'historique de ce séquenceur')
+    assert not re.search(r"envoyerMessage\(\s*document\.", region), (
+        'le séquenceur relit le champ de saisie au moment d\'émettre')
 
 
 def test_cq_dx_la_cible_est_l_indicatif_jamais_le_mot_dx(banc):
@@ -1546,19 +2125,30 @@ def test_niveau_par_defaut_est_manuel():
 # ═══════════════════════════════════════════════════════════════════════════
 
 def test_jeton_de_generation_existe_dans_envoyer_message():
-    """Écart (a) de l'en-tête, constaté en LISANT le fichier : ni generationTx
-    ni annulerEmissionsProgrammees() n'existent aujourd'hui dans logx_ft8.html.
-    envoyerMessage() attend son créneau (ligne 1590) puis enchaîne DIRECTEMENT
-    sur le PTT, sans aucune revérification : à ce jour, rien ne peut annuler une
-    émission déjà programmée — ni Échap, ni STOP, ni un arrêt de séquence.
+    """Le banc simule la sémantique d'annulation ; ce test-ci vérifie qu'elle
+    existe AUSSI dans la page. Sans lui, tous les tests d'arrêt du §5
+    passeraient sur une fiction — le harnais validerait une sûreté que le
+    produit n'a pas.
 
-    Le banc simule la sémantique attendue ; ce test-ci vérifie qu'elle existe
-    AUSSI dans la page. Sans lui, tous les tests d'arrêt du §5 passeraient sur
-    une fiction — le harnais validerait une sûreté que le produit n'a pas."""
+    RÉÉCRIT après la revue adversariale du 18/08/2026. Il cherchait
+    « generationTx » et « txArmed » dans le texte BRUT de la fonction. Or le
+    pavé de commentaire qui EXPLIQUE la revérification cite littéralement les
+    deux noms, et il se trouve lui aussi après l'attente du créneau. On pouvait
+    donc remplacer la seule ligne de contrôle réelle par « if(false) » sans
+    qu'aucun des 47 tests ne bouge — reproduit, mesuré, confirmé. Le test qui
+    avait pour mission d'interdire une fiction était satisfait par de la prose.
+
+    Deux corrections : on DÉPOUILLE les commentaires, et on exige la STRUCTURE
+    (une comparaison suivie d'un return) au lieu d'une simple présence de
+    chaîne."""
     src = _lire(FT8_HTML)
     assert 'function annulerEmissionsProgrammees' in src, \
         'annulerEmissionsProgrammees() absente de logx_ft8.html'
-    envoyer = _extraire_fonction(src, 'envoyerMessage')
+    envoyer = _sans_commentaires(_extraire_fonction(src, 'envoyerMessage'))
+    assert re.search(r'maGeneration\s*!==\s*generationTx', envoyer), (
+        "la comparaison du jeton capturé avec le jeton courant a disparu — "
+        "c'est ELLE qui empêche une trame annulée de partir, pas le commentaire "
+        'qui la décrit')
     assert 'generationTx' in envoyer, \
         "envoyerMessage() n'utilise aucun jeton d'annulation"
     # Le jeton doit être capturé AVANT l'attente et comparé APRÈS : un jeton
@@ -1576,5 +2166,13 @@ def test_jeton_de_generation_existe_dans_envoyer_message():
     # instant où l'armement est encore d'actualité, c'est juste avant le PTT.
     assert re.search(r'txArmed', envoyer[i_attente:]), (
         "txArmed doit être REVÉRIFIÉ APRÈS l'attente du créneau : le contrôle "
-        "de la ligne 1570 date du moment où le message a été DEMANDÉ, pas du "
-        "moment où il part.")
+        "de la première ligne date du moment où le message a été DEMANDÉ, pas "
+        "du moment où il part.")
+    # Et la comparaison doit RENONCER, pas seulement exister : un test qui
+    # trouve la condition sans exiger le `return` laisserait passer une
+    # branche vide.
+    apres = envoyer[i_attente:]
+    i_cond = apres.index('maGeneration')
+    assert 'return' in apres[i_cond:i_cond + 400], (
+        'le contrôle du jeton doit être suivi d\'un return : une condition '
+        'sans effet ne protège rien')
