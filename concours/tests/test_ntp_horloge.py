@@ -320,11 +320,17 @@ def test_l_intro_ne_promet_plus_l_absence_d_envoi_par_clic():
     """L'en-tête promettait « rien ne part sur l'air sans un clic explicite :
     Activer l'émission arme SEULEMENT le bouton Envoyer ». Avec le double-clic
     cette phrase devenait fausse — un texte d'interface qui ment sur la sûreté
-    d'émission est pire que pas de texte du tout."""
+    d'émission est pire que pas de texte du tout.
+
+    MISE À JOUR (séquenceur FT8) : la page a désormais un séquenceur, derrière
+    un « MODE D'ENVOI » dont le défaut reste « Manuel ». L'intro ne peut donc
+    plus promettre l'ABSENCE de séquenceur — mais elle doit toujours en parler,
+    et c'est ce que ce test vérifie : décrire ce qui peut partir sur l'air tout
+    seul est encore plus nécessaire maintenant qu'un mode existe pour ça."""
     src = _lire_ft8()
     intro = src[src.index('class="intro"'):src.index('</p>', src.index('class="intro"'))]
     assert 'double-clic' in intro.lower(), "l'intro doit mentionner le double-clic"
-    assert 'séquenceur' in intro, 'la garantie « pas de séquenceur » doit rester'
+    assert 'séquenceur' in intro, "l'intro doit dire ce que fait le séquenceur"
 
 
 # ─── Le guide de réglage du poste ───────────────────────────────────────────
