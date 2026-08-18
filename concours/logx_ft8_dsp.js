@@ -186,8 +186,11 @@ function ft8RefineSync(samples, sampleRate, coarse, freqStepCoarse, freqMin, fre
 // du début, alors que le balayage ne montait qu'à 6 symboles (0,96 s), et
 // ft8RefineSync n'ajoutait qu'un symbole de plus (1,12 s au total). La plage
 // de DT réellement acceptée était [-1,00 s ; +0,12 s] : quasiment aucune
-// tolérance du côté positif, là où le guide utilisateur de WSJT-X demande
-// ±2 s. Concrètement, un PC en retard de seulement 200 ms sur l'UTC ne
+// tolérance du côté positif, alors que la tenue d'heure attendue en FT8 est
+// de l'ordre de LA SECONDE (horloge PC synchronisée NTP sur l'UTC — une
+// première rédaction annonçait ici « ±2 s selon le guide utilisateur de
+// WSJT-X », attribution fausse corrigée le 18/08/2026).
+// Concrètement, un PC en retard de seulement 200 ms sur l'UTC ne
 // décodait presque plus rien — beaucoup de signaux visibles sur la cascade,
 // deux ou trois décodages, puis plus rien. C'est le symptôme rapporté par
 // F4GLD le 18/08/2026.
