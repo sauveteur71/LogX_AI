@@ -917,6 +917,32 @@ def _off_rate(stats, lang):
     return line
 
 
+def _off_projection(clock, stats, lang):
+    """Extrapolation du score final à rythme constant (backlog CARTE IA #118).
+    Volontairement PROSPECTIVE, contrairement aux autres réponses off_* -- une
+    seule hypothèse simple (le rythme moyen depuis le début se maintient
+    jusqu'à la fin), avec le repli honnête (`off_proj_caveat`) qui rappelle
+    que les multiplicateurs se raréfient généralement en fin de concours : ne
+    JAMAIS présenter cette estimation comme une prédiction fiable."""
+    if (clock or {}).get('status') != 'en_cours':
+        return t(lang, 'off_proj_no_run')
+    remaining = clock.get('remaining_h') or 0
+    rate = stats.get('rate_avg')
+    qso_total = stats.get('qso_total', 0)
+    # Même seuil que hint_rate_drop (>= 10 QSO) : sous ce seuil, rate_avg est
+    # trop bruité (un seul run de bonne fréquence peut le faire mentir).
+    if not rate or qso_total < 10 or remaining < 0:
+        return t(lang, 'off_proj_not_enough')
+    qso_proj = qso_total + rate * remaining
+    lines = [t(lang, 'off_proj_qso', qso=round(qso_proj), rate=round(rate, 1))]
+    score_m = stats.get('score_with_mults')
+    base_score = score_m if score_m is not None else stats.get('score', 0)
+    if qso_total > 0 and base_score:
+        lines.append(t(lang, 'off_proj_score', score=round(base_score * qso_proj / qso_total)))
+    lines.append(t(lang, 'off_proj_caveat'))
+    return ''.join(lines)
+
+
 def answer_text(state, topic, lang='fr'):
     """Réponse TEXTE déterministe (ZÉRO LLM) à un sujet du chat, pour le repli
     HORS-LIGNE : quand l'IA est injoignable (expédition sans internet), les
@@ -936,6 +962,9 @@ def answer_text(state, topic, lang='fr'):
     if topic == 'score':
         return '\n'.join([_off_clock(clock, lang), _off_score(stats, lang),
                           _off_rate(stats, lang)])
+
+    if topic == 'projection':
+        return _off_projection(clock, stats, lang)
 
     if topic in ('prop', 'openings'):
         if not plan:

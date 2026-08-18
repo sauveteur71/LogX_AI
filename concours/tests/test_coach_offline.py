@@ -9,6 +9,7 @@ y basculent. Ces tests figent le formateur answer_text et l'endpoint.
 import http.server
 import json
 import os
+import re
 import sys
 import threading
 import urllib.request
@@ -77,8 +78,55 @@ def test_answer_texte_libre_renvoie_vide():
 
 
 def test_answer_ne_plante_pas_sur_etat_vide():
-    for topic in ('score', 'prop', 'mults', 'resume', 'spots'):
+    for topic in ('score', 'prop', 'mults', 'resume', 'spots', 'projection'):
         coach.answer_text({}, topic)              # aucun KeyError
+
+
+# ─── Projection de fin de concours (backlog CARTE IA #118) ─────────────────
+
+def test_answer_projection_estime_qso_et_score_futurs():
+    txt = coach.answer_text(_state(), 'projection')
+    # _state() : 120 QSO à 22.5/h, 5.4 h restantes -> projection > état actuel.
+    assert 'QSO' in txt
+    assert 'estimé' in txt.lower()
+    qso_proj = int(re.search(r'~(\d+) QSO', txt).group(1))
+    score_proj = int(re.search(r'estimé\s*:\s*~(\d+)', txt).group(1))
+    assert qso_proj > 120                          # plus que le total actuel
+    assert score_proj > 1200                        # plus que score_with_mults actuel
+
+
+def test_answer_projection_reste_honnete_sur_ses_limites():
+    """L'estimation ne doit jamais se présenter comme une certitude -- un
+    avertissement sur l'hypothèse (rythme constant) doit toujours accompagner
+    le chiffre."""
+    txt = coach.answer_text(_state(), 'projection')
+    assert 'rythme constant' in txt.lower() or 'estimation' in txt.lower()
+
+
+def test_answer_projection_hors_concours_ne_projette_pas():
+    state = _state()
+    state['clock']['status'] = 'avant'
+    txt = coach.answer_text(state, 'projection')
+    assert 'QSO' not in txt or 'estimé' not in txt.lower()   # pas de chiffre inventé
+    assert txt                                      # message explicatif quand même
+
+
+def test_answer_projection_pas_assez_de_qso_reste_honnete():
+    """Sous le seuil de fiabilité (même seuil que hint_rate_drop, 10 QSO),
+    aucune projection n'est risquée -- mieux vaut le dire que d'halluciner
+    un score sur 2 QSO."""
+    state = {'clock': {'status': 'en_cours', 'remaining_h': 5}, 'stats': {'qso_total': 3, 'rate_avg': 10}}
+    txt = coach.answer_text(state, 'projection')
+    assert 'estimé' not in txt.lower()
+    assert txt
+
+
+def test_answer_projection_sans_rate_avg_reste_honnete():
+    """Tout début de concours : rate_avg est encore None (clock['elapsed_h']
+    trop proche de 0) -- pas de division par un rythme inexistant."""
+    state = {'clock': {'status': 'en_cours', 'remaining_h': 47}, 'stats': {'qso_total': 2, 'rate_avg': None}}
+    txt = coach.answer_text(state, 'projection')
+    assert 'estimé' not in txt.lower()
 
 
 # ─── Endpoint /coach/answer (zéro LLM) ──────────────────────────────────────
@@ -108,3 +156,10 @@ def test_endpoint_sujet_inconnu_ok_false(serveur):
     d = _get(serveur, '/coach/answer?topic=blague')
     assert d['ok'] is False
     assert d['text'] == ''
+
+
+def test_endpoint_projection_repond_sans_llm(serveur):
+    d = _get(serveur, '/coach/answer?topic=projection&lang=fr')
+    assert d['ok'] is True
+    assert d['topic'] == 'projection'
+    assert d['text']
