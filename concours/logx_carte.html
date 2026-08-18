@@ -81,6 +81,9 @@ body.simple-mode .expert-only{display:none!important}
 .msg-agent .bubble.streaming::after{content:'▌';color:var(--accent2);animation:blink 1s infinite;margin-left:1px}
 .off-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#0a0e1e;background:var(--muted,#7a86b6);border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
 .off-badge.basique-badge{background:#00D68A;color:#04140A}
+.ai-connectivity-banner{display:none;align-items:center;gap:8px;padding:7px 12px;background:var(--bg3);border-bottom:1px solid var(--border);border-left:3px solid var(--yellow);color:var(--text);font-family:var(--font-mono);font-size:12px}
+.ai-connectivity-banner.show{display:flex}
+.ai-connectivity-banner .dot{width:7px;height:7px;border-radius:50%;background:var(--yellow);flex-shrink:0}
 .msg-agent .bubble.action-card{border:1px solid var(--accent);border-left:4px solid var(--accent);background:rgba(255,214,10,.06)}
 .action-card button{cursor:pointer;font-family:var(--font-mono);font-size:13px;font-weight:700;border-radius:5px;padding:5px 14px;border:1px solid var(--border)}
 .action-card .act-yes{color:#0a0e1e;background:#C9822E;border-color:#C9822E}
@@ -300,6 +303,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="ico"><rect x="3.5" y="6" width="11" height="8" rx="2"/><line x1="9" y1="6" x2="9" y2="3"/><circle cx="9" cy="2" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="11.5" cy="10" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="13" x2="12" y2="13"/></svg> <span>Nudges en direct</span>
       </label>
     </div>
+    <div class="ai-connectivity-banner" id="aiConnectivityBanner"><span class="dot"></span><span id="aiConnectivityBannerText"></span></div>
     <div class="chat-msgs" id="chatMsgs">
       <div class="msg msg-agent">
         <div class="msg-lbl">AGENT</div>
@@ -1925,6 +1929,7 @@ function makeAgentBubble(){
 // alerte/DX, historique, parseScores, carte — la même finition que addMsg, mais
 // sur une bulle déjà remplie au fil de l'eau.
 function finalizeAgentReply(bub,reply){
+  _setAiOffline(false);   // une vraie réponse IA vient d'arriver : fin du repli
   bub.textContent=reply;
   bub.classList.remove('streaming');
   const isAlert=reply.includes('⚡')||reply.includes('SPOTÉ');
@@ -1970,6 +1975,32 @@ async function _renderCoachAnswer(topic, bub, badgeEl){
   }catch(e){/* le serveur LOCAL lui-même est injoignable : rien à faire */}
   return false;
 }
+// Bandeau persistant (au-dessus de #chatMsgs, jamais emporté par son scroll
+// interne) distinct du badge '📴 hors-ligne' posé DANS une bulle de réponse :
+// le badge documente une réponse déjà donnée en repli, ce bandeau prévient
+// AVANT même d'envoyer une question que l'IA est dégradée. Un seul état
+// partagé entre 2 déclencheurs (coupure réseau détectée par les évènements
+// online/offline, et échec IA détecté par offlineFallback()) et une seule
+// résolution (finalizeAgentReply(), commune à tous les chemins de succès --
+// streaming, polling, repli avec contenu partiel) plutôt que de dupliquer
+// l'état sur chacun des 6 sites d'appel à offlineFallback().
+let _aiOffline=false;
+function _setAiOffline(state, msg){
+  _aiOffline=state;
+  const el=document.getElementById('aiConnectivityBanner');
+  if(!el) return;
+  if(state){
+    const t=document.getElementById('aiConnectivityBannerText');
+    if(t) t.textContent=msg||rcT('IA indisponible — réponses calculées localement');
+    el.classList.add('show');
+  }else{
+    el.classList.remove('show');
+  }
+}
+window.addEventListener('offline',()=>_setAiOffline(true, rcT('Pas de connexion réseau — réponses en mode dégradé')));
+window.addEventListener('online',()=>_setAiOffline(false));
+if(!navigator.onLine) _setAiOffline(true, rcT('Pas de connexion réseau — réponses en mode dégradé'));
+
 async function offlineFallback(topic, bub){
   // Repli hors-ligne (échec IA en Intermédiaire/Expert) : route par la MÊME
   // table de dispatch que le palier Basique (basiqueAnswer), badge '📴
@@ -1979,6 +2010,7 @@ async function offlineFallback(topic, bub){
   // COORDINATION/MÉMOIRE, pourtant purement déterministes eux aussi, ne
   // répondaient JAMAIS en repli malgré leurs données déjà calculées
   // localement (vérif pré-bêta 13/08/2026).
+  _setAiOffline(true, rcT('IA indisponible — réponses calculées localement'));
   return basiqueAnswer(topic, bub, offlineBadge());
 }
 function offlineBadge(){
