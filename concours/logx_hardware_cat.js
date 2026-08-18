@@ -151,6 +151,63 @@ function rigStopCW(){
   fetch('/rig/stop', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).catch(()=>{});
 }
 
+// ─── WINKEYER : état d'activation, et pourquoi il est SÉPARÉ de rigState ─────
+// Côté serveur, /rig/cw et /rig/stop sont routés vers le WinKeyer AVANT tout
+// backend CAT et indépendamment de lui (logx_http.py, do_POST) : c'est tout
+// son intérêt — port et processeur propres, et SEULE voie de manipulation pour
+// Icom (CI-V n'a pas de commande d'envoi de texte CW) comme pour Yaesu.
+// Le client, lui, ne connaissait que rigState.enabled (= CAT). Conséquences
+// pour un opérateur WinKeyer SANS CAT, toutes les trois corrigées ici :
+//   - le bouton STOP CW vivait dans #rigPanel, masqué faute de CAT : AUCUN
+//     moyen, ni souris ni clavier, d'arrêter un message en cours ;
+//   - copyMacro() (logx_macros.js) testait rigState.enabled et envoyait donc
+//     les macros au PRESSE-PAPIER au lieu de la clé ;
+//   - Échap n'était branché sur rien.
+// C'est une condition d'exploitation, pas du confort : on ne laisse pas un
+// émetteur sans coupure atteignable.
+let winkeyerState = {enabled:false};
+
+// Une manipulation CW est-elle PILOTABLE ? — CAT actif OU WinKeyer actif,
+// SANS condition de mode. C'est le critère de l'ARRÊT.
+//
+// Distinction essentielle, et corrigée après coup (revue adversariale du lot,
+// 18/08/2026) : un message CW déjà parti continue de se vider du tampon du
+// manipulateur même si l'opérateur change de mode entre-temps. Conditionner le
+// coupe-circuit au mode courant faisait donc DISPARAÎTRE le bouton et
+// désarmer Échap pendant qu'une émission était en cours — précisément le trou
+// que ce lot voulait fermer. POST /rig/stop est inoffensif quand rien n'émet :
+// c'est le prix, dérisoire, d'un coupe-circuit toujours disponible.
+function cwPiloteDisponible(){
+  return !!((typeof rigState !== 'undefined' && rigState.enabled) || winkeyerState.enabled);
+}
+
+// Faut-il ROUTER une macro vers la clé plutôt que le presse-papier ? — là,
+// le mode compte : en SSB une macro se copie, elle ne se manipule pas.
+// Le mode vient de la radio quand le CAT le donne (rigState.mode non vide),
+// sinon du sélecteur du carnet : même priorité que updateKeyerPanels()/
+// esmSend(), pour qu'un opérateur en CW sans CAT soit détecté.
+function cwEmissionPossible(){
+  const mode = (typeof rigState !== 'undefined' && rigState.mode)
+    || (typeof currentMode !== 'undefined' ? currentMode : '');
+  return cwPiloteDisponible() && /CW/i.test(mode || '');
+}
+
+// Appelée depuis refreshHardware(). Le bouton STOP CW vit dans son propre
+// conteneur (#cwStopPanel), hors de #rigPanel et JAMAIS expert-only : un
+// arrêt d'urgence ne se cache pas derrière un mode d'affichage.
+function applyWinkeyerState(d){
+  winkeyerState.enabled = !!(d && d.enabled);
+  updateCwStopBtn();
+}
+
+function updateCwStopBtn(){
+  const panel = document.getElementById('cwStopPanel');
+  // cwPiloteDisponible() et NON cwEmissionPossible() : voir la distinction
+  // ci-dessus. Le coupe-circuit reste offert tant qu'une manipulation est
+  // pilotable, même si le sélecteur de mode a bougé depuis l'envoi.
+  if(panel) panel.style.display = cwPiloteDisponible() ? 'block' : 'none';
+}
+
 // ─── AMPLIFICATEUR HF (Elecraft KPA500/1500, Icom PW-1/PW2, SPE Expert) ──────
 // Panneau compact : puissance/SWR/défaut affichés en direct + bascule
 // standby/operate. Les champs varient selon la marque (logx_amp.py
@@ -565,6 +622,7 @@ function refreshHardware(){
     applyAmpState(d.amp);
     applyWsjtxState(d.wsjtx);
     applyRotorState(d.rotor);
+    applyWinkeyerState(d.winkeyer);
   }).catch(()=>{});
 }
 // adaptivePoll() (définie dans logx_logbook.js, voir l'en-tête de ce fichier)

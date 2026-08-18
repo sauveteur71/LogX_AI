@@ -118,7 +118,16 @@ def test_parcours_critique_config_saisie_export(server):
            'contest': 'GOLDEN_PATH_TEST'}
     status, res = _post(base, '/log/add', qso)
     assert status == 200
-    assert res == {'ok': True, 'total': 1, 'duplicate': False}
+    # Assertions par CHAMP, pas égalité stricte du dict : la réponse est un
+    # contrat EXTENSIBLE, et figer sa forme exacte faisait échouer ce test au
+    # premier champ ajouté sans qu'aucune régression n'ait eu lieu (c'est
+    # arrivé avec 'id', ajouté le 18/08/2026 — sans lui, « annuler le dernier
+    # QSO » supprimait un QSO historique après un import ADIF).
+    # Même correction de méthode que test_page_chasse_split.py, qui figeait le
+    # titre exact de 5 panneaux, préfixe décoratif compris.
+    assert res['ok'] is True
+    assert res['total'] == 1
+    assert res['duplicate'] is False
 
     # 3) Même station/bande/mode relogué sans force=true : refusé comme
     #    doublon. C'est le garde-fou affiché en temps réel dans le formulaire
@@ -133,7 +142,10 @@ def test_parcours_critique_config_saisie_export(server):
     #    doit, lui, passer.
     status, res = _post(base, '/log/add', dict(qso, force=True))
     assert status == 200
-    assert res == {'ok': True, 'total': 2, 'duplicate': False}
+    # Par champ, même raison qu'au point 2 ci-dessus.
+    assert res['ok'] is True
+    assert res['total'] == 2
+    assert res['duplicate'] is False
 
     # 5) La liste du journal reflète les 2 QSO enregistrés.
     status, lst = _get(base, '/log/list')

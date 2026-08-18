@@ -1123,7 +1123,15 @@ def add_qso_to_log(qso, force=False):
         callhistory.update_from_qso(qso)
     except Exception:
         pass
-    return True, {'total': len(shared_log)}
+    # 'id' : l'id RÉELLEMENT attribué, qui n'est pas forcément celui proposé par
+    # l'appelant — reserve_qso_id_locked() (plus haut) le remplace en cas de
+    # collision. Sans le renvoyer, le client gardait son id provisoire et se
+    # désynchronisait en silence du serveur : la fusion delta de /log/list
+    # indexant par id, le QSO réapparaissait en DOUBLE, et surtout
+    # undoLastQSO() envoyait /log/delete/<id périmé> — donc supprimait un
+    # AUTRE QSO du carnet (typiquement un QSO importé, dont les id sont
+    # alloués à partir de l'horloge au moment de l'import).
+    return True, {'total': len(shared_log), 'id': qso.get('id')}
 
 
 # ─── SPOTS DEPUIS LES CACHES (sans re-fetch réseau) ──────────────────────────
@@ -1631,6 +1639,56 @@ def _acom_state_dict(cfg_snap):
     return acom.get_state(cfg_snap)
 
 
+def _est_incident_reseau(exc):
+    """Cette exception est-elle une simple coupure de liaison, et non un bogue ?
+
+    Un client qui change de page pendant le transfert d'un gros carnet, un
+    antivirus qui coupe une connexion en plein fichier, une socket qui expire :
+    ce sont des évènements NORMAUX côté serveur, pas des défauts à signaler.
+
+    Sans ce filtre, le filet d'erreurs se retournait contre son propre but :
+    formatLastErrorForReport() (logx_statusbar.js) ne joint au signalement que
+    la DERNIÈRE entrée du journal. Une déconnexion survenant après la vraie
+    panne chassait donc celle-ci du rapport, et le journal se remplissait de
+    bruit — l'exact inverse de ce que ce filet cherche à obtenir.
+    (Défaut trouvé par la revue adversariale du lot, 18/08/2026.)
+
+    ConnectionError couvre déjà ConnectionReset/Aborted/Refused et
+    BrokenPipeError (sous-classes en Python 3) ; TimeoutError et OSError avec
+    WinError 10053/10054 complètent pour Windows."""
+    if isinstance(exc, (ConnectionError, TimeoutError)):
+        return True
+    # ConnectionResetError sous un autre habillage (certaines piles Windows
+    # remontent un OSError nu) : on se fie au code d'erreur, pas au type.
+    return isinstance(exc, OSError) and getattr(exc, 'winerror', None) in (10053, 10054)
+
+
+def _winkeyer_state_dict(cfg_snap):
+    """Le WinKeyer est-il ACTIVÉ en configuration ? — pas son état de liaison.
+
+    Indispensable au client, et pour une raison de sécurité d'exploitation :
+    /rig/cw et /rig/stop routent vers le WinKeyer AVANT tout backend CAT et
+    INDÉPENDAMMENT de lui (voir do_POST), alors que le client ne connaissait
+    que `rigState.enabled` (= CAT). Un opérateur WinKeyer sans CAT n'avait donc
+    aucun moyen de voir le bouton STOP CW ni d'envoyer ses macros à la clé —
+    elles partaient au presse-papier — et rien ne pouvait couper une émission
+    en cours.
+
+    On ne renvoie DÉLIBÉRÉMENT que le drapeau de configuration : parametres()
+    est une lecture pure de cfg (aucune I/O série, vérifié), ce qui permet de
+    l'inclure dans /hardware/state qui est sondé toutes les quelques secondes.
+    Ouvrir le port pour tester la liaison ici coûterait un aller-retour série à
+    chaque sondage et ferait exactement ce que le reste du fichier évite."""
+    import logx_winkeyer as wk
+    p = wk.parametres(cfg_snap)
+    # `enabled` ET `port` : sans port renseigné, envoyer() échoue de toute façon
+    # côté serveur. Annoncer « actif » au client lui ferait router ses macros
+    # vers une clé injoignable au lieu de les copier dans le presse-papier —
+    # le repli serait perdu et la macro ne partirait nulle part (revue
+    # adversariale du lot, 18/08/2026). Toujours aucune I/O série ici.
+    return {'enabled': bool(p['enabled'] and p['port'])}
+
+
 # ─── WAIT-AND-POUNCE : le câblage, niveaux 3 et 4 ────────────────────────────
 # Ces deux fonctions sont appelées DEPUIS LE THREAD UDP de logx_wsjtx, pas
 # depuis un handler HTTP. C'est la seule façon de tenir le niveau 4 : « personne
@@ -2001,7 +2059,80 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             self._raw(404, None, None)
 
+    def _journaliser_et_500(self, methode):
+        """Journalise l'exception courante et tente une réponse 500 JSON.
+
+        Complément INDISPENSABLE de LogXHTTPServer.handle_error() (logx_singleton),
+        et pas un doublon : handle_error journalise mais laisse la connexion se
+        fermer sans réponse — le navigateur affiche alors « connexion coupée »,
+        que l'opérateur attribue à son réseau au lieu de signaler un bogue.
+        Ici on journalise ET on parle au client.
+
+        L'envoi est protégé : si la réponse était déjà partiellement écrite
+        (exception survenue APRÈS un _json/_raw), réémettre des en-têtes
+        lèverait à son tour et masquerait l'erreur d'origine. Dans ce cas on se
+        contente du journal, qui est l'essentiel."""
+        try:
+            import sys
+            import threading
+            import logx_errorlog
+            if not _est_incident_reseau(sys.exc_info()[1]):
+                logx_errorlog._record(*sys.exc_info(),
+                                      thread_name=threading.current_thread().name)
+        except Exception:
+            pass
+        # Vider le corps AVANT de répondre, sinon le 500 n'arrive jamais.
+        # Trouvé en écrivant le test de ce correctif : une exception levée dans
+        # une route POST *avant* la lecture du corps laisse des octets dans le
+        # tampon de réception ; la pile TCP envoie alors un RST au lieu d'un
+        # FIN, et le RST DÉTRUIT la réponse déjà émise — le client voyait une
+        # ConnectionResetError au lieu du 500, c'est-à-dire exactement le
+        # symptôme « problème réseau » que ce correctif vise à supprimer.
+        # Même raisonnement et mêmes bornes que le drain de _require_auth()
+        # plus bas : plafonné (un corps illimité serait un vecteur de déni de
+        # service), et on ferme franchement au-delà, le RST étant alors
+        # acceptable sur un cas déjà anormal.
+        # `_corps_lu` est posé par les routes qui ont déjà consommé rfile :
+        # re-lire bloquerait jusqu'au délai d'expiration.
+        try:
+            if methode == 'POST' and not getattr(self, '_corps_lu', False):
+                _DRAIN_MAX = 64 * 1024
+                te = (self.headers.get('Transfer-Encoding') or '').strip().lower()
+                if te and te != 'identity':
+                    self.close_connection = True
+                else:
+                    _len, _ok = _strict_content_length(self.headers)
+                    if not _ok:
+                        self.close_connection = True
+                    elif 0 < _len <= _DRAIN_MAX:
+                        self.rfile.read(_len)   # lu puis jeté : jamais analysé
+                    elif _len:
+                        self.close_connection = True
+        except Exception:
+            self.close_connection = True
+        try:
+            self._json({'ok': False,
+                        'error': f'Erreur interne du serveur sur ce {methode}. '
+                                 f'Le détail est dans /debug/errors et errors.log — '
+                                 f'joins-le au signalement.'}, 500)
+        except Exception:
+            pass
+
     def do_GET(self):
+        # Filet global : SANS lui, une exception dans une route GET tuait la
+        # requête sans réponse ET sans trace exploitable (voir
+        # _journaliser_et_500). Mesuré avant correctif : do_GET ne rendait un
+        # statut 500 que sur 2 routes sur ~136.
+        # Enveloppe par DÉLÉGATION plutôt que par réindentation du corps
+        # (~2760 lignes) : le diff reste lisible et aucune ligne de logique
+        # existante n'est touchée, donc aucun risque de régression silencieuse
+        # dans une des routes.
+        try:
+            return self._do_GET_impl()
+        except Exception:
+            self._journaliser_et_500('GET')
+
+    def _do_GET_impl(self):
         path = self.path.split('?')[0]
 
         # Recherche plein-texte dans les pages (widget de la nav, logx_search.js)
@@ -4596,6 +4727,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'rotor': _rotor_state_dict(cfg_snap),
                 'pgxl': _pgxl_state_dict(cfg_snap),
                 'acom': _acom_state_dict(cfg_snap),
+                'winkeyer': _winkeyer_state_dict(cfg_snap),
             })
             return
 
@@ -4768,6 +4900,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._raw(404, None, None)
 
     def do_POST(self):
+        # Même filet que do_GET ci-dessus. do_POST couvrait déjà mieux ses
+        # erreurs (25 statuts 500 sur ~93 routes, contre 2 sur 136 en GET), mais
+        # « mieux » n'est pas « toutes » : les routes restantes tuaient la
+        # requête en silence — et en POST c'est un enregistrement de QSO ou une
+        # mise à jour de configuration qui disparaît sans un mot.
+        #
+        # RÉINITIALISATION PAR REQUÊTE, indispensable : BaseHTTPRequestHandler
+        # réutilise LA MÊME instance pour toutes les requêtes d'une connexion
+        # persistante (handle() boucle sur handle_one_request() tant que
+        # close_connection est faux). Sans cette ligne, le marqueur posé par un
+        # premier POST restait vrai pour tous les suivants : une route qui
+        # lèverait AVANT d'avoir lu son corps ne serait alors plus drainée, et
+        # ses octets seraient lus comme la requête SUIVANTE — la
+        # désynchronisation même que ce filet est censé prévenir.
+        # (Trouvé par la revue adversariale du lot, 18/08/2026.)
+        self._corps_lu = False
+        try:
+            return self._do_POST_impl()
+        except Exception:
+            self._journaliser_et_500('POST')
+
+    def _do_POST_impl(self):
         global current_config, chat_seq, browser_spots_cache, browser_spots_ts
         # /auth/login est LA route qui pose rc_token quand un mot de passe est
         # configuré : elle doit rester joignable SANS jeton (sinon personne ne
@@ -4839,6 +4993,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.close_connection = True
             self._json({'error': 'Corps de requête trop volumineux'}, 413)
             return
+        # Marqueur posé AVANT la lecture, pas après : il signale l'INTENTION de
+        # consommer. Si rfile.read() lui-même lève (client parti en plein envoi),
+        # une partie des octets a déjà quitté la socket — les relire dans
+        # _journaliser_et_500() bloquerait jusqu'au délai d'expiration en
+        # attendant des octets qui n'arriveront jamais.
+        self._corps_lu = True
         body = self.rfile.read(length)
 
         # Réception spots cluster depuis le navigateur (HTTPS bloqué côté serveur).
@@ -6849,7 +7009,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                409)
                     return
                 print(f"[LOG] +QSO {qso.get('call')} {qso.get('band')}MHz")
-                self._json({'ok': True, 'total': info['total'], 'duplicate': False})
+                self._json({'ok': True, 'total': info['total'], 'duplicate': False,
+                            'id': info.get('id')})
             except Exception as e:
                 self._json({'error': str(e)}, 400)
             return
@@ -7798,7 +7959,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if m:
                 tok = m.group(1)
         import secrets as _secrets
-        return bool(tok) and _secrets.compare_digest(tok, AUTH_TOKEN)
+        if not tok:
+            return False
+        # Comparaison sur les OCTETS, pas sur les chaînes : compare_digest()
+        # lève TypeError("comparing strings with non-ASCII characters is not
+        # supported") dès qu'une des deux chaînes sort de l'ASCII. Un client
+        # envoyant un X-RC-Token accentué (copier-coller depuis un document,
+        # en-tête mal encodé par un outil tiers) faisait donc PLANTER la route
+        # au lieu de recevoir un refus — et avant le filet de do_GET/do_POST,
+        # la requête mourait sans réponse ni trace.
+        # Défaut réel, trouvé par ce filet même, en vérification navigateur du
+        # lot 1 (18/08/2026). L'encodage en latin-1 est celui des en-têtes HTTP
+        # (RFC 9110) ; le repli utf-8 couvre les clients qui s'en écartent.
+        # La comparaison reste à temps constant, seul le type change.
+        def _octets(s):
+            try:
+                return s.encode('latin-1')
+            except UnicodeEncodeError:
+                return s.encode('utf-8', 'replace')
+        return _secrets.compare_digest(_octets(tok), _octets(AUTH_TOKEN))
 
     def _require_auth(self):
         if self._client_authorized():
@@ -8029,6 +8208,14 @@ form.addEventListener('submit', async (e) => {{
                 self.close_connection = True
             self._json({'ok': False, 'error': 'Corps de requête trop volumineux'}, 413)
             return
+        # Même marqueur que dans _do_POST_impl : cette route est traitée AVANT
+        # le chemin nominal de lecture du corps (aiguillage en tête de
+        # _do_POST_impl) et lit rfile pour son propre compte. Sans lui,
+        # _journaliser_et_500() relirait un corps déjà consommé si la
+        # vérification du mot de passe levait — et bloquerait le fil jusqu'au
+        # délai d'expiration de 30 s, sur une route NON authentifiée qui plus
+        # est. (Revue adversariale du lot, 18/08/2026.)
+        self._corps_lu = True
         body = self.rfile.read(length) if length else b''
         try:
             payload = json.loads(body) if body else {}

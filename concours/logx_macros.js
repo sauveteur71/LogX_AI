@@ -64,10 +64,32 @@ function saveMacros(m){ localStorage.setItem('logx_macros', JSON.stringify(m)); 
 // deux QSO tombent, et l'opérateur n'a aucun recours (champ readOnly par
 // conception, cf. updateSerialDisplay). Le chemin VOCAL (sendVoiceDynMacro)
 // lisait déjà ce même champ : seul le chemin CW était resté sur le compteur global.
+// {HISCALL} : l'indicatif du CORRESPONDANT, lu en direct dans le champ de
+// saisie. Il manquait purement et simplement -- {CALL} désigne TA station, et
+// aucun jeton ne pouvait rendre l'indicatif tapé. Renvoyer l'indicatif corrigé
+// du correspondant après une reprise est pourtant un geste standard du run :
+// sans lui, la macro F3 « TU {CALL} TEST » remercie sa propre station.
+//
+// L'alias `!` de N1MM+ a été ÉCARTÉ délibérément, après avoir été écrit puis
+// retiré : il aurait épargné une réécriture aux macros importées de N1MM, mais
+// au prix d'une substitution silencieuse de TOUT point d'exclamation. Une macro
+// « 73 ! » serait partie en « 73 F5XYZ » sans que rien ne le signale, y compris
+// par le chemin presse-papier utilisé en phonie. Un jeton entre accolades est
+// visible et cohérent avec les trois autres ; un `!` invisible ne l'est pas.
+// À rouvrir si des opérateurs migrant de N1MM le réclament -- ce serait alors
+// une option, pas un comportement par défaut.
+//
+// Repli sur '' plutôt que sur un tiret : une macro envoyée alors qu'aucun
+// indicatif n'est saisi ne doit pas émettre un caractère parasite sur l'air.
+function _hisCall(){
+  const el = document.getElementById('inputCall');
+  return el ? String(el.value || '').trim().toUpperCase() : '';
+}
 function expandMacro(text){
   const cfg = JSON.parse(localStorage.getItem('logx_config')||'{}');
   const call = cfg.callsign || myCall || '—';
   const loc  = cfg.locator  || myLocator || '—';
+  const his  = _hisCall();
   const nrEl = document.getElementById('inputNumSent');
   const nrField = nrEl ? String(nrEl.value || '').trim() : '';
   // Repli si le champ n'est pas encore renseigné (panneau macros rendu avant
@@ -77,7 +99,17 @@ function expandMacro(text){
   const nr = nrField || (currentExchange.auto_serial
     ? String((serialByBand[currentBand] || 0) + 1).padStart(3,'0')
     : '');
-  return text.replace(/{CALL}/g,call).replace(/{LOC}/g,loc).replace(/{NR}/g,nr);
+  // {HISCALL} en DERNIER, et la justification initiale était fausse : /{CALL}/
+  // ne peut PAS s'accrocher à l'intérieur de « {HISCALL} » (il faudrait une
+  // accolade ouvrante juste avant « CALL », or il y a « S »). Les deux ordres
+  // sont donc équivalents sur ce point — mais un seul est sûr sur un autre :
+  // substituer {HISCALL} en premier réinjecte dans le texte une valeur venue
+  // de la SAISIE, qui repasse ensuite sous les trois substitutions suivantes.
+  // Un indicatif contenant « {LOC} » (collé depuis un spot de cluster, champ
+  // mal rempli) serait alors ré-interprété. On ne re-substitue jamais une
+  // valeur d'origine externe. (Revue adversariale du lot, 18/08/2026.)
+  return text.replace(/{CALL}/g,call).replace(/{LOC}/g,loc).replace(/{NR}/g,nr)
+             .replace(/{HISCALL}/g,his);
 }
 function renderMacroPanel(){
   const btns = document.getElementById('macroBtns');
@@ -99,11 +131,16 @@ function renderMacroPanel(){
 function copyMacro(idx){
   const m = getMacros()[idx]; if(!m) return;
   const txt = expandMacro(m.text);
-  // Radio en CW + pilotage actif → la macro part directement par le keyer
-  // de la radio ; sinon (SSB/RTTY, ou pas de CAT) on copie dans le presse-papier.
-  // EV-7 : rigState vit maintenant dans logx_hardware_cat.js -- garde requise
-  // (même motif que les 10 autres lectures de rigState hors de ce fichier).
-  if(typeof rigState !== 'undefined' && rigState.enabled && /CW/i.test(rigState.mode || currentMode)){
+  // Émission CW possible → la macro part directement par le keyer ; sinon
+  // (SSB/RTTY, ou aucune manipulation pilotée) on copie dans le presse-papier.
+  // On délègue à cwEmissionPossible() (logx_hardware_cat.js) : la condition
+  // testait rigState.enabled, c'est-à-dire le CAT SEUL, alors que le serveur
+  // route /rig/cw vers le WinKeyer AVANT tout backend CAT et indépendamment de
+  // lui. Un opérateur WinKeyer sans CAT voyait donc ses macros atterrir dans le
+  // presse-papier alors que le serveur savait parfaitement les envoyer à la clé.
+  // Garde typeof conservée : même motif que les autres lectures de rigState
+  // hors de ce fichier (EV-7).
+  if(typeof cwEmissionPossible === 'function' && cwEmissionPossible()){
     fetch('/rig/cw', {method:'POST', headers:{'Content-Type':'application/json'},
                       body: JSON.stringify({text: txt})})
       .then(r=>r.json()).then(d=>{
@@ -127,7 +164,10 @@ function editMacro(idx){
   const m = macros[idx];
   const newLabel = prompt(trF('Label pour {k} :', {k: m.key}), m.label);
   if(newLabel === null) return;
-  const newText = prompt(trT('Message ({CALL} {LOC} {NR}) :'), m.text);
+  // {HISCALL} annoncé ici : un jeton que l'interface ne nomme nulle part
+  // n'existe pas pour l'opérateur. `!` (alias N1MM) n'est volontairement PAS
+  // listé — il sert aux macros recopiées depuis N1MM, pas à la découverte.
+  const newText = prompt(trT('Message ({CALL} {HISCALL} {LOC} {NR}) :'), m.text);
   if(newText === null) return;
   macros[idx] = {...m, label:newLabel.trim()||m.label, text:newText.trim()||m.text};
   saveMacros(macros); renderMacroPanel();
