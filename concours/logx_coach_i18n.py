@@ -101,6 +101,14 @@ _FR = {
     'off_mults_hint': "Pour voir les mults qui MANQUENT, il faut le cluster (retour en ligne).",
     'off_spots_na': "⚠ Hors-ligne : impossible de vérifier tes spots (cluster / PSK / RBN sans réseau). "
                     "Je peux te donner 🏆 Score, 📶 Prop, 🎯 Mults et 📋 Résumé.",
+    # Projection de fin de concours (answer_text) : extrapolation à rythme
+    # constant, volontairement PROSPECTIVE (contrairement aux autres off_*).
+    'off_proj_no_run': "⏱ Projection disponible seulement pendant un concours en cours.",
+    'off_proj_not_enough': "📊 Pas encore assez de QSO pour une projection fiable — reviens un peu plus tard.",
+    'off_proj_qso': "📊 À ce rythme (~{rate}/h) : ~{qso} QSO en fin de concours",
+    'off_proj_score': " — score estimé : ~{score} pts",
+    'off_proj_caveat': " (estimation à rythme constant — les multiplicateurs restants se raréfient "
+                       "généralement en fin de concours, le score final t'appartient).",
     # Nudges IA événementiels (coach_nudge) : UNE phrase d'action en toast.
     'nudge_new_dxcc': "🌍 {label} jamais fait à vie ET spotté ({call}{freq_txt}) — appelle-le !",
     'nudge_new_dept': "🇫🇷 {label} jamais fait à vie ET spotté ({call}{freq_txt}) — appelle-le !",
@@ -167,6 +175,12 @@ _EN = {
     'off_mults_hint': 'To see the mults you are MISSING you need the cluster (back online).',
     'off_spots_na': '⚠ Offline: cannot check your spots (cluster / PSK / RBN need the network). '
                     'I can give you 🏆 Score, 📶 Prop, 🎯 Mults and 📋 Summary.',
+    'off_proj_no_run': '⏱ Projection only available during a running contest.',
+    'off_proj_not_enough': '📊 Not enough QSO yet for a reliable projection — check back a bit later.',
+    'off_proj_qso': '📊 At this rate (~{rate}/h): ~{qso} QSO by the end of the contest',
+    'off_proj_score': ' — estimated score: ~{score} pts',
+    'off_proj_caveat': ' (constant-rate estimate — remaining multipliers usually get scarcer '
+                       'toward the end, the final score is up to you).',
     'nudge_new_dxcc': '🌍 {label} never worked AND spotted now ({call}{freq_txt}) — call it!',
     'nudge_new_dept': '🇫🇷 {label} never worked AND spotted ({call}{freq_txt}) — call it!',
     'nudge_rate': 'Rate collapsed: {last_h} QSO in the last hour vs {avg}/h average — '
