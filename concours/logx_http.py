@@ -3253,6 +3253,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({**pos, **rs})
             return
 
+        # Écart de l'horloge de ce PC par rapport à l'heure UTC de référence
+        # (SNTP, RFC 5905). MESURE SEULE : ce logiciel ne règle jamais
+        # l'horloge système — cela demanderait les droits administrateur, et
+        # modifier un réglage système en douce n'est pas de son ressort.
+        #
+        # OPTIONNEL, désactivé par défaut : `ntp_enabled` doit être coché en
+        # CONFIG. Tant qu'il ne l'est pas, aucune requête ne part — la
+        # contrainte d'autonomie du produit (aucun service tiers OBLIGATOIRE)
+        # est respectée, et la page FT8 sait de toute façon mesurer son
+        # décalage sur les stations reçues, sans réseau du tout.
+        if path == '/data/horloge':
+            cfg_snap = self._cfg_snapshot()
+            if not cfg_snap.get('ntp_enabled'):
+                self._json({'ok': False, 'desactive': True,
+                            'error': "Mesure d'horloge désactivée — à activer dans "
+                                     'CONFIG > RADIO si tu veux que le logiciel '
+                                     "interroge un serveur de temps"})
+                return
+            import logx_ntp
+            self._json(logx_ntp.interroger(cfg_snap.get('ntp_server', '')))
+            return
+
         # Décalage Doppler estimé à la fréquence courante (ou 144.1 MHz par défaut).
         if path.startswith('/data/eme_doppler'):
             import logx_eme as eme

@@ -144,8 +144,22 @@ table.decodes tr:hover{background:var(--bg3);cursor:pointer}
 /* Avertissement d'horloge : jaune (on peut encore trafiquer, mal) et non
    rouge (émission en cours) — deux niveaux de gravité distincts, deux
    couleurs distinctes. Couleurs fixes : lisible de jour comme de nuit. */
+.aide-poste{margin:0 0 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg2)}
+.aide-poste summary{cursor:pointer;padding:9px 12px;font-weight:700;font-size:13px;color:var(--accent2)}
+.aide-poste summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.aide-corps{padding:0 14px 12px;font-size:12.5px;line-height:1.6}
+.aide-corps ul{margin:4px 0 10px;padding-left:20px}
+.aide-corps li{margin:3px 0}
+.aide-corps p{margin:6px 0}
+.aide-note{color:var(--muted);font-size:11.5px;border-top:1px solid var(--border);padding-top:8px}
 .horloge-alerte{margin:0 0 14px;padding:10px 12px;border-radius:6px;
   background:#8A6100;color:#fff;font-weight:600;font-size:13px;line-height:1.5}
+/* Clignotement bref pour désigner la case « Activer l'émission » quand un
+   double-clic a préparé une réponse sans pouvoir l'envoyer. Montrer OÙ est le
+   verrou vaut mieux que de le décrire. */
+@keyframes attirer{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px rgba(var(--accent-rgb),.75)}}
+.toggle-arm.attention{animation:attirer .5s ease-in-out 3}
+@media (prefers-reduced-motion: reduce){.toggle-arm.attention{animation:none;outline:2px solid var(--accent)}}
 .ptt-alarme{margin-top:10px;padding:10px 12px;border-radius:6px;
   background:#B3261E;color:#fff;font-weight:700;font-size:13px;line-height:1.45}
 #ft8StopBtn{background:#B3261E;color:#fff;border-color:#B3261E}
@@ -184,13 +198,63 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
 
 <div class="wrap">
   <h1>Décodeur/émetteur FT8 natif</h1>
-  <p class="intro">Décode et émet le FT8 directement ici, sans WSJT-X/JTDX/MSHV — voir <a href="logx_configuration.html" style="color:var(--accent2)">CONFIG</a> pour connecter un logiciel externe à la place. Rien ne part sur l'air sans un clic explicite : "Activer l'émission" arme seulement le bouton "Envoyer", il n'y a pas de séquenceur automatique.</p>
+  <p class="intro">Décode et émet le FT8 directement ici, sans WSJT-X/JTDX/MSHV — voir <a href="logx_configuration.html" style="color:var(--accent2)">CONFIG</a> pour connecter un logiciel externe à la place. Rien ne part sur l'air tant que "Activer l'émission" n'est pas coché : c'est CE geste qui autorise l'émission, et lui seul. Une fois armé, "Envoyer" émet le message affiché, et un double-clic sur un décodage prépare la réponse puis l'envoie. Il n'y a pas de séquenceur automatique : un message part par action, jamais de QSO déroulé tout seul.</p>
 
   <!-- Alerte d'horloge — remplie par majAlerteHorloge() à partir du DT MÉDIAN
        des stations reçues. Placée tout en haut, avant les panneaux : quand
        elle s'affiche, c'est la seule chose qui compte sur cette page, tout le
        reste (waterfall, tableau vide) n'en est que la conséquence. -->
   <div class="horloge-alerte" id="horlogeAlerte" style="display:none" role="alert"></div>
+
+  <!-- RÉGLAGES DU POSTE — ajouté le 18/08/2026 sur un constat de F4GLD qui vaut
+       pour tout le produit : « je n'ai fait aucun réglage sur mon poste [...]
+       le programme ne m'a pas du tout orienté sur ces réglages ». Une page qui
+       décode le FT8 nativement mais laisse l'opérateur deviner comment câbler
+       sa radio n'est pas finie, au sens du maître mot du projet.
+       PAS expert-only : c'est le débutant qui en a le plus besoin. Replié par
+       défaut (<details>) pour ne pas encombrer celui qui a déjà réglé. -->
+  <details class="aide-poste">
+    <summary>Réglages à faire sur le poste (à lire avant le premier essai)</summary>
+    <div class="aide-corps">
+      <p><b>Ce que LogX AI exige, et qui se vérifie ici même :</b></p>
+      <ul>
+        <li><b>Même vitesse des deux côtés.</b> La vitesse CI-V du poste et celle
+          de CONFIG &gt; RADIO doivent être identiques. C'est la panne n°1 : rien
+          ne répond, sans message clair.</li>
+        <li><b>Même adresse CI-V.</b> Elle est propre au modèle et se lit dans le
+          menu du poste ; recopie-la dans CONFIG. Un poste Icom relié en USB fait
+          apparaître <b>deux ports COM</b> : l'un porte le CI-V, l'autre l'audio et
+          le PTT — choisis celui du CI-V pour le pilotage.</li>
+        <li><b>Entrée et sortie audio</b> = la carte son USB du poste, pas les
+          haut-parleurs du PC. Elles se choisissent dans les deux sélecteurs de
+          cette page.</li>
+        <li><b>Horloge à la seconde près.</b> Les créneaux FT8 durent 15 s. La
+          colonne DT ci-dessous te dit en permanence où tu en es.</li>
+      </ul>
+      <p><b>Sur le poste, en mode données :</b></p>
+      <ul>
+        <li>Mode <b>USB-D</b> (données), pas USB simple : les traitements micro
+          déforment un signal numérique.</li>
+        <li><b>Modulation prise sur l'USB</b>, pas sur la prise ACC — sinon rien
+          ne sort alors que tout semble normal côté logiciel.</li>
+        <li><b>Filtre élargi à ~3 kHz</b> : un signal FT8 n'occupe qu'une
+          cinquantaine de hertz, mais des dizaines de stations se répartissent
+          dans les 3 kHz de la fenêtre. Un filtre étroit n'en montre qu'une
+          poignée.</li>
+        <li><b>AGC lent coupé, NB / NR / Notch coupés</b> : ces traitements
+          abîment les signaux faibles que le décodeur cherche justement.</li>
+        <li><b>ALC à ZÉRO pendant l'émission.</b> Pas « dans la zone », pas « au
+          premier tiers » : à zéro. On règle la puissance par le niveau audio
+          envoyé au poste, jamais en laissant l'ALC écrêter — c'est ce qui
+          produit les élargissements de bande dont se plaignent les voisins de
+          fréquence.</li>
+      </ul>
+      <p class="aide-note">Les <b>valeurs de menu chiffrées</b> (pourcentages de
+        niveau, intitulés exacts des lignes) varient d'un modèle à l'autre :
+        le manuel du constructeur fait foi. Les points ci-dessus, eux, valent
+        pour toute station numérique.</p>
+    </div>
+  </details>
 
   <div class="layout">
 
@@ -452,18 +516,55 @@ if(localStorage.getItem('rc_theme') === null){
     // déjà un correspondant).
     const entrees = Array.from(cqSeen.entries()).sort((a,b) => b[1].ts - a[1].ts).slice(0, 40);
     conteneur.innerHTML = entrees.map(([call, info]) => `
-      <div class="cq-item" data-call="${escFt8(call)}" title="Cliquer pour répondre">
+      <div class="cq-item" data-call="${escFt8(call)}" title="Clic : préparer la réponse — Double-clic : préparer ET envoyer">
         <span class="call">${escFt8(call)}</span>
         <span class="meta">${info.grid || ''} ${Math.round(info.freqHz)}Hz</span>
       </div>`).join('');
     conteneur.querySelectorAll('.cq-item').forEach(el => {
-      el.addEventListener('click', () => {
+      const messageCq = () => {
         const call = el.dataset.call;
         const info = cqSeen.get(call);
-        proposerReponse(`CQ ${call}${info && info.grid ? ' ' + info.grid : ''}`);
-        afficherAppelSelectionne(`CQ ${call}${info && info.grid ? ' ' + info.grid : ''}`);
+        return `CQ ${call}${info && info.grid ? ' ' + info.grid : ''}`;
+      };
+      el.addEventListener('click', () => {
+        proposerReponse(messageCq());
+        afficherAppelSelectionne(messageCq());
       });
+      el.addEventListener('dblclick', () => repondreEtEnvoyer(messageCq()));
     });
+  }
+
+  // ─── Double-clic = préparer ET envoyer ───────────────────────────────────
+  //
+  // Demandé par F4GLD le 18/08/2026 : « un double clic sur une station en CQ
+  // devrait lancer automatiquement la réponse de mon côté ».
+  //
+  // La promesse d'en-tête de cette page reste tenue : « rien ne part sur l'air
+  // sans un clic explicite ». Le geste explicite, c'est la case « Activer
+  // l'émission ». Tant qu'elle n'est pas cochée, envoyerMessage() refuse
+  // (`if(!txArmed) return;`) — un double-clic accidentel sur un décodage ne
+  // peut donc RIEN émettre. Ce n'est pas non plus un séquenceur : un
+  // double-clic = un message, celui qui est affiché, et rien de plus.
+  //
+  // Le silence serait ici le vrai défaut : un opérateur qui double-clique sans
+  // avoir armé verrait le champ se remplir et rien partir, sans savoir
+  // pourquoi. On le dit.
+  function repondreEtEnvoyer(text){
+    proposerReponse(text);
+    afficherAppelSelectionne(text);
+    const statusEl = document.getElementById('txStatus');
+    if(!txArmed){
+      statusEl.textContent = "Réponse préparée — coche « Activer l'émission » pour "
+                           + "qu'un double-clic l'envoie";
+      statusEl.className = 'tx-status wait';
+      const lbl = document.getElementById('armLabel');
+      if(lbl){   // attirer l'œil sur ce qui manque, plutôt que de le décrire
+        lbl.classList.add('attention');
+        setTimeout(() => lbl.classList.remove('attention'), 2000);
+      }
+      return;
+    }
+    envoyerMessage();
   }
 
   // ─── État radio (bande courante, pour l'auto-log) ────────────────────────
@@ -839,6 +940,47 @@ if(localStorage.getItem('rc_theme') === null){
     return t.length % 2 ? t[m] : (t[m - 1] + t[m]) / 2;
   }
 
+  // ─── Mesure d'horloge SNTP : distinguer « ton horloge » de « ta chaîne
+  // audio » ─────────────────────────────────────────────────────────────────
+  //
+  // Ajouté le 18/08/2026, et c'est une MESURE qui l'a imposé, pas une idée.
+  // En diagnostiquant le DT de +0,85 s constaté par F4GLD sur ses 5 stations,
+  // j'ai d'abord accusé son horloge — `w32tm /query /status` disait bien
+  // « Non synchronisé / Local CMOS Clock / dernière synchro : non spécifié ».
+  // Puis la mesure SNTP a rendu +0,009 s : son horloge était JUSTE. Le
+  // diagnostic était faux, et le bandeau l'aurait affirmé à l'écran.
+  //
+  // Un DT médian nettement non nul avec une horloge juste ne vient donc pas
+  // de l'heure du PC. HYPOTHÈSE À VÉRIFIER : la latence de capture audio
+  // (pilote + WASAPI + tampon du ScriptProcessorNode) décale tous les
+  // échantillons du même retard, ce qui produit exactement un biais constant
+  // et positif — mais ce n'est pas établi, et le texte affiché ne l'affirme
+  // pas.
+  //
+  // Ce que fait ce code : il ne DÉSIGNE l'horloge que lorsqu'il l'a mesurée
+  // fausse. Sinon il dit ce qu'il sait, et pas plus.
+  let mesureHorloge = null;          // dernier retour de /data/horloge
+  let mesureHorlogeAt = 0;
+  const MESURE_HORLOGE_VALIDITE_MS = 300000;   // 5 min : une horloge ne dérive pas vite
+
+  async function mesurerHorloge(){
+    if(mesureHorloge && (Date.now() - mesureHorlogeAt) < MESURE_HORLOGE_VALIDITE_MS){
+      return mesureHorloge;
+    }
+    try{
+      const r = await fetch('/data/horloge');
+      mesureHorloge = await r.json();
+    }catch(e){
+      mesureHorloge = {ok: false, error: 'serveur injoignable'};
+    }
+    mesureHorlogeAt = Date.now();
+    return mesureHorloge;
+  }
+
+  // Au-delà de cet écart, l'horloge est franchement en cause. En dessous,
+  // elle est hors de cause pour un DT de l'ordre de la seconde.
+  const HORLOGE_SAINE_S = 0.3;
+
   function majAlerteHorloge(){
     const el = document.getElementById('horlogeAlerte');
     if(!el) return;
@@ -847,6 +989,10 @@ if(localStorage.getItem('rc_theme') === null){
       el.style.display = 'none';
       return;
     }
+    // Le décalage est réel : avant d'accuser l'horloge, on essaie de la
+    // mesurer. Asynchrone, donc le bandeau générique est posé tout de suite
+    // (voir plus bas) et affiné dès que la mesure arrive.
+    mesurerHorloge().then(m => affinerAlerteHorloge(m, med));
     // SENS CORRIGÉ le 18/08/2026 — il était INVERSÉ, et c'est la pire faute
     // possible ici : le bandeau envoyait l'opérateur régler son horloge dans
     // le mauvais sens, doublant l'erreur au lieu de la supprimer.
@@ -861,16 +1007,49 @@ if(localStorage.getItem('rc_theme') === null){
     // Le test test_un_pc_en_avance_voit_toutes_les_stations_en_retard le
     // vérifiait DÉJÀ (PC en avance de 3 s -> DT = +3) : le code et son propre
     // test se contredisaient, personne n'avait confronté les deux.
+    // Formulation PRUDENTE tant que l'horloge n'a pas été mesurée : on
+    // constate un décalage, on ne désigne pas encore de coupable.
     const sens = med > 0 ? 'en AVANCE' : 'en RETARD';
-    el.textContent = "⚠ L'horloge de ce PC semble " + sens + ' d\'environ '
-      + Math.abs(med).toFixed(1) + ' s sur l\'UTC : les ' + dtRecents.length
-      + ' dernières stations reçues sont toutes décalées du même côté. En FT8 '
-      + "l'horloge doit rester à l'heure UTC à la seconde près (NTP) : au-delà "
-      + 'plus rien ne se décode et tes émissions tombent hors du créneau des '
-      + 'autres. Active la synchronisation automatique de '
-      + "l'heure Windows (Paramètres > Heure et langue > Synchroniser), ou "
-      + 'installe NetTime.';
+    el.textContent = '⚠ Les ' + dtRecents.length + ' dernières stations reçues '
+      + 'sont toutes décalées du même côté (' + (med > 0 ? '+' : '')
+      + med.toFixed(1) + ' s). Soit l\'horloge de ce PC est ' + sens + ", soit "
+      + 'la chaîne audio ajoute un retard constant. Active la mesure d\'horloge '
+      + 'dans CONFIG > RADIO pour que le logiciel tranche.';
     el.style.display = '';
+  }
+
+  // Deuxième temps : la mesure SNTP est arrivée, on peut nommer la cause au
+  // lieu de proposer deux hypothèses.
+  function affinerAlerteHorloge(mesure, med){
+    const el = document.getElementById('horlogeAlerte');
+    if(!el || el.style.display === 'none') return;
+    if(!mesure || !mesure.ok) return;   // mesure indisponible : on garde le texte prudent
+
+    const ecart = mesure.ecart_s;
+    if(Math.abs(ecart) < HORLOGE_SAINE_S){
+      // MESURÉ : l'horloge est bonne. Le décalage vient d'ailleurs, et le dire
+      // évite d'envoyer l'opérateur régler une horloge qui n'a rien à se
+      // reprocher — exactement l'erreur que j'ai faite le 18/08/2026 avant de
+      // mesurer.
+      el.textContent = '⚠ Les stations reçues sont décalées de '
+        + (med > 0 ? '+' : '') + med.toFixed(1) + " s, mais l'horloge de ce PC "
+        + 'est juste (mesurée à ' + (ecart >= 0 ? '+' : '') + ecart.toFixed(3)
+        + ' s de l\'UTC via ' + mesure.serveur + '). Le décalage vient donc de '
+        + 'la chaîne audio (latence de capture du pilote ou de l\'interface), '
+        + 'pas de ton heure. Le décodage reste possible tant que ce décalage '
+        + "ne dépasse pas environ une seconde ; tes émissions, elles, partent à "
+        + "l'heure du PC et sont donc correctement calées.";
+      return;
+    }
+    // MESURÉ : l'horloge est bien fausse. Là, on peut être affirmatif.
+    const sensMesure = ecart > 0 ? 'en RETARD' : 'en AVANCE';
+    el.textContent = "⚠ L'horloge de ce PC est " + sensMesure + ' de '
+      + Math.abs(ecart).toFixed(1) + " s sur l'UTC (mesuré via " + mesure.serveur
+      + '). En FT8 tout est calé sur des créneaux de 15 s : au-delà d\'environ '
+      + 'une seconde d\'écart, plus rien ne se décode et tes émissions tombent '
+      + 'hors du créneau des autres. Active la synchronisation automatique de '
+      + "l'heure (Windows : Paramètres > Heure et langue > Synchroniser ; "
+      + 'pense à passer le service « Windows Time » en démarrage automatique).';
   }
 
   // Créneaux consécutifs pour lesquels aucune fenêtre exploitable n'a pu être
@@ -997,8 +1176,9 @@ if(localStorage.getItem('rc_theme') === null){
     if(typeof dt === 'number' && Math.abs(dt) >= DT_ALERTE_S) tdDt.style.color = 'var(--red)';
     const tdM = document.createElement('td'); tdM.textContent = text;   // textContent : jamais de HTML depuis un décodage radio
     tr.append(tdH, tdF, tdDt, tdS, tdM);
-    tr.title = 'Clic : proposer une réponse';
+    tr.title = 'Clic : préparer la réponse — Double-clic : préparer ET envoyer';
     tr.addEventListener('click', () => { proposerReponse(text); afficherAppelSelectionne(text); });
+    tr.addEventListener('dblclick', () => repondreEtEnvoyer(text));
     const tbody = document.getElementById('decodesBody');
     tbody.insertBefore(tr, tbody.firstChild);
     while(tbody.children.length > 60) tbody.removeChild(tbody.lastChild);   // borne la liste, pas de fuite mémoire sur une longue session

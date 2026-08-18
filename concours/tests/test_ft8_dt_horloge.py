@@ -240,6 +240,13 @@ def _ctx_bandeau(dts):
       var document = { getElementById: function(id){
         return id === 'horlogeAlerte' ? __el : null; } };
       var dtRecents = [];
+      // majAlerteHorloge() demande depuis le 18/08/2026 une mesure d'horloge
+      // SNTP pour savoir s'il peut accuser l'heure du PC. Ici on n'en fournit
+      // pas : c'est le cas « mesure indisponible », celui où le texte doit
+      // rester au CONSTAT et proposer les deux causes. Sans ce bouchon, la
+      // fonction levait une ReferenceError avant même d'écrire son texte.
+      function mesurerHorloge(){ return {then: function(){ return this; }}; }
+      function affinerAlerteHorloge(){}
     """)
     ctx.eval(re.search(r'const DT_ALERTE_S\s*=\s*[\d.]+;', src).group(0)
              .replace('const', 'var', 1))

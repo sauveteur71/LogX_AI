@@ -54,6 +54,8 @@ const CONFIG_HELP = {
   cluster_spot_port: "Port réseau du cluster DX — généralement 7300, indiqué par le fournisseur du cluster.",
   rbn_enabled: "Active le Reverse Beacon Network : un réseau mondial de récepteurs qui te signale automatiquement où et comment ton signal CW est entendu.",
 
+  ntp_enabled: "Mesure l'écart entre l'horloge de ce PC et l'heure UTC via un serveur de temps, et te le signale. Ne règle JAMAIS l'horloge (droits administrateur requis). Désactivé = aucune requête réseau.",
+  ntp_server: "Serveur de temps à interroger. Vide = fr.pool.ntp.org (pool public associatif). Un club derrière un pare-feu strict peut pointer son propre serveur.",
   cat_enabled: "Active le pilotage direct de la radio (lecture fréquence/mode, bascule émission) depuis le logiciel.",
   cat_mode: "Choisis comment le logiciel parle à ta radio : NATIF (câble série direct, sans logiciel intermédiaire), TCI (protocole réseau moderne type SunSDR/ExpertSDR), RIGCTLD (passe par le standard Hamlib, compatible presque toutes les radios), FLRIG (autre pilote CAT réseau, courant sous Linux/fldigi), OMNIRIG (composant COM Windows, avancé — lecture/écriture complètes), FLEXRADIO (API réseau native SmartSDR — lecture + PTT seulement), ou ICOM RÉSEAU (IC-705/7610/905, pas encore disponible).",
   cat_brand: "La marque de ta radio pour le mode NATIF (Icom, Yaesu, Kenwood, Elecraft...) — détermine le protocole exact utilisé.",
@@ -5307,6 +5309,8 @@ function saveConfig(silent = false, feedbackBtn = null) {
     rig_host: document.getElementById('rig_host')?.value.trim() || '',
     rig_port: parseInt(document.getElementById('rig_port')?.value, 10) || 4532,
     cat_enabled: !!document.getElementById('cat_enabled').value,
+    ntp_enabled: !!document.getElementById('ntp_enabled')?.value,
+    ntp_server: (document.getElementById('ntp_server')?.value || '').trim(),
     cat_mode: document.getElementById('cat_mode').value,
     cat_brand: document.getElementById('cat_brand').value,
     cat_model: document.getElementById('cat_model').value,
@@ -6196,6 +6200,8 @@ function applyFullConfigToForm(c) {
     if(c.rig_host) document.getElementById('rig_host').value = c.rig_host;
     if(c.rig_port) document.getElementById('rig_port').value = c.rig_port;
     if(c.cat_enabled) document.getElementById('cat_enabled').value = '1';
+    if(c.ntp_enabled && document.getElementById('ntp_enabled')) document.getElementById('ntp_enabled').value = '1';
+    if(c.ntp_server && document.getElementById('ntp_server')) document.getElementById('ntp_server').value = c.ntp_server;
     if(c.cat_power_auto_enabled && document.getElementById('cat_power_auto_enabled'))
       document.getElementById('cat_power_auto_enabled').value = '1';
     // Migration : config antérieure au pilotage natif (rig_enabled=true,
