@@ -1249,6 +1249,30 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
               <option value="1">Activé</option>
             </select>
           </div>
+          <!-- Mesure d'horloge — OPTIONNELLE et désactivée par défaut. La
+               contrainte d'autonomie du produit interdit tout service tiers
+               OBLIGATOIRE : tant que ceci n'est pas activé, aucune requête ne
+               part, et la page FT8 continue de mesurer son décalage sur les
+               stations reçues, sans réseau. expert-only : un débutant n'a pas
+               à connaître NTP pour logger son premier QSO. -->
+          <div class="form-group expert-only">
+            <label>MESURE DE L'HEURE (NTP)</label>
+            <select id="ntp_enabled">
+              <option value="">Désactivée</option>
+              <option value="1">Activée — mesurer l'écart d'horloge</option>
+            </select>
+            <div class="input-note">Le logiciel MESURE l'écart entre l'horloge de
+              ce PC et l'heure UTC, et te le dit. Il ne règle jamais l'horloge :
+              cela demande les droits administrateur. Utile en FT8/FT4, où les
+              créneaux de 15 s exigent une horloge à la seconde près.</div>
+          </div>
+          <div class="form-group expert-only">
+            <label>SERVEUR DE TEMPS</label>
+            <input type="text" id="ntp_server" placeholder="fr.pool.ntp.org" autocomplete="off">
+            <div class="input-note">Laisse vide pour le pool NTP public
+              (associatif, sans inscription). Un club derrière un pare-feu strict
+              peut pointer son propre serveur.</div>
+          </div>
           <div class="form-group">
             <label>MODE DE PILOTAGE</label>
             <select id="cat_mode" onchange="updateCatModeVisibility()">
