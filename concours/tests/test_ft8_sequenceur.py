@@ -598,11 +598,18 @@ var __journal = [];
 function offrirLogQso(call, infos){
   __offreEnAttente = {call: call, infos: infos || null, tMs: NOW};
 }
+// __logEchoue : le vrai confirmerLogQso peut échouer (HTTP 400/500, réseau
+// coupé) et REND désormais false dans ce cas. Le socle rendait toujours un
+// succès : le chemin d'échec n'était joué par aucun test, alors que c'est
+// précisément celui où le séquenceur annonçait « loggué automatiquement » et
+// enchaînait sur la station suivante pendant que la fiche disparaissait.
+var __logEchoue = false;
 function confirmerLogQso(){
-  if(!__offreEnAttente) return Promise.resolve();
+  if(!__offreEnAttente) return Promise.resolve(true);
+  if(__logEchoue) return Promise.resolve(false);   // l'offre RESTE en attente
   __journal.push(__offreEnAttente);
   __offreEnAttente = null;
-  return Promise.resolve();
+  return Promise.resolve(true);
 }
 function annulerLogQso(){ __offreEnAttente = null; }
 
@@ -745,10 +752,17 @@ class _Banc:
                  .replace('__DUREE_TRAME_MS__', str(DUREE_TRAME_MS)))
         self.ctx.eval(socle)
 
-        # Vrai code du dépôt, pas une copie : géodésie (distance du log) et
-        # extraction de station. Si l'un des trois change dans la page, le banc
-        # change avec — c'est voulu.
-        for nom in ('gridVersLatLon', 'distanceKm', 'extraireStation'):
+        # Les REGEX de la page, extraites telles quelles. Les recopier ici
+        # serait exactement l'écart socle/source que ce banc a déjà payé trois
+        # fois : une regex figée dans le banc ne suit pas celle de la page, et
+        # le banc se met à valider une grammaire que le produit n'applique plus.
+        for cst in re.findall(r'const (RE_[A-Z_0-9]+ = /[^\n]*/);', src):
+            self.ctx.eval('var ' + cst + ';')
+
+        # Vrai code du dépôt, pas une copie : géodésie (distance du log),
+        # reconnaissance de carré et extraction de station. Si l'un d'eux change
+        # dans la page, le banc change avec — c'est voulu.
+        for nom in ('gridVersLatLon', 'distanceKm', 'estCarre', 'extraireStation'):
             self.ctx.eval(_extraire_fonction(src, nom))
 
         # La machine à états. Lève une AssertionError parlante si absente.
@@ -2033,23 +2047,217 @@ def test_aucune_raison_declaree_n_est_morte():
     croyant compléter la table — et défaire le correctif qui l'avait
     précisément scindée en trois raisons distinctes.
 
-    Le ternaire `seqArreter(complet ? 'a' : 'b')` est pris en compte : la
-    regex cherche toute chaîne quotée dans un appel à seqArreter."""
+    Les arguments de seqArreter sont EXTRAITS PAR ÉQUILIBRAGE DE PARENTHÈSES,
+    puis on y cherche toute chaîne quotée. Une regex sur la forme de l'appel ne
+    suffit pas : la raison peut être nichée dans un ternaire imbriqué
+    (`issue === 'x' ? 'raison-a' : issue === 'y' ? 'raison-b' : 'raison-c'`).
+    Première version de ce test : une regex à deux branches, qui a déclaré
+    morte une raison parfaitement vivante dès qu'un troisième cas est apparu —
+    et l'a fait dans l'heure qui a suivi son écriture."""
     src = _sans_commentaires(_lire(FT8_HTML))
     i = src.index('const SEQ_RAISONS')
     bloc = src[i:src.index('\n  };', i)]
     declarees = set(re.findall(r"^\s*'([a-z0-9-]+)':", bloc, re.M))
-    appelees = set(re.findall(r"seqArreter\(\s*'([a-z0-9-]+)'", src))
-    appelees |= set(re.findall(r"\?\s*'([a-z0-9-]+)'\s*:\s*'([a-z0-9-]+)'", src)
-                    and [x for pair in re.findall(
-                        r"\?\s*'([a-z0-9-]+)'\s*:\s*'([a-z0-9-]+)'", src)
-                        for x in pair])
+
+    appelees = set()
+    pos = 0
+    while True:
+        k = src.find('seqArreter(', pos)
+        if k < 0:
+            break
+        j = k + len('seqArreter(')
+        prof = 1
+        while prof:
+            if src[j] == '(':
+                prof += 1
+            elif src[j] == ')':
+                prof -= 1
+            j += 1
+        appelees |= set(re.findall(r"'([a-z0-9-]+)'", src[k:j]))
+        pos = j
+
     mortes = declarees - appelees
     assert not mortes, 'raisons déclarées et jamais appelées : %r' % sorted(mortes)
     inconnues = appelees - declarees - {'test'}
     assert not inconnues, (
         'raisons appelées mais absentes de la table (l\'écran n\'affichera '
         'rien) : %r' % sorted(inconnues))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# §4quater. PROTOCOLE FT8 ET LOG — 2e revue
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_la_regle_du_carre_a_quatre_caracteres_n_a_qu_une_seule_definition():
+    """Elle existait en TROIS copies, et l'une des trois avait été oubliée lors
+    du correctif de la veille : le message partait alors SANS grille, en
+    silence, pendant que l'écran affichait la grille complète.
+
+    Trois copies d'une même règle, c'est trois occasions de l'oublier. On exige
+    donc une définition unique, et que plus personne ne tronque à la main."""
+    src = _sans_commentaires(_lire(FT8_HTML))
+    assert src.count("function grille4()") == 1, 'une seule définition attendue'
+    # Plus aucune troncature manuscrite : elles doivent toutes passer par elle.
+    manuscrites = re.findall(r"myGrid[^\n]*slice\(\s*0\s*,\s*4\s*\)", src)
+    assert len(manuscrites) == 1, (
+        'troncature recopiée à la main hors de grille4() : %r' % manuscrites)
+
+
+@pytest.mark.parametrize('recu,grille_attendue', [
+    ('F4GLD F4ABC RR73', ''),      # jeton de protocole, PAS un carré
+    ('F4GLD F4ABC 73', ''),
+    ('F4GLD F4ABC R-12', ''),
+    ('F4GLD F4ABC JN18', 'JN18'),  # un vrai carré passe toujours
+    ('CQ F4ABC JN18', 'JN18'),
+])
+def test_un_jeton_de_protocole_n_est_jamais_pris_pour_un_carre(
+        banc, recu, grille_attendue):
+    """« RR73 » satisfait la regex de locator — deux lettres A-R, deux
+    chiffres. Le fichier documentait déjà la règle (« les jetons de protocole
+    d'ABORD, PARTOUT ») sans l'appliquer là où elle comptait le plus :
+    extraireStation, qui alimente la grille de la séquence au démarrage.
+
+    Mesuré avant correction : un double-clic sur un message finissant par RR73
+    — cas courant après un QSO manuel — logguait le contact avec
+    locator='RR73' et une distance de 5665 km calculée depuis 83,5° N / 175° E,
+    en plein océan Arctique. La fiche partait telle quelle vers LoTW/eQSL."""
+    b = banc()
+    got = json.loads(b.js('JSON.stringify(extraireStation(%s))' % json.dumps(recu)))
+    assert got['grid'] == grille_attendue, (
+        '%r -> grille %r au lieu de %r' % (recu, got['grid'], grille_attendue))
+
+
+def test_un_qso_vhf_est_loggue_avec_sa_bande():
+    """La table s'arrêtait à 52 MHz : tout QSO FT8 en 4 m / 2 m / 70 cm / 23 cm
+    était auto-loggué SANS bande, et confirmerLogQso n'écrit pas non plus de
+    fréquence. Un ADIF FT8 sans BAND ni FREQ n'est exploitable ni par LoTW ni
+    par eQSL.
+
+    Les bornes sont alignées sur logx_wsjtx.py::_mhz_to_band, l'AUTRE chemin de
+    log FT8 de cette même application — deux tables divergentes pour la même
+    question, c'est la divergence qui est le défaut."""
+    src = _lire(FT8_HTML)
+    i = src.rindex('const BAND_EDGES', 0, src.index('function bandeDepuisKhz'))
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval(src[i:src.index('];', i) + 2])
+    ctx.eval(_extraire_fonction(src, 'bandeDepuisKhz'))
+    for khz, attendu in ((14074, '14'), (50313, '50'), (70154, '70'),
+                         (144174, '144'), (432174, '432'), (1296174, '1296')):
+        assert ctx.eval('bandeDepuisKhz(%d)' % khz) == attendu, (
+            '%d kHz -> %r au lieu de %r'
+            % (khz, ctx.eval('bandeDepuisKhz(%d)' % khz), attendu))
+
+
+def test_sans_locator_le_premier_message_n_est_pas_un_report(banc):
+    """Le repli envoyait un REPORT quand le locator manque, en s'appuyant sur
+    l'affirmation « un Tx1 sans rien après l'indicatif n'existe pas en FT8 ».
+    Cette affirmation est fausse — le fichier se contredisait lui-même quinze
+    lignes plus bas, et le codec du dépôt fait un aller-retour à l'identique
+    sur « F4ABC F4GLD ».
+
+    Le dégât n'est pas cosmétique : envoyer un report à une station dont on n'a
+    encore RIEN reçu lui affirme qu'on l'a copiée. Son séquenceur saute alors
+    sa propre grille et enchaîne sur R<report> — on ne connaîtra jamais son
+    carré."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js("myGrid = '';")
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(60000)
+    emis = b.emissions_parties()
+    assert emis, 'aucune émission'
+    assert emis[0] == '%s %s' % (CIBLE, MOI), (
+        'le premier message doit être le message nu à deux indicatifs, il vaut '
+        '%r' % emis[0])
+    # Et il doit être réellement transmissible.
+    ctx = py_mini_racer.MiniRacer()
+    ctx.eval(_lire(os.path.join(CONCOURS, 'logx_ft8_codec.js')))
+    js = ('(function(){ var HT = ft8CreateHashTable();'
+          ' var e = ft8EncodeMessage(' + json.dumps(emis[0]) + ', HT);'
+          ' return e ? ft8DecodeSymbols(e.symbols, HT) : ""; })()')
+    rendu = ctx.eval(js)
+    assert rendu == emis[0], 'aller-retour codec : %r -> %r' % (emis[0], rendu)
+
+
+def test_le_report_emis_est_memorise_quel_que_soit_le_message_qui_le_porte(banc):
+    """rstEnvoye n'était posé que sur une liste d'étapes en dur ('TX2'||'TX3').
+    Tout message porteur d'un report hors de cette liste laissait rst_sent vide,
+    et le QSO était classé « incomplet » alors qu'un report avait bien été
+    échangé. On le déduit maintenant du message RÉELLEMENT construit."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js('NOW = 700;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    journal = b.etat()['journal']
+    assert journal, 'le QSO aurait dû aboutir'
+    assert journal[0]['infos']['rst_sent'], (
+        'le report que NOUS avons envoyé n\'a pas été mémorisé : %r'
+        % journal[0]['infos'])
+
+
+@pytest.mark.parametrize('recu,premier_suffixe', [
+    ('%s %s JN18' % (MOI, CIBLE), '-13'),     # elle nous donne sa grille -> report
+    ('%s %s -05' % (MOI, CIBLE), 'R-13'),     # elle nous donne un report -> R+report
+    ('CQ %s JN18' % CIBLE, MA_GRILLE),        # un CQ -> notre grille (TX1)
+])
+def test_le_sequenceur_repond_a_ce_qu_il_a_recu(banc, recu, premier_suffixe):
+    """RÔLE « ON NOUS APPELLE ». Le niveau assisté lisait le message
+    double-cliqué et préparait la bonne réponse ; le séquenceur l'ignorait et
+    repartait TOUJOURS de TX1, c'est-à-dire de sa grille.
+
+    Répondre par sa grille à une station qui vous appelle n'est pas l'usage,
+    coûte un aller-retour complet (60 s à la cadence de cette page), et JETAIT
+    le report déjà reçu. Le mode « plus automatique » donnait donc une réponse
+    MOINS juste que le mode assisté — l'inverse de ce qu'on en attend."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0, message=recu,
+               grille=('JN18' if 'JN18' in recu else ''))
+    b.avancer(60000)
+    suffixes = b.suffixes_emis()
+    assert suffixes, 'aucune émission'
+    assert suffixes[0] == premier_suffixe, (
+        'reçu %r -> premier message %r, attendu %r'
+        % (recu, suffixes[0], premier_suffixe))
+
+
+def test_les_deux_niveaux_partent_de_la_meme_etape(banc):
+    """La divergence venait de DEUX calculs séparés de l'étape de départ. Une
+    seule règle pour les deux : la contradiction ne peut plus réapparaître."""
+    recu = '%s %s JN18' % (MOI, CIBLE)
+    a = banc(niveau='assiste')
+    a.js('NOW = 2000;')
+    a.demarrer(slotEntendu=0, message=recu, grille='JN18')
+    champ_assiste = a.etat()['champTx']
+
+    sq = banc(correspondant=_correspondant(muette=True))
+    sq.js('NOW = 2000;')
+    sq.demarrer(slotEntendu=0, message=recu, grille='JN18')
+    champ_seq = sq.etat()['champTx']
+    assert champ_assiste == champ_seq, (
+        'assisté prépare %r, séquenceur prépare %r' % (champ_assiste, champ_seq))
+
+
+def test_un_log_qui_echoue_n_est_jamais_annonce_comme_reussi(banc):
+    """seqLoguer appelait confirmerLogQso SANS attendre le résultat et rendait
+    la seule complétude des REPORTS. Un 400, un 500 ou une coupure réseau
+    faisait donc disparaître la fiche pendant que l'écran affichait « QSO
+    terminé, loggué automatiquement » et que la séquence enchaînait.
+
+    Sur le chemin manuel le dégât est borné — l'opérateur regarde le bandeau
+    qu'il vient de valider. En séquenceur il est structurel : personne ne
+    regarde plus."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js('NOW = 700;')
+    b.js('__logEchoue = true;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    et = b.etat()
+    assert not et['journal'], 'le journal ne doit rien contenir'
+    assert 'NON ENREGISTR' in et['seqEtat'].upper(), (
+        "l'écran doit dire que la fiche n'a pas été écrite : %r" % et['seqEtat'])
+    assert et['offreEnAttente'] is not None, (
+        "l'offre doit RESTER ouverte pour que l'opérateur puisse réessayer")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

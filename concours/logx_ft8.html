@@ -512,12 +512,33 @@ if(localStorage.getItem('rc_theme') === null){
   // message en contient une — pas un décodeur complet du protocole (déjà
   // fait, voir logx_ft8_codec.js), juste assez pour afficher un contexte.
   const RE_GRID = /^[A-R]{2}[0-9]{2}$/;
+  // « Est-ce un carré Maidenhead ? » — jetons de PROTOCOLE écartés d'abord.
+  // L'ordre n'est pas un détail : « RR73 » satisfait RE_GRID (deux lettres
+  // A-R, deux chiffres). Sans ce filtre, extraireStation('F4GLD F4ABC RR73')
+  // rendait grid='RR73', la séquence démarrait avec cette grille, et le QSO
+  // partait au log avec locator='RR73' et une distance de 5665 km calculée
+  // depuis 83,5° N / 175° E — en plein océan Arctique. La fiche filait telle
+  // quelle vers LoTW/eQSL et faussait les diplômes par carré.
+  function estCarre(jeton){
+    return !RE_PROTO.test(jeton) && RE_GRID.test(jeton);
+  }
+
+  // Jetons de PROTOCOLE, à écarter avant toute reconnaissance de locator.
+  // « RR73 » satisfait /^[A-R]{2}[0-9]{2}$/ — deux lettres A-R, deux chiffres.
+  // La règle est déjà écrite plus bas pour le séquenceur (« PARTOUT »), elle
+  // manquait ici. Conséquence mesurée : extraireStation('F4GLD F4ABC RR73')
+  // rendait grid='RR73', la séquence démarrait avec cette grille, et le QSO
+  // était loggué avec locator='RR73' et une distance de 5665 km calculée
+  // depuis 83,5° N / 175° E — en plein océan Arctique. La fiche partait telle
+  // quelle vers LoTW/eQSL et faussait les diplômes par carré.
+  const RE_PROTO = /^(RRR|RR73|73|R[+-]\d{1,2}|[+-]\d{1,2})$/;
+
   function extraireStation(text){
     const parts = String(text).trim().split(/\s+/).filter(Boolean);
     if(!parts.length) return {call:'', grid:''};
     if(parts[0] === 'CQ'){
       const dernier = parts[parts.length-1];
-      if(RE_GRID.test(dernier) && parts.length >= 3){
+      if(estCarre(dernier) && parts.length >= 3){
         return {call: parts[parts.length-2], grid: dernier};
       }
       return {call: parts[parts.length-1], grid: ''};
@@ -527,7 +548,7 @@ if(localStorage.getItem('rc_theme') === null){
     // pour "qui je viens de sélectionner", que le destinataire soit moi ou non.
     const call = parts.length >= 2 ? parts[1] : parts[0];
     const dernier = parts[parts.length-1];
-    const grid = RE_GRID.test(dernier) ? dernier : '';
+    const grid = estCarre(dernier) ? dernier : '';
     return {call, grid};
   }
 
@@ -663,6 +684,18 @@ if(localStorage.getItem('rc_theme') === null){
     ['1.8', 1800, 2000], ['3.5', 3500, 3800], ['7', 7000, 7200], ['10.1', 10100, 10150],
     ['14', 14000, 14350], ['18', 18068, 18168], ['21', 21000, 21450], ['24', 24890, 24990],
     ['28', 28000, 29700], ['50', 50000, 52000],
+    // VHF/UHF : la table s'arrêtait à 52 MHz, donc tout QSO FT8 en 4 m / 2 m /
+    // 70 cm / 23 cm était auto-loggué SANS bande — et confirmerLogQso n'écrit
+    // pas non plus de fréquence. Un ADIF FT8 sans BAND ni FREQ n'est
+    // exploitable ni par LoTW ni par eQSL.
+    //
+    // Bornes reprises de logx_wsjtx.py::_mhz_to_band, l'AUTRE chemin de log
+    // FT8 de cette même application, qui les couvre depuis toujours : deux
+    // tables divergentes pour la même question, c'est la divergence qui est le
+    // défaut. 144,174 MHz et 432,174 MHz sont les fréquences FT8 que le dépôt
+    // documente lui-même (logx_awards.py).
+    ['70', 70000, 71000], ['144', 144000, 148000],
+    ['432', 430000, 440000], ['1296', 1240000, 1300000],
   ];
   function bandeDepuisKhz(khz){
     for(const [b, lo, hi] of BAND_EDGES) if(khz >= lo && khz <= hi) return b;
@@ -1325,10 +1358,8 @@ if(localStorage.getItem('rc_theme') === null){
     const parts = text.split(' ');
     if(parts[0] === 'CQ'){
       const call = parts[parts.length - 1].match(/^[A-Z0-9/]+$/) ? parts[1] : parts[1];
-      // Même troncature que le séquenceur : le chemin manuel a exactement le
-      // même défaut, et il émet le contenu de ce champ tel quel.
       document.getElementById('txText').value =
-        `${parts[1]} ${myCall} ${String(myGrid || '').slice(0, 4)}`.trim().toUpperCase();
+        `${parts[1]} ${myCall} ${grille4()}`.trim().toUpperCase();
       return;
     }
     if(myCall && parts[0] === myCall){
@@ -1996,14 +2027,38 @@ if(localStorage.getItem('rc_theme') === null){
       my_call: myCall, my_locator: myGrid,
       operator: myCall, source: 'ft8_natif',
     };
+    // REND true/false. Sans valeur de retour, le séquenceur annonçait « QSO
+    // terminé, loggué automatiquement » puis enchaînait sur la station
+    // suivante — alors qu'un 400, un 500 ou une coupure réseau faisait
+    // disparaître la fiche SANS TRACE : le catch avalait la panne, l'affichage
+    // n'était mis à jour que dans la branche de succès, et annulerLogQso()
+    // effaçait la fiche dans tous les cas. Sur le chemin manuel le dégât est
+    // borné (l'opérateur regarde le bandeau qu'il vient de valider) ; en
+    // séquenceur il est structurel, puisque personne ne regarde plus.
+    let ok = false;
+    let detail = '';
     try{
       const r = await fetch('/log/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(qso)});
-      if(r.ok || r.status === 409){
+      ok = r.ok || r.status === 409;
+      if(ok){
         document.getElementById('txStatus').textContent = (r.status===409 ? 'Déjà loggué : ' : 'Loggué : ') + qsoEnAttente;
         ajouterAuJournalSession(qsoEnAttente, qso.band, qso.time);
+      } else {
+        detail = 'erreur ' + r.status;
       }
-    }catch(e){}
+    }catch(e){
+      detail = (e && e.message) ? e.message : 'réseau injoignable';
+    }
+    if(!ok){
+      document.getElementById('txStatus').textContent =
+        'QSO NON enregistré (' + detail + ') — ressaisis-le dans LOGBOOK';
+      document.getElementById('txStatus').className = 'tx-status';
+      // On NE vide PAS l'offre : le bandeau reste ouvert pour que l'opérateur
+      // puisse réessayer. Une fiche perdue en silence ne se retrouve pas.
+      return false;
+    }
     annulerLogQso();
+    return true;
   };
 
   // ─── Colonne droite : journal des QSO loggués DEPUIS CETTE PAGE (la
@@ -2170,6 +2225,9 @@ if(localStorage.getItem('rc_theme') === null){
     '73-recu-incomplet': '73 reçu — QSO loggué, mais SANS report : complète la fiche dans LOGBOOK.',
     'qso-termine-incomplet': 'QSO loggué, mais SANS report échangé : complète la fiche dans LOGBOOK.',
     'remplacement': 'Séquence remplacée par une autre station.',
+    'qso-non-enregistre': "QSO terminé mais NON ENREGISTRÉ — la fiche n'a pas "
+               + 'pu être écrite. Ressaisis-la dans LOGBOOK, elle est perdue '
+               + 'sinon.',
     'duree-max': 'Séquence arrêtée : trop longue sans aboutir (plafond de '
                + '15 minutes). La station ne répond pas comme attendu — '
                + 'réessaie plus tard ou change de station.',
@@ -2275,7 +2333,15 @@ if(localStorage.getItem('rc_theme') === null){
   // SANS grille, sans le moindre avertissement, et l'affichage montrait
   // pourtant la grille complète. La précision à 6 caractères reste utilisée
   // partout où elle a un sens (calcul de distance, log).
-  function seqGrille4(){
+  function seqGrille4(){ return grille4(); }
+
+  // Une SEULE définition de la règle « le message ne transporte que le carré
+  // à 4 caractères ». Elle existait en TROIS copies (branche CQ du chemin
+  // manuel, branche « on nous adresse un message », et le séquenceur), et
+  // l'une des trois avait été oubliée lors du correctif : le message partait
+  // alors SANS grille, en silence, pendant que l'écran affichait la grille
+  // complète. Trois copies d'une même règle, c'est trois occasions de l'oublier.
+  function grille4(){
     return String(myGrid || '').slice(0, 4);
   }
 
@@ -2285,9 +2351,23 @@ if(localStorage.getItem('rc_theme') === null){
     if(etape === 'TX3') return tete + 'R' + seqRst(etat.snrCible);
     if(etape === 'TX4') return tete + 'RRR';
     if(etape === 'TX5') return tete + '73';
-    // TX1 : notre grille — ou notre report si le locator n'est pas renseigné
-    // dans CONFIG, un Tx1 sans rien après l'indicatif n'existant pas en FT8.
-    return tete + (seqGrille4() || seqRst(etat.snrCible));
+    // TX1 : notre grille. Si le locator n'est pas renseigné dans CONFIG, on
+    // émet le message à deux indicatifs NU — « <cible> <moi> » — et surtout
+    // PAS un report.
+    //
+    // Le repli précédent envoyait un report, en s'appuyant sur l'affirmation
+    // « un Tx1 sans rien après l'indicatif n'existe pas en FT8 ». Cette
+    // affirmation est fausse, et le fichier se contredisait lui-même quinze
+    // lignes plus bas (seqSuite qualifie ce message de « standard parfaitement
+    // valide »). Vérifié sur le codec du dépôt : « F4ABC F4GLD » fait un
+    // aller-retour à l'identique.
+    //
+    // Le dégât n'était pas cosmétique : envoyer un report à une station dont
+    // on n'a encore RIEN reçu lui affirme qu'on l'a copiée. Son séquenceur
+    // saute alors sa propre grille et enchaîne sur R<report> — on ne connaîtra
+    // jamais son carré.
+    const g = seqGrille4();
+    return g ? (tete + g) : (etat.cible + ' ' + myCall);
   }
 
   // ─── Lecture d'un créneau ────────────────────────────────────────────────
@@ -2386,7 +2466,13 @@ if(localStorage.getItem('rc_theme') === null){
   function seqProgrammer(etat, etape){
     etat.etape = etape;
     const texte = seqTexte(etat, etape);
-    if(etape === 'TX2' || etape === 'TX3') etat.rstEnvoye = seqRst(etat.snrCible);
+    // Mémoriser le report que NOUS venons d'envoyer — déduit du message
+    // RÉELLEMENT construit, pas d'une liste d'étapes en dur. Avec la liste,
+    // tout message porteur d'un report hors TX2/TX3 laissait rst_sent vide et
+    // le QSO était classé « incomplet » alors qu'un report avait bien été
+    // échangé.
+    const mReport = /(?:^|\s)R?([+-]\d{2})$/.exec(texte);
+    if(mReport) etat.rstEnvoye = mReport[1];
 
     // Le champ de saisie est un AFFICHAGE d'information. La source de vérité
     // est l'état de séquence : `texte` ci-dessus est passé EXPLICITEMENT à
@@ -2451,8 +2537,12 @@ if(localStorage.getItem('rc_theme') === null){
         }
 
         if(!fin) return;
-        const complet = seqLoguer(seq);
-        seqArreter(complet ? 'qso-termine' : 'qso-termine-incomplet');
+        const monJeton2 = monJeton;
+        seqLoguer(seq).then(function(issue){
+          if(!seq || seq.jeton !== monJeton2) return;
+          seqArreter(issue === 'ECHEC' ? 'qso-non-enregistre'
+                     : issue === 'COMPLET' ? 'qso-termine' : 'qso-termine-incomplet');
+        });
       };
       // On LAISSE PARTIR le 73 avant d'arrêter : couper le dernier message en
       // plein vol laisserait le QSO incomplet en face et donnerait à
@@ -2485,8 +2575,18 @@ if(localStorage.getItem('rc_theme') === null){
     // accord en choisissant ce mode ET en armant l'émission. Lui redemander de
     // valider chaque QSO laisserait des contacts non loggués dès qu'il regarde
     // ailleurs — exactement ce qu'un séquenceur doit éviter.
-    confirmerLogQso();
-    return !!(infos.rst_sent && infos.rst_rcvd);
+    //
+    // On ATTEND le résultat, et on le rend. Rendre la seule complétude des
+    // reports faisait annoncer « loggué automatiquement » même quand
+    // l'enregistrement avait échoué.
+    // Codes de retour en MAJUSCULES, volontairement : les raisons d'arrêt sont
+    // en minuscules-tiret, et le test qui vérifie la table des raisons lit
+    // toute chaîne quotée dans un appel à seqArreter. Deux vocabulaires dans
+    // le même appel doivent avoir deux formes distinctes.
+    return Promise.resolve(confirmerLogQso()).then(function(ecrit){
+      if(ecrit === false) return 'ECHEC';
+      return (infos.rst_sent && infos.rst_rcvd) ? 'COMPLET' : 'INCOMPLET';
+    }, function(){ return 'ECHEC'; });
   }
 
   // ─── Arrêt ───────────────────────────────────────────────────────────────
@@ -2549,20 +2649,35 @@ if(localStorage.getItem('rc_theme') === null){
                  ? 1 - (Math.floor(infos.slotEntendu / SEQ_SLOT_MS) % 2)
                  : null;
 
+    // ÉTAPE DE DÉPART, commune aux deux niveaux qui répondent.
+    //
+    // Quand on double-clique une ligne qui NOUS est adressée — le geste le plus
+    // naturel du rôle « on nous appelle » — le message reçu dit déjà où en est
+    // le QSO. Le niveau assisté le lisait et préparait la bonne réponse ; le
+    // séquenceur l'ignorait et repartait de TX1, c'est-à-dire de sa grille.
+    // Répondre par sa grille à une station qui vous appelle n'est pas l'usage,
+    // coûte un aller-retour complet (60 s à la cadence de cette page), et
+    // JETAIT le report déjà reçu. Le mode « plus automatique » donnait donc une
+    // réponse moins juste que le mode assisté — l'inverse de ce qu'on en
+    // attend. Une seule règle pour les deux, la divergence ne peut plus
+    // réapparaître.
+    const etatDepart = {cible: call, etape: 'TX1', grille: grille,
+                        snrCible: snr, rstRecu: '', rstEnvoye: ''};
+    let etapeDepart = 'TX1';
+    if(infos.message){
+      const lu = seqLire(etatDepart, [{text: infos.message}]);
+      if(lu.action === 'reponse'){
+        const suite = seqSuite(etatDepart, lu.extra);
+        if(suite !== 'FIN') etapeDepart = suite;
+      }
+    }
+
     if(seqNiveau === 'assiste'){
       // ASSISTÉ : on prépare le message JUSTE, on n'émet jamais. Aucune
       // séquence n'est créée — ce niveau ne doit posséder aucun état capable
       // de déclencher quoi que ce soit tout seul.
-      const provisoire = {cible: call, etape: 'TX1', grille: grille,
-                          snrCible: snr, rstRecu: '', rstEnvoye: ''};
-      let etape = 'TX1';
-      if(infos.message){
-        const lu = seqLire(provisoire, [{text: infos.message}]);
-        if(lu.action === 'reponse'){
-          const suite = seqSuite(provisoire, lu.extra);
-          if(suite !== 'FIN') etape = suite;
-        }
-      }
+      const provisoire = etatDepart;
+      const etape = etapeDepart;
       const champ = document.getElementById('txText');
       if(champ) champ.value = seqTexte(provisoire, etape);
       const etatEl = document.getElementById('seqEtat');
@@ -2627,15 +2742,18 @@ if(localStorage.getItem('rc_theme') === null){
       slotAttendu: -1,
       // Étape la plus avancée jamais atteinte. Sert de repère de progrès : voir
       // seqExaminerCreneau. Initialisé au rang de TX1, l'étape de départ.
-      rangMax: SEQ_RANG.TX1,
       parite: parite,
-      grille: grille,
+      // Repris de l'état de départ : le message double-cliqué a pu nous
+      // apprendre sa grille ET son report, et les jeter obligerait à refaire
+      // un aller-retour pour les redemander.
+      grille: etatDepart.grille,
       snrCible: snr,
-      rstRecu: '',
+      rstRecu: etatDepart.rstRecu,
       rstEnvoye: '',
+      rangMax: SEQ_RANG[etapeDepart] || SEQ_RANG.TX1,
       jeton: seqJetonSuivant++,
     };
-    seqProgrammer(seq, 'TX1');
+    seqProgrammer(seq, etapeDepart);
     return seq;
   }
 
@@ -2681,8 +2799,12 @@ if(localStorage.getItem('rc_theme') === null){
         // « Réception d'un 73 : QSO fini, ne rien réémettre. » Même politique
         // de log que la fin par 73 ÉMIS (voir seqLoguer) : deux voies de fin
         // avec deux politiques différentes seraient un piège de plus.
-        const complet = seqLoguer(seq);
-        seqArreter(complet ? '73-recu' : '73-recu-incomplet');
+        const monJeton3 = seq.jeton;
+        seqLoguer(seq).then(function(issue){
+          if(!seq || seq.jeton !== monJeton3) return;
+          seqArreter(issue === 'ECHEC' ? 'qso-non-enregistre'
+                     : issue === 'COMPLET' ? '73-recu' : '73-recu-incomplet');
+        });
         return;
       }
       // LE COMPTEUR NE REPART DE ZÉRO QUE SI LA MACHINE AVANCE.
