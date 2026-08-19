@@ -85,3 +85,11 @@ concours/tle_amateur.json
 # se regenerent seules ; websdr_cures.json (la selection editoriale) est SUIVI.
 concours/websdr_kiwis.json
 concours/websdr_etat_cures.json
+
+# Sauvegardes automatiques : depuis le 19/08/2026 elles tournent SANS reglage,
+# dans un sous-dossier `sauvegardes/` du dossier de donnees (logx_backup.
+# dossier_par_defaut, resolu depuis le repertoire courant). En exploitation ce
+# repertoire est le profil utilisateur ; mais un test lance depuis concours/
+# sans chdir ecrirait ici. Filet de securite pour que ca ne salisse jamais le
+# depot — la vraie protection reste le monkeypatch.chdir(tmp_path) cote tests.
+concours/sauvegardes/
