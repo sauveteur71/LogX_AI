@@ -278,12 +278,45 @@ Un build de release est resté cassé deux jours sans que personne le sache
    construire les ancres multi-lignes avec `chr(10)`/`chr(13)`, sinon elles ne
    matchent plus (fiche `piege-contre-epreuve-ancres-crlf-apres-fusion-git`).
 
-5. **Constats restants de la 3e revue** (modérés) : offre de log écrasée en
-   silence par le QSO suivant après un échec d'écriture ; changement de MODE
-   D'ENVOI qui tue le QSO sans le dire (`seqMajUI()` écrase le message dans le
-   même tick) ; double-clic sur un 73 reçu qui repart en TX1 au lieu de
-   logguer ; six raisons d'arrêt encore neutralisables sans test rouge ;
-   « (sans plafond) » affiché alors qu'un plafond de 15 min court.
+5. ✅ **SOLDÉ — les 5 « constats restants » de la 3e revue.** Vérifiés
+   indépendamment le 19/08/2026, puis les confirmés soumis à réfutation.
+   **Aucun des cinq n'était à corriger tel qu'énoncé.**
+
+   | Constat consigné | Verdict |
+   |---|---|
+   | changement de MODE D'ENVOI qui tue le QSO | **déjà corrigé**, garde-fou structurel |
+   | « (sans plafond) » menteur | **déjà corrigé** — la chaîne ne subsiste que dans DEUX COMMENTAIRES |
+   | double-clic sur un 73 qui repart en TX1 | **déjà corrigé** |
+   | offre de log écrasée | **réfuté** — le scénario exigeait 3 indicatifs et 2 échecs, et trois traces restent à l'écran |
+   | six raisons d'arrêt non couvertes | **réfuté** — sur 8 sites, 6 sans conséquence sur l'air ; « 6 » venait d'un changement d'unité en cours de démonstration |
+
+   **La leçon vaut plus que le résultat.** Cette liste était consignée comme
+   du travail restant ; s'y fier aurait fait « corriger » deux défauts
+   inexistants, et le cas du « (sans plafond) » est l'illustration exacte du
+   piège maison : un test cherchant la chaîne l'aurait trouvée dans le
+   commentaire qui EXPLIQUE l'ancien défaut. **Ne jamais reprendre un constat
+   de revue — même le sien — sans le remesurer.**
+
+   **Ce sont les RÉFUTATIONS qui ont trouvé les vrais trous**, tous deux
+   corrigés depuis (PR #136) :
+
+   - **« Ignorer » perdait la fiche.** `marquerNonEnregistre` n'avait qu'UN
+     site d'appel (`offrirLogQso`, indicatif différent). Après un échec
+     d'écriture le bandeau reste ouvert exprès, et le seul geste qui le
+     referme — « Ignorer » — vidait la fiche sans rien poser. Un clic, un
+     indicatif, plus rien. Un drapeau `qsoEchecEcriture` distingue désormais
+     « je refuse ce QSO » de « je referme un bandeau ».
+   - **Le bouton STOP n'était tenu par aucun test.** `window.seqStop` :
+     0 occurrence dans les 16 fichiers de tests FT8. On pouvait le rendre
+     inerte sans qu'un test ne rougisse, sur le bouton qui arrête une
+     émission automatique.
+
+   ⚠️ **Pour toute suite sur cette page** : un banc de COMPORTEMENT y est
+   vacant. Les mannequins DOM (`__El`/`__El2` dans `test_ft8_sequenceur.py`)
+   n'ont ni `querySelector` ni `remove`, et leur `innerHTML` n'est qu'une
+   chaîne — poser `innerHTML=''` n'y vide pas `children`. Un test « la ligne
+   rouge survit » passe au VERT avec le défaut en place. Assertions
+   structurelles, ou banc étendu, ou vérification navigateur.
 
 ---
 
