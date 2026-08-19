@@ -1657,10 +1657,27 @@ if(localStorage.getItem('rc_theme') === null){
         // cesse de s'arrêter définitivement — le défaut que F4GLD décrivait
         // par « il ne me propose plus d'autres stations ».
         //
-        // Le seul correctif qui rende le trou NUL est un Web Worker. Chantier
-        // distinct : il ne doit pas être greffé ici sans vérification en
-        // navigateur réel. Le blocage mesuré est affiché dans le diagnostic
-        // ci-dessous pour que la cause soit VISIBLE, pas seulement l'effet.
+        // ✅ FAIT — LE DÉCODAGE EST SORTI DU FIL PRINCIPAL (logx_ft8_worker.js).
+        // Mesuré en navigateur réel sur cette page, même fenêtre de 16,5 s à
+        // 48 kHz et mêmes 3 stations, synthétisées puis décodées :
+        //
+        //     blocage max du fil principal : 1 942 ms  ->  12 ms
+        //     durée du décodage            : 2 023 ms  ->  2 021 ms
+        //     tics de minuteur observés    :      51   ->     244
+        //     messages décodés             :  3 sur 3, TEXTES IDENTIQUES
+        //
+        // 12 ms est SOUS les 400 ms de DERIVE_MAX_MS : le trou n'est plus
+        // réduit, il est supprimé. Le décodage dure toujours aussi longtemps —
+        // c'est le même calcul — mais il ne vole plus l'audio pendant qu'il
+        // travaille, donc il cesse de se saboter lui-même.
+        //
+        // ⚠ Le banc de mesure lui-même a failli mentir : couper le minuteur à
+        // la fin du calcul faisait manquer le tic de RATTRAPAGE, et le blocage
+        // synchrone se mesurait à 11 ms pour 1 955 ms de calcul. On laisse
+        // désormais le minuteur tourner 400 ms de plus.
+        //
+        // Le blocage reste affiché dans le diagnostic ci-dessous : la cause
+        // doit rester VISIBLE, y compris quand elle est devenue négligeable.
         const t0Decode = (typeof performance !== 'undefined' && performance.now)
                        ? performance.now() : Date.now();
         // CHEMIN ASYNCHRONE. Les échantillons partent par COPIE (surtout pas
