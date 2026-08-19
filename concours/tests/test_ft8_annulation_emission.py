@@ -115,7 +115,14 @@ def test_chaque_chemin_d_arret_annule_les_emissions_programmees(chemin):
     C'est exactement ce qu'a démontré la revue adversariale sur le test frère
     du séquenceur (mutation en `if(false)`, 47 tests verts)."""
     corps = _sans_commentaires(_fonction(_lire(), chemin))
-    assert 'annulerEmissionsProgrammees' in corps, chemin
+    # STRUCTURE, pas présence. `assert 'annulerEmissionsProgrammees' in corps`
+    # était satisfait par `if(false) annulerEmissionsProgrammees();` — vérifié
+    # par mutation : la suite restait verte alors que le geste était neutralisé.
+    # On exige donc l'appel en TÊTE D'INSTRUCTION, seule forme qui s'exécute
+    # inconditionnellement.
+    assert re.search(r'(?m)^\s*annulerEmissionsProgrammees\(\);', corps), (
+        '%s doit appeler annulerEmissionsProgrammees INCONDITIONNELLEMENT '
+        "(l'appel ne doit pas être sous une condition)" % chemin)
 
 
 def test_stop_annule_avant_de_couper_l_audio():

@@ -1161,22 +1161,31 @@ def test_socle_fidele_au_contrat_de_envoyer_message():
     assert re.search(r'return\s+true', envoyer), (
         'envoyerMessage doit rendre true quand la trame est réellement partie')
 
-    # 2. Une seule source d'émission à la fois.
-    assert re.search(r'seq\s*&&\s*texte\s*===\s*undefined', envoyer), (
+    # 2. Une seule source d'émission à la fois. La condition doit OUVRIR le
+    #    `if` : `if(false && seq && texte === undefined)` contenait encore la
+    #    sous-chaîne cherchée, et la suite restait verte — vérifié par mutation.
+    assert re.search(r'if\(\s*seq\s*&&\s*texte\s*===\s*undefined\s*\)', envoyer), (
         "une demande manuelle pendant une séquence doit être refusée : c'est "
         'la garde côté machine contre deux ondes dans le même créneau')
 
-    # 3. L'offre de log automatique appartient au chemin MANUEL.
+    # 3. L'offre de log appartient au chemin MANUEL. Le connecteur compte : avec
+    #    `||` au lieu de `&&`, le séquenceur rouvre le bandeau « QSO complété »
+    #    avec des reports VIDES — et les deux sous-chaînes cherchées par
+    #    l'ancienne version de ce test survivaient intactes.
     i_offre = envoyer.index('offrirLogQso')
-    zone = envoyer[max(0, i_offre - 300):i_offre]
-    assert 'texte === undefined' in zone and '!seq' in zone, (
-        "l'offre de log doit être réservée au chemin manuel — le séquenceur "
-        'logue lui-même, avec les reports réellement échangés')
+    zone = envoyer[max(0, i_offre - 400):i_offre]
+    assert re.search(r'if\(\s*texte\s*===\s*undefined\s*&&\s*!seq\s*\)', zone), (
+        "l'offre de log doit être réservée au chemin manuel, et la condition "
+        'doit être une CONJONCTION — le séquenceur logue lui-même, avec les '
+        'reports réellement échangés')
 
-    # 4. Le bouton d'envoi suit l'existence d'une séquence.
+    # 4. Le bouton d'envoi ET le champ suivent l'existence d'une séquence.
     maj = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'majBoutonEnvoyer'))
     assert re.search(r'!txArmed\s*\|\|\s*!!seq', maj), (
         'majBoutonEnvoyer doit neutraliser le bouton pendant une séquence')
+    assert re.search(r'champ\.readOnly\s*=\s*!!seq', maj), (
+        'le champ doit être verrouillé pendant une séquence — aucune assertion '
+        'ne le couvrait, et le mettre à false laissait la suite verte')
 
 
 def test_creneau_occupe_par_notre_emission_ne_compte_pas_de_relance(banc):
@@ -1562,6 +1571,12 @@ def test_arreter_rx_appelle_bien_seqarreter():
     Commentaires dépouillés : le pavé qui EXPLIQUE ce câblage cite seqArreter,
     et sans dépouillement ce test serait satisfait par de la prose."""
     corps = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'arreterRx'))
+    # STRUCTURE, pas présence : `if(false) seqArreter('ecoute-arretee');`
+    # satisfaisait l'ancienne assertion, et la suite restait verte — vérifié par
+    # mutation. L'appel doit être en TÊTE D'INSTRUCTION.
+    assert re.search(r"(?m)^\s*seqArreter\('ecoute-arretee'\);", corps), (
+        "arreterRx doit appeler seqArreter INCONDITIONNELLEMENT ; "
+        'un appel sous condition ne coupe rien.\n')
     assert 'seqArreter' in corps, (
         "arreterRx() ne coupe pas la séquence. La garde de seqExaminerCreneau "
         "ne peut pas la remplacer : elle est inatteignable écoute coupée.")
@@ -2378,6 +2393,227 @@ def test_sans_ecoute_le_sequenceur_refuse_et_nomme_le_bouton(banc):
     assert b.etat()['seq'] is None
     assert 'couter' in b.etat()['seqEtat'], (
         'le refus doit nommer le bouton à cliquer : %r' % b.etat()['seqEtat'])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# §4sexies. DETTE DE BANC — dix propriétés que RIEN ne contraignait
+#
+# La 2e revue a mesuré que dix mutations laissaient la suite entièrement verte.
+# Je les ai toutes reproduites avant d'écrire ces tests : neuf l'étaient encore,
+# une avait été rattrapée entre-temps par un test d'un autre lot.
+#
+# Une garde qu'aucun test ne tient n'est pas une garde : c'est une ligne que le
+# prochain remaniement supprimera sans que rien ne s'y oppose.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_un_creneau_que_nous_occupions_ne_fait_jamais_avancer_le_qso(banc):
+    """LA garde que le fichier encadre de « c'est ICI que les deux versions
+    précédentes sont mortes » — et que rien ne tenait : la supprimer entièrement
+    laissait la suite verte.
+
+    Aucun scénario du banc ne plaçait quoi que ce soit DANS un créneau que nous
+    occupions, donc la garde n'était jamais franchie. On y place maintenant un
+    message parfaitement exploitable de la cible : nous n'avons pas pu
+    l'entendre, nous émettions. L'étape ne doit pas bouger."""
+    # 1re passe : quels créneaux occupons-nous réellement ?
+    reco = banc(correspondant=_correspondant(muette=True))
+    reco.js('NOW = 2000;')
+    reco.demarrer(slotEntendu=0)
+    reco.avancer(200000)
+    occupes = reco.creneaux_emis()
+    assert len(occupes) >= 2, 'pas assez d\'émissions pour viser un créneau occupé'
+
+    # 2e passe : sa réponse tombe DANS un créneau que nous occupons.
+    scenario = {str(occupes[1]): ['%s %s JN18' % (MOI, CIBLE)]}
+    b = banc(correspondant=_correspondant(muette=True), scenario=scenario)
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(200000)
+    suffixes = b.suffixes_emis()
+    assert set(suffixes) == {MA_GRILLE}, (
+        'un message tombé dans un créneau que nous occupions a fait avancer le '
+        'QSO — nous ne pouvions pas l\'entendre : %r' % suffixes)
+
+
+def test_les_relances_comptent_exactement_les_creneaux_ou_la_reponse_etait_attendue(banc):
+    """Deux mutations restaient vertes ici : supprimer la garde slotsOccupes, et
+    ramener slotAttendu au créneau d'émission au lieu du suivant. Toutes deux
+    font SUR-COMPTER les relances — un plafond réglé à 3 est alors atteint sans
+    qu'aucune vraie tentative n'ait échoué.
+
+    Les tests existants employaient des inégalités larges (« relances ≤ créneaux
+    examinés »), que le sur-comptage satisfait encore. On compte exactement."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(300000)
+    et = b.etat()
+    assert et['seq'] is not None, 'la séquence ne devait pas s\'arrêter'
+    # RELATION DÉRIVÉE DE L'OBSERVÉ, jamais écrite en dur : une relance par
+    # créneau où la réponse était RÉELLEMENT attendue — celui qui suit chacune
+    # de nos émissions — et qui a effectivement été examiné.
+    #
+    # Première version : « relances == émissions - 1 ». Fausse, et pour une
+    # raison instructive : la dernière relance reprogramme une émission qui
+    # tombe hors de la fenêtre observée, donc le compte dépend de l'instant où
+    # l'on cesse d'avancer l'horloge. Une relation qui dépend de la cadence
+    # n'est pas une propriété.
+    attendus = {c + SLOT_MS for c in b.creneaux_emis()}
+    examines = {e['slot'] for e in et['examens']}
+    prevus = len(attendus & examines)
+    assert et['seq']['relances'] == prevus, (
+        'relances=%d alors que %d créneaux de réponse attendue ont été '
+        'examinés : le compteur ne suit plus les tentatives réelles.\n'
+        'Créneaux émis : %r\nExaminés : %r'
+        % (et['seq']['relances'], prevus, b.creneaux_emis(),
+           sorted(e['slot'] for e in et['examens'])))
+
+
+def test_le_creneau_de_reponse_attendue_est_celui_qui_SUIT_notre_emission():
+    """PROPRIÉTÉ STRUCTURELLE, et je dis pourquoi elle ne peut pas être testée
+    autrement.
+
+    `slotAttendu = creneau + SEQ_SLOT_MS` : la réponse ne peut pas arriver dans
+    le créneau où NOUS émettons, elle arrive au suivant. Ramener slotAttendu au
+    créneau d'émission ferait conclure au silence un créneau trop tôt.
+
+    MESURÉ : cette mutation ne change RIEN au comportement observable à la
+    cadence actuelle. Le créneau d'émission lui-même est de toute façon écarté
+    par la garde slotsOccupes, et les créneaux suivants sont couverts par la
+    reprogrammation. Un test de comportement serait donc vacant — je l'ai
+    vérifié avant d'écrire celui-ci.
+
+    Elle redeviendra observable le jour où le décodage sera avancé (voir le §
+    « conséquence dérangeante » de l'en-tête), c'est-à-dire exactement quand
+    personne n'y pensera plus. On la pose donc en structure, avec sa raison."""
+    region = _sans_commentaires(_extraire_region_sequenceur(_lire(FT8_HTML)))
+    assert re.search(r'slotAttendu\s*=\s*creneau\s*\+\s*SEQ_SLOT_MS', region), (
+        'la réponse est attendue au créneau qui SUIT notre émission, pas au '
+        'créneau où nous émettons')
+
+
+def test_desarmer_pendant_la_sequence_dit_QUE_c_est_la_case(banc):
+    """La garde txArmed de seqExaminerCreneau pouvait être supprimée sans qu'un
+    test bouge : le socle du banc refuse lui-même sur !txArmed, donc la séquence
+    s'arrêtait quand même — par un AUTRE chemin, avec un message générique qui
+    ne nomme pas la case. Les tests ne vérifiaient que `seq is None`, jamais
+    POURQUOI : les six gestes d'arrêt étaient interchangeables à leurs yeux."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    # INSTANT CHOISI : après que la trame est partie et son préavis consommé,
+    # donc dans la fenêtre où AUCUN préavis n'est en attente. C'est la seule
+    # où la garde de seqExaminerCreneau est le premier filet à agir.
+    #
+    # Première version : décochage à t=20000, puis on exigeait « Activer » dans
+    # le message. Vacant — mesuré : avec la garde supprimée, l'examen laisse
+    # passer, la séquence se reprogramme, et c'est le préavis suivant qui
+    # arrête, avec un message qui contient AUSSI « Activer ». Les deux gardes
+    # étaient interchangeables aux yeux du test. On distingue maintenant LAQUELLE
+    # a agi.
+    b.avancer(30000)
+    b.js('txArmed = false;')          # SANS passer par onArmChange
+    b.avancer(200000)
+    et = b.etat()
+    assert et['seq'] is None
+    assert 'Activer' in et['seqEtat'], (
+        "l'arrêt doit NOMMER la case décochée : %r" % et['seqEtat'])
+    assert 'juste avant le créneau' not in et['seqEtat'], (
+        "c'est l'examen du créneau qui doit arrêter ici, pas le préavis : la "
+        'garde de seqExaminerCreneau ne sert plus à rien. Message obtenu : %r'
+        % et['seqEtat'])
+
+
+def test_une_continuation_de_la_sequence_precedente_ne_touche_pas_la_suivante(banc):
+    """La revérification `seq.jeton !== monJeton` dans la continuation
+    asynchrone pouvait être réduite à `if(!seq) return;` sans qu'un test bouge :
+    le test censé la couvrir se contentait de vérifier que deux jetons sont
+    différents — il contraignait l'incrément du compteur, pas la revérification.
+
+    Le scénario dangereux : on double-clique A, puis B pendant que la trame de A
+    attend son créneau. L'émission de A rend false (jeton périmé) et sa
+    continuation s'exécute — sur la séquence de B, qui n'a rien à voir. Elle la
+    tue avec un message qui ne la concerne pas ; et si la trame de A était son
+    73, elle LOGUE un QSO inexistant avec B."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)                    # A
+    # APRÈS le préavis de A (créneau-2000), donc pendant que SON envoyerMessage
+    # attend la frontière de créneau : c'est le seul moment où une continuation
+    # de A est réellement en vol.
+    #
+    # Première version : remplacement à t=5000. Vacant — à cet instant le
+    # préavis de A n'a pas encore été consommé, donc envoyerMessage n'a jamais
+    # été appelée et il n'existe aucune continuation à égarer. Le test
+    # n'atteignait pas le scénario qu'il décrivait.
+    b.avancer(14000)
+    b.demarrer(cible='DL1XYZ', slotEntendu=0)    # B remplace A
+    b.avancer(200000)
+    et = b.etat()
+    assert et['seq'] is not None, (
+        'la continuation de la séquence abandonnée a tué la nouvelle : %r'
+        % et['seqEtat'])
+    assert et['seq']['cible'] == 'DL1XYZ'
+    assert not et['journal'], (
+        'un QSO a été loggué alors qu\'aucun n\'a abouti : %r' % et['journal'])
+
+
+def test_un_message_nu_ne_fait_pas_reculer_un_qso_avance(banc):
+    """Le repli « message sans extra -> TX2 » est volontairement restreint à
+    TX1 : plus loin dans le QSO, revenir au report serait RECULER. La
+    restriction pouvait être supprimée sans qu'un test bouge, et le
+    comportement mesuré changeait bel et bien — suffixes émis
+    ['JN15','RRR','RRR'] avant, ['JN15','RRR','-13','-13'] après."""
+    # 1re passe : découvrir les créneaux où la machine attend une réponse.
+    reco = banc(correspondant=_correspondant(muette=True))
+    reco.js('NOW = 2000;')
+    reco.demarrer(slotEntendu=0)
+    reco.avancer(300000)
+    attendus = [c + SLOT_MS for c in reco.creneaux_emis()]
+    assert len(attendus) >= 3
+
+    # Son R-report nous amène à TX4 (RRR), puis elle envoie un message NU.
+    scenario = {str(attendus[0]): ['%s %s R-12' % (MOI, CIBLE)]}
+    for sl in attendus[1:]:
+        scenario[str(sl)] = ['%s %s' % (MOI, CIBLE)]
+    b = banc(correspondant=_correspondant(muette=True), scenario=scenario)
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0, maxRelances=4)
+    b.avancer(300000)
+    suffixes = b.suffixes_emis()
+    assert 'RRR' in suffixes, 'le QSO devait atteindre RRR : %r' % suffixes
+    i_rrr = suffixes.index('RRR')
+    apres = suffixes[i_rrr:]
+    assert not [s for s in apres if re.match(r'^[+-]\d{2}$', s)], (
+        'le QSO a RECULÉ vers le report après avoir atteint RRR : %r' % suffixes)
+
+
+def test_une_cible_qui_re_emet_un_cq_n_est_pas_prise_pour_un_abandon(banc):
+    """« CQ F4ABC JN18 » a pour destinataire littéral « CQ » : ce n'est PAS
+    « elle répond à quelqu'un d'autre ». Une station qui ne nous entend pas
+    encore et relance son CQ est le cas le plus banal du trafic FT8.
+
+    L'exclusion CQ/QRZ pouvait être supprimée sans qu'un test bouge, et le
+    comportement mesuré changeait : la séquence était ABANDONNÉE après une seule
+    émission avec le message faux « la station appelée répond à quelqu'un
+    d'autre »."""
+    reco = banc(correspondant=_correspondant(muette=True))
+    reco.js('NOW = 2000;')
+    reco.demarrer(slotEntendu=0)
+    reco.avancer(300000)
+    attendus = [c + SLOT_MS for c in reco.creneaux_emis()]
+
+    scenario = {str(sl): ['CQ %s JN18' % CIBLE] for sl in attendus}
+    b = banc(correspondant=_correspondant(muette=True), scenario=scenario)
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(300000)
+    et = b.etat()
+    assert et['seq'] is not None, (
+        'une station qui relance son CQ a été prise pour un abandon : %r'
+        % et['seqEtat'])
+    assert len(et['parties']) >= 3, (
+        'la séquence a cessé de relancer : %r' % b.emissions_parties())
 
 
 # ═══════════════════════════════════════════════════════════════════════════
