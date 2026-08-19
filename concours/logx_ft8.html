@@ -452,7 +452,7 @@ if(localStorage.getItem('rc_theme') === null){
   horloge(); setInterval(horloge, 200);
 
   // ─── Identité station (CONFIG) ───────────────────────────────────────────
-  let myCall = '', myGrid = '';
+  let myCall = '', myGrid = '', myContest = '';
   async function chargerIdentite(){
     try{
       const r = await fetch('/config');
@@ -460,6 +460,12 @@ if(localStorage.getItem('rc_theme') === null){
       const c = await r.json();
       myCall = (c.callsign_contest || c.callsign || '').toUpperCase();
       myGrid = (c.locator || '').toUpperCase();
+      // Concours actif : le QSO FT8 natif doit porter la même portée que celui
+      // du pont WSJT-X (logx_wsjtx.py::qso_from_logged). Sans lui, le contact
+      // tombe hors du concours en cours et n'apparaît ni au score ni aux
+      // multiplicateurs — deux chemins de log de la même application ne doivent
+      // pas produire des fiches de portées différentes.
+      myContest = c.contest || '';
       document.getElementById('myCallDisp').textContent = myCall || '—';
       document.getElementById('myGridDisp').textContent = myGrid || '—';
     }catch(e){}
@@ -2010,6 +2016,25 @@ if(localStorage.getItem('rc_theme') === null){
     await new Promise(resolve => setTimeout(resolve, prochain - Date.now()));
     emissionProgrammee = false; majBoutonStop();
 
+    // LE MÊME CONTRÔLE, MAIS APRÈS L'ATTENTE — c'est là que la fenêtre est
+    // réellement ouverte. Évalué seulement avant, il ne pouvait rien contre un
+    // réveil tardif du timer (thread principal bloqué par un décodage, machine
+    // chargée). Mesuré : avec 20 s de retard injecté, le PTT s'engageait à
+    // 50000 pour un créneau visé à 30000 — la trame occupait le créneau 45000,
+    // c'est-à-dire LA PARITÉ OPPOSÉE, celle de la station appelée, et débordait
+    // sur le suivant. Tout le raisonnement de parité était annulé, et rien ne
+    // le signalait.
+    //
+    // Tolérance : une trame décalée de plus de quelques centaines de
+    // millisecondes n'est plus décodable par personne, puisque le récepteur
+    // cherche la synchro dans une plage étroite autour du créneau.
+    if(creneauImpose > 0 && Math.abs(Date.now() - prochain) > 500){
+      statusEl.textContent = 'Créneau manqué — émission abandonnée';
+      statusEl.className = 'tx-status';
+      majBoutonEnvoyer();
+      return false;
+    }
+
     // REVÉRIFICATION APRÈS L'ATTENTE — la seule ligne qui empêche une trame
     // annulée de partir. Les deux contrôles comptent, et pour des raisons
     // différentes :
@@ -2162,6 +2187,16 @@ if(localStorage.getItem('rc_theme') === null){
       locator: inf.locator || '', dist: inf.dist || 0,
       my_call: myCall, my_locator: myGrid,
       operator: myCall, source: 'ft8_natif',
+      // CONCOURS et FRÉQUENCE. Sans le premier, le QSO tombe hors de la portée
+      // du concours actif et n'apparaît ni au score ni aux multiplicateurs —
+      // alors que l'AUTRE chemin FT8 du même logiciel (le pont WSJT-X,
+      // logx_wsjtx.py::qso_from_logged) écrit bien ce champ. Deux chemins de
+      // log de la même application ne doivent pas produire des fiches de
+      // portées différentes.
+      // Sans la seconde, l'ADIF exporté n'a pas de FREQ — et pas non plus de
+      // BAND quand le CAT est muet.
+      contest: myContest || '',
+      freq: rigFreqKhz ? (rigFreqKhz / 1000) : '',
     };
     // REND true/false. Sans valeur de retour, le séquenceur annonçait « QSO
     // terminé, loggué automatiquement » puis enchaînait sur la station
@@ -2172,6 +2207,7 @@ if(localStorage.getItem('rc_theme') === null){
     // borné (l'opérateur regarde le bandeau qu'il vient de valider) ; en
     // séquenceur il est structurel, puisque personne ne regarde plus.
     let ok = false;
+    let issue = 'ECRIT';
     let detail = '';
     try{
       const r = await fetch('/log/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(qso)});
@@ -2182,6 +2218,7 @@ if(localStorage.getItem('rc_theme') === null){
       // écrite fausse ce que l'opérateur croit avoir enregistré.
       const doublon = (r.status === 409);
       ok = r.ok || doublon;
+      if(doublon) issue = 'DOUBLON';
       if(ok){
         document.getElementById('txStatus').textContent = (doublon ? 'Déjà loggué : ' : 'Loggué : ') + qsoEnAttente;
         // Journal de session : seulement pour une fiche RÉELLEMENT écrite.
@@ -2201,7 +2238,7 @@ if(localStorage.getItem('rc_theme') === null){
       return false;
     }
     annulerLogQso();
-    return true;
+    return issue === 'DOUBLON' ? 'DOUBLON' : true;
   };
 
   // ─── Colonne droite : journal des QSO loggués DEPUIS CETTE PAGE (la
@@ -2368,6 +2405,10 @@ if(localStorage.getItem('rc_theme') === null){
     '73-recu-incomplet': '73 reçu — QSO loggué, mais SANS report : complète la fiche dans LOGBOOK.',
     'qso-termine-incomplet': 'QSO loggué, mais SANS report échangé : complète la fiche dans LOGBOOK.',
     'remplacement': 'Séquence remplacée par une autre station.',
+    'qso-ecriture': 'QSO terminé — enregistrement en cours…',
+    'qso-doublon': 'QSO déjà présent au log pour cette station sur cette '
+               + "bande : la fiche existante n'a PAS été mise à jour. "
+               + 'Vérifie-la dans LOGBOOK.',
     'qso-non-enregistre': "QSO terminé mais NON ENREGISTRÉ — la fiche n'a pas "
                + 'pu être écrite. Ressaisis-la dans LOGBOOK, elle est perdue '
                + 'sinon.',
@@ -2680,11 +2721,17 @@ if(localStorage.getItem('rc_theme') === null){
         }
 
         if(!fin) return;
-        const monJeton2 = monJeton;
-        seqLoguer(seq).then(function(issue){
-          if(!seq || seq.jeton !== monJeton2) return;
-          seqArreter(issue === 'ECHEC' ? 'qso-non-enregistre'
-                     : issue === 'COMPLET' ? 'qso-termine' : 'qso-termine-incomplet');
+        // ARRÊTER D'ABORD, ÉCRIRE ENSUITE. La séquence n'a plus aucune raison
+        // de rester armée pendant que le serveur répond. Mesuré avant
+        // correction : au-delà de ~47 s de latence sur /log/add, une QUATRIÈME
+        // trame 73 repartait sur l'air et une seconde fiche s'ouvrait.
+        // L'écriture d'une fiche n'a pas à maintenir l'émetteur armé.
+        const etatFige = seq;
+        seqArreter('qso-ecriture');
+        seqLoguer(etatFige).then(function(issue){
+          seqMajUI(issue === 'ECHEC' ? 'qso-non-enregistre'
+                   : issue === 'DOUBLON' ? 'qso-doublon'
+                   : issue === 'COMPLET' ? 'qso-termine' : 'qso-termine-incomplet');
         });
       };
       // On LAISSE PARTIR le 73 avant d'arrêter : couper le dernier message en
@@ -2731,11 +2778,37 @@ if(localStorage.getItem('rc_theme') === null){
     // le même appel doivent avoir deux formes distinctes.
     return Promise.resolve(confirmerLogQso()).then(function(ecrit){
       if(ecrit === false) return 'ECHEC';
+      // 'DOUBLON' est une troisième issue, pas un succès : la fiche existante
+      // n'a PAS été mise à jour, et annoncer « loggué automatiquement » ferait
+      // croire le contraire. C'était le trou laissé par le correctif qui avait
+      // fermé les cas 4xx/5xx/réseau.
+      if(ecrit === 'DOUBLON') return 'DOUBLON';
       return (infos.rst_sent && infos.rst_rcvd) ? 'COMPLET' : 'INCOMPLET';
     }, function(){ return 'ECHEC'; });
   }
 
   // ─── Arrêt ───────────────────────────────────────────────────────────────
+  //
+  // COUPER UNE TRAME EN VOL EST UN ORDRE D'OPÉRATEUR, PAS UNE CONCLUSION DE
+  // MACHINE. Depuis que annulerEmissionsProgrammees coupe l'audio en cours,
+  // TOUT arrêt de séquence le faisait — y compris les abandons que la machine
+  // décide seule. Mesuré : le plafond de durée et l'abandon « elle répond à un
+  // tiers » coupaient notre propre trame après 700 ms sur 12 640, six fois sur
+  // douze instants de départ balayés.
+  //
+  // Une trame FT8 tronquée n'est décodable par personne : ce n'est pas un
+  // arrêt, c'est un parasite de 0,7 s émis sur une fréquence occupée. Quand
+  // c'est l'opérateur qui coupe, le compromis est le bon — il veut que ça
+  // cesse MAINTENANT. Quand c'est la machine qui renonce, rien ne presse :
+  // la trame en cours va au bout, et c'est la SUIVANTE qui ne partira pas.
+  const SEQ_ARRETS_OPERATEUR = new Set([
+    'bouton', 'stop-emission',
+    'emission-desarmee', 'emission-desarmee-preavis',
+    'ecoute-arretee', 'ecoute-arretee-preavis',
+    'niveau', 'niveau-preavis',
+    'remplacement',
+  ]);
+
   function seqArreter(raison){
     if(seqTimerPreavis){ clearTimeout(seqTimerPreavis); seqTimerPreavis = null; }
     if(!seq) return;
@@ -2745,7 +2818,14 @@ if(localStorage.getItem('rc_theme') === null){
     // dans un setTimeout que rien d'autre ne surveille. « Ne plus rien
     // reprogrammer » ne suffit pas — l'opérateur verrait encore une trame
     // partir après avoir demandé l'arrêt.
-    annulerEmissionsProgrammees();
+    // Le jeton fait toujours renoncer ce qui ATTEND son créneau — dans tous
+    // les cas. Seule la coupure de ce qui est DÉJÀ en l'air est réservée aux
+    // ordres d'opérateur.
+    if(SEQ_ARRETS_OPERATEUR.has(raison)){
+      annulerEmissionsProgrammees();
+    } else {
+      generationTx++;
+    }
     seqMajUI(raison);
   }
 
@@ -2985,11 +3065,12 @@ if(localStorage.getItem('rc_theme') === null){
         // « Réception d'un 73 : QSO fini, ne rien réémettre. » Même politique
         // de log que la fin par 73 ÉMIS (voir seqLoguer) : deux voies de fin
         // avec deux politiques différentes seraient un piège de plus.
-        const monJeton3 = seq.jeton;
-        seqLoguer(seq).then(function(issue){
-          if(!seq || seq.jeton !== monJeton3) return;
-          seqArreter(issue === 'ECHEC' ? 'qso-non-enregistre'
-                     : issue === 'COMPLET' ? '73-recu' : '73-recu-incomplet');
+        const etatFige3 = seq;
+        seqArreter('qso-ecriture');
+        seqLoguer(etatFige3).then(function(issue){
+          seqMajUI(issue === 'ECHEC' ? 'qso-non-enregistre'
+                   : issue === 'DOUBLON' ? 'qso-doublon'
+                   : issue === 'COMPLET' ? '73-recu' : '73-recu-incomplet');
         });
         return;
       }

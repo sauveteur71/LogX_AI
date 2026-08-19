@@ -2090,22 +2090,28 @@ def test_aucune_raison_declaree_n_est_morte():
     bloc = src[i:src.index('\n  };', i)]
     declarees = set(re.findall(r"^\s*'([a-z0-9-]+)':", bloc, re.M))
 
+    # DEUX fonctions peuvent afficher une raison : seqArreter, et seqMajUI
+    # appelée directement — ce que fait la conclusion d'un QSO, qui arrête la
+    # séquence AVANT d'attendre l'écriture du log puis raffine le message selon
+    # l'issue. Ne scruter que seqArreter déclarait mortes six raisons
+    # parfaitement vivantes.
     appelees = set()
-    pos = 0
-    while True:
-        k = src.find('seqArreter(', pos)
-        if k < 0:
-            break
-        j = k + len('seqArreter(')
-        prof = 1
-        while prof:
-            if src[j] == '(':
-                prof += 1
-            elif src[j] == ')':
-                prof -= 1
-            j += 1
-        appelees |= set(re.findall(r"'([a-z0-9-]+)'", src[k:j]))
-        pos = j
+    for fonction in ('seqArreter(', 'seqMajUI('):
+        pos = 0
+        while True:
+            k = src.find(fonction, pos)
+            if k < 0:
+                break
+            j = k + len(fonction)
+            prof = 1
+            while prof:
+                if src[j] == '(':
+                    prof += 1
+                elif src[j] == ')':
+                    prof -= 1
+                j += 1
+            appelees |= set(re.findall(r"'([a-z0-9-]+)'", src[k:j]))
+            pos = j
 
     mortes = declarees - appelees
     assert not mortes, 'raisons déclarées et jamais appelées : %r' % sorted(mortes)
