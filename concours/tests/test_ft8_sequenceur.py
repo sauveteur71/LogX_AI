@@ -1055,6 +1055,21 @@ var localStorage = {
   setItem: function(k, v){ this._d[k] = String(v); },
   removeItem: function(k){ delete this._d[k]; }
 };
+// sessionStorage : STOCKAGE DISTINCT de localStorage, et c'est tout l'intérêt.
+// Le garde-fou « une seule page FT8 » s'en sert pour une identité qui survit à
+// un F5 mais PAS à la fermeture de l'onglet — durée de vie que localStorage
+// n'a pas. Les partager ici rendrait le mannequin infidèle sur le point même
+// que le garde-fou exploite.
+//
+// Ajouté après que ce test a rougi sur « sessionStorage is not defined » :
+// c'est la marche à suivre que son propre message prescrit — compléter le
+// mannequin, jamais désactiver le test.
+var sessionStorage = {
+  _d: {},
+  getItem: function(k){ return (k in this._d) ? this._d[k] : null; },
+  setItem: function(k, v){ this._d[k] = String(v); },
+  removeItem: function(k){ delete this._d[k]; }
+};
 var location = {protocol: 'http:', href: 'http://127.0.0.1:8080/logx_ft8.html', search: ''};
 function setTimeout(){ return 1; }
 function clearTimeout(){}
