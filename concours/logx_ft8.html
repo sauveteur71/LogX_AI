@@ -366,7 +366,12 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
              du tout tant que la réception n'a pas démarré. « Masquer ≠
              bloquer » suppose que l'élément masqué ne soit pas actionnable
              par un geste resté visible ; ici il l'est. -->
-        <label>TON 0 (Hz)<input type="number" id="ft8Tone0" min="200" max="2800" step="50" value="1500"></label>
+        <label>TON 0 (Hz)<input type="number" id="ft8Tone0" min="200" max="2800" step="50" value="1500"
+               oninput="majTonPropre()" onchange="majTonPropre()"></label>
+        <!-- Avertissement de PROPRETÉ du signal émis. Pas expert-only : ce
+             qu'on met sur l'air concerne les voisins de fréquence, pas le
+             niveau de l'opérateur. -->
+        <span id="tonAvis" class="tx-status" style="display:none"></span>
         <label class="toggle-arm" id="armLabel">
           <input type="checkbox" id="armTx" onchange="onArmChange()"> Activer l'émission
         </label>
@@ -487,6 +492,105 @@ if(localStorage.getItem('rc_theme') === null){
     document.body.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Ouvre via le serveur : http://127.0.0.1:8080/logx_ft8.html</div>';
     return;
   }
+
+  // ─── UNE SEULE PAGE FT8 À LA FOIS ────────────────────────────────────────
+  //
+  // Demandé par F4GLD (19/08/2026) : « ça ne devrait pas être possible d'ouvrir
+  // deux pages ft8, quel intérêt ? ». Il n'y en a aucun, et il y a un vrai
+  // danger : deux pages, ce sont deux décodeurs qui se disputent la carte son,
+  // et surtout DEUX COMMANDES DE PTT sur la même radio, chacune ignorant
+  // l'existence de l'autre. Le garde-fou est donc posé ICI, avant que quoi que
+  // ce soit ne démarre — même place et même forme que le garde `file:`
+  // ci-dessus.
+  //
+  // Détection sans serveur ni service tiers (contrainte produit : gratuit,
+  // autonome, respectueux de la vie privée) : un battement de cœur dans
+  // localStorage, que se partagent tous les onglets ET les fenêtres détachées
+  // de la même origine.
+  const FT8_CLE_VIVANT = 'rc_ft8_vivant';
+  const FT8_CLE_FOCUS = 'rc_ft8_focus';
+  const FT8_BATTEMENT_MS = 2000;
+  // Au-delà de ce silence, l'autre instance est tenue pour disparue. Bien
+  // au-dessus du battement — une page occupée par un décodage peut rater un
+  // tour — et bien en dessous de la patience d'un opérateur qui rouvre après
+  // un plantage du navigateur : sans péremption, un crash interdirait FT8
+  // pour toujours.
+  const FT8_PEREMPTION_MS = 6000;
+
+  // Identité STABLE de cet onglet, conservée à travers un F5 (sessionStorage
+  // survit au rechargement, pas à la fermeture). Sans elle, un simple
+  // rafraîchissement se verrait lui-même comme « une autre page » et
+  // s'interdirait d'ouvrir.
+  let ft8MonId = sessionStorage.getItem('rc_ft8_id');
+  if(!ft8MonId){
+    ft8MonId = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
+    sessionStorage.setItem('rc_ft8_id', ft8MonId);
+  }
+
+  function ft8AutreInstance(){
+    try{
+      const lu = JSON.parse(localStorage.getItem(FT8_CLE_VIVANT) || 'null');
+      if(!lu || typeof lu.ts !== 'number') return false;
+      if(Date.now() - lu.ts > FT8_PEREMPTION_MS) return false;   // périmée
+      return lu.id !== ft8MonId;                                 // moi = pas une autre
+    }catch(e){ return false; }
+  }
+
+  if(ft8AutreInstance()){
+    // On ne décode pas, on n'émet pas, on ne réclame pas la place : on
+    // explique. Un écran vide ou une page à moitié vivante serait pire que le
+    // défaut qu'on corrige.
+    document.body.innerHTML =
+      '<div style="max-width:620px;margin:70px auto;padding:0 24px;text-align:center">'
+      + '<h1 style="font-family:var(--font-display,serif);font-size:26px;margin:0 0 18px">FT8 est déjà ouvert</h1>'
+      + '<p style="color:var(--muted);line-height:1.65;font-size:14.5px">Une autre fenêtre FT8 tourne déjà. '
+      + 'Deux pages FT8 en même temps, ce sont deux décodeurs sur la même carte son et '
+      + '<b>deux commandes de PTT sur la même radio</b> — c\'est pourquoi une seule est autorisée.</p>'
+      + '<button id="ft8AllerVers" style="margin:22px 0 0;padding:11px 20px;border-radius:8px;'
+      + 'border:1px solid var(--border);background:var(--accent);color:#fff;font-size:14px;cursor:pointer">'
+      + 'Aller à la fenêtre FT8 ouverte</button>'
+      + '<p style="color:var(--muted);font-size:12.5px;margin-top:16px;line-height:1.6">'
+      + 'Si rien ne bouge, le navigateur a refusé de changer de fenêtre : la page FT8 '
+      + 'est ailleurs sur ton bureau ou dans un autre onglet, bascule dessus à la main.</p>'
+      + '<p style="margin-top:26px"><a href="logx_modes_numeriques.html" style="color:var(--accent2)">← MODE NUMÉRIQUE</a></p>'
+      + '</div>';
+    const bouton = document.getElementById('ft8AllerVers');
+    if(bouton) bouton.addEventListener('click', () => {
+      // On NE FAIT PAS window.open('', 'rc_ft8') : si la page vivante n'a pas
+      // été ouverte sous ce nom (onglet ordinaire), cet appel CRÉERAIT une
+      // fenêtre vide de plus — exactement ce qu'on cherche à empêcher.
+      // On demande plutôt à l'instance vivante de se mettre au premier plan
+      // elle-même : elle écoute cette clé.
+      try{ localStorage.setItem(FT8_CLE_FOCUS, String(Date.now())); }catch(e){}
+    });
+    return;
+  }
+
+  // La place est libre : on la prend, et on la tient.
+  function ft8Battre(){
+    try{
+      localStorage.setItem(FT8_CLE_VIVANT,
+                           JSON.stringify({id: ft8MonId, ts: Date.now()}));
+    }catch(e){}
+  }
+  ft8Battre();
+  setInterval(ft8Battre, FT8_BATTEMENT_MS);
+
+  // Fermeture ou rechargement : on libère TOUT DE SUITE. Sans ça il faudrait
+  // attendre la péremption avant de pouvoir rouvrir, ce qui ressemblerait à
+  // un blocage. 'pagehide' plutôt que 'unload' : c'est celui qui se déclenche
+  // aussi sur mobile et sur les navigateurs à cache de retour arrière.
+  window.addEventListener('pagehide', () => {
+    try{
+      const lu = JSON.parse(localStorage.getItem(FT8_CLE_VIVANT) || 'null');
+      if(lu && lu.id === ft8MonId) localStorage.removeItem(FT8_CLE_VIVANT);
+    }catch(e){}
+  });
+
+  // Une page refusée peut nous demander de passer au premier plan.
+  window.addEventListener('storage', (e) => {
+    if(e.key === FT8_CLE_FOCUS){ try{ window.focus(); }catch(err){} }
+  });
 
   // ─── Horloge + barre de cycle (0-15s) ───────────────────────────────────
   function horloge(){
@@ -960,6 +1064,82 @@ if(localStorage.getItem('rc_theme') === null){
     const relX = rect.width > 0 ? (evt.clientX - rect.left) / rect.width : 0;
     return Math.round(Math.max(0, Math.min(1, relX)) * WF_MAX_HZ);
   }
+  // ─── PROPRETÉ DU SIGNAL ÉMIS ────────────────────────────────────────────
+  //
+  // Constat de F4GLD (19/08/2026) : « je constate que wsjt x des que je passe
+  // en émission passe en split sur la meme fréquence il doit y avoir une
+  // raison ». Il y en a une, et elle est documentée.
+  //
+  // SOURCE : guide utilisateur WSJT-X (Joseph H. Taylor Jr, K1JT, v2.6.0 et
+  // v2.6.1), à propos des modes de split « Rig » et « Fake It » — la plage y
+  // est donnée mot pour mot : garder l'audio d'émission « in the range 1500 to
+  // 2000 Hz so that audio harmonics cannot pass through the Tx sideband
+  // filter ». Ces deux bornes ne sont donc PAS choisies ici, elles sont
+  // reprises de la référence.
+  //
+  // LE MÉCANISME. Notre signal est un ton audio injecté dans un émetteur SSB,
+  // qui produit inévitablement des harmoniques. Un ton de 700 Hz a son
+  // harmonique 2 à 1400 Hz — EN PLEIN DANS la passe-bande : elle part sur
+  // l'air comme un signal parasite, sur une fréquence où quelqu'un d'autre
+  // trafique. Un ton de 1600 Hz a la sienne à 3200 Hz, hors du filtre, donc
+  // supprimée. C'est pour ça que WSJT-X décale le VFO au passage en émission :
+  // la fréquence réellement émise ne change pas, seul le ton audio est ramené
+  // dans la zone propre. D'où l'impression d'un « split sur la même fréquence ».
+  //
+  // CE QUE CETTE PAGE FAIT AUJOURD'HUI : elle émet le ton tel quel, sans
+  // toucher au VFO. Elle ne peut donc pas encore ÉVITER le parasite — mais
+  // elle peut cesser de le produire en silence. Le décalage automatique du
+  // VFO (l'équivalent de « Fake It ») demande le CAT et une vérification sur
+  // une vraie radio ; il n'est pas fait ici.
+  const TON_PROPRE_MIN = 1500;   // guide WSJT-X, borne basse
+  const TON_PROPRE_MAX = 2000;   // guide WSJT-X, borne haute
+
+  window.majTonPropre = function(){
+    const champ = document.getElementById('ft8Tone0');
+    const avis = document.getElementById('tonAvis');
+    if(!champ || !avis) return;
+    const f = parseInt(champ.value, 10);
+    if(!isFinite(f)){ avis.style.display = 'none'; return; }
+
+    if(f < TON_PROPRE_MIN){
+      // La raison EXACTE, chiffrée pour CE ton : « trop bas » n'apprend rien.
+      avis.innerHTML = 'Ton bas : son harmonique 2 tombe à ' + (2 * f)
+        + ' Hz, dans la passe-bande — elle partira sur l\'air comme parasite. '
+        + 'WSJT-X garde le ton entre ' + TON_PROPRE_MIN + ' et '
+        + TON_PROPRE_MAX + ' Hz pour l\'éviter. '
+        + '<a href="#" id="tonCorriger" style="color:var(--accent2)">Ramener à '
+        + TON_PROPRE_MIN + ' Hz</a>';
+    } else if(f > TON_PROPRE_MAX){
+      // Ici l'harmonique 2 est DÉJÀ hors filtre : le risque n'est plus la
+      // pollution mais l'atténuation par le bord de la passe-bande. Servir la
+      // même explication serait faux.
+      avis.innerHTML = 'Ton haut : proche du bord de la passe-bande, ta '
+        + 'puissance émise peut être réduite sans que rien ne le signale. '
+        + 'WSJT-X reste entre ' + TON_PROPRE_MIN + ' et ' + TON_PROPRE_MAX
+        + ' Hz. <a href="#" id="tonCorriger" style="color:var(--accent2)">'
+        + 'Ramener à ' + TON_PROPRE_MAX + ' Hz</a>';
+    } else {
+      avis.style.display = 'none';
+      // On VIDE CE QU'ON A REMPLI : le contenu est posé par innerHTML
+      // (il porte un lien), donc c'est innerHTML qu'il faut effacer.
+      // Passer par textContent marche dans un navigateur par effet de
+      // bord, mais dit le contraire de ce qui se passe.
+      avis.innerHTML = '';
+      return;
+    }
+    avis.className = 'tx-status wait';
+    avis.style.display = '';
+    const lien = document.getElementById('tonCorriger');
+    if(lien) lien.addEventListener('click', (e) => {
+      e.preventDefault();
+      champ.value = (f < TON_PROPRE_MIN) ? TON_PROPRE_MIN : TON_PROPRE_MAX;
+      // Par 'change' : le repère du waterfall écoute déjà cet événement, donc
+      // il suit sans qu'on ait à l'appeler nous-mêmes. Sans ça, il resterait
+      // sur l'ancienne valeur et contredirait ce qui va partir.
+      champ.dispatchEvent(new Event('change'));
+    });
+  };
+
   function clicWaterfall(evt){
     const champ = document.getElementById('ft8Tone0');
     if(!champ) return;
