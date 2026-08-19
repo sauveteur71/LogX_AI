@@ -66,6 +66,26 @@ Tout y est : votre journal de trafic, votre configuration, la base d'indicatifs,
 
 - **Sauvegarder** = copier ce dossier (sur une clé USB, dans votre cloud personnel...).
 - **Repartir de zéro** = supprimer ce dossier ; il sera recréé vide au prochain lancement.
+
+#### ⚠️ La sauvegarde automatique ne tourne PAS tant que vous ne l'avez pas activée
+
+C'est le point le plus important de ce chapitre, et il tient en une phrase : **le champ « dossier de sauvegarde » est vide à l'installation, et tant qu'il est vide, aucune sauvegarde n'est écrite.** Nulle part. Jamais.
+
+Ce n'est pas théorique. Le 19/08/2026, l'auteur du logiciel a perdu son carnet complet — 9 874 QSO de 2011 à 2026. Il n'a été récupéré que parce que le fichier ADIF d'origine traînait encore dans son dossier de téléchargements. Aucune sauvegarde n'existait, parce que le dossier n'avait jamais été renseigné.
+
+**Faites-le maintenant, avant votre premier QSO** : CONFIG → *Sauvegarde automatique* → indiquez un dossier. Choisissez-en un déjà synchronisé par votre outil habituel (Synology Drive, Dropbox, OneDrive) et vous obtenez une sauvegarde hors machine sans aucun service supplémentaire. Détail du fonctionnement au [§14.4](#144-sauvegarde-automatique-et-manuelle).
+
+Attention à ne pas se fier à l'indicateur **Sauvegarde** de la barre de statut quand il affiche « navigateur HH:MM » : cet horodatage vient d'une copie faite par la page LOGBOOK, qui vit dans le navigateur et **part avec le cache**. Ce n'est pas une sauvegarde sur disque.
+
+#### Ce qui protège votre carnet même sans rien configurer
+
+Depuis le 19/08/2026, trois garde-fous fonctionnent sans réglage :
+
+- **Le logiciel refuse de remplacer votre carnet par nettement moins.** Si quelque chose s'apprête à faire disparaître un grand nombre de QSO sans que vous l'ayez demandé, l'écriture est refusée et la base reste intacte. Les remises à zéro que *vous* demandez (« vider le log », « archiver et vider ») continuent de fonctionner normalement.
+- **Rien de ce que vous saisissez pendant une panne n'est perdu.** Si l'enregistrement est suspendu, les QSO suivants sont mis de côté dans un fichier d'appoint et repris automatiquement au redémarrage.
+- **Deux LogX AI ne peuvent plus travailler dans le même dossier.** Ils partageraient le même carnet et finiraient par s'effacer mutuellement ; le second refuse désormais de démarrer et vous dit pourquoi.
+
+Quand l'enregistrement est suspendu, un **bandeau rouge en haut de l'écran** le dit, sur toutes les pages, et ne disparaît pas tant que ce n'est pas réglé. Si vous le voyez : ne fermez pas le logiciel, lisez le message, redémarrez.
 - Le fichier des pays DXCC (`cty.dat`) est mis à jour automatiquement à chaque démarrage dès qu'il a plus de 30 jours. Les bases de références (sommets SOTA, parcs POTA, réserves WWFF, îles IOTA, châteaux WCA) sont de même téléchargées à leur première utilisation puis rafraîchies automatiquement selon la même règle des 30 jours.
 
 ### Sur macOS
@@ -873,9 +893,47 @@ Le panadapter (**🖥️ PANADAPTER** dans la barre de navigation, ou le bouton 
 - **CI-V natif (Icom, large bande)** : sur les Icom qui publient le scope waveform CI-V (**IC-7300, IC-7610, IC-9700, IC-705, IC-7851**), un vrai panadapter large bande jusqu'à **500 kHz de span**, qui réutilise le port série déjà ouvert pour le CAT — zéro matériel supplémentaire, zéro limite de filtre audio. N'apparaît dans le sélecteur que si le pilotage CAT natif est actif sur un de ces modèles. Le flux ne démarre que si l'écran SCOPE de la radio est actif (aucune commande CI-V « start » dédiée ne l'y force — limite du protocole, pas de LogX AI).
 - **TCI** : sur les SDR qui parlent TCI (section 8.1), un flux I/Q brut jusqu'à **384 kHz de span**, dont la FFT est calculée côté serveur. N'apparaît dans le sélecteur que si le pilotage CAT est actif en mode TCI.
 
-### 8.6 Auto-log WSJT-X (FT8/FT4) : plus de ressaisie
+### 8.6 Modes numériques natifs : FT8, RTTY, SSTV — sans logiciel tiers
 
-Chaque QSO que vous validez dans WSJT-X entre automatiquement dans le logbook, avec la même vérification de doublons et le même calcul de score qu'une saisie manuelle. Dans la section **💻 WSJT-X (FT8/FT4 — auto-log)** de la configuration, activez **AUTO-LOG WSJT-X** et vérifiez le **PORT UDP WSJT-X** (2237). Côté WSJT-X : Réglages → Rapports → UDP Server = l'IP du PC qui fait tourner LogX, port 2237.
+**LogX AI décode et émet le FT8 lui-même.** Pas de second programme à installer, pas de câble audio virtuel à configurer pour la réception : l'audio qui sort de la radio suffit. Idem pour le RTTY et le SSTV. Vous y accédez par l'onglet **MODE NUMÉRIQUE**, et chaque mode s'ouvre dans sa propre fenêtre — pratique sur un second écran.
+
+Si vous préférez votre logiciel FT8 habituel, gardez-le : le pont décrit à la fin de cette section fonctionne toujours. Les deux approches cohabitent, à vous de choisir.
+
+#### La page FT8 en réception
+
+Choisissez le périphérique d'entrée, cliquez **▶ Écouter**. Vous obtenez une chute d'eau et le tableau des décodages : heure UTC, fréquence en Hz, **DT** (le décalage temporel de la station d'en face — le seul moyen de voir d'un coup d'œil si c'est son horloge ou la vôtre qui dérive), **SNR en dB**, et le message.
+
+Un cycle FT8 dure 15 secondes ; le calcul peut mettre une à trois secondes à s'afficher après la fin du cycle, c'est normal. Un clic sur une ligne prépare la réponse, un double-clic la prépare **et** l'envoie.
+
+#### Émettre : le geste qui arme, et lui seul
+
+**Rien ne part sur l'air tant que la case « Activer l'émission » n'est pas cochée.** C'est ce geste qui autorise l'émission, et aucun autre. Un message programmé part toujours calé sur le prochain créneau de 15 s, jamais immédiatement : vous avez toujours quelques secondes pour changer d'avis.
+
+Le sélecteur **MODE D'ENVOI**, sous le champ de message, décide de la suite :
+
+| Mode | Ce qu'il fait |
+|---|---|
+| **Manuel** *(par défaut)* | Un message par action. Rien ne s'enchaîne. |
+| **Assisté** | Prépare le message juste (grille, report, RRR, 73) et **attend** que vous appuyiez sur Envoyer. |
+| **Séquenceur** | Déroule le QSO complet tout seul — appel, grille, reports, RRR, 73 — **relance** tant que la station n'a pas répondu, et enregistre le contact au carnet. |
+
+> ⚠️ **Le séquenceur émet sans intervention.** Une fois lancé, il transmet de lui-même sur plusieurs créneaux successifs. C'est son rôle ; encore faut-il le savoir. Vérifiez votre indicatif et votre locator avant de l'armer, et ne le lancez pas sur une station que vous ne surveillez pas.
+
+**Cinq façons de l'arrêter**, toutes équivalentes : la touche **Échap**, le bouton **■ STOP SÉQUENCE**, décocher « Activer l'émission », couper l'écoute, ou changer de mode d'envoi. Il abandonne aussi **de lui-même** au bout du nombre de relances que vous avez fixé, et si la station appelée répond à quelqu'un d'autre.
+
+#### Le ton d'émission et la propreté de votre signal
+
+Un ton **sous 1500 Hz** voit son harmonique 2 tomber dans la passe-bande de la radio et partir sur l'air comme parasite — vos voisins de fréquence le reçoivent. La page vous prévient et chiffre la fréquence exacte du parasite pour le ton choisi.
+
+L'option **Ton propre (décalage VFO)**, décochée par défaut, décale la fréquence de la radio pendant l'émission pour que le ton audio reste entre 1500 et 2000 Hz, puis la restaure aussitôt. **La fréquence réellement émise ne change pas.** Elle nécessite le pilotage CAT.
+
+#### Une seule page FT8 à la fois
+
+Deux pages FT8 ouvertes, ce sont deux décodeurs sur la même carte son et deux commandes de PTT sur la même radio. Le hub MODE NUMÉRIQUE revient donc sur la page déjà ouverte au lieu d'en créer une seconde.
+
+#### Le pont vers un logiciel FT8 externe
+
+Si vous préférez WSJT-X, JTDX ou MSHV, chaque QSO que vous y validez entre automatiquement dans le logbook, avec la même vérification de doublons et le même calcul de score qu'une saisie manuelle. Dans la section **💻 WSJT-X (FT8/FT4 — auto-log)** de la configuration, activez **AUTO-LOG WSJT-X** et vérifiez le **PORT UDP WSJT-X** (2237). Côté WSJT-X : Réglages → Rapports → UDP Server = l'IP du PC qui fait tourner LogX, port 2237.
 
 Sont repris automatiquement : indicatif, grille (complétée pour le calcul de distance), bande — y compris les bandes WARC 30/17/12 m, correctement identifiées —, mode, rapports envoyé/reçu et heure. Le logbook affiche un widget d'état : **💻 WSJT-X ●** en vert avec la fréquence, le mode et le compteur de QSO auto-loggés quand WSJT-X donne signe de vie (moins de 30 s), **💻 WSJT-X ○ en attente (port 2237)** sinon. Chaque QSO auto-loggé recharge la table et joue un bip.
 
@@ -1380,6 +1438,8 @@ Avec l'exécutable Windows, toutes vos données sont placées dans un dossier de
 
 ### 14.4 Sauvegarde automatique et manuelle
 
+> **Elle est DÉSACTIVÉE tant qu'aucun dossier n'est renseigné**, et le champ est vide à l'installation. Tout ce qui suit décrit son fonctionnement *une fois activée* — voir l'avertissement du [chapitre 2](#où-sont-vos-données-).
+
 La sauvegarde copie régulièrement votre carnet, horodaté, vers un dossier de votre choix. L'astuce : choisissez un dossier déjà synchronisé par Synology Drive, Dropbox ou OneDrive, et vous obtenez une sauvegarde « cloud » **sans aucun service en ligne ni compte supplémentaire** — c'est votre propre outil de synchronisation qui fait le transport.
 
 - Chaque jeu de sauvegarde contient **3 fichiers** : la base `.db`, une copie `.json` lisible, et un `.adi` (ADIF) réimportable dans n'importe quel logiciel — même si vous abandonnez LogX AI un jour, votre log reste exploitable.
@@ -1451,7 +1511,9 @@ LogX AI est conçu pour rester utilisable même sans aucune connexion Internet �
 
 ---
 
-*Dernière mise à jour : 13 août 2026 — chapitre 8 (Piloter sa radio) approfondi, en particulier le pilotage CAT (§8.1) : table complète des sept modes (ajout flrig/OmniRig/FlexRadio/Icom réseau), table complète des adresses CI-V d'usine par modèle Icom/Xiegu, explication de l'auto-détection USB (VID:PID des interfaces reconnues, astuce du numéro de série Icom), nouvelle sous-section « Dépannage CAT » avec les messages d'erreur courants et leur cause, renvoi vers `GUIDE_CAT_MICROHAM.md`. Rotor (§8.3) : ajout du mode GS-232 natif, absent jusqu'ici. Deux nouvelles sections insérées, SO2R (§8.4) et Panadapter (§8.5), avec renumérotation de §8.4-8.9 en §8.6-8.11.*
+*Dernière mise à jour : 19 août 2026 — **§8.6 réécrit** : les modes numériques NATIFS (FT8, RTTY, SSTV) n’existaient nulle part dans ce guide, qui ne connaissait le FT8 que comme un pont vers un logiciel tiers. Ajout de la page FT8 en réception, des trois modes d’envoi (Manuel par défaut, Assisté, Séquenceur) avec l’avertissement que le séquenceur émet sans intervention et les cinq façons de l’arrêter, de la propreté du signal et du décalage de VFO, et de la règle « une seule page FT8 ». **Chapitre 2** : la sauvegarde automatique est INACTIVE tant qu’aucun dossier n’est renseigné — le fait le plus important du guide, qui n’y figurait pas ; plus la description des trois garde-fous qui protègent le carnet sans réglage. **§14.4** : la sauvegarde n’est plus décrite comme si elle tournait.*
+
+*Mise à jour précédente : 13 août 2026 — chapitre 8 (Piloter sa radio) approfondi, en particulier le pilotage CAT (§8.1) : table complète des sept modes (ajout flrig/OmniRig/FlexRadio/Icom réseau), table complète des adresses CI-V d'usine par modèle Icom/Xiegu, explication de l'auto-détection USB (VID:PID des interfaces reconnues, astuce du numéro de série Icom), nouvelle sous-section « Dépannage CAT » avec les messages d'erreur courants et leur cause, renvoi vers `GUIDE_CAT_MICROHAM.md`. Rotor (§8.3) : ajout du mode GS-232 natif, absent jusqu'ici. Deux nouvelles sections insérées, SO2R (§8.4) et Panadapter (§8.5), avec renumérotation de §8.4-8.9 en §8.6-8.11.*
 
 *Mise à jour précédente : 25 juillet 2026 — nouvelle page **🎯 CHASSE** : les cinq panneaux de cibles (stations POTA/SOTA/WWFF, châteaux WCA, need list du cluster) ont quitté la page PROPAG. Chapitre 9 : entrée CHASSE ajoutée aux deux listes d'onglets, nouvelle section §9.5, panneaux retirés de la section PROPAG (WEBSDR et CALENDRIER renumérotés §9.6 et §9.7), et chapitre 10 corrigé (les stations en direct sont sur CHASSE).*
 
