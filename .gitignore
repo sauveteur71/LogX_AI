@@ -20,6 +20,14 @@ concours/tests/__pycache__/
 concours/.auth_token
 concours/.access_password
 concours/logx.db
+# Artefacts du garde-fou anti-destruction (logx_storage) : ecrits UNIQUEMENT
+# quand la persistance a ete suspendue. Ce sont des donnees d operateur, pas
+# du code -- au meme titre que logx.db et shared_log.json juste au-dessus.
+concours/logx_carnet_secours.json
+concours/logx_journal_secours*.jsonl
+# Verrou du dossier de donnees (logx_singleton) : propre a la machine.
+concours/.logx_dossier.lock
+.logx_dossier.lock
 concours/.server_config.json
 concours/.logx_key
 concours/qtc_log.json

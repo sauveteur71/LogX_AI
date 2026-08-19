@@ -22,7 +22,7 @@ def _qso(**kw):
 
 def test_doublon_bloque_en_mode_contest(monkeypatch):
     monkeypatch.setattr(http, 'shared_log', [dict(_qso(date='20200101'))])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
     ok, info = http.add_qso_to_log(dict(_qso(date='20260720')))
     assert not ok and info.get('duplicate')
@@ -30,7 +30,7 @@ def test_doublon_bloque_en_mode_contest(monkeypatch):
 
 def test_doublon_autorise_en_mode_simple(monkeypatch):
     monkeypatch.setattr(http, 'shared_log', [dict(_qso(date='20200101'))])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'simple'})
     ok, info = http.add_qso_to_log(dict(_qso(date='20260720')))
     assert ok and not info.get('duplicate')

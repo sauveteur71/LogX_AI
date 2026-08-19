@@ -278,7 +278,7 @@ def test_qso_saisi_apres_un_import_ne_recoit_pas_un_id_deja_pris(monkeypatch):
             'date': '20200101', 'time': '00:00', 'id': now_ms + i}
            for i in range(3000)]           # import de 3 000 QSO = 3 s d'id futurs
     monkeypatch.setattr(http, 'shared_log', log)
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'simple'})
     ok, _info = http.add_qso_to_log({'call': 'G0LIVE', 'band': '14',
                                      'mode': 'SSB', 'contest': '',

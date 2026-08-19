@@ -176,7 +176,7 @@ def test_upload_champ_manquant(server, tmp_path, monkeypatch):
 def test_upload_extension_refusee(server, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(httpmod, 'shared_log', [{'id': 1, 'call': 'F5ABC'}])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     status, res = _post_multipart(server, '/qsl_scan/upload',
                                   fields={'qso_id': '1'},
                                   files={'file': ('scan.exe', b'MZ...', 'application/octet-stream')})
@@ -190,7 +190,7 @@ def test_upload_ok_attache_le_scan_au_qso(server, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     qso = {'id': 555, 'call': 'F5ABC', 'band': '14', 'mode': 'SSB'}
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
 
     status, res = _post_multipart(server, '/qsl_scan/upload',
                                   fields={'qso_id': '555'},
@@ -211,7 +211,7 @@ def test_upload_remplace_lancien_scan_et_supprime_le_fichier(server, tmp_path, m
     monkeypatch.chdir(tmp_path)
     qso = {'id': 9, 'call': 'F5ABC'}
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
 
     _, res1 = _post_multipart(server, '/qsl_scan/upload', fields={'qso_id': '9'},
                               files={'file': ('v1.jpg', JPEG_BYTES, 'image/jpeg')})

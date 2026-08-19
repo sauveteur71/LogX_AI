@@ -29,7 +29,7 @@ def test_bump_log_version_incremente():
 
 def test_add_qso_to_log_incremente_la_version(monkeypatch):
     monkeypatch.setattr(http, 'shared_log', [])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'simple'})
     storage.log_version = 0
     ok, _info = http.add_qso_to_log(dict(_qso()))

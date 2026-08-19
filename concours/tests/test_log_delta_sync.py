@@ -194,7 +194,7 @@ def test_log_list_bout_en_bout_ajout_puis_suppression(server, monkeypatch):
     contient QUE le nouveau QSO) -> suppression -> poll delta (l'id supprimé
     apparaît dans 'deleted', plus dans 'qsos')."""
     monkeypatch.setattr(httpmod, 'shared_log', [])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'simple'})
     monkeypatch.setattr(storage, 'log_version', 0)
     monkeypatch.setattr(storage, 'hard_reset_version', 0)
@@ -279,7 +279,7 @@ def test_add_qso_bump_et_stamp_sont_atomiques_avec_le_verrou(server, monkeypatch
     échoue (vérifié en local en repassant temporairement sur le code d'avant :
     delta renvoyé vide alors que la version a déjà avancé)."""
     monkeypatch.setattr(httpmod, 'shared_log', [])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'simple'})
     monkeypatch.setattr(storage, 'log_version', 0)
     monkeypatch.setattr(storage, 'hard_reset_version', 0)
@@ -362,7 +362,7 @@ def test_import_adif_commit_bump_et_stamp_sont_atomiques_avec_le_verrou(
     même with log_lock: que l'extend), ce test échoue : delta vide alors que
     la version a déjà avancé."""
     monkeypatch.setattr(httpmod, 'shared_log', [])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'simple'})
     monkeypatch.setattr(storage, 'log_version', 0)
     monkeypatch.setattr(storage, 'hard_reset_version', 0)
@@ -428,7 +428,7 @@ def test_log_update_changement_de_portee_force_un_resync_complet(server, monkeyp
     portée force un resync complet (repli explicite, pas de 'delta')."""
     qso = _qso(id=42, contest='REF_QRP', date='20260101', _v=1)
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     # Portée active = REF_QRP#2026 (édition en cours) : le QSO y est visible.
     monkeypatch.setattr(httpmod, 'current_config', {
         'usage_mode': 'contest', 'contest': 'REF_QRP',

@@ -250,7 +250,7 @@ def test_bulk_resolve_remplit_les_locators_vides(monkeypatch):
         calls_recus.append(call)
         return {'ok': True, 'grid': 'JN18XX', 'state': ''}
     monkeypatch.setattr(callbook, 'lookup', fake_lookup)
-    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
 
     callbook._bulk_resolve_run(lambda: {}, ids=None, overwrite=False)
@@ -268,7 +268,7 @@ def test_bulk_resolve_ne_touche_pas_un_locator_deja_rempli_sans_overwrite(monkey
     monkeypatch.setattr(storage, 'shared_log', log)
     monkeypatch.setattr(callbook, 'lookup', lambda call, cfg, shared_log=None:
                         {'ok': True, 'grid': 'JN18XX', 'state': ''})
-    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
 
     callbook._bulk_resolve_run(lambda: {}, ids=None, overwrite=False)
@@ -287,7 +287,7 @@ def test_bulk_resolve_overwrite_remplace_une_valeur_existante(monkeypatch):
     monkeypatch.setattr(storage, 'shared_log', log)
     monkeypatch.setattr(callbook, 'lookup', lambda call, cfg, shared_log=None:
                         {'ok': True, 'grid': 'JN18XX', 'state': ''})
-    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
 
     callbook._bulk_resolve_run(lambda: {}, ids=None, overwrite=True)
@@ -304,7 +304,7 @@ def test_bulk_resolve_filtre_par_ids(monkeypatch):
     monkeypatch.setattr(storage, 'shared_log', log)
     monkeypatch.setattr(callbook, 'lookup', lambda call, cfg, shared_log=None:
                         {'ok': True, 'grid': 'JN18XX', 'state': ''})
-    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
 
     callbook._bulk_resolve_run(lambda: {}, ids=[1], overwrite=False)
@@ -328,7 +328,7 @@ def test_bulk_resolve_echec_lookup_compte_en_erreur_sans_modifier(monkeypatch):
     monkeypatch.setattr(storage, 'shared_log', log)
     monkeypatch.setattr(callbook, 'lookup', lambda call, cfg, shared_log=None:
                         {'ok': False, 'error': 'introuvable'})
-    monkeypatch.setattr(storage, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(storage, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
 
     callbook._bulk_resolve_run(lambda: {}, ids=None, overwrite=False)

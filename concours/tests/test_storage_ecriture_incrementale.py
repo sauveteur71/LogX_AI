@@ -229,7 +229,14 @@ def test_reset_puis_reprise_ne_ressuscite_aucun_qso(tmp_path, monkeypatch):
             st.shared_log.clear()
         st.bump_log_version()
         st.mark_hard_reset()
-        st.save_log_to_disk()
+        # effacement_autorise=True : ce test REJOUE /log/reset, et le vrai
+        # /log/reset porte ce consentement depuis l'ajout du garde-fou
+        # anti-destruction (logx_storage._SEUIL_PERTE_MASSIVE). Sans lui, le
+        # garde-fou refuse — et c'est exactement ce qu'on lui demande : 50 QSO
+        # en base remplacés par 0 sans que personne l'ait demandé, c'est
+        # l'incident du 16-19/08/2026. Ne PAS retirer ce paramètre pour
+        # « faire passer le test » : ce serait rouvrir le trou.
+        st.save_log_to_disk(effacement_autorise=True)
         assert _db_calls() == []
         for i in range(900, 903):
             _ajouter(_qso(i))

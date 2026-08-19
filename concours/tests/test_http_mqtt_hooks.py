@@ -44,7 +44,7 @@ class _FakeThreadingModule:
 def _prep(monkeypatch, cfg, log=None):
     monkeypatch.setattr(http, 'threading', _FakeThreadingModule)
     monkeypatch.setattr(http, 'shared_log', log if log is not None else [])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', cfg)
 
 
