@@ -161,10 +161,14 @@ Un build de release est resté cassé deux jours sans que personne le sache
    (0/40 tirages pour une station à 18 Hz d'écart). Préexistant, chantier
    distinct.
 
-4. **25 concours proposés dans l'interface n'ont AUCUNE définition serveur.**
-   C'est le chantier que j'avais en cours au moment de la fermeture du compte :
-   analyse terminée et chiffrée, correctif **non appliqué**. Tout ce qu'il faut
-   pour le poser est ci-dessous.
+4. ✅ **FAIT — 25 concours proposés dans l'interface rendaient zéro bande.**
+   Corrigé le 19/08/2026 par l'accesseur `bandes_du_concours()` décrit plus
+   bas, branché sur les onze sites qui lisaient `bands` à plat. 15 concours
+   retrouvent leurs bandes, les 10 ambigus restent volontairement vides et
+   leur liste est désormais **verrouillée par un test** — elle ne peut que
+   rétrécir. Ce qui suit est conservé parce que le raisonnement, lui, reste
+   utile : il explique pourquoi on n'a PAS fabriqué de définitions, et ce
+   qu'il resterait à faire pour les 10 derniers.
 
    Mesuré le 19/08/2026 en exécutant le code, pas en le lisant :
    `CONTEST_DEFINITIONS` contient 43 entrées, `CONTEST_SCORING` 43 aussi, mais
@@ -240,9 +244,19 @@ Un build de release est resté cassé deux jours sans que personne le sache
    ci-dessus. `CONTEST_DEFINITIONS` n'est pas touché, le contrat public n'est
    pas modifié, rien n'est inventé, et `logx_validate.py` reste vert.
 
-   Si un jour on veut de vraies définitions pour ces 25 concours, c'est un
+   Si un jour on veut de vraies définitions pour ces concours, c'est un
    travail de SOURCES (lire les règlements REF pour en tirer date, échange,
    format de log), pas un travail de conversion. Ne pas confondre les deux.
+
+   **Ce qui reste ouvert ici**, et c'est le seul reliquat : les 10 concours
+   dont le barème est une plage ou un mot — `CUSTOM`, `F9NL`,
+   `UFT_RENCONTRES`, les quatre TVA, `REF_CHALLENGE_THF`, `REF_F8TD`,
+   `REF_IARU_UHF`. Ils rendent toujours `[]`, volontairement. Pour en sortir
+   un, il faut lire son règlement et lui écrire une vraie définition conforme
+   au schéma, puis le retirer de `AMBIGUS_CONNUS` dans
+   `tests/test_concours_sans_definition.py`. Le test refusera qu'on élargisse
+   cette liste sans le vouloir, et refusera aussi qu'on y laisse un concours
+   résolu.
 
    Trois précautions, chacune correspondant à un piège déjà payé :
    - Les libellés viennent du catalogue client, extraits par la regex
