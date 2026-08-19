@@ -253,7 +253,15 @@
   function refreshPersistance(){
     fetch('/log/status', {cache: 'no-store'})
       .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){ if (d) _majAlarmePersistance(d.persistance); })
+      .then(function(d){
+        if (!d) return;
+        _majAlarmePersistance(d.persistance);
+        // « 2026-08-19 16:44 » (UTC) -> « 16:44 UTC ». Chaîne vide tant
+        // qu'aucune sauvegarde n'a encore été écrite (premier quart d'heure).
+        var q = typeof d.sauvegarde === 'string' ? d.sauvegarde : '';
+        _sauvegardeDisque = q.length >= 16 ? q.slice(11, 16) + ' UTC' : null;
+        refreshSave();
+      })
       .catch(function(){ /* serveur injoignable : rcsbNet le dit déjà */ });
   }
 
@@ -983,7 +991,8 @@
     }catch(e){ el.textContent = '—'; }
   }
 
-  // ── Dernière sauvegarde (backup log 5 min, sinon sauvegarde config) ───────
+  // ── Dernière sauvegarde (disque d'abord, puis navigateur, puis config) ────
+  var _sauvegardeDisque = null;   // alimenté par refreshPersistance()
   function refreshSave(){
     const el = document.getElementById('rcsbSave');
     const logBackup = localStorage.getItem('rc_log_backup_time'); // "HH:MM UTC"
@@ -999,10 +1008,11 @@
     // raison qu'avant : ce n'est plus « rien n'est écrit », c'est « ce n'est
     // pas CE qui est écrit ».
     //
-    // RESTE À FAIRE : cette ligne devrait afficher l'horodatage de la vraie
-    // sauvegarde disque (logx_backup.status() → `last`), pas celui de la copie
-    // navigateur. Elle privilégie encore la copie navigateur alors qu'une
-    // sauvegarde disque existe maintenant toujours.
+    // La sauvegarde DISQUE passe donc EN PREMIER : c'est la seule qui
+    // survive au vidage du cache. La copie navigateur ne s'affiche plus qu'en
+    // repli, tant qu'aucune sauvegarde disque n'a encore été écrite (le
+    // premier passage du planificateur, jusqu'à l'intervalle configuré).
+    if (_sauvegardeDisque){ el.textContent = `disque ${_sauvegardeDisque}`; return; }
     if (logBackup){ el.textContent = `navigateur ${logBackup}`; return; }
     const cfg = getConfig();
     if (cfg.saved_at){

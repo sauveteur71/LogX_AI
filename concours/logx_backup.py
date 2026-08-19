@@ -236,6 +236,23 @@ def _stamp(folder, now, files):
         pass
 
 
+def derniere_sauvegarde():
+    """Horodatage de la dernière sauvegarde écrite, ou '' — SANS I/O réseau.
+
+    Lit uniquement `backup_state.json`, qui vit dans le dossier de DONNÉES
+    (local par construction). Volontairement séparé de status() : status()
+    fait un `glob` sur le dossier de sauvegarde, et ce dossier PEUT être un
+    partage réseau. Or cette valeur-ci est destinée à /log/status, que les 15
+    pages interrogent toutes les 20 s — y glisser une I/O réseau gèlerait des
+    threads serveur en continu sur un NAS injoignable, exactement la
+    pathologie que logx_cloudsync a dû traiter (STATUS_SCAN_TIMEOUT)."""
+    try:
+        with open(_STAMP, encoding='utf-8') as f:
+            return (json.load(f) or {}).get('last', '') or ''
+    except Exception:
+        return ''
+
+
 def status(cfg=None):
     s = backup_settings(cfg) if cfg is not None else {}
     last = {}
