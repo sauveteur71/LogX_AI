@@ -39,6 +39,16 @@ C'est ce qui manque, et aucun banc ne peut le remplacer.
 PR #114 est l'ancêtre abandonné du séquenceur, laissée en brouillon. Ne pas la
 rouvrir.
 
+**PR #129 — le guide utilisateur.** Ouverte, CI verte, jamais fusionnée faute
+de temps. Elle ajoute au `docs/GUIDE_UTILISATEUR.md` les deux choses que
+l'incident du 19/08 a rendues urgentes : l'avertissement du chapitre 2 disant
+que **la sauvegarde automatique ne tourne pas tant qu'aucun dossier n'est
+renseigné** (le guide la décrivait au §14.4 comme si elle tournait), et la
+réécriture du §8.6 en « Modes numériques natifs : FT8, RTTY, SSTV » — le FT8
+natif n'apparaissait nulle part dans les 1458 lignes du guide, alors que c'est
+l'argument principal du produit. Rien de risqué dedans : c'est de la
+documentation. À fusionner telle quelle.
+
 ### Ce qui reste ouvert
 
 1. **Web Worker pour le décodage FT8** — c'est LE correctif du gel de cascade.
@@ -60,7 +70,86 @@ rouvrir.
    (0/40 tirages pour une station à 18 Hz d'écart). Préexistant, chantier
    distinct.
 
-4. **Constats restants de la 3e revue** (modérés) : offre de log écrasée en
+4. **25 concours proposés dans l'interface n'ont AUCUNE définition serveur.**
+   C'est le chantier que j'avais en cours au moment de la fermeture du compte :
+   analyse terminée et chiffrée, correctif **non appliqué**. Tout ce qu'il faut
+   pour le poser est ci-dessous.
+
+   Mesuré le 19/08/2026 en exécutant le code, pas en le lisant :
+   `CONTEST_DEFINITIONS` contient 43 entrées, `CONTEST_SCORING` 43 aussi, mais
+   **25 identifiants de `CONTEST_SCORING` n'existent pas dans
+   `CONTEST_DEFINITIONS`**. Le catalogue client (`concours/logx_configuration.js`,
+   45 concours nommés) les propose pourtant tous à la sélection.
+
+   Conséquence, vérifiée :
+   `CONTEST_DEFINITIONS.get('REF_MARCONI', {}).get('bands', [])` rend `[]`. Les
+   dix consommateurs passent **tous** par `.get(x, {})` — `logx_archive.py:67`,
+   `logx_callhistory.py:110` et `:396`, `logx_coach.py:582` et `:825`,
+   `logx_http.py:983`, `:1304`, `:2732`, `:2892`. La dégradation est donc
+   **silencieuse partout** : pas d'exception, pas de trace au journal, juste des
+   bandes vides. C'est pour ça que personne ne l'a vue.
+
+   Presque tous les concernés sont des concours THF français — les douze CCD
+   mensuels, Challenge THF, Trophée F8TD, Marconi, IARU VHF/UHF/50 MHz, DDFM 50,
+   les quatre TVA. C'est **exactement la population visée par le chantier LOG
+   V/UHF**, qui ne doit donc pas démarrer avant ce correctif : ce serait bâtir
+   sur du sable.
+
+   **La donnée existe déjà dans le dépôt**, mais dans une seconde structure
+   faite pour l'affichage, pas pour le code : `CONTEST_SCORING` porte les bandes
+   en texte (`'432 1296 2320MHz'`), et le catalogue client porte les libellés.
+   Il n'y a donc rien à inventer — seulement à convertir. Recensement complet :
+
+   - **15 convertibles**, liste de bandes explicite. `144MHz` :
+     REF_CCD_AVR_CW, REF_CCD_DEC, REF_CCD_DEC_CW, REF_CCD_FEV2, REF_CCD_JAN2,
+     REF_CCD_MAR, REF_CCD_NOV, REF_IARU_VHF, REF_MARCONI. `432 1296 2320MHz` :
+     REF_CCD_FEV1, REF_CCD_JAN1, REF_CCD_MAI, REF_CCD_OCT. `50MHz` :
+     REF_DDFM_50, REF_IARU_50.
+   - **10 NON convertibles, et il ne faut pas les forcer** : `CUSTOM`
+     (« Au choix »), `F9NL` et `UFT_RENCONTRES` (« HF »), les quatre TVA
+     `REF_CDF_TVA` / `REF_IARU_TVA` / `REF_NAT_TVA` / `REF_NAT_TVA_DEC`
+     (« 438MHz+ TVA »), `REF_CHALLENGE_THF` (« 144MHz-47GHz »), `REF_F8TD`
+     (« 1296MHz-47GHz »), `REF_IARU_UHF` (« 432MHz-47GHz »). Développer une
+     PLAGE ou un mot en liste de bandes, c'est **décider** quelles bandes en
+     font partie — donc inventer une valeur de domaine, ce que ce dépôt
+     interdit sans source citable. Il faut lire les règlements REF pour les
+     trancher, ou demander à F4GLD. Ne pas deviner.
+
+   Le format attendu est celui des entrées existantes : `bands` est une liste
+   de chaînes en **MHz** (`['144','432']` pour REF_RPH), jamais `'2m'`/`'70cm'`.
+   Vérifié sur les entrées réelles, c'est un piège classique du dépôt.
+
+   **Recette prévue, non appliquée.** Une fonction de dérivation en fin de
+   `logx_definitions.py` (après `CONTEST_SCORING`, sinon `NameError` à
+   l'import) qui, pour chaque identifiant de `CONTEST_SCORING` absent de
+   `CONTEST_DEFINITIONS`, analyse la chaîne de bandes et n'écrit une entrée
+   **que** si elle est purement numérique. L'analyseur doit rendre `None` dès
+   qu'il voit un `-` ou un mot : ainsi les 10 ambigus s'écartent tout seuls,
+   sans liste noire à maintenir. L'entrée créée porte un marqueur explicite
+   (`'derive_du_bareme': True`) pour qu'on ne la confonde jamais avec une
+   définition relue à la main.
+
+   Trois précautions, chacune correspondant à un piège déjà payé :
+   - Les libellés viennent du catalogue client, extraits par la regex
+     `id:'([A-Z0-9_]+)'\s*,\s*name:'((?:[^'\\]|\\.)*)'` sur
+     `logx_configuration.js` (45 résultats, les 25 orphelins tous couverts).
+     Si on fige ces libellés côté Python, il **faut** un test de
+     synchronisation avec le `.js` — une liste d'identifiants recopiée à la
+     main diverge, fiche `piege-liste-identifiants-ecrite-a-la-main`.
+   - Un test doit **figer la liste des 10 restants** : elle ne peut que
+     rétrécir, jamais grandir en silence. C'est précisément ce filet qui a
+     manqué pendant tout ce temps, et sans lui le défaut se reformera.
+   - Le test doit exiger une **structure** (bandes non vides, numériques), pas
+     la présence d'une chaîne : `assert 'REF_MARCONI' in fichier` serait
+     satisfait par le commentaire qui l'explique.
+
+   Enfin : témoin vert d'abord, puis contre-épreuve par mutation (remettre le
+   défaut, vérifier que ça rougit, restaurer, contrôler l'empreinte md5), puis
+   suite complète et `ruff`. Le fichier passe en CRLF après une fusion git —
+   construire les ancres multi-lignes avec `chr(10)`/`chr(13)`, sinon elles ne
+   matchent plus (fiche `piege-contre-epreuve-ancres-crlf-apres-fusion-git`).
+
+5. **Constats restants de la 3e revue** (modérés) : offre de log écrasée en
    silence par le QSO suivant après un échec d'écriture ; changement de MODE
    D'ENVOI qui tue le QSO sans le dire (`seqMajUI()` écrase le message dans le
    même tick) ; double-clic sur un 73 reçu qui repart en TX1 au lieu de
