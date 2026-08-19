@@ -11,6 +11,67 @@ affichée dans la barre de statut de l'application correspond à la constante
 `APP_VERSION` de `logx_version.py`, qui doit être incrémentée à chaque tag
 poussé.
 
+## [1.1-beta5] - 2026-08-19
+
+Version entièrement consacrée au FT8 natif, à partir d'essais en trafic réel de
+F4GLD sur 20 m. Chaque correctif vient d'un constat fait à la station, pas d'une
+revue de code.
+
+### Ajouté
+
+- **Séquenceur FT8** : le QSO s'enchaîne et se loggue seul (appel, report, RRR,
+  73), avec relances tant que la station n'a pas répondu. **Le mode « manuel »
+  reste le défaut, y compris après mise à jour** : personne ne se retrouve avec
+  une émission automatique sans l'avoir demandée. Cinq chemins d'arrêt (STOP,
+  Échap, désarmement, arrêt d'écoute, changement de mode) et deux abandons
+  automatiques (plafond de relances, la station répond à un tiers).
+- **Colonne SNR en dB** à la place de l'ancien « Score ». C'est un RAPPORT,
+  donc insensible au gain de la carte son — l'ancienne colonne affichait 0 sur
+  la totalité des décodages chez F4GLD. Le décodeur ne produisait auparavant
+  aucune estimation de rapport signal/bruit : le séquenceur envoyait donc le
+  même report à toutes les stations. Constante de calibration MESURÉE
+  (biais 0,13 dB, pire écart 0,74 dB sur la plage réelle du FT8) ; recoupée
+  après coup avec le code de WSJT-X, qui utilise -27,0 dB là où la mesure
+  donne -27,83.
+- **Avertissement de propreté du signal** : un ton d'émission sous 1500 Hz voit
+  son harmonique 2 tomber dans la passe-bande et partir sur l'air comme
+  parasite. L'avis chiffre la fréquence exacte du parasite pour le ton choisi.
+- **Décalage de VFO à l'émission** (équivalent du « Fake It » de WSJT-X),
+  DÉSACTIVÉ PAR DÉFAUT : décale la fréquence pendant l'émission pour que le ton
+  reste entre 1500 et 2000 Hz, et la restaure ensuite. La fréquence réellement
+  émise ne change pas. Nécessite le CAT. **Pas encore éprouvé sur l'air.**
+
+### Corrigé
+
+- **Le panneau ÉMISSION n'exige plus de scroller.** La liste des décodages
+  n'avait aucune borne de HAUTEUR : à chaque cycle de 15 s, tout ce qui se
+  trouvait dessous descendait. La liste défile désormais dans son cadre, et le
+  panneau Émission est passé EN TÊTE de colonne. Mesuré : défilement de page
+  ~2400 px -> 0 sur le chemin critique.
+- **Plus d'émission dans le créneau de la station appelée.** L'émission était
+  programmée sur « le prochain créneau, quel qu'il soit » : répondre sans
+  tarder tombait juste par hasard, une seconde de retard faisait émettre
+  par-dessus le correspondant — aucun des deux n'entendait l'autre, et rien ne
+  l'expliquait. La parité se déduit désormais du créneau où la station a été
+  entendue, sans réglage à faire. L'écran dit quand un tour est passé.
+- **Une seule page FT8 à la fois.** Deux pages, ce sont deux décodeurs sur la
+  même carte son et deux commandes de PTT sur la même radio. Le hub revient
+  désormais sur la page ouverte au lieu de la recharger (le décodeur repartait
+  de zéro et la session était perdue), et une seconde page refuse de démarrer.
+- **L'intro de la page FT8 n'est plus bridée à 900 px** : sur une fenêtre de
+  1900 px elle s'entassait sur 7 lignes dans la moitié gauche et poussait tout
+  le reste de 60 px. FT8 était l'exception — CW, RTTY et SSTV n'ont aucune
+  limite.
+
+### Connu, non corrigé
+
+- **Le décodage bloque le fil principal ~2,1 s par créneau** sur la machine de
+  F4GLD (mesuré et affiché dans le diagnostic). Conséquence directe : la
+  réponse ne peut pas partir dans le créneau qui suit immédiatement le
+  décodage, et laisse passer un tour. Seul le passage du décodage dans un
+  Web Worker le supprime — chantier à part, à éprouver sur machine réelle.
+- **Deux stations séparées de moins de 50 Hz** : la seconde n'est pas décodée.
+
 ## [1.1-beta4] - 2026-08-15
 
 ### Ajouté
