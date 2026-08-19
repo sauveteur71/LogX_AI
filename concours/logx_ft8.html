@@ -1389,7 +1389,25 @@ if(localStorage.getItem('rc_theme') === null){
     if(myCall && parts[0] === myCall){
       const de = parts[1] || '';
       const extra = parts.slice(2).join(' ');
-      if(/^[A-R]{2}[0-9]{2}$/.test(extra)){
+      // estCarre(), PAS une copie de la regex de locator. « RR73 » satisfait
+      // /^[A-R]{2}[0-9]{2}$/ — deux lettres A-R, deux chiffres — et tombait
+      // donc ici, dans la branche « elle m'a envoyé sa grille, je réponds par
+      // un report ».
+      //
+      // Conséquence sur le mode MANUEL, qui est le mode LIVRÉ PAR DÉFAUT : à
+      // « F4GLD F4ABC RR73 », c'est-à-dire la fin de QSO la plus courante en
+      // FT8, le champ se remplissait avec « F4ABC F4GLD -10 ». Un double-clic
+      // — le geste que la page invite explicitement à faire — relançait donc
+      // l'échange au stade du report face à une station qui venait de le
+      // conclure. Et la branche 'RRR'||'RR73' quatre lignes plus bas, celle
+      // qui appelle offrirLogQso, était INATTEIGNABLE : le contact n'entrait
+      // jamais dans le carnet.
+      //
+      // La règle était pourtant déjà écrite deux fois dans ce fichier (« les
+      // jetons de protocole d'ABORD, PARTOUT ») et déjà appliquée par le
+      // séquenceur. Seul le chemin manuel l'enfreignait — et c'est celui que
+      // tout le monde utilise.
+      if(estCarre(extra)){
         document.getElementById('txText').value = `${de} ${myCall} -10`.toUpperCase();
       } else if(/^R?[+-]\d{1,2}$/.test(extra)){
         document.getElementById('txText').value = `${de} ${myCall} RRR`.toUpperCase();
@@ -1399,7 +1417,12 @@ if(localStorage.getItem('rc_theme') === null){
       } else if(extra === '73'){
         offrirLogQso(de);
       } else {
-        document.getElementById('txText').value = `${de} ${myCall} ${myGrid}`.trim().toUpperCase();
+        // grille4() : le message FT8 standard ne transporte que le carré à 4
+        // caractères. CETTE branche est celle que le correctif de la veille
+        // désignait explicitement — et c'est l'autre, déjà corrigée, qui avait
+        // été modifiée. Le message partait donc toujours sans grille pendant
+        // que l'écran affichait « JN15XC ».
+        document.getElementById('txText').value = `${de} ${myCall} ${grille4()}`.trim().toUpperCase();
       }
       return;
     }
@@ -1632,14 +1655,15 @@ if(localStorage.getItem('rc_theme') === null){
     // coupaient correctement : c'est bien la preuve que le geste attendu était
     // celui-là. On le rend commun à TOUS les chemins d'arrêt plutôt que de le
     // laisser dépendre du bouton choisi.
-    if(sourcesTxVivantes.size){
-      couperAudioTx();
-      // Relâcher le PTT ensuite : couper le son en laissant la radio en
-      // émission laisse une porteuse non modulée sur l'air. Volontairement NON
-      // attendu — cette fonction est appelée depuis des chemins synchrones, et
-      // relacherPtt() réessaie puis alerte toute seule si elle échoue.
-      if(pttDemande) relacherPtt(6);
-    }
+    if(sourcesTxVivantes.size) couperAudioTx();
+    // Le PTT est relâché dès qu'il est ENGAGÉ, indépendamment de l'audio.
+    // Le conditionner à la présence d'une onde vivante laissait la radio en
+    // émission dans toute la fenêtre entre pttOn() et le premier échantillon
+    // joué — et cette fenêtre contient un aller-retour vers le serveur.
+    //
+    // Volontairement NON attendu : cette fonction est appelée depuis des
+    // chemins synchrones, et relacherPtt() réessaie puis alerte toute seule.
+    if(pttDemande) relacherPtt(6);
   }
 
   // Vrai entre la programmation et le départ effectif de l'émission.
@@ -1756,10 +1780,24 @@ if(localStorage.getItem('rc_theme') === null){
   function couperAudioTx(){
     // Copie avant parcours : stop() déclenche onended, qui retire l'élément
     // de l'ensemble — muter pendant l'itération est une mauvaise idée.
+    // On ne retire de l'ensemble QUE ce qu'on a réellement arrêté. Vider
+    // l'ensemble inconditionnellement rendait une source INARRÊTABLE : si
+    // stop() échoue — contexte audio suspendu, source déjà démarrée deux fois
+    // — la trame continue de moduler le poste, et plus aucun appel ultérieur
+    // ne peut la retrouver puisqu'on vient d'oublier sa référence.
+    //
+    // `catch` reste silencieux pour le cas normal (source déjà terminée :
+    // stop() lève, sans conséquence) mais on garde alors la prise, et le
+    // prochain arrêt réessaiera.
     for(const src of Array.from(sourcesTxVivantes)){
-      try{ src.stop(); }catch(e){}   // déjà terminée : stop() lève, sans conséquence
+      try{
+        src.stop();
+        sourcesTxVivantes.delete(src);
+      }catch(e){
+        // Déjà terminée ? Alors son onended l'a déjà retirée. Sinon on la
+        // garde : mieux vaut réessayer que perdre la référence.
+      }
     }
-    sourcesTxVivantes.clear();
   }
 
   window.stopEmission = async function(){
@@ -2033,6 +2071,21 @@ if(localStorage.getItem('rc_theme') === null){
       majBoutonEnvoyer();
       return false;
     }
+    // DERNIER CONTRÔLE AVANT DE MODULER. Entre la demande de PTT et le départ
+    // de la trame il s'écoule le temps d'un aller-retour vers le serveur, et
+    // sur ce segment plus AUCUN ordre d'arrêt n'était lu : Échap, STOP,
+    // décochage, arrêt d'écoute — tous restaient sans effet, et les 12,64 s
+    // complètes partaient sur l'air.
+    //
+    // Le PTT est déjà engagé à ce stade : on le relâche avant de renoncer,
+    // sinon on laisse une porteuse non modulée.
+    if(maGeneration !== generationTx || !txArmed){
+      await relacherPtt(6);
+      statusEl.textContent = 'Émission annulée avant la modulation';
+      statusEl.className = 'tx-status';
+      majBoutonEnvoyer();
+      return false;
+    }
     try{
       const tone0 = parseInt(document.getElementById('ft8Tone0').value, 10) || 1500;
       const wave = ft8SynthesizeGfsk(enc.symbols, {sampleRate: 12000, toneHz0: tone0});
@@ -2122,10 +2175,17 @@ if(localStorage.getItem('rc_theme') === null){
     let detail = '';
     try{
       const r = await fetch('/log/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(qso)});
-      ok = r.ok || r.status === 409;
+      // 409 = le serveur a REFUSÉ la fiche comme doublon. Ce n'est pas une
+      // erreur à signaler à l'opérateur — le QSO est déjà au carnet — mais ce
+      // n'est pas non plus une écriture : l'annoncer comme « loggué » et
+      // incrémenter le compteur de session pour une fiche qui n'a pas été
+      // écrite fausse ce que l'opérateur croit avoir enregistré.
+      const doublon = (r.status === 409);
+      ok = r.ok || doublon;
       if(ok){
-        document.getElementById('txStatus').textContent = (r.status===409 ? 'Déjà loggué : ' : 'Loggué : ') + qsoEnAttente;
-        ajouterAuJournalSession(qsoEnAttente, qso.band, qso.time);
+        document.getElementById('txStatus').textContent = (doublon ? 'Déjà loggué : ' : 'Loggué : ') + qsoEnAttente;
+        // Journal de session : seulement pour une fiche RÉELLEMENT écrite.
+        if(!doublon) ajouterAuJournalSession(qsoEnAttente, qso.band, qso.time);
       } else {
         detail = 'erreur ' + r.status;
       }

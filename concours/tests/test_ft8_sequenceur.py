@@ -2617,6 +2617,139 @@ def test_une_cible_qui_re_emet_un_cq_n_est_pas_prise_pour_un_abandon(banc):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# §4septies. TROISIÈME REVUE ADVERSARIALE
+#
+# Elle a attaqué les correctifs des deux premières. Deux de ses constats
+# critiques portent sur des correctifs que je croyais appliqués : l'un n'avait
+# été câblé que dans une fonction sur deux, l'autre avait été appliqué à la
+# MAUVAISE BRANCHE — celle que mon propre message de commit ne nommait pas.
+# ═══════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.parametrize('recu,attendu,offre_attendue', [
+    # LA fin de QSO la plus courante en FT8 : WSJT-X conclut par RR73.
+    ('%s %s RR73' % (MOI, CIBLE), '%s %s 73' % (CIBLE, MOI), True),
+    ('%s %s RRR' % (MOI, CIBLE), '%s %s 73' % (CIBLE, MOI), True),
+    # Un vrai carré reste un carré : on répond par le report.
+    ('%s %s JN18' % (MOI, CIBLE), '%s %s -10' % (CIBLE, MOI), False),
+    ('%s %s -05' % (MOI, CIBLE), '%s %s RRR' % (CIBLE, MOI), False),
+])
+def test_le_chemin_manuel_ne_prend_pas_RR73_pour_un_carre(
+        banc, recu, attendu, offre_attendue):
+    """MODE MANUEL — celui qui est LIVRÉ PAR DÉFAUT, donc celui que tout le
+    monde utilise.
+
+    « RR73 » satisfait la regex de locator (deux lettres A-R, deux chiffres).
+    proposerReponse en gardait une COPIE INLINE, sans le filtre de protocole :
+    à la fin de QSO la plus courante du FT8, le champ se remplissait donc avec
+    un REPORT au lieu du 73. Un double-clic — le geste que la page invite
+    explicitement à faire — relançait l'échange au stade du report face à une
+    station qui venait de le conclure. Et la branche qui appelle offrirLogQso
+    était INATTEIGNABLE : le contact n'entrait jamais dans le carnet.
+
+    La règle est pourtant écrite DEUX FOIS dans ce fichier (« les jetons de
+    protocole d'ABORD, PARTOUT ») et le séquenceur l'applique. Seul le chemin
+    manuel l'enfreignait — corrigé dans extraireStation la veille, jamais ici.
+    Le banc chargeait déjà proposerReponse : aucun de ses cas ne la sondait
+    avec RR73."""
+    b = banc(niveau='manuel')
+    b.js('__offreEnAttente = null;')
+    b.js('proposerReponse(%s);' % json.dumps(recu))
+    et = b.etat()
+    assert et['champTx'] == attendu, (
+        'reçu %r -> champ %r, attendu %r' % (recu, et['champTx'], attendu))
+    if offre_attendue:
+        assert et['offreEnAttente'] is not None, (
+            'le QSO doit être proposé au log sur %r' % recu)
+
+
+def test_le_chemin_manuel_tronque_aussi_le_locator_a_quatre_caracteres(banc):
+    """La branche de repli de proposerReponse — celle qui répond par notre
+    grille à un message qu'on ne sait pas classer.
+
+    Le correctif de la veille annonçait explicitement cette ligne dans son
+    message de commit, et a en réalité modifié l'AUTRE branche, celle du CQ,
+    qui était déjà corrigée. Le message partait donc toujours sans grille
+    pendant que l'écran affichait le locator complet."""
+    b = banc(niveau='manuel')
+    b.js("myGrid = 'JN18CX';")
+    b.js('proposerReponse(%s);' % json.dumps('%s %s BLABLA' % (MOI, CIBLE)))
+    assert b.etat()['champTx'] == '%s %s JN18' % (CIBLE, MOI), (
+        'le locator doit être tronqué à 4 caractères sur TOUTES les branches : '
+        '%r' % b.etat()['champTx'])
+
+
+def test_un_73_recu_termine_le_qso_au_lieu_de_relancer(banc):
+    """LE CHEMIN DE FIN LE PLUS COURANT DU FT8, et aucun test ne l'exerçait :
+    « 73-recu » n'apparaissait pas une seule fois dans ce fichier.
+
+    seqSuite rend 'FIN' sur un 73 reçu, et seqExaminerCreneau doit alors
+    logguer puis arrêter. Neutralisée, cette branche produit une émission
+    automatique SANS FIN : la station continue d'appeler une correspondante
+    qui a déjà conclu et n'écoute plus."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js('NOW = 700;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    et = b.etat()
+    assert et['seq'] is None, (
+        'un 73 reçu doit TERMINER la séquence : %d trames émises, écran %r'
+        % (len(et['parties']), et['seqEtat']))
+    assert et['journal'], 'le QSO conclu par un 73 doit être loggué'
+    assert '73' in et['seqEtat'] or 'termin' in et['seqEtat'].lower(), (
+        "l'écran doit dire que le QSO est terminé : %r" % et['seqEtat'])
+
+
+def test_aucune_trame_ne_part_apres_un_ordre_d_arret_meme_ptt_engage():
+    """Entre la demande de PTT et le départ de la trame il s'écoule un
+    aller-retour vers le serveur, et sur ce segment plus AUCUN ordre d'arrêt
+    n'était lu : Échap, STOP, décochage, arrêt d'écoute restaient tous sans
+    effet, et les 12,64 s complètes partaient sur l'air.
+
+    Le contrôle doit être APRÈS le PTT et AVANT la synthèse — et relâcher le
+    PTT avant de renoncer, sinon on laisse une porteuse non modulée."""
+    envoyer = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'envoyerMessage'))
+    i_ptt = envoyer.index('await pttOn(true)')
+    i_synth = envoyer.index('ft8SynthesizeGfsk')
+    entre = envoyer[i_ptt:i_synth]
+    assert 'maGeneration !== generationTx' in entre, (
+        "aucun contrôle d'annulation entre la prise de PTT et la modulation : "
+        'une trame complète part malgré tout ordre d\'arrêt')
+    i_ctrl = entre.index('maGeneration !== generationTx')
+    assert 'relacherPtt' in entre[i_ctrl:], (
+        'renoncer sans relâcher le PTT laisse une porteuse non modulée')
+
+
+def test_couper_l_audio_ne_perd_jamais_la_prise_sur_une_source_recalcitrante():
+    """couperAudioTx vidait son ensemble INCONDITIONNELLEMENT. Si stop() échoue
+    — contexte audio suspendu, source déjà démarrée — la trame continue de
+    moduler le poste, et plus aucun appel ultérieur ne peut la retrouver
+    puisqu'on vient d'oublier sa référence. Elle devient inarrêtable."""
+    corps = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'couperAudioTx'))
+    assert 'sourcesTxVivantes.clear()' not in corps, (
+        "vider l'ensemble sans distinguer les stop() réussis rend une source "
+        'récalcitrante inarrêtable')
+    assert 'sourcesTxVivantes.delete' in corps, (
+        'on ne retire de l\'ensemble que ce qu\'on a réellement arrêté')
+
+
+def test_un_doublon_refuse_par_le_serveur_n_entre_pas_au_journal_de_session():
+    """HTTP 409 = le serveur a REFUSÉ la fiche comme doublon. Le QSO est déjà
+    au carnet, ce n'est donc pas une erreur à signaler — mais ce n'est pas non
+    plus une écriture. L'ajouter au journal de session fait croire à
+    l'opérateur qu'il vient d'enregistrer un contact de plus."""
+    corps = _sans_commentaires(
+        _extraire_fonction(_lire(FT8_HTML), 'confirmerLogQso'))
+    # La GARDE, immédiatement avant l'appel — pas la simple présence du mot
+    # « doublon » quelque part alentour. Première version : une fenêtre de 200
+    # caractères, dans laquelle `const doublon = …` et le ternaire d'affichage
+    # figurent aussi. Elle restait verte quand on retirait la garde : le test
+    # trouvait le mot sans que la condition existe.
+    assert re.search(r'if\(!doublon\)\s*ajouterAuJournalSession', corps), (
+        'le journal de session ne doit compter que les fiches RÉELLEMENT '
+        'écrites : un doublon refusé (409) n\'en est pas une')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # §5. ARRÊTS — chacun doit VRAIMENT couper
 # ═══════════════════════════════════════════════════════════════════════════
 

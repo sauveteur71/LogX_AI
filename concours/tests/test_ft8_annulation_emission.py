@@ -225,11 +225,33 @@ def test_annuler_coupe_la_trame_deja_en_l_air():
     assert ctx.eval('__pttRelache') == 1, 'le PTT est resté engagé'
 
 
-def test_annuler_ne_touche_a_rien_quand_aucune_onde_ne_joue():
-    """Contre-épreuve : couper l'audio et relâcher le PTT alors que rien n'est
-    en l'air enverrait des ordres radio inutiles à chaque arrêt de séquence, et
-    ferait clignoter l'état d'émission sans raison."""
+def test_annuler_relache_le_ptt_meme_sans_onde_en_cours():
+    """Le PTT peut être ENGAGÉ sans qu'aucune onde ne joue encore : entre
+    pttOn() et le premier échantillon il s'écoule un aller-retour vers le
+    serveur, et cette fenêtre est franchie à chaque émission.
+
+    Conditionner le relâchement à la présence d'une onde vivante — ce que
+    faisait la première version de ce correctif — laissait donc la radio en
+    émission, porteuse non modulée, sur toute cette fenêtre.
+
+    Ce test disait AUTREFOIS l'inverse : il exigeait qu'aucun relâchement
+    n'ait lieu sans onde. Il figeait le défaut au lieu de le contraindre — et
+    il l'a fait pendant exactement une nuit, jusqu'à ce que la troisième revue
+    le relève."""
+    ctx = _ctx(onde_en_vol=False)      # pttDemande vaut true dans le mannequin
+    ctx.eval('annulerEmissionsProgrammees();')
+    assert ctx.eval('__audioCoupe') == 0, "rien à couper : pas d'appel inutile"
+    assert ctx.eval('__pttRelache') == 1, (
+        'le PTT était engagé et personne ne le relâche : la radio reste en '
+        'émission avec une porteuse non modulée')
+
+
+def test_annuler_n_envoie_aucun_ordre_radio_quand_rien_n_est_engage():
+    """Contre-épreuve : sans PTT engagé et sans onde, un arrêt de séquence ne
+    doit produire AUCUN ordre radio. Sinon chaque STOP enverrait un
+    relâchement inutile au poste."""
     ctx = _ctx(onde_en_vol=False)
+    ctx.eval('pttDemande = false;')
     ctx.eval('annulerEmissionsProgrammees();')
     assert ctx.eval('__audioCoupe') == 0
     assert ctx.eval('__pttRelache') == 0
