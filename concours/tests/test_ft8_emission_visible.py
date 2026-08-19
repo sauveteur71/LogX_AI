@@ -73,6 +73,25 @@ def test_EMISSION_est_le_premier_panneau_de_la_colonne(src):
         'exactement le défaut signalé')
 
 
+def test_l_intro_n_est_pas_bridee_en_largeur(src):
+    """Signalé en trafic (19/08/2026) : « le texte prend pas toute la largeur de
+    la page ! du coup ça décale tout vers le bas ».
+
+    Exact, et mesuré sur une fenêtre de 1900 px : bridée à 900 px, cette intro
+    s'entassait sur 7 lignes (141 px) dans la moitié gauche pendant que la
+    moitié droite restait vide, et poussait le panneau Émission de 302 px du
+    haut. Sans bride : 1560 px de large, 4 lignes, 81 px — le panneau remonte à
+    242 px, soit 60 px gagnés sur le chemin critique.
+
+    FT8 était d'ailleurs l'exception : CW, RTTY et SSTV n'ont aucune limite sur
+    leur propre .intro. La largeur reste bornée par .wrap (1600 px), ce qui
+    suffit à éviter la ligne illisible sur un écran très large."""
+    corps = _bloc_css(src, '.intro').replace(' ', '')
+    assert 'max-width' not in corps, (
+        "l'intro ne doit pas être bridée en largeur — chaque ligne gagnée est "
+        'du texte qui pousse le panneau Émission vers le bas : %r' % corps)
+
+
 def test_la_liste_des_decodages_vit_dans_un_cadre_qui_defile(src):
     """Sans conteneur de défilement, la liste pousse le panneau Émission vers
     le bas à chaque cycle. C'est LE défaut d'origine."""

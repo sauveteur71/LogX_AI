@@ -64,7 +64,15 @@ svg:not([width]){width:15px;height:15px;flex-shrink:0;vertical-align:-2px}
 
 .wrap{max-width:1600px;margin:0 auto;padding:18px 20px 60px}
 h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-spacing:.3px;font-weight:900;margin-bottom:6px}
-.intro{color:var(--muted);font-size:13px;line-height:1.55;margin-bottom:16px;max-width:900px}
+/* PAS de max-width sur l'intro. Signalé en trafic (19/08/2026) : « le texte
+   prend pas toute la largeur de la page ! du coup ça décale tout vers le
+   bas ». Exact — bridée à 900 px sur une fenêtre de 1900, cette intro
+   s'entassait sur 7 lignes dans la moitié gauche pendant que la moitié
+   droite restait vide, et poussait tout le panneau d'émission vers le bas.
+   FT8 était d'ailleurs l'exception : CW, RTTY et SSTV n'ont aucune limite
+   sur leur propre .intro. La largeur reste bornée par .wrap (1600 px), ce
+   qui suffit à éviter la ligne illisible sur un écran très large. */
+.intro{color:var(--muted);font-size:13px;line-height:1.55;margin-bottom:16px}
 
 /* ─── Mise en page 3 colonnes : activité de bande à gauche, réception/
    émission au centre, contexte de l'appel sélectionné + log de session à
