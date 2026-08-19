@@ -202,6 +202,43 @@ def test_un_jeton_ecarte_les_reponses_perimees():
         'décodages d\'un créneau dans le compte-rendu d\'un autre')
 
 
+# ── 4bis. 🚨 L'ORDRE des créneaux remis au séquenceur ─────────────────────
+def test_aucun_creneau_n_est_livre_avant_celui_qui_decode_encore():
+    """Trouvé par revue adversariale APRÈS une première implémentation qui
+    avait le défaut : un créneau sans fenêtre audio, ou sauté, était remis au
+    séquenceur IMMÉDIATEMENT — donc AVANT celui qui décodait encore. Le
+    séquenceur jugeait N+1 avant N et concluait « elle n'a pas répondu » sur
+    une réponse qui n'était pas encore arrivée."""
+    code = _sans_commentaires(_lire(PAGE))
+    assert 'function livrerOuDifferer' in code, (
+        "plus de file d'attente : un créneau peut doubler celui qui décode")
+    i = code.index('function livrerOuDifferer')
+    corps = code[i:i + 400]
+    assert re.search(r'if\s*\(\s*ft8DecodageEnVol\s*\)', corps), (
+        'livrerOuDifferer ne regarde plus si un décodage est en vol')
+
+    # Les deux chemins « pas de décodage » doivent passer par la file, JAMAIS
+    # appeler seqExaminerCreneau en direct.
+    j = code.index('function verifierCycle')
+    cycle = code[j:code.index('function conclureCreneau')]
+    assert 'seqExaminerCreneau(' not in cycle, (
+        'verifierCycle appelle seqExaminerCreneau en direct : le créneau '
+        'peut doubler un décodage encore en vol')
+    assert cycle.count('livrerOuDifferer(') >= 2, (
+        'les deux chemins sans décodage (fenêtre absente, créneau sauté) ne '
+        'passent pas tous les deux par la file')
+
+
+def test_la_file_est_videe_apres_chaque_decodage():
+    code = _sans_commentaires(_lire(PAGE))
+    i = code.index('function conclureCreneau')
+    corps = code[i:]
+    i_seq = corps.index('seqExaminerCreneau(')
+    assert 'viderCreneauxDifferes()' in corps[i_seq:i_seq + 300], (
+        "la file n'est pas vidée après la conclusion du créneau : les "
+        'créneaux mis de côté ne seraient jamais remis au séquenceur')
+
+
 # ── 5. Le Worker doit être EMBARQUÉ dans l'exécutable ─────────────────────
 def test_le_worker_est_embarque_par_pyinstaller():
     """Un .js oublié dans le bundle = décodage cassé UNIQUEMENT dans la

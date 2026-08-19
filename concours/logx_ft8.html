@@ -951,6 +951,23 @@ if(localStorage.getItem('rc_theme') === null){
   let ft8Worker = null;          // null = pas encore tenté, false = indisponible
   let ft8JetonDecodage = 0;      // écarte une réponse périmée
   let ft8DecodageEnVol = null;   // {jeton, slot, fenetre, t0, messages}
+  // Créneaux prêts à livrer mais BLOQUÉS derrière un décodage encore en vol.
+  // Sans cette file, un créneau sans fenêtre audio (ou sauté) serait remis au
+  // séquenceur AVANT celui qui décode encore : il jugerait N+1 avant N, donc
+  // conclurait « elle n'a pas répondu » sur une réponse pas encore arrivée.
+  const ft8CreneauxDifferes = [];
+
+  function livrerOuDifferer(messages, slot){
+    if(ft8DecodageEnVol){ ft8CreneauxDifferes.push({messages, slot}); return; }
+    seqExaminerCreneau(messages, slot);
+  }
+
+  function viderCreneauxDifferes(){
+    while(ft8CreneauxDifferes.length){
+      const c = ft8CreneauxDifferes.shift();
+      seqExaminerCreneau(c.messages, c.slot);
+    }
+  }
 
   function obtenirWorkerFt8(){
     if(ft8Worker !== null) return ft8Worker;
@@ -1692,7 +1709,7 @@ if(localStorage.getItem('rc_theme') === null){
           // traitement déjà retenu pour une fenêtre audio manquante.
           if(ft8DecodageEnVol){
             majDiagnosticRx();
-            seqExaminerCreneau(messagesDuCreneau, slotTermine);
+            livrerOuDifferer(messagesDuCreneau, slotTermine);
             return;
           }
           ft8DecodageEnVol = {jeton: ++ft8JetonDecodage, slot: slotTermine,
@@ -1723,7 +1740,7 @@ if(localStorage.getItem('rc_theme') === null){
         }
       }
       majDiagnosticRx();
-      seqExaminerCreneau(messagesDuCreneau, slotTermine);
+      livrerOuDifferer(messagesDuCreneau, slotTermine);
     }
   }
 
@@ -1771,6 +1788,9 @@ if(localStorage.getItem('rc_theme') === null){
     // Sortir sans prévenir le séquenceur le figerait indéfiniment sur un
     // « j'attends sa réponse » qui ne viendrait jamais.
     seqExaminerCreneau(messagesDuCreneau, slotTermine);
+    // Le décodage est terminé : les créneaux mis de côté pendant qu'il
+    // tournait peuvent enfin partir, dans leur ordre d'arrivée.
+    viderCreneauxDifferes();
   }
 
   // Diagnostic discret, mais présent : sans lui, une capture audio qui décroche
