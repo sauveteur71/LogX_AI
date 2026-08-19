@@ -71,7 +71,7 @@ Tout y est : votre journal de trafic, votre configuration, la base d'indicatifs,
 
 C'est le point le plus important de ce chapitre, et il tient en une phrase : **le champ « dossier de sauvegarde » est vide à l'installation, et tant qu'il est vide, aucune sauvegarde n'est écrite.** Nulle part. Jamais.
 
-Ce n'est pas théorique. Le 19/08/2026, l'auteur du logiciel a perdu son carnet complet — 9 874 QSO de 2011 à 2026. Il n'a été récupéré que parce que le fichier ADIF d'origine traînait encore dans son dossier de téléchargements. Aucune sauvegarde n'existait, parce que le dossier n'avait jamais été renseigné.
+Ce n'est pas théorique. Le 19/08/2026, l'auteur du logiciel a perdu son carnet complet — 9 871 QSO de 2011 à 2026. Il n'a été récupéré que parce que le fichier ADIF d'origine traînait encore dans son dossier de téléchargements. Aucune sauvegarde n'existait, parce que le dossier n'avait jamais été renseigné.
 
 **Faites-le maintenant, avant votre premier QSO** : CONFIG → *Sauvegarde automatique* → indiquez un dossier. Choisissez-en un déjà synchronisé par votre outil habituel (Synology Drive, Dropbox, OneDrive) et vous obtenez une sauvegarde hors machine sans aucun service supplémentaire. Détail du fonctionnement au [§14.4](#144-sauvegarde-automatique-et-manuelle).
 
