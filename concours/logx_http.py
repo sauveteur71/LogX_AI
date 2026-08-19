@@ -25,7 +25,7 @@ from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CT
                           OPENAI_COMPATIBLE_ENDPOINTS, utcnow)
 from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
-                                 delete_custom_contest)
+                                 delete_custom_contest, bandes_du_concours)
 from logx_validate import validate_definition
 from logx_rules_ai import analyze_rules
 from logx_storage import (shared_log, log_lock, save_log_to_disk,
@@ -1301,7 +1301,10 @@ def do_refresh(cfg):
     # codée en dur (l'ancienne HF_CONTESTS ignorait EU_HF_CHAMP, les WAEDC et
     # tous les concours des Phases 3/4 : cluster vide le jour J).
     HF_BAND_SET = {'1.8', '3.5', '7', '10', '14', '18', '21', '24', '28'}
-    cdef_bands = [str(b) for b in CONTEST_DEFINITIONS.get(contest, {}).get('bands', [])]
+    # bandes_du_concours et non CONTEST_DEFINITIONS : 25 concours proposés
+    # dans l'interface n'ont aucune définition, et rendaient [] ici — donc
+    # ni HF ni V/UHF détectés, en silence.
+    cdef_bands = bandes_du_concours(contest)
     has_hf_bands = any(b in HF_BAND_SET for b in cdef_bands)
     has_vhf_bands = any(b not in HF_BAND_SET for b in cdef_bands)
     # Concours purement HF : ne pas fetcher les spots VHF même si un toggle
@@ -2729,8 +2732,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with config_lock:
                 cfg_snapshot = dict(current_config)
             dxmaps = None
-            cdef = CONTEST_DEFINITIONS.get(cfg_snapshot.get('contest', ''), {})
-            bands = [str(b) for b in cdef.get('bands', [])]
+            bands = bandes_du_concours(cfg_snapshot.get('contest', ''))
             if bands and not any(b in coach.HF_BANDS for b in bands):
                 if time.time() - _coach_dxmaps_ts > 600:
                     _refresh_coach_dxmaps_async()
