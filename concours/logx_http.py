@@ -2448,6 +2448,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # que personne ne regarde : l'opérateur continuait à logger dans le
             # vide, et perdait tout à la coupure. C'est le seul point que
             # TOUTES les pages interrogent déjà (barre de statut partagée).
+            import logx_backup as _bk_etat
             self._json({
                 'peers':       len(connected_peers),
                 'qso_count':   len(shared_log),
@@ -2455,6 +2456,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'app_version': APP_VERSION,
                 'peer_list':   peer_list,
                 'persistance': storage_etat_persistance(),
+                # Horodatage de la dernière sauvegarde DISQUE. La barre de
+                # statut affichait jusqu'ici la copie faite par la page
+                # LOGBOOK, qui vit dans le cache du navigateur — un opérateur
+                # y lisait « sauvegardé » alors que rien n'existait hors du
+                # navigateur. Lecture d'un fichier LOCAL uniquement (voir
+                # logx_backup.derniere_sauvegarde) : surtout pas de glob sur
+                # le dossier de sauvegarde, qui peut être un partage réseau.
+                'sauvegarde': _bk_etat.derniere_sauvegarde(),
             })
             return
 
