@@ -510,7 +510,7 @@ function annulerEmissionsProgrammees(){
 // socle qui rend toujours undefined ferait croire au séquenceur que rien ne
 // part jamais, et ce banc validerait alors une machine qui s'arrête tout le
 // temps.
-function envoyerMessage(texte){
+function envoyerMessage(texte, creneauImpose){
   // logx_ft8.html — rien ne part tant que l'émission n'est pas armée.
   if(!txArmed) return Promise.resolve(false);
   // Une seule source d'émission à la fois : pendant une séquence, une demande
@@ -525,8 +525,19 @@ function envoyerMessage(texte){
 
   var maGeneration = generationTx;
   var now = Date.now();
-  var prochain = Math.ceil(now / 15000) * 15000;
-  if(prochain - now < 1000) prochain += 15000;
+  // CRÉNEAU IMPOSÉ par l'appelant. Le recalculer ici était le défaut : le
+  // séquenceur et envoyerMessage employaient deux seuils de marge différents
+  // (2000 ms contre 1000 ms), donc divergeaient dès qu'une seconde séparait
+  // leurs deux lectures de Date.now() — et la trame partait alors sur la
+  // parité de la station appelée.
+  var prochain;
+  if(creneauImpose > 0){
+    prochain = creneauImpose;
+  } else {
+    prochain = Math.ceil(now / 15000) * 15000;
+    if(prochain - now < 1000) prochain += 15000;
+  }
+  if(creneauImpose > 0 && prochain <= now) return Promise.resolve(false);
 
   var em = {texte: text, slot: prochain, programmeMs: now,
             debutMs: null, finMs: null, annulee: false};
@@ -762,7 +773,8 @@ class _Banc:
         # Vrai code du dépôt, pas une copie : géodésie (distance du log),
         # reconnaissance de carré et extraction de station. Si l'un d'eux change
         # dans la page, le banc change avec — c'est voulu.
-        for nom in ('gridVersLatLon', 'distanceKm', 'estCarre', 'extraireStation'):
+        for nom in ('gridVersLatLon', 'distanceKm', 'estCarre',
+                    'extraireStation', 'proposerReponse'):
             self.ctx.eval(_extraire_fonction(src, nom))
 
         # La machine à états. Lève une AssertionError parlante si absente.
@@ -1976,20 +1988,24 @@ def test_aucun_refus_de_demarrage_ne_precede_la_garde_de_remplacement():
 
     Commentaires dépouillés : les pavés d'explication citent les deux."""
     corps = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'seqDemarrer'))
+
+    # On repère la FIN du bloc assisté (son `return null`) : tout ce qui
+    # précède appartient aux refus d'entrée légitimes — indicatif invalide,
+    # mode manuel, niveau assisté — qui n'ont pas encore regardé `seq` et
+    # peuvent donc sortir sans rien casser.
+    #
+    # Première version de ce test : elle visait « le premier if(!txArmed) ».
+    # Formulation fragile, cassée dès qu'un contrôle d'armement légitime a été
+    # ajouté au mode assisté — un test doit décrire la propriété, pas la
+    # première occurrence d'une chaîne.
+    i_assiste = corps.index("seqNiveau === 'assiste'")
+    i_fin_assiste = corps.index('return null;', i_assiste)
     i_garde = corps.index("seqArreter('remplacement')")
-    for refus in ('if(!txArmed)', 'return null'):
-        i = corps.index(refus)
-        if refus == 'return null' and i < corps.index('estIndicatif'):
-            continue
-    # Tous les refus qui rendent null APRÈS la validation d'entrée doivent être
-    # postérieurs à la garde. Les deux refus d'entrée légitimes (indicatif
-    # invalide, mode manuel) précèdent volontairement : ils n'ont pas encore
-    # regardé `seq`, et refuser un appel malformé ne doit rien casser.
-    i_txarmed = corps.index('if(!txArmed)')
-    assert i_garde < i_txarmed, (
-        "le refus « Activer l'émission » précède la garde de remplacement : "
-        'un double-clic sur une autre station laisserait la séquence courante '
-        'vivante et invisible')
+    i_premier_refus = corps.index('return null;', i_fin_assiste + 1)
+    assert i_garde < i_premier_refus, (
+        'un refus de démarrage précède la garde de remplacement : un '
+        "double-clic sur une AUTRE station laisserait la séquence courante "
+        'vivante et invisible, et recocher la case relancerait vers elle')
 
 
 def test_decocher_l_armement_arrete_et_nomme_la_case():
@@ -2261,6 +2277,110 @@ def test_un_log_qui_echoue_n_est_jamais_annonce_comme_reussi(banc):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# §4quinquies. DERNIERS CONSTATS DE LA 2e REVUE
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_le_creneau_vise_n_est_calcule_qu_une_seule_fois():
+    """Le créneau d'émission était choisi DEUX FOIS, indépendamment :
+    seqProchainCreneau exige une marge de 2000 ms, envoyerMessage refaisait son
+    propre calcul avec un seuil de 1000 ms. Dès que plus d'une seconde séparait
+    leurs deux lectures de Date.now() — horloge système corrigée, thread
+    principal bloqué par un décodage — les deux divergeaient : la trame partait
+    au créneau SUIVANT, c'est-à-dire sur la parité de la station appelée,
+    pendant que slotEmis et slotsOccupes désignaient encore le précédent. Le
+    créneau réellement occupé était alors examiné comme un silence, et la
+    réponse qui s'y trouvait jetée sans être lue.
+
+    Deux calculs indépendants du même créneau ne sont pas une sécurité, c'est
+    une occasion de diverger."""
+    region = _sans_commentaires(_extraire_region_sequenceur(_lire(FT8_HTML)))
+    assert re.search(r'envoyerMessage\(\s*texte\s*,\s*creneau\s*\)', region), (
+        'le séquenceur doit IMPOSER le créneau qu\'il a choisi, pas laisser '
+        'envoyerMessage le recalculer')
+    envoyer = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'envoyerMessage'))
+    assert 'creneauImpose' in envoyer, (
+        'envoyerMessage doit accepter un créneau imposé')
+    i_impose = envoyer.index('creneauImpose')
+    i_calcul = envoyer.index('Math.ceil(now/15000)')
+    assert i_impose < i_calcul, (
+        'le créneau imposé doit court-circuiter le calcul, pas le suivre')
+
+    # ET le filet : un créneau imposé peut être DÉJÀ PASSÉ si le thread
+    # principal a été bloqué plus longtemps que prévu. Émettre alors placerait
+    # la trame à cheval sur deux créneaux — indécodable, et brouillant celui qui
+    # commence.
+    #
+    # Cette assertion est ICI, sur la page, parce que le test de comportement
+    # qui l'accompagne (test_un_creneau_deja_passe_ne_produit_aucune_emission)
+    # s'exécute contre le socle du banc, qui réimplémente envoyerMessage :
+    # vérifié par mutation, il reste vert quand on retire la garde de la page.
+    # Un test de comportement sur un mannequin ne contraint que le mannequin.
+    assert re.search(r'creneauImpose\s*>\s*0\s*&&\s*prochain\s*<=\s*now', envoyer), (
+        'un créneau imposé déjà passé doit faire renoncer à émettre')
+
+
+def test_un_creneau_deja_passe_ne_produit_aucune_emission(banc):
+    """Filet du correctif précédent : si le thread principal a été bloqué plus
+    longtemps que prévu, le créneau visé peut être passé au moment où
+    envoyerMessage reprend la main. Émettre alors placerait la trame à cheval
+    sur deux créneaux — personne ne la décoderait, et elle brouillerait celui
+    qui commence."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.js('var __r = null; envoyerMessage("F4ABC F4GLD JN15", 1000)'
+         '.then(function(v){ __r = v; });')
+    b.avancer(3000)
+    assert b.js('__r') is False, (
+        'une émission sur un créneau déjà passé doit être abandonnée')
+
+
+def test_un_clic_simple_ne_reecrit_pas_le_champ_pendant_une_sequence(banc):
+    """`readOnly` ne bloque que la saisie CLAVIER, jamais une affectation
+    `.value` en JS. Un clic simple sur une ligne de décodage — geste que la
+    page invite elle-même à faire (« Clic : préparer la réponse ») — réécrivait
+    donc le champ que l'interface présente comme « piloté par le séquenceur ».
+    L'opérateur lisait un message sans rapport avec ce qui allait partir,
+    jusqu'à la reprogrammation suivante, soit jusqu'à 60 s.
+
+    Ce qui PART n'était pas affecté : le défaut était entièrement sur ce que
+    l'opérateur croyait lire — exactement le genre d'écart entre l'écran et la
+    radio que ce chantier s'emploie à supprimer."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(20000)
+    champ_avant = b.etat()['champTx']
+    b.js('proposerReponse("CQ DL1XYZ JO31");')
+    et = b.etat()
+    assert et['champTx'] == champ_avant, (
+        'le champ a été réécrit pendant la séquence : %r -> %r'
+        % (champ_avant, et['champTx']))
+    assert 'STOP' in et['seqEtat'], (
+        "un clic sans effet doit être EXPLIQUÉ, pas silencieux : %r"
+        % et['seqEtat'])
+
+
+def test_sans_ecoute_le_sequenceur_refuse_et_nomme_le_bouton(banc):
+    """Symétrique du refus « Activer l'émission ». Ni le tableau des décodages
+    ni la liste des CQ ne sont vidés quand on coupe l'écoute : double-cliquer
+    une station encore affichée est un geste parfaitement naturel.
+
+    Le séquenceur créait alors la séquence, l'écran passait à « QSO avec
+    F4ABC » et le bouton STOP apparaissait — tout disait que le QSO était
+    lancé — puis elle mourait seule 13 s plus tard. Le correctif précédent
+    avait fermé ce piège pour l'armement et laissé la précondition symétrique
+    traitée par l'ancien chemin, celui-là même que son commentaire décrit
+    comme inacceptable."""
+    b = banc(correspondant=_correspondant())
+    b.js('NOW = 2000;')
+    b.js('rxActif = false;')
+    assert b.demarrer(slotEntendu=0) is None, 'aucune séquence ne doit être créée'
+    assert b.etat()['seq'] is None
+    assert 'couter' in b.etat()['seqEtat'], (
+        'le refus doit nommer le bouton à cliquer : %r' % b.etat()['seqEtat'])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # §5. ARRÊTS — chacun doit VRAIMENT couper
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -2494,7 +2614,10 @@ def test_le_sequenceur_passe_son_texte_explicitement(banc):
     doit appeler envoyerMessage avec un argument. C'est ce qui rend le champ de
     saisie incapable d'influencer ce qui part."""
     region = _sans_commentaires(_extraire_region_sequenceur(_lire(FT8_HTML)))
-    assert re.search(r'envoyerMessage\(\s*texte\s*\)', region), (
+    # `texte` en PREMIER argument, quels que soient les suivants : le créneau
+    # visé lui est passé en second depuis que les deux calculs indépendants du
+    # même créneau ont été supprimés.
+    assert re.search(r'envoyerMessage\(\s*texte\s*[,)]', region), (
         "seqProgrammer doit passer son texte EXPLICITEMENT à envoyerMessage ; "
         'relire le champ de saisie au moment d\'émettre est le défaut '
         'historique de ce séquenceur')

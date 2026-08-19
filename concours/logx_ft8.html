@@ -1355,6 +1355,30 @@ if(localStorage.getItem('rc_theme') === null){
   // Propose une réponse plausible à partir d'un décodage cliqué — TOUJOURS
   // éditable avant envoi, jamais auto-transmis (voir note d'en-tête).
   function proposerReponse(text){
+    // PENDANT UNE SÉQUENCE, le champ appartient au séquenceur. `readOnly` ne
+    // bloque que la saisie CLAVIER : un clic simple sur une ligne de décodage
+    // — geste que la page invite elle-même à faire (« Clic : préparer la
+    // réponse ») — le réécrivait quand même. L'opérateur lisait alors un
+    // message sans aucun rapport avec ce qui allait réellement partir, et ce
+    // jusqu'à la reprogrammation suivante, soit jusqu'à 60 s.
+    //
+    // Ce qui PART n'était pas affecté (le séquenceur passe son texte
+    // explicitement) : le défaut était entièrement sur ce que l'opérateur
+    // croyait lire. C'est précisément le genre d'écart entre l'écran et la
+    // radio que ce chantier s'emploie à supprimer.
+    //
+    // On le DIT plutôt que de laisser un clic sans effet : un geste qui ne
+    // fait rien et ne s'explique pas est pire qu'un geste refusé.
+    if(seq){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = 'Séquence en cours avec ' + seq.cible
+          + ' : le champ affiche ce que le séquenceur va émettre. '
+          + 'STOP SÉQUENCE pour reprendre la main.';
+        el.className = 'tx-status wait';
+      }
+      return;
+    }
     const parts = text.split(' ');
     if(parts[0] === 'CQ'){
       const call = parts[parts.length - 1].match(/^[A-Z0-9/]+$/) ? parts[1] : parts[1];
@@ -1586,7 +1610,37 @@ if(localStorage.getItem('rc_theme') === null){
   // la revérifie après. Tout ordre d'arrêt l'incrémente, donc toute émission
   // programmée avant cet ordre se reconnaît périmée et renonce.
   let generationTx = 0;
-  function annulerEmissionsProgrammees(){ generationTx++; }
+  function annulerEmissionsProgrammees(){
+    // 1. Les trames qui ATTENDENT leur créneau renoncent (jeton).
+    generationTx++;
+    // 2. Et CE QUI EST DÉJÀ EN L'AIR s'arrête.
+    //
+    // Le jeton seul ne pouvait rien contre une trame en cours de lecture :
+    // il n'atteint que les émissions encore en attente. Or couperAudioTx()
+    // n'était appelée que par stopEmission() et le chien de garde. Résultat,
+    // TROIS gestes que l'opérateur lit comme « arrête d'émettre » laissaient
+    // la forme d'onde moduler le poste jusqu'à son terme, soit jusqu'à 12,64 s
+    // après l'ordre — mesuré à 7,6 s pour un ordre donné en milieu de trame :
+    //   « ■ Arrêter » l'écoute      (arreterRx)
+    //   décocher « Activer l'émission » (onArmChange)
+    //   « ■ STOP SÉQUENCE »         (seqArreter)
+    // Pendant ce temps l'écran affichait « arrêté » et « Séquence arrêtée :
+    // l'écoute a été coupée ». Trois signaux qui disent que c'est fini pendant
+    // que la porteuse est encore en l'air.
+    //
+    // Échap et STOP ÉMISSION, eux, passaient déjà par stopEmission() et
+    // coupaient correctement : c'est bien la preuve que le geste attendu était
+    // celui-là. On le rend commun à TOUS les chemins d'arrêt plutôt que de le
+    // laisser dépendre du bouton choisi.
+    if(sourcesTxVivantes.size){
+      couperAudioTx();
+      // Relâcher le PTT ensuite : couper le son en laissant la radio en
+      // émission laisse une porteuse non modulée sur l'air. Volontairement NON
+      // attendu — cette fonction est appelée depuis des chemins synchrones, et
+      // relacherPtt() réessaie puis alerte toute seule si elle échoue.
+      if(pttDemande) relacherPtt(6);
+    }
+  }
 
   // Vrai entre la programmation et le départ effectif de l'émission.
   let emissionProgrammee = false;
@@ -1824,7 +1878,7 @@ if(localStorage.getItem('rc_theme') === null){
   // de « refusé » : il comptait une relance et reprogrammait dans le vide,
   // indéfiniment, pendant que le message d'erreur partait dans un autre
   // élément de la page que celui qu'il regarde.
-  window.envoyerMessage = async function(texte){
+  window.envoyerMessage = async function(texte, creneauImpose){
     if(!txArmed) return false;
     // GARDE DE RÉ-ENTRANCE. repondreEtEnvoyer() (double-clic) appelle cette
     // fonction DIRECTEMENT, sans passer par le bouton : sendBtn.disabled ne
@@ -1863,6 +1917,16 @@ if(localStorage.getItem('rc_theme') === null){
                ? texte : document.getElementById('txText').value;
     const text = String(brut).trim().toUpperCase();
     if(!text) return false;
+    // Créneau IMPOSÉ par l'appelant (le séquenceur), ou calculé ici (chemin
+    // manuel). Il était systématiquement recalculé, avec un seuil de marge
+    // DIFFÉRENT de celui du séquenceur — 1000 ms ici, 2000 ms là-bas. Dès que
+    // plus d'une seconde séparait les deux lectures de Date.now() (horloge
+    // système corrigée, thread principal bloqué par un décodage), les deux
+    // choix divergeaient : la trame partait au créneau SUIVANT, c'est-à-dire
+    // sur la parité de la station appelée, pendant que slotEmis et
+    // slotsOccupes continuaient de désigner le précédent. Le créneau que nous
+    // occupions réellement était alors examiné comme un silence, et la réponse
+    // qui s'y trouvait jetée sans être lue.
     dernierRefusPtt = '';
     const enc = ft8EncodeMessage(text, hashTable);
     if(!enc){
@@ -1878,10 +1942,29 @@ if(localStorage.getItem('rc_theme') === null){
     // un message FT8 part toujours calé sur la grille, jamais "tout de suite".
     const now = Date.now();
     const maGeneration = generationTx;   // identité de CETTE demande, capturée AVANT l'attente
-    let prochain = Math.ceil(now/15000)*15000;
-    if(prochain - now < 1000) prochain += 15000;   // pas assez de marge pour préparer PTT+lecture
+    let prochain;
+    if(creneauImpose > 0){
+      // Le séquenceur a DÉJÀ choisi, en tenant compte de la parité. On ne
+      // rejoue pas ce choix : deux calculs indépendants du même créneau, c'est
+      // une occasion de diverger, pas une sécurité.
+      prochain = creneauImpose;
+    } else {
+      prochain = Math.ceil(now/15000)*15000;
+      if(prochain - now < 1000) prochain += 15000;   // pas assez de marge pour préparer PTT+lecture
+    }
     statusEl.textContent = `Programmé pour ${new Date(prochain).toISOString().slice(11,19)} UTC…`;
     statusEl.className = 'tx-status wait';
+    if(creneauImpose > 0 && prochain <= now){
+      // Le créneau visé est déjà passé — le thread principal a été bloqué plus
+      // longtemps que prévu. Émettre maintenant placerait la trame à cheval
+      // sur deux créneaux : personne ne la décoderait, et elle brouillerait
+      // celui qui commence. On renonce.
+      statusEl.textContent = 'Créneau manqué — émission abandonnée';
+      statusEl.className = 'tx-status';
+      majBoutonEnvoyer();
+      return false;
+    }
+
     // Le bouton de coupure doit être atteignable pendant toute l'attente :
     // pendant ces ~15 s le PTT n'est pas encore engagé, mais il y a bel et
     // bien quelque chose à annuler.
@@ -2547,7 +2630,10 @@ if(localStorage.getItem('rc_theme') === null){
       // On LAISSE PARTIR le 73 avant d'arrêter : couper le dernier message en
       // plein vol laisserait le QSO incomplet en face et donnerait à
       // l'opérateur d'en face l'impression d'un abandon.
-      Promise.resolve(envoyerMessage(texte))
+      // Le créneau est PASSÉ, pas recalculé : c'est celui que seqProchainCreneau
+      // a choisi en fonction de la parité, et c'est celui qui est inscrit dans
+      // slotEmis/slotsOccupes juste au-dessus.
+      Promise.resolve(envoyerMessage(texte, creneau))
              .then(apres, function(){ apres(false); });
     }, Math.max(0, creneau - SEQ_PREAVIS_MS - maintenant));
     seqMajUI();
@@ -2682,9 +2768,24 @@ if(localStorage.getItem('rc_theme') === null){
       if(champ) champ.value = seqTexte(provisoire, etape);
       const etatEl = document.getElementById('seqEtat');
       if(etatEl){
-        etatEl.textContent = 'Réponse préparée pour ' + call
-                           + " — appuie sur Envoyer, rien ne part tout seul.";
+        // Sans armement, « appuie sur Envoyer » envoie dans le vide : le
+        // bouton est grisé (majBoutonEnvoyer : !txArmed || !!seq) et rien ne
+        // relie les deux à l'écran. C'était le SEUL des trois modes à ne pas
+        // nommer la case — alors que le mode Assisté est justement celui que
+        // choisit un débutant, puisque c'est le plus prudent.
+        etatEl.textContent = txArmed
+          ? ('Réponse préparée pour ' + call
+             + ' — appuie sur Envoyer, rien ne part tout seul.')
+          : ('Réponse préparée pour ' + call + " — coche « Activer l'émission », "
+             + 'puis appuie sur Envoyer.');
         etatEl.className = 'tx-status wait';
+      }
+      if(!txArmed){
+        const lbl = document.getElementById('armLabel');
+        if(lbl){
+          lbl.classList.add('attention');
+          setTimeout(() => lbl.classList.remove('attention'), 2500);
+        }
       }
       return null;
     }
@@ -2705,6 +2806,31 @@ if(localStorage.getItem('rc_theme') === null){
     if(seq){
       if(seq.cible === call) return seq;      // 2e clic d'un double-clic : ignorer
       seqArreter('remplacement');
+    }
+
+    // L'ÉCOUTE N'EST PAS LANCÉE. Le séquenceur a besoin d'ENTENDRE la réponse
+    // pour dérouler le QSO : sans elle, il ne peut rien faire d'autre que
+    // mourir au préavis. Or ni le tableau des décodages ni la liste des CQ
+    // ne sont vidés par arreterRx : double-cliquer une station encore
+    // affichée est un geste parfaitement naturel après avoir coupé l'écoute.
+    //
+    // Le correctif précédent avait fermé ce piège pour « Activer l'émission »
+    // et laissé la précondition SYMÉTRIQUE traitée par l'ancien chemin —
+    // celui-là même que le commentaire ci-dessous décrit comme inacceptable.
+    if(!rxActif){
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = 'Clique « ▶ Écouter » d\'abord : le séquenceur a '
+                       + 'besoin d\'entendre la réponse de la station pour '
+                       + 'dérouler le QSO.';
+        el.className = 'tx-status wait';
+      }
+      const b = document.getElementById('rxStartBtn');
+      if(b){
+        b.classList.add('attention');
+        setTimeout(() => b.classList.remove('attention'), 2500);
+      }
+      return null;
     }
 
     // « Activer l'émission » n'est pas cochée : REFUSER. Créer la séquence
@@ -2856,7 +2982,12 @@ if(localStorage.getItem('rc_theme') === null){
   // Purement descriptif : aucune décision ne dépend de ce qui est écrit ici.
   function seqMajUI(raison){
     const relancesEl = document.getElementById('seqRelancesLabel');
-    if(relancesEl) relancesEl.style.display = (seqNiveau === 'manuel') ? 'none' : '';
+    // Visible UNIQUEMENT là où il pilote quelque chose. En Assisté, aucune
+    // séquence n'est créée, donc aucune relance n'existe — et un réglage
+    // « RELANCES SANS RÉPONSE : sans limite » affiché à côté d'un mode qui
+    // promet « n'émet jamais seul » sème le doute sur la seule question qui
+    // compte sur cette page : est-ce que ma station va émettre sans moi ?
+    if(relancesEl) relancesEl.style.display = (seqNiveau === 'sequenceur') ? '' : 'none';
     const stopBtn = document.getElementById('seqStopBtn');
     if(stopBtn) stopBtn.style.display = seq ? '' : 'none';
     majBoutonEnvoyer();

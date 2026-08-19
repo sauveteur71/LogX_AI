@@ -177,17 +177,55 @@ def test_l_indicateur_est_leve_puis_baisse_autour_de_l_attente():
 
 # ─── Comportement, sur les vraies fonctions ─────────────────────────────────
 
-def _ctx():
-    """Charge la SEULE fonction de compteur : stopEmission est asynchrone et
-    tire trop de dépendances de la page pour être exécutée hors navigateur.
-    Son câblage sur le compteur est vérifié statiquement plus haut
-    (test_chaque_chemin_d_arret_annule_les_emissions_programmees et
-    test_stop_annule_avant_de_couper_l_audio) ; ce qui se vérifie ICI, c'est
-    que le compteur lui-même se comporte comme un jeton fiable."""
+def _ctx(onde_en_vol=False):
+    """Charge la VRAIE annulerEmissionsProgrammees avec des mannequins qui
+    ENREGISTRENT ce qu'elle fait. stopEmission est asynchrone et tire trop de
+    dépendances de la page pour être exécutée hors navigateur ; son câblage sur
+    le compteur est vérifié statiquement plus haut. Ce qui se vérifie ICI,
+    c'est le comportement de l'annulation elle-même.
+
+    `onde_en_vol` simule une trame DÉJÀ en cours de lecture — le cas où le
+    jeton, à lui seul, ne peut rien."""
     ctx = py_mini_racer.MiniRacer()
-    ctx.eval('var generationTx = 0;')
+    ctx.eval("""
+      var generationTx = 0;
+      var __audioCoupe = 0, __pttRelache = 0;
+      var pttDemande = true;
+      var sourcesTxVivantes = new Set();
+      function couperAudioTx(){ __audioCoupe++; sourcesTxVivantes.clear(); }
+      function relacherPtt(){ __pttRelache++; return Promise.resolve(true); }
+    """)
+    if onde_en_vol:
+        ctx.eval("sourcesTxVivantes.add({stop: function(){}});")
     ctx.eval(_fonction(_lire(), 'annulerEmissionsProgrammees'))
     return ctx
+
+
+def test_annuler_coupe_la_trame_deja_en_l_air():
+    """LE défaut trouvé par la deuxième revue adversariale.
+
+    Le jeton ne peut rien contre une trame DÉJÀ en cours de lecture : il
+    n'atteint que les émissions encore en attente de leur créneau. Or
+    couperAudioTx() n'était appelée que par stopEmission() et le chien de
+    garde. Trois gestes que l'opérateur lit comme « arrête d'émettre » —
+    couper l'écoute, décocher « Activer l'émission », STOP SÉQUENCE — laissaient
+    donc la forme d'onde moduler le poste jusqu'à son terme, soit jusqu'à
+    12,64 s après l'ordre. Mesuré à 7,6 s pour un ordre donné en milieu de
+    trame, pendant que l'écran affichait « arrêté »."""
+    ctx = _ctx(onde_en_vol=True)
+    ctx.eval('annulerEmissionsProgrammees();')
+    assert ctx.eval('__audioCoupe') == 1, "l'audio en vol n'a pas été coupé"
+    assert ctx.eval('__pttRelache') == 1, 'le PTT est resté engagé'
+
+
+def test_annuler_ne_touche_a_rien_quand_aucune_onde_ne_joue():
+    """Contre-épreuve : couper l'audio et relâcher le PTT alors que rien n'est
+    en l'air enverrait des ordres radio inutiles à chaque arrêt de séquence, et
+    ferait clignoter l'état d'émission sans raison."""
+    ctx = _ctx(onde_en_vol=False)
+    ctx.eval('annulerEmissionsProgrammees();')
+    assert ctx.eval('__audioCoupe') == 0
+    assert ctx.eval('__pttRelache') == 0
 
 
 def test_annuler_fait_avancer_le_jeton():
