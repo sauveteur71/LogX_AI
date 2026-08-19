@@ -3145,7 +3145,14 @@ function _catStatus(cat){
     case 'network':
       return val('cloudsync_mode') ? 'ok' : 'empty';
     case 'backup':
-      return val('backup_folder') ? 'ok' : 'empty';
+      // La sauvegarde tourne TOUJOURS depuis le 19/08/2026 : sans dossier
+      // choisi, logx_backup replie sur `sauvegardes/` a cote du carnet. La
+      // pastille repond « est-ce que ca marche ? », et la reponse est
+      // desormais oui dans les deux cas — repondre 'empty' laisserait croire
+      // que rien ne se passe, ce qui est exactement le malentendu qui a coute
+      // 9 871 QSO. L'incitation a choisir un dossier EXTERNE est portee par la
+      // note sous le champ, pas par la pastille.
+      return 'ok';
     case 'sources':
       return 'empty'; // toggles multiples (cluster/RBN/ON4KST) — pas de statut unique pertinent
     case 'alerts':

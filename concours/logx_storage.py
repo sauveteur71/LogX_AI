@@ -113,8 +113,11 @@ def etat_persistance():
 # carnet en mémoire continue de vivre : l'opérateur loggue, et rien ne
 # l'arrête. Sans ce journal, tout ce qu'il saisit alors n'existe QUE en RAM et
 # disparaît à la coupure suivante. Le garde-fou deviendrait le second sinistre,
-# et la sauvegarde automatique ne rattraperait rien : elle est DÉSACTIVÉE tant
-# qu'aucun dossier n'est configuré (logx_backup.backup_settings).
+# et la sauvegarde automatique ne rattraperait pas tout : depuis le 19/08/2026
+# elle tourne dès le premier lancement, dossier configuré ou non
+# (logx_backup.backup_settings replie sur `sauvegardes/`), mais elle passe à
+# intervalle — 15 min par défaut. Les QSO saisis entre deux passages ne sont
+# donc couverts QUE par ce journal.
 #
 # Trois propriétés, et chacune compte :
 #   - APPEND-ONLY : on n'écrit QUE des lignes neuves, jamais de réécriture. Le

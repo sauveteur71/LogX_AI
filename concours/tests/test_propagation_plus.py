@@ -189,6 +189,19 @@ def test_backup_ecrit_et_retention():
                 os.remove(f)
 
 
-def test_backup_sans_dossier():
+def test_backup_sans_dossier(tmp_path, monkeypatch):
+    """Sans dossier configuré, la sauvegarde RÉUSSIT désormais.
+
+    Ce test affirmait l'inverse (`['ok'] is False`) — il figeait le défaut qui
+    a coûté 9 871 QSO le 19/08/2026 : sans `backup_folder`, rien n'était
+    jamais écrit. Depuis, `backup_settings()` replie sur `sauvegardes/`
+    (logx_backup.dossier_par_defaut) et l'écriture aboutit.
+
+    Le `monkeypatch.chdir` n'est pas décoratif : le repli est résolu depuis le
+    répertoire courant, et sans lui ce test écrivait dans `concours/` du
+    dépôt. Constaté en le faisant."""
     import logx_backup as bk
-    assert bk.run_backup({}, [])['ok'] is False
+    monkeypatch.chdir(tmp_path)
+    res = bk.run_backup({}, [])
+    assert res['ok'] is True, res
+    assert os.path.isdir(os.path.join(str(tmp_path), bk.DOSSIER_DEFAUT))
