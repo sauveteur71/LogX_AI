@@ -25,16 +25,28 @@ que sert le serveur sur le port 8080. Elle est à jour.
 > ⚠️ **Le serveur doit être redémarré** pour prendre les correctifs Python.
 > Les fichiers `.html`/`.js` sont relus à chaque requête, pas les `.py`.
 
-### En attente de la décision de F4GLD
+### En attente d'un essai sur l'air
 
 **PR #116 — le séquenceur FT8 automatique.** Un double-clic sur une station
 déroule le QSO seul (appel, report, accusé, 73) puis logue.
 
-Elle n'a **jamais été fusionnée, volontairement** : un séquenceur émet sans
-surveillance, c'est la fonction la plus intrusive du logiciel, et c'est la
-station de F4GLD qui est sur l'air. Trois revues adversariales successives, 69
-constats confirmés et corrigés, banc à 146 cas — mais **aucun essai sur l'air**.
-C'est ce qui manque, et aucun banc ne peut le remplacer.
+> 🔴 **Elle EST fusionnée** — le 19/08/2026 à 09:19 UTC, commit `ff5991e`.
+> Une version antérieure de cette page affirmait le contraire (« jamais
+> fusionnée, volontairement ») : c'était vrai à l'écriture, faux depuis, et
+> personne ne l'avait mise à jour. Vérifié en relisant `main`, pas en croyant
+> le document : `seqDemarrer` / `seqArreter` / `seqEtat` sont présents dans
+> `concours/logx_ft8.html`. **La fonction la plus intrusive du logiciel est
+> donc dans le code que F4GLD fait tourner.**
+
+Ce qui reste vrai, et qui est le vrai sujet : un séquenceur **émet sans
+surveillance**, et c'est la station de F4GLD qui est sur l'air. Trois revues
+adversariales successives, 69 constats confirmés et corrigés, banc à 146 cas —
+mais **toujours aucun essai sur l'air**. Aucun banc ne peut le remplacer.
+
+C'est donc la première chose à faire en reprenant : un essai réel, sur une
+station surveillée, avant que quiconque d'autre s'en serve. Même remarque pour
+le décalage de VFO à l'émission (PR #125) : il commande le poste pendant
+l'émission et n'a jamais été vérifié sur l'air ni contrôlé sur un WebSDR.
 
 PR #114 est l'ancêtre abandonné du séquenceur, laissée en brouillon. Ne pas la
 rouvrir.
@@ -52,6 +64,81 @@ réécriture du §8.6 en « Modes numériques natifs : FT8, RTTY, SSTV » — le
 natif n'apparaissait nulle part dans les 1458 lignes du guide, alors que c'est
 l'argument principal du produit. Rien de risqué dedans : c'est de la
 documentation. À fusionner telle quelle.
+
+### 🔴 L'incident du 19/08/2026 — le carnet perdu
+
+À lire avant tout ce qui touche à la persistance.
+
+**Ce qui s'est passé.** En redémarrant après une série de modifications, F4GLD
+a retrouvé son carnet **vide**. 9 871 QSO, de 2011 à 2026. Ils ont été
+récupérés : d'abord par *carving* de la base SQLite (lecture des pages
+libérées, ~9 859 fiches reconstituées à partir des ancres `{"` remontées à
+l'envers — les tableaux de pointeurs de cellules des pages libérées sont
+périmés, une première tentative appuyée dessus rendait 0), puis complétés en
+réimportant l'ADIF d'origine qui traînait encore. Décompte actuel vérifié
+auprès du serveur en direct (`/log/status`) : **9 871**.
+
+**La cause racine n'a JAMAIS été identifiée.** C'est le point important, et il
+ne faut pas laisser croire l'inverse. Ont été éliminés **par la mesure**, pas
+par raisonnement : la remise à zéro, le vidage par archivage, les quatre
+chemins de synchronisation, et la suite de tests. Sur ce dernier point, un
+agent avait désigné la suite de tests comme « candidat principal » ; je l'ai
+**réfuté moi-même en mesurant** — les bases des worktrees contiennent bien
+F1TEST/F2AAA/F2BBB/F3CCC, la base de production en contient zéro, parce que le
+répertoire de travail est calculé depuis `__file__`. Ne pas rouvrir cette piste
+sans mesure nouvelle.
+
+**Ce qui a été fait à la place — fermer le goulot, pas une porte** (PR #127,
+fusionnée). Toute destruction massive passe par `concours/logx_storage.py` :
+c'est là que les trois garde-fous ont été posés, plutôt que sur le chemin
+soupçonné du jour.
+
+1. **Refus d'écriture destructrice.** `_ecrire_tout()` compare ce qu'il y a sur
+   disque à ce qu'on s'apprête à écrire ; au-delà de `_SEUIL_PERTE_MASSIVE = 25`
+   fiches perdues, il lève `ReecritureDestructrice` et la base reste intacte.
+   Les effacements **voulus** passent par `effacement_autorise=True` et
+   continuent de marcher.
+2. **Journal d'appoint append-only.** Quand l'écriture est bloquée, les QSO
+   suivants partent dans `logx_journal_secours.jsonl` (`flush` + `os.fsync`),
+   rejoué puis renommé au démarrage — sans quoi le gel serait un second
+   désastre. ⚠️ Défaut trouvé en cours de route : le journal n'était rejoué que
+   si la base existait. Corrigé.
+3. **Verrou du DOSSIER de données** (`logx_singleton.py`, `msvcrt.locking` sous
+   Windows, `fcntl.flock` ailleurs). Deux LogX AI dans le même dossier
+   finissaient par s'effacer mutuellement. Un `.pid` ne convenait pas : il se
+   libère à la mort du processus, et `os.kill(pid, 0)` **tue** sous Windows.
+
+Et un bandeau rouge permanent sur les 15 pages (`logx_statusbar.js`, via
+`/log/status`) : un blocage de persistance ne doit pas être silencieux.
+
+> 🚨 **Piège payé deux fois pendant ce correctif** : un `except Exception:
+> return True` avalait un `NameError` (`os` non importé dans
+> `logx_singleton.py`) et faisait annoncer un verrou jamais pris. Trouvé
+> seulement en lançant **deux vrais processus**. J'ai refait exactement la même
+> erreur ensuite dans `logx_serveur.py` — rattrapée par `ruff` (F821). Ne pas
+> écrire de repli muet sur ce chemin.
+
+**Ce qui reste à faire ici** : la sauvegarde automatique est toujours
+**inactive tant qu'aucun dossier n'est renseigné**, et le champ est vide à
+l'installation. C'est ce qui a rendu l'incident irréversible. Le guide le dit
+maintenant (chapitre 2 et §14.4), mais **le logiciel, lui, ne le réclame
+toujours pas** au premier lancement. Une invite au démarrage tant que le
+dossier est vide serait le vrai correctif, et elle n'existe pas.
+
+### 🔴 Rien de tout cela n'est publié
+
+`concours/logx_version.py` annonce `1.1-beta4`, et le dernier tag publié est
+`v1.1-beta4`. Or **32 commits sont sur `main` depuis ce tag** (vérifié par
+`git rev-list --count v1.1-beta4..main`), dont la PR #127 ci-dessus.
+
+Autrement dit : **les garde-fous qui protègent le carnet ne sont dans aucun
+binaire téléchargeable.** Quiconque installe LogX AI aujourd'hui prend la
+version d'avant l'incident. La publication d'une `v1.1-beta5` a été commencée
+puis suspendue, et jamais reprise.
+
+Avant de pousser le tag : **vérifier le build PyInstaller en local d'abord**.
+Un build de release est resté cassé deux jours sans que personne le sache
+(`Tree()` vs `Analysis()`), et seul un vrai build local l'avait révélé.
 
 ### Ce qui reste ouvert
 
