@@ -368,6 +368,14 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
              par un geste resté visible ; ici il l'est. -->
         <label>TON 0 (Hz)<input type="number" id="ft8Tone0" min="200" max="2800" step="50" value="1500"
                oninput="majTonPropre()" onchange="majTonPropre()"></label>
+        <!-- DÉCALAGE DE VFO — désactivé par défaut, et volontairement.
+             Cette case fait COMMANDER LA RADIO : rien ne doit toucher au VFO
+             de l'opérateur sans qu'il l'ait demandé. Pas expert-only pour
+             autant : ce qu'on met sur l'air concerne les voisins de fréquence,
+             pas le niveau de celui qui émet. -->
+        <label class="toggle-arm" id="vfoLabel" title="Décale la fréquence de la radio pendant l'émission pour que le ton audio reste entre 1500 et 2000 Hz — la fréquence réellement émise ne change pas. Nécessite le pilotage CAT.">
+          <input type="checkbox" id="ft8DecalageVfo"> Ton propre (décalage VFO)
+        </label>
         <!-- Avertissement de PROPRETÉ du signal émis. Pas expert-only : ce
              qu'on met sur l'air concerne les voisins de fréquence, pas le
              niveau de l'opérateur. -->
@@ -1093,6 +1101,29 @@ if(localStorage.getItem('rc_theme') === null){
   // une vraie radio ; il n'est pas fait ici.
   const TON_PROPRE_MIN = 1500;   // guide WSJT-X, borne basse
   const TON_PROPRE_MAX = 2000;   // guide WSJT-X, borne haute
+
+  // ─── DÉCALAGE DE VFO À L'ÉMISSION ───────────────────────────────────────
+  //
+  // Équivalent du mode « Fake It » de WSJT-X. SOURCE : code de WSJT-X (GPL,
+  // lu — pas recopié — dans wsjtx-3.2.0, src/wsjtx/widgets/mainwindow.cpp,
+  // MainWindow::setXIT) :
+  //
+  //     m_XIT = (n/500)*500 - 1500;        // division ENTIÈRE
+  //     m_freqTxNominal = base + m_XIT;    // le VFO d'émission monte de XIT
+  //     float f0 = TxFreqSpinBox->value() - m_XIT;   // le TON descend d'autant
+  //
+  // Les deux moitiés comptent : si l'on décalait le VFO SANS corriger le ton,
+  // la fréquence réellement émise changerait et on transmettrait ailleurs. Ici
+  // les deux se compensent exactement — seule la position du ton DANS la
+  // passe-bande change, et c'est tout l'objet.
+  //
+  // Le résultat tombe toujours dans [1500, 2000) : vérifié sur 700 -> 1700,
+  // 1200 -> 1700, 1600 -> inchangé, 2000 -> 1500, 2500 -> 1500. Et le décalage
+  // est un multiple de 500 Hz, donc le VFO reste sur une fréquence ronde.
+  function decalageVfoHz(tonHz){
+    if(!isFinite(tonHz)) return 0;
+    return Math.floor(tonHz / 500) * 500 - 1500;
+  }
 
   window.majTonPropre = function(){
     const champ = document.getElementById('ft8Tone0');
@@ -2546,12 +2577,67 @@ if(localStorage.getItem('rc_theme') === null){
       majBoutonEnvoyer();
       return false;
     }
+    // ─── DÉCALAGE DE VFO (optionnel) ───────────────────────────────────────
+    //
+    // Placé ICI, entre le PTT et la modulation : jamais pendant que la trame
+    // part. WSJT-X pose la même règle (mainwindow.cpp : « if (m_transmitting
+    // && !tx_QSY_allowed) return; ») — bouger la fréquence en pleine émission
+    // étale le signal sur la bande.
+    //
+    // On ne tente RIEN sans fréquence radio connue : sans CAT, il n'y a pas de
+    // VFO à décaler, et il ne faut surtout pas faire croire le contraire.
+    const tonVoulu = parseInt(document.getElementById('ft8Tone0').value, 10) || 1500;
+    const caseVfo = document.getElementById('ft8DecalageVfo');
+    let decalage = 0, freqAvantHz = 0;
+    if(caseVfo && caseVfo.checked && rigFreqKhz > 0){
+      const d = decalageVfoHz(tonVoulu);
+      if(d !== 0){
+        freqAvantHz = Math.round(rigFreqKhz * 1000);
+        try{
+          const r = await fetch('/rig/qsy', {method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({freq_hz: freqAvantHz + d})});
+          if(r.ok){ decalage = d; }
+          else { freqAvantHz = 0; }   // échec : on ne touchera pas au retour
+        }catch(e){ freqAvantHz = 0; }
+      }
+    }
+
     try{
-      const tone0 = parseInt(document.getElementById('ft8Tone0').value, 10) || 1500;
+      // Le ton GÉNÉRÉ compense le décalage : tonVoulu - decalage. Quand
+      // decalage vaut 0 (option décochée, pas de CAT, ou ton déjà propre),
+      // c'est exactement le comportement d'avant.
+      const tone0 = tonVoulu - decalage;
       const wave = ft8SynthesizeGfsk(enc.symbols, {sampleRate: 12000, toneHz0: tone0});
-      statusEl.textContent = '🔊 ' + text;
+      statusEl.textContent = '🔊 ' + text
+        + (decalage ? ' (VFO ' + (decalage > 0 ? '+' : '') + decalage
+                      + ' Hz, ton ' + tone0 + ' Hz)' : '');
       await jouerForme(wave, 12000);
     } finally {
+      // RESTAURER LA FRÉQUENCE, TOUJOURS — même sur exception, même si la
+      // trame a été coupée. Une radio laissée décalée écoute et émet à côté,
+      // sans que rien ne le dise : c'est la même classe de danger qu'un PTT
+      // non relâché, donc la même discipline (finally) et la même alarme.
+      if(freqAvantHz){
+        let remise = false;
+        for(let essai = 0; essai < 3 && !remise; essai++){
+          try{
+            const r = await fetch('/rig/qsy', {method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({freq_hz: freqAvantHz})});
+            remise = r.ok;
+          }catch(e){ /* on réessaie */ }
+        }
+        if(!remise){
+          const al = document.getElementById('pttAlarme');
+          if(al){
+            al.textContent = 'FRÉQUENCE NON RESTAURÉE : la radio est restée '
+              + 'décalée de ' + decalage + ' Hz après l\'émission. Remets-la '
+              + 'à ' + (freqAvantHz / 1000).toFixed(3) + ' kHz à la main.';
+            al.style.display = '';
+          }
+        }
+      }
       // relacherPtt() et non pttOn(false) : un unique appel qui échoue laissait
       // la radio en émission sans que personne ne le sache.
       const relache = await relacherPtt();
