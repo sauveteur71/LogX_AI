@@ -324,29 +324,22 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
          en vérification navigateur (sideRight rendu à la même position x que
          sideLeft), pas en relisant le CSS. -->
     <div class="center-col">
-    <div class="panel" id="panelRx">
-      <div class="panel-title">Réception</div>
-      <div class="controles">
-        <label>PÉRIPHÉRIQUE D'ENTRÉE<select id="ft8Device"><option value="">— chargement… —</option></select></label>
-        <button id="rxStartBtn" onclick="toggleRx()">▶ Écouter</button>
-        <span id="rxStatus" class="tx-status">arrêté</span>
-        <span id="rxDiag" class="tx-status expert-only"></span>
-      </div>
-      <div style="margin-top:12px">
-        <canvas id="waterCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
-        <canvas id="axisCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
-      </div>
-      <div class="decodes-scroll">
-      <table class="decodes">
-        <thead><tr><th>UTC</th><th>Hz</th>
-          <th title="Décalage temporel de la station reçue par rapport au créneau de 15 s. Proche de 0 = horloges d'accord. Si TOUTES les stations sont décalées du même côté, c'est l'horloge de CE PC qui est fausse.">DT</th>
-          <th title="Rapport signal/bruit de la station reçue, en dB, dans la bande de référence de 2500 Hz — l'unité des reports FT8. C'est CE nombre qu'on lui envoie comme report. Repères : au-dessus de 0 dB le signal est fort, vers -15 dB il est faible mais confortable, vers -20 dB on est à la limite du décodage. Un tiret signifie que la mesure n'a pas été possible.">SNR</th><th>Message</th></tr></thead>
-        <tbody id="decodesBody"></tbody>
-      </table>
-      <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
-      </div>
-    </div>
+    <!-- ÉMISSION AVANT RÉCEPTION — demandé explicitement par F4GLD le
+         19/08/2026, après un premier correctif qui bornait déjà la
+         hauteur de la colonne : « toujours un scroll, passe le cadre
+         emission au dessus du cadre reception ».
 
+         La hauteur bornée avait ramené le défilement de la page de ~2400
+         à 278 px, mais pas à zéro : l'en-tête de la page (titre, intro,
+         aide poste) occupe 242 px, et la colonne ne pouvait pas tenir
+         sous lui. Placer ÉMISSION en tête règle le reste — c'est le
+         premier panneau de la colonne, donc visible sans le moindre
+         défilement, quelle que soit la hauteur de la fenêtre.
+
+         L'ordre reste logique à la lecture : on décide ce qu'on envoie
+         (et on voit tout de suite si l'émission est armée), puis on
+         surveille ce qui arrive. La liste des décodages garde `flex:1`
+         et absorbe donc toute la place restante en bas de fenêtre. -->
     <div class="panel">
       <div class="panel-title">Émission</div>
       <div class="controles">
@@ -389,6 +382,29 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <span>QSO complété avec <b id="qsoPromptCall"></b> — l'ajouter au log ?</span>
         <button onclick="confirmerLogQso()">✓ Ajouter au log</button>
         <button class="sec" onclick="annulerLogQso()">Ignorer</button>
+      </div>
+    </div>
+
+    <div class="panel" id="panelRx">
+      <div class="panel-title">Réception</div>
+      <div class="controles">
+        <label>PÉRIPHÉRIQUE D'ENTRÉE<select id="ft8Device"><option value="">— chargement… —</option></select></label>
+        <button id="rxStartBtn" onclick="toggleRx()">▶ Écouter</button>
+        <span id="rxStatus" class="tx-status">arrêté</span>
+        <span id="rxDiag" class="tx-status expert-only"></span>
+      </div>
+      <div style="margin-top:12px">
+        <canvas id="waterCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
+        <canvas id="axisCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
+      </div>
+      <div class="decodes-scroll">
+      <table class="decodes">
+        <thead><tr><th>UTC</th><th>Hz</th>
+          <th title="Décalage temporel de la station reçue par rapport au créneau de 15 s. Proche de 0 = horloges d'accord. Si TOUTES les stations sont décalées du même côté, c'est l'horloge de CE PC qui est fausse.">DT</th>
+          <th title="Rapport signal/bruit de la station reçue, en dB, dans la bande de référence de 2500 Hz — l'unité des reports FT8. C'est CE nombre qu'on lui envoie comme report. Repères : au-dessus de 0 dB le signal est fort, vers -15 dB il est faible mais confortable, vers -20 dB on est à la limite du décodage. Un tiret signifie que la mesure n'a pas été possible.">SNR</th><th>Message</th></tr></thead>
+        <tbody id="decodesBody"></tbody>
+      </table>
+      <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
       </div>
     </div>
     </div>
