@@ -8,7 +8,7 @@ Un copilote IA en temps réel recommande le prochain meilleur QSO, un moteur de 
 
 ---
 
-## Nouveau dans la 1.0
+## Nouveau dans la série 1.1
 
 - 📡 **VOACAP point-à-point** : vrai moteur de prévision de propagation entre votre station et n'importe quel point du globe, directement dans le carnet et sur la carte.
 - 🎙️ **FT8 et RTTY natifs dans le navigateur** : décodage/émission sans WSJT-X/JTDX/MSHV ni logiciel tiers, chacun dans sa propre fenêtre détachable.
@@ -27,7 +27,7 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 
 ## Fonctionnalités
 
-- **41 concours intégrés** (REF, IARU R1, CQ WW/WPX, ARRL DX/FD, SOTA/POTA, WAE, UBA, Russian DX, All Asian, Stew Perry, ARRL 10/160m…) + **le calendrier mondial WA7BNM au complet** (≈360 épreuves pour 2026), préparables en un clic.
+- **43 concours prêts à l’emploi** (REF, IARU R1, CQ WW/WPX, ARRL DX/FD, SOTA/POTA, WAE, UBA, Russian DX, All Asian, Stew Perry, ARRL 10/160m…) + **le calendrier mondial WA7BNM au complet** (≈360 épreuves pour 2026), préparables en un clic.
 - **Page FOCUS BANDE** : tout ce que le logiciel sait d'une bande sur un seul écran — cluster filtré bande **et** mode, carrés, ouvertures par région, concours actifs à cet instant, suggestions de l'IA, et le classement de toutes les bandes avec la raison écrite en clair. La bande se choisit à la main ou **suit la radio**.
 - Radio CAT via Hamlib/rigctld, TCI, pont WSJT-X ; pilotage ampli et rotor.
 - **Wait & Pounce** en FT8/FT4 : appel automatique sur ce que LogX sait déjà — entité jamais travaillée, entité non confirmée LoTW sur ce créneau bande × mode, carré neuf, nouveau multiplicateur. Quatre niveaux activables séparément, du simple signalement à l'appel sans personne devant la radio, avec durée maximale, plafonds et coupe-circuit.
@@ -38,7 +38,7 @@ La plupart des loggers de contest radioamateur imposent une liste figée de règ
 - Callbook (QRZ/HamQTH/HamDB), historique d'indicatifs (Super Check Partial, MASTER.SCP, fichiers d'historique par concours), DXCC/pays.
 - Programmes portables POTA/SOTA/IOTA/WWFF/WCA, chasse aux départements français, diplômes, satellites (`PROP_MODE=SAT` à l'export).
 - Export Cabrillo v3 / ADIF 3 / EDI, upload eQSL/ClubLog/LoTW, scoreboard en direct, **designer de carte QSL imprimable** (export PNG/JPG).
-- Annuaire WebSDR vivant (~880 récepteurs, carte cliquable, occupation et SNR en direct) : « s'écouter » depuis le band map, ou écouter un spot sur un récepteur proche du DX avant de l'appeler.
+- Annuaire WebSDR vivant (~900 récepteurs, rafraîchi en ligne, carte cliquable, occupation et SNR en direct) : « s'écouter » depuis le band map, ou écouter un spot sur un récepteur proche du DX avant de l'appeler.
 - Page CONFIGURATION en hub de catégories, avec une aide contextuelle rédigée pour chaque réglage.
 - **Mise à jour proposée automatiquement**, sans perte de données — et, sur le terrain, relayable par un poste voisin du réseau local quand un seul a Internet.
 - Interface en 8 langues, mode débutant/expert, quatre modes d'utilisation (carnet simple, concours, expédition, radioclub).
@@ -53,7 +53,9 @@ Guide complet, dépannage et FAQ : [docs/GUIDE_UTILISATEUR.md](docs/GUIDE_UTILIS
 
 ## Statut du projet
 
-Version courante : **1.0**, la première version stable ([journal des modifications](docs/CHANGELOG.md)), couverte par plus de 9 000 tests automatiques. Roadmap détaillée dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
+Version courante : **1.1-beta4** ([journal des modifications](docs/CHANGELOG.md)). La dernière version marquée stable est la **1.0**. La série 1.1 apporte le FT8 natif et la protection du carnet ; elle est utilisée quotidiennement en trafic réel, mais reste une bêta et le dit.
+
+Couverture : **10 004 tests automatiques** rejoués à chaque modification par l'intégration continue. Roadmap détaillée dans [docs/LogX_AI_PRD.md](docs/LogX_AI_PRD.md).
 
 Le logiciel se met à jour tout seul : au lancement, il compare sa version à la dernière release et propose le téléchargement, dont il vérifie l'empreinte SHA-256 avant de remplacer quoi que ce soit.
 
