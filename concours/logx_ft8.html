@@ -436,6 +436,15 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
       <div class="ptt-alarme" id="pttAlarme" style="display:none" role="alert"></div>
       <div class="qso-prompt" id="qsoPrompt">
         <span>QSO complété avec <b id="qsoPromptCall"></b> — l'ajouter au log ?</span>
+        <!-- Avertissement de RE-LOG. Vide et masqué la plupart du temps ; il
+             n'apparaît que si CE couple indicatif/bande a déjà été enregistré
+             depuis cette page il y a moins de dix minutes. Sans lui, la
+             seconde offre était l'exacte copie de la première à l'écran —
+             c'est ainsi que CT1END/P est entré deux fois au carnet le
+             19/08/2026. role=alert : lu à voix haute par les lecteurs
+             d'écran au moment où il apparaît. -->
+        <span id="qsoPromptDeja" role="alert"
+              style="display:none;color:var(--yellow);font-weight:700"></span>
         <button onclick="confirmerLogQso()">✓ Ajouter au log</button>
         <button class="sec" onclick="annulerLogQso()">Ignorer</button>
       </div>
@@ -2690,6 +2699,61 @@ if(localStorage.getItem('rc_theme') === null){
   // alors sur les champs vides d'avant, faute de mieux.
   let qsoEnAttente = null;
   let qsoInfosEnAttente = null;
+
+  // ─── CE QUI A DÉJÀ ÉTÉ ÉCRIT DEPUIS CETTE PAGE ──────────────────────────
+  //
+  // Défaut réel du 19/08/2026 : CT1END/P a été enregistré DEUX FOIS à 68 s
+  // d'écart — une fiche complète (-10/+08) écrite par le séquenceur à
+  // 10:46:32, puis une fiche VIDE à 10:47:40. Le second bandeau était
+  // RIGOUREUSEMENT IDENTIQUE au premier : même texte, même bouton, aucune
+  // mention du fait que ce QSO venait d'être enregistré. Rien, dans l'écran,
+  // ne permettait de distinguer « valide ce QSO » de « enregistre-le une
+  // seconde fois ».
+  //
+  // Le filet serveur n'existe PAS ici : add_qso_to_log saute intégralement la
+  // détection de doublon quand usage_mode vaut 'simple' (logx_http.py, « if
+  // not simple_mode »), et 'simple' est le mode du carnet perso — celui de
+  // l'opérateur qui n'est pas en concours, donc le plus courant. La page est
+  // seule responsable.
+  //
+  // On ne BLOQUE pas : retravailler la même station est légitime, et un
+  // bandeau qui refuse sans expliquer serait pire. On NOMME l'état, et
+  // l'opérateur tranche en connaissance de cause.
+  const RELOG_FENETRE_MS = 10 * 60 * 1000;   // au-delà, plus un doublon
+  let dejaEcrits = [];                       // [{cle, call, band, heure, ts}]
+
+  function cleFiche(call, band){
+    return String(call || '').toUpperCase() + '|' + String(band || '') + '|FT8';
+  }
+  function ficheDejaEcrite(call, band){
+    const cle = cleFiche(call, band);
+    const limite = Date.now() - RELOG_FENETRE_MS;
+    // Purge au passage : la liste ne grandit pas sur une session de 15 jours.
+    dejaEcrits = dejaEcrits.filter(f => f.ts >= limite);
+    return dejaEcrits.find(f => f.cle === cle) || null;
+  }
+
+  // Fusion champ à champ : une valeur VIDE n'écrase JAMAIS une valeur connue.
+  //
+  // C'est le cœur du correctif. offrirLogQso a cinq appelants ; un seul
+  // (seqLoguer) transporte les reports réellement échangés. Les quatre autres
+  // appellent soit sans second argument (proposerReponse, envoi manuel), soit
+  // avec un objet dont rst_sent est codé en dur à '' (branche « elle a déjà
+  // conclu »). L'ancienne affectation « qsoInfosEnAttente = infos || null »
+  // était INCONDITIONNELLE : un second appel appauvri détruisait en silence
+  // les reports, la grille et la distance, sans que l'écran change d'un pixel.
+  function fusionnerInfos(ancien, nouveau){
+    const a = ancien || {}, b = nouveau || {};
+    const garde = (x, y) => (y === undefined || y === null || y === '' || y === 0) ? x : y;
+    const r = {
+      rst_sent: garde(a.rst_sent, b.rst_sent) || '',
+      rst_rcvd: garde(a.rst_rcvd, b.rst_rcvd) || '',
+      locator:  garde(a.locator,  b.locator)  || '',
+      dist:     garde(a.dist,     b.dist)     || 0,
+    };
+    return r;
+  }
+
   function offrirLogQso(call, infos){
     // UNE FICHE EN ATTENTE NE S'ÉCRASE PAS EN SILENCE. Quand une écriture
     // échoue, l'offre est laissée ouverte pour permettre de réessayer — mais
@@ -2702,10 +2766,33 @@ if(localStorage.getItem('rc_theme') === null){
     // dans le journal de session, qui reste visible sur la page.
     if(qsoEnAttente && qsoEnAttente !== call){
       marquerNonEnregistre(qsoEnAttente);
+      qsoInfosEnAttente = null;   // autre station : on ne fusionne rien
     }
+    // MÊME indicatif : on FUSIONNE au lieu d'écraser (voir fusionnerInfos).
+    // L'ancien code posait « infos || null » sans condition, et la garde
+    // ci-dessus ne se déclenche que pour un indicatif DIFFÉRENT — l'écrasement
+    // appauvrissant était donc parfaitement silencieux.
     qsoEnAttente = call;
-    qsoInfosEnAttente = infos || null;
-    document.getElementById('qsoPromptCall').textContent = call;
+    qsoInfosEnAttente = fusionnerInfos(qsoInfosEnAttente, infos);
+
+    // Le bandeau DIT si ce QSO vient d'être enregistré. Sans ça, les deux
+    // offres successives sont indiscernables à l'écran (défaut du 19/08).
+    const bande = bandeDepuisKhz(rigFreqKhz) || '';
+    const deja = ficheDejaEcrite(call, bande);
+    const titre = document.getElementById('qsoPromptCall');
+    const avis = document.getElementById('qsoPromptDeja');
+    titre.textContent = call;
+    if(avis){
+      if(deja){
+        avis.textContent = 'DÉJÀ ENREGISTRÉ à ' + deja.heure
+          + (deja.band ? ' sur ' + deja.band + ' MHz' : '')
+          + ' — ne valide que s\'il s\'agit d\'un SECOND QSO.';
+        avis.style.display = '';
+      } else {
+        avis.textContent = '';
+        avis.style.display = 'none';
+      }
+    }
     document.getElementById('qsoPrompt').style.display = 'flex';
   }
   window.annulerLogQso = function(){
@@ -2764,6 +2851,12 @@ if(localStorage.getItem('rc_theme') === null){
         document.getElementById('txStatus').textContent = (doublon ? 'Déjà loggué : ' : 'Loggué : ') + qsoEnAttente;
         // Journal de session : seulement pour une fiche RÉELLEMENT écrite.
         if(!doublon) ajouterAuJournalSession(qsoEnAttente, qso.band, qso.time);
+        // Mémoire des fiches écrites — relue par offrirLogQso pour prévenir
+        // l'opérateur au lieu de lui rouvrir un bandeau identique. Posée aussi
+        // sur un 409 : dans les deux cas le QSO EST au carnet.
+        dejaEcrits.push({cle: cleFiche(qsoEnAttente, qso.band),
+                         call: qsoEnAttente, band: qso.band,
+                         heure: qso.time, ts: Date.now()});
       } else {
         detail = 'erreur ' + r.status;
       }
@@ -3498,9 +3591,26 @@ if(localStorage.getItem('rc_theme') === null){
     // l'état retombait sur le 'TX1' initial et on repartait pour un appel neuf
     // vers une station qui venait de dire au revoir. Le mode manuel, lui,
     // proposait le log depuis toujours.
+    // PAS pendant une séquence qui vise DÉJÀ cette station : cette branche est
+    // placée avant la garde « une seule séquence à la fois » (voir plus bas) et
+    // rend `null` sans rien arrêter. Ouvrir ici une offre concurrente pour la
+    // station que le séquenceur est en train de travailler mettait les deux en
+    // course : selon l'ordre d'arrivée, c'est l'offre creuse qui l'emportait.
+    if(qsoDejaConclu && seq && seq.cible === call){
+      const el0 = document.getElementById('seqEtat');
+      if(el0){
+        el0.textContent = 'Séquence déjà en cours avec ' + call
+                        + ' — elle se logue toute seule à la fin.';
+        el0.className = 'tx-status wait';
+      }
+      return null;
+    }
     if(qsoDejaConclu){
+      // rst_sent OMIS, pas mis à '' : un champ absent se laisse compléter par
+      // fusionnerInfos si une offre plus riche existe déjà pour cette station,
+      // alors qu'une chaîne vide codée en dur l'écrasait.
       offrirLogQso(call, {
-        rst_sent: '', rst_rcvd: etatDepart.rstRecu || '',
+        rst_rcvd: etatDepart.rstRecu || '',
         locator: etatDepart.grille || '', dist: 0,
       });
       const el = document.getElementById('seqEtat');

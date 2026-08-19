@@ -342,7 +342,9 @@ def _sync_now_locked(cfg, shared_log):
                             storage.mark_qso_deleted(q.get('id'))
                 if removed:
                     removed_count = len(removed)
-                    http.save_log_to_disk()
+                    # Suppressions venues de la base partagée : destruction
+                    # voulue, donc consentement explicite (voir logx_storage).
+                    http.save_log_to_disk(effacement_autorise=True)
                     for q in removed:
                         scan = q.get('qsl_scan')
                         if scan:

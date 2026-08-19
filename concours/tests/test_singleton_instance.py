@@ -680,8 +680,42 @@ def test_serveur_ne_s_arrete_pas_sur_un_port_seulement_partage():
     i_shared = src.index("_instance['state'] == logx_singleton.SHARED")
     i_load = src.index('load_log_from_disk()')
     assert i_shared < i_load, 'la branche SHARED doit rester avant le chargement'
-    assert '_abandonner' not in src[i_shared:i_load], (
+
+    # On scanne le CORPS DU `if` SHARED, pas tout l'intervalle jusqu'au
+    # chargement. L'intention du test est « le verdict SHARED ne doit pas
+    # interrompre le demarrage » ; scanner jusqu'a load_log_from_disk() etait
+    # un raccourci, et il interdisait tout _abandonner() pose ENTRE les deux
+    # pour une raison SANS RAPPORT. C'est arrive le 19/08/2026 avec le verrou
+    # du dossier de donnees (voir l'assertion suivante) : un garde legitime
+    # faisait rougir un test qui ne le visait pas. Bornage par indentation.
+    lignes = src[i_shared:i_load].split('\n')
+    corps = [lignes[0]]
+    for ligne in lignes[1:]:
+        if ligne.strip() and not ligne.startswith('        '):
+            break
+        corps.append(ligne)
+    assert '_abandonner' not in '\n'.join(corps), (
         'un port seulement partage ne doit PAS interrompre le demarrage')
+
+
+def test_le_verrou_du_dossier_est_pris_AVANT_de_lire_le_carnet():
+    """Deux serveurs dans le meme dossier partagent logx.db et finissent par
+    s effacer mutuellement (chemins RELATIFS au repertoire de travail). La
+    sonde de port ne protege QUE le port : elle laisse passer deux instances
+    sur deux ports differents.
+
+    Le verrou doit etre pris AVANT load_log_from_disk() : lire puis reecrire
+    un carnet qu un autre processus est en train de modifier est exactement le
+    scenario a empecher."""
+    src = _source_serveur()
+    i_verrou = src.index('verrouiller_dossier_donnees()')
+    i_load = src.index('load_log_from_disk()')
+    assert i_verrou < i_load, (
+        'le verrou doit preceder la lecture du carnet')
+    # Et un echec doit ARRETER le demarrage, pas seulement l afficher.
+    zone = src[i_verrou:i_load]
+    assert '_abandonner' in zone, (
+        'un dossier deja verrouille doit interrompre le demarrage : %r' % zone)
 
 
 def test_spec_pyinstaller_embarque_le_module():

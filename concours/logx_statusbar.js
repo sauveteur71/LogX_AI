@@ -184,6 +184,79 @@
   // Exposé pour CARTE IA / logx_hardware_cat.js -- même esprit que rcToast.
   window.rcShowReportBanner = showReportBanner;
 
+  // ── ALARME DE PERSISTANCE ─────────────────────────────────────────────────
+  //
+  // Quand l'enregistrement du carnet est SUSPENDU — carnet illisible au
+  // démarrage (load_failed), ou réécriture destructrice refusée par le
+  // garde-fou — l'opérateur DOIT l'apprendre. Jusqu'ici il ne l'apprenait
+  // pas : load_failed n'écrivait qu'un print() vers une console que personne
+  // ne regarde, et le logiciel se lance fenêtre de navigateur au premier plan.
+  // Résultat : on continuait à logger dans le vide, parfois des heures.
+  //
+  // Trois choix, chacun payé par un défaut réel :
+  //   - PLEINE LARGEUR EN HAUT, pas le bandeau de signalement (coin bas
+  //     droit, auto-masqué à 30 s) : un carnet qui ne s'écrit plus n'est pas
+  //     une notification, c'est un état. Il doit rester à l'écran.
+  //   - AUCUN bouton « Ignorer ». On ne masque pas une perte de données.
+  //   - JAMAIS expert-only. Le mode simple est celui du débutant, c'est-à-dire
+  //     exactement celui qui ne saura pas diagnostiquer tout seul.
+  //
+  // Couleurs par variables : la barre doit rester lisible en thème JOUR comme
+  // en thème NUIT (fond var(--bg2), texte var(--text), liseré var(--red)) —
+  // un fond rouge plein avec du texte blanc codé en dur ne tient pas dans les
+  // deux thèmes.
+  let _persistBanner = null;
+  let _padAvant = null;      // padding-top d'origine, restauré au retour à la normale
+  function _majAlarmePersistance(etat){
+    const ko = etat && etat.ok === false;
+    if (!ko){
+      if (_persistBanner){
+        _persistBanner.style.display = 'none';
+        document.body.style.paddingTop = _padAvant;
+      }
+      return;
+    }
+    if (!_persistBanner){
+      const el = document.createElement('div');
+      el.id = 'rcsbPersistBanner';
+      el.setAttribute('role', 'alert');
+      el.innerHTML =
+        '<style>' +
+        '#rcsbPersistBanner{position:fixed;top:0;left:0;right:0;z-index:100000;' +
+        'background:var(--bg2,#1D1F22);color:var(--text,#E9ECF5);' +
+        'border-bottom:3px solid var(--red,#FF2D55);' +
+        "font-family:var(--font-mono,'Share Tech Mono',monospace);" +
+        'font-size:13px;line-height:1.5;padding:10px 16px;' +
+        'box-shadow:0 6px 20px rgba(0,0,0,.45)}' +
+        '#rcsbPersistBanner b{color:var(--red,#FF2D55);letter-spacing:1px}' +
+        '</style>' +
+        '<b>&#9888; ' + rcT('CARNET NON ENREGISTRÉ') + '</b> ' +
+        '<span id="rcsbPersistMsg"></span>';
+      document.body.appendChild(el);
+      _persistBanner = el;
+    }
+    _persistBanner.querySelector('#rcsbPersistMsg').textContent =
+      etat.message || '';
+    _persistBanner.style.display = '';
+    // DÉCALER la page, ne pas la RECOUVRIR. Vérification navigateur : posé en
+    // position:fixed, le bandeau masquait la barre de navigation (CONFIG,
+    // LOGBOOK, le sélecteur de langue) de façon PERMANENTE, sans aucun moyen
+    // de la retrouver — il n'est pas fermable, et c'est voulu. Une alarme
+    // qui prend le logiciel en otage n'est pas une alarme, c'est une panne
+    // de plus. On pousse donc le contenu vers le bas de la hauteur réelle du
+    // bandeau (mesurée après affichage, elle dépend de la longueur du
+    // message et de la largeur de la fenêtre).
+    if (_padAvant === null) _padAvant = document.body.style.paddingTop || '';
+    document.body.style.paddingTop = _persistBanner.offsetHeight + 'px';
+  }
+
+  function refreshPersistance(){
+    fetch('/log/status', {cache: 'no-store'})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (d) _majAlarmePersistance(d.persistance); })
+      .catch(function(){ /* serveur injoignable : rcsbNet le dit déjà */ });
+  }
+
   // ── Ouverture de fenêtre détachée avec repli « popup bloquée » ─────────────
   // window.open() renvoie null/undefined (jamais une exception) quand le
   // navigateur bloque la popup — un simple clic sans repli laisse l'opérateur
@@ -265,7 +338,7 @@
     <div class="rcsb-item" title="Temps restant de l'épreuve (dates de l'étape CONCOURS)">
       ⏱ <span class="rcsb-val rc-i18n-live" id="rcsbTime">—</span>
     </div>
-    <div class="rcsb-item" id="rcsbSaveItem" title="Dernier backup automatique du log (toutes les 5 min sur la page Logbook)">
+    <div class="rcsb-item" id="rcsbSaveItem" title="Copie du log faite par le navigateur (page LOGBOOK, toutes les 5 min) — elle disparaît avec le cache. La sauvegarde sur disque, elle, ne tourne que si tu as renseigné un dossier de sauvegarde dans CONFIG.">
       💾 <span class="rcsb-val" id="rcsbSave">—</span>
     </div>
     <div class="rcsb-item" id="rcsbSolarItem" title="Météo solaire (SFI = flux solaire, K = agitation géomagnétique) — clic : détail complet + conditions par bande">
@@ -914,7 +987,16 @@
   function refreshSave(){
     const el = document.getElementById('rcsbSave');
     const logBackup = localStorage.getItem('rc_log_backup_time'); // "HH:MM UTC"
-    if (logBackup){ el.textContent = `log ${logBackup}`; return; }
+    // « log 11:43 UTC » se lisait comme « ton carnet est sauvegardé ». C'est
+    // FAUX : cet horodatage vient de localStorage.rc_log_backup, une copie
+    // faite par la PAGE Logbook toutes les 5 minutes, qui vit dans le
+    // navigateur et part avec le cache. La sauvegarde DISQUE, elle, ne tourne
+    // que si un dossier est configuré dans CONFIG (logx_backup :
+    // « enabled » vaut faux tant que backup_folder est vide) — et elle est
+    // vide par défaut. Un opérateur qui lisait cette ligne croyait son carnet
+    // à l'abri alors que rien n'avait jamais été écrit hors du navigateur.
+    // On nomme donc la SOURCE, ce qui coûte quatre caractères.
+    if (logBackup){ el.textContent = `navigateur ${logBackup}`; return; }
     const cfg = getConfig();
     if (cfg.saved_at){
       const d = new Date(cfg.saved_at);
@@ -1805,6 +1887,12 @@
     setInterval(refreshCountdown, 1000);
     setInterval(tickBandChange, 1000);
     setInterval(refreshSave, 15000);
+    // Alarme de persistance : tout de suite, puis toutes les 20 s. Via rcPoll
+    // (et non setInterval) pour être suspendue onglet masqué comme les autres
+    // interrogations réseau — un onglet PROPAG oublié derrière ne doit pas
+    // interroger le serveur en permanence.
+    refreshPersistance();
+    rcPoll(refreshPersistance, 20000);
     // Réseau : suspendus onglet masqué, rattrapés au retour (cf. rcPoll).
     rcPoll(refreshRules, 10 * 60 * 1000);
     rcPoll(refreshUpdateCheck, 30 * 60 * 1000);

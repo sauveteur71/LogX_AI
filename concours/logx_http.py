@@ -33,7 +33,8 @@ from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   qso_scope_id, active_scope_id, cfg_scope_id,
                                   contest_actif,
                                   stamp_qso_version, mark_qso_deleted, mark_hard_reset,
-                                  allocate_qso_ids_locked, reserve_qso_id_locked)
+                                  allocate_qso_ids_locked, reserve_qso_id_locked,
+                                  etat_persistance as storage_etat_persistance)
 from logx_scoring import build_scoring_context, score_new_qso, resolve_scoring_bricks
 import logx_transverter as transverter
 from logx_prompts import build_system_prompt, build_terrain_context
@@ -2438,12 +2439,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # RuntimeError("dictionary changed size during iteration").
             with SPOTS_CACHE_LOCK:
                 spots_snapshot = dict(SPOTS_CACHE)
+            # ÉTAT DE LA PERSISTANCE. Jusqu'ici, un carnet dont
+            # l'enregistrement était suspendu (chargement en échec, ou
+            # réécriture destructrice refusée) ne le disait QU'À UNE CONSOLE
+            # que personne ne regarde : l'opérateur continuait à logger dans le
+            # vide, et perdait tout à la coupure. C'est le seul point que
+            # TOUTES les pages interrogent déjà (barre de statut partagée).
             self._json({
                 'peers':       len(connected_peers),
                 'qso_count':   len(shared_log),
                 'spots':       spots_snapshot,
                 'app_version': APP_VERSION,
                 'peer_list':   peer_list,
+                'persistance': storage_etat_persistance(),
             })
             return
 
@@ -7207,7 +7215,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         shared_log[:] = [q for q in shared_log if q.get('id') not in archived_ids]
                     bump_log_version()
                     mark_hard_reset()   # voir /log/list?since= : trop de QSO effacés pour des tombstones un par un
-                    save_log_to_disk()
+                    # Destruction VOULUE, et déjà archivée deux fois juste
+                    # au-dessus (dossier permanent + table qso_archive) : c'est
+                    # l'un des trois seuls appels du dépôt autorisés à faire
+                    # rétrécir le carnet en masse.
+                    save_log_to_disk(effacement_autorise=True)
                     print('[LOG] Log reinitialise !')
                     self._json({'ok': True, 'archived': archived,
                                 'folders': archived_folders})
@@ -7254,7 +7266,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         shared_log[:] = keep
                     bump_log_version()
                     mark_hard_reset()   # voir /log/list?since= : effacement en masse, pas un tombstone par QSO
-                    save_log_to_disk()
+                    # Destruction VOULUE : l'archive permanente vient d'être
+                    # écrite (res['ok'] testé juste au-dessus), et l'opérateur
+                    # a explicitement demandé clear=true.
+                    save_log_to_disk(effacement_autorise=True)
                     res['cleared'] = True
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:

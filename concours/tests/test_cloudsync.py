@@ -137,7 +137,7 @@ def test_full_deux_syncs_concurrentes_ne_dupliquent_pas_en_mode_simple(tmp_path,
     import logx_http as httpmod
 
     monkeypatch.setattr(httpmod, 'shared_log', [])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'simple'})
 
     remote = {'call': 'F5REM', 'band': '14', 'mode': 'SSB',
@@ -346,7 +346,7 @@ def _isole_log_vivant(monkeypatch, initial_log):
     import logx_http as httpmod
     import logx_storage as storage
     monkeypatch.setattr(httpmod, 'shared_log', list(initial_log))
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, 'current_config', {})
     monkeypatch.setattr(storage, 'deleted_qsos', [])
     return httpmod, storage

@@ -37,7 +37,7 @@ def server(monkeypatch):
     # persistés sur disque -- chaque test démarre d'un état propre et connu.
     monkeypatch.setattr(httpmod, 'shared_log', [])
     monkeypatch.setattr(httpmod, 'current_config', {})
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, '_save_config_to_disk', lambda cfg: None)
     # logx_storage.deleted_qsos/log_version/hard_reset_version sont un état
     # GLOBAL module-level, pas remis à zéro entre tests -- notre /log/delete
