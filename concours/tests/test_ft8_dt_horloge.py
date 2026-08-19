@@ -206,8 +206,12 @@ def test_la_colonne_dt_existe_dans_le_tableau():
     src = _lire(FT8_HTML)
     entete = re.search(r'<thead>.*?</thead>', src, re.S).group(0)
     assert '>DT<' in entete
-    assert entete.index('>DT<') < entete.index('>Score<'), \
-        'DT attendu avant Score, comme dans WSJT-X'
+    # La colonne de REPORT s'appelait « Score » ; elle affiche désormais le
+    # SNR. On teste la POSITION relative — l'ordre des colonnes, qui est
+    # l'intention de ce test — et non le libellé, qui a déjà changé une fois.
+    assert '>SNR<' in entete, 'colonne de report absente'
+    assert entete.index('>DT<') < entete.index('>SNR<'), \
+        'DT attendu avant la colonne de report, comme dans WSJT-X'
 
 
 def test_le_bandeau_d_alerte_horloge_existe_et_part_masque():
