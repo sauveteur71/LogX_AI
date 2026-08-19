@@ -31,6 +31,211 @@ _db_lock = threading.Lock()
 # une fois le verrou levé) plutôt que perdre les données.
 load_failed = False
 
+# ─── GARDE-FOU ANTI-DESTRUCTION DU CARNET ────────────────────────────────────
+#
+# DÉFAUT RÉEL, 16-19/08/2026 : un carnet de 9874 QSO importé le 16/08 s'est
+# retrouvé réduit à 2 QSO le 19/08. Mesuré sur la base elle-même : 1558 pages
+# LIBÉRÉES sur 1570, donc les lignes ont bien été supprimées par SQLite DANS ce
+# fichier. Ni /log/reset (rien dans qso_archive depuis le 18/07) ni
+# « archiver et vider » (aucun dossier créé après le 14/08) — les deux seuls
+# chemins qui laissent une copie. La cause exacte n'a PAS été identifiée.
+#
+# C'est justement pourquoi ce garde-fou existe : il ne ferme pas UN chemin, il
+# ferme le GOULOT. Toute destruction en masse passe par _ecrire_tout() (DELETE
+# FROM qso + réinsertion de ce qu'il y a en mémoire) ou par la liste des
+# supprimés de _ecrire_delta(). Quelle que soit la façon dont shared_log s'est
+# retrouvé quasi vide — deuxième processus travaillant dans le même dossier,
+# exception avalée, chargement jamais effectué — le résultat traversait ces
+# deux points, sans un mot.
+#
+# La règle : on ne remplace pas ce qu'il y a en base par nettement moins, sauf
+# si l'appelant l'a explicitement demandé. Les trois destructions LÉGITIMES
+# (remise à zéro, archivage+vidage, application de suppressions distantes)
+# passent `effacement_autorise=True` — un paramètre nommé, greppable, qui ne
+# peut pas être obtenu par accident.
+#
+# SEUIL. Aucun chemin non autorisé ne fait rétrécir le carnet de plus d'UN QSO
+# par sauvegarde : /log/delete supprime un id, /log/update remplace une entrée,
+# l'ajout et l'import font grandir. 25 laisse donc une marge de deux ordres de
+# grandeur contre une rafale de suppressions concurrentes, tout en arrêtant
+# l'incident réel (9861 -> 2) par un facteur 400.
+_SEUIL_PERTE_MASSIVE = 25
+
+# Nom du vidage de secours écrit AU MOMENT du refus. Sans lui, le refus
+# protègerait le disque en sacrifiant la mémoire : les QSO saisis depuis la
+# divergence n'existent QUE dans shared_log.
+FICHIER_SECOURS = 'logx_carnet_secours.json'
+
+# État de la persistance, lu par /log/status et affiché en permanence dans la
+# barre de statut de TOUTES les pages. load_failed, lui, ne faisait qu'un
+# print() vers une console que personne ne regarde : l'opérateur continuait à
+# logger dans le vide sans le savoir. On ne refait pas cette erreur.
+ecriture_bloquee = None    # None = tout va bien ; sinon un dict explicatif
+
+
+class ReecritureDestructrice(Exception):
+    """Levée AVANT tout DELETE. Classe dédiée, et non Exception nue : le
+    `except Exception` de save_log_to_disk() appelle _forget_disk_state(), qui
+    remet _disk_version à None — or c'est ce None qui fait rechoisir la branche
+    de réécriture complète. Une exception générique réarmerait donc exactement
+    la destruction qu'on vient de refuser."""
+
+    def __init__(self, sur_disque, en_memoire, ou):
+        self.sur_disque = sur_disque
+        self.en_memoire = en_memoire
+        self.ou = ou
+        super().__init__(
+            f"{sur_disque} QSO en base, {en_memoire} en mémoire : "
+            f"écriture refusée ({ou})")
+
+
+def etat_persistance():
+    """État lisible par le client (voir /log/status)."""
+    if ecriture_bloquee:
+        return dict(ecriture_bloquee, ok=False)
+    if load_failed:
+        return {
+            'ok': False,
+            'raison': 'chargement',
+            'message': "Le carnet n'a pas pu être lu au démarrage alors qu'il "
+                       "existe sur le disque. L'enregistrement est SUSPENDU "
+                       "pour ne pas l'écraser. Ferme ce qui verrouille le "
+                       "fichier (antivirus, synchronisation cloud) puis "
+                       "redémarre le logiciel.",
+        }
+    return {'ok': True}
+
+
+# ─── JOURNAL D'APPOINT ───────────────────────────────────────────────────────
+#
+# Quand la persistance normale est SUSPENDUE — chargement en échec au démarrage
+# (load_failed) ou réécriture destructrice refusée (ecriture_bloquee) — le
+# carnet en mémoire continue de vivre : l'opérateur loggue, et rien ne
+# l'arrête. Sans ce journal, tout ce qu'il saisit alors n'existe QUE en RAM et
+# disparaît à la coupure suivante. Le garde-fou deviendrait le second sinistre,
+# et la sauvegarde automatique ne rattraperait pas tout : depuis le 19/08/2026
+# elle tourne dès le premier lancement, dossier configuré ou non
+# (logx_backup.backup_settings replie sur `sauvegardes/`), mais elle passe à
+# intervalle — 15 min par défaut. Les QSO saisis entre deux passages ne sont
+# donc couverts QUE par ce journal.
+#
+# Trois propriétés, et chacune compte :
+#   - APPEND-ONLY : on n'écrit QUE des lignes neuves, jamais de réécriture. Le
+#     fichier ne peut donc pas être tronqué par la panne qu'il documente.
+#   - fsync : l'écriture est poussée sur le support avant de rendre la main.
+#     Un carnet « sauvé » dans un tampon système ne survit pas à une coupure
+#     secteur, qui est exactement le cas d'usage.
+#   - REJOUÉ puis RENOMMÉ au démarrage suivant, jamais supprimé : si le rejeu
+#     se passait mal, le fichier reste là, lisible, avec son horodatage.
+FICHIER_JOURNAL = 'logx_journal_secours.jsonl'
+_journal_ids = set()      # ids déjà consignés, pour n'ajouter que du neuf
+
+
+def _journaliser(data):
+    """Ajoute au journal les QSO pas encore consignés. Silencieux si rien de
+    neuf. N'écrit JAMAIS par-dessus l'existant."""
+    global _journal_ids
+    neufs = [q for q in data if q.get('id') not in _journal_ids]
+    if not neufs:
+        return
+    try:
+        with open(FICHIER_JOURNAL, 'a', encoding='utf-8') as f:
+            for q in neufs:
+                f.write(json.dumps(q, ensure_ascii=False, default=str) + '\n')
+            f.flush()
+            os.fsync(f.fileno())
+        _journal_ids |= {q.get('id') for q in neufs}
+    except Exception as e:
+        print(f"[LOG] journal d'appoint impossible : {e}")
+
+
+def _rejouer_journal():
+    """Au démarrage : réinjecte dans shared_log les QSO du journal absents du
+    carnet rechargé, puis met le fichier de côté sous un nom horodaté.
+
+    Appelée APRÈS le chargement, et seulement s'il a RÉUSSI : rejouer sur un
+    carnet qu'on n'a pas su lire mélangerait un log partiel avec le journal."""
+    if not os.path.exists(FICHIER_JOURNAL):
+        return 0
+    repris = []
+    try:
+        connus = {q.get('id') for q in shared_log}
+        with open(FICHIER_JOURNAL, encoding='utf-8') as f:
+            for ligne in f:
+                ligne = ligne.strip()
+                if not ligne:
+                    continue
+                try:
+                    q = json.loads(ligne)
+                except Exception:
+                    continue        # ligne tronquée par une coupure : on saute
+                if isinstance(q, dict) and q.get('id') not in connus:
+                    connus.add(q.get('id'))
+                    repris.append(q)
+        if repris:
+            shared_log.extend(repris)
+    except Exception as e:
+        print(f"[LOG] rejeu du journal d'appoint impossible : {e}")
+        return 0
+    try:
+        # RENOMMÉ, pas effacé : la trace de l'incident doit rester.
+        os.replace(FICHIER_JOURNAL,
+                   FICHIER_JOURNAL.replace('.jsonl', '')
+                   + '.' + utcnow().strftime('%Y%m%d-%H%M%S') + '.jsonl')
+    except Exception:
+        pass
+    if repris:
+        print(f"[LOG] {len(repris)} QSO repris du journal d'appoint")
+    return len(repris)
+
+
+def _reprendre_journal_apres_chargement():
+    """Rejoue le journal d'appoint et réaligne le miroir. Rend le nombre repris.
+
+    Le miroir DOIT être réaligné derrière : sans ça, la première sauvegarde
+    croirait ces QSO déjà écrits en base et ne les persisterait jamais —
+    exactement la perte que le journal existe pour éviter."""
+    global _disk_ids, _disk_version
+    repris = _rejouer_journal()
+    if repris:
+        bump_log_version()
+        _disk_ids = {_disk_key(q) for q in shared_log}
+        _disk_version = None   # forcera une réécriture complète
+    return repris
+
+
+def _bloquer_ecriture(exc, data):
+    """Refus : on ne touche NI au disque NI à la mémoire, on met de côté, et
+    on le dit. Collant pour toute la vie du processus, comme load_failed : un
+    refus recalculé à chaque QSO finirait par passer une fois de trop."""
+    global ecriture_bloquee
+    if ecriture_bloquee:
+        return
+    secours = ''
+    try:
+        save_json_atomic(FICHIER_SECOURS, data)
+        secours = os.path.abspath(FICHIER_SECOURS)
+    except Exception as e:
+        print(f"[LOG] vidage de secours impossible : {e}")
+    # ET dans le journal d'appoint, qui prendra la suite pour tout ce qui sera
+    # saisi APRÈS ce refus. Le vidage ci-dessus n'est qu'un instantané.
+    _journaliser(data)
+    ecriture_bloquee = {
+        'raison': 'ecriture-destructrice',
+        'sur_disque': exc.sur_disque,
+        'en_memoire': exc.en_memoire,
+        'ou': exc.ou,
+        'secours': secours,
+        'message': (
+            f"ENREGISTREMENT SUSPENDU : le logiciel allait remplacer les "
+            f"{exc.sur_disque} QSO du carnet par {exc.en_memoire}. Rien n'a "
+            f"été effacé — ni la base, ni la copie lisible. Les QSO de cette "
+            f"session sont recopiés dans {secours or FICHIER_SECOURS}. "
+            f"N'utilise plus ce poste pour logger : redémarre le logiciel, il "
+            f"rechargera le carnet complet."),
+    }
+    print('[LOG] ' + ecriture_bloquee['message'])
+
 # Colonnes structurées (indexables) ; tout le reste du QSO va dans extra (JSON)
 _CORE = ('id', 'call', 'band', 'mode', 'contest', 'date', 'time',
          'operator', 'points', 'locator')
@@ -774,12 +979,24 @@ def _plan_ecriture(data, base_version):
     return a_inserer, a_majour, supprimes, ids_now
 
 
-def _ecrire_tout(data, version_now):
+def _ecrire_tout(data, version_now, effacement_autorise=False):
     """Réécriture complète : base + shared_log.json de secours."""
     global _disk_path, _disk_ids, _disk_version, _disk_pending
     conn = _db()
     try:
         with conn:  # transaction : réécriture tout-ou-rien
+            # GARDE-FOU (voir _SEUIL_PERTE_MASSIVE). Le compte est lu DANS la
+            # transaction qui va faire le DELETE : « constater » et « détruire »
+            # deviennent atomiques côté SQLite. Le comparer au miroir _disk_ids
+            # ne servirait à rien — quand cette branche est choisie, le miroir
+            # est justement vide ou inconnu, et un autre PROCESSUS écrivant dans
+            # le même fichier lui échappe de toute façon (_db_lock est un verrou
+            # de thread, pas de machine).
+            sur_disque = conn.execute('SELECT COUNT(*) FROM qso').fetchone()[0]
+            if (not effacement_autorise
+                    and sur_disque - len(data) >= _SEUIL_PERTE_MASSIVE):
+                raise ReecritureDestructrice(sur_disque, len(data),
+                                             'réécriture complète')
             conn.execute('DELETE FROM qso')
             conn.executemany(
                 f"INSERT INTO qso ({','.join(_CORE)}, extra) "
@@ -794,11 +1011,18 @@ def _ecrire_tout(data, version_now):
     _disk_pending = 0
 
 
-def _ecrire_delta(version_now, plan):
+def _ecrire_delta(version_now, plan, effacement_autorise=False):
     """N'écrit QUE les QSO ajoutés/corrigés/supprimés (une transaction, comme
     la réécriture complète : tout-ou-rien)."""
     global _disk_ids, _disk_version, _disk_pending
     a_inserer, a_majour, supprimes, ids_now = plan
+    # Le chemin delta doit être borné LUI AUSSI : sans ça, la même destruction
+    # repasse ligne à ligne par DELETE FROM qso WHERE id=?, simplement plus
+    # lentement. Fermer la seule porte de la réécriture complète aurait donné
+    # un garde-fou contournable par la voie la plus fréquente.
+    if not effacement_autorise and len(supprimes) >= _SEUIL_PERTE_MASSIVE:
+        raise ReecritureDestructrice(len(_disk_ids), len(ids_now),
+                                     'suppression en masse (delta)')
     conn = _db()
     try:
         with conn:
@@ -821,17 +1045,37 @@ def _ecrire_delta(version_now, plan):
     _disk_pending += len(a_inserer) + len(a_majour) + len(supprimes)
 
 
-def save_log_to_disk():
+def save_log_to_disk(effacement_autorise=False):
     """Persiste le log : SQLite (transaction, primaire) + JSON de secours.
+
+    `effacement_autorise` : consentement EXPLICITE à une destruction en masse.
+    Réservé aux trois chemins qui vident volontairement le carnet — /log/reset,
+    /log/archive?clear=true et l'application de suppressions distantes (Cloud
+    Sync, MySQL). Tout autre appelant laisse le défaut False, et se fait
+    refuser s'il s'apprête à faire disparaître plus de _SEUIL_PERTE_MASSIVE
+    QSO. Ne PAS remplacer par une heuristique du genre « hard_reset_version ==
+    log_version » : /config/save appelle mark_hard_reset() sans supprimer un
+    seul QSO, ce qui ouvrirait une fenêtre de destruction après chaque
+    sauvegarde de configuration.
 
     Écriture INCRÉMENTALE (voir la section PERSISTANCE INCRÉMENTALE ci-dessus) :
     au retour, logx.db contient TOUJOURS l'intégralité du carnet — rien n'est
     différé, seul le travail inutile est supprimé."""
-    if load_failed:
-        # Le chargement au démarrage a échoué avec une base existante : écrire
-        # maintenant écraserait l'historique par le log (quasi) vide en mémoire.
-        print("[LOG] Sauvegarde BLOQUÉE : chargement initial en échec — "
-              "redémarre le logiciel une fois le verrou sur la base levé.")
+    if load_failed or ecriture_bloquee:
+        # Persistance normale SUSPENDUE. Les deux cas se traitent pareil : on
+        # ne touche pas à la base, mais on consigne le carnet courant dans le
+        # journal d'appoint pour que rien de ce qui est saisi ensuite ne soit
+        # perdu à la coupure. C'est ce qui rend le gel supportable au lieu d'en
+        # faire une seconde perte.
+        if load_failed:
+            print("[LOG] Sauvegarde BLOQUÉE : chargement initial en échec — "
+                  "redémarre le logiciel une fois le verrou sur la base levé.")
+        try:
+            with log_lock:
+                instantane = list(shared_log)
+            _journaliser(instantane)
+        except Exception as e:
+            print(f"[LOG] journal d'appoint : {e}")
         return
     try:
         with log_lock:
@@ -849,9 +1093,15 @@ def save_log_to_disk():
                 return
             plan = _plan_ecriture(data, _disk_version)
             if plan is None:
-                _ecrire_tout(data, version_now)
+                _ecrire_tout(data, version_now, effacement_autorise)
             else:
-                _ecrire_delta(version_now, plan)
+                _ecrire_delta(version_now, plan, effacement_autorise)
+    except ReecritureDestructrice as e:
+        # AVANT le `except Exception` : celui-ci appelle _forget_disk_state(),
+        # qui remet _disk_version à None — donc rechoisit la réécriture
+        # complète au tour suivant, donc réarme ce qu'on vient de refuser.
+        # Et on ne touche NI au miroir NI à la mémoire.
+        _bloquer_ecriture(e, data)
     except Exception as e:
         # État du disque devenu incertain : la prochaine sauvegarde réécrit tout
         # plutôt que d'empiler un delta sur une base dont on ne sait plus rien.
@@ -916,13 +1166,23 @@ def load_log_from_disk():
             _disk_version = log_version
             _disk_pending = 0
             print(f"[LOG] {len(shared_log)} QSO charges depuis {DB_FILE}")
+            _reprendre_journal_apres_chargement()
             return
+        migration = False
         if os.path.exists('shared_log.json'):
             with open('shared_log.json', 'r', encoding='utf-8') as f:
                 shared_log[:] = json.load(f)
             _strip_stale_delta_versions()
             print(f"[LOG] Migration one-shot : {len(shared_log)} QSO "
                   f"shared_log.json -> {DB_FILE}")
+            migration = True
+        # Journal d'appoint : rejoué même SANS base ni JSON. C'est le cas où il
+        # compte le plus — s'il ne reste plus rien d'autre sur le disque, il
+        # est la seule copie survivante. Le brancher uniquement sur la branche
+        # « base présente » (première version) le rendait inerte précisément
+        # quand il servait, et laissait le fichier traîner pour être rejoué à
+        # un moment arbitraire plus tard.
+        if _reprendre_journal_apres_chargement() or migration:
             save_log_to_disk()
     except Exception as e:
         print(f"[LOG] Impossible de charger le log : {e}")

@@ -25,7 +25,7 @@ from logx_utils import (PORT, CURRENT_YEAR, locator_to_latlon, haversine, SSL_CT
                           OPENAI_COMPATIBLE_ENDPOINTS, utcnow)
 from logx_definitions import (CONTEST_DEFINITIONS, CONTEST_SCORING,
                                  CUSTOM_CONTEST_IDS, save_custom_contest,
-                                 delete_custom_contest)
+                                 delete_custom_contest, bandes_du_concours)
 from logx_validate import validate_definition
 from logx_rules_ai import analyze_rules
 from logx_storage import (shared_log, log_lock, save_log_to_disk,
@@ -33,7 +33,8 @@ from logx_storage import (shared_log, log_lock, save_log_to_disk,
                                   qso_scope_id, active_scope_id, cfg_scope_id,
                                   contest_actif,
                                   stamp_qso_version, mark_qso_deleted, mark_hard_reset,
-                                  allocate_qso_ids_locked, reserve_qso_id_locked)
+                                  allocate_qso_ids_locked, reserve_qso_id_locked,
+                                  etat_persistance as storage_etat_persistance)
 from logx_scoring import build_scoring_context, score_new_qso, resolve_scoring_bricks
 import logx_transverter as transverter
 from logx_prompts import build_system_prompt, build_terrain_context
@@ -1300,7 +1301,10 @@ def do_refresh(cfg):
     # codée en dur (l'ancienne HF_CONTESTS ignorait EU_HF_CHAMP, les WAEDC et
     # tous les concours des Phases 3/4 : cluster vide le jour J).
     HF_BAND_SET = {'1.8', '3.5', '7', '10', '14', '18', '21', '24', '28'}
-    cdef_bands = [str(b) for b in CONTEST_DEFINITIONS.get(contest, {}).get('bands', [])]
+    # bandes_du_concours et non CONTEST_DEFINITIONS : 25 concours proposés
+    # dans l'interface n'ont aucune définition, et rendaient [] ici — donc
+    # ni HF ni V/UHF détectés, en silence.
+    cdef_bands = bandes_du_concours(contest)
     has_hf_bands = any(b in HF_BAND_SET for b in cdef_bands)
     has_vhf_bands = any(b not in HF_BAND_SET for b in cdef_bands)
     # Concours purement HF : ne pas fetcher les spots VHF même si un toggle
@@ -2438,12 +2442,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # RuntimeError("dictionary changed size during iteration").
             with SPOTS_CACHE_LOCK:
                 spots_snapshot = dict(SPOTS_CACHE)
+            # ÉTAT DE LA PERSISTANCE. Jusqu'ici, un carnet dont
+            # l'enregistrement était suspendu (chargement en échec, ou
+            # réécriture destructrice refusée) ne le disait QU'À UNE CONSOLE
+            # que personne ne regarde : l'opérateur continuait à logger dans le
+            # vide, et perdait tout à la coupure. C'est le seul point que
+            # TOUTES les pages interrogent déjà (barre de statut partagée).
             self._json({
                 'peers':       len(connected_peers),
                 'qso_count':   len(shared_log),
                 'spots':       spots_snapshot,
                 'app_version': APP_VERSION,
                 'peer_list':   peer_list,
+                'persistance': storage_etat_persistance(),
             })
             return
 
@@ -2721,8 +2732,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with config_lock:
                 cfg_snapshot = dict(current_config)
             dxmaps = None
-            cdef = CONTEST_DEFINITIONS.get(cfg_snapshot.get('contest', ''), {})
-            bands = [str(b) for b in cdef.get('bands', [])]
+            bands = bandes_du_concours(cfg_snapshot.get('contest', ''))
             if bands and not any(b in coach.HF_BANDS for b in bands):
                 if time.time() - _coach_dxmaps_ts > 600:
                     _refresh_coach_dxmaps_async()
@@ -7207,7 +7217,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         shared_log[:] = [q for q in shared_log if q.get('id') not in archived_ids]
                     bump_log_version()
                     mark_hard_reset()   # voir /log/list?since= : trop de QSO effacés pour des tombstones un par un
-                    save_log_to_disk()
+                    # Destruction VOULUE, et déjà archivée deux fois juste
+                    # au-dessus (dossier permanent + table qso_archive) : c'est
+                    # l'un des trois seuls appels du dépôt autorisés à faire
+                    # rétrécir le carnet en masse.
+                    save_log_to_disk(effacement_autorise=True)
                     print('[LOG] Log reinitialise !')
                     self._json({'ok': True, 'archived': archived,
                                 'folders': archived_folders})
@@ -7254,7 +7268,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         shared_log[:] = keep
                     bump_log_version()
                     mark_hard_reset()   # voir /log/list?since= : effacement en masse, pas un tombstone par QSO
-                    save_log_to_disk()
+                    # Destruction VOULUE : l'archive permanente vient d'être
+                    # écrite (res['ok'] testé juste au-dessus), et l'opérateur
+                    # a explicitement demandé clear=true.
+                    save_log_to_disk(effacement_autorise=True)
                     res['cleared'] = True
                 self._json(res, 200 if res.get('ok') else 400)
             except Exception as e:

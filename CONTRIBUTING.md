@@ -37,7 +37,7 @@ Toujours depuis `concours/` :
 python -m pytest -q
 ```
 
-La suite dépasse le millier de tests — attends-toi à quelques minutes. Un
+La suite compte plus de 10 000 tests — attends-toi à une quinzaine de minutes. Un
 sous-ensemble utilise un vrai moteur JavaScript (`py_mini_racer`, package
 optionnel) pour exécuter le code JS des pages HTML sans navigateur ; ces
 tests sont automatiquement ignorés (`pytest.importorskip`) si le package

@@ -3,7 +3,7 @@
 
 import re
 
-from logx_definitions import CONTEST_DEFINITIONS
+from logx_definitions import CONTEST_DEFINITIONS, bandes_du_concours
 from logx_utils import locator_to_latlon, haversine, bearing, cardinal, utcnow
 from logx_storage import shared_log, contest_actif, cfg_scope_id, qso_scope_id
 
@@ -1011,7 +1011,7 @@ def filter_spots_for_contest(stations, contest):
     concours n'accepte pas le numérique), distance plausible pour la bande.
     Retourne (gardés, écartés_par_raison)."""
     cdef = CONTEST_DEFINITIONS.get(contest, {})
-    allowed_bands = {str(b) for b in (cdef.get('bands') or [])}
+    allowed_bands = set(bandes_du_concours(contest))
     if {b.upper() for b in allowed_bands} & {'ALL', 'TOUTES'}:
         allowed_bands = set()   # 'all' (SOTA/POTA) = aucune restriction de bande
     modes = [str(m).upper() for m in (cdef.get('modes') or [])]
@@ -1317,7 +1317,7 @@ def build_ranked_spots(logs, spots_by_band, cfg, noaa=None, dxmaps=None, on4kst_
         'nb_dxcc': len(set().union(*done_dxcc.values())) if done_dxcc else 0,
         'spots_total': total_before,
         'spots_dropped': dropped,
-        'contest_bands': [str(b) for b in (cdef.get('bands') or [])],
+        'contest_bands': bandes_du_concours(contest),
         'contest_modes': [str(m) for m in (cdef.get('modes') or [])],
     }
     return ranked, meta

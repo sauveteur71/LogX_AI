@@ -28,7 +28,7 @@ def _qso(**kw):
 
 def _prep(monkeypatch, log=None):
     monkeypatch.setattr(http, 'shared_log', log if log is not None else [])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'simple'})
 
 

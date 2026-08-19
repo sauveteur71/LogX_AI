@@ -133,6 +133,13 @@ if __name__ == '__main__':
         # faisant tourner le moindre serveur Node, Go ou python -m http.server.
         print(logx_singleton.message_port_partage(PORT, _instance['detail']))
 
+    # VERROU DU DOSSIER DE DONNEES, avant toute lecture du carnet. La sonde
+    # de port ci-dessus ne protege que le port : deux serveurs lances dans le
+    # meme dossier sur deux ports differents partagent logx.db et finissent
+    # par s effacer mutuellement (voir logx_singleton).
+    if not logx_singleton.verrouiller_dossier_donnees():
+        _abandonner(logx_singleton.message_dossier_verrouille())
+
     load_log_from_disk()
     load_qtc_from_disk()
     load_shifts_from_disk()

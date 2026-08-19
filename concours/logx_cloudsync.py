@@ -542,7 +542,11 @@ def _sync_now_locked(cfg, shared_log):
             local_ids = {q.get('id') for q in http.shared_log if q.get('id') is not None}
         if removed:
             removed_count = len(removed)
-            http.save_log_to_disk()
+            # Suppressions DEMANDÉES par un autre poste (tombstones distants) :
+            # destruction voulue et tracée, donc consentement explicite. Sans
+            # lui, une synchro qui rapporte beaucoup de suppressions se ferait
+            # refuser par le garde-fou de logx_storage.
+            http.save_log_to_disk(effacement_autorise=True)
             # Même nettoyage du scan QSL attaché que /log/delete : cette
             # suppression propagée ne doit pas laisser de fichier orphelin.
             for q in removed:

@@ -281,7 +281,7 @@ def test_pull_supprime_localement_un_qso_marque_supprime_a_distance(monkeypatch,
     import logx_http as http
     import logx_storage as storage
     monkeypatch.setattr(http, 'shared_log', [dict(local_qso)])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     marked = []
     monkeypatch.setattr(storage, 'mark_qso_deleted', lambda qid: marked.append(qid))
     monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
@@ -332,7 +332,7 @@ def test_pull_ignore_suppression_distante_avec_meme_id_mais_cle_differente(monke
 
     import logx_http as http
     monkeypatch.setattr(http, 'shared_log', [dict(local_qso)])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
 
     r = mysql.sync_now(_cfg(), [dict(local_qso)])
     assert r['ok'] is True and r['removed'] == 0
@@ -412,7 +412,7 @@ def test_pull_lot_mixte_suppression_et_ajout_meme_cycle(monkeypatch, tmp_path):
     import logx_http as http
     import logx_storage as storage
     monkeypatch.setattr(http, 'shared_log', [dict(local_qso)])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(storage, 'mark_qso_deleted', lambda qid: None)
     monkeypatch.setattr(storage, 'bump_log_version', lambda: None)
     added = []

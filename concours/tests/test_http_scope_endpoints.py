@@ -74,7 +74,7 @@ def test_log_archive_clear_sans_concours_ne_vide_pas_tout(server, monkeypatch):
     tagged = _qso(id=1, contest='REF_CDF_HF_SSB', date='20270220')
     untagged = _qso(id=2, contest='', call='F6XYZ')
     monkeypatch.setattr(httpmod, 'shared_log', [tagged, untagged])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'contest', 'contest': ''})
     status, res = _post(server, '/log/archive', {'clear': True})
     assert status == 200 and res.get('ok') and res.get('cleared')
@@ -87,7 +87,7 @@ def test_log_archive_clear_avec_concours_ne_touche_pas_les_autres(server, monkey
     this_year = _qso(id=1, contest='REF_QRP', date='20270718')
     other_contest = _qso(id=2, contest='REF_RPH', date='20270110', call='F6XYZ')
     monkeypatch.setattr(httpmod, 'shared_log', [this_year, other_contest])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, 'current_config',
                         {'usage_mode': 'contest', 'contest': 'REF_QRP',
                          'contest_start_date': '2027-07-18'})
@@ -109,7 +109,7 @@ def test_log_archive_inclut_les_qtc_de_la_portee(server, monkeypatch, tmp_path):
     monkeypatch.setattr(arch, 'ARCHIVE_DIR', str(tmp_path))
     qso = _qso(id=1, contest='WAEDC_SSB', date='20270911', call='F5ABC')
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(httpmod, 'current_config',
                         {'usage_mode': 'contest', 'contest': 'WAEDC_SSB',
                          'contest_start_date': '2027-09-11', 'callsign': 'F6KQJ'})
@@ -140,7 +140,7 @@ def test_log_reset_archives_incluent_les_qtc_par_portee(server, monkeypatch, tmp
     y2026 = _qso(id=1, contest='WAEDC_SSB', date='20260911', call='F5ABC')
     y2027 = _qso(id=2, contest='WAEDC_SSB', date='20270911', call='F6XYZ')
     monkeypatch.setattr(httpmod, 'shared_log', [y2026, y2027])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(storage, 'archive_current_log', lambda: [])
     monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'contest'})
     monkeypatch.setattr(storage, 'save_qtc_to_disk', lambda: None)
@@ -325,7 +325,7 @@ def test_log_reset_groupe_par_portee_pas_par_nom_brut(server, monkeypatch, tmp_p
     y2026 = _qso(id=1, contest='REF_QRP', date='20260606')
     y2027 = _qso(id=2, contest='REF_QRP', date='20270605', call='F6XYZ')
     monkeypatch.setattr(httpmod, 'shared_log', [y2026, y2027])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
     import logx_storage as storage
     monkeypatch.setattr(storage, 'archive_current_log', lambda: [])
     monkeypatch.setattr(httpmod, 'current_config', {'usage_mode': 'contest'})

@@ -103,11 +103,11 @@ def validate_log(qsos, contest_id='', cfg=None):
     qsos = [q for q in (qsos or [])
             if not scope_id or qso_scope_id(q) == scope_id]
 
-    from logx_definitions import CONTEST_DEFINITIONS
+    from logx_definitions import CONTEST_DEFINITIONS, bandes_du_concours
     cdef = CONTEST_DEFINITIONS.get(contest_id, {}) if contest_id else {}
     from logx_callhistory import exchange_wants
     wants = exchange_wants(cdef)
-    bands_ok = {str(b) for b in cdef.get('bands', [])}
+    bands_ok = set(bandes_du_concours(contest_id)) if contest_id else set()
 
     try:
         import logx_dxcc as dxcc

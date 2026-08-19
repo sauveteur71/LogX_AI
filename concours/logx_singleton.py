@@ -57,6 +57,7 @@ il doit rester utilisable très tôt au démarrage, sans effet de bord.
 import http.client
 import http.server
 import json
+import os
 import socket
 import sys
 import threading
@@ -611,6 +612,113 @@ def message_port_occupe(port, detail=''):
         _LIGNE,
     ]
     return '\n'.join(lignes)
+
+
+# ─── VERROU SUR LE DOSSIER DE DONNEES ────────────────────────────────────────
+#
+# probe() ne protege QUE le port. Or ce qui fait perdre des QSO, ce n est pas
+# de partager un port : c est de partager un DOSSIER. logx.db et
+# shared_log.json sont des chemins RELATIFS au repertoire de travail
+# (logx_storage.DB_FILE), donc deux serveurs lances dans le meme dossier sur
+# deux ports differents ecrivent dans le MEME carnet, chacun avec sa propre
+# copie en memoire. Le premier qui sauvegarde grave son etat par-dessus celui
+# de l autre, sans erreur, sans trace, et sans que ni l un ni l autre s en
+# apercoive : leurs miroirs de persistance incrementale restent perimes.
+#
+# Cas reels, tous atteignables sans rien faire d anormal :
+#   - le raccourci Windows lance une seconde instance sur un autre port ;
+#   - l executable (dossier de donnees du profil) tourne pendant qu un
+#     serveur de developpement tourne dans le meme dossier ;
+#   - un script tiers importe logx_http/logx_storage avec ce dossier pour
+#     repertoire courant.
+#
+# On prend un VERROU SYSTEME sur un fichier, tenu ouvert pour toute la vie du
+# processus. C est la bonne primitive plutot qu un fichier .pid : le systeme
+# libere le verrou tout seul si le processus meurt, plante ou est tue. Un
+# fichier .pid, lui, laisse un verrou fantome apres chaque coupure de courant,
+# et verifier qu un pid est vivant n est pas portable (sous Windows,
+# os.kill(pid, 0) TUE le processus au lieu de le sonder).
+FICHIER_VERROU = '.logx_dossier.lock'
+_poignee_verrou = None      # gardee ouverte volontairement : fermer = liberer
+
+
+def verrouiller_dossier_donnees():
+    """Prend le verrou du dossier courant. Retourne True si obtenu.
+
+    Ne leve jamais : sur un systeme de fichiers qui ne sait pas verrouiller
+    (certains montages reseau), on prefere demarrer sans protection plutot que
+    de refuser de demarrer -- l absence de verrou n a jamais fait perdre un
+    QSO a elle seule, un refus de demarrage en pleine expedition, si."""
+    global _poignee_verrou
+    if _poignee_verrou is not None:
+        return True
+    try:
+        f = open(FICHIER_VERROU, 'a+b')
+    except Exception as e:
+        # Dossier non inscriptible : on demarre sans protection, mais on le
+        # DIT. Un repli muet qui rend True ferait croire le verrou pris.
+        print('[VERROU] dossier non inscriptible (%s) : demarrage sans '
+              'protection du dossier de donnees.' % e)
+        return True
+    try:
+        if WINDOWS:
+            import msvcrt
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        return False                     # tenu par un autre processus VIVANT
+    except Exception as e:
+        # Verrouillage non supporte par ce systeme de fichiers. On demarre,
+        # mais BRUYAMMENT : c est exactement en avalant ce genre d exception
+        # qu on croit protege ce qui ne l est pas. La premiere version de
+        # cette fonction utilisait os.name sans avoir importe os -- le
+        # NameError tombait ici, et la fonction rendait True sans avoir pris
+        # le moindre verrou. Trouve en essayant reellement deux processus.
+        f.close()
+        print('[VERROU] verrouillage indisponible (%s) : demarrage sans '
+              'protection du dossier de donnees.' % e)
+        return True
+    try:
+        f.seek(0)
+        f.truncate()
+        f.write(('%d\n' % os.getpid()).encode('ascii'))
+        f.flush()
+    except Exception:
+        pass
+    _poignee_verrou = f                  # NE PAS fermer : le verrou tomberait
+    return True
+
+
+def message_dossier_verrouille(dossier=None):
+    """Un autre processus LogX AI travaille deja dans ce dossier.
+
+    Le parametre `dossier` vaut par defaut le repertoire de travail
+    courant, calcule ICI plutot qu au site d appel. Le
+    site d appel (logx_serveur) n a pas a importer os pour ca -- il ne
+    l importe pas, et la premiere version faisait planter le message d erreur
+    lui-meme par un NameError. Deux fois la meme supposition dans le meme lot :
+    ne jamais tenir un import pour acquis."""
+    if dossier is None:
+        dossier = os.getcwd()
+    return '\n'.join((
+        _LIGNE,
+        '  Demarrage impossible : un autre LogX AI utilise deja ce dossier.',
+        '',
+        '  Dossier : %s' % dossier,
+        '',
+        '  Deux programmes qui ecrivent le meme carnet finissent par se',
+        '  l effacer mutuellement : chacun garde sa propre copie en memoire,',
+        '  et le premier qui enregistre remplace le travail de l autre. Sans',
+        '  message, sans erreur. C est pour ca que ce demarrage est refuse.',
+        '',
+        '  Ferme l autre LogX AI (regarde la barre des taches et la zone de',
+        '  notification), puis relance celui-ci.',
+        _LIGNE,
+    ))
 
 
 def message_bind_impossible(port, err):
