@@ -13,9 +13,46 @@ poussé.
 
 ## [1.1-beta5] - 2026-08-19
 
-Version entièrement consacrée au FT8 natif, à partir d'essais en trafic réel de
-F4GLD sur 20 m. Chaque correctif vient d'un constat fait à la station, pas d'une
-revue de code.
+Deux chantiers dans cette version, dont un qui n'était pas prévu.
+
+**Le carnet.** Le 19/08/2026, l'auteur du logiciel a perdu son carnet complet —
+9 871 QSO de 2011 à 2026 — en redémarrant. Il n'a été récupéré que parce que le
+fichier ADIF d'origine existait encore. **La cause racine n'a jamais été
+identifiée** : remise à zéro, vidage par archivage, les quatre chemins de
+synchronisation et la suite de tests ont tous été éliminés par la mesure. Les
+protections ci-dessous ferment donc le goulot par lequel TOUTE destruction
+passe, au lieu de condamner une porte supposée.
+
+**Le FT8 natif**, à partir d'essais en trafic réel sur 20 m. Chaque correctif
+vient d'un constat fait à la station, pas d'une revue de code.
+
+### Sécurité — protection du carnet
+
+- **La sauvegarde automatique tourne dès le premier lancement, sans réglage.**
+  Avant, le champ « dossier de sauvegarde » était vide à l'installation et
+  **rien n'était jamais écrit** — c'est précisément ce qui a rendu la perte
+  irréversible. Sans dossier choisi, les copies horodatées vont dans un
+  sous-dossier `sauvegardes/` à côté du carnet. Le champ de CONFIG ne sert donc
+  plus à *activer* la sauvegarde mais à la **déplacer**, idéalement vers un
+  dossier synchronisé (Synology Drive, Dropbox, OneDrive) ou une clé USB. Ce
+  repli est sur le même disque que le carnet : il protège d'un carnet vidé,
+  **pas** d'un disque perdu.
+- **Refus d'écriture destructrice.** Si une opération s'apprête à faire
+  disparaître un grand nombre de QSO sans que l'opérateur l'ait demandé,
+  l'écriture est refusée et la base reste intacte. Les remises à zéro
+  explicitement demandées (« vider le log », « archiver et vider ») continuent
+  de fonctionner normalement.
+- **Journal d'appoint.** Quand l'enregistrement est suspendu, les QSO suivants
+  sont mis de côté dans un fichier ajout-seul poussé sur le support (`fsync`),
+  rejoué automatiquement au démarrage suivant. Sans lui, le garde-fou
+  ci-dessus serait devenu un second sinistre : l'opérateur aurait continué à
+  logguer dans le vide.
+- **Verrou du dossier de données.** Deux LogX AI travaillant dans le même
+  dossier partagent le même carnet et finissent par s'effacer mutuellement ; la
+  seconde instance refuse désormais de démarrer et dit pourquoi. Verrou système
+  sur le dossier, pas un simple fichier `.pid`.
+- **Bandeau rouge permanent** sur les 15 pages tant que l'enregistrement est
+  suspendu : un blocage de persistance ne doit jamais être silencieux.
 
 ### Ajouté
 
@@ -62,6 +99,32 @@ revue de code.
   1900 px elle s'entassait sur 7 lignes dans la moitié gauche et poussait tout
   le reste de 60 px. FT8 était l'exception — CW, RTTY et SSTV n'ont aucune
   limite.
+
+- **Le même QSO FT8 pouvait être loggué deux fois** (constaté sur CT1END/P
+  dans le carnet de F4GLD). Une fiche déjà écrite pour un indicatif sur une
+  bande donnée n'est plus réécrite dans la fenêtre qui suit, et les
+  informations des deux passages sont fusionnées au lieu de s'écraser.
+- **25 concours proposés dans l'interface ne rendaient aucune bande.** Les
+  douze Concours de Courte Durée mensuels, le Challenge THF, le Trophée F8TD,
+  le Mémorial Marconi, les IARU VHF/UHF/50 MHz, le DDFM 50 et les quatre TVA
+  étaient sélectionnables mais n'avaient aucune définition côté serveur :
+  détection HF/V-UHF muette, filtrage de spots sans contrainte de bande,
+  validation sans bande autorisée, et « BANDES : ? » dans le contexte envoyé à
+  l'IA — le tout **en silence**. Quinze d'entre eux retrouvent leurs bandes,
+  déduites du barème qui les portait déjà en clair. Les dix autres, dont le
+  barème est une plage (« 144MHz-47GHz ») ou un mot (« HF », « 438MHz+ TVA »),
+  restent volontairement sans bandes : les développer supposerait de décider
+  quelles bandes en font partie.
+
+### Documentation
+
+- **Le guide utilisateur ignorait le FT8 natif** : sur 1458 lignes, il ne
+  connaissait le FT8 que comme un pont vers WSJT-X. Le §8.6 devient « Modes
+  numériques natifs : FT8, RTTY, SSTV — sans logiciel tiers », avec les trois
+  modes d'envoi, les cinq façons d'arrêter le séquenceur et l'avertissement
+  qu'il émet sans intervention.
+- **Le chapitre 2 décrit la sauvegarde telle qu'elle est**, y compris ce
+  qu'elle ne protège pas.
 
 ### Connu, non corrigé
 
