@@ -2766,6 +2766,10 @@ if(localStorage.getItem('rc_theme') === null){
     // dans le journal de session, qui reste visible sur la page.
     if(qsoEnAttente && qsoEnAttente !== call){
       marquerNonEnregistre(qsoEnAttente);
+      // La ligne rouge est posée : le drapeau a fait son office, on le baisse
+      // pour que « Ignorer » sur la NOUVELLE offre n'en pose pas une seconde
+      // pour un QSO que l'opérateur refuse simplement.
+      qsoEchecEcriture = false;
       qsoInfosEnAttente = null;   // autre station : on ne fusionne rien
     }
     // MÊME indicatif : on FUSIONNE au lieu d'écraser (voir fusionnerInfos).
@@ -2795,7 +2799,22 @@ if(localStorage.getItem('rc_theme') === null){
     }
     document.getElementById('qsoPrompt').style.display = 'flex';
   }
+  // Vrai UNIQUEMENT entre un échec d'écriture et la fermeture du bandeau.
+  // Sans ce drapeau, « Ignorer » ne peut pas distinguer deux gestes opposés :
+  // « je ne veux pas de ce QSO » et « je referme un bandeau qui ne se ferme
+  // pas tout seul après un échec ».
+  let qsoEchecEcriture = false;
+
   window.annulerLogQso = function(){
+    // 🚨 « Ignorer » APRÈS UN ÉCHEC d'écriture ne doit pas effacer la fiche en
+    // silence. La branche d'échec de confirmerLogQso laisse le bandeau OUVERT
+    // (délibérément : l'opérateur doit pouvoir réessayer) et ne marque RIEN —
+    // `marquerNonEnregistre` n'est appelée que par offrirLogQso, à l'arrivée
+    // d'un indicatif DIFFÉRENT. Le seul geste qui referme ce bandeau est donc
+    // celui-ci, et il faisait disparaître la fiche sans trace : un clic, un
+    // indicatif, rien à l'écran ensuite. On pose la ligne rouge ici.
+    if(qsoEchecEcriture && qsoEnAttente) marquerNonEnregistre(qsoEnAttente);
+    qsoEchecEcriture = false;
     qsoEnAttente = null;
     qsoInfosEnAttente = null;
     document.getElementById('qsoPrompt').style.display = 'none';
@@ -2868,7 +2887,10 @@ if(localStorage.getItem('rc_theme') === null){
         'QSO NON enregistré (' + detail + ') — ressaisis-le dans LOGBOOK';
       document.getElementById('txStatus').className = 'tx-status';
       // On NE vide PAS l'offre : le bandeau reste ouvert pour que l'opérateur
-      // puisse réessayer. Une fiche perdue en silence ne se retrouve pas.
+      // puisse réessayer. Une fiche perdue en silence ne se retrouve pas —
+      // et si l'opérateur referme le bandeau par « Ignorer », annulerLogQso
+      // posera la ligne rouge grâce à ce drapeau.
+      qsoEchecEcriture = true;
       return false;
     }
     annulerLogQso();
