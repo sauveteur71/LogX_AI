@@ -142,13 +142,41 @@ Un build de release est resté cassé deux jours sans que personne le sache
 
 ### Ce qui reste ouvert
 
-1. **Web Worker pour le décodage FT8** — c'est LE correctif du gel de cascade.
-   La décimation a divisé le blocage par 4, mais il reste **2 576 ms mesurés
-   contre un seuil de resynchronisation à 400 ms** : le compteur « N resynchro.
-   audio » continuera de monter. Sortir `ft8DecodeAudioAll` du thread principal
-   est le seul changement qui rende le trou nul. L'entrée est un `Float32Array`
-   transférable, la sortie un petit tableau d'objets ; l'émission n'est pas
-   concernée. **Aucun Worker n'existe aujourd'hui dans `concours/`.**
+1. ✅ **FAIT — Web Worker pour le décodage FT8** (branche
+   `perf/ft8-worker-decodage`, PR ouverte, **non fusionnée : attend la
+   validation de F4GLD**). Premier Web Worker du dépôt.
+
+   MESURÉ en navigateur réel sur la page elle-même, même fenêtre de 16,5 s à
+   48 kHz et mêmes 3 stations, synthétisées puis décodées :
+
+   | | Synchrone | Worker |
+   |---|---|---|
+   | blocage max du fil principal | 1 942 ms | **12 ms** |
+   | durée du décodage | 2 023 ms | 2 021 ms |
+   | tics de minuteur observés | 51 | 244 |
+   | messages décodés | 3/3 | **3/3, textes identiques** |
+
+   12 ms est SOUS les 400 ms de `DERIVE_MAX_MS` : le trou n'est pas réduit, il
+   est **supprimé**. Le calcul dure toujours autant — mais il ne vole plus
+   l'audio pendant qu'il travaille, donc il cesse de se saboter lui-même.
+
+   ⚠️ **La note qui précédait disait « l'entrée est un Float32Array
+   transférable ». NE PAS LE TRANSFÉRER** : `fenetre.samples` est relu juste
+   après par `surveillerSilenceAnormal`, et `ft8Decimer` rend l'entrée
+   ELLE-MÊME quand le facteur vaut 1. Un transfert viderait le tableau côté
+   page et la surveillance du silence mesurerait « silence » à chaque créneau.
+   Copie par clone structuré, ~3,2 Mo par créneau — négligeable devant les
+   2,5 s économisées.
+
+   ⚠️ **« L'émission n'est pas concernée » était FAUX**, et c'est le piège le
+   plus coûteux du chantier : `hashTable` est lue par le décodage ET par
+   `ft8EncodeMessage`, donc par les messages ÉMIS. Un Worker qui accumulerait
+   ses hachages priverait la page de ceux nécessaires aux indicatifs composés
+   — panne d'émission SILENCIEUSE, visible seulement d'en face. La page envoie
+   sa table, le Worker rend les entrées apparues, la page FUSIONNE.
+
+   Reste à faire, et F4GLD seul peut le faire : **l'essai sur de l'AIR RÉEL**.
+   Ici le signal est synthétisé par la page, donc parfait.
 
 2. **Sans CAT configuré, la page ne peut RIEN émettre** — `envoyerMessage` sort
    avant la synthèse de la forme d'onde — alors que son message conseille de
