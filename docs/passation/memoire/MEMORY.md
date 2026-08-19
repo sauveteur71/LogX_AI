@@ -1,0 +1,103 @@
+# Index mémoire
+
+- ✅ [Lot 1 pré-déploiement RADIO-CLUB fusionné — sécurité CW, id QSO, filet d'erreurs (PR #108, 18/08)](chantier-lot1-deploiement-club-2026-08-18.md) — la revue adversariale a trouvé 3 défauts DANS le lot, dont 2 qui retournaient les correctifs contre leur but ; Q1 dissoute (club = trafic courant d'abord, concours plus tard) ; lots 2 et 3 planifiés
+- 🔍 [AUDIT ARCHITECTURE COMPLET : cartographie + top 10 valeur/effort (18/08, 32 agents, 6.2M jetons)](audit-architecture-complet-2026-08-18.md) — tranche les 2 points ouverts (règle K≥5 déjà supprimée ; indice A jamais servi à l'IA malgré 2 commentaires qui l'affirment) ; livrables B/C/D pas encore produits, F4GLD veut valider section par section
+- 🏁 [CARTE IA backlog CLOS : bandeau connectivité (PR #105) + projection score (PR #106) + VOACAP 12 mois (PR #107) (18/08)](chantier-carte-ia-backlog-restant-2026-08-18.md) — OCR abandonné/saisie vocale déjà faite confirmés ; le « bug \config » signalé séparément est un FAUX POSITIF vérifié (18/08) — chaîne jamais présente dans l'histoire du dépôt, endpoint vivant (18 appels clients), test déjà existant
+- ✅ [CONFIG plein écran + fermeture uniforme→LOGBOOK (PR #103) + point statut 17 champs secrets (PR #104) (16/08)](chantier-config-panel-plein-ecran-fermeture-uniforme-secrets-2026-08-16.md) — 4 déclencheurs de fermeture confirmés 2x par F4GLD ; persistance secrets par profil déjà existante
+- 🚨 [PIÈGE : lire location.href dans le MÊME javascript_exec qu'un clic déclenchant une async function = état périmé (16/08)](piege-async-microtask-verification-javascript-tool.md) — continuation après await = microtask, scinder en 2 appels
+- 🚨 [PIÈGE py_mini_racer : dict Python miroir diverge de l'état V8 dès 1re mutation JS, relire via ctx.eval() (16/08)](piege-py-mini-racer-dict-mirror-diverge-etat-v8.md) — JSObject sans len(), passer par JSON.stringify+json.loads
+- 🚨 [PIÈGE : #setupModal bloque les clics sur un serveur LOGBOOK de test frais (16/08)](piege-setupmodal-bloque-clics-serveur-test-frais.md) — remplir setupCallsign/setupLocator/setupOperator + setupDone() avant toute interaction
+- 🚨 [PIÈGE : nom de fonction JS avec "activation" fait échouer test_vocabulaire_portable.py (16/08)](piege-vocabulaire-identifiants-js-pas-seulement-texte-visible.md) — IDENT ne couvre que l'existant, éviter le mot plutôt qu'élargir la regex
+- 🚨 [PIÈGE : Service Worker périmé casse fetch() sur un port de test réutilisé (16/08)](piege-service-worker-perime-fetch-failed.md) — curl marche mais le navigateur échoue, vérifier navigator.serviceWorker d'abord
+- 🚨 [RÈGLE : jamais citer un concurrent (sauf open source), viser plus soigné (15/08)](feedback-jamais-citer-concurrents-sauf-open-source.md)
+- 📌 [Décodeur CW IC-7300 corrigé (AGC réel) ; 5 évolutions concurrentielles 5/5 couvertes, WinKeyer déjà existant (màj 16/08)](chantier-recherche-concurrentielle-et-decodeur-cw-2026-08-15.md) — ne pas relancer sauf bug signalé après essai matériel réel
+- 🚨 [RÈGLE : bouton ⇱ DÉTACHER carte JAMAIS expert-only, confirmé 2x F4GLD (14/08)](feedback-bouton-detacher-carte-toujours-visible.md) — rejeter direct toute revue future qui le signale
+- ✅ [CARTE IA détachable (?panel=map), menu PLUS, chat persistant, Échap, texte agrandi — PR #60 (13/08)](chantier-carte-ia-detachable-persistance-echap-2026-08-13.md) — sandbox test ne supporte pas les vrais popups, mocker ouvrirFenetreDetachee()
+- 🚨 [Vérif approfondie pré-bêta : bug score CQ WPX réel + 36 correctifs, PR #59 (13/08)](chantier-verification-approfondie-pre-beta-2026-08-13.md) — vérifier git worktree list, jamais la prose des agents
+- 🚫 [OCR carnet papier abandonné définitivement (13/08)](projet-ocr-carnet-papier-abandonne.md) — décision explicite F4GLD, ne plus reproposer
+- 📌 [Migration planifiée (pas maintenant) : rapatrier le code sur sauveteur71/LogX_AI](projet-migration-repo-vers-logx-ai-planifiee.md) — plan par renommage déjà établi
+- 🏁 [LogX AI passe en v1.0 — i18n MODE NUMÉRIQUE/RTTY/FT8 corrigé, release multi-OS publiée (12/08, PR #44)](chantier-version-1.0-preparation-2026-08-12.md) — piège espace insécable HTML invisible au test de parité
+- 🏁 [Triage + 117 correctifs fix_now sur 162 constats mineur, PR #43 — 2e audit CLOS](chantier-triage-et-fixnow-mineur-2026-08-12.md) — factorisation logx_utils.py en SÉQUENTIEL, jamais parallèle sur fichier partagé
+- 🚨 [PIÈGE : CRLF Windows invisible casse Workflow(scriptPath) (12/08)](piege-crlf-invisible-workflow-scriptpath-2026-08-12.md) — open() sans newline='', seul un read binaire le révèle
+- 🚨 [PR #42 : bucket majeur clos (jeton génération 8 sites + WWA async) + lancement triage 162 mineur (12/08)](chantier-differes-majeur-et-lancement-triage-mineur-2026-08-12.md) — amp/tci/flrig volontairement pas en cache-async
+- 🚨 [Triage sémantique + ~55 correctifs majeur 2e passage d'audit (12/08, PR #41)](chantier-triage-et-correctifs-majeur-2026-08-12.md) — RLock pour Session Wait-and-Pounce, un Lock simple aurait deadlocké
+- 🚨 [Build release cassé 2j sans le savoir (Tree() vs Analysis()) (12/08, PR #39+#40, v0.9-beta27)](chantier-fix-release-cassee-et-repli-version-bugreport-2026-08-12.md) — toujours vérifier un tag via un vrai build local
+- 🚨 [2e passage d'audit (loop-until-dry, 617 agents, 322 constats) : 20 critiques corrigés (12/08, PR #37)](chantier-audit-passe2-2026-08-12.md) — LOGBOOK cassé en prod trouvé et corrigé, piège CSRF a cassé 9 POST sans corps
+- 🚨 [Audit sécurité/obsolète/bugs : RCE via autostart_programs + 3 XSS (11/08, PR #35+#36)](chantier-audit-securite-obsolete-bugs-2026-08-11.md) — bind 0.0.0.0→127.0.0.1 par défaut, lan_access explicite
+- ✅ [Réorg nav + fusion PROPAG/FOCUS BANDE + renommage ZONES TRAVAILLÉES (11/08, PR #33+#34)](chantier-reorg-nav-fusion-propag-focus-2026-08-11.md) — piège propTask(window.xxx) invisible aux tests
+- ⚠️ [SUPERSÉDÉ le 16/08 par PR #103 : fermeture popup CONFIG par clic extérieur restait sur la page (11/08, PR #27)](fix-config-close-click-outside-stays-2026-08-11.md) — comportement désormais INVERSÉ (fermer navigue vers LOGBOOK), voir [[chantier-config-panel-plein-ecran-fermeture-uniforme-secrets-2026-08-16]]
+- ✅ [Détection auto du concours à l'import d'anciens logs (10/08, PR #21)](chantier-detection-auto-concours-import-2026-08-10.md) — guess_contest_id() compare à CONTEST_DEFINITIONS, repli manuel intact
+- ✅ [CONFIG "Importer un log existant" ouvre le sélecteur direct sans passer par LOGBOOK (10/08, PR #20)](fix-config-import-adif-direct-2026-08-10.md) — réutilise /log/import_adif/preview+commit
+- ✅ [Score à battre + import ADIF/Cabrillo + extraction script inline CONFIG (10/08, PR #19)](chantier-score-a-battre-import-anciens-logs-2026-08-10.md) — piège commentaire JS qui imitait du CSS
+- ✅ [Lint Python (ruff) ajouté à la CI, 50 violations corrigées (10/08, PR #18)](chantier-lint-ruff-ci-2026-08-10.md) — scope minimal E9+F volontaire
+- ✅ [Dialogues non bloquants, suite : ~43 alert()/confirm() natifs restants sur 15 fichiers (10/08, PR #17)](chantier-dialogues-non-bloquants-chantier2-suite-2026-08-10.md) — bug critique z-index bandeau sous popup trouvé par revue adversariale
+- ✅ [VOACAP embarqué complet : voacapl.exe natif + endpoint HTTP + UI (10/08, PR #16)](chantier-voacap-moteur-point-a-point-2026-08-10.md) — anttyp90.exe écarté (mauvais outil), piège MODE avec espace interne
+- ✅ [Barre de statut personnalisable + École CW (10/08, #15)](chantier-statusbar-personnalisable-ecole-cw-2026-08-10.md) — contraste nuit et popup qui se rouvrait à chaque navigation
+- ✅ [Designer de carte QSL imprimable (canvas, PNG/JPG) — dernier P1 concurrentiel (10/08, #14)](chantier-designer-carte-qsl-2026-08-10.md) — bug my_call vs q.my_call trouvé par revue adversariale
+- ✅ [Analyse concurrentielle (Wavelog/GridTracker2/AllMySat/SmartLogger/WRL/Log4OM) (10/08, #11-13)](analyse-concurrence-logx-ai-2026-08-10.md) — piège .py édité pas rechargé par un serveur déjà lancé
+- ✅ [Audit diplômes vs concurrence : ajout zones ITU (RSGB, 90) (10/08, #13)](chantier-audit-diplomes-vs-concurrence-2026-08-10.md) — patron _enrich()/award_summary()/_paire() réutilisable
+- 🚨 [PIÈGE : continuer un nouveau chantier sur une branche dont la PR est déjà créée (10/08)](piege-continuer-nouveau-chantier-sur-branche-pr-deja-creee.md) — toujours ouvrir une nouvelle branche AVANT le 1er Edit
+- ✅ [QSO : indicatif+fréquence obligatoires, locator obligatoire si concours à distance (10/08, #10)](chantier-qso-champs-obligatoires-2026-08-10.md) — contestRequiresLocator() dérivé du barème serveur
+- ✅ [Bandeaux non bloquants doublon QSO + validation CONFIG (10/08, #9)](chantier-bandeaux-non-bloquants-chantier2-2026-08-10.md) — bug de contraste rouge/blanc trouvé en vérif nuit
+- ✅ [Audit accessibilité nocturne autonome : 23 correctifs (09/08, #8)](chantier-audit-accessibilite-24-correctifs-2026-08-09.md) — alert()/confirm() bloquants reportés au chantier suivant
+- ✅ [Audit trouvabilité/intuitivité : 24 correctifs, 2 critiques (LOGBOOK identité fictive, recherche inopérante) (09/08, #7)](chantier-audit-trouvabilite-24-correctifs-2026-08-09.md) — panneau assistant CONFIG toujours ouvert
+- ✅ [Fix bouton LOGGER caché sous scroll sidebar + filtre bandes CLUSTER + mode DXpeditions (09/08, #5-6)](chantier-fix-sidebar-et-filtre-chasse-2026-08-09.md) — piège format band='14' pas '20m'
+- ✅ [Passe de vérification complète (9 dimensions Workflow) : 8 constats (09/08)](chantier-audit-complet-9-dimensions-2026-08-09.md) — dédup QSO ignorait la date (WWA)
+- ✅ [ACOM par port série, logx_acom.py (09/08)](chantier-acom-doc-communautaire-2026-08-09.md) — CMD_DISABLE_TELEMETRY jamais envoyé, corrigé
+- 🏁 [SYNTHÈSE fin de campagne EV-7 : 36 incréments, ~7500→3668 lignes (09/08)](chantier-ev7-synthese-fin-campagne-2026-08-09.md) — méthodologie complète, 5 classes de pièges ; détail par incrément dans chantier-ev7-*-2026-08-0[78].md si besoin
+- 🚨 [2e fix adaptivePoll : le 1er (08/08) n'était jamais mergé (09/08)](chantier-fix-adaptivepoll-domcontentloaded-2e-2026-08-09.md) — vérifier git merge-base avant de faire confiance à un commit cité en mémoire
+- 🚨 [PIÈGE : double arrière-plan (run_in_background+`&`) = process détaché, notification prématurée (09/08)](piege-double-arriere-plan-detache-log-incomplet.md)
+- 🚨 [PIÈGE : /concours/logx_logbook.html sert du vide, utiliser la racine /logx_logbook.html (09/08)](piege-url-concours-prefixe-sert-vide.md)
+- 🚨 [PIÈGE : appel top-level restant casse TOUS les tests hôte-entier (08/08, validé 2x)](piege-appel-top-level-casse-tests-hote-entier.md) — grep AVANT de pousser fonctionne
+- 🚨 [PIÈGE : dépendance cachée via un 3e fichier déjà extrait (08/08)](piege-dependance-cachee-fichier-tiers-deja-extrait.md) — invisible au grep du fichier de test
+- 🚨 [PIÈGE : `cmd ; echo $?` masque le vrai code de sortie (08/08)](piege-echo-exit-masque-code-sortie-reel.md) — a fait annoncer une suite verte avec 3 échecs réels
+- 🚨 [PIÈGE : push qsoLog en test peut se rendre tout seul (08/08)](piege-push-qsolog-live-render-auto.md) — polling auto sans renderLog() explicite
+- 🚨 [PIÈGE worktree : port 8080 sert le DÉPÔT PRINCIPAL pas le worktree (08/08)](piege-serveur-8080-sert-depot-principal-pas-worktree.md)
+- 🚨 [PIÈGE tests JS : Intl absent du V8 de py_mini_racer (08/08)](piege-intl-absent-py-mini-racer.md)
+- 🚨 [PIÈGE : localStorage ne se resynchronise pas au reload (08/08)](piege-localstorage-survit-au-reload.md)
+- 🚨 [PIÈGE : cache navigateur masque un changement JS (08/08)](piege-cache-navigateur-masque-changement-js.md) — Ctrl+Shift+R obligatoire
+- ✅ [EV-7 incréments 1-9 + phase2 pilote (CwPanel unifié, second écran, QTC, import ADIF, SCAN QSL) (07-08/08)](chantier-ev7-pilote-cwpanel-2026-08-07.md) — instanciation eager cassait 65 tests
+- ✅ [Fix OP1→indicatif réel, ADIF STATION_CALLSIGN (08/08)](chantier-fix-op1-adif-station-callsign-2026-08-08.md) — +17 constats revue adversariale
+- ✅ [Refonte CONFIG sidebar façon OpsLog (08/08)](chantier-config-sidebar-nav-2026-08-08.md) — revue a trouvé 1 CRITIQUE (nav recouverte) manqué par ma vérif
+- ✅ [Renommage N1MM + auto-fetch MASTER.SCP + fix esmSend (08/08)](chantier-n1mm-rename-masterscp-fetch-2026-08-08.md) — 3 bugs réels trouvés
+- 🚨 [PIÈGE : édition perdue par agents parallèles SynologyDrive (05/08)](piege-perte-edition-synologydrive-agents-paralleles.md) — région disjointe du même fichier = sans risque
+- 🚨 [Audit pré-bêta : 58 correctifs, 2 critiques (05/08)](chantier-audit-pre-beta-2026-08-05.md)
+- [Étude affichage par usage_mode (05/08)](etude-affichage-par-mode-2026-08.md) — masquer ≠ bloquer l'accès
+- 🚨 [PIÈGE CSS : min-width générique gagne sur max-width inline (04/08)](piege-min-width-vs-max-width-css.md)
+- 🚨 [Panadapter audio + scope CI-V, bug critique — 43 tests verts ne l'ont pas vu (04/08)](chantier-panadapter-audio-et-civ-2026-08.md)
+- ✅ [Keyer vocal : synthèse multi-voix, multilangue, Piper local (04/08)](chantier-voicekeyer-synthese-multivoix-2026-08.md)
+- 🚨 [PIÈGE : flex-wrap partagé + lignes composites = mosaïque (04/08)](piege-conteneur-flex-wrap-partage-composite.md)
+- ✅ [CAT : adresse CI-V manuelle, plug-and-play, auto-détect microHAM (03/08)](chantier-cat-plug-and-play-2026-08.md)
+- 🚨 [PIÈGE : pyserial rejette rts=/dtr= au constructeur Serial() (03/08)](piege-pyserial-rts-dtr-constructeur.md)
+- 🚨 [PIÈGE : hex identique à l'accent = parfois DONNÉE sans rapport (03/08)](piege-couleur-data-vs-theme.md)
+- ✅ [Design « graphite & cuivre » + icônes mono, v0.9-beta18 (03/08)](chantier-design-graphite-cuivre-2026-08.md) — piège SVG sans width/height
+- ✅ [Audit sécurité/qualité : 94 correctifs + revue post-fusion 21 constats (02/08)](chantier-audit-securite-94-correctifs-2026-08-02.md)
+- 🚨 [PIÈGE : `time.monotonic()` n'a pas l'epoch pour origine (02/08)](piege-time-monotonic-nest-pas-epoch.md)
+- 🚨 [PIÈGE JS : `.value` sur `<select>` pas rempli échoue SANS ERREUR (01/08)](piege-valeur-posee-sur-element-pas-pret.md)
+- ✅ [RÉSOLU : 26 tests écrivaient dans concours/ (01/08)](piege-tests-ecrivent-dans-le-depot.md)
+- 🚨 [PIÈGE : liste d'identifiants écrite à la main diverge (01/08)](piege-liste-identifiants-ecrite-a-la-main.md)
+- [Étude IA → 6 évolutions livrées ; "apports IA" = 4/5 BUGS (01/08)](chantier-etude-ia-6-evolutions-2026-08-01.md)
+- 🚨 [CHARGER le skill radioamateur avant toute table de domaine (31/07)](piege-table-domaine-ecrite-de-memoire.md)
+- 🚨 [i18n JS : ~190 chaînes réelles, 3 familles échappent au moteur (31/07)](chantier-francais-fabrique-en-js.md)
+- 🚨 [Wait-and-Pounce niveau 4 : émission sans surveillance VOULUE (30/07)](chantier-wait-and-pounce-4-niveaux.md)
+- 🚨 [RÈGLE : jamais « activation »/« activateur » en français (30/07)](feedback-vocabulaire-radioamateur.md)
+- 🚨 [PIÈGE : suite verte ≠ écran qui marche — band map mort (30/07)](piege-verifier-sur-donnees-reelles.md)
+- 🚨 [PIÈGE : artefact périmé = affirmations fausses, 5 cas (27/07-01/08)](piege-artefacts-perimes-verification.md)
+- 🚨 [Flakes de tests = vrai bug produit, DEUX fois (27-31/07)](suite-tests-flakes-sous-charge.md)
+- [PIÈGE tests : faux DOM stub + regex paresseuse (26-30/07)](piege-faux-dom-stub-et-passes-paires.md)
+- 🚨 [PIÈGE : Workflow d'audit committe DANS mon worktree (26/07)](piege-workflow-audit-committe-dans-mon-worktree.md)
+- [Gros chantier = branche + CI verte AVANT main (26/07)](feedback-branche-avant-main-gros-chantiers.md)
+- 🚨 [Expédition = 15 jours non-stop 24h/24, ne pas extrapoler (26/07)](contrainte-expedition-15-jours-continu.md)
+- ✅ [MAJ résiliente LAN + nettoyage git/i18n/carte MUF (24-25/07)](chantier-maj-resiliente-lan-2026-07-25.md)
+- [CONFIG bandes/modes = règlement serveur + DXHeat cluster (24/07)](chantier-bandes-modes-serveur-dxheat-2026-07-24.md)
+- [Passe vérification pré-distribution — chat multi-op 100% mort (22/07)](passe-verification-distribution-2026-07-22.md)
+- 🚨 [Fix portée concours+année — perte données réelle /log/archive (21/07)](fix-portee-concours-annee.md)
+- 🚨 [Audit sécurité & qualité : 113 constats, clé API révoquée (20/07)](audit-securite-qualite-2026-07-20.md)
+- [Assistant config, WebSDR, docs + veille technique/spots POTA (21/07)](chantier-assistant-config-websdr-docs-2026-07-21.md)
+- [Robustesse réseau diffusion publique (21/07)](robustesse-reseau-diffusion-publique.md)
+- [DXpeditions + décodeur CW + POTA/SOTA/WWFF/IOTA/WCA (22/07)](chantier-programmes-activation-cw-dxpeditions-2026-07-22.md)
+- ⚠️ [RENOMMAGE CRITIQUE : RadioContest AI → LogX AI](rebrand-logx-ai.md) — tout radiocontest_* est logx_*
+- [Roadmap dépasser QSO Director — TERMINÉE](qso-director-parity.md) — /config/save REMPLACE tout, jamais de PATCH partiel
+- [Jamais "QSO Director" dans le code — interdiction absolue](feedback-jamais-qso-director-dans-le-code.md)
+- [Pas d'installeur Windows à chaque commit](feedback-installeur-windows-pas-a-chaque-commit.md)
+- [Fix modale Diplômes/QSL + thème fenêtres détachées](fix-modale-awards-et-theme-fenetres-detachees.md)
