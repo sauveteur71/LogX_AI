@@ -23,6 +23,7 @@ en brouillon : le correctif est donc extrait et porté seul.
 Les fonctions sont EXTRAITES de logx_ft8.html et exécutées telles quelles.
 """
 import os
+import re
 
 import pytest
 
@@ -35,6 +36,24 @@ py_mini_racer = pytest.importorskip('py_mini_racer')
 def _lire():
     with open(FT8_HTML, encoding='utf-8') as f:
         return f.read()
+
+
+def _sans_commentaires(js):
+    """Retire les commentaires JS AVANT toute analyse du code.
+
+    Piège confirmé par revue adversariale le 18/08/2026, et reproduit : un
+    test qui cherche « generationTx » dans le texte brut d'une fonction est
+    satisfait par le PAVÉ DE COMMENTAIRE qui explique generationTx. On pouvait
+    donc remplacer la seule ligne de contrôle réelle par « if(false) » sans
+    faire tomber un seul test. Un test dont la mission est d'interdire une
+    fiction ne doit pas pouvoir être satisfait par de la prose.
+
+    Le `(?<!:)` évite d'amputer « https:// » dans une chaîne — ce fichier n'en
+    contient pas aujourd'hui, mais un dépouilleur qui casse le jour où l'on
+    ajoute une URL serait un piège à retardement.
+    """
+    js = re.sub(r'/\*[\s\S]*?\*/', '', js)
+    return re.sub(r'(?<!:)//[^\n]*', '', js)
 
 
 def _fonction(src, nom):
@@ -87,14 +106,34 @@ def test_le_controle_precede_toute_prise_de_ptt():
 
 @pytest.mark.parametrize('chemin', ['stopEmission', 'onArmChange', 'arreterRx'])
 def test_chaque_chemin_d_arret_annule_les_emissions_programmees(chemin):
-    assert 'annulerEmissionsProgrammees' in _fonction(_lire(), chemin), chemin
+    """Commentaires DÉPOUILLÉS : chacune de ces trois fonctions porte un pavé
+    qui EXPLIQUE pourquoi elle doit faire vieillir le jeton, et ce pavé cite
+    forcément annulerEmissionsProgrammees. Sans dépouillement, on pouvait
+    supprimer l'appel réel — le seul geste qui empêche une trame déjà
+    programmée de partir — sans que ce test bouge d'un pouce.
+
+    C'est exactement ce qu'a démontré la revue adversariale sur le test frère
+    du séquenceur (mutation en `if(false)`, 47 tests verts)."""
+    corps = _sans_commentaires(_fonction(_lire(), chemin))
+    # STRUCTURE, pas présence. `assert 'annulerEmissionsProgrammees' in corps`
+    # était satisfait par `if(false) annulerEmissionsProgrammees();` — vérifié
+    # par mutation : la suite restait verte alors que le geste était neutralisé.
+    # On exige donc l'appel en TÊTE D'INSTRUCTION, seule forme qui s'exécute
+    # inconditionnellement.
+    assert re.search(r'(?m)^\s*annulerEmissionsProgrammees\(\);', corps), (
+        '%s doit appeler annulerEmissionsProgrammees INCONDITIONNELLEMENT '
+        "(l'appel ne doit pas être sous une condition)" % chemin)
 
 
 def test_stop_annule_avant_de_couper_l_audio():
     """L'annulation doit être le PREMIER geste : couper l'audio et relâcher le
     PTT ne sert à rien tant que l'émission n'est pas encore partie, et c'est
-    précisément ce cas que le bouton ne traitait pas."""
-    corps = _fonction(_lire(), 'stopEmission')
+    précisément ce cas que le bouton ne traitait pas.
+
+    Comparer des positions dans du texte NON dépouillé était doublement
+    fragile : un commentaire mentionnant l'un des deux noms suffisait à
+    inverser l'ordre mesuré, sans que l'ordre du CODE ait changé."""
+    corps = _sans_commentaires(_fonction(_lire(), 'stopEmission'))
     assert corps.index('annulerEmissionsProgrammees') < corps.index('couperAudioTx')
 
 
@@ -102,14 +141,36 @@ def test_stop_annule_avant_de_couper_l_audio():
 
 def test_le_bouton_de_coupure_est_visible_pendant_l_attente():
     """Il était piloté par le seul pttDemande, donc masqué exactement pendant
-    la fenêtre où il aurait servi."""
-    assert 'emissionProgrammee' in _fonction(_lire(), 'majBoutonStop')
+    la fenêtre où il aurait servi. Commentaires dépouillés, même raison que
+    ci-dessus."""
+    assert 'emissionProgrammee' in _sans_commentaires(
+        _fonction(_lire(), 'majBoutonStop'))
 
 
-def test_echap_agit_pendant_l_attente():
-    src = _lire()
-    i = src.index("e.key === 'Escape'")
-    assert 'emissionProgrammee' in src[i:i + 160]
+def test_echap_agit_dans_les_trois_etats_ou_quelque_chose_peut_partir():
+    """Échap ne doit laisser AUCUN trou, et les trois états ne se recouvrent
+    pas :
+
+        pttDemande          le PTT est engagé, la trame est sur l'air
+        emissionProgrammee  une trame attend son créneau (jusqu'à 16 s)
+        seq                 une séquence tourne, même entre deux trames
+
+    Ce test cherchait auparavant la chaîne littérale « e.key === 'Escape' ».
+    Il figeait donc l'ÉCRITURE de la condition, pas ce qu'elle garantit : la
+    réécrire en « if(e.key !== 'Escape') return; » — strictement équivalente,
+    et plus lisible avec trois états — le faisait rougir sans qu'aucune
+    régression n'ait eu lieu. On teste maintenant la propriété.
+
+    Et on dépouille les commentaires avant d'analyser : le pavé qui EXPLIQUE
+    ces trois états les nomme tous les trois. Sans dépouillement, on pourrait
+    supprimer la condition entière sans faire tomber le test — défaut
+    réellement constaté ailleurs dans ce chantier."""
+    src = _sans_commentaires(_lire())
+    i = src.index('Escape')
+    zone = src[i:i + 400]
+    assert 'stopEmission' in zone, 'Échap doit appeler la coupure'
+    for etat in ('pttDemande', 'emissionProgrammee', 'seq'):
+        assert etat in zone, "Échap ignore l'état %s" % etat
 
 
 def test_l_indicateur_est_leve_puis_baisse_autour_de_l_attente():
@@ -123,17 +184,77 @@ def test_l_indicateur_est_leve_puis_baisse_autour_de_l_attente():
 
 # ─── Comportement, sur les vraies fonctions ─────────────────────────────────
 
-def _ctx():
-    """Charge la SEULE fonction de compteur : stopEmission est asynchrone et
-    tire trop de dépendances de la page pour être exécutée hors navigateur.
-    Son câblage sur le compteur est vérifié statiquement plus haut
-    (test_chaque_chemin_d_arret_annule_les_emissions_programmees et
-    test_stop_annule_avant_de_couper_l_audio) ; ce qui se vérifie ICI, c'est
-    que le compteur lui-même se comporte comme un jeton fiable."""
+def _ctx(onde_en_vol=False):
+    """Charge la VRAIE annulerEmissionsProgrammees avec des mannequins qui
+    ENREGISTRENT ce qu'elle fait. stopEmission est asynchrone et tire trop de
+    dépendances de la page pour être exécutée hors navigateur ; son câblage sur
+    le compteur est vérifié statiquement plus haut. Ce qui se vérifie ICI,
+    c'est le comportement de l'annulation elle-même.
+
+    `onde_en_vol` simule une trame DÉJÀ en cours de lecture — le cas où le
+    jeton, à lui seul, ne peut rien."""
     ctx = py_mini_racer.MiniRacer()
-    ctx.eval('var generationTx = 0;')
+    ctx.eval("""
+      var generationTx = 0;
+      var __audioCoupe = 0, __pttRelache = 0;
+      var pttDemande = true;
+      var sourcesTxVivantes = new Set();
+      function couperAudioTx(){ __audioCoupe++; sourcesTxVivantes.clear(); }
+      function relacherPtt(){ __pttRelache++; return Promise.resolve(true); }
+    """)
+    if onde_en_vol:
+        ctx.eval("sourcesTxVivantes.add({stop: function(){}});")
     ctx.eval(_fonction(_lire(), 'annulerEmissionsProgrammees'))
     return ctx
+
+
+def test_annuler_coupe_la_trame_deja_en_l_air():
+    """LE défaut trouvé par la deuxième revue adversariale.
+
+    Le jeton ne peut rien contre une trame DÉJÀ en cours de lecture : il
+    n'atteint que les émissions encore en attente de leur créneau. Or
+    couperAudioTx() n'était appelée que par stopEmission() et le chien de
+    garde. Trois gestes que l'opérateur lit comme « arrête d'émettre » —
+    couper l'écoute, décocher « Activer l'émission », STOP SÉQUENCE — laissaient
+    donc la forme d'onde moduler le poste jusqu'à son terme, soit jusqu'à
+    12,64 s après l'ordre. Mesuré à 7,6 s pour un ordre donné en milieu de
+    trame, pendant que l'écran affichait « arrêté »."""
+    ctx = _ctx(onde_en_vol=True)
+    ctx.eval('annulerEmissionsProgrammees();')
+    assert ctx.eval('__audioCoupe') == 1, "l'audio en vol n'a pas été coupé"
+    assert ctx.eval('__pttRelache') == 1, 'le PTT est resté engagé'
+
+
+def test_annuler_relache_le_ptt_meme_sans_onde_en_cours():
+    """Le PTT peut être ENGAGÉ sans qu'aucune onde ne joue encore : entre
+    pttOn() et le premier échantillon il s'écoule un aller-retour vers le
+    serveur, et cette fenêtre est franchie à chaque émission.
+
+    Conditionner le relâchement à la présence d'une onde vivante — ce que
+    faisait la première version de ce correctif — laissait donc la radio en
+    émission, porteuse non modulée, sur toute cette fenêtre.
+
+    Ce test disait AUTREFOIS l'inverse : il exigeait qu'aucun relâchement
+    n'ait lieu sans onde. Il figeait le défaut au lieu de le contraindre — et
+    il l'a fait pendant exactement une nuit, jusqu'à ce que la troisième revue
+    le relève."""
+    ctx = _ctx(onde_en_vol=False)      # pttDemande vaut true dans le mannequin
+    ctx.eval('annulerEmissionsProgrammees();')
+    assert ctx.eval('__audioCoupe') == 0, "rien à couper : pas d'appel inutile"
+    assert ctx.eval('__pttRelache') == 1, (
+        'le PTT était engagé et personne ne le relâche : la radio reste en '
+        'émission avec une porteuse non modulée')
+
+
+def test_annuler_n_envoie_aucun_ordre_radio_quand_rien_n_est_engage():
+    """Contre-épreuve : sans PTT engagé et sans onde, un arrêt de séquence ne
+    doit produire AUCUN ordre radio. Sinon chaque STOP enverrait un
+    relâchement inutile au poste."""
+    ctx = _ctx(onde_en_vol=False)
+    ctx.eval('pttDemande = false;')
+    ctx.eval('annulerEmissionsProgrammees();')
+    assert ctx.eval('__audioCoupe') == 0
+    assert ctx.eval('__pttRelache') == 0
 
 
 def test_annuler_fait_avancer_le_jeton():
