@@ -601,8 +601,15 @@ if(localStorage.getItem('rc_theme') === null){
       el.addEventListener('click', () => {
         proposerReponse(messageCq());
         afficherAppelSelectionne(messageCq());
+        const info = cqSeen.get(el.dataset.call);
+        if(info) retenirPariteCorrespondant(info.ts);
       });
-      el.addEventListener('dblclick', () => repondreEtEnvoyer(messageCq()));
+      // cqSeen retient déjà le créneau (ts) : la colonne de gauche mène donc
+      // exactement au même comportement qu'un clic sur la ligne de décodage.
+      el.addEventListener('dblclick', () => {
+        const info = cqSeen.get(el.dataset.call);
+        repondreEtEnvoyer(messageCq(), info ? info.ts : undefined);
+      });
     });
   }
 
@@ -621,9 +628,13 @@ if(localStorage.getItem('rc_theme') === null){
   // Le silence serait ici le vrai défaut : un opérateur qui double-clique sans
   // avoir armé verrait le champ se remplir et rien partir, sans savoir
   // pourquoi. On le dit.
-  function repondreEtEnvoyer(text){
+  // slotMs : créneau où la station a été entendue, quand le geste vient d'un
+  // décodage. Absent lorsque le message est saisi à la main — il n'y a alors
+  // aucune parité connue, et aucune à imposer.
+  function repondreEtEnvoyer(text, slotMs){
     proposerReponse(text);
     afficherAppelSelectionne(text);
+    if(slotMs !== undefined) retenirPariteCorrespondant(slotMs);
     const statusEl = document.getElementById('txStatus');
     if(!txArmed){
       statusEl.textContent = "Réponse préparée — coche « Activer l'émission » pour "
@@ -1354,8 +1365,17 @@ if(localStorage.getItem('rc_theme') === null){
     const tdM = document.createElement('td'); tdM.textContent = text;   // textContent : jamais de HTML depuis un décodage radio
     tr.append(tdH, tdF, tdDt, tdS, tdM);
     tr.title = 'Clic : préparer la réponse — Double-clic : préparer ET envoyer';
-    tr.addEventListener('click', () => { proposerReponse(text); afficherAppelSelectionne(text); });
-    tr.addEventListener('dblclick', () => repondreEtEnvoyer(text));
+    // slotMs est capturé ici : c'est le créneau où CETTE station a émis, donc
+    // ce qui détermine la moitié de cycle qui lui appartient.
+    tr.addEventListener('click', () => {
+      proposerReponse(text); afficherAppelSelectionne(text);
+      retenirPariteCorrespondant(slotMs);
+    });
+    // slotMs passé à repondreEtEnvoyer plutôt que proposerReponse rappelé
+    // ici : cette fonction fait DÉJÀ préparation + affichage, et son chemin
+    // « RRR »/« 73 » appelle offrirLogQso — la doubler proposerait deux fois
+    // d'enregistrer le même QSO.
+    tr.addEventListener('dblclick', () => repondreEtEnvoyer(text, slotMs));
     const tbody = document.getElementById('decodesBody');
     tbody.insertBefore(tr, tbody.firstChild);
     while(tbody.children.length > 60) tbody.removeChild(tbody.lastChild);   // borne la liste, pas de fuite mémoire sur une longue session
@@ -1363,6 +1383,12 @@ if(localStorage.getItem('rc_theme') === null){
     // ─── Colonne gauche : compteurs + liste des CQ entendus ────────────────
     compteurDecodages++;
     const {call, grid} = extraireStation(text);
+    // Elle vient de réémettre : on reprend sa parité sur ce créneau-ci. Utile
+    // si elle change de moitié de cycle en cours de QSO — rare, mais alors
+    // c'est nous qui deviendrions le brouilleur.
+    if(correspondant && call === correspondant.call){
+      correspondant.parite = pariteDuCreneau(slotMs);
+    }
     if(call) indicatifsUniques.add(call);
     if(estCQ && call){ cqSeen.set(call, {freqHz, grid, ts: slotMs}); rendreCqList(); }
     majStatsSession();
@@ -1370,6 +1396,77 @@ if(localStorage.getItem('rc_theme') === null){
 
   // Propose une réponse plausible à partir d'un décodage cliqué — TOUJOURS
   // éditable avant envoi, jamais auto-transmis (voir note d'en-tête).
+  // ═══ PARITÉ — ne jamais émettre dans le créneau de celui qu'on appelle ═══
+  //
+  // En FT8 une station émet toujours sur la MÊME moitié du cycle de 30 s :
+  // soit les créneaux pairs, soit les impairs. Répondre, c'est donc émettre
+  // sur l'autre moitié. Signalé en trafic réel (19/08/2026) : « si je n'envoie
+  // pas la trame tout de suite en réponse, l'émission part en même temps que
+  // l'autre station émet au lieu de passer un tour ».
+  //
+  // C'était exact et c'était un vrai défaut : envoyerMessage() programmait sur
+  // `Math.ceil(now/15000)*15000`, LE PROCHAIN CRÉNEAU QUEL QU'IL SOIT. Répondre
+  // sans tarder tombait juste par hasard — parce que le prochain créneau se
+  // trouvait être le bon. Répondre une seconde trop tard le faisait tomber sur
+  // le créneau du correspondant : on émettait EN MÊME TEMPS que lui, aucun des
+  // deux n'entendait l'autre, et rien à l'écran ne l'expliquait.
+  //
+  // Aucun réglage à proposer : la bonne parité se DÉDUIT du créneau où la
+  // station a été entendue. On la mémorise avec l'indicatif auquel elle se
+  // rapporte, pour ne pas l'appliquer à un message adressé à quelqu'un d'autre.
+  let correspondant = null;          // {call, parite} ou null
+
+  function pariteDuCreneau(msDepuisEpoch){
+    return Math.floor(msDepuisEpoch / 15000) % 2;
+  }
+
+  // Le destinataire d'un message, c'est son PREMIER JETON — par construction du
+  // protocole. On le lit sur le champ réellement préparé plutôt que de réécrire
+  // une seconde règle d'extraction : ce fichier a déjà produit trois défauts
+  // par duplication d'une même règle, dont un sur le chemin par défaut.
+  function destinataireDuChamp(){
+    const champ = document.getElementById('txText');
+    const premier = (champ ? champ.value : '').trim().toUpperCase().split(/\s+/)[0];
+    return premier || '';
+  }
+
+  // Appelée après qu'un décodage a servi à préparer une réponse : on retient
+  // la parité DU CRÉNEAU OÙ CETTE STATION A ÉTÉ ENTENDUE.
+  function retenirPariteCorrespondant(slotMs){
+    const call = destinataireDuChamp();
+    // « CQ … » n'est adressé à personne : aucune parité à respecter, et
+    // l'opérateur choisit librement son tour.
+    if(!call || call === 'CQ' || call === 'QRZ'){ correspondant = null; return; }
+    correspondant = {call: call, parite: pariteDuCreneau(slotMs)};
+  }
+
+  // Choisit le créneau UTC où partira `texte`, et dit si un tour a été passé.
+  // Fonction séparée pour être éprouvable telle quelle : enfouie dans
+  // envoyerMessage — asynchrone, et qui engage le PTT — elle n'aurait pu être
+  // testée qu'à travers une réécriture, laquelle ne contraint qu'elle-même.
+  function creneauDEmission(maintenant, texte){
+    let prochain = Math.ceil(maintenant / 15000) * 15000;
+    // Moins d'une seconde ne suffit pas à préparer PTT + lecture audio.
+    if(prochain - maintenant < 1000) prochain += 15000;
+
+    // SUR LA BONNE MOITIÉ DU CYCLE. Si ce message est adressé à une station
+    // dont on connaît le créneau, on ne peut pas émettre dans le sien : mieux
+    // vaut PASSER UN TOUR (15 s) que d'émettre par-dessus elle, ce qui perd
+    // notre message ET le sien.
+    // La comparaison porte sur le destinataire RÉEL du texte qui va partir,
+    // pas sur la dernière station cliquée : l'opérateur a pu réécrire le champ.
+    let tourPasse = false;
+    const pourQui = (texte || '').trim().toUpperCase().split(/\s+/)[0];
+    if(correspondant && pourQui === correspondant.call){
+      const pariteVisee = 1 - correspondant.parite;
+      while(pariteDuCreneau(prochain) !== pariteVisee){
+        prochain += 15000;
+        tourPasse = true;
+      }
+    }
+    return {creneau: prochain, tourPasse: tourPasse};
+  }
+
   function proposerReponse(text){
     const parts = text.split(' ');
     if(parts[0] === 'CQ'){
@@ -1792,9 +1889,15 @@ if(localStorage.getItem('rc_theme') === null){
     // Programme l'émission sur le PROCHAIN créneau UTC de 15s — comme WSJT-X,
     // un message FT8 part toujours calé sur la grille, jamais "tout de suite".
     const now = Date.now();
-    let prochain = Math.ceil(now/15000)*15000;
-    if(prochain - now < 1000) prochain += 15000;   // pas assez de marge pour préparer PTT+lecture
-    statusEl.textContent = `Programmé pour ${new Date(prochain).toISOString().slice(11,19)} UTC…`;
+    const plan = creneauDEmission(now, text);
+    const prochain = plan.creneau;
+    statusEl.textContent = `Programmé pour ${new Date(prochain).toISOString().slice(11,19)} UTC…`
+      // DIRE POURQUOI on attend plus longtemps que prévu. Sans ça, un tour
+      // passé ressemble à un blocage : l'opérateur clique, et il ne se passe
+      // rien pendant 30 s.
+      + (plan.tourPasse
+         ? ` — un tour passé, ${correspondant.call} émet sur l'autre créneau`
+         : '');
     statusEl.className = 'tx-status wait';
     // Le bouton de coupure doit être atteignable pendant toute l'attente.
     emissionProgrammee = true; majBoutonStop();
