@@ -945,6 +945,54 @@ if(localStorage.getItem('rc_theme') === null){
   // structurellement pas être résolu, ce n'est pas un bug. ────────────────
   const hashTable = ft8CreateHashTable();
 
+  // ─── DÉCODAGE HORS DU FIL PRINCIPAL ────────────────────────────────────
+  // Voir logx_ft8_worker.js pour le pourquoi et les deux pièges (table de
+  // hachage partagée avec l'ÉMISSION, échantillons réutilisés après coup).
+  let ft8Worker = null;          // null = pas encore tenté, false = indisponible
+  let ft8JetonDecodage = 0;      // écarte une réponse périmée
+  let ft8DecodageEnVol = null;   // {jeton, slot, fenetre, t0, messages}
+
+  function obtenirWorkerFt8(){
+    if(ft8Worker !== null) return ft8Worker;
+    // Repli ASSUMÉ : un contexte file://, un navigateur ancien ou une CSP
+    // stricte font échouer `new Worker`. On retombe alors sur le décodage
+    // synchrone — plus lent, mais qui décode. Perdre le décodage vaudrait
+    // bien pire que le garder lent.
+    try{
+      const w = new Worker('logx_ft8_worker.js');
+      w.onmessage = (ev) => recevoirDecodage(ev.data || {});
+      w.onerror = () => {
+        // Le Worker s'est cassé en vol : on repasse en synchrone pour de
+        // bon, et on libère le créneau en attente pour ne pas figer le
+        // séquenceur sur une réponse qui ne viendra jamais.
+        ft8Worker = false;
+        const vol = ft8DecodageEnVol;
+        ft8DecodageEnVol = null;
+        if(vol) conclureCreneau([], 0, vol.fenetre, vol.slot, vol.messages, vol.t0);
+      };
+      ft8Worker = w;
+    }catch(e){
+      ft8Worker = false;
+    }
+    return ft8Worker;
+  }
+
+  function recevoirDecodage(rep){
+    const vol = ft8DecodageEnVol;
+    // Réponse périmée (le créneau a été abandonné entre-temps) : on la jette
+    // sans rien conclure, sinon on écrirait des décodages d'un créneau dans
+    // le compte-rendu d'un autre.
+    if(!vol || rep.jeton !== vol.jeton) return;
+    ft8DecodageEnVol = null;
+    // FUSION, jamais remplacement : la page a pu enrichir sa table côté
+    // ÉMISSION pendant que le Worker travaillait.
+    if(rep.hachagesNeufs && rep.hachagesNeufs.length){
+      for(const [k, v] of rep.hachagesNeufs) hashTable.byN22.set(k, v);
+    }
+    conclureCreneau(rep.results || [], rep.sampleRate || 0,
+                    vol.fenetre, vol.slot, vol.messages, vol.t0);
+  }
+
   // ─── RX : capture continue (ScriptProcessorNode, même motif que le
   // décodeur RTTY — logx_rttydecoder.js) + cycle de décodage aligné UTC ────
   let ctx = null, stream = null, source = null, proc = null, sink = null;
@@ -1615,17 +1663,66 @@ if(localStorage.getItem('rc_theme') === null){
         // ci-dessous pour que la cause soit VISIBLE, pas seulement l'effet.
         const t0Decode = (typeof performance !== 'undefined' && performance.now)
                        ? performance.now() : Date.now();
+        // CHEMIN ASYNCHRONE. Les échantillons partent par COPIE (surtout pas
+        // en transférable : la page les réutilise juste après pour
+        // surveillerSilenceAnormal), et la table de hachage part en clair
+        // pour que le Worker décode les indicatifs composés comme la page.
+        const w = obtenirWorkerFt8();
+        if(w){
+          // Un décodage encore en vol quand un nouveau créneau arrive : on ne
+          // lance pas le second. Le créneau sauté est signalé au séquenceur
+          // comme un créneau sans contenu perceptible — exactement le
+          // traitement déjà retenu pour une fenêtre audio manquante.
+          if(ft8DecodageEnVol){
+            majDiagnosticRx();
+            seqExaminerCreneau(messagesDuCreneau, slotTermine);
+            return;
+          }
+          ft8DecodageEnVol = {jeton: ++ft8JetonDecodage, slot: slotTermine,
+                              fenetre: fenetre, messages: messagesDuCreneau,
+                              t0: t0Decode};
+          w.postMessage({
+            type: 'decoder', jeton: ft8DecodageEnVol.jeton, slot: slotTermine,
+            samples: fenetre.samples, sampleRate: sr,
+            centerMs: slotTermine - fenetre.debutMs,
+            hachages: Array.from(hashTable.byN22.entries()),
+          });
+          return;   // la suite reprend dans recevoirDecodage()
+        }
+        // REPLI SYNCHRONE — le comportement d'avant, mot pour mot.
         const dec = ft8Decimer(fenetre.samples, sr);
         const results = ft8DecodeAudioAll(dec.samples, dec.sampleRate, hashTable, {
           centerSample: ((slotTermine - fenetre.debutMs) / 1000) * dec.sampleRate,
         });
+        conclureCreneau(results, dec.sampleRate, fenetre, slotTermine,
+                        messagesDuCreneau, t0Decode);
+        return;
+      } else {
+        creneauxSansFenetre++;
+        if(creneauxSansFenetre >= 2){
+          const st = document.getElementById('rxStatus');
+          if(st) st.textContent = 'audio incomplet sur ' + creneauxSansFenetre
+            + ' créneaux — décodage en attente de resynchronisation';
+        }
+      }
+      majDiagnosticRx();
+      seqExaminerCreneau(messagesDuCreneau, slotTermine);
+    }
+  }
+
+  // Tout ce qui suivait le décodage, désormais atteignable par les DEUX
+  // chemins (Worker et repli synchrone). `decSampleRate` est la cadence
+  // DÉCIMÉE : c'est elle qu'il faut pour retomber sur des secondes, jamais
+  // celle de la carte son.
+  function conclureCreneau(results, decSampleRate, fenetre, slotTermine,
+                           messagesDuCreneau, t0Decode){
         for(const r of results){
           // startSample est exprimé dans la cadence DÉCIMÉE : c'est celle-là
           // qu'il faut pour retomber sur des secondes. Réutiliser `sr` ici
           // diviserait le DT par le facteur de décimation, sans que rien ne le
           // signale — le bandeau d'horloge deviendrait muet.
           const dt = calculerDt(fenetre.debutMs, r.startSample, slotTermine,
-                                dec.sampleRate);
+                                decSampleRate);
           dtRecents.push(dt);
           if(dtRecents.length > 12) dtRecents.shift();   // médiane glissante
           ajouterDecodage(slotTermine, r.text, r.freqHz, r.snrDb, dt);
@@ -1650,22 +1747,13 @@ if(localStorage.getItem('rc_theme') === null){
                             ? performance.now() : Date.now()) - t0Decode;
         if(results.length) majAlerteHorloge();
         surveillerSilenceAnormal(fenetre.samples, results.length);
-      } else {
-        creneauxSansFenetre++;
-        if(creneauxSansFenetre >= 2){
-          const st = document.getElementById('rxStatus');
-          if(st) st.textContent = 'audio incomplet sur ' + creneauxSansFenetre
-            + ' créneaux — décodage en attente de resynchronisation';
-        }
-      }
-      majDiagnosticRx();
-      // Appelé MÊME quand la fenêtre audio manquait (fenetre nul) : un
-      // créneau qu'on n'a pas pu décoder reste un créneau où la cible n'a
-      // rien dit de perceptible pour nous. Sortir ici sans prévenir le
-      // séquenceur le figerait indéfiniment sur un « j'attends sa réponse »
-      // qui ne viendrait jamais.
-      seqExaminerCreneau(messagesDuCreneau, slotTermine);
-    }
+    majDiagnosticRx();
+    // Appelé MÊME quand la fenêtre audio manquait, quand le Worker a échoué,
+    // et quand un créneau a été sauté : un créneau qu'on n'a pas pu décoder
+    // reste un créneau où la cible n'a rien dit de perceptible pour nous.
+    // Sortir sans prévenir le séquenceur le figerait indéfiniment sur un
+    // « j'attends sa réponse » qui ne viendrait jamais.
+    seqExaminerCreneau(messagesDuCreneau, slotTermine);
   }
 
   // Diagnostic discret, mais présent : sans lui, une capture audio qui décroche
