@@ -39,8 +39,12 @@ C'est ce qui manque, et aucun banc ne peut le remplacer.
 PR #114 est l'ancêtre abandonné du séquenceur, laissée en brouillon. Ne pas la
 rouvrir.
 
-**PR #129 — le guide utilisateur.** Ouverte, CI verte, jamais fusionnée faute
-de temps. Elle ajoute au `docs/GUIDE_UTILISATEUR.md` les deux choses que
+**PR #129 — le guide utilisateur.** Ouverte, jamais fusionnée faute de temps.
+Elle ne porte **aucune coche de CI**, et c'est normal, pas un échec :
+`check.yml` ne se déclenche que sur `concours/**` et deux chemins `.github/`,
+or cette PR ne touche que `docs/`. Ne pas lire « aucune vérification » comme
+« vérification en attente » — c'est le filtre de chemins, vérifié dans le
+workflow. Elle ajoute au `docs/GUIDE_UTILISATEUR.md` les deux choses que
 l'incident du 19/08 a rendues urgentes : l'avertissement du chapitre 2 disant
 que **la sauvegarde automatique ne tourne pas tant qu'aucun dossier n'est
 renseigné** (le guide la décrivait au §14.4 comme si elle tournait), et la
