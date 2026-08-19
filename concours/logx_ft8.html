@@ -2622,6 +2622,21 @@ if(localStorage.getItem('rc_theme') === null){
   // laissent donc la place à trois QSO nominaux complets — largement de quoi
   // encaisser du QSB et des répétitions — tout en garantissant qu'une séquence
   // oubliée s'arrête d'elle-même.
+  // GARDE-FOU DE DURÉE — 15 minutes, DÉCISION D'OPÉRATEUR ASSUMÉE.
+  //
+  // WSJT-X a le même garde-fou (« Tx watchdog », Settings > General >
+  // Behavior) et sa valeur par défaut est de 6 minutes — vérifié dans le
+  // guide utilisateur et sur l'installation de F4GLD. L'alignement lui a
+  // été proposé le 19/08/2026, avec cette source ; il a répondu « reste a
+  // 15mn alors ». C'est donc un écart VOULU à la référence, pas un oubli.
+  //
+  // Noté ici précisément pour qu'une revue future ne rouvre pas la
+  // question en voyant « 15 min » face à une référence à 6 : le sujet a
+  // été instruit et tranché.
+  //
+  // Ce plafond ne contredit pas la décision « la relance va jusqu'à
+  // confirmation du contact, sans plafond par défaut » : le plafond de
+  // RELANCES reste illimité, celui-ci est le filet de dernier recours.
   const SEQ_DUREE_MAX_MS = 15 * 60 * 1000;
 
   // Report par défaut. VALEUR À SOURCER côté mesure : le décodeur du dépôt
