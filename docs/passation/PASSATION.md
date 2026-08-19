@@ -210,15 +210,39 @@ Un build de release est resté cassé deux jours sans que personne le sache
    de chaînes en **MHz** (`['144','432']` pour REF_RPH), jamais `'2m'`/`'70cm'`.
    Vérifié sur les entrées réelles, c'est un piège classique du dépôt.
 
-   **Recette prévue, non appliquée.** Une fonction de dérivation en fin de
-   `logx_definitions.py` (après `CONTEST_SCORING`, sinon `NameError` à
-   l'import) qui, pour chaque identifiant de `CONTEST_SCORING` absent de
-   `CONTEST_DEFINITIONS`, analyse la chaîne de bandes et n'écrit une entrée
-   **que** si elle est purement numérique. L'analyseur doit rendre `None` dès
-   qu'il voit un `-` ou un mot : ainsi les 10 ambigus s'écartent tout seuls,
-   sans liste noire à maintenir. L'entrée créée porte un marqueur explicite
-   (`'derive_du_bareme': True`) pour qu'on ne la confonde jamais avec une
-   définition relue à la main.
+   ⛔ **La recette écrite ici le matin du 19/08 était INAPPLICABLE — ne pas
+   la suivre.** Elle proposait de fabriquer une définition minimale
+   (`name`/`bands`/`modes`) marquée `'derive_du_bareme': True` et de l'insérer
+   dans `CONTEST_DEFINITIONS`. C'est impossible, pour trois raisons vérifiées
+   dans `concours/contest_schema.json` :
+
+   - le schéma exige **huit** champs : `name`, `organizer`, `date_rule`,
+     `bands`, `modes`, `exchange`, `scoring`, `log_format` ;
+   - il porte `"additionalProperties": false` — la clé `derive_du_bareme`
+     ferait donc échouer la validation à elle seule ;
+   - `date_rule` est contraint par une expression régulière stricte
+     (`first_saturday_july`, `last_full_weekend_october`…), interprétée par
+     `calc_contest_date`.
+
+   Et ce n'est pas théorique : la CI (`check.yml`) lance
+   `python logx_validate.py` de façon **bloquante** contre ce schéma. Une
+   entrée dérivée serait rejetée ; compléter `date_rule`, `exchange` ou
+   `log_format` de tête reviendrait à inventer des valeurs de domaine, ce que
+   le dépôt interdit sans source citable.
+
+   **Recette correcte : un ACCESSEUR, pas une entrée fabriquée.** Le défaut à
+   corriger est le symptôme — `…get('bands', [])` rend `[]`. Introduire dans
+   `logx_definitions.py` une fonction du genre `bandes_du_concours(cid)` qui
+   lit d'abord `CONTEST_DEFINITIONS[cid]['bands']`, et à défaut analyse la
+   chaîne de `CONTEST_SCORING[cid]['bands']` (rendre `[]` dès qu'un `-` ou un
+   mot apparaît, ce qui écarte les 10 ambigus tout seul, sans liste noire).
+   Puis remplacer les consommateurs par cet accesseur — ils sont listés
+   ci-dessus. `CONTEST_DEFINITIONS` n'est pas touché, le contrat public n'est
+   pas modifié, rien n'est inventé, et `logx_validate.py` reste vert.
+
+   Si un jour on veut de vraies définitions pour ces 25 concours, c'est un
+   travail de SOURCES (lire les règlements REF pour en tirer date, échange,
+   format de log), pas un travail de conversion. Ne pas confondre les deux.
 
    Trois précautions, chacune correspondant à un piège déjà payé :
    - Les libellés viennent du catalogue client, extraits par la regex
