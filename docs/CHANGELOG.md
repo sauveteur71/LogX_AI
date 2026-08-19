@@ -11,6 +11,130 @@ affichée dans la barre de statut de l'application correspond à la constante
 `APP_VERSION` de `logx_version.py`, qui doit être incrémentée à chaque tag
 poussé.
 
+## [1.1-beta5] - 2026-08-19
+
+Deux chantiers dans cette version, dont un qui n'était pas prévu.
+
+**Le carnet.** Le 19/08/2026, l'auteur du logiciel a perdu son carnet complet —
+9 871 QSO de 2011 à 2026 — en redémarrant. Il n'a été récupéré que parce que le
+fichier ADIF d'origine existait encore. **La cause racine n'a jamais été
+identifiée** : remise à zéro, vidage par archivage, les quatre chemins de
+synchronisation et la suite de tests ont tous été éliminés par la mesure. Les
+protections ci-dessous ferment donc le goulot par lequel TOUTE destruction
+passe, au lieu de condamner une porte supposée.
+
+**Le FT8 natif**, à partir d'essais en trafic réel sur 20 m. Chaque correctif
+vient d'un constat fait à la station, pas d'une revue de code.
+
+### Sécurité — protection du carnet
+
+- **La sauvegarde automatique tourne dès le premier lancement, sans réglage.**
+  Avant, le champ « dossier de sauvegarde » était vide à l'installation et
+  **rien n'était jamais écrit** — c'est précisément ce qui a rendu la perte
+  irréversible. Sans dossier choisi, les copies horodatées vont dans un
+  sous-dossier `sauvegardes/` à côté du carnet. Le champ de CONFIG ne sert donc
+  plus à *activer* la sauvegarde mais à la **déplacer**, idéalement vers un
+  dossier synchronisé (Synology Drive, Dropbox, OneDrive) ou une clé USB. Ce
+  repli est sur le même disque que le carnet : il protège d'un carnet vidé,
+  **pas** d'un disque perdu.
+- **Refus d'écriture destructrice.** Si une opération s'apprête à faire
+  disparaître un grand nombre de QSO sans que l'opérateur l'ait demandé,
+  l'écriture est refusée et la base reste intacte. Les remises à zéro
+  explicitement demandées (« vider le log », « archiver et vider ») continuent
+  de fonctionner normalement.
+- **Journal d'appoint.** Quand l'enregistrement est suspendu, les QSO suivants
+  sont mis de côté dans un fichier ajout-seul poussé sur le support (`fsync`),
+  rejoué automatiquement au démarrage suivant. Sans lui, le garde-fou
+  ci-dessus serait devenu un second sinistre : l'opérateur aurait continué à
+  logguer dans le vide.
+- **Verrou du dossier de données.** Deux LogX AI travaillant dans le même
+  dossier partagent le même carnet et finissent par s'effacer mutuellement ; la
+  seconde instance refuse désormais de démarrer et dit pourquoi. Verrou système
+  sur le dossier, pas un simple fichier `.pid`.
+- **Bandeau rouge permanent** sur les 15 pages tant que l'enregistrement est
+  suspendu : un blocage de persistance ne doit jamais être silencieux.
+
+### Ajouté
+
+- **Séquenceur FT8** : le QSO s'enchaîne et se loggue seul (appel, report, RRR,
+  73), avec relances tant que la station n'a pas répondu. **Le mode « manuel »
+  reste le défaut, y compris après mise à jour** : personne ne se retrouve avec
+  une émission automatique sans l'avoir demandée. Cinq chemins d'arrêt (STOP,
+  Échap, désarmement, arrêt d'écoute, changement de mode) et deux abandons
+  automatiques (plafond de relances, la station répond à un tiers).
+- **Colonne SNR en dB** à la place de l'ancien « Score ». C'est un RAPPORT,
+  donc insensible au gain de la carte son — l'ancienne colonne affichait 0 sur
+  la totalité des décodages chez F4GLD. Le décodeur ne produisait auparavant
+  aucune estimation de rapport signal/bruit : le séquenceur envoyait donc le
+  même report à toutes les stations. Constante de calibration MESURÉE
+  (biais 0,13 dB, pire écart 0,74 dB sur la plage réelle du FT8) ; recoupée
+  après coup avec le code de WSJT-X, qui utilise -27,0 dB là où la mesure
+  donne -27,83.
+- **Avertissement de propreté du signal** : un ton d'émission sous 1500 Hz voit
+  son harmonique 2 tomber dans la passe-bande et partir sur l'air comme
+  parasite. L'avis chiffre la fréquence exacte du parasite pour le ton choisi.
+- **Décalage de VFO à l'émission** (équivalent du « Fake It » de WSJT-X),
+  DÉSACTIVÉ PAR DÉFAUT : décale la fréquence pendant l'émission pour que le ton
+  reste entre 1500 et 2000 Hz, et la restaure ensuite. La fréquence réellement
+  émise ne change pas. Nécessite le CAT. **Pas encore éprouvé sur l'air.**
+
+### Corrigé
+
+- **Le panneau ÉMISSION n'exige plus de scroller.** La liste des décodages
+  n'avait aucune borne de HAUTEUR : à chaque cycle de 15 s, tout ce qui se
+  trouvait dessous descendait. La liste défile désormais dans son cadre, et le
+  panneau Émission est passé EN TÊTE de colonne. Mesuré : défilement de page
+  ~2400 px -> 0 sur le chemin critique.
+- **Plus d'émission dans le créneau de la station appelée.** L'émission était
+  programmée sur « le prochain créneau, quel qu'il soit » : répondre sans
+  tarder tombait juste par hasard, une seconde de retard faisait émettre
+  par-dessus le correspondant — aucun des deux n'entendait l'autre, et rien ne
+  l'expliquait. La parité se déduit désormais du créneau où la station a été
+  entendue, sans réglage à faire. L'écran dit quand un tour est passé.
+- **Une seule page FT8 à la fois.** Deux pages, ce sont deux décodeurs sur la
+  même carte son et deux commandes de PTT sur la même radio. Le hub revient
+  désormais sur la page ouverte au lieu de la recharger (le décodeur repartait
+  de zéro et la session était perdue), et une seconde page refuse de démarrer.
+- **L'intro de la page FT8 n'est plus bridée à 900 px** : sur une fenêtre de
+  1900 px elle s'entassait sur 7 lignes dans la moitié gauche et poussait tout
+  le reste de 60 px. FT8 était l'exception — CW, RTTY et SSTV n'ont aucune
+  limite.
+
+- **Le même QSO FT8 pouvait être loggué deux fois** (constaté sur CT1END/P
+  dans le carnet de F4GLD). Une fiche déjà écrite pour un indicatif sur une
+  bande donnée n'est plus réécrite dans la fenêtre qui suit, et les
+  informations des deux passages sont fusionnées au lieu de s'écraser.
+- **25 concours proposés dans l'interface ne rendaient aucune bande.** Les
+  douze Concours de Courte Durée mensuels, le Challenge THF, le Trophée F8TD,
+  le Mémorial Marconi, les IARU VHF/UHF/50 MHz, le DDFM 50 et les quatre TVA
+  étaient sélectionnables mais n'avaient aucune définition côté serveur :
+  détection HF/V-UHF muette, filtrage de spots sans contrainte de bande,
+  validation sans bande autorisée, et « BANDES : ? » dans le contexte envoyé à
+  l'IA — le tout **en silence**. Quinze d'entre eux retrouvent leurs bandes,
+  déduites du barème qui les portait déjà en clair. Les dix autres, dont le
+  barème est une plage (« 144MHz-47GHz ») ou un mot (« HF », « 438MHz+ TVA »),
+  restent volontairement sans bandes : les développer supposerait de décider
+  quelles bandes en font partie.
+
+### Documentation
+
+- **Le guide utilisateur ignorait le FT8 natif** : sur 1458 lignes, il ne
+  connaissait le FT8 que comme un pont vers WSJT-X. Le §8.6 devient « Modes
+  numériques natifs : FT8, RTTY, SSTV — sans logiciel tiers », avec les trois
+  modes d'envoi, les cinq façons d'arrêter le séquenceur et l'avertissement
+  qu'il émet sans intervention.
+- **Le chapitre 2 décrit la sauvegarde telle qu'elle est**, y compris ce
+  qu'elle ne protège pas.
+
+### Connu, non corrigé
+
+- **Le décodage bloque le fil principal ~2,1 s par créneau** sur la machine de
+  F4GLD (mesuré et affiché dans le diagnostic). Conséquence directe : la
+  réponse ne peut pas partir dans le créneau qui suit immédiatement le
+  décodage, et laisse passer un tour. Seul le passage du décodage dans un
+  Web Worker le supprime — chantier à part, à éprouver sur machine réelle.
+- **Deux stations séparées de moins de 50 Hz** : la seconde n'est pas décodée.
+
 ## [1.1-beta4] - 2026-08-15
 
 ### Ajouté
