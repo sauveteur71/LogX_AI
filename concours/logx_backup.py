@@ -59,11 +59,47 @@ def _write_atomic(dst, text, newline=None):
         raise
 
 
+DOSSIER_DEFAUT = 'sauvegardes'
+
+
+def dossier_par_defaut():
+    """Où l'on sauvegarde quand CONFIG ne désigne aucun dossier.
+
+    Sous-dossier du dossier de données (celui qui contient déjà `logx.db`),
+    donc toujours accessible en écriture et emporté par la consigne du guide
+    « sauvegarder = copier ce dossier »."""
+    return os.path.abspath(DOSSIER_DEFAUT)
+
+
 def backup_settings(cfg):
+    """La sauvegarde tourne TOUJOURS, dossier configuré ou non.
+
+    DÉFAUT RÉEL, le 19/08/2026 : F4GLD a perdu 9 871 QSO (2011-2026) et aucune
+    sauvegarde n'existait, parce que `backup_folder` était vide — il l'est à
+    l'installation, et le logiciel ne l'a jamais réclamé. Rendre l'utilisateur
+    responsable d'un réglage qu'il ne sait pas devoir faire, c'est exactement
+    la faute que le principe du dépôt interdit : le meilleur réglage est celui
+    qu'on n'a pas à faire. On sauvegarde donc dès le premier lancement, et le
+    champ CONFIG ne sert plus qu'à DÉPLACER les sauvegardes.
+
+    🚨 Le repli est calculé ICI et n'est JAMAIS réécrit dans la configuration.
+    C'est délibéré : `logx_cloudsync.cloudsync_settings()` replie son propre
+    dossier sur `cfg['backup_folder']`, et le commentaire de
+    `logx_cloudsync.py` (STATUS_SCAN_TIMEOUT) documente que ce repli déclenche
+    des I/O de scan **même avec `cloudsync_mode='off'`**. Écrire le défaut dans
+    la config réveillerait donc une synchro que personne n'a demandée. Le
+    défaut doit rester une valeur RÉSOLUE, pas une valeur STOCKÉE.
+
+    `par_defaut` dit lequel des deux cas s'applique, pour que l'interface
+    puisse continuer à recommander un dossier EXTERNE : ce repli protège du
+    sinistre qui s'est réellement produit (carnet vidé, dossier intact), pas
+    de la perte du disque."""
     cfg = cfg or {}
+    choisi = (cfg.get('backup_folder') or '').strip()
     return {
-        'folder': (cfg.get('backup_folder') or '').strip(),
-        'enabled': bool((cfg.get('backup_folder') or '').strip()),
+        'folder': choisi or dossier_par_defaut(),
+        'enabled': True,
+        'par_defaut': not choisi,
         'interval_min': int(cfg.get('backup_interval', 15) or 15),
     }
 
@@ -74,7 +110,10 @@ def run_backup(cfg, shared_log=None):
     s = backup_settings(cfg)
     folder = s['folder']
     if not folder:
-        return {'ok': False, 'error': 'Aucun dossier de sauvegarde configuré (CONFIG)'}
+        # Injoignable en principe : backup_settings replie toujours sur
+        # dossier_par_defaut(). Garde-fou conservé pour qu'un futur remaniement
+        # du repli échoue bruyamment au lieu d'écrire à la racine.
+        return {'ok': False, 'error': 'Aucun dossier de sauvegarde résolu (bug interne)'}
     try:
         os.makedirs(folder, exist_ok=True)
     except Exception as e:
@@ -210,5 +249,6 @@ def status(cfg=None):
     if s.get('folder') and os.path.isdir(s['folder']):
         count = len(glob.glob(os.path.join(s['folder'], 'logx_*.db')))
     return {'enabled': bool(s.get('enabled')), 'folder': s.get('folder', ''),
+            'par_defaut': bool(s.get('par_defaut')),
             'interval_min': s.get('interval_min', 15), 'last': last,
             'backups_kept': count}

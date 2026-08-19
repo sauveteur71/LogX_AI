@@ -67,15 +67,17 @@ Tout y est : votre journal de trafic, votre configuration, la base d'indicatifs,
 - **Sauvegarder** = copier ce dossier (sur une clé USB, dans votre cloud personnel...).
 - **Repartir de zéro** = supprimer ce dossier ; il sera recréé vide au prochain lancement.
 
-#### ⚠️ La sauvegarde automatique ne tourne PAS tant que vous ne l'avez pas activée
+#### La sauvegarde tourne toute seule — mais elle reste sur votre machine
 
-C'est le point le plus important de ce chapitre, et il tient en une phrase : **le champ « dossier de sauvegarde » est vide à l'installation, et tant qu'il est vide, aucune sauvegarde n'est écrite.** Nulle part. Jamais.
+**Vous n'avez rien à activer.** Depuis le 19/08/2026, LogX AI sauvegarde votre carnet dès le premier lancement, toutes les 15 minutes, dans un sous-dossier `sauvegardes/` placé à côté de vos données. Aucun réglage, aucune case à cocher.
 
-Ce n'est pas théorique. Le 19/08/2026, l'auteur du logiciel a perdu son carnet complet — 9 871 QSO de 2011 à 2026. Il n'a été récupéré que parce que le fichier ADIF d'origine traînait encore dans son dossier de téléchargements. Aucune sauvegarde n'existait, parce que le dossier n'avait jamais été renseigné.
+Il y a une raison à cette insistance. Le 19/08/2026, l'auteur du logiciel a perdu son carnet complet — 9 871 QSO de 2011 à 2026. Il n'a été récupéré que parce que le fichier ADIF d'origine traînait encore dans son dossier de téléchargements. Aucune sauvegarde n'existait : à l'époque il fallait désigner un dossier soi-même, personne ne le réclamait, et le champ était resté vide. C'est précisément ce que le repli automatique corrige.
 
-**Faites-le maintenant, avant votre premier QSO** : CONFIG → *Sauvegarde automatique* → indiquez un dossier. Choisissez-en un déjà synchronisé par votre outil habituel (Synology Drive, Dropbox, OneDrive) et vous obtenez une sauvegarde hors machine sans aucun service supplémentaire. Détail du fonctionnement au [§14.4](#144-sauvegarde-automatique-et-manuelle).
+**Ce que ce repli ne fait PAS.** Il est sur le même disque que votre carnet. Il vous protège d'un carnet vidé, corrompu ou effacé par erreur — pas d'un disque en panne, d'un vol ou d'un incendie.
 
-Attention à ne pas se fier à l'indicateur **Sauvegarde** de la barre de statut quand il affiche « navigateur HH:MM » : cet horodatage vient d'une copie faite par la page LOGBOOK, qui vit dans le navigateur et **part avec le cache**. Ce n'est pas une sauvegarde sur disque.
+**Le geste qui complète tout ça, en une fois** : CONFIG → *Sauvegarde automatique* → indiquez un dossier déjà synchronisé par votre outil habituel (Synology Drive, Dropbox, OneDrive) ou une clé USB. Les sauvegardes y vont à la place, et vous obtenez une copie hors machine sans aucun service supplémentaire. Détail au [§14.4](#144-sauvegarde-automatique-et-manuelle).
+
+Attention à ne pas confondre avec l'indicateur **Sauvegarde** de la barre de statut quand il affiche « navigateur HH:MM » : cet horodatage vient d'une copie faite par la page LOGBOOK, qui vit dans le navigateur et **part avec le cache**. Ce n'est pas la sauvegarde sur disque décrite ici.
 
 #### Ce qui protège votre carnet même sans rien configurer
 
@@ -1438,7 +1440,7 @@ Avec l'exécutable Windows, toutes vos données sont placées dans un dossier de
 
 ### 14.4 Sauvegarde automatique et manuelle
 
-> **Elle est DÉSACTIVÉE tant qu'aucun dossier n'est renseigné**, et le champ est vide à l'installation. Tout ce qui suit décrit son fonctionnement *une fois activée* — voir l'avertissement du [chapitre 2](#où-sont-vos-données-).
+> **Elle est active dès le premier lancement**, sans réglage : sans dossier renseigné, elle écrit dans un sous-dossier `sauvegardes/` à côté de vos données. Renseigner un dossier ne l'*active* donc pas — ça la **déplace**, idéalement vers un support synchronisé ou amovible. Voir le [chapitre 2](#où-sont-vos-données-).
 
 La sauvegarde copie régulièrement votre carnet, horodaté, vers un dossier de votre choix. L'astuce : choisissez un dossier déjà synchronisé par Synology Drive, Dropbox ou OneDrive, et vous obtenez une sauvegarde « cloud » **sans aucun service en ligne ni compte supplémentaire** — c'est votre propre outil de synchronisation qui fait le transport.
 

@@ -990,12 +990,19 @@
     // « log 11:43 UTC » se lisait comme « ton carnet est sauvegardé ». C'est
     // FAUX : cet horodatage vient de localStorage.rc_log_backup, une copie
     // faite par la PAGE Logbook toutes les 5 minutes, qui vit dans le
-    // navigateur et part avec le cache. La sauvegarde DISQUE, elle, ne tourne
-    // que si un dossier est configuré dans CONFIG (logx_backup :
-    // « enabled » vaut faux tant que backup_folder est vide) — et elle est
-    // vide par défaut. Un opérateur qui lisait cette ligne croyait son carnet
-    // à l'abri alors que rien n'avait jamais été écrit hors du navigateur.
-    // On nomme donc la SOURCE, ce qui coûte quatre caractères.
+    // navigateur et part avec le cache.
+    //
+    // La sauvegarde DISQUE, elle, tourne désormais TOUJOURS (depuis le
+    // 19/08/2026 : logx_backup.backup_settings replie sur `sauvegardes/`
+    // quand aucun dossier n'est configuré). Nommer la SOURCE reste donc
+    // nécessaire — « navigateur » n'est pas « disque » — mais pour une autre
+    // raison qu'avant : ce n'est plus « rien n'est écrit », c'est « ce n'est
+    // pas CE qui est écrit ».
+    //
+    // RESTE À FAIRE : cette ligne devrait afficher l'horodatage de la vraie
+    // sauvegarde disque (logx_backup.status() → `last`), pas celui de la copie
+    // navigateur. Elle privilégie encore la copie navigateur alors qu'une
+    // sauvegarde disque existe maintenant toujours.
     if (logBackup){ el.textContent = `navigateur ${logBackup}`; return; }
     const cfg = getConfig();
     if (cfg.saved_at){
