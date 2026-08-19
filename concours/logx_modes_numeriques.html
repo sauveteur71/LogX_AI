@@ -162,10 +162,34 @@ function notifyHub(msg){
   notifyHub._tm = setTimeout(() => t.classList.remove('show'), 6000);
 }
 function ouvrirFenetreDetachee(url, nom, options){
-  const w = window.open(url, nom, options);
+  // REVENIR SUR LA PAGE DÉJÀ OUVERTE, SANS LA RECHARGER.
+  //
+  // Signalé par F4GLD (19/08/2026) : « si une page ft8 est ouverte et si je
+  // clic sur numerique FT8 je dois arriver sur la page deja ouverte ».
+  //
+  // L'ancienne version faisait window.open(url, nom) à chaque clic. Le nom
+  // suffit au navigateur pour RÉUTILISER la fenêtre, mais passer l'URL la fait
+  // aussi NAVIGUER : la page était rechargée, donc le décodeur relancé,
+  // l'audio coupé et les décodages de la session perdus. Et sans focus(),
+  // rien ne remontait la fenêtre au premier plan — de l'extérieur, ça
+  // ressemblait à « il ne s'est rien passé », ce qui pousse à ouvrir
+  // autrement, et c'est comme ça qu'on se retrouve avec deux pages.
+  //
+  // On ouvre donc SANS URL. Une fenêtre neuve arrive sur about:blank : c'est
+  // à ce moment-là, et seulement là, qu'on charge la page.
+  const w = window.open('', nom, options);
   if(!w){
     notifyHub('Le navigateur a bloqué l\'ouverture automatique — autorise les popups pour ce site, ou ouvre directement : ' + url);
+    return null;
   }
+  let neuve = true;
+  try{
+    // Même origine : lisible. Un accès refusé signifierait une fenêtre
+    // étrangère portant ce nom — on ne la recharge alors surtout pas.
+    neuve = (w.location.href === 'about:blank');
+  }catch(e){ neuve = false; }
+  if(neuve) w.location.href = url;
+  w.focus();
   return w;
 }
 </script>

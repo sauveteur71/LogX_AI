@@ -488,6 +488,105 @@ if(localStorage.getItem('rc_theme') === null){
     return;
   }
 
+  // ─── UNE SEULE PAGE FT8 À LA FOIS ────────────────────────────────────────
+  //
+  // Demandé par F4GLD (19/08/2026) : « ça ne devrait pas être possible d'ouvrir
+  // deux pages ft8, quel intérêt ? ». Il n'y en a aucun, et il y a un vrai
+  // danger : deux pages, ce sont deux décodeurs qui se disputent la carte son,
+  // et surtout DEUX COMMANDES DE PTT sur la même radio, chacune ignorant
+  // l'existence de l'autre. Le garde-fou est donc posé ICI, avant que quoi que
+  // ce soit ne démarre — même place et même forme que le garde `file:`
+  // ci-dessus.
+  //
+  // Détection sans serveur ni service tiers (contrainte produit : gratuit,
+  // autonome, respectueux de la vie privée) : un battement de cœur dans
+  // localStorage, que se partagent tous les onglets ET les fenêtres détachées
+  // de la même origine.
+  const FT8_CLE_VIVANT = 'rc_ft8_vivant';
+  const FT8_CLE_FOCUS = 'rc_ft8_focus';
+  const FT8_BATTEMENT_MS = 2000;
+  // Au-delà de ce silence, l'autre instance est tenue pour disparue. Bien
+  // au-dessus du battement — une page occupée par un décodage peut rater un
+  // tour — et bien en dessous de la patience d'un opérateur qui rouvre après
+  // un plantage du navigateur : sans péremption, un crash interdirait FT8
+  // pour toujours.
+  const FT8_PEREMPTION_MS = 6000;
+
+  // Identité STABLE de cet onglet, conservée à travers un F5 (sessionStorage
+  // survit au rechargement, pas à la fermeture). Sans elle, un simple
+  // rafraîchissement se verrait lui-même comme « une autre page » et
+  // s'interdirait d'ouvrir.
+  let ft8MonId = sessionStorage.getItem('rc_ft8_id');
+  if(!ft8MonId){
+    ft8MonId = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
+    sessionStorage.setItem('rc_ft8_id', ft8MonId);
+  }
+
+  function ft8AutreInstance(){
+    try{
+      const lu = JSON.parse(localStorage.getItem(FT8_CLE_VIVANT) || 'null');
+      if(!lu || typeof lu.ts !== 'number') return false;
+      if(Date.now() - lu.ts > FT8_PEREMPTION_MS) return false;   // périmée
+      return lu.id !== ft8MonId;                                 // moi = pas une autre
+    }catch(e){ return false; }
+  }
+
+  if(ft8AutreInstance()){
+    // On ne décode pas, on n'émet pas, on ne réclame pas la place : on
+    // explique. Un écran vide ou une page à moitié vivante serait pire que le
+    // défaut qu'on corrige.
+    document.body.innerHTML =
+      '<div style="max-width:620px;margin:70px auto;padding:0 24px;text-align:center">'
+      + '<h1 style="font-family:var(--font-display,serif);font-size:26px;margin:0 0 18px">FT8 est déjà ouvert</h1>'
+      + '<p style="color:var(--muted);line-height:1.65;font-size:14.5px">Une autre fenêtre FT8 tourne déjà. '
+      + 'Deux pages FT8 en même temps, ce sont deux décodeurs sur la même carte son et '
+      + '<b>deux commandes de PTT sur la même radio</b> — c\'est pourquoi une seule est autorisée.</p>'
+      + '<button id="ft8AllerVers" style="margin:22px 0 0;padding:11px 20px;border-radius:8px;'
+      + 'border:1px solid var(--border);background:var(--accent);color:#fff;font-size:14px;cursor:pointer">'
+      + 'Aller à la fenêtre FT8 ouverte</button>'
+      + '<p style="color:var(--muted);font-size:12.5px;margin-top:16px;line-height:1.6">'
+      + 'Si rien ne bouge, le navigateur a refusé de changer de fenêtre : la page FT8 '
+      + 'est ailleurs sur ton bureau ou dans un autre onglet, bascule dessus à la main.</p>'
+      + '<p style="margin-top:26px"><a href="logx_modes_numeriques.html" style="color:var(--accent2)">← MODE NUMÉRIQUE</a></p>'
+      + '</div>';
+    const bouton = document.getElementById('ft8AllerVers');
+    if(bouton) bouton.addEventListener('click', () => {
+      // On NE FAIT PAS window.open('', 'rc_ft8') : si la page vivante n'a pas
+      // été ouverte sous ce nom (onglet ordinaire), cet appel CRÉERAIT une
+      // fenêtre vide de plus — exactement ce qu'on cherche à empêcher.
+      // On demande plutôt à l'instance vivante de se mettre au premier plan
+      // elle-même : elle écoute cette clé.
+      try{ localStorage.setItem(FT8_CLE_FOCUS, String(Date.now())); }catch(e){}
+    });
+    return;
+  }
+
+  // La place est libre : on la prend, et on la tient.
+  function ft8Battre(){
+    try{
+      localStorage.setItem(FT8_CLE_VIVANT,
+                           JSON.stringify({id: ft8MonId, ts: Date.now()}));
+    }catch(e){}
+  }
+  ft8Battre();
+  setInterval(ft8Battre, FT8_BATTEMENT_MS);
+
+  // Fermeture ou rechargement : on libère TOUT DE SUITE. Sans ça il faudrait
+  // attendre la péremption avant de pouvoir rouvrir, ce qui ressemblerait à
+  // un blocage. 'pagehide' plutôt que 'unload' : c'est celui qui se déclenche
+  // aussi sur mobile et sur les navigateurs à cache de retour arrière.
+  window.addEventListener('pagehide', () => {
+    try{
+      const lu = JSON.parse(localStorage.getItem(FT8_CLE_VIVANT) || 'null');
+      if(lu && lu.id === ft8MonId) localStorage.removeItem(FT8_CLE_VIVANT);
+    }catch(e){}
+  });
+
+  // Une page refusée peut nous demander de passer au premier plan.
+  window.addEventListener('storage', (e) => {
+    if(e.key === FT8_CLE_FOCUS){ try{ window.focus(); }catch(err){} }
+  });
+
   // ─── Horloge + barre de cycle (0-15s) ───────────────────────────────────
   function horloge(){
     const d = new Date();
