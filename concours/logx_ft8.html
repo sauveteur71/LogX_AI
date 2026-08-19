@@ -74,8 +74,36 @@ h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-sp
    sélectionner, ce que j'ai déjà loggué). Colonne unique sous 1300px : pas
    la place pour 3 colonnes sans les rendre illisibles. ─────────────────────*/
 .layout{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:16px;align-items:start}
-.center-col{min-width:0}
-@media (max-width:1300px){.layout{grid-template-columns:1fr}.side{position:static !important}}
+/* LE PANNEAU ÉMISSION NE DOIT JAMAIS EXIGER DE SCROLLER. Il vit sous la
+   liste des décodages, et cette liste grandissait sans borne de hauteur :
+   à chaque cycle de 15 s, tout ce qui est en dessous descendait. Signalé en
+   trafic réel (19/08/2026) — « je suis obligé de scroller tout en bas pour
+   voir l'émission ». Émettre est le chemin critique de cette page ; il ne
+   peut pas dépendre de la quantité de trafic reçu.
+
+   Le plafond de 60 lignes déjà posé sur le tableau ne réglait rien : il
+   borne la MÉMOIRE, pas la HAUTEUR — 60 lignes font ~1500 px, soit deux
+   écrans et demi. C'est la hauteur qu'il faut borner, et laisser la liste
+   défiler DANS son cadre.
+
+   La colonne devient donc une pile verticale de hauteur bornée à l'écran,
+   collante comme les deux colonnes latérales qui l'encadrent (même `top`) :
+   le panneau Réception absorbe la place restante et fait défiler sa liste,
+   le panneau Émission garde sa hauteur naturelle et reste visible. */
+.center-col{min-width:0;display:flex;flex-direction:column;gap:14px;
+            position:sticky;top:12px;max-height:calc(100vh - 24px)}
+/* margin-bottom historique + gap flex feraient un double espace. */
+.center-col > .panel{margin-bottom:0}
+/* min-height:0 est indispensable : sans lui un enfant flex refuse de
+   descendre sous la hauteur de son contenu, et le cadre déborderait au lieu
+   de faire défiler. */
+#panelRx{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.decodes-scroll{flex:1;min-height:110px;overflow-y:auto;margin-top:10px}
+@media (max-width:1300px){.layout{grid-template-columns:1fr}.side{position:static !important}
+  .center-col{position:static;max-height:none}
+  /* Empilé sur une colonne, rien ne borne plus la hauteur par le haut : on
+     borne la liste elle-même, sinon le panneau Émission repart vers le bas. */
+  .decodes-scroll{max-height:50vh}}
 .side{position:sticky;top:12px;display:flex;flex-direction:column;gap:14px}
 .mini-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
 .mini-title{font-family:var(--font-display);font-size:12px;font-weight:900;color:var(--accent2);margin-bottom:8px;letter-spacing:.3px}
@@ -122,7 +150,10 @@ button.danger.on{background:var(--red);border-color:var(--red);color:#2a0008}
 canvas#waterCanvas{width:100%;height:110px;display:block;background:#000;border:1px solid var(--border);border-radius:6px;cursor:crosshair}
 canvas#axisCanvas{width:100%;height:16px;display:block;background:var(--bg3);border-left:1px solid var(--border);border-right:1px solid var(--border);cursor:crosshair}
 
-table.decodes{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12.5px;margin-top:10px}
+table.decodes{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12.5px}
+/* L'en-tête reste lisible pendant qu'on fait défiler : sans fond opaque, les
+   lignes défileraient PAR-DESSOUS en restant visibles. */
+table.decodes thead th{position:sticky;top:0;background:var(--bg2);z-index:1}
 table.decodes th{text-align:left;color:var(--muted);font-weight:400;letter-spacing:1px;font-size:10.5px;
   padding:4px 8px;border-bottom:1px solid var(--border)}
 table.decodes td{padding:5px 8px;border-bottom:1px solid var(--border)}
@@ -293,7 +324,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
          en vérification navigateur (sideRight rendu à la même position x que
          sideLeft), pas en relisant le CSS. -->
     <div class="center-col">
-    <div class="panel">
+    <div class="panel" id="panelRx">
       <div class="panel-title">Réception</div>
       <div class="controles">
         <label>PÉRIPHÉRIQUE D'ENTRÉE<select id="ft8Device"><option value="">— chargement… —</option></select></label>
@@ -305,6 +336,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <canvas id="waterCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
         <canvas id="axisCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
       </div>
+      <div class="decodes-scroll">
       <table class="decodes">
         <thead><tr><th>UTC</th><th>Hz</th>
           <th title="Décalage temporel de la station reçue par rapport au créneau de 15 s. Proche de 0 = horloges d'accord. Si TOUTES les stations sont décalées du même côté, c'est l'horloge de CE PC qui est fausse.">DT</th>
@@ -312,6 +344,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <tbody id="decodesBody"></tbody>
       </table>
       <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
+      </div>
     </div>
 
     <div class="panel">
