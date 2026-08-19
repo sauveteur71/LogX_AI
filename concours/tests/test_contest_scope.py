@@ -145,7 +145,7 @@ def _qso(**kw):
 def test_dedup_bloque_meme_concours_meme_annee(monkeypatch):
     existing = _qso()
     monkeypatch.setattr(http, 'shared_log', [existing])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
     ok, info = http.add_qso_to_log(_qso(time='10:05'))
     assert not ok and info.get('duplicate')
@@ -157,7 +157,7 @@ def test_dedup_autorise_meme_concours_annee_suivante(monkeypatch):
     correctif, l'absence d'année dans le tag de concours le bloquait à tort."""
     existing = _qso(date='20260718')   # même concours, l'an dernier
     monkeypatch.setattr(http, 'shared_log', [existing])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
     ok, _info = http.add_qso_to_log(_qso(date='20270718'))
     assert ok
@@ -176,7 +176,7 @@ def test_dedup_wwa_bloque_meme_jour(monkeypatch):
     vrai doublon (le correctif ne doit pas tout désactiver)."""
     existing = _qso(contest='WWA_2027_JAN', date='20270105', time='10:00')
     monkeypatch.setattr(http, 'shared_log', [existing])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
     ok, info = http.add_qso_to_log(_qso(contest='WWA_2027_JAN', date='20270105', time='14:00'))
     assert not ok and info.get('duplicate')
@@ -187,7 +187,7 @@ def test_dedup_wwa_autorise_jour_different_meme_scope(monkeypatch):
     (même scope_id 'WWA_2027_JAN#2027') n'est plus refusé à tort."""
     existing = _qso(contest='WWA_2027_JAN', date='20270105', time='10:00')
     monkeypatch.setattr(http, 'shared_log', [existing])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
     ok, _info = http.add_qso_to_log(_qso(contest='WWA_2027_JAN', date='20270112', time='10:00'))
     assert ok
@@ -200,7 +200,7 @@ def test_dedup_hors_wwa_reste_bloque_meme_scope_jour_different(monkeypatch):
     vraiment déclarée, pas systématiquement dès qu'une date diffère."""
     existing = _qso(date='20270718')
     monkeypatch.setattr(http, 'shared_log', [existing])
-    monkeypatch.setattr(http, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(http, 'save_log_to_disk', lambda effacement_autorise=False: None)
     monkeypatch.setattr(http, 'current_config', {'usage_mode': 'contest'})
     ok, info = http.add_qso_to_log(_qso(date='20270719'))
     assert not ok and info.get('duplicate')

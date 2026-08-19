@@ -6,7 +6,8 @@ import re
 import logx_rules as rules
 from logx_bands import dx_alert_line
 from logx_rules import calc_contest_date
-from logx_definitions import CONTEST_DEFINITIONS, get_scoring_info
+from logx_definitions import (CONTEST_DEFINITIONS, get_scoring_info,
+                              bandes_du_concours)
 from logx_utils import CURRENT_YEAR, locator_to_latlon, haversine
 from logx_storage import shared_log
 
@@ -273,7 +274,7 @@ NUMÉROTATION : indépendante par bande (001 sur 144 MHz, 001 sur 432 MHz)
 ═══════════════════════════════════════════════════════
 DATE {CURRENT_YEAR} : {contest_date}
 DATE {CURRENT_YEAR+1} : {contest_date_next}
-BANDES : {', '.join(cdef.get('bands', ['?']))} MHz
+BANDES : {', '.join(bandes_du_concours(contest) or ['?'])} MHz
 MODES : {', '.join(cdef.get('modes', ['?']))}
 ÉCHANGE : {contest_exchange}
 SCORING : {scoring_def.get('unit', 'km × locators')}

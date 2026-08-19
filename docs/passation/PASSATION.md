@@ -25,19 +25,120 @@ que sert le serveur sur le port 8080. Elle est à jour.
 > ⚠️ **Le serveur doit être redémarré** pour prendre les correctifs Python.
 > Les fichiers `.html`/`.js` sont relus à chaque requête, pas les `.py`.
 
-### En attente de la décision de F4GLD
+### En attente d'un essai sur l'air
 
 **PR #116 — le séquenceur FT8 automatique.** Un double-clic sur une station
 déroule le QSO seul (appel, report, accusé, 73) puis logue.
 
-Elle n'a **jamais été fusionnée, volontairement** : un séquenceur émet sans
-surveillance, c'est la fonction la plus intrusive du logiciel, et c'est la
-station de F4GLD qui est sur l'air. Trois revues adversariales successives, 69
-constats confirmés et corrigés, banc à 146 cas — mais **aucun essai sur l'air**.
-C'est ce qui manque, et aucun banc ne peut le remplacer.
+> 🔴 **Elle EST fusionnée** — le 19/08/2026 à 09:19 UTC, commit `ff5991e`.
+> Une version antérieure de cette page affirmait le contraire (« jamais
+> fusionnée, volontairement ») : c'était vrai à l'écriture, faux depuis, et
+> personne ne l'avait mise à jour. Vérifié en relisant `main`, pas en croyant
+> le document : `seqDemarrer` / `seqArreter` / `seqEtat` sont présents dans
+> `concours/logx_ft8.html`. **La fonction la plus intrusive du logiciel est
+> donc dans le code que F4GLD fait tourner.**
+
+Ce qui reste vrai, et qui est le vrai sujet : un séquenceur **émet sans
+surveillance**, et c'est la station de F4GLD qui est sur l'air. Trois revues
+adversariales successives, 69 constats confirmés et corrigés, banc à 146 cas —
+mais **toujours aucun essai sur l'air**. Aucun banc ne peut le remplacer.
+
+C'est donc la première chose à faire en reprenant : un essai réel, sur une
+station surveillée, avant que quiconque d'autre s'en serve. Même remarque pour
+le décalage de VFO à l'émission (PR #125) : il commande le poste pendant
+l'émission et n'a jamais été vérifié sur l'air ni contrôlé sur un WebSDR.
 
 PR #114 est l'ancêtre abandonné du séquenceur, laissée en brouillon. Ne pas la
 rouvrir.
+
+**PR #129 — le guide utilisateur.** Ouverte, jamais fusionnée faute de temps.
+Elle ne porte **aucune coche de CI**, et c'est normal, pas un échec :
+`check.yml` ne se déclenche que sur `concours/**` et deux chemins `.github/`,
+or cette PR ne touche que `docs/`. Ne pas lire « aucune vérification » comme
+« vérification en attente » — c'est le filtre de chemins, vérifié dans le
+workflow. Elle ajoute au `docs/GUIDE_UTILISATEUR.md` les deux choses que
+l'incident du 19/08 a rendues urgentes : l'avertissement du chapitre 2 disant
+que **la sauvegarde automatique ne tourne pas tant qu'aucun dossier n'est
+renseigné** (le guide la décrivait au §14.4 comme si elle tournait), et la
+réécriture du §8.6 en « Modes numériques natifs : FT8, RTTY, SSTV » — le FT8
+natif n'apparaissait nulle part dans les 1458 lignes du guide, alors que c'est
+l'argument principal du produit. Rien de risqué dedans : c'est de la
+documentation. À fusionner telle quelle.
+
+### 🔴 L'incident du 19/08/2026 — le carnet perdu
+
+À lire avant tout ce qui touche à la persistance.
+
+**Ce qui s'est passé.** En redémarrant après une série de modifications, F4GLD
+a retrouvé son carnet **vide**. 9 871 QSO, de 2011 à 2026. Ils ont été
+récupérés : d'abord par *carving* de la base SQLite (lecture des pages
+libérées, ~9 859 fiches reconstituées à partir des ancres `{"` remontées à
+l'envers — les tableaux de pointeurs de cellules des pages libérées sont
+périmés, une première tentative appuyée dessus rendait 0), puis complétés en
+réimportant l'ADIF d'origine qui traînait encore. Décompte actuel vérifié
+auprès du serveur en direct (`/log/status`) : **9 871**.
+
+**La cause racine n'a JAMAIS été identifiée.** C'est le point important, et il
+ne faut pas laisser croire l'inverse. Ont été éliminés **par la mesure**, pas
+par raisonnement : la remise à zéro, le vidage par archivage, les quatre
+chemins de synchronisation, et la suite de tests. Sur ce dernier point, un
+agent avait désigné la suite de tests comme « candidat principal » ; je l'ai
+**réfuté moi-même en mesurant** — les bases des worktrees contiennent bien
+F1TEST/F2AAA/F2BBB/F3CCC, la base de production en contient zéro, parce que le
+répertoire de travail est calculé depuis `__file__`. Ne pas rouvrir cette piste
+sans mesure nouvelle.
+
+**Ce qui a été fait à la place — fermer le goulot, pas une porte** (PR #127,
+fusionnée). Toute destruction massive passe par `concours/logx_storage.py` :
+c'est là que les trois garde-fous ont été posés, plutôt que sur le chemin
+soupçonné du jour.
+
+1. **Refus d'écriture destructrice.** `_ecrire_tout()` compare ce qu'il y a sur
+   disque à ce qu'on s'apprête à écrire ; au-delà de `_SEUIL_PERTE_MASSIVE = 25`
+   fiches perdues, il lève `ReecritureDestructrice` et la base reste intacte.
+   Les effacements **voulus** passent par `effacement_autorise=True` et
+   continuent de marcher.
+2. **Journal d'appoint append-only.** Quand l'écriture est bloquée, les QSO
+   suivants partent dans `logx_journal_secours.jsonl` (`flush` + `os.fsync`),
+   rejoué puis renommé au démarrage — sans quoi le gel serait un second
+   désastre. ⚠️ Défaut trouvé en cours de route : le journal n'était rejoué que
+   si la base existait. Corrigé.
+3. **Verrou du DOSSIER de données** (`logx_singleton.py`, `msvcrt.locking` sous
+   Windows, `fcntl.flock` ailleurs). Deux LogX AI dans le même dossier
+   finissaient par s'effacer mutuellement. Un `.pid` ne convenait pas : il se
+   libère à la mort du processus, et `os.kill(pid, 0)` **tue** sous Windows.
+
+Et un bandeau rouge permanent sur les 15 pages (`logx_statusbar.js`, via
+`/log/status`) : un blocage de persistance ne doit pas être silencieux.
+
+> 🚨 **Piège payé deux fois pendant ce correctif** : un `except Exception:
+> return True` avalait un `NameError` (`os` non importé dans
+> `logx_singleton.py`) et faisait annoncer un verrou jamais pris. Trouvé
+> seulement en lançant **deux vrais processus**. J'ai refait exactement la même
+> erreur ensuite dans `logx_serveur.py` — rattrapée par `ruff` (F821). Ne pas
+> écrire de repli muet sur ce chemin.
+
+**Ce qui reste à faire ici** : la sauvegarde automatique est toujours
+**inactive tant qu'aucun dossier n'est renseigné**, et le champ est vide à
+l'installation. C'est ce qui a rendu l'incident irréversible. Le guide le dit
+maintenant (chapitre 2 et §14.4), mais **le logiciel, lui, ne le réclame
+toujours pas** au premier lancement. Une invite au démarrage tant que le
+dossier est vide serait le vrai correctif, et elle n'existe pas.
+
+### 🔴 Rien de tout cela n'est publié
+
+`concours/logx_version.py` annonce `1.1-beta4`, et le dernier tag publié est
+`v1.1-beta4`. Or **32 commits sont sur `main` depuis ce tag** (vérifié par
+`git rev-list --count v1.1-beta4..main`), dont la PR #127 ci-dessus.
+
+Autrement dit : **les garde-fous qui protègent le carnet ne sont dans aucun
+binaire téléchargeable.** Quiconque installe LogX AI aujourd'hui prend la
+version d'avant l'incident. La publication d'une `v1.1-beta5` a été commencée
+puis suspendue, et jamais reprise.
+
+Avant de pousser le tag : **vérifier le build PyInstaller en local d'abord**.
+Un build de release est resté cassé deux jours sans que personne le sache
+(`Tree()` vs `Analysis()`), et seul un vrai build local l'avait révélé.
 
 ### Ce qui reste ouvert
 
@@ -60,7 +161,124 @@ rouvrir.
    (0/40 tirages pour une station à 18 Hz d'écart). Préexistant, chantier
    distinct.
 
-4. **Constats restants de la 3e revue** (modérés) : offre de log écrasée en
+4. ✅ **FAIT — 25 concours proposés dans l'interface rendaient zéro bande.**
+   Corrigé le 19/08/2026 par l'accesseur `bandes_du_concours()` décrit plus
+   bas, branché sur les onze sites qui lisaient `bands` à plat. 15 concours
+   retrouvent leurs bandes, les 10 ambigus restent volontairement vides et
+   leur liste est désormais **verrouillée par un test** — elle ne peut que
+   rétrécir. Ce qui suit est conservé parce que le raisonnement, lui, reste
+   utile : il explique pourquoi on n'a PAS fabriqué de définitions, et ce
+   qu'il resterait à faire pour les 10 derniers.
+
+   Mesuré le 19/08/2026 en exécutant le code, pas en le lisant :
+   `CONTEST_DEFINITIONS` contient 43 entrées, `CONTEST_SCORING` 43 aussi, mais
+   **25 identifiants de `CONTEST_SCORING` n'existent pas dans
+   `CONTEST_DEFINITIONS`**. Le catalogue client (`concours/logx_configuration.js`,
+   45 concours nommés) les propose pourtant tous à la sélection.
+
+   Conséquence, vérifiée :
+   `CONTEST_DEFINITIONS.get('REF_MARCONI', {}).get('bands', [])` rend `[]`. Les
+   dix consommateurs passent **tous** par `.get(x, {})` — `logx_archive.py:67`,
+   `logx_callhistory.py:110` et `:396`, `logx_coach.py:582` et `:825`,
+   `logx_http.py:983`, `:1304`, `:2732`, `:2892`. La dégradation est donc
+   **silencieuse partout** : pas d'exception, pas de trace au journal, juste des
+   bandes vides. C'est pour ça que personne ne l'a vue.
+
+   Presque tous les concernés sont des concours THF français — les douze CCD
+   mensuels, Challenge THF, Trophée F8TD, Marconi, IARU VHF/UHF/50 MHz, DDFM 50,
+   les quatre TVA. C'est **exactement la population visée par le chantier LOG
+   V/UHF**, qui ne doit donc pas démarrer avant ce correctif : ce serait bâtir
+   sur du sable.
+
+   **La donnée existe déjà dans le dépôt**, mais dans une seconde structure
+   faite pour l'affichage, pas pour le code : `CONTEST_SCORING` porte les bandes
+   en texte (`'432 1296 2320MHz'`), et le catalogue client porte les libellés.
+   Il n'y a donc rien à inventer — seulement à convertir. Recensement complet :
+
+   - **15 convertibles**, liste de bandes explicite. `144MHz` :
+     REF_CCD_AVR_CW, REF_CCD_DEC, REF_CCD_DEC_CW, REF_CCD_FEV2, REF_CCD_JAN2,
+     REF_CCD_MAR, REF_CCD_NOV, REF_IARU_VHF, REF_MARCONI. `432 1296 2320MHz` :
+     REF_CCD_FEV1, REF_CCD_JAN1, REF_CCD_MAI, REF_CCD_OCT. `50MHz` :
+     REF_DDFM_50, REF_IARU_50.
+   - **10 NON convertibles, et il ne faut pas les forcer** : `CUSTOM`
+     (« Au choix »), `F9NL` et `UFT_RENCONTRES` (« HF »), les quatre TVA
+     `REF_CDF_TVA` / `REF_IARU_TVA` / `REF_NAT_TVA` / `REF_NAT_TVA_DEC`
+     (« 438MHz+ TVA »), `REF_CHALLENGE_THF` (« 144MHz-47GHz »), `REF_F8TD`
+     (« 1296MHz-47GHz »), `REF_IARU_UHF` (« 432MHz-47GHz »). Développer une
+     PLAGE ou un mot en liste de bandes, c'est **décider** quelles bandes en
+     font partie — donc inventer une valeur de domaine, ce que ce dépôt
+     interdit sans source citable. Il faut lire les règlements REF pour les
+     trancher, ou demander à F4GLD. Ne pas deviner.
+
+   Le format attendu est celui des entrées existantes : `bands` est une liste
+   de chaînes en **MHz** (`['144','432']` pour REF_RPH), jamais `'2m'`/`'70cm'`.
+   Vérifié sur les entrées réelles, c'est un piège classique du dépôt.
+
+   ⛔ **La recette écrite ici le matin du 19/08 était INAPPLICABLE — ne pas
+   la suivre.** Elle proposait de fabriquer une définition minimale
+   (`name`/`bands`/`modes`) marquée `'derive_du_bareme': True` et de l'insérer
+   dans `CONTEST_DEFINITIONS`. C'est impossible, pour trois raisons vérifiées
+   dans `concours/contest_schema.json` :
+
+   - le schéma exige **huit** champs : `name`, `organizer`, `date_rule`,
+     `bands`, `modes`, `exchange`, `scoring`, `log_format` ;
+   - il porte `"additionalProperties": false` — la clé `derive_du_bareme`
+     ferait donc échouer la validation à elle seule ;
+   - `date_rule` est contraint par une expression régulière stricte
+     (`first_saturday_july`, `last_full_weekend_october`…), interprétée par
+     `calc_contest_date`.
+
+   Et ce n'est pas théorique : la CI (`check.yml`) lance
+   `python logx_validate.py` de façon **bloquante** contre ce schéma. Une
+   entrée dérivée serait rejetée ; compléter `date_rule`, `exchange` ou
+   `log_format` de tête reviendrait à inventer des valeurs de domaine, ce que
+   le dépôt interdit sans source citable.
+
+   **Recette correcte : un ACCESSEUR, pas une entrée fabriquée.** Le défaut à
+   corriger est le symptôme — `…get('bands', [])` rend `[]`. Introduire dans
+   `logx_definitions.py` une fonction du genre `bandes_du_concours(cid)` qui
+   lit d'abord `CONTEST_DEFINITIONS[cid]['bands']`, et à défaut analyse la
+   chaîne de `CONTEST_SCORING[cid]['bands']` (rendre `[]` dès qu'un `-` ou un
+   mot apparaît, ce qui écarte les 10 ambigus tout seul, sans liste noire).
+   Puis remplacer les consommateurs par cet accesseur — ils sont listés
+   ci-dessus. `CONTEST_DEFINITIONS` n'est pas touché, le contrat public n'est
+   pas modifié, rien n'est inventé, et `logx_validate.py` reste vert.
+
+   Si un jour on veut de vraies définitions pour ces concours, c'est un
+   travail de SOURCES (lire les règlements REF pour en tirer date, échange,
+   format de log), pas un travail de conversion. Ne pas confondre les deux.
+
+   **Ce qui reste ouvert ici**, et c'est le seul reliquat : les 10 concours
+   dont le barème est une plage ou un mot — `CUSTOM`, `F9NL`,
+   `UFT_RENCONTRES`, les quatre TVA, `REF_CHALLENGE_THF`, `REF_F8TD`,
+   `REF_IARU_UHF`. Ils rendent toujours `[]`, volontairement. Pour en sortir
+   un, il faut lire son règlement et lui écrire une vraie définition conforme
+   au schéma, puis le retirer de `AMBIGUS_CONNUS` dans
+   `tests/test_concours_sans_definition.py`. Le test refusera qu'on élargisse
+   cette liste sans le vouloir, et refusera aussi qu'on y laisse un concours
+   résolu.
+
+   Trois précautions, chacune correspondant à un piège déjà payé :
+   - Les libellés viennent du catalogue client, extraits par la regex
+     `id:'([A-Z0-9_]+)'\s*,\s*name:'((?:[^'\\]|\\.)*)'` sur
+     `logx_configuration.js` (45 résultats, les 25 orphelins tous couverts).
+     Si on fige ces libellés côté Python, il **faut** un test de
+     synchronisation avec le `.js` — une liste d'identifiants recopiée à la
+     main diverge, fiche `piege-liste-identifiants-ecrite-a-la-main`.
+   - Un test doit **figer la liste des 10 restants** : elle ne peut que
+     rétrécir, jamais grandir en silence. C'est précisément ce filet qui a
+     manqué pendant tout ce temps, et sans lui le défaut se reformera.
+   - Le test doit exiger une **structure** (bandes non vides, numériques), pas
+     la présence d'une chaîne : `assert 'REF_MARCONI' in fichier` serait
+     satisfait par le commentaire qui l'explique.
+
+   Enfin : témoin vert d'abord, puis contre-épreuve par mutation (remettre le
+   défaut, vérifier que ça rougit, restaurer, contrôler l'empreinte md5), puis
+   suite complète et `ruff`. Le fichier passe en CRLF après une fusion git —
+   construire les ancres multi-lignes avec `chr(10)`/`chr(13)`, sinon elles ne
+   matchent plus (fiche `piege-contre-epreuve-ancres-crlf-apres-fusion-git`).
+
+5. **Constats restants de la 3e revue** (modérés) : offre de log écrasée en
    silence par le QSO suivant après un échec d'écriture ; changement de MODE
    D'ENVOI qui tue le QSO sans le dire (`seqMajUI()` écrase le message dans le
    même tick) ; double-clic sur un 73 reçu qui repart en TX1 au lieu de

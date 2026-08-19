@@ -124,7 +124,7 @@ def test_upload_qso_supprime_pendant_lecriture_du_scan_ne_le_ressuscite_pas(serv
     monkeypatch.chdir(tmp_path)
     qso = {'id': 42, 'call': 'F5ABC'}
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
 
     real_save_scan = qslscan.save_scan
 
@@ -155,7 +155,7 @@ def test_upload_ok_toujours_attache_le_scan_en_labsence_de_course(server, tmp_pa
     monkeypatch.chdir(tmp_path)
     qso = {'id': 43, 'call': 'F5ABC'}
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
 
     status, res = _post_multipart(server, '/qsl_scan/upload',
                                   fields={'qso_id': '43'},
@@ -203,7 +203,7 @@ def test_delete_qso_via_delete_supprime_le_scan_qsl_attache(server, tmp_path, mo
     assert os.path.isfile(rel)
     qso = {'id': 7, 'call': 'F5ABC', 'qsl_scan': rel}
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
 
     res = _delete(server, '/log/delete/7')
     assert res['ok'] and res['deleted'] == 1
@@ -216,7 +216,7 @@ def test_delete_qso_sans_scan_ne_leve_pas(server, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     qso = {'id': 11, 'call': 'F5XYZ'}
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
 
     res = _delete(server, '/log/delete/11')
     assert res['ok'] and res['deleted'] == 1
@@ -231,7 +231,7 @@ def test_delete_qso_via_post_supprime_aussi_le_scan_qsl(server, tmp_path, monkey
     assert os.path.isfile(rel)
     qso = {'id': 8, 'call': 'F5XYZ', 'qsl_scan': rel}
     monkeypatch.setattr(httpmod, 'shared_log', [qso])
-    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda: None)
+    monkeypatch.setattr(httpmod, 'save_log_to_disk', lambda effacement_autorise=False: None)
 
     res = _post_json(server, '/log/delete/8', {})
     assert res['ok'] and res['deleted'] == 1

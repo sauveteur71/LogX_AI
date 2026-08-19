@@ -2423,7 +2423,7 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
               <input type="text" id="backup_folder" placeholder="C:\Users\...\SynologyDrive\logs" autocomplete="off">
               <button type="button" class="folder-pick-btn" id="backupFolderPickBtn" onclick="pickBackupFolder()" title="Parcourir… (explorateur Windows)"><svg width="14" height="14" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M1.5 4.5h5l1.5 2h8.5v8h-15z"/></svg></button>
             </div>
-            <div class="input-note">Copie horodatée (.db + .json + ADIF) ; vide = désactivé</div>
+            <div class="input-note">Copie horodatée (.db + .json + ADIF). Vide = sous-dossier <code>sauvegardes/</code> à côté de ton carnet, et ça tourne dès le premier lancement. Indique plutôt un dossier synchronisé (Synology Drive, Dropbox, OneDrive) ou une clé USB : le repli local protège d'un carnet vidé, pas d'un disque perdu.</div>
             <span id="backupFolderPickResult" style="font-family:var(--font-mono);font-size:12px"></span>
           </div>
           <div class="form-group">
