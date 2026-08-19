@@ -48,6 +48,31 @@ def _bloc_css(src, selecteur):
     return m.group(1)
 
 
+def test_EMISSION_est_le_premier_panneau_de_la_colonne(src):
+    """Borner la hauteur ne suffisait pas : F4GLD l'a reverifie en trafic et a
+    tranche — « toujours un scroll, passe le cadre emission au dessus du cadre
+    reception ».
+
+    La borne avait ramene le defilement de ~2400 px a 278 px, pas a zero :
+    l'en-tete de la page (titre, intro, aide poste) occupe 242 px et la colonne
+    ne peut pas tenir dessous. Placer EMISSION en tete de colonne le rend
+    visible sans le moindre defilement, quelle que soit la hauteur de fenetre.
+
+    Mesure en navigateur reel (1683x940, 60 lignes, scroll a 0) : panneau
+    Emission de y=242 a y=401, case « Activer l'emission » et champ du message
+    entierement visibles.
+    """
+    debut = src.index('<div class="center-col">')
+    fin = src.index('COLONNE DROITE', debut)
+    zone = src[debut:fin]
+    iEmission = zone.index('<div class="panel-title">Émission</div>')
+    iReception = zone.index('<div class="panel-title">Réception</div>')
+    assert iEmission < iReception, (
+        'ÉMISSION doit précéder RÉCEPTION dans la colonne centrale — sinon la '
+        'liste des décodages le repousse hors de l\'écran, ce qui est '
+        'exactement le défaut signalé')
+
+
 def test_la_liste_des_decodages_vit_dans_un_cadre_qui_defile(src):
     """Sans conteneur de défilement, la liste pousse le panneau Émission vers
     le bas à chaque cycle. C'est LE défaut d'origine."""
