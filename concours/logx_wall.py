@@ -131,9 +131,9 @@ def _vhf_active(cfg):
     bandes du concours actif en premier, repli sur les toggles manuels de
     bande (CONFIG) si le concours ne tranche pas (bandes 'all'/inconnues)."""
     cfg = cfg or {}
-    from logx_definitions import CONTEST_DEFINITIONS
+    from logx_definitions import bandes_du_concours
     contest = cfg.get('contest', '')
-    cdef_bands = [str(b) for b in CONTEST_DEFINITIONS.get(contest, {}).get('bands', [])]
+    cdef_bands = bandes_du_concours(contest)
     if any(b not in _HF_BAND_TOKENS and b not in ('50', 'all') for b in cdef_bands):
         return True   # une bande >= 144 MHz est explicitement dans la définition
     has_hf_bands = any(b in _HF_BAND_TOKENS for b in cdef_bands)

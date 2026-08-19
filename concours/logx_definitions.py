@@ -1325,3 +1325,68 @@ CONTEST_RULES_URLS = {
     'REF_MARCONI':   'https://concours.r-e-f.org/reglements/actuels/reg_marconi_fr_20250312.pdf',
     'REF_DDFM_50':   'https://concours.r-e-f.org/reglements/actuels/reg_ddfm50_fr_20250312.pdf',
 }
+
+
+# ─── BANDES D'UN CONCOURS ────────────────────────────────────────────────────
+#
+# DÉFAUT RÉEL mesuré le 19/08/2026 : 25 identifiants de CONTEST_SCORING n'ont
+# AUCUNE entrée dans CONTEST_DEFINITIONS, alors que le catalogue client
+# (logx_configuration.js) les propose tous à la sélection. Presque tous sont
+# des concours THF français : les douze CCD mensuels, Challenge THF, Trophée
+# F8TD, Marconi, IARU VHF/UHF/50 MHz, DDFM 50, les quatre TVA.
+#
+# Conséquence : `CONTEST_DEFINITIONS.get(cid, {}).get('bands', [])` rend [].
+# Une douzaine de sites lisent 'bands' de cette façon, tous avec un défaut à
+# [] — la dégradation était donc SILENCIEUSE partout, sans exception ni trace.
+#
+# POURQUOI PAS UNE ENTRÉE FABRIQUÉE. La tentation était d'écrire une
+# définition minimale dans CONTEST_DEFINITIONS. C'est impossible, et ça a été
+# mesuré en soumettant une telle entrée au validateur du dépôt : 6 erreurs.
+# contest_schema.json exige `name`, `organizer`, `date_rule`, `bands`,
+# `modes`, `exchange`, `scoring`, `log_format`, porte
+# `additionalProperties: false`, et contraint `date_rule` par une expression
+# régulière stricte. La CI lance `logx_validate.py` de façon BLOQUANTE.
+# Compléter `date_rule`/`exchange`/`log_format` de tête serait inventer une
+# valeur de domaine — interdit ici sans source citable.
+#
+# On lit donc la donnée là où elle existe déjà : CONTEST_SCORING porte les
+# bandes en clair, pour l'affichage (« 432 1296 2320MHz »). Le contrat public
+# n'est pas modifié, rien n'est inventé.
+
+
+def _bandes_depuis_bareme(texte):
+    """« 432 1296 2320MHz » -> ['432','1296','2320']. [] si ambigu.
+
+    Rend [] dès qu'apparaît une PLAGE (« 144MHz-47GHz ») ou un mot (« HF »,
+    « 438MHz+ TVA », « Au choix ») : développer une plage, ce serait DÉCIDER
+    quelles bandes en font partie. Les 10 concours ambigus s'écartent donc
+    d'eux-mêmes, sans liste noire à tenir à jour."""
+    t = (texte or '').strip()
+    if not t or '-' in t or '–' in t:
+        return []
+    for unite in ('MHz', 'GHz', 'kHz'):
+        t = t.replace(unite, ' ')
+    bandes = []
+    for morceau in t.split():
+        try:
+            float(morceau)
+        except ValueError:
+            return []
+        bandes.append(morceau)
+    return bandes
+
+
+def bandes_du_concours(cid):
+    """Bandes d'un concours, en MHz sous forme de chaînes (['144', '432']).
+
+    Source d'abord : CONTEST_DEFINITIONS, qui est relu à la main et fait foi.
+    À défaut seulement : la chaîne lisible de CONTEST_SCORING, convertie.
+    Rend [] plutôt que de deviner — un appelant qui reçoit [] doit se
+    comporter comme avant, c'est-à-dire ne pas filtrer par bande."""
+    cdef = CONTEST_DEFINITIONS.get(cid) or {}
+    bandes = cdef.get('bands')
+    if bandes:
+        return [str(b) for b in bandes]
+    bareme = CONTEST_SCORING.get(cid) or {}
+    return _bandes_depuis_bareme(bareme.get('bands'))
+
