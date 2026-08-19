@@ -240,7 +240,11 @@ def test_le_double_clic_transmet_le_creneau_entendu():
         'le double-clic sur un décodage doit transmettre son créneau : %r'
         % appel[:160])
     corps = _extraire_fonction(src, 'repondreEtEnvoyer')
-    assert 'retenirPariteCorrespondant(slotMs)' in corps, corps[:300]
+    # Le paramètre s'appelle slotEntendu depuis la fusion du séquenceur : les
+    # deux branches avaient ajouté ce même paramètre pour deux usages de la
+    # même donnée (parité du séquenceur / mémoire du chemin manuel), et il a
+    # été unifié plutôt que dédoublé.
+    assert 'retenirPariteCorrespondant(slotEntendu)' in corps, corps[:300]
 
 
 def test_le_double_clic_n_appelle_proposerReponse_qu_une_fois():
@@ -260,8 +264,14 @@ def test_l_ecran_dit_quand_un_tour_est_passe():
     """Un tour passé ressemble à un blocage : l'opérateur clique, et il ne se
     passe rien pendant 30 s. Il faut le dire."""
     src = _lire()
-    i = src.index('plan.tourPasse')
-    zone = src[i:i + 260]
-    assert 'un tour passé' in zone, zone[:200]
+    # On ancre sur le MESSAGE et on vérifie qu'il est bien conditionné, plutôt
+    # que de fixer une fenêtre de caractères après `plan.tourPasse` : depuis la
+    # fusion du séquenceur, une branche `creneauImpose` s'intercale entre les
+    # deux et la fenêtre ne les contenait plus tous les deux.
+    i = src.index('un tour passé')
+    zone = src[max(0, i - 300):i + 200]
+    assert 'tourPasse' in zone, (
+        "le message doit être conditionné à un tour réellement passé : %r"
+        % zone[-260:])
     assert 'correspondant.call' in zone, (
-        "le message doit nommer la station concernée : %r" % zone[:200])
+        "le message doit nommer la station concernée : %r" % zone[-260:])
