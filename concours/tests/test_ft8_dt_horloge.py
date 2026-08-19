@@ -151,8 +151,13 @@ def page():
 
 def test_une_station_parfaitement_calee_donne_un_dt_nul(page):
     """La fenêtre commence 1 s avant le créneau (la marge de extraireFenetre)
+    # La cadence est OBLIGATOIRE depuis la décimation : startSample n'est
+    # plus exprimé dans la cadence de la carte son mais dans celle, réduite,
+    # à laquelle le décodage a réellement travaillé. Le repli « cadence || sr »
+    # rendait l'oubli silencieux — et juste par accident tant que la
+    # décimation n'existait pas.
     et le signal démarre pile au créneau : DT = 0."""
-    dt = page.eval(f'calculerDt(1000000 - 1000, 1.0 * {SR}, 1000000)')
+    dt = page.eval(f'calculerDt(1000000 - 1000, 1.0 * {SR}, 1000000, {SR})')
     assert abs(dt) < 0.01
 
 
@@ -161,14 +166,14 @@ def test_un_pc_en_avance_voit_toutes_les_stations_en_retard(page):
     ouvert 3 s trop tôt : le signal des correspondants arrive 3 s « en
     retard » dans notre fenêtre. Un DT positif sur TOUTES les stations est
     donc la signature de NOTRE horloge, pas de la leur."""
-    dt = page.eval(f'calculerDt(1000000 - 1000, (1.0 + 3.0) * {SR}, 1000000)')
+    dt = page.eval(f'calculerDt(1000000 - 1000, (1.0 + 3.0) * {SR}, 1000000, {SR})')
     assert abs(dt - 3.0) < 0.01
 
 
 def test_le_dt_est_signe(page):
     """Un signal qui commence AVANT l'ouverture du créneau donne un DT
     négatif — sans le signe, impossible de dire dans quel sens régler."""
-    dt = page.eval(f'calculerDt(1000000 - 1000, 0.4 * {SR}, 1000000)')
+    dt = page.eval(f'calculerDt(1000000 - 1000, 0.4 * {SR}, 1000000, {SR})')
     assert dt < 0
 
 
@@ -201,8 +206,12 @@ def test_la_colonne_dt_existe_dans_le_tableau():
     src = _lire(FT8_HTML)
     entete = re.search(r'<thead>.*?</thead>', src, re.S).group(0)
     assert '>DT<' in entete
-    assert entete.index('>DT<') < entete.index('>Score<'), \
-        'DT attendu avant Score, comme dans WSJT-X'
+    # La colonne de REPORT s'appelait « Score » ; elle affiche désormais le
+    # SNR. On teste la POSITION relative — l'ordre des colonnes, qui est
+    # l'intention de ce test — et non le libellé, qui a déjà changé une fois.
+    assert '>SNR<' in entete, 'colonne de report absente'
+    assert entete.index('>DT<') < entete.index('>SNR<'), \
+        'DT attendu avant la colonne de report, comme dans WSJT-X'
 
 
 def test_le_bandeau_d_alerte_horloge_existe_et_part_masque():

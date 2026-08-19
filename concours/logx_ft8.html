@@ -74,8 +74,36 @@ h1{font-family:var(--font-display);font-size:19px;color:var(--accent2);letter-sp
    sélectionner, ce que j'ai déjà loggué). Colonne unique sous 1300px : pas
    la place pour 3 colonnes sans les rendre illisibles. ─────────────────────*/
 .layout{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:16px;align-items:start}
-.center-col{min-width:0}
-@media (max-width:1300px){.layout{grid-template-columns:1fr}.side{position:static !important}}
+/* LE PANNEAU ÉMISSION NE DOIT JAMAIS EXIGER DE SCROLLER. Il vit sous la
+   liste des décodages, et cette liste grandissait sans borne de hauteur :
+   à chaque cycle de 15 s, tout ce qui est en dessous descendait. Signalé en
+   trafic réel (19/08/2026) — « je suis obligé de scroller tout en bas pour
+   voir l'émission ». Émettre est le chemin critique de cette page ; il ne
+   peut pas dépendre de la quantité de trafic reçu.
+
+   Le plafond de 60 lignes déjà posé sur le tableau ne réglait rien : il
+   borne la MÉMOIRE, pas la HAUTEUR — 60 lignes font ~1500 px, soit deux
+   écrans et demi. C'est la hauteur qu'il faut borner, et laisser la liste
+   défiler DANS son cadre.
+
+   La colonne devient donc une pile verticale de hauteur bornée à l'écran,
+   collante comme les deux colonnes latérales qui l'encadrent (même `top`) :
+   le panneau Réception absorbe la place restante et fait défiler sa liste,
+   le panneau Émission garde sa hauteur naturelle et reste visible. */
+.center-col{min-width:0;display:flex;flex-direction:column;gap:14px;
+            position:sticky;top:12px;max-height:calc(100vh - 24px)}
+/* margin-bottom historique + gap flex feraient un double espace. */
+.center-col > .panel{margin-bottom:0}
+/* min-height:0 est indispensable : sans lui un enfant flex refuse de
+   descendre sous la hauteur de son contenu, et le cadre déborderait au lieu
+   de faire défiler. */
+#panelRx{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.decodes-scroll{flex:1;min-height:110px;overflow-y:auto;margin-top:10px}
+@media (max-width:1300px){.layout{grid-template-columns:1fr}.side{position:static !important}
+  .center-col{position:static;max-height:none}
+  /* Empilé sur une colonne, rien ne borne plus la hauteur par le haut : on
+     borne la liste elle-même, sinon le panneau Émission repart vers le bas. */
+  .decodes-scroll{max-height:50vh}}
 .side{position:sticky;top:12px;display:flex;flex-direction:column;gap:14px}
 .mini-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
 .mini-title{font-family:var(--font-display);font-size:12px;font-weight:900;color:var(--accent2);margin-bottom:8px;letter-spacing:.3px}
@@ -122,7 +150,10 @@ button.danger.on{background:var(--red);border-color:var(--red);color:#2a0008}
 canvas#waterCanvas{width:100%;height:110px;display:block;background:#000;border:1px solid var(--border);border-radius:6px;cursor:crosshair}
 canvas#axisCanvas{width:100%;height:16px;display:block;background:var(--bg3);border-left:1px solid var(--border);border-right:1px solid var(--border);cursor:crosshair}
 
-table.decodes{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12.5px;margin-top:10px}
+table.decodes{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12.5px}
+/* L'en-tête reste lisible pendant qu'on fait défiler : sans fond opaque, les
+   lignes défileraient PAR-DESSOUS en restant visibles. */
+table.decodes thead th{position:sticky;top:0;background:var(--bg2);z-index:1}
 table.decodes th{text-align:left;color:var(--muted);font-weight:400;letter-spacing:1px;font-size:10.5px;
   padding:4px 8px;border-bottom:1px solid var(--border)}
 table.decodes td{padding:5px 8px;border-bottom:1px solid var(--border)}
@@ -303,27 +334,22 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
          en vérification navigateur (sideRight rendu à la même position x que
          sideLeft), pas en relisant le CSS. -->
     <div class="center-col">
-    <div class="panel">
-      <div class="panel-title">Réception</div>
-      <div class="controles">
-        <label>PÉRIPHÉRIQUE D'ENTRÉE<select id="ft8Device"><option value="">— chargement… —</option></select></label>
-        <button id="rxStartBtn" onclick="toggleRx()">▶ Écouter</button>
-        <span id="rxStatus" class="tx-status">arrêté</span>
-        <span id="rxDiag" class="tx-status expert-only"></span>
-      </div>
-      <div style="margin-top:12px">
-        <canvas id="waterCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
-        <canvas id="axisCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
-      </div>
-      <table class="decodes">
-        <thead><tr><th>UTC</th><th>Hz</th>
-          <th title="Décalage temporel de la station reçue par rapport au créneau de 15 s. Proche de 0 = horloges d'accord. Si TOUTES les stations sont décalées du même côté, c'est l'horloge de CE PC qui est fausse.">DT</th>
-          <th>Score</th><th>Message</th></tr></thead>
-        <tbody id="decodesBody"></tbody>
-      </table>
-      <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
-    </div>
+    <!-- ÉMISSION AVANT RÉCEPTION — demandé explicitement par F4GLD le
+         19/08/2026, après un premier correctif qui bornait déjà la
+         hauteur de la colonne : « toujours un scroll, passe le cadre
+         emission au dessus du cadre reception ».
 
+         La hauteur bornée avait ramené le défilement de la page de ~2400
+         à 278 px, mais pas à zéro : l'en-tête de la page (titre, intro,
+         aide poste) occupe 242 px, et la colonne ne pouvait pas tenir
+         sous lui. Placer ÉMISSION en tête règle le reste — c'est le
+         premier panneau de la colonne, donc visible sans le moindre
+         défilement, quelle que soit la hauteur de la fenêtre.
+
+         L'ordre reste logique à la lecture : on décide ce qu'on envoie
+         (et on voit tout de suite si l'émission est armée), puis on
+         surveille ce qui arrive. La liste des décodages garde `flex:1`
+         et absorbe donc toute la place restante en bas de fenêtre. -->
     <div class="panel">
       <div class="panel-title">Émission</div>
       <div class="controles">
@@ -391,6 +417,29 @@ button:focus-visible,.btn:focus-visible,a:focus-visible,[role="button"]:focus-vi
         <span>QSO complété avec <b id="qsoPromptCall"></b> — l'ajouter au log ?</span>
         <button onclick="confirmerLogQso()">✓ Ajouter au log</button>
         <button class="sec" onclick="annulerLogQso()">Ignorer</button>
+      </div>
+    </div>
+
+    <div class="panel" id="panelRx">
+      <div class="panel-title">Réception</div>
+      <div class="controles">
+        <label>PÉRIPHÉRIQUE D'ENTRÉE<select id="ft8Device"><option value="">— chargement… —</option></select></label>
+        <button id="rxStartBtn" onclick="toggleRx()">▶ Écouter</button>
+        <span id="rxStatus" class="tx-status">arrêté</span>
+        <span id="rxDiag" class="tx-status expert-only"></span>
+      </div>
+      <div style="margin-top:12px">
+        <canvas id="waterCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
+        <canvas id="axisCanvas" title="Cliquer pour régler le ton TX (Hz) sur la fréquence pointée"></canvas>
+      </div>
+      <div class="decodes-scroll">
+      <table class="decodes">
+        <thead><tr><th>UTC</th><th>Hz</th>
+          <th title="Décalage temporel de la station reçue par rapport au créneau de 15 s. Proche de 0 = horloges d'accord. Si TOUTES les stations sont décalées du même côté, c'est l'horloge de CE PC qui est fausse.">DT</th>
+          <th title="Rapport signal/bruit de la station reçue, en dB, dans la bande de référence de 2500 Hz — l'unité des reports FT8. C'est CE nombre qu'on lui envoie comme report. Repères : au-dessus de 0 dB le signal est fort, vers -15 dB il est faible mais confortable, vers -20 dB on est à la limite du décodage. Un tiret signifie que la mesure n'a pas été possible.">SNR</th><th>Message</th></tr></thead>
+        <tbody id="decodesBody"></tbody>
+      </table>
+      <div class="vide" id="decodesVide">Aucun décodage pour l'instant — clique "Écouter" et attends la fin du prochain cycle de 15s.</div>
       </div>
     </div>
     </div>
@@ -614,10 +663,12 @@ if(localStorage.getItem('rc_theme') === null){
       el.addEventListener('click', () => {
         proposerReponse(messageCq());
         afficherAppelSelectionne(messageCq());
+        const info = cqSeen.get(el.dataset.call);
+        if(info) retenirPariteCorrespondant(info.ts);
       });
+      // cqSeen retient déjà le créneau (ts) : la colonne de gauche mène donc
+      // exactement au même comportement qu'un clic sur la ligne de décodage.
       el.addEventListener('dblclick', () => {
-        // On transmet le CRÉNEAU où ce CQ a été entendu : c'est lui qui donne
-        // la parité de la station, donc celle que NOUS devons éviter.
         const info = cqSeen.get(el.dataset.call);
         repondreEtEnvoyer(messageCq(), info ? info.ts : undefined);
       });
@@ -639,6 +690,14 @@ if(localStorage.getItem('rc_theme') === null){
   // Le silence serait ici le vrai défaut : un opérateur qui double-clique sans
   // avoir armé verrait le champ se remplir et rien partir, sans savoir
   // pourquoi. On le dit.
+  // slotEntendu : créneau où la station a été entendue, quand le geste vient
+  // d'un décodage. Absent lorsque le message est saisi à la main — il n'y a
+  // alors aucune parité connue, et aucune à imposer.
+  //
+  // LES DEUX BRANCHES ONT AJOUTÉ CE MÊME PARAMÈTRE, pour deux usages de la
+  // même donnée : le séquenceur la passe à seqDemarrer (sa propre parité), le
+  // chemin manuel la donne à retenirPariteCorrespondant. Un seul paramètre
+  // sert les deux — en garder deux aurait été le début d'une divergence.
   function repondreEtEnvoyer(text, slotEntendu){
     // MODE D'ENVOI autre que « manuel » : le double-clic ne prépare plus un
     // message isolé, il désigne une STATION à contacter. La cible est
@@ -669,6 +728,7 @@ if(localStorage.getItem('rc_theme') === null){
     }
     proposerReponse(text);
     afficherAppelSelectionne(text);
+    if(slotEntendu !== undefined) retenirPariteCorrespondant(slotEntendu);
     const statusEl = document.getElementById('txStatus');
     if(!txArmed){
       statusEl.textContent = "Réponse préparée — coche « Activer l'émission » pour "
@@ -915,6 +975,9 @@ if(localStorage.getItem('rc_theme') === null){
   // Écart toléré entre l'horodatage MODÉLISÉ du tampon et l'horloge réelle,
   // avant resynchronisation. Voir le long commentaire ci-dessous.
   const DERIVE_MAX_MS = 400;
+  // Durée du dernier décodage, mesurée. Affichée dans le diagnostic : c'est la
+  // CAUSE des resynchronisations, et elle n'était visible nulle part.
+  let dernierBlocageMs = 0;
 
   function pousserEchantillons(chunk){
     if(bufStartMs === 0) bufStartMs = Date.now() - (chunk.length/sr*1000);
@@ -1032,8 +1095,20 @@ if(localStorage.getItem('rc_theme') === null){
   // Mais si TOUTES les stations reçues affichent le même décalage, c'est la
   // nôtre qui est fausse — d'où la MÉDIANE sur les dernières stations reçues,
   // insensible à une station isolée mal réglée.
-  function calculerDt(debutFenetreMs, startSample, slotMs){
-    return (debutFenetreMs + (startSample / sr) * 1000 - slotMs) / 1000;
+  // `cadence` EXPLICITE : depuis la décimation, startSample n'est plus exprimé
+  // dans la cadence de la carte son mais dans celle, réduite, à laquelle le
+  // décodage a réellement travaillé. Prendre `sr` par défaut donnerait un DT
+  // faux d'un facteur 4 — et silencieusement juste avant la décimation, ce qui
+  // est le pire cas : un paramètre optionnel qui marche par accident.
+  function calculerDt(debutFenetreMs, startSample, slotMs, cadence){
+    // OBLIGATOIRE, pas optionnelle. Le repli « cadence || sr » contredisait le
+    // commentaire ci-dessus qui le désigne comme le pire cas : il rendait
+    // l'oubli SILENCIEUX et juste par accident tant que la décimation
+    // n'existait pas. Un oubli doit être bruyant.
+    if(!(cadence > 0)){
+      throw new Error('calculerDt : cadence obligatoire depuis la décimation');
+    }
+    return (debutFenetreMs + (startSample / cadence) * 1000 - slotMs) / 1000;
   }
 
   // Seuil d'alerte — RAMENÉ DE 1,5 s À 0,6 s le 18/08/2026, parce qu'à 1,5 s
@@ -1279,20 +1354,72 @@ if(localStorage.getItem('rc_theme') === null){
         // 1,5 s trop tôt, et n'acceptait en pratique qu'un DT compris entre
         // -1,00 s et +0,12 s (voir le pavé de ft8FindSync). Un PC en retard
         // de 200 ms sur l'UTC ne décodait déjà presque plus rien.
-        const results = ft8DecodeAudioAll(fenetre.samples, sr, hashTable, {
-          centerSample: ((slotTermine - fenetre.debutMs) / 1000) * sr,
+        // DÉCIMATION AVANT DÉCODAGE. Le signal FT8 tient sous 3 kHz ; la carte
+        // son livre à 48 kHz. Décoder à la cadence d'entrée faisait travailler
+        // le banc de Goertzel et la recherche de synchro sur quatre fois plus
+        // d'échantillons que nécessaire, pour exactement la même information.
+        //
+        // Ce n'était pas qu'une question de lenteur. L'appel ci-dessous est
+        // SYNCHRONE sur le thread principal : pendant toute sa durée, ni la
+        // cascade ne se redessine, ni le ScriptProcessorNode qui collecte
+        // l'audio ne s'exécute. Les blocs sautés font dériver l'horloge du
+        // tampon, que pousserEchantillons doit alors reprendre — d'où le
+        // compteur « N resynchro. audio » qui grimpait sans fin. Le décodage
+        // se sabotait lui-même : plus il durait, plus il perdait d'audio.
+        //
+        // Mesuré en NAVIGATEUR RÉEL (Chrome 148 / Electron 42), fenêtre de
+        // 16,5 s à 48 kHz, 3 stations : 10 319 ms -> 2 576 ms, soit x4,0. Les
+        // 3 messages sont décodés dans les deux cas, DT identiques au centième
+        // près, et aucune perte de sensibilité au seuil du décodeur (mesurée).
+        //
+        // ⚠ LE SYMPTÔME EST DIVISÉ PAR 4, PAS SUPPRIMÉ. DERIVE_MAX_MS vaut
+        // 400 ms et un bloc audio 85,3 ms : les 2 576 ms résiduels restent
+        // 6,4 fois au-dessus du seuil de resynchronisation. Le compteur
+        // « N resynchro. audio » continuera de monter et la cascade se figera
+        // encore, moins longtemps. Ce qui change vraiment : la fenêtre repasse
+        // au-dessus des 14 s exigées par extraireFenetre, donc le décodage
+        // cesse de s'arrêter définitivement — le défaut que F4GLD décrivait
+        // par « il ne me propose plus d'autres stations ».
+        //
+        // Le seul correctif qui rende le trou NUL est un Web Worker. Chantier
+        // distinct : il ne doit pas être greffé ici sans vérification en
+        // navigateur réel. Le blocage mesuré est affiché dans le diagnostic
+        // ci-dessous pour que la cause soit VISIBLE, pas seulement l'effet.
+        const t0Decode = (typeof performance !== 'undefined' && performance.now)
+                       ? performance.now() : Date.now();
+        const dec = ft8Decimer(fenetre.samples, sr);
+        const results = ft8DecodeAudioAll(dec.samples, dec.sampleRate, hashTable, {
+          centerSample: ((slotTermine - fenetre.debutMs) / 1000) * dec.sampleRate,
         });
         for(const r of results){
-          const dt = calculerDt(fenetre.debutMs, r.startSample, slotTermine);
+          // startSample est exprimé dans la cadence DÉCIMÉE : c'est celle-là
+          // qu'il faut pour retomber sur des secondes. Réutiliser `sr` ici
+          // diviserait le DT par le facteur de décimation, sans que rien ne le
+          // signale — le bandeau d'horloge deviendrait muet.
+          const dt = calculerDt(fenetre.debutMs, r.startSample, slotTermine,
+                                dec.sampleRate);
           dtRecents.push(dt);
           if(dtRecents.length > 12) dtRecents.shift();   // médiane glissante
-          ajouterDecodage(slotTermine, r.text, r.freqHz, r.syncScore, dt);
-          // snr absent VOLONTAIREMENT : ft8DecodeAudioAll() ne rend que
-          // {text, freqHz, syncScore, startSample} (logx_ft8_dsp.js:348) —
-          // aucune estimation de rapport signal/bruit. Le séquenceur retombe
-          // alors sur le report par défaut (voir SEQ_RST_DEFAUT).
-          messagesDuCreneau.push({text: r.text, freqHz: r.freqHz});
+          ajouterDecodage(slotTermine, r.text, r.freqHz, r.snrDb, dt);
+          // LE REPORT QUE LE SÉQUENCEUR VA ENVOYER. Jusqu'ici ce push omettait
+          // volontairement le SNR, avec ce commentaire : « ft8DecodeAudioAll()
+          // ne rend que {text, freqHz, syncScore, startSample} — aucune
+          // estimation de rapport signal/bruit. Le séquenceur retombe alors
+          // sur le report par défaut (voir SEQ_RST_DEFAUT). »
+          //
+          // Ce n'est plus vrai : le décodeur estime désormais un vrai rapport
+          // signal/bruit (ft8EstimerSnr, référencé 2500 Hz). Laisser le champ
+          // absent ferait envoyer -10 à TOUTES les stations, toujours — ce que
+          // le séquenceur faisait faute de mieux. seqLireCreneau() lit `m.snr`
+          // et seqRst() retombe sur SEQ_RST_DEFAUT si la mesure manque, donc
+          // un snrDb null reste correctement traité.
+          messagesDuCreneau.push({text: r.text, freqHz: r.freqHz, snr: r.snrDb});
         }
+        // Blocage RÉELLEMENT mesuré sur cette machine, pour cet opérateur.
+        // Sans ça, le diagnostic n'affiche que la conséquence (le compteur de
+        // resynchro) et jamais la cause.
+        dernierBlocageMs = ((typeof performance !== 'undefined' && performance.now)
+                            ? performance.now() : Date.now()) - t0Decode;
         if(results.length) majAlerteHorloge();
         surveillerSilenceAnormal(fenetre.samples, results.length);
       } else {
@@ -1318,12 +1445,21 @@ if(localStorage.getItem('rc_theme') === null){
   function majDiagnosticRx(){
     const el = document.getElementById('rxDiag');
     if(!el) return;
-    el.textContent = derivesCumulees
-      ? derivesCumulees + ' resynchro. audio depuis le démarrage'
+    // On affiche la CAUSE à côté de l'effet. Un blocage supérieur à
+    // DERIVE_MAX_MS explique à lui seul les resynchronisations : sans ce
+    // chiffre, l'opérateur ne voit qu'un compteur qui monte sans savoir
+    // pourquoi, et peut croire son horloge ou sa carte son en cause.
+    const bloc = dernierBlocageMs
+      ? 'décodage ' + Math.round(dernierBlocageMs) + ' ms/créneau'
+        + (dernierBlocageMs > DERIVE_MAX_MS ? ' (au-dessus du seuil)' : '')
       : '';
+    const parts = [];
+    if(derivesCumulees) parts.push(derivesCumulees + ' resynchro. audio');
+    if(bloc) parts.push(bloc);
+    el.textContent = parts.join(' · ');
   }
 
-  function ajouterDecodage(slotMs, text, freqHz, score, dt){
+  function ajouterDecodage(slotMs, text, freqHz, snrDb, dt){
     document.getElementById('decodesVide').style.display = 'none';
     const d = new Date(slotMs);
     const heure = String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':'+String(d.getUTCSeconds()).padStart(2,'0');
@@ -1334,7 +1470,15 @@ if(localStorage.getItem('rc_theme') === null){
     else if(estCQ) tr.className = 'cq';
     const tdH = document.createElement('td'); tdH.textContent = heure;
     const tdF = document.createElement('td'); tdF.textContent = Math.round(freqHz);
-    const tdS = document.createElement('td'); tdS.textContent = score.toFixed(0);
+    // SNR en dB, signe TOUJOURS affiché : c'est la convention des reports
+    // FT8, et « 3 » sans signe se lirait aussi bien +3 que -3 alors que les
+    // deux décrivent des conditions très différentes.
+    // Un tiret quand la mesure a échoué — jamais 0, qui se lirait « signal
+    // aussi fort que le bruit », c'est-à-dire une VRAIE valeur.
+    const tdS = document.createElement('td');
+    tdS.textContent = (typeof snrDb === 'number' && isFinite(snrDb))
+      ? (snrDb >= 0 ? '+' : '') + snrDb.toFixed(0)
+      : '—';
     // DT — décalage temporel de CETTE station par rapport au créneau. Colonne
     // standard de WSJT-X, et le seul moyen de voir d'un coup d'œil si c'est
     // l'horloge d'en face ou la sienne qui dérive (voir calculerDt).
@@ -1344,7 +1488,16 @@ if(localStorage.getItem('rc_theme') === null){
     const tdM = document.createElement('td'); tdM.textContent = text;   // textContent : jamais de HTML depuis un décodage radio
     tr.append(tdH, tdF, tdDt, tdS, tdM);
     tr.title = 'Clic : préparer la réponse — Double-clic : préparer ET envoyer';
-    tr.addEventListener('click', () => { proposerReponse(text); afficherAppelSelectionne(text); });
+    // slotMs est capturé ici : c'est le créneau où CETTE station a émis, donc
+    // ce qui détermine la moitié de cycle qui lui appartient.
+    tr.addEventListener('click', () => {
+      proposerReponse(text); afficherAppelSelectionne(text);
+      retenirPariteCorrespondant(slotMs);
+    });
+    // slotMs passé à repondreEtEnvoyer plutôt que proposerReponse rappelé
+    // ici : cette fonction fait DÉJÀ préparation + affichage, et son chemin
+    // « RRR »/« 73 » appelle offrirLogQso — la doubler proposerait deux fois
+    // d'enregistrer le même QSO.
     tr.addEventListener('dblclick', () => repondreEtEnvoyer(text, slotMs));
     const tbody = document.getElementById('decodesBody');
     tbody.insertBefore(tr, tbody.firstChild);
@@ -1353,6 +1506,12 @@ if(localStorage.getItem('rc_theme') === null){
     // ─── Colonne gauche : compteurs + liste des CQ entendus ────────────────
     compteurDecodages++;
     const {call, grid} = extraireStation(text);
+    // Elle vient de réémettre : on reprend sa parité sur ce créneau-ci. Utile
+    // si elle change de moitié de cycle en cours de QSO — rare, mais alors
+    // c'est nous qui deviendrions le brouilleur.
+    if(correspondant && call === correspondant.call){
+      correspondant.parite = pariteDuCreneau(slotMs);
+    }
     if(call) indicatifsUniques.add(call);
     if(estCQ && call){ cqSeen.set(call, {freqHz, grid, ts: slotMs}); rendreCqList(); }
     majStatsSession();
@@ -1360,6 +1519,77 @@ if(localStorage.getItem('rc_theme') === null){
 
   // Propose une réponse plausible à partir d'un décodage cliqué — TOUJOURS
   // éditable avant envoi, jamais auto-transmis (voir note d'en-tête).
+  // ═══ PARITÉ — ne jamais émettre dans le créneau de celui qu'on appelle ═══
+  //
+  // En FT8 une station émet toujours sur la MÊME moitié du cycle de 30 s :
+  // soit les créneaux pairs, soit les impairs. Répondre, c'est donc émettre
+  // sur l'autre moitié. Signalé en trafic réel (19/08/2026) : « si je n'envoie
+  // pas la trame tout de suite en réponse, l'émission part en même temps que
+  // l'autre station émet au lieu de passer un tour ».
+  //
+  // C'était exact et c'était un vrai défaut : envoyerMessage() programmait sur
+  // `Math.ceil(now/15000)*15000`, LE PROCHAIN CRÉNEAU QUEL QU'IL SOIT. Répondre
+  // sans tarder tombait juste par hasard — parce que le prochain créneau se
+  // trouvait être le bon. Répondre une seconde trop tard le faisait tomber sur
+  // le créneau du correspondant : on émettait EN MÊME TEMPS que lui, aucun des
+  // deux n'entendait l'autre, et rien à l'écran ne l'expliquait.
+  //
+  // Aucun réglage à proposer : la bonne parité se DÉDUIT du créneau où la
+  // station a été entendue. On la mémorise avec l'indicatif auquel elle se
+  // rapporte, pour ne pas l'appliquer à un message adressé à quelqu'un d'autre.
+  let correspondant = null;          // {call, parite} ou null
+
+  function pariteDuCreneau(msDepuisEpoch){
+    return Math.floor(msDepuisEpoch / 15000) % 2;
+  }
+
+  // Le destinataire d'un message, c'est son PREMIER JETON — par construction du
+  // protocole. On le lit sur le champ réellement préparé plutôt que de réécrire
+  // une seconde règle d'extraction : ce fichier a déjà produit trois défauts
+  // par duplication d'une même règle, dont un sur le chemin par défaut.
+  function destinataireDuChamp(){
+    const champ = document.getElementById('txText');
+    const premier = (champ ? champ.value : '').trim().toUpperCase().split(/\s+/)[0];
+    return premier || '';
+  }
+
+  // Appelée après qu'un décodage a servi à préparer une réponse : on retient
+  // la parité DU CRÉNEAU OÙ CETTE STATION A ÉTÉ ENTENDUE.
+  function retenirPariteCorrespondant(slotMs){
+    const call = destinataireDuChamp();
+    // « CQ … » n'est adressé à personne : aucune parité à respecter, et
+    // l'opérateur choisit librement son tour.
+    if(!call || call === 'CQ' || call === 'QRZ'){ correspondant = null; return; }
+    correspondant = {call: call, parite: pariteDuCreneau(slotMs)};
+  }
+
+  // Choisit le créneau UTC où partira `texte`, et dit si un tour a été passé.
+  // Fonction séparée pour être éprouvable telle quelle : enfouie dans
+  // envoyerMessage — asynchrone, et qui engage le PTT — elle n'aurait pu être
+  // testée qu'à travers une réécriture, laquelle ne contraint qu'elle-même.
+  function creneauDEmission(maintenant, texte){
+    let prochain = Math.ceil(maintenant / 15000) * 15000;
+    // Moins d'une seconde ne suffit pas à préparer PTT + lecture audio.
+    if(prochain - maintenant < 1000) prochain += 15000;
+
+    // SUR LA BONNE MOITIÉ DU CYCLE. Si ce message est adressé à une station
+    // dont on connaît le créneau, on ne peut pas émettre dans le sien : mieux
+    // vaut PASSER UN TOUR (15 s) que d'émettre par-dessus elle, ce qui perd
+    // notre message ET le sien.
+    // La comparaison porte sur le destinataire RÉEL du texte qui va partir,
+    // pas sur la dernière station cliquée : l'opérateur a pu réécrire le champ.
+    let tourPasse = false;
+    const pourQui = (texte || '').trim().toUpperCase().split(/\s+/)[0];
+    if(correspondant && pourQui === correspondant.call){
+      const pariteVisee = 1 - correspondant.parite;
+      while(pariteDuCreneau(prochain) !== pariteVisee){
+        prochain += 15000;
+        tourPasse = true;
+      }
+    }
+    return {creneau: prochain, tourPasse: tourPasse};
+  }
+
   function proposerReponse(text){
     // PENDANT UNE SÉQUENCE, le champ appartient au séquenceur. `readOnly` ne
     // bloque que la saisie CLAVIER : un clic simple sur une ligne de décodage
@@ -1997,17 +2227,31 @@ if(localStorage.getItem('rc_theme') === null){
     // un message FT8 part toujours calé sur la grille, jamais "tout de suite".
     const now = Date.now();
     const maGeneration = generationTx;   // identité de CETTE demande, capturée AVANT l'attente
-    let prochain;
+    let prochain, tourPasse = false;
     if(creneauImpose > 0){
       // Le séquenceur a DÉJÀ choisi, en tenant compte de la parité. On ne
       // rejoue pas ce choix : deux calculs indépendants du même créneau, c'est
       // une occasion de diverger, pas une sécurité.
+      //
+      // C'est aussi pourquoi creneauDEmission() — la parité du chemin MANUEL,
+      // ajoutée séparément — n'est PAS consultée ici. Les deux mécanismes
+      // répondent à la même question ; les faire cohabiter sur le même envoi
+      // reviendrait à laisser l'émetteur trancher un désaccord, ce qu'aucun
+      // des deux ne verrait. Chemin séquenceur : creneauImpose. Chemin
+      // manuel : creneauDEmission. Jamais les deux.
       prochain = creneauImpose;
     } else {
-      prochain = Math.ceil(now/15000)*15000;
-      if(prochain - now < 1000) prochain += 15000;   // pas assez de marge pour préparer PTT+lecture
+      const plan = creneauDEmission(now, text);
+      prochain = plan.creneau;
+      tourPasse = plan.tourPasse;
     }
-    statusEl.textContent = `Programmé pour ${new Date(prochain).toISOString().slice(11,19)} UTC…`;
+    statusEl.textContent = `Programmé pour ${new Date(prochain).toISOString().slice(11,19)} UTC…`
+      // DIRE POURQUOI on attend plus longtemps que prévu. Sans ça, un tour
+      // passé ressemble à un blocage : l'opérateur clique, et il ne se passe
+      // rien pendant 30 s.
+      + (tourPasse
+         ? ` — un tour passé, ${correspondant.call} émet sur l'autre créneau`
+         : '');
     statusEl.className = 'tx-status wait';
     if(creneauImpose > 0 && prochain <= now){
       // Le créneau visé est déjà passé — le thread principal a été bloqué plus

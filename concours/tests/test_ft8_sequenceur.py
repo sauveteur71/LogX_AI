@@ -875,10 +875,15 @@ def test_calendrier_du_banc_fidele_au_source():
     src = _lire(FT8_HTML)
     envoyer = _extraire_fonction(src, 'envoyerMessage')
 
-    assert re.search(r'Math\.ceil\(\s*now\s*/\s*15000\s*\)\s*\*\s*15000', envoyer), \
-        'logx_ft8.html:1586 — la programmation sur le prochain multiple de 15 s a changé'
-    assert re.search(r'prochain\s*-\s*now\s*<\s*1000', envoyer), \
-        'logx_ft8.html:1587 — la marge de 1000 ms qui décale au créneau suivant a changé'
+    # Ces deux règles vivent dans creneauDEmission() depuis l'ajout de la
+    # parité du chemin manuel (PR #122) — le paramètre s'y nomme `maintenant`.
+    # On les cherche donc LÀ : les chercher encore dans envoyerMessage ferait
+    # rougir le test pour un déménagement, pas pour un changement de règle.
+    creneau = _extraire_fonction(src, 'creneauDEmission')
+    assert re.search(r'Math\.ceil\(\s*maintenant\s*/\s*15000\s*\)\s*\*\s*15000', creneau), \
+        'creneauDEmission — la programmation sur le prochain multiple de 15 s a changé'
+    assert re.search(r'prochain\s*-\s*maintenant\s*<\s*1000', creneau), \
+        'creneauDEmission — la marge de 1000 ms qui décale au créneau suivant a changé'
     assert re.search(r'setTimeout\(\s*resolve\s*,\s*prochain\s*-\s*Date\.now\(\)\s*\)', envoyer), \
         "logx_ft8.html:1590 — l'attente jusqu'au créneau a changé de forme"
 
@@ -893,6 +898,44 @@ def test_calendrier_du_banc_fidele_au_source():
         'le banc à jour AVANT de relire le moindre résultat')
     assert 'setInterval(verifierCycle, 250)' in src, \
         "logx_ft8.html:1314 — la cadence de 250 ms du timer d'examen a changé"
+
+
+def test_le_creneau_entendu_arrive_REELLEMENT_jusqu_au_sequenceur():
+    """TROU TROUVÉ PAR CONTRE-ÉPREUVE pendant la fusion de cette branche avec
+    main : remplacer `slotEntendu: slotEntendu` par `slotEntendu: undefined`
+    dans repondreEtEnvoyer ne faisait rougir AUCUN test.
+
+    Tous les tests de parité du séquenceur appellent `b.demarrer(slotEntendu=…)`,
+    c'est-à-dire seqDemarrer DIRECTEMENT. Ils prouvent que la fonction sait
+    déduire la bonne moitié de cycle — pas que le double-clic lui transmet
+    quoi que ce soit. C'est exactement le piège « un test écrit contre un
+    mannequin ne contraint que le mannequin », déjà payé trois fois ici.
+
+    Sans ce câblage, le séquenceur choisirait sa parité sans savoir quand la
+    station a été entendue — le défaut même qui a été corrigé sur le chemin
+    manuel (voir test_ft8_parite_creneau.py)."""
+    src = _lire(FT8_HTML)
+    corps = _sans_commentaires(_extraire_fonction(src, 'repondreEtEnvoyer'))
+
+    # Le paramètre doit exister ET être transmis, pas seulement déclaré.
+    assert 'function repondreEtEnvoyer(text, slotEntendu)' in corps, (
+        'repondreEtEnvoyer doit recevoir le créneau où la station a été entendue')
+    assert re.search(r'slotEntendu\s*:\s*slotEntendu', corps), (
+        'seqDemarrer doit recevoir slotEntendu — le passer à undefined laisse '
+        'le séquenceur choisir sa parité sans savoir quand la station a émis')
+
+    # Et le geste doit le fournir : un double-clic sur un décodage porte le
+    # créneau de CE décodage.
+    i = src.index("tr.addEventListener('dblclick'")
+    assert 'slotMs' in src[i:i + 200], (
+        'le double-clic sur un décodage doit transmettre son créneau : %r'
+        % src[i:i + 160])
+
+    # La colonne CQ ENTENDUS mène au même comportement (cqSeen retient `ts`).
+    j = src.index('repondreEtEnvoyer(messageCq()')
+    assert 'ts' in src[j:j + 120], (
+        'un double-clic dans la colonne CQ doit lui aussi porter le créneau : '
+        '%r' % src[j:j + 120])
 
 
 def test_duree_trame_conforme_au_codec_du_depot():
@@ -2331,10 +2374,26 @@ def test_le_creneau_vise_n_est_calcule_qu_une_seule_fois():
     envoyer = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'envoyerMessage'))
     assert 'creneauImpose' in envoyer, (
         'envoyerMessage doit accepter un créneau imposé')
+    # Le calcul du créneau a déménagé dans creneauDEmission() quand la parité
+    # du chemin MANUEL a été ajoutée (PR #122). La propriété est inchangée, et
+    # ce test en sort PLUS STRICT : on peut désormais exiger qu'envoyerMessage
+    # ne contienne AUCUN calcul de créneau en propre, ce que la formulation
+    # précédente — qui comparait deux positions dans le texte — ne pouvait pas
+    # demander.
+    assert 'Math.ceil(now/15000)' not in envoyer, (
+        'envoyerMessage ne doit plus calculer de créneau lui-même : cette '
+        'règle vit dans creneauDEmission(), et la dupliquer ici recréerait '
+        'exactement la divergence que ce test existe pour interdire')
     i_impose = envoyer.index('creneauImpose')
-    i_calcul = envoyer.index('Math.ceil(now/15000)')
+    i_calcul = envoyer.index('creneauDEmission')
     assert i_impose < i_calcul, (
         'le créneau imposé doit court-circuiter le calcul, pas le suivre')
+    # Et le calcul manuel doit être dans la branche ALTERNATIVE, pas exécuté
+    # puis écrasé : sinon les deux mécanismes tourneraient tous les deux.
+    assert re.search(r'\}\s*else\s*\{\s*const plan = creneauDEmission', envoyer), (
+        'creneauDEmission ne doit être appelée que si AUCUN créneau n\'est '
+        'imposé — deux mécanismes qui décident du même créneau finissent par '
+        'se contredire, et c\'est l\'émetteur qui tranche')
 
     # ET le filet : un créneau imposé peut être DÉJÀ PASSÉ si le thread
     # principal a été bloqué plus longtemps que prévu. Émettre alors placerait
