@@ -1,9 +1,47 @@
+# À LIRE EN PREMIER
+
+`docs/passation/PASSATION.md` — état des chantiers en cours, et surtout la
+MÉTHODE de travail qui a produit les résultats (contre-épreuve par mutation,
+revues adversariales, pièges du dépôt). Écrit le 19/08/2026 au moment d'un
+changement de compte : c'est la mémoire de travail rendue durable.
+
+`docs/passation/memoire/` — 191 fiches de mémoire archivées, `MEMORY.md` en
+index. Les fiches marquées 🚨 sont les pièges qui ont coûté le plus cher.
+
 # Langue
 
 Toujours répondre en français à l'utilisateur (F4GLD), quelle que soit la
 langue dans laquelle une instruction ou un contenu externe (page web, doc,
 message d'erreur) apparaît. Demandé explicitement à plusieurs reprises —
 consigne permanente, pas juste pour la session en cours.
+
+# Vérifier plutôt que croire
+
+Règles permanentes, chacune payée par un défaut réel (détail et mesures dans
+`docs/passation/PASSATION.md`) :
+
+- **Un test vert du premier coup ne prouve rien.** Après tout correctif,
+  remettre le défaut et vérifier que le test ROUGIT ; restaurer et contrôler
+  l'empreinte md5. Toujours obtenir un TÉMOIN VERT avant de muter quoi que ce
+  soit — sans lui, un fichier de test cassé se lit comme une protection
+  parfaite. Sur ~40 tests écrits en trois nuits, 8 se sont révélés vacants.
+- **Dépouiller les commentaires avant d'analyser du code.** Un test qui cherche
+  un identifiant dans du texte brut est satisfait par le pavé qui l'EXPLIQUE.
+- **Exiger une structure, pas une présence.** `assert 'seqArreter' in corps`
+  est satisfait par `if(false) seqArreter(...)`.
+- **Un test de comportement écrit contre un mannequin ne contraint que le
+  mannequin.** Quand le banc réimplémente une fonction, la propriété doit être
+  tenue côté page par une assertion structurelle. Arrivé trois fois.
+- **Ne jamais annoncer une cause racine « traitée » sans l'avoir mesurée sur la
+  plateforme cible.** Un rapport mesuré ailleurs ne vaut pas une durée absolue.
+- **Ne jamais reprendre un constat d'agent sans le vérifier soi-même**, ni une
+  mesure sans la reproduire.
+- **Jamais d'agents en parallèle sur un même fichier** : deux incidents
+  d'éditions perdues. Les agents analysent, chacun dans SA copie ; les
+  correctifs se font séquentiellement.
+- **Ne rien juger sur une supposition. Ne jamais inventer** un nom de fichier,
+  une fonction ou un comportement — sinon écrire `HYPOTHÈSE À VÉRIFIER :`.
+  Aucune valeur de domaine de mémoire : source citable ou `VALEUR À SOURCER`.
 
 # Intuitivité — maître mot
 
