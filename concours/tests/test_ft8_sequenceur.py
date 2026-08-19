@@ -606,7 +606,16 @@ function majBoutonEnvoyer(){
 // log « complet » exige les reports échangés, la grille et la distance.
 var __offreEnAttente = null;
 var __journal = [];
+// Fiches marquées NON ENREGISTRÉES dans le journal de session : trace laissée
+// quand une offre en attente est remplacée par le QSO suivant.
+var __nonEnregistres = [];
+function marquerNonEnregistre(call){ __nonEnregistres.push(call); }
 function offrirLogQso(call, infos){
+  // Fidèle à la page : une offre en attente pour une AUTRE station laisse une
+  // trace avant d'être remplacée.
+  if(__offreEnAttente && __offreEnAttente.call !== call){
+    marquerNonEnregistre(__offreEnAttente.call);
+  }
   __offreEnAttente = {call: call, infos: infos || null, tMs: NOW};
 }
 // __logEchoue : le vrai confirmerLogQso peut échouer (HTTP 400/500, réseau
@@ -734,6 +743,7 @@ function __etat(){
     parties: __emissions.filter(function(e){ return e.debutMs !== null && !e.annulee; }),
     journal: __journal,
     offreEnAttente: __offreEnAttente,
+    nonEnregistres: __nonEnregistres,
     // LE MESSAGE RÉELLEMENT AFFICHÉ. Sans lui, aucun test ne pouvait vérifier
     // POURQUOI une séquence s'arrête : les six gestes d'arrêt étaient
     // interchangeables aux yeux du banc, et les trois raisons distinctes
@@ -2753,6 +2763,164 @@ def test_un_doublon_refuse_par_le_serveur_n_entre_pas_au_journal_de_session():
     assert re.search(r'if\(!doublon\)\s*ajouterAuJournalSession', corps), (
         'le journal de session ne doit compter que les fiches RÉELLEMENT '
         'écrites : un doublon refusé (409) n\'en est pas une')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# §4octies. CE QUE L'ÉCRAN RACONTE — 3e revue, suite
+# ═══════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.parametrize('entete', ['CQ DX', 'CQ TEST', 'CQ POTA', 'CQ EU',
+                                    'CQ', 'QRZ'])
+def test_le_chemin_manuel_ne_prend_pas_la_directive_pour_un_indicatif(
+        banc, entete):
+    """BUG PRODUIT sur le mode LIVRÉ PAR DÉFAUT. Sur « CQ DX F4ABC JN18 »,
+    proposerReponse prenait parts[1] — la DIRECTIVE — pour l'indicatif, et
+    préparait « DX F4GLD JN15 » : un appel adressé à une station nommée « DX »,
+    qui n'existe pas.
+
+    Le séquenceur avait déjà sa fonction pour ça, écrite précisément après ce
+    constat sur SON chemin. Le manuel ne s'en servait pas. C'est la troisième
+    fois dans ce fichier qu'une règle en double copie produit un défaut."""
+    b = banc(niveau='manuel')
+    b.js('proposerReponse(%s);' % json.dumps('%s %s JN18' % (entete, CIBLE)))
+    attendu = '%s %s %s' % (CIBLE, MOI, MA_GRILLE)
+    assert b.etat()['champTx'] == attendu, (
+        '%r -> %r, attendu %r' % (entete, b.etat()['champTx'], attendu))
+
+
+def test_un_73_double_clique_logue_au_lieu_de_relancer_un_appel(banc):
+    """Double-cliquer un « 73 » qui nous est adressé n'est pas une demande
+    d'appel, c'est une demande de LOGGUER. seqSuite rendait bien 'FIN', et les
+    deux niveaux se contentaient de ne pas s'en servir : l'état retombait sur
+    le TX1 initial et on repartait pour un appel neuf vers une station qui
+    venait de dire au revoir. Le mode manuel, lui, proposait le log."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    assert b.demarrer(slotEntendu=0, message='%s %s 73' % (MOI, CIBLE)) is None, (
+        'aucune séquence ne doit être créée sur un 73 reçu')
+    et = b.etat()
+    assert et['offreEnAttente'] is not None, 'le QSO doit être proposé au log'
+    assert '73' in et['seqEtat'], (
+        "l'écran doit dire que le QSO est terminé : %r" % et['seqEtat'])
+    b.avancer(120000)
+    assert not b.etat()['parties'], 'aucune trame ne doit partir'
+
+
+def test_une_fiche_en_echec_laisse_une_trace_quand_le_qso_suivant_arrive(banc):
+    """Quand une écriture échoue, l'offre est laissée ouverte pour permettre de
+    réessayer — mais le QSO SUIVANT l'écrasait sans un mot : reports, grille,
+    distance, c'est-à-dire exactement ce qui avait été ajouté pour ne plus
+    loguer de fiche vide. En séquenceur, l'opérateur ne regarde pas.
+
+    On ne peut pas garder deux offres à l'écran ; on garde donc une TRACE dans
+    le journal de session, qui reste visible sur la page."""
+    b = banc(correspondant=dict(_correspondant(), parite=0))
+    b.js('NOW = 700;')
+    b.js('__logEchoue = true;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(400000)
+    assert b.etat()['offreEnAttente'] is not None, "l'offre doit rester ouverte"
+
+    # Un second QSO, avec une autre station, arrive et prend la place.
+    b.js('__logEchoue = false;')
+    b.js('offrirLogQso("SP9QQQ", {rst_sent: "-05", rst_rcvd: "-07"});')
+    et = b.etat()
+    assert CIBLE in et['nonEnregistres'], (
+        'la fiche perdue doit laisser une trace visible : %r'
+        % (et['nonEnregistres'],))
+
+    # ET LA PAGE, pas seulement le mannequin. Le test ci-dessus s'exécute contre
+    # le socle du banc, qui réimplémente offrirLogQso : vérifié par mutation, il
+    # reste vert quand on retire la garde de la page. C'est la quatrième fois de
+    # ce chantier — un test de comportement sur un mannequin ne contraint que le
+    # mannequin.
+    corps = _sans_commentaires(_extraire_fonction(_lire(FT8_HTML), 'offrirLogQso'))
+    assert re.search(r'qsoEnAttente\s*&&\s*qsoEnAttente\s*!==\s*call', corps), (
+        "offrirLogQso doit détecter le remplacement d'une offre en attente")
+    assert 'marquerNonEnregistre' in corps, (
+        'et laisser une trace de la fiche perdue')
+
+
+def test_sans_locator_l_etiquette_d_etape_ne_promet_pas_une_grille(banc):
+    """L'écran affichait « appel — ma grille » au moment précis où le message
+    partait SANS grille. Une étiquette d'étape ne doit pas pouvoir contredire
+    le message qu'elle décrit."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js("myGrid = '';")
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    et = b.etat()
+    assert 'ma grille' not in et['seqEtat'], (
+        "l'écran promet une grille alors qu'aucune ne part : %r" % et['seqEtat'])
+    assert 'locator' in et['seqEtat'], (
+        "l'écran doit dire ce qui manque : %r" % et['seqEtat'])
+
+
+def test_le_plafond_de_duree_est_annonce_quand_les_relances_sont_illimitees(banc):
+    """« (sans plafond) » était faux depuis l'ajout du plafond de DURÉE : un
+    compte à rebours de 15 minutes court en silence, et son message d'arrêt
+    accuse ensuite la station d'en face de ne pas répondre comme attendu."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)            # réglage livré : maxRelances = 0
+    et = b.etat()
+    assert 'sans plafond' not in et['seqEtat'], (
+        "l'écran affirme qu'il n'y a aucun plafond alors qu'un compte à "
+        'rebours court : %r' % et['seqEtat'])
+    assert 'min' in et['seqEtat'], (
+        "l'écran doit annoncer le plafond de durée : %r" % et['seqEtat'])
+
+
+def test_changer_de_mode_pendant_un_qso_le_DIT():
+    """SEQ_RAISONS['niveau'] existait et n'était JAMAIS visible : l'écouteur
+    appelait seqArreter (qui affiche la raison) puis seqMajUI() sans argument,
+    qui écrasait le message dans le même tick. L'opérateur voyait « Assisté :
+    le double-clic prépare la réponse » et n'apprenait jamais que son QSO
+    venait d'être abandonné.
+
+    Le rafraîchissement reste nécessaire quand AUCUNE séquence ne tournait —
+    seqArreter sort alors sans rien afficher — d'où la condition."""
+    src = _sans_commentaires(_lire(FT8_HTML))
+    # L'ÉCOUTEUR, pas la première occurrence : `seqArreter('niveau')` apparaît
+    # aussi dans seqExaminerCreneau, bien plus haut. La première version de ce
+    # test examinait cette occurrence-là et restait donc verte quoi qu'on fasse
+    # à l'écouteur. On s'ancre sur la ligne qui le caractérise — l'écriture du
+    # mode choisi dans localStorage.
+    #
+    # Et on COMPACTE avant de mesurer : le dépouillement des commentaires
+    # laisse les lignes vides en place, si bien qu'une fenêtre de 400
+    # caractères ne contenait plus que du blanc. Une fenêtre mesurée en
+    # caractères sur du texte troué ne mesure rien.
+    i = src.index('rc_ft8_seq_niveau', src.index('addEventListener'))
+    zone = re.sub(r'\n\s*\n', '\n', src[i:i + 1500])
+    assert not re.search(r"seqArreter\('niveau'\);\s*seqMajUI\(\);", zone), (
+        "seqMajUI() inconditionnel juste après seqArreter écrase le message "
+        "qu'il vient d'écrire")
+    assert 'avaitUneSequence' in zone or 'if(!' in zone, (
+        'le rafraîchissement doit être CONDITIONNEL')
+
+
+@pytest.mark.parametrize('geste,attendu', [
+    ("seqArreter('bouton');", 'STOP SÉQUENCE'),
+    ("txArmed = false;", 'Activer'),
+    ("seqNiveau = 'manuel';", "mode d'envoi"),
+])
+def test_chaque_geste_d_arret_affiche_SA_raison(banc, geste, attendu):
+    """Les raisons d'arrêt pouvaient être rendues inopérantes sans un seul test
+    rouge : aucun test n'inspectait le MESSAGE, seulement `seq is None`. Les
+    six gestes étaient donc interchangeables aux yeux du banc, et les raisons
+    distinctes ajoutées pour nommer la cause n'étaient contraintes par rien."""
+    b = banc(correspondant=_correspondant(muette=True))
+    b.js('NOW = 2000;')
+    b.demarrer(slotEntendu=0)
+    b.avancer(30000)
+    b.js(geste)
+    b.avancer(200000)
+    et = b.etat()
+    assert et['seq'] is None, 'la séquence devait s\'arrêter'
+    assert attendu in et['seqEtat'], (
+        'geste %r -> message %r, il devrait contenir %r'
+        % (geste, et['seqEtat'], attendu))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -1386,10 +1386,21 @@ if(localStorage.getItem('rc_theme') === null){
       return;
     }
     const parts = text.split(' ');
-    if(parts[0] === 'CQ'){
-      const call = parts[parts.length - 1].match(/^[A-Z0-9/]+$/) ? parts[1] : parts[1];
+    if(parts[0] === 'CQ' || parts[0] === 'QRZ'){
+      // La cible est le PREMIER JETON QUI EST UN INDICATIF, pas parts[1].
+      // Sur « CQ DX F4ABC JN18 » — ou CQ TEST, CQ POTA, CQ EU — parts[1] vaut
+      // la DIRECTIVE : le champ se remplissait avec « DX F4GLD JN15 », un
+      // appel adressé à une station nommée « DX », qui n'existe pas.
+      //
+      // Le séquenceur avait déjà sa fonction pour ça, écrite précisément après
+      // ce constat. Le chemin manuel — le mode LIVRÉ PAR DÉFAUT — ne s'en
+      // servait pas. On réutilise la même règle plutôt que d'en écrire une
+      // deuxième : c'est la troisième fois qu'une règle en double copie
+      // produit un défaut dans ce fichier.
+      const cible = seqCibleDepuisDecodage(text);
+      if(!cible) return;                 // « CQ » sans indicatif reconnaissable
       document.getElementById('txText').value =
-        `${parts[1]} ${myCall} ${grille4()}`.trim().toUpperCase();
+        `${cible} ${myCall} ${grille4()}`.trim().toUpperCase();
       return;
     }
     if(myCall && parts[0] === myCall){
@@ -2162,6 +2173,18 @@ if(localStorage.getItem('rc_theme') === null){
   let qsoEnAttente = null;
   let qsoInfosEnAttente = null;
   function offrirLogQso(call, infos){
+    // UNE FICHE EN ATTENTE NE S'ÉCRASE PAS EN SILENCE. Quand une écriture
+    // échoue, l'offre est laissée ouverte pour permettre de réessayer — mais
+    // le QSO SUIVANT appelait cette fonction et effaçait tout : reports,
+    // grille, distance, c'est-à-dire exactement ce qui avait été ajouté pour
+    // ne plus loguer de fiche vide. En séquenceur, l'opérateur ne regarde pas :
+    // la perte ne laissait aucune trace.
+    //
+    // On ne peut pas garder deux offres à l'écran ; on garde donc une TRACE
+    // dans le journal de session, qui reste visible sur la page.
+    if(qsoEnAttente && qsoEnAttente !== call){
+      marquerNonEnregistre(qsoEnAttente);
+    }
     qsoEnAttente = call;
     qsoInfosEnAttente = infos || null;
     document.getElementById('qsoPromptCall').textContent = call;
@@ -2248,6 +2271,21 @@ if(localStorage.getItem('rc_theme') === null){
   // du log serveur : redémarrer la page vide cette liste, le VRAI log (lui)
   // reste sur le serveur comme toujours.
   let compteurQsoSession = 0;
+  // Trace PERSISTANTE d'une fiche qui n'a pas pu être écrite. Elle ne compte
+  // pas dans le total de QSO — ce n'en est pas un — mais elle reste sous les
+  // yeux de l'opérateur, qui peut la ressaisir dans LOGBOOK.
+  function marquerNonEnregistre(call){
+    const conteneur = document.getElementById('sessionLog');
+    if(!conteneur) return;
+    if(compteurQsoSession === 0) conteneur.innerHTML = '';
+    const ligne = document.createElement('div');
+    ligne.className = 'session-log-row';
+    ligne.style.color = 'var(--red)';
+    ligne.innerHTML = '<span class="call">' + escFt8(call) + '</span>'
+                    + '<span>NON ENREGISTRÉ — à ressaisir</span>';
+    conteneur.insertBefore(ligne, conteneur.firstChild);
+  }
+
   function ajouterAuJournalSession(call, band, heure){
     compteurQsoSession++;
     document.getElementById('statQso').textContent = compteurQsoSession;
@@ -2384,6 +2422,15 @@ if(localStorage.getItem('rc_theme') === null){
   // JAMAIS atteint »), simplement déplacé du cas « elle répète » au cas « elle
   // alterne ». Comparer des RANGS, et non des égalités, ferme les deux.
   const SEQ_RANG = {TX1: 1, TX2: 2, TX3: 3, TX4: 4, TX5: 5};
+
+  // TX1 est le SEUL libellé qui dépende de la configuration : sans locator,
+  // le message part sous sa forme nue à deux indicatifs, et annoncer « ma
+  // grille » serait le contraire de ce qui est émis. Une étiquette d'étape ne
+  // doit pas pouvoir contredire le message qu'elle décrit.
+  function seqLibelleEtape(etape){
+    if(etape === 'TX1' && !grille4()) return 'appel (locator absent de CONFIG)';
+    return SEQ_ETAPES[etape] || etape;
+  }
 
   const SEQ_ETAPES = {
     TX1: 'appel — ma grille',
@@ -2666,6 +2713,18 @@ if(localStorage.getItem('rc_theme') === null){
 
     const maintenant = Date.now();
     const creneau = seqProchainCreneau(maintenant, etat.parite);
+    // DIRE À QUELLE HEURE ÇA PART. Entre le double-clic et la première
+    // émission il peut s'écouler jusqu'à 31,5 s — la parité impose parfois
+    // d'attendre un créneau de plus. Pendant tout ce temps l'écran n'affichait
+    // que « QSO avec F4ABC », sans rien qui bouge : rien ne distinguait une
+    // séquence qui attend son créneau d'une séquence bloquée. Le mode MANUEL,
+    // lui, affiche l'heure depuis toujours (« Programmé pour … UTC »).
+    const st = document.getElementById('txStatus');
+    if(st){
+      st.textContent = 'Programmé pour '
+        + new Date(creneau).toISOString().slice(11, 19) + ' UTC…';
+      st.className = 'tx-status wait';
+    }
     etat.slotAttendu = creneau + SEQ_SLOT_MS;   // c'est LÀ qu'elle pourra répondre
 
     if(seqTimerPreavis){ clearTimeout(seqTimerPreavis); seqTimerPreavis = null; }
@@ -2890,12 +2949,34 @@ if(localStorage.getItem('rc_theme') === null){
     const etatDepart = {cible: call, etape: 'TX1', grille: grille,
                         snrCible: snr, rstRecu: '', rstEnvoye: ''};
     let etapeDepart = 'TX1';
+    let qsoDejaConclu = false;
     if(infos.message){
       const lu = seqLire(etatDepart, [{text: infos.message}]);
       if(lu.action === 'reponse'){
         const suite = seqSuite(etatDepart, lu.extra);
-        if(suite !== 'FIN') etapeDepart = suite;
+        if(suite === 'FIN') qsoDejaConclu = true;
+        else etapeDepart = suite;
       }
+    }
+
+    // ELLE A DÉJÀ CONCLU. Double-cliquer un « 73 » qui nous est adressé n'est
+    // pas une demande d'appel : c'est une demande de LOGGUER. seqSuite rendait
+    // bien 'FIN', et les deux niveaux se contentaient de ne pas s'en servir —
+    // l'état retombait sur le 'TX1' initial et on repartait pour un appel neuf
+    // vers une station qui venait de dire au revoir. Le mode manuel, lui,
+    // proposait le log depuis toujours.
+    if(qsoDejaConclu){
+      offrirLogQso(call, {
+        rst_sent: '', rst_rcvd: etatDepart.rstRecu || '',
+        locator: etatDepart.grille || '', dist: 0,
+      });
+      const el = document.getElementById('seqEtat');
+      if(el){
+        el.textContent = '73 reçu de ' + call
+                       + ' — QSO terminé. Ajoute-le au log ci-dessous.';
+        el.className = 'tx-status';
+      }
+      return null;
     }
 
     if(seqNiveau === 'assiste'){
@@ -3136,9 +3217,14 @@ if(localStorage.getItem('rc_theme') === null){
     if(!etatEl) return;
     if(seq){
       etatEl.textContent = 'QSO avec ' + seq.cible + ' — '
-        + (SEQ_ETAPES[seq.etape] || seq.etape)
+        + seqLibelleEtape(seq.etape)
         + ' · relances ' + seq.relances
-        + (seq.maxRelances ? ' / ' + seq.maxRelances : ' (sans plafond)');
+        // « (sans plafond) » était faux depuis l'ajout du plafond de DURÉE :
+        // un compte à rebours de 15 minutes court en silence, et son message
+        // d'arrêt accusait ensuite la station d'en face. Dire les deux.
+        + (seq.maxRelances ? ' / ' + seq.maxRelances
+                           : ' (pas de plafond de relances, arrêt après '
+                             + Math.round(SEQ_DUREE_MAX_MS / 60000) + ' min)');
       etatEl.className = 'tx-status wait';
       return;
     }
@@ -3178,8 +3264,19 @@ if(localStorage.getItem('rc_theme') === null){
         try{ localStorage.setItem('rc_ft8_seq_niveau', seqNiveau); }catch(e){}
         // Changer de mode pendant une séquence l'ARRÊTE : la laisser tourner
         // pendant que l'écran annonce « manuel » serait le pire des deux.
+        // seqArreter appelle DÉJÀ seqMajUI(raison). Le rappel inconditionnel
+        // qui suivait écrasait le message dans le MÊME tick : changer de mode
+        // pendant un QSO tuait la séquence et affichait « Assisté : le
+        // double-clic prépare la réponse » — l'opérateur n'apprenait jamais
+        // que son QSO venait d'être abandonné. SEQ_RAISONS['niveau'] existait,
+        // et n'était jamais visible.
+        //
+        // Le rafraîchissement reste nécessaire quand AUCUNE séquence ne
+        // tournait : seqArreter sort alors sur `if(!seq) return;` sans rien
+        // afficher, et le libellé du nouveau mode doit apparaître.
+        const avaitUneSequence = !!seq;
         seqArreter('niveau');
-        seqMajUI();
+        if(!avaitUneSequence) seqMajUI();
       });
     }
     if(selRelances){
