@@ -60,21 +60,68 @@ doit etre ultra logique malgré tout ce qu'il peut faire ».
   payer en confusion. La complexité doit rester DISPONIBLE, jamais IMPOSÉE :
   un utilisateur ne doit pas pouvoir se perdre, quel que soit ce que le
   logiciel sait faire par ailleurs.
-- Mécanisme déjà en place à réutiliser systématiquement (ne pas en réinventer
-  un autre) : `localStorage.rc_ui_mode` (`'simple'`/`'expert'`) + classe CSS
-  `expert-only`, masquée globalement par `concours/logx_statusbar.js` sur
-  toutes les pages qui l'incluent (`body.simple-mode .expert-only{display:
-  none!important}`), avec un bouton bascule dans la barre de statut partagée
-  (accessible depuis n'importe quelle page, pas seulement CONFIG). Toujours
-  « masquer ≠ bloquer l'accès » : masquage CSS pur, ne jamais désactiver la
-  fonction sous-jacente ni l'endpoint serveur — un expert qui rebascule doit
-  tout retrouver intact.
-- Réflexe à chaque nouvelle fonctionnalité non triviale ajoutée : si elle
-  n'est pas indispensable au chemin critique d'un débutant (config minimale
-  → logger un QSO), lui donner `expert-only` dès sa création plutôt que
-  d'attendre un audit de rattrapage après coup — la quasi-totalité de
-  l'interface avait été construite sans y penser avant le 07/08/2026, un
-  audit ciblé a dû rattraper LOGBOOK et CONFIG en une fois.
+## L'AXE PRINCIPAL EST L'ACTIVITÉ, PAS UN NIVEAU DÉCLARÉ
+
+**Décision de F4GLD du 19/08/2026**, qui REMPLACE la doctrine précédente (le
+mode simple/expert comme mécanisme premier). Elle vient d'un échange avec un
+correspondant expérimenté, Didier, et F4GLD l'a explicitement adoptée :
+
+> « Si l'architecture tient compte de ça, pas besoin de mode débutant et
+> expert… un logiciel comme une super boîte à outils où on rentre très
+> facilement dedans et où, au début, on utilise du 144 en FM. Un peu plus tard
+> le 40 m en SSB. Plus tard toutes les bandes déca en SSB et FT8. Puis vient le
+> CW pour les courageux et motivés, et un jour DXpédition en solo. »
+
+**Le principe.** L'interface se règle sur ce que l'opérateur FAIT, pas sur ce
+qu'il DÉCLARE être. « Je fais du 144 FM » est un fait ; « je suis un expert »
+est un jugement, et un débutant y répond mal dans les deux sens — soit il se
+prive, soit il se noie. Le meilleur réglage est celui qu'on n'a pas à faire.
+
+**Conséquences pratiques :**
+
+- Une **page d'accueil par activité** (LOG V/UHF, LOG déca, LOG concours, LOG
+  DXpédition, LOG satellites…) est la porte d'entrée. L'activité choisie
+  détermine les bandes proposées, les colonnes utiles, les boutons contextuels
+  et ce qui disparaît de l'écran.
+- **Jamais un carnet par activité** : le carnet reste UNIQUE et chronologique
+  toutes bandes et tous modes confondus. L'activité est une VUE. Le filtrage
+  par portée concours+année existe déjà et a déjà provoqué une alerte de perte
+  de données réelle — multiplier les carnets multiplierait ce risque.
+- **Ne pas rallonger le chemin quotidien** : la page d'accueil doit se souvenir
+  de la dernière activité et permettre de reprendre en un geste. Simplifier
+  pour le débutant en compliquant pour l'habitué serait un échec.
+- **Progression par découverte** : les outils CW apparaissent quand on choisit
+  une activité CW, pas parce qu'on a coché une case quelque part.
+
+**Ce que devient le mode simple/expert.** Il n'est PAS supprimé — le mécanisme
+(`localStorage.rc_ui_mode` + classe CSS `expert-only`, masquée globalement par
+`concours/logx_statusbar.js` : `body.simple-mode .expert-only{display:none
+!important}`) est déployé sur les 15 pages et a coûté un audit entier le
+07/08/2026. Le retirer d'un coup serait une régression garantie. Il **cesse
+d'être l'axe premier** et devient un résidu, réservé à ce qu'aucune activité ne
+peut trancher :
+
+- la **plomberie de station** (dossier de sauvegarde, CAT, clés d'API, synchro,
+  ampli, multi-opérateur) — elle n'appartient à aucune activité ;
+- les **profondeurs à l'intérieur d'une même activité** (panadapter, SO2R,
+  filtres cluster avancés) — « LOG déca SSB » pour un débutant et pour un
+  habitué du contest, c'est la même activité et pas les mêmes besoins.
+
+Il doit s'éteindre progressivement à mesure que les activités le remplacent —
+jamais par un arrachage.
+
+**Ce qui ne change pas :** « masquer ≠ bloquer l'accès ». Masquage CSS pur,
+jamais de désactivation de la fonction sous-jacente ni de l'endpoint serveur.
+Un opérateur qui change d'activité doit tout retrouver intact.
+
+**Chantier en cours (19/08/2026)** : la PREMIÈRE activité, « LOG V/UHF », est
+construite de bout en bout pour valider le modèle avant de dérouler les autres.
+Si le modèle ne tient pas, on l'aura su au prix d'une activité, pas de dix-neuf
+pages refaites.
+
+**Préalable technique connu** : les 19 pages HTML redéfinissent CHACUNE leur
+propre palette de couleurs, il n'existe aucun fichier CSS partagé. Toute
+refonte visuelle qui ne commence pas par mutualiser ça se paiera 19 fois.
 - Le chemin critique lui-même (indicatif, sélection d'un concours déjà
   connu, saisie bande/mode/callsign/RST/échange, bouton d'enregistrement du
   QSO, navigation CONFIG↔LOGBOOK) ne doit JAMAIS être cachable, quel que soit
