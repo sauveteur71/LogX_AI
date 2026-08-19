@@ -47,8 +47,26 @@ function ft8SamplesPerSymbol(sampleRate){
 // blocs audio sautés pendant le décodage font dériver l'horloge du tampon,
 // que pousserEchantillons doit alors reprendre sur l'horloge réelle.
 //
-// Autrement dit, le décodage se sabotait lui-même : plus il durait, plus il
-// perdait d'audio, donc plus il devait resynchroniser.
+// Autrement dit, le décodage se sabote lui-même : plus il dure, plus il perd
+// d'audio, donc plus il doit resynchroniser.
+//
+// ⚠ CE QUE LA DÉCIMATION FAIT, ET CE QU'ELLE NE FAIT PAS. Elle divise le
+// blocage par 4 — c'est considérable, et cela suffit à faire repasser la
+// fenêtre d'analyse au-dessus des 14 s exigées par extraireFenetre, donc à
+// rétablir le décodage continu. Elle NE SUPPRIME PAS le symptôme.
+// Mesuré dans un vrai navigateur (Chrome 148 / Electron 42), pas seulement
+// sous le moteur des tests :
+//     avant  : 10 319 ms de blocage par créneau de 15 s
+//     après  :  2 576 ms
+// Or DERIVE_MAX_MS vaut 400 ms et un bloc audio 85,3 ms : le résiduel reste
+// 6,4 fois au-dessus du seuil de resynchronisation et 30 fois au-dessus d'un
+// bloc. Le compteur « N resynchro. audio » continuera donc de monter, et la
+// cascade se figera encore — moins longtemps.
+//
+// Le seul correctif qui rende le trou NUL est de sortir le décodage du thread
+// principal (Web Worker : l'entrée est un Float32Array transférable, la sortie
+// un petit tableau d'objets ; l'émission n'est pas concernée). Chantier
+// distinct, à ne pas greffer ici sans vérification en navigateur réel.
 //
 // CE QU'ON NE FAIT PAS. On ne descend pas systématiquement à 12 kHz : toutes
 // les cartes ne sont pas à 48 kHz (44,1 kHz reste courant) et un rééchantillon-
@@ -417,7 +435,8 @@ function ft8DecodeAudio(samples, sampleRate, hashTable, opts){
   const llr = ft8ExtractLlr(samples, sync, sampleRate, opts && opts.gain);
   const text = ft8DecodeLlr(llr, hashTable, (opts && opts.maxIters) || 20);
   if(!text) return null;
-  return { text, freqHz: sync.baseFreqHz, syncScore: sync.score,
+  return { text, freqHz: sync.baseFreqHz,
+           syncScore: sync.score / ft8SamplesPerSymbol(sampleRate),
            startSample: sync.startSample };
 }
 
@@ -444,7 +463,16 @@ function ft8DecodeAudioAll(samples, sampleRate, hashTable, opts){
     // déduit le DT (décalage temporel du signal reçu) : sans lui, la page
     // n'a aucun moyen de savoir si l'horloge du PC est juste. Voir
     // logx_ft8.html, calculerDt().
-    results.push({ text, freqHz: sync.baseFreqHz, syncScore: sync.score,
+    // Score NORMALISÉ par le nombre d'échantillons par symbole : c'est une
+    // somme de magnitudes de Goertzel, donc proportionnelle à la cadence
+    // d'échantillonnage. Non normalisé, il valait 36039 à 48 kHz et 9012 après
+    // décimation pour le MÊME signal — et il variait désormais de 23 % d'une
+    // carte son à l'autre (44,1 kHz décime par 3, 48 kHz par 4) contre 8 %
+    // avant. Un indice affiché à l'opérateur ne doit pas dépendre de son
+    // matériel. Le tri interne, lui, compare des scores d'un même appel : il
+    // est indifférent au facteur.
+    results.push({ text, freqHz: sync.baseFreqHz,
+                   syncScore: sync.score / ft8SamplesPerSymbol(sampleRate),
                    startSample: sync.startSample });
   }
   results.sort((a, b) => b.syncScore - a.syncScore);
