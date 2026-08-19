@@ -809,6 +809,9 @@ if(localStorage.getItem('rc_theme') === null){
   // Écart toléré entre l'horodatage MODÉLISÉ du tampon et l'horloge réelle,
   // avant resynchronisation. Voir le long commentaire ci-dessous.
   const DERIVE_MAX_MS = 400;
+  // Durée du dernier décodage, mesurée. Affichée dans le diagnostic : c'est la
+  // CAUSE des resynchronisations, et elle n'était visible nulle part.
+  let dernierBlocageMs = 0;
 
   function pousserEchantillons(chunk){
     if(bufStartMs === 0) bufStartMs = Date.now() - (chunk.length/sr*1000);
@@ -926,8 +929,20 @@ if(localStorage.getItem('rc_theme') === null){
   // Mais si TOUTES les stations reçues affichent le même décalage, c'est la
   // nôtre qui est fausse — d'où la MÉDIANE sur les dernières stations reçues,
   // insensible à une station isolée mal réglée.
-  function calculerDt(debutFenetreMs, startSample, slotMs){
-    return (debutFenetreMs + (startSample / sr) * 1000 - slotMs) / 1000;
+  // `cadence` EXPLICITE : depuis la décimation, startSample n'est plus exprimé
+  // dans la cadence de la carte son mais dans celle, réduite, à laquelle le
+  // décodage a réellement travaillé. Prendre `sr` par défaut donnerait un DT
+  // faux d'un facteur 4 — et silencieusement juste avant la décimation, ce qui
+  // est le pire cas : un paramètre optionnel qui marche par accident.
+  function calculerDt(debutFenetreMs, startSample, slotMs, cadence){
+    // OBLIGATOIRE, pas optionnelle. Le repli « cadence || sr » contredisait le
+    // commentaire ci-dessus qui le désigne comme le pire cas : il rendait
+    // l'oubli SILENCIEUX et juste par accident tant que la décimation
+    // n'existait pas. Un oubli doit être bruyant.
+    if(!(cadence > 0)){
+      throw new Error('calculerDt : cadence obligatoire depuis la décimation');
+    }
+    return (debutFenetreMs + (startSample / cadence) * 1000 - slotMs) / 1000;
   }
 
   // Seuil d'alerte — RAMENÉ DE 1,5 s À 0,6 s le 18/08/2026, parce qu'à 1,5 s
@@ -1168,15 +1183,59 @@ if(localStorage.getItem('rc_theme') === null){
         // 1,5 s trop tôt, et n'acceptait en pratique qu'un DT compris entre
         // -1,00 s et +0,12 s (voir le pavé de ft8FindSync). Un PC en retard
         // de 200 ms sur l'UTC ne décodait déjà presque plus rien.
-        const results = ft8DecodeAudioAll(fenetre.samples, sr, hashTable, {
-          centerSample: ((slotTermine - fenetre.debutMs) / 1000) * sr,
+        // DÉCIMATION AVANT DÉCODAGE. Le signal FT8 tient sous 3 kHz ; la carte
+        // son livre à 48 kHz. Décoder à la cadence d'entrée faisait travailler
+        // le banc de Goertzel et la recherche de synchro sur quatre fois plus
+        // d'échantillons que nécessaire, pour exactement la même information.
+        //
+        // Ce n'était pas qu'une question de lenteur. L'appel ci-dessous est
+        // SYNCHRONE sur le thread principal : pendant toute sa durée, ni la
+        // cascade ne se redessine, ni le ScriptProcessorNode qui collecte
+        // l'audio ne s'exécute. Les blocs sautés font dériver l'horloge du
+        // tampon, que pousserEchantillons doit alors reprendre — d'où le
+        // compteur « N resynchro. audio » qui grimpait sans fin. Le décodage
+        // se sabotait lui-même : plus il durait, plus il perdait d'audio.
+        //
+        // Mesuré en NAVIGATEUR RÉEL (Chrome 148 / Electron 42), fenêtre de
+        // 16,5 s à 48 kHz, 3 stations : 10 319 ms -> 2 576 ms, soit x4,0. Les
+        // 3 messages sont décodés dans les deux cas, DT identiques au centième
+        // près, et aucune perte de sensibilité au seuil du décodeur (mesurée).
+        //
+        // ⚠ LE SYMPTÔME EST DIVISÉ PAR 4, PAS SUPPRIMÉ. DERIVE_MAX_MS vaut
+        // 400 ms et un bloc audio 85,3 ms : les 2 576 ms résiduels restent
+        // 6,4 fois au-dessus du seuil de resynchronisation. Le compteur
+        // « N resynchro. audio » continuera de monter et la cascade se figera
+        // encore, moins longtemps. Ce qui change vraiment : la fenêtre repasse
+        // au-dessus des 14 s exigées par extraireFenetre, donc le décodage
+        // cesse de s'arrêter définitivement — le défaut que F4GLD décrivait
+        // par « il ne me propose plus d'autres stations ».
+        //
+        // Le seul correctif qui rende le trou NUL est un Web Worker. Chantier
+        // distinct : il ne doit pas être greffé ici sans vérification en
+        // navigateur réel. Le blocage mesuré est affiché dans le diagnostic
+        // ci-dessous pour que la cause soit VISIBLE, pas seulement l'effet.
+        const t0Decode = (typeof performance !== 'undefined' && performance.now)
+                       ? performance.now() : Date.now();
+        const dec = ft8Decimer(fenetre.samples, sr);
+        const results = ft8DecodeAudioAll(dec.samples, dec.sampleRate, hashTable, {
+          centerSample: ((slotTermine - fenetre.debutMs) / 1000) * dec.sampleRate,
         });
         for(const r of results){
-          const dt = calculerDt(fenetre.debutMs, r.startSample, slotTermine);
+          // startSample est exprimé dans la cadence DÉCIMÉE : c'est celle-là
+          // qu'il faut pour retomber sur des secondes. Réutiliser `sr` ici
+          // diviserait le DT par le facteur de décimation, sans que rien ne le
+          // signale — le bandeau d'horloge deviendrait muet.
+          const dt = calculerDt(fenetre.debutMs, r.startSample, slotTermine,
+                                dec.sampleRate);
           dtRecents.push(dt);
           if(dtRecents.length > 12) dtRecents.shift();   // médiane glissante
           ajouterDecodage(slotTermine, r.text, r.freqHz, r.syncScore, dt);
         }
+        // Blocage RÉELLEMENT mesuré sur cette machine, pour cet opérateur.
+        // Sans ça, le diagnostic n'affiche que la conséquence (le compteur de
+        // resynchro) et jamais la cause.
+        dernierBlocageMs = ((typeof performance !== 'undefined' && performance.now)
+                            ? performance.now() : Date.now()) - t0Decode;
         if(results.length) majAlerteHorloge();
         surveillerSilenceAnormal(fenetre.samples, results.length);
       } else {
@@ -1196,9 +1255,18 @@ if(localStorage.getItem('rc_theme') === null){
   function majDiagnosticRx(){
     const el = document.getElementById('rxDiag');
     if(!el) return;
-    el.textContent = derivesCumulees
-      ? derivesCumulees + ' resynchro. audio depuis le démarrage'
+    // On affiche la CAUSE à côté de l'effet. Un blocage supérieur à
+    // DERIVE_MAX_MS explique à lui seul les resynchronisations : sans ce
+    // chiffre, l'opérateur ne voit qu'un compteur qui monte sans savoir
+    // pourquoi, et peut croire son horloge ou sa carte son en cause.
+    const bloc = dernierBlocageMs
+      ? 'décodage ' + Math.round(dernierBlocageMs) + ' ms/créneau'
+        + (dernierBlocageMs > DERIVE_MAX_MS ? ' (au-dessus du seuil)' : '')
       : '';
+    const parts = [];
+    if(derivesCumulees) parts.push(derivesCumulees + ' resynchro. audio');
+    if(bloc) parts.push(bloc);
+    el.textContent = parts.join(' · ');
   }
 
   function ajouterDecodage(slotMs, text, freqHz, score, dt){
