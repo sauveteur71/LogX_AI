@@ -151,8 +151,13 @@ def page():
 
 def test_une_station_parfaitement_calee_donne_un_dt_nul(page):
     """La fenêtre commence 1 s avant le créneau (la marge de extraireFenetre)
+    # La cadence est OBLIGATOIRE depuis la décimation : startSample n'est
+    # plus exprimé dans la cadence de la carte son mais dans celle, réduite,
+    # à laquelle le décodage a réellement travaillé. Le repli « cadence || sr »
+    # rendait l'oubli silencieux — et juste par accident tant que la
+    # décimation n'existait pas.
     et le signal démarre pile au créneau : DT = 0."""
-    dt = page.eval(f'calculerDt(1000000 - 1000, 1.0 * {SR}, 1000000)')
+    dt = page.eval(f'calculerDt(1000000 - 1000, 1.0 * {SR}, 1000000, {SR})')
     assert abs(dt) < 0.01
 
 
@@ -161,14 +166,14 @@ def test_un_pc_en_avance_voit_toutes_les_stations_en_retard(page):
     ouvert 3 s trop tôt : le signal des correspondants arrive 3 s « en
     retard » dans notre fenêtre. Un DT positif sur TOUTES les stations est
     donc la signature de NOTRE horloge, pas de la leur."""
-    dt = page.eval(f'calculerDt(1000000 - 1000, (1.0 + 3.0) * {SR}, 1000000)')
+    dt = page.eval(f'calculerDt(1000000 - 1000, (1.0 + 3.0) * {SR}, 1000000, {SR})')
     assert abs(dt - 3.0) < 0.01
 
 
 def test_le_dt_est_signe(page):
     """Un signal qui commence AVANT l'ouverture du créneau donne un DT
     négatif — sans le signe, impossible de dire dans quel sens régler."""
-    dt = page.eval(f'calculerDt(1000000 - 1000, 0.4 * {SR}, 1000000)')
+    dt = page.eval(f'calculerDt(1000000 - 1000, 0.4 * {SR}, 1000000, {SR})')
     assert dt < 0
 
 
