@@ -13,6 +13,20 @@ poussé.
 
 ## [Non publié]
 
+### Ajouté
+
+- **FT8 — un curseur NIVEAU TX, parce que la consigne était inapplicable.** La
+  page demande, en gras, de régler la puissance par le niveau audio et de
+  garder **l'ALC à zéro**. Or ce niveau était figé à 90 % de la pleine échelle,
+  sans aucun réglage : restaient le mixeur Windows ou le gain d'entrée du
+  poste. Le curseur va de 5 à 100 % et se retient d'une session à l'autre.
+  Deux choix assumés : **90 % par défaut**, soit exactement ce qui partait
+  jusqu'ici — mettre à jour ne change rien sur l'air tant qu'on ne touche pas
+  au curseur ; et **plancher à 5 %, jamais 0** — un niveau nul émettrait un
+  silence en affichant « émission en cours », et on appellerait dans le vide
+  sans le savoir. Le bon réglage reste celui de VOTRE station : on descend
+  jusqu'à ce que l'ALC du poste ne bouge plus du tout.
+
 ### Corrigé
 
 - **VOACAP échouait EN SILENCE si LogX AI est installé trop profond.** Au-delà
