@@ -1798,6 +1798,14 @@ PTT_LIGNE_DUREE_MAX_S = 360
 # commencé (démarrage AudioContext, latence de la carte son).
 PTT_LIGNE_DUREE_MIN_S = 5
 
+# Quand la COUPURE elle-même échoue (port qui ne répond plus alors que la
+# ligne est peut-être encore haute), on réessaie. Abandonner après un seul
+# essai reviendrait à laisser un émetteur en l'air ; réessayer indéfiniment
+# créerait un minuteur éternel si le port a physiquement disparu — auquel cas
+# la ligne est de toute façon retombée avec l'alimentation de l'opto-coupleur.
+PTT_COUPURE_RETENTE_S = 5
+PTT_COUPURE_ESSAIS_MAX = 12
+
 _ptt_ligne_lock = threading.RLock()
 # Ce qui est RÉELLEMENT levé en ce moment, ou None. Contient le transport
 # exact utilisé pour lever la ligne : relâcher sur un AUTRE transport (port
@@ -1979,30 +1987,64 @@ def relacher_ptt_ligne(motif=''):
     # ordre et suffirait à interbloquer le serveur — un thread HTTP relâchant
     # le PTT contre un autre ouvrant le CAT, et plus rien ne répond, PTT
     # compris. La connexion persistante est donc lue AVANT, hors du verrou.
+    global _ptt_chien
     with _persistent_lock:
         entry = _persistent.get('default')
     with _ptt_ligne_lock:
-        _annuler_chien_locked()
+        # 🚨 ON COUPE D'ABORD, ON DÉCIDE ENSUITE. La version précédente
+        # annulait le chien de garde et effaçait l'état AVANT de tenter la
+        # coupure : si celle-ci échouait, plus rien ne réessayait jamais et
+        # l'état affirmait « on n'émet plus » pendant que la porteuse
+        # continuait. Deux constats CRITIQUES de la revue adversariale du
+        # 20/08/2026, vérifiés sur le code.
         actif = _ptt_ligne_active
-        _ptt_ligne_active = None
-        cibles = []
-        if actif:
-            cibles.append(actif['transport'])
-        if _ptt_dedie and _ptt_dedie['transport'] not in cibles:
-            cibles.append(_ptt_dedie['transport'])
-        if entry and entry['transport'] not in cibles:
-            cibles.append(entry['transport'])
-        if not cibles:
+        porteur = actif['transport'] if actif else None
+        secondaires = []
+        if _ptt_dedie and _ptt_dedie['transport'] is not porteur:
+            secondaires.append(_ptt_dedie['transport'])
+        if entry and entry['transport'] is not porteur \
+                and entry['transport'] not in secondaires:
+            secondaires.append(entry['transport'])
+        if porteur is None and not secondaires:
             # Rien d'ouvert : il n'y a par construction aucune ligne levée.
+            _annuler_chien_locked()
             return {'ok': True, 'ptt': False, 'rien_a_relacher': True}
-        ok = False
-        for transport in cibles:
-            if transport.baisser_lignes():
-                ok = True
-        if not ok:
-            return {'ok': False, 'ptt': None,
+
+        # Le PORTEUR en premier : c'est lui qui décide du verdict.
+        ok_porteur = porteur.baisser_lignes() if porteur is not None else None
+        # Les autres par précaution seulement — une ligne haute dont on aurait
+        # perdu la trace. Leur résultat ne peut PAS valoir succès à la place
+        # du porteur : c'était exactement le mensonge du « au moins un ».
+        ok_secondaires = [t.baisser_lignes() for t in secondaires]
+
+        if porteur is not None and not ok_porteur:
+            # ÉCHEC sur le transport qui porte la ligne. On garde l'état ET on
+            # RÉARME : abandonner après une seule tentative reviendrait à
+            # laisser un émetteur en l'air. Le compteur borne la relance pour
+            # ne pas créer un minuteur éternel si le port a disparu.
+            essais = (actif.get('essais_coupure') or 0) + 1
+            actif['essais_coupure'] = essais
+            _annuler_chien_locked()
+            if essais < PTT_COUPURE_ESSAIS_MAX:
+                _ptt_chien = threading.Timer(PTT_COUPURE_RETENTE_S,
+                                             _chien_de_garde,
+                                             args=(PTT_COUPURE_RETENTE_S,))
+                _ptt_chien.daemon = True
+                _ptt_chien.start()
+            return {'ok': False, 'ptt': None, 'essais': essais,
                     'error': "Impossible de reposer la ligne PTT — LA RADIO EST "
                              'PEUT-ÊTRE ENCORE EN ÉMISSION, coupe-la à la main'}
+
+        if porteur is None and secondaires and not any(ok_secondaires):
+            # On ne croyait rien émettre, mais on n'a pu toucher aucun port :
+            # le dire plutôt que de rendre un succès qui ne repose sur rien.
+            _annuler_chien_locked()
+            return {'ok': False, 'ptt': None,
+                    'error': "Aucun port n'a accepté l'ordre de reposer les "
+                             'lignes de contrôle'}
+
+        _annuler_chien_locked()
+        _ptt_ligne_active = None
     return {'ok': True, 'ptt': False, 'motif': motif}
 
 

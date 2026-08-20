@@ -662,3 +662,75 @@ def test_toutes_les_chaines_visibles_du_champ_PTT_sont_traduites():
                   if i18n.count(_json.dumps(t, ensure_ascii=False) + ':') != 7]
     assert not manquantes, (
         'chaînes absentes d\'au moins une des 7 langues : %r' % manquantes)
+
+
+# ─── Les deux CRITIQUES trouvés par revue adversariale (20/08/2026) ─────────
+
+class _PortQuiRefuseDeCouper(FauxPort):
+    """Un port qui lève la ligne mais REFUSE de la reposer.
+
+    C'est le sinistre : la porteuse reste sur l'air et l'ordre de couper
+    n'aboutit pas. Le logiciel n'a pas le droit d'annoncer que c'est réglé."""
+
+    def baisser_lignes(self, attente=0.3):
+        return False
+
+
+def test_un_echec_de_coupure_sur_le_PORTEUR_n_est_PAS_rattrape_par_un_autre_port():
+    """CRITIQUE 1a. La version d'origine faisait
+    `for t in cibles: if t.baisser_lignes(): ok = True` — le succès était
+    déclaré dès qu'UN transport quelconque répondait. Si le port qui PORTE
+    la ligne échouait et qu'un autre, sans aucun rapport, réussissait, la
+    fonction annonçait « PTT relâché » pendant que la porteuse continuait.
+
+    Ici : la ligne est sur un port dédié qui refuse de couper, tandis qu'un
+    transport CAT parfaitement sain existe à côté. Le verdict doit suivre le
+    PORTEUR."""
+    cfg = _cfg(cat_ptt_method='rts', cat_ptt_port='COM9')
+    # Un transport CAT sain sur COM4, qui répondra « oui » à la coupure.
+    cat._ensure_connected(cat.cat_settings(cfg))
+    o_open = cat._open_serial
+    cat._open_serial = _PortQuiRefuseDeCouper
+    try:
+        cat.set_ptt_ligne(cfg, True)          # ligne sur COM9, port récalcitrant
+        r = cat.relacher_ptt_ligne()
+    finally:
+        cat._open_serial = o_open
+    assert r['ok'] is False, (
+        "le succès d'un port SANS RAPPORT ne doit pas valoir coupure : %r" % r)
+    assert 'ENCORE EN ÉMISSION' in (r.get('error') or '')
+
+
+def test_un_echec_de_coupure_GARDE_l_etat_et_REARME_un_essai():
+    """CRITIQUE 1b. La version d'origine annulait le chien de garde et
+    effaçait l'état AVANT de tenter la coupure. Si la coupure échouait, plus
+    rien ne réessayait jamais, et `etat_ptt_ligne()` affirmait « on n'émet
+    plus » pendant que la ligne restait haute.
+
+    Abandonner après un seul essai, sur un émetteur, n'est pas une option."""
+    cfg = _cfg(cat_ptt_method='rts', cat_ptt_port='COM9')
+    o_open = cat._open_serial
+    cat._open_serial = _PortQuiRefuseDeCouper
+    try:
+        cat.set_ptt_ligne(cfg, True)
+        r = cat.relacher_ptt_ligne()
+        assert r['ok'] is False
+        assert cat.etat_ptt_ligne()['actif'] is True, (
+            "l'état doit continuer de dire qu'une ligne est peut-être haute")
+        with cat._ptt_ligne_lock:
+            assert cat._ptt_chien is not None, (
+                'un nouvel essai de coupure doit être réarmé')
+            cat._annuler_chien_locked()      # on ne laisse pas courir en test
+    finally:
+        cat._open_serial = o_open
+        with cat._ptt_ligne_lock:
+            cat._ptt_ligne_active = None
+            cat._fermer_dedie_locked()
+
+
+def test_la_relance_de_coupure_est_bornee():
+    """Un port physiquement disparu ne doit pas engendrer un minuteur
+    éternel — et dans ce cas la ligne est de toute façon retombée avec
+    l'alimentation de l'opto-coupleur."""
+    assert 0 < cat.PTT_COUPURE_RETENTE_S <= 30
+    assert 1 < cat.PTT_COUPURE_ESSAIS_MAX <= 60
