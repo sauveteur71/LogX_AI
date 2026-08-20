@@ -778,3 +778,46 @@ def test_poser_une_ligne_sur_un_port_FERME_est_un_ECHEC():
         "un port fermé ne peut pas avoir reposé la ligne")
     assert p.baisser_lignes() is False
     assert p._ser.rts is True, 'la ligne n\'a effectivement pas bougé'
+
+
+# ─── SO2R : le PTT matériel ne s'hérite pas d'une radio à l'autre ──────────
+
+def test_SO2R_le_PTT_serie_de_la_radio_1_ne_suit_PAS_le_focus_vers_la_radio_2():
+    """CRITIQUE trouvé en revue adversariale (20/08/2026), vérifié sur le code.
+
+    config_radio_active() ne recopie une clé que si sa jumelle cat2_* EXISTE ;
+    sinon la valeur de la radio 1 RESTE en place. Pour un débit ou une adresse
+    CI-V, hériter est au pire inutile. Pour le PTT, c'est un sinistre : avec
+    le focus sur la radio 2 et un cat_ptt_port réglé pour la radio 1,
+    port_ptt_effectif() rendait le port de la RADIO 1 — LogX AI levait donc la
+    ligne d'émission sur un poste pendant que l'écran en montrait un autre.
+
+    C'est précisément la double porteuse que le verrou TX de logx_so2r existe
+    pour empêcher, contournée par en dessous."""
+    import logx_so2r as so2r
+    brut = {'cat_enabled': True, 'cat_mode': 'native',
+            'cat_port': 'COM4', 'cat_ptt_method': 'rts', 'cat_ptt_port': 'COM9',
+            'cat2_enabled': True, 'cat2_mode': 'native', 'cat2_port': 'COM5'}
+
+    vue1 = so2r.config_radio_active(brut, radio=1)
+    assert cat.cat_settings(vue1)['ptt_method'] == 'rts'
+    assert cat.port_ptt_effectif(cat.cat_settings(vue1)) == 'COM9'
+
+    vue2 = so2r.config_radio_active(brut, radio=2)
+    s2 = cat.cat_settings(vue2)
+    assert s2['ptt_method'] == 'cat', (
+        'la radio 2 ne doit PAS hériter du PTT série de la radio 1 : %r' % s2)
+    assert s2['ptt_port'] == '', (
+        'le port PTT de la radio 1 ne doit pas suivre le focus : %r' % s2)
+
+
+def test_SO2R_la_radio_2_garde_SON_PROPRE_PTT_serie_quand_il_est_configure():
+    """Le garde-fou ci-dessus ne doit pas devenir une interdiction : une
+    station qui câble un boîtier d'interface sur CHAQUE poste doit pouvoir
+    s'en servir sur les deux."""
+    import logx_so2r as so2r
+    brut = {'cat_port': 'COM4', 'cat_ptt_method': 'rts', 'cat_ptt_port': 'COM9',
+            'cat2_port': 'COM5', 'cat2_ptt_method': 'dtr', 'cat2_ptt_port': 'COM6'}
+    s2 = cat.cat_settings(so2r.config_radio_active(brut, radio=2))
+    assert s2['ptt_method'] == 'dtr'
+    assert cat.port_ptt_effectif(s2) == 'COM6'

@@ -236,6 +236,25 @@ def config_radio_active(cfg, radio=None):
         source = cle.replace('cat_', 'cat%s_' % suffixe, 1)
         if source in cfg:
             cfg[cle] = cfg[source]
+    # ─── PTT MATÉRIEL : jamais d'héritage entre les deux radios ─────────────
+    #
+    # 🚨 DÉFAUT CRITIQUE TROUVÉ EN REVUE ADVERSARIALE (20/08/2026) et vérifié
+    # sur ce code. La boucle ci-dessus ne recopie que si la clé cat2_* EXISTE ;
+    # sinon la valeur de la radio 1 RESTE en place. Pour un débit ou une
+    # adresse CI-V, hériter est au pire inutile. Pour le PTT, c'est un
+    # sinistre : avec le focus sur la radio 2 et un `cat_ptt_port` réglé pour
+    # la radio 1, port_ptt_effectif() renvoyait le port de la RADIO 1 — donc
+    # LogX AI levait la ligne d'émission sur un poste pendant que l'écran en
+    # montrait un autre. Exactement les deux porteuses simultanées que le
+    # verrou TX de ce module existe pour empêcher.
+    #
+    # Le câblage d'un PTT est du MATÉRIEL propre à chaque poste : l'hériter
+    # n'est jamais correct. En l'absence de réglage explicite pour la radio
+    # visée, on retombe donc sur la commande CAT — le comportement historique,
+    # qui n'actionne aucune broche.
+    for cle in ('cat_ptt_method', 'cat_ptt_port'):
+        source = cle.replace('cat_', 'cat%s_' % suffixe, 1)
+        cfg[cle] = cfg.get(source, '')
     # OmniRig (Phase 1, MVP logiciel-seul) : quel numero de radio COTE
     # OMNIRIG (Rig1/Rig2) -- la radio 1 s'appelle omnirig_rig_num, pas
     # cat_omnirig_rig_num, donc hors de la boucle generique ci-dessus. Sans
