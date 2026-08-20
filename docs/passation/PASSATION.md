@@ -181,9 +181,26 @@ Un build de release est resté cassé deux jours sans que personne le sache
 
 2. **Sans CAT configuré, la page ne peut RIEN émettre** — `envoyerMessage` sort
    avant la synthèse de la forme d'onde — alors que son message conseille de
-   passer en VOX. Le conseil est donc impossible à suivre. Question ouverte
-   pour F4GLD : faut-il faire réellement marcher le VOX en jouant la forme
-   d'onde sans commander de PTT ? C'est un changement du chemin d'émission.
+   passer en VOX. Le conseil est donc impossible à suivre.
+
+   ✅ **TRANCHÉ PAR F4GLD LE 20/08/2026 : le VOX doit marcher réellement.** La
+   page doit jouer la forme d'onde dans la carte son sans commander de PTT ;
+   c'est le VOX du poste qui déclenche l'émission. Usage courant en FT8, et
+   c'est déjà ce que le message promet.
+
+   **Ce que cela engage, et qui doit être traité DANS le même lot** : la radio
+   peut alors passer en émission sans qu'aucune commande CAT ne soit envoyée,
+   donc **le logiciel ne peut plus la faire taire par CAT**. Les garde-fous
+   restants sont le bouton STOP et les cinq façons d'arrêter le séquenceur —
+   ils deviennent la SEULE barrière, et doivent être vérifiés comme tels (le
+   bouton STOP a déjà été trouvé « tenu par rien » une fois, PR #136). Le
+   point d'arrêt du son lui-même compte aussi : `logx_ft8.html` documente déjà
+   qu'une onde résiduelle « remet le poste en émission » sur une station en
+   VOX (voir les commentaires autour de la coupure de l'oscillateur), et que
+   « laisser le son partir n'arrête rien sur une station en VOX ». Couper le
+   PTT ne suffira plus : il faudra couper le SON, et le prouver.
+
+   Chantier non encore ouvert au 20/08/2026.
 
 3. ✅ **TRAITÉ — deux stations distantes de moins de 50 Hz : la seconde
    n'était jamais décodée.** `logx_ft8_dsp.js`, `minFreqSeparationHz`
