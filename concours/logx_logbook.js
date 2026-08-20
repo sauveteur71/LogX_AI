@@ -1885,18 +1885,11 @@ document.addEventListener('click', e => {
 // radio vient de nous dire où ELLE est déjà — repousser une commande QSY à ce
 // moment-là créerait une boucle poll->QSY->poll inutile, voire nuisible si un
 // autre logiciel pilote la même radio sur le bus CI-V).
-// Modes NUMÉRIQUES pour la puissance TX automatique (protection du final,
-// réglage CONFIG > RADIO > PUISSANCE TX AUTOMATIQUE PAR MODE) — reprend la
-// même famille que MODES_NUMERIQUES (logx_cat.py, normaliser_mode) plutôt que
-// d'inventer une 3e liste ; RTTY est ajouté ici bien qu'il ait sa propre
-// table de conversion CAT dédiée côté serveur (MODE_RTTY_PAR_MARQUE) — il
-// reste, comme FT8/FT4, un mode à 100% de cycle de service concerné par la
-// protection du final au même titre.
-const MODES_NUMERIQUES_PUISSANCE = new Set([
-  'FT8', 'FT4', 'FT2', 'RTTY', 'PSK', 'PSK31', 'PSK63', 'JS8', 'JS8CALL',
-  'MSK144', 'Q65', 'JT65', 'JT9', 'MFSK', 'OLIVIA', 'DIGI', 'DATA', 'DIGITAL',
-]);
-
+// La table MODES_NUMERIQUES_PUISSANCE a été DÉPLACÉE dans
+// concours/logx_puissance_auto.js, chargé par cette page et par la page FT8.
+// Elle n'est pas redéclarée ici : un `const` de même nom masquerait la
+// propriété posée sur window par le module, et on se retrouverait avec deux
+// tables à tenir à jour — dont l'une, silencieusement, ne serait plus lue.
 // ─── SOURCE DU QSO : radio pilotée, ou poste que le PC ne commande pas ─────
 //
 // Voir le commentaire du bloc #posteSourceGroup dans logx_logbook.html pour le
@@ -1993,23 +1986,17 @@ function _qsyVersRadio(){
 // Puissance TX automatique par mode (protection du final en numérique) —
 // réglage CONFIG > RADIO, DÉSACTIVÉ PAR DÉFAUT (aucun changement de
 // comportement tant que l'opérateur ne l'a pas coché explicitement, voir
-// CLAUDE.md section Intuitivité). Repli sûr à chaque étape : rien n'est
-// poussé si le réglage est désactivé, si la config n'a jamais été
-// sauvegardée sur CE poste (localStorage.logx_config vide/absent, même
-// convention que contestActif()/initFromConfig() ci-dessus), ou si la
-// puissance correspondant au mode courant n'est pas renseignée (un champ
-// vide ne doit JAMAIS se traduire par 0 W poussé sur l'air).
+// CLAUDE.md section Intuitivité).
+//
+// La règle elle-même — table des modes numériques, clés de configuration,
+// replis sûrs — vit maintenant dans concours/logx_puissance_auto.js, parce
+// qu'elle doit servir AUSSI à la page FT8 : c'est elle qui émet réellement en
+// FT8, et elle n'appliquait donc aucune protection. Deux copies de la table
+// divergeraient au premier mode ajouté, en silence — un mode oublié d'un côté
+// ne lève aucune erreur, il laisse simplement passer la pleine puissance.
 function _puissanceAutoVersRadio(){
-  let cfg = {};
-  try{ cfg = JSON.parse(localStorage.getItem('logx_config') || '{}'); }catch(e){}
-  if(!cfg.cat_power_auto_enabled) return;
-  const brut = MODES_NUMERIQUES_PUISSANCE.has(currentMode)
-    ? cfg.cat_power_digital_w : cfg.cat_power_phone_w;
-  const watts = parseInt(brut, 10);
-  if(!(watts > 0)) return;   // champ vide/0/non numérique -> on ne touche à rien
-  fetch('/rig/set_power', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({watts})
-  }).catch(()=>{});
+  if(typeof appliquerPuissanceAuto !== 'function') return;
+  appliquerPuissanceAuto(currentMode);
 }
 
 function pickBand(band, opts){

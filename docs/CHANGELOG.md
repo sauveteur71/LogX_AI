@@ -39,6 +39,26 @@ poussé.
 
 ### Corrigé
 
+- **La protection de puissance en numérique ne s'appliquait pas là où on
+  émet.** Le réglage « puissance TX automatique par mode » (CONFIG > RADIO,
+  décoché par défaut) sert à protéger le final : un mode numérique émet à
+  100 % du cycle de service quand la phonie et la CW n'y sont pas. Mais il
+  n'était poussé vers la radio **que** par le sélecteur de bande/mode du
+  LOGBOOK. Si vous ouvrez MODE NUMÉRIQUE → FT8 directement — le chemin
+  naturel — votre poste restait sur son réglage phonie, et chaque créneau
+  partait à cette puissance-là pendant 12,6 s en porteuse continue. Exactement
+  ce que le réglage existe pour éviter, pendant que la page vous présentait le
+  curseur NIVEAU TX comme le réglage de puissance du mode. La protection est
+  maintenant appliquée aussi sur la page FT8, au moment où vous activez
+  l'émission.
+  **Et surtout, elle DIT ce qui s'est passé.** L'ancien code partait en
+  « envoie et oublie » : un refus était strictement invisible. Or le refus est
+  le cas le plus courant — le réglage de puissance n'est pas disponible en
+  CI-V (Icom/Xiegu), parce que la commande CI-V règle un niveau relatif et non
+  des watts, et il exige le pilotage natif. La page affiche désormais l'un des
+  trois : la puissance appliquée, « radio non pilotée, règle-la à la main », ou
+  le motif exact du refus. Un opérateur d'IC-7300 sait donc qu'il doit régler
+  son poste lui-même, au lieu de croire son final protégé.
 - **VOACAP échouait EN SILENCE si LogX AI est installé trop profond.** Au-delà
   de **128 caractères** de chemin, `voacapl.exe` rend une erreur vide et toute
   la propagation s'arrête, avec un message qui n'explique rien. Un OneDrive
