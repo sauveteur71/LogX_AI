@@ -22,11 +22,13 @@ F4GLD, sur son matériel, peut l'établir. Ils prouvent que LogX AI pose et
 repose les bonnes lignes aux bons moments.
 """
 import os
+import re
 import sys
 import threading
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CONCOURS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, CONCOURS)
 
 import pytest  # noqa: E402
 
@@ -541,3 +543,85 @@ def test_couper_n_attend_pas_indefiniment_un_verrou_de_port_occupe():
         assert port._ser.rts is False
     finally:
         port._lock.release()
+
+
+# ─── CONFIG : un profil ne doit pas heriter de la methode d'un autre ────────
+
+def _sans_commentaires_js(src):
+    """Dépouilleur JS. Sans lui, un test qui cherche un identifiant est
+    satisfait par le pavé de commentaire qui l'EXPLIQUE — piège documenté
+    dans le CLAUDE.md de ce dépôt, et payé plusieurs fois.
+
+    🚨 PAS DE `re.sub(r'/\\*.*?\\*/', '', src, flags=re.S)` ICI. Mesuré le
+    20/08/2026 sur logx_configuration.js : un chemin cité dans un
+    commentaire (« GET/POST /shifts/* dans logx_http.py ») joue le rôle de
+    faux ouvrant de bloc, et avec re.S il avale **23 671 caractères** —
+    dont `function applyFullConfigToForm` elle-même. Le même piège avait
+    déjà coûté 19 927 caractères sur logx_http.py avec « /debug/* ».
+
+    Le danger n'est pas l'échec, il est l'inverse : une assertion
+    d'ABSENCE appliquée à un fichier ainsi charcuté réussirait toujours.
+
+    On ne retire donc que les lignes ENTIÈREMENT commentées — suffisant
+    pour empêcher un commentaire d'imiter du code, sans risque de couper
+    à l'intérieur d'une chaîne."""
+    return '\n'.join(li for li in src.splitlines()
+                     if not li.lstrip().startswith('//'))
+
+
+def test_la_methode_de_PTT_est_REMISE_A_ZERO_a_chaque_profil_charge():
+    """DÉFAUT RÉEL TROUVÉ EN NAVIGATEUR (20/08/2026), pas déduit.
+
+    applyFullConfigToForm() restaure ~90 champs par une boucle
+    `if(c[k]!==undefined) ...` : une config qui ne PORTE PAS la clé laisse
+    donc en place la valeur du profil précédemment chargé. Inerte pour un
+    mot de passe. Pas pour ce champ-ci : charger un profil réglé sur la
+    ligne DTR puis un profil plus ancien qui ignore le champ laissait le
+    second en DTR, et le logiciel aurait levé une ligne série que personne
+    n'avait demandée pour CE profil-là.
+
+    Mesuré en navigateur avant correctif : {methode:'dtr'} au lieu de 'cat'.
+
+    Ce test est STRUCTUREL et exige un ORDRE : la remise à zéro doit venir
+    APRÈS la boucle, sinon la boucle la réécrase — ce qui a été observé, là
+    aussi en navigateur, avant de trouver le bon emplacement."""
+    chemin = os.path.join(CONCOURS, 'logx_configuration.js')
+    with open(chemin, encoding='utf-8') as f:
+        src = _sans_commentaires_js(f.read())
+    i_apply = src.index('function applyFullConfigToForm')
+    corps = src[i_apply:i_apply + 12000]
+    i_boucle = corps.index("'cat_ptt_method','cat_ptt_port'")
+    m = re.search(r"cat_ptt_method['\"]\)\s*;?[\s\S]{0,400}?===\s*'rts'[\s\S]{0,120}?'cat'", corps)
+    assert m, ('aucune remise à zéro explicite de cat_ptt_method : un profil '
+               "hériterait de la méthode d'émission du précédent")
+    assert m.start() > i_boucle, (
+        'la remise à zéro doit venir APRÈS la boucle de restauration, sinon '
+        'la boucle la réécrase')
+
+
+def test_la_valeur_par_defaut_du_select_est_la_commande_CAT():
+    """Le premier <option> fait foi tant que rien n'est charge : il ne doit
+    jamais s'agir d'une ligne serie."""
+    chemin = os.path.join(CONCOURS, 'logx_configuration.html')
+    with open(chemin, encoding='utf-8') as f:
+        html = f.read()
+    i = html.index("id=\"cat_ptt_method\"")
+    zone = html[i:i + 900]
+    premiere = re.search(r'<option value="([a-z]+)"', zone)
+    assert premiere and premiere.group(1) == 'cat', (
+        'la première option doit être la commande CAT : %r' % zone[:200])
+
+
+def test_le_choix_de_methode_PTT_n_est_PAS_reserve_au_mode_expert():
+    """Decision assumee : c'est le reglage qui separe « FT8 marche » de « le
+    poste emet sans sortir un watt » pour quiconque passe par un boitier
+    d'interface. Le masquer le reserverait a ceux qui savent deja qu'il
+    existe -- c'est-a-dire a personne parmi ceux qui en ont besoin."""
+    chemin = os.path.join(CONCOURS, 'logx_configuration.html')
+    with open(chemin, encoding='utf-8') as f:
+        html = f.read()
+    i = html.index('id="cat_ptt_method"')
+    debut = html.rfind('<div class="form-group', 0, i)
+    ouverture = html[debut:html.index('>', debut) + 1]
+    assert 'expert-only' not in ouverture, (
+        'le choix de méthode PTT ne doit pas être expert-only : %r' % ouverture)

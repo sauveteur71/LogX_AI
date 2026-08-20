@@ -1653,23 +1653,37 @@ async function refreshCatPorts(){
 // Le port de la ligne PTT n'a de sens que si une ligne série est choisie ; le
 // montrer en permanence poserait une question sans objet à l'immense majorité
 // des opérateurs, qui pilotent leur poste en CAT direct.
-function majPttMethode(){
+function majPttMethode(portVoulu){
   const methode = (document.getElementById('cat_ptt_method') || {}).value || 'cat';
   const bloc = document.getElementById('catPttPortField');
   if (!bloc) return;
   const serie = (methode === 'rts' || methode === 'dtr');
   bloc.style.display = serie ? '' : 'none';
-  if (serie) refreshCatPttPorts();
+  // On repose le port MÊME quand le bloc est masqué, dès lors qu'une
+  // restauration l'impose (portVoulu fourni). Sinon un profil revenu en
+  // « commande CAT » gardait en mémoire le port du profil précédent : la
+  // valeur restait inerte, mais elle était réenregistrée à la sauvegarde et
+  // ressortait toute seule le jour où l'opérateur rebasculait sur RTS —
+  // avec un numéro de port qu'il n'avait jamais choisi pour ce profil-là.
+  if (serie || portVoulu !== undefined) refreshCatPttPorts(portVoulu);
 }
 
-async function refreshCatPttPorts(){
+async function refreshCatPttPorts(portVoulu){
   // Même patron que refreshCatPorts() (réplique voulue, pas de fonction
   // générique dans ce dépôt) : le port enregistré sert de REPLI, parce que la
   // liste arrive du serveur APRÈS la restauration de la config et que poser
   // `.value` sur un <select> encore vide échoue SANS ERREUR.
+  //
+  // `portVoulu` (chaîne, éventuellement vide) est passé par une RESTAURATION
+  // de config : elle fait alors autorité sur ce que le <select> affiche
+  // encore. Sans ça, charger un profil dont le port PTT est vide gardait le
+  // port du profil précédent — le même défaut de report que pour la méthode
+  // ci-dessus, trouvé en vérification navigateur le 20/08/2026.
   const sel = document.getElementById('cat_ptt_port');
   if (!sel) return;
-  const prev = sel.value || (window._cfgRestauree || {}).cat_ptt_port || '';
+  const prev = (portVoulu !== undefined)
+    ? portVoulu
+    : (sel.value || (window._cfgRestauree || {}).cat_ptt_port || '');
   // La première option est le cas COURANT, pas un port : un boîtier
   // d'interface n'expose qu'un seul port série, qui porte le CAT ET le PTT.
   const memeQueCat = '<option value="">— le même que le port CAT —</option>';
@@ -6262,14 +6276,28 @@ function applyFullConfigToForm(c) {
     applyUsageMode();
     if (c.cat_brand) updateCatModelOptions();
     if (c.cat_model && document.getElementById('cat_model')) document.getElementById('cat_model').value = c.cat_model;
-    // Après restauration : la méthode de PTT a été reposée par la boucle
-    // ci-dessus, mais le bloc « port de la ligne PTT » reste masqué tant que
-    // personne ne le rouvre — un opérateur rechargeant un profil en RTS ne
-    // reverrait plus son port. refreshCatPttPorts() y repose la valeur en
-    // s'appuyant sur _cfgRestauree, le <select> étant encore vide à cet
-    // instant (poser .value sur un select sans <option> échoue SANS ERREUR,
-    // piège déjà payé sur cat_model et cat_port).
-    majPttMethode();
+    // ─── Méthode de PTT : remise à ZÉRO explicite, pas un simple report ───
+    //
+    // 🚨 DÉFAUT TROUVÉ EN VÉRIFICATION NAVIGATEUR (20/08/2026). La boucle
+    // ci-dessus applique `if(c[k]!==undefined)` : une config qui ne PORTE PAS
+    // la clé laisse donc en place la valeur du profil précédemment chargé.
+    // Anodin pour un mot de passe ou un nom d'hôte — pas du tout ici. Charger
+    // un profil « DXpédition » réglé sur la ligne DTR, puis un profil plus
+    // ancien qui ignore ce champ, laissait le second en DTR : le logiciel
+    // aurait levé une ligne série que personne n'avait demandée pour CE
+    // profil-là. Mesuré en navigateur, pas déduit.
+    //
+    // Toute valeur absente ou non reconnue vaut donc « commande CAT », le
+    // comportement historique — la même règle que côté serveur
+    // (logx_cat.cat_settings).
+    const selPtt = document.getElementById('cat_ptt_method');
+    if (selPtt) {
+      selPtt.value = (c.cat_ptt_method === 'rts' || c.cat_ptt_method === 'dtr')
+        ? c.cat_ptt_method : 'cat';
+    }
+    // Même raisonnement pour le port : la valeur du profil chargé fait foi,
+    // y compris quand elle est vide (= le même port que le CAT).
+    majPttMethode(c.cat_ptt_port || '');
     if(c.op_name) document.getElementById('operator_name').value = c.op_name;
     if(c.op_call) document.getElementById('op_call').value = c.op_call;
     if(c.club) document.getElementById('club').value = c.club;
