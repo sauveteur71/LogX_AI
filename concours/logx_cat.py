@@ -1853,7 +1853,12 @@ def _duree_chien(duree_max_s):
     quand la page qui émettait a disparu."""
     try:
         demande = float(duree_max_s)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        # OverflowError : un entier trop grand pour un float. Ça n'arrive pas
+        # d'un appelant légitime (FT8 envoie 18, txAudioPtt une durée
+        # calculée), mais /rig/ptt accepte la valeur telle qu'elle vient du
+        # JSON. Sans cette capture, l'exception remontait — et si la ligne
+        # avait déjà été levée, la porteuse restait sans chien de garde.
         return PTT_LIGNE_DUREE_MAX_S
     if demande <= 0:
         return PTT_LIGNE_DUREE_MAX_S
@@ -1975,18 +1980,52 @@ def set_ptt_ligne(cfg, on, duree_max_s=None):
     if err:
         return {'ok': False, 'error': err}
     with _ptt_ligne_lock:
+        # ─── L'ORDRE DE CES ÉTAPES EST LE GARDE-FOU LUI-MÊME ───────────────
+        # Trois défauts corrigés ici d'un bloc, tous trouvés en revue
+        # adversariale le 20/08/2026 et vérifiés sur le code.
+
+        # 1. Une ligne DÉJÀ HAUTE sur un AUTRE transport doit être reposée
+        #    avant qu'on écrase sa référence. Sans ça — config changée entre
+        #    deux PTT ON sans relâchement — la première ligne restait haute
+        #    ET devenait inatteignable : deux porteuses, dont une orpheline
+        #    que plus aucun code ne savait couper.
+        precedent = _ptt_ligne_active
+        if precedent is not None and precedent['transport'] is not transport:
+            precedent['transport'].baisser_lignes()
+        _annuler_chien_locked()
+
+        # 2. La durée AVANT de lever. La calculer après laissait une porteuse
+        #    sans chien de garde si _duree_chien levait (mesuré : un
+        #    `duree_max` énorme dans le JSON de /rig/ptt donnait une
+        #    OverflowError, ligne haute, aucun minuteur armé).
+        duree = _duree_chien(duree_max_s)
+
         if not transport.regler_ligne(ligne, True):
+            _ptt_ligne_active = None
             return {'ok': False,
                     'error': "La ligne %s n'a pas pu être levée sur %s — port "
                              'perdu ?' % (ligne.upper(), port_ptt_effectif(settings))}
+
+        # 3. Le minuteur est DÉMARRÉ avant d'être publié. L'ancien code posait
+        #    `_ptt_chien` puis appelait `.start()` : si le thread ne démarrait
+        #    pas, le global était non-None et tout code qui testerait
+        #    « chien armé ? » aurait conclu que oui, alors que rien ne
+        #    couperait jamais. On repose la ligne plutôt que de croire à une
+        #    protection qui n'existe pas.
+        chien = threading.Timer(duree, _chien_de_garde, args=(duree,))
+        chien.daemon = True
+        try:
+            chien.start()
+        except Exception as e:
+            transport.baisser_lignes()
+            _ptt_ligne_active = None
+            return {'ok': False,
+                    'error': "Chien de garde impossible à armer (%s) — émission "
+                             'refusée plutôt que non surveillée' % e}
+        _ptt_chien = chien
         _ptt_ligne_active = {'transport': transport, 'ligne': ligne,
                              'port': port_ptt_effectif(settings),
                              'depuis': time.monotonic()}
-        _annuler_chien_locked()
-        duree = _duree_chien(duree_max_s)
-        _ptt_chien = threading.Timer(duree, _chien_de_garde, args=(duree,))
-        _ptt_chien.daemon = True
-        _ptt_chien.start()
     return {'ok': True, 'ptt': True, 'methode': ligne, 'chien_de_garde_s': duree}
 
 

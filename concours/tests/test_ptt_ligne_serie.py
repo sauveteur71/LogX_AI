@@ -821,3 +821,90 @@ def test_SO2R_la_radio_2_garde_SON_PROPRE_PTT_serie_quand_il_est_configure():
     s2 = cat.cat_settings(so2r.config_radio_active(brut, radio=2))
     assert s2['ptt_method'] == 'dtr'
     assert cat.port_ptt_effectif(s2) == 'COM6'
+
+
+# ─── set_ptt_ligne : l'ordre des étapes EST le garde-fou ───────────────────
+
+def test_une_ligne_deja_haute_sur_un_AUTRE_port_est_reposee_avant_la_reprise():
+    """Deux porteuses, dont une ORPHELINE. Si la config change entre deux
+    PTT ON sans relâchement intermédiaire, `_ptt_ligne_active` était écrasé
+    sans que la ligne précédente soit reposée : elle restait haute ET
+    devenait inatteignable — plus aucun code ne savait la couper, chien de
+    garde compris, puisqu'il ne vise que le transport courant.
+
+    ⚠️ PREMIÈRE VERSION VACANTE, trouvée par contre-épreuve. Elle enchaînait
+    deux ports DÉDIÉS (COM9 puis COM8) : la première ligne retombait alors
+    par la FERMETURE du transport dédié remplacé (_fermer_dedie_locked ->
+    close -> baisser_lignes), pas par le correctif visé. L'assertion était
+    satisfaite par un autre mécanisme — exactement le motif qui a déjà rendu
+    quatre tests vacants dans ce fichier.
+
+    Le scénario qui DISCRIMINE fait porter la première ligne par le transport
+    CAT PARTAGÉ, que rien ne ferme quand on ouvre ensuite un port dédié."""
+    # 1. Ligne sur le transport CAT partagé (port PTT vide = port du CAT).
+    cfg1 = _cfg(cat_ptt_method='rts')
+    cat._ensure_connected(cat.cat_settings(cfg1))
+    partage = FauxPort.ouverts[-1]
+    cat.set_ptt_ligne(cfg1, True)
+    assert partage.rts is True and partage.device == 'COM4'
+
+    # 2. Le port PTT change : un transport DÉDIÉ est ouvert sur COM9. Rien ne
+    #    ferme le transport CAT — seul le correctif peut reposer sa ligne.
+    cfg2 = _cfg(cat_ptt_method='rts', cat_ptt_port='COM9')
+    cat.set_ptt_ligne(cfg2, True)
+    dedie = FauxPort.ouverts[-1]
+    assert dedie.device == 'COM9' and dedie.rts is True
+    assert partage.ferme is False, (
+        'le banc ne discrimine plus : le transport CAT a été fermé, sa ligne '
+        'retomberait toute seule')
+    assert partage.rts is False, (
+        'la première ligne est restée haute et personne ne peut plus la '
+        'couper : deux porteuses simultanées, dont une orpheline'
+    )
+    cat.relacher_ptt_ligne()
+
+
+def test_une_duree_annoncee_aberrante_ne_laisse_PAS_une_porteuse_sans_chien():
+    """/rig/ptt accepte `duree_max` tel qu'il vient du JSON. Un entier trop
+    grand pour un float faisait lever _duree_chien APRÈS que la ligne ait été
+    levée : porteuse haute, aucun minuteur armé, et l'exception remontait en
+    500 — donc pas de PTT OFF non plus.
+
+    La durée est maintenant calculée AVANT de lever, et bornée."""
+    enorme = 10 ** 400          # int too large to convert to float
+    r = cat.set_ptt_ligne(_cfg(cat_ptt_method='rts'), True, duree_max_s=enorme)
+    assert r['ok'] is True, r
+    assert r['chien_de_garde_s'] == cat.PTT_LIGNE_DUREE_MAX_S
+    with cat._ptt_ligne_lock:
+        assert cat._ptt_chien is not None, 'aucun chien de garde armé'
+    cat.relacher_ptt_ligne()
+
+
+def test_un_chien_de_garde_impossible_a_armer_REFUSE_l_emission():
+    """Émettre sans surveillance est pire que ne pas émettre. Si le minuteur
+    ne démarre pas (plus de thread disponible), on repose la ligne au lieu de
+    publier un état qui laisserait croire à une protection inexistante."""
+    o_timer = cat.threading.Timer
+
+    class _TimerMort(o_timer):
+        def start(self):
+            raise RuntimeError("can't start new thread")
+
+    cat.threading.Timer = _TimerMort
+    try:
+        r = cat.set_ptt_ligne(_cfg(cat_ptt_method='rts'), True)
+    finally:
+        cat.threading.Timer = o_timer
+    assert r['ok'] is False, r
+    assert FauxPort.ouverts[-1].rts is False, (
+        'la ligne devait être reposée puisque rien ne la surveille')
+    assert cat.etat_ptt_ligne()['actif'] is False
+    # ⚠️ CETTE ASSERTION EST CELLE QUI DISCRIMINE, et elle manquait à la
+    # première version du test (trouvée vacante par contre-épreuve). Publier
+    # `_ptt_chien` AVANT `.start()` laisse un minuteur FANTÔME : le global est
+    # non-None alors que rien ne tourne, et tout code qui testerait « chien
+    # armé ? » conclurait que oui. Le reste du test passait malgré la
+    # mutation, puisque la branche d'échec reposait la ligne de toute façon.
+    with cat._ptt_ligne_lock:
+        assert cat._ptt_chien is None, (
+            'minuteur fantôme : non-None alors qu\'il n\'a jamais démarré')
