@@ -179,9 +179,29 @@ Un build de release est resté cassé deux jours sans que personne le sache
    Reste à faire, et F4GLD seul peut le faire : **l'essai sur de l'AIR RÉEL**.
    Ici le signal est synthétisé par la page, donc parfait.
 
-2. **Sans CAT configuré, la page ne peut RIEN émettre** — `envoyerMessage` sort
-   avant la synthèse de la forme d'onde — alors que son message conseille de
-   passer en VOX. Le conseil est donc impossible à suivre.
+2. ✅ **FAIT (20/08/2026, branche `fix/lot4-vox-echap-voacap`)** — sans CAT
+   configuré, la page ne fabriquait AUCUNE forme d'onde : `envoyerMessage`
+   sortait avant la synthèse, alors que son message conseillait de passer en
+   VOX. Le conseil était impossible à suivre.
+
+   **Ce que le correctif a dû faire, et qui ne saute pas aux yeux.** La
+   décision VOX est prise AVANT le bloc de sortie anticipée : laissée dedans,
+   le `return false` final s'y serait appliqué aussi et le correctif aurait été
+   mort-né sans que rien ne le signale. Et deux propriétés anodines avant
+   deviennent critiques, l'ancien code faisant l'inverse des deux :
+   `pttDemande` passe à VRAI (c'est lui qui rend le bouton STOP visible — il
+   était mis à FALSE, la radio aurait émis avec l'arrêt caché), et le chien de
+   garde reste ARMÉ (il était désarmé).
+
+   **La coupure n'a PAS eu à être écrite** : `jouerForme()` inscrivait déjà sa
+   source dans `sourcesTxVivantes` et `couperAudioTx()` l'arrête. C'est ce
+   chemin qui fait retomber le VOX faute de signal — vérifié avant de s'y fier.
+
+   **Reste à faire, et F4GLD seul peut le faire** : l'essai sur l'AIR. Qu'un
+   VOX réel se déclenche dépend du seuil du poste et du niveau de la carte
+   son ; aucun test ne peut le dire.
+
+   Décision d'origine, conservée pour le contexte :
 
    ✅ **TRANCHÉ PAR F4GLD LE 20/08/2026 : le VOX doit marcher réellement.** La
    page doit jouer la forme d'onde dans la carte son sans commander de PTT ;

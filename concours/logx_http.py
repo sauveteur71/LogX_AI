@@ -5939,12 +5939,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # et le clic sur ■ STOP laisserait sinon le verrou d'origine
             # orphelin, bug trouvé en revue adversariale 07/08/2026).
             if self.path == '/rig/cw':
-                verrou = so2r.verrouiller_tx(radio_active)
+                verrou = so2r.verrouiller_tx(radio_active, 'cw')
                 if not verrou['ok']:
                     self._json(verrou, 409)
                     return
             elif self.path == '/rig/stop':
-                so2r.deverrouiller_tx(radio_active)
+                # 'cw' et non un relâchement aveugle : /rig/stop est un arrêt
+                # CW, et Échap le déclenche dès qu'un pilote CW existe (coupe-
+                # circuit voulu, logx_theme_shortcuts.js). Sans cette
+                # restriction il levait AUSSI le verrou pris par /rig/ptt —
+                # celui du séquenceur FT8 — et un Échap réflexe pour fermer une
+                # popup rouvrait la porte à une émission de la radio 2 pendant
+                # que la radio 1 était encore sur l'air (20/08/2026).
+                so2r.deverrouiller_tx(radio_active, 'cw')
             # Pourquoi radio_active est réécrit plus haut pour /rig/stop (et pas
             # seulement utilisé pour deverrouiller_tx) : cfg_snap dérivé de cette
             # même valeur sert aussi à cat.stop_cw/tci.stop_cw/rig.stop_morse
@@ -6144,7 +6151,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = {}
             on = bool(payload.get('on'))
             if on:
-                verrou = so2r.verrouiller_tx(radio_active)
+                # 'ptt' : c'est par ici que passe le séquenceur FT8. Étiqueter
+                # la source empêche /rig/stop (arrêt CW, déclenché par Échap)
+                # de lever ce verrou-là — voir deverrouiller_tx().
+                verrou = so2r.verrouiller_tx(radio_active, 'ptt')
                 if not verrou['ok']:
                     self._json(verrou, 409)
                     return
@@ -6264,7 +6274,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # ON -> lecture -> PTT OFF), donc englobable directement --
                 # contrairement au CW WinKeyer/natif, fire-and-forget.
                 radio_active = so2r.focus()['focus']
-                verrou = so2r.verrouiller_tx(radio_active)
+                verrou = so2r.verrouiller_tx(radio_active, 'voix')
                 if not verrou['ok']:
                     self._json(verrou, 409)
                     return
@@ -6310,7 +6320,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Verrou TX (Phase 0 SO2R) : pas d'émission réelle si skip_ptt
             # (bouton "Tester" de CONFIG, indicatif fictif) -- rien à verrouiller.
             if not skip_ptt:
-                verrou = so2r.verrouiller_tx(radio_active)
+                verrou = so2r.verrouiller_tx(radio_active, 'voix')
                 if not verrou['ok']:
                     self._json(verrou, 409)
                     return
