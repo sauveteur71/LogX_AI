@@ -366,17 +366,25 @@ def test_l_infobulle_donne_le_critere_de_reglage_ET_le_piege_du_VOX():
         'de se déclencher :\n' + etiquette)
 
 
-def test_la_consigne_ALC_nomme_le_curseur_qui_permet_de_l_appliquer():
+def test_la_consigne_de_niveau_nomme_le_curseur_qui_permet_de_l_appliquer():
     """Le lot se justifie par « une consigne sans moyen de l'appliquer ne vaut
     rien ». Le moyen a été ajouté — encore faut-il que la consigne y renvoie :
     elle vit dans un panneau replié, à 90 lignes du curseur. Sinon le débutant
     lit « on règle par le niveau audio » et part chercher dans le mixeur de
-    Windows, exactement comme avant."""
+    Windows, exactement comme avant.
+
+    ANCRE CHANGÉE le 20/08/2026 : elle portait sur « ALC à ZÉRO », formulation
+    retirée sur décision de F4GLD après vérification à la source — le guide
+    officiel WSJT-X ne contient pas le mot ALC, et le manuel de l'IC-7300
+    prescrit au contraire de rester « within the ALC zone ». La PROPRIÉTÉ
+    testée n'a pas bougé d'un pouce : la consigne de niveau doit nommer le
+    curseur. Seul son ancrage textuel a suivi le nouveau critère.
+    """
     code = _code_sans_commentaires()
-    i = code.index('ALC à ZÉRO')
+    i = code.index('puissance HF commence tout')
     consigne = code[i:code.index('</li>', i)]
     assert 'NIVEAU TX' in consigne, (
-        'la consigne ALC doit nommer le curseur NIVEAU TX :\n' + consigne)
+        'la consigne de niveau doit nommer le curseur NIVEAU TX :\n' + consigne)
 
 
 def test_les_deux_chaines_visibles_sont_traduites():
