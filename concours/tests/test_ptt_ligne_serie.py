@@ -625,3 +625,40 @@ def test_le_choix_de_methode_PTT_n_est_PAS_reserve_au_mode_expert():
     ouverture = html[debut:html.index('>', debut) + 1]
     assert 'expert-only' not in ouverture, (
         'le choix de méthode PTT ne doit pas être expert-only : %r' % ouverture)
+
+
+def test_toutes_les_chaines_visibles_du_champ_PTT_sont_traduites():
+    """i18n : 7 langues, sans en oublier une seule.
+
+    Le moteur (logx_i18n.js) traduit par correspondance EXACTE du texte
+    français. Une chaîne absente d'UN dictionnaire ne provoque aucune
+    erreur : elle reste simplement affichée en français au milieu d'une
+    page traduite. C'est invisible pour qui ne parle pas la langue — d'où
+    ce test, et d'où le test de parité déjà présent dans le dépôt.
+
+    ⚠️ LES CHAÎNES SONT EXTRAITES DU HTML, jamais retapées ici. Les
+    retaper ferait porter le test sur ma transcription (accents, tirets
+    cadratins, guillemets français) et non sur ce que la page affiche
+    vraiment — et c'est précisément la clé que le moteur compare."""
+    html = open(os.path.join(CONCOURS, 'logx_configuration.html'),
+                encoding='utf-8').read()
+    i18n = open(os.path.join(CONCOURS, 'logx_i18n.js'), encoding='utf-8').read()
+
+    i = html.index('id="cat_ptt_method"')
+    debut = html.rfind('<div class="form-group', 0, i)
+    fin = html.index('</div>', html.index('input-note',
+                                          html.index('catPttPortField')))
+    zone = html[debut:fin]
+
+    textes = (re.findall(r'<label>([^<]+)</label>', zone)
+              + re.findall(r'<option value="[a-z]*">([^<]+)</option>', zone)
+              + re.findall(r'<div class="input-note">([^<]+)</div>', zone))
+    textes = [t.strip() for t in textes if t.strip()]
+    assert len(textes) >= 6, (
+        'extraction du HTML cassée : %d chaînes seulement' % len(textes))
+
+    import json as _json
+    manquantes = [t for t in textes
+                  if i18n.count(_json.dumps(t, ensure_ascii=False) + ':') != 7]
+    assert not manquantes, (
+        'chaînes absentes d\'au moins une des 7 langues : %r' % manquantes)
