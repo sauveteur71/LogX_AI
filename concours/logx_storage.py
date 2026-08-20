@@ -458,6 +458,50 @@ def stamp_qso_version(qso):
     return qso
 
 
+def _attribuer_ids_manquants():
+    """Donne un identifiant à tout QSO qui n'en a pas, au chargement.
+
+    DÉFAUT RÉEL, trouvé le 20/08/2026 dans le carnet de F4GLD. Un QSO sans
+    champ 'id' est **indélébile** : `/log/delete/<id>` fait `int()` sur l'URL
+    et compare `q.get('id') == qso_id`, `/log/update` cible pareil, et le
+    bouton de suppression de LOGBOOK appelle le premier avec `q.id`. Aucun de
+    ces chemins ne peut viser un QSO sans identifiant — l'opérateur n'a
+    AUCUN moyen de l'effacer depuis le logiciel.
+
+    Ce n'est pas un cas d'école : l'entrée trouvée était
+    `{"band":"144","call":"DL1AAA","num_sent":"001"}`, sans date ni heure. Un
+    ADIF mal formé, un import partiel ou un ajout par un outil tiers suffisent
+    à en produire une chez n'importe quel utilisateur.
+
+    L'identifiant attribué suit la même convention que le reste du carnet (un
+    entier, unique) et se cale au-dessus du plus grand déjà pris, pour ne
+    jamais entrer en collision avec un QSO existant ni avec un identifiant
+    réservé plus tard par reserve_qso_id_locked().
+
+    PORTÉE ASSUMÉE : l'attribution se fait EN MÉMOIRE. On ne déclenche pas
+    d'écriture disque depuis le chargement — ce module est celui qui a détruit
+    un carnet complet une fois, et un `save_log_to_disk()` au démarrage
+    toucherait au miroir de persistance incrémentale (_disk_ids) avant qu'il
+    soit établi. L'identifiant est donc recalculé à chaque démarrage tant que
+    le QSO n'a pas été touché ; il devient persistant dès la première écriture
+    qui le concerne — typiquement sa suppression, qui est justement le but.
+    """
+    manquants = [q for q in shared_log if not q.get('id')]
+    if not manquants:
+        return 0
+    pris = {q.get('id') for q in shared_log if isinstance(q.get('id'), int)}
+    suivant = (max(pris) + 1) if pris else int(time.time() * 1000)
+    for q in manquants:
+        while suivant in pris:
+            suivant += 1
+        q['id'] = suivant
+        pris.add(suivant)
+        suivant += 1
+    print(f"[LOG] {len(manquants)} QSO sans identifiant : identifiant attribue "
+          f"(sans lui, ils seraient impossibles a supprimer)")
+    return len(manquants)
+
+
 def _strip_stale_delta_versions():
     """Purge le marqueur '_v' des QSO fraîchement rechargés du disque.
 
@@ -1158,6 +1202,10 @@ def load_log_from_disk():
                 conn.close()
             shared_log[:] = [_qso_from_row(r) for r in rows]
             _strip_stale_delta_versions()
+            # Sur les DEUX chemins de chargement (base et migration JSON) : un
+            # QSO sans identifiant serait impossible à supprimer depuis le
+            # logiciel. Voir _attribuer_ids_manquants().
+            _attribuer_ids_manquants()
             # La mémoire vient d'être remplie DEPUIS la base : le miroir de
             # persistance incrémentale est exact, la première sauvegarde de la
             # session n'aura que le premier QSO à écrire (et non tout le carnet).
@@ -1173,6 +1221,10 @@ def load_log_from_disk():
             with open('shared_log.json', 'r', encoding='utf-8') as f:
                 shared_log[:] = json.load(f)
             _strip_stale_delta_versions()
+            # Sur les DEUX chemins de chargement (base et migration JSON) : un
+            # QSO sans identifiant serait impossible à supprimer depuis le
+            # logiciel. Voir _attribuer_ids_manquants().
+            _attribuer_ids_manquants()
             print(f"[LOG] Migration one-shot : {len(shared_log)} QSO "
                   f"shared_log.json -> {DB_FILE}")
             migration = True
